@@ -14,7 +14,14 @@
 
 - リモート: `https://github.com/rhing-official/DaiDai`（private）
 - デフォルトブランチ: `main`
-- `日記.md`（`/diary`スキルで生成）の更新は確認なしで即座にpushする運用（詳細は`.claude/skills/diary/SKILL.md`）。それ以外の通常のコード変更のpushは都度確認を取ること。
+- `/diary`実行時は、`日記.md`の更新に加えてその時点のFlutterプロジェクト一式の変更（`lib/`, `android/`, `ios/`等リポジトリ全体）も含めて確認なしで即座にpushする運用（詳細は`.claude/skills/diary/SKILL.md`）。`/diary`を経由しない通常のコード変更のpushは、これまで通り都度確認を取ること。
+
+## アカウント管理
+
+DaiDai関連でブラウザ操作・ログインが必要な場面（Firebase Console、Google Cloud Console、Google Play Consoleなど）では、個人アカウント（arataurusu@gmail.com）ではなく **`rhing.official@gmail.com`** でログインすること。GitHubの`rhing-official`組織アカウントと同様、Rhing名義の作業は専用アカウントに統一する。
+
+- Firebaseプロジェクトはこのアカウント（`rhing.official@gmail.com`）で作成済み
+- Firebase CLI / gcloud CLIなどのツールでログインする際も同アカウントを使う
 
 ## 技術スタック
 

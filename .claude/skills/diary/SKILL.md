@@ -1,6 +1,6 @@
 ---
 name: diary
-description: 今日の実装内容・詰まった点・次にやることを日記.mdにまとめて追記し、即座にgit push する。ユーザーが「/diary」と指示したときに使う。
+description: 今日の実装内容・詰まった点・次にやることを日記.mdにまとめて追記し、Flutterプロジェクト一式の変更とあわせて即座にgit push する。ユーザーが「/diary」と指示したときに使う。
 ---
 
 # /diary
@@ -38,14 +38,14 @@ description: 今日の実装内容・詰まった点・次にやることを日�
 
 ## 3. コミット・push
 
-日記.mdの更新は事前承認済みの操作。確認を取らずに以下を実行する。
+日記.mdおよびFlutterプロジェクト一式（`lib/`, `android/`, `ios/`, `macos/`, `linux/`, `windows/`, `web/`, `pubspec.yaml`, `firebase.json`, `firestore.rules`等、リポジトリ内の変更全般）の更新は事前承認済みの操作。確認を取らずに以下を実行する。
 
 ```bash
-git add 日記.md
+git add -A
 git commit -m "日記: YYYY-MM-DD"
 git push
 ```
 
 - upstreamが未設定の場合は `git push -u origin main`（または現在のブランチ）で設定する。
-- 日記.md以外のファイルは、ユーザーが明示的に含めるよう指示しない限りステージしない。
+- `git add -A`する前に`git status`で内容をざっと確認し、`.gitignore`で想定通り除外されているか（`build/`, `.dart_tool/`など）だけ確認する。シークレットらしきファイル（トークン・鍵ファイルなど）が含まれていないかにも注意する。心当たりのない不審なファイルがあれば、コミットせずユーザーに報告する。
 - pushが失敗した場合（コンフリクト、リモート未到達など）は、force pushなどで無理に解決せず、状況をユーザーに報告する。
