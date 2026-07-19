@@ -1,0 +1,54 @@
+{
+  "project_info": {
+    "project_number": "380243513330",
+    "project_id": "daidai-rhing",
+    "storage_bucket": "daidai-rhing.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:380243513330:android:6dd1974572756b100e656b",
+        "android_client_info": {
+          "package_name": "jp.rhing.daidai"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "380243513330-djse33vd5qct9jc5ve77qme73bn762h3.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "jp.rhing.daidai",
+            "certificate_hash": "98c34a08f1cba510d90ab60ed339dcb3ca895d84"
+          }
+        },
+        {
+          "client_id": "380243513330-n5mejgg1sberbkjhrtgf5qti6js9gf26.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAvO91qP3h5sidSHB6sYIOjpc8DaaYexOg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "380243513330-n5mejgg1sberbkjhrtgf5qti6js9gf26.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "380243513330-aj4lkc5tg1p9jl729tlok7afj483ui5f.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "jp.rhing.daidai"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
