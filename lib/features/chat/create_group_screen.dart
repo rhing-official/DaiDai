@@ -25,7 +25,10 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
   String? _errorMessage;
 
   Future<void> _addMember() async {
-    final rhingId = _rhingIdController.text.trim().toLowerCase();
+    final rhingId = _rhingIdController.text
+        .trim()
+        .toLowerCase()
+        .replaceFirst(RegExp(r'^@+'), '');
     if (rhingId.isEmpty) return;
 
     setState(() {
@@ -144,6 +147,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
                     controller: _rhingIdController,
                     decoration: const InputDecoration(
                       labelText: '相手のRhing ID',
+                      prefixText: '@',
                       border: OutlineInputBorder(),
                     ),
                     onSubmitted: (_) => _addMember(),
