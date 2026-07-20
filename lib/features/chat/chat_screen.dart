@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../models/message.dart';
 
-/// 縁側・広場（お部屋）どちらの会話でも使える汎用チャット画面。
+/// 一対・広場（お部屋）どちらの会話でも使える汎用チャット画面。
 /// メッセージの取得・送信方法は呼び出し元がstream/callbackとして渡す。
 class ChatScreen extends StatefulWidget {
   const ChatScreen({

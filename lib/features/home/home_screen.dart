@@ -10,7 +10,12 @@ import '../support/support_tab.dart';
 
 const _kOrange = Color(0xFFEE7800);
 
+/// サイドバー/下部ナビの切り替えしきい値。Material Design 3の
+/// medium windowサイズクラス（600dp）を採用する。
+const _kWideLayoutBreakpoint = 600.0;
+
 /// ホーム画面。語らい・身だしなみ・設定・運営の4タブで構成される。
+/// 画面幅に応じて、コンピューターUI（サイドバー）とモバイルUI（下部ナビ）を切り替える。
 class HomeScreen extends StatefulWidget {
   const HomeScreen({required this.currentUser, super.key});
 
@@ -24,6 +29,12 @@ class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
 
   static const _titles = ['語らい', '身だしなみ', '設定', '運営'];
+  static const _icons = [
+    Icons.forum_outlined,
+    Icons.face_outlined,
+    Icons.settings_outlined,
+    Icons.support_agent_outlined,
+  ];
 
   void _openAddChat() {
     Navigator.of(context).push(
@@ -50,7 +61,7 @@ class _HomeScreenState extends State<HomeScreen> {
           children: [
             ListTile(
               leading: const Icon(Icons.person_add_outlined),
-              title: const Text('縁側を始める'),
+              title: const Text('一対を始める'),
               subtitle: const Text('1対1で話す相手を追加する'),
               onTap: () {
                 Navigator.of(context).pop();
@@ -81,6 +92,52 @@ class _HomeScreenState extends State<HomeScreen> {
       const SupportTab(),
     ];
 
+    final isWide = MediaQuery.sizeOf(context).width >= _kWideLayoutBreakpoint;
+
+    final fab = _selectedIndex == 0
+        ? FloatingActionButton(
+            onPressed: _showAddMenu,
+            backgroundColor: _kOrange,
+            child: const Icon(Icons.add, color: Colors.white),
+          )
+        : null;
+
+    if (isWide) {
+      return Scaffold(
+        appBar: AppBar(
+          title: Text(
+            _selectedIndex == 0
+                ? '${_titles[0]}（@${widget.currentUser.rhingId}）'
+                : _titles[_selectedIndex],
+          ),
+        ),
+        body: Row(
+          children: [
+            NavigationRail(
+              selectedIndex: _selectedIndex,
+              onDestinationSelected: (index) {
+                setState(() => _selectedIndex = index);
+              },
+              labelType: NavigationRailLabelType.all,
+              indicatorColor: _kOrange.withValues(alpha: 0.2),
+              leading: fab,
+              destinations: [
+                for (var i = 0; i < _titles.length; i++)
+                  NavigationRailDestination(
+                    icon: Icon(_icons[i]),
+                    label: Text(_titles[i]),
+                  ),
+              ],
+            ),
+            const VerticalDivider(width: 1),
+            Expanded(
+              child: IndexedStack(index: _selectedIndex, children: tabs),
+            ),
+          ],
+        ),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: Text(
@@ -90,27 +147,16 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
       body: IndexedStack(index: _selectedIndex, children: tabs),
-      floatingActionButton: _selectedIndex == 0
-          ? FloatingActionButton(
-              onPressed: _showAddMenu,
-              backgroundColor: _kOrange,
-              child: const Icon(Icons.add, color: Colors.white),
-            )
-          : null,
+      floatingActionButton: fab,
       bottomNavigationBar: NavigationBar(
         selectedIndex: _selectedIndex,
         onDestinationSelected: (index) {
           setState(() => _selectedIndex = index);
         },
         indicatorColor: _kOrange.withValues(alpha: 0.2),
-        destinations: const [
-          NavigationDestination(icon: Icon(Icons.forum_outlined), label: '語らい'),
-          NavigationDestination(icon: Icon(Icons.face_outlined), label: '身だしなみ'),
-          NavigationDestination(icon: Icon(Icons.settings_outlined), label: '設定'),
-          NavigationDestination(
-            icon: Icon(Icons.support_agent_outlined),
-            label: '運営',
-          ),
+        destinations: [
+          for (var i = 0; i < _titles.length; i++)
+            NavigationDestination(icon: Icon(_icons[i]), label: _titles[i]),
         ],
       ),
     );

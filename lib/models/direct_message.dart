@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-/// 縁側（DirectMessage） - 1対1の会話空間
+/// 一対（DirectMessage） - 1対1の会話空間
 class DirectMessage {
   const DirectMessage({
     required this.dmId,

@@ -5,10 +5,10 @@ import '../models/direct_message.dart';
 import '../models/message.dart';
 
 abstract class DirectMessageRepository {
-  /// 2人のuserから縁側を取得する。無ければ作成する。
+  /// 2人のuserから一対を取得する。無ければ作成する。
   Future<DirectMessage> getOrCreateDirectMessage(AppUser a, AppUser b);
 
-  /// 自分が参加している縁側一覧を、最終メッセージが新しい順に取得する。
+  /// 自分が参加している一対一覧を、最終メッセージが新しい順に取得する。
   Stream<List<DirectMessage>> watchDirectMessages(String userId);
 
   Stream<List<Message>> watchMessages(String dmId);

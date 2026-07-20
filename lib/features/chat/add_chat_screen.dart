@@ -5,7 +5,7 @@ import '../../models/app_user.dart';
 import '../../providers/repository_providers.dart';
 import 'chat_screen.dart';
 
-/// 相手のRhing IDを入力して縁側（1対1チャット）を開始する画面。
+/// 相手のRhing IDを入力して一対（1対1チャット）を開始する画面。
 /// 仲間承認制などのスパム対策はフェーズ1の後続タスクで追加する。
 class AddChatScreen extends ConsumerStatefulWidget {
   const AddChatScreen({required this.currentUser, super.key});
@@ -22,7 +22,8 @@ class _AddChatScreenState extends ConsumerState<AddChatScreen> {
   String? _errorMessage;
 
   Future<void> _startChat() async {
-    final rhingId = _controller.text.trim().toLowerCase();
+    final rhingId =
+        _controller.text.trim().toLowerCase().replaceFirst(RegExp(r'^@+'), '');
     if (rhingId.isEmpty) return;
 
     setState(() {
@@ -41,7 +42,7 @@ class _AddChatScreenState extends ConsumerState<AddChatScreen> {
       }
       if (other.userId == widget.currentUser.userId) {
         setState(() {
-          _errorMessage = '自分自身とは縁側を開始できません';
+          _errorMessage = '自分自身とは一対を開始できません';
         });
         return;
       }
@@ -95,13 +96,14 @@ class _AddChatScreenState extends ConsumerState<AddChatScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('相手のRhing IDを入力して縁側を開始します。'),
+            const Text('相手のRhing IDを入力して一対を開始します。'),
             const SizedBox(height: 16),
             TextField(
               controller: _controller,
               autofocus: true,
               decoration: const InputDecoration(
                 labelText: '相手のRhing ID',
+                prefixText: '@',
                 border: OutlineInputBorder(),
               ),
               onSubmitted: (_) => _startChat(),
@@ -122,7 +124,7 @@ class _AddChatScreenState extends ConsumerState<AddChatScreen> {
                       height: 20,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : const Text('縁側を開始'),
+                  : const Text('一対を開始'),
             ),
           ],
         ),

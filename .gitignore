@@ -1,3 +1,9 @@
+# Obsidianノートへのシンボリックリンク（個人環境の絶対パス依存のためgit管理外）
+/docs/
+
+# Dart & Flutter DevToolsのローカル設定
+/devtools_options.yaml
+
 # Miscellaneous
 *.class
 *.log
