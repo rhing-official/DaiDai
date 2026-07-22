@@ -22,7 +22,7 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
   void initState() {
     super.initState();
     _hexController = TextEditingController(
-      text: ref.read(accentColorProvider).toHexString(),
+      text: ref.read(accentColorProvider).toHexString().replaceFirst('#', ''),
     );
   }
 
@@ -83,7 +83,8 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
                   textCapitalization: TextCapitalization.characters,
                   decoration: InputDecoration(
                     labelText: 'カラーコード',
-                    hintText: '#3D2EE0',
+                    prefixText: '#',
+                    hintText: '3D2EE0',
                     errorText: _errorText,
                     suffixIcon: IconButton(
                       icon: const Icon(Icons.check),
