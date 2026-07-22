@@ -1,6 +1,9 @@
 # Obsidianノートへのシンボリックリンク（個人環境の絶対パス依存のためgit管理外）
 /docs/
 
+# 一時的にダウンロードしたFirebase CLIスタンドアロンバイナリ（npm版導入により不要、環境依存の大容量バイナリ）
+/.tools/
+
 # Dart & Flutter DevToolsのローカル設定
 /devtools_options.yaml
 

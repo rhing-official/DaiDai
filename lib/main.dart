@@ -4,16 +4,18 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'features/app_gate.dart';
 import 'firebase_options.dart';
-import 'providers/ui_style_provider.dart';
+import 'providers/accent_color_provider.dart';
 import 'theme/app_theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  final initialUiStyle = await loadInitialUiStyle();
+  final initialAccentColor = await loadInitialAccentColor();
   runApp(
     ProviderScope(
-      overrides: [initialUiStyleProvider.overrideWithValue(initialUiStyle)],
+      overrides: [
+        initialAccentColorProvider.overrideWithValue(initialAccentColor),
+      ],
       child: const DaiDaiApp(),
     ),
   );
@@ -24,10 +26,10 @@ class DaiDaiApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final uiStyle = ref.watch(uiStyleProvider);
+    final accentColor = ref.watch(accentColorProvider);
     return MaterialApp(
       title: 'DaiDai',
-      theme: AppTheme.themeFor(uiStyle),
+      theme: AppTheme.theme(accentColor),
       home: const AppGate(),
     );
   }
