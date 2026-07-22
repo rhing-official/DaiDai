@@ -16,6 +16,7 @@ abstract class DirectMessageRepository {
   Future<void> sendTextMessage({
     required String dmId,
     required String senderId,
+    required String senderRhingId,
     required String content,
   });
 }
@@ -77,6 +78,7 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
   Future<void> sendTextMessage({
     required String dmId,
     required String senderId,
+    required String senderRhingId,
     required String content,
   }) async {
     final dmRef = _directMessages.doc(dmId);
@@ -87,6 +89,7 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
       conversationId: dmId,
       conversationType: 'dm',
       senderId: senderId,
+      senderRhingId: senderRhingId,
       content: content,
       contentType: 'text',
     );

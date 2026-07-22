@@ -1,14 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../../models/app_user.dart';
-import '../chat/add_chat_screen.dart';
-import '../chat/create_group_screen.dart';
 import '../chat/talks_tab.dart';
 import '../profile/profile_tab.dart';
 import '../settings/settings_tab.dart';
 import '../support/support_tab.dart';
-
-const _kOrange = Color(0xFFEE7800);
 
 /// サイドバー/下部ナビの切り替えしきい値。Material Design 3の
 /// medium windowサイズクラス（600dp）を採用する。
@@ -36,53 +32,6 @@ class _HomeScreenState extends State<HomeScreen> {
     Icons.support_agent_outlined,
   ];
 
-  void _openAddChat() {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => AddChatScreen(currentUser: widget.currentUser),
-      ),
-    );
-  }
-
-  void _openCreateGroup() {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => CreateGroupScreen(currentUser: widget.currentUser),
-      ),
-    );
-  }
-
-  Future<void> _showAddMenu() async {
-    await showModalBottomSheet<void>(
-      context: context,
-      builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.person_add_outlined),
-              title: const Text('一対を始める'),
-              subtitle: const Text('1対1で話す相手を追加する'),
-              onTap: () {
-                Navigator.of(context).pop();
-                _openAddChat();
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.groups_outlined),
-              title: const Text('広場を作る'),
-              subtitle: const Text('3人以上のグループを作る'),
-              onTap: () {
-                Navigator.of(context).pop();
-                _openCreateGroup();
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final tabs = [
@@ -94,70 +43,82 @@ class _HomeScreenState extends State<HomeScreen> {
 
     final isWide = MediaQuery.sizeOf(context).width >= _kWideLayoutBreakpoint;
 
-    final fab = _selectedIndex == 0
-        ? FloatingActionButton(
-            onPressed: _showAddMenu,
-            backgroundColor: _kOrange,
-            child: const Icon(Icons.add, color: Colors.white),
-          )
-        : null;
-
     if (isWide) {
       return Scaffold(
-        appBar: AppBar(
-          title: Text(
-            _selectedIndex == 0
-                ? '${_titles[0]}（@${widget.currentUser.rhingId}）'
-                : _titles[_selectedIndex],
+        body: SafeArea(
+          child: Row(
+            children: [
+              SizedBox(
+                width: 88,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    for (var i = 0; i < _titles.length; i++)
+                      _RailItem(
+                        icon: _icons[i],
+                        label: _titles[i],
+                        selected: _selectedIndex == i,
+                        onTap: () => setState(() => _selectedIndex = i),
+                      ),
+                  ],
+                ),
+              ),
+              const VerticalDivider(width: 1),
+              Expanded(
+                child: IndexedStack(index: _selectedIndex, children: tabs),
+              ),
+            ],
           ),
-        ),
-        body: Row(
-          children: [
-            NavigationRail(
-              selectedIndex: _selectedIndex,
-              onDestinationSelected: (index) {
-                setState(() => _selectedIndex = index);
-              },
-              labelType: NavigationRailLabelType.all,
-              indicatorColor: _kOrange.withValues(alpha: 0.2),
-              leading: fab,
-              destinations: [
-                for (var i = 0; i < _titles.length; i++)
-                  NavigationRailDestination(
-                    icon: Icon(_icons[i]),
-                    label: Text(_titles[i]),
-                  ),
-              ],
-            ),
-            const VerticalDivider(width: 1),
-            Expanded(
-              child: IndexedStack(index: _selectedIndex, children: tabs),
-            ),
-          ],
         ),
       );
     }
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          _selectedIndex == 0
-              ? '${_titles[0]}（@${widget.currentUser.rhingId}）'
-              : _titles[_selectedIndex],
-        ),
-      ),
-      body: IndexedStack(index: _selectedIndex, children: tabs),
-      floatingActionButton: fab,
+      body: SafeArea(child: IndexedStack(index: _selectedIndex, children: tabs)),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _selectedIndex,
         onDestinationSelected: (index) {
           setState(() => _selectedIndex = index);
         },
-        indicatorColor: _kOrange.withValues(alpha: 0.2),
+        labelBehavior: NavigationDestinationLabelBehavior.alwaysHide,
         destinations: [
           for (var i = 0; i < _titles.length; i++)
             NavigationDestination(icon: Icon(_icons[i]), label: _titles[i]),
         ],
+      ),
+    );
+  }
+}
+
+/// コンピューターUI（サイドバー）用のメニュー項目。
+/// NavigationRailの代わりに使い、項目同士を画面の高さいっぱいに分散配置する。
+class _RailItem extends StatelessWidget {
+  const _RailItem({
+    required this.icon,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = selected
+        ? Theme.of(context).colorScheme.primary
+        : Colors.grey[600];
+    return Tooltip(
+      message: label,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Icon(icon, color: color),
+        ),
       ),
     );
   }

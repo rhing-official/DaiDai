@@ -6,6 +6,7 @@ class Message {
     required this.conversationId,
     required this.conversationType,
     required this.senderId,
+    this.senderRhingId,
     required this.content,
     required this.contentType,
     this.sentAt,
@@ -16,6 +17,8 @@ class Message {
   final String conversationId;
   final String conversationType; // dm | seat | room
   final String senderId;
+  /// 送信者のRhing ID（グループ会話でアイコン・名前を表示するための非正規化）。
+  final String? senderRhingId;
   final String content;
   final String contentType; // text | image | file | sticker | video
   final Timestamp? sentAt;
@@ -27,6 +30,7 @@ class Message {
       conversationId: json['conversationId'] as String,
       conversationType: json['conversationType'] as String,
       senderId: json['senderId'] as String,
+      senderRhingId: json['senderRhingId'] as String?,
       content: json['content'] as String,
       contentType: json['contentType'] as String,
       sentAt: json['sentAt'] as Timestamp?,
@@ -39,6 +43,7 @@ class Message {
       'conversationId': conversationId,
       'conversationType': conversationType,
       'senderId': senderId,
+      'senderRhingId': senderRhingId,
       'content': content,
       'contentType': contentType,
       'sentAt': sentAt ?? FieldValue.serverTimestamp(),

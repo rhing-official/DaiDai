@@ -5,6 +5,7 @@ import '../models/app_user.dart';
 import '../providers/repository_providers.dart';
 import 'auth/rhing_id_setup_screen.dart';
 import 'auth/sign_in_screen.dart';
+import 'call/incoming_call_listener.dart';
 import 'home/home_screen.dart';
 
 /// 認証状態・Rhing ID登録状態に応じて表示する画面を切り替える。
@@ -50,7 +51,10 @@ class _UserGate extends ConsumerWidget {
         if (appUser == null) {
           return RhingIdSetupScreen(userId: userId);
         }
-        return HomeScreen(currentUser: appUser);
+        return IncomingCallListener(
+          currentUserId: appUser.userId,
+          child: HomeScreen(currentUser: appUser),
+        );
       },
     );
   }
