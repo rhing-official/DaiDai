@@ -1,144 +1,99 @@
 import 'package:flutter/material.dart';
 
-import '../models/ui_style.dart';
 import 'app_theme_extras.dart';
 
-/// UIスタイルごとのThemeDataを組み立てる。
+/// シンプルUI用のThemeDataを組み立てる。
+/// アクセントカラーはユーザーがカラーコードで指定でき、そこから
+/// Material3のカラースキーム全体を導出する。
 class AppTheme {
   AppTheme._();
 
-  static ThemeData themeFor(UiStyle style) {
-    switch (style) {
-      case UiStyle.daidai:
-        return _daidaiTheme;
-      case UiStyle.simple:
-        return _simpleTheme;
-    }
-  }
-
-  static final _daidaiColorScheme =
-      ColorScheme.fromSeed(seedColor: const Color(0xFFEE7800));
-
-  static final _daidaiTheme = ThemeData(
-    colorScheme: _daidaiColorScheme,
-    useMaterial3: true,
-    navigationBarTheme: NavigationBarThemeData(
-      indicatorColor: _daidaiColorScheme.primary.withValues(alpha: 0.2),
-    ),
-    navigationRailTheme: NavigationRailThemeData(
-      indicatorColor: _daidaiColorScheme.primary.withValues(alpha: 0.2),
-    ),
-    floatingActionButtonTheme: FloatingActionButtonThemeData(
-      backgroundColor: _daidaiColorScheme.primary,
-      foregroundColor: Colors.white,
-    ),
-    extensions: const [AppThemeExtras(floatingShadow: AppThemeExtras.none)],
-  );
-
-  // 「one year」（mobbin参考）のシンプルUIを参考にした配色・フォント・余白設計。
-  // ラベンダー系の背景に紫がかった藍色をアクセントとして使い、
-  // 装飾を減らして余白を広く取る。手書きイラストなどの独自アイコン素材は導入しない。
-  // ボタン・カードは強めのelevationとアクセント色の影で「浮いている」印象を出し、
-  // 画面遷移・ポップアップにはスライド＋ポップのアニメーションを付ける。
-  static const _simpleBackground = Color(0xFFE7E5EF);
-  static const _simpleSurface = Color(0xFFDAD8E8);
-  static const _simpleAccent = Color(0xFF3D2EE0);
-  static const _simpleText = Color(0xFF201F2B);
-
-  static final _simpleFloatingShadow = [
-    BoxShadow(
-      color: _simpleAccent.withValues(alpha: 0.22),
-      blurRadius: 24,
-      offset: const Offset(0, 10),
-    ),
-  ];
-
-  static final _simpleTheme = ThemeData(
-    useMaterial3: true,
-    fontFamily: 'monospace',
-    scaffoldBackgroundColor: _simpleBackground,
-    colorScheme: ColorScheme.fromSeed(
-      seedColor: _simpleAccent,
+  static ThemeData theme(Color accentColor) {
+    final colorScheme = ColorScheme.fromSeed(
+      seedColor: accentColor,
       brightness: Brightness.light,
-      surface: _simpleSurface,
-    ).copyWith(primary: _simpleAccent, onPrimary: Colors.white),
-    visualDensity: VisualDensity.comfortable,
-    pageTransitionsTheme: const PageTransitionsTheme(
-      builders: {
-        TargetPlatform.android: _PopSlidePageTransitionsBuilder(),
-        TargetPlatform.iOS: _PopSlidePageTransitionsBuilder(),
-        TargetPlatform.macOS: _PopSlidePageTransitionsBuilder(),
-        TargetPlatform.windows: _PopSlidePageTransitionsBuilder(),
-        TargetPlatform.linux: _PopSlidePageTransitionsBuilder(),
-      },
-    ),
-    appBarTheme: const AppBarTheme(
-      backgroundColor: _simpleBackground,
-      foregroundColor: _simpleText,
-      elevation: 0,
-      centerTitle: false,
-    ),
-    cardTheme: CardThemeData(
-      color: _simpleSurface,
-      elevation: 6,
-      shadowColor: _simpleAccent.withValues(alpha: 0.3),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.all(Radius.circular(20)),
+    ).copyWith(primary: accentColor, onPrimary: Colors.white);
+
+    final floatingShadow = [
+      BoxShadow(
+        color: accentColor.withValues(alpha: 0.22),
+        blurRadius: 24,
+        offset: const Offset(0, 10),
       ),
-    ),
-    elevatedButtonTheme: ElevatedButtonThemeData(
-      style: ElevatedButton.styleFrom(
-        backgroundColor: _simpleAccent,
+    ];
+
+    return ThemeData(
+      useMaterial3: true,
+      fontFamily: 'monospace',
+      scaffoldBackgroundColor: colorScheme.surface,
+      colorScheme: colorScheme,
+      visualDensity: VisualDensity.comfortable,
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: {
+          TargetPlatform.android: _PopSlidePageTransitionsBuilder(),
+          TargetPlatform.iOS: _PopSlidePageTransitionsBuilder(),
+          TargetPlatform.macOS: _PopSlidePageTransitionsBuilder(),
+          TargetPlatform.windows: _PopSlidePageTransitionsBuilder(),
+          TargetPlatform.linux: _PopSlidePageTransitionsBuilder(),
+        },
+      ),
+      appBarTheme: AppBarTheme(
+        backgroundColor: colorScheme.surface,
+        foregroundColor: colorScheme.onSurface,
+        elevation: 0,
+        centerTitle: false,
+      ),
+      cardTheme: CardThemeData(
+        color: colorScheme.surfaceContainerHighest,
+        elevation: 6,
+        shadowColor: accentColor.withValues(alpha: 0.3),
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.all(Radius.circular(20)),
+        ),
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: accentColor,
+          foregroundColor: Colors.white,
+          elevation: 10,
+          shadowColor: accentColor.withValues(alpha: 0.5),
+          minimumSize: const Size.fromHeight(52),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+        ).copyWith(
+          // 押した瞬間はぺたっと沈む＝浮いていた分の影が消えるように見せる。
+          elevation: const WidgetStatePropertyAll(10),
+          overlayColor: WidgetStatePropertyAll(
+            Colors.white.withValues(alpha: 0.12),
+          ),
+        ),
+      ),
+      floatingActionButtonTheme: FloatingActionButtonThemeData(
+        backgroundColor: accentColor,
         foregroundColor: Colors.white,
         elevation: 10,
-        shadowColor: _simpleAccent.withValues(alpha: 0.5),
-        minimumSize: const Size.fromHeight(52),
-        shape: RoundedRectangleBorder(
+        highlightElevation: 14,
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: colorScheme.surfaceContainerHighest,
+        border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-        ),
-      ).copyWith(
-        // 押した瞬間はぺたっと沈む＝浮いていた分の影が消えるように見せる。
-        elevation: const WidgetStatePropertyAll(10),
-        overlayColor: WidgetStatePropertyAll(
-          Colors.white.withValues(alpha: 0.12),
+          borderSide: BorderSide.none,
         ),
       ),
-    ),
-    floatingActionButtonTheme: FloatingActionButtonThemeData(
-      backgroundColor: _simpleAccent,
-      foregroundColor: Colors.white,
-      elevation: 10,
-      highlightElevation: 14,
-    ),
-    inputDecorationTheme: InputDecorationTheme(
-      filled: true,
-      fillColor: _simpleSurface,
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(16),
-        borderSide: BorderSide.none,
-      ),
-    ),
-    navigationBarTheme: NavigationBarThemeData(
-      backgroundColor: _simpleBackground,
-      elevation: 8,
-      shadowColor: _simpleAccent.withValues(alpha: 0.3),
-      indicatorColor: _simpleAccent.withValues(alpha: 0.2),
-    ),
-    navigationRailTheme: NavigationRailThemeData(
-      backgroundColor: _simpleBackground,
-      indicatorColor: _simpleAccent.withValues(alpha: 0.2),
-    ),
-    textTheme: ThemeData.light().textTheme.apply(
-          fontFamily: 'monospace',
-          bodyColor: _simpleText,
-          displayColor: _simpleText,
-        ),
-    extensions: [AppThemeExtras(floatingShadow: _simpleFloatingShadow)],
-  );
+      textTheme: ThemeData.light().textTheme.apply(
+            fontFamily: 'monospace',
+            bodyColor: colorScheme.onSurface,
+            displayColor: colorScheme.onSurface,
+          ),
+      extensions: [AppThemeExtras(floatingShadow: floatingShadow)],
+    );
+  }
 }
 
-/// シンプルUI用の画面遷移: 少し下から浮き上がりながらフェードイン＋
-/// わずかに拡大する「ポップ」演出。
+/// 少し下から浮き上がりながらフェードイン＋わずかに拡大する「ポップ」演出。
 class _PopSlidePageTransitionsBuilder extends PageTransitionsBuilder {
   const _PopSlidePageTransitionsBuilder();
 

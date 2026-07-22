@@ -32,6 +32,10 @@ class _HomeScreenState extends State<HomeScreen> {
     Icons.support_agent_outlined,
   ];
 
+  static const _chipSize = 56.0;
+  static const _chipGap = 16.0;
+  static const _chipMargin = 16.0;
+
   @override
   Widget build(BuildContext context) {
     final tabs = [
@@ -43,57 +47,75 @@ class _HomeScreenState extends State<HomeScreen> {
 
     final isWide = MediaQuery.sizeOf(context).width >= _kWideLayoutBreakpoint;
 
-    if (isWide) {
-      return Scaffold(
-        body: SafeArea(
-          child: Row(
-            children: [
-              SizedBox(
-                width: 88,
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    for (var i = 0; i < _titles.length; i++)
-                      _RailItem(
-                        icon: _icons[i],
-                        label: _titles[i],
-                        selected: _selectedIndex == i,
-                        onTap: () => setState(() => _selectedIndex = i),
-                      ),
-                  ],
-                ),
-              ),
-              const VerticalDivider(width: 1),
-              Expanded(
-                child: IndexedStack(index: _selectedIndex, children: tabs),
-              ),
-            ],
-          ),
+    final chips = [
+      for (var i = 0; i < _titles.length; i++)
+        _NavChip(
+          icon: _icons[i],
+          label: _titles[i],
+          selected: _selectedIndex == i,
+          onTap: () => setState(() => _selectedIndex = i),
         ),
-      );
-    }
+    ];
 
     return Scaffold(
-      body: SafeArea(child: IndexedStack(index: _selectedIndex, children: tabs)),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _selectedIndex,
-        onDestinationSelected: (index) {
-          setState(() => _selectedIndex = index);
-        },
-        labelBehavior: NavigationDestinationLabelBehavior.alwaysHide,
-        destinations: [
-          for (var i = 0; i < _titles.length; i++)
-            NavigationDestination(icon: Icon(_icons[i]), label: _titles[i]),
-        ],
+      body: SafeArea(
+        child: Stack(
+          children: [
+            Padding(
+              padding: isWide
+                  ? const EdgeInsets.only(
+                      left: _chipSize + _chipMargin * 2,
+                    )
+                  : const EdgeInsets.only(
+                      bottom: _chipSize + _chipMargin * 2,
+                    ),
+              child: IndexedStack(index: _selectedIndex, children: tabs),
+            ),
+            if (isWide)
+              Positioned(
+                left: _chipMargin,
+                top: 0,
+                bottom: 0,
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      for (var i = 0; i < chips.length; i++) ...[
+                        if (i > 0) const SizedBox(height: _chipGap),
+                        chips[i],
+                      ],
+                    ],
+                  ),
+                ),
+              )
+            else
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: _chipMargin,
+                child: Center(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      for (var i = 0; i < chips.length; i++) ...[
+                        if (i > 0) const SizedBox(width: _chipGap),
+                        chips[i],
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
 }
 
-/// コンピューターUI（サイドバー）用のメニュー項目。
-/// NavigationRailの代わりに使い、項目同士を画面の高さいっぱいに分散配置する。
-class _RailItem extends StatelessWidget {
-  const _RailItem({
+/// メニューバーを使わず、タブ切り替えを1つずつ独立した丸いチップで表す。
+/// 選択中はアクセントカラーで塗り、常に浮いて見えるよう影を付ける。
+class _NavChip extends StatelessWidget {
+  const _NavChip({
     required this.icon,
     required this.label,
     required this.selected,
@@ -107,17 +129,27 @@ class _RailItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = selected
-        ? Theme.of(context).colorScheme.primary
-        : Colors.grey[600];
+    final colorScheme = Theme.of(context).colorScheme;
+    final background = selected ? colorScheme.primary : colorScheme.surface;
+    final foreground = selected
+        ? colorScheme.onPrimary
+        : colorScheme.onSurfaceVariant;
+
     return Tooltip(
       message: label,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Icon(icon, color: color),
+      child: Material(
+        color: background,
+        shape: const CircleBorder(),
+        elevation: selected ? 8 : 4,
+        shadowColor: colorScheme.primary.withValues(alpha: 0.4),
+        child: InkWell(
+          onTap: onTap,
+          customBorder: const CircleBorder(),
+          child: SizedBox(
+            width: _HomeScreenState._chipSize,
+            height: _HomeScreenState._chipSize,
+            child: Icon(icon, color: foreground),
+          ),
         ),
       ),
     );

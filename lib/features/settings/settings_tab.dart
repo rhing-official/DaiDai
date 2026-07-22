@@ -1,18 +1,50 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../models/ui_style.dart';
+import '../../providers/accent_color_provider.dart';
 import '../../providers/repository_providers.dart';
-import '../../providers/ui_style_provider.dart';
+import '../../utils/color_hex.dart';
 
 /// 設定タブ。フェーズ1の後続タスクで用語切り替え・通知設定などを追加する。
-/// 今はUIスタイル切り替えとログアウトのみ。
-class SettingsTab extends ConsumerWidget {
+/// 今はアクセントカラーの変更とログアウトのみ。
+class SettingsTab extends ConsumerStatefulWidget {
   const SettingsTab({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final uiStyle = ref.watch(uiStyleProvider);
+  ConsumerState<SettingsTab> createState() => _SettingsTabState();
+}
+
+class _SettingsTabState extends ConsumerState<SettingsTab> {
+  late final TextEditingController _hexController;
+  String? _errorText;
+
+  @override
+  void initState() {
+    super.initState();
+    _hexController = TextEditingController(
+      text: ref.read(accentColorProvider).toHexString(),
+    );
+  }
+
+  @override
+  void dispose() {
+    _hexController.dispose();
+    super.dispose();
+  }
+
+  void _applyHexInput() {
+    final color = tryParseHexColor(_hexController.text);
+    if (color == null) {
+      setState(() => _errorText = '「#RRGGBB」の形式で入力してください');
+      return;
+    }
+    setState(() => _errorText = null);
+    ref.read(accentColorProvider.notifier).setColor(color);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final accentColor = ref.watch(accentColorProvider);
 
     return ListView(
       children: [
@@ -25,28 +57,42 @@ class SettingsTab extends ConsumerWidget {
         const Padding(
           padding: EdgeInsets.fromLTRB(16, 16, 16, 4),
           child: Text(
-            'UIスタイル',
+            'アクセントカラー',
             style: TextStyle(fontWeight: FontWeight.bold),
           ),
         ),
-        RadioGroup<UiStyle>(
-          groupValue: uiStyle,
-          onChanged: (value) {
-            if (value != null) {
-              ref.read(uiStyleProvider.notifier).setStyle(value);
-            }
-          },
-          child: const Column(
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              RadioListTile<UiStyle>(
-                title: Text('DaiDai（標準）'),
-                subtitle: Text('橙色基調のデフォルトスタイル'),
-                value: UiStyle.daidai,
+              Container(
+                width: 48,
+                height: 48,
+                margin: const EdgeInsets.only(top: 4),
+                decoration: BoxDecoration(
+                  color: accentColor,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.black12),
+                ),
               ),
-              RadioListTile<UiStyle>(
-                title: Text('シンプル'),
-                subtitle: Text('配色・等幅フォント・余白を抑えたミニマルなスタイル'),
-                value: UiStyle.simple,
+              const SizedBox(width: 16),
+              Expanded(
+                child: TextField(
+                  controller: _hexController,
+                  textCapitalization: TextCapitalization.characters,
+                  decoration: InputDecoration(
+                    labelText: 'カラーコード',
+                    hintText: '#3D2EE0',
+                    errorText: _errorText,
+                    suffixIcon: IconButton(
+                      icon: const Icon(Icons.check),
+                      tooltip: '適用',
+                      onPressed: _applyHexInput,
+                    ),
+                  ),
+                  onSubmitted: (_) => _applyHexInput(),
+                ),
               ),
             ],
           ),

@@ -10,7 +10,12 @@ service cloud.firestore {
       allow create: if request.auth != null
         && request.auth.uid == userId
         && request.resource.data.userId == userId;
-      allow update: if request.auth != null && request.auth.uid == userId;
+      // 蔵（icons/backgroundImages/statusMessages）の保管上限を
+      // サーバー側でも強制する（クライアント側の上限チェックの保険）。
+      allow update: if request.auth != null && request.auth.uid == userId
+        && request.resource.data.icons.size() <= 2
+        && request.resource.data.backgroundImages.size() <= 3
+        && request.resource.data.statusMessages.size() <= 2;
       allow delete: if false;
     }
 
