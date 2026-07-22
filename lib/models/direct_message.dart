@@ -15,9 +15,14 @@ class DirectMessage {
   final Map<String, String> participantRhingIds;
   final Timestamp? lastMessageAt;
 
+  /// 自分以外の参加者のuserId。
+  String otherUserId(String currentUserId) {
+    return participants.firstWhere((id) => id != currentUserId);
+  }
+
   /// 自分以外の参加者のRhing ID。
   String otherRhingId(String currentUserId) {
-    final otherId = participants.firstWhere((id) => id != currentUserId);
+    final otherId = otherUserId(currentUserId);
     return participantRhingIds[otherId] ?? otherId;
   }
 

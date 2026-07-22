@@ -16,8 +16,10 @@ service cloud.firestore {
 
     // directMessages/{dmId}: 参加者本人のみ読み書き可能。
     match /directMessages/{dmId} {
+      // getOrCreateDirectMessage()は作成前に存在確認のgetを行うため、
+      // 未作成（resource == null）の場合は読み取りを許可する（中身は空なので問題ない）。
       allow read: if request.auth != null
-        && request.auth.uid in resource.data.participants;
+        && (resource == null || request.auth.uid in resource.data.participants);
       allow create: if request.auth != null
         && request.auth.uid in request.resource.data.participants
         && request.resource.data.participants.size() == 2;
@@ -71,6 +73,33 @@ service cloud.firestore {
           allow update: if false;
           allow delete: if false;
         }
+      }
+    }
+
+    // calls/{callId}: 音声通話（フェーズ1、一対限定）。発信者・着信者本人のみ読み書き可能。
+    // シグナリング（offer/answer/status）はどちらの当事者からも更新できる必要があるため、
+    // フィールド単位の制限はせず当事者判定のみで許可する。
+    match /calls/{callId} {
+      allow read: if request.auth != null
+        && (request.auth.uid == resource.data.callerId
+            || request.auth.uid == resource.data.calleeId);
+      allow create: if request.auth != null
+        && request.auth.uid == request.resource.data.callerId;
+      allow update: if request.auth != null
+        && (request.auth.uid == resource.data.callerId
+            || request.auth.uid == resource.data.calleeId);
+      allow delete: if false;
+
+      // ICE candidateのやり取り用サブコレクション。当事者のみ読み書き可能。
+      match /{candidateCollection}/{candidateId} {
+        allow read, create: if request.auth != null
+          && candidateCollection in ['callerCandidates', 'calleeCandidates']
+          && (request.auth.uid ==
+                get(/databases/$(database)/documents/calls/$(callId)).data.callerId
+              || request.auth.uid ==
+                get(/databases/$(database)/documents/calls/$(callId)).data.calleeId);
+        allow update: if false;
+        allow delete: if false;
       }
     }
   }

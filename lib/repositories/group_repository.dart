@@ -22,6 +22,7 @@ abstract class GroupRepository {
     required String groupId,
     required String roomId,
     required String senderId,
+    required String senderRhingId,
     required String content,
   });
 }
@@ -109,6 +110,7 @@ class FirestoreGroupRepository implements GroupRepository {
     required String groupId,
     required String roomId,
     required String senderId,
+    required String senderRhingId,
     required String content,
   }) async {
     final roomRef = _roomRef(groupId, roomId);
@@ -119,6 +121,7 @@ class FirestoreGroupRepository implements GroupRepository {
       conversationId: roomId,
       conversationType: 'room',
       senderId: senderId,
+      senderRhingId: senderRhingId,
       content: content,
       contentType: 'text',
     );

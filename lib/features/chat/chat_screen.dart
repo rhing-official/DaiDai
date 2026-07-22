@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../models/message.dart';
+import '../../theme/app_theme_extras.dart';
 
 /// 一対・広場（お部屋）どちらの会話でも使える汎用チャット画面。
 /// メッセージの取得・送信方法は呼び出し元がstream/callbackとして渡す。
@@ -10,6 +11,8 @@ class ChatScreen extends StatefulWidget {
     required this.currentUserId,
     required this.messagesStream,
     required this.onSend,
+    this.showSenderAvatar = false,
+    this.onCallPressed,
     super.key,
   });
 
@@ -17,6 +20,13 @@ class ChatScreen extends StatefulWidget {
   final String currentUserId;
   final Stream<List<Message>> messagesStream;
   final Future<void> Function(String content) onSend;
+
+  /// 広場（複数人の会話）では相手ごとに送信者を見分けやすいよう、
+  /// メッセージにRhing IDのイニシャルアイコンを表示する。一対では表示しない。
+  final bool showSenderAvatar;
+
+  /// 音声通話の発信ボタン。一対（1対1）のみで渡す（フェーズ1は広場の通話は未対応）。
+  final VoidCallback? onCallPressed;
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
@@ -40,8 +50,23 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final floatingShadow =
+        Theme.of(context).extension<AppThemeExtras>()?.floatingShadow ??
+            AppThemeExtras.none;
+
     return Scaffold(
-      appBar: AppBar(title: Text(widget.title)),
+      appBar: AppBar(
+        automaticallyImplyLeading: false,
+        title: Text(widget.title),
+        actions: [
+          if (widget.onCallPressed != null)
+            IconButton(
+              icon: const Icon(Icons.call_outlined),
+              onPressed: widget.onCallPressed,
+            ),
+        ],
+      ),
       body: Column(
         children: [
           Expanded(
@@ -65,28 +90,48 @@ class _ChatScreenState extends State<ChatScreen> {
                   itemBuilder: (context, index) {
                     final message = messages[index];
                     final isMe = message.senderId == widget.currentUserId;
-                    return Align(
-                      alignment: isMe
-                          ? Alignment.centerRight
-                          : Alignment.centerLeft,
-                      child: Container(
-                        margin: const EdgeInsets.symmetric(vertical: 4),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 10,
-                        ),
-                        decoration: BoxDecoration(
+                    final bubble = Container(
+                      margin: const EdgeInsets.symmetric(vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 10,
+                      ),
+                      decoration: BoxDecoration(
+                        color: isMe
+                            ? colorScheme.primary
+                            : colorScheme.surfaceContainerHighest,
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: floatingShadow,
+                      ),
+                      child: Text(
+                        message.content,
+                        style: TextStyle(
                           color: isMe
-                              ? const Color(0xFFEE7800)
-                              : const Color(0xFFF0F0F0),
-                          borderRadius: BorderRadius.circular(16),
+                              ? colorScheme.onPrimary
+                              : colorScheme.onSurfaceVariant,
                         ),
-                        child: Text(
-                          message.content,
-                          style: TextStyle(
-                            color: isMe ? Colors.white : Colors.black87,
-                          ),
-                        ),
+                      ),
+                    );
+
+                    if (!widget.showSenderAvatar || isMe) {
+                      return Align(
+                        alignment: isMe
+                            ? Alignment.centerRight
+                            : Alignment.centerLeft,
+                        child: bubble,
+                      );
+                    }
+
+                    return Align(
+                      alignment: Alignment.centerLeft,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          _SenderAvatar(rhingId: message.senderRhingId),
+                          const SizedBox(width: 8),
+                          Flexible(child: bubble),
+                        ],
                       ),
                     );
                   },
@@ -110,7 +155,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     ),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.send, color: Color(0xFFEE7800)),
+                    icon: Icon(Icons.send, color: colorScheme.primary),
                     onPressed: _send,
                   ),
                 ],
@@ -118,6 +163,37 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// 送信者のRhing IDから生成する、写真未設定時のイニシャルアイコン。
+/// 蔵（プロフィール画像）機能が実装されるまでの暫定表示。
+class _SenderAvatar extends StatelessWidget {
+  const _SenderAvatar({required this.rhingId});
+
+  final String? rhingId;
+
+  static const _palette = [
+    Color(0xFFEE7800),
+    Color(0xFF6D4C41),
+    Color(0xFF00897B),
+    Color(0xFF5E35B1),
+    Color(0xFF1E88E5),
+    Color(0xFFD81B60),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final id = rhingId ?? '?';
+    final color = _palette[id.hashCode.abs() % _palette.length];
+    return CircleAvatar(
+      radius: 16,
+      backgroundColor: color,
+      child: Text(
+        id[0].toUpperCase(),
+        style: const TextStyle(color: Colors.white, fontSize: 13),
       ),
     );
   }

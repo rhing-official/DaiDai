@@ -63,6 +63,7 @@ class _AddChatScreenState extends ConsumerState<AddChatScreen> {
             onSend: (content) => dmRepository.sendTextMessage(
               dmId: dm.dmId,
               senderId: widget.currentUser.userId,
+              senderRhingId: widget.currentUser.rhingId,
               content: content,
             ),
           ),
@@ -90,7 +91,10 @@ class _AddChatScreenState extends ConsumerState<AddChatScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('相手を追加')),
+      appBar: AppBar(
+        automaticallyImplyLeading: false,
+        title: const Text('相手を追加'),
+      ),
       body: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(

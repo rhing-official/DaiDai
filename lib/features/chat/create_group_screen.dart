@@ -92,6 +92,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
           builder: (_) => ChatScreen(
             title: group.name,
             currentUserId: widget.currentUser.userId,
+            showSenderAvatar: true,
             messagesStream: groupRepository.watchRoomMessages(
               group.groupId,
               group.defaultRoomId,
@@ -100,6 +101,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
               groupId: group.groupId,
               roomId: group.defaultRoomId,
               senderId: widget.currentUser.userId,
+              senderRhingId: widget.currentUser.rhingId,
               content: content,
             ),
           ),
@@ -124,7 +126,10 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('広場を作る')),
+      appBar: AppBar(
+        automaticallyImplyLeading: false,
+        title: const Text('広場を作る'),
+      ),
       body: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(

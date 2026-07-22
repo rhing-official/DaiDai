@@ -36,20 +36,20 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Scaffold(
-      backgroundColor: const Color(0xFFFCFAF2),
       body: Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text(
+              Text(
                 'DaiDai',
                 style: TextStyle(
                   fontSize: 40,
                   fontWeight: FontWeight.bold,
-                  color: Color(0xFFEE7800),
+                  color: colorScheme.primary,
                 ),
               ),
               const SizedBox(height: 8),
@@ -65,8 +65,6 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
               ElevatedButton(
                 onPressed: _isSigningIn ? null : _signIn,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFEE7800),
-                  foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(
                     horizontal: 32,
                     vertical: 16,

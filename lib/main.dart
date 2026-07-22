@@ -4,24 +4,30 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'features/app_gate.dart';
 import 'firebase_options.dart';
+import 'providers/ui_style_provider.dart';
+import 'theme/app_theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  runApp(const ProviderScope(child: DaiDaiApp()));
+  final initialUiStyle = await loadInitialUiStyle();
+  runApp(
+    ProviderScope(
+      overrides: [initialUiStyleProvider.overrideWithValue(initialUiStyle)],
+      child: const DaiDaiApp(),
+    ),
+  );
 }
 
-class DaiDaiApp extends StatelessWidget {
+class DaiDaiApp extends ConsumerWidget {
   const DaiDaiApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final uiStyle = ref.watch(uiStyleProvider);
     return MaterialApp(
       title: 'DaiDai',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFFEE7800)),
-        useMaterial3: true,
-      ),
+      theme: AppTheme.themeFor(uiStyle),
       home: const AppGate(),
     );
   }

@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../repositories/auth_repository.dart';
+import '../repositories/call_repository.dart';
 import '../repositories/direct_message_repository.dart';
 import '../repositories/group_repository.dart';
 import '../repositories/user_repository.dart';
@@ -20,6 +21,10 @@ final directMessageRepositoryProvider = Provider<DirectMessageRepository>((ref) 
 
 final groupRepositoryProvider = Provider<GroupRepository>((ref) {
   return FirestoreGroupRepository();
+});
+
+final callRepositoryProvider = Provider<CallRepository>((ref) {
+  return FirestoreCallRepository();
 });
 
 final authStateProvider = StreamProvider<User?>((ref) {
