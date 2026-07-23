@@ -8,6 +8,10 @@ import '../models/profile_material.dart';
 
 abstract class UserRepository {
   Future<AppUser?> getUser(String userId);
+
+  /// 相手のプロフィール（アクティブなニックネームなど）をリアルタイムに購読する。
+  Stream<AppUser?> watchUser(String userId);
+
   Future<void> createUser(AppUser user);
   Future<AppUser?> findByRhingId(String rhingId);
   Future<bool> isRhingIdAvailable(String rhingId);
@@ -41,6 +45,14 @@ class FirestoreUserRepository implements UserRepository {
     final doc = await _users.doc(userId).get();
     if (!doc.exists) return null;
     return AppUser.fromJson(doc.data()!);
+  }
+
+  @override
+  Stream<AppUser?> watchUser(String userId) {
+    return _users
+        .doc(userId)
+        .snapshots()
+        .map((doc) => doc.exists ? AppUser.fromJson(doc.data()!) : null);
   }
 
   @override

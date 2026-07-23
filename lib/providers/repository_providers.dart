@@ -3,7 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../repositories/auth_repository.dart';
 import '../repositories/call_repository.dart';
+import '../repositories/conversation_prefs_repository.dart';
 import '../repositories/direct_message_repository.dart';
+import '../repositories/friend_repository.dart';
 import '../repositories/group_repository.dart';
 import '../repositories/user_repository.dart';
 
@@ -25,6 +27,14 @@ final groupRepositoryProvider = Provider<GroupRepository>((ref) {
 
 final callRepositoryProvider = Provider<CallRepository>((ref) {
   return FirestoreCallRepository();
+});
+
+final friendRepositoryProvider = Provider<FriendRepository>((ref) {
+  return FirestoreFriendRepository();
+});
+
+final conversationPrefsRepositoryProvider = Provider<ConversationPrefsRepository>((ref) {
+  return FirestoreConversationPrefsRepository();
 });
 
 final authStateProvider = StreamProvider<User?>((ref) {

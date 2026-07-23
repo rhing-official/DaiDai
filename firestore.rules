@@ -3,6 +3,12 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // 2人のuserIdから、directMessages/friendRequests/friends間で共通して使う
+    // 決定的なペアidを組み立てる（順序に依存しない）。Dartモデル側のidFor()と同じ規則。
+    function pairId(a, b) {
+      return a < b ? a + '_' + b : b + '_' + a;
+    }
+
     // users/{userId}: 本人のみ作成・更新可能。ログイン済みなら誰でも参照可能
     // （Rhing ID検索・重複チェックのため一覧クエリを許可する）。
     match /users/{userId} {
@@ -10,12 +16,58 @@ service cloud.firestore {
       allow create: if request.auth != null
         && request.auth.uid == userId
         && request.resource.data.userId == userId;
-      // 蔵（icons/backgroundImages/statusMessages）の保管上限を
+      // 蔵（icons/backgroundImages/statusMessages/nicknames）の保管上限を
       // サーバー側でも強制する（クライアント側の上限チェックの保険）。
+      // フィールドが存在しない場合（古いスキーマのままの書き込みなど）はスキップし、
+      // 無関係な更新まで巻き込んでpermission-deniedにならないようにする。
       allow update: if request.auth != null && request.auth.uid == userId
-        && request.resource.data.icons.size() <= 2
-        && request.resource.data.backgroundImages.size() <= 3
-        && request.resource.data.statusMessages.size() <= 2;
+        && (!('icons' in request.resource.data) || request.resource.data.icons.size() <= 2)
+        && (!('backgroundImages' in request.resource.data) || request.resource.data.backgroundImages.size() <= 3)
+        && (!('statusMessages' in request.resource.data) || request.resource.data.statusMessages.size() <= 2)
+        && (!('nicknames' in request.resource.data) || request.resource.data.nicknames.size() <= 3);
+      allow delete: if false;
+
+      // users/{userId}/friends/{friendUserId}: 本人のみ読み取り可能。
+      // 作成は、対応するfriendRequestsがaccepted済みの場合のみ。
+      // 承認処理は承認する側の1クライアントが双方のfriendsドキュメントをまとめて書き込むため、
+      // 「自分 or 相手」どちらのuidでも書き込めるようにしている（詳細はFriendRepository.respond参照）。
+      // ニックネームは友達関係ではなく身だしなみ（users/{userId}のnicknames）側で管理するため、更新は不可。
+      match /friends/{friendUserId} {
+        allow read: if request.auth != null && request.auth.uid == userId;
+        allow create: if request.auth != null
+          && (request.auth.uid == userId || request.auth.uid == friendUserId)
+          && get(/databases/$(database)/documents/friendRequests/$(pairId(userId, friendUserId))).data.status == 'accepted';
+        allow update: if false;
+        allow delete: if false;
+      }
+
+      // users/{userId}/conversationPrefs/{conversationId}: 一対・広場のピン留め・通知オフなど、
+      // 完全に個人的な表示設定。本人のみ読み書き可能（相手には一切公開しない）。
+      match /conversationPrefs/{conversationId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+    }
+
+    // friendRequests/{requestId}: 友達申請。申請者・宛先本人のみ読み書き可能。
+    // idはpairId()で決定的に組み立てられ、1組の相手につき常に1ドキュメントのみ存在する。
+    match /friendRequests/{requestId} {
+      // sendRequest()は送信前に存在確認のgetを行うため、
+      // 未作成（resource == null）の場合は読み取りを許可する。
+      allow read: if request.auth != null
+        && (resource == null
+            || request.auth.uid == resource.data.fromUserId
+            || request.auth.uid == resource.data.toUserId);
+      // 新規送信、または拒否後の再送信（宛先を問わず送信者本人のみ作成可能）。
+      allow create: if request.auth != null
+        && request.auth.uid == request.resource.data.fromUserId
+        && request.resource.data.toUserId != request.auth.uid
+        && request.resource.data.status == 'pending'
+        && requestId == pairId(request.resource.data.fromUserId, request.resource.data.toUserId);
+      // 承認・拒否（宛先本人）、および相互申請時の即時承認。
+      allow update: if request.auth != null
+        && (request.auth.uid == resource.data.fromUserId || request.auth.uid == resource.data.toUserId)
+        && request.resource.data.fromUserId == resource.data.fromUserId
+        && request.resource.data.toUserId == resource.data.toUserId;
       allow delete: if false;
     }
 
@@ -25,9 +77,12 @@ service cloud.firestore {
       // 未作成（resource == null）の場合は読み取りを許可する（中身は空なので問題ない）。
       allow read: if request.auth != null
         && (resource == null || request.auth.uid in resource.data.participants);
+      // 一対の作成は、対応するfriendRequestsがaccepted済みの場合のみ許可する
+      // （仲間承認制のスパム対策。ID検索しただけでは会話を始められない）。
       allow create: if request.auth != null
         && request.auth.uid in request.resource.data.participants
-        && request.resource.data.participants.size() == 2;
+        && request.resource.data.participants.size() == 2
+        && get(/databases/$(database)/documents/friendRequests/$(dmId)).data.status == 'accepted';
       allow update: if request.auth != null
         && request.auth.uid in resource.data.participants;
       allow delete: if false;

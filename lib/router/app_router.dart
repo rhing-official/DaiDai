@@ -11,6 +11,7 @@ import '../models/call.dart';
 import '../models/direct_message.dart';
 import '../models/group.dart';
 import '../providers/repository_providers.dart';
+import '../providers/user_providers.dart';
 
 /// 語らい系の画面遷移をURL付きのブラウザ履歴に載せるためのルーター。
 /// これによりブラウザ/マウスの「戻る」「進む」がアプリ内の画面遷移と対応する
@@ -71,17 +72,28 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) {
           final args = state.extra! as DmChatArgs;
           final dmRepository = ref.read(directMessageRepositoryProvider);
-          return ChatScreen(
-            title: '@${args.dm.otherRhingId(args.currentUser.userId)}',
-            currentUserId: args.currentUser.userId,
-            messagesStream: dmRepository.watchMessages(args.dm.dmId),
-            onSend: (content) => dmRepository.sendTextMessage(
-              dmId: args.dm.dmId,
-              senderId: args.currentUser.userId,
-              senderRhingId: args.currentUser.rhingId,
-              content: content,
-            ),
-            onCallPressed: () => startCall(args.currentUser, args.dm),
+          final otherUserId = args.dm.otherUserId(args.currentUser.userId);
+          final fallbackTitle = '@${args.dm.otherRhingId(args.currentUser.userId)}';
+          return Consumer(
+            builder: (context, ref, _) {
+              final otherUser = ref.watch(watchedUserProvider(otherUserId));
+              final nickname = otherUser.maybeWhen(
+                data: (user) => user?.activeNickname?.text,
+                orElse: () => null,
+              );
+              return ChatScreen(
+                title: (nickname?.isNotEmpty ?? false) ? nickname! : fallbackTitle,
+                currentUserId: args.currentUser.userId,
+                messagesStream: dmRepository.watchMessages(args.dm.dmId),
+                onSend: (content) => dmRepository.sendTextMessage(
+                  dmId: args.dm.dmId,
+                  senderId: args.currentUser.userId,
+                  senderRhingId: args.currentUser.rhingId,
+                  content: content,
+                ),
+                onCallPressed: () => startCall(args.currentUser, args.dm),
+              );
+            },
           );
         },
       ),
