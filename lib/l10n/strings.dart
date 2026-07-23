@@ -49,6 +49,38 @@ class Strings {
     required this.conversationUnpin,
     required this.conversationMute,
     required this.conversationUnmute,
+    required this.cancel,
+    required this.add,
+    required this.save,
+    required this.profileTabKura,
+    required this.profileTabKoubou,
+    required this.profileIconSection,
+    required this.profileBackgroundSection,
+    required this.profileNicknameSection,
+    required this.profileNicknameHint,
+    required this.profileStatusMessageSection,
+    required this.profileAddNickname,
+    required this.profileAddStatusMessage,
+    required this.profileNicknameDialogTitle,
+    required this.profileNicknameDialogHint,
+    required this.profileStatusMessageDialogTitle,
+    required this.profileStatusMessageDialogHint,
+    required this.profileSaveError,
+    required this.profileIconUploadError,
+    required this.profileBackgroundUploadError,
+    required this.workshopDescription,
+    required this.workshopCardNameLabel,
+    required this.workshopCardDialogTitleNew,
+    required this.workshopCardDialogTitleEdit,
+    required this.workshopFieldIcon,
+    required this.workshopFieldBackground,
+    required this.workshopFieldNickname,
+    required this.workshopFieldStatusMessage,
+    required this.workshopChoiceNone,
+    required this.workshopChoiceSelected,
+    required this.workshopChoiceSelect,
+    required this.workshopUnsetSubtitle,
+    required this.fieldRequiredError,
   });
 
   final String navTalk;
@@ -99,6 +131,41 @@ class Strings {
   final String conversationMute;
   final String conversationUnmute;
 
+  final String cancel;
+  final String add;
+  final String save;
+
+  final String profileTabKura;
+  final String profileTabKoubou;
+  final String profileIconSection;
+  final String profileBackgroundSection;
+  final String profileNicknameSection;
+  final String profileNicknameHint;
+  final String profileStatusMessageSection;
+  final String profileAddNickname;
+  final String profileAddStatusMessage;
+  final String profileNicknameDialogTitle;
+  final String profileNicknameDialogHint;
+  final String profileStatusMessageDialogTitle;
+  final String profileStatusMessageDialogHint;
+  final String profileSaveError;
+  final String profileIconUploadError;
+  final String profileBackgroundUploadError;
+
+  final String workshopDescription;
+  final String workshopCardNameLabel;
+  final String workshopCardDialogTitleNew;
+  final String workshopCardDialogTitleEdit;
+  final String workshopFieldIcon;
+  final String workshopFieldBackground;
+  final String workshopFieldNickname;
+  final String workshopFieldStatusMessage;
+  final String workshopChoiceNone;
+  final String workshopChoiceSelected;
+  final String workshopChoiceSelect;
+  final String workshopUnsetSubtitle;
+  final String fieldRequiredError;
+
   static const ja = Strings._(
     navTalk: '語らい',
     navProfile: '身だしなみ',
@@ -142,6 +209,38 @@ class Strings {
     conversationUnpin: 'ピン留めを外す',
     conversationMute: '通知オフ',
     conversationUnmute: '通知オン',
+    cancel: 'キャンセル',
+    add: '追加',
+    save: '保存',
+    profileTabKura: '蔵',
+    profileTabKoubou: '工房',
+    profileIconSection: 'アイコン',
+    profileBackgroundSection: '背景画像',
+    profileNicknameSection: 'ニックネーム',
+    profileNicknameHint: '友達には、Rhing IDの代わりにここで選んだニックネームが表示されます。',
+    profileStatusMessageSection: 'ステメ',
+    profileAddNickname: 'ニックネームを追加',
+    profileAddStatusMessage: 'ステメを追加',
+    profileNicknameDialogTitle: 'ニックネームを追加',
+    profileNicknameDialogHint: '友達に表示する呼び名を入力',
+    profileStatusMessageDialogTitle: 'ステメを追加',
+    profileStatusMessageDialogHint: 'ひとことを入力',
+    profileSaveError: '保存に失敗しました',
+    profileIconUploadError: 'アイコンのアップロードに失敗しました',
+    profileBackgroundUploadError: '背景画像のアップロードに失敗しました',
+    workshopDescription: '蔵に登録した素材を組み合わせて、プロフィールカードを作れます。カードをタップして編集してください。',
+    workshopCardNameLabel: 'カード名（自分用のラベル）',
+    workshopCardDialogTitleNew: 'プロフィールカードを作る',
+    workshopCardDialogTitleEdit: 'プロフィールカードを編集',
+    workshopFieldIcon: 'アイコン',
+    workshopFieldBackground: '背景画像',
+    workshopFieldNickname: 'ニックネーム',
+    workshopFieldStatusMessage: 'ステメ',
+    workshopChoiceNone: 'なし',
+    workshopChoiceSelected: '選択中',
+    workshopChoiceSelect: '選ぶ',
+    workshopUnsetSubtitle: '未設定の素材があります',
+    fieldRequiredError: '入力してください',
   );
 
   static const enGB = Strings._(
@@ -189,6 +288,41 @@ class Strings {
     conversationUnpin: 'Unpin',
     conversationMute: 'Mute notifications',
     conversationUnmute: 'Unmute notifications',
+    cancel: 'Cancel',
+    add: 'Add',
+    save: 'Save',
+    profileTabKura: 'Storehouse',
+    profileTabKoubou: 'Workshop',
+    profileIconSection: 'Icons',
+    profileBackgroundSection: 'Background images',
+    profileNicknameSection: 'Nicknames',
+    profileNicknameHint:
+        "Friends see the nickname you've selected here instead of your Rhing ID.",
+    profileStatusMessageSection: 'Status messages',
+    profileAddNickname: 'Add a nickname',
+    profileAddStatusMessage: 'Add a status message',
+    profileNicknameDialogTitle: 'Add a nickname',
+    profileNicknameDialogHint: 'Enter the name shown to friends',
+    profileStatusMessageDialogTitle: 'Add a status message',
+    profileStatusMessageDialogHint: 'Enter a short status message',
+    profileSaveError: 'Failed to save',
+    profileIconUploadError: 'Failed to upload icon',
+    profileBackgroundUploadError: 'Failed to upload background image',
+    workshopDescription:
+        'Combine materials from your storehouse into profile cards. '
+        'Tap a card to edit it.',
+    workshopCardNameLabel: 'Card name (private label for you)',
+    workshopCardDialogTitleNew: 'Create a profile card',
+    workshopCardDialogTitleEdit: 'Edit profile card',
+    workshopFieldIcon: 'Icon',
+    workshopFieldBackground: 'Background image',
+    workshopFieldNickname: 'Nickname',
+    workshopFieldStatusMessage: 'Status message',
+    workshopChoiceNone: 'None',
+    workshopChoiceSelected: 'Selected',
+    workshopChoiceSelect: 'Select',
+    workshopUnsetSubtitle: 'Some materials are not set yet',
+    fieldRequiredError: 'Please enter a value',
   );
 
   static Strings of(AppLocale locale) => switch (locale) {

@@ -6,7 +6,6 @@ import '../features/call/call_screen.dart';
 import '../features/chat/add_chat_screen.dart';
 import '../features/chat/chat_panes.dart';
 import '../features/chat/create_group_screen.dart';
-import '../features/profile/profile_creator_screen.dart';
 import '../models/app_user.dart';
 import '../models/call.dart';
 import '../models/direct_message.dart';
@@ -97,13 +96,6 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) {
           final currentUser = state.extra! as AppUser;
           return CreateGroupScreen(currentUser: currentUser);
-        },
-      ),
-      GoRoute(
-        path: '/profile-creator',
-        builder: (context, state) {
-          final currentUser = state.extra! as AppUser;
-          return ProfileCreatorScreen(currentUser: currentUser);
         },
       ),
       GoRoute(

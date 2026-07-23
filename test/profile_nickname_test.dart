@@ -1,8 +1,10 @@
 import 'dart:typed_data';
 
 import 'package:daidai/features/profile/profile_tab.dart';
+import 'package:daidai/l10n/app_locale.dart';
 import 'package:daidai/models/app_user.dart';
 import 'package:daidai/models/profile_material.dart';
+import 'package:daidai/providers/app_locale_provider.dart';
 import 'package:daidai/providers/repository_providers.dart';
 import 'package:daidai/repositories/user_repository.dart';
 import 'package:flutter/material.dart';
@@ -53,7 +55,10 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [userRepositoryProvider.overrideWithValue(fakeRepo)],
+        overrides: [
+          userRepositoryProvider.overrideWithValue(fakeRepo),
+          initialAppLocaleProvider.overrideWithValue(AppLocale.japanese),
+        ],
         child: const MaterialApp(
           home: Scaffold(body: ProfileTab(currentUser: user)),
         ),
@@ -78,7 +83,10 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [userRepositoryProvider.overrideWithValue(fakeRepo)],
+        overrides: [
+          userRepositoryProvider.overrideWithValue(fakeRepo),
+          initialAppLocaleProvider.overrideWithValue(AppLocale.japanese),
+        ],
         child: const MaterialApp(
           home: Scaffold(body: ProfileTab(currentUser: user)),
         ),

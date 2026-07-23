@@ -4,6 +4,10 @@ const kMaxBackgroundImages = 3;
 const kMaxStatusMessages = 2;
 const kMaxNicknames = 3;
 
+/// 蔵の素材の文字数上限。
+const kMaxNicknameLength = 20;
+const kMaxStatusMessageLength = 40;
+
 /// 蔵に保管する画像素材（アイコン・背景画像）。
 class ProfileMaterial {
   const ProfileMaterial({

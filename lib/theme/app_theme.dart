@@ -5,6 +5,15 @@ import 'app_theme_extras.dart';
 /// シンプルUI用のThemeDataを組み立てる。
 /// アクセントカラーはユーザーがカラーコードで指定でき、そこから
 /// Material3のカラースキーム全体を導出する。
+///
+/// フォントは意図的に指定していない（プラットフォーム既定にフォールバック）。
+/// 以前は`fontFamily: 'monospace'`を指定していたが、CJK（日本語）文字の
+/// 字幅計算とレイアウトエンジンの推定字幅がズレ、複数文字のラベル
+/// （例:「工房」）だけ折り返される不具合の原因になっていた
+/// （1文字のラベルは偶然収まっていたため気づきにくかった）。
+/// CLAUDE.mdが意図する等幅フォント（BIZ UDPMincho/BIZ UDGothic）は
+/// まだフォントアセットが未取得（pubspec.yamlのfonts:も未設定）のため、
+/// 実際に導入する際は日本語グリフの字幅もあわせて確認すること。
 class AppTheme {
   AppTheme._();
 
@@ -24,7 +33,6 @@ class AppTheme {
 
     return ThemeData(
       useMaterial3: true,
-      fontFamily: 'monospace',
       scaffoldBackgroundColor: colorScheme.surface,
       colorScheme: colorScheme,
       visualDensity: VisualDensity.comfortable,
@@ -84,7 +92,6 @@ class AppTheme {
         ),
       ),
       textTheme: ThemeData.light().textTheme.apply(
-            fontFamily: 'monospace',
             bodyColor: colorScheme.onSurface,
             displayColor: colorScheme.onSurface,
           ),

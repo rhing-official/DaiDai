@@ -50,8 +50,18 @@ class WebrtcCallController extends ChangeNotifier {
     try {
       await remoteRenderer.initialize();
 
+      // ブラウザ/ネイティブWebRTCスタックに標準搭載のノイズ抑制・エコー除去・
+      // 自動ゲイン調整を明示的に要求する。本格的なRNNoise統合は、
+      // flutter_webrtc/libwebrtcがマイク→エンコーダ間の生音声サンプルに
+      // 介入するフックをDart層に公開しておらず、プラットフォームごとの
+      // ネイティブ音声パイプライン改造が必要な大規模な別プロジェクトになるため、
+      // 現時点ではここでの標準ノイズ抑制のみを実装している（詳細は会話参照）。
       _localStream = await navigator.mediaDevices.getUserMedia({
-        'audio': true,
+        'audio': {
+          'echoCancellation': true,
+          'noiseSuppression': true,
+          'autoGainControl': true,
+        },
         'video': false,
       });
 
