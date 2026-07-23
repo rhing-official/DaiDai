@@ -24,6 +24,7 @@ abstract class GroupRepository {
     required String senderId,
     required String senderRhingId,
     required String content,
+    bool silent = false,
   });
 }
 
@@ -112,6 +113,7 @@ class FirestoreGroupRepository implements GroupRepository {
     required String senderId,
     required String senderRhingId,
     required String content,
+    bool silent = false,
   }) async {
     final roomRef = _roomRef(groupId, roomId);
     final messageRef = roomRef.collection('messages').doc();
@@ -124,6 +126,7 @@ class FirestoreGroupRepository implements GroupRepository {
       senderRhingId: senderRhingId,
       content: content,
       contentType: 'text',
+      silent: silent,
     );
 
     final batch = _firestore.batch();

@@ -11,6 +11,7 @@ class Message {
     required this.contentType,
     this.sentAt,
     this.deletedAt,
+    this.silent = false,
   });
 
   final String messageId;
@@ -24,6 +25,11 @@ class Message {
   final Timestamp? sentAt;
   final Timestamp? deletedAt;
 
+  /// 送信者が「相手に通知せず送る」を選んだメッセージかどうか。
+  /// FCMのプッシュ通知基盤が実装された際、このフラグが立っているメッセージは
+  /// 通知を送らないようにする想定（実装内容.md参照）。
+  final bool silent;
+
   factory Message.fromJson(String messageId, Map<String, dynamic> json) {
     return Message(
       messageId: messageId,
@@ -35,6 +41,7 @@ class Message {
       contentType: json['contentType'] as String,
       sentAt: json['sentAt'] as Timestamp?,
       deletedAt: json['deletedAt'] as Timestamp?,
+      silent: json['silent'] as bool? ?? false,
     );
   }
 
@@ -50,6 +57,7 @@ class Message {
       'deletedAt': deletedAt,
       'readBy': <Map<String, dynamic>>[],
       'isSpam': false,
+      'silent': silent,
     };
   }
 }

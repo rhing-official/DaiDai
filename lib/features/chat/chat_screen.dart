@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../models/message.dart';
+import '../../models/send_key_mode.dart';
+import '../../providers/send_key_mode_provider.dart';
 import '../../theme/app_theme_extras.dart';
 
 /// 一対・広場（お部屋）どちらの会話でも使える汎用チャット画面。
 /// メッセージの取得・送信方法は呼び出し元がstream/callbackとして渡す。
-class ChatScreen extends StatefulWidget {
+class ChatScreen extends ConsumerStatefulWidget {
   const ChatScreen({
     required this.title,
     required this.currentUserId,
@@ -19,7 +23,7 @@ class ChatScreen extends StatefulWidget {
   final String title;
   final String currentUserId;
   final Stream<List<Message>> messagesStream;
-  final Future<void> Function(String content) onSend;
+  final Future<void> Function(String content, {bool silent}) onSend;
 
   /// 広場（複数人の会話）では相手ごとに送信者を見分けやすいよう、
   /// メッセージにRhing IDのイニシャルアイコンを表示する。一対では表示しない。
@@ -29,17 +33,70 @@ class ChatScreen extends StatefulWidget {
   final VoidCallback? onCallPressed;
 
   @override
-  State<ChatScreen> createState() => _ChatScreenState();
+  ConsumerState<ChatScreen> createState() => _ChatScreenState();
 }
 
-class _ChatScreenState extends State<ChatScreen> {
+class _ChatScreenState extends ConsumerState<ChatScreen> {
   final _textController = TextEditingController();
 
-  Future<void> _send() async {
+  Future<void> _send({bool silent = false}) async {
     final content = _textController.text.trim();
     if (content.isEmpty) return;
     _textController.clear();
-    await widget.onSend(content);
+    await widget.onSend(content, silent: silent);
+  }
+
+  /// メッセージ入力欄でのEnterキー処理。設定（[SendKeyMode]）に応じて、
+  /// 送信・相手に通知しない送信・改行のどれを行うかを自前で判定する。
+  /// TextFieldの既定のEnter処理（ハードウェアキーボードからの生キーイベントに
+  /// 対しては、プラットフォームのIME経由の改行挿入が常に走るとは限らない）に
+  /// 依存すると環境によって改行が入らないことがあったため、改行も自前で挿入する。
+  ///
+  /// キー割り当て:
+  /// - Enterで送信モード: Enter=送信 / Shift+Enter=改行 / Ctrl+Enter=通知せず送信
+  /// - Ctrl+Enterで送信モード: Enter=改行 / Ctrl+Enter=送信 / Ctrl+Shift+Enter=通知せず送信
+  KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent) return KeyEventResult.ignored;
+    if (event.logicalKey != LogicalKeyboardKey.enter &&
+        event.logicalKey != LogicalKeyboardKey.numpadEnter) {
+      return KeyEventResult.ignored;
+    }
+
+    final mode = ref.read(sendKeyModeProvider);
+    final shiftPressed = HardwareKeyboard.instance.isShiftPressed;
+    final ctrlPressed = HardwareKeyboard.instance.isControlPressed ||
+        HardwareKeyboard.instance.isMetaPressed;
+
+    if (mode == SendKeyMode.enterToSend) {
+      if (ctrlPressed) {
+        _send(silent: true);
+      } else if (shiftPressed) {
+        _insertNewline();
+      } else {
+        _send();
+      }
+    } else {
+      if (ctrlPressed && shiftPressed) {
+        _send(silent: true);
+      } else if (ctrlPressed) {
+        _send();
+      } else {
+        _insertNewline();
+      }
+    }
+    return KeyEventResult.handled;
+  }
+
+  void _insertNewline() {
+    final selection = _textController.selection;
+    final text = _textController.text;
+    final start = selection.start < 0 ? text.length : selection.start;
+    final end = selection.end < 0 ? text.length : selection.end;
+    final newText = text.replaceRange(start, end, '\n');
+    _textController.value = TextEditingValue(
+      text: newText,
+      selection: TextSelection.collapsed(offset: start + 1),
+    );
   }
 
   @override
@@ -103,13 +160,32 @@ class _ChatScreenState extends State<ChatScreen> {
                         borderRadius: BorderRadius.circular(16),
                         boxShadow: floatingShadow,
                       ),
-                      child: Text(
-                        message.content,
-                        style: TextStyle(
-                          color: isMe
-                              ? colorScheme.onPrimary
-                              : colorScheme.onSurfaceVariant,
-                        ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Flexible(
+                            child: Text(
+                              message.content,
+                              style: TextStyle(
+                                color: isMe
+                                    ? colorScheme.onPrimary
+                                    : colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ),
+                          if (message.silent) ...[
+                            const SizedBox(width: 4),
+                            Icon(
+                              Icons.notifications_off,
+                              size: 14,
+                              color: (isMe
+                                      ? colorScheme.onPrimary
+                                      : colorScheme.onSurfaceVariant)
+                                  .withValues(alpha: 0.7),
+                            ),
+                          ],
+                        ],
                       ),
                     );
 
@@ -145,18 +221,36 @@ class _ChatScreenState extends State<ChatScreen> {
               child: Row(
                 children: [
                   Expanded(
-                    child: TextField(
-                      controller: _textController,
-                      decoration: const InputDecoration(
-                        hintText: 'メッセージを入力',
-                        border: OutlineInputBorder(),
+                    child: Focus(
+                      onKeyEvent: _handleKeyEvent,
+                      child: TextField(
+                        controller: _textController,
+                        minLines: 1,
+                        maxLines: 6,
+                        textInputAction: TextInputAction.newline,
+                        keyboardType: TextInputType.multiline,
+                        decoration: const InputDecoration(
+                          hintText: 'メッセージを入力',
+                          border: OutlineInputBorder(),
+                        ),
                       ),
-                      onSubmitted: (_) => _send(),
                     ),
                   ),
-                  IconButton(
-                    icon: Icon(Icons.send, color: colorScheme.primary),
-                    onPressed: _send,
+                  Tooltip(
+                    message: '長押しで相手に通知せず送信',
+                    child: Material(
+                      color: Colors.transparent,
+                      shape: const CircleBorder(),
+                      child: InkWell(
+                        customBorder: const CircleBorder(),
+                        onTap: _send,
+                        onLongPress: () => _send(silent: true),
+                        child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Icon(Icons.send, color: colorScheme.primary),
+                        ),
+                      ),
+                    ),
                   ),
                 ],
               ),

@@ -7,6 +7,7 @@ import 'firebase_options.dart';
 import 'l10n/app_locale.dart';
 import 'providers/accent_color_provider.dart';
 import 'providers/app_locale_provider.dart';
+import 'providers/send_key_mode_provider.dart';
 import 'router/app_router.dart';
 import 'theme/app_theme.dart';
 
@@ -15,11 +16,13 @@ Future<void> main() async {
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   final initialAccentColor = await loadInitialAccentColor();
   final initialAppLocale = await loadInitialAppLocale();
+  final initialSendKeyMode = await loadInitialSendKeyMode();
   runApp(
     ProviderScope(
       overrides: [
         initialAccentColorProvider.overrideWithValue(initialAccentColor),
         initialAppLocaleProvider.overrideWithValue(initialAppLocale),
+        initialSendKeyModeProvider.overrideWithValue(initialSendKeyMode),
       ],
       child: const DaiDaiApp(),
     ),

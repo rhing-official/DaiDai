@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/app_locale.dart';
 import '../../l10n/strings.dart';
+import '../../models/send_key_mode.dart';
 import '../../providers/accent_color_provider.dart';
 import '../../providers/app_locale_provider.dart';
 import '../../providers/repository_providers.dart';
+import '../../providers/send_key_mode_provider.dart';
 import '../../utils/color_hex.dart';
 
-enum _SettingsFolder { account, design, displayLanguage, notifications }
+enum _SettingsFolder { account, design, displayLanguage, input, notifications }
 
 /// 設定タブ。項目をフォルダ単位に階層化して表示する。
 /// フォルダを開くとその中身、閉じると一覧に戻る。
@@ -26,30 +29,39 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
   Widget build(BuildContext context) {
     final strings = ref.watch(appStringsProvider);
 
-    return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 220),
-      transitionBuilder: (child, animation) {
-        final slide = Tween<Offset>(
-          begin: const Offset(0.04, 0),
-          end: Offset.zero,
-        ).animate(animation);
-        return FadeTransition(
-          opacity: animation,
-          child: SlideTransition(position: slide, child: child),
-        );
-      },
-      child: _openFolder == null
-          ? _FolderList(
-              key: const ValueKey('folder-list'),
-              strings: strings,
-              onOpen: (folder) => setState(() => _openFolder = folder),
-            )
-          : _FolderDetail(
-              key: ValueKey(_openFolder),
-              folder: _openFolder!,
-              strings: strings,
-              onBack: () => setState(() => _openFolder = null),
-            ),
+    return Align(
+      alignment: Alignment.topCenter,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 480),
+        child: Padding(
+          padding: const EdgeInsets.only(top: 56),
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 220),
+            transitionBuilder: (child, animation) {
+              final slide = Tween<Offset>(
+                begin: const Offset(0.04, 0),
+                end: Offset.zero,
+              ).animate(animation);
+              return FadeTransition(
+                opacity: animation,
+                child: SlideTransition(position: slide, child: child),
+              );
+            },
+            child: _openFolder == null
+                ? _FolderList(
+                    key: const ValueKey('folder-list'),
+                    strings: strings,
+                    onOpen: (folder) => setState(() => _openFolder = folder),
+                  )
+                : _FolderDetail(
+                    key: ValueKey(_openFolder),
+                    folder: _openFolder!,
+                    strings: strings,
+                    onBack: () => setState(() => _openFolder = null),
+                  ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -63,6 +75,7 @@ class _FolderList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListView(
+      padding: const EdgeInsets.symmetric(horizontal: 8),
       children: [
         _FolderTile(
           icon: Icons.person_outline,
@@ -78,6 +91,11 @@ class _FolderList extends StatelessWidget {
           icon: Icons.language_outlined,
           title: strings.settingsFolderDisplayLanguage,
           onTap: () => onOpen(_SettingsFolder.displayLanguage),
+        ),
+        _FolderTile(
+          icon: Icons.keyboard_outlined,
+          title: strings.settingsFolderInput,
+          onTap: () => onOpen(_SettingsFolder.input),
         ),
         _FolderTile(
           icon: Icons.notifications_outlined,
@@ -102,11 +120,15 @@ class _FolderTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
-      leading: Icon(icon),
-      title: Text(title),
-      trailing: const Icon(Icons.chevron_right),
-      onTap: onTap,
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 6),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        leading: Icon(icon),
+        title: Text(title),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: onTap,
+      ),
     );
   }
 }
@@ -136,6 +158,7 @@ class _FolderDetail extends ConsumerWidget {
               _SettingsFolder.design => strings.settingsFolderDesign,
               _SettingsFolder.displayLanguage =>
                 strings.settingsFolderDisplayLanguage,
+              _SettingsFolder.input => strings.settingsFolderInput,
               _SettingsFolder.notifications =>
                 strings.settingsFolderNotifications,
             },
@@ -151,6 +174,7 @@ class _FolderDetail extends ConsumerWidget {
             _SettingsFolder.displayLanguage => _DisplayLanguageFolder(
               strings: strings,
             ),
+            _SettingsFolder.input => _InputFolder(strings: strings),
             _SettingsFolder.notifications => _ComingSoonFolder(
               message: strings.settingsComingSoon,
             ),
@@ -253,11 +277,16 @@ class _DesignFolderState extends ConsumerState<_DesignFolder> {
                 child: TextField(
                   controller: _hexController,
                   textCapitalization: TextCapitalization.characters,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(RegExp('[0-9a-fA-F]')),
+                    LengthLimitingTextInputFormatter(8),
+                  ],
                   decoration: InputDecoration(
                     labelText: widget.strings.settingsColorCode,
                     prefixText: '#',
-                    hintText: '3D2EE0',
+                    hintText: 'F08300',
                     errorText: _errorText,
+                    counterText: '',
                     suffixIcon: IconButton(
                       icon: const Icon(Icons.check),
                       tooltip: '適用',
@@ -313,6 +342,49 @@ class _DisplayLanguageFolder extends ConsumerWidget {
           leading: const Icon(Icons.tune),
           title: Text(strings.settingsTerminology),
           subtitle: Text(strings.settingsComingSoon),
+        ),
+      ],
+    );
+  }
+}
+
+class _InputFolder extends ConsumerWidget {
+  const _InputFolder({required this.strings});
+
+  final Strings strings;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final mode = ref.watch(sendKeyModeProvider);
+
+    return ListView(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+          child: Text(
+            strings.settingsSendKeyTitle,
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+        ),
+        RadioGroup<SendKeyMode>(
+          groupValue: mode,
+          onChanged: (value) {
+            if (value != null) {
+              ref.read(sendKeyModeProvider.notifier).setMode(value);
+            }
+          },
+          child: Column(
+            children: [
+              RadioListTile<SendKeyMode>(
+                value: SendKeyMode.enterToSend,
+                title: Text(strings.settingsSendKeyEnterToSend),
+              ),
+              RadioListTile<SendKeyMode>(
+                value: SendKeyMode.ctrlEnterToSend,
+                title: Text(strings.settingsSendKeyCtrlEnterToSend),
+              ),
+            ],
+          ),
         ),
       ],
     );

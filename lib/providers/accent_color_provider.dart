@@ -5,7 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 const _prefsKey = 'accentColorArgb32';
 
 /// ユーザーが未設定の場合に使う既定のアクセントカラー。
-const kDefaultAccentColor = Color(0xFF3D2EE0);
+const kDefaultAccentColor = Color(0xFFF08300);
 
 /// 端末に保存されている初期アクセントカラー。main()で起動前に読み込み、
 /// ProviderScopeのoverrideとして渡す。

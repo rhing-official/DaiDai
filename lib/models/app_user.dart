@@ -1,3 +1,4 @@
+import 'profile_card.dart';
 import 'profile_material.dart';
 
 class AppUser {
@@ -9,6 +10,7 @@ class AppUser {
     this.backgroundImages = const [],
     this.statusMessages = const [],
     this.nicknames = const [],
+    this.profileCards = const [],
     this.activeIconId,
     this.activeBackgroundImageId,
     this.activeStatusMessageId,
@@ -31,6 +33,10 @@ class AppUser {
   /// 蔵に保管しているニックネーム（最大[kMaxNicknames]件）。
   /// 友達には、相手のRhing IDの代わりにここで選んだニックネームが表示される。
   final List<Nickname> nicknames;
+
+  /// 和合で作成したプロフィールカード（最大[kMaxProfileCards]枚）。
+  /// 蔵の素材を組み合わせて作る「見せ方のセット」。
+  final List<ProfileCard> profileCards;
 
   /// 現在表示に使っている素材のid。未選択ならnull。
   final String? activeIconId;
@@ -80,6 +86,7 @@ class AppUser {
     List<ProfileMaterial>? backgroundImages,
     List<StatusMessage>? statusMessages,
     List<Nickname>? nicknames,
+    List<ProfileCard>? profileCards,
     String? activeIconId,
     String? activeBackgroundImageId,
     String? activeStatusMessageId,
@@ -93,6 +100,7 @@ class AppUser {
       backgroundImages: backgroundImages ?? this.backgroundImages,
       statusMessages: statusMessages ?? this.statusMessages,
       nicknames: nicknames ?? this.nicknames,
+      profileCards: profileCards ?? this.profileCards,
       activeIconId: activeIconId ?? this.activeIconId,
       activeBackgroundImageId:
           activeBackgroundImageId ?? this.activeBackgroundImageId,
@@ -111,6 +119,7 @@ class AppUser {
       backgroundImages: _materialListFromJson(json['backgroundImages']),
       statusMessages: _statusListFromJson(json['statusMessages']),
       nicknames: _nicknameListFromJson(json['nicknames']),
+      profileCards: _profileCardListFromJson(json['profileCards']),
       activeIconId: json['activeIconId'] as String?,
       activeBackgroundImageId: json['activeBackgroundImageId'] as String?,
       activeStatusMessageId: json['activeStatusMessageId'] as String?,
@@ -127,6 +136,7 @@ class AppUser {
       'backgroundImages': backgroundImages.map((m) => m.toJson()).toList(),
       'statusMessages': statusMessages.map((m) => m.toJson()).toList(),
       'nicknames': nicknames.map((n) => n.toJson()).toList(),
+      'profileCards': profileCards.map((c) => c.toJson()).toList(),
       'activeIconId': activeIconId,
       'activeBackgroundImageId': activeBackgroundImageId,
       'activeStatusMessageId': activeStatusMessageId,
@@ -152,6 +162,13 @@ class AppUser {
     if (value is! List) return const [];
     return value
         .map((e) => Nickname.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  static List<ProfileCard> _profileCardListFromJson(dynamic value) {
+    if (value is! List) return const [];
+    return value
+        .map((e) => ProfileCard.fromJson(e as Map<String, dynamic>))
         .toList();
   }
 }

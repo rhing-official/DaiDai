@@ -24,7 +24,8 @@ service cloud.firestore {
         && (!('icons' in request.resource.data) || request.resource.data.icons.size() <= 2)
         && (!('backgroundImages' in request.resource.data) || request.resource.data.backgroundImages.size() <= 3)
         && (!('statusMessages' in request.resource.data) || request.resource.data.statusMessages.size() <= 2)
-        && (!('nicknames' in request.resource.data) || request.resource.data.nicknames.size() <= 3);
+        && (!('nicknames' in request.resource.data) || request.resource.data.nicknames.size() <= 3)
+        && (!('profileCards' in request.resource.data) || request.resource.data.profileCards.size() <= 3);
       allow delete: if false;
 
       // users/{userId}/friends/{friendUserId}: 本人のみ読み取り可能。
