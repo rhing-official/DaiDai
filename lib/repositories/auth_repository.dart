@@ -6,6 +6,7 @@ abstract class AuthRepository {
   Stream<User?> authStateChanges();
   User? get currentUser;
   Future<User> signInWithGoogle();
+  Future<User> signInWithApple();
   Future<void> signOut();
 }
 
@@ -48,6 +49,30 @@ class FirebaseAuthRepository implements AuthRepository {
     final user = userCredential.user;
     if (user == null) {
       throw StateError('Google認証に失敗しました');
+    }
+    return user;
+  }
+
+  @override
+  Future<User> signInWithApple() async {
+    // Appleは"email"/"name"スコープをリクエストしないとユーザーの氏名・メールアドレスを
+    // 取得できない（Googleと違い初回サインイン時のみクライアントに返る）。
+    // ただしDaiDaiはメールアドレスを収集しない方針のため、認証用途のみに使い保存しない。
+    final provider = OAuthProvider('apple.com')
+      ..addScope('email')
+      ..addScope('name');
+
+    // WebはFirebase Auth JS SDKのポップアップフローに任せる（Googleと同じ理由）。
+    // Web以外（Android/Windows/Linux）はsignInWithProviderの汎用OAuthフローを使う。
+    // iOS/macOSはApple審査ガイドライン(4.8)によりネイティブのSign in with Apple
+    // （sign_in_with_appleパッケージ）への切り替えが将来必要になる可能性がある
+    // （フェーズ1の優先実装順ではWeb/Android/Windows/Linuxが先のため現状は未対応）。
+    final userCredential = kIsWeb
+        ? await _auth.signInWithPopup(provider)
+        : await _auth.signInWithProvider(provider);
+    final user = userCredential.user;
+    if (user == null) {
+      throw StateError('Apple認証に失敗しました');
     }
     return user;
   }

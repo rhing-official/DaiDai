@@ -1,7 +1,10 @@
+import 'dart:io' show Platform;
 import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter_image_compress/flutter_image_compress.dart';
 
 import '../models/app_user.dart';
 import '../models/profile_material.dart';
@@ -107,11 +110,43 @@ class FirestoreUserRepository implements UserRepository {
     required Uint8List bytes,
   }) async {
     final id = _users.doc().id;
-    final path = 'profileMaterials/$userId/$folder/$id.jpg';
+    // image_pickerはリサイズ・圧縮をせず、カメラ由来の数MB〜10MB超の生バイトを
+    // そのまま返すことがある。蔵のサムネイルは72〜128px程度でしか表示しない上、
+    // 巨大なJPEGのままだと読み込みが極端に遅く「真っ白」に見える一因になっていた
+    // ため、WebPへの圧縮・リサイズを行う（CLAUDE.md記載の画像圧縮方針）。
+    // flutter_image_compressはWindows/Linuxを未対応のため、その場合や
+    // 何らかの理由で圧縮に失敗した場合は元のバイトのままアップロードする
+    // （圧縮失敗でアップロード自体をブロックしないためのフォールバック）。
+    final compressed = await _tryCompressToWebp(bytes, folder: folder);
+    final extension = compressed != null ? 'webp' : 'jpg';
+    final contentType = compressed != null ? 'image/webp' : 'image/jpeg';
+    final path = 'profileMaterials/$userId/$folder/$id.$extension';
     final ref = _storage.ref(path);
-    await ref.putData(bytes, SettableMetadata(contentType: 'image/jpeg'));
+    await ref.putData(
+      compressed ?? bytes,
+      SettableMetadata(contentType: contentType),
+    );
     final url = await ref.getDownloadURL();
     return ProfileMaterial(id: id, url: url, storagePath: path);
+  }
+
+  Future<Uint8List?> _tryCompressToWebp(
+    Uint8List bytes, {
+    required String folder,
+  }) async {
+    if (!kIsWeb && (Platform.isWindows || Platform.isLinux)) return null;
+    final isIcon = folder == 'icons';
+    try {
+      return await FlutterImageCompress.compressWithList(
+        bytes,
+        minWidth: isIcon ? 512 : 1080,
+        minHeight: isIcon ? 512 : 1080,
+        quality: isIcon ? 85 : 80,
+        format: CompressFormat.webp,
+      );
+    } catch (_) {
+      return null;
+    }
   }
 
   @override
