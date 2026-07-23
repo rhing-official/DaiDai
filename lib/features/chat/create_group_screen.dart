@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../models/app_user.dart';
 import '../../providers/repository_providers.dart';
-import 'chat_screen.dart';
+import '../../router/app_router.dart';
 
 /// 広場（グループ）作成画面。3人以上（自分＋2人以上）で作成する。
 class CreateGroupScreen extends ConsumerStatefulWidget {
@@ -87,25 +87,9 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
       );
 
       if (!mounted) return;
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (_) => ChatScreen(
-            title: group.name,
-            currentUserId: widget.currentUser.userId,
-            showSenderAvatar: true,
-            messagesStream: groupRepository.watchRoomMessages(
-              group.groupId,
-              group.defaultRoomId,
-            ),
-            onSend: (content) => groupRepository.sendRoomMessage(
-              groupId: group.groupId,
-              roomId: group.defaultRoomId,
-              senderId: widget.currentUser.userId,
-              senderRhingId: widget.currentUser.rhingId,
-              content: content,
-            ),
-          ),
-        ),
+      ref.read(goRouterProvider).pushReplacement(
+        '/chat/group',
+        extra: GroupChatArgs(currentUser: widget.currentUser, group: group),
       );
     } catch (e) {
       setState(() => _errorMessage = 'エラーが発生しました: $e');

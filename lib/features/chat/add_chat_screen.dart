@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../models/app_user.dart';
 import '../../providers/repository_providers.dart';
-import 'chat_screen.dart';
+import '../../router/app_router.dart';
 
 /// 相手のRhing IDを入力して一対（1対1チャット）を開始する画面。
 /// 仲間承認制などのスパム対策はフェーズ1の後続タスクで追加する。
@@ -54,20 +54,9 @@ class _AddChatScreenState extends ConsumerState<AddChatScreen> {
       );
 
       if (!mounted) return;
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (_) => ChatScreen(
-            title: '@${other.rhingId}',
-            currentUserId: widget.currentUser.userId,
-            messagesStream: dmRepository.watchMessages(dm.dmId),
-            onSend: (content) => dmRepository.sendTextMessage(
-              dmId: dm.dmId,
-              senderId: widget.currentUser.userId,
-              senderRhingId: widget.currentUser.rhingId,
-              content: content,
-            ),
-          ),
-        ),
+      ref.read(goRouterProvider).pushReplacement(
+        '/chat/dm',
+        extra: DmChatArgs(currentUser: widget.currentUser, dm: dm),
       );
     } catch (e) {
       setState(() {

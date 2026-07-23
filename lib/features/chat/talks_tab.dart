@@ -5,10 +5,7 @@ import '../../models/app_user.dart';
 import '../../models/direct_message.dart';
 import '../../models/group.dart';
 import '../../providers/repository_providers.dart';
-import '../call/call_screen.dart';
-import 'add_chat_screen.dart';
-import 'chat_screen.dart';
-import 'create_group_screen.dart';
+import '../../router/app_router.dart';
 
 enum _TalksCategory { dm, group }
 
@@ -27,85 +24,25 @@ class _TalksTabState extends ConsumerState<TalksTab> {
   _TalksCategory _category = _TalksCategory.dm;
 
   void _openDirectMessage(DirectMessage dm) {
-    final dmRepository = ref.read(directMessageRepositoryProvider);
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => ChatScreen(
-          title: '@${dm.otherRhingId(widget.currentUser.userId)}',
-          currentUserId: widget.currentUser.userId,
-          messagesStream: dmRepository.watchMessages(dm.dmId),
-          onSend: (content) => dmRepository.sendTextMessage(
-            dmId: dm.dmId,
-            senderId: widget.currentUser.userId,
-            senderRhingId: widget.currentUser.rhingId,
-            content: content,
-          ),
-          onCallPressed: () => _startCall(dm),
-        ),
-      ),
-    );
-  }
-
-  Future<void> _startCall(DirectMessage dm) async {
-    final callRepository = ref.read(callRepositoryProvider);
-    final other = AppUser(
-      userId: dm.otherUserId(widget.currentUser.userId),
-      rhingId: dm.otherRhingId(widget.currentUser.userId),
-    );
-    final call = await callRepository.createCall(
-      caller: widget.currentUser,
-      callee: other,
-    );
-    if (!mounted) return;
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => CallScreen(
-          call: call,
-          isCaller: true,
-          currentUserId: widget.currentUser.userId,
-        ),
-      ),
+    ref.read(goRouterProvider).push(
+      '/chat/dm',
+      extra: DmChatArgs(currentUser: widget.currentUser, dm: dm),
     );
   }
 
   void _openGroup(Group group) {
-    final groupRepository = ref.read(groupRepositoryProvider);
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => ChatScreen(
-          title: group.name,
-          currentUserId: widget.currentUser.userId,
-          showSenderAvatar: true,
-          messagesStream: groupRepository.watchRoomMessages(
-            group.groupId,
-            group.defaultRoomId,
-          ),
-          onSend: (content) => groupRepository.sendRoomMessage(
-            groupId: group.groupId,
-            roomId: group.defaultRoomId,
-            senderId: widget.currentUser.userId,
-            senderRhingId: widget.currentUser.rhingId,
-            content: content,
-          ),
-        ),
-      ),
+    ref.read(goRouterProvider).push(
+      '/chat/group',
+      extra: GroupChatArgs(currentUser: widget.currentUser, group: group),
     );
   }
 
   void _openAddChat() {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => AddChatScreen(currentUser: widget.currentUser),
-      ),
-    );
+    ref.read(goRouterProvider).push('/add-chat', extra: widget.currentUser);
   }
 
   void _openCreateGroup() {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => CreateGroupScreen(currentUser: widget.currentUser),
-      ),
-    );
+    ref.read(goRouterProvider).push('/create-group', extra: widget.currentUser);
   }
 
   Future<void> _showAddMenu() async {

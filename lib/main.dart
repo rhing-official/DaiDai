@@ -2,9 +2,9 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'features/app_gate.dart';
 import 'firebase_options.dart';
 import 'providers/accent_color_provider.dart';
+import 'router/app_router.dart';
 import 'theme/app_theme.dart';
 
 Future<void> main() async {
@@ -27,10 +27,10 @@ class DaiDaiApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final accentColor = ref.watch(accentColorProvider);
-    return MaterialApp(
+    return MaterialApp.router(
       title: 'DaiDai',
       theme: AppTheme.theme(accentColor),
-      home: const AppGate(),
+      routerConfig: ref.watch(goRouterProvider),
     );
   }
 }

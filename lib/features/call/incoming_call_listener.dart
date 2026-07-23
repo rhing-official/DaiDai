@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../providers/repository_providers.dart';
-import 'call_screen.dart';
+import '../../router/app_router.dart';
 
 /// アプリ全体で、自分宛の着信（呼び出し中の通話）を監視し、
 /// 検知したら自動でCallScreenを開く。HomeScreenの上位でラップして使う。
@@ -30,16 +30,16 @@ class _IncomingCallListenerState extends ConsumerState<IncomingCallListener> {
       final call = next.asData?.value;
       if (call == null || call.callId == _openCallId) return;
       _openCallId = call.callId;
-      Navigator.of(context)
+      ref
+          .read(goRouterProvider)
           .push(
-        MaterialPageRoute(
-          builder: (_) => CallScreen(
-            call: call,
-            isCaller: false,
-            currentUserId: widget.currentUserId,
-          ),
-        ),
-      )
+            '/call',
+            extra: CallArgs(
+              call: call,
+              isCaller: false,
+              currentUserId: widget.currentUserId,
+            ),
+          )
           .then((_) {
         _openCallId = null;
       });
