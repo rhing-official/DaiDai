@@ -5,9 +5,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../models/app_user.dart';
+import '../../models/profile_card.dart';
 import '../../models/profile_material.dart';
 import '../../providers/repository_providers.dart';
 import '../../repositories/user_repository.dart';
+import '../../router/app_router.dart';
 
 /// 身だしなみタブ（プロフィール設定・蔵システム）。
 /// アイコン（最大[kMaxIcons]件）・背景画像（最大[kMaxBackgroundImages]件）・
@@ -209,6 +211,14 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
               ],
             ],
           ),
+        ),
+        const SizedBox(height: 16),
+        OutlinedButton.icon(
+          onPressed: () => ref
+              .read(goRouterProvider)
+              .push('/profile-creator', extra: _user),
+          icon: const Icon(Icons.auto_awesome_outlined),
+          label: Text('和合 - プロフィールカードを作る（${_user.profileCards.length}/$kMaxProfileCards）'),
         ),
         const SizedBox(height: 24),
         _MaterialSection(

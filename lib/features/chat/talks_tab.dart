@@ -12,8 +12,14 @@ import '../../providers/friend_providers.dart';
 import '../../providers/repository_providers.dart';
 import '../../providers/user_providers.dart';
 import '../../router/app_router.dart';
+import 'chat_panes.dart';
 
 enum _TalksCategory { dm, group }
+
+/// 画面幅がこれ以上あれば、一覧と会話を左右分割で同時表示する
+/// （Discordのような「一覧は常に見えたまま、選んだ会話が右隣に開く」構成）。
+/// これ未満の狭い画面では、従来通り会話をフルスクリーンで開く。
+const _kSplitBreakpoint = 760.0;
 
 /// 語らいタブの中身。上部の「一対」「広場」を横並びで切り替えて一覧表示する。
 /// 相手の追加・広場の作成は、この画面内の＋ボタン（中央ポップアップ）から行う。
@@ -30,8 +36,16 @@ class TalksTab extends ConsumerStatefulWidget {
 
 class _TalksTabState extends ConsumerState<TalksTab> {
   _TalksCategory _category = _TalksCategory.dm;
+  DirectMessage? _selectedDm;
+  Group? _selectedGroup;
+
+  bool get _isSplit => MediaQuery.sizeOf(context).width >= _kSplitBreakpoint;
 
   void _openDirectMessage(DirectMessage dm) {
+    if (_isSplit) {
+      setState(() => _selectedDm = dm);
+      return;
+    }
     ref.read(goRouterProvider).push(
       '/chat/dm',
       extra: DmChatArgs(currentUser: widget.currentUser, dm: dm),
@@ -39,9 +53,33 @@ class _TalksTabState extends ConsumerState<TalksTab> {
   }
 
   void _openGroup(Group group) {
+    if (_isSplit) {
+      setState(() => _selectedGroup = group);
+      return;
+    }
     ref.read(goRouterProvider).push(
       '/chat/group',
       extra: GroupChatArgs(currentUser: widget.currentUser, group: group),
+    );
+  }
+
+  Future<void> _startCall(DirectMessage dm) async {
+    final callRepository = ref.read(callRepositoryProvider);
+    final other = AppUser(
+      userId: dm.otherUserId(widget.currentUser.userId),
+      rhingId: dm.otherRhingId(widget.currentUser.userId),
+    );
+    final call = await callRepository.createCall(
+      caller: widget.currentUser,
+      callee: other,
+    );
+    ref.read(goRouterProvider).push(
+      '/call',
+      extra: CallArgs(
+        call: call,
+        isCaller: true,
+        currentUserId: widget.currentUser.userId,
+      ),
     );
   }
 
@@ -129,6 +167,8 @@ class _TalksTabState extends ConsumerState<TalksTab> {
         ref.watch(conversationPrefsProvider(widget.currentUser.userId)).value ??
             const {};
 
+    final isSplit = _isSplit;
+
     return Scaffold(
       body: StreamBuilder<List<DirectMessage>>(
         stream: directMessagesStream,
@@ -139,7 +179,7 @@ class _TalksTabState extends ConsumerState<TalksTab> {
             builder: (context, groupSnapshot) {
               final groups = groupSnapshot.data ?? [];
 
-              return Column(
+              final listPane = Column(
                 children: [
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
@@ -161,10 +201,14 @@ class _TalksTabState extends ConsumerState<TalksTab> {
                             () => _category = _TalksCategory.group,
                           ),
                         ),
-                        const Spacer(),
-                        IconButton(
-                          icon: const Icon(Icons.add),
+                        const SizedBox(width: 12),
+                        IconButton.filled(
+                          icon: const Icon(Icons.add, size: 20),
                           onPressed: _showAddMenu,
+                          style: IconButton.styleFrom(
+                            minimumSize: const Size(32, 32),
+                            padding: EdgeInsets.zero,
+                          ),
                         ),
                       ],
                     ),
@@ -182,10 +226,40 @@ class _TalksTabState extends ConsumerState<TalksTab> {
                   ),
                 ],
               );
+
+              if (!isSplit) return listPane;
+
+              return Row(
+                children: [
+                  SizedBox(width: 320, child: listPane),
+                  const VerticalDivider(width: 1),
+                  Expanded(child: _buildDetailPane()),
+                ],
+              );
             },
           );
         },
       ),
+    );
+  }
+
+  Widget _buildDetailPane() {
+    if (_category == _TalksCategory.dm) {
+      final dm = _selectedDm;
+      if (dm == null) return const _EmptyDetailPlaceholder();
+      return DmChatPane(
+        key: ValueKey('detail-dm-${dm.dmId}'),
+        currentUser: widget.currentUser,
+        dm: dm,
+        onCallPressed: () => _startCall(dm),
+      );
+    }
+    final group = _selectedGroup;
+    if (group == null) return const _EmptyDetailPlaceholder();
+    return GroupChatPane(
+      key: ValueKey('detail-group-${group.groupId}'),
+      currentUser: widget.currentUser,
+      group: group,
     );
   }
 
@@ -225,6 +299,7 @@ class _TalksTabState extends ConsumerState<TalksTab> {
             dm: dm,
             pinned: prefsById[dm.dmId]?.pinned ?? false,
             muted: prefsById[dm.dmId]?.notificationsMuted ?? false,
+            selected: _isSplit && _selectedDm?.dmId == dm.dmId,
             onTap: () => _openDirectMessage(dm),
           ),
       ],
@@ -252,6 +327,7 @@ class _TalksTabState extends ConsumerState<TalksTab> {
           group: group,
           pinned: prefsById[group.groupId]?.pinned ?? false,
           muted: prefsById[group.groupId]?.notificationsMuted ?? false,
+          selected: _isSplit && _selectedGroup?.groupId == group.groupId,
           onTap: () => _openGroup(group),
         );
       },
@@ -384,12 +460,14 @@ class _DirectMessageTile extends ConsumerWidget {
     required this.pinned,
     required this.muted,
     required this.onTap,
+    this.selected = false,
   });
 
   final AppUser currentUser;
   final DirectMessage dm;
   final bool pinned;
   final bool muted;
+  final bool selected;
   final VoidCallback onTap;
 
   @override
@@ -406,6 +484,8 @@ class _DirectMessageTile extends ConsumerWidget {
       pinned: pinned,
       muted: muted,
       child: ListTile(
+        selected: selected,
+        selectedTileColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.08),
         leading: const CircleAvatar(child: Icon(Icons.person)),
         title: Text(label),
         trailing: _ConversationIndicators(pinned: pinned, muted: muted),
@@ -422,12 +502,14 @@ class _GroupTile extends ConsumerWidget {
     required this.pinned,
     required this.muted,
     required this.onTap,
+    this.selected = false,
   });
 
   final String currentUserId;
   final Group group;
   final bool pinned;
   final bool muted;
+  final bool selected;
   final VoidCallback onTap;
 
   @override
@@ -438,6 +520,8 @@ class _GroupTile extends ConsumerWidget {
       pinned: pinned,
       muted: muted,
       child: ListTile(
+        selected: selected,
+        selectedTileColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.08),
         leading: const CircleAvatar(child: Icon(Icons.groups)),
         title: Text(group.name),
         subtitle: Text('${group.memberIds.length}人'),
@@ -524,6 +608,22 @@ class _ConversationGestures extends ConsumerWidget {
       onSecondaryTapDown: (details) => _showMenu(context, ref, details.globalPosition),
       onLongPressStart: (details) => _showMenu(context, ref, details.globalPosition),
       child: child,
+    );
+  }
+}
+
+/// 分割ビューで会話が未選択のときに右側に表示するプレースホルダー。
+class _EmptyDetailPlaceholder extends StatelessWidget {
+  const _EmptyDetailPlaceholder();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Icon(
+        Icons.forum_outlined,
+        size: 64,
+        color: Theme.of(context).colorScheme.outlineVariant,
+      ),
     );
   }
 }

@@ -18,6 +18,7 @@ abstract class DirectMessageRepository {
     required String senderId,
     required String senderRhingId,
     required String content,
+    bool silent = false,
   });
 }
 
@@ -80,6 +81,7 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
     required String senderId,
     required String senderRhingId,
     required String content,
+    bool silent = false,
   }) async {
     final dmRef = _directMessages.doc(dmId);
     final messageRef = dmRef.collection('messages').doc();
@@ -92,6 +94,7 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
       senderRhingId: senderRhingId,
       content: content,
       contentType: 'text',
+      silent: silent,
     );
 
     final batch = _firestore.batch();

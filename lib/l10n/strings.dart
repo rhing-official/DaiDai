@@ -20,6 +20,7 @@ class Strings {
     required this.settingsFolderAccount,
     required this.settingsFolderDesign,
     required this.settingsFolderDisplayLanguage,
+    required this.settingsFolderInput,
     required this.settingsFolderNotifications,
     required this.settingsAccentColor,
     required this.settingsColorCode,
@@ -27,6 +28,9 @@ class Strings {
     required this.settingsDisplayLanguage,
     required this.settingsTerminology,
     required this.settingsComingSoon,
+    required this.settingsSendKeyTitle,
+    required this.settingsSendKeyEnterToSend,
+    required this.settingsSendKeyCtrlEnterToSend,
     required this.back,
     required this.friendSearchTitle,
     required this.friendSearchHint,
@@ -63,6 +67,7 @@ class Strings {
   final String settingsFolderAccount;
   final String settingsFolderDesign;
   final String settingsFolderDisplayLanguage;
+  final String settingsFolderInput;
   final String settingsFolderNotifications;
   final String settingsAccentColor;
   final String settingsColorCode;
@@ -70,6 +75,9 @@ class Strings {
   final String settingsDisplayLanguage;
   final String settingsTerminology;
   final String settingsComingSoon;
+  final String settingsSendKeyTitle;
+  final String settingsSendKeyEnterToSend;
+  final String settingsSendKeyCtrlEnterToSend;
 
   final String back;
 
@@ -105,6 +113,7 @@ class Strings {
     settingsFolderAccount: 'アカウント',
     settingsFolderDesign: 'デザイン',
     settingsFolderDisplayLanguage: '表示・言語',
+    settingsFolderInput: '入力',
     settingsFolderNotifications: '通知',
     settingsAccentColor: 'アクセントカラー',
     settingsColorCode: 'カラーコード',
@@ -112,6 +121,9 @@ class Strings {
     settingsDisplayLanguage: '表示言語',
     settingsTerminology: '用語・表示設定',
     settingsComingSoon: '準備中',
+    settingsSendKeyTitle: 'メッセージの送信キー',
+    settingsSendKeyEnterToSend: 'Enterで送信、Shift+Enterで改行',
+    settingsSendKeyCtrlEnterToSend: 'Enterで改行、Ctrl+Enterで送信',
     back: '戻る',
     friendSearchTitle: '友達を追加',
     friendSearchHint: '相手のRhing IDを入力して友達申請を送ります。承認されると会話できるようになります。',
@@ -146,6 +158,7 @@ class Strings {
     settingsFolderAccount: 'Account',
     settingsFolderDesign: 'Design',
     settingsFolderDisplayLanguage: 'Display & Language',
+    settingsFolderInput: 'Input',
     settingsFolderNotifications: 'Notifications',
     settingsAccentColor: 'Accent colour',
     settingsColorCode: 'Colour code',
@@ -153,6 +166,9 @@ class Strings {
     settingsDisplayLanguage: 'Display language',
     settingsTerminology: 'Terminology & display',
     settingsComingSoon: 'Coming soon',
+    settingsSendKeyTitle: 'Message send key',
+    settingsSendKeyEnterToSend: 'Enter to send, Shift+Enter for a new line',
+    settingsSendKeyCtrlEnterToSend: 'Enter for a new line, Ctrl+Enter to send',
     back: 'Back',
     friendSearchTitle: 'Add a friend',
     friendSearchHint:
