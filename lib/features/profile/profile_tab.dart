@@ -37,7 +37,11 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
 
   Future<void> _persist(AppUser updated) async {
     setState(() => _user = updated);
-    await _repository.updateUser(updated);
+    try {
+      await _repository.updateUser(updated);
+    } catch (e) {
+      _showError('保存に失敗しました: $e');
+    }
   }
 
   void _showError(String message) {
@@ -152,6 +156,37 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
     await _persist(updated);
   }
 
+  Future<void> _addNickname() async {
+    if (_user.nicknames.length >= kMaxNicknames) return;
+    final text = await showDialog<String>(
+      context: context,
+      builder: (context) => const _NicknameDialog(),
+    );
+    if (text == null || text.trim().isEmpty) return;
+
+    final nickname = Nickname(
+      id: '${DateTime.now().microsecondsSinceEpoch}_${Random().nextInt(1 << 32)}',
+      text: text.trim(),
+    );
+    final updated = _user.copyWith(
+      nicknames: [..._user.nicknames, nickname],
+      activeNicknameId: _user.activeNicknameId ?? nickname.id,
+    );
+    await _persist(updated);
+  }
+
+  Future<void> _deleteNickname(Nickname nickname) async {
+    final remaining =
+        _user.nicknames.where((n) => n.id != nickname.id).toList();
+    final updated = _user.copyWith(
+      nicknames: remaining,
+      activeNicknameId: _user.activeNicknameId == nickname.id
+          ? (remaining.isEmpty ? null : remaining.first.id)
+          : _user.activeNicknameId,
+    );
+    await _persist(updated);
+  }
+
   @override
   Widget build(BuildContext context) {
     return ListView(
@@ -160,17 +195,11 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
         Center(
           child: Column(
             children: [
-              CircleAvatar(
-                radius: 40,
-                backgroundImage: _user.activeIcon != null
-                    ? NetworkImage(_user.activeIcon!.url)
-                    : null,
-                child: _user.activeIcon == null
-                    ? const Icon(Icons.person, size: 40)
-                    : null,
-              ),
-              const SizedBox(height: 12),
-              Text('@${_user.rhingId}', style: const TextStyle(fontSize: 20)),
+              if (_user.activeNickname != null)
+                Text(
+                  _user.activeNickname!.text,
+                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
               if (_user.activeStatusMessage != null) ...[
                 const SizedBox(height: 4),
                 Text(
@@ -215,6 +244,14 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
                 onDelete: () => _deleteBackground(bg),
               ),
           ],
+        ),
+        const SizedBox(height: 24),
+        _NicknameSection(
+          nicknames: _user.nicknames,
+          activeId: _user.activeNicknameId,
+          onAdd: _addNickname,
+          onSelect: (id) => _persist(_user.copyWith(activeNicknameId: id)),
+          onDelete: _deleteNickname,
         ),
         const SizedBox(height: 24),
         _StatusMessageSection(
@@ -485,6 +522,103 @@ class _StatusMessageSection extends StatelessWidget {
           onPressed: canAdd ? onAdd : null,
           icon: const Icon(Icons.add),
           label: const Text('ステメを追加'),
+        ),
+      ],
+    );
+  }
+}
+
+class _NicknameSection extends StatelessWidget {
+  const _NicknameSection({
+    required this.nicknames,
+    required this.activeId,
+    required this.onAdd,
+    required this.onSelect,
+    required this.onDelete,
+  });
+
+  final List<Nickname> nicknames;
+  final String? activeId;
+  final VoidCallback onAdd;
+  final ValueChanged<String> onSelect;
+  final ValueChanged<Nickname> onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final canAdd = nicknames.length < kMaxNicknames;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'ニックネーム（${nicknames.length}/$kMaxNicknames）',
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+        const Text(
+          '友達には、Rhing IDの代わりにここで選んだニックネームが表示されます。',
+          style: TextStyle(fontSize: 12, color: Colors.grey),
+        ),
+        const SizedBox(height: 4),
+        for (final nickname in nicknames)
+          RadioGroup<String>(
+            groupValue: activeId ?? '',
+            onChanged: (value) {
+              if (value != null) onSelect(value);
+            },
+            child: ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: Radio<String>(value: nickname.id),
+              title: Text(nickname.text),
+              trailing: IconButton(
+                icon: const Icon(Icons.delete_outline),
+                onPressed: () => onDelete(nickname),
+              ),
+            ),
+          ),
+        TextButton.icon(
+          onPressed: canAdd ? onAdd : null,
+          icon: const Icon(Icons.add),
+          label: const Text('ニックネームを追加'),
+        ),
+      ],
+    );
+  }
+}
+
+class _NicknameDialog extends StatefulWidget {
+  const _NicknameDialog();
+
+  @override
+  State<_NicknameDialog> createState() => _NicknameDialogState();
+}
+
+class _NicknameDialogState extends State<_NicknameDialog> {
+  final _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('ニックネームを追加'),
+      content: TextField(
+        controller: _controller,
+        autofocus: true,
+        maxLength: 20,
+        decoration: const InputDecoration(hintText: '友達に表示する呼び名を入力'),
+        onSubmitted: (value) => Navigator.of(context).pop(value),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('キャンセル'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(_controller.text),
+          child: const Text('追加'),
         ),
       ],
     );

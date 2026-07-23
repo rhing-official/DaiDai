@@ -1,16 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../l10n/strings.dart';
 import '../../models/app_user.dart';
+import '../../models/conversation_prefs.dart';
 import '../../models/direct_message.dart';
+import '../../models/friend_request.dart';
 import '../../models/group.dart';
+import '../../providers/conversation_prefs_providers.dart';
+import '../../providers/friend_providers.dart';
 import '../../providers/repository_providers.dart';
+import '../../providers/user_providers.dart';
 import '../../router/app_router.dart';
 
 enum _TalksCategory { dm, group }
 
 /// 語らいタブの中身。上部の「一対」「広場」を横並びで切り替えて一覧表示する。
 /// 相手の追加・広場の作成は、この画面内の＋ボタン（中央ポップアップ）から行う。
+/// 一対タブの最上部には、届いている／送った友達申請が会話より先に表示される
+/// （承認されて実際に会話が始まると、通常の一対リストの方へ下がっていく）。
 class TalksTab extends ConsumerStatefulWidget {
   const TalksTab({required this.currentUser, super.key});
 
@@ -46,43 +54,44 @@ class _TalksTabState extends ConsumerState<TalksTab> {
   }
 
   Future<void> _showAddMenu() async {
+    final strings = ref.read(appStringsProvider);
     await showGeneralDialog<void>(
       context: context,
       barrierDismissible: true,
-      barrierLabel: '語らいを追加',
+      barrierLabel: strings.navTalk,
       barrierColor: Colors.black54,
       transitionDuration: const Duration(milliseconds: 280),
       pageBuilder: (dialogContext, animation, secondaryAnimation) {
+        // 注意: DialogをMaterial(color: transparent)で余分に包むと、
+        // その外側Materialがタップを吸収してしまいバリアの外側タップ dismiss が効かなくなる
+        // （実装内容.mdの経緯参照）。Dialogを直接Centerの子にすること。
         return Center(
-          child: Material(
-            color: Colors.transparent,
-            child: Dialog(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  ListTile(
-                    leading: const Icon(Icons.person_add_outlined),
-                    title: const Text('一対を始める'),
-                    subtitle: const Text('1対1で話す相手を追加する'),
-                    onTap: () {
-                      Navigator.of(dialogContext).pop();
-                      _openAddChat();
-                    },
-                  ),
-                  ListTile(
-                    leading: const Icon(Icons.groups_outlined),
-                    title: const Text('広場を作る'),
-                    subtitle: const Text('3人以上のグループを作る'),
-                    onTap: () {
-                      Navigator.of(dialogContext).pop();
-                      _openCreateGroup();
-                    },
-                  ),
-                ],
-              ),
+          child: Dialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.person_add_outlined),
+                  title: Text(strings.addMenuDmTitle),
+                  subtitle: Text(strings.addMenuDmSubtitle),
+                  onTap: () {
+                    Navigator.of(dialogContext).pop();
+                    _openAddChat();
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.groups_outlined),
+                  title: Text(strings.addMenuGroupTitle),
+                  subtitle: Text(strings.addMenuGroupSubtitle),
+                  onTap: () {
+                    Navigator.of(dialogContext).pop();
+                    _openCreateGroup();
+                  },
+                ),
+              ],
             ),
           ),
         );
@@ -103,12 +112,22 @@ class _TalksTabState extends ConsumerState<TalksTab> {
 
   @override
   Widget build(BuildContext context) {
+    final strings = ref.watch(appStringsProvider);
     final groupsStream = ref
         .watch(groupRepositoryProvider)
         .watchGroups(widget.currentUser.userId);
     final directMessagesStream = ref
         .watch(directMessageRepositoryProvider)
         .watchDirectMessages(widget.currentUser.userId);
+    final incomingRequests =
+        ref.watch(incomingFriendRequestsProvider(widget.currentUser.userId)).value ??
+            const [];
+    final outgoingRequests =
+        ref.watch(outgoingFriendRequestsProvider(widget.currentUser.userId)).value ??
+            const [];
+    final prefsById =
+        ref.watch(conversationPrefsProvider(widget.currentUser.userId)).value ??
+            const {};
 
     return Scaffold(
       body: StreamBuilder<List<DirectMessage>>(
@@ -127,7 +146,7 @@ class _TalksTabState extends ConsumerState<TalksTab> {
                     child: Row(
                       children: [
                         _CategoryTab(
-                          label: '一対',
+                          label: strings.talkCategoryDm,
                           count: directMessages.length,
                           selected: _category == _TalksCategory.dm,
                           onTap: () =>
@@ -135,14 +154,14 @@ class _TalksTabState extends ConsumerState<TalksTab> {
                         ),
                         const SizedBox(width: 20),
                         _CategoryTab(
-                          label: '広場',
+                          label: strings.talkCategoryGroup,
                           count: groups.length,
                           selected: _category == _TalksCategory.group,
                           onTap: () => setState(
                             () => _category = _TalksCategory.group,
                           ),
                         ),
-                        const SizedBox(width: 4),
+                        const Spacer(),
                         IconButton(
                           icon: const Icon(Icons.add),
                           onPressed: _showAddMenu,
@@ -152,8 +171,14 @@ class _TalksTabState extends ConsumerState<TalksTab> {
                   ),
                   Expanded(
                     child: _category == _TalksCategory.dm
-                        ? _buildDirectMessages(dmSnapshot, directMessages)
-                        : _buildGroups(groupSnapshot, groups),
+                        ? _buildDirectMessages(
+                            dmSnapshot,
+                            directMessages,
+                            incomingRequests,
+                            outgoingRequests,
+                            prefsById,
+                          )
+                        : _buildGroups(groupSnapshot, groups, prefsById),
                   ),
                 ],
               );
@@ -167,45 +192,87 @@ class _TalksTabState extends ConsumerState<TalksTab> {
   Widget _buildDirectMessages(
     AsyncSnapshot<List<DirectMessage>> snapshot,
     List<DirectMessage> directMessages,
+    List<FriendRequest> incomingRequests,
+    List<FriendRequest> outgoingRequests,
+    Map<String, ConversationPrefs> prefsById,
   ) {
-    if (snapshot.connectionState == ConnectionState.waiting) {
+    if (snapshot.connectionState == ConnectionState.waiting &&
+        incomingRequests.isEmpty &&
+        outgoingRequests.isEmpty) {
       return const Center(child: CircularProgressIndicator());
     }
-    if (directMessages.isEmpty) {
+    if (directMessages.isEmpty &&
+        incomingRequests.isEmpty &&
+        outgoingRequests.isEmpty) {
       return const Center(child: Text('まだ一対がありません。上の＋から相手を追加してください。'));
     }
-    return ListView.builder(
-      itemCount: directMessages.length,
-      itemBuilder: (context, index) {
-        final dm = directMessages[index];
-        return ListTile(
-          leading: const CircleAvatar(child: Icon(Icons.person)),
-          title: Text('@${dm.otherRhingId(widget.currentUser.userId)}'),
-          onTap: () => _openDirectMessage(dm),
-        );
-      },
+
+    final sortedDms = _sortedByPin(
+      directMessages,
+      prefsById,
+      (dm) => dm.dmId,
+    );
+
+    return ListView(
+      children: [
+        for (final request in incomingRequests)
+          _FriendRequestTile(currentUserId: widget.currentUser.userId, request: request),
+        for (final request in outgoingRequests)
+          _FriendRequestTile(currentUserId: widget.currentUser.userId, request: request),
+        for (final dm in sortedDms)
+          _DirectMessageTile(
+            currentUser: widget.currentUser,
+            dm: dm,
+            pinned: prefsById[dm.dmId]?.pinned ?? false,
+            muted: prefsById[dm.dmId]?.notificationsMuted ?? false,
+            onTap: () => _openDirectMessage(dm),
+          ),
+      ],
     );
   }
 
-  Widget _buildGroups(AsyncSnapshot<List<Group>> snapshot, List<Group> groups) {
+  Widget _buildGroups(
+    AsyncSnapshot<List<Group>> snapshot,
+    List<Group> groups,
+    Map<String, ConversationPrefs> prefsById,
+  ) {
     if (snapshot.connectionState == ConnectionState.waiting) {
       return const Center(child: CircularProgressIndicator());
     }
     if (groups.isEmpty) {
       return const Center(child: Text('まだ広場がありません。上の＋から作成してください。'));
     }
+    final sortedGroups = _sortedByPin(groups, prefsById, (g) => g.groupId);
     return ListView.builder(
-      itemCount: groups.length,
+      itemCount: sortedGroups.length,
       itemBuilder: (context, index) {
-        final group = groups[index];
-        return ListTile(
-          leading: const CircleAvatar(child: Icon(Icons.groups)),
-          title: Text(group.name),
-          subtitle: Text('${group.memberIds.length}人'),
+        final group = sortedGroups[index];
+        return _GroupTile(
+          currentUserId: widget.currentUser.userId,
+          group: group,
+          pinned: prefsById[group.groupId]?.pinned ?? false,
+          muted: prefsById[group.groupId]?.notificationsMuted ?? false,
           onTap: () => _openGroup(group),
         );
       },
     );
+  }
+
+  static List<T> _sortedByPin<T>(
+    List<T> items,
+    Map<String, ConversationPrefs> prefsById,
+    String Function(T) idOf,
+  ) {
+    final pinned = <T>[];
+    final unpinned = <T>[];
+    for (final item in items) {
+      if (prefsById[idOf(item)]?.pinned ?? false) {
+        pinned.add(item);
+      } else {
+        unpinned.add(item);
+      }
+    }
+    return [...pinned, ...unpinned];
   }
 }
 
@@ -262,6 +329,201 @@ class _CategoryTab extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// 届いている／送った友達申請を表す行。一対リストの最上部に表示される。
+class _FriendRequestTile extends ConsumerWidget {
+  const _FriendRequestTile({required this.currentUserId, required this.request});
+
+  final String currentUserId;
+  final FriendRequest request;
+
+  bool get _isIncoming => request.toUserId == currentUserId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final strings = ref.watch(appStringsProvider);
+    return ListTile(
+      leading: const CircleAvatar(child: Icon(Icons.person_outline)),
+      title: Text('@${request.otherRhingId(currentUserId)}'),
+      subtitle: Text(
+        _isIncoming
+            ? strings.friendRequestIncomingSubtitle
+            : strings.friendRequestOutgoingSubtitle,
+      ),
+      trailing: _isIncoming
+          ? Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextButton(
+                  onPressed: () => ref
+                      .read(friendRepositoryProvider)
+                      .respond(request: request, accept: false),
+                  child: Text(strings.friendRequestDecline),
+                ),
+                const SizedBox(width: 4),
+                FilledButton(
+                  onPressed: () => ref
+                      .read(friendRepositoryProvider)
+                      .respond(request: request, accept: true),
+                  child: Text(strings.friendRequestAccept),
+                ),
+              ],
+            )
+          : null,
+    );
+  }
+}
+
+class _DirectMessageTile extends ConsumerWidget {
+  const _DirectMessageTile({
+    required this.currentUser,
+    required this.dm,
+    required this.pinned,
+    required this.muted,
+    required this.onTap,
+  });
+
+  final AppUser currentUser;
+  final DirectMessage dm;
+  final bool pinned;
+  final bool muted;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final otherUserId = dm.otherUserId(currentUser.userId);
+    final otherUser = ref.watch(watchedUserProvider(otherUserId)).value;
+    final nickname = otherUser?.activeNickname?.text;
+    final label =
+        (nickname?.isNotEmpty ?? false) ? nickname! : '@${dm.otherRhingId(currentUser.userId)}';
+
+    return _ConversationGestures(
+      conversationId: dm.dmId,
+      userId: currentUser.userId,
+      pinned: pinned,
+      muted: muted,
+      child: ListTile(
+        leading: const CircleAvatar(child: Icon(Icons.person)),
+        title: Text(label),
+        trailing: _ConversationIndicators(pinned: pinned, muted: muted),
+        onTap: onTap,
+      ),
+    );
+  }
+}
+
+class _GroupTile extends ConsumerWidget {
+  const _GroupTile({
+    required this.currentUserId,
+    required this.group,
+    required this.pinned,
+    required this.muted,
+    required this.onTap,
+  });
+
+  final String currentUserId;
+  final Group group;
+  final bool pinned;
+  final bool muted;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return _ConversationGestures(
+      conversationId: group.groupId,
+      userId: currentUserId,
+      pinned: pinned,
+      muted: muted,
+      child: ListTile(
+        leading: const CircleAvatar(child: Icon(Icons.groups)),
+        title: Text(group.name),
+        subtitle: Text('${group.memberIds.length}人'),
+        trailing: _ConversationIndicators(pinned: pinned, muted: muted),
+        onTap: onTap,
+      ),
+    );
+  }
+}
+
+/// ピン留め・通知オフのアイコン表示（両方falseなら何も出さない）。
+class _ConversationIndicators extends StatelessWidget {
+  const _ConversationIndicators({required this.pinned, required this.muted});
+
+  final bool pinned;
+  final bool muted;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!pinned && !muted) return const SizedBox.shrink();
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (muted) const Icon(Icons.notifications_off_outlined, size: 18, color: Colors.grey),
+        if (pinned) ...[
+          if (muted) const SizedBox(width: 4),
+          Icon(Icons.push_pin, size: 18, color: Theme.of(context).colorScheme.primary),
+        ],
+      ],
+    );
+  }
+}
+
+/// 右クリック（デスクトップ）・長押し（モバイル）で、ピン留め・通知オフのメニューを出す。
+class _ConversationGestures extends ConsumerWidget {
+  const _ConversationGestures({
+    required this.conversationId,
+    required this.userId,
+    required this.pinned,
+    required this.muted,
+    required this.child,
+  });
+
+  final String conversationId;
+  final String userId;
+  final bool pinned;
+  final bool muted;
+  final Widget child;
+
+  Future<void> _showMenu(BuildContext context, WidgetRef ref, Offset position) async {
+    final strings = ref.read(appStringsProvider);
+    final selected = await showMenu<String>(
+      context: context,
+      position: RelativeRect.fromLTRB(position.dx, position.dy, position.dx, position.dy),
+      items: [
+        PopupMenuItem(
+          value: 'pin',
+          child: Text(pinned ? strings.conversationUnpin : strings.conversationPin),
+        ),
+        PopupMenuItem(
+          value: 'mute',
+          child: Text(muted ? strings.conversationUnmute : strings.conversationMute),
+        ),
+      ],
+    );
+    if (selected == 'pin') {
+      await ref.read(conversationPrefsRepositoryProvider).setPinned(
+            userId: userId,
+            conversationId: conversationId,
+            pinned: !pinned,
+          );
+    } else if (selected == 'mute') {
+      await ref.read(conversationPrefsRepositoryProvider).setNotificationsMuted(
+            userId: userId,
+            conversationId: conversationId,
+            muted: !muted,
+          );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return GestureDetector(
+      onSecondaryTapDown: (details) => _showMenu(context, ref, details.globalPosition),
+      onLongPressStart: (details) => _showMenu(context, ref, details.globalPosition),
+      child: child,
     );
   }
 }

@@ -2,6 +2,7 @@
 const kMaxIcons = 2;
 const kMaxBackgroundImages = 3;
 const kMaxStatusMessages = 2;
+const kMaxNicknames = 3;
 
 /// 蔵に保管する画像素材（アイコン・背景画像）。
 class ProfileMaterial {
@@ -40,6 +41,24 @@ class StatusMessage {
       id: json['id'] as String,
       text: json['text'] as String,
     );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {'id': id, 'text': text};
+  }
+}
+
+/// 蔵に保管するニックネーム。Rhing IDとは別に、友達に対して表示される呼び名。
+/// 最大[kMaxNicknames]件まで登録でき、その中から使うものを1つ選べる
+/// （アイコン・背景画像・ステメと同じ「登録して選ぶ」方式）。
+class Nickname {
+  const Nickname({required this.id, required this.text});
+
+  final String id;
+  final String text;
+
+  factory Nickname.fromJson(Map<String, dynamic> json) {
+    return Nickname(id: json['id'] as String, text: json['text'] as String);
   }
 
   Map<String, dynamic> toJson() {

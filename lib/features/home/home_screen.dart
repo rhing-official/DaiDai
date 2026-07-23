@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../l10n/strings.dart';
 import '../../models/app_user.dart';
 import '../chat/talks_tab.dart';
 import '../profile/profile_tab.dart';
@@ -10,21 +12,23 @@ import '../support/support_tab.dart';
 /// medium windowサイズクラス（600dp）を採用する。
 const _kWideLayoutBreakpoint = 600.0;
 
+/// モバイル下部ナビ上でのスワイプをタブ切り替えとみなす最低速度（px/s）。
+const _kSwipeVelocityThreshold = 150.0;
+
 /// ホーム画面。語らい・身だしなみ・設定・運営の4タブで構成される。
 /// 画面幅に応じて、コンピューターUI（サイドバー）とモバイルUI（下部ナビ）を切り替える。
-class HomeScreen extends StatefulWidget {
+class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({required this.currentUser, super.key});
 
   final AppUser currentUser;
 
   @override
-  State<HomeScreen> createState() => _HomeScreenState();
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends ConsumerState<HomeScreen> {
   int _selectedIndex = 0;
 
-  static const _titles = ['語らい', '身だしなみ', '設定', '運営'];
   static const _icons = [
     Icons.forum_outlined,
     Icons.face_outlined,
@@ -36,8 +40,22 @@ class _HomeScreenState extends State<HomeScreen> {
   static const _chipGap = 16.0;
   static const _chipMargin = 16.0;
 
+  void _moveTab(int delta) {
+    setState(() {
+      _selectedIndex = (_selectedIndex + delta).clamp(0, _icons.length - 1);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
+    final strings = ref.watch(appStringsProvider);
+    final titles = [
+      strings.navTalk,
+      strings.navProfile,
+      strings.navSettings,
+      strings.navSupport,
+    ];
+
     final tabs = [
       TalksTab(currentUser: widget.currentUser),
       ProfileTab(currentUser: widget.currentUser),
@@ -48,10 +66,10 @@ class _HomeScreenState extends State<HomeScreen> {
     final isWide = MediaQuery.sizeOf(context).width >= _kWideLayoutBreakpoint;
 
     final chips = [
-      for (var i = 0; i < _titles.length; i++)
+      for (var i = 0; i < titles.length; i++)
         _NavChip(
           icon: _icons[i],
-          label: _titles[i],
+          label: titles[i],
           selected: _selectedIndex == i,
           onTap: () => setState(() => _selectedIndex = i),
         ),
@@ -94,14 +112,25 @@ class _HomeScreenState extends State<HomeScreen> {
                 right: 0,
                 bottom: _chipMargin,
                 child: Center(
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      for (var i = 0; i < chips.length; i++) ...[
-                        if (i > 0) const SizedBox(width: _chipGap),
-                        chips[i],
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.translucent,
+                    onHorizontalDragEnd: (details) {
+                      final velocity = details.primaryVelocity ?? 0;
+                      if (velocity <= -_kSwipeVelocityThreshold) {
+                        _moveTab(1);
+                      } else if (velocity >= _kSwipeVelocityThreshold) {
+                        _moveTab(-1);
+                      }
+                    },
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        for (var i = 0; i < chips.length; i++) ...[
+                          if (i > 0) const SizedBox(width: _chipGap),
+                          chips[i],
+                        ],
                       ],
-                    ],
+                    ),
                   ),
                 ),
               ),
