@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/strings.dart';
+import '../../l10n/vocabulary.dart';
 import '../../models/app_user.dart';
 import '../../models/conversation_prefs.dart';
 import '../../models/direct_message.dart';
@@ -93,6 +94,7 @@ class _TalksTabState extends ConsumerState<TalksTab> {
 
   Future<void> _showAddMenu() async {
     final strings = ref.read(appStringsProvider);
+    final vocab = ref.read(vocabularyProvider);
     await showGeneralDialog<void>(
       context: context,
       barrierDismissible: true,
@@ -113,7 +115,7 @@ class _TalksTabState extends ConsumerState<TalksTab> {
               children: [
                 ListTile(
                   leading: const Icon(Icons.person_add_outlined),
-                  title: Text(strings.addMenuDmTitle),
+                  title: Text(strings.addMenuDmTitleTemplate(vocab.dm)),
                   subtitle: Text(strings.addMenuDmSubtitle),
                   onTap: () {
                     Navigator.of(dialogContext).pop();
@@ -122,7 +124,7 @@ class _TalksTabState extends ConsumerState<TalksTab> {
                 ),
                 ListTile(
                   leading: const Icon(Icons.groups_outlined),
-                  title: Text(strings.addMenuGroupTitle),
+                  title: Text(strings.addMenuGroupTitleTemplate(vocab.plaza)),
                   subtitle: Text(strings.addMenuGroupSubtitle),
                   onTap: () {
                     Navigator.of(dialogContext).pop();
@@ -150,7 +152,7 @@ class _TalksTabState extends ConsumerState<TalksTab> {
 
   @override
   Widget build(BuildContext context) {
-    final strings = ref.watch(appStringsProvider);
+    final vocab = ref.watch(vocabularyProvider);
     final groupsStream = ref
         .watch(groupRepositoryProvider)
         .watchGroups(widget.currentUser.userId);
@@ -185,20 +187,34 @@ class _TalksTabState extends ConsumerState<TalksTab> {
                     padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
                     child: Row(
                       children: [
-                        _CategoryTab(
-                          label: strings.talkCategoryDm,
-                          count: directMessages.length,
-                          selected: _category == _TalksCategory.dm,
-                          onTap: () =>
-                              setState(() => _category = _TalksCategory.dm),
-                        ),
-                        const SizedBox(width: 20),
-                        _CategoryTab(
-                          label: strings.talkCategoryGroup,
-                          count: groups.length,
-                          selected: _category == _TalksCategory.group,
-                          onTap: () => setState(
-                            () => _category = _TalksCategory.group,
+                        // 用語スタイルによってはラベルが長くなる
+                        // （例:「ダイレクトメッセージ」「Terminology & display」相当）ため、
+                        // 固定幅のサイドバーでも折り返さず、必要なときだけ
+                        // 横スクロールできるようにして＋ボタンが押し出されないようにする。
+                        Expanded(
+                          child: SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: Row(
+                              children: [
+                                _CategoryTab(
+                                  label: vocab.dm,
+                                  count: directMessages.length,
+                                  selected: _category == _TalksCategory.dm,
+                                  onTap: () => setState(
+                                    () => _category = _TalksCategory.dm,
+                                  ),
+                                ),
+                                const SizedBox(width: 20),
+                                _CategoryTab(
+                                  label: vocab.plaza,
+                                  count: groups.length,
+                                  selected: _category == _TalksCategory.group,
+                                  onTap: () => setState(
+                                    () => _category = _TalksCategory.group,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -231,7 +247,7 @@ class _TalksTabState extends ConsumerState<TalksTab> {
 
               return Row(
                 children: [
-                  SizedBox(width: 320, child: listPane),
+                  SizedBox(width: 360, child: listPane),
                   const VerticalDivider(width: 1),
                   Expanded(child: _buildDetailPane()),
                 ],
@@ -278,7 +294,8 @@ class _TalksTabState extends ConsumerState<TalksTab> {
     if (directMessages.isEmpty &&
         incomingRequests.isEmpty &&
         outgoingRequests.isEmpty) {
-      return const Center(child: Text('まだ一対がありません。上の＋から相手を追加してください。'));
+      final dmTerm = ref.read(vocabularyProvider).dm;
+      return Center(child: Text('まだ$dmTermがありません。上の＋から相手を追加してください。'));
     }
 
     final sortedDms = _sortedByPin(
@@ -315,7 +332,8 @@ class _TalksTabState extends ConsumerState<TalksTab> {
       return const Center(child: CircularProgressIndicator());
     }
     if (groups.isEmpty) {
-      return const Center(child: Text('まだ広場がありません。上の＋から作成してください。'));
+      final plazaTerm = ref.read(vocabularyProvider).plaza;
+      return Center(child: Text('まだ$plazaTermがありません。上の＋から作成してください。'));
     }
     final sortedGroups = _sortedByPin(groups, prefsById, (g) => g.groupId);
     return ListView.builder(

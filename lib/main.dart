@@ -8,6 +8,7 @@ import 'l10n/app_locale.dart';
 import 'providers/accent_color_provider.dart';
 import 'providers/app_locale_provider.dart';
 import 'providers/send_key_mode_provider.dart';
+import 'providers/terminology_style_provider.dart';
 import 'router/app_router.dart';
 import 'theme/app_theme.dart';
 
@@ -17,12 +18,16 @@ Future<void> main() async {
   final initialAccentColor = await loadInitialAccentColor();
   final initialAppLocale = await loadInitialAppLocale();
   final initialSendKeyMode = await loadInitialSendKeyMode();
+  final initialTerminologyStyle = await loadInitialTerminologyStyle();
   runApp(
     ProviderScope(
       overrides: [
         initialAccentColorProvider.overrideWithValue(initialAccentColor),
         initialAppLocaleProvider.overrideWithValue(initialAppLocale),
         initialSendKeyModeProvider.overrideWithValue(initialSendKeyMode),
+        initialTerminologyStyleProvider.overrideWithValue(
+          initialTerminologyStyle,
+        ),
       ],
       child: const DaiDaiApp(),
     ),

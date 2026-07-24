@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../l10n/strings.dart';
+import '../../l10n/vocabulary.dart';
 import '../../models/app_user.dart';
 import '../../models/profile_card.dart';
 import '../../models/profile_material.dart';
@@ -12,6 +13,18 @@ import '../../providers/repository_providers.dart';
 import '../../repositories/user_repository.dart';
 
 enum _ProfileSubTab { kura, koubou }
+
+/// ニックネーム・ステメ・プロフィールカードのローカル採番id。
+/// 以前は`Random().nextInt(1 << 32)`だったが、`1 << 32`はDart VM（ウィジェット
+/// テストの実行環境）では4294967296になる一方、Web（dart2js/DDC）では
+/// JSのビット演算が32bit符号あり整数に切り詰められるため0になり、
+/// `Random().nextInt(0)`が即座にRangeErrorを投げてsetStateの手前で
+/// 処理が止まっていた（「ダイアログは閉じるが何も起こらない」の実体）。
+/// 画像素材はFirestoreの`doc().id`でidを採番しておりこの経路を通らないため、
+/// 影響は文字系の項目（ニックネーム・ステメ・工房カード）だけに出ていた。
+/// ビット演算を経由しない10進リテラルにすることでVM・Web両方で正しく動く。
+String _newLocalId() =>
+    '${DateTime.now().microsecondsSinceEpoch}_${Random().nextInt(4294967296)}';
 
 /// 身だしなみタブ。「蔵」（素材の登録・管理）と「工房」（蔵の素材を組み合わせた
 /// プロフィールカードの作成）をボタンで切り替えて表示する。
@@ -38,13 +51,54 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
 
   UserRepository get _repository => ref.read(userRepositoryProvider);
 
-  Future<void> _persist(AppUser updated) async {
-    setState(() => _user = updated);
+  // 蔵の各セクション（アイコン・背景画像・ステメ・ニックネーム）は、追加操作が
+  // それぞれ独立して非同期に走る（特にアップロード系はStorage往復で数秒かかる）。
+  // 以前はローカルで組み立てたAppUser全体を`.set()`で丸ごと上書きしていたため、
+  // 「アイコンのアップロード中にニックネームを追加する」のように複数の操作が
+  // 重なると、後から完了した書き込みが先に完了した書き込みを消してしまう
+  // 競合（lost update）が起きていた（activeIconIdが存在しないicon idを指す、
+  // 追加したはずのニックネームがFirestore上には一切残っていない、といった形で
+  // 実際に確認された）。[_addToList]/[_removeFromList]/[_setField]は
+  // Firestoreの`arrayUnion`/`arrayRemove`とフィールド単位の`update()`を使い、
+  // サーバー側で原子的にマージされるようにすることでこの競合を解消する。
+
+  Future<void> _addToList(String field, Map<String, dynamic> value) async {
     try {
-      await _repository.updateUser(updated);
+      await _repository.addToProfileList(_user.userId, field, value);
     } catch (e) {
       _showError('${ref.read(appStringsProvider).profileSaveError}: $e');
     }
+  }
+
+  Future<void> _removeFromList(String field, Map<String, dynamic> value) async {
+    try {
+      await _repository.removeFromProfileList(_user.userId, field, value);
+    } catch (e) {
+      _showError('${ref.read(appStringsProvider).profileSaveError}: $e');
+    }
+  }
+
+  Future<void> _setField(String field, String? value) async {
+    try {
+      await _repository.setProfileField(_user.userId, field, value);
+    } catch (e) {
+      _showError('${ref.read(appStringsProvider).profileSaveError}: $e');
+    }
+  }
+
+  /// 「使うものを選ぶ」ラジオボタン操作（activeIconId等）。ローカルの表示は
+  /// 即座に切り替え、Firestoreへはフィールド単位で反映する。
+  Future<void> _selectField(String field, String id) async {
+    setState(() {
+      _user = switch (field) {
+        'activeIconId' => _user.copyWith(activeIconId: id),
+        'activeBackgroundImageId' => _user.copyWith(activeBackgroundImageId: id),
+        'activeNicknameId' => _user.copyWith(activeNicknameId: id),
+        'activeStatusMessageId' => _user.copyWith(activeStatusMessageId: id),
+        _ => _user,
+      };
+    });
+    await _setField(field, id);
   }
 
   void _showError(String message) {
@@ -61,11 +115,15 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
     try {
       final bytes = await picked.readAsBytes();
       final material = await _repository.uploadIcon(_user.userId, bytes);
-      final updated = _user.copyWith(
-        icons: [..._user.icons, material],
-        activeIconId: _user.activeIconId ?? material.id,
-      );
-      await _persist(updated);
+      final shouldActivate = _user.activeIconId == null;
+      setState(() {
+        _user = _user.copyWith(
+          icons: [..._user.icons, material],
+          activeIconId: _user.activeIconId ?? material.id,
+        );
+      });
+      await _addToList('icons', material.toJson());
+      if (shouldActivate) await _setField('activeIconId', material.id);
     } catch (e) {
       _showError('${ref.read(appStringsProvider).profileIconUploadError}: $e');
     } finally {
@@ -83,11 +141,17 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
       final bytes = await picked.readAsBytes();
       final material =
           await _repository.uploadBackgroundImage(_user.userId, bytes);
-      final updated = _user.copyWith(
-        backgroundImages: [..._user.backgroundImages, material],
-        activeBackgroundImageId: _user.activeBackgroundImageId ?? material.id,
-      );
-      await _persist(updated);
+      final shouldActivate = _user.activeBackgroundImageId == null;
+      setState(() {
+        _user = _user.copyWith(
+          backgroundImages: [..._user.backgroundImages, material],
+          activeBackgroundImageId: _user.activeBackgroundImageId ?? material.id,
+        );
+      });
+      await _addToList('backgroundImages', material.toJson());
+      if (shouldActivate) {
+        await _setField('activeBackgroundImageId', material.id);
+      }
     } catch (e) {
       _showError(
         '${ref.read(appStringsProvider).profileBackgroundUploadError}: $e',
@@ -99,13 +163,15 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
 
   Future<void> _deleteIcon(ProfileMaterial material) async {
     final remaining = _user.icons.where((m) => m.id != material.id).toList();
-    final updated = _user.copyWith(
-      icons: remaining,
-      activeIconId: _user.activeIconId == material.id
-          ? (remaining.isEmpty ? null : remaining.first.id)
-          : _user.activeIconId,
-    );
-    await _persist(updated);
+    final wasActive = _user.activeIconId == material.id;
+    final nextActiveId = wasActive
+        ? (remaining.isEmpty ? null : remaining.first.id)
+        : _user.activeIconId;
+    setState(() {
+      _user = _user.copyWith(icons: remaining, activeIconId: nextActiveId);
+    });
+    await _removeFromList('icons', material.toJson());
+    if (wasActive) await _setField('activeIconId', nextActiveId);
     try {
       await _repository.deleteProfileMaterial(material);
     } catch (e) {
@@ -116,13 +182,18 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
   Future<void> _deleteBackground(ProfileMaterial material) async {
     final remaining =
         _user.backgroundImages.where((m) => m.id != material.id).toList();
-    final updated = _user.copyWith(
-      backgroundImages: remaining,
-      activeBackgroundImageId: _user.activeBackgroundImageId == material.id
-          ? (remaining.isEmpty ? null : remaining.first.id)
-          : _user.activeBackgroundImageId,
-    );
-    await _persist(updated);
+    final wasActive = _user.activeBackgroundImageId == material.id;
+    final nextActiveId = wasActive
+        ? (remaining.isEmpty ? null : remaining.first.id)
+        : _user.activeBackgroundImageId;
+    setState(() {
+      _user = _user.copyWith(
+        backgroundImages: remaining,
+        activeBackgroundImageId: nextActiveId,
+      );
+    });
+    await _removeFromList('backgroundImages', material.toJson());
+    if (wasActive) await _setField('activeBackgroundImageId', nextActiveId);
     try {
       await _repository.deleteProfileMaterial(material);
     } catch (e) {
@@ -141,26 +212,59 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
     if (text == null || text.trim().isEmpty) return;
 
     final message = StatusMessage(
-      id: '${DateTime.now().microsecondsSinceEpoch}_${Random().nextInt(1 << 32)}',
+      id: _newLocalId(),
       text: text.trim(),
     );
-    final updated = _user.copyWith(
-      statusMessages: [..._user.statusMessages, message],
-      activeStatusMessageId: _user.activeStatusMessageId ?? message.id,
+    final shouldActivate = _user.activeStatusMessageId == null;
+    setState(() {
+      _user = _user.copyWith(
+        statusMessages: [..._user.statusMessages, message],
+        activeStatusMessageId: _user.activeStatusMessageId ?? message.id,
+      );
+    });
+    await _addToList('statusMessages', message.toJson());
+    if (shouldActivate) await _setField('activeStatusMessageId', message.id);
+  }
+
+  Future<void> _editStatusMessage(StatusMessage message) async {
+    final text = await showDialog<String>(
+      context: context,
+      builder: (context) => _StatusMessageDialog(initialText: message.text),
     );
-    await _persist(updated);
+    if (text == null || text.trim().isEmpty || text.trim() == message.text) {
+      return;
+    }
+
+    // id自体は変えず本文だけ差し替える。activeStatusMessageIdは
+    // idで参照しているため、id維持であれば選択状態は自動的に保たれる。
+    final updated = StatusMessage(id: message.id, text: text.trim());
+    setState(() {
+      _user = _user.copyWith(
+        statusMessages: [
+          for (final m in _user.statusMessages)
+            if (m.id == message.id) updated else m,
+        ],
+      );
+    });
+    await _removeFromList('statusMessages', message.toJson());
+    await _addToList('statusMessages', updated.toJson());
   }
 
   Future<void> _deleteStatusMessage(StatusMessage message) async {
     final remaining =
         _user.statusMessages.where((m) => m.id != message.id).toList();
-    final updated = _user.copyWith(
-      statusMessages: remaining,
-      activeStatusMessageId: _user.activeStatusMessageId == message.id
-          ? (remaining.isEmpty ? null : remaining.first.id)
-          : _user.activeStatusMessageId,
-    );
-    await _persist(updated);
+    final wasActive = _user.activeStatusMessageId == message.id;
+    final nextActiveId = wasActive
+        ? (remaining.isEmpty ? null : remaining.first.id)
+        : _user.activeStatusMessageId;
+    setState(() {
+      _user = _user.copyWith(
+        statusMessages: remaining,
+        activeStatusMessageId: nextActiveId,
+      );
+    });
+    await _removeFromList('statusMessages', message.toJson());
+    if (wasActive) await _setField('activeStatusMessageId', nextActiveId);
   }
 
   Future<void> _addNickname() async {
@@ -172,51 +276,89 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
     if (text == null || text.trim().isEmpty) return;
 
     final nickname = Nickname(
-      id: '${DateTime.now().microsecondsSinceEpoch}_${Random().nextInt(1 << 32)}',
+      id: _newLocalId(),
       text: text.trim(),
     );
-    final updated = _user.copyWith(
-      nicknames: [..._user.nicknames, nickname],
-      activeNicknameId: _user.activeNicknameId ?? nickname.id,
+    final shouldActivate = _user.activeNicknameId == null;
+    setState(() {
+      _user = _user.copyWith(
+        nicknames: [..._user.nicknames, nickname],
+        activeNicknameId: _user.activeNicknameId ?? nickname.id,
+      );
+    });
+    await _addToList('nicknames', nickname.toJson());
+    if (shouldActivate) await _setField('activeNicknameId', nickname.id);
+  }
+
+  Future<void> _editNickname(Nickname nickname) async {
+    final text = await showDialog<String>(
+      context: context,
+      builder: (context) => _NicknameDialog(initialText: nickname.text),
     );
-    await _persist(updated);
+    if (text == null || text.trim().isEmpty || text.trim() == nickname.text) {
+      return;
+    }
+
+    final updated = Nickname(id: nickname.id, text: text.trim());
+    setState(() {
+      _user = _user.copyWith(
+        nicknames: [
+          for (final n in _user.nicknames)
+            if (n.id == nickname.id) updated else n,
+        ],
+      );
+    });
+    await _removeFromList('nicknames', nickname.toJson());
+    await _addToList('nicknames', updated.toJson());
   }
 
   Future<void> _deleteNickname(Nickname nickname) async {
     final remaining =
         _user.nicknames.where((n) => n.id != nickname.id).toList();
-    final updated = _user.copyWith(
-      nicknames: remaining,
-      activeNicknameId: _user.activeNicknameId == nickname.id
-          ? (remaining.isEmpty ? null : remaining.first.id)
-          : _user.activeNicknameId,
-    );
-    await _persist(updated);
+    final wasActive = _user.activeNicknameId == nickname.id;
+    final nextActiveId = wasActive
+        ? (remaining.isEmpty ? null : remaining.first.id)
+        : _user.activeNicknameId;
+    setState(() {
+      _user = _user.copyWith(
+        nicknames: remaining,
+        activeNicknameId: nextActiveId,
+      );
+    });
+    await _removeFromList('nicknames', nickname.toJson());
+    if (wasActive) await _setField('activeNicknameId', nextActiveId);
   }
 
   Future<void> _saveCard(ProfileCard card, {required bool isNew}) async {
     if (isNew) {
-      await _persist(
-        _user.copyWith(profileCards: [..._user.profileCards, card]),
-      );
+      setState(() {
+        _user = _user.copyWith(profileCards: [..._user.profileCards, card]);
+      });
+      await _addToList('profileCards', card.toJson());
     } else {
-      await _persist(
-        _user.copyWith(
+      final previous = _user.profileCards.firstWhere((c) => c.id == card.id);
+      setState(() {
+        _user = _user.copyWith(
           profileCards: [
             for (final c in _user.profileCards)
               if (c.id == card.id) card else c,
           ],
-        ),
-      );
+        );
+      });
+      // ProfileCardは配列内の値そのもので一致判定するarrayUnion/arrayRemoveの
+      // 対象になるため、編集は「古い値を削除」→「新しい値を追加」の2手順で行う。
+      await _removeFromList('profileCards', previous.toJson());
+      await _addToList('profileCards', card.toJson());
     }
   }
 
   Future<void> _deleteCard(ProfileCard card) async {
-    await _persist(
-      _user.copyWith(
+    setState(() {
+      _user = _user.copyWith(
         profileCards: _user.profileCards.where((c) => c.id != card.id).toList(),
-      ),
-    );
+      );
+    });
+    await _removeFromList('profileCards', card.toJson());
   }
 
   Future<void> _openCardEditor(ProfileCard? existing) async {
@@ -231,21 +373,36 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
   @override
   Widget build(BuildContext context) {
     final strings = ref.watch(appStringsProvider);
+    final vocab = ref.watch(vocabularyProvider);
     return Column(
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
           child: SegmentedButton<_ProfileSubTab>(
+            style: SegmentedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            ),
             segments: [
               ButtonSegment(
                 value: _ProfileSubTab.kura,
                 icon: const Icon(Icons.inventory_2_outlined),
-                label: Text(strings.profileTabKura),
+                // softWrap: falseだけでは「入り切らない分がクリップされて
+                // 見えなくなる」だけで、幅が足りない状況自体は解決しない
+                // （paddingで余裕を持たせても、画面幅や用語スタイルの組み
+                // 合わせ次第で再び足りなくなり得る）。FittedBoxで包み、
+                // 入り切らないときは文字を縮小して必ず全体を表示させる。
+                label: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(vocab.profileStorage, softWrap: false),
+                ),
               ),
               ButtonSegment(
                 value: _ProfileSubTab.koubou,
-                icon: const Icon(Icons.auto_awesome_outlined),
-                label: Text(strings.profileTabKoubou),
+                icon: const Icon(Icons.gavel),
+                label: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(vocab.profileCreator, softWrap: false),
+                ),
               ),
             ],
             selected: {_subTab},
@@ -261,24 +418,26 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
                   uploadingIcon: _uploadingIcon,
                   uploadingBackground: _uploadingBackground,
                   onAddIcon: _pickAndUploadIcon,
-                  onSelectIcon: (id) => _persist(_user.copyWith(activeIconId: id)),
+                  onSelectIcon: (id) => _selectField('activeIconId', id),
                   onDeleteIcon: _deleteIcon,
                   onAddBackground: _pickAndUploadBackground,
                   onSelectBackground: (id) =>
-                      _persist(_user.copyWith(activeBackgroundImageId: id)),
+                      _selectField('activeBackgroundImageId', id),
                   onDeleteBackground: _deleteBackground,
                   onAddNickname: _addNickname,
-                  onSelectNickname: (id) =>
-                      _persist(_user.copyWith(activeNicknameId: id)),
+                  onSelectNickname: (id) => _selectField('activeNicknameId', id),
+                  onEditNickname: _editNickname,
                   onDeleteNickname: _deleteNickname,
                   onAddStatusMessage: _addStatusMessage,
                   onSelectStatusMessage: (id) =>
-                      _persist(_user.copyWith(activeStatusMessageId: id)),
+                      _selectField('activeStatusMessageId', id),
+                  onEditStatusMessage: _editStatusMessage,
                   onDeleteStatusMessage: _deleteStatusMessage,
                 )
               : _WorkshopView(
                   user: _user,
                   strings: strings,
+                  vocab: vocab,
                   onTapSlot: _openCardEditor,
                   onDeleteCard: _deleteCard,
                 ),
@@ -303,9 +462,11 @@ class _KuraView extends StatelessWidget {
     required this.onDeleteBackground,
     required this.onAddNickname,
     required this.onSelectNickname,
+    required this.onEditNickname,
     required this.onDeleteNickname,
     required this.onAddStatusMessage,
     required this.onSelectStatusMessage,
+    required this.onEditStatusMessage,
     required this.onDeleteStatusMessage,
   });
 
@@ -321,9 +482,11 @@ class _KuraView extends StatelessWidget {
   final ValueChanged<ProfileMaterial> onDeleteBackground;
   final VoidCallback onAddNickname;
   final ValueChanged<String> onSelectNickname;
+  final ValueChanged<Nickname> onEditNickname;
   final ValueChanged<Nickname> onDeleteNickname;
   final VoidCallback onAddStatusMessage;
   final ValueChanged<String> onSelectStatusMessage;
+  final ValueChanged<StatusMessage> onEditStatusMessage;
   final ValueChanged<StatusMessage> onDeleteStatusMessage;
 
   @override
@@ -331,25 +494,6 @@ class _KuraView extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        Center(
-          child: Column(
-            children: [
-              if (user.activeNickname != null)
-                Text(
-                  user.activeNickname!.text,
-                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                ),
-              if (user.activeStatusMessage != null) ...[
-                const SizedBox(height: 4),
-                Text(
-                  user.activeStatusMessage!.text,
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
-              ],
-            ],
-          ),
-        ),
-        const SizedBox(height: 24),
         _MaterialSection(
           title: strings.profileIconSection,
           count: user.icons.length,
@@ -390,6 +534,7 @@ class _KuraView extends StatelessWidget {
           activeId: user.activeNicknameId,
           onAdd: onAddNickname,
           onSelect: onSelectNickname,
+          onEdit: onEditNickname,
           onDelete: onDeleteNickname,
         ),
         const SizedBox(height: 24),
@@ -399,6 +544,7 @@ class _KuraView extends StatelessWidget {
           activeId: user.activeStatusMessageId,
           onAdd: onAddStatusMessage,
           onSelect: onSelectStatusMessage,
+          onEdit: onEditStatusMessage,
           onDelete: onDeleteStatusMessage,
         ),
       ],
@@ -413,12 +559,14 @@ class _WorkshopView extends StatelessWidget {
   const _WorkshopView({
     required this.user,
     required this.strings,
+    required this.vocab,
     required this.onTapSlot,
     required this.onDeleteCard,
   });
 
   final AppUser user;
   final Strings strings;
+  final Vocabulary vocab;
   final ValueChanged<ProfileCard?> onTapSlot;
   final ValueChanged<ProfileCard> onDeleteCard;
 
@@ -428,46 +576,70 @@ class _WorkshopView extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       children: [
         Text(
-          strings.workshopDescription,
+          strings.workshopDescriptionTemplate(vocab.profileStorage),
           style: const TextStyle(fontSize: 12, color: Colors.grey),
         ),
         const SizedBox(height: 16),
-        Wrap(
-          spacing: 12,
-          runSpacing: 12,
-          children: [
-            for (var i = 0; i < kMaxProfileCards; i++)
-              if (i < user.profileCards.length)
-                _WorkshopCardSlot(
-                  card: user.profileCards[i],
-                  user: user,
-                  strings: strings,
-                  onTap: () => onTapSlot(user.profileCards[i]),
-                  onDelete: () => onDeleteCard(user.profileCards[i]),
-                )
-              else
-                _WorkshopBlankSlot(onTap: () => onTapSlot(null)),
-          ],
+        // 以前は固定サイズ（160x200）のカードを画面左端に詰めて表示していたため、
+        // 広い画面では余白ばかりが目立っていた。3枠固定という前提を活かし、
+        // 画面幅いっぱいを3等分してカード自体を大きく表示する（上限は
+        // 超ワイド画面でカードが際限なく巨大化しないための保険程度に留める）。
+        LayoutBuilder(
+          builder: (context, constraints) {
+            const gap = 24.0;
+            const minCardWidth = 160.0;
+            const maxCardWidth = 640.0;
+            final rawWidth =
+                (constraints.maxWidth - gap * (kMaxProfileCards - 1)) /
+                    kMaxProfileCards;
+            final cardWidth = rawWidth.clamp(minCardWidth, maxCardWidth);
+            final cardHeight = cardWidth * 1.25;
+            return Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                for (var i = 0; i < kMaxProfileCards; i++)
+                  if (i < user.profileCards.length)
+                    _WorkshopCardSlot(
+                      card: user.profileCards[i],
+                      user: user,
+                      strings: strings,
+                      width: cardWidth,
+                      height: cardHeight,
+                      onTap: () => onTapSlot(user.profileCards[i]),
+                      onDelete: () => onDeleteCard(user.profileCards[i]),
+                    )
+                  else
+                    _WorkshopBlankSlot(
+                      width: cardWidth,
+                      height: cardHeight,
+                      onTap: () => onTapSlot(null),
+                    ),
+              ],
+            );
+          },
         ),
       ],
     );
   }
 }
 
-const _kWorkshopCardWidth = 160.0;
-const _kWorkshopCardHeight = 200.0;
-
 class _WorkshopBlankSlot extends StatelessWidget {
-  const _WorkshopBlankSlot({required this.onTap});
+  const _WorkshopBlankSlot({
+    required this.width,
+    required this.height,
+    required this.onTap,
+  });
 
+  final double width;
+  final double height;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     return SizedBox(
-      width: _kWorkshopCardWidth,
-      height: _kWorkshopCardHeight,
+      width: width,
+      height: height,
       child: Material(
         color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(16),
@@ -486,7 +658,7 @@ class _WorkshopBlankSlot extends StatelessWidget {
             child: Center(
               child: Icon(
                 Icons.add,
-                size: 32,
+                size: (width * 0.2).clamp(32.0, 64.0),
                 color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
               ),
             ),
@@ -502,6 +674,8 @@ class _WorkshopCardSlot extends StatelessWidget {
     required this.card,
     required this.user,
     required this.strings,
+    required this.width,
+    required this.height,
     required this.onTap,
     required this.onDelete,
   });
@@ -509,6 +683,8 @@ class _WorkshopCardSlot extends StatelessWidget {
   final ProfileCard card;
   final AppUser user;
   final Strings strings;
+  final double width;
+  final double height;
   final VoidCallback onTap;
   final VoidCallback onDelete;
 
@@ -521,9 +697,16 @@ class _WorkshopCardSlot extends StatelessWidget {
         _findById(user.statusMessages, card.statusMessageId)?.text;
     final subtitleParts = [?nickname, ?statusMessage];
 
+    // カードが大きくなったのにアイコン・文字が160px時代の固定サイズのままだと
+    // 中身が寂しく見えるため、カード幅に応じて緩やかにスケールさせる。
+    final avatarRadius = (width * 0.11).clamp(18.0, 44.0);
+    final padding = (width * 0.075).clamp(12.0, 28.0);
+    final nameFontSize = (width * 0.09).clamp(14.0, 24.0);
+    final subtitleFontSize = (width * 0.055).clamp(11.0, 16.0);
+
     return SizedBox(
-      width: _kWorkshopCardWidth,
-      height: _kWorkshopCardHeight,
+      width: width,
+      height: height,
       child: Stack(
         clipBehavior: Clip.none,
         children: [
@@ -531,68 +714,69 @@ class _WorkshopCardSlot extends StatelessWidget {
             clipBehavior: Clip.antiAlias,
             borderRadius: BorderRadius.circular(16),
             color: Theme.of(context).colorScheme.surfaceContainerHighest,
-            child: InkWell(
-              onTap: onTap,
-              child: Ink(
-                decoration: background != null
-                    ? BoxDecoration(
-                        image: DecorationImage(
-                          image: NetworkImage(background.url),
-                          fit: BoxFit.cover,
-                        ),
-                      )
-                    : null,
-                child: Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    gradient: background != null
-                        ? LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            colors: [
-                              Colors.black.withValues(alpha: 0.0),
-                              Colors.black.withValues(alpha: 0.55),
-                            ],
-                          )
-                        : null,
+            // 背景画像・グラデーション・タップ可能な内容をそれぞれ独立した
+            // レイヤーとして`Stack(fit: expand)`で重ねることで、内容側の
+            // パディングやテキスト量に関係なく背景が常にカード全体
+            // （角丸の内側いっぱい）を覆うようにする。
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                if (background != null)
+                  Image.network(background.url, fit: BoxFit.cover),
+                if (background != null)
+                  const DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [Colors.transparent, Colors.black54],
+                      ),
+                    ),
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      CircleAvatar(
-                        radius: 18,
-                        backgroundImage:
-                            icon != null ? NetworkImage(icon.url) : null,
-                        child: icon == null ? const Icon(Icons.person) : null,
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        card.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: background != null ? Colors.white : null,
+                InkWell(
+                  onTap: onTap,
+                  child: Padding(
+                    padding: EdgeInsets.all(padding),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        CircleAvatar(
+                          radius: avatarRadius,
+                          backgroundImage:
+                              icon != null ? NetworkImage(icon.url) : null,
+                          child:
+                              icon == null ? const Icon(Icons.person) : null,
                         ),
-                      ),
-                      Text(
-                        subtitleParts.isEmpty
-                            ? strings.workshopUnsetSubtitle
-                            : subtitleParts.join(' / '),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: background != null
-                              ? Colors.white70
-                              : Theme.of(context).colorScheme.onSurfaceVariant,
+                        SizedBox(height: padding * 0.6),
+                        Text(
+                          card.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: nameFontSize,
+                            fontWeight: FontWeight.bold,
+                            color: background != null ? Colors.white : null,
+                          ),
                         ),
-                      ),
-                    ],
+                        Text(
+                          subtitleParts.isEmpty
+                              ? strings.workshopUnsetSubtitle
+                              : subtitleParts.join(' / '),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: subtitleFontSize,
+                            color: background != null
+                                ? Colors.white70
+                                : Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
+              ],
             ),
           ),
           Positioned(right: -4, top: -4, child: _DeleteBadge(onTap: onDelete)),
@@ -864,6 +1048,7 @@ class _StatusMessageSection extends StatelessWidget {
     required this.activeId,
     required this.onAdd,
     required this.onSelect,
+    required this.onEdit,
     required this.onDelete,
   });
 
@@ -872,6 +1057,7 @@ class _StatusMessageSection extends StatelessWidget {
   final String? activeId;
   final VoidCallback onAdd;
   final ValueChanged<String> onSelect;
+  final ValueChanged<StatusMessage> onEdit;
   final ValueChanged<StatusMessage> onDelete;
 
   @override
@@ -891,14 +1077,11 @@ class _StatusMessageSection extends StatelessWidget {
             onChanged: (value) {
               if (value != null) onSelect(value);
             },
-            child: ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: Radio<String>(value: message.id),
-              title: Text(message.text),
-              trailing: IconButton(
-                icon: const Icon(Icons.delete_outline),
-                onPressed: () => onDelete(message),
-              ),
+            child: _RegisteredItemRow(
+              value: message.id,
+              text: message.text,
+              onEdit: () => onEdit(message),
+              onDelete: () => onDelete(message),
             ),
           ),
         TextButton.icon(
@@ -918,6 +1101,7 @@ class _NicknameSection extends StatelessWidget {
     required this.activeId,
     required this.onAdd,
     required this.onSelect,
+    required this.onEdit,
     required this.onDelete,
   });
 
@@ -926,6 +1110,7 @@ class _NicknameSection extends StatelessWidget {
   final String? activeId;
   final VoidCallback onAdd;
   final ValueChanged<String> onSelect;
+  final ValueChanged<Nickname> onEdit;
   final ValueChanged<Nickname> onDelete;
 
   @override
@@ -949,14 +1134,11 @@ class _NicknameSection extends StatelessWidget {
             onChanged: (value) {
               if (value != null) onSelect(value);
             },
-            child: ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: Radio<String>(value: nickname.id),
-              title: Text(nickname.text),
-              trailing: IconButton(
-                icon: const Icon(Icons.delete_outline),
-                onPressed: () => onDelete(nickname),
-              ),
+            child: _RegisteredItemRow(
+              value: nickname.id,
+              text: nickname.text,
+              onEdit: () => onEdit(nickname),
+              onDelete: () => onDelete(nickname),
             ),
           ),
         TextButton.icon(
@@ -969,16 +1151,61 @@ class _NicknameSection extends StatelessWidget {
   }
 }
 
+/// ニックネーム・ステメの1行（選択用ラジオ＋テキスト＋編集／削除ボタン）。
+/// 以前は`ListTile`を使っていたため、リスト全体の横幅いっぱいに引き伸ばされ、
+/// 削除ボタンがテキストから大きく離れた画面右端に表示されてしまっていた。
+/// `mainAxisSize: MainAxisSize.min`のRowにすることで、テキストのすぐ右に
+/// ボタンが並ぶコンパクトな見た目にする。
+class _RegisteredItemRow extends StatelessWidget {
+  const _RegisteredItemRow({
+    required this.value,
+    required this.text,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  final String value;
+  final String text;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Radio<String>(value: value),
+        Flexible(child: Text(text, overflow: TextOverflow.ellipsis)),
+        IconButton(
+          icon: const Icon(Icons.edit_outlined, size: 20),
+          visualDensity: VisualDensity.compact,
+          onPressed: onEdit,
+        ),
+        IconButton(
+          icon: const Icon(Icons.delete_outline, size: 20),
+          visualDensity: VisualDensity.compact,
+          onPressed: onDelete,
+        ),
+      ],
+    );
+  }
+}
+
 class _NicknameDialog extends ConsumerStatefulWidget {
-  const _NicknameDialog();
+  const _NicknameDialog({this.initialText});
+
+  /// 編集時は既存のテキストを渡す。nullなら新規追加。
+  final String? initialText;
 
   @override
   ConsumerState<_NicknameDialog> createState() => _NicknameDialogState();
 }
 
 class _NicknameDialogState extends ConsumerState<_NicknameDialog> {
-  final _controller = TextEditingController();
+  late final _controller = TextEditingController(text: widget.initialText);
   String? _errorText;
+
+  bool get _isEdit => widget.initialText != null;
 
   @override
   void dispose() {
@@ -1001,7 +1228,11 @@ class _NicknameDialogState extends ConsumerState<_NicknameDialog> {
   Widget build(BuildContext context) {
     final strings = ref.watch(appStringsProvider);
     return AlertDialog(
-      title: Text(strings.profileNicknameDialogTitle),
+      title: Text(
+        _isEdit
+            ? strings.profileNicknameDialogEditTitle
+            : strings.profileNicknameDialogTitle,
+      ),
       content: TextField(
         controller: _controller,
         autofocus: true,
@@ -1017,14 +1248,20 @@ class _NicknameDialogState extends ConsumerState<_NicknameDialog> {
           onPressed: () => Navigator.of(context).pop(),
           child: Text(strings.cancel),
         ),
-        TextButton(onPressed: _submit, child: Text(strings.add)),
+        TextButton(
+          onPressed: _submit,
+          child: Text(_isEdit ? strings.save : strings.add),
+        ),
       ],
     );
   }
 }
 
 class _StatusMessageDialog extends ConsumerStatefulWidget {
-  const _StatusMessageDialog();
+  const _StatusMessageDialog({this.initialText});
+
+  /// 編集時は既存のテキストを渡す。nullなら新規追加。
+  final String? initialText;
 
   @override
   ConsumerState<_StatusMessageDialog> createState() =>
@@ -1032,8 +1269,10 @@ class _StatusMessageDialog extends ConsumerStatefulWidget {
 }
 
 class _StatusMessageDialogState extends ConsumerState<_StatusMessageDialog> {
-  final _controller = TextEditingController();
+  late final _controller = TextEditingController(text: widget.initialText);
   String? _errorText;
+
+  bool get _isEdit => widget.initialText != null;
 
   @override
   void dispose() {
@@ -1053,7 +1292,11 @@ class _StatusMessageDialogState extends ConsumerState<_StatusMessageDialog> {
   Widget build(BuildContext context) {
     final strings = ref.watch(appStringsProvider);
     return AlertDialog(
-      title: Text(strings.profileStatusMessageDialogTitle),
+      title: Text(
+        _isEdit
+            ? strings.profileStatusMessageDialogEditTitle
+            : strings.profileStatusMessageDialogTitle,
+      ),
       content: TextField(
         controller: _controller,
         autofocus: true,
@@ -1069,7 +1312,10 @@ class _StatusMessageDialogState extends ConsumerState<_StatusMessageDialog> {
           onPressed: () => Navigator.of(context).pop(),
           child: Text(strings.cancel),
         ),
-        TextButton(onPressed: _submit, child: Text(strings.add)),
+        TextButton(
+          onPressed: _submit,
+          child: Text(_isEdit ? strings.save : strings.add),
+        ),
       ],
     );
   }
@@ -1127,7 +1373,7 @@ class _ProfileCardEditorDialogState
     }
     final card = ProfileCard(
       id: widget.existing?.id ??
-          '${DateTime.now().microsecondsSinceEpoch}_${Random().nextInt(1 << 32)}',
+          _newLocalId(),
       name: name,
       iconId: _iconId,
       backgroundImageId: _backgroundImageId,

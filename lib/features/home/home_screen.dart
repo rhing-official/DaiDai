@@ -59,7 +59,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final tabs = [
       TalksTab(currentUser: widget.currentUser),
       ProfileTab(currentUser: widget.currentUser),
-      const SettingsTab(),
+      SettingsTab(currentUser: widget.currentUser),
       const SupportTab(),
     ];
 
@@ -164,21 +164,18 @@ class _NavChip extends StatelessWidget {
         ? colorScheme.onPrimary
         : colorScheme.onSurfaceVariant;
 
-    return Tooltip(
-      message: label,
-      child: Material(
-        color: background,
-        shape: const CircleBorder(),
-        elevation: selected ? 8 : 4,
-        shadowColor: colorScheme.primary.withValues(alpha: 0.4),
-        child: InkWell(
-          onTap: onTap,
-          customBorder: const CircleBorder(),
-          child: SizedBox(
-            width: _HomeScreenState._chipSize,
-            height: _HomeScreenState._chipSize,
-            child: Icon(icon, color: foreground),
-          ),
+    return Material(
+      color: background,
+      shape: const CircleBorder(),
+      elevation: selected ? 8 : 4,
+      shadowColor: colorScheme.primary.withValues(alpha: 0.4),
+      child: InkWell(
+        onTap: onTap,
+        customBorder: const CircleBorder(),
+        child: SizedBox(
+          width: _HomeScreenState._chipSize,
+          height: _HomeScreenState._chipSize,
+          child: Icon(icon, color: foreground),
         ),
       ),
     );

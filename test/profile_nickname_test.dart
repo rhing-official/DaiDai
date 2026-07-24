@@ -1,12 +1,13 @@
-import 'dart:typed_data';
-
 import 'package:daidai/features/profile/profile_tab.dart';
 import 'package:daidai/l10n/app_locale.dart';
+import 'package:daidai/l10n/terminology_style.dart';
 import 'package:daidai/models/app_user.dart';
 import 'package:daidai/models/profile_material.dart';
 import 'package:daidai/providers/app_locale_provider.dart';
 import 'package:daidai/providers/repository_providers.dart';
+import 'package:daidai/providers/terminology_style_provider.dart';
 import 'package:daidai/repositories/user_repository.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -35,6 +36,44 @@ class _FakeUserRepository implements UserRepository {
   Future<void> updateUser(AppUser user) async => saved = user;
 
   @override
+  Future<void> addToProfileList(
+    String userId,
+    String field,
+    Map<String, dynamic> value,
+  ) async {
+    final base = saved ?? AppUser(userId: userId, rhingId: '');
+    final json = base.toJson();
+    final list = List<Map<String, dynamic>>.from(
+      (json[field] as List).cast<Map<String, dynamic>>(),
+    )..add(value);
+    json[field] = list;
+    saved = AppUser.fromJson(json);
+  }
+
+  @override
+  Future<void> removeFromProfileList(
+    String userId,
+    String field,
+    Map<String, dynamic> value,
+  ) async {
+    final base = saved ?? AppUser(userId: userId, rhingId: '');
+    final json = base.toJson();
+    final list = List<Map<String, dynamic>>.from(
+      (json[field] as List).cast<Map<String, dynamic>>(),
+    )..removeWhere((v) => mapEquals(v, value));
+    json[field] = list;
+    saved = AppUser.fromJson(json);
+  }
+
+  @override
+  Future<void> setProfileField(String userId, String field, String? value) async {
+    final base = saved ?? AppUser(userId: userId, rhingId: '');
+    final json = base.toJson();
+    json[field] = value;
+    saved = AppUser.fromJson(json);
+  }
+
+  @override
   Future<ProfileMaterial> uploadIcon(String userId, Uint8List bytes) {
     throw UnimplementedError();
   }
@@ -58,6 +97,9 @@ void main() {
         overrides: [
           userRepositoryProvider.overrideWithValue(fakeRepo),
           initialAppLocaleProvider.overrideWithValue(AppLocale.japanese),
+          initialTerminologyStyleProvider.overrideWithValue(
+            TerminologyStyle.worldview,
+          ),
         ],
         child: const MaterialApp(
           home: Scaffold(body: ProfileTab(currentUser: user)),
@@ -86,6 +128,9 @@ void main() {
         overrides: [
           userRepositoryProvider.overrideWithValue(fakeRepo),
           initialAppLocaleProvider.overrideWithValue(AppLocale.japanese),
+          initialTerminologyStyleProvider.overrideWithValue(
+            TerminologyStyle.worldview,
+          ),
         ],
         child: const MaterialApp(
           home: Scaffold(body: ProfileTab(currentUser: user)),

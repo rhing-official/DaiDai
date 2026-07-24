@@ -11,26 +11,49 @@ class Strings {
     required this.navProfile,
     required this.navSettings,
     required this.navSupport,
-    required this.talkCategoryDm,
-    required this.talkCategoryGroup,
-    required this.addMenuDmTitle,
+    required this.addMenuDmTitleTemplate,
     required this.addMenuDmSubtitle,
-    required this.addMenuGroupTitle,
+    required this.addMenuGroupTitleTemplate,
     required this.addMenuGroupSubtitle,
     required this.settingsFolderAccount,
+    required this.settingsFolderApplication,
     required this.settingsFolderDesign,
-    required this.settingsFolderDisplayLanguage,
+    required this.settingsFolderLanguage,
     required this.settingsFolderInput,
     required this.settingsFolderNotifications,
     required this.settingsAccentColor,
     required this.settingsColorCode,
+    required this.settingsColorPresets,
     required this.settingsLogout,
     required this.settingsDisplayLanguage,
     required this.settingsTerminology,
+    required this.settingsTerminologyWorldview,
+    required this.settingsTerminologyConvenience,
+    required this.settingsSubUI,
+    required this.settingsUIDescription,
+    required this.settingsSubTypography,
+    required this.settingsFontDesign,
+    required this.settingsFontSize,
+    required this.settingsRhingIdLabel,
+    required this.settingsProfileName,
+    required this.settingsSecurity,
+    required this.settingsPassword,
+    required this.settingsTwoFactor,
+    required this.settingsPasskey,
+    required this.settingsQrLogin,
+    required this.settingsDeleteAccount,
     required this.settingsComingSoon,
+    required this.supportHomepageUrl,
+    required this.supportAnnouncements,
+    required this.supportContactForm,
+    required this.plazaCurrentTypeSubtitle,
+    required this.plazaTextChannelSubtitle,
+    required this.plazaPublicPlazaSubtitle,
     required this.settingsSendKeyTitle,
     required this.settingsSendKeyEnterToSend,
     required this.settingsSendKeyCtrlEnterToSend,
+    required this.settingsSendKeySilentEnterToSend,
+    required this.settingsSendKeySilentCtrlEnterToSend,
     required this.back,
     required this.friendSearchTitle,
     required this.friendSearchHint,
@@ -52,8 +75,6 @@ class Strings {
     required this.cancel,
     required this.add,
     required this.save,
-    required this.profileTabKura,
-    required this.profileTabKoubou,
     required this.profileIconSection,
     required this.profileBackgroundSection,
     required this.profileNicknameSection,
@@ -62,13 +83,15 @@ class Strings {
     required this.profileAddNickname,
     required this.profileAddStatusMessage,
     required this.profileNicknameDialogTitle,
+    required this.profileNicknameDialogEditTitle,
     required this.profileNicknameDialogHint,
     required this.profileStatusMessageDialogTitle,
+    required this.profileStatusMessageDialogEditTitle,
     required this.profileStatusMessageDialogHint,
     required this.profileSaveError,
     required this.profileIconUploadError,
     required this.profileBackgroundUploadError,
-    required this.workshopDescription,
+    required this.workshopDescriptionTemplate,
     required this.workshopCardNameLabel,
     required this.workshopCardDialogTitleNew,
     required this.workshopCardDialogTitleEdit,
@@ -88,28 +111,55 @@ class Strings {
   final String navSettings;
   final String navSupport;
 
-  final String talkCategoryDm;
-  final String talkCategoryGroup;
-
-  final String addMenuDmTitle;
+  /// 一対/DM等の用語を差し込んだタイトルを組み立てる（例: 「一対を始める」）。
+  final String Function(String dmTerm) addMenuDmTitleTemplate;
   final String addMenuDmSubtitle;
-  final String addMenuGroupTitle;
+
+  /// 広場/Server等の用語を差し込んだタイトルを組み立てる（例: 「広場を作る」）。
+  final String Function(String plazaTerm) addMenuGroupTitleTemplate;
   final String addMenuGroupSubtitle;
 
   final String settingsFolderAccount;
+  final String settingsFolderApplication;
   final String settingsFolderDesign;
-  final String settingsFolderDisplayLanguage;
+  final String settingsFolderLanguage;
   final String settingsFolderInput;
   final String settingsFolderNotifications;
   final String settingsAccentColor;
   final String settingsColorCode;
+  final String settingsColorPresets;
   final String settingsLogout;
   final String settingsDisplayLanguage;
   final String settingsTerminology;
+  final String settingsTerminologyWorldview;
+  final String settingsTerminologyConvenience;
+  final String settingsSubUI;
+  final String settingsUIDescription;
+  final String settingsSubTypography;
+  final String settingsFontDesign;
+  final String settingsFontSize;
+  final String settingsRhingIdLabel;
+  final String settingsProfileName;
+  final String settingsSecurity;
+  final String settingsPassword;
+  final String settingsTwoFactor;
+  final String settingsPasskey;
+  final String settingsQrLogin;
+  final String settingsDeleteAccount;
   final String settingsComingSoon;
   final String settingsSendKeyTitle;
   final String settingsSendKeyEnterToSend;
   final String settingsSendKeyCtrlEnterToSend;
+  final String settingsSendKeySilentEnterToSend;
+  final String settingsSendKeySilentCtrlEnterToSend;
+
+  final String supportHomepageUrl;
+  final String supportAnnouncements;
+  final String supportContactForm;
+
+  final String plazaCurrentTypeSubtitle;
+  final String plazaTextChannelSubtitle;
+  final String plazaPublicPlazaSubtitle;
 
   final String back;
 
@@ -135,8 +185,6 @@ class Strings {
   final String add;
   final String save;
 
-  final String profileTabKura;
-  final String profileTabKoubou;
   final String profileIconSection;
   final String profileBackgroundSection;
   final String profileNicknameSection;
@@ -145,14 +193,17 @@ class Strings {
   final String profileAddNickname;
   final String profileAddStatusMessage;
   final String profileNicknameDialogTitle;
+  final String profileNicknameDialogEditTitle;
   final String profileNicknameDialogHint;
   final String profileStatusMessageDialogTitle;
+  final String profileStatusMessageDialogEditTitle;
   final String profileStatusMessageDialogHint;
   final String profileSaveError;
   final String profileIconUploadError;
   final String profileBackgroundUploadError;
 
-  final String workshopDescription;
+  /// 蔵/Storehouse等の用語を差し込んだ説明文を組み立てる。
+  final String Function(String profileStorageTerm) workshopDescriptionTemplate;
   final String workshopCardNameLabel;
   final String workshopCardDialogTitleNew;
   final String workshopCardDialogTitleEdit;
@@ -166,31 +217,55 @@ class Strings {
   final String workshopUnsetSubtitle;
   final String fieldRequiredError;
 
-  static const ja = Strings._(
+  static final ja = Strings._(
     navTalk: '語らい',
     navProfile: '身だしなみ',
     navSettings: '設定',
     navSupport: '運営',
-    talkCategoryDm: '一対',
-    talkCategoryGroup: '広場',
-    addMenuDmTitle: '一対を始める',
+    addMenuDmTitleTemplate: (dmTerm) => '$dmTermを始める',
     addMenuDmSubtitle: '1対1で話す相手を追加する',
-    addMenuGroupTitle: '広場を作る',
+    addMenuGroupTitleTemplate: (plazaTerm) => '$plazaTermを作る',
     addMenuGroupSubtitle: '3人以上のグループを作る',
     settingsFolderAccount: 'アカウント',
-    settingsFolderDesign: 'デザイン',
-    settingsFolderDisplayLanguage: '表示・言語',
+    settingsFolderApplication: 'アプリケーション',
+    settingsFolderDesign: '色',
+    settingsFolderLanguage: '言語',
     settingsFolderInput: '入力',
     settingsFolderNotifications: '通知',
     settingsAccentColor: 'アクセントカラー',
     settingsColorCode: 'カラーコード',
+    settingsColorPresets: 'プリセット',
     settingsLogout: 'ログアウト',
     settingsDisplayLanguage: '表示言語',
     settingsTerminology: '用語・表示設定',
+    settingsTerminologyWorldview: '世界観重視',
+    settingsTerminologyConvenience: '利便性重視',
+    settingsSubUI: 'UI',
+    settingsUIDescription:
+        '現在のUIスタイルは「シンプル」1本に統一されています（切り替え機能は今後の検討事項です）。',
+    settingsSubTypography: '文字',
+    settingsFontDesign: 'フォントデザイン',
+    settingsFontSize: 'フォントサイズ',
+    settingsRhingIdLabel: 'Rhing ID',
+    settingsProfileName: 'プロフィール名',
+    settingsSecurity: 'セキュリティ',
+    settingsPassword: 'パスワード',
+    settingsTwoFactor: '2段階認証',
+    settingsPasskey: 'パスキー',
+    settingsQrLogin: 'QRコードによるログイン',
+    settingsDeleteAccount: 'アカウントの削除',
     settingsComingSoon: '準備中',
     settingsSendKeyTitle: 'メッセージの送信キー',
     settingsSendKeyEnterToSend: 'Enterで送信、Shift+Enterで改行',
     settingsSendKeyCtrlEnterToSend: 'Enterで改行、Ctrl+Enterで送信',
+    settingsSendKeySilentEnterToSend: 'Ctrl+Enterで相手に通知せず送信',
+    settingsSendKeySilentCtrlEnterToSend: 'Ctrl+Shift+Enterで相手に通知せず送信',
+    supportHomepageUrl: 'ホームページのURL',
+    supportAnnouncements: 'お知らせ',
+    supportContactForm: '質問フォーム',
+    plazaCurrentTypeSubtitle: '現在この広場は非公開（裏広場）です',
+    plazaTextChannelSubtitle: '今の会話がこれにあたります',
+    plazaPublicPlazaSubtitle: '不特定多数が参加できる広場です（フェーズ3で対応予定）',
     back: '戻る',
     friendSearchTitle: '友達を追加',
     friendSearchHint: '相手のRhing IDを入力して友達申請を送ります。承認されると会話できるようになります。',
@@ -212,8 +287,6 @@ class Strings {
     cancel: 'キャンセル',
     add: '追加',
     save: '保存',
-    profileTabKura: '蔵',
-    profileTabKoubou: '工房',
     profileIconSection: 'アイコン',
     profileBackgroundSection: '背景画像',
     profileNicknameSection: 'ニックネーム',
@@ -222,13 +295,16 @@ class Strings {
     profileAddNickname: 'ニックネームを追加',
     profileAddStatusMessage: 'ステメを追加',
     profileNicknameDialogTitle: 'ニックネームを追加',
+    profileNicknameDialogEditTitle: 'ニックネームを編集',
     profileNicknameDialogHint: '友達に表示する呼び名を入力',
     profileStatusMessageDialogTitle: 'ステメを追加',
+    profileStatusMessageDialogEditTitle: 'ステメを編集',
     profileStatusMessageDialogHint: 'ひとことを入力',
     profileSaveError: '保存に失敗しました',
     profileIconUploadError: 'アイコンのアップロードに失敗しました',
     profileBackgroundUploadError: '背景画像のアップロードに失敗しました',
-    workshopDescription: '蔵に登録した素材を組み合わせて、プロフィールカードを作れます。カードをタップして編集してください。',
+    workshopDescriptionTemplate: (term) =>
+        '$termに登録した素材を組み合わせて、プロフィールカードを作れます。カードをタップして編集してください。',
     workshopCardNameLabel: 'カード名（自分用のラベル）',
     workshopCardDialogTitleNew: 'プロフィールカードを作る',
     workshopCardDialogTitleEdit: 'プロフィールカードを編集',
@@ -243,31 +319,59 @@ class Strings {
     fieldRequiredError: '入力してください',
   );
 
-  static const enGB = Strings._(
+  static final enGB = Strings._(
     navTalk: 'Talks',
     navProfile: 'Profile',
     navSettings: 'Settings',
     navSupport: 'Support',
-    talkCategoryDm: 'DMs',
-    talkCategoryGroup: 'Squares',
-    addMenuDmTitle: 'Start a DM',
+    addMenuDmTitleTemplate: (dmTerm) => 'Start a $dmTerm',
     addMenuDmSubtitle: 'Add someone to talk to one-on-one',
-    addMenuGroupTitle: 'Create a Square',
+    addMenuGroupTitleTemplate: (plazaTerm) => 'Create a $plazaTerm',
     addMenuGroupSubtitle: 'Make a group with three or more people',
     settingsFolderAccount: 'Account',
-    settingsFolderDesign: 'Design',
-    settingsFolderDisplayLanguage: 'Display & Language',
+    settingsFolderApplication: 'Application',
+    settingsFolderDesign: 'Colour',
+    settingsFolderLanguage: 'Language',
     settingsFolderInput: 'Input',
     settingsFolderNotifications: 'Notifications',
     settingsAccentColor: 'Accent colour',
     settingsColorCode: 'Colour code',
+    settingsColorPresets: 'Presets',
     settingsLogout: 'Log out',
     settingsDisplayLanguage: 'Display language',
     settingsTerminology: 'Terminology & display',
+    settingsTerminologyWorldview: 'Worldview-focused',
+    settingsTerminologyConvenience: 'Convenience-focused',
+    settingsSubUI: 'UI',
+    settingsUIDescription:
+        'The current UI style is fixed to "Simple" (a style switcher may '
+        'be added in the future).',
+    settingsSubTypography: 'Typography',
+    settingsFontDesign: 'Font design',
+    settingsFontSize: 'Font size',
+    settingsRhingIdLabel: 'Rhing ID',
+    settingsProfileName: 'Profile name',
+    settingsSecurity: 'Security',
+    settingsPassword: 'Password',
+    settingsTwoFactor: 'Two-factor authentication',
+    settingsPasskey: 'Passkey',
+    settingsQrLogin: 'Sign in with a QR code',
+    settingsDeleteAccount: 'Delete account',
     settingsComingSoon: 'Coming soon',
     settingsSendKeyTitle: 'Message send key',
     settingsSendKeyEnterToSend: 'Enter to send, Shift+Enter for a new line',
     settingsSendKeyCtrlEnterToSend: 'Enter for a new line, Ctrl+Enter to send',
+    settingsSendKeySilentEnterToSend:
+        'Ctrl+Enter to send without notifying the recipient',
+    settingsSendKeySilentCtrlEnterToSend:
+        'Ctrl+Shift+Enter to send without notifying the recipient',
+    supportHomepageUrl: 'Homepage URL',
+    supportAnnouncements: 'Announcements',
+    supportContactForm: 'Contact form',
+    plazaCurrentTypeSubtitle: 'This Plaza is currently private',
+    plazaTextChannelSubtitle: 'Your current conversation is this',
+    plazaPublicPlazaSubtitle:
+        'A plaza anyone can join (planned for a later phase)',
     back: 'Back',
     friendSearchTitle: 'Add a friend',
     friendSearchHint:
@@ -291,8 +395,6 @@ class Strings {
     cancel: 'Cancel',
     add: 'Add',
     save: 'Save',
-    profileTabKura: 'Storehouse',
-    profileTabKoubou: 'Workshop',
     profileIconSection: 'Icons',
     profileBackgroundSection: 'Background images',
     profileNicknameSection: 'Nicknames',
@@ -302,14 +404,16 @@ class Strings {
     profileAddNickname: 'Add a nickname',
     profileAddStatusMessage: 'Add a status message',
     profileNicknameDialogTitle: 'Add a nickname',
+    profileNicknameDialogEditTitle: 'Edit nickname',
     profileNicknameDialogHint: 'Enter the name shown to friends',
     profileStatusMessageDialogTitle: 'Add a status message',
+    profileStatusMessageDialogEditTitle: 'Edit status message',
     profileStatusMessageDialogHint: 'Enter a short status message',
     profileSaveError: 'Failed to save',
     profileIconUploadError: 'Failed to upload icon',
     profileBackgroundUploadError: 'Failed to upload background image',
-    workshopDescription:
-        'Combine materials from your storehouse into profile cards. '
+    workshopDescriptionTemplate: (term) =>
+        'Combine materials from your $term into profile cards. '
         'Tap a card to edit it.',
     workshopCardNameLabel: 'Card name (private label for you)',
     workshopCardDialogTitleNew: 'Create a profile card',
