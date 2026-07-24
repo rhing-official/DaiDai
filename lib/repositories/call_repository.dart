@@ -4,8 +4,13 @@ import '../models/app_user.dart';
 import '../models/call.dart';
 
 abstract class CallRepository {
-  /// 一対の相手に音声通話を発信する（呼び出し中の通話ドキュメントを作成する）。
-  Future<Call> createCall({required AppUser caller, required AppUser callee});
+  /// 一対の相手に通話を発信する（呼び出し中の通話ドキュメントを作成する）。
+  /// [isVideo]がtrueならビデオ通話、falseなら音声のみの通話になる。
+  Future<Call> createCall({
+    required AppUser caller,
+    required AppUser callee,
+    bool isVideo = false,
+  });
 
   Stream<Call?> watchCall(String callId);
 
@@ -46,6 +51,7 @@ class FirestoreCallRepository implements CallRepository {
   Future<Call> createCall({
     required AppUser caller,
     required AppUser callee,
+    bool isVideo = false,
   }) async {
     final ref = _calls.doc();
     final call = Call(
@@ -55,6 +61,7 @@ class FirestoreCallRepository implements CallRepository {
       calleeId: callee.userId,
       calleeRhingId: callee.rhingId,
       status: CallStatus.ringing,
+      isVideo: isVideo,
     );
     await ref.set(call.toJson());
     return call;

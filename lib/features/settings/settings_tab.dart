@@ -14,25 +14,18 @@ import '../../providers/send_key_mode_provider.dart';
 import '../../providers/terminology_style_provider.dart';
 import '../../utils/color_hex.dart';
 
-/// 画面幅がこれ以上あれば、階層を「列（カラム）」として左詰めで並べる
-/// マルチカラム表示にする（macOSの設定／Finderのカラム表示と同様、項目の
-/// 中に更に項目がある場合は右に新しい列が増えていく）。これ未満の狭い画面
-/// では、従来通り1画面ずつ潜っていくドリルダウン表示にする。
+/// 画面幅がこれ以上あれば、左にカテゴリ一覧（サイドバー）、右にそのカテゴリの
+/// 内容を1ページにまとめて表示するDiscord設定風の2ペイン表示にする。
+/// これ未満の狭い画面では、カテゴリ一覧→内容ページの1段だけドリルダウンする。
 const _kSettingsSplitBreakpoint = 760.0;
 
-/// マルチカラム表示での1列あたりの幅。用語スタイル・表示言語によっては
-/// 項目名が長くなる（例:「マテリアルボックス」「Terminology & display」）ため、
-/// 折り返しではなく列幅そのものに余裕を持たせている。列数が増えて画面に
-/// 収まらない場合は、列の並び全体を横スクロールさせる（[_SplitSettingsView]参照）。
-const _kSettingsColumnWidth = 280.0;
+/// サイドバーの幅。
+const _kSettingsSidebarWidth = 240.0;
 
-/// マルチカラム表示で、右端の内容ペインに最低限確保する幅。
-const _kSettingsMinContentWidth = 320.0;
-
-/// 設定タブ。`docs/マップ.md`のサイトマップ（アカウント／アプリケーション／
-/// 入力／通知）に沿って項目を[_Node]の木構造として表示する。
-/// 広い画面では選んだ階層ごとに列を追加していくマルチカラム表示、
-/// 狭い画面では1画面ずつ置き換わるドリルダウン表示になる。
+/// 設定タブ。サイドバーの階層は最上位カテゴリ（アカウント／アプリケーション／
+/// 入力／通知）の1段だけに留め、それぞれの中身（旧: サブフォルダだった項目）は
+/// カテゴリごとに1つの縦スクロールページへ、見出し付きセクションとしてまとめる
+/// （Discordのアカウント設定ページの構成を参考にした。2026-07-24変更）。
 class SettingsTab extends ConsumerStatefulWidget {
   const SettingsTab({required this.currentUser, super.key});
 
@@ -43,48 +36,68 @@ class SettingsTab extends ConsumerStatefulWidget {
 }
 
 class _SettingsTabState extends ConsumerState<SettingsTab> {
-  /// マルチカラム表示でのみ使う、選択中ノードのidの連なり
-  /// （例: ["application", "language"]）。ノードオブジェクト自体は
-  /// ビルドごとに作り直される（[_rootNodes]参照）ため、参照の同一性ではなく
-  /// idで選択状態・列内容を復元する。表示言語や用語スタイルで変わる
-  /// [_Node.title]をここで使うと、言語を切り替えた瞬間に古い言語のタイトルが
-  /// 新しいツリーで見つからなくなり、設定のトップまで押し戻されてしまう
-  /// （実際に起きていた不具合）ため、翻訳されないidで照合する。
-  List<String> _path = [];
+  /// 狭い画面のドリルダウンでのみ使う、選択中カテゴリのid。
+  /// 広い画面では常に先頭（アカウント）を既定選択として表示する。
+  String? _selectedId;
 
   @override
   Widget build(BuildContext context) {
     final strings = ref.watch(appStringsProvider);
-    final isSplit =
+    final categories = _categories(strings, ref, widget.currentUser);
+    final isWide =
         MediaQuery.sizeOf(context).width >= _kSettingsSplitBreakpoint;
-    final rootNodes = _rootNodes(context, ref, strings, widget.currentUser);
 
-    if (isSplit) {
+    if (isWide) {
+      final selected = _findCategoryById(categories, _selectedId) ??
+          categories.first;
       return Padding(
         padding: const EdgeInsets.only(top: 24),
-        child: _SplitSettingsView(
-          rootNodes: rootNodes,
-          path: _path,
-          onSelect: (columnIndex, node) {
-            if (node.onTap != null) {
-              node.onTap!();
-              return;
-            }
-            setState(() => _path = [..._path.take(columnIndex), node.id]);
-          },
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SizedBox(
+              width: _kSettingsSidebarWidth,
+              child: _CategoryList(
+                categories: categories,
+                selectedId: selected.id,
+                onSelect: (category) =>
+                    setState(() => _selectedId = category.id),
+              ),
+            ),
+            const VerticalDivider(width: 1),
+            Expanded(
+              child: _SettingsPage(
+                title: selected.title,
+                child: Builder(builder: selected.pageBuilder),
+              ),
+            ),
+          ],
         ),
       );
     }
 
+    final selected = _findCategoryById(categories, _selectedId);
     return Align(
       alignment: Alignment.topCenter,
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 480),
         child: Padding(
           padding: const EdgeInsets.only(top: 56),
-          child: _NodeListDetail(
-            key: const ValueKey('settings-root'),
-            nodes: rootNodes,
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 180),
+            child: selected == null
+                ? _CategoryList(
+                    key: const ValueKey('settings-categories'),
+                    categories: categories,
+                    selectedId: null,
+                    onSelect: (category) =>
+                        setState(() => _selectedId = category.id),
+                  )
+                : _NarrowSettingsPage(
+                    key: ValueKey(selected.id),
+                    category: selected,
+                    onBack: () => setState(() => _selectedId = null),
+                  ),
           ),
         ),
       ),
@@ -92,351 +105,93 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
   }
 }
 
-/// 設定のルート階層（アカウント／アプリケーション／入力／通知）。
-/// アカウント・アプリケーションはさらに内部にサブ項目を持つフォルダ、
-/// 入力・通知はこの階層自体が末端の内容を持つ（[_Node.isFolder]参照）。
-List<_Node> _rootNodes(
-  BuildContext context,
-  WidgetRef ref,
-  Strings strings,
-  AppUser currentUser,
-) {
-  return [
-    _Node(
-      id: 'account',
-      icon: Icons.person_outline,
-      title: strings.settingsFolderAccount,
-      children: _accountNodes(context, ref, strings, currentUser),
-    ),
-    _Node(
-      id: 'application',
-      icon: Icons.tune,
-      title: strings.settingsFolderApplication,
-      children: _applicationNodes(context, ref, strings),
-    ),
-    _Node(
-      id: 'input',
-      icon: Icons.keyboard_outlined,
-      title: strings.settingsFolderInput,
-      builder: (context) => _InputFolder(strings: strings),
-    ),
-    _Node(
-      id: 'notifications',
-      icon: Icons.notifications_outlined,
-      title: strings.settingsFolderNotifications,
-      builder: (context) => _ComingSoonFolder(message: strings.settingsComingSoon),
-    ),
-  ];
-}
-
-/// アカウント配下のサブ項目ツリー。`docs/マップ.md`のサイトマップに沿う。
-/// バックアップコード・メールアドレスはCLAUDE.mdの明記された不採用方針
-/// （バックアップコードの代わりに秘密の質問3つを採用／プライバシー方針上
-/// メールアドレスを収集しない）に合わせ、意図的に含めていない。
-List<_Node> _accountNodes(
-  BuildContext context,
-  WidgetRef ref,
-  Strings strings,
-  AppUser currentUser,
-) {
-  return [
-    _Node(
-      id: 'rhingId',
-      icon: Icons.badge_outlined,
-      title: strings.settingsRhingIdLabel,
-      builder: (context) => _InfoLeaf(
-        title: strings.settingsRhingIdLabel,
-        value: '@${currentUser.rhingId}',
-      ),
-    ),
-    _Node(
-      id: 'profileName',
-      icon: Icons.person_outline,
-      title: strings.settingsProfileName,
-      builder: (context) => _ComingSoonFolder(message: strings.settingsComingSoon),
-    ),
-    _Node(
-      id: 'security',
-      icon: Icons.security_outlined,
-      title: strings.settingsSecurity,
-      children: [
-        _Node(
-          id: 'password',
-          icon: Icons.password_outlined,
-          title: strings.settingsPassword,
-          builder: (context) =>
-              _ComingSoonFolder(message: strings.settingsComingSoon),
-        ),
-        _Node(
-          id: 'twoFactor',
-          icon: Icons.verified_user_outlined,
-          title: strings.settingsTwoFactor,
-          builder: (context) =>
-              _ComingSoonFolder(message: strings.settingsComingSoon),
-        ),
-        _Node(
-          id: 'passkey',
-          icon: Icons.key_outlined,
-          title: strings.settingsPasskey,
-          builder: (context) =>
-              _ComingSoonFolder(message: strings.settingsComingSoon),
-        ),
-      ],
-    ),
-    _Node(
-      id: 'qrLogin',
-      icon: Icons.qr_code_outlined,
-      title: strings.settingsQrLogin,
-      builder: (context) => _ComingSoonFolder(message: strings.settingsComingSoon),
-    ),
-    _Node(
-      id: 'logout',
-      icon: Icons.logout,
-      title: strings.settingsLogout,
-      onTap: () => ref.read(authRepositoryProvider).signOut(),
-    ),
-    _Node(
-      id: 'deleteAccount',
-      icon: Icons.delete_outline,
-      title: strings.settingsDeleteAccount,
-      destructive: true,
-      builder: (context) => _ComingSoonFolder(message: strings.settingsComingSoon),
-    ),
-  ];
-}
-
-/// アプリケーション配下のサブ項目ツリー（色／UI／文字／言語）。
-List<_Node> _applicationNodes(
-  BuildContext context,
-  WidgetRef ref,
-  Strings strings,
-) {
-  return [
-    _Node(
-      id: 'design',
-      icon: Icons.palette_outlined,
-      title: strings.settingsFolderDesign,
-      builder: (context) => _DesignFolder(strings: strings),
-    ),
-    _Node(
-      id: 'ui',
-      icon: Icons.widgets_outlined,
-      title: strings.settingsSubUI,
-      builder: (context) => _InfoLeaf(
-        title: strings.settingsSubUI,
-        value: strings.settingsUIDescription,
-      ),
-    ),
-    _Node(
-      id: 'typography',
-      icon: Icons.text_fields_outlined,
-      title: strings.settingsSubTypography,
-      children: [
-        _Node(
-          id: 'fontDesign',
-          icon: Icons.font_download_outlined,
-          title: strings.settingsFontDesign,
-          builder: (context) =>
-              _ComingSoonFolder(message: strings.settingsComingSoon),
-        ),
-        _Node(
-          id: 'fontSize',
-          icon: Icons.format_size,
-          title: strings.settingsFontSize,
-          builder: (context) =>
-              _ComingSoonFolder(message: strings.settingsComingSoon),
-        ),
-      ],
-    ),
-    _Node(
-      id: 'language',
-      icon: Icons.language_outlined,
-      title: strings.settingsFolderLanguage,
-      builder: (context) => _LanguageFolder(strings: strings),
-    ),
-  ];
-}
-
-/// 設定サイトマップの1ノード。[children]があればフォルダ、[builder]があれば
-/// 詳細コンテンツを持つ末端項目、[onTap]があれば（ログアウトのように）
-/// 遷移せずその場で実行するアクション項目になる。
-class _Node {
-  const _Node({
+/// 設定の最上位カテゴリ1つ分。中身は[pageBuilder]が1ページにまとめて描画する
+/// （旧`_Node`のようなさらに深い階層は持たない）。
+class _SettingsCategory {
+  const _SettingsCategory({
     required this.id,
     required this.icon,
     required this.title,
-    this.builder,
-    this.children,
-    this.onTap,
-    this.destructive = false,
+    required this.pageBuilder,
   });
 
-  /// 表示言語・用語スタイルが変わっても変化しない安定識別子。
-  /// [title]は表示言語で変わるため、パス追跡や選択状態の照合には
-  /// 必ずこちらを使うこと（[_findNodeById]参照）。
   final String id;
   final IconData icon;
   final String title;
-  final WidgetBuilder? builder;
-  final List<_Node>? children;
-  final VoidCallback? onTap;
-  final bool destructive;
-
-  bool get isFolder => children != null;
+  final WidgetBuilder pageBuilder;
 }
 
-/// [nodes]の中から[id]に一致するノードを探す。ノードはビルドごとに
-/// 作り直されるため、階層をたどるときは常にidで照合する
-/// （[_computeColumns] / [_resolveSelectedNode]参照）。
-_Node? _findNodeById(List<_Node> nodes, String id) {
-  for (final node in nodes) {
-    if (node.id == id) return node;
+_SettingsCategory? _findCategoryById(
+  List<_SettingsCategory> categories,
+  String? id,
+) {
+  if (id == null) return null;
+  for (final category in categories) {
+    if (category.id == id) return category;
   }
   return null;
 }
 
-/// [path]をルートからたどり、マルチカラム表示で左から並べる列（それぞれが
-/// 1つのフォルダの中身）を計算する。末端（フォルダではない項目）に達したら
-/// それ以上列は増えない。
-List<List<_Node>> _computeColumns(List<_Node> rootNodes, List<String> path) {
-  final columns = <List<_Node>>[rootNodes];
-  var currentNodes = rootNodes;
-  for (final id in path) {
-    final match = _findNodeById(currentNodes, id);
-    if (match == null || !match.isFolder) break;
-    columns.add(match.children!);
-    currentNodes = match.children!;
-  }
-  return columns;
+List<_SettingsCategory> _categories(
+  Strings strings,
+  WidgetRef ref,
+  AppUser currentUser,
+) {
+  return [
+    _SettingsCategory(
+      id: 'account',
+      icon: Icons.person_outline,
+      title: strings.settingsFolderAccount,
+      pageBuilder: (context) =>
+          _AccountPage(strings: strings, currentUser: currentUser),
+    ),
+    _SettingsCategory(
+      id: 'application',
+      icon: Icons.tune,
+      title: strings.settingsFolderApplication,
+      pageBuilder: (context) => _ApplicationPage(strings: strings),
+    ),
+    _SettingsCategory(
+      id: 'input',
+      icon: Icons.keyboard_outlined,
+      title: strings.settingsFolderInput,
+      pageBuilder: (context) => _InputFolder(strings: strings),
+    ),
+    _SettingsCategory(
+      id: 'notifications',
+      icon: Icons.notifications_outlined,
+      title: strings.settingsFolderNotifications,
+      pageBuilder: (context) =>
+          _ComingSoonFolder(message: strings.settingsComingSoon),
+    ),
+  ];
 }
 
-/// [path]がたどり着いた先のノード（内容ペインに表示すべきノード）を返す。
-/// フォルダの場合は列としてすでに表示されているため、内容ペインには
-/// 表示しない（呼び出し側で[_Node.isFolder]を見て判定する）。
-_Node? _resolveSelectedNode(List<_Node> rootNodes, List<String> path) {
-  if (path.isEmpty) return null;
-  var currentNodes = rootNodes;
-  _Node? node;
-  for (final id in path) {
-    node = _findNodeById(currentNodes, id);
-    if (node == null) return null;
-    if (node.isFolder) currentNodes = node.children!;
-  }
-  return node;
-}
-
-/// 広い画面向けのマルチカラム表示。ルート階層を一番左の列に、選んだ項目に
-/// 子項目があればその右にもう1列追加していく。末端項目を選ぶと、一番右の
-/// 内容ペインにその中身を表示する。列がすべて画面幅に収まらない場合は、
-/// 列の並び全体（内容ペインを除く）を横スクロールさせ、内容ペインの幅は
-/// 常に[_kSettingsMinContentWidth]以上を確保する。
-class _SplitSettingsView extends StatelessWidget {
-  const _SplitSettingsView({
-    required this.rootNodes,
-    required this.path,
-    required this.onSelect,
-  });
-
-  final List<_Node> rootNodes;
-  final List<String> path;
-  final void Function(int columnIndex, _Node node) onSelect;
-
-  @override
-  Widget build(BuildContext context) {
-    final columns = _computeColumns(rootNodes, path);
-    final selectedNode = _resolveSelectedNode(rootNodes, path);
-    final contentPane = selectedNode == null ||
-            selectedNode.isFolder ||
-            selectedNode.builder == null
-        ? const _EmptyFolderPlaceholder()
-        : Align(
-            alignment: Alignment.topLeft,
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 480),
-              child: Padding(
-                padding: const EdgeInsets.only(left: 8, top: 8),
-                child: Builder(builder: selectedNode.builder!),
-              ),
-            ),
-          );
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        // 列の間に挟むVerticalDivider（幅1）の分も含めないと、この幅で
-        // SizedBoxに収めたRowが必ず列数×1pxだけ右端をはみ出してしまう。
-        const columnSlotWidth = _kSettingsColumnWidth + 1;
-        final sidebarAreaWidth = columns.length * columnSlotWidth;
-        final availableForSidebars =
-            (constraints.maxWidth - _kSettingsMinContentWidth)
-                .clamp(_kSettingsColumnWidth, double.infinity);
-        final needsScroll = sidebarAreaWidth > availableForSidebars;
-
-        final columnsRow = Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            for (var i = 0; i < columns.length; i++) ...[
-              SizedBox(
-                width: _kSettingsColumnWidth,
-                child: _NodeColumnList(
-                  nodes: columns[i],
-                  selectedId: path.length > i ? path[i] : null,
-                  onSelect: (node) => onSelect(i, node),
-                ),
-              ),
-              const VerticalDivider(width: 1),
-            ],
-          ],
-        );
-
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            SizedBox(
-              width: needsScroll ? availableForSidebars : sidebarAreaWidth,
-              child: needsScroll
-                  ? SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: SizedBox(
-                        width: sidebarAreaWidth,
-                        child: columnsRow,
-                      ),
-                    )
-                  : columnsRow,
-            ),
-            Expanded(child: contentPane),
-          ],
-        );
-      },
-    );
-  }
-}
-
-/// マルチカラム表示の1列分。フォルダ項目にはさらに右へ列を増やす合図として
-/// 山括弧を付け、末端項目（内容ペインに直接表示される）には付けない。
-class _NodeColumnList extends StatelessWidget {
-  const _NodeColumnList({
-    required this.nodes,
+/// カテゴリ一覧（サイドバー、または狭い画面での一覧画面）。
+class _CategoryList extends StatelessWidget {
+  const _CategoryList({
+    super.key,
+    required this.categories,
     required this.selectedId,
     required this.onSelect,
   });
 
-  final List<_Node> nodes;
+  final List<_SettingsCategory> categories;
   final String? selectedId;
-  final ValueChanged<_Node> onSelect;
+  final ValueChanged<_SettingsCategory> onSelect;
 
   @override
   Widget build(BuildContext context) {
     return ListView(
       padding: const EdgeInsets.symmetric(horizontal: 8),
       children: [
-        for (final node in nodes)
+        for (final category in categories)
           _FolderTile(
-            icon: node.icon,
-            title: node.title,
-            selected: node.id == selectedId,
-            destructive: node.destructive,
-            trailingChevron: node.isFolder,
-            onTap: () => onSelect(node),
+            icon: category.icon,
+            title: category.title,
+            selected: category.id == selectedId,
+            trailingChevron: false,
+            onTap: () => onSelect(category),
           ),
       ],
     );
@@ -449,21 +204,18 @@ class _FolderTile extends StatelessWidget {
     required this.title,
     required this.onTap,
     this.selected = false,
-    this.destructive = false,
     this.trailingChevron = true,
   });
 
   final IconData icon;
   final String title;
   final bool selected;
-  final bool destructive;
   final bool trailingChevron;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final destructiveColor = colorScheme.error;
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 6),
       color: selected ? colorScheme.primary.withValues(alpha: 0.1) : null,
@@ -471,137 +223,250 @@ class _FolderTile extends StatelessWidget {
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         selected: selected,
         selectedColor: colorScheme.primary,
-        leading: Icon(icon, color: destructive ? destructiveColor : null),
-        title: Text(
-          title,
-          style: destructive ? TextStyle(color: destructiveColor) : null,
-        ),
-        trailing: destructive || !trailingChevron
-            ? null
-            : const Icon(Icons.chevron_right),
+        leading: Icon(icon),
+        title: Text(title),
+        trailing: trailingChevron ? const Icon(Icons.chevron_right) : null,
         onTap: onTap,
       ),
     );
   }
 }
 
-/// [_Node]の木構造を、フォルダ一覧⇔詳細のその場切り替えで表示する汎用ウィジェット。
-/// 狭い画面のドリルダウン表示で使う。フォルダを選ぶと再帰的に同じ仕組みで
-/// その子ノードを表示するため、アカウント＞セキュリティ＞パスワードのような
-/// 多段階層にもそのまま対応する。
-class _NodeListDetail extends StatefulWidget {
-  const _NodeListDetail({super.key, required this.nodes});
+/// 広い画面での内容ペイン。タイトルの下に、カテゴリの中身を1ページで表示する。
+class _SettingsPage extends StatelessWidget {
+  const _SettingsPage({required this.title, required this.child});
 
-  final List<_Node> nodes;
-
-  @override
-  State<_NodeListDetail> createState() => _NodeListDetailState();
-}
-
-class _NodeListDetailState extends State<_NodeListDetail> {
-  // 選択中ノードそのものではなくidだけを保持する。ノードオブジェクトは
-  // ビルドごとに作り直される（[_rootNodes]参照）ため、オブジェクト参照を
-  // 保持すると表示言語や用語スタイルを切り替えた後も古い言語のtitle・builder
-  // を持つノードのまま固定されてしまう。idから毎ビルド[widget.nodes]を
-  // 引き直すことで、常に最新の言語・スタイルの内容を表示する。
-  String? _selectedId;
+  final String title;
+  final Widget child;
 
   @override
   Widget build(BuildContext context) {
-    final selected =
-        _selectedId == null ? null : _findNodeById(widget.nodes, _selectedId!);
-
-    return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 180),
-      child: selected == null
-          ? _NodeList(
-              key: const ValueKey('node-list'),
-              nodes: widget.nodes,
-              onOpen: (node) {
-                if (node.onTap != null) {
-                  node.onTap!();
-                  return;
-                }
-                setState(() => _selectedId = node.id);
-              },
-            )
-          : _NodeDetail(
-              key: ValueKey(selected.id),
-              node: selected,
-              onBack: () => setState(() => _selectedId = null),
+    // 内容ペインが余った横幅いっぱいに広がると、ラベルと値の間の余白ばかりが
+    // 目立ってしまう（項目が横に広がりすぎる）ため、読みやすい幅で頭打ちにする。
+    // ConstrainedBoxは、親（Expanded）から渡されるtight制約をそのまま
+    // enforce()すると自分のmaxWidthが無視される（tightな下限に引き上げられる）
+    // ため、先にAlignでtight制約をloose制約に変換してから渡す必要がある。
+    return Align(
+      alignment: Alignment.topLeft,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 640),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 4, 24, 12),
+              child: Text(
+                title,
+                style: Theme.of(context)
+                    .textTheme
+                    .headlineSmall
+                    ?.copyWith(fontWeight: FontWeight.bold),
+              ),
             ),
+            const Divider(height: 1),
+            Expanded(child: child),
+          ],
+        ),
+      ),
     );
   }
 }
 
-class _NodeList extends StatelessWidget {
-  const _NodeList({super.key, required this.nodes, required this.onOpen});
+/// 狭い画面でのドリルダウン先。戻る行＋カテゴリの中身（1ページ）。
+class _NarrowSettingsPage extends StatelessWidget {
+  const _NarrowSettingsPage({
+    super.key,
+    required this.category,
+    required this.onBack,
+  });
 
-  final List<_Node> nodes;
-  final ValueChanged<_Node> onOpen;
-
-  @override
-  Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.symmetric(horizontal: 4),
-      shrinkWrap: true,
-      children: [
-        for (final node in nodes)
-          _FolderTile(
-            icon: node.icon,
-            title: node.title,
-            destructive: node.destructive,
-            onTap: () => onOpen(node),
-          ),
-      ],
-    );
-  }
-}
-
-class _NodeDetail extends StatelessWidget {
-  const _NodeDetail({super.key, required this.node, required this.onBack});
-
-  final _Node node;
+  final _SettingsCategory category;
   final VoidCallback onBack;
 
   @override
   Widget build(BuildContext context) {
-    // mainAxisSizeをmin指定にすると、内側のListView（例: _DesignFolder）が
-    // 無限の高さ制約を受けてクラッシュする。祖先から渡された高さ制約が
-    // 再帰的に子へも伝わるよう、既定（max）のままExpandedで本文を包む。
+    // mainAxisSizeをmin指定にすると、内側のListView（例: _AccountPage）が
+    // 無限の高さ制約を受けてクラッシュする。既定（max）のままExpandedで包む。
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         ListTile(
           contentPadding: EdgeInsets.zero,
           leading: const Icon(Icons.arrow_back),
-          title: Text(node.title, style: const TextStyle(fontWeight: FontWeight.bold)),
+          title: Text(
+            category.title,
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
           onTap: onBack,
         ),
         const Divider(height: 1),
-        Expanded(
-          child: node.isFolder
-              ? _NodeListDetail(nodes: node.children!)
-              : Builder(builder: node.builder!),
+        Expanded(child: Builder(builder: category.pageBuilder)),
+      ],
+    );
+  }
+}
+
+/// セクションの見出し。
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader(this.title);
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+      child: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+    );
+  }
+}
+
+/// ラベル＋値（読み取り専用、または「準備中」）の1行。
+class _InfoRow extends StatelessWidget {
+  const _InfoRow({
+    required this.label,
+    required this.value,
+    this.destructive = false,
+  });
+
+  final String label;
+  final String value;
+  final bool destructive;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              style: destructive ? TextStyle(color: colorScheme.error) : null,
+            ),
+          ),
+          Text(
+            value,
+            style: TextStyle(color: colorScheme.onSurfaceVariant),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// タップするとその場でアクションを実行する行（例: ログアウト）。
+class _ActionRow extends StatelessWidget {
+  const _ActionRow({
+    required this.label,
+    required this.onTap,
+  });
+
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+      title: Text(label),
+      onTap: onTap,
+    );
+  }
+}
+
+/// アカウントカテゴリの中身。旧: Rhing ID／プロフィール名／セキュリティ／
+/// QRコードログイン／ログアウト／アカウント削除の各サブフォルダを、
+/// 見出し付きセクションとして1ページにまとめた。
+class _AccountPage extends ConsumerWidget {
+  const _AccountPage({required this.strings, required this.currentUser});
+
+  final Strings strings;
+  final AppUser currentUser;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return ListView(
+      padding: const EdgeInsets.only(bottom: 24),
+      children: [
+        _SectionHeader(strings.settingsAccountInfoSection),
+        _InfoRow(
+          label: strings.settingsRhingIdLabel,
+          value: '@${currentUser.rhingId}',
+        ),
+        _InfoRow(
+          label: strings.settingsProfileName,
+          value: strings.settingsComingSoon,
+        ),
+        const Divider(height: 24),
+        _SectionHeader(strings.settingsSecurity),
+        _InfoRow(
+          label: strings.settingsPassword,
+          value: strings.settingsComingSoon,
+        ),
+        _InfoRow(
+          label: strings.settingsTwoFactor,
+          value: strings.settingsComingSoon,
+        ),
+        _InfoRow(
+          label: strings.settingsPasskey,
+          value: strings.settingsComingSoon,
+        ),
+        _InfoRow(
+          label: strings.settingsQrLogin,
+          value: strings.settingsComingSoon,
+        ),
+        const Divider(height: 24),
+        _ActionRow(
+          label: strings.settingsLogout,
+          onTap: () => ref.read(authRepositoryProvider).signOut(),
+        ),
+        _InfoRow(
+          label: strings.settingsDeleteAccount,
+          value: strings.settingsComingSoon,
+          destructive: true,
         ),
       ],
     );
   }
 }
 
-/// ラベル＋値（または説明文）だけを表示する、読み取り専用の項目。
-/// 例: Rhing IDの表示、現在のUIスタイルの説明。
-class _InfoLeaf extends StatelessWidget {
-  const _InfoLeaf({required this.title, required this.value});
+/// アプリケーションカテゴリの中身。旧: 色／UI／文字／言語の各サブフォルダを
+/// 1ページにまとめた。
+class _ApplicationPage extends StatelessWidget {
+  const _ApplicationPage({required this.strings});
 
-  final String title;
-  final String value;
+  final Strings strings;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Text(value, style: Theme.of(context).textTheme.bodyMedium),
+    return ListView(
+      padding: const EdgeInsets.only(bottom: 24),
+      children: [
+        _DesignFolder(strings: strings),
+        const Divider(height: 24),
+        _SectionHeader(strings.settingsSubUI),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+          child: Text(
+            strings.settingsUIDescription,
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+        ),
+        const Divider(height: 24),
+        _SectionHeader(strings.settingsSubTypography),
+        _InfoRow(
+          label: strings.settingsFontDesign,
+          value: strings.settingsComingSoon,
+        ),
+        _InfoRow(
+          label: strings.settingsFontSize,
+          value: strings.settingsComingSoon,
+        ),
+        const Divider(height: 24),
+        _LanguageFolder(strings: strings),
+      ],
     );
   }
 }
@@ -660,8 +525,9 @@ class _DesignFolderState extends ConsumerState<_DesignFolder> {
   Widget build(BuildContext context) {
     final accentColor = ref.watch(accentColorProvider);
 
-    return ListView(
-      shrinkWrap: true,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
@@ -702,7 +568,6 @@ class _DesignFolderState extends ConsumerState<_DesignFolder> {
                     counterText: '',
                     suffixIcon: IconButton(
                       icon: const Icon(Icons.check),
-                      tooltip: '適用',
                       onPressed: _applyHexInput,
                     ),
                   ),
@@ -757,28 +622,25 @@ class _PresetColorSwatch extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = tryParseHexColor(hex)!;
-    return Tooltip(
-      message: '#$hex',
-      child: InkWell(
-        onTap: onTap,
-        customBorder: const CircleBorder(),
-        child: Container(
-          width: 40,
-          height: 40,
-          decoration: BoxDecoration(
-            color: color,
-            shape: BoxShape.circle,
-            border: Border.all(
-              color: selected
-                  ? Theme.of(context).colorScheme.primary
-                  : Colors.black12,
-              width: selected ? 2.5 : 1,
-            ),
+    return InkWell(
+      onTap: onTap,
+      customBorder: const CircleBorder(),
+      child: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: color,
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: selected
+                ? Theme.of(context).colorScheme.primary
+                : Colors.black12,
+            width: selected ? 2.5 : 1,
           ),
-          child: selected
-              ? const Icon(Icons.check, color: Colors.white, size: 18)
-              : null,
         ),
+        child: selected
+            ? const Icon(Icons.check, color: Colors.white, size: 18)
+            : null,
       ),
     );
   }
@@ -797,8 +659,9 @@ class _LanguageFolder extends ConsumerWidget {
     final currentLocale = ref.watch(appLocaleProvider);
     final currentStyle = ref.watch(terminologyStyleProvider);
 
-    return ListView(
-      shrinkWrap: true,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
@@ -915,22 +778,6 @@ class _ComingSoonFolder extends StatelessWidget {
       padding: const EdgeInsets.all(24),
       child: Center(
         child: Text(message, style: Theme.of(context).textTheme.bodyMedium),
-      ),
-    );
-  }
-}
-
-/// マルチカラム表示で、末端項目がまだ選ばれていないときに内容ペインに表示する。
-class _EmptyFolderPlaceholder extends StatelessWidget {
-  const _EmptyFolderPlaceholder();
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Icon(
-        Icons.settings_outlined,
-        size: 64,
-        color: Theme.of(context).colorScheme.outlineVariant,
       ),
     );
   }

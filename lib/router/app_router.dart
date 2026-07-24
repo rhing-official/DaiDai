@@ -46,7 +46,11 @@ class CallArgs {
 final goRouterProvider = Provider<GoRouter>((ref) {
   late final GoRouter router;
 
-  Future<void> startCall(AppUser currentUser, DirectMessage dm) async {
+  Future<void> startCall(
+    AppUser currentUser,
+    DirectMessage dm, {
+    bool isVideo = false,
+  }) async {
     final callRepository = ref.read(callRepositoryProvider);
     final other = AppUser(
       userId: dm.otherUserId(currentUser.userId),
@@ -55,6 +59,7 @@ final goRouterProvider = Provider<GoRouter>((ref) {
     final call = await callRepository.createCall(
       caller: currentUser,
       callee: other,
+      isVideo: isVideo,
     );
     router.push(
       '/call',
@@ -74,6 +79,8 @@ final goRouterProvider = Provider<GoRouter>((ref) {
             currentUser: args.currentUser,
             dm: args.dm,
             onCallPressed: () => startCall(args.currentUser, args.dm),
+            onVideoCallPressed: () =>
+                startCall(args.currentUser, args.dm, isVideo: true),
           );
         },
       ),

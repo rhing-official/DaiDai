@@ -12,17 +12,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-// 設定タブのマルチカラム表示（アカウント＞セキュリティ＞パスワード のような
-// 3階層で、深く潜るほど右に列が増えていく表示）が、内側のListView
-// （例: 色フォルダのアクセントカラーピッカー）を含めてクラッシュせずに
+// 設定タブの2ペイン表示（左にカテゴリ一覧、右に選んだカテゴリの中身を
+// 見出し付きセクションとして1ページにまとめて表示する。2026-07-24変更で
+// サイドバーの階層を最上位カテゴリの1段だけに留めた）が、内側のListView
+// （例: 色セクションのアクセントカラーピッカー）を含めてクラッシュせずに
 // 描画・行き来できることを確認する回帰テスト。
-// _NodeDetailの高さ制約（Expanded/mainAxisSize）を誤ると、ネストした
-// ListViewが無限高さ制約でクラッシュするため、それを実際に踏んで検証する。
 //
-// マルチカラム表示は列が増えるほど横幅を必要とするため、デフォルトの
-// テストサーフェス（800x600）だと3階層目が画面外（横スクロール領域の外）
-// に押し出されタップできない。実際の想定利用シーン（広いデスクトップ画面）
-// に合わせ、十分広いサーフェスサイズを明示的に指定する。
+// 2ペイン表示は十分な横幅を必要とするため、デフォルトのテストサーフェス
+// （800x600）だと2ペイン表示のしきい値を満たさない。実際の想定利用シーン
+// （広いデスクトップ画面）に合わせ、十分広いサーフェスサイズを明示的に指定する。
 Future<void> _pumpSettingsTab(WidgetTester tester) async {
   SharedPreferences.setMockInitialValues({});
   tester.view.physicalSize = const Size(1400, 900);
@@ -57,71 +55,62 @@ Future<void> _pumpSettingsTab(WidgetTester tester) async {
 }
 
 void main() {
-  testWidgets('アカウント＞Rhing IDで値が表示される', (tester) async {
+  testWidgets('既定でアカウントページが選択され、Rhing IDの値が表示される', (tester) async {
     await _pumpSettingsTab(tester);
 
-    await tester.tap(find.text('アカウント'));
-    await tester.pumpAndSettle();
-
+    // サイドバーからクリックしなくても、既定でアカウントが選ばれている。
     expect(find.text('Rhing ID'), findsOneWidget);
-    await tester.tap(find.text('Rhing ID'));
-    await tester.pumpAndSettle();
-
     expect(find.text('@taro'), findsOneWidget);
   });
 
-  testWidgets('アカウント＞セキュリティ＞パスワードまで3階層潜ると、3つの列が同時に表示される', (
-    tester,
-  ) async {
+  testWidgets('アカウントページには各セクションがドリルダウンなしで一度に表示される', (tester) async {
     await _pumpSettingsTab(tester);
 
-    await tester.tap(find.text('アカウント'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('セキュリティ'));
+    // サイドバーのタイルと内容ペインの見出しの両方に「アカウント」の文字が
+    // 出るため、サイドバー側（先に見つかる方）をタップする。
+    await tester.tap(find.text('アカウント').first);
     await tester.pumpAndSettle();
 
-    // マルチカラム表示なので、アカウント配下の項目（1列目）と
-    // セキュリティ配下の項目（2列目）が同時に画面上に残っている。
+    // 旧実装ではセキュリティ配下（パスワード等）を見るには「セキュリティ」を
+    // タップしてさらに列を開く必要があったが、現在は最初から1ページに
+    // まとまっているため、クリックなしですべて同時に見える。
     expect(find.text('プロフィール名'), findsOneWidget);
     expect(find.text('パスワード'), findsOneWidget);
     expect(find.text('2段階認証'), findsOneWidget);
     expect(find.text('パスキー'), findsOneWidget);
+    expect(find.text('QRコードによるログイン'), findsOneWidget);
+    expect(find.text('ログアウト'), findsOneWidget);
+    expect(find.text('アカウントの削除'), findsOneWidget);
+    expect(find.text('準備中'), findsWidgets);
 
-    await tester.tap(find.text('パスワード'));
-    await tester.pumpAndSettle();
-    expect(find.text('準備中'), findsOneWidget);
-
-    // 別の階層（アプリケーション）に切り替えると、それより深い列は消える。
+    // 別のカテゴリ（アプリケーション）に切り替えると、アカウントの内容は消える。
     await tester.tap(find.text('アプリケーション'));
     await tester.pumpAndSettle();
     expect(find.text('プロフィール名'), findsNothing);
     expect(find.text('パスワード'), findsNothing);
   });
 
-  testWidgets('アプリケーション＞色で既存のアクセントカラーピッカーが表示される（内側ListViewがクラッシュしない）', (
+  testWidgets('アプリケーションページには色・UI・文字・言語セクションが一度に表示される（内側ListViewがクラッシュしない）', (
     tester,
   ) async {
     await _pumpSettingsTab(tester);
 
     await tester.tap(find.text('アプリケーション'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('色'));
-    await tester.pumpAndSettle();
 
     expect(find.text('アクセントカラー'), findsOneWidget);
     expect(find.text('プリセット'), findsOneWidget);
+    expect(find.text('文字'), findsOneWidget);
+    expect(find.text('表示言語'), findsOneWidget);
+    expect(find.text('世界観重視'), findsOneWidget);
+    expect(find.text('利便性重視'), findsOneWidget);
   });
 
-  testWidgets('アプリケーション＞言語で用語スタイルを切り替えられる', (tester) async {
+  testWidgets('アプリケーションページで用語スタイルを切り替えられる', (tester) async {
     await _pumpSettingsTab(tester);
 
     await tester.tap(find.text('アプリケーション'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('言語'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('世界観重視'), findsOneWidget);
-    expect(find.text('利便性重視'), findsOneWidget);
 
     final container = ProviderScope.containerOf(
       tester.element(find.text('利便性重視')),

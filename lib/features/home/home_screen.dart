@@ -75,20 +75,42 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ),
     ];
 
+    // モバイルUI（下部ナビ）ではスワイプでタブを切り替えられるようにする。
+    // 以前は下部の丸いチップの帯（高さ数十px）にしかジェスチャー判定が
+    // 無く、画面のほとんどを占める本文をスワイプしても反応しなかった
+    // （チェックリスト「モバイルのスワイプナビゲーション」が未完了だった
+    // 理由）。本文全体を覆うGestureDetectorに変更し、画面のどこをスワイプ
+    // してもタブが切り替わるようにする。
+    final content = Padding(
+      padding: isWide
+          ? const EdgeInsets.only(
+              left: _chipSize + _chipMargin * 2,
+            )
+          : const EdgeInsets.only(
+              bottom: _chipSize + _chipMargin * 2,
+            ),
+      child: IndexedStack(index: _selectedIndex, children: tabs),
+    );
+
     return Scaffold(
       body: SafeArea(
         child: Stack(
           children: [
-            Padding(
-              padding: isWide
-                  ? const EdgeInsets.only(
-                      left: _chipSize + _chipMargin * 2,
-                    )
-                  : const EdgeInsets.only(
-                      bottom: _chipSize + _chipMargin * 2,
-                    ),
-              child: IndexedStack(index: _selectedIndex, children: tabs),
-            ),
+            if (isWide)
+              content
+            else
+              GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                onHorizontalDragEnd: (details) {
+                  final velocity = details.primaryVelocity ?? 0;
+                  if (velocity <= -_kSwipeVelocityThreshold) {
+                    _moveTab(1);
+                  } else if (velocity >= _kSwipeVelocityThreshold) {
+                    _moveTab(-1);
+                  }
+                },
+                child: content,
+              ),
             if (isWide)
               Positioned(
                 left: _chipMargin,
@@ -112,25 +134,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 right: 0,
                 bottom: _chipMargin,
                 child: Center(
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.translucent,
-                    onHorizontalDragEnd: (details) {
-                      final velocity = details.primaryVelocity ?? 0;
-                      if (velocity <= -_kSwipeVelocityThreshold) {
-                        _moveTab(1);
-                      } else if (velocity >= _kSwipeVelocityThreshold) {
-                        _moveTab(-1);
-                      }
-                    },
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        for (var i = 0; i < chips.length; i++) ...[
-                          if (i > 0) const SizedBox(width: _chipGap),
-                          chips[i],
-                        ],
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      for (var i = 0; i < chips.length; i++) ...[
+                        if (i > 0) const SizedBox(width: _chipGap),
+                        chips[i],
                       ],
-                    ),
+                    ],
                   ),
                 ),
               ),

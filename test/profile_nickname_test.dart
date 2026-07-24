@@ -107,7 +107,7 @@ void main() {
       ),
     );
 
-    await tester.tap(find.text('ニックネームを追加'));
+    await tester.tap(find.text('呼び名を追加'));
     await tester.pumpAndSettle();
 
     expect(find.byType(TextField), findsOneWidget);
@@ -138,7 +138,7 @@ void main() {
       ),
     );
 
-    await tester.tap(find.text('ステメを追加'));
+    await tester.tap(find.text('一言を追加'));
     await tester.pumpAndSettle();
 
     await tester.enterText(find.byType(TextField), 'げんき');

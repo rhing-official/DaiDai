@@ -19,7 +19,7 @@ enum CallStatus {
   }
 }
 
-/// 通話（フェーズ1は音声のみ。1対1の一対内でのみ利用）。
+/// 通話（1対1の一対内でのみ利用。音声・ビデオ両対応、[isVideo]で区別する）。
 class Call {
   const Call({
     required this.callId,
@@ -28,6 +28,7 @@ class Call {
     required this.calleeId,
     required this.calleeRhingId,
     required this.status,
+    this.isVideo = false,
     this.offer,
     this.answer,
     this.createdAt,
@@ -40,6 +41,9 @@ class Call {
   final String calleeId;
   final String calleeRhingId;
   final CallStatus status;
+
+  /// true: 720pビデオ通話、false: 音声のみ通話。
+  final bool isVideo;
   final Map<String, dynamic>? offer;
   final Map<String, dynamic>? answer;
   final Timestamp? createdAt;
@@ -57,6 +61,7 @@ class Call {
       calleeId: json['calleeId'] as String,
       calleeRhingId: json['calleeRhingId'] as String,
       status: CallStatus.fromName(json['status'] as String),
+      isVideo: json['isVideo'] as bool? ?? false,
       offer: (json['offer'] as Map?)?.cast<String, dynamic>(),
       answer: (json['answer'] as Map?)?.cast<String, dynamic>(),
       createdAt: json['createdAt'] as Timestamp?,
@@ -71,6 +76,7 @@ class Call {
       'calleeId': calleeId,
       'calleeRhingId': calleeRhingId,
       'status': status.name,
+      'isVideo': isVideo,
       'offer': offer,
       'answer': answer,
       'createdAt': createdAt ?? FieldValue.serverTimestamp(),

@@ -86,20 +86,6 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
     }
   }
 
-  /// 「使うものを選ぶ」ラジオボタン操作（activeIconId等）。ローカルの表示は
-  /// 即座に切り替え、Firestoreへはフィールド単位で反映する。
-  Future<void> _selectField(String field, String id) async {
-    setState(() {
-      _user = switch (field) {
-        'activeIconId' => _user.copyWith(activeIconId: id),
-        'activeBackgroundImageId' => _user.copyWith(activeBackgroundImageId: id),
-        'activeNicknameId' => _user.copyWith(activeNicknameId: id),
-        'activeStatusMessageId' => _user.copyWith(activeStatusMessageId: id),
-        _ => _user,
-      };
-    });
-    await _setField(field, id);
-  }
 
   void _showError(String message) {
     if (!mounted) return;
@@ -205,15 +191,16 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
 
   Future<void> _addStatusMessage() async {
     if (_user.statusMessages.length >= kMaxStatusMessages) return;
-    final text = await showDialog<String>(
+    final result = await showDialog<_EditResult>(
       context: context,
       builder: (context) => const _StatusMessageDialog(),
     );
-    if (text == null || text.trim().isEmpty) return;
+    final text = result?.text?.trim();
+    if (text == null || text.isEmpty) return;
 
     final message = StatusMessage(
       id: _newLocalId(),
-      text: text.trim(),
+      text: text,
     );
     final shouldActivate = _user.activeStatusMessageId == null;
     setState(() {
@@ -227,17 +214,22 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
   }
 
   Future<void> _editStatusMessage(StatusMessage message) async {
-    final text = await showDialog<String>(
+    final result = await showDialog<_EditResult>(
       context: context,
       builder: (context) => _StatusMessageDialog(initialText: message.text),
     );
-    if (text == null || text.trim().isEmpty || text.trim() == message.text) {
+    if (result == null) return;
+    if (result.isDelete) {
+      await _deleteStatusMessage(message);
       return;
     }
 
+    final text = result.text?.trim();
+    if (text == null || text.isEmpty || text == message.text) return;
+
     // id自体は変えず本文だけ差し替える。activeStatusMessageIdは
     // idで参照しているため、id維持であれば選択状態は自動的に保たれる。
-    final updated = StatusMessage(id: message.id, text: text.trim());
+    final updated = StatusMessage(id: message.id, text: text);
     setState(() {
       _user = _user.copyWith(
         statusMessages: [
@@ -269,15 +261,16 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
 
   Future<void> _addNickname() async {
     if (_user.nicknames.length >= kMaxNicknames) return;
-    final text = await showDialog<String>(
+    final result = await showDialog<_EditResult>(
       context: context,
       builder: (context) => const _NicknameDialog(),
     );
-    if (text == null || text.trim().isEmpty) return;
+    final text = result?.text?.trim();
+    if (text == null || text.isEmpty) return;
 
     final nickname = Nickname(
       id: _newLocalId(),
-      text: text.trim(),
+      text: text,
     );
     final shouldActivate = _user.activeNicknameId == null;
     setState(() {
@@ -291,15 +284,20 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
   }
 
   Future<void> _editNickname(Nickname nickname) async {
-    final text = await showDialog<String>(
+    final result = await showDialog<_EditResult>(
       context: context,
       builder: (context) => _NicknameDialog(initialText: nickname.text),
     );
-    if (text == null || text.trim().isEmpty || text.trim() == nickname.text) {
+    if (result == null) return;
+    if (result.isDelete) {
+      await _deleteNickname(nickname);
       return;
     }
 
-    final updated = Nickname(id: nickname.id, text: text.trim());
+    final text = result.text?.trim();
+    if (text == null || text.isEmpty || text == nickname.text) return;
+
+    final updated = Nickname(id: nickname.id, text: text);
     setState(() {
       _user = _user.copyWith(
         nicknames: [
@@ -367,6 +365,7 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
   /// このルート自体は同一タグのHeroを使い続けるため問題ない。
   Future<void> _openCardZoom(int index, ProfileCard? existing) async {
     final strings = ref.read(appStringsProvider);
+    final vocab = ref.read(vocabularyProvider);
     await Navigator.of(context).push(
       PageRouteBuilder<void>(
         opaque: false,
@@ -376,14 +375,24 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
         transitionsBuilder: (_, animation, secondaryAnimation, child) =>
             FadeTransition(opacity: animation, child: child),
         pageBuilder: (_, animation, secondaryAnimation) => Center(
-          child: _CardZoomEditor(
-            heroTag: 'profile-card-slot-$index',
-            user: _user,
-            strings: strings,
-            initialCard: existing,
-            onCreate: (card) => _saveCard(card, isNew: true),
-            onUpdate: (card) => _saveCard(card, isNew: false),
-            onDelete: _deleteCard,
+          // このルートは`opaque: false`のポップアップ的な表示のため、下の
+          // ページのScaffoldが提供するMaterial祖先を引き継がない。カード名の
+          // `TextField`は開いた瞬間から常に表示されるため、Material祖先が無いと
+          // "No Material widget found"で即座にクラッシュしていた。
+          // MaterialType.transparencyで見た目（半透明の背景）を変えずに
+          // Material祖先だけを補う。
+          child: Material(
+            type: MaterialType.transparency,
+            child: _CardZoomEditor(
+              heroTag: 'profile-card-slot-$index',
+              user: _user,
+              strings: strings,
+              vocab: vocab,
+              initialCard: existing,
+              onCreate: (card) => _saveCard(card, isNew: true),
+              onUpdate: (card) => _saveCard(card, isNew: false),
+              onDelete: _deleteCard,
+            ),
           ),
         ),
       ),
@@ -434,24 +443,17 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
               ? _KuraView(
                   user: _user,
                   strings: strings,
+                  vocab: vocab,
                   uploadingIcon: _uploadingIcon,
                   uploadingBackground: _uploadingBackground,
                   onAddIcon: _pickAndUploadIcon,
-                  onSelectIcon: (id) => _selectField('activeIconId', id),
                   onDeleteIcon: _deleteIcon,
                   onAddBackground: _pickAndUploadBackground,
-                  onSelectBackground: (id) =>
-                      _selectField('activeBackgroundImageId', id),
                   onDeleteBackground: _deleteBackground,
                   onAddNickname: _addNickname,
-                  onSelectNickname: (id) => _selectField('activeNicknameId', id),
                   onEditNickname: _editNickname,
-                  onDeleteNickname: _deleteNickname,
                   onAddStatusMessage: _addStatusMessage,
-                  onSelectStatusMessage: (id) =>
-                      _selectField('activeStatusMessageId', id),
                   onEditStatusMessage: _editStatusMessage,
-                  onDeleteStatusMessage: _deleteStatusMessage,
                 )
               : _WorkshopView(
                   user: _user,
@@ -500,42 +502,32 @@ class _KuraView extends StatelessWidget {
   const _KuraView({
     required this.user,
     required this.strings,
+    required this.vocab,
     required this.uploadingIcon,
     required this.uploadingBackground,
     required this.onAddIcon,
-    required this.onSelectIcon,
     required this.onDeleteIcon,
     required this.onAddBackground,
-    required this.onSelectBackground,
     required this.onDeleteBackground,
     required this.onAddNickname,
-    required this.onSelectNickname,
     required this.onEditNickname,
-    required this.onDeleteNickname,
     required this.onAddStatusMessage,
-    required this.onSelectStatusMessage,
     required this.onEditStatusMessage,
-    required this.onDeleteStatusMessage,
   });
 
   final AppUser user;
   final Strings strings;
+  final Vocabulary vocab;
   final bool uploadingIcon;
   final bool uploadingBackground;
   final VoidCallback onAddIcon;
-  final ValueChanged<String> onSelectIcon;
   final ValueChanged<ProfileMaterial> onDeleteIcon;
   final VoidCallback onAddBackground;
-  final ValueChanged<String> onSelectBackground;
   final ValueChanged<ProfileMaterial> onDeleteBackground;
   final VoidCallback onAddNickname;
-  final ValueChanged<String> onSelectNickname;
   final ValueChanged<Nickname> onEditNickname;
-  final ValueChanged<Nickname> onDeleteNickname;
   final VoidCallback onAddStatusMessage;
-  final ValueChanged<String> onSelectStatusMessage;
   final ValueChanged<StatusMessage> onEditStatusMessage;
-  final ValueChanged<StatusMessage> onDeleteStatusMessage;
 
   @override
   Widget build(BuildContext context) {
@@ -552,8 +544,6 @@ class _KuraView extends StatelessWidget {
             for (final icon in user.icons)
               _CircleMaterialThumb(
                 url: icon.url,
-                selected: icon.id == user.activeIconId,
-                onTap: () => onSelectIcon(icon.id),
                 onDelete: () => onDeleteIcon(icon),
               ),
           ],
@@ -569,8 +559,6 @@ class _KuraView extends StatelessWidget {
             for (final bg in user.backgroundImages)
               _RectMaterialThumb(
                 url: bg.url,
-                selected: bg.id == user.activeBackgroundImageId,
-                onTap: () => onSelectBackground(bg.id),
                 onDelete: () => onDeleteBackground(bg),
               ),
           ],
@@ -578,22 +566,18 @@ class _KuraView extends StatelessWidget {
         const SizedBox(height: 24),
         _NicknameSection(
           strings: strings,
+          vocab: vocab,
           nicknames: user.nicknames,
-          activeId: user.activeNicknameId,
           onAdd: onAddNickname,
-          onSelect: onSelectNickname,
           onEdit: onEditNickname,
-          onDelete: onDeleteNickname,
         ),
         const SizedBox(height: 24),
         _StatusMessageSection(
           strings: strings,
+          vocab: vocab,
           messages: user.statusMessages,
-          activeId: user.activeStatusMessageId,
           onAdd: onAddStatusMessage,
-          onSelect: onSelectStatusMessage,
           onEdit: onEditStatusMessage,
-          onDelete: onDeleteStatusMessage,
         ),
       ],
     );
@@ -623,11 +607,6 @@ class _WorkshopView extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        Text(
-          strings.workshopDescriptionTemplate(vocab.profileStorage),
-          style: const TextStyle(fontSize: 12, color: Colors.grey),
-        ),
-        const SizedBox(height: 16),
         // 以前は固定サイズ（160x200）のカードを画面左端に詰めて表示していたため、
         // 広い画面では余白ばかりが目立っていた。3枠固定という前提を活かし、
         // 画面幅いっぱいを3等分してカード自体を大きく表示する（上限は
@@ -652,6 +631,7 @@ class _WorkshopView extends StatelessWidget {
                       card: user.profileCards[i],
                       user: user,
                       strings: strings,
+                      vocab: vocab,
                       width: cardWidth,
                       height: cardHeight,
                       onTap: () => onTapSlot(i, user.profileCards[i]),
@@ -729,6 +709,7 @@ class _WorkshopCardSlot extends StatelessWidget {
     required this.card,
     required this.user,
     required this.strings,
+    required this.vocab,
     required this.width,
     required this.height,
     required this.onTap,
@@ -738,6 +719,7 @@ class _WorkshopCardSlot extends StatelessWidget {
   final ProfileCard card;
   final AppUser user;
   final Strings strings;
+  final Vocabulary vocab;
   final double width;
   final double height;
   final VoidCallback onTap;
@@ -759,99 +741,113 @@ class _WorkshopCardSlot extends StatelessWidget {
     // （下）に表示するため、カード内には出さない。
     final nicknameFontSize = (width * 0.09).clamp(14.0, 24.0);
     final statusFontSize = (width * 0.055).clamp(11.0, 16.0);
+    // ズーム編集画面のカード名表示と同じ比率（幅の6%）で揃える。
+    final nameFontSize = (width * 0.06).clamp(16.0, 22.0);
     final subtitleColor = background != null
         ? Colors.white70
         : Theme.of(context).colorScheme.onSurfaceVariant;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        SizedBox(
-          width: width,
-          height: height,
-          // 削除ボタンはズームイン後の編集画面側にのみ置く（Heroの中に含めると
-          // 始点/終点でウィジェットツリーが変わりアニメーションが不自然になるため）。
-          child: Hero(
-            tag: 'profile-card-slot-$index',
-            child: Material(
-              clipBehavior: Clip.antiAlias,
-              borderRadius: BorderRadius.circular(16),
-              color: Theme.of(context).colorScheme.surfaceContainerHighest,
-              // 背景画像・グラデーション・タップ可能な内容をそれぞれ独立した
-              // レイヤーとして`Stack(fit: expand)`で重ねることで、内容側の
-              // パディングやテキスト量に関係なく背景が常にカード全体
-              // （角丸の内側いっぱい）を覆うようにする。
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  if (background != null)
-                    Image.network(background.url, fit: BoxFit.cover),
-                  if (background != null)
-                    const DecoratedBox(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [Colors.transparent, Colors.black54],
+    // カード名がズーム時に取り残されて見えないよう、カード本体とカード名を
+    // まとめて1つのHeroにし、一緒に移動・拡大するモーションにする
+    // （削除ボタンだけはズーム編集画面側の[Stack]で外側に置き、Heroには含めない）。
+    return Hero(
+      tag: 'profile-card-slot-$index',
+      // Hero飛行はMaterialRectArcTweenで両端の矩形を対角の2頂点それぞれ独立の
+      // 円弧で補間するため、飛行の途中で矩形の幅・高さが始点・終点どちらより
+      // 一瞬小さくなることがある（単純な直線補間ではない）。カード＋カード名の
+      // 固定サイズレイアウトはその一瞬だけ収まりきらずオーバーフロー警告が
+      // 出ていたため、ClipRectで見た目上だけ吸収する。
+      child: ClipRect(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            SizedBox(
+              width: width,
+              height: height,
+              child: Material(
+                clipBehavior: Clip.antiAlias,
+                borderRadius: BorderRadius.circular(16),
+                color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                // 背景画像・グラデーション・タップ可能な内容をそれぞれ独立した
+                // レイヤーとして`Stack(fit: expand)`で重ねることで、内容側の
+                // パディングやテキスト量に関係なく背景が常にカード全体
+                // （角丸の内側いっぱい）を覆うようにする。
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    if (background != null)
+                      Image.network(background.url, fit: BoxFit.cover),
+                    if (background != null)
+                      const DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [Colors.transparent, Colors.black54],
+                          ),
+                        ),
+                      ),
+                    InkWell(
+                      onTap: onTap,
+                      child: Padding(
+                        padding: EdgeInsets.all(padding),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            CircleAvatar(
+                              radius: avatarRadius,
+                              backgroundImage:
+                                  icon != null ? NetworkImage(icon.url) : null,
+                              child: icon == null
+                                  ? const Icon(Icons.person)
+                                  : null,
+                            ),
+                            SizedBox(height: padding * 0.6),
+                            Text(
+                              nickname ?? vocab.nickname,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: nicknameFontSize,
+                                fontWeight: FontWeight.bold,
+                                color:
+                                    background != null ? Colors.white : null,
+                              ),
+                            ),
+                            Text(
+                              statusMessage ?? vocab.statusMessage,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: statusFontSize,
+                                color: subtitleColor,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
-                  InkWell(
-                    onTap: onTap,
-                    child: Padding(
-                      padding: EdgeInsets.all(padding),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          CircleAvatar(
-                            radius: avatarRadius,
-                            backgroundImage:
-                                icon != null ? NetworkImage(icon.url) : null,
-                            child:
-                                icon == null ? const Icon(Icons.person) : null,
-                          ),
-                          SizedBox(height: padding * 0.6),
-                          Text(
-                            nickname ?? strings.workshopFieldNickname,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: nicknameFontSize,
-                              fontWeight: FontWeight.bold,
-                              color: background != null ? Colors.white : null,
-                            ),
-                          ),
-                          Text(
-                            statusMessage ?? strings.workshopFieldStatusMessage,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: statusFontSize,
-                              color: subtitleColor,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
-          ),
+            const SizedBox(height: 6),
+            SizedBox(
+              width: width,
+              child: Text(
+                card.name,
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style:
+                    TextStyle(fontWeight: FontWeight.bold, fontSize: nameFontSize),
+              ),
+            ),
+          ],
         ),
-        const SizedBox(height: 6),
-        SizedBox(
-          width: width,
-          child: Text(
-            card.name,
-            textAlign: TextAlign.center,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontWeight: FontWeight.bold),
-          ),
-        ),
-      ],
+      ),
     );
   }
 }
@@ -887,7 +883,9 @@ class _MaterialSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final canAdd = count < max && !uploading;
+    // 上限まで登録済みなら、これ以上追加できないことが一目でわかるよう
+    // 追加ボタン自体を非表示にする（無効化して残すだけだと分かりにくいため）。
+    final showAddButton = count < max;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -907,7 +905,8 @@ class _MaterialSection extends StatelessWidget {
                   child: child,
                 ),
               ),
-              _AddThumbButton(enabled: canAdd, loading: uploading, onTap: onAdd),
+              if (showAddButton)
+                _AddThumbButton(enabled: !uploading, loading: uploading, onTap: onAdd),
             ],
           ),
         ),
@@ -995,98 +994,56 @@ class _NetworkThumbImage extends StatelessWidget {
 }
 
 class _CircleMaterialThumb extends StatelessWidget {
-  const _CircleMaterialThumb({
-    required this.url,
-    required this.selected,
-    required this.onTap,
-    required this.onDelete,
-  });
+  const _CircleMaterialThumb({required this.url, required this.onDelete});
 
   final String url;
-  final bool selected;
-  final VoidCallback onTap;
   final VoidCallback onDelete;
 
   @override
   Widget build(BuildContext context) {
-    final accent = Theme.of(context).colorScheme.primary;
-    return GestureDetector(
-      onTap: onTap,
-      onLongPress: onDelete,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          Container(
-            width: 72,
-            height: 72,
-            padding: const EdgeInsets.all(3),
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: selected ? accent : Colors.transparent,
-                width: 3,
-              ),
-            ),
-            child: ClipOval(
-              child: _NetworkThumbImage(url: url),
-            ),
-          ),
-          Positioned(
-            right: -4,
-            top: -4,
-            child: _DeleteBadge(onTap: onDelete),
-          ),
-        ],
-      ),
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        SizedBox(
+          width: 72,
+          height: 72,
+          child: ClipOval(child: _NetworkThumbImage(url: url)),
+        ),
+        Positioned(
+          right: -4,
+          top: -4,
+          child: _DeleteBadge(onTap: onDelete),
+        ),
+      ],
     );
   }
 }
 
 class _RectMaterialThumb extends StatelessWidget {
-  const _RectMaterialThumb({
-    required this.url,
-    required this.selected,
-    required this.onTap,
-    required this.onDelete,
-  });
+  const _RectMaterialThumb({required this.url, required this.onDelete});
 
   final String url;
-  final bool selected;
-  final VoidCallback onTap;
   final VoidCallback onDelete;
 
   @override
   Widget build(BuildContext context) {
-    final accent = Theme.of(context).colorScheme.primary;
-    return GestureDetector(
-      onTap: onTap,
-      onLongPress: onDelete,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          Container(
-            width: 128,
-            height: 72,
-            padding: const EdgeInsets.all(3),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: selected ? accent : Colors.transparent,
-                width: 3,
-              ),
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(9),
-              child: _NetworkThumbImage(url: url),
-            ),
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        SizedBox(
+          width: 128,
+          height: 72,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: _NetworkThumbImage(url: url),
           ),
-          Positioned(
-            right: -4,
-            top: -4,
-            child: _DeleteBadge(onTap: onDelete),
-          ),
-        ],
-      ),
+        ),
+        Positioned(
+          right: -4,
+          top: -4,
+          child: _DeleteBadge(onTap: onDelete),
+        ),
+      ],
     );
   }
 }
@@ -1116,21 +1073,17 @@ class _DeleteBadge extends StatelessWidget {
 class _StatusMessageSection extends StatelessWidget {
   const _StatusMessageSection({
     required this.strings,
+    required this.vocab,
     required this.messages,
-    required this.activeId,
     required this.onAdd,
-    required this.onSelect,
     required this.onEdit,
-    required this.onDelete,
   });
 
   final Strings strings;
+  final Vocabulary vocab;
   final List<StatusMessage> messages;
-  final String? activeId;
   final VoidCallback onAdd;
-  final ValueChanged<String> onSelect;
   final ValueChanged<StatusMessage> onEdit;
-  final ValueChanged<StatusMessage> onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -1139,28 +1092,21 @@ class _StatusMessageSection extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          '${strings.profileStatusMessageSection}（${messages.length}/$kMaxStatusMessages）',
+          '${vocab.statusMessage}（${messages.length}/$kMaxStatusMessages）',
           style: const TextStyle(fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 4),
         for (final message in messages)
-          RadioGroup<String>(
-            groupValue: activeId ?? '',
-            onChanged: (value) {
-              if (value != null) onSelect(value);
-            },
-            child: _RegisteredItemRow(
-              value: message.id,
-              text: message.text,
-              onEdit: () => onEdit(message),
-              onDelete: () => onDelete(message),
-            ),
+          _RegisteredItemRow(
+            text: message.text,
+            onEdit: () => onEdit(message),
           ),
-        TextButton.icon(
-          onPressed: canAdd ? onAdd : null,
-          icon: const Icon(Icons.add),
-          label: Text(strings.profileAddStatusMessage),
-        ),
+        if (canAdd)
+          TextButton.icon(
+            onPressed: onAdd,
+            icon: const Icon(Icons.add),
+            label: Text(strings.profileAddStatusMessage(vocab.statusMessage)),
+          ),
       ],
     );
   }
@@ -1169,21 +1115,17 @@ class _StatusMessageSection extends StatelessWidget {
 class _NicknameSection extends StatelessWidget {
   const _NicknameSection({
     required this.strings,
+    required this.vocab,
     required this.nicknames,
-    required this.activeId,
     required this.onAdd,
-    required this.onSelect,
     required this.onEdit,
-    required this.onDelete,
   });
 
   final Strings strings;
+  final Vocabulary vocab;
   final List<Nickname> nicknames;
-  final String? activeId;
   final VoidCallback onAdd;
-  final ValueChanged<String> onSelect;
   final ValueChanged<Nickname> onEdit;
-  final ValueChanged<Nickname> onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -1192,75 +1134,65 @@ class _NicknameSection extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          '${strings.profileNicknameSection}（${nicknames.length}/$kMaxNicknames）',
+          '${vocab.nickname}（${nicknames.length}/$kMaxNicknames）',
           style: const TextStyle(fontWeight: FontWeight.bold),
         ),
         Text(
-          strings.profileNicknameHint,
+          strings.profileNicknameHint(vocab.nickname),
           style: const TextStyle(fontSize: 12, color: Colors.grey),
         ),
         const SizedBox(height: 4),
         for (final nickname in nicknames)
-          RadioGroup<String>(
-            groupValue: activeId ?? '',
-            onChanged: (value) {
-              if (value != null) onSelect(value);
-            },
-            child: _RegisteredItemRow(
-              value: nickname.id,
-              text: nickname.text,
-              onEdit: () => onEdit(nickname),
-              onDelete: () => onDelete(nickname),
-            ),
+          _RegisteredItemRow(
+            text: nickname.text,
+            onEdit: () => onEdit(nickname),
           ),
-        TextButton.icon(
-          onPressed: canAdd ? onAdd : null,
-          icon: const Icon(Icons.add),
-          label: Text(strings.profileAddNickname),
-        ),
+        if (canAdd)
+          TextButton.icon(
+            onPressed: onAdd,
+            icon: const Icon(Icons.add),
+            label: Text(strings.profileAddNickname(vocab.nickname)),
+          ),
       ],
     );
   }
 }
 
-/// ニックネーム・ステメの1行（選択用ラジオ＋テキスト＋編集／削除ボタン）。
-/// 以前は`ListTile`を使っていたため、リスト全体の横幅いっぱいに引き伸ばされ、
-/// 削除ボタンがテキストから大きく離れた画面右端に表示されてしまっていた。
-/// `mainAxisSize: MainAxisSize.min`のRowにすることで、テキストのすぐ右に
-/// ボタンが並ぶコンパクトな見た目にする。
+/// ニックネーム・ステメの1行。テキスト部分をタップすると編集ポップアップ
+/// （[_NicknameDialog]/[_StatusMessageDialog]）が開き、編集・削除の両方を
+/// そこで行う。「使うものを選ぶ」機能は蔵では不要なため持たない
+/// （表示にどれを使うかは登録順で自動的に決まる）。
 class _RegisteredItemRow extends StatelessWidget {
   const _RegisteredItemRow({
-    required this.value,
     required this.text,
     required this.onEdit,
-    required this.onDelete,
   });
 
-  final String value;
   final String text;
   final VoidCallback onEdit;
-  final VoidCallback onDelete;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Radio<String>(value: value),
-        Flexible(child: Text(text, overflow: TextOverflow.ellipsis)),
-        IconButton(
-          icon: const Icon(Icons.edit_outlined, size: 20),
-          visualDensity: VisualDensity.compact,
-          onPressed: onEdit,
-        ),
-        IconButton(
-          icon: const Icon(Icons.delete_outline, size: 20),
-          visualDensity: VisualDensity.compact,
-          onPressed: onDelete,
-        ),
-      ],
+    return InkWell(
+      onTap: onEdit,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Text(text, overflow: TextOverflow.ellipsis),
+      ),
     );
   }
+}
+
+/// ニックネーム／ステメ編集ポップアップの結果。テキストの確定（[save]）と
+/// 削除（[delete]）の両方を、ポップアップの中の完了・削除ボタンだけで
+/// 完結させるため、単なる`String?`ではなくどちらの操作だったかを区別する。
+class _EditResult {
+  const _EditResult._({this.text, required this.isDelete});
+  const _EditResult.save(String text) : this._(text: text, isDelete: false);
+  const _EditResult.delete() : this._(isDelete: true);
+
+  final String? text;
+  final bool isDelete;
 }
 
 class _NicknameDialog extends ConsumerStatefulWidget {
@@ -1285,7 +1217,7 @@ class _NicknameDialogState extends ConsumerState<_NicknameDialog> {
     super.dispose();
   }
 
-  // 未入力のまま追加ボタンを押しても、以前は何も起きたように見えなかった
+  // 未入力のまま完了ボタンを押しても、以前は何も起きたように見えなかった
   // （呼び出し元が空文字を無言でreturnしていたため）。押した結果が必ず
   // 見えるよう、ここでエラー表示してから閉じないようにする。
   void _submit() {
@@ -1293,38 +1225,51 @@ class _NicknameDialogState extends ConsumerState<_NicknameDialog> {
       setState(() => _errorText = ref.read(appStringsProvider).fieldRequiredError);
       return;
     }
-    Navigator.of(context).pop(_controller.text);
+    Navigator.of(context).pop(_EditResult.save(_controller.text));
   }
 
   @override
   Widget build(BuildContext context) {
     final strings = ref.watch(appStringsProvider);
+    final vocab = ref.watch(vocabularyProvider);
     return AlertDialog(
       title: Text(
         _isEdit
-            ? strings.profileNicknameDialogEditTitle
-            : strings.profileNicknameDialogTitle,
+            ? strings.profileNicknameDialogEditTitle(vocab.nickname)
+            : strings.profileNicknameDialogTitle(vocab.nickname),
       ),
-      content: TextField(
-        controller: _controller,
-        autofocus: true,
-        maxLength: kMaxNicknameLength,
-        decoration: InputDecoration(
-          hintText: strings.profileNicknameDialogHint,
-          errorText: _errorText,
-        ),
-        onSubmitted: (_) => _submit(),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: _controller,
+            autofocus: true,
+            maxLength: kMaxNicknameLength,
+            decoration: InputDecoration(
+              hintText: strings.profileNicknameDialogHint(vocab.nickname),
+              errorText: _errorText,
+            ),
+            onSubmitted: (_) => _submit(),
+          ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              if (_isEdit) ...[
+                OutlinedButton(
+                  onPressed: () =>
+                      Navigator.of(context).pop(const _EditResult.delete()),
+                  child: Text(strings.delete),
+                ),
+                const SizedBox(width: 8),
+              ],
+              FilledButton(
+                onPressed: _submit,
+                child: Text(_isEdit ? strings.done : strings.add),
+              ),
+            ],
+          ),
+        ],
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: Text(strings.cancel),
-        ),
-        TextButton(
-          onPressed: _submit,
-          child: Text(_isEdit ? strings.save : strings.add),
-        ),
-      ],
     );
   }
 }
@@ -1357,38 +1302,51 @@ class _StatusMessageDialogState extends ConsumerState<_StatusMessageDialog> {
       setState(() => _errorText = ref.read(appStringsProvider).fieldRequiredError);
       return;
     }
-    Navigator.of(context).pop(_controller.text);
+    Navigator.of(context).pop(_EditResult.save(_controller.text));
   }
 
   @override
   Widget build(BuildContext context) {
     final strings = ref.watch(appStringsProvider);
+    final vocab = ref.watch(vocabularyProvider);
     return AlertDialog(
       title: Text(
         _isEdit
-            ? strings.profileStatusMessageDialogEditTitle
-            : strings.profileStatusMessageDialogTitle,
+            ? strings.profileStatusMessageDialogEditTitle(vocab.statusMessage)
+            : strings.profileStatusMessageDialogTitle(vocab.statusMessage),
       ),
-      content: TextField(
-        controller: _controller,
-        autofocus: true,
-        maxLength: kMaxStatusMessageLength,
-        decoration: InputDecoration(
-          hintText: strings.profileStatusMessageDialogHint,
-          errorText: _errorText,
-        ),
-        onSubmitted: (_) => _submit(),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: _controller,
+            autofocus: true,
+            maxLength: kMaxStatusMessageLength,
+            decoration: InputDecoration(
+              hintText: strings.profileStatusMessageDialogHint(vocab.statusMessage),
+              errorText: _errorText,
+            ),
+            onSubmitted: (_) => _submit(),
+          ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              if (_isEdit) ...[
+                OutlinedButton(
+                  onPressed: () =>
+                      Navigator.of(context).pop(const _EditResult.delete()),
+                  child: Text(strings.delete),
+                ),
+                const SizedBox(width: 8),
+              ],
+              FilledButton(
+                onPressed: _submit,
+                child: Text(_isEdit ? strings.done : strings.add),
+              ),
+            ],
+          ),
+        ],
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: Text(strings.cancel),
-        ),
-        TextButton(
-          onPressed: _submit,
-          child: Text(_isEdit ? strings.save : strings.add),
-        ),
-      ],
     );
   }
 }
@@ -1402,6 +1360,7 @@ class _CardZoomEditor extends StatefulWidget {
     required this.heroTag,
     required this.user,
     required this.strings,
+    required this.vocab,
     required this.initialCard,
     required this.onCreate,
     required this.onUpdate,
@@ -1411,11 +1370,13 @@ class _CardZoomEditor extends StatefulWidget {
   final String heroTag;
   final AppUser user;
   final Strings strings;
+  final Vocabulary vocab;
 
   /// nullなら空き枠（まだFirestoreに存在しないカード）。
   final ProfileCard? initialCard;
 
-  /// 新規カードの名前が初めて確定した時点で1回だけ呼ばれる。
+  /// 新規カードで名前・素材のいずれかを初めて変更した時点で1回だけ呼ばれる
+  /// （名前を確定する前でも素材を選べるため、どちらが先になるかは決まっていない）。
   final Future<void> Function(ProfileCard card) onCreate;
 
   /// 既存カードのフィールドを1つ変更するたびに呼ばれる。
@@ -1427,17 +1388,28 @@ class _CardZoomEditor extends StatefulWidget {
 }
 
 class _CardZoomEditorState extends State<_CardZoomEditor> {
-  ProfileCard? _card;
+  // 名前を確定するまで素材（アイコン・背景・ニックネーム・ステメ）を
+  // 選べないと、初めて使う人が「まず名前を決めないと何も触れない」と
+  // 戸惑うため、空き枠でも最初からローカルの下書きカードを持たせ、
+  // 名前確定前から全項目を編集可能にする。Firestoreへの実際の保存
+  // （[widget.onCreate]の呼び出し）は、名前・素材のいずれかを初めて
+  // 変更したタイミングまで遅らせる（[_persisted]で管理）。
+  late ProfileCard _card;
+  bool _persisted = false;
   late final TextEditingController _nameController;
-  bool _editingName = false;
+  // 新規カードは開いた瞬間から名前を入力してほしいのでキーボードを出す。
+  // 既存カードは開くたびに勝手にキーボードが出ると煩わしいので出さない。
+  late final bool _isNewCard;
   Offset? _lastTapPosition;
 
   @override
   void initState() {
     super.initState();
-    _card = widget.initialCard;
-    _nameController = TextEditingController(text: widget.initialCard?.name);
-    _editingName = widget.initialCard == null;
+    final existing = widget.initialCard;
+    _card = existing ?? ProfileCard(id: _newLocalId(), name: '');
+    _persisted = existing != null;
+    _nameController = TextEditingController(text: existing?.name);
+    _isNewCard = existing == null;
   }
 
   @override
@@ -1446,35 +1418,29 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
     super.dispose();
   }
 
+  /// まだ一度もFirestoreに保存していなければ[widget.onCreate]で新規作成、
+  /// 既に保存済みなら[widget.onUpdate]でフィールド更新する。
+  Future<void> _persist() async {
+    if (_persisted) {
+      await widget.onUpdate(_card);
+    } else {
+      _persisted = true;
+      await widget.onCreate(_card);
+    }
+  }
+
   Future<void> _confirmName() async {
     final name = _nameController.text.trim();
-    if (name.isEmpty) return;
+    if (name.isEmpty || name == _card.name) return;
 
-    final card = _card;
-    if (card == null) {
-      final created = ProfileCard(id: _newLocalId(), name: name);
-      setState(() {
-        _card = created;
-        _editingName = false;
-      });
-      await widget.onCreate(created);
-      return;
-    }
-    if (name == card.name) {
-      setState(() => _editingName = false);
-      return;
-    }
-    final updated = card.copyWith(name: name);
     setState(() {
-      _card = updated;
-      _editingName = false;
+      _card = _card.copyWith(name: name);
     });
-    await widget.onUpdate(updated);
+    await _persist();
   }
 
   Future<void> _pickMaterial(String field) async {
     final card = _card;
-    if (card == null) return;
 
     final overlayBox = Overlay.of(context).context.findRenderObject() as RenderBox;
     final tapPosition = _lastTapPosition ?? overlayBox.size.center(Offset.zero);
@@ -1530,13 +1496,11 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
       _ => card.copyWith(statusMessageId: id, clearStatusMessageId: id == null),
     };
     setState(() => _card = updated);
-    await widget.onUpdate(updated);
+    await _persist();
   }
 
   Future<void> _handleDelete() async {
-    final card = _card;
-    if (card == null) return;
-    await widget.onDelete(card);
+    if (_persisted) await widget.onDelete(_card);
     if (mounted) Navigator.of(context).pop();
   }
 
@@ -1545,219 +1509,198 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
     final width = (MediaQuery.sizeOf(context).width * 0.8).clamp(240.0, 420.0);
     final height = width * 1.25;
     final strings = widget.strings;
+    final vocab = widget.vocab;
     final card = _card;
     final colorScheme = Theme.of(context).colorScheme;
 
-    final icon = card == null ? null : _findById(widget.user.icons, card.iconId);
-    final background =
-        card == null ? null : _findById(widget.user.backgroundImages, card.backgroundImageId);
-    final nickname = card == null ? null : _findById(widget.user.nicknames, card.nicknameId);
-    final statusMessage =
-        card == null ? null : _findById(widget.user.statusMessages, card.statusMessageId);
+    final icon = _findById(widget.user.icons, card.iconId);
+    final background = _findById(widget.user.backgroundImages, card.backgroundImageId);
+    final nickname = _findById(widget.user.nicknames, card.nicknameId);
+    final statusMessage = _findById(widget.user.statusMessages, card.statusMessageId);
     // ニックネーム・ステメはカード内（背景画像や暗いオーバーレイの上）に
     // 表示するため、背景の有無で見やすい色を切り替える。カード名はカードの
     // 外（下、暗転した背景の上）に表示するため常に白系の固定色にする。
     final nicknameColor = background != null ? Colors.white : null;
     final statusColor = background != null ? Colors.white70 : colorScheme.onSurfaceVariant;
+    // カード内のニックネーム（width*0.075）に近い比率で、カードの主見出しとして
+    // 十分読める大きさにする（以前の「既定サイズの8割」だと逆に小さすぎた）。
+    final nameFontSize = (width * 0.06).clamp(16.0, 22.0);
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
+    // カード名がズーム中も取り残されず一緒に移動して見えるよう、カード本体と
+    // カード名（下の[SizedBox]）をまとめて1つのHeroにする
+    // （[_WorkshopCardSlot]側も同じtagで同じ構成にしてある）。削除ボタンだけは
+    // Heroの外側の[Stack]に置き、始点/終点でツリーが変わらないようにする。
+    return Stack(
+      clipBehavior: Clip.none,
       children: [
-        Stack(
-          clipBehavior: Clip.none,
-          children: [
-            Hero(
-              tag: widget.heroTag,
-              child: Material(
-                clipBehavior: Clip.antiAlias,
-                borderRadius: BorderRadius.circular(24),
-                color: colorScheme.surfaceContainerHighest,
-                child: SizedBox(
-                  width: width,
-                  height: height,
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      GestureDetector(
-                        onTapDown: (details) =>
-                            _lastTapPosition = details.globalPosition,
-                        onTap: card == null ? null : () => _pickMaterial('background'),
-                        child: background != null
-                            ? Image.network(background.url, fit: BoxFit.cover)
-                            : ColoredBox(color: colorScheme.surfaceContainerHighest),
-                      ),
-                      if (background != null)
-                        const DecoratedBox(
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              colors: [Colors.transparent, Colors.black54],
-                            ),
+        Hero(
+          tag: widget.heroTag,
+          // Hero飛行中はこのchild（Column以下）がOverlay直下へ一時的に
+          // 付け替えられ、外側の`_openCardZoom`で用意したMaterial祖先から
+          // 切り離される。中のTextFieldがMaterial祖先を必要とするため、
+          // 飛行中も自前でMaterial祖先を持たせておく（"No Material widget
+          // found"が一瞬だけ出ていた不具合の原因）。
+          // また、Hero飛行はMaterialRectArcTweenで対角2頂点をそれぞれ独立の
+          // 円弧で補間するため、矩形の幅・高さが始点・終点どちらより一瞬
+          // 小さくなることがある（単純な直線補間ではない）。カード＋名前欄の
+          // 固定サイズレイアウトはその一瞬だけ収まりきらずオーバーフロー警告が
+          // 出ていたため、ClipRectで見た目上だけ吸収する。
+          child: Material(
+            type: MaterialType.transparency,
+            child: ClipRect(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Material(
+                    clipBehavior: Clip.antiAlias,
+                    borderRadius: BorderRadius.circular(24),
+                    color: colorScheme.surfaceContainerHighest,
+                    child: SizedBox(
+                      width: width,
+                      height: height,
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          GestureDetector(
+                            // 背景レイヤーはStack(fit: expand)でカード全面を覆っており、
+                            // アイコン・ニックネーム・ステメの各タップ領域以外（＝
+                            // カードの何も無い箇所）はすべてここに落ちてくる。
+                            // behavior: opaqueで、子（ColoredBox等）の描画内容に
+                            // 関わらず領域全体を確実にタップ可能にする。
+                            behavior: HitTestBehavior.opaque,
+                            onTapDown: (details) =>
+                                _lastTapPosition = details.globalPosition,
+                            onTap: () => _pickMaterial('background'),
+                            child: background != null
+                                ? Image.network(background.url, fit: BoxFit.cover)
+                                : ColoredBox(color: colorScheme.surfaceContainerHighest),
                           ),
-                        ),
-                      Padding(
-                        padding: EdgeInsets.all(width * 0.08),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          children: [
-                            GestureDetector(
-                              onTapDown: (details) =>
-                                  _lastTapPosition = details.globalPosition,
-                              onTap: card == null ? null : () => _pickMaterial('icon'),
-                              child: Opacity(
-                                opacity: card == null ? 0.4 : 1,
-                                child: CircleAvatar(
-                                  radius: width * 0.13,
-                                  backgroundImage:
-                                      icon != null ? NetworkImage(icon.url) : null,
-                                  child:
-                                      icon == null ? const Icon(Icons.person) : null,
+                          if (background != null)
+                            const DecoratedBox(
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin: Alignment.topCenter,
+                                  end: Alignment.bottomCenter,
+                                  colors: [Colors.transparent, Colors.black54],
                                 ),
                               ),
                             ),
-                            if (card != null) ...[
-                              SizedBox(height: width * 0.05),
-                              // カード内はニックネームを主役として表示し、
-                              // その下にステメを補足として表示する。
-                              GestureDetector(
-                                onTapDown: (details) =>
-                                    _lastTapPosition = details.globalPosition,
-                                onTap: () => _pickMaterial('nickname'),
-                                child: Text(
-                                  nickname?.text ?? strings.workshopFieldNickname,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    fontSize: width * 0.075,
-                                    fontWeight: FontWeight.bold,
-                                    color: nicknameColor,
+                          Padding(
+                            padding: EdgeInsets.all(width * 0.08),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisAlignment: MainAxisAlignment.end,
+                              children: [
+                                GestureDetector(
+                                  onTapDown: (details) =>
+                                      _lastTapPosition = details.globalPosition,
+                                  onTap: () => _pickMaterial('icon'),
+                                  child: CircleAvatar(
+                                    radius: width * 0.13,
+                                    backgroundImage: icon != null
+                                        ? NetworkImage(icon.url)
+                                        : null,
+                                    child: icon == null
+                                        ? const Icon(Icons.person)
+                                        : null,
                                   ),
                                 ),
-                              ),
-                              SizedBox(height: width * 0.02),
-                              GestureDetector(
-                                onTapDown: (details) =>
-                                    _lastTapPosition = details.globalPosition,
-                                onTap: () => _pickMaterial('statusMessage'),
-                                child: Text(
-                                  statusMessage?.text ??
-                                      strings.workshopFieldStatusMessage,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    fontSize: width * 0.045,
-                                    color: statusColor,
+                                SizedBox(height: width * 0.05),
+                                // カード内はニックネームを主役として表示し、
+                                // その下にステメを補足として表示する。
+                                GestureDetector(
+                                  onTapDown: (details) =>
+                                      _lastTapPosition = details.globalPosition,
+                                  onTap: () => _pickMaterial('nickname'),
+                                  child: Text(
+                                    nickname?.text ?? vocab.nickname,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: width * 0.075,
+                                      fontWeight: FontWeight.bold,
+                                      color: nicknameColor,
+                                    ),
                                   ),
                                 ),
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            Positioned(
-              right: -12,
-              top: -12,
-              child: _RoundIconButton(
-                icon: Icons.close,
-                tooltip: strings.workshopCloseTooltip,
-                onTap: () => Navigator.of(context).pop(),
-              ),
-            ),
-            if (card != null)
-              Positioned(
-                left: -12,
-                top: -12,
-                child: _RoundIconButton(
-                  icon: Icons.delete_outline,
-                  tooltip: strings.workshopDeleteCardTooltip,
-                  onTap: _handleDelete,
-                ),
-              ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        // カード名はカードの外（下）に表示する。暗転した背景の上に乗るため
-        // 固定で白系の色にする。
-        SizedBox(
-          width: width,
-          child: _editingName
-              ? TextField(
-                  controller: _nameController,
-                  autofocus: true,
-                  maxLength: kMaxWorkshopCardNameLength,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                  ),
-                  decoration: InputDecoration(
-                    isDense: true,
-                    counterText: '',
-                    hintText: strings.workshopCardNameLabel,
-                    hintStyle: const TextStyle(color: Colors.white70),
-                    enabledBorder: const UnderlineInputBorder(
-                      borderSide: BorderSide(color: Colors.white70),
-                    ),
-                    focusedBorder: const UnderlineInputBorder(
-                      borderSide: BorderSide(color: Colors.white),
-                    ),
-                  ),
-                  onSubmitted: (_) => _confirmName(),
-                  onTapOutside: (_) => _confirmName(),
-                )
-              : GestureDetector(
-                  onTap: () => setState(() => _editingName = true),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Flexible(
-                        child: Text(
-                          card!.name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
+                                SizedBox(height: width * 0.02),
+                                GestureDetector(
+                                  onTapDown: (details) =>
+                                      _lastTapPosition = details.globalPosition,
+                                  onTap: () => _pickMaterial('statusMessage'),
+                                  child: Text(
+                                    statusMessage?.text ?? vocab.statusMessage,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: width * 0.045,
+                                      color: statusColor,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  // カード名はカードの直下に表示する。暗転した背景の上に乗るため
+                  // 固定で白系の色にする。編集ボタンは置かず、最初から常に
+                  // TextFieldを表示する（新規カードは自動でフォーカスする）。
+                  SizedBox(
+                    width: width,
+                    child: TextField(
+                      controller: _nameController,
+                      autofocus: _isNewCard,
+                      maxLength: kMaxWorkshopCardNameLength,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: nameFontSize,
+                      ),
+                      decoration: InputDecoration(
+                        counterText: '',
+                        contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                        hintText: strings.workshopCardNameLabel,
+                        hintStyle:
+                            TextStyle(color: Colors.white70, fontSize: nameFontSize),
+                        enabledBorder: const UnderlineInputBorder(
+                          borderSide: BorderSide(color: Colors.white70, width: 1.5),
+                        ),
+                        focusedBorder: const UnderlineInputBorder(
+                          borderSide: BorderSide(color: Colors.white, width: 2),
                         ),
                       ),
-                      const SizedBox(width: 4),
-                      const Icon(Icons.edit, size: 16, color: Colors.white70),
-                    ],
+                      onSubmitted: (_) => _confirmName(),
+                      onTapOutside: (_) => _confirmName(),
+                    ),
                   ),
-                ),
-        ),
-        if (card == null)
-          Padding(
-            padding: const EdgeInsets.only(top: 4),
-            child: Text(
-              strings.workshopNameRequiredHint,
-              style: const TextStyle(fontSize: 11, color: Colors.white70),
+                ],
+              ),
             ),
+          ),
+        ),
+        // 閉じるボタンは置かず、外側（黒い半透明のバリア部分）をタップして
+        // 閉じる（`_openCardZoom`の`barrierDismissible: true`）。
+        if (_persisted)
+          Positioned(
+            left: -12,
+            top: -12,
+            child: _RoundIconButton(onTap: _handleDelete),
           ),
       ],
     );
   }
 }
 
-/// ズームイン編集画面右上の閉じるボタン・左上の削除ボタンに使う丸ボタン。
+/// ズームイン編集画面左上の削除ボタンに使う丸ボタン。
 /// Hero対象の外側に置くため、[_CardZoomEditor]の独自ウィジェットとして分離している。
 class _RoundIconButton extends StatelessWidget {
-  const _RoundIconButton({
-    required this.icon,
-    required this.tooltip,
-    required this.onTap,
-  });
+  const _RoundIconButton({required this.onTap});
 
-  final IconData icon;
-  final String tooltip;
   final VoidCallback onTap;
 
   @override
@@ -1768,12 +1711,11 @@ class _RoundIconButton extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         customBorder: const CircleBorder(),
-        child: Tooltip(
-          message: tooltip,
-          child: Padding(
-            padding: const EdgeInsets.all(8),
-            child: Icon(icon, size: 18, color: Colors.white),
-          ),
+        // タップ範囲が狭いという指摘を受け、アイコン本体（18px）より
+        // 一回り大きい余白（14px）を確保し、実質46px角の押しやすさにする。
+        child: const Padding(
+          padding: EdgeInsets.all(14),
+          child: Icon(Icons.delete_outline, size: 18, color: Colors.white),
         ),
       ),
     );

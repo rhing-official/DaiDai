@@ -31,6 +31,9 @@ class WebrtcCallController extends ChangeNotifier {
 
   final RTCVideoRenderer remoteRenderer = RTCVideoRenderer();
 
+  /// ビデオ通話時の自分のカメラプレビュー用。音声のみの通話では使わない。
+  final RTCVideoRenderer localRenderer = RTCVideoRenderer();
+
   RTCPeerConnection? _peerConnection;
   MediaStream? _localStream;
   StreamSubscription<Call?>? _callSub;
@@ -43,12 +46,16 @@ class WebrtcCallController extends ChangeNotifier {
   bool _muted = false;
   bool get muted => _muted;
 
+  bool _cameraOff = false;
+  bool get cameraOff => _cameraOff;
+
   String? _error;
   String? get error => _error;
 
   Future<void> initialize() async {
     try {
       await remoteRenderer.initialize();
+      if (call.isVideo) await localRenderer.initialize();
 
       // ブラウザ/ネイティブWebRTCスタックに標準搭載のノイズ抑制・エコー除去・
       // 自動ゲイン調整を明示的に要求する。本格的なRNNoise統合は、
@@ -56,17 +63,29 @@ class WebrtcCallController extends ChangeNotifier {
       // 介入するフックをDart層に公開しておらず、プラットフォームごとの
       // ネイティブ音声パイプライン改造が必要な大規模な別プロジェクトになるため、
       // 現時点ではここでの標準ノイズ抑制のみを実装している（詳細は会話参照）。
+      // ビデオ通話時はCLAUDE.md記載のフェーズ1スコープ（720p）に合わせ、
+      // 解像度をidealで指定する（環境によっては下回ることもある）。
       _localStream = await navigator.mediaDevices.getUserMedia({
         'audio': {
           'echoCancellation': true,
           'noiseSuppression': true,
           'autoGainControl': true,
         },
-        'video': false,
+        'video': call.isVideo
+            ? {
+                'facingMode': 'user',
+                'width': {'ideal': 1280},
+                'height': {'ideal': 720},
+              }
+            : false,
       });
 
+      if (call.isVideo) {
+        localRenderer.srcObject = _localStream;
+      }
+
       _peerConnection = await createPeerConnection(_rtcConfiguration);
-      for (final track in _localStream!.getAudioTracks()) {
+      for (final track in _localStream!.getTracks()) {
         await _peerConnection!.addTrack(track, _localStream!);
       }
 
@@ -199,6 +218,14 @@ class WebrtcCallController extends ChangeNotifier {
     notifyListeners();
   }
 
+  void toggleCamera() {
+    _cameraOff = !_cameraOff;
+    for (final track in _localStream?.getVideoTracks() ?? <MediaStreamTrack>[]) {
+      track.enabled = !_cameraOff;
+    }
+    notifyListeners();
+  }
+
   @override
   void dispose() {
     _callSub?.cancel();
@@ -208,6 +235,7 @@ class WebrtcCallController extends ChangeNotifier {
     }
     _localStream?.dispose();
     _peerConnection?.close();
+    localRenderer.dispose();
     remoteRenderer.dispose();
     super.dispose();
   }

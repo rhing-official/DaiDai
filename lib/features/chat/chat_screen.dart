@@ -17,6 +17,7 @@ class ChatScreen extends ConsumerStatefulWidget {
     required this.onSend,
     this.showSenderAvatar = false,
     this.onCallPressed,
+    this.onVideoCallPressed,
     this.extraActions,
     super.key,
   });
@@ -30,8 +31,11 @@ class ChatScreen extends ConsumerStatefulWidget {
   /// メッセージにRhing IDのイニシャルアイコンを表示する。一対では表示しない。
   final bool showSenderAvatar;
 
-  /// 音声通話の発信ボタン。一対（1対1）のみで渡す（フェーズ1は広場の通話は未対応）。
+  /// 音声通話の発信ボタン。一対（1対1）のみで渡す（グループ通話は未対応）。
   final VoidCallback? onCallPressed;
+
+  /// ビデオ通話の発信ボタン。一対（1対1）のみで渡す（グループ通話は未対応）。
+  final VoidCallback? onVideoCallPressed;
 
   /// 呼び出し側固有のAppBarアクション（例: 広場の詳細を開くボタン）。
   final List<Widget>? extraActions;
@@ -126,6 +130,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             IconButton(
               icon: const Icon(Icons.call_outlined),
               onPressed: widget.onCallPressed,
+            ),
+          if (widget.onVideoCallPressed != null)
+            IconButton(
+              icon: const Icon(Icons.videocam_outlined),
+              onPressed: widget.onVideoCallPressed,
             ),
         ],
       ),
@@ -241,19 +250,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       ),
                     ),
                   ),
-                  Tooltip(
-                    message: '長押しで相手に通知せず送信',
-                    child: Material(
-                      color: Colors.transparent,
-                      shape: const CircleBorder(),
-                      child: InkWell(
-                        customBorder: const CircleBorder(),
-                        onTap: _send,
-                        onLongPress: () => _send(silent: true),
-                        child: Padding(
-                          padding: const EdgeInsets.all(12),
-                          child: Icon(Icons.send, color: colorScheme.primary),
-                        ),
+                  Material(
+                    color: Colors.transparent,
+                    shape: const CircleBorder(),
+                    child: InkWell(
+                      customBorder: const CircleBorder(),
+                      onTap: _send,
+                      onLongPress: () => _send(silent: true),
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Icon(Icons.send, color: colorScheme.primary),
                       ),
                     ),
                   ),

@@ -1,8 +1,8 @@
 /// 身だしなみ（プロフィール）の蔵に保管できる素材の上限数。
-const kMaxIcons = 2;
+const kMaxIcons = 5;
 const kMaxBackgroundImages = 3;
-const kMaxStatusMessages = 2;
-const kMaxNicknames = 3;
+const kMaxStatusMessages = 10;
+const kMaxNicknames = 10;
 
 /// 蔵の素材の文字数上限。
 const kMaxNicknameLength = 20;
@@ -53,8 +53,8 @@ class StatusMessage {
 }
 
 /// 蔵に保管するニックネーム。Rhing IDとは別に、友達に対して表示される呼び名。
-/// 最大[kMaxNicknames]件まで登録でき、その中から使うものを1つ選べる
-/// （アイコン・背景画像・ステメと同じ「登録して選ぶ」方式）。
+/// 最大[kMaxNicknames]件まで登録できる。友達に表示される1件は選択式ではなく
+/// 登録順で自動的に決まる。
 class Nickname {
   const Nickname({required this.id, required this.text});
 

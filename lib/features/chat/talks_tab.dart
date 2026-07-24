@@ -64,7 +64,7 @@ class _TalksTabState extends ConsumerState<TalksTab> {
     );
   }
 
-  Future<void> _startCall(DirectMessage dm) async {
+  Future<void> _startCall(DirectMessage dm, {bool isVideo = false}) async {
     final callRepository = ref.read(callRepositoryProvider);
     final other = AppUser(
       userId: dm.otherUserId(widget.currentUser.userId),
@@ -73,6 +73,7 @@ class _TalksTabState extends ConsumerState<TalksTab> {
     final call = await callRepository.createCall(
       caller: widget.currentUser,
       callee: other,
+      isVideo: isVideo,
     );
     ref.read(goRouterProvider).push(
       '/call',
@@ -268,6 +269,7 @@ class _TalksTabState extends ConsumerState<TalksTab> {
         currentUser: widget.currentUser,
         dm: dm,
         onCallPressed: () => _startCall(dm),
+        onVideoCallPressed: () => _startCall(dm, isVideo: true),
       );
     }
     final group = _selectedGroup;
