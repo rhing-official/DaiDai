@@ -43,10 +43,13 @@ class SettingsTab extends ConsumerStatefulWidget {
 }
 
 class _SettingsTabState extends ConsumerState<SettingsTab> {
-  /// マルチカラム表示でのみ使う、選択中ノードのタイトルの連なり
-  /// （例: ["アカウント", "セキュリティ", "パスワード"]）。
-  /// ノードオブジェクト自体はビルドごとに作り直される（[_rootNodes]参照）ため
-  /// 参照の同一性ではなくタイトルで選択状態・列内容を復元する。
+  /// マルチカラム表示でのみ使う、選択中ノードのidの連なり
+  /// （例: ["application", "language"]）。ノードオブジェクト自体は
+  /// ビルドごとに作り直される（[_rootNodes]参照）ため、参照の同一性ではなく
+  /// idで選択状態・列内容を復元する。表示言語や用語スタイルで変わる
+  /// [_Node.title]をここで使うと、言語を切り替えた瞬間に古い言語のタイトルが
+  /// 新しいツリーで見つからなくなり、設定のトップまで押し戻されてしまう
+  /// （実際に起きていた不具合）ため、翻訳されないidで照合する。
   List<String> _path = [];
 
   @override
@@ -67,7 +70,7 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
               node.onTap!();
               return;
             }
-            setState(() => _path = [..._path.take(columnIndex), node.title]);
+            setState(() => _path = [..._path.take(columnIndex), node.id]);
           },
         ),
       );
@@ -100,21 +103,25 @@ List<_Node> _rootNodes(
 ) {
   return [
     _Node(
+      id: 'account',
       icon: Icons.person_outline,
       title: strings.settingsFolderAccount,
       children: _accountNodes(context, ref, strings, currentUser),
     ),
     _Node(
+      id: 'application',
       icon: Icons.tune,
       title: strings.settingsFolderApplication,
       children: _applicationNodes(context, ref, strings),
     ),
     _Node(
+      id: 'input',
       icon: Icons.keyboard_outlined,
       title: strings.settingsFolderInput,
       builder: (context) => _InputFolder(strings: strings),
     ),
     _Node(
+      id: 'notifications',
       icon: Icons.notifications_outlined,
       title: strings.settingsFolderNotifications,
       builder: (context) => _ComingSoonFolder(message: strings.settingsComingSoon),
@@ -134,6 +141,7 @@ List<_Node> _accountNodes(
 ) {
   return [
     _Node(
+      id: 'rhingId',
       icon: Icons.badge_outlined,
       title: strings.settingsRhingIdLabel,
       builder: (context) => _InfoLeaf(
@@ -142,27 +150,32 @@ List<_Node> _accountNodes(
       ),
     ),
     _Node(
+      id: 'profileName',
       icon: Icons.person_outline,
       title: strings.settingsProfileName,
       builder: (context) => _ComingSoonFolder(message: strings.settingsComingSoon),
     ),
     _Node(
+      id: 'security',
       icon: Icons.security_outlined,
       title: strings.settingsSecurity,
       children: [
         _Node(
+          id: 'password',
           icon: Icons.password_outlined,
           title: strings.settingsPassword,
           builder: (context) =>
               _ComingSoonFolder(message: strings.settingsComingSoon),
         ),
         _Node(
+          id: 'twoFactor',
           icon: Icons.verified_user_outlined,
           title: strings.settingsTwoFactor,
           builder: (context) =>
               _ComingSoonFolder(message: strings.settingsComingSoon),
         ),
         _Node(
+          id: 'passkey',
           icon: Icons.key_outlined,
           title: strings.settingsPasskey,
           builder: (context) =>
@@ -171,16 +184,19 @@ List<_Node> _accountNodes(
       ],
     ),
     _Node(
+      id: 'qrLogin',
       icon: Icons.qr_code_outlined,
       title: strings.settingsQrLogin,
       builder: (context) => _ComingSoonFolder(message: strings.settingsComingSoon),
     ),
     _Node(
+      id: 'logout',
       icon: Icons.logout,
       title: strings.settingsLogout,
       onTap: () => ref.read(authRepositoryProvider).signOut(),
     ),
     _Node(
+      id: 'deleteAccount',
       icon: Icons.delete_outline,
       title: strings.settingsDeleteAccount,
       destructive: true,
@@ -197,11 +213,13 @@ List<_Node> _applicationNodes(
 ) {
   return [
     _Node(
+      id: 'design',
       icon: Icons.palette_outlined,
       title: strings.settingsFolderDesign,
       builder: (context) => _DesignFolder(strings: strings),
     ),
     _Node(
+      id: 'ui',
       icon: Icons.widgets_outlined,
       title: strings.settingsSubUI,
       builder: (context) => _InfoLeaf(
@@ -210,16 +228,19 @@ List<_Node> _applicationNodes(
       ),
     ),
     _Node(
+      id: 'typography',
       icon: Icons.text_fields_outlined,
       title: strings.settingsSubTypography,
       children: [
         _Node(
+          id: 'fontDesign',
           icon: Icons.font_download_outlined,
           title: strings.settingsFontDesign,
           builder: (context) =>
               _ComingSoonFolder(message: strings.settingsComingSoon),
         ),
         _Node(
+          id: 'fontSize',
           icon: Icons.format_size,
           title: strings.settingsFontSize,
           builder: (context) =>
@@ -228,6 +249,7 @@ List<_Node> _applicationNodes(
       ],
     ),
     _Node(
+      id: 'language',
       icon: Icons.language_outlined,
       title: strings.settingsFolderLanguage,
       builder: (context) => _LanguageFolder(strings: strings),
@@ -240,6 +262,7 @@ List<_Node> _applicationNodes(
 /// 遷移せずその場で実行するアクション項目になる。
 class _Node {
   const _Node({
+    required this.id,
     required this.icon,
     required this.title,
     this.builder,
@@ -248,6 +271,10 @@ class _Node {
     this.destructive = false,
   });
 
+  /// 表示言語・用語スタイルが変わっても変化しない安定識別子。
+  /// [title]は表示言語で変わるため、パス追跡や選択状態の照合には
+  /// 必ずこちらを使うこと（[_findNodeById]参照）。
+  final String id;
   final IconData icon;
   final String title;
   final WidgetBuilder? builder;
@@ -258,12 +285,12 @@ class _Node {
   bool get isFolder => children != null;
 }
 
-/// [nodes]の中から[title]に一致するノードを探す。ノードはビルドごとに
-/// 作り直されるため、階層をたどるときは常にタイトルで照合する
+/// [nodes]の中から[id]に一致するノードを探す。ノードはビルドごとに
+/// 作り直されるため、階層をたどるときは常にidで照合する
 /// （[_computeColumns] / [_resolveSelectedNode]参照）。
-_Node? _findNodeByTitle(List<_Node> nodes, String title) {
+_Node? _findNodeById(List<_Node> nodes, String id) {
   for (final node in nodes) {
-    if (node.title == title) return node;
+    if (node.id == id) return node;
   }
   return null;
 }
@@ -274,8 +301,8 @@ _Node? _findNodeByTitle(List<_Node> nodes, String title) {
 List<List<_Node>> _computeColumns(List<_Node> rootNodes, List<String> path) {
   final columns = <List<_Node>>[rootNodes];
   var currentNodes = rootNodes;
-  for (final title in path) {
-    final match = _findNodeByTitle(currentNodes, title);
+  for (final id in path) {
+    final match = _findNodeById(currentNodes, id);
     if (match == null || !match.isFolder) break;
     columns.add(match.children!);
     currentNodes = match.children!;
@@ -290,8 +317,8 @@ _Node? _resolveSelectedNode(List<_Node> rootNodes, List<String> path) {
   if (path.isEmpty) return null;
   var currentNodes = rootNodes;
   _Node? node;
-  for (final title in path) {
-    node = _findNodeByTitle(currentNodes, title);
+  for (final id in path) {
+    node = _findNodeById(currentNodes, id);
     if (node == null) return null;
     if (node.isFolder) currentNodes = node.children!;
   }
@@ -352,7 +379,7 @@ class _SplitSettingsView extends StatelessWidget {
                 width: _kSettingsColumnWidth,
                 child: _NodeColumnList(
                   nodes: columns[i],
-                  selectedTitle: path.length > i ? path[i] : null,
+                  selectedId: path.length > i ? path[i] : null,
                   onSelect: (node) => onSelect(i, node),
                 ),
               ),
@@ -389,12 +416,12 @@ class _SplitSettingsView extends StatelessWidget {
 class _NodeColumnList extends StatelessWidget {
   const _NodeColumnList({
     required this.nodes,
-    required this.selectedTitle,
+    required this.selectedId,
     required this.onSelect,
   });
 
   final List<_Node> nodes;
-  final String? selectedTitle;
+  final String? selectedId;
   final ValueChanged<_Node> onSelect;
 
   @override
@@ -406,7 +433,7 @@ class _NodeColumnList extends StatelessWidget {
           _FolderTile(
             icon: node.icon,
             title: node.title,
-            selected: node.title == selectedTitle,
+            selected: node.id == selectedId,
             destructive: node.destructive,
             trailingChevron: node.isFolder,
             onTap: () => onSelect(node),
@@ -472,13 +499,21 @@ class _NodeListDetail extends StatefulWidget {
 }
 
 class _NodeListDetailState extends State<_NodeListDetail> {
-  _Node? _selected;
+  // 選択中ノードそのものではなくidだけを保持する。ノードオブジェクトは
+  // ビルドごとに作り直される（[_rootNodes]参照）ため、オブジェクト参照を
+  // 保持すると表示言語や用語スタイルを切り替えた後も古い言語のtitle・builder
+  // を持つノードのまま固定されてしまう。idから毎ビルド[widget.nodes]を
+  // 引き直すことで、常に最新の言語・スタイルの内容を表示する。
+  String? _selectedId;
 
   @override
   Widget build(BuildContext context) {
+    final selected =
+        _selectedId == null ? null : _findNodeById(widget.nodes, _selectedId!);
+
     return AnimatedSwitcher(
       duration: const Duration(milliseconds: 180),
-      child: _selected == null
+      child: selected == null
           ? _NodeList(
               key: const ValueKey('node-list'),
               nodes: widget.nodes,
@@ -487,13 +522,13 @@ class _NodeListDetailState extends State<_NodeListDetail> {
                   node.onTap!();
                   return;
                 }
-                setState(() => _selected = node);
+                setState(() => _selectedId = node.id);
               },
             )
           : _NodeDetail(
-              key: ValueKey(_selected!.title),
-              node: _selected!,
-              onBack: () => setState(() => _selected = null),
+              key: ValueKey(selected.id),
+              node: selected,
+              onBack: () => setState(() => _selectedId = null),
             ),
     );
   }
