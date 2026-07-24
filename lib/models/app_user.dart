@@ -59,6 +59,21 @@ class AppUser {
   ProfileCard? get activeProfileCard =>
       _findProfileCard(profileCards, activeProfileCardId);
 
+  /// 表示に使うべきアイコン。適用中のプロフィールカード（[activeProfileCard]）
+  /// があればそのカードが指すアイコンを優先し、未適用なら個別の蔵アイテムの
+  /// [activeIcon]にフォールバックする。友達一覧・メンバー一覧など、相手の
+  /// アイコンを表示するすべての箇所はこのgetterを使うこと。
+  ProfileMaterial? get effectiveIcon {
+    final card = activeProfileCard;
+    return card != null ? _findMaterial(icons, card.iconId) : activeIcon;
+  }
+
+  /// [effectiveIcon]と同様、適用中のプロフィールカードのニックネームを優先する。
+  Nickname? get effectiveNickname {
+    final card = activeProfileCard;
+    return card != null ? _findNickname(nicknames, card.nicknameId) : activeNickname;
+  }
+
   static ProfileMaterial? _findMaterial(
     List<ProfileMaterial> items,
     String? id,

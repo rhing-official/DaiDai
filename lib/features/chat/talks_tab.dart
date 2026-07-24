@@ -494,9 +494,10 @@ class _DirectMessageTile extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final otherUserId = dm.otherUserId(currentUser.userId);
     final otherUser = ref.watch(watchedUserProvider(otherUserId)).value;
-    final nickname = otherUser?.activeNickname?.text;
+    final nickname = otherUser?.effectiveNickname?.text;
     final label =
         (nickname?.isNotEmpty ?? false) ? nickname! : '@${dm.otherRhingId(currentUser.userId)}';
+    final iconUrl = otherUser?.effectiveIcon?.url;
 
     return _ConversationGestures(
       conversationId: dm.dmId,
@@ -506,7 +507,10 @@ class _DirectMessageTile extends ConsumerWidget {
       child: ListTile(
         selected: selected,
         selectedTileColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.08),
-        leading: const CircleAvatar(child: Icon(Icons.person)),
+        leading: CircleAvatar(
+          backgroundImage: iconUrl != null ? NetworkImage(iconUrl) : null,
+          child: iconUrl == null ? const Icon(Icons.person) : null,
+        ),
         title: Text(label),
         trailing: _ConversationIndicators(pinned: pinned, muted: muted),
         onTap: onTap,
@@ -534,6 +538,7 @@ class _GroupTile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final iconUrl = group.profileCard?.iconUrl;
     return _ConversationGestures(
       conversationId: group.groupId,
       userId: currentUserId,
@@ -542,7 +547,10 @@ class _GroupTile extends ConsumerWidget {
       child: ListTile(
         selected: selected,
         selectedTileColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.08),
-        leading: const CircleAvatar(child: Icon(Icons.groups)),
+        leading: CircleAvatar(
+          backgroundImage: iconUrl != null ? NetworkImage(iconUrl) : null,
+          child: iconUrl == null ? const Icon(Icons.groups) : null,
+        ),
         title: Text(group.name),
         subtitle: Text('${group.memberIds.length}人'),
         trailing: _ConversationIndicators(pinned: pinned, muted: muted),
