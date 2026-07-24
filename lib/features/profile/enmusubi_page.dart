@@ -7,6 +7,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 
 import '../../l10n/strings.dart';
 import '../../models/app_user.dart';
+import '../../providers/repository_providers.dart';
 import '../../utils/web_link.dart';
 
 String _inviteLinkFor(String rhingId) => buildWebLink('/invite/$rhingId');
@@ -26,10 +27,26 @@ String? parseInviteRhingId(String data) {
 
 /// 縁結びページ: 自分の招待リンク・QRコードの表示と、相手のQRコードを
 /// 読み取って仲間申請を送る導線。
-class EnmusubiPage extends ConsumerWidget {
+class EnmusubiPage extends ConsumerStatefulWidget {
   const EnmusubiPage({required this.currentUser, super.key});
 
   final AppUser currentUser;
+
+  @override
+  ConsumerState<EnmusubiPage> createState() => _EnmusubiPageState();
+}
+
+class _EnmusubiPageState extends ConsumerState<EnmusubiPage> {
+  AppUser get currentUser => widget.currentUser;
+
+  @override
+  void initState() {
+    super.initState();
+    // この画面を開くたびに公開プレビュー（userInvites）を最新化する。
+    // 蔵の更新時にも自動同期されるが、この機能追加より前から使っている
+    // ユーザーはまだ一度も同期が走っていないため、ここでバックフィルする。
+    ref.read(userRepositoryProvider).syncInvitePreview(currentUser.userId);
+  }
 
   Future<void> _copyLink(BuildContext context, Strings strings, String link) async {
     await Clipboard.setData(ClipboardData(text: link));
@@ -50,7 +67,7 @@ class EnmusubiPage extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final strings = ref.watch(appStringsProvider);
     final link = _inviteLinkFor(currentUser.rhingId);
     final colorScheme = Theme.of(context).colorScheme;

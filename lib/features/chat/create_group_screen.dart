@@ -5,6 +5,24 @@ import '../../models/app_user.dart';
 import '../../providers/repository_providers.dart';
 import '../../router/app_router.dart';
 
+/// 友達一覧をプルダウン選択できるよう、Rhing IDではなく呼び名（未設定ならRhing ID）で表示する。
+String _displayName(AppUser user) {
+  final nickname = user.activeNickname?.text;
+  return (nickname != null && nickname.isNotEmpty) ? nickname : '@${user.rhingId}';
+}
+
+/// 友達一覧（フルプロフィール、呼び名表示のため）を監視する。
+final _candidateFriendsProvider =
+    StreamProvider.family<List<AppUser>, String>((ref, userId) {
+  final friendRepository = ref.watch(friendRepositoryProvider);
+  final userRepository = ref.watch(userRepositoryProvider);
+  return friendRepository.watchFriends(userId).asyncMap(
+        (friends) => userRepository.getUsersByIds(
+          friends.map((f) => f.friendUserId).toList(),
+        ),
+      );
+});
+
 /// 広場（グループ）作成画面。3人以上（自分＋2人以上）で作成する。
 class CreateGroupScreen extends ConsumerStatefulWidget {
   const CreateGroupScreen({required this.currentUser, super.key});
@@ -17,49 +35,18 @@ class CreateGroupScreen extends ConsumerStatefulWidget {
 
 class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
   final _nameController = TextEditingController();
-  final _rhingIdController = TextEditingController();
   final _members = <AppUser>[];
 
-  bool _isAddingMember = false;
+  TextEditingController? _friendFieldController;
   bool _isCreating = false;
   String? _errorMessage;
 
-  Future<void> _addMember() async {
-    final rhingId = _rhingIdController.text
-        .trim()
-        .toLowerCase()
-        .replaceFirst(RegExp(r'^@+'), '');
-    if (rhingId.isEmpty) return;
-
+  void _addMember(AppUser user) {
     setState(() {
-      _isAddingMember = true;
+      _members.add(user);
       _errorMessage = null;
     });
-
-    try {
-      final userRepository = ref.read(userRepositoryProvider);
-      final user = await userRepository.findByRhingId(rhingId);
-      if (user == null) {
-        setState(() => _errorMessage = 'そのRhing IDの住人は見つかりませんでした');
-        return;
-      }
-      if (user.userId == widget.currentUser.userId) {
-        setState(() => _errorMessage = '自分自身は追加できません（自動的にメンバーになります）');
-        return;
-      }
-      if (_members.any((m) => m.userId == user.userId)) {
-        setState(() => _errorMessage = 'すでに追加済みです');
-        return;
-      }
-      setState(() {
-        _members.add(user);
-        _rhingIdController.clear();
-      });
-    } finally {
-      if (mounted) {
-        setState(() => _isAddingMember = false);
-      }
-    }
+    _friendFieldController?.clear();
   }
 
   Future<void> _createGroup() async {
@@ -103,7 +90,6 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
   @override
   void dispose() {
     _nameController.dispose();
-    _rhingIdController.dispose();
     super.dispose();
   }
 
@@ -127,27 +113,57 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
               ),
             ),
             const SizedBox(height: 24),
-            const Text('メンバーをRhing IDで追加（自分＋2人以上が必要）'),
+            const Text('メンバーを友達から追加（自分＋2人以上が必要）'),
             const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _rhingIdController,
-                    decoration: const InputDecoration(
-                      labelText: '相手のRhing ID',
-                      prefixText: '@',
-                      border: OutlineInputBorder(),
-                    ),
-                    onSubmitted: (_) => _addMember(),
+            Consumer(
+              builder: (context, ref, _) {
+                final friendsAsync = ref.watch(
+                  _candidateFriendsProvider(widget.currentUser.userId),
+                );
+                return friendsAsync.when(
+                  data: (friends) {
+                    if (friends.isEmpty) {
+                      return const Text(
+                        '友達がいません。先に縁結びで友達を追加してください',
+                        style: TextStyle(color: Colors.grey),
+                      );
+                    }
+                    final available = friends
+                        .where((f) =>
+                            !_members.any((m) => m.userId == f.userId))
+                        .toList();
+                    return Autocomplete<AppUser>(
+                      displayStringForOption: _displayName,
+                      optionsBuilder: (textEditingValue) {
+                        final query = textEditingValue.text.trim().toLowerCase();
+                        if (query.isEmpty) return available;
+                        return available.where((u) =>
+                            _displayName(u).toLowerCase().contains(query) ||
+                            u.rhingId.toLowerCase().contains(query));
+                      },
+                      fieldViewBuilder:
+                          (context, controller, focusNode, onFieldSubmitted) {
+                        _friendFieldController = controller;
+                        return TextField(
+                          controller: controller,
+                          focusNode: focusNode,
+                          decoration: const InputDecoration(
+                            labelText: '友達を選んで追加',
+                            prefixIcon: Icon(Icons.person_add_alt),
+                            border: OutlineInputBorder(),
+                          ),
+                        );
+                      },
+                      onSelected: _addMember,
+                    );
+                  },
+                  loading: () => const LinearProgressIndicator(),
+                  error: (e, _) => Text(
+                    '友達一覧の取得に失敗しました: $e',
+                    style: const TextStyle(color: Colors.red),
                   ),
-                ),
-                const SizedBox(width: 8),
-                IconButton.filled(
-                  onPressed: _isAddingMember ? null : _addMember,
-                  icon: const Icon(Icons.add),
-                ),
-              ],
+                );
+              },
             ),
             if (_errorMessage != null) ...[
               const SizedBox(height: 8),
@@ -158,10 +174,10 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
               spacing: 8,
               runSpacing: 8,
               children: [
-                Chip(label: Text('@${widget.currentUser.rhingId}（自分）')),
+                Chip(label: Text('${_displayName(widget.currentUser)}（自分）')),
                 for (final member in _members)
                   Chip(
-                    label: Text('@${member.rhingId}'),
+                    label: Text(_displayName(member)),
                     onDeleted: () => setState(() => _members.remove(member)),
                   ),
               ],

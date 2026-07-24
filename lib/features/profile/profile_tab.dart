@@ -364,12 +364,26 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
   }
 
   Future<void> _deleteCard(ProfileCard card) async {
+    final wasActive = _user.activeProfileCardId == card.id;
+    final remaining =
+        _user.profileCards.where((c) => c.id != card.id).toList();
+    final nextActiveId =
+        wasActive ? null : _user.activeProfileCardId;
     setState(() {
       _user = _user.copyWith(
-        profileCards: _user.profileCards.where((c) => c.id != card.id).toList(),
+        profileCards: remaining,
+        activeProfileCardId: nextActiveId,
       );
     });
     await _removeFromList('profileCards', card.toJson());
+    if (wasActive) await _setField('activeProfileCardId', null);
+  }
+
+  Future<void> _setActiveCard(String cardId) async {
+    setState(() {
+      _user = _user.copyWith(activeProfileCardId: cardId);
+    });
+    await _setField('activeProfileCardId', cardId);
   }
 
   /// カードをタップした位置からズームインさせる形でカード編集画面を開く。
@@ -458,6 +472,7 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
           strings: strings,
           vocab: vocab,
           onTapSlot: _openCardZoom,
+          onSetActive: _setActiveCard,
         );
       case _ProfileSection.enmusubi:
         return EnmusubiPage(currentUser: _user);
@@ -705,6 +720,7 @@ class _WorkshopView extends StatelessWidget {
     required this.strings,
     required this.vocab,
     required this.onTapSlot,
+    required this.onSetActive,
   });
 
   final AppUser user;
@@ -714,11 +730,24 @@ class _WorkshopView extends StatelessWidget {
   /// 枠番号（Heroタグ用）とその枠の現在のカード（未作成ならnull）を渡す。
   final void Function(int index, ProfileCard? card) onTapSlot;
 
+  /// 縁結びの招待リンク等に適用するカードとして選択する（ラジオボタン）。
+  final void Function(String cardId) onSetActive;
+
   @override
   Widget build(BuildContext context) {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
+        if (user.profileCards.isNotEmpty) ...[
+          Text(
+            '縁結びの招待リンク等に使うカードを、右上の丸いボタンで選べます',
+            style: TextStyle(
+              fontSize: 13,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
         // 以前は固定サイズ（160x200）のカードを画面左端に詰めて表示していたため、
         // 広い画面では余白ばかりが目立っていた。3枠固定という前提を活かし、
         // 画面幅いっぱいを3等分してカード自体を大きく表示する（上限は
@@ -751,7 +780,10 @@ class _WorkshopView extends StatelessWidget {
                       vocab: vocab,
                       width: cardWidth,
                       height: cardHeight,
+                      isActive:
+                          user.activeProfileCardId == user.profileCards[i].id,
                       onTap: () => onTapSlot(i, user.profileCards[i]),
+                      onSetActive: () => onSetActive(user.profileCards[i].id),
                     )
                   else
                     _WorkshopBlankSlot(
@@ -829,7 +861,9 @@ class _WorkshopCardSlot extends StatelessWidget {
     required this.vocab,
     required this.width,
     required this.height,
+    required this.isActive,
     required this.onTap,
+    required this.onSetActive,
   });
 
   final int index;
@@ -839,7 +873,11 @@ class _WorkshopCardSlot extends StatelessWidget {
   final Vocabulary vocab;
   final double width;
   final double height;
+
+  /// このカードが縁結びの招待リンク等に適用中かどうか。
+  final bool isActive;
   final VoidCallback onTap;
+  final VoidCallback onSetActive;
 
   @override
   Widget build(BuildContext context) {
@@ -944,6 +982,14 @@ class _WorkshopCardSlot extends StatelessWidget {
                             ),
                           ],
                         ),
+                      ),
+                    ),
+                    Positioned(
+                      top: padding * 0.4,
+                      right: padding * 0.4,
+                      child: _ActiveCardBadge(
+                        isActive: isActive,
+                        onTap: onSetActive,
                       ),
                     ),
                   ],
@@ -1161,6 +1207,37 @@ class _RectMaterialThumb extends StatelessWidget {
           child: _DeleteBadge(onTap: onDelete),
         ),
       ],
+    );
+  }
+}
+
+/// 工房カードの右上に置く、縁結びの招待リンク等に適用するカードを選ぶための
+/// ラジオボタン風バッジ。[_DeleteBadge]と同じ円形オーバーレイの見た目に揃える。
+class _ActiveCardBadge extends StatelessWidget {
+  const _ActiveCardBadge({required this.isActive, required this.onTap});
+
+  final bool isActive;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.black54,
+      shape: const CircleBorder(),
+      child: InkWell(
+        onTap: onTap,
+        customBorder: const CircleBorder(),
+        child: Padding(
+          padding: const EdgeInsets.all(4),
+          child: Icon(
+            isActive ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+            size: 18,
+            color: isActive
+                ? Theme.of(context).colorScheme.primary
+                : Colors.white,
+          ),
+        ),
+      ),
     );
   }
 }

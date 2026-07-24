@@ -10,6 +10,16 @@ import '../models/app_user.dart';
 import '../models/profile_material.dart';
 import '../models/user_invite_preview.dart';
 
+/// idを持つ蔵アイテムのリストから1件だけ検索する（プロフィールカードが
+/// 指すニックネーム・アイコンの解決に使う）。
+T? _findById<T>(List<T> items, String? id, String Function(T) idOf) {
+  if (id == null) return null;
+  for (final item in items) {
+    if (idOf(item) == id) return item;
+  }
+  return null;
+}
+
 abstract class UserRepository {
   Future<AppUser?> getUser(String userId);
 
@@ -57,6 +67,13 @@ abstract class UserRepository {
 
   /// アップロード済み画像素材をStorageから削除する。
   Future<void> deleteProfileMaterial(ProfileMaterial material);
+
+  /// 縁結びの招待リンクを外部SNSで展開（OGP）した時に見せる公開プレビュー
+  /// （`userInvites/{rhingId}`）を、現在のアクティブなアイコン・呼び名から
+  /// 同期する。蔵の更新時（[addToProfileList]等）に自動で呼ばれるほか、
+  /// この機能追加より前から使っているユーザーはその同期がまだ一度も
+  /// 走っていないため、縁結びページを開いた際にも呼び直してバックフィルする。
+  Future<void> syncInvitePreview(String userId);
 }
 
 class FirestoreUserRepository implements UserRepository {
@@ -120,7 +137,7 @@ class FirestoreUserRepository implements UserRepository {
       field: FieldValue.arrayUnion([value]),
     });
     if (field == 'icons' || field == 'nicknames') {
-      await _syncInvitePreview(userId);
+      await syncInvitePreview(userId);
     }
   }
 
@@ -134,7 +151,7 @@ class FirestoreUserRepository implements UserRepository {
       field: FieldValue.arrayRemove([value]),
     });
     if (field == 'icons' || field == 'nicknames') {
-      await _syncInvitePreview(userId);
+      await syncInvitePreview(userId);
     }
   }
 
@@ -145,21 +162,31 @@ class FirestoreUserRepository implements UserRepository {
     String? value,
   ) async {
     await _users.doc(userId).update({field: value});
-    if (field == 'activeIconId' || field == 'activeNicknameId') {
-      await _syncInvitePreview(userId);
+    if (field == 'activeIconId' ||
+        field == 'activeNicknameId' ||
+        field == 'activeProfileCardId') {
+      await syncInvitePreview(userId);
     }
   }
 
-  /// 縁結びの招待リンクを外部SNSで展開（OGP）した時に見せる公開プレビュー
-  /// （`userInvites/{rhingId}`）を、現在のアクティブなアイコン・呼び名から
-  /// 同期する。
-  Future<void> _syncInvitePreview(String userId) async {
+  @override
+  Future<void> syncInvitePreview(String userId) async {
     final user = await getUser(userId);
     if (user == null) return;
+    // 工房でプロフィールカードを適用（activeProfileCardId）していれば、
+    // そのカードが指す蔵アイテムを優先する。未適用ならこれまで通り
+    // 個別の蔵アイテムのactive*から組み立てる。
+    final card = user.activeProfileCard;
+    final nickname = card != null
+        ? _findById(user.nicknames, card.nicknameId, (n) => n.id)?.text
+        : user.activeNickname?.text;
+    final iconUrl = card != null
+        ? _findById(user.icons, card.iconId, (m) => m.id)?.url
+        : user.activeIcon?.url;
     final preview = UserInvitePreview(
       userId: user.userId,
-      nickname: user.activeNickname?.text,
-      iconUrl: user.activeIcon?.url,
+      nickname: nickname,
+      iconUrl: iconUrl,
     );
     await _firestore
         .collection('userInvites')
