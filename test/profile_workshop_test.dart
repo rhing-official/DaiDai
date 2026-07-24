@@ -35,6 +35,10 @@ class _FakeUserRepository implements UserRepository {
   Future<AppUser?> getUser(String userId) async => saved;
 
   @override
+  Future<List<AppUser>> getUsersByIds(List<String> userIds) async =>
+      saved != null && userIds.contains(saved!.userId) ? [saved!] : [];
+
+  @override
   Stream<AppUser?> watchUser(String userId) => Stream.value(saved);
 
   @override

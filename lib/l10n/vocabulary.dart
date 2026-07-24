@@ -24,6 +24,8 @@ class Vocabulary {
     required this.projectBoard,
     required this.nickname,
     required this.statusMessage,
+    required this.friendConnect,
+    required this.owner,
   });
 
   /// 1対1のチャット（一対／DM／ダイレクトメッセージ／Private Chat）。
@@ -65,6 +67,12 @@ class Vocabulary {
   /// ひとことのステータス表示（一言／ステータスメッセージ、Englishはスタイル問わず共通）。
   final String statusMessage;
 
+  /// 招待リンク・QRコードで仲間を追加する画面（縁結び／フレンド追加）。
+  final String friendConnect;
+
+  /// 広場の管理者（長／管理者）。
+  final String owner;
+
   static const jaWorldview = Vocabulary._(
     dm: '一対',
     plaza: '広場',
@@ -79,6 +87,8 @@ class Vocabulary {
     projectBoard: '談論',
     nickname: '呼び名',
     statusMessage: '一言',
+    friendConnect: '縁結び',
+    owner: '長',
   );
 
   static const jaConvenience = Vocabulary._(
@@ -95,6 +105,8 @@ class Vocabulary {
     projectBoard: 'プロジェクトボード',
     nickname: 'ニックネーム',
     statusMessage: 'ステータスメッセージ',
+    friendConnect: 'フレンド追加',
+    owner: '管理者',
   );
 
   static const enWorldview = Vocabulary._(
@@ -111,6 +123,8 @@ class Vocabulary {
     projectBoard: 'Milestone Board',
     nickname: 'Nickname',
     statusMessage: 'Status message',
+    friendConnect: 'Bond Shrine',
+    owner: 'Chief',
   );
 
   static const enConvenience = Vocabulary._(
@@ -127,6 +141,8 @@ class Vocabulary {
     projectBoard: 'Project Board',
     nickname: 'Nickname',
     statusMessage: 'Status message',
+    friendConnect: 'Add Friends',
+    owner: 'Owner',
   );
 
   static Vocabulary of(AppLocale locale, TerminologyStyle style) {

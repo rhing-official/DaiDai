@@ -102,6 +102,48 @@ class Strings {
     required this.workshopChoiceSelect,
     required this.workshopEmptyMaterialHint,
     required this.fieldRequiredError,
+    required this.enmusubiInviteLinkTitle,
+    required this.enmusubiInviteLinkDescription,
+    required this.enmusubiCopyLink,
+    required this.enmusubiLinkCopied,
+    required this.enmusubiQrTitle,
+    required this.enmusubiQrDescription,
+    required this.enmusubiScanButton,
+    required this.enmusubiScanScreenTitle,
+    required this.inviteScreenTitle,
+    required this.inviteConfirmDescriptionTemplate,
+    required this.inviteScreenSendButton,
+    required this.inviteScreenGoHome,
+    required this.inviteScreenInvalid,
+    required this.groupMenuProfileCard,
+    required this.groupMenuMemberList,
+    required this.groupMenuCreateInvite,
+    required this.groupMenuLeave,
+    required this.groupProfileCardTitle,
+    required this.groupProfileCardNameLabel,
+    required this.groupProfileCardDescriptionLabel,
+    required this.groupProfileCardSave,
+    required this.groupProfileCardChangeIcon,
+    required this.groupProfileCardSaved,
+    required this.groupMemberListTitle,
+    required this.groupMemberListPendingSection,
+    required this.groupMemberListMembersSection,
+    required this.groupRoleModerator,
+    required this.groupRoleMember,
+    required this.groupInviteDialogTitle,
+    required this.groupInviteDialogDescription,
+    required this.groupLeaveConfirmTitle,
+    required this.groupLeaveConfirmMessage,
+    required this.groupLeaveButton,
+    required this.groupLeaveOwnerError,
+    required this.groupJoinScreenTitle,
+    required this.groupJoinInvalid,
+    required this.groupJoinAlreadyMember,
+    required this.groupJoinPending,
+    required this.groupJoinDescriptionTemplate,
+    required this.groupJoinRequestButton,
+    required this.groupJoinRequestSent,
+    required this.groupJoinOpenGroup,
   });
 
   final String navTalk;
@@ -216,6 +258,60 @@ class Strings {
   final String workshopEmptyMaterialHint;
   final String fieldRequiredError;
 
+  final String enmusubiInviteLinkTitle;
+  final String enmusubiInviteLinkDescription;
+  final String enmusubiCopyLink;
+  final String enmusubiLinkCopied;
+  final String enmusubiQrTitle;
+  final String enmusubiQrDescription;
+  final String enmusubiScanButton;
+  final String enmusubiScanScreenTitle;
+
+  final String inviteScreenTitle;
+
+  /// 招待リンク/QRコードから開いた確認画面の説明文。相手のRhing IDを差し込む。
+  final String Function(String rhingId) inviteConfirmDescriptionTemplate;
+  final String inviteScreenSendButton;
+  final String inviteScreenGoHome;
+  final String inviteScreenInvalid;
+
+  final String groupMenuProfileCard;
+  final String groupMenuMemberList;
+  final String groupMenuCreateInvite;
+  final String groupMenuLeave;
+
+  final String groupProfileCardTitle;
+  final String groupProfileCardNameLabel;
+  final String groupProfileCardDescriptionLabel;
+  final String groupProfileCardSave;
+  final String groupProfileCardChangeIcon;
+  final String groupProfileCardSaved;
+
+  final String groupMemberListTitle;
+  final String groupMemberListPendingSection;
+  final String groupMemberListMembersSection;
+  final String groupRoleModerator;
+  final String groupRoleMember;
+
+  final String groupInviteDialogTitle;
+  final String groupInviteDialogDescription;
+
+  final String groupLeaveConfirmTitle;
+  final String groupLeaveConfirmMessage;
+  final String groupLeaveButton;
+  final String groupLeaveOwnerError;
+
+  final String groupJoinScreenTitle;
+  final String groupJoinInvalid;
+  final String groupJoinAlreadyMember;
+  final String groupJoinPending;
+
+  /// 参加確認画面の説明文。広場名を差し込む。
+  final String Function(String groupName) groupJoinDescriptionTemplate;
+  final String groupJoinRequestButton;
+  final String groupJoinRequestSent;
+  final String groupJoinOpenGroup;
+
   static final ja = Strings._(
     navTalk: '語らい',
     navProfile: '身だしなみ',
@@ -314,6 +410,52 @@ class Strings {
     workshopChoiceSelect: '選ぶ',
     workshopEmptyMaterialHint: '蔵に素材が登録されていません',
     fieldRequiredError: '入力してください',
+    enmusubiInviteLinkTitle: '招待リンク',
+    enmusubiInviteLinkDescription:
+        'このリンクを知っている住人が開くと、あなたに仲間申請を送れます。',
+    enmusubiCopyLink: 'コピー',
+    enmusubiLinkCopied: 'リンクをコピーしました',
+    enmusubiQrTitle: 'QRコードで交換',
+    enmusubiQrDescription: '対面でQRコードを読み取ると、素早く仲間になれます。',
+    enmusubiScanButton: 'QRコードを読み取る',
+    enmusubiScanScreenTitle: 'QRコードを読み取る',
+    inviteScreenTitle: '仲間申請',
+    inviteConfirmDescriptionTemplate: (rhingId) =>
+        '@$rhingIdの住人に仲間申請を送りますか？',
+    inviteScreenSendButton: '仲間申請を送る',
+    inviteScreenGoHome: 'ホームに戻る',
+    inviteScreenInvalid: 'このリンクは無効です',
+    groupMenuProfileCard: 'プロフィールカード',
+    groupMenuMemberList: 'メンバー一覧',
+    groupMenuCreateInvite: '招待リンク作成',
+    groupMenuLeave: '退会',
+    groupProfileCardTitle: '広場のプロフィールカード',
+    groupProfileCardNameLabel: '名前',
+    groupProfileCardDescriptionLabel: '説明',
+    groupProfileCardSave: '保存',
+    groupProfileCardChangeIcon: 'アイコンを変更',
+    groupProfileCardSaved: '保存しました',
+    groupMemberListTitle: 'メンバー一覧',
+    groupMemberListPendingSection: '参加リクエスト',
+    groupMemberListMembersSection: 'メンバー',
+    groupRoleModerator: 'モデレーター',
+    groupRoleMember: 'メンバー',
+    groupInviteDialogTitle: '招待リンク',
+    groupInviteDialogDescription:
+        'このリンクを知っている人が開くと、長・モデレーターの承認を経てこの広場に参加できます。',
+    groupLeaveConfirmTitle: '広場から退会しますか？',
+    groupLeaveConfirmMessage: '退会すると、この広場のメッセージは見られなくなります。',
+    groupLeaveButton: '退会する',
+    groupLeaveOwnerError: '長（オーナー）は退会できません',
+    groupJoinScreenTitle: '広場への参加',
+    groupJoinInvalid: 'この招待リンクは無効です',
+    groupJoinAlreadyMember: '既にこの広場のメンバーです',
+    groupJoinPending: '参加リクエストを送信済みです。長・モデレーターの承認をお待ちください',
+    groupJoinDescriptionTemplate: (groupName) =>
+        '「$groupName」への参加をリクエストしますか？長・モデレーターが承認すると参加できます。',
+    groupJoinRequestButton: '参加をリクエストする',
+    groupJoinRequestSent: '参加リクエストを送信しました。長・モデレーターの承認をお待ちください',
+    groupJoinOpenGroup: '広場を開く',
   );
 
   static final enGB = Strings._(
@@ -420,6 +562,57 @@ class Strings {
     workshopChoiceSelect: 'Select',
     workshopEmptyMaterialHint: 'Nothing registered in your storehouse yet',
     fieldRequiredError: 'Please enter a value',
+    enmusubiInviteLinkTitle: 'Invite link',
+    enmusubiInviteLinkDescription:
+        'Anyone who opens this link can send you a friend request.',
+    enmusubiCopyLink: 'Copy',
+    enmusubiLinkCopied: 'Link copied',
+    enmusubiQrTitle: 'Exchange via QR code',
+    enmusubiQrDescription:
+        'Scan a QR code in person to become friends quickly.',
+    enmusubiScanButton: 'Scan a QR code',
+    enmusubiScanScreenTitle: 'Scan a QR code',
+    inviteScreenTitle: 'Friend request',
+    inviteConfirmDescriptionTemplate: (rhingId) =>
+        'Send a friend request to @$rhingId?',
+    inviteScreenSendButton: 'Send friend request',
+    inviteScreenGoHome: 'Back to home',
+    inviteScreenInvalid: 'This link is invalid',
+    groupMenuProfileCard: 'Profile card',
+    groupMenuMemberList: 'Member list',
+    groupMenuCreateInvite: 'Create invite link',
+    groupMenuLeave: 'Leave',
+    groupProfileCardTitle: 'Plaza profile card',
+    groupProfileCardNameLabel: 'Name',
+    groupProfileCardDescriptionLabel: 'Description',
+    groupProfileCardSave: 'Save',
+    groupProfileCardChangeIcon: 'Change icon',
+    groupProfileCardSaved: 'Saved',
+    groupMemberListTitle: 'Members',
+    groupMemberListPendingSection: 'Join requests',
+    groupMemberListMembersSection: 'Members',
+    groupRoleModerator: 'Moderator',
+    groupRoleMember: 'Member',
+    groupInviteDialogTitle: 'Invite link',
+    groupInviteDialogDescription:
+        'Anyone who opens this link can request to join this plaza, '
+        'subject to approval by the owner or a moderator.',
+    groupLeaveConfirmTitle: 'Leave this plaza?',
+    groupLeaveConfirmMessage:
+        "You won't be able to see this plaza's messages after leaving.",
+    groupLeaveButton: 'Leave',
+    groupLeaveOwnerError: 'The owner cannot leave',
+    groupJoinScreenTitle: 'Join plaza',
+    groupJoinInvalid: 'This invite link is invalid',
+    groupJoinAlreadyMember: "You're already a member of this plaza",
+    groupJoinPending:
+        "You've already requested to join. Waiting for approval.",
+    groupJoinDescriptionTemplate: (groupName) =>
+        'Request to join "$groupName"? '
+        'You can join once the owner or a moderator approves.',
+    groupJoinRequestButton: 'Request to join',
+    groupJoinRequestSent: 'Join request sent. Waiting for approval.',
+    groupJoinOpenGroup: 'Open plaza',
   );
 
   static Strings of(AppLocale locale) => switch (locale) {

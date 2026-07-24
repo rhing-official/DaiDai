@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import 'group_profile_card.dart';
+
 /// 広場（Group） - 3人以上のグループチャット
 class Group {
   const Group({
@@ -9,6 +11,7 @@ class Group {
     required this.memberIds,
     required this.memberRoles,
     required this.defaultRoomId,
+    this.profileCard,
     this.createdAt,
   });
 
@@ -19,9 +22,16 @@ class Group {
   /// userId -> role (owner | moderator | member)
   final Map<String, String> memberRoles;
   final String defaultRoomId;
+
+  /// 広場を代表するプロフィールカード（最大1枚）。未作成ならnull。
+  /// メンバー全員が編集できる（`_ProfileTabState`の個人カードとは異なり
+  /// 所有者・モデレーター限定ではない）。
+  final GroupProfileCard? profileCard;
+
   final Timestamp? createdAt;
 
   factory Group.fromJson(String groupId, Map<String, dynamic> json) {
+    final profileCardJson = json['profileCard'] as Map<String, dynamic>?;
     return Group(
       groupId: groupId,
       name: json['name'] as String,
@@ -29,6 +39,9 @@ class Group {
       memberIds: List<String>.from(json['memberIds'] as List),
       memberRoles: Map<String, String>.from(json['memberRoles'] as Map),
       defaultRoomId: json['defaultRoomId'] as String,
+      profileCard: profileCardJson != null
+          ? GroupProfileCard.fromJson(profileCardJson)
+          : null,
       createdAt: json['createdAt'] as Timestamp?,
     );
   }
@@ -40,6 +53,7 @@ class Group {
       'memberIds': memberIds,
       'memberRoles': memberRoles,
       'defaultRoomId': defaultRoomId,
+      'profileCard': profileCard?.toJson(),
       'createdAt': createdAt ?? FieldValue.serverTimestamp(),
     };
   }

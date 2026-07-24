@@ -8,9 +8,13 @@ import 'package:flutter_image_compress/flutter_image_compress.dart';
 
 import '../models/app_user.dart';
 import '../models/profile_material.dart';
+import '../models/user_invite_preview.dart';
 
 abstract class UserRepository {
   Future<AppUser?> getUser(String userId);
+
+  /// 複数のuserIdからまとめて取得する（広場のメンバー一覧表示などで使う）。
+  Future<List<AppUser>> getUsersByIds(List<String> userIds);
 
   /// 相手のプロフィール（アクティブなニックネームなど）をリアルタイムに購読する。
   Stream<AppUser?> watchUser(String userId);
@@ -74,6 +78,21 @@ class FirestoreUserRepository implements UserRepository {
   }
 
   @override
+  Future<List<AppUser>> getUsersByIds(List<String> userIds) async {
+    if (userIds.isEmpty) return [];
+    // FirestoreのwhereInは1クエリにつき最大30件のため、超える場合は分割する。
+    final results = <AppUser>[];
+    for (var i = 0; i < userIds.length; i += 30) {
+      final chunk = userIds.skip(i).take(30).toList();
+      final snapshot = await _users
+          .where(FieldPath.documentId, whereIn: chunk)
+          .get();
+      results.addAll(snapshot.docs.map((doc) => AppUser.fromJson(doc.data())));
+    }
+    return results;
+  }
+
+  @override
   Stream<AppUser?> watchUser(String userId) {
     return _users
         .doc(userId)
@@ -100,6 +119,9 @@ class FirestoreUserRepository implements UserRepository {
     await _users.doc(userId).update({
       field: FieldValue.arrayUnion([value]),
     });
+    if (field == 'icons' || field == 'nicknames') {
+      await _syncInvitePreview(userId);
+    }
   }
 
   @override
@@ -111,6 +133,9 @@ class FirestoreUserRepository implements UserRepository {
     await _users.doc(userId).update({
       field: FieldValue.arrayRemove([value]),
     });
+    if (field == 'icons' || field == 'nicknames') {
+      await _syncInvitePreview(userId);
+    }
   }
 
   @override
@@ -120,6 +145,26 @@ class FirestoreUserRepository implements UserRepository {
     String? value,
   ) async {
     await _users.doc(userId).update({field: value});
+    if (field == 'activeIconId' || field == 'activeNicknameId') {
+      await _syncInvitePreview(userId);
+    }
+  }
+
+  /// 縁結びの招待リンクを外部SNSで展開（OGP）した時に見せる公開プレビュー
+  /// （`userInvites/{rhingId}`）を、現在のアクティブなアイコン・呼び名から
+  /// 同期する。
+  Future<void> _syncInvitePreview(String userId) async {
+    final user = await getUser(userId);
+    if (user == null) return;
+    final preview = UserInvitePreview(
+      userId: user.userId,
+      nickname: user.activeNickname?.text,
+      iconUrl: user.activeIcon?.url,
+    );
+    await _firestore
+        .collection('userInvites')
+        .doc(user.rhingId)
+        .set(preview.toJson());
   }
 
   @override
