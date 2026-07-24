@@ -104,6 +104,9 @@ class _FakeUserRepository implements UserRepository {
 
   @override
   Future<void> deleteProfileMaterial(ProfileMaterial material) async {}
+
+  @override
+  Future<void> syncInvitePreview(String userId) async {}
 }
 
 Future<void> _pumpProfileTab(WidgetTester tester, AppUser user, _FakeUserRepository repo) async {

@@ -15,6 +15,7 @@ class AppUser {
     this.activeBackgroundImageId,
     this.activeStatusMessageId,
     this.activeNicknameId,
+    this.activeProfileCardId,
   });
 
   final String userId;
@@ -44,12 +45,19 @@ class AppUser {
   final String? activeStatusMessageId;
   final String? activeNicknameId;
 
+  /// 縁結びの招待リンク等に適用する、工房で作成したプロフィールカードのid。
+  /// 未選択（null）の場合は、リンク側は個別の蔵アイテム（activeIcon/activeNickname）
+  /// から直接組み立てる（[UserRepository.syncInvitePreview]参照）。
+  final String? activeProfileCardId;
+
   ProfileMaterial? get activeIcon => _findMaterial(icons, activeIconId);
   ProfileMaterial? get activeBackgroundImage =>
       _findMaterial(backgroundImages, activeBackgroundImageId);
   StatusMessage? get activeStatusMessage =>
       _findStatusMessage(statusMessages, activeStatusMessageId);
   Nickname? get activeNickname => _findNickname(nicknames, activeNicknameId);
+  ProfileCard? get activeProfileCard =>
+      _findProfileCard(profileCards, activeProfileCardId);
 
   static ProfileMaterial? _findMaterial(
     List<ProfileMaterial> items,
@@ -81,6 +89,14 @@ class AppUser {
     return null;
   }
 
+  static ProfileCard? _findProfileCard(List<ProfileCard> items, String? id) {
+    if (id == null) return null;
+    for (final item in items) {
+      if (item.id == id) return item;
+    }
+    return null;
+  }
+
   AppUser copyWith({
     List<ProfileMaterial>? icons,
     List<ProfileMaterial>? backgroundImages,
@@ -91,6 +107,7 @@ class AppUser {
     String? activeBackgroundImageId,
     String? activeStatusMessageId,
     String? activeNicknameId,
+    String? activeProfileCardId,
   }) {
     return AppUser(
       userId: userId,
@@ -107,6 +124,7 @@ class AppUser {
       activeStatusMessageId:
           activeStatusMessageId ?? this.activeStatusMessageId,
       activeNicknameId: activeNicknameId ?? this.activeNicknameId,
+      activeProfileCardId: activeProfileCardId ?? this.activeProfileCardId,
     );
   }
 
@@ -124,6 +142,7 @@ class AppUser {
       activeBackgroundImageId: json['activeBackgroundImageId'] as String?,
       activeStatusMessageId: json['activeStatusMessageId'] as String?,
       activeNicknameId: json['activeNicknameId'] as String?,
+      activeProfileCardId: json['activeProfileCardId'] as String?,
     );
   }
 
@@ -141,6 +160,7 @@ class AppUser {
       'activeBackgroundImageId': activeBackgroundImageId,
       'activeStatusMessageId': activeStatusMessageId,
       'activeNicknameId': activeNicknameId,
+      'activeProfileCardId': activeProfileCardId,
     };
   }
 

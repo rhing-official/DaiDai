@@ -137,8 +137,12 @@ class FirestoreGroupRepository implements GroupRepository {
     final batch = _firestore.batch();
     batch.set(groupRef, group.toJson());
     batch.set(roomRef, room.toJson());
-    batch.set(_groupInvites.doc(groupRef.id), invitePreview.toJson());
     await batch.commit();
+
+    // groupInvitesのセキュリティルールはgroups/{groupId}を`get()`で参照して
+    // memberIdsを判定するため、groupsのコミット完了後に別書き込みとして実行する
+    // 必要がある（同一バッチ内だとget()が未コミットのgroupsを見られずpermission-deniedになる）。
+    await _groupInvites.doc(groupRef.id).set(invitePreview.toJson());
 
     return group;
   }

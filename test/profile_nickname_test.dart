@@ -89,6 +89,9 @@ class _FakeUserRepository implements UserRepository {
 
   @override
   Future<void> deleteProfileMaterial(ProfileMaterial material) async {}
+
+  @override
+  Future<void> syncInvitePreview(String userId) async {}
 }
 
 void main() {
