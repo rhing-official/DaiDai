@@ -4,6 +4,7 @@ import 'package:flutter_webrtc/flutter_webrtc.dart';
 
 import '../../models/call.dart';
 import '../../providers/repository_providers.dart';
+import 'call_controls.dart';
 import 'webrtc_call_controller.dart';
 
 /// 音声・ビデオ通話画面（発信中・着信中・通話中を1画面でまとめて扱う）。
@@ -241,14 +242,14 @@ class _CallScreenState extends ConsumerState<CallScreen> {
       return Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          _RoundButton(
+          CallRoundButton(
             icon: Icons.call_end,
             color: Colors.red,
             onPressed: _controller.decline,
           ),
           // flutter_webrtcのSDPネゴシエーションは_startAsCallee内で自動的に
           // 開始されるため、「応答」は見た目上の待機表示のみで機能的な操作は不要。
-          const _RoundButton(icon: Icons.call, color: Colors.green, onPressed: null),
+          const CallRoundButton(icon: Icons.call, color: Colors.green, onPressed: null),
         ],
       );
     }
@@ -257,43 +258,25 @@ class _CallScreenState extends ConsumerState<CallScreen> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
-        _RoundButton(
+        CallRoundButton(
           icon: _controller.muted ? Icons.mic_off : Icons.mic,
           color: Colors.grey[700]!,
           onPressed: isActive ? _controller.toggleMute : null,
         ),
         if (_isVideo)
-          _RoundButton(
+          CallRoundButton(
             icon: _controller.cameraOff
                 ? Icons.videocam_off
                 : Icons.videocam,
             color: Colors.grey[700]!,
             onPressed: isActive ? _controller.toggleCamera : null,
           ),
-        _RoundButton(
+        CallRoundButton(
           icon: Icons.call_end,
           color: Colors.red,
           onPressed: _controller.hangUp,
         ),
       ],
-    );
-  }
-}
-
-class _RoundButton extends StatelessWidget {
-  const _RoundButton({required this.icon, required this.color, this.onPressed});
-
-  final IconData icon;
-  final Color color;
-  final VoidCallback? onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return FloatingActionButton(
-      heroTag: null,
-      backgroundColor: onPressed == null ? Colors.grey[300] : color,
-      onPressed: onPressed,
-      child: Icon(icon, color: Colors.white),
     );
   }
 }

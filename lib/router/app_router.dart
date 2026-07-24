@@ -3,9 +3,12 @@ import 'package:go_router/go_router.dart';
 
 import '../features/app_gate.dart';
 import '../features/call/call_screen.dart';
+import '../features/call/group_call_screen.dart';
 import '../features/chat/add_chat_screen.dart';
 import '../features/chat/chat_panes.dart';
 import '../features/chat/create_group_screen.dart';
+import '../features/chat/join_group_screen.dart';
+import '../features/profile/invite_screen.dart';
 import '../models/app_user.dart';
 import '../models/call.dart';
 import '../models/direct_message.dart';
@@ -41,6 +44,17 @@ class CallArgs {
   final Call call;
   final bool isCaller;
   final String currentUserId;
+}
+
+class GroupCallArgs {
+  const GroupCallArgs({
+    required this.groupCallId,
+    required this.currentUser,
+    required this.isVideo,
+  });
+  final String groupCallId;
+  final AppUser currentUser;
+  final bool isVideo;
 }
 
 final goRouterProvider = Provider<GoRouter>((ref) {
@@ -106,6 +120,16 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         },
       ),
       GoRoute(
+        path: '/invite/:rhingId',
+        builder: (context, state) =>
+            InviteScreen(rhingId: state.pathParameters['rhingId']!),
+      ),
+      GoRoute(
+        path: '/join/:groupId',
+        builder: (context, state) =>
+            JoinGroupScreen(groupId: state.pathParameters['groupId']!),
+      ),
+      GoRoute(
         path: '/call',
         builder: (context, state) {
           final args = state.extra! as CallArgs;
@@ -113,6 +137,17 @@ final goRouterProvider = Provider<GoRouter>((ref) {
             call: args.call,
             isCaller: args.isCaller,
             currentUserId: args.currentUserId,
+          );
+        },
+      ),
+      GoRoute(
+        path: '/group-call',
+        builder: (context, state) {
+          final args = state.extra! as GroupCallArgs;
+          return GroupCallScreen(
+            groupCallId: args.groupCallId,
+            currentUser: args.currentUser,
+            isVideo: args.isVideo,
           );
         },
       ),

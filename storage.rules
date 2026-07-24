@@ -9,5 +9,14 @@ service firebase.storage {
       allow read: if request.auth != null;
       allow write: if request.auth != null && request.auth.uid == userId;
     }
+
+    // groupIcons/{groupId}/...: 広場のプロフィールカード用アイコン（2026-07-24追加）。
+    // 対応する広場のメンバーのみアップロード可能。閲覧はログイン済みなら誰でも可能
+    // （語らい相手・招待リンクを開いた相手にも見せる必要があるため）。
+    match /groupIcons/{groupId}/{allPaths=**} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+        && request.auth.uid in firestore.get(/databases/(default)/documents/groups/$(groupId)).data.memberIds;
+    }
   }
 }

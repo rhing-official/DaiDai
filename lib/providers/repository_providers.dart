@@ -6,6 +6,7 @@ import '../repositories/call_repository.dart';
 import '../repositories/conversation_prefs_repository.dart';
 import '../repositories/direct_message_repository.dart';
 import '../repositories/friend_repository.dart';
+import '../repositories/group_call_repository.dart';
 import '../repositories/group_repository.dart';
 import '../repositories/user_repository.dart';
 
@@ -27,6 +28,10 @@ final groupRepositoryProvider = Provider<GroupRepository>((ref) {
 
 final callRepositoryProvider = Provider<CallRepository>((ref) {
   return FirestoreCallRepository();
+});
+
+final groupCallRepositoryProvider = Provider<GroupCallRepository>((ref) {
+  return FirestoreGroupCallRepository();
 });
 
 final friendRepositoryProvider = Provider<FriendRepository>((ref) {

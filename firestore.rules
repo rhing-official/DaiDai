@@ -49,6 +49,16 @@ service cloud.firestore {
       }
     }
 
+    // userInvites/{rhingId}: 縁結び（個人の招待リンク）の公開プレビュー
+    // （呼び名・アイコンのみ。友達一覧・語らいの内容は含まない）。招待リンクを
+    // 開いた相手や、外部SNSのリンク展開（OGP）にも見せる必要があるため
+    // 公開読み取り可能。書き込みは本人のみ（`userId`フィールドで判定）。
+    match /userInvites/{rhingId} {
+      allow read: if true;
+      allow write: if request.auth != null
+        && request.auth.uid == request.resource.data.userId;
+    }
+
     // friendRequests/{requestId}: 友達申請。申請者・宛先本人のみ読み書き可能。
     // idはpairId()で決定的に組み立てられ、1組の相手につき常に1ドキュメントのみ存在する。
     match /friendRequests/{requestId} {
@@ -103,15 +113,52 @@ service cloud.firestore {
 
     // groups/{groupId}: 広場。メンバーのみ読み取り可能。
     // 作成時: 作成者がownerかつメンバーに含まれていること。
-    // メンバー編集（招待・脱退など）はフェーズ1未実装のため更新不可。
+    // 更新（2026-07-24追加、広場のカスタマイズ機能）は以下の3パターンのみ許可する:
+    //  (1) プロフィールカードの編集: メンバー全員が可能。profileCardフィールドのみ変更。
+    //  (2) 参加リクエストの承認によるメンバー追加: 長・モデレーターのみ、
+    //      memberIds/memberRolesのみ変更。承認の可否自体はjoinRequests側で統制する。
+    //  (3) 本人の退会: 自分自身をmemberIds/memberRolesから除く変更のみ、
+    //      本人が実行可能（オーナーは対象外＝退会不可）。
     match /groups/{groupId} {
       allow read: if request.auth != null
         && request.auth.uid in resource.data.memberIds;
       allow create: if request.auth != null
         && request.auth.uid == request.resource.data.ownerId
         && request.auth.uid in request.resource.data.memberIds;
-      allow update: if false;
+      allow update: if request.auth != null
+        && request.auth.uid in resource.data.memberIds
+        && (
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['profileCard'])
+          || (
+            resource.data.memberRoles[request.auth.uid] in ['owner', 'moderator']
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberIds', 'memberRoles'])
+          )
+          || (
+            request.auth.uid != resource.data.ownerId
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberIds', 'memberRoles'])
+            && request.resource.data.memberIds == resource.data.memberIds.removeAll([request.auth.uid])
+          )
+        );
       allow delete: if false;
+
+      // joinRequests/{requesterId}: 招待リンクからの参加リクエスト。
+      // ドキュメントidは申請者本人のuserId（1人につき常に1件）。
+      match /joinRequests/{requesterId} {
+        allow read: if request.auth != null
+          && (request.auth.uid == requesterId
+              || get(/databases/$(database)/documents/groups/$(groupId)).data.memberRoles[request.auth.uid] in ['owner', 'moderator']);
+        allow create: if request.auth != null
+          && request.auth.uid == requesterId
+          && request.resource.data.requesterId == requesterId
+          && request.resource.data.groupId == groupId
+          && request.resource.data.status == 'pending';
+        // 承認・却下は長・モデレーターのみ。id・申請者情報は不変。
+        allow update: if request.auth != null
+          && get(/databases/$(database)/documents/groups/$(groupId)).data.memberRoles[request.auth.uid] in ['owner', 'moderator']
+          && request.resource.data.requesterId == resource.data.requesterId
+          && request.resource.data.groupId == resource.data.groupId;
+        allow delete: if false;
+      }
 
       // rooms/{roomId}: お部屋。memberIdsを広場から非正規化して持つ
       // （メッセージ読み取りルールがgroupsドキュメントを跨いで参照しなくて済むように）。
@@ -120,7 +167,7 @@ service cloud.firestore {
           && request.auth.uid in resource.data.memberIds;
         allow create: if request.auth != null
           && request.auth.uid in request.resource.data.memberIds;
-        // 送信時のlastMessageAt更新のみ許可。
+        // 送信時のlastMessageAt更新、参加承認・退会によるmemberIds更新を許可。
         allow update: if request.auth != null
           && request.auth.uid in resource.data.memberIds;
         allow delete: if false;
@@ -135,6 +182,17 @@ service cloud.firestore {
           allow delete: if false;
         }
       }
+    }
+
+    // groupInvites/{groupId}: 広場の招待プレビュー（名前・アイコン・説明のみ）。
+    // 招待リンクを開いた非メンバーや、外部SNSのリンク展開（OGP）にも見せる必要が
+    // あるため公開読み取り可能。メンバー一覧・メッセージ等の非公開情報は含まない。
+    // 書き込みは対応する広場のメンバーのみ（プロフィールカード編集・広場作成時に
+    // groups/{groupId}と同時に更新する）。
+    match /groupInvites/{groupId} {
+      allow read: if true;
+      allow write: if request.auth != null
+        && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.memberIds;
     }
 
     // calls/{callId}: 音声通話（フェーズ1、一対限定）。発信者・着信者本人のみ読み書き可能。
@@ -161,6 +219,70 @@ service cloud.firestore {
                 get(/databases/$(database)/documents/calls/$(callId)).data.calleeId);
         allow update: if false;
         allow delete: if false;
+      }
+    }
+
+    // groupCalls/{groupCallId}: 広場（グループ）通話（2026-07-24追加）。
+    // メッシュ型P2Pのため、参加者のペアごとに独立したシグナリング
+    // （peerLinks/{pairId}＋candidatesA/candidatesB）を持つ。
+    // memberIdsは通話開始時点の広場メンバーを非正規化して保持し
+    // （groups/rooms/groupInvitesと同じ考え方）、通話ドキュメント自体は
+    // 作成後にmemberIds/groupId/initiatorIdを変更できないようにする。
+    match /groupCalls/{groupCallId} {
+      allow read: if request.auth != null
+        && request.auth.uid in resource.data.memberIds;
+      allow create: if request.auth != null
+        && request.auth.uid == request.resource.data.initiatorId
+        && request.auth.uid in request.resource.data.memberIds;
+      // status/endedAtの更新（終了処理）のみ許可。memberIds等は不変。
+      allow update: if request.auth != null
+        && request.auth.uid in resource.data.memberIds
+        && request.resource.data.memberIds == resource.data.memberIds
+        && request.resource.data.groupId == resource.data.groupId
+        && request.resource.data.initiatorId == resource.data.initiatorId;
+      allow delete: if false;
+
+      // participants/{userId}: 通話への入退室は本人のみ。一覧は通話開始時点の
+      // メンバーなら読み取り可能。
+      match /participants/{userId} {
+        allow read: if request.auth != null
+          && request.auth.uid in get(/databases/$(database)/documents/groupCalls/$(groupCallId)).data.memberIds;
+        allow create: if request.auth != null
+          && request.auth.uid == userId
+          && request.auth.uid in get(/databases/$(database)/documents/groupCalls/$(groupCallId)).data.memberIds;
+        allow update, delete: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // peerLinks/{pairId}: 参加者2人ぶんのペア単位のシグナリング。
+      // pairId・userAId・userBIdはCallPeerLink.idFor()と同じ規則
+      // （辞書順で小さい方がuserA＝オファー役）で組み立てる。
+      match /peerLinks/{pairId} {
+        allow read: if request.auth != null
+          && (resource == null
+              || request.auth.uid == resource.data.userAId
+              || request.auth.uid == resource.data.userBId);
+        allow create: if request.auth != null
+          && (request.auth.uid == request.resource.data.userAId
+              || request.auth.uid == request.resource.data.userBId);
+        allow update: if request.auth != null
+          && (request.auth.uid == resource.data.userAId
+              || request.auth.uid == resource.data.userBId)
+          && request.resource.data.userAId == resource.data.userAId
+          && request.resource.data.userBId == resource.data.userBId;
+        allow delete: if false;
+
+        // ICE candidateのやり取り用サブコレクション。当事者2人のみ読み書き可能
+        // （calls/{callId}のcallerCandidates/calleeCandidatesと同じ考え方）。
+        match /{candidateCollection}/{candidateId} {
+          allow read, create: if request.auth != null
+            && candidateCollection in ['candidatesA', 'candidatesB']
+            && (request.auth.uid ==
+                  get(/databases/$(database)/documents/groupCalls/$(groupCallId)/peerLinks/$(pairId)).data.userAId
+                || request.auth.uid ==
+                  get(/databases/$(database)/documents/groupCalls/$(groupCallId)/peerLinks/$(pairId)).data.userBId);
+          allow update: if false;
+          allow delete: if false;
+        }
       }
     }
   }

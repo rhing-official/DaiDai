@@ -1,0 +1,239 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+
+import '../../l10n/strings.dart';
+import '../../models/app_user.dart';
+import '../../models/group_invite_preview.dart';
+import '../../models/group_join_request.dart';
+import '../../providers/repository_providers.dart';
+import '../../router/app_router.dart';
+import '../auth/auth_gate.dart';
+
+/// 招待リンク（`/join/:groupId`）・QRコード読み取りの両方から開かれる、
+/// 広場への参加リクエスト確認画面。ログイン前に開かれた場合は[AuthGate]が
+/// まずログイン・Rhing ID登録を済ませてから、この画面本体を表示する。
+class JoinGroupScreen extends StatelessWidget {
+  const JoinGroupScreen({required this.groupId, super.key});
+
+  final String groupId;
+
+  @override
+  Widget build(BuildContext context) {
+    return AuthGate(
+      builder: (context, currentUser) => _JoinGroupView(
+        currentUser: currentUser,
+        groupId: groupId,
+      ),
+    );
+  }
+}
+
+enum _JoinStatus { loading, invalid, alreadyMember, pending, ready, sent }
+
+class _JoinGroupView extends ConsumerStatefulWidget {
+  const _JoinGroupView({required this.currentUser, required this.groupId});
+
+  final AppUser currentUser;
+  final String groupId;
+
+  @override
+  ConsumerState<_JoinGroupView> createState() => _JoinGroupViewState();
+}
+
+class _JoinGroupViewState extends ConsumerState<_JoinGroupView> {
+  _JoinStatus _status = _JoinStatus.loading;
+  GroupInvitePreview? _preview;
+  bool _isSending = false;
+  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _resolve();
+  }
+
+  Future<void> _resolve() async {
+    final groupRepository = ref.read(groupRepositoryProvider);
+
+    final existingGroup = await groupRepository.getGroup(widget.groupId);
+    if (!mounted) return;
+    if (existingGroup != null) {
+      setState(() => _status = _JoinStatus.alreadyMember);
+      return;
+    }
+
+    final preview = await groupRepository.getInvitePreview(widget.groupId);
+    if (!mounted) return;
+    if (preview == null) {
+      setState(() => _status = _JoinStatus.invalid);
+      return;
+    }
+
+    final existingRequest = await groupRepository.getJoinRequest(
+      groupId: widget.groupId,
+      requesterId: widget.currentUser.userId,
+    );
+    if (!mounted) return;
+    if (existingRequest?.status == GroupJoinRequestStatus.pending) {
+      setState(() {
+        _preview = preview;
+        _status = _JoinStatus.pending;
+      });
+      return;
+    }
+
+    setState(() {
+      _preview = preview;
+      _status = _JoinStatus.ready;
+    });
+  }
+
+  Future<void> _requestToJoin() async {
+    setState(() {
+      _isSending = true;
+      _errorMessage = null;
+    });
+    try {
+      final groupRepository = ref.read(groupRepositoryProvider);
+      await groupRepository.requestToJoin(
+        groupId: widget.groupId,
+        requester: widget.currentUser,
+      );
+      if (!mounted) return;
+      setState(() => _status = _JoinStatus.sent);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _errorMessage = 'エラーが発生しました: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _isSending = false);
+      }
+    }
+  }
+
+  Future<void> _openGroup() async {
+    final groupRepository = ref.read(groupRepositoryProvider);
+    final group = await groupRepository.getGroup(widget.groupId);
+    if (!mounted || group == null) return;
+    ref.read(goRouterProvider).pushReplacement(
+      '/chat/group',
+      extra: GroupChatArgs(currentUser: widget.currentUser, group: group),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final strings = ref.watch(appStringsProvider);
+
+    return Scaffold(
+      appBar: AppBar(
+        automaticallyImplyLeading: false,
+        title: Text(strings.groupJoinScreenTitle),
+      ),
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 400),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: _buildBody(context, strings),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBody(BuildContext context, Strings strings) {
+    switch (_status) {
+      case _JoinStatus.loading:
+        return const Center(child: CircularProgressIndicator());
+      case _JoinStatus.invalid:
+        return _Message(text: strings.groupJoinInvalid, strings: strings);
+      case _JoinStatus.alreadyMember:
+        return _Message(
+          text: strings.groupJoinAlreadyMember,
+          strings: strings,
+          actionLabel: strings.groupJoinOpenGroup,
+          onAction: _openGroup,
+        );
+      case _JoinStatus.pending:
+        return _Message(text: strings.groupJoinPending, strings: strings);
+      case _JoinStatus.sent:
+        return _Message(text: strings.groupJoinRequestSent, strings: strings);
+      case _JoinStatus.ready:
+        final preview = _preview!;
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircleAvatar(
+              radius: 40,
+              backgroundImage:
+                  preview.iconUrl != null ? NetworkImage(preview.iconUrl!) : null,
+              child: preview.iconUrl == null
+                  ? const Icon(Icons.groups_outlined, size: 36)
+                  : null,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              preview.name,
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
+              textAlign: TextAlign.center,
+            ),
+            if (preview.description.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text(preview.description, textAlign: TextAlign.center),
+            ],
+            const SizedBox(height: 16),
+            Text(
+              strings.groupJoinDescriptionTemplate(preview.name),
+              textAlign: TextAlign.center,
+            ),
+            if (_errorMessage != null) ...[
+              const SizedBox(height: 8),
+              Text(_errorMessage!, style: const TextStyle(color: Colors.red)),
+            ],
+            const SizedBox(height: 24),
+            ElevatedButton(
+              onPressed: _isSending ? null : _requestToJoin,
+              child: _isSending
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Text(strings.groupJoinRequestButton),
+            ),
+          ],
+        );
+    }
+  }
+}
+
+class _Message extends StatelessWidget {
+  const _Message({
+    required this.text,
+    required this.strings,
+    this.actionLabel,
+    this.onAction,
+  });
+
+  final String text;
+  final Strings strings;
+  final String? actionLabel;
+  final VoidCallback? onAction;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(text, textAlign: TextAlign.center),
+        const SizedBox(height: 24),
+        ElevatedButton(
+          onPressed: onAction ?? () => context.go('/'),
+          child: Text(actionLabel ?? strings.inviteScreenGoHome),
+        ),
+      ],
+    );
+  }
+}

@@ -11,8 +11,18 @@ import '../../models/profile_card.dart';
 import '../../models/profile_material.dart';
 import '../../providers/repository_providers.dart';
 import '../../repositories/user_repository.dart';
+import 'enmusubi_page.dart';
 
-enum _ProfileSubTab { kura, koubou }
+enum _ProfileSection { kura, koubou, enmusubi }
+
+/// 画面幅がこれ以上あれば、左にカテゴリ一覧（サイドバー）、右にそのカテゴリの
+/// 内容を表示する2ペイン表示にする。設定タブ（`settings_tab.dart`）と同じ
+/// 考え方・同じ閾値。これ未満の狭い画面では、カテゴリ一覧→内容の1段だけ
+/// ドリルダウンする。
+const _kProfileSplitBreakpoint = 760.0;
+
+/// サイドバーの幅。
+const _kProfileSidebarWidth = 220.0;
 
 /// ニックネーム・ステメ・プロフィールカードのローカル採番id。
 /// 以前は`Random().nextInt(1 << 32)`だったが、`1 << 32`はDart VM（ウィジェット
@@ -41,7 +51,10 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
   late AppUser _user;
   bool _uploadingIcon = false;
   bool _uploadingBackground = false;
-  _ProfileSubTab _subTab = _ProfileSubTab.kura;
+
+  /// 狭い画面のドリルダウンでのみ使う、選択中カテゴリ。
+  /// 広い画面では常に先頭（蔵）を既定選択として表示する。
+  _ProfileSection? _selectedSection;
 
   @override
   void initState() {
@@ -399,99 +412,198 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
     );
   }
 
+  List<_ProfileCategory> _categories(Vocabulary vocab) => [
+        _ProfileCategory(
+          section: _ProfileSection.kura,
+          icon: Icons.inventory_2_outlined,
+          title: vocab.profileStorage,
+        ),
+        _ProfileCategory(
+          section: _ProfileSection.koubou,
+          icon: Icons.gavel,
+          title: vocab.profileCreator,
+        ),
+        _ProfileCategory(
+          section: _ProfileSection.enmusubi,
+          icon: Icons.handshake_outlined,
+          title: vocab.friendConnect,
+        ),
+      ];
+
+  Widget _buildContent(
+    _ProfileSection section,
+    Strings strings,
+    Vocabulary vocab,
+  ) {
+    switch (section) {
+      case _ProfileSection.kura:
+        return _KuraView(
+          user: _user,
+          strings: strings,
+          vocab: vocab,
+          uploadingIcon: _uploadingIcon,
+          uploadingBackground: _uploadingBackground,
+          onAddIcon: _pickAndUploadIcon,
+          onDeleteIcon: _deleteIcon,
+          onAddBackground: _pickAndUploadBackground,
+          onDeleteBackground: _deleteBackground,
+          onAddNickname: _addNickname,
+          onEditNickname: _editNickname,
+          onAddStatusMessage: _addStatusMessage,
+          onEditStatusMessage: _editStatusMessage,
+        );
+      case _ProfileSection.koubou:
+        return _WorkshopView(
+          user: _user,
+          strings: strings,
+          vocab: vocab,
+          onTapSlot: _openCardZoom,
+        );
+      case _ProfileSection.enmusubi:
+        return EnmusubiPage(currentUser: _user);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final strings = ref.watch(appStringsProvider);
     final vocab = ref.watch(vocabularyProvider);
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-          child: SegmentedButton<_ProfileSubTab>(
-            style: SegmentedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+    final categories = _categories(vocab);
+    final isWide =
+        MediaQuery.sizeOf(context).width >= _kProfileSplitBreakpoint;
+
+    if (isWide) {
+      final selected = _findCategory(categories, _selectedSection) ??
+          categories.first;
+      return Padding(
+        padding: const EdgeInsets.only(top: 16),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SizedBox(
+              width: _kProfileSidebarWidth,
+              child: _ProfileCategoryList(
+                categories: categories,
+                selectedSection: selected.section,
+                onSelect: (category) =>
+                    setState(() => _selectedSection = category.section),
+              ),
             ),
-            segments: [
-              ButtonSegment(
-                value: _ProfileSubTab.kura,
-                icon: const Icon(Icons.inventory_2_outlined),
-                // 以前はFittedBox(scaleDown)で「入り切らなければ縮小」させて
-                // いたが、これだと用語スタイル（世界観重視/利便性重視）や
-                // 画面幅・OSのテキストスケール設定の組み合わせ次第でラベルの
-                // 実際のフォントサイズがまちまちになってしまっていた。
-                // 環境によって文字サイズを可変にするのではなく、設定タブの
-                // 列幅（`_kSettingsColumnWidth`）と同じ考え方で、枠の方を
-                // 最長ラベル（利便性重視の「マテリアルボックス」やEnglishの
-                // 「Assembly Studio」等）が収まる固定幅にし、文字サイズは
-                // 常に一定にする。短い語（「蔵」等）のときは中央寄せの余白が
-                // 増えるだけになる。
-                label: _WorkshopToggleLabel(text: vocab.profileStorage),
-              ),
-              ButtonSegment(
-                value: _ProfileSubTab.koubou,
-                icon: const Icon(Icons.gavel),
-                label: _WorkshopToggleLabel(text: vocab.profileCreator),
-              ),
-            ],
-            selected: {_subTab},
-            onSelectionChanged: (selection) =>
-                setState(() => _subTab = selection.first),
+            const VerticalDivider(width: 1),
+            Expanded(child: _buildContent(selected.section, strings, vocab)),
+          ],
+        ),
+      );
+    }
+
+    final selected = _findCategory(categories, _selectedSection);
+    if (selected == null) {
+      return _ProfileCategoryList(
+        categories: categories,
+        selectedSection: null,
+        onSelect: (category) =>
+            setState(() => _selectedSection = category.section),
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: const Icon(Icons.arrow_back),
+          title: Text(
+            selected.title,
+            style: const TextStyle(fontWeight: FontWeight.bold),
           ),
+          onTap: () => setState(() => _selectedSection = null),
         ),
-        Expanded(
-          child: _subTab == _ProfileSubTab.kura
-              ? _KuraView(
-                  user: _user,
-                  strings: strings,
-                  vocab: vocab,
-                  uploadingIcon: _uploadingIcon,
-                  uploadingBackground: _uploadingBackground,
-                  onAddIcon: _pickAndUploadIcon,
-                  onDeleteIcon: _deleteIcon,
-                  onAddBackground: _pickAndUploadBackground,
-                  onDeleteBackground: _deleteBackground,
-                  onAddNickname: _addNickname,
-                  onEditNickname: _editNickname,
-                  onAddStatusMessage: _addStatusMessage,
-                  onEditStatusMessage: _editStatusMessage,
-                )
-              : _WorkshopView(
-                  user: _user,
-                  strings: strings,
-                  vocab: vocab,
-                  onTapSlot: _openCardZoom,
-                ),
-        ),
+        const Divider(height: 1),
+        Expanded(child: _buildContent(selected.section, strings, vocab)),
       ],
     );
   }
 }
 
-/// 「蔵/工房」切り替えボタンのラベル。用語スタイル・言語が変わってもフォント
-/// サイズが縮小されないよう、最長ラベルが収まる固定幅で中央寄せ表示する
-/// （短いラベルのときは余白が増えるだけになる）。
-class _WorkshopToggleLabel extends StatelessWidget {
-  const _WorkshopToggleLabel({required this.text});
+/// 身だしなみの最上位カテゴリ1つ分（蔵／工房／縁結び）。
+class _ProfileCategory {
+  const _ProfileCategory({
+    required this.section,
+    required this.icon,
+    required this.title,
+  });
 
-  final String text;
+  final _ProfileSection section;
+  final IconData icon;
+  final String title;
+}
 
-  // 最長ラベル（利便性重視JAの「マテリアルボックス」9字）がフォントサイズ12で
-  // 折り返し・省略なしに収まる幅。短いラベルはこの幅の中で中央寄せになる。
-  // 100pxでは「マテリアルボックス」が省略されてしまったため、余裕を持たせて
-  // 140pxに広げている。
-  static const _width = 140.0;
-  static const _fontSize = 12.0;
+_ProfileCategory? _findCategory(
+  List<_ProfileCategory> categories,
+  _ProfileSection? section,
+) {
+  if (section == null) return null;
+  for (final category in categories) {
+    if (category.section == section) return category;
+  }
+  return null;
+}
+
+/// カテゴリ一覧（サイドバー、または狭い画面での一覧画面）。設定タブの
+/// `_CategoryList`/`_FolderTile`と同じ見た目にしている。
+class _ProfileCategoryList extends StatelessWidget {
+  const _ProfileCategoryList({
+    required this.categories,
+    required this.selectedSection,
+    required this.onSelect,
+  });
+
+  final List<_ProfileCategory> categories;
+  final _ProfileSection? selectedSection;
+  final ValueChanged<_ProfileCategory> onSelect;
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: _width,
-      child: Text(
-        text,
-        textAlign: TextAlign.center,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: const TextStyle(fontSize: _fontSize),
+    return ListView(
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      children: [
+        for (final category in categories)
+          _ProfileCategoryTile(
+            icon: category.icon,
+            title: category.title,
+            selected: category.section == selectedSection,
+            onTap: () => onSelect(category),
+          ),
+      ],
+    );
+  }
+}
+
+class _ProfileCategoryTile extends StatelessWidget {
+  const _ProfileCategoryTile({
+    required this.icon,
+    required this.title,
+    required this.onTap,
+    this.selected = false,
+  });
+
+  final IconData icon;
+  final String title;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 6),
+      color: selected ? colorScheme.primary.withValues(alpha: 0.1) : null,
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        selected: selected,
+        selectedColor: colorScheme.primary,
+        leading: Icon(icon),
+        title: Text(title),
+        onTap: onTap,
       ),
     );
   }
@@ -623,6 +735,11 @@ class _WorkshopView extends StatelessWidget {
             final cardHeight = cardWidth * 1.25;
             return Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              // 作成済みの枠はカード本体の下にカード名を表示する分だけ全体の
+              // 高さが白紙の枠（カード本体のみ）より高くなる。Rowの既定
+              // （center）のままだと高さが違う枠同士でカード本体の上端が
+              // ずれて見えてしまうため、上端をそろえる。
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 for (var i = 0; i < kMaxProfileCards; i++)
                   if (i < user.profileCards.length)
