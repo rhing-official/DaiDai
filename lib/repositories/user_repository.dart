@@ -20,6 +20,29 @@ abstract class UserRepository {
   Future<bool> isRhingIdAvailable(String rhingId);
   Future<void> updateUser(AppUser user);
 
+  /// 蔵の配列フィールド（icons/backgroundImages/statusMessages/nicknames/
+  /// profileCards）に1件だけ原子的に追加する。[updateUser]（ローカルで組み立てた
+  /// AppUser全体を`.set()`で丸ごと上書き）だと、蔵への追加操作を短時間に
+  /// 複数実行した場合（例: アイコンのアップロード中にニックネームを追加するなど）、
+  /// 後から完了した書き込みが先に完了した書き込みを消してしまう競合が起きうる。
+  /// Firestoreの`arrayUnion`によるフィールド単位の更新はサーバー側でマージされるため、
+  /// この種の競合が起きない。
+  Future<void> addToProfileList(
+    String userId,
+    String field,
+    Map<String, dynamic> value,
+  );
+
+  /// [addToProfileList]の逆（`arrayRemove`）。
+  Future<void> removeFromProfileList(
+    String userId,
+    String field,
+    Map<String, dynamic> value,
+  );
+
+  /// activeIconId等、単一の値を持つフィールドを原子的に更新する。
+  Future<void> setProfileField(String userId, String field, String? value);
+
   /// 蔵にアイコン画像をアップロードする。Firestoreへの反映は呼び出し側で
   /// [updateUser]を通じて行うこと。
   Future<ProfileMaterial> uploadIcon(String userId, Uint8List bytes);
@@ -66,6 +89,37 @@ class FirestoreUserRepository implements UserRepository {
   @override
   Future<void> updateUser(AppUser user) async {
     await _users.doc(user.userId).set(user.toJson());
+  }
+
+  @override
+  Future<void> addToProfileList(
+    String userId,
+    String field,
+    Map<String, dynamic> value,
+  ) async {
+    await _users.doc(userId).update({
+      field: FieldValue.arrayUnion([value]),
+    });
+  }
+
+  @override
+  Future<void> removeFromProfileList(
+    String userId,
+    String field,
+    Map<String, dynamic> value,
+  ) async {
+    await _users.doc(userId).update({
+      field: FieldValue.arrayRemove([value]),
+    });
+  }
+
+  @override
+  Future<void> setProfileField(
+    String userId,
+    String field,
+    String? value,
+  ) async {
+    await _users.doc(userId).update({field: value});
   }
 
   @override

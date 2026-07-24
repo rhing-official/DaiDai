@@ -1,19 +1,35 @@
-import 'dart:typed_data';
+import 'dart:async';
 
 import 'package:daidai/features/profile/profile_tab.dart';
 import 'package:daidai/l10n/app_locale.dart';
+import 'package:daidai/l10n/terminology_style.dart';
 import 'package:daidai/models/app_user.dart';
 import 'package:daidai/models/profile_card.dart';
 import 'package:daidai/models/profile_material.dart';
 import 'package:daidai/providers/app_locale_provider.dart';
 import 'package:daidai/providers/repository_providers.dart';
+import 'package:daidai/providers/terminology_style_provider.dart';
 import 'package:daidai/repositories/user_repository.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 class _FakeUserRepository implements UserRepository {
   AppUser? saved;
+
+  // 特定のフィールドへの書き込みだけを意図的に遅延させ、複数の追加操作が
+  // 重なった状況（例: 遅いアイコンアップロード中に速いニックネーム追加が
+  // 先に完了する）を再現するためのフック。
+  String? delayedField;
+  Completer<void>? _delayGate;
+
+  void blockField(String field) {
+    delayedField = field;
+    _delayGate = Completer<void>();
+  }
+
+  void releaseField() => _delayGate?.complete();
 
   @override
   Future<AppUser?> getUser(String userId) async => saved;
@@ -32,6 +48,45 @@ class _FakeUserRepository implements UserRepository {
 
   @override
   Future<void> updateUser(AppUser user) async => saved = user;
+
+  @override
+  Future<void> addToProfileList(
+    String userId,
+    String field,
+    Map<String, dynamic> value,
+  ) async {
+    if (field == delayedField) await _delayGate!.future;
+    final base = saved ?? AppUser(userId: userId, rhingId: '');
+    final json = base.toJson();
+    final list = List<Map<String, dynamic>>.from(
+      (json[field] as List).cast<Map<String, dynamic>>(),
+    )..add(value);
+    json[field] = list;
+    saved = AppUser.fromJson(json);
+  }
+
+  @override
+  Future<void> removeFromProfileList(
+    String userId,
+    String field,
+    Map<String, dynamic> value,
+  ) async {
+    final base = saved ?? AppUser(userId: userId, rhingId: '');
+    final json = base.toJson();
+    final list = List<Map<String, dynamic>>.from(
+      (json[field] as List).cast<Map<String, dynamic>>(),
+    )..removeWhere((v) => mapEquals(v, value));
+    json[field] = list;
+    saved = AppUser.fromJson(json);
+  }
+
+  @override
+  Future<void> setProfileField(String userId, String field, String? value) async {
+    final base = saved ?? AppUser(userId: userId, rhingId: '');
+    final json = base.toJson();
+    json[field] = value;
+    saved = AppUser.fromJson(json);
+  }
 
   @override
   Future<ProfileMaterial> uploadIcon(String userId, Uint8List bytes) {
@@ -53,6 +108,9 @@ Future<void> _pumpProfileTab(WidgetTester tester, AppUser user, _FakeUserReposit
       overrides: [
         userRepositoryProvider.overrideWithValue(repo),
         initialAppLocaleProvider.overrideWithValue(AppLocale.japanese),
+        initialTerminologyStyleProvider.overrideWithValue(
+          TerminologyStyle.worldview,
+        ),
       ],
       child: MaterialApp(home: Scaffold(body: ProfileTab(currentUser: user))),
     ),
@@ -163,4 +221,48 @@ void main() {
     final field = tester.widget<TextField>(find.byType(TextField));
     expect(field.controller!.text.length, kMaxStatusMessageLength);
   });
+
+  testWidgets(
+    '遅いステメ保存の完了中に追加したニックネームが消えない（lost update回帰テスト）',
+    (tester) async {
+      // 実際のバグ再現: アイコンアップロード（Storage往復で数秒かかる）の
+      // ような遅い保存処理が完了する前に、別の項目（ニックネーム）を
+      // 追加すると、以前の実装（AppUser全体をset()で丸ごと上書き）では
+      // 後から完了した書き込みが先の書き込みを消してしまっていた。
+      // ここではステメの保存をわざと遅延させ、その間にニックネームを
+      // 追加した場合に両方とも生き残ることを検証する。
+      const user = AppUser(userId: 'u1', rhingId: 'taro');
+      final repo = _FakeUserRepository();
+      await _pumpProfileTab(tester, user, repo);
+
+      repo.blockField('statusMessages');
+
+      // ステメの保存を開始する（サーバー側書き込みは_delayGateでブロックされ、
+      // まだ完了しない）。
+      await tester.tap(find.text('ステメを追加'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), 'げんき');
+      await tester.tap(find.text('追加'));
+      await tester.pump();
+
+      // ステメの保存がまだ完了していない間に、ニックネームを追加する。
+      await tester.tap(find.text('ニックネームを追加'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), 'たろ');
+      await tester.tap(find.text('追加'));
+      await tester.pumpAndSettle();
+
+      // ニックネームは（ステメの保存を待たずに）先に反映されているはず。
+      expect(repo.saved?.nicknames.map((n) => n.text), contains('たろ'));
+
+      // 遅延させていたステメの保存を完了させる。
+      repo.releaseField();
+      await tester.pumpAndSettle();
+
+      // ステメが反映された後も、先に追加したニックネームが消えていないこと
+      // （lost updateが起きていないこと）を確認する。
+      expect(repo.saved?.statusMessages.map((m) => m.text), contains('げんき'));
+      expect(repo.saved?.nicknames.map((n) => n.text), contains('たろ'));
+    },
+  );
 }

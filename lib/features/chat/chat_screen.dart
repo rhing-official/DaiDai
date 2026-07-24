@@ -17,6 +17,7 @@ class ChatScreen extends ConsumerStatefulWidget {
     required this.onSend,
     this.showSenderAvatar = false,
     this.onCallPressed,
+    this.extraActions,
     super.key,
   });
 
@@ -31,6 +32,9 @@ class ChatScreen extends ConsumerStatefulWidget {
 
   /// 音声通話の発信ボタン。一対（1対1）のみで渡す（フェーズ1は広場の通話は未対応）。
   final VoidCallback? onCallPressed;
+
+  /// 呼び出し側固有のAppBarアクション（例: 広場の詳細を開くボタン）。
+  final List<Widget>? extraActions;
 
   @override
   ConsumerState<ChatScreen> createState() => _ChatScreenState();
@@ -117,6 +121,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         automaticallyImplyLeading: false,
         title: Text(widget.title),
         actions: [
+          ...?widget.extraActions,
           if (widget.onCallPressed != null)
             IconButton(
               icon: const Icon(Icons.call_outlined),

@@ -7,6 +7,7 @@ import '../../models/group.dart';
 import '../../providers/repository_providers.dart';
 import '../../providers/user_providers.dart';
 import 'chat_screen.dart';
+import 'plaza_detail_dialog.dart';
 
 /// 一対（DM）のChatScreenを組み立てる。相手のアクティブなニックネームを
 /// タイトルに反映するためConsumer化している。go_routerのフルスクリーン遷移と、
@@ -77,6 +78,12 @@ class GroupChatPane extends ConsumerWidget {
         content: content,
         silent: silent,
       ),
+      extraActions: [
+        IconButton(
+          icon: const Icon(Icons.info_outline),
+          onPressed: () => PlazaDetailDialog.show(context, group),
+        ),
+      ],
     );
   }
 }
