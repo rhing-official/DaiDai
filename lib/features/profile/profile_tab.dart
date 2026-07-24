@@ -361,13 +361,33 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
     await _removeFromList('profileCards', card.toJson());
   }
 
-  Future<void> _openCardEditor(ProfileCard? existing) async {
-    final card = await showDialog<ProfileCard>(
-      context: context,
-      builder: (_) => _ProfileCardEditorDialog(user: _user, existing: existing),
+  /// カードをタップした位置からズームインさせる形でカード編集画面を開く。
+  /// Heroタグはカードの中身ではなく枠の位置（[index]）に紐づけている。
+  /// 空き枠→作成後は同じ枠が実カードに置き換わるだけで、開いている最中の
+  /// このルート自体は同一タグのHeroを使い続けるため問題ない。
+  Future<void> _openCardZoom(int index, ProfileCard? existing) async {
+    final strings = ref.read(appStringsProvider);
+    await Navigator.of(context).push(
+      PageRouteBuilder<void>(
+        opaque: false,
+        barrierDismissible: true,
+        barrierColor: Colors.black54,
+        transitionDuration: const Duration(milliseconds: 300),
+        transitionsBuilder: (_, animation, secondaryAnimation, child) =>
+            FadeTransition(opacity: animation, child: child),
+        pageBuilder: (_, animation, secondaryAnimation) => Center(
+          child: _CardZoomEditor(
+            heroTag: 'profile-card-slot-$index',
+            user: _user,
+            strings: strings,
+            initialCard: existing,
+            onCreate: (card) => _saveCard(card, isNew: true),
+            onUpdate: (card) => _saveCard(card, isNew: false),
+            onDelete: _deleteCard,
+          ),
+        ),
+      ),
     );
-    if (card == null) return;
-    await _saveCard(card, isNew: existing == null);
   }
 
   @override
@@ -380,29 +400,28 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
           child: SegmentedButton<_ProfileSubTab>(
             style: SegmentedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
             ),
             segments: [
               ButtonSegment(
                 value: _ProfileSubTab.kura,
                 icon: const Icon(Icons.inventory_2_outlined),
-                // softWrap: falseだけでは「入り切らない分がクリップされて
-                // 見えなくなる」だけで、幅が足りない状況自体は解決しない
-                // （paddingで余裕を持たせても、画面幅や用語スタイルの組み
-                // 合わせ次第で再び足りなくなり得る）。FittedBoxで包み、
-                // 入り切らないときは文字を縮小して必ず全体を表示させる。
-                label: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Text(vocab.profileStorage, softWrap: false),
-                ),
+                // 以前はFittedBox(scaleDown)で「入り切らなければ縮小」させて
+                // いたが、これだと用語スタイル（世界観重視/利便性重視）や
+                // 画面幅・OSのテキストスケール設定の組み合わせ次第でラベルの
+                // 実際のフォントサイズがまちまちになってしまっていた。
+                // 環境によって文字サイズを可変にするのではなく、設定タブの
+                // 列幅（`_kSettingsColumnWidth`）と同じ考え方で、枠の方を
+                // 最長ラベル（利便性重視の「マテリアルボックス」やEnglishの
+                // 「Assembly Studio」等）が収まる固定幅にし、文字サイズは
+                // 常に一定にする。短い語（「蔵」等）のときは中央寄せの余白が
+                // 増えるだけになる。
+                label: _WorkshopToggleLabel(text: vocab.profileStorage),
               ),
               ButtonSegment(
                 value: _ProfileSubTab.koubou,
                 icon: const Icon(Icons.gavel),
-                label: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Text(vocab.profileCreator, softWrap: false),
-                ),
+                label: _WorkshopToggleLabel(text: vocab.profileCreator),
               ),
             ],
             selected: {_subTab},
@@ -438,11 +457,40 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
                   user: _user,
                   strings: strings,
                   vocab: vocab,
-                  onTapSlot: _openCardEditor,
-                  onDeleteCard: _deleteCard,
+                  onTapSlot: _openCardZoom,
                 ),
         ),
       ],
+    );
+  }
+}
+
+/// 「蔵/工房」切り替えボタンのラベル。用語スタイル・言語が変わってもフォント
+/// サイズが縮小されないよう、最長ラベルが収まる固定幅で中央寄せ表示する
+/// （短いラベルのときは余白が増えるだけになる）。
+class _WorkshopToggleLabel extends StatelessWidget {
+  const _WorkshopToggleLabel({required this.text});
+
+  final String text;
+
+  // 最長ラベル（利便性重視JAの「マテリアルボックス」9字）がフォントサイズ12で
+  // 折り返し・省略なしに収まる幅。短いラベルはこの幅の中で中央寄せになる。
+  // 100pxでは「マテリアルボックス」が省略されてしまったため、余裕を持たせて
+  // 140pxに広げている。
+  static const _width = 140.0;
+  static const _fontSize = 12.0;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: _width,
+      child: Text(
+        text,
+        textAlign: TextAlign.center,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(fontSize: _fontSize),
+      ),
     );
   }
 }
@@ -561,14 +609,14 @@ class _WorkshopView extends StatelessWidget {
     required this.strings,
     required this.vocab,
     required this.onTapSlot,
-    required this.onDeleteCard,
   });
 
   final AppUser user;
   final Strings strings;
   final Vocabulary vocab;
-  final ValueChanged<ProfileCard?> onTapSlot;
-  final ValueChanged<ProfileCard> onDeleteCard;
+
+  /// 枠番号（Heroタグ用）とその枠の現在のカード（未作成ならnull）を渡す。
+  final void Function(int index, ProfileCard? card) onTapSlot;
 
   @override
   Widget build(BuildContext context) {
@@ -600,19 +648,20 @@ class _WorkshopView extends StatelessWidget {
                 for (var i = 0; i < kMaxProfileCards; i++)
                   if (i < user.profileCards.length)
                     _WorkshopCardSlot(
+                      index: i,
                       card: user.profileCards[i],
                       user: user,
                       strings: strings,
                       width: cardWidth,
                       height: cardHeight,
-                      onTap: () => onTapSlot(user.profileCards[i]),
-                      onDelete: () => onDeleteCard(user.profileCards[i]),
+                      onTap: () => onTapSlot(i, user.profileCards[i]),
                     )
                   else
                     _WorkshopBlankSlot(
+                      index: i,
                       width: cardWidth,
                       height: cardHeight,
-                      onTap: () => onTapSlot(null),
+                      onTap: () => onTapSlot(i, null),
                     ),
               ],
             );
@@ -625,11 +674,13 @@ class _WorkshopView extends StatelessWidget {
 
 class _WorkshopBlankSlot extends StatelessWidget {
   const _WorkshopBlankSlot({
+    required this.index,
     required this.width,
     required this.height,
     required this.onTap,
   });
 
+  final int index;
   final double width;
   final double height;
   final VoidCallback onTap;
@@ -640,26 +691,29 @@ class _WorkshopBlankSlot extends StatelessWidget {
     return SizedBox(
       width: width,
       height: height,
-      child: Material(
-        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
-        borderRadius: BorderRadius.circular(16),
-        child: InkWell(
-          onTap: onTap,
+      child: Hero(
+        tag: 'profile-card-slot-$index',
+        child: Material(
+          color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
           borderRadius: BorderRadius.circular(16),
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: colorScheme.outlineVariant,
-                width: 1.5,
-                style: BorderStyle.solid,
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(16),
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: colorScheme.outlineVariant,
+                  width: 1.5,
+                  style: BorderStyle.solid,
+                ),
               ),
-            ),
-            child: Center(
-              child: Icon(
-                Icons.add,
-                size: (width * 0.2).clamp(32.0, 64.0),
-                color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+              child: Center(
+                child: Icon(
+                  Icons.add,
+                  size: (width * 0.2).clamp(32.0, 64.0),
+                  color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+                ),
               ),
             ),
           ),
@@ -671,22 +725,22 @@ class _WorkshopBlankSlot extends StatelessWidget {
 
 class _WorkshopCardSlot extends StatelessWidget {
   const _WorkshopCardSlot({
+    required this.index,
     required this.card,
     required this.user,
     required this.strings,
     required this.width,
     required this.height,
     required this.onTap,
-    required this.onDelete,
   });
 
+  final int index;
   final ProfileCard card;
   final AppUser user;
   final Strings strings;
   final double width;
   final double height;
   final VoidCallback onTap;
-  final VoidCallback onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -695,104 +749,122 @@ class _WorkshopCardSlot extends StatelessWidget {
     final nickname = _findById(user.nicknames, card.nicknameId)?.text;
     final statusMessage =
         _findById(user.statusMessages, card.statusMessageId)?.text;
-    final subtitleParts = [?nickname, ?statusMessage];
 
     // カードが大きくなったのにアイコン・文字が160px時代の固定サイズのままだと
     // 中身が寂しく見えるため、カード幅に応じて緩やかにスケールさせる。
     final avatarRadius = (width * 0.11).clamp(18.0, 44.0);
     final padding = (width * 0.075).clamp(12.0, 28.0);
-    final nameFontSize = (width * 0.09).clamp(14.0, 24.0);
-    final subtitleFontSize = (width * 0.055).clamp(11.0, 16.0);
+    // カード内はニックネームを主役にし（旧・カード名と同じ見せ方）、
+    // その下にステメを補足として表示する。カード名自体はカードの外
+    // （下）に表示するため、カード内には出さない。
+    final nicknameFontSize = (width * 0.09).clamp(14.0, 24.0);
+    final statusFontSize = (width * 0.055).clamp(11.0, 16.0);
+    final subtitleColor = background != null
+        ? Colors.white70
+        : Theme.of(context).colorScheme.onSurfaceVariant;
 
-    return SizedBox(
-      width: width,
-      height: height,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          Material(
-            clipBehavior: Clip.antiAlias,
-            borderRadius: BorderRadius.circular(16),
-            color: Theme.of(context).colorScheme.surfaceContainerHighest,
-            // 背景画像・グラデーション・タップ可能な内容をそれぞれ独立した
-            // レイヤーとして`Stack(fit: expand)`で重ねることで、内容側の
-            // パディングやテキスト量に関係なく背景が常にカード全体
-            // （角丸の内側いっぱい）を覆うようにする。
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                if (background != null)
-                  Image.network(background.url, fit: BoxFit.cover),
-                if (background != null)
-                  const DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [Colors.transparent, Colors.black54],
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        SizedBox(
+          width: width,
+          height: height,
+          // 削除ボタンはズームイン後の編集画面側にのみ置く（Heroの中に含めると
+          // 始点/終点でウィジェットツリーが変わりアニメーションが不自然になるため）。
+          child: Hero(
+            tag: 'profile-card-slot-$index',
+            child: Material(
+              clipBehavior: Clip.antiAlias,
+              borderRadius: BorderRadius.circular(16),
+              color: Theme.of(context).colorScheme.surfaceContainerHighest,
+              // 背景画像・グラデーション・タップ可能な内容をそれぞれ独立した
+              // レイヤーとして`Stack(fit: expand)`で重ねることで、内容側の
+              // パディングやテキスト量に関係なく背景が常にカード全体
+              // （角丸の内側いっぱい）を覆うようにする。
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  if (background != null)
+                    Image.network(background.url, fit: BoxFit.cover),
+                  if (background != null)
+                    const DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [Colors.transparent, Colors.black54],
+                        ),
+                      ),
+                    ),
+                  InkWell(
+                    onTap: onTap,
+                    child: Padding(
+                      padding: EdgeInsets.all(padding),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          CircleAvatar(
+                            radius: avatarRadius,
+                            backgroundImage:
+                                icon != null ? NetworkImage(icon.url) : null,
+                            child:
+                                icon == null ? const Icon(Icons.person) : null,
+                          ),
+                          SizedBox(height: padding * 0.6),
+                          Text(
+                            nickname ?? strings.workshopFieldNickname,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: nicknameFontSize,
+                              fontWeight: FontWeight.bold,
+                              color: background != null ? Colors.white : null,
+                            ),
+                          ),
+                          Text(
+                            statusMessage ?? strings.workshopFieldStatusMessage,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: statusFontSize,
+                              color: subtitleColor,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
-                InkWell(
-                  onTap: onTap,
-                  child: Padding(
-                    padding: EdgeInsets.all(padding),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        CircleAvatar(
-                          radius: avatarRadius,
-                          backgroundImage:
-                              icon != null ? NetworkImage(icon.url) : null,
-                          child:
-                              icon == null ? const Icon(Icons.person) : null,
-                        ),
-                        SizedBox(height: padding * 0.6),
-                        Text(
-                          card.name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: nameFontSize,
-                            fontWeight: FontWeight.bold,
-                            color: background != null ? Colors.white : null,
-                          ),
-                        ),
-                        Text(
-                          subtitleParts.isEmpty
-                              ? strings.workshopUnsetSubtitle
-                              : subtitleParts.join(' / '),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: subtitleFontSize,
-                            color: background != null
-                                ? Colors.white70
-                                : Theme.of(context).colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
-          Positioned(right: -4, top: -4, child: _DeleteBadge(onTap: onDelete)),
-        ],
-      ),
+        ),
+        const SizedBox(height: 6),
+        SizedBox(
+          width: width,
+          child: Text(
+            card.name,
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+        ),
+      ],
     );
   }
+}
 
-  static T? _findById<T>(List<T> items, String? id) {
-    if (id == null) return null;
-    for (final item in items) {
-      final dynamic d = item;
-      if (d.id == id) return item;
-    }
-    return null;
+/// カード名・ニックネーム・ステメなど、`id`フィールドを持つ蔵の素材から
+/// idで1件だけ検索する（[_WorkshopCardSlot]・[_CardZoomEditor]で共用）。
+T? _findById<T>(List<T> items, String? id) {
+  if (id == null) return null;
+  for (final item in items) {
+    final dynamic d = item;
+    if (d.id == id) return item;
   }
+  return null;
 }
 
 /// アイコン・背景画像それぞれの蔵セクション（見出し＋件数＋サムネ一覧＋追加ボタン）。
@@ -1321,37 +1393,51 @@ class _StatusMessageDialogState extends ConsumerState<_StatusMessageDialog> {
   }
 }
 
-/// 工房: プロフィールカードの新規作成・編集ダイアログ（＝「選択画面」）。
-/// 蔵に登録済みの素材の中から、このカードで使うものをそれぞれ選ぶ。
-class _ProfileCardEditorDialog extends ConsumerStatefulWidget {
-  const _ProfileCardEditorDialog({required this.user, this.existing});
+/// 工房: プロフィールカードの編集画面。カードそのものをズームインした形で表示し、
+/// カード上の各素材（背景画像・アイコン・ニックネーム・ステメ）を直接タップすると、
+/// その種類だけの登録済み素材一覧がポップアップし、選ぶとその場で即時保存される。
+/// カード名だけは自由入力のためポップの対象外（編集アイコンから編集する）。
+class _CardZoomEditor extends StatefulWidget {
+  const _CardZoomEditor({
+    required this.heroTag,
+    required this.user,
+    required this.strings,
+    required this.initialCard,
+    required this.onCreate,
+    required this.onUpdate,
+    required this.onDelete,
+  });
 
+  final String heroTag;
   final AppUser user;
-  final ProfileCard? existing;
+  final Strings strings;
+
+  /// nullなら空き枠（まだFirestoreに存在しないカード）。
+  final ProfileCard? initialCard;
+
+  /// 新規カードの名前が初めて確定した時点で1回だけ呼ばれる。
+  final Future<void> Function(ProfileCard card) onCreate;
+
+  /// 既存カードのフィールドを1つ変更するたびに呼ばれる。
+  final Future<void> Function(ProfileCard card) onUpdate;
+  final Future<void> Function(ProfileCard card) onDelete;
 
   @override
-  ConsumerState<_ProfileCardEditorDialog> createState() =>
-      _ProfileCardEditorDialogState();
+  State<_CardZoomEditor> createState() => _CardZoomEditorState();
 }
 
-class _ProfileCardEditorDialogState
-    extends ConsumerState<_ProfileCardEditorDialog> {
+class _CardZoomEditorState extends State<_CardZoomEditor> {
+  ProfileCard? _card;
   late final TextEditingController _nameController;
-  String? _iconId;
-  String? _backgroundImageId;
-  String? _nicknameId;
-  String? _statusMessageId;
-  String? _nameError;
+  bool _editingName = false;
+  Offset? _lastTapPosition;
 
   @override
   void initState() {
     super.initState();
-    final existing = widget.existing;
-    _nameController = TextEditingController(text: existing?.name ?? '');
-    _iconId = existing?.iconId;
-    _backgroundImageId = existing?.backgroundImageId;
-    _nicknameId = existing?.nicknameId;
-    _statusMessageId = existing?.statusMessageId;
+    _card = widget.initialCard;
+    _nameController = TextEditingController(text: widget.initialCard?.name);
+    _editingName = widget.initialCard == null;
   }
 
   @override
@@ -1360,194 +1446,431 @@ class _ProfileCardEditorDialogState
     super.dispose();
   }
 
-  // カード名は必須項目だが、以前は未入力のまま保存を押しても_save()が
-  // 無言でreturnするだけで、ボタンが反応していないように見えていた。
-  // 押した結果が必ず見えるよう、ここでエラー表示してから閉じないようにする。
-  void _save() {
+  Future<void> _confirmName() async {
     final name = _nameController.text.trim();
-    if (name.isEmpty) {
-      setState(
-        () => _nameError = ref.read(appStringsProvider).fieldRequiredError,
-      );
+    if (name.isEmpty) return;
+
+    final card = _card;
+    if (card == null) {
+      final created = ProfileCard(id: _newLocalId(), name: name);
+      setState(() {
+        _card = created;
+        _editingName = false;
+      });
+      await widget.onCreate(created);
       return;
     }
-    final card = ProfileCard(
-      id: widget.existing?.id ??
-          _newLocalId(),
-      name: name,
-      iconId: _iconId,
-      backgroundImageId: _backgroundImageId,
-      nicknameId: _nicknameId,
-      statusMessageId: _statusMessageId,
+    if (name == card.name) {
+      setState(() => _editingName = false);
+      return;
+    }
+    final updated = card.copyWith(name: name);
+    setState(() {
+      _card = updated;
+      _editingName = false;
+    });
+    await widget.onUpdate(updated);
+  }
+
+  Future<void> _pickMaterial(String field) async {
+    final card = _card;
+    if (card == null) return;
+
+    final overlayBox = Overlay.of(context).context.findRenderObject() as RenderBox;
+    final tapPosition = _lastTapPosition ?? overlayBox.size.center(Offset.zero);
+    final position = RelativeRect.fromRect(
+      Rect.fromPoints(tapPosition, tapPosition),
+      Offset.zero & overlayBox.size,
     );
-    Navigator.of(context).pop(card);
+    final strings = widget.strings;
+
+    String? result;
+    switch (field) {
+      case 'icon':
+        result = await _showImageMaterialMenu(
+          context,
+          position,
+          widget.user.icons,
+          card.iconId,
+          strings,
+        );
+      case 'background':
+        result = await _showImageMaterialMenu(
+          context,
+          position,
+          widget.user.backgroundImages,
+          card.backgroundImageId,
+          strings,
+        );
+      case 'nickname':
+        result = await _showTextMaterialMenu(
+          context,
+          position,
+          [for (final n in widget.user.nicknames) (n.id, n.text)],
+          card.nicknameId,
+          strings,
+        );
+      case 'statusMessage':
+        result = await _showTextMaterialMenu(
+          context,
+          position,
+          [for (final m in widget.user.statusMessages) (m.id, m.text)],
+          card.statusMessageId,
+          strings,
+        );
+    }
+    if (result == null || !mounted) return;
+
+    final id = result.isEmpty ? null : result;
+    final updated = switch (field) {
+      'icon' => card.copyWith(iconId: id, clearIconId: id == null),
+      'background' =>
+        card.copyWith(backgroundImageId: id, clearBackgroundImageId: id == null),
+      'nickname' => card.copyWith(nicknameId: id, clearNicknameId: id == null),
+      _ => card.copyWith(statusMessageId: id, clearStatusMessageId: id == null),
+    };
+    setState(() => _card = updated);
+    await widget.onUpdate(updated);
+  }
+
+  Future<void> _handleDelete() async {
+    final card = _card;
+    if (card == null) return;
+    await widget.onDelete(card);
+    if (mounted) Navigator.of(context).pop();
   }
 
   @override
   Widget build(BuildContext context) {
-    final strings = ref.watch(appStringsProvider);
-    return AlertDialog(
-      title: Text(
-        widget.existing == null
-            ? strings.workshopCardDialogTitleNew
-            : strings.workshopCardDialogTitleEdit,
-      ),
-      content: SizedBox(
-        width: 360,
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              TextField(
-                controller: _nameController,
-                autofocus: true,
-                maxLength: kMaxWorkshopCardNameLength,
-                decoration: InputDecoration(
-                  labelText: strings.workshopCardNameLabel,
-                  errorText: _nameError,
+    final width = (MediaQuery.sizeOf(context).width * 0.8).clamp(240.0, 420.0);
+    final height = width * 1.25;
+    final strings = widget.strings;
+    final card = _card;
+    final colorScheme = Theme.of(context).colorScheme;
+
+    final icon = card == null ? null : _findById(widget.user.icons, card.iconId);
+    final background =
+        card == null ? null : _findById(widget.user.backgroundImages, card.backgroundImageId);
+    final nickname = card == null ? null : _findById(widget.user.nicknames, card.nicknameId);
+    final statusMessage =
+        card == null ? null : _findById(widget.user.statusMessages, card.statusMessageId);
+    // ニックネーム・ステメはカード内（背景画像や暗いオーバーレイの上）に
+    // 表示するため、背景の有無で見やすい色を切り替える。カード名はカードの
+    // 外（下、暗転した背景の上）に表示するため常に白系の固定色にする。
+    final nicknameColor = background != null ? Colors.white : null;
+    final statusColor = background != null ? Colors.white70 : colorScheme.onSurfaceVariant;
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Hero(
+              tag: widget.heroTag,
+              child: Material(
+                clipBehavior: Clip.antiAlias,
+                borderRadius: BorderRadius.circular(24),
+                color: colorScheme.surfaceContainerHighest,
+                child: SizedBox(
+                  width: width,
+                  height: height,
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      GestureDetector(
+                        onTapDown: (details) =>
+                            _lastTapPosition = details.globalPosition,
+                        onTap: card == null ? null : () => _pickMaterial('background'),
+                        child: background != null
+                            ? Image.network(background.url, fit: BoxFit.cover)
+                            : ColoredBox(color: colorScheme.surfaceContainerHighest),
+                      ),
+                      if (background != null)
+                        const DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [Colors.transparent, Colors.black54],
+                            ),
+                          ),
+                        ),
+                      Padding(
+                        padding: EdgeInsets.all(width * 0.08),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            GestureDetector(
+                              onTapDown: (details) =>
+                                  _lastTapPosition = details.globalPosition,
+                              onTap: card == null ? null : () => _pickMaterial('icon'),
+                              child: Opacity(
+                                opacity: card == null ? 0.4 : 1,
+                                child: CircleAvatar(
+                                  radius: width * 0.13,
+                                  backgroundImage:
+                                      icon != null ? NetworkImage(icon.url) : null,
+                                  child:
+                                      icon == null ? const Icon(Icons.person) : null,
+                                ),
+                              ),
+                            ),
+                            if (card != null) ...[
+                              SizedBox(height: width * 0.05),
+                              // カード内はニックネームを主役として表示し、
+                              // その下にステメを補足として表示する。
+                              GestureDetector(
+                                onTapDown: (details) =>
+                                    _lastTapPosition = details.globalPosition,
+                                onTap: () => _pickMaterial('nickname'),
+                                child: Text(
+                                  nickname?.text ?? strings.workshopFieldNickname,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: width * 0.075,
+                                    fontWeight: FontWeight.bold,
+                                    color: nicknameColor,
+                                  ),
+                                ),
+                              ),
+                              SizedBox(height: width * 0.02),
+                              GestureDetector(
+                                onTapDown: (details) =>
+                                    _lastTapPosition = details.globalPosition,
+                                onTap: () => _pickMaterial('statusMessage'),
+                                child: Text(
+                                  statusMessage?.text ??
+                                      strings.workshopFieldStatusMessage,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: width * 0.045,
+                                    color: statusColor,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-              _ImageChipPicker(
-                label: strings.workshopFieldIcon,
-                noneLabel: strings.workshopChoiceNone,
-                selectedLabel: strings.workshopChoiceSelected,
-                selectLabel: strings.workshopChoiceSelect,
-                materials: widget.user.icons,
-                selectedId: _iconId,
-                onChanged: (id) => setState(() => _iconId = id),
+            ),
+            Positioned(
+              right: -12,
+              top: -12,
+              child: _RoundIconButton(
+                icon: Icons.close,
+                tooltip: strings.workshopCloseTooltip,
+                onTap: () => Navigator.of(context).pop(),
               ),
-              const SizedBox(height: 12),
-              _ImageChipPicker(
-                label: strings.workshopFieldBackground,
-                noneLabel: strings.workshopChoiceNone,
-                selectedLabel: strings.workshopChoiceSelected,
-                selectLabel: strings.workshopChoiceSelect,
-                materials: widget.user.backgroundImages,
-                selectedId: _backgroundImageId,
-                onChanged: (id) => setState(() => _backgroundImageId = id),
+            ),
+            if (card != null)
+              Positioned(
+                left: -12,
+                top: -12,
+                child: _RoundIconButton(
+                  icon: Icons.delete_outline,
+                  tooltip: strings.workshopDeleteCardTooltip,
+                  onTap: _handleDelete,
+                ),
               ),
-              const SizedBox(height: 12),
-              _TextChipPicker(
-                label: strings.workshopFieldNickname,
-                noneLabel: strings.workshopChoiceNone,
-                items: [for (final n in widget.user.nicknames) (n.id, n.text)],
-                selectedId: _nicknameId,
-                onChanged: (id) => setState(() => _nicknameId = id),
-              ),
-              const SizedBox(height: 12),
-              _TextChipPicker(
-                label: strings.workshopFieldStatusMessage,
-                noneLabel: strings.workshopChoiceNone,
-                items: [
-                  for (final m in widget.user.statusMessages) (m.id, m.text),
-                ],
-                selectedId: _statusMessageId,
-                onChanged: (id) => setState(() => _statusMessageId = id),
-              ),
-            ],
+          ],
+        ),
+        const SizedBox(height: 12),
+        // カード名はカードの外（下）に表示する。暗転した背景の上に乗るため
+        // 固定で白系の色にする。
+        SizedBox(
+          width: width,
+          child: _editingName
+              ? TextField(
+                  controller: _nameController,
+                  autofocus: true,
+                  maxLength: kMaxWorkshopCardNameLength,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  decoration: InputDecoration(
+                    isDense: true,
+                    counterText: '',
+                    hintText: strings.workshopCardNameLabel,
+                    hintStyle: const TextStyle(color: Colors.white70),
+                    enabledBorder: const UnderlineInputBorder(
+                      borderSide: BorderSide(color: Colors.white70),
+                    ),
+                    focusedBorder: const UnderlineInputBorder(
+                      borderSide: BorderSide(color: Colors.white),
+                    ),
+                  ),
+                  onSubmitted: (_) => _confirmName(),
+                  onTapOutside: (_) => _confirmName(),
+                )
+              : GestureDetector(
+                  onTap: () => setState(() => _editingName = true),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Flexible(
+                        child: Text(
+                          card!.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      const Icon(Icons.edit, size: 16, color: Colors.white70),
+                    ],
+                  ),
+                ),
+        ),
+        if (card == null)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text(
+              strings.workshopNameRequiredHint,
+              style: const TextStyle(fontSize: 11, color: Colors.white70),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+/// ズームイン編集画面右上の閉じるボタン・左上の削除ボタンに使う丸ボタン。
+/// Hero対象の外側に置くため、[_CardZoomEditor]の独自ウィジェットとして分離している。
+class _RoundIconButton extends StatelessWidget {
+  const _RoundIconButton({
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.black54,
+      shape: const CircleBorder(),
+      child: InkWell(
+        onTap: onTap,
+        customBorder: const CircleBorder(),
+        child: Tooltip(
+          message: tooltip,
+          child: Padding(
+            padding: const EdgeInsets.all(8),
+            child: Icon(icon, size: 18, color: Colors.white),
           ),
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: Text(strings.cancel),
-        ),
-        FilledButton(onPressed: _save, child: Text(strings.save)),
-      ],
     );
   }
 }
 
-class _ImageChipPicker extends StatelessWidget {
-  const _ImageChipPicker({
-    required this.label,
-    required this.noneLabel,
-    required this.selectedLabel,
-    required this.selectLabel,
-    required this.materials,
-    required this.selectedId,
-    required this.onChanged,
-  });
-
-  final String label;
-  final String noneLabel;
-  final String selectedLabel;
-  final String selectLabel;
-  final List<ProfileMaterial> materials;
-  final String? selectedId;
-  final ValueChanged<String?> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const SizedBox(height: 4),
-        Text(label, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-        Wrap(
-          spacing: 8,
-          runSpacing: 4,
-          children: [
-            ChoiceChip(
-              label: Text(noneLabel),
-              selected: selectedId == null,
-              onSelected: (_) => onChanged(null),
-            ),
-            for (final material in materials)
-              ChoiceChip(
-                avatar: CircleAvatar(backgroundImage: NetworkImage(material.url)),
-                label: Text(material.id == selectedId ? selectedLabel : selectLabel),
-                selected: selectedId == material.id,
-                onSelected: (_) => onChanged(material.id),
-              ),
-          ],
+/// アイコン・背景画像用のポップアップ（同じ種類の素材だけを一覧表示する）。
+/// 戻り値は素材id、空文字列は「なし」の選択、nullはポップを閉じただけ（変更なし）。
+Future<String?> _showImageMaterialMenu(
+  BuildContext context,
+  RelativeRect position,
+  List<ProfileMaterial> materials,
+  String? selectedId,
+  Strings strings,
+) {
+  return showMenu<String>(
+    context: context,
+    position: position,
+    items: [
+      PopupMenuItem<String>(
+        value: '',
+        child: _MaterialMenuRow(selected: selectedId == null, label: strings.workshopChoiceNone),
+      ),
+      if (materials.isEmpty)
+        PopupMenuItem<String>(
+          enabled: false,
+          child: Text(strings.workshopEmptyMaterialHint),
         ),
-      ],
-    );
-  }
+      for (final material in materials)
+        PopupMenuItem<String>(
+          value: material.id,
+          child: _MaterialMenuRow(
+            selected: selectedId == material.id,
+            label: '',
+            thumbnail: _NetworkThumbImage(url: material.url),
+          ),
+        ),
+    ],
+  );
 }
 
-class _TextChipPicker extends StatelessWidget {
-  const _TextChipPicker({
+/// ニックネーム・ステメ用のポップアップ（同じ種類の素材だけを一覧表示する）。
+/// 戻り値の意味は[_showImageMaterialMenu]と同じ。
+Future<String?> _showTextMaterialMenu(
+  BuildContext context,
+  RelativeRect position,
+  List<(String, String)> items,
+  String? selectedId,
+  Strings strings,
+) {
+  return showMenu<String>(
+    context: context,
+    position: position,
+    items: [
+      PopupMenuItem<String>(
+        value: '',
+        child: _MaterialMenuRow(selected: selectedId == null, label: strings.workshopChoiceNone),
+      ),
+      if (items.isEmpty)
+        PopupMenuItem<String>(
+          enabled: false,
+          child: Text(strings.workshopEmptyMaterialHint),
+        ),
+      for (final (id, text) in items)
+        PopupMenuItem<String>(
+          value: id,
+          child: _MaterialMenuRow(selected: selectedId == id, label: text),
+        ),
+    ],
+  );
+}
+
+class _MaterialMenuRow extends StatelessWidget {
+  const _MaterialMenuRow({
+    required this.selected,
     required this.label,
-    required this.noneLabel,
-    required this.items,
-    required this.selectedId,
-    required this.onChanged,
+    this.thumbnail,
   });
 
+  final bool selected;
   final String label;
-  final String noneLabel;
-  final List<(String, String)> items;
-  final String? selectedId;
-  final ValueChanged<String?> onChanged;
+  final Widget? thumbnail;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        const SizedBox(height: 4),
-        Text(label, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-        Wrap(
-          spacing: 8,
-          runSpacing: 4,
-          children: [
-            ChoiceChip(
-              label: Text(noneLabel),
-              selected: selectedId == null,
-              onSelected: (_) => onChanged(null),
-            ),
-            for (final (id, text) in items)
-              ChoiceChip(
-                label: Text(text),
-                selected: selectedId == id,
-                onSelected: (_) => onChanged(id),
-              ),
-          ],
+        SizedBox(
+          width: 20,
+          child: selected ? const Icon(Icons.check, size: 18) : null,
         ),
+        if (thumbnail != null) ...[
+          SizedBox(width: 28, height: 28, child: ClipOval(child: thumbnail)),
+          const SizedBox(width: 8),
+        ],
+        if (label.isNotEmpty) Text(label),
       ],
     );
   }

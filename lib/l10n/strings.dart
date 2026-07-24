@@ -102,7 +102,11 @@ class Strings {
     required this.workshopChoiceNone,
     required this.workshopChoiceSelected,
     required this.workshopChoiceSelect,
-    required this.workshopUnsetSubtitle,
+    required this.workshopEmptyMaterialHint,
+    required this.workshopNameRequiredHint,
+    required this.workshopEditNameTooltip,
+    required this.workshopDeleteCardTooltip,
+    required this.workshopCloseTooltip,
     required this.fieldRequiredError,
   });
 
@@ -214,7 +218,11 @@ class Strings {
   final String workshopChoiceNone;
   final String workshopChoiceSelected;
   final String workshopChoiceSelect;
-  final String workshopUnsetSubtitle;
+  final String workshopEmptyMaterialHint;
+  final String workshopNameRequiredHint;
+  final String workshopEditNameTooltip;
+  final String workshopDeleteCardTooltip;
+  final String workshopCloseTooltip;
   final String fieldRequiredError;
 
   static final ja = Strings._(
@@ -315,7 +323,11 @@ class Strings {
     workshopChoiceNone: 'なし',
     workshopChoiceSelected: '選択中',
     workshopChoiceSelect: '選ぶ',
-    workshopUnsetSubtitle: '未設定の素材があります',
+    workshopEmptyMaterialHint: '蔵に素材が登録されていません',
+    workshopNameRequiredHint: '先にカード名を入力してください',
+    workshopEditNameTooltip: 'カード名を編集',
+    workshopDeleteCardTooltip: 'カードを削除',
+    workshopCloseTooltip: '閉じる',
     fieldRequiredError: '入力してください',
   );
 
@@ -425,7 +437,11 @@ class Strings {
     workshopChoiceNone: 'None',
     workshopChoiceSelected: 'Selected',
     workshopChoiceSelect: 'Select',
-    workshopUnsetSubtitle: 'Some materials are not set yet',
+    workshopEmptyMaterialHint: 'Nothing registered in your storehouse yet',
+    workshopNameRequiredHint: 'Enter a card name first',
+    workshopEditNameTooltip: 'Edit card name',
+    workshopDeleteCardTooltip: 'Delete card',
+    workshopCloseTooltip: 'Close',
     fieldRequiredError: 'Please enter a value',
   );
 
