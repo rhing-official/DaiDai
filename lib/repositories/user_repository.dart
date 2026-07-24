@@ -10,16 +10,6 @@ import '../models/app_user.dart';
 import '../models/profile_material.dart';
 import '../models/user_invite_preview.dart';
 
-/// idを持つ蔵アイテムのリストから1件だけ検索する（プロフィールカードが
-/// 指すニックネーム・アイコンの解決に使う）。
-T? _findById<T>(List<T> items, String? id, String Function(T) idOf) {
-  if (id == null) return null;
-  for (final item in items) {
-    if (idOf(item) == id) return item;
-  }
-  return null;
-}
-
 abstract class UserRepository {
   Future<AppUser?> getUser(String userId);
 
@@ -173,20 +163,10 @@ class FirestoreUserRepository implements UserRepository {
   Future<void> syncInvitePreview(String userId) async {
     final user = await getUser(userId);
     if (user == null) return;
-    // 工房でプロフィールカードを適用（activeProfileCardId）していれば、
-    // そのカードが指す蔵アイテムを優先する。未適用ならこれまで通り
-    // 個別の蔵アイテムのactive*から組み立てる。
-    final card = user.activeProfileCard;
-    final nickname = card != null
-        ? _findById(user.nicknames, card.nicknameId, (n) => n.id)?.text
-        : user.activeNickname?.text;
-    final iconUrl = card != null
-        ? _findById(user.icons, card.iconId, (m) => m.id)?.url
-        : user.activeIcon?.url;
     final preview = UserInvitePreview(
       userId: user.userId,
-      nickname: nickname,
-      iconUrl: iconUrl,
+      nickname: user.effectiveNickname?.text,
+      iconUrl: user.effectiveIcon?.url,
     );
     await _firestore
         .collection('userInvites')

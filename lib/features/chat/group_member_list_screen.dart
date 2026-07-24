@@ -149,13 +149,15 @@ class _MemberTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final iconUrl = user.effectiveIcon?.url;
+    final nickname = user.effectiveNickname?.text;
+    final label = (nickname?.isNotEmpty ?? false) ? nickname! : '@${user.rhingId}';
     return ListTile(
       leading: CircleAvatar(
-        backgroundImage:
-            user.activeIcon != null ? NetworkImage(user.activeIcon!.url) : null,
-        child: user.activeIcon == null ? const Icon(Icons.person) : null,
+        backgroundImage: iconUrl != null ? NetworkImage(iconUrl) : null,
+        child: iconUrl == null ? const Icon(Icons.person) : null,
       ),
-      title: Text('@${user.rhingId}'),
+      title: Text(label),
       trailing: Chip(label: Text(_roleLabel)),
     );
   }
