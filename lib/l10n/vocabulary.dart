@@ -22,6 +22,8 @@ class Vocabulary {
     required this.category,
     required this.privateCategory,
     required this.projectBoard,
+    required this.nickname,
+    required this.statusMessage,
   });
 
   /// 1対1のチャット（一対／DM／ダイレクトメッセージ／Private Chat）。
@@ -36,10 +38,10 @@ class Vocabulary {
   /// 友人のみのサーバー（裏広場／Private Server／非公開サーバー／Private Plaza）。
   final String privatePlaza;
 
-  /// プロフィールの保存庫（蔵／Profile Storage／マテリアルボックス／Wardrobe）。
+  /// プロフィールの保存庫（蔵／Material Box／マテリアルボックス／Wardrobe）。
   final String profileStorage;
 
-  /// 複数プロフィールの作成画面（工房／Profile Creator／プロフィール作成／Assembly Studio）。
+  /// 複数プロフィールの作成画面（工房／Profile Card／プロフィール作成／Assembly Studio）。
   final String profileCreator;
 
   /// 通常のチャット（寄合／Chat Channel／チャンネル／Text Channel）。
@@ -57,6 +59,12 @@ class Vocabulary {
   /// 目的達成・進行型のフォーラム（談論／Project Board／プロジェクトボード／Milestone Board）。
   final String projectBoard;
 
+  /// 友達に表示する呼び名（呼び名／ニックネーム、Englishはスタイル問わず共通）。
+  final String nickname;
+
+  /// ひとことのステータス表示（一言／ステータスメッセージ、Englishはスタイル問わず共通）。
+  final String statusMessage;
+
   static const jaWorldview = Vocabulary._(
     dm: '一対',
     plaza: '広場',
@@ -69,6 +77,8 @@ class Vocabulary {
     category: '表組',
     privateCategory: '裏組',
     projectBoard: '談論',
+    nickname: '呼び名',
+    statusMessage: '一言',
   );
 
   static const jaConvenience = Vocabulary._(
@@ -83,6 +93,8 @@ class Vocabulary {
     category: 'カテゴリ',
     privateCategory: '非公開カテゴリ',
     projectBoard: 'プロジェクトボード',
+    nickname: 'ニックネーム',
+    statusMessage: 'ステータスメッセージ',
   );
 
   static const enWorldview = Vocabulary._(
@@ -97,6 +109,8 @@ class Vocabulary {
     category: 'Public District',
     privateCategory: 'Private District',
     projectBoard: 'Milestone Board',
+    nickname: 'Nickname',
+    statusMessage: 'Status message',
   );
 
   static const enConvenience = Vocabulary._(
@@ -104,13 +118,15 @@ class Vocabulary {
     plaza: 'Server',
     publicPlaza: 'Public Server',
     privatePlaza: 'Private Server',
-    profileStorage: 'Profile Storage',
-    profileCreator: 'Profile Creator',
+    profileStorage: 'Material Box',
+    profileCreator: 'Profile Card',
     textChannel: 'Chat Channel',
     privateChannel: 'Private Channel',
     category: 'Category',
     privateCategory: 'Private Category',
     projectBoard: 'Project Board',
+    nickname: 'Nickname',
+    statusMessage: 'Status message',
   );
 
   static Vocabulary of(AppLocale locale, TerminologyStyle style) {

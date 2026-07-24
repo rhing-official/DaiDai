@@ -17,12 +17,14 @@ class DmChatPane extends ConsumerWidget {
     required this.currentUser,
     required this.dm,
     this.onCallPressed,
+    this.onVideoCallPressed,
     super.key,
   });
 
   final AppUser currentUser;
   final DirectMessage dm;
   final VoidCallback? onCallPressed;
+  final VoidCallback? onVideoCallPressed;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -47,6 +49,7 @@ class DmChatPane extends ConsumerWidget {
         silent: silent,
       ),
       onCallPressed: onCallPressed,
+      onVideoCallPressed: onVideoCallPressed,
     );
   }
 }

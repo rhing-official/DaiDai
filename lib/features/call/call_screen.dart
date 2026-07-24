@@ -6,8 +6,9 @@ import '../../models/call.dart';
 import '../../providers/repository_providers.dart';
 import 'webrtc_call_controller.dart';
 
-/// 音声通話画面（発信中・着信中・通話中を1画面でまとめて扱う）。
-/// フェーズ1は音声のみ・一対（1対1）限定。TURN未導入のためSTUNのみで接続する。
+/// 音声・ビデオ通話画面（発信中・着信中・通話中を1画面でまとめて扱う）。
+/// 一対（1対1）限定。`call.isVideo`で音声のみ／ビデオを切り替える。
+/// TURN未導入のためSTUNのみで接続する。
 class CallScreen extends ConsumerStatefulWidget {
   const CallScreen({
     required this.call,
@@ -71,6 +72,8 @@ class _CallScreenState extends ConsumerState<CallScreen> {
     }
   }
 
+  bool get _isVideo => widget.call.isVideo;
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
@@ -81,41 +84,152 @@ class _CallScreenState extends ConsumerState<CallScreen> {
         if (!didPop) _controller.hangUp();
       },
       child: Scaffold(
-        backgroundColor: colorScheme.surface,
-        body: SafeArea(
+        backgroundColor: _isVideo ? Colors.black : colorScheme.surface,
+        body: _isVideo ? _videoBody(colorScheme) : _audioBody(colorScheme),
+      ),
+    );
+  }
+
+  Widget _audioBody(ColorScheme colorScheme) {
+    return SafeArea(
+      child: Column(
+        children: [
+          // 音声のみの通話でもリモートの音声を再生するためにレンダラーを紐づける。
+          SizedBox(
+            width: 0,
+            height: 0,
+            child: RTCVideoView(_controller.remoteRenderer),
+          ),
+          const Spacer(),
+          CircleAvatar(
+            radius: 56,
+            backgroundColor: colorScheme.primary,
+            child: Text(
+              _otherRhingId.isNotEmpty ? _otherRhingId[0].toUpperCase() : '?',
+              style: const TextStyle(fontSize: 40, color: Colors.white),
+            ),
+          ),
+          const SizedBox(height: 24),
+          Text(
+            '@$_otherRhingId',
+            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          Text(_statusLabel, style: const TextStyle(color: Colors.grey)),
+          const Spacer(),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 48),
+            child: _controls(colorScheme),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// ビデオ通話のレイアウト。相手の映像を画面全面に敷き、上部に名前・状態、
+  /// 右上に自分のカメラプレビューを重ねる。相手の映像がまだ届いていない
+  /// （発信中・接続中）の間は背景が黒いだけになるため、中央にアバターを重ねて
+  /// 音声通話と同じように相手が誰かを常に視認できるようにする。
+  Widget _videoBody(ColorScheme colorScheme) {
+    final isConnected = _controller.state == CallConnectionState.active;
+
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: RTCVideoView(
+            _controller.remoteRenderer,
+            objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+          ),
+        ),
+        if (!isConnected)
+          Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircleAvatar(
+                  radius: 56,
+                  backgroundColor: colorScheme.primary,
+                  child: Text(
+                    _otherRhingId.isNotEmpty
+                        ? _otherRhingId[0].toUpperCase()
+                        : '?',
+                    style: const TextStyle(fontSize: 40, color: Colors.white),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  '@$_otherRhingId',
+                  style: const TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        SafeArea(
           child: Column(
             children: [
-              // 音声のみの通話でもリモートの音声を再生するためにレンダラーを紐づける。
-              SizedBox(
-                width: 0,
-                height: 0,
-                child: RTCVideoView(_controller.remoteRenderer),
-              ),
-              const Spacer(),
-              CircleAvatar(
-                radius: 56,
-                backgroundColor: colorScheme.primary,
-                child: Text(
-                  _otherRhingId.isNotEmpty ? _otherRhingId[0].toUpperCase() : '?',
-                  style: const TextStyle(fontSize: 40, color: Colors.white),
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '@$_otherRhingId',
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                              shadows: [Shadow(blurRadius: 6)],
+                            ),
+                          ),
+                          Text(
+                            _statusLabel,
+                            style: const TextStyle(
+                              color: Colors.white70,
+                              shadows: [Shadow(blurRadius: 6)],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        width: 90,
+                        height: 130,
+                        color: Colors.grey.shade900,
+                        child: _controller.cameraOff
+                            ? const Icon(
+                                Icons.videocam_off,
+                                color: Colors.white54,
+                              )
+                            : RTCVideoView(
+                                _controller.localRenderer,
+                                mirror: true,
+                                objectFit: RTCVideoViewObjectFit
+                                    .RTCVideoViewObjectFitCover,
+                              ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 24),
-              Text(
-                '@$_otherRhingId',
-                style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
-              Text(_statusLabel, style: const TextStyle(color: Colors.grey)),
               const Spacer(),
               Padding(
-                padding: const EdgeInsets.only(bottom: 48),
+                padding: const EdgeInsets.only(bottom: 24),
                 child: _controls(colorScheme),
               ),
             ],
           ),
         ),
-      ),
+      ],
     );
   }
 
@@ -139,16 +253,23 @@ class _CallScreenState extends ConsumerState<CallScreen> {
       );
     }
 
+    final isActive = _controller.state == CallConnectionState.active;
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
         _RoundButton(
           icon: _controller.muted ? Icons.mic_off : Icons.mic,
           color: Colors.grey[700]!,
-          onPressed: _controller.state == CallConnectionState.active
-              ? _controller.toggleMute
-              : null,
+          onPressed: isActive ? _controller.toggleMute : null,
         ),
+        if (_isVideo)
+          _RoundButton(
+            icon: _controller.cameraOff
+                ? Icons.videocam_off
+                : Icons.videocam,
+            color: Colors.grey[700]!,
+            onPressed: isActive ? _controller.toggleCamera : null,
+          ),
         _RoundButton(
           icon: Icons.call_end,
           color: Colors.red,

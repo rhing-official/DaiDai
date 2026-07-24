@@ -185,13 +185,13 @@ void main() {
     final repo = _FakeUserRepository();
     await _pumpProfileTab(tester, user, repo);
 
-    await tester.tap(find.text('ニックネームを追加'));
+    await tester.tap(find.text('呼び名を追加'));
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('追加'));
     await tester.pumpAndSettle();
 
-    expect(find.text('ニックネームを追加'), findsWidgets); // ダイアログはまだ開いたまま
+    expect(find.text('呼び名を追加'), findsWidgets); // ダイアログはまだ開いたまま
     expect(find.text('入力してください'), findsOneWidget);
     expect(repo.saved, isNull);
   });
@@ -201,7 +201,7 @@ void main() {
     final repo = _FakeUserRepository();
     await _pumpProfileTab(tester, user, repo);
 
-    await tester.tap(find.text('ニックネームを追加'));
+    await tester.tap(find.text('呼び名を追加'));
     await tester.pumpAndSettle();
 
     await tester.enterText(find.byType(TextField), 'あ' * 30);
@@ -214,7 +214,7 @@ void main() {
     final repo = _FakeUserRepository();
     await _pumpProfileTab(tester, user, repo);
 
-    await tester.tap(find.text('ステメを追加'));
+    await tester.tap(find.text('一言を追加'));
     await tester.pumpAndSettle();
 
     await tester.enterText(find.byType(TextField), 'あ' * 60);
@@ -239,14 +239,14 @@ void main() {
 
       // ステメの保存を開始する（サーバー側書き込みは_delayGateでブロックされ、
       // まだ完了しない）。
-      await tester.tap(find.text('ステメを追加'));
+      await tester.tap(find.text('一言を追加'));
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextField), 'げんき');
       await tester.tap(find.text('追加'));
       await tester.pump();
 
       // ステメの保存がまだ完了していない間に、ニックネームを追加する。
-      await tester.tap(find.text('ニックネームを追加'));
+      await tester.tap(find.text('呼び名を追加'));
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextField), 'たろ');
       await tester.tap(find.text('追加'));

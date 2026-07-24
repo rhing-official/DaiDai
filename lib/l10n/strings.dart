@@ -34,6 +34,7 @@ class Strings {
     required this.settingsSubTypography,
     required this.settingsFontDesign,
     required this.settingsFontSize,
+    required this.settingsAccountInfoSection,
     required this.settingsRhingIdLabel,
     required this.settingsProfileName,
     required this.settingsSecurity,
@@ -75,11 +76,11 @@ class Strings {
     required this.cancel,
     required this.add,
     required this.save,
+    required this.done,
+    required this.delete,
     required this.profileIconSection,
     required this.profileBackgroundSection,
-    required this.profileNicknameSection,
     required this.profileNicknameHint,
-    required this.profileStatusMessageSection,
     required this.profileAddNickname,
     required this.profileAddStatusMessage,
     required this.profileNicknameDialogTitle,
@@ -91,22 +92,15 @@ class Strings {
     required this.profileSaveError,
     required this.profileIconUploadError,
     required this.profileBackgroundUploadError,
-    required this.workshopDescriptionTemplate,
     required this.workshopCardNameLabel,
     required this.workshopCardDialogTitleNew,
     required this.workshopCardDialogTitleEdit,
     required this.workshopFieldIcon,
     required this.workshopFieldBackground,
-    required this.workshopFieldNickname,
-    required this.workshopFieldStatusMessage,
     required this.workshopChoiceNone,
     required this.workshopChoiceSelected,
     required this.workshopChoiceSelect,
     required this.workshopEmptyMaterialHint,
-    required this.workshopNameRequiredHint,
-    required this.workshopEditNameTooltip,
-    required this.workshopDeleteCardTooltip,
-    required this.workshopCloseTooltip,
     required this.fieldRequiredError,
   });
 
@@ -142,6 +136,7 @@ class Strings {
   final String settingsSubTypography;
   final String settingsFontDesign;
   final String settingsFontSize;
+  final String settingsAccountInfoSection;
   final String settingsRhingIdLabel;
   final String settingsProfileName;
   final String settingsSecurity;
@@ -188,41 +183,37 @@ class Strings {
   final String cancel;
   final String add;
   final String save;
+  final String done;
+  final String delete;
 
   final String profileIconSection;
   final String profileBackgroundSection;
-  final String profileNicknameSection;
-  final String profileNicknameHint;
-  final String profileStatusMessageSection;
-  final String profileAddNickname;
-  final String profileAddStatusMessage;
-  final String profileNicknameDialogTitle;
-  final String profileNicknameDialogEditTitle;
-  final String profileNicknameDialogHint;
-  final String profileStatusMessageDialogTitle;
-  final String profileStatusMessageDialogEditTitle;
-  final String profileStatusMessageDialogHint;
+
+  /// ニックネーム欄の説明文。用語（呼び名／ニックネーム）を差し込む。
+  final String Function(String nicknameTerm) profileNicknameHint;
+  final String Function(String nicknameTerm) profileAddNickname;
+  final String Function(String statusMessageTerm) profileAddStatusMessage;
+  final String Function(String nicknameTerm) profileNicknameDialogTitle;
+  final String Function(String nicknameTerm) profileNicknameDialogEditTitle;
+  final String Function(String nicknameTerm) profileNicknameDialogHint;
+  final String Function(String statusMessageTerm)
+      profileStatusMessageDialogTitle;
+  final String Function(String statusMessageTerm)
+      profileStatusMessageDialogEditTitle;
+  final String Function(String statusMessageTerm)
+      profileStatusMessageDialogHint;
   final String profileSaveError;
   final String profileIconUploadError;
   final String profileBackgroundUploadError;
-
-  /// 蔵/Storehouse等の用語を差し込んだ説明文を組み立てる。
-  final String Function(String profileStorageTerm) workshopDescriptionTemplate;
   final String workshopCardNameLabel;
   final String workshopCardDialogTitleNew;
   final String workshopCardDialogTitleEdit;
   final String workshopFieldIcon;
   final String workshopFieldBackground;
-  final String workshopFieldNickname;
-  final String workshopFieldStatusMessage;
   final String workshopChoiceNone;
   final String workshopChoiceSelected;
   final String workshopChoiceSelect;
   final String workshopEmptyMaterialHint;
-  final String workshopNameRequiredHint;
-  final String workshopEditNameTooltip;
-  final String workshopDeleteCardTooltip;
-  final String workshopCloseTooltip;
   final String fieldRequiredError;
 
   static final ja = Strings._(
@@ -254,6 +245,7 @@ class Strings {
     settingsSubTypography: '文字',
     settingsFontDesign: 'フォントデザイン',
     settingsFontSize: 'フォントサイズ',
+    settingsAccountInfoSection: 'アカウント情報',
     settingsRhingIdLabel: 'Rhing ID',
     settingsProfileName: 'プロフィール名',
     settingsSecurity: 'セキュリティ',
@@ -295,39 +287,32 @@ class Strings {
     cancel: 'キャンセル',
     add: '追加',
     save: '保存',
+    done: '完了',
+    delete: '削除',
     profileIconSection: 'アイコン',
     profileBackgroundSection: '背景画像',
-    profileNicknameSection: 'ニックネーム',
-    profileNicknameHint: '友達には、Rhing IDの代わりにここで選んだニックネームが表示されます。',
-    profileStatusMessageSection: 'ステメ',
-    profileAddNickname: 'ニックネームを追加',
-    profileAddStatusMessage: 'ステメを追加',
-    profileNicknameDialogTitle: 'ニックネームを追加',
-    profileNicknameDialogEditTitle: 'ニックネームを編集',
-    profileNicknameDialogHint: '友達に表示する呼び名を入力',
-    profileStatusMessageDialogTitle: 'ステメを追加',
-    profileStatusMessageDialogEditTitle: 'ステメを編集',
-    profileStatusMessageDialogHint: 'ひとことを入力',
+    profileNicknameHint: (term) =>
+        '友達には、Rhing IDの代わりにここで選んだ$termが表示されます。',
+    profileAddNickname: (term) => '$termを追加',
+    profileAddStatusMessage: (term) => '$termを追加',
+    profileNicknameDialogTitle: (term) => '$termを追加',
+    profileNicknameDialogEditTitle: (term) => '$termを編集',
+    profileNicknameDialogHint: (term) => '友達に表示する$termを入力',
+    profileStatusMessageDialogTitle: (term) => '$termを追加',
+    profileStatusMessageDialogEditTitle: (term) => '$termを編集',
+    profileStatusMessageDialogHint: (term) => '$termを入力',
     profileSaveError: '保存に失敗しました',
     profileIconUploadError: 'アイコンのアップロードに失敗しました',
     profileBackgroundUploadError: '背景画像のアップロードに失敗しました',
-    workshopDescriptionTemplate: (term) =>
-        '$termに登録した素材を組み合わせて、プロフィールカードを作れます。カードをタップして編集してください。',
     workshopCardNameLabel: 'カード名（自分用のラベル）',
     workshopCardDialogTitleNew: 'プロフィールカードを作る',
     workshopCardDialogTitleEdit: 'プロフィールカードを編集',
     workshopFieldIcon: 'アイコン',
     workshopFieldBackground: '背景画像',
-    workshopFieldNickname: 'ニックネーム',
-    workshopFieldStatusMessage: 'ステメ',
     workshopChoiceNone: 'なし',
     workshopChoiceSelected: '選択中',
     workshopChoiceSelect: '選ぶ',
     workshopEmptyMaterialHint: '蔵に素材が登録されていません',
-    workshopNameRequiredHint: '先にカード名を入力してください',
-    workshopEditNameTooltip: 'カード名を編集',
-    workshopDeleteCardTooltip: 'カードを削除',
-    workshopCloseTooltip: '閉じる',
     fieldRequiredError: '入力してください',
   );
 
@@ -361,6 +346,7 @@ class Strings {
     settingsSubTypography: 'Typography',
     settingsFontDesign: 'Font design',
     settingsFontSize: 'Font size',
+    settingsAccountInfoSection: 'Account information',
     settingsRhingIdLabel: 'Rhing ID',
     settingsProfileName: 'Profile name',
     settingsSecurity: 'Security',
@@ -407,41 +393,32 @@ class Strings {
     cancel: 'Cancel',
     add: 'Add',
     save: 'Save',
+    done: 'Done',
+    delete: 'Delete',
     profileIconSection: 'Icons',
     profileBackgroundSection: 'Background images',
-    profileNicknameSection: 'Nicknames',
-    profileNicknameHint:
+    profileNicknameHint: (_) =>
         "Friends see the nickname you've selected here instead of your Rhing ID.",
-    profileStatusMessageSection: 'Status messages',
-    profileAddNickname: 'Add a nickname',
-    profileAddStatusMessage: 'Add a status message',
-    profileNicknameDialogTitle: 'Add a nickname',
-    profileNicknameDialogEditTitle: 'Edit nickname',
-    profileNicknameDialogHint: 'Enter the name shown to friends',
-    profileStatusMessageDialogTitle: 'Add a status message',
-    profileStatusMessageDialogEditTitle: 'Edit status message',
-    profileStatusMessageDialogHint: 'Enter a short status message',
+    profileAddNickname: (_) => 'Add a nickname',
+    profileAddStatusMessage: (_) => 'Add a status message',
+    profileNicknameDialogTitle: (_) => 'Add a nickname',
+    profileNicknameDialogEditTitle: (_) => 'Edit nickname',
+    profileNicknameDialogHint: (_) => 'Enter the name shown to friends',
+    profileStatusMessageDialogTitle: (_) => 'Add a status message',
+    profileStatusMessageDialogEditTitle: (_) => 'Edit status message',
+    profileStatusMessageDialogHint: (_) => 'Enter a short status message',
     profileSaveError: 'Failed to save',
     profileIconUploadError: 'Failed to upload icon',
     profileBackgroundUploadError: 'Failed to upload background image',
-    workshopDescriptionTemplate: (term) =>
-        'Combine materials from your $term into profile cards. '
-        'Tap a card to edit it.',
     workshopCardNameLabel: 'Card name (private label for you)',
     workshopCardDialogTitleNew: 'Create a profile card',
     workshopCardDialogTitleEdit: 'Edit profile card',
     workshopFieldIcon: 'Icon',
     workshopFieldBackground: 'Background image',
-    workshopFieldNickname: 'Nickname',
-    workshopFieldStatusMessage: 'Status message',
     workshopChoiceNone: 'None',
     workshopChoiceSelected: 'Selected',
     workshopChoiceSelect: 'Select',
     workshopEmptyMaterialHint: 'Nothing registered in your storehouse yet',
-    workshopNameRequiredHint: 'Enter a card name first',
-    workshopEditNameTooltip: 'Edit card name',
-    workshopDeleteCardTooltip: 'Delete card',
-    workshopCloseTooltip: 'Close',
     fieldRequiredError: 'Please enter a value',
   );
 
