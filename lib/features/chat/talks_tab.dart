@@ -235,15 +235,28 @@ class _TalksTabState extends ConsumerState<TalksTab> {
                     ),
                   ),
                   Expanded(
-                    child: _category == _TalksCategory.dm
-                        ? _buildDirectMessages(
-                            dmSnapshot,
-                            directMessages,
-                            incomingRequests,
-                            outgoingRequests,
-                            prefsById,
-                          )
-                        : _buildGroups(groupSnapshot, groups, prefsById),
+                    // 横スワイプで一対⇄広場を切り替える。一対が先頭・広場が
+                    // 2番目のタブなので、他タブの「前へ/次へ」パターンと同じ
+                    // 向き（右スワイプ＝広場→一対、左スワイプ＝一対→広場）を
+                    // そのまま流用する。戻る先の一覧が無いためonBackは空実装。
+                    child: SwipeBackDetector(
+                      onBack: () {},
+                      onPrevious: _category == _TalksCategory.group
+                          ? () => setState(() => _category = _TalksCategory.dm)
+                          : null,
+                      onNext: _category == _TalksCategory.dm
+                          ? () => setState(() => _category = _TalksCategory.group)
+                          : null,
+                      child: _category == _TalksCategory.dm
+                          ? _buildDirectMessages(
+                              dmSnapshot,
+                              directMessages,
+                              incomingRequests,
+                              outgoingRequests,
+                              prefsById,
+                            )
+                          : _buildGroups(groupSnapshot, groups, prefsById),
+                    ),
                   ),
                 ],
               );

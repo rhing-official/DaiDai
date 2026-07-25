@@ -122,7 +122,6 @@ class Strings {
     required this.enmusubiInviteLinkTitle,
     required this.enmusubiInviteLinkDescription,
     required this.enmusubiCopyLink,
-    required this.enmusubiLinkCopied,
     required this.enmusubiQrTitle,
     required this.enmusubiQrDescription,
     required this.enmusubiScanButton,
@@ -290,7 +289,6 @@ class Strings {
   final String enmusubiInviteLinkTitle;
   final String enmusubiInviteLinkDescription;
   final String enmusubiCopyLink;
-  final String enmusubiLinkCopied;
   final String enmusubiQrTitle;
   final String enmusubiQrDescription;
   final String enmusubiScanButton;
@@ -460,7 +458,6 @@ class Strings {
     enmusubiInviteLinkDescription:
         'このリンクを知っている住人が開くと、あなたに仲間申請を送れます。',
     enmusubiCopyLink: 'コピー',
-    enmusubiLinkCopied: 'リンクをコピーしました',
     enmusubiQrTitle: 'QRコードで交換',
     enmusubiQrDescription: '対面でQRコードを読み取ると、素早く仲間になれます。',
     enmusubiScanButton: 'QRコードを読み取る',
@@ -630,7 +627,6 @@ class Strings {
     enmusubiInviteLinkDescription:
         'Anyone who opens this link can send you a friend request.',
     enmusubiCopyLink: 'Copy',
-    enmusubiLinkCopied: 'Link copied',
     enmusubiQrTitle: 'Exchange via QR code',
     enmusubiQrDescription:
         'Scan a QR code in person to become friends quickly.',

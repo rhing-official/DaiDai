@@ -6,6 +6,8 @@ import 'package:flutter_webrtc/flutter_webrtc.dart';
 import '../../models/app_user.dart';
 import '../../models/group_call.dart';
 import '../../repositories/group_call_repository.dart';
+import 'call_sound_player.dart';
+import 'webrtc_media_constraints.dart';
 
 enum GroupCallConnectionState { connecting, active, ended }
 
@@ -71,8 +73,18 @@ class WebrtcGroupCallController extends ChangeNotifier {
   StreamSubscription<List<CallParticipant>>? _participantsSub;
   Timer? _presenceTimer;
 
+  /// 参加者の入退室ブリップ再生。
+  final _soundPlayer = CallSoundPlayer();
+  Set<String> _previousLiveOtherIds = {};
+  bool _hasReceivedFirstSnapshot = false;
+
   GroupCallConnectionState _state = GroupCallConnectionState.connecting;
   GroupCallConnectionState get state => _state;
+
+  bool _speakerOn = true;
+  bool get speakerOn => _speakerOn;
+
+  int _cameraIndex = 0;
 
   List<CallParticipant> _participants = [];
 
@@ -101,19 +113,12 @@ class WebrtcGroupCallController extends ChangeNotifier {
     try {
       if (isVideo) await localRenderer.initialize();
 
+      // 音声制約はプラットフォームごとの既知の問題を踏まえて
+      // webrtc_media_constraints.dartに集約している（本格的なRNNoise統合は
+      // フェーズ3の別プロジェクト。詳細は会話参照）。
       _localStream = await navigator.mediaDevices.getUserMedia({
-        'audio': {
-          'echoCancellation': true,
-          'noiseSuppression': true,
-          'autoGainControl': true,
-        },
-        'video': isVideo
-            ? {
-                'facingMode': 'user',
-                'width': {'ideal': 1280},
-                'height': {'ideal': 720},
-              }
-            : false,
+        'audio': buildAudioConstraints(),
+        'video': isVideo ? buildVideoConstraints() : false,
       });
 
       if (isVideo) {
@@ -127,6 +132,7 @@ class WebrtcGroupCallController extends ChangeNotifier {
 
       _state = GroupCallConnectionState.active;
       notifyListeners();
+      unawaited(_applySpeakerphoneWithRetry());
 
       _presenceTimer = Timer.periodic(_presenceHeartbeatInterval, (_) {
         _repository.touchPresence(
@@ -154,6 +160,23 @@ class WebrtcGroupCallController extends ChangeNotifier {
         .where((p) => p.userId != currentUser.userId && !_isStale(p))
         .map((p) => p.userId)
         .toSet();
+
+    // 参加者リストそのものの出現/消失を検知して入退室音を鳴らす
+    // （_peerConnections.keysとの差分だと接続確立タイミングに引きずられるため、
+    // 別途スナップショットを保持する）。初回スナップショットは既に居た人を
+    // 「新規参加」と誤検知しないよう無音でシードする（Discordと同じ挙動）。
+    if (!_hasReceivedFirstSnapshot) {
+      _hasReceivedFirstSnapshot = true;
+      _previousLiveOtherIds = liveOtherIds;
+    } else {
+      if (liveOtherIds.difference(_previousLiveOtherIds).isNotEmpty) {
+        _soundPlayer.playJoinBlip();
+      }
+      if (_previousLiveOtherIds.difference(liveOtherIds).isNotEmpty) {
+        _soundPlayer.playLeaveBlip();
+      }
+      _previousLiveOtherIds = liveOtherIds;
+    }
 
     for (final userId in liveOtherIds) {
       if (!_peerConnections.containsKey(userId)) {
@@ -317,10 +340,56 @@ class WebrtcGroupCallController extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> _applySpeakerphone(bool enable) async {
+    if (kIsWeb) return; // Webはブラウザの既定オーディオ出力に依存し対象外。
+    try {
+      await Helper.setSpeakerphoneOn(enable);
+    } catch (_) {
+      // 一部プラットフォームで未対応/失敗する既知の問題（iOS: flutter-webrtc
+      // issue #1290, #1098, #1032, #1427）。失敗しても通話自体は継続させる。
+    }
+  }
+
+  /// iOSでは接続直後にsetSpeakerphoneOnを呼んでも、数秒後に音声ルートが
+  /// 勝手に戻ることがある既知の競合状態があるため、接続完了直後に一度適用し、
+  /// 少し間を空けてもう一度適用する。
+  Future<void> _applySpeakerphoneWithRetry() async {
+    await _applySpeakerphone(_speakerOn);
+    await Future.delayed(const Duration(seconds: 2));
+    if (_state == GroupCallConnectionState.active) {
+      await _applySpeakerphone(_speakerOn);
+    }
+  }
+
+  void toggleSpeaker() {
+    _speakerOn = !_speakerOn;
+    _applySpeakerphone(_speakerOn);
+    notifyListeners();
+  }
+
+  Future<void> switchCamera() async {
+    final videoTracks = _localStream?.getVideoTracks() ?? <MediaStreamTrack>[];
+    if (videoTracks.isEmpty) return;
+    final track = videoTracks.first;
+    try {
+      if (kIsWeb) {
+        final cameras = await Helper.cameras;
+        if (cameras.length < 2) return;
+        _cameraIndex = (_cameraIndex + 1) % cameras.length;
+        await Helper.switchCamera(track, cameras[_cameraIndex].deviceId, _localStream);
+      } else {
+        await Helper.switchCamera(track);
+      }
+    } catch (_) {
+      // 切替可能なカメラが1つしかない環境など。現状維持。
+    }
+  }
+
   @override
   void dispose() {
     _presenceTimer?.cancel();
     _participantsSub?.cancel();
+    _soundPlayer.dispose();
     for (final userId in [..._peerConnections.keys]) {
       _disconnectFromPeer(userId);
     }

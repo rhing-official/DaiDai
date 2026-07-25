@@ -428,6 +428,8 @@ class _MessageRow extends ConsumerWidget {
   /// チェックマークバッジ（[badgeContext]）の真下から伸びる形でポップアップを
   /// 表示する。画面全体をグレーアウトしないよう、barrierColorは透明にする
   /// （ダイアログのような背景の暗転はしない、メニューに近い見た目）。
+  /// バッジより下の余白が足りない場合（画面下の方のメッセージ）は、途中で
+  /// 途切れないようバッジの上に伸びる形に切り替える。
   void _showReadReceiptPopup(
     BuildContext context,
     BuildContext badgeContext,
@@ -437,6 +439,7 @@ class _MessageRow extends ConsumerWidget {
     final badgeBox = badgeContext.findRenderObject()! as RenderBox;
     final badgeRect = badgeBox.localToGlobal(Offset.zero) & badgeBox.size;
     const width = 240.0;
+    const minPopupSpace = 160.0;
 
     showGeneralDialog<void>(
       context: context,
@@ -448,12 +451,20 @@ class _MessageRow extends ConsumerWidget {
         final screenSize = MediaQuery.sizeOf(context);
         final left =
             badgeRect.left.clamp(8.0, screenSize.width - width - 8.0);
-        final top = badgeRect.bottom + 4;
+        final spaceBelow = screenSize.height - badgeRect.bottom;
+        final showAbove = spaceBelow < minPopupSpace && badgeRect.top > spaceBelow;
+        final top = showAbove ? null : badgeRect.bottom + 4;
+        final bottom =
+            showAbove ? screenSize.height - badgeRect.top + 4 : null;
+        final maxHeight = showAbove
+            ? badgeRect.top - 24
+            : screenSize.height - badgeRect.bottom - 24;
         return Stack(
           children: [
             Positioned(
               left: left,
               top: top,
+              bottom: bottom,
               child: Material(
                 color: colorScheme.surface,
                 elevation: 8,
@@ -462,7 +473,7 @@ class _MessageRow extends ConsumerWidget {
                 child: ConstrainedBox(
                   constraints: BoxConstraints(
                     maxWidth: width,
-                    maxHeight: screenSize.height - top - 24,
+                    maxHeight: maxHeight,
                   ),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
@@ -519,7 +530,21 @@ class _MessageRow extends ConsumerWidget {
     final strings = ref.watch(appStringsProvider);
     final readers =
         message.readBy.where((r) => r.userId != message.senderId).toList();
-    final showReadMark = readReceiptsEnabled && readers.isNotEmpty;
+    // 一対（1対1）では、相手のメッセージに付く既読マークは「自分が相手の
+    // メッセージを読んだか」を示すだけで意味が無いため非表示にする
+    // （読み取り・記録自体はやめない。既読の記録をやめると、自分の
+    // メッセージを相手が読んだかの追跡もできなくなってしまうため）。
+    // 自分のメッセージには引き続き既読マークを表示し、相手が読んだかを
+    // 追跡できるようにする。広場（グループ）はこれまで通り両方に表示する。
+    final showReadMark =
+        readReceiptsEnabled && readers.isNotEmpty && !(isDm && !isMe);
+    // 一対の自分のメッセージは、相手（1人しかいない）が読んだかどうかの
+    // 有無だけ分かれば十分で、人数や「誰が読んだか」の一覧は意味を持たない
+    // ため、✓のみを表示しタップしても何も起きないようにする。
+    final isSimpleDmReadMark = isDm && isMe;
+    // sideBySideで自分のメッセージの時だけ右寄せ。それ以外
+    // （sideBySideで相手、またはallLeftで自分・相手いずれも）は左寄せ。
+    final alignRight = layoutStyle == ChatLayoutStyle.sideBySide && isMe;
 
     final bubble = Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
@@ -553,53 +578,65 @@ class _MessageRow extends ConsumerWidget {
       ),
     );
 
-    // 吹き出しの角に既読チェックマークを重ねる。自分のメッセージは左下、
-    // 相手のメッセージは右下（isMeでない側）に表示する。
+    // 吹き出しの角に既読チェックマークを重ねる。バブルが右寄せの時は左下、
+    // 左寄せの時は右下（吹き出しの中心寄り＝アイコンと反対側）に表示する
+    // （isMeではなくalignRightで決める。allLeftスタイルでは自分のメッセージも
+    // 左寄せになるため、isMeだけで判定すると常にアイコン側に重なってしまう）。
+    // 吹き出しの内容（特に画像だけの小さい吹き出し）に重ならないよう、
+    // 角からしっかり離す。
+    final badgeContent = isSimpleDmReadMark
+        ? Icon(Icons.done, size: 12, color: colorScheme.primary)
+        : Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.done, size: 12, color: colorScheme.primary),
+              const SizedBox(width: 2),
+              Text(
+                '${readers.length}',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  color: colorScheme.primary,
+                ),
+              ),
+            ],
+          );
+    final badge = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+      decoration: BoxDecoration(
+        color: colorScheme.surface,
+        borderRadius: BorderRadius.circular(999),
+        boxShadow: floatingShadow,
+      ),
+      child: badgeContent,
+    );
+
     final bubbleWithReadMark = Stack(
       clipBehavior: Clip.none,
       children: [
         bubble,
         if (showReadMark)
           Positioned(
-            bottom: -6,
-            left: isMe ? -6 : null,
-            right: isMe ? null : -6,
-            child: Builder(
-              builder: (badgeContext) => GestureDetector(
-                onTap: () =>
-                    _showReadReceiptPopup(context, badgeContext, readers, strings),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: colorScheme.surface,
-                    borderRadius: BorderRadius.circular(999),
-                    boxShadow: floatingShadow,
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.done, size: 12, color: colorScheme.primary),
-                      const SizedBox(width: 2),
-                      Text(
-                        '${readers.length}',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                          color: colorScheme.primary,
-                        ),
+            bottom: -14,
+            left: alignRight ? -10 : null,
+            right: alignRight ? null : -10,
+            child: isSimpleDmReadMark
+                ? badge
+                : Builder(
+                    builder: (badgeContext) => GestureDetector(
+                      onTap: () => _showReadReceiptPopup(
+                        context,
+                        badgeContext,
+                        readers,
+                        strings,
                       ),
-                    ],
+                      child: badge,
+                    ),
                   ),
-                ),
-              ),
-            ),
           ),
       ],
     );
 
-    // sideBySideで自分のメッセージの時だけ右寄せ・アイコン無し。それ以外
-    // （sideBySideで相手、またはallLeftで自分・相手いずれも）は左寄せ。
-    final alignRight = layoutStyle == ChatLayoutStyle.sideBySide && isMe;
     // allLeftでは自分・相手とも常にアイコン・呼び名を表示する。sideBySideでは
     // 自分のメッセージには表示せず、相手のメッセージも一対では表示しない
     // （広場では引き続き表示する）。

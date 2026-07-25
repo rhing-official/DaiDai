@@ -595,12 +595,23 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
     }
 
     final selected = _findCategory(categories, _selectedSection);
+    // 狭い画面での上端位置は設定タブ（settings_tab.dartの`_SettingsTabState`）
+    // と揃える（Align+ConstrainedBox(maxWidth:480)+Padding(top:56)）。
     if (selected == null) {
-      return _ProfileCategoryList(
-        categories: categories,
-        selectedSection: null,
-        onSelect: (category) =>
-            setState(() => _selectedSection = category.section),
+      return Align(
+        alignment: Alignment.topCenter,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 480),
+          child: Padding(
+            padding: const EdgeInsets.only(top: 56),
+            child: _ProfileCategoryList(
+              categories: categories,
+              selectedSection: null,
+              onSelect: (category) =>
+                  setState(() => _selectedSection = category.section),
+            ),
+          ),
+        ),
       );
     }
     final selectedIndex =
@@ -609,29 +620,39 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
     final nextCategory = selectedIndex >= 0 && selectedIndex < categories.length - 1
         ? categories[selectedIndex + 1]
         : null;
-    return SwipeBackDetector(
-      onBack: () => setState(() => _selectedSection = null),
-      onPrevious: previousCategory == null
-          ? null
-          : () => setState(() => _selectedSection = previousCategory.section),
-      onNext: nextCategory == null
-          ? null
-          : () => setState(() => _selectedSection = nextCategory.section),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: const Icon(Icons.arrow_back),
-            title: Text(
-              selected.title,
-              style: const TextStyle(fontWeight: FontWeight.bold),
+    return Align(
+      alignment: Alignment.topCenter,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 480),
+        child: Padding(
+          padding: const EdgeInsets.only(top: 56),
+          child: SwipeBackDetector(
+            onBack: () => setState(() => _selectedSection = null),
+            onPrevious: previousCategory == null
+                ? null
+                : () =>
+                    setState(() => _selectedSection = previousCategory.section),
+            onNext: nextCategory == null
+                ? null
+                : () => setState(() => _selectedSection = nextCategory.section),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.arrow_back),
+                  title: Text(
+                    selected.title,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  onTap: () => setState(() => _selectedSection = null),
+                ),
+                const Divider(height: 1),
+                Expanded(child: _buildContent(selected.section, strings, vocab)),
+              ],
             ),
-            onTap: () => setState(() => _selectedSection = null),
           ),
-          const Divider(height: 1),
-          Expanded(child: _buildContent(selected.section, strings, vocab)),
-        ],
+        ),
       ),
     );
   }

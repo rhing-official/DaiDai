@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 
@@ -29,6 +30,10 @@ class CallScreen extends ConsumerStatefulWidget {
 class _CallScreenState extends ConsumerState<CallScreen> {
   late final WebrtcCallController _controller;
 
+  /// ビデオ通話でフルスクリーン側に相手（true）/自分（false）どちらを
+  /// 表示するか。タップで入れ替える。
+  bool _mainViewIsRemote = true;
+
   @override
   void initState() {
     super.initState();
@@ -39,11 +44,17 @@ class _CallScreenState extends ConsumerState<CallScreen> {
     );
     _controller.addListener(_onControllerChanged);
     _controller.initialize();
+    if (!widget.isCaller) {
+      _controller.soundPlayer.startRingtoneLoop();
+    }
   }
 
   void _onControllerChanged() {
     if (!mounted) return;
     setState(() {});
+    if (_controller.state != CallConnectionState.connecting) {
+      _controller.soundPlayer.stopRingtone();
+    }
     if (_controller.state == CallConnectionState.ended) {
       // 相手の切断・自分の切断どちらでも、少し見せてから画面を閉じる。
       Future.delayed(const Duration(milliseconds: 400), () {
@@ -54,6 +65,7 @@ class _CallScreenState extends ConsumerState<CallScreen> {
 
   @override
   void dispose() {
+    _controller.soundPlayer.stopRingtone();
     _controller.removeListener(_onControllerChanged);
     _controller.dispose();
     super.dispose();
@@ -133,13 +145,33 @@ class _CallScreenState extends ConsumerState<CallScreen> {
   /// 音声通話と同じように相手が誰かを常に視認できるようにする。
   Widget _videoBody(ColorScheme colorScheme) {
     final isConnected = _controller.state == CallConnectionState.active;
+    final mainRenderer = _mainViewIsRemote
+        ? _controller.remoteRenderer
+        : _controller.localRenderer;
+    final pipRenderer = _mainViewIsRemote
+        ? _controller.localRenderer
+        : _controller.remoteRenderer;
+
+    void swapViews() => setState(() => _mainViewIsRemote = !_mainViewIsRemote);
 
     return Stack(
       children: [
         Positioned.fill(
-          child: RTCVideoView(
-            _controller.remoteRenderer,
-            objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+          child: GestureDetector(
+            onTap: swapViews,
+            child: !_mainViewIsRemote && _controller.cameraOff
+                ? Container(
+                    color: Colors.grey.shade900,
+                    child: const Center(
+                      child: Icon(Icons.videocam_off,
+                          color: Colors.white54, size: 48),
+                    ),
+                  )
+                : RTCVideoView(
+                    mainRenderer,
+                    mirror: !_mainViewIsRemote,
+                    objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+                  ),
           ),
         ),
         if (!isConnected)
@@ -200,23 +232,26 @@ class _CallScreenState extends ConsumerState<CallScreen> {
                         ],
                       ),
                     ),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: Container(
-                        width: 90,
-                        height: 130,
-                        color: Colors.grey.shade900,
-                        child: _controller.cameraOff
-                            ? const Icon(
-                                Icons.videocam_off,
-                                color: Colors.white54,
-                              )
-                            : RTCVideoView(
-                                _controller.localRenderer,
-                                mirror: true,
-                                objectFit: RTCVideoViewObjectFit
-                                    .RTCVideoViewObjectFitCover,
-                              ),
+                    GestureDetector(
+                      onTap: swapViews,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Container(
+                          width: 90,
+                          height: 130,
+                          color: Colors.grey.shade900,
+                          child: _mainViewIsRemote && _controller.cameraOff
+                              ? const Icon(
+                                  Icons.videocam_off,
+                                  color: Colors.white54,
+                                )
+                              : RTCVideoView(
+                                  pipRenderer,
+                                  mirror: _mainViewIsRemote,
+                                  objectFit: RTCVideoViewObjectFit
+                                      .RTCVideoViewObjectFitCover,
+                                ),
+                        ),
                       ),
                     ),
                   ],
@@ -247,9 +282,16 @@ class _CallScreenState extends ConsumerState<CallScreen> {
             color: Colors.red,
             onPressed: _controller.decline,
           ),
-          // flutter_webrtcのSDPネゴシエーションは_startAsCallee内で自動的に
-          // 開始されるため、「応答」は見た目上の待機表示のみで機能的な操作は不要。
-          const CallRoundButton(icon: Icons.call, color: Colors.green, onPressed: null),
+          CallRoundButton(
+            icon: Icons.call,
+            color: Colors.green,
+            onPressed: !_controller.accepting
+                ? () {
+                    HapticFeedback.vibrate();
+                    _controller.accept();
+                  }
+                : null,
+          ),
         ],
       );
     }
@@ -263,7 +305,12 @@ class _CallScreenState extends ConsumerState<CallScreen> {
           color: Colors.grey[700]!,
           onPressed: isActive ? _controller.toggleMute : null,
         ),
-        if (_isVideo)
+        CallRoundButton(
+          icon: _controller.speakerOn ? Icons.volume_up : Icons.hearing,
+          color: Colors.grey[700]!,
+          onPressed: isActive ? _controller.toggleSpeaker : null,
+        ),
+        if (_isVideo) ...[
           CallRoundButton(
             icon: _controller.cameraOff
                 ? Icons.videocam_off
@@ -271,6 +318,12 @@ class _CallScreenState extends ConsumerState<CallScreen> {
             color: Colors.grey[700]!,
             onPressed: isActive ? _controller.toggleCamera : null,
           ),
+          CallRoundButton(
+            icon: Icons.cameraswitch,
+            color: Colors.grey[700]!,
+            onPressed: isActive ? _controller.switchCamera : null,
+          ),
+        ],
         CallRoundButton(
           icon: Icons.call_end,
           color: Colors.red,
