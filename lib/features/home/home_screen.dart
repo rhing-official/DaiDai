@@ -12,9 +12,6 @@ import '../support/support_tab.dart';
 /// medium windowサイズクラス（600dp）を採用する。
 const _kWideLayoutBreakpoint = 600.0;
 
-/// モバイル下部ナビ上でのスワイプをタブ切り替えとみなす最低速度（px/s）。
-const _kSwipeVelocityThreshold = 150.0;
-
 /// ホーム画面。語らい・身だしなみ・設定・運営の4タブで構成される。
 /// 画面幅に応じて、コンピューターUI（サイドバー）とモバイルUI（下部ナビ）を切り替える。
 class HomeScreen extends ConsumerStatefulWidget {
@@ -39,12 +36,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   static const _chipSize = 56.0;
   static const _chipGap = 16.0;
   static const _chipMargin = 16.0;
-
-  void _moveTab(int delta) {
-    setState(() {
-      _selectedIndex = (_selectedIndex + delta).clamp(0, _icons.length - 1);
-    });
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -75,12 +66,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ),
     ];
 
-    // モバイルUI（下部ナビ）ではスワイプでタブを切り替えられるようにする。
-    // 以前は下部の丸いチップの帯（高さ数十px）にしかジェスチャー判定が
-    // 無く、画面のほとんどを占める本文をスワイプしても反応しなかった
-    // （チェックリスト「モバイルのスワイプナビゲーション」が未完了だった
-    // 理由）。本文全体を覆うGestureDetectorに変更し、画面のどこをスワイプ
-    // してもタブが切り替わるようにする。
+    // 以前は本文全体を覆うGestureDetectorで横スワイプをタブ切り替えとして
+    // 扱っていたが、ポップアップ等のオーバーレイ上ではバリアがジェスチャーを
+    // 吸収してしまい一貫して動作しなかった。2026-07-25、各タブが持つ
+    // 「戻る」操作（設定・身だしなみ・運営の狭い画面でのドリルダウン、
+    // go_routerでpushした各画面）に個別のスワイプバック（[SwipeBackDetector]）
+    // を割り当てる方式に変更し、ここでのタブ切り替え用ジェスチャーは廃止した。
     final content = Padding(
       padding: isWide
           ? const EdgeInsets.only(
@@ -96,21 +87,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       body: SafeArea(
         child: Stack(
           children: [
-            if (isWide)
-              content
-            else
-              GestureDetector(
-                behavior: HitTestBehavior.translucent,
-                onHorizontalDragEnd: (details) {
-                  final velocity = details.primaryVelocity ?? 0;
-                  if (velocity <= -_kSwipeVelocityThreshold) {
-                    _moveTab(1);
-                  } else if (velocity >= _kSwipeVelocityThreshold) {
-                    _moveTab(-1);
-                  }
-                },
-                child: content,
-              ),
+            content,
             if (isWide)
               Positioned(
                 left: _chipMargin,

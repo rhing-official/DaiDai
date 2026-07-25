@@ -18,5 +18,14 @@ service firebase.storage {
       allow write: if request.auth != null
         && request.auth.uid in firestore.get(/databases/(default)/documents/groups/$(groupId)).data.memberIds;
     }
+
+    // groupBackgrounds/{groupId}/...: 広場のプロフィールカード用背景画像
+    // （2026-07-25追加、個人の工房カードのデザインに合わせるため）。
+    // groupIconsと同じ権限（対応する広場のメンバーのみ書き込み、閲覧はログイン済みなら誰でも可能）。
+    match /groupBackgrounds/{groupId}/{allPaths=**} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+        && request.auth.uid in firestore.get(/databases/(default)/documents/groups/$(groupId)).data.memberIds;
+    }
   }
 }

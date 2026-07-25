@@ -1,6 +1,8 @@
 import 'package:daidai/features/chat/chat_screen.dart';
 import 'package:daidai/models/message.dart';
+import 'package:daidai/models/message_time_format.dart';
 import 'package:daidai/models/send_key_mode.dart';
+import 'package:daidai/providers/message_time_format_provider.dart';
 import 'package:daidai/providers/send_key_mode_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -24,7 +26,10 @@ Future<void> _pumpChatScreen(
 }) async {
   await tester.pumpWidget(
     ProviderScope(
-      overrides: [initialSendKeyModeProvider.overrideWithValue(mode)],
+      overrides: [
+        initialSendKeyModeProvider.overrideWithValue(mode),
+        initialMessageTimeFormatProvider.overrideWithValue(MessageTimeFormat.h24),
+      ],
       child: MaterialApp(
         home: ChatScreen(
           title: 'test',

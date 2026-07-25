@@ -25,6 +25,7 @@ service cloud.firestore {
         && (!('backgroundImages' in request.resource.data) || request.resource.data.backgroundImages.size() <= 3)
         && (!('statusMessages' in request.resource.data) || request.resource.data.statusMessages.size() <= 2)
         && (!('nicknames' in request.resource.data) || request.resource.data.nicknames.size() <= 3)
+        && (!('snsLinks' in request.resource.data) || request.resource.data.snsLinks.size() <= 5)
         && (!('profileCards' in request.resource.data) || request.resource.data.profileCards.size() <= 3);
       allow delete: if false;
 

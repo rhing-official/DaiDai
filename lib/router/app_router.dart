@@ -1,3 +1,4 @@
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -14,6 +15,7 @@ import '../models/call.dart';
 import '../models/direct_message.dart';
 import '../models/group.dart';
 import '../providers/repository_providers.dart';
+import '../widgets/swipe_gestures.dart';
 
 /// 語らい系の画面遷移をURL付きのブラウザ履歴に載せるためのルーター。
 /// これによりブラウザ/マウスの「戻る」「進む」がアプリ内の画面遷移と対応する
@@ -60,6 +62,15 @@ class GroupCallArgs {
 final goRouterProvider = Provider<GoRouter>((ref) {
   late final GoRouter router;
 
+  // pushで開いた画面向けの「右スワイプで戻る」。通話画面（/call・/group-call）は
+  // 誤スワイプでの離脱・切断事故を避けるため対象外にしている。
+  Widget swipeBack(Widget child) => SwipeBackDetector(
+        onBack: () {
+          if (router.canPop()) router.pop();
+        },
+        child: child,
+      );
+
   Future<void> startCall(
     AppUser currentUser,
     DirectMessage dm, {
@@ -89,12 +100,14 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         path: '/chat/dm',
         builder: (context, state) {
           final args = state.extra! as DmChatArgs;
-          return DmChatPane(
-            currentUser: args.currentUser,
-            dm: args.dm,
-            onCallPressed: () => startCall(args.currentUser, args.dm),
-            onVideoCallPressed: () =>
-                startCall(args.currentUser, args.dm, isVideo: true),
+          return swipeBack(
+            DmChatPane(
+              currentUser: args.currentUser,
+              dm: args.dm,
+              onCallPressed: () => startCall(args.currentUser, args.dm),
+              onVideoCallPressed: () =>
+                  startCall(args.currentUser, args.dm, isVideo: true),
+            ),
           );
         },
       ),
@@ -102,32 +115,36 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         path: '/chat/group',
         builder: (context, state) {
           final args = state.extra! as GroupChatArgs;
-          return GroupChatPane(currentUser: args.currentUser, group: args.group);
+          return swipeBack(
+            GroupChatPane(currentUser: args.currentUser, group: args.group),
+          );
         },
       ),
       GoRoute(
         path: '/add-chat',
         builder: (context, state) {
           final currentUser = state.extra! as AppUser;
-          return AddChatScreen(currentUser: currentUser);
+          return swipeBack(AddChatScreen(currentUser: currentUser));
         },
       ),
       GoRoute(
         path: '/create-group',
         builder: (context, state) {
           final currentUser = state.extra! as AppUser;
-          return CreateGroupScreen(currentUser: currentUser);
+          return swipeBack(CreateGroupScreen(currentUser: currentUser));
         },
       ),
       GoRoute(
         path: '/invite/:rhingId',
-        builder: (context, state) =>
-            InviteScreen(rhingId: state.pathParameters['rhingId']!),
+        builder: (context, state) => swipeBack(
+          InviteScreen(rhingId: state.pathParameters['rhingId']!),
+        ),
       ),
       GoRoute(
         path: '/join/:groupId',
-        builder: (context, state) =>
-            JoinGroupScreen(groupId: state.pathParameters['groupId']!),
+        builder: (context, state) => swipeBack(
+          JoinGroupScreen(groupId: state.pathParameters['groupId']!),
+        ),
       ),
       GoRoute(
         path: '/call',

@@ -4,8 +4,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../models/message.dart';
 import '../../models/send_key_mode.dart';
+import '../../providers/message_time_format_provider.dart';
 import '../../providers/send_key_mode_provider.dart';
+import '../../providers/user_providers.dart';
 import '../../theme/app_theme_extras.dart';
+import '../../utils/message_time.dart';
 
 /// 一対・広場（お部屋）どちらの会話でも使える汎用チャット画面。
 /// メッセージの取得・送信方法は呼び出し元がstream/callbackとして渡す。
@@ -116,6 +119,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final timeFormat = ref.watch(messageTimeFormatProvider);
     final floatingShadow =
         Theme.of(context).extension<AppThemeExtras>()?.floatingShadow ??
             AppThemeExtras.none;
@@ -161,6 +165,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   itemBuilder: (context, index) {
                     final message = messages[index];
                     final isMe = message.senderId == widget.currentUserId;
+                    final sentAt = message.sentAt;
+                    final timeLabel = sentAt != null
+                        ? formatMessageTime(sentAt.toDate(), timeFormat)
+                        : null;
                     final bubble = Container(
                       margin: const EdgeInsets.symmetric(vertical: 4),
                       padding: const EdgeInsets.symmetric(
@@ -203,12 +211,33 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       ),
                     );
 
+                    final bubbleWithTime = Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment:
+                          isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                      children: [
+                        bubble,
+                        if (timeLabel != null)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 4),
+                            child: Text(
+                              timeLabel,
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: colorScheme.onSurfaceVariant
+                                    .withValues(alpha: 0.7),
+                              ),
+                            ),
+                          ),
+                      ],
+                    );
+
                     if (!widget.showSenderAvatar || isMe) {
                       return Align(
                         alignment: isMe
                             ? Alignment.centerRight
                             : Alignment.centerLeft,
-                        child: bubble,
+                        child: bubbleWithTime,
                       );
                     }
 
@@ -218,9 +247,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                         mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
-                          _SenderAvatar(rhingId: message.senderRhingId),
+                          _SenderAvatar(
+                            userId: message.senderId,
+                            rhingId: message.senderRhingId,
+                          ),
                           const SizedBox(width: 8),
-                          Flexible(child: bubble),
+                          Flexible(child: bubbleWithTime),
                         ],
                       ),
                     );
@@ -273,11 +305,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 }
 
-/// 送信者のRhing IDから生成する、写真未設定時のイニシャルアイコン。
-/// 蔵（プロフィール画像）機能が実装されるまでの暫定表示。
-class _SenderAvatar extends StatelessWidget {
-  const _SenderAvatar({required this.rhingId});
+/// 送信者のアイコン。蔵で設定した実際のアイコン（[AppUser.effectiveIcon]）が
+/// あればそれを表示し、未設定ならRhing IDから生成する色分けイニシャルに
+/// フォールバックする。
+class _SenderAvatar extends ConsumerWidget {
+  const _SenderAvatar({required this.userId, required this.rhingId});
 
+  final String userId;
   final String? rhingId;
 
   static const _palette = [
@@ -290,7 +324,12 @@ class _SenderAvatar extends StatelessWidget {
   ];
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final iconUrl =
+        ref.watch(watchedUserProvider(userId)).value?.effectiveIcon?.url;
+    if (iconUrl != null) {
+      return CircleAvatar(radius: 16, backgroundImage: NetworkImage(iconUrl));
+    }
     final id = rhingId ?? '?';
     final color = _palette[id.hashCode.abs() % _palette.length];
     return CircleAvatar(

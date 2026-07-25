@@ -29,6 +29,9 @@ class Strings {
     required this.settingsTerminology,
     required this.settingsTerminologyWorldview,
     required this.settingsTerminologyConvenience,
+    required this.settingsTimeFormat,
+    required this.settingsTimeFormat24h,
+    required this.settingsTimeFormat12h,
     required this.settingsSubUI,
     required this.settingsUIDescription,
     required this.settingsSubTypography,
@@ -36,7 +39,6 @@ class Strings {
     required this.settingsFontSize,
     required this.settingsAccountInfoSection,
     required this.settingsRhingIdLabel,
-    required this.settingsProfileName,
     required this.settingsSecurity,
     required this.settingsPassword,
     required this.settingsTwoFactor,
@@ -89,6 +91,13 @@ class Strings {
     required this.profileStatusMessageDialogTitle,
     required this.profileStatusMessageDialogEditTitle,
     required this.profileStatusMessageDialogHint,
+    required this.profileSnsLinkSectionTitle,
+    required this.profileAddSnsLink,
+    required this.profileSnsLinkDialogTitle,
+    required this.profileSnsLinkDialogEditTitle,
+    required this.profileSnsLinkDialogHint,
+    required this.profileSnsLinkInvalidError,
+    required this.workshopSnsLinkFieldLabel,
     required this.profileSaveError,
     required this.profileIconUploadError,
     required this.profileBackgroundUploadError,
@@ -124,6 +133,7 @@ class Strings {
     required this.groupProfileCardDescriptionLabel,
     required this.groupProfileCardSave,
     required this.groupProfileCardChangeIcon,
+    required this.groupProfileCardChangeBackground,
     required this.groupProfileCardSaved,
     required this.groupMemberListTitle,
     required this.groupMemberListPendingSection,
@@ -173,6 +183,9 @@ class Strings {
   final String settingsTerminology;
   final String settingsTerminologyWorldview;
   final String settingsTerminologyConvenience;
+  final String settingsTimeFormat;
+  final String settingsTimeFormat24h;
+  final String settingsTimeFormat12h;
   final String settingsSubUI;
   final String settingsUIDescription;
   final String settingsSubTypography;
@@ -180,7 +193,6 @@ class Strings {
   final String settingsFontSize;
   final String settingsAccountInfoSection;
   final String settingsRhingIdLabel;
-  final String settingsProfileName;
   final String settingsSecurity;
   final String settingsPassword;
   final String settingsTwoFactor;
@@ -244,6 +256,13 @@ class Strings {
       profileStatusMessageDialogEditTitle;
   final String Function(String statusMessageTerm)
       profileStatusMessageDialogHint;
+  final String profileSnsLinkSectionTitle;
+  final String profileAddSnsLink;
+  final String profileSnsLinkDialogTitle;
+  final String profileSnsLinkDialogEditTitle;
+  final String profileSnsLinkDialogHint;
+  final String profileSnsLinkInvalidError;
+  final String workshopSnsLinkFieldLabel;
   final String profileSaveError;
   final String profileIconUploadError;
   final String profileBackgroundUploadError;
@@ -285,6 +304,7 @@ class Strings {
   final String groupProfileCardDescriptionLabel;
   final String groupProfileCardSave;
   final String groupProfileCardChangeIcon;
+  final String groupProfileCardChangeBackground;
   final String groupProfileCardSaved;
 
   final String groupMemberListTitle;
@@ -335,6 +355,9 @@ class Strings {
     settingsTerminology: '用語・表示設定',
     settingsTerminologyWorldview: '世界観重視',
     settingsTerminologyConvenience: '利便性重視',
+    settingsTimeFormat: 'メッセージの時刻表示',
+    settingsTimeFormat24h: '24時間表記（00:00）',
+    settingsTimeFormat12h: '12時間表記（12:00 p.m.）',
     settingsSubUI: 'UI',
     settingsUIDescription:
         '現在のUIスタイルは「シンプル」1本に統一されています（切り替え機能は今後の検討事項です）。',
@@ -343,7 +366,6 @@ class Strings {
     settingsFontSize: 'フォントサイズ',
     settingsAccountInfoSection: 'アカウント情報',
     settingsRhingIdLabel: 'Rhing ID',
-    settingsProfileName: 'プロフィール名',
     settingsSecurity: 'セキュリティ',
     settingsPassword: 'パスワード',
     settingsTwoFactor: '2段階認証',
@@ -397,6 +419,13 @@ class Strings {
     profileStatusMessageDialogTitle: (term) => '$termを追加',
     profileStatusMessageDialogEditTitle: (term) => '$termを編集',
     profileStatusMessageDialogHint: (term) => '$termを入力',
+    profileSnsLinkSectionTitle: 'SNSのURL',
+    profileAddSnsLink: 'URLを追加',
+    profileSnsLinkDialogTitle: 'URLを追加',
+    profileSnsLinkDialogEditTitle: 'URLを編集',
+    profileSnsLinkDialogHint: 'https://...',
+    profileSnsLinkInvalidError: 'URLの形式が正しくありません',
+    workshopSnsLinkFieldLabel: 'URL',
     profileSaveError: '保存に失敗しました',
     profileIconUploadError: 'アイコンのアップロードに失敗しました',
     profileBackgroundUploadError: '背景画像のアップロードに失敗しました',
@@ -434,6 +463,7 @@ class Strings {
     groupProfileCardDescriptionLabel: '説明',
     groupProfileCardSave: '保存',
     groupProfileCardChangeIcon: 'アイコンを変更',
+    groupProfileCardChangeBackground: '背景をタップして変更',
     groupProfileCardSaved: '保存しました',
     groupMemberListTitle: 'メンバー一覧',
     groupMemberListPendingSection: '参加リクエスト',
@@ -481,6 +511,9 @@ class Strings {
     settingsTerminology: 'Terminology & display',
     settingsTerminologyWorldview: 'Worldview-focused',
     settingsTerminologyConvenience: 'Convenience-focused',
+    settingsTimeFormat: 'Message time display',
+    settingsTimeFormat24h: '24-hour (00:00)',
+    settingsTimeFormat12h: '12-hour (12:00 p.m.)',
     settingsSubUI: 'UI',
     settingsUIDescription:
         'The current UI style is fixed to "Simple" (a style switcher may '
@@ -490,7 +523,6 @@ class Strings {
     settingsFontSize: 'Font size',
     settingsAccountInfoSection: 'Account information',
     settingsRhingIdLabel: 'Rhing ID',
-    settingsProfileName: 'Profile name',
     settingsSecurity: 'Security',
     settingsPassword: 'Password',
     settingsTwoFactor: 'Two-factor authentication',
@@ -549,6 +581,13 @@ class Strings {
     profileStatusMessageDialogTitle: (_) => 'Add a status message',
     profileStatusMessageDialogEditTitle: (_) => 'Edit status message',
     profileStatusMessageDialogHint: (_) => 'Enter a short status message',
+    profileSnsLinkSectionTitle: 'SNS links',
+    profileAddSnsLink: 'Add a URL',
+    profileSnsLinkDialogTitle: 'Add a URL',
+    profileSnsLinkDialogEditTitle: 'Edit URL',
+    profileSnsLinkDialogHint: 'https://...',
+    profileSnsLinkInvalidError: 'Please enter a valid URL',
+    workshopSnsLinkFieldLabel: 'URL',
     profileSaveError: 'Failed to save',
     profileIconUploadError: 'Failed to upload icon',
     profileBackgroundUploadError: 'Failed to upload background image',
@@ -587,6 +626,7 @@ class Strings {
     groupProfileCardDescriptionLabel: 'Description',
     groupProfileCardSave: 'Save',
     groupProfileCardChangeIcon: 'Change icon',
+    groupProfileCardChangeBackground: 'Tap the background to change it',
     groupProfileCardSaved: 'Saved',
     groupMemberListTitle: 'Members',
     groupMemberListPendingSection: 'Join requests',

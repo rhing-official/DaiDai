@@ -1,0 +1,7 @@
+{
+  "private": true,
+  "description": "api/配下のVercel Functions（OGP・OG画像生成）専用。Flutter本体はpubspec.yamlで管理しており、このpackage.jsonはビルドには関与しない。",
+  "dependencies": {
+    "@vercel/og": "^0.6.3"
+  }
+}

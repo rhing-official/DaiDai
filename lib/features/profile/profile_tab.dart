@@ -11,6 +11,7 @@ import '../../models/profile_card.dart';
 import '../../models/profile_material.dart';
 import '../../providers/repository_providers.dart';
 import '../../repositories/user_repository.dart';
+import '../../widgets/swipe_gestures.dart';
 import 'enmusubi_page.dart';
 
 enum _ProfileSection { kura, koubou, enmusubi }
@@ -56,6 +57,13 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
   /// 広い画面では常に先頭（蔵）を既定選択として表示する。
   _ProfileSection? _selectedSection;
 
+  /// 工房の空き枠タップでカード編集画面を開く処理は、Hero遷移のフェード時間
+  /// （300ms）の間にInkWellへの反応が一瞬遅れて見えることがあり、その間に
+  /// 連打・ダブルタップされると[_openCardZoom]が多重に呼ばれ、同じ枠に対して
+  /// 別々のidを持つカードが2件作られてしまう不具合があった。開いている間は
+  /// 再入をブロックして防ぐ。
+  bool _cardZoomOpening = false;
+
   @override
   void initState() {
     super.initState();
@@ -99,10 +107,11 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
     }
   }
 
-
   void _showError(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _pickAndUploadIcon() async {
@@ -138,8 +147,10 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
     setState(() => _uploadingBackground = true);
     try {
       final bytes = await picked.readAsBytes();
-      final material =
-          await _repository.uploadBackgroundImage(_user.userId, bytes);
+      final material = await _repository.uploadBackgroundImage(
+        _user.userId,
+        bytes,
+      );
       final shouldActivate = _user.activeBackgroundImageId == null;
       setState(() {
         _user = _user.copyWith(
@@ -179,8 +190,9 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
   }
 
   Future<void> _deleteBackground(ProfileMaterial material) async {
-    final remaining =
-        _user.backgroundImages.where((m) => m.id != material.id).toList();
+    final remaining = _user.backgroundImages
+        .where((m) => m.id != material.id)
+        .toList();
     final wasActive = _user.activeBackgroundImageId == material.id;
     final nextActiveId = wasActive
         ? (remaining.isEmpty ? null : remaining.first.id)
@@ -211,10 +223,7 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
     final text = result?.text?.trim();
     if (text == null || text.isEmpty) return;
 
-    final message = StatusMessage(
-      id: _newLocalId(),
-      text: text,
-    );
+    final message = StatusMessage(id: _newLocalId(), text: text);
     final shouldActivate = _user.activeStatusMessageId == null;
     setState(() {
       _user = _user.copyWith(
@@ -256,8 +265,9 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
   }
 
   Future<void> _deleteStatusMessage(StatusMessage message) async {
-    final remaining =
-        _user.statusMessages.where((m) => m.id != message.id).toList();
+    final remaining = _user.statusMessages
+        .where((m) => m.id != message.id)
+        .toList();
     final wasActive = _user.activeStatusMessageId == message.id;
     final nextActiveId = wasActive
         ? (remaining.isEmpty ? null : remaining.first.id)
@@ -281,10 +291,7 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
     final text = result?.text?.trim();
     if (text == null || text.isEmpty) return;
 
-    final nickname = Nickname(
-      id: _newLocalId(),
-      text: text,
-    );
+    final nickname = Nickname(id: _newLocalId(), text: text);
     final shouldActivate = _user.activeNicknameId == null;
     setState(() {
       _user = _user.copyWith(
@@ -324,8 +331,9 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
   }
 
   Future<void> _deleteNickname(Nickname nickname) async {
-    final remaining =
-        _user.nicknames.where((n) => n.id != nickname.id).toList();
+    final remaining = _user.nicknames
+        .where((n) => n.id != nickname.id)
+        .toList();
     final wasActive = _user.activeNicknameId == nickname.id;
     final nextActiveId = wasActive
         ? (remaining.isEmpty ? null : remaining.first.id)
@@ -338,6 +346,74 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
     });
     await _removeFromList('nicknames', nickname.toJson());
     if (wasActive) await _setField('activeNicknameId', nextActiveId);
+  }
+
+  Future<void> _addSnsLink() async {
+    if (_user.snsLinks.length >= kMaxSnsLinks) return;
+    final result = await showDialog<_EditResult>(
+      context: context,
+      builder: (context) => const _SnsLinkDialog(),
+    );
+    final url = result?.text?.trim();
+    if (url == null || url.isEmpty) return;
+
+    final link = SnsLink(id: _newLocalId(), url: url);
+    setState(() {
+      _user = _user.copyWith(snsLinks: [..._user.snsLinks, link]);
+    });
+    await _addToList('snsLinks', link.toJson());
+  }
+
+  Future<void> _editSnsLink(SnsLink link) async {
+    final result = await showDialog<_EditResult>(
+      context: context,
+      builder: (context) => _SnsLinkDialog(initialText: link.url),
+    );
+    if (result == null) return;
+    if (result.isDelete) {
+      await _deleteSnsLink(link);
+      return;
+    }
+
+    final url = result.text?.trim();
+    if (url == null || url.isEmpty || url == link.url) return;
+
+    final updated = SnsLink(id: link.id, url: url);
+    setState(() {
+      _user = _user.copyWith(
+        snsLinks: [
+          for (final s in _user.snsLinks)
+            if (s.id == link.id) updated else s,
+        ],
+      );
+    });
+    await _removeFromList('snsLinks', link.toJson());
+    await _addToList('snsLinks', updated.toJson());
+  }
+
+  Future<void> _deleteSnsLink(SnsLink link) async {
+    final remaining = _user.snsLinks.where((s) => s.id != link.id).toList();
+    setState(() {
+      _user = _user.copyWith(snsLinks: remaining);
+    });
+    await _removeFromList('snsLinks', link.toJson());
+    // カードに掲載中だったURLが削除された場合、そのカード側の参照も外す。
+    for (final card in _user.profileCards) {
+      if (!card.snsLinkIds.contains(link.id)) continue;
+      final updatedCard = card.copyWith(
+        snsLinkIds: card.snsLinkIds.where((id) => id != link.id).toList(),
+      );
+      setState(() {
+        _user = _user.copyWith(
+          profileCards: [
+            for (final c in _user.profileCards)
+              if (c.id == card.id) updatedCard else c,
+          ],
+        );
+      });
+      await _removeFromList('profileCards', card.toJson());
+      await _addToList('profileCards', updatedCard.toJson());
+    }
   }
 
   Future<void> _saveCard(ProfileCard card, {required bool isNew}) async {
@@ -365,10 +441,8 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
 
   Future<void> _deleteCard(ProfileCard card) async {
     final wasActive = _user.activeProfileCardId == card.id;
-    final remaining =
-        _user.profileCards.where((c) => c.id != card.id).toList();
-    final nextActiveId =
-        wasActive ? null : _user.activeProfileCardId;
+    final remaining = _user.profileCards.where((c) => c.id != card.id).toList();
+    final nextActiveId = wasActive ? null : _user.activeProfileCardId;
     setState(() {
       _user = _user.copyWith(
         profileCards: remaining,
@@ -391,58 +465,64 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
   /// 空き枠→作成後は同じ枠が実カードに置き換わるだけで、開いている最中の
   /// このルート自体は同一タグのHeroを使い続けるため問題ない。
   Future<void> _openCardZoom(int index, ProfileCard? existing) async {
+    if (_cardZoomOpening) return;
+    _cardZoomOpening = true;
     final strings = ref.read(appStringsProvider);
     final vocab = ref.read(vocabularyProvider);
-    await Navigator.of(context).push(
-      PageRouteBuilder<void>(
-        opaque: false,
-        barrierDismissible: true,
-        barrierColor: Colors.black54,
-        transitionDuration: const Duration(milliseconds: 300),
-        transitionsBuilder: (_, animation, secondaryAnimation, child) =>
-            FadeTransition(opacity: animation, child: child),
-        pageBuilder: (_, animation, secondaryAnimation) => Center(
-          // このルートは`opaque: false`のポップアップ的な表示のため、下の
-          // ページのScaffoldが提供するMaterial祖先を引き継がない。カード名の
-          // `TextField`は開いた瞬間から常に表示されるため、Material祖先が無いと
-          // "No Material widget found"で即座にクラッシュしていた。
-          // MaterialType.transparencyで見た目（半透明の背景）を変えずに
-          // Material祖先だけを補う。
-          child: Material(
-            type: MaterialType.transparency,
-            child: _CardZoomEditor(
-              heroTag: 'profile-card-slot-$index',
-              user: _user,
-              strings: strings,
-              vocab: vocab,
-              initialCard: existing,
-              onCreate: (card) => _saveCard(card, isNew: true),
-              onUpdate: (card) => _saveCard(card, isNew: false),
-              onDelete: _deleteCard,
+    try {
+      await Navigator.of(context).push(
+        PageRouteBuilder<void>(
+          opaque: false,
+          barrierDismissible: true,
+          barrierColor: Colors.black54,
+          transitionDuration: const Duration(milliseconds: 300),
+          transitionsBuilder: (_, animation, secondaryAnimation, child) =>
+              FadeTransition(opacity: animation, child: child),
+          pageBuilder: (_, animation, secondaryAnimation) => Center(
+            // このルートは`opaque: false`のポップアップ的な表示のため、下の
+            // ページのScaffoldが提供するMaterial祖先を引き継がない。カード名の
+            // `TextField`は開いた瞬間から常に表示されるため、Material祖先が無いと
+            // "No Material widget found"で即座にクラッシュしていた。
+            // MaterialType.transparencyで見た目（半透明の背景）を変えずに
+            // Material祖先だけを補う。
+            child: Material(
+              type: MaterialType.transparency,
+              child: _CardZoomEditor(
+                heroTag: 'profile-card-slot-$index',
+                user: _user,
+                strings: strings,
+                vocab: vocab,
+                initialCard: existing,
+                onCreate: (card) => _saveCard(card, isNew: true),
+                onUpdate: (card) => _saveCard(card, isNew: false),
+                onDelete: _deleteCard,
+              ),
             ),
           ),
         ),
-      ),
-    );
+      );
+    } finally {
+      _cardZoomOpening = false;
+    }
   }
 
   List<_ProfileCategory> _categories(Vocabulary vocab) => [
-        _ProfileCategory(
-          section: _ProfileSection.kura,
-          icon: Icons.inventory_2_outlined,
-          title: vocab.profileStorage,
-        ),
-        _ProfileCategory(
-          section: _ProfileSection.koubou,
-          icon: Icons.gavel,
-          title: vocab.profileCreator,
-        ),
-        _ProfileCategory(
-          section: _ProfileSection.enmusubi,
-          icon: Icons.handshake_outlined,
-          title: vocab.friendConnect,
-        ),
-      ];
+    _ProfileCategory(
+      section: _ProfileSection.kura,
+      icon: Icons.inventory_2_outlined,
+      title: vocab.profileStorage,
+    ),
+    _ProfileCategory(
+      section: _ProfileSection.koubou,
+      icon: Icons.gavel,
+      title: vocab.profileCreator,
+    ),
+    _ProfileCategory(
+      section: _ProfileSection.enmusubi,
+      icon: Icons.handshake_outlined,
+      title: vocab.friendConnect,
+    ),
+  ];
 
   Widget _buildContent(
     _ProfileSection section,
@@ -465,6 +545,8 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
           onEditNickname: _editNickname,
           onAddStatusMessage: _addStatusMessage,
           onEditStatusMessage: _editStatusMessage,
+          onAddSnsLink: _addSnsLink,
+          onEditSnsLink: _editSnsLink,
         );
       case _ProfileSection.koubou:
         return _WorkshopView(
@@ -484,12 +566,11 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
     final strings = ref.watch(appStringsProvider);
     final vocab = ref.watch(vocabularyProvider);
     final categories = _categories(vocab);
-    final isWide =
-        MediaQuery.sizeOf(context).width >= _kProfileSplitBreakpoint;
+    final isWide = MediaQuery.sizeOf(context).width >= _kProfileSplitBreakpoint;
 
     if (isWide) {
-      final selected = _findCategory(categories, _selectedSection) ??
-          categories.first;
+      final selected =
+          _findCategory(categories, _selectedSection) ?? categories.first;
       return Padding(
         padding: const EdgeInsets.only(top: 16),
         child: Row(
@@ -520,21 +601,24 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
             setState(() => _selectedSection = category.section),
       );
     }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        ListTile(
-          contentPadding: EdgeInsets.zero,
-          leading: const Icon(Icons.arrow_back),
-          title: Text(
-            selected.title,
-            style: const TextStyle(fontWeight: FontWeight.bold),
+    return SwipeBackDetector(
+      onBack: () => setState(() => _selectedSection = null),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.arrow_back),
+            title: Text(
+              selected.title,
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            onTap: () => setState(() => _selectedSection = null),
           ),
-          onTap: () => setState(() => _selectedSection = null),
-        ),
-        const Divider(height: 1),
-        Expanded(child: _buildContent(selected.section, strings, vocab)),
-      ],
+          const Divider(height: 1),
+          Expanded(child: _buildContent(selected.section, strings, vocab)),
+        ],
+      ),
     );
   }
 }
@@ -640,6 +724,8 @@ class _KuraView extends StatelessWidget {
     required this.onEditNickname,
     required this.onAddStatusMessage,
     required this.onEditStatusMessage,
+    required this.onAddSnsLink,
+    required this.onEditSnsLink,
   });
 
   final AppUser user;
@@ -655,6 +741,8 @@ class _KuraView extends StatelessWidget {
   final ValueChanged<Nickname> onEditNickname;
   final VoidCallback onAddStatusMessage;
   final ValueChanged<StatusMessage> onEditStatusMessage;
+  final VoidCallback onAddSnsLink;
+  final ValueChanged<SnsLink> onEditSnsLink;
 
   @override
   Widget build(BuildContext context) {
@@ -705,6 +793,13 @@ class _KuraView extends StatelessWidget {
           messages: user.statusMessages,
           onAdd: onAddStatusMessage,
           onEdit: onEditStatusMessage,
+        ),
+        const SizedBox(height: 24),
+        _SnsLinkSection(
+          strings: strings,
+          links: user.snsLinks,
+          onAdd: onAddSnsLink,
+          onEdit: onEditSnsLink,
         ),
       ],
     );
@@ -759,7 +854,7 @@ class _WorkshopView extends StatelessWidget {
             const maxCardWidth = 640.0;
             final rawWidth =
                 (constraints.maxWidth - gap * (kMaxProfileCards - 1)) /
-                    kMaxProfileCards;
+                kMaxProfileCards;
             final cardWidth = rawWidth.clamp(minCardWidth, maxCardWidth);
             final cardHeight = cardWidth * 1.25;
             return Row(
@@ -884,8 +979,11 @@ class _WorkshopCardSlot extends StatelessWidget {
     final icon = _findById(user.icons, card.iconId);
     final background = _findById(user.backgroundImages, card.backgroundImageId);
     final nickname = _findById(user.nicknames, card.nicknameId)?.text;
-    final statusMessage =
-        _findById(user.statusMessages, card.statusMessageId)?.text;
+    final statusMessage = _findById(
+      user.statusMessages,
+      card.statusMessageId,
+    )?.text;
+    final selectedSnsLinks = _selectedSnsLinksFor(user, card.snsLinkIds);
 
     // カードが大きくなったのにアイコン・文字が160px時代の固定サイズのままだと
     // 中身が寂しく見えるため、カード幅に応じて緩やかにスケールさせる。
@@ -911,8 +1009,12 @@ class _WorkshopCardSlot extends StatelessWidget {
       // 円弧で補間するため、飛行の途中で矩形の幅・高さが始点・終点どちらより
       // 一瞬小さくなることがある（単純な直線補間ではない）。カード＋カード名の
       // 固定サイズレイアウトはその一瞬だけ収まりきらずオーバーフロー警告が
-      // 出ていたため、ClipRectで見た目上だけ吸収する。
-      child: ClipRect(
+      // 出ていた。ClipRectは「はみ出た描画を切り取る」だけでRenderFlex自体が
+      // 出す「BOTTOM OVERFLOWED」の警告バナーは吸収できないため
+      // （[_CardZoomEditor]側と同じ理由）、オーバーフローそのものが起きない
+      // FittedBoxに変更した。
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.center,
@@ -953,8 +1055,9 @@ class _WorkshopCardSlot extends StatelessWidget {
                           children: [
                             CircleAvatar(
                               radius: avatarRadius,
-                              backgroundImage:
-                                  icon != null ? NetworkImage(icon.url) : null,
+                              backgroundImage: icon != null
+                                  ? NetworkImage(icon.url)
+                                  : null,
                               child: icon == null
                                   ? const Icon(Icons.person)
                                   : null,
@@ -967,8 +1070,7 @@ class _WorkshopCardSlot extends StatelessWidget {
                               style: TextStyle(
                                 fontSize: nicknameFontSize,
                                 fontWeight: FontWeight.bold,
-                                color:
-                                    background != null ? Colors.white : null,
+                                color: background != null ? Colors.white : null,
                               ),
                             ),
                             Text(
@@ -980,6 +1082,15 @@ class _WorkshopCardSlot extends StatelessWidget {
                                 color: subtitleColor,
                               ),
                             ),
+                            if (selectedSnsLinks.isNotEmpty) ...[
+                              SizedBox(height: padding * 0.3),
+                              _SnsLinksInline(
+                                links: selectedSnsLinks,
+                                iconSize: statusFontSize,
+                                fontSize: statusFontSize * 0.9,
+                                color: subtitleColor,
+                              ),
+                            ],
                           ],
                         ),
                       ),
@@ -1004,8 +1115,16 @@ class _WorkshopCardSlot extends StatelessWidget {
                 textAlign: TextAlign.center,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style:
-                    TextStyle(fontWeight: FontWeight.bold, fontSize: nameFontSize),
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: nameFontSize,
+                  // ズームイン編集画面側のカード名（TextField）を黒固定にしたのに
+                  // 合わせ、こちらも明示的に黒固定にする。以前はどちらも色指定
+                  // なしでテーマの既定色任せだったため、Hero飛行中（Overlay直下に
+                  // 一時的に付け替えられる間）は既定色の解決結果がずれて、
+                  // ズームアウトする瞬間だけ黒でない色に見えることがあった。
+                  color: Colors.black,
+                ),
               ),
             ),
           ],
@@ -1024,6 +1143,83 @@ T? _findById<T>(List<T> items, String? id) {
     if (d.id == id) return item;
   }
   return null;
+}
+
+/// カードに掲載するSNSのURL（[ProfileCard.snsLinkIds]）を、蔵の[SnsLink]一覧から
+/// 解決する（[_WorkshopCardSlot]・[_CardZoomEditor]で共用）。
+List<SnsLink> _selectedSnsLinksFor(AppUser user, List<String> snsLinkIds) => [
+  for (final link in user.snsLinks)
+    if (snsLinkIds.contains(link.id)) link,
+];
+
+/// カードに掲載するSNSのURL一覧の表示。以前は1行に" / "区切りで並べていたが、
+/// 長いURLが混ざると後半が省略記号で見えなくなってしまうため、1件ずつ
+/// 縦に並べる（[_WorkshopCardSlot]の縮小表示・[_CardZoomEditor]の編集表示で共用）。
+class _SnsLinksInline extends StatelessWidget {
+  const _SnsLinksInline({
+    required this.links,
+    required this.iconSize,
+    required this.fontSize,
+    required this.color,
+    this.placeholder,
+    this.onTap,
+  });
+
+  final List<SnsLink> links;
+  final double iconSize;
+  final double fontSize;
+  final Color? color;
+
+  /// 未登録時に表示するプレースホルダー文言。nullなら未登録時は何も表示しない。
+  final String? placeholder;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    if (links.isEmpty && placeholder == null) {
+      return const SizedBox.shrink();
+    }
+    final content = links.isEmpty
+        ? Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.link, size: iconSize, color: color),
+              const SizedBox(width: 4),
+              Text(
+                placeholder!,
+                style: TextStyle(fontSize: fontSize, color: color),
+              ),
+            ],
+          )
+        : Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (final link in links)
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.link, size: iconSize, color: color),
+                      const SizedBox(width: 4),
+                      Flexible(
+                        child: Text(
+                          _displaySnsLinkUrl(link.url),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(fontSize: fontSize, color: color),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          );
+    return onTap == null
+        ? content
+        : GestureDetector(onTap: onTap, child: content);
+  }
 }
 
 /// アイコン・背景画像それぞれの蔵セクション（見出し＋件数＋サムネ一覧＋追加ボタン）。
@@ -1069,7 +1265,11 @@ class _MaterialSection extends StatelessWidget {
                 ),
               ),
               if (showAddButton)
-                _AddThumbButton(enabled: !uploading, loading: uploading, onTap: onAdd),
+                _AddThumbButton(
+                  enabled: !uploading,
+                  loading: uploading,
+                  onTap: onAdd,
+                ),
             ],
           ),
         ),
@@ -1172,11 +1372,7 @@ class _CircleMaterialThumb extends StatelessWidget {
           height: 72,
           child: ClipOval(child: _NetworkThumbImage(url: url)),
         ),
-        Positioned(
-          right: -4,
-          top: -4,
-          child: _DeleteBadge(onTap: onDelete),
-        ),
+        Positioned(right: -4, top: -4, child: _DeleteBadge(onTap: onDelete)),
       ],
     );
   }
@@ -1201,11 +1397,7 @@ class _RectMaterialThumb extends StatelessWidget {
             child: _NetworkThumbImage(url: url),
           ),
         ),
-        Positioned(
-          right: -4,
-          top: -4,
-          child: _DeleteBadge(onTap: onDelete),
-        ),
+        Positioned(right: -4, top: -4, child: _DeleteBadge(onTap: onDelete)),
       ],
     );
   }
@@ -1230,7 +1422,9 @@ class _ActiveCardBadge extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.all(4),
           child: Icon(
-            isActive ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+            isActive
+                ? Icons.radio_button_checked
+                : Icons.radio_button_unchecked,
             size: 18,
             color: isActive
                 ? Theme.of(context).colorScheme.primary
@@ -1291,10 +1485,7 @@ class _StatusMessageSection extends StatelessWidget {
         ),
         const SizedBox(height: 4),
         for (final message in messages)
-          _RegisteredItemRow(
-            text: message.text,
-            onEdit: () => onEdit(message),
-          ),
+          _RegisteredItemRow(text: message.text, onEdit: () => onEdit(message)),
         if (canAdd)
           TextButton.icon(
             onPressed: onAdd,
@@ -1352,15 +1543,52 @@ class _NicknameSection extends StatelessWidget {
   }
 }
 
+/// 蔵に登録する他のSNSのURL。最大[kMaxSnsLinks]件まで登録でき、そのうち
+/// 工房のプロフィールカードに掲載できるのは最大[kMaxProfileCardSnsLinks]件
+/// （カード側の選択は`_CardZoomEditor._pickSnsLinks`で行う）。
+class _SnsLinkSection extends StatelessWidget {
+  const _SnsLinkSection({
+    required this.strings,
+    required this.links,
+    required this.onAdd,
+    required this.onEdit,
+  });
+
+  final Strings strings;
+  final List<SnsLink> links;
+  final VoidCallback onAdd;
+  final ValueChanged<SnsLink> onEdit;
+
+  @override
+  Widget build(BuildContext context) {
+    final canAdd = links.length < kMaxSnsLinks;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '${strings.profileSnsLinkSectionTitle}（${links.length}/$kMaxSnsLinks）',
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 4),
+        for (final link in links)
+          _RegisteredItemRow(text: link.url, onEdit: () => onEdit(link)),
+        if (canAdd)
+          TextButton.icon(
+            onPressed: onAdd,
+            icon: const Icon(Icons.add),
+            label: Text(strings.profileAddSnsLink),
+          ),
+      ],
+    );
+  }
+}
+
 /// ニックネーム・ステメの1行。テキスト部分をタップすると編集ポップアップ
 /// （[_NicknameDialog]/[_StatusMessageDialog]）が開き、編集・削除の両方を
 /// そこで行う。「使うものを選ぶ」機能は蔵では不要なため持たない
 /// （表示にどれを使うかは登録順で自動的に決まる）。
 class _RegisteredItemRow extends StatelessWidget {
-  const _RegisteredItemRow({
-    required this.text,
-    required this.onEdit,
-  });
+  const _RegisteredItemRow({required this.text, required this.onEdit});
 
   final String text;
   final VoidCallback onEdit;
@@ -1416,7 +1644,9 @@ class _NicknameDialogState extends ConsumerState<_NicknameDialog> {
   // 見えるよう、ここでエラー表示してから閉じないようにする。
   void _submit() {
     if (_controller.text.trim().isEmpty) {
-      setState(() => _errorText = ref.read(appStringsProvider).fieldRequiredError);
+      setState(
+        () => _errorText = ref.read(appStringsProvider).fieldRequiredError,
+      );
       return;
     }
     Navigator.of(context).pop(_EditResult.save(_controller.text));
@@ -1493,7 +1723,9 @@ class _StatusMessageDialogState extends ConsumerState<_StatusMessageDialog> {
 
   void _submit() {
     if (_controller.text.trim().isEmpty) {
-      setState(() => _errorText = ref.read(appStringsProvider).fieldRequiredError);
+      setState(
+        () => _errorText = ref.read(appStringsProvider).fieldRequiredError,
+      );
       return;
     }
     Navigator.of(context).pop(_EditResult.save(_controller.text));
@@ -1517,7 +1749,103 @@ class _StatusMessageDialogState extends ConsumerState<_StatusMessageDialog> {
             autofocus: true,
             maxLength: kMaxStatusMessageLength,
             decoration: InputDecoration(
-              hintText: strings.profileStatusMessageDialogHint(vocab.statusMessage),
+              hintText: strings.profileStatusMessageDialogHint(
+                vocab.statusMessage,
+              ),
+              errorText: _errorText,
+            ),
+            onSubmitted: (_) => _submit(),
+          ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              if (_isEdit) ...[
+                OutlinedButton(
+                  onPressed: () =>
+                      Navigator.of(context).pop(const _EditResult.delete()),
+                  child: Text(strings.delete),
+                ),
+                const SizedBox(width: 8),
+              ],
+              FilledButton(
+                onPressed: _submit,
+                child: Text(_isEdit ? strings.done : strings.add),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// URLの形式チェック。schemeとhostの両方を備えたURLのみ有効とする。
+bool _isValidUrl(String value) {
+  final uri = Uri.tryParse(value);
+  return uri != null && uri.hasScheme && uri.host.isNotEmpty;
+}
+
+/// 選択肢などに表示する際、先頭の`https://www.`（または`http://www.`・
+/// `www.`なしの場合はscheme部分のみ）を取り除いた短い表示用文字列にする。
+/// 実際に保存・使用するURL自体（[SnsLink.url]）は変更しない。
+String _displaySnsLinkUrl(String url) {
+  return url.replaceFirst(RegExp(r'^https?://(www\.)?', caseSensitive: false), '');
+}
+
+class _SnsLinkDialog extends ConsumerStatefulWidget {
+  const _SnsLinkDialog({this.initialText});
+
+  /// 編集時は既存のURLを渡す。nullなら新規追加。
+  final String? initialText;
+
+  @override
+  ConsumerState<_SnsLinkDialog> createState() => _SnsLinkDialogState();
+}
+
+class _SnsLinkDialogState extends ConsumerState<_SnsLinkDialog> {
+  late final _controller = TextEditingController(text: widget.initialText);
+  String? _errorText;
+
+  bool get _isEdit => widget.initialText != null;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final strings = ref.read(appStringsProvider);
+    final text = _controller.text.trim();
+    if (text.isEmpty) {
+      setState(() => _errorText = strings.fieldRequiredError);
+      return;
+    }
+    if (!_isValidUrl(text)) {
+      setState(() => _errorText = strings.profileSnsLinkInvalidError);
+      return;
+    }
+    Navigator.of(context).pop(_EditResult.save(text));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final strings = ref.watch(appStringsProvider);
+    return AlertDialog(
+      title: Text(
+        _isEdit
+            ? strings.profileSnsLinkDialogEditTitle
+            : strings.profileSnsLinkDialogTitle,
+      ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: _controller,
+            autofocus: true,
+            keyboardType: TextInputType.url,
+            decoration: InputDecoration(
+              hintText: strings.profileSnsLinkDialogHint,
               errorText: _errorText,
             ),
             onSubmitted: (_) => _submit(),
@@ -1590,6 +1918,18 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
   // 変更したタイミングまで遅らせる（[_persisted]で管理）。
   late ProfileCard _card;
   bool _persisted = false;
+
+  // 更新の保存（[widget.onUpdate]）は「古い値をarrayRemoveで消す→新しい値を
+  // arrayUnionで足す」という2手順で、この2手順セット自体はFirestore側で
+  // 原子的にまとまっていない。[_persist]を待たずに連続で呼ぶと（例:
+  // カードに載せるURLのチェックボックスを立て続けに2つチェックした場合）、
+  // 後発の呼び出しのarrayRemoveが「先発の呼び出しのarrayUnionがまだ反映されて
+  // いない古い値」を狙ってしまい何もマッチせず素通りし、結果として先発の
+  // 中間状態と後発の最終状態の両方がprofileCards配列に残ってしまう
+  // （ページをリロードしても消えない、本物のデータ重複）不具合があった。
+  // [_persist]呼び出しをこのFutureチェーンで直列化し、常に前回の保存が
+  // 完全に完了してから次を始めるようにして解消する。
+  Future<void> _pendingPersist = Future<void>.value();
   late final TextEditingController _nameController;
   // 新規カードは開いた瞬間から名前を入力してほしいのでキーボードを出す。
   // 既存カードは開くたびに勝手にキーボードが出ると煩わしいので出さない。
@@ -1614,13 +1954,19 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
 
   /// まだ一度もFirestoreに保存していなければ[widget.onCreate]で新規作成、
   /// 既に保存済みなら[widget.onUpdate]でフィールド更新する。
-  Future<void> _persist() async {
-    if (_persisted) {
-      await widget.onUpdate(_card);
-    } else {
-      _persisted = true;
-      await widget.onCreate(_card);
-    }
+  /// 直前の保存が完了するまで待ってから実行する（[_pendingPersist]参照）。
+  Future<void> _persist() {
+    final card = _card;
+    final next = _pendingPersist.then((_) async {
+      if (_persisted) {
+        await widget.onUpdate(card);
+      } else {
+        _persisted = true;
+        await widget.onCreate(card);
+      }
+    });
+    _pendingPersist = next;
+    return next;
   }
 
   Future<void> _confirmName() async {
@@ -1636,7 +1982,8 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
   Future<void> _pickMaterial(String field) async {
     final card = _card;
 
-    final overlayBox = Overlay.of(context).context.findRenderObject() as RenderBox;
+    final overlayBox =
+        Overlay.of(context).context.findRenderObject() as RenderBox;
     final tapPosition = _lastTapPosition ?? overlayBox.size.center(Offset.zero);
     final position = RelativeRect.fromRect(
       Rect.fromPoints(tapPosition, tapPosition),
@@ -1684,13 +2031,70 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
     final id = result.isEmpty ? null : result;
     final updated = switch (field) {
       'icon' => card.copyWith(iconId: id, clearIconId: id == null),
-      'background' =>
-        card.copyWith(backgroundImageId: id, clearBackgroundImageId: id == null),
+      'background' => card.copyWith(
+        backgroundImageId: id,
+        clearBackgroundImageId: id == null,
+      ),
       'nickname' => card.copyWith(nicknameId: id, clearNicknameId: id == null),
       _ => card.copyWith(statusMessageId: id, clearStatusMessageId: id == null),
     };
     setState(() => _card = updated);
     await _persist();
+  }
+
+  /// カードに掲載するSNSのURLを選ぶ。アイコン・ニックネーム等（[_pickMaterial]、
+  /// showMenuベースの単一選択）と同じくタップ位置にポップアップを出すが、
+  /// こちらは最大[kMaxProfileCardSnsLinks]件までのチェックボックス選択のため、
+  /// 1件選ぶたびに閉じさせず、外側タップで閉じるまで複数選べるようにする。
+  Future<void> _pickSnsLinks() async {
+    final overlayBox = Overlay.of(context).context.findRenderObject() as RenderBox;
+    final tapPosition = _lastTapPosition ?? overlayBox.size.center(Offset.zero);
+    final position = RelativeRect.fromRect(
+      Rect.fromPoints(tapPosition, tapPosition),
+      Offset.zero & overlayBox.size,
+    );
+    final strings = widget.strings;
+    final selected = List<String>.of(_card.snsLinkIds);
+
+    await showMenu<void>(
+      context: context,
+      position: position,
+      items: [
+        if (widget.user.snsLinks.isEmpty)
+          PopupMenuItem<void>(
+            enabled: false,
+            child: Text(strings.workshopEmptyMaterialHint),
+          ),
+        for (final link in widget.user.snsLinks)
+          PopupMenuItem<void>(
+            child: StatefulBuilder(
+              builder: (context, setMenuState) => CheckboxListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                controlAffinity: ListTileControlAffinity.leading,
+                value: selected.contains(link.id),
+                title: Text(
+                  _displaySnsLinkUrl(link.url),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                onChanged: (checked) {
+                  setMenuState(() {
+                    if (checked ?? false) {
+                      if (selected.length < kMaxProfileCardSnsLinks) {
+                        selected.add(link.id);
+                      }
+                    } else {
+                      selected.remove(link.id);
+                    }
+                  });
+                  setState(() => _card = _card.copyWith(snsLinkIds: List.of(selected)));
+                  _persist();
+                },
+              ),
+            ),
+          ),
+      ],
+    );
   }
 
   Future<void> _handleDelete() async {
@@ -1708,14 +2112,23 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
     final colorScheme = Theme.of(context).colorScheme;
 
     final icon = _findById(widget.user.icons, card.iconId);
-    final background = _findById(widget.user.backgroundImages, card.backgroundImageId);
+    final background = _findById(
+      widget.user.backgroundImages,
+      card.backgroundImageId,
+    );
     final nickname = _findById(widget.user.nicknames, card.nicknameId);
-    final statusMessage = _findById(widget.user.statusMessages, card.statusMessageId);
+    final statusMessage = _findById(
+      widget.user.statusMessages,
+      card.statusMessageId,
+    );
+    final selectedSnsLinks = _selectedSnsLinksFor(widget.user, card.snsLinkIds);
     // ニックネーム・ステメはカード内（背景画像や暗いオーバーレイの上）に
     // 表示するため、背景の有無で見やすい色を切り替える。カード名はカードの
     // 外（下、暗転した背景の上）に表示するため常に白系の固定色にする。
     final nicknameColor = background != null ? Colors.white : null;
-    final statusColor = background != null ? Colors.white70 : colorScheme.onSurfaceVariant;
+    final statusColor = background != null
+        ? Colors.white70
+        : colorScheme.onSurfaceVariant;
     // カード内のニックネーム（width*0.075）に近い比率で、カードの主見出しとして
     // 十分読める大きさにする（以前の「既定サイズの8割」だと逆に小さすぎた）。
     final nameFontSize = (width * 0.06).clamp(16.0, 22.0);
@@ -1741,7 +2154,14 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
           // 出ていたため、ClipRectで見た目上だけ吸収する。
           child: Material(
             type: MaterialType.transparency,
-            child: ClipRect(
+            // 以前はClipRectで視覚的にオーバーフローを吸収していたが、
+            // ClipRectは「はみ出た描画を切り取る」だけで、RenderFlex自体が
+            // 出す「BOTTOM OVERFLOWED」の警告バナーは吸収できず、Hero飛行が
+            // 一瞬小さいサイズを取った際に警告が出てしまっていた
+            // （カードを閉じる時にエラーが出る不具合として報告された）。
+            // FittedBoxならオーバーフローそのものが起きないため、こちらに変更。
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -1766,73 +2186,110 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
                                 _lastTapPosition = details.globalPosition,
                             onTap: () => _pickMaterial('background'),
                             child: background != null
-                                ? Image.network(background.url, fit: BoxFit.cover)
-                                : ColoredBox(color: colorScheme.surfaceContainerHighest),
+                                ? Image.network(
+                                    background.url,
+                                    fit: BoxFit.cover,
+                                  )
+                                : ColoredBox(
+                                    color: colorScheme.surfaceContainerHighest,
+                                  ),
                           ),
                           if (background != null)
-                            const DecoratedBox(
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  begin: Alignment.topCenter,
-                                  end: Alignment.bottomCenter,
-                                  colors: [Colors.transparent, Colors.black54],
+                            // 単なる装飾のグラデーションのはずが、子を持たない
+                            // DecoratedBoxが背景タップより上のStack層で
+                            // ヒットテストを奪ってしまい、背景を一度設定すると
+                            // 以降タップしても何も起きない不具合になっていた
+                            // （ウィジェットテストで再現・特定）。IgnorePointerで
+                            // ヒットテストの対象から明示的に外す。
+                            const IgnorePointer(
+                              child: DecoratedBox(
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    begin: Alignment.topCenter,
+                                    end: Alignment.bottomCenter,
+                                    colors: [
+                                      Colors.transparent,
+                                      Colors.black54,
+                                    ],
+                                  ),
                                 ),
                               ),
                             ),
                           Padding(
                             padding: EdgeInsets.all(width * 0.08),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisAlignment: MainAxisAlignment.end,
-                              children: [
-                                GestureDetector(
-                                  onTapDown: (details) =>
-                                      _lastTapPosition = details.globalPosition,
-                                  onTap: () => _pickMaterial('icon'),
-                                  child: CircleAvatar(
-                                    radius: width * 0.13,
-                                    backgroundImage: icon != null
-                                        ? NetworkImage(icon.url)
-                                        : null,
-                                    child: icon == null
-                                        ? const Icon(Icons.person)
-                                        : null,
-                                  ),
-                                ),
-                                SizedBox(height: width * 0.05),
-                                // カード内はニックネームを主役として表示し、
-                                // その下にステメを補足として表示する。
-                                GestureDetector(
-                                  onTapDown: (details) =>
-                                      _lastTapPosition = details.globalPosition,
-                                  onTap: () => _pickMaterial('nickname'),
-                                  child: Text(
-                                    nickname?.text ?? vocab.nickname,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      fontSize: width * 0.075,
-                                      fontWeight: FontWeight.bold,
-                                      color: nicknameColor,
+                            // アイコン・ニックネーム・ステメ・URLの4行を常に
+                            // 収めるため、内容をFittedBoxで包み必要なら縮小する。
+                            // Hero飛行中は矩形が対角2頂点それぞれ独立の円弧で
+                            // 補間されるため、一瞬だけ両端点より小さいサイズを
+                            // 取ることがあり、固定サイズのColumnのままだと
+                            // その瞬間だけ収まりきらずオーバーフロー警告が出ていた
+                            // （4行目のURL行追加でこの問題が顕在化した）。
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              alignment: Alignment.bottomLeft,
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  GestureDetector(
+                                    onTapDown: (details) => _lastTapPosition =
+                                        details.globalPosition,
+                                    onTap: () => _pickMaterial('icon'),
+                                    child: CircleAvatar(
+                                      radius: width * 0.13,
+                                      backgroundImage: icon != null
+                                          ? NetworkImage(icon.url)
+                                          : null,
+                                      child: icon == null
+                                          ? const Icon(Icons.person)
+                                          : null,
                                     ),
                                   ),
-                                ),
-                                SizedBox(height: width * 0.02),
-                                GestureDetector(
-                                  onTapDown: (details) =>
-                                      _lastTapPosition = details.globalPosition,
-                                  onTap: () => _pickMaterial('statusMessage'),
-                                  child: Text(
-                                    statusMessage?.text ?? vocab.statusMessage,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      fontSize: width * 0.045,
-                                      color: statusColor,
+                                  SizedBox(height: width * 0.05),
+                                  // カード内はニックネームを主役として表示し、
+                                  // その下にステメを補足として表示する。
+                                  GestureDetector(
+                                    onTapDown: (details) => _lastTapPosition =
+                                        details.globalPosition,
+                                    onTap: () => _pickMaterial('nickname'),
+                                    child: Text(
+                                      nickname?.text ?? vocab.nickname,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontSize: width * 0.075,
+                                        fontWeight: FontWeight.bold,
+                                        color: nicknameColor,
+                                      ),
                                     ),
                                   ),
-                                ),
-                              ],
+                                  SizedBox(height: width * 0.02),
+                                  GestureDetector(
+                                    onTapDown: (details) => _lastTapPosition =
+                                        details.globalPosition,
+                                    onTap: () => _pickMaterial('statusMessage'),
+                                    child: Text(
+                                      statusMessage?.text ??
+                                          vocab.statusMessage,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontSize: width * 0.045,
+                                        color: statusColor,
+                                      ),
+                                    ),
+                                  ),
+                                  SizedBox(height: width * 0.02),
+                                  _SnsLinksInline(
+                                    links: selectedSnsLinks,
+                                    iconSize: width * 0.045,
+                                    fontSize: width * 0.04,
+                                    color: statusColor,
+                                    placeholder: strings.workshopSnsLinkFieldLabel,
+                                    onTap: _pickSnsLinks,
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         ],
@@ -1840,9 +2297,11 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  // カード名はカードの直下に表示する。暗転した背景の上に乗るため
-                  // 固定で白系の色にする。編集ボタンは置かず、最初から常に
-                  // TextFieldを表示する（新規カードは自動でフォーカスする）。
+                  // カード名はカードの直下、半透明の暗転バリアの上に表示する。
+                  // 以前は白系の色にしていたが、バリアが半透明のため背景次第で
+                  // 白文字が読みづらいとの指摘があり、黒系に変更した。編集ボタンは
+                  // 置かず、最初から常にTextFieldを表示する（新規カードは自動で
+                  // フォーカスする）。
                   SizedBox(
                     width: width,
                     child: TextField(
@@ -1850,22 +2309,34 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
                       autofocus: _isNewCard,
                       maxLength: kMaxWorkshopCardNameLength,
                       textAlign: TextAlign.center,
+                      // 指定しないとWeb版でブラウザが「名前欄」と誤認識し、
+                      // 独自のオートフィル黄色ハイライトを重ねてくることが
+                      // あったため、明示的に空にしてブラウザ側の自動補完
+                      // 候補付けそのものを無効化する。
+                      autofillHints: const [],
                       style: TextStyle(
-                        color: Colors.white,
+                        color: Colors.black,
                         fontWeight: FontWeight.bold,
                         fontSize: nameFontSize,
                       ),
                       decoration: InputDecoration(
                         counterText: '',
-                        contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                        contentPadding: const EdgeInsets.symmetric(
+                          vertical: 12,
+                        ),
                         hintText: strings.workshopCardNameLabel,
-                        hintStyle:
-                            TextStyle(color: Colors.white70, fontSize: nameFontSize),
+                        hintStyle: TextStyle(
+                          color: Colors.black54,
+                          fontSize: nameFontSize,
+                        ),
                         enabledBorder: const UnderlineInputBorder(
-                          borderSide: BorderSide(color: Colors.white70, width: 1.5),
+                          borderSide: BorderSide(
+                            color: Colors.black54,
+                            width: 1.5,
+                          ),
                         ),
                         focusedBorder: const UnderlineInputBorder(
-                          borderSide: BorderSide(color: Colors.white, width: 2),
+                          borderSide: BorderSide(color: Colors.black, width: 2),
                         ),
                       ),
                       onSubmitted: (_) => _confirmName(),
@@ -1931,7 +2402,10 @@ Future<String?> _showImageMaterialMenu(
     items: [
       PopupMenuItem<String>(
         value: '',
-        child: _MaterialMenuRow(selected: selectedId == null, label: strings.workshopChoiceNone),
+        child: _MaterialMenuRow(
+          selected: selectedId == null,
+          label: strings.workshopChoiceNone,
+        ),
       ),
       if (materials.isEmpty)
         PopupMenuItem<String>(
@@ -1966,7 +2440,10 @@ Future<String?> _showTextMaterialMenu(
     items: [
       PopupMenuItem<String>(
         value: '',
-        child: _MaterialMenuRow(selected: selectedId == null, label: strings.workshopChoiceNone),
+        child: _MaterialMenuRow(
+          selected: selectedId == null,
+          label: strings.workshopChoiceNone,
+        ),
       ),
       if (items.isEmpty)
         PopupMenuItem<String>(

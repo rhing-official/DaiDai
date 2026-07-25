@@ -6,13 +6,16 @@ import '../../l10n/app_locale.dart';
 import '../../l10n/strings.dart';
 import '../../l10n/terminology_style.dart';
 import '../../models/app_user.dart';
+import '../../models/message_time_format.dart';
 import '../../models/send_key_mode.dart';
 import '../../providers/accent_color_provider.dart';
 import '../../providers/app_locale_provider.dart';
+import '../../providers/message_time_format_provider.dart';
 import '../../providers/repository_providers.dart';
 import '../../providers/send_key_mode_provider.dart';
 import '../../providers/terminology_style_provider.dart';
 import '../../utils/color_hex.dart';
+import '../../widgets/swipe_gestures.dart';
 
 /// 画面幅がこれ以上あれば、左にカテゴリ一覧（サイドバー）、右にそのカテゴリの
 /// 内容を1ページにまとめて表示するDiscord設定風の2ペイン表示にする。
@@ -287,21 +290,24 @@ class _NarrowSettingsPage extends StatelessWidget {
   Widget build(BuildContext context) {
     // mainAxisSizeをmin指定にすると、内側のListView（例: _AccountPage）が
     // 無限の高さ制約を受けてクラッシュする。既定（max）のままExpandedで包む。
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        ListTile(
-          contentPadding: EdgeInsets.zero,
-          leading: const Icon(Icons.arrow_back),
-          title: Text(
-            category.title,
-            style: const TextStyle(fontWeight: FontWeight.bold),
+    return SwipeBackDetector(
+      onBack: onBack,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.arrow_back),
+            title: Text(
+              category.title,
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            onTap: onBack,
           ),
-          onTap: onBack,
-        ),
-        const Divider(height: 1),
-        Expanded(child: Builder(builder: category.pageBuilder)),
-      ],
+          const Divider(height: 1),
+          Expanded(child: Builder(builder: category.pageBuilder)),
+        ],
+      ),
     );
   }
 }
@@ -395,10 +401,6 @@ class _AccountPage extends ConsumerWidget {
           label: strings.settingsRhingIdLabel,
           value: '@${currentUser.rhingId}',
         ),
-        _InfoRow(
-          label: strings.settingsProfileName,
-          value: strings.settingsComingSoon,
-        ),
         const Divider(height: 24),
         _SectionHeader(strings.settingsSecurity),
         _InfoRow(
@@ -466,6 +468,8 @@ class _ApplicationPage extends StatelessWidget {
         ),
         const Divider(height: 24),
         _LanguageFolder(strings: strings),
+        const Divider(height: 24),
+        _TimeFormatFolder(strings: strings),
       ],
     );
   }
@@ -713,6 +717,52 @@ class _LanguageFolder extends ConsumerWidget {
                   selected: currentStyle == style,
                   onSelected: (_) =>
                       ref.read(terminologyStyleProvider.notifier).setStyle(style),
+                ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// メッセージの送信時刻表示形式（24時間表記／12時間表記）の切り替え。
+class _TimeFormatFolder extends ConsumerWidget {
+  const _TimeFormatFolder({required this.strings});
+
+  final Strings strings;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final currentFormat = ref.watch(messageTimeFormatProvider);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          child: Text(
+            strings.settingsTimeFormat,
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final format in MessageTimeFormat.values)
+                ChoiceChip(
+                  label: Text(
+                    format == MessageTimeFormat.h24
+                        ? strings.settingsTimeFormat24h
+                        : strings.settingsTimeFormat12h,
+                  ),
+                  selected: currentFormat == format,
+                  onSelected: (_) =>
+                      ref.read(messageTimeFormatProvider.notifier).setFormat(format),
                 ),
             ],
           ),

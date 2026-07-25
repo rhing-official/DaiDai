@@ -7,17 +7,23 @@ class GroupInvitePreview {
     required this.name,
     this.description = '',
     this.iconUrl,
+    this.backgroundImageUrl,
   });
 
   final String name;
   final String description;
   final String? iconUrl;
 
+  /// OGP画像をプロフィールカードそのままの見た目で生成するために使う
+  /// （`api/og-image.js`が参照する）。
+  final String? backgroundImageUrl;
+
   factory GroupInvitePreview.fromJson(Map<String, dynamic> json) {
     return GroupInvitePreview(
       name: json['name'] as String,
       description: json['description'] as String? ?? '',
       iconUrl: json['iconUrl'] as String?,
+      backgroundImageUrl: json['backgroundImageUrl'] as String?,
     );
   }
 
@@ -26,6 +32,7 @@ class GroupInvitePreview {
       'name': name,
       'description': description,
       'iconUrl': iconUrl,
+      'backgroundImageUrl': backgroundImageUrl,
     };
   }
 }

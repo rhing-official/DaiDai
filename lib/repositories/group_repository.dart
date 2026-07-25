@@ -54,6 +54,13 @@ abstract class GroupRepository {
     required Uint8List bytes,
   });
 
+  /// 広場のプロフィールカード用背景画像をアップロードする。
+  Future<GroupProfileCard> uploadProfileCardBackground({
+    required String groupId,
+    required GroupProfileCard card,
+    required Uint8List bytes,
+  });
+
   /// 招待リンク・QRコードから開いた相手に見せる、広場の公開プレビュー
   /// （名前・アイコン・説明のみ。メンバー一覧やメッセージは含まない）。
   /// ログイン前・非メンバーでも読み取れる。
@@ -227,6 +234,7 @@ class FirestoreGroupRepository implements GroupRepository {
       name: card.name,
       description: card.description,
       iconUrl: card.iconUrl,
+      backgroundImageUrl: card.backgroundImageUrl,
     );
     final batch = _firestore.batch();
     batch.update(_groups.doc(groupId), {'profileCard': card.toJson()});
@@ -263,6 +271,40 @@ class FirestoreGroupRepository implements GroupRepository {
     }
 
     return card.copyWith(iconUrl: url, iconStoragePath: path);
+  }
+
+  @override
+  Future<GroupProfileCard> uploadProfileCardBackground({
+    required String groupId,
+    required GroupProfileCard card,
+    required Uint8List bytes,
+  }) async {
+    final id = _groups.doc().id;
+    final compressed = await _tryCompressToWebp(bytes);
+    final extension = compressed != null ? 'webp' : 'jpg';
+    final contentType = compressed != null ? 'image/webp' : 'image/jpeg';
+    final path = 'groupBackgrounds/$groupId/$id.$extension';
+    final ref = _storage.ref(path);
+    await ref.putData(
+      compressed ?? bytes,
+      SettableMetadata(contentType: contentType),
+    );
+    final url = await ref.getDownloadURL();
+
+    // 差し替え前の背景画像が残っていれば削除する（ストレージの肥大化防止）。
+    final previousPath = card.backgroundImageStoragePath;
+    if (previousPath != null) {
+      try {
+        await _storage.ref(previousPath).delete();
+      } catch (_) {
+        // 削除失敗はアップロード自体の成否に影響させない。
+      }
+    }
+
+    return card.copyWith(
+      backgroundImageUrl: url,
+      backgroundImageStoragePath: path,
+    );
   }
 
   Future<Uint8List?> _tryCompressToWebp(Uint8List bytes) async {
