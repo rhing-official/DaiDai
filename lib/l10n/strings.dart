@@ -49,9 +49,6 @@ class Strings {
     required this.supportHomepageUrl,
     required this.supportAnnouncements,
     required this.supportContactForm,
-    required this.plazaCurrentTypeSubtitle,
-    required this.plazaTextChannelSubtitle,
-    required this.plazaPublicPlazaSubtitle,
     required this.settingsSendKeyTitle,
     required this.settingsSendKeyEnterToSend,
     required this.settingsSendKeyCtrlEnterToSend,
@@ -209,10 +206,6 @@ class Strings {
   final String supportHomepageUrl;
   final String supportAnnouncements;
   final String supportContactForm;
-
-  final String plazaCurrentTypeSubtitle;
-  final String plazaTextChannelSubtitle;
-  final String plazaPublicPlazaSubtitle;
 
   final String back;
 
@@ -381,9 +374,6 @@ class Strings {
     supportHomepageUrl: 'ホームページのURL',
     supportAnnouncements: 'お知らせ',
     supportContactForm: '質問フォーム',
-    plazaCurrentTypeSubtitle: '現在この広場は非公開（裏広場）です',
-    plazaTextChannelSubtitle: '今の会話がこれにあたります',
-    plazaPublicPlazaSubtitle: '不特定多数が参加できる広場です（フェーズ3で対応予定）',
     back: '戻る',
     friendSearchTitle: '友達を追加',
     friendSearchHint: '相手のRhing IDを入力して友達申請を送ります。承認されると会話できるようになります。',
@@ -460,7 +450,7 @@ class Strings {
     groupMenuLeave: '退会',
     groupProfileCardTitle: '広場のプロフィールカード',
     groupProfileCardNameLabel: '名前',
-    groupProfileCardDescriptionLabel: '説明',
+    groupProfileCardDescriptionLabel: '一言',
     groupProfileCardSave: '保存',
     groupProfileCardChangeIcon: 'アイコンを変更',
     groupProfileCardChangeBackground: '背景をタップして変更',
@@ -540,10 +530,6 @@ class Strings {
     supportHomepageUrl: 'Homepage URL',
     supportAnnouncements: 'Announcements',
     supportContactForm: 'Contact form',
-    plazaCurrentTypeSubtitle: 'This Plaza is currently private',
-    plazaTextChannelSubtitle: 'Your current conversation is this',
-    plazaPublicPlazaSubtitle:
-        'A plaza anyone can join (planned for a later phase)',
     back: 'Back',
     friendSearchTitle: 'Add a friend',
     friendSearchHint:
@@ -623,7 +609,7 @@ class Strings {
     groupMenuLeave: 'Leave',
     groupProfileCardTitle: 'Plaza profile card',
     groupProfileCardNameLabel: 'Name',
-    groupProfileCardDescriptionLabel: 'Description',
+    groupProfileCardDescriptionLabel: 'Status',
     groupProfileCardSave: 'Save',
     groupProfileCardChangeIcon: 'Change icon',
     groupProfileCardChangeBackground: 'Tap the background to change it',

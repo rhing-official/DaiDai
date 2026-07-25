@@ -18,7 +18,6 @@ class ChatScreen extends ConsumerStatefulWidget {
     required this.currentUserId,
     required this.messagesStream,
     required this.onSend,
-    this.showSenderAvatar = false,
     this.onCallPressed,
     this.onVideoCallPressed,
     this.extraActions,
@@ -29,10 +28,6 @@ class ChatScreen extends ConsumerStatefulWidget {
   final String currentUserId;
   final Stream<List<Message>> messagesStream;
   final Future<void> Function(String content, {bool silent}) onSend;
-
-  /// 広場（複数人の会話）では相手ごとに送信者を見分けやすいよう、
-  /// メッセージにRhing IDのイニシャルアイコンを表示する。一対では表示しない。
-  final bool showSenderAvatar;
 
   /// 音声通話の発信ボタン。一対（1対1）のみで渡す（グループ通話は未対応）。
   final VoidCallback? onCallPressed;
@@ -158,105 +153,42 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 if (messages.isEmpty) {
                   return const Center(child: Text('まだメッセージはありません'));
                 }
+
+                // messagesは新しい順（index 0が最新）。日付区切りを「その日の
+                // 最初のメッセージの直上」に挿入したいので、一旦古い順に走査して
+                // 区切り込みのリストを組み立ててから反転する。reverse:trueの
+                // ListViewにそのまま渡すと、index 0（リストの末尾＝一番新しい
+                // 要素）が画面下端に来て、見た目は上から古い順（区切り→その日の
+                // メッセージ…）に正しく並ぶ。
+                final entries = <Widget>[];
+                DateTime? currentDay;
+                for (var i = messages.length - 1; i >= 0; i--) {
+                  final message = messages[i];
+                  final sentAt = message.sentAt?.toDate();
+                  if (sentAt != null &&
+                      (currentDay == null || !isSameDay(sentAt, currentDay))) {
+                    currentDay = sentAt;
+                    entries.add(_DateSeparator(date: sentAt));
+                  }
+                  entries.add(
+                    _MessageRow(
+                      message: message,
+                      isMe: message.senderId == widget.currentUserId,
+                      timeLabel: sentAt != null
+                          ? formatMessageTime(sentAt, timeFormat)
+                          : null,
+                      colorScheme: colorScheme,
+                      floatingShadow: floatingShadow,
+                    ),
+                  );
+                }
+                final reversedEntries = entries.reversed.toList();
+
                 return ListView.builder(
                   reverse: true,
                   padding: const EdgeInsets.all(12),
-                  itemCount: messages.length,
-                  itemBuilder: (context, index) {
-                    final message = messages[index];
-                    final isMe = message.senderId == widget.currentUserId;
-                    final sentAt = message.sentAt;
-                    final timeLabel = sentAt != null
-                        ? formatMessageTime(sentAt.toDate(), timeFormat)
-                        : null;
-                    final bubble = Container(
-                      margin: const EdgeInsets.symmetric(vertical: 4),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 10,
-                      ),
-                      decoration: BoxDecoration(
-                        color: isMe
-                            ? colorScheme.primary
-                            : colorScheme.surfaceContainerHighest,
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: floatingShadow,
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Flexible(
-                            child: Text(
-                              message.content,
-                              style: TextStyle(
-                                color: isMe
-                                    ? colorScheme.onPrimary
-                                    : colorScheme.onSurfaceVariant,
-                              ),
-                            ),
-                          ),
-                          if (message.silent) ...[
-                            const SizedBox(width: 4),
-                            Icon(
-                              Icons.notifications_off,
-                              size: 14,
-                              color: (isMe
-                                      ? colorScheme.onPrimary
-                                      : colorScheme.onSurfaceVariant)
-                                  .withValues(alpha: 0.7),
-                            ),
-                          ],
-                        ],
-                      ),
-                    );
-
-                    final bubbleWithTime = Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment:
-                          isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-                      children: [
-                        bubble,
-                        if (timeLabel != null)
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 4),
-                            child: Text(
-                              timeLabel,
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: colorScheme.onSurfaceVariant
-                                    .withValues(alpha: 0.7),
-                              ),
-                            ),
-                          ),
-                      ],
-                    );
-
-                    if (!widget.showSenderAvatar || isMe) {
-                      return Align(
-                        alignment: isMe
-                            ? Alignment.centerRight
-                            : Alignment.centerLeft,
-                        child: bubbleWithTime,
-                      );
-                    }
-
-                    return Align(
-                      alignment: Alignment.centerLeft,
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          _SenderAvatar(
-                            userId: message.senderId,
-                            rhingId: message.senderRhingId,
-                          ),
-                          const SizedBox(width: 8),
-                          Flexible(child: bubbleWithTime),
-                        ],
-                      ),
-                    );
-                  },
+                  itemCount: reversedEntries.length,
+                  itemBuilder: (context, index) => reversedEntries[index],
                 );
               },
             ),
@@ -300,6 +232,196 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// メッセージ一覧の日付区切り。その日最初のメッセージの直上に、画面中央の
+/// 丸みを帯びたラベルとして表示する。LINE等の「今日」「昨日」のような相対
+/// 表記ではなく、常に絶対日付（yyyy/mm/dd）で表す。
+class _DateSeparator extends StatelessWidget {
+  const _DateSeparator({required this.date});
+
+  final DateTime date;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Center(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          decoration: BoxDecoration(
+            color: colorScheme.surfaceContainerHighest,
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: Text(
+            formatMessageDate(date),
+            style: TextStyle(
+              fontSize: 12,
+              color: colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// メッセージ1件分の表示。自分のメッセージは吹き出しのみ（時刻は吹き出しの下）、
+/// 相手のメッセージはアイコン＋（呼び名・時刻の見出し行）を吹き出しの上に出し、
+/// 見出し行の下へ吹き出しが展開する構成にする（一対・広場どちらも同じ見た目）。
+class _MessageRow extends StatelessWidget {
+  const _MessageRow({
+    required this.message,
+    required this.isMe,
+    required this.timeLabel,
+    required this.colorScheme,
+    required this.floatingShadow,
+  });
+
+  final Message message;
+  final bool isMe;
+  final String? timeLabel;
+  final ColorScheme colorScheme;
+  final List<BoxShadow> floatingShadow;
+
+  @override
+  Widget build(BuildContext context) {
+    final bubble = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: isMe ? colorScheme.primary : colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: floatingShadow,
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Flexible(
+            child: Text(
+              message.content,
+              style: TextStyle(
+                color: isMe ? colorScheme.onPrimary : colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+          if (message.silent) ...[
+            const SizedBox(width: 4),
+            Icon(
+              Icons.notifications_off,
+              size: 14,
+              color: (isMe ? colorScheme.onPrimary : colorScheme.onSurfaceVariant)
+                  .withValues(alpha: 0.7),
+            ),
+          ],
+        ],
+      ),
+    );
+
+    if (isMe) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Align(
+          alignment: Alignment.centerRight,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              bubble,
+              if (timeLabel != null)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                  child: Text(
+                    timeLabel!,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _SenderAvatar(userId: message.senderId, rhingId: message.senderRhingId),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.baseline,
+                    textBaseline: TextBaseline.alphabetic,
+                    children: [
+                      Flexible(
+                        child: _SenderName(
+                          userId: message.senderId,
+                          rhingId: message.senderRhingId,
+                        ),
+                      ),
+                      if (timeLabel != null) ...[
+                        const SizedBox(width: 6),
+                        Text(
+                          timeLabel!,
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  bubble,
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 送信者の呼び名。[AppUser.effectiveNickname]（適用中の工房カードがあれば
+/// そちらを優先）があればそれを表示し、未設定ならRhing IDにフォールバックする。
+class _SenderName extends ConsumerWidget {
+  const _SenderName({required this.userId, required this.rhingId});
+
+  final String userId;
+  final String? rhingId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final nickname =
+        ref.watch(watchedUserProvider(userId)).value?.effectiveNickname?.text;
+    final label = (nickname != null && nickname.isNotEmpty)
+        ? nickname
+        : '@${rhingId ?? '?'}';
+    return Text(
+      label,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(
+        fontSize: 12,
+        fontWeight: FontWeight.w600,
+        color: Theme.of(context).colorScheme.onSurfaceVariant,
       ),
     );
   }
