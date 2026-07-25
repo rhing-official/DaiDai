@@ -125,13 +125,8 @@ class Strings {
     required this.groupMenuMemberList,
     required this.groupMenuCreateInvite,
     required this.groupMenuLeave,
-    required this.groupProfileCardTitle,
     required this.groupProfileCardNameLabel,
     required this.groupProfileCardDescriptionLabel,
-    required this.groupProfileCardSave,
-    required this.groupProfileCardChangeIcon,
-    required this.groupProfileCardChangeBackground,
-    required this.groupProfileCardSaved,
     required this.groupMemberListTitle,
     required this.groupMemberListPendingSection,
     required this.groupMemberListMembersSection,
@@ -292,13 +287,8 @@ class Strings {
   final String groupMenuCreateInvite;
   final String groupMenuLeave;
 
-  final String groupProfileCardTitle;
   final String groupProfileCardNameLabel;
   final String groupProfileCardDescriptionLabel;
-  final String groupProfileCardSave;
-  final String groupProfileCardChangeIcon;
-  final String groupProfileCardChangeBackground;
-  final String groupProfileCardSaved;
 
   final String groupMemberListTitle;
   final String groupMemberListPendingSection;
@@ -448,13 +438,8 @@ class Strings {
     groupMenuMemberList: 'メンバー一覧',
     groupMenuCreateInvite: '招待リンク作成',
     groupMenuLeave: '退会',
-    groupProfileCardTitle: '広場のプロフィールカード',
     groupProfileCardNameLabel: '名前',
     groupProfileCardDescriptionLabel: '一言',
-    groupProfileCardSave: '保存',
-    groupProfileCardChangeIcon: 'アイコンを変更',
-    groupProfileCardChangeBackground: '背景をタップして変更',
-    groupProfileCardSaved: '保存しました',
     groupMemberListTitle: 'メンバー一覧',
     groupMemberListPendingSection: '参加リクエスト',
     groupMemberListMembersSection: 'メンバー',
@@ -607,13 +592,8 @@ class Strings {
     groupMenuMemberList: 'Member list',
     groupMenuCreateInvite: 'Create invite link',
     groupMenuLeave: 'Leave',
-    groupProfileCardTitle: 'Plaza profile card',
     groupProfileCardNameLabel: 'Name',
     groupProfileCardDescriptionLabel: 'Status',
-    groupProfileCardSave: 'Save',
-    groupProfileCardChangeIcon: 'Change icon',
-    groupProfileCardChangeBackground: 'Tap the background to change it',
-    groupProfileCardSaved: 'Saved',
     groupMemberListTitle: 'Members',
     groupMemberListPendingSection: 'Join requests',
     groupMemberListMembersSection: 'Members',

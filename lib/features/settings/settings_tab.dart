@@ -80,6 +80,12 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
     }
 
     final selected = _findCategoryById(categories, _selectedId);
+    final selectedIndex =
+        selected == null ? -1 : categories.indexWhere((c) => c.id == selected.id);
+    final previousCategory = selectedIndex > 0 ? categories[selectedIndex - 1] : null;
+    final nextCategory = selectedIndex >= 0 && selectedIndex < categories.length - 1
+        ? categories[selectedIndex + 1]
+        : null;
     return Align(
       alignment: Alignment.topCenter,
       child: ConstrainedBox(
@@ -100,6 +106,12 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
                     key: ValueKey(selected.id),
                     category: selected,
                     onBack: () => setState(() => _selectedId = null),
+                    onPrevious: previousCategory == null
+                        ? null
+                        : () => setState(() => _selectedId = previousCategory.id),
+                    onNext: nextCategory == null
+                        ? null
+                        : () => setState(() => _selectedId = nextCategory.id),
                   ),
           ),
         ),
@@ -281,10 +293,14 @@ class _NarrowSettingsPage extends StatelessWidget {
     super.key,
     required this.category,
     required this.onBack,
+    this.onPrevious,
+    this.onNext,
   });
 
   final _SettingsCategory category;
   final VoidCallback onBack;
+  final VoidCallback? onPrevious;
+  final VoidCallback? onNext;
 
   @override
   Widget build(BuildContext context) {
@@ -292,6 +308,8 @@ class _NarrowSettingsPage extends StatelessWidget {
     // 無限の高さ制約を受けてクラッシュする。既定（max）のままExpandedで包む。
     return SwipeBackDetector(
       onBack: onBack,
+      onPrevious: onPrevious,
+      onNext: onNext,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

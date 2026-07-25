@@ -1,9 +1,12 @@
 import 'package:daidai/features/chat/chat_screen.dart';
+import 'package:daidai/l10n/app_locale.dart';
 import 'package:daidai/models/message.dart';
 import 'package:daidai/models/message_time_format.dart';
 import 'package:daidai/models/send_key_mode.dart';
+import 'package:daidai/providers/app_locale_provider.dart';
 import 'package:daidai/providers/message_time_format_provider.dart';
 import 'package:daidai/providers/send_key_mode_provider.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -29,6 +32,7 @@ Future<void> _pumpChatScreen(
       overrides: [
         initialSendKeyModeProvider.overrideWithValue(mode),
         initialMessageTimeFormatProvider.overrideWithValue(MessageTimeFormat.h24),
+        initialAppLocaleProvider.overrideWithValue(AppLocale.japanese),
       ],
       child: MaterialApp(
         home: ChatScreen(
@@ -134,15 +138,24 @@ void main() {
   });
 
   testWidgets('送信ボタンの長押しで通知せず送信', (tester) async {
-    final sent = <_Sent>[];
-    await _pumpChatScreen(tester, mode: SendKeyMode.enterToSend, sentMessages: sent);
+    // 送信ボタンはハードウェアキーボード未接続時のみ表示される
+    // （Windows/Linux/macOSは常時接続扱いのため、そのままではボタンが出ない）。
+    // ここではAndroidを模擬してソフトウェアキーボードのみの状況を再現する。
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    try {
+      final sent = <_Sent>[];
+      await _pumpChatScreen(tester, mode: SendKeyMode.enterToSend, sentMessages: sent);
 
-    await tester.enterText(find.byType(TextField), 'hello');
-    await tester.longPress(find.byIcon(Icons.send));
-    await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), 'hello');
+      await tester.pumpAndSettle();
+      await tester.longPress(find.byIcon(Icons.send));
+      await tester.pumpAndSettle();
 
-    expect(sent, hasLength(1));
-    expect(sent.single.content, 'hello');
-    expect(sent.single.silent, isTrue);
+      expect(sent, hasLength(1));
+      expect(sent.single.content, 'hello');
+      expect(sent.single.silent, isTrue);
+    } finally {
+      debugDefaultTargetPlatformOverride = null;
+    }
   });
 }

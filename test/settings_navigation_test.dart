@@ -9,6 +9,7 @@ import 'package:daidai/models/send_key_mode.dart';
 import 'package:daidai/providers/message_time_format_provider.dart';
 import 'package:daidai/providers/send_key_mode_provider.dart';
 import 'package:daidai/providers/terminology_style_provider.dart';
+import 'package:daidai/widgets/swipe_gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -26,6 +27,44 @@ import 'package:shared_preferences/shared_preferences.dart';
 Future<void> _pumpSettingsTab(WidgetTester tester) async {
   SharedPreferences.setMockInitialValues({});
   tester.view.physicalSize = const Size(1400, 900);
+  tester.view.devicePixelRatio = 1;
+  addTearDown(tester.view.resetPhysicalSize);
+  addTearDown(tester.view.resetDevicePixelRatio);
+
+  await tester.pumpWidget(
+    ProviderScope(
+      overrides: [
+        initialAppLocaleProvider.overrideWithValue(AppLocale.japanese),
+        initialTerminologyStyleProvider.overrideWithValue(
+          TerminologyStyle.worldview,
+        ),
+        initialAccentColorProvider.overrideWithValue(
+          const Color(0xFFF08300),
+        ),
+        initialSendKeyModeProvider.overrideWithValue(
+          SendKeyMode.enterToSend,
+        ),
+        initialMessageTimeFormatProvider.overrideWithValue(
+          MessageTimeFormat.h24,
+        ),
+      ],
+      child: const MaterialApp(
+        home: Scaffold(
+          body: SettingsTab(
+            currentUser: AppUser(userId: 'u1', rhingId: 'taro'),
+          ),
+        ),
+      ),
+    ),
+  );
+  await tester.pumpAndSettle();
+}
+
+// 狭い画面（サイドバー+ドリルダウン方式）でのカテゴリ切り替えスワイプの
+// 回帰テスト用。760のブレークポイント未満の幅にする。
+Future<void> _pumpSettingsTabNarrow(WidgetTester tester) async {
+  SharedPreferences.setMockInitialValues({});
+  tester.view.physicalSize = const Size(400, 800);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);
@@ -130,5 +169,38 @@ void main() {
       container.read(terminologyStyleProvider),
       TerminologyStyle.convenience,
     );
+  });
+
+  testWidgets('狭い画面のドリルダウン中に横スワイプで隣接カテゴリへ切り替えられる（回帰テスト）', (
+    tester,
+  ) async {
+    await _pumpSettingsTabNarrow(tester);
+
+    // カテゴリ一覧から「アプリケーション」（アカウント→アプリケーション→
+    // 入力→通知の2番目）へドリルダウンする。
+    await tester.tap(find.text('アプリケーション'));
+    await tester.pumpAndSettle();
+    expect(find.text('アクセントカラー'), findsOneWidget);
+
+    // 左スワイプで次のカテゴリ（入力）へ。
+    await tester.fling(find.byType(SwipeBackDetector), const Offset(-300, 0), 1000);
+    await tester.pumpAndSettle();
+    expect(find.text('アクセントカラー'), findsNothing);
+    expect(find.text('メッセージの送信キー'), findsOneWidget);
+
+    // 右スワイプで前のカテゴリ（アプリケーション）へ戻る。
+    await tester.fling(find.byType(SwipeBackDetector), const Offset(300, 0), 1000);
+    await tester.pumpAndSettle();
+    expect(find.text('アクセントカラー'), findsOneWidget);
+
+    // さらに右スワイプで前のカテゴリ（アカウント）へ。
+    await tester.fling(find.byType(SwipeBackDetector), const Offset(300, 0), 1000);
+    await tester.pumpAndSettle();
+    expect(find.text('Rhing ID'), findsOneWidget);
+
+    // 先頭カテゴリで右スワイプすると、従来通りカテゴリ一覧に戻る。
+    await tester.fling(find.byType(SwipeBackDetector), const Offset(300, 0), 1000);
+    await tester.pumpAndSettle();
+    expect(find.byType(SwipeBackDetector), findsNothing);
   });
 }

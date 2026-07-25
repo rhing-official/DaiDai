@@ -1,9 +1,12 @@
+import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../l10n/app_locale.dart';
 import '../../models/message.dart';
 import '../../models/send_key_mode.dart';
+import '../../providers/app_locale_provider.dart';
 import '../../providers/message_time_format_provider.dart';
 import '../../providers/send_key_mode_provider.dart';
 import '../../providers/user_providers.dart';
@@ -44,6 +47,29 @@ class ChatScreen extends ConsumerStatefulWidget {
 
 class _ChatScreenState extends ConsumerState<ChatScreen> {
   final _textController = TextEditingController();
+  late bool _hasHardwareKeyboard;
+
+  @override
+  void initState() {
+    super.initState();
+    // Windows/Linux/macOSは常に物理キーボード前提のデスクトップOSなので
+    // 最初から接続済み扱いにする。Android/iOS/Webはソフトウェアキーボードのみの
+    // 場合もあるため、実際に物理キーのキー押下イベントを一度でも受け取った
+    // 時点で初めて「接続されている」とみなす（OSからキーボード接続有無を
+    // 直接問い合わせるAPIがFlutterに無いための代替判定）。
+    _hasHardwareKeyboard = switch (defaultTargetPlatform) {
+      TargetPlatform.windows || TargetPlatform.linux || TargetPlatform.macOS => true,
+      _ => false,
+    };
+    HardwareKeyboard.instance.addHandler(_onHardwareKeyEvent);
+  }
+
+  bool _onHardwareKeyEvent(KeyEvent event) {
+    if (!_hasHardwareKeyboard && event is KeyDownEvent) {
+      setState(() => _hasHardwareKeyboard = true);
+    }
+    return false;
+  }
 
   Future<void> _send({bool silent = false}) async {
     final content = _textController.text.trim();
@@ -107,6 +133,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   @override
   void dispose() {
+    HardwareKeyboard.instance.removeHandler(_onHardwareKeyEvent);
     _textController.dispose();
     super.dispose();
   }
@@ -115,6 +142,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final timeFormat = ref.watch(messageTimeFormatProvider);
+    final locale = ref.watch(appLocaleProvider);
     final floatingShadow =
         Theme.of(context).extension<AppThemeExtras>()?.floatingShadow ??
             AppThemeExtras.none;
@@ -168,7 +196,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   if (sentAt != null &&
                       (currentDay == null || !isSameDay(sentAt, currentDay))) {
                     currentDay = sentAt;
-                    entries.add(_DateSeparator(date: sentAt));
+                    entries.add(_DateSeparator(date: sentAt, locale: locale));
                   }
                   entries.add(
                     _MessageRow(
@@ -197,6 +225,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             child: Padding(
               padding: const EdgeInsets.all(8),
               child: Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Expanded(
                     child: Focus(
@@ -207,26 +236,38 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                         maxLines: 6,
                         textInputAction: TextInputAction.newline,
                         keyboardType: TextInputType.multiline,
-                        decoration: const InputDecoration(
+                        decoration: InputDecoration(
                           hintText: 'メッセージを入力',
-                          border: OutlineInputBorder(),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(20),
+                          ),
                         ),
                       ),
                     ),
                   ),
-                  Material(
-                    color: Colors.transparent,
-                    shape: const CircleBorder(),
-                    child: InkWell(
-                      customBorder: const CircleBorder(),
-                      onTap: _send,
-                      onLongPress: () => _send(silent: true),
-                      child: Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: Icon(Icons.send, color: colorScheme.primary),
-                      ),
+                  // 物理キーボード接続時はEnterキーでの送信が使えるため、
+                  // 送信ボタンは表示しない。未接続時のみ、何か入力されている
+                  // 間だけ表示する（LINE等のモバイルUIと同じ挙動）。
+                  if (!_hasHardwareKeyboard)
+                    ValueListenableBuilder<TextEditingValue>(
+                      valueListenable: _textController,
+                      builder: (context, value, _) {
+                        if (value.text.isEmpty) return const SizedBox.shrink();
+                        return Material(
+                          color: Colors.transparent,
+                          shape: const CircleBorder(),
+                          child: InkWell(
+                            customBorder: const CircleBorder(),
+                            onTap: _send,
+                            onLongPress: () => _send(silent: true),
+                            child: Padding(
+                              padding: const EdgeInsets.all(12),
+                              child: Icon(Icons.send, color: colorScheme.primary),
+                            ),
+                          ),
+                        );
+                      },
                     ),
-                  ),
                 ],
               ),
             ),
@@ -241,9 +282,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 /// 丸みを帯びたラベルとして表示する。LINE等の「今日」「昨日」のような相対
 /// 表記ではなく、常に絶対日付（yyyy/mm/dd）で表す。
 class _DateSeparator extends StatelessWidget {
-  const _DateSeparator({required this.date});
+  const _DateSeparator({required this.date, required this.locale});
 
   final DateTime date;
+  final AppLocale locale;
 
   @override
   Widget build(BuildContext context) {
@@ -258,7 +300,7 @@ class _DateSeparator extends StatelessWidget {
             borderRadius: BorderRadius.circular(999),
           ),
           child: Text(
-            formatMessageDate(date),
+            formatMessageDate(date, locale),
             style: TextStyle(
               fontSize: 12,
               color: colorScheme.onSurfaceVariant,

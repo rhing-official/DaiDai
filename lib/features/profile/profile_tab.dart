@@ -23,7 +23,9 @@ enum _ProfileSection { kura, koubou, enmusubi }
 const _kProfileSplitBreakpoint = 760.0;
 
 /// サイドバーの幅。
-const _kProfileSidebarWidth = 220.0;
+// 設定・運営タブのサイドバー（`_kSettingsSidebarWidth`/`_kSupportSidebarWidth`）
+// と幅をそろえる（以前は220でわずかにずれていた）。
+const _kProfileSidebarWidth = 240.0;
 
 /// ニックネーム・ステメ・プロフィールカードのローカル採番id。
 /// 以前は`Random().nextInt(1 << 32)`だったが、`1 << 32`はDart VM（ウィジェット
@@ -572,7 +574,7 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
       final selected =
           _findCategory(categories, _selectedSection) ?? categories.first;
       return Padding(
-        padding: const EdgeInsets.only(top: 16),
+        padding: const EdgeInsets.only(top: 24),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -601,8 +603,20 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
             setState(() => _selectedSection = category.section),
       );
     }
+    final selectedIndex =
+        categories.indexWhere((c) => c.section == selected.section);
+    final previousCategory = selectedIndex > 0 ? categories[selectedIndex - 1] : null;
+    final nextCategory = selectedIndex >= 0 && selectedIndex < categories.length - 1
+        ? categories[selectedIndex + 1]
+        : null;
     return SwipeBackDetector(
       onBack: () => setState(() => _selectedSection = null),
+      onPrevious: previousCategory == null
+          ? null
+          : () => setState(() => _selectedSection = previousCategory.section),
+      onNext: nextCategory == null
+          ? null
+          : () => setState(() => _selectedSection = nextCategory.section),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -847,6 +861,10 @@ class _WorkshopView extends StatelessWidget {
         // 広い画面では余白ばかりが目立っていた。3枠固定という前提を活かし、
         // 画面幅いっぱいを3等分してカード自体を大きく表示する（上限は
         // 超ワイド画面でカードが際限なく巨大化しないための保険程度に留める）。
+        // ただしモバイル幅では3等分すると最小幅（160）を下回り、Rowが画面外に
+        // はみ出して右端の枠が途切れて見えていた。3等分した幅が最小幅を
+        // 下回る場合は1枠ずつ縦に並べ、カード自体を画面幅いっぱいまで
+        // 大きく表示する（結果的にズーム編集画面に近い大きさになる）。
         LayoutBuilder(
           builder: (context, constraints) {
             const gap = 24.0;
@@ -855,6 +873,42 @@ class _WorkshopView extends StatelessWidget {
             final rawWidth =
                 (constraints.maxWidth - gap * (kMaxProfileCards - 1)) /
                 kMaxProfileCards;
+            if (rawWidth < minCardWidth) {
+              final cardWidth = constraints.maxWidth.clamp(
+                minCardWidth,
+                maxCardWidth,
+              );
+              final cardHeight = cardWidth * 1.25;
+              return Column(
+                children: [
+                  for (var i = 0; i < kMaxProfileCards; i++) ...[
+                    if (i > 0) const SizedBox(height: gap),
+                    if (i < user.profileCards.length)
+                      _WorkshopCardSlot(
+                        index: i,
+                        card: user.profileCards[i],
+                        user: user,
+                        strings: strings,
+                        vocab: vocab,
+                        width: cardWidth,
+                        height: cardHeight,
+                        isActive: user.activeProfileCardId ==
+                            user.profileCards[i].id,
+                        onTap: () => onTapSlot(i, user.profileCards[i]),
+                        onSetActive: () =>
+                            onSetActive(user.profileCards[i].id),
+                      )
+                    else
+                      _WorkshopBlankSlot(
+                        index: i,
+                        width: cardWidth,
+                        height: cardHeight,
+                        onTap: () => onTapSlot(i, null),
+                      ),
+                  ],
+                ],
+              );
+            }
             final cardWidth = rawWidth.clamp(minCardWidth, maxCardWidth);
             final cardHeight = cardWidth * 1.25;
             return Row(
@@ -987,13 +1041,15 @@ class _WorkshopCardSlot extends StatelessWidget {
 
     // カードが大きくなったのにアイコン・文字が160px時代の固定サイズのままだと
     // 中身が寂しく見えるため、カード幅に応じて緩やかにスケールさせる。
-    final avatarRadius = (width * 0.11).clamp(18.0, 44.0);
-    final padding = (width * 0.075).clamp(12.0, 28.0);
+    // ズーム編集画面（[_CardZoomEditor]）と全く同じ比率にし、ズームイン・
+    // アウトの瞬間に文字やアイコンの大きさが飛んで見えないようにする。
+    final avatarRadius = (width * 0.13).clamp(18.0, 64.0);
+    final padding = (width * 0.08).clamp(12.0, 32.0);
     // カード内はニックネームを主役にし（旧・カード名と同じ見せ方）、
     // その下にステメを補足として表示する。カード名自体はカードの外
     // （下）に表示するため、カード内には出さない。
-    final nicknameFontSize = (width * 0.09).clamp(14.0, 24.0);
-    final statusFontSize = (width * 0.055).clamp(11.0, 16.0);
+    final nicknameFontSize = (width * 0.075).clamp(14.0, 28.0);
+    final statusFontSize = (width * 0.045).clamp(11.0, 18.0);
     // ズーム編集画面のカード名表示と同じ比率（幅の6%）で揃える。
     final nameFontSize = (width * 0.06).clamp(16.0, 22.0);
     final subtitleColor = background != null
