@@ -2,9 +2,11 @@ import 'package:daidai/features/settings/settings_tab.dart';
 import 'package:daidai/l10n/app_locale.dart';
 import 'package:daidai/l10n/terminology_style.dart';
 import 'package:daidai/models/app_user.dart';
+import 'package:daidai/models/chat_layout_style.dart';
 import 'package:daidai/models/message_time_format.dart';
 import 'package:daidai/providers/accent_color_provider.dart';
 import 'package:daidai/providers/app_locale_provider.dart';
+import 'package:daidai/providers/chat_layout_style_provider.dart';
 import 'package:daidai/models/send_key_mode.dart';
 import 'package:daidai/providers/message_time_format_provider.dart';
 import 'package:daidai/providers/send_key_mode_provider.dart';
@@ -47,6 +49,9 @@ Future<void> _pumpSettingsTab(WidgetTester tester) async {
         initialMessageTimeFormatProvider.overrideWithValue(
           MessageTimeFormat.h24,
         ),
+        initialChatLayoutStyleProvider.overrideWithValue(
+          ChatLayoutStyle.sideBySide,
+        ),
       ],
       child: const MaterialApp(
         home: Scaffold(
@@ -84,6 +89,9 @@ Future<void> _pumpSettingsTabNarrow(WidgetTester tester) async {
         ),
         initialMessageTimeFormatProvider.overrideWithValue(
           MessageTimeFormat.h24,
+        ),
+        initialChatLayoutStyleProvider.overrideWithValue(
+          ChatLayoutStyle.sideBySide,
         ),
       ],
       child: const MaterialApp(
@@ -162,6 +170,10 @@ void main() {
       TerminologyStyle.worldview,
     );
 
+    // 語らいの表示スタイル設定の追加でページ全体が縦に伸びたため、
+    // タップ対象が初期表示のビューポート外にあることがある。
+    await tester.ensureVisible(find.text('利便性重視'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('利便性重視'));
     await tester.pumpAndSettle();
 

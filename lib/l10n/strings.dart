@@ -34,6 +34,11 @@ class Strings {
     required this.settingsTimeFormat12h,
     required this.settingsSubUI,
     required this.settingsUIDescription,
+    required this.settingsChatLayoutTitle,
+    required this.settingsChatLayoutSideBySide,
+    required this.settingsChatLayoutSideBySideDescription,
+    required this.settingsChatLayoutAllLeft,
+    required this.settingsChatLayoutAllLeftDescription,
     required this.settingsSubTypography,
     required this.settingsFontDesign,
     required this.settingsFontSize,
@@ -75,6 +80,9 @@ class Strings {
     required this.conversationBlock,
     required this.conversationUnblock,
     required this.conversationBlockedCannotSend,
+    required this.conversationReadReceiptsDisable,
+    required this.conversationReadReceiptsEnable,
+    required this.readReceiptPopupTitle,
     required this.cancel,
     required this.add,
     required this.save,
@@ -183,6 +191,11 @@ class Strings {
   final String settingsTimeFormat12h;
   final String settingsSubUI;
   final String settingsUIDescription;
+  final String settingsChatLayoutTitle;
+  final String settingsChatLayoutSideBySide;
+  final String settingsChatLayoutSideBySideDescription;
+  final String settingsChatLayoutAllLeft;
+  final String settingsChatLayoutAllLeftDescription;
   final String settingsSubTypography;
   final String settingsFontDesign;
   final String settingsFontSize;
@@ -227,6 +240,9 @@ class Strings {
   final String conversationBlock;
   final String conversationUnblock;
   final String conversationBlockedCannotSend;
+  final String conversationReadReceiptsDisable;
+  final String conversationReadReceiptsEnable;
+  final String readReceiptPopupTitle;
 
   final String cancel;
   final String add;
@@ -350,6 +366,15 @@ class Strings {
     settingsSubUI: 'UI',
     settingsUIDescription:
         '現在のUIスタイルは「シンプル」1本に統一されています（切り替え機能は今後の検討事項です）。',
+    settingsChatLayoutTitle: '語らいの表示',
+    settingsChatLayoutSideBySide: '自分は右・相手は左',
+    settingsChatLayoutSideBySideDescription:
+        '自分のアイコンは表示しません。一対では相手のアイコン・呼び名も表示しません（広場では表示します）。'
+        'この設定は自分の画面にのみ反映され、相手の語らいの表示には影響しません。',
+    settingsChatLayoutAllLeft: 'どちらも左寄せ',
+    settingsChatLayoutAllLeftDescription:
+        '自分・相手ともにアイコンと呼び名を表示します。'
+        'この設定は自分の画面にのみ反映され、相手の語らいの表示には影響しません。',
     settingsSubTypography: '文字',
     settingsFontDesign: 'フォントデザイン',
     settingsFontSize: 'フォントサイズ',
@@ -391,6 +416,9 @@ class Strings {
     conversationBlock: 'ブロック',
     conversationUnblock: 'ブロック解除',
     conversationBlockedCannotSend: 'ブロック中のため送信できません',
+    conversationReadReceiptsDisable: '既読オフ',
+    conversationReadReceiptsEnable: '既読オン',
+    readReceiptPopupTitle: '既読',
     cancel: 'キャンセル',
     add: '追加',
     save: '保存',
@@ -502,6 +530,17 @@ class Strings {
     settingsUIDescription:
         'The current UI style is fixed to "Simple" (a style switcher may '
         'be added in the future).',
+    settingsChatLayoutTitle: 'Chat display',
+    settingsChatLayoutSideBySide: 'You on the right, others on the left',
+    settingsChatLayoutSideBySideDescription:
+        "Hides your own avatar. In a direct message, also hides the other "
+        "person's avatar and nickname (still shown in group chats). "
+        "This only changes your own screen, not how others see the chat.",
+    settingsChatLayoutAllLeft: 'Everyone on the left',
+    settingsChatLayoutAllLeftDescription:
+        'Always shows both your own and the other person\'s avatar and '
+        'nickname. This only changes your own screen, not how others see '
+        'the chat.',
     settingsSubTypography: 'Typography',
     settingsFontDesign: 'Font design',
     settingsFontSize: 'Font size',
@@ -547,6 +586,9 @@ class Strings {
     conversationBlock: 'Block',
     conversationUnblock: 'Unblock',
     conversationBlockedCannotSend: "You can't send messages while blocked",
+    conversationReadReceiptsDisable: 'Turn off read receipts',
+    conversationReadReceiptsEnable: 'Turn on read receipts',
+    readReceiptPopupTitle: 'Read by',
     cancel: 'Cancel',
     add: 'Add',
     save: 'Save',
