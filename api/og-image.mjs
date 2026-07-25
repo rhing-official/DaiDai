@@ -47,7 +47,12 @@ function img(src, style) {
   return { type: 'img', props: { src, style } };
 }
 
-export default async function handler(request) {
+// Node.js Runtimeでは`export default`は旧来の`(req, res) => void`シグネチャ専用で、
+// Web標準のRequest/Responseを使う場合は`GET`等HTTPメソッド名の名前付きexportに
+// する必要がある（実機検証で判明: `export default`のままだとレスポンスが
+// 無視され、Vercelのハードタイムアウト=300秒までリクエストがハングし続けていた。
+// Vercel側のワーニングログにもこの修正方法が明記されている）。
+export async function GET(request) {
   // Edge Runtimeではrequest.urlが絶対URLだが、Node.js RuntimeではNode標準の
   // http.IncomingMessage.url同様パス+クエリのみになる（実機検証で判明:
   // `new URL(request.url)`が`ERR_INVALID_URL`で落ちていた）。どちらでも
