@@ -90,27 +90,31 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ),
     ];
 
-    // 本文全体を覆うGestureDetectorで横スワイプをタブ切り替えとして扱う。
-    // ドラッグ中は判定せずEndイベントの速度のみで判定し（_handleHorizontalDragEnd
-    // 参照）、ポップアップ表示中は反応しないようにすることで、以前あった
-    // オーバーレイとのジェスチャー競合を避けている。各タブが持つ「戻る」操作
-    // （設定・身だしなみ・運営の狭い画面でのドリルダウン、go_routerでpushした
-    // 各画面）用の個別のスワイプバック（[SwipeBackDetector]）とは独立している。
-    final content = GestureDetector(
-      behavior: HitTestBehavior.translucent,
-      onHorizontalDragEnd: (details) =>
-          _handleHorizontalDragEnd(details, tabs.length),
-      child: Padding(
-        padding: isWide
-            ? const EdgeInsets.only(
-                left: _chipSize + _chipMargin * 2,
-              )
-            : const EdgeInsets.only(
-                bottom: _chipSize + _chipMargin * 2,
-              ),
-        child: IndexedStack(index: _selectedIndex, children: tabs),
-      ),
+    // 横スワイプでのタブ切り替えは、チップの帯（帯の上でのスワイプ）のみで
+    // 受け付ける。タブのコンテンツ領域は各タブ固有のスワイプ操作
+    // （設定・身だしなみ・運営の狭い画面でのドリルダウン、語らいの一対/広場
+    // 切り替え）に使うため、ここではホームタブ切り替えのジェスチャーを
+    // 付けない。ドラッグ中は判定せずEndイベントの速度のみで判定する
+    // （_handleHorizontalDragEnd参照）。
+    final content = Padding(
+      padding: isWide
+          ? const EdgeInsets.only(
+              left: _chipSize + _chipMargin * 2,
+            )
+          : const EdgeInsets.only(
+              bottom: _chipSize + _chipMargin * 2,
+            ),
+      child: IndexedStack(index: _selectedIndex, children: tabs),
     );
+
+    Widget wrapWithSwipe(Widget child) {
+      return GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onHorizontalDragEnd: (details) =>
+            _handleHorizontalDragEnd(details, tabs.length),
+        child: child,
+      );
+    }
 
     return Scaffold(
       body: SafeArea(
@@ -123,14 +127,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 top: 0,
                 bottom: 0,
                 child: Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      for (var i = 0; i < chips.length; i++) ...[
-                        if (i > 0) const SizedBox(height: _chipGap),
-                        chips[i],
+                  child: wrapWithSwipe(
+                    Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        for (var i = 0; i < chips.length; i++) ...[
+                          if (i > 0) const SizedBox(height: _chipGap),
+                          chips[i],
+                        ],
                       ],
-                    ],
+                    ),
                   ),
                 ),
               )
@@ -140,14 +146,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 right: 0,
                 bottom: _chipMargin,
                 child: Center(
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      for (var i = 0; i < chips.length; i++) ...[
-                        if (i > 0) const SizedBox(width: _chipGap),
-                        chips[i],
+                  child: wrapWithSwipe(
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        for (var i = 0; i < chips.length; i++) ...[
+                          if (i > 0) const SizedBox(width: _chipGap),
+                          chips[i],
+                        ],
                       ],
-                    ],
+                    ),
                   ),
                 ),
               ),

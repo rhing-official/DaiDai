@@ -48,12 +48,8 @@ class _EnmusubiPageState extends ConsumerState<EnmusubiPage> {
     ref.read(userRepositoryProvider).syncInvitePreview(currentUser.userId);
   }
 
-  Future<void> _copyLink(BuildContext context, Strings strings, String link) async {
-    await Clipboard.setData(ClipboardData(text: link));
-    if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(strings.enmusubiLinkCopied)),
-    );
+  void _copyLink(String link) {
+    Clipboard.setData(ClipboardData(text: link));
   }
 
   Future<void> _openScanner(BuildContext context) async {
@@ -72,63 +68,65 @@ class _EnmusubiPageState extends ConsumerState<EnmusubiPage> {
     final link = _inviteLinkFor(currentUser.rhingId);
     final colorScheme = Theme.of(context).colorScheme;
 
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        Text(
-          strings.enmusubiInviteLinkTitle,
-          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-        ),
-        const SizedBox(height: 4),
-        Text(strings.enmusubiInviteLinkDescription),
-        const SizedBox(height: 12),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(
-            border: Border.all(color: colorScheme.outlineVariant),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: SelectableText(link, maxLines: 1),
-              ),
-              IconButton(
-                icon: const Icon(Icons.copy_outlined),
-                tooltip: strings.enmusubiCopyLink,
-                onPressed: () => _copyLink(context, strings, link),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 32),
-        Text(
-          strings.enmusubiQrTitle,
-          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-        ),
-        const SizedBox(height: 4),
-        Text(strings.enmusubiQrDescription),
-        const SizedBox(height: 16),
-        Center(
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: colorScheme.outlineVariant),
+    return Align(
+      alignment: Alignment.topLeft,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 480),
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            Text(
+              strings.enmusubiInviteLinkTitle,
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
             ),
-            child: QrImageView(data: link, size: 200),
-          ),
+            const SizedBox(height: 4),
+            Text(strings.enmusubiInviteLinkDescription),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                border: Border.all(color: colorScheme.outlineVariant),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: SelectableText(link, maxLines: 1),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.copy_outlined),
+                    tooltip: strings.enmusubiCopyLink,
+                    onPressed: () => _copyLink(link),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 32),
+            Text(
+              strings.enmusubiQrTitle,
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            ),
+            const SizedBox(height: 4),
+            Text(strings.enmusubiQrDescription),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: colorScheme.outlineVariant),
+              ),
+              child: QrImageView(data: link, size: 200),
+            ),
+            const SizedBox(height: 16),
+            OutlinedButton.icon(
+              icon: const Icon(Icons.qr_code_scanner),
+              label: Text(strings.enmusubiScanButton),
+              onPressed: () => _openScanner(context),
+            ),
+          ],
         ),
-        const SizedBox(height: 16),
-        Center(
-          child: OutlinedButton.icon(
-            icon: const Icon(Icons.qr_code_scanner),
-            label: Text(strings.enmusubiScanButton),
-            onPressed: () => _openScanner(context),
-          ),
-        ),
-      ],
+      ),
     );
   }
 }

@@ -31,6 +31,10 @@ class GroupCallScreen extends ConsumerStatefulWidget {
 class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
   late final WebrtcGroupCallController _controller;
 
+  /// 参加者が自分＋相手1人（計2人）の時、フルスクリーン側に相手（true）/
+  /// 自分（false）どちらを表示するか。タップで入れ替える。
+  bool _mainViewIsRemote = true;
+
   @override
   void initState() {
     super.initState();
@@ -139,20 +143,91 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
     final tileCount = 1 + remoteParticipants.length;
 
     if (tileCount == 1) {
+      // まだ他の参加者がいない間も、自分の映像がどう見えているか確認できる
+      // ようにフルスクリーンで自分のプレビューを表示する。
       return SafeArea(
-        child: Column(
+        child: Stack(
           children: [
-            Expanded(
+            Positioned.fill(
+              child: _videoTile(
+                rhingId: widget.currentUser.rhingId,
+                renderer: widget.isVideo ? _controller.localRenderer : null,
+                mirror: true,
+                micMuted: _controller.muted,
+                cameraOff: _controller.cameraOff,
+              ),
+            ),
+            Positioned(
+              top: 16,
+              left: 0,
+              right: 0,
               child: Center(
                 child: Text(
                   '他の参加者を待っています…',
-                  style: const TextStyle(color: Colors.white70),
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    shadows: [Shadow(blurRadius: 6)],
+                  ),
                 ),
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.only(bottom: 24),
-              child: _controls(),
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 24,
+              child: Center(child: _controls()),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (tileCount == 2) {
+      // 自分＋相手1人の場合は1対1通話と同じ「フルスクリーン＋コーナーPIP＋
+      // タップ入れ替え」構成にする。
+      final other = remoteParticipants.single;
+      void swapViews() =>
+          setState(() => _mainViewIsRemote = !_mainViewIsRemote);
+
+      final localTile = _videoTile(
+        rhingId: widget.currentUser.rhingId,
+        renderer: widget.isVideo ? _controller.localRenderer : null,
+        mirror: true,
+        micMuted: _controller.muted,
+        cameraOff: _controller.cameraOff,
+      );
+      final remoteTile = _videoTile(
+        rhingId: other.rhingId,
+        renderer: _controller.remoteRenderers[other.userId],
+        mirror: false,
+        micMuted: other.micMuted,
+        cameraOff: other.cameraOff,
+      );
+      final mainTile = _mainViewIsRemote ? remoteTile : localTile;
+      final pipTile = _mainViewIsRemote ? localTile : remoteTile;
+
+      return SafeArea(
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: GestureDetector(onTap: swapViews, child: mainTile),
+            ),
+            Positioned(
+              top: 16,
+              right: 16,
+              child: GestureDetector(
+                onTap: swapViews,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: SizedBox(width: 90, height: 130, child: pipTile),
+                ),
+              ),
+            ),
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 16,
+              child: Center(child: _controls()),
             ),
           ],
         ),
@@ -258,12 +333,23 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
           color: Colors.grey[700]!,
           onPressed: isActive ? _controller.toggleMute : null,
         ),
-        if (widget.isVideo)
+        CallRoundButton(
+          icon: _controller.speakerOn ? Icons.volume_up : Icons.hearing,
+          color: Colors.grey[700]!,
+          onPressed: isActive ? _controller.toggleSpeaker : null,
+        ),
+        if (widget.isVideo) ...[
           CallRoundButton(
             icon: _controller.cameraOff ? Icons.videocam_off : Icons.videocam,
             color: Colors.grey[700]!,
             onPressed: isActive ? _controller.toggleCamera : null,
           ),
+          CallRoundButton(
+            icon: Icons.cameraswitch,
+            color: Colors.grey[700]!,
+            onPressed: isActive ? _controller.switchCamera : null,
+          ),
+        ],
         CallRoundButton(
           icon: Icons.call_end,
           color: Colors.red,

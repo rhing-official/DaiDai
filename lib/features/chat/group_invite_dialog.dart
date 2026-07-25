@@ -50,12 +50,8 @@ class GroupInviteDialog extends ConsumerWidget {
                   IconButton(
                     icon: const Icon(Icons.copy_outlined),
                     tooltip: strings.enmusubiCopyLink,
-                    onPressed: () async {
-                      await Clipboard.setData(ClipboardData(text: link));
-                      if (!context.mounted) return;
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text(strings.enmusubiLinkCopied)),
-                      );
+                    onPressed: () {
+                      Clipboard.setData(ClipboardData(text: link));
                     },
                   ),
                 ],
@@ -76,12 +72,6 @@ class GroupInviteDialog extends ConsumerWidget {
           ],
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: Text(strings.cancel),
-        ),
-      ],
     );
   }
 }

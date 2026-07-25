@@ -5,6 +5,8 @@ import 'package:flutter_webrtc/flutter_webrtc.dart';
 
 import '../../models/call.dart';
 import '../../repositories/call_repository.dart';
+import 'call_sound_player.dart';
+import 'webrtc_media_constraints.dart';
 
 enum CallConnectionState { connecting, active, ended }
 
@@ -40,6 +42,9 @@ class WebrtcCallController extends ChangeNotifier {
   StreamSubscription<List<Map<String, dynamic>>>? _candidatesSub;
   bool _answerApplied = false;
 
+  /// 通話の効果音（着信音）再生。画面側が着信中にループ再生を開始/停止する。
+  final soundPlayer = CallSoundPlayer();
+
   CallConnectionState _state = CallConnectionState.connecting;
   CallConnectionState get state => _state;
 
@@ -49,6 +54,14 @@ class WebrtcCallController extends ChangeNotifier {
   bool _cameraOff = false;
   bool get cameraOff => _cameraOff;
 
+  bool _accepting = false;
+  bool get accepting => _accepting;
+
+  bool _speakerOn = true;
+  bool get speakerOn => _speakerOn;
+
+  int _cameraIndex = 0;
+
   String? _error;
   String? get error => _error;
 
@@ -57,27 +70,12 @@ class WebrtcCallController extends ChangeNotifier {
       await remoteRenderer.initialize();
       if (call.isVideo) await localRenderer.initialize();
 
-      // ブラウザ/ネイティブWebRTCスタックに標準搭載のノイズ抑制・エコー除去・
-      // 自動ゲイン調整を明示的に要求する。本格的なRNNoise統合は、
-      // flutter_webrtc/libwebrtcがマイク→エンコーダ間の生音声サンプルに
-      // 介入するフックをDart層に公開しておらず、プラットフォームごとの
-      // ネイティブ音声パイプライン改造が必要な大規模な別プロジェクトになるため、
-      // 現時点ではここでの標準ノイズ抑制のみを実装している（詳細は会話参照）。
-      // ビデオ通話時はCLAUDE.md記載のフェーズ1スコープ（720p）に合わせ、
-      // 解像度をidealで指定する（環境によっては下回ることもある）。
+      // 音声制約はプラットフォームごとの既知の問題を踏まえて
+      // webrtc_media_constraints.dartに集約している（本格的なRNNoise統合は
+      // フェーズ3の別プロジェクト。詳細は会話参照）。
       _localStream = await navigator.mediaDevices.getUserMedia({
-        'audio': {
-          'echoCancellation': true,
-          'noiseSuppression': true,
-          'autoGainControl': true,
-        },
-        'video': call.isVideo
-            ? {
-                'facingMode': 'user',
-                'width': {'ideal': 1280},
-                'height': {'ideal': 720},
-              }
-            : false,
+        'audio': buildAudioConstraints(),
+        'video': call.isVideo ? buildVideoConstraints() : false,
       });
 
       if (call.isVideo) {
@@ -125,7 +123,9 @@ class WebrtcCallController extends ChangeNotifier {
       if (isCaller) {
         await _startAsCaller();
       } else {
-        await _startAsCallee();
+        // 着信側はユーザーが応答ボタンを押すまでSDP応答を送らない
+        // （accept()参照）。ここでは発信者側キャンセルの監視のみ行う。
+        _watchForCancelWhileRinging();
       }
     } catch (e) {
       _error = '通話を開始できませんでした（マイクの利用を許可してください）: $e';
@@ -157,8 +157,30 @@ class WebrtcCallController extends ChangeNotifier {
         );
         _state = CallConnectionState.active;
         notifyListeners();
+        unawaited(_applySpeakerphoneWithRetry());
       }
     });
+  }
+
+  /// 応答前（着信中）に発信者が通話をキャンセル・終了した場合に
+  /// 着信画面を閉じるための軽量な監視。accept()呼び出しでキャンセルする。
+  void _watchForCancelWhileRinging() {
+    _callSub = _callRepository.watchCall(call.callId).listen((updated) {
+      if (updated == null || _isTerminal(updated.status)) {
+        _finish();
+      }
+    });
+  }
+
+  /// ユーザーが応答ボタンを押した時だけSDP応答を生成・送信する。
+  /// （それまでは_startAsCallee()を呼ばないことで、着信＝自動応答という
+  /// 挙動を避ける。）
+  Future<void> accept() async {
+    if (_accepting || _state != CallConnectionState.connecting) return;
+    _accepting = true;
+    notifyListeners();
+    await _callSub?.cancel();
+    await _startAsCallee();
   }
 
   Future<void> _startAsCallee() async {
@@ -180,6 +202,7 @@ class WebrtcCallController extends ChangeNotifier {
 
     _state = CallConnectionState.active;
     notifyListeners();
+    unawaited(_applySpeakerphoneWithRetry());
 
     _callSub = _callRepository.watchCall(call.callId).listen((updated) {
       if (updated == null || _isTerminal(updated.status)) {
@@ -226,10 +249,56 @@ class WebrtcCallController extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> _applySpeakerphone(bool enable) async {
+    if (kIsWeb) return; // Webはブラウザの既定オーディオ出力に依存し対象外。
+    try {
+      await Helper.setSpeakerphoneOn(enable);
+    } catch (_) {
+      // 一部プラットフォームで未対応/失敗する既知の問題（iOS: flutter-webrtc
+      // issue #1290, #1098, #1032, #1427）。失敗しても通話自体は継続させる。
+    }
+  }
+
+  /// iOSでは接続直後にsetSpeakerphoneOnを呼んでも、数秒後に音声ルートが
+  /// 勝手に戻ることがある既知の競合状態があるため、接続完了直後に一度適用し、
+  /// 少し間を空けてもう一度適用する。
+  Future<void> _applySpeakerphoneWithRetry() async {
+    await _applySpeakerphone(_speakerOn);
+    await Future.delayed(const Duration(seconds: 2));
+    if (_state == CallConnectionState.active) {
+      await _applySpeakerphone(_speakerOn);
+    }
+  }
+
+  void toggleSpeaker() {
+    _speakerOn = !_speakerOn;
+    _applySpeakerphone(_speakerOn);
+    notifyListeners();
+  }
+
+  Future<void> switchCamera() async {
+    final videoTracks = _localStream?.getVideoTracks() ?? <MediaStreamTrack>[];
+    if (videoTracks.isEmpty) return;
+    final track = videoTracks.first;
+    try {
+      if (kIsWeb) {
+        final cameras = await Helper.cameras;
+        if (cameras.length < 2) return;
+        _cameraIndex = (_cameraIndex + 1) % cameras.length;
+        await Helper.switchCamera(track, cameras[_cameraIndex].deviceId, _localStream);
+      } else {
+        await Helper.switchCamera(track);
+      }
+    } catch (_) {
+      // 切替可能なカメラが1つしかない環境など。現状維持。
+    }
+  }
+
   @override
   void dispose() {
     _callSub?.cancel();
     _candidatesSub?.cancel();
+    soundPlayer.dispose();
     for (final track in _localStream?.getTracks() ?? <MediaStreamTrack>[]) {
       track.stop();
     }
