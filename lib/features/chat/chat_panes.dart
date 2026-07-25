@@ -14,7 +14,6 @@ import 'group_invite_dialog.dart';
 import 'group_leave_dialog.dart';
 import 'group_member_list_screen.dart';
 import 'group_profile_card_screen.dart';
-import 'plaza_detail_dialog.dart';
 
 enum _GroupMenuAction { profileCard, memberList, createInvite, leave }
 
@@ -131,7 +130,6 @@ class GroupChatPane extends ConsumerWidget {
       key: ValueKey('group-${group.groupId}'),
       title: group.name,
       currentUserId: currentUser.userId,
-      showSenderAvatar: true,
       messagesStream: groupRepository.watchRoomMessages(
         group.groupId,
         group.defaultRoomId,
@@ -147,55 +145,135 @@ class GroupChatPane extends ConsumerWidget {
       onCallPressed: () => _handleCallPressed(context, ref, isVideo: false),
       onVideoCallPressed: () => _handleCallPressed(context, ref, isVideo: true),
       extraActions: [
-        IconButton(
-          icon: const Icon(Icons.info_outline),
-          onPressed: () => PlazaDetailDialog.show(context, group),
-        ),
         _GroupMenuButton(currentUser: currentUser, group: group),
       ],
     );
   }
 }
 
+/// ハンバーガーメニュー・メンバー一覧・プロフィールカードいずれのポップアップも
+/// 使う共通の見た目（角丸のMaterialカード）。
+class _PopupCard extends StatelessWidget {
+  const _PopupCard({required this.child, required this.constraints});
+
+  final Widget child;
+  final BoxConstraints constraints;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Theme.of(context).colorScheme.surface,
+      elevation: 8,
+      borderRadius: BorderRadius.circular(16),
+      clipBehavior: Clip.antiAlias,
+      child: ConstrainedBox(constraints: constraints, child: child),
+    );
+  }
+}
+
 /// 広場の「プロフィールカード・メンバー一覧・招待リンク作成・退会」を
 /// まとめたハンバーガーメニュー（2026-07-24追加、広場のカスタマイズ機能）。
-class _GroupMenuButton extends ConsumerWidget {
+/// メニュー自体はボタンの真下に開く（`PopupMenuPosition.under`）。
+/// メンバー一覧・プロフィールカードは全画面遷移ではなく、それぞれボタンの
+/// 左隣・画面中央に角丸のポップアップとして開く（2026-07-25変更）。
+class _GroupMenuButton extends ConsumerStatefulWidget {
   const _GroupMenuButton({required this.currentUser, required this.group});
 
   final AppUser currentUser;
   final Group group;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_GroupMenuButton> createState() => _GroupMenuButtonState();
+}
+
+class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
+  final _buttonKey = GlobalKey();
+
+  Rect _buttonRect() {
+    final box = _buttonKey.currentContext!.findRenderObject()! as RenderBox;
+    return box.localToGlobal(Offset.zero) & box.size;
+  }
+
+  // メンバー一覧ポップアップを、ハンバーガーメニューのボタンの左隣（右端を
+  // ボタンの左端に合わせる位置）に表示する。画面外にはみ出す場合は画面内に収める。
+  Future<void> _showMemberListPopup() {
+    final buttonRect = _buttonRect();
+    const width = 340.0;
+    return showGeneralDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: '',
+      barrierColor: Colors.black26,
+      transitionDuration: const Duration(milliseconds: 150),
+      pageBuilder: (context, animation, secondaryAnimation) {
+        final screenSize = MediaQuery.sizeOf(context);
+        final left =
+            (buttonRect.left - width).clamp(8.0, screenSize.width - width - 8.0);
+        final top = buttonRect.top;
+        return Stack(
+          children: [
+            Positioned(
+              left: left,
+              top: top,
+              child: _PopupCard(
+                constraints: BoxConstraints(
+                  maxWidth: width,
+                  maxHeight: screenSize.height - top - 24,
+                ),
+                child: GroupMemberListPopup(
+                  currentUser: widget.currentUser,
+                  group: widget.group,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _showProfileCardPopup() {
+    return showGeneralDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: '',
+      barrierColor: Colors.black26,
+      transitionDuration: const Duration(milliseconds: 150),
+      pageBuilder: (context, animation, secondaryAnimation) {
+        return Center(
+          child: _PopupCard(
+            constraints: const BoxConstraints(maxWidth: 400, maxHeight: 640),
+            child: GroupProfileCardPopup(group: widget.group),
+          ),
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final strings = ref.watch(appStringsProvider);
-    final isOwner = group.memberRoles[currentUser.userId] == 'owner';
+    final isOwner =
+        widget.group.memberRoles[widget.currentUser.userId] == 'owner';
 
     return PopupMenuButton<_GroupMenuAction>(
+      key: _buttonKey,
       icon: const Icon(Icons.menu),
+      position: PopupMenuPosition.under,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       onSelected: (action) {
         switch (action) {
           case _GroupMenuAction.profileCard:
-            Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => GroupProfileCardScreen(group: group),
-              ),
-            );
+            _showProfileCardPopup();
           case _GroupMenuAction.memberList:
-            Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => GroupMemberListScreen(
-                  currentUser: currentUser,
-                  group: group,
-                ),
-              ),
-            );
+            _showMemberListPopup();
           case _GroupMenuAction.createInvite:
-            GroupInviteDialog.show(context, group.groupId);
+            GroupInviteDialog.show(context, widget.group.groupId);
           case _GroupMenuAction.leave:
             GroupLeaveDialog.show(
               context,
-              groupId: group.groupId,
-              userId: currentUser.userId,
+              groupId: widget.group.groupId,
+              userId: widget.currentUser.userId,
             );
         }
       },

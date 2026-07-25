@@ -8,10 +8,11 @@ import '../../models/group.dart';
 import '../../models/group_join_request.dart';
 import '../../providers/repository_providers.dart';
 
-/// 広場のメンバー一覧。長・モデレーターには、招待リンクからの参加リクエストの
-/// 承認・却下UIもあわせて表示する。
-class GroupMemberListScreen extends ConsumerWidget {
-  const GroupMemberListScreen({
+/// 広場のメンバー一覧（ポップアップの中身）。長・モデレーターには、招待リンクからの
+/// 参加リクエストの承認・却下UIもあわせて表示する。メンバー本体を先に、
+/// 招待中（承認待ち）は最下部にまとめて表示する。
+class GroupMemberListPopup extends ConsumerWidget {
+  const GroupMemberListPopup({
     required this.currentUser,
     required this.group,
     super.key,
@@ -27,57 +28,81 @@ class GroupMemberListScreen extends ConsumerWidget {
     final role = group.memberRoles[currentUser.userId];
     final canApprove = role == 'owner' || role == 'moderator';
 
-    return Scaffold(
-      appBar: AppBar(title: Text(strings.groupMemberListTitle)),
-      body: ListView(
-        padding: const EdgeInsets.only(bottom: 24),
-        children: [
-          if (canApprove) ...[
-            _SectionHeader(strings.groupMemberListPendingSection),
-            StreamBuilder<List<GroupJoinRequest>>(
-              stream: ref.read(groupRepositoryProvider).watchJoinRequests(group.groupId),
-              builder: (context, snapshot) {
-                final requests = snapshot.data ?? const [];
-                if (requests.isEmpty) {
-                  return const SizedBox.shrink();
-                }
-                return Column(
-                  children: [
-                    for (final request in requests)
-                      _JoinRequestTile(request: request, strings: strings),
-                  ],
-                );
-              },
-            ),
-            const Divider(height: 24),
-          ],
-          _SectionHeader(strings.groupMemberListMembersSection),
-          FutureBuilder<List<AppUser>>(
-            future: ref.read(userRepositoryProvider).getUsersByIds(group.memberIds),
-            builder: (context, snapshot) {
-              if (!snapshot.hasData) {
-                return const Padding(
-                  padding: EdgeInsets.all(24),
-                  child: Center(child: CircularProgressIndicator()),
-                );
-              }
-              final members = [...snapshot.data!]
-                ..sort((a, b) => a.rhingId.compareTo(b.rhingId));
-              return Column(
-                children: [
-                  for (final member in members)
-                    _MemberTile(
-                      user: member,
-                      role: group.memberRoles[member.userId] ?? 'member',
-                      vocab: vocab,
-                      strings: strings,
-                    ),
-                ],
-              );
-            },
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 4, 4),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  strings.groupMemberListTitle,
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.close),
+                onPressed: () => Navigator.of(context).pop(),
+              ),
+            ],
           ),
-        ],
-      ),
+        ),
+        const Divider(height: 1),
+        Flexible(
+          child: ListView(
+            shrinkWrap: true,
+            padding: const EdgeInsets.only(bottom: 24),
+            children: [
+              _SectionHeader(strings.groupMemberListMembersSection),
+              FutureBuilder<List<AppUser>>(
+                future: ref.read(userRepositoryProvider).getUsersByIds(group.memberIds),
+                builder: (context, snapshot) {
+                  if (!snapshot.hasData) {
+                    return const Padding(
+                      padding: EdgeInsets.all(24),
+                      child: Center(child: CircularProgressIndicator()),
+                    );
+                  }
+                  final members = [...snapshot.data!]
+                    ..sort((a, b) => a.rhingId.compareTo(b.rhingId));
+                  return Column(
+                    children: [
+                      for (final member in members)
+                        _MemberTile(
+                          user: member,
+                          role: group.memberRoles[member.userId] ?? 'member',
+                          vocab: vocab,
+                          strings: strings,
+                        ),
+                    ],
+                  );
+                },
+              ),
+              if (canApprove) ...[
+                const Divider(height: 24),
+                _SectionHeader(strings.groupMemberListPendingSection),
+                StreamBuilder<List<GroupJoinRequest>>(
+                  stream:
+                      ref.read(groupRepositoryProvider).watchJoinRequests(group.groupId),
+                  builder: (context, snapshot) {
+                    final requests = snapshot.data ?? const [];
+                    if (requests.isEmpty) {
+                      return const SizedBox.shrink();
+                    }
+                    return Column(
+                      children: [
+                        for (final request in requests)
+                          _JoinRequestTile(request: request, strings: strings),
+                      ],
+                    );
+                  },
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
