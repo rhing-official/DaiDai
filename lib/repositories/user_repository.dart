@@ -126,7 +126,7 @@ class FirestoreUserRepository implements UserRepository {
     await _users.doc(userId).update({
       field: FieldValue.arrayUnion([value]),
     });
-    if (field == 'icons' || field == 'nicknames') {
+    if (_invitePreviewFields.contains(field)) {
       await syncInvitePreview(userId);
     }
   }
@@ -140,7 +140,7 @@ class FirestoreUserRepository implements UserRepository {
     await _users.doc(userId).update({
       field: FieldValue.arrayRemove([value]),
     });
-    if (field == 'icons' || field == 'nicknames') {
+    if (_invitePreviewFields.contains(field)) {
       await syncInvitePreview(userId);
     }
   }
@@ -154,10 +154,26 @@ class FirestoreUserRepository implements UserRepository {
     await _users.doc(userId).update({field: value});
     if (field == 'activeIconId' ||
         field == 'activeNicknameId' ||
+        field == 'activeBackgroundImageId' ||
+        field == 'activeStatusMessageId' ||
         field == 'activeProfileCardId') {
       await syncInvitePreview(userId);
     }
   }
+
+  /// 招待プレビュー（[UserInvitePreview]）の内容に影響しうる蔵の配列フィールド。
+  /// [addToProfileList]/[removeFromProfileList]がこれらを変更した際は
+  /// [syncInvitePreview]で同期し直す（アクティブな工房カードの背景・ステメ・
+  /// SNS URLもプレビューに載せるようになったため、アイコン・ニックネームだけで
+  /// なくprofileCards自体の変更も対象に含める）。
+  static const _invitePreviewFields = {
+    'icons',
+    'nicknames',
+    'backgroundImages',
+    'statusMessages',
+    'snsLinks',
+    'profileCards',
+  };
 
   @override
   Future<void> syncInvitePreview(String userId) async {
@@ -167,6 +183,9 @@ class FirestoreUserRepository implements UserRepository {
       userId: user.userId,
       nickname: user.effectiveNickname?.text,
       iconUrl: user.effectiveIcon?.url,
+      statusMessage: user.effectiveStatusMessage?.text,
+      backgroundImageUrl: user.effectiveBackgroundImage?.url,
+      snsLinkUrls: [for (final link in user.effectiveSnsLinks) link.url],
     );
     await _firestore
         .collection('userInvites')

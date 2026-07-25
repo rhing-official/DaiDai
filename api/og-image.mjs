@@ -1,0 +1,233 @@
+// 招待リンク（/invite/:rhingId・/join/:groupId）のOGP画像を、アプリ内の
+// プロフィールカード（工房カード・広場のプロフィールカード）とそのままの
+// 見た目で生成するEdge Function。`api/link-preview.js`がog:imageとして
+// このエンドポイント（/api/og-image?type=user&id=...・?type=group&id=...）を
+// 差し込む。
+//
+// アイコン・ニックネーム・URLだけを貼り付けたシンプルなog:imageと違い、
+// 背景画像＋暗転グラデーション＋アイコン＋太字の名前＋説明（＋個人の場合は
+// SNSのURL）を1枚の画像として合成する。レイアウトは
+// `lib/features/profile/profile_tab.dart`の`_WorkshopCardSlot`・
+// `lib/features/chat/group_profile_card_screen.dart`の見た目（背景全面＋
+// 下から上へのグラデーション＋左下寄せの縦積みコンテンツ）を踏襲している。
+//
+// このプロジェクトにはNext.js等のフレームワーク・ビルド設定が無くJSXの
+// トランスパイルを前提にできないため、@vercel/ogの要素ツリーはJSXを使わず
+// Satoriが期待するプレーンなオブジェクト形（{type, props: {style, children}}）を
+// 直接組み立てている（@vercel/og公式ドキュメントに記載のある非JSX環境向けの書き方）。
+//
+// 日本語を表示するため、@vercel/ogの既定フォント（欧文のみ）ではなく
+// Google FontsからNoto Sans JPを実行時に取得して使う（CJK対応の
+// @vercel/og公式サンプルで使われている定番の手法。TTF形式で取得するため、
+// woff2非対応とみなされる古いUser-Agentを指定している）。
+//
+// 未検証: ローカルではEdge Runtime・実際のフォント取得・要素ツリーの描画結果を
+// 含めた動作確認ができないため、デプロイ後に実際のURLで確認が必要。
+
+import { ImageResponse } from '@vercel/og';
+
+export const config = { runtime: 'edge' };
+
+const FIRESTORE_PROJECT_ID = 'daidai-rhing';
+const CARD_WIDTH = 800;
+const CARD_HEIGHT = 1000;
+
+function el(type, style, children) {
+  return { type, props: { style, children } };
+}
+
+function img(src, style) {
+  return { type: 'img', props: { src, style } };
+}
+
+export default async function handler(request) {
+  const url = new URL(request.url);
+  const type = url.searchParams.get('type');
+  const id = url.searchParams.get('id');
+
+  let doc = null;
+  if (type === 'user' && id) {
+    doc = await fetchFirestoreDoc(`userInvites/${id}`);
+  } else if (type === 'group' && id) {
+    doc = await fetchFirestoreDoc(`groupInvites/${id}`);
+  }
+
+  const isUser = type === 'user';
+  const name = doc
+    ? (isUser ? doc.nickname || `@${id}` : doc.name || 'DaiDai')
+    : 'DaiDai';
+  const description = doc
+    ? (isUser ? doc.statusMessage : doc.description) || ''
+    : '';
+  const backgroundUrl = doc?.backgroundImageUrl || null;
+  const iconUrl = doc?.iconUrl || null;
+  const snsLinks = isUser
+    ? parseSnsLinkUrls(doc?.snsLinkUrls).slice(0, 2).map(displaySnsLinkUrl)
+    : [];
+  const hasBackground = Boolean(backgroundUrl);
+  const textColor = hasBackground ? '#FFFFFF' : '#2E2A24';
+  const subTextColor = hasBackground ? 'rgba(255,255,255,0.75)' : '#6B6459';
+
+  const fontText = `${name}${description}${snsLinks.join('')}DaiDai`;
+  let fontData;
+  try {
+    fontData = await loadNotoSansJp(fontText);
+  } catch (e) {
+    fontData = null;
+  }
+
+  const contentChildren = [
+    el(
+      'div',
+      {
+        width: 112,
+        height: 112,
+        borderRadius: '50%',
+        display: 'flex',
+        overflow: 'hidden',
+        backgroundColor: '#D8CCBB',
+        marginBottom: 28,
+      },
+      iconUrl
+        ? [img(iconUrl, { width: '100%', height: '100%', objectFit: 'cover' })]
+        : [],
+    ),
+    el(
+      'div',
+      { display: 'flex', fontSize: 56, fontWeight: 700, color: textColor, lineHeight: 1.2 },
+      [name],
+    ),
+  ];
+
+  if (description) {
+    contentChildren.push(
+      el(
+        'div',
+        { display: 'flex', fontSize: 32, marginTop: 12, color: subTextColor },
+        [description],
+      ),
+    );
+  }
+
+  for (const link of snsLinks) {
+    contentChildren.push(
+      el(
+        'div',
+        { display: 'flex', alignItems: 'center', marginTop: 10, fontSize: 28, color: subTextColor },
+        [`🔗 ${link}`],
+      ),
+    );
+  }
+
+  const layers = [];
+  if (backgroundUrl) {
+    layers.push(
+      img(backgroundUrl, {
+        position: 'absolute',
+        inset: 0,
+        width: '100%',
+        height: '100%',
+        objectFit: 'cover',
+      }),
+    );
+    layers.push(
+      el('div', {
+        position: 'absolute',
+        inset: 0,
+        display: 'flex',
+        backgroundImage:
+          'linear-gradient(to bottom, rgba(0,0,0,0) 40%, rgba(0,0,0,0.54) 100%)',
+      }, []),
+    );
+  }
+  layers.push(
+    el(
+      'div',
+      {
+        position: 'absolute',
+        left: 0,
+        right: 0,
+        bottom: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'flex-start',
+        padding: 64,
+      },
+      contentChildren,
+    ),
+  );
+
+  const root = el(
+    'div',
+    {
+      width: '100%',
+      height: '100%',
+      display: 'flex',
+      position: 'relative',
+      backgroundColor: '#EFE7DC',
+    },
+    layers,
+  );
+
+  return new ImageResponse(root, {
+    width: CARD_WIDTH,
+    height: CARD_HEIGHT,
+    fonts: fontData
+      ? [{ name: 'Noto Sans JP', data: fontData, weight: 700, style: 'normal' }]
+      : undefined,
+  });
+}
+
+async function fetchFirestoreDoc(path) {
+  const url =
+    `https://firestore.googleapis.com/v1/projects/${FIRESTORE_PROJECT_ID}` +
+    `/databases/(default)/documents/${path}`;
+  const res = await fetch(url);
+  if (!res.ok) return null;
+  const json = await res.json();
+  return parseFirestoreFields(json.fields);
+}
+
+function parseFirestoreFields(fields) {
+  if (!fields) return null;
+  const result = {};
+  for (const [key, value] of Object.entries(fields)) {
+    if ('stringValue' in value) result[key] = value.stringValue;
+    else if ('nullValue' in value) result[key] = null;
+    else if ('arrayValue' in value) {
+      result[key] = (value.arrayValue.values || []).map((v) => v.stringValue);
+    }
+  }
+  return result;
+}
+
+function parseSnsLinkUrls(value) {
+  if (!Array.isArray(value)) return [];
+  return value.filter((v) => typeof v === 'string');
+}
+
+// カードに表示するURLは`https://www.`部分を除いた短い表示にする
+// （アプリ内のカード編集画面と同じ表示ルール、`lib/features/profile/profile_tab.dart`の
+// `_displaySnsLinkUrl`参照）。
+function displaySnsLinkUrl(link) {
+  return link.replace(/^https?:\/\/(www\.)?/i, '');
+}
+
+async function loadNotoSansJp(text) {
+  const cssUrl = `https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@700&text=${encodeURIComponent(text)}`;
+  const cssRes = await fetch(cssUrl, {
+    headers: {
+      // TTF形式で返させるため、woff2非対応とみなされる古いUser-Agentを指定する
+      // （@vercel/ogの公開サンプルで使われている定番の回避策）。
+      'User-Agent':
+        'Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2228.0 Safari/537.36',
+    },
+  });
+  if (!cssRes.ok) throw new Error('failed to fetch font css');
+  const css = await cssRes.text();
+  const match = css.match(/src: url\(([^)]+)\)/);
+  if (!match) throw new Error('font url not found in css');
+  const fontRes = await fetch(match[1]);
+  if (!fontRes.ok) throw new Error('failed to fetch font file');
+  return fontRes.arrayBuffer();
+}

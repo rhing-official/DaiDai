@@ -11,11 +11,18 @@
 // 実際にリンクを開いた人（ブラウザでJSを実行する側）には通常通りDaiDaiの
 // アプリ本体が起動する。
 //
+// og:imageは単なるアイコン画像ではなく、`api/og-image.mjs`
+// （@vercel/ogでプロフィールカードの見た目を合成するEdge Function）が
+// 生成する画像を指す。
+//
 // 未検証: ローカルでは実際のクローラー展開・Vercelデプロイを通した動作確認が
 // できないため、デプロイ後にDiscord/LINE/X等の実機・プレビューツールでの
 // 確認が別途必要。
 
 const FIRESTORE_PROJECT_ID = 'daidai-rhing';
+// api/og-image.mjsが生成する画像の実サイズと合わせる。
+const OG_IMAGE_WIDTH = 800;
+const OG_IMAGE_HEIGHT = 1000;
 
 module.exports = async (req, res) => {
   const host = req.headers.host;
@@ -34,7 +41,9 @@ module.exports = async (req, res) => {
       if (doc) {
         title = doc.nickname ? `${doc.nickname}（@${rhingId}）` : `@${rhingId}`;
         description = 'DaiDaiで仲間になりましょう';
-        image = doc.iconUrl || null;
+        image = doc.iconUrl
+          ? `https://${host}/api/og-image?type=user&id=${encodeURIComponent(rhingId)}`
+          : null;
       }
     } else if (joinMatch) {
       const groupId = decodeURIComponent(joinMatch[1]);
@@ -42,7 +51,9 @@ module.exports = async (req, res) => {
       if (doc) {
         title = doc.name || title;
         description = doc.description || 'DaiDaiの広場に参加しましょう';
-        image = doc.iconUrl || null;
+        image = doc.iconUrl || doc.backgroundImageUrl
+          ? `https://${host}/api/og-image?type=group&id=${encodeURIComponent(groupId)}`
+          : null;
       }
     }
   } catch (e) {
@@ -64,6 +75,8 @@ module.exports = async (req, res) => {
     `<meta property="og:description" content="${escapeHtml(description)}">`,
     `<meta property="og:url" content="${escapeHtml(url.toString())}">`,
     image ? `<meta property="og:image" content="${escapeHtml(image)}">` : '',
+    image ? `<meta property="og:image:width" content="${OG_IMAGE_WIDTH}">` : '',
+    image ? `<meta property="og:image:height" content="${OG_IMAGE_HEIGHT}">` : '',
     `<meta name="twitter:card" content="${image ? 'summary_large_image' : 'summary'}">`,
   ].filter(Boolean).join('\n    ');
 

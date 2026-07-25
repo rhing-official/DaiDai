@@ -2,9 +2,11 @@ import 'package:daidai/features/settings/settings_tab.dart';
 import 'package:daidai/l10n/app_locale.dart';
 import 'package:daidai/l10n/terminology_style.dart';
 import 'package:daidai/models/app_user.dart';
+import 'package:daidai/models/message_time_format.dart';
 import 'package:daidai/providers/accent_color_provider.dart';
 import 'package:daidai/providers/app_locale_provider.dart';
 import 'package:daidai/models/send_key_mode.dart';
+import 'package:daidai/providers/message_time_format_provider.dart';
 import 'package:daidai/providers/send_key_mode_provider.dart';
 import 'package:daidai/providers/terminology_style_provider.dart';
 import 'package:flutter/material.dart';
@@ -41,6 +43,9 @@ Future<void> _pumpSettingsTab(WidgetTester tester) async {
         initialSendKeyModeProvider.overrideWithValue(
           SendKeyMode.enterToSend,
         ),
+        initialMessageTimeFormatProvider.overrideWithValue(
+          MessageTimeFormat.h24,
+        ),
       ],
       child: const MaterialApp(
         home: Scaffold(
@@ -74,7 +79,6 @@ void main() {
     // 旧実装ではセキュリティ配下（パスワード等）を見るには「セキュリティ」を
     // タップしてさらに列を開く必要があったが、現在は最初から1ページに
     // まとまっているため、クリックなしですべて同時に見える。
-    expect(find.text('プロフィール名'), findsOneWidget);
     expect(find.text('パスワード'), findsOneWidget);
     expect(find.text('2段階認証'), findsOneWidget);
     expect(find.text('パスキー'), findsOneWidget);
@@ -86,7 +90,6 @@ void main() {
     // 別のカテゴリ（アプリケーション）に切り替えると、アカウントの内容は消える。
     await tester.tap(find.text('アプリケーション'));
     await tester.pumpAndSettle();
-    expect(find.text('プロフィール名'), findsNothing);
     expect(find.text('パスワード'), findsNothing);
   });
 

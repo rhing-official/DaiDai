@@ -13,6 +13,7 @@ import '../../providers/friend_providers.dart';
 import '../../providers/repository_providers.dart';
 import '../../providers/user_providers.dart';
 import '../../router/app_router.dart';
+import '../../widgets/swipe_gestures.dart';
 import 'chat_panes.dart';
 
 enum _TalksCategory { dm, group }
@@ -111,28 +112,31 @@ class _TalksTabState extends ConsumerState<TalksTab> {
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(20),
             ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                ListTile(
-                  leading: const Icon(Icons.person_add_outlined),
-                  title: Text(strings.addMenuDmTitleTemplate(vocab.dm)),
-                  subtitle: Text(strings.addMenuDmSubtitle),
-                  onTap: () {
-                    Navigator.of(dialogContext).pop();
-                    _openAddChat();
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(Icons.groups_outlined),
-                  title: Text(strings.addMenuGroupTitleTemplate(vocab.plaza)),
-                  subtitle: Text(strings.addMenuGroupSubtitle),
-                  onTap: () {
-                    Navigator.of(dialogContext).pop();
-                    _openCreateGroup();
-                  },
-                ),
-              ],
+            child: SwipeDownToDismiss(
+              onDismiss: () => Navigator.of(dialogContext).pop(),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  ListTile(
+                    leading: const Icon(Icons.person_add_outlined),
+                    title: Text(strings.addMenuDmTitleTemplate(vocab.dm)),
+                    subtitle: Text(strings.addMenuDmSubtitle),
+                    onTap: () {
+                      Navigator.of(dialogContext).pop();
+                      _openAddChat();
+                    },
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.groups_outlined),
+                    title: Text(strings.addMenuGroupTitleTemplate(vocab.plaza)),
+                    subtitle: Text(strings.addMenuGroupSubtitle),
+                    onTap: () {
+                      Navigator.of(dialogContext).pop();
+                      _openCreateGroup();
+                    },
+                  ),
+                ],
+              ),
             ),
           ),
         );

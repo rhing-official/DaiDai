@@ -7,6 +7,7 @@ import 'firebase_options.dart';
 import 'l10n/app_locale.dart';
 import 'providers/accent_color_provider.dart';
 import 'providers/app_locale_provider.dart';
+import 'providers/message_time_format_provider.dart';
 import 'providers/send_key_mode_provider.dart';
 import 'providers/terminology_style_provider.dart';
 import 'router/app_router.dart';
@@ -19,6 +20,7 @@ Future<void> main() async {
   final initialAppLocale = await loadInitialAppLocale();
   final initialSendKeyMode = await loadInitialSendKeyMode();
   final initialTerminologyStyle = await loadInitialTerminologyStyle();
+  final initialMessageTimeFormat = await loadInitialMessageTimeFormat();
   runApp(
     ProviderScope(
       overrides: [
@@ -27,6 +29,9 @@ Future<void> main() async {
         initialSendKeyModeProvider.overrideWithValue(initialSendKeyMode),
         initialTerminologyStyleProvider.overrideWithValue(
           initialTerminologyStyle,
+        ),
+        initialMessageTimeFormatProvider.overrideWithValue(
+          initialMessageTimeFormat,
         ),
       ],
       child: const DaiDaiApp(),

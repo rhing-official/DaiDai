@@ -10,6 +10,7 @@ class AppUser {
     this.backgroundImages = const [],
     this.statusMessages = const [],
     this.nicknames = const [],
+    this.snsLinks = const [],
     this.profileCards = const [],
     this.activeIconId,
     this.activeBackgroundImageId,
@@ -34,6 +35,9 @@ class AppUser {
   /// 蔵に保管しているニックネーム（最大[kMaxNicknames]件）。
   /// 友達には、相手のRhing IDの代わりにここで選んだニックネームが表示される。
   final List<Nickname> nicknames;
+
+  /// 蔵に保管している他のSNSのURL（最大[kMaxSnsLinks]件）。
+  final List<SnsLink> snsLinks;
 
   /// 和合で作成したプロフィールカード（最大[kMaxProfileCards]枚）。
   /// 蔵の素材を組み合わせて作る「見せ方のセット」。
@@ -72,6 +76,33 @@ class AppUser {
   Nickname? get effectiveNickname {
     final card = activeProfileCard;
     return card != null ? _findNickname(nicknames, card.nicknameId) : activeNickname;
+  }
+
+  /// [effectiveIcon]と同様、適用中のプロフィールカードのステメを優先する。
+  StatusMessage? get effectiveStatusMessage {
+    final card = activeProfileCard;
+    return card != null
+        ? _findStatusMessage(statusMessages, card.statusMessageId)
+        : activeStatusMessage;
+  }
+
+  /// [effectiveIcon]と同様、適用中のプロフィールカードの背景画像を優先する。
+  ProfileMaterial? get effectiveBackgroundImage {
+    final card = activeProfileCard;
+    return card != null
+        ? _findMaterial(backgroundImages, card.backgroundImageId)
+        : activeBackgroundImage;
+  }
+
+  /// 適用中のプロフィールカードに掲載しているSNSのURL一覧
+  /// （カード未適用時は空リスト。個別のactiveXxxに相当する概念はSNS URLには無い）。
+  List<SnsLink> get effectiveSnsLinks {
+    final card = activeProfileCard;
+    if (card == null) return const [];
+    return [
+      for (final link in snsLinks)
+        if (card.snsLinkIds.contains(link.id)) link,
+    ];
   }
 
   static ProfileMaterial? _findMaterial(
@@ -117,6 +148,7 @@ class AppUser {
     List<ProfileMaterial>? backgroundImages,
     List<StatusMessage>? statusMessages,
     List<Nickname>? nicknames,
+    List<SnsLink>? snsLinks,
     List<ProfileCard>? profileCards,
     String? activeIconId,
     String? activeBackgroundImageId,
@@ -132,6 +164,7 @@ class AppUser {
       backgroundImages: backgroundImages ?? this.backgroundImages,
       statusMessages: statusMessages ?? this.statusMessages,
       nicknames: nicknames ?? this.nicknames,
+      snsLinks: snsLinks ?? this.snsLinks,
       profileCards: profileCards ?? this.profileCards,
       activeIconId: activeIconId ?? this.activeIconId,
       activeBackgroundImageId:
@@ -152,6 +185,7 @@ class AppUser {
       backgroundImages: _materialListFromJson(json['backgroundImages']),
       statusMessages: _statusListFromJson(json['statusMessages']),
       nicknames: _nicknameListFromJson(json['nicknames']),
+      snsLinks: _snsLinkListFromJson(json['snsLinks']),
       profileCards: _profileCardListFromJson(json['profileCards']),
       activeIconId: json['activeIconId'] as String?,
       activeBackgroundImageId: json['activeBackgroundImageId'] as String?,
@@ -170,6 +204,7 @@ class AppUser {
       'backgroundImages': backgroundImages.map((m) => m.toJson()).toList(),
       'statusMessages': statusMessages.map((m) => m.toJson()).toList(),
       'nicknames': nicknames.map((n) => n.toJson()).toList(),
+      'snsLinks': snsLinks.map((s) => s.toJson()).toList(),
       'profileCards': profileCards.map((c) => c.toJson()).toList(),
       'activeIconId': activeIconId,
       'activeBackgroundImageId': activeBackgroundImageId,
@@ -197,6 +232,13 @@ class AppUser {
     if (value is! List) return const [];
     return value
         .map((e) => Nickname.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  static List<SnsLink> _snsLinkListFromJson(dynamic value) {
+    if (value is! List) return const [];
+    return value
+        .map((e) => SnsLink.fromJson(e as Map<String, dynamic>))
         .toList();
   }
 

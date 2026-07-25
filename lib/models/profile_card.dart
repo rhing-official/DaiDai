@@ -17,6 +17,7 @@ class ProfileCard {
     this.backgroundImageId,
     this.nicknameId,
     this.statusMessageId,
+    this.snsLinkIds = const [],
   });
 
   final String id;
@@ -29,6 +30,9 @@ class ProfileCard {
   final String? nicknameId;
   final String? statusMessageId;
 
+  /// このカードに掲載するSNSのURL（蔵の[SnsLink]のid）。最大[kMaxProfileCardSnsLinks]件。
+  final List<String> snsLinkIds;
+
   ProfileCard copyWith({
     String? name,
     String? iconId,
@@ -39,6 +43,7 @@ class ProfileCard {
     bool clearNicknameId = false,
     String? statusMessageId,
     bool clearStatusMessageId = false,
+    List<String>? snsLinkIds,
   }) {
     return ProfileCard(
       id: id,
@@ -49,6 +54,7 @@ class ProfileCard {
       nicknameId: clearNicknameId ? null : (nicknameId ?? this.nicknameId),
       statusMessageId:
           clearStatusMessageId ? null : (statusMessageId ?? this.statusMessageId),
+      snsLinkIds: snsLinkIds ?? this.snsLinkIds,
     );
   }
 
@@ -60,6 +66,7 @@ class ProfileCard {
       backgroundImageId: json['backgroundImageId'] as String?,
       nicknameId: json['nicknameId'] as String?,
       statusMessageId: json['statusMessageId'] as String?,
+      snsLinkIds: (json['snsLinkIds'] as List?)?.cast<String>() ?? const [],
     );
   }
 
@@ -71,6 +78,7 @@ class ProfileCard {
       'backgroundImageId': backgroundImageId,
       'nicknameId': nicknameId,
       'statusMessageId': statusMessageId,
+      'snsLinkIds': snsLinkIds,
     };
   }
 }

@@ -15,6 +15,29 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+/// arrayUnion/arrayRemoveの実際のFirestore側の一致判定（値そのものの深い比較。
+/// Listは順序も含めて内容で比較する）を模す。Dartの既定の`==`（≒
+/// `mapEquals`）はListを参照同一性で比較してしまい、同じ内容でも別インスタンス
+/// なら不一致になる（本物のFirestoreにはこの問題はない）ため、テスト用の
+/// フェイクをより忠実にするために使う。
+bool _deepEquals(Object? a, Object? b) {
+  if (a is Map && b is Map) {
+    if (a.length != b.length) return false;
+    for (final key in a.keys) {
+      if (!b.containsKey(key) || !_deepEquals(a[key], b[key])) return false;
+    }
+    return true;
+  }
+  if (a is List && b is List) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (!_deepEquals(a[i], b[i])) return false;
+    }
+    return true;
+  }
+  return a == b;
+}
+
 class _FakeUserRepository implements UserRepository {
   AppUser? saved;
 
@@ -79,7 +102,7 @@ class _FakeUserRepository implements UserRepository {
     final json = base.toJson();
     final list = List<Map<String, dynamic>>.from(
       (json[field] as List).cast<Map<String, dynamic>>(),
-    )..removeWhere((v) => mapEquals(v, value));
+    )..removeWhere((v) => _deepEquals(v, value));
     json[field] = list;
     saved = AppUser.fromJson(json);
   }
@@ -272,4 +295,158 @@ void main() {
       expect(repo.saved?.nicknames.map((n) => n.text), contains('たろ'));
     },
   );
+
+  testWidgets('背景を設定済みのカードでも背景タップで選択メニューが開く（回帰テスト）', (tester) async {
+    // 背景を一度設定すると以降タップしても何も起きなくなる不具合の再現テスト。
+    // 原因は、背景画像の上に重ねている装飾用グラデーション（子を持たない
+    // DecoratedBox）がStack内でヒットテストを奪ってしまい、下にある背景タップの
+    // GestureDetectorまでイベントが届かなくなっていたこと。IgnorePointerで
+    // 装飾レイヤーをヒットテスト対象から外して解消した。
+    const bg1 = ProfileMaterial(
+      id: 'bg1',
+      url: 'https://example.com/bg1.png',
+      storagePath: 'p1',
+    );
+    const card = ProfileCard(id: 'c1', name: '既存カード', backgroundImageId: 'bg1');
+    const user = AppUser(
+      userId: 'u1',
+      rhingId: 'taro',
+      backgroundImages: [bg1],
+      profileCards: [card],
+    );
+    final repo = _FakeUserRepository();
+    await _pumpProfileTab(tester, user, repo);
+
+    await tester.tap(find.text('工房'));
+    await tester.pumpAndSettle();
+
+    // 名前ラベル（カード下のText）はタップ不可のため、カード本体（Hero）をタップする。
+    await tester.tapAt(tester.getCenter(find.byType(Hero).first));
+    await tester.pumpAndSettle();
+    // テスト環境ではbackgroundImageのURLへの実際のHTTP取得は失敗する
+    // （テストバインディングが常にstatusCode 400を返す仕様）。この
+    // NetworkImageLoadException自体は本テストの検証対象ではないため、
+    // 後続の失敗として扱われないよう明示的に読み捨てる。
+    tester.takeException();
+
+    // 背景タップ用のGestureDetector（HitTestBehavior.opaque指定）を直接タップする。
+    // カードのMaterial（borderRadius: circular(24)）配下に絞らないと、画面内の
+    // 他のopaqueなGestureDetector（ホーム画面のスワイプ検出等）まで拾ってしまう。
+    final cardMaterial = find.byWidgetPredicate(
+      (w) => w is Material && w.borderRadius == BorderRadius.circular(24),
+    );
+    final bgDetector = find.descendant(
+      of: cardMaterial,
+      matching: find.byWidgetPredicate(
+        (w) => w is GestureDetector && w.behavior == HitTestBehavior.opaque,
+      ),
+    );
+    expect(bgDetector, findsOneWidget);
+    await tester.tap(bgDetector);
+    await tester.pumpAndSettle();
+    tester.takeException();
+
+    // 背景選択メニューが実際に開くことを確認する。
+    expect(find.byType(PopupMenuItem<String>), findsWidgets);
+  });
+
+  testWidgets('URLを連続してチェックしても保存の競合でカードが重複しない（回帰テスト）', (tester) async {
+    // 実際のバグ再現: カードの更新保存は「古い値をarrayRemoveで消す→新しい値を
+    // arrayUnionで足す」という2手順で、この2手順のセット自体はFirestore側で
+    // 原子的にまとまっていない。保存の完了を待たずに連続で呼ぶと（URLの
+    // チェックボックスを立て続けに2つチェックした場合など）、後発の呼び出しの
+    // arrayRemoveが「先発の呼び出しのarrayUnionがまだ反映されていない古い値」を
+    // 狙って何もマッチせず空振りし、結果としてprofileCards配列に中間状態と
+    // 最終状態の両方が残ってしまっていた（ページをリロードしても消えない、
+    // 本物のデータ重複としてユーザー報告された）。_FakeUserRepositoryの遅延
+    // フックでこの競合状態を確定的に再現する。
+    const link1 = SnsLink(id: 'l1', url: 'https://www.instagram.com/taro');
+    const link2 = SnsLink(id: 'l2', url: 'https://pixiv.net/taro');
+    const card = ProfileCard(id: 'c1', name: '既存カード');
+    const user = AppUser(
+      userId: 'u1',
+      rhingId: 'taro',
+      snsLinks: [link1, link2],
+      profileCards: [card],
+    );
+    final repo = _FakeUserRepository()..saved = user;
+    await _pumpProfileTab(tester, user, repo);
+
+    await tester.tap(find.text('工房'));
+    await tester.pumpAndSettle();
+
+    await tester.tapAt(tester.getCenter(find.byType(Hero).first));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byIcon(Icons.link));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(CheckboxListTile), findsNWidgets(2));
+
+    // 2件目の保存が1件目の保存の完了を待たずに走る状況を確定的に作るため、
+    // 追加（arrayUnion）を止めてから連続でチェックする。
+    repo.blockField('profileCards');
+    await tester.tap(find.byType(CheckboxListTile).at(0));
+    await tester.tap(find.byType(CheckboxListTile).at(1));
+    repo.releaseField();
+    await tester.pumpAndSettle();
+
+    expect(repo.saved?.profileCards.length, 1);
+    expect(repo.saved?.profileCards.single.snsLinkIds, containsAll(['l1', 'l2']));
+  });
+
+  testWidgets('空き枠を連続タップしてもカード編集画面は1つしか開かず、重複作成されない（回帰テスト）', (
+    tester,
+  ) async {
+    // 実際のバグ再現: Hero遷移のフェード（300ms）中はInkWellへの反応が一瞬
+    // 遅れて見えるため、素早く連打すると_openCardZoomが多重に呼ばれ、同じ枠に
+    // 対して別々のidを持つ内容の同じカードが2件作られてしまっていた。
+    // ガードにより2回目以降の呼び出しは無視されることを確認する。
+    const user = AppUser(userId: 'u1', rhingId: 'taro');
+    final repo = _FakeUserRepository();
+    await _pumpProfileTab(tester, user, repo);
+
+    await tester.tap(find.text('工房'));
+    await tester.pumpAndSettle();
+
+    // pumpAndSettleを挟まず素早く2回タップする（連打相当）。
+    await tester.tap(find.byIcon(Icons.add).first);
+    await tester.tap(find.byIcon(Icons.add).first);
+    await tester.pumpAndSettle();
+
+    // カード編集画面（名前入力欄）は1つしか開いていない。
+    expect(find.byType(TextField), findsOneWidget);
+
+    await tester.enterText(find.byType(TextField), '標準');
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pumpAndSettle();
+
+    expect(repo.saved?.profileCards.length, 1);
+  });
+
+  testWidgets('工房の縮小表示（ズームアウト状態）のカードにもSNSのURLが表示される', (tester) async {
+    const link1 = SnsLink(id: 'l1', url: 'https://www.instagram.com/taro');
+    const link2 = SnsLink(id: 'l2', url: 'https://pixiv.net/taro');
+    const card = ProfileCard(
+      id: 'c1',
+      name: '既存カード',
+      snsLinkIds: ['l1', 'l2'],
+    );
+    const user = AppUser(
+      userId: 'u1',
+      rhingId: 'taro',
+      snsLinks: [link1, link2],
+      profileCards: [card],
+    );
+    final repo = _FakeUserRepository();
+    await _pumpProfileTab(tester, user, repo);
+
+    await tester.tap(find.text('工房'));
+    await tester.pumpAndSettle();
+
+    // ダイアログを開かなくても、縮小表示のカードの時点でURL（先頭の
+    // https://www.を取り除いた表示）が見えている。
+    expect(find.text('instagram.com/taro'), findsOneWidget);
+    expect(find.text('pixiv.net/taro'), findsOneWidget);
+  });
 }

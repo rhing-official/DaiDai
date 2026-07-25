@@ -3,6 +3,10 @@ const kMaxIcons = 5;
 const kMaxBackgroundImages = 3;
 const kMaxStatusMessages = 10;
 const kMaxNicknames = 10;
+const kMaxSnsLinks = 5;
+
+/// 工房のプロフィールカード1枚に掲載できるSNSのURLの上限数。
+const kMaxProfileCardSnsLinks = 2;
 
 /// 蔵の素材の文字数上限。
 const kMaxNicknameLength = 20;
@@ -67,5 +71,22 @@ class Nickname {
 
   Map<String, dynamic> toJson() {
     return {'id': id, 'text': text};
+  }
+}
+
+/// 蔵に保管する他のSNSのURL。最大[kMaxSnsLinks]件まで登録でき、そのうち
+/// 工房のプロフィールカード1枚に掲載できるのは最大[kMaxProfileCardSnsLinks]件。
+class SnsLink {
+  const SnsLink({required this.id, required this.url});
+
+  final String id;
+  final String url;
+
+  factory SnsLink.fromJson(Map<String, dynamic> json) {
+    return SnsLink(id: json['id'] as String, url: json['url'] as String);
+  }
+
+  Map<String, dynamic> toJson() {
+    return {'id': id, 'url': url};
   }
 }
