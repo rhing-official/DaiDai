@@ -3,8 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/strings.dart';
 import '../../models/app_user.dart';
+import '../../models/conversation_prefs.dart';
 import '../../models/direct_message.dart';
 import '../../models/group.dart';
+import '../../providers/block_providers.dart';
+import '../../providers/conversation_prefs_providers.dart';
 import '../../providers/group_call_providers.dart';
 import '../../providers/repository_providers.dart';
 import '../../providers/user_providers.dart';
@@ -15,7 +18,8 @@ import 'group_leave_dialog.dart';
 import 'group_member_list_screen.dart';
 import 'group_profile_card_screen.dart';
 
-enum _GroupMenuAction { profileCard, memberList, createInvite, leave }
+enum _GroupMenuAction { profileCard, memberList, createInvite, toggleMute, leave }
+enum _DmMenuAction { toggleMute, toggleBlock }
 
 /// 一対（DM）のChatScreenを組み立てる。相手のアクティブなニックネームを
 /// タイトルに反映するためConsumer化している。go_routerのフルスクリーン遷移と、
@@ -36,6 +40,7 @@ class DmChatPane extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final strings = ref.watch(appStringsProvider);
     final dmRepository = ref.watch(directMessageRepositoryProvider);
     final otherUserId = dm.otherUserId(currentUser.userId);
     final fallbackTitle = '@${dm.otherRhingId(currentUser.userId)}';
@@ -44,20 +49,116 @@ class DmChatPane extends ConsumerWidget {
       data: (user) => user?.activeNickname?.text,
       orElse: () => null,
     );
+    final blockedIds =
+        ref.watch(blockedUserIdsProvider(currentUser.userId)).value ??
+            const {};
+    final isBlocked = blockedIds.contains(otherUserId);
     return ChatScreen(
       key: ValueKey('dm-${dm.dmId}'),
       title: (nickname?.isNotEmpty ?? false) ? nickname! : fallbackTitle,
       currentUserId: currentUser.userId,
-      messagesStream: dmRepository.watchMessages(dm.dmId),
-      onSend: (content, {silent = false}) => dmRepository.sendTextMessage(
-        dmId: dm.dmId,
-        senderId: currentUser.userId,
-        senderRhingId: currentUser.rhingId,
-        content: content,
-        silent: silent,
-      ),
+      // ブロック中は相手からのメッセージを表示しない（自分が送った過去分は
+      // 引き続き見える）。サーバー側の送信拒否ではなく、クライアント側の
+      // 表示抑制で実現する（`BlockRepository`のコメント参照）。
+      messagesStream: dmRepository.watchMessages(dm.dmId).map(
+            (messages) => isBlocked
+                ? messages.where((m) => m.senderId != otherUserId).toList()
+                : messages,
+          ),
+      onSend: (content, {silent = false}) async {
+        if (isBlocked) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(strings.conversationBlockedCannotSend)),
+          );
+          return;
+        }
+        await dmRepository.sendTextMessage(
+          dmId: dm.dmId,
+          senderId: currentUser.userId,
+          senderRhingId: currentUser.rhingId,
+          content: content,
+          silent: silent,
+        );
+      },
       onCallPressed: onCallPressed,
       onVideoCallPressed: onVideoCallPressed,
+      extraActions: [
+        _DmMenuButton(
+          currentUser: currentUser,
+          dm: dm,
+          otherUserId: otherUserId,
+          isBlocked: isBlocked,
+        ),
+      ],
+    );
+  }
+}
+
+/// 一対の「通知オフ・ブロック」をまとめたハンバーガーメニュー（2026-07-25追加）。
+/// 見た目は広場のハンバーガーメニュー（[_GroupMenuButton]）から転用し、
+/// ボタン真下に角丸で開く。一対にはメンバー一覧・プロフィールカードのような
+/// サブ画面が無いため、[_GroupMenuButton]と違い単純な[PopupMenuButton]のみで足りる。
+class _DmMenuButton extends ConsumerWidget {
+  const _DmMenuButton({
+    required this.currentUser,
+    required this.dm,
+    required this.otherUserId,
+    required this.isBlocked,
+  });
+
+  final AppUser currentUser;
+  final DirectMessage dm;
+  final String otherUserId;
+  final bool isBlocked;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final strings = ref.watch(appStringsProvider);
+    final prefs = ref
+            .watch(conversationPrefsProvider(currentUser.userId))
+            .value ??
+        const <String, ConversationPrefs>{};
+    final muted = prefs[dm.dmId]?.notificationsMuted ?? false;
+
+    return PopupMenuButton<_DmMenuAction>(
+      icon: const Icon(Icons.menu),
+      position: PopupMenuPosition.under,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      onSelected: (action) {
+        switch (action) {
+          case _DmMenuAction.toggleMute:
+            ref.read(conversationPrefsRepositoryProvider).setNotificationsMuted(
+                  userId: currentUser.userId,
+                  conversationId: dm.dmId,
+                  muted: !muted,
+                );
+          case _DmMenuAction.toggleBlock:
+            final repository = ref.read(blockRepositoryProvider);
+            if (isBlocked) {
+              repository.unblock(
+                userId: currentUser.userId,
+                targetUserId: otherUserId,
+              );
+            } else {
+              repository.block(
+                userId: currentUser.userId,
+                targetUserId: otherUserId,
+              );
+            }
+        }
+      },
+      itemBuilder: (context) => [
+        PopupMenuItem(
+          value: _DmMenuAction.toggleMute,
+          child: Text(muted ? strings.conversationUnmute : strings.conversationMute),
+        ),
+        PopupMenuItem(
+          value: _DmMenuAction.toggleBlock,
+          child: Text(
+            isBlocked ? strings.conversationUnblock : strings.conversationBlock,
+          ),
+        ),
+      ],
     );
   }
 }
@@ -255,6 +356,11 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
     final strings = ref.watch(appStringsProvider);
     final isOwner =
         widget.group.memberRoles[widget.currentUser.userId] == 'owner';
+    final prefs = ref
+            .watch(conversationPrefsProvider(widget.currentUser.userId))
+            .value ??
+        const <String, ConversationPrefs>{};
+    final muted = prefs[widget.group.groupId]?.notificationsMuted ?? false;
 
     return PopupMenuButton<_GroupMenuAction>(
       key: _buttonKey,
@@ -269,6 +375,12 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
             _showMemberListPopup();
           case _GroupMenuAction.createInvite:
             GroupInviteDialog.show(context, widget.group.groupId);
+          case _GroupMenuAction.toggleMute:
+            ref.read(conversationPrefsRepositoryProvider).setNotificationsMuted(
+                  userId: widget.currentUser.userId,
+                  conversationId: widget.group.groupId,
+                  muted: !muted,
+                );
           case _GroupMenuAction.leave:
             GroupLeaveDialog.show(
               context,
@@ -289,6 +401,10 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
         PopupMenuItem(
           value: _GroupMenuAction.createInvite,
           child: Text(strings.groupMenuCreateInvite),
+        ),
+        PopupMenuItem(
+          value: _GroupMenuAction.toggleMute,
+          child: Text(muted ? strings.conversationUnmute : strings.conversationMute),
         ),
         PopupMenuItem(
           value: _GroupMenuAction.leave,

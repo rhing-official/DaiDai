@@ -48,6 +48,15 @@ service cloud.firestore {
       match /conversationPrefs/{conversationId} {
         allow read, write: if request.auth != null && request.auth.uid == userId;
       }
+
+      // users/{userId}/blockedUsers/{blockedUserId}: 一対でブロックした相手の一覧
+      // （2026-07-25追加）。conversationPrefsと同じく完全に個人的な設定で、
+      // 本人のみ読み書き可能（相手には一切公開しない。ブロックはサーバー側の
+      // 送信拒否ではなく、クライアント側で相手のメッセージを表示しない・
+      // 自分から送信できなくする形で実現する）。
+      match /blockedUsers/{blockedUserId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
     }
 
     // userInvites/{rhingId}: 縁結び（個人の招待リンク）の公開プレビュー
@@ -129,7 +138,10 @@ service cloud.firestore {
       allow update: if request.auth != null
         && request.auth.uid in resource.data.memberIds
         && (
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['profileCard'])
+          // プロフィールカードの編集（メンバー全員可能）。カード名は広場名と
+          // 同一の値として扱うため、nameも同時に変更できるようにする
+          // （2026-07-25、カード編集画面から広場名も変更できるようにした変更）。
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['profileCard', 'name'])
           || (
             resource.data.memberRoles[request.auth.uid] in ['owner', 'moderator']
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberIds', 'memberRoles'])

@@ -72,6 +72,9 @@ class Strings {
     required this.conversationUnpin,
     required this.conversationMute,
     required this.conversationUnmute,
+    required this.conversationBlock,
+    required this.conversationUnblock,
+    required this.conversationBlockedCannotSend,
     required this.cancel,
     required this.add,
     required this.save,
@@ -221,6 +224,9 @@ class Strings {
   final String conversationUnpin;
   final String conversationMute;
   final String conversationUnmute;
+  final String conversationBlock;
+  final String conversationUnblock;
+  final String conversationBlockedCannotSend;
 
   final String cancel;
   final String add;
@@ -382,6 +388,9 @@ class Strings {
     conversationUnpin: 'ピン留めを外す',
     conversationMute: '通知オフ',
     conversationUnmute: '通知オン',
+    conversationBlock: 'ブロック',
+    conversationUnblock: 'ブロック解除',
+    conversationBlockedCannotSend: 'ブロック中のため送信できません',
     cancel: 'キャンセル',
     add: '追加',
     save: '保存',
@@ -438,7 +447,7 @@ class Strings {
     groupMenuMemberList: 'メンバー一覧',
     groupMenuCreateInvite: '招待リンク作成',
     groupMenuLeave: '退会',
-    groupProfileCardNameLabel: '名前',
+    groupProfileCardNameLabel: '広場名',
     groupProfileCardDescriptionLabel: '一言',
     groupMemberListTitle: 'メンバー一覧',
     groupMemberListPendingSection: '参加リクエスト',
@@ -535,6 +544,9 @@ class Strings {
     conversationUnpin: 'Unpin',
     conversationMute: 'Mute notifications',
     conversationUnmute: 'Unmute notifications',
+    conversationBlock: 'Block',
+    conversationUnblock: 'Unblock',
+    conversationBlockedCannotSend: "You can't send messages while blocked",
     cancel: 'Cancel',
     add: 'Add',
     save: 'Save',
@@ -592,7 +604,7 @@ class Strings {
     groupMenuMemberList: 'Member list',
     groupMenuCreateInvite: 'Create invite link',
     groupMenuLeave: 'Leave',
-    groupProfileCardNameLabel: 'Name',
+    groupProfileCardNameLabel: 'Plaza name',
     groupProfileCardDescriptionLabel: 'Status',
     groupMemberListTitle: 'Members',
     groupMemberListPendingSection: 'Join requests',

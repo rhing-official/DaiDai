@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../repositories/auth_repository.dart';
+import '../repositories/block_repository.dart';
 import '../repositories/call_repository.dart';
 import '../repositories/conversation_prefs_repository.dart';
 import '../repositories/direct_message_repository.dart';
@@ -40,6 +41,10 @@ final friendRepositoryProvider = Provider<FriendRepository>((ref) {
 
 final conversationPrefsRepositoryProvider = Provider<ConversationPrefsRepository>((ref) {
   return FirestoreConversationPrefsRepository();
+});
+
+final blockRepositoryProvider = Provider<BlockRepository>((ref) {
+  return FirestoreBlockRepository();
 });
 
 final authStateProvider = StreamProvider<User?>((ref) {
