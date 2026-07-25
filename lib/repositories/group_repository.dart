@@ -41,6 +41,14 @@ abstract class GroupRepository {
     bool silent = false,
   });
 
+  /// 指定したメッセージ群に、自分（[userId]）が読んだ記録を追加する。
+  Future<void> markRoomMessagesRead({
+    required String groupId,
+    required String roomId,
+    required String userId,
+    required List<String> messageIds,
+  });
+
   /// 広場のプロフィールカードを作成・更新する。メンバー全員が実行できる。
   Future<void> updateProfileCard({
     required String groupId,
@@ -222,6 +230,29 @@ class FirestoreGroupRepository implements GroupRepository {
     final batch = _firestore.batch();
     batch.set(messageRef, message.toJson());
     batch.update(roomRef, {'lastMessageAt': FieldValue.serverTimestamp()});
+    await batch.commit();
+  }
+
+  @override
+  Future<void> markRoomMessagesRead({
+    required String groupId,
+    required String roomId,
+    required String userId,
+    required List<String> messageIds,
+  }) async {
+    if (messageIds.isEmpty) return;
+    final messagesRef = _roomRef(groupId, roomId).collection('messages');
+    final batch = _firestore.batch();
+    // FieldValue.serverTimestamp()は配列要素の中では使えない（nullになる）ため、
+    // クライアント側の時刻をそのまま記録する。
+    final readAt = Timestamp.now();
+    for (final messageId in messageIds) {
+      batch.update(messagesRef.doc(messageId), {
+        'readBy': FieldValue.arrayUnion([
+          {'userId': userId, 'readAt': readAt},
+        ]),
+      });
+    }
     await batch.commit();
   }
 

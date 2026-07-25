@@ -18,8 +18,15 @@ import 'group_leave_dialog.dart';
 import 'group_member_list_screen.dart';
 import 'group_profile_card_screen.dart';
 
-enum _GroupMenuAction { profileCard, memberList, createInvite, toggleMute, leave }
-enum _DmMenuAction { toggleMute, toggleBlock }
+enum _GroupMenuAction {
+  profileCard,
+  memberList,
+  createInvite,
+  toggleMute,
+  toggleReadReceipts,
+  leave,
+}
+enum _DmMenuAction { toggleMute, toggleBlock, toggleReadReceipts }
 
 /// 一対（DM）のChatScreenを組み立てる。相手のアクティブなニックネームを
 /// タイトルに反映するためConsumer化している。go_routerのフルスクリーン遷移と、
@@ -53,10 +60,16 @@ class DmChatPane extends ConsumerWidget {
         ref.watch(blockedUserIdsProvider(currentUser.userId)).value ??
             const {};
     final isBlocked = blockedIds.contains(otherUserId);
+    final prefs = ref
+            .watch(conversationPrefsProvider(currentUser.userId))
+            .value ??
+        const <String, ConversationPrefs>{};
+    final readReceiptsEnabled = prefs[dm.dmId]?.readReceiptsEnabled ?? true;
     return ChatScreen(
       key: ValueKey('dm-${dm.dmId}'),
       title: (nickname?.isNotEmpty ?? false) ? nickname! : fallbackTitle,
       currentUserId: currentUser.userId,
+      isDm: true,
       // ブロック中は相手からのメッセージを表示しない（自分が送った過去分は
       // 引き続き見える）。サーバー側の送信拒否ではなく、クライアント側の
       // 表示抑制で実現する（`BlockRepository`のコメント参照）。
@@ -82,6 +95,12 @@ class DmChatPane extends ConsumerWidget {
       },
       onCallPressed: onCallPressed,
       onVideoCallPressed: onVideoCallPressed,
+      readReceiptsEnabled: readReceiptsEnabled,
+      onMarkRead: (messageIds) => dmRepository.markMessagesRead(
+        dmId: dm.dmId,
+        userId: currentUser.userId,
+        messageIds: messageIds,
+      ),
       extraActions: [
         _DmMenuButton(
           currentUser: currentUser,
@@ -119,6 +138,7 @@ class _DmMenuButton extends ConsumerWidget {
             .value ??
         const <String, ConversationPrefs>{};
     final muted = prefs[dm.dmId]?.notificationsMuted ?? false;
+    final readReceiptsEnabled = prefs[dm.dmId]?.readReceiptsEnabled ?? true;
 
     return PopupMenuButton<_DmMenuAction>(
       icon: const Icon(Icons.menu),
@@ -145,6 +165,12 @@ class _DmMenuButton extends ConsumerWidget {
                 targetUserId: otherUserId,
               );
             }
+          case _DmMenuAction.toggleReadReceipts:
+            ref.read(conversationPrefsRepositoryProvider).setReadReceiptsEnabled(
+                  userId: currentUser.userId,
+                  conversationId: dm.dmId,
+                  enabled: !readReceiptsEnabled,
+                );
         }
       },
       itemBuilder: (context) => [
@@ -156,6 +182,14 @@ class _DmMenuButton extends ConsumerWidget {
           value: _DmMenuAction.toggleBlock,
           child: Text(
             isBlocked ? strings.conversationUnblock : strings.conversationBlock,
+          ),
+        ),
+        PopupMenuItem(
+          value: _DmMenuAction.toggleReadReceipts,
+          child: Text(
+            readReceiptsEnabled
+                ? strings.conversationReadReceiptsDisable
+                : strings.conversationReadReceiptsEnable,
           ),
         ),
       ],
@@ -227,10 +261,17 @@ class GroupChatPane extends ConsumerWidget {
     // 通話ボタン押下時に「新規開始」か「参加」かを判定するため、進行中の通話を
     // 常時購読しておく（_handleCallPressedはref.readでキャッシュ値を使う）。
     ref.watch(activeGroupCallProvider(group.groupId));
+    final prefs = ref
+            .watch(conversationPrefsProvider(currentUser.userId))
+            .value ??
+        const <String, ConversationPrefs>{};
+    final readReceiptsEnabled =
+        prefs[group.groupId]?.readReceiptsEnabled ?? true;
     return ChatScreen(
       key: ValueKey('group-${group.groupId}'),
       title: group.name,
       currentUserId: currentUser.userId,
+      isDm: false,
       messagesStream: groupRepository.watchRoomMessages(
         group.groupId,
         group.defaultRoomId,
@@ -245,6 +286,13 @@ class GroupChatPane extends ConsumerWidget {
       ),
       onCallPressed: () => _handleCallPressed(context, ref, isVideo: false),
       onVideoCallPressed: () => _handleCallPressed(context, ref, isVideo: true),
+      readReceiptsEnabled: readReceiptsEnabled,
+      onMarkRead: (messageIds) => groupRepository.markRoomMessagesRead(
+        groupId: group.groupId,
+        roomId: group.defaultRoomId,
+        userId: currentUser.userId,
+        messageIds: messageIds,
+      ),
       extraActions: [
         _GroupMenuButton(currentUser: currentUser, group: group),
       ],
@@ -361,6 +409,8 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
             .value ??
         const <String, ConversationPrefs>{};
     final muted = prefs[widget.group.groupId]?.notificationsMuted ?? false;
+    final readReceiptsEnabled =
+        prefs[widget.group.groupId]?.readReceiptsEnabled ?? true;
 
     return PopupMenuButton<_GroupMenuAction>(
       key: _buttonKey,
@@ -380,6 +430,12 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
                   userId: widget.currentUser.userId,
                   conversationId: widget.group.groupId,
                   muted: !muted,
+                );
+          case _GroupMenuAction.toggleReadReceipts:
+            ref.read(conversationPrefsRepositoryProvider).setReadReceiptsEnabled(
+                  userId: widget.currentUser.userId,
+                  conversationId: widget.group.groupId,
+                  enabled: !readReceiptsEnabled,
                 );
           case _GroupMenuAction.leave:
             GroupLeaveDialog.show(
@@ -405,6 +461,14 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
         PopupMenuItem(
           value: _GroupMenuAction.toggleMute,
           child: Text(muted ? strings.conversationUnmute : strings.conversationMute),
+        ),
+        PopupMenuItem(
+          value: _GroupMenuAction.toggleReadReceipts,
+          child: Text(
+            readReceiptsEnabled
+                ? strings.conversationReadReceiptsDisable
+                : strings.conversationReadReceiptsEnable,
+          ),
         ),
         PopupMenuItem(
           value: _GroupMenuAction.leave,

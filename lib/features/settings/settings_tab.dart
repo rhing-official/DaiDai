@@ -6,10 +6,12 @@ import '../../l10n/app_locale.dart';
 import '../../l10n/strings.dart';
 import '../../l10n/terminology_style.dart';
 import '../../models/app_user.dart';
+import '../../models/chat_layout_style.dart';
 import '../../models/message_time_format.dart';
 import '../../models/send_key_mode.dart';
 import '../../providers/accent_color_provider.dart';
 import '../../providers/app_locale_provider.dart';
+import '../../providers/chat_layout_style_provider.dart';
 import '../../providers/message_time_format_provider.dart';
 import '../../providers/repository_providers.dart';
 import '../../providers/send_key_mode_provider.dart';
@@ -475,6 +477,8 @@ class _ApplicationPage extends StatelessWidget {
           ),
         ),
         const Divider(height: 24),
+        _ChatLayoutFolder(strings: strings),
+        const Divider(height: 24),
         _SectionHeader(strings.settingsSubTypography),
         _InfoRow(
           label: strings.settingsFontDesign,
@@ -736,6 +740,56 @@ class _LanguageFolder extends ConsumerWidget {
                   onSelected: (_) =>
                       ref.read(terminologyStyleProvider.notifier).setStyle(style),
                 ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// 語らいのメッセージ表示スタイルの切り替え。この設定は自分の端末での
+/// 表示のみに影響し、相手の語らいの見え方には影響しない
+/// （[ChatLayoutStyle]のコメント参照）。
+class _ChatLayoutFolder extends ConsumerWidget {
+  const _ChatLayoutFolder({required this.strings});
+
+  final Strings strings;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final style = ref.watch(chatLayoutStyleProvider);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+          child: Text(
+            strings.settingsChatLayoutTitle,
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+        ),
+        RadioGroup<ChatLayoutStyle>(
+          groupValue: style,
+          onChanged: (value) {
+            if (value != null) {
+              ref.read(chatLayoutStyleProvider.notifier).setStyle(value);
+            }
+          },
+          child: Column(
+            children: [
+              RadioListTile<ChatLayoutStyle>(
+                value: ChatLayoutStyle.sideBySide,
+                title: Text(strings.settingsChatLayoutSideBySide),
+                subtitle: Text(strings.settingsChatLayoutSideBySideDescription),
+              ),
+              RadioListTile<ChatLayoutStyle>(
+                value: ChatLayoutStyle.allLeft,
+                title: Text(strings.settingsChatLayoutAllLeft),
+                subtitle: Text(strings.settingsChatLayoutAllLeftDescription),
+              ),
             ],
           ),
         ),

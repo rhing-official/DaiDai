@@ -1,5 +1,22 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+/// メッセージを既読にしたユーザー1人分の記録。
+class MessageReadReceipt {
+  const MessageReadReceipt({required this.userId, this.readAt});
+
+  final String userId;
+  final Timestamp? readAt;
+
+  factory MessageReadReceipt.fromJson(Map<String, dynamic> json) {
+    return MessageReadReceipt(
+      userId: json['userId'] as String,
+      readAt: json['readAt'] as Timestamp?,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {'userId': userId, 'readAt': readAt};
+}
+
 class Message {
   const Message({
     required this.messageId,
@@ -12,6 +29,7 @@ class Message {
     this.sentAt,
     this.deletedAt,
     this.silent = false,
+    this.readBy = const [],
   });
 
   final String messageId;
@@ -30,6 +48,9 @@ class Message {
   /// 通知を送らないようにする想定（実装内容.md参照）。
   final bool silent;
 
+  /// このメッセージを読んだユーザーの一覧（送信者本人は含まない想定）。
+  final List<MessageReadReceipt> readBy;
+
   factory Message.fromJson(String messageId, Map<String, dynamic> json) {
     return Message(
       messageId: messageId,
@@ -42,6 +63,9 @@ class Message {
       sentAt: json['sentAt'] as Timestamp?,
       deletedAt: json['deletedAt'] as Timestamp?,
       silent: json['silent'] as bool? ?? false,
+      readBy: (json['readBy'] as List<dynamic>? ?? [])
+          .map((e) => MessageReadReceipt.fromJson(e as Map<String, dynamic>))
+          .toList(),
     );
   }
 

@@ -20,6 +20,13 @@ abstract class DirectMessageRepository {
     required String content,
     bool silent = false,
   });
+
+  /// 指定したメッセージ群に、自分（[userId]）が読んだ記録を追加する。
+  Future<void> markMessagesRead({
+    required String dmId,
+    required String userId,
+    required List<String> messageIds,
+  });
 }
 
 class FirestoreDirectMessageRepository implements DirectMessageRepository {
@@ -100,6 +107,28 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
     final batch = _firestore.batch();
     batch.set(messageRef, message.toJson());
     batch.update(dmRef, {'lastMessageAt': FieldValue.serverTimestamp()});
+    await batch.commit();
+  }
+
+  @override
+  Future<void> markMessagesRead({
+    required String dmId,
+    required String userId,
+    required List<String> messageIds,
+  }) async {
+    if (messageIds.isEmpty) return;
+    final messagesRef = _directMessages.doc(dmId).collection('messages');
+    final batch = _firestore.batch();
+    // FieldValue.serverTimestamp()は配列要素の中では使えない（nullになる）ため、
+    // クライアント側の時刻をそのまま記録する。
+    final readAt = Timestamp.now();
+    for (final messageId in messageIds) {
+      batch.update(messagesRef.doc(messageId), {
+        'readBy': FieldValue.arrayUnion([
+          {'userId': userId, 'readAt': readAt},
+        ]),
+      });
+    }
     await batch.commit();
   }
 }

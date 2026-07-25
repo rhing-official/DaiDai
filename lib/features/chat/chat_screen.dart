@@ -4,9 +4,12 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/app_locale.dart';
+import '../../l10n/strings.dart';
+import '../../models/chat_layout_style.dart';
 import '../../models/message.dart';
 import '../../models/send_key_mode.dart';
 import '../../providers/app_locale_provider.dart';
+import '../../providers/chat_layout_style_provider.dart';
 import '../../providers/message_time_format_provider.dart';
 import '../../providers/send_key_mode_provider.dart';
 import '../../providers/user_providers.dart';
@@ -19,18 +22,34 @@ class ChatScreen extends ConsumerStatefulWidget {
   const ChatScreen({
     required this.title,
     required this.currentUserId,
+    required this.isDm,
     required this.messagesStream,
     required this.onSend,
     this.onCallPressed,
     this.onVideoCallPressed,
     this.extraActions,
+    this.readReceiptsEnabled = true,
+    this.onMarkRead,
     super.key,
   });
 
   final String title;
   final String currentUserId;
+
+  /// 一対（1対1）か広場（グループ）か。[ChatLayoutStyle.sideBySide]で、
+  /// 相手のアイコン・呼び名を表示するかどうかの判定に使う。
+  final bool isDm;
+
   final Stream<List<Message>> messagesStream;
   final Future<void> Function(String content, {bool silent}) onSend;
+
+  /// この会話で既読機能を使うかどうか（ハンバーガーメニューの設定を反映）。
+  /// falseの場合、自分の既読は記録されず、チェックマークも表示しない。
+  final bool readReceiptsEnabled;
+
+  /// 表示中の未読メッセージ（自分が送信者ではないもの）を既読にする処理。
+  /// [readReceiptsEnabled]がtrueのときのみ呼ばれる。
+  final Future<void> Function(List<String> messageIds)? onMarkRead;
 
   /// 音声通話の発信ボタン。一対（1対1）のみで渡す（グループ通話は未対応）。
   final VoidCallback? onCallPressed;
@@ -49,6 +68,42 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   final _textController = TextEditingController();
   late bool _hasHardwareKeyboard;
 
+  /// 既に既読リクエストを送った（または送信中の）メッセージIDの集合。
+  /// Firestoreからの再送信のたびに同じメッセージへ既読を送り直さないための重複防止。
+  final _markedReadIds = <String>{};
+
+  /// 新しく届いたメッセージのうち、まだ自分が読んでいないものを既読にする。
+  /// 書き込みが失敗した場合（通信不安定・画面を閉じるタイミング等）は
+  /// [_markedReadIds]から外し、次回のスナップショット受信時に再試行できる
+  /// ようにする（投げっぱなしで失敗を握りつぶすと、二度と既読が付かなくなる）。
+  Future<void> _markUnreadMessages(List<Message> messages) async {
+    if (!widget.readReceiptsEnabled || widget.onMarkRead == null) return;
+    final toMark = messages
+        .where((m) => m.senderId != widget.currentUserId)
+        .where((m) => !m.readBy.any((r) => r.userId == widget.currentUserId))
+        .where((m) => _markedReadIds.add(m.messageId))
+        .map((m) => m.messageId)
+        .toList();
+    if (toMark.isEmpty) return;
+    try {
+      await widget.onMarkRead!(toMark);
+    } catch (_) {
+      _markedReadIds.removeAll(toMark);
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant ChatScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // ChatScreenは会話単位のKey（dm-$dmId/group-$groupId）でのみ区別されて
+    // おり、currentUserId自体はKeyに含まれない。万一同一Widgetインスタンスが
+    // 別ユーザーに使い回された場合に既読の取りこぼしが起きないよう、
+    // ユーザーが変わったら重複防止セットをリセットする。
+    if (oldWidget.currentUserId != widget.currentUserId) {
+      _markedReadIds.clear();
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -65,6 +120,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   bool _onHardwareKeyEvent(KeyEvent event) {
+    // Enter/NumpadEnterは判定材料にしない。AndroidではtextInputAction.newline
+    // を指定した多重行入力欄で、ソフトウェアキーボードの改行キーを押しただけでも
+    // （物理キーボードが無くても）ハードウェアキーイベントとして届いてしまうため
+    // （AndroidのIMEが改行用の専用エディタアクションを持たず、代わりに生の
+    // Enterキーイベントを送出する仕様）、これを物理キーボード接続の根拠にすると
+    // ソフトウェアキーボードしか無い端末で誤検知してしまう。文字キーなど
+    // Enter以外のキーイベントは、通常IME経由のテキスト入力ではなく実機の
+    // キー入力でしか発生しないため、そのまま判定材料として使える。
+    if (event.logicalKey == LogicalKeyboardKey.enter ||
+        event.logicalKey == LogicalKeyboardKey.numpadEnter) {
+      return false;
+    }
     if (!_hasHardwareKeyboard && event is KeyDownEvent) {
       setState(() => _hasHardwareKeyboard = true);
     }
@@ -84,10 +151,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// 対しては、プラットフォームのIME経由の改行挿入が常に走るとは限らない）に
   /// 依存すると環境によって改行が入らないことがあったため、改行も自前で挿入する。
   ///
-  /// キー割り当て:
+  /// [_hasHardwareKeyboard]がfalseの間は何もしない（ignoredを返す）。
+  /// ソフトウェアキーボードしか無い端末でも、textInputAction.newlineの
+  /// 仕様上Enterキーが生イベントとして届くため、ここで自前の送信判定を
+  /// 適用してしまうとTextField既定の改行挿入より先に横取りしてしまい、
+  /// 改行が一切できなくなる（Enterを押すたびに送信されてしまう）。
+  ///
+  /// キー割り当て（物理キーボード接続時のみ）:
   /// - Enterで送信モード: Enter=送信 / Shift+Enter=改行 / Ctrl+Enter=通知せず送信
   /// - Ctrl+Enterで送信モード: Enter=改行 / Ctrl+Enter=送信 / Ctrl+Shift+Enter=通知せず送信
   KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
+    if (!_hasHardwareKeyboard) return KeyEventResult.ignored;
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
     if (event.logicalKey != LogicalKeyboardKey.enter &&
         event.logicalKey != LogicalKeyboardKey.numpadEnter) {
@@ -143,6 +217,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final colorScheme = Theme.of(context).colorScheme;
     final timeFormat = ref.watch(messageTimeFormatProvider);
     final locale = ref.watch(appLocaleProvider);
+    final layoutStyle = ref.watch(chatLayoutStyleProvider);
     final floatingShadow =
         Theme.of(context).extension<AppThemeExtras>()?.floatingShadow ??
             AppThemeExtras.none;
@@ -181,6 +256,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 if (messages.isEmpty) {
                   return const Center(child: Text('まだメッセージはありません'));
                 }
+                _markUnreadMessages(messages);
 
                 // messagesは新しい順（index 0が最新）。日付区切りを「その日の
                 // 最初のメッセージの直上」に挿入したいので、一旦古い順に走査して
@@ -207,6 +283,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                           : null,
                       colorScheme: colorScheme,
                       floatingShadow: floatingShadow,
+                      readReceiptsEnabled: widget.readReceiptsEnabled,
+                      layoutStyle: layoutStyle,
+                      isDm: widget.isDm,
                     ),
                   );
                 }
@@ -312,16 +391,29 @@ class _DateSeparator extends StatelessWidget {
   }
 }
 
-/// メッセージ1件分の表示。自分のメッセージは吹き出しのみ（時刻は吹き出しの下）、
-/// 相手のメッセージはアイコン＋（呼び名・時刻の見出し行）を吹き出しの上に出し、
-/// 見出し行の下へ吹き出しが展開する構成にする（一対・広場どちらも同じ見た目）。
-class _MessageRow extends StatelessWidget {
+/// メッセージ1件分の表示。設定（[ChatLayoutStyle]、設定＞アプリケーションから
+/// 変更可能）に応じて2つの見た目を切り替える。この設定は自分の端末での表示
+/// にのみ影響し、相手の語らいの見え方には影響しない。
+///
+/// - [ChatLayoutStyle.sideBySide]（既定）: 自分は右寄せ・相手は左寄せ。
+///   自分のアイコンは表示しない。一対（1対1）では相手のアイコン・呼び名も
+///   表示しない（広場では引き続き表示する）。
+/// - [ChatLayoutStyle.allLeft]: 自分・相手ともに左寄せで、常にアイコン・
+///   呼び名を表示する。
+///
+/// どちらのスタイルでも、誰か（送信者以外）が既読にした場合は吹き出しの角に
+/// チェックマークを表示する（自分のメッセージは左下、相手のメッセージは
+/// 右下）。タップすると既読者一覧がポップアップで出る。
+class _MessageRow extends ConsumerWidget {
   const _MessageRow({
     required this.message,
     required this.isMe,
     required this.timeLabel,
     required this.colorScheme,
     required this.floatingShadow,
+    required this.readReceiptsEnabled,
+    required this.layoutStyle,
+    required this.isDm,
   });
 
   final Message message;
@@ -329,9 +421,106 @@ class _MessageRow extends StatelessWidget {
   final String? timeLabel;
   final ColorScheme colorScheme;
   final List<BoxShadow> floatingShadow;
+  final bool readReceiptsEnabled;
+  final ChatLayoutStyle layoutStyle;
+  final bool isDm;
+
+  /// チェックマークバッジ（[badgeContext]）の真下から伸びる形でポップアップを
+  /// 表示する。画面全体をグレーアウトしないよう、barrierColorは透明にする
+  /// （ダイアログのような背景の暗転はしない、メニューに近い見た目）。
+  void _showReadReceiptPopup(
+    BuildContext context,
+    BuildContext badgeContext,
+    List<MessageReadReceipt> readers,
+    Strings strings,
+  ) {
+    final badgeBox = badgeContext.findRenderObject()! as RenderBox;
+    final badgeRect = badgeBox.localToGlobal(Offset.zero) & badgeBox.size;
+    const width = 240.0;
+
+    showGeneralDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: '',
+      barrierColor: Colors.transparent,
+      transitionDuration: const Duration(milliseconds: 150),
+      pageBuilder: (context, animation, secondaryAnimation) {
+        final screenSize = MediaQuery.sizeOf(context);
+        final left =
+            badgeRect.left.clamp(8.0, screenSize.width - width - 8.0);
+        final top = badgeRect.bottom + 4;
+        return Stack(
+          children: [
+            Positioned(
+              left: left,
+              top: top,
+              child: Material(
+                color: colorScheme.surface,
+                elevation: 8,
+                borderRadius: BorderRadius.circular(16),
+                clipBehavior: Clip.antiAlias,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth: width,
+                    maxHeight: screenSize.height - top - 24,
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                        child: Text(
+                          strings.readReceiptPopupTitle,
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      Flexible(
+                        child: ListView.builder(
+                          shrinkWrap: true,
+                          padding: const EdgeInsets.only(bottom: 8),
+                          itemCount: readers.length,
+                          itemBuilder: (context, index) {
+                            final reader = readers[index];
+                            return Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 6,
+                              ),
+                              child: Row(
+                                children: [
+                                  _SenderAvatar(userId: reader.userId, rhingId: null),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: _SenderName(
+                                      userId: reader.userId,
+                                      rhingId: null,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final strings = ref.watch(appStringsProvider);
+    final readers =
+        message.readBy.where((r) => r.userId != message.senderId).toList();
+    final showReadMark = readReceiptsEnabled && readers.isNotEmpty;
+
     final bubble = Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
@@ -364,7 +553,71 @@ class _MessageRow extends StatelessWidget {
       ),
     );
 
-    if (isMe) {
+    // 吹き出しの角に既読チェックマークを重ねる。自分のメッセージは左下、
+    // 相手のメッセージは右下（isMeでない側）に表示する。
+    final bubbleWithReadMark = Stack(
+      clipBehavior: Clip.none,
+      children: [
+        bubble,
+        if (showReadMark)
+          Positioned(
+            bottom: -6,
+            left: isMe ? -6 : null,
+            right: isMe ? null : -6,
+            child: Builder(
+              builder: (badgeContext) => GestureDetector(
+                onTap: () =>
+                    _showReadReceiptPopup(context, badgeContext, readers, strings),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: colorScheme.surface,
+                    borderRadius: BorderRadius.circular(999),
+                    boxShadow: floatingShadow,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.done, size: 12, color: colorScheme.primary),
+                      const SizedBox(width: 2),
+                      Text(
+                        '${readers.length}',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: colorScheme.primary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+
+    // sideBySideで自分のメッセージの時だけ右寄せ・アイコン無し。それ以外
+    // （sideBySideで相手、またはallLeftで自分・相手いずれも）は左寄せ。
+    final alignRight = layoutStyle == ChatLayoutStyle.sideBySide && isMe;
+    // allLeftでは自分・相手とも常にアイコン・呼び名を表示する。sideBySideでは
+    // 自分のメッセージには表示せず、相手のメッセージも一対では表示しない
+    // （広場では引き続き表示する）。
+    final showAvatarAndName = layoutStyle == ChatLayoutStyle.allLeft
+        ? true
+        : (!isMe && !isDm);
+
+    final timeText = timeLabel == null
+        ? null
+        : Text(
+            timeLabel!,
+            style: TextStyle(
+              fontSize: 11,
+              color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+            ),
+          );
+
+    if (alignRight) {
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: 4),
         child: Align(
@@ -373,18 +626,9 @@ class _MessageRow extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              bubble,
-              if (timeLabel != null)
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                  child: Text(
-                    timeLabel!,
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
-                    ),
-                  ),
-                ),
+              ?timeText,
+              const SizedBox(height: 2),
+              bubbleWithReadMark,
             ],
           ),
         ),
@@ -399,38 +643,37 @@ class _MessageRow extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _SenderAvatar(userId: message.senderId, rhingId: message.senderRhingId),
-            const SizedBox(width: 8),
+            if (showAvatarAndName) ...[
+              _SenderAvatar(userId: message.senderId, rhingId: message.senderRhingId),
+              const SizedBox(width: 8),
+            ],
             Flexible(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.baseline,
-                    textBaseline: TextBaseline.alphabetic,
-                    children: [
-                      Flexible(
-                        child: _SenderName(
-                          userId: message.senderId,
-                          rhingId: message.senderRhingId,
-                        ),
-                      ),
-                      if (timeLabel != null) ...[
-                        const SizedBox(width: 6),
-                        Text(
-                          timeLabel!,
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+                  if (showAvatarAndName)
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.baseline,
+                      textBaseline: TextBaseline.alphabetic,
+                      children: [
+                        Flexible(
+                          child: _SenderName(
+                            userId: message.senderId,
+                            rhingId: message.senderRhingId,
                           ),
                         ),
+                        if (timeText != null) ...[
+                          const SizedBox(width: 6),
+                          timeText,
+                        ],
                       ],
-                    ],
-                  ),
+                    )
+                  else
+                    ?timeText,
                   const SizedBox(height: 2),
-                  bubble,
+                  bubbleWithReadMark,
                 ],
               ),
             ),

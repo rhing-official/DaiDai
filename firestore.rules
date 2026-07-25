@@ -116,7 +116,11 @@ service cloud.firestore {
         allow create: if request.auth != null
           && request.auth.uid == request.resource.data.senderId
           && request.auth.uid in get(/databases/$(database)/documents/directMessages/$(dmId)).data.participants;
-        allow update: if false;
+        // 既読機能: 参加者本人がreadByフィールドのみを更新できる
+        // （既読を付けるのに送信者である必要はない）。
+        allow update: if request.auth != null
+          && request.auth.uid in get(/databases/$(database)/documents/directMessages/$(dmId)).data.participants
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readBy']);
         allow delete: if false;
       }
     }
@@ -191,7 +195,10 @@ service cloud.firestore {
           allow create: if request.auth != null
             && request.auth.uid == request.resource.data.senderId
             && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)/rooms/$(roomId)).data.memberIds;
-          allow update: if false;
+          // 既読機能: メンバー本人がreadByフィールドのみを更新できる。
+          allow update: if request.auth != null
+            && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)/rooms/$(roomId)).data.memberIds
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readBy']);
           allow delete: if false;
         }
       }
