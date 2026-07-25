@@ -48,7 +48,11 @@ function img(src, style) {
 }
 
 export default async function handler(request) {
-  const url = new URL(request.url);
+  // Edge Runtimeではrequest.urlが絶対URLだが、Node.js RuntimeではNode標準の
+  // http.IncomingMessage.url同様パス+クエリのみになる（実機検証で判明:
+  // `new URL(request.url)`が`ERR_INVALID_URL`で落ちていた）。どちらでも
+  // 解析できるよう、ダミーのbaseを指定する（実際のオリジンとしては使わない）。
+  const url = new URL(request.url, 'http://localhost');
   const type = url.searchParams.get('type');
   const id = url.searchParams.get('id');
 
