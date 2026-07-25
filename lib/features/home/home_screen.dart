@@ -26,6 +26,30 @@ class HomeScreen extends ConsumerStatefulWidget {
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   int _selectedIndex = 0;
 
+  // スワイプでのタブ切り替えは指を離した瞬間の速度でのみ判定する
+  // （ドラッグ中に逐次判定すると、各タブ内の横スクロール要素との
+  // ジェスチャー競合が起きやすいため）。
+  static const _kSwipeVelocityThreshold = 300.0;
+
+  void _handleHorizontalDragEnd(DragEndDetails details, int tabCount) {
+    // showDialog/showGeneralDialog/showMenu等のポップアップはNavigatorに
+    // ルートとして積まれるため、開いている間はHomeScreen自身のルートが
+    // isCurrent=falseになる。ここで弾かないと、開いたポップアップの背後で
+    // タブが切り替わってしまい、以前の実装が「一貫して動作しない」原因に
+    // なっていた（ポップアップの種類によってバリアの有無・挙動が異なり、
+    // スワイプが素通りするものとしないものが混在していたため）。
+    if (!(ModalRoute.of(context)?.isCurrent ?? true)) return;
+    final velocity = details.primaryVelocity ?? 0;
+    if (velocity.abs() < _kSwipeVelocityThreshold) return;
+    setState(() {
+      if (velocity < 0) {
+        _selectedIndex = (_selectedIndex + 1).clamp(0, tabCount - 1);
+      } else {
+        _selectedIndex = (_selectedIndex - 1).clamp(0, tabCount - 1);
+      }
+    });
+  }
+
   static const _icons = [
     Icons.forum_outlined,
     Icons.face_outlined,
@@ -66,21 +90,26 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ),
     ];
 
-    // 以前は本文全体を覆うGestureDetectorで横スワイプをタブ切り替えとして
-    // 扱っていたが、ポップアップ等のオーバーレイ上ではバリアがジェスチャーを
-    // 吸収してしまい一貫して動作しなかった。2026-07-25、各タブが持つ
-    // 「戻る」操作（設定・身だしなみ・運営の狭い画面でのドリルダウン、
-    // go_routerでpushした各画面）に個別のスワイプバック（[SwipeBackDetector]）
-    // を割り当てる方式に変更し、ここでのタブ切り替え用ジェスチャーは廃止した。
-    final content = Padding(
-      padding: isWide
-          ? const EdgeInsets.only(
-              left: _chipSize + _chipMargin * 2,
-            )
-          : const EdgeInsets.only(
-              bottom: _chipSize + _chipMargin * 2,
-            ),
-      child: IndexedStack(index: _selectedIndex, children: tabs),
+    // 本文全体を覆うGestureDetectorで横スワイプをタブ切り替えとして扱う。
+    // ドラッグ中は判定せずEndイベントの速度のみで判定し（_handleHorizontalDragEnd
+    // 参照）、ポップアップ表示中は反応しないようにすることで、以前あった
+    // オーバーレイとのジェスチャー競合を避けている。各タブが持つ「戻る」操作
+    // （設定・身だしなみ・運営の狭い画面でのドリルダウン、go_routerでpushした
+    // 各画面）用の個別のスワイプバック（[SwipeBackDetector]）とは独立している。
+    final content = GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onHorizontalDragEnd: (details) =>
+          _handleHorizontalDragEnd(details, tabs.length),
+      child: Padding(
+        padding: isWide
+            ? const EdgeInsets.only(
+                left: _chipSize + _chipMargin * 2,
+              )
+            : const EdgeInsets.only(
+                bottom: _chipSize + _chipMargin * 2,
+              ),
+        child: IndexedStack(index: _selectedIndex, children: tabs),
+      ),
     );
 
     return Scaffold(

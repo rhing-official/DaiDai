@@ -1,4 +1,18 @@
+import '../l10n/app_locale.dart';
 import '../models/message_time_format.dart';
+
+/// 曜日の略称（DateTime.weekdayの1=月曜〜7=日曜に対応）。日本語は1文字、
+/// 英語は3文字略称で、どちらも略称表記に統一する。
+const _weekdayAbbreviationsJa = ['月', '火', '水', '木', '金', '土', '日'];
+const _weekdayAbbreviationsEn = [
+  'Mon',
+  'Tue',
+  'Wed',
+  'Thu',
+  'Fri',
+  'Sat',
+  'Sun',
+];
 
 /// メッセージの送信時刻を、設定された表示形式で整形する。
 /// 24時間表記は「00:00」、12時間表記は「12:00 p.m.」の形式。
@@ -15,11 +29,15 @@ String formatMessageTime(DateTime time, MessageTimeFormat format) {
 }
 
 /// メッセージ一覧の日付区切りに使う表示形式。相対表記（今日/昨日等）は使わず、
-/// 常に絶対日付（yyyy/mm/dd）で表す。
-String formatMessageDate(DateTime date) {
+/// 常に絶対日付（yyyy/mm/dd）＋曜日の略称で表す。
+String formatMessageDate(DateTime date, AppLocale locale) {
   final month = date.month.toString().padLeft(2, '0');
   final day = date.day.toString().padLeft(2, '0');
-  return '${date.year}/$month/$day';
+  final abbreviations = locale == AppLocale.japanese
+      ? _weekdayAbbreviationsJa
+      : _weekdayAbbreviationsEn;
+  final weekday = abbreviations[date.weekday - 1];
+  return '${date.year}/$month/$day ($weekday)';
 }
 
 /// 2つの日時が同じ暦日（年・月・日）かどうか。メッセージ一覧で日付区切りを

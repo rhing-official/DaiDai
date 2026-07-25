@@ -9,11 +9,25 @@ import 'package:flutter/material.dart';
 /// ドリルダウン、go_routerでpushした各画面のpop）に個別にスワイプを割り当てる。
 const kSwipeGestureVelocityThreshold = 150.0;
 
-/// 右方向への横スワイプで[onBack]を呼ぶ。
+/// 右方向への横スワイプで[onPrevious]（無ければ[onBack]）を、
+/// 左方向への横スワイプで[onNext]を呼ぶ。
+/// [onPrevious]・[onNext]を省略した場合は、右スワイプで常に[onBack]、
+/// 左スワイプは何もしない（従来通りの「戻るだけ」の挙動）。
+/// 設定・身だしなみ・運営タブの狭い画面ドリルダウンでは、隣接カテゴリへの
+/// 切り替え（[onPrevious]/[onNext]）と一覧への「戻る」（[onBack]、先頭
+/// カテゴリで右スワイプしたとき）を両立させるためにこの3引数を使う。
 class SwipeBackDetector extends StatelessWidget {
-  const SwipeBackDetector({required this.onBack, required this.child, super.key});
+  const SwipeBackDetector({
+    required this.onBack,
+    required this.child,
+    this.onPrevious,
+    this.onNext,
+    super.key,
+  });
 
   final VoidCallback onBack;
+  final VoidCallback? onPrevious;
+  final VoidCallback? onNext;
   final Widget child;
 
   @override
@@ -22,7 +36,11 @@ class SwipeBackDetector extends StatelessWidget {
       behavior: HitTestBehavior.translucent,
       onHorizontalDragEnd: (details) {
         final velocity = details.primaryVelocity ?? 0;
-        if (velocity >= kSwipeGestureVelocityThreshold) onBack();
+        if (velocity >= kSwipeGestureVelocityThreshold) {
+          (onPrevious ?? onBack)();
+        } else if (velocity <= -kSwipeGestureVelocityThreshold) {
+          onNext?.call();
+        }
       },
       child: child,
     );

@@ -10,6 +10,7 @@ import 'package:daidai/providers/app_locale_provider.dart';
 import 'package:daidai/providers/repository_providers.dart';
 import 'package:daidai/providers/terminology_style_provider.dart';
 import 'package:daidai/repositories/user_repository.dart';
+import 'package:daidai/widgets/swipe_gestures.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -133,6 +134,34 @@ class _FakeUserRepository implements UserRepository {
 }
 
 Future<void> _pumpProfileTab(WidgetTester tester, AppUser user, _FakeUserRepository repo) async {
+  await tester.pumpWidget(
+    ProviderScope(
+      overrides: [
+        userRepositoryProvider.overrideWithValue(repo),
+        initialAppLocaleProvider.overrideWithValue(AppLocale.japanese),
+        initialTerminologyStyleProvider.overrideWithValue(
+          TerminologyStyle.worldview,
+        ),
+      ],
+      child: MaterialApp(home: Scaffold(body: ProfileTab(currentUser: user))),
+    ),
+  );
+  await tester.pumpAndSettle();
+}
+
+// 狭い画面（サイドバー+ドリルダウン方式）でのカテゴリ切り替えスワイプの
+// 回帰テスト用。760のブレークポイント未満の幅にする
+// （既定のテストサーフェスは800x600で、ブレークポイントを超えてしまうため）。
+Future<void> _pumpProfileTabNarrow(
+  WidgetTester tester,
+  AppUser user,
+  _FakeUserRepository repo,
+) async {
+  tester.view.physicalSize = const Size(400, 800);
+  tester.view.devicePixelRatio = 1;
+  addTearDown(tester.view.resetPhysicalSize);
+  addTearDown(tester.view.resetDevicePixelRatio);
+
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
@@ -448,5 +477,39 @@ void main() {
     // https://www.を取り除いた表示）が見えている。
     expect(find.text('instagram.com/taro'), findsOneWidget);
     expect(find.text('pixiv.net/taro'), findsOneWidget);
+  });
+
+  testWidgets('狭い画面のドリルダウン中に横スワイプで隣接カテゴリへ切り替えられる（回帰テスト）', (
+    tester,
+  ) async {
+    const user = AppUser(userId: 'u1', rhingId: 'taro');
+    final repo = _FakeUserRepository();
+    await _pumpProfileTabNarrow(tester, user, repo);
+
+    // カテゴリ一覧から「工房」（蔵→工房→縁結びの2番目）へドリルダウンする。
+    await tester.tap(find.text('工房'));
+    await tester.pumpAndSettle();
+    expect(find.text('工房'), findsOneWidget);
+
+    // 左スワイプで次のカテゴリ（縁結び）へ。
+    await tester.fling(find.byType(SwipeBackDetector), const Offset(-300, 0), 1000);
+    await tester.pumpAndSettle();
+    expect(find.text('工房'), findsNothing);
+    expect(find.text('縁結び'), findsOneWidget);
+
+    // 右スワイプで前のカテゴリ（工房）へ戻る。
+    await tester.fling(find.byType(SwipeBackDetector), const Offset(300, 0), 1000);
+    await tester.pumpAndSettle();
+    expect(find.text('工房'), findsOneWidget);
+
+    // さらに右スワイプで前のカテゴリ（蔵）へ。
+    await tester.fling(find.byType(SwipeBackDetector), const Offset(300, 0), 1000);
+    await tester.pumpAndSettle();
+    expect(find.text('蔵'), findsOneWidget);
+
+    // 先頭カテゴリで右スワイプすると、従来通りカテゴリ一覧に戻る。
+    await tester.fling(find.byType(SwipeBackDetector), const Offset(300, 0), 1000);
+    await tester.pumpAndSettle();
+    expect(find.byType(SwipeBackDetector), findsNothing);
   });
 }

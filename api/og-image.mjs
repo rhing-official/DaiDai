@@ -1,8 +1,8 @@
 // 招待リンク（/invite/:rhingId・/join/:groupId）のOGP画像を、アプリ内の
 // プロフィールカード（工房カード・広場のプロフィールカード）とそのままの
-// 見た目で生成するEdge Function。`api/link-preview.js`がog:imageとして
-// このエンドポイント（/api/og-image?type=user&id=...・?type=group&id=...）を
-// 差し込む。
+// 見た目で生成するVercel Function（Node.js Runtime）。
+// `api/link-preview.js`がog:imageとしてこのエンドポイント
+// （/api/og-image?type=user&id=...・?type=group&id=...）を差し込む。
 //
 // アイコン・ニックネーム・URLだけを貼り付けたシンプルなog:imageと違い、
 // 背景画像＋暗転グラデーション＋アイコン＋太字の名前＋説明（＋個人の場合は
@@ -21,12 +21,19 @@
 // @vercel/og公式サンプルで使われている定番の手法。TTF形式で取得するため、
 // woff2非対応とみなされる古いUser-Agentを指定している）。
 //
-// 未検証: ローカルではEdge Runtime・実際のフォント取得・要素ツリーの描画結果を
-// 含めた動作確認ができないため、デプロイ後に実際のURLで確認が必要。
+// 実機検証で判明した不具合と対応: 当初Edge Runtimeで実装していたが、実際の
+// ユーザーデータ（アイコン・背景画像）を渡すと生成画像が中身0バイトのまま
+// 壊れて返っていた。原因は、このアプリの画像保存形式がすべてWebP
+// （`flutter_image_compress`でWebP圧縮する方針）である一方、@vercel/ogが
+// 内部で使うSatori/resvgのレンダラーがWebP画像のデコードに対応しておらず、
+// 画像取得後の描画中に失敗していたため（画像を持たないダミーIDでは正常に
+// 生成できていたことから特定）。Edge Runtimeはネイティブモジュールを使えず
+// WebPデコードを自前で行えないため、Node.js Runtime（configのruntime指定を
+// 外すと既定でNode.jsになる）に変更し、`sharp`でWebP→PNGのdata URIに
+// 変換してからSatoriに渡すようにして解消した。
 
+import sharp from 'sharp';
 import { ImageResponse } from '@vercel/og';
-
-export const config = { runtime: 'edge' };
 
 const FIRESTORE_PROJECT_ID = 'daidai-rhing';
 const CARD_WIDTH = 800;
@@ -59,12 +66,20 @@ export default async function handler(request) {
   const description = doc
     ? (isUser ? doc.statusMessage : doc.description) || ''
     : '';
-  const backgroundUrl = doc?.backgroundImageUrl || null;
-  const iconUrl = doc?.iconUrl || null;
   const snsLinks = isUser
     ? parseSnsLinkUrls(doc?.snsLinkUrls).slice(0, 2).map(displaySnsLinkUrl)
     : [];
-  const hasBackground = Boolean(backgroundUrl);
+
+  // WebP画像をそのままSatoriに渡すと描画に失敗するため、事前にPNGへ変換する。
+  // 変換自体が失敗しても（画像取得失敗等）画像抜きでカードは生成できるよう、
+  // 個別にcatchしてnullにフォールバックする。
+  const [iconDataUri, backgroundDataUri] = await Promise.all([
+    doc?.iconUrl ? toPngDataUri(doc.iconUrl).catch(() => null) : null,
+    doc?.backgroundImageUrl
+      ? toPngDataUri(doc.backgroundImageUrl).catch(() => null)
+      : null,
+  ]);
+  const hasBackground = Boolean(backgroundDataUri);
   const textColor = hasBackground ? '#FFFFFF' : '#2E2A24';
   const subTextColor = hasBackground ? 'rgba(255,255,255,0.75)' : '#6B6459';
 
@@ -88,8 +103,8 @@ export default async function handler(request) {
         backgroundColor: '#D8CCBB',
         marginBottom: 28,
       },
-      iconUrl
-        ? [img(iconUrl, { width: '100%', height: '100%', objectFit: 'cover' })]
+      iconDataUri
+        ? [img(iconDataUri, { width: '100%', height: '100%', objectFit: 'cover' })]
         : [],
     ),
     el(
@@ -120,9 +135,9 @@ export default async function handler(request) {
   }
 
   const layers = [];
-  if (backgroundUrl) {
+  if (backgroundDataUri) {
     layers.push(
-      img(backgroundUrl, {
+      img(backgroundDataUri, {
         position: 'absolute',
         inset: 0,
         width: '100%',
@@ -176,6 +191,14 @@ export default async function handler(request) {
       ? [{ name: 'Noto Sans JP', data: fontData, weight: 700, style: 'normal' }]
       : undefined,
   });
+}
+
+async function toPngDataUri(url) {
+  const res = await fetch(url);
+  if (!res.ok) return null;
+  const buffer = Buffer.from(await res.arrayBuffer());
+  const png = await sharp(buffer).png().toBuffer();
+  return `data:image/png;base64,${png.toString('base64')}`;
 }
 
 async function fetchFirestoreDoc(path) {
