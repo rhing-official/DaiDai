@@ -237,7 +237,14 @@ class FirestoreGroupRepository implements GroupRepository {
       backgroundImageUrl: card.backgroundImageUrl,
     );
     final batch = _firestore.batch();
-    batch.update(_groups.doc(groupId), {'profileCard': card.toJson()});
+    // カード名は広場の実際の名前（Group.name）と同一の値として扱う。
+    // カード編集画面から名前を変更したら、実際の広場名にも反映する
+    // （firestore.rulesのgroups更新許可もprofileCardと同時のnameの変更を
+    // 許すよう対応済み）。
+    batch.update(_groups.doc(groupId), {
+      'profileCard': card.toJson(),
+      'name': card.name,
+    });
     batch.set(_groupInvites.doc(groupId), preview.toJson());
     await batch.commit();
   }

@@ -199,6 +199,15 @@ export async function GET(request) {
     fonts: fontData
       ? [{ name: 'Noto Sans JP', data: fontData, weight: 700, style: 'normal' }]
       : undefined,
+    // ImageResponseは既定でCache-Control: public, immutable, max-age=31536000
+    // （1年間キャッシュ・再検証なし）を付ける。このURL（?type=...&id=...）は
+    // カード編集の度に中身が変わるのに対しURL自体は変わらないため、この既定値の
+    // ままだとブラウザ・Vercelのエッジキャッシュに古い画像が1年間居座り、
+    // 「カードを編集しても招待リンクの画像が更新されない」不具合になっていた。
+    // 短いmax-ageに上書きし、頻繁に再取得されるようにする。
+    headers: {
+      'Cache-Control': 'public, max-age=300',
+    },
   });
 }
 
