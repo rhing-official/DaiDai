@@ -8,7 +8,6 @@ import '../../models/direct_message.dart';
 import '../../models/group.dart';
 import '../../providers/block_providers.dart';
 import '../../providers/conversation_prefs_providers.dart';
-import '../../providers/group_call_providers.dart';
 import '../../providers/repository_providers.dart';
 import '../../providers/user_providers.dart';
 import '../../router/app_router.dart';
@@ -210,40 +209,33 @@ class GroupChatPane extends ConsumerWidget {
     required bool isVideo,
   }) async {
     final groupCallRepository = ref.read(groupCallRepositoryProvider);
-    final activeCall = ref.read(activeGroupCallProvider(group.groupId)).value;
 
-    if (activeCall != null) {
-      final participants =
-          await groupCallRepository.watchParticipants(activeCall.groupCallId).first;
-      if (participants.length >= activeCall.maxParticipants) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'この通話は満員です（上限${activeCall.maxParticipants}人）',
-              ),
-            ),
-          );
-        }
-        return;
-      }
-      if (!context.mounted) return;
-      ref.read(goRouterProvider).push(
-        '/group-call',
-        extra: GroupCallArgs(
-          groupCallId: activeCall.groupCallId,
-          currentUser: currentUser,
-          isVideo: activeCall.isVideo,
-        ),
-      );
-      return;
-    }
-
-    final call = await groupCallRepository.createGroupCall(
+    // 「進行中の通話を確認してから、無ければ新規作成する」という
+    // 手順を2回のリクエストに分けてクライアント側で行うと、複数の
+    // メンバーがほぼ同時に通話開始ボタンを押した場合にそれぞれが
+    // 「進行中の通話は無い」と判定してしまい、別々の通話を作成して
+    // 参加者がバラバラの通話に分かれてしまう不具合があった。
+    // getOrCreateActiveGroupCallはFirestoreのトランザクションで
+    // 「無ければ作る」を原子的に行うため、この競合が起きない。
+    final call = await groupCallRepository.getOrCreateActiveGroupCall(
       group: group,
       initiator: currentUser,
       isVideo: isVideo,
     );
+
+    final participants =
+        await groupCallRepository.watchParticipants(call.groupCallId).first;
+    if (participants.length >= call.maxParticipants) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('この通話は満員です（上限${call.maxParticipants}人）'),
+          ),
+        );
+      }
+      return;
+    }
+
     if (!context.mounted) return;
     ref.read(goRouterProvider).push(
       '/group-call',
@@ -258,9 +250,6 @@ class GroupChatPane extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final groupRepository = ref.watch(groupRepositoryProvider);
-    // 通話ボタン押下時に「新規開始」か「参加」かを判定するため、進行中の通話を
-    // 常時購読しておく（_handleCallPressedはref.readでキャッシュ値を使う）。
-    ref.watch(activeGroupCallProvider(group.groupId));
     final prefs = ref
             .watch(conversationPrefsProvider(currentUser.userId))
             .value ??

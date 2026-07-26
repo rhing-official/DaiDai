@@ -308,5 +308,20 @@ service cloud.firestore {
         }
       }
     }
+
+    // groupActiveCallPointers/{groupId}: 広場ごとに1件だけ存在する、
+    // 「現在アクティブな通話id」を指す軽量なポインタ（2026-07-26追加）。
+    // 複数のメンバーがほぼ同時に通話開始ボタンを押しても全員が同じ通話に
+    // 入れるよう、GroupCallRepository.getOrCreateActiveGroupCallが
+    // Firestoreのトランザクションでこのドキュメントを読み書きして
+    // 「無ければ作る」を原子的に行うために使う
+    // （lib/repositories/group_call_repository.dart参照）。
+    // 中身はactiveCallId（文字列またはnull）のみで機微な情報を含まない。
+    match /groupActiveCallPointers/{groupId} {
+      allow read, create, update: if request.auth != null
+        && request.auth.uid in
+          get(/databases/$(database)/documents/groups/$(groupId)).data.memberIds;
+      allow delete: if false;
+    }
   }
 }

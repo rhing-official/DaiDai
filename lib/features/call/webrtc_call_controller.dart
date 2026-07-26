@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 
@@ -61,6 +62,9 @@ class WebrtcCallController extends ChangeNotifier {
   bool get speakerOn => _speakerOn;
 
   int _cameraIndex = 0;
+
+  bool _switchingCamera = false;
+  bool get switchingCamera => _switchingCamera;
 
   String? _error;
   String? get error => _error;
@@ -277,10 +281,16 @@ class WebrtcCallController extends ChangeNotifier {
   }
 
   Future<void> switchCamera() async {
+    // 連打による多重実行を防ぐ（実機で「重くなる」報告の一因だった。
+    // 前のgetUserMedia/switchCameraが終わらないうちに次を呼ぶと処理が
+    // 積み重なる）。
+    if (_switchingCamera) return;
     final videoTracks = _localStream?.getVideoTracks() ?? <MediaStreamTrack>[];
     if (videoTracks.isEmpty) return;
-    final track = videoTracks.first;
+    _switchingCamera = true;
+    notifyListeners();
     try {
+      final track = videoTracks.first;
       if (kIsWeb) {
         final cameras = await Helper.cameras;
         if (cameras.length < 2) return;
@@ -289,8 +299,32 @@ class WebrtcCallController extends ChangeNotifier {
       } else {
         await Helper.switchCamera(track);
       }
+      // Web版のHelper.switchCameraは古いトラックをstop()して_localStreamから
+      // 取り除き、新しいトラックを同じ_localStreamに追加するという副作用を
+      // 持つが、それだけでは以下の2つが反映されず「切替後に画面が真っ黒に
+      // なる」「相手にも古い映像が送られ続ける」不具合になっていた:
+      // 1. RTCVideoRenderer（Web実装）は代入された時点のトラックを
+      //    スナップショットとして保持するため、再代入しないと古い
+      //    （停止済みの）トラックを表示し続ける。
+      // 2. RTCPeerConnectionのRTCRtpSenderは明示的にreplaceTrackしない限り
+      //    新しいトラックを送信しない。
+      // ネイティブ版はHelper.switchCameraがトラックの実体を差し替えず
+      // カメラキャプチャセッションだけを切り替えるため本来不要だが、
+      // 同じコードで両対応させても無害（同一トラックへの再代入・
+      // replaceTrackは実質no-op）。
+      final newTrack = _localStream?.getVideoTracks().firstOrNull;
+      if (newTrack != null) {
+        localRenderer.srcObject = _localStream;
+        final sender = (await _peerConnection?.getSenders() ?? [])
+            .where((s) => s.track?.kind == 'video')
+            .firstOrNull;
+        await sender?.replaceTrack(newTrack);
+      }
     } catch (_) {
       // 切替可能なカメラが1つしかない環境など。現状維持。
+    } finally {
+      _switchingCamera = false;
+      notifyListeners();
     }
   }
 

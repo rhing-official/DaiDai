@@ -18,6 +18,23 @@ abstract class GroupCallRepository {
     bool isVideo = false,
   });
 
+  /// 広場に進行中の通話が既にあればそれを返し、無ければ新規作成する。
+  ///
+  /// 「まず`watchActiveGroupCall`等で確認してから無ければ[createGroupCall]する」
+  /// というcheck-then-act方式は、複数のメンバーがほぼ同時に通話開始ボタンを
+  /// 押すと、それぞれが「進行中の通話は無い」と判定して別々に
+  /// [createGroupCall]してしまい、参加者がバラバラの通話に分かれてしまう
+  /// 不具合の原因になっていた（実際にユーザー報告あり）。この
+  /// メソッドはFirestoreのトランザクションで
+  /// `groupActiveCallPointers/{groupId}`（現在アクティブな通話idだけを
+  /// 指す軽量なポインタドキュメント）を読み書きすることで、
+  /// 「無ければ作る」を原子的に行う。
+  Future<GroupCall> getOrCreateActiveGroupCall({
+    required Group group,
+    required AppUser initiator,
+    bool isVideo = false,
+  });
+
   /// その広場で現在進行中の通話（あれば1件）を監視する。
   Stream<GroupCall?> watchActiveGroupCall(String groupId);
 
@@ -103,6 +120,14 @@ class FirestoreGroupCallRepository implements GroupCallRepository {
   CollectionReference<Map<String, dynamic>> get _groupCalls =>
       _firestore.collection('groupCalls');
 
+  /// 広場ごとに1件だけ存在する、「現在アクティブな通話id」への軽量な
+  /// ポインタ。ドキュメントidをgroupIdそのものにすることで、
+  /// トランザクション内でクエリを使わずに単一ドキュメント参照として
+  /// 読み書きできるようにしている（Firestoreのトランザクションは
+  /// 特定のドキュメント参照の読み取りしか許可されず、クエリは使えないため）。
+  DocumentReference<Map<String, dynamic>> _activeCallPointer(String groupId) =>
+      _firestore.collection('groupActiveCallPointers').doc(groupId);
+
   CollectionReference<Map<String, dynamic>> _participantsOf(
     String groupCallId,
   ) =>
@@ -133,6 +158,42 @@ class FirestoreGroupCallRepository implements GroupCallRepository {
     await ref.set(call.toJson());
 
     return call;
+  }
+
+  @override
+  Future<GroupCall> getOrCreateActiveGroupCall({
+    required Group group,
+    required AppUser initiator,
+    bool isVideo = false,
+  }) async {
+    final pointerRef = _activeCallPointer(group.groupId);
+    return _firestore.runTransaction<GroupCall>((transaction) async {
+      final pointerSnap = await transaction.get(pointerRef);
+      final existingCallId = pointerSnap.data()?['activeCallId'] as String?;
+      if (existingCallId != null) {
+        final existingCallRef = _groupCalls.doc(existingCallId);
+        final existingCallSnap = await transaction.get(existingCallRef);
+        final existingData = existingCallSnap.data();
+        if (existingCallSnap.exists &&
+            existingData != null &&
+            existingData['status'] == GroupCallStatus.active.name) {
+          return GroupCall.fromJson(existingCallSnap.id, existingData);
+        }
+      }
+
+      final newCallRef = _groupCalls.doc();
+      final call = GroupCall(
+        groupCallId: newCallRef.id,
+        groupId: group.groupId,
+        initiatorId: initiator.userId,
+        memberIds: group.memberIds,
+        status: GroupCallStatus.active,
+        isVideo: isVideo,
+      );
+      transaction.set(newCallRef, call.toJson());
+      transaction.set(pointerRef, {'activeCallId': newCallRef.id});
+      return call;
+    });
   }
 
   @override
@@ -176,10 +237,26 @@ class FirestoreGroupCallRepository implements GroupCallRepository {
 
     final remaining = await _participantsOf(groupCallId).limit(1).get();
     if (remaining.docs.isEmpty) {
+      final call = await getGroupCall(groupCallId);
       await _groupCalls.doc(groupCallId).update({
         'status': GroupCallStatus.ended.name,
         'endedAt': FieldValue.serverTimestamp(),
       });
+      // 通話終了時、ポインタ（groupActiveCallPointers）がまだこの通話を
+      // 指していれば解除する。次に誰かが通話を開始した時、既に終了した
+      // この通話を「進行中」として誤って掴んでしまわないようにするため。
+      // ポインタが既に別の新しい通話idを指している場合は触らない
+      // （その新しい通話に影響を与えないよう、現在指している値を
+      // トランザクション内で確認してから解除する）。
+      if (call != null) {
+        final pointerRef = _activeCallPointer(call.groupId);
+        await _firestore.runTransaction((transaction) async {
+          final pointerSnap = await transaction.get(pointerRef);
+          if (pointerSnap.data()?['activeCallId'] == groupCallId) {
+            transaction.update(pointerRef, {'activeCallId': null});
+          }
+        });
+      }
     }
   }
 
