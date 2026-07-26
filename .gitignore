@@ -7,6 +7,12 @@
 # Dart & Flutter DevToolsのローカル設定
 /devtools_options.yaml
 
+# api/配下（package.json）のNode.js依存関係。Vercelのビルド時に
+# npm installし直すためコミット不要（package-lock.jsonはリポジトリに無い
+# バージョン固定情報のため、必要なら別途検討）。
+/node_modules/
+/package-lock.json
+
 # Miscellaneous
 *.class
 *.log

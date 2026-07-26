@@ -82,23 +82,19 @@ export async function GET(request) {
   // WebP画像をそのままSatoriに渡すと描画に失敗するため、事前にPNGへ変換する。
   // 変換自体が失敗しても（画像取得失敗等）画像抜きでカードは生成できるよう、
   // 個別にcatchしてnullにフォールバックする。
-  const [iconDataUri, backgroundDataUri] = await Promise.all([
+  // フォント取得（Google Fontsへの2回の往復）は画像変換と依存関係が無いため、
+  // 直列にせず同じPromise.allで並列に走らせて待ち時間を短縮する。
+  const fontText = `${name}${description}${snsLinks.join('')}DaiDai`;
+  const [iconDataUri, backgroundDataUri, fontData] = await Promise.all([
     doc?.iconUrl ? toPngDataUri(doc.iconUrl).catch(() => null) : null,
     doc?.backgroundImageUrl
       ? toPngDataUri(doc.backgroundImageUrl).catch(() => null)
       : null,
+    loadNotoSansJpCached(fontText).catch(() => null),
   ]);
   const hasBackground = Boolean(backgroundDataUri);
   const textColor = hasBackground ? '#FFFFFF' : '#2E2A24';
   const subTextColor = hasBackground ? 'rgba(255,255,255,0.75)' : '#6B6459';
-
-  const fontText = `${name}${description}${snsLinks.join('')}DaiDai`;
-  let fontData;
-  try {
-    fontData = await loadNotoSansJp(fontText);
-  } catch (e) {
-    fontData = null;
-  }
 
   const contentChildren = [
     el(
@@ -214,12 +210,41 @@ export async function GET(request) {
   return response;
 }
 
+// Vercel Functionのウォームインスタンスはしばらく（数分程度）使い回される
+// ことがあり、その間はモジュールスコープの変数が保持される。同じアイコン・
+// 背景画像URL（アップロードし直さない限り不変）・同じフォント文字列を
+// 短時間に何度も取得しに行くのは無駄なので、インスタンスが生きている間だけ
+// メモリ上にキャッシュする（Vercelのエッジ/ブラウザキャッシュのCache-Control
+// とは別の、この関数の中だけで完結する軽量なキャッシュ）。エントリ数が
+// 際限なく増えないよう上限を設けて古いものから捨てる。
+const MAX_CACHE_ENTRIES = 50;
+const pngCache = new Map();
+const fontCache = new Map();
+
+function rememberInCache(cache, key, value) {
+  if (cache.size >= MAX_CACHE_ENTRIES) {
+    const oldestKey = cache.keys().next().value;
+    cache.delete(oldestKey);
+  }
+  cache.set(key, value);
+}
+
 async function toPngDataUri(url) {
+  if (pngCache.has(url)) return pngCache.get(url);
   const res = await fetch(url);
   if (!res.ok) return null;
   const buffer = Buffer.from(await res.arrayBuffer());
   const png = await sharp(buffer).png().toBuffer();
-  return `data:image/png;base64,${png.toString('base64')}`;
+  const dataUri = `data:image/png;base64,${png.toString('base64')}`;
+  rememberInCache(pngCache, url, dataUri);
+  return dataUri;
+}
+
+async function loadNotoSansJpCached(text) {
+  if (fontCache.has(text)) return fontCache.get(text);
+  const data = await loadNotoSansJp(text);
+  rememberInCache(fontCache, text, data);
+  return data;
 }
 
 async function fetchFirestoreDoc(path) {
