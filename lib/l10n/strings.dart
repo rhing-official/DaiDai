@@ -160,6 +160,9 @@ class Strings {
     required this.groupJoinRequestButton,
     required this.groupJoinRequestSent,
     required this.groupJoinOpenGroup,
+    required this.groupJoinRetry,
+    required this.groupJoinPendingListSubtitle,
+    required this.groupJoinPendingDialogClose,
   });
 
   final String navTalk;
@@ -342,6 +345,9 @@ class Strings {
   final String groupJoinRequestButton;
   final String groupJoinRequestSent;
   final String groupJoinOpenGroup;
+  final String groupJoinRetry;
+  final String groupJoinPendingListSubtitle;
+  final String groupJoinPendingDialogClose;
 
   static final ja = Strings._(
     navTalk: '語らい',
@@ -507,6 +513,9 @@ class Strings {
     groupJoinRequestButton: '参加をリクエストする',
     groupJoinRequestSent: '参加リクエストを送信しました。長・モデレーターの承認をお待ちください',
     groupJoinOpenGroup: '広場を開く',
+    groupJoinRetry: '再読み込み',
+    groupJoinPendingListSubtitle: '申請中・承認待ち',
+    groupJoinPendingDialogClose: '閉じる',
   );
 
   static final enGB = Strings._(
@@ -685,6 +694,9 @@ class Strings {
     groupJoinRequestButton: 'Request to join',
     groupJoinRequestSent: 'Join request sent. Waiting for approval.',
     groupJoinOpenGroup: 'Open plaza',
+    groupJoinRetry: 'Retry',
+    groupJoinPendingListSubtitle: 'Request pending approval',
+    groupJoinPendingDialogClose: 'Close',
   );
 
   static Strings of(AppLocale locale) => switch (locale) {

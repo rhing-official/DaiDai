@@ -8,9 +8,12 @@ import '../../models/conversation_prefs.dart';
 import '../../models/direct_message.dart';
 import '../../models/friend_request.dart';
 import '../../models/group.dart';
+import '../../models/group_invite_preview.dart';
+import '../../models/group_join_request.dart';
 import '../../providers/block_providers.dart';
 import '../../providers/conversation_prefs_providers.dart';
 import '../../providers/friend_providers.dart';
+import '../../providers/group_join_request_providers.dart';
 import '../../providers/repository_providers.dart';
 import '../../providers/user_providers.dart';
 import '../../router/app_router.dart';
@@ -182,6 +185,10 @@ class _TalksTabState extends ConsumerState<TalksTab> {
     final blockedIds =
         ref.watch(blockedUserIdsProvider(widget.currentUser.userId)).value ??
             const {};
+    final pendingGroupRequests = ref
+            .watch(myPendingGroupJoinRequestsProvider(widget.currentUser.userId))
+            .value ??
+        const [];
 
     final isSplit = _isSplit;
 
@@ -265,7 +272,12 @@ class _TalksTabState extends ConsumerState<TalksTab> {
                               prefsById,
                               blockedIds,
                             )
-                          : _buildGroups(groupSnapshot, groups, prefsById),
+                          : _buildGroups(
+                              groupSnapshot,
+                              groups,
+                              prefsById,
+                              pendingGroupRequests,
+                            ),
                     ),
                   ),
                 ],
@@ -394,28 +406,31 @@ class _TalksTabState extends ConsumerState<TalksTab> {
     AsyncSnapshot<List<Group>> snapshot,
     List<Group> groups,
     Map<String, ConversationPrefs> prefsById,
+    List<GroupJoinRequest> pendingRequests,
   ) {
-    if (snapshot.connectionState == ConnectionState.waiting) {
+    if (snapshot.connectionState == ConnectionState.waiting &&
+        pendingRequests.isEmpty) {
       return const Center(child: CircularProgressIndicator());
     }
-    if (groups.isEmpty) {
+    if (groups.isEmpty && pendingRequests.isEmpty) {
       final plazaTerm = ref.read(vocabularyProvider).plaza;
       return Center(child: Text('まだ$plazaTermがありません。上の＋から作成してください。'));
     }
     final sortedGroups = _sortedByPin(groups, prefsById, (g) => g.groupId);
-    return ListView.builder(
-      itemCount: sortedGroups.length,
-      itemBuilder: (context, index) {
-        final group = sortedGroups[index];
-        return _GroupTile(
-          currentUserId: widget.currentUser.userId,
-          group: group,
-          pinned: prefsById[group.groupId]?.pinned ?? false,
-          muted: prefsById[group.groupId]?.notificationsMuted ?? false,
-          selected: _isSplit && _selectedGroup?.groupId == group.groupId,
-          onTap: () => _openGroup(group),
-        );
-      },
+    return ListView(
+      children: [
+        for (final request in pendingRequests)
+          _PendingGroupJoinRequestTile(request: request),
+        for (final group in sortedGroups)
+          _GroupTile(
+            currentUserId: widget.currentUser.userId,
+            group: group,
+            pinned: prefsById[group.groupId]?.pinned ?? false,
+            muted: prefsById[group.groupId]?.notificationsMuted ?? false,
+            selected: _isSplit && _selectedGroup?.groupId == group.groupId,
+            onTap: () => _openGroup(group),
+          ),
+      ],
     );
   }
 
@@ -534,6 +549,49 @@ class _FriendRequestTile extends ConsumerWidget {
               ],
             )
           : null,
+    );
+  }
+}
+
+/// 自分が送った、承認待ちの広場参加リクエストを一覧の先頭に表示するタイル。
+/// タップしても実際の広場は開けない（まだメンバーではないため）ので、
+/// 承認待ちであることを伝えるダイアログを出す。
+class _PendingGroupJoinRequestTile extends ConsumerWidget {
+  const _PendingGroupJoinRequestTile({required this.request});
+
+  final GroupJoinRequest request;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final strings = ref.watch(appStringsProvider);
+    return FutureBuilder<GroupInvitePreview?>(
+      future: ref.read(groupRepositoryProvider).getInvitePreview(request.groupId),
+      builder: (context, snapshot) {
+        final preview = snapshot.data;
+        return ListTile(
+          leading: CircleAvatar(
+            backgroundImage:
+                preview?.iconUrl != null ? NetworkImage(preview!.iconUrl!) : null,
+            child: preview?.iconUrl == null
+                ? const Icon(Icons.hourglass_top_outlined)
+                : null,
+          ),
+          title: Text(preview?.name ?? '...'),
+          subtitle: Text(strings.groupJoinPendingListSubtitle),
+          onTap: () => showDialog<void>(
+            context: context,
+            builder: (context) => AlertDialog(
+              content: Text(strings.groupJoinPending),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: Text(strings.groupJoinPendingDialogClose),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }
