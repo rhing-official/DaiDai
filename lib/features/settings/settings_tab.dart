@@ -17,6 +17,7 @@ import '../../providers/message_time_format_provider.dart';
 import '../../providers/repository_providers.dart';
 import '../../providers/send_key_mode_provider.dart';
 import '../../providers/terminology_style_provider.dart';
+import '../../providers/theme_mode_provider.dart';
 import '../../utils/color_hex.dart';
 import '../../widgets/swipe_gestures.dart';
 
@@ -531,13 +532,49 @@ class _DesignFolderState extends ConsumerState<_DesignFolder> {
   @override
   Widget build(BuildContext context) {
     final accentColor = ref.watch(accentColorProvider);
+    final themeMode = ref.watch(appThemeModeProvider);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          child: Text(
+            widget.strings.settingsAppearance,
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              ChoiceChip(
+                label: Text(widget.strings.settingsAppearanceLight),
+                selected: themeMode == ThemeMode.light,
+                onSelected: (_) =>
+                    ref.read(appThemeModeProvider.notifier).setMode(ThemeMode.light),
+              ),
+              ChoiceChip(
+                label: Text(widget.strings.settingsAppearanceDark),
+                selected: themeMode == ThemeMode.dark,
+                onSelected: (_) =>
+                    ref.read(appThemeModeProvider.notifier).setMode(ThemeMode.dark),
+              ),
+              ChoiceChip(
+                label: Text(widget.strings.settingsAppearanceSystem),
+                selected: themeMode == ThemeMode.system,
+                onSelected: (_) =>
+                    ref.read(appThemeModeProvider.notifier).setMode(ThemeMode.system),
+              ),
+            ],
+          ),
+        ),
+        const Divider(height: 32),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
           child: Text(
             widget.strings.settingsAccentColor,
             style: const TextStyle(fontWeight: FontWeight.bold),

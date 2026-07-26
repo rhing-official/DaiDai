@@ -4,7 +4,8 @@ import 'app_theme_extras.dart';
 
 /// シンプルUI用のThemeDataを組み立てる。
 /// アクセントカラーはユーザーがカラーコードで指定でき、そこから
-/// Material3のカラースキーム全体を導出する。
+/// Material3のカラースキーム全体を導出する。ライト/ダーク共通のロジックは
+/// [_build]にまとめ、[light]/[dark]はbrightness違いの薄いラッパーにしている。
 ///
 /// フォントは意図的に指定していない（プラットフォーム既定にフォールバック）。
 /// 以前は`fontFamily: 'monospace'`を指定していたが、CJK（日本語）文字の
@@ -17,11 +18,34 @@ import 'app_theme_extras.dart';
 class AppTheme {
   AppTheme._();
 
-  static ThemeData theme(Color accentColor) {
-    final colorScheme = ColorScheme.fromSeed(
+  /// ダークモードの背景・カード色（ユーザー指定のダークグレー）。
+  /// `ColorScheme.fromSeed`がダーク用に生成するsurfaceは、アクセントカラーの
+  /// 色相を帯びた紺・緑がかったグレーになりやすく、素直な「ダークグレー」に
+  /// ならないため、背景・カード面はアクセントカラーに関わらずこの2色に固定する。
+  static const darkBackground = Color(0xFF121212);
+  static const darkSurface = Color(0xFF1E1E1E);
+
+  static ThemeData light(Color accentColor) =>
+      _build(accentColor, Brightness.light);
+
+  static ThemeData dark(Color accentColor) =>
+      _build(accentColor, Brightness.dark);
+
+  static ThemeData _build(Color accentColor, Brightness brightness) {
+    final isDark = brightness == Brightness.dark;
+
+    var colorScheme = ColorScheme.fromSeed(
       seedColor: accentColor,
-      brightness: Brightness.light,
+      brightness: brightness,
     ).copyWith(primary: accentColor, onPrimary: Colors.white);
+    if (isDark) {
+      colorScheme = colorScheme.copyWith(
+        surface: darkBackground,
+        surfaceContainerHighest: darkSurface,
+      );
+    }
+    final backgroundColor = isDark ? darkBackground : colorScheme.surface;
+    final cardColor = isDark ? darkSurface : colorScheme.surfaceContainerHighest;
 
     final floatingShadow = [
       BoxShadow(
@@ -33,7 +57,8 @@ class AppTheme {
 
     return ThemeData(
       useMaterial3: true,
-      scaffoldBackgroundColor: colorScheme.surface,
+      brightness: brightness,
+      scaffoldBackgroundColor: backgroundColor,
       colorScheme: colorScheme,
       visualDensity: VisualDensity.comfortable,
       pageTransitionsTheme: const PageTransitionsTheme(
@@ -46,13 +71,13 @@ class AppTheme {
         },
       ),
       appBarTheme: AppBarTheme(
-        backgroundColor: colorScheme.surface,
+        backgroundColor: backgroundColor,
         foregroundColor: colorScheme.onSurface,
         elevation: 0,
         centerTitle: false,
       ),
       cardTheme: CardThemeData(
-        color: colorScheme.surfaceContainerHighest,
+        color: cardColor,
         elevation: 6,
         shadowColor: accentColor.withValues(alpha: 0.3),
         shape: const RoundedRectangleBorder(
@@ -85,13 +110,13 @@ class AppTheme {
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: colorScheme.surfaceContainerHighest,
+        fillColor: cardColor,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
           borderSide: BorderSide.none,
         ),
       ),
-      textTheme: ThemeData.light().textTheme.apply(
+      textTheme: (isDark ? ThemeData.dark() : ThemeData.light()).textTheme.apply(
             bodyColor: colorScheme.onSurface,
             displayColor: colorScheme.onSurface,
           ),

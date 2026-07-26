@@ -12,6 +12,7 @@ import 'providers/chat_layout_style_provider.dart';
 import 'providers/message_time_format_provider.dart';
 import 'providers/send_key_mode_provider.dart';
 import 'providers/terminology_style_provider.dart';
+import 'providers/theme_mode_provider.dart';
 import 'router/app_router.dart';
 import 'theme/app_theme.dart';
 
@@ -24,13 +25,13 @@ Future<void> main() async {
   // 開くだけで何も起きない不具合の原因）。パスベースのURL戦略に切り替える。
   usePathUrlStrategy();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   final initialAccentColor = await loadInitialAccentColor();
   final initialAppLocale = await loadInitialAppLocale();
   final initialSendKeyMode = await loadInitialSendKeyMode();
   final initialTerminologyStyle = await loadInitialTerminologyStyle();
   final initialMessageTimeFormat = await loadInitialMessageTimeFormat();
   final initialChatLayoutStyle = await loadInitialChatLayoutStyle();
+  final initialAppThemeMode = await loadInitialAppThemeMode();
   runApp(
     ProviderScope(
       overrides: [
@@ -44,6 +45,7 @@ Future<void> main() async {
           initialMessageTimeFormat,
         ),
         initialChatLayoutStyleProvider.overrideWithValue(initialChatLayoutStyle),
+        initialAppThemeModeProvider.overrideWithValue(initialAppThemeMode),
       ],
       child: const DaiDaiApp(),
     ),
@@ -57,9 +59,12 @@ class DaiDaiApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final accentColor = ref.watch(accentColorProvider);
     final appLocale = ref.watch(appLocaleProvider);
+    final themeMode = ref.watch(appThemeModeProvider);
     return MaterialApp.router(
       title: 'DaiDai',
-      theme: AppTheme.theme(accentColor),
+      theme: AppTheme.light(accentColor),
+      darkTheme: AppTheme.dark(accentColor),
+      themeMode: themeMode,
       locale: appLocale.locale,
       supportedLocales: AppLocale.values.map((l) => l.locale),
       localizationsDelegates: const [

@@ -26,6 +26,10 @@ class Strings {
     required this.settingsBlockedUsersEmpty,
     required this.settingsBlockedUsersUnblock,
     required this.settingsAccentColor,
+    required this.settingsAppearance,
+    required this.settingsAppearanceLight,
+    required this.settingsAppearanceDark,
+    required this.settingsAppearanceSystem,
     required this.settingsColorCode,
     required this.settingsColorPresets,
     required this.settingsLogout,
@@ -200,6 +204,10 @@ class Strings {
   final String settingsBlockedUsersEmpty;
   final String settingsBlockedUsersUnblock;
   final String settingsAccentColor;
+  final String settingsAppearance;
+  final String settingsAppearanceLight;
+  final String settingsAppearanceDark;
+  final String settingsAppearanceSystem;
   final String settingsColorCode;
   final String settingsColorPresets;
   final String settingsLogout;
@@ -391,6 +399,10 @@ class Strings {
     settingsBlockedUsersEmpty: 'ブロックしたユーザーはいません',
     settingsBlockedUsersUnblock: 'ブロック解除',
     settingsAccentColor: 'アクセントカラー',
+    settingsAppearance: '外観',
+    settingsAppearanceLight: 'ライト',
+    settingsAppearanceDark: 'ダーク',
+    settingsAppearanceSystem: '端末に合わせる',
     settingsColorCode: 'カラーコード',
     settingsColorPresets: 'プリセット',
     settingsLogout: 'ログアウト',
@@ -573,6 +585,10 @@ class Strings {
     settingsBlockedUsersEmpty: 'No blocked users',
     settingsBlockedUsersUnblock: 'Unblock',
     settingsAccentColor: 'Accent colour',
+    settingsAppearance: 'Appearance',
+    settingsAppearanceLight: 'Light',
+    settingsAppearanceDark: 'Dark',
+    settingsAppearanceSystem: 'Match device',
     settingsColorCode: 'Colour code',
     settingsColorPresets: 'Presets',
     settingsLogout: 'Log out',
