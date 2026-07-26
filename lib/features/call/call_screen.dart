@@ -168,6 +168,14 @@ class _CallScreenState extends ConsumerState<CallScreen> {
                     ),
                   )
                 : RTCVideoView(
+                    // Web版のRTCVideoViewはStatefulWidgetで、実描画に使う
+                    // videoElementをinitState時にしか取得しない。keyが無いと
+                    // メイン/コーナーを入れ替えてもFlutterが同じStateを使い
+                    // 回してしまい、映像が入れ替わらずミラー表示だけが
+                    // 切り替わって見える不具合になっていた。レンダラーの
+                    // 実体が変わったら必ず作り直されるよう、レンダラー自体を
+                    // キーにする。
+                    key: ObjectKey(mainRenderer),
                     mainRenderer,
                     mirror: !_mainViewIsRemote,
                     objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
@@ -246,6 +254,7 @@ class _CallScreenState extends ConsumerState<CallScreen> {
                                   color: Colors.white54,
                                 )
                               : RTCVideoView(
+                                  key: ObjectKey(pipRenderer),
                                   pipRenderer,
                                   mirror: _mainViewIsRemote,
                                   objectFit: RTCVideoViewObjectFit
@@ -305,10 +314,15 @@ class _CallScreenState extends ConsumerState<CallScreen> {
           color: Colors.grey[700]!,
           onPressed: isActive ? _controller.toggleMute : null,
         ),
-        CallRoundButton(
-          icon: _controller.speakerOn ? Icons.volume_up : Icons.hearing,
-          color: Colors.grey[700]!,
-          onPressed: isActive ? _controller.toggleSpeaker : null,
+        Tooltip(
+          message: _controller.speakerOn ? 'スピーカーで再生中' : '受話口（イヤピース）で再生中',
+          child: CallRoundButton(
+            icon: _controller.speakerOn
+                ? Icons.volume_up
+                : Icons.phone_in_talk,
+            color: Colors.grey[700]!,
+            onPressed: isActive ? _controller.toggleSpeaker : null,
+          ),
         ),
         if (_isVideo) ...[
           CallRoundButton(
@@ -321,7 +335,11 @@ class _CallScreenState extends ConsumerState<CallScreen> {
           CallRoundButton(
             icon: Icons.cameraswitch,
             color: Colors.grey[700]!,
-            onPressed: isActive ? _controller.switchCamera : null,
+            onPressed: isActive &&
+                    !_controller.cameraOff &&
+                    !_controller.switchingCamera
+                ? _controller.switchCamera
+                : null,
           ),
         ],
         CallRoundButton(

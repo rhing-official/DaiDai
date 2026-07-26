@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 
@@ -85,6 +86,9 @@ class WebrtcGroupCallController extends ChangeNotifier {
   bool get speakerOn => _speakerOn;
 
   int _cameraIndex = 0;
+
+  bool _switchingCamera = false;
+  bool get switchingCamera => _switchingCamera;
 
   List<CallParticipant> _participants = [];
 
@@ -368,10 +372,14 @@ class WebrtcGroupCallController extends ChangeNotifier {
   }
 
   Future<void> switchCamera() async {
+    // 連打による多重実行を防ぐ（実機で「重くなる」報告の一因だった）。
+    if (_switchingCamera) return;
     final videoTracks = _localStream?.getVideoTracks() ?? <MediaStreamTrack>[];
     if (videoTracks.isEmpty) return;
-    final track = videoTracks.first;
+    _switchingCamera = true;
+    notifyListeners();
     try {
+      final track = videoTracks.first;
       if (kIsWeb) {
         final cameras = await Helper.cameras;
         if (cameras.length < 2) return;
@@ -380,8 +388,29 @@ class WebrtcGroupCallController extends ChangeNotifier {
       } else {
         await Helper.switchCamera(track);
       }
+      // Web版のHelper.switchCameraは古いトラックをstop()して_localStreamから
+      // 取り除き、新しいトラックを同じ_localStreamに追加する副作用を持つが、
+      // それだけではRTCVideoRenderer（Web実装、代入時点でトラックを
+      // スナップショットする）が古い（停止済みの）トラックを表示し続け
+      // 「切替後に画面が真っ黒になる」不具合になる。加えて、各相手との
+      // RTCPeerConnectionのRTCRtpSenderにも明示的にreplaceTrackしないと
+      // 新しい映像が送信されない（グループ通話は相手の人数分Peer
+      // Connectionがあるため、全員分に反映する必要がある）。
+      final newTrack = _localStream?.getVideoTracks().firstOrNull;
+      if (newTrack != null) {
+        localRenderer.srcObject = _localStream;
+        for (final pc in _peerConnections.values) {
+          final sender = (await pc.getSenders())
+              .where((s) => s.track?.kind == 'video')
+              .firstOrNull;
+          await sender?.replaceTrack(newTrack);
+        }
+      }
     } catch (_) {
       // 切替可能なカメラが1つしかない環境など。現状維持。
+    } finally {
+      _switchingCamera = false;
+      notifyListeners();
     }
   }
 

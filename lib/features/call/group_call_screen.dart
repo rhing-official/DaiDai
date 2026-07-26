@@ -287,6 +287,13 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
         children: [
           if (!cameraOff && renderer != null)
             RTCVideoView(
+              // Web版のRTCVideoViewはStatefulWidgetで、実描画に使う
+              // videoElementをinitState時にしか取得しない。2人通話の
+              // メイン/コーナー入れ替え時、keyが無いとFlutterが同じ
+              // Stateを使い回してしまい映像が入れ替わらない不具合になって
+              // いた。レンダラーの実体が変わったら必ず作り直されるよう、
+              // レンダラー自体をキーにする。
+              key: ObjectKey(renderer),
               renderer,
               mirror: mirror,
               objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
@@ -333,10 +340,15 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
           color: Colors.grey[700]!,
           onPressed: isActive ? _controller.toggleMute : null,
         ),
-        CallRoundButton(
-          icon: _controller.speakerOn ? Icons.volume_up : Icons.hearing,
-          color: Colors.grey[700]!,
-          onPressed: isActive ? _controller.toggleSpeaker : null,
+        Tooltip(
+          message: _controller.speakerOn ? 'スピーカーで再生中' : '受話口（イヤピース）で再生中',
+          child: CallRoundButton(
+            icon: _controller.speakerOn
+                ? Icons.volume_up
+                : Icons.phone_in_talk,
+            color: Colors.grey[700]!,
+            onPressed: isActive ? _controller.toggleSpeaker : null,
+          ),
         ),
         if (widget.isVideo) ...[
           CallRoundButton(
@@ -347,7 +359,11 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
           CallRoundButton(
             icon: Icons.cameraswitch,
             color: Colors.grey[700]!,
-            onPressed: isActive ? _controller.switchCamera : null,
+            onPressed: isActive &&
+                    !_controller.cameraOff &&
+                    !_controller.switchingCamera
+                ? _controller.switchCamera
+                : null,
           ),
         ],
         CallRoundButton(
