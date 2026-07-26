@@ -189,15 +189,21 @@ void main() {
     await _pumpSettingsTabNarrow(tester);
 
     // カテゴリ一覧から「アプリケーション」（アカウント→アプリケーション→
-    // 入力→通知の2番目）へドリルダウンする。
+    // 語らい→入力→通知の2番目）へドリルダウンする。
     await tester.tap(find.text('アプリケーション'));
     await tester.pumpAndSettle();
     expect(find.text('アクセントカラー'), findsOneWidget);
 
-    // 左スワイプで次のカテゴリ（入力）へ。
+    // 左スワイプで次のカテゴリ（語らい）へ。
     await tester.fling(find.byType(SwipeBackDetector), const Offset(-300, 0), 1000);
     await tester.pumpAndSettle();
     expect(find.text('アクセントカラー'), findsNothing);
+    expect(find.text('ブロックしたユーザー'), findsOneWidget);
+
+    // さらに左スワイプで次のカテゴリ（入力）へ。
+    await tester.fling(find.byType(SwipeBackDetector), const Offset(-300, 0), 1000);
+    await tester.pumpAndSettle();
+    expect(find.text('ブロックしたユーザー'), findsNothing);
     expect(find.text('メッセージの送信キー'), findsOneWidget);
 
     // 右スワイプすると、隣接カテゴリではなく常にカテゴリ一覧へ戻る。
