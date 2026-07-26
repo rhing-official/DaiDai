@@ -193,22 +193,25 @@ export async function GET(request) {
     layers,
   );
 
-  return new ImageResponse(root, {
+  const response = new ImageResponse(root, {
     width: CARD_WIDTH,
     height: CARD_HEIGHT,
     fonts: fontData
       ? [{ name: 'Noto Sans JP', data: fontData, weight: 700, style: 'normal' }]
       : undefined,
-    // ImageResponseは既定でCache-Control: public, immutable, max-age=31536000
-    // （1年間キャッシュ・再検証なし）を付ける。このURL（?type=...&id=...）は
-    // カード編集の度に中身が変わるのに対しURL自体は変わらないため、この既定値の
-    // ままだとブラウザ・Vercelのエッジキャッシュに古い画像が1年間居座り、
-    // 「カードを編集しても招待リンクの画像が更新されない」不具合になっていた。
-    // 短いmax-ageに上書きし、頻繁に再取得されるようにする。
-    headers: {
-      'Cache-Control': 'public, max-age=300',
-    },
   });
+  // ImageResponseは既定でCache-Control: public, immutable, max-age=31536000
+  // （1年間キャッシュ・再検証なし）を付ける。コンストラクタの`headers`
+  // オプションで上書きを試みても、実際にはheaders.append()相当の挙動で
+  // 既定値の後ろにカンマ結合されるだけで、既定の1年間キャッシュがそのまま
+  // 有効になり続けていた（実機のcurlで
+  // `cache-control: public, immutable, ..., max-age=31536000, public, max-age=300`
+  // という二重値になっているのを確認して特定）。Vercelのエッジキャッシュは
+  // 前者（1年）を採用してしまい、「カードを編集しても招待リンクの画像が
+  // いつまでも更新されない」不具合になっていた。Response構築後に
+  // `headers.set()`で明示的に上書きすることで、確実に単一の値に置き換える。
+  response.headers.set('Cache-Control', 'public, max-age=300');
+  return response;
 }
 
 async function toPngDataUri(url) {
