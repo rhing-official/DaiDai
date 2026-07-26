@@ -227,7 +227,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         automaticallyImplyLeading: false,
         title: Text(widget.title),
         actions: [
-          ...?widget.extraActions,
           if (widget.onCallPressed != null)
             IconButton(
               icon: const Icon(Icons.call_outlined),
@@ -238,6 +237,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               icon: const Icon(Icons.videocam_outlined),
               onPressed: widget.onVideoCallPressed,
             ),
+          ...?widget.extraActions,
         ],
       ),
       body: Column(
@@ -324,29 +324,28 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       ),
                     ),
                   ),
-                  // 物理キーボード接続時はEnterキーでの送信が使えるため、
-                  // 送信ボタンは表示しない。未接続時のみ、何か入力されている
-                  // 間だけ表示する（LINE等のモバイルUIと同じ挙動）。
-                  if (!_hasHardwareKeyboard)
-                    ValueListenableBuilder<TextEditingValue>(
-                      valueListenable: _textController,
-                      builder: (context, value, _) {
-                        if (value.text.isEmpty) return const SizedBox.shrink();
-                        return Material(
-                          color: Colors.transparent,
-                          shape: const CircleBorder(),
-                          child: InkWell(
-                            customBorder: const CircleBorder(),
-                            onTap: _send,
-                            onLongPress: () => _send(silent: true),
-                            child: Padding(
-                              padding: const EdgeInsets.all(12),
-                              child: Icon(Icons.send, color: colorScheme.primary),
-                            ),
+                  // 物理キーボード接続の判定に関わらず、何か入力されている間は
+                  // 常に送信ボタンを表示する（判定を誤っても送信手段が
+                  // 無くならないようにするため）。
+                  ValueListenableBuilder<TextEditingValue>(
+                    valueListenable: _textController,
+                    builder: (context, value, _) {
+                      if (value.text.isEmpty) return const SizedBox.shrink();
+                      return Material(
+                        color: Colors.transparent,
+                        shape: const CircleBorder(),
+                        child: InkWell(
+                          customBorder: const CircleBorder(),
+                          onTap: _send,
+                          onLongPress: () => _send(silent: true),
+                          child: Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: Icon(Icons.send, color: colorScheme.primary),
                           ),
-                        );
-                      },
-                    ),
+                        ),
+                      );
+                    },
+                  ),
                 ],
               ),
             ),

@@ -26,7 +26,7 @@ Future<void> _pumpSupportTabNarrow(WidgetTester tester) async {
 }
 
 void main() {
-  testWidgets('狭い画面のドリルダウン中に横スワイプで隣接カテゴリへ切り替えられる（回帰テスト）', (
+  testWidgets('狭い画面のドリルダウン中に左スワイプで次のカテゴリへ切り替え、右スワイプで一覧へ戻る（回帰テスト）', (
     tester,
   ) async {
     await _pumpSupportTabNarrow(tester);
@@ -43,19 +43,10 @@ void main() {
     expect(find.text('お知らせ'), findsNothing);
     expect(find.text('質問フォーム'), findsWidgets);
 
-    // 右スワイプで前のカテゴリ（お知らせ）へ戻る。
-    await tester.fling(find.byType(SwipeBackDetector), const Offset(300, 0), 1000);
-    await tester.pumpAndSettle();
-    expect(find.text('お知らせ'), findsWidgets);
-
-    // さらに右スワイプで前のカテゴリ（ホームページのURL）へ。
-    await tester.fling(find.byType(SwipeBackDetector), const Offset(300, 0), 1000);
-    await tester.pumpAndSettle();
-    expect(find.text('ホームページのURL'), findsWidgets);
-
-    // 先頭カテゴリで右スワイプすると、従来通りカテゴリ一覧に戻る。
+    // 右スワイプすると、隣接カテゴリではなく常にカテゴリ一覧へ戻る。
     await tester.fling(find.byType(SwipeBackDetector), const Offset(300, 0), 1000);
     await tester.pumpAndSettle();
     expect(find.byType(SwipeBackDetector), findsNothing);
+    expect(find.text('お知らせ'), findsOneWidget); // 一覧のカテゴリ名として表示される
   });
 }

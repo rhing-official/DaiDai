@@ -64,7 +64,6 @@ class _SupportTabState extends ConsumerState<SupportTab> {
     final selected = _findCategoryById(categories, _selectedId);
     final selectedIndex =
         selected == null ? -1 : categories.indexWhere((c) => c.id == selected.id);
-    final previousCategory = selectedIndex > 0 ? categories[selectedIndex - 1] : null;
     final nextCategory = selectedIndex >= 0 && selectedIndex < categories.length - 1
         ? categories[selectedIndex + 1]
         : null;
@@ -84,28 +83,19 @@ class _SupportTabState extends ConsumerState<SupportTab> {
                     onSelect: (category) =>
                         setState(() => _selectedId = category.id),
                   )
+                // 右スワイプは常に一覧へ戻る（onPreviousを渡さないことで
+                // SwipeBackDetectorの既定フォールバック=onBackを使う）。戻る
+                // 導線がスワイプに一本化されたため、以前あった「←＋
+                // カテゴリ名」の見出し行は表示しない。
                 : SwipeBackDetector(
                     key: ValueKey(selected.id),
                     onBack: () => setState(() => _selectedId = null),
-                    onPrevious: previousCategory == null
-                        ? null
-                        : () => setState(() => _selectedId = previousCategory.id),
                     onNext: nextCategory == null
                         ? null
                         : () => setState(() => _selectedId = nextCategory.id),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          leading: const Icon(Icons.arrow_back),
-                          title: Text(
-                            selected.title,
-                            style: const TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                          onTap: () => setState(() => _selectedId = null),
-                        ),
-                        const Divider(height: 1),
                         Expanded(
                           child: _SupportPage(
                             title: selected.title,

@@ -72,7 +72,6 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
             const VerticalDivider(width: 1),
             Expanded(
               child: _SettingsPage(
-                title: selected.title,
                 child: Builder(builder: selected.pageBuilder),
               ),
             ),
@@ -84,7 +83,6 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
     final selected = _findCategoryById(categories, _selectedId);
     final selectedIndex =
         selected == null ? -1 : categories.indexWhere((c) => c.id == selected.id);
-    final previousCategory = selectedIndex > 0 ? categories[selectedIndex - 1] : null;
     final nextCategory = selectedIndex >= 0 && selectedIndex < categories.length - 1
         ? categories[selectedIndex + 1]
         : null;
@@ -108,9 +106,6 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
                     key: ValueKey(selected.id),
                     category: selected,
                     onBack: () => setState(() => _selectedId = null),
-                    onPrevious: previousCategory == null
-                        ? null
-                        : () => setState(() => _selectedId = previousCategory.id),
                     onNext: nextCategory == null
                         ? null
                         : () => setState(() => _selectedId = nextCategory.id),
@@ -251,9 +246,8 @@ class _FolderTile extends StatelessWidget {
 
 /// 広い画面での内容ペイン。タイトルの下に、カテゴリの中身を1ページで表示する。
 class _SettingsPage extends StatelessWidget {
-  const _SettingsPage({required this.title, required this.child});
+  const _SettingsPage({required this.child});
 
-  final String title;
   final Widget child;
 
   @override
@@ -263,26 +257,15 @@ class _SettingsPage extends StatelessWidget {
     // ConstrainedBoxは、親（Expanded）から渡されるtight制約をそのまま
     // enforce()すると自分のmaxWidthが無視される（tightな下限に引き上げられる）
     // ため、先にAlignでtight制約をloose制約に変換してから渡す必要がある。
+    // サイドバーで既にカテゴリ名が選択表示されているため、ここでの
+    // セクション名の見出しは重複表示になるとして削除した。
     return Align(
       alignment: Alignment.topLeft,
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 640),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 4, 24, 12),
-              child: Text(
-                title,
-                style: Theme.of(context)
-                    .textTheme
-                    .headlineSmall
-                    ?.copyWith(fontWeight: FontWeight.bold),
-              ),
-            ),
-            const Divider(height: 1),
-            Expanded(child: child),
-          ],
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 4, 24, 12),
+          child: child,
         ),
       ),
     );
@@ -295,36 +278,26 @@ class _NarrowSettingsPage extends StatelessWidget {
     super.key,
     required this.category,
     required this.onBack,
-    this.onPrevious,
     this.onNext,
   });
 
   final _SettingsCategory category;
   final VoidCallback onBack;
-  final VoidCallback? onPrevious;
   final VoidCallback? onNext;
 
   @override
   Widget build(BuildContext context) {
     // mainAxisSizeをmin指定にすると、内側のListView（例: _AccountPage）が
     // 無限の高さ制約を受けてクラッシュする。既定（max）のままExpandedで包む。
+    // 右スワイプは常に一覧へ戻る（onPreviousを渡さないことでSwipeBackDetector
+    // の既定フォールバック=onBackを使う）。戻る導線がスワイプに一本化された
+    // ため、以前ここにあった「←＋カテゴリ名」の見出し行は表示しない。
     return SwipeBackDetector(
       onBack: onBack,
-      onPrevious: onPrevious,
       onNext: onNext,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: const Icon(Icons.arrow_back),
-            title: Text(
-              category.title,
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-            onTap: onBack,
-          ),
-          const Divider(height: 1),
           Expanded(child: Builder(builder: category.pageBuilder)),
         ],
       ),
