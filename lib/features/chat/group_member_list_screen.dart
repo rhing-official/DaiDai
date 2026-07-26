@@ -177,9 +177,10 @@ class _MemberTile extends StatelessWidget {
   final Vocabulary vocab;
   final Strings strings;
 
+  // モデレーターという言葉自体は表示しない方針にしたため、モデレーターも
+  // 通常のメンバーと同じラベルで表示する（権限自体は引き続き役割として持つ）。
   String get _roleLabel => switch (role) {
         'owner' => vocab.owner,
-        'moderator' => strings.groupRoleModerator,
         _ => strings.groupRoleMember,
       };
 
