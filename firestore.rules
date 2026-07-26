@@ -173,10 +173,21 @@ service cloud.firestore {
           && request.resource.data.groupId == groupId
           && request.resource.data.status == 'pending';
         // 承認・却下は長・モデレーターのみ。id・申請者情報は不変。
+        // 却下後の再申請（GroupRepository.requestToJoinは同じドキュメントを
+        // 使い回す設計）は申請者本人にも許可する。ただしstatusをpendingに
+        // 戻すことしかできず、自分でacceptedにする等はできない
+        // （却下後に再申請してもpermission-deniedになっていた不具合の修正）。
         allow update: if request.auth != null
-          && get(/databases/$(database)/documents/groups/$(groupId)).data.memberRoles[request.auth.uid] in ['owner', 'moderator']
           && request.resource.data.requesterId == resource.data.requesterId
-          && request.resource.data.groupId == resource.data.groupId;
+          && request.resource.data.groupId == resource.data.groupId
+          && (
+            get(/databases/$(database)/documents/groups/$(groupId)).data.memberRoles[request.auth.uid] in ['owner', 'moderator']
+            || (
+              request.auth.uid == requesterId
+              && resource.data.status != 'pending'
+              && request.resource.data.status == 'pending'
+            )
+          );
         allow delete: if false;
       }
 
