@@ -43,7 +43,16 @@ service cloud.firestore {
           && (request.auth.uid == userId || request.auth.uid == friendUserId)
           && get(/databases/$(database)/documents/friendRequests/$(pairId(userId, friendUserId))).data.status == 'accepted';
         allow update: if false;
-        allow delete: if false;
+        // 絶縁（双方合意による友達関係の解消）の実行は、対応するdirectMessagesの
+        // severanceRequestedByが立っていて、かつ削除操作者がその提案者本人では
+        // ないこと（＝提案者ではない側＝同意した側が実行していること）を条件に
+        // 許可する。「自分 or 相手」どちらのuidでも削除できるのは、実行するのは
+        // 同意した側の1クライアントが双方のfriendsドキュメントをまとめて
+        // 削除するため（DirectMessageRepository.acceptSeverance参照）。
+        allow delete: if request.auth != null
+          && (request.auth.uid == userId || request.auth.uid == friendUserId)
+          && get(/databases/$(database)/documents/directMessages/$(pairId(userId, friendUserId))).data.severanceRequestedBy != null
+          && get(/databases/$(database)/documents/directMessages/$(pairId(userId, friendUserId))).data.severanceRequestedBy != request.auth.uid;
       }
 
       // users/{userId}/conversationPrefs/{conversationId}: 一対・広場のピン留め・通知オフなど、
@@ -92,7 +101,14 @@ service cloud.firestore {
         && (request.auth.uid == resource.data.fromUserId || request.auth.uid == resource.data.toUserId)
         && request.resource.data.fromUserId == resource.data.fromUserId
         && request.resource.data.toUserId == resource.data.toUserId;
-      allow delete: if false;
+      // 絶縁の実行時のみ削除を許可する（friendRequestsのidはdirectMessagesの
+      // dmIdと同じpairId()で組み立てられているため、requestIdをそのまま
+      // directMessagesのdocIdとして参照できる）。削除後は同じ相手に再度
+      // 友達申請すれば新規ドキュメントとして作り直せる。
+      allow delete: if request.auth != null
+        && (request.auth.uid == resource.data.fromUserId || request.auth.uid == resource.data.toUserId)
+        && get(/databases/$(database)/documents/directMessages/$(requestId)).data.severanceRequestedBy != null
+        && get(/databases/$(database)/documents/directMessages/$(requestId)).data.severanceRequestedBy != request.auth.uid;
     }
 
     // directMessages/{dmId}: 参加者本人のみ読み書き可能。
@@ -107,9 +123,27 @@ service cloud.firestore {
         && request.auth.uid in request.resource.data.participants
         && request.resource.data.participants.size() == 2
         && get(/databases/$(database)/documents/friendRequests/$(dmId)).data.status == 'accepted';
+      // 通常の更新（lastMessageAt等）に加え、絶縁の提案・取り消し・辞退
+      // （severanceRequestedByフィールドのみの変更）を許可する。ただし
+      // このフィールドに設定できる値は「自分のuid」（提案）か「null」
+      // （取り消し・辞退）のみに制限し、他人のuidを騙って「相手が同意した」
+      // ことにして単独で絶縁を実行できてしまわないようにする。
       allow update: if request.auth != null
-        && request.auth.uid in resource.data.participants;
-      allow delete: if false;
+        && request.auth.uid in resource.data.participants
+        && (
+          !('severanceRequestedBy' in request.resource.data.diff(resource.data).affectedKeys())
+          || request.resource.data.severanceRequestedBy == request.auth.uid
+          || request.resource.data.severanceRequestedBy == null
+        );
+      // 絶縁の実行（最終ステップ）。severanceRequestedByが立っていて、かつ
+      // 削除操作者が提案者本人ではない（＝同意した側）場合のみ、この一対
+      // 自体の削除を許可する。messages/friends/friendRequestsの削除も
+      // 同じ条件をget()で参照するため、これらを全て消し終えてから最後に
+      // 消す必要がある（DirectMessageRepository.acceptSeverance参照）。
+      allow delete: if request.auth != null
+        && request.auth.uid in resource.data.participants
+        && resource.data.severanceRequestedBy != null
+        && resource.data.severanceRequestedBy != request.auth.uid;
 
       // メッセージは縁側の参加者のみ読み取り可能。
       // 送信は本人（senderId）かつ参加者である場合のみ許可。
@@ -124,7 +158,12 @@ service cloud.firestore {
         allow update: if request.auth != null
           && request.auth.uid in get(/databases/$(database)/documents/directMessages/$(dmId)).data.participants
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readBy']);
-        allow delete: if false;
+        // 絶縁の実行時のみ、同意した側（提案者本人ではない参加者）が
+        // メッセージを物理削除できる。
+        allow delete: if request.auth != null
+          && request.auth.uid in get(/databases/$(database)/documents/directMessages/$(dmId)).data.participants
+          && get(/databases/$(database)/documents/directMessages/$(dmId)).data.severanceRequestedBy != null
+          && get(/databases/$(database)/documents/directMessages/$(dmId)).data.severanceRequestedBy != request.auth.uid;
       }
     }
 

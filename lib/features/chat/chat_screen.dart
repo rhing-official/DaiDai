@@ -33,6 +33,7 @@ class ChatScreen extends ConsumerStatefulWidget {
     this.extraActions,
     this.readReceiptsEnabled = true,
     this.onMarkRead,
+    this.banner,
     super.key,
   });
 
@@ -62,6 +63,9 @@ class ChatScreen extends ConsumerStatefulWidget {
 
   /// 呼び出し側固有のAppBarアクション（例: 広場の詳細を開くボタン）。
   final List<Widget>? extraActions;
+
+  /// メッセージ一覧の上に常時表示するバナー（例: 絶縁の提案・同意待ち通知）。
+  final Widget? banner;
 
   @override
   ConsumerState<ChatScreen> createState() => _ChatScreenState();
@@ -245,6 +249,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       ),
       body: Column(
         children: [
+          if (widget.banner != null) widget.banner!,
           Expanded(
             child: StreamBuilder<List<Message>>(
               stream: widget.messagesStream,

@@ -16,6 +16,7 @@ import 'group_invite_dialog.dart';
 import 'group_leave_dialog.dart';
 import 'group_member_list_screen.dart';
 import 'group_profile_card_screen.dart';
+import 'severance_dialog.dart';
 
 enum _GroupMenuAction {
   profileCard,
@@ -25,7 +26,12 @@ enum _GroupMenuAction {
   toggleReadReceipts,
   leave,
 }
-enum _DmMenuAction { toggleMute, toggleBlock, toggleReadReceipts }
+enum _DmMenuAction {
+  toggleMute,
+  toggleBlock,
+  toggleReadReceipts,
+  proposeSeverance,
+}
 
 /// 一対（DM）のChatScreenを組み立てる。相手のアクティブなニックネームを
 /// タイトルに反映するためConsumer化している。go_routerのフルスクリーン遷移と、
@@ -108,6 +114,82 @@ class DmChatPane extends ConsumerWidget {
           isBlocked: isBlocked,
         ),
       ],
+      banner: dm.severanceRequestedBy == null
+          ? null
+          : _SeveranceBanner(
+              currentUserId: currentUser.userId,
+              dm: dm,
+              otherUserId: otherUserId,
+            ),
+    );
+  }
+}
+
+/// 絶縁の提案・同意待ちを常時表示するバナー（DmChatPaneの[ChatScreen.banner]に
+/// 渡す）。提案した本人には「取り消す」、相手には「同意する／今は同意しない」
+/// を出す。
+class _SeveranceBanner extends ConsumerWidget {
+  const _SeveranceBanner({
+    required this.currentUserId,
+    required this.dm,
+    required this.otherUserId,
+  });
+
+  final String currentUserId;
+  final DirectMessage dm;
+  final String otherUserId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final strings = ref.watch(appStringsProvider);
+    final colorScheme = Theme.of(context).colorScheme;
+    final isProposedByMe = dm.severanceRequestedBy == currentUserId;
+
+    return Material(
+      color: colorScheme.errorContainer,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                isProposedByMe
+                    ? strings.severanceBannerWaitingForOther
+                    : strings.severanceBannerProposedByOther,
+                style: TextStyle(color: colorScheme.onErrorContainer),
+              ),
+            ),
+            if (isProposedByMe)
+              TextButton(
+                onPressed: () => ref
+                    .read(directMessageRepositoryProvider)
+                    .cancelSeverance(dm.dmId),
+                child: Text(strings.severanceBannerCancelButton),
+              )
+            else ...[
+              TextButton(
+                onPressed: () => ref
+                    .read(directMessageRepositoryProvider)
+                    .cancelSeverance(dm.dmId),
+                child: Text(strings.severanceBannerDeclineButton),
+              ),
+              FilledButton(
+                style: FilledButton.styleFrom(
+                  backgroundColor: colorScheme.error,
+                ),
+                onPressed: () => SeveranceDialog.show(
+                  context,
+                  mode: SeveranceDialogMode.accept,
+                  dmId: dm.dmId,
+                  currentUserId: currentUserId,
+                  otherUserId: otherUserId,
+                ),
+                child: Text(strings.severanceBannerAcceptButton),
+              ),
+            ],
+          ],
+        ),
+      ),
     );
   }
 }
@@ -170,6 +252,14 @@ class _DmMenuButton extends ConsumerWidget {
                   conversationId: dm.dmId,
                   enabled: !readReceiptsEnabled,
                 );
+          case _DmMenuAction.proposeSeverance:
+            SeveranceDialog.show(
+              context,
+              mode: SeveranceDialogMode.propose,
+              dmId: dm.dmId,
+              currentUserId: currentUser.userId,
+              otherUserId: otherUserId,
+            );
         }
       },
       itemBuilder: (context) => [
@@ -190,6 +280,13 @@ class _DmMenuButton extends ConsumerWidget {
                 ? strings.conversationReadReceiptsDisable
                 : strings.conversationReadReceiptsEnable,
           ),
+        ),
+        // 絶縁の提案・同意待ち中は、この操作自体を無効化する
+        // （二重提案・意図しない再提案を防ぐ）。
+        PopupMenuItem(
+          value: _DmMenuAction.proposeSeverance,
+          enabled: dm.severanceRequestedBy == null,
+          child: Text(strings.conversationProposeSeverance),
         ),
       ],
     );
