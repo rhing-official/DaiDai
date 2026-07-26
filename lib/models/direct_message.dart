@@ -7,6 +7,7 @@ class DirectMessage {
     required this.participants,
     required this.participantRhingIds,
     this.lastMessageAt,
+    this.severanceRequestedBy,
   });
 
   final String dmId;
@@ -14,6 +15,12 @@ class DirectMessage {
   /// userId -> rhingId。一覧表示で相手の名前を出すための非正規化データ。
   final Map<String, String> participantRhingIds;
   final Timestamp? lastMessageAt;
+
+  /// 絶縁（双方合意による友達関係の解消・会話履歴の完全削除）を提案した側の
+  /// userId。nullなら提案なし。提案した本人以外の参加者が同意すると、
+  /// [DirectMessageRepository.acceptSeverance]がこのフラグを根拠に
+  /// メッセージ・friends・friendRequests・この一対自体を物理削除する。
+  final String? severanceRequestedBy;
 
   /// 自分以外の参加者のuserId。
   String otherUserId(String currentUserId) {
@@ -34,6 +41,7 @@ class DirectMessage {
         json['participantRhingIds'] as Map? ?? {},
       ),
       lastMessageAt: json['lastMessageAt'] as Timestamp?,
+      severanceRequestedBy: json['severanceRequestedBy'] as String?,
     );
   }
 
@@ -42,6 +50,7 @@ class DirectMessage {
       'participants': participants,
       'participantRhingIds': participantRhingIds,
       'lastMessageAt': lastMessageAt,
+      'severanceRequestedBy': severanceRequestedBy,
     };
   }
 

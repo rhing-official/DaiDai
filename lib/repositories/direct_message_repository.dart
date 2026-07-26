@@ -27,6 +27,23 @@ abstract class DirectMessageRepository {
     required String userId,
     required List<String> messageIds,
   });
+
+  /// 絶縁（友達関係の解消・会話履歴の完全削除）を提案し、相手の同意待ちにする。
+  Future<void> proposeSeverance({required String dmId, required String userId});
+
+  /// 絶縁の提案を取り消す（自分が提案した場合）、または辞退する（相手からの
+  /// 提案に同意しない場合）。どちらも同じくフラグをクリアするだけ。
+  Future<void> cancelSeverance(String dmId);
+
+  /// 相手からの絶縁の提案に同意し、実際に絶縁を実行する。全メッセージ・
+  /// 双方のfriends関係・friendRequests・この一対自体を物理削除する
+  /// （復元不可）。[proposeSeverance]した本人以外の参加者のみ呼べる
+  /// （Firestoreルールで強制、詳細はfirestore.rules参照）。
+  Future<void> acceptSeverance({
+    required String dmId,
+    required String currentUserId,
+    required String otherUserId,
+  });
 }
 
 class FirestoreDirectMessageRepository implements DirectMessageRepository {
@@ -130,5 +147,66 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
       });
     }
     await batch.commit();
+  }
+
+  @override
+  Future<void> proposeSeverance({
+    required String dmId,
+    required String userId,
+  }) async {
+    await _directMessages.doc(dmId).update({'severanceRequestedBy': userId});
+  }
+
+  @override
+  Future<void> cancelSeverance(String dmId) async {
+    await _directMessages.doc(dmId).update({'severanceRequestedBy': null});
+  }
+
+  @override
+  Future<void> acceptSeverance({
+    required String dmId,
+    required String currentUserId,
+    required String otherUserId,
+  }) async {
+    final dmRef = _directMessages.doc(dmId);
+    final messagesRef = dmRef.collection('messages');
+
+    // Firestoreの1バッチは500件までのため、無くなるまでページ単位で削除を
+    // 繰り返す。DMドキュメント自体（severanceRequestedByフラグ）はこの間
+    // 消さずに残しておく必要がある（各messageのdeleteルールがこのフラグを
+    // 参照して双方合意済みかどうかを検証するため）。
+    while (true) {
+      final snapshot = await messagesRef.limit(400).get();
+      if (snapshot.docs.isEmpty) break;
+      final batch = _firestore.batch();
+      for (final doc in snapshot.docs) {
+        batch.delete(doc.reference);
+      }
+      await batch.commit();
+    }
+
+    final cascadeBatch = _firestore.batch();
+    cascadeBatch.delete(
+      _firestore
+          .collection('users')
+          .doc(currentUserId)
+          .collection('friends')
+          .doc(otherUserId),
+    );
+    cascadeBatch.delete(
+      _firestore
+          .collection('users')
+          .doc(otherUserId)
+          .collection('friends')
+          .doc(currentUserId),
+    );
+    // friendRequestsのidはdirectMessagesのdmIdと同じ組み立て方（pairId）の
+    // ため、同じdmIdでそのままドキュメントを特定できる。
+    cascadeBatch.delete(_firestore.collection('friendRequests').doc(dmId));
+    await cascadeBatch.commit();
+
+    // 一対自体は、上記すべての削除を許可する根拠（severanceRequestedBy）を
+    // 持っているため、最後に削除する。
+    await dmRef.delete();
   }
 }

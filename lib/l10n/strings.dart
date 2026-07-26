@@ -86,6 +86,18 @@ class Strings {
     required this.conversationBlockedCannotSend,
     required this.conversationReadReceiptsDisable,
     required this.conversationReadReceiptsEnable,
+    required this.conversationProposeSeverance,
+    required this.severanceProposeDialogTitle,
+    required this.severanceProposeDialogMessage,
+    required this.severanceProposeButton,
+    required this.severanceAcceptDialogTitle,
+    required this.severanceAcceptDialogMessage,
+    required this.severanceAcceptButton,
+    required this.severanceBannerWaitingForOther,
+    required this.severanceBannerCancelButton,
+    required this.severanceBannerProposedByOther,
+    required this.severanceBannerDeclineButton,
+    required this.severanceBannerAcceptButton,
     required this.readReceiptPopupTitle,
     required this.cancel,
     required this.add,
@@ -144,7 +156,6 @@ class Strings {
     required this.groupMemberListTitle,
     required this.groupMemberListPendingSection,
     required this.groupMemberListMembersSection,
-    required this.groupRoleModerator,
     required this.groupRoleMember,
     required this.groupInviteDialogTitle,
     required this.groupInviteDialogDescription,
@@ -252,6 +263,18 @@ class Strings {
   final String conversationBlockedCannotSend;
   final String conversationReadReceiptsDisable;
   final String conversationReadReceiptsEnable;
+  final String conversationProposeSeverance;
+  final String severanceProposeDialogTitle;
+  final String severanceProposeDialogMessage;
+  final String severanceProposeButton;
+  final String severanceAcceptDialogTitle;
+  final String severanceAcceptDialogMessage;
+  final String severanceAcceptButton;
+  final String severanceBannerWaitingForOther;
+  final String severanceBannerCancelButton;
+  final String severanceBannerProposedByOther;
+  final String severanceBannerDeclineButton;
+  final String severanceBannerAcceptButton;
   final String readReceiptPopupTitle;
 
   final String cancel;
@@ -324,7 +347,6 @@ class Strings {
   final String groupMemberListTitle;
   final String groupMemberListPendingSection;
   final String groupMemberListMembersSection;
-  final String groupRoleModerator;
   final String groupRoleMember;
 
   final String groupInviteDialogTitle;
@@ -434,6 +456,20 @@ class Strings {
     conversationBlockedCannotSend: 'ブロック中のため送信できません',
     conversationReadReceiptsDisable: '既読オフ',
     conversationReadReceiptsEnable: '既読オン',
+    conversationProposeSeverance: '絶縁を提案',
+    severanceProposeDialogTitle: '絶縁を提案しますか？',
+    severanceProposeDialogMessage:
+        '相手が同意すると、これまでの会話履歴が完全に削除され、友達関係も解消されます。相手が同意するまでは何も起こりません。',
+    severanceProposeButton: '提案する',
+    severanceAcceptDialogTitle: '絶縁に同意しますか？',
+    severanceAcceptDialogMessage:
+        '同意すると、これまでの会話履歴が完全に削除され、友達関係も解消されます。この操作は取り消せません。',
+    severanceAcceptButton: '同意して削除する',
+    severanceBannerWaitingForOther: '絶縁を提案しました。相手の同意をお待ちください',
+    severanceBannerCancelButton: '取り消す',
+    severanceBannerProposedByOther: '相手が絶縁を提案しています',
+    severanceBannerDeclineButton: '今は同意しない',
+    severanceBannerAcceptButton: '同意する',
     readReceiptPopupTitle: '既読',
     cancel: 'キャンセル',
     add: '追加',
@@ -495,11 +531,10 @@ class Strings {
     groupMemberListTitle: 'メンバー一覧',
     groupMemberListPendingSection: '参加リクエスト',
     groupMemberListMembersSection: 'メンバー',
-    groupRoleModerator: 'モデレーター',
     groupRoleMember: 'メンバー',
     groupInviteDialogTitle: '招待リンク',
     groupInviteDialogDescription:
-        'このリンクを知っている人が開くと、長・モデレーターの承認を経てこの広場に参加できます。',
+        'このリンクを知っている人が開くと、長の承認を経てこの広場に参加できます。',
     groupLeaveConfirmTitle: '広場から退会しますか？',
     groupLeaveConfirmMessage: '退会すると、この広場のメッセージは見られなくなります。',
     groupLeaveButton: '退会する',
@@ -507,11 +542,11 @@ class Strings {
     groupJoinScreenTitle: '広場への参加',
     groupJoinInvalid: 'この招待リンクは無効です',
     groupJoinAlreadyMember: '既にこの広場のメンバーです',
-    groupJoinPending: '参加リクエストを送信済みです。長・モデレーターの承認をお待ちください',
+    groupJoinPending: '参加リクエストを送信済みです。長の承認をお待ちください',
     groupJoinDescriptionTemplate: (groupName) =>
-        '「$groupName」への参加をリクエストしますか？長・モデレーターが承認すると参加できます。',
+        '「$groupName」への参加をリクエストしますか？長が承認すると参加できます。',
     groupJoinRequestButton: '参加をリクエストする',
-    groupJoinRequestSent: '参加リクエストを送信しました。長・モデレーターの承認をお待ちください',
+    groupJoinRequestSent: '参加リクエストを送信しました。長の承認をお待ちください',
     groupJoinOpenGroup: '広場を開く',
     groupJoinRetry: '再読み込み',
     groupJoinPendingListSubtitle: '申請中・承認待ち',
@@ -610,6 +645,24 @@ class Strings {
     conversationBlockedCannotSend: "You can't send messages while blocked",
     conversationReadReceiptsDisable: 'Turn off read receipts',
     conversationReadReceiptsEnable: 'Turn on read receipts',
+    conversationProposeSeverance: 'Propose severance',
+    severanceProposeDialogTitle: 'Propose severance?',
+    severanceProposeDialogMessage:
+        "If the other person agrees, all conversation history will be "
+        "permanently deleted and you'll no longer be friends. Nothing "
+        "happens until they agree.",
+    severanceProposeButton: 'Propose',
+    severanceAcceptDialogTitle: 'Agree to severance?',
+    severanceAcceptDialogMessage:
+        'Agreeing will permanently delete all conversation history and '
+        "end your friendship. This can't be undone.",
+    severanceAcceptButton: 'Agree and delete',
+    severanceBannerWaitingForOther:
+        'Severance proposed. Waiting for the other person to agree.',
+    severanceBannerCancelButton: 'Cancel',
+    severanceBannerProposedByOther: 'The other person proposed severance',
+    severanceBannerDeclineButton: 'Not now',
+    severanceBannerAcceptButton: 'Agree',
     readReceiptPopupTitle: 'Read by',
     cancel: 'Cancel',
     add: 'Add',
@@ -672,12 +725,11 @@ class Strings {
     groupMemberListTitle: 'Members',
     groupMemberListPendingSection: 'Join requests',
     groupMemberListMembersSection: 'Members',
-    groupRoleModerator: 'Moderator',
     groupRoleMember: 'Member',
     groupInviteDialogTitle: 'Invite link',
     groupInviteDialogDescription:
         'Anyone who opens this link can request to join this plaza, '
-        'subject to approval by the owner or a moderator.',
+        'subject to approval by the owner.',
     groupLeaveConfirmTitle: 'Leave this plaza?',
     groupLeaveConfirmMessage:
         "You won't be able to see this plaza's messages after leaving.",
@@ -690,7 +742,7 @@ class Strings {
         "You've already requested to join. Waiting for approval.",
     groupJoinDescriptionTemplate: (groupName) =>
         'Request to join "$groupName"? '
-        'You can join once the owner or a moderator approves.',
+        'You can join once the owner approves.',
     groupJoinRequestButton: 'Request to join',
     groupJoinRequestSent: 'Join request sent. Waiting for approval.',
     groupJoinOpenGroup: 'Open plaza',
