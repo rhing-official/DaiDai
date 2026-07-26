@@ -29,7 +29,7 @@ class JoinGroupScreen extends StatelessWidget {
   }
 }
 
-enum _JoinStatus { loading, invalid, alreadyMember, pending, ready, sent }
+enum _JoinStatus { loading, invalid, alreadyMember, pending, ready, sent, error }
 
 class _JoinGroupView extends ConsumerStatefulWidget {
   const _JoinGroupView({required this.currentUser, required this.groupId});
@@ -54,39 +54,52 @@ class _JoinGroupViewState extends ConsumerState<_JoinGroupView> {
   }
 
   Future<void> _resolve() async {
-    final groupRepository = ref.read(groupRepositoryProvider);
+    // 以前はここでの例外がどこにも捕捉されておらず、何らかの理由（一時的な
+    // 通信エラー等）で失敗すると`_status`が`loading`のまま止まり、画面が
+    // スピナーが回り続けるだけで「新しいタブが開いても何も起きない」ように
+    // 見える不具合になっていた。失敗時は再試行できるエラー画面を出す。
+    setState(() => _status = _JoinStatus.loading);
+    try {
+      final groupRepository = ref.read(groupRepositoryProvider);
 
-    final existingGroup = await groupRepository.getGroup(widget.groupId);
-    if (!mounted) return;
-    if (existingGroup != null) {
-      setState(() => _status = _JoinStatus.alreadyMember);
-      return;
-    }
+      final existingGroup = await groupRepository.getGroup(widget.groupId);
+      if (!mounted) return;
+      if (existingGroup != null) {
+        setState(() => _status = _JoinStatus.alreadyMember);
+        return;
+      }
 
-    final preview = await groupRepository.getInvitePreview(widget.groupId);
-    if (!mounted) return;
-    if (preview == null) {
-      setState(() => _status = _JoinStatus.invalid);
-      return;
-    }
+      final preview = await groupRepository.getInvitePreview(widget.groupId);
+      if (!mounted) return;
+      if (preview == null) {
+        setState(() => _status = _JoinStatus.invalid);
+        return;
+      }
 
-    final existingRequest = await groupRepository.getJoinRequest(
-      groupId: widget.groupId,
-      requesterId: widget.currentUser.userId,
-    );
-    if (!mounted) return;
-    if (existingRequest?.status == GroupJoinRequestStatus.pending) {
+      final existingRequest = await groupRepository.getJoinRequest(
+        groupId: widget.groupId,
+        requesterId: widget.currentUser.userId,
+      );
+      if (!mounted) return;
+      if (existingRequest?.status == GroupJoinRequestStatus.pending) {
+        setState(() {
+          _preview = preview;
+          _status = _JoinStatus.pending;
+        });
+        return;
+      }
+
       setState(() {
         _preview = preview;
-        _status = _JoinStatus.pending;
+        _status = _JoinStatus.ready;
       });
-      return;
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = 'エラーが発生しました: $e';
+        _status = _JoinStatus.error;
+      });
     }
-
-    setState(() {
-      _preview = preview;
-      _status = _JoinStatus.ready;
-    });
   }
 
   Future<void> _requestToJoin() async {
@@ -158,6 +171,13 @@ class _JoinGroupViewState extends ConsumerState<_JoinGroupView> {
         );
       case _JoinStatus.pending:
         return _Message(text: strings.groupJoinPending, strings: strings);
+      case _JoinStatus.error:
+        return _Message(
+          text: _errorMessage ?? 'エラーが発生しました',
+          strings: strings,
+          actionLabel: strings.groupJoinRetry,
+          onAction: _resolve,
+        );
       case _JoinStatus.sent:
         return _Message(text: strings.groupJoinRequestSent, strings: strings);
       case _JoinStatus.ready:

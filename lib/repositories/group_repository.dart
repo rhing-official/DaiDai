@@ -90,6 +90,10 @@ abstract class GroupRepository {
   /// 承認待ちの参加リクエスト一覧（長・モデレーターが見る）。
   Stream<List<GroupJoinRequest>> watchJoinRequests(String groupId);
 
+  /// 自分が送った、承認待ちの参加リクエスト一覧（広場をまたいだcollection
+  /// group検索）。語らいタブの広場一覧に「申請中」として表示するために使う。
+  Stream<List<GroupJoinRequest>> watchMyPendingJoinRequests(String userId);
+
   /// 参加リクエストに応答する。承認の場合はメンバーとして追加する。
   Future<void> respondToJoinRequest({
     required GroupJoinRequest request,
@@ -420,6 +424,18 @@ class FirestoreGroupRepository implements GroupRepository {
   @override
   Stream<List<GroupJoinRequest>> watchJoinRequests(String groupId) {
     return _joinRequestsOf(groupId)
+        .where('status', isEqualTo: GroupJoinRequestStatus.pending.name)
+        .snapshots()
+        .map((snapshot) => snapshot.docs
+            .map((doc) => GroupJoinRequest.fromJson(doc.id, doc.data()))
+            .toList());
+  }
+
+  @override
+  Stream<List<GroupJoinRequest>> watchMyPendingJoinRequests(String userId) {
+    return _firestore
+        .collectionGroup('joinRequests')
+        .where('requesterId', isEqualTo: userId)
         .where('status', isEqualTo: GroupJoinRequestStatus.pending.name)
         .snapshots()
         .map((snapshot) => snapshot.docs
