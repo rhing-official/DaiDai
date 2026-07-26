@@ -127,6 +127,21 @@ class _JoinRequestTile extends ConsumerWidget {
   final GroupJoinRequest request;
   final Strings strings;
 
+  // 以前はawaitもエラーハンドリングも無い投げっぱなしで、失敗しても
+  // ボタンの見た目だけが反応して何も起きていないように見えた（承認・却下が
+  // 実は失敗していても気付けなかった）。エラー時は画面に表示する。
+  Future<void> _respond(BuildContext context, WidgetRef ref, bool accept) async {
+    try {
+      await ref
+          .read(groupRepositoryProvider)
+          .respondToJoinRequest(request: request, accept: accept);
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('エラーが発生しました: $e')));
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return ListTile(
@@ -136,15 +151,11 @@ class _JoinRequestTile extends ConsumerWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           TextButton(
-            onPressed: () => ref
-                .read(groupRepositoryProvider)
-                .respondToJoinRequest(request: request, accept: false),
+            onPressed: () => _respond(context, ref, false),
             child: Text(strings.friendRequestDecline),
           ),
           FilledButton(
-            onPressed: () => ref
-                .read(groupRepositoryProvider)
-                .respondToJoinRequest(request: request, accept: true),
+            onPressed: () => _respond(context, ref, true),
             child: Text(strings.friendRequestAccept),
           ),
         ],
