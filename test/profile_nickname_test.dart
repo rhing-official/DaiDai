@@ -2,6 +2,7 @@ import 'package:daidai/features/profile/profile_tab.dart';
 import 'package:daidai/l10n/app_locale.dart';
 import 'package:daidai/l10n/terminology_style.dart';
 import 'package:daidai/models/app_user.dart';
+import 'package:daidai/models/profile_card.dart';
 import 'package:daidai/models/profile_material.dart';
 import 'package:daidai/providers/app_locale_provider.dart';
 import 'package:daidai/providers/repository_providers.dart';
@@ -92,6 +93,16 @@ class _FakeUserRepository implements UserRepository {
 
   @override
   Future<void> syncInvitePreview(String userId) async {}
+
+  @override
+  Future<void> saveProfileCard(String userId, ProfileCard card) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<void> deleteProfileCard(String userId, String cardId) {
+    throw UnimplementedError();
+  }
 }
 
 void main() {

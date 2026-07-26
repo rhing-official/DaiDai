@@ -155,6 +155,7 @@ class AppUser {
     String? activeStatusMessageId,
     String? activeNicknameId,
     String? activeProfileCardId,
+    bool clearActiveProfileCardId = false,
   }) {
     return AppUser(
       userId: userId,
@@ -172,7 +173,9 @@ class AppUser {
       activeStatusMessageId:
           activeStatusMessageId ?? this.activeStatusMessageId,
       activeNicknameId: activeNicknameId ?? this.activeNicknameId,
-      activeProfileCardId: activeProfileCardId ?? this.activeProfileCardId,
+      activeProfileCardId: clearActiveProfileCardId
+          ? null
+          : (activeProfileCardId ?? this.activeProfileCardId),
     );
   }
 
