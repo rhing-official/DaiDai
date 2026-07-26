@@ -9,6 +9,7 @@ import 'package:flutter_image_compress/flutter_image_compress.dart';
 import '../models/app_user.dart';
 import '../models/profile_material.dart';
 import '../models/user_invite_preview.dart';
+import '../utils/image_format.dart';
 
 abstract class UserRepository {
   Future<AppUser?> getUser(String userId);
@@ -242,9 +243,23 @@ class FirestoreUserRepository implements UserRepository {
     // flutter_image_compressはWindows/Linuxを未対応のため、その場合や
     // 何らかの理由で圧縮に失敗した場合は元のバイトのままアップロードする
     // （圧縮失敗でアップロード自体をブロックしないためのフォールバック）。
-    final compressed = await _tryCompressToWebp(bytes, folder: folder);
-    final extension = compressed != null ? 'webp' : 'jpg';
-    final contentType = compressed != null ? 'image/webp' : 'image/jpeg';
+    // GIFはWebPに圧縮するとアニメーションが失われ1コマの静止画になって
+    // しまうため、圧縮自体をスキップして元のバイトのままアップロードする。
+    final isGif = isGifBytes(bytes);
+    final compressed =
+        isGif ? null : await _tryCompressToWebp(bytes, folder: folder);
+    final String extension;
+    final String contentType;
+    if (isGif) {
+      extension = 'gif';
+      contentType = 'image/gif';
+    } else if (compressed != null) {
+      extension = 'webp';
+      contentType = 'image/webp';
+    } else {
+      extension = 'jpg';
+      contentType = 'image/jpeg';
+    }
     final path = 'profileMaterials/$userId/$folder/$id.$extension';
     final ref = _storage.ref(path);
     await ref.putData(

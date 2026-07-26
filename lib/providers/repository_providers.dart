@@ -9,6 +9,7 @@ import '../repositories/direct_message_repository.dart';
 import '../repositories/friend_repository.dart';
 import '../repositories/group_call_repository.dart';
 import '../repositories/group_repository.dart';
+import '../repositories/link_preview_repository.dart';
 import '../repositories/user_repository.dart';
 
 final authRepositoryProvider = Provider<AuthRepository>((ref) {
@@ -45,6 +46,10 @@ final conversationPrefsRepositoryProvider = Provider<ConversationPrefsRepository
 
 final blockRepositoryProvider = Provider<BlockRepository>((ref) {
   return FirestoreBlockRepository();
+});
+
+final linkPreviewRepositoryProvider = Provider<LinkPreviewRepository>((ref) {
+  return HttpLinkPreviewRepository();
 });
 
 final authStateProvider = StreamProvider<User?>((ref) {

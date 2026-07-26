@@ -20,11 +20,14 @@ service cloud.firestore {
       // サーバー側でも強制する（クライアント側の上限チェックの保険）。
       // フィールドが存在しない場合（古いスキーマのままの書き込みなど）はスキップし、
       // 無関係な更新まで巻き込んでpermission-deniedにならないようにする。
+      // 上限値はlib/models/profile_material.dart・profile_card.dartの
+      // kMaxIcons(5)/kMaxBackgroundImages(3)/kMaxStatusMessages(10)/
+      // kMaxNicknames(10)/kMaxSnsLinks(5)/kMaxProfileCards(3)と一致させること。
       allow update: if request.auth != null && request.auth.uid == userId
-        && (!('icons' in request.resource.data) || request.resource.data.icons.size() <= 2)
+        && (!('icons' in request.resource.data) || request.resource.data.icons.size() <= 5)
         && (!('backgroundImages' in request.resource.data) || request.resource.data.backgroundImages.size() <= 3)
-        && (!('statusMessages' in request.resource.data) || request.resource.data.statusMessages.size() <= 2)
-        && (!('nicknames' in request.resource.data) || request.resource.data.nicknames.size() <= 3)
+        && (!('statusMessages' in request.resource.data) || request.resource.data.statusMessages.size() <= 10)
+        && (!('nicknames' in request.resource.data) || request.resource.data.nicknames.size() <= 10)
         && (!('snsLinks' in request.resource.data) || request.resource.data.snsLinks.size() <= 5)
         && (!('profileCards' in request.resource.data) || request.resource.data.profileCards.size() <= 3);
       allow delete: if false;
