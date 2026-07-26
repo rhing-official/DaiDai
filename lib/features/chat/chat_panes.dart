@@ -424,7 +424,11 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
           case _GroupMenuAction.memberList:
             _showMemberListPopup();
           case _GroupMenuAction.createInvite:
-            GroupInviteDialog.show(context, widget.group.groupId);
+            GroupInviteDialog.show(
+              context,
+              widget.group.groupId,
+              widget.group.profileCard,
+            );
           case _GroupMenuAction.toggleMute:
             ref.read(conversationPrefsRepositoryProvider).setNotificationsMuted(
                   userId: widget.currentUser.userId,
