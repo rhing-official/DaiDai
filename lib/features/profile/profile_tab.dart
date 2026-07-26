@@ -616,7 +616,6 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
     }
     final selectedIndex =
         categories.indexWhere((c) => c.section == selected.section);
-    final previousCategory = selectedIndex > 0 ? categories[selectedIndex - 1] : null;
     final nextCategory = selectedIndex >= 0 && selectedIndex < categories.length - 1
         ? categories[selectedIndex + 1]
         : null;
@@ -626,28 +625,18 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
         constraints: const BoxConstraints(maxWidth: 480),
         child: Padding(
           padding: const EdgeInsets.only(top: 56),
+          // 右スワイプは常に一覧へ戻る（onPreviousを渡さないことで
+          // SwipeBackDetectorの既定フォールバック=onBackを使う）。戻る導線が
+          // スワイプに一本化されたため、以前あった「←＋セクション名」の
+          // 見出し行は表示しない。
           child: SwipeBackDetector(
             onBack: () => setState(() => _selectedSection = null),
-            onPrevious: previousCategory == null
-                ? null
-                : () =>
-                    setState(() => _selectedSection = previousCategory.section),
             onNext: nextCategory == null
                 ? null
                 : () => setState(() => _selectedSection = nextCategory.section),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.arrow_back),
-                  title: Text(
-                    selected.title,
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  onTap: () => setState(() => _selectedSection = null),
-                ),
-                const Divider(height: 1),
                 Expanded(child: _buildContent(selected.section, strings, vocab)),
               ],
             ),

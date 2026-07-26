@@ -479,37 +479,34 @@ void main() {
     expect(find.text('pixiv.net/taro'), findsOneWidget);
   });
 
-  testWidgets('狭い画面のドリルダウン中に横スワイプで隣接カテゴリへ切り替えられる（回帰テスト）', (
+  testWidgets('狭い画面のドリルダウン中に左スワイプで次のカテゴリへ切り替え、右スワイプで一覧へ戻る（回帰テスト）', (
     tester,
   ) async {
     const user = AppUser(userId: 'u1', rhingId: 'taro');
     final repo = _FakeUserRepository();
     await _pumpProfileTabNarrow(tester, user, repo);
 
+    // 工房のカードスロット(Hero: profile-card-slot-*)を目印に、現在
+    // どのセクションが表示されているかを判定する。
+    Finder cardSlotHeroes() => find.byWidgetPredicate(
+          (w) => w is Hero && (w.tag as String).startsWith('profile-card-slot-'),
+        );
+
     // カテゴリ一覧から「工房」（蔵→工房→縁結びの2番目）へドリルダウンする。
     await tester.tap(find.text('工房'));
     await tester.pumpAndSettle();
-    expect(find.text('工房'), findsOneWidget);
+    expect(cardSlotHeroes(), findsWidgets);
 
     // 左スワイプで次のカテゴリ（縁結び）へ。
     await tester.fling(find.byType(SwipeBackDetector), const Offset(-300, 0), 1000);
     await tester.pumpAndSettle();
-    expect(find.text('工房'), findsNothing);
-    expect(find.text('縁結び'), findsOneWidget);
+    expect(cardSlotHeroes(), findsNothing);
+    expect(find.text('招待リンク'), findsOneWidget);
 
-    // 右スワイプで前のカテゴリ（工房）へ戻る。
-    await tester.fling(find.byType(SwipeBackDetector), const Offset(300, 0), 1000);
-    await tester.pumpAndSettle();
-    expect(find.text('工房'), findsOneWidget);
-
-    // さらに右スワイプで前のカテゴリ（蔵）へ。
-    await tester.fling(find.byType(SwipeBackDetector), const Offset(300, 0), 1000);
-    await tester.pumpAndSettle();
-    expect(find.text('蔵'), findsOneWidget);
-
-    // 先頭カテゴリで右スワイプすると、従来通りカテゴリ一覧に戻る。
+    // 右スワイプすると、隣接カテゴリではなく常にカテゴリ一覧へ戻る。
     await tester.fling(find.byType(SwipeBackDetector), const Offset(300, 0), 1000);
     await tester.pumpAndSettle();
     expect(find.byType(SwipeBackDetector), findsNothing);
+    expect(find.text('工房'), findsOneWidget); // 一覧のカテゴリ名として表示される
   });
 }

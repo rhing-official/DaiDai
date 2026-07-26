@@ -41,6 +41,11 @@ class _TalksTabState extends ConsumerState<TalksTab> {
   DirectMessage? _selectedDm;
   Group? _selectedGroup;
 
+  /// 左右分割表示（[_isSplit]）の時、会話ペインを横いっぱいに広げて
+  /// 一覧ペインを隠すか。横長のタブレット等で、固定幅の一覧に会話ペインの
+  /// 幅を圧迫されず全画面で読みたい時のための切り替え。
+  bool _chatExpanded = false;
+
   bool get _isSplit => MediaQuery.sizeOf(context).width >= _kSplitBreakpoint;
 
   void _openDirectMessage(DirectMessage dm) {
@@ -263,11 +268,24 @@ class _TalksTabState extends ConsumerState<TalksTab> {
 
               if (!isSplit) return listPane;
 
+              // 会話ペインでの横スワイプで一覧の表示/非表示を切り替える
+              // （一覧側のスワイプは既に一対⇄広場の切り替えに使っているため、
+              // ここは会話ペインのみに閉じたジェスチャーにする）。
+              // 左スワイプ＝広げる、右スワイプ＝戻す、という他画面と同じ
+              // 「進む/戻る」の向きに合わせている。
+              final detailPane = SwipeBackDetector(
+                onBack: () => setState(() => _chatExpanded = false),
+                onNext: () => setState(() => _chatExpanded = true),
+                child: _buildDetailPane(directMessages, groups),
+              );
+
+              if (_chatExpanded) return detailPane;
+
               return Row(
                 children: [
                   SizedBox(width: 360, child: listPane),
                   const VerticalDivider(width: 1),
-                  Expanded(child: _buildDetailPane()),
+                  Expanded(child: detailPane),
                 ],
               );
             },
@@ -277,10 +295,24 @@ class _TalksTabState extends ConsumerState<TalksTab> {
     );
   }
 
-  Widget _buildDetailPane() {
+  /// 選択中の会話ペインを、その時点の会話一覧（Firestoreの最新スナップショット）
+  /// から解決して構築する。`_selectedDm`/`_selectedGroup`は選択した瞬間の
+  /// スナップショットのままなので、これをそのまま`DmChatPane`/`GroupChatPane`に
+  /// 渡すと、選択後に相手側でプロフィールカード等を更新しても、一覧の再選択や
+  /// 画面再読み込みをするまで古い内容のまま表示され続けてしまう（一覧自体は
+  /// 各StreamBuilderで直接再描画されるため最新化されるが、選択状態はここでしか
+  /// 保持していないため）。選択中IDに一致する最新の要素があればそちらを使う。
+  Widget _buildDetailPane(
+    List<DirectMessage> directMessages,
+    List<Group> groups,
+  ) {
     if (_category == _TalksCategory.dm) {
-      final dm = _selectedDm;
-      if (dm == null) return const _EmptyDetailPlaceholder();
+      final selected = _selectedDm;
+      if (selected == null) return const _EmptyDetailPlaceholder();
+      final dm = directMessages.firstWhere(
+        (d) => d.dmId == selected.dmId,
+        orElse: () => selected,
+      );
       return DmChatPane(
         key: ValueKey('detail-dm-${dm.dmId}'),
         currentUser: widget.currentUser,
@@ -289,8 +321,12 @@ class _TalksTabState extends ConsumerState<TalksTab> {
         onVideoCallPressed: () => _startCall(dm, isVideo: true),
       );
     }
-    final group = _selectedGroup;
-    if (group == null) return const _EmptyDetailPlaceholder();
+    final selected = _selectedGroup;
+    if (selected == null) return const _EmptyDetailPlaceholder();
+    final group = groups.firstWhere(
+      (g) => g.groupId == selected.groupId,
+      orElse: () => selected,
+    );
     return GroupChatPane(
       key: ValueKey('detail-group-${group.groupId}'),
       currentUser: widget.currentUser,

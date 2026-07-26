@@ -126,9 +126,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 left: _chipMargin,
                 top: 0,
                 bottom: 0,
-                child: Center(
-                  child: wrapWithSwipe(
-                    Column(
+                // GestureDetectorをCenterの外側に置くことで、当たり判定を
+                // チップ自体の大きさではなく帯全体（Positionedの領域）に
+                // 広げる。内側だとCenterの中でChild自身のサイズに縮んで
+                // しまい、チップとチップの間の余白でスワイプしても
+                // 反応しなかった。
+                child: wrapWithSwipe(
+                  Center(
+                    child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         for (var i = 0; i < chips.length; i++) ...[
@@ -145,9 +150,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 left: 0,
                 right: 0,
                 bottom: _chipMargin,
-                child: Center(
-                  child: wrapWithSwipe(
-                    Row(
+                child: wrapWithSwipe(
+                  Center(
+                    child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         for (var i = 0; i < chips.length; i++) ...[

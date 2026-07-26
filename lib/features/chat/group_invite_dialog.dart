@@ -11,21 +11,38 @@ import '../../utils/web_link.dart';
 /// 見えるようにするOGP対応は`groupInvites/{groupId}`（公開読み取り可能な
 /// プレビュー用ドキュメント）を通じて別途行う。
 class GroupInviteDialog extends ConsumerWidget {
-  const GroupInviteDialog({required this.groupId, super.key});
+  const GroupInviteDialog({
+    required this.groupId,
+    required this.cacheBust,
+    super.key,
+  });
 
   final String groupId;
+
+  /// リンクURLに付与するキャッシュ回避用のクエリ値。招待URL自体は
+  /// `groupId`のみで決まる固定文字列のため、外部サービス（Discord等）が
+  /// カード編集より前に取得したプレビューをそのURL単位でキャッシュし続け、
+  /// 何時間経っても古いカードのまま表示される問題があった。ダイアログを
+  /// 開くたびに異なる値を付けることで、貼るたびに「新しいURL」として
+  /// 扱われ、必ず最新のプレビューが再取得されるようにする（`groupId`部分は
+  /// 変わらないため、アプリ内の`/join/:groupId`ルーティングやFirestore参照は
+  /// この値を無視して問題なく動作する）。
+  final int cacheBust;
 
   static Future<void> show(BuildContext context, String groupId) {
     return showDialog<void>(
       context: context,
-      builder: (_) => GroupInviteDialog(groupId: groupId),
+      builder: (_) => GroupInviteDialog(
+        groupId: groupId,
+        cacheBust: DateTime.now().millisecondsSinceEpoch,
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final strings = ref.watch(appStringsProvider);
-    final link = buildWebLink('/join/$groupId');
+    final link = buildWebLink('/join/$groupId?v=$cacheBust');
     final colorScheme = Theme.of(context).colorScheme;
 
     return AlertDialog(

@@ -183,7 +183,7 @@ void main() {
     );
   });
 
-  testWidgets('狭い画面のドリルダウン中に横スワイプで隣接カテゴリへ切り替えられる（回帰テスト）', (
+  testWidgets('狭い画面のドリルダウン中に左スワイプで次のカテゴリへ切り替え、右スワイプで一覧へ戻る（回帰テスト）', (
     tester,
   ) async {
     await _pumpSettingsTabNarrow(tester);
@@ -200,19 +200,10 @@ void main() {
     expect(find.text('アクセントカラー'), findsNothing);
     expect(find.text('メッセージの送信キー'), findsOneWidget);
 
-    // 右スワイプで前のカテゴリ（アプリケーション）へ戻る。
-    await tester.fling(find.byType(SwipeBackDetector), const Offset(300, 0), 1000);
-    await tester.pumpAndSettle();
-    expect(find.text('アクセントカラー'), findsOneWidget);
-
-    // さらに右スワイプで前のカテゴリ（アカウント）へ。
-    await tester.fling(find.byType(SwipeBackDetector), const Offset(300, 0), 1000);
-    await tester.pumpAndSettle();
-    expect(find.text('Rhing ID'), findsOneWidget);
-
-    // 先頭カテゴリで右スワイプすると、従来通りカテゴリ一覧に戻る。
+    // 右スワイプすると、隣接カテゴリではなく常にカテゴリ一覧へ戻る。
     await tester.fling(find.byType(SwipeBackDetector), const Offset(300, 0), 1000);
     await tester.pumpAndSettle();
     expect(find.byType(SwipeBackDetector), findsNothing);
+    expect(find.text('アプリケーション'), findsOneWidget); // 一覧のカテゴリ名として表示される
   });
 }
