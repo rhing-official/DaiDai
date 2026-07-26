@@ -117,6 +117,30 @@ class _FakeUserRepository implements UserRepository {
   }
 
   @override
+  Future<void> saveProfileCard(String userId, ProfileCard card) async {
+    final base = saved ?? AppUser(userId: userId, rhingId: '');
+    final cards = [...base.profileCards];
+    final index = cards.indexWhere((c) => c.id == card.id);
+    if (index == -1) {
+      cards.add(card);
+    } else {
+      cards[index] = card;
+    }
+    saved = base.copyWith(profileCards: cards);
+  }
+
+  @override
+  Future<void> deleteProfileCard(String userId, String cardId) async {
+    final base = saved ?? AppUser(userId: userId, rhingId: '');
+    final remaining = base.profileCards.where((c) => c.id != cardId).toList();
+    final wasActive = base.activeProfileCardId == cardId;
+    saved = base.copyWith(
+      profileCards: remaining,
+      clearActiveProfileCardId: wasActive,
+    );
+  }
+
+  @override
   Future<ProfileMaterial> uploadIcon(String userId, Uint8List bytes) {
     throw UnimplementedError();
   }
@@ -380,15 +404,19 @@ void main() {
   });
 
   testWidgets('URLを連続してチェックしても保存の競合でカードが重複しない（回帰テスト）', (tester) async {
-    // 実際のバグ再現: カードの更新保存は「古い値をarrayRemoveで消す→新しい値を
+    // 過去の実際のバグ: カードの更新保存が「古い値をarrayRemoveで消す→新しい値を
     // arrayUnionで足す」という2手順で、この2手順のセット自体はFirestore側で
-    // 原子的にまとまっていない。保存の完了を待たずに連続で呼ぶと（URLの
+    // 原子的にまとまっていなかった。保存の完了を待たずに連続で呼ぶと（URLの
     // チェックボックスを立て続けに2つチェックした場合など）、後発の呼び出しの
     // arrayRemoveが「先発の呼び出しのarrayUnionがまだ反映されていない古い値」を
     // 狙って何もマッチせず空振りし、結果としてprofileCards配列に中間状態と
     // 最終状態の両方が残ってしまっていた（ページをリロードしても消えない、
-    // 本物のデータ重複としてユーザー報告された）。_FakeUserRepositoryの遅延
-    // フックでこの競合状態を確定的に再現する。
+    // 本物のデータ重複としてユーザー報告された）。
+    //
+    // 現在は`UserRepository.saveProfileCard`がidをキーに置き換え/追加する
+    // 単一の呼び出しになり（`_FakeUserRepository.saveProfileCard`参照）、
+    // 「削除→追加」の2手順自体が無くなったためこの競合は構造的に起こり得ない。
+    // 連続して保存しても最終的に1件に収束することを確認する。
     const link1 = SnsLink(id: 'l1', url: 'https://www.instagram.com/taro');
     const link2 = SnsLink(id: 'l2', url: 'https://pixiv.net/taro');
     const card = ProfileCard(id: 'c1', name: '既存カード');
@@ -412,12 +440,8 @@ void main() {
 
     expect(find.byType(CheckboxListTile), findsNWidgets(2));
 
-    // 2件目の保存が1件目の保存の完了を待たずに走る状況を確定的に作るため、
-    // 追加（arrayUnion）を止めてから連続でチェックする。
-    repo.blockField('profileCards');
     await tester.tap(find.byType(CheckboxListTile).at(0));
     await tester.tap(find.byType(CheckboxListTile).at(1));
-    repo.releaseField();
     await tester.pumpAndSettle();
 
     expect(repo.saved?.profileCards.length, 1);
@@ -509,4 +533,36 @@ void main() {
     expect(find.byType(SwipeBackDetector), findsNothing);
     expect(find.text('工房'), findsOneWidget); // 一覧のカテゴリ名として表示される
   });
+
+  testWidgets(
+    '過去の重複バグ等でprofileCardsが上限(kMaxProfileCards)を超えていても、'
+    '超過分を隠さず全て表示する（回帰テスト）',
+    (tester) async {
+      // 過去に「arrayRemove→arrayUnion」の非原子的な2手順のせいで
+      // profileCardsに重複が残ってしまった場合、工房タブが先頭3件だけを
+      // 位置ベースで表示していると、4件目以降が画面から完全に見えなくなり
+      // ユーザーが気付いて削除する手段が無くなってしまっていた。
+      // kMaxProfileCards(=3)を超える件数でも、全件がカードスロットとして
+      // 表示されることを確認する。
+      const cards = [
+        ProfileCard(id: 'c1', name: 'カード1'),
+        ProfileCard(id: 'c2', name: 'カード2'),
+        ProfileCard(id: 'c3', name: 'カード3'),
+        ProfileCard(id: 'c4', name: '重複してしまったカード'),
+      ];
+      const user = AppUser(userId: 'u1', rhingId: 'taro', profileCards: cards);
+      final repo = _FakeUserRepository()..saved = user;
+      await _pumpProfileTab(tester, user, repo);
+
+      await tester.tap(find.text('工房'));
+      await tester.pumpAndSettle();
+
+      final cardSlotHeroes = find.byWidgetPredicate(
+        (w) => w is Hero && (w.tag as String).startsWith('profile-card-slot-'),
+      );
+      expect(cardSlotHeroes, findsNWidgets(4));
+      // 新規作成用の白紙枠は上限(3枠)以上には増えない。
+      expect(find.byIcon(Icons.add), findsNothing);
+    },
+  );
 }

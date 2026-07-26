@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
@@ -66,10 +67,27 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
   /// 再入をブロックして防ぐ。
   bool _cardZoomOpening = false;
 
+  /// 起動時（ログイン時）に一度だけ取得したスナップショットのまま
+  /// `_user`を保持し続けていたため、他端末・他セッションでの変更が
+  /// 画面に反映されず、しかもローカルが把握している「削除すべき古い値」が
+  /// サーバーの実データと食い違うことで工房カードの重複が起きる一因にも
+  /// なっていた。Firestoreの変更をリアルタイムに購読し、`_user`を
+  /// 常に最新へ追従させる。
+  StreamSubscription<AppUser?>? _userSub;
+
   @override
   void initState() {
     super.initState();
     _user = widget.currentUser;
+    _userSub = _repository.watchUser(widget.currentUser.userId).listen((user) {
+      if (user != null && mounted) setState(() => _user = user);
+    });
+  }
+
+  @override
+  void dispose() {
+    _userSub?.cancel();
+    super.dispose();
   }
 
   UserRepository get _repository => ref.read(userRepositoryProvider);
@@ -413,8 +431,7 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
           ],
         );
       });
-      await _removeFromList('profileCards', card.toJson());
-      await _addToList('profileCards', updatedCard.toJson());
+      await _saveCardToServer(updatedCard);
     }
   }
 
@@ -423,9 +440,7 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
       setState(() {
         _user = _user.copyWith(profileCards: [..._user.profileCards, card]);
       });
-      await _addToList('profileCards', card.toJson());
     } else {
-      final previous = _user.profileCards.firstWhere((c) => c.id == card.id);
       setState(() {
         _user = _user.copyWith(
           profileCards: [
@@ -434,25 +449,36 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
           ],
         );
       });
-      // ProfileCardは配列内の値そのもので一致判定するarrayUnion/arrayRemoveの
-      // 対象になるため、編集は「古い値を削除」→「新しい値を追加」の2手順で行う。
-      await _removeFromList('profileCards', previous.toJson());
-      await _addToList('profileCards', card.toJson());
+    }
+    await _saveCardToServer(card);
+  }
+
+  /// [UserRepository.saveProfileCard]はFirestoreのトランザクションでidを
+  /// キーに置き換え/追加するため、新規作成・既存編集どちらも同じ呼び出しで
+  /// 済む（以前は編集時だけ「削除→追加」の2手順が必要で、これが非原子的な
+  /// ことに起因する重複作成バグの原因になっていた）。
+  Future<void> _saveCardToServer(ProfileCard card) async {
+    try {
+      await _repository.saveProfileCard(_user.userId, card);
+    } catch (e) {
+      _showError('${ref.read(appStringsProvider).profileSaveError}: $e');
     }
   }
 
   Future<void> _deleteCard(ProfileCard card) async {
     final wasActive = _user.activeProfileCardId == card.id;
     final remaining = _user.profileCards.where((c) => c.id != card.id).toList();
-    final nextActiveId = wasActive ? null : _user.activeProfileCardId;
     setState(() {
       _user = _user.copyWith(
         profileCards: remaining,
-        activeProfileCardId: nextActiveId,
+        clearActiveProfileCardId: wasActive,
       );
     });
-    await _removeFromList('profileCards', card.toJson());
-    if (wasActive) await _setField('activeProfileCardId', null);
+    try {
+      await _repository.deleteProfileCard(_user.userId, card.id);
+    } catch (e) {
+      _showError('${ref.read(appStringsProvider).profileSaveError}: $e');
+    }
   }
 
   Future<void> _setActiveCard(String cardId) async {
@@ -833,6 +859,9 @@ class _KuraView extends StatelessWidget {
 /// 工房タブ: 蔵の素材を組み合わせた最大[kMaxProfileCards]枚のプロフィールカード。
 /// 常に[kMaxProfileCards]枠を表示し、未作成の枠は「+」付きの白紙カードとして
 /// 表示する。どの枠をタップしても選択画面（[_ProfileCardEditorDialog]）が開く。
+/// 実際のカード数が[kMaxProfileCards]を超えている場合（過去の不具合等による
+/// 残留データ）は、超過分を隠さず全て表示する（隠れたまま削除できなくなる
+/// ことを防ぐため）。
 class _WorkshopView extends StatelessWidget {
   const _WorkshopView({
     required this.user,
@@ -880,9 +909,15 @@ class _WorkshopView extends StatelessWidget {
             const gap = 24.0;
             const minCardWidth = 160.0;
             const maxCardWidth = 640.0;
+            // 通常は常に[kMaxProfileCards]枠だが、過去の不具合等で配列が
+            // それを超えて残っている場合に超過分を画面から隠してしまうと、
+            // ユーザーが気付いて削除する手段が無くなってしまう。表示枠数
+            // 自体は実際のカード数に合わせて広げ、全てのカードを必ず
+            // 表示・削除できるようにする（新規作成用の白紙枠は
+            // [kMaxProfileCards]までしか出さない）。
+            final slotCount = max(kMaxProfileCards, user.profileCards.length);
             final rawWidth =
-                (constraints.maxWidth - gap * (kMaxProfileCards - 1)) /
-                kMaxProfileCards;
+                (constraints.maxWidth - gap * (slotCount - 1)) / slotCount;
             if (rawWidth < minCardWidth) {
               final cardWidth = constraints.maxWidth.clamp(
                 minCardWidth,
@@ -891,7 +926,7 @@ class _WorkshopView extends StatelessWidget {
               final cardHeight = cardWidth * 1.25;
               return Column(
                 children: [
-                  for (var i = 0; i < kMaxProfileCards; i++) ...[
+                  for (var i = 0; i < slotCount; i++) ...[
                     if (i > 0) const SizedBox(height: gap),
                     if (i < user.profileCards.length)
                       _WorkshopCardSlot(
@@ -929,7 +964,7 @@ class _WorkshopView extends StatelessWidget {
               // ずれて見えてしまうため、上端をそろえる。
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                for (var i = 0; i < kMaxProfileCards; i++)
+                for (var i = 0; i < slotCount; i++)
                   if (i < user.profileCards.length)
                     _WorkshopCardSlot(
                       index: i,

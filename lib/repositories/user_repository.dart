@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 
 import '../models/app_user.dart';
+import '../models/profile_card.dart';
 import '../models/profile_material.dart';
 import '../models/user_invite_preview.dart';
 import '../utils/image_format.dart';
@@ -47,6 +48,25 @@ abstract class UserRepository {
 
   /// activeIconId等、単一の値を持つフィールドを原子的に更新する。
   Future<void> setProfileField(String userId, String field, String? value);
+
+  /// プロフィールカードを1件、原子的に保存する（新規作成・既存編集の両方に使う）。
+  /// idが一致するカードがあれば置き換え、無ければ追加する。
+  ///
+  /// [addToProfileList]/[removeFromProfileList]は値そのものの完全一致で
+  /// arrayUnion/arrayRemoveするため、カードの編集は「古い値を削除」→
+  /// 「新しい値を追加」という2手順が必要だった。この2手順は原子的でない上、
+  /// ローカルが把握している「削除すべき古い値」がサーバー上の実データと
+  /// 少しでも食い違っていると`arrayRemove`が何もせず素通りしてしまい、
+  /// 古いカードが消えないまま新しいカードだけが追加される＝重複が生まれる
+  /// 不具合が実際に起きていた。このメソッドはFirestoreのトランザクションで
+  /// 保存直前にサーバー上の最新の配列を読み直し、idで置き換えてから書き戻す
+  /// ため、ローカルの状態が古くても重複や消し忘れが起きない。
+  Future<void> saveProfileCard(String userId, ProfileCard card);
+
+  /// プロフィールカードを1件、原子的に削除する。削除対象が現在の
+  /// activeProfileCardIdと一致する場合は、サーバー上の最新の値で判定した上で
+  /// それもあわせてクリアする（ローカルの認識が古い場合の取りこぼし防止）。
+  Future<void> deleteProfileCard(String userId, String cardId);
 
   /// 蔵にアイコン画像をアップロードする。Firestoreへの反映は呼び出し側で
   /// [updateUser]を通じて行うこと。
@@ -160,6 +180,50 @@ class FirestoreUserRepository implements UserRepository {
         field == 'activeProfileCardId') {
       await syncInvitePreview(userId);
     }
+  }
+
+  @override
+  Future<void> saveProfileCard(String userId, ProfileCard card) async {
+    await _firestore.runTransaction((transaction) async {
+      final ref = _users.doc(userId);
+      final snapshot = await transaction.get(ref);
+      final data = snapshot.data();
+      final cards = data == null
+          ? <ProfileCard>[]
+          : AppUser.fromJson(data).profileCards;
+      final index = cards.indexWhere((c) => c.id == card.id);
+      final updated = [...cards];
+      if (index == -1) {
+        updated.add(card);
+      } else {
+        updated[index] = card;
+      }
+      transaction.update(ref, {
+        'profileCards': updated.map((c) => c.toJson()).toList(),
+      });
+    });
+    await syncInvitePreview(userId);
+  }
+
+  @override
+  Future<void> deleteProfileCard(String userId, String cardId) async {
+    await _firestore.runTransaction((transaction) async {
+      final ref = _users.doc(userId);
+      final snapshot = await transaction.get(ref);
+      final data = snapshot.data();
+      if (data == null) return;
+      final user = AppUser.fromJson(data);
+      final remaining =
+          user.profileCards.where((c) => c.id != cardId).toList();
+      final updates = <String, dynamic>{
+        'profileCards': remaining.map((c) => c.toJson()).toList(),
+      };
+      if (user.activeProfileCardId == cardId) {
+        updates['activeProfileCardId'] = null;
+      }
+      transaction.update(ref, updates);
+    });
+    await syncInvitePreview(userId);
   }
 
   /// 招待プレビュー（[UserInvitePreview]）の内容に影響しうる蔵の配列フィールド。
