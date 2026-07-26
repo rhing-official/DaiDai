@@ -4,6 +4,7 @@
   "installCommand": "npm install",
   "rewrites": [
     { "source": "/invite/:rhingId", "destination": "/api/link-preview" },
-    { "source": "/join/:groupId", "destination": "/api/link-preview" }
+    { "source": "/join/:groupId", "destination": "/api/link-preview" },
+    { "source": "/join/:groupId/:cacheBust", "destination": "/api/link-preview" }
   ]
 }
