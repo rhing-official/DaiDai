@@ -2,6 +2,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_web_plugins/url_strategy.dart';
 
 import 'firebase_options.dart';
 import 'l10n/app_locale.dart';
@@ -16,6 +17,13 @@ import 'theme/app_theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // 既定のハッシュURL戦略（例: /#/join/xxx）のままだと、招待リンク
+  // （例: https://.../join/xxx/yyy、ハッシュ無し）を新しいタブで直接開いた際に
+  // go_routerがURLのパス部分をハッシュとして読み取れず、常にルート（語らい
+  // タブ）へフォールバックしてしまっていた（招待リンクを踏んでも語らいが
+  // 開くだけで何も起きない不具合の原因）。パスベースのURL戦略に切り替える。
+  usePathUrlStrategy();
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   final initialAccentColor = await loadInitialAccentColor();
   final initialAppLocale = await loadInitialAppLocale();
