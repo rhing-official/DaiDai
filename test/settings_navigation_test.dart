@@ -11,6 +11,7 @@ import 'package:daidai/models/send_key_mode.dart';
 import 'package:daidai/providers/message_time_format_provider.dart';
 import 'package:daidai/providers/send_key_mode_provider.dart';
 import 'package:daidai/providers/terminology_style_provider.dart';
+import 'package:daidai/providers/theme_mode_provider.dart';
 import 'package:daidai/widgets/swipe_gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -52,6 +53,7 @@ Future<void> _pumpSettingsTab(WidgetTester tester) async {
         initialChatLayoutStyleProvider.overrideWithValue(
           ChatLayoutStyle.sideBySide,
         ),
+        initialAppThemeModeProvider.overrideWithValue(ThemeMode.system),
       ],
       child: const MaterialApp(
         home: Scaffold(
@@ -93,6 +95,7 @@ Future<void> _pumpSettingsTabNarrow(WidgetTester tester) async {
         initialChatLayoutStyleProvider.overrideWithValue(
           ChatLayoutStyle.sideBySide,
         ),
+        initialAppThemeModeProvider.overrideWithValue(ThemeMode.system),
       ],
       child: const MaterialApp(
         home: Scaffold(
