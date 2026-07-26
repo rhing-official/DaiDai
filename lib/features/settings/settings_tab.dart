@@ -11,6 +11,7 @@ import '../../models/message_time_format.dart';
 import '../../models/send_key_mode.dart';
 import '../../providers/accent_color_provider.dart';
 import '../../providers/app_locale_provider.dart';
+import '../../providers/block_providers.dart';
 import '../../providers/chat_layout_style_provider.dart';
 import '../../providers/message_time_format_provider.dart';
 import '../../providers/repository_providers.dart';
@@ -162,6 +163,13 @@ List<_SettingsCategory> _categories(
       icon: Icons.tune,
       title: strings.settingsFolderApplication,
       pageBuilder: (context) => _ApplicationPage(strings: strings),
+    ),
+    _SettingsCategory(
+      id: 'talk',
+      icon: Icons.forum_outlined,
+      title: strings.settingsFolderTalk,
+      pageBuilder: (context) =>
+          _TalkPage(strings: strings, currentUser: currentUser),
     ),
     _SettingsCategory(
       id: 'input',
@@ -813,6 +821,119 @@ class _TimeFormatFolder extends ConsumerWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// 語らいカテゴリの中身。現状はブロックしたユーザーの一覧・解除のみ。
+class _TalkPage extends StatelessWidget {
+  const _TalkPage({required this.strings, required this.currentUser});
+
+  final Strings strings;
+  final AppUser currentUser;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.only(bottom: 24),
+      children: [
+        _SectionHeader(strings.settingsBlockedUsersTitle),
+        _BlockedUsersFolder(strings: strings, currentUser: currentUser),
+      ],
+    );
+  }
+}
+
+/// ブロックしたユーザーの一覧＋解除ボタン。一対のハンバーガーメニューから
+/// ブロックした相手（`users/{userId}/blockedUsers`）をここにまとめて表示する。
+class _BlockedUsersFolder extends ConsumerWidget {
+  const _BlockedUsersFolder({required this.strings, required this.currentUser});
+
+  final Strings strings;
+  final AppUser currentUser;
+
+  Future<void> _unblock(
+    BuildContext context,
+    WidgetRef ref,
+    String targetUserId,
+  ) async {
+    try {
+      await ref.read(blockRepositoryProvider).unblock(
+            userId: currentUser.userId,
+            targetUserId: targetUserId,
+          );
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('エラーが発生しました: $e')));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final blockedIdsAsync =
+        ref.watch(blockedUserIdsProvider(currentUser.userId));
+
+    return blockedIdsAsync.when(
+      loading: () => const Padding(
+        padding: EdgeInsets.all(24),
+        child: Center(child: CircularProgressIndicator()),
+      ),
+      error: (e, _) => Padding(
+        padding: const EdgeInsets.all(16),
+        child: Text('エラーが発生しました: $e'),
+      ),
+      data: (blockedIds) {
+        if (blockedIds.isEmpty) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Text(
+              strings.settingsBlockedUsersEmpty,
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+          );
+        }
+        return FutureBuilder<List<AppUser>>(
+          future: ref
+              .read(userRepositoryProvider)
+              .getUsersByIds(blockedIds.toList()),
+          builder: (context, snapshot) {
+            if (!snapshot.hasData) {
+              return const Padding(
+                padding: EdgeInsets.all(24),
+                child: Center(child: CircularProgressIndicator()),
+              );
+            }
+            final blockedUsers = [...snapshot.data!]
+              ..sort((a, b) => a.rhingId.compareTo(b.rhingId));
+            return Column(
+              children: [
+                for (final user in blockedUsers)
+                  ListTile(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                    leading: CircleAvatar(
+                      backgroundImage: user.effectiveIcon?.url != null
+                          ? NetworkImage(user.effectiveIcon!.url)
+                          : null,
+                      child: user.effectiveIcon?.url == null
+                          ? Text(user.rhingId.isNotEmpty
+                              ? user.rhingId[0].toUpperCase()
+                              : '?')
+                          : null,
+                    ),
+                    title: Text('@${user.rhingId}'),
+                    trailing: TextButton(
+                      onPressed: () => _unblock(context, ref, user.userId),
+                      child: Text(strings.settingsBlockedUsersUnblock),
+                    ),
+                  ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 }

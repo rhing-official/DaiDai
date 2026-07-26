@@ -8,6 +8,7 @@ import '../../models/conversation_prefs.dart';
 import '../../models/direct_message.dart';
 import '../../models/friend_request.dart';
 import '../../models/group.dart';
+import '../../providers/block_providers.dart';
 import '../../providers/conversation_prefs_providers.dart';
 import '../../providers/friend_providers.dart';
 import '../../providers/repository_providers.dart';
@@ -178,6 +179,9 @@ class _TalksTabState extends ConsumerState<TalksTab> {
     final prefsById =
         ref.watch(conversationPrefsProvider(widget.currentUser.userId)).value ??
             const {};
+    final blockedIds =
+        ref.watch(blockedUserIdsProvider(widget.currentUser.userId)).value ??
+            const {};
 
     final isSplit = _isSplit;
 
@@ -259,6 +263,7 @@ class _TalksTabState extends ConsumerState<TalksTab> {
                               incomingRequests,
                               outgoingRequests,
                               prefsById,
+                              blockedIds,
                             )
                           : _buildGroups(groupSnapshot, groups, prefsById),
                     ),
@@ -340,13 +345,20 @@ class _TalksTabState extends ConsumerState<TalksTab> {
     List<FriendRequest> incomingRequests,
     List<FriendRequest> outgoingRequests,
     Map<String, ConversationPrefs> prefsById,
+    Set<String> blockedIds,
   ) {
     if (snapshot.connectionState == ConnectionState.waiting &&
         incomingRequests.isEmpty &&
         outgoingRequests.isEmpty) {
       return const Center(child: CircularProgressIndicator());
     }
-    if (directMessages.isEmpty &&
+    // ブロックした相手は一対の一覧から非表示にする（会話・ブロック状態自体は
+    // 保持したまま、一覧に出さないだけ。ブロック解除は設定＞語らいから行う）。
+    final visibleDms = directMessages
+        .where((dm) =>
+            !blockedIds.contains(dm.otherUserId(widget.currentUser.userId)))
+        .toList();
+    if (visibleDms.isEmpty &&
         incomingRequests.isEmpty &&
         outgoingRequests.isEmpty) {
       final dmTerm = ref.read(vocabularyProvider).dm;
@@ -354,7 +366,7 @@ class _TalksTabState extends ConsumerState<TalksTab> {
     }
 
     final sortedDms = _sortedByPin(
-      directMessages,
+      visibleDms,
       prefsById,
       (dm) => dm.dmId,
     );

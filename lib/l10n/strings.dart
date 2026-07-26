@@ -21,6 +21,10 @@ class Strings {
     required this.settingsFolderLanguage,
     required this.settingsFolderInput,
     required this.settingsFolderNotifications,
+    required this.settingsFolderTalk,
+    required this.settingsBlockedUsersTitle,
+    required this.settingsBlockedUsersEmpty,
+    required this.settingsBlockedUsersUnblock,
     required this.settingsAccentColor,
     required this.settingsColorCode,
     required this.settingsColorPresets,
@@ -177,6 +181,10 @@ class Strings {
   final String settingsFolderLanguage;
   final String settingsFolderInput;
   final String settingsFolderNotifications;
+  final String settingsFolderTalk;
+  final String settingsBlockedUsersTitle;
+  final String settingsBlockedUsersEmpty;
+  final String settingsBlockedUsersUnblock;
   final String settingsAccentColor;
   final String settingsColorCode;
   final String settingsColorPresets;
@@ -350,6 +358,10 @@ class Strings {
     settingsFolderLanguage: '言語',
     settingsFolderInput: '入力',
     settingsFolderNotifications: '通知',
+    settingsFolderTalk: '語らい',
+    settingsBlockedUsersTitle: 'ブロックしたユーザー',
+    settingsBlockedUsersEmpty: 'ブロックしたユーザーはいません',
+    settingsBlockedUsersUnblock: 'ブロック解除',
     settingsAccentColor: 'アクセントカラー',
     settingsColorCode: 'カラーコード',
     settingsColorPresets: 'プリセット',
@@ -512,6 +524,10 @@ class Strings {
     settingsFolderLanguage: 'Language',
     settingsFolderInput: 'Input',
     settingsFolderNotifications: 'Notifications',
+    settingsFolderTalk: 'Talk',
+    settingsBlockedUsersTitle: 'Blocked users',
+    settingsBlockedUsersEmpty: 'No blocked users',
+    settingsBlockedUsersUnblock: 'Unblock',
     settingsAccentColor: 'Accent colour',
     settingsColorCode: 'Colour code',
     settingsColorPresets: 'Presets',
