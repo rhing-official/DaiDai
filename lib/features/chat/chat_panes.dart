@@ -17,6 +17,7 @@ import 'group_leave_dialog.dart';
 import 'group_member_list_screen.dart';
 import 'group_profile_card_screen.dart';
 import 'severance_dialog.dart';
+import 'user_profile_card_dialog.dart';
 
 enum _GroupMenuAction {
   profileCard,
@@ -300,6 +301,20 @@ class GroupChatPane extends ConsumerWidget {
   final AppUser currentUser;
   final Group group;
 
+  /// メッセージの送信者アイコン・呼び名をタップした時に、相手のプロフィール
+  /// カードを開く。一対と違い広場のメンバーは非友達の場合があるため、
+  /// ここから友達申請できるようにする（メンバー一覧からも同じダイアログを開く、
+  /// group_member_list_screen.dart参照）。
+  Future<void> _openProfileCard(
+    BuildContext context,
+    WidgetRef ref,
+    String userId,
+  ) async {
+    final user = await ref.read(userRepositoryProvider).getUser(userId);
+    if (user == null || !context.mounted) return;
+    UserProfileCardDialog.show(context, currentUser: currentUser, user: user);
+  }
+
   Future<void> _handleCallPressed(
     BuildContext context,
     WidgetRef ref, {
@@ -382,6 +397,7 @@ class GroupChatPane extends ConsumerWidget {
       extraActions: [
         _GroupMenuButton(currentUser: currentUser, group: group),
       ],
+      onSenderTap: (userId) => _openProfileCard(context, ref, userId),
     );
   }
 }
