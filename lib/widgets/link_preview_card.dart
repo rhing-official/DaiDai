@@ -32,7 +32,7 @@ class LinkPreviewCard extends ConsumerWidget {
         return Padding(
           padding: const EdgeInsets.only(top: 8),
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 280),
+            constraints: const BoxConstraints(maxWidth: 300),
             child: Material(
               color: colorScheme.surface,
               borderRadius: BorderRadius.circular(12),
@@ -40,12 +40,19 @@ class LinkPreviewCard extends ConsumerWidget {
               child: InkWell(
                 onTap: _open,
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  // 画像はカード幅いっぱいに揃え、高さは元画像の縦横比に
+                  // 応じて可変させる（クロップしない）。縦長・横長どちらの
+                  // 画像でも不自然に切り取られないようにするため、固定の
+                  // アスペクト比・BoxFit.coverは使わない。
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     if (data.image != null)
-                      AspectRatio(
-                        aspectRatio: 1.9,
+                      ConstrainedBox(
+                        // 極端に縦長な画像が語らいの表示を占領しないための
+                        // 安全策。この上限に達したときだけコーナーではなく
+                        // 中央を基準にcoverでクロップする。
+                        constraints: const BoxConstraints(maxHeight: 360),
                         child: Image.network(
                           data.image!,
                           fit: BoxFit.cover,
