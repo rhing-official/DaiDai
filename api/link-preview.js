@@ -28,7 +28,11 @@ module.exports = async (req, res) => {
   const host = req.headers.host;
   const url = new URL(req.url, `https://${host}`);
   const inviteMatch = url.pathname.match(/^\/invite\/([^/]+)\/?$/);
-  const joinMatch = url.pathname.match(/^\/join\/([^/]+)\/?$/);
+  // 招待ダイアログを開くたびに末尾へキャッシュ回避用の値を追加パス
+  // セグメントとして付けたURL（例: /join/xxx/1785000000000）も受け付ける
+  // （group_invite_dialog.dart参照。クエリパラメータでは外部サービス側で
+  // 正規化されてしまい効果が無かったため、パスセグメントに変更した）。
+  const joinMatch = url.pathname.match(/^\/join\/([^/]+)(?:\/([^/]+))?\/?$/);
 
   let title = 'DaiDai';
   let description = '整う、守る、私に馴染む。DaiDai';
@@ -47,12 +51,13 @@ module.exports = async (req, res) => {
       }
     } else if (joinMatch) {
       const groupId = decodeURIComponent(joinMatch[1]);
+      const cacheBust = joinMatch[2] ? `&v=${encodeURIComponent(joinMatch[2])}` : '';
       const doc = await fetchFirestoreDoc(`groupInvites/${groupId}`);
       if (doc) {
         title = doc.name || title;
         description = doc.description || 'DaiDaiの広場に参加しましょう';
         image = doc.iconUrl || doc.backgroundImageUrl
-          ? `https://${host}/api/og-image?type=group&id=${encodeURIComponent(groupId)}`
+          ? `https://${host}/api/og-image?type=group&id=${encodeURIComponent(groupId)}${cacheBust}`
           : null;
       }
     }

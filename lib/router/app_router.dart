@@ -147,6 +147,15 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         ),
       ),
       GoRoute(
+        // 招待リンクのOGPキャッシュ回避用に、末尾へタイムスタンプの
+        // 追加パスセグメントを付けたURL（group_invite_dialog.dart参照）。
+        // 実際のアプリ内ルーティングとしては`:groupId`のみを使う。
+        path: '/join/:groupId/:cacheBust',
+        builder: (context, state) => swipeBack(
+          JoinGroupScreen(groupId: state.pathParameters['groupId']!),
+        ),
+      ),
+      GoRoute(
         path: '/call',
         builder: (context, state) {
           final args = state.extra! as CallArgs;
