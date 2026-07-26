@@ -14,7 +14,10 @@ import '../../providers/message_time_format_provider.dart';
 import '../../providers/send_key_mode_provider.dart';
 import '../../providers/user_providers.dart';
 import '../../theme/app_theme_extras.dart';
+import '../../utils/link_detection.dart';
 import '../../utils/message_time.dart';
+import '../../widgets/link_preview_card.dart';
+import '../../widgets/linkified_text.dart';
 
 /// 一対・広場（お部屋）どちらの会話でも使える汎用チャット画面。
 /// メッセージの取得・送信方法は呼び出し元がstream/callbackとして渡す。
@@ -557,11 +560,14 @@ class _MessageRow extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           Flexible(
-            child: Text(
+            child: LinkifiedText(
               message.content,
               style: TextStyle(
                 color: isMe ? colorScheme.onPrimary : colorScheme.onSurfaceVariant,
               ),
+              linkColor: isMe
+                  ? colorScheme.onPrimary
+                  : colorScheme.primary,
             ),
           ),
           if (message.silent) ...[
@@ -653,6 +659,8 @@ class _MessageRow extends ConsumerWidget {
             ),
           );
 
+    final previewUrl = firstUrlIn(message.content);
+
     if (alignRight) {
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: 4),
@@ -665,6 +673,7 @@ class _MessageRow extends ConsumerWidget {
               ?timeText,
               const SizedBox(height: 2),
               bubbleWithReadMark,
+              if (previewUrl != null) LinkPreviewCard(url: previewUrl),
             ],
           ),
         ),
@@ -710,6 +719,7 @@ class _MessageRow extends ConsumerWidget {
                     ?timeText,
                   const SizedBox(height: 2),
                   bubbleWithReadMark,
+                  if (previewUrl != null) LinkPreviewCard(url: previewUrl),
                 ],
               ),
             ),

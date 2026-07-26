@@ -12,6 +12,7 @@ import '../models/group_invite_preview.dart';
 import '../models/group_join_request.dart';
 import '../models/group_profile_card.dart';
 import '../models/message.dart';
+import '../utils/image_format.dart';
 
 abstract class GroupRepository {
   /// 広場を作成する。作成者がowner、他のメンバーはmemberとして登録され、
@@ -287,9 +288,22 @@ class FirestoreGroupRepository implements GroupRepository {
     required Uint8List bytes,
   }) async {
     final id = _groups.doc().id;
-    final compressed = await _tryCompressToWebp(bytes);
-    final extension = compressed != null ? 'webp' : 'jpg';
-    final contentType = compressed != null ? 'image/webp' : 'image/jpeg';
+    // GIFはWebPに圧縮するとアニメーションが失われるため、圧縮をスキップして
+    // 元のバイトのままアップロードする（user_repository.dartの同様の処理を参照）。
+    final isGif = isGifBytes(bytes);
+    final compressed = isGif ? null : await _tryCompressToWebp(bytes);
+    final String extension;
+    final String contentType;
+    if (isGif) {
+      extension = 'gif';
+      contentType = 'image/gif';
+    } else if (compressed != null) {
+      extension = 'webp';
+      contentType = 'image/webp';
+    } else {
+      extension = 'jpg';
+      contentType = 'image/jpeg';
+    }
     final path = 'groupIcons/$groupId/$id.$extension';
     final ref = _storage.ref(path);
     await ref.putData(
@@ -318,9 +332,20 @@ class FirestoreGroupRepository implements GroupRepository {
     required Uint8List bytes,
   }) async {
     final id = _groups.doc().id;
-    final compressed = await _tryCompressToWebp(bytes);
-    final extension = compressed != null ? 'webp' : 'jpg';
-    final contentType = compressed != null ? 'image/webp' : 'image/jpeg';
+    final isGif = isGifBytes(bytes);
+    final compressed = isGif ? null : await _tryCompressToWebp(bytes);
+    final String extension;
+    final String contentType;
+    if (isGif) {
+      extension = 'gif';
+      contentType = 'image/gif';
+    } else if (compressed != null) {
+      extension = 'webp';
+      contentType = 'image/webp';
+    } else {
+      extension = 'jpg';
+      contentType = 'image/jpeg';
+    }
     final path = 'groupBackgrounds/$groupId/$id.$extension';
     final ref = _storage.ref(path);
     await ref.putData(

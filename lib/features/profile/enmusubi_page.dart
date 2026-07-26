@@ -109,20 +109,24 @@ class _EnmusubiPageState extends ConsumerState<EnmusubiPage> {
             const SizedBox(height: 4),
             Text(strings.enmusubiQrDescription),
             const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: colorScheme.outlineVariant),
+            Center(
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: colorScheme.outlineVariant),
+                ),
+                child: QrImageView(data: link, size: 200),
               ),
-              child: QrImageView(data: link, size: 200),
             ),
             const SizedBox(height: 16),
-            OutlinedButton.icon(
-              icon: const Icon(Icons.qr_code_scanner),
-              label: Text(strings.enmusubiScanButton),
-              onPressed: () => _openScanner(context),
+            Center(
+              child: OutlinedButton.icon(
+                icon: const Icon(Icons.qr_code_scanner),
+                label: Text(strings.enmusubiScanButton),
+                onPressed: () => _openScanner(context),
+              ),
             ),
           ],
         ),
