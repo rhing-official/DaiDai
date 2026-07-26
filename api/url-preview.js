@@ -46,16 +46,26 @@ module.exports = async (req, res) => {
     return;
   }
 
-  let html;
-  try {
-    html = await fetchTextWithLimit(parsed.toString());
-  } catch (e) {
-    res.status(200).json({ url: parsed.toString(), title: null, description: null, image: null });
-    return;
-  }
+  const youtubePreview = isYouTubeHost(parsed.hostname)
+    ? await fetchYouTubeOEmbed(parsed.toString())
+    : null;
 
-  const meta = parseOgTags(html);
-  const image = meta.image ? resolveUrl(meta.image, parsed) : null;
+  let meta;
+  let image;
+  if (youtubePreview) {
+    meta = youtubePreview;
+    image = youtubePreview.image;
+  } else {
+    let html;
+    try {
+      html = await fetchTextWithLimit(parsed.toString());
+    } catch (e) {
+      res.status(200).json({ url: parsed.toString(), title: null, description: null, image: null });
+      return;
+    }
+    meta = parseOgTags(html);
+    image = meta.image ? resolveUrl(meta.image, parsed) : null;
+  }
 
   // このAPI自体の応答は毎回外部サイトへ取りに行くと重いため、Vercelのエッジ/
   // ブラウザ双方で短時間キャッシュする（同じURLが同じ語らい内で連続して
@@ -85,6 +95,40 @@ function isDisallowedHost(hostname) {
   return false;
 }
 
+function isYouTubeHost(hostname) {
+  const lower = hostname.toLowerCase();
+  return (
+    lower === 'youtube.com' ||
+    lower === 'www.youtube.com' ||
+    lower === 'm.youtube.com' ||
+    lower === 'youtu.be'
+  );
+}
+
+// YouTubeの動画ページはHTMLスクレイピングだとGDPR同意の中間ページが
+// 返ってくることがあり（Vercel Functionの実行リージョン次第で発生、
+// タイトル・説明文・画像が動画と無関係な汎用的な内容になってしまう
+// 不具合として実際に確認した）、公式のoEmbed APIの方が確実。
+async function fetchYouTubeOEmbed(url) {
+  const endpoint = `https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  try {
+    const response = await fetch(endpoint, { signal: controller.signal });
+    if (!response.ok) return null;
+    const json = await response.json();
+    return {
+      title: json.title ?? null,
+      description: json.author_name ? `投稿者: ${json.author_name}` : null,
+      image: json.thumbnail_url ?? null,
+    };
+  } catch (e) {
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 async function fetchTextWithLimit(url) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
@@ -97,6 +141,9 @@ async function fetchTextWithLimit(url) {
         // クローラーに偽装せず、素直にブラウザ風のUAを名乗る。
         'User-Agent':
           'Mozilla/5.0 (compatible; DaiDaiLinkPreview/1.0; +https://dai-dai-phi.vercel.app)',
+        // Googleのサービス（YouTube含む）はリージョンによってGDPR同意の
+        // 中間ページを返すことがあるため、同意済みのCookieを付けて回避する。
+        Cookie: 'CONSENT=YES+',
       },
     });
     if (!response.ok || !response.body) return '';
