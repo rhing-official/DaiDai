@@ -11,6 +11,16 @@ const FETCH_TIMEOUT_MS = 5000;
 const MAX_BODY_BYTES = 2 * 1024 * 1024; // 2MB読めれば大抵<head>は取得できる
 
 module.exports = async (req, res) => {
+  // このAPIはFlutterクライアントからブラウザのJS（fetch/XHR）経由で直接
+  // 叩かれる。本番デプロイ先（dai-dai-phi.vercel.app）自身から呼ぶ分には
+  // 同一オリジンなので問題ないが、ローカル開発サーバー（localhost:8765等）
+  // から呼ぶと別オリジンへのクロスオリジンリクエストになり、この
+  // ヘッダーが無いとブラウザ側でレスポンスがブロックされる
+  // （実際にローカルでのみプレビューが表示されない不具合として発生した）。
+  // 認証もCookieも使わない公開メタデータ取得のみのAPIのため、
+  // オリジンを問わず許可して問題ない。
+  res.setHeader('Access-Control-Allow-Origin', '*');
+
   const target = req.query.url;
   if (typeof target !== 'string' || !target) {
     res.status(400).json({ error: 'url is required' });
