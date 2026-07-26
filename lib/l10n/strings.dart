@@ -79,6 +79,11 @@ class Strings {
     required this.friendRequestAlreadyFriends,
     required this.friendRequestAccept,
     required this.friendRequestDecline,
+    required this.userProfileCardSendRequest,
+    required this.userProfileCardAcceptRequest,
+    required this.userProfileCardRequestPending,
+    required this.userProfileCardAlreadyFriend,
+    required this.userProfileCardClose,
     required this.friendRequestIncomingSubtitle,
     required this.friendRequestOutgoingSubtitle,
     required this.conversationPin,
@@ -260,6 +265,11 @@ class Strings {
   final String friendRequestAlreadyFriends;
   final String friendRequestAccept;
   final String friendRequestDecline;
+  final String userProfileCardSendRequest;
+  final String userProfileCardAcceptRequest;
+  final String userProfileCardRequestPending;
+  final String userProfileCardAlreadyFriend;
+  final String userProfileCardClose;
   final String friendRequestIncomingSubtitle;
   final String friendRequestOutgoingSubtitle;
   final String conversationPin;
@@ -457,6 +467,11 @@ class Strings {
     friendRequestAlreadyFriends: 'すでに友達です',
     friendRequestAccept: '承認',
     friendRequestDecline: '拒否',
+    userProfileCardSendRequest: '友達申請を送る',
+    userProfileCardAcceptRequest: '友達申請を承認する',
+    userProfileCardRequestPending: '申請中です。相手の承認をお待ちください',
+    userProfileCardAlreadyFriend: '友達です',
+    userProfileCardClose: '閉じる',
     friendRequestIncomingSubtitle: '相手から申請が届いています',
     friendRequestOutgoingSubtitle: '相手の承認を待っています',
     conversationPin: 'ピン留め',
@@ -650,6 +665,11 @@ class Strings {
     friendRequestAlreadyFriends: 'Already friends',
     friendRequestAccept: 'Accept',
     friendRequestDecline: 'Decline',
+    userProfileCardSendRequest: 'Send friend request',
+    userProfileCardAcceptRequest: 'Accept friend request',
+    userProfileCardRequestPending: 'Request sent. Waiting for approval.',
+    userProfileCardAlreadyFriend: 'Friends',
+    userProfileCardClose: 'Close',
     friendRequestIncomingSubtitle: 'They sent you a friend request',
     friendRequestOutgoingSubtitle: 'Waiting for them to accept',
     conversationPin: 'Pin',

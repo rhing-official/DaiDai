@@ -29,6 +29,11 @@ abstract class FriendRepository {
   Stream<List<Friend>> watchFriends(String userId);
 
   Future<bool> isFriend({required String userId, required String otherUserId});
+
+  /// 2人の間の友達申請ドキュメントを1回だけ取得する（無ければnull）。
+  /// 相手のプロフィールカードを開いた際に、既に友達か・申請中か・
+  /// 相手から申請が届いているかを判定するために使う。
+  Future<FriendRequest?> getRequest(String userIdA, String userIdB);
 }
 
 class FirestoreFriendRepository implements FriendRepository {
@@ -174,5 +179,13 @@ class FirestoreFriendRepository implements FriendRepository {
   }) async {
     final doc = await _friendsOf(userId).doc(otherUserId).get();
     return doc.exists;
+  }
+
+  @override
+  Future<FriendRequest?> getRequest(String userIdA, String userIdB) async {
+    final requestId = FriendRequest.idFor(userIdA, userIdB);
+    final doc = await _requests.doc(requestId).get();
+    if (!doc.exists) return null;
+    return FriendRequest.fromJson(requestId, doc.data()!);
   }
 }

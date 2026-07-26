@@ -34,6 +34,7 @@ class ChatScreen extends ConsumerStatefulWidget {
     this.readReceiptsEnabled = true,
     this.onMarkRead,
     this.banner,
+    this.onSenderTap,
     super.key,
   });
 
@@ -66,6 +67,10 @@ class ChatScreen extends ConsumerStatefulWidget {
 
   /// メッセージ一覧の上に常時表示するバナー（例: 絶縁の提案・同意待ち通知）。
   final Widget? banner;
+
+  /// 相手（自分以外）のアイコン・呼び名をタップした時の処理。広場のみ渡す
+  /// （一対の相手は仕組み上必ず既に友達のため不要、DmChatPaneはnullのまま）。
+  final void Function(String userId)? onSenderTap;
 
   @override
   ConsumerState<ChatScreen> createState() => _ChatScreenState();
@@ -294,6 +299,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       readReceiptsEnabled: widget.readReceiptsEnabled,
                       layoutStyle: layoutStyle,
                       isDm: widget.isDm,
+                      onSenderTap: widget.onSenderTap,
                     ),
                   );
                 }
@@ -421,6 +427,7 @@ class _MessageRow extends ConsumerWidget {
     required this.readReceiptsEnabled,
     required this.layoutStyle,
     required this.isDm,
+    this.onSenderTap,
   });
 
   final Message message;
@@ -431,6 +438,7 @@ class _MessageRow extends ConsumerWidget {
   final bool readReceiptsEnabled;
   final ChatLayoutStyle layoutStyle;
   final bool isDm;
+  final void Function(String userId)? onSenderTap;
 
   /// チェックマークバッジ（[badgeContext]）の真下から伸びる形でポップアップを
   /// 表示する。画面全体をグレーアウトしないよう、barrierColorは透明にする
@@ -685,6 +693,16 @@ class _MessageRow extends ConsumerWidget {
       );
     }
 
+    final canTapSender = !isMe && onSenderTap != null;
+    final senderAvatar = _SenderAvatar(
+      userId: message.senderId,
+      rhingId: message.senderRhingId,
+    );
+    final senderName = _SenderName(
+      userId: message.senderId,
+      rhingId: message.senderRhingId,
+    );
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Align(
@@ -694,7 +712,12 @@ class _MessageRow extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             if (showAvatarAndName) ...[
-              _SenderAvatar(userId: message.senderId, rhingId: message.senderRhingId),
+              canTapSender
+                  ? GestureDetector(
+                      onTap: () => onSenderTap!(message.senderId),
+                      child: senderAvatar,
+                    )
+                  : senderAvatar,
               const SizedBox(width: 8),
             ],
             Flexible(
@@ -709,10 +732,12 @@ class _MessageRow extends ConsumerWidget {
                       textBaseline: TextBaseline.alphabetic,
                       children: [
                         Flexible(
-                          child: _SenderName(
-                            userId: message.senderId,
-                            rhingId: message.senderRhingId,
-                          ),
+                          child: canTapSender
+                              ? GestureDetector(
+                                  onTap: () => onSenderTap!(message.senderId),
+                                  child: senderName,
+                                )
+                              : senderName,
                         ),
                         if (timeText != null) ...[
                           const SizedBox(width: 6),

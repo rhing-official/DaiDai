@@ -7,6 +7,7 @@ import '../../models/app_user.dart';
 import '../../models/group.dart';
 import '../../models/group_join_request.dart';
 import '../../providers/repository_providers.dart';
+import 'user_profile_card_dialog.dart';
 
 /// 広場のメンバー一覧（ポップアップの中身）。長・モデレーターには、招待リンクからの
 /// 参加リクエストの承認・却下UIもあわせて表示する。メンバー本体を先に、
@@ -70,6 +71,7 @@ class GroupMemberListPopup extends ConsumerWidget {
                     children: [
                       for (final member in members)
                         _MemberTile(
+                          currentUser: currentUser,
                           user: member,
                           role: group.memberRoles[member.userId] ?? 'member',
                           vocab: vocab,
@@ -166,12 +168,14 @@ class _JoinRequestTile extends ConsumerWidget {
 
 class _MemberTile extends StatelessWidget {
   const _MemberTile({
+    required this.currentUser,
     required this.user,
     required this.role,
     required this.vocab,
     required this.strings,
   });
 
+  final AppUser currentUser;
   final AppUser user;
   final String role;
   final Vocabulary vocab;
@@ -196,6 +200,10 @@ class _MemberTile extends StatelessWidget {
       ),
       title: Text(label),
       trailing: Chip(label: Text(_roleLabel)),
+      // タップすると相手のプロフィールカードを見られ、友達でなければそこから
+      // 友達申請を送れる（chat_screen.dartの送信者アイコンタップと同じ導線）。
+      onTap: () =>
+          UserProfileCardDialog.show(context, currentUser: currentUser, user: user),
     );
   }
 }
