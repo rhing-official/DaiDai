@@ -95,6 +95,18 @@ class Strings {
     required this.conversationBlockedCannotSend,
     required this.conversationReadReceiptsDisable,
     required this.conversationReadReceiptsEnable,
+    required this.conversationReadReceiptsDisableConfirmTitle,
+    required this.conversationReadReceiptsDisableConfirmMessage,
+    required this.conversationReadReceiptsDisableConfirmButton,
+    required this.conversationReadReceiptsProposeDisable,
+    required this.conversationReadReceiptsProposeEnable,
+    required this.conversationReadReceiptsBannerWaitingOff,
+    required this.conversationReadReceiptsBannerWaitingOn,
+    required this.conversationReadReceiptsBannerProposedOff,
+    required this.conversationReadReceiptsBannerProposedOn,
+    required this.conversationReadReceiptsBannerAcceptButton,
+    required this.conversationReadReceiptsBannerDeclineButton,
+    required this.conversationReadReceiptsBannerCancelButton,
     required this.conversationProposeSeverance,
     required this.severanceProposeDialogTitle,
     required this.severanceProposeDialogMessage,
@@ -297,6 +309,18 @@ class Strings {
   final String conversationBlockedCannotSend;
   final String conversationReadReceiptsDisable;
   final String conversationReadReceiptsEnable;
+  final String conversationReadReceiptsDisableConfirmTitle;
+  final String conversationReadReceiptsDisableConfirmMessage;
+  final String conversationReadReceiptsDisableConfirmButton;
+  final String conversationReadReceiptsProposeDisable;
+  final String conversationReadReceiptsProposeEnable;
+  final String conversationReadReceiptsBannerWaitingOff;
+  final String conversationReadReceiptsBannerWaitingOn;
+  final String Function(String senderLabel) conversationReadReceiptsBannerProposedOff;
+  final String Function(String senderLabel) conversationReadReceiptsBannerProposedOn;
+  final String conversationReadReceiptsBannerAcceptButton;
+  final String conversationReadReceiptsBannerDeclineButton;
+  final String conversationReadReceiptsBannerCancelButton;
   final String conversationProposeSeverance;
   final String severanceProposeDialogTitle;
   final String severanceProposeDialogMessage;
@@ -515,6 +539,21 @@ class Strings {
     conversationBlockedCannotSend: 'ブロック中のため送信できません',
     conversationReadReceiptsDisable: '既読オフ',
     conversationReadReceiptsEnable: '既読オン',
+    conversationReadReceiptsDisableConfirmTitle: '既読機能をオフにしますか？',
+    conversationReadReceiptsDisableConfirmMessage:
+        'オフにすると今までの既読履歴が全て消えます。',
+    conversationReadReceiptsDisableConfirmButton: 'オフにする',
+    conversationReadReceiptsProposeDisable: '既読オフを提案する',
+    conversationReadReceiptsProposeEnable: '既読オンを提案する',
+    conversationReadReceiptsBannerWaitingOff: '既読機能オフの提案の承認待ちです',
+    conversationReadReceiptsBannerWaitingOn: '既読機能オンの提案の承認待ちです',
+    conversationReadReceiptsBannerProposedOff: (senderLabel) =>
+        '$senderLabelによって既読機能オフに関する操作が行われました。許可しますか？',
+    conversationReadReceiptsBannerProposedOn: (senderLabel) =>
+        '$senderLabelによって既読機能オンに関する操作が行われました。許可しますか？',
+    conversationReadReceiptsBannerAcceptButton: '許可する',
+    conversationReadReceiptsBannerDeclineButton: '許可しない',
+    conversationReadReceiptsBannerCancelButton: '取り消す',
     conversationProposeSeverance: '絶縁を提案',
     severanceProposeDialogTitle: '絶縁を提案しますか？',
     severanceProposeDialogMessage:
@@ -730,6 +769,23 @@ class Strings {
     conversationBlockedCannotSend: "You can't send messages while blocked",
     conversationReadReceiptsDisable: 'Turn off read receipts',
     conversationReadReceiptsEnable: 'Turn on read receipts',
+    conversationReadReceiptsDisableConfirmTitle: 'Turn off read receipts?',
+    conversationReadReceiptsDisableConfirmMessage:
+        'Turning this off will delete all existing read receipt history.',
+    conversationReadReceiptsDisableConfirmButton: 'Turn off',
+    conversationReadReceiptsProposeDisable: 'Propose turning off read receipts',
+    conversationReadReceiptsProposeEnable: 'Propose turning on read receipts',
+    conversationReadReceiptsBannerWaitingOff:
+        'Waiting for approval to turn off read receipts',
+    conversationReadReceiptsBannerWaitingOn:
+        'Waiting for approval to turn on read receipts',
+    conversationReadReceiptsBannerProposedOff: (senderLabel) =>
+        '$senderLabel proposed turning off read receipts. Allow it?',
+    conversationReadReceiptsBannerProposedOn: (senderLabel) =>
+        '$senderLabel proposed turning on read receipts. Allow it?',
+    conversationReadReceiptsBannerAcceptButton: 'Allow',
+    conversationReadReceiptsBannerDeclineButton: "Don't allow",
+    conversationReadReceiptsBannerCancelButton: 'Cancel',
     conversationProposeSeverance: 'Propose severance',
     severanceProposeDialogTitle: 'Propose severance?',
     severanceProposeDialogMessage:

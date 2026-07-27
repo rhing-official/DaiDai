@@ -90,6 +90,15 @@ abstract class GroupRepository {
     required List<String> messageIds,
   });
 
+  /// 既読機能のオン/オフを切り替える（長のみ実行可能、firestore.rulesで
+  /// 強制）。オフにする場合は、`defaultRoomId`の全メッセージ・全メンバー分の
+  /// 既読履歴をサーバーから削除する。再度オンにした場合は新規メッセージの
+  /// 既読記録が新たに始まる（過去分の復元はしない）。
+  Future<void> setReadReceiptsEnabled({
+    required String groupId,
+    required bool enabled,
+  });
+
   /// 広場のプロフィールカードを作成・更新する。メンバー全員が実行できる。
   Future<void> updateProfileCard({
     required String groupId,
@@ -399,6 +408,47 @@ class FirestoreGroupRepository implements GroupRepository {
         }
       }
       await batch.commit();
+    }
+  }
+
+  @override
+  Future<void> setReadReceiptsEnabled({
+    required String groupId,
+    required bool enabled,
+  }) async {
+    final group = await getGroup(groupId);
+    if (group == null) return;
+    await _groups.doc(groupId).update({'readReceiptsEnabled': enabled});
+    if (!enabled) {
+      final messagesRef =
+          _roomRef(groupId, group.defaultRoomId).collection('messages');
+      await _clearAllReadReceipts(messagesRef);
+    }
+  }
+
+  /// [messagesRef]配下の全メッセージの既読履歴（readBy）を空にする。
+  /// 更新後もドキュメントは残り続けるため、`acceptSeverance`の
+  /// （削除により毎回別集合が返ってくる）`.limit(400)`繰り返し取得とは
+  /// 異なり、カーソルで明示的にページを進める必要がある。
+  Future<void> _clearAllReadReceipts(
+    CollectionReference<Map<String, dynamic>> messagesRef,
+  ) async {
+    DocumentSnapshot<Map<String, dynamic>>? cursor;
+    while (true) {
+      var query = messagesRef.orderBy(FieldPath.documentId).limit(400);
+      if (cursor != null) query = query.startAfterDocument(cursor);
+      final snapshot = await query.get();
+      if (snapshot.docs.isEmpty) break;
+      final batch = _firestore.batch();
+      for (final doc in snapshot.docs) {
+        final readBy = doc.data()['readBy'] as List<dynamic>? ?? const [];
+        if (readBy.isNotEmpty) {
+          batch.update(doc.reference, {'readBy': <Map<String, dynamic>>[]});
+        }
+      }
+      await batch.commit();
+      cursor = snapshot.docs.last;
+      if (snapshot.docs.length < 400) break;
     }
   }
 

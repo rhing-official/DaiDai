@@ -92,6 +92,28 @@ abstract class DirectMessageRepository {
     required String currentUserId,
     required String otherUserId,
   });
+
+  /// 既読機能のオン/オフの変更を提案する（一対共有の1つの設定。個人ごとの
+  /// 非公開設定ではない）。提案は常に現在の値を反転させることを意味する。
+  /// 相手が[acceptReadReceiptsToggle]で承認するまで反映されない。
+  Future<void> proposeReadReceiptsToggle({
+    required String dmId,
+    required String userId,
+  });
+
+  /// 既読オン/オフの変更提案を取り消す（自分が提案した場合）、または
+  /// 辞退する（相手からの提案に同意しない場合）。どちらも同じくフラグを
+  /// クリアするだけ。
+  Future<void> cancelReadReceiptsToggleProposal(String dmId);
+
+  /// 相手からの既読オン/オフの変更提案に同意し、実際に反映する。オフに
+  /// する提案だった場合は、続けてこの一対の全メッセージ・両参加者分の
+  /// 既読履歴をサーバーから削除する。[proposeReadReceiptsToggle]した本人
+  /// 以外の参加者のみ呼べる（firestore.rulesで強制）。
+  Future<void> acceptReadReceiptsToggle({
+    required String dmId,
+    required String currentUserId,
+  });
 }
 
 class FirestoreDirectMessageRepository implements DirectMessageRepository {
@@ -386,5 +408,64 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
     // 一対自体は、上記すべての削除を許可する根拠（severanceRequestedBy）を
     // 持っているため、最後に削除する。
     await dmRef.delete();
+  }
+
+  @override
+  Future<void> proposeReadReceiptsToggle({
+    required String dmId,
+    required String userId,
+  }) async {
+    await _directMessages.doc(dmId).update({'readReceiptsProposalBy': userId});
+  }
+
+  @override
+  Future<void> cancelReadReceiptsToggleProposal(String dmId) async {
+    await _directMessages.doc(dmId).update({'readReceiptsProposalBy': null});
+  }
+
+  @override
+  Future<void> acceptReadReceiptsToggle({
+    required String dmId,
+    required String currentUserId,
+  }) async {
+    final dmRef = _directMessages.doc(dmId);
+    final snapshot = await dmRef.get();
+    final data = snapshot.data();
+    final proposedBy = data?['readReceiptsProposalBy'] as String?;
+    if (proposedBy == null || proposedBy == currentUserId) return;
+    final newEnabled = !(data?['readReceiptsEnabled'] as bool? ?? true);
+    await dmRef.update({
+      'readReceiptsEnabled': newEnabled,
+      'readReceiptsProposalBy': null,
+    });
+    if (!newEnabled) {
+      await _clearAllReadReceipts(dmRef.collection('messages'));
+    }
+  }
+
+  /// [messagesRef]配下の全メッセージの既読履歴（readBy）を空にする。
+  /// 更新後もドキュメントは残り続けるため、`acceptSeverance`の
+  /// （削除により毎回別集合が返ってくる）`.limit(400)`繰り返し取得とは
+  /// 異なり、カーソルで明示的にページを進める必要がある。
+  Future<void> _clearAllReadReceipts(
+    CollectionReference<Map<String, dynamic>> messagesRef,
+  ) async {
+    DocumentSnapshot<Map<String, dynamic>>? cursor;
+    while (true) {
+      var query = messagesRef.orderBy(FieldPath.documentId).limit(400);
+      if (cursor != null) query = query.startAfterDocument(cursor);
+      final snapshot = await query.get();
+      if (snapshot.docs.isEmpty) break;
+      final batch = _firestore.batch();
+      for (final doc in snapshot.docs) {
+        final readBy = doc.data()['readBy'] as List<dynamic>? ?? const [];
+        if (readBy.isNotEmpty) {
+          batch.update(doc.reference, {'readBy': <Map<String, dynamic>>[]});
+        }
+      }
+      await batch.commit();
+      cursor = snapshot.docs.last;
+      if (snapshot.docs.length < 400) break;
+    }
   }
 }

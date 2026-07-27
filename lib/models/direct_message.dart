@@ -8,6 +8,8 @@ class DirectMessage {
     required this.participantRhingIds,
     this.lastMessageAt,
     this.severanceRequestedBy,
+    this.readReceiptsEnabled = true,
+    this.readReceiptsProposalBy,
   });
 
   final String dmId;
@@ -21,6 +23,18 @@ class DirectMessage {
   /// [DirectMessageRepository.acceptSeverance]がこのフラグを根拠に
   /// メッセージ・friends・friendRequests・この一対自体を物理削除する。
   final String? severanceRequestedBy;
+
+  /// 既読機能のオン/オフ（一対共有の1つの設定。個人ごとの非公開設定では
+  /// ない）。変更にはどちら向きも相手の承認が必要（[readReceiptsProposalBy]
+  /// 参照）。
+  final bool readReceiptsEnabled;
+
+  /// 既読オン/オフの変更を提案した側のuserId。nullなら提案なし。提案は
+  /// 常に「現在の[readReceiptsEnabled]を反転させる」ことを意味する
+  /// （severanceRequestedByと同じ最小構成。
+  /// [DirectMessageRepository.proposeReadReceiptsToggle]/
+  /// `acceptReadReceiptsToggle`参照）。
+  final String? readReceiptsProposalBy;
 
   /// 自分以外の参加者のuserId。
   String otherUserId(String currentUserId) {
@@ -42,6 +56,8 @@ class DirectMessage {
       ),
       lastMessageAt: json['lastMessageAt'] as Timestamp?,
       severanceRequestedBy: json['severanceRequestedBy'] as String?,
+      readReceiptsEnabled: json['readReceiptsEnabled'] as bool? ?? true,
+      readReceiptsProposalBy: json['readReceiptsProposalBy'] as String?,
     );
   }
 
@@ -51,6 +67,8 @@ class DirectMessage {
       'participantRhingIds': participantRhingIds,
       'lastMessageAt': lastMessageAt,
       'severanceRequestedBy': severanceRequestedBy,
+      'readReceiptsEnabled': readReceiptsEnabled,
+      'readReceiptsProposalBy': readReceiptsProposalBy,
     };
   }
 

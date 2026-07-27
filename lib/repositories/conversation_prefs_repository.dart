@@ -18,12 +18,6 @@ abstract class ConversationPrefsRepository {
     required String conversationId,
     required bool muted,
   });
-
-  Future<void> setReadReceiptsEnabled({
-    required String userId,
-    required String conversationId,
-    required bool enabled,
-  });
 }
 
 class FirestoreConversationPrefsRepository implements ConversationPrefsRepository {
@@ -65,14 +59,4 @@ class FirestoreConversationPrefsRepository implements ConversationPrefsRepositor
         .set({'notificationsMuted': muted}, SetOptions(merge: true));
   }
 
-  @override
-  Future<void> setReadReceiptsEnabled({
-    required String userId,
-    required String conversationId,
-    required bool enabled,
-  }) async {
-    await _prefsOf(userId)
-        .doc(conversationId)
-        .set({'readReceiptsEnabled': enabled}, SetOptions(merge: true));
-  }
 }
