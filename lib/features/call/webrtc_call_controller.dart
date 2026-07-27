@@ -34,7 +34,18 @@ class WebrtcCallController extends ChangeNotifier {
   MediaStream? _localStream;
   StreamSubscription<Call?>? _callSub;
   StreamSubscription<List<Map<String, dynamic>>>? _candidatesSub;
-  bool _answerApplied = false;
+
+  // offer/answerは通話開始時の1回きりではなく、通話中の音声⇔ビデオ切替
+  // （setVideoEnabled参照）のたびに同じフィールドへ上書きされる。
+  // 「新着かどうか」は一意な採番ではなくSDP文字列そのものの差分で判定し、
+  // 自分が直前に書き込んだ値（_pendingLocalXxx）と既に適用済みの値
+  // （_lastAppliedXxx）のどちらとも一致しない場合だけ「相手からの新着」
+  // として扱う。これにより発信/着信・初回接続/再ネゴシエーションを
+  // 問わず同じロジックで扱える。
+  String? _pendingLocalOfferSdp;
+  String? _pendingLocalAnswerSdp;
+  String? _lastAppliedOfferSdp;
+  String? _lastAppliedAnswerSdp;
 
   // setRemoteDescriptionが完了するより先にICE candidateが届くと、
   // addCandidateが例外を投げて無言で失われてしまう競合状態があったため、
@@ -60,6 +71,15 @@ class WebrtcCallController extends ChangeNotifier {
   bool _cameraOff = false;
   bool get cameraOff => _cameraOff;
 
+  /// 現在ビデオ通話として動作しているか（[call.isVideo]は開始時点の値の
+  /// ままなので、通話中の切替を反映する可変の状態として別に持つ）。
+  late bool _isVideo = call.isVideo;
+  bool get isVideo => _isVideo;
+  bool _localRendererInitialized = false;
+
+  bool _switchingCallType = false;
+  bool get switchingCallType => _switchingCallType;
+
   bool _accepting = false;
   bool get accepting => _accepting;
 
@@ -77,7 +97,10 @@ class WebrtcCallController extends ChangeNotifier {
   Future<void> initialize() async {
     try {
       await remoteRenderer.initialize();
-      if (call.isVideo) await localRenderer.initialize();
+      if (call.isVideo) {
+        await localRenderer.initialize();
+        _localRendererInitialized = true;
+      }
 
       // 音声制約はプラットフォームごとの既知の問題を踏まえて
       // webrtc_media_constraints.dartに集約している（本格的なRNNoise統合は
@@ -182,30 +205,84 @@ class WebrtcCallController extends ChangeNotifier {
   Future<void> _startAsCaller() async {
     final offer = await _peerConnection!.createOffer();
     await _peerConnection!.setLocalDescription(offer);
+    _pendingLocalOfferSdp = offer.sdp;
     await _callRepository.setOffer(call.callId, {
       'sdp': offer.sdp,
       'type': offer.type,
     });
+    _startPerpetualWatcher();
+  }
 
+  /// 初回のオファー/アンサー交換が終わった後も含めて、通話が終わるまで
+  /// 継続してcallドキュメントを監視する。offer/answerフィールドは
+  /// 通話開始時の1回だけでなく、通話中の音声⇔ビデオ切替（setVideoEnabled）
+  /// のたびに上書きされるため、「自分が直前に送った値」でも「既に適用済みの
+  /// 値」でもない新しい値が来たら、相手からの新規オファー/アンサーとして
+  /// 都度適用する。発信者・着信者どちらの役割でも同じロジックで扱える。
+  void _startPerpetualWatcher() {
+    _callSub?.cancel();
     _callSub = _callRepository.watchCall(call.callId).listen((updated) async {
       if (updated == null || _isTerminal(updated.status)) {
         _finish();
         return;
       }
-      if (updated.answer != null && !_answerApplied) {
-        _answerApplied = true;
+
+      // 相手が音声⇔ビデオを切り替えた場合、こちらの映像トラックの有無を
+      // 先に合わせておく（この直後に届くオファーのアンサー生成に反映される
+      // ようにするため）。自分が切り替えた場合はsetVideoEnabled内で既に
+      // 一致しているため何もしない。
+      if (updated.isVideo != _isVideo) {
+        await _reconcileLocalVideoTo(updated.isVideo);
+        notifyListeners();
+      }
+
+      final offerSdp = updated.offer?['sdp'] as String?;
+      if (offerSdp != null &&
+          offerSdp != _pendingLocalOfferSdp &&
+          offerSdp != _lastAppliedOfferSdp) {
+        _lastAppliedOfferSdp = offerSdp;
+        await _applyRemoteOfferAndAnswer(updated.offer!);
+      }
+
+      final answerSdp = updated.answer?['sdp'] as String?;
+      if (answerSdp != null &&
+          answerSdp != _pendingLocalAnswerSdp &&
+          answerSdp != _lastAppliedAnswerSdp) {
+        _lastAppliedAnswerSdp = answerSdp;
         await _peerConnection?.setRemoteDescription(
-          RTCSessionDescription(
-            updated.answer!['sdp'] as String,
-            updated.answer!['type'] as String,
-          ),
+          RTCSessionDescription(answerSdp, updated.answer!['type'] as String),
         );
         _flushPendingCandidates();
-        _state = CallConnectionState.active;
+        if (_state != CallConnectionState.active) {
+          _state = CallConnectionState.active;
+          unawaited(_applySpeakerphoneWithRetry());
+        }
+        _switchingCallType = false;
         notifyListeners();
-        unawaited(_applySpeakerphoneWithRetry());
       }
     });
+  }
+
+  /// 相手から届いたオファー（初回接続時、または相手が音声⇔ビデオを
+  /// 切り替えた際の再ネゴシエーション）に対して、アンサーを作って返す。
+  Future<void> _applyRemoteOfferAndAnswer(Map<String, dynamic> offerMap) async {
+    await _peerConnection!.setRemoteDescription(
+      RTCSessionDescription(offerMap['sdp'] as String, offerMap['type'] as String),
+    );
+    _flushPendingCandidates();
+    final answer = await _peerConnection!.createAnswer();
+    await _peerConnection!.setLocalDescription(answer);
+    _pendingLocalAnswerSdp = answer.sdp;
+    await _callRepository.setAnswer(call.callId, {
+      'sdp': answer.sdp,
+      'type': answer.type,
+    });
+    if (_state != CallConnectionState.active) {
+      _state = CallConnectionState.active;
+      unawaited(_applySpeakerphoneWithRetry());
+    }
+    _switchingCallType = false;
+    notifyListeners();
   }
 
   /// 応答前（着信中）に発信者が通話をキャンセル・終了した場合に
@@ -236,26 +313,11 @@ class WebrtcCallController extends ChangeNotifier {
         .firstWhere((c) => c?.offer != null)
         .then((c) => c!.offer);
 
-    await _peerConnection!.setRemoteDescription(
-      RTCSessionDescription(offer!['sdp'] as String, offer['type'] as String),
-    );
-    _flushPendingCandidates();
-    final answer = await _peerConnection!.createAnswer();
-    await _peerConnection!.setLocalDescription(answer);
-    await _callRepository.setAnswer(call.callId, {
-      'sdp': answer.sdp,
-      'type': answer.type,
-    });
-
-    _state = CallConnectionState.active;
-    notifyListeners();
-    unawaited(_applySpeakerphoneWithRetry());
-
-    _callSub = _callRepository.watchCall(call.callId).listen((updated) {
-      if (updated == null || _isTerminal(updated.status)) {
-        _finish();
-      }
-    });
+    // 以後_startPerpetualWatcher()がこの初回オファーを重複適用しないよう、
+    // 適用前にキーを記録しておく。
+    _lastAppliedOfferSdp = offer!['sdp'] as String;
+    await _applyRemoteOfferAndAnswer(offer);
+    _startPerpetualWatcher();
   }
 
   bool _isTerminal(CallStatus status) {
@@ -294,6 +356,85 @@ class WebrtcCallController extends ChangeNotifier {
       track.enabled = !_cameraOff;
     }
     notifyListeners();
+  }
+
+  /// 通話中に音声通話⇔ビデオ通話を切り替える（[toggleCamera]のような
+  /// 「自分のカメラの一時停止」ではなく、映像トラック自体を追加/削除して
+  /// 通話の種別そのものを変える）。音声のみで開始した通話には映像用の
+  /// track/transceiverが最初から存在しないため、[RTCPeerConnection.addTrack]/
+  /// [removeTrack]による再ネゴシエーション（新しいオファー/アンサー交換）が
+  /// 必須になる。
+  ///
+  /// 相手が切り替えた場合は、call.isVideoフィールドの変化を
+  /// _startPerpetualWatcher内で検知して自動的に追従する
+  /// （[_reconcileLocalVideoTo]参照）。
+  Future<void> setVideoEnabled(bool enabled) async {
+    if (enabled == _isVideo ||
+        _switchingCallType ||
+        _state != CallConnectionState.active) {
+      return;
+    }
+    _switchingCallType = true;
+    notifyListeners();
+    try {
+      await _reconcileLocalVideoTo(enabled);
+      notifyListeners();
+      await _callRepository.updateIsVideo(call.callId, enabled);
+      final offer = await _peerConnection!.createOffer();
+      await _peerConnection!.setLocalDescription(offer);
+      _pendingLocalOfferSdp = offer.sdp;
+      await _callRepository.setOffer(call.callId, {
+        'sdp': offer.sdp,
+        'type': offer.type,
+      });
+    } catch (_) {
+      // ネットワーク瞬断等。ボタンを再度有効にし、ユーザーに再試行させる。
+      _switchingCallType = false;
+      notifyListeners();
+    }
+  }
+
+  /// 自分の映像トラックの有無を[targetIsVideo]に合わせる。既に一致していれば
+  /// 何もしない（相手からの通知と自分の操作、両方の経路から呼ばれるため）。
+  Future<void> _reconcileLocalVideoTo(bool targetIsVideo) async {
+    if (targetIsVideo == _isVideo) return;
+    if (targetIsVideo) {
+      await _enableLocalVideoTrack();
+    } else {
+      await _disableLocalVideoTrack();
+    }
+    _isVideo = targetIsVideo;
+  }
+
+  Future<void> _enableLocalVideoTrack() async {
+    final videoStream = await navigator.mediaDevices.getUserMedia({
+      'audio': false,
+      'video': buildVideoConstraints(),
+    });
+    final videoTrack = videoStream.getVideoTracks().first;
+    _localStream?.addTrack(videoTrack);
+    if (!_localRendererInitialized) {
+      await localRenderer.initialize();
+      _localRendererInitialized = true;
+    }
+    localRenderer.srcObject = _localStream;
+    await _peerConnection?.addTrack(videoTrack, _localStream!);
+  }
+
+  Future<void> _disableLocalVideoTrack() async {
+    final videoTracks = [...?_localStream?.getVideoTracks()];
+    final senders = await _peerConnection?.getSenders() ?? [];
+    for (final track in videoTracks) {
+      final sender =
+          senders.firstWhereOrNull((s) => s.track?.id == track.id);
+      if (sender != null) {
+        await _peerConnection?.removeTrack(sender);
+      }
+      _localStream?.removeTrack(track);
+      await track.stop();
+    }
+    localRenderer.srcObject = null;
+    _cameraOff = false;
   }
 
   Future<void> _applySpeakerphone(bool enable) async {

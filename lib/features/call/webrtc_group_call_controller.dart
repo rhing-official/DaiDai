@@ -27,14 +27,23 @@ class WebrtcGroupCallController extends ChangeNotifier {
   WebrtcGroupCallController({
     required this.groupCallId,
     required this.currentUser,
-    required this.isVideo,
+    required bool isVideo,
     required GroupCallRepository groupCallRepository,
-  }) : _repository = groupCallRepository;
+  })  : _isVideo = isVideo,
+        _repository = groupCallRepository;
 
   final String groupCallId;
   final AppUser currentUser;
-  final bool isVideo;
   final GroupCallRepository _repository;
+
+  /// 現在ビデオ通話として動作しているか（通話中の音声⇔ビデオ切替を
+  /// 反映する可変の状態。コンストラクタの`isVideo`は開始時点の初期値）。
+  bool _isVideo;
+  bool get isVideo => _isVideo;
+  bool _localRendererInitialized = false;
+
+  bool _switchingCallType = false;
+  bool get switchingCallType => _switchingCallType;
 
   /// ビデオ通話時の自分のカメラプレビュー用。音声のみの通話では使わない。
   final RTCVideoRenderer localRenderer = RTCVideoRenderer();
@@ -47,7 +56,16 @@ class WebrtcGroupCallController extends ChangeNotifier {
   final Map<String, RTCPeerConnection> _peerConnections = {};
   final Map<String, StreamSubscription> _peerLinkSubs = {};
   final Map<String, StreamSubscription> _peerCandidateSubs = {};
-  final Map<String, bool> _answerApplied = {};
+
+  // peerLink（相手1人ぶんのペア）のoffer/answerフィールドは初回接続時の
+  // 1回きりではなく、通話中の音声⇔ビデオ切替のたびに上書きされる。
+  // 「新着かどうか」は一意な採番ではなくSDP文字列そのものの差分で判定し、
+  // 自分が直前に送った値でも既に適用済みの値でもない場合だけ相手からの
+  // 新規オファー/アンサーとして扱う（1対1のWebrtcCallControllerと同じ設計）。
+  final Map<String, String?> _pendingLocalOfferSdp = {};
+  final Map<String, String?> _pendingLocalAnswerSdp = {};
+  final Map<String, String?> _lastAppliedOfferSdp = {};
+  final Map<String, String?> _lastAppliedAnswerSdp = {};
 
   // setRemoteDescriptionが完了するより先にICE candidateが届くと、
   // addCandidateが例外を投げて無言で失われてしまう競合状態があったため、
@@ -65,6 +83,7 @@ class WebrtcGroupCallController extends ChangeNotifier {
 
   MediaStream? _localStream;
   StreamSubscription<List<CallParticipant>>? _participantsSub;
+  StreamSubscription<dynamic>? _groupCallSub;
   Timer? _presenceTimer;
 
   /// 参加者の入退室ブリップ再生。
@@ -108,17 +127,20 @@ class WebrtcGroupCallController extends ChangeNotifier {
 
   Future<void> initialize() async {
     try {
-      if (isVideo) await localRenderer.initialize();
+      if (_isVideo) {
+        await localRenderer.initialize();
+        _localRendererInitialized = true;
+      }
 
       // 音声制約はプラットフォームごとの既知の問題を踏まえて
       // webrtc_media_constraints.dartに集約している（本格的なRNNoise統合は
       // フェーズ3の別プロジェクト。詳細は会話参照）。
       _localStream = await navigator.mediaDevices.getUserMedia({
         'audio': buildAudioConstraints(),
-        'video': isVideo ? buildVideoConstraints() : false,
+        'video': _isVideo ? buildVideoConstraints() : false,
       });
 
-      if (isVideo) {
+      if (_isVideo) {
         localRenderer.srcObject = _localStream;
       }
 
@@ -143,6 +165,18 @@ class WebrtcGroupCallController extends ChangeNotifier {
 
       _participantsSub =
           _repository.watchParticipants(groupCallId).listen(_onParticipants);
+
+      // 自分以外の参加者が音声⇔ビデオを切り替えた場合に追従するための監視。
+      _groupCallSub = _repository.watchGroupCall(groupCallId).listen((call) async {
+        if (call == null || call.isVideo == _isVideo || _switchingCallType) {
+          return;
+        }
+        _switchingCallType = true;
+        notifyListeners();
+        await _reconcileGroupVideoTo(call.isVideo);
+        _switchingCallType = false;
+        notifyListeners();
+      });
     } catch (e) {
       _error = '通話を開始できませんでした（マイク・カメラの利用を許可してください）: $e';
       _state = GroupCallConnectionState.ended;
@@ -254,52 +288,74 @@ class WebrtcGroupCallController extends ChangeNotifier {
       userBId: otherUserId,
     );
 
-    _answerApplied[pairId] = false;
+    // peerLinkのoffer/answerは初回接続時の1回だけでなく、通話中の音声⇔
+    // ビデオ切替（setVideoEnabled/_reconcileGroupVideoTo参照）のたびに
+    // 上書きされる。「新着かどうか」はSDP文字列の差分で判定し、自分が
+    // 直前に送った値でも既に適用済みの値でもない場合だけ相手からの新規
+    // オファー/アンサーとして扱う。初回接続時のオファー役（userA/userB）は
+    // 同時オファーによる衝突を避けるための決め事に過ぎず、通話中の再
+    // ネゴシエーションはどちらの役割からでも開始できる。
     _peerLinkSubs[otherUserId] = _repository
         .watchPeerLink(groupCallId: groupCallId, pairId: pairId)
         .listen((link) async {
       if (link == null) return;
-      if (isUserA) {
-        if (link.answer != null && _answerApplied[pairId] != true) {
-          _answerApplied[pairId] = true;
-          await peerConnection.setRemoteDescription(
-            RTCSessionDescription(
-              link.answer!['sdp'] as String,
-              link.answer!['type'] as String,
-            ),
-          );
-          _flushPendingCandidates(otherUserId, peerConnection);
-        }
-      } else {
-        if (link.offer != null && _answerApplied[pairId] != true) {
-          _answerApplied[pairId] = true;
-          await peerConnection.setRemoteDescription(
-            RTCSessionDescription(
-              link.offer!['sdp'] as String,
-              link.offer!['type'] as String,
-            ),
-          );
-          _flushPendingCandidates(otherUserId, peerConnection);
-          final answer = await peerConnection.createAnswer();
-          await peerConnection.setLocalDescription(answer);
-          await _repository.setPeerAnswer(
-            groupCallId: groupCallId,
-            pairId: pairId,
-            answer: {'sdp': answer.sdp, 'type': answer.type},
-          );
-        }
+
+      final offerSdp = link.offer?['sdp'] as String?;
+      if (offerSdp != null &&
+          offerSdp != _pendingLocalOfferSdp[otherUserId] &&
+          offerSdp != _lastAppliedOfferSdp[otherUserId]) {
+        _lastAppliedOfferSdp[otherUserId] = offerSdp;
+        await _applyRemotePeerOffer(otherUserId, peerConnection, link.offer!);
+      }
+
+      final answerSdp = link.answer?['sdp'] as String?;
+      if (answerSdp != null &&
+          answerSdp != _pendingLocalAnswerSdp[otherUserId] &&
+          answerSdp != _lastAppliedAnswerSdp[otherUserId]) {
+        _lastAppliedAnswerSdp[otherUserId] = answerSdp;
+        await peerConnection.setRemoteDescription(
+          RTCSessionDescription(answerSdp, link.answer!['type'] as String),
+        );
+        _flushPendingCandidates(otherUserId, peerConnection);
       }
     });
 
     if (isUserA) {
-      final offer = await peerConnection.createOffer();
-      await peerConnection.setLocalDescription(offer);
-      await _repository.setPeerOffer(
-        groupCallId: groupCallId,
-        pairId: pairId,
-        offer: {'sdp': offer.sdp, 'type': offer.type},
-      );
+      await _createAndSendPeerOffer(otherUserId, peerConnection);
     }
+  }
+
+  Future<void> _applyRemotePeerOffer(
+    String otherUserId,
+    RTCPeerConnection peerConnection,
+    Map<String, dynamic> offerMap,
+  ) async {
+    await peerConnection.setRemoteDescription(
+      RTCSessionDescription(offerMap['sdp'] as String, offerMap['type'] as String),
+    );
+    _flushPendingCandidates(otherUserId, peerConnection);
+    final answer = await peerConnection.createAnswer();
+    await peerConnection.setLocalDescription(answer);
+    _pendingLocalAnswerSdp[otherUserId] = answer.sdp;
+    await _repository.setPeerAnswer(
+      groupCallId: groupCallId,
+      pairId: CallPeerLink.idFor(currentUser.userId, otherUserId),
+      answer: {'sdp': answer.sdp, 'type': answer.type},
+    );
+  }
+
+  Future<void> _createAndSendPeerOffer(
+    String otherUserId,
+    RTCPeerConnection peerConnection,
+  ) async {
+    final offer = await peerConnection.createOffer();
+    await peerConnection.setLocalDescription(offer);
+    _pendingLocalOfferSdp[otherUserId] = offer.sdp;
+    await _repository.setPeerOffer(
+      groupCallId: groupCallId,
+      pairId: CallPeerLink.idFor(currentUser.userId, otherUserId),
+      offer: {'sdp': offer.sdp, 'type': offer.type},
+    );
   }
 
   void _applyOrBufferCandidate(
@@ -348,6 +404,10 @@ class WebrtcGroupCallController extends ChangeNotifier {
     _remoteDescriptionSet.remove(otherUserId);
     _pendingRemoteCandidates.remove(otherUserId);
     _appliedCandidateKeys.remove(otherUserId);
+    _pendingLocalOfferSdp.remove(otherUserId);
+    _pendingLocalAnswerSdp.remove(otherUserId);
+    _lastAppliedOfferSdp.remove(otherUserId);
+    _lastAppliedAnswerSdp.remove(otherUserId);
     peerConnectionIssues.remove(otherUserId);
   }
 
@@ -385,6 +445,82 @@ class WebrtcGroupCallController extends ChangeNotifier {
       cameraOff: _cameraOff,
     );
     notifyListeners();
+  }
+
+  /// 通話中に音声通話⇔ビデオ通話を切り替える（1対1の
+  /// `WebrtcCallController.setVideoEnabled`と同じ考え方）。メッシュ型P2Pの
+  /// ため、現在つながっている全てのピアに対して個別に映像トラックの追加/
+  /// 削除と再ネゴシエーション（新しいオファー送信）を行う。
+  Future<void> setVideoEnabled(bool enabled) async {
+    if (enabled == _isVideo || _switchingCallType) return;
+    _switchingCallType = true;
+    notifyListeners();
+    try {
+      await _repository.updateIsVideo(groupCallId: groupCallId, isVideo: enabled);
+      await _reconcileGroupVideoTo(enabled);
+    } catch (_) {
+      // ネットワーク瞬断等。ボタンを再度有効にし、ユーザーに再試行させる。
+    } finally {
+      _switchingCallType = false;
+      notifyListeners();
+    }
+  }
+
+  /// 自分の映像トラックの有無を[target]に合わせ、現在つながっている
+  /// 全ピアに対して新しいオファーを送って再ネゴシエーションする。
+  /// 自分から切り替えた場合（[setVideoEnabled]）・他の参加者の切替に
+  /// 追従する場合（[initialize]内の_groupCallSub）の両方から呼ばれる。
+  /// 既にどちらかが新しいオファーを送っていても、内容が変わっていなければ
+  /// 冗長な再送になるだけで害はない（重複適用はSDP文字列の差分判定で防ぐ）。
+  Future<void> _reconcileGroupVideoTo(bool target) async {
+    if (target == _isVideo) return;
+    if (target) {
+      await _enableLocalVideoTrackForAllPeers();
+    } else {
+      await _disableLocalVideoTrackForAllPeers();
+    }
+    _isVideo = target;
+    notifyListeners();
+    for (final entry in _peerConnections.entries) {
+      await _createAndSendPeerOffer(entry.key, entry.value);
+    }
+  }
+
+  Future<void> _enableLocalVideoTrackForAllPeers() async {
+    if (_localStream?.getVideoTracks().isEmpty ?? true) {
+      final videoStream = await navigator.mediaDevices.getUserMedia({
+        'audio': false,
+        'video': buildVideoConstraints(),
+      });
+      _localStream?.addTrack(videoStream.getVideoTracks().first);
+    }
+    if (!_localRendererInitialized) {
+      await localRenderer.initialize();
+      _localRendererInitialized = true;
+    }
+    localRenderer.srcObject = _localStream;
+    final track = _localStream!.getVideoTracks().first;
+    for (final pc in _peerConnections.values) {
+      await pc.addTrack(track, _localStream!);
+    }
+  }
+
+  Future<void> _disableLocalVideoTrackForAllPeers() async {
+    final videoTracks = [...?_localStream?.getVideoTracks()];
+    for (final pc in _peerConnections.values) {
+      final senders = await pc.getSenders();
+      for (final sender in senders) {
+        if (sender.track?.kind == 'video') {
+          await pc.removeTrack(sender);
+        }
+      }
+    }
+    for (final track in videoTracks) {
+      _localStream?.removeTrack(track);
+      await track.stop();
+    }
+    localRenderer.srcObject = null;
+    _cameraOff = false;
   }
 
   Future<void> _applySpeakerphone(bool enable) async {
@@ -461,6 +597,7 @@ class WebrtcGroupCallController extends ChangeNotifier {
   void dispose() {
     _presenceTimer?.cancel();
     _participantsSub?.cancel();
+    _groupCallSub?.cancel();
     _soundPlayer.dispose();
     for (final userId in [..._peerConnections.keys]) {
       _disconnectFromPeer(userId);

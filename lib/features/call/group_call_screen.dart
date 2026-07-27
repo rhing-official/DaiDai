@@ -78,8 +78,8 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
         if (!didPop) _controller.leave();
       },
       child: Scaffold(
-        backgroundColor: widget.isVideo ? Colors.black : null,
-        body: widget.isVideo ? _videoBody() : _audioBody(),
+        backgroundColor: _controller.isVideo ? Colors.black : null,
+        body: _controller.isVideo ? _videoBody() : _audioBody(),
       ),
     );
   }
@@ -155,7 +155,7 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
             Positioned.fill(
               child: _videoTile(
                 rhingId: widget.currentUser.rhingId,
-                renderer: widget.isVideo ? _controller.localRenderer : null,
+                renderer: _controller.isVideo ? _controller.localRenderer : null,
                 mirror: true,
                 micMuted: _controller.muted,
                 cameraOff: _controller.cameraOff,
@@ -195,7 +195,7 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
         key: 'self',
         tile: _videoTile(
           rhingId: widget.currentUser.rhingId,
-          renderer: widget.isVideo ? _controller.localRenderer : null,
+          renderer: _controller.isVideo ? _controller.localRenderer : null,
           mirror: true,
           micMuted: _controller.muted,
           cameraOff: _controller.cameraOff,
@@ -381,7 +381,17 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
             onPressed: isActive ? _controller.toggleSpeaker : null,
           ),
         ),
-        if (widget.isVideo) ...[
+        Tooltip(
+          message: _controller.isVideo ? '音声通話に切り替える' : 'ビデオ通話に切り替える',
+          child: CallRoundButton(
+            icon: Icons.switch_video,
+            color: Colors.grey[700]!,
+            onPressed: isActive && !_controller.switchingCallType
+                ? () => _controller.setVideoEnabled(!_controller.isVideo)
+                : null,
+          ),
+        ),
+        if (_controller.isVideo) ...[
           CallRoundButton(
             icon: _controller.cameraOff ? Icons.videocam_off : Icons.videocam,
             color: Colors.grey[700]!,

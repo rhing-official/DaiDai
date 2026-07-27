@@ -38,6 +38,16 @@ abstract class GroupCallRepository {
   /// その広場で現在進行中の通話（あれば1件）を監視する。
   Stream<GroupCall?> watchActiveGroupCall(String groupId);
 
+  /// 通話ドキュメント自体（`isVideo`等）の変更を監視する。通話中に誰かが
+  /// 音声⇔ビデオを切り替えた際、自分以外の参加者もそれを検知するために使う。
+  Stream<GroupCall?> watchGroupCall(String groupCallId);
+
+  /// 通話中に音声⇔ビデオを切り替えた際、種別をFirestore側にも反映する。
+  Future<void> updateIsVideo({
+    required String groupCallId,
+    required bool isVideo,
+  });
+
   /// 自分がメンバーになっている広場すべてを横断して、現在進行中の通話一覧を
   /// 監視する（着信バナー表示用）。
   Stream<List<GroupCall>> watchActiveGroupCallsForMember(String userId);
@@ -223,6 +233,22 @@ class FirestoreGroupCallRepository implements GroupCallRepository {
         .map((snapshot) => snapshot.docs
             .map((doc) => GroupCall.fromJson(doc.id, doc.data()))
             .toList());
+  }
+
+  @override
+  Stream<GroupCall?> watchGroupCall(String groupCallId) {
+    return _groupCalls.doc(groupCallId).snapshots().map((doc) {
+      if (!doc.exists) return null;
+      return GroupCall.fromJson(doc.id, doc.data()!);
+    });
+  }
+
+  @override
+  Future<void> updateIsVideo({
+    required String groupCallId,
+    required bool isVideo,
+  }) {
+    return _groupCalls.doc(groupCallId).update({'isVideo': isVideo});
   }
 
   @override
