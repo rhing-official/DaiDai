@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'repository_providers.dart';
+
 const _prefsKey = 'appThemeMode';
 
 /// 端末に保存されている初期の外観設定（ライト/ダーク/端末に合わせる）。
@@ -24,6 +26,19 @@ class AppThemeModeNotifier extends Notifier<ThemeMode> {
   ThemeMode build() => ref.watch(initialAppThemeModeProvider);
 
   Future<void> setMode(ThemeMode mode) async {
+    state = mode;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_prefsKey, mode.name);
+    final userId = ref.read(authStateProvider).value?.uid;
+    if (userId == null) return;
+    await ref
+        .read(userRepositoryProvider)
+        .updateUserPreference(userId, 'themeMode', mode.name);
+  }
+
+  /// ログイン時、Firestoreに保存されている値で端末側を上書きする
+  /// （既にFirestore側にある値の書き戻しは行わない）。
+  Future<void> syncFromRemote(ThemeMode mode) async {
     state = mode;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_prefsKey, mode.name);

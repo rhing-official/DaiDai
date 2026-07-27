@@ -117,6 +117,15 @@ class _FakeUserRepository implements UserRepository {
   }
 
   @override
+  Future<void> updateUserPreference(
+    String userId,
+    String field,
+    Object? value,
+  ) async {
+    throw UnimplementedError();
+  }
+
+  @override
   Future<void> saveProfileCard(String userId, ProfileCard card) async {
     final base = saved ?? AppUser(userId: userId, rhingId: '');
     final cards = [...base.profileCards];
