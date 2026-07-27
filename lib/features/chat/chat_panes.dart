@@ -34,6 +34,36 @@ enum _DmMenuAction {
   proposeSeverance,
 }
 
+/// 既読機能をオフにする方向の操作（広場: 長が直接オフにする／DM: オフを
+/// 提案する・オフの提案を承認する）から共通で呼ぶ確認ダイアログ。
+/// `chat_screen.dart`の`_confirmUnsend`と同じ、キャンセル/エラー色ボタンの形。
+Future<bool> _confirmDisableReadReceipts(
+  BuildContext context,
+  Strings strings,
+) async {
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: Text(strings.conversationReadReceiptsDisableConfirmTitle),
+      content: Text(strings.conversationReadReceiptsDisableConfirmMessage),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: Text(strings.cancel),
+        ),
+        FilledButton(
+          style: FilledButton.styleFrom(
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+          onPressed: () => Navigator.of(context).pop(true),
+          child: Text(strings.conversationReadReceiptsDisableConfirmButton),
+        ),
+      ],
+    ),
+  );
+  return confirmed ?? false;
+}
+
 /// 一対（DM）のChatScreenを組み立てる。相手のアクティブなニックネームを
 /// タイトルに反映するためConsumer化している。go_routerのフルスクリーン遷移と、
 /// TalksTabの分割ビュー（一覧の右隣に埋め込み表示）の両方から使う共通部品。
@@ -66,11 +96,6 @@ class DmChatPane extends ConsumerWidget {
         ref.watch(blockedUserIdsProvider(currentUser.userId)).value ??
             const {};
     final isBlocked = blockedIds.contains(otherUserId);
-    final prefs = ref
-            .watch(conversationPrefsProvider(currentUser.userId))
-            .value ??
-        const <String, ConversationPrefs>{};
-    final readReceiptsEnabled = prefs[dm.dmId]?.readReceiptsEnabled ?? true;
     return ChatScreen(
       key: ValueKey('dm-${dm.dmId}'),
       title: (nickname?.isNotEmpty ?? false) ? nickname! : fallbackTitle,
@@ -105,7 +130,7 @@ class DmChatPane extends ConsumerWidget {
       },
       onCallPressed: onCallPressed,
       onVideoCallPressed: onVideoCallPressed,
-      readReceiptsEnabled: readReceiptsEnabled,
+      readReceiptsEnabled: dm.readReceiptsEnabled,
       onMarkRead: (messageIds) => dmRepository.markMessagesRead(
         dmId: dm.dmId,
         userId: currentUser.userId,
@@ -139,12 +164,24 @@ class DmChatPane extends ConsumerWidget {
           isBlocked: isBlocked,
         ),
       ],
-      banner: dm.severanceRequestedBy == null
+      banner: (dm.severanceRequestedBy == null &&
+              dm.readReceiptsProposalBy == null)
           ? null
-          : _SeveranceBanner(
-              currentUserId: currentUser.userId,
-              dm: dm,
-              otherUserId: otherUserId,
+          : Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (dm.severanceRequestedBy != null)
+                  _SeveranceBanner(
+                    currentUserId: currentUser.userId,
+                    dm: dm,
+                    otherUserId: otherUserId,
+                  ),
+                if (dm.readReceiptsProposalBy != null)
+                  _ReadReceiptsProposalBanner(
+                    currentUserId: currentUser.userId,
+                    dm: dm,
+                  ),
+              ],
             ),
     );
   }
@@ -219,6 +256,89 @@ class _SeveranceBanner extends ConsumerWidget {
   }
 }
 
+/// 既読オン/オフの変更提案・承認待ちを常時表示するバナー（[_SeveranceBanner]
+/// と同じ構造）。提案は常に現在の[DirectMessage.readReceiptsEnabled]を
+/// 反転させることを意味するため、方向（オン/オフどちらへの提案か）は
+/// `!dm.readReceiptsEnabled`から導出する。オフへの提案を承認する場合のみ、
+/// 確定前に既読履歴が消える旨の確認ダイアログを挟む。
+class _ReadReceiptsProposalBanner extends ConsumerWidget {
+  const _ReadReceiptsProposalBanner({
+    required this.currentUserId,
+    required this.dm,
+  });
+
+  final String currentUserId;
+  final DirectMessage dm;
+
+  Future<void> _accept(
+    BuildContext context,
+    WidgetRef ref,
+    Strings strings,
+    bool turningOn,
+  ) async {
+    if (!turningOn) {
+      final confirmed = await _confirmDisableReadReceipts(context, strings);
+      if (!confirmed) return;
+    }
+    await ref.read(directMessageRepositoryProvider).acceptReadReceiptsToggle(
+          dmId: dm.dmId,
+          currentUserId: currentUserId,
+        );
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final strings = ref.watch(appStringsProvider);
+    final colorScheme = Theme.of(context).colorScheme;
+    final isProposedByMe = dm.readReceiptsProposalBy == currentUserId;
+    final turningOn = !dm.readReceiptsEnabled;
+    final otherLabel = '@${dm.otherRhingId(currentUserId)}';
+
+    return Material(
+      color: colorScheme.errorContainer,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                isProposedByMe
+                    ? (turningOn
+                        ? strings.conversationReadReceiptsBannerWaitingOn
+                        : strings.conversationReadReceiptsBannerWaitingOff)
+                    : (turningOn
+                        ? strings.conversationReadReceiptsBannerProposedOn(otherLabel)
+                        : strings.conversationReadReceiptsBannerProposedOff(otherLabel)),
+                style: TextStyle(color: colorScheme.onErrorContainer),
+              ),
+            ),
+            if (isProposedByMe)
+              TextButton(
+                onPressed: () => ref
+                    .read(directMessageRepositoryProvider)
+                    .cancelReadReceiptsToggleProposal(dm.dmId),
+                child: Text(strings.conversationReadReceiptsBannerCancelButton),
+              )
+            else ...[
+              TextButton(
+                onPressed: () => ref
+                    .read(directMessageRepositoryProvider)
+                    .cancelReadReceiptsToggleProposal(dm.dmId),
+                child: Text(strings.conversationReadReceiptsBannerDeclineButton),
+              ),
+              FilledButton(
+                style: FilledButton.styleFrom(backgroundColor: colorScheme.error),
+                onPressed: () => _accept(context, ref, strings, turningOn),
+                child: Text(strings.conversationReadReceiptsBannerAcceptButton),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 /// 一対の「通知オフ・ブロック」をまとめたハンバーガーメニュー（2026-07-25追加）。
 /// 見た目は広場のハンバーガーメニュー（[_GroupMenuButton]）から転用し、
 /// ボタン真下に角丸で開く。一対にはメンバー一覧・プロフィールカードのような
@@ -244,13 +364,12 @@ class _DmMenuButton extends ConsumerWidget {
             .value ??
         const <String, ConversationPrefs>{};
     final muted = prefs[dm.dmId]?.notificationsMuted ?? false;
-    final readReceiptsEnabled = prefs[dm.dmId]?.readReceiptsEnabled ?? true;
 
     return PopupMenuButton<_DmMenuAction>(
       icon: const Icon(Icons.menu),
       position: PopupMenuPosition.under,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      onSelected: (action) {
+      onSelected: (action) async {
         switch (action) {
           case _DmMenuAction.toggleMute:
             ref.read(conversationPrefsRepositoryProvider).setNotificationsMuted(
@@ -272,10 +391,17 @@ class _DmMenuButton extends ConsumerWidget {
               );
             }
           case _DmMenuAction.toggleReadReceipts:
-            ref.read(conversationPrefsRepositoryProvider).setReadReceiptsEnabled(
+            // 既読オン/オフは一対共有の1つの設定で、どちら向きの変更も
+            // 相手の承認が必要（提案は常に現在値の反転を意味する）。
+            // オフにする提案の場合のみ、提案前に警告を出す。
+            if (dm.readReceiptsEnabled) {
+              final confirmed =
+                  await _confirmDisableReadReceipts(context, strings);
+              if (!confirmed) return;
+            }
+            ref.read(directMessageRepositoryProvider).proposeReadReceiptsToggle(
+                  dmId: dm.dmId,
                   userId: currentUser.userId,
-                  conversationId: dm.dmId,
-                  enabled: !readReceiptsEnabled,
                 );
           case _DmMenuAction.proposeSeverance:
             SeveranceDialog.show(
@@ -298,16 +424,17 @@ class _DmMenuButton extends ConsumerWidget {
             isBlocked ? strings.conversationUnblock : strings.conversationBlock,
           ),
         ),
+        // 提案中（相手の承認待ち）は、この操作自体を無効化する
+        // （二重提案を防ぐ。severanceの提案項目と同じ考え方）。
         PopupMenuItem(
           value: _DmMenuAction.toggleReadReceipts,
+          enabled: dm.readReceiptsProposalBy == null,
           child: Text(
-            readReceiptsEnabled
-                ? strings.conversationReadReceiptsDisable
-                : strings.conversationReadReceiptsEnable,
+            dm.readReceiptsEnabled
+                ? strings.conversationReadReceiptsProposeDisable
+                : strings.conversationReadReceiptsProposeEnable,
           ),
         ),
-        // 絶縁の提案・同意待ち中は、この操作自体を無効化する
-        // （二重提案・意図しない再提案を防ぐ）。
         PopupMenuItem(
           value: _DmMenuAction.proposeSeverance,
           enabled: dm.severanceRequestedBy == null,
@@ -386,12 +513,6 @@ class GroupChatPane extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final groupRepository = ref.watch(groupRepositoryProvider);
-    final prefs = ref
-            .watch(conversationPrefsProvider(currentUser.userId))
-            .value ??
-        const <String, ConversationPrefs>{};
-    final readReceiptsEnabled =
-        prefs[group.groupId]?.readReceiptsEnabled ?? true;
     return ChatScreen(
       key: ValueKey('group-${group.groupId}'),
       title: group.name,
@@ -415,7 +536,7 @@ class GroupChatPane extends ConsumerWidget {
       ),
       onCallPressed: () => _handleCallPressed(context, ref, isVideo: false),
       onVideoCallPressed: () => _handleCallPressed(context, ref, isVideo: true),
-      readReceiptsEnabled: readReceiptsEnabled,
+      readReceiptsEnabled: group.readReceiptsEnabled,
       onMarkRead: (messageIds) => groupRepository.markRoomMessagesRead(
         groupId: group.groupId,
         roomId: group.defaultRoomId,
@@ -563,15 +684,14 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
             .value ??
         const <String, ConversationPrefs>{};
     final muted = prefs[widget.group.groupId]?.notificationsMuted ?? false;
-    final readReceiptsEnabled =
-        prefs[widget.group.groupId]?.readReceiptsEnabled ?? true;
+    final readReceiptsEnabled = widget.group.readReceiptsEnabled;
 
     return PopupMenuButton<_GroupMenuAction>(
       key: _buttonKey,
       icon: const Icon(Icons.menu),
       position: PopupMenuPosition.under,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      onSelected: (action) {
+      onSelected: (action) async {
         switch (action) {
           case _GroupMenuAction.profileCard:
             _showProfileCardPopup();
@@ -590,9 +710,17 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
                   muted: !muted,
                 );
           case _GroupMenuAction.toggleReadReceipts:
-            ref.read(conversationPrefsRepositoryProvider).setReadReceiptsEnabled(
-                  userId: widget.currentUser.userId,
-                  conversationId: widget.group.groupId,
+            // 既読機能のオン/オフは長のみ操作可能（firestore.rulesで強制、
+            // メニュー項目自体もisOwnerでない限りenabled: falseにしている）。
+            // オフにする場合のみ、確定前に既読履歴が消える旨を警告する。
+            if (!isOwner) return;
+            if (readReceiptsEnabled) {
+              final confirmed =
+                  await _confirmDisableReadReceipts(context, strings);
+              if (!confirmed) return;
+            }
+            ref.read(groupRepositoryProvider).setReadReceiptsEnabled(
+                  groupId: widget.group.groupId,
                   enabled: !readReceiptsEnabled,
                 );
           case _GroupMenuAction.leave:
@@ -620,8 +748,12 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
           value: _GroupMenuAction.toggleMute,
           child: Text(muted ? strings.conversationUnmute : strings.conversationMute),
         ),
+        // 既読機能のオン/オフは長のみ操作可能。長以外には現在の状態を
+        // 示すラベルとして表示するが、操作はできない（leaveがisOwnerで
+        // 無効化されているのと同じ考え方）。
         PopupMenuItem(
           value: _GroupMenuAction.toggleReadReceipts,
+          enabled: isOwner,
           child: Text(
             readReceiptsEnabled
                 ? strings.conversationReadReceiptsDisable

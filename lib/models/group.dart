@@ -13,6 +13,7 @@ class Group {
     required this.defaultRoomId,
     this.profileCard,
     this.createdAt,
+    this.readReceiptsEnabled = true,
   });
 
   final String groupId;
@@ -22,6 +23,11 @@ class Group {
   /// userId -> role (owner | moderator | member)
   final Map<String, String> memberRoles;
   final String defaultRoomId;
+
+  /// 既読機能のオン/オフ（広場全体・長のみ変更可）。オフにすると
+  /// `defaultRoomId`の全メッセージ・全メンバー分の既読履歴をサーバーから
+  /// 削除する（`GroupRepository.setReadReceiptsEnabled`参照）。
+  final bool readReceiptsEnabled;
 
   /// 広場を代表するプロフィールカード（最大1枚）。未作成ならnull。
   /// メンバー全員が編集できる（`_ProfileTabState`の個人カードとは異なり
@@ -43,6 +49,7 @@ class Group {
           ? GroupProfileCard.fromJson(profileCardJson)
           : null,
       createdAt: json['createdAt'] as Timestamp?,
+      readReceiptsEnabled: json['readReceiptsEnabled'] as bool? ?? true,
     );
   }
 
@@ -55,6 +62,7 @@ class Group {
       'defaultRoomId': defaultRoomId,
       'profileCard': profileCard?.toJson(),
       'createdAt': createdAt ?? FieldValue.serverTimestamp(),
+      'readReceiptsEnabled': readReceiptsEnabled,
     };
   }
 }
