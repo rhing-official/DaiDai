@@ -83,6 +83,7 @@ class _TalksTabState extends ConsumerState<TalksTab> {
     final call = await callRepository.createCall(
       caller: widget.currentUser,
       callee: other,
+      dmId: dm.dmId,
       isVideo: isVideo,
     );
     ref.read(goRouterProvider).push(

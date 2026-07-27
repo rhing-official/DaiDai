@@ -84,6 +84,7 @@ final goRouterProvider = Provider<GoRouter>((ref) {
     final call = await callRepository.createCall(
       caller: currentUser,
       callee: other,
+      dmId: dm.dmId,
       isVideo: isVideo,
     );
     router.push(

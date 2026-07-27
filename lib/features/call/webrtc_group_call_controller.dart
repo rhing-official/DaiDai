@@ -83,7 +83,6 @@ class WebrtcGroupCallController extends ChangeNotifier {
 
   MediaStream? _localStream;
   StreamSubscription<List<CallParticipant>>? _participantsSub;
-  StreamSubscription<dynamic>? _groupCallSub;
   Timer? _presenceTimer;
 
   /// 参加者の入退室ブリップ再生。
@@ -147,6 +146,7 @@ class WebrtcGroupCallController extends ChangeNotifier {
       await _repository.joinGroupCall(
         groupCallId: groupCallId,
         user: currentUser,
+        isVideo: _isVideo,
       );
 
       _state = GroupCallConnectionState.active;
@@ -163,20 +163,11 @@ class WebrtcGroupCallController extends ChangeNotifier {
         notifyListeners();
       });
 
+      // 自分以外の参加者の音声⇔ビデオ状態はCallParticipant.isVideo
+      // （このStream経由で届く）を見るだけで、こちらの映像トラックには
+      // 一切触れない（切替は本人側にのみ適用される。setVideoEnabled参照）。
       _participantsSub =
           _repository.watchParticipants(groupCallId).listen(_onParticipants);
-
-      // 自分以外の参加者が音声⇔ビデオを切り替えた場合に追従するための監視。
-      _groupCallSub = _repository.watchGroupCall(groupCallId).listen((call) async {
-        if (call == null || call.isVideo == _isVideo || _switchingCallType) {
-          return;
-        }
-        _switchingCallType = true;
-        notifyListeners();
-        await _reconcileGroupVideoTo(call.isVideo);
-        _switchingCallType = false;
-        notifyListeners();
-      });
     } catch (e) {
       _error = '通話を開始できませんでした（マイク・カメラの利用を許可してください）: $e';
       _state = GroupCallConnectionState.ended;
@@ -450,13 +441,19 @@ class WebrtcGroupCallController extends ChangeNotifier {
   /// 通話中に音声通話⇔ビデオ通話を切り替える（1対1の
   /// `WebrtcCallController.setVideoEnabled`と同じ考え方）。メッシュ型P2Pの
   /// ため、現在つながっている全てのピアに対して個別に映像トラックの追加/
-  /// 削除と再ネゴシエーション（新しいオファー送信）を行う。
+  /// 削除と再ネゴシエーション（新しいオファー送信）を行う。切り替えは
+  /// 自分側にのみ適用され、他の参加者の映像トラックには一切触れない
+  /// （相手はCallParticipant.isVideoの変化をUI表示にのみ使う）。
   Future<void> setVideoEnabled(bool enabled) async {
     if (enabled == _isVideo || _switchingCallType) return;
     _switchingCallType = true;
     notifyListeners();
     try {
-      await _repository.updateIsVideo(groupCallId: groupCallId, isVideo: enabled);
+      await _repository.updateParticipantState(
+        groupCallId: groupCallId,
+        userId: currentUser.userId,
+        isVideo: enabled,
+      );
       await _reconcileGroupVideoTo(enabled);
     } catch (_) {
       // ネットワーク瞬断等。ボタンを再度有効にし、ユーザーに再試行させる。
@@ -467,11 +464,8 @@ class WebrtcGroupCallController extends ChangeNotifier {
   }
 
   /// 自分の映像トラックの有無を[target]に合わせ、現在つながっている
-  /// 全ピアに対して新しいオファーを送って再ネゴシエーションする。
-  /// 自分から切り替えた場合（[setVideoEnabled]）・他の参加者の切替に
-  /// 追従する場合（[initialize]内の_groupCallSub）の両方から呼ばれる。
-  /// 既にどちらかが新しいオファーを送っていても、内容が変わっていなければ
-  /// 冗長な再送になるだけで害はない（重複適用はSDP文字列の差分判定で防ぐ）。
+  /// 全ピアに対して新しいオファーを送って再ネゴシエーションする
+  /// （[setVideoEnabled]からのみ呼ばれる）。
   Future<void> _reconcileGroupVideoTo(bool target) async {
     if (target == _isVideo) return;
     if (target) {
@@ -597,7 +591,6 @@ class WebrtcGroupCallController extends ChangeNotifier {
   void dispose() {
     _presenceTimer?.cancel();
     _participantsSub?.cancel();
-    _groupCallSub?.cancel();
     _soundPlayer.dispose();
     for (final userId in [..._peerConnections.keys]) {
       _disconnectFromPeer(userId);

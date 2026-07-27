@@ -70,6 +70,12 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
     super.dispose();
   }
 
+  /// 自分か、現在つながっている参加者の誰か1人でもビデオ通話中なら
+  /// ビデオ通話レイアウトを使う（音声⇔ビデオ切替は参加者ごとに独立している
+  /// ため、全員が同じ種別とは限らない）。
+  bool get _anyVideo =>
+      _controller.isVideo || _controller.remoteParticipants.any((p) => p.isVideo);
+
   @override
   Widget build(BuildContext context) {
     return PopScope(
@@ -78,8 +84,8 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
         if (!didPop) _controller.leave();
       },
       child: Scaffold(
-        backgroundColor: _controller.isVideo ? Colors.black : null,
-        body: _controller.isVideo ? _videoBody() : _audioBody(),
+        backgroundColor: _anyVideo ? Colors.black : null,
+        body: _anyVideo ? _videoBody() : _audioBody(),
       ),
     );
   }
@@ -159,6 +165,7 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
                 mirror: true,
                 micMuted: _controller.muted,
                 cameraOff: _controller.cameraOff,
+                videoEnabled: _controller.isVideo,
                 connectionIssue: false,
               ),
             ),
@@ -199,6 +206,7 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
           mirror: true,
           micMuted: _controller.muted,
           cameraOff: _controller.cameraOff,
+          videoEnabled: _controller.isVideo,
           connectionIssue: false,
         ),
       ),
@@ -211,6 +219,7 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
             mirror: false,
             micMuted: participant.micMuted,
             cameraOff: participant.cameraOff,
+            videoEnabled: participant.isVideo,
             connectionIssue:
                 _controller.peerConnectionIssues[participant.userId] ?? false,
           ),
@@ -292,6 +301,7 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
     required bool mirror,
     required bool micMuted,
     required bool cameraOff,
+    required bool videoEnabled,
     required bool connectionIssue,
   }) {
     return Container(
@@ -299,7 +309,7 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          if (!cameraOff && renderer != null)
+          if (videoEnabled && !cameraOff && renderer != null)
             RTCVideoView(
               // Web版のRTCVideoViewはStatefulWidgetで、実描画に使う
               // videoElementをinitState時にしか取得しない。2人通話の

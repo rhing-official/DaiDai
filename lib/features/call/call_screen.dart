@@ -11,8 +11,9 @@ import 'webrtc_call_controller.dart';
 /// 音声・ビデオ通話画面（発信中・着信中・通話中を1画面でまとめて扱う）。
 /// 一対（1対1）限定。開始時点の種別は`call.isVideo`だが、通話中に
 /// [WebrtcCallController.setVideoEnabled]で音声⇔ビデオを切り替えられる
-/// （`_controller.isVideo`が現在の実際の種別）。TURN未導入のためSTUNのみで
-/// 接続する。
+/// （`_controller.isVideo`が自分の現在の種別、`_controller.remoteIsVideo`が
+/// 相手の現在の種別。切替は互いに独立しており、相手を強制的に切り替える
+/// ことはない）。TURN未導入のためSTUNのみで接続する。
 class CallScreen extends ConsumerStatefulWidget {
   const CallScreen({
     required this.call,
@@ -43,6 +44,7 @@ class _CallScreenState extends ConsumerState<CallScreen> {
       call: widget.call,
       isCaller: widget.isCaller,
       callRepository: ref.read(callRepositoryProvider),
+      directMessageRepository: ref.read(directMessageRepositoryProvider),
     );
     _controller.addListener(_onControllerChanged);
     _controller.initialize();
@@ -87,11 +89,18 @@ class _CallScreenState extends ConsumerState<CallScreen> {
     }
   }
 
-  bool get _isVideo => _controller.isVideo;
+  /// 自分が現在ビデオ通話として動作しているか。
+  bool get _myIsVideo => _controller.isVideo;
+
+  /// 相手が現在ビデオ通話として動作しているか。切替は互いに独立している
+  /// ため、片方だけがビデオという状態もありうる（その場合、映像が無い側の
+  /// 表示はカメラオフ時と同じプレースホルダーになる。_videoBody参照）。
+  bool get _remoteIsVideo => _controller.remoteIsVideo;
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final anyVideo = _myIsVideo || _remoteIsVideo;
 
     return PopScope(
       canPop: false,
@@ -99,8 +108,8 @@ class _CallScreenState extends ConsumerState<CallScreen> {
         if (!didPop) _controller.hangUp();
       },
       child: Scaffold(
-        backgroundColor: _isVideo ? Colors.black : colorScheme.surface,
-        body: _isVideo ? _videoBody(colorScheme) : _audioBody(colorScheme),
+        backgroundColor: anyVideo ? Colors.black : colorScheme.surface,
+        body: anyVideo ? _videoBody(colorScheme) : _audioBody(colorScheme),
       ),
     );
   }
@@ -154,6 +163,16 @@ class _CallScreenState extends ConsumerState<CallScreen> {
         ? _controller.localRenderer
         : _controller.remoteRenderer;
 
+    // 音声⇔ビデオの切替は自分・相手それぞれ独立しているため、映像が無い側
+    // （自分がビデオオフ、または相手がビデオオフ）はカメラオフ時と同じ
+    // プレースホルダーで表示する。
+    final mainShowsPlaceholder = _mainViewIsRemote
+        ? !_remoteIsVideo
+        : (!_myIsVideo || _controller.cameraOff);
+    final pipShowsPlaceholder = _mainViewIsRemote
+        ? (!_myIsVideo || _controller.cameraOff)
+        : !_remoteIsVideo;
+
     void swapViews() => setState(() => _mainViewIsRemote = !_mainViewIsRemote);
 
     return Stack(
@@ -161,7 +180,7 @@ class _CallScreenState extends ConsumerState<CallScreen> {
         Positioned.fill(
           child: GestureDetector(
             onTap: swapViews,
-            child: !_mainViewIsRemote && _controller.cameraOff
+            child: mainShowsPlaceholder
                 ? Container(
                     color: Colors.grey.shade900,
                     child: const Center(
@@ -273,7 +292,7 @@ class _CallScreenState extends ConsumerState<CallScreen> {
                           width: 90,
                           height: 130,
                           color: Colors.grey.shade900,
-                          child: _mainViewIsRemote && _controller.cameraOff
+                          child: pipShowsPlaceholder
                               ? const Icon(
                                   Icons.videocam_off,
                                   color: Colors.white54,
@@ -350,16 +369,16 @@ class _CallScreenState extends ConsumerState<CallScreen> {
           ),
         ),
         Tooltip(
-          message: _isVideo ? '音声通話に切り替える' : 'ビデオ通話に切り替える',
+          message: _myIsVideo ? '音声通話に切り替える' : 'ビデオ通話に切り替える',
           child: CallRoundButton(
             icon: Icons.switch_video,
             color: Colors.grey[700]!,
             onPressed: isActive && !_controller.switchingCallType
-                ? () => _controller.setVideoEnabled(!_isVideo)
+                ? () => _controller.setVideoEnabled(!_myIsVideo)
                 : null,
           ),
         ),
-        if (_isVideo) ...[
+        if (_myIsVideo) ...[
           CallRoundButton(
             icon: _controller.cameraOff
                 ? Icons.videocam_off
