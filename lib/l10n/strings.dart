@@ -108,6 +108,11 @@ class Strings {
     required this.severanceBannerDeclineButton,
     required this.severanceBannerAcceptButton,
     required this.readReceiptPopupTitle,
+    required this.chatSelectionModeTitle,
+    required this.chatDeleteSelectedTooltip,
+    required this.chatDeleteConfirmTitle,
+    required this.chatDeleteConfirmMessage,
+    required this.chatDeleteConfirmButton,
     required this.cancel,
     required this.add,
     required this.save,
@@ -294,6 +299,11 @@ class Strings {
   final String severanceBannerDeclineButton;
   final String severanceBannerAcceptButton;
   final String readReceiptPopupTitle;
+  final String Function(int count) chatSelectionModeTitle;
+  final String chatDeleteSelectedTooltip;
+  final String chatDeleteConfirmTitle;
+  final String chatDeleteConfirmMessage;
+  final String chatDeleteConfirmButton;
 
   final String cancel;
   final String add;
@@ -498,6 +508,12 @@ class Strings {
     severanceBannerDeclineButton: '今は同意しない',
     severanceBannerAcceptButton: '同意する',
     readReceiptPopupTitle: '既読',
+    chatSelectionModeTitle: (count) => '$count件選択中',
+    chatDeleteSelectedTooltip: '選択したメッセージを削除',
+    chatDeleteConfirmTitle: 'メッセージを削除しますか？',
+    chatDeleteConfirmMessage:
+        '選択したメッセージがあなたのアカウントから見えなくなります（相手には引き続き見えます）。全員が同じメッセージを削除すると、サーバーからも完全に削除されます。この操作は取り消せません。',
+    chatDeleteConfirmButton: '削除する',
     cancel: 'キャンセル',
     add: '追加',
     save: '保存',
@@ -700,6 +716,15 @@ class Strings {
     severanceBannerDeclineButton: 'Not now',
     severanceBannerAcceptButton: 'Agree',
     readReceiptPopupTitle: 'Read by',
+    chatSelectionModeTitle: (count) => '$count selected',
+    chatDeleteSelectedTooltip: 'Delete selected messages',
+    chatDeleteConfirmTitle: 'Delete these messages?',
+    chatDeleteConfirmMessage:
+        "The selected messages will disappear from your account only "
+        "(others can still see them). Once everyone has deleted the same "
+        "messages, they'll be permanently deleted from the server. This "
+        "can't be undone.",
+    chatDeleteConfirmButton: 'Delete',
     cancel: 'Cancel',
     add: 'Add',
     save: 'Save',

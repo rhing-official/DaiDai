@@ -35,6 +35,7 @@ class ChatScreen extends ConsumerStatefulWidget {
     this.onMarkRead,
     this.banner,
     this.onSenderTap,
+    this.onHideMessages,
     super.key,
   });
 
@@ -72,6 +73,10 @@ class ChatScreen extends ConsumerStatefulWidget {
   /// （一対の相手は仕組み上必ず既に友達のため不要、DmChatPaneはnullのまま）。
   final void Function(String userId)? onSenderTap;
 
+  /// 選択したメッセージを自分のアカウントから見えなくする（範囲選択削除）。
+  /// nullなら選択モード自体を提供しない。
+  final Future<void> Function(List<String> messageIds)? onHideMessages;
+
   @override
   ConsumerState<ChatScreen> createState() => _ChatScreenState();
 }
@@ -83,6 +88,63 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// 既に既読リクエストを送った（または送信中の）メッセージIDの集合。
   /// Firestoreからの再送信のたびに同じメッセージへ既読を送り直さないための重複防止。
   final _markedReadIds = <String>{};
+
+  /// メッセージの範囲選択削除モード。1件を長押しすると入り、以降はタップで
+  /// 選択のオン/オフを切り替える（連続していない複数選択も可能）。
+  bool _selecting = false;
+  final _selectedMessageIds = <String>{};
+
+  void _enterSelectionMode(String messageId) {
+    setState(() {
+      _selecting = true;
+      _selectedMessageIds
+        ..clear()
+        ..add(messageId);
+    });
+  }
+
+  void _toggleSelected(String messageId) {
+    setState(() {
+      if (!_selectedMessageIds.remove(messageId)) {
+        _selectedMessageIds.add(messageId);
+      }
+    });
+  }
+
+  void _exitSelectionMode() {
+    setState(() {
+      _selecting = false;
+      _selectedMessageIds.clear();
+    });
+  }
+
+  Future<void> _confirmDeleteSelected() async {
+    final strings = ref.read(appStringsProvider);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(strings.chatDeleteConfirmTitle),
+        content: Text(strings.chatDeleteConfirmMessage),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(strings.cancel),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(strings.chatDeleteConfirmButton),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    final ids = _selectedMessageIds.toList();
+    _exitSelectionMode();
+    await widget.onHideMessages?.call(ids);
+  }
 
   /// 新しく届いたメッセージのうち、まだ自分が読んでいないものを既読にする。
   /// 書き込みが失敗した場合（通信不安定・画面を閉じるタイミング等）は
@@ -230,6 +292,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final timeFormat = ref.watch(messageTimeFormatProvider);
     final locale = ref.watch(appLocaleProvider);
     final layoutStyle = ref.watch(chatLayoutStyleProvider);
+    final strings = ref.watch(appStringsProvider);
     final floatingShadow =
         Theme.of(context).extension<AppThemeExtras>()?.floatingShadow ??
             AppThemeExtras.none;
@@ -237,20 +300,39 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     return Scaffold(
       appBar: AppBar(
         automaticallyImplyLeading: false,
-        title: Text(widget.title),
-        actions: [
-          if (widget.onCallPressed != null)
-            IconButton(
-              icon: const Icon(Icons.call_outlined),
-              onPressed: widget.onCallPressed,
-            ),
-          if (widget.onVideoCallPressed != null)
-            IconButton(
-              icon: const Icon(Icons.videocam_outlined),
-              onPressed: widget.onVideoCallPressed,
-            ),
-          ...?widget.extraActions,
-        ],
+        leading: _selecting
+            ? IconButton(
+                icon: const Icon(Icons.close),
+                onPressed: _exitSelectionMode,
+              )
+            : null,
+        title: Text(
+          _selecting
+              ? strings.chatSelectionModeTitle(_selectedMessageIds.length)
+              : widget.title,
+        ),
+        actions: _selecting
+            ? [
+                IconButton(
+                  icon: const Icon(Icons.delete_outline),
+                  tooltip: strings.chatDeleteSelectedTooltip,
+                  onPressed:
+                      _selectedMessageIds.isEmpty ? null : _confirmDeleteSelected,
+                ),
+              ]
+            : [
+                if (widget.onCallPressed != null)
+                  IconButton(
+                    icon: const Icon(Icons.call_outlined),
+                    onPressed: widget.onCallPressed,
+                  ),
+                if (widget.onVideoCallPressed != null)
+                  IconButton(
+                    icon: const Icon(Icons.videocam_outlined),
+                    onPressed: widget.onVideoCallPressed,
+                  ),
+                ...?widget.extraActions,
+              ],
       ),
       body: Column(
         children: [
@@ -299,7 +381,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       readReceiptsEnabled: widget.readReceiptsEnabled,
                       layoutStyle: layoutStyle,
                       isDm: widget.isDm,
-                      onSenderTap: widget.onSenderTap,
+                      onSenderTap: _selecting ? null : widget.onSenderTap,
+                      selecting: _selecting,
+                      selected: _selectedMessageIds.contains(message.messageId),
+                      canSelect: widget.onHideMessages != null,
+                      onEnterSelection: _enterSelectionMode,
+                      onToggleSelected: _toggleSelected,
                     ),
                   );
                 }
@@ -314,6 +401,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               },
             ),
           ),
+          if (!_selecting)
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.all(8),
@@ -428,6 +516,11 @@ class _MessageRow extends ConsumerWidget {
     required this.layoutStyle,
     required this.isDm,
     this.onSenderTap,
+    this.selecting = false,
+    this.selected = false,
+    this.canSelect = false,
+    this.onEnterSelection,
+    this.onToggleSelected,
   });
 
   final Message message;
@@ -439,6 +532,14 @@ class _MessageRow extends ConsumerWidget {
   final ChatLayoutStyle layoutStyle;
   final bool isDm;
   final void Function(String userId)? onSenderTap;
+
+  /// 範囲選択削除モード中かどうか（[ChatScreen.onHideMessages]が渡されて
+  /// いる場合のみ長押しで入れる）。
+  final bool selecting;
+  final bool selected;
+  final bool canSelect;
+  final void Function(String messageId)? onEnterSelection;
+  final void Function(String messageId)? onToggleSelected;
 
   /// チェックマークバッジ（[badgeContext]）の真下から伸びる形でポップアップを
   /// 表示する。画面全体をグレーアウトしないよう、barrierColorは透明にする
@@ -674,8 +775,9 @@ class _MessageRow extends ConsumerWidget {
 
     final previewUrl = firstUrlIn(message.content);
 
+    final Widget content;
     if (alignRight) {
-      return Padding(
+      content = Padding(
         padding: const EdgeInsets.symmetric(vertical: 4),
         child: Align(
           alignment: Alignment.centerRight,
@@ -691,68 +793,91 @@ class _MessageRow extends ConsumerWidget {
           ),
         ),
       );
+    } else {
+      final canTapSender = !isMe && onSenderTap != null;
+      final senderAvatar = _SenderAvatar(
+        userId: message.senderId,
+        rhingId: message.senderRhingId,
+      );
+      final senderName = _SenderName(
+        userId: message.senderId,
+        rhingId: message.senderRhingId,
+      );
+
+      content = Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (showAvatarAndName) ...[
+                canTapSender
+                    ? GestureDetector(
+                        onTap: () => onSenderTap!(message.senderId),
+                        child: senderAvatar,
+                      )
+                    : senderAvatar,
+                const SizedBox(width: 8),
+              ],
+              Flexible(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (showAvatarAndName)
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.baseline,
+                        textBaseline: TextBaseline.alphabetic,
+                        children: [
+                          Flexible(
+                            child: canTapSender
+                                ? GestureDetector(
+                                    onTap: () => onSenderTap!(message.senderId),
+                                    child: senderName,
+                                  )
+                                : senderName,
+                          ),
+                          if (timeText != null) ...[
+                            const SizedBox(width: 6),
+                            timeText,
+                          ],
+                        ],
+                      )
+                    else
+                      ?timeText,
+                    const SizedBox(height: 2),
+                    bubbleWithReadMark,
+                    if (previewUrl != null) LinkPreviewCard(url: previewUrl),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
     }
 
-    final canTapSender = !isMe && onSenderTap != null;
-    final senderAvatar = _SenderAvatar(
-      userId: message.senderId,
-      rhingId: message.senderRhingId,
-    );
-    final senderName = _SenderName(
-      userId: message.senderId,
-      rhingId: message.senderRhingId,
-    );
+    if (!canSelect) return content;
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Align(
-        alignment: Alignment.centerLeft,
+    // 範囲選択削除モード: 1件を長押しすると入り、以降はタップで選択の
+    // オン/オフを切り替える。選択中はチェックボックスと薄い塗りで示す。
+    return GestureDetector(
+      onLongPress:
+          selecting ? null : () => onEnterSelection?.call(message.messageId),
+      onTap: selecting ? () => onToggleSelected?.call(message.messageId) : null,
+      child: Container(
+        color: selected ? colorScheme.primary.withValues(alpha: 0.12) : null,
         child: Row(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (showAvatarAndName) ...[
-              canTapSender
-                  ? GestureDetector(
-                      onTap: () => onSenderTap!(message.senderId),
-                      child: senderAvatar,
-                    )
-                  : senderAvatar,
-              const SizedBox(width: 8),
-            ],
-            Flexible(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (showAvatarAndName)
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.baseline,
-                      textBaseline: TextBaseline.alphabetic,
-                      children: [
-                        Flexible(
-                          child: canTapSender
-                              ? GestureDetector(
-                                  onTap: () => onSenderTap!(message.senderId),
-                                  child: senderName,
-                                )
-                              : senderName,
-                        ),
-                        if (timeText != null) ...[
-                          const SizedBox(width: 6),
-                          timeText,
-                        ],
-                      ],
-                    )
-                  else
-                    ?timeText,
-                  const SizedBox(height: 2),
-                  bubbleWithReadMark,
-                  if (previewUrl != null) LinkPreviewCard(url: previewUrl),
-                ],
+            if (selecting)
+              Checkbox(
+                value: selected,
+                onChanged: (_) => onToggleSelected?.call(message.messageId),
               ),
-            ),
+            Expanded(child: content),
           ],
         ),
       ),

@@ -79,10 +79,13 @@ class DmChatPane extends ConsumerWidget {
       // ブロック中は相手からのメッセージを表示しない（自分が送った過去分は
       // 引き続き見える）。サーバー側の送信拒否ではなく、クライアント側の
       // 表示抑制で実現する（`BlockRepository`のコメント参照）。
+      // hiddenForに自分のuserIdが含まれるメッセージ（範囲選択削除で自分が
+      // 削除したもの）も、相手には見えたままここでは表示しないだけにする。
       messagesStream: dmRepository.watchMessages(dm.dmId).map(
-            (messages) => isBlocked
-                ? messages.where((m) => m.senderId != otherUserId).toList()
-                : messages,
+            (messages) => messages
+                .where((m) => !m.hiddenFor.contains(currentUser.userId))
+                .where((m) => !isBlocked || m.senderId != otherUserId)
+                .toList(),
           ),
       onSend: (content, {silent = false}) async {
         if (isBlocked) {
@@ -103,6 +106,11 @@ class DmChatPane extends ConsumerWidget {
       onVideoCallPressed: onVideoCallPressed,
       readReceiptsEnabled: readReceiptsEnabled,
       onMarkRead: (messageIds) => dmRepository.markMessagesRead(
+        dmId: dm.dmId,
+        userId: currentUser.userId,
+        messageIds: messageIds,
+      ),
+      onHideMessages: (messageIds) => dmRepository.hideMessagesForMe(
         dmId: dm.dmId,
         userId: currentUser.userId,
         messageIds: messageIds,
@@ -373,10 +381,13 @@ class GroupChatPane extends ConsumerWidget {
       title: group.name,
       currentUserId: currentUser.userId,
       isDm: false,
-      messagesStream: groupRepository.watchRoomMessages(
-        group.groupId,
-        group.defaultRoomId,
-      ),
+      // hiddenForに自分のuserIdが含まれるメッセージ（範囲選択削除で自分が
+      // 削除したもの）は、他のメンバーには見えたままここでは表示しない。
+      messagesStream: groupRepository
+          .watchRoomMessages(group.groupId, group.defaultRoomId)
+          .map((messages) => messages
+              .where((m) => !m.hiddenFor.contains(currentUser.userId))
+              .toList()),
       onSend: (content, {silent = false}) => groupRepository.sendRoomMessage(
         groupId: group.groupId,
         roomId: group.defaultRoomId,
@@ -389,6 +400,12 @@ class GroupChatPane extends ConsumerWidget {
       onVideoCallPressed: () => _handleCallPressed(context, ref, isVideo: true),
       readReceiptsEnabled: readReceiptsEnabled,
       onMarkRead: (messageIds) => groupRepository.markRoomMessagesRead(
+        groupId: group.groupId,
+        roomId: group.defaultRoomId,
+        userId: currentUser.userId,
+        messageIds: messageIds,
+      ),
+      onHideMessages: (messageIds) => groupRepository.hideRoomMessagesForMe(
         groupId: group.groupId,
         roomId: group.defaultRoomId,
         userId: currentUser.userId,

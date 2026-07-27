@@ -50,6 +50,18 @@ abstract class GroupRepository {
     required List<String> messageIds,
   });
 
+  /// 選択したメッセージ群を、自分（[userId]）のアカウントから見えなくする
+  /// （実際にはサーバーから削除せず、他のメンバーには引き続き見える）。
+  /// お部屋のメンバー全員が同じメッセージを削除し終えた時点で、この呼び出しの
+  /// 中でサーバーからも物理削除する（`DirectMessageRepository.hideMessagesForMe`
+  /// と同じ設計）。
+  Future<void> hideRoomMessagesForMe({
+    required String groupId,
+    required String roomId,
+    required String userId,
+    required List<String> messageIds,
+  });
+
   /// 広場のプロフィールカードを作成・更新する。メンバー全員が実行できる。
   Future<void> updateProfileCard({
     required String groupId,
@@ -200,7 +212,6 @@ class FirestoreGroupRepository implements GroupRepository {
   Stream<List<Message>> watchRoomMessages(String groupId, String roomId) {
     return _roomRef(groupId, roomId)
         .collection('messages')
-        .where('deletedAt', isNull: true)
         .orderBy('sentAt', descending: true)
         .limit(50)
         .snapshots()
@@ -259,6 +270,49 @@ class FirestoreGroupRepository implements GroupRepository {
       });
     }
     await batch.commit();
+  }
+
+  @override
+  Future<void> hideRoomMessagesForMe({
+    required String groupId,
+    required String roomId,
+    required String userId,
+    required List<String> messageIds,
+  }) async {
+    if (messageIds.isEmpty) return;
+    final roomRef = _roomRef(groupId, roomId);
+    final roomSnapshot = await roomRef.get();
+    final memberIds = List<String>.from(
+      roomSnapshot.data()?['memberIds'] as List? ?? const [],
+    );
+    final messagesRef = roomRef.collection('messages');
+
+    // DirectMessageRepository.hideMessagesForMeと同じ設計（1件ずつgetして
+    // 各メッセージのhiddenForを確認し、メンバー全員をカバーするなら物理削除、
+    // そうでなければ自分を追加する更新に留める）。
+    final docs = await Future.wait(
+      messageIds.map((id) => messagesRef.doc(id).get()),
+    );
+
+    for (var i = 0; i < docs.length; i += 400) {
+      final chunk = docs.sublist(i, i + 400 > docs.length ? docs.length : i + 400);
+      final batch = _firestore.batch();
+      for (final doc in chunk) {
+        if (!doc.exists) continue;
+        final hiddenFor = {
+          ...?(doc.data()?['hiddenFor'] as List?)?.cast<String>(),
+          userId,
+        };
+        if (memberIds.every(hiddenFor.contains)) {
+          batch.delete(doc.reference);
+        } else {
+          batch.update(doc.reference, {
+            'hiddenFor': FieldValue.arrayUnion([userId]),
+          });
+        }
+      }
+      await batch.commit();
+    }
   }
 
   @override

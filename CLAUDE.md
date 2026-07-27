@@ -127,7 +127,7 @@ DaiDaiは独自の世界観用語を使う。変数名・クラス名・コレ�
 - **Seat（席・フェーズ3）**: `seatId`, `dmId`, `sectionId`
 - **Group（広場）**: `groupId`, `isPublic`（表広場/裏広場の区別）, `requiresApproval`, `ownerId`, `moderators[]`, `members[]`（role: owner|moderator|member）, `sections[]`（表組/裏組）
 - **Room（寄合・密談）**: `roomId`, `groupId`, `sectionId`, `permissions`（寄合＝公開・密談＝非公開の区別は要検討）
-- **Message**: `conversationId`, `conversationType`(dm|seat|room), `contentType`(text|image|file|sticker|video), `fileMetadata.compressionType`(webp|lossless|raw), `readBy[]`, `deletedAt`（論理削除・選択的範囲削除）, `isSpam`
+- **Message**: `conversationId`, `conversationType`(dm|seat|room), `contentType`(text|image|file|sticker|video), `fileMetadata.compressionType`(webp|lossless|raw), `readBy[]`, `hiddenFor[]`（範囲選択削除・本人のuserIdを追加するだけの個人単位の非表示）, `isSpam`
 - 他: Sticker（ペタピタ）, Purchase（Stripe連携）, SafetyCheck（安否確認）, CustomRole, Album, VideoCall
 
 詳細なフィールド定義・実装コード例は技術仕様書を参照。
@@ -141,7 +141,7 @@ DaiDaiは独自の世界観用語を使う。変数名・クラス名・コレ�
 - **1080pビデオ通話**: 同上、参加者1人でも極みプラン加入者がいれば通話全体が1080p化
 - **画像保存期間**: 標準（WebP非可逆）は語らい内2週間・アルバム永久。高画質（極み・可逆/RAW）は語らい内1週間・1週間後にWebP変換
 - **ファイル転送**: 2GBまでサーバー経由、超過分はSudachi（P2P、サーバー保存なし）
-- **メッセージ削除**: 物理削除ではなく`deletedAt`による論理削除。範囲選択削除に対応（一括全削除UIは提供しない）
+- **メッセージ削除（2026-07-27実装）**: 一対・広場どちらも、複数選択（連続していなくてもよい）した範囲を削除できる（一括全削除UIは提供しない）。削除は本人のアカウントから見えなくするだけで、実際にはサーバーから消えず他の参加者には引き続き見える（`Message.hiddenFor`に自分のuserIdを追加）。その語らいの参加者**全員**が同じメッセージを削除し終えた時点で、その操作を行ったクライアントがサーバーからも物理削除する（`DirectMessageRepository.hideMessagesForMe`/`GroupRepository.hideRoomMessagesForMe`、firestore.rulesで「自分を加えたら全員揃うか」を検証してから物理削除を許可）
 - **決済**: Stripe経由のブラウザ決済のみ。iOS/Android/macOSアプリ内課金は実装しない（プラットフォーム規約対応、審査説明文は企画書7章参照）
 - **スパム対策**: 仲間承認制がベース。E2E暗号化との両立のためメッセージ内容はサーバー側で監視せず、メタデータ分析＋クライアント側チェックの多層防御（企画書/技術仕様書8章にレート制限の具体値あり）
 - **安否確認（フェーズ3）**: 気象庁防災情報APIを1分ごとにポーリングし震度5強以上で発動。オプトイン方式、応答データは72時間後自動削除
