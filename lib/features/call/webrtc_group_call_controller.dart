@@ -8,31 +8,10 @@ import '../../models/app_user.dart';
 import '../../models/group_call.dart';
 import '../../repositories/group_call_repository.dart';
 import 'call_sound_player.dart';
+import 'rtc_config.dart';
 import 'webrtc_media_constraints.dart';
 
 enum GroupCallConnectionState { connecting, active, ended }
-
-/// STUNに加えてTURN（自前coturn）を使う。メッシュ型はペア数が
-/// N(N-1)/2に増えるため、1対1よりTURNの必要性が高い
-/// （2026-07-24、ユーザー確認の上でTURN自前運用の方針に決定）。
-/// coturnサーバー自体の構築（VM・DNS・証明書）は別途インフラ作業として必要で、
-/// ここではURL・認証情報を設定するだけの状態。実際のサーバーが立つまでは
-/// STUNのみで動作する（未設定時は空文字のままiceServersから除外する）。
-const _turnUrl = String.fromEnvironment('DAIDAI_TURN_URL');
-const _turnUsername = String.fromEnvironment('DAIDAI_TURN_USERNAME');
-const _turnCredential = String.fromEnvironment('DAIDAI_TURN_CREDENTIAL');
-
-Map<String, dynamic> get _rtcConfiguration => {
-      'iceServers': [
-        {'urls': 'stun:stun.l.google.com:19302'},
-        if (_turnUrl.isNotEmpty)
-          {
-            'urls': _turnUrl,
-            'username': _turnUsername,
-            'credential': _turnCredential,
-          },
-      ],
-    };
 
 /// 参加者ごとの在室確認ハートビートの送信間隔。
 const _presenceHeartbeatInterval = Duration(seconds: 15);
@@ -69,6 +48,20 @@ class WebrtcGroupCallController extends ChangeNotifier {
   final Map<String, StreamSubscription> _peerLinkSubs = {};
   final Map<String, StreamSubscription> _peerCandidateSubs = {};
   final Map<String, bool> _answerApplied = {};
+
+  // setRemoteDescriptionが完了するより先にICE candidateが届くと、
+  // addCandidateが例外を投げて無言で失われてしまう競合状態があったため、
+  // 相手ごとに完了するまで候補をバッファし、完了後にまとめて適用する。
+  // watchPeerCandidatesは毎回累積リスト全体を再送してくるため、適用済みの
+  // 候補をキーで重複排除する。
+  final Map<String, bool> _remoteDescriptionSet = {};
+  final Map<String, List<Map<String, dynamic>>> _pendingRemoteCandidates = {};
+  final Map<String, Set<String>> _appliedCandidateKeys = {};
+
+  /// 相手ごとのICE接続状態に問題があるか（failed/disconnected）。
+  /// UI側はこれを見て、シグナリングは完了しているのに実際には映像/音声が
+  /// 流れていない参加者のタイルに控えめな表示を重ねる。
+  final Map<String, bool> peerConnectionIssues = {};
 
   MediaStream? _localStream;
   StreamSubscription<List<CallParticipant>>? _participantsSub;
@@ -204,8 +197,11 @@ class WebrtcGroupCallController extends ChangeNotifier {
     await renderer.initialize();
     remoteRenderers[otherUserId] = renderer;
 
-    final peerConnection = await createPeerConnection(_rtcConfiguration);
+    final peerConnection = await createPeerConnection(buildRtcConfiguration());
     _peerConnections[otherUserId] = peerConnection;
+    _remoteDescriptionSet[otherUserId] = false;
+    _pendingRemoteCandidates[otherUserId] = [];
+    _appliedCandidateKeys[otherUserId] = {};
 
     for (final track in _localStream!.getTracks()) {
       await peerConnection.addTrack(track, _localStream!);
@@ -214,6 +210,15 @@ class WebrtcGroupCallController extends ChangeNotifier {
     peerConnection.onTrack = (event) {
       if (event.streams.isNotEmpty) {
         renderer.srcObject = event.streams.first;
+      }
+    };
+
+    peerConnection.onIceConnectionState = (iceState) {
+      final issue = iceState == RTCIceConnectionState.RTCIceConnectionStateFailed ||
+          iceState == RTCIceConnectionState.RTCIceConnectionStateDisconnected;
+      if (peerConnectionIssues[otherUserId] != issue) {
+        peerConnectionIssues[otherUserId] = issue;
+        notifyListeners();
       }
     };
 
@@ -239,13 +244,7 @@ class WebrtcGroupCallController extends ChangeNotifier {
         )
         .listen((candidates) {
       for (final data in candidates) {
-        peerConnection.addCandidate(
-          RTCIceCandidate(
-            data['candidate'] as String,
-            data['sdpMid'] as String?,
-            data['sdpMLineIndex'] as int?,
-          ),
-        );
+        _applyOrBufferCandidate(otherUserId, peerConnection, data);
       }
     });
 
@@ -269,6 +268,7 @@ class WebrtcGroupCallController extends ChangeNotifier {
               link.answer!['type'] as String,
             ),
           );
+          _flushPendingCandidates(otherUserId, peerConnection);
         }
       } else {
         if (link.offer != null && _answerApplied[pairId] != true) {
@@ -279,6 +279,7 @@ class WebrtcGroupCallController extends ChangeNotifier {
               link.offer!['type'] as String,
             ),
           );
+          _flushPendingCandidates(otherUserId, peerConnection);
           final answer = await peerConnection.createAnswer();
           await peerConnection.setLocalDescription(answer);
           await _repository.setPeerAnswer(
@@ -301,11 +302,53 @@ class WebrtcGroupCallController extends ChangeNotifier {
     }
   }
 
+  void _applyOrBufferCandidate(
+    String otherUserId,
+    RTCPeerConnection peerConnection,
+    Map<String, dynamic> data,
+  ) {
+    final key = '${data['candidate']}|${data['sdpMid']}|${data['sdpMLineIndex']}';
+    final appliedKeys = _appliedCandidateKeys[otherUserId] ??= {};
+    if (appliedKeys.contains(key)) return;
+    if (_remoteDescriptionSet[otherUserId] != true) {
+      (_pendingRemoteCandidates[otherUserId] ??= []).add(data);
+      return;
+    }
+    appliedKeys.add(key);
+    peerConnection
+        .addCandidate(
+          RTCIceCandidate(
+            data['candidate'] as String,
+            data['sdpMid'] as String?,
+            data['sdpMLineIndex'] as int?,
+          ),
+        )
+        .catchError((_) {
+      // 相手のPeerConnectionが既に閉じている等。通話自体は継続させる。
+    });
+  }
+
+  void _flushPendingCandidates(
+    String otherUserId,
+    RTCPeerConnection peerConnection,
+  ) {
+    _remoteDescriptionSet[otherUserId] = true;
+    final pending = [...?_pendingRemoteCandidates[otherUserId]];
+    _pendingRemoteCandidates[otherUserId]?.clear();
+    for (final data in pending) {
+      _applyOrBufferCandidate(otherUserId, peerConnection, data);
+    }
+  }
+
   void _disconnectFromPeer(String otherUserId) {
     _peerLinkSubs.remove(otherUserId)?.cancel();
     _peerCandidateSubs.remove(otherUserId)?.cancel();
     _peerConnections.remove(otherUserId)?.close();
     remoteRenderers.remove(otherUserId)?.dispose();
+    _remoteDescriptionSet.remove(otherUserId);
+    _pendingRemoteCandidates.remove(otherUserId);
+    _appliedCandidateKeys.remove(otherUserId);
+    peerConnectionIssues.remove(otherUserId);
   }
 
   Future<void> leave() async {

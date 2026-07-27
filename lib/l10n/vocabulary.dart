@@ -28,7 +28,7 @@ class Vocabulary {
     required this.owner,
   });
 
-  /// 1対1のチャット（一対／DM／ダイレクトメッセージ／Private Chat）。
+  /// 1対1のチャット（一対／DM／ダイレクト／Private Chat）。
   final String dm;
 
   /// サーバー全体の場（広場／Server／サーバー／Plaza）。
@@ -92,7 +92,7 @@ class Vocabulary {
   );
 
   static const jaConvenience = Vocabulary._(
-    dm: 'ダイレクトメッセージ',
+    dm: 'ダイレクト',
     plaza: 'サーバー',
     publicPlaza: '公開サーバー',
     privatePlaza: '非公開サーバー',

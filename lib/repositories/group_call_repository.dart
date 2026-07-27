@@ -38,6 +38,10 @@ abstract class GroupCallRepository {
   /// その広場で現在進行中の通話（あれば1件）を監視する。
   Stream<GroupCall?> watchActiveGroupCall(String groupId);
 
+  /// 自分がメンバーになっている広場すべてを横断して、現在進行中の通話一覧を
+  /// 監視する（着信バナー表示用）。
+  Stream<List<GroupCall>> watchActiveGroupCallsForMember(String userId);
+
   Future<GroupCall?> getGroupCall(String groupCallId);
 
   /// 進行中の通話に参加する（参加者ドキュメントを作成する）。
@@ -208,6 +212,17 @@ class FirestoreGroupCallRepository implements GroupCallRepository {
       final doc = snapshot.docs.first;
       return GroupCall.fromJson(doc.id, doc.data());
     });
+  }
+
+  @override
+  Stream<List<GroupCall>> watchActiveGroupCallsForMember(String userId) {
+    return _groupCalls
+        .where('memberIds', arrayContains: userId)
+        .where('status', isEqualTo: GroupCallStatus.active.name)
+        .snapshots()
+        .map((snapshot) => snapshot.docs
+            .map((doc) => GroupCall.fromJson(doc.id, doc.data()))
+            .toList());
   }
 
   @override

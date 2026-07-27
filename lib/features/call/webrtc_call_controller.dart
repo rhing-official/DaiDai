@@ -7,17 +7,10 @@ import 'package:flutter_webrtc/flutter_webrtc.dart';
 import '../../models/call.dart';
 import '../../repositories/call_repository.dart';
 import 'call_sound_player.dart';
+import 'rtc_config.dart';
 import 'webrtc_media_constraints.dart';
 
 enum CallConnectionState { connecting, active, ended }
-
-/// STUNサーバーのみを使う（TURNはフェーズ1未導入。CLAUDE.md参照）。
-/// 双方が対称NAT配下にいるなど厳しいネットワーク環境では接続できないことがある。
-const _rtcConfiguration = {
-  'iceServers': [
-    {'urls': 'stun:stun.l.google.com:19302'},
-  ],
-};
 
 /// 1件の音声通話のWebRTCシグナリング・PeerConnectionのライフサイクルを管理する。
 /// 通話ごとにインスタンス化し、画面を離れる際にdispose()すること。
@@ -42,6 +35,18 @@ class WebrtcCallController extends ChangeNotifier {
   StreamSubscription<Call?>? _callSub;
   StreamSubscription<List<Map<String, dynamic>>>? _candidatesSub;
   bool _answerApplied = false;
+
+  // setRemoteDescriptionが完了するより先にICE candidateが届くと、
+  // addCandidateが例外を投げて無言で失われてしまう競合状態があったため、
+  // 完了するまで候補をバッファし、完了後にまとめて適用する。
+  // watchCandidatesは毎回累積リスト全体を再送してくるため、適用済みの
+  // 候補をキーで重複排除する。
+  bool _remoteDescriptionSet = false;
+  final List<Map<String, dynamic>> _pendingRemoteCandidates = [];
+  final Set<String> _appliedCandidateKeys = {};
+
+  bool _connectionIssue = false;
+  bool get connectionIssue => _connectionIssue;
 
   /// 通話の効果音（着信音）再生。画面側が着信中にループ再生を開始/停止する。
   final soundPlayer = CallSoundPlayer();
@@ -86,7 +91,7 @@ class WebrtcCallController extends ChangeNotifier {
         localRenderer.srcObject = _localStream;
       }
 
-      _peerConnection = await createPeerConnection(_rtcConfiguration);
+      _peerConnection = await createPeerConnection(buildRtcConfiguration());
       for (final track in _localStream!.getTracks()) {
         await _peerConnection!.addTrack(track, _localStream!);
       }
@@ -94,6 +99,15 @@ class WebrtcCallController extends ChangeNotifier {
       _peerConnection!.onTrack = (event) {
         if (event.streams.isNotEmpty) {
           remoteRenderer.srcObject = event.streams.first;
+        }
+      };
+
+      _peerConnection!.onIceConnectionState = (iceState) {
+        final issue = iceState == RTCIceConnectionState.RTCIceConnectionStateFailed ||
+            iceState == RTCIceConnectionState.RTCIceConnectionStateDisconnected;
+        if (issue != _connectionIssue) {
+          _connectionIssue = issue;
+          notifyListeners();
         }
       };
 
@@ -114,13 +128,7 @@ class WebrtcCallController extends ChangeNotifier {
           .watchCandidates(callId: call.callId, isCaller: isCaller)
           .listen((candidates) {
         for (final data in candidates) {
-          _peerConnection?.addCandidate(
-            RTCIceCandidate(
-              data['candidate'] as String,
-              data['sdpMid'] as String?,
-              data['sdpMLineIndex'] as int?,
-            ),
-          );
+          _applyOrBufferCandidate(data);
         }
       });
 
@@ -135,6 +143,39 @@ class WebrtcCallController extends ChangeNotifier {
       _error = '通話を開始できませんでした（マイクの利用を許可してください）: $e';
       _state = CallConnectionState.ended;
       notifyListeners();
+    }
+  }
+
+  /// setRemoteDescription完了前に届いた候補はバッファに貯め、完了後に
+  /// まとめて適用する。watchCandidatesは毎回累積リスト全体を再送してくる
+  /// ため、候補ごとのキーで重複適用を防ぐ。
+  void _applyOrBufferCandidate(Map<String, dynamic> data) {
+    final key = '${data['candidate']}|${data['sdpMid']}|${data['sdpMLineIndex']}';
+    if (_appliedCandidateKeys.contains(key)) return;
+    if (!_remoteDescriptionSet) {
+      _pendingRemoteCandidates.add(data);
+      return;
+    }
+    _appliedCandidateKeys.add(key);
+    _peerConnection
+        ?.addCandidate(
+          RTCIceCandidate(
+            data['candidate'] as String,
+            data['sdpMid'] as String?,
+            data['sdpMLineIndex'] as int?,
+          ),
+        )
+        .catchError((_) {
+      // 相手のPeerConnectionが既に閉じている等。通話自体は継続させる。
+    });
+  }
+
+  void _flushPendingCandidates() {
+    _remoteDescriptionSet = true;
+    final pending = [..._pendingRemoteCandidates];
+    _pendingRemoteCandidates.clear();
+    for (final data in pending) {
+      _applyOrBufferCandidate(data);
     }
   }
 
@@ -159,6 +200,7 @@ class WebrtcCallController extends ChangeNotifier {
             updated.answer!['type'] as String,
           ),
         );
+        _flushPendingCandidates();
         _state = CallConnectionState.active;
         notifyListeners();
         unawaited(_applySpeakerphoneWithRetry());
@@ -197,6 +239,7 @@ class WebrtcCallController extends ChangeNotifier {
     await _peerConnection!.setRemoteDescription(
       RTCSessionDescription(offer!['sdp'] as String, offer['type'] as String),
     );
+    _flushPendingCandidates();
     final answer = await _peerConnection!.createAnswer();
     await _peerConnection!.setLocalDescription(answer);
     await _callRepository.setAnswer(call.callId, {
