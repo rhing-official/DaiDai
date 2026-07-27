@@ -113,6 +113,17 @@ class Strings {
     required this.chatDeleteConfirmTitle,
     required this.chatDeleteConfirmMessage,
     required this.chatDeleteConfirmButton,
+    required this.chatReplyAction,
+    required this.chatEditAction,
+    required this.chatUnsendAction,
+    required this.chatReactAction,
+    required this.chatSelectAction,
+    required this.chatEditedLabel,
+    required this.chatReplyingToLabel,
+    required this.chatEditingLabel,
+    required this.chatUnsendConfirmTitle,
+    required this.chatUnsendConfirmMessage,
+    required this.chatUnsendConfirmButton,
     required this.cancel,
     required this.add,
     required this.save,
@@ -304,6 +315,17 @@ class Strings {
   final String chatDeleteConfirmTitle;
   final String chatDeleteConfirmMessage;
   final String chatDeleteConfirmButton;
+  final String chatReplyAction;
+  final String chatEditAction;
+  final String chatUnsendAction;
+  final String chatReactAction;
+  final String chatSelectAction;
+  final String chatEditedLabel;
+  final String Function(String senderLabel) chatReplyingToLabel;
+  final String chatEditingLabel;
+  final String chatUnsendConfirmTitle;
+  final String chatUnsendConfirmMessage;
+  final String chatUnsendConfirmButton;
 
   final String cancel;
   final String add;
@@ -514,6 +536,17 @@ class Strings {
     chatDeleteConfirmMessage:
         '選択したメッセージがあなたのアカウントから見えなくなります（相手には引き続き見えます）。全員が同じメッセージを削除すると、サーバーからも完全に削除されます。この操作は取り消せません。',
     chatDeleteConfirmButton: '削除する',
+    chatReplyAction: '返信',
+    chatEditAction: '編集',
+    chatUnsendAction: '送信取り消し',
+    chatReactAction: 'リアクション',
+    chatSelectAction: '選択',
+    chatEditedLabel: '編集済み',
+    chatReplyingToLabel: (senderLabel) => '$senderLabelへの返信',
+    chatEditingLabel: 'メッセージを編集中',
+    chatUnsendConfirmTitle: '送信を取り消しますか？',
+    chatUnsendConfirmMessage: 'このメッセージは相手の画面からも完全に削除されます（既読・リアクション等も含めて痕跡は残りません）。この操作は取り消せません。',
+    chatUnsendConfirmButton: '取り消す',
     cancel: 'キャンセル',
     add: '追加',
     save: '保存',
@@ -725,6 +758,20 @@ class Strings {
         "messages, they'll be permanently deleted from the server. This "
         "can't be undone.",
     chatDeleteConfirmButton: 'Delete',
+    chatReplyAction: 'Reply',
+    chatEditAction: 'Edit',
+    chatUnsendAction: 'Unsend',
+    chatReactAction: 'React',
+    chatSelectAction: 'Select',
+    chatEditedLabel: 'Edited',
+    chatReplyingToLabel: (senderLabel) => 'Replying to $senderLabel',
+    chatEditingLabel: 'Editing message',
+    chatUnsendConfirmTitle: 'Unsend this message?',
+    chatUnsendConfirmMessage:
+        "This message will be completely removed from the other person's "
+        "screen too (including read receipts and reactions). This can't "
+        "be undone.",
+    chatUnsendConfirmButton: 'Unsend',
     cancel: 'Cancel',
     add: 'Add',
     save: 'Save',
