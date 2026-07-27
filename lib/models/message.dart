@@ -47,6 +47,9 @@ class Message {
     this.replyToSnippet,
     this.editedAt,
     this.reactions = const {},
+    this.callStartedAt,
+    this.callDurationSeconds,
+    this.callIsVideo,
   });
 
   final String messageId;
@@ -56,7 +59,7 @@ class Message {
   /// 送信者のRhing ID（グループ会話でアイコン・名前を表示するための非正規化）。
   final String? senderRhingId;
   final String content;
-  final String contentType; // text | image | file | sticker | video
+  final String contentType; // text | image | file | sticker | video | call
   final Timestamp? sentAt;
 
   /// このメッセージを自分のアカウントから見えなくした（範囲選択削除した）
@@ -101,6 +104,15 @@ class Message {
   /// 選ぶと乗り換え）。
   final Map<String, String> reactions;
 
+  /// contentType='call'（通話履歴メッセージ）専用のフィールド。通話が実際に
+  /// 接続した（応答された）場合のみ発信者側から送られる（不在着信・拒否は
+  /// 対象外）。[content]には表示用のフォールバック文言（「通話が終了しました」）
+  /// を入れておき、UI（`_MessageRow`）はこれらのフィールドがあれば専用の
+  /// 通話サマリー表示に切り替える。
+  final Timestamp? callStartedAt;
+  final int? callDurationSeconds;
+  final bool? callIsVideo;
+
   factory Message.fromJson(String messageId, Map<String, dynamic> json) {
     return Message(
       messageId: messageId,
@@ -125,6 +137,9 @@ class Message {
       editedAt: json['editedAt'] as Timestamp?,
       reactions: (json['reactions'] as Map<String, dynamic>? ?? {})
           .map((key, value) => MapEntry(key, value as String)),
+      callStartedAt: json['callStartedAt'] as Timestamp?,
+      callDurationSeconds: json['callDurationSeconds'] as int?,
+      callIsVideo: json['callIsVideo'] as bool?,
     );
   }
 
@@ -147,6 +162,9 @@ class Message {
       'replyToSnippet': replyToSnippet,
       'editedAt': editedAt,
       'reactions': reactions,
+      'callStartedAt': callStartedAt,
+      'callDurationSeconds': callDurationSeconds,
+      'callIsVideo': callIsVideo,
     };
   }
 }

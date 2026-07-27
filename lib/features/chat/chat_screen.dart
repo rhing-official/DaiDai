@@ -7,6 +7,7 @@ import '../../l10n/app_locale.dart';
 import '../../l10n/strings.dart';
 import '../../models/chat_layout_style.dart';
 import '../../models/message.dart';
+import '../../models/message_time_format.dart';
 import '../../models/send_key_mode.dart';
 import '../../providers/app_locale_provider.dart';
 import '../../providers/chat_layout_style_provider.dart';
@@ -113,6 +114,33 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// プレビューバーとして表示し、キャンセルボタンでnullに戻す。
   Message? _replyingTo;
   Message? _editingMessage;
+
+  /// 返信先ジャンプ機能用に、現在ロード済みの各メッセージ行へのGlobalKey。
+  /// ListView.builderの遅延ビルドだと画面外（未ビルド）の返信先メッセージへは
+  /// Scrollable.ensureVisibleが効かないため、下のbuild()でListView（非lazy）に
+  /// 切り替えている（現在ロード済みメッセージは最新50件程度に収まる想定）。
+  final _messageKeys = <String, GlobalKey>{};
+
+  /// ジャンプ直後に対象メッセージを一瞬ハイライトするための状態。
+  String? _highlightedMessageId;
+
+  Future<void> _jumpToMessage(String messageId) async {
+    final key = _messageKeys[messageId];
+    final targetContext = key?.currentContext;
+    if (targetContext == null) return;
+    await Scrollable.ensureVisible(
+      targetContext,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOut,
+      alignment: 0.5,
+    );
+    if (!mounted) return;
+    setState(() => _highlightedMessageId = messageId);
+    Future.delayed(const Duration(milliseconds: 1200), () {
+      if (!mounted) return;
+      setState(() => _highlightedMessageId = null);
+    });
+  }
 
   void _startReply(Message message) {
     setState(() {
@@ -417,6 +445,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   for (final m in messages) m.messageId: m,
                 };
 
+                // 画面外に流れたメッセージのGlobalKeyは溜め続けない。
+                final currentIds = messagesById.keys.toSet();
+                _messageKeys.removeWhere((id, _) => !currentIds.contains(id));
+
                 // messagesは新しい順（index 0が最新）。日付区切りを「その日の
                 // 最初のメッセージの直上」に挿入したいので、一旦古い順に走査して
                 // 区切り込みのリストを組み立ててから反転する。reverse:trueの
@@ -435,6 +467,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   }
                   entries.add(
                     _MessageRow(
+                      key: _messageKeys.putIfAbsent(
+                        message.messageId,
+                        GlobalKey.new,
+                      ),
                       message: message,
                       isMe: message.senderId == widget.currentUserId,
                       currentUserId: widget.currentUserId,
@@ -457,16 +493,22 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       onEdit: widget.onEditMessage != null ? _startEdit : null,
                       onUnsend: widget.onUnsendMessage,
                       onSetReaction: widget.onSetReaction,
+                      onJumpToReply: _jumpToMessage,
+                      highlighted: _highlightedMessageId == message.messageId,
+                      timeFormat: timeFormat,
                     ),
                   );
                 }
                 final reversedEntries = entries.reversed.toList();
 
-                return ListView.builder(
+                // 返信先ジャンプ機能（Scrollable.ensureVisible）は対象行が
+                // 既にツリー上にビルドされている必要があるため、遅延ビルドの
+                // ListView.builderではなく全件ビルド済みのListViewを使う
+                // （現在ロード済みメッセージは最新50件程度に収まる想定）。
+                return ListView(
                   reverse: true,
                   padding: const EdgeInsets.all(12),
-                  itemCount: reversedEntries.length,
-                  itemBuilder: (context, index) => reversedEntries[index],
+                  children: reversedEntries,
                 );
               },
             ),
@@ -678,6 +720,10 @@ class _MessageRow extends ConsumerWidget {
     this.onEdit,
     this.onUnsend,
     this.onSetReaction,
+    this.onJumpToReply,
+    this.highlighted = false,
+    this.timeFormat = MessageTimeFormat.h24,
+    super.key,
   });
 
   final Message message;
@@ -715,6 +761,16 @@ class _MessageRow extends ConsumerWidget {
 
   /// nullならリアクション機能自体を出さない。
   final void Function(String messageId, String? emoji)? onSetReaction;
+
+  /// 返信を含んだメッセージをタップした時に、返信先メッセージへジャンプする。
+  /// [messagesById]に返信先が無い（ロード範囲外）場合は呼ばれない。
+  final void Function(String messageId)? onJumpToReply;
+
+  /// 返信先ジャンプ直後、対象メッセージだと分かるよう一瞬背景を強調する。
+  final bool highlighted;
+
+  /// contentType='call'（通話サマリー）の開始時刻表示に使う時刻表示形式。
+  final MessageTimeFormat timeFormat;
 
   /// チェックマークバッジ（[badgeContext]）の真下から伸びる形でポップアップを
   /// 表示する。画面全体をグレーアウトしないよう、barrierColorは透明にする
@@ -878,6 +934,8 @@ class _MessageRow extends ConsumerWidget {
       }
     }
 
+    final isCallSummary = message.contentType == 'call';
+
     final bubble = Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
@@ -890,38 +948,41 @@ class _MessageRow extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           ?replyPreview,
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Flexible(
-                child: LinkifiedText(
-                  message.content,
-                  style: TextStyle(color: onBubbleColor),
-                  linkColor: isMe ? colorScheme.onPrimary : colorScheme.primary,
-                ),
-              ),
-              if (message.silent) ...[
-                const SizedBox(width: 4),
-                Icon(
-                  Icons.notifications_off,
-                  size: 14,
-                  color: onBubbleColor.withValues(alpha: 0.7),
-                ),
-              ],
-              if (message.editedAt != null) ...[
-                const SizedBox(width: 4),
-                Text(
-                  strings.chatEditedLabel,
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontStyle: FontStyle.italic,
-                    color: onBubbleColor.withValues(alpha: 0.7),
+          if (isCallSummary)
+            _callSummaryContent(onBubbleColor)
+          else
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Flexible(
+                  child: LinkifiedText(
+                    message.content,
+                    style: TextStyle(color: onBubbleColor),
+                    linkColor: isMe ? colorScheme.onPrimary : colorScheme.primary,
                   ),
                 ),
+                if (message.silent) ...[
+                  const SizedBox(width: 4),
+                  Icon(
+                    Icons.notifications_off,
+                    size: 14,
+                    color: onBubbleColor.withValues(alpha: 0.7),
+                  ),
+                ],
+                if (message.editedAt != null) ...[
+                  const SizedBox(width: 4),
+                  Text(
+                    strings.chatEditedLabel,
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontStyle: FontStyle.italic,
+                      color: onBubbleColor.withValues(alpha: 0.7),
+                    ),
+                  ),
+                ],
               ],
-            ],
-          ),
+            ),
         ],
       ),
     );
@@ -1114,10 +1175,19 @@ class _MessageRow extends ConsumerWidget {
         ),
       );
     } else {
+      // 返信を含んだメッセージをタップすると返信先へジャンプする。返信先が
+      // 現在ロード済み（messagesById）でなければジャンプできないので出さない。
+      final replyTargetId = message.replyToMessageId;
+      final onTap = (replyTargetId != null &&
+              messagesById.containsKey(replyTargetId) &&
+              onJumpToReply != null)
+          ? () => onJumpToReply!(replyTargetId)
+          : null;
       body = _MessageInteractions(
         canEdit: canEdit,
         canSelect: canSelect,
         strings: strings,
+        onTap: onTap,
         onReply: () => onReply?.call(message),
         onEdit: canEdit ? () => onEdit?.call(message) : null,
         onUnsend: (isMe && onUnsend != null)
@@ -1139,12 +1209,71 @@ class _MessageRow extends ConsumerWidget {
       );
     }
 
-    if (message.reactions.isEmpty) return body;
-    return Column(
-      crossAxisAlignment:
-          alignRight ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-      children: [body, _reactionBar(alignRight)],
+    final rowContent = message.reactions.isEmpty
+        ? body
+        : Column(
+            crossAxisAlignment:
+                alignRight ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+            children: [body, _reactionBar(alignRight)],
+          );
+
+    // 返信先ジャンプの着地先だと分かるよう、一瞬だけ背景を強調する。
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      color: highlighted
+          ? colorScheme.primary.withValues(alpha: 0.15)
+          : Colors.transparent,
+      child: rowContent,
     );
+  }
+
+  /// 通話履歴メッセージ（contentType='call'）の表示。「通話が終了しました」
+  /// の下に、開始時刻と通話時間を添える（例: 「14:32から5分32秒」）。
+  Widget _callSummaryContent(Color onBubbleColor) {
+    final startedAt = message.callStartedAt?.toDate();
+    final durationSeconds = message.callDurationSeconds;
+    final isVideoCall = message.callIsVideo ?? false;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(
+          isVideoCall ? Icons.videocam_outlined : Icons.call_outlined,
+          size: 18,
+          color: onBubbleColor,
+        ),
+        const SizedBox(width: 8),
+        Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(message.content, style: TextStyle(color: onBubbleColor)),
+            if (startedAt != null && durationSeconds != null)
+              Text(
+                '${formatMessageTime(startedAt, timeFormat)}から'
+                '${_formatCallDuration(durationSeconds)}',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: onBubbleColor.withValues(alpha: 0.7),
+                ),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  static String _formatCallDuration(int totalSeconds) {
+    final hours = totalSeconds ~/ 3600;
+    final minutes = (totalSeconds % 3600) ~/ 60;
+    final seconds = totalSeconds % 60;
+    if (hours > 0) {
+      return minutes > 0 ? '$hours時間$minutes分' : '$hours時間';
+    }
+    if (minutes > 0) {
+      return seconds > 0 ? '$minutes分$seconds秒' : '$minutes分';
+    }
+    return '$seconds秒';
   }
 
   Widget _reactionBar(bool alignRight) {
@@ -1234,6 +1363,7 @@ class _MessageInteractions extends StatefulWidget {
     this.onUnsend,
     this.onReact,
     this.onSelect,
+    this.onTap,
   });
 
   final Widget child;
@@ -1245,6 +1375,9 @@ class _MessageInteractions extends StatefulWidget {
   final VoidCallback? onUnsend;
   final void Function(String emoji)? onReact;
   final VoidCallback? onSelect;
+
+  /// 返信先ジャンプ用のタップ。nullなら通常通りタップでは何も起きない。
+  final VoidCallback? onTap;
 
   @override
   State<_MessageInteractions> createState() => _MessageInteractionsState();
@@ -1362,6 +1495,12 @@ class _MessageInteractionsState extends State<_MessageInteractions> {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
+      // 吹き出しの余白（アイコン側の空きスペース等）も同じ行なら反応するよう、
+      // 実際に何か描画されている領域だけでなくAlign/Padding込みの行全体を
+      // ヒットテスト対象にする（既定のdeferToChildだと、余白部分は下の
+      // レンダーオブジェクトが自身を消費しないため反応しない）。
+      behavior: HitTestBehavior.opaque,
+      onTap: widget.onTap,
       onLongPressStart: (details) => _openMenu(details.globalPosition),
       onSecondaryTapDown: (details) => _openMenu(details.globalPosition),
       onHorizontalDragUpdate: _onDragUpdate,

@@ -6,6 +6,7 @@ import 'package:flutter_webrtc/flutter_webrtc.dart';
 
 import '../../models/call.dart';
 import '../../repositories/call_repository.dart';
+import '../../repositories/direct_message_repository.dart';
 import 'call_sound_player.dart';
 import 'rtc_config.dart';
 import 'webrtc_media_constraints.dart';
@@ -19,11 +20,14 @@ class WebrtcCallController extends ChangeNotifier {
     required this.call,
     required this.isCaller,
     required CallRepository callRepository,
-  }) : _callRepository = callRepository;
+    required DirectMessageRepository directMessageRepository,
+  })  : _callRepository = callRepository,
+        _directMessageRepository = directMessageRepository;
 
   final Call call;
   final bool isCaller;
   final CallRepository _callRepository;
+  final DirectMessageRepository _directMessageRepository;
 
   final RTCVideoRenderer remoteRenderer = RTCVideoRenderer();
 
@@ -71,11 +75,24 @@ class WebrtcCallController extends ChangeNotifier {
   bool _cameraOff = false;
   bool get cameraOff => _cameraOff;
 
-  /// 現在ビデオ通話として動作しているか（[call.isVideo]は開始時点の値の
-  /// ままなので、通話中の切替を反映する可変の状態として別に持つ）。
+  /// 自分が現在ビデオ通話として動作しているか（[call.isVideo]は開始時点の
+  /// 値のままなので、通話中の切替を反映する可変の状態として別に持つ）。
+  /// 音声⇔ビデオの切替は自分側にのみ適用され、相手には影響しない。
   late bool _isVideo = call.isVideo;
   bool get isVideo => _isVideo;
+
+  /// 相手が現在ビデオ通話として動作しているか。自分の映像トラックの
+  /// 有無には影響せず、UI側が相手の映像表示/プレースホルダーの
+  /// 切替に使うだけの表示用フラグ。
+  late bool _remoteIsVideo =
+      isCaller ? call.calleeIsVideo : call.callerIsVideo;
+  bool get remoteIsVideo => _remoteIsVideo;
+
   bool _localRendererInitialized = false;
+
+  /// 通話が接続状態（active）になった時刻。発信者側のみ、通話終了時に
+  /// この時刻から通話履歴メッセージの通話時間を計算するために使う。
+  DateTime? _connectedAt;
 
   bool _switchingCallType = false;
   bool get switchingCallType => _switchingCallType;
@@ -227,12 +244,14 @@ class WebrtcCallController extends ChangeNotifier {
         return;
       }
 
-      // 相手が音声⇔ビデオを切り替えた場合、こちらの映像トラックの有無を
-      // 先に合わせておく（この直後に届くオファーのアンサー生成に反映される
-      // ようにするため）。自分が切り替えた場合はsetVideoEnabled内で既に
-      // 一致しているため何もしない。
-      if (updated.isVideo != _isVideo) {
-        await _reconcileLocalVideoTo(updated.isVideo);
+      // 相手が音声⇔ビデオを切り替えた場合も、こちら側の映像トラックは
+      // 一切変更しない（切替は本人側にのみ適用される）。UI表示用に相手の
+      // 状態だけ反映する。実際の映像の出し分けは、この直後に届く相手からの
+      // オファー（映像m-lineの追加/削除）に対してアンサーするだけで済む
+      // （自分の映像トラックが無ければ自動的にrecvonlyのアンサーになる）。
+      final remoteVideo = isCaller ? updated.calleeIsVideo : updated.callerIsVideo;
+      if (remoteVideo != _remoteIsVideo) {
+        _remoteIsVideo = remoteVideo;
         notifyListeners();
       }
 
@@ -255,6 +274,7 @@ class WebrtcCallController extends ChangeNotifier {
         _flushPendingCandidates();
         if (_state != CallConnectionState.active) {
           _state = CallConnectionState.active;
+          _connectedAt ??= DateTime.now();
           unawaited(_applySpeakerphoneWithRetry());
         }
         _switchingCallType = false;
@@ -279,6 +299,7 @@ class WebrtcCallController extends ChangeNotifier {
     });
     if (_state != CallConnectionState.active) {
       _state = CallConnectionState.active;
+      _connectedAt ??= DateTime.now();
       unawaited(_applySpeakerphoneWithRetry());
     }
     _switchingCallType = false;
@@ -330,6 +351,30 @@ class WebrtcCallController extends ChangeNotifier {
     if (_state == CallConnectionState.ended) return;
     _state = CallConnectionState.ended;
     notifyListeners();
+    // 通話履歴メッセージは発信者側からのみ送る（両側から送ると二重投稿に
+    // なるため）。実際に接続（応答）された通話のみが対象で、不在着信・
+    // 拒否（_connectedAtが立たないまま終了）の場合は送らない。
+    if (isCaller && _connectedAt != null) {
+      unawaited(_logCallSummary(_connectedAt!));
+    }
+  }
+
+  Future<void> _logCallSummary(DateTime startedAt) async {
+    final durationSeconds = DateTime.now().difference(startedAt).inSeconds;
+    if (durationSeconds <= 0) return;
+    try {
+      await _directMessageRepository.sendCallSummaryMessage(
+        dmId: call.dmId,
+        senderId: call.callerId,
+        senderRhingId: call.callerRhingId,
+        startedAt: startedAt,
+        durationSeconds: durationSeconds,
+        isVideo: call.isVideo,
+      );
+    } catch (_) {
+      // 通信不安定等。通話自体は既に終了しているため、履歴メッセージの
+      // 送信失敗は握りつぶす（再試行の仕組みは持たない）。
+    }
   }
 
   Future<void> decline() async {
@@ -365,9 +410,10 @@ class WebrtcCallController extends ChangeNotifier {
   /// [removeTrack]による再ネゴシエーション（新しいオファー/アンサー交換）が
   /// 必須になる。
   ///
-  /// 相手が切り替えた場合は、call.isVideoフィールドの変化を
-  /// _startPerpetualWatcher内で検知して自動的に追従する
-  /// （[_reconcileLocalVideoTo]参照）。
+  /// 切り替えは自分側にのみ適用され、相手の映像トラックには一切触れない。
+  /// 相手には新しいオファー（映像m-lineの追加/削除）が届くだけで、相手側は
+  /// 自分の映像トラックを持っていなければ自動的にrecvonlyでアンサーする
+  /// （＝相手のカメラが強制でオン/オフされることはない）。
   Future<void> setVideoEnabled(bool enabled) async {
     if (enabled == _isVideo ||
         _switchingCallType ||
@@ -379,7 +425,11 @@ class WebrtcCallController extends ChangeNotifier {
     try {
       await _reconcileLocalVideoTo(enabled);
       notifyListeners();
-      await _callRepository.updateIsVideo(call.callId, enabled);
+      await _callRepository.updateIsVideo(
+        call.callId,
+        isCaller: isCaller,
+        isVideo: enabled,
+      );
       final offer = await _peerConnection!.createOffer();
       await _peerConnection!.setLocalDescription(offer);
       _pendingLocalOfferSdp = offer.sdp;
@@ -394,8 +444,8 @@ class WebrtcCallController extends ChangeNotifier {
     }
   }
 
-  /// 自分の映像トラックの有無を[targetIsVideo]に合わせる。既に一致していれば
-  /// 何もしない（相手からの通知と自分の操作、両方の経路から呼ばれるため）。
+  /// 自分の映像トラックの有無を[targetIsVideo]に合わせる。[setVideoEnabled]
+  /// からのみ呼ばれる（自分の操作でのみ自分の映像トラックが変化する）。
   Future<void> _reconcileLocalVideoTo(bool targetIsVideo) async {
     if (targetIsVideo == _isVideo) return;
     if (targetIsVideo) {

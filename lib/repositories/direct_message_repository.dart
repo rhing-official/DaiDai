@@ -22,6 +22,18 @@ abstract class DirectMessageRepository {
     Message? replyTo,
   });
 
+  /// 通話が終了した際、通話履歴メッセージ（開始時刻・通話時間）を送る。
+  /// 発信者側からのみ呼ばれる（`WebrtcCallController`参照）。実際に接続
+  /// （応答）された通話のみが対象で、不在着信・拒否の場合は呼ばれない。
+  Future<void> sendCallSummaryMessage({
+    required String dmId,
+    required String senderId,
+    required String senderRhingId,
+    required DateTime startedAt,
+    required int durationSeconds,
+    required bool isVideo,
+  });
+
   /// 送信済みテキストメッセージの本文を編集する（本文編集のみ・時間制限なし）。
   Future<void> editMessage({
     required String dmId,
@@ -159,6 +171,37 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
       replyToSenderId: replyTo?.senderId,
       replyToSenderRhingId: replyTo?.senderRhingId,
       replyToSnippet: replyTo == null ? null : messageSnippetOf(replyTo.content),
+    );
+
+    final batch = _firestore.batch();
+    batch.set(messageRef, message.toJson());
+    batch.update(dmRef, {'lastMessageAt': FieldValue.serverTimestamp()});
+    await batch.commit();
+  }
+
+  @override
+  Future<void> sendCallSummaryMessage({
+    required String dmId,
+    required String senderId,
+    required String senderRhingId,
+    required DateTime startedAt,
+    required int durationSeconds,
+    required bool isVideo,
+  }) async {
+    final dmRef = _directMessages.doc(dmId);
+    final messageRef = dmRef.collection('messages').doc();
+
+    final message = Message(
+      messageId: messageRef.id,
+      conversationId: dmId,
+      conversationType: 'dm',
+      senderId: senderId,
+      senderRhingId: senderRhingId,
+      content: '通話が終了しました',
+      contentType: 'call',
+      callStartedAt: Timestamp.fromDate(startedAt),
+      callDurationSeconds: durationSeconds,
+      callIsVideo: isVideo,
     );
 
     final batch = _firestore.batch();

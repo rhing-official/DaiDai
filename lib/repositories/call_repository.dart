@@ -9,6 +9,7 @@ abstract class CallRepository {
   Future<Call> createCall({
     required AppUser caller,
     required AppUser callee,
+    required String dmId,
     bool isVideo = false,
   });
 
@@ -23,7 +24,13 @@ abstract class CallRepository {
 
   /// 通話中に音声⇔ビデオを切り替えた際、種別をFirestore側にも反映する
   /// （画面を離れて戻ってきた場合等に現在の種別を復元できるようにするため）。
-  Future<void> updateIsVideo(String callId, bool isVideo);
+  /// 切り替えるのは自分側の種別のみで、相手側には影響しない
+  /// （[isCaller]に応じて`callerIsVideo`/`calleeIsVideo`のどちらかだけ更新する）。
+  Future<void> updateIsVideo(
+    String callId, {
+    required bool isCaller,
+    required bool isVideo,
+  });
 
   Future<void> addCandidate({
     required String callId,
@@ -55,17 +62,21 @@ class FirestoreCallRepository implements CallRepository {
   Future<Call> createCall({
     required AppUser caller,
     required AppUser callee,
+    required String dmId,
     bool isVideo = false,
   }) async {
     final ref = _calls.doc();
     final call = Call(
       callId: ref.id,
+      dmId: dmId,
       callerId: caller.userId,
       callerRhingId: caller.rhingId,
       calleeId: callee.userId,
       calleeRhingId: callee.rhingId,
       status: CallStatus.ringing,
       isVideo: isVideo,
+      callerIsVideo: isVideo,
+      calleeIsVideo: isVideo,
     );
     await ref.set(call.toJson());
     return call;
@@ -106,8 +117,13 @@ class FirestoreCallRepository implements CallRepository {
   }
 
   @override
-  Future<void> updateIsVideo(String callId, bool isVideo) {
-    return _calls.doc(callId).update({'isVideo': isVideo});
+  Future<void> updateIsVideo(
+    String callId, {
+    required bool isCaller,
+    required bool isVideo,
+  }) {
+    final field = isCaller ? 'callerIsVideo' : 'calleeIsVideo';
+    return _calls.doc(callId).update({field: isVideo});
   }
 
   @override

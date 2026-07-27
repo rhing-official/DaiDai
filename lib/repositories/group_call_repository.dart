@@ -38,26 +38,19 @@ abstract class GroupCallRepository {
   /// その広場で現在進行中の通話（あれば1件）を監視する。
   Stream<GroupCall?> watchActiveGroupCall(String groupId);
 
-  /// 通話ドキュメント自体（`isVideo`等）の変更を監視する。通話中に誰かが
-  /// 音声⇔ビデオを切り替えた際、自分以外の参加者もそれを検知するために使う。
-  Stream<GroupCall?> watchGroupCall(String groupCallId);
-
-  /// 通話中に音声⇔ビデオを切り替えた際、種別をFirestore側にも反映する。
-  Future<void> updateIsVideo({
-    required String groupCallId,
-    required bool isVideo,
-  });
-
   /// 自分がメンバーになっている広場すべてを横断して、現在進行中の通話一覧を
   /// 監視する（着信バナー表示用）。
   Stream<List<GroupCall>> watchActiveGroupCallsForMember(String userId);
 
   Future<GroupCall?> getGroupCall(String groupCallId);
 
-  /// 進行中の通話に参加する（参加者ドキュメントを作成する）。
+  /// 進行中の通話に参加する（参加者ドキュメントを作成する）。[isVideo]は
+  /// 参加する時点で自分がビデオ通話として参加するかどうか（参加者ごとに
+  /// 独立しており、以後[updateParticipantState]で自分だけ切り替えられる）。
   Future<void> joinGroupCall({
     required String groupCallId,
     required AppUser user,
+    required bool isVideo,
   });
 
   /// 通話から退出する。退出後に参加者が0人になった場合は通話自体も終了扱いにする。
@@ -81,6 +74,7 @@ abstract class GroupCallRepository {
     required String userId,
     bool? micMuted,
     bool? cameraOff,
+    bool? isVideo,
   });
 
   /// 2人ぶんのペアリンクを作成する（offer/answerのやり取りを始める前に、
@@ -236,22 +230,6 @@ class FirestoreGroupCallRepository implements GroupCallRepository {
   }
 
   @override
-  Stream<GroupCall?> watchGroupCall(String groupCallId) {
-    return _groupCalls.doc(groupCallId).snapshots().map((doc) {
-      if (!doc.exists) return null;
-      return GroupCall.fromJson(doc.id, doc.data()!);
-    });
-  }
-
-  @override
-  Future<void> updateIsVideo({
-    required String groupCallId,
-    required bool isVideo,
-  }) {
-    return _groupCalls.doc(groupCallId).update({'isVideo': isVideo});
-  }
-
-  @override
   Future<GroupCall?> getGroupCall(String groupCallId) async {
     final doc = await _groupCalls.doc(groupCallId).get();
     if (!doc.exists) return null;
@@ -262,8 +240,13 @@ class FirestoreGroupCallRepository implements GroupCallRepository {
   Future<void> joinGroupCall({
     required String groupCallId,
     required AppUser user,
+    required bool isVideo,
   }) async {
-    final participant = CallParticipant(userId: user.userId, rhingId: user.rhingId);
+    final participant = CallParticipant(
+      userId: user.userId,
+      rhingId: user.rhingId,
+      isVideo: isVideo,
+    );
     await _participantsOf(groupCallId)
         .doc(user.userId)
         .set(participant.toJson());
@@ -325,10 +308,12 @@ class FirestoreGroupCallRepository implements GroupCallRepository {
     required String userId,
     bool? micMuted,
     bool? cameraOff,
+    bool? isVideo,
   }) async {
     final data = <String, dynamic>{};
     if (micMuted != null) data['micMuted'] = micMuted;
     if (cameraOff != null) data['cameraOff'] = cameraOff;
+    if (isVideo != null) data['isVideo'] = isVideo;
     if (data.isEmpty) return;
     await _participantsOf(groupCallId).doc(userId).update(data);
   }
