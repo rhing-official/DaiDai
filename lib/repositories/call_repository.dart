@@ -21,6 +21,10 @@ abstract class CallRepository {
   Future<void> setAnswer(String callId, Map<String, dynamic> answer);
   Future<void> updateStatus(String callId, CallStatus status);
 
+  /// 通話中に音声⇔ビデオを切り替えた際、種別をFirestore側にも反映する
+  /// （画面を離れて戻ってきた場合等に現在の種別を復元できるようにするため）。
+  Future<void> updateIsVideo(String callId, bool isVideo);
+
   Future<void> addCandidate({
     required String callId,
     required bool isCaller,
@@ -99,6 +103,11 @@ class FirestoreCallRepository implements CallRepository {
       'answer': answer,
       'status': CallStatus.active.name,
     });
+  }
+
+  @override
+  Future<void> updateIsVideo(String callId, bool isVideo) {
+    return _calls.doc(callId).update({'isVideo': isVideo});
   }
 
   @override

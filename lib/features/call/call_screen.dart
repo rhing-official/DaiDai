@@ -9,8 +9,10 @@ import 'call_controls.dart';
 import 'webrtc_call_controller.dart';
 
 /// 音声・ビデオ通話画面（発信中・着信中・通話中を1画面でまとめて扱う）。
-/// 一対（1対1）限定。`call.isVideo`で音声のみ／ビデオを切り替える。
-/// TURN未導入のためSTUNのみで接続する。
+/// 一対（1対1）限定。開始時点の種別は`call.isVideo`だが、通話中に
+/// [WebrtcCallController.setVideoEnabled]で音声⇔ビデオを切り替えられる
+/// （`_controller.isVideo`が現在の実際の種別）。TURN未導入のためSTUNのみで
+/// 接続する。
 class CallScreen extends ConsumerStatefulWidget {
   const CallScreen({
     required this.call,
@@ -85,7 +87,7 @@ class _CallScreenState extends ConsumerState<CallScreen> {
     }
   }
 
-  bool get _isVideo => widget.call.isVideo;
+  bool get _isVideo => _controller.isVideo;
 
   @override
   Widget build(BuildContext context) {
@@ -345,6 +347,16 @@ class _CallScreenState extends ConsumerState<CallScreen> {
                 : Icons.phone_in_talk,
             color: Colors.grey[700]!,
             onPressed: isActive ? _controller.toggleSpeaker : null,
+          ),
+        ),
+        Tooltip(
+          message: _isVideo ? '音声通話に切り替える' : 'ビデオ通話に切り替える',
+          child: CallRoundButton(
+            icon: Icons.switch_video,
+            color: Colors.grey[700]!,
+            onPressed: isActive && !_controller.switchingCallType
+                ? () => _controller.setVideoEnabled(!_isVideo)
+                : null,
           ),
         ),
         if (_isVideo) ...[
