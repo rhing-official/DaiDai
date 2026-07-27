@@ -154,16 +154,35 @@ service cloud.firestore {
           && request.auth.uid == request.resource.data.senderId
           && request.auth.uid in get(/databases/$(database)/documents/directMessages/$(dmId)).data.participants;
         // 既読機能: 参加者本人がreadByフィールドのみを更新できる
-        // （既読を付けるのに送信者である必要はない）。
+        // （既読を付けるのに送信者である必要はない）。範囲選択削除
+        // （2026-07-27追加）: 参加者本人がhiddenForに自分のuidだけを
+        // 追加する更新も許可する（他人のuidを混ぜたり、既存のuidを
+        // 消したりはできない）。
         allow update: if request.auth != null
           && request.auth.uid in get(/databases/$(database)/documents/directMessages/$(dmId)).data.participants
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readBy']);
-        // 絶縁の実行時のみ、同意した側（提案者本人ではない参加者）が
-        // メッセージを物理削除できる。
+          && (
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readBy'])
+            || (
+              request.resource.data.diff(resource.data).affectedKeys().hasOnly(['hiddenFor'])
+              && request.resource.data.hiddenFor.hasAll('hiddenFor' in resource.data ? resource.data.hiddenFor : [])
+              && request.resource.data.hiddenFor.removeAll('hiddenFor' in resource.data ? resource.data.hiddenFor : []).hasOnly([request.auth.uid])
+            )
+          );
+        // 絶縁の実行時（同意した側が実行）に加え、範囲選択削除で参加者
+        // 全員がこのメッセージをhiddenForに含めた場合も物理削除を許可する
+        // （DirectMessageRepository.hideMessagesForMe参照。実際にhiddenForを
+        // 更新せず直接deleteするため、「自分を加えたら全員揃うか」で判定する）。
         allow delete: if request.auth != null
           && request.auth.uid in get(/databases/$(database)/documents/directMessages/$(dmId)).data.participants
-          && get(/databases/$(database)/documents/directMessages/$(dmId)).data.severanceRequestedBy != null
-          && get(/databases/$(database)/documents/directMessages/$(dmId)).data.severanceRequestedBy != request.auth.uid;
+          && (
+            (
+              get(/databases/$(database)/documents/directMessages/$(dmId)).data.severanceRequestedBy != null
+              && get(/databases/$(database)/documents/directMessages/$(dmId)).data.severanceRequestedBy != request.auth.uid
+            )
+            || ('hiddenFor' in resource.data ? resource.data.hiddenFor : [])
+                 .concat([request.auth.uid])
+                 .hasAll(get(/databases/$(database)/documents/directMessages/$(dmId)).data.participants)
+          );
       }
     }
 
@@ -249,10 +268,26 @@ service cloud.firestore {
             && request.auth.uid == request.resource.data.senderId
             && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)/rooms/$(roomId)).data.memberIds;
           // 既読機能: メンバー本人がreadByフィールドのみを更新できる。
+          // 範囲選択削除（2026-07-27追加）: メンバー本人がhiddenForに
+          // 自分のuidだけを追加する更新も許可する（一対のmessagesと同じ設計、
+          // firestore.rulesのdirectMessages/{dmId}/messages参照）。
           allow update: if request.auth != null
             && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)/rooms/$(roomId)).data.memberIds
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readBy']);
-          allow delete: if false;
+            && (
+              request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readBy'])
+              || (
+                request.resource.data.diff(resource.data).affectedKeys().hasOnly(['hiddenFor'])
+                && request.resource.data.hiddenFor.hasAll('hiddenFor' in resource.data ? resource.data.hiddenFor : [])
+                && request.resource.data.hiddenFor.removeAll('hiddenFor' in resource.data ? resource.data.hiddenFor : []).hasOnly([request.auth.uid])
+              )
+            );
+          // 範囲選択削除でメンバー全員がこのメッセージをhiddenForに含めた
+          // 場合のみ物理削除を許可する（GroupRepository.hideRoomMessagesForMe参照）。
+          allow delete: if request.auth != null
+            && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)/rooms/$(roomId)).data.memberIds
+            && ('hiddenFor' in resource.data ? resource.data.hiddenFor : [])
+                 .concat([request.auth.uid])
+                 .hasAll(get(/databases/$(database)/documents/groups/$(groupId)/rooms/$(roomId)).data.memberIds);
         }
       }
     }

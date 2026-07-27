@@ -27,7 +27,7 @@ class Message {
     required this.content,
     required this.contentType,
     this.sentAt,
-    this.deletedAt,
+    this.hiddenFor = const [],
     this.silent = false,
     this.readBy = const [],
   });
@@ -41,7 +41,14 @@ class Message {
   final String content;
   final String contentType; // text | image | file | sticker | video
   final Timestamp? sentAt;
-  final Timestamp? deletedAt;
+
+  /// このメッセージを自分のアカウントから見えなくした（範囲選択削除した）
+  /// ユーザーのuserId一覧。実際にはサーバーから削除せず、本人の画面にだけ
+  /// 表示しない（他の参加者には引き続き見える）。会話の参加者全員が
+  /// ここに含まれた時点で、クライアントがサーバーから物理削除する
+  /// （`DirectMessageRepository.hideMessagesForMe`/
+  /// `GroupRepository.hideRoomMessagesForMe`参照）。
+  final List<String> hiddenFor;
 
   /// 送信者が「相手に通知せず送る」を選んだメッセージかどうか。
   /// FCMのプッシュ通知基盤が実装された際、このフラグが立っているメッセージは
@@ -61,7 +68,9 @@ class Message {
       content: json['content'] as String,
       contentType: json['contentType'] as String,
       sentAt: json['sentAt'] as Timestamp?,
-      deletedAt: json['deletedAt'] as Timestamp?,
+      hiddenFor: (json['hiddenFor'] as List<dynamic>? ?? [])
+          .map((e) => e as String)
+          .toList(),
       silent: json['silent'] as bool? ?? false,
       readBy: (json['readBy'] as List<dynamic>? ?? [])
           .map((e) => MessageReadReceipt.fromJson(e as Map<String, dynamic>))
@@ -78,7 +87,7 @@ class Message {
       'content': content,
       'contentType': contentType,
       'sentAt': sentAt ?? FieldValue.serverTimestamp(),
-      'deletedAt': deletedAt,
+      'hiddenFor': hiddenFor,
       'readBy': <Map<String, dynamic>>[],
       'isSpam': false,
       'silent': silent,
