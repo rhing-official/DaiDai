@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'auth/auth_gate.dart';
+import 'call/group_incoming_call_listener.dart';
 import 'call/incoming_call_listener.dart';
 import 'home/home_screen.dart';
 
@@ -14,7 +15,10 @@ class AppGate extends StatelessWidget {
     return AuthGate(
       builder: (context, currentUser) => IncomingCallListener(
         currentUserId: currentUser.userId,
-        child: HomeScreen(currentUser: currentUser),
+        child: GroupIncomingCallListener(
+          currentUser: currentUser,
+          child: HomeScreen(currentUser: currentUser),
+        ),
       ),
     );
   }

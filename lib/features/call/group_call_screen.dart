@@ -1,5 +1,6 @@
 import 'dart:math';
 
+import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
@@ -12,6 +13,9 @@ import 'webrtc_group_call_controller.dart';
 /// 広場（グループ）通話画面。メッシュ型P2Pのため、参加者ごとに独立した
 /// `RTCVideoRenderer`をグリッド表示する。1対1の[CallScreen]とは異なり、
 /// 着信（ringing）の概念を持たず「進行中の通話に途中参加する」形になる。
+/// UIも1対1とは意図的に差別化しており、常にグリッド表示から始まり、
+/// 任意の枠をタップするとその参加者を全画面表示、全画面表示中に
+/// 下スワイプするとグリッドに戻る（2026-07-27）。
 class GroupCallScreen extends ConsumerStatefulWidget {
   const GroupCallScreen({
     required this.groupCallId,
@@ -31,9 +35,9 @@ class GroupCallScreen extends ConsumerStatefulWidget {
 class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
   late final WebrtcGroupCallController _controller;
 
-  /// 参加者が自分＋相手1人（計2人）の時、フルスクリーン側に相手（true）/
-  /// 自分（false）どちらを表示するか。タップで入れ替える。
-  bool _mainViewIsRemote = true;
+  /// タップでフォーカス（全画面表示）中のタイルのキー。
+  /// 自分は`'self'`、相手は`userId`。nullならグリッド表示。
+  String? _focusedTileKey;
 
   @override
   void initState() {
@@ -155,6 +159,7 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
                 mirror: true,
                 micMuted: _controller.muted,
                 cameraOff: _controller.cameraOff,
+                connectionIssue: false,
               ),
             ),
             Positioned(
@@ -182,44 +187,62 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
       );
     }
 
-    if (tileCount == 2) {
-      // 自分＋相手1人の場合は1対1通話と同じ「フルスクリーン＋コーナーPIP＋
-      // タップ入れ替え」構成にする。
-      final other = remoteParticipants.single;
-      void swapViews() =>
-          setState(() => _mainViewIsRemote = !_mainViewIsRemote);
+    // 2人以上は人数によらず常にグリッド表示から始め、任意の枠をタップすると
+    // その参加者を全画面表示、全画面表示中に下スワイプするとグリッドに
+    // 戻る（一対通話の「フルスクリーン＋コーナーPIP」とは意図的に差別化）。
+    final entries = <_CallTileEntry>[
+      _CallTileEntry(
+        key: 'self',
+        tile: _videoTile(
+          rhingId: widget.currentUser.rhingId,
+          renderer: widget.isVideo ? _controller.localRenderer : null,
+          mirror: true,
+          micMuted: _controller.muted,
+          cameraOff: _controller.cameraOff,
+          connectionIssue: false,
+        ),
+      ),
+      for (final participant in remoteParticipants)
+        _CallTileEntry(
+          key: participant.userId,
+          tile: _videoTile(
+            rhingId: participant.rhingId,
+            renderer: _controller.remoteRenderers[participant.userId],
+            mirror: false,
+            micMuted: participant.micMuted,
+            cameraOff: participant.cameraOff,
+            connectionIssue:
+                _controller.peerConnectionIssues[participant.userId] ?? false,
+          ),
+        ),
+    ];
 
-      final localTile = _videoTile(
-        rhingId: widget.currentUser.rhingId,
-        renderer: widget.isVideo ? _controller.localRenderer : null,
-        mirror: true,
-        micMuted: _controller.muted,
-        cameraOff: _controller.cameraOff,
-      );
-      final remoteTile = _videoTile(
-        rhingId: other.rhingId,
-        renderer: _controller.remoteRenderers[other.userId],
-        mirror: false,
-        micMuted: other.micMuted,
-        cameraOff: other.cameraOff,
-      );
-      final mainTile = _mainViewIsRemote ? remoteTile : localTile;
-      final pipTile = _mainViewIsRemote ? localTile : remoteTile;
+    final focused =
+        entries.firstWhereOrNull((entry) => entry.key == _focusedTileKey);
 
+    if (focused != null) {
       return SafeArea(
         child: Stack(
           children: [
             Positioned.fill(
-              child: GestureDetector(onTap: swapViews, child: mainTile),
-            ),
-            Positioned(
-              top: 16,
-              right: 16,
               child: GestureDetector(
-                onTap: swapViews,
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: SizedBox(width: 90, height: 130, child: pipTile),
+                onVerticalDragEnd: (details) {
+                  if ((details.primaryVelocity ?? 0) > 200) {
+                    setState(() => _focusedTileKey = null);
+                  }
+                },
+                child: focused.tile,
+              ),
+            ),
+            const Positioned(
+              top: 16,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: Icon(
+                  Icons.keyboard_arrow_down,
+                  color: Colors.white70,
+                  size: 28,
                 ),
               ),
             ),
@@ -246,20 +269,10 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
               mainAxisSpacing: 4,
               crossAxisSpacing: 4,
               children: [
-                _videoTile(
-                  rhingId: widget.currentUser.rhingId,
-                  renderer: widget.isVideo ? _controller.localRenderer : null,
-                  mirror: true,
-                  micMuted: _controller.muted,
-                  cameraOff: _controller.cameraOff,
-                ),
-                for (final participant in remoteParticipants)
-                  _videoTile(
-                    rhingId: participant.rhingId,
-                    renderer: _controller.remoteRenderers[participant.userId],
-                    mirror: false,
-                    micMuted: participant.micMuted,
-                    cameraOff: participant.cameraOff,
+                for (final entry in entries)
+                  GestureDetector(
+                    onTap: () => setState(() => _focusedTileKey = entry.key),
+                    child: entry.tile,
                   ),
               ],
             ),
@@ -279,6 +292,7 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
     required bool mirror,
     required bool micMuted,
     required bool cameraOff,
+    required bool connectionIssue,
   }) {
     return Container(
       color: Colors.grey.shade900,
@@ -325,6 +339,23 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
               ],
             ),
           ),
+          if (connectionIssue)
+            Positioned(
+              top: 8,
+              right: 8,
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                decoration: BoxDecoration(
+                  color: Colors.black54,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: const Text(
+                  '接続が不安定です',
+                  style: TextStyle(color: Colors.white70, fontSize: 10),
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -374,4 +405,10 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
       ],
     );
   }
+}
+
+class _CallTileEntry {
+  const _CallTileEntry({required this.key, required this.tile});
+  final String key;
+  final Widget tile;
 }

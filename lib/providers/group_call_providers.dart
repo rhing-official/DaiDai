@@ -10,3 +10,13 @@ final activeGroupCallProvider =
     StreamProvider.family<GroupCall?, String>((ref, groupId) {
   return ref.watch(groupCallRepositoryProvider).watchActiveGroupCall(groupId);
 });
+
+/// 自分がメンバーになっている広場すべてを横断して、現在進行中の通話一覧を
+/// 監視する。着信バナー（[GroupIncomingCallListener]）が新規に始まった
+/// 通話を検知するために使う。
+final activeGroupCallsForUserProvider =
+    StreamProvider.family<List<GroupCall>, String>((ref, userId) {
+  return ref
+      .watch(groupCallRepositoryProvider)
+      .watchActiveGroupCallsForMember(userId);
+});
