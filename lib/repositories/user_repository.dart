@@ -49,6 +49,11 @@ abstract class UserRepository {
   /// activeIconId等、単一の値を持つフィールドを原子的に更新する。
   Future<void> setProfileField(String userId, String field, String? value);
 
+  /// 端末をまたいで同期する表示設定（[AppUserPreferences]）を1項目だけ
+  /// ドット記法（`preferences.$field`）で部分更新する。他のフィールドや
+  /// 未変更の設定項目には影響しない。
+  Future<void> updateUserPreference(String userId, String field, Object? value);
+
   /// プロフィールカードを1件、原子的に保存する（新規作成・既存編集の両方に使う）。
   /// idが一致するカードがあれば置き換え、無ければ追加する。
   ///
@@ -180,6 +185,15 @@ class FirestoreUserRepository implements UserRepository {
         field == 'activeProfileCardId') {
       await syncInvitePreview(userId);
     }
+  }
+
+  @override
+  Future<void> updateUserPreference(
+    String userId,
+    String field,
+    Object? value,
+  ) async {
+    await _users.doc(userId).update({'preferences.$field': value});
   }
 
   @override

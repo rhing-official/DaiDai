@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/send_key_mode.dart';
+import 'repository_providers.dart';
 
 const _prefsKey = 'sendKeyMode';
 
@@ -21,6 +22,19 @@ class SendKeyModeNotifier extends Notifier<SendKeyMode> {
   SendKeyMode build() => ref.watch(initialSendKeyModeProvider);
 
   Future<void> setMode(SendKeyMode mode) async {
+    state = mode;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_prefsKey, mode.name);
+    final userId = ref.read(authStateProvider).value?.uid;
+    if (userId == null) return;
+    await ref
+        .read(userRepositoryProvider)
+        .updateUserPreference(userId, 'sendKeyMode', mode.name);
+  }
+
+  /// ログイン時、Firestoreに保存されている値で端末側を上書きする
+  /// （既にFirestore側にある値の書き戻しは行わない）。
+  Future<void> syncFromRemote(SendKeyMode mode) async {
     state = mode;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_prefsKey, mode.name);

@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/chat_layout_style.dart';
+import 'repository_providers.dart';
 
 const _prefsKey = 'chatLayoutStyle';
 
@@ -21,6 +22,19 @@ class ChatLayoutStyleNotifier extends Notifier<ChatLayoutStyle> {
   ChatLayoutStyle build() => ref.watch(initialChatLayoutStyleProvider);
 
   Future<void> setStyle(ChatLayoutStyle style) async {
+    state = style;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_prefsKey, style.name);
+    final userId = ref.read(authStateProvider).value?.uid;
+    if (userId == null) return;
+    await ref
+        .read(userRepositoryProvider)
+        .updateUserPreference(userId, 'chatLayoutStyle', style.name);
+  }
+
+  /// ログイン時、Firestoreに保存されている値で端末側を上書きする
+  /// （既にFirestore側にある値の書き戻しは行わない）。
+  Future<void> syncFromRemote(ChatLayoutStyle style) async {
     state = style;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_prefsKey, style.name);

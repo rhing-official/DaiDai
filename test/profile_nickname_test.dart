@@ -79,6 +79,15 @@ class _FakeUserRepository implements UserRepository {
   }
 
   @override
+  Future<void> updateUserPreference(
+    String userId,
+    String field,
+    Object? value,
+  ) async {
+    throw UnimplementedError();
+  }
+
+  @override
   Future<ProfileMaterial> uploadIcon(String userId, Uint8List bytes) {
     throw UnimplementedError();
   }

@@ -1,3 +1,4 @@
+import 'app_user_preferences.dart';
 import 'profile_card.dart';
 import 'profile_material.dart';
 
@@ -17,6 +18,7 @@ class AppUser {
     this.activeStatusMessageId,
     this.activeNicknameId,
     this.activeProfileCardId,
+    this.preferences = AppUserPreferences.empty,
   });
 
   final String userId;
@@ -53,6 +55,10 @@ class AppUser {
   /// 未選択（null）の場合は、リンク側は個別の蔵アイテム（activeIcon/activeNickname）
   /// から直接組み立てる（[UserRepository.syncInvitePreview]参照）。
   final String? activeProfileCardId;
+
+  /// 端末をまたいで同期する表示設定（設定タブのアクセントカラー・外観・
+  /// 表示言語等）。[UserRepository.updateUserPreference]で個別に部分更新する。
+  final AppUserPreferences preferences;
 
   ProfileMaterial? get activeIcon => _findMaterial(icons, activeIconId);
   ProfileMaterial? get activeBackgroundImage =>
@@ -176,6 +182,7 @@ class AppUser {
       activeProfileCardId: clearActiveProfileCardId
           ? null
           : (activeProfileCardId ?? this.activeProfileCardId),
+      preferences: preferences,
     );
   }
 
@@ -195,6 +202,9 @@ class AppUser {
       activeStatusMessageId: json['activeStatusMessageId'] as String?,
       activeNicknameId: json['activeNicknameId'] as String?,
       activeProfileCardId: json['activeProfileCardId'] as String?,
+      preferences: AppUserPreferences.fromJson(
+        json['preferences'] as Map<String, dynamic>?,
+      ),
     );
   }
 
@@ -214,6 +224,7 @@ class AppUser {
       'activeStatusMessageId': activeStatusMessageId,
       'activeNicknameId': activeNicknameId,
       'activeProfileCardId': activeProfileCardId,
+      'preferences': preferences.toJson(),
     };
   }
 
