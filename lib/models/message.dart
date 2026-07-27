@@ -17,6 +17,17 @@ class MessageReadReceipt {
   Map<String, dynamic> toJson() => {'userId': userId, 'readAt': readAt};
 }
 
+/// リアクションの固定絵文字セット（firestore.rulesの許可リストと必ず一致させること）。
+const kReactionEmojis = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
+
+/// 返信の引用プレビュー用にcontentを切り詰める。
+String messageSnippetOf(String content) {
+  const maxLength = 80;
+  final singleLine = content.replaceAll('\n', ' ');
+  if (singleLine.length <= maxLength) return singleLine;
+  return '${singleLine.substring(0, maxLength)}…';
+}
+
 class Message {
   const Message({
     required this.messageId,
@@ -30,6 +41,12 @@ class Message {
     this.hiddenFor = const [],
     this.silent = false,
     this.readBy = const [],
+    this.replyToMessageId,
+    this.replyToSenderId,
+    this.replyToSenderRhingId,
+    this.replyToSnippet,
+    this.editedAt,
+    this.reactions = const {},
   });
 
   final String messageId;
@@ -58,6 +75,32 @@ class Message {
   /// このメッセージを読んだユーザーの一覧（送信者本人は含まない想定）。
   final List<MessageReadReceipt> readBy;
 
+  /// 返信元メッセージのid。nullなら返信ではない通常メッセージ。
+  final String? replyToMessageId;
+
+  /// 返信元メッセージの送信者（送信時点の非正規化）。返信元が読み込み済み
+  /// ウィンドウ外や送信取り消し済みでも引用プレビューを表示し続けるために持つ。
+  /// 表示側（`_MessageRow`）は、現在ロード済みのリストに返信元の実物が
+  /// あればそちらを優先し（最新の内容・編集済みラベルを反映できる）、
+  /// 無ければこのフィールドにフォールバックする。
+  final String? replyToSenderId;
+  final String? replyToSenderRhingId;
+
+  /// 返信元メッセージの本文スニペット（返信作成時点の内容、非正規化）。
+  /// 返信元が送信取り消しされた場合は、`unsendMessage`/`unsendRoomMessage`が
+  /// この引用メッセージ側のreplyTo系フィールドをまとめてクリアする
+  /// （送信取り消しは相手側にも痕跡を残さない、という仕様のため）。
+  final String? replyToSnippet;
+
+  /// 編集済みの場合の最終編集日時。nullなら未編集。
+  final Timestamp? editedAt;
+
+  /// このメッセージへのリアクション。key=リアクションしたuserId、
+  /// value=[kReactionEmojis]のうちの1つ。1ユーザーにつき同時に持てる
+  /// リアクションは1個のみ（同じ絵文字を選び直すと解除、違う絵文字を
+  /// 選ぶと乗り換え）。
+  final Map<String, String> reactions;
+
   factory Message.fromJson(String messageId, Map<String, dynamic> json) {
     return Message(
       messageId: messageId,
@@ -75,6 +118,13 @@ class Message {
       readBy: (json['readBy'] as List<dynamic>? ?? [])
           .map((e) => MessageReadReceipt.fromJson(e as Map<String, dynamic>))
           .toList(),
+      replyToMessageId: json['replyToMessageId'] as String?,
+      replyToSenderId: json['replyToSenderId'] as String?,
+      replyToSenderRhingId: json['replyToSenderRhingId'] as String?,
+      replyToSnippet: json['replyToSnippet'] as String?,
+      editedAt: json['editedAt'] as Timestamp?,
+      reactions: (json['reactions'] as Map<String, dynamic>? ?? {})
+          .map((key, value) => MapEntry(key, value as String)),
     );
   }
 
@@ -91,6 +141,12 @@ class Message {
       'readBy': <Map<String, dynamic>>[],
       'isSpam': false,
       'silent': silent,
+      'replyToMessageId': replyToMessageId,
+      'replyToSenderId': replyToSenderId,
+      'replyToSenderRhingId': replyToSenderRhingId,
+      'replyToSnippet': replyToSnippet,
+      'editedAt': editedAt,
+      'reactions': reactions,
     };
   }
 }

@@ -87,7 +87,7 @@ class DmChatPane extends ConsumerWidget {
                 .where((m) => !isBlocked || m.senderId != otherUserId)
                 .toList(),
           ),
-      onSend: (content, {silent = false}) async {
+      onSend: (content, {silent = false, replyTo}) async {
         if (isBlocked) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text(strings.conversationBlockedCannotSend)),
@@ -100,6 +100,7 @@ class DmChatPane extends ConsumerWidget {
           senderRhingId: currentUser.rhingId,
           content: content,
           silent: silent,
+          replyTo: replyTo,
         );
       },
       onCallPressed: onCallPressed,
@@ -114,6 +115,21 @@ class DmChatPane extends ConsumerWidget {
         dmId: dm.dmId,
         userId: currentUser.userId,
         messageIds: messageIds,
+      ),
+      onEditMessage: (messageId, newContent) => dmRepository.editMessage(
+        dmId: dm.dmId,
+        messageId: messageId,
+        newContent: newContent,
+      ),
+      onUnsendMessage: (messageId) => dmRepository.unsendMessage(
+        dmId: dm.dmId,
+        messageId: messageId,
+      ),
+      onSetReaction: (messageId, emoji) => dmRepository.setReaction(
+        dmId: dm.dmId,
+        messageId: messageId,
+        userId: currentUser.userId,
+        emoji: emoji,
       ),
       extraActions: [
         _DmMenuButton(
@@ -388,13 +404,14 @@ class GroupChatPane extends ConsumerWidget {
           .map((messages) => messages
               .where((m) => !m.hiddenFor.contains(currentUser.userId))
               .toList()),
-      onSend: (content, {silent = false}) => groupRepository.sendRoomMessage(
+      onSend: (content, {silent = false, replyTo}) => groupRepository.sendRoomMessage(
         groupId: group.groupId,
         roomId: group.defaultRoomId,
         senderId: currentUser.userId,
         senderRhingId: currentUser.rhingId,
         content: content,
         silent: silent,
+        replyTo: replyTo,
       ),
       onCallPressed: () => _handleCallPressed(context, ref, isVideo: false),
       onVideoCallPressed: () => _handleCallPressed(context, ref, isVideo: true),
@@ -410,6 +427,24 @@ class GroupChatPane extends ConsumerWidget {
         roomId: group.defaultRoomId,
         userId: currentUser.userId,
         messageIds: messageIds,
+      ),
+      onEditMessage: (messageId, newContent) => groupRepository.editRoomMessage(
+        groupId: group.groupId,
+        roomId: group.defaultRoomId,
+        messageId: messageId,
+        newContent: newContent,
+      ),
+      onUnsendMessage: (messageId) => groupRepository.unsendRoomMessage(
+        groupId: group.groupId,
+        roomId: group.defaultRoomId,
+        messageId: messageId,
+      ),
+      onSetReaction: (messageId, emoji) => groupRepository.setRoomMessageReaction(
+        groupId: group.groupId,
+        roomId: group.defaultRoomId,
+        messageId: messageId,
+        userId: currentUser.userId,
+        emoji: emoji,
       ),
       extraActions: [
         _GroupMenuButton(currentUser: currentUser, group: group),

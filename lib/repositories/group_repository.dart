@@ -40,6 +40,34 @@ abstract class GroupRepository {
     required String senderRhingId,
     required String content,
     bool silent = false,
+    Message? replyTo,
+  });
+
+  /// 送信済みテキストメッセージの本文を編集する（本文編集のみ・時間制限なし）。
+  Future<void> editRoomMessage({
+    required String groupId,
+    required String roomId,
+    required String messageId,
+    required String newContent,
+  });
+
+  /// 自分が送ったメッセージを、他のメンバーにも痕跡を残さず完全に削除する
+  /// （物理削除）。このメッセージを引用返信している他のメッセージがあれば、
+  /// それらのreplyTo系フィールドも同時にクリアする。
+  Future<void> unsendRoomMessage({
+    required String groupId,
+    required String roomId,
+    required String messageId,
+  });
+
+  /// 自分のリアクションを設定・解除する（[emoji]がnullなら解除、
+  /// 既に設定済みでも上書きで乗り換えられる）。
+  Future<void> setRoomMessageReaction({
+    required String groupId,
+    required String roomId,
+    required String messageId,
+    required String userId,
+    String? emoji,
   });
 
   /// 指定したメッセージ群に、自分（[userId]）が読んだ記録を追加する。
@@ -228,6 +256,7 @@ class FirestoreGroupRepository implements GroupRepository {
     required String senderRhingId,
     required String content,
     bool silent = false,
+    Message? replyTo,
   }) async {
     final roomRef = _roomRef(groupId, roomId);
     final messageRef = roomRef.collection('messages').doc();
@@ -241,12 +270,70 @@ class FirestoreGroupRepository implements GroupRepository {
       content: content,
       contentType: 'text',
       silent: silent,
+      replyToMessageId: replyTo?.messageId,
+      replyToSenderId: replyTo?.senderId,
+      replyToSenderRhingId: replyTo?.senderRhingId,
+      replyToSnippet: replyTo == null ? null : messageSnippetOf(replyTo.content),
     );
 
     final batch = _firestore.batch();
     batch.set(messageRef, message.toJson());
     batch.update(roomRef, {'lastMessageAt': FieldValue.serverTimestamp()});
     await batch.commit();
+  }
+
+  @override
+  Future<void> editRoomMessage({
+    required String groupId,
+    required String roomId,
+    required String messageId,
+    required String newContent,
+  }) async {
+    await _roomRef(groupId, roomId).collection('messages').doc(messageId).update({
+      'content': newContent,
+      'editedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  @override
+  Future<void> unsendRoomMessage({
+    required String groupId,
+    required String roomId,
+    required String messageId,
+  }) async {
+    final messagesRef = _roomRef(groupId, roomId).collection('messages');
+    final quoting = await messagesRef
+        .where('replyToMessageId', isEqualTo: messageId)
+        .get();
+
+    // 1件のメッセージへの引用返信が499件を超えることは現実的に想定しない
+    // ため、500件のバッチ上限に収まる範囲でまとめて処理する
+    // （本体の削除1件＋引用側の更新最大499件）。
+    final batch = _firestore.batch();
+    batch.delete(messagesRef.doc(messageId));
+    for (final doc in quoting.docs.take(499)) {
+      batch.update(doc.reference, {
+        'replyToMessageId': FieldValue.delete(),
+        'replyToSenderId': FieldValue.delete(),
+        'replyToSenderRhingId': FieldValue.delete(),
+        'replyToSnippet': FieldValue.delete(),
+      });
+    }
+    await batch.commit();
+  }
+
+  @override
+  Future<void> setRoomMessageReaction({
+    required String groupId,
+    required String roomId,
+    required String messageId,
+    required String userId,
+    String? emoji,
+  }) async {
+    final ref = _roomRef(groupId, roomId).collection('messages').doc(messageId);
+    await ref.update({
+      'reactions.$userId': emoji ?? FieldValue.delete(),
+    });
   }
 
   @override
