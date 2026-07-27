@@ -64,10 +64,21 @@ final goRouterProvider = Provider<GoRouter>((ref) {
 
   // pushで開いた画面向けの「右スワイプで戻る」。通話画面（/call・/group-call）は
   // 誤スワイプでの離脱・切断事故を避けるため対象外にしている。
-  Widget swipeBack(Widget child) => SwipeBackDetector(
+  // [alsoSwipeLeft]を指定した画面（メッセージ画面）は左スワイプでも同じく
+  // 戻れるようにする。他画面の「右スワイプ＝戻る」という規約はそのまま
+  // 維持しつつ、要望のあった左スワイプを追加で許可する形。吹き出し自体が
+  // 左スワイプで返信/編集ジェスチャーを持っているため、吹き出しの上からの
+  // スワイプではそちらが優先され反応しない場合がある（AppBar・入力欄・
+  // 吹き出しの無い余白からのスワイプでは問題なく効く）。
+  Widget swipeBack(Widget child, {bool alsoSwipeLeft = false}) => SwipeBackDetector(
         onBack: () {
           if (router.canPop()) router.pop();
         },
+        onNext: alsoSwipeLeft
+            ? () {
+                if (router.canPop()) router.pop();
+              }
+            : null,
         child: child,
       );
 
@@ -102,6 +113,7 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) {
           final args = state.extra! as DmChatArgs;
           return swipeBack(
+            alsoSwipeLeft: true,
             DmChatPane(
               currentUser: args.currentUser,
               dm: args.dm,
@@ -117,6 +129,7 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) {
           final args = state.extra! as GroupChatArgs;
           return swipeBack(
+            alsoSwipeLeft: true,
             GroupChatPane(currentUser: args.currentUser, group: args.group),
           );
         },
