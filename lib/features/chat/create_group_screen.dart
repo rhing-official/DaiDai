@@ -76,7 +76,14 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
       if (!mounted) return;
       ref.read(goRouterProvider).pushReplacement(
         '/chat/group',
-        extra: GroupChatArgs(currentUser: widget.currentUser, group: group),
+        extra: GroupChatArgs(
+          currentUser: widget.currentUser,
+          group: group,
+          roomId: group.defaultRoomId,
+          // 作成直後の広場は常に「メイン」という名前の寄合が1つだけ
+          // 存在する（GroupRepository.createGroup参照）。
+          roomName: 'メイン',
+        ),
       );
     } catch (e) {
       setState(() => _errorMessage = 'エラーが発生しました: $e');

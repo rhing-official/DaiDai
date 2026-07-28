@@ -228,6 +228,10 @@ class Strings {
     required this.chatAccountDeletedNoButton,
     required this.chatAccountDeletedConfirmTitle,
     required this.chatAccountDeletedConfirmButton,
+    required this.roomListAddDialogTitle,
+    required this.roomListAddButton,
+    required this.roomListDeleteConfirmTitle,
+    required this.roomListDeleteConfirmButton,
   });
 
   final String navTalk;
@@ -486,6 +490,13 @@ class Strings {
   final String chatAccountDeletedConfirmTitle;
   final String chatAccountDeletedConfirmButton;
 
+  /// 寄合追加ダイアログのタイトル。用語（「寄合」等）を差し込む。
+  final String Function(String term) roomListAddDialogTitle;
+  final String roomListAddButton;
+  /// 寄合削除の確認ダイアログのタイトル。用語（「寄合」等）を差し込む。
+  final String Function(String term) roomListDeleteConfirmTitle;
+  final String roomListDeleteConfirmButton;
+
   static final ja = Strings._(
     navTalk: '語らい',
     navProfile: '身だしなみ',
@@ -727,6 +738,10 @@ class Strings {
     chatAccountDeletedNoButton: 'いいえ',
     chatAccountDeletedConfirmTitle: '本当によろしいですか？',
     chatAccountDeletedConfirmButton: '削除する',
+    roomListAddDialogTitle: (term) => '$termを追加',
+    roomListAddButton: '追加',
+    roomListDeleteConfirmTitle: (term) => 'この$termを削除しますか？',
+    roomListDeleteConfirmButton: '削除する',
   );
 
   static final enGB = Strings._(
@@ -999,6 +1014,10 @@ class Strings {
     chatAccountDeletedNoButton: 'No',
     chatAccountDeletedConfirmTitle: 'Are you sure?',
     chatAccountDeletedConfirmButton: 'Delete',
+    roomListAddDialogTitle: (term) => 'Add $term',
+    roomListAddButton: 'Add',
+    roomListDeleteConfirmTitle: (term) => 'Delete this $term?',
+    roomListDeleteConfirmButton: 'Delete',
   );
 
   static Strings of(AppLocale locale) => switch (locale) {

@@ -9,6 +9,7 @@ import '../features/chat/add_chat_screen.dart';
 import '../features/chat/chat_panes.dart';
 import '../features/chat/create_group_screen.dart';
 import '../features/chat/join_group_screen.dart';
+import '../features/chat/room_list_screen.dart';
 import '../features/profile/invite_screen.dart';
 import '../models/app_user.dart';
 import '../models/call.dart';
@@ -26,13 +27,43 @@ import '../widgets/swipe_gestures.dart';
 /// go_routerの`extra`で渡す。そのためブラウザの直接URL入力や
 /// リロードからの復元は現状未対応（フェーズ1のスコープ外）。
 class DmChatArgs {
-  const DmChatArgs({required this.currentUser, required this.dm});
+  const DmChatArgs({
+    required this.currentUser,
+    required this.dm,
+    required this.roomId,
+    required this.roomName,
+  });
+  final AppUser currentUser;
+  final DirectMessage dm;
+  final String roomId;
+  final String roomName;
+}
+
+class GroupChatArgs {
+  const GroupChatArgs({
+    required this.currentUser,
+    required this.group,
+    required this.roomId,
+    required this.roomName,
+  });
+  final AppUser currentUser;
+  final Group group;
+  final String roomId;
+  final String roomName;
+}
+
+/// 寄合一覧画面（`/chat/dm-rooms`）用。まだどの寄合を開くか決まっていない
+/// 段階なので[DmChatArgs]と違いroomId/roomNameは持たない。
+class DmRoomListArgs {
+  const DmRoomListArgs({required this.currentUser, required this.dm});
   final AppUser currentUser;
   final DirectMessage dm;
 }
 
-class GroupChatArgs {
-  const GroupChatArgs({required this.currentUser, required this.group});
+/// 寄合一覧画面（`/chat/group-rooms`）用。[GroupChatArgs]と違い
+/// roomId/roomNameは持たない。
+class GroupRoomListArgs {
+  const GroupRoomListArgs({required this.currentUser, required this.group});
   final AppUser currentUser;
   final Group group;
 }
@@ -117,10 +148,21 @@ final goRouterProvider = Provider<GoRouter>((ref) {
             DmChatPane(
               currentUser: args.currentUser,
               dm: args.dm,
+              roomId: args.roomId,
+              roomName: args.roomName,
               onCallPressed: () => startCall(args.currentUser, args.dm),
               onVideoCallPressed: () =>
                   startCall(args.currentUser, args.dm, isVideo: true),
             ),
+          );
+        },
+      ),
+      GoRoute(
+        path: '/chat/dm-rooms',
+        builder: (context, state) {
+          final args = state.extra! as DmRoomListArgs;
+          return swipeBack(
+            DmRoomListScreen(currentUser: args.currentUser, dm: args.dm),
           );
         },
       ),
@@ -130,7 +172,21 @@ final goRouterProvider = Provider<GoRouter>((ref) {
           final args = state.extra! as GroupChatArgs;
           return swipeBack(
             alsoSwipeLeft: true,
-            GroupChatPane(currentUser: args.currentUser, group: args.group),
+            GroupChatPane(
+              currentUser: args.currentUser,
+              group: args.group,
+              roomId: args.roomId,
+              roomName: args.roomName,
+            ),
+          );
+        },
+      ),
+      GoRoute(
+        path: '/chat/group-rooms',
+        builder: (context, state) {
+          final args = state.extra! as GroupRoomListArgs;
+          return swipeBack(
+            GroupRoomListScreen(currentUser: args.currentUser, group: args.group),
           );
         },
       ),

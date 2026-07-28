@@ -9,7 +9,6 @@ import '../../models/group.dart';
 import '../../providers/block_providers.dart';
 import '../../providers/conversation_prefs_providers.dart';
 import '../../providers/repository_providers.dart';
-import '../../providers/user_providers.dart';
 import '../../router/app_router.dart';
 import 'chat_screen.dart';
 import 'group_invite_dialog.dart';
@@ -71,6 +70,8 @@ class DmChatPane extends ConsumerWidget {
   const DmChatPane({
     required this.currentUser,
     required this.dm,
+    required this.roomId,
+    required this.roomName,
     this.onCallPressed,
     this.onVideoCallPressed,
     super.key,
@@ -78,6 +79,12 @@ class DmChatPane extends ConsumerWidget {
 
   final AppUser currentUser;
   final DirectMessage dm;
+
+  /// 現在表示中の寄合。呼び出し側（TalksTab分割表示、または狭画面の
+  /// 寄合一覧画面）が選択状態を管理し、渡す。
+  final String roomId;
+  final String roomName;
+
   final VoidCallback? onCallPressed;
   final VoidCallback? onVideoCallPressed;
 
@@ -86,19 +93,13 @@ class DmChatPane extends ConsumerWidget {
     final strings = ref.watch(appStringsProvider);
     final dmRepository = ref.watch(directMessageRepositoryProvider);
     final otherUserId = dm.otherUserId(currentUser.userId);
-    final fallbackTitle = '@${dm.otherRhingId(currentUser.userId)}';
-    final otherUser = ref.watch(watchedUserProvider(otherUserId));
-    final nickname = otherUser.maybeWhen(
-      data: (user) => user?.activeNickname?.text,
-      orElse: () => null,
-    );
     final blockedIds =
         ref.watch(blockedUserIdsProvider(currentUser.userId)).value ??
             const {};
     final isBlocked = blockedIds.contains(otherUserId);
     return ChatScreen(
-      key: ValueKey('dm-${dm.dmId}'),
-      title: (nickname?.isNotEmpty ?? false) ? nickname! : fallbackTitle,
+      key: ValueKey('dm-${dm.dmId}-$roomId'),
+      title: roomName,
       currentUserId: currentUser.userId,
       isDm: true,
       // ブロック中は相手からのメッセージを表示しない（自分が送った過去分は
@@ -106,7 +107,7 @@ class DmChatPane extends ConsumerWidget {
       // 表示抑制で実現する（`BlockRepository`のコメント参照）。
       // hiddenForに自分のuserIdが含まれるメッセージ（範囲選択削除で自分が
       // 削除したもの）も、相手には見えたままここでは表示しないだけにする。
-      messagesStream: dmRepository.watchMessages(dm.dmId).map(
+      messagesStream: dmRepository.watchMessages(dm.dmId, roomId).map(
             (messages) => messages
                 .where((m) => !m.hiddenFor.contains(currentUser.userId))
                 .where((m) => !isBlocked || m.senderId != otherUserId)
@@ -121,6 +122,7 @@ class DmChatPane extends ConsumerWidget {
         }
         await dmRepository.sendTextMessage(
           dmId: dm.dmId,
+          roomId: roomId,
           senderId: currentUser.userId,
           senderRhingId: currentUser.rhingId,
           content: content,
@@ -133,25 +135,30 @@ class DmChatPane extends ConsumerWidget {
       readReceiptsEnabled: dm.readReceiptsEnabled,
       onMarkRead: (messageIds) => dmRepository.markMessagesRead(
         dmId: dm.dmId,
+        roomId: roomId,
         userId: currentUser.userId,
         messageIds: messageIds,
       ),
       onHideMessages: (messageIds) => dmRepository.hideMessagesForMe(
         dmId: dm.dmId,
+        roomId: roomId,
         userId: currentUser.userId,
         messageIds: messageIds,
       ),
       onEditMessage: (messageId, newContent) => dmRepository.editMessage(
         dmId: dm.dmId,
+        roomId: roomId,
         messageId: messageId,
         newContent: newContent,
       ),
       onUnsendMessage: (messageId) => dmRepository.unsendMessage(
         dmId: dm.dmId,
+        roomId: roomId,
         messageId: messageId,
       ),
       onSetReaction: (messageId, emoji) => dmRepository.setReaction(
         dmId: dm.dmId,
+        roomId: roomId,
         messageId: messageId,
         userId: currentUser.userId,
         emoji: emoji,
@@ -159,12 +166,14 @@ class DmChatPane extends ConsumerWidget {
       onDeclineAccountDeletionNotice: (messageId) =>
           dmRepository.declineAccountDeletionNotice(
         dmId: dm.dmId,
+        roomId: roomId,
         messageId: messageId,
       ),
       onDeleteAfterAccountDeletion: () =>
           dmRepository.deleteDmAfterAccountDeletion(dm.dmId),
       onFetchMessagesAround: (messageId) => dmRepository.getMessagesAround(
         dmId: dm.dmId,
+        roomId: roomId,
         messageId: messageId,
       ),
       extraActions: [
@@ -458,10 +467,21 @@ class _DmMenuButton extends ConsumerWidget {
 
 /// 広場（グループ）のChatScreenを組み立てる。DmChatPaneと同じ理由で共通部品化。
 class GroupChatPane extends ConsumerWidget {
-  const GroupChatPane({required this.currentUser, required this.group, super.key});
+  const GroupChatPane({
+    required this.currentUser,
+    required this.group,
+    required this.roomId,
+    required this.roomName,
+    super.key,
+  });
 
   final AppUser currentUser;
   final Group group;
+
+  /// 現在表示中の寄合。呼び出し側（TalksTab分割表示、または狭画面の
+  /// 寄合一覧画面）が選択状態を管理し、渡す。
+  final String roomId;
+  final String roomName;
 
   /// メッセージの送信者アイコン・呼び名をタップした時に、相手のプロフィール
   /// カードを開く。一対と違い広場のメンバーは非友達の場合があるため、
@@ -525,20 +545,20 @@ class GroupChatPane extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final groupRepository = ref.watch(groupRepositoryProvider);
     return ChatScreen(
-      key: ValueKey('group-${group.groupId}'),
-      title: group.name,
+      key: ValueKey('group-${group.groupId}-$roomId'),
+      title: roomName,
       currentUserId: currentUser.userId,
       isDm: false,
       // hiddenForに自分のuserIdが含まれるメッセージ（範囲選択削除で自分が
       // 削除したもの）は、他のメンバーには見えたままここでは表示しない。
       messagesStream: groupRepository
-          .watchRoomMessages(group.groupId, group.defaultRoomId)
+          .watchRoomMessages(group.groupId, roomId)
           .map((messages) => messages
               .where((m) => !m.hiddenFor.contains(currentUser.userId))
               .toList()),
       onSend: (content, {silent = false, replyTo}) => groupRepository.sendRoomMessage(
         groupId: group.groupId,
-        roomId: group.defaultRoomId,
+        roomId: roomId,
         senderId: currentUser.userId,
         senderRhingId: currentUser.rhingId,
         content: content,
@@ -550,37 +570,37 @@ class GroupChatPane extends ConsumerWidget {
       readReceiptsEnabled: group.readReceiptsEnabled,
       onMarkRead: (messageIds) => groupRepository.markRoomMessagesRead(
         groupId: group.groupId,
-        roomId: group.defaultRoomId,
+        roomId: roomId,
         userId: currentUser.userId,
         messageIds: messageIds,
       ),
       onHideMessages: (messageIds) => groupRepository.hideRoomMessagesForMe(
         groupId: group.groupId,
-        roomId: group.defaultRoomId,
+        roomId: roomId,
         userId: currentUser.userId,
         messageIds: messageIds,
       ),
       onEditMessage: (messageId, newContent) => groupRepository.editRoomMessage(
         groupId: group.groupId,
-        roomId: group.defaultRoomId,
+        roomId: roomId,
         messageId: messageId,
         newContent: newContent,
       ),
       onUnsendMessage: (messageId) => groupRepository.unsendRoomMessage(
         groupId: group.groupId,
-        roomId: group.defaultRoomId,
+        roomId: roomId,
         messageId: messageId,
       ),
       onSetReaction: (messageId, emoji) => groupRepository.setRoomMessageReaction(
         groupId: group.groupId,
-        roomId: group.defaultRoomId,
+        roomId: roomId,
         messageId: messageId,
         userId: currentUser.userId,
         emoji: emoji,
       ),
       onFetchMessagesAround: (messageId) => groupRepository.getRoomMessagesAround(
         groupId: group.groupId,
-        roomId: group.defaultRoomId,
+        roomId: roomId,
         messageId: messageId,
       ),
       extraActions: [

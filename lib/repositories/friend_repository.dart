@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../models/app_user.dart';
 import '../models/direct_message.dart';
+import '../models/dm_room.dart';
 import '../models/friend.dart';
 import '../models/friend_request.dart';
 
@@ -137,13 +138,23 @@ class FirestoreFriendRepository implements FriendRepository {
     });
 
     final dmId = DirectMessage.idFor(request.fromUserId, request.toUserId);
+    final dmRef = _firestore.collection('directMessages').doc(dmId);
+    final roomRef = dmRef.collection('rooms').doc();
+    final participants = [request.fromUserId, request.toUserId];
     final dm = DirectMessage(
       dmId: dmId,
-      participants: [request.fromUserId, request.toUserId],
+      participants: participants,
       participantRhingIds: {
         request.fromUserId: request.fromRhingId,
         request.toUserId: request.toRhingId,
       },
+      defaultRoomId: roomRef.id,
+    );
+    final room = DmRoom(
+      roomId: roomRef.id,
+      dmId: dmId,
+      name: 'メイン',
+      participants: participants,
     );
 
     final batch = _firestore.batch();
@@ -161,7 +172,8 @@ class FirestoreFriendRepository implements FriendRepository {
         friendRhingId: request.fromRhingId,
       ).toJson(),
     );
-    batch.set(_firestore.collection('directMessages').doc(dmId), dm.toJson());
+    batch.set(dmRef, dm.toJson());
+    batch.set(roomRef, room.toJson());
     await batch.commit();
   }
 

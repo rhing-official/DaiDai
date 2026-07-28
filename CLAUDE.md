@@ -98,7 +98,7 @@ DaiDaiは独自の世界観用語を使う。変数名・クラス名・コレ�
 | 表組 | カテゴリ | Category | 寄合・密談をまとめる通常の区切り（**旧称: 節**） |
 | 裏組 | 非公開カテゴリ | Private Category | 非公開の区切り |
 | 談論 | プロジェクトボード | Project Board | 目的達成・進行型のフォーラム。※下記「実装しない機能」表のDiscordフォーラム機能と概念が重なるため要確認 |
-| 席（せき） | スレッド | Thread | 一対内のトピック別会話（フェーズ3） |
+| 席（せき） | スレッド | Thread | 一対内のトピック別会話（フェーズ3構想だったが、2026-07-28にユーザー判断で前倒し、「席」ではなく広場と同じ「寄合」の呼称のまま一対にも複数会話機能として実装済み。「席」という用語自体は未使用のまま残す） |
 | 極み | プレミアム | Nitro | 有料サブスクリプションプラン（¥300/月） |
 | ペタピタ | スタンプ | スタンプ | スタンプ機能 |
 | 身だしなみ | プロフィール | プロフィール | プロフィール設定 |
@@ -123,10 +123,9 @@ DaiDaiは独自の世界観用語を使う。変数名・クラス名・コレ�
 ## データモデル（Firestore）概要
 
 - **User**: `userId`, `rhingId`, `secretQuestions`（bcryptハッシュ）, `twoFactorEnabled`, `passkeyEnabled`, `deviceIds`, `bannedDevices`, `accountStatus`, `subscriptionPlan`(free|kiwami), `profiles[]`（最大3プロフィール＝蔵システム）, `preferences`
-- **DirectMessage（一対）**: `dmId`, `participants[2]`, `settings.sectionEnabled`, `sections[]`
-- **Seat（席・フェーズ3）**: `seatId`, `dmId`, `sectionId`
-- **Group（広場）**: `groupId`, `isPublic`（表広場/裏広場の区別）, `requiresApproval`, `ownerId`, `moderators[]`, `members[]`（role: owner|moderator|member）, `sections[]`（表組/裏組）
-- **Room（寄合・密談）**: `roomId`, `groupId`, `sectionId`, `permissions`（寄合＝公開・密談＝非公開の区別は要検討）
+- **DirectMessage（一対）**: `dmId`, `participants[2]`, `defaultRoomId`, `settings.sectionEnabled`, `sections[]`。メッセージは`directMessages/{dmId}/rooms/{roomId}/messages`（複数寄合対応、2026-07-28実装）に入る。寄合自体は`directMessages/{dmId}/rooms/{roomId}`（`DmRoom`: `dmId`, `name`, `participants[]`, `createdAt`, `deletionRequestedBy`）。参加者2人はどちらも寄合の追加・削除が可能（確認無しで追加、削除は確認ダイアログあり、最後の1つは削除不可）
+- **Group（広場）**: `groupId`, `isPublic`（表広場/裏広場の区別）, `requiresApproval`, `ownerId`, `moderators[]`, `members[]`（role: owner|moderator|member）, `defaultRoomId`, `sections[]`（表組/裏組）
+- **Room（寄合・密談）**: `roomId`, `groupId`, `name`, `memberIds`, `createdAt`, `roomDeletionRequestedBy`（寄合＝公開・密談＝非公開の区別は要検討）。1つの広場に複数作成可能（2026-07-28実装）。追加・削除は長・モデレーターのみ
 - **Message**: `conversationId`, `conversationType`(dm|seat|room), `contentType`(text|image|file|sticker|video), `fileMetadata.compressionType`(webp|lossless|raw), `readBy[]`, `hiddenFor[]`（範囲選択削除・本人のuserIdを追加するだけの個人単位の非表示）, `isSpam`
 - 他: Sticker（ペタピタ）, Purchase（Stripe連携）, SafetyCheck（安否確認）, CustomRole, Album, VideoCall
 
@@ -168,8 +167,16 @@ DaiDaiは独自の世界観用語を使う。変数名・クラス名・コレ�
 |---------|--------|-------------|
 | フェーズ1（MVP・6ヶ月） | 10,000 | Google/Apple認証、Rhing ID、一対・広場（既定は裏広場）、720pビデオ通話、WebP圧縮、基本スパム対策。**E2E暗号化・極みプラン・ペタピタ・1080p通話は含めない** |
 | フェーズ2（拡充・12ヶ月） | 100,000 | 極みプラン、ペタピタ・daidai横丁、E2E暗号化（Signal Protocol）、2段階認証、パスキー、QRコードログイン |
-| フェーズ3（高度化・24ヶ月） | 1,000,000 | 表広場（公開広場）、安否確認、ロール管理、表組・裏組・席機能、方言対応、RNNoise |
+| フェーズ3（高度化・24ヶ月） | 1,000,000 | 表広場（公開広場）、安否確認、ロール管理、表組・裏組、方言対応、RNNoise。**一対の複数会話（席機能相当）は2026-07-28に前倒し実装済み（下記参照）** |
 | フェーズ4（将来） | 未定 | AI搭載メッセージ整理、ペタピタ作成アプリ（別アプリ）、貼プラン |
+
+### 複数寄合機能（2026-07-28実装）
+
+広場・一対どちらも、1つの会話の中に複数の「寄合」（テキストチャンネル）を作れる。友達一覧・広場一覧のサイドバー（`lib/features/chat/talks_tab.dart`の分割表示）の右隣に、選択中の会話の寄合一覧サイドバー（`lib/features/chat/room_list_pane.dart`の`RoomListPane`）が表示され、そこから寄合の追加（確認無しで名前を入力してすぐ作成）・削除（「本当に削除しますか？」の確認あり、最後の1つは削除不可）ができる。狭い画面では`/chat/dm-rooms`・`/chat/group-rooms`ルート（`lib/features/chat/room_list_screen.dart`）でフルスクリーンの寄合一覧を経由してから個々のチャット画面（`/chat/dm`・`/chat/group`）を開くドリルダウン構成。
+
+- 広場側の寄合追加・削除は長・モデレーターのみ（firestore.rulesで強制）。既存の`GroupRepository`が元々`rooms`サブコレクション・`defaultRoomId`という複数ルーム前提の設計だったため、`watchRooms`/`createRoom`/`deleteRoom`を追加し、`respondToJoinRequest`/`leaveGroup`/`setReadReceiptsEnabled`をdefaultRoomId決め打ちから全room走査に修正する形で対応した。
+- 一対側は参加者2人がどちらも対等に追加・削除できる（役割が無いため）。既存の`directMessages/{dmId}/messages`というフラット構造を、広場と同じ`directMessages/{dmId}/rooms/{roomId}/messages`構造に変更（`DirectMessage.defaultRoomId`追加、新規`lib/models/dm_room.dart`の`DmRoom`）。既存データはCloud Functionsの一度きりの移行処理（`functions/src/index.ts`、実行後にソースから削除済み）で新構造へ移した。
+- 寄合の削除は、severance（絶縁）・既読オフと同じ「削除実行者を記録するマーカーフィールド（`roomDeletionRequestedBy`/`deletionRequestedBy`）を立ててからメッセージを物理削除し、最後に寄合自体を削除する」パターンで実装している。
 
 現在フェーズ1着手前（プロジェクトディレクトリは空）。実装時はこの順序を尊重し、後続フェーズの機能を先取りして作り込まない。
 

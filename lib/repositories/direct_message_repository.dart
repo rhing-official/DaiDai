@@ -2,28 +2,48 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../models/app_user.dart';
 import '../models/direct_message.dart';
+import '../models/dm_room.dart';
 import '../models/message.dart';
 
 abstract class DirectMessageRepository {
-  /// 2人のuserから一対を取得する。無ければ作成する。
+  /// 2人のuserから一対を取得する。無ければ作成する
+  /// （既定の寄合「メイン」も同時に1件作る）。
   Future<DirectMessage> getOrCreateDirectMessage(AppUser a, AppUser b);
 
   /// 自分が参加している一対一覧を、最終メッセージが新しい順に取得する。
   Stream<List<DirectMessage>> watchDirectMessages(String userId);
 
-  Stream<List<Message>> watchMessages(String dmId);
+  /// この一対の寄合（テキストチャンネル）一覧を作成順に購読する。
+  Stream<List<DmRoom>> watchRooms(String dmId);
+
+  /// 新しい寄合を作成する（参加者ならどちらでも実行可能、確認不要）。
+  Future<DmRoom> createRoom({required String dmId, required String name});
+
+  /// 寄合を削除する。全メッセージも物理削除する。この一対の最後の1つの
+  /// 寄合は削除できない（[StateError]を投げる）。削除対象が
+  /// [DirectMessage.defaultRoomId]の場合は、残った寄合のうち最も古い
+  /// ものに`defaultRoomId`を差し替える。
+  Future<void> deleteRoom({
+    required String dmId,
+    required String roomId,
+    required String requestedBy,
+  });
+
+  Stream<List<Message>> watchMessages(String dmId, String roomId);
 
   /// [watchMessages]の直近50件に含まれない古い返信先へジャンプする際に使う。
   /// 指定した[messageId]を含む前後合わせて最大[contextSize]*2件を1回だけ
   /// 取得する（購読はしない）。対象メッセージが既に削除済みの場合は空を返す。
   Future<List<Message>> getMessagesAround({
     required String dmId,
+    required String roomId,
     required String messageId,
     int contextSize = 25,
   });
 
   Future<void> sendTextMessage({
     required String dmId,
+    required String roomId,
     required String senderId,
     required String senderRhingId,
     required String content,
@@ -34,6 +54,9 @@ abstract class DirectMessageRepository {
   /// 通話が終了した際、通話履歴メッセージ（開始時刻・通話時間）を送る。
   /// 発信者側からのみ呼ばれる（`WebrtcCallController`参照）。実際に接続
   /// （応答）された通話のみが対象で、不在着信・拒否の場合は呼ばれない。
+  /// 通話はどの寄合を開いていても発信できるため、常にこの一対の
+  /// [DirectMessage.defaultRoomId]に投稿する（呼び出し側でroomIdを
+  /// 意識させないための設計）。
   Future<void> sendCallSummaryMessage({
     required String dmId,
     required String senderId,
@@ -46,6 +69,7 @@ abstract class DirectMessageRepository {
   /// 送信済みテキストメッセージの本文を編集する（本文編集のみ・時間制限なし）。
   Future<void> editMessage({
     required String dmId,
+    required String roomId,
     required String messageId,
     required String newContent,
   });
@@ -55,6 +79,7 @@ abstract class DirectMessageRepository {
   /// それらのreplyTo系フィールドも同時にクリアする。
   Future<void> unsendMessage({
     required String dmId,
+    required String roomId,
     required String messageId,
   });
 
@@ -62,6 +87,7 @@ abstract class DirectMessageRepository {
   /// 既に設定済みでも上書きで乗り換えられる）。
   Future<void> setReaction({
     required String dmId,
+    required String roomId,
     required String messageId,
     required String userId,
     String? emoji,
@@ -70,6 +96,7 @@ abstract class DirectMessageRepository {
   /// 指定したメッセージ群に、自分（[userId]）が読んだ記録を追加する。
   Future<void> markMessagesRead({
     required String dmId,
+    required String roomId,
     required String userId,
     required List<String> messageIds,
   });
@@ -81,6 +108,7 @@ abstract class DirectMessageRepository {
   /// 物理削除する。
   Future<void> hideMessagesForMe({
     required String dmId,
+    required String roomId,
     required String userId,
     required List<String> messageIds,
   });
@@ -92,7 +120,7 @@ abstract class DirectMessageRepository {
   /// 提案に同意しない場合）。どちらも同じくフラグをクリアするだけ。
   Future<void> cancelSeverance(String dmId);
 
-  /// 相手からの絶縁の提案に同意し、実際に絶縁を実行する。全メッセージ・
+  /// 相手からの絶縁の提案に同意し、実際に絶縁を実行する。全寄合・全メッセージ・
   /// 双方のfriends関係・friendRequests・この一対自体を物理削除する
   /// （復元不可）。[proposeSeverance]した本人以外の参加者のみ呼べる
   /// （Firestoreルールで強制、詳細はfirestore.rules参照）。
@@ -116,9 +144,9 @@ abstract class DirectMessageRepository {
   Future<void> cancelReadReceiptsToggleProposal(String dmId);
 
   /// 相手からの既読オン/オフの変更提案に同意し、実際に反映する。オフに
-  /// する提案だった場合は、続けてこの一対の全メッセージ・両参加者分の
-  /// 既読履歴をサーバーから削除する。[proposeReadReceiptsToggle]した本人
-  /// 以外の参加者のみ呼べる（firestore.rulesで強制）。
+  /// する提案だった場合は、続けてこの一対の全寄合・両参加者分の既読履歴を
+  /// サーバーから削除する。[proposeReadReceiptsToggle]した本人以外の
+  /// 参加者のみ呼べる（firestore.rulesで強制）。
   Future<void> acceptReadReceiptsToggle({
     required String dmId,
     required String currentUserId,
@@ -128,13 +156,14 @@ abstract class DirectMessageRepository {
   /// 表示しないようにするだけで、他には何もしない。
   Future<void> declineAccountDeletionNotice({
     required String dmId,
+    required String roomId,
     required String messageId,
   });
 
   /// アカウント削除通知メッセージの「はい」（確認ダイアログの上で呼ばれる）。
   /// 相手のアカウントが既に削除されている場合のみ実行できる
   /// （[DirectMessage.accountDeletedUserId]、firestore.rulesで強制）。
-  /// この一対の全メッセージとドキュメント自体を物理削除する。
+  /// この一対の全寄合・全メッセージとドキュメント自体を物理削除する。
   Future<void> deleteDmAfterAccountDeletion(String dmId);
 }
 
@@ -147,6 +176,13 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
   CollectionReference<Map<String, dynamic>> get _directMessages =>
       _firestore.collection('directMessages');
 
+  DocumentReference<Map<String, dynamic>> _dmRoomRef(
+    String dmId,
+    String roomId,
+  ) {
+    return _directMessages.doc(dmId).collection('rooms').doc(roomId);
+  }
+
   @override
   Future<DirectMessage> getOrCreateDirectMessage(AppUser a, AppUser b) async {
     final dmId = DirectMessage.idFor(a.userId, b.userId);
@@ -157,12 +193,25 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
       return DirectMessage.fromJson(dmId, doc.data()!);
     }
 
+    final roomRef = ref.collection('rooms').doc();
+    final participants = [a.userId, b.userId];
     final dm = DirectMessage(
       dmId: dmId,
-      participants: [a.userId, b.userId],
+      participants: participants,
       participantRhingIds: {a.userId: a.rhingId, b.userId: b.rhingId},
+      defaultRoomId: roomRef.id,
     );
-    await ref.set(dm.toJson());
+    final room = DmRoom(
+      roomId: roomRef.id,
+      dmId: dmId,
+      name: 'メイン',
+      participants: participants,
+    );
+
+    final batch = _firestore.batch();
+    batch.set(ref, dm.toJson());
+    batch.set(roomRef, room.toJson());
+    await batch.commit();
     return dm;
   }
 
@@ -178,9 +227,82 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
   }
 
   @override
-  Stream<List<Message>> watchMessages(String dmId) {
+  Stream<List<DmRoom>> watchRooms(String dmId) {
     return _directMessages
         .doc(dmId)
+        .collection('rooms')
+        .orderBy('createdAt')
+        .snapshots()
+        .map((snapshot) =>
+            snapshot.docs.map((doc) => DmRoom.fromJson(doc.id, doc.data())).toList());
+  }
+
+  @override
+  Future<DmRoom> createRoom({
+    required String dmId,
+    required String name,
+  }) async {
+    final dmDoc = await _directMessages.doc(dmId).get();
+    final participants = List<String>.from(
+      dmDoc.data()?['participants'] as List? ?? const [],
+    );
+    final roomRef = _directMessages.doc(dmId).collection('rooms').doc();
+    final room = DmRoom(
+      roomId: roomRef.id,
+      dmId: dmId,
+      name: name,
+      participants: participants,
+    );
+    await roomRef.set(room.toJson());
+    return room;
+  }
+
+  @override
+  Future<void> deleteRoom({
+    required String dmId,
+    required String roomId,
+    required String requestedBy,
+  }) async {
+    final roomsSnapshot = await _directMessages
+        .doc(dmId)
+        .collection('rooms')
+        .orderBy('createdAt')
+        .get();
+    if (roomsSnapshot.docs.length <= 1) {
+      throw StateError('最後の1つの寄合は削除できません');
+    }
+
+    final roomRef = _dmRoomRef(dmId, roomId);
+    // 削除の実行者を記録するマーカーを立てる。これを根拠に、以降の
+    // メッセージ物理削除がfirestore.rules上許可される
+    // （severance/既読オフと同じ「マーカー→カスケード削除」パターン）。
+    await roomRef.update({'deletionRequestedBy': requestedBy});
+
+    final messagesRef = roomRef.collection('messages');
+    while (true) {
+      final snapshot = await messagesRef.limit(400).get();
+      if (snapshot.docs.isEmpty) break;
+      final batch = _firestore.batch();
+      for (final doc in snapshot.docs) {
+        batch.delete(doc.reference);
+      }
+      await batch.commit();
+    }
+    await roomRef.delete();
+
+    final dmDoc = await _directMessages.doc(dmId).get();
+    final defaultRoomId = dmDoc.data()?['defaultRoomId'] as String?;
+    if (defaultRoomId == roomId) {
+      final remaining = roomsSnapshot.docs.where((d) => d.id != roomId).toList();
+      if (remaining.isNotEmpty) {
+        await _directMessages.doc(dmId).update({'defaultRoomId': remaining.first.id});
+      }
+    }
+  }
+
+  @override
+  Stream<List<Message>> watchMessages(String dmId, String roomId) {
+    return _dmRoomRef(dmId, roomId)
         .collection('messages')
         .orderBy('sentAt', descending: true)
         .limit(50)
@@ -193,10 +315,11 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
   @override
   Future<List<Message>> getMessagesAround({
     required String dmId,
+    required String roomId,
     required String messageId,
     int contextSize = 25,
   }) async {
-    final messagesRef = _directMessages.doc(dmId).collection('messages');
+    final messagesRef = _dmRoomRef(dmId, roomId).collection('messages');
     final targetDoc = await messagesRef.doc(messageId).get();
     final targetData = targetDoc.data();
     if (targetData == null) return [];
@@ -224,18 +347,19 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
   @override
   Future<void> sendTextMessage({
     required String dmId,
+    required String roomId,
     required String senderId,
     required String senderRhingId,
     required String content,
     bool silent = false,
     Message? replyTo,
   }) async {
-    final dmRef = _directMessages.doc(dmId);
-    final messageRef = dmRef.collection('messages').doc();
+    final roomRef = _dmRoomRef(dmId, roomId);
+    final messageRef = roomRef.collection('messages').doc();
 
     final message = Message(
       messageId: messageRef.id,
-      conversationId: dmId,
+      conversationId: roomId,
       conversationType: 'dm',
       senderId: senderId,
       senderRhingId: senderRhingId,
@@ -250,7 +374,13 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
 
     final batch = _firestore.batch();
     batch.set(messageRef, message.toJson());
-    batch.update(dmRef, {'lastMessageAt': FieldValue.serverTimestamp()});
+    batch.update(roomRef, {'lastMessageAt': FieldValue.serverTimestamp()});
+    // 語らい一覧（TalksTab）はDM単位でlastMessageAt順に並ぶため、寄合側に
+    // 加えてDM本体のlastMessageAtも更新する（どの寄合に投稿しても一覧の
+    // 並び順に反映されるようにするため）。
+    batch.update(_directMessages.doc(dmId), {
+      'lastMessageAt': FieldValue.serverTimestamp(),
+    });
     await batch.commit();
   }
 
@@ -264,11 +394,15 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
     required bool isVideo,
   }) async {
     final dmRef = _directMessages.doc(dmId);
-    final messageRef = dmRef.collection('messages').doc();
+    final dmDoc = await dmRef.get();
+    final defaultRoomId = dmDoc.data()?['defaultRoomId'] as String?;
+    if (defaultRoomId == null) return;
+    final roomRef = dmRef.collection('rooms').doc(defaultRoomId);
+    final messageRef = roomRef.collection('messages').doc();
 
     final message = Message(
       messageId: messageRef.id,
-      conversationId: dmId,
+      conversationId: defaultRoomId,
       conversationType: 'dm',
       senderId: senderId,
       senderRhingId: senderRhingId,
@@ -281,6 +415,7 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
 
     final batch = _firestore.batch();
     batch.set(messageRef, message.toJson());
+    batch.update(roomRef, {'lastMessageAt': FieldValue.serverTimestamp()});
     batch.update(dmRef, {'lastMessageAt': FieldValue.serverTimestamp()});
     await batch.commit();
   }
@@ -288,10 +423,11 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
   @override
   Future<void> editMessage({
     required String dmId,
+    required String roomId,
     required String messageId,
     required String newContent,
   }) async {
-    await _directMessages.doc(dmId).collection('messages').doc(messageId).update({
+    await _dmRoomRef(dmId, roomId).collection('messages').doc(messageId).update({
       'content': newContent,
       'editedAt': FieldValue.serverTimestamp(),
     });
@@ -300,9 +436,10 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
   @override
   Future<void> unsendMessage({
     required String dmId,
+    required String roomId,
     required String messageId,
   }) async {
-    final messagesRef = _directMessages.doc(dmId).collection('messages');
+    final messagesRef = _dmRoomRef(dmId, roomId).collection('messages');
     final quoting = await messagesRef
         .where('replyToMessageId', isEqualTo: messageId)
         .get();
@@ -326,11 +463,12 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
   @override
   Future<void> setReaction({
     required String dmId,
+    required String roomId,
     required String messageId,
     required String userId,
     String? emoji,
   }) async {
-    final ref = _directMessages.doc(dmId).collection('messages').doc(messageId);
+    final ref = _dmRoomRef(dmId, roomId).collection('messages').doc(messageId);
     await ref.update({
       'reactions.$userId': emoji ?? FieldValue.delete(),
     });
@@ -339,11 +477,12 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
   @override
   Future<void> markMessagesRead({
     required String dmId,
+    required String roomId,
     required String userId,
     required List<String> messageIds,
   }) async {
     if (messageIds.isEmpty) return;
-    final messagesRef = _directMessages.doc(dmId).collection('messages');
+    final messagesRef = _dmRoomRef(dmId, roomId).collection('messages');
     final batch = _firestore.batch();
     // FieldValue.serverTimestamp()は配列要素の中では使えない（nullになる）ため、
     // クライアント側の時刻をそのまま記録する。
@@ -361,16 +500,16 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
   @override
   Future<void> hideMessagesForMe({
     required String dmId,
+    required String roomId,
     required String userId,
     required List<String> messageIds,
   }) async {
     if (messageIds.isEmpty) return;
-    final dmRef = _directMessages.doc(dmId);
-    final dmSnapshot = await dmRef.get();
+    final dmSnapshot = await _directMessages.doc(dmId).get();
     final participants = List<String>.from(
       dmSnapshot.data()?['participants'] as List? ?? const [],
     );
-    final messagesRef = dmRef.collection('messages');
+    final messagesRef = _dmRoomRef(dmId, roomId).collection('messages');
 
     // 各メッセージの現在のhiddenForを確認し、自分を加えた結果が参加者
     // 全員をカバーするなら物理削除、そうでなければhiddenForに自分を追加する
@@ -422,20 +561,24 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
     required String otherUserId,
   }) async {
     final dmRef = _directMessages.doc(dmId);
-    final messagesRef = dmRef.collection('messages');
+    final roomsSnapshot = await dmRef.collection('rooms').get();
 
     // Firestoreの1バッチは500件までのため、無くなるまでページ単位で削除を
-    // 繰り返す。DMドキュメント自体（severanceRequestedByフラグ）はこの間
-    // 消さずに残しておく必要がある（各messageのdeleteルールがこのフラグを
-    // 参照して双方合意済みかどうかを検証するため）。
-    while (true) {
-      final snapshot = await messagesRef.limit(400).get();
-      if (snapshot.docs.isEmpty) break;
-      final batch = _firestore.batch();
-      for (final doc in snapshot.docs) {
-        batch.delete(doc.reference);
+    // 繰り返す（全寄合分）。DMドキュメント自体（severanceRequestedByフラグ）
+    // はこの間消さずに残しておく必要がある（各messageのdeleteルールが
+    // このフラグを参照して双方合意済みかどうかを検証するため）。
+    for (final roomDoc in roomsSnapshot.docs) {
+      final messagesRef = roomDoc.reference.collection('messages');
+      while (true) {
+        final snapshot = await messagesRef.limit(400).get();
+        if (snapshot.docs.isEmpty) break;
+        final batch = _firestore.batch();
+        for (final doc in snapshot.docs) {
+          batch.delete(doc.reference);
+        }
+        await batch.commit();
       }
-      await batch.commit();
+      await roomDoc.reference.delete();
     }
 
     final cascadeBatch = _firestore.batch();
@@ -492,17 +635,20 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
       'readReceiptsProposalBy': null,
     });
     if (!newEnabled) {
-      await _clearAllReadReceipts(dmRef.collection('messages'));
+      final roomsSnapshot = await dmRef.collection('rooms').get();
+      for (final roomDoc in roomsSnapshot.docs) {
+        await _clearAllReadReceipts(roomDoc.reference.collection('messages'));
+      }
     }
   }
 
   @override
   Future<void> declineAccountDeletionNotice({
     required String dmId,
+    required String roomId,
     required String messageId,
   }) async {
-    await _directMessages
-        .doc(dmId)
+    await _dmRoomRef(dmId, roomId)
         .collection('messages')
         .doc(messageId)
         .update({'accountDeletionResponse': 'declined'});
@@ -511,20 +657,24 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
   @override
   Future<void> deleteDmAfterAccountDeletion(String dmId) async {
     final dmRef = _directMessages.doc(dmId);
-    final messagesRef = dmRef.collection('messages');
+    final roomsSnapshot = await dmRef.collection('rooms').get();
 
     // acceptSeveranceと同じページ単位の削除ループ（削除済みのdocは次回
     // 取得に現れないため.limit(400)の繰り返し取得で全件処理できる）。
     // friends/friendRequestsのカスケード削除は、アカウント削除処理
     // （Cloud Functions）が既に行っているためここでは不要。
-    while (true) {
-      final snapshot = await messagesRef.limit(400).get();
-      if (snapshot.docs.isEmpty) break;
-      final batch = _firestore.batch();
-      for (final doc in snapshot.docs) {
-        batch.delete(doc.reference);
+    for (final roomDoc in roomsSnapshot.docs) {
+      final messagesRef = roomDoc.reference.collection('messages');
+      while (true) {
+        final snapshot = await messagesRef.limit(400).get();
+        if (snapshot.docs.isEmpty) break;
+        final batch = _firestore.batch();
+        for (final doc in snapshot.docs) {
+          batch.delete(doc.reference);
+        }
+        await batch.commit();
       }
-      await batch.commit();
+      await roomDoc.reference.delete();
     }
 
     await dmRef.delete();

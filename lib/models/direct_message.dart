@@ -6,6 +6,7 @@ class DirectMessage {
     required this.dmId,
     required this.participants,
     required this.participantRhingIds,
+    required this.defaultRoomId,
     this.lastMessageAt,
     this.severanceRequestedBy,
     this.readReceiptsEnabled = true,
@@ -18,6 +19,10 @@ class DirectMessage {
   /// userId -> rhingId。一覧表示で相手の名前を出すための非正規化データ。
   final Map<String, String> participantRhingIds;
   final Timestamp? lastMessageAt;
+
+  /// この一対の既定の寄合（`rooms`サブコレクション、`Group.defaultRoomId`と
+  /// 同じ役割）。`getOrCreateDirectMessage`が作成時に必ず1件作る。
+  final String defaultRoomId;
 
   /// 絶縁（双方合意による友達関係の解消・会話履歴の完全削除）を提案した側の
   /// userId。nullなら提案なし。提案した本人以外の参加者が同意すると、
@@ -61,6 +66,7 @@ class DirectMessage {
       participantRhingIds: Map<String, String>.from(
         json['participantRhingIds'] as Map? ?? {},
       ),
+      defaultRoomId: json['defaultRoomId'] as String,
       lastMessageAt: json['lastMessageAt'] as Timestamp?,
       severanceRequestedBy: json['severanceRequestedBy'] as String?,
       readReceiptsEnabled: json['readReceiptsEnabled'] as bool? ?? true,
@@ -73,6 +79,7 @@ class DirectMessage {
     return {
       'participants': participants,
       'participantRhingIds': participantRhingIds,
+      'defaultRoomId': defaultRoomId,
       'lastMessageAt': lastMessageAt,
       'severanceRequestedBy': severanceRequestedBy,
       'readReceiptsEnabled': readReceiptsEnabled,
