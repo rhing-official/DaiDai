@@ -22,6 +22,7 @@ class DmRoomListScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(title: Text('@${dm.otherRhingId(currentUser.userId)}')),
       body: RoomListPane(
+        conversationName: '@${dm.otherRhingId(currentUser.userId)}',
         roomsStream: dmRepository.watchRooms(dm.dmId).map(
               (rooms) =>
                   [for (final r in rooms) (roomId: r.roomId, name: r.name)],
@@ -70,6 +71,7 @@ class GroupRoomListScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(title: Text(group.name)),
       body: RoomListPane(
+        conversationName: group.name,
         roomsStream: groupRepository.watchRooms(group.groupId).map(
               (rooms) =>
                   [for (final r in rooms) (roomId: r.roomId, name: r.name)],

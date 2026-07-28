@@ -41,7 +41,7 @@ class UserProfileCardDialog extends ConsumerStatefulWidget {
 }
 
 class _UserProfileCardDialogState extends ConsumerState<UserProfileCardDialog> {
-  late Future<FriendRequest?> _requestFuture;
+  late Future<({bool isFriend, FriendRequest? request})> _statusFuture;
   bool _sending = false;
 
   bool get _isSelf => widget.currentUser.userId == widget.user.userId;
@@ -49,13 +49,28 @@ class _UserProfileCardDialogState extends ConsumerState<UserProfileCardDialog> {
   @override
   void initState() {
     super.initState();
-    _requestFuture = _fetchRequest();
+    _statusFuture = _fetchStatus();
   }
 
-  Future<FriendRequest?> _fetchRequest() {
-    return ref
-        .read(friendRepositoryProvider)
-        .getRequest(widget.currentUser.userId, widget.user.userId);
+  /// 「友達か」は[FriendRequest.status]ではなく[FriendRepository.isFriend]
+  /// （実際のfriendsサブコレクション）を根拠にする。絶縁等で友達関係が
+  /// 解消された後も申請ドキュメントがaccepted状態のまま残っているケースが
+  /// あり、statusだけを見ると友達解消後も「友達です」と表示され続けてしまう
+  /// バグがあったため。申請ドキュメントは、まだ友達でない場合の
+  /// 申請中/未申請の判定にのみ使う。
+  Future<({bool isFriend, FriendRequest? request})> _fetchStatus() async {
+    final repository = ref.read(friendRepositoryProvider);
+    final results = await Future.wait([
+      repository.isFriend(
+        userId: widget.currentUser.userId,
+        otherUserId: widget.user.userId,
+      ),
+      repository.getRequest(widget.currentUser.userId, widget.user.userId),
+    ]);
+    return (
+      isFriend: results[0] as bool,
+      request: results[1] as FriendRequest?,
+    );
   }
 
   Future<void> _sendRequest() async {
@@ -66,7 +81,7 @@ class _UserProfileCardDialogState extends ConsumerState<UserProfileCardDialog> {
             to: widget.user,
           );
       if (!mounted) return;
-      setState(() => _requestFuture = _fetchRequest());
+      setState(() => _statusFuture = _fetchStatus());
     } finally {
       if (mounted) setState(() => _sending = false);
     }
@@ -201,8 +216,8 @@ class _UserProfileCardDialogState extends ConsumerState<UserProfileCardDialog> {
   }
 
   Widget _friendActionArea(Strings strings, ColorScheme colorScheme) {
-    return FutureBuilder<FriendRequest?>(
-      future: _requestFuture,
+    return FutureBuilder<({bool isFriend, FriendRequest? request})>(
+      future: _statusFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const SizedBox(
@@ -217,9 +232,7 @@ class _UserProfileCardDialogState extends ConsumerState<UserProfileCardDialog> {
           );
         }
 
-        final request = snapshot.data;
-
-        if (request?.status == FriendRequestStatus.accepted) {
+        if (snapshot.data?.isFriend ?? false) {
           return Text(
             strings.userProfileCardAlreadyFriend,
             style: TextStyle(
@@ -228,6 +241,8 @@ class _UserProfileCardDialogState extends ConsumerState<UserProfileCardDialog> {
             ),
           );
         }
+
+        final request = snapshot.data?.request;
 
         if (request?.status == FriendRequestStatus.pending) {
           final isOutgoing = request!.fromUserId == widget.currentUser.userId;

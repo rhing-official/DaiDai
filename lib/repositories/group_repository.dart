@@ -11,6 +11,7 @@ import '../models/group.dart';
 import '../models/group_invite_preview.dart';
 import '../models/group_join_request.dart';
 import '../models/group_profile_card.dart';
+import '../models/group_role.dart';
 import '../models/message.dart';
 import '../utils/image_format.dart';
 
@@ -47,6 +48,47 @@ abstract class GroupRepository {
     required String groupId,
     required String roomId,
     required String requestedBy,
+  });
+
+  /// この広場のカスタムロール一覧を作成順に購読する（見た目専用、
+  /// `memberRoles`＝長・モデレーター・メンバーという実際の権限区分とは無関係）。
+  Stream<List<GroupRole>> watchRoles(String groupId);
+
+  /// ロールを作成する（長・モデレーターのみ、firestore.rulesで強制）。
+  Future<GroupRole> createRole({
+    required String groupId,
+    required String name,
+    required int color,
+  });
+
+  /// ロールの名前・色を編集する（長・モデレーターのみ）。
+  Future<void> updateRole({
+    required String groupId,
+    required String roleId,
+    required String name,
+    required int color,
+  });
+
+  /// ロールを削除する（長・モデレーターのみ）。このロールを付与されていた
+  /// 全メンバーから、広場全体・寄合ごとの付与を問わず自動的に外す。
+  Future<void> deleteRole({required String groupId, required String roleId});
+
+  /// 広場全体でのロール付与を設定する（[roleId]がnullなら解除、
+  /// 長・モデレーターのみ）。特定の寄合で[assignRoomRole]による付与が
+  /// 別途されていれば、そちらが表示上優先される。
+  Future<void> assignRole({
+    required String groupId,
+    required String userId,
+    required String? roleId,
+  });
+
+  /// 特定の寄合限定でのロール付与を設定する（[roleId]がnullなら解除、
+  /// 長・モデレーターのみ）。[assignRole]（広場全体の付与）より表示上優先される。
+  Future<void> assignRoomRole({
+    required String groupId,
+    required String roomId,
+    required String userId,
+    required String? roleId,
   });
 
   /// [watchRoomMessages]の直近50件に含まれない古い返信先へジャンプする際に
@@ -835,5 +877,99 @@ class FirestoreGroupRepository implements GroupRepository {
       });
     }
     await batch.commit();
+  }
+
+  CollectionReference<Map<String, dynamic>> _rolesOf(String groupId) =>
+      _groups.doc(groupId).collection('roles');
+
+  @override
+  Stream<List<GroupRole>> watchRoles(String groupId) {
+    return _rolesOf(groupId).orderBy('createdAt').snapshots().map(
+          (snapshot) => snapshot.docs
+              .map((doc) => GroupRole.fromJson(doc.id, doc.data()))
+              .toList(),
+        );
+  }
+
+  @override
+  Future<GroupRole> createRole({
+    required String groupId,
+    required String name,
+    required int color,
+  }) async {
+    final roleRef = _rolesOf(groupId).doc();
+    final role = GroupRole(
+      roleId: roleRef.id,
+      groupId: groupId,
+      name: name,
+      color: color,
+    );
+    await roleRef.set(role.toJson());
+    return role;
+  }
+
+  @override
+  Future<void> updateRole({
+    required String groupId,
+    required String roleId,
+    required String name,
+    required int color,
+  }) async {
+    await _rolesOf(groupId).doc(roleId).update({'name': name, 'color': color});
+  }
+
+  @override
+  Future<void> deleteRole({
+    required String groupId,
+    required String roleId,
+  }) async {
+    await _rolesOf(groupId).doc(roleId).delete();
+
+    // このロールが付与されていたメンバーから外す（広場全体・寄合ごとの
+    // 付与の両方）。付与はuserId->roleIdのマップのため、削除対象を
+    // 一度読み込んで値で絞り込む必要がある。
+    final groupRef = _groups.doc(groupId);
+    final groupDoc = await groupRef.get();
+    final groupAssignments =
+        Map<String, dynamic>.from(groupDoc.data()?['roleAssignments'] as Map? ?? {});
+    final groupUpdate = <String, dynamic>{
+      for (final entry in groupAssignments.entries)
+        if (entry.value == roleId) 'roleAssignments.${entry.key}': FieldValue.delete(),
+    };
+    if (groupUpdate.isNotEmpty) await groupRef.update(groupUpdate);
+
+    final roomsSnapshot = await groupRef.collection('rooms').get();
+    for (final roomDoc in roomsSnapshot.docs) {
+      final roomAssignments =
+          Map<String, dynamic>.from(roomDoc.data()['roleAssignments'] as Map? ?? {});
+      final roomUpdate = <String, dynamic>{
+        for (final entry in roomAssignments.entries)
+          if (entry.value == roleId) 'roleAssignments.${entry.key}': FieldValue.delete(),
+      };
+      if (roomUpdate.isNotEmpty) await roomDoc.reference.update(roomUpdate);
+    }
+  }
+
+  @override
+  Future<void> assignRole({
+    required String groupId,
+    required String userId,
+    required String? roleId,
+  }) async {
+    await _groups.doc(groupId).update({
+      'roleAssignments.$userId': roleId ?? FieldValue.delete(),
+    });
+  }
+
+  @override
+  Future<void> assignRoomRole({
+    required String groupId,
+    required String roomId,
+    required String userId,
+    required String? roleId,
+  }) async {
+    await _roomRef(groupId, roomId).update({
+      'roleAssignments.$userId': roleId ?? FieldValue.delete(),
+    });
   }
 }
