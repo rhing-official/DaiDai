@@ -118,6 +118,9 @@ class _FakeUserRepository implements UserRepository {
 
   @override
   Future<void> restoreAccount(String userId) async {}
+
+  @override
+  Future<void> deleteAccountImmediately() async {}
 }
 
 void main() {

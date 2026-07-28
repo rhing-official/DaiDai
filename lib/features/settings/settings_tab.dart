@@ -437,6 +437,18 @@ class _AccountPage extends ConsumerWidget {
             await ref.read(authRepositoryProvider).signOut();
           },
         ),
+        _ActionRow(
+          label: strings.settingsDeleteAccountImmediate,
+          destructive: true,
+          onTap: () async {
+            final confirmed =
+                await _confirmDeleteAccountImmediately(context, strings);
+            if (!confirmed || !context.mounted) return;
+            await ref.read(userRepositoryProvider).deleteAccountImmediately();
+            if (!context.mounted) return;
+            await ref.read(authRepositoryProvider).signOut();
+          },
+        ),
       ],
     );
   }
@@ -465,6 +477,36 @@ Future<bool> _confirmDeleteAccount(
           ),
           onPressed: () => Navigator.of(context).pop(true),
           child: Text(strings.settingsDeleteAccountConfirmButton),
+        ),
+      ],
+    ),
+  );
+  return confirmed ?? false;
+}
+
+/// 即時削除（30日間の復元猶予期間を経ない）前に出す確認ダイアログ。
+/// 取り消せないことを強調する文言にする（`_confirmDeleteAccount`より
+/// 一段階強い警告）。
+Future<bool> _confirmDeleteAccountImmediately(
+  BuildContext context,
+  Strings strings,
+) async {
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: Text(strings.settingsDeleteAccountImmediateConfirmTitle),
+      content: Text(strings.settingsDeleteAccountImmediateConfirmMessage),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: Text(strings.cancel),
+        ),
+        FilledButton(
+          style: FilledButton.styleFrom(
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+          onPressed: () => Navigator.of(context).pop(true),
+          child: Text(strings.settingsDeleteAccountImmediateConfirmButton),
         ),
       ],
     ),
