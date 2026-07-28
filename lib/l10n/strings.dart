@@ -211,6 +211,19 @@ class Strings {
     required this.groupJoinRetry,
     required this.groupJoinPendingListSubtitle,
     required this.groupJoinPendingDialogClose,
+    required this.settingsDeleteAccountConfirmTitle,
+    required this.settingsDeleteAccountConfirmMessage,
+    required this.settingsDeleteAccountConfirmButton,
+    required this.accountRestoreTitle,
+    required this.accountRestoreMessage,
+    required this.accountRestoreButton,
+    required this.accountRestoreSignOutButton,
+    required this.chatAccountDeletedNotice,
+    required this.chatAccountDeletedDeleteConversationPrompt,
+    required this.chatAccountDeletedYesButton,
+    required this.chatAccountDeletedNoButton,
+    required this.chatAccountDeletedConfirmTitle,
+    required this.chatAccountDeletedConfirmButton,
   });
 
   final String navTalk;
@@ -445,6 +458,24 @@ class Strings {
   final String groupJoinPendingListSubtitle;
   final String groupJoinPendingDialogClose;
 
+  final String settingsDeleteAccountConfirmTitle;
+  final String settingsDeleteAccountConfirmMessage;
+  final String settingsDeleteAccountConfirmButton;
+
+  final String accountRestoreTitle;
+  /// 復元プロンプトの説明文。残り日数を差し込む。
+  final String Function(int remainingDays) accountRestoreMessage;
+  final String accountRestoreButton;
+  final String accountRestoreSignOutButton;
+
+  /// アカウント削除通知メッセージの文言。相手のRhing IDを差し込む。
+  final String Function(String label) chatAccountDeletedNotice;
+  final String chatAccountDeletedDeleteConversationPrompt;
+  final String chatAccountDeletedYesButton;
+  final String chatAccountDeletedNoButton;
+  final String chatAccountDeletedConfirmTitle;
+  final String chatAccountDeletedConfirmButton;
+
   static final ja = Strings._(
     navTalk: '語らい',
     navProfile: '身だしなみ',
@@ -666,6 +697,21 @@ class Strings {
     groupJoinRetry: '再読み込み',
     groupJoinPendingListSubtitle: '申請中・承認待ち',
     groupJoinPendingDialogClose: '閉じる',
+    settingsDeleteAccountConfirmTitle: 'アカウントを削除しますか？',
+    settingsDeleteAccountConfirmMessage:
+        '削除すると30日間は復元できます。何も操作をしないまま31日が経過すると、サーバーから全ての情報が完全に削除されます。',
+    settingsDeleteAccountConfirmButton: '削除する',
+    accountRestoreTitle: 'アカウントを復元しますか？',
+    accountRestoreMessage: (remainingDays) =>
+        'あと$remainingDays日で、サーバーから全ての情報が完全に削除されます。',
+    accountRestoreButton: 'アカウントを復元する',
+    accountRestoreSignOutButton: 'サインアウト',
+    chatAccountDeletedNotice: (label) => '$labelがアカウントを削除しました。',
+    chatAccountDeletedDeleteConversationPrompt: '語らいを削除しますか？',
+    chatAccountDeletedYesButton: 'はい',
+    chatAccountDeletedNoButton: 'いいえ',
+    chatAccountDeletedConfirmTitle: '本当によろしいですか？',
+    chatAccountDeletedConfirmButton: '削除する',
   );
 
   static final enGB = Strings._(
@@ -913,6 +959,24 @@ class Strings {
     groupJoinRetry: 'Retry',
     groupJoinPendingListSubtitle: 'Request pending approval',
     groupJoinPendingDialogClose: 'Close',
+    settingsDeleteAccountConfirmTitle: 'Delete your account?',
+    settingsDeleteAccountConfirmMessage:
+        'You can restore your account within 30 days. If you take no action, '
+        'all your data will be permanently deleted from our servers after '
+        '31 days.',
+    settingsDeleteAccountConfirmButton: 'Delete',
+    accountRestoreTitle: 'Restore your account?',
+    accountRestoreMessage: (remainingDays) =>
+        'All your data will be permanently deleted from our servers in '
+        '$remainingDays day(s).',
+    accountRestoreButton: 'Restore account',
+    accountRestoreSignOutButton: 'Sign out',
+    chatAccountDeletedNotice: (label) => '$label deleted their account.',
+    chatAccountDeletedDeleteConversationPrompt: 'Delete this conversation?',
+    chatAccountDeletedYesButton: 'Yes',
+    chatAccountDeletedNoButton: 'No',
+    chatAccountDeletedConfirmTitle: 'Are you sure?',
+    chatAccountDeletedConfirmButton: 'Delete',
   );
 
   static Strings of(AppLocale locale) => switch (locale) {

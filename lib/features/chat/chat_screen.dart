@@ -40,6 +40,8 @@ class ChatScreen extends ConsumerStatefulWidget {
     this.onEditMessage,
     this.onUnsendMessage,
     this.onSetReaction,
+    this.onDeclineAccountDeletionNotice,
+    this.onDeleteAfterAccountDeletion,
     super.key,
   });
 
@@ -92,6 +94,14 @@ class ChatScreen extends ConsumerStatefulWidget {
   /// 選択したメッセージを自分のアカウントから見えなくする（範囲選択削除）。
   /// nullなら選択モード自体を提供しない。
   final Future<void> Function(List<String> messageIds)? onHideMessages;
+
+  /// アカウント削除通知メッセージの「いいえ」。DM（[isDm]）のみ渡す
+  /// （広場は常にボタンなし表示のみのため不要）。
+  final Future<void> Function(String messageId)? onDeclineAccountDeletionNotice;
+
+  /// アカウント削除通知メッセージの「はい」（確認ダイアログの上で呼ばれる）。
+  /// この語らい自体を物理削除する。DM（[isDm]）のみ渡す。
+  final Future<void> Function()? onDeleteAfterAccountDeletion;
 
   @override
   ConsumerState<ChatScreen> createState() => _ChatScreenState();
@@ -496,6 +506,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       onJumpToReply: _jumpToMessage,
                       highlighted: _highlightedMessageId == message.messageId,
                       timeFormat: timeFormat,
+                      onDeclineAccountDeletionNotice:
+                          widget.onDeclineAccountDeletionNotice,
+                      onDeleteAfterAccountDeletion:
+                          widget.onDeleteAfterAccountDeletion,
                     ),
                   );
                 }
@@ -723,6 +737,8 @@ class _MessageRow extends ConsumerWidget {
     this.onJumpToReply,
     this.highlighted = false,
     this.timeFormat = MessageTimeFormat.h24,
+    this.onDeclineAccountDeletionNotice,
+    this.onDeleteAfterAccountDeletion,
     super.key,
   });
 
@@ -771,6 +787,13 @@ class _MessageRow extends ConsumerWidget {
 
   /// contentType='call'（通話サマリー）の開始時刻表示に使う時刻表示形式。
   final MessageTimeFormat timeFormat;
+
+  /// contentType='accountDeleted'通知への「いいえ」。DMのみ渡される。
+  final Future<void> Function(String messageId)? onDeclineAccountDeletionNotice;
+
+  /// contentType='accountDeleted'通知への「はい」（確認ダイアログの上で
+  /// 呼ばれる）。DMのみ渡される。
+  final Future<void> Function()? onDeleteAfterAccountDeletion;
 
   /// チェックマークバッジ（[badgeContext]）の真下から伸びる形でポップアップを
   /// 表示する。画面全体をグレーアウトしないよう、barrierColorは透明にする
@@ -935,6 +958,7 @@ class _MessageRow extends ConsumerWidget {
     }
 
     final isCallSummary = message.contentType == 'call';
+    final isAccountDeletedNotice = message.contentType == 'accountDeleted';
 
     final bubble = Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
@@ -950,6 +974,8 @@ class _MessageRow extends ConsumerWidget {
           ?replyPreview,
           if (isCallSummary)
             _callSummaryContent(onBubbleColor)
+          else if (isAccountDeletedNotice)
+            _accountDeletedContent(context, ref, strings, onBubbleColor)
           else
             Row(
               mainAxisSize: MainAxisSize.min,
@@ -1261,6 +1287,88 @@ class _MessageRow extends ConsumerWidget {
         ),
       ],
     );
+  }
+
+  /// contentType='accountDeleted'（アカウント削除通知）の表示。DMのみ、
+  /// 未応答（[Message.accountDeletionResponse]がnull）の場合に「語らいを
+  /// 削除しますか？」+ はい/いいえボタンを追加で出す。広場では常に通知文言
+  /// のみ（[onDeclineAccountDeletionNotice]/[onDeleteAfterAccountDeletion]は
+  /// 一対からしか渡されない）。
+  Widget _accountDeletedContent(
+    BuildContext context,
+    WidgetRef ref,
+    Strings strings,
+    Color onBubbleColor,
+  ) {
+    final label = message.senderRhingId != null
+        ? '@${message.senderRhingId}'
+        : message.senderId;
+    final showPrompt = isDm &&
+        message.accountDeletionResponse == null &&
+        (onDeclineAccountDeletionNotice != null ||
+            onDeleteAfterAccountDeletion != null);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          strings.chatAccountDeletedNotice(label),
+          style: TextStyle(color: onBubbleColor),
+        ),
+        if (showPrompt) ...[
+          const SizedBox(height: 4),
+          Text(
+            strings.chatAccountDeletedDeleteConversationPrompt,
+            style: TextStyle(color: onBubbleColor),
+          ),
+          const SizedBox(height: 4),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextButton(
+                onPressed: () => onDeclineAccountDeletionNotice
+                    ?.call(message.messageId),
+                child: Text(strings.chatAccountDeletedNoButton),
+              ),
+              FilledButton(
+                style: FilledButton.styleFrom(
+                  backgroundColor: Theme.of(context).colorScheme.error,
+                ),
+                onPressed: () =>
+                    _confirmDeleteConversation(context, strings),
+                child: Text(strings.chatAccountDeletedYesButton),
+              ),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
+
+  Future<void> _confirmDeleteConversation(
+    BuildContext context,
+    Strings strings,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(strings.chatAccountDeletedConfirmTitle),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(strings.cancel),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(strings.chatAccountDeletedConfirmButton),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) await onDeleteAfterAccountDeletion?.call();
   }
 
   static String _formatCallDuration(int totalSeconds) {

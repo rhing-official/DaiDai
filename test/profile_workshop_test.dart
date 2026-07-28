@@ -164,6 +164,12 @@ class _FakeUserRepository implements UserRepository {
 
   @override
   Future<void> syncInvitePreview(String userId) async {}
+
+  @override
+  Future<void> requestAccountDeletion(String userId) async {}
+
+  @override
+  Future<void> restoreAccount(String userId) async {}
 }
 
 Future<void> _pumpProfileTab(WidgetTester tester, AppUser user, _FakeUserRepository repo) async {

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/app_user.dart';
 import '../../providers/repository_providers.dart';
 import '../../providers/user_preferences_sync.dart';
+import 'account_restore_screen.dart';
 import 'rhing_id_setup_screen.dart';
 import 'sign_in_screen.dart';
 
@@ -47,15 +48,20 @@ class _AuthenticatedUserGate extends ConsumerStatefulWidget {
 
 class _AuthenticatedUserGateState
     extends ConsumerState<_AuthenticatedUserGate> {
-  late final Future<AppUser?> _future;
+  late Future<AppUser?> _future;
 
   @override
   void initState() {
     super.initState();
-    // 端末をまたいで同期する表示設定（アクセントカラー・外観・表示言語等）を、
-    // ログイン直後に一度だけFirestoreの値で上書きする（[applyRemoteUserPreferences]）。
-    _future =
-        ref.read(userRepositoryProvider).getUser(widget.userId).then((user) {
+    _future = _fetchUser();
+  }
+
+  // 端末をまたいで同期する表示設定（アクセントカラー・外観・表示言語等）を、
+  // ログイン直後に一度だけFirestoreの値で上書きする（[applyRemoteUserPreferences]）。
+  // アカウント復元後にユーザーを再取得する際も同じ処理でよいため、
+  // [AccountRestoreScreen.onRestored]からも呼び直す。
+  Future<AppUser?> _fetchUser() {
+    return ref.read(userRepositoryProvider).getUser(widget.userId).then((user) {
       if (user != null) applyRemoteUserPreferences(ref, user.preferences);
       return user;
     });
@@ -74,6 +80,12 @@ class _AuthenticatedUserGateState
         final appUser = snapshot.data;
         if (appUser == null) {
           return RhingIdSetupScreen(userId: widget.userId);
+        }
+        if (appUser.accountStatus == AccountStatus.pendingDeletion) {
+          return AccountRestoreScreen(
+            appUser: appUser,
+            onRestored: () => setState(() => _future = _fetchUser()),
+          );
         }
         return widget.builder(context, appUser);
       },

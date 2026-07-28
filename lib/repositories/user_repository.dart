@@ -90,6 +90,14 @@ abstract class UserRepository {
   /// この機能追加より前から使っているユーザーはその同期がまだ一度も
   /// 走っていないため、縁結びページを開いた際にも呼び直してバックフィルする。
   Future<void> syncInvitePreview(String userId);
+
+  /// アカウント削除を申請する。30日間は[restoreAccount]で復元できる。
+  /// 何も操作が無いまま31日経過すると、Cloud Functionsの定期処理が
+  /// サーバーから全情報を完全削除する。
+  Future<void> requestAccountDeletion(String userId);
+
+  /// 削除申請中のアカウントを復元する（31日以内のみ有効）。
+  Future<void> restoreAccount(String userId);
 }
 
 class FirestoreUserRepository implements UserRepository {
@@ -370,5 +378,21 @@ class FirestoreUserRepository implements UserRepository {
   @override
   Future<void> deleteProfileMaterial(ProfileMaterial material) async {
     await _storage.ref(material.storagePath).delete();
+  }
+
+  @override
+  Future<void> requestAccountDeletion(String userId) async {
+    await _users.doc(userId).update({
+      'accountStatus': AccountStatus.pendingDeletion.name,
+      'deletionRequestedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  @override
+  Future<void> restoreAccount(String userId) async {
+    await _users.doc(userId).update({
+      'accountStatus': AccountStatus.active.name,
+      'deletionRequestedAt': null,
+    });
   }
 }

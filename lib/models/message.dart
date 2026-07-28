@@ -50,6 +50,7 @@ class Message {
     this.callStartedAt,
     this.callDurationSeconds,
     this.callIsVideo,
+    this.accountDeletionResponse,
   });
 
   final String messageId;
@@ -59,7 +60,8 @@ class Message {
   /// 送信者のRhing ID（グループ会話でアイコン・名前を表示するための非正規化）。
   final String? senderRhingId;
   final String content;
-  final String contentType; // text | image | file | sticker | video | call
+  // text | image | file | sticker | video | call | accountDeleted
+  final String contentType;
   final Timestamp? sentAt;
 
   /// このメッセージを自分のアカウントから見えなくした（範囲選択削除した）
@@ -113,6 +115,14 @@ class Message {
   final int? callDurationSeconds;
   final bool? callIsVideo;
 
+  /// contentType='accountDeleted'（アカウント削除通知）専用フィールド。
+  /// DMでのみ使う（広場では常にnull=表示のみで応答不要）。[senderId]には
+  /// 削除されたユーザーのuserIdをそのまま入れる（'call'タイプが発信者の
+  /// userIdをsenderIdに使うのと同じ考え方）。相手が「いいえ」を選ぶと
+  /// 'declined'になり、以後はい/いいえボタンを表示しなくなる（「はい」の
+  /// 場合はDM自体が物理削除されるため状態を持つ必要が無い）。
+  final String? accountDeletionResponse;
+
   factory Message.fromJson(String messageId, Map<String, dynamic> json) {
     return Message(
       messageId: messageId,
@@ -140,6 +150,7 @@ class Message {
       callStartedAt: json['callStartedAt'] as Timestamp?,
       callDurationSeconds: json['callDurationSeconds'] as int?,
       callIsVideo: json['callIsVideo'] as bool?,
+      accountDeletionResponse: json['accountDeletionResponse'] as String?,
     );
   }
 
@@ -165,6 +176,7 @@ class Message {
       'callStartedAt': callStartedAt,
       'callDurationSeconds': callDurationSeconds,
       'callIsVideo': callIsVideo,
+      'accountDeletionResponse': accountDeletionResponse,
     };
   }
 }

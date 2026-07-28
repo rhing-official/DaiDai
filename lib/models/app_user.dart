@@ -1,6 +1,18 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 import 'app_user_preferences.dart';
 import 'profile_card.dart';
 import 'profile_material.dart';
+
+/// アカウント削除の状態。active: 通常。pendingDeletion: 削除申請済みで
+/// 30日間の復元猶予期間中（[AppUser.deletionRequestedAt]参照）。
+enum AccountStatus {
+  active,
+  pendingDeletion;
+
+  static AccountStatus fromName(String name) => AccountStatus.values
+      .firstWhere((s) => s.name == name, orElse: () => AccountStatus.active);
+}
 
 class AppUser {
   const AppUser({
@@ -19,6 +31,8 @@ class AppUser {
     this.activeNicknameId,
     this.activeProfileCardId,
     this.preferences = AppUserPreferences.empty,
+    this.accountStatus = AccountStatus.active,
+    this.deletionRequestedAt,
   });
 
   final String userId;
@@ -59,6 +73,16 @@ class AppUser {
   /// 端末をまたいで同期する表示設定（設定タブのアクセントカラー・外観・
   /// 表示言語等）。[UserRepository.updateUserPreference]で個別に部分更新する。
   final AppUserPreferences preferences;
+
+  /// アカウント削除の状態。[AccountStatus.pendingDeletion]の場合、
+  /// [deletionRequestedAt]から31日後にCloud Functionsの定期処理が
+  /// サーバーから全情報を完全削除する（`UserRepository.requestAccountDeletion`/
+  /// `restoreAccount`参照）。
+  final AccountStatus accountStatus;
+
+  /// アカウント削除を申請した日時。[accountStatus]が
+  /// [AccountStatus.pendingDeletion]の場合のみ意味を持つ。
+  final Timestamp? deletionRequestedAt;
 
   ProfileMaterial? get activeIcon => _findMaterial(icons, activeIconId);
   ProfileMaterial? get activeBackgroundImage =>
@@ -205,6 +229,10 @@ class AppUser {
       preferences: AppUserPreferences.fromJson(
         json['preferences'] as Map<String, dynamic>?,
       ),
+      accountStatus: AccountStatus.fromName(
+        json['accountStatus'] as String? ?? AccountStatus.active.name,
+      ),
+      deletionRequestedAt: json['deletionRequestedAt'] as Timestamp?,
     );
   }
 
@@ -225,6 +253,8 @@ class AppUser {
       'activeNicknameId': activeNicknameId,
       'activeProfileCardId': activeProfileCardId,
       'preferences': preferences.toJson(),
+      'accountStatus': accountStatus.name,
+      'deletionRequestedAt': deletionRequestedAt,
     };
   }
 

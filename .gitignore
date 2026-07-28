@@ -13,6 +13,11 @@
 /node_modules/
 /package-lock.json
 
+# functions/（Firebase Cloud Functions）のNode.js依存関係・ビルド出力。
+# デプロイ時にnpm install + npm run buildし直すためコミット不要。
+functions/node_modules/
+functions/lib/
+
 # Miscellaneous
 *.class
 *.log

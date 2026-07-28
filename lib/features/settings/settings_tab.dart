@@ -334,12 +334,10 @@ class _InfoRow extends StatelessWidget {
   const _InfoRow({
     required this.label,
     required this.value,
-    this.destructive = false,
   });
 
   final String label;
   final String value;
-  final bool destructive;
 
   @override
   Widget build(BuildContext context) {
@@ -348,12 +346,7 @@ class _InfoRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       child: Row(
         children: [
-          Expanded(
-            child: Text(
-              label,
-              style: destructive ? TextStyle(color: colorScheme.error) : null,
-            ),
-          ),
+          Expanded(child: Text(label)),
           Text(
             value,
             style: TextStyle(color: colorScheme.onSurfaceVariant),
@@ -369,16 +362,22 @@ class _ActionRow extends StatelessWidget {
   const _ActionRow({
     required this.label,
     required this.onTap,
+    this.destructive = false,
   });
 
   final String label;
   final VoidCallback onTap;
+  final bool destructive;
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 16),
-      title: Text(label),
+      title: Text(
+        label,
+        style: destructive ? TextStyle(color: colorScheme.error) : null,
+      ),
       onTap: onTap,
     );
   }
@@ -426,14 +425,51 @@ class _AccountPage extends ConsumerWidget {
           label: strings.settingsLogout,
           onTap: () => ref.read(authRepositoryProvider).signOut(),
         ),
-        _InfoRow(
+        _ActionRow(
           label: strings.settingsDeleteAccount,
-          value: strings.settingsComingSoon,
           destructive: true,
+          onTap: () async {
+            final confirmed = await _confirmDeleteAccount(context, strings);
+            if (!confirmed || !context.mounted) return;
+            await ref
+                .read(userRepositoryProvider)
+                .requestAccountDeletion(currentUser.userId);
+            await ref.read(authRepositoryProvider).signOut();
+          },
         ),
       ],
     );
   }
+}
+
+/// アカウント削除の申請前に出す確認ダイアログ。30日間は復元できるが、
+/// 何も操作をしないまま31日経過すると全情報が完全に削除される旨を伝える
+/// （`chat_panes.dart`の`_confirmDisableReadReceipts`と同じ形）。
+Future<bool> _confirmDeleteAccount(
+  BuildContext context,
+  Strings strings,
+) async {
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: Text(strings.settingsDeleteAccountConfirmTitle),
+      content: Text(strings.settingsDeleteAccountConfirmMessage),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: Text(strings.cancel),
+        ),
+        FilledButton(
+          style: FilledButton.styleFrom(
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+          onPressed: () => Navigator.of(context).pop(true),
+          child: Text(strings.settingsDeleteAccountConfirmButton),
+        ),
+      ],
+    ),
+  );
+  return confirmed ?? false;
 }
 
 /// アプリケーションカテゴリの中身。旧: 色／UI／文字／言語の各サブフォルダを

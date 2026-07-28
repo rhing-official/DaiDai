@@ -112,6 +112,12 @@ class _FakeUserRepository implements UserRepository {
   Future<void> deleteProfileCard(String userId, String cardId) {
     throw UnimplementedError();
   }
+
+  @override
+  Future<void> requestAccountDeletion(String userId) async {}
+
+  @override
+  Future<void> restoreAccount(String userId) async {}
 }
 
 void main() {
