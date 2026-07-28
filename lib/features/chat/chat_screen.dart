@@ -36,6 +36,7 @@ class ChatScreen extends ConsumerStatefulWidget {
     this.onMarkRead,
     this.banner,
     this.onSenderTap,
+    this.senderNameColorResolver,
     this.onHideMessages,
     this.onEditMessage,
     this.onUnsendMessage,
@@ -91,6 +92,12 @@ class ChatScreen extends ConsumerStatefulWidget {
   /// 相手（自分以外）のアイコン・呼び名をタップした時の処理。広場のみ渡す
   /// （一対の相手は仕組み上必ず既に友達のため不要、DmChatPaneはnullのまま）。
   final void Function(String userId)? onSenderTap;
+
+  /// 送信者の呼び名のフォントカラーを決める（広場のカスタムロール機能、
+  /// 2026-07-28追加）。nullを返す・このフィールド自体がnullの場合は既定色
+  /// （[ColorScheme.onSurfaceVariant]）のまま。一対では常にnull（ロールが
+  /// 存在しないため）。
+  final Color? Function(String userId)? senderNameColorResolver;
 
   /// 選択したメッセージを自分のアカウントから見えなくする（範囲選択削除）。
   /// nullなら選択モード自体を提供しない。
@@ -539,6 +546,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       layoutStyle: layoutStyle,
                       isDm: widget.isDm,
                       onSenderTap: _selecting ? null : widget.onSenderTap,
+                      senderNameColorResolver: widget.senderNameColorResolver,
                       selecting: _selecting,
                       selected: _selectedMessageIds.contains(message.messageId),
                       canSelect: widget.onHideMessages != null,
@@ -770,6 +778,7 @@ class _MessageRow extends ConsumerWidget {
     required this.layoutStyle,
     required this.isDm,
     this.onSenderTap,
+    this.senderNameColorResolver,
     this.selecting = false,
     this.selected = false,
     this.canSelect = false,
@@ -798,6 +807,7 @@ class _MessageRow extends ConsumerWidget {
   final ChatLayoutStyle layoutStyle;
   final bool isDm;
   final void Function(String userId)? onSenderTap;
+  final Color? Function(String userId)? senderNameColorResolver;
 
   /// 範囲選択削除モード中かどうか（[ChatScreen.onHideMessages]が渡されて
   /// いる場合のみ長押しで入れる）。
@@ -1166,6 +1176,7 @@ class _MessageRow extends ConsumerWidget {
       final senderName = _SenderName(
         userId: message.senderId,
         rhingId: message.senderRhingId,
+        color: senderNameColorResolver?.call(message.senderId),
       );
 
       content = Padding(
@@ -1696,10 +1707,14 @@ class _MessageInteractionsState extends State<_MessageInteractions> {
 /// 送信者の呼び名。[AppUser.effectiveNickname]（適用中の工房カードがあれば
 /// そちらを優先）があればそれを表示し、未設定ならRhing IDにフォールバックする。
 class _SenderName extends ConsumerWidget {
-  const _SenderName({required this.userId, required this.rhingId});
+  const _SenderName({required this.userId, required this.rhingId, this.color});
 
   final String userId;
   final String? rhingId;
+
+  /// 広場のカスタムロールで指定された色（`ChatScreen.senderNameColorResolver`
+  /// 参照）。nullなら既定色のまま。
+  final Color? color;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -1715,7 +1730,7 @@ class _SenderName extends ConsumerWidget {
       style: TextStyle(
         fontSize: 12,
         fontWeight: FontWeight.w600,
-        color: Theme.of(context).colorScheme.onSurfaceVariant,
+        color: color ?? Theme.of(context).colorScheme.onSurfaceVariant,
       ),
     );
   }

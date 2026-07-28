@@ -187,7 +187,20 @@ class Strings {
     required this.groupMenuProfileCard,
     required this.groupMenuMemberList,
     required this.groupMenuCreateInvite,
+    required this.groupMenuManageRoles,
     required this.groupMenuLeave,
+    required this.groupRoleListEmpty,
+    required this.groupRoleCreateDialogTitle,
+    required this.groupRoleEditDialogTitle,
+    required this.groupRoleDialogNameLabel,
+    required this.groupRoleColorInvalid,
+    required this.groupRoleDeleteConfirmTitle,
+    required this.groupRoleDeleteConfirmButton,
+    required this.groupRoleNoneLabel,
+    required this.groupRoleAssignmentScopeAll,
+    required this.groupRoleAssignmentScopeRoom,
+    required this.groupRolePickerTitle,
+    required this.groupRolePickerNone,
     required this.groupProfileCardNameLabel,
     required this.groupProfileCardDescriptionLabel,
     required this.groupMemberListTitle,
@@ -232,6 +245,7 @@ class Strings {
     required this.roomListAddButton,
     required this.roomListDeleteConfirmTitle,
     required this.roomListDeleteConfirmButton,
+    required this.dmMenuDeleteConversation,
   });
 
   final String navTalk;
@@ -434,7 +448,23 @@ class Strings {
   final String groupMenuProfileCard;
   final String groupMenuMemberList;
   final String groupMenuCreateInvite;
+  final String groupMenuManageRoles;
   final String groupMenuLeave;
+
+  final String groupRoleListEmpty;
+  final String groupRoleCreateDialogTitle;
+  final String groupRoleEditDialogTitle;
+  final String groupRoleDialogNameLabel;
+  final String groupRoleColorInvalid;
+  final String groupRoleDeleteConfirmTitle;
+  final String groupRoleDeleteConfirmButton;
+  final String groupRoleNoneLabel;
+  /// ロール付与の対象範囲切り替え「広場全体」。用語（「広場」等）を差し込む。
+  final String Function(String plazaTerm) groupRoleAssignmentScopeAll;
+  /// ロール付与の対象範囲切り替え「（寄合名）のみ」。寄合の実際の名前を差し込む。
+  final String Function(String roomName) groupRoleAssignmentScopeRoom;
+  final String groupRolePickerTitle;
+  final String groupRolePickerNone;
 
   final String groupProfileCardNameLabel;
   final String groupProfileCardDescriptionLabel;
@@ -496,6 +526,11 @@ class Strings {
   /// 寄合削除の確認ダイアログのタイトル。用語（「寄合」等）を差し込む。
   final String Function(String term) roomListDeleteConfirmTitle;
   final String roomListDeleteConfirmButton;
+
+  /// 一対のハンバーガーメニューの「削除」項目。相手がアカウントを削除した
+  /// 通知に「いいえ」と答えた後（または未応答のまま）でも、いつでもここから
+  /// 削除できる。用語（「一対」等）を差し込む。
+  final String Function(String term) dmMenuDeleteConversation;
 
   static final ja = Strings._(
     navTalk: '語らい',
@@ -692,7 +727,20 @@ class Strings {
     groupMenuProfileCard: 'プロフィールカード',
     groupMenuMemberList: 'メンバー一覧',
     groupMenuCreateInvite: '招待リンク作成',
+    groupMenuManageRoles: 'ロール管理',
     groupMenuLeave: '退会',
+    groupRoleListEmpty: 'まだロールがありません',
+    groupRoleCreateDialogTitle: 'ロールを追加',
+    groupRoleEditDialogTitle: 'ロールを編集',
+    groupRoleDialogNameLabel: 'ロール名',
+    groupRoleColorInvalid: '「#RRGGBB」の形式で入力してください',
+    groupRoleDeleteConfirmTitle: 'このロールを削除しますか？',
+    groupRoleDeleteConfirmButton: '削除する',
+    groupRoleNoneLabel: 'ロール未設定',
+    groupRoleAssignmentScopeAll: (term) => '$term全体',
+    groupRoleAssignmentScopeRoom: (name) => '$nameのみ',
+    groupRolePickerTitle: 'ロールを選択',
+    groupRolePickerNone: 'なし（解除）',
     groupProfileCardNameLabel: '広場名',
     groupProfileCardDescriptionLabel: '一言',
     groupMemberListTitle: 'メンバー一覧',
@@ -742,6 +790,7 @@ class Strings {
     roomListAddButton: '追加',
     roomListDeleteConfirmTitle: (term) => 'この$termを削除しますか？',
     roomListDeleteConfirmButton: '削除する',
+    dmMenuDeleteConversation: (term) => '$termの削除',
   );
 
   static final enGB = Strings._(
@@ -959,7 +1008,20 @@ class Strings {
     groupMenuProfileCard: 'Profile card',
     groupMenuMemberList: 'Member list',
     groupMenuCreateInvite: 'Create invite link',
+    groupMenuManageRoles: 'Manage roles',
     groupMenuLeave: 'Leave',
+    groupRoleListEmpty: 'No roles yet',
+    groupRoleCreateDialogTitle: 'Add role',
+    groupRoleEditDialogTitle: 'Edit role',
+    groupRoleDialogNameLabel: 'Role name',
+    groupRoleColorInvalid: 'Enter in "#RRGGBB" format',
+    groupRoleDeleteConfirmTitle: 'Delete this role?',
+    groupRoleDeleteConfirmButton: 'Delete',
+    groupRoleNoneLabel: 'No role',
+    groupRoleAssignmentScopeAll: (term) => 'All of $term',
+    groupRoleAssignmentScopeRoom: (name) => '$name only',
+    groupRolePickerTitle: 'Select a role',
+    groupRolePickerNone: 'None (clear)',
     groupProfileCardNameLabel: 'Plaza name',
     groupProfileCardDescriptionLabel: 'Status',
     groupMemberListTitle: 'Members',
@@ -1018,6 +1080,7 @@ class Strings {
     roomListAddButton: 'Add',
     roomListDeleteConfirmTitle: (term) => 'Delete this $term?',
     roomListDeleteConfirmButton: 'Delete',
+    dmMenuDeleteConversation: (term) => 'Delete $term',
   );
 
   static Strings of(AppLocale locale) => switch (locale) {

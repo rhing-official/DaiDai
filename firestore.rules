@@ -318,6 +318,12 @@ service cloud.firestore {
             resource.data.memberRoles[request.auth.uid] == 'owner'
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readReceiptsEnabled'])
           )
+          // カスタムロールの広場全体での付与（見た目専用、長・モデレーターのみ、
+          // 2026-07-28追加）。
+          || (
+            resource.data.memberRoles[request.auth.uid] in ['owner', 'moderator']
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['roleAssignments'])
+          )
         );
       allow delete: if false;
 
@@ -349,6 +355,22 @@ service cloud.firestore {
             )
           );
         allow delete: if false;
+      }
+
+      // roles/{roleId}: カスタムロール（見た目専用、名前と色のみ。
+      // memberRolesという実際の権限区分とは無関係、2026-07-28追加）。
+      // 作成・編集・削除は長・モデレーターのみ、閲覧はメンバー全員
+      // （呼び名の色付けにメンバー全員のクライアントが必要なため）。
+      match /roles/{roleId} {
+        allow read: if request.auth != null
+          && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.memberIds;
+        allow create: if request.auth != null
+          && get(/databases/$(database)/documents/groups/$(groupId)).data.memberRoles[request.auth.uid] in ['owner', 'moderator']
+          && request.resource.data.groupId == groupId;
+        allow update: if request.auth != null
+          && get(/databases/$(database)/documents/groups/$(groupId)).data.memberRoles[request.auth.uid] in ['owner', 'moderator'];
+        allow delete: if request.auth != null
+          && get(/databases/$(database)/documents/groups/$(groupId)).data.memberRoles[request.auth.uid] in ['owner', 'moderator'];
       }
 
       // rooms/{roomId}: 寄合。memberIdsを広場から非正規化して持つ

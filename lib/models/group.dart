@@ -14,6 +14,7 @@ class Group {
     this.profileCard,
     this.createdAt,
     this.readReceiptsEnabled = true,
+    this.roleAssignments = const {},
   });
 
   final String groupId;
@@ -23,6 +24,11 @@ class Group {
   /// userId -> role (owner | moderator | member)
   final Map<String, String> memberRoles;
   final String defaultRoomId;
+
+  /// userId -> GroupRole.roleId（広場全体でのカスタムロール付与、見た目専用）。
+  /// 同じユーザーに寄合単位の付与（[Room.roleAssignments]）があれば、
+  /// そちらが優先して表示される。
+  final Map<String, String> roleAssignments;
 
   /// 既読機能のオン/オフ（広場全体・長のみ変更可）。オフにすると
   /// `defaultRoomId`の全メッセージ・全メンバー分の既読履歴をサーバーから
@@ -50,6 +56,8 @@ class Group {
           : null,
       createdAt: json['createdAt'] as Timestamp?,
       readReceiptsEnabled: json['readReceiptsEnabled'] as bool? ?? true,
+      roleAssignments:
+          Map<String, String>.from(json['roleAssignments'] as Map? ?? {}),
     );
   }
 
@@ -63,6 +71,7 @@ class Group {
       'profileCard': profileCard?.toJson(),
       'createdAt': createdAt ?? FieldValue.serverTimestamp(),
       'readReceiptsEnabled': readReceiptsEnabled,
+      'roleAssignments': roleAssignments,
     };
   }
 }
@@ -78,6 +87,7 @@ class Room {
     this.lastMessageAt,
     this.createdAt,
     this.roomDeletionRequestedBy,
+    this.roleAssignments = const {},
   });
 
   final String roomId;
@@ -86,6 +96,10 @@ class Room {
   /// 広場のmemberIdsを非正規化して保持（セキュリティルールでの参照を単純化するため）。
   final List<String> memberIds;
   final Timestamp? lastMessageAt;
+
+  /// userId -> GroupRole.roleId（この寄合限定でのカスタムロール付与、見た目専用）。
+  /// 設定されていれば[Group.roleAssignments]（広場全体の付与）より優先される。
+  final Map<String, String> roleAssignments;
 
   /// 寄合一覧の並び順（作成順）に使う。
   final Timestamp? createdAt;
@@ -105,6 +119,8 @@ class Room {
       lastMessageAt: json['lastMessageAt'] as Timestamp?,
       createdAt: json['createdAt'] as Timestamp?,
       roomDeletionRequestedBy: json['roomDeletionRequestedBy'] as String?,
+      roleAssignments:
+          Map<String, String>.from(json['roleAssignments'] as Map? ?? {}),
     );
   }
 
@@ -116,6 +132,7 @@ class Room {
       'lastMessageAt': lastMessageAt,
       'createdAt': createdAt ?? FieldValue.serverTimestamp(),
       'roomDeletionRequestedBy': roomDeletionRequestedBy,
+      'roleAssignments': roleAssignments,
     };
   }
 }

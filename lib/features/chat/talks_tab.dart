@@ -362,6 +362,12 @@ class _TalksTabState extends ConsumerState<TalksTab> {
   /// （未選択・削除された等）場合はdefaultRoomIdにフォールバックする。
   Widget _buildDmDetailWithRooms(DirectMessage dm) {
     final dmRepository = ref.read(directMessageRepositoryProvider);
+    final otherUserId = dm.otherUserId(widget.currentUser.userId);
+    final otherUser = ref.watch(watchedUserProvider(otherUserId)).value;
+    final otherNickname = otherUser?.effectiveNickname?.text;
+    final conversationName = (otherNickname?.isNotEmpty ?? false)
+        ? otherNickname!
+        : '@${dm.otherRhingId(widget.currentUser.userId)}';
     return StreamBuilder<List<DmRoom>>(
       stream: dmRepository.watchRooms(dm.dmId),
       builder: (context, snapshot) {
@@ -386,6 +392,7 @@ class _TalksTabState extends ConsumerState<TalksTab> {
             SizedBox(
               width: 220,
               child: RoomListPane(
+                conversationName: conversationName,
                 roomsStream: dmRepository.watchRooms(dm.dmId).map(
                       (rs) => [for (final r in rs) (roomId: r.roomId, name: r.name)],
                     ),
@@ -451,6 +458,7 @@ class _TalksTabState extends ConsumerState<TalksTab> {
             SizedBox(
               width: 220,
               child: RoomListPane(
+                conversationName: group.name,
                 roomsStream: groupRepository.watchRooms(group.groupId).map(
                       (rs) => [for (final r in rs) (roomId: r.roomId, name: r.name)],
                     ),

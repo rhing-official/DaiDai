@@ -22,6 +22,7 @@ typedef RoomListEntry = ({String roomId, String name});
 /// 無効化する（最後の1つは削除できないため）。
 class RoomListPane extends ConsumerWidget {
   const RoomListPane({
+    required this.conversationName,
     required this.roomsStream,
     required this.selectedRoomId,
     required this.onSelectRoom,
@@ -29,6 +30,11 @@ class RoomListPane extends ConsumerWidget {
     this.onDeleteRoom,
     super.key,
   });
+
+  /// このペインが今表示している会話（広場名、または一対の相手の呼び名/
+  /// Rhing ID）。ヘッダーに表示する（以前は用語「寄合」の固定文言だったが、
+  /// どの会話の寄合一覧を見ているか分かりにくいとの指摘を受けて変更）。
+  final String conversationName;
 
   final Stream<List<RoomListEntry>> roomsStream;
   final String? selectedRoomId;
@@ -120,7 +126,9 @@ class RoomListPane extends ConsumerWidget {
                   children: [
                     Expanded(
                       child: Text(
-                        vocab.textChannel,
+                        conversationName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: const TextStyle(fontWeight: FontWeight.bold),
                       ),
                     ),

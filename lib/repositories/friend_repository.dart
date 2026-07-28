@@ -70,9 +70,14 @@ class FirestoreFriendRepository implements FriendRepository {
 
     final existing = FriendRequest.fromJson(requestId, doc.data()!);
     if (existing.status == FriendRequestStatus.accepted) {
-      return; // 既に友達
-    }
-    if (existing.status == FriendRequestStatus.pending) {
+      // statusがaccepted のままでも、絶縁等で実際のfriendsサブコレクションが
+      // 既に削除されている場合がある（friendRequestsドキュメント自体は
+      // 削除される設計だが、念のためここでも実データを見て判定する）。
+      // 実際にまだ友達なら何もしない。友達でなければ下の再申請処理へ進む。
+      final stillFriends =
+          await isFriend(userId: from.userId, otherUserId: to.userId);
+      if (stillFriends) return;
+    } else if (existing.status == FriendRequestStatus.pending) {
       if (existing.fromUserId == from.userId) {
         return; // 既に自分から送信済み・返答待ち
       }
@@ -80,7 +85,7 @@ class FirestoreFriendRepository implements FriendRepository {
       await respond(request: existing, accept: true);
       return;
     }
-    // declined: 再申請として上書きする。
+    // declined、またはaccepted済みだが実際は友達ではない場合: 再申請として上書きする。
     final request = FriendRequest(
       requestId: requestId,
       fromUserId: from.userId,

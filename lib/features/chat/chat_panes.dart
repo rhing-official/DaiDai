@@ -1,20 +1,25 @@
+import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/strings.dart';
+import '../../l10n/vocabulary.dart';
 import '../../models/app_user.dart';
 import '../../models/conversation_prefs.dart';
 import '../../models/direct_message.dart';
 import '../../models/group.dart';
+import '../../models/group_role.dart';
 import '../../providers/block_providers.dart';
 import '../../providers/conversation_prefs_providers.dart';
 import '../../providers/repository_providers.dart';
+import '../../repositories/group_repository.dart';
 import '../../router/app_router.dart';
 import 'chat_screen.dart';
 import 'group_invite_dialog.dart';
 import 'group_leave_dialog.dart';
 import 'group_member_list_screen.dart';
 import 'group_profile_card_screen.dart';
+import 'group_role_list_popup.dart';
 import 'severance_dialog.dart';
 import 'user_profile_card_dialog.dart';
 
@@ -22,6 +27,7 @@ enum _GroupMenuAction {
   profileCard,
   memberList,
   createInvite,
+  manageRoles,
   toggleMute,
   toggleReadReceipts,
   leave,
@@ -31,6 +37,7 @@ enum _DmMenuAction {
   toggleBlock,
   toggleReadReceipts,
   proposeSeverance,
+  deleteConversation,
 }
 
 /// 既読機能をオフにする方向の操作（広場: 長が直接オフにする／DM: オフを
@@ -56,6 +63,33 @@ Future<bool> _confirmDisableReadReceipts(
           ),
           onPressed: () => Navigator.of(context).pop(true),
           child: Text(strings.conversationReadReceiptsDisableConfirmButton),
+        ),
+      ],
+    ),
+  );
+  return confirmed ?? false;
+}
+
+/// 一対の削除確認ダイアログ。`chat_screen.dart`の`_confirmDeleteConversation`
+/// （アカウント削除通知メッセージの「はい」ボタンから呼ばれるもの）と同じ
+/// 文言・見た目を使う（相手のアカウント削除通知に「いいえ」と答えた後、または
+/// 未応答のまま、ハンバーガーメニューからいつでも削除できるようにする経路）。
+Future<bool> _confirmDeleteDm(BuildContext context, Strings strings) async {
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: Text(strings.chatAccountDeletedConfirmTitle),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: Text(strings.cancel),
+        ),
+        FilledButton(
+          style: FilledButton.styleFrom(
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+          onPressed: () => Navigator.of(context).pop(true),
+          child: Text(strings.chatAccountDeletedConfirmButton),
         ),
       ],
     ),
@@ -379,6 +413,7 @@ class _DmMenuButton extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final strings = ref.watch(appStringsProvider);
+    final vocabulary = ref.watch(vocabularyProvider);
     final prefs = ref
             .watch(conversationPrefsProvider(currentUser.userId))
             .value ??
@@ -431,6 +466,15 @@ class _DmMenuButton extends ConsumerWidget {
               currentUserId: currentUser.userId,
               otherUserId: otherUserId,
             );
+          case _DmMenuAction.deleteConversation:
+            final confirmed = await _confirmDeleteDm(context, strings);
+            if (!confirmed) return;
+            await ref
+                .read(directMessageRepositoryProvider)
+                .deleteDmAfterAccountDeletion(dm.dmId);
+            if (context.mounted) {
+              ref.read(goRouterProvider).go('/');
+            }
         }
       },
       itemBuilder: (context) => [
@@ -460,6 +504,18 @@ class _DmMenuButton extends ConsumerWidget {
           enabled: dm.severanceRequestedBy == null,
           child: Text(strings.conversationProposeSeverance),
         ),
+        // 相手がアカウントを削除した場合のみ表示する（firestore.rulesの
+        // deleteDmAfterAccountDeletion許可条件と同じ、
+        // accountDeletedUserId != nullが根拠）。通知への「いいえ」応答後、
+        // または未応答のままでも、ここからいつでも削除できる。
+        if (dm.accountDeletedUserId != null)
+          PopupMenuItem(
+            value: _DmMenuAction.deleteConversation,
+            child: Text(
+              strings.dmMenuDeleteConversation(vocabulary.dm),
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+          ),
       ],
     );
   }
@@ -544,11 +600,55 @@ class GroupChatPane extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final groupRepository = ref.watch(groupRepositoryProvider);
+    // カスタムロール（見た目専用の呼び名フォントカラー）は広場全体・寄合ごとの
+    // 付与を両方見る必要があるため、ロール一覧・寄合一覧をここでwatchして
+    // 呼び名の色を解決する（`_SenderName`参照）。更新頻度が低いため
+    // ネストしたStreamBuilderのコストは無視できる。
+    return StreamBuilder<List<GroupRole>>(
+      stream: groupRepository.watchRoles(group.groupId),
+      builder: (context, rolesSnapshot) {
+        final roles = {
+          for (final role in rolesSnapshot.data ?? const <GroupRole>[])
+            role.roleId: role,
+        };
+        return StreamBuilder<List<Room>>(
+          stream: groupRepository.watchRooms(group.groupId),
+          builder: (context, roomsSnapshot) {
+            final rooms = roomsSnapshot.data ?? const <Room>[];
+            final currentRoom = rooms.firstWhereOrNull((r) => r.roomId == roomId);
+            Color? senderNameColorFor(String userId) {
+              final assignedRoleId =
+                  currentRoom?.roleAssignments[userId] ?? group.roleAssignments[userId];
+              final role = assignedRoleId != null ? roles[assignedRoleId] : null;
+              return role != null ? Color(0xFF000000 | role.color) : null;
+            }
+
+            return _buildChatScreen(
+              context,
+              ref,
+              groupRepository,
+              rooms,
+              senderNameColorFor,
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildChatScreen(
+    BuildContext context,
+    WidgetRef ref,
+    GroupRepository groupRepository,
+    List<Room> rooms,
+    Color? Function(String userId) senderNameColorFor,
+  ) {
     return ChatScreen(
       key: ValueKey('group-${group.groupId}-$roomId'),
       title: roomName,
       currentUserId: currentUser.userId,
       isDm: false,
+      senderNameColorResolver: senderNameColorFor,
       // hiddenForに自分のuserIdが含まれるメッセージ（範囲選択削除で自分が
       // 削除したもの）は、他のメンバーには見えたままここでは表示しない。
       messagesStream: groupRepository
@@ -604,7 +704,12 @@ class GroupChatPane extends ConsumerWidget {
         messageId: messageId,
       ),
       extraActions: [
-        _GroupMenuButton(currentUser: currentUser, group: group),
+        _GroupMenuButton(
+          currentUser: currentUser,
+          group: group,
+          roomId: roomId,
+          roomName: roomName,
+        ),
       ],
       onSenderTap: (userId) => _openProfileCard(context, ref, userId),
     );
@@ -637,10 +742,20 @@ class _PopupCard extends StatelessWidget {
 /// メンバー一覧・プロフィールカードは全画面遷移ではなく、それぞれボタンの
 /// 左隣・画面中央に角丸のポップアップとして開く（2026-07-25変更）。
 class _GroupMenuButton extends ConsumerStatefulWidget {
-  const _GroupMenuButton({required this.currentUser, required this.group});
+  const _GroupMenuButton({
+    required this.currentUser,
+    required this.group,
+    required this.roomId,
+    required this.roomName,
+  });
 
   final AppUser currentUser;
   final Group group;
+
+  /// 現在表示中の寄合。カスタムロールの寄合ごとの付与（メンバー一覧
+  /// ポップアップの「この寄合のみ」切り替え）に使う。
+  final String roomId;
+  final String roomName;
 
   @override
   ConsumerState<_GroupMenuButton> createState() => _GroupMenuButtonState();
@@ -683,7 +798,44 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
                 child: GroupMemberListPopup(
                   currentUser: widget.currentUser,
                   group: widget.group,
+                  roomId: widget.roomId,
+                  roomName: widget.roomName,
                 ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // ロール一覧ポップアップも、メンバー一覧ポップアップと同じくボタンの
+  // 左隣に表示する。
+  Future<void> _showRoleListPopup() {
+    final buttonRect = _buttonRect();
+    const width = 340.0;
+    return showGeneralDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: '',
+      barrierColor: Colors.black26,
+      transitionDuration: const Duration(milliseconds: 150),
+      pageBuilder: (context, animation, secondaryAnimation) {
+        final screenSize = MediaQuery.sizeOf(context);
+        final left =
+            (buttonRect.left - width).clamp(8.0, screenSize.width - width - 8.0);
+        final top = buttonRect.top;
+        return Stack(
+          children: [
+            Positioned(
+              left: left,
+              top: top,
+              child: _PopupCard(
+                constraints: BoxConstraints(
+                  maxWidth: width,
+                  maxHeight: screenSize.height - top - 24,
+                ),
+                child: GroupRoleListPopup(groupId: widget.group.groupId),
               ),
             ),
           ],
@@ -715,6 +867,8 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
     final strings = ref.watch(appStringsProvider);
     final isOwner =
         widget.group.memberRoles[widget.currentUser.userId] == 'owner';
+    final isOwnerOrModerator = isOwner ||
+        widget.group.memberRoles[widget.currentUser.userId] == 'moderator';
     final prefs = ref
             .watch(conversationPrefsProvider(widget.currentUser.userId))
             .value ??
@@ -739,6 +893,9 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
               widget.group.groupId,
               widget.group.profileCard,
             );
+          case _GroupMenuAction.manageRoles:
+            if (!isOwnerOrModerator) return;
+            _showRoleListPopup();
           case _GroupMenuAction.toggleMute:
             ref.read(conversationPrefsRepositoryProvider).setNotificationsMuted(
                   userId: widget.currentUser.userId,
@@ -779,6 +936,13 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
         PopupMenuItem(
           value: _GroupMenuAction.createInvite,
           child: Text(strings.groupMenuCreateInvite),
+        ),
+        // カスタムロール（見た目専用の呼び名色分け機能）の作成・色設定・
+        // 付与は長・モデレーターのみ（2026-07-28追加）。
+        PopupMenuItem(
+          value: _GroupMenuAction.manageRoles,
+          enabled: isOwnerOrModerator,
+          child: Text(strings.groupMenuManageRoles),
         ),
         PopupMenuItem(
           value: _GroupMenuAction.toggleMute,
