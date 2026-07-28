@@ -159,10 +159,17 @@ service cloud.firestore {
       // 自体の削除を許可する。messages/friends/friendRequestsの削除も
       // 同じ条件をget()で参照するため、これらを全て消し終えてから最後に
       // 消す必要がある（DirectMessageRepository.acceptSeverance参照）。
+      // アカウント削除通知後の削除（2026-07-28追加）: Cloud Functionsの
+      // 定期処理がaccountDeletedUserIdをセットした後、もう一方の参加者が
+      // 語らいを削除できる（DirectMessageRepository.deleteDmAfterAccountDeletion参照）。
       allow delete: if request.auth != null
         && request.auth.uid in resource.data.participants
-        && resource.data.severanceRequestedBy != null
-        && resource.data.severanceRequestedBy != request.auth.uid;
+        && (
+          (resource.data.severanceRequestedBy != null
+            && resource.data.severanceRequestedBy != request.auth.uid)
+          || (resource.data.accountDeletedUserId != null
+            && resource.data.accountDeletedUserId != request.auth.uid)
+        );
 
       // メッセージは縁側の参加者のみ読み取り可能。
       // 送信は本人（senderId）かつ参加者である場合のみ許可。
@@ -223,19 +230,30 @@ service cloud.firestore {
               && !('replyToSenderRhingId' in request.resource.data)
               && !('replyToSnippet' in request.resource.data)
             )
+            // アカウント削除通知への「いいえ」（2026-07-28追加）。以後
+            // はい/いいえボタンを表示しないようにするだけの単純なフラグ。
+            || (
+              request.resource.data.diff(resource.data).affectedKeys().hasOnly(['accountDeletionResponse'])
+              && request.resource.data.accountDeletionResponse == 'declined'
+            )
           );
         // 絶縁の実行時（同意した側が実行）・範囲選択削除で参加者全員がこの
         // メッセージをhiddenForに含めた場合に加え、本人の送信メッセージは
         // いつでも無条件で物理削除できる（送信取り消し、2026-07-27追加。
         // 相手側にも痕跡を残さず完全に消す仕様のため、hiddenForのような
         // 論理フラグではなく物理削除にしている。DirectMessageRepository.
-        // unsendMessage参照）。
+        // unsendMessage参照）。アカウント削除通知後の削除（2026-07-28追加）:
+        // deleteDmAfterAccountDeletionが全メッセージを削除する際に使う。
         allow delete: if request.auth != null
           && request.auth.uid in get(/databases/$(database)/documents/directMessages/$(dmId)).data.participants
           && (
             (
               get(/databases/$(database)/documents/directMessages/$(dmId)).data.severanceRequestedBy != null
               && get(/databases/$(database)/documents/directMessages/$(dmId)).data.severanceRequestedBy != request.auth.uid
+            )
+            || (
+              get(/databases/$(database)/documents/directMessages/$(dmId)).data.accountDeletedUserId != null
+              && get(/databases/$(database)/documents/directMessages/$(dmId)).data.accountDeletedUserId != request.auth.uid
             )
             || ('hiddenFor' in resource.data ? resource.data.hiddenFor : [])
                  .concat([request.auth.uid])

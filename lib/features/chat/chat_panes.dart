@@ -156,6 +156,13 @@ class DmChatPane extends ConsumerWidget {
         userId: currentUser.userId,
         emoji: emoji,
       ),
+      onDeclineAccountDeletionNotice: (messageId) =>
+          dmRepository.declineAccountDeletionNotice(
+        dmId: dm.dmId,
+        messageId: messageId,
+      ),
+      onDeleteAfterAccountDeletion: () =>
+          dmRepository.deleteDmAfterAccountDeletion(dm.dmId),
       extraActions: [
         _DmMenuButton(
           currentUser: currentUser,

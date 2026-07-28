@@ -114,6 +114,19 @@ abstract class DirectMessageRepository {
     required String dmId,
     required String currentUserId,
   });
+
+  /// アカウント削除通知メッセージの「いいえ」。以後はい/いいえボタンを
+  /// 表示しないようにするだけで、他には何もしない。
+  Future<void> declineAccountDeletionNotice({
+    required String dmId,
+    required String messageId,
+  });
+
+  /// アカウント削除通知メッセージの「はい」（確認ダイアログの上で呼ばれる）。
+  /// 相手のアカウントが既に削除されている場合のみ実行できる
+  /// （[DirectMessage.accountDeletedUserId]、firestore.rulesで強制）。
+  /// この一対の全メッセージとドキュメント自体を物理削除する。
+  Future<void> deleteDmAfterAccountDeletion(String dmId);
 }
 
 class FirestoreDirectMessageRepository implements DirectMessageRepository {
@@ -441,6 +454,40 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
     if (!newEnabled) {
       await _clearAllReadReceipts(dmRef.collection('messages'));
     }
+  }
+
+  @override
+  Future<void> declineAccountDeletionNotice({
+    required String dmId,
+    required String messageId,
+  }) async {
+    await _directMessages
+        .doc(dmId)
+        .collection('messages')
+        .doc(messageId)
+        .update({'accountDeletionResponse': 'declined'});
+  }
+
+  @override
+  Future<void> deleteDmAfterAccountDeletion(String dmId) async {
+    final dmRef = _directMessages.doc(dmId);
+    final messagesRef = dmRef.collection('messages');
+
+    // acceptSeveranceと同じページ単位の削除ループ（削除済みのdocは次回
+    // 取得に現れないため.limit(400)の繰り返し取得で全件処理できる）。
+    // friends/friendRequestsのカスケード削除は、アカウント削除処理
+    // （Cloud Functions）が既に行っているためここでは不要。
+    while (true) {
+      final snapshot = await messagesRef.limit(400).get();
+      if (snapshot.docs.isEmpty) break;
+      final batch = _firestore.batch();
+      for (final doc in snapshot.docs) {
+        batch.delete(doc.reference);
+      }
+      await batch.commit();
+    }
+
+    await dmRef.delete();
   }
 
   /// [messagesRef]配下の全メッセージの既読履歴（readBy）を空にする。

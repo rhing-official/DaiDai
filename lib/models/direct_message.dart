@@ -10,6 +10,7 @@ class DirectMessage {
     this.severanceRequestedBy,
     this.readReceiptsEnabled = true,
     this.readReceiptsProposalBy,
+    this.accountDeletedUserId,
   });
 
   final String dmId;
@@ -36,6 +37,12 @@ class DirectMessage {
   /// `acceptReadReceiptsToggle`参照）。
   final String? readReceiptsProposalBy;
 
+  /// アカウント削除により、この一対の相手が既に存在しなくなったことを示す
+  /// マーカー。Cloud Functionsの定期削除処理が、削除されたユーザーの
+  /// userIdをセットする。nullでなければ、もう一方の参加者が語らいを
+  /// 完全削除できる（severanceRequestedByと同じ役割。firestore.rules参照）。
+  final String? accountDeletedUserId;
+
   /// 自分以外の参加者のuserId。
   String otherUserId(String currentUserId) {
     return participants.firstWhere((id) => id != currentUserId);
@@ -58,6 +65,7 @@ class DirectMessage {
       severanceRequestedBy: json['severanceRequestedBy'] as String?,
       readReceiptsEnabled: json['readReceiptsEnabled'] as bool? ?? true,
       readReceiptsProposalBy: json['readReceiptsProposalBy'] as String?,
+      accountDeletedUserId: json['accountDeletedUserId'] as String?,
     );
   }
 
@@ -69,6 +77,7 @@ class DirectMessage {
       'severanceRequestedBy': severanceRequestedBy,
       'readReceiptsEnabled': readReceiptsEnabled,
       'readReceiptsProposalBy': readReceiptsProposalBy,
+      'accountDeletedUserId': accountDeletedUserId,
     };
   }
 
