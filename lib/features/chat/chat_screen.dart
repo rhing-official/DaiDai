@@ -42,6 +42,7 @@ class ChatScreen extends ConsumerStatefulWidget {
     this.onSetReaction,
     this.onDeclineAccountDeletionNotice,
     this.onDeleteAfterAccountDeletion,
+    this.onFetchMessagesAround,
     super.key,
   });
 
@@ -103,6 +104,13 @@ class ChatScreen extends ConsumerStatefulWidget {
   /// この語らい自体を物理削除する。DM（[isDm]）のみ渡す。
   final Future<void> Function()? onDeleteAfterAccountDeletion;
 
+  /// 返信を含んだメッセージをタップした時、返信先が現在ロード済み（直近50件）
+  /// の範囲に無かった場合に、その周辺のメッセージをまとめて取得する
+  /// （`DirectMessageRepository.getMessagesAround`/
+  /// `GroupRepository.getRoomMessagesAround`参照）。nullなら未対応として
+  /// 何もしない（ジャンプできない）。
+  final Future<List<Message>> Function(String messageId)? onFetchMessagesAround;
+
   @override
   ConsumerState<ChatScreen> createState() => _ChatScreenState();
 }
@@ -131,10 +139,30 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// 切り替えている（現在ロード済みメッセージは最新50件程度に収まる想定）。
   final _messageKeys = <String, GlobalKey>{};
 
+  /// [widget.messagesStream]の直近50件に含まれない返信先へジャンプする際、
+  /// [widget.onFetchMessagesAround]で1回だけ取得したメッセージを一時的に
+  /// 保持しておく置き場（購読はしないので、ここに置かないと再ビルドのたびに
+  /// 消えてしまう）。build()で[widget.messagesStream]の内容とマージして表示する。
+  final _extraMessages = <String, Message>{};
+
   /// ジャンプ直後に対象メッセージを一瞬ハイライトするための状態。
   String? _highlightedMessageId;
 
   Future<void> _jumpToMessage(String messageId) async {
+    if (!_messageKeys.containsKey(messageId)) {
+      final fetched = await widget.onFetchMessagesAround?.call(messageId);
+      if (fetched == null || fetched.isEmpty || !mounted) return;
+      setState(() {
+        for (final message in fetched) {
+          _extraMessages[message.messageId] = message;
+        }
+      });
+      // 取得したメッセージの行が実際にビルドされ、GlobalKeyにcurrentContextが
+      // 付くまで1フレーム待つ（setState直後はまだ間に合わない）。
+      await WidgetsBinding.instance.endOfFrame;
+      if (!mounted) return;
+    }
+
     final key = _messageKeys[messageId];
     final targetContext = key?.currentContext;
     if (targetContext == null) return;
@@ -446,20 +474,38 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 }
                 _markUnreadMessages(messages);
 
-                // 返信元メッセージの引用プレビューに使う。現在ロード済みの
-                // （最新50件の）範囲に返信元があれば、こちらを優先して
-                // 表示する（編集済みなら最新の内容を反映できる）。範囲外
-                // ならMessage側の非正規化フィールド（replyToSnippet等）に
-                // フォールバックする（_MessageRow参照）。
+                // 直近50件（messages、購読中）に、返信先ジャンプで一時的に
+                // 取得したメッセージ（_extraMessages、購読していない）を
+                // マージして表示する。同じidがあればmessages側を優先する
+                // （購読中で最新のため）。既にmessagesに含まれるようになった
+                // 分はもう保持しておく必要が無いので削除する。
+                _extraMessages.removeWhere(
+                  (id, _) => messages.any((m) => m.messageId == id),
+                );
+                final combined = [
+                  ...messages,
+                  ..._extraMessages.values,
+                ]..sort((a, b) {
+                    final aTime = a.sentAt?.toDate() ?? DateTime.now();
+                    final bTime = b.sentAt?.toDate() ?? DateTime.now();
+                    return bTime.compareTo(aTime);
+                  });
+
+                // 返信元メッセージの引用プレビュー・返信先ジャンプに使う。
+                // 現在ロード済み（直近50件＋ジャンプで追加取得した分）の
+                // 範囲に返信元があれば、こちらを優先して表示する（編集済み
+                // なら最新の内容を反映できる）。範囲外ならMessage側の
+                // 非正規化フィールド（replyToSnippet等）にフォールバックする
+                // （_MessageRow参照）。
                 final messagesById = {
-                  for (final m in messages) m.messageId: m,
+                  for (final m in combined) m.messageId: m,
                 };
 
                 // 画面外に流れたメッセージのGlobalKeyは溜め続けない。
                 final currentIds = messagesById.keys.toSet();
                 _messageKeys.removeWhere((id, _) => !currentIds.contains(id));
 
-                // messagesは新しい順（index 0が最新）。日付区切りを「その日の
+                // combinedは新しい順（index 0が最新）。日付区切りを「その日の
                 // 最初のメッセージの直上」に挿入したいので、一旦古い順に走査して
                 // 区切り込みのリストを組み立ててから反転する。reverse:trueの
                 // ListViewにそのまま渡すと、index 0（リストの末尾＝一番新しい
@@ -467,8 +513,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 // メッセージ…）に正しく並ぶ。
                 final entries = <Widget>[];
                 DateTime? currentDay;
-                for (var i = messages.length - 1; i >= 0; i--) {
-                  final message = messages[i];
+                for (var i = combined.length - 1; i >= 0; i--) {
+                  final message = combined[i];
                   final sentAt = message.sentAt?.toDate();
                   if (sentAt != null &&
                       (currentDay == null || !isSameDay(sentAt, currentDay))) {
@@ -779,7 +825,9 @@ class _MessageRow extends ConsumerWidget {
   final void Function(String messageId, String? emoji)? onSetReaction;
 
   /// 返信を含んだメッセージをタップした時に、返信先メッセージへジャンプする。
-  /// [messagesById]に返信先が無い（ロード範囲外）場合は呼ばれない。
+  /// [messagesById]に返信先が無い（直近50件のロード範囲外）場合は、
+  /// 呼び出し先（`_ChatScreenState._jumpToMessage`）が
+  /// [ChatScreen.onFetchMessagesAround]で取得してからジャンプする。
   final void Function(String messageId)? onJumpToReply;
 
   /// 返信先ジャンプ直後、対象メッセージだと分かるよう一瞬背景を強調する。
@@ -1202,11 +1250,11 @@ class _MessageRow extends ConsumerWidget {
       );
     } else {
       // 返信を含んだメッセージをタップすると返信先へジャンプする。返信先が
-      // 現在ロード済み（messagesById）でなければジャンプできないので出さない。
+      // 現在ロード済み（messagesById）でなくても、onJumpToReply側
+      // （_ChatScreenState._jumpToMessage）が必要に応じて取得してから
+      // ジャンプするため、ここではmessagesByIdでの有無を条件にしない。
       final replyTargetId = message.replyToMessageId;
-      final onTap = (replyTargetId != null &&
-              messagesById.containsKey(replyTargetId) &&
-              onJumpToReply != null)
+      final onTap = (replyTargetId != null && onJumpToReply != null)
           ? () => onJumpToReply!(replyTargetId)
           : null;
       body = _MessageInteractions(

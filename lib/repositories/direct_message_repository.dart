@@ -13,6 +13,15 @@ abstract class DirectMessageRepository {
 
   Stream<List<Message>> watchMessages(String dmId);
 
+  /// [watchMessages]の直近50件に含まれない古い返信先へジャンプする際に使う。
+  /// 指定した[messageId]を含む前後合わせて最大[contextSize]*2件を1回だけ
+  /// 取得する（購読はしない）。対象メッセージが既に削除済みの場合は空を返す。
+  Future<List<Message>> getMessagesAround({
+    required String dmId,
+    required String messageId,
+    int contextSize = 25,
+  });
+
   Future<void> sendTextMessage({
     required String dmId,
     required String senderId,
@@ -179,6 +188,37 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
         .map((snapshot) => snapshot.docs
             .map((doc) => Message.fromJson(doc.id, doc.data()))
             .toList());
+  }
+
+  @override
+  Future<List<Message>> getMessagesAround({
+    required String dmId,
+    required String messageId,
+    int contextSize = 25,
+  }) async {
+    final messagesRef = _directMessages.doc(dmId).collection('messages');
+    final targetDoc = await messagesRef.doc(messageId).get();
+    final targetData = targetDoc.data();
+    if (targetData == null) return [];
+    final targetSentAt = targetData['sentAt'] as Timestamp?;
+    if (targetSentAt == null) return [];
+
+    final olderAndTarget = await messagesRef
+        .orderBy('sentAt', descending: true)
+        .where('sentAt', isLessThanOrEqualTo: targetSentAt)
+        .limit(contextSize)
+        .get();
+    final newer = await messagesRef
+        .orderBy('sentAt')
+        .where('sentAt', isGreaterThan: targetSentAt)
+        .limit(contextSize)
+        .get();
+
+    return [
+      for (final doc in olderAndTarget.docs)
+        Message.fromJson(doc.id, doc.data()),
+      for (final doc in newer.docs) Message.fromJson(doc.id, doc.data()),
+    ];
   }
 
   @override

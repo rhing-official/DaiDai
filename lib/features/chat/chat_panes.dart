@@ -163,6 +163,10 @@ class DmChatPane extends ConsumerWidget {
       ),
       onDeleteAfterAccountDeletion: () =>
           dmRepository.deleteDmAfterAccountDeletion(dm.dmId),
+      onFetchMessagesAround: (messageId) => dmRepository.getMessagesAround(
+        dmId: dm.dmId,
+        messageId: messageId,
+      ),
       extraActions: [
         _DmMenuButton(
           currentUser: currentUser,
@@ -573,6 +577,11 @@ class GroupChatPane extends ConsumerWidget {
         messageId: messageId,
         userId: currentUser.userId,
         emoji: emoji,
+      ),
+      onFetchMessagesAround: (messageId) => groupRepository.getRoomMessagesAround(
+        groupId: group.groupId,
+        roomId: group.defaultRoomId,
+        messageId: messageId,
       ),
       extraActions: [
         _GroupMenuButton(currentUser: currentUser, group: group),

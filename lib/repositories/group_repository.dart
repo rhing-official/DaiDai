@@ -33,6 +33,17 @@ abstract class GroupRepository {
 
   Stream<List<Message>> watchRoomMessages(String groupId, String roomId);
 
+  /// [watchRoomMessages]の直近50件に含まれない古い返信先へジャンプする際に
+  /// 使う。指定した[messageId]を含む前後合わせて最大[contextSize]*2件を
+  /// 1回だけ取得する（購読はしない）。対象メッセージが既に削除済みの場合は
+  /// 空を返す（`DirectMessageRepository.getMessagesAround`と同じ設計）。
+  Future<List<Message>> getRoomMessagesAround({
+    required String groupId,
+    required String roomId,
+    required String messageId,
+    int contextSize = 25,
+  });
+
   Future<void> sendRoomMessage({
     required String groupId,
     required String roomId,
@@ -255,6 +266,38 @@ class FirestoreGroupRepository implements GroupRepository {
         .map((snapshot) => snapshot.docs
             .map((doc) => Message.fromJson(doc.id, doc.data()))
             .toList());
+  }
+
+  @override
+  Future<List<Message>> getRoomMessagesAround({
+    required String groupId,
+    required String roomId,
+    required String messageId,
+    int contextSize = 25,
+  }) async {
+    final messagesRef = _roomRef(groupId, roomId).collection('messages');
+    final targetDoc = await messagesRef.doc(messageId).get();
+    final targetData = targetDoc.data();
+    if (targetData == null) return [];
+    final targetSentAt = targetData['sentAt'] as Timestamp?;
+    if (targetSentAt == null) return [];
+
+    final olderAndTarget = await messagesRef
+        .orderBy('sentAt', descending: true)
+        .where('sentAt', isLessThanOrEqualTo: targetSentAt)
+        .limit(contextSize)
+        .get();
+    final newer = await messagesRef
+        .orderBy('sentAt')
+        .where('sentAt', isGreaterThan: targetSentAt)
+        .limit(contextSize)
+        .get();
+
+    return [
+      for (final doc in olderAndTarget.docs)
+        Message.fromJson(doc.id, doc.data()),
+      for (final doc in newer.docs) Message.fromJson(doc.id, doc.data()),
+    ];
   }
 
   @override
