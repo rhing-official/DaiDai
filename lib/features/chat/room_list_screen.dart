@@ -4,8 +4,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/app_user.dart';
 import '../../models/direct_message.dart';
 import '../../models/group.dart';
+import '../../models/group_role.dart';
 import '../../providers/repository_providers.dart';
 import '../../router/app_router.dart';
+import '../../utils/group_permissions.dart';
+import 'group_role_list_popup.dart';
 import 'room_list_pane.dart';
 
 /// 一対の寄合一覧（狭い画面でのドリルダウン用フルスクリーン、`/chat/dm-rooms`）。
@@ -65,9 +68,16 @@ class GroupRoomListScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final groupRepository = ref.watch(groupRepositoryProvider);
-    final isOwnerOrModerator =
-        group.memberRoles[currentUser.userId] == 'owner' ||
-            group.memberRoles[currentUser.userId] == 'moderator';
+    final canManageRooms = hasGroupPermission(
+      group: group,
+      userId: currentUser.userId,
+      permission: GroupPermission.manageRooms,
+    );
+    final canManageRoles = hasGroupPermission(
+      group: group,
+      userId: currentUser.userId,
+      permission: GroupPermission.manageRoles,
+    );
     return Scaffold(
       appBar: AppBar(title: Text(group.name)),
       body: RoomListPane(
@@ -86,14 +96,25 @@ class GroupRoomListScreen extends ConsumerWidget {
                 roomName: room.name,
               ),
             ),
-        onCreateRoom: isOwnerOrModerator
+        onCreateRoom: canManageRooms
             ? (name) => groupRepository.createRoom(groupId: group.groupId, name: name)
             : null,
-        onDeleteRoom: isOwnerOrModerator
+        onDeleteRoom: canManageRooms
             ? (roomId) => groupRepository.deleteRoom(
                   groupId: group.groupId,
                   roomId: roomId,
                   requestedBy: currentUser.userId,
+                )
+            : null,
+        onOpenGroupSettings: canManageRoles
+            ? () => showDialog<void>(
+                  context: context,
+                  builder: (_) => Dialog(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 400, maxHeight: 640),
+                      child: GroupRoleListPopup(group: group),
+                    ),
+                  ),
                 )
             : null,
       ),

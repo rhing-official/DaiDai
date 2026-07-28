@@ -15,20 +15,41 @@ class Group {
     this.createdAt,
     this.readReceiptsEnabled = true,
     this.roleAssignments = const {},
+    this.rolePriority = const [],
+    this.memberPermissions = const {},
   });
 
   final String groupId;
   final String name;
+
+  /// 長（オーナー）のuserId。常に全権限を持つ特別な存在で、カスタムロールの
+  /// 付与・削除とは独立している。作成者が初期値だが、`GroupRepository.
+  /// transferOwnership`で後から他のメンバーへ譲渡できる（2026-07-28追加）。
   final String ownerId;
   final List<String> memberIds;
-  /// userId -> role (owner | moderator | member)
+
+  /// userId -> role (owner | member)。「モデレーター」は廃止し
+  /// カスタムロール（[roleAssignments]）に統合した（2026-07-28）。
+  /// メンバー一覧の表示・退会時のクリーンアップ以外の権限判定には使わない
+  /// （権限判定は[ownerId]と[memberPermissions]を使う）。
   final Map<String, String> memberRoles;
   final String defaultRoomId;
 
-  /// userId -> GroupRole.roleId（広場全体でのカスタムロール付与、見た目専用）。
-  /// 同じユーザーに寄合単位の付与（[Room.roleAssignments]）があれば、
-  /// そちらが優先して表示される。
-  final Map<String, String> roleAssignments;
+  /// userId -> [GroupRole.roleId]のリスト（広場全体でのカスタムロール付与、
+  /// 複数可）。全メンバーに暗黙適用される基準ロール（`isEveryone`）は
+  /// ここには含めない。
+  final Map<String, List<String>> roleAssignments;
+
+  /// カスタムロールの優先順位（呼び名の色を決める順序、先頭が最優先）。
+  /// 基準ロール（`isEveryone`）は含めない＝常に最下位。寄合ごとに
+  /// `Room.rolePriorityOverride`で上書きできる。
+  final List<String> rolePriority;
+
+  /// userId -> 有効な権限文字列のリスト（[GroupPermission]、基準ロール込みで
+  /// 解決済み）。firestore.rulesがロールドキュメントを跨いで動的に権限を
+  /// 判定できないため、`GroupRepository`がロール・付与の変更のたびに
+  /// 再計算してここに非正規化して持たせる（`Room.memberIds`と同じ設計）。
+  final Map<String, List<String>> memberPermissions;
 
   /// 既読機能のオン/オフ（広場全体・長のみ変更可）。オフにすると
   /// `defaultRoomId`の全メッセージ・全メンバー分の既読履歴をサーバーから
@@ -56,8 +77,12 @@ class Group {
           : null,
       createdAt: json['createdAt'] as Timestamp?,
       readReceiptsEnabled: json['readReceiptsEnabled'] as bool? ?? true,
-      roleAssignments:
-          Map<String, String>.from(json['roleAssignments'] as Map? ?? {}),
+      roleAssignments: _decodeRoleAssignments(json['roleAssignments']),
+      rolePriority: List<String>.from(json['rolePriority'] as List? ?? const []),
+      memberPermissions: (json['memberPermissions'] as Map? ?? const {}).map(
+        (key, value) =>
+            MapEntry(key as String, List<String>.from(value as List)),
+      ),
     );
   }
 
@@ -72,8 +97,25 @@ class Group {
       'createdAt': createdAt ?? FieldValue.serverTimestamp(),
       'readReceiptsEnabled': readReceiptsEnabled,
       'roleAssignments': roleAssignments,
+      'rolePriority': rolePriority,
+      'memberPermissions': memberPermissions,
     };
   }
+}
+
+/// [Group.roleAssignments]のfromJson用。旧形式（`Map<String, String>`＝
+/// 1人1ロールだった頃のデータ）が万一残っていても空扱いにする
+/// （本番はまだテストデータのみのため、フィールドごと作り直す方針）。
+Map<String, List<String>> _decodeRoleAssignments(Object? json) {
+  if (json is! Map) return const {};
+  final result = <String, List<String>>{};
+  for (final entry in json.entries) {
+    final value = entry.value;
+    if (value is List) {
+      result[entry.key as String] = List<String>.from(value);
+    }
+  }
+  return result;
 }
 
 /// お部屋（Room） - 広場内の実際に会話する場所。
@@ -87,7 +129,7 @@ class Room {
     this.lastMessageAt,
     this.createdAt,
     this.roomDeletionRequestedBy,
-    this.roleAssignments = const {},
+    this.rolePriorityOverride,
   });
 
   final String roomId;
@@ -97,9 +139,10 @@ class Room {
   final List<String> memberIds;
   final Timestamp? lastMessageAt;
 
-  /// userId -> GroupRole.roleId（この寄合限定でのカスタムロール付与、見た目専用）。
-  /// 設定されていれば[Group.roleAssignments]（広場全体の付与）より優先される。
-  final Map<String, String> roleAssignments;
+  /// この寄合限定でのロール優先順位の上書き。nullなら広場全体の
+  /// `Group.rolePriority`をそのまま使う（2026-07-28追加、寄合ごとの
+  /// 個別ロール付与という以前の設計から変更）。
+  final List<String>? rolePriorityOverride;
 
   /// 寄合一覧の並び順（作成順）に使う。
   final Timestamp? createdAt;
@@ -111,6 +154,7 @@ class Room {
   final String? roomDeletionRequestedBy;
 
   factory Room.fromJson(String roomId, Map<String, dynamic> json) {
+    final priorityOverrideJson = json['rolePriorityOverride'];
     return Room(
       roomId: roomId,
       groupId: json['groupId'] as String,
@@ -119,8 +163,9 @@ class Room {
       lastMessageAt: json['lastMessageAt'] as Timestamp?,
       createdAt: json['createdAt'] as Timestamp?,
       roomDeletionRequestedBy: json['roomDeletionRequestedBy'] as String?,
-      roleAssignments:
-          Map<String, String>.from(json['roleAssignments'] as Map? ?? {}),
+      rolePriorityOverride: priorityOverrideJson is List
+          ? List<String>.from(priorityOverrideJson)
+          : null,
     );
   }
 
@@ -132,7 +177,7 @@ class Room {
       'lastMessageAt': lastMessageAt,
       'createdAt': createdAt ?? FieldValue.serverTimestamp(),
       'roomDeletionRequestedBy': roomDeletionRequestedBy,
-      'roleAssignments': roleAssignments,
+      'rolePriorityOverride': rolePriorityOverride,
     };
   }
 }

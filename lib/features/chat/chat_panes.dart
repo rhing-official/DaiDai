@@ -14,12 +14,13 @@ import '../../providers/conversation_prefs_providers.dart';
 import '../../providers/repository_providers.dart';
 import '../../repositories/group_repository.dart';
 import '../../router/app_router.dart';
+import '../../utils/group_permissions.dart';
 import 'chat_screen.dart';
 import 'group_invite_dialog.dart';
 import 'group_leave_dialog.dart';
 import 'group_member_list_screen.dart';
 import 'group_profile_card_screen.dart';
-import 'group_role_list_popup.dart';
+import 'group_role_priority_dialog.dart';
 import 'severance_dialog.dart';
 import 'user_profile_card_dialog.dart';
 
@@ -27,7 +28,7 @@ enum _GroupMenuAction {
   profileCard,
   memberList,
   createInvite,
-  manageRoles,
+  roomRolePriority,
   toggleMute,
   toggleReadReceipts,
   leave,
@@ -600,34 +601,32 @@ class GroupChatPane extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final groupRepository = ref.watch(groupRepositoryProvider);
-    // カスタムロール（見た目専用の呼び名フォントカラー）は広場全体・寄合ごとの
-    // 付与を両方見る必要があるため、ロール一覧・寄合一覧をここでwatchして
-    // 呼び名の色を解決する（`_SenderName`参照）。更新頻度が低いため
-    // ネストしたStreamBuilderのコストは無視できる。
+    // カスタムロール（見た目専用の呼び名フォントカラー）は広場全体の優先順位・
+    // 寄合ごとの上書きを両方見る必要があるため、ロール一覧・寄合一覧をここで
+    // watchして呼び名の色を解決する（`resolveSenderColor`/`_SenderName`参照）。
+    // 更新頻度が低いためネストしたStreamBuilderのコストは無視できる。
     return StreamBuilder<List<GroupRole>>(
       stream: groupRepository.watchRoles(group.groupId),
       builder: (context, rolesSnapshot) {
-        final roles = {
-          for (final role in rolesSnapshot.data ?? const <GroupRole>[])
-            role.roleId: role,
-        };
+        final roles = rolesSnapshot.data ?? const <GroupRole>[];
         return StreamBuilder<List<Room>>(
           stream: groupRepository.watchRooms(group.groupId),
           builder: (context, roomsSnapshot) {
             final rooms = roomsSnapshot.data ?? const <Room>[];
             final currentRoom = rooms.firstWhereOrNull((r) => r.roomId == roomId);
-            Color? senderNameColorFor(String userId) {
-              final assignedRoleId =
-                  currentRoom?.roleAssignments[userId] ?? group.roleAssignments[userId];
-              final role = assignedRoleId != null ? roles[assignedRoleId] : null;
-              return role != null ? Color(0xFF000000 | role.color) : null;
-            }
+            Color? senderNameColorFor(String userId) => resolveSenderColor(
+                  group: group,
+                  currentRoom: currentRoom,
+                  roles: roles,
+                  userId: userId,
+                );
 
             return _buildChatScreen(
               context,
               ref,
               groupRepository,
-              rooms,
+              currentRoom,
+              roles,
               senderNameColorFor,
             );
           },
@@ -640,7 +639,8 @@ class GroupChatPane extends ConsumerWidget {
     BuildContext context,
     WidgetRef ref,
     GroupRepository groupRepository,
-    List<Room> rooms,
+    Room? currentRoom,
+    List<GroupRole> roles,
     Color? Function(String userId) senderNameColorFor,
   ) {
     return ChatScreen(
@@ -709,6 +709,8 @@ class GroupChatPane extends ConsumerWidget {
           group: group,
           roomId: roomId,
           roomName: roomName,
+          currentRoom: currentRoom,
+          roles: roles,
         ),
       ],
       onSenderTap: (userId) => _openProfileCard(context, ref, userId),
@@ -747,15 +749,23 @@ class _GroupMenuButton extends ConsumerStatefulWidget {
     required this.group,
     required this.roomId,
     required this.roomName,
+    required this.currentRoom,
+    required this.roles,
   });
 
   final AppUser currentUser;
   final Group group;
 
-  /// 現在表示中の寄合。カスタムロールの寄合ごとの付与（メンバー一覧
-  /// ポップアップの「この寄合のみ」切り替え）に使う。
+  /// 現在表示中の寄合。
   final String roomId;
   final String roomName;
+
+  /// [roomId]が指す寄合のドキュメント本体（`rolePriorityOverride`の現在値の
+  /// 表示・編集に使う）。ロード中でまだ取得できていない場合はnull。
+  final Room? currentRoom;
+
+  /// この広場のカスタムロール一覧（優先順位並べ替えダイアログに渡す）。
+  final List<GroupRole> roles;
 
   @override
   ConsumerState<_GroupMenuButton> createState() => _GroupMenuButtonState();
@@ -798,44 +808,8 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
                 child: GroupMemberListPopup(
                   currentUser: widget.currentUser,
                   group: widget.group,
-                  roomId: widget.roomId,
-                  roomName: widget.roomName,
+                  roles: widget.roles,
                 ),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  // ロール一覧ポップアップも、メンバー一覧ポップアップと同じくボタンの
-  // 左隣に表示する。
-  Future<void> _showRoleListPopup() {
-    final buttonRect = _buttonRect();
-    const width = 340.0;
-    return showGeneralDialog<void>(
-      context: context,
-      barrierDismissible: true,
-      barrierLabel: '',
-      barrierColor: Colors.black26,
-      transitionDuration: const Duration(milliseconds: 150),
-      pageBuilder: (context, animation, secondaryAnimation) {
-        final screenSize = MediaQuery.sizeOf(context);
-        final left =
-            (buttonRect.left - width).clamp(8.0, screenSize.width - width - 8.0);
-        final top = buttonRect.top;
-        return Stack(
-          children: [
-            Positioned(
-              left: left,
-              top: top,
-              child: _PopupCard(
-                constraints: BoxConstraints(
-                  maxWidth: width,
-                  maxHeight: screenSize.height - top - 24,
-                ),
-                child: GroupRoleListPopup(groupId: widget.group.groupId),
               ),
             ),
           ],
@@ -865,10 +839,23 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
   @override
   Widget build(BuildContext context) {
     final strings = ref.watch(appStringsProvider);
-    final isOwner =
-        widget.group.memberRoles[widget.currentUser.userId] == 'owner';
-    final isOwnerOrModerator = isOwner ||
-        widget.group.memberRoles[widget.currentUser.userId] == 'moderator';
+    final userId = widget.currentUser.userId;
+    final isOwner = widget.group.ownerId == userId;
+    final canManageRoles = hasGroupPermission(
+      group: widget.group,
+      userId: userId,
+      permission: GroupPermission.manageRoles,
+    );
+    final canManageReadReceipts = hasGroupPermission(
+      group: widget.group,
+      userId: userId,
+      permission: GroupPermission.manageReadReceipts,
+    );
+    final canCreateInvite = hasGroupPermission(
+      group: widget.group,
+      userId: userId,
+      permission: GroupPermission.createInvite,
+    );
     final prefs = ref
             .watch(conversationPrefsProvider(widget.currentUser.userId))
             .value ??
@@ -888,14 +875,42 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
           case _GroupMenuAction.memberList:
             _showMemberListPopup();
           case _GroupMenuAction.createInvite:
+            if (!canCreateInvite) return;
             GroupInviteDialog.show(
               context,
               widget.group.groupId,
               widget.group.profileCard,
             );
-          case _GroupMenuAction.manageRoles:
-            if (!isOwnerOrModerator) return;
-            _showRoleListPopup();
+          case _GroupMenuAction.roomRolePriority:
+            if (!canManageRoles) return;
+            final regularRoles = widget.roles.where((r) => !r.isEveryone).toList();
+            final order = widget.currentRoom?.rolePriorityOverride ??
+                widget.group.rolePriority;
+            final orderedRoles = [
+              for (final roleId in order)
+                ...regularRoles.where((r) => r.roleId == roleId),
+              for (final role in regularRoles)
+                if (!order.contains(role.roleId)) role,
+            ];
+            GroupRolePriorityDialog.show(
+              context,
+              orderedRoles: orderedRoles,
+              onSave: (roleIds) =>
+                  ref.read(groupRepositoryProvider).setRoomRolePriorityOverride(
+                        groupId: widget.group.groupId,
+                        roomId: widget.roomId,
+                        roleIds: roleIds,
+                      ),
+              onReset: widget.currentRoom?.rolePriorityOverride == null
+                  ? null
+                  : () => ref
+                      .read(groupRepositoryProvider)
+                      .setRoomRolePriorityOverride(
+                        groupId: widget.group.groupId,
+                        roomId: widget.roomId,
+                        roleIds: null,
+                      ),
+            );
           case _GroupMenuAction.toggleMute:
             ref.read(conversationPrefsRepositoryProvider).setNotificationsMuted(
                   userId: widget.currentUser.userId,
@@ -903,10 +918,11 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
                   muted: !muted,
                 );
           case _GroupMenuAction.toggleReadReceipts:
-            // 既読機能のオン/オフは長のみ操作可能（firestore.rulesで強制、
-            // メニュー項目自体もisOwnerでない限りenabled: falseにしている）。
-            // オフにする場合のみ、確定前に既読履歴が消える旨を警告する。
-            if (!isOwner) return;
+            // 既読機能のオン/オフはmanageReadReceipts権限を持つメンバーのみ
+            // 操作可能（firestore.rulesで強制、メニュー項目自体もそれ以外は
+            // enabled: falseにしている）。オフにする場合のみ、確定前に
+            // 既読履歴が消える旨を警告する。
+            if (!canManageReadReceipts) return;
             if (readReceiptsEnabled) {
               final confirmed =
                   await _confirmDisableReadReceipts(context, strings);
@@ -935,25 +951,28 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
         ),
         PopupMenuItem(
           value: _GroupMenuAction.createInvite,
+          enabled: canCreateInvite,
           child: Text(strings.groupMenuCreateInvite),
         ),
-        // カスタムロール（見た目専用の呼び名色分け機能）の作成・色設定・
-        // 付与は長・モデレーターのみ（2026-07-28追加）。
+        // 寄合ごとのロール優先順位の上書き（2026-07-28更新: 寄合ごとの
+        // 個別ロール付与は廃止し、色の優先順位の上書きのみに変更）。
+        // ロール自体の作成・色設定・広場全体への付与・優先順位はサイドバーの
+        // 「広場自体の設定」（歯車アイコン）から行う。
         PopupMenuItem(
-          value: _GroupMenuAction.manageRoles,
-          enabled: isOwnerOrModerator,
-          child: Text(strings.groupMenuManageRoles),
+          value: _GroupMenuAction.roomRolePriority,
+          enabled: canManageRoles,
+          child: Text(strings.groupRoomRolePriorityMenuItem),
         ),
         PopupMenuItem(
           value: _GroupMenuAction.toggleMute,
           child: Text(muted ? strings.conversationUnmute : strings.conversationMute),
         ),
-        // 既読機能のオン/オフは長のみ操作可能。長以外には現在の状態を
-        // 示すラベルとして表示するが、操作はできない（leaveがisOwnerで
-        // 無効化されているのと同じ考え方）。
+        // 既読機能のオン/オフはmanageReadReceipts権限を持つメンバーのみ操作
+        // 可能。それ以外には現在の状態を示すラベルとして表示するが、操作は
+        // できない（leaveがisOwnerで無効化されているのと同じ考え方）。
         PopupMenuItem(
           value: _GroupMenuAction.toggleReadReceipts,
-          enabled: isOwner,
+          enabled: canManageReadReceipts,
           child: Text(
             readReceiptsEnabled
                 ? strings.conversationReadReceiptsDisable

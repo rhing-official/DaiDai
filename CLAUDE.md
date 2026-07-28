@@ -124,9 +124,9 @@ DaiDaiは独自の世界観用語を使う。変数名・クラス名・コレ�
 
 - **User**: `userId`, `rhingId`, `secretQuestions`（bcryptハッシュ）, `twoFactorEnabled`, `passkeyEnabled`, `deviceIds`, `bannedDevices`, `accountStatus`, `subscriptionPlan`(free|kiwami), `profiles[]`（最大3プロフィール＝蔵システム）, `preferences`
 - **DirectMessage（一対）**: `dmId`, `participants[2]`, `defaultRoomId`, `settings.sectionEnabled`, `sections[]`。メッセージは`directMessages/{dmId}/rooms/{roomId}/messages`（複数寄合対応、2026-07-28実装）に入る。寄合自体は`directMessages/{dmId}/rooms/{roomId}`（`DmRoom`: `dmId`, `name`, `participants[]`, `createdAt`, `deletionRequestedBy`）。参加者2人はどちらも寄合の追加・削除が可能（確認無しで追加、削除は確認ダイアログあり、最後の1つは削除不可）
-- **Group（広場）**: `groupId`, `isPublic`（表広場/裏広場の区別）, `requiresApproval`, `ownerId`, `moderators[]`, `members[]`（role: owner|moderator|member）, `defaultRoomId`, `sections[]`（表組/裏組）, `roleAssignments`（userId→CustomRole.roleId、広場全体でのカスタムロール付与、見た目専用、2026-07-28実装）
-- **Room（寄合・密談）**: `roomId`, `groupId`, `name`, `memberIds`, `createdAt`, `roomDeletionRequestedBy`（寄合＝公開・密談＝非公開の区別は要検討）。1つの広場に複数作成可能（2026-07-28実装）。追加・削除は長・モデレーターのみ。`roleAssignments`（userId→CustomRole.roleId、この寄合限定でのカスタムロール付与。`Group.roleAssignments`より表示上優先、2026-07-28実装）
-- **CustomRole（`groups/{groupId}/roles/{roleId}`）**: `roleId`, `groupId`, `name`, `color`(0xRRGGBB), `createdAt`。広場のカスタムロール（2026-07-28実装）。名前と色だけを持つ見た目専用の機能で、既存の`memberRoles`（長・モデレーター・メンバーという実際の権限区分）とは無関係。作成・編集・削除・メンバーへの付与は長・モデレーターのみ。メッセージ画面のアイコン横の呼び名のフォントカラーに反映される
+- **Group（広場）**: `groupId`, `isPublic`（表広場/裏広場の区別）, `requiresApproval`, `ownerId`（長、常に全権限を持ち譲渡可能、2026-07-28更新）, `memberRoles`（役職の表示・退会時クリーンアップ用に構造は残すが、`moderator`は権限判定には使わず`GroupPermission`ベースのカスタムロールに統合済み）, `defaultRoomId`, `sections[]`（表組/裏組）, `roleAssignments`（userId→GroupRole.roleIdのリスト、複数付与可、2026-07-28更新）, `rolePriority`（ロールidの並び、呼び名の色の優先順位）, `memberPermissions`（userId→有効な権限文字列のリスト、firestore.rules用に非正規化したキャッシュ）
+- **Room（寄合・密談）**: `roomId`, `groupId`, `name`, `memberIds`, `createdAt`, `roomDeletionRequestedBy`（寄合＝公開・密談＝非公開の区別は要検討）。1つの広場に複数作成可能（2026-07-28実装）。追加・削除は`manageRooms`権限を持つメンバーのみ。`rolePriorityOverride`（この寄合限定でのロール優先順位の上書き、nullなら広場全体の`Group.rolePriority`を使う、2026-07-28更新）
+- **GroupRole（`groups/{groupId}/roles/{roleId}`）**: `roleId`, `groupId`, `name`, `color`(0xRRGGBB、nullable), `permissions`（`GroupPermission`の部分集合: manageRooms/manageRoles/manageReadReceipts/manageJoinRequests/createInvite）, `isEveryone`（全メンバーに自動適用される削除・改名不可の基準ロール、広場に1件）, `createdAt`。広場のカスタムロール（2026-07-28実装、権限・複数付与対応版）。作成・編集・削除・メンバーへの付与は`manageRoles`権限を持つメンバーのみ。メッセージ画面のアイコン横の呼び名のフォントカラーにも反映される
 - **Message**: `conversationId`, `conversationType`(dm|seat|room), `contentType`(text|image|file|sticker|video), `fileMetadata.compressionType`(webp|lossless|raw), `readBy[]`, `hiddenFor[]`（範囲選択削除・本人のuserIdを追加するだけの個人単位の非表示）, `isSpam`
 - 他: Sticker（ペタピタ）, Purchase（Stripe連携）, SafetyCheck（安否確認）, Album, VideoCall
 
@@ -171,14 +171,20 @@ DaiDaiは独自の世界観用語を使う。変数名・クラス名・コレ�
 | フェーズ3（高度化・24ヶ月） | 1,000,000 | 表広場（公開広場）、安否確認、表組・裏組、方言対応、RNNoise。**一対の複数会話（席機能相当）・広場のカスタムロール機能は2026-07-28に前倒し実装済み（下記参照）** |
 | フェーズ4（将来） | 未定 | AI搭載メッセージ整理、ペタピタ作成アプリ（別アプリ）、貼プラン |
 
-### 広場のカスタムロール機能（2026-07-28実装）
+### 広場のカスタムロール機能（2026-07-28実装、権限・複数付与対応版）
 
-広場（グループ）に名前と色だけを持つカスタムロールを作れる。既存の`memberRoles`（長・モデレーター・メンバーという実際の権限区分）とは無関係の見た目専用機能で、メッセージ画面のアイコン横に表示される呼び名のフォントカラーに反映される。作成・色設定・メンバーへの付与は長・モデレーターのみ（ハンバーガーメニュー「ロール管理」→`lib/features/chat/group_role_list_popup.dart`の`GroupRoleListPopup`でロール自体のCRUD、メンバー一覧ポップアップ`lib/features/chat/group_member_list_screen.dart`の`GroupMemberListPopup`で「広場全体」／「この寄合のみ」を切り替えながらメンバーへ付与する）。
+広場（グループ）にDiscordライクなカスタムロールを作れる。名前・色（呼び名のフォントカラーに反映）に加えて実際の**権限**を持ち、1人のメンバーに複数のロールを同時付与できる。既存の「長・モデレーター・メンバー」階層は廃止し、この仕組みに統合した:
 
-- 付与は2段階: 広場全体での付与（`Group.roleAssignments`）と、寄合ごとの付与（`Room.roleAssignments`）。1人のメンバーには1つのロールまで（同時に複数付与はできない）。寄合ごとの付与が設定されていれば、広場全体の付与より表示上優先される。
+- **長（`Group.ownerId`）**: 常に全権限を持つ特別な存在。広場作成者が初期値だが、メンバー一覧ポップアップから他のメンバーへ後から譲渡できる（`GroupRepository.transferOwnership`、firestore.rulesで現オーナーのみに強制）。譲渡後、旧オーナーは通常のメンバーになる。
+- **カスタムロール（`groups/{groupId}/roles/{roleId}`、`GroupRole`）**: 名前・色（nullable、色を持たないロールも作れる）・権限（`GroupPermission`の部分集合）を持つ。DaiDaiに実在する5つの管理操作にのみ対応: `manageRooms`（寄合の管理）、`manageRoles`（ロールの管理）、`manageReadReceipts`（既読機能のオン/オフ）、`manageJoinRequests`（参加リクエストの承認・却下）、`createInvite`（招待リンクの作成）。Discordのボイスチャンネル・AutoMod等、DaiDaiに存在しない機能の権限は無い。
+- **基準ロール（`GroupRole.isEveryone`）**: 広場作成時に自動生成される、全メンバーに暗黙適用される削除・名前変更不可のロール（Discordの`@everyone`相当）。デフォルトは`createInvite`のみ許可（招待リンク作成は元々誰でも可能だった挙動を再現）。
+- **付与**: `Group.roleAssignments`（userId→ロールidのリスト、複数可）。`GroupRepository.assignRole`/`unassignRole`で個別に付与・解除する。
+- **色の優先順位**: 複数ロールを持つメンバーの呼び名の色は、`Group.rolePriority`（ロールidの並び、先頭が最優先）で決まる。寄合ごとに`Room.rolePriorityOverride`で優先順位を上書きでき、設定されていれば広場全体の順序より優先される（寄合ハンバーガーメニューの「この寄合の色優先順位を設定」から、`lib/features/chat/group_role_priority_dialog.dart`の`GroupRolePriorityDialog`で`ReorderableListView`によるドラッグ＆ドロップ並べ替えを行う）。
+- **実効権限のキャッシュ（`Group.memberPermissions`）**: firestore.rulesはロールドキュメントを跨いだ動的な権限計算ができないため、`lib/utils/group_permissions.dart`の`hasGroupPermission`が根拠にする`memberPermissions`（userId→有効な権限文字列のリスト、基準ロール込みで解決済み）を`GroupRepository`がロール・付与の変更のたびに再計算して非正規化保存する（`Room.memberIds`が`Group.memberIds`を非正規化して持つのと同じ設計）。firestore.rulesも同じフィールドを参照して判定するため、クライアントの計算結果をそのまま信頼する設計になっている点に注意（デプロイ済み）。
+- UI: ハンバーガーメニューではなくサイドバー（寄合一覧ペイン`RoomListPane`）のヘッダーに歯車アイコン「広場自体の設定」を追加し、`manageRoles`権限を持つメンバーのみ`lib/features/chat/group_role_list_popup.dart`の`GroupRoleListPopup`（ロールのCRUD・権限チェックボックス・色のhex入力・優先順位並べ替え導線）を開ける。メンバーへの付与・長の譲渡はメンバー一覧ポップアップ（`group_member_list_screen.dart`）から行う。
 - ロールの色は設定タブのアクセントカラーと同じ「`#RRGGBB`のカラーコードを自由入力」方式（`lib/utils/color_hex.dart`の`tryParseHexColor`/`ColorHex.toHexString`を再利用）。
-- `GroupRepository`に`watchRoles`/`createRole`/`updateRole`/`deleteRole`（ロールのCRUD）と`assignRole`/`assignRoomRole`（メンバーへの付与、対象範囲別）を追加。`deleteRole`はロール削除時、広場全体・全寄合の付与から自動的に外す。
-- メッセージ画面（`lib/features/chat/chat_screen.dart`）の呼び名表示コンポーネント（`_SenderName`）に、色を解決するコールバック（`ChatScreen.senderNameColorResolver`）を追加。一対には常に渡さない（ロールが存在しないため）。`GroupChatPane`がロール一覧・寄合一覧をwatchして、送信者ごとに寄合限定→広場全体の順で付与ロールを解決し色を渡す。
+- メッセージ画面（`lib/features/chat/chat_screen.dart`）の呼び名表示コンポーネント（`_SenderName`）に、色を解決するコールバック（`ChatScreen.senderNameColorResolver`）を追加。一対には常に渡さない（ロールが存在しないため）。`GroupChatPane`が`lib/utils/group_permissions.dart`の`resolveSenderColor`を使い、送信者ごとに色を解決する。
+- 既存の本番データ（2広場）はCloud Functionsの一度きりの移行処理（`functions/src/index.ts`、実行後にソースから削除済み）で、基準ロールの作成と実効権限キャッシュの初期計算を行った（`memberRoles`が`moderator`のメンバーがいた場合は自動的に相当するロールへ変換する処理も含めたが、対象は0件だった）。
 
 ### 複数寄合機能（2026-07-28実装）
 

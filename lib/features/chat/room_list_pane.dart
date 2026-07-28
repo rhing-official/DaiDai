@@ -28,6 +28,7 @@ class RoomListPane extends ConsumerWidget {
     required this.onSelectRoom,
     this.onCreateRoom,
     this.onDeleteRoom,
+    this.onOpenGroupSettings,
     super.key,
   });
 
@@ -44,6 +45,11 @@ class RoomListPane extends ConsumerWidget {
   final void Function(RoomListEntry room) onSelectRoom;
   final Future<void> Function(String name)? onCreateRoom;
   final Future<void> Function(String roomId)? onDeleteRoom;
+
+  /// 「広場自体の設定」を開く（サイドバーの歯車アイコン、2026-07-28追加）。
+  /// 広場の長・モデレーターにのみ渡す。nullなら歯車アイコン自体を出さない
+  /// （一対には広場設定という概念が無いため常にnull）。
+  final VoidCallback? onOpenGroupSettings;
 
   Future<void> _createRoom(
     BuildContext context,
@@ -132,6 +138,12 @@ class RoomListPane extends ConsumerWidget {
                         style: const TextStyle(fontWeight: FontWeight.bold),
                       ),
                     ),
+                    if (onOpenGroupSettings != null)
+                      IconButton(
+                        icon: const Icon(Icons.settings_outlined),
+                        tooltip: strings.groupSettingsTooltip,
+                        onPressed: onOpenGroupSettings,
+                      ),
                     if (onCreateRoom != null)
                       IconButton(
                         icon: const Icon(Icons.add),

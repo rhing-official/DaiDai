@@ -194,19 +194,27 @@ class Strings {
     required this.groupRoleEditDialogTitle,
     required this.groupRoleDialogNameLabel,
     required this.groupRoleColorInvalid,
+    required this.groupRoleColorNone,
+    required this.groupRolePermissionsLabel,
+    required this.groupPermissionLabel,
+    required this.groupRoleEveryoneNote,
     required this.groupRoleDeleteConfirmTitle,
     required this.groupRoleDeleteConfirmButton,
     required this.groupRoleNoneLabel,
-    required this.groupRoleAssignmentScopeAll,
-    required this.groupRoleAssignmentScopeRoom,
     required this.groupRolePickerTitle,
-    required this.groupRolePickerNone,
+    required this.groupRolePriorityTitle,
+    required this.groupRolePriorityHint,
+    required this.groupRoomRolePriorityMenuItem,
+    required this.groupRoomRolePriorityResetButton,
+    required this.groupSettingsTooltip,
+    required this.groupTransferOwnershipMenuItem,
+    required this.groupTransferOwnershipConfirmTitle,
+    required this.groupTransferOwnershipConfirmButton,
     required this.groupProfileCardNameLabel,
     required this.groupProfileCardDescriptionLabel,
     required this.groupMemberListTitle,
     required this.groupMemberListPendingSection,
     required this.groupMemberListMembersSection,
-    required this.groupRoleMember,
     required this.groupInviteDialogTitle,
     required this.groupInviteDialogDescription,
     required this.groupLeaveConfirmTitle,
@@ -456,15 +464,31 @@ class Strings {
   final String groupRoleEditDialogTitle;
   final String groupRoleDialogNameLabel;
   final String groupRoleColorInvalid;
+  /// 色のhex入力欄の横に置く「色を設定しない」チェックボックス。
+  final String groupRoleColorNone;
+  /// ロール編集ダイアログの権限チェックボックス群のセクション見出し。
+  final String groupRolePermissionsLabel;
+  /// 権限1件分の表示ラベル（[GroupPermission]の定数を渡す）。
+  final String Function(String permission) groupPermissionLabel;
+  /// 基準ロール（全員に自動適用、削除・名前変更不可）の編集ダイアログに出す注記。
+  final String groupRoleEveryoneNote;
   final String groupRoleDeleteConfirmTitle;
   final String groupRoleDeleteConfirmButton;
   final String groupRoleNoneLabel;
-  /// ロール付与の対象範囲切り替え「広場全体」。用語（「広場」等）を差し込む。
-  final String Function(String plazaTerm) groupRoleAssignmentScopeAll;
-  /// ロール付与の対象範囲切り替え「（寄合名）のみ」。寄合の実際の名前を差し込む。
-  final String Function(String roomName) groupRoleAssignmentScopeRoom;
   final String groupRolePickerTitle;
-  final String groupRolePickerNone;
+  /// ロールの優先順位（呼び名の色を決める順序）並べ替え画面のタイトル。
+  final String groupRolePriorityTitle;
+  final String groupRolePriorityHint;
+  /// 寄合ハンバーガーメニューの「この寄合の色優先順位を設定」項目。
+  final String groupRoomRolePriorityMenuItem;
+  /// 寄合ごとの優先順位上書きを解除し、広場全体の設定に戻すボタン。
+  final String groupRoomRolePriorityResetButton;
+  /// サイドバーの「広場自体の設定」アイコンのツールチップ。
+  final String groupSettingsTooltip;
+  /// 長の譲渡メニュー項目・確認ダイアログ。
+  final String groupTransferOwnershipMenuItem;
+  final String Function(String memberName) groupTransferOwnershipConfirmTitle;
+  final String groupTransferOwnershipConfirmButton;
 
   final String groupProfileCardNameLabel;
   final String groupProfileCardDescriptionLabel;
@@ -472,7 +496,6 @@ class Strings {
   final String groupMemberListTitle;
   final String groupMemberListPendingSection;
   final String groupMemberListMembersSection;
-  final String groupRoleMember;
 
   final String groupInviteDialogTitle;
   final String groupInviteDialogDescription;
@@ -734,19 +757,34 @@ class Strings {
     groupRoleEditDialogTitle: 'ロールを編集',
     groupRoleDialogNameLabel: 'ロール名',
     groupRoleColorInvalid: '「#RRGGBB」の形式で入力してください',
+    groupRoleColorNone: '色を設定しない',
+    groupRolePermissionsLabel: '権限',
+    groupPermissionLabel: (permission) => switch (permission) {
+          'manageRooms' => '寄合の管理（作成・削除）',
+          'manageRoles' => 'ロールの管理（作成・編集・削除・付与）',
+          'manageReadReceipts' => '既読機能のオン/オフ',
+          'manageJoinRequests' => '参加リクエストの承認・却下',
+          'createInvite' => '招待リンクの作成',
+          _ => permission,
+        },
+    groupRoleEveryoneNote: 'このロールは全員に自動で適用されます。削除・名前の変更はできません',
     groupRoleDeleteConfirmTitle: 'このロールを削除しますか？',
     groupRoleDeleteConfirmButton: '削除する',
     groupRoleNoneLabel: 'ロール未設定',
-    groupRoleAssignmentScopeAll: (term) => '$term全体',
-    groupRoleAssignmentScopeRoom: (name) => '$nameのみ',
     groupRolePickerTitle: 'ロールを選択',
-    groupRolePickerNone: 'なし（解除）',
+    groupRolePriorityTitle: 'ロールの優先順位',
+    groupRolePriorityHint: '上にあるロールほど呼び名の色が優先されます',
+    groupRoomRolePriorityMenuItem: 'この寄合の色優先順位を設定',
+    groupRoomRolePriorityResetButton: '広場全体の設定に戻す',
+    groupSettingsTooltip: '広場自体の設定',
+    groupTransferOwnershipMenuItem: '長を譲渡する',
+    groupTransferOwnershipConfirmTitle: (name) => '$nameに長を譲渡しますか？',
+    groupTransferOwnershipConfirmButton: '譲渡する',
     groupProfileCardNameLabel: '広場名',
     groupProfileCardDescriptionLabel: '一言',
     groupMemberListTitle: 'メンバー一覧',
     groupMemberListPendingSection: '参加リクエスト',
     groupMemberListMembersSection: 'メンバー',
-    groupRoleMember: 'メンバー',
     groupInviteDialogTitle: '招待リンク',
     groupInviteDialogDescription:
         'このリンクを知っている人が開くと、長の承認を経てこの広場に参加できます。',
@@ -1015,19 +1053,35 @@ class Strings {
     groupRoleEditDialogTitle: 'Edit role',
     groupRoleDialogNameLabel: 'Role name',
     groupRoleColorInvalid: 'Enter in "#RRGGBB" format',
+    groupRoleColorNone: 'No colour',
+    groupRolePermissionsLabel: 'Permissions',
+    groupPermissionLabel: (permission) => switch (permission) {
+          'manageRooms' => 'Manage rooms (create/delete)',
+          'manageRoles' => 'Manage roles (create/edit/delete/assign)',
+          'manageReadReceipts' => 'Toggle read receipts',
+          'manageJoinRequests' => 'Approve/decline join requests',
+          'createInvite' => 'Create invite links',
+          _ => permission,
+        },
+    groupRoleEveryoneNote:
+        'This role applies to everyone automatically. It cannot be deleted or renamed',
     groupRoleDeleteConfirmTitle: 'Delete this role?',
     groupRoleDeleteConfirmButton: 'Delete',
     groupRoleNoneLabel: 'No role',
-    groupRoleAssignmentScopeAll: (term) => 'All of $term',
-    groupRoleAssignmentScopeRoom: (name) => '$name only',
     groupRolePickerTitle: 'Select a role',
-    groupRolePickerNone: 'None (clear)',
+    groupRolePriorityTitle: 'Role priority',
+    groupRolePriorityHint: 'Roles higher up take priority for the display name colour',
+    groupRoomRolePriorityMenuItem: 'Set this room\'s colour priority',
+    groupRoomRolePriorityResetButton: 'Reset to plaza default',
+    groupSettingsTooltip: 'Plaza settings',
+    groupTransferOwnershipMenuItem: 'Transfer ownership',
+    groupTransferOwnershipConfirmTitle: (name) => 'Transfer ownership to $name?',
+    groupTransferOwnershipConfirmButton: 'Transfer',
     groupProfileCardNameLabel: 'Plaza name',
     groupProfileCardDescriptionLabel: 'Status',
     groupMemberListTitle: 'Members',
     groupMemberListPendingSection: 'Join requests',
     groupMemberListMembersSection: 'Members',
-    groupRoleMember: 'Member',
     groupInviteDialogTitle: 'Invite link',
     groupInviteDialogDescription:
         'Anyone who opens this link can request to join this plaza, '
