@@ -129,9 +129,12 @@ class _JoinGroupViewState extends ConsumerState<_JoinGroupView> {
     final groupRepository = ref.read(groupRepositoryProvider);
     final group = await groupRepository.getGroup(widget.groupId);
     if (!mounted || group == null) return;
+    // 既存の広場は複数の寄合を持ちうる（どれが「メイン」に相当するか
+    // 表示名まで確実にはここで分からない）ため、寄合一覧画面を経由して
+    // 選んでもらう。
     ref.read(goRouterProvider).pushReplacement(
-      '/chat/group',
-      extra: GroupChatArgs(currentUser: widget.currentUser, group: group),
+      '/chat/group-rooms',
+      extra: GroupRoomListArgs(currentUser: widget.currentUser, group: group),
     );
   }
 

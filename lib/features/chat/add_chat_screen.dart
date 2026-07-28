@@ -63,7 +63,15 @@ class _AddChatScreenState extends ConsumerState<AddChatScreen> {
         if (!mounted) return;
         ref.read(goRouterProvider).pushReplacement(
           '/chat/dm',
-          extra: DmChatArgs(currentUser: widget.currentUser, dm: dm),
+          extra: DmChatArgs(
+            currentUser: widget.currentUser,
+            dm: dm,
+            roomId: dm.defaultRoomId,
+            // 作成直後の一対は常に「メイン」という名前の寄合が1つだけ
+            // 存在する（DirectMessageRepository.getOrCreateDirectMessage/
+            // FriendRepository.respond参照）。
+            roomName: 'メイン',
+          ),
         );
         return;
       }

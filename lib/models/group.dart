@@ -76,6 +76,8 @@ class Room {
     required this.name,
     required this.memberIds,
     this.lastMessageAt,
+    this.createdAt,
+    this.roomDeletionRequestedBy,
   });
 
   final String roomId;
@@ -85,6 +87,15 @@ class Room {
   final List<String> memberIds;
   final Timestamp? lastMessageAt;
 
+  /// 寄合一覧の並び順（作成順）に使う。
+  final Timestamp? createdAt;
+
+  /// この寄合の削除を実行中の長・モデレーターのuserId。nullなら削除中で
+  /// ない通常状態。削除操作の間だけ立てるマーカーで、これが立っている間は
+  /// メンバーなら誰でもこの寄合のメッセージを物理削除できる
+  /// （`GroupRepository.deleteRoom`、firestore.rules参照）。
+  final String? roomDeletionRequestedBy;
+
   factory Room.fromJson(String roomId, Map<String, dynamic> json) {
     return Room(
       roomId: roomId,
@@ -92,6 +103,8 @@ class Room {
       name: json['name'] as String,
       memberIds: List<String>.from(json['memberIds'] as List),
       lastMessageAt: json['lastMessageAt'] as Timestamp?,
+      createdAt: json['createdAt'] as Timestamp?,
+      roomDeletionRequestedBy: json['roomDeletionRequestedBy'] as String?,
     );
   }
 
@@ -101,6 +114,8 @@ class Room {
       'name': name,
       'memberIds': memberIds,
       'lastMessageAt': lastMessageAt,
+      'createdAt': createdAt ?? FieldValue.serverTimestamp(),
+      'roomDeletionRequestedBy': roomDeletionRequestedBy,
     };
   }
 }

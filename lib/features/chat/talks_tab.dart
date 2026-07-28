@@ -6,6 +6,7 @@ import '../../l10n/vocabulary.dart';
 import '../../models/app_user.dart';
 import '../../models/conversation_prefs.dart';
 import '../../models/direct_message.dart';
+import '../../models/dm_room.dart';
 import '../../models/friend_request.dart';
 import '../../models/group.dart';
 import '../../models/group_invite_preview.dart';
@@ -19,6 +20,7 @@ import '../../providers/user_providers.dart';
 import '../../router/app_router.dart';
 import '../../widgets/swipe_gestures.dart';
 import 'chat_panes.dart';
+import 'room_list_pane.dart';
 
 enum _TalksCategory { dm, group }
 
@@ -45,6 +47,13 @@ class _TalksTabState extends ConsumerState<TalksTab> {
   DirectMessage? _selectedDm;
   Group? _selectedGroup;
 
+  /// 分割表示で現在表示中の寄合。nullなら選択中の会話の
+  /// defaultRoomIdにフォールバックする（`_buildDmDetailWithRooms`/
+  /// `_buildGroupDetailWithRooms`参照）。別の一対・広場を選び直すと
+  /// nullに戻し、その会話のdefaultRoomIdから見せ直す。
+  String? _selectedDmRoomId;
+  String? _selectedGroupRoomId;
+
   /// 左右分割表示（[_isSplit]）の時、会話ペインを横いっぱいに広げて
   /// 一覧ペインを隠すか。横長のタブレット等で、固定幅の一覧に会話ペインの
   /// 幅を圧迫されず全画面で読みたい時のための切り替え。
@@ -54,23 +63,29 @@ class _TalksTabState extends ConsumerState<TalksTab> {
 
   void _openDirectMessage(DirectMessage dm) {
     if (_isSplit) {
-      setState(() => _selectedDm = dm);
+      setState(() {
+        _selectedDm = dm;
+        _selectedDmRoomId = null;
+      });
       return;
     }
     ref.read(goRouterProvider).push(
-      '/chat/dm',
-      extra: DmChatArgs(currentUser: widget.currentUser, dm: dm),
+      '/chat/dm-rooms',
+      extra: DmRoomListArgs(currentUser: widget.currentUser, dm: dm),
     );
   }
 
   void _openGroup(Group group) {
     if (_isSplit) {
-      setState(() => _selectedGroup = group);
+      setState(() {
+        _selectedGroup = group;
+        _selectedGroupRoomId = null;
+      });
       return;
     }
     ref.read(goRouterProvider).push(
-      '/chat/group',
-      extra: GroupChatArgs(currentUser: widget.currentUser, group: group),
+      '/chat/group-rooms',
+      extra: GroupRoomListArgs(currentUser: widget.currentUser, group: group),
     );
   }
 
@@ -331,13 +346,7 @@ class _TalksTabState extends ConsumerState<TalksTab> {
         (d) => d.dmId == selected.dmId,
         orElse: () => selected,
       );
-      return DmChatPane(
-        key: ValueKey('detail-dm-${dm.dmId}'),
-        currentUser: widget.currentUser,
-        dm: dm,
-        onCallPressed: () => _startCall(dm),
-        onVideoCallPressed: () => _startCall(dm, isVideo: true),
-      );
+      return _buildDmDetailWithRooms(dm);
     }
     final selected = _selectedGroup;
     if (selected == null) return const _EmptyDetailPlaceholder();
@@ -345,10 +354,137 @@ class _TalksTabState extends ConsumerState<TalksTab> {
       (g) => g.groupId == selected.groupId,
       orElse: () => selected,
     );
-    return GroupChatPane(
-      key: ValueKey('detail-group-${group.groupId}'),
-      currentUser: widget.currentUser,
-      group: group,
+    return _buildGroupDetailWithRooms(group);
+  }
+
+  /// 選択中の一対を、寄合一覧サイドバー＋選択中の寄合のChatScreenの
+  /// 2ペイン構成で表示する。`_selectedDmRoomId`が現在の寄合一覧に無い
+  /// （未選択・削除された等）場合はdefaultRoomIdにフォールバックする。
+  Widget _buildDmDetailWithRooms(DirectMessage dm) {
+    final dmRepository = ref.read(directMessageRepositoryProvider);
+    return StreamBuilder<List<DmRoom>>(
+      stream: dmRepository.watchRooms(dm.dmId),
+      builder: (context, snapshot) {
+        final rooms = snapshot.data ?? const <DmRoom>[];
+        final roomId = (_selectedDmRoomId != null &&
+                rooms.any((r) => r.roomId == _selectedDmRoomId))
+            ? _selectedDmRoomId!
+            : dm.defaultRoomId;
+        final roomName = rooms
+            .firstWhere(
+              (r) => r.roomId == roomId,
+              orElse: () => DmRoom(
+                roomId: roomId,
+                dmId: dm.dmId,
+                name: 'メイン',
+                participants: dm.participants,
+              ),
+            )
+            .name;
+        return Row(
+          children: [
+            SizedBox(
+              width: 220,
+              child: RoomListPane(
+                roomsStream: dmRepository.watchRooms(dm.dmId).map(
+                      (rs) => [for (final r in rs) (roomId: r.roomId, name: r.name)],
+                    ),
+                selectedRoomId: roomId,
+                onSelectRoom: (room) =>
+                    setState(() => _selectedDmRoomId = room.roomId),
+                onCreateRoom: (name) =>
+                    dmRepository.createRoom(dmId: dm.dmId, name: name),
+                onDeleteRoom: (roomId) => dmRepository.deleteRoom(
+                  dmId: dm.dmId,
+                  roomId: roomId,
+                  requestedBy: widget.currentUser.userId,
+                ),
+              ),
+            ),
+            const VerticalDivider(width: 1),
+            Expanded(
+              child: DmChatPane(
+                key: ValueKey('detail-dm-${dm.dmId}-$roomId'),
+                currentUser: widget.currentUser,
+                dm: dm,
+                roomId: roomId,
+                roomName: roomName,
+                onCallPressed: () => _startCall(dm),
+                onVideoCallPressed: () => _startCall(dm, isVideo: true),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  /// [_buildDmDetailWithRooms]と同じ構成の広場版。寄合の追加・削除は
+  /// 長・モデレーターのみ（firestore.rulesで強制、ここではUI上の
+  /// 操作可否も合わせる）。
+  Widget _buildGroupDetailWithRooms(Group group) {
+    final groupRepository = ref.read(groupRepositoryProvider);
+    final isOwnerOrModerator =
+        group.memberRoles[widget.currentUser.userId] == 'owner' ||
+            group.memberRoles[widget.currentUser.userId] == 'moderator';
+    return StreamBuilder<List<Room>>(
+      stream: groupRepository.watchRooms(group.groupId),
+      builder: (context, snapshot) {
+        final rooms = snapshot.data ?? const <Room>[];
+        final roomId = (_selectedGroupRoomId != null &&
+                rooms.any((r) => r.roomId == _selectedGroupRoomId))
+            ? _selectedGroupRoomId!
+            : group.defaultRoomId;
+        final roomName = rooms
+            .firstWhere(
+              (r) => r.roomId == roomId,
+              orElse: () => Room(
+                roomId: roomId,
+                groupId: group.groupId,
+                name: 'メイン',
+                memberIds: group.memberIds,
+              ),
+            )
+            .name;
+        return Row(
+          children: [
+            SizedBox(
+              width: 220,
+              child: RoomListPane(
+                roomsStream: groupRepository.watchRooms(group.groupId).map(
+                      (rs) => [for (final r in rs) (roomId: r.roomId, name: r.name)],
+                    ),
+                selectedRoomId: roomId,
+                onSelectRoom: (room) =>
+                    setState(() => _selectedGroupRoomId = room.roomId),
+                onCreateRoom: isOwnerOrModerator
+                    ? (name) => groupRepository.createRoom(
+                          groupId: group.groupId,
+                          name: name,
+                        )
+                    : null,
+                onDeleteRoom: isOwnerOrModerator
+                    ? (roomId) => groupRepository.deleteRoom(
+                          groupId: group.groupId,
+                          roomId: roomId,
+                          requestedBy: widget.currentUser.userId,
+                        )
+                    : null,
+              ),
+            ),
+            const VerticalDivider(width: 1),
+            Expanded(
+              child: GroupChatPane(
+                key: ValueKey('detail-group-${group.groupId}-$roomId'),
+                currentUser: widget.currentUser,
+                group: group,
+                roomId: roomId,
+                roomName: roomName,
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 

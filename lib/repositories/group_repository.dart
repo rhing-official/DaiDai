@@ -33,6 +33,22 @@ abstract class GroupRepository {
 
   Stream<List<Message>> watchRoomMessages(String groupId, String roomId);
 
+  /// この広場の寄合（テキストチャンネル）一覧を作成順に購読する。
+  Stream<List<Room>> watchRooms(String groupId);
+
+  /// 新しい寄合を作成する（長・モデレーターのみ、firestore.rulesで強制）。
+  Future<Room> createRoom({required String groupId, required String name});
+
+  /// 寄合を削除する。全メッセージも物理削除する（長・モデレーターのみ、
+  /// firestore.rulesで強制）。その広場の最後の1つの寄合は削除できない
+  /// （[StateError]を投げる）。削除対象が`Group.defaultRoomId`の場合は、
+  /// 残った寄合のうち最も古いものに`defaultRoomId`を差し替える。
+  Future<void> deleteRoom({
+    required String groupId,
+    required String roomId,
+    required String requestedBy,
+  });
+
   /// [watchRoomMessages]の直近50件に含まれない古い返信先へジャンプする際に
   /// 使う。指定した[messageId]を含む前後合わせて最大[contextSize]*2件を
   /// 1回だけ取得する（購読はしない）。対象メッセージが既に削除済みの場合は
@@ -257,6 +273,74 @@ class FirestoreGroupRepository implements GroupRepository {
   }
 
   @override
+  Stream<List<Room>> watchRooms(String groupId) {
+    return _groups
+        .doc(groupId)
+        .collection('rooms')
+        .orderBy('createdAt')
+        .snapshots()
+        .map((snapshot) =>
+            snapshot.docs.map((doc) => Room.fromJson(doc.id, doc.data())).toList());
+  }
+
+  @override
+  Future<Room> createRoom({
+    required String groupId,
+    required String name,
+  }) async {
+    final group = await getGroup(groupId);
+    if (group == null) throw StateError('広場が見つかりません');
+    final roomRef = _groups.doc(groupId).collection('rooms').doc();
+    final room = Room(
+      roomId: roomRef.id,
+      groupId: groupId,
+      name: name,
+      memberIds: group.memberIds,
+    );
+    await roomRef.set(room.toJson());
+    return room;
+  }
+
+  @override
+  Future<void> deleteRoom({
+    required String groupId,
+    required String roomId,
+    required String requestedBy,
+  }) async {
+    final roomsSnapshot =
+        await _groups.doc(groupId).collection('rooms').orderBy('createdAt').get();
+    if (roomsSnapshot.docs.length <= 1) {
+      throw StateError('最後の1つの寄合は削除できません');
+    }
+
+    final roomRef = _roomRef(groupId, roomId);
+    // 削除の実行者を記録するマーカーを立てる。これを根拠に、以降の
+    // メッセージ物理削除がfirestore.rules上許可される
+    // （severance/既読オフと同じ「マーカー→カスケード削除」パターン）。
+    await roomRef.update({'roomDeletionRequestedBy': requestedBy});
+
+    final messagesRef = roomRef.collection('messages');
+    while (true) {
+      final snapshot = await messagesRef.limit(400).get();
+      if (snapshot.docs.isEmpty) break;
+      final batch = _firestore.batch();
+      for (final doc in snapshot.docs) {
+        batch.delete(doc.reference);
+      }
+      await batch.commit();
+    }
+    await roomRef.delete();
+
+    final group = await getGroup(groupId);
+    if (group != null && group.defaultRoomId == roomId) {
+      final remaining = roomsSnapshot.docs.where((d) => d.id != roomId).toList();
+      if (remaining.isNotEmpty) {
+        await _groups.doc(groupId).update({'defaultRoomId': remaining.first.id});
+      }
+    }
+  }
+
+  @override
   Stream<List<Message>> watchRoomMessages(String groupId, String roomId) {
     return _roomRef(groupId, roomId)
         .collection('messages')
@@ -463,9 +547,10 @@ class FirestoreGroupRepository implements GroupRepository {
     if (group == null) return;
     await _groups.doc(groupId).update({'readReceiptsEnabled': enabled});
     if (!enabled) {
-      final messagesRef =
-          _roomRef(groupId, group.defaultRoomId).collection('messages');
-      await _clearAllReadReceipts(messagesRef);
+      final roomsSnapshot = await _groups.doc(groupId).collection('rooms').get();
+      for (final roomDoc in roomsSnapshot.docs) {
+        await _clearAllReadReceipts(roomDoc.reference.collection('messages'));
+      }
     }
   }
 
@@ -704,7 +789,8 @@ class FirestoreGroupRepository implements GroupRepository {
       return;
     }
 
-    final roomRef = _roomRef(request.groupId, group.defaultRoomId);
+    final roomsSnapshot =
+        await _groups.doc(request.groupId).collection('rooms').get();
 
     final batch = _firestore.batch();
     batch.update(requestRef, {
@@ -715,9 +801,11 @@ class FirestoreGroupRepository implements GroupRepository {
       'memberIds': FieldValue.arrayUnion([request.requesterId]),
       'memberRoles': {...group.memberRoles, request.requesterId: 'member'},
     });
-    batch.update(roomRef, {
-      'memberIds': FieldValue.arrayUnion([request.requesterId]),
-    });
+    for (final roomDoc in roomsSnapshot.docs) {
+      batch.update(roomDoc.reference, {
+        'memberIds': FieldValue.arrayUnion([request.requesterId]),
+      });
+    }
     await batch.commit();
   }
 
@@ -734,16 +822,18 @@ class FirestoreGroupRepository implements GroupRepository {
     }
 
     final updatedRoles = {...group.memberRoles}..remove(userId);
-    final roomRef = _roomRef(groupId, group.defaultRoomId);
+    final roomsSnapshot = await _groups.doc(groupId).collection('rooms').get();
 
     final batch = _firestore.batch();
     batch.update(groupRef, {
       'memberIds': FieldValue.arrayRemove([userId]),
       'memberRoles': updatedRoles,
     });
-    batch.update(roomRef, {
-      'memberIds': FieldValue.arrayRemove([userId]),
-    });
+    for (final roomDoc in roomsSnapshot.docs) {
+      batch.update(roomDoc.reference, {
+        'memberIds': FieldValue.arrayRemove([userId]),
+      });
+    }
     await batch.commit();
   }
 }

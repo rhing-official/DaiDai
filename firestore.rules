@@ -171,95 +171,115 @@ service cloud.firestore {
             && resource.data.accountDeletedUserId != request.auth.uid)
         );
 
-      // メッセージは縁側の参加者のみ読み取り可能。
-      // 送信は本人（senderId）かつ参加者である場合のみ許可。
-      match /messages/{messageId} {
+      // rooms/{roomId}: 寄合（テキストチャンネル、2026-07-28追加）。
+      // 参加者を広場のRoom.memberIdsと同じ考え方でparticipantsとして
+      // 非正規化して持つ（DM作成と同じバッチ内でこの寄合を作成する際、
+      // 親directMessagesドキュメントをget()すると未コミット状態を見て
+      // permission-deniedになるのを避けるため）。一対には長・モデレーターの
+      // 概念が無いため、参加者2人はどちらも対等に作成・更新・削除できる。
+      match /rooms/{roomId} {
         allow read: if request.auth != null
-          && request.auth.uid in get(/databases/$(database)/documents/directMessages/$(dmId)).data.participants;
+          && request.auth.uid in resource.data.participants;
         allow create: if request.auth != null
-          && request.auth.uid == request.resource.data.senderId
-          && request.auth.uid in get(/databases/$(database)/documents/directMessages/$(dmId)).data.participants;
-        // 既読機能: 参加者本人がreadByフィールドのみを更新できる
-        // （既読を付けるのに送信者である必要はない）。範囲選択削除
-        // （2026-07-27追加）: 参加者本人がhiddenForに自分のuidだけを
-        // 追加する更新も許可する（他人のuidを混ぜたり、既存のuidを
-        // 消したりはできない）。
-        // 編集・リアクション・送信取り消し時の引用プレビュー一括クリア
-        // （2026-07-27追加、返信・編集・送信取り消し・リアクション機能）:
-        //  - 編集: 本人の送信メッセージのcontent+editedAtのみ変更可
-        //    （テキストメッセージのみ対応。DirectMessageRepository.editMessage参照）。
-        //  - リアクション: reactionsマップのうち、自分（request.auth.uid）に
-        //    対応するキーの追加・削除・値変更のみ許可する。値を設定する場合は
-        //    固定絵文字セット（kReactionEmojis, lib/models/message.dart）の
-        //    いずれかでなければならない。
-        //  - 引用プレビューのクリア: 送信取り消し（unsendMessage）が、
-        //    取り消したメッセージを引用返信している他のメッセージの
-        //    replyTo系フィールドを消すために使う。参加者なら誰でも、この
-        //    4フィールドを「クリアする方向」にのみ変更できる（値を設定する
-        //    ことはできない＝なりすまし引用の捏造を防ぐ）。
+          && request.auth.uid in request.resource.data.participants;
+        // name変更・lastMessageAt更新・寄合削除時のdeletionRequestedBy
+        // マーカー設定を許可。
         allow update: if request.auth != null
-          && request.auth.uid in get(/databases/$(database)/documents/directMessages/$(dmId)).data.participants
-          && (
-            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readBy'])
-            || (
-              request.resource.data.diff(resource.data).affectedKeys().hasOnly(['hiddenFor'])
-              && request.resource.data.hiddenFor.hasAll('hiddenFor' in resource.data ? resource.data.hiddenFor : [])
-              && request.resource.data.hiddenFor.removeAll('hiddenFor' in resource.data ? resource.data.hiddenFor : []).hasOnly([request.auth.uid])
-            )
-            || (
-              request.auth.uid == resource.data.senderId
-              && resource.data.contentType == 'text'
-              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['content', 'editedAt'])
-            )
-            || (
-              request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reactions'])
-              && ('reactions' in resource.data ? resource.data.reactions : {})
-                   .diff(request.resource.data.reactions)
-                   .affectedKeys()
-                   .hasOnly([request.auth.uid])
-              && (
-                !(request.auth.uid in request.resource.data.reactions)
-                || request.resource.data.reactions[request.auth.uid] in ['👍', '❤️', '😂', '😮', '😢', '🙏']
-              )
-            )
-            || (
-              request.resource.data.diff(resource.data).affectedKeys()
-                .hasOnly(['replyToMessageId', 'replyToSenderId', 'replyToSenderRhingId', 'replyToSnippet'])
-              && !('replyToMessageId' in request.resource.data)
-              && !('replyToSenderId' in request.resource.data)
-              && !('replyToSenderRhingId' in request.resource.data)
-              && !('replyToSnippet' in request.resource.data)
-            )
-            // アカウント削除通知への「いいえ」（2026-07-28追加）。以後
-            // はい/いいえボタンを表示しないようにするだけの単純なフラグ。
-            || (
-              request.resource.data.diff(resource.data).affectedKeys().hasOnly(['accountDeletionResponse'])
-              && request.resource.data.accountDeletionResponse == 'declined'
-            )
-          );
-        // 絶縁の実行時（同意した側が実行）・範囲選択削除で参加者全員がこの
-        // メッセージをhiddenForに含めた場合に加え、本人の送信メッセージは
-        // いつでも無条件で物理削除できる（送信取り消し、2026-07-27追加。
-        // 相手側にも痕跡を残さず完全に消す仕様のため、hiddenForのような
-        // 論理フラグではなく物理削除にしている。DirectMessageRepository.
-        // unsendMessage参照）。アカウント削除通知後の削除（2026-07-28追加）:
-        // deleteDmAfterAccountDeletionが全メッセージを削除する際に使う。
+          && request.auth.uid in resource.data.participants;
         allow delete: if request.auth != null
-          && request.auth.uid in get(/databases/$(database)/documents/directMessages/$(dmId)).data.participants
-          && (
-            (
-              get(/databases/$(database)/documents/directMessages/$(dmId)).data.severanceRequestedBy != null
-              && get(/databases/$(database)/documents/directMessages/$(dmId)).data.severanceRequestedBy != request.auth.uid
-            )
-            || (
-              get(/databases/$(database)/documents/directMessages/$(dmId)).data.accountDeletedUserId != null
-              && get(/databases/$(database)/documents/directMessages/$(dmId)).data.accountDeletedUserId != request.auth.uid
-            )
-            || ('hiddenFor' in resource.data ? resource.data.hiddenFor : [])
-                 .concat([request.auth.uid])
-                 .hasAll(get(/databases/$(database)/documents/directMessages/$(dmId)).data.participants)
-            || resource.data.senderId == request.auth.uid
-          );
+          && request.auth.uid in resource.data.participants;
+
+        // メッセージは寄合の参加者のみ読み取り可能。
+        // 送信は本人（senderId）かつ参加者である場合のみ許可。
+        match /messages/{messageId} {
+          allow read: if request.auth != null
+            && request.auth.uid in get(/databases/$(database)/documents/directMessages/$(dmId)/rooms/$(roomId)).data.participants;
+          allow create: if request.auth != null
+            && request.auth.uid == request.resource.data.senderId
+            && request.auth.uid in get(/databases/$(database)/documents/directMessages/$(dmId)/rooms/$(roomId)).data.participants;
+          // 既読機能: 参加者本人がreadByフィールドのみを更新できる
+          // （既読を付けるのに送信者である必要はない）。範囲選択削除
+          // （2026-07-27追加）: 参加者本人がhiddenForに自分のuidだけを
+          // 追加する更新も許可する（他人のuidを混ぜたり、既存のuidを
+          // 消したりはできない）。
+          // 編集・リアクション・送信取り消し時の引用プレビュー一括クリア
+          // （2026-07-27追加、返信・編集・送信取り消し・リアクション機能）:
+          //  - 編集: 本人の送信メッセージのcontent+editedAtのみ変更可
+          //    （テキストメッセージのみ対応。DirectMessageRepository.editMessage参照）。
+          //  - リアクション: reactionsマップのうち、自分（request.auth.uid）に
+          //    対応するキーの追加・削除・値変更のみ許可する。値を設定する場合は
+          //    固定絵文字セット（kReactionEmojis, lib/models/message.dart）の
+          //    いずれかでなければならない。
+          //  - 引用プレビューのクリア: 送信取り消し（unsendMessage）が、
+          //    取り消したメッセージを引用返信している他のメッセージの
+          //    replyTo系フィールドを消すために使う。参加者なら誰でも、この
+          //    4フィールドを「クリアする方向」にのみ変更できる（値を設定する
+          //    ことはできない＝なりすまし引用の捏造を防ぐ）。
+          allow update: if request.auth != null
+            && request.auth.uid in get(/databases/$(database)/documents/directMessages/$(dmId)/rooms/$(roomId)).data.participants
+            && (
+              request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readBy'])
+              || (
+                request.resource.data.diff(resource.data).affectedKeys().hasOnly(['hiddenFor'])
+                && request.resource.data.hiddenFor.hasAll('hiddenFor' in resource.data ? resource.data.hiddenFor : [])
+                && request.resource.data.hiddenFor.removeAll('hiddenFor' in resource.data ? resource.data.hiddenFor : []).hasOnly([request.auth.uid])
+              )
+              || (
+                request.auth.uid == resource.data.senderId
+                && resource.data.contentType == 'text'
+                && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['content', 'editedAt'])
+              )
+              || (
+                request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reactions'])
+                && ('reactions' in resource.data ? resource.data.reactions : {})
+                     .diff(request.resource.data.reactions)
+                     .affectedKeys()
+                     .hasOnly([request.auth.uid])
+                && (
+                  !(request.auth.uid in request.resource.data.reactions)
+                  || request.resource.data.reactions[request.auth.uid] in ['👍', '❤️', '😂', '😮', '😢', '🙏']
+                )
+              )
+              || (
+                request.resource.data.diff(resource.data).affectedKeys()
+                  .hasOnly(['replyToMessageId', 'replyToSenderId', 'replyToSenderRhingId', 'replyToSnippet'])
+                && !('replyToMessageId' in request.resource.data)
+                && !('replyToSenderId' in request.resource.data)
+                && !('replyToSenderRhingId' in request.resource.data)
+                && !('replyToSnippet' in request.resource.data)
+              )
+              // アカウント削除通知への「いいえ」（2026-07-28追加）。以後
+              // はい/いいえボタンを表示しないようにするだけの単純なフラグ。
+              || (
+                request.resource.data.diff(resource.data).affectedKeys().hasOnly(['accountDeletionResponse'])
+                && request.resource.data.accountDeletionResponse == 'declined'
+              )
+            );
+          // 絶縁の実行時（同意した側が実行）・アカウント削除通知後の削除・
+          // 寄合単体の削除時（deletionRequestedByマーカー）・範囲選択削除で
+          // 参加者全員がこのメッセージをhiddenForに含めた場合に加え、本人の
+          // 送信メッセージはいつでも無条件で物理削除できる（送信取り消し、
+          // 2026-07-27追加。相手側にも痕跡を残さず完全に消す仕様のため、
+          // hiddenForのような論理フラグではなく物理削除にしている。
+          // DirectMessageRepository.unsendMessage参照）。
+          allow delete: if request.auth != null
+            && request.auth.uid in get(/databases/$(database)/documents/directMessages/$(dmId)/rooms/$(roomId)).data.participants
+            && (
+              (
+                get(/databases/$(database)/documents/directMessages/$(dmId)).data.severanceRequestedBy != null
+                && get(/databases/$(database)/documents/directMessages/$(dmId)).data.severanceRequestedBy != request.auth.uid
+              )
+              || (
+                get(/databases/$(database)/documents/directMessages/$(dmId)).data.accountDeletedUserId != null
+                && get(/databases/$(database)/documents/directMessages/$(dmId)).data.accountDeletedUserId != request.auth.uid
+              )
+              || get(/databases/$(database)/documents/directMessages/$(dmId)/rooms/$(roomId)).data.deletionRequestedBy != null
+              || ('hiddenFor' in resource.data ? resource.data.hiddenFor : [])
+                   .concat([request.auth.uid])
+                   .hasAll(get(/databases/$(database)/documents/directMessages/$(dmId)/rooms/$(roomId)).data.participants)
+              || resource.data.senderId == request.auth.uid
+            );
+        }
       }
     }
 
@@ -331,17 +351,28 @@ service cloud.firestore {
         allow delete: if false;
       }
 
-      // rooms/{roomId}: お部屋。memberIdsを広場から非正規化して持つ
+      // rooms/{roomId}: 寄合。memberIdsを広場から非正規化して持つ
       // （メッセージ読み取りルールがgroupsドキュメントを跨いで参照しなくて済むように）。
+      // 寄合の作成・削除は長・モデレーターのみ（2026-07-28、複数寄合対応で
+      // 追加。それまではメンバーなら誰でも作成でき削除は常に不可という
+      // 未整備な状態だった）。
       match /rooms/{roomId} {
         allow read: if request.auth != null
           && request.auth.uid in resource.data.memberIds;
         allow create: if request.auth != null
+          && get(/databases/$(database)/documents/groups/$(groupId)).data.memberRoles[request.auth.uid] in ['owner', 'moderator']
           && request.auth.uid in request.resource.data.memberIds;
-        // 送信時のlastMessageAt更新、参加承認・退会によるmemberIds更新を許可。
+        // memberIdsのみの変更（参加承認・退会同期）は全メンバー可。
+        // それ以外（name変更・寄合削除時のroomDeletionRequestedByマーカー
+        // 設定等）は長・モデレーターのみ。
         allow update: if request.auth != null
-          && request.auth.uid in resource.data.memberIds;
-        allow delete: if false;
+          && request.auth.uid in resource.data.memberIds
+          && (
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberIds'])
+            || get(/databases/$(database)/documents/groups/$(groupId)).data.memberRoles[request.auth.uid] in ['owner', 'moderator']
+          );
+        allow delete: if request.auth != null
+          && get(/databases/$(database)/documents/groups/$(groupId)).data.memberRoles[request.auth.uid] in ['owner', 'moderator'];
 
         match /messages/{messageId} {
           allow read: if request.auth != null
@@ -391,8 +422,10 @@ service cloud.firestore {
               )
             );
           // 範囲選択削除でメンバー全員がこのメッセージをhiddenForに含めた
-          // 場合に加え、本人の送信メッセージはいつでも無条件で物理削除できる
-          // （送信取り消し、2026-07-27追加。GroupRepository.unsendRoomMessage参照）。
+          // 場合・寄合単体の削除時（roomDeletionRequestedByマーカー、
+          // 2026-07-28追加）に加え、本人の送信メッセージはいつでも無条件で
+          // 物理削除できる（送信取り消し、2026-07-27追加。
+          // GroupRepository.unsendRoomMessage参照）。
           allow delete: if request.auth != null
             && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)/rooms/$(roomId)).data.memberIds
             && (
@@ -400,6 +433,7 @@ service cloud.firestore {
                    .concat([request.auth.uid])
                    .hasAll(get(/databases/$(database)/documents/groups/$(groupId)/rooms/$(roomId)).data.memberIds)
               || resource.data.senderId == request.auth.uid
+              || get(/databases/$(database)/documents/groups/$(groupId)/rooms/$(roomId)).data.roomDeletionRequestedBy != null
             );
         }
       }

@@ -155,8 +155,10 @@ async function deleteAccount(
 }
 
 /** 参加中の一対それぞれに、アカウント削除通知メッセージを1件追加する。
- * メッセージ・DMドキュメント自体はここでは削除しない（もう一方の参加者が
- * チャット画面で「はい」を選んだ場合のみクライアント側で物理削除される。
+ * この一対の既定の寄合（defaultRoomId）に投稿する（どの寄合を開いていても
+ * 内容が分かるようにするため）。メッセージ・寄合・DMドキュメント自体は
+ * ここでは削除しない（もう一方の参加者がチャット画面で「はい」を選んだ
+ * 場合のみクライアント側で物理削除される。
  * DirectMessageRepository.deleteDmAfterAccountDeletion参照）。 */
 async function notifyDirectMessages(
   userId: string,
@@ -169,9 +171,13 @@ async function notifyDirectMessages(
     .get();
 
   for (const dm of dms.docs) {
-    const messageRef = dm.ref.collection("messages").doc();
+    const defaultRoomId: string | undefined = dm.data().defaultRoomId;
+    if (!defaultRoomId) continue;
+
+    const roomRef = dm.ref.collection("rooms").doc(defaultRoomId);
+    const messageRef = roomRef.collection("messages").doc();
     await writer.set(messageRef, {
-      conversationId: dm.id,
+      conversationId: defaultRoomId,
       conversationType: "dm",
       senderId: userId,
       senderRhingId: rhingId ?? null,
@@ -184,6 +190,9 @@ async function notifyDirectMessages(
       silent: false,
       reactions: {},
       accountDeletionResponse: null,
+    });
+    await writer.update(roomRef, {
+      lastMessageAt: FieldValue.serverTimestamp(),
     });
     await writer.update(dm.ref, {
       accountDeletedUserId: userId,
