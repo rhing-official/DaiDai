@@ -214,6 +214,10 @@ class Strings {
     required this.settingsDeleteAccountConfirmTitle,
     required this.settingsDeleteAccountConfirmMessage,
     required this.settingsDeleteAccountConfirmButton,
+    required this.settingsDeleteAccountImmediate,
+    required this.settingsDeleteAccountImmediateConfirmTitle,
+    required this.settingsDeleteAccountImmediateConfirmMessage,
+    required this.settingsDeleteAccountImmediateConfirmButton,
     required this.accountRestoreTitle,
     required this.accountRestoreMessage,
     required this.accountRestoreButton,
@@ -462,6 +466,12 @@ class Strings {
   final String settingsDeleteAccountConfirmMessage;
   final String settingsDeleteAccountConfirmButton;
 
+  /// 30日間の復元猶予期間を経ない、即時削除（復元不可）の操作行ラベル。
+  final String settingsDeleteAccountImmediate;
+  final String settingsDeleteAccountImmediateConfirmTitle;
+  final String settingsDeleteAccountImmediateConfirmMessage;
+  final String settingsDeleteAccountImmediateConfirmButton;
+
   final String accountRestoreTitle;
   /// 復元プロンプトの説明文。残り日数を差し込む。
   final String Function(int remainingDays) accountRestoreMessage;
@@ -532,7 +542,7 @@ class Strings {
     settingsTwoFactor: '2段階認証',
     settingsPasskey: 'パスキー',
     settingsQrLogin: 'QRコードによるログイン',
-    settingsDeleteAccount: 'アカウントの削除',
+    settingsDeleteAccount: 'アカウントを削除する（30日以内なら復元可）',
     settingsComingSoon: '準備中',
     settingsSendKeyTitle: 'メッセージの送信キー',
     settingsSendKeyEnterToSend: 'Enterで送信、Shift+Enterで改行',
@@ -701,6 +711,11 @@ class Strings {
     settingsDeleteAccountConfirmMessage:
         '削除すると30日間は復元できます。何も操作をしないまま31日が経過すると、サーバーから全ての情報が完全に削除されます。',
     settingsDeleteAccountConfirmButton: '削除する',
+    settingsDeleteAccountImmediate: '今すぐ削除する（復元不可）',
+    settingsDeleteAccountImmediateConfirmTitle: '今すぐ削除しますか？',
+    settingsDeleteAccountImmediateConfirmMessage:
+        'この操作は取り消せません。今すぐサーバーから全ての情報が完全に削除されます（30日間の復元期間はありません）。',
+    settingsDeleteAccountImmediateConfirmButton: '今すぐ削除する',
     accountRestoreTitle: 'アカウントを復元しますか？',
     accountRestoreMessage: (remainingDays) =>
         'あと$remainingDays日で、サーバーから全ての情報が完全に削除されます。',
@@ -773,7 +788,7 @@ class Strings {
     settingsTwoFactor: 'Two-factor authentication',
     settingsPasskey: 'Passkey',
     settingsQrLogin: 'Sign in with a QR code',
-    settingsDeleteAccount: 'Delete account',
+    settingsDeleteAccount: 'Delete account (restorable within 30 days)',
     settingsComingSoon: 'Coming soon',
     settingsSendKeyTitle: 'Message send key',
     settingsSendKeyEnterToSend: 'Enter to send, Shift+Enter for a new line',
@@ -965,6 +980,13 @@ class Strings {
         'all your data will be permanently deleted from our servers after '
         '31 days.',
     settingsDeleteAccountConfirmButton: 'Delete',
+    settingsDeleteAccountImmediate: 'Delete immediately (not restorable)',
+    settingsDeleteAccountImmediateConfirmTitle: 'Delete immediately?',
+    settingsDeleteAccountImmediateConfirmMessage:
+        'This action cannot be undone. All your data will be permanently '
+        'deleted from our servers right now (there is no 30-day restore '
+        'period).',
+    settingsDeleteAccountImmediateConfirmButton: 'Delete now',
     accountRestoreTitle: 'Restore your account?',
     accountRestoreMessage: (remainingDays) =>
         'All your data will be permanently deleted from our servers in '

@@ -134,7 +134,8 @@ void main() {
     expect(find.text('パスキー'), findsOneWidget);
     expect(find.text('QRコードによるログイン'), findsOneWidget);
     expect(find.text('ログアウト'), findsOneWidget);
-    expect(find.text('アカウントの削除'), findsOneWidget);
+    expect(find.text('アカウントを削除する（30日以内なら復元可）'), findsOneWidget);
+    expect(find.text('今すぐ削除する（復元不可）'), findsOneWidget);
     expect(find.text('準備中'), findsWidgets);
 
     // 別のカテゴリ（アプリケーション）に切り替えると、アカウントの内容は消える。

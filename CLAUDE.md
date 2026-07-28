@@ -145,7 +145,7 @@ DaiDaiは独自の世界観用語を使う。変数名・クラス名・コレ�
 - **決済**: Stripe経由のブラウザ決済のみ。iOS/Android/macOSアプリ内課金は実装しない（プラットフォーム規約対応、審査説明文は企画書7章参照）
 - **スパム対策**: 仲間承認制がベース。E2E暗号化との両立のためメッセージ内容はサーバー側で監視せず、メタデータ分析＋クライアント側チェックの多層防御（企画書/技術仕様書8章にレート制限の具体値あり）
 - **安否確認（フェーズ3）**: 気象庁防災情報APIを1分ごとにポーリングし震度5強以上で発動。オプトイン方式、応答データは72時間後自動削除
-- **アカウント削除（2026-07-28実装、旧: 3時間以内に完全削除から変更）**: 申請後30日間は情報を保持し、その間にログインすると「アカウントを復元しますか？」（`lib/features/auth/account_restore_screen.dart`）から復元できる。何も操作をしないまま31日目の00:00（Asia/Tokyo）になると、Cloud Functions（`functions/src/index.ts`の`processAccountDeletions`、毎日00:00実行）がサーバーから全情報を完全削除する（Firestore・Firebase Authとも）。一対（DM）には削除完了時点で「〇〇がアカウントを削除しました。語らいを削除しますか？」と通知され、「はい」→確認→即時に会話履歴を物理削除、「いいえ」なら通知だけが残る（`DirectMessage.accountDeletedUserId`、`Message.contentType == 'accountDeleted'`）。広場には「〇〇がアカウントを削除しました。」の通知のみで、削除の選択肢は無い。広場の長が削除した場合は長交代の仕組みが無いため、メンバー一覧からの除去は行わず通知のみ行う（長交代機能は未実装）
+- **アカウント削除（2026-07-28実装、旧: 3時間以内に完全削除から変更）**: 設定＞アカウントから2パターン選べる。(1) **通常削除**（`UserRepository.requestAccountDeletion`）: 申請後30日間は情報を保持し、その間にログインすると「アカウントを復元しますか？」（`lib/features/auth/account_restore_screen.dart`）から復元できる。何も操作をしないまま31日目の00:00（Asia/Tokyo）になると、Cloud Functions（`functions/src/index.ts`の`processAccountDeletions`、毎日00:00実行のスケジュールトリガー）がサーバーから全情報を完全削除する。(2) **即時削除**（`UserRepository.deleteAccountImmediately`）: 30日間の猶予を経ず、Cloud Functionsのcallable関数`deleteAccountImmediately`（同ファイル、認証中の本人のみ呼び出し可）を通じてその場で完全削除する（復元不可）。どちらも実際の削除処理は共通の`deleteAccount`ヘルパーを使う（Firestore・Firebase Authとも削除）。一対（DM）には削除完了時点で「〇〇がアカウントを削除しました。語らいを削除しますか？」と通知され、「はい」→確認→即時に会話履歴を物理削除、「いいえ」なら通知だけが残る（`DirectMessage.accountDeletedUserId`、`Message.contentType == 'accountDeleted'`）。広場には「〇〇がアカウントを削除しました。」の通知のみで、削除の選択肢は無い。広場の長が削除した場合は長交代の仕組みが無いため、メンバー一覧からの除去は行わず通知のみ行う（長交代機能は未実装）
 
 ## 実装しない機能（明確な方針）
 

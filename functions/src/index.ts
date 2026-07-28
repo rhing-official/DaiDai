@@ -7,6 +7,7 @@ import {
   type WriteBatch,
 } from "firebase-admin/firestore";
 import { logger } from "firebase-functions";
+import { HttpsError, onCall } from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 
 initializeApp();
@@ -94,6 +95,29 @@ export const processAccountDeletions = onSchedule(
         logger.error(`アカウント削除に失敗: ${doc.id}`, error);
       }
     }
+  },
+);
+
+/**
+ * 30日間の復元猶予期間を経ず、呼び出したユーザー自身のアカウントを今すぐ
+ * 完全に削除する（復元不可）。DM/広場への通知・メンバー除去・
+ * friends/friendRequests削除等は[processAccountDeletions]と全く同じ
+ * [deleteAccount]ヘルパーを共用する。[request.auth.uid]以外のユーザーを
+ * 削除することはできない（他人のアカウントを消せないようにするため）。
+ */
+export const deleteAccountImmediately = onCall(
+  { region: "asia-northeast1" },
+  async (request) => {
+    const uid = request.auth?.uid;
+    if (!uid) {
+      throw new HttpsError("unauthenticated", "ログインが必要です");
+    }
+    const userDoc = await db.collection("users").doc(uid).get();
+    if (!userDoc.exists) {
+      throw new HttpsError("not-found", "ユーザーが見つかりません");
+    }
+    await deleteAccount(uid, userDoc.data()!);
+    logger.info(`アカウント即時削除完了: ${uid}`);
   },
 );
 

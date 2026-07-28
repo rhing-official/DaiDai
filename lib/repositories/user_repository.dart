@@ -2,6 +2,7 @@ import 'dart:io' show Platform;
 import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_image_compress/flutter_image_compress.dart';
@@ -98,15 +99,31 @@ abstract class UserRepository {
 
   /// 削除申請中のアカウントを復元する（31日以内のみ有効）。
   Future<void> restoreAccount(String userId);
+
+  /// アカウントを30日間の復元猶予期間を経ず、今すぐ完全に削除する
+  /// （復元不可）。[requestAccountDeletion]と違い、DM/広場への通知・
+  /// メンバー除去・friends/friendRequests削除・Firebase Authアカウント削除
+  /// までを1回のCloud Functions呼び出し（`deleteAccountImmediately`）で
+  /// 完了させる（`functions/src/index.ts`の`deleteAccount`ヘルパーを
+  /// 定期処理と共用）。認証中のユーザー自身のみ実行可能。
+  Future<void> deleteAccountImmediately();
 }
 
 class FirestoreUserRepository implements UserRepository {
-  FirestoreUserRepository({FirebaseFirestore? firestore, FirebaseStorage? storage})
-      : _firestore = firestore ?? FirebaseFirestore.instance,
-        _storage = storage ?? FirebaseStorage.instance;
+  FirestoreUserRepository({
+    FirebaseFirestore? firestore,
+    FirebaseStorage? storage,
+    FirebaseFunctions? functions,
+  })  : _firestore = firestore ?? FirebaseFirestore.instance,
+        _storage = storage ?? FirebaseStorage.instance,
+        // Cloud Functions（functions/src/index.ts）はasia-northeast1に
+        // デプロイしているため、呼び出し側もリージョンを明示する。
+        _functions =
+            functions ?? FirebaseFunctions.instanceFor(region: 'asia-northeast1');
 
   final FirebaseFirestore _firestore;
   final FirebaseStorage _storage;
+  final FirebaseFunctions _functions;
 
   CollectionReference<Map<String, dynamic>> get _users =>
       _firestore.collection('users');
@@ -394,5 +411,10 @@ class FirestoreUserRepository implements UserRepository {
       'accountStatus': AccountStatus.active.name,
       'deletionRequestedAt': null,
     });
+  }
+
+  @override
+  Future<void> deleteAccountImmediately() async {
+    await _functions.httpsCallable('deleteAccountImmediately').call();
   }
 }
