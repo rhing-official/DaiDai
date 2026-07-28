@@ -291,3 +291,4 @@ async function deleteSubcollection(
     await writer.delete(doc.ref);
   }
 }
+

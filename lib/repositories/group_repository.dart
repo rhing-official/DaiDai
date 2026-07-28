@@ -2,6 +2,7 @@ import 'dart:io' show Platform;
 import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:collection/collection.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_image_compress/flutter_image_compress.dart';
@@ -50,45 +51,72 @@ abstract class GroupRepository {
     required String requestedBy,
   });
 
-  /// この広場のカスタムロール一覧を作成順に購読する（見た目専用、
-  /// `memberRoles`＝長・モデレーター・メンバーという実際の権限区分とは無関係）。
+  /// この広場のカスタムロール一覧を作成順に購読する。長のみ持つ全権限は
+  /// ロールとは別枠（[Group.ownerId]）で扱う。基準ロール（[GroupRole.isEveryone]）
+  /// が必ず1件含まれる。
   Stream<List<GroupRole>> watchRoles(String groupId);
 
-  /// ロールを作成する（長・モデレーターのみ、firestore.rulesで強制）。
+  /// ロールを作成する（`GroupPermission.manageRoles`を持つメンバーのみ、
+  /// firestore.rulesで強制）。成功後、広場全体の優先順位（[Group.rolePriority]）の
+  /// 最後尾に自動で追加される。
   Future<GroupRole> createRole({
     required String groupId,
     required String name,
-    required int color,
+    required int? color,
+    required Set<String> permissions,
   });
 
-  /// ロールの名前・色を編集する（長・モデレーターのみ）。
+  /// ロールの名前・色・権限を編集する（`GroupPermission.manageRoles`が必要）。
+  /// 基準ロール（[GroupRole.isEveryone]）も名前以外は編集できる（呼び出し側で
+  /// 名前欄自体を無効化する）。
   Future<void> updateRole({
     required String groupId,
     required String roleId,
     required String name,
-    required int color,
+    required int? color,
+    required Set<String> permissions,
   });
 
-  /// ロールを削除する（長・モデレーターのみ）。このロールを付与されていた
-  /// 全メンバーから、広場全体・寄合ごとの付与を問わず自動的に外す。
+  /// ロールを削除する（`GroupPermission.manageRoles`が必要）。基準ロールは
+  /// 削除できない（呼び出し側で削除ボタン自体を無効化する）。このロールを
+  /// 付与されていた全メンバーから外し、広場全体・寄合ごとの優先順位からも除去する。
   Future<void> deleteRole({required String groupId, required String roleId});
 
-  /// 広場全体でのロール付与を設定する（[roleId]がnullなら解除、
-  /// 長・モデレーターのみ）。特定の寄合で[assignRoomRole]による付与が
-  /// 別途されていれば、そちらが表示上優先される。
+  /// メンバーにロールを1つ付与する（同時に複数付与可、`GroupPermission.
+  /// manageRoles`が必要）。
   Future<void> assignRole({
     required String groupId,
     required String userId,
-    required String? roleId,
+    required String roleId,
   });
 
-  /// 特定の寄合限定でのロール付与を設定する（[roleId]がnullなら解除、
-  /// 長・モデレーターのみ）。[assignRole]（広場全体の付与）より表示上優先される。
-  Future<void> assignRoomRole({
+  /// メンバーからロールを1つ外す（`GroupPermission.manageRoles`が必要）。
+  Future<void> unassignRole({
+    required String groupId,
+    required String userId,
+    required String roleId,
+  });
+
+  /// 広場全体でのロール優先順位（呼び名の色を決める順序、先頭が最優先）を
+  /// 設定する（`GroupPermission.manageRoles`が必要）。基準ロールは含めない。
+  Future<void> setRolePriority({
+    required String groupId,
+    required List<String> roleIds,
+  });
+
+  /// 特定の寄合限定でのロール優先順位の上書きを設定する（[roleIds]がnullなら
+  /// 上書きを解除し、広場全体の優先順位に戻す。`GroupPermission.manageRoles`が必要）。
+  Future<void> setRoomRolePriorityOverride({
     required String groupId,
     required String roomId,
-    required String userId,
-    required String? roleId,
+    required List<String>? roleIds,
+  });
+
+  /// 長（オーナー）を別のメンバーに譲渡する（長のみ実行可、firestore.rulesで
+  /// 強制）。譲渡後、旧オーナーは通常のメンバーになる。
+  Future<void> transferOwnership({
+    required String groupId,
+    required String newOwnerId,
   });
 
   /// [watchRoomMessages]の直近50件に含まれない古い返信先へジャンプする際に
@@ -277,10 +305,28 @@ class FirestoreGroupRepository implements GroupRepository {
     batch.set(roomRef, room.toJson());
     await batch.commit();
 
-    // groupInvitesのセキュリティルールはgroups/{groupId}を`get()`で参照して
-    // memberIdsを判定するため、groupsのコミット完了後に別書き込みとして実行する
-    // 必要がある（同一バッチ内だとget()が未コミットのgroupsを見られずpermission-deniedになる）。
+    // groupInvites・roles/{everyoneRole}のセキュリティルールはgroups/{groupId}を
+    // `get()`で参照してmemberIds/ownerId等を判定するため、groupsのコミット完了後に
+    // 別書き込みとして実行する必要がある（同一バッチ内だとget()が未コミットの
+    // groupsを見られずpermission-deniedになる）。
     await _groupInvites.doc(groupRef.id).set(invitePreview.toJson());
+
+    // 全メンバーに自動適用される基準ロール（Discordの@everyone相当）。
+    // 招待リンク作成はこれまで誰でも可能だったため、その挙動を再現する
+    // デフォルト権限にする。色は付けない（他のロールの色を邪魔しないよう、
+    // 常に最下位優先度扱いにする、`resolveSenderColor`参照）。
+    final everyoneRoleRef = _rolesOf(groupRef.id).doc();
+    await everyoneRoleRef.set(
+      GroupRole(
+        roleId: everyoneRoleRef.id,
+        groupId: groupRef.id,
+        name: '全員',
+        color: null,
+        permissions: const {GroupPermission.createInvite},
+        isEveryone: true,
+      ).toJson(),
+    );
+    await _recomputeMemberPermissions(groupRef.id);
 
     return group;
   }
@@ -316,13 +362,22 @@ class FirestoreGroupRepository implements GroupRepository {
 
   @override
   Stream<List<Room>> watchRooms(String groupId) {
-    return _groups
-        .doc(groupId)
-        .collection('rooms')
-        .orderBy('createdAt')
-        .snapshots()
-        .map((snapshot) =>
-            snapshot.docs.map((doc) => Room.fromJson(doc.id, doc.data())).toList());
+    // Firestoreの`orderBy`はソート対象フィールドを持たないドキュメントを
+    // 結果から除外してしまう。この機能を追加する前に作られた「メイン」室
+    // には`createdAt`が無いため、`orderBy('createdAt')`を使うと表示されなく
+    // なる不具合があった。クライアント側ソート（`createdAt`が無い場合は
+    // 最古扱い）に変更して回避する。
+    return _groups.doc(groupId).collection('rooms').snapshots().map((snapshot) {
+      final rooms =
+          snapshot.docs.map((doc) => Room.fromJson(doc.id, doc.data())).toList()
+            ..sort(_compareByCreatedAt);
+      return rooms;
+    });
+  }
+
+  int _compareByCreatedAt(Room a, Room b) {
+    return (a.createdAt?.millisecondsSinceEpoch ?? 0)
+        .compareTo(b.createdAt?.millisecondsSinceEpoch ?? 0);
   }
 
   @override
@@ -349,8 +404,9 @@ class FirestoreGroupRepository implements GroupRepository {
     required String roomId,
     required String requestedBy,
   }) async {
-    final roomsSnapshot =
-        await _groups.doc(groupId).collection('rooms').orderBy('createdAt').get();
+    // watchRoomsと同じ理由でorderBy('createdAt')は使わない
+    // （createdAtが無い古い「メイン」室が数から漏れてしまうため）。
+    final roomsSnapshot = await _groups.doc(groupId).collection('rooms').get();
     if (roomsSnapshot.docs.length <= 1) {
       throw StateError('最後の1つの寄合は削除できません');
     }
@@ -375,7 +431,11 @@ class FirestoreGroupRepository implements GroupRepository {
 
     final group = await getGroup(groupId);
     if (group != null && group.defaultRoomId == roomId) {
-      final remaining = roomsSnapshot.docs.where((d) => d.id != roomId).toList();
+      final remaining = roomsSnapshot.docs.where((d) => d.id != roomId).toList()
+        ..sort((a, b) =>
+            ((a.data()['createdAt'] as Timestamp?)?.millisecondsSinceEpoch ?? 0)
+                .compareTo(
+                    (b.data()['createdAt'] as Timestamp?)?.millisecondsSinceEpoch ?? 0));
       if (remaining.isNotEmpty) {
         await _groups.doc(groupId).update({'defaultRoomId': remaining.first.id});
       }
@@ -849,6 +909,8 @@ class FirestoreGroupRepository implements GroupRepository {
       });
     }
     await batch.commit();
+    // 新規メンバーにも基準ロールの権限を反映する。
+    await _recomputeMemberPermissions(request.groupId);
   }
 
   @override
@@ -870,6 +932,8 @@ class FirestoreGroupRepository implements GroupRepository {
     batch.update(groupRef, {
       'memberIds': FieldValue.arrayRemove([userId]),
       'memberRoles': updatedRoles,
+      'roleAssignments.$userId': FieldValue.delete(),
+      'memberPermissions.$userId': FieldValue.delete(),
     });
     for (final roomDoc in roomsSnapshot.docs) {
       batch.update(roomDoc.reference, {
@@ -884,18 +948,26 @@ class FirestoreGroupRepository implements GroupRepository {
 
   @override
   Stream<List<GroupRole>> watchRoles(String groupId) {
-    return _rolesOf(groupId).orderBy('createdAt').snapshots().map(
-          (snapshot) => snapshot.docs
-              .map((doc) => GroupRole.fromJson(doc.id, doc.data()))
-              .toList(),
-        );
+    // watchRoomsと同じ理由でorderBy('createdAt')は使わない（作成直後、
+    // サーバー側でserverTimestamp()が解決するまでの一瞬、ローカルの
+    // 保留中書き込みがcreatedAt=nullとして扱われ、orderByクエリの結果から
+    // 除外されてしまうため）。
+    return _rolesOf(groupId).snapshots().map((snapshot) {
+      final roles = snapshot.docs
+          .map((doc) => GroupRole.fromJson(doc.id, doc.data()))
+          .toList()
+        ..sort((a, b) => (a.createdAt?.millisecondsSinceEpoch ?? 0)
+            .compareTo(b.createdAt?.millisecondsSinceEpoch ?? 0));
+      return roles;
+    });
   }
 
   @override
   Future<GroupRole> createRole({
     required String groupId,
     required String name,
-    required int color,
+    required int? color,
+    required Set<String> permissions,
   }) async {
     final roleRef = _rolesOf(groupId).doc();
     final role = GroupRole(
@@ -903,8 +975,13 @@ class FirestoreGroupRepository implements GroupRepository {
       groupId: groupId,
       name: name,
       color: color,
+      permissions: permissions,
     );
     await roleRef.set(role.toJson());
+    // 新規ロールを優先順位（色の適用順）の最後尾に追加する。
+    await _groups.doc(groupId).update({
+      'rolePriority': FieldValue.arrayUnion([roleRef.id]),
+    });
     return role;
   }
 
@@ -913,9 +990,17 @@ class FirestoreGroupRepository implements GroupRepository {
     required String groupId,
     required String roleId,
     required String name,
-    required int color,
+    required int? color,
+    required Set<String> permissions,
   }) async {
-    await _rolesOf(groupId).doc(roleId).update({'name': name, 'color': color});
+    await _rolesOf(groupId).doc(roleId).update({
+      'name': name,
+      'color': color,
+      'permissions': permissions.toList(),
+    });
+    // 権限が変わった可能性があるため、このロールを持つメンバー（基準ロール
+    // なら全メンバー）の実効権限を再計算する。
+    await _recomputeMemberPermissions(groupId);
   }
 
   @override
@@ -925,51 +1010,111 @@ class FirestoreGroupRepository implements GroupRepository {
   }) async {
     await _rolesOf(groupId).doc(roleId).delete();
 
-    // このロールが付与されていたメンバーから外す（広場全体・寄合ごとの
-    // 付与の両方）。付与はuserId->roleIdのマップのため、削除対象を
-    // 一度読み込んで値で絞り込む必要がある。
     final groupRef = _groups.doc(groupId);
     final groupDoc = await groupRef.get();
-    final groupAssignments =
-        Map<String, dynamic>.from(groupDoc.data()?['roleAssignments'] as Map? ?? {});
-    final groupUpdate = <String, dynamic>{
-      for (final entry in groupAssignments.entries)
-        if (entry.value == roleId) 'roleAssignments.${entry.key}': FieldValue.delete(),
-    };
-    if (groupUpdate.isNotEmpty) await groupRef.update(groupUpdate);
+    final group = Group.fromJson(groupRef.id, groupDoc.data()!);
 
+    // このロールを付与されていたメンバーから外し、広場全体の優先順位からも除去する。
+    final groupUpdate = <String, dynamic>{
+      'rolePriority': FieldValue.arrayRemove([roleId]),
+    };
+    for (final entry in group.roleAssignments.entries) {
+      if (entry.value.contains(roleId)) {
+        groupUpdate['roleAssignments.${entry.key}'] =
+            FieldValue.arrayRemove([roleId]);
+      }
+    }
+    await groupRef.update(groupUpdate);
+
+    // 寄合ごとの優先順位上書きからも除去する。
     final roomsSnapshot = await groupRef.collection('rooms').get();
     for (final roomDoc in roomsSnapshot.docs) {
-      final roomAssignments =
-          Map<String, dynamic>.from(roomDoc.data()['roleAssignments'] as Map? ?? {});
-      final roomUpdate = <String, dynamic>{
-        for (final entry in roomAssignments.entries)
-          if (entry.value == roleId) 'roleAssignments.${entry.key}': FieldValue.delete(),
-      };
-      if (roomUpdate.isNotEmpty) await roomDoc.reference.update(roomUpdate);
+      final override = roomDoc.data()['rolePriorityOverride'];
+      if (override is List && override.contains(roleId)) {
+        await roomDoc.reference.update({
+          'rolePriorityOverride': FieldValue.arrayRemove([roleId]),
+        });
+      }
     }
+
+    await _recomputeMemberPermissions(groupId);
   }
 
   @override
   Future<void> assignRole({
     required String groupId,
     required String userId,
-    required String? roleId,
+    required String roleId,
   }) async {
     await _groups.doc(groupId).update({
-      'roleAssignments.$userId': roleId ?? FieldValue.delete(),
+      'roleAssignments.$userId': FieldValue.arrayUnion([roleId]),
     });
+    await _recomputeMemberPermissions(groupId);
   }
 
   @override
-  Future<void> assignRoomRole({
+  Future<void> unassignRole({
+    required String groupId,
+    required String userId,
+    required String roleId,
+  }) async {
+    await _groups.doc(groupId).update({
+      'roleAssignments.$userId': FieldValue.arrayRemove([roleId]),
+    });
+    await _recomputeMemberPermissions(groupId);
+  }
+
+  @override
+  Future<void> setRolePriority({
+    required String groupId,
+    required List<String> roleIds,
+  }) async {
+    await _groups.doc(groupId).update({'rolePriority': roleIds});
+  }
+
+  @override
+  Future<void> setRoomRolePriorityOverride({
     required String groupId,
     required String roomId,
-    required String userId,
-    required String? roleId,
+    required List<String>? roleIds,
   }) async {
-    await _roomRef(groupId, roomId).update({
-      'roleAssignments.$userId': roleId ?? FieldValue.delete(),
-    });
+    await _roomRef(groupId, roomId).update({'rolePriorityOverride': roleIds});
+  }
+
+  @override
+  Future<void> transferOwnership({
+    required String groupId,
+    required String newOwnerId,
+  }) async {
+    await _groups.doc(groupId).update({'ownerId': newOwnerId});
+  }
+
+  /// [Group.memberPermissions]（userId -> 有効な権限文字列のリスト）を、
+  /// 現在のロール定義・付与状況から再計算して書き込む。firestore.rulesが
+  /// ロールドキュメントを跨いで動的に権限を判定できないための非正規化
+  /// （`Room.memberIds`が`Group.memberIds`を非正規化して持つのと同じ設計）。
+  /// 対象人数が小規模な想定のため、常に全メンバー分をまとめて再計算する。
+  Future<void> _recomputeMemberPermissions(String groupId) async {
+    final groupRef = _groups.doc(groupId);
+    final groupDoc = await groupRef.get();
+    if (!groupDoc.exists) return;
+    final group = Group.fromJson(groupRef.id, groupDoc.data()!);
+
+    final rolesSnapshot = await _rolesOf(groupId).get();
+    final roles =
+        rolesSnapshot.docs.map((d) => GroupRole.fromJson(d.id, d.data())).toList();
+    final rolesById = {for (final role in roles) role.roleId: role};
+    final everyoneRole = roles.firstWhereOrNull((r) => r.isEveryone);
+
+    final memberPermissions = <String, List<String>>{
+      for (final userId in group.memberIds)
+        userId: {
+          ...?everyoneRole?.permissions,
+          for (final roleId in group.roleAssignments[userId] ?? const <String>[])
+            ...?rolesById[roleId]?.permissions,
+        }.toList(),
+    };
+
+    await groupRef.update({'memberPermissions': memberPermissions});
   }
 }

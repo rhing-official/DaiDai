@@ -9,6 +9,16 @@ service cloud.firestore {
       return a < b ? a + '_' + b : b + '_' + a;
     }
 
+    // 広場[groupId]でrequest.auth.uidが[permission]（GroupPermissionの定数、
+    // lib/models/group_role.dart参照）を持つかどうか。長（ownerId）は常に
+    // 全権限を持つ。それ以外はGroup.memberPermissions（ロールの権限・付与から
+    // クライアントが再計算して非正規化した実効権限、2026-07-28追加）を見る。
+    function hasGroupPermission(groupId, permission) {
+      let group = get(/databases/$(database)/documents/groups/$(groupId)).data;
+      return group.ownerId == request.auth.uid
+        || permission in group.memberPermissions[request.auth.uid];
+    }
+
     // users/{userId}: 本人のみ作成・更新可能。ログイン済みなら誰でも参照可能
     // （Rhing ID検索・重複チェックのため一覧クエリを許可する）。
     match /users/{userId} {
@@ -285,12 +295,24 @@ service cloud.firestore {
 
     // groups/{groupId}: 広場。メンバーのみ読み取り可能。
     // 作成時: 作成者がownerかつメンバーに含まれていること。
-    // 更新（2026-07-24追加、広場のカスタマイズ機能）は以下の3パターンのみ許可する:
-    //  (1) プロフィールカードの編集: メンバー全員が可能。profileCardフィールドのみ変更。
-    //  (2) 参加リクエストの承認によるメンバー追加: 長・モデレーターのみ、
-    //      memberIds/memberRolesのみ変更。承認の可否自体はjoinRequests側で統制する。
-    //  (3) 本人の退会: 自分自身をmemberIds/memberRolesから除く変更のみ、
-    //      本人が実行可能（オーナーは対象外＝退会不可）。
+    // 権限モデル（2026-07-28更新）: 「モデレーター」は廃止し、長（ownerId、
+    // 常に全権限）とカスタムロール（GroupPermissionの権限を持つ、複数付与可）に
+    // 統合した。実際の権限はGroup.memberPermissions（クライアントが
+    // ロール定義・付与から再計算して非正規化した実効権限）を根拠にする。
+    // 更新（2026-07-24追加、広場のカスタマイズ機能）は以下のパターンのみ許可する:
+    //  (1) プロフィールカードの編集: メンバー全員が可能。profileCard/nameのみ変更。
+    //  (2) 他メンバーを含むmemberIds/memberRolesの書き換え（強制退会等）: 長のみ。
+    //  (3) 参加リクエストの承認によるメンバー追加: manageJoinRequests権限を持つ
+    //      メンバーのみ、既存メンバーを除去しない変更のみ。承認の可否自体は
+    //      joinRequests側で統制する。
+    //  (4) 本人の退会: 自分自身をmemberIds/memberRoles/roleAssignments/
+    //      memberPermissionsから除く変更のみ、本人が実行可能
+    //      （オーナーは対象外＝退会不可）。
+    //  (5) 既読機能のオン/オフ: manageReadReceipts権限を持つメンバーのみ。
+    //  (6) ロールの付与・優先順位: manageRoles権限を持つメンバーのみ。
+    //  (7) memberPermissionsの再計算書き込み: manageRoles/manageJoinRequests
+    //      権限を持つメンバーのみ（クライアント計算結果をそのまま信頼する）。
+    //  (8) 長の譲渡: 現オーナーのみ、新オーナーは既存メンバーであること。
     match /groups/{groupId} {
       allow read: if request.auth != null
         && request.auth.uid in resource.data.memberIds;
@@ -304,25 +326,61 @@ service cloud.firestore {
           // 同一の値として扱うため、nameも同時に変更できるようにする
           // （2026-07-25、カード編集画面から広場名も変更できるようにした変更）。
           request.resource.data.diff(resource.data).affectedKeys().hasOnly(['profileCard', 'name'])
+          // 他メンバーを含むmemberIds/memberRolesの書き換え（強制退会等）は
+          // 長のみ（2026-07-28、「モデレーター」概念の廃止に伴いownerId基準に
+          // 変更。対応する強制退会UI機能は現状無い）。
           || (
-            resource.data.memberRoles[request.auth.uid] in ['owner', 'moderator']
+            request.auth.uid == resource.data.ownerId
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberIds', 'memberRoles'])
           )
+          // 参加リクエストの承認によるメンバー追加（長、またはmanageJoinRequests
+          // 権限を持つロールの付与者のみ。既存メンバーを除去する変更は不可、
+          // 2026-07-28更新）。
+          || (
+            (request.auth.uid == resource.data.ownerId
+              || 'manageJoinRequests' in resource.data.memberPermissions[request.auth.uid])
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberIds', 'memberRoles'])
+            && request.resource.data.memberIds.hasAll(resource.data.memberIds)
+          )
+          // 自分自身の退会（memberIds/memberRolesに加え、自分のロール付与・
+          // 実効権限キャッシュも同じ書き込みでクリアする、2026-07-28更新）。
           || (
             request.auth.uid != resource.data.ownerId
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberIds', 'memberRoles'])
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['memberIds', 'memberRoles', 'roleAssignments', 'memberPermissions'])
             && request.resource.data.memberIds == resource.data.memberIds.removeAll([request.auth.uid])
           )
-          // 既読機能のオン/オフ（長のみ変更可、2026-07-28追加）。
+          // 既読機能のオン/オフ（長、またはmanageReadReceipts権限を持つ
+          // ロールの付与者のみ変更可、2026-07-28更新）。
           || (
-            resource.data.memberRoles[request.auth.uid] == 'owner'
+            (request.auth.uid == resource.data.ownerId
+              || 'manageReadReceipts' in resource.data.memberPermissions[request.auth.uid])
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readReceiptsEnabled'])
           )
-          // カスタムロールの広場全体での付与（見た目専用、長・モデレーターのみ、
-          // 2026-07-28追加）。
+          // カスタムロールの付与・優先順位の変更（長、またはmanageRoles権限を
+          // 持つロールの付与者のみ、2026-07-28更新）。
           || (
-            resource.data.memberRoles[request.auth.uid] in ['owner', 'moderator']
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['roleAssignments'])
+            (request.auth.uid == resource.data.ownerId
+              || 'manageRoles' in resource.data.memberPermissions[request.auth.uid])
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['roleAssignments', 'rolePriority'])
+          )
+          // 実効権限キャッシュ（memberPermissions）の再計算書き込み。
+          // ロール変更（manageRoles）・参加承認（manageJoinRequests）いずれの
+          // 後にも呼ばれるため両方を許可する（firestore.rulesはロール
+          // ドキュメントを跨いだ動的な権限計算ができないため、クライアントが
+          // 計算した結果をそのまま信頼する設計。2026-07-28追加）。
+          || (
+            (request.auth.uid == resource.data.ownerId
+              || 'manageRoles' in resource.data.memberPermissions[request.auth.uid]
+              || 'manageJoinRequests' in resource.data.memberPermissions[request.auth.uid])
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberPermissions'])
+          )
+          // 長の譲渡（現オーナーのみ、新オーナーは既存メンバーであること、2026-07-28追加）。
+          || (
+            request.auth.uid == resource.data.ownerId
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['ownerId'])
+            && request.resource.data.ownerId in resource.data.memberIds
           )
         );
       allow delete: if false;
@@ -332,14 +390,14 @@ service cloud.firestore {
       match /joinRequests/{requesterId} {
         allow read: if request.auth != null
           && (request.auth.uid == requesterId
-              || get(/databases/$(database)/documents/groups/$(groupId)).data.memberRoles[request.auth.uid] in ['owner', 'moderator']);
+              || hasGroupPermission(groupId, 'manageJoinRequests'));
         allow create: if request.auth != null
           && request.auth.uid == requesterId
           && request.resource.data.requesterId == requesterId
           && request.resource.data.groupId == groupId
           && request.resource.data.status == 'pending';
-        // 承認・却下は長・モデレーターのみ。id・申請者情報は不変。
-        // 却下後の再申請（GroupRepository.requestToJoinは同じドキュメントを
+        // 承認・却下はmanageJoinRequests権限を持つメンバーのみ。id・申請者情報は
+        // 不変。却下後の再申請（GroupRepository.requestToJoinは同じドキュメントを
         // 使い回す設計）は申請者本人にも許可する。ただしstatusをpendingに
         // 戻すことしかできず、自分でacceptedにする等はできない
         // （却下後に再申請してもpermission-deniedになっていた不具合の修正）。
@@ -347,7 +405,7 @@ service cloud.firestore {
           && request.resource.data.requesterId == resource.data.requesterId
           && request.resource.data.groupId == resource.data.groupId
           && (
-            get(/databases/$(database)/documents/groups/$(groupId)).data.memberRoles[request.auth.uid] in ['owner', 'moderator']
+            hasGroupPermission(groupId, 'manageJoinRequests')
             || (
               request.auth.uid == requesterId
               && resource.data.status != 'pending'
@@ -357,44 +415,46 @@ service cloud.firestore {
         allow delete: if false;
       }
 
-      // roles/{roleId}: カスタムロール（見た目専用、名前と色のみ。
-      // memberRolesという実際の権限区分とは無関係、2026-07-28追加）。
-      // 作成・編集・削除は長・モデレーターのみ、閲覧はメンバー全員
-      // （呼び名の色付けにメンバー全員のクライアントが必要なため）。
+      // roles/{roleId}: カスタムロール（名前・色・権限を持つ、2026-07-28更新）。
+      // 作成・編集・削除はmanageRoles権限を持つメンバーのみ、閲覧はメンバー全員
+      // （呼び名の色付け・権限判定にメンバー全員のクライアントが必要なため）。
+      // 基準ロール（isEveryone）はGroupRepository内部でのみ作成するため、
+      // 通常の作成では常にfalseを強制する。
       match /roles/{roleId} {
         allow read: if request.auth != null
           && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.memberIds;
         allow create: if request.auth != null
-          && get(/databases/$(database)/documents/groups/$(groupId)).data.memberRoles[request.auth.uid] in ['owner', 'moderator']
-          && request.resource.data.groupId == groupId;
+          && hasGroupPermission(groupId, 'manageRoles')
+          && request.resource.data.groupId == groupId
+          && request.resource.data.isEveryone == false;
         allow update: if request.auth != null
-          && get(/databases/$(database)/documents/groups/$(groupId)).data.memberRoles[request.auth.uid] in ['owner', 'moderator'];
+          && hasGroupPermission(groupId, 'manageRoles');
         allow delete: if request.auth != null
-          && get(/databases/$(database)/documents/groups/$(groupId)).data.memberRoles[request.auth.uid] in ['owner', 'moderator'];
+          && hasGroupPermission(groupId, 'manageRoles');
       }
 
       // rooms/{roomId}: 寄合。memberIdsを広場から非正規化して持つ
       // （メッセージ読み取りルールがgroupsドキュメントを跨いで参照しなくて済むように）。
-      // 寄合の作成・削除は長・モデレーターのみ（2026-07-28、複数寄合対応で
-      // 追加。それまではメンバーなら誰でも作成でき削除は常に不可という
-      // 未整備な状態だった）。
+      // 寄合の作成・削除はmanageRooms権限を持つメンバーのみ（2026-07-28、
+      // 複数寄合対応で追加。それまではメンバーなら誰でも作成でき削除は
+      // 常に不可という未整備な状態だった）。
       match /rooms/{roomId} {
         allow read: if request.auth != null
           && request.auth.uid in resource.data.memberIds;
         allow create: if request.auth != null
-          && get(/databases/$(database)/documents/groups/$(groupId)).data.memberRoles[request.auth.uid] in ['owner', 'moderator']
+          && hasGroupPermission(groupId, 'manageRooms')
           && request.auth.uid in request.resource.data.memberIds;
         // memberIdsのみの変更（参加承認・退会同期）は全メンバー可。
-        // それ以外（name変更・寄合削除時のroomDeletionRequestedByマーカー
-        // 設定等）は長・モデレーターのみ。
+        // それ以外（name変更・寄合削除時のroomDeletionRequestedByマーカー・
+        // rolePriorityOverride設定等）はmanageRooms権限を持つメンバーのみ。
         allow update: if request.auth != null
           && request.auth.uid in resource.data.memberIds
           && (
             request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberIds'])
-            || get(/databases/$(database)/documents/groups/$(groupId)).data.memberRoles[request.auth.uid] in ['owner', 'moderator']
+            || hasGroupPermission(groupId, 'manageRooms')
           );
         allow delete: if request.auth != null
-          && get(/databases/$(database)/documents/groups/$(groupId)).data.memberRoles[request.auth.uid] in ['owner', 'moderator'];
+          && hasGroupPermission(groupId, 'manageRooms');
 
         match /messages/{messageId} {
           allow read: if request.auth != null

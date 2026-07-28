@@ -1,19 +1,24 @@
+import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/strings.dart';
+import '../../models/group.dart';
 import '../../models/group_role.dart';
 import '../../providers/repository_providers.dart';
 import '../../utils/color_hex.dart';
+import 'group_role_priority_dialog.dart';
 
-/// 広場のカスタムロール一覧（ポップアップの中身）。長・モデレーターのみが
-/// 開ける（`_GroupMenuButton`側でメニュー項目自体を無効化する）。名前・色の
-/// 作成/編集/削除のみを扱う。メンバーへの付与は`GroupMemberListPopup`側で行う。
+/// 広場のカスタムロール一覧（ポップアップの中身）。`manageRoles`権限を持つ
+/// メンバーのみが開ける（`_GroupMenuButton`側でメニュー項目自体を無効化する）。
+/// 名前・色・権限の作成/編集/削除・優先順位の並べ替えを扱う。メンバーへの付与は
+/// `GroupMemberListPopup`側で行う。[group]は優先順位（`rolePriority`）の
+/// 表示・初期値に使う。
 class GroupRoleListPopup extends ConsumerWidget {
-  const GroupRoleListPopup({required this.groupId, super.key});
+  const GroupRoleListPopup({required this.group, super.key});
 
-  final String groupId;
+  final Group group;
 
   Future<void> _showRoleDialog(
     BuildContext context,
@@ -23,70 +28,118 @@ class GroupRoleListPopup extends ConsumerWidget {
   }) async {
     final nameController = TextEditingController(text: existing?.name ?? '');
     final hexController = TextEditingController(
-      text: existing != null
-          ? Color(0xFF000000 | existing.color)
+      text: existing?.color != null
+          ? Color(0xFF000000 | existing!.color!)
               .toHexString()
               .replaceFirst('#', '')
           : 'EE7800',
     );
+    var hasColor = existing?.color != null;
+    final permissions = {...?existing?.permissions};
+    final isEveryone = existing?.isEveryone ?? false;
     String? errorText;
 
     final result = await showDialog<bool>(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setState) {
-          final previewColor = tryParseHexColor(hexController.text);
+          final previewColor = hasColor ? tryParseHexColor(hexController.text) : null;
           return AlertDialog(
             title: Text(
               existing == null
                   ? strings.groupRoleCreateDialogTitle
                   : strings.groupRoleEditDialogTitle,
             ),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: nameController,
-                  autofocus: true,
-                  decoration:
-                      InputDecoration(labelText: strings.groupRoleDialogNameLabel),
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      width: 40,
-                      height: 40,
-                      margin: const EdgeInsets.only(top: 4),
-                      decoration: BoxDecoration(
-                        color: previewColor ?? Colors.transparent,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.black12),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (isEveryone) ...[
+                    Text(
+                      strings.groupRoleEveryoneNote,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: TextField(
-                        controller: hexController,
-                        textCapitalization: TextCapitalization.characters,
-                        inputFormatters: [
-                          FilteringTextInputFormatter.allow(RegExp('[0-9a-fA-F]')),
-                          LengthLimitingTextInputFormatter(6),
-                        ],
-                        decoration: InputDecoration(
-                          labelText: strings.settingsColorCode,
-                          prefixText: '#',
-                          hintText: 'EE7800',
-                          errorText: errorText,
-                          counterText: '',
-                        ),
-                        onChanged: (_) => setState(() {}),
-                      ),
-                    ),
+                    const SizedBox(height: 12),
                   ],
-                ),
-              ],
+                  TextField(
+                    controller: nameController,
+                    autofocus: !isEveryone,
+                    enabled: !isEveryone,
+                    decoration:
+                        InputDecoration(labelText: strings.groupRoleDialogNameLabel),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: 40,
+                        height: 40,
+                        margin: const EdgeInsets.only(top: 4),
+                        decoration: BoxDecoration(
+                          color: previewColor ?? Colors.transparent,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.black12),
+                        ),
+                        child: previewColor == null
+                            ? const Icon(Icons.circle_outlined, size: 18)
+                            : null,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: TextField(
+                          controller: hexController,
+                          enabled: hasColor,
+                          textCapitalization: TextCapitalization.characters,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.allow(RegExp('[0-9a-fA-F]')),
+                            LengthLimitingTextInputFormatter(6),
+                          ],
+                          decoration: InputDecoration(
+                            labelText: strings.settingsColorCode,
+                            prefixText: '#',
+                            hintText: 'EE7800',
+                            errorText: errorText,
+                            counterText: '',
+                          ),
+                          onChanged: (_) => setState(() {}),
+                        ),
+                      ),
+                    ],
+                  ),
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    controlAffinity: ListTileControlAffinity.leading,
+                    value: !hasColor,
+                    title: Text(strings.groupRoleColorNone),
+                    onChanged: (checked) =>
+                        setState(() => hasColor = !(checked ?? false)),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    strings.groupRolePermissionsLabel,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  for (final permission in GroupPermission.all)
+                    CheckboxListTile(
+                      contentPadding: EdgeInsets.zero,
+                      controlAffinity: ListTileControlAffinity.leading,
+                      value: permissions.contains(permission),
+                      title: Text(strings.groupPermissionLabel(permission)),
+                      onChanged: (checked) => setState(() {
+                        if (checked ?? false) {
+                          permissions.add(permission);
+                        } else {
+                          permissions.remove(permission);
+                        }
+                      }),
+                    ),
+                ],
+              ),
             ),
             actions: [
               TextButton(
@@ -95,8 +148,8 @@ class GroupRoleListPopup extends ConsumerWidget {
               ),
               FilledButton(
                 onPressed: () {
-                  if (nameController.text.trim().isEmpty) return;
-                  if (tryParseHexColor(hexController.text) == null) {
+                  if (!isEveryone && nameController.text.trim().isEmpty) return;
+                  if (hasColor && tryParseHexColor(hexController.text) == null) {
                     setState(() => errorText = strings.groupRoleColorInvalid);
                     return;
                   }
@@ -111,17 +164,25 @@ class GroupRoleListPopup extends ConsumerWidget {
     );
 
     if (result != true) return;
-    final color = tryParseHexColor(hexController.text)!.toARGB32() & 0xFFFFFF;
-    final name = nameController.text.trim();
+    final color = hasColor
+        ? tryParseHexColor(hexController.text)!.toARGB32() & 0xFFFFFF
+        : null;
+    final name = isEveryone ? existing!.name : nameController.text.trim();
     final repository = ref.read(groupRepositoryProvider);
     if (existing == null) {
-      await repository.createRole(groupId: groupId, name: name, color: color);
+      await repository.createRole(
+        groupId: group.groupId,
+        name: name,
+        color: color,
+        permissions: permissions,
+      );
     } else {
       await repository.updateRole(
-        groupId: groupId,
+        groupId: group.groupId,
         roleId: existing.roleId,
         name: name,
         color: color,
+        permissions: permissions,
       );
     }
   }
@@ -154,7 +215,7 @@ class GroupRoleListPopup extends ConsumerWidget {
     if (confirmed == true) {
       await ref
           .read(groupRepositoryProvider)
-          .deleteRole(groupId: groupId, roleId: role.roleId);
+          .deleteRole(groupId: group.groupId, roleId: role.roleId);
     }
   }
 
@@ -190,10 +251,10 @@ class GroupRoleListPopup extends ConsumerWidget {
         const Divider(height: 1),
         Flexible(
           child: StreamBuilder<List<GroupRole>>(
-            stream: groupRepository.watchRoles(groupId),
+            stream: groupRepository.watchRoles(group.groupId),
             builder: (context, snapshot) {
-              final roles = snapshot.data ?? const <GroupRole>[];
-              if (roles.isEmpty) {
+              final allRoles = snapshot.data ?? const <GroupRole>[];
+              if (allRoles.isEmpty) {
                 return Padding(
                   padding: const EdgeInsets.all(24),
                   child: Text(
@@ -204,15 +265,54 @@ class GroupRoleListPopup extends ConsumerWidget {
                   ),
                 );
               }
+              final everyone = allRoles.firstWhereOrNull((r) => r.isEveryone);
+              final regularUnsorted = allRoles.where((r) => !r.isEveryone).toList();
+              final fallbackIndex = regularUnsorted.length;
+              final regular = regularUnsorted
+                ..sort((a, b) {
+                  final indexA = group.rolePriority.indexOf(a.roleId);
+                  final indexB = group.rolePriority.indexOf(b.roleId);
+                  // rolePriorityに無いロール（作成直後の反映待ち等）は末尾扱い。
+                  return (indexA == -1 ? fallbackIndex : indexA)
+                      .compareTo(indexB == -1 ? fallbackIndex : indexB);
+                });
               return ListView(
                 shrinkWrap: true,
                 padding: const EdgeInsets.only(bottom: 8),
                 children: [
-                  for (final role in roles)
+                  if (regular.isNotEmpty)
+                    ListTile(
+                      dense: true,
+                      title: Text(
+                        strings.groupRolePriorityHint,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                      trailing: IconButton(
+                        icon: const Icon(Icons.swap_vert),
+                        tooltip: strings.groupRolePriorityTitle,
+                        onPressed: () => GroupRolePriorityDialog.show(
+                          context,
+                          orderedRoles: regular,
+                          onSave: (roleIds) => groupRepository.setRolePriority(
+                            groupId: group.groupId,
+                            roleIds: roleIds,
+                          ),
+                        ),
+                      ),
+                    ),
+                  for (final role in regular)
                     ListTile(
                       leading: CircleAvatar(
                         radius: 12,
-                        backgroundColor: Color(0xFF000000 | role.color),
+                        backgroundColor: role.color != null
+                            ? Color(0xFF000000 | role.color!)
+                            : Colors.transparent,
+                        child: role.color == null
+                            ? const Icon(Icons.circle_outlined, size: 16)
+                            : null,
                       ),
                       title: Text(role.name),
                       onTap: () =>
@@ -222,6 +322,27 @@ class GroupRoleListPopup extends ConsumerWidget {
                         onPressed: () => _confirmDelete(context, ref, strings, role),
                       ),
                     ),
+                  if (everyone != null) ...[
+                    const Divider(height: 16),
+                    ListTile(
+                      leading: CircleAvatar(
+                        radius: 12,
+                        backgroundColor: everyone.color != null
+                            ? Color(0xFF000000 | everyone.color!)
+                            : Colors.transparent,
+                        child: everyone.color == null
+                            ? const Icon(Icons.circle_outlined, size: 16)
+                            : null,
+                      ),
+                      title: Text(everyone.name),
+                      onTap: () => _showRoleDialog(
+                        context,
+                        ref,
+                        strings,
+                        existing: everyone,
+                      ),
+                    ),
+                  ],
                 ],
               );
             },

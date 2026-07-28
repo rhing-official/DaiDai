@@ -11,6 +11,7 @@ import '../../models/friend_request.dart';
 import '../../models/group.dart';
 import '../../models/group_invite_preview.dart';
 import '../../models/group_join_request.dart';
+import '../../models/group_role.dart';
 import '../../providers/block_providers.dart';
 import '../../providers/conversation_prefs_providers.dart';
 import '../../providers/friend_providers.dart';
@@ -18,8 +19,10 @@ import '../../providers/group_join_request_providers.dart';
 import '../../providers/repository_providers.dart';
 import '../../providers/user_providers.dart';
 import '../../router/app_router.dart';
+import '../../utils/group_permissions.dart';
 import '../../widgets/swipe_gestures.dart';
 import 'chat_panes.dart';
+import 'group_role_list_popup.dart';
 import 'room_list_pane.dart';
 
 enum _TalksCategory { dm, group }
@@ -427,13 +430,15 @@ class _TalksTabState extends ConsumerState<TalksTab> {
   }
 
   /// [_buildDmDetailWithRooms]と同じ構成の広場版。寄合の追加・削除は
-  /// 長・モデレーターのみ（firestore.rulesで強制、ここではUI上の
-  /// 操作可否も合わせる）。
+  /// manageRooms権限を持つメンバーのみ（firestore.rulesで強制、ここでは
+  /// UI上の操作可否も合わせる）。
   Widget _buildGroupDetailWithRooms(Group group) {
     final groupRepository = ref.read(groupRepositoryProvider);
-    final isOwnerOrModerator =
-        group.memberRoles[widget.currentUser.userId] == 'owner' ||
-            group.memberRoles[widget.currentUser.userId] == 'moderator';
+    final userId = widget.currentUser.userId;
+    final canManageRooms =
+        hasGroupPermission(group: group, userId: userId, permission: GroupPermission.manageRooms);
+    final canManageRoles =
+        hasGroupPermission(group: group, userId: userId, permission: GroupPermission.manageRoles);
     return StreamBuilder<List<Room>>(
       stream: groupRepository.watchRooms(group.groupId),
       builder: (context, snapshot) {
@@ -465,17 +470,29 @@ class _TalksTabState extends ConsumerState<TalksTab> {
                 selectedRoomId: roomId,
                 onSelectRoom: (room) =>
                     setState(() => _selectedGroupRoomId = room.roomId),
-                onCreateRoom: isOwnerOrModerator
+                onCreateRoom: canManageRooms
                     ? (name) => groupRepository.createRoom(
                           groupId: group.groupId,
                           name: name,
                         )
                     : null,
-                onDeleteRoom: isOwnerOrModerator
+                onDeleteRoom: canManageRooms
                     ? (roomId) => groupRepository.deleteRoom(
                           groupId: group.groupId,
                           roomId: roomId,
                           requestedBy: widget.currentUser.userId,
+                        )
+                    : null,
+                onOpenGroupSettings: canManageRoles
+                    ? () => showDialog<void>(
+                          context: context,
+                          builder: (_) => Dialog(
+                            child: ConstrainedBox(
+                              constraints:
+                                  const BoxConstraints(maxWidth: 400, maxHeight: 640),
+                              child: GroupRoleListPopup(group: group),
+                            ),
+                          ),
                         )
                     : null,
               ),

@@ -228,13 +228,18 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
 
   @override
   Stream<List<DmRoom>> watchRooms(String dmId) {
-    return _directMessages
-        .doc(dmId)
-        .collection('rooms')
-        .orderBy('createdAt')
-        .snapshots()
-        .map((snapshot) =>
-            snapshot.docs.map((doc) => DmRoom.fromJson(doc.id, doc.data())).toList());
+    // Firestoreの`orderBy`はソート対象フィールドを持たないドキュメントを
+    // 結果から除外してしまう（作成直後、serverTimestamp()がサーバー側で
+    // 解決するまでの一瞬もローカルではcreatedAt=null扱いになり同様に除外
+    // される）。`GroupRepository.watchRooms`と同じくクライアント側ソート
+    // に変更して回避する。
+    return _directMessages.doc(dmId).collection('rooms').snapshots().map((snapshot) {
+      final rooms =
+          snapshot.docs.map((doc) => DmRoom.fromJson(doc.id, doc.data())).toList()
+            ..sort((a, b) => (a.createdAt?.millisecondsSinceEpoch ?? 0)
+                .compareTo(b.createdAt?.millisecondsSinceEpoch ?? 0));
+      return rooms;
+    });
   }
 
   @override
@@ -263,11 +268,9 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
     required String roomId,
     required String requestedBy,
   }) async {
-    final roomsSnapshot = await _directMessages
-        .doc(dmId)
-        .collection('rooms')
-        .orderBy('createdAt')
-        .get();
+    // watchRoomsと同じ理由でorderBy('createdAt')は使わない。
+    final roomsSnapshot =
+        await _directMessages.doc(dmId).collection('rooms').get();
     if (roomsSnapshot.docs.length <= 1) {
       throw StateError('最後の1つの寄合は削除できません');
     }
@@ -293,7 +296,11 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
     final dmDoc = await _directMessages.doc(dmId).get();
     final defaultRoomId = dmDoc.data()?['defaultRoomId'] as String?;
     if (defaultRoomId == roomId) {
-      final remaining = roomsSnapshot.docs.where((d) => d.id != roomId).toList();
+      final remaining = roomsSnapshot.docs.where((d) => d.id != roomId).toList()
+        ..sort((a, b) =>
+            ((a.data()['createdAt'] as Timestamp?)?.millisecondsSinceEpoch ?? 0)
+                .compareTo(
+                    (b.data()['createdAt'] as Timestamp?)?.millisecondsSinceEpoch ?? 0));
       if (remaining.isNotEmpty) {
         await _directMessages.doc(dmId).update({'defaultRoomId': remaining.first.id});
       }
