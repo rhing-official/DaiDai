@@ -1,4 +1,4 @@
-package jp.rhing.daidai.daidai
+package jp.rhing.daidai
 
 import io.flutter.embedding.android.FlutterActivity
 

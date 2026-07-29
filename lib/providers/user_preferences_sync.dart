@@ -4,12 +4,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../l10n/app_locale.dart';
 import '../l10n/terminology_style.dart';
+import '../models/app_ui_style.dart';
 import '../models/app_user_preferences.dart';
 import '../models/chat_layout_style.dart';
 import '../models/message_time_format.dart';
 import '../models/send_key_mode.dart';
 import 'accent_color_provider.dart';
 import 'app_locale_provider.dart';
+import 'app_ui_style_provider.dart';
 import 'chat_layout_style_provider.dart';
 import 'message_time_format_provider.dart';
 import 'send_key_mode_provider.dart';
@@ -58,5 +60,10 @@ void applyRemoteUserPreferences(WidgetRef ref, AppUserPreferences preferences) {
     ref.read(messageTimeFormatProvider.notifier).syncFromRemote(
           MessageTimeFormat.fromName(preferences.messageTimeFormat),
         );
+  }
+  if (preferences.appUiStyle != null) {
+    ref
+        .read(appUiStyleProvider.notifier)
+        .syncFromRemote(AppUiStyle.fromName(preferences.appUiStyle));
   }
 }

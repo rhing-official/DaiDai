@@ -42,6 +42,10 @@ class Strings {
     required this.settingsTimeFormat12h,
     required this.settingsSubUI,
     required this.settingsUIDescription,
+    required this.settingsUiStyleSimpleLabel,
+    required this.settingsUiStyleSimpleDescription,
+    required this.settingsUiStyleGekigaLabel,
+    required this.settingsUiStyleGekigaDescription,
     required this.settingsChatLayoutTitle,
     required this.settingsChatLayoutSideBySide,
     required this.settingsChatLayoutSideBySideDescription,
@@ -212,6 +216,18 @@ class Strings {
     required this.groupRoomRolePriorityResetButton,
     required this.groupMenuEnableMultipleRooms,
     required this.dmMenuEnableMultipleRooms,
+    required this.groupSettingsDefaultMuteLabel,
+    required this.groupSettingsDefaultMuteHint,
+    required this.groupSettingsDefaultReadReceiptsLabel,
+    required this.groupSettingsDefaultReadReceiptsHint,
+    required this.groupRoomCustomSettingsLabel,
+    required this.groupRoomCustomSettingsHint,
+    required this.groupSettingsDisableMultipleRoomsLabel,
+    required this.groupSettingsDisableMultipleRoomsHint,
+    required this.groupSettingsDisableMultipleRoomsBlockedHint,
+    required this.groupSettingsDisableMultipleRoomsConfirmTitle,
+    required this.groupSettingsDisableMultipleRoomsConfirmMessage,
+    required this.groupSettingsDisableMultipleRoomsConfirmButton,
     required this.profileCardPickerLabel,
     required this.profileCardPickerStandardOption,
     required this.settingsProfileCardAssignmentTitle,
@@ -308,6 +324,13 @@ class Strings {
   final String settingsTimeFormat12h;
   final String settingsSubUI;
   final String settingsUIDescription;
+  /// UIスタイル選択肢（2026-07-29追加）。「シンプル」は現行の標準見た目、
+  /// 「劇画」は手描き風・ギザギザした太い黒線・モノクロの吹き出しの
+  /// メッセージ画面用スタイル（現時点ではメッセージ画面のみ対応）。
+  final String settingsUiStyleSimpleLabel;
+  final String settingsUiStyleSimpleDescription;
+  final String settingsUiStyleGekigaLabel;
+  final String settingsUiStyleGekigaDescription;
   final String settingsChatLayoutTitle;
   final String settingsChatLayoutSideBySide;
   final String settingsChatLayoutSideBySideDescription;
@@ -341,6 +364,7 @@ class Strings {
   final String friendSearchHint;
   final String friendSearchLabel;
   final String friendSearchButton;
+
   /// Rhing ID検索フォームの最初の一歩（検索）ボタン。相手が見つかったら
   /// カード選択を含む確認UIに切り替わり、[friendSearchButton]が送信ボタンに
   /// なる（2026-07-29追加）。
@@ -355,6 +379,7 @@ class Strings {
   final String userProfileCardSendRequest;
   final String userProfileCardAcceptRequest;
   final String userProfileCardRequestPending;
+
   /// 友達のプロフィールカード右上のジャンプ（一対を開く）ボタンのツールチップ。
   final String userProfileCardJumpToDm;
   final String friendRequestIncomingSubtitle;
@@ -375,8 +400,10 @@ class Strings {
   final String conversationReadReceiptsProposeEnable;
   final String conversationReadReceiptsBannerWaitingOff;
   final String conversationReadReceiptsBannerWaitingOn;
-  final String Function(String senderLabel) conversationReadReceiptsBannerProposedOff;
-  final String Function(String senderLabel) conversationReadReceiptsBannerProposedOn;
+  final String Function(String senderLabel)
+  conversationReadReceiptsBannerProposedOff;
+  final String Function(String senderLabel)
+  conversationReadReceiptsBannerProposedOn;
   final String conversationReadReceiptsBannerAcceptButton;
   final String conversationReadReceiptsBannerDeclineButton;
   final String conversationReadReceiptsBannerCancelButton;
@@ -429,11 +456,11 @@ class Strings {
   final String Function(String nicknameTerm) profileNicknameDialogEditTitle;
   final String Function(String nicknameTerm) profileNicknameDialogHint;
   final String Function(String statusMessageTerm)
-      profileStatusMessageDialogTitle;
+  profileStatusMessageDialogTitle;
   final String Function(String statusMessageTerm)
-      profileStatusMessageDialogEditTitle;
+  profileStatusMessageDialogEditTitle;
   final String Function(String statusMessageTerm)
-      profileStatusMessageDialogHint;
+  profileStatusMessageDialogHint;
   final String profileSnsLinkSectionTitle;
   final String profileAddSnsLink;
   final String profileSnsLinkDialogTitle;
@@ -482,49 +509,92 @@ class Strings {
   final String groupRoleEditDialogTitle;
   final String groupRoleDialogNameLabel;
   final String groupRoleColorInvalid;
+
   /// 色のhex入力欄の横に置く「色を設定しない」チェックボックス。
   final String groupRoleColorNone;
+
   /// ロール編集ダイアログの権限チェックボックス群のセクション見出し。
   final String groupRolePermissionsLabel;
+
   /// 権限1件分の表示ラベル（[GroupPermission]の定数を渡す）。
   final String Function(String permission) groupPermissionLabel;
+
   /// 基準ロール（全員に自動適用、削除・名前変更不可）の編集ダイアログに出す注記。
   final String groupRoleEveryoneNote;
   final String groupRoleDeleteConfirmTitle;
   final String groupRoleDeleteConfirmButton;
   final String groupRoleNoneLabel;
   final String groupRolePickerTitle;
+
   /// ロール編集ダイアログ内、そのロールを付与するメンバーを選ぶセクションの見出し。
   final String groupRoleMembersLabel;
+
   /// メンバー選択セクションの「全員に付与」一括選択チェックボックス。
   final String groupRoleAssignAllLabel;
+
   /// ロールの優先順位（呼び名の色を決める順序）並べ替え画面のタイトル。
   final String groupRolePriorityTitle;
   final String groupRolePriorityHint;
+
   /// 寄合ハンバーガーメニューの「この寄合の色優先順位を設定」項目。
   final String groupRoomRolePriorityMenuItem;
+
   /// 寄合ごとの優先順位上書きを解除し、広場全体の設定に戻すボタン。
   final String groupRoomRolePriorityResetButton;
+
   /// 広場のハンバーガーメニュー、単一モードから複数モードへの切り替え項目
   /// （`Group.roomsEnabled`、2026-07-29追加）。
   final String groupMenuEnableMultipleRooms;
+
   /// 一対のハンバーガーメニュー、単一モードから複数モードへの切り替え項目
   /// （`DirectMessage.roomsEnabled`、2026-07-29追加）。
   final String dmMenuEnableMultipleRooms;
+
+  /// 広場全体設定ポップアップの、通知オフのデフォルト値トグル
+  /// （2026-07-29追加、寄合ごとに「この寄合独自の設定」で上書き可能）。
+  final String groupSettingsDefaultMuteLabel;
+  final String groupSettingsDefaultMuteHint;
+
+  /// 広場全体設定ポップアップの、既読機能オン/オフのデフォルト値トグル。
+  final String groupSettingsDefaultReadReceiptsLabel;
+  final String groupSettingsDefaultReadReceiptsHint;
+
+  /// 寄合ハンバーガーメニュー最下部の「この寄合独自の設定」トグル。ONの間、
+  /// 通知・既読・ロールの優先順位を広場全体の設定より優先してこの寄合だけ
+  /// 個別に設定できる（`Room.customSettingsEnabled`、2026-07-29追加）。
+  final String groupRoomCustomSettingsLabel;
+  final String groupRoomCustomSettingsHint;
+
+  /// 全体設定の「寄合を単一にまとめる」項目。寄合が1つだけの場合のみ
+  /// 有効化できる（2026-07-29追加）。
+  final String groupSettingsDisableMultipleRoomsLabel;
+  final String groupSettingsDisableMultipleRoomsHint;
+
+  /// 寄合が複数あって無効化できない場合の説明文言。
+  final String groupSettingsDisableMultipleRoomsBlockedHint;
+  final String groupSettingsDisableMultipleRoomsConfirmTitle;
+  final String groupSettingsDisableMultipleRoomsConfirmMessage;
+  final String groupSettingsDisableMultipleRoomsConfirmButton;
+
   /// 会話（一対・広場）ごとに使うプロフィールカードを選ぶピッカーのラベル
   /// （`AppUser.conversationProfileCardId`、2026-07-29追加）。広場参加・
   /// 友達申請3系統・全体設定の計5箇所で共通して使う。
   final String profileCardPickerLabel;
+
   /// [profileCardPickerLabel]のピッカーで「標準（[AppUser.activeProfileCardId]）
   /// を使う」ことを表す選択肢のラベル。
   final String profileCardPickerStandardOption;
+
   /// 設定タブ＞語らいの、会話ごとのプロフィールカード割り当て一覧セクションの
   /// タイトル（2026-07-29追加）。
   final String settingsProfileCardAssignmentTitle;
+
   /// 上記セクションで、一対・広場がまだ1件も無い場合に表示する文言。
   final String settingsProfileCardAssignmentEmpty;
+
   /// サイドバーの「広場自体の設定」アイコンのツールチップ。
   final String groupSettingsTooltip;
+
   /// 長の譲渡メニュー項目・確認ダイアログ。
   final String groupTransferOwnershipMenuItem;
   final String groupTransferOwnershipConfirmTitle;
@@ -571,6 +641,7 @@ class Strings {
   final String settingsDeleteAccountImmediateConfirmButton;
 
   final String accountRestoreTitle;
+
   /// 復元プロンプトの説明文。残り日数を差し込む。
   final String Function(int remainingDays) accountRestoreMessage;
   final String accountRestoreButton;
@@ -587,9 +658,11 @@ class Strings {
   /// 寄合追加ダイアログのタイトル。用語（「寄合」等）を差し込む。
   final String Function(String term) roomListAddDialogTitle;
   final String roomListAddButton;
+
   /// 寄合削除の確認ダイアログのタイトル。用語（「寄合」等）を差し込む。
   final String Function(String term) roomListDeleteConfirmTitle;
   final String roomListDeleteConfirmButton;
+
   /// 寄合の名前変更メニュー項目・ダイアログタイトルの両方に使う。
   final String Function(String term) roomRenameLabel;
 
@@ -633,8 +706,11 @@ class Strings {
     settingsTimeFormat24h: '24時間表記（00:00）',
     settingsTimeFormat12h: '12時間表記（12:00 p.m.）',
     settingsSubUI: 'UI',
-    settingsUIDescription:
-        '現在のUIスタイルは「シンプル」1本に統一されています（切り替え機能は今後の検討事項です）。',
+    settingsUIDescription: 'メッセージ画面の見た目を選べます（他の画面は今のところスタイルによらず同じ見た目です）。',
+    settingsUiStyleSimpleLabel: 'シンプル',
+    settingsUiStyleSimpleDescription: '現行の標準スタイル',
+    settingsUiStyleGekigaLabel: '劇画',
+    settingsUiStyleGekigaDescription: '手描き風の太いギザギザ線・モノクロの吹き出しになります。アイコンを囲む色は身だしなみの「イメージカラー」を使います',
     settingsChatLayoutTitle: '語らいの表示',
     settingsChatLayoutSideBySide: '自分は右・相手は左',
     settingsChatLayoutSideBySideDescription:
@@ -693,8 +769,7 @@ class Strings {
     conversationReadReceiptsDisable: '既読オフ',
     conversationReadReceiptsEnable: '既読オン',
     conversationReadReceiptsDisableConfirmTitle: '既読機能をオフにしますか？',
-    conversationReadReceiptsDisableConfirmMessage:
-        'オフにすると今までの既読履歴が全て消えます。',
+    conversationReadReceiptsDisableConfirmMessage: 'オフにすると今までの既読履歴が全て消えます。',
     conversationReadReceiptsDisableConfirmButton: 'オフにする',
     conversationReadReceiptsProposeDisable: '既読オフを提案する',
     conversationReadReceiptsProposeEnable: '既読オンを提案する',
@@ -737,7 +812,8 @@ class Strings {
     chatReplyingToLabel: (senderLabel) => '$senderLabelへの返信',
     chatEditingLabel: 'メッセージを編集中',
     chatUnsendConfirmTitle: '送信を取り消しますか？',
-    chatUnsendConfirmMessage: 'このメッセージは相手の画面からも完全に削除されます（既読・リアクション等も含めて痕跡は残りません）。この操作は取り消せません。',
+    chatUnsendConfirmMessage:
+        'このメッセージは相手の画面からも完全に削除されます（既読・リアクション等も含めて痕跡は残りません）。この操作は取り消せません。',
     chatUnsendConfirmButton: '取り消す',
     cancel: 'キャンセル',
     add: '追加',
@@ -748,8 +824,7 @@ class Strings {
     profileBackgroundSection: '背景画像',
     profileImageColorSection: 'イメージカラー',
     profileImageColorInvalid: '「#RRGGBB」の形式で入力してください',
-    profileNicknameHint: (term) =>
-        '友達には、Rhing IDの代わりにここで選んだ$termが表示されます。',
+    profileNicknameHint: (term) => '友達には、Rhing IDの代わりにここで選んだ$termが表示されます。',
     profileAddNickname: (term) => '$termを追加',
     profileAddStatusMessage: (term) => '$termを追加',
     profileNicknameDialogTitle: (term) => '$termを追加',
@@ -779,16 +854,14 @@ class Strings {
     workshopEmptyMaterialHint: '蔵に素材が登録されていません',
     fieldRequiredError: '入力してください',
     enmusubiInviteLinkTitle: '招待リンク',
-    enmusubiInviteLinkDescription:
-        'このリンクを知っている住人が開くと、あなたに仲間申請を送れます。',
+    enmusubiInviteLinkDescription: 'このリンクを知っている住人が開くと、あなたに仲間申請を送れます。',
     enmusubiCopyLink: 'コピー',
     enmusubiQrTitle: 'QRコードで交換',
     enmusubiQrDescription: '対面でQRコードを読み取ると、素早く仲間になれます。',
     enmusubiScanButton: 'QRコードを読み取る',
     enmusubiScanScreenTitle: 'QRコードを読み取る',
     inviteScreenTitle: '仲間申請',
-    inviteConfirmDescriptionTemplate: (rhingId) =>
-        '@$rhingIdの住人に仲間申請を送りますか？',
+    inviteConfirmDescriptionTemplate: (rhingId) => '@$rhingIdの住人に仲間申請を送りますか？',
     inviteScreenSendButton: '仲間申請を送る',
     inviteScreenGoHome: 'ホームに戻る',
     inviteScreenInvalid: 'このリンクは無効です',
@@ -805,13 +878,13 @@ class Strings {
     groupRoleColorNone: '色を設定しない',
     groupRolePermissionsLabel: '権限',
     groupPermissionLabel: (permission) => switch (permission) {
-          'manageRooms' => '寄合の管理（作成・削除）',
-          'manageRoles' => 'ロールの管理（作成・編集・削除・付与）',
-          'manageReadReceipts' => '既読機能のオン/オフ',
-          'manageJoinRequests' => '参加リクエストの承認・却下',
-          'createInvite' => '招待リンクの作成',
-          _ => permission,
-        },
+      'manageRooms' => '寄合の管理（作成・削除）',
+      'manageRoles' => 'ロールの管理（作成・編集・削除・付与）',
+      'manageReadReceipts' => '既読機能のオン/オフ',
+      'manageJoinRequests' => '参加リクエストの承認・却下',
+      'createInvite' => '招待リンクの作成',
+      _ => permission,
+    },
     groupRoleEveryoneNote: 'このロールは全員に自動で適用されます。削除・名前の変更はできません',
     groupRoleDeleteConfirmTitle: 'このロールを削除しますか？',
     groupRoleDeleteConfirmButton: '削除する',
@@ -825,6 +898,20 @@ class Strings {
     groupRoomRolePriorityResetButton: '広場全体の設定に戻す',
     groupMenuEnableMultipleRooms: '寄合を複数扱う',
     dmMenuEnableMultipleRooms: '寄合を増やす',
+    groupSettingsDefaultMuteLabel: '通知オフ（既定）',
+    groupSettingsDefaultMuteHint: '寄合ごとに「この寄合独自の設定」をオンにすると個別に上書きできます',
+    groupSettingsDefaultReadReceiptsLabel: '既読機能（既定）',
+    groupSettingsDefaultReadReceiptsHint: '寄合ごとに「この寄合独自の設定」をオンにすると個別に上書きできます',
+    groupRoomCustomSettingsLabel: 'この寄合独自の設定',
+    groupRoomCustomSettingsHint:
+        'オンにすると、通知・既読・ロールの優先順位を広場全体の設定より優先してこの寄合だけ個別に設定できます',
+    groupSettingsDisableMultipleRoomsLabel: '寄合複数機能をオフにする',
+    groupSettingsDisableMultipleRoomsHint: '複数の寄合機能をオフにし、この1つの寄合だけの広場に戻します',
+    groupSettingsDisableMultipleRoomsBlockedHint: '寄合が複数あるため、1つにまとめてからオフにできます',
+    groupSettingsDisableMultipleRoomsConfirmTitle: '寄合複数機能をオフにしますか？',
+    groupSettingsDisableMultipleRoomsConfirmMessage:
+        'このサイドバー・複数寄合機能が無くなり、以後の設定は寄合のハンバーガーメニューから行うことになります。',
+    groupSettingsDisableMultipleRoomsConfirmButton: 'オフにする',
     profileCardPickerLabel: '使うプロフィールカード（省略可）',
     profileCardPickerStandardOption: '標準',
     settingsProfileCardAssignmentTitle: '会話ごとのプロフィールカード',
@@ -840,8 +927,7 @@ class Strings {
     groupMemberListPendingSection: '参加リクエスト',
     groupMemberListMembersSection: 'メンバー',
     groupInviteDialogTitle: '招待リンク',
-    groupInviteDialogDescription:
-        'このリンクを知っている人が開くと、長の承認を経てこの広場に参加できます。',
+    groupInviteDialogDescription: 'このリンクを知っている人が開くと、長の承認を経てこの広場に参加できます。',
     groupLeaveConfirmTitle: '広場から退会しますか？',
     groupLeaveConfirmMessage: '退会すると、この広場のメッセージは見られなくなります。',
     groupLeaveButton: '退会する',
@@ -922,8 +1008,14 @@ class Strings {
     settingsTimeFormat12h: '12-hour (12:00 p.m.)',
     settingsSubUI: 'UI',
     settingsUIDescription:
-        'The current UI style is fixed to "Simple" (a style switcher may '
-        'be added in the future).',
+        'Choose how the message screen looks (other screens look the same '
+        'regardless of style for now).',
+    settingsUiStyleSimpleLabel: 'Simple',
+    settingsUiStyleSimpleDescription: 'The current standard style',
+    settingsUiStyleGekigaLabel: 'Gekiga',
+    settingsUiStyleGekigaDescription:
+        'A hand-drawn, thick jagged-line, monochrome speech-bubble look. '
+        'The colour around icons uses your profile\'s "Image colour".',
     settingsChatLayoutTitle: 'Chat display',
     settingsChatLayoutSideBySide: 'You on the right, others on the left',
     settingsChatLayoutSideBySideDescription:
@@ -1113,13 +1205,13 @@ class Strings {
     groupRoleColorNone: 'No colour',
     groupRolePermissionsLabel: 'Permissions',
     groupPermissionLabel: (permission) => switch (permission) {
-          'manageRooms' => 'Manage rooms (create/delete)',
-          'manageRoles' => 'Manage roles (create/edit/delete/assign)',
-          'manageReadReceipts' => 'Toggle read receipts',
-          'manageJoinRequests' => 'Approve/decline join requests',
-          'createInvite' => 'Create invite links',
-          _ => permission,
-        },
+      'manageRooms' => 'Manage rooms (create/delete)',
+      'manageRoles' => 'Manage roles (create/edit/delete/assign)',
+      'manageReadReceipts' => 'Toggle read receipts',
+      'manageJoinRequests' => 'Approve/decline join requests',
+      'createInvite' => 'Create invite links',
+      _ => permission,
+    },
     groupRoleEveryoneNote:
         'This role applies to everyone automatically. It cannot be deleted or renamed',
     groupRoleDeleteConfirmTitle: 'Delete this role?',
@@ -1129,11 +1221,31 @@ class Strings {
     groupRoleMembersLabel: 'Members',
     groupRoleAssignAllLabel: 'Assign to everyone',
     groupRolePriorityTitle: 'Role priority',
-    groupRolePriorityHint: 'Roles higher up take priority for the display name colour',
+    groupRolePriorityHint:
+        'Roles higher up take priority for the display name colour',
     groupRoomRolePriorityMenuItem: 'Set this room\'s colour priority',
     groupRoomRolePriorityResetButton: 'Reset to plaza default',
     groupMenuEnableMultipleRooms: 'Enable multiple rooms',
     dmMenuEnableMultipleRooms: 'Add more rooms',
+    groupSettingsDefaultMuteLabel: 'Mute (default)',
+    groupSettingsDefaultMuteHint:
+        'Rooms can override this individually with "This room\'s own settings"',
+    groupSettingsDefaultReadReceiptsLabel: 'Read receipts (default)',
+    groupSettingsDefaultReadReceiptsHint:
+        'Rooms can override this individually with "This room\'s own settings"',
+    groupRoomCustomSettingsLabel: "This room's own settings",
+    groupRoomCustomSettingsHint:
+        'When on, this room\'s notification, read receipts, and role priority settings take priority over the plaza defaults',
+    groupSettingsDisableMultipleRoomsLabel: 'Merge back into a single room',
+    groupSettingsDisableMultipleRoomsHint:
+        'Turns off multiple rooms and returns this plaza to a single room',
+    groupSettingsDisableMultipleRoomsBlockedHint:
+        'You can turn this off once only one room remains',
+    groupSettingsDisableMultipleRoomsConfirmTitle:
+        'Merge back into a single room?',
+    groupSettingsDisableMultipleRoomsConfirmMessage:
+        'This sidebar and multiple-room feature will be removed, and settings will move back to the room\'s hamburger menu.',
+    groupSettingsDisableMultipleRoomsConfirmButton: 'Merge',
     profileCardPickerLabel: 'Profile card to use (optional)',
     profileCardPickerStandardOption: 'Standard',
     settingsProfileCardAssignmentTitle: 'Profile card per conversation',
@@ -1161,8 +1273,7 @@ class Strings {
     groupJoinScreenTitle: 'Join plaza',
     groupJoinInvalid: 'This invite link is invalid',
     groupJoinAlreadyMember: "You're already a member of this plaza",
-    groupJoinPending:
-        "You've already requested to join. Waiting for approval.",
+    groupJoinPending: "You've already requested to join. Waiting for approval.",
     groupJoinDescriptionTemplate: (groupName) =>
         'Request to join "$groupName"? '
         'You can join once the owner approves.',

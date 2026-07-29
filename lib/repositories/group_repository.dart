@@ -58,10 +58,17 @@ abstract class GroupRepository {
     required String name,
   });
 
-  /// 単一モードの広場を複数モードに切り替える（manageRooms権限を持つ
-  /// メンバーのみ、firestore.rulesで強制）。複数→単一へ戻すことはできない
-  /// （2026-07-29追加）。
-  Future<void> setRoomsEnabled(String groupId);
+  /// 単一モードの広場を複数モードに切り替える、または複数モードの広場を
+  /// 単一モードに戻す（どちらもmanageRooms権限を持つメンバーのみ、
+  /// firestore.rulesで強制）。単一に戻す場合（[enabled] == false）は
+  /// 寄合が1つだけの場合に限り許可し、それ以外では[StateError]を投げる
+  /// （[requestedBy]必須、全体設定から呼ぶ、2026-07-29追加。以前はtrueへの
+  /// 変更しかできなかった）。
+  Future<void> setRoomsEnabled({
+    required String groupId,
+    required bool enabled,
+    String? requestedBy,
+  });
 
   /// 寄合を削除する。全メッセージも物理削除する（長・モデレーターのみ、
   /// firestore.rulesで強制）。その広場の最後の1つの寄合は削除できない
@@ -139,6 +146,28 @@ abstract class GroupRepository {
     required String groupId,
     required String roomId,
     required List<String>? roleIds,
+  });
+
+  /// 「この寄合独自の設定」トグルを切り替える（`GroupPermission.manageRooms`
+  /// が必要）。trueの間、この寄合の`rolePriorityOverride`・
+  /// `readReceiptsEnabledOverride`・自分の通知オフ上書きが広場全体の設定より
+  /// 優先される（2026-07-29追加）。falseに戻しても、保存済みの上書き値は
+  /// 消さずそのまま残す（再度trueにした時に復元されるようにするため）。
+  Future<void> setRoomCustomSettingsEnabled({
+    required String groupId,
+    required String roomId,
+    required bool enabled,
+  });
+
+  /// 特定の寄合限定での既読機能オン/オフの上書きを設定する（[enabled]が
+  /// nullなら上書きを解除し、広場全体の設定に戻す。`GroupPermission.
+  /// manageReadReceipts`が必要、`Room.customSettingsEnabled`がtrueの間のみ
+  /// 効果を持つ、2026-07-29追加）。オフにする場合は、この寄合の既読履歴を
+  /// サーバーから削除する（[setReadReceiptsEnabled]と同じ挙動）。
+  Future<void> setRoomReadReceiptsEnabledOverride({
+    required String groupId,
+    required String roomId,
+    required bool? enabled,
   });
 
   /// 長（オーナー）を別のメンバーに譲渡する（長のみ実行可、firestore.rulesで
@@ -468,8 +497,24 @@ class FirestoreGroupRepository implements GroupRepository {
   }
 
   @override
-  Future<void> setRoomsEnabled(String groupId) async {
-    await _groups.doc(groupId).update({'roomsEnabled': true});
+  Future<void> setRoomsEnabled({
+    required String groupId,
+    required bool enabled,
+    String? requestedBy,
+  }) async {
+    if (!enabled) {
+      // watchRooms/deleteRoomと同じ理由でwhere句が必須（list操作の
+      // firestore.rules要求を満たすため）。
+      final roomsSnapshot = await _groups
+          .doc(groupId)
+          .collection('rooms')
+          .where('memberIds', arrayContains: requestedBy)
+          .get();
+      if (roomsSnapshot.docs.length > 1) {
+        throw StateError('寄合が複数あるため単一モードに戻せません');
+      }
+    }
+    await _groups.doc(groupId).update({'roomsEnabled': enabled});
   }
 
   @override
@@ -1186,6 +1231,29 @@ class FirestoreGroupRepository implements GroupRepository {
     required List<String>? roleIds,
   }) async {
     await _roomRef(groupId, roomId).update({'rolePriorityOverride': roleIds});
+  }
+
+  @override
+  Future<void> setRoomCustomSettingsEnabled({
+    required String groupId,
+    required String roomId,
+    required bool enabled,
+  }) async {
+    await _roomRef(groupId, roomId).update({'customSettingsEnabled': enabled});
+  }
+
+  @override
+  Future<void> setRoomReadReceiptsEnabledOverride({
+    required String groupId,
+    required String roomId,
+    required bool? enabled,
+  }) async {
+    await _roomRef(groupId, roomId)
+        .update({'readReceiptsEnabledOverride': enabled});
+    if (enabled == false) {
+      final messagesRef = _roomRef(groupId, roomId).collection('messages');
+      await _clearAllReadReceipts(messagesRef);
+    }
   }
 
   @override

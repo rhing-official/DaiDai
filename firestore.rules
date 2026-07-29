@@ -388,14 +388,16 @@ service cloud.firestore {
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['ownerId'])
             && request.resource.data.ownerId in resource.data.memberIds
           )
-          // 単一→複数モードへの切り替え（長、またはmanageRooms権限を持つ
-          // ロールの付与者のみ。trueへの変更のみ許可し、逆方向は不可、
-          // 2026-07-29追加）。
+          // 単一↔複数モードの切り替え（長、またはmanageRooms権限を持つ
+          // ロールの付与者のみ）。単一に戻す方向（false）は寄合が1つだけの
+          // 場合に限りクライアント（GroupRepository.setRoomsEnabled）側で
+          // 制限する。firestore.rulesはサブコレクションの件数を検証できない
+          // ため、memberPermissionsキャッシュと同じく計算結果をクライアント
+          // から信頼する設計（2026-07-29変更、以前はtrueへの変更のみ許可）。
           || (
             (request.auth.uid == resource.data.ownerId
               || 'manageRooms' in resource.data.memberPermissions[request.auth.uid])
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['roomsEnabled'])
-            && request.resource.data.roomsEnabled == true
           )
         );
       allow delete: if false;
@@ -461,12 +463,20 @@ service cloud.firestore {
           && request.auth.uid in request.resource.data.memberIds;
         // memberIdsのみの変更（参加承認・退会同期）は全メンバー可。
         // それ以外（name変更・寄合削除時のroomDeletionRequestedByマーカー・
-        // rolePriorityOverride設定等）はmanageRooms権限を持つメンバーのみ。
+        // rolePriorityOverride設定・customSettingsEnabled切替等）は
+        // manageRooms権限を持つメンバーのみ。ただしreadReceiptsEnabledOverride
+        // （寄合ごとの既読オン/オフ上書き、2026-07-29追加）だけは、広場全体の
+        // 既読オン/オフと同じmanageReadReceipts権限で変更できるようにする
+        // （UI側のゲート`canManageReadReceipts`と一致させるため）。
         allow update: if request.auth != null
           && request.auth.uid in resource.data.memberIds
           && (
             request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberIds'])
             || hasGroupPermission(groupId, 'manageRooms')
+            || (
+              request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readReceiptsEnabledOverride'])
+              && hasGroupPermission(groupId, 'manageReadReceipts')
+            )
           );
         allow delete: if request.auth != null
           && hasGroupPermission(groupId, 'manageRooms');

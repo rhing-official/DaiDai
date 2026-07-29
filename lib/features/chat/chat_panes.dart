@@ -20,6 +20,7 @@ import 'group_invite_dialog.dart';
 import 'group_leave_dialog.dart';
 import 'group_member_list_screen.dart';
 import 'group_profile_card_screen.dart';
+import 'group_role_list_popup.dart';
 import 'group_role_priority_dialog.dart';
 import 'severance_dialog.dart';
 import 'user_profile_card_dialog.dart';
@@ -28,6 +29,7 @@ enum _GroupMenuAction {
   profileCard,
   memberList,
   createInvite,
+  manageRoles,
   roomRolePriority,
   renameRoom,
   enableMultipleRooms,
@@ -48,7 +50,7 @@ enum _DmMenuAction {
 /// 既読機能をオフにする方向の操作（広場: 長が直接オフにする／DM: オフを
 /// 提案する・オフの提案を承認する）から共通で呼ぶ確認ダイアログ。
 /// `chat_screen.dart`の`_confirmUnsend`と同じ、キャンセル/エラー色ボタンの形。
-Future<bool> _confirmDisableReadReceipts(
+Future<bool> confirmDisableReadReceipts(
   BuildContext context,
   Strings strings,
 ) async {
@@ -388,7 +390,7 @@ class _ReadReceiptsProposalBanner extends ConsumerWidget {
     bool turningOn,
   ) async {
     if (!turningOn) {
-      final confirmed = await _confirmDisableReadReceipts(context, strings);
+      final confirmed = await confirmDisableReadReceipts(context, strings);
       if (!confirmed) return;
     }
     await ref.read(directMessageRepositoryProvider).acceptReadReceiptsToggle(
@@ -525,7 +527,7 @@ class _DmMenuButton extends ConsumerWidget {
             // オフにする提案の場合のみ、提案前に警告を出す。
             if (dm.readReceiptsEnabled) {
               final confirmed =
-                  await _confirmDisableReadReceipts(context, strings);
+                  await confirmDisableReadReceipts(context, strings);
               if (!confirmed) return;
             }
             ref.read(directMessageRepositoryProvider).proposeReadReceiptsToggle(
@@ -761,7 +763,8 @@ class GroupChatPane extends ConsumerWidget {
       ),
       onCallPressed: () => _handleCallPressed(context, ref, isVideo: false),
       onVideoCallPressed: () => _handleCallPressed(context, ref, isVideo: true),
-      readReceiptsEnabled: group.readReceiptsEnabled,
+      readReceiptsEnabled:
+          effectiveReadReceiptsEnabled(group: group, room: currentRoom),
       onMarkRead: (messageIds) => groupRepository.markRoomMessagesRead(
         groupId: group.groupId,
         roomId: roomId,
@@ -962,6 +965,15 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
         const <String, ConversationPrefs>{};
     final muted = prefs[widget.group.groupId]?.notificationsMuted ?? false;
     final readReceiptsEnabled = widget.group.readReceiptsEnabled;
+    // 「この寄合独自の設定」がオンの間だけ、通知・既読はこの寄合専用の値を
+    // 使う（広場全体の値より優先、2026-07-29追加）。単一モードにはこの
+    // 概念自体が無い（常に広場全体の値を直接編集する）。
+    final customSettingsEnabled = widget.currentRoom?.customSettingsEnabled ?? false;
+    final roomMuted =
+        prefs[widget.group.groupId]?.roomNotificationOverrides[widget.roomId] ??
+            false;
+    final roomReadReceiptsEnabled =
+        widget.currentRoom?.readReceiptsEnabledOverride ?? readReceiptsEnabled;
 
     return PopupMenuButton<_GroupMenuAction>(
       key: _buttonKey,
@@ -981,6 +993,22 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
               widget.group.groupId,
               widget.group.profileCard,
             );
+          case _GroupMenuAction.manageRoles:
+            // 単一モード専用（2026-07-29追加）。複数モードのロール管理は
+            // サイドバーの「広場自体の設定」（歯車アイコン）から行う。
+            if (!canManageRoles) return;
+            showDialog<void>(
+              context: context,
+              builder: (_) => Dialog(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 400, maxHeight: 640),
+                  child: GroupRoleListPopup(
+                    currentUser: widget.currentUser,
+                    group: widget.group,
+                  ),
+                ),
+              ),
+            );
           case _GroupMenuAction.renameRoom:
             if (!canManageRooms) return;
             final name = await _showRenameRoomDialog(
@@ -997,9 +1025,10 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
                 );
           case _GroupMenuAction.enableMultipleRooms:
             if (!canManageRooms) return;
-            await ref
-                .read(groupRepositoryProvider)
-                .setRoomsEnabled(widget.group.groupId);
+            await ref.read(groupRepositoryProvider).setRoomsEnabled(
+                  groupId: widget.group.groupId,
+                  enabled: true,
+                );
           case _GroupMenuAction.roomRolePriority:
             if (!canManageRoles) return;
             final regularRoles = widget.roles.where((r) => !r.isEveryone).toList();
@@ -1031,27 +1060,54 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
                       ),
             );
           case _GroupMenuAction.toggleMute:
-            ref.read(conversationPrefsRepositoryProvider).setNotificationsMuted(
-                  userId: widget.currentUser.userId,
-                  conversationId: widget.group.groupId,
-                  muted: !muted,
-                );
+            // 複数モードでは「この寄合独自の設定」がオンの間だけこの項目が
+            // 表示され、その場合はこの寄合専用の値を切り替える（広場全体の
+            // 既定値は全体設定ポップアップから編集する、2026-07-29変更）。
+            if (widget.group.roomsEnabled) {
+              ref.read(conversationPrefsRepositoryProvider).setRoomNotificationsMuted(
+                    userId: widget.currentUser.userId,
+                    conversationId: widget.group.groupId,
+                    roomId: widget.roomId,
+                    muted: !roomMuted,
+                  );
+            } else {
+              ref.read(conversationPrefsRepositoryProvider).setNotificationsMuted(
+                    userId: widget.currentUser.userId,
+                    conversationId: widget.group.groupId,
+                    muted: !muted,
+                  );
+            }
           case _GroupMenuAction.toggleReadReceipts:
             // 既読機能のオン/オフはmanageReadReceipts権限を持つメンバーのみ
             // 操作可能（firestore.rulesで強制、メニュー項目自体もそれ以外は
             // enabled: falseにしている）。オフにする場合のみ、確定前に
-            // 既読履歴が消える旨を警告する。
+            // 既読履歴が消える旨を警告する。複数モードでは「この寄合独自の
+            // 設定」がオンの間だけこの項目が表示され、この寄合専用の値を
+            // 切り替える（2026-07-29変更）。
             if (!canManageReadReceipts) return;
-            if (readReceiptsEnabled) {
-              final confirmed =
-                  await _confirmDisableReadReceipts(context, strings);
-              if (!confirmed) return;
+            if (widget.group.roomsEnabled) {
+              if (roomReadReceiptsEnabled) {
+                final confirmed =
+                    await confirmDisableReadReceipts(context, strings);
+                if (!confirmed) return;
+              }
+              ref.read(groupRepositoryProvider).setRoomReadReceiptsEnabledOverride(
+                    groupId: widget.group.groupId,
+                    roomId: widget.roomId,
+                    enabled: !roomReadReceiptsEnabled,
+                  );
+            } else {
+              if (readReceiptsEnabled) {
+                final confirmed =
+                    await confirmDisableReadReceipts(context, strings);
+                if (!confirmed) return;
+              }
+              ref.read(groupRepositoryProvider).setReadReceiptsEnabled(
+                    groupId: widget.group.groupId,
+                    enabled: !readReceiptsEnabled,
+                    userId: widget.currentUser.userId,
+                  );
             }
-            ref.read(groupRepositoryProvider).setReadReceiptsEnabled(
-                  groupId: widget.group.groupId,
-                  enabled: !readReceiptsEnabled,
-                  userId: widget.currentUser.userId,
-                );
           case _GroupMenuAction.leave:
             GroupLeaveDialog.show(
               context,
@@ -1061,19 +1117,30 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
         }
       },
       itemBuilder: (context) => [
-        PopupMenuItem(
-          value: _GroupMenuAction.profileCard,
-          child: Text(strings.groupMenuProfileCard),
-        ),
-        PopupMenuItem(
-          value: _GroupMenuAction.memberList,
-          child: Text(strings.groupMenuMemberList),
-        ),
-        PopupMenuItem(
-          value: _GroupMenuAction.createInvite,
-          enabled: canCreateInvite,
-          child: Text(strings.groupMenuCreateInvite),
-        ),
+        // 単一モード（サイドバー・全体設定ポップアップが無い）の間だけ、
+        // 本来は全体設定に置くべき項目もここへ集約する例外扱い
+        // （2026-07-29変更。複数モードではサイドバーの「広場自体の設定」
+        // 歯車アイコン＝`GroupSettingsPopup`にこれらを移設した）。
+        if (!widget.group.roomsEnabled) ...[
+          PopupMenuItem(
+            value: _GroupMenuAction.profileCard,
+            child: Text(strings.groupMenuProfileCard),
+          ),
+          PopupMenuItem(
+            value: _GroupMenuAction.memberList,
+            child: Text(strings.groupMenuMemberList),
+          ),
+          PopupMenuItem(
+            value: _GroupMenuAction.createInvite,
+            enabled: canCreateInvite,
+            child: Text(strings.groupMenuCreateInvite),
+          ),
+          PopupMenuItem(
+            value: _GroupMenuAction.manageRoles,
+            enabled: canManageRoles,
+            child: Text(strings.groupMenuManageRoles),
+          ),
+        ],
         PopupMenuItem(
           value: _GroupMenuAction.renameRoom,
           enabled: canManageRooms,
@@ -1087,31 +1154,70 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
             enabled: canManageRooms,
             child: Text(strings.groupMenuEnableMultipleRooms),
           ),
-        // 寄合ごとのロール優先順位の上書き（2026-07-28更新: 寄合ごとの
-        // 個別ロール付与は廃止し、色の優先順位の上書きのみに変更）。
-        // ロール自体の作成・色設定・広場全体への付与・優先順位はサイドバーの
-        // 「広場自体の設定」（歯車アイコン）から行う。
-        PopupMenuItem(
-          value: _GroupMenuAction.roomRolePriority,
-          enabled: canManageRoles,
-          child: Text(strings.groupRoomRolePriorityMenuItem),
-        ),
-        PopupMenuItem(
-          value: _GroupMenuAction.toggleMute,
-          child: Text(muted ? strings.conversationUnmute : strings.conversationMute),
-        ),
-        // 既読機能のオン/オフはmanageReadReceipts権限を持つメンバーのみ操作
-        // 可能。それ以外には現在の状態を示すラベルとして表示するが、操作は
-        // できない（leaveがisOwnerで無効化されているのと同じ考え方）。
-        PopupMenuItem(
-          value: _GroupMenuAction.toggleReadReceipts,
-          enabled: canManageReadReceipts,
-          child: Text(
-            readReceiptsEnabled
-                ? strings.conversationReadReceiptsDisable
-                : strings.conversationReadReceiptsEnable,
+        if (widget.group.roomsEnabled) ...[
+          // 複数モードでは、通知・既読・ロール優先順位の寄合固有設定は
+          // 「この寄合独自の設定」がオンの間だけ表示する（2026-07-29変更、
+          // 広場全体の既定値は`GroupSettingsPopup`から編集する）。
+          if (customSettingsEnabled) ...[
+            PopupMenuItem(
+              value: _GroupMenuAction.roomRolePriority,
+              enabled: canManageRoles,
+              child: Text(strings.groupRoomRolePriorityMenuItem),
+            ),
+            PopupMenuItem(
+              value: _GroupMenuAction.toggleMute,
+              child: Text(
+                roomMuted ? strings.conversationUnmute : strings.conversationMute,
+              ),
+            ),
+            PopupMenuItem(
+              value: _GroupMenuAction.toggleReadReceipts,
+              enabled: canManageReadReceipts,
+              child: Text(
+                roomReadReceiptsEnabled
+                    ? strings.conversationReadReceiptsDisable
+                    : strings.conversationReadReceiptsEnable,
+              ),
+            ),
+          ],
+          const PopupMenuDivider(),
+          PopupMenuItem<_GroupMenuAction>(
+            enabled: canManageRooms,
+            child: SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              value: customSettingsEnabled,
+              title: Text(strings.groupRoomCustomSettingsLabel),
+              subtitle: Text(
+                strings.groupRoomCustomSettingsHint,
+                style: const TextStyle(fontSize: 11),
+              ),
+              onChanged: !canManageRooms
+                  ? null
+                  : (value) => ref.read(groupRepositoryProvider).setRoomCustomSettingsEnabled(
+                        groupId: widget.group.groupId,
+                        roomId: widget.roomId,
+                        enabled: value,
+                      ),
+            ),
           ),
-        ),
+        ] else ...[
+          PopupMenuItem(
+            value: _GroupMenuAction.toggleMute,
+            child: Text(muted ? strings.conversationUnmute : strings.conversationMute),
+          ),
+          // 既読機能のオン/オフはmanageReadReceipts権限を持つメンバーのみ操作
+          // 可能。それ以外には現在の状態を示すラベルとして表示するが、操作は
+          // できない（leaveがisOwnerで無効化されているのと同じ考え方）。
+          PopupMenuItem(
+            value: _GroupMenuAction.toggleReadReceipts,
+            enabled: canManageReadReceipts,
+            child: Text(
+              readReceiptsEnabled
+                  ? strings.conversationReadReceiptsDisable
+                  : strings.conversationReadReceiptsEnable,
+            ),
+          ),
+        ],
         PopupMenuItem(
           value: _GroupMenuAction.leave,
           enabled: !isOwner,

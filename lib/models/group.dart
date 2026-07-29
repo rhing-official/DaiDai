@@ -141,6 +141,8 @@ class Room {
     this.createdAt,
     this.roomDeletionRequestedBy,
     this.rolePriorityOverride,
+    this.customSettingsEnabled = false,
+    this.readReceiptsEnabledOverride,
   });
 
   final String roomId;
@@ -150,10 +152,25 @@ class Room {
   final List<String> memberIds;
   final Timestamp? lastMessageAt;
 
-  /// この寄合限定でのロール優先順位の上書き。nullなら広場全体の
-  /// `Group.rolePriority`をそのまま使う（2026-07-28追加、寄合ごとの
-  /// 個別ロール付与という以前の設計から変更）。
+  /// この寄合限定でのロール優先順位の上書き。[customSettingsEnabled]が
+  /// trueの間のみ有効（nullなら広場全体の`Group.rolePriority`を使う、
+  /// 2026-07-28追加、寄合ごとの個別ロール付与という以前の設計から変更）。
   final List<String>? rolePriorityOverride;
+
+  /// 「この寄合独自の設定」トグル（2026-07-29追加）。trueの間、
+  /// [rolePriorityOverride]・[readReceiptsEnabledOverride]・自分の通知オフ
+  /// （`ConversationPrefs.roomNotificationOverrides`）が、広場全体の設定
+  /// （`Group.rolePriority`/`Group.readReceiptsEnabled`/`ConversationPrefs.
+  /// notificationsMuted`）より優先して適用される。falseの間は広場全体の
+  /// 設定がそのまま使われ、この寄合固有の値は保存されていても無視される。
+  /// 既存データ（この機能追加前に`rolePriorityOverride`を設定していた寄合）は
+  /// fromJsonでtrue扱いにし、既存の上書き適用を維持する。
+  final bool customSettingsEnabled;
+
+  /// この寄合限定での既読機能オン/オフの上書き。[customSettingsEnabled]が
+  /// trueの間のみ有効（nullなら広場全体の`Group.readReceiptsEnabled`を使う、
+  /// 2026-07-29追加）。
+  final bool? readReceiptsEnabledOverride;
 
   /// 寄合一覧の並び順（作成順）に使う。
   final Timestamp? createdAt;
@@ -177,6 +194,11 @@ class Room {
       rolePriorityOverride: priorityOverrideJson is List
           ? List<String>.from(priorityOverrideJson)
           : null,
+      // 既存データ（この機能追加前に作られた寄合）は、rolePriorityOverride
+      // が既に設定されていればtrue扱いにして従来の上書き適用を維持する。
+      customSettingsEnabled: json['customSettingsEnabled'] as bool? ??
+          (priorityOverrideJson is List),
+      readReceiptsEnabledOverride: json['readReceiptsEnabledOverride'] as bool?,
     );
   }
 
@@ -189,6 +211,8 @@ class Room {
       'createdAt': createdAt ?? FieldValue.serverTimestamp(),
       'roomDeletionRequestedBy': roomDeletionRequestedBy,
       'rolePriorityOverride': rolePriorityOverride,
+      'customSettingsEnabled': customSettingsEnabled,
+      'readReceiptsEnabledOverride': readReceiptsEnabledOverride,
     };
   }
 }

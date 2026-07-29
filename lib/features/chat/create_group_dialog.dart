@@ -26,6 +26,9 @@ final _candidateFriendsProvider =
 /// 広場（グループ）作成ポップアップ（2026-07-29、画面遷移からポップアップ化）。
 /// 3人以上（自分＋2人以上）で作成する。「＋」ボタンのメニューポップアップの
 /// 上に重ねて表示される（`TalksTab._showAddMenu`参照）。
+///
+/// 手順1（広場名・寄合を複数作るか決める）→手順2（友達をチェックボックスで
+/// 選ぶ、名前検索あり）の2手順ウィザードにしている（2026-07-29）。
 class CreateGroupDialogContent extends ConsumerStatefulWidget {
   const CreateGroupDialogContent({
     required this.currentUser,
@@ -52,10 +55,13 @@ class CreateGroupDialogContent extends ConsumerStatefulWidget {
 
 class _CreateGroupDialogContentState
     extends ConsumerState<CreateGroupDialogContent> {
+  static const _totalSteps = 2;
+
   final _nameController = TextEditingController();
+  final _searchController = TextEditingController();
   final _members = <AppUser>[];
 
-  TextEditingController? _friendFieldController;
+  int _step = 1;
   bool _isCreating = false;
   String? _errorMessage;
 
@@ -64,22 +70,27 @@ class _CreateGroupDialogContentState
   /// （逆方向は不可、`Group.roomsEnabled`参照）。
   bool _roomsEnabled = true;
 
-  void _addMember(AppUser user) {
-    setState(() {
-      _members.add(user);
-      _errorMessage = null;
-    });
-    _friendFieldController?.clear();
-  }
-
-  Future<void> _createGroup() async {
-    final name = _nameController.text.trim();
-    if (name.isEmpty) {
+  void _goToStep2() {
+    if (_nameController.text.trim().isEmpty) {
       setState(() => _errorMessage = '広場の名前を入力してください');
       return;
     }
+    setState(() {
+      _errorMessage = null;
+      _step = 2;
+    });
+  }
+
+  void _goBackToStep1() {
+    setState(() {
+      _errorMessage = null;
+      _step = 1;
+    });
+  }
+
+  Future<void> _createGroup() async {
     if (_members.length < 2) {
-      setState(() => _errorMessage = '広場は3人以上（自分含む）で作成できます。あと${2 - _members.length}人追加してください');
+      setState(() => _errorMessage = '広場は3人以上（自分含む）で作成できます。あと${2 - _members.length}人選んでください');
       return;
     }
 
@@ -91,7 +102,7 @@ class _CreateGroupDialogContentState
     try {
       final groupRepository = ref.read(groupRepositoryProvider);
       final group = await groupRepository.createGroup(
-        name: name,
+        name: _nameController.text.trim(),
         owner: widget.currentUser,
         members: _members,
         roomsEnabled: _roomsEnabled,
@@ -122,6 +133,7 @@ class _CreateGroupDialogContentState
   @override
   void dispose() {
     _nameController.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -148,6 +160,10 @@ class _CreateGroupDialogContentState
             ],
           ),
         ),
+        Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: _StepIndicator(currentStep: _step, totalSteps: _totalSteps),
+        ),
         const Divider(height: 1),
         Flexible(
           child: SingleChildScrollView(
@@ -155,114 +171,235 @@ class _CreateGroupDialogContentState
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: _nameController,
-                  decoration: const InputDecoration(
-                    labelText: '広場の名前',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 24),
-                const Text('メンバーを友達から追加（自分＋2人以上が必要）'),
-                const SizedBox(height: 8),
-                Consumer(
-                  builder: (context, ref, _) {
-                    final friendsAsync = ref.watch(
-                      _candidateFriendsProvider(widget.currentUser.userId),
-                    );
-                    return friendsAsync.when(
-                      data: (friends) {
-                        if (friends.isEmpty) {
-                          return const Text(
-                            '友達がいません。先に縁結びで友達を追加してください',
-                            style: TextStyle(color: Colors.grey),
-                          );
-                        }
-                        final available = friends
-                            .where((f) =>
-                                !_members.any((m) => m.userId == f.userId))
-                            .toList();
-                        return Autocomplete<AppUser>(
-                          displayStringForOption: _displayName,
-                          optionsBuilder: (textEditingValue) {
-                            final query = textEditingValue.text.trim().toLowerCase();
-                            if (query.isEmpty) return available;
-                            return available.where((u) =>
-                                _displayName(u).toLowerCase().contains(query) ||
-                                u.rhingId.toLowerCase().contains(query));
-                          },
-                          fieldViewBuilder:
-                              (context, controller, focusNode, onFieldSubmitted) {
-                            _friendFieldController = controller;
-                            return TextField(
-                              controller: controller,
-                              focusNode: focusNode,
-                              decoration: const InputDecoration(
-                                labelText: '友達を選んで追加',
-                                prefixIcon: Icon(Icons.person_add_alt),
-                                border: OutlineInputBorder(),
-                              ),
-                            );
-                          },
-                          onSelected: _addMember,
-                        );
-                      },
-                      loading: () => const LinearProgressIndicator(),
-                      error: (e, _) => Text(
-                        '友達一覧の取得に失敗しました: $e',
-                        style: const TextStyle(color: Colors.red),
-                      ),
-                    );
-                  },
-                ),
-                if (_errorMessage != null) ...[
-                  const SizedBox(height: 8),
-                  Text(_errorMessage!, style: const TextStyle(color: Colors.red)),
-                ],
-                const SizedBox(height: 16),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    Chip(label: Text('${_displayName(widget.currentUser)}（自分）')),
-                    for (final member in _members)
-                      Chip(
-                        label: Text(_displayName(member)),
-                        onDeleted: () => setState(() => _members.remove(member)),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  value: _roomsEnabled,
-                  title: const Text('寄合を複数作成する'),
-                  subtitle: const Text(
-                    'オフの場合、寄合は1つだけになりサイドバーは出ません。'
-                    '設定は全てハンバーガーメニューから行えます（後から複数に切り替え可能）',
-                  ),
-                  onChanged: (value) => setState(() => _roomsEnabled = value),
-                ),
-                const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: _isCreating ? null : _createGroup,
-                    child: _isCreating
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Text('作成'),
-                  ),
-                ),
-              ],
+              children: _step == 1 ? _buildStep1() : _buildStep2(),
             ),
           ),
         ),
       ],
+    );
+  }
+
+  List<Widget> _buildStep1() {
+    return [
+      TextField(
+        controller: _nameController,
+        autofocus: true,
+        decoration: const InputDecoration(
+          labelText: '広場の名前',
+          border: OutlineInputBorder(),
+        ),
+        onSubmitted: (_) => _goToStep2(),
+      ),
+      const SizedBox(height: 16),
+      SwitchListTile(
+        contentPadding: EdgeInsets.zero,
+        value: _roomsEnabled,
+        title: const Text('寄合を複数作成する'),
+        subtitle: const Text(
+          'オフの場合、寄合は1つだけになりサイドバーは出ません。'
+          '設定は全てハンバーガーメニューから行えます（後から複数に切り替え可能）',
+        ),
+        onChanged: (value) => setState(() => _roomsEnabled = value),
+      ),
+      if (_errorMessage != null) ...[
+        const SizedBox(height: 8),
+        Text(_errorMessage!, style: const TextStyle(color: Colors.red)),
+      ],
+      const SizedBox(height: 16),
+      SizedBox(
+        width: double.infinity,
+        child: ElevatedButton(
+          onPressed: _goToStep2,
+          child: const Text('次へ'),
+        ),
+      ),
+    ];
+  }
+
+  List<Widget> _buildStep2() {
+    return [
+      Row(
+        children: [
+          IconButton(
+            icon: const Icon(Icons.arrow_back),
+            tooltip: '戻る',
+            onPressed: _isCreating ? null : _goBackToStep1,
+          ),
+          const SizedBox(width: 4),
+          const Expanded(
+            child: Text('メンバーを友達から選ぶ（自分＋2人以上が必要）'),
+          ),
+        ],
+      ),
+      const SizedBox(height: 8),
+      TextField(
+        controller: _searchController,
+        decoration: const InputDecoration(
+          labelText: '名前で検索',
+          prefixIcon: Icon(Icons.search),
+          border: OutlineInputBorder(),
+        ),
+        onChanged: (_) => setState(() {}),
+      ),
+      const SizedBox(height: 8),
+      Consumer(
+        builder: (context, ref, _) {
+          final friendsAsync = ref.watch(
+            _candidateFriendsProvider(widget.currentUser.userId),
+          );
+          return friendsAsync.when(
+            data: (friends) {
+              if (friends.isEmpty) {
+                return const Text(
+                  '友達がいません。先に縁結びで友達を追加してください',
+                  style: TextStyle(color: Colors.grey),
+                );
+              }
+              final query = _searchController.text.trim().toLowerCase();
+              final filtered = query.isEmpty
+                  ? friends
+                  : friends
+                      .where((u) =>
+                          _displayName(u).toLowerCase().contains(query) ||
+                          u.rhingId.toLowerCase().contains(query))
+                      .toList();
+              if (filtered.isEmpty) {
+                return const Text(
+                  '該当する友達が見つかりません',
+                  style: TextStyle(color: Colors.grey),
+                );
+              }
+              return ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 320),
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: filtered.length,
+                  itemBuilder: (context, index) {
+                    final friend = filtered[index];
+                    final selected =
+                        _members.any((m) => m.userId == friend.userId);
+                    final icon = friend.activeIcon;
+                    return CheckboxListTile(
+                      value: selected,
+                      contentPadding: EdgeInsets.zero,
+                      controlAffinity: ListTileControlAffinity.trailing,
+                      secondary: CircleAvatar(
+                        backgroundImage:
+                            icon != null ? NetworkImage(icon.url) : null,
+                        child: icon == null ? const Icon(Icons.person) : null,
+                      ),
+                      title: Text(_displayName(friend)),
+                      onChanged: (checked) => setState(() {
+                        if (checked ?? false) {
+                          _members.add(friend);
+                        } else {
+                          _members.removeWhere((m) => m.userId == friend.userId);
+                        }
+                        _errorMessage = null;
+                      }),
+                    );
+                  },
+                ),
+              );
+            },
+            loading: () => const LinearProgressIndicator(),
+            error: (e, _) => Text(
+              '友達一覧の取得に失敗しました: $e',
+              style: const TextStyle(color: Colors.red),
+            ),
+          );
+        },
+      ),
+      const SizedBox(height: 8),
+      Text(
+        '${_members.length}人選択中（自分を含めて計${_members.length + 1}人）',
+        style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+      ),
+      if (_errorMessage != null) ...[
+        const SizedBox(height: 8),
+        Text(_errorMessage!, style: const TextStyle(color: Colors.red)),
+      ],
+      const SizedBox(height: 16),
+      SizedBox(
+        width: double.infinity,
+        child: ElevatedButton(
+          onPressed: _isCreating ? null : _createGroup,
+          child: _isCreating
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Text('作成'),
+        ),
+      ),
+    ];
+  }
+}
+
+/// ポップアップ上部の「今どの手順にいるか」を丸数字で示すインジケーター
+/// （2026-07-29追加）。現在の手順・完了済みの手順は塗りつぶし、
+/// 手順同士は横線で繋ぐ。
+class _StepIndicator extends StatelessWidget {
+  const _StepIndicator({required this.currentStep, required this.totalSteps});
+
+  final int currentStep;
+  final int totalSteps;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        for (var step = 1; step <= totalSteps; step++) ...[
+          if (step > 1)
+            Container(
+              width: 32,
+              height: 2,
+              color: step <= currentStep
+                  ? colorScheme.primary
+                  : colorScheme.outlineVariant,
+            ),
+          _StepCircle(
+            number: step,
+            filled: step <= currentStep,
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _StepCircle extends StatelessWidget {
+  const _StepCircle({required this.number, required this.filled});
+
+  final int number;
+  final bool filled;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Container(
+      width: 28,
+      height: 28,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: filled ? colorScheme.primary : Colors.transparent,
+        border: Border.all(
+          color: filled ? colorScheme.primary : colorScheme.outlineVariant,
+          width: 1.5,
+        ),
+      ),
+      child: Text(
+        '$number',
+        style: TextStyle(
+          color: filled ? colorScheme.onPrimary : colorScheme.onSurfaceVariant,
+          fontWeight: FontWeight.bold,
+          fontSize: 13,
+        ),
+      ),
     );
   }
 }
