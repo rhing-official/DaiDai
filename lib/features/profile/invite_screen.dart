@@ -4,7 +4,9 @@ import 'package:go_router/go_router.dart';
 
 import '../../l10n/strings.dart';
 import '../../models/app_user.dart';
+import '../../models/direct_message.dart';
 import '../../providers/repository_providers.dart';
+import '../../widgets/profile_card_picker.dart';
 import '../auth/auth_gate.dart';
 
 /// 招待リンク（`/invite/:rhingId`）・QRコード読み取りの両方から開かれる、
@@ -47,6 +49,10 @@ class _InviteConfirmViewState extends ConsumerState<_InviteConfirmView> {
   AppUser? _inviter;
   bool _isSending = false;
   String? _errorMessage;
+
+  /// この相手との一対で使うプロフィールカード（省略時は標準が適用される、
+  /// 2026-07-29追加）。
+  String? _selectedProfileCardId;
 
   @override
   void initState() {
@@ -96,6 +102,15 @@ class _InviteConfirmViewState extends ConsumerState<_InviteConfirmView> {
     try {
       final friendRepository = ref.read(friendRepositoryProvider);
       await friendRepository.sendRequest(from: widget.currentUser, to: inviter);
+      final selectedProfileCardId = _selectedProfileCardId;
+      if (selectedProfileCardId != null) {
+        await ref.read(userRepositoryProvider).setConversationProfileCard(
+              userId: widget.currentUser.userId,
+              conversationId:
+                  DirectMessage.idFor(widget.currentUser.userId, inviter.userId),
+              profileCardId: selectedProfileCardId,
+            );
+      }
       if (!mounted) return;
       setState(() => _status = _InviteStatus.sent);
     } catch (e) {
@@ -161,15 +176,40 @@ class _InviteConfirmViewState extends ConsumerState<_InviteConfirmView> {
               Text(_errorMessage!, style: const TextStyle(color: Colors.red)),
             ],
             const SizedBox(height: 24),
-            ElevatedButton(
-              onPressed: _isSending ? null : _sendRequest,
-              child: _isSending
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : Text(strings.inviteScreenSendButton),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                strings.profileCardPickerLabel,
+                style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+              ),
+            ),
+            const SizedBox(height: 8),
+            ProfileCardPicker(
+              strings: strings,
+              cards: widget.currentUser.profileCards,
+              selectedCardId: _selectedProfileCardId,
+              onSelected: (id) => setState(() => _selectedProfileCardId = id),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                TextButton(
+                  onPressed: _isSending ? null : () => context.go('/'),
+                  child: Text(strings.cancel),
+                ),
+                const SizedBox(width: 8),
+                ElevatedButton(
+                  onPressed: _isSending ? null : _sendRequest,
+                  child: _isSending
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Text(strings.inviteScreenSendButton),
+                ),
+              ],
             ),
           ],
         );

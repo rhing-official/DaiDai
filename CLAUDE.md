@@ -193,6 +193,11 @@ DaiDaiは独自の世界観用語を使う。変数名・クラス名・コレ�
 - 広場側の寄合追加・削除は長・モデレーターのみ（firestore.rulesで強制）。既存の`GroupRepository`が元々`rooms`サブコレクション・`defaultRoomId`という複数ルーム前提の設計だったため、`watchRooms`/`createRoom`/`deleteRoom`を追加し、`respondToJoinRequest`/`leaveGroup`/`setReadReceiptsEnabled`をdefaultRoomId決め打ちから全room走査に修正する形で対応した。
 - 一対側は参加者2人がどちらも対等に追加・削除できる（役割が無いため）。既存の`directMessages/{dmId}/messages`というフラット構造を、広場と同じ`directMessages/{dmId}/rooms/{roomId}/messages`構造に変更（`DirectMessage.defaultRoomId`追加、新規`lib/models/dm_room.dart`の`DmRoom`）。既存データはCloud Functionsの一度きりの移行処理（`functions/src/index.ts`、実行後にソースから削除済み）で新構造へ移した。
 - 寄合の削除は、severance（絶縁）・既読オフと同じ「削除実行者を記録するマーカーフィールド（`roomDeletionRequestedBy`/`deletionRequestedBy`）を立ててからメッセージを物理削除し、最後に寄合自体を削除する」パターンで実装している。
+- **重要な実装上の注意**: `GroupRepository.watchRooms`/`DirectMessageRepository.watchRooms`は、対象の`rooms`サブコレクションを`where('memberIds'/'participants', arrayContains: userId)`という絞り込み条件**付きで**クエリする必要がある（`userId`引数必須）。Firestoreの`list`操作は、クエリ自体にセキュリティルールと同じ条件の`where`句が無いと「返り得る全ドキュメントがルールを満たすと証明できない」として要求全体を`permission-denied`で拒否する仕様があり、絞り込み無しの単純な全件取得クエリではルール・データが正しくても寄合一覧が一切表示されなくなる（2026-07-28の複数寄合機能実装当初からこの不具合が入り込んでおり、2026-07-29に発覚・修正した）。
+
+### 寄合の単一/複数モード（2026-07-29追加）
+
+広場は作成時に、一対は常に、まず「単一モード」（`roomsEnabled: false`、寄合はdefaultRoomIdの1つだけ・サイドバー非表示・設定は全てハンバーガーメニューに格納）で始められる。広場作成画面（`create_group_screen.dart`）に「寄合を複数作成する」トグルがあり、オフを選ぶと単一モードになる。単一モードから複数モードへは、ハンバーガーメニューの「寄合を複数扱う」（広場、`manageRooms`権限が必要）・「寄合を増やす」（一対、参加者ならどちらでも）でいつでも切り替えられる（`Group.roomsEnabled`/`DirectMessage.roomsEnabled`、`GroupRepository.setRoomsEnabled`/`DirectMessageRepository.setRoomsEnabled`）。複数→単一に戻す機能は無い（firestore.rulesでも`true`への変更のみ許可）。この機能追加前に作られた既存の広場・一対は、フィールド欠落時のfromJsonデフォルト値により全て複数モード扱いになる（既存の複数寄合表示を維持するため）。
 
 現在フェーズ1着手前（プロジェクトディレクトリは空）。実装時はこの順序を尊重し、後続フェーズの機能を先取りして作り込まない。
 
@@ -214,6 +219,8 @@ DaiDaiは独自の世界観用語を使う。変数名・クラス名・コレ�
 - メインカラー: 橙色 `#EE7800`。無料版カラーパレット・極みプラン限定カラー/フォントは技術仕様書11章参照
 - 和紙に色が染み込むようなグラフィック、メッセージが横から「シュポン」と飛び出る演出（凝ったグラフィックはデザイナー雇用後）
 - 無料版フォント: BIZ UDPMincho, BIZ UDGothic, チカラヅヨク, チカラヨワク
+
+> UI実装・レビュー時は`/home/arata/Obsidian-Personal/コマンド/UI参考.md`（DaiDai専用ではない一般的なUIデザイン原則・Tips集、git管理外）も参照すること。配色を絞る・ボタンの3階層化・確認ダイアログの構成・カードの角丸の決め方など、画面を作る/直すたびに当てはまる点が無いか確認する。
 
 ### UIスタイル（2026-07-22更新: シンプル1本化＋カラーコード自由入力）
 

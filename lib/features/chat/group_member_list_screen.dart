@@ -7,6 +7,7 @@ import '../../models/app_user.dart';
 import '../../models/group.dart';
 import '../../models/group_join_request.dart';
 import '../../models/group_role.dart';
+import '../../providers/group_providers.dart';
 import '../../providers/repository_providers.dart';
 import '../../utils/group_permissions.dart';
 import 'user_profile_card_dialog.dart';
@@ -107,22 +108,17 @@ class GroupMemberListPopup extends ConsumerWidget {
     Strings strings,
     AppUser member,
   ) async {
-    final label = member.effectiveNickname?.text.isNotEmpty ?? false
-        ? member.effectiveNickname!.text
-        : '@${member.rhingId}';
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(strings.groupTransferOwnershipConfirmTitle(label)),
+        title: Text(strings.groupTransferOwnershipConfirmTitle),
+        content: Text(strings.groupTransferOwnershipConfirmMessage),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
             child: Text(strings.cancel),
           ),
           FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(context).colorScheme.error,
-            ),
             onPressed: () => Navigator.of(context).pop(true),
             child: Text(strings.groupTransferOwnershipConfirmButton),
           ),
@@ -141,14 +137,18 @@ class GroupMemberListPopup extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final strings = ref.watch(appStringsProvider);
     final vocab = ref.watch(vocabularyProvider);
-    final isOwner = group.ownerId == currentUser.userId;
+    // groupはこのポップアップが開かれた時点のスナップショットで、開いたまま
+    // 長の譲渡・ロール変更等を行っても更新されない別Navigatorルートのため、
+    // ライブな値を別途購読する（group_role_list_popup.dartのliveGroupと同じ理由）。
+    final liveGroup = ref.watch(watchedGroupProvider(group.groupId)).value ?? group;
+    final isOwner = liveGroup.ownerId == currentUser.userId;
     final canManageRoles = hasGroupPermission(
-      group: group,
+      group: liveGroup,
       userId: currentUser.userId,
       permission: GroupPermission.manageRoles,
     );
     final canManageJoinRequests = hasGroupPermission(
-      group: group,
+      group: liveGroup,
       userId: currentUser.userId,
       permission: GroupPermission.manageJoinRequests,
     );
@@ -182,7 +182,8 @@ class GroupMemberListPopup extends ConsumerWidget {
             children: [
               _SectionHeader(strings.groupMemberListMembersSection),
               FutureBuilder<List<AppUser>>(
-                future: ref.read(userRepositoryProvider).getUsersByIds(group.memberIds),
+                future:
+                    ref.read(userRepositoryProvider).getUsersByIds(liveGroup.memberIds),
                 builder: (context, snapshot) {
                   if (!snapshot.hasData) {
                     return const Padding(
@@ -198,11 +199,12 @@ class GroupMemberListPopup extends ConsumerWidget {
                         _MemberTile(
                           currentUser: currentUser,
                           user: member,
-                          isOwner: member.userId == group.ownerId,
+                          groupId: liveGroup.groupId,
+                          isOwner: member.userId == liveGroup.ownerId,
                           vocab: vocab,
                           strings: strings,
                           customRoles: roles,
-                          assignedRoleIds: group.roleAssignments[member.userId] ??
+                          assignedRoleIds: liveGroup.roleAssignments[member.userId] ??
                               const <String>[],
                           canManageRoles: canManageRoles,
                           onEditRoles: !canManageRoles
@@ -213,7 +215,7 @@ class GroupMemberListPopup extends ConsumerWidget {
                                     strings,
                                     member,
                                     [
-                                      ...?group.roleAssignments[member.userId],
+                                      ...?liveGroup.roleAssignments[member.userId],
                                     ],
                                   ),
                           canTransferOwnership:
@@ -242,7 +244,11 @@ class GroupMemberListPopup extends ConsumerWidget {
                     return Column(
                       children: [
                         for (final request in requests)
-                          _JoinRequestTile(request: request, strings: strings),
+                          _JoinRequestTile(
+                            request: request,
+                            strings: strings,
+                            respondedBy: currentUser.userId,
+                          ),
                       ],
                     );
                   },
@@ -271,19 +277,26 @@ class _SectionHeader extends StatelessWidget {
 }
 
 class _JoinRequestTile extends ConsumerWidget {
-  const _JoinRequestTile({required this.request, required this.strings});
+  const _JoinRequestTile({
+    required this.request,
+    required this.strings,
+    required this.respondedBy,
+  });
 
   final GroupJoinRequest request;
   final Strings strings;
+  final String respondedBy;
 
   // 以前はawaitもエラーハンドリングも無い投げっぱなしで、失敗しても
   // ボタンの見た目だけが反応して何も起きていないように見えた（承認・却下が
   // 実は失敗していても気付けなかった）。エラー時は画面に表示する。
   Future<void> _respond(BuildContext context, WidgetRef ref, bool accept) async {
     try {
-      await ref
-          .read(groupRepositoryProvider)
-          .respondToJoinRequest(request: request, accept: accept);
+      await ref.read(groupRepositoryProvider).respondToJoinRequest(
+            request: request,
+            accept: accept,
+            respondedBy: respondedBy,
+          );
     } catch (e) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context)
@@ -317,6 +330,7 @@ class _MemberTile extends StatelessWidget {
   const _MemberTile({
     required this.currentUser,
     required this.user,
+    required this.groupId,
     required this.isOwner,
     required this.vocab,
     required this.strings,
@@ -330,6 +344,10 @@ class _MemberTile extends StatelessWidget {
 
   final AppUser currentUser;
   final AppUser user;
+
+  /// 会話ごとに使うプロフィールカード（2026-07-29追加）を反映するための
+  /// 広場id。
+  final String groupId;
 
   /// このユーザーが長（[Group.ownerId]）かどうか。
   final bool isOwner;
@@ -353,8 +371,8 @@ class _MemberTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final iconUrl = user.effectiveIcon?.url;
-    final nickname = user.effectiveNickname?.text;
+    final iconUrl = user.effectiveIconFor(groupId)?.url;
+    final nickname = user.effectiveNicknameFor(groupId)?.text;
     final label = (nickname?.isNotEmpty ?? false) ? nickname! : '@${user.rhingId}';
     final assignedRoles =
         customRoles.where((r) => assignedRoleIds.contains(r.roleId)).toList();
@@ -364,43 +382,44 @@ class _MemberTile extends StatelessWidget {
         child: iconUrl == null ? const Icon(Icons.person) : null,
       ),
       title: Text(label),
-      trailing: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (isOwner) Chip(label: Text(vocab.owner)),
-              if (canTransferOwnership)
-                IconButton(
-                  icon: const Icon(Icons.workspace_premium_outlined),
-                  tooltip: strings.groupTransferOwnershipMenuItem,
-                  onPressed: onTransferOwnership,
-                ),
-            ],
+      // ロールチップをtrailingに縦積みすると、ListTileの既定の高さ
+      // （1行分・56dp程度）に収まらずBOTTOM OVERFLOWが発生していたため、
+      // subtitle（2行目扱いでListTileの高さが自動的に広がる）に移動した。
+      subtitle: Align(
+        alignment: Alignment.centerLeft,
+        child: ActionChip(
+          avatar: assignedRoles.isNotEmpty && assignedRoles.first.color != null
+              ? CircleAvatar(
+                  radius: 6,
+                  backgroundColor: Color(0xFF000000 | assignedRoles.first.color!),
+                )
+              : null,
+          label: Text(
+            assignedRoles.isEmpty
+                ? strings.groupRoleNoneLabel
+                : assignedRoles.map((r) => r.name).join('、'),
           ),
-          const SizedBox(height: 4),
-          ActionChip(
-            avatar: assignedRoles.isNotEmpty && assignedRoles.first.color != null
-                ? CircleAvatar(
-                    radius: 6,
-                    backgroundColor: Color(0xFF000000 | assignedRoles.first.color!),
-                  )
-                : null,
-            label: Text(
-              assignedRoles.isEmpty
-                  ? strings.groupRoleNoneLabel
-                  : assignedRoles.map((r) => r.name).join('、'),
-            ),
-            onPressed: canManageRoles ? onEditRoles : null,
-          ),
-        ],
+          onPressed: canManageRoles ? onEditRoles : null,
+        ),
       ),
+      trailing: isOwner
+          ? Tooltip(
+              message: vocab.owner,
+              child: const Icon(Icons.workspace_premium, color: Colors.amber),
+            )
+          : null,
       // タップすると相手のプロフィールカードを見られ、友達でなければそこから
       // 友達申請を送れる（chat_screen.dartの送信者アイコンタップと同じ導線）。
-      onTap: () =>
-          UserProfileCardDialog.show(context, currentUser: currentUser, user: user),
+      // 長の譲渡も、以前はこの一覧に直接アイコンボタンを置いていたが誤操作の
+      // リスクが高いため、プロフィールカード側の操作に統合した（2026-07-29）。
+      onTap: () => UserProfileCardDialog.show(
+        context,
+        currentUser: currentUser,
+        user: user,
+        conversationId: groupId,
+        canTransferOwnership: canTransferOwnership,
+        onTransferOwnership: onTransferOwnership,
+      ),
     );
   }
 }

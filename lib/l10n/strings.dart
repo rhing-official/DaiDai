@@ -72,6 +72,7 @@ class Strings {
     required this.friendSearchHint,
     required this.friendSearchLabel,
     required this.friendSearchButton,
+    required this.friendSearchSearchButton,
     required this.friendSearchNotFound,
     required this.friendSearchSelf,
     required this.friendRequestSent,
@@ -82,8 +83,7 @@ class Strings {
     required this.userProfileCardSendRequest,
     required this.userProfileCardAcceptRequest,
     required this.userProfileCardRequestPending,
-    required this.userProfileCardAlreadyFriend,
-    required this.userProfileCardClose,
+    required this.userProfileCardJumpToDm,
     required this.friendRequestIncomingSubtitle,
     required this.friendRequestOutgoingSubtitle,
     required this.conversationPin,
@@ -143,6 +143,8 @@ class Strings {
     required this.delete,
     required this.profileIconSection,
     required this.profileBackgroundSection,
+    required this.profileImageColorSection,
+    required this.profileImageColorInvalid,
     required this.profileNicknameHint,
     required this.profileAddNickname,
     required this.profileAddStatusMessage,
@@ -202,13 +204,22 @@ class Strings {
     required this.groupRoleDeleteConfirmButton,
     required this.groupRoleNoneLabel,
     required this.groupRolePickerTitle,
+    required this.groupRoleMembersLabel,
+    required this.groupRoleAssignAllLabel,
     required this.groupRolePriorityTitle,
     required this.groupRolePriorityHint,
     required this.groupRoomRolePriorityMenuItem,
     required this.groupRoomRolePriorityResetButton,
+    required this.groupMenuEnableMultipleRooms,
+    required this.dmMenuEnableMultipleRooms,
+    required this.profileCardPickerLabel,
+    required this.profileCardPickerStandardOption,
+    required this.settingsProfileCardAssignmentTitle,
+    required this.settingsProfileCardAssignmentEmpty,
     required this.groupSettingsTooltip,
     required this.groupTransferOwnershipMenuItem,
     required this.groupTransferOwnershipConfirmTitle,
+    required this.groupTransferOwnershipConfirmMessage,
     required this.groupTransferOwnershipConfirmButton,
     required this.groupProfileCardNameLabel,
     required this.groupProfileCardDescriptionLabel,
@@ -253,6 +264,7 @@ class Strings {
     required this.roomListAddButton,
     required this.roomListDeleteConfirmTitle,
     required this.roomListDeleteConfirmButton,
+    required this.roomRenameLabel,
     required this.dmMenuDeleteConversation,
   });
 
@@ -329,6 +341,10 @@ class Strings {
   final String friendSearchHint;
   final String friendSearchLabel;
   final String friendSearchButton;
+  /// Rhing ID検索フォームの最初の一歩（検索）ボタン。相手が見つかったら
+  /// カード選択を含む確認UIに切り替わり、[friendSearchButton]が送信ボタンに
+  /// なる（2026-07-29追加）。
+  final String friendSearchSearchButton;
   final String friendSearchNotFound;
   final String friendSearchSelf;
   final String friendRequestSent;
@@ -339,8 +355,8 @@ class Strings {
   final String userProfileCardSendRequest;
   final String userProfileCardAcceptRequest;
   final String userProfileCardRequestPending;
-  final String userProfileCardAlreadyFriend;
-  final String userProfileCardClose;
+  /// 友達のプロフィールカード右上のジャンプ（一対を開く）ボタンのツールチップ。
+  final String userProfileCardJumpToDm;
   final String friendRequestIncomingSubtitle;
   final String friendRequestOutgoingSubtitle;
   final String conversationPin;
@@ -402,6 +418,8 @@ class Strings {
 
   final String profileIconSection;
   final String profileBackgroundSection;
+  final String profileImageColorSection;
+  final String profileImageColorInvalid;
 
   /// ニックネーム欄の説明文。用語（呼び名／ニックネーム）を差し込む。
   final String Function(String nicknameTerm) profileNicknameHint;
@@ -476,6 +494,10 @@ class Strings {
   final String groupRoleDeleteConfirmButton;
   final String groupRoleNoneLabel;
   final String groupRolePickerTitle;
+  /// ロール編集ダイアログ内、そのロールを付与するメンバーを選ぶセクションの見出し。
+  final String groupRoleMembersLabel;
+  /// メンバー選択セクションの「全員に付与」一括選択チェックボックス。
+  final String groupRoleAssignAllLabel;
   /// ロールの優先順位（呼び名の色を決める順序）並べ替え画面のタイトル。
   final String groupRolePriorityTitle;
   final String groupRolePriorityHint;
@@ -483,11 +505,30 @@ class Strings {
   final String groupRoomRolePriorityMenuItem;
   /// 寄合ごとの優先順位上書きを解除し、広場全体の設定に戻すボタン。
   final String groupRoomRolePriorityResetButton;
+  /// 広場のハンバーガーメニュー、単一モードから複数モードへの切り替え項目
+  /// （`Group.roomsEnabled`、2026-07-29追加）。
+  final String groupMenuEnableMultipleRooms;
+  /// 一対のハンバーガーメニュー、単一モードから複数モードへの切り替え項目
+  /// （`DirectMessage.roomsEnabled`、2026-07-29追加）。
+  final String dmMenuEnableMultipleRooms;
+  /// 会話（一対・広場）ごとに使うプロフィールカードを選ぶピッカーのラベル
+  /// （`AppUser.conversationProfileCardId`、2026-07-29追加）。広場参加・
+  /// 友達申請3系統・全体設定の計5箇所で共通して使う。
+  final String profileCardPickerLabel;
+  /// [profileCardPickerLabel]のピッカーで「標準（[AppUser.activeProfileCardId]）
+  /// を使う」ことを表す選択肢のラベル。
+  final String profileCardPickerStandardOption;
+  /// 設定タブ＞語らいの、会話ごとのプロフィールカード割り当て一覧セクションの
+  /// タイトル（2026-07-29追加）。
+  final String settingsProfileCardAssignmentTitle;
+  /// 上記セクションで、一対・広場がまだ1件も無い場合に表示する文言。
+  final String settingsProfileCardAssignmentEmpty;
   /// サイドバーの「広場自体の設定」アイコンのツールチップ。
   final String groupSettingsTooltip;
   /// 長の譲渡メニュー項目・確認ダイアログ。
   final String groupTransferOwnershipMenuItem;
-  final String Function(String memberName) groupTransferOwnershipConfirmTitle;
+  final String groupTransferOwnershipConfirmTitle;
+  final String groupTransferOwnershipConfirmMessage;
   final String groupTransferOwnershipConfirmButton;
 
   final String groupProfileCardNameLabel;
@@ -549,6 +590,8 @@ class Strings {
   /// 寄合削除の確認ダイアログのタイトル。用語（「寄合」等）を差し込む。
   final String Function(String term) roomListDeleteConfirmTitle;
   final String roomListDeleteConfirmButton;
+  /// 寄合の名前変更メニュー項目・ダイアログタイトルの両方に使う。
+  final String Function(String term) roomRenameLabel;
 
   /// 一対のハンバーガーメニューの「削除」項目。相手がアカウントを削除した
   /// 通知に「いいえ」と答えた後（または未応答のまま）でも、いつでもここから
@@ -626,6 +669,7 @@ class Strings {
     friendSearchHint: '相手のRhing IDを入力して友達申請を送ります。承認されると会話できるようになります。',
     friendSearchLabel: '相手のRhing ID',
     friendSearchButton: '申請を送る',
+    friendSearchSearchButton: '検索',
     friendSearchNotFound: 'そのRhing IDの住人は見つかりませんでした',
     friendSearchSelf: '自分自身には申請できません',
     friendRequestSent: '友達申請を送りました',
@@ -636,8 +680,7 @@ class Strings {
     userProfileCardSendRequest: '友達申請を送る',
     userProfileCardAcceptRequest: '友達申請を承認する',
     userProfileCardRequestPending: '申請中です。相手の承認をお待ちください',
-    userProfileCardAlreadyFriend: '友達です',
-    userProfileCardClose: '閉じる',
+    userProfileCardJumpToDm: '一対を開く',
     friendRequestIncomingSubtitle: '相手から申請が届いています',
     friendRequestOutgoingSubtitle: '相手の承認を待っています',
     conversationPin: 'ピン留め',
@@ -703,6 +746,8 @@ class Strings {
     delete: '削除',
     profileIconSection: 'アイコン',
     profileBackgroundSection: '背景画像',
+    profileImageColorSection: 'イメージカラー',
+    profileImageColorInvalid: '「#RRGGBB」の形式で入力してください',
     profileNicknameHint: (term) =>
         '友達には、Rhing IDの代わりにここで選んだ$termが表示されます。',
     profileAddNickname: (term) => '$termを追加',
@@ -772,14 +817,23 @@ class Strings {
     groupRoleDeleteConfirmButton: '削除する',
     groupRoleNoneLabel: 'ロール未設定',
     groupRolePickerTitle: 'ロールを選択',
+    groupRoleMembersLabel: 'メンバー',
+    groupRoleAssignAllLabel: '全員に付与',
     groupRolePriorityTitle: 'ロールの優先順位',
     groupRolePriorityHint: '上にあるロールほど呼び名の色が優先されます',
     groupRoomRolePriorityMenuItem: 'この寄合の色優先順位を設定',
     groupRoomRolePriorityResetButton: '広場全体の設定に戻す',
+    groupMenuEnableMultipleRooms: '寄合を複数扱う',
+    dmMenuEnableMultipleRooms: '寄合を増やす',
+    profileCardPickerLabel: '使うプロフィールカード（省略可）',
+    profileCardPickerStandardOption: '標準',
+    settingsProfileCardAssignmentTitle: '会話ごとのプロフィールカード',
+    settingsProfileCardAssignmentEmpty: '一対・広場がまだありません',
     groupSettingsTooltip: '広場自体の設定',
     groupTransferOwnershipMenuItem: '長を譲渡する',
-    groupTransferOwnershipConfirmTitle: (name) => '$nameに長を譲渡しますか？',
-    groupTransferOwnershipConfirmButton: '譲渡する',
+    groupTransferOwnershipConfirmTitle: '長を譲渡しますか？',
+    groupTransferOwnershipConfirmMessage: '再度長になるには譲渡してもらう必要があります。',
+    groupTransferOwnershipConfirmButton: '譲渡',
     groupProfileCardNameLabel: '広場名',
     groupProfileCardDescriptionLabel: '一言',
     groupMemberListTitle: 'メンバー一覧',
@@ -828,6 +882,7 @@ class Strings {
     roomListAddButton: '追加',
     roomListDeleteConfirmTitle: (term) => 'この$termを削除しますか？',
     roomListDeleteConfirmButton: '削除する',
+    roomRenameLabel: (term) => '$termの名前を変更',
     dmMenuDeleteConversation: (term) => '$termの削除',
   );
 
@@ -909,6 +964,7 @@ class Strings {
         'Once accepted, you can start talking.',
     friendSearchLabel: "Their Rhing ID",
     friendSearchButton: 'Send request',
+    friendSearchSearchButton: 'Search',
     friendSearchNotFound: 'No resident found with that Rhing ID',
     friendSearchSelf: "You can't send a request to yourself",
     friendRequestSent: 'Friend request sent',
@@ -919,8 +975,7 @@ class Strings {
     userProfileCardSendRequest: 'Send friend request',
     userProfileCardAcceptRequest: 'Accept friend request',
     userProfileCardRequestPending: 'Request sent. Waiting for approval.',
-    userProfileCardAlreadyFriend: 'Friends',
-    userProfileCardClose: 'Close',
+    userProfileCardJumpToDm: 'Open direct chat',
     friendRequestIncomingSubtitle: 'They sent you a friend request',
     friendRequestOutgoingSubtitle: 'Waiting for them to accept',
     conversationPin: 'Pin',
@@ -998,6 +1053,8 @@ class Strings {
     delete: 'Delete',
     profileIconSection: 'Icons',
     profileBackgroundSection: 'Background images',
+    profileImageColorSection: 'Image colour',
+    profileImageColorInvalid: 'Please enter in the format "#RRGGBB"',
     profileNicknameHint: (_) =>
         "Friends see the nickname you've selected here instead of your Rhing ID.",
     profileAddNickname: (_) => 'Add a nickname',
@@ -1069,13 +1126,23 @@ class Strings {
     groupRoleDeleteConfirmButton: 'Delete',
     groupRoleNoneLabel: 'No role',
     groupRolePickerTitle: 'Select a role',
+    groupRoleMembersLabel: 'Members',
+    groupRoleAssignAllLabel: 'Assign to everyone',
     groupRolePriorityTitle: 'Role priority',
     groupRolePriorityHint: 'Roles higher up take priority for the display name colour',
     groupRoomRolePriorityMenuItem: 'Set this room\'s colour priority',
     groupRoomRolePriorityResetButton: 'Reset to plaza default',
+    groupMenuEnableMultipleRooms: 'Enable multiple rooms',
+    dmMenuEnableMultipleRooms: 'Add more rooms',
+    profileCardPickerLabel: 'Profile card to use (optional)',
+    profileCardPickerStandardOption: 'Standard',
+    settingsProfileCardAssignmentTitle: 'Profile card per conversation',
+    settingsProfileCardAssignmentEmpty: 'No DMs or groups yet',
     groupSettingsTooltip: 'Plaza settings',
     groupTransferOwnershipMenuItem: 'Transfer ownership',
-    groupTransferOwnershipConfirmTitle: (name) => 'Transfer ownership to $name?',
+    groupTransferOwnershipConfirmTitle: 'Transfer ownership?',
+    groupTransferOwnershipConfirmMessage:
+        'You will need to be given ownership again to become the owner once more.',
     groupTransferOwnershipConfirmButton: 'Transfer',
     groupProfileCardNameLabel: 'Plaza name',
     groupProfileCardDescriptionLabel: 'Status',
@@ -1134,6 +1201,7 @@ class Strings {
     roomListAddButton: 'Add',
     roomListDeleteConfirmTitle: (term) => 'Delete this $term?',
     roomListDeleteConfirmButton: 'Delete',
+    roomRenameLabel: (term) => 'Rename $term',
     dmMenuDeleteConversation: (term) => 'Delete $term',
   );
 

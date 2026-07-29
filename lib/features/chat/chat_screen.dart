@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatform;
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -27,6 +29,7 @@ class ChatScreen extends ConsumerStatefulWidget {
     required this.title,
     required this.currentUserId,
     required this.isDm,
+    this.conversationId,
     required this.messagesStream,
     required this.onSend,
     this.onCallPressed,
@@ -53,6 +56,11 @@ class ChatScreen extends ConsumerStatefulWidget {
   /// 一対（1対1）か広場（グループ）か。[ChatLayoutStyle.sideBySide]で、
   /// 相手のアイコン・呼び名を表示するかどうかの判定に使う。
   final bool isDm;
+
+  /// この会話（一対のdmId・広場のgroupId）。会話ごとに使うプロフィールカード
+  /// （2026-07-29追加、`AppUser.conversationProfileCardId`）を反映して
+  /// 送信者名・アイコンを表示するために使う。nullなら標準のカードで表示する。
+  final String? conversationId;
 
   final Stream<List<Message>> messagesStream;
   final Future<void> Function(String content, {bool silent, Message? replyTo}) onSend;
@@ -122,9 +130,117 @@ class ChatScreen extends ConsumerStatefulWidget {
   ConsumerState<ChatScreen> createState() => _ChatScreenState();
 }
 
-class _ChatScreenState extends ConsumerState<ChatScreen> {
+class _ChatScreenState extends ConsumerState<ChatScreen>
+    with SingleTickerProviderStateMixin {
   final _textController = TextEditingController();
   late bool _hasHardwareKeyboard;
+
+  /// メッセージ一覧のスクロール位置を、自動スクロール機能から直接操作する
+  /// ために持つ（返信先ジャンプ機能は従来通りcontextベースの
+  /// `Scrollable.ensureVisible`を使うため、この`controller`を必要としない）。
+  final _scrollController = ScrollController();
+
+  /// 自動スクロール開始位置（画面座標）を表示するアイコンの位置計算に使う。
+  final _autoScrollAreaKey = GlobalKey();
+
+  /// ミドルクリック/長押しによる自動スクロールの基準位置（画面座標）。
+  /// nullなら非アクティブ（2026-07-29追加、ブラウザのミドルクリック
+  /// オートスクロールと同じ挙動を、メッセージ行の吹き出し横の余白の長押しにも
+  /// 割り当てている）。
+  Offset? _autoScrollOrigin;
+
+  /// 現在のポインタ位置と[_autoScrollOrigin]との縦距離。プラスなら下、
+  /// マイナスなら上に離れている。
+  double _autoScrollDy = 0;
+
+  Ticker? _autoScrollTicker;
+  Duration _autoScrollLastTick = Duration.zero;
+
+  static const _autoScrollDeadZone = 12.0;
+  static const _autoScrollMaxSpeed = 900.0;
+
+  void _startAutoScroll(Offset origin) {
+    _autoScrollTicker?.dispose();
+    _autoScrollLastTick = Duration.zero;
+    setState(() {
+      _autoScrollOrigin = origin;
+      _autoScrollDy = 0;
+    });
+    _autoScrollTicker = createTicker(_tickAutoScroll)..start();
+  }
+
+  void _updateAutoScrollPosition(Offset position) {
+    if (_autoScrollOrigin == null) return;
+    setState(() => _autoScrollDy = position.dy - _autoScrollOrigin!.dy);
+  }
+
+  void _stopAutoScroll() {
+    _autoScrollTicker?.dispose();
+    _autoScrollTicker = null;
+    if (_autoScrollOrigin == null) return;
+    setState(() => _autoScrollOrigin = null);
+  }
+
+  /// ミドルクリックは「押して離す」でオン/オフを切り替える（一般的な
+  /// ブラウザの挙動に合わせる）。既にアクティブな間はどのボタンのクリックでも
+  /// 終了させる。
+  void _handleMiddlePointerDown(PointerDownEvent event) {
+    if (_autoScrollOrigin != null) {
+      _stopAutoScroll();
+      return;
+    }
+    if (event.kind == PointerDeviceKind.mouse &&
+        (event.buttons & kMiddleMouseButton) != 0) {
+      _startAutoScroll(event.position);
+    }
+  }
+
+  /// 自動スクロール中、基準位置に表示する小さいアイコン
+  /// （ブラウザのミドルクリックオートスクロールと同じ見た目）。
+  Widget _buildAutoScrollIndicator() {
+    final box =
+        _autoScrollAreaKey.currentContext?.findRenderObject() as RenderBox?;
+    final origin = _autoScrollOrigin;
+    if (box == null || origin == null) return const SizedBox.shrink();
+    final local = box.globalToLocal(origin);
+    return Positioned(
+      left: local.dx - 20,
+      top: local.dy - 20,
+      child: IgnorePointer(
+        child: Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.55),
+            shape: BoxShape.circle,
+          ),
+          child: const Icon(Icons.unfold_more, color: Colors.white, size: 22),
+        ),
+      ),
+    );
+  }
+
+  void _tickAutoScroll(Duration elapsed) {
+    final dtSeconds =
+        (elapsed - _autoScrollLastTick).inMicroseconds / Duration.microsecondsPerSecond;
+    _autoScrollLastTick = elapsed;
+    if (dtSeconds <= 0 || !_scrollController.hasClients) return;
+    final dy = _autoScrollDy;
+    if (dy.abs() <= _autoScrollDeadZone) return;
+    final overshoot = dy.abs() - _autoScrollDeadZone;
+    // 基準位置から離れるほど速くスクロールする（ブラウザのオートスクロールと
+    // 同じ挙動）。
+    final speed = (overshoot * 4).clamp(0.0, _autoScrollMaxSpeed);
+    // reverse:trueのListViewでは、pixelsが大きいほど古いメッセージ側
+    // （画面上では上方向）へスクロールする。ポインタを下（dy>0）へ動かした
+    // 時は新しいメッセージ側（画面上では下方向）へスクロールしたいので、
+    // pixelsを減らす向きになる。
+    final delta = dtSeconds * speed * (dy > 0 ? -1 : 1);
+    final position = _scrollController.position;
+    final next = (position.pixels + delta)
+        .clamp(position.minScrollExtent, position.maxScrollExtent);
+    _scrollController.jumpTo(next);
+  }
 
   /// 既に既読リクエストを送った（または送信中の）メッセージIDの集合。
   /// Firestoreからの再送信のたびに同じメッセージへ既読を送り直さないための重複防止。
@@ -411,6 +527,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   void dispose() {
     HardwareKeyboard.instance.removeHandler(_onHardwareKeyEvent);
     _textController.dispose();
+    _scrollController.dispose();
+    _autoScrollTicker?.dispose();
     super.dispose();
   }
 
@@ -466,9 +584,21 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         children: [
           if (widget.banner != null) widget.banner!,
           Expanded(
-            child: StreamBuilder<List<Message>>(
-              stream: widget.messagesStream,
-              builder: (context, snapshot) {
+            child: Stack(
+              key: _autoScrollAreaKey,
+              children: [
+                Listener(
+                  // translucentにすることで、下のListView（左クリックでの
+                  // ドラッグスクロール等）を邪魔せず、ミドルクリックの検出だけ
+                  // 追加で行える（Listenerはジェスチャーアリーナに参加しない
+                  // 生のポインタ通知のため、他のジェスチャー認識と競合しない）。
+                  behavior: HitTestBehavior.translucent,
+                  onPointerDown: _handleMiddlePointerDown,
+                  onPointerHover: (event) =>
+                      _updateAutoScrollPosition(event.position),
+                  child: StreamBuilder<List<Message>>(
+                    stream: widget.messagesStream,
+                    builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
                 }
@@ -545,6 +675,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       readReceiptsEnabled: widget.readReceiptsEnabled,
                       layoutStyle: layoutStyle,
                       isDm: widget.isDm,
+                      conversationId: widget.conversationId,
                       onSenderTap: _selecting ? null : widget.onSenderTap,
                       senderNameColorResolver: widget.senderNameColorResolver,
                       selecting: _selecting,
@@ -564,6 +695,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                           widget.onDeclineAccountDeletionNotice,
                       onDeleteAfterAccountDeletion:
                           widget.onDeleteAfterAccountDeletion,
+                      onAutoScrollStart: _selecting ? null : _startAutoScroll,
+                      onAutoScrollUpdate:
+                          _selecting ? null : _updateAutoScrollPosition,
+                      onAutoScrollEnd: _selecting ? null : _stopAutoScroll,
                     ),
                   );
                 }
@@ -574,11 +709,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 // ListView.builderではなく全件ビルド済みのListViewを使う
                 // （現在ロード済みメッセージは最新50件程度に収まる想定）。
                 return ListView(
+                  controller: _scrollController,
                   reverse: true,
                   padding: const EdgeInsets.all(12),
                   children: reversedEntries,
                 );
-              },
+                    },
+                  ),
+                ),
+                if (_autoScrollOrigin != null) _buildAutoScrollIndicator(),
+              ],
             ),
           ),
           if (!_selecting && (_replyingTo != null || _editingMessage != null))
@@ -777,6 +917,7 @@ class _MessageRow extends ConsumerWidget {
     required this.readReceiptsEnabled,
     required this.layoutStyle,
     required this.isDm,
+    this.conversationId,
     this.onSenderTap,
     this.senderNameColorResolver,
     this.selecting = false,
@@ -794,6 +935,9 @@ class _MessageRow extends ConsumerWidget {
     this.timeFormat = MessageTimeFormat.h24,
     this.onDeclineAccountDeletionNotice,
     this.onDeleteAfterAccountDeletion,
+    this.onAutoScrollStart,
+    this.onAutoScrollUpdate,
+    this.onAutoScrollEnd,
     super.key,
   });
 
@@ -806,6 +950,12 @@ class _MessageRow extends ConsumerWidget {
   final bool readReceiptsEnabled;
   final ChatLayoutStyle layoutStyle;
   final bool isDm;
+
+  /// このメッセージが属する会話（一対のdmId・広場のgroupId）。会話ごとに
+  /// 使うプロフィールカード（2026-07-29追加）を反映して送信者名・アイコンを
+  /// 表示するために[_SenderName]/[_SenderAvatar]へ伝播する。
+  final String? conversationId;
+
   final void Function(String userId)? onSenderTap;
   final Color? Function(String userId)? senderNameColorResolver;
 
@@ -852,6 +1002,12 @@ class _MessageRow extends ConsumerWidget {
   /// contentType='accountDeleted'通知への「はい」（確認ダイアログの上で
   /// 呼ばれる）。DMのみ渡される。
   final Future<void> Function()? onDeleteAfterAccountDeletion;
+
+  /// 吹き出し横の余白（[_MessageInteractions]参照）を長押しすると、
+  /// ミドルクリックと同じ自動スクロールを開始する（2026-07-29追加）。
+  final ValueChanged<Offset>? onAutoScrollStart;
+  final ValueChanged<Offset>? onAutoScrollUpdate;
+  final VoidCallback? onAutoScrollEnd;
 
   /// チェックマークバッジ（[badgeContext]）の真下から伸びる形でポップアップを
   /// 表示する。画面全体をグレーアウトしないよう、barrierColorは透明にする
@@ -928,12 +1084,17 @@ class _MessageRow extends ConsumerWidget {
                               ),
                               child: Row(
                                 children: [
-                                  _SenderAvatar(userId: reader.userId, rhingId: null),
+                                  _SenderAvatar(
+                                    userId: reader.userId,
+                                    rhingId: null,
+                                    conversationId: conversationId,
+                                  ),
                                   const SizedBox(width: 12),
                                   Expanded(
                                     child: _SenderName(
                                       userId: reader.userId,
                                       rhingId: null,
+                                      conversationId: conversationId,
                                     ),
                                   ),
                                 ],
@@ -1002,7 +1163,11 @@ class _MessageRow extends ConsumerWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _SenderName(userId: replySenderId, rhingId: replySenderRhingId),
+              _SenderName(
+                userId: replySenderId,
+                rhingId: replySenderRhingId,
+                conversationId: conversationId,
+              ),
               Text(
                 snippet,
                 maxLines: 1,
@@ -1077,6 +1242,10 @@ class _MessageRow extends ConsumerWidget {
     // 左寄せになるため、isMeだけで判定すると常にアイコン側に重なってしまう）。
     // 吹き出しの内容（特に画像だけの小さい吹き出し）に重ならないよう、
     // 角からしっかり離す。
+    // テキストメッセージの自分の投稿のみ編集可能（画像等contentType='text'
+    // 以外は将来実装時もまず本文編集の対象外という方針、Planでの検討通り）。
+    final canEdit = isMe && message.contentType == 'text' && onEdit != null;
+
     final badgeContent = isSimpleDmReadMark
         ? Icon(Icons.done, size: 12, color: colorScheme.primary)
         : Row(
@@ -1104,30 +1273,61 @@ class _MessageRow extends ConsumerWidget {
       child: badgeContent,
     );
 
-    final bubbleWithReadMark = Stack(
-      clipBehavior: Clip.none,
-      children: [
-        bubble,
-        if (showReadMark)
-          Positioned(
-            bottom: -14,
-            left: alignRight ? -10 : null,
-            right: alignRight ? null : -10,
-            child: isSimpleDmReadMark
-                ? badge
-                : Builder(
-                    builder: (badgeContext) => GestureDetector(
-                      onTap: () => _showReadReceiptPopup(
-                        context,
-                        badgeContext,
-                        readers,
-                        strings,
+    final replyTargetId = message.replyToMessageId;
+    final onBubbleTap = (replyTargetId != null && onJumpToReply != null)
+        ? () => onJumpToReply!(replyTargetId)
+        : null;
+
+    // 長押し/右クリックでリアクション・返信・編集等のメニューを開く判定は
+    // 吹き出し本体だけに絞る（2026-07-29変更）。以前は行全体（余白込み）が
+    // 対象だったが、余白部分の長押しは自動スクロール（[_MessageInteractions]
+    // 参照）に割り当てたため、両者が同じ操作を奪い合わないよう分離した。
+    final bubbleWithReadMark = _MessageBubbleTapArea(
+      canSelect: canSelect,
+      strings: strings,
+      onTap: onBubbleTap,
+      onReply: () => onReply?.call(message),
+      onEdit: canEdit ? () => onEdit?.call(message) : null,
+      onUnsend: (isMe && onUnsend != null)
+          ? () => _confirmUnsend(context, strings)
+          : null,
+      onReact: onSetReaction == null
+          ? null
+          : (emoji) {
+              final mine = message.reactions[currentUserId];
+              onSetReaction?.call(
+                message.messageId,
+                mine == emoji ? null : emoji,
+              );
+            },
+      onSelect: canSelect
+          ? () => onEnterSelection?.call(message.messageId)
+          : null,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          bubble,
+          if (showReadMark)
+            Positioned(
+              bottom: -14,
+              left: alignRight ? -10 : null,
+              right: alignRight ? null : -10,
+              child: isSimpleDmReadMark
+                  ? badge
+                  : Builder(
+                      builder: (badgeContext) => GestureDetector(
+                        onTap: () => _showReadReceiptPopup(
+                          context,
+                          badgeContext,
+                          readers,
+                          strings,
+                        ),
+                        child: badge,
                       ),
-                      child: badge,
                     ),
-                  ),
-          ),
-      ],
+            ),
+        ],
+      ),
     );
 
     // allLeftでは自分・相手とも常にアイコン・呼び名を表示する。sideBySideでは
@@ -1172,10 +1372,12 @@ class _MessageRow extends ConsumerWidget {
       final senderAvatar = _SenderAvatar(
         userId: message.senderId,
         rhingId: message.senderRhingId,
+        conversationId: conversationId,
       );
       final senderName = _SenderName(
         userId: message.senderId,
         rhingId: message.senderRhingId,
+        conversationId: conversationId,
         color: senderNameColorResolver?.call(message.senderId),
       );
 
@@ -1235,10 +1437,6 @@ class _MessageRow extends ConsumerWidget {
       );
     }
 
-    // テキストメッセージの自分の投稿のみ編集可能（画像等contentType='text'
-    // 以外は将来実装時もまず本文編集の対象外という方針、Planでの検討通り）。
-    final canEdit = isMe && message.contentType == 'text' && onEdit != null;
-
     Widget body;
     if (selecting) {
       // 範囲選択削除モード: タップで選択のオン/オフを切り替える。
@@ -1260,36 +1458,13 @@ class _MessageRow extends ConsumerWidget {
         ),
       );
     } else {
-      // 返信を含んだメッセージをタップすると返信先へジャンプする。返信先が
-      // 現在ロード済み（messagesById）でなくても、onJumpToReply側
-      // （_ChatScreenState._jumpToMessage）が必要に応じて取得してから
-      // ジャンプするため、ここではmessagesByIdでの有無を条件にしない。
-      final replyTargetId = message.replyToMessageId;
-      final onTap = (replyTargetId != null && onJumpToReply != null)
-          ? () => onJumpToReply!(replyTargetId)
-          : null;
       body = _MessageInteractions(
         canEdit: canEdit,
-        canSelect: canSelect,
-        strings: strings,
-        onTap: onTap,
         onReply: () => onReply?.call(message),
         onEdit: canEdit ? () => onEdit?.call(message) : null,
-        onUnsend: (isMe && onUnsend != null)
-            ? () => _confirmUnsend(context, strings)
-            : null,
-        onReact: onSetReaction == null
-            ? null
-            : (emoji) {
-                final mine = message.reactions[currentUserId];
-                onSetReaction?.call(
-                  message.messageId,
-                  mine == emoji ? null : emoji,
-                );
-              },
-        onSelect: canSelect
-            ? () => onEnterSelection?.call(message.messageId)
-            : null,
+        onAutoScrollStart: onAutoScrollStart,
+        onAutoScrollUpdate: onAutoScrollUpdate,
+        onAutoScrollEnd: onAutoScrollEnd,
         child: content,
       );
     }
@@ -1515,14 +1690,14 @@ class _MessageRow extends ConsumerWidget {
 
 enum _MessageMenuAction { reply, edit, unsend, react, select }
 
-/// メッセージ1件に対する長押し/右クリックのコンテキストメニューと、
-/// 左スワイプ（軽く=返信、最後まで=編集。編集は[canEdit]がtrueの時のみ）を
-/// まとめて扱う。選択モード中（[ChatScreen]の範囲選択削除）は使わない
-/// （_MessageRow.build参照）。
-class _MessageInteractions extends StatefulWidget {
-  const _MessageInteractions({
+/// 吹き出し本体だけに絞った当たり判定。長押し/右クリックでリアクション・
+/// 返信・編集等のコンテキストメニューを開く（2026-07-29変更: 以前は行全体
+/// （余白込み）が対象だったが、余白部分の長押しを自動スクロール
+/// （[_MessageInteractions]参照）に割り当てたため、両者が同じ操作を
+/// 奪い合わないよう吹き出し本体だけに絞った）。
+class _MessageBubbleTapArea extends StatelessWidget {
+  const _MessageBubbleTapArea({
     required this.child,
-    required this.canEdit,
     required this.canSelect,
     required this.strings,
     required this.onReply,
@@ -1534,7 +1709,6 @@ class _MessageInteractions extends StatefulWidget {
   });
 
   final Widget child;
-  final bool canEdit;
   final bool canSelect;
   final Strings strings;
   final VoidCallback onReply;
@@ -1545,6 +1719,130 @@ class _MessageInteractions extends StatefulWidget {
 
   /// 返信先ジャンプ用のタップ。nullなら通常通りタップでは何も起きない。
   final VoidCallback? onTap;
+
+  RelativeRect _menuPosition(BuildContext context, Offset globalPosition) {
+    final overlay =
+        Overlay.of(context).context.findRenderObject()! as RenderBox;
+    return RelativeRect.fromRect(
+      Rect.fromPoints(globalPosition, globalPosition),
+      Offset.zero & overlay.size,
+    );
+  }
+
+  Future<void> _openMenu(BuildContext context, Offset globalPosition) async {
+    final action = await showMenu<_MessageMenuAction>(
+      context: context,
+      position: _menuPosition(context, globalPosition),
+      items: [
+        PopupMenuItem(
+          value: _MessageMenuAction.reply,
+          child: Text(strings.chatReplyAction),
+        ),
+        if (onReact != null)
+          PopupMenuItem(
+            value: _MessageMenuAction.react,
+            child: Text(strings.chatReactAction),
+          ),
+        if (onEdit != null)
+          PopupMenuItem(
+            value: _MessageMenuAction.edit,
+            child: Text(strings.chatEditAction),
+          ),
+        if (onUnsend != null)
+          PopupMenuItem(
+            value: _MessageMenuAction.unsend,
+            child: Text(strings.chatUnsendAction),
+          ),
+        if (canSelect)
+          PopupMenuItem(
+            value: _MessageMenuAction.select,
+            child: Text(strings.chatSelectAction),
+          ),
+      ],
+    );
+    if (!context.mounted) return;
+    switch (action) {
+      case _MessageMenuAction.reply:
+        onReply();
+      case _MessageMenuAction.edit:
+        onEdit?.call();
+      case _MessageMenuAction.unsend:
+        onUnsend?.call();
+      case _MessageMenuAction.react:
+        await _openReactionPicker(context, globalPosition);
+      case _MessageMenuAction.select:
+        onSelect?.call();
+      case null:
+        break;
+    }
+  }
+
+  Future<void> _openReactionPicker(
+    BuildContext context,
+    Offset globalPosition,
+  ) async {
+    final emoji = await showMenu<String>(
+      context: context,
+      position: _menuPosition(context, globalPosition),
+      items: [
+        PopupMenuItem<String>(
+          enabled: false,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (final emoji in kReactionEmojis)
+                InkWell(
+                  onTap: () => Navigator.of(context).pop(emoji),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    child: Text(emoji, style: const TextStyle(fontSize: 22)),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ],
+    );
+    if (emoji != null) onReact?.call(emoji);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      onLongPressStart: (details) => _openMenu(context, details.globalPosition),
+      onSecondaryTapDown: (details) => _openMenu(context, details.globalPosition),
+      child: child,
+    );
+  }
+}
+
+/// 左スワイプ（軽く=返信、最後まで=編集。編集は[canEdit]がtrueの時のみ）と、
+/// 吹き出し横の余白の長押し/ミドルクリックによる自動スクロール開始を扱う。
+/// メニューを開く長押し/右クリックは吹き出し本体（[_MessageBubbleTapArea]）
+/// 側に分離済みのため、ここでの長押しは自動スクロール専用になる
+/// （2026-07-29変更）。選択モード中（[ChatScreen]の範囲選択削除）は使わない
+/// （_MessageRow.build参照）。
+class _MessageInteractions extends StatefulWidget {
+  const _MessageInteractions({
+    required this.child,
+    required this.canEdit,
+    required this.onReply,
+    this.onEdit,
+    this.onAutoScrollStart,
+    this.onAutoScrollUpdate,
+    this.onAutoScrollEnd,
+  });
+
+  final Widget child;
+  final bool canEdit;
+  final VoidCallback onReply;
+  final VoidCallback? onEdit;
+
+  final ValueChanged<Offset>? onAutoScrollStart;
+  final ValueChanged<Offset>? onAutoScrollUpdate;
+  final VoidCallback? onAutoScrollEnd;
 
   @override
   State<_MessageInteractions> createState() => _MessageInteractionsState();
@@ -1575,90 +1873,6 @@ class _MessageInteractionsState extends State<_MessageInteractions> {
     }
   }
 
-  RelativeRect _menuPosition(Offset globalPosition) {
-    final overlay =
-        Overlay.of(context).context.findRenderObject()! as RenderBox;
-    return RelativeRect.fromRect(
-      Rect.fromPoints(globalPosition, globalPosition),
-      Offset.zero & overlay.size,
-    );
-  }
-
-  Future<void> _openMenu(Offset globalPosition) async {
-    final strings = widget.strings;
-    final action = await showMenu<_MessageMenuAction>(
-      context: context,
-      position: _menuPosition(globalPosition),
-      items: [
-        PopupMenuItem(
-          value: _MessageMenuAction.reply,
-          child: Text(strings.chatReplyAction),
-        ),
-        if (widget.onReact != null)
-          PopupMenuItem(
-            value: _MessageMenuAction.react,
-            child: Text(strings.chatReactAction),
-          ),
-        if (widget.onEdit != null)
-          PopupMenuItem(
-            value: _MessageMenuAction.edit,
-            child: Text(strings.chatEditAction),
-          ),
-        if (widget.onUnsend != null)
-          PopupMenuItem(
-            value: _MessageMenuAction.unsend,
-            child: Text(strings.chatUnsendAction),
-          ),
-        if (widget.canSelect)
-          PopupMenuItem(
-            value: _MessageMenuAction.select,
-            child: Text(strings.chatSelectAction),
-          ),
-      ],
-    );
-    if (!mounted) return;
-    switch (action) {
-      case _MessageMenuAction.reply:
-        widget.onReply();
-      case _MessageMenuAction.edit:
-        widget.onEdit?.call();
-      case _MessageMenuAction.unsend:
-        widget.onUnsend?.call();
-      case _MessageMenuAction.react:
-        await _openReactionPicker(globalPosition);
-      case _MessageMenuAction.select:
-        widget.onSelect?.call();
-      case null:
-        break;
-    }
-  }
-
-  Future<void> _openReactionPicker(Offset globalPosition) async {
-    final emoji = await showMenu<String>(
-      context: context,
-      position: _menuPosition(globalPosition),
-      items: [
-        PopupMenuItem<String>(
-          enabled: false,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              for (final emoji in kReactionEmojis)
-                InkWell(
-                  onTap: () => Navigator.of(context).pop(emoji),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 4),
-                    child: Text(emoji, style: const TextStyle(fontSize: 22)),
-                  ),
-                ),
-            ],
-          ),
-        ),
-      ],
-    );
-    if (emoji != null) widget.onReact?.call(emoji);
-  }
-
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
@@ -1667,11 +1881,14 @@ class _MessageInteractionsState extends State<_MessageInteractions> {
       // ヒットテスト対象にする（既定のdeferToChildだと、余白部分は下の
       // レンダーオブジェクトが自身を消費しないため反応しない）。
       behavior: HitTestBehavior.opaque,
-      onTap: widget.onTap,
-      onLongPressStart: (details) => _openMenu(details.globalPosition),
-      onSecondaryTapDown: (details) => _openMenu(details.globalPosition),
       onHorizontalDragUpdate: _onDragUpdate,
       onHorizontalDragEnd: _onDragEnd,
+      onLongPressStart: (details) =>
+          widget.onAutoScrollStart?.call(details.globalPosition),
+      onLongPressMoveUpdate: (details) =>
+          widget.onAutoScrollUpdate?.call(details.globalPosition),
+      onLongPressEnd: (_) => widget.onAutoScrollEnd?.call(),
+      onLongPressCancel: widget.onAutoScrollEnd,
       child: Stack(
         children: [
           if (_dragExtent < 0)
@@ -1707,10 +1924,20 @@ class _MessageInteractionsState extends State<_MessageInteractions> {
 /// 送信者の呼び名。[AppUser.effectiveNickname]（適用中の工房カードがあれば
 /// そちらを優先）があればそれを表示し、未設定ならRhing IDにフォールバックする。
 class _SenderName extends ConsumerWidget {
-  const _SenderName({required this.userId, required this.rhingId, this.color});
+  const _SenderName({
+    required this.userId,
+    required this.rhingId,
+    this.conversationId,
+    this.color,
+  });
 
   final String userId;
   final String? rhingId;
+
+  /// この送信者が使っている会話ごとのプロフィールカード（2026-07-29追加）を
+  /// 反映するための会話id（一対のdmId・広場のgroupId）。nullなら標準の
+  /// カードで表示する。
+  final String? conversationId;
 
   /// 広場のカスタムロールで指定された色（`ChatScreen.senderNameColorResolver`
   /// 参照）。nullなら既定色のまま。
@@ -1718,8 +1945,11 @@ class _SenderName extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final nickname =
-        ref.watch(watchedUserProvider(userId)).value?.effectiveNickname?.text;
+    final nickname = ref
+        .watch(watchedUserProvider(userId))
+        .value
+        ?.effectiveNicknameFor(conversationId)
+        ?.text;
     final label = (nickname != null && nickname.isNotEmpty)
         ? nickname
         : '@${rhingId ?? '?'}';
@@ -1740,10 +1970,17 @@ class _SenderName extends ConsumerWidget {
 /// あればそれを表示し、未設定ならRhing IDから生成する色分けイニシャルに
 /// フォールバックする。
 class _SenderAvatar extends ConsumerWidget {
-  const _SenderAvatar({required this.userId, required this.rhingId});
+  const _SenderAvatar({
+    required this.userId,
+    required this.rhingId,
+    this.conversationId,
+  });
 
   final String userId;
   final String? rhingId;
+
+  /// [_SenderName.conversationId]と同じ。
+  final String? conversationId;
 
   static const _palette = [
     Color(0xFFEE7800),
@@ -1756,8 +1993,11 @@ class _SenderAvatar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final iconUrl =
-        ref.watch(watchedUserProvider(userId)).value?.effectiveIcon?.url;
+    final iconUrl = ref
+        .watch(watchedUserProvider(userId))
+        .value
+        ?.effectiveIconFor(conversationId)
+        ?.url;
     if (iconUrl != null) {
       return CircleAvatar(radius: 16, backgroundImage: NetworkImage(iconUrl));
     }

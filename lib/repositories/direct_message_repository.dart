@@ -13,11 +13,26 @@ abstract class DirectMessageRepository {
   /// 自分が参加している一対一覧を、最終メッセージが新しい順に取得する。
   Stream<List<DirectMessage>> watchDirectMessages(String userId);
 
-  /// この一対の寄合（テキストチャンネル）一覧を作成順に購読する。
-  Stream<List<DmRoom>> watchRooms(String dmId);
+  /// この一対の寄合（テキストチャンネル）一覧を作成順に購読する。[userId]は
+  /// 呼び出し元本人のuserId（firestore.rulesの`list`操作はクエリ自体に
+  /// ルールと同じ条件の`where`句が無いと要求全体を拒否するため、クエリ側にも
+  /// `participants`のarray-contains条件を付ける必要がある。
+  /// `GroupRepository.watchRooms`参照）。
+  Stream<List<DmRoom>> watchRooms({required String dmId, required String userId});
 
   /// 新しい寄合を作成する（参加者ならどちらでも実行可能、確認不要）。
   Future<DmRoom> createRoom({required String dmId, required String name});
+
+  /// 寄合の名前を変更する（参加者ならどちらでも実行可能）。
+  Future<void> renameRoom({
+    required String dmId,
+    required String roomId,
+    required String name,
+  });
+
+  /// 単一モードの一対を複数モードに切り替える（参加者ならどちらでも実行
+  /// 可能）。複数→単一へ戻すことはできない（2026-07-29追加）。
+  Future<void> setRoomsEnabled(String dmId);
 
   /// 寄合を削除する。全メッセージも物理削除する。この一対の最後の1つの
   /// 寄合は削除できない（[StateError]を投げる）。削除対象が
@@ -164,7 +179,11 @@ abstract class DirectMessageRepository {
   /// 相手のアカウントが既に削除されている場合のみ実行できる
   /// （[DirectMessage.accountDeletedUserId]、firestore.rulesで強制）。
   /// この一対の全寄合・全メッセージとドキュメント自体を物理削除する。
-  Future<void> deleteDmAfterAccountDeletion(String dmId);
+  /// [userId]は呼び出し元本人のuserId（`rooms`サブコレクションの
+  /// 絞り込み無し`.get()`が`list`操作としてfirestore.rulesにpermission-denied
+  /// される問題を避けるため、`DirectMessageRepository.watchRooms`と同じ
+  /// 理由で必要。他の`rooms`一括操作系メソッド全般に共通する制約）。
+  Future<void> deleteDmAfterAccountDeletion(String dmId, {required String userId});
 }
 
 class FirestoreDirectMessageRepository implements DirectMessageRepository {
@@ -190,7 +209,28 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
     final doc = await ref.get();
 
     if (doc.exists) {
-      return DirectMessage.fromJson(dmId, doc.data()!);
+      final data = doc.data()!;
+      if (data['defaultRoomId'] != null) {
+        return DirectMessage.fromJson(dmId, data);
+      }
+      // 複数寄合機能移行時（migrateDirectMessagesToRoomsOnce、実行後ソースから
+      // 削除済み）は、当時メッセージが1件も無かった一対を移行対象から漏らして
+      // おり、defaultRoomId未設定のまま取り残されたドキュメントが存在した
+      // （一対の一覧が丸ごと表示されなくなる不具合の原因、watchDirectMessages
+      // 参照）。ここで気付いた時点で「メイン」寄合を作って補修する。
+      final repairedRoomRef = ref.collection('rooms').doc();
+      final existingParticipants = List<String>.from(
+        data['participants'] as List? ?? [a.userId, b.userId],
+      );
+      final repairedRoom = DmRoom(
+        roomId: repairedRoomRef.id,
+        dmId: dmId,
+        name: 'メイン',
+        participants: existingParticipants,
+      );
+      await repairedRoomRef.set(repairedRoom.toJson());
+      await ref.update({'defaultRoomId': repairedRoomRef.id});
+      return DirectMessage.fromJson(dmId, {...data, 'defaultRoomId': repairedRoomRef.id});
     }
 
     final roomRef = ref.collection('rooms').doc();
@@ -200,6 +240,9 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
       participants: participants,
       participantRhingIds: {a.userId: a.rhingId, b.userId: b.rhingId},
       defaultRoomId: roomRef.id,
+      // 一対は常に単一モードで作られる（FriendRepository.respondと同じ、
+      // 2026-07-29追加）。
+      roomsEnabled: false,
     );
     final room = DmRoom(
       roomId: roomRef.id,
@@ -217,23 +260,46 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
 
   @override
   Stream<List<DirectMessage>> watchDirectMessages(String userId) {
+    // watchRoomsと同じ理由でorderBy('lastMessageAt')は使わない。まだ
+    // メッセージを1件も送っていない作成直後の一対はlastMessageAtが
+    // 常にnullのままのため、orderByを付けるとFirestoreのクエリ結果から
+    // 恒久的に除外され、一対の一覧に一切表示されなくなってしまっていた。
     return _directMessages
         .where('participants', arrayContains: userId)
-        .orderBy('lastMessageAt', descending: true)
         .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => DirectMessage.fromJson(doc.id, doc.data()))
-            .toList());
+        .map((snapshot) {
+      final dms = <DirectMessage>[];
+      for (final doc in snapshot.docs) {
+        try {
+          dms.add(DirectMessage.fromJson(doc.id, doc.data()));
+        } catch (_) {
+          // defaultRoomId未設定など、過去の移行漏れで不完全なドキュメントが
+          // 混ざっていても一覧全体を巻き込まないよう、その1件だけ読み飛ばす
+          // （getOrCreateDirectMessageが次に開かれた際に自己修復する）。
+        }
+      }
+      dms.sort((a, b) => (b.lastMessageAt?.millisecondsSinceEpoch ?? 0)
+          .compareTo(a.lastMessageAt?.millisecondsSinceEpoch ?? 0));
+      return dms;
+    });
   }
 
   @override
-  Stream<List<DmRoom>> watchRooms(String dmId) {
+  Stream<List<DmRoom>> watchRooms({required String dmId, required String userId}) {
     // Firestoreの`orderBy`はソート対象フィールドを持たないドキュメントを
     // 結果から除外してしまう（作成直後、serverTimestamp()がサーバー側で
     // 解決するまでの一瞬もローカルではcreatedAt=null扱いになり同様に除外
     // される）。`GroupRepository.watchRooms`と同じくクライアント側ソート
     // に変更して回避する。
-    return _directMessages.doc(dmId).collection('rooms').snapshots().map((snapshot) {
+    //
+    // where('participants', arrayContains: userId)はfirestore.rulesの`list`
+    // 要求を満たすために必須（`GroupRepository.watchRooms`のコメント参照）。
+    return _directMessages
+        .doc(dmId)
+        .collection('rooms')
+        .where('participants', arrayContains: userId)
+        .snapshots()
+        .map((snapshot) {
       final rooms =
           snapshot.docs.map((doc) => DmRoom.fromJson(doc.id, doc.data())).toList()
             ..sort((a, b) => (a.createdAt?.millisecondsSinceEpoch ?? 0)
@@ -263,14 +329,35 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
   }
 
   @override
+  Future<void> renameRoom({
+    required String dmId,
+    required String roomId,
+    required String name,
+  }) async {
+    await _directMessages.doc(dmId).collection('rooms').doc(roomId).update({'name': name});
+  }
+
+  @override
+  Future<void> setRoomsEnabled(String dmId) async {
+    await _directMessages.doc(dmId).update({'roomsEnabled': true});
+  }
+
+  @override
   Future<void> deleteRoom({
     required String dmId,
     required String roomId,
     required String requestedBy,
   }) async {
-    // watchRoomsと同じ理由でorderBy('createdAt')は使わない。
-    final roomsSnapshot =
-        await _directMessages.doc(dmId).collection('rooms').get();
+    // watchRoomsと同じ理由でorderBy('createdAt')は使わない。where句は
+    // ソートではなくfirestore.rulesの`list`要求を満たすために必須
+    // （このwhere句が無いと、rooms=0のpermission-deniedによりこのメソッド
+    // 全体が最初のget()で例外を投げ、寄合が削除されないまま残り続けて
+    // いた不具合の原因、2026-07-29発覚・修正）。
+    final roomsSnapshot = await _directMessages
+        .doc(dmId)
+        .collection('rooms')
+        .where('participants', arrayContains: requestedBy)
+        .get();
     if (roomsSnapshot.docs.length <= 1) {
       throw StateError('最後の1つの寄合は削除できません');
     }
@@ -568,7 +655,12 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
     required String otherUserId,
   }) async {
     final dmRef = _directMessages.doc(dmId);
-    final roomsSnapshot = await dmRef.collection('rooms').get();
+    // where句はfirestore.rulesの`list`要求を満たすために必須
+    // （`deleteRoom`と同じ、2026-07-29追加）。
+    final roomsSnapshot = await dmRef
+        .collection('rooms')
+        .where('participants', arrayContains: currentUserId)
+        .get();
 
     // Firestoreの1バッチは500件までのため、無くなるまでページ単位で削除を
     // 繰り返す（全寄合分）。DMドキュメント自体（severanceRequestedByフラグ）
@@ -642,7 +734,12 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
       'readReceiptsProposalBy': null,
     });
     if (!newEnabled) {
-      final roomsSnapshot = await dmRef.collection('rooms').get();
+      // where句はfirestore.rulesの`list`要求を満たすために必須
+      // （`deleteRoom`と同じ、2026-07-29追加）。
+      final roomsSnapshot = await dmRef
+          .collection('rooms')
+          .where('participants', arrayContains: currentUserId)
+          .get();
       for (final roomDoc in roomsSnapshot.docs) {
         await _clearAllReadReceipts(roomDoc.reference.collection('messages'));
       }
@@ -662,9 +759,12 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
   }
 
   @override
-  Future<void> deleteDmAfterAccountDeletion(String dmId) async {
+  Future<void> deleteDmAfterAccountDeletion(String dmId, {required String userId}) async {
     final dmRef = _directMessages.doc(dmId);
-    final roomsSnapshot = await dmRef.collection('rooms').get();
+    final roomsSnapshot = await dmRef
+        .collection('rooms')
+        .where('participants', arrayContains: userId)
+        .get();
 
     // acceptSeveranceと同じページ単位の削除ループ（削除済みのdocは次回
     // 取得に現れないため.limit(400)の繰り返し取得で全件処理できる）。

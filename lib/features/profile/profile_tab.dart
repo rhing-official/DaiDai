@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -12,6 +13,8 @@ import '../../models/profile_card.dart';
 import '../../models/profile_material.dart';
 import '../../providers/repository_providers.dart';
 import '../../repositories/user_repository.dart';
+import '../../utils/color_hex.dart';
+import '../../widgets/profile_card_view.dart';
 import '../../widgets/swipe_gestures.dart';
 import 'enmusubi_page.dart';
 
@@ -435,6 +438,26 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
     }
   }
 
+  /// イメージカラーは他の蔵素材と違い複数枠・アクティブ選択の概念が無いため、
+  /// 登録＝適用がそのまま1回の呼び出しで完結する（2026-07-29追加）。
+  Future<void> _applyImageColor(int color) async {
+    setState(() => _user = _user.copyWith(imageColor: color));
+    try {
+      await _repository.setImageColor(_user.userId, color);
+    } catch (e) {
+      _showError('${ref.read(appStringsProvider).profileSaveError}: $e');
+    }
+  }
+
+  Future<void> _clearImageColor() async {
+    setState(() => _user = _user.copyWith(clearImageColor: true));
+    try {
+      await _repository.setImageColor(_user.userId, null);
+    } catch (e) {
+      _showError('${ref.read(appStringsProvider).profileSaveError}: $e');
+    }
+  }
+
   Future<void> _saveCard(ProfileCard card, {required bool isNew}) async {
     if (isNew) {
       setState(() {
@@ -502,7 +525,13 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
         PageRouteBuilder<void>(
           opaque: false,
           barrierDismissible: true,
-          barrierColor: Colors.black54,
+          // カード名入力欄は常にこのバリアの上に表示される（下記
+          // _CardZoomEditorのTextField参照）。バリアの不透明度が低いと、下に
+          // 見えているページの背景色（ライト/ダークモードで大きく変わる）が
+          // 透けて背景の明るさが安定せず、固定色の文字が片方のモードで見えなく
+          // なっていた（2026-07-29修正）。不透明度を上げて背景を常に暗く保つ
+          // ことで、白文字をライト/ダーク両方で安定して読める状態にした。
+          barrierColor: Colors.black87,
           transitionDuration: const Duration(milliseconds: 300),
           transitionsBuilder: (_, animation, secondaryAnimation, child) =>
               FadeTransition(opacity: animation, child: child),
@@ -575,6 +604,8 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
           onEditStatusMessage: _editStatusMessage,
           onAddSnsLink: _addSnsLink,
           onEditSnsLink: _editSnsLink,
+          onApplyImageColor: _applyImageColor,
+          onClearImageColor: _clearImageColor,
         );
       case _ProfileSection.koubou:
         return _WorkshopView(
@@ -640,9 +671,11 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
         ),
       );
     }
-    final selectedIndex =
-        categories.indexWhere((c) => c.section == selected.section);
-    final nextCategory = selectedIndex >= 0 && selectedIndex < categories.length - 1
+    final selectedIndex = categories.indexWhere(
+      (c) => c.section == selected.section,
+    );
+    final nextCategory =
+        selectedIndex >= 0 && selectedIndex < categories.length - 1
         ? categories[selectedIndex + 1]
         : null;
     return Align(
@@ -663,7 +696,9 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(child: _buildContent(selected.section, strings, vocab)),
+                Expanded(
+                  child: _buildContent(selected.section, strings, vocab),
+                ),
               ],
             ),
           ),
@@ -776,6 +811,8 @@ class _KuraView extends StatelessWidget {
     required this.onEditStatusMessage,
     required this.onAddSnsLink,
     required this.onEditSnsLink,
+    required this.onApplyImageColor,
+    required this.onClearImageColor,
   });
 
   final AppUser user;
@@ -793,6 +830,8 @@ class _KuraView extends StatelessWidget {
   final ValueChanged<StatusMessage> onEditStatusMessage;
   final VoidCallback onAddSnsLink;
   final ValueChanged<SnsLink> onEditSnsLink;
+  final ValueChanged<int> onApplyImageColor;
+  final VoidCallback onClearImageColor;
 
   @override
   Widget build(BuildContext context) {
@@ -851,6 +890,13 @@ class _KuraView extends StatelessWidget {
           onAdd: onAddSnsLink,
           onEdit: onEditSnsLink,
         ),
+        const SizedBox(height: 24),
+        _ImageColorSection(
+          strings: strings,
+          color: user.imageColor,
+          onApply: onApplyImageColor,
+          onClear: onClearImageColor,
+        ),
       ],
     );
   }
@@ -888,7 +934,9 @@ class _WorkshopView extends StatelessWidget {
       children: [
         if (user.profileCards.isNotEmpty) ...[
           Text(
-            '縁結びの招待リンク等に使うカードを、右上の丸いボタンで選べます',
+            '右上の丸いボタンで選んだカードがデフォルトになります。'
+            '友達申請や広場参加など、指定していない場面では'
+            'デフォルトのカードが使われます',
             style: TextStyle(
               fontSize: 13,
               color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -937,11 +985,10 @@ class _WorkshopView extends StatelessWidget {
                         vocab: vocab,
                         width: cardWidth,
                         height: cardHeight,
-                        isActive: user.activeProfileCardId ==
-                            user.profileCards[i].id,
+                        isActive:
+                            user.activeProfileCardId == user.profileCards[i].id,
                         onTap: () => onTapSlot(i, user.profileCards[i]),
-                        onSetActive: () =>
-                            onSetActive(user.profileCards[i].id),
+                        onSetActive: () => onSetActive(user.profileCards[i].id),
                       )
                     else
                       _WorkshopBlankSlot(
@@ -1084,22 +1131,11 @@ class _WorkshopCardSlot extends StatelessWidget {
     )?.text;
     final selectedSnsLinks = _selectedSnsLinksFor(user, card.snsLinkIds);
 
-    // カードが大きくなったのにアイコン・文字が160px時代の固定サイズのままだと
-    // 中身が寂しく見えるため、カード幅に応じて緩やかにスケールさせる。
-    // ズーム編集画面（[_CardZoomEditor]）と全く同じ比率にし、ズームイン・
-    // アウトの瞬間に文字やアイコンの大きさが飛んで見えないようにする。
-    final avatarRadius = (width * 0.13).clamp(18.0, 64.0);
+    // 右上バッジの位置合わせにだけ使う（他のサイズ計算はProfileCardView内で
+    // 行う。ズーム編集画面[_CardZoomEditor]と全く同じ比率）。
     final padding = (width * 0.08).clamp(12.0, 32.0);
-    // カード内はニックネームを主役にし（旧・カード名と同じ見せ方）、
-    // その下にステメを補足として表示する。カード名自体はカードの外
-    // （下）に表示するため、カード内には出さない。
-    final nicknameFontSize = (width * 0.075).clamp(14.0, 28.0);
-    final statusFontSize = (width * 0.045).clamp(11.0, 18.0);
     // ズーム編集画面のカード名表示と同じ比率（幅の6%）で揃える。
     final nameFontSize = (width * 0.06).clamp(16.0, 22.0);
-    final subtitleColor = background != null
-        ? Colors.white70
-        : Theme.of(context).colorScheme.onSurfaceVariant;
 
     // カード名がズーム時に取り残されて見えないよう、カード本体とカード名を
     // まとめて1つのHeroにし、一緒に移動・拡大するモーションにする
@@ -1123,89 +1159,32 @@ class _WorkshopCardSlot extends StatelessWidget {
             SizedBox(
               width: width,
               height: height,
-              child: Material(
-                clipBehavior: Clip.antiAlias,
-                borderRadius: BorderRadius.circular(16),
-                color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                // 背景画像・グラデーション・タップ可能な内容をそれぞれ独立した
-                // レイヤーとして`Stack(fit: expand)`で重ねることで、内容側の
-                // パディングやテキスト量に関係なく背景が常にカード全体
-                // （角丸の内側いっぱい）を覆うようにする。
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    if (background != null)
-                      Image.network(background.url, fit: BoxFit.cover),
-                    if (background != null)
-                      const DecoratedBox(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            colors: [Colors.transparent, Colors.black54],
-                          ),
-                        ),
-                      ),
-                    InkWell(
-                      onTap: onTap,
-                      child: Padding(
-                        padding: EdgeInsets.all(padding),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisAlignment: MainAxisAlignment.end,
-                          children: [
-                            CircleAvatar(
-                              radius: avatarRadius,
-                              backgroundImage: icon != null
-                                  ? NetworkImage(icon.url)
-                                  : null,
-                              child: icon == null
-                                  ? const Icon(Icons.person)
-                                  : null,
-                            ),
-                            SizedBox(height: padding * 0.6),
-                            Text(
-                              nickname ?? vocab.nickname,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: nicknameFontSize,
-                                fontWeight: FontWeight.bold,
-                                color: background != null ? Colors.white : null,
-                              ),
-                            ),
-                            Text(
-                              statusMessage ?? vocab.statusMessage,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: statusFontSize,
-                                color: subtitleColor,
-                              ),
-                            ),
-                            if (selectedSnsLinks.isNotEmpty) ...[
-                              SizedBox(height: padding * 0.3),
-                              _SnsLinksInline(
-                                links: selectedSnsLinks,
-                                iconSize: statusFontSize,
-                                fontSize: statusFontSize * 0.9,
-                                color: subtitleColor,
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  InkWell(
+                    borderRadius: BorderRadius.circular(16),
+                    onTap: onTap,
+                    child: ProfileCardView(
+                      width: width,
+                      height: height,
+                      icon: icon,
+                      background: background,
+                      nickname: nickname ?? vocab.nickname,
+                      statusMessage: statusMessage ?? vocab.statusMessage,
+                      snsLinks: selectedSnsLinks,
+                      borderRadius: BorderRadius.circular(16),
                     ),
-                    Positioned(
-                      top: padding * 0.4,
-                      right: padding * 0.4,
-                      child: _ActiveCardBadge(
-                        isActive: isActive,
-                        onTap: onSetActive,
-                      ),
+                  ),
+                  Positioned(
+                    top: padding * 0.4,
+                    right: padding * 0.4,
+                    child: _ActiveCardBadge(
+                      isActive: isActive,
+                      onTap: onSetActive,
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: 6),
@@ -1219,12 +1198,12 @@ class _WorkshopCardSlot extends StatelessWidget {
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: nameFontSize,
-                  // ズームイン編集画面側のカード名（TextField）を黒固定にしたのに
-                  // 合わせ、こちらも明示的に黒固定にする。以前はどちらも色指定
-                  // なしでテーマの既定色任せだったため、Hero飛行中（Overlay直下に
-                  // 一時的に付け替えられる間）は既定色の解決結果がずれて、
-                  // ズームアウトする瞬間だけ黒でない色に見えることがあった。
-                  color: Colors.black,
+                  // 以前は黒固定にしていたが、ダークモードで見えなくなっていた
+                  // （2026-07-29修正）。色指定なし（テーマの既定色任せ）に戻すと
+                  // Hero飛行中に既定色の解決結果がずれる問題があったため、
+                  // Theme.of(context)で明示的にライト/ダーク双方に追従する色を
+                  // 計算する（ズームイン編集画面側のTextFieldと同じ理由・同じ対応）。
+                  color: Theme.of(context).colorScheme.onSurface,
                 ),
               ),
             ),
@@ -1253,75 +1232,6 @@ List<SnsLink> _selectedSnsLinksFor(AppUser user, List<String> snsLinkIds) => [
     if (snsLinkIds.contains(link.id)) link,
 ];
 
-/// カードに掲載するSNSのURL一覧の表示。以前は1行に" / "区切りで並べていたが、
-/// 長いURLが混ざると後半が省略記号で見えなくなってしまうため、1件ずつ
-/// 縦に並べる（[_WorkshopCardSlot]の縮小表示・[_CardZoomEditor]の編集表示で共用）。
-class _SnsLinksInline extends StatelessWidget {
-  const _SnsLinksInline({
-    required this.links,
-    required this.iconSize,
-    required this.fontSize,
-    required this.color,
-    this.placeholder,
-    this.onTap,
-  });
-
-  final List<SnsLink> links;
-  final double iconSize;
-  final double fontSize;
-  final Color? color;
-
-  /// 未登録時に表示するプレースホルダー文言。nullなら未登録時は何も表示しない。
-  final String? placeholder;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    if (links.isEmpty && placeholder == null) {
-      return const SizedBox.shrink();
-    }
-    final content = links.isEmpty
-        ? Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.link, size: iconSize, color: color),
-              const SizedBox(width: 4),
-              Text(
-                placeholder!,
-                style: TextStyle(fontSize: fontSize, color: color),
-              ),
-            ],
-          )
-        : Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              for (final link in links)
-                Padding(
-                  padding: const EdgeInsets.only(top: 2),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.link, size: iconSize, color: color),
-                      const SizedBox(width: 4),
-                      Flexible(
-                        child: Text(
-                          _displaySnsLinkUrl(link.url),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(fontSize: fontSize, color: color),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-            ],
-          );
-    return onTap == null
-        ? content
-        : GestureDetector(onTap: onTap, child: content);
-  }
-}
 
 /// アイコン・背景画像それぞれの蔵セクション（見出し＋件数＋サムネ一覧＋追加ボタン）。
 class _MaterialSection extends StatelessWidget {
@@ -1684,6 +1594,130 @@ class _SnsLinkSection extends StatelessWidget {
   }
 }
 
+/// 蔵のイメージカラーセクション。他の蔵素材と違い複数枠・アクティブ選択の
+/// 概念を持たず、1つの値をカラーコード入力欄で直接登録・変更・削除する
+/// （設定タブのアクセントカラー入力と同じUI・同じ`tryParseHexColor`/
+/// `toHexString`を使い回す。2026-07-29追加。使い道は別途実装予定）。
+class _ImageColorSection extends StatefulWidget {
+  const _ImageColorSection({
+    required this.strings,
+    required this.color,
+    required this.onApply,
+    required this.onClear,
+  });
+
+  final Strings strings;
+  final int? color;
+  final ValueChanged<int> onApply;
+  final VoidCallback onClear;
+
+  @override
+  State<_ImageColorSection> createState() => _ImageColorSectionState();
+}
+
+class _ImageColorSectionState extends State<_ImageColorSection> {
+  late final TextEditingController _hexController;
+  String? _errorText;
+
+  String _hexTextFor(int? color) =>
+      color == null ? '' : Color(0xFF000000 | color).toHexString().replaceFirst('#', '');
+
+  @override
+  void initState() {
+    super.initState();
+    _hexController = TextEditingController(text: _hexTextFor(widget.color));
+  }
+
+  @override
+  void didUpdateWidget(covariant _ImageColorSection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.color != widget.color) {
+      _hexController.text = _hexTextFor(widget.color);
+    }
+  }
+
+  @override
+  void dispose() {
+    _hexController.dispose();
+    super.dispose();
+  }
+
+  void _apply() {
+    final color = tryParseHexColor(_hexController.text);
+    if (color == null) {
+      setState(() => _errorText = widget.strings.profileImageColorInvalid);
+      return;
+    }
+    setState(() => _errorText = null);
+    widget.onApply(color.toARGB32() & 0xFFFFFF);
+  }
+
+  void _clear() {
+    _hexController.clear();
+    setState(() => _errorText = null);
+    widget.onClear();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final swatchColor = widget.color != null ? Color(0xFF000000 | widget.color!) : null;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '${widget.strings.profileImageColorSection}（${widget.color != null ? 1 : 0}/1）',
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              margin: const EdgeInsets.only(top: 4),
+              decoration: BoxDecoration(
+                color: swatchColor,
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.black12),
+              ),
+              child: swatchColor == null
+                  ? const Icon(Icons.palette_outlined, color: Colors.black38)
+                  : null,
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: TextField(
+                controller: _hexController,
+                textCapitalization: TextCapitalization.characters,
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp('[0-9a-fA-F]')),
+                  LengthLimitingTextInputFormatter(6),
+                ],
+                decoration: InputDecoration(
+                  prefixText: '#',
+                  hintText: 'F08300',
+                  errorText: _errorText,
+                  suffixIcon: IconButton(
+                    icon: const Icon(Icons.check),
+                    onPressed: _apply,
+                  ),
+                ),
+                onSubmitted: (_) => _apply(),
+              ),
+            ),
+            if (widget.color != null)
+              IconButton(
+                icon: const Icon(Icons.close),
+                onPressed: _clear,
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
 /// ニックネーム・ステメの1行。テキスト部分をタップすると編集ポップアップ
 /// （[_NicknameDialog]/[_StatusMessageDialog]）が開き、編集・削除の両方を
 /// そこで行う。「使うものを選ぶ」機能は蔵では不要なため持たない
@@ -1884,13 +1918,6 @@ class _StatusMessageDialogState extends ConsumerState<_StatusMessageDialog> {
 bool _isValidUrl(String value) {
   final uri = Uri.tryParse(value);
   return uri != null && uri.hasScheme && uri.host.isNotEmpty;
-}
-
-/// 選択肢などに表示する際、先頭の`https://www.`（または`http://www.`・
-/// `www.`なしの場合はscheme部分のみ）を取り除いた短い表示用文字列にする。
-/// 実際に保存・使用するURL自体（[SnsLink.url]）は変更しない。
-String _displaySnsLinkUrl(String url) {
-  return url.replaceFirst(RegExp(r'^https?://(www\.)?', caseSensitive: false), '');
 }
 
 class _SnsLinkDialog extends ConsumerStatefulWidget {
@@ -2148,7 +2175,8 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
   /// こちらは最大[kMaxProfileCardSnsLinks]件までのチェックボックス選択のため、
   /// 1件選ぶたびに閉じさせず、外側タップで閉じるまで複数選べるようにする。
   Future<void> _pickSnsLinks() async {
-    final overlayBox = Overlay.of(context).context.findRenderObject() as RenderBox;
+    final overlayBox =
+        Overlay.of(context).context.findRenderObject() as RenderBox;
     final tapPosition = _lastTapPosition ?? overlayBox.size.center(Offset.zero);
     final position = RelativeRect.fromRect(
       Rect.fromPoints(tapPosition, tapPosition),
@@ -2175,7 +2203,7 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
                 controlAffinity: ListTileControlAffinity.leading,
                 value: selected.contains(link.id),
                 title: Text(
-                  _displaySnsLinkUrl(link.url),
+                  displaySnsLinkUrl(link.url),
                   overflow: TextOverflow.ellipsis,
                 ),
                 onChanged: (checked) {
@@ -2188,7 +2216,9 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
                       selected.remove(link.id);
                     }
                   });
-                  setState(() => _card = _card.copyWith(snsLinkIds: List.of(selected)));
+                  setState(
+                    () => _card = _card.copyWith(snsLinkIds: List.of(selected)),
+                  );
                   _persist();
                 },
               ),
@@ -2381,12 +2411,13 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
                                     ),
                                   ),
                                   SizedBox(height: width * 0.02),
-                                  _SnsLinksInline(
+                                  SnsLinksInline(
                                     links: selectedSnsLinks,
                                     iconSize: width * 0.045,
                                     fontSize: width * 0.04,
                                     color: statusColor,
-                                    placeholder: strings.workshopSnsLinkFieldLabel,
+                                    placeholder:
+                                        strings.workshopSnsLinkFieldLabel,
                                     onTap: _pickSnsLinks,
                                   ),
                                 ],
@@ -2399,10 +2430,14 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
                   ),
                   const SizedBox(height: 12),
                   // カード名はカードの直下、半透明の暗転バリアの上に表示する。
-                  // 以前は白系の色にしていたが、バリアが半透明のため背景次第で
-                  // 白文字が読みづらいとの指摘があり、黒系に変更した。編集ボタンは
-                  // 置かず、最初から常にTextFieldを表示する（新規カードは自動で
-                  // フォーカスする）。
+                  // 以前は白系→黒系と切り替えたが、バリアの不透明度が低いままだと
+                  // 下に見えるページの背景色（ライト/ダークモードで大きく異なる）が
+                  // 透けるため、どちらの固定色でも片方のモードで読みづらくなって
+                  // いた（2026-07-29修正）。バリア自体を常に暗く保つ
+                  // （barrierColor: Colors.black87、上記_openCardZoom参照）ことで
+                  // 背景の明るさをモードに依存させず安定させ、白系の文字色に
+                  // 統一した。編集ボタンは置かず、最初から常にTextFieldを表示する
+                  // （新規カードは自動でフォーカスする）。
                   SizedBox(
                     width: width,
                     child: TextField(
@@ -2416,7 +2451,7 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
                       // 候補付けそのものを無効化する。
                       autofillHints: const [],
                       style: TextStyle(
-                        color: Colors.black,
+                        color: Colors.white,
                         fontWeight: FontWeight.bold,
                         fontSize: nameFontSize,
                       ),
@@ -2427,17 +2462,17 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
                         ),
                         hintText: strings.workshopCardNameLabel,
                         hintStyle: TextStyle(
-                          color: Colors.black54,
+                          color: Colors.white70,
                           fontSize: nameFontSize,
                         ),
                         enabledBorder: const UnderlineInputBorder(
                           borderSide: BorderSide(
-                            color: Colors.black54,
+                            color: Colors.white54,
                             width: 1.5,
                           ),
                         ),
                         focusedBorder: const UnderlineInputBorder(
-                          borderSide: BorderSide(color: Colors.black, width: 2),
+                          borderSide: BorderSide(color: Colors.white, width: 2),
                         ),
                       ),
                       onSubmitted: (_) => _confirmName(),

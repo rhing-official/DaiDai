@@ -5,9 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../features/app_gate.dart';
 import '../features/call/call_screen.dart';
 import '../features/call/group_call_screen.dart';
-import '../features/chat/add_chat_screen.dart';
 import '../features/chat/chat_panes.dart';
-import '../features/chat/create_group_screen.dart';
 import '../features/chat/join_group_screen.dart';
 import '../features/chat/room_list_screen.dart';
 import '../features/profile/invite_screen.dart';
@@ -188,20 +186,6 @@ final goRouterProvider = Provider<GoRouter>((ref) {
           return swipeBack(
             GroupRoomListScreen(currentUser: args.currentUser, group: args.group),
           );
-        },
-      ),
-      GoRoute(
-        path: '/add-chat',
-        builder: (context, state) {
-          final currentUser = state.extra! as AppUser;
-          return swipeBack(AddChatScreen(currentUser: currentUser));
-        },
-      ),
-      GoRoute(
-        path: '/create-group',
-        builder: (context, state) {
-          final currentUser = state.extra! as AppUser;
-          return swipeBack(CreateGroupScreen(currentUser: currentUser));
         },
       ),
       GoRoute(

@@ -1,3 +1,4 @@
+import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -13,6 +14,7 @@ import '../../models/group_invite_preview.dart';
 import '../../models/group_join_request.dart';
 import '../../models/group_role.dart';
 import '../../providers/block_providers.dart';
+import '../../providers/chat_navigation_providers.dart';
 import '../../providers/conversation_prefs_providers.dart';
 import '../../providers/friend_providers.dart';
 import '../../providers/group_join_request_providers.dart';
@@ -21,7 +23,9 @@ import '../../providers/user_providers.dart';
 import '../../router/app_router.dart';
 import '../../utils/group_permissions.dart';
 import '../../widgets/swipe_gestures.dart';
+import 'add_chat_dialog.dart';
 import 'chat_panes.dart';
+import 'create_group_dialog.dart';
 import 'group_role_list_popup.dart';
 import 'room_list_pane.dart';
 
@@ -30,7 +34,7 @@ enum _TalksCategory { dm, group }
 /// 画面幅がこれ以上あれば、一覧と会話を左右分割で同時表示する
 /// （Discordのような「一覧は常に見えたまま、選んだ会話が右隣に開く」構成）。
 /// これ未満の狭い画面では、従来通り会話をフルスクリーンで開く。
-const _kSplitBreakpoint = 760.0;
+const kTalksSplitBreakpoint = 760.0;
 
 /// 語らいタブの中身。上部の「一対」「広場」を横並びで切り替えて一覧表示する。
 /// 相手の追加・広場の作成は、この画面内の＋ボタン（中央ポップアップ）から行う。
@@ -62,14 +66,65 @@ class _TalksTabState extends ConsumerState<TalksTab> {
   /// 幅を圧迫されず全画面で読みたい時のための切り替え。
   bool _chatExpanded = false;
 
-  bool get _isSplit => MediaQuery.sizeOf(context).width >= _kSplitBreakpoint;
+  bool get _isSplit => MediaQuery.sizeOf(context).width >= kTalksSplitBreakpoint;
 
-  void _openDirectMessage(DirectMessage dm) {
+  // 選択中の一対・広場の寄合一覧ストリームを、会話一覧の更新（新着メッセージ等）
+  // ごとに再構築されるbuild()の中でも使い回すためのキャッシュ。以前は
+  // _buildDmDetailWithRooms/_buildGroupDetailWithRoomsの中で毎回
+  // watchRooms(id)を呼び直しており、上位のStreamBuilder<List<DirectMessage>>/
+  // <List<Group>>が新着メッセージのたびに再描画されるとその都度Streamの
+  // インスタンスが変わり、購読し直しになるせいでRoomListPaneの寄合一覧が
+  // 定着して表示されない不具合があった（サイドバーを操作した瞬間だけ
+  // 一時的に描画が追いつき、一瞬表示されて消えるように見えていた）。
+  // 選択中のid（dmId/groupId）が変わった時だけ作り直す。
+  String? _cachedDmRoomsId;
+  Stream<List<DmRoom>>? _cachedDmRoomsStream;
+  Stream<List<DmRoom>> _dmRoomsStream(String dmId) {
+    if (_cachedDmRoomsId != dmId) {
+      _cachedDmRoomsId = dmId;
+      _cachedDmRoomsStream = ref
+          .read(directMessageRepositoryProvider)
+          .watchRooms(dmId: dmId, userId: widget.currentUser.userId);
+    }
+    return _cachedDmRoomsStream!;
+  }
+
+  String? _cachedGroupRoomsId;
+  Stream<List<Room>>? _cachedGroupRoomsStream;
+  Stream<List<Room>> _groupRoomsStream(String groupId) {
+    if (_cachedGroupRoomsId != groupId) {
+      _cachedGroupRoomsId = groupId;
+      _cachedGroupRoomsStream = ref
+          .read(groupRepositoryProvider)
+          .watchRooms(groupId: groupId, userId: widget.currentUser.userId);
+    }
+    return _cachedGroupRoomsStream!;
+  }
+
+  Future<void> _openDirectMessage(DirectMessage dm) async {
     if (_isSplit) {
       setState(() {
         _selectedDm = dm;
         _selectedDmRoomId = null;
       });
+      return;
+    }
+    // 単一モードでは寄合一覧のドリルダウン画面を経由せず、常に1つだけの
+    // 寄合（defaultRoomId）を直接開く（2026-07-29追加）。
+    if (!dm.roomsEnabled) {
+      final rooms = await _dmRoomsStream(dm.dmId).first;
+      final roomName =
+          rooms.firstWhereOrNull((r) => r.roomId == dm.defaultRoomId)?.name ??
+              'メイン';
+      ref.read(goRouterProvider).push(
+        '/chat/dm',
+        extra: DmChatArgs(
+          currentUser: widget.currentUser,
+          dm: dm,
+          roomId: dm.defaultRoomId,
+          roomName: roomName,
+        ),
+      );
       return;
     }
     ref.read(goRouterProvider).push(
@@ -78,12 +133,29 @@ class _TalksTabState extends ConsumerState<TalksTab> {
     );
   }
 
-  void _openGroup(Group group) {
+  Future<void> _openGroup(Group group) async {
     if (_isSplit) {
       setState(() {
         _selectedGroup = group;
         _selectedGroupRoomId = null;
       });
+      return;
+    }
+    if (!group.roomsEnabled) {
+      final rooms = await _groupRoomsStream(group.groupId).first;
+      final roomName = rooms
+              .firstWhereOrNull((r) => r.roomId == group.defaultRoomId)
+              ?.name ??
+          'メイン';
+      ref.read(goRouterProvider).push(
+        '/chat/group',
+        extra: GroupChatArgs(
+          currentUser: widget.currentUser,
+          group: group,
+          roomId: group.defaultRoomId,
+          roomName: roomName,
+        ),
+      );
       return;
     }
     ref.read(goRouterProvider).push(
@@ -114,12 +186,38 @@ class _TalksTabState extends ConsumerState<TalksTab> {
     );
   }
 
-  void _openAddChat() {
-    ref.read(goRouterProvider).push('/add-chat', extra: widget.currentUser);
-  }
-
-  void _openCreateGroup() {
-    ref.read(goRouterProvider).push('/create-group', extra: widget.currentUser);
+  /// 「＋」メニューポップアップの上に重ねて表示する2階層目のポップアップ
+  /// （一対追加・広場作成、2026-07-29に画面遷移からポップアップ化）。
+  /// [context]には呼び出し元のポップアップ自身のBuildContext（`dialogContext`）
+  /// を渡す。1階層目を閉じずに開くことで、下に重なった状態で表示される。
+  Future<void> _showStackedDialog(
+    BuildContext context,
+    Widget Function(VoidCallback closeSelf) contentBuilder,
+  ) {
+    return showGeneralDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      barrierColor: Colors.black54,
+      transitionDuration: const Duration(milliseconds: 220),
+      pageBuilder: (stackedContext, animation, secondaryAnimation) {
+        return Center(
+          child: Dialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 420, maxHeight: 640),
+              child: contentBuilder(() => Navigator.of(stackedContext).pop()),
+            ),
+          ),
+        );
+      },
+      transitionBuilder: (context, animation, secondaryAnimation, child) {
+        final curved = CurvedAnimation(parent: animation, curve: Curves.easeOutBack);
+        return FadeTransition(
+          opacity: animation,
+          child: ScaleTransition(scale: curved, child: child),
+        );
+      },
+    );
   }
 
   Future<void> _showAddMenu() async {
@@ -140,30 +238,47 @@ class _TalksTabState extends ConsumerState<TalksTab> {
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(20),
             ),
-            child: SwipeDownToDismiss(
-              onDismiss: () => Navigator.of(dialogContext).pop(),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  ListTile(
-                    leading: const Icon(Icons.person_add_outlined),
-                    title: Text(strings.addMenuDmTitleTemplate(vocab.dm)),
-                    subtitle: Text(strings.addMenuDmSubtitle),
-                    onTap: () {
-                      Navigator.of(dialogContext).pop();
-                      _openAddChat();
-                    },
-                  ),
-                  ListTile(
-                    leading: const Icon(Icons.groups_outlined),
-                    title: Text(strings.addMenuGroupTitleTemplate(vocab.plaza)),
-                    subtitle: Text(strings.addMenuGroupSubtitle),
-                    onTap: () {
-                      Navigator.of(dialogContext).pop();
-                      _openCreateGroup();
-                    },
-                  ),
-                ],
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 400),
+              child: SwipeDownToDismiss(
+                onDismiss: () => Navigator.of(dialogContext).pop(),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ListTile(
+                      leading: const Icon(Icons.person_add_outlined),
+                      title: Text(strings.addMenuDmTitleTemplate(vocab.dm)),
+                      subtitle: Text(strings.addMenuDmSubtitle),
+                      onTap: () => _showStackedDialog(
+                        dialogContext,
+                        (closeSelf) => AddChatDialogContent(
+                          currentUser: widget.currentUser,
+                          onClose: closeSelf,
+                          onCompleted: () {
+                            closeSelf();
+                            Navigator.of(dialogContext).pop();
+                          },
+                        ),
+                      ),
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.groups_outlined),
+                      title: Text(strings.addMenuGroupTitleTemplate(vocab.plaza)),
+                      subtitle: Text(strings.addMenuGroupSubtitle),
+                      onTap: () => _showStackedDialog(
+                        dialogContext,
+                        (closeSelf) => CreateGroupDialogContent(
+                          currentUser: widget.currentUser,
+                          onClose: closeSelf,
+                          onCompleted: () {
+                            closeSelf();
+                            Navigator.of(dialogContext).pop();
+                          },
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -185,6 +300,20 @@ class _TalksTabState extends ConsumerState<TalksTab> {
 
   @override
   Widget build(BuildContext context) {
+    // プロフィールカードダイアログ等、このWidgetツリーの外側から
+    // 「この一対を開いてほしい」と伝えられた場合、一覧をクリックした時と
+    // 全く同じ_openDirectMessageに渡す（サイドバー込みの表示を保つため、
+    // 2026-07-29追加）。
+    ref.listen<DirectMessage?>(pendingDmSelectionProvider, (previous, next) {
+      if (next == null) return;
+      ref.read(pendingDmSelectionProvider.notifier).clear();
+      // 広場を見ている最中に相手の一対へジャンプした場合でも一対タブに
+      // 切り替える（_categoryが広場のままだと_buildDetailPaneが広場側を
+      // 表示し続けてしまうため）。
+      setState(() => _category = _TalksCategory.dm);
+      _openDirectMessage(next);
+    });
+
     final vocab = ref.watch(vocabularyProvider);
     final groupsStream = ref
         .watch(groupRepositoryProvider)
@@ -367,12 +496,12 @@ class _TalksTabState extends ConsumerState<TalksTab> {
     final dmRepository = ref.read(directMessageRepositoryProvider);
     final otherUserId = dm.otherUserId(widget.currentUser.userId);
     final otherUser = ref.watch(watchedUserProvider(otherUserId)).value;
-    final otherNickname = otherUser?.effectiveNickname?.text;
+    final otherNickname = otherUser?.effectiveNicknameFor(dm.dmId)?.text;
     final conversationName = (otherNickname?.isNotEmpty ?? false)
         ? otherNickname!
         : '@${dm.otherRhingId(widget.currentUser.userId)}';
     return StreamBuilder<List<DmRoom>>(
-      stream: dmRepository.watchRooms(dm.dmId),
+      stream: _dmRoomsStream(dm.dmId),
       builder: (context, snapshot) {
         final rooms = snapshot.data ?? const <DmRoom>[];
         final roomId = (_selectedDmRoomId != null &&
@@ -392,26 +521,31 @@ class _TalksTabState extends ConsumerState<TalksTab> {
             .name;
         return Row(
           children: [
-            SizedBox(
-              width: 220,
-              child: RoomListPane(
-                conversationName: conversationName,
-                roomsStream: dmRepository.watchRooms(dm.dmId).map(
-                      (rs) => [for (final r in rs) (roomId: r.roomId, name: r.name)],
-                    ),
-                selectedRoomId: roomId,
-                onSelectRoom: (room) =>
-                    setState(() => _selectedDmRoomId = room.roomId),
-                onCreateRoom: (name) =>
-                    dmRepository.createRoom(dmId: dm.dmId, name: name),
-                onDeleteRoom: (roomId) => dmRepository.deleteRoom(
-                  dmId: dm.dmId,
-                  roomId: roomId,
-                  requestedBy: widget.currentUser.userId,
+            // 単一モードではサイドバーを出さない（2026-07-29追加、
+            // `DirectMessage.roomsEnabled`参照）。寄合を増やす操作は
+            // ハンバーガーメニューから行う（`_DmMenuButton`参照）。
+            if (dm.roomsEnabled) ...[
+              SizedBox(
+                width: 220,
+                child: RoomListPane(
+                  conversationName: conversationName,
+                  rooms: [
+                    for (final r in rooms) (roomId: r.roomId, name: r.name),
+                  ],
+                  selectedRoomId: roomId,
+                  onSelectRoom: (room) =>
+                      setState(() => _selectedDmRoomId = room.roomId),
+                  onCreateRoom: (name) =>
+                      dmRepository.createRoom(dmId: dm.dmId, name: name),
+                  onDeleteRoom: (roomId) => dmRepository.deleteRoom(
+                    dmId: dm.dmId,
+                    roomId: roomId,
+                    requestedBy: widget.currentUser.userId,
+                  ),
                 ),
               ),
-            ),
-            const VerticalDivider(width: 1),
+              const VerticalDivider(width: 1),
+            ],
             Expanded(
               child: DmChatPane(
                 key: ValueKey('detail-dm-${dm.dmId}-$roomId'),
@@ -440,7 +574,7 @@ class _TalksTabState extends ConsumerState<TalksTab> {
     final canManageRoles =
         hasGroupPermission(group: group, userId: userId, permission: GroupPermission.manageRoles);
     return StreamBuilder<List<Room>>(
-      stream: groupRepository.watchRooms(group.groupId),
+      stream: _groupRoomsStream(group.groupId),
       builder: (context, snapshot) {
         final rooms = snapshot.data ?? const <Room>[];
         final roomId = (_selectedGroupRoomId != null &&
@@ -460,44 +594,52 @@ class _TalksTabState extends ConsumerState<TalksTab> {
             .name;
         return Row(
           children: [
-            SizedBox(
-              width: 220,
-              child: RoomListPane(
-                conversationName: group.name,
-                roomsStream: groupRepository.watchRooms(group.groupId).map(
-                      (rs) => [for (final r in rs) (roomId: r.roomId, name: r.name)],
-                    ),
-                selectedRoomId: roomId,
-                onSelectRoom: (room) =>
-                    setState(() => _selectedGroupRoomId = room.roomId),
-                onCreateRoom: canManageRooms
-                    ? (name) => groupRepository.createRoom(
-                          groupId: group.groupId,
-                          name: name,
-                        )
-                    : null,
-                onDeleteRoom: canManageRooms
-                    ? (roomId) => groupRepository.deleteRoom(
-                          groupId: group.groupId,
-                          roomId: roomId,
-                          requestedBy: widget.currentUser.userId,
-                        )
-                    : null,
-                onOpenGroupSettings: canManageRoles
-                    ? () => showDialog<void>(
-                          context: context,
-                          builder: (_) => Dialog(
-                            child: ConstrainedBox(
-                              constraints:
-                                  const BoxConstraints(maxWidth: 400, maxHeight: 640),
-                              child: GroupRoleListPopup(group: group),
+            // 単一モードではサイドバーを出さない（2026-07-29追加、
+            // `Group.roomsEnabled`参照）。「広場自体の設定」・寄合を増やす
+            // 操作はハンバーガーメニューから行う（`_GroupMenuButton`参照）。
+            if (group.roomsEnabled) ...[
+              SizedBox(
+                width: 220,
+                child: RoomListPane(
+                  conversationName: group.name,
+                  rooms: [
+                    for (final r in rooms) (roomId: r.roomId, name: r.name),
+                  ],
+                  selectedRoomId: roomId,
+                  onSelectRoom: (room) =>
+                      setState(() => _selectedGroupRoomId = room.roomId),
+                  onCreateRoom: canManageRooms
+                      ? (name) => groupRepository.createRoom(
+                            groupId: group.groupId,
+                            name: name,
+                          )
+                      : null,
+                  onDeleteRoom: canManageRooms
+                      ? (roomId) => groupRepository.deleteRoom(
+                            groupId: group.groupId,
+                            roomId: roomId,
+                            requestedBy: widget.currentUser.userId,
+                          )
+                      : null,
+                  onOpenGroupSettings: canManageRoles
+                      ? () => showDialog<void>(
+                            context: context,
+                            builder: (_) => Dialog(
+                              child: ConstrainedBox(
+                                constraints: const BoxConstraints(
+                                    maxWidth: 400, maxHeight: 640),
+                                child: GroupRoleListPopup(
+                                  currentUser: widget.currentUser,
+                                  group: group,
+                                ),
+                              ),
                             ),
-                          ),
-                        )
-                    : null,
+                          )
+                      : null,
+                ),
               ),
-            ),
-            const VerticalDivider(width: 1),
+              const VerticalDivider(width: 1),
+            ],
             Expanded(
               child: GroupChatPane(
                 key: ValueKey('detail-group-${group.groupId}-$roomId'),
@@ -680,11 +822,23 @@ class _FriendRequestTile extends ConsumerWidget {
 
   bool get _isIncoming => request.toUserId == currentUserId;
 
+  String get _otherUserId =>
+      currentUserId == request.fromUserId ? request.toUserId : request.fromUserId;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final strings = ref.watch(appStringsProvider);
+    final otherUser = ref.watch(watchedUserProvider(_otherUserId)).value;
+    // まだ一対が成立していなくても、dmIdは決定的に計算できるため
+    // （`DirectMessage.idFor`）、相手が申請送信時に選んだ会話ごとの
+    // プロフィールカードがあればそれを反映して表示する（2026-07-29追加）。
+    final dmId = DirectMessage.idFor(currentUserId, _otherUserId);
+    final iconUrl = otherUser?.effectiveIconFor(dmId)?.url;
     return ListTile(
-      leading: const CircleAvatar(child: Icon(Icons.person_outline)),
+      leading: CircleAvatar(
+        backgroundImage: iconUrl != null ? NetworkImage(iconUrl) : null,
+        child: iconUrl == null ? const Icon(Icons.person_outline) : null,
+      ),
       title: Text('@${request.otherRhingId(currentUserId)}'),
       subtitle: Text(
         _isIncoming
@@ -779,10 +933,10 @@ class _DirectMessageTile extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final otherUserId = dm.otherUserId(currentUser.userId);
     final otherUser = ref.watch(watchedUserProvider(otherUserId)).value;
-    final nickname = otherUser?.effectiveNickname?.text;
+    final nickname = otherUser?.effectiveNicknameFor(dm.dmId)?.text;
     final label =
         (nickname?.isNotEmpty ?? false) ? nickname! : '@${dm.otherRhingId(currentUser.userId)}';
-    final iconUrl = otherUser?.effectiveIcon?.url;
+    final iconUrl = otherUser?.effectiveIconFor(dm.dmId)?.url;
 
     return _ConversationGestures(
       conversationId: dm.dmId,

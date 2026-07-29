@@ -29,11 +29,15 @@ enum _GroupMenuAction {
   memberList,
   createInvite,
   roomRolePriority,
+  renameRoom,
+  enableMultipleRooms,
   toggleMute,
   toggleReadReceipts,
   leave,
 }
 enum _DmMenuAction {
+  renameRoom,
+  enableMultipleRooms,
   toggleMute,
   toggleBlock,
   toggleReadReceipts,
@@ -98,6 +102,37 @@ Future<bool> _confirmDeleteDm(BuildContext context, Strings strings) async {
   return confirmed ?? false;
 }
 
+/// 寄合の名前変更ダイアログ。広場・一対どちらのハンバーガーメニューからも
+/// 同じ見た目で使う（[RoomListPane]の寄合追加ダイアログと同じ、名前入力
+/// フィールド1つのシンプルな構成）。キャンセル・空欄のままの保存はnullを返す。
+Future<String?> _showRenameRoomDialog(
+  BuildContext context,
+  Strings strings,
+  Vocabulary vocab,
+  String currentName,
+) async {
+  final controller = TextEditingController(text: currentName);
+  final name = await showDialog<String>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: Text(strings.roomRenameLabel(vocab.textChannel)),
+      content: TextField(controller: controller, autofocus: true),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text(strings.cancel),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(context).pop(controller.text.trim()),
+          child: Text(strings.save),
+        ),
+      ],
+    ),
+  );
+  if (name == null || name.isEmpty) return null;
+  return name;
+}
+
 /// 一対（DM）のChatScreenを組み立てる。相手のアクティブなニックネームを
 /// タイトルに反映するためConsumer化している。go_routerのフルスクリーン遷移と、
 /// TalksTabの分割ビュー（一覧の右隣に埋め込み表示）の両方から使う共通部品。
@@ -123,6 +158,23 @@ class DmChatPane extends ConsumerWidget {
   final VoidCallback? onCallPressed;
   final VoidCallback? onVideoCallPressed;
 
+  /// メッセージの送信者アイコン・呼び名をタップした時に、相手のプロフィール
+  /// カードを開く（広場側の`GroupChatPane._openProfileCard`と同じ導線）。
+  Future<void> _openProfileCard(
+    BuildContext context,
+    WidgetRef ref,
+    String userId,
+  ) async {
+    final user = await ref.read(userRepositoryProvider).getUser(userId);
+    if (user == null || !context.mounted) return;
+    UserProfileCardDialog.show(
+      context,
+      currentUser: currentUser,
+      user: user,
+      conversationId: dm.dmId,
+    );
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final strings = ref.watch(appStringsProvider);
@@ -137,6 +189,8 @@ class DmChatPane extends ConsumerWidget {
       title: roomName,
       currentUserId: currentUser.userId,
       isDm: true,
+      conversationId: dm.dmId,
+      onSenderTap: (userId) => _openProfileCard(context, ref, userId),
       // ブロック中は相手からのメッセージを表示しない（自分が送った過去分は
       // 引き続き見える）。サーバー側の送信拒否ではなく、クライアント側の
       // 表示抑制で実現する（`BlockRepository`のコメント参照）。
@@ -204,8 +258,8 @@ class DmChatPane extends ConsumerWidget {
         roomId: roomId,
         messageId: messageId,
       ),
-      onDeleteAfterAccountDeletion: () =>
-          dmRepository.deleteDmAfterAccountDeletion(dm.dmId),
+      onDeleteAfterAccountDeletion: () => dmRepository
+          .deleteDmAfterAccountDeletion(dm.dmId, userId: currentUser.userId),
       onFetchMessagesAround: (messageId) => dmRepository.getMessagesAround(
         dmId: dm.dmId,
         roomId: roomId,
@@ -217,6 +271,8 @@ class DmChatPane extends ConsumerWidget {
           dm: dm,
           otherUserId: otherUserId,
           isBlocked: isBlocked,
+          roomId: roomId,
+          roomName: roomName,
         ),
       ],
       banner: (dm.severanceRequestedBy == null &&
@@ -404,12 +460,18 @@ class _DmMenuButton extends ConsumerWidget {
     required this.dm,
     required this.otherUserId,
     required this.isBlocked,
+    required this.roomId,
+    required this.roomName,
   });
 
   final AppUser currentUser;
   final DirectMessage dm;
   final String otherUserId;
   final bool isBlocked;
+
+  /// 現在表示中の寄合（名前変更の対象）。
+  final String roomId;
+  final String roomName;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -427,6 +489,17 @@ class _DmMenuButton extends ConsumerWidget {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       onSelected: (action) async {
         switch (action) {
+          case _DmMenuAction.renameRoom:
+            final name =
+                await _showRenameRoomDialog(context, strings, vocabulary, roomName);
+            if (name == null) return;
+            await ref.read(directMessageRepositoryProvider).renameRoom(
+                  dmId: dm.dmId,
+                  roomId: roomId,
+                  name: name,
+                );
+          case _DmMenuAction.enableMultipleRooms:
+            await ref.read(directMessageRepositoryProvider).setRoomsEnabled(dm.dmId);
           case _DmMenuAction.toggleMute:
             ref.read(conversationPrefsRepositoryProvider).setNotificationsMuted(
                   userId: currentUser.userId,
@@ -470,15 +543,27 @@ class _DmMenuButton extends ConsumerWidget {
           case _DmMenuAction.deleteConversation:
             final confirmed = await _confirmDeleteDm(context, strings);
             if (!confirmed) return;
-            await ref
-                .read(directMessageRepositoryProvider)
-                .deleteDmAfterAccountDeletion(dm.dmId);
+            await ref.read(directMessageRepositoryProvider).deleteDmAfterAccountDeletion(
+                  dm.dmId,
+                  userId: currentUser.userId,
+                );
             if (context.mounted) {
               ref.read(goRouterProvider).go('/');
             }
         }
       },
       itemBuilder: (context) => [
+        PopupMenuItem(
+          value: _DmMenuAction.renameRoom,
+          child: Text(strings.roomRenameLabel(vocabulary.textChannel)),
+        ),
+        // 単一モードの間だけ「寄合を増やす」を出す。複数モードへの切り替えは
+        // 一方向のみ（2026-07-29追加、`DirectMessage.roomsEnabled`参照）。
+        if (!dm.roomsEnabled)
+          PopupMenuItem(
+            value: _DmMenuAction.enableMultipleRooms,
+            child: Text(strings.dmMenuEnableMultipleRooms),
+          ),
         PopupMenuItem(
           value: _DmMenuAction.toggleMute,
           child: Text(muted ? strings.conversationUnmute : strings.conversationMute),
@@ -551,7 +636,12 @@ class GroupChatPane extends ConsumerWidget {
   ) async {
     final user = await ref.read(userRepositoryProvider).getUser(userId);
     if (user == null || !context.mounted) return;
-    UserProfileCardDialog.show(context, currentUser: currentUser, user: user);
+    UserProfileCardDialog.show(
+      context,
+      currentUser: currentUser,
+      user: user,
+      conversationId: group.groupId,
+    );
   }
 
   Future<void> _handleCallPressed(
@@ -610,7 +700,10 @@ class GroupChatPane extends ConsumerWidget {
       builder: (context, rolesSnapshot) {
         final roles = rolesSnapshot.data ?? const <GroupRole>[];
         return StreamBuilder<List<Room>>(
-          stream: groupRepository.watchRooms(group.groupId),
+          stream: groupRepository.watchRooms(
+            groupId: group.groupId,
+            userId: currentUser.userId,
+          ),
           builder: (context, roomsSnapshot) {
             final rooms = roomsSnapshot.data ?? const <Room>[];
             final currentRoom = rooms.firstWhereOrNull((r) => r.roomId == roomId);
@@ -648,6 +741,7 @@ class GroupChatPane extends ConsumerWidget {
       title: roomName,
       currentUserId: currentUser.userId,
       isDm: false,
+      conversationId: group.groupId,
       senderNameColorResolver: senderNameColorFor,
       // hiddenForに自分のuserIdが含まれるメッセージ（範囲選択削除で自分が
       // 削除したもの）は、他のメンバーには見えたままここでは表示しない。
@@ -839,6 +933,7 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
   @override
   Widget build(BuildContext context) {
     final strings = ref.watch(appStringsProvider);
+    final vocabulary = ref.watch(vocabularyProvider);
     final userId = widget.currentUser.userId;
     final isOwner = widget.group.ownerId == userId;
     final canManageRoles = hasGroupPermission(
@@ -855,6 +950,11 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
       group: widget.group,
       userId: userId,
       permission: GroupPermission.createInvite,
+    );
+    final canManageRooms = hasGroupPermission(
+      group: widget.group,
+      userId: userId,
+      permission: GroupPermission.manageRooms,
     );
     final prefs = ref
             .watch(conversationPrefsProvider(widget.currentUser.userId))
@@ -881,6 +981,25 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
               widget.group.groupId,
               widget.group.profileCard,
             );
+          case _GroupMenuAction.renameRoom:
+            if (!canManageRooms) return;
+            final name = await _showRenameRoomDialog(
+              context,
+              strings,
+              vocabulary,
+              widget.roomName,
+            );
+            if (name == null) return;
+            await ref.read(groupRepositoryProvider).renameRoom(
+                  groupId: widget.group.groupId,
+                  roomId: widget.roomId,
+                  name: name,
+                );
+          case _GroupMenuAction.enableMultipleRooms:
+            if (!canManageRooms) return;
+            await ref
+                .read(groupRepositoryProvider)
+                .setRoomsEnabled(widget.group.groupId);
           case _GroupMenuAction.roomRolePriority:
             if (!canManageRoles) return;
             final regularRoles = widget.roles.where((r) => !r.isEveryone).toList();
@@ -931,6 +1050,7 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
             ref.read(groupRepositoryProvider).setReadReceiptsEnabled(
                   groupId: widget.group.groupId,
                   enabled: !readReceiptsEnabled,
+                  userId: widget.currentUser.userId,
                 );
           case _GroupMenuAction.leave:
             GroupLeaveDialog.show(
@@ -954,6 +1074,19 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
           enabled: canCreateInvite,
           child: Text(strings.groupMenuCreateInvite),
         ),
+        PopupMenuItem(
+          value: _GroupMenuAction.renameRoom,
+          enabled: canManageRooms,
+          child: Text(strings.roomRenameLabel(vocabulary.textChannel)),
+        ),
+        // 単一モードの間だけ「寄合を複数扱う」を出す。複数モードへの切り替えは
+        // 一方向のみ（2026-07-29追加、`Group.roomsEnabled`参照）。
+        if (!widget.group.roomsEnabled)
+          PopupMenuItem(
+            value: _GroupMenuAction.enableMultipleRooms,
+            enabled: canManageRooms,
+            child: Text(strings.groupMenuEnableMultipleRooms),
+          ),
         // 寄合ごとのロール優先順位の上書き（2026-07-28更新: 寄合ごとの
         // 個別ロール付与は廃止し、色の優先順位の上書きのみに変更）。
         // ロール自体の作成・色設定・広場全体への付与・優先順位はサイドバーの
