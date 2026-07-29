@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../l10n/app_locale.dart';
 import '../../l10n/strings.dart';
 import '../../l10n/terminology_style.dart';
+import '../../models/app_ui_style.dart';
 import '../../models/app_user.dart';
 import '../../models/chat_layout_style.dart';
 import '../../models/direct_message.dart';
@@ -14,6 +15,7 @@ import '../../models/profile_card.dart';
 import '../../models/send_key_mode.dart';
 import '../../providers/accent_color_provider.dart';
 import '../../providers/app_locale_provider.dart';
+import '../../providers/app_ui_style_provider.dart';
 import '../../providers/block_providers.dart';
 import '../../providers/chat_layout_style_provider.dart';
 import '../../providers/message_time_format_provider.dart';
@@ -541,6 +543,7 @@ class _ApplicationPage extends StatelessWidget {
             style: Theme.of(context).textTheme.bodyMedium,
           ),
         ),
+        _UiStyleFolder(strings: strings),
         const Divider(height: 24),
         _ChatLayoutFolder(strings: strings),
         const Divider(height: 24),
@@ -852,6 +855,42 @@ class _LanguageFolder extends ConsumerWidget {
 /// 語らいのメッセージ表示スタイルの切り替え。この設定は自分の端末での
 /// 表示のみに影響し、相手の語らいの見え方には影響しない
 /// （[ChatLayoutStyle]のコメント参照）。
+/// UIスタイル（見た目）の切り替え（2026-07-29追加）。現時点では
+/// メッセージ画面（`ChatScreen`）のみがこの値を見て見た目を変える。
+class _UiStyleFolder extends ConsumerWidget {
+  const _UiStyleFolder({required this.strings});
+
+  final Strings strings;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final style = ref.watch(appUiStyleProvider);
+
+    return RadioGroup<AppUiStyle>(
+      groupValue: style,
+      onChanged: (value) {
+        if (value != null) {
+          ref.read(appUiStyleProvider.notifier).setStyle(value);
+        }
+      },
+      child: Column(
+        children: [
+          RadioListTile<AppUiStyle>(
+            value: AppUiStyle.simple,
+            title: Text(strings.settingsUiStyleSimpleLabel),
+            subtitle: Text(strings.settingsUiStyleSimpleDescription),
+          ),
+          RadioListTile<AppUiStyle>(
+            value: AppUiStyle.gekiga,
+            title: Text(strings.settingsUiStyleGekigaLabel),
+            subtitle: Text(strings.settingsUiStyleGekigaDescription),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _ChatLayoutFolder extends ConsumerWidget {
   const _ChatLayoutFolder({required this.strings});
 

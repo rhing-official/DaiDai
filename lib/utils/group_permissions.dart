@@ -19,12 +19,24 @@ bool hasGroupPermission({
   return group.memberPermissions[userId]?.contains(permission) ?? false;
 }
 
+/// この寄合で実際に使う既読機能のオン/オフを解決する。[room]の
+/// `customSettingsEnabled`がtrueかつ`readReceiptsEnabledOverride`が
+/// 設定されていればそちらを、それ以外は[group]全体の`readReceiptsEnabled`
+/// を使う（2026-07-29追加）。
+bool effectiveReadReceiptsEnabled({required Group group, Room? room}) {
+  if (room?.customSettingsEnabled ?? false) {
+    return room?.readReceiptsEnabledOverride ?? group.readReceiptsEnabled;
+  }
+  return group.readReceiptsEnabled;
+}
+
 /// 送信者[userId]の呼び名に適用するフォントカラーを解決する。
-/// [currentRoom]に`rolePriorityOverride`があればそちらを、無ければ
-/// [group]の`rolePriority`を使い、優先順位の高い方から見て色を持つ最初の
-/// 付与ロールの色を採用する。どの付与ロールにも色が無ければ基準ロール
-/// （[GroupRole.isEveryone]）の色（あれば）を使う。該当が無ければnull
-/// （呼び出し側は既定色にフォールバックする）。
+/// [currentRoom]の`customSettingsEnabled`がtrueの間だけ
+/// `rolePriorityOverride`を、それ以外は[group]の`rolePriority`を使い、
+/// 優先順位の高い方から見て色を持つ最初の付与ロールの色を採用する。
+/// どの付与ロールにも色が無ければ基準ロール（[GroupRole.isEveryone]）の色
+/// （あれば）を使う。該当が無ければnull（呼び出し側は既定色にフォールバック
+/// する）。
 Color? resolveSenderColor({
   required Group group,
   required Room? currentRoom,
@@ -37,7 +49,10 @@ Color? resolveSenderColor({
     return _everyoneColor(roles);
   }
 
-  final priority = currentRoom?.rolePriorityOverride ?? group.rolePriority;
+  final useOverride = currentRoom?.customSettingsEnabled ?? false;
+  final priority = useOverride
+      ? (currentRoom?.rolePriorityOverride ?? group.rolePriority)
+      : group.rolePriority;
   for (final roleId in priority) {
     if (!assignedIds.contains(roleId)) continue;
     final role = rolesById[roleId];

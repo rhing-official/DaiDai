@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatform;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -7,11 +9,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/app_locale.dart';
 import '../../l10n/strings.dart';
+import '../../models/app_ui_style.dart';
 import '../../models/chat_layout_style.dart';
 import '../../models/message.dart';
 import '../../models/message_time_format.dart';
 import '../../models/send_key_mode.dart';
 import '../../providers/app_locale_provider.dart';
+import '../../providers/app_ui_style_provider.dart';
 import '../../providers/chat_layout_style_provider.dart';
 import '../../providers/message_time_format_provider.dart';
 import '../../providers/send_key_mode_provider.dart';
@@ -21,6 +25,10 @@ import '../../utils/link_detection.dart';
 import '../../utils/message_time.dart';
 import '../../widgets/link_preview_card.dart';
 import '../../widgets/linkified_text.dart';
+
+/// 劇画スタイル（[AppUiStyle.gekiga]）のメッセージ画面全体の固定背景色。
+/// アクセントカラーとは独立の、このスタイル専用の色（2026-07-29追加）。
+const _kGekigaBackground = Color(0xFFC1272D);
 
 /// 一対・広場（お部屋）どちらの会話でも使える汎用チャット画面。
 /// メッセージの取得・送信方法は呼び出し元がstream/callbackとして渡す。
@@ -157,7 +165,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   Duration _autoScrollLastTick = Duration.zero;
 
   static const _autoScrollDeadZone = 12.0;
-  static const _autoScrollMaxSpeed = 900.0;
+  static const _autoScrollMaxSpeed = 1350.0;
 
   void _startAutoScroll(Offset origin) {
     _autoScrollTicker?.dispose();
@@ -230,7 +238,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     final overshoot = dy.abs() - _autoScrollDeadZone;
     // 基準位置から離れるほど速くスクロールする（ブラウザのオートスクロールと
     // 同じ挙動）。
-    final speed = (overshoot * 4).clamp(0.0, _autoScrollMaxSpeed);
+    final speed = (overshoot * 6).clamp(0.0, _autoScrollMaxSpeed);
     // reverse:trueのListViewでは、pixelsが大きいほど古いメッセージ側
     // （画面上では上方向）へスクロールする。ポインタを下（dy>0）へ動かした
     // 時は新しいメッセージ側（画面上では下方向）へスクロールしたいので、
@@ -539,12 +547,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     final locale = ref.watch(appLocaleProvider);
     final layoutStyle = ref.watch(chatLayoutStyleProvider);
     final strings = ref.watch(appStringsProvider);
+    final uiStyle = ref.watch(appUiStyleProvider);
+    final isGekiga = uiStyle == AppUiStyle.gekiga;
     final floatingShadow =
         Theme.of(context).extension<AppThemeExtras>()?.floatingShadow ??
             AppThemeExtras.none;
 
     return Scaffold(
+      backgroundColor: isGekiga ? _kGekigaBackground : null,
       appBar: AppBar(
+        backgroundColor: isGekiga ? _kGekigaBackground : null,
+        foregroundColor: isGekiga ? Colors.white : null,
         automaticallyImplyLeading: false,
         leading: _selecting
             ? IconButton(
@@ -672,6 +685,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                           : null,
                       colorScheme: colorScheme,
                       floatingShadow: floatingShadow,
+                      uiStyle: uiStyle,
                       readReceiptsEnabled: widget.readReceiptsEnabled,
                       layoutStyle: layoutStyle,
                       isDm: widget.isDm,
@@ -914,6 +928,7 @@ class _MessageRow extends ConsumerWidget {
     required this.timeLabel,
     required this.colorScheme,
     required this.floatingShadow,
+    this.uiStyle = AppUiStyle.simple,
     required this.readReceiptsEnabled,
     required this.layoutStyle,
     required this.isDm,
@@ -947,6 +962,10 @@ class _MessageRow extends ConsumerWidget {
   final String? timeLabel;
   final ColorScheme colorScheme;
   final List<BoxShadow> floatingShadow;
+
+  /// メッセージ画面の見た目スタイル（2026-07-29追加）。[AppUiStyle.gekiga]の
+  /// 間、吹き出し・アイコンを手描き風のギザギザ表示に切り替える。
+  final AppUiStyle uiStyle;
   final bool readReceiptsEnabled;
   final ChatLayoutStyle layoutStyle;
   final bool isDm;
@@ -1135,7 +1154,12 @@ class _MessageRow extends ConsumerWidget {
     // （sideBySideで相手、またはallLeftで自分・相手いずれも）は左寄せ。
     final alignRight = layoutStyle == ChatLayoutStyle.sideBySide && isMe;
 
-    final onBubbleColor = isMe ? colorScheme.onPrimary : colorScheme.onSurfaceVariant;
+    final isGekiga = uiStyle == AppUiStyle.gekiga;
+    // 劇画スタイルはモノクロで白黒反転して自分/相手を描き分ける
+    // （自分は白地に黒文字、相手は黒地に白文字、2026-07-29修正）。
+    final onBubbleColor = isGekiga
+        ? (isMe ? Colors.black : Colors.white)
+        : (isMe ? colorScheme.onPrimary : colorScheme.onSurfaceVariant);
 
     // 返信元の引用プレビュー。ロード済み（最新50件）の範囲に返信元の実物が
     // あればそちらを優先して表示し（編集済みなら最新内容を反映できる）、
@@ -1183,58 +1207,72 @@ class _MessageRow extends ConsumerWidget {
     final isCallSummary = message.contentType == 'call';
     final isAccountDeletedNotice = message.contentType == 'accountDeleted';
 
-    final bubble = Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: isMe ? colorScheme.primary : colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: floatingShadow,
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          ?replyPreview,
-          if (isCallSummary)
-            _callSummaryContent(onBubbleColor)
-          else if (isAccountDeletedNotice)
-            _accountDeletedContent(context, ref, strings, onBubbleColor)
-          else
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Flexible(
-                  child: LinkifiedText(
-                    message.content,
-                    style: TextStyle(color: onBubbleColor),
-                    linkColor: isMe ? colorScheme.onPrimary : colorScheme.primary,
+    final bubbleContent = Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        ?replyPreview,
+        if (isCallSummary)
+          _callSummaryContent(onBubbleColor)
+        else if (isAccountDeletedNotice)
+          _accountDeletedContent(context, ref, strings, onBubbleColor)
+        else
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Flexible(
+                child: LinkifiedText(
+                  message.content,
+                  style: TextStyle(
+                    color: onBubbleColor,
+                    fontWeight: isGekiga ? FontWeight.w600 : null,
                   ),
+                  linkColor: isGekiga
+                      ? (isMe ? Colors.black : Colors.white)
+                      : (isMe ? colorScheme.onPrimary : colorScheme.primary),
                 ),
-                if (message.silent) ...[
-                  const SizedBox(width: 4),
-                  Icon(
-                    Icons.notifications_off,
-                    size: 14,
+              ),
+              if (message.silent) ...[
+                const SizedBox(width: 4),
+                Icon(
+                  Icons.notifications_off,
+                  size: 14,
+                  color: onBubbleColor.withValues(alpha: 0.7),
+                ),
+              ],
+              if (message.editedAt != null) ...[
+                const SizedBox(width: 4),
+                Text(
+                  strings.chatEditedLabel,
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontStyle: FontStyle.italic,
                     color: onBubbleColor.withValues(alpha: 0.7),
                   ),
-                ],
-                if (message.editedAt != null) ...[
-                  const SizedBox(width: 4),
-                  Text(
-                    strings.chatEditedLabel,
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontStyle: FontStyle.italic,
-                      color: onBubbleColor.withValues(alpha: 0.7),
-                    ),
-                  ),
-                ],
+                ),
               ],
-            ),
-        ],
-      ),
+            ],
+          ),
+      ],
     );
+
+    final bubble = isGekiga
+        ? _GekigaBubble(
+            seed: message.messageId.hashCode,
+            isMe: isMe,
+            child: bubbleContent,
+          )
+        : Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color:
+                  isMe ? colorScheme.primary : colorScheme.surfaceContainerHighest,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: floatingShadow,
+            ),
+            child: bubbleContent,
+          );
 
     // 吹き出しの角に既読チェックマークを重ねる。バブルが右寄せの時は左下、
     // 左寄せの時は右下（吹き出しの中心寄り＝アイコンと反対側）に表示する
@@ -1373,6 +1411,7 @@ class _MessageRow extends ConsumerWidget {
         userId: message.senderId,
         rhingId: message.senderRhingId,
         conversationId: conversationId,
+        uiStyle: uiStyle,
       );
       final senderName = _SenderName(
         userId: message.senderId,
@@ -1974,6 +2013,7 @@ class _SenderAvatar extends ConsumerWidget {
     required this.userId,
     required this.rhingId,
     this.conversationId,
+    this.uiStyle = AppUiStyle.simple,
   });
 
   final String userId;
@@ -1981,6 +2021,11 @@ class _SenderAvatar extends ConsumerWidget {
 
   /// [_SenderName.conversationId]と同じ。
   final String? conversationId;
+
+  /// [AppUiStyle.gekiga]の間、アイコンを手描き風の色ブロック＋白リングで
+  /// 囲む（2026-07-29追加）。既読者一覧ポップアップ等、通常見た目のまま
+  /// でよい呼び出し元は既定値[AppUiStyle.simple]のまま渡さなくてよい。
+  final AppUiStyle uiStyle;
 
   static const _palette = [
     Color(0xFFEE7800),
@@ -1993,23 +2038,271 @@ class _SenderAvatar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final iconUrl = ref
-        .watch(watchedUserProvider(userId))
-        .value
-        ?.effectiveIconFor(conversationId)
-        ?.url;
+    final user = ref.watch(watchedUserProvider(userId)).value;
+    final iconUrl = user?.effectiveIconFor(conversationId)?.url;
+    final Widget avatar;
     if (iconUrl != null) {
-      return CircleAvatar(radius: 16, backgroundImage: NetworkImage(iconUrl));
+      avatar = CircleAvatar(radius: 16, backgroundImage: NetworkImage(iconUrl));
+    } else {
+      final id = rhingId ?? '?';
+      final color = _palette[id.hashCode.abs() % _palette.length];
+      avatar = CircleAvatar(
+        radius: 16,
+        backgroundColor: color,
+        child: Text(
+          id[0].toUpperCase(),
+          style: const TextStyle(color: Colors.white, fontSize: 13),
+        ),
+      );
     }
-    final id = rhingId ?? '?';
-    final color = _palette[id.hashCode.abs() % _palette.length];
-    return CircleAvatar(
-      radius: 16,
-      backgroundColor: color,
-      child: Text(
-        id[0].toUpperCase(),
-        style: const TextStyle(color: Colors.white, fontSize: 13),
+    if (uiStyle != AppUiStyle.gekiga) return avatar;
+    // 身だしなみ（蔵）の「イメージカラー」（AppUser.imageColor、0xRRGGBB）を
+    // ユーザーごとの色として使う。未設定なら通常時のフォールバックと同じ
+    // パレットから、rhingIdではなくuserIdのハッシュで選ぶ（rhingIdが
+    // nullな呼び出し元でも安定した色になるようにするため）。
+    final badgeColor = user?.imageColor != null
+        ? Color(0xFF000000 | user!.imageColor!)
+        : _palette[userId.hashCode.abs() % _palette.length];
+    return _GekigaAvatarFrame(
+      seed: userId.hashCode,
+      badgeColor: badgeColor,
+      child: avatar,
+    );
+  }
+}
+
+/// 劇画スタイルのアイコン枠。手描き風のギザギザした色付きブロック
+/// （身だしなみのイメージカラーで塗る）の上に、白いリングで囲んだ
+/// アバターを重ねる（2026-07-29追加、ユーザー提供の参考画像・手書き
+/// スケッチを基に実装）。
+class _GekigaAvatarFrame extends StatelessWidget {
+  const _GekigaAvatarFrame({
+    required this.child,
+    required this.badgeColor,
+    required this.seed,
+  });
+
+  final Widget child;
+  final Color badgeColor;
+  final int seed;
+
+  @override
+  Widget build(BuildContext context) {
+    // 56×56の箱に対し、アバターは右上にわずかにはみ出す形で重ねる。
+    // 参考スケッチのように色ブロックは正方形寄りの大きめのサイズにし、
+    // 左下に色ブロックの表示面積が確保されるよう、アバターを右上へ寄せる
+    // （2026-07-29再修正、色ブロックの形・大きさをスケッチに合わせ直した）。
+    return SizedBox(
+      width: 56,
+      height: 56,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Positioned.fill(
+            child: CustomPaint(
+              painter: _GekigaBadgePainter(color: badgeColor, seed: seed),
+            ),
+          ),
+          Positioned(
+            top: -2,
+            right: -2,
+            child: Container(
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 2.5),
+              ),
+              child: child,
+            ),
+          ),
+        ],
       ),
     );
   }
+}
+
+/// 劇画スタイルの色付きバッジ（アイコン背後のブロック）を描く。
+/// 参考スケッチの形（正方形ではなく、左上に鋭い頂点・右側に大きく
+/// 張り出す頂点・下に底の頂点・左に頂点を持つ、旗/凧のような非対称の
+/// 四角形）を直線の辺でなぞり、外側から黒い太枠→白い縁取り→イメージ
+/// カラーの塗り、という3層の同心図形として描く（2026-07-30再修正）。
+/// 凸四角形にしているのは、[_insetPolygon]の辺オフセット計算が凹んだ
+/// 頂点があると縁の太さが不均一・破綻しやすいため（前回、頂点を1つ
+/// 内側に窪ませて凹四角形にした結果、白い縁取りがほぼ潰れて見えなく
+/// なる不具合が発生した）。
+class _GekigaBadgePainter extends CustomPainter {
+  const _GekigaBadgePainter({required this.color, required this.seed});
+
+  final Color color;
+  final int seed;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final outer = [
+      Offset(size.width * 0.05, size.height * 0.03),
+      Offset(size.width * 0.97, size.height * 0.42),
+      Offset(size.width * 0.55, size.height * 0.98),
+      Offset(size.width * 0.0, size.height * 0.55),
+    ];
+    final white = _insetPolygon(outer, 4.5);
+    final fill = _insetPolygon(outer, 8);
+
+    canvas.drawPath(_pathFromPoints(outer), Paint()..color = Colors.black);
+    canvas.drawPath(_pathFromPoints(white), Paint()..color = Colors.white);
+    canvas.drawPath(_pathFromPoints(fill), Paint()..color = color);
+  }
+
+  @override
+  bool shouldRepaint(covariant _GekigaBadgePainter oldDelegate) =>
+      oldDelegate.color != color || oldDelegate.seed != seed;
+}
+
+/// [vertices]の多角形の各辺を内側へ[inset]だけ平行移動し、隣り合う辺の
+/// 交点を新しい頂点として返す（同心の縁取り・塗りを重ねて描くための
+/// 下ごしらえ）。重心方向へ頂点を縮める単純な方式だと、辺の向きによって
+/// 縁の太さがバラついたり凹み部分で図形が破綻したりするため、辺単位の
+/// 平行移動＋交点計算という、太さが均一になる正しいオフセット処理にして
+/// いる。
+List<Offset> _insetPolygon(List<Offset> vertices, double inset) {
+  final n = vertices.length;
+  final centroid = vertices.reduce((a, b) => a + b) / n.toDouble();
+  final origins = <Offset>[];
+  final dirs = <Offset>[];
+  for (var i = 0; i < n; i++) {
+    final a = vertices[i];
+    final b = vertices[(i + 1) % n];
+    final edge = b - a;
+    final dir = edge / edge.distance;
+    var normal = Offset(-dir.dy, dir.dx);
+    final mid = (a + b) / 2;
+    final towardCentroid = centroid - mid;
+    if (towardCentroid.dx * normal.dx + towardCentroid.dy * normal.dy < 0) {
+      normal = -normal;
+    }
+    origins.add(a + normal * inset);
+    dirs.add(dir);
+  }
+  final result = <Offset>[];
+  for (var i = 0; i < n; i++) {
+    final prev = (i - 1 + n) % n;
+    final p1 = origins[prev];
+    final d1 = dirs[prev];
+    final p2 = origins[i];
+    final d2 = dirs[i];
+    final denom = d1.dx * d2.dy - d1.dy * d2.dx;
+    if (denom.abs() < 1e-6) {
+      result.add(p2);
+      continue;
+    }
+    final diff = p2 - p1;
+    final t = (diff.dx * d2.dy - diff.dy * d2.dx) / denom;
+    result.add(p1 + d1 * t);
+  }
+  return result;
+}
+
+Path _pathFromPoints(List<Offset> points) {
+  final path = Path()..moveTo(points.first.dx, points.first.dy);
+  for (final p in points.skip(1)) {
+    path.lineTo(p.dx, p.dy);
+  }
+  path.close();
+  return path;
+}
+
+/// 劇画スタイルの吹き出し本体。手描き風ギザギザ枠線・モノクロの中身
+/// （2026-07-29追加）。自分は白地に黒枠線、相手は黒地に白枠線で白黒反転する
+/// （2026-07-29修正、参考画像の確認により相手側を黒背景・白文字に変更）。
+class _GekigaBubble extends StatelessWidget {
+  const _GekigaBubble({
+    required this.child,
+    required this.seed,
+    required this.isMe,
+  });
+
+  final Widget child;
+  final int seed;
+  final bool isMe;
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      painter: _GekigaBubblePainter(seed: seed, isMe: isMe),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: child,
+      ),
+    );
+  }
+}
+
+class _GekigaBubblePainter extends CustomPainter {
+  const _GekigaBubblePainter({required this.seed, required this.isMe});
+
+  final int seed;
+  final bool isMe;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final path = _handDrawnPolygonPath(
+      [
+        Offset.zero,
+        Offset(size.width, 0),
+        Offset(size.width, size.height),
+        Offset(0, size.height),
+      ],
+      seed,
+      jitter: 3.2,
+      segmentsPerEdge: 5,
+    );
+    final fillColor = isMe ? Colors.white : Colors.black;
+    final strokeColor = isMe ? Colors.black : Colors.white;
+    canvas.drawPath(path, Paint()..color = fillColor);
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = strokeColor
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 3.2
+        ..strokeJoin = StrokeJoin.round
+        ..strokeCap = StrokeCap.round,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _GekigaBubblePainter oldDelegate) =>
+      oldDelegate.seed != seed || oldDelegate.isMe != isMe;
+}
+
+/// [vertices]で囲まれた多角形の各辺を、手描き風に少しだけジグザグに揺らした
+/// 閉じたPathを作る。[seed]が同じなら常に同じ形になる（メッセージID・
+/// ユーザーIDのhashCodeを渡すことで、再描画のたびに形がガタつかないように
+/// している）。
+Path _handDrawnPolygonPath(
+  List<Offset> vertices,
+  int seed, {
+  double jitter = 3,
+  int segmentsPerEdge = 4,
+}) {
+  final random = math.Random(seed);
+  final points = <Offset>[];
+  for (var i = 0; i < vertices.length; i++) {
+    final from = vertices[i];
+    final to = vertices[(i + 1) % vertices.length];
+    for (var s = 1; s <= segmentsPerEdge; s++) {
+      final t = s / segmentsPerEdge;
+      final base = Offset.lerp(from, to, t)!;
+      points.add(
+        Offset(
+          base.dx + (random.nextDouble() - 0.5) * 2 * jitter,
+          base.dy + (random.nextDouble() - 0.5) * 2 * jitter,
+        ),
+      );
+    }
+  }
+  final path = Path()..moveTo(points.first.dx, points.first.dy);
+  for (final p in points.skip(1)) {
+    path.lineTo(p.dx, p.dy);
+  }
+  path.close();
+  return path;
 }

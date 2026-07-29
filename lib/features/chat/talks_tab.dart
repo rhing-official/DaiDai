@@ -26,7 +26,7 @@ import '../../widgets/swipe_gestures.dart';
 import 'add_chat_dialog.dart';
 import 'chat_panes.dart';
 import 'create_group_dialog.dart';
-import 'group_role_list_popup.dart';
+import 'group_settings_popup.dart';
 import 'room_list_pane.dart';
 
 enum _TalksCategory { dm, group }
@@ -197,6 +197,7 @@ class _TalksTabState extends ConsumerState<TalksTab> {
     return showGeneralDialog<void>(
       context: context,
       barrierDismissible: true,
+      barrierLabel: '',
       barrierColor: Colors.black54,
       transitionDuration: const Duration(milliseconds: 220),
       pageBuilder: (stackedContext, animation, secondaryAnimation) {
@@ -233,51 +234,71 @@ class _TalksTabState extends ConsumerState<TalksTab> {
         // 注意: DialogをMaterial(color: transparent)で余分に包むと、
         // その外側Materialがタップを吸収してしまいバリアの外側タップ dismiss が効かなくなる
         // （実装内容.mdの経緯参照）。Dialogを直接Centerの子にすること。
+        // 以前は縦積みのListTile2つ（無駄な余白が目立つ）だったが、
+        // 中央の区切り線で左右2分割した大きめのカードに変更（2026-07-29）。
+        final colorScheme = Theme.of(dialogContext).colorScheme;
         return Center(
           child: Dialog(
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(20),
             ),
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 400),
+              constraints: const BoxConstraints(maxWidth: 560),
               child: SwipeDownToDismiss(
                 onDismiss: () => Navigator.of(dialogContext).pop(),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    ListTile(
-                      leading: const Icon(Icons.person_add_outlined),
-                      title: Text(strings.addMenuDmTitleTemplate(vocab.dm)),
-                      subtitle: Text(strings.addMenuDmSubtitle),
-                      onTap: () => _showStackedDialog(
-                        dialogContext,
-                        (closeSelf) => AddChatDialogContent(
-                          currentUser: widget.currentUser,
-                          onClose: closeSelf,
-                          onCompleted: () {
-                            closeSelf();
-                            Navigator.of(dialogContext).pop();
-                          },
+                child: IntrinsicHeight(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Expanded(
+                        child: _AddMenuOption(
+                          icon: Icons.person_add_outlined,
+                          title: strings.addMenuDmTitleTemplate(vocab.dm),
+                          subtitle: strings.addMenuDmSubtitle,
+                          borderRadius: const BorderRadius.horizontal(
+                            left: Radius.circular(20),
+                          ),
+                          onTap: () => _showStackedDialog(
+                            dialogContext,
+                            (closeSelf) => AddChatDialogContent(
+                              currentUser: widget.currentUser,
+                              onClose: closeSelf,
+                              onCompleted: () {
+                                closeSelf();
+                                Navigator.of(dialogContext).pop();
+                              },
+                            ),
+                          ),
                         ),
                       ),
-                    ),
-                    ListTile(
-                      leading: const Icon(Icons.groups_outlined),
-                      title: Text(strings.addMenuGroupTitleTemplate(vocab.plaza)),
-                      subtitle: Text(strings.addMenuGroupSubtitle),
-                      onTap: () => _showStackedDialog(
-                        dialogContext,
-                        (closeSelf) => CreateGroupDialogContent(
-                          currentUser: widget.currentUser,
-                          onClose: closeSelf,
-                          onCompleted: () {
-                            closeSelf();
-                            Navigator.of(dialogContext).pop();
-                          },
+                      VerticalDivider(
+                        width: 1,
+                        thickness: 1,
+                        color: colorScheme.outlineVariant,
+                      ),
+                      Expanded(
+                        child: _AddMenuOption(
+                          icon: Icons.groups_outlined,
+                          title: strings.addMenuGroupTitleTemplate(vocab.plaza),
+                          subtitle: strings.addMenuGroupSubtitle,
+                          borderRadius: const BorderRadius.horizontal(
+                            right: Radius.circular(20),
+                          ),
+                          onTap: () => _showStackedDialog(
+                            dialogContext,
+                            (closeSelf) => CreateGroupDialogContent(
+                              currentUser: widget.currentUser,
+                              onClose: closeSelf,
+                              onCompleted: () {
+                                closeSelf();
+                                Navigator.of(dialogContext).pop();
+                              },
+                            ),
+                          ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -571,8 +592,6 @@ class _TalksTabState extends ConsumerState<TalksTab> {
     final userId = widget.currentUser.userId;
     final canManageRooms =
         hasGroupPermission(group: group, userId: userId, permission: GroupPermission.manageRooms);
-    final canManageRoles =
-        hasGroupPermission(group: group, userId: userId, permission: GroupPermission.manageRoles);
     return StreamBuilder<List<Room>>(
       stream: _groupRoomsStream(group.groupId),
       builder: (context, snapshot) {
@@ -621,21 +640,22 @@ class _TalksTabState extends ConsumerState<TalksTab> {
                             requestedBy: widget.currentUser.userId,
                           )
                       : null,
-                  onOpenGroupSettings: canManageRoles
-                      ? () => showDialog<void>(
-                            context: context,
-                            builder: (_) => Dialog(
-                              child: ConstrainedBox(
-                                constraints: const BoxConstraints(
-                                    maxWidth: 400, maxHeight: 640),
-                                child: GroupRoleListPopup(
-                                  currentUser: widget.currentUser,
-                                  group: group,
-                                ),
-                              ),
-                            ),
-                          )
-                      : null,
+                  // 全体設定ポップアップ自体は全メンバーが開ける
+                  // （中の各項目が個別に権限ゲートされる、2026-07-29変更。
+                  // 以前はcanManageRolesの間だけロール管理を直接開いていた）。
+                  onOpenGroupSettings: () => showDialog<void>(
+                    context: context,
+                    builder: (_) => Dialog(
+                      child: ConstrainedBox(
+                        constraints:
+                            const BoxConstraints(maxWidth: 420, maxHeight: 640),
+                        child: GroupSettingsPopup(
+                          currentUser: widget.currentUser,
+                          group: group,
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
               ),
               const VerticalDivider(width: 1),
@@ -1075,6 +1095,58 @@ class _ConversationGestures extends ConsumerWidget {
       onSecondaryTapDown: (details) => _showMenu(context, ref, details.globalPosition),
       onLongPressStart: (details) => _showMenu(context, ref, details.globalPosition),
       child: child,
+    );
+  }
+}
+
+/// 「＋」ポップアップの左右どちらか半分を占める、大きめのタップ可能領域
+/// （2026-07-29、縦積みのListTileから中央区切り線の2分割カードへ変更）。
+class _AddMenuOption extends StatelessWidget {
+  const _AddMenuOption({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+    required this.borderRadius,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+  final BorderRadius borderRadius;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: borderRadius,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 40, color: colorScheme.primary),
+            const SizedBox(height: 16),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              subtitle,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

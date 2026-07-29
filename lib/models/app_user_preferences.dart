@@ -15,6 +15,7 @@ class AppUserPreferences {
     this.sendKeyMode,
     this.chatLayoutStyle,
     this.messageTimeFormat,
+    this.appUiStyle,
   });
 
   static const empty = AppUserPreferences();
@@ -26,6 +27,7 @@ class AppUserPreferences {
   final String? sendKeyMode;
   final String? chatLayoutStyle;
   final String? messageTimeFormat;
+  final String? appUiStyle;
 
   factory AppUserPreferences.fromJson(Map<String, dynamic>? json) {
     if (json == null) return empty;
@@ -37,6 +39,7 @@ class AppUserPreferences {
       sendKeyMode: json['sendKeyMode'] as String?,
       chatLayoutStyle: json['chatLayoutStyle'] as String?,
       messageTimeFormat: json['messageTimeFormat'] as String?,
+      appUiStyle: json['appUiStyle'] as String?,
     );
   }
 
@@ -49,6 +52,7 @@ class AppUserPreferences {
       if (sendKeyMode != null) 'sendKeyMode': sendKeyMode,
       if (chatLayoutStyle != null) 'chatLayoutStyle': chatLayoutStyle,
       if (messageTimeFormat != null) 'messageTimeFormat': messageTimeFormat,
+      if (appUiStyle != null) 'appUiStyle': appUiStyle,
     };
   }
 }

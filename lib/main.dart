@@ -8,6 +8,7 @@ import 'firebase_options.dart';
 import 'l10n/app_locale.dart';
 import 'providers/accent_color_provider.dart';
 import 'providers/app_locale_provider.dart';
+import 'providers/app_ui_style_provider.dart';
 import 'providers/chat_layout_style_provider.dart';
 import 'providers/message_time_format_provider.dart';
 import 'providers/send_key_mode_provider.dart';
@@ -32,6 +33,7 @@ Future<void> main() async {
   final initialMessageTimeFormat = await loadInitialMessageTimeFormat();
   final initialChatLayoutStyle = await loadInitialChatLayoutStyle();
   final initialAppThemeMode = await loadInitialAppThemeMode();
+  final initialAppUiStyle = await loadInitialAppUiStyle();
   runApp(
     ProviderScope(
       overrides: [
@@ -46,6 +48,7 @@ Future<void> main() async {
         ),
         initialChatLayoutStyleProvider.overrideWithValue(initialChatLayoutStyle),
         initialAppThemeModeProvider.overrideWithValue(initialAppThemeMode),
+        initialAppUiStyleProvider.overrideWithValue(initialAppUiStyle),
       ],
       child: const DaiDaiApp(),
     ),

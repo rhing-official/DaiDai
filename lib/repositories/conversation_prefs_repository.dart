@@ -18,6 +18,15 @@ abstract class ConversationPrefsRepository {
     required String conversationId,
     required bool muted,
   });
+
+  /// 広場の寄合ごとの通知オフを設定する（`Room.customSettingsEnabled`が
+  /// trueの間のみ有効、2026-07-29追加）。
+  Future<void> setRoomNotificationsMuted({
+    required String userId,
+    required String conversationId,
+    required String roomId,
+    required bool muted,
+  });
 }
 
 class FirestoreConversationPrefsRepository implements ConversationPrefsRepository {
@@ -59,4 +68,18 @@ class FirestoreConversationPrefsRepository implements ConversationPrefsRepositor
         .set({'notificationsMuted': muted}, SetOptions(merge: true));
   }
 
+  @override
+  Future<void> setRoomNotificationsMuted({
+    required String userId,
+    required String conversationId,
+    required String roomId,
+    required bool muted,
+  }) async {
+    await _prefsOf(userId).doc(conversationId).set(
+      {
+        'roomNotificationOverrides': {roomId: muted},
+      },
+      SetOptions(merge: true),
+    );
+  }
 }

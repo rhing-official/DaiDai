@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -26,12 +27,71 @@ class HomeScreen extends ConsumerStatefulWidget {
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   int _selectedIndex = 0;
 
-  // スワイプでのタブ切り替えは指を離した瞬間の速度でのみ判定する
-  // （ドラッグ中に逐次判定すると、各タブ内の横スクロール要素との
-  // ジェスチャー競合が起きやすいため）。
-  static const _kSwipeVelocityThreshold = 300.0;
+  // なぞっている間だけ選択中チップを飛び出させるためのフラグ（2026-07-29追加）。
+  // ドラッグ開始でtrue、指を離す/キャンセルでfalseに戻す。
+  bool _isDragging = false;
 
-  void _handleHorizontalDragEnd(DragEndDetails details, int tabCount) {
+  // なぞっている間、飛び出させるチップのindex集合。指がチップの真上にある
+  // 間は1件だけ、チップ同士の隙間の上にある間は前後2件になる
+  // （2026-07-29追加）。色（選択中の塗り）は_selectedIndexだけに紐付ける
+  // ため、隙間で両方飛び出していても色が付くのは元々選択されていた方のみ。
+  Set<int> _poppedIndexes = {};
+
+  // チップの帯を指でなぞっている間、今指が乗っているチップの実際の描画位置を
+  // 判定するために使う（2026-07-29変更、以前はフリック時の速度だけで隣へ
+  // 1段階移動する実装だった。指を離すまで連続的に、語らいから運営まで
+  // 1回のドラッグで移動できるようにするため、位置ベースの追従に変更）。
+  late final List<GlobalKey> _chipKeys =
+      List.generate(4, (_) => GlobalKey());
+
+  /// 各チップの画面上（global座標）での矩形。まだ描画されていないチップは
+  /// nullのまま。
+  List<Rect?> _chipGlobalRects() => [
+    for (final key in _chipKeys)
+      switch (key.currentContext?.findRenderObject()) {
+        final RenderBox box => box.localToGlobal(Offset.zero) & box.size,
+        _ => null,
+      },
+  ];
+
+  /// [globalPosition]に対して、今どのチップを選択すべきか（`hovered`。
+  /// チップの隙間の上にある場合はnull＝選択は変えない）と、飛び出させる
+  /// べきチップのindex集合（`popped`。指がチップ真上なら1件、隙間の上なら
+  /// 前後2件）を求める。
+  ({int? hovered, Set<int> popped}) _hitTestChips(
+    Offset globalPosition,
+    bool vertical,
+  ) {
+    final rects = _chipGlobalRects();
+    for (var i = 0; i < rects.length; i++) {
+      final rect = rects[i];
+      if (rect != null && rect.contains(globalPosition)) {
+        return (hovered: i, popped: {i});
+      }
+    }
+    // どのチップの上でもない＝隙間。隙間を挟む前後2つのチップを両方
+    // 飛び出させる（選択自体は変えない）。
+    for (var i = 0; i < rects.length - 1; i++) {
+      final a = rects[i];
+      final b = rects[i + 1];
+      if (a == null || b == null) continue;
+      final pastA = vertical
+          ? globalPosition.dy >= a.bottom
+          : globalPosition.dx >= a.right;
+      final beforeB = vertical
+          ? globalPosition.dy <= b.top
+          : globalPosition.dx <= b.left;
+      if (pastA && beforeB) {
+        return (hovered: null, popped: {i, i + 1});
+      }
+    }
+    return (hovered: null, popped: const {});
+  }
+
+  /// チップの帯をドラッグしている間、逐次呼ぶ（Start・Updateの両方から）。
+  /// 指が乗っているチップへその場でタブを切り替え、飛び出させるチップの
+  /// 集合を更新する。
+  void _handleSwipeUpdate(Offset globalPosition, int tabCount, bool vertical) {
     // showDialog/showGeneralDialog/showMenu等のポップアップはNavigatorに
     // ルートとして積まれるため、開いている間はHomeScreen自身のルートが
     // isCurrent=falseになる。ここで弾かないと、開いたポップアップの背後で
@@ -39,14 +99,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     // なっていた（ポップアップの種類によってバリアの有無・挙動が異なり、
     // スワイプが素通りするものとしないものが混在していたため）。
     if (!(ModalRoute.of(context)?.isCurrent ?? true)) return;
-    final velocity = details.primaryVelocity ?? 0;
-    if (velocity.abs() < _kSwipeVelocityThreshold) return;
+    final hit = _hitTestChips(globalPosition, vertical);
+    final selectionChanged = hit.hovered != null && hit.hovered != _selectedIndex;
+    final poppedChanged = !setEquals(hit.popped, _poppedIndexes);
+    if (!selectionChanged && !poppedChanged) return;
     setState(() {
-      if (velocity < 0) {
-        _selectedIndex = (_selectedIndex + 1).clamp(0, tabCount - 1);
-      } else {
-        _selectedIndex = (_selectedIndex - 1).clamp(0, tabCount - 1);
-      }
+      _poppedIndexes = hit.popped;
+      if (selectionChanged) _selectedIndex = hit.hovered!.clamp(0, tabCount - 1);
     });
   }
 
@@ -83,19 +142,24 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final chips = [
       for (var i = 0; i < titles.length; i++)
         _NavChip(
+          key: _chipKeys[i],
           icon: _icons[i],
           label: titles[i],
           selected: _selectedIndex == i,
+          popped: _isDragging && _poppedIndexes.contains(i),
+          vertical: isWide,
           onTap: () => setState(() => _selectedIndex = i),
         ),
     ];
 
-    // 横スワイプでのタブ切り替えは、チップの帯（帯の上でのスワイプ）のみで
-    // 受け付ける。タブのコンテンツ領域は各タブ固有のスワイプ操作
-    // （設定・身だしなみ・運営の狭い画面でのドリルダウン、語らいの一対/広場
-    // 切り替え）に使うため、ここではホームタブ切り替えのジェスチャーを
-    // 付けない。ドラッグ中は判定せずEndイベントの速度のみで判定する
-    // （_handleHorizontalDragEnd参照）。
+    // タブ切り替えは、チップの帯（帯の上でのなぞり操作）のみで受け付ける。
+    // タブのコンテンツ領域は各タブ固有のスワイプ操作（設定・身だしなみ・
+    // 運営の狭い画面でのドリルダウン、語らいの一対/広場切り替え）に使うため、
+    // ここではホームタブ切り替えのジェスチャーを付けない。指を離すまで
+    // 連続的に切り替わるよう、ドラッグ中（Start・Update）の指の位置で逐次
+    // 判定する（_handleSwipeUpdate参照、2026-07-29変更。以前はEndイベントの
+    // 速度で隣へ1段階だけ移動する実装だった）。チップが横並び（モバイル）
+    // なら横方向、縦並び（広い画面のサイドバー）なら縦方向のドラッグで反応する。
     final content = Padding(
       padding: isWide
           ? const EdgeInsets.only(
@@ -107,11 +171,39 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       child: IndexedStack(index: _selectedIndex, children: tabs),
     );
 
-    Widget wrapWithSwipe(Widget child) {
+    Widget wrapWithSwipe(Widget child, {required bool vertical}) {
+      void onStart(Offset globalPosition) {
+        setState(() => _isDragging = true);
+        _handleSwipeUpdate(globalPosition, tabs.length, vertical);
+      }
+
+      void onUpdate(Offset globalPosition) {
+        _handleSwipeUpdate(globalPosition, tabs.length, vertical);
+      }
+
+      void onEnd() {
+        if (_isDragging || _poppedIndexes.isNotEmpty) {
+          setState(() {
+            _isDragging = false;
+            _poppedIndexes = {};
+          });
+        }
+      }
+
       return GestureDetector(
         behavior: HitTestBehavior.translucent,
-        onHorizontalDragEnd: (details) =>
-            _handleHorizontalDragEnd(details, tabs.length),
+        onHorizontalDragStart:
+            vertical ? null : (details) => onStart(details.globalPosition),
+        onHorizontalDragUpdate:
+            vertical ? null : (details) => onUpdate(details.globalPosition),
+        onHorizontalDragEnd: vertical ? null : (_) => onEnd(),
+        onHorizontalDragCancel: vertical ? null : onEnd,
+        onVerticalDragStart:
+            !vertical ? null : (details) => onStart(details.globalPosition),
+        onVerticalDragUpdate:
+            !vertical ? null : (details) => onUpdate(details.globalPosition),
+        onVerticalDragEnd: !vertical ? null : (_) => onEnd(),
+        onVerticalDragCancel: !vertical ? null : onEnd,
         child: child,
       );
     }
@@ -132,6 +224,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 // しまい、チップとチップの間の余白でスワイプしても
                 // 反応しなかった。
                 child: wrapWithSwipe(
+                  vertical: true,
                   Center(
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
@@ -151,6 +244,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 right: 0,
                 bottom: _chipMargin,
                 child: wrapWithSwipe(
+                  vertical: false,
                   Center(
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
@@ -178,12 +272,23 @@ class _NavChip extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.selected,
+    required this.popped,
+    required this.vertical,
     required this.onTap,
+    super.key,
   });
 
   final IconData icon;
   final String label;
   final bool selected;
+
+  /// なぞっている間、選択中のこのチップを帯からはみ出させて強調するか。
+  final bool popped;
+
+  /// チップが縦並び（広い画面のサイドバー）か。飛び出す方向の判定に使う
+  /// （横並びなら上、縦並びなら右に飛び出す）。
+  final bool vertical;
+
   final VoidCallback onTap;
 
   @override
@@ -194,18 +299,35 @@ class _NavChip extends StatelessWidget {
         ? colorScheme.onPrimary
         : colorScheme.onSurfaceVariant;
 
-    return Material(
-      color: background,
-      shape: const CircleBorder(),
-      elevation: selected ? 8 : 4,
-      shadowColor: colorScheme.primary.withValues(alpha: 0.4),
-      child: InkWell(
-        onTap: onTap,
-        customBorder: const CircleBorder(),
-        child: SizedBox(
-          width: _HomeScreenState._chipSize,
-          height: _HomeScreenState._chipSize,
-          child: Icon(icon, color: foreground),
+    // popped中は帯から浮き出させ、指を離す（popped=falseに戻る）と
+    // AnimatedSlideが規定位置までスライドして戻す。
+    final offset = popped
+        ? (vertical ? const Offset(0.35, 0) : const Offset(0, -0.35))
+        : Offset.zero;
+
+    // RepaintBoundaryで囲み、なぞっている間の飛び出しアニメーションが
+    // 選択中タブの中身（語らい一覧など）まで巻き込んで再描画させないように
+    // する（2026-07-29追加。囲む前はチップの帯全体・場合によっては背後の
+    // コンテンツまで毎フレーム再描画され、実機でカクついて見えていた）。
+    return RepaintBoundary(
+      child: AnimatedSlide(
+        offset: offset,
+        duration: const Duration(milliseconds: 150),
+        curve: Curves.easeOut,
+        child: Material(
+          color: background,
+          shape: const CircleBorder(),
+          elevation: selected ? 8 : 4,
+          shadowColor: colorScheme.primary.withValues(alpha: 0.4),
+          child: InkWell(
+            onTap: onTap,
+            customBorder: const CircleBorder(),
+            child: SizedBox(
+              width: _HomeScreenState._chipSize,
+              height: _HomeScreenState._chipSize,
+              child: Icon(icon, color: foreground),
+            ),
+          ),
         ),
       ),
     );
