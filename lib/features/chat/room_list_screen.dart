@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../models/app_user.dart';
 import '../../models/direct_message.dart';
+import '../../models/dm_room.dart';
 import '../../models/group.dart';
 import '../../models/group_role.dart';
 import '../../providers/repository_providers.dart';
@@ -24,28 +25,32 @@ class DmRoomListScreen extends ConsumerWidget {
     final dmRepository = ref.watch(directMessageRepositoryProvider);
     return Scaffold(
       appBar: AppBar(title: Text('@${dm.otherRhingId(currentUser.userId)}')),
-      body: RoomListPane(
-        conversationName: '@${dm.otherRhingId(currentUser.userId)}',
-        roomsStream: dmRepository.watchRooms(dm.dmId).map(
-              (rooms) =>
-                  [for (final r in rooms) (roomId: r.roomId, name: r.name)],
+      body: StreamBuilder<List<DmRoom>>(
+        stream: dmRepository.watchRooms(dmId: dm.dmId, userId: currentUser.userId),
+        builder: (context, snapshot) {
+          final rooms = snapshot.data ?? const <DmRoom>[];
+          return RoomListPane(
+            conversationName: '@${dm.otherRhingId(currentUser.userId)}',
+            rooms: [for (final r in rooms) (roomId: r.roomId, name: r.name)],
+            selectedRoomId: null,
+            onSelectRoom: (room) => ref.read(goRouterProvider).push(
+                  '/chat/dm',
+                  extra: DmChatArgs(
+                    currentUser: currentUser,
+                    dm: dm,
+                    roomId: room.roomId,
+                    roomName: room.name,
+                  ),
+                ),
+            onCreateRoom: (name) =>
+                dmRepository.createRoom(dmId: dm.dmId, name: name),
+            onDeleteRoom: (roomId) => dmRepository.deleteRoom(
+              dmId: dm.dmId,
+              roomId: roomId,
+              requestedBy: currentUser.userId,
             ),
-        selectedRoomId: null,
-        onSelectRoom: (room) => ref.read(goRouterProvider).push(
-              '/chat/dm',
-              extra: DmChatArgs(
-                currentUser: currentUser,
-                dm: dm,
-                roomId: room.roomId,
-                roomName: room.name,
-              ),
-            ),
-        onCreateRoom: (name) => dmRepository.createRoom(dmId: dm.dmId, name: name),
-        onDeleteRoom: (roomId) => dmRepository.deleteRoom(
-          dmId: dm.dmId,
-          roomId: roomId,
-          requestedBy: currentUser.userId,
-        ),
+          );
+        },
       ),
     );
   }
@@ -80,43 +85,54 @@ class GroupRoomListScreen extends ConsumerWidget {
     );
     return Scaffold(
       appBar: AppBar(title: Text(group.name)),
-      body: RoomListPane(
-        conversationName: group.name,
-        roomsStream: groupRepository.watchRooms(group.groupId).map(
-              (rooms) =>
-                  [for (final r in rooms) (roomId: r.roomId, name: r.name)],
-            ),
-        selectedRoomId: null,
-        onSelectRoom: (room) => ref.read(goRouterProvider).push(
-              '/chat/group',
-              extra: GroupChatArgs(
-                currentUser: currentUser,
-                group: group,
-                roomId: room.roomId,
-                roomName: room.name,
-              ),
-            ),
-        onCreateRoom: canManageRooms
-            ? (name) => groupRepository.createRoom(groupId: group.groupId, name: name)
-            : null,
-        onDeleteRoom: canManageRooms
-            ? (roomId) => groupRepository.deleteRoom(
-                  groupId: group.groupId,
-                  roomId: roomId,
-                  requestedBy: currentUser.userId,
-                )
-            : null,
-        onOpenGroupSettings: canManageRoles
-            ? () => showDialog<void>(
-                  context: context,
-                  builder: (_) => Dialog(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 400, maxHeight: 640),
-                      child: GroupRoleListPopup(group: group),
-                    ),
+      body: StreamBuilder<List<Room>>(
+        stream: groupRepository.watchRooms(
+          groupId: group.groupId,
+          userId: currentUser.userId,
+        ),
+        builder: (context, snapshot) {
+          final rooms = snapshot.data ?? const <Room>[];
+          return RoomListPane(
+            conversationName: group.name,
+            rooms: [for (final r in rooms) (roomId: r.roomId, name: r.name)],
+            selectedRoomId: null,
+            onSelectRoom: (room) => ref.read(goRouterProvider).push(
+                  '/chat/group',
+                  extra: GroupChatArgs(
+                    currentUser: currentUser,
+                    group: group,
+                    roomId: room.roomId,
+                    roomName: room.name,
                   ),
-                )
-            : null,
+                ),
+            onCreateRoom: canManageRooms
+                ? (name) =>
+                    groupRepository.createRoom(groupId: group.groupId, name: name)
+                : null,
+            onDeleteRoom: canManageRooms
+                ? (roomId) => groupRepository.deleteRoom(
+                      groupId: group.groupId,
+                      roomId: roomId,
+                      requestedBy: currentUser.userId,
+                    )
+                : null,
+            onOpenGroupSettings: canManageRoles
+                ? () => showDialog<void>(
+                      context: context,
+                      builder: (_) => Dialog(
+                        child: ConstrainedBox(
+                          constraints:
+                              const BoxConstraints(maxWidth: 400, maxHeight: 640),
+                          child: GroupRoleListPopup(
+                            currentUser: currentUser,
+                            group: group,
+                          ),
+                        ),
+                      ),
+                    )
+                : null,
+          );
+        },
       ),
     );
   }

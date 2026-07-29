@@ -50,10 +50,24 @@ abstract class UserRepository {
   /// activeIconId等、単一の値を持つフィールドを原子的に更新する。
   Future<void> setProfileField(String userId, String field, String? value);
 
+  /// 蔵のイメージカラー（[AppUser.imageColor]、0xRRGGBB）を設定する。
+  /// nullを渡すと未設定に戻す。他の蔵素材と違い複数枠・アクティブ選択の
+  /// 概念が無く、この呼び出し自体が「登録＝適用」になる（2026-07-29追加）。
+  Future<void> setImageColor(String userId, int? color);
+
   /// 端末をまたいで同期する表示設定（[AppUserPreferences]）を1項目だけ
   /// ドット記法（`preferences.$field`）で部分更新する。他のフィールドや
   /// 未変更の設定項目には影響しない。
   Future<void> updateUserPreference(String userId, String field, Object? value);
+
+  /// 会話（一対のdmId・広場のgroupId）ごとに使うプロフィールカードを設定する
+  /// （2026-07-29追加）。[profileCardId]がnullなら上書きを解除し、標準
+  /// （[AppUser.activeProfileCardId]）に戻す。
+  Future<void> setConversationProfileCard({
+    required String userId,
+    required String conversationId,
+    required String? profileCardId,
+  });
 
   /// プロフィールカードを1件、原子的に保存する（新規作成・既存編集の両方に使う）。
   /// idが一致するカードがあれば置き換え、無ければ追加する。
@@ -213,12 +227,29 @@ class FirestoreUserRepository implements UserRepository {
   }
 
   @override
+  Future<void> setImageColor(String userId, int? color) async {
+    await _users.doc(userId).update({'imageColor': color});
+  }
+
+  @override
   Future<void> updateUserPreference(
     String userId,
     String field,
     Object? value,
   ) async {
     await _users.doc(userId).update({'preferences.$field': value});
+  }
+
+  @override
+  Future<void> setConversationProfileCard({
+    required String userId,
+    required String conversationId,
+    required String? profileCardId,
+  }) async {
+    await _users.doc(userId).update({
+      'conversationProfileCardId.$conversationId':
+          profileCardId ?? FieldValue.delete(),
+    });
   }
 
   @override

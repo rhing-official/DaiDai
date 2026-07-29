@@ -163,6 +163,12 @@ service cloud.firestore {
             && request.resource.data.readReceiptsProposalBy == null
             && request.resource.data.readReceiptsEnabled == !resource.data.readReceiptsEnabled
           )
+        )
+        // 単一→複数モードへの切り替え（参加者ならどちらでも可。trueへの
+        // 変更のみ許可し、逆方向は不可、2026-07-29追加）。
+        && (
+          !('roomsEnabled' in request.resource.data.diff(resource.data).affectedKeys())
+          || request.resource.data.roomsEnabled == true
         );
       // 絶縁の実行（最終ステップ）。severanceRequestedByが立っていて、かつ
       // 削除操作者が提案者本人ではない（＝同意した側）場合のみ、この一対
@@ -381,6 +387,15 @@ service cloud.firestore {
             request.auth.uid == resource.data.ownerId
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['ownerId'])
             && request.resource.data.ownerId in resource.data.memberIds
+          )
+          // 単一→複数モードへの切り替え（長、またはmanageRooms権限を持つ
+          // ロールの付与者のみ。trueへの変更のみ許可し、逆方向は不可、
+          // 2026-07-29追加）。
+          || (
+            (request.auth.uid == resource.data.ownerId
+              || 'manageRooms' in resource.data.memberPermissions[request.auth.uid])
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['roomsEnabled'])
+            && request.resource.data.roomsEnabled == true
           )
         );
       allow delete: if false;

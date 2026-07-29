@@ -3,35 +3,68 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/strings.dart';
 import '../../models/app_user.dart';
+import '../../models/direct_message.dart';
 import '../../models/friend_request.dart';
+import '../../providers/chat_navigation_providers.dart';
 import '../../providers/repository_providers.dart';
+import '../../router/app_router.dart';
+import '../../widgets/profile_card_picker.dart';
+import '../../widgets/profile_card_view.dart';
+import 'talks_tab.dart' show kTalksSplitBreakpoint;
 
-/// 広場（グループ）のメッセージ画面・メンバー一覧から、相手のプロフィール
-/// カード（適用中の工房カード）を見られるようにするダイアログ。友達でなければ
-/// その場で友達申請を送れる（相手から既に申請が届いていれば、送信すると
-/// そのまま承認扱いになる。[FriendRepository.sendRequest]の既存の挙動）。
-///
-/// 一対（DM）の相手は仕組み上必ず既に友達のため、このダイアログは広場側からの
-/// 導線でのみ使う想定。
+/// 広場（グループ）・一対（DM）どちらのメッセージ画面・メンバー一覧からも、
+/// 相手のプロフィールカード（適用中の工房カード）を見られるダイアログ。
+/// 友達でなければその場で友達申請を送れる（相手から既に申請が届いていれば、
+/// 送信するとそのまま承認扱いになる。[FriendRepository.sendRequest]の
+/// 既存の挙動）。友達の場合は右上に一対へのジャンプボタンを出す
+/// （広場のメンバーから開いた場合はその相手との一対を新規作成/取得して遷移、
+/// 一対から開いた場合は今開いている一対と同じ相手のためそのまま遷移するだけ）。
 class UserProfileCardDialog extends ConsumerStatefulWidget {
   const UserProfileCardDialog({
     required this.currentUser,
     required this.user,
+    this.conversationId,
+    this.canTransferOwnership = false,
+    this.onTransferOwnership,
     super.key,
   });
 
   final AppUser currentUser;
   final AppUser user;
 
+  /// このダイアログを開いた会話（一対のdmId・広場のgroupId）。会話ごとに
+  /// 使うプロフィールカード（2026-07-29追加、`AppUser.conversationProfileCardId`）
+  /// を反映した表示にするために使う。nullなら標準のカードで表示する
+  /// （会話コンテキストが無い場所から開いた場合）。
+  final String? conversationId;
+
+  /// 広場のメンバー一覧から開かれ、かつ開いた側が長かつ相手が自分以外の場合に
+  /// true。trueの場合のみ「長を譲渡」ボタンを表示する（2026-07-29、メンバー
+  /// 一覧に直接ボタンを置くと誤操作の危険が高いためこちらに統合した）。
+  final bool canTransferOwnership;
+
+  /// [canTransferOwnership]がtrueの間だけ使う、確認ダイアログ込みの譲渡処理
+  /// （呼び出し元の`group_member_list_screen.dart`の`_confirmTransferOwnership`
+  /// をそのまま渡す）。
+  final VoidCallback? onTransferOwnership;
+
   static Future<void> show(
     BuildContext context, {
     required AppUser currentUser,
     required AppUser user,
+    String? conversationId,
+    bool canTransferOwnership = false,
+    VoidCallback? onTransferOwnership,
   }) {
     return showDialog<void>(
       context: context,
-      builder: (_) =>
-          UserProfileCardDialog(currentUser: currentUser, user: user),
+      builder: (_) => UserProfileCardDialog(
+        currentUser: currentUser,
+        user: user,
+        conversationId: conversationId,
+        canTransferOwnership: canTransferOwnership,
+        onTransferOwnership: onTransferOwnership,
+      ),
     );
   }
 
@@ -43,6 +76,10 @@ class UserProfileCardDialog extends ConsumerStatefulWidget {
 class _UserProfileCardDialogState extends ConsumerState<UserProfileCardDialog> {
   late Future<({bool isFriend, FriendRequest? request})> _statusFuture;
   bool _sending = false;
+
+  /// 送信・承認いずれの場合も、この相手との一対で使うプロフィールカード
+  /// （省略時は標準が適用される、2026-07-29追加）。
+  String? _selectedProfileCardId;
 
   bool get _isSelf => widget.currentUser.userId == widget.user.userId;
 
@@ -80,6 +117,17 @@ class _UserProfileCardDialogState extends ConsumerState<UserProfileCardDialog> {
             from: widget.currentUser,
             to: widget.user,
           );
+      final selectedProfileCardId = _selectedProfileCardId;
+      if (selectedProfileCardId != null) {
+        await ref.read(userRepositoryProvider).setConversationProfileCard(
+              userId: widget.currentUser.userId,
+              conversationId: DirectMessage.idFor(
+                widget.currentUser.userId,
+                widget.user.userId,
+              ),
+              profileCardId: selectedProfileCardId,
+            );
+      }
       if (!mounted) return;
       setState(() => _statusFuture = _fetchStatus());
     } finally {
@@ -87,199 +135,224 @@ class _UserProfileCardDialogState extends ConsumerState<UserProfileCardDialog> {
     }
   }
 
+  Future<void> _jumpToDm() async {
+    final dm = await ref.read(directMessageRepositoryProvider).getOrCreateDirectMessage(
+          widget.currentUser,
+          widget.user,
+        );
+    if (!mounted) return;
+    final isSplit = MediaQuery.sizeOf(context).width >= kTalksSplitBreakpoint;
+    Navigator.of(context).pop();
+    if (isSplit) {
+      // 左右分割表示ではTalksTabが一覧＋チャットを自前のStateで表示している
+      // ため、ここでルートをpushすると全画面ルートがサイドバーごと覆って
+      // しまい、一覧から開いた時と見え方が変わってしまう（2026-07-29修正）。
+      // TalksTab側にこの一対を選ばせ、home（'/'）に戻るだけにする。
+      ref.read(goRouterProvider).go('/');
+      ref.read(pendingDmSelectionProvider.notifier).set(dm);
+      return;
+    }
+    ref.read(goRouterProvider).push(
+      '/chat/dm',
+      extra: DmChatArgs(
+        currentUser: widget.currentUser,
+        dm: dm,
+        roomId: dm.defaultRoomId,
+        roomName: 'メイン',
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final strings = ref.watch(appStringsProvider);
     final colorScheme = Theme.of(context).colorScheme;
     final user = widget.user;
-    final card = user.activeProfileCard;
-    final name = (card != null && card.name.isNotEmpty)
-        ? card.name
-        : (user.effectiveNickname?.text.isNotEmpty ?? false)
-            ? user.effectiveNickname!.text
-            : '@${user.rhingId}';
-    final iconUrl = user.effectiveIcon?.url;
-    final backgroundUrl = user.effectiveBackgroundImage?.url;
-    final statusMessage = user.effectiveStatusMessage?.text;
-    final snsLinks = user.effectiveSnsLinks;
+    final nickname = user.effectiveNicknameFor(widget.conversationId);
+    final name = (nickname?.text.isNotEmpty ?? false)
+        ? nickname!.text
+        : '@${user.rhingId}';
+    final icon = user.effectiveIconFor(widget.conversationId);
+    final background = user.effectiveBackgroundImageFor(widget.conversationId);
+    final statusMessage = user.effectiveStatusMessageFor(widget.conversationId)?.text;
+    final snsLinks = user.effectiveSnsLinksFor(widget.conversationId);
+
+    // 身だしなみ・工房で作るカード（ProfileCardView）と全く同じ比率
+    // （height = width * 1.25）で表示する。以前は固定height:360を使っており
+    // 工房での見え方（切り取られ方）と食い違っていた（2026-07-29修正）。
+    // 画面の幅・高さ両方から動的に幅を決め、どちらの制約でも
+    // ビューポートをはみ出さないようにする（縦横比は常に1.25を維持）。
+    final screenSize = MediaQuery.sizeOf(context);
+    final maxHeightBudget = screenSize.height * 0.6;
+    final cardWidth = (screenSize.width - 80)
+        .clamp(240.0, 480.0)
+        .clamp(0.0, maxHeightBudget / 1.25);
+    final cardHeight = cardWidth * 1.25;
 
     return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 320),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ClipRRect(
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-              child: SizedBox(
-                height: 160,
-                width: double.infinity,
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    if (backgroundUrl != null)
-                      Image.network(backgroundUrl, fit: BoxFit.cover)
-                    else
-                      Container(color: colorScheme.surfaceContainerHighest),
-                    DecoratedBox(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            Colors.transparent,
-                            Colors.black.withValues(alpha: 0.55),
-                          ],
-                        ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+      // Dialogのshapeは背景の形を決めるだけで中身は自動クリップされないため、
+      // フッターが無い（自分自身・既に友達）場合にカードの四角い下端が
+      // shapeからはみ出して見えるバグがあった。ClipRRectでカード＋フッター
+      // 全体を常にダイアログと同じ角丸でクリップし、フッターの有無に
+      // 関わらず四隅が揃うようにする（2026-07-29修正）。
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(30),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: cardWidth,
+            maxHeight: screenSize.height * 0.9,
+          ),
+          // フッター（友達申請UI）が長くなる場合でも画面外に切れず、
+          // その場でスクロールできるようにする（ビューポート溢れの保険）。
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(
+                  width: cardWidth,
+                  height: cardHeight,
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      ProfileCardView(
+                        width: cardWidth,
+                        height: cardHeight,
+                        icon: icon,
+                        background: background,
+                        nickname: name,
+                        statusMessage: statusMessage,
+                        snsLinks: snsLinks,
+                        borderRadius: BorderRadius.zero,
                       ),
-                    ),
-                    Positioned(
-                      left: 16,
-                      right: 16,
-                      bottom: 12,
-                      child: Row(
-                        children: [
-                          CircleAvatar(
-                            radius: 28,
-                            backgroundImage:
-                                iconUrl != null ? NetworkImage(iconUrl) : null,
-                            child: iconUrl == null
-                                ? Text(
-                                    user.rhingId.isNotEmpty
-                                        ? user.rhingId[0].toUpperCase()
-                                        : '?',
-                                  )
-                                : null,
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              name,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 18,
-                                shadows: [Shadow(blurRadius: 6)],
+                      if (!_isSelf)
+                        Positioned(
+                          top: 12,
+                          right: 12,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              FutureBuilder<({bool isFriend, FriendRequest? request})>(
+                                future: _statusFuture,
+                                builder: (context, snapshot) {
+                                  if (snapshot.data?.isFriend != true) {
+                                    return const SizedBox.shrink();
+                                  }
+                                  return Material(
+                                    color: Colors.black.withValues(alpha: 0.35),
+                                    shape: const CircleBorder(),
+                                    child: IconButton(
+                                      icon: const Icon(
+                                        Icons.send_outlined,
+                                        color: Colors.white,
+                                      ),
+                                      iconSize: 30,
+                                      tooltip: strings.userProfileCardJumpToDm,
+                                      onPressed: _jumpToDm,
+                                    ),
+                                  );
+                                },
                               ),
-                            ),
+                              // 長の譲渡はメンバー一覧から開いた場合のみ表示する
+                              // （2026-07-29、一対へのジャンプボタンの右横に配置。
+                              // プライマリーカラーで目立たせる）。
+                              if (widget.canTransferOwnership) ...[
+                                const SizedBox(width: 8),
+                                Material(
+                                  color: colorScheme.primary,
+                                  shape: const CircleBorder(),
+                                  child: IconButton(
+                                    icon: Icon(
+                                      Icons.workspace_premium_outlined,
+                                      color: colorScheme.onPrimary,
+                                    ),
+                                    iconSize: 30,
+                                    tooltip: strings.groupTransferOwnershipMenuItem,
+                                    onPressed: widget.onTransferOwnership,
+                                  ),
+                                ),
+                              ],
+                            ],
                           ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    '@${user.rhingId}',
-                    style: TextStyle(color: colorScheme.onSurfaceVariant),
+                        ),
+                    ],
                   ),
-                  if (statusMessage != null && statusMessage.isNotEmpty) ...[
-                    const SizedBox(height: 8),
-                    Text(statusMessage),
-                  ],
-                  if (snsLinks.isNotEmpty) ...[
-                    const SizedBox(height: 8),
-                    for (final link in snsLinks)
-                      Text(
-                        link.url,
-                        style: TextStyle(color: colorScheme.primary),
-                      ),
-                  ],
-                  if (!_isSelf) ...[
-                    const SizedBox(height: 16),
-                    _friendActionArea(strings, colorScheme),
-                  ],
-                ],
-              ),
+                ),
+                if (!_isSelf) _friendFooter(strings),
+              ],
             ),
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8, top: 4),
-              child: TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: Text(strings.userProfileCardClose),
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _friendActionArea(Strings strings, ColorScheme colorScheme) {
+  /// 友達申請の送信・承認が必要な場合のみ、カードの下に領域を追加する。
+  /// 既に友達（ジャンプボタンの表示自体で伝わるため文言は出さない）・
+  /// 自分自身の場合はフッター自体を出さず、工房で作ったカードそのままの
+  /// 見た目にする（2026-07-29変更）。
+  Widget _friendFooter(Strings strings) {
     return FutureBuilder<({bool isFriend, FriendRequest? request})>(
       future: _statusFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const SizedBox(
-            height: 36,
-            child: Center(
-              child: SizedBox(
-                width: 18,
-                height: 18,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
-            ),
-          );
+          return const SizedBox.shrink();
         }
-
         if (snapshot.data?.isFriend ?? false) {
-          return Text(
-            strings.userProfileCardAlreadyFriend,
-            style: TextStyle(
-              color: colorScheme.primary,
-              fontWeight: FontWeight.bold,
-            ),
-          );
+          return const SizedBox.shrink();
         }
 
         final request = snapshot.data?.request;
-
-        if (request?.status == FriendRequestStatus.pending) {
-          final isOutgoing = request!.fromUserId == widget.currentUser.userId;
-          if (isOutgoing) {
-            return Text(strings.userProfileCardRequestPending);
-          }
+        final Widget content;
+        if (request?.status == FriendRequestStatus.pending &&
+            request!.fromUserId == widget.currentUser.userId) {
+          content = Text(strings.userProfileCardRequestPending);
+        } else if (request?.status == FriendRequestStatus.pending) {
           // 相手からの申請が既に届いている場合、送信すると
           // FriendRepository.sendRequestの既存の挙動でそのまま承認される。
-          return SizedBox(
-            width: double.infinity,
-            child: FilledButton(
-              onPressed: _sending ? null : _sendRequest,
-              child: _sending
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : Text(strings.userProfileCardAcceptRequest),
-            ),
-          );
+          content = _sendRequestArea(strings, strings.userProfileCardAcceptRequest);
+        } else {
+          content = _sendRequestArea(strings, strings.userProfileCardSendRequest);
         }
 
-        return SizedBox(
-          width: double.infinity,
-          child: FilledButton(
-            onPressed: _sending ? null : _sendRequest,
-            child: _sending
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : Text(strings.userProfileCardSendRequest),
-          ),
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
+          child: content,
         );
       },
+    );
+  }
+
+  /// 新規送信・相手からの申請への承認、どちらも同じ[_sendRequest]を使うため
+  /// 共通化する。送信ボタンの上にプロフィールカード選択を表示する
+  /// （2026-07-29追加）。
+  Widget _sendRequestArea(Strings strings, String buttonLabel) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          strings.profileCardPickerLabel,
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+        const SizedBox(height: 4),
+        ProfileCardPicker(
+          strings: strings,
+          cards: widget.currentUser.profileCards,
+          selectedCardId: _selectedProfileCardId,
+          onSelected: (id) => setState(() => _selectedProfileCardId = id),
+        ),
+        const SizedBox(height: 12),
+        FilledButton(
+          onPressed: _sending ? null : _sendRequest,
+          child: _sending
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : Text(buttonLabel),
+        ),
+      ],
     );
   }
 }

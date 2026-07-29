@@ -12,6 +12,7 @@ class DirectMessage {
     this.readReceiptsEnabled = true,
     this.readReceiptsProposalBy,
     this.accountDeletedUserId,
+    this.roomsEnabled = true,
   });
 
   final String dmId;
@@ -48,6 +49,15 @@ class DirectMessage {
   /// 完全削除できる（severanceRequestedByと同じ役割。firestore.rules参照）。
   final String? accountDeletedUserId;
 
+  /// 複数の寄合（テキストチャンネル）を扱うか。falseの場合はサイドバーの
+  /// 寄合一覧を出さず、`defaultRoomId`の1つだけを使う単一モード
+  /// （2026-07-29追加）。一対は常にfalse（単一）で作られ、後から
+  /// ハンバーガーメニューの「寄合を増やす」でtrueへの切り替えのみ可能
+  /// （falseへは戻せない）。既存データ（この機能追加前に作られた一対）は
+  /// 全てtrue扱いにする（fromJsonのデフォルト値、既存の複数寄合表示を
+  /// 維持するため）。
+  final bool roomsEnabled;
+
   /// 自分以外の参加者のuserId。
   String otherUserId(String currentUserId) {
     return participants.firstWhere((id) => id != currentUserId);
@@ -72,6 +82,7 @@ class DirectMessage {
       readReceiptsEnabled: json['readReceiptsEnabled'] as bool? ?? true,
       readReceiptsProposalBy: json['readReceiptsProposalBy'] as String?,
       accountDeletedUserId: json['accountDeletedUserId'] as String?,
+      roomsEnabled: json['roomsEnabled'] as bool? ?? true,
     );
   }
 
@@ -85,6 +96,7 @@ class DirectMessage {
       'readReceiptsEnabled': readReceiptsEnabled,
       'readReceiptsProposalBy': readReceiptsProposalBy,
       'accountDeletedUserId': accountDeletedUserId,
+      'roomsEnabled': roomsEnabled,
     };
   }
 

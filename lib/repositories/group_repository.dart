@@ -23,6 +23,7 @@ abstract class GroupRepository {
     required String name,
     required AppUser owner,
     required List<AppUser> members,
+    required bool roomsEnabled,
   });
 
   /// 自分が参加している広場一覧を取得する。
@@ -33,13 +34,34 @@ abstract class GroupRepository {
   /// （招待リンクを開いた相手が「既にメンバーかどうか」を判定するのに使う）。
   Future<Group?> getGroup(String groupId);
 
+  /// 広場1件をリアルタイムに購読する（`GroupRoleListPopup`等、開いている間も
+  /// `rolePriority`等の変更を反映する必要がある画面で使う、2026-07-29追加）。
+  Stream<Group?> watchGroup(String groupId);
+
   Stream<List<Message>> watchRoomMessages(String groupId, String roomId);
 
-  /// この広場の寄合（テキストチャンネル）一覧を作成順に購読する。
-  Stream<List<Room>> watchRooms(String groupId);
+  /// この広場の寄合（テキストチャンネル）一覧を作成順に購読する。[userId]は
+  /// 呼び出し元本人のuserId（firestore.rulesの`list`操作は、クエリ自体に
+  /// ルールと同じ条件の`where`句が無いと「結果に含まれ得る全ドキュメントが
+  /// ルールを満たすと証明できない」として要求全体を拒否するため、
+  /// クエリ側にも`memberIds`のarray-contains条件を付ける必要がある）。
+  Stream<List<Room>> watchRooms({required String groupId, required String userId});
 
   /// 新しい寄合を作成する（長・モデレーターのみ、firestore.rulesで強制）。
   Future<Room> createRoom({required String groupId, required String name});
+
+  /// 寄合の名前を変更する（manageRooms権限を持つメンバーのみ、
+  /// firestore.rulesで強制）。
+  Future<void> renameRoom({
+    required String groupId,
+    required String roomId,
+    required String name,
+  });
+
+  /// 単一モードの広場を複数モードに切り替える（manageRooms権限を持つ
+  /// メンバーのみ、firestore.rulesで強制）。複数→単一へ戻すことはできない
+  /// （2026-07-29追加）。
+  Future<void> setRoomsEnabled(String groupId);
 
   /// 寄合を削除する。全メッセージも物理削除する（長・モデレーターのみ、
   /// firestore.rulesで強制）。その広場の最後の1つの寄合は削除できない
@@ -80,7 +102,14 @@ abstract class GroupRepository {
   /// ロールを削除する（`GroupPermission.manageRoles`が必要）。基準ロールは
   /// 削除できない（呼び出し側で削除ボタン自体を無効化する）。このロールを
   /// 付与されていた全メンバーから外し、広場全体・寄合ごとの優先順位からも除去する。
-  Future<void> deleteRole({required String groupId, required String roleId});
+  /// [requestedBy]は削除実行者本人のuserId（`rooms`サブコレクションの絞り込み
+  /// 無し`.get()`が`list`操作としてfirestore.rulesにpermission-deniedされる
+  /// 問題を避けるため必要）。
+  Future<void> deleteRole({
+    required String groupId,
+    required String roleId,
+    required String requestedBy,
+  });
 
   /// メンバーにロールを1つ付与する（同時に複数付与可、`GroupPermission.
   /// manageRoles`が必要）。
@@ -191,9 +220,13 @@ abstract class GroupRepository {
   /// 強制）。オフにする場合は、`defaultRoomId`の全メッセージ・全メンバー分の
   /// 既読履歴をサーバーから削除する。再度オンにした場合は新規メッセージの
   /// 既読記録が新たに始まる（過去分の復元はしない）。
+  /// [userId]は呼び出し元本人のuserId（`rooms`サブコレクションの絞り込み無し
+  /// `.get()`が`list`操作としてfirestore.rulesにpermission-deniedされる問題を
+  /// 避けるため、`GroupRepository.watchRooms`と同じ理由で必要）。
   Future<void> setReadReceiptsEnabled({
     required String groupId,
     required bool enabled,
+    required String userId,
   });
 
   /// 広場のプロフィールカードを作成・更新する。メンバー全員が実行できる。
@@ -241,9 +274,13 @@ abstract class GroupRepository {
   Stream<List<GroupJoinRequest>> watchMyPendingJoinRequests(String userId);
 
   /// 参加リクエストに応答する。承認の場合はメンバーとして追加する。
+  /// [respondedBy]は応答する本人（長・manageJoinRequests権限保持者）の
+  /// userId（`rooms`サブコレクションの絞り込み無し`.get()`が`list`操作として
+  /// firestore.rulesにpermission-deniedされる問題を避けるため必要）。
   Future<void> respondToJoinRequest({
     required GroupJoinRequest request,
     required bool accept,
+    required String respondedBy,
   });
 
   /// 広場から退会する。オーナーは退会できない。
@@ -272,6 +309,7 @@ class FirestoreGroupRepository implements GroupRepository {
     required String name,
     required AppUser owner,
     required List<AppUser> members,
+    required bool roomsEnabled,
   }) async {
     final groupRef = _groups.doc();
     final roomRef = groupRef.collection('rooms').doc();
@@ -289,6 +327,7 @@ class FirestoreGroupRepository implements GroupRepository {
       memberIds: memberIds,
       memberRoles: memberRoles,
       defaultRoomId: roomRef.id,
+      roomsEnabled: roomsEnabled,
     );
 
     final room = Room(
@@ -353,6 +392,13 @@ class FirestoreGroupRepository implements GroupRepository {
     }
   }
 
+  @override
+  Stream<Group?> watchGroup(String groupId) {
+    return _groups.doc(groupId).snapshots().map(
+          (doc) => doc.exists ? Group.fromJson(doc.id, doc.data()!) : null,
+        );
+  }
+
   DocumentReference<Map<String, dynamic>> _roomRef(
     String groupId,
     String roomId,
@@ -361,13 +407,27 @@ class FirestoreGroupRepository implements GroupRepository {
   }
 
   @override
-  Stream<List<Room>> watchRooms(String groupId) {
+  Stream<List<Room>> watchRooms({required String groupId, required String userId}) {
     // Firestoreの`orderBy`はソート対象フィールドを持たないドキュメントを
     // 結果から除外してしまう。この機能を追加する前に作られた「メイン」室
     // には`createdAt`が無いため、`orderBy('createdAt')`を使うと表示されなく
     // なる不具合があった。クライアント側ソート（`createdAt`が無い場合は
     // 最古扱い）に変更して回避する。
-    return _groups.doc(groupId).collection('rooms').snapshots().map((snapshot) {
+    //
+    // where('memberIds', arrayContains: userId)は結果を絞り込むためではなく
+    // （この寄合一覧のメンバーは常に広場のメンバーと同一のため実質絞り込み
+    // 効果は無い）、firestore.rulesを満たすために必須。`list`操作では
+    // クエリ自体にルールと同じ条件のwhere句が無いと、Firestoreは「返り得る
+    // 全ドキュメントがルールを満たすと証明できない」として要求全体を
+    // permission-deniedで拒否する（各ドキュメントを個別に評価してから
+    // 結果をフィルタする、という動作はしない）。これが原因で、この機能を
+    // 実装した当初からサイドバーの寄合一覧が一切表示されない不具合があった。
+    return _groups
+        .doc(groupId)
+        .collection('rooms')
+        .where('memberIds', arrayContains: userId)
+        .snapshots()
+        .map((snapshot) {
       final rooms =
           snapshot.docs.map((doc) => Room.fromJson(doc.id, doc.data())).toList()
             ..sort(_compareByCreatedAt);
@@ -399,14 +459,36 @@ class FirestoreGroupRepository implements GroupRepository {
   }
 
   @override
+  Future<void> renameRoom({
+    required String groupId,
+    required String roomId,
+    required String name,
+  }) async {
+    await _groups.doc(groupId).collection('rooms').doc(roomId).update({'name': name});
+  }
+
+  @override
+  Future<void> setRoomsEnabled(String groupId) async {
+    await _groups.doc(groupId).update({'roomsEnabled': true});
+  }
+
+  @override
   Future<void> deleteRoom({
     required String groupId,
     required String roomId,
     required String requestedBy,
   }) async {
     // watchRoomsと同じ理由でorderBy('createdAt')は使わない
-    // （createdAtが無い古い「メイン」室が数から漏れてしまうため）。
-    final roomsSnapshot = await _groups.doc(groupId).collection('rooms').get();
+    // （createdAtが無い古い「メイン」室が数から漏れてしまうため）。where句は
+    // ソートではなくfirestore.rulesの`list`要求を満たすために必須
+    // （このwhere句が無いと、rooms=0のpermission-deniedによりこのメソッド
+    // 全体が最初のget()で例外を投げ、寄合が削除されないまま残り続けて
+    // いた不具合の原因、2026-07-29発覚・修正）。
+    final roomsSnapshot = await _groups
+        .doc(groupId)
+        .collection('rooms')
+        .where('memberIds', arrayContains: requestedBy)
+        .get();
     if (roomsSnapshot.docs.length <= 1) {
       throw StateError('最後の1つの寄合は削除できません');
     }
@@ -644,12 +726,19 @@ class FirestoreGroupRepository implements GroupRepository {
   Future<void> setReadReceiptsEnabled({
     required String groupId,
     required bool enabled,
+    required String userId,
   }) async {
     final group = await getGroup(groupId);
     if (group == null) return;
     await _groups.doc(groupId).update({'readReceiptsEnabled': enabled});
     if (!enabled) {
-      final roomsSnapshot = await _groups.doc(groupId).collection('rooms').get();
+      // where句はfirestore.rulesの`list`要求を満たすために必須
+      // （`deleteRoom`と同じ、2026-07-29追加）。
+      final roomsSnapshot = await _groups
+          .doc(groupId)
+          .collection('rooms')
+          .where('memberIds', arrayContains: userId)
+          .get();
       for (final roomDoc in roomsSnapshot.docs) {
         await _clearAllReadReceipts(roomDoc.reference.collection('messages'));
       }
@@ -868,6 +957,7 @@ class FirestoreGroupRepository implements GroupRepository {
   Future<void> respondToJoinRequest({
     required GroupJoinRequest request,
     required bool accept,
+    required String respondedBy,
   }) async {
     final requestRef = _joinRequestsOf(request.groupId).doc(request.requestId);
 
@@ -891,8 +981,13 @@ class FirestoreGroupRepository implements GroupRepository {
       return;
     }
 
-    final roomsSnapshot =
-        await _groups.doc(request.groupId).collection('rooms').get();
+    // where句はfirestore.rulesの`list`要求を満たすために必須
+    // （`deleteRoom`と同じ、2026-07-29追加）。
+    final roomsSnapshot = await _groups
+        .doc(request.groupId)
+        .collection('rooms')
+        .where('memberIds', arrayContains: respondedBy)
+        .get();
 
     final batch = _firestore.batch();
     batch.update(requestRef, {
@@ -926,7 +1021,14 @@ class FirestoreGroupRepository implements GroupRepository {
     }
 
     final updatedRoles = {...group.memberRoles}..remove(userId);
-    final roomsSnapshot = await _groups.doc(groupId).collection('rooms').get();
+    // where句はfirestore.rulesの`list`要求を満たすために必須
+    // （`deleteRoom`と同じ、2026-07-29追加）。退会実行前なので、userIdは
+    // まだmemberIdsに含まれている。
+    final roomsSnapshot = await _groups
+        .doc(groupId)
+        .collection('rooms')
+        .where('memberIds', arrayContains: userId)
+        .get();
 
     final batch = _firestore.batch();
     batch.update(groupRef, {
@@ -1007,6 +1109,7 @@ class FirestoreGroupRepository implements GroupRepository {
   Future<void> deleteRole({
     required String groupId,
     required String roleId,
+    required String requestedBy,
   }) async {
     await _rolesOf(groupId).doc(roleId).delete();
 
@@ -1026,8 +1129,12 @@ class FirestoreGroupRepository implements GroupRepository {
     }
     await groupRef.update(groupUpdate);
 
-    // 寄合ごとの優先順位上書きからも除去する。
-    final roomsSnapshot = await groupRef.collection('rooms').get();
+    // 寄合ごとの優先順位上書きからも除去する。where句はfirestore.rulesの
+    // `list`要求を満たすために必須（`deleteRoom`と同じ、2026-07-29追加）。
+    final roomsSnapshot = await groupRef
+        .collection('rooms')
+        .where('memberIds', arrayContains: requestedBy)
+        .get();
     for (final roomDoc in roomsSnapshot.docs) {
       final override = roomDoc.data()['rolePriorityOverride'];
       if (override is List && override.contains(roleId)) {

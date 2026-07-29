@@ -154,6 +154,10 @@ class FirestoreFriendRepository implements FriendRepository {
         request.toUserId: request.toRhingId,
       },
       defaultRoomId: roomRef.id,
+      // 一対は常に単一モードで作られる（GroupのroomsEnabledと同じ考え方、
+      // 2026-07-29追加）。後からハンバーガーメニューの「寄合を増やす」で
+      // 複数モードに切り替えられる。
+      roomsEnabled: false,
     );
     final room = DmRoom(
       roomId: roomRef.id,

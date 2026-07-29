@@ -17,6 +17,7 @@ class Group {
     this.roleAssignments = const {},
     this.rolePriority = const [],
     this.memberPermissions = const {},
+    this.roomsEnabled = true,
   });
 
   final String groupId;
@@ -63,6 +64,14 @@ class Group {
 
   final Timestamp? createdAt;
 
+  /// 複数の寄合（テキストチャンネル）を扱うか。falseの場合はサイドバーの
+  /// 寄合一覧を出さず、`defaultRoomId`の1つだけを使う単一モード
+  /// （2026-07-29追加）。作成時にどちらか選び、後からハンバーガーメニューの
+  /// 「寄合を複数扱う」でtrueへの切り替えのみ可能（falseへは戻せない）。
+  /// 既存データ（この機能追加前に作られた広場）は全てtrue扱いにする
+  /// （fromJsonのデフォルト値、既存の複数寄合表示を維持するため）。
+  final bool roomsEnabled;
+
   factory Group.fromJson(String groupId, Map<String, dynamic> json) {
     final profileCardJson = json['profileCard'] as Map<String, dynamic>?;
     return Group(
@@ -83,6 +92,7 @@ class Group {
         (key, value) =>
             MapEntry(key as String, List<String>.from(value as List)),
       ),
+      roomsEnabled: json['roomsEnabled'] as bool? ?? true,
     );
   }
 
@@ -99,6 +109,7 @@ class Group {
       'roleAssignments': roleAssignments,
       'rolePriority': rolePriority,
       'memberPermissions': memberPermissions,
+      'roomsEnabled': roomsEnabled,
     };
   }
 }

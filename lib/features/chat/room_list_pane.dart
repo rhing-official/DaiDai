@@ -20,10 +20,17 @@ typedef RoomListEntry = ({String roomId, String name});
 /// 等の権限制御は呼び出し側がコールバックのnull/非nullで表現する）。
 /// 寄合が1つしかない場合は、[onDeleteRoom]が非nullでも削除ボタンを
 /// 無効化する（最後の1つは削除できないため）。
+///
+/// [rooms]はStreamではなく解決済みの値で受け取る（以前はここで独自に
+/// `Stream`を購読していたが、呼び出し側（`TalksTab`）が上位の会話一覧
+/// 更新のたびにこのウィジェットを再構築し、その都度`roomsStream`に新しい
+/// `Stream`インスタンスが渡ることで`StreamBuilder`が毎回購読し直され、
+/// 寄合が一覧に定着して表示されない不具合があった。呼び出し側で1箇所だけ
+/// 購読して得た最新値をそのまま渡す形にすることで解消した）。
 class RoomListPane extends ConsumerWidget {
   const RoomListPane({
     required this.conversationName,
-    required this.roomsStream,
+    required this.rooms,
     required this.selectedRoomId,
     required this.onSelectRoom,
     this.onCreateRoom,
@@ -37,7 +44,7 @@ class RoomListPane extends ConsumerWidget {
   /// どの会話の寄合一覧を見ているか分かりにくいとの指摘を受けて変更）。
   final String conversationName;
 
-  final Stream<List<RoomListEntry>> roomsStream;
+  final List<RoomListEntry> rooms;
   final String? selectedRoomId;
 
   /// タップされた寄合そのもの（名前込み）を渡す。呼び出し側が名前を
@@ -116,74 +123,68 @@ class RoomListPane extends ConsumerWidget {
     final vocab = ref.watch(vocabularyProvider);
     final colorScheme = Theme.of(context).colorScheme;
 
+    final canDeleteAny = onDeleteRoom != null && rooms.length > 1;
     return Material(
       color: colorScheme.surface,
-      child: StreamBuilder<List<RoomListEntry>>(
-        stream: roomsStream,
-        builder: (context, snapshot) {
-          final rooms = snapshot.data ?? const [];
-          final canDeleteAny = onDeleteRoom != null && rooms.length > 1;
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 8, 8),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        conversationName,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                    if (onOpenGroupSettings != null)
-                      IconButton(
-                        icon: const Icon(Icons.settings_outlined),
-                        tooltip: strings.groupSettingsTooltip,
-                        onPressed: onOpenGroupSettings,
-                      ),
-                    if (onCreateRoom != null)
-                      IconButton(
-                        icon: const Icon(Icons.add),
-                        onPressed: () => _createRoom(context, strings, vocab),
-                      ),
-                  ],
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 8, 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    conversationName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
                 ),
-              ),
-              const Divider(height: 1),
-              Expanded(
-                child: ListView(
-                  children: [
-                    for (final room in rooms)
-                      ListTile(
-                        selected: room.roomId == selectedRoomId,
-                        selectedTileColor:
-                            colorScheme.primaryContainer.withValues(alpha: 0.3),
-                        leading: const Icon(Icons.tag),
-                        title: Text(room.name),
-                        onTap: () => onSelectRoom(room),
-                        trailing: onDeleteRoom == null
-                            ? null
-                            : IconButton(
-                                icon: const Icon(Icons.delete_outline),
-                                onPressed: canDeleteAny
-                                    ? () => _confirmDelete(
-                                          context,
-                                          strings,
-                                          vocab,
-                                          room.roomId,
-                                        )
-                                    : null,
-                              ),
-                      ),
-                  ],
-                ),
-              ),
-            ],
-          );
-        },
+                if (onOpenGroupSettings != null)
+                  IconButton(
+                    icon: const Icon(Icons.settings_outlined),
+                    tooltip: strings.groupSettingsTooltip,
+                    onPressed: onOpenGroupSettings,
+                  ),
+                if (onCreateRoom != null)
+                  IconButton(
+                    icon: const Icon(Icons.add),
+                    onPressed: () => _createRoom(context, strings, vocab),
+                  ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          Expanded(
+            child: ListView(
+              children: [
+                for (final room in rooms)
+                  ListTile(
+                    selected: room.roomId == selectedRoomId,
+                    selectedTileColor:
+                        colorScheme.primaryContainer.withValues(alpha: 0.3),
+                    leading: const Icon(Icons.tag),
+                    title: Text(room.name),
+                    onTap: () => onSelectRoom(room),
+                    trailing: onDeleteRoom == null
+                        ? null
+                        : IconButton(
+                            icon: const Icon(Icons.delete_outline),
+                            onPressed: canDeleteAny
+                                ? () => _confirmDelete(
+                                      context,
+                                      strings,
+                                      vocab,
+                                      room.roomId,
+                                    )
+                                : null,
+                          ),
+                  ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

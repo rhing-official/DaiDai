@@ -25,11 +25,13 @@ class AppUser {
     this.nicknames = const [],
     this.snsLinks = const [],
     this.profileCards = const [],
+    this.imageColor,
     this.activeIconId,
     this.activeBackgroundImageId,
     this.activeStatusMessageId,
     this.activeNicknameId,
     this.activeProfileCardId,
+    this.conversationProfileCardId = const {},
     this.preferences = AppUserPreferences.empty,
     this.accountStatus = AccountStatus.active,
     this.deletionRequestedAt,
@@ -59,6 +61,12 @@ class AppUser {
   /// 蔵の素材を組み合わせて作る「見せ方のセット」。
   final List<ProfileCard> profileCards;
 
+  /// 蔵に登録するイメージカラー（0xRRGGBB、最大1件）。他の蔵素材と違い
+  /// 複数枠・アクティブ選択の概念を持たず、値そのものが1つだけ存在し
+  /// 登録した時点でそのまま適用される（2026-07-29追加。具体的な使い道は
+  /// 別途実装予定）。
+  final int? imageColor;
+
   /// 現在表示に使っている素材のid。未選択ならnull。
   final String? activeIconId;
   final String? activeBackgroundImageId;
@@ -69,6 +77,12 @@ class AppUser {
   /// 未選択（null）の場合は、リンク側は個別の蔵アイテム（activeIcon/activeNickname）
   /// から直接組み立てる（[UserRepository.syncInvitePreview]参照）。
   final String? activeProfileCardId;
+
+  /// 会話（一対のdmId・広場のgroupId）ごとに使うプロフィールカードのid
+  /// （2026-07-29追加）。エントリが無い会話は[activeProfileCardId]（標準）が
+  /// 適用される。[profileCardFor]/[effectiveIconFor]等の会話対応版ゲッター
+  /// から参照する。
+  final Map<String, String> conversationProfileCardId;
 
   /// 端末をまたいで同期する表示設定（設定タブのアクセントカラー・外観・
   /// 表示言語等）。[UserRepository.updateUserPreference]で個別に部分更新する。
@@ -135,6 +149,58 @@ class AppUser {
     ];
   }
 
+  /// [conversationId]（一対のdmId・広場のgroupId）に指定された会話専用の
+  /// プロフィールカードがあればそれを返し、無ければ[activeProfileCard]
+  /// （標準）にフォールバックする。会話ごとのカード切り替え機能
+  /// （2026-07-29追加）の基点となるゲッター。
+  ProfileCard? profileCardFor(String? conversationId) {
+    if (conversationId != null) {
+      final overrideId = conversationProfileCardId[conversationId];
+      final card = _findProfileCard(profileCards, overrideId);
+      if (card != null) return card;
+    }
+    return activeProfileCard;
+  }
+
+  /// [effectiveIcon]の会話対応版。[profileCardFor]で解決したカードが
+  /// あればそのアイコンを、無ければ[activeIcon]を返す。
+  ProfileMaterial? effectiveIconFor(String? conversationId) {
+    final card = profileCardFor(conversationId);
+    return card != null ? _findMaterial(icons, card.iconId) : activeIcon;
+  }
+
+  /// [effectiveNickname]の会話対応版。
+  Nickname? effectiveNicknameFor(String? conversationId) {
+    final card = profileCardFor(conversationId);
+    return card != null ? _findNickname(nicknames, card.nicknameId) : activeNickname;
+  }
+
+  /// [effectiveStatusMessage]の会話対応版。
+  StatusMessage? effectiveStatusMessageFor(String? conversationId) {
+    final card = profileCardFor(conversationId);
+    return card != null
+        ? _findStatusMessage(statusMessages, card.statusMessageId)
+        : activeStatusMessage;
+  }
+
+  /// [effectiveBackgroundImage]の会話対応版。
+  ProfileMaterial? effectiveBackgroundImageFor(String? conversationId) {
+    final card = profileCardFor(conversationId);
+    return card != null
+        ? _findMaterial(backgroundImages, card.backgroundImageId)
+        : activeBackgroundImage;
+  }
+
+  /// [effectiveSnsLinks]の会話対応版。
+  List<SnsLink> effectiveSnsLinksFor(String? conversationId) {
+    final card = profileCardFor(conversationId);
+    if (card == null) return const [];
+    return [
+      for (final link in snsLinks)
+        if (card.snsLinkIds.contains(link.id)) link,
+    ];
+  }
+
   static ProfileMaterial? _findMaterial(
     List<ProfileMaterial> items,
     String? id,
@@ -180,12 +246,15 @@ class AppUser {
     List<Nickname>? nicknames,
     List<SnsLink>? snsLinks,
     List<ProfileCard>? profileCards,
+    int? imageColor,
+    bool clearImageColor = false,
     String? activeIconId,
     String? activeBackgroundImageId,
     String? activeStatusMessageId,
     String? activeNicknameId,
     String? activeProfileCardId,
     bool clearActiveProfileCardId = false,
+    Map<String, String>? conversationProfileCardId,
   }) {
     return AppUser(
       userId: userId,
@@ -197,6 +266,7 @@ class AppUser {
       nicknames: nicknames ?? this.nicknames,
       snsLinks: snsLinks ?? this.snsLinks,
       profileCards: profileCards ?? this.profileCards,
+      imageColor: clearImageColor ? null : (imageColor ?? this.imageColor),
       activeIconId: activeIconId ?? this.activeIconId,
       activeBackgroundImageId:
           activeBackgroundImageId ?? this.activeBackgroundImageId,
@@ -206,6 +276,8 @@ class AppUser {
       activeProfileCardId: clearActiveProfileCardId
           ? null
           : (activeProfileCardId ?? this.activeProfileCardId),
+      conversationProfileCardId:
+          conversationProfileCardId ?? this.conversationProfileCardId,
       preferences: preferences,
     );
   }
@@ -221,11 +293,15 @@ class AppUser {
       nicknames: _nicknameListFromJson(json['nicknames']),
       snsLinks: _snsLinkListFromJson(json['snsLinks']),
       profileCards: _profileCardListFromJson(json['profileCards']),
+      imageColor: json['imageColor'] as int?,
       activeIconId: json['activeIconId'] as String?,
       activeBackgroundImageId: json['activeBackgroundImageId'] as String?,
       activeStatusMessageId: json['activeStatusMessageId'] as String?,
       activeNicknameId: json['activeNicknameId'] as String?,
       activeProfileCardId: json['activeProfileCardId'] as String?,
+      conversationProfileCardId: (json['conversationProfileCardId'] as Map?)
+              ?.cast<String, String>() ??
+          const {},
       preferences: AppUserPreferences.fromJson(
         json['preferences'] as Map<String, dynamic>?,
       ),
@@ -247,11 +323,13 @@ class AppUser {
       'nicknames': nicknames.map((n) => n.toJson()).toList(),
       'snsLinks': snsLinks.map((s) => s.toJson()).toList(),
       'profileCards': profileCards.map((c) => c.toJson()).toList(),
+      'imageColor': imageColor,
       'activeIconId': activeIconId,
       'activeBackgroundImageId': activeBackgroundImageId,
       'activeStatusMessageId': activeStatusMessageId,
       'activeNicknameId': activeNicknameId,
       'activeProfileCardId': activeProfileCardId,
+      'conversationProfileCardId': conversationProfileCardId,
       'preferences': preferences.toJson(),
       'accountStatus': accountStatus.name,
       'deletionRequestedAt': deletionRequestedAt,

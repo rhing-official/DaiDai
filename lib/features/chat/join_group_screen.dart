@@ -1,3 +1,4 @@
+import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -8,6 +9,7 @@ import '../../models/group_invite_preview.dart';
 import '../../models/group_join_request.dart';
 import '../../providers/repository_providers.dart';
 import '../../router/app_router.dart';
+import '../../widgets/profile_card_picker.dart';
 import '../auth/auth_gate.dart';
 
 /// 招待リンク（`/join/:groupId`）・QRコード読み取りの両方から開かれる、
@@ -46,6 +48,10 @@ class _JoinGroupViewState extends ConsumerState<_JoinGroupView> {
   GroupInvitePreview? _preview;
   bool _isSending = false;
   String? _errorMessage;
+
+  /// この広場で使うプロフィールカード（省略時は標準が適用される、
+  /// 2026-07-29追加）。
+  String? _selectedProfileCardId;
 
   @override
   void initState() {
@@ -113,6 +119,14 @@ class _JoinGroupViewState extends ConsumerState<_JoinGroupView> {
         groupId: widget.groupId,
         requester: widget.currentUser,
       );
+      final selectedProfileCardId = _selectedProfileCardId;
+      if (selectedProfileCardId != null) {
+        await ref.read(userRepositoryProvider).setConversationProfileCard(
+              userId: widget.currentUser.userId,
+              conversationId: widget.groupId,
+              profileCardId: selectedProfileCardId,
+            );
+      }
       if (!mounted) return;
       setState(() => _status = _JoinStatus.sent);
     } catch (e) {
@@ -129,9 +143,30 @@ class _JoinGroupViewState extends ConsumerState<_JoinGroupView> {
     final groupRepository = ref.read(groupRepositoryProvider);
     final group = await groupRepository.getGroup(widget.groupId);
     if (!mounted || group == null) return;
-    // 既存の広場は複数の寄合を持ちうる（どれが「メイン」に相当するか
-    // 表示名まで確実にはここで分からない）ため、寄合一覧画面を経由して
-    // 選んでもらう。
+    // 単一モードでは寄合一覧のドリルダウン画面を経由せず、常に1つだけの
+    // 寄合（defaultRoomId）を直接開く（2026-07-29追加）。
+    if (!group.roomsEnabled) {
+      final rooms = await groupRepository
+          .watchRooms(groupId: group.groupId, userId: widget.currentUser.userId)
+          .first;
+      final roomName = rooms
+              .firstWhereOrNull((r) => r.roomId == group.defaultRoomId)
+              ?.name ??
+          'メイン';
+      if (!mounted) return;
+      ref.read(goRouterProvider).pushReplacement(
+        '/chat/group',
+        extra: GroupChatArgs(
+          currentUser: widget.currentUser,
+          group: group,
+          roomId: group.defaultRoomId,
+          roomName: roomName,
+        ),
+      );
+      return;
+    }
+    // 複数モードの広場はどれが「メイン」に相当するか表示名まで確実には
+    // ここで分からないため、寄合一覧画面を経由して選んでもらう。
     ref.read(goRouterProvider).pushReplacement(
       '/chat/group-rooms',
       extra: GroupRoomListArgs(currentUser: widget.currentUser, group: group),
@@ -216,6 +251,21 @@ class _JoinGroupViewState extends ConsumerState<_JoinGroupView> {
               Text(_errorMessage!, style: const TextStyle(color: Colors.red)),
             ],
             const SizedBox(height: 24),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                strings.profileCardPickerLabel,
+                style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+              ),
+            ),
+            const SizedBox(height: 8),
+            ProfileCardPicker(
+              strings: strings,
+              cards: widget.currentUser.profileCards,
+              selectedCardId: _selectedProfileCardId,
+              onSelected: (id) => setState(() => _selectedProfileCardId = id),
+            ),
+            const SizedBox(height: 16),
             ElevatedButton(
               onPressed: _isSending ? null : _requestToJoin,
               child: _isSending

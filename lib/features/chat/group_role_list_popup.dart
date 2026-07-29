@@ -4,26 +4,31 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/strings.dart';
+import '../../models/app_user.dart';
 import '../../models/group.dart';
 import '../../models/group_role.dart';
+import '../../providers/group_providers.dart';
 import '../../providers/repository_providers.dart';
 import '../../utils/color_hex.dart';
 import 'group_role_priority_dialog.dart';
 
 /// 広場のカスタムロール一覧（ポップアップの中身）。`manageRoles`権限を持つ
 /// メンバーのみが開ける（`_GroupMenuButton`側でメニュー項目自体を無効化する）。
-/// 名前・色・権限の作成/編集/削除・優先順位の並べ替えを扱う。メンバーへの付与は
-/// `GroupMemberListPopup`側で行う。[group]は優先順位（`rolePriority`）の
-/// 表示・初期値に使う。
+/// 名前・色・権限の作成/編集・優先順位の並べ替えに加え、このロールを付与する
+/// メンバーの選択もここで行える（基準ロールを除く。メンバー起点での付与・解除は
+/// 引き続き`GroupMemberListPopup`側からも行える）。[group]は優先順位
+/// （`rolePriority`）の表示・初期値に使う。
 class GroupRoleListPopup extends ConsumerWidget {
-  const GroupRoleListPopup({required this.group, super.key});
+  const GroupRoleListPopup({required this.currentUser, required this.group, super.key});
 
+  final AppUser currentUser;
   final Group group;
 
   Future<void> _showRoleDialog(
     BuildContext context,
     WidgetRef ref,
-    Strings strings, {
+    Strings strings,
+    Group group, {
     GroupRole? existing,
   }) async {
     final nameController = TextEditingController(text: existing?.name ?? '');
@@ -39,6 +44,22 @@ class GroupRoleListPopup extends ConsumerWidget {
     final isEveryone = existing?.isEveryone ?? false;
     String? errorText;
 
+    // 基準ロール（全員に自動適用）はメンバーを個別に選ぶ意味が無いため取得しない。
+    final members = isEveryone
+        ? <AppUser>[]
+        : await ref.read(userRepositoryProvider).getUsersByIds(group.memberIds);
+    members.sort((a, b) => a.rhingId.compareTo(b.rhingId));
+    final initiallyAssignedIds = existing == null
+        ? const <String>{}
+        : {
+            for (final member in members)
+              if (group.roleAssignments[member.userId]?.contains(existing.roleId) ??
+                  false)
+                member.userId,
+          };
+    final selectedMemberIds = {...initiallyAssignedIds};
+
+    if (!context.mounted) return;
     final result = await showDialog<bool>(
       context: context,
       builder: (context) => StatefulBuilder(
@@ -138,6 +159,57 @@ class GroupRoleListPopup extends ConsumerWidget {
                         }
                       }),
                     ),
+                  if (!isEveryone) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      strings.groupRoleMembersLabel,
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    CheckboxListTile(
+                      contentPadding: EdgeInsets.zero,
+                      controlAffinity: ListTileControlAffinity.leading,
+                      value: members.isNotEmpty &&
+                          selectedMemberIds.length == members.length,
+                      title: Text(strings.groupRoleAssignAllLabel),
+                      onChanged: members.isEmpty
+                          ? null
+                          : (checked) => setState(() {
+                                if (checked ?? false) {
+                                  selectedMemberIds
+                                      .addAll(members.map((m) => m.userId));
+                                } else {
+                                  selectedMemberIds.clear();
+                                }
+                              }),
+                    ),
+                    for (final member in members)
+                      CheckboxListTile(
+                        contentPadding: EdgeInsets.zero,
+                        controlAffinity: ListTileControlAffinity.leading,
+                        value: selectedMemberIds.contains(member.userId),
+                        secondary: CircleAvatar(
+                          radius: 14,
+                          backgroundImage: member.effectiveIcon?.url != null
+                              ? NetworkImage(member.effectiveIcon!.url)
+                              : null,
+                          child: member.effectiveIcon?.url == null
+                              ? const Icon(Icons.person, size: 16)
+                              : null,
+                        ),
+                        title: Text(
+                          (member.effectiveNickname?.text.isNotEmpty ?? false)
+                              ? member.effectiveNickname!.text
+                              : '@${member.rhingId}',
+                        ),
+                        onChanged: (checked) => setState(() {
+                          if (checked ?? false) {
+                            selectedMemberIds.add(member.userId);
+                          } else {
+                            selectedMemberIds.remove(member.userId);
+                          }
+                        }),
+                      ),
+                  ],
                 ],
               ),
             ),
@@ -169,13 +241,15 @@ class GroupRoleListPopup extends ConsumerWidget {
         : null;
     final name = isEveryone ? existing!.name : nameController.text.trim();
     final repository = ref.read(groupRepositoryProvider);
+    String roleId;
     if (existing == null) {
-      await repository.createRole(
+      final created = await repository.createRole(
         groupId: group.groupId,
         name: name,
         color: color,
         permissions: permissions,
       );
+      roleId = created.roleId;
     } else {
       await repository.updateRole(
         groupId: group.groupId,
@@ -184,6 +258,18 @@ class GroupRoleListPopup extends ConsumerWidget {
         color: color,
         permissions: permissions,
       );
+      roleId = existing.roleId;
+    }
+
+    // 権限の有無に関わらず、選んだメンバーには付与する（色だけの見た目専用
+    // ロールを全員に付与するといった使い方も成立させるため）。
+    final addedIds = selectedMemberIds.difference(initiallyAssignedIds);
+    final removedIds = initiallyAssignedIds.difference(selectedMemberIds);
+    for (final userId in addedIds) {
+      await repository.assignRole(groupId: group.groupId, userId: userId, roleId: roleId);
+    }
+    for (final userId in removedIds) {
+      await repository.unassignRole(groupId: group.groupId, userId: userId, roleId: roleId);
     }
   }
 
@@ -213,9 +299,11 @@ class GroupRoleListPopup extends ConsumerWidget {
       ),
     );
     if (confirmed == true) {
-      await ref
-          .read(groupRepositoryProvider)
-          .deleteRole(groupId: group.groupId, roleId: role.roleId);
+      await ref.read(groupRepositoryProvider).deleteRole(
+            groupId: group.groupId,
+            roleId: role.roleId,
+            requestedBy: currentUser.userId,
+          );
     }
   }
 
@@ -223,6 +311,11 @@ class GroupRoleListPopup extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final strings = ref.watch(appStringsProvider);
     final groupRepository = ref.watch(groupRepositoryProvider);
+    // widget.groupはこのポップアップを開いた時点の静的なスナップショットで、
+    // 開いたまま優先順位ダイアログ等で`rolePriority`を変更しても自動更新
+    // されない（ロールの並び順を変更したのに反映されない不具合の原因、
+    // 2026-07-29発覚・修正）。ライブな値をここでwatchして使う。
+    final liveGroup = ref.watch(watchedGroupProvider(group.groupId)).value ?? group;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -239,7 +332,7 @@ class GroupRoleListPopup extends ConsumerWidget {
               ),
               IconButton(
                 icon: const Icon(Icons.add),
-                onPressed: () => _showRoleDialog(context, ref, strings),
+                onPressed: () => _showRoleDialog(context, ref, strings, liveGroup),
               ),
               IconButton(
                 icon: const Icon(Icons.close),
@@ -251,7 +344,7 @@ class GroupRoleListPopup extends ConsumerWidget {
         const Divider(height: 1),
         Flexible(
           child: StreamBuilder<List<GroupRole>>(
-            stream: groupRepository.watchRoles(group.groupId),
+            stream: groupRepository.watchRoles(liveGroup.groupId),
             builder: (context, snapshot) {
               final allRoles = snapshot.data ?? const <GroupRole>[];
               if (allRoles.isEmpty) {
@@ -270,8 +363,8 @@ class GroupRoleListPopup extends ConsumerWidget {
               final fallbackIndex = regularUnsorted.length;
               final regular = regularUnsorted
                 ..sort((a, b) {
-                  final indexA = group.rolePriority.indexOf(a.roleId);
-                  final indexB = group.rolePriority.indexOf(b.roleId);
+                  final indexA = liveGroup.rolePriority.indexOf(a.roleId);
+                  final indexB = liveGroup.rolePriority.indexOf(b.roleId);
                   // rolePriorityに無いロール（作成直後の反映待ち等）は末尾扱い。
                   return (indexA == -1 ? fallbackIndex : indexA)
                       .compareTo(indexB == -1 ? fallbackIndex : indexB);
@@ -297,7 +390,7 @@ class GroupRoleListPopup extends ConsumerWidget {
                           context,
                           orderedRoles: regular,
                           onSave: (roleIds) => groupRepository.setRolePriority(
-                            groupId: group.groupId,
+                            groupId: liveGroup.groupId,
                             roleIds: roleIds,
                           ),
                         ),
@@ -315,8 +408,13 @@ class GroupRoleListPopup extends ConsumerWidget {
                             : null,
                       ),
                       title: Text(role.name),
-                      onTap: () =>
-                          _showRoleDialog(context, ref, strings, existing: role),
+                      onTap: () => _showRoleDialog(
+                        context,
+                        ref,
+                        strings,
+                        liveGroup,
+                        existing: role,
+                      ),
                       trailing: IconButton(
                         icon: const Icon(Icons.delete_outline),
                         onPressed: () => _confirmDelete(context, ref, strings, role),
@@ -339,6 +437,7 @@ class GroupRoleListPopup extends ConsumerWidget {
                         context,
                         ref,
                         strings,
+                        liveGroup,
                         existing: everyone,
                       ),
                     ),
