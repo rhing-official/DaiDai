@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/strings.dart';
 import '../../l10n/vocabulary.dart';
+import '../../models/app_ui_style.dart';
 import '../../models/app_user.dart';
 import '../../models/conversation_prefs.dart';
 import '../../models/direct_message.dart';
@@ -13,6 +14,7 @@ import '../../models/group.dart';
 import '../../models/group_invite_preview.dart';
 import '../../models/group_join_request.dart';
 import '../../models/group_role.dart';
+import '../../providers/app_ui_style_provider.dart';
 import '../../providers/block_providers.dart';
 import '../../providers/chat_navigation_providers.dart';
 import '../../providers/conversation_prefs_providers.dart';
@@ -22,6 +24,7 @@ import '../../providers/repository_providers.dart';
 import '../../providers/user_providers.dart';
 import '../../router/app_router.dart';
 import '../../utils/group_permissions.dart';
+import '../../widgets/gekiga/gekiga_panel_box.dart';
 import '../../widgets/swipe_gestures.dart';
 import 'add_chat_dialog.dart';
 import 'chat_panes.dart';
@@ -66,7 +69,8 @@ class _TalksTabState extends ConsumerState<TalksTab> {
   /// 幅を圧迫されず全画面で読みたい時のための切り替え。
   bool _chatExpanded = false;
 
-  bool get _isSplit => MediaQuery.sizeOf(context).width >= kTalksSplitBreakpoint;
+  bool get _isSplit =>
+      MediaQuery.sizeOf(context).width >= kTalksSplitBreakpoint;
 
   // 選択中の一対・広場の寄合一覧ストリームを、会話一覧の更新（新着メッセージ等）
   // ごとに再構築されるbuild()の中でも使い回すためのキャッシュ。以前は
@@ -115,22 +119,26 @@ class _TalksTabState extends ConsumerState<TalksTab> {
       final rooms = await _dmRoomsStream(dm.dmId).first;
       final roomName =
           rooms.firstWhereOrNull((r) => r.roomId == dm.defaultRoomId)?.name ??
-              'メイン';
-      ref.read(goRouterProvider).push(
-        '/chat/dm',
-        extra: DmChatArgs(
-          currentUser: widget.currentUser,
-          dm: dm,
-          roomId: dm.defaultRoomId,
-          roomName: roomName,
-        ),
-      );
+          'メイン';
+      ref
+          .read(goRouterProvider)
+          .push(
+            '/chat/dm',
+            extra: DmChatArgs(
+              currentUser: widget.currentUser,
+              dm: dm,
+              roomId: dm.defaultRoomId,
+              roomName: roomName,
+            ),
+          );
       return;
     }
-    ref.read(goRouterProvider).push(
-      '/chat/dm-rooms',
-      extra: DmRoomListArgs(currentUser: widget.currentUser, dm: dm),
-    );
+    ref
+        .read(goRouterProvider)
+        .push(
+          '/chat/dm-rooms',
+          extra: DmRoomListArgs(currentUser: widget.currentUser, dm: dm),
+        );
   }
 
   Future<void> _openGroup(Group group) async {
@@ -143,25 +151,33 @@ class _TalksTabState extends ConsumerState<TalksTab> {
     }
     if (!group.roomsEnabled) {
       final rooms = await _groupRoomsStream(group.groupId).first;
-      final roomName = rooms
+      final roomName =
+          rooms
               .firstWhereOrNull((r) => r.roomId == group.defaultRoomId)
               ?.name ??
           'メイン';
-      ref.read(goRouterProvider).push(
-        '/chat/group',
-        extra: GroupChatArgs(
-          currentUser: widget.currentUser,
-          group: group,
-          roomId: group.defaultRoomId,
-          roomName: roomName,
-        ),
-      );
+      ref
+          .read(goRouterProvider)
+          .push(
+            '/chat/group',
+            extra: GroupChatArgs(
+              currentUser: widget.currentUser,
+              group: group,
+              roomId: group.defaultRoomId,
+              roomName: roomName,
+            ),
+          );
       return;
     }
-    ref.read(goRouterProvider).push(
-      '/chat/group-rooms',
-      extra: GroupRoomListArgs(currentUser: widget.currentUser, group: group),
-    );
+    ref
+        .read(goRouterProvider)
+        .push(
+          '/chat/group-rooms',
+          extra: GroupRoomListArgs(
+            currentUser: widget.currentUser,
+            group: group,
+          ),
+        );
   }
 
   Future<void> _startCall(DirectMessage dm, {bool isVideo = false}) async {
@@ -176,14 +192,16 @@ class _TalksTabState extends ConsumerState<TalksTab> {
       dmId: dm.dmId,
       isVideo: isVideo,
     );
-    ref.read(goRouterProvider).push(
-      '/call',
-      extra: CallArgs(
-        call: call,
-        isCaller: true,
-        currentUserId: widget.currentUser.userId,
-      ),
-    );
+    ref
+        .read(goRouterProvider)
+        .push(
+          '/call',
+          extra: CallArgs(
+            call: call,
+            isCaller: true,
+            currentUserId: widget.currentUser.userId,
+          ),
+        );
   }
 
   /// 「＋」メニューポップアップの上に重ねて表示する2階層目のポップアップ
@@ -203,7 +221,9 @@ class _TalksTabState extends ConsumerState<TalksTab> {
       pageBuilder: (stackedContext, animation, secondaryAnimation) {
         return Center(
           child: Dialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 420, maxHeight: 640),
               child: contentBuilder(() => Navigator.of(stackedContext).pop()),
@@ -212,7 +232,10 @@ class _TalksTabState extends ConsumerState<TalksTab> {
         );
       },
       transitionBuilder: (context, animation, secondaryAnimation, child) {
-        final curved = CurvedAnimation(parent: animation, curve: Curves.easeOutBack);
+        final curved = CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOutBack,
+        );
         return FadeTransition(
           opacity: animation,
           child: ScaleTransition(scale: curved, child: child),
@@ -343,19 +366,26 @@ class _TalksTabState extends ConsumerState<TalksTab> {
         .watch(directMessageRepositoryProvider)
         .watchDirectMessages(widget.currentUser.userId);
     final incomingRequests =
-        ref.watch(incomingFriendRequestsProvider(widget.currentUser.userId)).value ??
-            const [];
+        ref
+            .watch(incomingFriendRequestsProvider(widget.currentUser.userId))
+            .value ??
+        const [];
     final outgoingRequests =
-        ref.watch(outgoingFriendRequestsProvider(widget.currentUser.userId)).value ??
-            const [];
+        ref
+            .watch(outgoingFriendRequestsProvider(widget.currentUser.userId))
+            .value ??
+        const [];
     final prefsById =
         ref.watch(conversationPrefsProvider(widget.currentUser.userId)).value ??
-            const {};
+        const {};
     final blockedIds =
         ref.watch(blockedUserIdsProvider(widget.currentUser.userId)).value ??
-            const {};
-    final pendingGroupRequests = ref
-            .watch(myPendingGroupJoinRequestsProvider(widget.currentUser.userId))
+        const {};
+    final pendingGroupRequests =
+        ref
+            .watch(
+              myPendingGroupJoinRequestsProvider(widget.currentUser.userId),
+            )
             .value ??
         const [];
 
@@ -430,7 +460,8 @@ class _TalksTabState extends ConsumerState<TalksTab> {
                           ? () => setState(() => _category = _TalksCategory.dm)
                           : null,
                       onNext: _category == _TalksCategory.dm
-                          ? () => setState(() => _category = _TalksCategory.group)
+                          ? () =>
+                                setState(() => _category = _TalksCategory.group)
                           : null,
                       child: _category == _TalksCategory.dm
                           ? _buildDirectMessages(
@@ -525,7 +556,8 @@ class _TalksTabState extends ConsumerState<TalksTab> {
       stream: _dmRoomsStream(dm.dmId),
       builder: (context, snapshot) {
         final rooms = snapshot.data ?? const <DmRoom>[];
-        final roomId = (_selectedDmRoomId != null &&
+        final roomId =
+            (_selectedDmRoomId != null &&
                 rooms.any((r) => r.roomId == _selectedDmRoomId))
             ? _selectedDmRoomId!
             : dm.defaultRoomId;
@@ -558,11 +590,6 @@ class _TalksTabState extends ConsumerState<TalksTab> {
                       setState(() => _selectedDmRoomId = room.roomId),
                   onCreateRoom: (name) =>
                       dmRepository.createRoom(dmId: dm.dmId, name: name),
-                  onDeleteRoom: (roomId) => dmRepository.deleteRoom(
-                    dmId: dm.dmId,
-                    roomId: roomId,
-                    requestedBy: widget.currentUser.userId,
-                  ),
                 ),
               ),
               const VerticalDivider(width: 1),
@@ -590,13 +617,17 @@ class _TalksTabState extends ConsumerState<TalksTab> {
   Widget _buildGroupDetailWithRooms(Group group) {
     final groupRepository = ref.read(groupRepositoryProvider);
     final userId = widget.currentUser.userId;
-    final canManageRooms =
-        hasGroupPermission(group: group, userId: userId, permission: GroupPermission.manageRooms);
+    final canManageRooms = hasGroupPermission(
+      group: group,
+      userId: userId,
+      permission: GroupPermission.manageRooms,
+    );
     return StreamBuilder<List<Room>>(
       stream: _groupRoomsStream(group.groupId),
       builder: (context, snapshot) {
         final rooms = snapshot.data ?? const <Room>[];
-        final roomId = (_selectedGroupRoomId != null &&
+        final roomId =
+            (_selectedGroupRoomId != null &&
                 rooms.any((r) => r.roomId == _selectedGroupRoomId))
             ? _selectedGroupRoomId!
             : group.defaultRoomId;
@@ -629,16 +660,9 @@ class _TalksTabState extends ConsumerState<TalksTab> {
                       setState(() => _selectedGroupRoomId = room.roomId),
                   onCreateRoom: canManageRooms
                       ? (name) => groupRepository.createRoom(
-                            groupId: group.groupId,
-                            name: name,
-                          )
-                      : null,
-                  onDeleteRoom: canManageRooms
-                      ? (roomId) => groupRepository.deleteRoom(
-                            groupId: group.groupId,
-                            roomId: roomId,
-                            requestedBy: widget.currentUser.userId,
-                          )
+                          groupId: group.groupId,
+                          name: name,
+                        )
                       : null,
                   // 全体設定ポップアップ自体は全メンバーが開ける
                   // （中の各項目が個別に権限ゲートされる、2026-07-29変更。
@@ -647,8 +671,10 @@ class _TalksTabState extends ConsumerState<TalksTab> {
                     context: context,
                     builder: (_) => Dialog(
                       child: ConstrainedBox(
-                        constraints:
-                            const BoxConstraints(maxWidth: 420, maxHeight: 640),
+                        constraints: const BoxConstraints(
+                          maxWidth: 420,
+                          maxHeight: 640,
+                        ),
                         child: GroupSettingsPopup(
                           currentUser: widget.currentUser,
                           group: group,
@@ -691,8 +717,10 @@ class _TalksTabState extends ConsumerState<TalksTab> {
     // ブロックした相手は一対の一覧から非表示にする（会話・ブロック状態自体は
     // 保持したまま、一覧に出さないだけ。ブロック解除は設定＞語らいから行う）。
     final visibleDms = directMessages
-        .where((dm) =>
-            !blockedIds.contains(dm.otherUserId(widget.currentUser.userId)))
+        .where(
+          (dm) =>
+              !blockedIds.contains(dm.otherUserId(widget.currentUser.userId)),
+        )
         .toList();
     if (visibleDms.isEmpty &&
         incomingRequests.isEmpty &&
@@ -701,18 +729,20 @@ class _TalksTabState extends ConsumerState<TalksTab> {
       return Center(child: Text('まだ$dmTermがありません。上の＋から相手を追加してください。'));
     }
 
-    final sortedDms = _sortedByPin(
-      visibleDms,
-      prefsById,
-      (dm) => dm.dmId,
-    );
+    final sortedDms = _sortedByPin(visibleDms, prefsById, (dm) => dm.dmId);
 
     return ListView(
       children: [
         for (final request in incomingRequests)
-          _FriendRequestTile(currentUserId: widget.currentUser.userId, request: request),
+          _FriendRequestTile(
+            currentUserId: widget.currentUser.userId,
+            request: request,
+          ),
         for (final request in outgoingRequests)
-          _FriendRequestTile(currentUserId: widget.currentUser.userId, request: request),
+          _FriendRequestTile(
+            currentUserId: widget.currentUser.userId,
+            request: request,
+          ),
         for (final dm in sortedDms)
           _DirectMessageTile(
             currentUser: widget.currentUser,
@@ -835,15 +865,19 @@ class _CategoryTab extends StatelessWidget {
 
 /// 届いている／送った友達申請を表す行。一対リストの最上部に表示される。
 class _FriendRequestTile extends ConsumerWidget {
-  const _FriendRequestTile({required this.currentUserId, required this.request});
+  const _FriendRequestTile({
+    required this.currentUserId,
+    required this.request,
+  });
 
   final String currentUserId;
   final FriendRequest request;
 
   bool get _isIncoming => request.toUserId == currentUserId;
 
-  String get _otherUserId =>
-      currentUserId == request.fromUserId ? request.toUserId : request.fromUserId;
+  String get _otherUserId => currentUserId == request.fromUserId
+      ? request.toUserId
+      : request.fromUserId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -854,37 +888,56 @@ class _FriendRequestTile extends ConsumerWidget {
     // プロフィールカードがあればそれを反映して表示する（2026-07-29追加）。
     final dmId = DirectMessage.idFor(currentUserId, _otherUserId);
     final iconUrl = otherUser?.effectiveIconFor(dmId)?.url;
+    final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
+
+    final leadingWidget = CircleAvatar(
+      backgroundImage: iconUrl != null ? NetworkImage(iconUrl) : null,
+      child: iconUrl == null ? const Icon(Icons.person_outline) : null,
+    );
+    final subtitleWidget = Text(
+      _isIncoming
+          ? strings.friendRequestIncomingSubtitle
+          : strings.friendRequestOutgoingSubtitle,
+    );
+    final trailingWidget = _isIncoming
+        ? Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextButton(
+                onPressed: () => ref
+                    .read(friendRepositoryProvider)
+                    .respond(request: request, accept: false),
+                child: Text(strings.friendRequestDecline),
+              ),
+              const SizedBox(width: 4),
+              FilledButton(
+                onPressed: () => ref
+                    .read(friendRepositoryProvider)
+                    .respond(request: request, accept: true),
+                child: Text(strings.friendRequestAccept),
+              ),
+            ],
+          )
+        : null;
+
+    if (isGekiga) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: GekigaMenuTile(
+          seed: request.requestId.hashCode,
+          leading: leadingWidget,
+          title: Text('@${request.otherRhingId(currentUserId)}'),
+          subtitle: subtitleWidget,
+          trailing: trailingWidget,
+        ),
+      );
+    }
+
     return ListTile(
-      leading: CircleAvatar(
-        backgroundImage: iconUrl != null ? NetworkImage(iconUrl) : null,
-        child: iconUrl == null ? const Icon(Icons.person_outline) : null,
-      ),
+      leading: leadingWidget,
       title: Text('@${request.otherRhingId(currentUserId)}'),
-      subtitle: Text(
-        _isIncoming
-            ? strings.friendRequestIncomingSubtitle
-            : strings.friendRequestOutgoingSubtitle,
-      ),
-      trailing: _isIncoming
-          ? Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextButton(
-                  onPressed: () => ref
-                      .read(friendRepositoryProvider)
-                      .respond(request: request, accept: false),
-                  child: Text(strings.friendRequestDecline),
-                ),
-                const SizedBox(width: 4),
-                FilledButton(
-                  onPressed: () => ref
-                      .read(friendRepositoryProvider)
-                      .respond(request: request, accept: true),
-                  child: Text(strings.friendRequestAccept),
-                ),
-              ],
-            )
-          : null,
+      subtitle: subtitleWidget,
+      trailing: trailingWidget,
     );
   }
 }
@@ -900,32 +953,54 @@ class _PendingGroupJoinRequestTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final strings = ref.watch(appStringsProvider);
+    final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
     return FutureBuilder<GroupInvitePreview?>(
-      future: ref.read(groupRepositoryProvider).getInvitePreview(request.groupId),
+      future: ref
+          .read(groupRepositoryProvider)
+          .getInvitePreview(request.groupId),
       builder: (context, snapshot) {
         final preview = snapshot.data;
-        return ListTile(
-          leading: CircleAvatar(
-            backgroundImage:
-                preview?.iconUrl != null ? NetworkImage(preview!.iconUrl!) : null,
-            child: preview?.iconUrl == null
-                ? const Icon(Icons.hourglass_top_outlined)
-                : null,
+        final leadingWidget = CircleAvatar(
+          backgroundImage: preview?.iconUrl != null
+              ? NetworkImage(preview!.iconUrl!)
+              : null,
+          child: preview?.iconUrl == null
+              ? const Icon(Icons.hourglass_top_outlined)
+              : null,
+        );
+        final titleWidget = Text(preview?.name ?? '...');
+        final subtitleWidget = Text(strings.groupJoinPendingListSubtitle);
+        void onTap() => showDialog<void>(
+          context: context,
+          builder: (context) => AlertDialog(
+            content: Text(strings.groupJoinPending),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: Text(strings.groupJoinPendingDialogClose),
+              ),
+            ],
           ),
-          title: Text(preview?.name ?? '...'),
-          subtitle: Text(strings.groupJoinPendingListSubtitle),
-          onTap: () => showDialog<void>(
-            context: context,
-            builder: (context) => AlertDialog(
-              content: Text(strings.groupJoinPending),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: Text(strings.groupJoinPendingDialogClose),
-                ),
-              ],
+        );
+
+        if (isGekiga) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: GekigaMenuTile(
+              seed: request.requestId.hashCode,
+              leading: leadingWidget,
+              title: titleWidget,
+              subtitle: subtitleWidget,
+              onTap: onTap,
             ),
-          ),
+          );
+        }
+
+        return ListTile(
+          leading: leadingWidget,
+          title: titleWidget,
+          subtitle: subtitleWidget,
+          onTap: onTap,
         );
       },
     );
@@ -954,9 +1029,40 @@ class _DirectMessageTile extends ConsumerWidget {
     final otherUserId = dm.otherUserId(currentUser.userId);
     final otherUser = ref.watch(watchedUserProvider(otherUserId)).value;
     final nickname = otherUser?.effectiveNicknameFor(dm.dmId)?.text;
-    final label =
-        (nickname?.isNotEmpty ?? false) ? nickname! : '@${dm.otherRhingId(currentUser.userId)}';
+    final label = (nickname?.isNotEmpty ?? false)
+        ? nickname!
+        : '@${dm.otherRhingId(currentUser.userId)}';
     final iconUrl = otherUser?.effectiveIconFor(dm.dmId)?.url;
+    final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
+
+    final leadingWidget = CircleAvatar(
+      backgroundImage: iconUrl != null ? NetworkImage(iconUrl) : null,
+      child: iconUrl == null ? const Icon(Icons.person) : null,
+    );
+    final trailingWidget = _ConversationIndicators(
+      pinned: pinned,
+      muted: muted,
+    );
+
+    if (isGekiga) {
+      return _ConversationGestures(
+        conversationId: dm.dmId,
+        userId: currentUser.userId,
+        pinned: pinned,
+        muted: muted,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: GekigaMenuTile(
+            seed: dm.dmId.hashCode,
+            selected: selected,
+            leading: leadingWidget,
+            title: Text(label),
+            trailing: trailingWidget,
+            onTap: onTap,
+          ),
+        ),
+      );
+    }
 
     return _ConversationGestures(
       conversationId: dm.dmId,
@@ -965,13 +1071,12 @@ class _DirectMessageTile extends ConsumerWidget {
       muted: muted,
       child: ListTile(
         selected: selected,
-        selectedTileColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.08),
-        leading: CircleAvatar(
-          backgroundImage: iconUrl != null ? NetworkImage(iconUrl) : null,
-          child: iconUrl == null ? const Icon(Icons.person) : null,
-        ),
+        selectedTileColor: Theme.of(
+          context,
+        ).colorScheme.primary.withValues(alpha: 0.08),
+        leading: leadingWidget,
         title: Text(label),
-        trailing: _ConversationIndicators(pinned: pinned, muted: muted),
+        trailing: trailingWidget,
         onTap: onTap,
       ),
     );
@@ -998,6 +1103,38 @@ class _GroupTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final iconUrl = group.profileCard?.iconUrl;
+    final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
+
+    final leadingWidget = CircleAvatar(
+      backgroundImage: iconUrl != null ? NetworkImage(iconUrl) : null,
+      child: iconUrl == null ? const Icon(Icons.groups) : null,
+    );
+    final trailingWidget = _ConversationIndicators(
+      pinned: pinned,
+      muted: muted,
+    );
+
+    if (isGekiga) {
+      return _ConversationGestures(
+        conversationId: group.groupId,
+        userId: currentUserId,
+        pinned: pinned,
+        muted: muted,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: GekigaMenuTile(
+            seed: group.groupId.hashCode,
+            selected: selected,
+            leading: leadingWidget,
+            title: Text(group.name),
+            subtitle: Text('${group.memberIds.length}人'),
+            trailing: trailingWidget,
+            onTap: onTap,
+          ),
+        ),
+      );
+    }
+
     return _ConversationGestures(
       conversationId: group.groupId,
       userId: currentUserId,
@@ -1005,14 +1142,13 @@ class _GroupTile extends ConsumerWidget {
       muted: muted,
       child: ListTile(
         selected: selected,
-        selectedTileColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.08),
-        leading: CircleAvatar(
-          backgroundImage: iconUrl != null ? NetworkImage(iconUrl) : null,
-          child: iconUrl == null ? const Icon(Icons.groups) : null,
-        ),
+        selectedTileColor: Theme.of(
+          context,
+        ).colorScheme.primary.withValues(alpha: 0.08),
+        leading: leadingWidget,
         title: Text(group.name),
         subtitle: Text('${group.memberIds.length}人'),
-        trailing: _ConversationIndicators(pinned: pinned, muted: muted),
+        trailing: trailingWidget,
         onTap: onTap,
       ),
     );
@@ -1032,10 +1168,19 @@ class _ConversationIndicators extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        if (muted) const Icon(Icons.notifications_off_outlined, size: 18, color: Colors.grey),
+        if (muted)
+          const Icon(
+            Icons.notifications_off_outlined,
+            size: 18,
+            color: Colors.grey,
+          ),
         if (pinned) ...[
           if (muted) const SizedBox(width: 4),
-          Icon(Icons.push_pin, size: 18, color: Theme.of(context).colorScheme.primary),
+          Icon(
+            Icons.push_pin,
+            size: 18,
+            color: Theme.of(context).colorScheme.primary,
+          ),
         ],
       ],
     );
@@ -1058,30 +1203,47 @@ class _ConversationGestures extends ConsumerWidget {
   final bool muted;
   final Widget child;
 
-  Future<void> _showMenu(BuildContext context, WidgetRef ref, Offset position) async {
+  Future<void> _showMenu(
+    BuildContext context,
+    WidgetRef ref,
+    Offset position,
+  ) async {
     final strings = ref.read(appStringsProvider);
     final selected = await showMenu<String>(
       context: context,
-      position: RelativeRect.fromLTRB(position.dx, position.dy, position.dx, position.dy),
+      position: RelativeRect.fromLTRB(
+        position.dx,
+        position.dy,
+        position.dx,
+        position.dy,
+      ),
       items: [
         PopupMenuItem(
           value: 'pin',
-          child: Text(pinned ? strings.conversationUnpin : strings.conversationPin),
+          child: Text(
+            pinned ? strings.conversationUnpin : strings.conversationPin,
+          ),
         ),
         PopupMenuItem(
           value: 'mute',
-          child: Text(muted ? strings.conversationUnmute : strings.conversationMute),
+          child: Text(
+            muted ? strings.conversationUnmute : strings.conversationMute,
+          ),
         ),
       ],
     );
     if (selected == 'pin') {
-      await ref.read(conversationPrefsRepositoryProvider).setPinned(
+      await ref
+          .read(conversationPrefsRepositoryProvider)
+          .setPinned(
             userId: userId,
             conversationId: conversationId,
             pinned: !pinned,
           );
     } else if (selected == 'mute') {
-      await ref.read(conversationPrefsRepositoryProvider).setNotificationsMuted(
+      await ref
+          .read(conversationPrefsRepositoryProvider)
+          .setNotificationsMuted(
             userId: userId,
             conversationId: conversationId,
             muted: !muted,
@@ -1092,8 +1254,10 @@ class _ConversationGestures extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return GestureDetector(
-      onSecondaryTapDown: (details) => _showMenu(context, ref, details.globalPosition),
-      onLongPressStart: (details) => _showMenu(context, ref, details.globalPosition),
+      onSecondaryTapDown: (details) =>
+          _showMenu(context, ref, details.globalPosition),
+      onLongPressStart: (details) =>
+          _showMenu(context, ref, details.globalPosition),
       child: child,
     );
   }
@@ -1132,9 +1296,9 @@ class _AddMenuOption extends StatelessWidget {
             Text(
               title,
               textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 6),
             Text(

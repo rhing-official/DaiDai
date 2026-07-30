@@ -20,7 +20,11 @@ const _sidebarWidth = 220.0;
 /// 一対の寄合一覧（狭い画面でのドリルダウン用フルスクリーン、`/chat/dm-rooms`）。
 /// 寄合をタップすると`/chat/dm`へ選択した寄合を添えてpushする。
 class DmRoomListScreen extends ConsumerWidget {
-  const DmRoomListScreen({required this.currentUser, required this.dm, super.key});
+  const DmRoomListScreen({
+    required this.currentUser,
+    required this.dm,
+    super.key,
+  });
 
   final AppUser currentUser;
   final DirectMessage dm;
@@ -31,7 +35,10 @@ class DmRoomListScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(title: Text('@${dm.otherRhingId(currentUser.userId)}')),
       body: StreamBuilder<List<DmRoom>>(
-        stream: dmRepository.watchRooms(dmId: dm.dmId, userId: currentUser.userId),
+        stream: dmRepository.watchRooms(
+          dmId: dm.dmId,
+          userId: currentUser.userId,
+        ),
         builder: (context, snapshot) {
           final rooms = snapshot.data ?? const <DmRoom>[];
           return Row(
@@ -40,9 +47,13 @@ class DmRoomListScreen extends ConsumerWidget {
                 width: _sidebarWidth,
                 child: RoomListPane(
                   conversationName: '@${dm.otherRhingId(currentUser.userId)}',
-                  rooms: [for (final r in rooms) (roomId: r.roomId, name: r.name)],
+                  rooms: [
+                    for (final r in rooms) (roomId: r.roomId, name: r.name),
+                  ],
                   selectedRoomId: null,
-                  onSelectRoom: (room) => ref.read(goRouterProvider).push(
+                  onSelectRoom: (room) => ref
+                      .read(goRouterProvider)
+                      .push(
                         '/chat/dm',
                         extra: DmChatArgs(
                           currentUser: currentUser,
@@ -53,11 +64,6 @@ class DmRoomListScreen extends ConsumerWidget {
                       ),
                   onCreateRoom: (name) =>
                       dmRepository.createRoom(dmId: dm.dmId, name: name),
-                  onDeleteRoom: (roomId) => dmRepository.deleteRoom(
-                    dmId: dm.dmId,
-                    roomId: roomId,
-                    requestedBy: currentUser.userId,
-                  ),
                 ),
               ),
               const VerticalDivider(width: 1),
@@ -107,9 +113,13 @@ class GroupRoomListScreen extends ConsumerWidget {
                 width: _sidebarWidth,
                 child: RoomListPane(
                   conversationName: group.name,
-                  rooms: [for (final r in rooms) (roomId: r.roomId, name: r.name)],
+                  rooms: [
+                    for (final r in rooms) (roomId: r.roomId, name: r.name),
+                  ],
                   selectedRoomId: null,
-                  onSelectRoom: (room) => ref.read(goRouterProvider).push(
+                  onSelectRoom: (room) => ref
+                      .read(goRouterProvider)
+                      .push(
                         '/chat/group',
                         extra: GroupChatArgs(
                           currentUser: currentUser,
@@ -120,16 +130,9 @@ class GroupRoomListScreen extends ConsumerWidget {
                       ),
                   onCreateRoom: canManageRooms
                       ? (name) => groupRepository.createRoom(
-                            groupId: group.groupId,
-                            name: name,
-                          )
-                      : null,
-                  onDeleteRoom: canManageRooms
-                      ? (roomId) => groupRepository.deleteRoom(
-                            groupId: group.groupId,
-                            roomId: roomId,
-                            requestedBy: currentUser.userId,
-                          )
+                          groupId: group.groupId,
+                          name: name,
+                        )
                       : null,
                   // 全体設定ポップアップ自体は全メンバーが開ける（中の各項目が
                   // 個別に権限ゲートされる、2026-07-29変更）。
@@ -137,8 +140,10 @@ class GroupRoomListScreen extends ConsumerWidget {
                     context: context,
                     builder: (_) => Dialog(
                       child: ConstrainedBox(
-                        constraints:
-                            const BoxConstraints(maxWidth: 420, maxHeight: 640),
+                        constraints: const BoxConstraints(
+                          maxWidth: 420,
+                          maxHeight: 640,
+                        ),
                         child: GroupSettingsPopup(
                           currentUser: currentUser,
                           group: group,

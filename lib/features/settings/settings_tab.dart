@@ -25,6 +25,8 @@ import '../../providers/terminology_style_provider.dart';
 import '../../providers/theme_mode_provider.dart';
 import '../../providers/user_providers.dart';
 import '../../utils/color_hex.dart';
+import '../../widgets/gekiga/gekiga_label_chip.dart';
+import '../../widgets/gekiga/gekiga_panel_box.dart';
 import '../../widgets/profile_card_picker.dart';
 import '../../widgets/swipe_gestures.dart';
 
@@ -62,8 +64,8 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
         MediaQuery.sizeOf(context).width >= _kSettingsSplitBreakpoint;
 
     if (isWide) {
-      final selected = _findCategoryById(categories, _selectedId) ??
-          categories.first;
+      final selected =
+          _findCategoryById(categories, _selectedId) ?? categories.first;
       return Padding(
         padding: const EdgeInsets.only(top: 24),
         child: Row(
@@ -90,9 +92,11 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
     }
 
     final selected = _findCategoryById(categories, _selectedId);
-    final selectedIndex =
-        selected == null ? -1 : categories.indexWhere((c) => c.id == selected.id);
-    final nextCategory = selectedIndex >= 0 && selectedIndex < categories.length - 1
+    final selectedIndex = selected == null
+        ? -1
+        : categories.indexWhere((c) => c.id == selected.id);
+    final nextCategory =
+        selectedIndex >= 0 && selectedIndex < categories.length - 1
         ? categories[selectedIndex + 1]
         : null;
     return Align(
@@ -180,17 +184,17 @@ List<_SettingsCategory> _categories(
           _TalkPage(strings: strings, currentUser: currentUser),
     ),
     _SettingsCategory(
-      id: 'input',
-      icon: Icons.keyboard_outlined,
-      title: strings.settingsFolderInput,
-      pageBuilder: (context) => _InputFolder(strings: strings),
-    ),
-    _SettingsCategory(
       id: 'notifications',
       icon: Icons.notifications_outlined,
       title: strings.settingsFolderNotifications,
       pageBuilder: (context) =>
           _ComingSoonFolder(message: strings.settingsComingSoon),
+    ),
+    _SettingsCategory(
+      id: 'support',
+      icon: Icons.support_agent_outlined,
+      title: strings.settingsFolderSupport,
+      pageBuilder: (context) => _SupportFolder(strings: strings),
     ),
   ];
 }
@@ -226,7 +230,7 @@ class _CategoryList extends StatelessWidget {
   }
 }
 
-class _FolderTile extends StatelessWidget {
+class _FolderTile extends ConsumerWidget {
   const _FolderTile({
     required this.icon,
     required this.title,
@@ -242,8 +246,27 @@ class _FolderTile extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colorScheme = Theme.of(context).colorScheme;
+    final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
+    final trailingWidget = trailingChevron
+        ? const Icon(Icons.chevron_right)
+        : null;
+
+    if (isGekiga) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: GekigaMenuTile(
+          seed: title.hashCode,
+          selected: selected,
+          leading: Icon(icon),
+          title: Text(title),
+          trailing: trailingWidget,
+          onTap: onTap,
+        ),
+      );
+    }
+
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 6),
       color: selected ? colorScheme.primary.withValues(alpha: 0.1) : null,
@@ -253,7 +276,7 @@ class _FolderTile extends StatelessWidget {
         selectedColor: colorScheme.primary,
         leading: Icon(icon),
         title: Text(title),
-        trailing: trailingChevron ? const Icon(Icons.chevron_right) : null,
+        trailing: trailingWidget,
         onTap: onTap,
       ),
     );
@@ -313,35 +336,37 @@ class _NarrowSettingsPage extends StatelessWidget {
       onNext: onNext,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(child: Builder(builder: category.pageBuilder)),
-        ],
+        children: [Expanded(child: Builder(builder: category.pageBuilder))],
       ),
     );
   }
 }
 
-/// セクションの見出し。
-class _SectionHeader extends StatelessWidget {
+/// セクションの見出し。劇画スタイル時は黒地白文字のラベルチップにする
+/// （2026-07-30、appUiStyleProviderを見るためConsumerWidget化）。
+class _SectionHeader extends ConsumerWidget {
   const _SectionHeader(this.title);
 
   final String title;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-      child: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+      child: isGekiga
+          ? Align(
+              alignment: Alignment.centerLeft,
+              child: GekigaLabelChip(title),
+            )
+          : Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
     );
   }
 }
 
 /// ラベル＋値（読み取り専用、または「準備中」）の1行。
 class _InfoRow extends StatelessWidget {
-  const _InfoRow({
-    required this.label,
-    required this.value,
-  });
+  const _InfoRow({required this.label, required this.value});
 
   final String label;
   final String value;
@@ -354,10 +379,7 @@ class _InfoRow extends StatelessWidget {
       child: Row(
         children: [
           Expanded(child: Text(label)),
-          Text(
-            value,
-            style: TextStyle(color: colorScheme.onSurfaceVariant),
-          ),
+          Text(value, style: TextStyle(color: colorScheme.onSurfaceVariant)),
         ],
       ),
     );
@@ -448,8 +470,10 @@ class _AccountPage extends ConsumerWidget {
           label: strings.settingsDeleteAccountImmediate,
           destructive: true,
           onTap: () async {
-            final confirmed =
-                await _confirmDeleteAccountImmediately(context, strings);
+            final confirmed = await _confirmDeleteAccountImmediately(
+              context,
+              strings,
+            );
             if (!confirmed || !context.mounted) return;
             await ref.read(userRepositoryProvider).deleteAccountImmediately();
             if (!context.mounted) return;
@@ -545,15 +569,9 @@ class _ApplicationPage extends StatelessWidget {
         ),
         _UiStyleFolder(strings: strings),
         const Divider(height: 24),
-        _ChatLayoutFolder(strings: strings),
-        const Divider(height: 24),
         _SectionHeader(strings.settingsSubTypography),
         _InfoRow(
           label: strings.settingsFontDesign,
-          value: strings.settingsComingSoon,
-        ),
-        _InfoRow(
-          label: strings.settingsFontSize,
           value: strings.settingsComingSoon,
         ),
         const Divider(height: 24),
@@ -640,20 +658,23 @@ class _DesignFolderState extends ConsumerState<_DesignFolder> {
               ChoiceChip(
                 label: Text(widget.strings.settingsAppearanceLight),
                 selected: themeMode == ThemeMode.light,
-                onSelected: (_) =>
-                    ref.read(appThemeModeProvider.notifier).setMode(ThemeMode.light),
+                onSelected: (_) => ref
+                    .read(appThemeModeProvider.notifier)
+                    .setMode(ThemeMode.light),
               ),
               ChoiceChip(
                 label: Text(widget.strings.settingsAppearanceDark),
                 selected: themeMode == ThemeMode.dark,
-                onSelected: (_) =>
-                    ref.read(appThemeModeProvider.notifier).setMode(ThemeMode.dark),
+                onSelected: (_) => ref
+                    .read(appThemeModeProvider.notifier)
+                    .setMode(ThemeMode.dark),
               ),
               ChoiceChip(
                 label: Text(widget.strings.settingsAppearanceSystem),
                 selected: themeMode == ThemeMode.system,
-                onSelected: (_) =>
-                    ref.read(appThemeModeProvider.notifier).setMode(ThemeMode.system),
+                onSelected: (_) => ref
+                    .read(appThemeModeProvider.notifier)
+                    .setMode(ThemeMode.system),
               ),
             ],
           ),
@@ -714,7 +735,10 @@ class _DesignFolderState extends ConsumerState<_DesignFolder> {
             children: [
               Text(
                 widget.strings.settingsColorPresets,
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                ),
               ),
               const SizedBox(height: 8),
               Wrap(
@@ -809,9 +833,7 @@ class _LanguageFolder extends ConsumerWidget {
             ],
             selected: {currentLocale},
             onSelectionChanged: (selection) {
-              ref
-                  .read(appLocaleProvider.notifier)
-                  .setLocale(selection.first);
+              ref.read(appLocaleProvider.notifier).setLocale(selection.first);
             },
           ),
         ),
@@ -841,8 +863,9 @@ class _LanguageFolder extends ConsumerWidget {
                         : strings.settingsTerminologyConvenience,
                   ),
                   selected: currentStyle == style,
-                  onSelected: (_) =>
-                      ref.read(terminologyStyleProvider.notifier).setStyle(style),
+                  onSelected: (_) => ref
+                      .read(terminologyStyleProvider.notifier)
+                      .setStyle(style),
                 ),
             ],
           ),
@@ -973,8 +996,9 @@ class _TimeFormatFolder extends ConsumerWidget {
                         : strings.settingsTimeFormat12h,
                   ),
                   selected: currentFormat == format,
-                  onSelected: (_) =>
-                      ref.read(messageTimeFormatProvider.notifier).setFormat(format),
+                  onSelected: (_) => ref
+                      .read(messageTimeFormatProvider.notifier)
+                      .setFormat(format),
                 ),
             ],
           ),
@@ -984,7 +1008,10 @@ class _TimeFormatFolder extends ConsumerWidget {
   }
 }
 
-/// 語らいカテゴリの中身。現状はブロックしたユーザーの一覧・解除のみ。
+/// 語らいカテゴリの中身。ブロックしたユーザーの一覧・解除、プロフィール
+/// カードの割り当てに加え、2026-07-30にメッセージの表示・送信キー設定を
+/// （それぞれアプリケーション・入力カテゴリから）ここへ統合した。
+/// 送信キー設定はこの統合により旧「入力」カテゴリが空になったため廃止した。
 class _TalkPage extends StatelessWidget {
   const _TalkPage({required this.strings, required this.currentUser});
 
@@ -1000,7 +1027,14 @@ class _TalkPage extends StatelessWidget {
         _BlockedUsersFolder(strings: strings, currentUser: currentUser),
         const Divider(height: 24),
         _SectionHeader(strings.settingsProfileCardAssignmentTitle),
-        _ProfileCardAssignmentFolder(strings: strings, currentUser: currentUser),
+        _ProfileCardAssignmentFolder(
+          strings: strings,
+          currentUser: currentUser,
+        ),
+        const Divider(height: 24),
+        _ChatLayoutFolder(strings: strings),
+        const Divider(height: 24),
+        _SendKeyFolder(strings: strings),
       ],
     );
   }
@@ -1022,7 +1056,9 @@ class _ProfileCardAssignmentFolder extends ConsumerWidget {
     String conversationId,
     String? profileCardId,
   ) {
-    return ref.read(userRepositoryProvider).setConversationProfileCard(
+    return ref
+        .read(userRepositoryProvider)
+        .setConversationProfileCard(
           userId: currentUser.userId,
           conversationId: conversationId,
           profileCardId: profileCardId,
@@ -1051,7 +1087,9 @@ class _ProfileCardAssignmentFolder extends ConsumerWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         child: Text(
           strings.settingsProfileCardAssignmentEmpty,
-          style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
         ),
       );
     }
@@ -1139,21 +1177,22 @@ class _BlockedUsersFolder extends ConsumerWidget {
     String targetUserId,
   ) async {
     try {
-      await ref.read(blockRepositoryProvider).unblock(
-            userId: currentUser.userId,
-            targetUserId: targetUserId,
-          );
+      await ref
+          .read(blockRepositoryProvider)
+          .unblock(userId: currentUser.userId, targetUserId: targetUserId);
     } catch (e) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('エラーが発生しました: $e')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('エラーが発生しました: $e')));
     }
   }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final blockedIdsAsync =
-        ref.watch(blockedUserIdsProvider(currentUser.userId));
+    final blockedIdsAsync = ref.watch(
+      blockedUserIdsProvider(currentUser.userId),
+    );
 
     return blockedIdsAsync.when(
       loading: () => const Padding(
@@ -1199,9 +1238,11 @@ class _BlockedUsersFolder extends ConsumerWidget {
                           ? NetworkImage(user.effectiveIcon!.url)
                           : null,
                       child: user.effectiveIcon?.url == null
-                          ? Text(user.rhingId.isNotEmpty
-                              ? user.rhingId[0].toUpperCase()
-                              : '?')
+                          ? Text(
+                              user.rhingId.isNotEmpty
+                                  ? user.rhingId[0].toUpperCase()
+                                  : '?',
+                            )
                           : null,
                     ),
                     title: Text('@${user.rhingId}'),
@@ -1219,8 +1260,8 @@ class _BlockedUsersFolder extends ConsumerWidget {
   }
 }
 
-class _InputFolder extends ConsumerWidget {
-  const _InputFolder({required this.strings});
+class _SendKeyFolder extends ConsumerWidget {
+  const _SendKeyFolder({required this.strings});
 
   final Strings strings;
 
@@ -1228,7 +1269,9 @@ class _InputFolder extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final mode = ref.watch(sendKeyModeProvider);
 
-    return ListView(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
@@ -1276,6 +1319,34 @@ class _ComingSoonFolder extends StatelessWidget {
       child: Center(
         child: Text(message, style: Theme.of(context).textTheme.bodyMedium),
       ),
+    );
+  }
+}
+
+/// 運営カテゴリの中身（2026-07-30、旧「運営」タブを廃止しここへ統合）。
+/// ホームページURLが正式に確定していないため、いずれも準備中として案内する。
+class _SupportFolder extends StatelessWidget {
+  const _SupportFolder({required this.strings});
+
+  final Strings strings;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        _InfoRow(
+          label: strings.supportHomepageUrl,
+          value: strings.settingsComingSoon,
+        ),
+        _InfoRow(
+          label: strings.supportAnnouncements,
+          value: strings.settingsComingSoon,
+        ),
+        _InfoRow(
+          label: strings.supportContactForm,
+          value: strings.settingsComingSoon,
+        ),
+      ],
     );
   }
 }

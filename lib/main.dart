@@ -3,9 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_web_plugins/url_strategy.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import 'firebase_options.dart';
 import 'l10n/app_locale.dart';
+import 'models/app_ui_style.dart';
 import 'providers/accent_color_provider.dart';
 import 'providers/app_locale_provider.dart';
 import 'providers/app_ui_style_provider.dart';
@@ -16,9 +18,14 @@ import 'providers/terminology_style_provider.dart';
 import 'providers/theme_mode_provider.dart';
 import 'router/app_router.dart';
 import 'theme/app_theme.dart';
+import 'theme/gekiga/gekiga_theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // 劇画UIスタイルの見出しフォント（Anton）はGoogle CDNから実行時取得せず、
+  // アプリに同梱したファイルのみを使う（プライバシーファースト方針に
+  // 合わせ、外部通信を発生させないため）。
+  GoogleFonts.config.allowRuntimeFetching = false;
   // 既定のハッシュURL戦略（例: /#/join/xxx）のままだと、招待リンク
   // （例: https://.../join/xxx/yyy、ハッシュ無し）を新しいタブで直接開いた際に
   // go_routerがURLのパス部分をハッシュとして読み取れず、常にルート（語らい
@@ -63,10 +70,16 @@ class DaiDaiApp extends ConsumerWidget {
     final accentColor = ref.watch(accentColorProvider);
     final appLocale = ref.watch(appLocaleProvider);
     final themeMode = ref.watch(appThemeModeProvider);
+    final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
+    // 劇画スタイルはライト/ダークどちらのthemeModeでも同じ見た目にするため、
+    // theme/darkThemeの両方に同一のThemeDataを渡す（chat_screen.dartの
+    // 既存方針をアプリ全体に拡張したもの）。
+    final theme = isGekiga ? GekigaTheme.build(accentColor) : AppTheme.light(accentColor);
+    final darkTheme = isGekiga ? GekigaTheme.build(accentColor) : AppTheme.dark(accentColor);
     return MaterialApp.router(
       title: 'DaiDai',
-      theme: AppTheme.light(accentColor),
-      darkTheme: AppTheme.dark(accentColor),
+      theme: theme,
+      darkTheme: darkTheme,
       themeMode: themeMode,
       locale: appLocale.locale,
       supportedLocales: AppLocale.values.map((l) => l.locale),

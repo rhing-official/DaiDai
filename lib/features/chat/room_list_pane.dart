@@ -3,6 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/strings.dart';
 import '../../l10n/vocabulary.dart';
+import '../../models/app_ui_style.dart';
+import '../../providers/app_ui_style_provider.dart';
+import '../../widgets/gekiga/gekiga_panel_box.dart';
 
 /// 寄合（テキストチャンネル）1件分の一覧表示用の軽量データ。
 /// 広場の`Room`・一対の`DmRoom`どちらもこの形にマッピングして渡す。
@@ -14,12 +17,13 @@ typedef RoomListEntry = ({String roomId, String name});
 /// （`ChatScreen`が会話種別に依存しない設計を踏襲）。
 ///
 /// 追加は確認無しで（名前を入力するダイアログのみで）即座に作成できる。
-/// 削除は「本当に削除しますか？」の確認を挟む。[onCreateRoom]/
-/// [onDeleteRoom]がnullの場合、それぞれの操作UI自体を出さない
-/// （広場で長・モデレーターでないメンバーには削除ボタンを出さない、
-/// 等の権限制御は呼び出し側がコールバックのnull/非nullで表現する）。
-/// 寄合が1つしかない場合は、[onDeleteRoom]が非nullでも削除ボタンを
-/// 無効化する（最後の1つは削除できないため）。
+/// [onCreateRoom]がnullの場合、追加ボタン自体を出さない（広場で長・
+/// モデレーターでないメンバーには出さない、等の権限制御は呼び出し側が
+/// コールバックのnull/非nullで表現する）。
+///
+/// 削除はこのサイドバーからは行わない（旧: ごみ箱アイコン）。開いている
+/// 寄合のハンバーガーメニュー「寄合を削除」から行う（2026-07-30変更、
+/// `chat_panes.dart`の`_DmMenuButton`/`_GroupMenuButton`参照）。
 ///
 /// [rooms]はStreamではなく解決済みの値で受け取る（以前はここで独自に
 /// `Stream`を購読していたが、呼び出し側（`TalksTab`）が上位の会話一覧
@@ -34,7 +38,6 @@ class RoomListPane extends ConsumerWidget {
     required this.selectedRoomId,
     required this.onSelectRoom,
     this.onCreateRoom,
-    this.onDeleteRoom,
     this.onOpenGroupSettings,
     super.key,
   });
@@ -51,7 +54,6 @@ class RoomListPane extends ConsumerWidget {
   /// 再取得しなくても良いようにするため。
   final void Function(RoomListEntry room) onSelectRoom;
   final Future<void> Function(String name)? onCreateRoom;
-  final Future<void> Function(String roomId)? onDeleteRoom;
 
   /// 「広場自体の設定」を開く（サイドバーの歯車アイコン、2026-07-28追加）。
   /// 広場の長・モデレーターにのみ渡す。nullなら歯車アイコン自体を出さない
@@ -89,41 +91,38 @@ class RoomListPane extends ConsumerWidget {
     await onCreateRoom?.call(name);
   }
 
-  Future<void> _confirmDelete(
-    BuildContext context,
-    Strings strings,
-    Vocabulary vocab,
-    String roomId,
-  ) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(strings.roomListDeleteConfirmTitle(vocab.textChannel)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: Text(strings.cancel),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(context).colorScheme.error,
-            ),
-            onPressed: () => Navigator.of(context).pop(true),
-            child: Text(strings.roomListDeleteConfirmButton),
-          ),
-        ],
-      ),
-    );
-    if (confirmed == true) await onDeleteRoom?.call(roomId);
-  }
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final strings = ref.watch(appStringsProvider);
     final vocab = ref.watch(vocabularyProvider);
     final colorScheme = Theme.of(context).colorScheme;
+    final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
 
-    final canDeleteAny = onDeleteRoom != null && rooms.length > 1;
+    Widget buildRoomTile(RoomListEntry room) {
+      final isSelected = room.roomId == selectedRoomId;
+
+      if (isGekiga) {
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: GekigaMenuTile(
+            seed: room.roomId.hashCode,
+            selected: isSelected,
+            leading: const Icon(Icons.tag),
+            title: Text(room.name),
+            onTap: () => onSelectRoom(room),
+          ),
+        );
+      }
+
+      return ListTile(
+        selected: isSelected,
+        selectedTileColor: colorScheme.primaryContainer.withValues(alpha: 0.3),
+        leading: const Icon(Icons.tag),
+        title: Text(room.name),
+        onTap: () => onSelectRoom(room),
+      );
+    }
+
     return Material(
       color: colorScheme.surface,
       child: Column(
@@ -158,30 +157,7 @@ class RoomListPane extends ConsumerWidget {
           const Divider(height: 1),
           Expanded(
             child: ListView(
-              children: [
-                for (final room in rooms)
-                  ListTile(
-                    selected: room.roomId == selectedRoomId,
-                    selectedTileColor:
-                        colorScheme.primaryContainer.withValues(alpha: 0.3),
-                    leading: const Icon(Icons.tag),
-                    title: Text(room.name),
-                    onTap: () => onSelectRoom(room),
-                    trailing: onDeleteRoom == null
-                        ? null
-                        : IconButton(
-                            icon: const Icon(Icons.delete_outline),
-                            onPressed: canDeleteAny
-                                ? () => _confirmDelete(
-                                      context,
-                                      strings,
-                                      vocab,
-                                      room.roomId,
-                                    )
-                                : null,
-                          ),
-                  ),
-              ],
+              children: [for (final room in rooms) buildRoomTile(room)],
             ),
           ),
         ],

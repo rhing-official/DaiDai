@@ -1,6 +1,5 @@
-import 'dart:math' as math;
-
-import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatform;
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
@@ -21,14 +20,13 @@ import '../../providers/message_time_format_provider.dart';
 import '../../providers/send_key_mode_provider.dart';
 import '../../providers/user_providers.dart';
 import '../../theme/app_theme_extras.dart';
+import '../../theme/gekiga/gekiga_colors.dart';
+import '../../theme/gekiga/gekiga_shapes.dart';
 import '../../utils/link_detection.dart';
 import '../../utils/message_time.dart';
+import '../../widgets/gekiga/gekiga_badge.dart';
 import '../../widgets/link_preview_card.dart';
 import '../../widgets/linkified_text.dart';
-
-/// 劇画スタイル（[AppUiStyle.gekiga]）のメッセージ画面全体の固定背景色。
-/// アクセントカラーとは独立の、このスタイル専用の色（2026-07-29追加）。
-const _kGekigaBackground = Color(0xFFC1272D);
 
 /// 一対・広場（お部屋）どちらの会話でも使える汎用チャット画面。
 /// メッセージの取得・送信方法は呼び出し元がstream/callbackとして渡す。
@@ -71,11 +69,13 @@ class ChatScreen extends ConsumerStatefulWidget {
   final String? conversationId;
 
   final Stream<List<Message>> messagesStream;
-  final Future<void> Function(String content, {bool silent, Message? replyTo}) onSend;
+  final Future<void> Function(String content, {bool silent, Message? replyTo})
+  onSend;
 
   /// 送信済みテキストメッセージの本文を編集する。nullなら編集機能自体を
   /// 提供しない（メニューに「編集」項目を出さない）。
-  final Future<void> Function(String messageId, String newContent)? onEditMessage;
+  final Future<void> Function(String messageId, String newContent)?
+  onEditMessage;
 
   /// 送信済みメッセージの送信取り消し（相手側にも痕跡を残さず完全に削除）。
   /// nullなら送信取り消し機能自体を提供しない。
@@ -141,7 +141,6 @@ class ChatScreen extends ConsumerStatefulWidget {
 class _ChatScreenState extends ConsumerState<ChatScreen>
     with SingleTickerProviderStateMixin {
   final _textController = TextEditingController();
-  late bool _hasHardwareKeyboard;
 
   /// メッセージ一覧のスクロール位置を、自動スクロール機能から直接操作する
   /// ために持つ（返信先ジャンプ機能は従来通りcontextベースの
@@ -150,6 +149,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
 
   /// 自動スクロール開始位置（画面座標）を表示するアイコンの位置計算に使う。
   final _autoScrollAreaKey = GlobalKey();
+
+  /// 入力欄オーバーレイ（返信/編集バー＋テキスト入力欄、build()末尾で
+  /// メッセージ一覧の上に重ねて表示する）の実際の高さ計測用。メッセージ
+  /// 一覧の下部余白をこの高さに追従させることで、入力欄の裏に完全に
+  /// 隠れて見えなくなるメッセージが出ないようにしつつ、入力欄が伸び縮み
+  /// する瞬間はメッセージがその下に滑らかに潜り込むように見せる
+  /// （2026-07-30、入力欄の直前でメッセージが唐突に途切れて見える不具合の修正）。
+  final _composerAreaKey = GlobalKey();
+  double _composerAreaHeight = 72;
 
   /// ミドルクリック/長押しによる自動スクロールの基準位置（画面座標）。
   /// nullなら非アクティブ（2026-07-29追加、ブラウザのミドルクリック
@@ -203,6 +211,22 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     }
   }
 
+  /// [_composerAreaKey]が指す入力欄オーバーレイの実際の描画高さを計測し、
+  /// [_composerAreaHeight]（メッセージ一覧の下部余白に使う）へ反映する。
+  /// テキスト入力欄が複数行になる、返信/編集バーの表示が切り替わるなど
+  /// 高さが変わるたびに呼び直す必要があるため、build()から毎フレーム後に
+  /// スケジュールする。
+  void _measureComposerArea() {
+    if (!mounted) return;
+    final box =
+        _composerAreaKey.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null || !box.hasSize) return;
+    final height = box.size.height;
+    if ((height - _composerAreaHeight).abs() > 0.5) {
+      setState(() => _composerAreaHeight = height);
+    }
+  }
+
   /// 自動スクロール中、基準位置に表示する小さいアイコン
   /// （ブラウザのミドルクリックオートスクロールと同じ見た目）。
   Widget _buildAutoScrollIndicator() {
@@ -230,7 +254,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
 
   void _tickAutoScroll(Duration elapsed) {
     final dtSeconds =
-        (elapsed - _autoScrollLastTick).inMicroseconds / Duration.microsecondsPerSecond;
+        (elapsed - _autoScrollLastTick).inMicroseconds /
+        Duration.microsecondsPerSecond;
     _autoScrollLastTick = elapsed;
     if (dtSeconds <= 0 || !_scrollController.hasClients) return;
     final dy = _autoScrollDy;
@@ -245,8 +270,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     // pixelsを減らす向きになる。
     final delta = dtSeconds * speed * (dy > 0 ? -1 : 1);
     final position = _scrollController.position;
-    final next = (position.pixels + delta)
-        .clamp(position.minScrollExtent, position.maxScrollExtent);
+    final next = (position.pixels + delta).clamp(
+      position.minScrollExtent,
+      position.maxScrollExtent,
+    );
     _scrollController.jumpTo(next);
   }
 
@@ -419,40 +446,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     }
   }
 
-  @override
-  void initState() {
-    super.initState();
-    // Windows/Linux/macOSは常に物理キーボード前提のデスクトップOSなので
-    // 最初から接続済み扱いにする。Android/iOS/Webはソフトウェアキーボードのみの
-    // 場合もあるため、実際に物理キーのキー押下イベントを一度でも受け取った
-    // 時点で初めて「接続されている」とみなす（OSからキーボード接続有無を
-    // 直接問い合わせるAPIがFlutterに無いための代替判定）。
-    _hasHardwareKeyboard = switch (defaultTargetPlatform) {
-      TargetPlatform.windows || TargetPlatform.linux || TargetPlatform.macOS => true,
-      _ => false,
-    };
-    HardwareKeyboard.instance.addHandler(_onHardwareKeyEvent);
-  }
-
-  bool _onHardwareKeyEvent(KeyEvent event) {
-    // Enter/NumpadEnterは判定材料にしない。AndroidではtextInputAction.newline
-    // を指定した多重行入力欄で、ソフトウェアキーボードの改行キーを押しただけでも
-    // （物理キーボードが無くても）ハードウェアキーイベントとして届いてしまうため
-    // （AndroidのIMEが改行用の専用エディタアクションを持たず、代わりに生の
-    // Enterキーイベントを送出する仕様）、これを物理キーボード接続の根拠にすると
-    // ソフトウェアキーボードしか無い端末で誤検知してしまう。文字キーなど
-    // Enter以外のキーイベントは、通常IME経由のテキスト入力ではなく実機の
-    // キー入力でしか発生しないため、そのまま判定材料として使える。
-    if (event.logicalKey == LogicalKeyboardKey.enter ||
-        event.logicalKey == LogicalKeyboardKey.numpadEnter) {
-      return false;
-    }
-    if (!_hasHardwareKeyboard && event is KeyDownEvent) {
-      setState(() => _hasHardwareKeyboard = true);
-    }
-    return false;
-  }
-
   Future<void> _send({bool silent = false}) async {
     final content = _textController.text.trim();
     if (content.isEmpty) return;
@@ -477,26 +470,33 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   /// 対しては、プラットフォームのIME経由の改行挿入が常に走るとは限らない）に
   /// 依存すると環境によって改行が入らないことがあったため、改行も自前で挿入する。
   ///
-  /// [_hasHardwareKeyboard]がfalseの間は何もしない（ignoredを返す）。
-  /// ソフトウェアキーボードしか無い端末でも、textInputAction.newlineの
-  /// 仕様上Enterキーが生イベントとして届くため、ここで自前の送信判定を
-  /// 適用してしまうとTextField既定の改行挿入より先に横取りしてしまい、
-  /// 改行が一切できなくなる（Enterを押すたびに送信されてしまう）。
+  /// Android/iOS（モバイル）はソフトウェアキーボードにShiftキーが無く
+  /// Shift+Enterによる改行ができない上、機種・IMEによっては改行キーを
+  /// 押しただけで生のEnterキーイベントが飛んでくることがあり、送信キー設定に
+  /// 応じた判定をそのまま適用すると誤って送信されてしまう（実機で報告された
+  /// 不具合）。そのため、モバイルでは[SendKeyMode]の設定に関わらずEnterは
+  /// 常に改行のみとし、送信は送信ボタンのタップに固定する。
   ///
-  /// キー割り当て（物理キーボード接続時のみ）:
+  /// キー割り当て（Windows/Linux/macOS等、物理キーボード前提の環境のみ）:
   /// - Enterで送信モード: Enter=送信 / Shift+Enter=改行 / Ctrl+Enter=通知せず送信
   /// - Ctrl+Enterで送信モード: Enter=改行 / Ctrl+Enter=送信 / Ctrl+Shift+Enter=通知せず送信
   KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
-    if (!_hasHardwareKeyboard) return KeyEventResult.ignored;
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
     if (event.logicalKey != LogicalKeyboardKey.enter &&
         event.logicalKey != LogicalKeyboardKey.numpadEnter) {
       return KeyEventResult.ignored;
     }
 
+    if (defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS) {
+      _insertNewline();
+      return KeyEventResult.handled;
+    }
+
     final mode = ref.read(sendKeyModeProvider);
     final shiftPressed = HardwareKeyboard.instance.isShiftPressed;
-    final ctrlPressed = HardwareKeyboard.instance.isControlPressed ||
+    final ctrlPressed =
+        HardwareKeyboard.instance.isControlPressed ||
         HardwareKeyboard.instance.isMetaPressed;
 
     if (mode == SendKeyMode.enterToSend) {
@@ -533,7 +533,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
 
   @override
   void dispose() {
-    HardwareKeyboard.instance.removeHandler(_onHardwareKeyEvent);
     _textController.dispose();
     _scrollController.dispose();
     _autoScrollTicker?.dispose();
@@ -551,12 +550,19 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     final isGekiga = uiStyle == AppUiStyle.gekiga;
     final floatingShadow =
         Theme.of(context).extension<AppThemeExtras>()?.floatingShadow ??
-            AppThemeExtras.none;
+        AppThemeExtras.none;
+    final composerBackground =
+        isGekiga ? GekigaColors.background : Theme.of(context).scaffoldBackgroundColor;
+
+    // 入力欄オーバーレイの高さは行数や返信/編集バーの有無で変わるため、
+    // 毎フレーム後に実測してメッセージ一覧の下部余白へ反映する
+    // （_measureComposerAreaのコメント参照）。
+    WidgetsBinding.instance.addPostFrameCallback((_) => _measureComposerArea());
 
     return Scaffold(
-      backgroundColor: isGekiga ? _kGekigaBackground : null,
+      backgroundColor: isGekiga ? GekigaColors.background : null,
       appBar: AppBar(
-        backgroundColor: isGekiga ? _kGekigaBackground : null,
+        backgroundColor: isGekiga ? GekigaColors.background : null,
         foregroundColor: isGekiga ? Colors.white : null,
         automaticallyImplyLeading: false,
         leading: _selecting
@@ -575,8 +581,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                 IconButton(
                   icon: const Icon(Icons.delete_outline),
                   tooltip: strings.chatDeleteSelectedTooltip,
-                  onPressed:
-                      _selectedMessageIds.isEmpty ? null : _confirmDeleteSelected,
+                  onPressed: _selectedMessageIds.isEmpty
+                      ? null
+                      : _confirmDeleteSelected,
                 ),
               ]
             : [
@@ -612,185 +619,243 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                   child: StreamBuilder<List<Message>>(
                     stream: widget.messagesStream,
                     builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                if (snapshot.hasError) {
-                  return Center(child: Text('エラー: ${snapshot.error}'));
-                }
-                final messages = snapshot.data ?? [];
-                if (messages.isEmpty) {
-                  return const Center(child: Text('まだメッセージはありません'));
-                }
-                _markUnreadMessages(messages);
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return Padding(
+                          padding: EdgeInsets.only(bottom: _composerAreaHeight),
+                          child: const Center(child: CircularProgressIndicator()),
+                        );
+                      }
+                      if (snapshot.hasError) {
+                        return Padding(
+                          padding: EdgeInsets.only(bottom: _composerAreaHeight),
+                          child: Center(child: Text('エラー: ${snapshot.error}')),
+                        );
+                      }
+                      final messages = snapshot.data ?? [];
+                      if (messages.isEmpty) {
+                        return Padding(
+                          padding: EdgeInsets.only(bottom: _composerAreaHeight),
+                          child: const Center(child: Text('まだメッセージはありません')),
+                        );
+                      }
+                      _markUnreadMessages(messages);
 
-                // 直近50件（messages、購読中）に、返信先ジャンプで一時的に
-                // 取得したメッセージ（_extraMessages、購読していない）を
-                // マージして表示する。同じidがあればmessages側を優先する
-                // （購読中で最新のため）。既にmessagesに含まれるようになった
-                // 分はもう保持しておく必要が無いので削除する。
-                _extraMessages.removeWhere(
-                  (id, _) => messages.any((m) => m.messageId == id),
-                );
-                final combined = [
-                  ...messages,
-                  ..._extraMessages.values,
-                ]..sort((a, b) {
-                    final aTime = a.sentAt?.toDate() ?? DateTime.now();
-                    final bTime = b.sentAt?.toDate() ?? DateTime.now();
-                    return bTime.compareTo(aTime);
-                  });
+                      // 直近50件（messages、購読中）に、返信先ジャンプで一時的に
+                      // 取得したメッセージ（_extraMessages、購読していない）を
+                      // マージして表示する。同じidがあればmessages側を優先する
+                      // （購読中で最新のため）。既にmessagesに含まれるようになった
+                      // 分はもう保持しておく必要が無いので削除する。
+                      _extraMessages.removeWhere(
+                        (id, _) => messages.any((m) => m.messageId == id),
+                      );
+                      final combined = [...messages, ..._extraMessages.values]
+                        ..sort((a, b) {
+                          final aTime = a.sentAt?.toDate() ?? DateTime.now();
+                          final bTime = b.sentAt?.toDate() ?? DateTime.now();
+                          return bTime.compareTo(aTime);
+                        });
 
-                // 返信元メッセージの引用プレビュー・返信先ジャンプに使う。
-                // 現在ロード済み（直近50件＋ジャンプで追加取得した分）の
-                // 範囲に返信元があれば、こちらを優先して表示する（編集済み
-                // なら最新の内容を反映できる）。範囲外ならMessage側の
-                // 非正規化フィールド（replyToSnippet等）にフォールバックする
-                // （_MessageRow参照）。
-                final messagesById = {
-                  for (final m in combined) m.messageId: m,
-                };
+                      // 返信元メッセージの引用プレビュー・返信先ジャンプに使う。
+                      // 現在ロード済み（直近50件＋ジャンプで追加取得した分）の
+                      // 範囲に返信元があれば、こちらを優先して表示する（編集済み
+                      // なら最新の内容を反映できる）。範囲外ならMessage側の
+                      // 非正規化フィールド（replyToSnippet等）にフォールバックする
+                      // （_MessageRow参照）。
+                      final messagesById = {
+                        for (final m in combined) m.messageId: m,
+                      };
 
-                // 画面外に流れたメッセージのGlobalKeyは溜め続けない。
-                final currentIds = messagesById.keys.toSet();
-                _messageKeys.removeWhere((id, _) => !currentIds.contains(id));
+                      // 画面外に流れたメッセージのGlobalKeyは溜め続けない。
+                      final currentIds = messagesById.keys.toSet();
+                      _messageKeys.removeWhere(
+                        (id, _) => !currentIds.contains(id),
+                      );
 
-                // combinedは新しい順（index 0が最新）。日付区切りを「その日の
-                // 最初のメッセージの直上」に挿入したいので、一旦古い順に走査して
-                // 区切り込みのリストを組み立ててから反転する。reverse:trueの
-                // ListViewにそのまま渡すと、index 0（リストの末尾＝一番新しい
-                // 要素）が画面下端に来て、見た目は上から古い順（区切り→その日の
-                // メッセージ…）に正しく並ぶ。
-                final entries = <Widget>[];
-                DateTime? currentDay;
-                for (var i = combined.length - 1; i >= 0; i--) {
-                  final message = combined[i];
-                  final sentAt = message.sentAt?.toDate();
-                  if (sentAt != null &&
-                      (currentDay == null || !isSameDay(sentAt, currentDay))) {
-                    currentDay = sentAt;
-                    entries.add(_DateSeparator(date: sentAt, locale: locale));
-                  }
-                  entries.add(
-                    _MessageRow(
-                      key: _messageKeys.putIfAbsent(
-                        message.messageId,
-                        GlobalKey.new,
-                      ),
-                      message: message,
-                      isMe: message.senderId == widget.currentUserId,
-                      currentUserId: widget.currentUserId,
-                      timeLabel: sentAt != null
-                          ? formatMessageTime(sentAt, timeFormat)
-                          : null,
-                      colorScheme: colorScheme,
-                      floatingShadow: floatingShadow,
-                      uiStyle: uiStyle,
-                      readReceiptsEnabled: widget.readReceiptsEnabled,
-                      layoutStyle: layoutStyle,
-                      isDm: widget.isDm,
-                      conversationId: widget.conversationId,
-                      onSenderTap: _selecting ? null : widget.onSenderTap,
-                      senderNameColorResolver: widget.senderNameColorResolver,
-                      selecting: _selecting,
-                      selected: _selectedMessageIds.contains(message.messageId),
-                      canSelect: widget.onHideMessages != null,
-                      onEnterSelection: _enterSelectionMode,
-                      onToggleSelected: _toggleSelected,
-                      messagesById: messagesById,
-                      onReply: _startReply,
-                      onEdit: widget.onEditMessage != null ? _startEdit : null,
-                      onUnsend: widget.onUnsendMessage,
-                      onSetReaction: widget.onSetReaction,
-                      onJumpToReply: _jumpToMessage,
-                      highlighted: _highlightedMessageId == message.messageId,
-                      timeFormat: timeFormat,
-                      onDeclineAccountDeletionNotice:
-                          widget.onDeclineAccountDeletionNotice,
-                      onDeleteAfterAccountDeletion:
-                          widget.onDeleteAfterAccountDeletion,
-                      onAutoScrollStart: _selecting ? null : _startAutoScroll,
-                      onAutoScrollUpdate:
-                          _selecting ? null : _updateAutoScrollPosition,
-                      onAutoScrollEnd: _selecting ? null : _stopAutoScroll,
-                    ),
-                  );
-                }
-                final reversedEntries = entries.reversed.toList();
-
-                // 返信先ジャンプ機能（Scrollable.ensureVisible）は対象行が
-                // 既にツリー上にビルドされている必要があるため、遅延ビルドの
-                // ListView.builderではなく全件ビルド済みのListViewを使う
-                // （現在ロード済みメッセージは最新50件程度に収まる想定）。
-                return ListView(
-                  controller: _scrollController,
-                  reverse: true,
-                  padding: const EdgeInsets.all(12),
-                  children: reversedEntries,
-                );
-                    },
-                  ),
-                ),
-                if (_autoScrollOrigin != null) _buildAutoScrollIndicator(),
-              ],
-            ),
-          ),
-          if (!_selecting && (_replyingTo != null || _editingMessage != null))
-            _ComposerContextBar(
-              replyingTo: _replyingTo,
-              editing: _editingMessage != null,
-              strings: strings,
-              onCancel: _cancelComposerContext,
-            ),
-          if (!_selecting)
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.all(8),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Expanded(
-                    child: Focus(
-                      onKeyEvent: _handleKeyEvent,
-                      child: TextField(
-                        controller: _textController,
-                        minLines: 1,
-                        maxLines: 6,
-                        textInputAction: TextInputAction.newline,
-                        keyboardType: TextInputType.multiline,
-                        decoration: InputDecoration(
-                          hintText: 'メッセージを入力',
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(20),
+                      // combinedは新しい順（index 0が最新）。日付区切りを「その日の
+                      // 最初のメッセージの直上」に挿入したいので、一旦古い順に走査して
+                      // 区切り込みのリストを組み立ててから反転する。reverse:trueの
+                      // ListViewにそのまま渡すと、index 0（リストの末尾＝一番新しい
+                      // 要素）が画面下端に来て、見た目は上から古い順（区切り→その日の
+                      // メッセージ…）に正しく並ぶ。
+                      final entries = <Widget>[];
+                      DateTime? currentDay;
+                      for (var i = combined.length - 1; i >= 0; i--) {
+                        final message = combined[i];
+                        final sentAt = message.sentAt?.toDate();
+                        if (sentAt != null &&
+                            (currentDay == null ||
+                                !isSameDay(sentAt, currentDay))) {
+                          currentDay = sentAt;
+                          entries.add(
+                            _DateSeparator(date: sentAt, locale: locale),
+                          );
+                        }
+                        entries.add(
+                          _MessageRow(
+                            key: _messageKeys.putIfAbsent(
+                              message.messageId,
+                              GlobalKey.new,
+                            ),
+                            message: message,
+                            isMe: message.senderId == widget.currentUserId,
+                            currentUserId: widget.currentUserId,
+                            timeLabel: sentAt != null
+                                ? formatMessageTime(sentAt, timeFormat)
+                                : null,
+                            colorScheme: colorScheme,
+                            floatingShadow: floatingShadow,
+                            uiStyle: uiStyle,
+                            readReceiptsEnabled: widget.readReceiptsEnabled,
+                            layoutStyle: layoutStyle,
+                            isDm: widget.isDm,
+                            conversationId: widget.conversationId,
+                            onSenderTap: _selecting ? null : widget.onSenderTap,
+                            senderNameColorResolver:
+                                widget.senderNameColorResolver,
+                            selecting: _selecting,
+                            selected: _selectedMessageIds.contains(
+                              message.messageId,
+                            ),
+                            canSelect: widget.onHideMessages != null,
+                            onEnterSelection: _enterSelectionMode,
+                            onToggleSelected: _toggleSelected,
+                            messagesById: messagesById,
+                            onReply: _startReply,
+                            onEdit: widget.onEditMessage != null
+                                ? _startEdit
+                                : null,
+                            onUnsend: widget.onUnsendMessage,
+                            onSetReaction: widget.onSetReaction,
+                            onJumpToReply: _jumpToMessage,
+                            highlighted:
+                                _highlightedMessageId == message.messageId,
+                            timeFormat: timeFormat,
+                            onDeclineAccountDeletionNotice:
+                                widget.onDeclineAccountDeletionNotice,
+                            onDeleteAfterAccountDeletion:
+                                widget.onDeleteAfterAccountDeletion,
+                            onAutoScrollStart: _selecting
+                                ? null
+                                : _startAutoScroll,
+                            onAutoScrollUpdate: _selecting
+                                ? null
+                                : _updateAutoScrollPosition,
+                            onAutoScrollEnd: _selecting
+                                ? null
+                                : _stopAutoScroll,
                           ),
+                        );
+                      }
+                      final reversedEntries = entries.reversed.toList();
+
+                      // 返信先ジャンプ機能（Scrollable.ensureVisible）は対象行が
+                      // 既にツリー上にビルドされている必要があるため、遅延ビルドの
+                      // ListView.builderではなく全件ビルド済みのListViewを使う
+                      // （現在ロード済みメッセージは最新50件程度に収まる想定）。
+                      //
+                      // メッセージ一覧は入力欄の裏まで全画面分の高さで敷き、
+                      // 入力欄自体はStack最前面のオーバーレイとして重ねる
+                      // （下記Positioned参照）。下部余白（bottomInset）を
+                      // 入力欄の実測高さに合わせてTweenAnimationBuilderで
+                      // アニメーションさせることで、入力欄が伸び縮みする際に
+                      // メッセージがその下へ滑らかに潜り込むように見せている
+                      // （2026-07-30、入力欄の直前でメッセージが唐突に
+                      // 途切れて見える不具合の修正）。
+                      return TweenAnimationBuilder<double>(
+                        tween: Tween<double>(
+                          end: _selecting ? 0 : _composerAreaHeight,
                         ),
-                      ),
-                    ),
-                  ),
-                  // 物理キーボード接続の判定に関わらず、何か入力されている間は
-                  // 常に送信ボタンを表示する（判定を誤っても送信手段が
-                  // 無くならないようにするため）。
-                  ValueListenableBuilder<TextEditingValue>(
-                    valueListenable: _textController,
-                    builder: (context, value, _) {
-                      if (value.text.isEmpty) return const SizedBox.shrink();
-                      return Material(
-                        color: Colors.transparent,
-                        shape: const CircleBorder(),
-                        child: InkWell(
-                          customBorder: const CircleBorder(),
-                          onTap: _send,
-                          onLongPress: () => _send(silent: true),
-                          child: Padding(
-                            padding: const EdgeInsets.all(12),
-                            child: Icon(Icons.send, color: colorScheme.primary),
-                          ),
+                        duration: const Duration(milliseconds: 180),
+                        curve: Curves.easeOut,
+                        builder: (context, bottomInset, _) => ListView(
+                          controller: _scrollController,
+                          reverse: true,
+                          padding: EdgeInsets.fromLTRB(12, 12, 12, 12 + bottomInset),
+                          children: reversedEntries,
                         ),
                       );
                     },
                   ),
-                ],
-              ),
+                ),
+                if (_autoScrollOrigin != null) _buildAutoScrollIndicator(),
+                if (!_selecting)
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    child: Container(
+                      key: _composerAreaKey,
+                      color: composerBackground,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (_replyingTo != null || _editingMessage != null)
+                            _ComposerContextBar(
+                              replyingTo: _replyingTo,
+                              editing: _editingMessage != null,
+                              strings: strings,
+                              onCancel: _cancelComposerContext,
+                            ),
+                          SafeArea(
+                            child: Padding(
+                              padding: const EdgeInsets.all(8),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  Expanded(
+                                    child: Focus(
+                                      onKeyEvent: _handleKeyEvent,
+                                      child: TextField(
+                                        controller: _textController,
+                                        minLines: 1,
+                                        maxLines: 6,
+                                        textInputAction: TextInputAction.newline,
+                                        keyboardType: TextInputType.multiline,
+                                        decoration: InputDecoration(
+                                          hintText: 'メッセージを入力',
+                                          border: OutlineInputBorder(
+                                            borderRadius: BorderRadius.circular(20),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  // 物理キーボード接続の判定に関わらず、何か入力されている間は
+                                  // 常に送信ボタンを表示する（判定を誤っても送信手段が
+                                  // 無くならないようにするため）。
+                                  ValueListenableBuilder<TextEditingValue>(
+                                    valueListenable: _textController,
+                                    builder: (context, value, _) {
+                                      if (value.text.isEmpty) {
+                                        return const SizedBox.shrink();
+                                      }
+                                      return Material(
+                                        color: Colors.transparent,
+                                        shape: const CircleBorder(),
+                                        child: InkWell(
+                                          customBorder: const CircleBorder(),
+                                          onTap: _send,
+                                          onLongPress: () => _send(silent: true),
+                                          child: Padding(
+                                            padding: const EdgeInsets.all(12),
+                                            child: Icon(
+                                              Icons.send,
+                                              color: colorScheme.primary,
+                                            ),
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
             ),
           ),
         ],
@@ -896,10 +961,7 @@ class _DateSeparator extends StatelessWidget {
           ),
           child: Text(
             formatMessageDate(date, locale),
-            style: TextStyle(
-              fontSize: 12,
-              color: colorScheme.onSurfaceVariant,
-            ),
+            style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
           ),
         ),
       ),
@@ -1052,13 +1114,12 @@ class _MessageRow extends ConsumerWidget {
       transitionDuration: const Duration(milliseconds: 150),
       pageBuilder: (context, animation, secondaryAnimation) {
         final screenSize = MediaQuery.sizeOf(context);
-        final left =
-            badgeRect.left.clamp(8.0, screenSize.width - width - 8.0);
+        final left = badgeRect.left.clamp(8.0, screenSize.width - width - 8.0);
         final spaceBelow = screenSize.height - badgeRect.bottom;
-        final showAbove = spaceBelow < minPopupSpace && badgeRect.top > spaceBelow;
+        final showAbove =
+            spaceBelow < minPopupSpace && badgeRect.top > spaceBelow;
         final top = showAbove ? null : badgeRect.bottom + 4;
-        final bottom =
-            showAbove ? screenSize.height - badgeRect.top + 4 : null;
+        final bottom = showAbove ? screenSize.height - badgeRect.top + 4 : null;
         final maxHeight = showAbove
             ? badgeRect.top - 24
             : screenSize.height - badgeRect.bottom - 24;
@@ -1136,8 +1197,9 @@ class _MessageRow extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final strings = ref.watch(appStringsProvider);
-    final readers =
-        message.readBy.where((r) => r.userId != message.senderId).toList();
+    final readers = message.readBy
+        .where((r) => r.userId != message.senderId)
+        .toList();
     // 一対（1対1）では、相手のメッセージに付く既読マークは「自分が相手の
     // メッセージを読んだか」を示すだけで意味が無いため非表示にする
     // （読み取り・記録自体はやめない。既読の記録をやめると、自分の
@@ -1171,7 +1233,8 @@ class _MessageRow extends ConsumerWidget {
     if (message.replyToMessageId != null) {
       final target = messagesById[message.replyToMessageId];
       final replySenderId = target?.senderId ?? message.replyToSenderId;
-      final replySenderRhingId = target?.senderRhingId ?? message.replyToSenderRhingId;
+      final replySenderRhingId =
+          target?.senderRhingId ?? message.replyToSenderRhingId;
       final snippet = target != null
           ? messageSnippetOf(target.content)
           : (message.replyToSnippet ?? '');
@@ -1266,8 +1329,9 @@ class _MessageRow extends ConsumerWidget {
         : Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             decoration: BoxDecoration(
-              color:
-                  isMe ? colorScheme.primary : colorScheme.surfaceContainerHighest,
+              color: isMe
+                  ? colorScheme.primary
+                  : colorScheme.surfaceContainerHighest,
               borderRadius: BorderRadius.circular(16),
               boxShadow: floatingShadow,
             ),
@@ -1400,6 +1464,7 @@ class _MessageRow extends ConsumerWidget {
               ?timeText,
               const SizedBox(height: 2),
               bubbleWithReadMark,
+              if (message.reactions.isNotEmpty) _reactionBar(),
               if (previewUrl != null) LinkPreviewCard(url: previewUrl),
             ],
           ),
@@ -1466,6 +1531,7 @@ class _MessageRow extends ConsumerWidget {
                       ?timeText,
                     const SizedBox(height: 2),
                     bubbleWithReadMark,
+                    if (message.reactions.isNotEmpty) _reactionBar(),
                     if (previewUrl != null) LinkPreviewCard(url: previewUrl),
                   ],
                 ),
@@ -1508,21 +1574,13 @@ class _MessageRow extends ConsumerWidget {
       );
     }
 
-    final rowContent = message.reactions.isEmpty
-        ? body
-        : Column(
-            crossAxisAlignment:
-                alignRight ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-            children: [body, _reactionBar(alignRight)],
-          );
-
     // 返信先ジャンプの着地先だと分かるよう、一瞬だけ背景を強調する。
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
       color: highlighted
           ? colorScheme.primary.withValues(alpha: 0.15)
           : Colors.transparent,
-      child: rowContent,
+      child: body,
     );
   }
 
@@ -1576,7 +1634,8 @@ class _MessageRow extends ConsumerWidget {
     final label = message.senderRhingId != null
         ? '@${message.senderRhingId}'
         : message.senderId;
-    final showPrompt = isDm &&
+    final showPrompt =
+        isDm &&
         message.accountDeletionResponse == null &&
         (onDeclineAccountDeletionNotice != null ||
             onDeleteAfterAccountDeletion != null);
@@ -1599,16 +1658,15 @@ class _MessageRow extends ConsumerWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               TextButton(
-                onPressed: () => onDeclineAccountDeletionNotice
-                    ?.call(message.messageId),
+                onPressed: () =>
+                    onDeclineAccountDeletionNotice?.call(message.messageId),
                 child: Text(strings.chatAccountDeletedNoButton),
               ),
               FilledButton(
                 style: FilledButton.styleFrom(
                   backgroundColor: Theme.of(context).colorScheme.error,
                 ),
-                onPressed: () =>
-                    _confirmDeleteConversation(context, strings),
+                onPressed: () => _confirmDeleteConversation(context, strings),
                 child: Text(strings.chatAccountDeletedYesButton),
               ),
             ],
@@ -1657,47 +1715,51 @@ class _MessageRow extends ConsumerWidget {
     return '$seconds秒';
   }
 
-  Widget _reactionBar(bool alignRight) {
+  /// リアクション（絵文字＋人数）の一覧。呼び出し元の`Column`
+  /// （`crossAxisAlignment.start`/`.end`で吹き出しと同じ側に揃えてある）の
+  /// 直下の子として置くことで、吹き出しの真下・同じ端に揃うようにする
+  /// （2026-07-30修正。以前は行全体を基準にした`Align`を自前で持っており、
+  /// アバター表示時に吹き出しよりリアクションが左にズレて見えていた）。
+  Widget _reactionBar() {
     final counts = <String, int>{};
     for (final emoji in message.reactions.values) {
       counts[emoji] = (counts[emoji] ?? 0) + 1;
     }
     final myReaction = message.reactions[currentUserId];
-    return Align(
-      alignment: alignRight ? Alignment.centerRight : Alignment.centerLeft,
-      child: Padding(
-        padding: const EdgeInsets.only(top: 2),
-        child: Wrap(
-          spacing: 4,
-          children: [
-            for (final entry in counts.entries)
-              GestureDetector(
-                onTap: onSetReaction == null
-                    ? null
-                    : () => onSetReaction!(
-                          message.messageId,
-                          myReaction == entry.key ? null : entry.key,
-                        ),
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: myReaction == entry.key
-                        ? colorScheme.primaryContainer
-                        : colorScheme.surfaceContainerHighest,
-                    borderRadius: BorderRadius.circular(999),
-                    border: myReaction == entry.key
-                        ? Border.all(color: colorScheme.primary)
-                        : null,
-                  ),
-                  child: Text(
-                    '${entry.key} ${entry.value}',
-                    style: const TextStyle(fontSize: 12),
-                  ),
+    return Padding(
+      padding: const EdgeInsets.only(top: 2),
+      child: Wrap(
+        spacing: 4,
+        children: [
+          for (final entry in counts.entries)
+            GestureDetector(
+              onTap: onSetReaction == null
+                  ? null
+                  : () => onSetReaction!(
+                      message.messageId,
+                      myReaction == entry.key ? null : entry.key,
+                    ),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 2,
+                ),
+                decoration: BoxDecoration(
+                  color: myReaction == entry.key
+                      ? colorScheme.primaryContainer
+                      : colorScheme.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(999),
+                  border: myReaction == entry.key
+                      ? Border.all(color: colorScheme.primary)
+                      : null,
+                ),
+                child: Text(
+                  '${entry.key} ${entry.value}',
+                  style: const TextStyle(fontSize: 12),
                 ),
               ),
-          ],
-        ),
+            ),
+        ],
       ),
     );
   }
@@ -1825,7 +1887,6 @@ class _MessageBubbleTapArea extends StatelessWidget {
       position: _menuPosition(context, globalPosition),
       items: [
         PopupMenuItem<String>(
-          enabled: false,
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -1851,7 +1912,8 @@ class _MessageBubbleTapArea extends StatelessWidget {
       behavior: HitTestBehavior.opaque,
       onTap: onTap,
       onLongPressStart: (details) => _openMenu(context, details.globalPosition),
-      onSecondaryTapDown: (details) => _openMenu(context, details.globalPosition),
+      onSecondaryTapDown: (details) =>
+          _openMenu(context, details.globalPosition),
       child: child,
     );
   }
@@ -2063,150 +2125,12 @@ class _SenderAvatar extends ConsumerWidget {
     final badgeColor = user?.imageColor != null
         ? Color(0xFF000000 | user!.imageColor!)
         : _palette[userId.hashCode.abs() % _palette.length];
-    return _GekigaAvatarFrame(
+    return GekigaBadgeFrame(
       seed: userId.hashCode,
       badgeColor: badgeColor,
       child: avatar,
     );
   }
-}
-
-/// 劇画スタイルのアイコン枠。手描き風のギザギザした色付きブロック
-/// （身だしなみのイメージカラーで塗る）の上に、白いリングで囲んだ
-/// アバターを重ねる（2026-07-29追加、ユーザー提供の参考画像・手書き
-/// スケッチを基に実装）。
-class _GekigaAvatarFrame extends StatelessWidget {
-  const _GekigaAvatarFrame({
-    required this.child,
-    required this.badgeColor,
-    required this.seed,
-  });
-
-  final Widget child;
-  final Color badgeColor;
-  final int seed;
-
-  @override
-  Widget build(BuildContext context) {
-    // 56×56の箱に対し、アバターは右上にわずかにはみ出す形で重ねる。
-    // 参考スケッチのように色ブロックは正方形寄りの大きめのサイズにし、
-    // 左下に色ブロックの表示面積が確保されるよう、アバターを右上へ寄せる
-    // （2026-07-29再修正、色ブロックの形・大きさをスケッチに合わせ直した）。
-    return SizedBox(
-      width: 56,
-      height: 56,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          Positioned.fill(
-            child: CustomPaint(
-              painter: _GekigaBadgePainter(color: badgeColor, seed: seed),
-            ),
-          ),
-          Positioned(
-            top: -2,
-            right: -2,
-            child: Container(
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(color: Colors.white, width: 2.5),
-              ),
-              child: child,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// 劇画スタイルの色付きバッジ（アイコン背後のブロック）を描く。
-/// 参考スケッチの形（正方形ではなく、左上に鋭い頂点・右側に大きく
-/// 張り出す頂点・下に底の頂点・左に頂点を持つ、旗/凧のような非対称の
-/// 四角形）を直線の辺でなぞり、外側から黒い太枠→白い縁取り→イメージ
-/// カラーの塗り、という3層の同心図形として描く（2026-07-30再修正）。
-/// 凸四角形にしているのは、[_insetPolygon]の辺オフセット計算が凹んだ
-/// 頂点があると縁の太さが不均一・破綻しやすいため（前回、頂点を1つ
-/// 内側に窪ませて凹四角形にした結果、白い縁取りがほぼ潰れて見えなく
-/// なる不具合が発生した）。
-class _GekigaBadgePainter extends CustomPainter {
-  const _GekigaBadgePainter({required this.color, required this.seed});
-
-  final Color color;
-  final int seed;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final outer = [
-      Offset(size.width * 0.05, size.height * 0.03),
-      Offset(size.width * 0.97, size.height * 0.42),
-      Offset(size.width * 0.55, size.height * 0.98),
-      Offset(size.width * 0.0, size.height * 0.55),
-    ];
-    final white = _insetPolygon(outer, 4.5);
-    final fill = _insetPolygon(outer, 8);
-
-    canvas.drawPath(_pathFromPoints(outer), Paint()..color = Colors.black);
-    canvas.drawPath(_pathFromPoints(white), Paint()..color = Colors.white);
-    canvas.drawPath(_pathFromPoints(fill), Paint()..color = color);
-  }
-
-  @override
-  bool shouldRepaint(covariant _GekigaBadgePainter oldDelegate) =>
-      oldDelegate.color != color || oldDelegate.seed != seed;
-}
-
-/// [vertices]の多角形の各辺を内側へ[inset]だけ平行移動し、隣り合う辺の
-/// 交点を新しい頂点として返す（同心の縁取り・塗りを重ねて描くための
-/// 下ごしらえ）。重心方向へ頂点を縮める単純な方式だと、辺の向きによって
-/// 縁の太さがバラついたり凹み部分で図形が破綻したりするため、辺単位の
-/// 平行移動＋交点計算という、太さが均一になる正しいオフセット処理にして
-/// いる。
-List<Offset> _insetPolygon(List<Offset> vertices, double inset) {
-  final n = vertices.length;
-  final centroid = vertices.reduce((a, b) => a + b) / n.toDouble();
-  final origins = <Offset>[];
-  final dirs = <Offset>[];
-  for (var i = 0; i < n; i++) {
-    final a = vertices[i];
-    final b = vertices[(i + 1) % n];
-    final edge = b - a;
-    final dir = edge / edge.distance;
-    var normal = Offset(-dir.dy, dir.dx);
-    final mid = (a + b) / 2;
-    final towardCentroid = centroid - mid;
-    if (towardCentroid.dx * normal.dx + towardCentroid.dy * normal.dy < 0) {
-      normal = -normal;
-    }
-    origins.add(a + normal * inset);
-    dirs.add(dir);
-  }
-  final result = <Offset>[];
-  for (var i = 0; i < n; i++) {
-    final prev = (i - 1 + n) % n;
-    final p1 = origins[prev];
-    final d1 = dirs[prev];
-    final p2 = origins[i];
-    final d2 = dirs[i];
-    final denom = d1.dx * d2.dy - d1.dy * d2.dx;
-    if (denom.abs() < 1e-6) {
-      result.add(p2);
-      continue;
-    }
-    final diff = p2 - p1;
-    final t = (diff.dx * d2.dy - diff.dy * d2.dx) / denom;
-    result.add(p1 + d1 * t);
-  }
-  return result;
-}
-
-Path _pathFromPoints(List<Offset> points) {
-  final path = Path()..moveTo(points.first.dx, points.first.dy);
-  for (final p in points.skip(1)) {
-    path.lineTo(p.dx, p.dy);
-  }
-  path.close();
-  return path;
 }
 
 /// 劇画スタイルの吹き出し本体。手描き風ギザギザ枠線・モノクロの中身
@@ -2243,7 +2167,7 @@ class _GekigaBubblePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final path = _handDrawnPolygonPath(
+    final path = handDrawnPolygonPath(
       [
         Offset.zero,
         Offset(size.width, 0),
@@ -2273,36 +2197,3 @@ class _GekigaBubblePainter extends CustomPainter {
       oldDelegate.seed != seed || oldDelegate.isMe != isMe;
 }
 
-/// [vertices]で囲まれた多角形の各辺を、手描き風に少しだけジグザグに揺らした
-/// 閉じたPathを作る。[seed]が同じなら常に同じ形になる（メッセージID・
-/// ユーザーIDのhashCodeを渡すことで、再描画のたびに形がガタつかないように
-/// している）。
-Path _handDrawnPolygonPath(
-  List<Offset> vertices,
-  int seed, {
-  double jitter = 3,
-  int segmentsPerEdge = 4,
-}) {
-  final random = math.Random(seed);
-  final points = <Offset>[];
-  for (var i = 0; i < vertices.length; i++) {
-    final from = vertices[i];
-    final to = vertices[(i + 1) % vertices.length];
-    for (var s = 1; s <= segmentsPerEdge; s++) {
-      final t = s / segmentsPerEdge;
-      final base = Offset.lerp(from, to, t)!;
-      points.add(
-        Offset(
-          base.dx + (random.nextDouble() - 0.5) * 2 * jitter,
-          base.dy + (random.nextDouble() - 0.5) * 2 * jitter,
-        ),
-      );
-    }
-  }
-  final path = Path()..moveTo(points.first.dx, points.first.dy);
-  for (final p in points.skip(1)) {
-    path.lineTo(p.dx, p.dy);
-  }
-  path.close();
-  return path;
-}

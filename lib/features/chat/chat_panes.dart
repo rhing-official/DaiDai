@@ -32,13 +32,16 @@ enum _GroupMenuAction {
   manageRoles,
   roomRolePriority,
   renameRoom,
+  deleteRoom,
   enableMultipleRooms,
   toggleMute,
   toggleReadReceipts,
   leave,
 }
+
 enum _DmMenuAction {
   renameRoom,
+  deleteRoom,
   enableMultipleRooms,
   toggleMute,
   toggleBlock,
@@ -135,6 +138,36 @@ Future<String?> _showRenameRoomDialog(
   return name;
 }
 
+/// 寄合の削除確認ダイアログ。広場・一対どちらのハンバーガーメニューからも
+/// 同じ見た目で使う（旧: 寄合一覧サイドバーのごみ箱アイコンから同じ文言・
+/// 見た目で出していたものを、2026-07-30にハンバーガーメニューへ移設）。
+Future<bool> _confirmDeleteRoom(
+  BuildContext context,
+  Strings strings,
+  Vocabulary vocab,
+) async {
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: Text(strings.roomListDeleteConfirmTitle(vocab.textChannel)),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: Text(strings.cancel),
+        ),
+        FilledButton(
+          style: FilledButton.styleFrom(
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+          onPressed: () => Navigator.of(context).pop(true),
+          child: Text(strings.roomListDeleteConfirmButton),
+        ),
+      ],
+    ),
+  );
+  return confirmed ?? false;
+}
+
 /// 一対（DM）のChatScreenを組み立てる。相手のアクティブなニックネームを
 /// タイトルに反映するためConsumer化している。go_routerのフルスクリーン遷移と、
 /// TalksTabの分割ビュー（一覧の右隣に埋め込み表示）の両方から使う共通部品。
@@ -183,8 +216,7 @@ class DmChatPane extends ConsumerWidget {
     final dmRepository = ref.watch(directMessageRepositoryProvider);
     final otherUserId = dm.otherUserId(currentUser.userId);
     final blockedIds =
-        ref.watch(blockedUserIdsProvider(currentUser.userId)).value ??
-            const {};
+        ref.watch(blockedUserIdsProvider(currentUser.userId)).value ?? const {};
     final isBlocked = blockedIds.contains(otherUserId);
     return ChatScreen(
       key: ValueKey('dm-${dm.dmId}-$roomId'),
@@ -198,7 +230,9 @@ class DmChatPane extends ConsumerWidget {
       // 表示抑制で実現する（`BlockRepository`のコメント参照）。
       // hiddenForに自分のuserIdが含まれるメッセージ（範囲選択削除で自分が
       // 削除したもの）も、相手には見えたままここでは表示しないだけにする。
-      messagesStream: dmRepository.watchMessages(dm.dmId, roomId).map(
+      messagesStream: dmRepository
+          .watchMessages(dm.dmId, roomId)
+          .map(
             (messages) => messages
                 .where((m) => !m.hiddenFor.contains(currentUser.userId))
                 .where((m) => !isBlocked || m.senderId != otherUserId)
@@ -256,10 +290,10 @@ class DmChatPane extends ConsumerWidget {
       ),
       onDeclineAccountDeletionNotice: (messageId) =>
           dmRepository.declineAccountDeletionNotice(
-        dmId: dm.dmId,
-        roomId: roomId,
-        messageId: messageId,
-      ),
+            dmId: dm.dmId,
+            roomId: roomId,
+            messageId: messageId,
+          ),
       onDeleteAfterAccountDeletion: () => dmRepository
           .deleteDmAfterAccountDeletion(dm.dmId, userId: currentUser.userId),
       onFetchMessagesAround: (messageId) => dmRepository.getMessagesAround(
@@ -277,8 +311,8 @@ class DmChatPane extends ConsumerWidget {
           roomName: roomName,
         ),
       ],
-      banner: (dm.severanceRequestedBy == null &&
-              dm.readReceiptsProposalBy == null)
+      banner:
+          (dm.severanceRequestedBy == null && dm.readReceiptsProposalBy == null)
           ? null
           : Column(
               mainAxisSize: MainAxisSize.min,
@@ -393,10 +427,9 @@ class _ReadReceiptsProposalBanner extends ConsumerWidget {
       final confirmed = await confirmDisableReadReceipts(context, strings);
       if (!confirmed) return;
     }
-    await ref.read(directMessageRepositoryProvider).acceptReadReceiptsToggle(
-          dmId: dm.dmId,
-          currentUserId: currentUserId,
-        );
+    await ref
+        .read(directMessageRepositoryProvider)
+        .acceptReadReceiptsToggle(dmId: dm.dmId, currentUserId: currentUserId);
   }
 
   @override
@@ -417,11 +450,15 @@ class _ReadReceiptsProposalBanner extends ConsumerWidget {
               child: Text(
                 isProposedByMe
                     ? (turningOn
-                        ? strings.conversationReadReceiptsBannerWaitingOn
-                        : strings.conversationReadReceiptsBannerWaitingOff)
+                          ? strings.conversationReadReceiptsBannerWaitingOn
+                          : strings.conversationReadReceiptsBannerWaitingOff)
                     : (turningOn
-                        ? strings.conversationReadReceiptsBannerProposedOn(otherLabel)
-                        : strings.conversationReadReceiptsBannerProposedOff(otherLabel)),
+                          ? strings.conversationReadReceiptsBannerProposedOn(
+                              otherLabel,
+                            )
+                          : strings.conversationReadReceiptsBannerProposedOff(
+                              otherLabel,
+                            )),
                 style: TextStyle(color: colorScheme.onErrorContainer),
               ),
             ),
@@ -437,10 +474,14 @@ class _ReadReceiptsProposalBanner extends ConsumerWidget {
                 onPressed: () => ref
                     .read(directMessageRepositoryProvider)
                     .cancelReadReceiptsToggleProposal(dm.dmId),
-                child: Text(strings.conversationReadReceiptsBannerDeclineButton),
+                child: Text(
+                  strings.conversationReadReceiptsBannerDeclineButton,
+                ),
               ),
               FilledButton(
-                style: FilledButton.styleFrom(backgroundColor: colorScheme.error),
+                style: FilledButton.styleFrom(
+                  backgroundColor: colorScheme.error,
+                ),
                 onPressed: () => _accept(context, ref, strings, turningOn),
                 child: Text(strings.conversationReadReceiptsBannerAcceptButton),
               ),
@@ -479,9 +520,8 @@ class _DmMenuButton extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final strings = ref.watch(appStringsProvider);
     final vocabulary = ref.watch(vocabularyProvider);
-    final prefs = ref
-            .watch(conversationPrefsProvider(currentUser.userId))
-            .value ??
+    final prefs =
+        ref.watch(conversationPrefsProvider(currentUser.userId)).value ??
         const <String, ConversationPrefs>{};
     final muted = prefs[dm.dmId]?.notificationsMuted ?? false;
 
@@ -492,18 +532,50 @@ class _DmMenuButton extends ConsumerWidget {
       onSelected: (action) async {
         switch (action) {
           case _DmMenuAction.renameRoom:
-            final name =
-                await _showRenameRoomDialog(context, strings, vocabulary, roomName);
+            final name = await _showRenameRoomDialog(
+              context,
+              strings,
+              vocabulary,
+              roomName,
+            );
             if (name == null) return;
-            await ref.read(directMessageRepositoryProvider).renameRoom(
-                  dmId: dm.dmId,
-                  roomId: roomId,
-                  name: name,
+            await ref
+                .read(directMessageRepositoryProvider)
+                .renameRoom(dmId: dm.dmId, roomId: roomId, name: name);
+          case _DmMenuAction.deleteRoom:
+            final confirmed = await _confirmDeleteRoom(
+              context,
+              strings,
+              vocabulary,
+            );
+            if (!confirmed) return;
+            try {
+              await ref
+                  .read(directMessageRepositoryProvider)
+                  .deleteRoom(
+                    dmId: dm.dmId,
+                    roomId: roomId,
+                    requestedBy: currentUser.userId,
+                  );
+            } on StateError {
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text(strings.roomDeleteLastRoomError)),
                 );
+              }
+              return;
+            }
+            if (context.mounted && Navigator.of(context).canPop()) {
+              Navigator.of(context).pop();
+            }
           case _DmMenuAction.enableMultipleRooms:
-            await ref.read(directMessageRepositoryProvider).setRoomsEnabled(dm.dmId);
+            await ref
+                .read(directMessageRepositoryProvider)
+                .setRoomsEnabled(dm.dmId);
           case _DmMenuAction.toggleMute:
-            ref.read(conversationPrefsRepositoryProvider).setNotificationsMuted(
+            ref
+                .read(conversationPrefsRepositoryProvider)
+                .setNotificationsMuted(
                   userId: currentUser.userId,
                   conversationId: dm.dmId,
                   muted: !muted,
@@ -526,11 +598,15 @@ class _DmMenuButton extends ConsumerWidget {
             // 相手の承認が必要（提案は常に現在値の反転を意味する）。
             // オフにする提案の場合のみ、提案前に警告を出す。
             if (dm.readReceiptsEnabled) {
-              final confirmed =
-                  await confirmDisableReadReceipts(context, strings);
+              final confirmed = await confirmDisableReadReceipts(
+                context,
+                strings,
+              );
               if (!confirmed) return;
             }
-            ref.read(directMessageRepositoryProvider).proposeReadReceiptsToggle(
+            ref
+                .read(directMessageRepositoryProvider)
+                .proposeReadReceiptsToggle(
                   dmId: dm.dmId,
                   userId: currentUser.userId,
                 );
@@ -545,7 +621,9 @@ class _DmMenuButton extends ConsumerWidget {
           case _DmMenuAction.deleteConversation:
             final confirmed = await _confirmDeleteDm(context, strings);
             if (!confirmed) return;
-            await ref.read(directMessageRepositoryProvider).deleteDmAfterAccountDeletion(
+            await ref
+                .read(directMessageRepositoryProvider)
+                .deleteDmAfterAccountDeletion(
                   dm.dmId,
                   userId: currentUser.userId,
                 );
@@ -559,6 +637,16 @@ class _DmMenuButton extends ConsumerWidget {
           value: _DmMenuAction.renameRoom,
           child: Text(strings.roomRenameLabel(vocabulary.textChannel)),
         ),
+        // 寄合一覧サイドバーのごみ箱アイコンの代わり（2026-07-30変更）。
+        // 最後の1つの寄合は選べても実際には削除できず、リポジトリが
+        // StateErrorを投げてSnackBarで案内する（`onSelected`参照）。
+        PopupMenuItem(
+          value: _DmMenuAction.deleteRoom,
+          child: Text(
+            strings.roomMenuDeleteLabel(vocabulary.textChannel),
+            style: TextStyle(color: Theme.of(context).colorScheme.error),
+          ),
+        ),
         // 単一モードの間だけ「寄合を増やす」を出す。複数モードへの切り替えは
         // 一方向のみ（2026-07-29追加、`DirectMessage.roomsEnabled`参照）。
         if (!dm.roomsEnabled)
@@ -568,7 +656,9 @@ class _DmMenuButton extends ConsumerWidget {
           ),
         PopupMenuItem(
           value: _DmMenuAction.toggleMute,
-          child: Text(muted ? strings.conversationUnmute : strings.conversationMute),
+          child: Text(
+            muted ? strings.conversationUnmute : strings.conversationMute,
+          ),
         ),
         PopupMenuItem(
           value: _DmMenuAction.toggleBlock,
@@ -666,28 +756,29 @@ class GroupChatPane extends ConsumerWidget {
       isVideo: isVideo,
     );
 
-    final participants =
-        await groupCallRepository.watchParticipants(call.groupCallId).first;
+    final participants = await groupCallRepository
+        .watchParticipants(call.groupCallId)
+        .first;
     if (participants.length >= call.maxParticipants) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('この通話は満員です（上限${call.maxParticipants}人）'),
-          ),
+          SnackBar(content: Text('この通話は満員です（上限${call.maxParticipants}人）')),
         );
       }
       return;
     }
 
     if (!context.mounted) return;
-    ref.read(goRouterProvider).push(
-      '/group-call',
-      extra: GroupCallArgs(
-        groupCallId: call.groupCallId,
-        currentUser: currentUser,
-        isVideo: call.isVideo,
-      ),
-    );
+    ref
+        .read(goRouterProvider)
+        .push(
+          '/group-call',
+          extra: GroupCallArgs(
+            groupCallId: call.groupCallId,
+            currentUser: currentUser,
+            isVideo: call.isVideo,
+          ),
+        );
   }
 
   @override
@@ -708,13 +799,15 @@ class GroupChatPane extends ConsumerWidget {
           ),
           builder: (context, roomsSnapshot) {
             final rooms = roomsSnapshot.data ?? const <Room>[];
-            final currentRoom = rooms.firstWhereOrNull((r) => r.roomId == roomId);
+            final currentRoom = rooms.firstWhereOrNull(
+              (r) => r.roomId == roomId,
+            );
             Color? senderNameColorFor(String userId) => resolveSenderColor(
-                  group: group,
-                  currentRoom: currentRoom,
-                  roles: roles,
-                  userId: userId,
-                );
+              group: group,
+              currentRoom: currentRoom,
+              roles: roles,
+              userId: userId,
+            );
 
             return _buildChatScreen(
               context,
@@ -749,22 +842,27 @@ class GroupChatPane extends ConsumerWidget {
       // 削除したもの）は、他のメンバーには見えたままここでは表示しない。
       messagesStream: groupRepository
           .watchRoomMessages(group.groupId, roomId)
-          .map((messages) => messages
-              .where((m) => !m.hiddenFor.contains(currentUser.userId))
-              .toList()),
-      onSend: (content, {silent = false, replyTo}) => groupRepository.sendRoomMessage(
-        groupId: group.groupId,
-        roomId: roomId,
-        senderId: currentUser.userId,
-        senderRhingId: currentUser.rhingId,
-        content: content,
-        silent: silent,
-        replyTo: replyTo,
-      ),
+          .map(
+            (messages) => messages
+                .where((m) => !m.hiddenFor.contains(currentUser.userId))
+                .toList(),
+          ),
+      onSend: (content, {silent = false, replyTo}) =>
+          groupRepository.sendRoomMessage(
+            groupId: group.groupId,
+            roomId: roomId,
+            senderId: currentUser.userId,
+            senderRhingId: currentUser.rhingId,
+            content: content,
+            silent: silent,
+            replyTo: replyTo,
+          ),
       onCallPressed: () => _handleCallPressed(context, ref, isVideo: false),
       onVideoCallPressed: () => _handleCallPressed(context, ref, isVideo: true),
-      readReceiptsEnabled:
-          effectiveReadReceiptsEnabled(group: group, room: currentRoom),
+      readReceiptsEnabled: effectiveReadReceiptsEnabled(
+        group: group,
+        room: currentRoom,
+      ),
       onMarkRead: (messageIds) => groupRepository.markRoomMessagesRead(
         groupId: group.groupId,
         roomId: roomId,
@@ -788,18 +886,20 @@ class GroupChatPane extends ConsumerWidget {
         roomId: roomId,
         messageId: messageId,
       ),
-      onSetReaction: (messageId, emoji) => groupRepository.setRoomMessageReaction(
-        groupId: group.groupId,
-        roomId: roomId,
-        messageId: messageId,
-        userId: currentUser.userId,
-        emoji: emoji,
-      ),
-      onFetchMessagesAround: (messageId) => groupRepository.getRoomMessagesAround(
-        groupId: group.groupId,
-        roomId: roomId,
-        messageId: messageId,
-      ),
+      onSetReaction: (messageId, emoji) =>
+          groupRepository.setRoomMessageReaction(
+            groupId: group.groupId,
+            roomId: roomId,
+            messageId: messageId,
+            userId: currentUser.userId,
+            emoji: emoji,
+          ),
+      onFetchMessagesAround: (messageId) =>
+          groupRepository.getRoomMessagesAround(
+            groupId: group.groupId,
+            roomId: roomId,
+            messageId: messageId,
+          ),
       extraActions: [
         _GroupMenuButton(
           currentUser: currentUser,
@@ -889,8 +989,10 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
       transitionDuration: const Duration(milliseconds: 150),
       pageBuilder: (context, animation, secondaryAnimation) {
         final screenSize = MediaQuery.sizeOf(context);
-        final left =
-            (buttonRect.left - width).clamp(8.0, screenSize.width - width - 8.0);
+        final left = (buttonRect.left - width).clamp(
+          8.0,
+          screenSize.width - width - 8.0,
+        );
         final top = buttonRect.top;
         return Stack(
           children: [
@@ -959,19 +1061,19 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
       userId: userId,
       permission: GroupPermission.manageRooms,
     );
-    final prefs = ref
-            .watch(conversationPrefsProvider(widget.currentUser.userId))
-            .value ??
+    final prefs =
+        ref.watch(conversationPrefsProvider(widget.currentUser.userId)).value ??
         const <String, ConversationPrefs>{};
     final muted = prefs[widget.group.groupId]?.notificationsMuted ?? false;
     final readReceiptsEnabled = widget.group.readReceiptsEnabled;
     // 「この寄合独自の設定」がオンの間だけ、通知・既読はこの寄合専用の値を
     // 使う（広場全体の値より優先、2026-07-29追加）。単一モードにはこの
     // 概念自体が無い（常に広場全体の値を直接編集する）。
-    final customSettingsEnabled = widget.currentRoom?.customSettingsEnabled ?? false;
+    final customSettingsEnabled =
+        widget.currentRoom?.customSettingsEnabled ?? false;
     final roomMuted =
         prefs[widget.group.groupId]?.roomNotificationOverrides[widget.roomId] ??
-            false;
+        false;
     final roomReadReceiptsEnabled =
         widget.currentRoom?.readReceiptsEnabledOverride ?? readReceiptsEnabled;
 
@@ -1001,7 +1103,10 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
               context: context,
               builder: (_) => Dialog(
                 child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 400, maxHeight: 640),
+                  constraints: const BoxConstraints(
+                    maxWidth: 400,
+                    maxHeight: 640,
+                  ),
                   child: GroupRoleListPopup(
                     currentUser: widget.currentUser,
                     group: widget.group,
@@ -1018,21 +1123,52 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
               widget.roomName,
             );
             if (name == null) return;
-            await ref.read(groupRepositoryProvider).renameRoom(
+            await ref
+                .read(groupRepositoryProvider)
+                .renameRoom(
                   groupId: widget.group.groupId,
                   roomId: widget.roomId,
                   name: name,
                 );
+          case _GroupMenuAction.deleteRoom:
+            if (!canManageRooms) return;
+            final confirmed = await _confirmDeleteRoom(
+              context,
+              strings,
+              vocabulary,
+            );
+            if (!confirmed) return;
+            try {
+              await ref
+                  .read(groupRepositoryProvider)
+                  .deleteRoom(
+                    groupId: widget.group.groupId,
+                    roomId: widget.roomId,
+                    requestedBy: widget.currentUser.userId,
+                  );
+            } on StateError {
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text(strings.roomDeleteLastRoomError)),
+                );
+              }
+              return;
+            }
+            if (context.mounted && Navigator.of(context).canPop()) {
+              Navigator.of(context).pop();
+            }
           case _GroupMenuAction.enableMultipleRooms:
             if (!canManageRooms) return;
-            await ref.read(groupRepositoryProvider).setRoomsEnabled(
-                  groupId: widget.group.groupId,
-                  enabled: true,
-                );
+            await ref
+                .read(groupRepositoryProvider)
+                .setRoomsEnabled(groupId: widget.group.groupId, enabled: true);
           case _GroupMenuAction.roomRolePriority:
             if (!canManageRoles) return;
-            final regularRoles = widget.roles.where((r) => !r.isEveryone).toList();
-            final order = widget.currentRoom?.rolePriorityOverride ??
+            final regularRoles = widget.roles
+                .where((r) => !r.isEveryone)
+                .toList();
+            final order =
+                widget.currentRoom?.rolePriorityOverride ??
                 widget.group.rolePriority;
             final orderedRoles = [
               for (final roleId in order)
@@ -1043,35 +1179,40 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
             GroupRolePriorityDialog.show(
               context,
               orderedRoles: orderedRoles,
-              onSave: (roleIds) =>
-                  ref.read(groupRepositoryProvider).setRoomRolePriorityOverride(
-                        groupId: widget.group.groupId,
-                        roomId: widget.roomId,
-                        roleIds: roleIds,
-                      ),
+              onSave: (roleIds) => ref
+                  .read(groupRepositoryProvider)
+                  .setRoomRolePriorityOverride(
+                    groupId: widget.group.groupId,
+                    roomId: widget.roomId,
+                    roleIds: roleIds,
+                  ),
               onReset: widget.currentRoom?.rolePriorityOverride == null
                   ? null
                   : () => ref
-                      .read(groupRepositoryProvider)
-                      .setRoomRolePriorityOverride(
-                        groupId: widget.group.groupId,
-                        roomId: widget.roomId,
-                        roleIds: null,
-                      ),
+                        .read(groupRepositoryProvider)
+                        .setRoomRolePriorityOverride(
+                          groupId: widget.group.groupId,
+                          roomId: widget.roomId,
+                          roleIds: null,
+                        ),
             );
           case _GroupMenuAction.toggleMute:
             // 複数モードでは「この寄合独自の設定」がオンの間だけこの項目が
             // 表示され、その場合はこの寄合専用の値を切り替える（広場全体の
             // 既定値は全体設定ポップアップから編集する、2026-07-29変更）。
             if (widget.group.roomsEnabled) {
-              ref.read(conversationPrefsRepositoryProvider).setRoomNotificationsMuted(
+              ref
+                  .read(conversationPrefsRepositoryProvider)
+                  .setRoomNotificationsMuted(
                     userId: widget.currentUser.userId,
                     conversationId: widget.group.groupId,
                     roomId: widget.roomId,
                     muted: !roomMuted,
                   );
             } else {
-              ref.read(conversationPrefsRepositoryProvider).setNotificationsMuted(
+              ref
+                  .read(conversationPrefsRepositoryProvider)
+                  .setNotificationsMuted(
                     userId: widget.currentUser.userId,
                     conversationId: widget.group.groupId,
                     muted: !muted,
@@ -1087,22 +1228,30 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
             if (!canManageReadReceipts) return;
             if (widget.group.roomsEnabled) {
               if (roomReadReceiptsEnabled) {
-                final confirmed =
-                    await confirmDisableReadReceipts(context, strings);
+                final confirmed = await confirmDisableReadReceipts(
+                  context,
+                  strings,
+                );
                 if (!confirmed) return;
               }
-              ref.read(groupRepositoryProvider).setRoomReadReceiptsEnabledOverride(
+              ref
+                  .read(groupRepositoryProvider)
+                  .setRoomReadReceiptsEnabledOverride(
                     groupId: widget.group.groupId,
                     roomId: widget.roomId,
                     enabled: !roomReadReceiptsEnabled,
                   );
             } else {
               if (readReceiptsEnabled) {
-                final confirmed =
-                    await confirmDisableReadReceipts(context, strings);
+                final confirmed = await confirmDisableReadReceipts(
+                  context,
+                  strings,
+                );
                 if (!confirmed) return;
               }
-              ref.read(groupRepositoryProvider).setReadReceiptsEnabled(
+              ref
+                  .read(groupRepositoryProvider)
+                  .setReadReceiptsEnabled(
                     groupId: widget.group.groupId,
                     enabled: !readReceiptsEnabled,
                     userId: widget.currentUser.userId,
@@ -1146,6 +1295,17 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
           enabled: canManageRooms,
           child: Text(strings.roomRenameLabel(vocabulary.textChannel)),
         ),
+        // 寄合一覧サイドバーのごみ箱アイコンの代わり（2026-07-30変更）。
+        // 最後の1つの寄合は選べても実際には削除できず、リポジトリが
+        // StateErrorを投げてSnackBarで案内する（`onSelected`参照）。
+        PopupMenuItem(
+          value: _GroupMenuAction.deleteRoom,
+          enabled: canManageRooms,
+          child: Text(
+            strings.roomMenuDeleteLabel(vocabulary.textChannel),
+            style: TextStyle(color: Theme.of(context).colorScheme.error),
+          ),
+        ),
         // 単一モードの間だけ「寄合を複数扱う」を出す。複数モードへの切り替えは
         // 一方向のみ（2026-07-29追加、`Group.roomsEnabled`参照）。
         if (!widget.group.roomsEnabled)
@@ -1167,7 +1327,9 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
             PopupMenuItem(
               value: _GroupMenuAction.toggleMute,
               child: Text(
-                roomMuted ? strings.conversationUnmute : strings.conversationMute,
+                roomMuted
+                    ? strings.conversationUnmute
+                    : strings.conversationMute,
               ),
             ),
             PopupMenuItem(
@@ -1193,17 +1355,21 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
               ),
               onChanged: !canManageRooms
                   ? null
-                  : (value) => ref.read(groupRepositoryProvider).setRoomCustomSettingsEnabled(
-                        groupId: widget.group.groupId,
-                        roomId: widget.roomId,
-                        enabled: value,
-                      ),
+                  : (value) => ref
+                        .read(groupRepositoryProvider)
+                        .setRoomCustomSettingsEnabled(
+                          groupId: widget.group.groupId,
+                          roomId: widget.roomId,
+                          enabled: value,
+                        ),
             ),
           ),
         ] else ...[
           PopupMenuItem(
             value: _GroupMenuAction.toggleMute,
-            child: Text(muted ? strings.conversationUnmute : strings.conversationMute),
+            child: Text(
+              muted ? strings.conversationUnmute : strings.conversationMute,
+            ),
           ),
           // 既読機能のオン/オフはmanageReadReceipts権限を持つメンバーのみ操作
           // 可能。それ以外には現在の状態を示すラベルとして表示するが、操作は
