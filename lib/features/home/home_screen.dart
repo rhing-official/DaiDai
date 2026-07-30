@@ -3,17 +3,23 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/strings.dart';
+import '../../models/app_ui_style.dart';
 import '../../models/app_user.dart';
+import '../../providers/app_ui_style_provider.dart';
+import '../../theme/gekiga/gekiga_colors.dart';
+import '../../widgets/gekiga/diagonal_accent.dart';
+import '../../widgets/gekiga/gekiga_badge.dart';
+import '../../widgets/gekiga/halftone_pattern.dart';
 import '../chat/talks_tab.dart';
 import '../profile/profile_tab.dart';
 import '../settings/settings_tab.dart';
-import '../support/support_tab.dart';
 
 /// サイドバー/下部ナビの切り替えしきい値。Material Design 3の
 /// medium windowサイズクラス（600dp）を採用する。
 const _kWideLayoutBreakpoint = 600.0;
 
-/// ホーム画面。語らい・身だしなみ・設定・運営の4タブで構成される。
+/// ホーム画面。語らい・身だしなみ・設定の3タブで構成される
+/// （2026-07-30、運営タブを廃止し設定タブ内のカテゴリへ統合）。
 /// 画面幅に応じて、コンピューターUI（サイドバー）とモバイルUI（下部ナビ）を切り替える。
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({required this.currentUser, super.key});
@@ -39,10 +45,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   // チップの帯を指でなぞっている間、今指が乗っているチップの実際の描画位置を
   // 判定するために使う（2026-07-29変更、以前はフリック時の速度だけで隣へ
-  // 1段階移動する実装だった。指を離すまで連続的に、語らいから運営まで
+  // 1段階移動する実装だった。指を離すまで連続的に、語らいから設定まで
   // 1回のドラッグで移動できるようにするため、位置ベースの追従に変更）。
   late final List<GlobalKey> _chipKeys =
-      List.generate(4, (_) => GlobalKey());
+      List.generate(3, (_) => GlobalKey());
 
   /// 各チップの画面上（global座標）での矩形。まだ描画されていないチップは
   /// nullのまま。
@@ -113,7 +119,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     Icons.forum_outlined,
     Icons.face_outlined,
     Icons.settings_outlined,
-    Icons.support_agent_outlined,
   ];
 
   static const _chipSize = 56.0;
@@ -127,17 +132,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       strings.navTalk,
       strings.navProfile,
       strings.navSettings,
-      strings.navSupport,
     ];
 
     final tabs = [
       TalksTab(currentUser: widget.currentUser),
       ProfileTab(currentUser: widget.currentUser),
       SettingsTab(currentUser: widget.currentUser),
-      const SupportTab(),
     ];
 
     final isWide = MediaQuery.sizeOf(context).width >= _kWideLayoutBreakpoint;
+    final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
 
     final chips = [
       for (var i = 0; i < titles.length; i++)
@@ -212,6 +216,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       body: SafeArea(
         child: Stack(
           children: [
+            // 劇画スタイル時のみの背景装飾。両方ともIgnorePointer内蔵のため
+            // 下の既存ドラッグジェスチャー・タップ判定には一切影響しない
+            // （2026-07-30追加）。
+            if (isGekiga) ...[
+              const HalftoneBackground(
+                color: GekigaColors.shade,
+                spacing: 16,
+                fadeDirection: Alignment.bottomRight,
+              ),
+              const DiagonalAccent(
+                color: GekigaColors.shade,
+                thickness: 0.5,
+                angle: -0.4,
+              ),
+            ],
             content,
             if (isWide)
               Positioned(
@@ -267,7 +286,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
 /// メニューバーを使わず、タブ切り替えを1つずつ独立した丸いチップで表す。
 /// 選択中はアクセントカラーで塗り、常に浮いて見えるよう影を付ける。
-class _NavChip extends StatelessWidget {
+/// 劇画スタイル時は丸いチップの代わりにジグザグのバッジ意匠を使う
+/// （2026-07-30、appUiStyleProviderを見るためConsumerWidget化）。
+class _NavChip extends ConsumerWidget {
   const _NavChip({
     required this.icon,
     required this.label,
@@ -292,8 +313,9 @@ class _NavChip extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colorScheme = Theme.of(context).colorScheme;
+    final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
     final background = selected ? colorScheme.primary : colorScheme.surface;
     final foreground = selected
         ? colorScheme.onPrimary
@@ -305,6 +327,43 @@ class _NavChip extends StatelessWidget {
         ? (vertical ? const Offset(0.35, 0) : const Offset(0, -0.35))
         : Offset.zero;
 
+    final chip = isGekiga
+        ? Material(
+            color: selected ? Colors.transparent : Colors.black,
+            shape: const RoundedRectangleBorder(
+              borderRadius: BorderRadius.zero,
+            ),
+            child: InkWell(
+              onTap: onTap,
+              child: SizedBox(
+                width: _HomeScreenState._chipSize,
+                height: _HomeScreenState._chipSize,
+                child: selected
+                    ? GekigaBadgeShape(
+                        color: colorScheme.primary,
+                        seed: label.hashCode,
+                        child: Icon(icon, color: Colors.white),
+                      )
+                    : Icon(icon, color: Colors.white70),
+              ),
+            ),
+          )
+        : Material(
+            color: background,
+            shape: const CircleBorder(),
+            elevation: selected ? 8 : 4,
+            shadowColor: colorScheme.primary.withValues(alpha: 0.4),
+            child: InkWell(
+              onTap: onTap,
+              customBorder: const CircleBorder(),
+              child: SizedBox(
+                width: _HomeScreenState._chipSize,
+                height: _HomeScreenState._chipSize,
+                child: Icon(icon, color: foreground),
+              ),
+            ),
+          );
+
     // RepaintBoundaryで囲み、なぞっている間の飛び出しアニメーションが
     // 選択中タブの中身（語らい一覧など）まで巻き込んで再描画させないように
     // する（2026-07-29追加。囲む前はチップの帯全体・場合によっては背後の
@@ -314,21 +373,7 @@ class _NavChip extends StatelessWidget {
         offset: offset,
         duration: const Duration(milliseconds: 150),
         curve: Curves.easeOut,
-        child: Material(
-          color: background,
-          shape: const CircleBorder(),
-          elevation: selected ? 8 : 4,
-          shadowColor: colorScheme.primary.withValues(alpha: 0.4),
-          child: InkWell(
-            onTap: onTap,
-            customBorder: const CircleBorder(),
-            child: SizedBox(
-              width: _HomeScreenState._chipSize,
-              height: _HomeScreenState._chipSize,
-              child: Icon(icon, color: foreground),
-            ),
-          ),
-        ),
+        child: chip,
       ),
     );
   }

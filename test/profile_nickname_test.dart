@@ -1,10 +1,12 @@
 import 'package:daidai/features/profile/profile_tab.dart';
 import 'package:daidai/l10n/app_locale.dart';
 import 'package:daidai/l10n/terminology_style.dart';
+import 'package:daidai/models/app_ui_style.dart';
 import 'package:daidai/models/app_user.dart';
 import 'package:daidai/models/profile_card.dart';
 import 'package:daidai/models/profile_material.dart';
 import 'package:daidai/providers/app_locale_provider.dart';
+import 'package:daidai/providers/app_ui_style_provider.dart';
 import 'package:daidai/providers/repository_providers.dart';
 import 'package:daidai/providers/terminology_style_provider.dart';
 import 'package:daidai/repositories/user_repository.dart';
@@ -71,7 +73,11 @@ class _FakeUserRepository implements UserRepository {
   }
 
   @override
-  Future<void> setProfileField(String userId, String field, String? value) async {
+  Future<void> setProfileField(
+    String userId,
+    String field,
+    String? value,
+  ) async {
     final base = saved ?? AppUser(userId: userId, rhingId: '');
     final json = base.toJson();
     json[field] = value;
@@ -107,7 +113,10 @@ class _FakeUserRepository implements UserRepository {
   }
 
   @override
-  Future<ProfileMaterial> uploadBackgroundImage(String userId, Uint8List bytes) {
+  Future<ProfileMaterial> uploadBackgroundImage(
+    String userId,
+    Uint8List bytes,
+  ) {
     throw UnimplementedError();
   }
 
@@ -147,6 +156,7 @@ void main() {
         overrides: [
           userRepositoryProvider.overrideWithValue(fakeRepo),
           initialAppLocaleProvider.overrideWithValue(AppLocale.japanese),
+          initialAppUiStyleProvider.overrideWithValue(AppUiStyle.simple),
           initialTerminologyStyleProvider.overrideWithValue(
             TerminologyStyle.worldview,
           ),
@@ -178,6 +188,7 @@ void main() {
         overrides: [
           userRepositoryProvider.overrideWithValue(fakeRepo),
           initialAppLocaleProvider.overrideWithValue(AppLocale.japanese),
+          initialAppUiStyleProvider.overrideWithValue(AppUiStyle.simple),
           initialTerminologyStyleProvider.overrideWithValue(
             TerminologyStyle.worldview,
           ),

@@ -8,12 +8,15 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../l10n/strings.dart';
 import '../../l10n/vocabulary.dart';
+import '../../models/app_ui_style.dart';
 import '../../models/app_user.dart';
 import '../../models/profile_card.dart';
 import '../../models/profile_material.dart';
+import '../../providers/app_ui_style_provider.dart';
 import '../../providers/repository_providers.dart';
 import '../../repositories/user_repository.dart';
 import '../../utils/color_hex.dart';
+import '../../widgets/gekiga/gekiga_panel_box.dart';
 import '../../widgets/profile_card_view.dart';
 import '../../widgets/swipe_gestures.dart';
 import 'enmusubi_page.dart';
@@ -762,7 +765,7 @@ class _ProfileCategoryList extends StatelessWidget {
   }
 }
 
-class _ProfileCategoryTile extends StatelessWidget {
+class _ProfileCategoryTile extends ConsumerWidget {
   const _ProfileCategoryTile({
     required this.icon,
     required this.title,
@@ -776,8 +779,23 @@ class _ProfileCategoryTile extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colorScheme = Theme.of(context).colorScheme;
+    final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
+
+    if (isGekiga) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: GekigaMenuTile(
+          seed: title.hashCode,
+          selected: selected,
+          leading: Icon(icon),
+          title: Text(title),
+          onTap: onTap,
+        ),
+      );
+    }
+
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 6),
       color: selected ? colorScheme.primary.withValues(alpha: 0.1) : null,
@@ -1232,7 +1250,6 @@ List<SnsLink> _selectedSnsLinksFor(AppUser user, List<String> snsLinkIds) => [
     if (snsLinkIds.contains(link.id)) link,
 ];
 
-
 /// アイコン・背景画像それぞれの蔵セクション（見出し＋件数＋サムネ一覧＋追加ボタン）。
 class _MaterialSection extends StatelessWidget {
   const _MaterialSection({
@@ -1619,8 +1636,9 @@ class _ImageColorSectionState extends State<_ImageColorSection> {
   late final TextEditingController _hexController;
   String? _errorText;
 
-  String _hexTextFor(int? color) =>
-      color == null ? '' : Color(0xFF000000 | color).toHexString().replaceFirst('#', '');
+  String _hexTextFor(int? color) => color == null
+      ? ''
+      : Color(0xFF000000 | color).toHexString().replaceFirst('#', '');
 
   @override
   void initState() {
@@ -1660,7 +1678,9 @@ class _ImageColorSectionState extends State<_ImageColorSection> {
 
   @override
   Widget build(BuildContext context) {
-    final swatchColor = widget.color != null ? Color(0xFF000000 | widget.color!) : null;
+    final swatchColor = widget.color != null
+        ? Color(0xFF000000 | widget.color!)
+        : null;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1707,10 +1727,7 @@ class _ImageColorSectionState extends State<_ImageColorSection> {
               ),
             ),
             if (widget.color != null)
-              IconButton(
-                icon: const Icon(Icons.close),
-                onPressed: _clear,
-              ),
+              IconButton(icon: const Icon(Icons.close), onPressed: _clear),
           ],
         ),
       ],

@@ -1,10 +1,12 @@
 import 'package:daidai/features/chat/chat_screen.dart';
 import 'package:daidai/l10n/app_locale.dart';
+import 'package:daidai/models/app_ui_style.dart';
 import 'package:daidai/models/chat_layout_style.dart';
 import 'package:daidai/models/message.dart';
 import 'package:daidai/models/message_time_format.dart';
 import 'package:daidai/models/send_key_mode.dart';
 import 'package:daidai/providers/app_locale_provider.dart';
+import 'package:daidai/providers/app_ui_style_provider.dart';
 import 'package:daidai/providers/chat_layout_style_provider.dart';
 import 'package:daidai/providers/message_time_format_provider.dart';
 import 'package:daidai/providers/send_key_mode_provider.dart';
@@ -36,6 +38,7 @@ Future<void> _pumpChatScreen(
         initialMessageTimeFormatProvider.overrideWithValue(MessageTimeFormat.h24),
         initialAppLocaleProvider.overrideWithValue(AppLocale.japanese),
         initialChatLayoutStyleProvider.overrideWithValue(ChatLayoutStyle.sideBySide),
+        initialAppUiStyleProvider.overrideWithValue(AppUiStyle.simple),
       ],
       child: MaterialApp(
         home: ChatScreen(
@@ -196,14 +199,14 @@ void main() {
   });
 
   testWidgets(
-    'モバイル（ソフトウェアキーボードのみ）でEnterキーを押しても送信されず、'
-    '送信ボタンも消えない（回帰テスト）',
+    'モバイル（Android）ではEnterキーは常に改行のみで、送信キー設定に関わらず送信しない（回帰テスト）',
     (tester) async {
-      // Androidのソフトウェアキーボードはtextinput.action.newlineの仕様上、
-      // 改行キーを押しただけでも生のEnterキーイベントを送出するため、これを
-      // 物理キーボード接続の根拠にすると誤検知し、送信ボタンが消えて改行も
-      // できなくなってしまう（実機で報告された不具合）。Enterキー単体では
-      // ハードウェアキーボード接続とみなさないことを確認する。
+      // モバイルにはShiftキーが無くShift+Enterによる改行ができない上、
+      // 機種・IMEによっては改行キーを押しただけで生のEnterキーイベントが
+      // 飛んでくることがあり、送信キー設定（enterToSend）をそのまま適用すると
+      // 誤って送信されてしまう（実機で報告された不具合）。モバイルでは
+      // 送信キー設定に関わらずEnterは常に改行のみとし、送信は送信ボタンの
+      // タップに固定していることを確認する。
       debugDefaultTargetPlatformOverride = TargetPlatform.android;
       try {
         final sent = <_Sent>[];
@@ -216,6 +219,30 @@ void main() {
 
         expect(sent, isEmpty);
         expect(find.byIcon(Icons.send), findsOneWidget);
+        final field = tester.widget<TextField>(find.byType(TextField));
+        expect(field.controller!.text, 'hello\n');
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+      }
+    },
+  );
+
+  testWidgets(
+    'モバイル（iOS）でもEnterキーは常に改行のみで送信しない',
+    (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+      try {
+        final sent = <_Sent>[];
+        await _pumpChatScreen(tester, mode: SendKeyMode.enterToSend, sentMessages: sent);
+
+        await tester.enterText(find.byType(TextField), 'hello');
+        await tester.pumpAndSettle();
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.pumpAndSettle();
+
+        expect(sent, isEmpty);
+        final field = tester.widget<TextField>(find.byType(TextField));
+        expect(field.controller!.text, 'hello\n');
       } finally {
         debugDefaultTargetPlatformOverride = null;
       }

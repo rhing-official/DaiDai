@@ -10,7 +10,6 @@ class Strings {
     required this.navTalk,
     required this.navProfile,
     required this.navSettings,
-    required this.navSupport,
     required this.addMenuDmTitleTemplate,
     required this.addMenuDmSubtitle,
     required this.addMenuGroupTitleTemplate,
@@ -19,9 +18,9 @@ class Strings {
     required this.settingsFolderApplication,
     required this.settingsFolderDesign,
     required this.settingsFolderLanguage,
-    required this.settingsFolderInput,
     required this.settingsFolderNotifications,
     required this.settingsFolderTalk,
+    required this.settingsFolderSupport,
     required this.settingsBlockedUsersTitle,
     required this.settingsBlockedUsersEmpty,
     required this.settingsBlockedUsersUnblock,
@@ -53,7 +52,6 @@ class Strings {
     required this.settingsChatLayoutAllLeftDescription,
     required this.settingsSubTypography,
     required this.settingsFontDesign,
-    required this.settingsFontSize,
     required this.settingsAccountInfoSection,
     required this.settingsRhingIdLabel,
     required this.settingsSecurity,
@@ -231,7 +229,9 @@ class Strings {
     required this.profileCardPickerLabel,
     required this.profileCardPickerStandardOption,
     required this.settingsProfileCardAssignmentTitle,
+    required this.settingsProfileCardAssignmentHint,
     required this.settingsProfileCardAssignmentEmpty,
+    required this.conversationProfileCardMenuLabel,
     required this.groupSettingsTooltip,
     required this.groupTransferOwnershipMenuItem,
     required this.groupTransferOwnershipConfirmTitle,
@@ -281,13 +281,14 @@ class Strings {
     required this.roomListDeleteConfirmTitle,
     required this.roomListDeleteConfirmButton,
     required this.roomRenameLabel,
+    required this.roomMenuDeleteLabel,
+    required this.roomDeleteLastRoomError,
     required this.dmMenuDeleteConversation,
   });
 
   final String navTalk;
   final String navProfile;
   final String navSettings;
-  final String navSupport;
 
   /// 一対/DM等の用語を差し込んだタイトルを組み立てる（例: 「一対を始める」）。
   final String Function(String dmTerm) addMenuDmTitleTemplate;
@@ -301,9 +302,9 @@ class Strings {
   final String settingsFolderApplication;
   final String settingsFolderDesign;
   final String settingsFolderLanguage;
-  final String settingsFolderInput;
   final String settingsFolderNotifications;
   final String settingsFolderTalk;
+  final String settingsFolderSupport;
   final String settingsBlockedUsersTitle;
   final String settingsBlockedUsersEmpty;
   final String settingsBlockedUsersUnblock;
@@ -324,6 +325,7 @@ class Strings {
   final String settingsTimeFormat12h;
   final String settingsSubUI;
   final String settingsUIDescription;
+
   /// UIスタイル選択肢（2026-07-29追加）。「シンプル」は現行の標準見た目、
   /// 「劇画」は手描き風・ギザギザした太い黒線・モノクロの吹き出しの
   /// メッセージ画面用スタイル（現時点ではメッセージ画面のみ対応）。
@@ -331,6 +333,9 @@ class Strings {
   final String settingsUiStyleSimpleDescription;
   final String settingsUiStyleGekigaLabel;
   final String settingsUiStyleGekigaDescription;
+
+  /// 「メッセージの表示」（2026-07-30改名、旧称: 語らいの表示）。旧「入力」
+  /// カテゴリ廃止に伴い、語らいカテゴリへ移動した（settings_tab.dart参照）。
   final String settingsChatLayoutTitle;
   final String settingsChatLayoutSideBySide;
   final String settingsChatLayoutSideBySideDescription;
@@ -338,7 +343,6 @@ class Strings {
   final String settingsChatLayoutAllLeftDescription;
   final String settingsSubTypography;
   final String settingsFontDesign;
-  final String settingsFontSize;
   final String settingsAccountInfoSection;
   final String settingsRhingIdLabel;
   final String settingsSecurity;
@@ -589,8 +593,18 @@ class Strings {
   /// タイトル（2026-07-29追加）。
   final String settingsProfileCardAssignmentTitle;
 
+  /// 上記セクションのタイトル直下に添える一言説明。「相手のカードを選ぶ」
+  /// 機能だと誤解されやすいため、自分が使うカードを選ぶ機能であることを
+  /// 明示する（2026-07-30追加）。
+  final String settingsProfileCardAssignmentHint;
+
   /// 上記セクションで、一対・広場がまだ1件も無い場合に表示する文言。
   final String settingsProfileCardAssignmentEmpty;
+
+  /// 各会話（一対のハンバーガーメニュー・広場の全体設定）から直接開く、
+  /// その会話で自分が使うプロフィールカードを選ぶメニュー項目・ダイアログ
+  /// タイトルの両方に使う（2026-07-30追加、`ConversationProfileCardDialog`）。
+  final String conversationProfileCardMenuLabel;
 
   /// サイドバーの「広場自体の設定」アイコンのツールチップ。
   final String groupSettingsTooltip;
@@ -666,6 +680,13 @@ class Strings {
   /// 寄合の名前変更メニュー項目・ダイアログタイトルの両方に使う。
   final String Function(String term) roomRenameLabel;
 
+  /// ハンバーガーメニューの「寄合を削除」項目（2026-07-30追加、寄合一覧の
+  /// ごみ箱アイコンの代わり）。用語（「寄合」等）を差し込む。
+  final String Function(String term) roomMenuDeleteLabel;
+
+  /// 最後の1つの寄合を削除しようとした時のエラー表示（SnackBar）。
+  final String roomDeleteLastRoomError;
+
   /// 一対のハンバーガーメニューの「削除」項目。相手がアカウントを削除した
   /// 通知に「いいえ」と答えた後（または未応答のまま）でも、いつでもここから
   /// 削除できる。用語（「一対」等）を差し込む。
@@ -675,7 +696,6 @@ class Strings {
     navTalk: '語らい',
     navProfile: '身だしなみ',
     navSettings: '設定',
-    navSupport: '運営',
     addMenuDmTitleTemplate: (dmTerm) => '$dmTermを始める',
     addMenuDmSubtitle: '1対1で話す相手を追加する',
     addMenuGroupTitleTemplate: (plazaTerm) => '$plazaTermを作る',
@@ -684,9 +704,9 @@ class Strings {
     settingsFolderApplication: 'アプリケーション',
     settingsFolderDesign: '色',
     settingsFolderLanguage: '言語',
-    settingsFolderInput: '入力',
     settingsFolderNotifications: '通知',
     settingsFolderTalk: '語らい',
+    settingsFolderSupport: '運営',
     settingsBlockedUsersTitle: 'ブロックしたユーザー',
     settingsBlockedUsersEmpty: 'ブロックしたユーザーはいません',
     settingsBlockedUsersUnblock: 'ブロック解除',
@@ -706,12 +726,13 @@ class Strings {
     settingsTimeFormat24h: '24時間表記（00:00）',
     settingsTimeFormat12h: '12時間表記（12:00 p.m.）',
     settingsSubUI: 'UI',
-    settingsUIDescription: 'メッセージ画面の見た目を選べます（他の画面は今のところスタイルによらず同じ見た目です）。',
+    settingsUIDescription: 'アプリ全体の見た目を選べます。',
     settingsUiStyleSimpleLabel: 'シンプル',
     settingsUiStyleSimpleDescription: '現行の標準スタイル',
     settingsUiStyleGekigaLabel: '劇画',
-    settingsUiStyleGekigaDescription: '手描き風の太いギザギザ線・モノクロの吹き出しになります。アイコンを囲む色は身だしなみの「イメージカラー」を使います',
-    settingsChatLayoutTitle: '語らいの表示',
+    settingsUiStyleGekigaDescription:
+        '手描き風の太いギザギザ線・モノクロの吹き出しになります。アイコンを囲む色は身だしなみの「イメージカラー」を使います',
+    settingsChatLayoutTitle: 'メッセージの表示',
     settingsChatLayoutSideBySide: '自分は右・相手は左',
     settingsChatLayoutSideBySideDescription:
         '自分のアイコンは表示しません。一対では相手のアイコン・呼び名も表示しません（広場では表示します）。'
@@ -722,7 +743,6 @@ class Strings {
         'この設定は自分の画面にのみ反映され、相手の語らいの表示には影響しません。',
     settingsSubTypography: '文字',
     settingsFontDesign: 'フォントデザイン',
-    settingsFontSize: 'フォントサイズ',
     settingsAccountInfoSection: 'アカウント情報',
     settingsRhingIdLabel: 'Rhing ID',
     settingsSecurity: 'セキュリティ',
@@ -915,7 +935,9 @@ class Strings {
     profileCardPickerLabel: '使うプロフィールカード（省略可）',
     profileCardPickerStandardOption: '標準',
     settingsProfileCardAssignmentTitle: '会話ごとのプロフィールカード',
+    settingsProfileCardAssignmentHint: '相手・広場ごとに、自分が使うプロフィールカードを選べます。',
     settingsProfileCardAssignmentEmpty: '一対・広場がまだありません',
+    conversationProfileCardMenuLabel: '使うプロフィールカード',
     groupSettingsTooltip: '広場自体の設定',
     groupTransferOwnershipMenuItem: '長を譲渡する',
     groupTransferOwnershipConfirmTitle: '長を譲渡しますか？',
@@ -969,6 +991,8 @@ class Strings {
     roomListDeleteConfirmTitle: (term) => 'この$termを削除しますか？',
     roomListDeleteConfirmButton: '削除する',
     roomRenameLabel: (term) => '$termの名前を変更',
+    roomMenuDeleteLabel: (term) => '$termを削除',
+    roomDeleteLastRoomError: '最後の1つの寄合は削除できません',
     dmMenuDeleteConversation: (term) => '$termの削除',
   );
 
@@ -976,7 +1000,6 @@ class Strings {
     navTalk: 'Talks',
     navProfile: 'Profile',
     navSettings: 'Settings',
-    navSupport: 'Support',
     addMenuDmTitleTemplate: (dmTerm) => 'Start a $dmTerm',
     addMenuDmSubtitle: 'Add someone to talk to one-on-one',
     addMenuGroupTitleTemplate: (plazaTerm) => 'Create a $plazaTerm',
@@ -985,9 +1008,9 @@ class Strings {
     settingsFolderApplication: 'Application',
     settingsFolderDesign: 'Colour',
     settingsFolderLanguage: 'Language',
-    settingsFolderInput: 'Input',
     settingsFolderNotifications: 'Notifications',
     settingsFolderTalk: 'Talk',
+    settingsFolderSupport: 'Support',
     settingsBlockedUsersTitle: 'Blocked users',
     settingsBlockedUsersEmpty: 'No blocked users',
     settingsBlockedUsersUnblock: 'Unblock',
@@ -1007,16 +1030,14 @@ class Strings {
     settingsTimeFormat24h: '24-hour (00:00)',
     settingsTimeFormat12h: '12-hour (12:00 p.m.)',
     settingsSubUI: 'UI',
-    settingsUIDescription:
-        'Choose how the message screen looks (other screens look the same '
-        'regardless of style for now).',
+    settingsUIDescription: 'Choose how the whole app looks.',
     settingsUiStyleSimpleLabel: 'Simple',
     settingsUiStyleSimpleDescription: 'The current standard style',
     settingsUiStyleGekigaLabel: 'Gekiga',
     settingsUiStyleGekigaDescription:
         'A hand-drawn, thick jagged-line, monochrome speech-bubble look. '
         'The colour around icons uses your profile\'s "Image colour".',
-    settingsChatLayoutTitle: 'Chat display',
+    settingsChatLayoutTitle: 'Message display',
     settingsChatLayoutSideBySide: 'You on the right, others on the left',
     settingsChatLayoutSideBySideDescription:
         "Hides your own avatar. In a direct message, also hides the other "
@@ -1029,7 +1050,6 @@ class Strings {
         'the chat.',
     settingsSubTypography: 'Typography',
     settingsFontDesign: 'Font design',
-    settingsFontSize: 'Font size',
     settingsAccountInfoSection: 'Account information',
     settingsRhingIdLabel: 'Rhing ID',
     settingsSecurity: 'Security',
@@ -1249,7 +1269,10 @@ class Strings {
     profileCardPickerLabel: 'Profile card to use (optional)',
     profileCardPickerStandardOption: 'Standard',
     settingsProfileCardAssignmentTitle: 'Profile card per conversation',
+    settingsProfileCardAssignmentHint:
+        'Choose which of your own profile cards you use with each friend or group.',
     settingsProfileCardAssignmentEmpty: 'No DMs or groups yet',
+    conversationProfileCardMenuLabel: 'Profile card to use',
     groupSettingsTooltip: 'Plaza settings',
     groupTransferOwnershipMenuItem: 'Transfer ownership',
     groupTransferOwnershipConfirmTitle: 'Transfer ownership?',
@@ -1313,6 +1336,8 @@ class Strings {
     roomListDeleteConfirmTitle: (term) => 'Delete this $term?',
     roomListDeleteConfirmButton: 'Delete',
     roomRenameLabel: (term) => 'Rename $term',
+    roomMenuDeleteLabel: (term) => 'Delete $term',
+    roomDeleteLastRoomError: 'The last remaining room cannot be deleted.',
     dmMenuDeleteConversation: (term) => 'Delete $term',
   );
 

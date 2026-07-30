@@ -4,9 +4,11 @@ import 'package:daidai/features/profile/profile_tab.dart';
 import 'package:daidai/l10n/app_locale.dart';
 import 'package:daidai/l10n/terminology_style.dart';
 import 'package:daidai/models/app_user.dart';
+import 'package:daidai/models/app_ui_style.dart';
 import 'package:daidai/models/profile_card.dart';
 import 'package:daidai/models/profile_material.dart';
 import 'package:daidai/providers/app_locale_provider.dart';
+import 'package:daidai/providers/app_ui_style_provider.dart';
 import 'package:daidai/providers/repository_providers.dart';
 import 'package:daidai/providers/terminology_style_provider.dart';
 import 'package:daidai/repositories/user_repository.dart';
@@ -109,7 +111,11 @@ class _FakeUserRepository implements UserRepository {
   }
 
   @override
-  Future<void> setProfileField(String userId, String field, String? value) async {
+  Future<void> setProfileField(
+    String userId,
+    String field,
+    String? value,
+  ) async {
     final base = saved ?? AppUser(userId: userId, rhingId: '');
     final json = base.toJson();
     json[field] = value;
@@ -169,7 +175,10 @@ class _FakeUserRepository implements UserRepository {
   }
 
   @override
-  Future<ProfileMaterial> uploadBackgroundImage(String userId, Uint8List bytes) {
+  Future<ProfileMaterial> uploadBackgroundImage(
+    String userId,
+    Uint8List bytes,
+  ) {
     throw UnimplementedError();
   }
 
@@ -189,17 +198,24 @@ class _FakeUserRepository implements UserRepository {
   Future<void> deleteAccountImmediately() async {}
 }
 
-Future<void> _pumpProfileTab(WidgetTester tester, AppUser user, _FakeUserRepository repo) async {
+Future<void> _pumpProfileTab(
+  WidgetTester tester,
+  AppUser user,
+  _FakeUserRepository repo,
+) async {
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
         userRepositoryProvider.overrideWithValue(repo),
         initialAppLocaleProvider.overrideWithValue(AppLocale.japanese),
+        initialAppUiStyleProvider.overrideWithValue(AppUiStyle.simple),
         initialTerminologyStyleProvider.overrideWithValue(
           TerminologyStyle.worldview,
         ),
       ],
-      child: MaterialApp(home: Scaffold(body: ProfileTab(currentUser: user))),
+      child: MaterialApp(
+        home: Scaffold(body: ProfileTab(currentUser: user)),
+      ),
     ),
   );
   await tester.pumpAndSettle();
@@ -223,11 +239,14 @@ Future<void> _pumpProfileTabNarrow(
       overrides: [
         userRepositoryProvider.overrideWithValue(repo),
         initialAppLocaleProvider.overrideWithValue(AppLocale.japanese),
+        initialAppUiStyleProvider.overrideWithValue(AppUiStyle.simple),
         initialTerminologyStyleProvider.overrideWithValue(
           TerminologyStyle.worldview,
         ),
       ],
-      child: MaterialApp(home: Scaffold(body: ProfileTab(currentUser: user))),
+      child: MaterialApp(
+        home: Scaffold(body: ProfileTab(currentUser: user)),
+      ),
     ),
   );
   await tester.pumpAndSettle();
@@ -337,49 +356,46 @@ void main() {
     expect(field.controller!.text.length, kMaxStatusMessageLength);
   });
 
-  testWidgets(
-    '遅いステメ保存の完了中に追加したニックネームが消えない（lost update回帰テスト）',
-    (tester) async {
-      // 実際のバグ再現: アイコンアップロード（Storage往復で数秒かかる）の
-      // ような遅い保存処理が完了する前に、別の項目（ニックネーム）を
-      // 追加すると、以前の実装（AppUser全体をset()で丸ごと上書き）では
-      // 後から完了した書き込みが先の書き込みを消してしまっていた。
-      // ここではステメの保存をわざと遅延させ、その間にニックネームを
-      // 追加した場合に両方とも生き残ることを検証する。
-      const user = AppUser(userId: 'u1', rhingId: 'taro');
-      final repo = _FakeUserRepository();
-      await _pumpProfileTab(tester, user, repo);
+  testWidgets('遅いステメ保存の完了中に追加したニックネームが消えない（lost update回帰テスト）', (tester) async {
+    // 実際のバグ再現: アイコンアップロード（Storage往復で数秒かかる）の
+    // ような遅い保存処理が完了する前に、別の項目（ニックネーム）を
+    // 追加すると、以前の実装（AppUser全体をset()で丸ごと上書き）では
+    // 後から完了した書き込みが先の書き込みを消してしまっていた。
+    // ここではステメの保存をわざと遅延させ、その間にニックネームを
+    // 追加した場合に両方とも生き残ることを検証する。
+    const user = AppUser(userId: 'u1', rhingId: 'taro');
+    final repo = _FakeUserRepository();
+    await _pumpProfileTab(tester, user, repo);
 
-      repo.blockField('statusMessages');
+    repo.blockField('statusMessages');
 
-      // ステメの保存を開始する（サーバー側書き込みは_delayGateでブロックされ、
-      // まだ完了しない）。
-      await tester.tap(find.text('一言を追加'));
-      await tester.pumpAndSettle();
-      await tester.enterText(find.byType(TextField), 'げんき');
-      await tester.tap(find.text('追加'));
-      await tester.pump();
+    // ステメの保存を開始する（サーバー側書き込みは_delayGateでブロックされ、
+    // まだ完了しない）。
+    await tester.tap(find.text('一言を追加'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'げんき');
+    await tester.tap(find.text('追加'));
+    await tester.pump();
 
-      // ステメの保存がまだ完了していない間に、ニックネームを追加する。
-      await tester.tap(find.text('呼び名を追加'));
-      await tester.pumpAndSettle();
-      await tester.enterText(find.byType(TextField), 'たろ');
-      await tester.tap(find.text('追加'));
-      await tester.pumpAndSettle();
+    // ステメの保存がまだ完了していない間に、ニックネームを追加する。
+    await tester.tap(find.text('呼び名を追加'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'たろ');
+    await tester.tap(find.text('追加'));
+    await tester.pumpAndSettle();
 
-      // ニックネームは（ステメの保存を待たずに）先に反映されているはず。
-      expect(repo.saved?.nicknames.map((n) => n.text), contains('たろ'));
+    // ニックネームは（ステメの保存を待たずに）先に反映されているはず。
+    expect(repo.saved?.nicknames.map((n) => n.text), contains('たろ'));
 
-      // 遅延させていたステメの保存を完了させる。
-      repo.releaseField();
-      await tester.pumpAndSettle();
+    // 遅延させていたステメの保存を完了させる。
+    repo.releaseField();
+    await tester.pumpAndSettle();
 
-      // ステメが反映された後も、先に追加したニックネームが消えていないこと
-      // （lost updateが起きていないこと）を確認する。
-      expect(repo.saved?.statusMessages.map((m) => m.text), contains('げんき'));
-      expect(repo.saved?.nicknames.map((n) => n.text), contains('たろ'));
-    },
-  );
+    // ステメが反映された後も、先に追加したニックネームが消えていないこと
+    // （lost updateが起きていないこと）を確認する。
+    expect(repo.saved?.statusMessages.map((m) => m.text), contains('げんき'));
+    expect(repo.saved?.nicknames.map((n) => n.text), contains('たろ'));
+  });
 
   testWidgets('背景を設定済みのカードでも背景タップで選択メニューが開く（回帰テスト）', (tester) async {
     // 背景を一度設定すると以降タップしても何も起きなくなる不具合の再現テスト。
@@ -477,12 +493,13 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(repo.saved?.profileCards.length, 1);
-    expect(repo.saved?.profileCards.single.snsLinkIds, containsAll(['l1', 'l2']));
+    expect(
+      repo.saved?.profileCards.single.snsLinkIds,
+      containsAll(['l1', 'l2']),
+    );
   });
 
-  testWidgets('空き枠を連続タップしてもカード編集画面は1つしか開かず、重複作成されない（回帰テスト）', (
-    tester,
-  ) async {
+  testWidgets('空き枠を連続タップしてもカード編集画面は1つしか開かず、重複作成されない（回帰テスト）', (tester) async {
     // 実際のバグ再現: Hero遷移のフェード（300ms）中はInkWellへの反応が一瞬
     // 遅れて見えるため、素早く連打すると_openCardZoomが多重に呼ばれ、同じ枠に
     // 対して別々のidを持つ内容の同じカードが2件作られてしまっていた。
@@ -512,11 +529,7 @@ void main() {
   testWidgets('工房の縮小表示（ズームアウト状態）のカードにもSNSのURLが表示される', (tester) async {
     const link1 = SnsLink(id: 'l1', url: 'https://www.instagram.com/taro');
     const link2 = SnsLink(id: 'l2', url: 'https://pixiv.net/taro');
-    const card = ProfileCard(
-      id: 'c1',
-      name: '既存カード',
-      snsLinkIds: ['l1', 'l2'],
-    );
+    const card = ProfileCard(id: 'c1', name: '既存カード', snsLinkIds: ['l1', 'l2']);
     const user = AppUser(
       userId: 'u1',
       rhingId: 'taro',
@@ -545,8 +558,8 @@ void main() {
     // 工房のカードスロット(Hero: profile-card-slot-*)を目印に、現在
     // どのセクションが表示されているかを判定する。
     Finder cardSlotHeroes() => find.byWidgetPredicate(
-          (w) => w is Hero && (w.tag as String).startsWith('profile-card-slot-'),
-        );
+      (w) => w is Hero && (w.tag as String).startsWith('profile-card-slot-'),
+    );
 
     // カテゴリ一覧から「工房」（蔵→工房→縁結びの2番目）へドリルダウンする。
     await tester.tap(find.text('工房'));
@@ -554,47 +567,52 @@ void main() {
     expect(cardSlotHeroes(), findsWidgets);
 
     // 左スワイプで次のカテゴリ（縁結び）へ。
-    await tester.fling(find.byType(SwipeBackDetector), const Offset(-300, 0), 1000);
+    await tester.fling(
+      find.byType(SwipeBackDetector),
+      const Offset(-300, 0),
+      1000,
+    );
     await tester.pumpAndSettle();
     expect(cardSlotHeroes(), findsNothing);
     expect(find.text('招待リンク'), findsOneWidget);
 
     // 右スワイプすると、隣接カテゴリではなく常にカテゴリ一覧へ戻る。
-    await tester.fling(find.byType(SwipeBackDetector), const Offset(300, 0), 1000);
+    await tester.fling(
+      find.byType(SwipeBackDetector),
+      const Offset(300, 0),
+      1000,
+    );
     await tester.pumpAndSettle();
     expect(find.byType(SwipeBackDetector), findsNothing);
     expect(find.text('工房'), findsOneWidget); // 一覧のカテゴリ名として表示される
   });
 
-  testWidgets(
-    '過去の重複バグ等でprofileCardsが上限(kMaxProfileCards)を超えていても、'
-    '超過分を隠さず全て表示する（回帰テスト）',
-    (tester) async {
-      // 過去に「arrayRemove→arrayUnion」の非原子的な2手順のせいで
-      // profileCardsに重複が残ってしまった場合、工房タブが先頭3件だけを
-      // 位置ベースで表示していると、4件目以降が画面から完全に見えなくなり
-      // ユーザーが気付いて削除する手段が無くなってしまっていた。
-      // kMaxProfileCards(=3)を超える件数でも、全件がカードスロットとして
-      // 表示されることを確認する。
-      const cards = [
-        ProfileCard(id: 'c1', name: 'カード1'),
-        ProfileCard(id: 'c2', name: 'カード2'),
-        ProfileCard(id: 'c3', name: 'カード3'),
-        ProfileCard(id: 'c4', name: '重複してしまったカード'),
-      ];
-      const user = AppUser(userId: 'u1', rhingId: 'taro', profileCards: cards);
-      final repo = _FakeUserRepository()..saved = user;
-      await _pumpProfileTab(tester, user, repo);
+  testWidgets('過去の重複バグ等でprofileCardsが上限(kMaxProfileCards)を超えていても、'
+      '超過分を隠さず全て表示する（回帰テスト）', (tester) async {
+    // 過去に「arrayRemove→arrayUnion」の非原子的な2手順のせいで
+    // profileCardsに重複が残ってしまった場合、工房タブが先頭3件だけを
+    // 位置ベースで表示していると、4件目以降が画面から完全に見えなくなり
+    // ユーザーが気付いて削除する手段が無くなってしまっていた。
+    // kMaxProfileCards(=3)を超える件数でも、全件がカードスロットとして
+    // 表示されることを確認する。
+    const cards = [
+      ProfileCard(id: 'c1', name: 'カード1'),
+      ProfileCard(id: 'c2', name: 'カード2'),
+      ProfileCard(id: 'c3', name: 'カード3'),
+      ProfileCard(id: 'c4', name: '重複してしまったカード'),
+    ];
+    const user = AppUser(userId: 'u1', rhingId: 'taro', profileCards: cards);
+    final repo = _FakeUserRepository()..saved = user;
+    await _pumpProfileTab(tester, user, repo);
 
-      await tester.tap(find.text('工房'));
-      await tester.pumpAndSettle();
+    await tester.tap(find.text('工房'));
+    await tester.pumpAndSettle();
 
-      final cardSlotHeroes = find.byWidgetPredicate(
-        (w) => w is Hero && (w.tag as String).startsWith('profile-card-slot-'),
-      );
-      expect(cardSlotHeroes, findsNWidgets(4));
-      // 新規作成用の白紙枠は上限(3枠)以上には増えない。
-      expect(find.byIcon(Icons.add), findsNothing);
-    },
-  );
+    final cardSlotHeroes = find.byWidgetPredicate(
+      (w) => w is Hero && (w.tag as String).startsWith('profile-card-slot-'),
+    );
+    expect(cardSlotHeroes, findsNWidgets(4));
+    // 新規作成用の白紙枠は上限(3枠)以上には増えない。
+    expect(find.byIcon(Icons.add), findsNothing);
+  });
 }

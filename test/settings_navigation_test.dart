@@ -1,11 +1,13 @@
 import 'package:daidai/features/settings/settings_tab.dart';
 import 'package:daidai/l10n/app_locale.dart';
 import 'package:daidai/l10n/terminology_style.dart';
+import 'package:daidai/models/app_ui_style.dart';
 import 'package:daidai/models/app_user.dart';
 import 'package:daidai/models/chat_layout_style.dart';
 import 'package:daidai/models/message_time_format.dart';
 import 'package:daidai/providers/accent_color_provider.dart';
 import 'package:daidai/providers/app_locale_provider.dart';
+import 'package:daidai/providers/app_ui_style_provider.dart';
 import 'package:daidai/providers/chat_layout_style_provider.dart';
 import 'package:daidai/models/send_key_mode.dart';
 import 'package:daidai/providers/message_time_format_provider.dart';
@@ -54,6 +56,7 @@ Future<void> _pumpSettingsTab(WidgetTester tester) async {
           ChatLayoutStyle.sideBySide,
         ),
         initialAppThemeModeProvider.overrideWithValue(ThemeMode.system),
+        initialAppUiStyleProvider.overrideWithValue(AppUiStyle.simple),
       ],
       child: const MaterialApp(
         home: Scaffold(
@@ -96,6 +99,7 @@ Future<void> _pumpSettingsTabNarrow(WidgetTester tester) async {
           ChatLayoutStyle.sideBySide,
         ),
         initialAppThemeModeProvider.overrideWithValue(ThemeMode.system),
+        initialAppUiStyleProvider.overrideWithValue(AppUiStyle.simple),
       ],
       child: const MaterialApp(
         home: Scaffold(
@@ -174,8 +178,7 @@ void main() {
       TerminologyStyle.worldview,
     );
 
-    // 語らいの表示スタイル設定の追加でページ全体が縦に伸びたため、
-    // タップ対象が初期表示のビューポート外にあることがある。
+    // ページ全体が縦に長く、タップ対象が初期表示のビューポート外にあることがある。
     await tester.ensureVisible(find.text('利便性重視'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('利便性重視'));
@@ -193,7 +196,8 @@ void main() {
     await _pumpSettingsTabNarrow(tester);
 
     // カテゴリ一覧から「アプリケーション」（アカウント→アプリケーション→
-    // 語らい→入力→通知の2番目）へドリルダウンする。
+    // 語らい→通知の2番目）へドリルダウンする（2026-07-30、入力カテゴリを
+    // 廃止して語らいへ統合したため、以前あった「入力」の段は無くなった）。
     await tester.tap(find.text('アプリケーション'));
     await tester.pumpAndSettle();
     expect(find.text('アクセントカラー'), findsOneWidget);
@@ -204,11 +208,11 @@ void main() {
     expect(find.text('アクセントカラー'), findsNothing);
     expect(find.text('ブロックしたユーザー'), findsOneWidget);
 
-    // さらに左スワイプで次のカテゴリ（入力）へ。
+    // さらに左スワイプで次のカテゴリ（通知）へ。
     await tester.fling(find.byType(SwipeBackDetector), const Offset(-300, 0), 1000);
     await tester.pumpAndSettle();
     expect(find.text('ブロックしたユーザー'), findsNothing);
-    expect(find.text('メッセージの送信キー'), findsOneWidget);
+    expect(find.text('準備中'), findsWidgets);
 
     // 右スワイプすると、隣接カテゴリではなく常にカテゴリ一覧へ戻る。
     await tester.fling(find.byType(SwipeBackDetector), const Offset(300, 0), 1000);
@@ -216,4 +220,42 @@ void main() {
     expect(find.byType(SwipeBackDetector), findsNothing);
     expect(find.text('アプリケーション'), findsOneWidget); // 一覧のカテゴリ名として表示される
   });
+
+  testWidgets(
+    '語らいページにはメッセージの表示・送信キー設定も含まれる'
+    '（2026-07-30、アプリケーション/入力カテゴリからの統合）',
+    (tester) async {
+      // 狭い画面のドリルダウンにする（広い画面の2ペインは左のサイドバーと
+      // 右のページが同時にScrollableとなり、scrollUntilVisibleの既定の
+      // 「Scrollableを1つだけ探す」挙動と衝突するため）。
+      await _pumpSettingsTabNarrow(tester);
+
+      await tester.tap(find.text('語らい'));
+      await tester.pumpAndSettle();
+
+      // ブロックしたユーザー・プロフィールカードの各セクションは、テスト環境に
+      // Firebaseが初期化されていないためエラー表示になるが、その下に続く
+      // メッセージの表示・送信キー設定のセクション自体はそれとは独立して
+      // 描画される。ページが縦に長くSliverListの遅延構築で最初は
+      // マウントされていないため、scrollUntilVisibleでスクロールしてから探す。
+      await tester.scrollUntilVisible(find.text('メッセージの表示'), 300);
+      expect(find.text('メッセージの表示'), findsOneWidget);
+      await tester.scrollUntilVisible(find.text('メッセージの送信キー'), 300);
+      expect(find.text('メッセージの送信キー'), findsOneWidget);
+
+      // 一覧へ戻り（右スワイプ）、アプリケーションページには両方とも
+      // もう出てこないことを確認する（見つからない場合の判定はスクロール
+      // 位置に依存しないため、ここではscrollUntilVisible不要）。
+      await tester.fling(
+        find.byType(SwipeBackDetector),
+        const Offset(300, 0),
+        1000,
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('アプリケーション'));
+      await tester.pumpAndSettle();
+      expect(find.text('メッセージの表示'), findsNothing);
+      expect(find.text('メッセージの送信キー'), findsNothing);
+    },
+  );
 }

@@ -63,11 +63,11 @@ class AppTheme {
       visualDensity: VisualDensity.comfortable,
       pageTransitionsTheme: const PageTransitionsTheme(
         builders: {
-          TargetPlatform.android: _PopSlidePageTransitionsBuilder(),
-          TargetPlatform.iOS: _PopSlidePageTransitionsBuilder(),
-          TargetPlatform.macOS: _PopSlidePageTransitionsBuilder(),
-          TargetPlatform.windows: _PopSlidePageTransitionsBuilder(),
-          TargetPlatform.linux: _PopSlidePageTransitionsBuilder(),
+          TargetPlatform.android: PopSlidePageTransitionsBuilder(),
+          TargetPlatform.iOS: PopSlidePageTransitionsBuilder(),
+          TargetPlatform.macOS: PopSlidePageTransitionsBuilder(),
+          TargetPlatform.windows: PopSlidePageTransitionsBuilder(),
+          TargetPlatform.linux: PopSlidePageTransitionsBuilder(),
         },
       ),
       appBarTheme: AppBarTheme(
@@ -126,8 +126,8 @@ class AppTheme {
 }
 
 /// 少し下から浮き上がりながらフェードイン＋わずかに拡大する「ポップ」演出。
-class _PopSlidePageTransitionsBuilder extends PageTransitionsBuilder {
-  const _PopSlidePageTransitionsBuilder();
+class PopSlidePageTransitionsBuilder extends PageTransitionsBuilder {
+  const PopSlidePageTransitionsBuilder();
 
   @override
   Widget buildTransitions<T>(
