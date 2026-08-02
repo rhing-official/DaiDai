@@ -7,6 +7,7 @@ import '../../l10n/vocabulary.dart';
 import '../../models/app_user.dart';
 import '../../models/conversation_prefs.dart';
 import '../../models/direct_message.dart';
+import '../../models/dm_room.dart';
 import '../../models/group.dart';
 import '../../models/group_role.dart';
 import '../../providers/block_providers.dart';
@@ -16,20 +17,25 @@ import '../../repositories/group_repository.dart';
 import '../../router/app_router.dart';
 import '../../utils/group_permissions.dart';
 import 'chat_screen.dart';
+import 'conversation_profile_card_dialog.dart';
+import 'group_delete_dialog.dart';
 import 'group_invite_dialog.dart';
 import 'group_leave_dialog.dart';
 import 'group_member_list_screen.dart';
 import 'group_profile_card_screen.dart';
 import 'group_role_list_popup.dart';
 import 'group_role_priority_dialog.dart';
+import 'room_tab_bar.dart';
 import 'severance_dialog.dart';
 import 'user_profile_card_dialog.dart';
 
 enum _GroupMenuAction {
   profileCard,
+  conversationProfileCard,
   memberList,
   createInvite,
   manageRoles,
+  deleteGroup,
   roomRolePriority,
   renameRoom,
   deleteRoom,
@@ -40,6 +46,7 @@ enum _GroupMenuAction {
 }
 
 enum _DmMenuAction {
+  conversationProfileCard,
   renameRoom,
   deleteRoom,
   enableMultipleRooms,
@@ -179,19 +186,26 @@ class DmChatPane extends ConsumerWidget {
     required this.roomName,
     this.onCallPressed,
     this.onVideoCallPressed,
+    this.showRoomTabBar = false,
     super.key,
   });
 
   final AppUser currentUser;
   final DirectMessage dm;
 
-  /// 現在表示中の寄合。呼び出し側（TalksTab分割表示、または狭画面の
-  /// 寄合一覧画面）が選択状態を管理し、渡す。
+  /// 現在表示中の寄合。呼び出し側（TalksTab分割表示、またはgo_routerの
+  /// フルスクリーン遷移）が選択状態を管理し、渡す。
   final String roomId;
   final String roomName;
 
   final VoidCallback? onCallPressed;
   final VoidCallback? onVideoCallPressed;
+
+  /// AppBar直下に寄合の横スクロールタブバー（`RoomTabBar`）を表示するか
+  /// （2026-08-03追加）。trueでも[DirectMessage.roomsEnabled]がfalseの
+  /// 単一モードでは表示しない。TalksTabの分割表示（サイドバー使用中）からは
+  /// falseのまま渡す（サイドバーと二重にならないように）。
+  final bool showRoomTabBar;
 
   /// メッセージの送信者アイコン・呼び名をタップした時に、相手のプロフィール
   /// カードを開く（広場側の`GroupChatPane._openProfileCard`と同じ導線）。
@@ -212,6 +226,25 @@ class DmChatPane extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // 横スクロールタブバーはこの寄合一覧を必要とする場合のみ購読する
+    // （単一モードや広い画面のサイドバー使用中は不要な購読を増やさない）。
+    if (!showRoomTabBar || !dm.roomsEnabled) {
+      return _buildChatScreen(context, ref, null);
+    }
+    return StreamBuilder<List<DmRoom>>(
+      stream: ref
+          .read(directMessageRepositoryProvider)
+          .watchRooms(dmId: dm.dmId, userId: currentUser.userId),
+      builder: (context, snapshot) =>
+          _buildChatScreen(context, ref, snapshot.data ?? const <DmRoom>[]),
+    );
+  }
+
+  Widget _buildChatScreen(
+    BuildContext context,
+    WidgetRef ref,
+    List<DmRoom>? rooms,
+  ) {
     final strings = ref.watch(appStringsProvider);
     final dmRepository = ref.watch(directMessageRepositoryProvider);
     final otherUserId = dm.otherUserId(currentUser.userId);
@@ -221,6 +254,25 @@ class DmChatPane extends ConsumerWidget {
     return ChatScreen(
       key: ValueKey('dm-${dm.dmId}-$roomId'),
       title: roomName,
+      roomTabBar: rooms == null
+          ? null
+          : RoomTabBar(
+              rooms: [for (final r in rooms) (roomId: r.roomId, name: r.name)],
+              selectedRoomId: roomId,
+              onSelectRoom: (room) => ref
+                  .read(goRouterProvider)
+                  .pushReplacement(
+                    '/chat/dm',
+                    extra: DmChatArgs(
+                      currentUser: currentUser,
+                      dm: dm,
+                      roomId: room.roomId,
+                      roomName: room.name,
+                    ),
+                  ),
+              onCreateRoom: (name) =>
+                  dmRepository.createRoom(dmId: dm.dmId, name: name),
+            ),
       currentUserId: currentUser.userId,
       isDm: true,
       conversationId: dm.dmId,
@@ -531,6 +583,12 @@ class _DmMenuButton extends ConsumerWidget {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       onSelected: (action) async {
         switch (action) {
+          case _DmMenuAction.conversationProfileCard:
+            ConversationProfileCardDialog.show(
+              context,
+              currentUserId: currentUser.userId,
+              conversationId: dm.dmId,
+            );
           case _DmMenuAction.renameRoom:
             final name = await _showRenameRoomDialog(
               context,
@@ -634,6 +692,10 @@ class _DmMenuButton extends ConsumerWidget {
       },
       itemBuilder: (context) => [
         PopupMenuItem(
+          value: _DmMenuAction.conversationProfileCard,
+          child: Text(strings.conversationProfileCardMenuLabel),
+        ),
+        PopupMenuItem(
           value: _DmMenuAction.renameRoom,
           child: Text(strings.roomRenameLabel(vocabulary.textChannel)),
         ),
@@ -706,16 +768,23 @@ class GroupChatPane extends ConsumerWidget {
     required this.group,
     required this.roomId,
     required this.roomName,
+    this.showRoomTabBar = false,
     super.key,
   });
 
   final AppUser currentUser;
   final Group group;
 
-  /// 現在表示中の寄合。呼び出し側（TalksTab分割表示、または狭画面の
-  /// 寄合一覧画面）が選択状態を管理し、渡す。
+  /// 現在表示中の寄合。呼び出し側（TalksTab分割表示、またはgo_routerの
+  /// フルスクリーン遷移）が選択状態を管理し、渡す。
   final String roomId;
   final String roomName;
+
+  /// AppBar直下に寄合の横スクロールタブバー（`RoomTabBar`）を表示するか
+  /// （2026-08-03追加）。trueでも[Group.roomsEnabled]がfalseの単一モードでは
+  /// 表示しない。TalksTabの分割表示（サイドバー使用中）からはfalseのまま渡す
+  /// （サイドバーと二重にならないように）。
+  final bool showRoomTabBar;
 
   /// メッセージの送信者アイコン・呼び名をタップした時に、相手のプロフィール
   /// カードを開く。一対と違い広場のメンバーは非友達の場合があるため、
@@ -813,6 +882,7 @@ class GroupChatPane extends ConsumerWidget {
               context,
               ref,
               groupRepository,
+              rooms,
               currentRoom,
               roles,
               senderNameColorFor,
@@ -827,10 +897,16 @@ class GroupChatPane extends ConsumerWidget {
     BuildContext context,
     WidgetRef ref,
     GroupRepository groupRepository,
+    List<Room> rooms,
     Room? currentRoom,
     List<GroupRole> roles,
     Color? Function(String userId) senderNameColorFor,
   ) {
+    final canManageRooms = hasGroupPermission(
+      group: group,
+      userId: currentUser.userId,
+      permission: GroupPermission.manageRooms,
+    );
     return ChatScreen(
       key: ValueKey('group-${group.groupId}-$roomId'),
       title: roomName,
@@ -838,6 +914,29 @@ class GroupChatPane extends ConsumerWidget {
       isDm: false,
       conversationId: group.groupId,
       senderNameColorResolver: senderNameColorFor,
+      roomTabBar: !showRoomTabBar || !group.roomsEnabled
+          ? null
+          : RoomTabBar(
+              rooms: [for (final r in rooms) (roomId: r.roomId, name: r.name)],
+              selectedRoomId: roomId,
+              onSelectRoom: (room) => ref
+                  .read(goRouterProvider)
+                  .pushReplacement(
+                    '/chat/group',
+                    extra: GroupChatArgs(
+                      currentUser: currentUser,
+                      group: group,
+                      roomId: room.roomId,
+                      roomName: room.name,
+                    ),
+                  ),
+              onCreateRoom: canManageRooms
+                  ? (name) => groupRepository.createRoom(
+                      groupId: group.groupId,
+                      name: name,
+                    )
+                  : null,
+            ),
       // hiddenForに自分のuserIdが含まれるメッセージ（範囲選択削除で自分が
       // 削除したもの）は、他のメンバーには見えたままここでは表示しない。
       messagesStream: groupRepository
@@ -1086,6 +1185,12 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
         switch (action) {
           case _GroupMenuAction.profileCard:
             _showProfileCardPopup();
+          case _GroupMenuAction.conversationProfileCard:
+            ConversationProfileCardDialog.show(
+              context,
+              currentUserId: widget.currentUser.userId,
+              conversationId: widget.group.groupId,
+            );
           case _GroupMenuAction.memberList:
             _showMemberListPopup();
           case _GroupMenuAction.createInvite:
@@ -1263,6 +1368,13 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
               groupId: widget.group.groupId,
               userId: widget.currentUser.userId,
             );
+          case _GroupMenuAction.deleteGroup:
+            if (!isOwner) return;
+            GroupDeleteDialog.show(
+              context,
+              groupId: widget.group.groupId,
+              userId: widget.currentUser.userId,
+            );
         }
       },
       itemBuilder: (context) => [
@@ -1274,6 +1386,10 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
           PopupMenuItem(
             value: _GroupMenuAction.profileCard,
             child: Text(strings.groupMenuProfileCard),
+          ),
+          PopupMenuItem(
+            value: _GroupMenuAction.conversationProfileCard,
+            child: Text(strings.conversationProfileCardMenuLabel),
           ),
           PopupMenuItem(
             value: _GroupMenuAction.memberList,
@@ -1288,6 +1404,14 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
             value: _GroupMenuAction.manageRoles,
             enabled: canManageRoles,
             child: Text(strings.groupMenuManageRoles),
+          ),
+          PopupMenuItem(
+            value: _GroupMenuAction.deleteGroup,
+            enabled: isOwner,
+            child: Text(
+              strings.groupDeleteMenuLabel,
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
           ),
         ],
         PopupMenuItem(

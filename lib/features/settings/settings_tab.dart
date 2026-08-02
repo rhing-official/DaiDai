@@ -8,10 +8,9 @@ import '../../l10n/terminology_style.dart';
 import '../../models/app_ui_style.dart';
 import '../../models/app_user.dart';
 import '../../models/chat_layout_style.dart';
-import '../../models/direct_message.dart';
 import '../../models/group.dart';
+import '../../models/group_role.dart';
 import '../../models/message_time_format.dart';
-import '../../models/profile_card.dart';
 import '../../models/send_key_mode.dart';
 import '../../providers/accent_color_provider.dart';
 import '../../providers/app_locale_provider.dart';
@@ -23,12 +22,11 @@ import '../../providers/repository_providers.dart';
 import '../../providers/send_key_mode_provider.dart';
 import '../../providers/terminology_style_provider.dart';
 import '../../providers/theme_mode_provider.dart';
-import '../../providers/user_providers.dart';
 import '../../utils/color_hex.dart';
 import '../../widgets/gekiga/gekiga_label_chip.dart';
 import '../../widgets/gekiga/gekiga_panel_box.dart';
-import '../../widgets/profile_card_picker.dart';
 import '../../widgets/swipe_gestures.dart';
+import '../chat/group_member_list_screen.dart';
 
 /// 画面幅がこれ以上あれば、左にカテゴリ一覧（サイドバー）、右にそのカテゴリの
 /// 内容を1ページにまとめて表示するDiscord設定風の2ペイン表示にする。
@@ -458,6 +456,10 @@ class _AccountPage extends ConsumerWidget {
           label: strings.settingsDeleteAccount,
           destructive: true,
           onTap: () async {
+            if (!await _ensureNoOwnedGroups(context, ref, currentUser)) {
+              return;
+            }
+            if (!context.mounted) return;
             final confirmed = await _confirmDeleteAccount(context, strings);
             if (!confirmed || !context.mounted) return;
             await ref
@@ -470,6 +472,10 @@ class _AccountPage extends ConsumerWidget {
           label: strings.settingsDeleteAccountImmediate,
           destructive: true,
           onTap: () async {
+            if (!await _ensureNoOwnedGroups(context, ref, currentUser)) {
+              return;
+            }
+            if (!context.mounted) return;
             final confirmed = await _confirmDeleteAccountImmediately(
               context,
               strings,
@@ -479,6 +485,125 @@ class _AccountPage extends ConsumerWidget {
             if (!context.mounted) return;
             await ref.read(authRepositoryProvider).signOut();
           },
+        ),
+      ],
+    );
+  }
+}
+
+/// 長を務める広場が1件でも残っている間はアカウントを削除させない
+/// （2026-08-02追加）。無ければ即座にtrueを返し、あれば[_OwnerGroupsGuardDialog]
+/// を開いて全て譲渡し終えるまで先へ進ませない。通常削除・即時削除どちらの
+/// 入り口からも共通で呼ぶ。
+Future<bool> _ensureNoOwnedGroups(
+  BuildContext context,
+  WidgetRef ref,
+  AppUser currentUser,
+) async {
+  final groups = await ref
+      .read(groupRepositoryProvider)
+      .watchGroups(currentUser.userId)
+      .first;
+  final hasOwnedGroups = groups.any((g) => g.ownerId == currentUser.userId);
+  if (!hasOwnedGroups) return true;
+  if (!context.mounted) return false;
+  return _OwnerGroupsGuardDialog.show(context, currentUser);
+}
+
+final _groupListProvider = StreamProvider.family<List<Group>, String>(
+  (ref, userId) => ref.watch(groupRepositoryProvider).watchGroups(userId),
+);
+
+/// 長を務める広場の一覧・譲渡導線を出すダイアログ（2026-08-02追加）。
+/// 各広場の「譲渡」から`GroupMemberListPopup`（メンバー一覧タップ→
+/// プロフィールカードの「長を譲渡」ボタン、既存の譲渡導線と同じ）を開く。
+/// 一覧はライブ購読のため、譲渡が完了すると自動的にその広場が消え、
+/// 全て消えると「続ける」が押せるようになる。
+class _OwnerGroupsGuardDialog extends ConsumerWidget {
+  const _OwnerGroupsGuardDialog({required this.currentUser});
+
+  final AppUser currentUser;
+
+  /// trueが返れば、削除操作の続き（確認ダイアログ）へ進んでよいという合図。
+  static Future<bool> show(BuildContext context, AppUser currentUser) async {
+    final proceed = await showDialog<bool>(
+      context: context,
+      builder: (_) => _OwnerGroupsGuardDialog(currentUser: currentUser),
+    );
+    return proceed ?? false;
+  }
+
+  Future<void> _openTransfer(BuildContext context, WidgetRef ref, Group group) {
+    return showDialog<void>(
+      context: context,
+      builder: (_) => Dialog(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 340, maxHeight: 640),
+          child: StreamBuilder<List<GroupRole>>(
+            stream: ref.read(groupRepositoryProvider).watchRoles(group.groupId),
+            builder: (context, snapshot) {
+              final roles = snapshot.data ?? const <GroupRole>[];
+              return GroupMemberListPopup(
+                currentUser: currentUser,
+                group: group,
+                roles: roles,
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final strings = ref.watch(appStringsProvider);
+    final groups = ref.watch(_groupListProvider(currentUser.userId)).value;
+    final ownedGroups = groups
+        ?.where((g) => g.ownerId == currentUser.userId)
+        .toList();
+
+    return AlertDialog(
+      title: Text(strings.accountDeleteOwnerGuardTitle),
+      content: SizedBox(
+        width: 360,
+        child: ownedGroups == null
+            ? const Padding(
+                padding: EdgeInsets.all(24),
+                child: Center(child: CircularProgressIndicator()),
+              )
+            : Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    ownedGroups.isEmpty
+                        ? strings.accountDeleteOwnerGuardCleared
+                        : strings.accountDeleteOwnerGuardMessage,
+                  ),
+                  const SizedBox(height: 8),
+                  for (final group in ownedGroups)
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(group.name),
+                      trailing: FilledButton(
+                        onPressed: () => _openTransfer(context, ref, group),
+                        child: Text(strings.groupTransferOwnershipMenuItem),
+                      ),
+                    ),
+                ],
+              ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: Text(strings.cancel),
+        ),
+        FilledButton(
+          onPressed: (ownedGroups != null && ownedGroups.isEmpty)
+              ? () => Navigator.of(context).pop(true)
+              : null,
+          child: Text(strings.accountDeleteOwnerGuardContinue),
         ),
       ],
     );
@@ -1026,139 +1151,10 @@ class _TalkPage extends StatelessWidget {
         _SectionHeader(strings.settingsBlockedUsersTitle),
         _BlockedUsersFolder(strings: strings, currentUser: currentUser),
         const Divider(height: 24),
-        _SectionHeader(strings.settingsProfileCardAssignmentTitle),
-        _ProfileCardAssignmentFolder(
-          strings: strings,
-          currentUser: currentUser,
-        ),
-        const Divider(height: 24),
         _ChatLayoutFolder(strings: strings),
         const Divider(height: 24),
         _SendKeyFolder(strings: strings),
       ],
-    );
-  }
-}
-
-/// 一対・広場ごとに使うプロフィールカード（`AppUser.conversationProfileCardId`、
-/// 2026-07-29追加）の一覧・変更UI。`_BlockedUsersFolder`と同じ構成パターン。
-class _ProfileCardAssignmentFolder extends ConsumerWidget {
-  const _ProfileCardAssignmentFolder({
-    required this.strings,
-    required this.currentUser,
-  });
-
-  final Strings strings;
-  final AppUser currentUser;
-
-  Future<void> _select(
-    WidgetRef ref,
-    String conversationId,
-    String? profileCardId,
-  ) {
-    return ref
-        .read(userRepositoryProvider)
-        .setConversationProfileCard(
-          userId: currentUser.userId,
-          conversationId: conversationId,
-          profileCardId: profileCardId,
-        );
-  }
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    // widget.currentUserは起動時に取得した静的スナップショットで、蔵・工房で
-    // 新しいカードを作ってもこの画面には反映されない（AuthGate参照）ため、
-    // profile_tab.dartと同じ理由でライブなAppUserを別途watchする。
-    final liveUser =
-        ref.watch(watchedUserProvider(currentUser.userId)).value ?? currentUser;
-    final dms = ref.watch(_dmListProvider(currentUser.userId)).value;
-    final groups = ref.watch(_groupListProvider(currentUser.userId)).value;
-
-    if (dms == null || groups == null) {
-      return const Padding(
-        padding: EdgeInsets.all(24),
-        child: Center(child: CircularProgressIndicator()),
-      );
-    }
-
-    if (dms.isEmpty && groups.isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: Text(
-          strings.settingsProfileCardAssignmentEmpty,
-          style: TextStyle(
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
-          ),
-        ),
-      );
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        for (final dm in dms)
-          _ProfileCardAssignmentRow(
-            strings: strings,
-            title: '@${dm.otherRhingId(currentUser.userId)}',
-            cards: liveUser.profileCards,
-            selectedCardId: liveUser.conversationProfileCardId[dm.dmId],
-            onSelected: (id) => _select(ref, dm.dmId, id),
-          ),
-        for (final group in groups)
-          _ProfileCardAssignmentRow(
-            strings: strings,
-            title: group.name,
-            cards: liveUser.profileCards,
-            selectedCardId: liveUser.conversationProfileCardId[group.groupId],
-            onSelected: (id) => _select(ref, group.groupId, id),
-          ),
-      ],
-    );
-  }
-}
-
-final _dmListProvider = StreamProvider.family<List<DirectMessage>, String>(
-  (ref, userId) =>
-      ref.watch(directMessageRepositoryProvider).watchDirectMessages(userId),
-);
-
-final _groupListProvider = StreamProvider.family<List<Group>, String>(
-  (ref, userId) => ref.watch(groupRepositoryProvider).watchGroups(userId),
-);
-
-class _ProfileCardAssignmentRow extends StatelessWidget {
-  const _ProfileCardAssignmentRow({
-    required this.strings,
-    required this.title,
-    required this.cards,
-    required this.selectedCardId,
-    required this.onSelected,
-  });
-
-  final Strings strings;
-  final String title;
-  final List<ProfileCard> cards;
-  final String? selectedCardId;
-  final ValueChanged<String?> onSelected;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
-          const SizedBox(height: 6),
-          ProfileCardPicker(
-            strings: strings,
-            cards: cards,
-            selectedCardId: selectedCardId,
-            onSelected: onSelected,
-          ),
-        ],
-      ),
     );
   }
 }

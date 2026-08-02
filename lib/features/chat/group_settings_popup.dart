@@ -10,6 +10,8 @@ import '../../providers/conversation_prefs_providers.dart';
 import '../../providers/repository_providers.dart';
 import '../../utils/group_permissions.dart';
 import 'chat_panes.dart' show confirmDisableReadReceipts;
+import 'conversation_profile_card_dialog.dart';
+import 'group_delete_dialog.dart';
 import 'group_invite_dialog.dart';
 import 'group_member_list_screen.dart';
 import 'group_profile_card_screen.dart';
@@ -76,7 +78,9 @@ class GroupSettingsPopup extends ConsumerWidget {
       ),
     );
     if (confirmed == true) {
-      await ref.read(groupRepositoryProvider).setRoomsEnabled(
+      await ref
+          .read(groupRepositoryProvider)
+          .setRoomsEnabled(
             groupId: group.groupId,
             enabled: false,
             requestedBy: userId,
@@ -108,7 +112,8 @@ class GroupSettingsPopup extends ConsumerWidget {
       userId: userId,
       permission: GroupPermission.manageRooms,
     );
-    final prefs = ref.watch(conversationPrefsProvider(userId)).value ??
+    final prefs =
+        ref.watch(conversationPrefsProvider(userId)).value ??
         const <String, ConversationPrefs>{};
     final muted = prefs[group.groupId]?.notificationsMuted ?? false;
     final readReceiptsEnabled = group.readReceiptsEnabled;
@@ -124,7 +129,10 @@ class GroupSettingsPopup extends ConsumerWidget {
               Expanded(
                 child: Text(
                   strings.groupSettingsTooltip,
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
                 ),
               ),
               IconButton(
@@ -147,8 +155,19 @@ class GroupSettingsPopup extends ConsumerWidget {
                   GroupProfileCardPopup(group: group),
                 ),
               ),
+              ListTile(
+                leading: const Icon(Icons.person_outline),
+                title: Text(strings.conversationProfileCardMenuLabel),
+                onTap: () => ConversationProfileCardDialog.show(
+                  context,
+                  currentUserId: currentUser.userId,
+                  conversationId: group.groupId,
+                ),
+              ),
               StreamBuilder<List<GroupRole>>(
-                stream: ref.read(groupRepositoryProvider).watchRoles(group.groupId),
+                stream: ref
+                    .read(groupRepositoryProvider)
+                    .watchRoles(group.groupId),
                 builder: (context, snapshot) {
                   final roles = snapshot.data ?? const <GroupRole>[];
                   return ListTile(
@@ -173,10 +192,10 @@ class GroupSettingsPopup extends ConsumerWidget {
                 onTap: !canCreateInvite
                     ? null
                     : () => GroupInviteDialog.show(
-                          context,
-                          group.groupId,
-                          group.profileCard,
-                        ),
+                        context,
+                        group.groupId,
+                        group.profileCard,
+                      ),
               ),
               ListTile(
                 leading: const Icon(Icons.shield_outlined),
@@ -185,12 +204,12 @@ class GroupSettingsPopup extends ConsumerWidget {
                 onTap: !canManageRoles
                     ? null
                     : () => _openSubDialog(
-                          context,
-                          GroupRoleListPopup(
-                            currentUser: currentUser,
-                            group: group,
-                          ),
+                        context,
+                        GroupRoleListPopup(
+                          currentUser: currentUser,
+                          group: group,
                         ),
+                      ),
               ),
               const Divider(),
               StreamBuilder<List<Room>>(
@@ -212,11 +231,11 @@ class GroupSettingsPopup extends ConsumerWidget {
                     onTap: !canDisable
                         ? null
                         : () => _confirmDisableMultipleRooms(
-                              context,
-                              ref,
-                              strings,
-                              userId,
-                            ),
+                            context,
+                            ref,
+                            strings,
+                            userId,
+                          ),
                   );
                 },
               ),
@@ -225,12 +244,13 @@ class GroupSettingsPopup extends ConsumerWidget {
                 value: muted,
                 title: Text(strings.groupSettingsDefaultMuteLabel),
                 subtitle: Text(strings.groupSettingsDefaultMuteHint),
-                onChanged: (value) =>
-                    ref.read(conversationPrefsRepositoryProvider).setNotificationsMuted(
-                          userId: userId,
-                          conversationId: group.groupId,
-                          muted: value,
-                        ),
+                onChanged: (value) => ref
+                    .read(conversationPrefsRepositoryProvider)
+                    .setNotificationsMuted(
+                      userId: userId,
+                      conversationId: group.groupId,
+                      muted: value,
+                    ),
               ),
               SwitchListTile(
                 value: readReceiptsEnabled,
@@ -240,16 +260,37 @@ class GroupSettingsPopup extends ConsumerWidget {
                     ? null
                     : (value) async {
                         if (!value) {
-                          final confirmed =
-                              await confirmDisableReadReceipts(context, strings);
+                          final confirmed = await confirmDisableReadReceipts(
+                            context,
+                            strings,
+                          );
                           if (!confirmed) return;
                         }
-                        ref.read(groupRepositoryProvider).setReadReceiptsEnabled(
+                        ref
+                            .read(groupRepositoryProvider)
+                            .setReadReceiptsEnabled(
                               groupId: group.groupId,
                               enabled: value,
                               userId: userId,
                             );
                       },
+              ),
+              const Divider(),
+              ListTile(
+                leading: Icon(
+                  Icons.delete_forever,
+                  color: Theme.of(context).colorScheme.error,
+                ),
+                title: Text(
+                  strings.groupDeleteMenuLabel,
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
+                enabled: group.ownerId == userId,
+                onTap: () => GroupDeleteDialog.show(
+                  context,
+                  groupId: group.groupId,
+                  userId: userId,
+                ),
               ),
             ],
           ),

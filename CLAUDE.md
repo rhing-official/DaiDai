@@ -30,10 +30,11 @@ DaiDai関連でブラウザ操作・ログインが必要な場面（Firebase Co
 - Firebaseプロジェクトはこのアカウント（`rhing.official@gmail.com`）で作成済み
 - Firebase CLI / gcloud CLIなどのツールでログインする際も同アカウントを使う
 
-## 開発時の動作確認（2026-07-22追加）
+## 開発時の動作確認（2026-07-22追加、2026-08-02更新）
 
-- **コード編集が一区切りついたら、確認を挟まずVivaldiで動作確認用の環境（`flutter run -d web-server --web-port=8765`等）を立ち上げること**。ポートが使用中の場合は既存プロセスを終了してから起動し直す
-- ユーザーから「もう一度起動して」「再度開いて」等、起動をやり直す指示があった場合は、方針確認などを挟まず即座に起動作業に入ること
+- **実装が完了しても、動作確認用の環境（`flutter run -d web-server --web-port=8765`等）を自動的に立ち上げる必要は無い**。動作確認は基本的にユーザー自身が行う。`flutter analyze`・`flutter test`・`dart format`等コード上で完結する検証までを実装完了の基準とする
+- 既に環境を起動済みで作業中の流れの中でコードを変更した場合は、後述のホットリロード対応を続けて構わない（新規に起動し直すことと、起動済みのものへ変更を反映することは別）
+- ユーザーから「起動して」「もう一度開いて」等、明示的に起動を求める指示があった場合は、方針確認などを挟まず即座に起動作業に入ること
 - **デバッグ中に更にコードを変更した場合は、その都度ホットリロード（`r`）／ホットリスタート（`R`）を確認を挟まず実行し、変更を反映させること**。`main()`やRiverpodの`ProviderScope`の初期化（override）を変更した場合、または新規パッケージを追加した場合はホットリロードでは反映されないため`R`（ホットリスタート）を使う。それでも反映されない場合（新規パッケージ追加直後など）は`flutter run`プロセスを完全に再起動する
 - `flutter run`をこちら側でバックグラウンド起動している場合、ユーザーの端末からは`r`/`R`のキー入力を送れない（別プロセスのため）。その場合は対象プロセスのPIDに`kill -SIGUSR1 <pid>`（ホットリロード）／`kill -SIGUSR2 <pid>`（ホットリスタート）でシグナルを送ることで代替できる
 
@@ -145,7 +146,7 @@ DaiDaiは独自の世界観用語を使う。変数名・クラス名・コレ�
 - **決済**: Stripe経由のブラウザ決済のみ。iOS/Android/macOSアプリ内課金は実装しない（プラットフォーム規約対応、審査説明文は企画書7章参照）
 - **スパム対策**: 仲間承認制がベース。E2E暗号化との両立のためメッセージ内容はサーバー側で監視せず、メタデータ分析＋クライアント側チェックの多層防御（企画書/技術仕様書8章にレート制限の具体値あり）
 - **安否確認（フェーズ3）**: 気象庁防災情報APIを1分ごとにポーリングし震度5強以上で発動。オプトイン方式、応答データは72時間後自動削除
-- **アカウント削除（2026-07-28実装、旧: 3時間以内に完全削除から変更）**: 設定＞アカウントから2パターン選べる。(1) **通常削除**（`UserRepository.requestAccountDeletion`）: 申請後30日間は情報を保持し、その間にログインすると「アカウントを復元しますか？」（`lib/features/auth/account_restore_screen.dart`）から復元できる。何も操作をしないまま31日目の00:00（Asia/Tokyo）になると、Cloud Functions（`functions/src/index.ts`の`processAccountDeletions`、毎日00:00実行のスケジュールトリガー）がサーバーから全情報を完全削除する。(2) **即時削除**（`UserRepository.deleteAccountImmediately`）: 30日間の猶予を経ず、Cloud Functionsのcallable関数`deleteAccountImmediately`（同ファイル、認証中の本人のみ呼び出し可）を通じてその場で完全削除する（復元不可）。どちらも実際の削除処理は共通の`deleteAccount`ヘルパーを使う（Firestore・Firebase Authとも削除）。一対（DM）には削除完了時点で「〇〇がアカウントを削除しました。語らいを削除しますか？」と通知され、「はい」→確認→即時に会話履歴を物理削除、「いいえ」なら通知だけが残る（`DirectMessage.accountDeletedUserId`、`Message.contentType == 'accountDeleted'`）。広場には「〇〇がアカウントを削除しました。」の通知のみで、削除の選択肢は無い。広場の長が削除した場合は長交代の仕組みが無いため、メンバー一覧からの除去は行わず通知のみ行う（長交代機能は未実装）
+- **アカウント削除（2026-07-28実装、旧: 3時間以内に完全削除から変更）**: 設定＞アカウントから2パターン選べる。(1) **通常削除**（`UserRepository.requestAccountDeletion`）: 申請後30日間は情報を保持し、その間にログインすると「アカウントを復元しますか？」（`lib/features/auth/account_restore_screen.dart`）から復元できる。何も操作をしないまま31日目の00:00（Asia/Tokyo）になると、Cloud Functions（`functions/src/index.ts`の`processAccountDeletions`、毎日00:00実行のスケジュールトリガー）がサーバーから全情報を完全削除する。(2) **即時削除**（`UserRepository.deleteAccountImmediately`）: 30日間の猶予を経ず、Cloud Functionsのcallable関数`deleteAccountImmediately`（同ファイル、認証中の本人のみ呼び出し可）を通じてその場で完全削除する（復元不可）。どちらも実際の削除処理は共通の`deleteAccount`ヘルパーを使う（Firestore・Firebase Authとも削除）。一対（DM）には削除完了時点で「〇〇がアカウントを削除しました。語らいを削除しますか？」と通知され、「はい」→確認→即時に会話履歴を物理削除、「いいえ」なら通知だけが残る（`DirectMessage.accountDeletedUserId`、`Message.contentType == 'accountDeleted'`）。広場には「〇〇がアカウントを削除しました。」の通知のみで、削除の選択肢は無い。**長を務める広場が1件でも残っている間はアカウントを削除できない（2026-08-02実装）**: 通常削除・即時削除どちらの入り口でも、削除操作前に対象の広場一覧と「長を譲渡」導線（既存の`GroupMemberListPopup`を再利用）を出すガードダイアログ（`settings_tab.dart`の`_OwnerGroupsGuardDialog`）が挟まり、全ての広場で`GroupRepository.transferOwnership`により別のメンバーへ譲渡し終えるまで先へ進めない。Cloud Functions側にも同じ制約の安全策があり、`deleteAccountImmediately`は長を務める広場が残っていれば`failed-precondition`で拒否し、`processAccountDeletions`（30日後の自動削除）も実行直前に再チェックして残っていればその日は削除をスキップする（猶予期間中に新たに広場を作成・譲受した場合への対応）。この制約により、`notifyAndLeaveGroups`内の「長の場合は除去せず通知のみ」という分岐は実質到達しない防御的コードとして残っている
 
 ## 実装しない機能（明確な方針）
 
@@ -188,7 +189,7 @@ DaiDaiは独自の世界観用語を使う。変数名・クラス名・コレ�
 
 ### 複数寄合機能（2026-07-28実装）
 
-広場・一対どちらも、1つの会話の中に複数の「寄合」（テキストチャンネル）を作れる。友達一覧・広場一覧のサイドバー（`lib/features/chat/talks_tab.dart`の分割表示）の右隣に、選択中の会話の寄合一覧サイドバー（`lib/features/chat/room_list_pane.dart`の`RoomListPane`）が表示され、そこから寄合の追加（確認無しで名前を入力してすぐ作成）・削除（「本当に削除しますか？」の確認あり、最後の1つは削除不可）ができる。狭い画面では`/chat/dm-rooms`・`/chat/group-rooms`ルート（`lib/features/chat/room_list_screen.dart`）でフルスクリーンの寄合一覧を経由してから個々のチャット画面（`/chat/dm`・`/chat/group`）を開くドリルダウン構成。
+広場・一対どちらも、1つの会話の中に複数の「寄合」（テキストチャンネル）を作れる。広い画面（横表示）では、友達一覧・広場一覧のサイドバー（`lib/features/chat/talks_tab.dart`の分割表示）の右隣に、選択中の会話の寄合一覧サイドバー（`lib/features/chat/room_list_pane.dart`の`RoomListPane`）が表示され、そこから寄合の追加（確認無しで名前を入力してすぐ作成）・削除（「本当に削除しますか？」の確認あり、最後の1つは削除不可）ができる。狭い画面（縦表示）ではサイドバーを経由するフルスクリーンのドリルダウン画面は使わず、一覧で相手/広場をタップすると`defaultRoomId`で直接チャット画面（`/chat/dm`・`/chat/group`）へ1ステップで遷移し、寄合の切り替えはチャット画面のAppBar直下に表示される横スクロールタブバー（`lib/features/chat/room_tab_bar.dart`の`RoomTabBar`、寄合を選ぶと`pushReplacement`で画面ごと差し替える）から行う（2026-08-03変更、以前は`/chat/dm-rooms`・`/chat/group-rooms`ルート＝`room_list_screen.dart`のフルスクリーン寄合一覧を経由するドリルダウン構成だったが、当該ルート・ファイルとも削除した）。寄合の追加ボタンは`RoomTabBar`にも用意するが、削除・改名はサイドバー同様このバーからは行わずハンバーガーメニューから行う。単一モード（`roomsEnabled == false`）の会話ではどちらの画面幅でもこれらのUI自体を出さない。
 
 - 広場側の寄合追加・削除は長・モデレーターのみ（firestore.rulesで強制）。既存の`GroupRepository`が元々`rooms`サブコレクション・`defaultRoomId`という複数ルーム前提の設計だったため、`watchRooms`/`createRoom`/`deleteRoom`を追加し、`respondToJoinRequest`/`leaveGroup`/`setReadReceiptsEnabled`をdefaultRoomId決め打ちから全room走査に修正する形で対応した。
 - 一対側は参加者2人がどちらも対等に追加・削除できる（役割が無いため）。既存の`directMessages/{dmId}/messages`というフラット構造を、広場と同じ`directMessages/{dmId}/rooms/{roomId}/messages`構造に変更（`DirectMessage.defaultRoomId`追加、新規`lib/models/dm_room.dart`の`DmRoom`）。既存データはCloud Functionsの一度きりの移行処理（`functions/src/index.ts`、実行後にソースから削除済み）で新構造へ移した。
@@ -245,3 +246,5 @@ DaiDaiは独自の世界観用語を使う。変数名・クラス名・コレ�
 ## Sumomoとの関係
 
 Sumomo（別プロダクト、公的機関向け）とDaiDaiは完全に別サーバーで運用。SumomoからDaiDai/Rhingの情報を参照することは不可（実装上もデータ・インフラを混在させない）。
+
+作業前に日記.mdを必ず確認すること
