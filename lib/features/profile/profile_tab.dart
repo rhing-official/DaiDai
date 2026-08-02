@@ -10,6 +10,8 @@ import '../../l10n/strings.dart';
 import '../../l10n/vocabulary.dart';
 import '../../models/app_ui_style.dart';
 import '../../models/app_user.dart';
+import '../../models/direct_message.dart';
+import '../../models/group.dart';
 import '../../models/profile_card.dart';
 import '../../models/profile_material.dart';
 import '../../providers/app_ui_style_provider.dart';
@@ -17,8 +19,10 @@ import '../../providers/repository_providers.dart';
 import '../../repositories/user_repository.dart';
 import '../../utils/color_hex.dart';
 import '../../widgets/gekiga/gekiga_panel_box.dart';
+import '../../widgets/profile_card_picker.dart';
 import '../../widgets/profile_card_view.dart';
 import '../../widgets/swipe_gestures.dart';
+import '../chat/conversation_profile_card_dialog.dart';
 import 'enmusubi_page.dart';
 
 enum _ProfileSection { kura, koubou, enmusubi }
@@ -1055,7 +1059,212 @@ class _WorkshopView extends StatelessWidget {
             );
           },
         ),
+        const Divider(height: 32),
+        _WorkshopConversationCardSection(user: user, strings: strings),
       ],
+    );
+  }
+}
+
+final _dmListProvider = StreamProvider.family<List<DirectMessage>, String>(
+  (ref, userId) =>
+      ref.watch(directMessageRepositoryProvider).watchDirectMessages(userId),
+);
+
+final _groupListProvider = StreamProvider.family<List<Group>, String>(
+  (ref, userId) => ref.watch(groupRepositoryProvider).watchGroups(userId),
+);
+
+/// 工房内、会話（一対・広場）ごとに使うプロフィールカード
+/// （`AppUser.conversationProfileCardId`、2026-07-29追加）の一覧・追加UI。
+/// 以前は設定＞語らいにあったが、2026-08-02に工房へ移動した。全ての語らいを
+/// 並べると標準カードのままの語らいに埋もれてしまうため、既に個別のカードを
+/// 設定した語らいだけを表示する。まだ設定していない語らいに新しく設定したい
+/// ときは＋ボタンから対象を選ぶ（[_showAddDialog]）。選んだ後は
+/// `ConversationProfileCardDialog`（ハンバーガーメニュー・広場の全体設定と
+/// 共通）を再利用してカードを選ばせる。標準に戻す（`ProfileCardPicker`で
+/// 「標準」を選ぶ）と、この一覧からは自動的に消える。
+class _WorkshopConversationCardSection extends ConsumerWidget {
+  const _WorkshopConversationCardSection({
+    required this.user,
+    required this.strings,
+  });
+
+  final AppUser user;
+  final Strings strings;
+
+  Future<void> _select(
+    WidgetRef ref,
+    String conversationId,
+    String? profileCardId,
+  ) {
+    return ref
+        .read(userRepositoryProvider)
+        .setConversationProfileCard(
+          userId: user.userId,
+          conversationId: conversationId,
+          profileCardId: profileCardId,
+        );
+  }
+
+  Future<void> _showAddDialog(
+    BuildContext context,
+    List<DirectMessage> unassignedDms,
+    List<Group> unassignedGroups,
+  ) async {
+    if (unassignedDms.isEmpty && unassignedGroups.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(strings.workshopConversationCardAddEmpty)),
+      );
+      return;
+    }
+
+    final conversationId = await showDialog<String>(
+      context: context,
+      builder: (context) => SimpleDialog(
+        title: Text(strings.workshopConversationCardAddDialogTitle),
+        children: [
+          for (final dm in unassignedDms)
+            SimpleDialogOption(
+              onPressed: () => Navigator.of(context).pop(dm.dmId),
+              child: Text('@${dm.otherRhingId(user.userId)}'),
+            ),
+          for (final group in unassignedGroups)
+            SimpleDialogOption(
+              onPressed: () => Navigator.of(context).pop(group.groupId),
+              child: Text(group.name),
+            ),
+        ],
+      ),
+    );
+    if (conversationId == null || !context.mounted) return;
+    await ConversationProfileCardDialog.show(
+      context,
+      currentUserId: user.userId,
+      conversationId: conversationId,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final dms = ref.watch(_dmListProvider(user.userId)).value;
+    final groups = ref.watch(_groupListProvider(user.userId)).value;
+
+    if (dms == null || groups == null) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 16),
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    final assignedDms = dms
+        .where((dm) => user.conversationProfileCardId[dm.dmId] != null)
+        .toList();
+    final assignedGroups = groups
+        .where((group) => user.conversationProfileCardId[group.groupId] != null)
+        .toList();
+    final unassignedDms = dms
+        .where((dm) => user.conversationProfileCardId[dm.dmId] == null)
+        .toList();
+    final unassignedGroups = groups
+        .where((group) => user.conversationProfileCardId[group.groupId] == null)
+        .toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                strings.settingsProfileCardAssignmentTitle,
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.add_circle_outline),
+              tooltip: strings.workshopConversationCardAddTooltip,
+              onPressed: () =>
+                  _showAddDialog(context, unassignedDms, unassignedGroups),
+            ),
+          ],
+        ),
+        Text(
+          strings.settingsProfileCardAssignmentHint,
+          style: TextStyle(
+            fontSize: 12,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: 8),
+        if (assignedDms.isEmpty && assignedGroups.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Text(
+              strings.settingsProfileCardAssignmentEmpty,
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+          )
+        else ...[
+          for (final dm in assignedDms)
+            _ProfileCardAssignmentRow(
+              strings: strings,
+              title: '@${dm.otherRhingId(user.userId)}',
+              cards: user.profileCards,
+              selectedCardId: user.conversationProfileCardId[dm.dmId],
+              onSelected: (id) => _select(ref, dm.dmId, id),
+            ),
+          for (final group in assignedGroups)
+            _ProfileCardAssignmentRow(
+              strings: strings,
+              title: group.name,
+              cards: user.profileCards,
+              selectedCardId: user.conversationProfileCardId[group.groupId],
+              onSelected: (id) => _select(ref, group.groupId, id),
+            ),
+        ],
+      ],
+    );
+  }
+}
+
+class _ProfileCardAssignmentRow extends StatelessWidget {
+  const _ProfileCardAssignmentRow({
+    required this.strings,
+    required this.title,
+    required this.cards,
+    required this.selectedCardId,
+    required this.onSelected,
+  });
+
+  final Strings strings;
+  final String title;
+  final List<ProfileCard> cards;
+  final String? selectedCardId;
+  final ValueChanged<String?> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+          const SizedBox(height: 6),
+          ProfileCardPicker(
+            strings: strings,
+            cards: cards,
+            selectedCardId: selectedCardId,
+            onSelected: onSelected,
+          ),
+        ],
+      ),
     );
   }
 }

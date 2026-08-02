@@ -23,15 +23,21 @@ class JoinGroupScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AuthGate(
-      builder: (context, currentUser) => _JoinGroupView(
-        currentUser: currentUser,
-        groupId: groupId,
-      ),
+      builder: (context, currentUser) =>
+          _JoinGroupView(currentUser: currentUser, groupId: groupId),
     );
   }
 }
 
-enum _JoinStatus { loading, invalid, alreadyMember, pending, ready, sent, error }
+enum _JoinStatus {
+  loading,
+  invalid,
+  alreadyMember,
+  pending,
+  ready,
+  sent,
+  error,
+}
 
 class _JoinGroupView extends ConsumerStatefulWidget {
   const _JoinGroupView({required this.currentUser, required this.groupId});
@@ -121,7 +127,9 @@ class _JoinGroupViewState extends ConsumerState<_JoinGroupView> {
       );
       final selectedProfileCardId = _selectedProfileCardId;
       if (selectedProfileCardId != null) {
-        await ref.read(userRepositoryProvider).setConversationProfileCard(
+        await ref
+            .read(userRepositoryProvider)
+            .setConversationProfileCard(
               userId: widget.currentUser.userId,
               conversationId: widget.groupId,
               profileCardId: selectedProfileCardId,
@@ -143,34 +151,28 @@ class _JoinGroupViewState extends ConsumerState<_JoinGroupView> {
     final groupRepository = ref.read(groupRepositoryProvider);
     final group = await groupRepository.getGroup(widget.groupId);
     if (!mounted || group == null) return;
-    // 単一モードでは寄合一覧のドリルダウン画面を経由せず、常に1つだけの
-    // 寄合（defaultRoomId）を直接開く（2026-07-29追加）。
-    if (!group.roomsEnabled) {
-      final rooms = await groupRepository
-          .watchRooms(groupId: group.groupId, userId: widget.currentUser.userId)
-          .first;
-      final roomName = rooms
-              .firstWhereOrNull((r) => r.roomId == group.defaultRoomId)
-              ?.name ??
-          'メイン';
-      if (!mounted) return;
-      ref.read(goRouterProvider).pushReplacement(
-        '/chat/group',
-        extra: GroupChatArgs(
-          currentUser: widget.currentUser,
-          group: group,
-          roomId: group.defaultRoomId,
-          roomName: roomName,
-        ),
-      );
-      return;
-    }
-    // 複数モードの広場はどれが「メイン」に相当するか表示名まで確実には
-    // ここで分からないため、寄合一覧画面を経由して選んでもらう。
-    ref.read(goRouterProvider).pushReplacement(
-      '/chat/group-rooms',
-      extra: GroupRoomListArgs(currentUser: widget.currentUser, group: group),
-    );
+    // 複数モードでも寄合一覧のドリルダウン画面を経由せず、常にdefaultRoomIdで
+    // チャット画面へ直接開く。寄合の切り替えはチャット画面上部の横スクロール
+    // タブバーから行う（2026-08-03変更、以前は複数モードのみ
+    // `/chat/group-rooms`を経由していた）。
+    final rooms = await groupRepository
+        .watchRooms(groupId: group.groupId, userId: widget.currentUser.userId)
+        .first;
+    final roomName =
+        rooms.firstWhereOrNull((r) => r.roomId == group.defaultRoomId)?.name ??
+        'メイン';
+    if (!mounted) return;
+    ref
+        .read(goRouterProvider)
+        .pushReplacement(
+          '/chat/group',
+          extra: GroupChatArgs(
+            currentUser: widget.currentUser,
+            group: group,
+            roomId: group.defaultRoomId,
+            roomName: roomName,
+          ),
+        );
   }
 
   @override
@@ -225,8 +227,9 @@ class _JoinGroupViewState extends ConsumerState<_JoinGroupView> {
           children: [
             CircleAvatar(
               radius: 40,
-              backgroundImage:
-                  preview.iconUrl != null ? NetworkImage(preview.iconUrl!) : null,
+              backgroundImage: preview.iconUrl != null
+                  ? NetworkImage(preview.iconUrl!)
+                  : null,
               child: preview.iconUrl == null
                   ? const Icon(Icons.groups_outlined, size: 36)
                   : null,
@@ -255,7 +258,9 @@ class _JoinGroupViewState extends ConsumerState<_JoinGroupView> {
               alignment: Alignment.centerLeft,
               child: Text(
                 strings.profileCardPickerLabel,
-                style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
               ),
             ),
             const SizedBox(height: 8),

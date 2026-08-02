@@ -50,13 +50,15 @@ class ConversationProfileCardDialog extends ConsumerWidget {
           : ProfileCardPicker(
               strings: strings,
               cards: liveUser.profileCards,
-              selectedCardId: liveUser.conversationProfileCardId[conversationId],
-              onSelected: (id) =>
-                  ref.read(userRepositoryProvider).setConversationProfileCard(
-                        userId: currentUserId,
-                        conversationId: conversationId,
-                        profileCardId: id,
-                      ),
+              selectedCardId:
+                  liveUser.conversationProfileCardId[conversationId],
+              onSelected: (id) => ref
+                  .read(userRepositoryProvider)
+                  .setConversationProfileCard(
+                    userId: currentUserId,
+                    conversationId: conversationId,
+                    profileCardId: id,
+                  ),
             ),
       actions: [
         FilledButton(

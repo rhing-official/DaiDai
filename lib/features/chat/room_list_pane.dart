@@ -65,28 +65,7 @@ class RoomListPane extends ConsumerWidget {
     Strings strings,
     Vocabulary vocab,
   ) async {
-    final controller = TextEditingController();
-    final name = await showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(strings.roomListAddDialogTitle(vocab.textChannel)),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: InputDecoration(hintText: vocab.textChannel),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: Text(strings.cancel),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(controller.text.trim()),
-            child: Text(strings.roomListAddButton),
-          ),
-        ],
-      ),
-    );
+    final name = await promptForRoomName(context, strings, vocab);
     if (name == null || name.isEmpty) return;
     await onCreateRoom?.call(name);
   }
@@ -164,4 +143,36 @@ class RoomListPane extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// 寄合の新規追加ダイアログ（名前を入力するだけ、確認は無し）。
+/// [RoomListPane]・[RoomTabBar]の両方から共通で使う（2026-08-03、
+/// 横スクロールタブバー追加時に切り出した）。
+Future<String?> promptForRoomName(
+  BuildContext context,
+  Strings strings,
+  Vocabulary vocab,
+) {
+  final controller = TextEditingController();
+  return showDialog<String>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: Text(strings.roomListAddDialogTitle(vocab.textChannel)),
+      content: TextField(
+        controller: controller,
+        autofocus: true,
+        decoration: InputDecoration(hintText: vocab.textChannel),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text(strings.cancel),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(context).pop(controller.text.trim()),
+          child: Text(strings.roomListAddButton),
+        ),
+      ],
+    ),
+  );
 }

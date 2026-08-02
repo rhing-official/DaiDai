@@ -45,7 +45,10 @@ abstract class GroupRepository {
   /// ルールと同じ条件の`where`句が無いと「結果に含まれ得る全ドキュメントが
   /// ルールを満たすと証明できない」として要求全体を拒否するため、
   /// クエリ側にも`memberIds`のarray-contains条件を付ける必要がある）。
-  Stream<List<Room>> watchRooms({required String groupId, required String userId});
+  Stream<List<Room>> watchRooms({
+    required String groupId,
+    required String userId,
+  });
 
   /// 新しい寄合を作成する（長・モデレーターのみ、firestore.rulesで強制）。
   Future<Room> createRoom({required String groupId, required String name});
@@ -175,6 +178,19 @@ abstract class GroupRepository {
   Future<void> transferOwnership({
     required String groupId,
     required String newOwnerId,
+  });
+
+  /// 広場を丸ごと削除する（長のみ実行可、firestore.rulesで強制）。全ての
+  /// 寄合・メッセージ・ロールを物理削除してから広場自体を削除する。他の
+  /// 削除系操作（[deleteRoom]等）と同じく猶予期間は設けず、呼び出し側の
+  /// 確認ダイアログを経て即時実行する（2026-08-02追加）。参加リクエスト
+  /// （`joinRequests`サブコレクション）はfirestore.rulesが物理削除自体を
+  /// 常に禁止しているため削除できず残るが、親の広場ドキュメントが消えた
+  /// 時点でread権限の判定（`hasGroupPermission`のget()）が失敗しどのみち
+  /// 誰からも参照できなくなる。
+  Future<void> deleteGroup({
+    required String groupId,
+    required String requestedBy,
   });
 
   /// [watchRoomMessages]の直近50件に含まれない古い返信先へジャンプする際に
@@ -317,9 +333,11 @@ abstract class GroupRepository {
 }
 
 class FirestoreGroupRepository implements GroupRepository {
-  FirestoreGroupRepository({FirebaseFirestore? firestore, FirebaseStorage? storage})
-      : _firestore = firestore ?? FirebaseFirestore.instance,
-        _storage = storage ?? FirebaseStorage.instance;
+  FirestoreGroupRepository({
+    FirebaseFirestore? firestore,
+    FirebaseStorage? storage,
+  }) : _firestore = firestore ?? FirebaseFirestore.instance,
+       _storage = storage ?? FirebaseStorage.instance;
 
   final FirebaseFirestore _firestore;
   final FirebaseStorage _storage;
@@ -404,9 +422,11 @@ class FirestoreGroupRepository implements GroupRepository {
     return _groups
         .where('memberIds', arrayContains: userId)
         .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => Group.fromJson(doc.id, doc.data()))
-            .toList());
+        .map(
+          (snapshot) => snapshot.docs
+              .map((doc) => Group.fromJson(doc.id, doc.data()))
+              .toList(),
+        );
   }
 
   @override
@@ -423,9 +443,10 @@ class FirestoreGroupRepository implements GroupRepository {
 
   @override
   Stream<Group?> watchGroup(String groupId) {
-    return _groups.doc(groupId).snapshots().map(
-          (doc) => doc.exists ? Group.fromJson(doc.id, doc.data()!) : null,
-        );
+    return _groups
+        .doc(groupId)
+        .snapshots()
+        .map((doc) => doc.exists ? Group.fromJson(doc.id, doc.data()!) : null);
   }
 
   DocumentReference<Map<String, dynamic>> _roomRef(
@@ -436,7 +457,10 @@ class FirestoreGroupRepository implements GroupRepository {
   }
 
   @override
-  Stream<List<Room>> watchRooms({required String groupId, required String userId}) {
+  Stream<List<Room>> watchRooms({
+    required String groupId,
+    required String userId,
+  }) {
     // Firestoreの`orderBy`はソート対象フィールドを持たないドキュメントを
     // 結果から除外してしまう。この機能を追加する前に作られた「メイン」室
     // には`createdAt`が無いため、`orderBy('createdAt')`を使うと表示されなく
@@ -457,16 +481,19 @@ class FirestoreGroupRepository implements GroupRepository {
         .where('memberIds', arrayContains: userId)
         .snapshots()
         .map((snapshot) {
-      final rooms =
-          snapshot.docs.map((doc) => Room.fromJson(doc.id, doc.data())).toList()
-            ..sort(_compareByCreatedAt);
-      return rooms;
-    });
+          final rooms =
+              snapshot.docs
+                  .map((doc) => Room.fromJson(doc.id, doc.data()))
+                  .toList()
+                ..sort(_compareByCreatedAt);
+          return rooms;
+        });
   }
 
   int _compareByCreatedAt(Room a, Room b) {
-    return (a.createdAt?.millisecondsSinceEpoch ?? 0)
-        .compareTo(b.createdAt?.millisecondsSinceEpoch ?? 0);
+    return (a.createdAt?.millisecondsSinceEpoch ?? 0).compareTo(
+      b.createdAt?.millisecondsSinceEpoch ?? 0,
+    );
   }
 
   @override
@@ -493,7 +520,9 @@ class FirestoreGroupRepository implements GroupRepository {
     required String roomId,
     required String name,
   }) async {
-    await _groups.doc(groupId).collection('rooms').doc(roomId).update({'name': name});
+    await _groups.doc(groupId).collection('rooms').doc(roomId).update({
+      'name': name,
+    });
   }
 
   @override
@@ -559,12 +588,20 @@ class FirestoreGroupRepository implements GroupRepository {
     final group = await getGroup(groupId);
     if (group != null && group.defaultRoomId == roomId) {
       final remaining = roomsSnapshot.docs.where((d) => d.id != roomId).toList()
-        ..sort((a, b) =>
-            ((a.data()['createdAt'] as Timestamp?)?.millisecondsSinceEpoch ?? 0)
-                .compareTo(
-                    (b.data()['createdAt'] as Timestamp?)?.millisecondsSinceEpoch ?? 0));
+        ..sort(
+          (a, b) =>
+              ((a.data()['createdAt'] as Timestamp?)?.millisecondsSinceEpoch ??
+                      0)
+                  .compareTo(
+                    (b.data()['createdAt'] as Timestamp?)
+                            ?.millisecondsSinceEpoch ??
+                        0,
+                  ),
+        );
       if (remaining.isNotEmpty) {
-        await _groups.doc(groupId).update({'defaultRoomId': remaining.first.id});
+        await _groups.doc(groupId).update({
+          'defaultRoomId': remaining.first.id,
+        });
       }
     }
   }
@@ -576,9 +613,11 @@ class FirestoreGroupRepository implements GroupRepository {
         .orderBy('sentAt', descending: true)
         .limit(50)
         .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => Message.fromJson(doc.id, doc.data()))
-            .toList());
+        .map(
+          (snapshot) => snapshot.docs
+              .map((doc) => Message.fromJson(doc.id, doc.data()))
+              .toList(),
+        );
   }
 
   @override
@@ -638,7 +677,9 @@ class FirestoreGroupRepository implements GroupRepository {
       replyToMessageId: replyTo?.messageId,
       replyToSenderId: replyTo?.senderId,
       replyToSenderRhingId: replyTo?.senderRhingId,
-      replyToSnippet: replyTo == null ? null : messageSnippetOf(replyTo.content),
+      replyToSnippet: replyTo == null
+          ? null
+          : messageSnippetOf(replyTo.content),
     );
 
     final batch = _firestore.batch();
@@ -654,7 +695,10 @@ class FirestoreGroupRepository implements GroupRepository {
     required String messageId,
     required String newContent,
   }) async {
-    await _roomRef(groupId, roomId).collection('messages').doc(messageId).update({
+    await _roomRef(
+      groupId,
+      roomId,
+    ).collection('messages').doc(messageId).update({
       'content': newContent,
       'editedAt': FieldValue.serverTimestamp(),
     });
@@ -696,9 +740,7 @@ class FirestoreGroupRepository implements GroupRepository {
     String? emoji,
   }) async {
     final ref = _roomRef(groupId, roomId).collection('messages').doc(messageId);
-    await ref.update({
-      'reactions.$userId': emoji ?? FieldValue.delete(),
-    });
+    await ref.update({'reactions.$userId': emoji ?? FieldValue.delete()});
   }
 
   @override
@@ -747,7 +789,10 @@ class FirestoreGroupRepository implements GroupRepository {
     );
 
     for (var i = 0; i < docs.length; i += 400) {
-      final chunk = docs.sublist(i, i + 400 > docs.length ? docs.length : i + 400);
+      final chunk = docs.sublist(
+        i,
+        i + 400 > docs.length ? docs.length : i + 400,
+      );
       final batch = _firestore.batch();
       for (final doc in chunk) {
         if (!doc.exists) continue;
@@ -981,9 +1026,11 @@ class FirestoreGroupRepository implements GroupRepository {
     return _joinRequestsOf(groupId)
         .where('status', isEqualTo: GroupJoinRequestStatus.pending.name)
         .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => GroupJoinRequest.fromJson(doc.id, doc.data()))
-            .toList());
+        .map(
+          (snapshot) => snapshot.docs
+              .map((doc) => GroupJoinRequest.fromJson(doc.id, doc.data()))
+              .toList(),
+        );
   }
 
   @override
@@ -993,9 +1040,11 @@ class FirestoreGroupRepository implements GroupRepository {
         .where('requesterId', isEqualTo: userId)
         .where('status', isEqualTo: GroupJoinRequestStatus.pending.name)
         .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => GroupJoinRequest.fromJson(doc.id, doc.data()))
-            .toList());
+        .map(
+          (snapshot) => snapshot.docs
+              .map((doc) => GroupJoinRequest.fromJson(doc.id, doc.data()))
+              .toList(),
+        );
   }
 
   @override
@@ -1100,11 +1149,15 @@ class FirestoreGroupRepository implements GroupRepository {
     // 保留中書き込みがcreatedAt=nullとして扱われ、orderByクエリの結果から
     // 除外されてしまうため）。
     return _rolesOf(groupId).snapshots().map((snapshot) {
-      final roles = snapshot.docs
-          .map((doc) => GroupRole.fromJson(doc.id, doc.data()))
-          .toList()
-        ..sort((a, b) => (a.createdAt?.millisecondsSinceEpoch ?? 0)
-            .compareTo(b.createdAt?.millisecondsSinceEpoch ?? 0));
+      final roles =
+          snapshot.docs
+              .map((doc) => GroupRole.fromJson(doc.id, doc.data()))
+              .toList()
+            ..sort(
+              (a, b) => (a.createdAt?.millisecondsSinceEpoch ?? 0).compareTo(
+                b.createdAt?.millisecondsSinceEpoch ?? 0,
+              ),
+            );
       return roles;
     });
   }
@@ -1168,8 +1221,9 @@ class FirestoreGroupRepository implements GroupRepository {
     };
     for (final entry in group.roleAssignments.entries) {
       if (entry.value.contains(roleId)) {
-        groupUpdate['roleAssignments.${entry.key}'] =
-            FieldValue.arrayRemove([roleId]);
+        groupUpdate['roleAssignments.${entry.key}'] = FieldValue.arrayRemove([
+          roleId,
+        ]);
       }
     }
     await groupRef.update(groupUpdate);
@@ -1248,8 +1302,10 @@ class FirestoreGroupRepository implements GroupRepository {
     required String roomId,
     required bool? enabled,
   }) async {
-    await _roomRef(groupId, roomId)
-        .update({'readReceiptsEnabledOverride': enabled});
+    await _roomRef(
+      groupId,
+      roomId,
+    ).update({'readReceiptsEnabledOverride': enabled});
     if (enabled == false) {
       final messagesRef = _roomRef(groupId, roomId).collection('messages');
       await _clearAllReadReceipts(messagesRef);
@@ -1264,6 +1320,56 @@ class FirestoreGroupRepository implements GroupRepository {
     await _groups.doc(groupId).update({'ownerId': newOwnerId});
   }
 
+  @override
+  Future<void> deleteGroup({
+    required String groupId,
+    required String requestedBy,
+  }) async {
+    final groupRef = _groups.doc(groupId);
+    final groupDoc = await groupRef.get();
+    final data = groupDoc.data();
+    if (data == null) return;
+    final group = Group.fromJson(groupRef.id, data);
+    if (group.ownerId != requestedBy) {
+      throw StateError('広場の削除は長のみ実行できます');
+    }
+
+    // watchRooms/deleteRoomと同じ理由でwhere句が必須（list操作の
+    // firestore.rules要求を満たすため）。長は必ず全ての寄合のmemberIdsに
+    // 含まれる（createRoomが作成時点のgroup.memberIds全員を登録するため）。
+    final roomsSnapshot = await groupRef
+        .collection('rooms')
+        .where('memberIds', arrayContains: requestedBy)
+        .get();
+    for (final roomDoc in roomsSnapshot.docs) {
+      // deleteRoomと同じ「マーカー→カスケード削除」パターン。このマーカーが
+      // 無いとメッセージの物理削除がfirestore.rulesで許可されない。
+      await roomDoc.reference.update({'roomDeletionRequestedBy': requestedBy});
+      final messagesRef = roomDoc.reference.collection('messages');
+      while (true) {
+        final snapshot = await messagesRef.limit(400).get();
+        if (snapshot.docs.isEmpty) break;
+        final batch = _firestore.batch();
+        for (final doc in snapshot.docs) {
+          batch.delete(doc.reference);
+        }
+        await batch.commit();
+      }
+      await roomDoc.reference.delete();
+    }
+
+    final rolesSnapshot = await _rolesOf(groupId).get();
+    if (rolesSnapshot.docs.isNotEmpty) {
+      final batch = _firestore.batch();
+      for (final doc in rolesSnapshot.docs) {
+        batch.delete(doc.reference);
+      }
+      await batch.commit();
+    }
+
+    await groupRef.delete();
+  }
+
   /// [Group.memberPermissions]（userId -> 有効な権限文字列のリスト）を、
   /// 現在のロール定義・付与状況から再計算して書き込む。firestore.rulesが
   /// ロールドキュメントを跨いで動的に権限を判定できないための非正規化
@@ -1276,8 +1382,9 @@ class FirestoreGroupRepository implements GroupRepository {
     final group = Group.fromJson(groupRef.id, groupDoc.data()!);
 
     final rolesSnapshot = await _rolesOf(groupId).get();
-    final roles =
-        rolesSnapshot.docs.map((d) => GroupRole.fromJson(d.id, d.data())).toList();
+    final roles = rolesSnapshot.docs
+        .map((d) => GroupRole.fromJson(d.id, d.data()))
+        .toList();
     final rolesById = {for (final role in roles) role.roleId: role};
     final everyoneRole = roles.firstWhereOrNull((r) => r.isEveryone);
 
@@ -1285,7 +1392,8 @@ class FirestoreGroupRepository implements GroupRepository {
       for (final userId in group.memberIds)
         userId: {
           ...?everyoneRole?.permissions,
-          for (final roleId in group.roleAssignments[userId] ?? const <String>[])
+          for (final roleId
+              in group.roleAssignments[userId] ?? const <String>[])
             ...?rolesById[roleId]?.permissions,
         }.toList(),
     };

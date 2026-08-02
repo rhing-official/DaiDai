@@ -113,31 +113,24 @@ class _TalksTabState extends ConsumerState<TalksTab> {
       });
       return;
     }
-    // 単一モードでは寄合一覧のドリルダウン画面を経由せず、常に1つだけの
-    // 寄合（defaultRoomId）を直接開く（2026-07-29追加）。
-    if (!dm.roomsEnabled) {
-      final rooms = await _dmRoomsStream(dm.dmId).first;
-      final roomName =
-          rooms.firstWhereOrNull((r) => r.roomId == dm.defaultRoomId)?.name ??
-          'メイン';
-      ref
-          .read(goRouterProvider)
-          .push(
-            '/chat/dm',
-            extra: DmChatArgs(
-              currentUser: widget.currentUser,
-              dm: dm,
-              roomId: dm.defaultRoomId,
-              roomName: roomName,
-            ),
-          );
-      return;
-    }
+    // 狭い画面では、複数モードでも寄合一覧のドリルダウン画面を経由せず、
+    // 常にdefaultRoomIdでチャット画面へ直接遷移する。寄合の切り替えは
+    // チャット画面上部の横スクロールタブバー（`RoomTabBar`）から行う
+    // （2026-08-03変更、以前は複数モードのみ`/chat/dm-rooms`を経由していた）。
+    final rooms = await _dmRoomsStream(dm.dmId).first;
+    final roomName =
+        rooms.firstWhereOrNull((r) => r.roomId == dm.defaultRoomId)?.name ??
+        'メイン';
     ref
         .read(goRouterProvider)
         .push(
-          '/chat/dm-rooms',
-          extra: DmRoomListArgs(currentUser: widget.currentUser, dm: dm),
+          '/chat/dm',
+          extra: DmChatArgs(
+            currentUser: widget.currentUser,
+            dm: dm,
+            roomId: dm.defaultRoomId,
+            roomName: roomName,
+          ),
         );
   }
 
@@ -149,33 +142,19 @@ class _TalksTabState extends ConsumerState<TalksTab> {
       });
       return;
     }
-    if (!group.roomsEnabled) {
-      final rooms = await _groupRoomsStream(group.groupId).first;
-      final roomName =
-          rooms
-              .firstWhereOrNull((r) => r.roomId == group.defaultRoomId)
-              ?.name ??
-          'メイン';
-      ref
-          .read(goRouterProvider)
-          .push(
-            '/chat/group',
-            extra: GroupChatArgs(
-              currentUser: widget.currentUser,
-              group: group,
-              roomId: group.defaultRoomId,
-              roomName: roomName,
-            ),
-          );
-      return;
-    }
+    final rooms = await _groupRoomsStream(group.groupId).first;
+    final roomName =
+        rooms.firstWhereOrNull((r) => r.roomId == group.defaultRoomId)?.name ??
+        'メイン';
     ref
         .read(goRouterProvider)
         .push(
-          '/chat/group-rooms',
-          extra: GroupRoomListArgs(
+          '/chat/group',
+          extra: GroupChatArgs(
             currentUser: widget.currentUser,
             group: group,
+            roomId: group.defaultRoomId,
+            roomName: roomName,
           ),
         );
   }

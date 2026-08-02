@@ -232,6 +232,9 @@ class Strings {
     required this.settingsProfileCardAssignmentHint,
     required this.settingsProfileCardAssignmentEmpty,
     required this.conversationProfileCardMenuLabel,
+    required this.workshopConversationCardAddTooltip,
+    required this.workshopConversationCardAddDialogTitle,
+    required this.workshopConversationCardAddEmpty,
     required this.groupSettingsTooltip,
     required this.groupTransferOwnershipMenuItem,
     required this.groupTransferOwnershipConfirmTitle,
@@ -248,6 +251,10 @@ class Strings {
     required this.groupLeaveConfirmMessage,
     required this.groupLeaveButton,
     required this.groupLeaveOwnerError,
+    required this.groupDeleteMenuLabel,
+    required this.groupDeleteConfirmTitle,
+    required this.groupDeleteConfirmMessage,
+    required this.groupDeleteButton,
     required this.groupJoinScreenTitle,
     required this.groupJoinInvalid,
     required this.groupJoinAlreadyMember,
@@ -266,6 +273,10 @@ class Strings {
     required this.settingsDeleteAccountImmediateConfirmTitle,
     required this.settingsDeleteAccountImmediateConfirmMessage,
     required this.settingsDeleteAccountImmediateConfirmButton,
+    required this.accountDeleteOwnerGuardTitle,
+    required this.accountDeleteOwnerGuardMessage,
+    required this.accountDeleteOwnerGuardCleared,
+    required this.accountDeleteOwnerGuardContinue,
     required this.accountRestoreTitle,
     required this.accountRestoreMessage,
     required this.accountRestoreButton,
@@ -589,22 +600,36 @@ class Strings {
   /// を使う」ことを表す選択肢のラベル。
   final String profileCardPickerStandardOption;
 
-  /// 設定タブ＞語らいの、会話ごとのプロフィールカード割り当て一覧セクションの
-  /// タイトル（2026-07-29追加）。
+  /// 身だしなみ＞工房内、会話ごとのプロフィールカード割り当て一覧セクションの
+  /// タイトル（2026-07-29追加、2026-08-02に設定＞語らいから工房へ移動）。
   final String settingsProfileCardAssignmentTitle;
 
   /// 上記セクションのタイトル直下に添える一言説明。「相手のカードを選ぶ」
   /// 機能だと誤解されやすいため、自分が使うカードを選ぶ機能であることを
-  /// 明示する（2026-07-30追加）。
+  /// 明示する（2026-07-30追加）。工房移動後は「標準カード以外を使う語らいだけ
+  /// 表示する」絞り込みの説明も兼ねる（2026-08-02更新）。
   final String settingsProfileCardAssignmentHint;
 
-  /// 上記セクションで、一対・広場がまだ1件も無い場合に表示する文言。
+  /// 上記セクションで、標準以外のカードを使っている語らいが1件も無い場合に
+  /// 表示する文言（2026-08-02更新、絞り込み後の空状態）。
   final String settingsProfileCardAssignmentEmpty;
 
   /// 各会話（一対のハンバーガーメニュー・広場の全体設定）から直接開く、
   /// その会話で自分が使うプロフィールカードを選ぶメニュー項目・ダイアログ
   /// タイトルの両方に使う（2026-07-30追加、`ConversationProfileCardDialog`）。
   final String conversationProfileCardMenuLabel;
+
+  /// 工房の会話ごとのプロフィールカードセクションにある＋ボタンのツールチップ
+  /// （2026-08-02追加）。まだ個別のカードを設定していない語らいを選んで
+  /// 新しく設定する導線。
+  final String workshopConversationCardAddTooltip;
+
+  /// 上記＋ボタンで開く、対象の語らいを選ぶダイアログのタイトル。
+  final String workshopConversationCardAddDialogTitle;
+
+  /// 上記ダイアログで、選べる語らい（まだ標準カードのままの語らい）が
+  /// 1件も無い場合に表示するメッセージ（SnackBar）。
+  final String workshopConversationCardAddEmpty;
 
   /// サイドバーの「広場自体の設定」アイコンのツールチップ。
   final String groupSettingsTooltip;
@@ -630,6 +655,14 @@ class Strings {
   final String groupLeaveButton;
   final String groupLeaveOwnerError;
 
+  /// 広場を丸ごと削除する機能（2026-08-02追加、長のみ）のメニュー項目
+  /// ラベル。複数モードの全体設定（`GroupSettingsPopup`）・単一モードの
+  /// ハンバーガーメニューの両方で使う。
+  final String groupDeleteMenuLabel;
+  final String groupDeleteConfirmTitle;
+  final String groupDeleteConfirmMessage;
+  final String groupDeleteButton;
+
   final String groupJoinScreenTitle;
   final String groupJoinInvalid;
   final String groupJoinAlreadyMember;
@@ -653,6 +686,19 @@ class Strings {
   final String settingsDeleteAccountImmediateConfirmTitle;
   final String settingsDeleteAccountImmediateConfirmMessage;
   final String settingsDeleteAccountImmediateConfirmButton;
+
+  /// 長を務める広場が残っている間、アカウント削除（通常・即時どちらも）を
+  /// 先に進ませないためのガードダイアログの文言（2026-08-02追加）。
+  final String accountDeleteOwnerGuardTitle;
+
+  /// 対象の広場が1件以上ある場合に表示する説明文。
+  final String accountDeleteOwnerGuardMessage;
+
+  /// 全ての広場を譲渡し終えた（対象0件になった）場合に表示する文言。
+  final String accountDeleteOwnerGuardCleared;
+
+  /// 対象0件の時だけ押せる「続ける」ボタンのラベル。
+  final String accountDeleteOwnerGuardContinue;
 
   final String accountRestoreTitle;
 
@@ -935,9 +981,13 @@ class Strings {
     profileCardPickerLabel: '使うプロフィールカード（省略可）',
     profileCardPickerStandardOption: '標準',
     settingsProfileCardAssignmentTitle: '会話ごとのプロフィールカード',
-    settingsProfileCardAssignmentHint: '相手・広場ごとに、自分が使うプロフィールカードを選べます。',
-    settingsProfileCardAssignmentEmpty: '一対・広場がまだありません',
+    settingsProfileCardAssignmentHint:
+        '標準カード以外を使っている語らいだけがここに表示されます。＋から新しく設定できます。',
+    settingsProfileCardAssignmentEmpty: '標準以外のカードを使っている語らいはまだありません',
     conversationProfileCardMenuLabel: '使うプロフィールカード',
+    workshopConversationCardAddTooltip: '個別にカードを設定する語らいを追加',
+    workshopConversationCardAddDialogTitle: 'カードを個別に設定する語らいを選ぶ',
+    workshopConversationCardAddEmpty: '設定できる語らいがありません',
     groupSettingsTooltip: '広場自体の設定',
     groupTransferOwnershipMenuItem: '長を譲渡する',
     groupTransferOwnershipConfirmTitle: '長を譲渡しますか？',
@@ -954,6 +1004,12 @@ class Strings {
     groupLeaveConfirmMessage: '退会すると、この広場のメッセージは見られなくなります。',
     groupLeaveButton: '退会する',
     groupLeaveOwnerError: '長（オーナー）は退会できません',
+    groupDeleteMenuLabel: '広場を削除',
+    groupDeleteConfirmTitle: '広場を削除しますか？',
+    groupDeleteConfirmMessage:
+        '削除すると全ての寄合・メッセージ・ロールが完全に失われ、元に戻せません。'
+        '参加している全員がこの広場にアクセスできなくなります。長のみ実行できます。',
+    groupDeleteButton: '削除する',
     groupJoinScreenTitle: '広場への参加',
     groupJoinInvalid: 'この招待リンクは無効です',
     groupJoinAlreadyMember: '既にこの広場のメンバーです',
@@ -975,6 +1031,12 @@ class Strings {
     settingsDeleteAccountImmediateConfirmMessage:
         'この操作は取り消せません。今すぐサーバーから全ての情報が完全に削除されます（30日間の復元期間はありません）。',
     settingsDeleteAccountImmediateConfirmButton: '今すぐ削除する',
+    accountDeleteOwnerGuardTitle: '広場の長を譲渡してください',
+    accountDeleteOwnerGuardMessage:
+        '以下の広場で長を務めています。アカウントを削除する前に、'
+        'それぞれ別のメンバーへ長を譲渡してください。',
+    accountDeleteOwnerGuardCleared: '全ての広場で長を譲渡しました。削除を続けられます。',
+    accountDeleteOwnerGuardContinue: '続ける',
     accountRestoreTitle: 'アカウントを復元しますか？',
     accountRestoreMessage: (remainingDays) =>
         'あと$remainingDays日で、サーバーから全ての情報が完全に削除されます。',
@@ -1270,9 +1332,14 @@ class Strings {
     profileCardPickerStandardOption: 'Standard',
     settingsProfileCardAssignmentTitle: 'Profile card per conversation',
     settingsProfileCardAssignmentHint:
-        'Choose which of your own profile cards you use with each friend or group.',
-    settingsProfileCardAssignmentEmpty: 'No DMs or groups yet',
+        'Only conversations using a non-standard card are shown here. Tap + to set one up.',
+    settingsProfileCardAssignmentEmpty:
+        'No conversations are using a non-standard card yet',
     conversationProfileCardMenuLabel: 'Profile card to use',
+    workshopConversationCardAddTooltip: 'Add a conversation to set a card for',
+    workshopConversationCardAddDialogTitle:
+        'Choose a conversation to set a card for',
+    workshopConversationCardAddEmpty: 'No conversations available to set',
     groupSettingsTooltip: 'Plaza settings',
     groupTransferOwnershipMenuItem: 'Transfer ownership',
     groupTransferOwnershipConfirmTitle: 'Transfer ownership?',
@@ -1293,6 +1360,13 @@ class Strings {
         "You won't be able to see this plaza's messages after leaving.",
     groupLeaveButton: 'Leave',
     groupLeaveOwnerError: 'The owner cannot leave',
+    groupDeleteMenuLabel: 'Delete plaza',
+    groupDeleteConfirmTitle: 'Delete this plaza?',
+    groupDeleteConfirmMessage:
+        'All rooms, messages, and roles will be permanently lost and this '
+        'cannot be undone. Every member will lose access to this plaza. '
+        'Only the owner can do this.',
+    groupDeleteButton: 'Delete',
     groupJoinScreenTitle: 'Join plaza',
     groupJoinInvalid: 'This invite link is invalid',
     groupJoinAlreadyMember: "You're already a member of this plaza",
@@ -1319,6 +1393,13 @@ class Strings {
         'deleted from our servers right now (there is no 30-day restore '
         'period).',
     settingsDeleteAccountImmediateConfirmButton: 'Delete now',
+    accountDeleteOwnerGuardTitle: 'Transfer ownership first',
+    accountDeleteOwnerGuardMessage:
+        'You are the owner of the plazas below. Please transfer ownership '
+        'to another member of each one before deleting your account.',
+    accountDeleteOwnerGuardCleared:
+        'Ownership transferred for all plazas. You can continue.',
+    accountDeleteOwnerGuardContinue: 'Continue',
     accountRestoreTitle: 'Restore your account?',
     accountRestoreMessage: (remainingDays) =>
         'All your data will be permanently deleted from our servers in '

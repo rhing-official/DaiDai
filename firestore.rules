@@ -400,7 +400,12 @@ service cloud.firestore {
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['roomsEnabled'])
           )
         );
-      allow delete: if false;
+      // 広場自体の削除は長のみ（2026-08-02追加、GroupRepository.deleteGroup
+      // 参照）。事前にサブコレクション（rooms/messages/roles）を全て物理削除
+      // してから呼ぶことをクライアント側で保証する（このルール単体では
+      // サブコレクションの削除順序までは検証できない）。
+      allow delete: if request.auth != null
+        && request.auth.uid == resource.data.ownerId;
 
       // joinRequests/{requesterId}: 招待リンクからの参加リクエスト。
       // ドキュメントidは申請者本人のuserId（1人につき常に1件）。

@@ -7,7 +7,6 @@ import '../features/call/call_screen.dart';
 import '../features/call/group_call_screen.dart';
 import '../features/chat/chat_panes.dart';
 import '../features/chat/join_group_screen.dart';
-import '../features/chat/room_list_screen.dart';
 import '../features/profile/invite_screen.dart';
 import '../models/app_user.dart';
 import '../models/call.dart';
@@ -50,22 +49,6 @@ class GroupChatArgs {
   final String roomName;
 }
 
-/// 寄合一覧画面（`/chat/dm-rooms`）用。まだどの寄合を開くか決まっていない
-/// 段階なので[DmChatArgs]と違いroomId/roomNameは持たない。
-class DmRoomListArgs {
-  const DmRoomListArgs({required this.currentUser, required this.dm});
-  final AppUser currentUser;
-  final DirectMessage dm;
-}
-
-/// 寄合一覧画面（`/chat/group-rooms`）用。[GroupChatArgs]と違い
-/// roomId/roomNameは持たない。
-class GroupRoomListArgs {
-  const GroupRoomListArgs({required this.currentUser, required this.group});
-  final AppUser currentUser;
-  final Group group;
-}
-
 class CallArgs {
   const CallArgs({
     required this.call,
@@ -99,7 +82,8 @@ final goRouterProvider = Provider<GoRouter>((ref) {
   // 左スワイプで返信/編集ジェスチャーを持っているため、吹き出しの上からの
   // スワイプではそちらが優先され反応しない場合がある（AppBar・入力欄・
   // 吹き出しの無い余白からのスワイプでは問題なく効く）。
-  Widget swipeBack(Widget child, {bool alsoSwipeLeft = false}) => SwipeBackDetector(
+  Widget swipeBack(Widget child, {bool alsoSwipeLeft = false}) =>
+      SwipeBackDetector(
         onBack: () {
           if (router.canPop()) router.pop();
         },
@@ -129,7 +113,11 @@ final goRouterProvider = Provider<GoRouter>((ref) {
     );
     router.push(
       '/call',
-      extra: CallArgs(call: call, isCaller: true, currentUserId: currentUser.userId),
+      extra: CallArgs(
+        call: call,
+        isCaller: true,
+        currentUserId: currentUser.userId,
+      ),
     );
   }
 
@@ -151,16 +139,8 @@ final goRouterProvider = Provider<GoRouter>((ref) {
               onCallPressed: () => startCall(args.currentUser, args.dm),
               onVideoCallPressed: () =>
                   startCall(args.currentUser, args.dm, isVideo: true),
+              showRoomTabBar: true,
             ),
-          );
-        },
-      ),
-      GoRoute(
-        path: '/chat/dm-rooms',
-        builder: (context, state) {
-          final args = state.extra! as DmRoomListArgs;
-          return swipeBack(
-            DmRoomListScreen(currentUser: args.currentUser, dm: args.dm),
           );
         },
       ),
@@ -175,24 +155,15 @@ final goRouterProvider = Provider<GoRouter>((ref) {
               group: args.group,
               roomId: args.roomId,
               roomName: args.roomName,
+              showRoomTabBar: true,
             ),
           );
         },
       ),
       GoRoute(
-        path: '/chat/group-rooms',
-        builder: (context, state) {
-          final args = state.extra! as GroupRoomListArgs;
-          return swipeBack(
-            GroupRoomListScreen(currentUser: args.currentUser, group: args.group),
-          );
-        },
-      ),
-      GoRoute(
         path: '/invite/:rhingId',
-        builder: (context, state) => swipeBack(
-          InviteScreen(rhingId: state.pathParameters['rhingId']!),
-        ),
+        builder: (context, state) =>
+            swipeBack(InviteScreen(rhingId: state.pathParameters['rhingId']!)),
       ),
       GoRoute(
         path: '/join/:groupId',

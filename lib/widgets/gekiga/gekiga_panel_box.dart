@@ -19,6 +19,19 @@ import '../../theme/gekiga/gekiga_shapes.dart';
 /// （2026-07-30追加）。**[child]には`ListTile`を渡さないこと** — `ListTile`は
 /// 常に親の最大幅まで広がる仕様で、幅の緩和だけでは縮まらない
 /// （下記[GekigaMenuTile]を参照）。
+///
+/// 左側に[_leftInset]分の余白を入れて右へずらしている（2026-08-03追加）。
+/// 以前は左詰め（`Row`既定の`mainAxisAlignment.start`）のままだったため、
+/// 手描き風のギザギザ枠（`handDrawnPolygonPath`のjitter・線の太さ分、
+/// 実際の描画がこのウィジェットのレイアウト上のサイズより数px外側にはみ出す
+/// ことがある）が、親コンテナの左端ぎりぎり（特に左右パディングの無い
+/// モバイル幅の一覧）で画面端からはみ出して見える不具合があった。
+///
+/// 幅いっぱいに広げる`expand`オプションを設定・身だしなみのカテゴリ一覧に
+/// 試験的に追加したことがあったが、「横幅は可変のままがいい」との
+/// フィードバックを受けて削除した（2026-08-03、可変幅のみに一本化）。
+const _leftInset = 12.0;
+
 class GekigaPanelBox extends StatelessWidget {
   const GekigaPanelBox({
     required this.child,
@@ -35,6 +48,7 @@ class GekigaPanelBox extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
+        const SizedBox(width: _leftInset),
         Flexible(
           child: CustomPaint(
             painter: _GekigaPanelBoxPainter(seed: seed, selected: selected),
@@ -127,7 +141,10 @@ class GekigaMenuTile extends StatelessWidget {
         child: InkWell(
           onTap: onTap,
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            // シンプルスタイルの`ListTile`（既定で1行あたり約56dp）との縦幅の
+            // 差が大きいという指摘を受け、段階的に広げている
+            // （2026-08-03: horizontal 16→18, vertical 12→16→24）。
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 24),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [

@@ -86,6 +86,16 @@ export const processAccountDeletions = onSchedule(
 
     for (const doc of snapshot.docs) {
       try {
+        // 長を務める広場が残っている間は削除できない（クライアント側の
+        // アカウント削除画面が事前に譲渡を求めるが、30日の猶予期間中に
+        // 新たに広場を作成・譲受した場合もあり得るため、実行直前にも
+        // 再チェックする）。残っていればスキップし、翌日以降に再試行する。
+        if (await hasOwnedGroups(doc.id)) {
+          logger.warn(
+            `アカウント削除を保留（長を務める広場が残っています）: ${doc.id}`,
+          );
+          continue;
+        }
         await deleteAccount(doc.id, doc.data());
         logger.info(`アカウント削除完了: ${doc.id}`);
       } catch (error) {
@@ -97,6 +107,18 @@ export const processAccountDeletions = onSchedule(
     }
   },
 );
+
+/** [userId]が長（`Group.ownerId`）を務めている広場が1件でもあるか。
+ * アカウント削除は全ての広場で長を譲渡し終えるまで実行できない
+ * （DaiDai/CLAUDE.md「重要な仕様・制約」参照、2026-08-02追加）。 */
+async function hasOwnedGroups(userId: string): Promise<boolean> {
+  const snapshot = await db
+    .collection("groups")
+    .where("ownerId", "==", userId)
+    .limit(1)
+    .get();
+  return !snapshot.empty;
+}
 
 /**
  * 30日間の復元猶予期間を経ず、呼び出したユーザー自身のアカウントを今すぐ
@@ -115,6 +137,15 @@ export const deleteAccountImmediately = onCall(
     const userDoc = await db.collection("users").doc(uid).get();
     if (!userDoc.exists) {
       throw new HttpsError("not-found", "ユーザーが見つかりません");
+    }
+    // クライアント側（設定＞アカウント）が削除操作の前に長を務める広場の
+    // 譲渡を求めるが、直接この関数を呼び出すことでバイパスされうるため
+    // サーバー側でも同じ制約を強制する（2026-08-02追加）。
+    if (await hasOwnedGroups(uid)) {
+      throw new HttpsError(
+        "failed-precondition",
+        "長を務めている広場があります。先に長を譲渡してください",
+      );
     }
     await deleteAccount(uid, userDoc.data()!);
     logger.info(`アカウント即時削除完了: ${uid}`);
@@ -204,7 +235,9 @@ async function notifyDirectMessages(
 /** 参加中の広場それぞれに、アカウント削除通知メッセージを1件追加する
  * （広場側は通知のみで、削除するかどうかの選択肢は無い）。長でない場合は
  * memberIds/memberRolesから除去する（group_repository.dartのleaveGroupと
- * 同じ操作）。長の場合は長交代の仕組みが無いため除去せず通知のみ行う。 */
+ * 同じ操作）。呼び出し時点で長を務める広場は無いはず（[deleteAccount]の
+ * 呼び出し元が事前に[hasOwnedGroups]で弾いているため）だが、念のため
+ * 長のままの場合は除去せず通知のみ行う防御的分岐を残す。 */
 async function notifyAndLeaveGroups(
   userId: string,
   rhingId: string | undefined,

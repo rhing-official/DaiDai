@@ -53,6 +53,7 @@ class ChatScreen extends ConsumerStatefulWidget {
     this.onDeclineAccountDeletionNotice,
     this.onDeleteAfterAccountDeletion,
     this.onFetchMessagesAround,
+    this.roomTabBar,
     super.key,
   });
 
@@ -133,6 +134,11 @@ class ChatScreen extends ConsumerStatefulWidget {
   /// `GroupRepository.getRoomMessagesAround`参照）。nullなら未対応として
   /// 何もしない（ジャンプできない）。
   final Future<List<Message>> Function(String messageId)? onFetchMessagesAround;
+
+  /// 狭い画面（縦表示）で、AppBarの直下に寄合の横スクロールタブバー
+  /// （`RoomTabBar`）を表示する（2026-08-03追加）。単一モードの会話・
+  /// 広い画面のサイドバー使用中（`TalksTab`の分割表示）ではnullのまま渡す。
+  final PreferredSizeWidget? roomTabBar;
 
   @override
   ConsumerState<ChatScreen> createState() => _ChatScreenState();
@@ -551,8 +557,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     final floatingShadow =
         Theme.of(context).extension<AppThemeExtras>()?.floatingShadow ??
         AppThemeExtras.none;
-    final composerBackground =
-        isGekiga ? GekigaColors.background : Theme.of(context).scaffoldBackgroundColor;
+    final composerBackground = isGekiga
+        ? GekigaColors.background
+        : Theme.of(context).scaffoldBackgroundColor;
 
     // 入力欄オーバーレイの高さは行数や返信/編集バーの有無で変わるため、
     // 毎フレーム後に実測してメッセージ一覧の下部余白へ反映する
@@ -599,6 +606,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                   ),
                 ...?widget.extraActions,
               ],
+        bottom: widget.roomTabBar,
       ),
       body: Column(
         children: [
@@ -622,7 +630,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                       if (snapshot.connectionState == ConnectionState.waiting) {
                         return Padding(
                           padding: EdgeInsets.only(bottom: _composerAreaHeight),
-                          child: const Center(child: CircularProgressIndicator()),
+                          child: const Center(
+                            child: CircularProgressIndicator(),
+                          ),
                         );
                       }
                       if (snapshot.hasError) {
@@ -770,7 +780,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                         builder: (context, bottomInset, _) => ListView(
                           controller: _scrollController,
                           reverse: true,
-                          padding: EdgeInsets.fromLTRB(12, 12, 12, 12 + bottomInset),
+                          padding: EdgeInsets.fromLTRB(
+                            12,
+                            12,
+                            12,
+                            12 + bottomInset,
+                          ),
                           children: reversedEntries,
                         ),
                       );
@@ -809,12 +824,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                         controller: _textController,
                                         minLines: 1,
                                         maxLines: 6,
-                                        textInputAction: TextInputAction.newline,
+                                        textInputAction:
+                                            TextInputAction.newline,
                                         keyboardType: TextInputType.multiline,
                                         decoration: InputDecoration(
                                           hintText: 'メッセージを入力',
                                           border: OutlineInputBorder(
-                                            borderRadius: BorderRadius.circular(20),
+                                            borderRadius: BorderRadius.circular(
+                                              20,
+                                            ),
                                           ),
                                         ),
                                       ),
@@ -835,7 +853,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                         child: InkWell(
                                           customBorder: const CircleBorder(),
                                           onTap: _send,
-                                          onLongPress: () => _send(silent: true),
+                                          onLongPress: () =>
+                                              _send(silent: true),
                                           child: Padding(
                                             padding: const EdgeInsets.all(12),
                                             child: Icon(
@@ -1740,10 +1759,7 @@ class _MessageRow extends ConsumerWidget {
                       myReaction == entry.key ? null : entry.key,
                     ),
               child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 8,
-                  vertical: 2,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
                   color: myReaction == entry.key
                       ? colorScheme.primaryContainer
@@ -2196,4 +2212,3 @@ class _GekigaBubblePainter extends CustomPainter {
   bool shouldRepaint(covariant _GekigaBubblePainter oldDelegate) =>
       oldDelegate.seed != seed || oldDelegate.isMe != isMe;
 }
-
