@@ -23,6 +23,7 @@ import '../../providers/group_join_request_providers.dart';
 import '../../providers/repository_providers.dart';
 import '../../providers/user_providers.dart';
 import '../../router/app_router.dart';
+import '../../theme/gekiga/gekiga_colors.dart';
 import '../../utils/group_permissions.dart';
 import '../../widgets/gekiga/gekiga_icon_badge.dart';
 import '../../widgets/gekiga/gekiga_panel_box.dart';
@@ -793,7 +794,10 @@ class _TalksTabState extends ConsumerState<TalksTab> {
 }
 
 /// 「一対」「広場」を横並びで切り替えるタブ。件数チップ付き。
-class _CategoryTab extends StatelessWidget {
+/// 劇画スタイルでは選択中=白地黒字／未選択=黒地白字のギザギザボックス
+/// （[GekigaPanelBox]）にする（2026-08-03追加、appUiStyleProviderを見る
+/// ためConsumerWidget化）。
+class _CategoryTab extends ConsumerWidget {
   const _CategoryTab({
     required this.label,
     required this.count,
@@ -807,7 +811,32 @@ class _CategoryTab extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
+    if (isGekiga) {
+      final fg = selected ? GekigaColors.panel : GekigaColors.onPanel;
+      return GekigaPanelBox(
+        seed: label.hashCode,
+        selected: selected,
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              child: Text(
+                '$label $count',
+                style: TextStyle(
+                  color: fg,
+                  fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
     final colorScheme = Theme.of(context).colorScheme;
     final color = selected ? colorScheme.primary : Colors.grey;
     return InkWell(

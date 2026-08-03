@@ -83,7 +83,6 @@ flutter:
 
   assets:
     - assets/sounds/
-    - assets/icons/
 
   # 劇画UIスタイル用フォント（Anton、OFLライセンス）。google_fontsパッケージ
   # 経由のGoogle CDN実行時取得は使わず、プライバシーファースト方針に合わせて

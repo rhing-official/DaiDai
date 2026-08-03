@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../theme/gekiga/gekiga_colors.dart';
 import '../../theme/gekiga/gekiga_shapes.dart';
@@ -14,6 +15,10 @@ class GekigaTextField extends StatelessWidget {
     this.labelText,
     this.prefixText,
     this.prefixIcon,
+    this.suffixIcon,
+    this.errorText,
+    this.inputFormatters,
+    this.textCapitalization = TextCapitalization.none,
     this.autofocus = false,
     this.onSubmitted,
     this.onChanged,
@@ -26,6 +31,10 @@ class GekigaTextField extends StatelessWidget {
   final String? labelText;
   final String? prefixText;
   final Widget? prefixIcon;
+  final Widget? suffixIcon;
+  final String? errorText;
+  final List<TextInputFormatter>? inputFormatters;
+  final TextCapitalization textCapitalization;
   final bool autofocus;
   final ValueChanged<String>? onSubmitted;
   final ValueChanged<String>? onChanged;
@@ -39,6 +48,8 @@ class GekigaTextField extends StatelessWidget {
       child: TextField(
         controller: controller,
         autofocus: autofocus,
+        textCapitalization: textCapitalization,
+        inputFormatters: inputFormatters,
         onSubmitted: onSubmitted,
         onChanged: onChanged,
         style: const TextStyle(color: GekigaColors.onPanel),
@@ -48,6 +59,9 @@ class GekigaTextField extends StatelessWidget {
           labelText: labelText,
           prefixText: prefixText,
           prefixIcon: prefixIcon,
+          suffixIcon: suffixIcon,
+          errorText: errorText,
+          counterText: '',
           hintStyle: TextStyle(color: hintColor),
           labelStyle: TextStyle(color: hintColor),
           filled: false,
