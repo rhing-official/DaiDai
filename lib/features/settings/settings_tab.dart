@@ -1013,13 +1013,55 @@ class _UiStyleFolder extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final style = ref.watch(appUiStyleProvider);
+    final isGekiga = style == AppUiStyle.gekiga;
+
+    void select(AppUiStyle value) =>
+        ref.read(appUiStyleProvider.notifier).setStyle(value);
+
+    // 劇画スタイル選択中は、この選択肢自体もギザギザ枠（選択中=白地黒字）
+    // で表示する。選んだ瞬間に見た目が切り替わるので選択結果がそのまま
+    // プレビューになる（2026-08-03、選択肢の見た目統一のため追加）。
+    if (isGekiga) {
+      return Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: GekigaMenuTile(
+              seed: AppUiStyle.simple.hashCode,
+              selected: style == AppUiStyle.simple,
+              leading: Icon(
+                style == AppUiStyle.simple
+                    ? Icons.radio_button_checked
+                    : Icons.radio_button_unchecked,
+              ),
+              title: Text(strings.settingsUiStyleSimpleLabel),
+              subtitle: Text(strings.settingsUiStyleSimpleDescription),
+              onTap: () => select(AppUiStyle.simple),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: GekigaMenuTile(
+              seed: AppUiStyle.gekiga.hashCode,
+              selected: style == AppUiStyle.gekiga,
+              leading: Icon(
+                style == AppUiStyle.gekiga
+                    ? Icons.radio_button_checked
+                    : Icons.radio_button_unchecked,
+              ),
+              title: Text(strings.settingsUiStyleGekigaLabel),
+              subtitle: Text(strings.settingsUiStyleGekigaDescription),
+              onTap: () => select(AppUiStyle.gekiga),
+            ),
+          ),
+        ],
+      );
+    }
 
     return RadioGroup<AppUiStyle>(
       groupValue: style,
       onChanged: (value) {
-        if (value != null) {
-          ref.read(appUiStyleProvider.notifier).setStyle(value);
-        }
+        if (value != null) select(value);
       },
       child: Column(
         children: [

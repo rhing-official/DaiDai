@@ -5,7 +5,9 @@ import '../../l10n/strings.dart';
 import '../../l10n/vocabulary.dart';
 import '../../models/app_ui_style.dart';
 import '../../providers/app_ui_style_provider.dart';
+import '../../widgets/gekiga/gekiga_icon_badge.dart';
 import '../../widgets/gekiga/gekiga_panel_box.dart';
+import '../../widgets/gekiga/gekiga_text_field.dart';
 
 /// 寄合（テキストチャンネル）1件分の一覧表示用の軽量データ。
 /// 広場の`Room`・一対の`DmRoom`どちらもこの形にマッピングして渡す。
@@ -64,8 +66,9 @@ class RoomListPane extends ConsumerWidget {
     BuildContext context,
     Strings strings,
     Vocabulary vocab,
+    bool isGekiga,
   ) async {
-    final name = await promptForRoomName(context, strings, vocab);
+    final name = await promptForRoomName(context, strings, vocab, isGekiga);
     if (name == null || name.isEmpty) return;
     await onCreateRoom?.call(name);
   }
@@ -120,16 +123,29 @@ class RoomListPane extends ConsumerWidget {
                   ),
                 ),
                 if (onOpenGroupSettings != null)
-                  IconButton(
-                    icon: const Icon(Icons.settings_outlined),
-                    tooltip: strings.groupSettingsTooltip,
-                    onPressed: onOpenGroupSettings,
-                  ),
+                  isGekiga
+                      ? GekigaIconButton(
+                          icon: Icons.settings_outlined,
+                          tooltip: strings.groupSettingsTooltip,
+                          onPressed: onOpenGroupSettings!,
+                        )
+                      : IconButton(
+                          icon: const Icon(Icons.settings_outlined),
+                          tooltip: strings.groupSettingsTooltip,
+                          onPressed: onOpenGroupSettings,
+                        ),
                 if (onCreateRoom != null)
-                  IconButton(
-                    icon: const Icon(Icons.add),
-                    onPressed: () => _createRoom(context, strings, vocab),
-                  ),
+                  isGekiga
+                      ? GekigaIconButton(
+                          icon: Icons.add,
+                          onPressed: () =>
+                              _createRoom(context, strings, vocab, isGekiga),
+                        )
+                      : IconButton(
+                          icon: const Icon(Icons.add),
+                          onPressed: () =>
+                              _createRoom(context, strings, vocab, isGekiga),
+                        ),
               ],
             ),
           ),
@@ -151,18 +167,25 @@ class RoomListPane extends ConsumerWidget {
 Future<String?> promptForRoomName(
   BuildContext context,
   Strings strings,
-  Vocabulary vocab,
-) {
+  Vocabulary vocab, [
+  bool isGekiga = false,
+]) {
   final controller = TextEditingController();
   return showDialog<String>(
     context: context,
     builder: (context) => AlertDialog(
       title: Text(strings.roomListAddDialogTitle(vocab.textChannel)),
-      content: TextField(
-        controller: controller,
-        autofocus: true,
-        decoration: InputDecoration(hintText: vocab.textChannel),
-      ),
+      content: isGekiga
+          ? GekigaTextField(
+              controller: controller,
+              autofocus: true,
+              hintText: vocab.textChannel,
+            )
+          : TextField(
+              controller: controller,
+              autofocus: true,
+              decoration: InputDecoration(hintText: vocab.textChannel),
+            ),
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),

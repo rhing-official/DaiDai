@@ -24,6 +24,7 @@ import '../../providers/repository_providers.dart';
 import '../../providers/user_providers.dart';
 import '../../router/app_router.dart';
 import '../../utils/group_permissions.dart';
+import '../../widgets/gekiga/gekiga_icon_badge.dart';
 import '../../widgets/gekiga/gekiga_panel_box.dart';
 import '../../widgets/swipe_gestures.dart';
 import 'add_chat_dialog.dart';
@@ -417,14 +418,20 @@ class _TalksTabState extends ConsumerState<TalksTab> {
                           ),
                         ),
                         const SizedBox(width: 12),
-                        IconButton.filled(
-                          icon: const Icon(Icons.add, size: 20),
-                          onPressed: _showAddMenu,
-                          style: IconButton.styleFrom(
-                            minimumSize: const Size(32, 32),
-                            padding: EdgeInsets.zero,
-                          ),
-                        ),
+                        ref.watch(appUiStyleProvider) == AppUiStyle.gekiga
+                            ? GekigaIconButton(
+                                icon: Icons.add,
+                                size: 32,
+                                onPressed: _showAddMenu,
+                              )
+                            : IconButton.filled(
+                                icon: const Icon(Icons.add, size: 20),
+                                onPressed: _showAddMenu,
+                                style: IconButton.styleFrom(
+                                  minimumSize: const Size(32, 32),
+                                  padding: EdgeInsets.zero,
+                                ),
+                              ),
                       ],
                     ),
                   ),

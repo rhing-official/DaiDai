@@ -1,22 +1,32 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../models/app_ui_style.dart';
 import '../../models/app_user.dart';
+import '../../providers/app_ui_style_provider.dart';
 import '../../providers/repository_providers.dart';
 import '../../router/app_router.dart';
+import '../../theme/gekiga/gekiga_colors.dart';
+import '../../widgets/gekiga/gekiga_text_field.dart';
 
 /// 友達一覧をプルダウン選択できるよう、Rhing IDではなく呼び名（未設定ならRhing ID）で表示する。
 String _displayName(AppUser user) {
   final nickname = user.activeNickname?.text;
-  return (nickname != null && nickname.isNotEmpty) ? nickname : '@${user.rhingId}';
+  return (nickname != null && nickname.isNotEmpty)
+      ? nickname
+      : '@${user.rhingId}';
 }
 
 /// 友達一覧（フルプロフィール、呼び名表示のため）を監視する。
-final _candidateFriendsProvider =
-    StreamProvider.family<List<AppUser>, String>((ref, userId) {
+final _candidateFriendsProvider = StreamProvider.family<List<AppUser>, String>((
+  ref,
+  userId,
+) {
   final friendRepository = ref.watch(friendRepositoryProvider);
   final userRepository = ref.watch(userRepositoryProvider);
-  return friendRepository.watchFriends(userId).asyncMap(
+  return friendRepository
+      .watchFriends(userId)
+      .asyncMap(
         (friends) => userRepository.getUsersByIds(
           friends.map((f) => f.friendUserId).toList(),
         ),
@@ -90,7 +100,10 @@ class _CreateGroupDialogContentState
 
   Future<void> _createGroup() async {
     if (_members.length < 2) {
-      setState(() => _errorMessage = '広場は3人以上（自分含む）で作成できます。あと${2 - _members.length}人選んでください');
+      setState(
+        () => _errorMessage =
+            '広場は3人以上（自分含む）で作成できます。あと${2 - _members.length}人選んでください',
+      );
       return;
     }
 
@@ -110,17 +123,19 @@ class _CreateGroupDialogContentState
 
       if (!mounted) return;
       widget.onCompleted();
-      ref.read(goRouterProvider).push(
-        '/chat/group',
-        extra: GroupChatArgs(
-          currentUser: widget.currentUser,
-          group: group,
-          roomId: group.defaultRoomId,
-          // 作成直後の広場は常に「メイン」という名前の寄合が1つだけ
-          // 存在する（GroupRepository.createGroup参照）。
-          roomName: 'メイン',
-        ),
-      );
+      ref
+          .read(goRouterProvider)
+          .push(
+            '/chat/group',
+            extra: GroupChatArgs(
+              currentUser: widget.currentUser,
+              group: group,
+              roomId: group.defaultRoomId,
+              // 作成直後の広場は常に「メイン」という名前の寄合が1つだけ
+              // 存在する（GroupRepository.createGroup参照）。
+              roomName: 'メイン',
+            ),
+          );
     } catch (e) {
       setState(() => _errorMessage = 'エラーが発生しました: $e');
     } finally {
@@ -180,16 +195,24 @@ class _CreateGroupDialogContentState
   }
 
   List<Widget> _buildStep1() {
+    final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
     return [
-      TextField(
-        controller: _nameController,
-        autofocus: true,
-        decoration: const InputDecoration(
-          labelText: '広場の名前',
-          border: OutlineInputBorder(),
-        ),
-        onSubmitted: (_) => _goToStep2(),
-      ),
+      isGekiga
+          ? GekigaTextField(
+              controller: _nameController,
+              autofocus: true,
+              labelText: '広場の名前',
+              onSubmitted: (_) => _goToStep2(),
+            )
+          : TextField(
+              controller: _nameController,
+              autofocus: true,
+              decoration: const InputDecoration(
+                labelText: '広場の名前',
+                border: OutlineInputBorder(),
+              ),
+              onSubmitted: (_) => _goToStep2(),
+            ),
       const SizedBox(height: 16),
       SwitchListTile(
         contentPadding: EdgeInsets.zero,
@@ -208,15 +231,13 @@ class _CreateGroupDialogContentState
       const SizedBox(height: 16),
       SizedBox(
         width: double.infinity,
-        child: ElevatedButton(
-          onPressed: _goToStep2,
-          child: const Text('次へ'),
-        ),
+        child: ElevatedButton(onPressed: _goToStep2, child: const Text('次へ')),
       ),
     ];
   }
 
   List<Widget> _buildStep2() {
+    final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
     return [
       Row(
         children: [
@@ -226,21 +247,26 @@ class _CreateGroupDialogContentState
             onPressed: _isCreating ? null : _goBackToStep1,
           ),
           const SizedBox(width: 4),
-          const Expanded(
-            child: Text('メンバーを友達から選ぶ（自分＋2人以上が必要）'),
-          ),
+          const Expanded(child: Text('メンバーを友達から選ぶ（自分＋2人以上が必要）')),
         ],
       ),
       const SizedBox(height: 8),
-      TextField(
-        controller: _searchController,
-        decoration: const InputDecoration(
-          labelText: '名前で検索',
-          prefixIcon: Icon(Icons.search),
-          border: OutlineInputBorder(),
-        ),
-        onChanged: (_) => setState(() {}),
-      ),
+      isGekiga
+          ? GekigaTextField(
+              controller: _searchController,
+              labelText: '名前で検索',
+              prefixIcon: const Icon(Icons.search, color: GekigaColors.onPanel),
+              onChanged: (_) => setState(() {}),
+            )
+          : TextField(
+              controller: _searchController,
+              decoration: const InputDecoration(
+                labelText: '名前で検索',
+                prefixIcon: Icon(Icons.search),
+                border: OutlineInputBorder(),
+              ),
+              onChanged: (_) => setState(() {}),
+            ),
       const SizedBox(height: 8),
       Consumer(
         builder: (context, ref, _) {
@@ -259,10 +285,12 @@ class _CreateGroupDialogContentState
               final filtered = query.isEmpty
                   ? friends
                   : friends
-                      .where((u) =>
-                          _displayName(u).toLowerCase().contains(query) ||
-                          u.rhingId.toLowerCase().contains(query))
-                      .toList();
+                        .where(
+                          (u) =>
+                              _displayName(u).toLowerCase().contains(query) ||
+                              u.rhingId.toLowerCase().contains(query),
+                        )
+                        .toList();
               if (filtered.isEmpty) {
                 return const Text(
                   '該当する友達が見つかりません',
@@ -276,16 +304,18 @@ class _CreateGroupDialogContentState
                   itemCount: filtered.length,
                   itemBuilder: (context, index) {
                     final friend = filtered[index];
-                    final selected =
-                        _members.any((m) => m.userId == friend.userId);
+                    final selected = _members.any(
+                      (m) => m.userId == friend.userId,
+                    );
                     final icon = friend.activeIcon;
                     return CheckboxListTile(
                       value: selected,
                       contentPadding: EdgeInsets.zero,
                       controlAffinity: ListTileControlAffinity.trailing,
                       secondary: CircleAvatar(
-                        backgroundImage:
-                            icon != null ? NetworkImage(icon.url) : null,
+                        backgroundImage: icon != null
+                            ? NetworkImage(icon.url)
+                            : null,
                         child: icon == null ? const Icon(Icons.person) : null,
                       ),
                       title: Text(_displayName(friend)),
@@ -293,7 +323,9 @@ class _CreateGroupDialogContentState
                         if (checked ?? false) {
                           _members.add(friend);
                         } else {
-                          _members.removeWhere((m) => m.userId == friend.userId);
+                          _members.removeWhere(
+                            (m) => m.userId == friend.userId,
+                          );
                         }
                         _errorMessage = null;
                       }),
@@ -361,10 +393,7 @@ class _StepIndicator extends StatelessWidget {
                   ? colorScheme.primary
                   : colorScheme.outlineVariant,
             ),
-          _StepCircle(
-            number: step,
-            filled: step <= currentStep,
-          ),
+          _StepCircle(number: step, filled: step <= currentStep),
         ],
       ],
     );

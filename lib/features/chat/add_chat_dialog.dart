@@ -2,10 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/strings.dart';
+import '../../models/app_ui_style.dart';
 import '../../models/app_user.dart';
 import '../../models/direct_message.dart';
+import '../../providers/app_ui_style_provider.dart';
 import '../../providers/repository_providers.dart';
 import '../../router/app_router.dart';
+import '../../widgets/gekiga/gekiga_text_field.dart';
 import '../../widgets/profile_card_picker.dart';
 
 /// 友達申請の送信ポップアップ（2026-07-29、画面遷移からポップアップ化）。
@@ -33,7 +36,8 @@ class AddChatDialogContent extends ConsumerStatefulWidget {
   final VoidCallback onCompleted;
 
   @override
-  ConsumerState<AddChatDialogContent> createState() => _AddChatDialogContentState();
+  ConsumerState<AddChatDialogContent> createState() =>
+      _AddChatDialogContentState();
 }
 
 class _AddChatDialogContentState extends ConsumerState<AddChatDialogContent> {
@@ -49,8 +53,10 @@ class _AddChatDialogContentState extends ConsumerState<AddChatDialogContent> {
 
   Future<void> _search() async {
     final strings = ref.read(appStringsProvider);
-    final rhingId =
-        _controller.text.trim().toLowerCase().replaceFirst(RegExp(r'^@+'), '');
+    final rhingId = _controller.text.trim().toLowerCase().replaceFirst(
+      RegExp(r'^@+'),
+      '',
+    );
     if (rhingId.isEmpty) return;
 
     setState(() {
@@ -85,18 +91,20 @@ class _AddChatDialogContentState extends ConsumerState<AddChatDialogContent> {
         );
         if (!mounted) return;
         widget.onCompleted();
-        ref.read(goRouterProvider).push(
-          '/chat/dm',
-          extra: DmChatArgs(
-            currentUser: widget.currentUser,
-            dm: dm,
-            roomId: dm.defaultRoomId,
-            // 作成直後の一対は常に「メイン」という名前の寄合が1つだけ
-            // 存在する（DirectMessageRepository.getOrCreateDirectMessage/
-            // FriendRepository.respond参照）。
-            roomName: 'メイン',
-          ),
-        );
+        ref
+            .read(goRouterProvider)
+            .push(
+              '/chat/dm',
+              extra: DmChatArgs(
+                currentUser: widget.currentUser,
+                dm: dm,
+                roomId: dm.defaultRoomId,
+                // 作成直後の一対は常に「メイン」という名前の寄合が1つだけ
+                // 存在する（DirectMessageRepository.getOrCreateDirectMessage/
+                // FriendRepository.respond参照）。
+                roomName: 'メイン',
+              ),
+            );
         return;
       }
 
@@ -132,10 +140,14 @@ class _AddChatDialogContentState extends ConsumerState<AddChatDialogContent> {
       await friendRepository.sendRequest(from: widget.currentUser, to: other);
       final selectedProfileCardId = _selectedProfileCardId;
       if (selectedProfileCardId != null) {
-        await ref.read(userRepositoryProvider).setConversationProfileCard(
+        await ref
+            .read(userRepositoryProvider)
+            .setConversationProfileCard(
               userId: widget.currentUser.userId,
-              conversationId:
-                  DirectMessage.idFor(widget.currentUser.userId, other.userId),
+              conversationId: DirectMessage.idFor(
+                widget.currentUser.userId,
+                other.userId,
+              ),
               profileCardId: selectedProfileCardId,
             );
       }
@@ -177,7 +189,10 @@ class _AddChatDialogContentState extends ConsumerState<AddChatDialogContent> {
               Expanded(
                 child: Text(
                   strings.friendSearchTitle,
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
                 ),
               ),
               IconButton(
@@ -205,19 +220,28 @@ class _AddChatDialogContentState extends ConsumerState<AddChatDialogContent> {
   }
 
   List<Widget> _buildSearchStep(BuildContext context, Strings strings) {
+    final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
     return [
       Text(strings.friendSearchHint),
       const SizedBox(height: 16),
-      TextField(
-        controller: _controller,
-        autofocus: true,
-        decoration: InputDecoration(
-          labelText: strings.friendSearchLabel,
-          prefixText: '@',
-          border: const OutlineInputBorder(),
-        ),
-        onSubmitted: (_) => _search(),
-      ),
+      isGekiga
+          ? GekigaTextField(
+              controller: _controller,
+              autofocus: true,
+              labelText: strings.friendSearchLabel,
+              prefixText: '@',
+              onSubmitted: (_) => _search(),
+            )
+          : TextField(
+              controller: _controller,
+              autofocus: true,
+              decoration: InputDecoration(
+                labelText: strings.friendSearchLabel,
+                prefixText: '@',
+                border: const OutlineInputBorder(),
+              ),
+              onSubmitted: (_) => _search(),
+            ),
       if (_errorMessage != null) ...[
         const SizedBox(height: 8),
         Text(_errorMessage!, style: const TextStyle(color: Colors.red)),
