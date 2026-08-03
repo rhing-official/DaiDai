@@ -3,17 +3,14 @@ import 'package:flutter/material.dart';
 import '../../theme/gekiga/gekiga_shapes.dart';
 
 /// 劇画スタイルの色付きバッジ（アイコン背後のブロック）を描く。
-/// 参考スケッチの形（正方形ではなく、左上に鋭い頂点・右側に大きく
-/// 張り出す頂点・下に底の頂点・左に頂点を持つ、旗/凧のような非対称の
-/// 四角形）を直線の辺でなぞり、外側から黒い太枠→白い縁取り→イメージ
-/// カラーの塗り、という3層の同心図形として描く。
-/// 凸四角形にしているのは、[insetPolygon]の辺オフセット計算が凹んだ
-/// 頂点があると縁の太さが不均一・破綻しやすいため（前回、頂点を1つ
-/// 内側に窪ませて凹四角形にした結果、白い縁取りがほぼ潰れて見えなく
-/// なる不具合が発生した）。
-/// （2026-07-30、chat_screen.dartの`_GekigaBadgePainter`から移動・公開化。
-/// メッセージ画面のアイコン背後だけでなく、ホーム画面のナビチップ等
-/// アプリ全体で同じ意匠を再利用するための共通部品）。
+/// 外側から黒い太枠→白い縁取り→イメージカラーの塗り、という3層の同心
+/// 図形として描く点は変わらないが、形自体は正方形の各辺を手描き風に
+/// ジグザグ揺らした[handDrawnPolygonPath]ベースに統一している
+/// （2026-08-03、旧: 直線縁取りの非対称な旗/凧型四角形から変更。
+/// `GekigaIconBadge`/`GekigaPanelBox`/テキスト欄/吹き出し等、アプリ全体の
+/// 他の劇画パーツと同じジグザグ意匠に揃えるため）。3層とも同じ[seed]で
+/// ジグザグ化することで、バラバラな揺れではなく同心状に連動して見える
+/// ようにしている。
 class GekigaBadgePainter extends CustomPainter {
   const GekigaBadgePainter({required this.color, required this.seed});
 
@@ -23,17 +20,43 @@ class GekigaBadgePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final outer = [
-      Offset(size.width * 0.0, size.height * 0.3),
-      Offset(size.width * 0.97, size.height * 0.42),
-      Offset(size.width * 0.55, size.height * 0.98),
-      Offset(size.width * 0.0, size.height * 0.55),
+      Offset.zero,
+      Offset(size.width, 0),
+      Offset(size.width, size.height),
+      Offset(0, size.height),
     ];
     final white = insetPolygon(outer, 4.5);
     final fill = insetPolygon(outer, 8);
 
-    canvas.drawPath(pathFromPoints(outer), Paint()..color = Colors.black);
-    canvas.drawPath(pathFromPoints(white), Paint()..color = Colors.white);
-    canvas.drawPath(pathFromPoints(fill), Paint()..color = color);
+    const jitter = 2.2;
+    const segmentsPerEdge = 4;
+    canvas.drawPath(
+      handDrawnPolygonPath(
+        outer,
+        seed,
+        jitter: jitter,
+        segmentsPerEdge: segmentsPerEdge,
+      ),
+      Paint()..color = Colors.black,
+    );
+    canvas.drawPath(
+      handDrawnPolygonPath(
+        white,
+        seed,
+        jitter: jitter,
+        segmentsPerEdge: segmentsPerEdge,
+      ),
+      Paint()..color = Colors.white,
+    );
+    canvas.drawPath(
+      handDrawnPolygonPath(
+        fill,
+        seed,
+        jitter: jitter,
+        segmentsPerEdge: segmentsPerEdge,
+      ),
+      Paint()..color = color,
+    );
   }
 
   @override
@@ -111,7 +134,9 @@ class GekigaBadgeShape extends StatelessWidget {
       alignment: Alignment.center,
       children: [
         Positioned.fill(
-          child: CustomPaint(painter: GekigaBadgePainter(color: color, seed: seed)),
+          child: CustomPaint(
+            painter: GekigaBadgePainter(color: color, seed: seed),
+          ),
         ),
         ?child,
       ],
