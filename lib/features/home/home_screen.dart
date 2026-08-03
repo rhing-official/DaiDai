@@ -47,8 +47,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   // 判定するために使う（2026-07-29変更、以前はフリック時の速度だけで隣へ
   // 1段階移動する実装だった。指を離すまで連続的に、語らいから設定まで
   // 1回のドラッグで移動できるようにするため、位置ベースの追従に変更）。
-  late final List<GlobalKey> _chipKeys =
-      List.generate(3, (_) => GlobalKey());
+  late final List<GlobalKey> _chipKeys = List.generate(3, (_) => GlobalKey());
 
   /// 各チップの画面上（global座標）での矩形。まだ描画されていないチップは
   /// nullのまま。
@@ -106,12 +105,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     // スワイプが素通りするものとしないものが混在していたため）。
     if (!(ModalRoute.of(context)?.isCurrent ?? true)) return;
     final hit = _hitTestChips(globalPosition, vertical);
-    final selectionChanged = hit.hovered != null && hit.hovered != _selectedIndex;
+    final selectionChanged =
+        hit.hovered != null && hit.hovered != _selectedIndex;
     final poppedChanged = !setEquals(hit.popped, _poppedIndexes);
     if (!selectionChanged && !poppedChanged) return;
     setState(() {
       _poppedIndexes = hit.popped;
-      if (selectionChanged) _selectedIndex = hit.hovered!.clamp(0, tabCount - 1);
+      if (selectionChanged)
+        _selectedIndex = hit.hovered!.clamp(0, tabCount - 1);
     });
   }
 
@@ -121,6 +122,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     Icons.settings_outlined,
   ];
 
+  /// 劇画スタイルの各タブアイコンを、Higgsfieldで生成した角ばった
+  /// モノクロ画像に差し替えるためのアセットパス（2026-08-03新規）。
+  /// タブごとに未生成ならnullとし、[_NavChip]側で[_icons]の標準Material
+  /// アイコンにフォールバックする（生成が完了したタブから順次差し替える
+  /// 前提のため、`null`のまま残るのは想定内で欠落ではない）。
+  static const _gekigaIconAssets = <String?>[
+    null, // 語らい（未生成）
+    null, // 身だしなみ（未生成）
+    'assets/icons/nav_settings.png',
+  ];
+
   static const _chipSize = 56.0;
   static const _chipGap = 16.0;
   static const _chipMargin = 16.0;
@@ -128,11 +140,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final strings = ref.watch(appStringsProvider);
-    final titles = [
-      strings.navTalk,
-      strings.navProfile,
-      strings.navSettings,
-    ];
+    final titles = [strings.navTalk, strings.navProfile, strings.navSettings];
 
     final tabs = [
       TalksTab(currentUser: widget.currentUser),
@@ -148,6 +156,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         _NavChip(
           key: _chipKeys[i],
           icon: _icons[i],
+          gekigaIconAsset: _gekigaIconAssets[i],
           label: titles[i],
           selected: _selectedIndex == i,
           popped: _isDragging && _poppedIndexes.contains(i),
@@ -166,12 +175,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     // なら横方向、縦並び（広い画面のサイドバー）なら縦方向のドラッグで反応する。
     final content = Padding(
       padding: isWide
-          ? const EdgeInsets.only(
-              left: _chipSize + _chipMargin * 2,
-            )
-          : const EdgeInsets.only(
-              bottom: _chipSize + _chipMargin * 2,
-            ),
+          ? const EdgeInsets.only(left: _chipSize + _chipMargin * 2)
+          : const EdgeInsets.only(bottom: _chipSize + _chipMargin * 2),
       child: IndexedStack(index: _selectedIndex, children: tabs),
     );
 
@@ -196,16 +201,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
       return GestureDetector(
         behavior: HitTestBehavior.translucent,
-        onHorizontalDragStart:
-            vertical ? null : (details) => onStart(details.globalPosition),
-        onHorizontalDragUpdate:
-            vertical ? null : (details) => onUpdate(details.globalPosition),
+        onHorizontalDragStart: vertical
+            ? null
+            : (details) => onStart(details.globalPosition),
+        onHorizontalDragUpdate: vertical
+            ? null
+            : (details) => onUpdate(details.globalPosition),
         onHorizontalDragEnd: vertical ? null : (_) => onEnd(),
         onHorizontalDragCancel: vertical ? null : onEnd,
-        onVerticalDragStart:
-            !vertical ? null : (details) => onStart(details.globalPosition),
-        onVerticalDragUpdate:
-            !vertical ? null : (details) => onUpdate(details.globalPosition),
+        onVerticalDragStart: !vertical
+            ? null
+            : (details) => onStart(details.globalPosition),
+        onVerticalDragUpdate: !vertical
+            ? null
+            : (details) => onUpdate(details.globalPosition),
         onVerticalDragEnd: !vertical ? null : (_) => onEnd(),
         onVerticalDragCancel: !vertical ? null : onEnd,
         child: child,
@@ -291,6 +300,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 class _NavChip extends ConsumerWidget {
   const _NavChip({
     required this.icon,
+    required this.gekigaIconAsset,
     required this.label,
     required this.selected,
     required this.popped,
@@ -300,6 +310,12 @@ class _NavChip extends ConsumerWidget {
   });
 
   final IconData icon;
+
+  /// 劇画スタイルで使う角ばったモノクロアイコン画像のアセットパス。
+  /// nullなら（未生成のタブ）[icon]の標準Materialアイコンにフォールバック
+  /// する（2026-08-03新規）。
+  final String? gekigaIconAsset;
+
   final String label;
   final bool selected;
 
@@ -327,6 +343,17 @@ class _NavChip extends ConsumerWidget {
         ? (vertical ? const Offset(0.35, 0) : const Offset(0, -0.35))
         : Offset.zero;
 
+    final asset = gekigaIconAsset;
+    Widget gekigaIcon(Color color) => asset != null
+        ? Image.asset(
+            asset,
+            color: color,
+            colorBlendMode: BlendMode.srcIn,
+            width: 24,
+            height: 24,
+          )
+        : Icon(icon, color: color);
+
     final chip = isGekiga
         ? Material(
             color: selected ? Colors.transparent : Colors.black,
@@ -342,9 +369,9 @@ class _NavChip extends ConsumerWidget {
                     ? GekigaBadgeShape(
                         color: colorScheme.primary,
                         seed: label.hashCode,
-                        child: Icon(icon, color: Colors.white),
+                        child: gekigaIcon(Colors.white),
                       )
-                    : Icon(icon, color: Colors.white70),
+                    : gekigaIcon(Colors.white70),
               ),
             ),
           )
