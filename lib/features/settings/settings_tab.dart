@@ -22,9 +22,11 @@ import '../../providers/repository_providers.dart';
 import '../../providers/send_key_mode_provider.dart';
 import '../../providers/terminology_style_provider.dart';
 import '../../providers/theme_mode_provider.dart';
+import '../../theme/gekiga/gekiga_colors.dart';
 import '../../utils/color_hex.dart';
 import '../../widgets/gekiga/gekiga_label_chip.dart';
 import '../../widgets/gekiga/gekiga_panel_box.dart';
+import '../../widgets/gekiga/gekiga_text_field.dart';
 import '../../widgets/swipe_gestures.dart';
 import '../chat/group_member_list_screen.dart';
 
@@ -762,6 +764,90 @@ class _DesignFolderState extends ConsumerState<_DesignFolder> {
   Widget build(BuildContext context) {
     final accentColor = ref.watch(accentColorProvider);
     final themeMode = ref.watch(appThemeModeProvider);
+    final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
+
+    void selectThemeMode(ThemeMode mode) =>
+        ref.read(appThemeModeProvider.notifier).setMode(mode);
+
+    final appearanceOptions = [
+      (mode: ThemeMode.light, label: widget.strings.settingsAppearanceLight),
+      (mode: ThemeMode.dark, label: widget.strings.settingsAppearanceDark),
+      (mode: ThemeMode.system, label: widget.strings.settingsAppearanceSystem),
+    ];
+
+    final appearanceControl = isGekiga
+        ? Column(
+            children: [
+              for (final option in appearanceOptions)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: GekigaMenuTile(
+                    seed: option.mode.hashCode,
+                    selected: themeMode == option.mode,
+                    leading: Icon(
+                      themeMode == option.mode
+                          ? Icons.radio_button_checked
+                          : Icons.radio_button_unchecked,
+                    ),
+                    title: Text(option.label),
+                    onTap: () => selectThemeMode(option.mode),
+                  ),
+                ),
+            ],
+          )
+        : RadioGroup<ThemeMode>(
+            groupValue: themeMode,
+            onChanged: (value) {
+              if (value != null) selectThemeMode(value);
+            },
+            child: Column(
+              children: [
+                for (final option in appearanceOptions)
+                  RadioListTile<ThemeMode>(
+                    value: option.mode,
+                    title: Text(option.label),
+                  ),
+              ],
+            ),
+          );
+
+    final accentColorField = isGekiga
+        ? GekigaTextField(
+            controller: _hexController,
+            textCapitalization: TextCapitalization.characters,
+            inputFormatters: [
+              FilteringTextInputFormatter.allow(RegExp('[0-9a-fA-F]')),
+              LengthLimitingTextInputFormatter(8),
+            ],
+            prefixText: '#',
+            hintText: 'F08300',
+            errorText: _errorText,
+            suffixIcon: IconButton(
+              icon: const Icon(Icons.check, color: GekigaColors.onPanel),
+              onPressed: _applyHexInput,
+            ),
+            onSubmitted: (_) => _applyHexInput(),
+          )
+        : TextField(
+            controller: _hexController,
+            textCapitalization: TextCapitalization.characters,
+            inputFormatters: [
+              FilteringTextInputFormatter.allow(RegExp('[0-9a-fA-F]')),
+              LengthLimitingTextInputFormatter(8),
+            ],
+            decoration: InputDecoration(
+              labelText: widget.strings.settingsColorCode,
+              prefixText: '#',
+              hintText: 'F08300',
+              errorText: _errorText,
+              counterText: '',
+              suffixIcon: IconButton(
+                icon: const Icon(Icons.check),
+                onPressed: _applyHexInput,
+              ),
+            ),
+            onSubmitted: (_) => _applyHexInput(),
+          );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -776,33 +862,7 @@ class _DesignFolderState extends ConsumerState<_DesignFolder> {
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-          child: Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              ChoiceChip(
-                label: Text(widget.strings.settingsAppearanceLight),
-                selected: themeMode == ThemeMode.light,
-                onSelected: (_) => ref
-                    .read(appThemeModeProvider.notifier)
-                    .setMode(ThemeMode.light),
-              ),
-              ChoiceChip(
-                label: Text(widget.strings.settingsAppearanceDark),
-                selected: themeMode == ThemeMode.dark,
-                onSelected: (_) => ref
-                    .read(appThemeModeProvider.notifier)
-                    .setMode(ThemeMode.dark),
-              ),
-              ChoiceChip(
-                label: Text(widget.strings.settingsAppearanceSystem),
-                selected: themeMode == ThemeMode.system,
-                onSelected: (_) => ref
-                    .read(appThemeModeProvider.notifier)
-                    .setMode(ThemeMode.system),
-              ),
-            ],
-          ),
+          child: appearanceControl,
         ),
         const Divider(height: 32),
         Padding(
@@ -828,28 +888,7 @@ class _DesignFolderState extends ConsumerState<_DesignFolder> {
                 ),
               ),
               const SizedBox(width: 16),
-              Expanded(
-                child: TextField(
-                  controller: _hexController,
-                  textCapitalization: TextCapitalization.characters,
-                  inputFormatters: [
-                    FilteringTextInputFormatter.allow(RegExp('[0-9a-fA-F]')),
-                    LengthLimitingTextInputFormatter(8),
-                  ],
-                  decoration: InputDecoration(
-                    labelText: widget.strings.settingsColorCode,
-                    prefixText: '#',
-                    hintText: 'F08300',
-                    errorText: _errorText,
-                    counterText: '',
-                    suffixIcon: IconButton(
-                      icon: const Icon(Icons.check),
-                      onPressed: _applyHexInput,
-                    ),
-                  ),
-                  onSubmitted: (_) => _applyHexInput(),
-                ),
-              ),
+              Expanded(child: accentColorField),
             ],
           ),
         ),
@@ -937,6 +976,89 @@ class _LanguageFolder extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final currentLocale = ref.watch(appLocaleProvider);
     final currentStyle = ref.watch(terminologyStyleProvider);
+    final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
+
+    void selectLocale(AppLocale locale) =>
+        ref.read(appLocaleProvider.notifier).setLocale(locale);
+    void selectTerminology(TerminologyStyle style) =>
+        ref.read(terminologyStyleProvider.notifier).setStyle(style);
+
+    final localeControl = isGekiga
+        ? Column(
+            children: [
+              for (final locale in AppLocale.values)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: GekigaMenuTile(
+                    seed: locale.hashCode,
+                    selected: currentLocale == locale,
+                    leading: Icon(
+                      currentLocale == locale
+                          ? Icons.radio_button_checked
+                          : Icons.radio_button_unchecked,
+                    ),
+                    title: Text(locale.label),
+                    onTap: () => selectLocale(locale),
+                  ),
+                ),
+            ],
+          )
+        : RadioGroup<AppLocale>(
+            groupValue: currentLocale,
+            onChanged: (value) {
+              if (value != null) selectLocale(value);
+            },
+            child: Column(
+              children: [
+                for (final locale in AppLocale.values)
+                  RadioListTile<AppLocale>(
+                    value: locale,
+                    title: Text(locale.label),
+                  ),
+              ],
+            ),
+          );
+
+    String terminologyLabel(TerminologyStyle style) =>
+        style == TerminologyStyle.worldview
+        ? strings.settingsTerminologyWorldview
+        : strings.settingsTerminologyConvenience;
+
+    final terminologyControl = isGekiga
+        ? Column(
+            children: [
+              for (final style in TerminologyStyle.values)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: GekigaMenuTile(
+                    seed: style.hashCode,
+                    selected: currentStyle == style,
+                    leading: Icon(
+                      currentStyle == style
+                          ? Icons.radio_button_checked
+                          : Icons.radio_button_unchecked,
+                    ),
+                    title: Text(terminologyLabel(style)),
+                    onTap: () => selectTerminology(style),
+                  ),
+                ),
+            ],
+          )
+        : RadioGroup<TerminologyStyle>(
+            groupValue: currentStyle,
+            onChanged: (value) {
+              if (value != null) selectTerminology(value);
+            },
+            child: Column(
+              children: [
+                for (final style in TerminologyStyle.values)
+                  RadioListTile<TerminologyStyle>(
+                    value: style,
+                    title: Text(terminologyLabel(style)),
+                  ),
+              ],
+            ),
+          );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -951,16 +1073,7 @@ class _LanguageFolder extends ConsumerWidget {
         ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: SegmentedButton<AppLocale>(
-            segments: [
-              for (final locale in AppLocale.values)
-                ButtonSegment(value: locale, label: Text(locale.label)),
-            ],
-            selected: {currentLocale},
-            onSelectionChanged: (selection) {
-              ref.read(appLocaleProvider.notifier).setLocale(selection.first);
-            },
-          ),
+          child: localeControl,
         ),
         const Divider(height: 32),
         Padding(
@@ -972,28 +1085,7 @@ class _LanguageFolder extends ConsumerWidget {
         ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
-          // 用語は言語によって長さがまちまち（例:
-          // 「マテリアルボックス」「Terminology & display」）なため、
-          // 横に並べたセグメントボタンが窮屈にならないよう、
-          // 折り返し可能なWrapで選択肢を並べる。
-          child: Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              for (final style in TerminologyStyle.values)
-                ChoiceChip(
-                  label: Text(
-                    style == TerminologyStyle.worldview
-                        ? strings.settingsTerminologyWorldview
-                        : strings.settingsTerminologyConvenience,
-                  ),
-                  selected: currentStyle == style,
-                  onSelected: (_) => ref
-                      .read(terminologyStyleProvider.notifier)
-                      .setStyle(style),
-                ),
-            ],
-          ),
+          child: terminologyControl,
         ),
       ],
     );
@@ -1089,6 +1181,61 @@ class _ChatLayoutFolder extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final style = ref.watch(chatLayoutStyleProvider);
+    final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
+
+    void select(ChatLayoutStyle value) =>
+        ref.read(chatLayoutStyleProvider.notifier).setStyle(value);
+
+    final options = [
+      (
+        value: ChatLayoutStyle.sideBySide,
+        title: strings.settingsChatLayoutSideBySide,
+        subtitle: strings.settingsChatLayoutSideBySideDescription,
+      ),
+      (
+        value: ChatLayoutStyle.allLeft,
+        title: strings.settingsChatLayoutAllLeft,
+        subtitle: strings.settingsChatLayoutAllLeftDescription,
+      ),
+    ];
+
+    final control = isGekiga
+        ? Column(
+            children: [
+              for (final option in options)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: GekigaMenuTile(
+                    seed: option.value.hashCode,
+                    selected: style == option.value,
+                    leading: Icon(
+                      style == option.value
+                          ? Icons.radio_button_checked
+                          : Icons.radio_button_unchecked,
+                    ),
+                    title: Text(option.title),
+                    subtitle: Text(option.subtitle),
+                    onTap: () => select(option.value),
+                  ),
+                ),
+            ],
+          )
+        : RadioGroup<ChatLayoutStyle>(
+            groupValue: style,
+            onChanged: (value) {
+              if (value != null) select(value);
+            },
+            child: Column(
+              children: [
+                for (final option in options)
+                  RadioListTile<ChatLayoutStyle>(
+                    value: option.value,
+                    title: Text(option.title),
+                    subtitle: Text(option.subtitle),
+                  ),
+              ],
+            ),
+          );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1101,28 +1248,7 @@ class _ChatLayoutFolder extends ConsumerWidget {
             style: const TextStyle(fontWeight: FontWeight.bold),
           ),
         ),
-        RadioGroup<ChatLayoutStyle>(
-          groupValue: style,
-          onChanged: (value) {
-            if (value != null) {
-              ref.read(chatLayoutStyleProvider.notifier).setStyle(value);
-            }
-          },
-          child: Column(
-            children: [
-              RadioListTile<ChatLayoutStyle>(
-                value: ChatLayoutStyle.sideBySide,
-                title: Text(strings.settingsChatLayoutSideBySide),
-                subtitle: Text(strings.settingsChatLayoutSideBySideDescription),
-              ),
-              RadioListTile<ChatLayoutStyle>(
-                value: ChatLayoutStyle.allLeft,
-                title: Text(strings.settingsChatLayoutAllLeft),
-                subtitle: Text(strings.settingsChatLayoutAllLeftDescription),
-              ),
-            ],
-          ),
-        ),
+        control,
       ],
     );
   }
@@ -1137,6 +1263,50 @@ class _TimeFormatFolder extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final currentFormat = ref.watch(messageTimeFormatProvider);
+    final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
+
+    void select(MessageTimeFormat value) =>
+        ref.read(messageTimeFormatProvider.notifier).setFormat(value);
+
+    String label(MessageTimeFormat format) => format == MessageTimeFormat.h24
+        ? strings.settingsTimeFormat24h
+        : strings.settingsTimeFormat12h;
+
+    final control = isGekiga
+        ? Column(
+            children: [
+              for (final format in MessageTimeFormat.values)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: GekigaMenuTile(
+                    seed: format.hashCode,
+                    selected: currentFormat == format,
+                    leading: Icon(
+                      currentFormat == format
+                          ? Icons.radio_button_checked
+                          : Icons.radio_button_unchecked,
+                    ),
+                    title: Text(label(format)),
+                    onTap: () => select(format),
+                  ),
+                ),
+            ],
+          )
+        : RadioGroup<MessageTimeFormat>(
+            groupValue: currentFormat,
+            onChanged: (value) {
+              if (value != null) select(value);
+            },
+            child: Column(
+              children: [
+                for (final format in MessageTimeFormat.values)
+                  RadioListTile<MessageTimeFormat>(
+                    value: format,
+                    title: Text(label(format)),
+                  ),
+              ],
+            ),
+          );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1151,24 +1321,7 @@ class _TimeFormatFolder extends ConsumerWidget {
         ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              for (final format in MessageTimeFormat.values)
-                ChoiceChip(
-                  label: Text(
-                    format == MessageTimeFormat.h24
-                        ? strings.settingsTimeFormat24h
-                        : strings.settingsTimeFormat12h,
-                  ),
-                  selected: currentFormat == format,
-                  onSelected: (_) => ref
-                      .read(messageTimeFormatProvider.notifier)
-                      .setFormat(format),
-                ),
-            ],
-          ),
+          child: control,
         ),
       ],
     );
@@ -1306,6 +1459,61 @@ class _SendKeyFolder extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final mode = ref.watch(sendKeyModeProvider);
+    final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
+
+    void select(SendKeyMode value) =>
+        ref.read(sendKeyModeProvider.notifier).setMode(value);
+
+    final options = [
+      (
+        value: SendKeyMode.enterToSend,
+        title: strings.settingsSendKeyEnterToSend,
+        subtitle: strings.settingsSendKeySilentEnterToSend,
+      ),
+      (
+        value: SendKeyMode.ctrlEnterToSend,
+        title: strings.settingsSendKeyCtrlEnterToSend,
+        subtitle: strings.settingsSendKeySilentCtrlEnterToSend,
+      ),
+    ];
+
+    final control = isGekiga
+        ? Column(
+            children: [
+              for (final option in options)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: GekigaMenuTile(
+                    seed: option.value.hashCode,
+                    selected: mode == option.value,
+                    leading: Icon(
+                      mode == option.value
+                          ? Icons.radio_button_checked
+                          : Icons.radio_button_unchecked,
+                    ),
+                    title: Text(option.title),
+                    subtitle: Text(option.subtitle),
+                    onTap: () => select(option.value),
+                  ),
+                ),
+            ],
+          )
+        : RadioGroup<SendKeyMode>(
+            groupValue: mode,
+            onChanged: (value) {
+              if (value != null) select(value);
+            },
+            child: Column(
+              children: [
+                for (final option in options)
+                  RadioListTile<SendKeyMode>(
+                    value: option.value,
+                    title: Text(option.title),
+                    subtitle: Text(option.subtitle),
+                  ),
+              ],
+            ),
+          );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1318,28 +1526,7 @@ class _SendKeyFolder extends ConsumerWidget {
             style: const TextStyle(fontWeight: FontWeight.bold),
           ),
         ),
-        RadioGroup<SendKeyMode>(
-          groupValue: mode,
-          onChanged: (value) {
-            if (value != null) {
-              ref.read(sendKeyModeProvider.notifier).setMode(value);
-            }
-          },
-          child: Column(
-            children: [
-              RadioListTile<SendKeyMode>(
-                value: SendKeyMode.enterToSend,
-                title: Text(strings.settingsSendKeyEnterToSend),
-                subtitle: Text(strings.settingsSendKeySilentEnterToSend),
-              ),
-              RadioListTile<SendKeyMode>(
-                value: SendKeyMode.ctrlEnterToSend,
-                title: Text(strings.settingsSendKeyCtrlEnterToSend),
-                subtitle: Text(strings.settingsSendKeySilentCtrlEnterToSend),
-              ),
-            ],
-          ),
-        ),
+        control,
       ],
     );
   }
