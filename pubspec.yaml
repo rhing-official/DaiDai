@@ -87,10 +87,14 @@ flutter:
   # 劇画UIスタイル用フォント（Anton、OFLライセンス）。google_fontsパッケージ
   # 経由のGoogle CDN実行時取得は使わず、プライバシーファースト方針に合わせて
   # ファイルをアプリに同梱しオフライン完結させる（2026-07-30）。
+  # 「劇画」はフォントデザイン設定用の見出し・メニューフォント（2026-08-03追加）。
   fonts:
     - family: Anton
       fonts:
         - asset: assets/fonts/Anton-Regular.ttf
+    - family: 劇画
+      fonts:
+        - asset: assets/fonts/Persona5MenuFontPrototype-Regular.otf
 
   # To add assets to your application, add an assets section, like this:
   # assets:

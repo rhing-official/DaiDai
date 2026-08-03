@@ -52,6 +52,9 @@ class Strings {
     required this.settingsChatLayoutAllLeftDescription,
     required this.settingsSubTypography,
     required this.settingsFontDesign,
+    required this.settingsFontDesignStandardLabel,
+    required this.settingsFontDesignGekigaLabel,
+    required this.settingsFontDesignGekigaLockedHint,
     required this.settingsAccountInfoSection,
     required this.settingsRhingIdLabel,
     required this.settingsSecurity,
@@ -354,6 +357,14 @@ class Strings {
   final String settingsChatLayoutAllLeftDescription;
   final String settingsSubTypography;
   final String settingsFontDesign;
+
+  /// フォントデザイン選択肢（2026-08-03追加）。「劇画」はメニュー・見出しに
+  /// Persona5MenuFontPrototypeを当てる選択肢で、UIスタイルが劇画のときだけ
+  /// 選択可能（`settingsUiStyleGekigaLabel`とは別軸）。
+  final String settingsFontDesignStandardLabel;
+  final String settingsFontDesignGekigaLabel;
+  final String settingsFontDesignGekigaLockedHint;
+
   final String settingsAccountInfoSection;
   final String settingsRhingIdLabel;
   final String settingsSecurity;
@@ -789,6 +800,9 @@ class Strings {
         'この設定は自分の画面にのみ反映され、相手の語らいの表示には影響しません。',
     settingsSubTypography: '文字',
     settingsFontDesign: 'フォントデザイン',
+    settingsFontDesignStandardLabel: '標準',
+    settingsFontDesignGekigaLabel: '劇画',
+    settingsFontDesignGekigaLockedHint: '劇画UIを選択すると使えます',
     settingsAccountInfoSection: 'アカウント情報',
     settingsRhingIdLabel: 'Rhing ID',
     settingsSecurity: 'セキュリティ',
@@ -1112,6 +1126,10 @@ class Strings {
         'the chat.',
     settingsSubTypography: 'Typography',
     settingsFontDesign: 'Font design',
+    settingsFontDesignStandardLabel: 'Standard',
+    settingsFontDesignGekigaLabel: 'Gekiga',
+    settingsFontDesignGekigaLockedHint:
+        'Available when the Gekiga UI style is selected',
     settingsAccountInfoSection: 'Account information',
     settingsRhingIdLabel: 'Rhing ID',
     settingsSecurity: 'Security',

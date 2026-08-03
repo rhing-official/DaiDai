@@ -47,6 +47,22 @@ List<Offset> insetPolygon(List<Offset> vertices, double inset) {
   return result;
 }
 
+/// 劇画スタイルの自由配置ラベル（設定タブのカテゴリ一覧、フォントデザインが
+/// 「劇画」のときのみ使用）用に、[seed]から決定的な回転角（ラジアン）と
+/// 横方向のずれ幅を1組返す。`handDrawnPolygonPath`と同じ「文字列のhashCode等を
+/// seedにした`math.Random`」パターンを踏襲し、再描画のたびに同じラベルは
+/// 同じ傾き・ずれになる（2026-08-03新規）。
+({double angle, double dx}) freeformLabelTilt(
+  int seed, {
+  double maxDegrees = 6,
+  double maxDx = 14,
+}) {
+  final random = math.Random(seed);
+  final angleDeg = (random.nextDouble() * 2 - 1) * maxDegrees;
+  final dx = (random.nextDouble() * 2 - 1) * maxDx;
+  return (angle: angleDeg * math.pi / 180, dx: dx);
+}
+
 Path pathFromPoints(List<Offset> points) {
   final path = Path()..moveTo(points.first.dx, points.first.dy);
   for (final p in points.skip(1)) {

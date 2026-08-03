@@ -8,6 +8,7 @@ import '../../l10n/terminology_style.dart';
 import '../../models/app_ui_style.dart';
 import '../../models/app_user.dart';
 import '../../models/chat_layout_style.dart';
+import '../../models/font_design.dart';
 import '../../models/group.dart';
 import '../../models/group_role.dart';
 import '../../models/message_time_format.dart';
@@ -17,12 +18,15 @@ import '../../providers/app_locale_provider.dart';
 import '../../providers/app_ui_style_provider.dart';
 import '../../providers/block_providers.dart';
 import '../../providers/chat_layout_style_provider.dart';
+import '../../providers/font_design_provider.dart';
 import '../../providers/message_time_format_provider.dart';
 import '../../providers/repository_providers.dart';
 import '../../providers/send_key_mode_provider.dart';
 import '../../providers/terminology_style_provider.dart';
 import '../../providers/theme_mode_provider.dart';
 import '../../theme/gekiga/gekiga_colors.dart';
+import '../../theme/gekiga/gekiga_fonts.dart';
+import '../../theme/gekiga/gekiga_shapes.dart';
 import '../../utils/color_hex.dart';
 import '../../widgets/gekiga/gekiga_label_chip.dart';
 import '../../widgets/gekiga/gekiga_panel_box.dart';
@@ -200,7 +204,7 @@ List<_SettingsCategory> _categories(
 }
 
 /// カテゴリ一覧（サイドバー、または狭い画面での一覧画面）。
-class _CategoryList extends StatelessWidget {
+class _CategoryList extends ConsumerWidget {
   const _CategoryList({
     super.key,
     required this.categories,
@@ -213,7 +217,22 @@ class _CategoryList extends StatelessWidget {
   final ValueChanged<_SettingsCategory> onSelect;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
+    final fontDesign = ref.watch(fontDesignProvider);
+
+    // フォントデザインが「劇画」のときだけ、箱（GekigaMenuTile）を使わず
+    // ラベルを個別に傾けて自由配置する（2026-08-03新規、参考画像＝
+    // Persona 5メインメニュー風。友達/広場一覧等アイコン・可変件数のリストは
+    // 対象外で、固定5項目・アイコン+ラベルのみのこのカテゴリ一覧限定）。
+    if (isGekiga && fontDesign == FontDesign.gekiga) {
+      return _FreeformCategoryList(
+        categories: categories,
+        selectedId: selectedId,
+        onSelect: onSelect,
+      );
+    }
+
     return ListView(
       padding: const EdgeInsets.symmetric(horizontal: 8),
       children: [
@@ -226,6 +245,101 @@ class _CategoryList extends StatelessWidget {
             onTap: () => onSelect(category),
           ),
       ],
+    );
+  }
+}
+
+/// フォントデザイン「劇画」選択時のカテゴリ一覧。箱に包まず、ラベルごとに
+/// 決定的な回転・横ずれを与えて自由配置する（2026-08-03新規）。
+class _FreeformCategoryList extends StatelessWidget {
+  const _FreeformCategoryList({
+    required this.categories,
+    required this.selectedId,
+    required this.onSelect,
+  });
+
+  final List<_SettingsCategory> categories;
+  final String? selectedId;
+  final ValueChanged<_SettingsCategory> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (final category in categories)
+            _FreeformCategoryLabel(
+              title: category.title,
+              selected: category.id == selectedId,
+              onTap: () => onSelect(category),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 自由配置カテゴリラベル1つ分。参考画像同様アイコンは表示せず、コミック風の
+/// 黒縁取り＋塗り文字（選択中はアクセントカラー、非選択は白）を、ラベルの
+/// hashCodeから決まる角度・横ずれで傾けて表示する。
+class _FreeformCategoryLabel extends ConsumerWidget {
+  const _FreeformCategoryLabel({
+    required this.title,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String title;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final tilt = freeformLabelTilt(title.hashCode);
+    final fillColor = selected
+        ? ref.watch(accentColorProvider)
+        : GekigaColors.onPanel;
+    final baseStyle = TextStyle(
+      fontFamily: GekigaFonts.menuFontFamily,
+      fontSize: 32,
+      height: 1.1,
+      letterSpacing: 1,
+    );
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Transform.rotate(
+        angle: tilt.angle,
+        child: Padding(
+          padding: EdgeInsets.only(left: 16 + tilt.dx),
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: onTap,
+                child: Stack(
+                  children: [
+                    Text(
+                      title,
+                      style: baseStyle.copyWith(
+                        foreground: Paint()
+                          ..style = PaintingStyle.stroke
+                          ..strokeWidth = 4
+                          ..color = GekigaColors.panel,
+                      ),
+                    ),
+                    Text(title, style: baseStyle.copyWith(color: fillColor)),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -697,10 +811,7 @@ class _ApplicationPage extends StatelessWidget {
         _UiStyleFolder(strings: strings),
         const Divider(height: 24),
         _SectionHeader(strings.settingsSubTypography),
-        _InfoRow(
-          label: strings.settingsFontDesign,
-          value: strings.settingsComingSoon,
-        ),
+        _FontDesignFolder(strings: strings),
         const Divider(height: 24),
         _LanguageFolder(strings: strings),
         const Divider(height: 24),
@@ -1166,6 +1277,82 @@ class _UiStyleFolder extends ConsumerWidget {
             value: AppUiStyle.gekiga,
             title: Text(strings.settingsUiStyleGekigaLabel),
             subtitle: Text(strings.settingsUiStyleGekigaDescription),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// フォントデザイン（メニュー・見出し用フォント）の選択。「劇画」は劇画UI
+/// スタイル（[AppUiStyle.gekiga]）が選択されている場合のみ選択可能
+/// （劇画フォントはCJKグリフを持たず、劇画UI以外では見た目上の効果が無い
+/// ため。UIスタイルを標準へ戻しても選択自体はリセットしない、
+/// 2026-08-03新規）。
+class _FontDesignFolder extends ConsumerWidget {
+  const _FontDesignFolder({required this.strings});
+
+  final Strings strings;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final design = ref.watch(fontDesignProvider);
+    final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
+
+    void select(FontDesign value) =>
+        ref.read(fontDesignProvider.notifier).setDesign(value);
+
+    if (isGekiga) {
+      return Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: GekigaMenuTile(
+              seed: FontDesign.standard.hashCode,
+              selected: design == FontDesign.standard,
+              leading: Icon(
+                design == FontDesign.standard
+                    ? Icons.radio_button_checked
+                    : Icons.radio_button_unchecked,
+              ),
+              title: Text(strings.settingsFontDesignStandardLabel),
+              onTap: () => select(FontDesign.standard),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: GekigaMenuTile(
+              seed: FontDesign.gekiga.hashCode,
+              selected: design == FontDesign.gekiga,
+              leading: Icon(
+                design == FontDesign.gekiga
+                    ? Icons.radio_button_checked
+                    : Icons.radio_button_unchecked,
+              ),
+              title: Text(strings.settingsFontDesignGekigaLabel),
+              onTap: () => select(FontDesign.gekiga),
+            ),
+          ),
+        ],
+      );
+    }
+
+    return RadioGroup<FontDesign>(
+      groupValue: design,
+      onChanged: (value) {
+        if (value != null) select(value);
+      },
+      child: Column(
+        children: [
+          RadioListTile<FontDesign>(
+            value: FontDesign.standard,
+            title: Text(strings.settingsFontDesignStandardLabel),
+          ),
+          RadioListTile<FontDesign>(
+            value: FontDesign.gekiga,
+            enabled: false,
+            title: Text(strings.settingsFontDesignGekigaLabel),
+            subtitle: Text(strings.settingsFontDesignGekigaLockedHint),
           ),
         ],
       ),

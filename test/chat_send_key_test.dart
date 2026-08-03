@@ -1,12 +1,14 @@
 import 'package:daidai/features/chat/chat_screen.dart';
 import 'package:daidai/l10n/app_locale.dart';
 import 'package:daidai/models/app_ui_style.dart';
+import 'package:daidai/models/font_design.dart';
 import 'package:daidai/models/chat_layout_style.dart';
 import 'package:daidai/models/message.dart';
 import 'package:daidai/models/message_time_format.dart';
 import 'package:daidai/models/send_key_mode.dart';
 import 'package:daidai/providers/app_locale_provider.dart';
 import 'package:daidai/providers/app_ui_style_provider.dart';
+import 'package:daidai/providers/font_design_provider.dart';
 import 'package:daidai/providers/chat_layout_style_provider.dart';
 import 'package:daidai/providers/message_time_format_provider.dart';
 import 'package:daidai/providers/send_key_mode_provider.dart';
@@ -39,6 +41,7 @@ Future<void> _pumpChatScreen(
         initialAppLocaleProvider.overrideWithValue(AppLocale.japanese),
         initialChatLayoutStyleProvider.overrideWithValue(ChatLayoutStyle.sideBySide),
         initialAppUiStyleProvider.overrideWithValue(AppUiStyle.simple),
+        initialFontDesignProvider.overrideWithValue(FontDesign.standard),
       ],
       child: MaterialApp(
         home: ChatScreen(

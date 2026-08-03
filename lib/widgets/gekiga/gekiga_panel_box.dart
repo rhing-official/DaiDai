@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../models/font_design.dart';
+import '../../providers/font_design_provider.dart';
 import '../../theme/gekiga/gekiga_colors.dart';
+import '../../theme/gekiga/gekiga_fonts.dart';
 import '../../theme/gekiga/gekiga_shapes.dart';
 
 /// 一対・広場・寄合一覧、設定・身だしなみのカテゴリ項目など、劇画スタイルの
@@ -110,7 +114,7 @@ class _GekigaPanelBoxPainter extends CustomPainter {
 /// メッセージ吹き出しが同じ理由で`ListTile`を使わず`Row`/`Column`を
 /// 自前実装しているのと同じ理由で、こちらも`Row(mainAxisSize.min)`で
 /// 独自に組んでいる。
-class GekigaMenuTile extends StatelessWidget {
+class GekigaMenuTile extends ConsumerWidget {
   const GekigaMenuTile({
     required this.seed,
     required this.leading,
@@ -131,8 +135,16 @@ class GekigaMenuTile extends StatelessWidget {
   final VoidCallback? onTap;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final fg = selected ? GekigaColors.panel : GekigaColors.onPanel;
+    // タイトル（メニュー項目名）にはフォントデザイン「劇画」選択時に見出し用
+    // フォントを当てる。サブタイトル（説明文）は対象外（2026-08-03追加）。
+    final isFontDesignGekiga =
+        ref.watch(fontDesignProvider) == FontDesign.gekiga;
+    final titleStyle = TextStyle(
+      color: fg,
+      fontFamily: isFontDesignGekiga ? GekigaFonts.menuFontFamily : null,
+    );
     return GekigaPanelBox(
       seed: seed,
       selected: selected,
@@ -158,10 +170,7 @@ class GekigaMenuTile extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      DefaultTextStyle.merge(
-                        style: TextStyle(color: fg),
-                        child: title,
-                      ),
+                      DefaultTextStyle.merge(style: titleStyle, child: title),
                       if (subtitle != null)
                         DefaultTextStyle.merge(
                           style: TextStyle(color: fg, fontSize: 12),
