@@ -17,8 +17,11 @@ import '../../models/profile_material.dart';
 import '../../providers/app_ui_style_provider.dart';
 import '../../providers/repository_providers.dart';
 import '../../repositories/user_repository.dart';
+import '../../theme/gekiga/gekiga_colors.dart';
 import '../../utils/color_hex.dart';
+import '../../widgets/gekiga/gekiga_icon_badge.dart';
 import '../../widgets/gekiga/gekiga_panel_box.dart';
+import '../../widgets/gekiga/gekiga_text_field.dart';
 import '../../widgets/profile_card_picker.dart';
 import '../../widgets/profile_card_view.dart';
 import '../../widgets/swipe_gestures.dart';
@@ -1194,6 +1197,13 @@ class _WorkshopConversationCardSection extends ConsumerWidget {
       children: [
         Row(
           children: [
+            IconButton(
+              icon: const Icon(Icons.add_circle_outline),
+              tooltip: strings.workshopConversationCardAddTooltip,
+              onPressed: () =>
+                  _showAddDialog(context, unassignedDms, unassignedGroups),
+            ),
+            const SizedBox(width: 4),
             Expanded(
               child: Text(
                 strings.settingsProfileCardAssignmentTitle,
@@ -1202,12 +1212,6 @@ class _WorkshopConversationCardSection extends ConsumerWidget {
                   fontSize: 16,
                 ),
               ),
-            ),
-            IconButton(
-              icon: const Icon(Icons.add_circle_outline),
-              tooltip: strings.workshopConversationCardAddTooltip,
-              onPressed: () =>
-                  _showAddDialog(context, unassignedDms, unassignedGroups),
             ),
           ],
         ),
@@ -1534,7 +1538,7 @@ class _MaterialSection extends StatelessWidget {
   }
 }
 
-class _AddThumbButton extends StatelessWidget {
+class _AddThumbButton extends ConsumerWidget {
   const _AddThumbButton({
     required this.enabled,
     required this.loading,
@@ -1546,7 +1550,32 @@ class _AddThumbButton extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (ref.watch(appUiStyleProvider) == AppUiStyle.gekiga) {
+      if (loading) {
+        return const SizedBox(
+          width: 72,
+          height: 72,
+          child: Center(
+            child: SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: GekigaColors.onPanel,
+              ),
+            ),
+          ),
+        );
+      }
+      return Opacity(
+        opacity: enabled ? 1 : 0.4,
+        child: IgnorePointer(
+          ignoring: !enabled,
+          child: GekigaIconButton(icon: Icons.add, size: 72, onPressed: onTap),
+        ),
+      );
+    }
     final colorScheme = Theme.of(context).colorScheme;
     return SizedBox(
       width: 72,
@@ -1714,7 +1743,66 @@ class _DeleteBadge extends StatelessWidget {
   }
 }
 
-class _StatusMessageSection extends StatelessWidget {
+/// 呼び名/一言/SNSリンクの登録済み一覧＋（上限未満なら）追加ボタンを、
+/// 劇画スタイルならジグザグ枠のブロックで、そうでなければ従来のプレーンな
+/// 行/`TextButton.icon`で描画する共通処理（2026-08-04追加、3セクションで
+/// 完全に同じ構造だったため切り出した）。一覧行同士は隣接接合するが、
+/// 追加ボタンは一覧行とは別の単体ジグザグ枠として、少し間隔を空けて置く。
+Widget _registeredItemsSection<T>({
+  required WidgetRef ref,
+  required List<T> items,
+  required String Function(T) idOf,
+  required String Function(T) textOf,
+  required ValueChanged<T> onEdit,
+  required bool canAdd,
+  required VoidCallback onAdd,
+  required String addLabel,
+}) {
+  if (ref.watch(appUiStyleProvider) == AppUiStyle.gekiga) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (items.isNotEmpty)
+          GekigaJointedTileList(
+            seeds: [for (final item in items) idOf(item).hashCode],
+            selectedFlags: [for (final _ in items) false],
+            children: [
+              for (final item in items)
+                _RegisteredItemRow(
+                  text: textOf(item),
+                  onEdit: () => onEdit(item),
+                ),
+            ],
+          ),
+        if (canAdd) ...[
+          const SizedBox(height: 8),
+          GekigaJointedTileList(
+            seeds: [addLabel.hashCode],
+            selectedFlags: const [true],
+            children: [
+              GekigaButton(label: addLabel, icon: Icons.add, onPressed: onAdd),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      for (final item in items)
+        _RegisteredItemRow(text: textOf(item), onEdit: () => onEdit(item)),
+      if (canAdd)
+        TextButton.icon(
+          onPressed: onAdd,
+          icon: const Icon(Icons.add),
+          label: Text(addLabel),
+        ),
+    ],
+  );
+}
+
+class _StatusMessageSection extends ConsumerWidget {
   const _StatusMessageSection({
     required this.strings,
     required this.vocab,
@@ -1730,8 +1818,7 @@ class _StatusMessageSection extends StatelessWidget {
   final ValueChanged<StatusMessage> onEdit;
 
   @override
-  Widget build(BuildContext context) {
-    final canAdd = messages.length < kMaxStatusMessages;
+  Widget build(BuildContext context, WidgetRef ref) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1740,20 +1827,22 @@ class _StatusMessageSection extends StatelessWidget {
           style: const TextStyle(fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 4),
-        for (final message in messages)
-          _RegisteredItemRow(text: message.text, onEdit: () => onEdit(message)),
-        if (canAdd)
-          TextButton.icon(
-            onPressed: onAdd,
-            icon: const Icon(Icons.add),
-            label: Text(strings.profileAddStatusMessage(vocab.statusMessage)),
-          ),
+        _registeredItemsSection(
+          ref: ref,
+          items: messages,
+          idOf: (m) => m.id,
+          textOf: (m) => m.text,
+          onEdit: onEdit,
+          canAdd: messages.length < kMaxStatusMessages,
+          onAdd: onAdd,
+          addLabel: strings.profileAddStatusMessage(vocab.statusMessage),
+        ),
       ],
     );
   }
 }
 
-class _NicknameSection extends StatelessWidget {
+class _NicknameSection extends ConsumerWidget {
   const _NicknameSection({
     required this.strings,
     required this.vocab,
@@ -1769,8 +1858,7 @@ class _NicknameSection extends StatelessWidget {
   final ValueChanged<Nickname> onEdit;
 
   @override
-  Widget build(BuildContext context) {
-    final canAdd = nicknames.length < kMaxNicknames;
+  Widget build(BuildContext context, WidgetRef ref) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1783,17 +1871,16 @@ class _NicknameSection extends StatelessWidget {
           style: const TextStyle(fontSize: 12, color: Colors.grey),
         ),
         const SizedBox(height: 4),
-        for (final nickname in nicknames)
-          _RegisteredItemRow(
-            text: nickname.text,
-            onEdit: () => onEdit(nickname),
-          ),
-        if (canAdd)
-          TextButton.icon(
-            onPressed: onAdd,
-            icon: const Icon(Icons.add),
-            label: Text(strings.profileAddNickname(vocab.nickname)),
-          ),
+        _registeredItemsSection(
+          ref: ref,
+          items: nicknames,
+          idOf: (n) => n.id,
+          textOf: (n) => n.text,
+          onEdit: onEdit,
+          canAdd: nicknames.length < kMaxNicknames,
+          onAdd: onAdd,
+          addLabel: strings.profileAddNickname(vocab.nickname),
+        ),
       ],
     );
   }
@@ -1802,7 +1889,7 @@ class _NicknameSection extends StatelessWidget {
 /// 蔵に登録する他のSNSのURL。最大[kMaxSnsLinks]件まで登録でき、そのうち
 /// 工房のプロフィールカードに掲載できるのは最大[kMaxProfileCardSnsLinks]件
 /// （カード側の選択は`_CardZoomEditor._pickSnsLinks`で行う）。
-class _SnsLinkSection extends StatelessWidget {
+class _SnsLinkSection extends ConsumerWidget {
   const _SnsLinkSection({
     required this.strings,
     required this.links,
@@ -1816,8 +1903,7 @@ class _SnsLinkSection extends StatelessWidget {
   final ValueChanged<SnsLink> onEdit;
 
   @override
-  Widget build(BuildContext context) {
-    final canAdd = links.length < kMaxSnsLinks;
+  Widget build(BuildContext context, WidgetRef ref) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1826,14 +1912,16 @@ class _SnsLinkSection extends StatelessWidget {
           style: const TextStyle(fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 4),
-        for (final link in links)
-          _RegisteredItemRow(text: link.url, onEdit: () => onEdit(link)),
-        if (canAdd)
-          TextButton.icon(
-            onPressed: onAdd,
-            icon: const Icon(Icons.add),
-            label: Text(strings.profileAddSnsLink),
-          ),
+        _registeredItemsSection(
+          ref: ref,
+          items: links,
+          idOf: (l) => l.id,
+          textOf: (l) => l.url,
+          onEdit: onEdit,
+          canAdd: links.length < kMaxSnsLinks,
+          onAdd: onAdd,
+          addLabel: strings.profileAddSnsLink,
+        ),
       ],
     );
   }
@@ -1917,10 +2005,18 @@ class _ImageColorSectionState extends State<_ImageColorSection> {
           style: const TextStyle(fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 8),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
+        Consumer(
+          builder: (context, ref, _) {
+            final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
+            final inputFormatters = [
+              FilteringTextInputFormatter.allow(RegExp('[0-9a-fA-F]')),
+              LengthLimitingTextInputFormatter(6),
+            ];
+            // イメージカラーのプレビュー円は、実際に選んだ色をそのまま
+            // 見せるためのもので、モノクロ化の対象であるアクセントカラーとは
+            // 別物（CLAUDE.md「身だしなみのイメージカラー」参照）なので、
+            // 劇画スタイルでも彩色のまま変更しない（2026-08-04確認）。
+            final swatch = Container(
               width: 48,
               height: 48,
               margin: const EdgeInsets.only(top: 4),
@@ -1932,31 +2028,67 @@ class _ImageColorSectionState extends State<_ImageColorSection> {
               child: swatchColor == null
                   ? const Icon(Icons.palette_outlined, color: Colors.black38)
                   : null,
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: TextField(
-                controller: _hexController,
-                textCapitalization: TextCapitalization.characters,
-                inputFormatters: [
-                  FilteringTextInputFormatter.allow(RegExp('[0-9a-fA-F]')),
-                  LengthLimitingTextInputFormatter(6),
+            );
+            if (isGekiga) {
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  swatch,
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: GekigaTextField(
+                      controller: _hexController,
+                      textCapitalization: TextCapitalization.characters,
+                      inputFormatters: inputFormatters,
+                      prefixText: '#',
+                      hintText: 'F08300',
+                      errorText: _errorText,
+                      suffixIcon: GekigaIconButton(
+                        icon: Icons.check,
+                        size: 28,
+                        onPressed: _apply,
+                      ),
+                      onSubmitted: (_) => _apply(),
+                    ),
+                  ),
+                  if (widget.color != null) ...[
+                    const SizedBox(width: 4),
+                    GekigaIconButton(
+                      icon: Icons.close,
+                      size: 36,
+                      onPressed: _clear,
+                    ),
+                  ],
                 ],
-                decoration: InputDecoration(
-                  prefixText: '#',
-                  hintText: 'F08300',
-                  errorText: _errorText,
-                  suffixIcon: IconButton(
-                    icon: const Icon(Icons.check),
-                    onPressed: _apply,
+              );
+            }
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                swatch,
+                const SizedBox(width: 16),
+                Expanded(
+                  child: TextField(
+                    controller: _hexController,
+                    textCapitalization: TextCapitalization.characters,
+                    inputFormatters: inputFormatters,
+                    decoration: InputDecoration(
+                      prefixText: '#',
+                      hintText: 'F08300',
+                      errorText: _errorText,
+                      suffixIcon: IconButton(
+                        icon: const Icon(Icons.check),
+                        onPressed: _apply,
+                      ),
+                    ),
+                    onSubmitted: (_) => _apply(),
                   ),
                 ),
-                onSubmitted: (_) => _apply(),
-              ),
-            ),
-            if (widget.color != null)
-              IconButton(icon: const Icon(Icons.close), onPressed: _clear),
-          ],
+                if (widget.color != null)
+                  IconButton(icon: const Icon(Icons.close), onPressed: _clear),
+              ],
+            );
+          },
         ),
       ],
     );
@@ -1967,14 +2099,21 @@ class _ImageColorSectionState extends State<_ImageColorSection> {
 /// （[_NicknameDialog]/[_StatusMessageDialog]）が開き、編集・削除の両方を
 /// そこで行う。「使うものを選ぶ」機能は蔵では不要なため持たない
 /// （表示にどれを使うかは登録順で自動的に決まる）。
-class _RegisteredItemRow extends StatelessWidget {
+class _RegisteredItemRow extends ConsumerWidget {
   const _RegisteredItemRow({required this.text, required this.onEdit});
 
   final String text;
   final VoidCallback onEdit;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (ref.watch(appUiStyleProvider) == AppUiStyle.gekiga) {
+      return GekigaTileContent(
+        leading: const Icon(Icons.edit_outlined),
+        title: Text(text, overflow: TextOverflow.ellipsis),
+        onTap: onEdit,
+      );
+    }
     return InkWell(
       onTap: onEdit,
       child: Padding(
@@ -1995,6 +2134,61 @@ class _EditResult {
 
   final String? text;
   final bool isDelete;
+}
+
+/// ニックネーム/ステメ/SNSリンクの各編集ダイアログで共通の、削除・保存
+/// ボタンの行。劇画スタイルなら[GekigaButton]（単体ジグザグ枠）、
+/// そうでなければ通常の[OutlinedButton]/[FilledButton]にする
+/// （2026-08-04追加、3ダイアログで完全に同じ構造だったため切り出した）。
+class _DialogActionRow extends ConsumerWidget {
+  const _DialogActionRow({
+    required this.showDelete,
+    required this.onDelete,
+    required this.onSubmit,
+    required this.submitLabel,
+    required this.deleteLabel,
+  });
+
+  final bool showDelete;
+  final VoidCallback onDelete;
+  final VoidCallback onSubmit;
+  final String submitLabel;
+  final String deleteLabel;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.end,
+      children: [
+        if (showDelete) ...[
+          isGekiga
+              ? GekigaJointedTileList(
+                  seeds: [deleteLabel.hashCode],
+                  selectedFlags: const [false],
+                  children: [
+                    GekigaButton(
+                      label: deleteLabel,
+                      selected: false,
+                      onPressed: onDelete,
+                    ),
+                  ],
+                )
+              : OutlinedButton(onPressed: onDelete, child: Text(deleteLabel)),
+          const SizedBox(width: 8),
+        ],
+        isGekiga
+            ? GekigaJointedTileList(
+                seeds: [submitLabel.hashCode],
+                selectedFlags: const [true],
+                children: [
+                  GekigaButton(label: submitLabel, onPressed: onSubmit),
+                ],
+              )
+            : FilledButton(onPressed: onSubmit, child: Text(submitLabel)),
+      ],
+    );
+  }
 }
 
 class _NicknameDialog extends ConsumerStatefulWidget {
@@ -2055,22 +2249,13 @@ class _NicknameDialogState extends ConsumerState<_NicknameDialog> {
             ),
             onSubmitted: (_) => _submit(),
           ),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              if (_isEdit) ...[
-                OutlinedButton(
-                  onPressed: () =>
-                      Navigator.of(context).pop(const _EditResult.delete()),
-                  child: Text(strings.delete),
-                ),
-                const SizedBox(width: 8),
-              ],
-              FilledButton(
-                onPressed: _submit,
-                child: Text(_isEdit ? strings.done : strings.add),
-              ),
-            ],
+          _DialogActionRow(
+            showDelete: _isEdit,
+            onDelete: () =>
+                Navigator.of(context).pop(const _EditResult.delete()),
+            onSubmit: _submit,
+            submitLabel: _isEdit ? strings.done : strings.add,
+            deleteLabel: strings.delete,
           ),
         ],
       ),
@@ -2136,22 +2321,13 @@ class _StatusMessageDialogState extends ConsumerState<_StatusMessageDialog> {
             ),
             onSubmitted: (_) => _submit(),
           ),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              if (_isEdit) ...[
-                OutlinedButton(
-                  onPressed: () =>
-                      Navigator.of(context).pop(const _EditResult.delete()),
-                  child: Text(strings.delete),
-                ),
-                const SizedBox(width: 8),
-              ],
-              FilledButton(
-                onPressed: _submit,
-                child: Text(_isEdit ? strings.done : strings.add),
-              ),
-            ],
+          _DialogActionRow(
+            showDelete: _isEdit,
+            onDelete: () =>
+                Navigator.of(context).pop(const _EditResult.delete()),
+            onSubmit: _submit,
+            submitLabel: _isEdit ? strings.done : strings.add,
+            deleteLabel: strings.delete,
           ),
         ],
       ),
@@ -2223,22 +2399,13 @@ class _SnsLinkDialogState extends ConsumerState<_SnsLinkDialog> {
             ),
             onSubmitted: (_) => _submit(),
           ),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              if (_isEdit) ...[
-                OutlinedButton(
-                  onPressed: () =>
-                      Navigator.of(context).pop(const _EditResult.delete()),
-                  child: Text(strings.delete),
-                ),
-                const SizedBox(width: 8),
-              ],
-              FilledButton(
-                onPressed: _submit,
-                child: Text(_isEdit ? strings.done : strings.add),
-              ),
-            ],
+          _DialogActionRow(
+            showDelete: _isEdit,
+            onDelete: () =>
+                Navigator.of(context).pop(const _EditResult.delete()),
+            onSubmit: _submit,
+            submitLabel: _isEdit ? strings.done : strings.add,
+            deleteLabel: strings.delete,
           ),
         ],
       ),

@@ -1025,6 +1025,42 @@ class _CategoryTab extends ConsumerWidget {
 }
 
 /// 届いている／送った友達申請を表す行。一対リストの最上部に表示される。
+/// 自分が送った友達申請・広場参加リクエストがまだ承認されていない間、
+/// タップした時に開く軽量なプレビュー画面。実際のメッセージ画面
+/// （`ChatScreen`）はfirestore.rules上、未承認の間は`rooms`/`messages`
+/// サブコレクションを読めず開けないため、タイトル（相手の呼び名/広場名）
+/// と「承認を待っています」系の文言だけを表示する専用画面で代替する
+/// （2026-08-04追加）。`Scaffold`/`AppBar`はisGekiga分岐を持たず、
+/// アンビエントの`Theme`（劇画スタイルなら`GekigaTheme`）にそのまま従う。
+class _PendingApprovalScreen extends StatelessWidget {
+  const _PendingApprovalScreen({
+    required this.title,
+    required this.message,
+    required this.avatar,
+  });
+
+  final String title;
+  final String message;
+  final Widget avatar;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text(title)),
+      body: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            avatar,
+            const SizedBox(height: 16),
+            Text(message, style: Theme.of(context).textTheme.bodyLarge),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _FriendRequestTile extends ConsumerWidget {
   const _FriendRequestTile({
     required this.currentUserId,
@@ -1055,11 +1091,14 @@ class _FriendRequestTile extends ConsumerWidget {
       backgroundImage: iconUrl != null ? NetworkImage(iconUrl) : null,
       child: iconUrl == null ? const Icon(Icons.person_outline) : null,
     );
-    final subtitleWidget = Text(
-      _isIncoming
-          ? strings.friendRequestIncomingSubtitle
-          : strings.friendRequestOutgoingSubtitle,
-    );
+    final titleText = '@${request.otherRhingId(currentUserId)}';
+    // outgoing（自分が送った申請）は「相手の承認を待っています」という
+    // 待ちの情報を、一覧のブロックからは消してタップ時のプレビュー画面側に
+    // 表示する（2026-08-04変更）。incoming（相手から届いた申請）は
+    // 承認/却下ボタンがあるため現状のまま変更しない。
+    final subtitleWidget = _isIncoming
+        ? Text(strings.friendRequestIncomingSubtitle)
+        : null;
     final trailingWidget = _isIncoming
         ? Row(
             mainAxisSize: MainAxisSize.min,
@@ -1080,28 +1119,42 @@ class _FriendRequestTile extends ConsumerWidget {
             ],
           )
         : null;
+    final onTap = _isIncoming
+        ? null
+        : () => Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => _PendingApprovalScreen(
+                title: titleText,
+                message: strings.friendRequestOutgoingSubtitle,
+                avatar: leadingWidget,
+              ),
+            ),
+          );
 
     if (isGekiga) {
       return GekigaTileContent(
         leading: leadingWidget,
-        title: Text('@${request.otherRhingId(currentUserId)}'),
+        title: Text(titleText),
         subtitle: subtitleWidget,
         trailing: trailingWidget,
+        onTap: onTap,
       );
     }
 
     return ListTile(
       leading: leadingWidget,
-      title: Text('@${request.otherRhingId(currentUserId)}'),
+      title: Text(titleText),
       subtitle: subtitleWidget,
       trailing: trailingWidget,
+      onTap: onTap,
     );
   }
 }
 
 /// 自分が送った、承認待ちの広場参加リクエストを一覧の先頭に表示するタイル。
 /// タップしても実際の広場は開けない（まだメンバーではないため）ので、
-/// 承認待ちであることを伝えるダイアログを出す。
+/// 承認待ちであることを伝える[_PendingApprovalScreen]を開く
+/// （2026-08-04変更、以前はAlertDialogだった）。
 class _PendingGroupJoinRequestTile extends ConsumerWidget {
   const _PendingGroupJoinRequestTile({required this.request});
 
@@ -1125,34 +1178,28 @@ class _PendingGroupJoinRequestTile extends ConsumerWidget {
               ? const Icon(Icons.hourglass_top_outlined)
               : null,
         );
-        final titleWidget = Text(preview?.name ?? '...');
-        final subtitleWidget = Text(strings.groupJoinPendingListSubtitle);
-        void onTap() => showDialog<void>(
-          context: context,
-          builder: (context) => AlertDialog(
-            content: Text(strings.groupJoinPending),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: Text(strings.groupJoinPendingDialogClose),
-              ),
-            ],
+        final titleText = preview?.name ?? '...';
+        void onTap() => Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => _PendingApprovalScreen(
+              title: titleText,
+              message: strings.groupJoinPending,
+              avatar: leadingWidget,
+            ),
           ),
         );
 
         if (isGekiga) {
           return GekigaTileContent(
             leading: leadingWidget,
-            title: titleWidget,
-            subtitle: subtitleWidget,
+            title: Text(titleText),
             onTap: onTap,
           );
         }
 
         return ListTile(
           leading: leadingWidget,
-          title: titleWidget,
-          subtitle: subtitleWidget,
+          title: Text(titleText),
           onTap: onTap,
         );
       },

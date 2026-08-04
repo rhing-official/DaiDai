@@ -15,8 +15,8 @@ import '../../theme/gekiga/gekiga_shapes.dart';
 /// 呼び出し元を`GekigaJointedTileList`等へ置き換えたため削除した）。
 class GekigaTileContent extends StatelessWidget {
   const GekigaTileContent({
-    required this.leading,
     required this.title,
+    this.leading,
     this.subtitle,
     this.trailing,
     this.selected = false,
@@ -24,7 +24,7 @@ class GekigaTileContent extends StatelessWidget {
     super.key,
   });
 
-  final Widget leading;
+  final Widget? leading;
   final Widget title;
   final Widget? subtitle;
   final Widget? trailing;
@@ -69,7 +69,7 @@ class GekigaTileContent extends StatelessWidget {
 Widget _gekigaTileContent({
   required BuildContext context,
   required Color fg,
-  required Widget leading,
+  required Widget? leading,
   required Widget title,
   required Widget? subtitle,
   required Widget? trailing,
@@ -80,11 +80,13 @@ Widget _gekigaTileContent({
     child: Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        IconTheme.merge(
-          data: IconThemeData(color: fg),
-          child: leading,
-        ),
-        const SizedBox(width: 16),
+        if (leading != null) ...[
+          IconTheme.merge(
+            data: IconThemeData(color: fg),
+            child: leading,
+          ),
+          const SizedBox(width: 16),
+        ],
         Flexible(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -114,6 +116,57 @@ Widget _gekigaTileContent({
       ],
     ),
   );
+}
+
+/// [GekigaTileContent]のボタン版。アイコン付き横並びの内容ではなく、
+/// ボタンらしいテキスト（＋任意のアイコン）を返す。単体で使う場合は
+/// `GekigaJointedTileList(seeds: [seed], selectedFlags: [selected], children: [GekigaButton(...)])`
+/// のように要素数1のリストとして渡し、[_GekigaJointedList]の接合枠描画
+/// （要素が1つなら隣接共有ロジックは発火しない）をそのまま「単体の
+/// ジグザグ枠ボタン」として再利用する（2026-08-04新規、身だしなみの
+/// 保存/削除/追加ボタン向け）。[selected]は選択状態ではなく、他の劇画UI
+/// 要素と同じ「選択中=白地黒文字／未選択=黒地白文字」のルールをボタンの
+/// 強弱表現に転用したもの（true＝主要操作、false＝副次的操作）。
+class GekigaButton extends StatelessWidget {
+  const GekigaButton({
+    required this.label,
+    required this.onPressed,
+    this.icon,
+    this.selected = true,
+    super.key,
+  });
+
+  final String label;
+  final VoidCallback? onPressed;
+  final IconData? icon;
+  final bool selected;
+
+  @override
+  Widget build(BuildContext context) {
+    final fg = selected ? GekigaColors.panel : GekigaColors.onPanel;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onPressed,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (icon != null) ...[
+                Icon(icon, color: fg, size: 18),
+                const SizedBox(width: 8),
+              ],
+              Text(
+                label,
+                style: TextStyle(color: fg, fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 /// [GekigaJointedTileList]・[GekigaJointedPair]で使う、隙間なく並べた

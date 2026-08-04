@@ -64,56 +64,7 @@ class GekigaBadgePainter extends CustomPainter {
       oldDelegate.color != color || oldDelegate.seed != seed;
 }
 
-/// バッジの上に子ウィジェットを右上寄せで重ねる合成ウィジェット
-/// （旧 chat_screen.dartの`_GekigaAvatarFrame`、そのまま移動）。
-/// メッセージ画面のアイコン背後に使う。
-class GekigaBadgeFrame extends StatelessWidget {
-  const GekigaBadgeFrame({
-    required this.child,
-    required this.badgeColor,
-    required this.seed,
-    super.key,
-  });
-
-  final Widget child;
-  final Color badgeColor;
-  final int seed;
-
-  @override
-  Widget build(BuildContext context) {
-    // 56×56の箱に対し、アバターは右上にわずかにはみ出す形で重ねる。
-    // 参考スケッチのように色ブロックは正方形寄りの大きめのサイズにし、
-    // 左下に色ブロックの表示面積が確保されるよう、アバターを右上へ寄せる。
-    return SizedBox(
-      width: 56,
-      height: 56,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          Positioned.fill(
-            child: CustomPaint(
-              painter: GekigaBadgePainter(color: badgeColor, seed: seed),
-            ),
-          ),
-          Positioned(
-            top: -2,
-            right: -2,
-            child: Container(
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(color: Colors.white, width: 2.5),
-              ),
-              child: child,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// バッジ形そのものだけを、正方形の箱いっぱいに描く軽量ラッパー。
-/// [GekigaBadgeFrame]の「右上に重ねる」レイアウトを持たない版
+/// バッジ形そのものだけを、正方形の箱いっぱいに描く軽量ラッパー
 /// （2026-07-30新規、home_screen.dartのナビチップ用。アバターではなく
 /// アイコン1つを中央に乗せたい場面で使う）。
 class GekigaBadgeShape extends StatelessWidget {

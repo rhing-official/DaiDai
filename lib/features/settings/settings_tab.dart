@@ -881,9 +881,30 @@ class _DesignFolderState extends ConsumerState<_DesignFolder> {
             style: const TextStyle(fontWeight: FontWeight.bold),
           ),
         ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-          child: appearanceControl,
+        // 劇画UI選択中は外観（ライト/ダーク/端末に合わせる）を変更不可にする
+        // （グレーアウト＋操作無効化）。GekigaThemeはthemeModeに関わらず
+        // 常に同じ見た目を返す設計のため、この設定を変えても効果が無い
+        // （2026-08-04追加、アクセントカラー欄と同じロックパターンを適用）。
+        if (isGekiga)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+            child: Text(
+              widget.strings.settingsAppearanceGekigaLockedHint,
+              style: TextStyle(
+                fontSize: 12,
+                color: Theme.of(context).hintColor,
+              ),
+            ),
+          ),
+        Opacity(
+          opacity: isGekiga ? 0.4 : 1.0,
+          child: IgnorePointer(
+            ignoring: isGekiga,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: appearanceControl,
+            ),
+          ),
         ),
         const Divider(height: 32),
         Padding(

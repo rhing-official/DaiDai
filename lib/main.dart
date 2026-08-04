@@ -53,7 +53,9 @@ Future<void> main() async {
         initialMessageTimeFormatProvider.overrideWithValue(
           initialMessageTimeFormat,
         ),
-        initialChatLayoutStyleProvider.overrideWithValue(initialChatLayoutStyle),
+        initialChatLayoutStyleProvider.overrideWithValue(
+          initialChatLayoutStyle,
+        ),
         initialAppThemeModeProvider.overrideWithValue(initialAppThemeMode),
         initialAppUiStyleProvider.overrideWithValue(initialAppUiStyle),
       ],
@@ -74,8 +76,10 @@ class DaiDaiApp extends ConsumerWidget {
     // 劇画スタイルはライト/ダークどちらのthemeModeでも同じ見た目にするため、
     // theme/darkThemeの両方に同一のThemeDataを渡す（chat_screen.dartの
     // 既存方針をアプリ全体に拡張したもの）。
-    final theme = isGekiga ? GekigaTheme.build(accentColor) : AppTheme.light(accentColor);
-    final darkTheme = isGekiga ? GekigaTheme.build(accentColor) : AppTheme.dark(accentColor);
+    final theme = isGekiga ? GekigaTheme.build() : AppTheme.light(accentColor);
+    final darkTheme = isGekiga
+        ? GekigaTheme.build()
+        : AppTheme.dark(accentColor);
     return MaterialApp.router(
       title: 'DaiDai',
       theme: theme,

@@ -24,7 +24,7 @@ import '../../theme/gekiga/gekiga_colors.dart';
 import '../../theme/gekiga/gekiga_shapes.dart';
 import '../../utils/link_detection.dart';
 import '../../utils/message_time.dart';
-import '../../widgets/gekiga/gekiga_badge.dart';
+import '../../widgets/gekiga/gekiga_icon_badge.dart';
 import '../../widgets/link_preview_card.dart';
 import '../../widgets/linkified_text.dart';
 
@@ -578,11 +578,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                 onPressed: _exitSelectionMode,
               )
             : null,
-        title: Text(
-          _selecting
-              ? strings.chatSelectionModeTitle(_selectedMessageIds.length)
-              : widget.title,
-        ),
+        // 寄合名（widget.title）は、広い画面ではRoomListPaneのタブ、狭い
+        // 画面ではRoomTabBarに既に表示されており冗長なため、劇画スタイル
+        // では非表示にする（2026-08-04追加。選択モード中の「n件選択中」
+        // 表示は別物なので維持する。シンプルスタイルは現状通り表示）。
+        title: _selecting
+            ? Text(strings.chatSelectionModeTitle(_selectedMessageIds.length))
+            : (isGekiga ? null : Text(widget.title)),
         actions: _selecting
             ? [
                 IconButton(
@@ -594,16 +596,26 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                 ),
               ]
             : [
-                if (widget.onCallPressed != null)
-                  IconButton(
-                    icon: const Icon(Icons.call_outlined),
-                    onPressed: widget.onCallPressed,
-                  ),
-                if (widget.onVideoCallPressed != null)
-                  IconButton(
-                    icon: const Icon(Icons.videocam_outlined),
-                    onPressed: widget.onVideoCallPressed,
-                  ),
+                if (widget.onCallPressed case final onCall?)
+                  isGekiga
+                      ? GekigaIconButton(
+                          icon: Icons.call_outlined,
+                          onPressed: onCall,
+                        )
+                      : IconButton(
+                          icon: const Icon(Icons.call_outlined),
+                          onPressed: onCall,
+                        ),
+                if (widget.onVideoCallPressed case final onVideoCall?)
+                  isGekiga
+                      ? GekigaIconButton(
+                          icon: Icons.videocam_outlined,
+                          onPressed: onVideoCall,
+                        )
+                      : IconButton(
+                          icon: const Icon(Icons.videocam_outlined),
+                          onPressed: onVideoCall,
+                        ),
                 ...?widget.extraActions,
               ],
         bottom: widget.roomTabBar,
@@ -697,7 +709,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                 !isSameDay(sentAt, currentDay))) {
                           currentDay = sentAt;
                           entries.add(
-                            _DateSeparator(date: sentAt, locale: locale),
+                            _DateSeparator(
+                              date: sentAt,
+                              locale: locale,
+                              isGekiga: isGekiga,
+                            ),
                           );
                         }
                         entries.add(
@@ -828,7 +844,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                             TextInputAction.newline,
                                         keyboardType: TextInputType.multiline,
                                         decoration: InputDecoration(
-                                          hintText: 'メッセージを入力',
+                                          hintText: strings.chatInputHint,
                                           border: OutlineInputBorder(
                                             borderRadius: BorderRadius.circular(
                                               20,
@@ -961,10 +977,15 @@ class _ComposerContextBar extends StatelessWidget {
 /// 丸みを帯びたラベルとして表示する。LINE等の「今日」「昨日」のような相対
 /// 表記ではなく、常に絶対日付（yyyy/mm/dd）で表す。
 class _DateSeparator extends StatelessWidget {
-  const _DateSeparator({required this.date, required this.locale});
+  const _DateSeparator({
+    required this.date,
+    required this.locale,
+    required this.isGekiga,
+  });
 
   final DateTime date;
   final AppLocale locale;
+  final bool isGekiga;
 
   @override
   Widget build(BuildContext context) {
@@ -975,12 +996,19 @@ class _DateSeparator extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
           decoration: BoxDecoration(
-            color: colorScheme.surfaceContainerHighest,
+            color: isGekiga
+                ? GekigaColors.panel
+                : colorScheme.surfaceContainerHighest,
             borderRadius: BorderRadius.circular(999),
           ),
           child: Text(
             formatMessageDate(date, locale),
-            style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
+            style: TextStyle(
+              fontSize: 12,
+              color: isGekiga
+                  ? GekigaColors.onPanel
+                  : colorScheme.onSurfaceVariant,
+            ),
           ),
         ),
       ),
@@ -1213,6 +1241,128 @@ class _MessageRow extends ConsumerWidget {
     );
   }
 
+  /// リアクション一覧ポップアップ（誰がどの絵文字を付けたか）。
+  /// [_showReadReceiptPopup]と同じ位置決め・見た目のパターンを踏襲する
+  /// （2026-08-05追加）。自分の行（`entry.key == currentUserId`）にのみ
+  /// ゴミ箱ボタンを出し、押すと自分のリアクションを取り消してポップアップ
+  /// を閉じる（一覧は静的表示のため、既読ポップアップと同様に取り消し後は
+  /// 再度タップして開き直す想定）。
+  void _showReactionListPopup(
+    BuildContext context,
+    BuildContext chipContext,
+    Strings strings,
+  ) {
+    final chipBox = chipContext.findRenderObject()! as RenderBox;
+    final chipRect = chipBox.localToGlobal(Offset.zero) & chipBox.size;
+    const width = 240.0;
+    const minPopupSpace = 160.0;
+    final entries = message.reactions.entries.toList();
+
+    showGeneralDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: '',
+      barrierColor: Colors.transparent,
+      transitionDuration: const Duration(milliseconds: 150),
+      pageBuilder: (context, animation, secondaryAnimation) {
+        final screenSize = MediaQuery.sizeOf(context);
+        final left = chipRect.left.clamp(8.0, screenSize.width - width - 8.0);
+        final spaceBelow = screenSize.height - chipRect.bottom;
+        final showAbove =
+            spaceBelow < minPopupSpace && chipRect.top > spaceBelow;
+        final top = showAbove ? null : chipRect.bottom + 4;
+        final bottom = showAbove ? screenSize.height - chipRect.top + 4 : null;
+        final maxHeight = showAbove
+            ? chipRect.top - 24
+            : screenSize.height - chipRect.bottom - 24;
+        return Stack(
+          children: [
+            Positioned(
+              left: left,
+              top: top,
+              bottom: bottom,
+              child: Material(
+                color: colorScheme.surface,
+                elevation: 8,
+                borderRadius: BorderRadius.circular(16),
+                clipBehavior: Clip.antiAlias,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth: width,
+                    maxHeight: maxHeight,
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                        child: Text(
+                          strings.reactionListPopupTitle,
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      Flexible(
+                        child: ListView.builder(
+                          shrinkWrap: true,
+                          padding: const EdgeInsets.only(bottom: 8),
+                          itemCount: entries.length,
+                          itemBuilder: (context, index) {
+                            final entry = entries[index];
+                            final isMine = entry.key == currentUserId;
+                            return Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 6,
+                              ),
+                              child: Row(
+                                children: [
+                                  _SenderAvatar(
+                                    userId: entry.key,
+                                    rhingId: null,
+                                    conversationId: conversationId,
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: _SenderName(
+                                      userId: entry.key,
+                                      rhingId: null,
+                                      conversationId: conversationId,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(entry.value),
+                                  if (isMine)
+                                    IconButton(
+                                      icon: const Icon(
+                                        Icons.delete_outline,
+                                        size: 20,
+                                      ),
+                                      onPressed: () {
+                                        onSetReaction?.call(
+                                          message.messageId,
+                                          null,
+                                        );
+                                        Navigator.of(context).pop();
+                                      },
+                                    ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final strings = ref.watch(appStringsProvider);
@@ -1367,19 +1517,23 @@ class _MessageRow extends ConsumerWidget {
     // 以外は将来実装時もまず本文編集の対象外という方針、Planでの検討通り）。
     final canEdit = isMe && message.contentType == 'text' && onEdit != null;
 
+    // 劇画スタイルでは、ジグザグ枠にはせず色だけモノクロ（黒地白文字）に
+    // 変える（2026-08-04追加。`colorScheme.surface`は劇画テーマだと背景と
+    // 同じ赤になっており、そのままでは背景に溶け込んでほぼ見えなかった）。
+    final readBadgeFg = isGekiga ? GekigaColors.onPanel : colorScheme.primary;
     final badgeContent = isSimpleDmReadMark
-        ? Icon(Icons.done, size: 12, color: colorScheme.primary)
+        ? Icon(Icons.done, size: 12, color: readBadgeFg)
         : Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.done, size: 12, color: colorScheme.primary),
+              Icon(Icons.done, size: 12, color: readBadgeFg),
               const SizedBox(width: 2),
               Text(
                 '${readers.length}',
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.bold,
-                  color: colorScheme.primary,
+                  color: readBadgeFg,
                 ),
               ),
             ],
@@ -1387,7 +1541,7 @@ class _MessageRow extends ConsumerWidget {
     final badge = Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
       decoration: BoxDecoration(
-        color: colorScheme.surface,
+        color: isGekiga ? GekigaColors.panel : colorScheme.surface,
         borderRadius: BorderRadius.circular(999),
         boxShadow: floatingShadow,
       ),
@@ -1428,24 +1582,59 @@ class _MessageRow extends ConsumerWidget {
         clipBehavior: Clip.none,
         children: [
           bubble,
-          if (showReadMark)
+          // 既読バッジとリアクションを同じ角にRowで横に並べて表示する
+          // （2026-08-05変更）。メッセージから見て、既読バッジよりさらに
+          // 外側にリアクションを置く（alignRightならリアクションが
+          // left:-10側、受信ならリアクションがright:-10側＝アンカー寄り）
+          // ため、両方ある時は既読バッジの絶対位置がリアクションの幅ぶん
+          // 内側に動く（これは指示された見た目を実現するための想定内の
+          // 挙動）。以前はリアクションを単独のPositionedで「吹き出しの
+          // 下端から固定px上」に置いていたが、これは吹き出しの高さ
+          // （＝メッセージの長さ）と無関係な固定値だったため、短い
+          // メッセージだと吹き出しの外（上のアバター・時刻表示側）に
+          // 突き抜けて重なる不具合があった。Rowで既読バッジと横に並べる
+          // 形にすれば、クラスタの高さは既読バッジ単体とほぼ同じに保たれ、
+          // この問題が構造的に起きなくなる。
+          if (showReadMark || message.reactions.isNotEmpty)
             Positioned(
               bottom: -14,
               left: alignRight ? -10 : null,
               right: alignRight ? null : -10,
-              child: isSimpleDmReadMark
-                  ? badge
-                  : Builder(
-                      builder: (badgeContext) => GestureDetector(
-                        onTap: () => _showReadReceiptPopup(
-                          context,
-                          badgeContext,
-                          readers,
-                          strings,
-                        ),
-                        child: badge,
-                      ),
-                    ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: () {
+                  final reactionChip = message.reactions.isEmpty
+                      ? null
+                      : _reactionBar(context, strings);
+                  final readBadge = !showReadMark
+                      ? null
+                      : isSimpleDmReadMark
+                      ? badge
+                      : Builder(
+                          builder: (badgeContext) => GestureDetector(
+                            onTap: () => _showReadReceiptPopup(
+                              context,
+                              badgeContext,
+                              readers,
+                              strings,
+                            ),
+                            child: badge,
+                          ),
+                        );
+                  final gap = (reactionChip != null && readBadge != null)
+                      ? const SizedBox(width: 6)
+                      : null;
+                  // Rowはアンカー側の端から順に子を並べるため、リストの
+                  // 先頭側（アンカーに最も近い＝メッセージから見て最も
+                  // 外側）にリアクションを置くことで、既読バッジより
+                  // さらに外側に表示される（2026-08-05変更、以前は逆の
+                  // 順序で既読バッジが外側になっていた）。
+                  return alignRight
+                      ? [?reactionChip, ?gap, ?readBadge]
+                      : [?readBadge, ?gap, ?reactionChip];
+                }(),
+              ),
             ),
         ],
       ),
@@ -1483,7 +1672,6 @@ class _MessageRow extends ConsumerWidget {
               ?timeText,
               const SizedBox(height: 2),
               bubbleWithReadMark,
-              if (message.reactions.isNotEmpty) _reactionBar(),
               if (previewUrl != null) LinkPreviewCard(url: previewUrl),
             ],
           ),
@@ -1495,7 +1683,6 @@ class _MessageRow extends ConsumerWidget {
         userId: message.senderId,
         rhingId: message.senderRhingId,
         conversationId: conversationId,
-        uiStyle: uiStyle,
       );
       final senderName = _SenderName(
         userId: message.senderId,
@@ -1550,7 +1737,6 @@ class _MessageRow extends ConsumerWidget {
                       ?timeText,
                     const SizedBox(height: 2),
                     bubbleWithReadMark,
-                    if (message.reactions.isNotEmpty) _reactionBar(),
                     if (previewUrl != null) LinkPreviewCard(url: previewUrl),
                   ],
                 ),
@@ -1734,49 +1920,60 @@ class _MessageRow extends ConsumerWidget {
     return '$seconds秒';
   }
 
-  /// リアクション（絵文字＋人数）の一覧。呼び出し元の`Column`
-  /// （`crossAxisAlignment.start`/`.end`で吹き出しと同じ側に揃えてある）の
-  /// 直下の子として置くことで、吹き出しの真下・同じ端に揃うようにする
-  /// （2026-07-30修正。以前は行全体を基準にした`Align`を自前で持っており、
-  /// アバター表示時に吹き出しよりリアクションが左にズレて見えていた）。
-  Widget _reactionBar() {
-    final counts = <String, int>{};
-    for (final emoji in message.reactions.values) {
-      counts[emoji] = (counts[emoji] ?? 0) + 1;
-    }
+  /// リアクション（絵文字ごとの重複無しチップ）の一覧。既読バッジと同じ
+  /// `Positioned`内で`Row`に並べて表示する（2026-08-05変更）。
+  ///
+  /// チップをタップしても即座に自分のリアクションを取り消さない
+  /// （2026-08-05変更）。代わりに[_showReactionListPopup]でリアクション
+  /// 一覧（誰がどの絵文字を付けたか）を表示し、そこで自分の行にのみ
+  /// 出るゴミ箱ボタンから取り消す。人数は表示しない（絵文字のみ）。
+  Widget _reactionBar(BuildContext context, Strings strings) {
+    final emojis = message.reactions.values.toSet();
     final myReaction = message.reactions[currentUserId];
-    return Padding(
-      padding: const EdgeInsets.only(top: 2),
-      child: Wrap(
-        spacing: 4,
-        children: [
-          for (final entry in counts.entries)
-            GestureDetector(
-              onTap: onSetReaction == null
-                  ? null
-                  : () => onSetReaction!(
-                      message.messageId,
-                      myReaction == entry.key ? null : entry.key,
-                    ),
+    // 劇画スタイルでは、ジグザグ枠にはせず色だけモノクロにする
+    // （2026-08-04追加。選択中=白地黒文字／未選択=黒地白文字という、
+    // 他の劇画UI要素と同じ「選択中反転」ルールに合わせる）。
+    final isGekiga = uiStyle == AppUiStyle.gekiga;
+    return Wrap(
+      spacing: 4,
+      children: [
+        for (final emoji in emojis)
+          Builder(
+            builder: (chipContext) => GestureDetector(
+              onTap: () =>
+                  _showReactionListPopup(context, chipContext, strings),
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
-                  color: myReaction == entry.key
-                      ? colorScheme.primaryContainer
-                      : colorScheme.surfaceContainerHighest,
+                  color: isGekiga
+                      ? (myReaction == emoji
+                            ? GekigaColors.onPanel
+                            : GekigaColors.panel)
+                      : (myReaction == emoji
+                            ? colorScheme.primaryContainer
+                            : colorScheme.surfaceContainerHighest),
                   borderRadius: BorderRadius.circular(999),
-                  border: myReaction == entry.key
-                      ? Border.all(color: colorScheme.primary)
-                      : null,
+                  border: isGekiga
+                      ? null
+                      : (myReaction == emoji
+                            ? Border.all(color: colorScheme.primary)
+                            : null),
                 ),
                 child: Text(
-                  '${entry.key} ${entry.value}',
-                  style: const TextStyle(fontSize: 12),
+                  emoji,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: isGekiga
+                        ? (myReaction == emoji
+                              ? GekigaColors.panel
+                              : GekigaColors.onPanel)
+                        : null,
+                  ),
                 ),
               ),
             ),
-        ],
-      ),
+          ),
+      ],
     );
   }
 
@@ -1903,8 +2100,12 @@ class _MessageBubbleTapArea extends StatelessWidget {
       position: _menuPosition(context, globalPosition),
       items: [
         PopupMenuItem<String>(
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
+          // 長押し位置が画面端に近いと、メニューに残る横幅より絵文字6個分の
+          // Rowの必要幅が大きくなり、RenderFlexのオーバーフローが発生して
+          // いた（2026-08-04発覚・修正）。Wrapにすることで、幅が足りない
+          // 位置に開いても画面外へ溢れず折り返すだけになる。
+          child: Wrap(
+            spacing: 4,
             children: [
               for (final emoji in kReactionEmojis)
                 InkWell(
@@ -2091,7 +2292,6 @@ class _SenderAvatar extends ConsumerWidget {
     required this.userId,
     required this.rhingId,
     this.conversationId,
-    this.uiStyle = AppUiStyle.simple,
   });
 
   final String userId;
@@ -2099,11 +2299,6 @@ class _SenderAvatar extends ConsumerWidget {
 
   /// [_SenderName.conversationId]と同じ。
   final String? conversationId;
-
-  /// [AppUiStyle.gekiga]の間、アイコンを手描き風の色ブロック＋白リングで
-  /// 囲む（2026-07-29追加）。既読者一覧ポップアップ等、通常見た目のまま
-  /// でよい呼び出し元は既定値[AppUiStyle.simple]のまま渡さなくてよい。
-  final AppUiStyle uiStyle;
 
   static const _palette = [
     Color(0xFFEE7800),
@@ -2118,33 +2313,18 @@ class _SenderAvatar extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(watchedUserProvider(userId)).value;
     final iconUrl = user?.effectiveIconFor(conversationId)?.url;
-    final Widget avatar;
     if (iconUrl != null) {
-      avatar = CircleAvatar(radius: 16, backgroundImage: NetworkImage(iconUrl));
-    } else {
-      final id = rhingId ?? '?';
-      final color = _palette[id.hashCode.abs() % _palette.length];
-      avatar = CircleAvatar(
-        radius: 16,
-        backgroundColor: color,
-        child: Text(
-          id[0].toUpperCase(),
-          style: const TextStyle(color: Colors.white, fontSize: 13),
-        ),
-      );
+      return CircleAvatar(radius: 16, backgroundImage: NetworkImage(iconUrl));
     }
-    if (uiStyle != AppUiStyle.gekiga) return avatar;
-    // 身だしなみ（蔵）の「イメージカラー」（AppUser.imageColor、0xRRGGBB）を
-    // ユーザーごとの色として使う。未設定なら通常時のフォールバックと同じ
-    // パレットから、rhingIdではなくuserIdのハッシュで選ぶ（rhingIdが
-    // nullな呼び出し元でも安定した色になるようにするため）。
-    final badgeColor = user?.imageColor != null
-        ? Color(0xFF000000 | user!.imageColor!)
-        : _palette[userId.hashCode.abs() % _palette.length];
-    return GekigaBadgeFrame(
-      seed: userId.hashCode,
-      badgeColor: badgeColor,
-      child: avatar,
+    final id = rhingId ?? '?';
+    final color = _palette[id.hashCode.abs() % _palette.length];
+    return CircleAvatar(
+      radius: 16,
+      backgroundColor: color,
+      child: Text(
+        id[0].toUpperCase(),
+        style: const TextStyle(color: Colors.white, fontSize: 13),
+      ),
     );
   }
 }

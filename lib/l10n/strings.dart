@@ -26,6 +26,7 @@ class Strings {
     required this.settingsBlockedUsersUnblock,
     required this.settingsAccentColor,
     required this.settingsAccentColorGekigaLockedHint,
+    required this.settingsAppearanceGekigaLockedHint,
     required this.settingsAppearance,
     required this.settingsAppearanceLight,
     required this.settingsAppearanceDark,
@@ -123,6 +124,7 @@ class Strings {
     required this.severanceBannerDeclineButton,
     required this.severanceBannerAcceptButton,
     required this.readReceiptPopupTitle,
+    required this.reactionListPopupTitle,
     required this.chatSelectionModeTitle,
     required this.chatDeleteSelectedTooltip,
     required this.chatDeleteConfirmTitle,
@@ -134,6 +136,7 @@ class Strings {
     required this.chatReactAction,
     required this.chatSelectAction,
     required this.chatEditedLabel,
+    required this.chatInputHint,
     required this.chatReplyingToLabel,
     required this.chatEditingLabel,
     required this.chatUnsendConfirmTitle,
@@ -265,8 +268,6 @@ class Strings {
     required this.groupJoinRequestSent,
     required this.groupJoinOpenGroup,
     required this.groupJoinRetry,
-    required this.groupJoinPendingListSubtitle,
-    required this.groupJoinPendingDialogClose,
     required this.settingsDeleteAccountConfirmTitle,
     required this.settingsDeleteAccountConfirmMessage,
     required this.settingsDeleteAccountConfirmButton,
@@ -322,6 +323,7 @@ class Strings {
   final String settingsBlockedUsersUnblock;
   final String settingsAccentColor;
   final String settingsAccentColorGekigaLockedHint;
+  final String settingsAppearanceGekigaLockedHint;
   final String settingsAppearance;
   final String settingsAppearanceLight;
   final String settingsAppearanceDark;
@@ -437,6 +439,7 @@ class Strings {
   final String severanceBannerDeclineButton;
   final String severanceBannerAcceptButton;
   final String readReceiptPopupTitle;
+  final String reactionListPopupTitle;
   final String Function(int count) chatSelectionModeTitle;
   final String chatDeleteSelectedTooltip;
   final String chatDeleteConfirmTitle;
@@ -448,6 +451,7 @@ class Strings {
   final String chatReactAction;
   final String chatSelectAction;
   final String chatEditedLabel;
+  final String chatInputHint;
   final String Function(String senderLabel) chatReplyingToLabel;
   final String chatEditingLabel;
   final String chatUnsendConfirmTitle;
@@ -676,8 +680,6 @@ class Strings {
   final String groupJoinRequestSent;
   final String groupJoinOpenGroup;
   final String groupJoinRetry;
-  final String groupJoinPendingListSubtitle;
-  final String groupJoinPendingDialogClose;
 
   final String settingsDeleteAccountConfirmTitle;
   final String settingsDeleteAccountConfirmMessage;
@@ -760,6 +762,7 @@ class Strings {
     settingsBlockedUsersUnblock: 'ブロック解除',
     settingsAccentColor: 'アクセントカラー',
     settingsAccentColorGekigaLockedHint: '劇画UIを選択中は変更できません',
+    settingsAppearanceGekigaLockedHint: '劇画UIを選択中は変更できません',
     settingsAppearance: '外観',
     settingsAppearanceLight: 'ライト',
     settingsAppearanceDark: 'ダーク',
@@ -866,6 +869,7 @@ class Strings {
     severanceBannerDeclineButton: '今は同意しない',
     severanceBannerAcceptButton: '同意する',
     readReceiptPopupTitle: '既読',
+    reactionListPopupTitle: 'リアクション',
     chatSelectionModeTitle: (count) => '$count件選択中',
     chatDeleteSelectedTooltip: '選択したメッセージを削除',
     chatDeleteConfirmTitle: 'メッセージを削除しますか？',
@@ -878,6 +882,7 @@ class Strings {
     chatReactAction: 'リアクション',
     chatSelectAction: '選択',
     chatEditedLabel: '編集済み',
+    chatInputHint: 'メッセージを入力...',
     chatReplyingToLabel: (senderLabel) => '$senderLabelへの返信',
     chatEditingLabel: 'メッセージを編集中',
     chatUnsendConfirmTitle: '送信を取り消しますか？',
@@ -1023,8 +1028,6 @@ class Strings {
     groupJoinRequestSent: '参加リクエストを送信しました。長の承認をお待ちください',
     groupJoinOpenGroup: '広場を開く',
     groupJoinRetry: '再読み込み',
-    groupJoinPendingListSubtitle: '申請中・承認待ち',
-    groupJoinPendingDialogClose: '閉じる',
     settingsDeleteAccountConfirmTitle: 'アカウントを削除しますか？',
     settingsDeleteAccountConfirmMessage:
         '削除すると30日間は復元できます。何も操作をしないまま31日が経過すると、サーバーから全ての情報が完全に削除されます。',
@@ -1081,6 +1084,8 @@ class Strings {
     settingsBlockedUsersUnblock: 'Unblock',
     settingsAccentColor: 'Accent colour',
     settingsAccentColorGekigaLockedHint:
+        'Cannot be changed while the Gekiga UI style is selected',
+    settingsAppearanceGekigaLockedHint:
         'Cannot be changed while the Gekiga UI style is selected',
     settingsAppearance: 'Appearance',
     settingsAppearanceLight: 'Light',
@@ -1202,6 +1207,7 @@ class Strings {
     severanceBannerDeclineButton: 'Not now',
     severanceBannerAcceptButton: 'Agree',
     readReceiptPopupTitle: 'Read by',
+    reactionListPopupTitle: 'Reactions',
     chatSelectionModeTitle: (count) => '$count selected',
     chatDeleteSelectedTooltip: 'Delete selected messages',
     chatDeleteConfirmTitle: 'Delete these messages?',
@@ -1217,6 +1223,7 @@ class Strings {
     chatReactAction: 'React',
     chatSelectAction: 'Select',
     chatEditedLabel: 'Edited',
+    chatInputHint: 'Type a message...',
     chatReplyingToLabel: (senderLabel) => 'Replying to $senderLabel',
     chatEditingLabel: 'Editing message',
     chatUnsendConfirmTitle: 'Unsend this message?',
@@ -1383,8 +1390,6 @@ class Strings {
     groupJoinRequestSent: 'Join request sent. Waiting for approval.',
     groupJoinOpenGroup: 'Open plaza',
     groupJoinRetry: 'Retry',
-    groupJoinPendingListSubtitle: 'Request pending approval',
-    groupJoinPendingDialogClose: 'Close',
     settingsDeleteAccountConfirmTitle: 'Delete your account?',
     settingsDeleteAccountConfirmMessage:
         'You can restore your account within 30 days. If you take no action, '
