@@ -141,11 +141,6 @@ class _FakeUserRepository implements UserRepository {
   }
 
   @override
-  Future<void> setImageColor(String userId, int? color) async {
-    throw UnimplementedError();
-  }
-
-  @override
   Future<void> saveProfileCard(String userId, ProfileCard card) async {
     final base = saved ?? AppUser(userId: userId, rhingId: '');
     final cards = [...base.profileCards];

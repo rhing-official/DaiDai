@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -16,12 +15,11 @@ import '../../models/profile_card.dart';
 import '../../models/profile_material.dart';
 import '../../providers/app_ui_style_provider.dart';
 import '../../providers/repository_providers.dart';
+import '../../providers/user_providers.dart';
 import '../../repositories/user_repository.dart';
 import '../../theme/gekiga/gekiga_colors.dart';
-import '../../utils/color_hex.dart';
 import '../../widgets/gekiga/gekiga_icon_badge.dart';
 import '../../widgets/gekiga/gekiga_panel_box.dart';
-import '../../widgets/gekiga/gekiga_text_field.dart';
 import '../../widgets/profile_card_picker.dart';
 import '../../widgets/profile_card_view.dart';
 import '../../widgets/swipe_gestures.dart';
@@ -448,26 +446,6 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
     }
   }
 
-  /// イメージカラーは他の蔵素材と違い複数枠・アクティブ選択の概念が無いため、
-  /// 登録＝適用がそのまま1回の呼び出しで完結する（2026-07-29追加）。
-  Future<void> _applyImageColor(int color) async {
-    setState(() => _user = _user.copyWith(imageColor: color));
-    try {
-      await _repository.setImageColor(_user.userId, color);
-    } catch (e) {
-      _showError('${ref.read(appStringsProvider).profileSaveError}: $e');
-    }
-  }
-
-  Future<void> _clearImageColor() async {
-    setState(() => _user = _user.copyWith(clearImageColor: true));
-    try {
-      await _repository.setImageColor(_user.userId, null);
-    } catch (e) {
-      _showError('${ref.read(appStringsProvider).profileSaveError}: $e');
-    }
-  }
-
   Future<void> _saveCard(ProfileCard card, {required bool isNew}) async {
     if (isNew) {
       setState(() {
@@ -614,8 +592,6 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
           onEditStatusMessage: _editStatusMessage,
           onAddSnsLink: _addSnsLink,
           onEditSnsLink: _editSnsLink,
-          onApplyImageColor: _applyImageColor,
-          onClearImageColor: _clearImageColor,
         );
       case _ProfileSection.koubou:
         return _WorkshopView(
@@ -855,8 +831,6 @@ class _KuraView extends StatelessWidget {
     required this.onEditStatusMessage,
     required this.onAddSnsLink,
     required this.onEditSnsLink,
-    required this.onApplyImageColor,
-    required this.onClearImageColor,
   });
 
   final AppUser user;
@@ -874,8 +848,6 @@ class _KuraView extends StatelessWidget {
   final ValueChanged<StatusMessage> onEditStatusMessage;
   final VoidCallback onAddSnsLink;
   final ValueChanged<SnsLink> onEditSnsLink;
-  final ValueChanged<int> onApplyImageColor;
-  final VoidCallback onClearImageColor;
 
   @override
   Widget build(BuildContext context) {
@@ -933,13 +905,6 @@ class _KuraView extends StatelessWidget {
           links: user.snsLinks,
           onAdd: onAddSnsLink,
           onEdit: onEditSnsLink,
-        ),
-        const SizedBox(height: 24),
-        _ImageColorSection(
-          strings: strings,
-          color: user.imageColor,
-          onApply: onApplyImageColor,
-          onClear: onClearImageColor,
         ),
       ],
     );
@@ -1131,6 +1096,7 @@ class _WorkshopConversationCardSection extends ConsumerWidget {
 
   Future<void> _showAddDialog(
     BuildContext context,
+    WidgetRef ref,
     List<DirectMessage> unassignedDms,
     List<Group> unassignedGroups,
   ) async {
@@ -1141,30 +1107,44 @@ class _WorkshopConversationCardSection extends ConsumerWidget {
       return;
     }
 
-    final conversationId = await showDialog<String>(
+    final selectedIds = await showDialog<Set<String>>(
       context: context,
-      builder: (context) => SimpleDialog(
-        title: Text(strings.workshopConversationCardAddDialogTitle),
-        children: [
-          for (final dm in unassignedDms)
-            SimpleDialogOption(
-              onPressed: () => Navigator.of(context).pop(dm.dmId),
-              child: Text('@${dm.otherRhingId(user.userId)}'),
-            ),
-          for (final group in unassignedGroups)
-            SimpleDialogOption(
-              onPressed: () => Navigator.of(context).pop(group.groupId),
-              child: Text(group.name),
-            ),
-        ],
+      builder: (context) => _AddConversationCardDialog(
+        userId: user.userId,
+        unassignedDms: unassignedDms,
+        unassignedGroups: unassignedGroups,
       ),
     );
-    if (conversationId == null || !context.mounted) return;
-    await ConversationProfileCardDialog.show(
-      context,
-      currentUserId: user.userId,
-      conversationId: conversationId,
+    if (selectedIds == null || selectedIds.isEmpty || !context.mounted) {
+      return;
+    }
+
+    if (selectedIds.length == 1) {
+      await ConversationProfileCardDialog.show(
+        context,
+        currentUserId: user.userId,
+        conversationId: selectedIds.first,
+      );
+      return;
+    }
+
+    // 複数選択時は、既存の1件専用ConversationProfileCardDialogでは対応
+    // できないため、ProfileCardPickerだけを載せた軽量ダイアログでカードを
+    // 1つ選ばせ、選んだ全ての会話へ一括適用する（2026-08-05追加）。
+    final cardId = await showDialog<String?>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(strings.conversationProfileCardMenuLabel),
+        content: ProfileCardPicker(
+          strings: strings,
+          cards: user.profileCards,
+          selectedCardId: null,
+          onSelected: (id) => Navigator.of(context).pop(id),
+        ),
+      ),
     );
+    if (!context.mounted) return;
+    await Future.wait([for (final id in selectedIds) _select(ref, id, cardId)]);
   }
 
   @override
@@ -1197,21 +1177,15 @@ class _WorkshopConversationCardSection extends ConsumerWidget {
       children: [
         Row(
           children: [
+            Text(
+              strings.settingsProfileCardAssignmentTitle,
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            ),
             IconButton(
               icon: const Icon(Icons.add_circle_outline),
               tooltip: strings.workshopConversationCardAddTooltip,
               onPressed: () =>
-                  _showAddDialog(context, unassignedDms, unassignedGroups),
-            ),
-            const SizedBox(width: 4),
-            Expanded(
-              child: Text(
-                strings.settingsProfileCardAssignmentTitle,
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                ),
-              ),
+                  _showAddDialog(context, ref, unassignedDms, unassignedGroups),
             ),
           ],
         ),
@@ -1252,6 +1226,155 @@ class _WorkshopConversationCardSection extends ConsumerWidget {
             ),
         ],
       ],
+    );
+  }
+}
+
+/// [_WorkshopConversationCardSection]の「＋」から開く追加先選択ポップアップ。
+/// チェックボックスで一対・広場を複数選択できる（2026-08-05変更。以前は
+/// `SimpleDialog`のテキストのみの単一選択で、一対はRhing IDそのまま表示
+/// だった）。一対の行は呼び名（無ければ@Rhing ID、`talks_tab.dart`の
+/// `_buildDmDetailWithRooms`と同じフォールバック順序）、広場の行は
+/// `Group.profileCard`のアイコンをそれぞれ左端に表示する。
+class _AddConversationCardDialog extends ConsumerStatefulWidget {
+  const _AddConversationCardDialog({
+    required this.userId,
+    required this.unassignedDms,
+    required this.unassignedGroups,
+  });
+
+  final String userId;
+  final List<DirectMessage> unassignedDms;
+  final List<Group> unassignedGroups;
+
+  @override
+  ConsumerState<_AddConversationCardDialog> createState() =>
+      _AddConversationCardDialogState();
+}
+
+class _AddConversationCardDialogState
+    extends ConsumerState<_AddConversationCardDialog> {
+  final _selectedIds = <String>{};
+  final _searchController = TextEditingController();
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  String _dmTitle(DirectMessage dm) {
+    final otherUserId = dm.otherUserId(widget.userId);
+    final otherUser = ref.watch(watchedUserProvider(otherUserId)).value;
+    final nickname = otherUser?.effectiveNicknameFor(dm.dmId)?.text;
+    return (nickname != null && nickname.isNotEmpty)
+        ? nickname
+        : '@${dm.otherRhingId(widget.userId)}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final strings = ref.watch(appStringsProvider);
+    final query = _searchController.text.trim().toLowerCase();
+    final filteredDms = widget.unassignedDms
+        .where(
+          (dm) => query.isEmpty || _dmTitle(dm).toLowerCase().contains(query),
+        )
+        .toList();
+    final filteredGroups = widget.unassignedGroups
+        .where((g) => query.isEmpty || g.name.toLowerCase().contains(query))
+        .toList();
+
+    return AlertDialog(
+      title: Text(strings.workshopConversationCardAddDialogTitle),
+      content: SizedBox(
+        width: 360,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                prefixIcon: const Icon(Icons.search),
+                hintText: strings.workshopConversationCardSearchHint,
+                suffixIcon: query.isEmpty
+                    ? null
+                    : IconButton(
+                        icon: const Icon(Icons.clear),
+                        onPressed: () => setState(_searchController.clear),
+                      ),
+              ),
+              onChanged: (_) => setState(() {}),
+            ),
+            const SizedBox(height: 8),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 320),
+              child: ListView(
+                shrinkWrap: true,
+                children: [
+                  for (final dm in filteredDms) _buildDmTile(dm),
+                  for (final group in filteredGroups) _buildGroupTile(group),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text(strings.cancel),
+        ),
+        FilledButton(
+          onPressed: _selectedIds.isEmpty
+              ? null
+              : () => Navigator.of(context).pop(_selectedIds),
+          child: Text(strings.add),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDmTile(DirectMessage dm) {
+    final title = _dmTitle(dm);
+    final otherUserId = dm.otherUserId(widget.userId);
+    final otherUser = ref.watch(watchedUserProvider(otherUserId)).value;
+    final iconUrl = otherUser?.effectiveIconFor(dm.dmId)?.url;
+    return CheckboxListTile(
+      value: _selectedIds.contains(dm.dmId),
+      controlAffinity: ListTileControlAffinity.trailing,
+      secondary: CircleAvatar(
+        backgroundImage: iconUrl != null ? NetworkImage(iconUrl) : null,
+        child: iconUrl == null ? const Icon(Icons.person) : null,
+      ),
+      title: Text(title),
+      onChanged: (checked) => setState(() {
+        if (checked ?? false) {
+          _selectedIds.add(dm.dmId);
+        } else {
+          _selectedIds.remove(dm.dmId);
+        }
+      }),
+    );
+  }
+
+  Widget _buildGroupTile(Group group) {
+    final iconUrl = group.profileCard?.iconUrl;
+    return CheckboxListTile(
+      value: _selectedIds.contains(group.groupId),
+      controlAffinity: ListTileControlAffinity.trailing,
+      secondary: CircleAvatar(
+        backgroundImage: iconUrl != null ? NetworkImage(iconUrl) : null,
+        child: iconUrl == null ? const Icon(Icons.groups) : null,
+      ),
+      title: Text(group.name),
+      onChanged: (checked) => setState(() {
+        if (checked ?? false) {
+          _selectedIds.add(group.groupId);
+        } else {
+          _selectedIds.remove(group.groupId);
+        }
+      }),
     );
   }
 }
@@ -1921,174 +2044,6 @@ class _SnsLinkSection extends ConsumerWidget {
           canAdd: links.length < kMaxSnsLinks,
           onAdd: onAdd,
           addLabel: strings.profileAddSnsLink,
-        ),
-      ],
-    );
-  }
-}
-
-/// 蔵のイメージカラーセクション。他の蔵素材と違い複数枠・アクティブ選択の
-/// 概念を持たず、1つの値をカラーコード入力欄で直接登録・変更・削除する
-/// （設定タブのアクセントカラー入力と同じUI・同じ`tryParseHexColor`/
-/// `toHexString`を使い回す。2026-07-29追加。使い道は別途実装予定）。
-class _ImageColorSection extends StatefulWidget {
-  const _ImageColorSection({
-    required this.strings,
-    required this.color,
-    required this.onApply,
-    required this.onClear,
-  });
-
-  final Strings strings;
-  final int? color;
-  final ValueChanged<int> onApply;
-  final VoidCallback onClear;
-
-  @override
-  State<_ImageColorSection> createState() => _ImageColorSectionState();
-}
-
-class _ImageColorSectionState extends State<_ImageColorSection> {
-  late final TextEditingController _hexController;
-  String? _errorText;
-
-  String _hexTextFor(int? color) => color == null
-      ? ''
-      : Color(0xFF000000 | color).toHexString().replaceFirst('#', '');
-
-  @override
-  void initState() {
-    super.initState();
-    _hexController = TextEditingController(text: _hexTextFor(widget.color));
-  }
-
-  @override
-  void didUpdateWidget(covariant _ImageColorSection oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.color != widget.color) {
-      _hexController.text = _hexTextFor(widget.color);
-    }
-  }
-
-  @override
-  void dispose() {
-    _hexController.dispose();
-    super.dispose();
-  }
-
-  void _apply() {
-    final color = tryParseHexColor(_hexController.text);
-    if (color == null) {
-      setState(() => _errorText = widget.strings.profileImageColorInvalid);
-      return;
-    }
-    setState(() => _errorText = null);
-    widget.onApply(color.toARGB32() & 0xFFFFFF);
-  }
-
-  void _clear() {
-    _hexController.clear();
-    setState(() => _errorText = null);
-    widget.onClear();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final swatchColor = widget.color != null
-        ? Color(0xFF000000 | widget.color!)
-        : null;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          '${widget.strings.profileImageColorSection}（${widget.color != null ? 1 : 0}/1）',
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 8),
-        Consumer(
-          builder: (context, ref, _) {
-            final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
-            final inputFormatters = [
-              FilteringTextInputFormatter.allow(RegExp('[0-9a-fA-F]')),
-              LengthLimitingTextInputFormatter(6),
-            ];
-            // イメージカラーのプレビュー円は、実際に選んだ色をそのまま
-            // 見せるためのもので、モノクロ化の対象であるアクセントカラーとは
-            // 別物（CLAUDE.md「身だしなみのイメージカラー」参照）なので、
-            // 劇画スタイルでも彩色のまま変更しない（2026-08-04確認）。
-            final swatch = Container(
-              width: 48,
-              height: 48,
-              margin: const EdgeInsets.only(top: 4),
-              decoration: BoxDecoration(
-                color: swatchColor,
-                shape: BoxShape.circle,
-                border: Border.all(color: Colors.black12),
-              ),
-              child: swatchColor == null
-                  ? const Icon(Icons.palette_outlined, color: Colors.black38)
-                  : null,
-            );
-            if (isGekiga) {
-              return Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  swatch,
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: GekigaTextField(
-                      controller: _hexController,
-                      textCapitalization: TextCapitalization.characters,
-                      inputFormatters: inputFormatters,
-                      prefixText: '#',
-                      hintText: 'F08300',
-                      errorText: _errorText,
-                      suffixIcon: GekigaIconButton(
-                        icon: Icons.check,
-                        size: 28,
-                        onPressed: _apply,
-                      ),
-                      onSubmitted: (_) => _apply(),
-                    ),
-                  ),
-                  if (widget.color != null) ...[
-                    const SizedBox(width: 4),
-                    GekigaIconButton(
-                      icon: Icons.close,
-                      size: 36,
-                      onPressed: _clear,
-                    ),
-                  ],
-                ],
-              );
-            }
-            return Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                swatch,
-                const SizedBox(width: 16),
-                Expanded(
-                  child: TextField(
-                    controller: _hexController,
-                    textCapitalization: TextCapitalization.characters,
-                    inputFormatters: inputFormatters,
-                    decoration: InputDecoration(
-                      prefixText: '#',
-                      hintText: 'F08300',
-                      errorText: _errorText,
-                      suffixIcon: IconButton(
-                        icon: const Icon(Icons.check),
-                        onPressed: _apply,
-                      ),
-                    ),
-                    onSubmitted: (_) => _apply(),
-                  ),
-                ),
-                if (widget.color != null)
-                  IconButton(icon: const Icon(Icons.close), onPressed: _clear),
-              ],
-            );
-          },
         ),
       ],
     );

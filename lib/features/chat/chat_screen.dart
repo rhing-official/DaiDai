@@ -1582,59 +1582,47 @@ class _MessageRow extends ConsumerWidget {
         clipBehavior: Clip.none,
         children: [
           bubble,
-          // 既読バッジとリアクションを同じ角にRowで横に並べて表示する
-          // （2026-08-05変更）。メッセージから見て、既読バッジよりさらに
-          // 外側にリアクションを置く（alignRightならリアクションが
-          // left:-10側、受信ならリアクションがright:-10側＝アンカー寄り）
-          // ため、両方ある時は既読バッジの絶対位置がリアクションの幅ぶん
-          // 内側に動く（これは指示された見た目を実現するための想定内の
-          // 挙動）。以前はリアクションを単独のPositionedで「吹き出しの
-          // 下端から固定px上」に置いていたが、これは吹き出しの高さ
-          // （＝メッセージの長さ）と無関係な固定値だったため、短い
-          // メッセージだと吹き出しの外（上のアバター・時刻表示側）に
-          // 突き抜けて重なる不具合があった。Rowで既読バッジと横に並べる
-          // 形にすれば、クラスタの高さは既読バッジ単体とほぼ同じに保たれ、
-          // この問題が構造的に起きなくなる。
-          if (showReadMark || message.reactions.isNotEmpty)
+          // 既読バッジは常にこの位置に固定する（bottom: -14,
+          // left/right: -10、変更しない）。リアクションの有無に関わらず
+          // 既読バッジ自身の座標が動くことがあってはならない
+          // （2026-08-05: 以前RowでリアクションとまとめてPositionedを
+          // 共有した際、リアクションがある時だけ既読バッジの位置が内側に
+          // ずれてしまい「既読バッジが押し出されている」と指摘された）。
+          if (showReadMark)
             Positioned(
               bottom: -14,
               left: alignRight ? -10 : null,
               right: alignRight ? null : -10,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: () {
-                  final reactionChip = message.reactions.isEmpty
-                      ? null
-                      : _reactionBar(context, strings);
-                  final readBadge = !showReadMark
-                      ? null
-                      : isSimpleDmReadMark
-                      ? badge
-                      : Builder(
-                          builder: (badgeContext) => GestureDetector(
-                            onTap: () => _showReadReceiptPopup(
-                              context,
-                              badgeContext,
-                              readers,
-                              strings,
-                            ),
-                            child: badge,
-                          ),
-                        );
-                  final gap = (reactionChip != null && readBadge != null)
-                      ? const SizedBox(width: 6)
-                      : null;
-                  // Rowはアンカー側の端から順に子を並べるため、リストの
-                  // 先頭側（アンカーに最も近い＝メッセージから見て最も
-                  // 外側）にリアクションを置くことで、既読バッジより
-                  // さらに外側に表示される（2026-08-05変更、以前は逆の
-                  // 順序で既読バッジが外側になっていた）。
-                  return alignRight
-                      ? [?reactionChip, ?gap, ?readBadge]
-                      : [?readBadge, ?gap, ?reactionChip];
-                }(),
-              ),
+              child: isSimpleDmReadMark
+                  ? badge
+                  : Builder(
+                      builder: (badgeContext) => GestureDetector(
+                        onTap: () => _showReadReceiptPopup(
+                          context,
+                          badgeContext,
+                          readers,
+                          strings,
+                        ),
+                        child: badge,
+                      ),
+                    ),
+            ),
+          // リアクションは既読バッジとは独立したPositionedとして、
+          // 既読バッジよりさらに外側（メッセージから見て外側）に固定
+          // オフセットで配置する。既読バッジ用Positionedとは別物なので、
+          // リアクションの有無が既読バッジの座標に影響しない。垂直方向は
+          // 既読バッジと同じbottom: -14を使うことで、短いメッセージでも
+          // 吹き出しの外に突き抜けて上のアバター・時刻表示と重なる問題を
+          // 回避する（bottom: -14は既読バッジ単体でも常に安全に動いていた
+          // 実測済みの値のため）。水平方向のオフセット(-40)は既読バッジと
+          // 重ならない範囲でできるだけ近づけた値（既読バッジのオフセット
+          // -10と同様、実機ホットリロードでの微調整を前提とする）。
+          if (message.reactions.isNotEmpty)
+            Positioned(
+              bottom: -14,
+              left: alignRight ? -40 : null,
+              right: alignRight ? null : -40,
+              child: _reactionBar(context, strings),
             ),
         ],
       ),
@@ -1931,8 +1919,10 @@ class _MessageRow extends ConsumerWidget {
     final emojis = message.reactions.values.toSet();
     final myReaction = message.reactions[currentUserId];
     // 劇画スタイルでは、ジグザグ枠にはせず色だけモノクロにする
-    // （2026-08-04追加。選択中=白地黒文字／未選択=黒地白文字という、
-    // 他の劇画UI要素と同じ「選択中反転」ルールに合わせる）。
+    // （2026-08-04追加）。以前は選択中（自分のリアクション）だけ白地黒
+    // 文字に反転していたが、タップ操作が即トグルではなくリアクション
+    // 一覧ポップアップを開く形に変わったため、選択強調の必要性が薄れた。
+    // ユーザー指示により常に黒地白文字に統一する（2026-08-05変更）。
     final isGekiga = uiStyle == AppUiStyle.gekiga;
     return Wrap(
       spacing: 4,
@@ -1946,9 +1936,7 @@ class _MessageRow extends ConsumerWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
                   color: isGekiga
-                      ? (myReaction == emoji
-                            ? GekigaColors.onPanel
-                            : GekigaColors.panel)
+                      ? GekigaColors.panel
                       : (myReaction == emoji
                             ? colorScheme.primaryContainer
                             : colorScheme.surfaceContainerHighest),
@@ -1963,11 +1951,7 @@ class _MessageRow extends ConsumerWidget {
                   emoji,
                   style: TextStyle(
                     fontSize: 12,
-                    color: isGekiga
-                        ? (myReaction == emoji
-                              ? GekigaColors.panel
-                              : GekigaColors.onPanel)
-                        : null,
+                    color: isGekiga ? GekigaColors.onPanel : null,
                   ),
                 ),
               ),

@@ -50,11 +50,6 @@ abstract class UserRepository {
   /// activeIconId等、単一の値を持つフィールドを原子的に更新する。
   Future<void> setProfileField(String userId, String field, String? value);
 
-  /// 蔵のイメージカラー（[AppUser.imageColor]、0xRRGGBB）を設定する。
-  /// nullを渡すと未設定に戻す。他の蔵素材と違い複数枠・アクティブ選択の
-  /// 概念が無く、この呼び出し自体が「登録＝適用」になる（2026-07-29追加）。
-  Future<void> setImageColor(String userId, int? color);
-
   /// 端末をまたいで同期する表示設定（[AppUserPreferences]）を1項目だけ
   /// ドット記法（`preferences.$field`）で部分更新する。他のフィールドや
   /// 未変更の設定項目には影響しない。
@@ -225,11 +220,6 @@ class FirestoreUserRepository implements UserRepository {
         field == 'activeProfileCardId') {
       await syncInvitePreview(userId);
     }
-  }
-
-  @override
-  Future<void> setImageColor(String userId, int? color) async {
-    await _users.doc(userId).update({'imageColor': color});
   }
 
   @override
