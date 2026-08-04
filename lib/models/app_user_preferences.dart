@@ -16,7 +16,6 @@ class AppUserPreferences {
     this.chatLayoutStyle,
     this.messageTimeFormat,
     this.appUiStyle,
-    this.fontDesign,
   });
 
   static const empty = AppUserPreferences();
@@ -29,7 +28,6 @@ class AppUserPreferences {
   final String? chatLayoutStyle;
   final String? messageTimeFormat;
   final String? appUiStyle;
-  final String? fontDesign;
 
   factory AppUserPreferences.fromJson(Map<String, dynamic>? json) {
     if (json == null) return empty;
@@ -42,7 +40,6 @@ class AppUserPreferences {
       chatLayoutStyle: json['chatLayoutStyle'] as String?,
       messageTimeFormat: json['messageTimeFormat'] as String?,
       appUiStyle: json['appUiStyle'] as String?,
-      fontDesign: json['fontDesign'] as String?,
     );
   }
 
@@ -56,7 +53,6 @@ class AppUserPreferences {
       if (chatLayoutStyle != null) 'chatLayoutStyle': chatLayoutStyle,
       if (messageTimeFormat != null) 'messageTimeFormat': messageTimeFormat,
       if (appUiStyle != null) 'appUiStyle': appUiStyle,
-      if (fontDesign != null) 'fontDesign': fontDesign,
     };
   }
 }
