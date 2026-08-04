@@ -84,15 +84,13 @@ class RoomListPane extends ConsumerWidget {
       final isSelected = room.roomId == selectedRoomId;
 
       if (isGekiga) {
-        return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 4),
-          child: GekigaMenuTile(
-            seed: room.roomId.hashCode,
-            selected: isSelected,
-            leading: const Icon(Icons.tag),
-            title: Text(room.name),
-            onTap: () => onSelectRoom(room),
-          ),
+        // 外枠は呼び出し側（下の`GekigaJointedTileList`）が寄合一覧全体を
+        // まとめて描くため、ここでは内容だけを返す（2026-08-04変更）。
+        return GekigaTileContent(
+          selected: isSelected,
+          leading: const Icon(Icons.tag),
+          title: Text(room.name),
+          onTap: () => onSelectRoom(room),
         );
       }
 
@@ -151,9 +149,23 @@ class RoomListPane extends ConsumerWidget {
           ),
           const Divider(height: 1),
           Expanded(
-            child: ListView(
-              children: [for (final room in rooms) buildRoomTile(room)],
-            ),
+            child: isGekiga
+                ? SingleChildScrollView(
+                    // ヘッダー行と同じ左右の余白に揃える（2026-08-04追加）。
+                    // 上にも余白を入れ、区切り線に一覧の箱が接して被って
+                    // 見える不具合を解消する（2026-08-04追加）。
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                    child: GekigaJointedTileList(
+                      seeds: [for (final room in rooms) room.roomId.hashCode],
+                      selectedFlags: [
+                        for (final room in rooms) room.roomId == selectedRoomId,
+                      ],
+                      children: [for (final room in rooms) buildRoomTile(room)],
+                    ),
+                  )
+                : ListView(
+                    children: [for (final room in rooms) buildRoomTile(room)],
+                  ),
           ),
         ],
       ),

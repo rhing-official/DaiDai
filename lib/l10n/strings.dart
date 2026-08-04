@@ -25,6 +25,7 @@ class Strings {
     required this.settingsBlockedUsersEmpty,
     required this.settingsBlockedUsersUnblock,
     required this.settingsAccentColor,
+    required this.settingsAccentColorGekigaLockedHint,
     required this.settingsAppearance,
     required this.settingsAppearanceLight,
     required this.settingsAppearanceDark,
@@ -320,6 +321,7 @@ class Strings {
   final String settingsBlockedUsersEmpty;
   final String settingsBlockedUsersUnblock;
   final String settingsAccentColor;
+  final String settingsAccentColorGekigaLockedHint;
   final String settingsAppearance;
   final String settingsAppearanceLight;
   final String settingsAppearanceDark;
@@ -757,6 +759,7 @@ class Strings {
     settingsBlockedUsersEmpty: 'ブロックしたユーザーはいません',
     settingsBlockedUsersUnblock: 'ブロック解除',
     settingsAccentColor: 'アクセントカラー',
+    settingsAccentColorGekigaLockedHint: '劇画UIを選択中は変更できません',
     settingsAppearance: '外観',
     settingsAppearanceLight: 'ライト',
     settingsAppearanceDark: 'ダーク',
@@ -1077,6 +1080,8 @@ class Strings {
     settingsBlockedUsersEmpty: 'No blocked users',
     settingsBlockedUsersUnblock: 'Unblock',
     settingsAccentColor: 'Accent colour',
+    settingsAccentColorGekigaLockedHint:
+        'Cannot be changed while the Gekiga UI style is selected',
     settingsAppearance: 'Appearance',
     settingsAppearanceLight: 'Light',
     settingsAppearanceDark: 'Dark',

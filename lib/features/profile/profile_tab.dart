@@ -741,7 +741,7 @@ _ProfileCategory? _findCategory(
 
 /// カテゴリ一覧（サイドバー、または狭い画面での一覧画面）。設定タブの
 /// `_CategoryList`/`_FolderTile`と同じ見た目にしている。
-class _ProfileCategoryList extends StatelessWidget {
+class _ProfileCategoryList extends ConsumerWidget {
   const _ProfileCategoryList({
     required this.categories,
     required this.selectedSection,
@@ -753,7 +753,28 @@ class _ProfileCategoryList extends StatelessWidget {
   final ValueChanged<_ProfileCategory> onSelect;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (ref.watch(appUiStyleProvider) == AppUiStyle.gekiga) {
+      return SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        child: GekigaJointedTileList(
+          seeds: [for (final category in categories) category.title.hashCode],
+          selectedFlags: [
+            for (final category in categories)
+              category.section == selectedSection,
+          ],
+          children: [
+            for (final category in categories)
+              _ProfileCategoryTile(
+                icon: category.icon,
+                title: category.title,
+                selected: category.section == selectedSection,
+                onTap: () => onSelect(category),
+              ),
+          ],
+        ),
+      );
+    }
     return ListView(
       padding: const EdgeInsets.symmetric(horizontal: 8),
       children: [
@@ -788,15 +809,13 @@ class _ProfileCategoryTile extends ConsumerWidget {
     final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
 
     if (isGekiga) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4),
-        child: GekigaMenuTile(
-          seed: title.hashCode,
-          selected: selected,
-          leading: Icon(icon),
-          title: Text(title),
-          onTap: onTap,
-        ),
+      // 外枠は呼び出し側（`_ProfileCategoryList`の`GekigaJointedTileList`）が
+      // まとめて描くため、ここでは内容だけを返す（2026-08-04変更）。
+      return GekigaTileContent(
+        selected: selected,
+        leading: Icon(icon),
+        title: Text(title),
+        onTap: onTap,
       );
     }
 

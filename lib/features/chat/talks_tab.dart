@@ -71,8 +71,14 @@ class _TalksTabState extends ConsumerState<TalksTab> {
   /// 幅を圧迫されず全画面で読みたい時のための切り替え。
   bool _chatExpanded = false;
 
-  bool get _isSplit =>
-      MediaQuery.sizeOf(context).width >= kTalksSplitBreakpoint;
+  /// モバイルに限らず、縦表示（幅より高さの方が大きい）の場合は常に
+  /// 横スクロールタブバー（[RoomTabBar]）でのドリルダウン表示にする
+  /// （2026-08-04追加。以前は幅のみで判定しており、幅が広いタブレット等を
+  /// 縦持ちにしても分割表示のままになっていた）。
+  bool get _isSplit {
+    final size = MediaQuery.sizeOf(context);
+    return size.width >= kTalksSplitBreakpoint && size.width > size.height;
+  }
 
   // 選択中の一対・広場の寄合一覧ストリームを、会話一覧の更新（新着メッセージ等）
   // ごとに再構築されるbuild()の中でも使い回すためのキャッシュ。以前は
@@ -373,6 +379,11 @@ class _TalksTabState extends ConsumerState<TalksTab> {
     final isSplit = _isSplit;
 
     return Scaffold(
+      // 劇画スタイル時にホーム画面の背景装飾（ハーフトーン柄）を透過させる
+      // 変更を一度試したが、リスト項目の隙間からドット柄が中途半端に透けて
+      // しまい「赤一色の塗りつぶし」に見えないとの指摘を受け撤回した
+      // （2026-08-04）。既定（`backgroundColor`未指定）のまま、テーマの
+      // `scaffoldBackgroundColor`＝`GekigaColors.background`で不透明に塗る。
       body: StreamBuilder<List<DirectMessage>>(
         stream: directMessagesStream,
         builder: (context, dmSnapshot) {
@@ -383,6 +394,13 @@ class _TalksTabState extends ConsumerState<TalksTab> {
               final groups = groupSnapshot.data ?? [];
 
               final listPane = Column(
+                // 既定値（center）のままだと、一覧の中身（`GekigaJointedTileList`）
+                // が自身の内容に応じた幅だけを主張し、その幅ぶん中央寄せされて
+                // しまう。一対一覧と広場一覧では中身の最大幅が異なるため、
+                // 中央寄せの基準がズレて左端の位置が一致しない不具合があった
+                // （2026-08-04発覚・修正。`room_list_pane.dart`は元々`start`
+                // 指定済みだったため同じ問題は起きていなかった）。
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
@@ -395,27 +413,58 @@ class _TalksTabState extends ConsumerState<TalksTab> {
                         Expanded(
                           child: SingleChildScrollView(
                             scrollDirection: Axis.horizontal,
-                            child: Row(
-                              children: [
-                                _CategoryTab(
-                                  label: vocab.dm,
-                                  count: directMessages.length,
-                                  selected: _category == _TalksCategory.dm,
-                                  onTap: () => setState(
-                                    () => _category = _TalksCategory.dm,
+                            child:
+                                ref.watch(appUiStyleProvider) ==
+                                    AppUiStyle.gekiga
+                                ? GekigaJointedPair(
+                                    leftSeed: vocab.dm.hashCode,
+                                    leftSelected:
+                                        _category == _TalksCategory.dm,
+                                    left: _CategoryTab(
+                                      label: vocab.dm,
+                                      count: directMessages.length,
+                                      selected: _category == _TalksCategory.dm,
+                                      onTap: () => setState(
+                                        () => _category = _TalksCategory.dm,
+                                      ),
+                                    ),
+                                    rightSeed: vocab.plaza.hashCode,
+                                    rightSelected:
+                                        _category == _TalksCategory.group,
+                                    right: _CategoryTab(
+                                      label: vocab.plaza,
+                                      count: groups.length,
+                                      selected:
+                                          _category == _TalksCategory.group,
+                                      onTap: () => setState(
+                                        () => _category = _TalksCategory.group,
+                                      ),
+                                    ),
+                                  )
+                                : Row(
+                                    children: [
+                                      _CategoryTab(
+                                        label: vocab.dm,
+                                        count: directMessages.length,
+                                        selected:
+                                            _category == _TalksCategory.dm,
+                                        onTap: () => setState(
+                                          () => _category = _TalksCategory.dm,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 20),
+                                      _CategoryTab(
+                                        label: vocab.plaza,
+                                        count: groups.length,
+                                        selected:
+                                            _category == _TalksCategory.group,
+                                        onTap: () => setState(
+                                          () =>
+                                              _category = _TalksCategory.group,
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                ),
-                                const SizedBox(width: 20),
-                                _CategoryTab(
-                                  label: vocab.plaza,
-                                  count: groups.length,
-                                  selected: _category == _TalksCategory.group,
-                                  onTap: () => setState(
-                                    () => _category = _TalksCategory.group,
-                                  ),
-                                ),
-                              ],
-                            ),
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -436,6 +485,12 @@ class _TalksTabState extends ConsumerState<TalksTab> {
                       ],
                     ),
                   ),
+                  // ヘッダー（一対/広場切り替えタブ）と一覧の間に隙間を空ける
+                  // （2026-08-04追加、劇画スタイルのみ）。ジグザグ枠の箱が
+                  // 隙間無くヘッダーのタブに接してしまい、被って見える
+                  // 不具合があった。
+                  if (ref.watch(appUiStyleProvider) == AppUiStyle.gekiga)
+                    const SizedBox(height: 12),
                   Expanded(
                     // 横スワイプで一対⇄広場を切り替える。一対が先頭・広場が
                     // 2番目のタブなので、他タブの「前へ/次へ」パターンと同じ
@@ -718,6 +773,53 @@ class _TalksTabState extends ConsumerState<TalksTab> {
 
     final sortedDms = _sortedByPin(visibleDms, prefsById, (dm) => dm.dmId);
 
+    if (ref.watch(appUiStyleProvider) == AppUiStyle.gekiga) {
+      final seeds = <int>[
+        for (final request in incomingRequests) request.requestId.hashCode,
+        for (final request in outgoingRequests) request.requestId.hashCode,
+        for (final dm in sortedDms) dm.dmId.hashCode,
+      ];
+      final selectedFlags = <bool>[
+        for (final _ in incomingRequests) false,
+        for (final _ in outgoingRequests) false,
+        for (final dm in sortedDms) _isSplit && _selectedDm?.dmId == dm.dmId,
+      ];
+      final children = <Widget>[
+        for (final request in incomingRequests)
+          _FriendRequestTile(
+            currentUserId: widget.currentUser.userId,
+            request: request,
+          ),
+        for (final request in outgoingRequests)
+          _FriendRequestTile(
+            currentUserId: widget.currentUser.userId,
+            request: request,
+          ),
+        for (final dm in sortedDms)
+          _DirectMessageTile(
+            currentUser: widget.currentUser,
+            dm: dm,
+            pinned: prefsById[dm.dmId]?.pinned ?? false,
+            muted: prefsById[dm.dmId]?.notificationsMuted ?? false,
+            selected: _isSplit && _selectedDm?.dmId == dm.dmId,
+            onTap: () => _openDirectMessage(dm),
+          ),
+      ];
+      return SingleChildScrollView(
+        // ヘッダー（一対/広場切り替えタブの行）と同じ左右の余白
+        // （`EdgeInsets.fromLTRB(16, 12, 16, 0)`）に揃える（2026-08-04
+        // 修正。以前は左右の余白が無く、一覧の箱がサイドバーの左端に
+        // ぴったり付いてしまい、ヘッダーのタブより左に飛び出して見える
+        // 不具合があった）。
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: GekigaJointedTileList(
+          seeds: seeds,
+          selectedFlags: selectedFlags,
+          children: children,
+        ),
+      );
+    }
+
     return ListView(
       children: [
         for (final request in incomingRequests)
@@ -758,6 +860,45 @@ class _TalksTabState extends ConsumerState<TalksTab> {
       return Center(child: Text('まだ$plazaTermがありません。上の＋から作成してください。'));
     }
     final sortedGroups = _sortedByPin(groups, prefsById, (g) => g.groupId);
+
+    if (ref.watch(appUiStyleProvider) == AppUiStyle.gekiga) {
+      final seeds = <int>[
+        for (final request in pendingRequests) request.requestId.hashCode,
+        for (final group in sortedGroups) group.groupId.hashCode,
+      ];
+      final selectedFlags = <bool>[
+        for (final _ in pendingRequests) false,
+        for (final group in sortedGroups)
+          _isSplit && _selectedGroup?.groupId == group.groupId,
+      ];
+      final children = <Widget>[
+        for (final request in pendingRequests)
+          _PendingGroupJoinRequestTile(request: request),
+        for (final group in sortedGroups)
+          _GroupTile(
+            currentUserId: widget.currentUser.userId,
+            group: group,
+            pinned: prefsById[group.groupId]?.pinned ?? false,
+            muted: prefsById[group.groupId]?.notificationsMuted ?? false,
+            selected: _isSplit && _selectedGroup?.groupId == group.groupId,
+            onTap: () => _openGroup(group),
+          ),
+      ];
+      return SingleChildScrollView(
+        // ヘッダー（一対/広場切り替えタブの行）と同じ左右の余白
+        // （`EdgeInsets.fromLTRB(16, 12, 16, 0)`）に揃える（2026-08-04
+        // 修正。以前は左右の余白が無く、一覧の箱がサイドバーの左端に
+        // ぴったり付いてしまい、ヘッダーのタブより左に飛び出して見える
+        // 不具合があった）。
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: GekigaJointedTileList(
+          seeds: seeds,
+          selectedFlags: selectedFlags,
+          children: children,
+        ),
+      );
+    }
+
     return ListView(
       children: [
         for (final request in pendingRequests)
@@ -814,22 +955,27 @@ class _CategoryTab extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
     if (isGekiga) {
+      // 外枠（手描き風ジグザグ矩形）は呼び出し側の`GekigaJointedPair`が
+      // 2つのタブをまとめて描くため、ここでは内容（Material+InkWell+Text）
+      // だけを返す（2026-08-04変更、以前は`GekigaPanelBox`で自前で囲んで
+      // いた）。
       final fg = selected ? GekigaColors.panel : GekigaColors.onPanel;
-      return GekigaPanelBox(
-        seed: label.hashCode,
-        selected: selected,
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: onTap,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              child: Text(
-                '$label $count',
-                style: TextStyle(
-                  color: fg,
-                  fontWeight: selected ? FontWeight.bold : FontWeight.normal,
-                ),
+      return Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            // 縦幅・フォントサイズをシンプルスタイル側（vertical:6,
+            // fontSize:16）に揃える（2026-08-04変更）。横方向だけは、
+            // シンプル側に無いジグザグ枠の線に文字が重ならないよう
+            // 14を維持する。
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+            child: Text(
+              '$label $count',
+              style: TextStyle(
+                color: fg,
+                fontSize: 16,
+                fontWeight: selected ? FontWeight.bold : FontWeight.normal,
               ),
             ),
           ),
@@ -936,15 +1082,11 @@ class _FriendRequestTile extends ConsumerWidget {
         : null;
 
     if (isGekiga) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4),
-        child: GekigaMenuTile(
-          seed: request.requestId.hashCode,
-          leading: leadingWidget,
-          title: Text('@${request.otherRhingId(currentUserId)}'),
-          subtitle: subtitleWidget,
-          trailing: trailingWidget,
-        ),
+      return GekigaTileContent(
+        leading: leadingWidget,
+        title: Text('@${request.otherRhingId(currentUserId)}'),
+        subtitle: subtitleWidget,
+        trailing: trailingWidget,
       );
     }
 
@@ -999,15 +1141,11 @@ class _PendingGroupJoinRequestTile extends ConsumerWidget {
         );
 
         if (isGekiga) {
-          return Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4),
-            child: GekigaMenuTile(
-              seed: request.requestId.hashCode,
-              leading: leadingWidget,
-              title: titleWidget,
-              subtitle: subtitleWidget,
-              onTap: onTap,
-            ),
+          return GekigaTileContent(
+            leading: leadingWidget,
+            title: titleWidget,
+            subtitle: subtitleWidget,
+            onTap: onTap,
           );
         }
 
@@ -1065,16 +1203,12 @@ class _DirectMessageTile extends ConsumerWidget {
         userId: currentUser.userId,
         pinned: pinned,
         muted: muted,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 4),
-          child: GekigaMenuTile(
-            seed: dm.dmId.hashCode,
-            selected: selected,
-            leading: leadingWidget,
-            title: Text(label),
-            trailing: trailingWidget,
-            onTap: onTap,
-          ),
+        child: GekigaTileContent(
+          selected: selected,
+          leading: leadingWidget,
+          title: Text(label),
+          trailing: trailingWidget,
+          onTap: onTap,
         ),
       );
     }
@@ -1135,17 +1269,13 @@ class _GroupTile extends ConsumerWidget {
         userId: currentUserId,
         pinned: pinned,
         muted: muted,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 4),
-          child: GekigaMenuTile(
-            seed: group.groupId.hashCode,
-            selected: selected,
-            leading: leadingWidget,
-            title: Text(group.name),
-            subtitle: Text('${group.memberIds.length}人'),
-            trailing: trailingWidget,
-            onTap: onTap,
-          ),
+        child: GekigaTileContent(
+          selected: selected,
+          leading: leadingWidget,
+          title: Text(group.name),
+          subtitle: Text('${group.memberIds.length}人'),
+          trailing: trailingWidget,
+          onTap: onTap,
         ),
       );
     }

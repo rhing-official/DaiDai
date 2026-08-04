@@ -56,11 +56,42 @@ Path pathFromPoints(List<Offset> points) {
   return path;
 }
 
+/// [from]から[to]までの1辺だけを、手描き風に少しだけジグザグに揺らした
+/// 開いた点列（[from]自体は含まない、[to]で終わる）にする。[seed]・
+/// [from]/[to]が同じなら常に同じ点列になる。
+///
+/// 隣り合う2つの箱の接する辺を同じ1本の線として共有するために
+/// 使う（[GekigaJointedTileList]・[GekigaJointedPair]参照、2026-08-04
+/// 追加。[handDrawnPolygonPath]は必ず閉多角形を返すため1辺だけを
+/// 取り出せず、そのロジックをここに抜き出した）。
+List<Offset> jitteredEdgePoints(
+  Offset from,
+  Offset to,
+  int seed, {
+  double jitter = 3,
+  int segments = 4,
+}) {
+  final random = math.Random(seed);
+  final points = <Offset>[];
+  for (var s = 1; s <= segments; s++) {
+    final t = s / segments;
+    final base = Offset.lerp(from, to, t)!;
+    points.add(
+      Offset(
+        base.dx + (random.nextDouble() - 0.5) * 2 * jitter,
+        base.dy + (random.nextDouble() - 0.5) * 2 * jitter,
+      ),
+    );
+  }
+  return points;
+}
+
 /// [vertices]で囲まれた多角形の各辺を、手描き風に少しだけジグザグに揺らした
 /// 閉じたPathを作る。[seed]が同じなら常に同じ形になる（メッセージID・
 /// ユーザーIDのhashCodeを渡すことで、再描画のたびに形がガタつかないように
 /// している）。（2026-07-30、chat_screen.dartの`_handDrawnPolygonPath`から
-/// 移動・公開化）
+/// 移動・公開化。2026-08-04、各辺の生成を[jitteredEdgePoints]に委譲する
+/// 形にリファクタ）
 Path handDrawnPolygonPath(
   List<Offset> vertices,
   int seed, {
@@ -68,25 +99,21 @@ Path handDrawnPolygonPath(
   int segmentsPerEdge = 4,
 }) {
   final random = math.Random(seed);
-  final points = <Offset>[];
-  for (var i = 0; i < vertices.length; i++) {
-    final from = vertices[i];
-    final to = vertices[(i + 1) % vertices.length];
-    for (var s = 1; s <= segmentsPerEdge; s++) {
-      final t = s / segmentsPerEdge;
-      final base = Offset.lerp(from, to, t)!;
-      points.add(
-        Offset(
-          base.dx + (random.nextDouble() - 0.5) * 2 * jitter,
-          base.dy + (random.nextDouble() - 0.5) * 2 * jitter,
-        ),
-      );
-    }
-  }
-  final path = Path()..moveTo(points.first.dx, points.first.dy);
-  for (final p in points.skip(1)) {
-    path.lineTo(p.dx, p.dy);
-  }
-  path.close();
-  return path;
+  final points = <Offset>[
+    for (var i = 0; i < vertices.length; i++)
+      ...jitteredEdgePoints(
+        vertices[i],
+        vertices[(i + 1) % vertices.length],
+        // Web（dart2js/DDC）ではintがJSのdoubleとして扱われ、32bit符号付き
+        // 整数の範囲を超えるnextIntの引数（元は`1 << 32`）で不正な値を返す
+        // 場合があり、それがOffsetに混入してPathが描画されなくなる不具合の
+        // 原因になっていた（2026-08-04発覚・修正。ネイティブ実行の
+        // `flutter test`では再現しないため見つかりにくい）。全プラットフォーム
+        // で安全な32bit符号付き整数の最大値に収める。
+        random.nextInt(0x7fffffff),
+        jitter: jitter,
+        segments: segmentsPerEdge,
+      ),
+  ];
+  return pathFromPoints(points);
 }

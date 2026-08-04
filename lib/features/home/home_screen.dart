@@ -7,9 +7,7 @@ import '../../models/app_ui_style.dart';
 import '../../models/app_user.dart';
 import '../../providers/app_ui_style_provider.dart';
 import '../../theme/gekiga/gekiga_colors.dart';
-import '../../widgets/gekiga/diagonal_accent.dart';
 import '../../widgets/gekiga/gekiga_badge.dart';
-import '../../widgets/gekiga/halftone_pattern.dart';
 import '../chat/talks_tab.dart';
 import '../profile/profile_tab.dart';
 import '../settings/settings_tab.dart';
@@ -138,7 +136,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     ];
 
     final isWide = MediaQuery.sizeOf(context).width >= _kWideLayoutBreakpoint;
-    final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
 
     final chips = [
       for (var i = 0; i < titles.length; i++)
@@ -213,21 +210,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       body: SafeArea(
         child: Stack(
           children: [
-            // 劇画スタイル時のみの背景装飾。両方ともIgnorePointer内蔵のため
-            // 下の既存ドラッグジェスチャー・タップ判定には一切影響しない
-            // （2026-07-30追加）。
-            if (isGekiga) ...[
-              const HalftoneBackground(
-                color: GekigaColors.shade,
-                spacing: 16,
-                fadeDirection: Alignment.bottomRight,
-              ),
-              const DiagonalAccent(
-                color: GekigaColors.shade,
-                thickness: 0.5,
-                angle: -0.4,
-              ),
-            ],
+            // 劇画スタイル時のハーフトーン柄・ダイアゴナルアクセントの背景装飾
+            // （2026-07-30追加）は、語らいタブ等で中途半端に模様が透けて見える
+            // 見た目が良くないとの指摘を受け廃止した（2026-08-04）。背景は
+            // テーマの`scaffoldBackgroundColor`（`GekigaColors.background`）
+            // による単色の塗り潰しのみにする。
             content,
             if (isWide)
               Positioned(
@@ -324,9 +311,14 @@ class _NavChip extends ConsumerWidget {
         ? (vertical ? const Offset(0.35, 0) : const Offset(0, -0.35))
         : Offset.zero;
 
+    // 劇画スタイルは他のメニューチップ（GekigaMenuTile/GekigaPanelBox）と
+    // 同じ「選択中=白地黒字、非選択中=黒地白字」の規則に統一する
+    // （2026-08-04変更。以前は選択中のみアクセントカラー塗りのバッジだったが、
+    // アクセントカラーは劇画UI選択中は変更不可にしたため、この画面だけ
+    // 固定色になったアクセントカラーが残るのは一貫しない）。
     final chip = isGekiga
         ? Material(
-            color: selected ? Colors.transparent : Colors.black,
+            color: Colors.transparent,
             shape: const RoundedRectangleBorder(
               borderRadius: BorderRadius.zero,
             ),
@@ -335,13 +327,14 @@ class _NavChip extends ConsumerWidget {
               child: SizedBox(
                 width: _HomeScreenState._chipSize,
                 height: _HomeScreenState._chipSize,
-                child: selected
-                    ? GekigaBadgeShape(
-                        color: colorScheme.primary,
-                        seed: label.hashCode,
-                        child: Icon(icon, color: Colors.white),
-                      )
-                    : Icon(icon, color: Colors.white70),
+                child: GekigaBadgeShape(
+                  color: selected ? GekigaColors.onPanel : GekigaColors.panel,
+                  seed: label.hashCode,
+                  child: Icon(
+                    icon,
+                    color: selected ? GekigaColors.panel : GekigaColors.onPanel,
+                  ),
+                ),
               ),
             ),
           )

@@ -128,12 +128,13 @@ class FirestoreUserRepository implements UserRepository {
     FirebaseFirestore? firestore,
     FirebaseStorage? storage,
     FirebaseFunctions? functions,
-  })  : _firestore = firestore ?? FirebaseFirestore.instance,
-        _storage = storage ?? FirebaseStorage.instance,
-        // Cloud Functions（functions/src/index.ts）はasia-northeast1に
-        // デプロイしているため、呼び出し側もリージョンを明示する。
-        _functions =
-            functions ?? FirebaseFunctions.instanceFor(region: 'asia-northeast1');
+  }) : _firestore = firestore ?? FirebaseFirestore.instance,
+       _storage = storage ?? FirebaseStorage.instance,
+       // Cloud Functions（functions/src/index.ts）はasia-northeast1に
+       // デプロイしているため、呼び出し側もリージョンを明示する。
+       _functions =
+           functions ??
+           FirebaseFunctions.instanceFor(region: 'asia-northeast1');
 
   final FirebaseFirestore _firestore;
   final FirebaseStorage _storage;
@@ -283,8 +284,7 @@ class FirestoreUserRepository implements UserRepository {
       final data = snapshot.data();
       if (data == null) return;
       final user = AppUser.fromJson(data);
-      final remaining =
-          user.profileCards.where((c) => c.id != cardId).toList();
+      final remaining = user.profileCards.where((c) => c.id != cardId).toList();
       final updates = <String, dynamic>{
         'profileCards': remaining.map((c) => c.toJson()).toList(),
       };
@@ -380,8 +380,9 @@ class FirestoreUserRepository implements UserRepository {
     // GIFはWebPに圧縮するとアニメーションが失われ1コマの静止画になって
     // しまうため、圧縮自体をスキップして元のバイトのままアップロードする。
     final isGif = isGifBytes(bytes);
-    final compressed =
-        isGif ? null : await _tryCompressToWebp(bytes, folder: folder);
+    final compressed = isGif
+        ? null
+        : await _tryCompressToWebp(bytes, folder: folder);
     final String extension;
     final String contentType;
     if (isGif) {
@@ -391,8 +392,9 @@ class FirestoreUserRepository implements UserRepository {
       extension = 'webp';
       contentType = 'image/webp';
     } else {
-      extension = 'jpg';
-      contentType = 'image/jpeg';
+      final format = rawUploadFormatFor(bytes);
+      extension = format.extension;
+      contentType = format.contentType;
     }
     final path = 'profileMaterials/$userId/$folder/$id.$extension';
     final ref = _storage.ref(path);
