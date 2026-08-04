@@ -6,23 +6,41 @@ import '../app_theme_extras.dart';
 import 'gekiga_colors.dart';
 
 /// 劇画UIスタイル用のThemeData。simpleスタイル（[AppTheme]）と異なり、
-/// アクセントカラーは背景・パネル等の主要色には使わず、FABなどごく一部の
-/// 強調要素だけに残す（身だしなみの「イメージカラー」がチャットのバッジ
-/// 塗りに残る既存方針をアプリ全体に拡張したもの）。
+/// アクセントカラーは一切使わず、背景（赤）以外は全て黒・白のモノクロで
+/// 統一する（2026-08-04変更。以前はFABなど一部にアクセントカラーを残す
+/// 方針だったが、ユーザー指摘により完全無効化した。身だしなみの
+/// 「イメージカラー」はこれとは別の機能でチャットバッジ塗りに引き続き残る）。
 /// themeMode（ライト/ダーク）に関わらず常に同じ見た目にするため、
 /// light/darkの2関数を分けず単一のThemeDataを返す（2026-07-30新規）。
 class GekigaTheme {
   GekigaTheme._();
 
-  static ThemeData build(Color accentColor) {
-    final colorScheme = const ColorScheme.dark().copyWith(
-      surface: GekigaColors.background,
-      onSurface: GekigaColors.onPanel,
-      primary: accentColor,
-      onPrimary: Colors.white,
-      secondary: GekigaColors.panel,
-      onSecondary: GekigaColors.onPanel,
-    );
+  static ThemeData build() {
+    // `ColorScheme.dark()`をそのまま土台にすると、ここで明示的に
+    // 上書きしていないトークン（primaryContainer・tertiary・
+    // surfaceContainerHighest・outline等）にMaterial既定のダークテーマ色
+    // （紫系）が残ってしまい、「背景以外は全てモノクロに」という要件を
+    // 満たせない（リアクションチップの塗り色等で実際に漏れていた）。
+    // 彩度ゼロのグレーをseedにした`ColorScheme.fromSeed`を土台にすることで、
+    // 明示的に上書きしないトークンも含めて無彩色のグレー階調に揃える。
+    final colorScheme =
+        ColorScheme.fromSeed(
+          seedColor: Colors.grey,
+          brightness: Brightness.dark,
+        ).copyWith(
+          surface: GekigaColors.background,
+          onSurface: GekigaColors.onPanel,
+          primary: GekigaColors.onPanel,
+          onPrimary: GekigaColors.panel,
+          secondary: GekigaColors.panel,
+          onSecondary: GekigaColors.onPanel,
+          // `onSurfaceVariant`/`outline`/`outlineVariant`はfromSeedの既定だと
+          // 中間グレーになり、説明文・仕切り線が灰色に見えてしまっていた
+          // （2026-08-04発覚・修正）。他の劇画UI要素と同じ白系に統一する。
+          onSurfaceVariant: GekigaColors.onPanel,
+          outline: GekigaColors.onPanel,
+          outlineVariant: GekigaColors.onPanel.withValues(alpha: 0.24),
+        );
 
     // 本文はCJK文字幅の推定崩れ（app_theme.dartのコメント参照）を避ける
     // ため既定のシステムフォントのままにし、太字ラテン体フォント（Anton、
@@ -33,9 +51,9 @@ class GekigaTheme {
     // （当てても結局グリフが無くシステムフォントへフォールバックする
     // だけで、太字＋字間調整の方が素直に劇画らしさを出せるため）。
     final baseText = ThemeData.dark().textTheme.apply(
-          bodyColor: GekigaColors.onPanel,
-          displayColor: GekigaColors.onPanel,
-        );
+      bodyColor: GekigaColors.onPanel,
+      displayColor: GekigaColors.onPanel,
+    );
     final displayStyle = GoogleFonts.anton();
     final textTheme = baseText.copyWith(
       displayLarge: baseText.displayLarge?.merge(displayStyle),
@@ -78,16 +96,35 @@ class GekigaTheme {
           foregroundColor: GekigaColors.onPanel,
           elevation: 0,
           minimumSize: const Size.fromHeight(52),
-          shape: const RoundedRectangleBorder(
-            borderRadius: BorderRadius.zero,
-          ),
+          shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
           textStyle: baseText.labelLarge?.copyWith(fontWeight: FontWeight.bold),
         ),
       ),
-      floatingActionButtonTheme: FloatingActionButtonThemeData(
-        backgroundColor: accentColor,
-        foregroundColor: Colors.white,
-        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+      // Material3既定のFilledButton/OutlinedButtonは角丸＋ColorScheme由来の
+      // 色が残るため、elevatedButtonThemeと同じ黒地白文字・角丸なしに揃える
+      // （2026-08-04追加。ダイアログの保存/削除ボタン等がここに未対応だと
+      // モノクロ化が徹底されない）。
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          backgroundColor: GekigaColors.panel,
+          foregroundColor: GekigaColors.onPanel,
+          elevation: 0,
+          shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+          textStyle: baseText.labelLarge?.copyWith(fontWeight: FontWeight.bold),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: GekigaColors.onPanel,
+          side: BorderSide(color: GekigaColors.onPanel),
+          shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+          textStyle: baseText.labelLarge?.copyWith(fontWeight: FontWeight.bold),
+        ),
+      ),
+      floatingActionButtonTheme: const FloatingActionButtonThemeData(
+        backgroundColor: GekigaColors.panel,
+        foregroundColor: GekigaColors.onPanel,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
       ),
       inputDecorationTheme: const InputDecorationTheme(
         filled: true,

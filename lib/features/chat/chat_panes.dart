@@ -4,18 +4,21 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/strings.dart';
 import '../../l10n/vocabulary.dart';
+import '../../models/app_ui_style.dart';
 import '../../models/app_user.dart';
 import '../../models/conversation_prefs.dart';
 import '../../models/direct_message.dart';
 import '../../models/dm_room.dart';
 import '../../models/group.dart';
 import '../../models/group_role.dart';
+import '../../providers/app_ui_style_provider.dart';
 import '../../providers/block_providers.dart';
 import '../../providers/conversation_prefs_providers.dart';
 import '../../providers/repository_providers.dart';
 import '../../repositories/group_repository.dart';
 import '../../router/app_router.dart';
 import '../../utils/group_permissions.dart';
+import '../../widgets/gekiga/gekiga_icon_badge.dart';
 import 'chat_screen.dart';
 import 'conversation_profile_card_dialog.dart';
 import 'group_delete_dialog.dart';
@@ -576,9 +579,12 @@ class _DmMenuButton extends ConsumerWidget {
         ref.watch(conversationPrefsProvider(currentUser.userId)).value ??
         const <String, ConversationPrefs>{};
     final muted = prefs[dm.dmId]?.notificationsMuted ?? false;
+    final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
 
     return PopupMenuButton<_DmMenuAction>(
-      icon: const Icon(Icons.menu),
+      icon: isGekiga
+          ? const GekigaIconBadge(icon: Icons.menu, size: 36)
+          : const Icon(Icons.menu),
       position: PopupMenuPosition.under,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       onSelected: (action) async {
@@ -1175,10 +1181,13 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
         false;
     final roomReadReceiptsEnabled =
         widget.currentRoom?.readReceiptsEnabledOverride ?? readReceiptsEnabled;
+    final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
 
     return PopupMenuButton<_GroupMenuAction>(
       key: _buttonKey,
-      icon: const Icon(Icons.menu),
+      icon: isGekiga
+          ? const GekigaIconBadge(icon: Icons.menu, size: 36)
+          : const Icon(Icons.menu),
       position: PopupMenuPosition.under,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       onSelected: (action) async {

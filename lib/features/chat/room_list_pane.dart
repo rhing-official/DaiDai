@@ -113,12 +113,26 @@ class RoomListPane extends ConsumerWidget {
             child: Row(
               children: [
                 Expanded(
-                  child: Text(
-                    conversationName,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
+                  child: isGekiga
+                      ? GekigaJointedTileList(
+                          seeds: [conversationName.hashCode],
+                          selectedFlags: const [false],
+                          children: [
+                            GekigaTileContent(
+                              title: Text(
+                                conversationName,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        )
+                      : Text(
+                          conversationName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
                 ),
                 if (onOpenGroupSettings != null)
                   isGekiga
