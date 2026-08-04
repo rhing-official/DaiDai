@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-import '../../models/font_design.dart';
 import '../app_theme.dart';
 import '../app_theme_extras.dart';
 import 'gekiga_colors.dart';
-import 'gekiga_fonts.dart';
 
 /// 劇画UIスタイル用のThemeData。simpleスタイル（[AppTheme]）と異なり、
 /// アクセントカラーは背景・パネル等の主要色には使わず、FABなどごく一部の
@@ -16,7 +14,7 @@ import 'gekiga_fonts.dart';
 class GekigaTheme {
   GekigaTheme._();
 
-  static ThemeData build(Color accentColor, FontDesign fontDesign) {
+  static ThemeData build(Color accentColor) {
     final colorScheme = const ColorScheme.dark().copyWith(
       surface: GekigaColors.background,
       onSurface: GekigaColors.onPanel,
@@ -30,28 +28,19 @@ class GekigaTheme {
     // ため既定のシステムフォントのままにし、太字ラテン体フォント（Anton、
     // 日本語グリフ非対応）はdisplayLarge/Medium/Smallという、このアプリ
     // では現状ほぼ使われていない「英数字主体の大きな見出し・ロゴ・
-    // カウンター表示」向けの置き場所だけに限定して当てる（常時適用）。
+    // カウンター表示」向けの置き場所だけに限定して当てる。AppBarタイトルや
+    // 設定の見出しラベルなど日本語が主体のテキストには適用しない
+    // （当てても結局グリフが無くシステムフォントへフォールバックする
+    // だけで、太字＋字間調整の方が素直に劇画らしさを出せるため）。
     final baseText = ThemeData.dark().textTheme.apply(
-      bodyColor: GekigaColors.onPanel,
-      displayColor: GekigaColors.onPanel,
-    );
+          bodyColor: GekigaColors.onPanel,
+          displayColor: GekigaColors.onPanel,
+        );
     final displayStyle = GoogleFonts.anton();
-    // フォントデザイン設定で「劇画」を選んだ場合のみ、見出し・メニュー系の
-    // TextTheme（タイトル・ボタン文字）にも劇画フォントを当てる
-    // （こちらもAnton同様CJKグリフを持たないため、日本語表示時は結局
-    // システムフォントへフォールバックするだけになるが、ユーザーが
-    // 明示的にオプトインした結果なので許容する。2026-08-03追加）。
-    final menuStyle = fontDesign == FontDesign.gekiga
-        ? const TextStyle(fontFamily: GekigaFonts.menuFontFamily)
-        : null;
     final textTheme = baseText.copyWith(
       displayLarge: baseText.displayLarge?.merge(displayStyle),
       displayMedium: baseText.displayMedium?.merge(displayStyle),
       displaySmall: baseText.displaySmall?.merge(displayStyle),
-      titleLarge: baseText.titleLarge?.merge(menuStyle),
-      titleMedium: baseText.titleMedium?.merge(menuStyle),
-      titleSmall: baseText.titleSmall?.merge(menuStyle),
-      labelLarge: baseText.labelLarge?.merge(menuStyle),
     );
 
     return ThemeData(
@@ -74,7 +63,7 @@ class GekigaTheme {
         foregroundColor: GekigaColors.onPanel,
         elevation: 0,
         centerTitle: false,
-        titleTextStyle: textTheme.titleLarge?.copyWith(
+        titleTextStyle: baseText.titleLarge?.copyWith(
           fontWeight: FontWeight.bold,
         ),
       ),
@@ -89,10 +78,10 @@ class GekigaTheme {
           foregroundColor: GekigaColors.onPanel,
           elevation: 0,
           minimumSize: const Size.fromHeight(52),
-          shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
-          textStyle: textTheme.labelLarge?.copyWith(
-            fontWeight: FontWeight.bold,
+          shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.zero,
           ),
+          textStyle: baseText.labelLarge?.copyWith(fontWeight: FontWeight.bold),
         ),
       ),
       floatingActionButtonTheme: FloatingActionButtonThemeData(

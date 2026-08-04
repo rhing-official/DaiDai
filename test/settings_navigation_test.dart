@@ -2,14 +2,12 @@ import 'package:daidai/features/settings/settings_tab.dart';
 import 'package:daidai/l10n/app_locale.dart';
 import 'package:daidai/l10n/terminology_style.dart';
 import 'package:daidai/models/app_ui_style.dart';
-import 'package:daidai/models/font_design.dart';
 import 'package:daidai/models/app_user.dart';
 import 'package:daidai/models/chat_layout_style.dart';
 import 'package:daidai/models/message_time_format.dart';
 import 'package:daidai/providers/accent_color_provider.dart';
 import 'package:daidai/providers/app_locale_provider.dart';
 import 'package:daidai/providers/app_ui_style_provider.dart';
-import 'package:daidai/providers/font_design_provider.dart';
 import 'package:daidai/providers/chat_layout_style_provider.dart';
 import 'package:daidai/models/send_key_mode.dart';
 import 'package:daidai/providers/message_time_format_provider.dart';
@@ -45,8 +43,12 @@ Future<void> _pumpSettingsTab(WidgetTester tester) async {
         initialTerminologyStyleProvider.overrideWithValue(
           TerminologyStyle.worldview,
         ),
-        initialAccentColorProvider.overrideWithValue(const Color(0xFFF08300)),
-        initialSendKeyModeProvider.overrideWithValue(SendKeyMode.enterToSend),
+        initialAccentColorProvider.overrideWithValue(
+          const Color(0xFFF08300),
+        ),
+        initialSendKeyModeProvider.overrideWithValue(
+          SendKeyMode.enterToSend,
+        ),
         initialMessageTimeFormatProvider.overrideWithValue(
           MessageTimeFormat.h24,
         ),
@@ -55,7 +57,6 @@ Future<void> _pumpSettingsTab(WidgetTester tester) async {
         ),
         initialAppThemeModeProvider.overrideWithValue(ThemeMode.system),
         initialAppUiStyleProvider.overrideWithValue(AppUiStyle.simple),
-        initialFontDesignProvider.overrideWithValue(FontDesign.standard),
       ],
       child: const MaterialApp(
         home: Scaffold(
@@ -85,8 +86,12 @@ Future<void> _pumpSettingsTabNarrow(WidgetTester tester) async {
         initialTerminologyStyleProvider.overrideWithValue(
           TerminologyStyle.worldview,
         ),
-        initialAccentColorProvider.overrideWithValue(const Color(0xFFF08300)),
-        initialSendKeyModeProvider.overrideWithValue(SendKeyMode.enterToSend),
+        initialAccentColorProvider.overrideWithValue(
+          const Color(0xFFF08300),
+        ),
+        initialSendKeyModeProvider.overrideWithValue(
+          SendKeyMode.enterToSend,
+        ),
         initialMessageTimeFormatProvider.overrideWithValue(
           MessageTimeFormat.h24,
         ),
@@ -95,7 +100,6 @@ Future<void> _pumpSettingsTabNarrow(WidgetTester tester) async {
         ),
         initialAppThemeModeProvider.overrideWithValue(ThemeMode.system),
         initialAppUiStyleProvider.overrideWithValue(AppUiStyle.simple),
-        initialFontDesignProvider.overrideWithValue(FontDesign.standard),
       ],
       child: const MaterialApp(
         home: Scaffold(
@@ -147,12 +151,7 @@ void main() {
   testWidgets('アプリケーションページには色・UI・文字・言語セクションが一度に表示される（内側ListViewがクラッシュしない）', (
     tester,
   ) async {
-    // 広い画面の2ペインは左のサイドバーと右のページが同時にScrollableとなり、
-    // scrollUntilVisibleの既定の「Scrollableを1つだけ探す」挙動と衝突する
-    // ため、狭い画面のドリルダウンで検証する（2026-08-03、フォントデザイン
-    // 設定追加でページが縦に伸び、表示言語セクションが初期表示のビューポート
-    // 外になったことに伴う変更）。
-    await _pumpSettingsTabNarrow(tester);
+    await _pumpSettingsTab(tester);
 
     await tester.tap(find.text('アプリケーション'));
     await tester.pumpAndSettle();
@@ -160,42 +159,15 @@ void main() {
     expect(find.text('アクセントカラー'), findsOneWidget);
     expect(find.text('プリセット'), findsOneWidget);
     expect(find.text('文字'), findsOneWidget);
-
-    // アクセントカラーのカラーコード入力欄（TextField）自身も横スクロール用の
-    // Scrollableを持つため、既定の「Scrollableを1つだけ探す」挙動と衝突する。
-    // 縦方向（ページ本体）のScrollableだけを明示的に指定する。
-    await tester.scrollUntilVisible(
-      find.text('表示言語'),
-      200,
-      scrollable: find.byWidgetPredicate(
-        (widget) =>
-            widget is Scrollable && widget.axisDirection == AxisDirection.down,
-      ),
-    );
-    await tester.pumpAndSettle();
     expect(find.text('表示言語'), findsOneWidget);
     expect(find.text('世界観重視'), findsOneWidget);
     expect(find.text('利便性重視'), findsOneWidget);
   });
 
   testWidgets('アプリケーションページで用語スタイルを切り替えられる', (tester) async {
-    // 理由は上のテストと同じ（2026-08-03）。
-    await _pumpSettingsTabNarrow(tester);
+    await _pumpSettingsTab(tester);
 
     await tester.tap(find.text('アプリケーション'));
-    await tester.pumpAndSettle();
-
-    // ページ全体が縦に長く、タップ対象が初期表示のビューポート外にあることがある。
-    // アクセントカラーのカラーコード入力欄（TextField）自身も横スクロール用の
-    // Scrollableを持つため、縦方向（ページ本体）のScrollableだけを指定する。
-    await tester.scrollUntilVisible(
-      find.text('利便性重視'),
-      200,
-      scrollable: find.byWidgetPredicate(
-        (widget) =>
-            widget is Scrollable && widget.axisDirection == AxisDirection.down,
-      ),
-    );
     await tester.pumpAndSettle();
 
     final container = ProviderScope.containerOf(
@@ -206,6 +178,9 @@ void main() {
       TerminologyStyle.worldview,
     );
 
+    // ページ全体が縦に長く、タップ対象が初期表示のビューポート外にあることがある。
+    await tester.ensureVisible(find.text('利便性重視'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('利便性重視'));
     await tester.pumpAndSettle();
 
@@ -228,68 +203,59 @@ void main() {
     expect(find.text('アクセントカラー'), findsOneWidget);
 
     // 左スワイプで次のカテゴリ（語らい）へ。
-    await tester.fling(
-      find.byType(SwipeBackDetector),
-      const Offset(-300, 0),
-      1000,
-    );
+    await tester.fling(find.byType(SwipeBackDetector), const Offset(-300, 0), 1000);
     await tester.pumpAndSettle();
     expect(find.text('アクセントカラー'), findsNothing);
     expect(find.text('ブロックしたユーザー'), findsOneWidget);
 
     // さらに左スワイプで次のカテゴリ（通知）へ。
-    await tester.fling(
-      find.byType(SwipeBackDetector),
-      const Offset(-300, 0),
-      1000,
-    );
+    await tester.fling(find.byType(SwipeBackDetector), const Offset(-300, 0), 1000);
     await tester.pumpAndSettle();
     expect(find.text('ブロックしたユーザー'), findsNothing);
     expect(find.text('準備中'), findsWidgets);
 
     // 右スワイプすると、隣接カテゴリではなく常にカテゴリ一覧へ戻る。
-    await tester.fling(
-      find.byType(SwipeBackDetector),
-      const Offset(300, 0),
-      1000,
-    );
+    await tester.fling(find.byType(SwipeBackDetector), const Offset(300, 0), 1000);
     await tester.pumpAndSettle();
     expect(find.byType(SwipeBackDetector), findsNothing);
     expect(find.text('アプリケーション'), findsOneWidget); // 一覧のカテゴリ名として表示される
   });
 
-  testWidgets('語らいページにはメッセージの表示・送信キー設定も含まれる'
-      '（2026-07-30、アプリケーション/入力カテゴリからの統合）', (tester) async {
-    // 狭い画面のドリルダウンにする（広い画面の2ペインは左のサイドバーと
-    // 右のページが同時にScrollableとなり、scrollUntilVisibleの既定の
-    // 「Scrollableを1つだけ探す」挙動と衝突するため）。
-    await _pumpSettingsTabNarrow(tester);
+  testWidgets(
+    '語らいページにはメッセージの表示・送信キー設定も含まれる'
+    '（2026-07-30、アプリケーション/入力カテゴリからの統合）',
+    (tester) async {
+      // 狭い画面のドリルダウンにする（広い画面の2ペインは左のサイドバーと
+      // 右のページが同時にScrollableとなり、scrollUntilVisibleの既定の
+      // 「Scrollableを1つだけ探す」挙動と衝突するため）。
+      await _pumpSettingsTabNarrow(tester);
 
-    await tester.tap(find.text('語らい'));
-    await tester.pumpAndSettle();
+      await tester.tap(find.text('語らい'));
+      await tester.pumpAndSettle();
 
-    // ブロックしたユーザー・プロフィールカードの各セクションは、テスト環境に
-    // Firebaseが初期化されていないためエラー表示になるが、その下に続く
-    // メッセージの表示・送信キー設定のセクション自体はそれとは独立して
-    // 描画される。ページが縦に長くSliverListの遅延構築で最初は
-    // マウントされていないため、scrollUntilVisibleでスクロールしてから探す。
-    await tester.scrollUntilVisible(find.text('メッセージの表示'), 300);
-    expect(find.text('メッセージの表示'), findsOneWidget);
-    await tester.scrollUntilVisible(find.text('メッセージの送信キー'), 300);
-    expect(find.text('メッセージの送信キー'), findsOneWidget);
+      // ブロックしたユーザー・プロフィールカードの各セクションは、テスト環境に
+      // Firebaseが初期化されていないためエラー表示になるが、その下に続く
+      // メッセージの表示・送信キー設定のセクション自体はそれとは独立して
+      // 描画される。ページが縦に長くSliverListの遅延構築で最初は
+      // マウントされていないため、scrollUntilVisibleでスクロールしてから探す。
+      await tester.scrollUntilVisible(find.text('メッセージの表示'), 300);
+      expect(find.text('メッセージの表示'), findsOneWidget);
+      await tester.scrollUntilVisible(find.text('メッセージの送信キー'), 300);
+      expect(find.text('メッセージの送信キー'), findsOneWidget);
 
-    // 一覧へ戻り（右スワイプ）、アプリケーションページには両方とも
-    // もう出てこないことを確認する（見つからない場合の判定はスクロール
-    // 位置に依存しないため、ここではscrollUntilVisible不要）。
-    await tester.fling(
-      find.byType(SwipeBackDetector),
-      const Offset(300, 0),
-      1000,
-    );
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('アプリケーション'));
-    await tester.pumpAndSettle();
-    expect(find.text('メッセージの表示'), findsNothing);
-    expect(find.text('メッセージの送信キー'), findsNothing);
-  });
+      // 一覧へ戻り（右スワイプ）、アプリケーションページには両方とも
+      // もう出てこないことを確認する（見つからない場合の判定はスクロール
+      // 位置に依存しないため、ここではscrollUntilVisible不要）。
+      await tester.fling(
+        find.byType(SwipeBackDetector),
+        const Offset(300, 0),
+        1000,
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('アプリケーション'));
+      await tester.pumpAndSettle();
+      expect(find.text('メッセージの表示'), findsNothing);
+      expect(find.text('メッセージの送信キー'), findsNothing);
+    },
+  );
 }
