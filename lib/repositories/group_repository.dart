@@ -905,8 +905,9 @@ class FirestoreGroupRepository implements GroupRepository {
       extension = 'webp';
       contentType = 'image/webp';
     } else {
-      extension = 'jpg';
-      contentType = 'image/jpeg';
+      final format = rawUploadFormatFor(bytes);
+      extension = format.extension;
+      contentType = format.contentType;
     }
     final path = 'groupIcons/$groupId/$id.$extension';
     final ref = _storage.ref(path);
@@ -947,8 +948,9 @@ class FirestoreGroupRepository implements GroupRepository {
       extension = 'webp';
       contentType = 'image/webp';
     } else {
-      extension = 'jpg';
-      contentType = 'image/jpeg';
+      final format = rawUploadFormatFor(bytes);
+      extension = format.extension;
+      contentType = format.contentType;
     }
     final path = 'groupBackgrounds/$groupId/$id.$extension';
     final ref = _storage.ref(path);

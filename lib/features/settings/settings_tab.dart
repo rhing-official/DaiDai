@@ -200,7 +200,7 @@ List<_SettingsCategory> _categories(
 }
 
 /// カテゴリ一覧（サイドバー、または狭い画面での一覧画面）。
-class _CategoryList extends StatelessWidget {
+class _CategoryList extends ConsumerWidget {
   const _CategoryList({
     super.key,
     required this.categories,
@@ -213,7 +213,28 @@ class _CategoryList extends StatelessWidget {
   final ValueChanged<_SettingsCategory> onSelect;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (ref.watch(appUiStyleProvider) == AppUiStyle.gekiga) {
+      return SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        child: GekigaJointedTileList(
+          seeds: [for (final category in categories) category.title.hashCode],
+          selectedFlags: [
+            for (final category in categories) category.id == selectedId,
+          ],
+          children: [
+            for (final category in categories)
+              _FolderTile(
+                icon: category.icon,
+                title: category.title,
+                selected: category.id == selectedId,
+                trailingChevron: false,
+                onTap: () => onSelect(category),
+              ),
+          ],
+        ),
+      );
+    }
     return ListView(
       padding: const EdgeInsets.symmetric(horizontal: 8),
       children: [
@@ -254,16 +275,14 @@ class _FolderTile extends ConsumerWidget {
         : null;
 
     if (isGekiga) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4),
-        child: GekigaMenuTile(
-          seed: title.hashCode,
-          selected: selected,
-          leading: Icon(icon),
-          title: Text(title),
-          trailing: trailingWidget,
-          onTap: onTap,
-        ),
+      // 外枠は呼び出し側（`_CategoryList`の`GekigaJointedTileList`）が
+      // まとめて描くため、ここでは内容だけを返す（2026-08-04変更）。
+      return GekigaTileContent(
+        selected: selected,
+        leading: Icon(icon),
+        title: Text(title),
+        trailing: trailingWidget,
+        onTap: onTap,
       );
     }
 
@@ -776,22 +795,24 @@ class _DesignFolderState extends ConsumerState<_DesignFolder> {
     ];
 
     final appearanceControl = isGekiga
-        ? Column(
+        ? GekigaJointedTileList(
+            seeds: [
+              for (final option in appearanceOptions) option.mode.hashCode,
+            ],
+            selectedFlags: [
+              for (final option in appearanceOptions) themeMode == option.mode,
+            ],
             children: [
               for (final option in appearanceOptions)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  child: GekigaMenuTile(
-                    seed: option.mode.hashCode,
-                    selected: themeMode == option.mode,
-                    leading: Icon(
-                      themeMode == option.mode
-                          ? Icons.radio_button_checked
-                          : Icons.radio_button_unchecked,
-                    ),
-                    title: Text(option.label),
-                    onTap: () => selectThemeMode(option.mode),
+                GekigaTileContent(
+                  selected: themeMode == option.mode,
+                  leading: Icon(
+                    themeMode == option.mode
+                        ? Icons.radio_button_checked
+                        : Icons.radio_button_unchecked,
                   ),
+                  title: Text(option.label),
+                  onTap: () => selectThemeMode(option.mode),
                 ),
             ],
           )
@@ -872,52 +893,78 @@ class _DesignFolderState extends ConsumerState<_DesignFolder> {
             style: const TextStyle(fontWeight: FontWeight.bold),
           ),
         ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 48,
-                height: 48,
-                margin: const EdgeInsets.only(top: 4),
-                decoration: BoxDecoration(
-                  color: accentColor,
-                  shape: BoxShape.circle,
-                  border: Border.all(color: Colors.black12),
-                ),
+        // 劇画UI選択中はアクセントカラーを変更不可にする（グレーアウト＋
+        // 操作無効化）。GekigaThemeはFAB等ごく一部にしか使わない固定寄りの
+        // 配色のため、他の劇画パーツと同じ黒/白基調に統一する方針
+        // （2026-08-04追加）。
+        if (isGekiga)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+            child: Text(
+              widget.strings.settingsAccentColorGekigaLockedHint,
+              style: TextStyle(
+                fontSize: 12,
+                color: Theme.of(context).hintColor,
               ),
-              const SizedBox(width: 16),
-              Expanded(child: accentColorField),
-            ],
+            ),
           ),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                widget.strings.settingsColorPresets,
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 13,
+        Opacity(
+          opacity: isGekiga ? 0.4 : 1.0,
+          child: IgnorePointer(
+            ignoring: isGekiga,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: 48,
+                        height: 48,
+                        margin: const EdgeInsets.only(top: 4),
+                        decoration: BoxDecoration(
+                          color: accentColor,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.black12),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(child: accentColorField),
+                    ],
+                  ),
                 ),
-              ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 12,
-                runSpacing: 12,
-                children: [
-                  for (final hex in _kAccentColorPresets)
-                    _PresetColorSwatch(
-                      hex: hex,
-                      selected: tryParseHexColor(hex) == accentColor,
-                      onTap: () => _applyPreset(hex),
-                    ),
-                ],
-              ),
-            ],
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        widget.strings.settingsColorPresets,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 12,
+                        runSpacing: 12,
+                        children: [
+                          for (final hex in _kAccentColorPresets)
+                            _PresetColorSwatch(
+                              hex: hex,
+                              selected: tryParseHexColor(hex) == accentColor,
+                              onTap: () => _applyPreset(hex),
+                            ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ],
@@ -984,22 +1031,22 @@ class _LanguageFolder extends ConsumerWidget {
         ref.read(terminologyStyleProvider.notifier).setStyle(style);
 
     final localeControl = isGekiga
-        ? Column(
+        ? GekigaJointedTileList(
+            seeds: [for (final locale in AppLocale.values) locale.hashCode],
+            selectedFlags: [
+              for (final locale in AppLocale.values) currentLocale == locale,
+            ],
             children: [
               for (final locale in AppLocale.values)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  child: GekigaMenuTile(
-                    seed: locale.hashCode,
-                    selected: currentLocale == locale,
-                    leading: Icon(
-                      currentLocale == locale
-                          ? Icons.radio_button_checked
-                          : Icons.radio_button_unchecked,
-                    ),
-                    title: Text(locale.label),
-                    onTap: () => selectLocale(locale),
+                GekigaTileContent(
+                  selected: currentLocale == locale,
+                  leading: Icon(
+                    currentLocale == locale
+                        ? Icons.radio_button_checked
+                        : Icons.radio_button_unchecked,
                   ),
+                  title: Text(locale.label),
+                  onTap: () => selectLocale(locale),
                 ),
             ],
           )
@@ -1025,22 +1072,25 @@ class _LanguageFolder extends ConsumerWidget {
         : strings.settingsTerminologyConvenience;
 
     final terminologyControl = isGekiga
-        ? Column(
+        ? GekigaJointedTileList(
+            seeds: [
+              for (final style in TerminologyStyle.values) style.hashCode,
+            ],
+            selectedFlags: [
+              for (final style in TerminologyStyle.values)
+                currentStyle == style,
+            ],
             children: [
               for (final style in TerminologyStyle.values)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  child: GekigaMenuTile(
-                    seed: style.hashCode,
-                    selected: currentStyle == style,
-                    leading: Icon(
-                      currentStyle == style
-                          ? Icons.radio_button_checked
-                          : Icons.radio_button_unchecked,
-                    ),
-                    title: Text(terminologyLabel(style)),
-                    onTap: () => selectTerminology(style),
+                GekigaTileContent(
+                  selected: currentStyle == style,
+                  leading: Icon(
+                    currentStyle == style
+                        ? Icons.radio_button_checked
+                        : Icons.radio_button_unchecked,
                   ),
+                  title: Text(terminologyLabel(style)),
+                  onTap: () => selectTerminology(style),
                 ),
             ],
           )
@@ -1114,37 +1164,31 @@ class _UiStyleFolder extends ConsumerWidget {
     // で表示する。選んだ瞬間に見た目が切り替わるので選択結果がそのまま
     // プレビューになる（2026-08-03、選択肢の見た目統一のため追加）。
     if (isGekiga) {
-      return Column(
+      return GekigaJointedTileList(
+        seeds: [AppUiStyle.simple.hashCode, AppUiStyle.gekiga.hashCode],
+        selectedFlags: [style == AppUiStyle.simple, style == AppUiStyle.gekiga],
         children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4),
-            child: GekigaMenuTile(
-              seed: AppUiStyle.simple.hashCode,
-              selected: style == AppUiStyle.simple,
-              leading: Icon(
-                style == AppUiStyle.simple
-                    ? Icons.radio_button_checked
-                    : Icons.radio_button_unchecked,
-              ),
-              title: Text(strings.settingsUiStyleSimpleLabel),
-              subtitle: Text(strings.settingsUiStyleSimpleDescription),
-              onTap: () => select(AppUiStyle.simple),
+          GekigaTileContent(
+            selected: style == AppUiStyle.simple,
+            leading: Icon(
+              style == AppUiStyle.simple
+                  ? Icons.radio_button_checked
+                  : Icons.radio_button_unchecked,
             ),
+            title: Text(strings.settingsUiStyleSimpleLabel),
+            subtitle: Text(strings.settingsUiStyleSimpleDescription),
+            onTap: () => select(AppUiStyle.simple),
           ),
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4),
-            child: GekigaMenuTile(
-              seed: AppUiStyle.gekiga.hashCode,
-              selected: style == AppUiStyle.gekiga,
-              leading: Icon(
-                style == AppUiStyle.gekiga
-                    ? Icons.radio_button_checked
-                    : Icons.radio_button_unchecked,
-              ),
-              title: Text(strings.settingsUiStyleGekigaLabel),
-              subtitle: Text(strings.settingsUiStyleGekigaDescription),
-              onTap: () => select(AppUiStyle.gekiga),
+          GekigaTileContent(
+            selected: style == AppUiStyle.gekiga,
+            leading: Icon(
+              style == AppUiStyle.gekiga
+                  ? Icons.radio_button_checked
+                  : Icons.radio_button_unchecked,
             ),
+            title: Text(strings.settingsUiStyleGekigaLabel),
+            subtitle: Text(strings.settingsUiStyleGekigaDescription),
+            onTap: () => select(AppUiStyle.gekiga),
           ),
         ],
       );
@@ -1200,23 +1244,23 @@ class _ChatLayoutFolder extends ConsumerWidget {
     ];
 
     final control = isGekiga
-        ? Column(
+        ? GekigaJointedTileList(
+            seeds: [for (final option in options) option.value.hashCode],
+            selectedFlags: [
+              for (final option in options) style == option.value,
+            ],
             children: [
               for (final option in options)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  child: GekigaMenuTile(
-                    seed: option.value.hashCode,
-                    selected: style == option.value,
-                    leading: Icon(
-                      style == option.value
-                          ? Icons.radio_button_checked
-                          : Icons.radio_button_unchecked,
-                    ),
-                    title: Text(option.title),
-                    subtitle: Text(option.subtitle),
-                    onTap: () => select(option.value),
+                GekigaTileContent(
+                  selected: style == option.value,
+                  leading: Icon(
+                    style == option.value
+                        ? Icons.radio_button_checked
+                        : Icons.radio_button_unchecked,
                   ),
+                  title: Text(option.title),
+                  subtitle: Text(option.subtitle),
+                  onTap: () => select(option.value),
                 ),
             ],
           )
@@ -1273,22 +1317,25 @@ class _TimeFormatFolder extends ConsumerWidget {
         : strings.settingsTimeFormat12h;
 
     final control = isGekiga
-        ? Column(
+        ? GekigaJointedTileList(
+            seeds: [
+              for (final format in MessageTimeFormat.values) format.hashCode,
+            ],
+            selectedFlags: [
+              for (final format in MessageTimeFormat.values)
+                currentFormat == format,
+            ],
             children: [
               for (final format in MessageTimeFormat.values)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  child: GekigaMenuTile(
-                    seed: format.hashCode,
-                    selected: currentFormat == format,
-                    leading: Icon(
-                      currentFormat == format
-                          ? Icons.radio_button_checked
-                          : Icons.radio_button_unchecked,
-                    ),
-                    title: Text(label(format)),
-                    onTap: () => select(format),
+                GekigaTileContent(
+                  selected: currentFormat == format,
+                  leading: Icon(
+                    currentFormat == format
+                        ? Icons.radio_button_checked
+                        : Icons.radio_button_unchecked,
                   ),
+                  title: Text(label(format)),
+                  onTap: () => select(format),
                 ),
             ],
           )
@@ -1478,23 +1525,21 @@ class _SendKeyFolder extends ConsumerWidget {
     ];
 
     final control = isGekiga
-        ? Column(
+        ? GekigaJointedTileList(
+            seeds: [for (final option in options) option.value.hashCode],
+            selectedFlags: [for (final option in options) mode == option.value],
             children: [
               for (final option in options)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  child: GekigaMenuTile(
-                    seed: option.value.hashCode,
-                    selected: mode == option.value,
-                    leading: Icon(
-                      mode == option.value
-                          ? Icons.radio_button_checked
-                          : Icons.radio_button_unchecked,
-                    ),
-                    title: Text(option.title),
-                    subtitle: Text(option.subtitle),
-                    onTap: () => select(option.value),
+                GekigaTileContent(
+                  selected: mode == option.value,
+                  leading: Icon(
+                    mode == option.value
+                        ? Icons.radio_button_checked
+                        : Icons.radio_button_unchecked,
                   ),
+                  title: Text(option.title),
+                  subtitle: Text(option.subtitle),
+                  onTap: () => select(option.value),
                 ),
             ],
           )
