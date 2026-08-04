@@ -103,11 +103,6 @@ class _FakeUserRepository implements UserRepository {
   }
 
   @override
-  Future<void> setImageColor(String userId, int? color) async {
-    throw UnimplementedError();
-  }
-
-  @override
   Future<ProfileMaterial> uploadIcon(String userId, Uint8List bytes) {
     throw UnimplementedError();
   }

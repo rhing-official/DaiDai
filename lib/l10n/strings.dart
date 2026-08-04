@@ -149,8 +149,6 @@ class Strings {
     required this.delete,
     required this.profileIconSection,
     required this.profileBackgroundSection,
-    required this.profileImageColorSection,
-    required this.profileImageColorInvalid,
     required this.profileNicknameHint,
     required this.profileAddNickname,
     required this.profileAddStatusMessage,
@@ -239,6 +237,7 @@ class Strings {
     required this.workshopConversationCardAddTooltip,
     required this.workshopConversationCardAddDialogTitle,
     required this.workshopConversationCardAddEmpty,
+    required this.workshopConversationCardSearchHint,
     required this.groupSettingsTooltip,
     required this.groupTransferOwnershipMenuItem,
     required this.groupTransferOwnershipConfirmTitle,
@@ -466,8 +465,6 @@ class Strings {
 
   final String profileIconSection;
   final String profileBackgroundSection;
-  final String profileImageColorSection;
-  final String profileImageColorInvalid;
 
   /// ニックネーム欄の説明文。用語（呼び名／ニックネーム）を差し込む。
   final String Function(String nicknameTerm) profileNicknameHint;
@@ -637,6 +634,9 @@ class Strings {
   /// 1件も無い場合に表示するメッセージ（SnackBar）。
   final String workshopConversationCardAddEmpty;
 
+  /// 上記ダイアログ内の、名前で絞り込む検索ボックスのヒント文言。
+  final String workshopConversationCardSearchHint;
+
   /// サイドバーの「広場自体の設定」アイコンのツールチップ。
   final String groupSettingsTooltip;
 
@@ -782,8 +782,7 @@ class Strings {
     settingsUiStyleSimpleLabel: 'シンプル',
     settingsUiStyleSimpleDescription: '現行の標準スタイル',
     settingsUiStyleGekigaLabel: '劇画',
-    settingsUiStyleGekigaDescription:
-        '手描き風の太いギザギザ線・モノクロの吹き出しになります。アイコンを囲む色は身だしなみの「イメージカラー」を使います',
+    settingsUiStyleGekigaDescription: '手描き風の太いギザギザ線・モノクロの吹き出しになります',
     settingsChatLayoutTitle: 'メッセージの表示',
     settingsChatLayoutSideBySide: '自分は右・相手は左',
     settingsChatLayoutSideBySideDescription:
@@ -896,8 +895,6 @@ class Strings {
     delete: '削除',
     profileIconSection: 'アイコン',
     profileBackgroundSection: '背景画像',
-    profileImageColorSection: 'イメージカラー',
-    profileImageColorInvalid: '「#RRGGBB」の形式で入力してください',
     profileNicknameHint: (term) => '友達には、Rhing IDの代わりにここで選んだ$termが表示されます。',
     profileAddNickname: (term) => '$termを追加',
     profileAddStatusMessage: (term) => '$termを追加',
@@ -996,6 +993,7 @@ class Strings {
     workshopConversationCardAddTooltip: '個別にカードを設定する語らいを追加',
     workshopConversationCardAddDialogTitle: 'カードを個別に設定する語らいを選ぶ',
     workshopConversationCardAddEmpty: '設定できる語らいがありません',
+    workshopConversationCardSearchHint: '名前で検索',
     groupSettingsTooltip: '広場自体の設定',
     groupTransferOwnershipMenuItem: '長を譲渡する',
     groupTransferOwnershipConfirmTitle: '長を譲渡しますか？',
@@ -1107,8 +1105,7 @@ class Strings {
     settingsUiStyleSimpleDescription: 'The current standard style',
     settingsUiStyleGekigaLabel: 'Gekiga',
     settingsUiStyleGekigaDescription:
-        'A hand-drawn, thick jagged-line, monochrome speech-bubble look. '
-        'The colour around icons uses your profile\'s "Image colour".',
+        'A hand-drawn, thick jagged-line, monochrome speech-bubble look.',
     settingsChatLayoutTitle: 'Message display',
     settingsChatLayoutSideBySide: 'You on the right, others on the left',
     settingsChatLayoutSideBySideDescription:
@@ -1239,8 +1236,6 @@ class Strings {
     delete: 'Delete',
     profileIconSection: 'Icons',
     profileBackgroundSection: 'Background images',
-    profileImageColorSection: 'Image colour',
-    profileImageColorInvalid: 'Please enter in the format "#RRGGBB"',
     profileNicknameHint: (_) =>
         "Friends see the nickname you've selected here instead of your Rhing ID.",
     profileAddNickname: (_) => 'Add a nickname',
@@ -1352,6 +1347,7 @@ class Strings {
     workshopConversationCardAddDialogTitle:
         'Choose a conversation to set a card for',
     workshopConversationCardAddEmpty: 'No conversations available to set',
+    workshopConversationCardSearchHint: 'Search by name',
     groupSettingsTooltip: 'Plaza settings',
     groupTransferOwnershipMenuItem: 'Transfer ownership',
     groupTransferOwnershipConfirmTitle: 'Transfer ownership?',

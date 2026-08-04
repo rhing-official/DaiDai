@@ -10,8 +10,10 @@ enum AccountStatus {
   active,
   pendingDeletion;
 
-  static AccountStatus fromName(String name) => AccountStatus.values
-      .firstWhere((s) => s.name == name, orElse: () => AccountStatus.active);
+  static AccountStatus fromName(String name) => AccountStatus.values.firstWhere(
+    (s) => s.name == name,
+    orElse: () => AccountStatus.active,
+  );
 }
 
 class AppUser {
@@ -25,7 +27,6 @@ class AppUser {
     this.nicknames = const [],
     this.snsLinks = const [],
     this.profileCards = const [],
-    this.imageColor,
     this.activeIconId,
     this.activeBackgroundImageId,
     this.activeStatusMessageId,
@@ -60,12 +61,6 @@ class AppUser {
   /// 和合で作成したプロフィールカード（最大[kMaxProfileCards]枚）。
   /// 蔵の素材を組み合わせて作る「見せ方のセット」。
   final List<ProfileCard> profileCards;
-
-  /// 蔵に登録するイメージカラー（0xRRGGBB、最大1件）。他の蔵素材と違い
-  /// 複数枠・アクティブ選択の概念を持たず、値そのものが1つだけ存在し
-  /// 登録した時点でそのまま適用される（2026-07-29追加。具体的な使い道は
-  /// 別途実装予定）。
-  final int? imageColor;
 
   /// 現在表示に使っている素材のid。未選択ならnull。
   final String? activeIconId;
@@ -119,7 +114,9 @@ class AppUser {
   /// [effectiveIcon]と同様、適用中のプロフィールカードのニックネームを優先する。
   Nickname? get effectiveNickname {
     final card = activeProfileCard;
-    return card != null ? _findNickname(nicknames, card.nicknameId) : activeNickname;
+    return card != null
+        ? _findNickname(nicknames, card.nicknameId)
+        : activeNickname;
   }
 
   /// [effectiveIcon]と同様、適用中のプロフィールカードのステメを優先する。
@@ -172,7 +169,9 @@ class AppUser {
   /// [effectiveNickname]の会話対応版。
   Nickname? effectiveNicknameFor(String? conversationId) {
     final card = profileCardFor(conversationId);
-    return card != null ? _findNickname(nicknames, card.nicknameId) : activeNickname;
+    return card != null
+        ? _findNickname(nicknames, card.nicknameId)
+        : activeNickname;
   }
 
   /// [effectiveStatusMessage]の会話対応版。
@@ -246,8 +245,6 @@ class AppUser {
     List<Nickname>? nicknames,
     List<SnsLink>? snsLinks,
     List<ProfileCard>? profileCards,
-    int? imageColor,
-    bool clearImageColor = false,
     String? activeIconId,
     String? activeBackgroundImageId,
     String? activeStatusMessageId,
@@ -266,7 +263,6 @@ class AppUser {
       nicknames: nicknames ?? this.nicknames,
       snsLinks: snsLinks ?? this.snsLinks,
       profileCards: profileCards ?? this.profileCards,
-      imageColor: clearImageColor ? null : (imageColor ?? this.imageColor),
       activeIconId: activeIconId ?? this.activeIconId,
       activeBackgroundImageId:
           activeBackgroundImageId ?? this.activeBackgroundImageId,
@@ -293,14 +289,13 @@ class AppUser {
       nicknames: _nicknameListFromJson(json['nicknames']),
       snsLinks: _snsLinkListFromJson(json['snsLinks']),
       profileCards: _profileCardListFromJson(json['profileCards']),
-      imageColor: json['imageColor'] as int?,
       activeIconId: json['activeIconId'] as String?,
       activeBackgroundImageId: json['activeBackgroundImageId'] as String?,
       activeStatusMessageId: json['activeStatusMessageId'] as String?,
       activeNicknameId: json['activeNicknameId'] as String?,
       activeProfileCardId: json['activeProfileCardId'] as String?,
-      conversationProfileCardId: (json['conversationProfileCardId'] as Map?)
-              ?.cast<String, String>() ??
+      conversationProfileCardId:
+          (json['conversationProfileCardId'] as Map?)?.cast<String, String>() ??
           const {},
       preferences: AppUserPreferences.fromJson(
         json['preferences'] as Map<String, dynamic>?,
@@ -323,7 +318,6 @@ class AppUser {
       'nicknames': nicknames.map((n) => n.toJson()).toList(),
       'snsLinks': snsLinks.map((s) => s.toJson()).toList(),
       'profileCards': profileCards.map((c) => c.toJson()).toList(),
-      'imageColor': imageColor,
       'activeIconId': activeIconId,
       'activeBackgroundImageId': activeBackgroundImageId,
       'activeStatusMessageId': activeStatusMessageId,
