@@ -224,8 +224,10 @@ service cloud.firestore {
           //    （テキストメッセージのみ対応。DirectMessageRepository.editMessage参照）。
           //  - リアクション: reactionsマップのうち、自分（request.auth.uid）に
           //    対応するキーの追加・削除・値変更のみ許可する。値を設定する場合は
-          //    固定絵文字セット（kReactionEmojis, lib/models/message.dart）の
-          //    いずれかでなければならない。
+          //    空でないリストで、要素は全て固定絵文字セット（kReactionEmojis,
+          //    lib/models/message.dart）のいずれかでなければならない
+          //    （2026-08-05変更、以前は単一絵文字の文字列だったが、1人が
+          //    複数の異なる絵文字を同時に持てるようリスト化した）。
           //  - 引用プレビューのクリア: 送信取り消し（unsendMessage）が、
           //    取り消したメッセージを引用返信している他のメッセージの
           //    replyTo系フィールドを消すために使う。参加者なら誰でも、この
@@ -253,7 +255,11 @@ service cloud.firestore {
                      .hasOnly([request.auth.uid])
                 && (
                   !(request.auth.uid in request.resource.data.reactions)
-                  || request.resource.data.reactions[request.auth.uid] in ['👍', '❤️', '😂', '😮', '😢', '🙏']
+                  || (
+                    request.resource.data.reactions[request.auth.uid] is list
+                    && request.resource.data.reactions[request.auth.uid].size() > 0
+                    && request.resource.data.reactions[request.auth.uid].hasOnly(['👍', '❤️', '😂', '😮', '😢', '🙏'])
+                  )
                 )
               )
               || (
@@ -521,7 +527,11 @@ service cloud.firestore {
                      .hasOnly([request.auth.uid])
                 && (
                   !(request.auth.uid in request.resource.data.reactions)
-                  || request.resource.data.reactions[request.auth.uid] in ['👍', '❤️', '😂', '😮', '😢', '🙏']
+                  || (
+                    request.resource.data.reactions[request.auth.uid] is list
+                    && request.resource.data.reactions[request.auth.uid].size() > 0
+                    && request.resource.data.reactions[request.auth.uid].hasOnly(['👍', '❤️', '😂', '😮', '😢', '🙏'])
+                  )
                 )
               )
               || (

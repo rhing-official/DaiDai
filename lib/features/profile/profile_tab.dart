@@ -18,8 +18,10 @@ import '../../providers/repository_providers.dart';
 import '../../providers/user_providers.dart';
 import '../../repositories/user_repository.dart';
 import '../../theme/gekiga/gekiga_colors.dart';
+import '../../utils/text_truncate.dart';
 import '../../widgets/gekiga/gekiga_icon_badge.dart';
 import '../../widgets/gekiga/gekiga_panel_box.dart';
+import '../../widgets/gekiga/gekiga_section_header.dart';
 import '../../widgets/profile_card_picker.dart';
 import '../../widgets/profile_card_view.dart';
 import '../../widgets/swipe_gestures.dart';
@@ -1139,6 +1141,7 @@ class _WorkshopConversationCardSection extends ConsumerWidget {
           strings: strings,
           cards: user.profileCards,
           selectedCardId: null,
+          activeCardName: user.activeProfileCard?.name,
           onSelected: (id) => Navigator.of(context).pop(id),
         ),
       ),
@@ -1177,16 +1180,30 @@ class _WorkshopConversationCardSection extends ConsumerWidget {
       children: [
         Row(
           children: [
-            Text(
-              strings.settingsProfileCardAssignmentTitle,
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-            ),
-            IconButton(
-              icon: const Icon(Icons.add_circle_outline),
-              tooltip: strings.workshopConversationCardAddTooltip,
-              onPressed: () =>
-                  _showAddDialog(context, ref, unassignedDms, unassignedGroups),
-            ),
+            GekigaSectionHeader(strings.settingsProfileCardAssignmentTitle),
+            const SizedBox(width: 4),
+            ref.watch(appUiStyleProvider) == AppUiStyle.gekiga
+                ? GekigaIconButton(
+                    icon: Icons.add,
+                    size: 40,
+                    tooltip: strings.workshopConversationCardAddTooltip,
+                    onPressed: () => _showAddDialog(
+                      context,
+                      ref,
+                      unassignedDms,
+                      unassignedGroups,
+                    ),
+                  )
+                : IconButton(
+                    icon: const Icon(Icons.add_circle_outline),
+                    tooltip: strings.workshopConversationCardAddTooltip,
+                    onPressed: () => _showAddDialog(
+                      context,
+                      ref,
+                      unassignedDms,
+                      unassignedGroups,
+                    ),
+                  ),
           ],
         ),
         Text(
@@ -1214,6 +1231,7 @@ class _WorkshopConversationCardSection extends ConsumerWidget {
               title: '@${dm.otherRhingId(user.userId)}',
               cards: user.profileCards,
               selectedCardId: user.conversationProfileCardId[dm.dmId],
+              activeCardName: user.activeProfileCard?.name,
               onSelected: (id) => _select(ref, dm.dmId, id),
             ),
           for (final group in assignedGroups)
@@ -1222,6 +1240,7 @@ class _WorkshopConversationCardSection extends ConsumerWidget {
               title: group.name,
               cards: user.profileCards,
               selectedCardId: user.conversationProfileCardId[group.groupId],
+              activeCardName: user.activeProfileCard?.name,
               onSelected: (id) => _select(ref, group.groupId, id),
             ),
         ],
@@ -1347,7 +1366,11 @@ class _AddConversationCardDialogState
         backgroundImage: iconUrl != null ? NetworkImage(iconUrl) : null,
         child: iconUrl == null ? const Icon(Icons.person) : null,
       ),
-      title: Text(title),
+      title: Text(
+        truncateName(title, 8),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
       onChanged: (checked) => setState(() {
         if (checked ?? false) {
           _selectedIds.add(dm.dmId);
@@ -1367,7 +1390,11 @@ class _AddConversationCardDialogState
         backgroundImage: iconUrl != null ? NetworkImage(iconUrl) : null,
         child: iconUrl == null ? const Icon(Icons.groups) : null,
       ),
-      title: Text(group.name),
+      title: Text(
+        truncateName(group.name, 8),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
       onChanged: (checked) => setState(() {
         if (checked ?? false) {
           _selectedIds.add(group.groupId);
@@ -1385,6 +1412,7 @@ class _ProfileCardAssignmentRow extends StatelessWidget {
     required this.title,
     required this.cards,
     required this.selectedCardId,
+    required this.activeCardName,
     required this.onSelected,
   });
 
@@ -1392,6 +1420,7 @@ class _ProfileCardAssignmentRow extends StatelessWidget {
   final String title;
   final List<ProfileCard> cards;
   final String? selectedCardId;
+  final String? activeCardName;
   final ValueChanged<String?> onSelected;
 
   @override
@@ -1401,12 +1430,18 @@ class _ProfileCardAssignmentRow extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
+          Text(
+            truncateName(title, 8),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontWeight: FontWeight.w600),
+          ),
           const SizedBox(height: 6),
           ProfileCardPicker(
             strings: strings,
             cards: cards,
             selectedCardId: selectedCardId,
+            activeCardName: activeCardName,
             onSelected: onSelected,
           ),
         ],
@@ -1515,6 +1550,14 @@ class _WorkshopCardSlot extends StatelessWidget {
     // （削除ボタンだけはズーム編集画面側の[Stack]で外側に置き、Heroには含めない）。
     return Hero(
       tag: 'profile-card-slot-$index',
+      // Hero飛行中はこのchild（FittedBox以下）がOverlay直下へ一時的に
+      // 付け替えられ、外側のScaffold等が持つMaterial祖先から切り離される。
+      // 中の`InkWell`がMaterial祖先を必要とするため、飛行中も自前で
+      // Material祖先を持たせておく（[_CardZoomEditor]のHeroで同じ理由から
+      // 既に対応済みだったが、こちら側は対応漏れがあり、カードをタップして
+      // 開く/閉じる瞬間に「No Material widget found」が出ていた。2026-08-05
+      // 修正）。
+      //
       // Hero飛行はMaterialRectArcTweenで両端の矩形を対角の2頂点それぞれ独立の
       // 円弧で補間するため、飛行の途中で矩形の幅・高さが始点・終点どちらより
       // 一瞬小さくなることがある（単純な直線補間ではない）。カード＋カード名の
@@ -1523,64 +1566,68 @@ class _WorkshopCardSlot extends StatelessWidget {
       // 出す「BOTTOM OVERFLOWED」の警告バナーは吸収できないため
       // （[_CardZoomEditor]側と同じ理由）、オーバーフローそのものが起きない
       // FittedBoxに変更した。
-      child: FittedBox(
-        fit: BoxFit.scaleDown,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            SizedBox(
-              width: width,
-              height: height,
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  InkWell(
-                    borderRadius: BorderRadius.circular(16),
-                    onTap: onTap,
-                    child: ProfileCardView(
-                      width: width,
-                      height: height,
-                      icon: icon,
-                      background: background,
-                      nickname: nickname ?? vocab.nickname,
-                      statusMessage: statusMessage ?? vocab.statusMessage,
-                      snsLinks: selectedSnsLinks,
+      child: Material(
+        type: MaterialType.transparency,
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              SizedBox(
+                width: width,
+                height: height,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    InkWell(
                       borderRadius: BorderRadius.circular(16),
+                      onTap: onTap,
+                      child: ProfileCardView(
+                        width: width,
+                        height: height,
+                        icon: icon,
+                        background: background,
+                        nickname: nickname ?? vocab.nickname,
+                        statusMessage: statusMessage ?? vocab.statusMessage,
+                        snsLinks: selectedSnsLinks,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
                     ),
-                  ),
-                  Positioned(
-                    top: padding * 0.4,
-                    right: padding * 0.4,
-                    child: _ActiveCardBadge(
-                      isActive: isActive,
-                      onTap: onSetActive,
+                    Positioned(
+                      top: padding * 0.4,
+                      right: padding * 0.4,
+                      child: _ActiveCardBadge(
+                        isActive: isActive,
+                        onTap: onSetActive,
+                      ),
                     ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 6),
-            SizedBox(
-              width: width,
-              child: Text(
-                card.name,
-                textAlign: TextAlign.center,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: nameFontSize,
-                  // 以前は黒固定にしていたが、ダークモードで見えなくなっていた
-                  // （2026-07-29修正）。色指定なし（テーマの既定色任せ）に戻すと
-                  // Hero飛行中に既定色の解決結果がずれる問題があったため、
-                  // Theme.of(context)で明示的にライト/ダーク双方に追従する色を
-                  // 計算する（ズームイン編集画面側のTextFieldと同じ理由・同じ対応）。
-                  color: Theme.of(context).colorScheme.onSurface,
+                  ],
                 ),
               ),
-            ),
-          ],
+              const SizedBox(height: 6),
+              SizedBox(
+                width: width,
+                child: Text(
+                  card.name,
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: nameFontSize,
+                    // 以前は黒固定にしていたが、ダークモードで見えなくなって
+                    // いた（2026-07-29修正）。色指定なし（テーマの既定色任せ）
+                    // に戻すとHero飛行中に既定色の解決結果がずれる問題が
+                    // あったため、Theme.of(context)で明示的にライト/ダーク
+                    // 双方に追従する色を計算する（ズームイン編集画面側の
+                    // TextFieldと同じ理由・同じ対応）。
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -1631,10 +1678,7 @@ class _MaterialSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          '$title（$count/$max）',
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
+        GekigaSectionHeader('$title（$count/$max）'),
         const SizedBox(height: 8),
         SizedBox(
           height: 88,
@@ -1648,10 +1692,12 @@ class _MaterialSection extends StatelessWidget {
                 ),
               ),
               if (showAddButton)
-                _AddThumbButton(
-                  enabled: !uploading,
-                  loading: uploading,
-                  onTap: onAdd,
+                Center(
+                  child: _AddThumbButton(
+                    enabled: !uploading,
+                    loading: uploading,
+                    onTap: onAdd,
+                  ),
                 ),
             ],
           ),
@@ -1675,14 +1721,16 @@ class _AddThumbButton extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     if (ref.watch(appUiStyleProvider) == AppUiStyle.gekiga) {
+      // 40px: サムネイル（72px）と同じ大きさだと目立ちすぎるとの指摘を受け、
+      // 縮小した（2026-08-05変更、以前は72）。
       if (loading) {
         return const SizedBox(
-          width: 72,
-          height: 72,
+          width: 40,
+          height: 40,
           child: Center(
             child: SizedBox(
-              width: 20,
-              height: 20,
+              width: 18,
+              height: 18,
               child: CircularProgressIndicator(
                 strokeWidth: 2,
                 color: GekigaColors.onPanel,
@@ -1695,7 +1743,7 @@ class _AddThumbButton extends ConsumerWidget {
         opacity: enabled ? 1 : 0.4,
         child: IgnorePointer(
           ignoring: !enabled,
-          child: GekigaIconButton(icon: Icons.add, size: 72, onPressed: onTap),
+          child: GekigaIconButton(icon: Icons.add, size: 40, onPressed: onTap),
         ),
       );
     }
@@ -1945,9 +1993,8 @@ class _StatusMessageSection extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
+        GekigaSectionHeader(
           '${vocab.statusMessage}（${messages.length}/$kMaxStatusMessages）',
-          style: const TextStyle(fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 4),
         _registeredItemsSection(
@@ -1985,9 +2032,8 @@ class _NicknameSection extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
+        GekigaSectionHeader(
           '${vocab.nickname}（${nicknames.length}/$kMaxNicknames）',
-          style: const TextStyle(fontWeight: FontWeight.bold),
         ),
         Text(
           strings.profileNicknameHint(vocab.nickname),
@@ -2030,9 +2076,8 @@ class _SnsLinkSection extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
+        GekigaSectionHeader(
           '${strings.profileSnsLinkSectionTitle}（${links.length}/$kMaxSnsLinks）',
-          style: const TextStyle(fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 4),
         _registeredItemsSection(

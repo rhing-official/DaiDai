@@ -74,10 +74,11 @@ Widget _gekigaTileContent({
 }) {
   final textTheme = Theme.of(context).textTheme;
   return Padding(
-    // 横方向のみ16→20に拡げている（2026-08-05変更。枠内の余白が狭く、
-    // 長いsubtitle等でテキストが枠の縁に近づきすぎる指摘を受けた。縦方向は
-    // 上記の`ListTile`高さ整合のため16のまま変更しない）。
-    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+    // 横方向は12（2026-08-05変更、以前は20→16の順で拡げていたが、名前を
+    // 一定文字数で切るようにしたことでテキストが十分短くなり、逆に余白が
+    // 文字に対して広すぎるとの指摘を受けたため詰めた）。縦方向は
+    // 上記の`ListTile`高さ整合のため16のまま変更しない。
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
     child: Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -86,7 +87,7 @@ Widget _gekigaTileContent({
             data: IconThemeData(color: fg),
             child: leading,
           ),
-          const SizedBox(width: 16),
+          const SizedBox(width: 10),
         ],
         Flexible(
           child: Column(
@@ -108,7 +109,7 @@ Widget _gekigaTileContent({
           ),
         ),
         if (trailing != null) ...[
-          const SizedBox(width: 12),
+          const SizedBox(width: 8),
           IconTheme.merge(
             data: IconThemeData(color: fg),
             child: trailing,
@@ -293,6 +294,13 @@ class _RenderGekigaJointedList extends RenderBox
   /// それぞれの箱を独立して見せる）。
   static const double _gap = 8;
 
+  /// 枠の太さの基準値（2026-08-05追加）。`MonochromeBoxPainter`の
+  /// `thicknessBase`に箱自身のサイズ（`box.size.shortestSide`）を渡すと、
+  /// 長い名前で箱が大きくなるほど枠まで太くなってしまい、一覧内で箱ごとに
+  /// 枠の太さがバラつく不具合になっていた。箱のサイズに関わらず常にこの
+  /// 固定値を使うことで、枠の太さを揃える。
+  static const double _fixedThicknessBase = 48;
+
   Axis _axis;
   set axis(Axis value) {
     if (_axis == value) return;
@@ -379,7 +387,7 @@ class _RenderGekigaJointedList extends RenderBox
         );
       MonochromeBoxPainter(
         vertices: vertices,
-        thicknessBase: box.size.shortestSide,
+        thicknessBase: _fixedThicknessBase,
         fillColor: selected ? GekigaColors.onPanel : GekigaColors.panel,
         seed: _seeds[i],
       ).paint(context.canvas, box.size);

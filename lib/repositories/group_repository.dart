@@ -231,14 +231,16 @@ abstract class GroupRepository {
     required String messageId,
   });
 
-  /// 自分のリアクションを設定・解除する（[emoji]がnullなら解除、
-  /// 既に設定済みでも上書きで乗り換えられる）。
+  /// 自分のこのメッセージへのリアクションを、呼び出し側が計算済みの
+  /// 完全な絵文字リストで上書きする（空リストなら解除。2026-08-05変更、
+  /// 以前は単一絵文字の設定/解除だったが、複数の異なる絵文字を同時に
+  /// 持てるようになったため、差分ではなく完全なリストを渡す形にした）。
   Future<void> setRoomMessageReaction({
     required String groupId,
     required String roomId,
     required String messageId,
     required String userId,
-    String? emoji,
+    required List<String> emojis,
   });
 
   /// 指定したメッセージ群に、自分（[userId]）が読んだ記録を追加する。
@@ -737,10 +739,12 @@ class FirestoreGroupRepository implements GroupRepository {
     required String roomId,
     required String messageId,
     required String userId,
-    String? emoji,
+    required List<String> emojis,
   }) async {
     final ref = _roomRef(groupId, roomId).collection('messages').doc(messageId);
-    await ref.update({'reactions.$userId': emoji ?? FieldValue.delete()});
+    await ref.update({
+      'reactions.$userId': emojis.isEmpty ? FieldValue.delete() : emojis,
+    });
   }
 
   @override

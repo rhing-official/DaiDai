@@ -26,6 +26,7 @@ import '../../providers/user_providers.dart';
 import '../../router/app_router.dart';
 import '../../theme/gekiga/gekiga_colors.dart';
 import '../../utils/group_permissions.dart';
+import '../../utils/text_truncate.dart';
 import '../../widgets/gekiga/gekiga_icon_badge.dart';
 import '../../widgets/gekiga/gekiga_panel_box.dart';
 import '../../widgets/swipe_gestures.dart';
@@ -567,7 +568,12 @@ class _TalksTabState extends ConsumerState<TalksTab> {
 
               return Row(
                 children: [
-                  SizedBox(width: 360, child: listPane),
+                  // 240px: 語らい一覧のブロック（アイコン＋名前＋ピン/ミュート
+                  // アイコン）が重ならない範囲でできるだけ狭め、メッセージ画面
+                  // 側に幅を譲っている（2026-08-05再変更、360→300→240。
+                  // 一対名/広場名を8文字に切るようにしたことで、ブロック自体が
+                  // 十分小さくなったためさらに詰められる）。
+                  SizedBox(width: 240, child: listPane),
                   const VerticalDivider(width: 1),
                   Expanded(child: detailPane),
                 ],
@@ -1299,9 +1305,12 @@ class _DirectMessageTile extends ConsumerWidget {
     final otherUserId = dm.otherUserId(currentUser.userId);
     final otherUser = ref.watch(watchedUserProvider(otherUserId)).value;
     final nickname = otherUser?.effectiveNicknameFor(dm.dmId)?.text;
-    final label = (nickname?.isNotEmpty ?? false)
-        ? nickname!
-        : '@${dm.otherRhingId(currentUser.userId)}';
+    final label = truncateName(
+      (nickname?.isNotEmpty ?? false)
+          ? nickname!
+          : '@${dm.otherRhingId(currentUser.userId)}',
+      8,
+    );
     final iconUrl = otherUser?.effectiveIconFor(dm.dmId)?.url;
     final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
 
@@ -1323,7 +1332,7 @@ class _DirectMessageTile extends ConsumerWidget {
         child: GekigaTileContent(
           selected: selected,
           leading: leadingWidget,
-          title: Text(label),
+          title: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
           trailing: trailingWidget,
           onTap: onTap,
         ),
@@ -1341,7 +1350,7 @@ class _DirectMessageTile extends ConsumerWidget {
           context,
         ).colorScheme.primary.withValues(alpha: 0.08),
         leading: leadingWidget,
-        title: Text(label),
+        title: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
         trailing: trailingWidget,
         onTap: onTap,
       ),
@@ -1370,6 +1379,7 @@ class _GroupTile extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final iconUrl = group.profileCard?.iconUrl;
     final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
+    final displayName = truncateName(group.name, 8);
 
     final leadingWidget = CircleAvatar(
       backgroundImage: iconUrl != null ? NetworkImage(iconUrl) : null,
@@ -1389,7 +1399,11 @@ class _GroupTile extends ConsumerWidget {
         child: GekigaTileContent(
           selected: selected,
           leading: leadingWidget,
-          title: Text(group.name),
+          title: Text(
+            displayName,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
           subtitle: Text('${group.memberIds.length}人'),
           trailing: trailingWidget,
           onTap: onTap,
@@ -1408,7 +1422,7 @@ class _GroupTile extends ConsumerWidget {
           context,
         ).colorScheme.primary.withValues(alpha: 0.08),
         leading: leadingWidget,
-        title: Text(group.name),
+        title: Text(displayName, maxLines: 1, overflow: TextOverflow.ellipsis),
         subtitle: Text('${group.memberIds.length}人'),
         trailing: trailingWidget,
         onTap: onTap,

@@ -5,6 +5,7 @@ import '../../l10n/strings.dart';
 import '../../l10n/vocabulary.dart';
 import '../../models/app_ui_style.dart';
 import '../../providers/app_ui_style_provider.dart';
+import '../../utils/text_truncate.dart';
 import '../../widgets/gekiga/gekiga_icon_badge.dart';
 import 'room_list_pane.dart' show RoomListEntry, promptForRoomName;
 
@@ -151,7 +152,8 @@ class _RoomTabBarState extends ConsumerState<RoomTabBar> {
             selected: selected,
             onTap: () => widget.onSelectRoom(room),
             child: Text(
-              '#${room.name}',
+              '#${truncateName(room.name, 6)}',
+              maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 color: foregroundColor,

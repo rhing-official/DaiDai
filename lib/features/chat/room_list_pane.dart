@@ -5,6 +5,7 @@ import '../../l10n/strings.dart';
 import '../../l10n/vocabulary.dart';
 import '../../models/app_ui_style.dart';
 import '../../providers/app_ui_style_provider.dart';
+import '../../utils/text_truncate.dart';
 import '../../widgets/gekiga/gekiga_icon_badge.dart';
 import '../../widgets/gekiga/gekiga_panel_box.dart';
 import '../../widgets/gekiga/gekiga_text_field.dart';
@@ -89,7 +90,11 @@ class RoomListPane extends ConsumerWidget {
         return GekigaTileContent(
           selected: isSelected,
           leading: const Icon(Icons.tag),
-          title: Text(room.name),
+          title: Text(
+            truncateName(room.name, 6),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
           onTap: () => onSelectRoom(room),
         );
       }
@@ -98,7 +103,11 @@ class RoomListPane extends ConsumerWidget {
         selected: isSelected,
         selectedTileColor: colorScheme.primaryContainer.withValues(alpha: 0.3),
         leading: const Icon(Icons.tag),
-        title: Text(room.name),
+        title: Text(
+          truncateName(room.name, 6),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
         onTap: () => onSelectRoom(room),
       );
     }
@@ -120,7 +129,7 @@ class RoomListPane extends ConsumerWidget {
                           children: [
                             GekigaTileContent(
                               title: Text(
-                                conversationName,
+                                truncateName(conversationName, 8),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                               ),
@@ -128,7 +137,7 @@ class RoomListPane extends ConsumerWidget {
                           ],
                         )
                       : Text(
-                          conversationName,
+                          truncateName(conversationName, 8),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(fontWeight: FontWeight.bold),
@@ -206,11 +215,13 @@ Future<String?> promptForRoomName(
               controller: controller,
               autofocus: true,
               hintText: vocab.textChannel,
+              onSubmitted: (value) => Navigator.of(context).pop(value.trim()),
             )
           : TextField(
               controller: controller,
               autofocus: true,
               decoration: InputDecoration(hintText: vocab.textChannel),
+              onSubmitted: (value) => Navigator.of(context).pop(value.trim()),
             ),
       actions: [
         TextButton(

@@ -268,6 +268,7 @@ class _JoinGroupViewState extends ConsumerState<_JoinGroupView> {
               strings: strings,
               cards: widget.currentUser.profileCards,
               selectedCardId: _selectedProfileCardId,
+              activeCardName: widget.currentUser.activeProfileCard?.name,
               onSelected: (id) => setState(() => _selectedProfileCardId = id),
             ),
             const SizedBox(height: 16),
