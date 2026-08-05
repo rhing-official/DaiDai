@@ -3,11 +3,15 @@ import 'package:flutter/services.dart';
 
 import '../../theme/gekiga/gekiga_colors.dart';
 import '../../theme/gekiga/gekiga_shapes.dart';
+import 'monochrome_box.dart';
 
 /// 劇画スタイルのテキスト入力欄。標準の[TextField]の角丸なし直線枠のままだと
-/// 他の劇画パーツ（手描き風ギザギザ枠、[GekigaPanelBox]/`GekigaMenuTile`）と
-/// 馴染まないため、同じ`handDrawnPolygonPath`ベースの枠を背景に敷き、
-/// [TextField]自体は枠線・塗りつぶし無しにして重ねる（2026-08-03新規）。
+/// 他の劇画パーツ（モノクロボックス、[monochromeBoxVertices]参照）と
+/// 馴染まないため、同じ形の枠を背景に敷き、[TextField]自体は枠線・
+/// 塗りつぶし無しにして重ねる（2026-08-03新規、2026-08-05にモノクロ
+/// ボックス版へ変更。角カットは付けない直線の矩形にしている。横長で幅の
+/// ある箱になりやすく、角カットの量が固定pxのpaddingを超えて文字が
+/// はみ出す原因になっていたため）。
 class GekigaTextField extends StatelessWidget {
   const GekigaTextField({
     required this.controller,
@@ -22,7 +26,6 @@ class GekigaTextField extends StatelessWidget {
     this.autofocus = false,
     this.onSubmitted,
     this.onChanged,
-    this.seed = 0,
     super.key,
   });
 
@@ -38,13 +41,12 @@ class GekigaTextField extends StatelessWidget {
   final bool autofocus;
   final ValueChanged<String>? onSubmitted;
   final ValueChanged<String>? onChanged;
-  final int seed;
 
   @override
   Widget build(BuildContext context) {
     final hintColor = GekigaColors.onPanel.withValues(alpha: 0.5);
     return CustomPaint(
-      painter: _GekigaTextFieldPainter(seed: seed),
+      painter: const _GekigaTextFieldPainter(),
       child: TextField(
         controller: controller,
         autofocus: autofocus,
@@ -79,36 +81,28 @@ class GekigaTextField extends StatelessWidget {
 }
 
 class _GekigaTextFieldPainter extends CustomPainter {
-  const _GekigaTextFieldPainter({required this.seed});
-
-  final int seed;
+  const _GekigaTextFieldPainter();
 
   @override
   void paint(Canvas canvas, Size size) {
-    final path = handDrawnPolygonPath(
-      [
-        Offset.zero,
-        Offset(size.width, 0),
-        Offset(size.width, size.height),
-        Offset(0, size.height),
-      ],
-      seed,
-      jitter: 2.4,
-      segmentsPerEdge: 5,
+    // 角カット無しの矩形にする（2026-08-05変更。カット量は幅・高さの
+    // パーセントで決まるため、入力欄のように横長で幅がある箱では固定pxの
+    // paddingを超えて食い込み、テキストが枠からはみ出す原因になっていた）。
+    final vertices = monochromeBoxVertices(
+      size.width,
+      size.height,
+      topLeft: false,
+      topRight: false,
+      bottomRight: false,
+      bottomLeft: false,
     );
-    canvas.drawPath(path, Paint()..color = GekigaColors.panel);
-    canvas.drawPath(
-      path,
-      Paint()
-        ..color = GekigaColors.onPanel
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.6
-        ..strokeJoin = StrokeJoin.round
-        ..strokeCap = StrokeCap.round,
-    );
+    MonochromeBoxPainter(
+      vertices: vertices,
+      thicknessBase: size.shortestSide,
+      fillColor: GekigaColors.panel,
+    ).paint(canvas, size);
   }
 
   @override
-  bool shouldRepaint(covariant _GekigaTextFieldPainter oldDelegate) =>
-      oldDelegate.seed != seed;
+  bool shouldRepaint(covariant _GekigaTextFieldPainter oldDelegate) => false;
 }
