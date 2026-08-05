@@ -25,6 +25,7 @@ import '../../theme/gekiga/gekiga_shapes.dart';
 import '../../utils/link_detection.dart';
 import '../../utils/message_time.dart';
 import '../../widgets/gekiga/gekiga_icon_badge.dart';
+import '../../widgets/gekiga/gekiga_photo_frame.dart';
 import '../../widgets/link_preview_card.dart';
 import '../../widgets/linkified_text.dart';
 
@@ -54,6 +55,7 @@ class ChatScreen extends ConsumerStatefulWidget {
     this.onDeleteAfterAccountDeletion,
     this.onFetchMessagesAround,
     this.roomTabBar,
+    this.disabled = false,
     super.key,
   });
 
@@ -139,6 +141,11 @@ class ChatScreen extends ConsumerStatefulWidget {
   /// （`RoomTabBar`）を表示する（2026-08-03追加）。単一モードの会話・
   /// 広い画面のサイドバー使用中（`TalksTab`の分割表示）ではnullのまま渡す。
   final PreferredSizeWidget? roomTabBar;
+
+  /// trueの場合、入力欄をグレーアウトして操作不能にする（承認待ちの
+  /// 一対・広場を開いたときなど、実際には送信・既読取得ができない状態を
+  /// 見せるため、2026-08-05追加）。
+  final bool disabled;
 
   @override
   ConsumerState<ChatScreen> createState() => _ChatScreenState();
@@ -453,6 +460,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   }
 
   Future<void> _send({bool silent = false}) async {
+    if (widget.disabled) return;
     final content = _textController.text.trim();
     if (content.isEmpty) return;
 
@@ -838,6 +846,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                       onKeyEvent: _handleKeyEvent,
                                       child: TextField(
                                         controller: _textController,
+                                        enabled: !widget.disabled,
                                         minLines: 1,
                                         maxLines: 6,
                                         textInputAction:
@@ -845,6 +854,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                         keyboardType: TextInputType.multiline,
                                         decoration: InputDecoration(
                                           hintText: strings.chatInputHint,
+                                          filled: widget.disabled,
+                                          fillColor: Theme.of(context)
+                                              .disabledColor
+                                              .withValues(alpha: 0.08),
                                           border: OutlineInputBorder(
                                             borderRadius: BorderRadius.circular(
                                               20,
@@ -856,32 +869,34 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                   ),
                                   // 物理キーボード接続の判定に関わらず、何か入力されている間は
                                   // 常に送信ボタンを表示する（判定を誤っても送信手段が
-                                  // 無くならないようにするため）。
-                                  ValueListenableBuilder<TextEditingValue>(
-                                    valueListenable: _textController,
-                                    builder: (context, value, _) {
-                                      if (value.text.isEmpty) {
-                                        return const SizedBox.shrink();
-                                      }
-                                      return Material(
-                                        color: Colors.transparent,
-                                        shape: const CircleBorder(),
-                                        child: InkWell(
-                                          customBorder: const CircleBorder(),
-                                          onTap: _send,
-                                          onLongPress: () =>
-                                              _send(silent: true),
-                                          child: Padding(
-                                            padding: const EdgeInsets.all(12),
-                                            child: Icon(
-                                              Icons.send,
-                                              color: colorScheme.primary,
+                                  // 無くならないようにするため）。disabled時は入力自体が
+                                  // できないため、送信ボタンも常に出さない。
+                                  if (!widget.disabled)
+                                    ValueListenableBuilder<TextEditingValue>(
+                                      valueListenable: _textController,
+                                      builder: (context, value, _) {
+                                        if (value.text.isEmpty) {
+                                          return const SizedBox.shrink();
+                                        }
+                                        return Material(
+                                          color: Colors.transparent,
+                                          shape: const CircleBorder(),
+                                          child: InkWell(
+                                            customBorder: const CircleBorder(),
+                                            onTap: _send,
+                                            onLongPress: () =>
+                                                _send(silent: true),
+                                            child: Padding(
+                                              padding: const EdgeInsets.all(12),
+                                              child: Icon(
+                                                Icons.send,
+                                                color: colorScheme.primary,
+                                              ),
                                             ),
                                           ),
-                                        ),
-                                      );
-                                    },
-                                  ),
+                                        );
+                                      },
+                                    ),
                                 ],
                               ),
                             ),
@@ -1671,6 +1686,7 @@ class _MessageRow extends ConsumerWidget {
         userId: message.senderId,
         rhingId: message.senderRhingId,
         conversationId: conversationId,
+        uiStyle: uiStyle,
       );
       final senderName = _SenderName(
         userId: message.senderId,
@@ -2276,6 +2292,7 @@ class _SenderAvatar extends ConsumerWidget {
     required this.userId,
     required this.rhingId,
     this.conversationId,
+    this.uiStyle = AppUiStyle.simple,
   });
 
   final String userId;
@@ -2283,6 +2300,8 @@ class _SenderAvatar extends ConsumerWidget {
 
   /// [_SenderName.conversationId]と同じ。
   final String? conversationId;
+
+  final AppUiStyle uiStyle;
 
   static const _palette = [
     Color(0xFFEE7800),
@@ -2297,11 +2316,28 @@ class _SenderAvatar extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(watchedUserProvider(userId)).value;
     final iconUrl = user?.effectiveIconFor(conversationId)?.url;
+    final id = rhingId ?? '?';
+    final color = _palette[id.hashCode.abs() % _palette.length];
+    if (uiStyle == AppUiStyle.gekiga) {
+      return GekigaPhotoFrame(
+        size: 48,
+        image: iconUrl != null ? NetworkImage(iconUrl) : null,
+        fallback: iconUrl != null
+            ? null
+            : ColoredBox(
+                color: color,
+                child: Center(
+                  child: Text(
+                    id[0].toUpperCase(),
+                    style: const TextStyle(color: Colors.white, fontSize: 13),
+                  ),
+                ),
+              ),
+      );
+    }
     if (iconUrl != null) {
       return CircleAvatar(radius: 16, backgroundImage: NetworkImage(iconUrl));
     }
-    final id = rhingId ?? '?';
-    final color = _palette[id.hashCode.abs() % _palette.length];
     return CircleAvatar(
       radius: 16,
       backgroundColor: color,
@@ -2347,13 +2383,14 @@ class _GekigaBubblePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    final rect = [
+      Offset.zero,
+      Offset(size.width, 0),
+      Offset(size.width, size.height),
+      Offset(0, size.height),
+    ];
     final path = handDrawnPolygonPath(
-      [
-        Offset.zero,
-        Offset(size.width, 0),
-        Offset(size.width, size.height),
-        Offset(0, size.height),
-      ],
+      cutCorners(rect, size.shortestSide * 0.2),
       seed,
       jitter: 3.2,
       segmentsPerEdge: 5,

@@ -329,7 +329,7 @@ class _NavChip extends ConsumerWidget {
                 height: _HomeScreenState._chipSize,
                 child: GekigaBadgeShape(
                   color: selected ? GekigaColors.onPanel : GekigaColors.panel,
-                  seed: label.hashCode,
+                  seed: icon.hashCode,
                   child: Icon(
                     icon,
                     color: selected ? GekigaColors.panel : GekigaColors.onPanel,

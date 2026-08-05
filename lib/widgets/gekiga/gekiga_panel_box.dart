@@ -1,11 +1,9 @@
-import 'dart:math' as math;
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 
 import '../../theme/gekiga/gekiga_colors.dart';
-import '../../theme/gekiga/gekiga_shapes.dart';
+import 'monochrome_box.dart';
 
 /// [GekigaTileContent]で使う「アイコン＋タイトル／サブタイトル＋末尾
 /// ウィジェット」のタップ可能なRow。外枠（手描き風ジグザグ矩形）は
@@ -76,7 +74,10 @@ Widget _gekigaTileContent({
 }) {
   final textTheme = Theme.of(context).textTheme;
   return Padding(
-    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+    // 横方向のみ16→20に拡げている（2026-08-05変更。枠内の余白が狭く、
+    // 長いsubtitle等でテキストが枠の縁に近づきすぎる指摘を受けた。縦方向は
+    // 上記の`ListTile`高さ整合のため16のまま変更しない）。
+    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
     child: Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -121,12 +122,12 @@ Widget _gekigaTileContent({
 /// [GekigaTileContent]のボタン版。アイコン付き横並びの内容ではなく、
 /// ボタンらしいテキスト（＋任意のアイコン）を返す。単体で使う場合は
 /// `GekigaJointedTileList(seeds: [seed], selectedFlags: [selected], children: [GekigaButton(...)])`
-/// のように要素数1のリストとして渡し、[_GekigaJointedList]の接合枠描画
-/// （要素が1つなら隣接共有ロジックは発火しない）をそのまま「単体の
-/// ジグザグ枠ボタン」として再利用する（2026-08-04新規、身だしなみの
-/// 保存/削除/追加ボタン向け）。[selected]は選択状態ではなく、他の劇画UI
-/// 要素と同じ「選択中=白地黒文字／未選択=黒地白文字」のルールをボタンの
-/// 強弱表現に転用したもの（true＝主要操作、false＝副次的操作）。
+/// のように要素数1のリストとして渡し、[_GekigaJointedList]のモノクロ
+/// ボックス描画をそのまま「単体の枠付きボタン」として再利用する
+/// （2026-08-04新規、身だしなみの保存/削除/追加ボタン向け）。[selected]は
+/// 選択状態ではなく、他の劇画UI要素と同じ「選択中=白地黒文字／未選択=黒地
+/// 白文字」のルールをボタンの強弱表現に転用したもの（true＝主要操作、
+/// false＝副次的操作）。
 class GekigaButton extends StatelessWidget {
   const GekigaButton({
     required this.label,
@@ -169,22 +170,18 @@ class GekigaButton extends StatelessWidget {
   }
 }
 
-/// [GekigaJointedTileList]・[GekigaJointedPair]で使う、隙間なく並べた
-/// 箱同士の接する辺を1本の折れ線として共有する実装本体（2026-08-04追加）。
+/// [GekigaJointedTileList]・[GekigaJointedPair]で使う、複数の箱を並べる
+/// 実装本体（2026-08-04追加、2026-08-05に「隙間なく接する」設計から
+/// 「各箱を独立させ、間に[_gap]を空ける」設計へ変更。可変幅の箱同士を
+/// 無理に接合させるとサイズ調整や見た目の破綻が起きやすく、素直に間隔を
+/// 空けたほうが単純で確実という判断）。
 ///
-/// 各箱は`_GekigaPanelBoxPainter`と同じ手描き風ジグザグ矩形を描くが、
-/// 隣接する箱と接する辺（[Axis.vertical]なら上辺/下辺、[Axis.horizontal]
-/// なら左辺/右辺）だけは、隣の箱と**同じ`seed`・同じ座標**で
-/// [jitteredEdgePoints]を呼ぶことでピクセル単位で同一の折れ線にする
-/// （箱を「透明な板」として左上（または上）基準で積むと、隣接する箱の
-/// 接する辺は`(0, 局所y)`または`(局所x, 0)`という自分のローカル座標系で
-/// 見ても常にグローバル座標が一致するため、同じseed・同じ交差軸の範囲で
-/// 生成すれば自動的に同じ折れ線になる）。
-///
-/// 箱の交差軸方向の長さ（可変幅リストなら幅、[GekigaJointedPair]なら
-/// 高さ）が隣同士で異なる場合は、重なる範囲（`min`）だけ共有し、はみ出す
-/// 範囲は自分自身の`seed`で独立にジグザグを続ける（短い方に合わせて
-/// 伸ばさない）。
+/// 各箱は直角の矩形で、`MonochromeBoxPainter`（ホーム画面ナビチップ等の
+/// 「メニューチップ」と同じ黒外枠→白内枠→塗り色の3層）で描く
+/// （2026-08-05、独自の塗り1色＋線1色描画から変更。以前は黒枠がほとんど
+/// 見えなかった不具合の原因）。角の形は変えず、代わりに箱ごとの`seed`で
+/// 枠の太さを僅かに変化させることで些細な手作り感を出す
+/// （[MonochromeBoxPainter]参照）。
 class _GekigaJointedList extends MultiChildRenderObjectWidget {
   const _GekigaJointedList({
     required this.axis,
@@ -292,12 +289,9 @@ class _RenderGekigaJointedList extends RenderBox
   // （引数名`axis`とpublicなsetter`axis`が衝突するため）。lintの
   // `prefer_initializing_formals`は意図的に無視する。
 
-  // 隣接する箱同士がほぼ同じ幅になりやすく（短い名前が並ぶ等）、共有辺が
-  // 大半を占めてしまうと箱ごとの個性が出にくいとの指摘を受け、独立辺
-  // （左右辺）のジグザグをやや強めた（2026-08-04、2.4→3.0・segments 5→6）。
-  static const double _jitter = 3.0;
-  static const int _segmentsPerEdge = 6;
-  static const double _strokeWidth = 2.6;
+  /// 箱同士の間隔（2026-08-05追加。接合を廃止した代わりに、隙間で
+  /// それぞれの箱を独立して見せる）。
+  static const double _gap = 8;
 
   Axis _axis;
   set axis(Axis value) {
@@ -345,9 +339,12 @@ class _RenderGekigaJointedList extends RenderBox
         : BoxConstraints(maxHeight: constraints.maxHeight);
     var main = 0.0;
     var cross = 0.0;
+    var isFirst = true;
     var child = firstChild;
     while (child != null) {
       child.layout(loose, parentUsesSize: true);
+      if (!isFirst) main += _gap;
+      isFirst = false;
       final childParentData = child.parentData! as _JointedParentData;
       childParentData.offset = vertical ? Offset(0, main) : Offset(main, 0);
       final childSize = child.size;
@@ -361,197 +358,37 @@ class _RenderGekigaJointedList extends RenderBox
     );
   }
 
-  double _crossSizeOf(Size s) => _axis == Axis.vertical ? s.width : s.height;
-
   @override
   void paint(PaintingContext context, Offset offset) {
     final boxes = _collectChildren();
     for (var i = 0; i < boxes.length; i++) {
       final box = boxes[i];
       final childParentData = box.parentData! as _JointedParentData;
-      final path = _boxPath(
-        size: box.size,
-        ownSeed: _seeds[i],
-        joinBeforeSeed: i > 0 ? Object.hash(_seeds[i - 1], _seeds[i]) : null,
-        joinBeforeCross: i > 0 ? _crossSizeOf(boxes[i - 1].size) : null,
-        joinAfterSeed: i < boxes.length - 1
-            ? Object.hash(_seeds[i], _seeds[i + 1])
-            : null,
-        joinAfterCross: i < boxes.length - 1
-            ? _crossSizeOf(boxes[i + 1].size)
-            : null,
-      );
+      final vertices = [
+        Offset.zero,
+        Offset(box.size.width, 0),
+        Offset(box.size.width, box.size.height),
+        Offset(0, box.size.height),
+      ];
       final selected = _selectedFlags[i];
-      final fillColor = selected ? GekigaColors.onPanel : GekigaColors.panel;
-      final strokeColor = selected ? GekigaColors.panel : GekigaColors.onPanel;
       context.canvas
         ..save()
         ..translate(
           offset.dx + childParentData.offset.dx,
           offset.dy + childParentData.offset.dy,
-        )
-        ..drawPath(path, Paint()..color = fillColor)
-        ..drawPath(
-          path,
-          Paint()
-            ..color = strokeColor
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = _strokeWidth
-            ..strokeJoin = StrokeJoin.round
-            ..strokeCap = StrokeCap.round,
-        )
-        ..restore();
+        );
+      MonochromeBoxPainter(
+        vertices: vertices,
+        thicknessBase: box.size.shortestSide,
+        fillColor: selected ? GekigaColors.onPanel : GekigaColors.panel,
+        seed: _seeds[i],
+      ).paint(context.canvas, box.size);
+      context.canvas.restore();
     }
     for (final box in boxes) {
       final childParentData = box.parentData! as _JointedParentData;
       context.paintChild(box, offset + childParentData.offset);
     }
-  }
-
-  /// この箱1つ分の、接合込みの手描き風ジグザグ矩形のPathを作る。
-  Path _boxPath({
-    required Size size,
-    required int ownSeed,
-    int? joinBeforeSeed,
-    double? joinBeforeCross,
-    int? joinAfterSeed,
-    double? joinAfterCross,
-  }) {
-    final vertical = _axis == Axis.vertical;
-    final w = size.width;
-    final h = size.height;
-    final crossLength = vertical ? w : h;
-
-    // 開始側の辺（vertical: 上辺／horizontal: 左辺）と終了側の辺
-    // （vertical: 下辺／horizontal: 右辺）。どちらも交差軸方向に
-    // 0→crossLengthの向き（vertical: 左→右／horizontal: 上→下）で
-    // 生成し、矩形の周を辿るときに必要な方だけ`.reversed`する。
-    final startEdge = _crossEdgePoints(
-      crossLength: crossLength,
-      mainPos: 0,
-      vertical: vertical,
-      joinSeed: joinBeforeSeed,
-      joinCross: joinBeforeCross,
-      ownSeed: ownSeed ^ 0x51a7,
-    );
-    final endEdge = _crossEdgePoints(
-      crossLength: crossLength,
-      mainPos: vertical ? h : w,
-      vertical: vertical,
-      joinSeed: joinAfterSeed,
-      joinCross: joinAfterCross,
-      ownSeed: ownSeed ^ 0x2f91,
-    );
-
-    if (vertical) {
-      final right = jitteredEdgePoints(
-        Offset(w, 0),
-        Offset(w, h),
-        ownSeed ^ 0x3c61,
-        jitter: _jitter,
-        segments: _segmentsPerEdge,
-      );
-      final left = jitteredEdgePoints(
-        Offset(0, h),
-        Offset(0, 0),
-        ownSeed ^ 0x7b2d,
-        jitter: _jitter,
-        segments: _segmentsPerEdge,
-      );
-      // 各辺の点列は必ず開始側の頂点から少し離れた位置（t=1/segments）から
-      // 始まる（[jitteredEdgePoints]参照）。共有辺（上辺/下辺）は隣の箱と
-      // 座標を合わせるため常に「交差軸0→crossLength」の向きで生成してから
-      // 必要に応じて`.reversed`するが、この向き固定のせいで4辺を単純に
-      // 連結すると、ちょうど左下の角で「下辺の終端側の頂点(t=1/segments、
-      // 角から離れた点)」と「左辺の始端側の頂点(同じく角から離れた点)」が
-      // 隣り合ってしまい、他の3つの角（少なくとも片方は角に近い点になる）
-      // より明らかに大きい欠けが左下にだけ生じる不具合があった
-      // （2026-08-04発覚・修正。数学的に、共有辺の向きを固定する制約上
-      // 4辺のうち2辺は必ず組み合わせが噛み合わなくなるが、他の2箇所は
-      // 「両方とも角に近い」で済むのに対し左下だけ「両方とも角から離れる」
-      // 側になってしまうことが原因）。四隅の実座標を明示的に挟むことで、
-      // どの角も最悪でも角のすぐそばで折れ線がつながるようにする。
-      return pathFromPoints([
-        Offset.zero, // 左上
-        ...startEdge, // 上辺: 左→右
-        Offset(w, 0), // 右上
-        ...right, // 右辺: 上→下
-        Offset(w, h), // 右下
-        ...endEdge.reversed, // 下辺: 右→左
-        Offset(0, h), // 左下
-        ...left, // 左辺: 下→上
-      ]);
-    }
-    final bottom = jitteredEdgePoints(
-      Offset(0, h),
-      Offset(w, h),
-      ownSeed ^ 0x3c61,
-      jitter: _jitter,
-      segments: _segmentsPerEdge,
-    );
-    final top = jitteredEdgePoints(
-      Offset(w, 0),
-      Offset(0, 0),
-      ownSeed ^ 0x7b2d,
-      jitter: _jitter,
-      segments: _segmentsPerEdge,
-    );
-    // 縦積み（vertical）と同じ理由で、四隅の実座標を明示的に挟む。
-    return pathFromPoints([
-      Offset.zero, // 左上
-      ...startEdge, // 左辺: 上→下
-      Offset(0, h), // 左下
-      ...bottom, // 下辺: 左→右
-      Offset(w, h), // 右下
-      ...endEdge.reversed, // 右辺: 下→上
-      Offset(w, 0), // 右上
-      ...top, // 上辺: 右→左
-    ]);
-  }
-
-  /// 交差軸方向に伸びる1辺（vertical: 上辺/下辺、horizontal: 左辺/右辺）の
-  /// 点列。[joinSeed]が指定されていれば、隣の箱の交差軸長[joinCross]との
-  /// 重なる範囲（`min(crossLength, joinCross)`）だけ[joinSeed]で隣と
-  /// 同一の折れ線にし、はみ出す範囲（自分の方が長い場合のみ）は[ownSeed]
-  /// で独立に継続する。[joinSeed]がnull（隣接する箱が無い辺）なら全長を
-  /// [ownSeed]だけで描く。
-  List<Offset> _crossEdgePoints({
-    required double crossLength,
-    required double mainPos,
-    required bool vertical,
-    required int? joinSeed,
-    required double? joinCross,
-    required int ownSeed,
-  }) {
-    Offset point(double crossPos) =>
-        vertical ? Offset(crossPos, mainPos) : Offset(mainPos, crossPos);
-
-    if (joinSeed == null || joinCross == null || joinCross <= 0) {
-      return jitteredEdgePoints(
-        point(0),
-        point(crossLength),
-        ownSeed,
-        jitter: _jitter,
-        segments: _segmentsPerEdge,
-      );
-    }
-    final overlap = math.min(crossLength, joinCross);
-    final jointPart = jitteredEdgePoints(
-      point(0),
-      point(overlap),
-      joinSeed,
-      jitter: _jitter,
-      segments: _segmentsPerEdge,
-    );
-    if (overlap >= crossLength - 0.01) return jointPart;
-    final ownPart = jitteredEdgePoints(
-      point(overlap),
-      point(crossLength),
-      ownSeed,
-      jitter: _jitter,
-      segments: _segmentsPerEdge,
-    );
-    return [...jointPart, ...ownPart];
   }
 
   @override

@@ -14,6 +14,7 @@ import '../../models/group.dart';
 import '../../models/group_invite_preview.dart';
 import '../../models/group_join_request.dart';
 import '../../models/group_role.dart';
+import '../../models/message.dart';
 import '../../providers/app_ui_style_provider.dart';
 import '../../providers/block_providers.dart';
 import '../../providers/chat_navigation_providers.dart';
@@ -30,6 +31,7 @@ import '../../widgets/gekiga/gekiga_panel_box.dart';
 import '../../widgets/swipe_gestures.dart';
 import 'add_chat_dialog.dart';
 import 'chat_panes.dart';
+import 'chat_screen.dart';
 import 'create_group_dialog.dart';
 import 'group_settings_popup.dart';
 import 'room_list_pane.dart';
@@ -58,6 +60,13 @@ class _TalksTabState extends ConsumerState<TalksTab> {
   _TalksCategory _category = _TalksCategory.dm;
   DirectMessage? _selectedDm;
   Group? _selectedGroup;
+
+  /// 承認待ちの一対・広場を選択中の場合の会話ペイン（2026-08-05追加）。
+  /// `_selectedDm`/`_selectedGroup`と異なり、選択した時点で組み立てた
+  /// `ChatScreen`（`disabled: true`）そのものをそのまま保持する。承認待ちの
+  /// 間は実データが読めず、内容が更新されることも無いため、`_selectedDm`/
+  /// `_selectedGroup`のような「最新スナップショットへの再解決」は不要。
+  Widget? _selectedPendingScreen;
 
   /// 分割表示で現在表示中の寄合。nullなら選択中の会話の
   /// defaultRoomIdにフォールバックする（`_buildDmDetailWithRooms`/
@@ -113,11 +122,32 @@ class _TalksTabState extends ConsumerState<TalksTab> {
     return _cachedGroupRoomsStream!;
   }
 
+  /// 一対/広場タブを切り替える。承認待ちペイン（[_selectedPendingScreen]）は
+  /// 表示中のタブに紐づくため、切り替え時にクリアする（2026-08-05追加）。
+  void _setCategory(_TalksCategory category) {
+    setState(() {
+      _category = category;
+      _selectedPendingScreen = null;
+    });
+  }
+
+  /// 承認待ちの一対・広場のタイルをタップした時、分割表示なら一覧を
+  /// 表示したまま右側のペインにその場で表示する（2026-08-05追加。
+  /// 別ページを開く従来挙動は、分割表示ではない狭い画面でのみ使う）。
+  void _selectPendingScreen(Widget screen) {
+    setState(() {
+      _selectedDm = null;
+      _selectedGroup = null;
+      _selectedPendingScreen = screen;
+    });
+  }
+
   Future<void> _openDirectMessage(DirectMessage dm) async {
     if (_isSplit) {
       setState(() {
         _selectedDm = dm;
         _selectedDmRoomId = null;
+        _selectedPendingScreen = null;
       });
       return;
     }
@@ -147,6 +177,7 @@ class _TalksTabState extends ConsumerState<TalksTab> {
       setState(() {
         _selectedGroup = group;
         _selectedGroupRoomId = null;
+        _selectedPendingScreen = null;
       });
       return;
     }
@@ -424,9 +455,8 @@ class _TalksTabState extends ConsumerState<TalksTab> {
                                       label: vocab.dm,
                                       count: directMessages.length,
                                       selected: _category == _TalksCategory.dm,
-                                      onTap: () => setState(
-                                        () => _category = _TalksCategory.dm,
-                                      ),
+                                      onTap: () =>
+                                          _setCategory(_TalksCategory.dm),
                                     ),
                                     rightSeed: vocab.plaza.hashCode,
                                     rightSelected:
@@ -436,9 +466,8 @@ class _TalksTabState extends ConsumerState<TalksTab> {
                                       count: groups.length,
                                       selected:
                                           _category == _TalksCategory.group,
-                                      onTap: () => setState(
-                                        () => _category = _TalksCategory.group,
-                                      ),
+                                      onTap: () =>
+                                          _setCategory(_TalksCategory.group),
                                     ),
                                   )
                                 : Row(
@@ -448,9 +477,8 @@ class _TalksTabState extends ConsumerState<TalksTab> {
                                         count: directMessages.length,
                                         selected:
                                             _category == _TalksCategory.dm,
-                                        onTap: () => setState(
-                                          () => _category = _TalksCategory.dm,
-                                        ),
+                                        onTap: () =>
+                                            _setCategory(_TalksCategory.dm),
                                       ),
                                       const SizedBox(width: 20),
                                       _CategoryTab(
@@ -458,10 +486,8 @@ class _TalksTabState extends ConsumerState<TalksTab> {
                                         count: groups.length,
                                         selected:
                                             _category == _TalksCategory.group,
-                                        onTap: () => setState(
-                                          () =>
-                                              _category = _TalksCategory.group,
-                                        ),
+                                        onTap: () =>
+                                            _setCategory(_TalksCategory.group),
                                       ),
                                     ],
                                   ),
@@ -499,11 +525,10 @@ class _TalksTabState extends ConsumerState<TalksTab> {
                     child: SwipeBackDetector(
                       onBack: () {},
                       onPrevious: _category == _TalksCategory.group
-                          ? () => setState(() => _category = _TalksCategory.dm)
+                          ? () => _setCategory(_TalksCategory.dm)
                           : null,
                       onNext: _category == _TalksCategory.dm
-                          ? () =>
-                                setState(() => _category = _TalksCategory.group)
+                          ? () => _setCategory(_TalksCategory.group)
                           : null,
                       child: _category == _TalksCategory.dm
                           ? _buildDirectMessages(
@@ -565,6 +590,8 @@ class _TalksTabState extends ConsumerState<TalksTab> {
     List<DirectMessage> directMessages,
     List<Group> groups,
   ) {
+    final pending = _selectedPendingScreen;
+    if (pending != null) return pending;
     if (_category == _TalksCategory.dm) {
       final selected = _selectedDm;
       if (selected == null) return const _EmptyDetailPlaceholder();
@@ -789,11 +816,15 @@ class _TalksTabState extends ConsumerState<TalksTab> {
           _FriendRequestTile(
             currentUserId: widget.currentUser.userId,
             request: request,
+            isSplit: _isSplit,
+            onSelectPending: _selectPendingScreen,
           ),
         for (final request in outgoingRequests)
           _FriendRequestTile(
             currentUserId: widget.currentUser.userId,
             request: request,
+            isSplit: _isSplit,
+            onSelectPending: _selectPendingScreen,
           ),
         for (final dm in sortedDms)
           _DirectMessageTile(
@@ -826,11 +857,15 @@ class _TalksTabState extends ConsumerState<TalksTab> {
           _FriendRequestTile(
             currentUserId: widget.currentUser.userId,
             request: request,
+            isSplit: _isSplit,
+            onSelectPending: _selectPendingScreen,
           ),
         for (final request in outgoingRequests)
           _FriendRequestTile(
             currentUserId: widget.currentUser.userId,
             request: request,
+            isSplit: _isSplit,
+            onSelectPending: _selectPendingScreen,
           ),
         for (final dm in sortedDms)
           _DirectMessageTile(
@@ -873,7 +908,11 @@ class _TalksTabState extends ConsumerState<TalksTab> {
       ];
       final children = <Widget>[
         for (final request in pendingRequests)
-          _PendingGroupJoinRequestTile(request: request),
+          _PendingGroupJoinRequestTile(
+            request: request,
+            isSplit: _isSplit,
+            onSelectPending: _selectPendingScreen,
+          ),
         for (final group in sortedGroups)
           _GroupTile(
             currentUserId: widget.currentUser.userId,
@@ -902,7 +941,11 @@ class _TalksTabState extends ConsumerState<TalksTab> {
     return ListView(
       children: [
         for (final request in pendingRequests)
-          _PendingGroupJoinRequestTile(request: request),
+          _PendingGroupJoinRequestTile(
+            request: request,
+            isSplit: _isSplit,
+            onSelectPending: _selectPendingScreen,
+          ),
         for (final group in sortedGroups)
           _GroupTile(
             currentUserId: widget.currentUser.userId,
@@ -935,8 +978,8 @@ class _TalksTabState extends ConsumerState<TalksTab> {
 }
 
 /// 「一対」「広場」を横並びで切り替えるタブ。件数チップ付き。
-/// 劇画スタイルでは選択中=白地黒字／未選択=黒地白字のギザギザボックス
-/// （[GekigaPanelBox]）にする（2026-08-03追加、appUiStyleProviderを見る
+/// 劇画スタイルでは選択中=白地黒字／未選択=黒地白字のモノクロボックス
+/// （[GekigaJointedPair]）にする（2026-08-03追加、appUiStyleProviderを見る
 /// ためConsumerWidget化）。
 class _CategoryTab extends ConsumerWidget {
   const _CategoryTab({
@@ -955,7 +998,7 @@ class _CategoryTab extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
     if (isGekiga) {
-      // 外枠（手描き風ジグザグ矩形）は呼び出し側の`GekigaJointedPair`が
+      // 外枠（モノクロボックス）は呼び出し側の`GekigaJointedPair`が
       // 2つのタブをまとめて描くため、ここでは内容（Material+InkWell+Text）
       // だけを返す（2026-08-04変更、以前は`GekigaPanelBox`で自前で囲んで
       // いた）。
@@ -1032,30 +1075,22 @@ class _CategoryTab extends ConsumerWidget {
 /// と「承認を待っています」系の文言だけを表示する専用画面で代替する
 /// （2026-08-04追加）。`Scaffold`/`AppBar`はisGekiga分岐を持たず、
 /// アンビエントの`Theme`（劇画スタイルなら`GekigaTheme`）にそのまま従う。
-class _PendingApprovalScreen extends StatelessWidget {
-  const _PendingApprovalScreen({
-    required this.title,
-    required this.message,
-    required this.avatar,
-  });
+/// 承認待ちの一対・広場を開いたときに、メッセージ一覧の上に常時表示する
+/// バナー（[ChatScreen.banner]に渡す。`chat_panes.dart`の
+/// `_SeveranceBanner`等と同じ用途だが、操作ボタンを持たない読み取り専用、
+/// 2026-08-05新規）。
+class _PendingApprovalBanner extends StatelessWidget {
+  const _PendingApprovalBanner({required this.message});
 
-  final String title;
   final String message;
-  final Widget avatar;
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text(title)),
-      body: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            avatar,
-            const SizedBox(height: 16),
-            Text(message, style: Theme.of(context).textTheme.bodyLarge),
-          ],
-        ),
+    return Material(
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: Text(message, style: Theme.of(context).textTheme.bodyMedium),
       ),
     );
   }
@@ -1065,10 +1100,17 @@ class _FriendRequestTile extends ConsumerWidget {
   const _FriendRequestTile({
     required this.currentUserId,
     required this.request,
+    required this.isSplit,
+    required this.onSelectPending,
   });
 
   final String currentUserId;
   final FriendRequest request;
+
+  /// 分割表示中かどうか。trueなら承認待ちタップ時に[onSelectPending]で
+  /// 右側のペインへその場で表示し、falseなら別ページを開く（2026-08-05追加）。
+  final bool isSplit;
+  final ValueChanged<Widget> onSelectPending;
 
   bool get _isIncoming => request.toUserId == currentUserId;
 
@@ -1121,15 +1163,26 @@ class _FriendRequestTile extends ConsumerWidget {
         : null;
     final onTap = _isIncoming
         ? null
-        : () => Navigator.of(context).push(
-            MaterialPageRoute<void>(
-              builder: (_) => _PendingApprovalScreen(
-                title: titleText,
+        : () {
+            final screen = ChatScreen(
+              title: titleText,
+              currentUserId: currentUserId,
+              isDm: true,
+              messagesStream: Stream.value(const <Message>[]),
+              onSend: (_, {silent = false, replyTo}) async {},
+              disabled: true,
+              banner: _PendingApprovalBanner(
                 message: strings.friendRequestOutgoingSubtitle,
-                avatar: leadingWidget,
               ),
-            ),
-          );
+            );
+            if (isSplit) {
+              onSelectPending(screen);
+            } else {
+              Navigator.of(
+                context,
+              ).push(MaterialPageRoute<void>(builder: (_) => screen));
+            }
+          };
 
     if (isGekiga) {
       return GekigaTileContent(
@@ -1156,9 +1209,17 @@ class _FriendRequestTile extends ConsumerWidget {
 /// 承認待ちであることを伝える[_PendingApprovalScreen]を開く
 /// （2026-08-04変更、以前はAlertDialogだった）。
 class _PendingGroupJoinRequestTile extends ConsumerWidget {
-  const _PendingGroupJoinRequestTile({required this.request});
+  const _PendingGroupJoinRequestTile({
+    required this.request,
+    required this.isSplit,
+    required this.onSelectPending,
+  });
 
   final GroupJoinRequest request;
+
+  /// [_FriendRequestTile.isSplit]と同じ（2026-08-05追加）。
+  final bool isSplit;
+  final ValueChanged<Widget> onSelectPending;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -1179,15 +1240,24 @@ class _PendingGroupJoinRequestTile extends ConsumerWidget {
               : null,
         );
         final titleText = preview?.name ?? '...';
-        void onTap() => Navigator.of(context).push(
-          MaterialPageRoute<void>(
-            builder: (_) => _PendingApprovalScreen(
-              title: titleText,
-              message: strings.groupJoinPending,
-              avatar: leadingWidget,
-            ),
-          ),
-        );
+        void onTap() {
+          final screen = ChatScreen(
+            title: titleText,
+            currentUserId: request.requesterId,
+            isDm: false,
+            messagesStream: Stream.value(const <Message>[]),
+            onSend: (_, {silent = false, replyTo}) async {},
+            disabled: true,
+            banner: _PendingApprovalBanner(message: strings.groupJoinPending),
+          );
+          if (isSplit) {
+            onSelectPending(screen);
+          } else {
+            Navigator.of(
+              context,
+            ).push(MaterialPageRoute<void>(builder: (_) => screen));
+          }
+        }
 
         if (isGekiga) {
           return GekigaTileContent(

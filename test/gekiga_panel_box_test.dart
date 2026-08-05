@@ -109,9 +109,7 @@ void main() {
     expect(topLefts[0], equals(topLefts[1]));
   });
 
-  testWidgets('GekigaJointedPairは2つの子を隙間なく横に並べる（右の子の左端＝左の子の右端）', (
-    tester,
-  ) async {
+  testWidgets('GekigaJointedPairは2つの子を接合せず、間に一定の間隔を空けて横に並べる', (tester) async {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
@@ -148,7 +146,9 @@ void main() {
         .toList();
 
     expect(rects, hasLength(2));
-    expect(rects[1].left, moreOrLessEquals(rects[0].right, epsilon: 0.01));
+    // 接合を廃止したため、右の子の左端は左の子の右端に一致せず、一定の
+    // 間隔（`_RenderGekigaJointedList._gap` = 8px）だけ空く。
+    expect(rects[1].left, moreOrLessEquals(rects[0].right + 8, epsilon: 0.01));
   });
 
   testWidgets('GekigaJointedTileList内の各子のonTapは独立して反応する', (tester) async {

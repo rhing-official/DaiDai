@@ -47,6 +47,76 @@ List<Offset> insetPolygon(List<Offset> vertices, double inset) {
   return result;
 }
 
+/// [vertices]の多角形の各頂点を、隣接する2辺それぞれの方向に沿って
+/// [cut]だけ離れた2点に置き換え、角を斜めにカットした（面取りした）
+/// 多角形の頂点リストを返す（矩形の4頂点なら8頂点の八角形風になる）。
+/// [handDrawnPolygonPath]・[insetPolygon]は頂点数を問わない汎用実装のため、
+/// この関数で頂点を増やしてから渡すだけで、ジグザグ描画・同心オフセットの
+/// どちらもそのまま角カット済みの形に対応する（2026-08-05追加）。
+List<Offset> cutCorners(List<Offset> vertices, double cut) {
+  final n = vertices.length;
+  final result = <Offset>[];
+  for (var i = 0; i < n; i++) {
+    final curr = vertices[i];
+    final prev = vertices[(i - 1 + n) % n];
+    final next = vertices[(i + 1) % n];
+    final toPrev = prev - curr;
+    final toNext = next - curr;
+    result.add(curr + toPrev / toPrev.distance * cut);
+    result.add(curr + toNext / toNext.distance * cut);
+  }
+  return result;
+}
+
+/// 劇画UI「モノクロボックス」共通の不規則四角形の頂点（左上が外側へ
+/// 突き出た鋭角、右上・右下・左下は直角付近〜鈍角、という非対称な形）。
+/// メッセージ画面アイコン（`GekigaPhotoFrame`）で最初に採用した形を、
+/// ボックス系ウィジェット全体の共通言語として抽出したもの（2026-08-05、
+/// 旧「ギザギザボックス」＝手描き風ジグザグ角カットの後継。手描きジグザグ
+/// は廃止し、直線のみで構成する）。
+///
+/// [topLeft]/[topRight]/[bottomRight]/[bottomLeft]でどの角に非対称な形を
+/// 適用するかを選べる（一覧の接合箱で、隣の箱と接する側は直角のまま
+/// 残したい場合にfalseにする）。[overflow]は[topLeft]がtrueの時のみ
+/// 効果を持ち、左上角を矩形の外（左・上方向）へその分だけ突き出させる
+/// （呼び出し側は`Positioned(left: -overflow, top: -overflow, width:
+/// width+overflow, height: height+overflow)`と`Stack(clipBehavior:
+/// Clip.none)`を組み合わせて描画領域を確保する必要がある。[topLeft]が
+/// falseの場合や接合箱側では[overflow]は無視される）。
+/// モノクロボックスの左上角を突き出させる標準の比率（`size`に対する比率）。
+/// 単体の箱（バッジ・アイコンボタン・テキスト欄・接合していない単独の
+/// リスト項目）で共通して使う。
+const monochromeBoxOverflowRatio = 0.15;
+
+List<Offset> monochromeBoxVertices(
+  double width,
+  double height, {
+  double overflow = 0,
+  bool topLeft = true,
+  bool topRight = true,
+  bool bottomRight = true,
+  bool bottomLeft = true,
+}) {
+  final o = topLeft ? overflow : 0.0;
+  // 左上角の突き出しはx方向のみ[overflow]分残し、y方向の突き出しは0にする
+  // （2026-08-05調整、前回はy方向を半分に抑えるだけだったが変化が乏しかった
+  // ため無しまで戻した）。左上角自身の鋭さを右下寄りに戻すと同時に、
+  // 左下角の内角がその分だけ自動的に大きくなる（両者は左下↔左上の辺を
+  // 共有しており、この辺の傾きが変わるため）。x方向まで縮めると逆に左下角
+  // の内角は小さくなってしまうため、x方向は変えずy方向だけを縮めている。
+  final topLeftY = 0.0;
+  return [
+    topLeft ? Offset(-o, -topLeftY) : Offset(o, o),
+    topRight
+        ? Offset(width * 0.90 + o, height * 0.05 + o)
+        : Offset(width + o, o),
+    bottomRight
+        ? Offset(width * 0.90 + o, height * 0.85 + o)
+        : Offset(width + o, height + o),
+    bottomLeft ? Offset(width * 0.07 + o, height + o) : Offset(o, height + o),
+  ];
+}
+
 Path pathFromPoints(List<Offset> points) {
   final path = Path()..moveTo(points.first.dx, points.first.dy);
   for (final p in points.skip(1)) {
