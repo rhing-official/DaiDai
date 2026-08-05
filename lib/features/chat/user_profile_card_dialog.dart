@@ -113,13 +113,14 @@ class _UserProfileCardDialogState extends ConsumerState<UserProfileCardDialog> {
   Future<void> _sendRequest() async {
     setState(() => _sending = true);
     try {
-      await ref.read(friendRepositoryProvider).sendRequest(
-            from: widget.currentUser,
-            to: widget.user,
-          );
+      await ref
+          .read(friendRepositoryProvider)
+          .sendRequest(from: widget.currentUser, to: widget.user);
       final selectedProfileCardId = _selectedProfileCardId;
       if (selectedProfileCardId != null) {
-        await ref.read(userRepositoryProvider).setConversationProfileCard(
+        await ref
+            .read(userRepositoryProvider)
+            .setConversationProfileCard(
               userId: widget.currentUser.userId,
               conversationId: DirectMessage.idFor(
                 widget.currentUser.userId,
@@ -136,10 +137,9 @@ class _UserProfileCardDialogState extends ConsumerState<UserProfileCardDialog> {
   }
 
   Future<void> _jumpToDm() async {
-    final dm = await ref.read(directMessageRepositoryProvider).getOrCreateDirectMessage(
-          widget.currentUser,
-          widget.user,
-        );
+    final dm = await ref
+        .read(directMessageRepositoryProvider)
+        .getOrCreateDirectMessage(widget.currentUser, widget.user);
     if (!mounted) return;
     final isSplit = MediaQuery.sizeOf(context).width >= kTalksSplitBreakpoint;
     Navigator.of(context).pop();
@@ -152,15 +152,17 @@ class _UserProfileCardDialogState extends ConsumerState<UserProfileCardDialog> {
       ref.read(pendingDmSelectionProvider.notifier).set(dm);
       return;
     }
-    ref.read(goRouterProvider).push(
-      '/chat/dm',
-      extra: DmChatArgs(
-        currentUser: widget.currentUser,
-        dm: dm,
-        roomId: dm.defaultRoomId,
-        roomName: 'メイン',
-      ),
-    );
+    ref
+        .read(goRouterProvider)
+        .push(
+          '/chat/dm',
+          extra: DmChatArgs(
+            currentUser: widget.currentUser,
+            dm: dm,
+            roomId: dm.defaultRoomId,
+            roomName: 'メイン',
+          ),
+        );
   }
 
   @override
@@ -174,7 +176,9 @@ class _UserProfileCardDialogState extends ConsumerState<UserProfileCardDialog> {
         : '@${user.rhingId}';
     final icon = user.effectiveIconFor(widget.conversationId);
     final background = user.effectiveBackgroundImageFor(widget.conversationId);
-    final statusMessage = user.effectiveStatusMessageFor(widget.conversationId)?.text;
+    final statusMessage = user
+        .effectiveStatusMessageFor(widget.conversationId)
+        ?.text;
     final snsLinks = user.effectiveSnsLinksFor(widget.conversationId);
 
     // 身だしなみ・工房で作るカード（ProfileCardView）と全く同じ比率
@@ -232,7 +236,9 @@ class _UserProfileCardDialogState extends ConsumerState<UserProfileCardDialog> {
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              FutureBuilder<({bool isFriend, FriendRequest? request})>(
+                              FutureBuilder<
+                                ({bool isFriend, FriendRequest? request})
+                              >(
                                 future: _statusFuture,
                                 builder: (context, snapshot) {
                                   if (snapshot.data?.isFriend != true) {
@@ -267,7 +273,8 @@ class _UserProfileCardDialogState extends ConsumerState<UserProfileCardDialog> {
                                       color: colorScheme.onPrimary,
                                     ),
                                     iconSize: 30,
-                                    tooltip: strings.groupTransferOwnershipMenuItem,
+                                    tooltip:
+                                        strings.groupTransferOwnershipMenuItem,
                                     onPressed: widget.onTransferOwnership,
                                   ),
                                 ),
@@ -310,9 +317,15 @@ class _UserProfileCardDialogState extends ConsumerState<UserProfileCardDialog> {
         } else if (request?.status == FriendRequestStatus.pending) {
           // 相手からの申請が既に届いている場合、送信すると
           // FriendRepository.sendRequestの既存の挙動でそのまま承認される。
-          content = _sendRequestArea(strings, strings.userProfileCardAcceptRequest);
+          content = _sendRequestArea(
+            strings,
+            strings.userProfileCardAcceptRequest,
+          );
         } else {
-          content = _sendRequestArea(strings, strings.userProfileCardSendRequest);
+          content = _sendRequestArea(
+            strings,
+            strings.userProfileCardSendRequest,
+          );
         }
 
         return Padding(
@@ -339,6 +352,7 @@ class _UserProfileCardDialogState extends ConsumerState<UserProfileCardDialog> {
           strings: strings,
           cards: widget.currentUser.profileCards,
           selectedCardId: _selectedProfileCardId,
+          activeCardName: widget.currentUser.activeProfileCard?.name,
           onSelected: (id) => setState(() => _selectedProfileCardId = id),
         ),
         const SizedBox(height: 12),

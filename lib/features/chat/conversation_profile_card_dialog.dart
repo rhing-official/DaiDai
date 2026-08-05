@@ -52,6 +52,7 @@ class ConversationProfileCardDialog extends ConsumerWidget {
               cards: liveUser.profileCards,
               selectedCardId:
                   liveUser.conversationProfileCardId[conversationId],
+              activeCardName: liveUser.activeProfileCard?.name,
               onSelected: (id) => ref
                   .read(userRepositoryProvider)
                   .setConversationProfileCard(

@@ -13,6 +13,7 @@ import 'accent_color_provider.dart';
 import 'app_locale_provider.dart';
 import 'app_ui_style_provider.dart';
 import 'chat_layout_style_provider.dart';
+import 'gekiga_background_color_provider.dart';
 import 'message_time_format_provider.dart';
 import 'send_key_mode_provider.dart';
 import 'terminology_style_provider.dart';
@@ -29,9 +30,15 @@ void applyRemoteUserPreferences(WidgetRef ref, AppUserPreferences preferences) {
         .read(accentColorProvider.notifier)
         .syncFromRemote(Color(preferences.accentColorArgb!));
   }
+  if (preferences.gekigaBackgroundColorArgb != null) {
+    ref
+        .read(gekigaBackgroundColorProvider.notifier)
+        .syncFromRemote(Color(preferences.gekigaBackgroundColorArgb!));
+  }
   if (preferences.themeMode != null) {
-    final mode = ThemeMode.values
-        .firstWhereOrNull((m) => m.name == preferences.themeMode);
+    final mode = ThemeMode.values.firstWhereOrNull(
+      (m) => m.name == preferences.themeMode,
+    );
     if (mode != null) {
       ref.read(appThemeModeProvider.notifier).syncFromRemote(mode);
     }
@@ -44,7 +51,9 @@ void applyRemoteUserPreferences(WidgetRef ref, AppUserPreferences preferences) {
   if (preferences.terminologyStyle != null) {
     ref
         .read(terminologyStyleProvider.notifier)
-        .syncFromRemote(TerminologyStyle.fromName(preferences.terminologyStyle));
+        .syncFromRemote(
+          TerminologyStyle.fromName(preferences.terminologyStyle),
+        );
   }
   if (preferences.sendKeyMode != null) {
     ref
@@ -57,7 +66,9 @@ void applyRemoteUserPreferences(WidgetRef ref, AppUserPreferences preferences) {
         .syncFromRemote(ChatLayoutStyle.fromName(preferences.chatLayoutStyle));
   }
   if (preferences.messageTimeFormat != null) {
-    ref.read(messageTimeFormatProvider.notifier).syncFromRemote(
+    ref
+        .read(messageTimeFormatProvider.notifier)
+        .syncFromRemote(
           MessageTimeFormat.fromName(preferences.messageTimeFormat),
         );
   }

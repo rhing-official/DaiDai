@@ -7,7 +7,12 @@ import 'package:flutter/material.dart';
 class GekigaColors {
   GekigaColors._();
 
-  /// 全画面共通の背景色（旧 chat_screen.dart の `_kGekigaBackground`）。
+  /// 全画面共通の背景色の既定値（旧 chat_screen.dart の
+  /// `_kGekigaBackground`）。2026-08-05より、実際に描画される背景色は
+  /// ユーザーが設定タブから編集できる`gekigaBackgroundColorProvider`側の
+  /// 値（初期値はこの定数と同じ）を使う。この定数自体はその既定値・
+  /// プリセット（設定タブの`_kGekigaBackgroundColorPresets`先頭）として
+  /// 残す。
   static const background = Color(0xFFC1272D);
 
   /// 黒パネル・ラベルチップ・吹き出し(相手)の下地。

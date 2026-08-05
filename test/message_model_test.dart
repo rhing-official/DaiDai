@@ -19,7 +19,10 @@ void main() {
         replyToSenderRhingId: 'user2',
         replyToSnippet: '元のメッセージ',
         editedAt: Timestamp.fromMillisecondsSinceEpoch(2000),
-        reactions: const {'u2': '👍', 'u3': '❤️'},
+        reactions: const {
+          'u2': ['👍'],
+          'u3': ['❤️', '😂'],
+        },
       );
 
       final json = original.toJson();
@@ -30,7 +33,28 @@ void main() {
       expect(restored.replyToSenderRhingId, 'user2');
       expect(restored.replyToSnippet, '元のメッセージ');
       expect(restored.editedAt, original.editedAt);
-      expect(restored.reactions, {'u2': '👍', 'u3': '❤️'});
+      expect(restored.reactions, {
+        'u2': ['👍'],
+        'u3': ['❤️', '😂'],
+      });
+    });
+
+    test('旧形式（reactions.\$userIdが単一の絵文字文字列）も後方互換で読める', () {
+      final legacyJson = {
+        'conversationId': 'dm1',
+        'conversationType': 'dm',
+        'senderId': 'u1',
+        'content': 'こんにちは',
+        'contentType': 'text',
+        'sentAt': Timestamp.fromMillisecondsSinceEpoch(1000),
+        'reactions': {'u2': '👍'},
+      };
+
+      final message = Message.fromJson('m1', legacyJson);
+
+      expect(message.reactions, {
+        'u2': ['👍'],
+      });
     });
 
     test('新フィールドが存在しない既存ドキュメントでも欠損時デフォルトで復元できる', () {

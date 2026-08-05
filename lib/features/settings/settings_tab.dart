@@ -17,6 +17,7 @@ import '../../providers/app_locale_provider.dart';
 import '../../providers/app_ui_style_provider.dart';
 import '../../providers/block_providers.dart';
 import '../../providers/chat_layout_style_provider.dart';
+import '../../providers/gekiga_background_color_provider.dart';
 import '../../providers/message_time_format_provider.dart';
 import '../../providers/repository_providers.dart';
 import '../../providers/send_key_mode_provider.dart';
@@ -24,8 +25,8 @@ import '../../providers/terminology_style_provider.dart';
 import '../../providers/theme_mode_provider.dart';
 import '../../theme/gekiga/gekiga_colors.dart';
 import '../../utils/color_hex.dart';
-import '../../widgets/gekiga/gekiga_label_chip.dart';
 import '../../widgets/gekiga/gekiga_panel_box.dart';
+import '../../widgets/gekiga/gekiga_section_header.dart';
 import '../../widgets/gekiga/gekiga_text_field.dart';
 import '../../widgets/swipe_gestures.dart';
 import '../chat/group_member_list_screen.dart';
@@ -362,23 +363,19 @@ class _NarrowSettingsPage extends StatelessWidget {
 }
 
 /// セクションの見出し。劇画スタイル時は黒地白文字のラベルチップにする
-/// （2026-07-30、appUiStyleProviderを見るためConsumerWidget化）。
-class _SectionHeader extends ConsumerWidget {
+/// （2026-07-30、appUiStyleProviderを見るためConsumerWidget化。2026-08-05、
+/// 見た目部分は`profile_tab.dart`の蔵・工房の見出しにも使う共通ウィジェット
+/// `GekigaSectionHeader`へ切り出し、ここではpaddingのみ担う）。
+class _SectionHeader extends StatelessWidget {
   const _SectionHeader(this.title);
 
   final String title;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
+  Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-      child: isGekiga
-          ? Align(
-              alignment: Alignment.centerLeft,
-              child: GekigaLabelChip(title),
-            )
-          : Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+      child: GekigaSectionHeader(title),
     );
   }
 }
@@ -741,6 +738,12 @@ class _DesignFolder extends ConsumerStatefulWidget {
 /// アクセントカラーのプリセット（8桁hex＝RRGGBBAA）。
 const _kAccentColorPresets = ['F08300CC', '3D2EE0CC', '88B04Bdd'];
 
+/// 劇画UIの背景色のプリセット（6桁hex＝RRGGBB、不透明）。ColorSchemeの
+/// 種ではなく単色塗りつぶしの背景色として使うため、シンプルUI側のような
+/// 透過は付けない。先頭要素は`kDefaultGekigaBackgroundColor`
+/// （`GekigaColors.background`）と同じ値にすること。
+const _kGekigaBackgroundColorPresets = ['C1272D', 'F08300', '3D2EE0', '88B04B'];
+
 class _DesignFolderState extends ConsumerState<_DesignFolder> {
   late final TextEditingController _hexController;
   String? _errorText;
@@ -766,7 +769,12 @@ class _DesignFolderState extends ConsumerState<_DesignFolder> {
       return;
     }
     setState(() => _errorText = null);
-    ref.read(accentColorProvider.notifier).setColor(color);
+    final isGekiga = ref.read(appUiStyleProvider) == AppUiStyle.gekiga;
+    if (isGekiga) {
+      ref.read(gekigaBackgroundColorProvider.notifier).setColor(color);
+    } else {
+      ref.read(accentColorProvider.notifier).setColor(color);
+    }
   }
 
   void _applyPreset(String hex) {
@@ -776,14 +784,43 @@ class _DesignFolderState extends ConsumerState<_DesignFolder> {
       _errorText = null;
       _hexController.text = hex.toUpperCase();
     });
-    ref.read(accentColorProvider.notifier).setColor(color);
+    final isGekiga = ref.read(appUiStyleProvider) == AppUiStyle.gekiga;
+    if (isGekiga) {
+      ref.read(gekigaBackgroundColorProvider.notifier).setColor(color);
+    } else {
+      ref.read(accentColorProvider.notifier).setColor(color);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    // 同じ入力欄・プリセット一覧をシンプルUIの`accentColorProvider`と
+    // 劇画UIの`gekigaBackgroundColorProvider`で使い回しているため、
+    // `_UiStyleFolder`（同じ`_ApplicationPage`内の兄弟）でスタイルを
+    // 切り替えた瞬間に、表示中の値を新しく有効になった側のプロバイダの
+    // 現在値へリセットする。build中に`_hexController`を直接書き換えると
+    // GekigaTextField/TextFieldという別ウィジェット間の切り替え時に
+    // タイミング次第で不安定になるため、`ref.listen`のコールバック内で
+    // 安全にsetStateする。
+    ref.listen<AppUiStyle>(appUiStyleProvider, (previous, next) {
+      if (previous == next) return;
+      final color = next == AppUiStyle.gekiga
+          ? ref.read(gekigaBackgroundColorProvider)
+          : ref.read(accentColorProvider);
+      setState(() {
+        _errorText = null;
+        _hexController.text = color.toHexString().replaceFirst('#', '');
+      });
+    });
+
     final accentColor = ref.watch(accentColorProvider);
+    final gekigaBackgroundColor = ref.watch(gekigaBackgroundColorProvider);
     final themeMode = ref.watch(appThemeModeProvider);
     final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
+    final activeColor = isGekiga ? gekigaBackgroundColor : accentColor;
+    final colorPresets = isGekiga
+        ? _kGekigaBackgroundColorPresets
+        : _kAccentColorPresets;
 
     void selectThemeMode(ThemeMode mode) =>
         ref.read(appThemeModeProvider.notifier).setMode(mode);
@@ -914,79 +951,73 @@ class _DesignFolderState extends ConsumerState<_DesignFolder> {
             style: const TextStyle(fontWeight: FontWeight.bold),
           ),
         ),
-        // 劇画UI選択中はアクセントカラーを変更不可にする（グレーアウト＋
-        // 操作無効化）。GekigaThemeはFAB等ごく一部にしか使わない固定寄りの
-        // 配色のため、他の劇画パーツと同じ黒/白基調に統一する方針
-        // （2026-08-04追加）。
+        // 劇画UI選択中は「背景色」の意味で使う（シンプルUIのようにColorScheme
+        // 全体の種にはせず、背景のみを変更する。黒/白基調の他パーツは
+        // 引き続き固定）。2026-08-05変更、以前はこの欄自体を劇画UI選択中は
+        // 変更不可にしていた。
         if (isGekiga)
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
             child: Text(
-              widget.strings.settingsAccentColorGekigaLockedHint,
+              widget.strings.settingsAccentColorGekigaHint,
               style: TextStyle(
                 fontSize: 12,
                 color: Theme.of(context).hintColor,
               ),
             ),
           ),
-        Opacity(
-          opacity: isGekiga ? 0.4 : 1.0,
-          child: IgnorePointer(
-            ignoring: isGekiga,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        width: 48,
-                        height: 48,
-                        margin: const EdgeInsets.only(top: 4),
-                        decoration: BoxDecoration(
-                          color: accentColor,
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.black12),
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(child: accentColorField),
-                    ],
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    margin: const EdgeInsets.only(top: 4),
+                    decoration: BoxDecoration(
+                      color: activeColor,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.black12),
+                    ),
                   ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        widget.strings.settingsColorPresets,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 13,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 12,
-                        runSpacing: 12,
-                        children: [
-                          for (final hex in _kAccentColorPresets)
-                            _PresetColorSwatch(
-                              hex: hex,
-                              selected: tryParseHexColor(hex) == accentColor,
-                              onTap: () => _applyPreset(hex),
-                            ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+                  const SizedBox(width: 16),
+                  Expanded(child: accentColorField),
+                ],
+              ),
             ),
-          ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    widget.strings.settingsColorPresets,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 12,
+                    children: [
+                      for (final hex in colorPresets)
+                        _PresetColorSwatch(
+                          hex: hex,
+                          selected: tryParseHexColor(hex) == activeColor,
+                          onTap: () => _applyPreset(hex),
+                        ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ],
     );

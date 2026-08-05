@@ -9,6 +9,7 @@
 class AppUserPreferences {
   const AppUserPreferences({
     this.accentColorArgb,
+    this.gekigaBackgroundColorArgb,
     this.themeMode,
     this.localeCode,
     this.terminologyStyle,
@@ -21,6 +22,7 @@ class AppUserPreferences {
   static const empty = AppUserPreferences();
 
   final int? accentColorArgb;
+  final int? gekigaBackgroundColorArgb;
   final String? themeMode;
   final String? localeCode;
   final String? terminologyStyle;
@@ -33,6 +35,7 @@ class AppUserPreferences {
     if (json == null) return empty;
     return AppUserPreferences(
       accentColorArgb: json['accentColorArgb'] as int?,
+      gekigaBackgroundColorArgb: json['gekigaBackgroundColorArgb'] as int?,
       themeMode: json['themeMode'] as String?,
       localeCode: json['localeCode'] as String?,
       terminologyStyle: json['terminologyStyle'] as String?,
@@ -46,6 +49,8 @@ class AppUserPreferences {
   Map<String, dynamic> toJson() {
     return {
       if (accentColorArgb != null) 'accentColorArgb': accentColorArgb,
+      if (gekigaBackgroundColorArgb != null)
+        'gekigaBackgroundColorArgb': gekigaBackgroundColorArgb,
       if (themeMode != null) 'themeMode': themeMode,
       if (localeCode != null) 'localeCode': localeCode,
       if (terminologyStyle != null) 'terminologyStyle': terminologyStyle,

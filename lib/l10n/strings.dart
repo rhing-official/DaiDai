@@ -25,7 +25,7 @@ class Strings {
     required this.settingsBlockedUsersEmpty,
     required this.settingsBlockedUsersUnblock,
     required this.settingsAccentColor,
-    required this.settingsAccentColorGekigaLockedHint,
+    required this.settingsAccentColorGekigaHint,
     required this.settingsAppearanceGekigaLockedHint,
     required this.settingsAppearance,
     required this.settingsAppearanceLight,
@@ -230,6 +230,7 @@ class Strings {
     required this.groupSettingsDisableMultipleRoomsConfirmButton,
     required this.profileCardPickerLabel,
     required this.profileCardPickerStandardOption,
+    required this.profileCardPickerStandardOptionWithName,
     required this.settingsProfileCardAssignmentTitle,
     required this.settingsProfileCardAssignmentHint,
     required this.settingsProfileCardAssignmentEmpty,
@@ -321,7 +322,7 @@ class Strings {
   final String settingsBlockedUsersEmpty;
   final String settingsBlockedUsersUnblock;
   final String settingsAccentColor;
-  final String settingsAccentColorGekigaLockedHint;
+  final String settingsAccentColorGekigaHint;
   final String settingsAppearanceGekigaLockedHint;
   final String settingsAppearance;
   final String settingsAppearanceLight;
@@ -603,6 +604,15 @@ class Strings {
   /// を使う」ことを表す選択肢のラベル。
   final String profileCardPickerStandardOption;
 
+  /// [profileCardPickerStandardOption]の、現在の標準カードの名前が分かって
+  /// いる場合の表示（例:「標準（いい）」）。標準として選べるカードと、同名の
+  /// カードそのものを選ぶ選択肢が並んで見え、重複しているように見える指摘を
+  /// 受けて追加（2026-08-05）。「標準」自体（今後デフォルトを変えれば自動で
+  /// 追従する）と「そのカードに固定」という意味の違いは変えず、表示だけ
+  /// 現在の解決結果を分かりやすくする。
+  final String Function(String cardName)
+  profileCardPickerStandardOptionWithName;
+
   /// 身だしなみ＞工房内、会話ごとのプロフィールカード割り当て一覧セクションの
   /// タイトル（2026-07-29追加、2026-08-02に設定＞語らいから工房へ移動）。
   final String settingsProfileCardAssignmentTitle;
@@ -761,7 +771,7 @@ class Strings {
     settingsBlockedUsersEmpty: 'ブロックしたユーザーはいません',
     settingsBlockedUsersUnblock: 'ブロック解除',
     settingsAccentColor: 'アクセントカラー',
-    settingsAccentColorGekigaLockedHint: '劇画UIを選択中は変更できません',
+    settingsAccentColorGekigaHint: '劇画UIでは背景色として使われます（初期値は現在の赤）',
     settingsAppearanceGekigaLockedHint: '劇画UIを選択中は変更できません',
     settingsAppearance: '外観',
     settingsAppearanceLight: 'ライト',
@@ -985,6 +995,7 @@ class Strings {
     groupSettingsDisableMultipleRoomsConfirmButton: 'オフにする',
     profileCardPickerLabel: '使うプロフィールカード（省略可）',
     profileCardPickerStandardOption: '標準',
+    profileCardPickerStandardOptionWithName: (name) => '標準（$name）',
     settingsProfileCardAssignmentTitle: '会話ごとのプロフィールカード',
     settingsProfileCardAssignmentHint:
         '標準カード以外を使っている語らいだけがここに表示されます。＋から新しく設定できます。',
@@ -1081,8 +1092,9 @@ class Strings {
     settingsBlockedUsersEmpty: 'No blocked users',
     settingsBlockedUsersUnblock: 'Unblock',
     settingsAccentColor: 'Accent colour',
-    settingsAccentColorGekigaLockedHint:
-        'Cannot be changed while the Gekiga UI style is selected',
+    settingsAccentColorGekigaHint:
+        'Used as the background colour in Gekiga UI style '
+        '(defaults to the current red).',
     settingsAppearanceGekigaLockedHint:
         'Cannot be changed while the Gekiga UI style is selected',
     settingsAppearance: 'Appearance',
@@ -1337,6 +1349,7 @@ class Strings {
     groupSettingsDisableMultipleRoomsConfirmButton: 'Merge',
     profileCardPickerLabel: 'Profile card to use (optional)',
     profileCardPickerStandardOption: 'Standard',
+    profileCardPickerStandardOptionWithName: (name) => 'Standard ($name)',
     settingsProfileCardAssignmentTitle: 'Profile card per conversation',
     settingsProfileCardAssignmentHint:
         'Only conversations using a non-standard card are shown here. Tap + to set one up.',

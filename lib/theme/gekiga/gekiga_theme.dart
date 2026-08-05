@@ -5,16 +5,20 @@ import '../app_theme.dart';
 import '../app_theme_extras.dart';
 import 'gekiga_colors.dart';
 
-/// 劇画UIスタイル用のThemeData。simpleスタイル（[AppTheme]）と異なり、
-/// アクセントカラーは一切使わず、背景（赤）以外は全て黒・白のモノクロで
-/// 統一する（2026-08-04変更。以前はFABなど一部にアクセントカラーを残す
-/// 方針だったが、ユーザー指摘により完全無効化した）。
+/// 劇画UIスタイル用のThemeData。simpleスタイル（[AppTheme]）のように
+/// アクセントカラーをColorScheme全体の種にはせず、背景色だけを
+/// 呼び出し元から受け取る（それ以外＝黒・白のモノクロ部分は完全固定、
+/// 2026-08-04変更。以前はFABなど一部にアクセントカラーを残す方針
+/// だったが、ユーザー指摘により完全無効化した）。背景色は
+/// 2026-08-05よりユーザーが設定タブから編集可能になり
+/// （[gekigaBackgroundColorProvider]参照）、既定値は
+/// [kDefaultGekigaBackgroundColor]（[GekigaColors.background]と同じ赤）。
 /// themeMode（ライト/ダーク）に関わらず常に同じ見た目にするため、
 /// light/darkの2関数を分けず単一のThemeDataを返す（2026-07-30新規）。
 class GekigaTheme {
   GekigaTheme._();
 
-  static ThemeData build() {
+  static ThemeData build(Color backgroundColor) {
     // `ColorScheme.dark()`をそのまま土台にすると、ここで明示的に
     // 上書きしていないトークン（primaryContainer・tertiary・
     // surfaceContainerHighest・outline等）にMaterial既定のダークテーマ色
@@ -27,7 +31,7 @@ class GekigaTheme {
           seedColor: Colors.grey,
           brightness: Brightness.dark,
         ).copyWith(
-          surface: GekigaColors.background,
+          surface: backgroundColor,
           onSurface: GekigaColors.onPanel,
           primary: GekigaColors.onPanel,
           onPrimary: GekigaColors.panel,
@@ -63,7 +67,7 @@ class GekigaTheme {
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.dark,
-      scaffoldBackgroundColor: GekigaColors.background,
+      scaffoldBackgroundColor: backgroundColor,
       colorScheme: colorScheme,
       textTheme: textTheme,
       pageTransitionsTheme: const PageTransitionsTheme(
@@ -76,7 +80,7 @@ class GekigaTheme {
         },
       ),
       appBarTheme: AppBarTheme(
-        backgroundColor: GekigaColors.background,
+        backgroundColor: backgroundColor,
         foregroundColor: GekigaColors.onPanel,
         elevation: 0,
         centerTitle: false,

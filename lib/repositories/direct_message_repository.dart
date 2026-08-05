@@ -18,7 +18,10 @@ abstract class DirectMessageRepository {
   /// ルールと同じ条件の`where`句が無いと要求全体を拒否するため、クエリ側にも
   /// `participants`のarray-contains条件を付ける必要がある。
   /// `GroupRepository.watchRooms`参照）。
-  Stream<List<DmRoom>> watchRooms({required String dmId, required String userId});
+  Stream<List<DmRoom>> watchRooms({
+    required String dmId,
+    required String userId,
+  });
 
   /// 新しい寄合を作成する（参加者ならどちらでも実行可能、確認不要）。
   Future<DmRoom> createRoom({required String dmId, required String name});
@@ -98,14 +101,16 @@ abstract class DirectMessageRepository {
     required String messageId,
   });
 
-  /// 自分のリアクションを設定・解除する（[emoji]がnullなら解除、
-  /// 既に設定済みでも上書きで乗り換えられる）。
+  /// 自分のこのメッセージへのリアクションを、呼び出し側が計算済みの
+  /// 完全な絵文字リストで上書きする（空リストなら解除。2026-08-05変更、
+  /// 以前は単一絵文字の設定/解除だったが、複数の異なる絵文字を同時に
+  /// 持てるようになったため、差分ではなく完全なリストを渡す形にした）。
   Future<void> setReaction({
     required String dmId,
     required String roomId,
     required String messageId,
     required String userId,
-    String? emoji,
+    required List<String> emojis,
   });
 
   /// 指定したメッセージ群に、自分（[userId]）が読んだ記録を追加する。
@@ -183,12 +188,15 @@ abstract class DirectMessageRepository {
   /// 絞り込み無し`.get()`が`list`操作としてfirestore.rulesにpermission-denied
   /// される問題を避けるため、`DirectMessageRepository.watchRooms`と同じ
   /// 理由で必要。他の`rooms`一括操作系メソッド全般に共通する制約）。
-  Future<void> deleteDmAfterAccountDeletion(String dmId, {required String userId});
+  Future<void> deleteDmAfterAccountDeletion(
+    String dmId, {
+    required String userId,
+  });
 }
 
 class FirestoreDirectMessageRepository implements DirectMessageRepository {
   FirestoreDirectMessageRepository({FirebaseFirestore? firestore})
-      : _firestore = firestore ?? FirebaseFirestore.instance;
+    : _firestore = firestore ?? FirebaseFirestore.instance;
 
   final FirebaseFirestore _firestore;
 
@@ -230,7 +238,10 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
       );
       await repairedRoomRef.set(repairedRoom.toJson());
       await ref.update({'defaultRoomId': repairedRoomRef.id});
-      return DirectMessage.fromJson(dmId, {...data, 'defaultRoomId': repairedRoomRef.id});
+      return DirectMessage.fromJson(dmId, {
+        ...data,
+        'defaultRoomId': repairedRoomRef.id,
+      });
     }
 
     final roomRef = ref.collection('rooms').doc();
@@ -268,24 +279,30 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
         .where('participants', arrayContains: userId)
         .snapshots()
         .map((snapshot) {
-      final dms = <DirectMessage>[];
-      for (final doc in snapshot.docs) {
-        try {
-          dms.add(DirectMessage.fromJson(doc.id, doc.data()));
-        } catch (_) {
-          // defaultRoomId未設定など、過去の移行漏れで不完全なドキュメントが
-          // 混ざっていても一覧全体を巻き込まないよう、その1件だけ読み飛ばす
-          // （getOrCreateDirectMessageが次に開かれた際に自己修復する）。
-        }
-      }
-      dms.sort((a, b) => (b.lastMessageAt?.millisecondsSinceEpoch ?? 0)
-          .compareTo(a.lastMessageAt?.millisecondsSinceEpoch ?? 0));
-      return dms;
-    });
+          final dms = <DirectMessage>[];
+          for (final doc in snapshot.docs) {
+            try {
+              dms.add(DirectMessage.fromJson(doc.id, doc.data()));
+            } catch (_) {
+              // defaultRoomId未設定など、過去の移行漏れで不完全なドキュメントが
+              // 混ざっていても一覧全体を巻き込まないよう、その1件だけ読み飛ばす
+              // （getOrCreateDirectMessageが次に開かれた際に自己修復する）。
+            }
+          }
+          dms.sort(
+            (a, b) => (b.lastMessageAt?.millisecondsSinceEpoch ?? 0).compareTo(
+              a.lastMessageAt?.millisecondsSinceEpoch ?? 0,
+            ),
+          );
+          return dms;
+        });
   }
 
   @override
-  Stream<List<DmRoom>> watchRooms({required String dmId, required String userId}) {
+  Stream<List<DmRoom>> watchRooms({
+    required String dmId,
+    required String userId,
+  }) {
     // Firestoreの`orderBy`はソート対象フィールドを持たないドキュメントを
     // 結果から除外してしまう（作成直後、serverTimestamp()がサーバー側で
     // 解決するまでの一瞬もローカルではcreatedAt=null扱いになり同様に除外
@@ -300,12 +317,16 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
         .where('participants', arrayContains: userId)
         .snapshots()
         .map((snapshot) {
-      final rooms =
-          snapshot.docs.map((doc) => DmRoom.fromJson(doc.id, doc.data())).toList()
-            ..sort((a, b) => (a.createdAt?.millisecondsSinceEpoch ?? 0)
-                .compareTo(b.createdAt?.millisecondsSinceEpoch ?? 0));
-      return rooms;
-    });
+          final rooms =
+              snapshot.docs
+                  .map((doc) => DmRoom.fromJson(doc.id, doc.data()))
+                  .toList()
+                ..sort(
+                  (a, b) => (a.createdAt?.millisecondsSinceEpoch ?? 0)
+                      .compareTo(b.createdAt?.millisecondsSinceEpoch ?? 0),
+                );
+          return rooms;
+        });
   }
 
   @override
@@ -334,7 +355,9 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
     required String roomId,
     required String name,
   }) async {
-    await _directMessages.doc(dmId).collection('rooms').doc(roomId).update({'name': name});
+    await _directMessages.doc(dmId).collection('rooms').doc(roomId).update({
+      'name': name,
+    });
   }
 
   @override
@@ -384,12 +407,20 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
     final defaultRoomId = dmDoc.data()?['defaultRoomId'] as String?;
     if (defaultRoomId == roomId) {
       final remaining = roomsSnapshot.docs.where((d) => d.id != roomId).toList()
-        ..sort((a, b) =>
-            ((a.data()['createdAt'] as Timestamp?)?.millisecondsSinceEpoch ?? 0)
-                .compareTo(
-                    (b.data()['createdAt'] as Timestamp?)?.millisecondsSinceEpoch ?? 0));
+        ..sort(
+          (a, b) =>
+              ((a.data()['createdAt'] as Timestamp?)?.millisecondsSinceEpoch ??
+                      0)
+                  .compareTo(
+                    (b.data()['createdAt'] as Timestamp?)
+                            ?.millisecondsSinceEpoch ??
+                        0,
+                  ),
+        );
       if (remaining.isNotEmpty) {
-        await _directMessages.doc(dmId).update({'defaultRoomId': remaining.first.id});
+        await _directMessages.doc(dmId).update({
+          'defaultRoomId': remaining.first.id,
+        });
       }
     }
   }
@@ -401,9 +432,11 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
         .orderBy('sentAt', descending: true)
         .limit(50)
         .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => Message.fromJson(doc.id, doc.data()))
-            .toList());
+        .map(
+          (snapshot) => snapshot.docs
+              .map((doc) => Message.fromJson(doc.id, doc.data()))
+              .toList(),
+        );
   }
 
   @override
@@ -463,7 +496,9 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
       replyToMessageId: replyTo?.messageId,
       replyToSenderId: replyTo?.senderId,
       replyToSenderRhingId: replyTo?.senderRhingId,
-      replyToSnippet: replyTo == null ? null : messageSnippetOf(replyTo.content),
+      replyToSnippet: replyTo == null
+          ? null
+          : messageSnippetOf(replyTo.content),
     );
 
     final batch = _firestore.batch();
@@ -521,10 +556,9 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
     required String messageId,
     required String newContent,
   }) async {
-    await _dmRoomRef(dmId, roomId).collection('messages').doc(messageId).update({
-      'content': newContent,
-      'editedAt': FieldValue.serverTimestamp(),
-    });
+    await _dmRoomRef(dmId, roomId).collection('messages').doc(messageId).update(
+      {'content': newContent, 'editedAt': FieldValue.serverTimestamp()},
+    );
   }
 
   @override
@@ -560,11 +594,11 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
     required String roomId,
     required String messageId,
     required String userId,
-    String? emoji,
+    required List<String> emojis,
   }) async {
     final ref = _dmRoomRef(dmId, roomId).collection('messages').doc(messageId);
     await ref.update({
-      'reactions.$userId': emoji ?? FieldValue.delete(),
+      'reactions.$userId': emojis.isEmpty ? FieldValue.delete() : emojis,
     });
   }
 
@@ -615,7 +649,10 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
 
     // Firestoreの1バッチは500件までのため、chunk単位でコミットする。
     for (var i = 0; i < docs.length; i += 400) {
-      final chunk = docs.sublist(i, i + 400 > docs.length ? docs.length : i + 400);
+      final chunk = docs.sublist(
+        i,
+        i + 400 > docs.length ? docs.length : i + 400,
+      );
       final batch = _firestore.batch();
       for (final doc in chunk) {
         if (!doc.exists) continue;
@@ -752,14 +789,16 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
     required String roomId,
     required String messageId,
   }) async {
-    await _dmRoomRef(dmId, roomId)
-        .collection('messages')
-        .doc(messageId)
-        .update({'accountDeletionResponse': 'declined'});
+    await _dmRoomRef(dmId, roomId).collection('messages').doc(messageId).update(
+      {'accountDeletionResponse': 'declined'},
+    );
   }
 
   @override
-  Future<void> deleteDmAfterAccountDeletion(String dmId, {required String userId}) async {
+  Future<void> deleteDmAfterAccountDeletion(
+    String dmId, {
+    required String userId,
+  }) async {
     final dmRef = _directMessages.doc(dmId);
     final roomsSnapshot = await dmRef
         .collection('rooms')

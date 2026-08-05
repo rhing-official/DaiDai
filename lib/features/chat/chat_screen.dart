@@ -84,9 +84,11 @@ class ChatScreen extends ConsumerStatefulWidget {
   /// nullなら送信取り消し機能自体を提供しない。
   final Future<void> Function(String messageId)? onUnsendMessage;
 
-  /// メッセージへのリアクションを設定・解除する（emojiがnullなら解除）。
-  /// nullならリアクション機能自体を提供しない。
-  final Future<void> Function(String messageId, String? emoji)? onSetReaction;
+  /// メッセージへの自分のリアクションを、呼び出し側が計算済みの完全な
+  /// 絵文字リストで上書きする（空リストなら解除）。nullならリアクション
+  /// 機能自体を提供しない。
+  final Future<void> Function(String messageId, List<String> emojis)?
+  onSetReaction;
 
   /// この会話で既読機能を使うかどうか（ハンバーガーメニューの設定を反映）。
   /// falseの場合、自分の既読は記録されず、チェックマークも表示しない。
@@ -565,9 +567,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     final floatingShadow =
         Theme.of(context).extension<AppThemeExtras>()?.floatingShadow ??
         AppThemeExtras.none;
-    final composerBackground = isGekiga
-        ? GekigaColors.background
-        : Theme.of(context).scaffoldBackgroundColor;
+    // 劇画UIの背景色はユーザーが設定タブから編集可能（gekigaBackgroundColorProvider、
+    // 2026-08-05）なため、固定値を決め打ちせずTheme経由で参照する
+    // （どちらのスタイルでもTheme側の値が既に正しいため、isGekigaでの
+    // 分岐自体が不要になった）。
+    final composerBackground = Theme.of(context).scaffoldBackgroundColor;
 
     // 入力欄オーバーレイの高さは行数や返信/編集バーの有無で変わるため、
     // 毎フレーム後に実測してメッセージ一覧の下部余白へ反映する
@@ -575,9 +579,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     WidgetsBinding.instance.addPostFrameCallback((_) => _measureComposerArea());
 
     return Scaffold(
-      backgroundColor: isGekiga ? GekigaColors.background : null,
       appBar: AppBar(
-        backgroundColor: isGekiga ? GekigaColors.background : null,
         foregroundColor: isGekiga ? Colors.white : null,
         automaticallyImplyLeading: false,
         leading: _selecting
@@ -1125,7 +1127,7 @@ class _MessageRow extends ConsumerWidget {
   final void Function(String messageId)? onUnsend;
 
   /// nullならリアクション機能自体を出さない。
-  final void Function(String messageId, String? emoji)? onSetReaction;
+  final void Function(String messageId, List<String> emojis)? onSetReaction;
 
   /// 返信を含んだメッセージをタップした時に、返信先メッセージへジャンプする。
   /// [messagesById]に返信先が無い（直近50件のロード範囲外）場合は、
@@ -1271,7 +1273,12 @@ class _MessageRow extends ConsumerWidget {
     final chipRect = chipBox.localToGlobal(Offset.zero) & chipBox.size;
     const width = 240.0;
     const minPopupSpace = 160.0;
-    final entries = message.reactions.entries.toList();
+    // 1ユーザーが複数の異なる絵文字を持てるため、(userId, 絵文字)の
+    // ペア単位にフラット化して1行ずつ表示する（2026-08-05変更）。
+    final entries = <MapEntry<String, String>>[
+      for (final e in message.reactions.entries)
+        for (final emoji in e.value) MapEntry(e.key, emoji),
+    ];
 
     showGeneralDialog<void>(
       context: context,
@@ -1349,14 +1356,16 @@ class _MessageRow extends ConsumerWidget {
                                   Text(entry.value),
                                   if (isMine)
                                     IconButton(
-                                      icon: const Icon(
-                                        Icons.delete_outline,
-                                        size: 20,
-                                      ),
+                                      icon: const Icon(Icons.close, size: 20),
                                       onPressed: () {
+                                        final mine =
+                                            message.reactions[currentUserId] ??
+                                            [];
                                         onSetReaction?.call(
                                           message.messageId,
-                                          null,
+                                          mine
+                                              .where((e) => e != entry.value)
+                                              .toList(),
                                         );
                                         Navigator.of(context).pop();
                                       },
@@ -1522,12 +1531,14 @@ class _MessageRow extends ConsumerWidget {
             child: bubbleContent,
           );
 
-    // 吹き出しの角に既読チェックマークを重ねる。バブルが右寄せの時は左下、
-    // 左寄せの時は右下（吹き出しの中心寄り＝アイコンと反対側）に表示する
-    // （isMeではなくalignRightで決める。allLeftスタイルでは自分のメッセージも
-    // 左寄せになるため、isMeだけで判定すると常にアイコン側に重なってしまう）。
-    // 吹き出しの内容（特に画像だけの小さい吹き出し）に重ならないよう、
-    // 角からしっかり離す。
+    // 既読バッジは吹き出しの横（バブルが右寄せの時は左横、左寄せの時は
+    // 右横）に、吹き出しの下端を下限として並べる（2026-08-05変更）。
+    // 以前はStack+Positionedで吹き出しの外へ重ねていたが、Positionedの
+    // オーバーフロー分はStack自身のサイズに含まれず、(1)ListView側の
+    // 行の高さに反映されない（次のメッセージと重なる）、(2)吹き出しの
+    // サイズを超えた領域はヒットテストが届かずタップが効かない、という
+    // 2つの不具合があったため、Rowで実際に横並びにするレイアウトへ
+    // 変更した（bubbleをFlexibleにしてバッジ分の幅を確保する）。
     // テキストメッセージの自分の投稿のみ編集可能（画像等contentType='text'
     // 以外は将来実装時もまず本文編集の対象外という方針、Planでの検討通り）。
     final canEdit = isMe && message.contentType == 'text' && onEdit != null;
@@ -1568,79 +1579,82 @@ class _MessageRow extends ConsumerWidget {
         ? () => onJumpToReply!(replyTargetId)
         : null;
 
+    final readBadge = showReadMark
+        ? (isSimpleDmReadMark
+              ? badge
+              : Builder(
+                  builder: (badgeContext) => GestureDetector(
+                    onTap: () => _showReadReceiptPopup(
+                      context,
+                      badgeContext,
+                      readers,
+                      strings,
+                    ),
+                    child: badge,
+                  ),
+                ))
+        : null;
+    final hasReactions = message.reactions.values.any(
+      (emojis) => emojis.isNotEmpty,
+    );
+
     // 長押し/右クリックでリアクション・返信・編集等のメニューを開く判定は
     // 吹き出し本体だけに絞る（2026-07-29変更）。以前は行全体（余白込み）が
     // 対象だったが、余白部分の長押しは自動スクロール（[_MessageInteractions]
     // 参照）に割り当てたため、両者が同じ操作を奪い合わないよう分離した。
-    final bubbleWithReadMark = _MessageBubbleTapArea(
-      canSelect: canSelect,
-      strings: strings,
-      onTap: onBubbleTap,
-      onReply: () => onReply?.call(message),
-      onEdit: canEdit ? () => onEdit?.call(message) : null,
-      onUnsend: (isMe && onUnsend != null)
-          ? () => _confirmUnsend(context, strings)
-          : null,
-      onReact: onSetReaction == null
-          ? null
-          : (emoji) {
-              final mine = message.reactions[currentUserId];
-              onSetReaction?.call(
-                message.messageId,
-                mine == emoji ? null : emoji,
-              );
-            },
-      onSelect: canSelect
-          ? () => onEnterSelection?.call(message.messageId)
-          : null,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          bubble,
-          // 既読バッジは常にこの位置に固定する（bottom: -14,
-          // left/right: -10、変更しない）。リアクションの有無に関わらず
-          // 既読バッジ自身の座標が動くことがあってはならない
-          // （2026-08-05: 以前RowでリアクションとまとめてPositionedを
-          // 共有した際、リアクションがある時だけ既読バッジの位置が内側に
-          // ずれてしまい「既読バッジが押し出されている」と指摘された）。
-          if (showReadMark)
-            Positioned(
-              bottom: -14,
-              left: alignRight ? -10 : null,
-              right: alignRight ? null : -10,
-              child: isSimpleDmReadMark
-                  ? badge
-                  : Builder(
-                      builder: (badgeContext) => GestureDetector(
-                        onTap: () => _showReadReceiptPopup(
-                          context,
-                          badgeContext,
-                          readers,
-                          strings,
-                        ),
-                        child: badge,
-                      ),
-                    ),
+    final bubbleWithReadMark = Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: alignRight
+          ? CrossAxisAlignment.end
+          : CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          // 既読バッジは吹き出しの下端を下限として横に並べる
+          // （バッジの方が低いものは無いが、万一同じ高さでも吹き出し側の
+          // 下端に揃う）。
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            if (alignRight && readBadge != null) ...[
+              readBadge,
+              const SizedBox(width: 6),
+            ],
+            Flexible(
+              child: _MessageBubbleTapArea(
+                canSelect: canSelect,
+                strings: strings,
+                onTap: onBubbleTap,
+                onReply: () => onReply?.call(message),
+                onEdit: canEdit ? () => onEdit?.call(message) : null,
+                onUnsend: (isMe && onUnsend != null)
+                    ? () => _confirmUnsend(context, strings)
+                    : null,
+                onReact: onSetReaction == null ? null : _toggleMyReaction,
+                onSelect: canSelect
+                    ? () => onEnterSelection?.call(message.messageId)
+                    : null,
+                child: bubble,
+              ),
             ),
-          // リアクションは既読バッジとは独立したPositionedとして、
-          // 既読バッジよりさらに外側（メッセージから見て外側）に固定
-          // オフセットで配置する。既読バッジ用Positionedとは別物なので、
-          // リアクションの有無が既読バッジの座標に影響しない。垂直方向は
-          // 既読バッジと同じbottom: -14を使うことで、短いメッセージでも
-          // 吹き出しの外に突き抜けて上のアバター・時刻表示と重なる問題を
-          // 回避する（bottom: -14は既読バッジ単体でも常に安全に動いていた
-          // 実測済みの値のため）。水平方向のオフセット(-40)は既読バッジと
-          // 重ならない範囲でできるだけ近づけた値（既読バッジのオフセット
-          // -10と同様、実機ホットリロードでの微調整を前提とする）。
-          if (message.reactions.isNotEmpty)
-            Positioned(
-              bottom: -14,
-              left: alignRight ? -40 : null,
-              right: alignRight ? null : -40,
-              child: _reactionBar(context, strings),
-            ),
-        ],
-      ),
+            if (!alignRight && readBadge != null) ...[
+              const SizedBox(width: 6),
+              readBadge,
+            ],
+          ],
+        ),
+        // リアクションは吹き出しの真下に配置する（2026-08-05変更）。以前は
+        // Stack+Positionedで吹き出しの外へ重ねていたが、Positionedの
+        // オーバーフロー分は親のColumn/ListViewの高さ計算に含まれず
+        // 次のメッセージと重なる上、吹き出し本体のヒットテスト範囲外に
+        // なるためタップも一切効かなかった（＋ボタン・リアクション
+        // チップともに無反応になっていた）。Column内の実際の子要素として
+        // 配置することで、両方を解消する。
+        if (hasReactions)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: _reactionBar(context, strings, alignRight),
+          ),
+      ],
     );
 
     // allLeftでは自分・相手とも常にアイコン・呼び名を表示する。sideBySideでは
@@ -1924,56 +1938,108 @@ class _MessageRow extends ConsumerWidget {
     return '$seconds秒';
   }
 
-  /// リアクション（絵文字ごとの重複無しチップ）の一覧。既読バッジと同じ
-  /// `Positioned`内で`Row`に並べて表示する（2026-08-05変更）。
+  /// 自分のこのメッセージへのリアクションを、[emoji]について付け外しする
+  /// （既に付けていれば外す、付けていなければ追加する。他の絵文字には
+  /// 影響しない。2026-08-05追加、複数の異なる絵文字を同時に付けられる
+  /// ようになったことに伴うトグルヘルパー）。長押しメニューからの
+  /// リアクション・リアクション行の＋ボタン、両方から使う。
+  void _toggleMyReaction(String emoji) {
+    final mine = message.reactions[currentUserId] ?? [];
+    final next = mine.contains(emoji)
+        ? (mine.toSet()..remove(emoji))
+        : (mine.toSet()..add(emoji));
+    onSetReaction?.call(message.messageId, next.toList());
+  }
+
+  /// リアクション（絵文字ごとの重複無しチップ）の一覧＋末尾の＋ボタン。
+  /// 吹き出しの真下の`Positioned`内で`Wrap`に並べて表示する
+  /// （2026-08-05変更）。[alignRight]が真の時（自分のメッセージが右寄せの
+  /// 時）は`Directionality`で列全体を反転し、＋ボタンが左端に来るように
+  /// する（絵文字チップ自体の中身はミラーされない）。
   ///
   /// チップをタップしても即座に自分のリアクションを取り消さない
   /// （2026-08-05変更）。代わりに[_showReactionListPopup]でリアクション
   /// 一覧（誰がどの絵文字を付けたか）を表示し、そこで自分の行にのみ
   /// 出るゴミ箱ボタンから取り消す。人数は表示しない（絵文字のみ）。
-  Widget _reactionBar(BuildContext context, Strings strings) {
-    final emojis = message.reactions.values.toSet();
-    final myReaction = message.reactions[currentUserId];
+  Widget _reactionBar(BuildContext context, Strings strings, bool alignRight) {
+    final emojis = message.reactions.values.expand((e) => e).toSet();
+    final myReactions = message.reactions[currentUserId] ?? [];
     // 劇画スタイルでは、ジグザグ枠にはせず色だけモノクロにする
     // （2026-08-04追加）。以前は選択中（自分のリアクション）だけ白地黒
     // 文字に反転していたが、タップ操作が即トグルではなくリアクション
     // 一覧ポップアップを開く形に変わったため、選択強調の必要性が薄れた。
     // ユーザー指示により常に黒地白文字に統一する（2026-08-05変更）。
     final isGekiga = uiStyle == AppUiStyle.gekiga;
-    return Wrap(
-      spacing: 4,
-      children: [
-        for (final emoji in emojis)
-          Builder(
-            builder: (chipContext) => GestureDetector(
-              onTap: () =>
-                  _showReactionListPopup(context, chipContext, strings),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                  color: isGekiga
-                      ? GekigaColors.panel
-                      : (myReaction == emoji
-                            ? colorScheme.primaryContainer
-                            : colorScheme.surfaceContainerHighest),
-                  borderRadius: BorderRadius.circular(999),
-                  border: isGekiga
-                      ? null
-                      : (myReaction == emoji
-                            ? Border.all(color: colorScheme.primary)
-                            : null),
+
+    return Directionality(
+      textDirection: alignRight ? TextDirection.rtl : TextDirection.ltr,
+      child: Wrap(
+        spacing: 4,
+        children: [
+          for (final emoji in emojis)
+            Builder(
+              builder: (chipContext) => GestureDetector(
+                onTap: () =>
+                    _showReactionListPopup(context, chipContext, strings),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: isGekiga
+                        ? GekigaColors.panel
+                        : (myReactions.contains(emoji)
+                              ? colorScheme.primaryContainer
+                              : colorScheme.surfaceContainerHighest),
+                    borderRadius: BorderRadius.circular(999),
+                    border: isGekiga
+                        ? null
+                        : (myReactions.contains(emoji)
+                              ? Border.all(color: colorScheme.primary)
+                              : null),
+                  ),
+                  child: Text(
+                    emoji,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: isGekiga ? GekigaColors.onPanel : null,
+                    ),
+                  ),
                 ),
-                child: Text(
-                  emoji,
-                  style: TextStyle(
-                    fontSize: 12,
+              ),
+            ),
+          if (emojis.isNotEmpty)
+            Builder(
+              builder: (addContext) => GestureDetector(
+                onTapDown: (details) async {
+                  final emoji = await _pickReactionEmoji(
+                    addContext,
+                    details.globalPosition,
+                  );
+                  if (emoji != null) _toggleMyReaction(emoji);
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: isGekiga
+                        ? GekigaColors.panel
+                        : colorScheme.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Icon(
+                    Icons.add_reaction_outlined,
+                    size: 14,
                     color: isGekiga ? GekigaColors.onPanel : null,
                   ),
                 ),
               ),
             ),
-          ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -2004,6 +2070,50 @@ class _MessageRow extends ConsumerWidget {
 
 enum _MessageMenuAction { reply, edit, unsend, react, select }
 
+/// 長押し/右クリック位置に開く各種メニューの位置決め（[_MessageBubbleTapArea]・
+/// [_MessageRow]の＋ボタン双方から使う共通ロジック、2026-08-05切り出し）。
+RelativeRect _menuPosition(BuildContext context, Offset globalPosition) {
+  final overlay = Overlay.of(context).context.findRenderObject()! as RenderBox;
+  return RelativeRect.fromRect(
+    Rect.fromPoints(globalPosition, globalPosition),
+    Offset.zero & overlay.size,
+  );
+}
+
+/// リアクション絵文字ピッカー（[kReactionEmojis]から1つ選ぶポップアップ）。
+/// 長押しメニューの「リアクション」と、リアクション行の＋ボタン双方から
+/// 使う共通ロジック（2026-08-05切り出し）。選ばれなければnullを返す。
+Future<String?> _pickReactionEmoji(
+  BuildContext context,
+  Offset globalPosition,
+) {
+  return showMenu<String>(
+    context: context,
+    position: _menuPosition(context, globalPosition),
+    items: [
+      PopupMenuItem<String>(
+        // 長押し位置が画面端に近いと、メニューに残る横幅より絵文字6個分の
+        // Rowの必要幅が大きくなり、RenderFlexのオーバーフローが発生して
+        // いた（2026-08-04発覚・修正）。Wrapにすることで、幅が足りない
+        // 位置に開いても画面外へ溢れず折り返すだけになる。
+        child: Wrap(
+          spacing: 4,
+          children: [
+            for (final emoji in kReactionEmojis)
+              InkWell(
+                onTap: () => Navigator.of(context).pop(emoji),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: Text(emoji, style: const TextStyle(fontSize: 22)),
+                ),
+              ),
+          ],
+        ),
+      ),
+    ],
+  );
+}
+
 /// 吹き出し本体だけに絞った当たり判定。長押し/右クリックでリアクション・
 /// 返信・編集等のコンテキストメニューを開く（2026-07-29変更: 以前は行全体
 /// （余白込み）が対象だったが、余白部分の長押しを自動スクロール
@@ -2033,15 +2143,6 @@ class _MessageBubbleTapArea extends StatelessWidget {
 
   /// 返信先ジャンプ用のタップ。nullなら通常通りタップでは何も起きない。
   final VoidCallback? onTap;
-
-  RelativeRect _menuPosition(BuildContext context, Offset globalPosition) {
-    final overlay =
-        Overlay.of(context).context.findRenderObject()! as RenderBox;
-    return RelativeRect.fromRect(
-      Rect.fromPoints(globalPosition, globalPosition),
-      Offset.zero & overlay.size,
-    );
-  }
 
   Future<void> _openMenu(BuildContext context, Offset globalPosition) async {
     final action = await showMenu<_MessageMenuAction>(
@@ -2083,44 +2184,13 @@ class _MessageBubbleTapArea extends StatelessWidget {
       case _MessageMenuAction.unsend:
         onUnsend?.call();
       case _MessageMenuAction.react:
-        await _openReactionPicker(context, globalPosition);
+        final emoji = await _pickReactionEmoji(context, globalPosition);
+        if (emoji != null) onReact?.call(emoji);
       case _MessageMenuAction.select:
         onSelect?.call();
       case null:
         break;
     }
-  }
-
-  Future<void> _openReactionPicker(
-    BuildContext context,
-    Offset globalPosition,
-  ) async {
-    final emoji = await showMenu<String>(
-      context: context,
-      position: _menuPosition(context, globalPosition),
-      items: [
-        PopupMenuItem<String>(
-          // 長押し位置が画面端に近いと、メニューに残る横幅より絵文字6個分の
-          // Rowの必要幅が大きくなり、RenderFlexのオーバーフローが発生して
-          // いた（2026-08-04発覚・修正）。Wrapにすることで、幅が足りない
-          // 位置に開いても画面外へ溢れず折り返すだけになる。
-          child: Wrap(
-            spacing: 4,
-            children: [
-              for (final emoji in kReactionEmojis)
-                InkWell(
-                  onTap: () => Navigator.of(context).pop(emoji),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 4),
-                    child: Text(emoji, style: const TextStyle(fontSize: 22)),
-                  ),
-                ),
-            ],
-          ),
-        ),
-      ],
-    );
-    if (emoji != null) onReact?.call(emoji);
   }
 
   @override

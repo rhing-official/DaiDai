@@ -131,7 +131,11 @@ Future<String?> _showRenameRoomDialog(
     context: context,
     builder: (context) => AlertDialog(
       title: Text(strings.roomRenameLabel(vocab.textChannel)),
-      content: TextField(controller: controller, autofocus: true),
+      content: TextField(
+        controller: controller,
+        autofocus: true,
+        onSubmitted: (value) => Navigator.of(context).pop(value.trim()),
+      ),
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
@@ -336,12 +340,12 @@ class DmChatPane extends ConsumerWidget {
         roomId: roomId,
         messageId: messageId,
       ),
-      onSetReaction: (messageId, emoji) => dmRepository.setReaction(
+      onSetReaction: (messageId, emojis) => dmRepository.setReaction(
         dmId: dm.dmId,
         roomId: roomId,
         messageId: messageId,
         userId: currentUser.userId,
-        emoji: emoji,
+        emojis: emojis,
       ),
       onDeclineAccountDeletionNotice: (messageId) =>
           dmRepository.declineAccountDeletionNotice(
@@ -991,13 +995,13 @@ class GroupChatPane extends ConsumerWidget {
         roomId: roomId,
         messageId: messageId,
       ),
-      onSetReaction: (messageId, emoji) =>
+      onSetReaction: (messageId, emojis) =>
           groupRepository.setRoomMessageReaction(
             groupId: group.groupId,
             roomId: roomId,
             messageId: messageId,
             userId: currentUser.userId,
-            emoji: emoji,
+            emojis: emojis,
           ),
       onFetchMessagesAround: (messageId) =>
           groupRepository.getRoomMessagesAround(

@@ -20,10 +20,8 @@ class InviteScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AuthGate(
-      builder: (context, currentUser) => _InviteConfirmView(
-        currentUser: currentUser,
-        inviterRhingId: rhingId,
-      ),
+      builder: (context, currentUser) =>
+          _InviteConfirmView(currentUser: currentUser, inviterRhingId: rhingId),
     );
   }
 }
@@ -40,8 +38,7 @@ class _InviteConfirmView extends ConsumerStatefulWidget {
   final String inviterRhingId;
 
   @override
-  ConsumerState<_InviteConfirmView> createState() =>
-      _InviteConfirmViewState();
+  ConsumerState<_InviteConfirmView> createState() => _InviteConfirmViewState();
 }
 
 class _InviteConfirmViewState extends ConsumerState<_InviteConfirmView> {
@@ -87,7 +84,9 @@ class _InviteConfirmViewState extends ConsumerState<_InviteConfirmView> {
     if (!mounted) return;
     setState(() {
       _inviter = inviter;
-      _status = alreadyFriends ? _InviteStatus.alreadyFriends : _InviteStatus.ready;
+      _status = alreadyFriends
+          ? _InviteStatus.alreadyFriends
+          : _InviteStatus.ready;
     });
   }
 
@@ -104,10 +103,14 @@ class _InviteConfirmViewState extends ConsumerState<_InviteConfirmView> {
       await friendRepository.sendRequest(from: widget.currentUser, to: inviter);
       final selectedProfileCardId = _selectedProfileCardId;
       if (selectedProfileCardId != null) {
-        await ref.read(userRepositoryProvider).setConversationProfileCard(
+        await ref
+            .read(userRepositoryProvider)
+            .setConversationProfileCard(
               userId: widget.currentUser.userId,
-              conversationId:
-                  DirectMessage.idFor(widget.currentUser.userId, inviter.userId),
+              conversationId: DirectMessage.idFor(
+                widget.currentUser.userId,
+                inviter.userId,
+              ),
               profileCardId: selectedProfileCardId,
             );
       }
@@ -166,9 +169,7 @@ class _InviteConfirmViewState extends ConsumerState<_InviteConfirmView> {
             const Icon(Icons.handshake_outlined, size: 48),
             const SizedBox(height: 16),
             Text(
-              strings.inviteConfirmDescriptionTemplate(
-                _inviter!.rhingId,
-              ),
+              strings.inviteConfirmDescriptionTemplate(_inviter!.rhingId),
               textAlign: TextAlign.center,
             ),
             if (_errorMessage != null) ...[
@@ -180,7 +181,9 @@ class _InviteConfirmViewState extends ConsumerState<_InviteConfirmView> {
               alignment: Alignment.centerLeft,
               child: Text(
                 strings.profileCardPickerLabel,
-                style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
               ),
             ),
             const SizedBox(height: 8),
@@ -188,6 +191,7 @@ class _InviteConfirmViewState extends ConsumerState<_InviteConfirmView> {
               strings: strings,
               cards: widget.currentUser.profileCards,
               selectedCardId: _selectedProfileCardId,
+              activeCardName: widget.currentUser.activeProfileCard?.name,
               onSelected: (id) => setState(() => _selectedProfileCardId = id),
             ),
             const SizedBox(height: 16),

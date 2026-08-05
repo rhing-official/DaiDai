@@ -13,6 +13,7 @@ class ProfileCardPicker extends StatelessWidget {
     required this.cards,
     required this.selectedCardId,
     required this.onSelected,
+    this.activeCardName,
     super.key,
   });
 
@@ -25,14 +26,28 @@ class ProfileCardPicker extends StatelessWidget {
   /// nullを渡すと「標準」が選ばれたことを表す。
   final ValueChanged<String?> onSelected;
 
+  /// 現在「標準」が指している実際のカード名（[AppUser.activeProfileCard]の
+  /// `name`）。指定すると「標準」チップの表示を「標準（$activeCardName）」に
+  /// する（2026-08-05追加）。「標準」チップと、たまたま同名のカードチップが
+  /// 並んで見え、重複しているように見えるという指摘への対応。「標準」＝
+  /// 今後デフォルトを変更すれば自動追従、名前付きカードを選ぶ＝そのカードに
+  /// 固定、という意味の違い自体は変えていない。nullなら（アクティブなカード
+  /// が無い等）元の表示のまま。
+  final String? activeCardName;
+
   @override
   Widget build(BuildContext context) {
+    final name = activeCardName;
     return Wrap(
       spacing: 8,
       runSpacing: 4,
       children: [
         ChoiceChip(
-          label: Text(strings.profileCardPickerStandardOption),
+          label: Text(
+            name != null
+                ? strings.profileCardPickerStandardOptionWithName(name)
+                : strings.profileCardPickerStandardOption,
+          ),
           selected: selectedCardId == null,
           onSelected: (_) => onSelected(null),
         ),

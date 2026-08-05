@@ -12,6 +12,7 @@ import 'providers/accent_color_provider.dart';
 import 'providers/app_locale_provider.dart';
 import 'providers/app_ui_style_provider.dart';
 import 'providers/chat_layout_style_provider.dart';
+import 'providers/gekiga_background_color_provider.dart';
 import 'providers/message_time_format_provider.dart';
 import 'providers/send_key_mode_provider.dart';
 import 'providers/terminology_style_provider.dart';
@@ -34,6 +35,7 @@ Future<void> main() async {
   usePathUrlStrategy();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   final initialAccentColor = await loadInitialAccentColor();
+  final initialGekigaBackgroundColor = await loadInitialGekigaBackgroundColor();
   final initialAppLocale = await loadInitialAppLocale();
   final initialSendKeyMode = await loadInitialSendKeyMode();
   final initialTerminologyStyle = await loadInitialTerminologyStyle();
@@ -45,6 +47,9 @@ Future<void> main() async {
     ProviderScope(
       overrides: [
         initialAccentColorProvider.overrideWithValue(initialAccentColor),
+        initialGekigaBackgroundColorProvider.overrideWithValue(
+          initialGekigaBackgroundColor,
+        ),
         initialAppLocaleProvider.overrideWithValue(initialAppLocale),
         initialSendKeyModeProvider.overrideWithValue(initialSendKeyMode),
         initialTerminologyStyleProvider.overrideWithValue(
@@ -70,15 +75,18 @@ class DaiDaiApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final accentColor = ref.watch(accentColorProvider);
+    final gekigaBackgroundColor = ref.watch(gekigaBackgroundColorProvider);
     final appLocale = ref.watch(appLocaleProvider);
     final themeMode = ref.watch(appThemeModeProvider);
     final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
     // 劇画スタイルはライト/ダークどちらのthemeModeでも同じ見た目にするため、
     // theme/darkThemeの両方に同一のThemeDataを渡す（chat_screen.dartの
     // 既存方針をアプリ全体に拡張したもの）。
-    final theme = isGekiga ? GekigaTheme.build() : AppTheme.light(accentColor);
+    final theme = isGekiga
+        ? GekigaTheme.build(gekigaBackgroundColor)
+        : AppTheme.light(accentColor);
     final darkTheme = isGekiga
-        ? GekigaTheme.build()
+        ? GekigaTheme.build(gekigaBackgroundColor)
         : AppTheme.dark(accentColor);
     return MaterialApp.router(
       title: 'DaiDai',

@@ -57,6 +57,7 @@ class Message {
   final String conversationId;
   final String conversationType; // dm | seat | room
   final String senderId;
+
   /// 送信者のRhing ID（グループ会話でアイコン・名前を表示するための非正規化）。
   final String? senderRhingId;
   final String content;
@@ -101,10 +102,11 @@ class Message {
   final Timestamp? editedAt;
 
   /// このメッセージへのリアクション。key=リアクションしたuserId、
-  /// value=[kReactionEmojis]のうちの1つ。1ユーザーにつき同時に持てる
-  /// リアクションは1個のみ（同じ絵文字を選び直すと解除、違う絵文字を
-  /// 選ぶと乗り換え）。
-  final Map<String, String> reactions;
+  /// value=そのユーザーが付けている[kReactionEmojis]の絵文字一覧
+  /// （2026-08-05変更、以前は1ユーザー1個までだったが、複数の異なる
+  /// 絵文字を同時に付けられるよう変更した。同じ絵文字を選び直すと
+  /// その絵文字だけ解除される）。
+  final Map<String, List<String>> reactions;
 
   /// contentType='call'（通話履歴メッセージ）専用のフィールド。通話が実際に
   /// 接続した（応答された）場合のみ発信者側から送られる（不在着信・拒否は
@@ -145,8 +147,18 @@ class Message {
       replyToSenderRhingId: json['replyToSenderRhingId'] as String?,
       replyToSnippet: json['replyToSnippet'] as String?,
       editedAt: json['editedAt'] as Timestamp?,
-      reactions: (json['reactions'] as Map<String, dynamic>? ?? {})
-          .map((key, value) => MapEntry(key, value as String)),
+      // 旧形式（reactions.$userIdが単一の絵文字文字列）のドキュメントも
+      // 引き続き読めるよう、Listでなければ1要素のListに包む
+      // （後方互換。書き込みは常にListで行うため、この分岐は既存データの
+      // 読み込み時のみ通る）。
+      reactions: (json['reactions'] as Map<String, dynamic>? ?? {}).map(
+        (key, value) => MapEntry(
+          key,
+          value is List
+              ? value.map((e) => e as String).toList()
+              : [value as String],
+        ),
+      ),
       callStartedAt: json['callStartedAt'] as Timestamp?,
       callDurationSeconds: json['callDurationSeconds'] as int?,
       callIsVideo: json['callIsVideo'] as bool?,
