@@ -1517,6 +1517,7 @@ class _MessageRow extends ConsumerWidget {
         ? _GekigaBubble(
             seed: message.messageId.hashCode,
             isMe: isMe,
+            alignRight: alignRight,
             child: bubbleContent,
           )
         : Container(
@@ -2427,18 +2428,27 @@ class _GekigaBubble extends StatelessWidget {
     required this.child,
     required this.seed,
     required this.isMe,
+    required this.alignRight,
   });
 
   final Widget child;
   final int seed;
   final bool isMe;
 
+  /// 右寄せ表示（自分・sideBySideレイアウト）かどうか。真なら吹き出しの
+  /// 形状（左辺のジグザグ・右辺の矢羽根）を左右反転する（2026-08-06追加）。
+  final bool alignRight;
+
   @override
   Widget build(BuildContext context) {
     return CustomPaint(
-      painter: _GekigaBubblePainter(seed: seed, isMe: isMe),
+      painter: _GekigaBubblePainter(
+        seed: seed,
+        isMe: isMe,
+        alignRight: alignRight,
+      ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
         child: child,
       ),
     );
@@ -2446,40 +2456,40 @@ class _GekigaBubble extends StatelessWidget {
 }
 
 class _GekigaBubblePainter extends CustomPainter {
-  const _GekigaBubblePainter({required this.seed, required this.isMe});
+  const _GekigaBubblePainter({
+    required this.seed,
+    required this.isMe,
+    required this.alignRight,
+  });
 
   final int seed;
   final bool isMe;
+  final bool alignRight;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final rect = [
-      Offset.zero,
-      Offset(size.width, 0),
-      Offset(size.width, size.height),
-      Offset(0, size.height),
-    ];
-    final path = handDrawnPolygonPath(
-      cutCorners(rect, size.shortestSide * 0.2),
-      seed,
-      jitter: 3.2,
-      segmentsPerEdge: 5,
+    final vertices = speechBubbleVertices(size.width, size.height);
+    final path = pathFromPoints(
+      alignRight ? mirrorHorizontal(vertices, size.width) : vertices,
     );
     final fillColor = isMe ? Colors.white : Colors.black;
     final strokeColor = isMe ? Colors.black : Colors.white;
+    final strokeWidth = 3.2 * seededThicknessScale(seed);
     canvas.drawPath(path, Paint()..color = fillColor);
     canvas.drawPath(
       path,
       Paint()
         ..color = strokeColor
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 3.2
-        ..strokeJoin = StrokeJoin.round
+        ..strokeWidth = strokeWidth
+        ..strokeJoin = StrokeJoin.miter
         ..strokeCap = StrokeCap.round,
     );
   }
 
   @override
   bool shouldRepaint(covariant _GekigaBubblePainter oldDelegate) =>
-      oldDelegate.seed != seed || oldDelegate.isMe != isMe;
+      oldDelegate.seed != seed ||
+      oldDelegate.isMe != isMe ||
+      oldDelegate.alignRight != alignRight;
 }

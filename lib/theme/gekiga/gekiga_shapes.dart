@@ -117,6 +117,47 @@ List<Offset> monochromeBoxVertices(
   ];
 }
 
+/// メッセージ吹き出し（`_GekigaBubble`）専用の、コミック風バナー形状の頂点
+/// （左辺が段差状にカクカクしたジグザグ、右辺中央にわずかな凹みを挟んだ
+/// 矢羽根状の尖り、という非対称な多角形。2026-08-06追加。参考画像からの
+/// 目視トレースによる固定形状で、他のモノクロボックス系と異なりseedによる
+/// 頂点自体の乱数化は行わない）。左寄せ表示（相手側）を基準の向きとし、
+/// 右寄せ表示（自分・sideBySideレイアウト）では[mirrorHorizontal]で
+/// 左右反転して流用する。
+List<Offset> speechBubbleVertices(double width, double height) {
+  Offset p(double xRatio, double yRatio) =>
+      Offset(width * xRatio, height * yRatio);
+  return [
+    p(0.08, 0.00),
+    p(0.85, 0.00),
+    p(1.00, 0.28),
+    p(0.92, 0.50),
+    p(1.00, 0.72),
+    p(0.85, 1.00),
+    p(0.15, 1.00),
+    p(0.00, 0.78),
+    p(0.10, 0.55),
+    p(0.00, 0.35),
+    p(0.08, 0.15),
+  ];
+}
+
+/// [vertices]のx座標のみを[width]基準で反転する（y座標は変えない）。
+/// [width]は反転前の形状が収まっていた矩形の幅で、[vertices]自体が
+/// その矩形からはみ出していても構わない（はみ出し分も含めて鏡像になる）。
+/// 図形（枠線）だけを左右反転し、中身のテキスト等は反転させたくない場面
+/// （`_GekigaBubblePainter`のalignRight分岐）で使う（2026-08-06追加）。
+List<Offset> mirrorHorizontal(List<Offset> vertices, double width) => [
+  for (final v in vertices) Offset(width - v.dx, v.dy),
+];
+
+/// [seed]に応じて0.7〜1.0倍の範囲で枠線の太さだけをランダム化する係数。
+/// `MonochromeBoxPainter`（`lib/widgets/gekiga/monochrome_box.dart`）が
+/// 枠の太さのみをseedで微妙に変える式と同じ考え方を共通化したもの
+/// （2026-08-06追加、角の形自体はseedで変化させない）。
+double seededThicknessScale(int seed) =>
+    0.7 + math.Random(seed).nextDouble() * 0.3;
+
 Path pathFromPoints(List<Offset> points) {
   final path = Path()..moveTo(points.first.dx, points.first.dy);
   for (final p in points.skip(1)) {
