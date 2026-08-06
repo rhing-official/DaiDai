@@ -224,6 +224,7 @@ class GekigaJointedTileList extends StatelessWidget {
     required this.seeds,
     required this.selectedFlags,
     required this.children,
+    this.axis = Axis.vertical,
     super.key,
   });
 
@@ -231,10 +232,16 @@ class GekigaJointedTileList extends StatelessWidget {
   final List<bool> selectedFlags;
   final List<Widget> children;
 
+  /// 並べる向き（既定は縦積み）。横並び・可変個数の一覧（`RoomTabBar`の
+  /// 寄合タブ等）にも使えるよう2026-08-06追加。`GekigaJointedPair`
+  /// （横並び2個専用）とは別に、任意個数を横に並べたい場合はこちらに
+  /// `Axis.horizontal`を渡す。
+  final Axis axis;
+
   @override
   Widget build(BuildContext context) {
     return _GekigaJointedList(
-      axis: Axis.vertical,
+      axis: axis,
       seeds: seeds,
       selectedFlags: selectedFlags,
       children: children,

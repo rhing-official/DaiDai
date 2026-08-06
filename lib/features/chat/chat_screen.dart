@@ -28,6 +28,7 @@ import '../../widgets/gekiga/gekiga_icon_badge.dart';
 import '../../widgets/gekiga/gekiga_photo_frame.dart';
 import '../../widgets/link_preview_card.dart';
 import '../../widgets/linkified_text.dart';
+import '../../widgets/swipe_gestures.dart' show kSwipeGestureVelocityThreshold;
 
 /// 一対・広場（お部屋）どちらの会話でも使える汎用チャット画面。
 /// メッセージの取得・送信方法は呼び出し元がstream/callbackとして渡す。
@@ -56,6 +57,7 @@ class ChatScreen extends ConsumerStatefulWidget {
     this.onFetchMessagesAround,
     this.roomTabBar,
     this.disabled = false,
+    this.onSwipeBack,
     super.key,
   });
 
@@ -148,6 +150,14 @@ class ChatScreen extends ConsumerStatefulWidget {
   /// 一対・広場を開いたときなど、実際には送信・既読取得ができない状態を
   /// 見せるため、2026-08-05追加）。
   final bool disabled;
+
+  /// 縦表示のチャット画面で、メッセージ吹き出しの上を右スワイプした時に
+  /// 会話一覧へ戻る処理（2026-08-06追加）。吹き出し自体が横ドラッグを
+  /// ジェスチャーアリーナ上で先に受理してしまい、外側の`SwipeBackDetector`
+  /// （吹き出しの無い余白では機能する）に伝播しないため、`_MessageInteractions`
+  /// 側に直接組み込む必要がある。広い画面の分割表示（`TalksTab`に埋め込み）
+  /// では「会話一覧へ戻る」概念が無いため、呼び出し元はnullのまま渡す。
+  final VoidCallback? onSwipeBack;
 
   @override
   ConsumerState<ChatScreen> createState() => _ChatScreenState();
@@ -779,6 +789,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                             onAutoScrollEnd: _selecting
                                 ? null
                                 : _stopAutoScroll,
+                            onSwipeBack: widget.onSwipeBack,
                           ),
                         );
                       }
@@ -1079,6 +1090,7 @@ class _MessageRow extends ConsumerWidget {
     this.onAutoScrollStart,
     this.onAutoScrollUpdate,
     this.onAutoScrollEnd,
+    this.onSwipeBack,
     super.key,
   });
 
@@ -1153,6 +1165,12 @@ class _MessageRow extends ConsumerWidget {
   final ValueChanged<Offset>? onAutoScrollStart;
   final ValueChanged<Offset>? onAutoScrollUpdate;
   final VoidCallback? onAutoScrollEnd;
+
+  /// 縦表示で、吹き出しの上を右スワイプした時に会話一覧へ戻る処理
+  /// ([ChatScreen.onSwipeBack]参照)。右寄せ表示（自分のメッセージ・
+  /// sideBySideレイアウト）ではこの挙動を除外する
+  /// （`_MessageInteractions`側で判定）。
+  final VoidCallback? onSwipeBack;
 
   /// チェックマークバッジ（[badgeContext]）の真下から伸びる形でポップアップを
   /// 表示する。画面全体をグレーアウトしないよう、barrierColorは透明にする
@@ -1794,6 +1812,8 @@ class _MessageRow extends ConsumerWidget {
         onAutoScrollStart: onAutoScrollStart,
         onAutoScrollUpdate: onAutoScrollUpdate,
         onAutoScrollEnd: onAutoScrollEnd,
+        onSwipeBack: onSwipeBack,
+        alignRight: alignRight,
         child: content,
       );
     }
@@ -2222,6 +2242,8 @@ class _MessageInteractions extends StatefulWidget {
     this.onAutoScrollStart,
     this.onAutoScrollUpdate,
     this.onAutoScrollEnd,
+    this.onSwipeBack,
+    this.alignRight = false,
   });
 
   final Widget child;
@@ -2232,6 +2254,14 @@ class _MessageInteractions extends StatefulWidget {
   final ValueChanged<Offset>? onAutoScrollStart;
   final ValueChanged<Offset>? onAutoScrollUpdate;
   final VoidCallback? onAutoScrollEnd;
+
+  /// 縦表示で、吹き出しの上を右スワイプした時に会話一覧へ戻る処理
+  /// （[ChatScreen.onSwipeBack]参照、2026-08-06追加）。
+  final VoidCallback? onSwipeBack;
+
+  /// 右寄せ表示（自分のメッセージ・sideBySideレイアウト）かどうか。真の時は
+  /// [onSwipeBack]を無効にする（ユーザー指定の除外仕様）。
+  final bool alignRight;
 
   @override
   State<_MessageInteractions> createState() => _MessageInteractionsState();
@@ -2259,6 +2289,14 @@ class _MessageInteractionsState extends State<_MessageInteractions> {
       widget.onEdit?.call();
     } else if (reachedReply) {
       widget.onReply();
+    } else if (!widget.alignRight &&
+        details.primaryVelocity != null &&
+        details.primaryVelocity! >= kSwipeGestureVelocityThreshold) {
+      // 吹き出しの上は返信/編集用の左スワイプをこのGestureDetector自身が
+      // 無条件に受理してしまい、外側のSwipeBackDetector（吹き出しの無い
+      // 余白では機能する）にジェスチャーアリーナ上伝播しないため、右スワイプ
+      // で会話一覧へ戻る処理をここに直接組み込む（2026-08-06追加）。
+      widget.onSwipeBack?.call();
     }
   }
 
