@@ -519,18 +519,16 @@ class _TalksTabState extends ConsumerState<TalksTab> {
                   if (ref.watch(appUiStyleProvider) == AppUiStyle.gekiga)
                     const SizedBox(height: 12),
                   Expanded(
-                    // 横スワイプで一対⇄広場を切り替える。一対が先頭・広場が
-                    // 2番目のタブなので、他タブの「前へ/次へ」パターンと同じ
-                    // 向き（右スワイプ＝広場→一対、左スワイプ＝一対→広場）を
-                    // そのまま流用する。戻る先の一覧が無いためonBackは空実装。
+                    // 横スワイプで一対⇄広場を切り替える。一対/広場は2値しか
+                    // 無いため、現在のカテゴリに関わらず常に両方向を有効にし、
+                    // 方向ごとに固定の相手側へ切り替える（2026-08-06修正、
+                    // 以前は現在のカテゴリに応じて片方をnullにしていたため、
+                    // 同じ方向へ連続スワイプすると2回目以降反応しなくなって
+                    // いた）。戻る先の一覧が無いためonBackは空実装。
                     child: SwipeBackDetector(
                       onBack: () {},
-                      onPrevious: _category == _TalksCategory.group
-                          ? () => _setCategory(_TalksCategory.dm)
-                          : null,
-                      onNext: _category == _TalksCategory.dm
-                          ? () => _setCategory(_TalksCategory.group)
-                          : null,
+                      onPrevious: () => _setCategory(_TalksCategory.dm),
+                      onNext: () => _setCategory(_TalksCategory.group),
                       child: _category == _TalksCategory.dm
                           ? _buildDirectMessages(
                               dmSnapshot,

@@ -194,6 +194,7 @@ class DmChatPane extends ConsumerWidget {
     this.onCallPressed,
     this.onVideoCallPressed,
     this.showRoomTabBar = false,
+    this.onSwipeBack,
     super.key,
   });
 
@@ -213,6 +214,12 @@ class DmChatPane extends ConsumerWidget {
   /// 単一モードでは表示しない。TalksTabの分割表示（サイドバー使用中）からは
   /// falseのまま渡す（サイドバーと二重にならないように）。
   final bool showRoomTabBar;
+
+  /// 縦表示（`/chat/dm`ルート）で、吹き出しの上を右スワイプした時に会話一覧へ
+  /// 戻る処理（2026-08-06追加、`ChatScreen.onSwipeBack`参照）。[showRoomTabBar]
+  /// と同じ「ルート経由か広い画面への埋め込みか」の基準で、TalksTabの分割
+  /// 表示からはnullのまま渡す（会話一覧へ戻る概念が無いため）。
+  final VoidCallback? onSwipeBack;
 
   /// メッセージの送信者アイコン・呼び名をタップした時に、相手のプロフィール
   /// カードを開く（広場側の`GroupChatPane._openProfileCard`と同じ導線）。
@@ -261,6 +268,7 @@ class DmChatPane extends ConsumerWidget {
     return ChatScreen(
       key: ValueKey('dm-${dm.dmId}-$roomId'),
       title: roomName,
+      onSwipeBack: onSwipeBack,
       roomTabBar: rooms == null
           ? null
           : RoomTabBar(
@@ -779,6 +787,7 @@ class GroupChatPane extends ConsumerWidget {
     required this.roomId,
     required this.roomName,
     this.showRoomTabBar = false,
+    this.onSwipeBack,
     super.key,
   });
 
@@ -795,6 +804,11 @@ class GroupChatPane extends ConsumerWidget {
   /// 表示しない。TalksTabの分割表示（サイドバー使用中）からはfalseのまま渡す
   /// （サイドバーと二重にならないように）。
   final bool showRoomTabBar;
+
+  /// 縦表示（`/chat/group`ルート）で、吹き出しの上を右スワイプした時に会話
+  /// 一覧へ戻る処理（2026-08-06追加、`ChatScreen.onSwipeBack`参照）。
+  /// [showRoomTabBar]と同じ基準で、TalksTabの分割表示からはnullのまま渡す。
+  final VoidCallback? onSwipeBack;
 
   /// メッセージの送信者アイコン・呼び名をタップした時に、相手のプロフィール
   /// カードを開く。一対と違い広場のメンバーは非友達の場合があるため、
@@ -920,6 +934,7 @@ class GroupChatPane extends ConsumerWidget {
     return ChatScreen(
       key: ValueKey('group-${group.groupId}-$roomId'),
       title: roomName,
+      onSwipeBack: onSwipeBack,
       currentUserId: currentUser.userId,
       isDm: false,
       conversationId: group.groupId,

@@ -5,8 +5,10 @@ import '../../l10n/strings.dart';
 import '../../l10n/vocabulary.dart';
 import '../../models/app_ui_style.dart';
 import '../../providers/app_ui_style_provider.dart';
+import '../../theme/gekiga/gekiga_colors.dart';
 import '../../utils/text_truncate.dart';
 import '../../widgets/gekiga/gekiga_icon_badge.dart';
+import '../../widgets/gekiga/gekiga_panel_box.dart';
 import 'room_list_pane.dart' show RoomListEntry, promptForRoomName;
 
 /// 狭い画面（縦表示）のチャット画面のAppBar下部に表示する、寄合の横スクロール
@@ -77,6 +79,35 @@ class _RoomTabBarState extends ConsumerState<RoomTabBar> {
     return box.localToGlobal(Offset.zero) & box.size;
   }
 
+  /// 劇画スタイル用のタブセル。塗り・枠は`GekigaJointedTileList`（呼び出し元）
+  /// が`MonochromeBoxPainter`でまとめて描くため、ここでは中身
+  /// （選択中=黒文字/未選択=白文字のテキスト）のみを組み立てる
+  /// （2026-08-06追加）。
+  Widget _gekigaCell(RoomListEntry room) {
+    final selected = room.roomId == widget.selectedRoomId;
+    final fg = selected ? GekigaColors.panel : GekigaColors.onPanel;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => widget.onSelectRoom(room),
+        child: Container(
+          constraints: const BoxConstraints(minWidth: 64),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          alignment: Alignment.center,
+          child: Text(
+            '#${truncateName(room.name, 6)}',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: fg,
+              fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   void _handleSlideUpdate(Offset globalPosition) {
     for (final room in widget.rooms) {
       final rect = _rectFor(room.roomId);
@@ -138,32 +169,62 @@ class _RoomTabBarState extends ConsumerState<RoomTabBar> {
       );
     }
 
-    Widget roomList = ListView.separated(
-      controller: _scrollController,
-      scrollDirection: Axis.horizontal,
-      itemCount: widget.rooms.length,
-      separatorBuilder: (_, _) => VerticalDivider(width: 1, color: borderColor),
-      itemBuilder: (context, index) {
-        final room = widget.rooms[index];
-        final selected = room.roomId == widget.selectedRoomId;
-        return KeyedSubtree(
-          key: _keyFor(room.roomId),
-          child: cell(
-            selected: selected,
-            onTap: () => widget.onSelectRoom(room),
-            child: Text(
-              '#${truncateName(room.name, 6)}',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: foregroundColor,
-                fontWeight: selected ? FontWeight.bold : FontWeight.normal,
-              ),
+    // 劇画スタイルでは、他の一覧（RoomListPane・一対/広場カテゴリタブ）と
+    // 同じ「モノクロボックス」意匠（黒外枠→白内枠→塗り色、選択中=白地黒文字・
+    // 未選択=黒地白文字）を使う（2026-08-06追加）。`GekigaJointedTileList`は
+    // 全子を即座に構築する`MultiChildRenderObjectWidget`のため、`ListView`の
+    // ような遅延構築（virtualized）はできないが、寄合の個数は現実的に少数
+    // のため問題にならない。`SingleChildScrollView`で自前の横スクロールに
+    // 切り替える（`RoomListPane`の縦一覧と同じ非virtualizedパターン）。
+    Widget roomList = isGekiga
+        ? SingleChildScrollView(
+            controller: _scrollController,
+            scrollDirection: Axis.horizontal,
+            child: GekigaJointedTileList(
+              axis: Axis.horizontal,
+              seeds: [for (final room in widget.rooms) room.roomId.hashCode],
+              selectedFlags: [
+                for (final room in widget.rooms)
+                  room.roomId == widget.selectedRoomId,
+              ],
+              children: [
+                for (final room in widget.rooms)
+                  KeyedSubtree(
+                    key: _keyFor(room.roomId),
+                    child: _gekigaCell(room),
+                  ),
+              ],
             ),
-          ),
-        );
-      },
-    );
+          )
+        : ListView.separated(
+            controller: _scrollController,
+            scrollDirection: Axis.horizontal,
+            itemCount: widget.rooms.length,
+            separatorBuilder: (_, _) =>
+                VerticalDivider(width: 1, color: borderColor),
+            itemBuilder: (context, index) {
+              final room = widget.rooms[index];
+              final selected = room.roomId == widget.selectedRoomId;
+              return KeyedSubtree(
+                key: _keyFor(room.roomId),
+                child: cell(
+                  selected: selected,
+                  onTap: () => widget.onSelectRoom(room),
+                  child: Text(
+                    '#${truncateName(room.name, 6)}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: foregroundColor,
+                      fontWeight: selected
+                          ? FontWeight.bold
+                          : FontWeight.normal,
+                    ),
+                  ),
+                ),
+              );
+            },
+          );
 
     // 全セルが収まりきっている間だけ、メニューチップ（`_NavChip`）と同じ
     // 「指でなぞった先のタブへその場で切り替える」操作を有効にする

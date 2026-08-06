@@ -140,6 +140,9 @@ final goRouterProvider = Provider<GoRouter>((ref) {
               onVideoCallPressed: () =>
                   startCall(args.currentUser, args.dm, isVideo: true),
               showRoomTabBar: true,
+              onSwipeBack: () {
+                if (router.canPop()) router.pop();
+              },
             ),
           );
         },
@@ -156,6 +159,9 @@ final goRouterProvider = Provider<GoRouter>((ref) {
               roomId: args.roomId,
               roomName: args.roomName,
               showRoomTabBar: true,
+              onSwipeBack: () {
+                if (router.canPop()) router.pop();
+              },
             ),
           );
         },
