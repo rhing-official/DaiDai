@@ -324,3 +324,107 @@ async function deleteSubcollection(
     await writer.delete(doc.ref);
   }
 }
+
+const QR_LOGIN_SESSION_TTL_MS = 3 * 60 * 1000;
+
+/**
+ * QRコードによるログイン（2026-08-09実装）。未ログイン端末が
+ * `qrLoginSessions/{sessionId}`にpendingなセッションを作成してQRコードを表示し、
+ * ログイン済みの別端末がアプリ内スキャナーで読み取って承認する（LINE PC版/
+ * WhatsApp Webと同じ方式）。カスタムトークンはFirestoreに一切書き込まず
+ * claimQrLoginSessionのレスポンスとしてのみ返すため、セッションIDが漏れても
+ * トークン自体は盗めない設計（DaiDai/CLAUDE.md参照）。
+ */
+
+/** ログイン済み端末（`lib/features/settings/settings_tab.dart`の`_QrLoginRow`）が呼ぶ。 */
+export const approveQrLoginSession = onCall(
+  { region: "asia-northeast1" },
+  async (request) => {
+    const uid = request.auth?.uid;
+    if (!uid) {
+      throw new HttpsError("unauthenticated", "ログインが必要です");
+    }
+    const sessionId = request.data?.sessionId;
+    if (typeof sessionId !== "string" || !sessionId) {
+      throw new HttpsError("invalid-argument", "sessionIdが必要です");
+    }
+    const ref = db.collection("qrLoginSessions").doc(sessionId);
+    const doc = await ref.get();
+    if (!doc.exists) {
+      throw new HttpsError("not-found", "セッションが見つかりません");
+    }
+    const data = doc.data()!;
+    if (data.status !== "pending") {
+      throw new HttpsError(
+        "failed-precondition",
+        "このQRコードは既に使用されているか無効です",
+      );
+    }
+    const createdAt = data.createdAt as Timestamp | undefined;
+    if (
+      !createdAt ||
+      Date.now() - createdAt.toMillis() > QR_LOGIN_SESSION_TTL_MS
+    ) {
+      throw new HttpsError("deadline-exceeded", "QRコードの有効期限が切れています");
+    }
+    await ref.update({ status: "approved", approvedUid: uid });
+  },
+);
+
+/**
+ * 未ログイン端末（`lib/features/auth/qr_login_dialog.dart`）が、承認済みに
+ * なったセッションを検知したら呼ぶ。カスタムトークンを発行して返す。
+ */
+export const claimQrLoginSession = onCall(
+  { region: "asia-northeast1" },
+  async (request) => {
+    const sessionId = request.data?.sessionId;
+    if (typeof sessionId !== "string" || !sessionId) {
+      throw new HttpsError("invalid-argument", "sessionIdが必要です");
+    }
+    const ref = db.collection("qrLoginSessions").doc(sessionId);
+    const customToken = await db.runTransaction(async (tx) => {
+      const doc = await tx.get(ref);
+      if (!doc.exists) {
+        throw new HttpsError("not-found", "セッションが見つかりません");
+      }
+      const data = doc.data()!;
+      if (data.status !== "approved") {
+        throw new HttpsError("failed-precondition", "まだ承認されていません");
+      }
+      const createdAt = data.createdAt as Timestamp | undefined;
+      if (
+        !createdAt ||
+        Date.now() - createdAt.toMillis() > QR_LOGIN_SESSION_TTL_MS
+      ) {
+        throw new HttpsError("deadline-exceeded", "QRコードの有効期限が切れています");
+      }
+      tx.update(ref, { status: "claimed" });
+      // createCustomTokenはローカルなJWT署名処理でネットワークI/Oを伴わないため、
+      // トランザクションのリトライ内で呼んでも副作用が重複しない。
+      return getAuth().createCustomToken(data.approvedUid as string);
+    });
+    return { customToken };
+  },
+);
+
+/**
+ * 期限切れの`qrLoginSessions`を定期的に掃除する（1時間ごと）。各Functionが
+ * 都度期限を検証するためセキュリティ上必須ではないが、Firestoreにゴミが
+ * 溜まらないようにする衛生用ジョブ。
+ */
+export const cleanupQrLoginSessions = onSchedule(
+  { schedule: "every 60 minutes", region: "asia-northeast1" },
+  async () => {
+    const cutoff = Timestamp.fromMillis(Date.now() - QR_LOGIN_SESSION_TTL_MS);
+    const snapshot = await db
+      .collection("qrLoginSessions")
+      .where("createdAt", "<", cutoff)
+      .get();
+    const writer = new ChunkedWriter();
+    for (const doc of snapshot.docs) {
+      await writer.delete(doc.ref);
+    }
+    await writer.commit();
+  },
+);

@@ -59,6 +59,35 @@ class Strings {
     required this.settingsSecurity,
     required this.settingsPassword,
     required this.settingsTwoFactor,
+    required this.twoFactorEnabledStatus,
+    required this.twoFactorDisabledStatus,
+    required this.twoFactorSetupDialogTitle,
+    required this.twoFactorSetupDescription,
+    required this.twoFactorSecretKeyLabel,
+    required this.twoFactorCodeLabel,
+    required this.twoFactorEnrollButton,
+    required this.twoFactorEnrolledMessage,
+    required this.twoFactorInvalidCodeError,
+    required this.twoFactorDisableConfirmTitle,
+    required this.twoFactorDisableConfirmMessage,
+    required this.twoFactorDisableConfirmButton,
+    required this.twoFactorDisabledMessage,
+    required this.twoFactorRequiresRecentLoginError,
+    required this.twoFactorReauthenticateButton,
+    required this.twoFactorChallengeTitle,
+    required this.twoFactorChallengeDescription,
+    required this.twoFactorChallengeConfirmButton,
+    required this.qrLoginDialogTitle,
+    required this.qrLoginDialogDescription,
+    required this.qrLoginExpiredMessage,
+    required this.qrLoginRefreshButton,
+    required this.qrLoginSignInError,
+    required this.qrLoginScanConfirmTitle,
+    required this.qrLoginScanConfirmMessage,
+    required this.qrLoginScanConfirmButton,
+    required this.qrLoginApprovedSnackbar,
+    required this.qrLoginInvalidQrError,
+    required this.qrLoginApproveError,
     required this.settingsPasskey,
     required this.settingsQrLogin,
     required this.settingsDeleteAccount,
@@ -134,7 +163,17 @@ class Strings {
     required this.chatEditAction,
     required this.chatUnsendAction,
     required this.chatReactAction,
+    required this.chatCopyAction,
+    required this.chatPartialCopyAction,
+    required this.chatCopiedMessage,
     required this.chatSelectAction,
+    required this.chatScreenshotAction,
+    required this.chatScreenshotTooltip,
+    required this.chatScreenshotSelectionModeTitle,
+    required this.chatScreenshotDialogTitle,
+    required this.chatScreenshotBlurCheckboxLabel,
+    required this.chatScreenshotConfirmButton,
+    required this.chatScreenshotErrorMessage,
     required this.chatEditedLabel,
     required this.chatInputHint,
     required this.chatReplyingToLabel,
@@ -363,6 +402,35 @@ class Strings {
   final String settingsSecurity;
   final String settingsPassword;
   final String settingsTwoFactor;
+  final String twoFactorEnabledStatus;
+  final String twoFactorDisabledStatus;
+  final String twoFactorSetupDialogTitle;
+  final String twoFactorSetupDescription;
+  final String twoFactorSecretKeyLabel;
+  final String twoFactorCodeLabel;
+  final String twoFactorEnrollButton;
+  final String twoFactorEnrolledMessage;
+  final String twoFactorInvalidCodeError;
+  final String twoFactorDisableConfirmTitle;
+  final String twoFactorDisableConfirmMessage;
+  final String twoFactorDisableConfirmButton;
+  final String twoFactorDisabledMessage;
+  final String twoFactorRequiresRecentLoginError;
+  final String twoFactorReauthenticateButton;
+  final String twoFactorChallengeTitle;
+  final String twoFactorChallengeDescription;
+  final String twoFactorChallengeConfirmButton;
+  final String qrLoginDialogTitle;
+  final String qrLoginDialogDescription;
+  final String qrLoginExpiredMessage;
+  final String qrLoginRefreshButton;
+  final String qrLoginSignInError;
+  final String qrLoginScanConfirmTitle;
+  final String qrLoginScanConfirmMessage;
+  final String qrLoginScanConfirmButton;
+  final String qrLoginApprovedSnackbar;
+  final String qrLoginInvalidQrError;
+  final String qrLoginApproveError;
   final String settingsPasskey;
   final String settingsQrLogin;
   final String settingsDeleteAccount;
@@ -449,7 +517,17 @@ class Strings {
   final String chatEditAction;
   final String chatUnsendAction;
   final String chatReactAction;
+  final String chatCopyAction;
+  final String chatPartialCopyAction;
+  final String chatCopiedMessage;
   final String chatSelectAction;
+  final String chatScreenshotAction;
+  final String chatScreenshotTooltip;
+  final String Function(int count) chatScreenshotSelectionModeTitle;
+  final String chatScreenshotDialogTitle;
+  final String chatScreenshotBlurCheckboxLabel;
+  final String chatScreenshotConfirmButton;
+  final String chatScreenshotErrorMessage;
   final String chatEditedLabel;
   final String chatInputHint;
   final String Function(String senderLabel) chatReplyingToLabel;
@@ -809,6 +887,37 @@ class Strings {
     settingsSecurity: 'セキュリティ',
     settingsPassword: 'パスワード',
     settingsTwoFactor: '2段階認証',
+    twoFactorEnabledStatus: '有効',
+    twoFactorDisabledStatus: '無効',
+    twoFactorSetupDialogTitle: '2段階認証を設定',
+    twoFactorSetupDescription:
+        '認証アプリ（Google Authenticator等）でQRコードを読み取るか、シークレットキーを手入力してから、表示された6桁のコードを入力してください。',
+    twoFactorSecretKeyLabel: 'シークレットキー（手入力用）',
+    twoFactorCodeLabel: '6桁のコード',
+    twoFactorEnrollButton: '有効にする',
+    twoFactorEnrolledMessage: '2段階認証を有効にしました',
+    twoFactorInvalidCodeError: 'コードが正しくありません',
+    twoFactorDisableConfirmTitle: '2段階認証を無効にしますか？',
+    twoFactorDisableConfirmMessage: '次回以降のログインでコードの入力を求められなくなります。',
+    twoFactorDisableConfirmButton: '無効にする',
+    twoFactorDisabledMessage: '2段階認証を無効にしました',
+    twoFactorRequiresRecentLoginError: '確認のため、もう一度ログインしてからお試しください。',
+    twoFactorReauthenticateButton: '再ログインする',
+    twoFactorChallengeTitle: '認証アプリのコードを入力',
+    twoFactorChallengeDescription: '認証アプリに表示されている6桁のコードを入力してください。',
+    twoFactorChallengeConfirmButton: '確認',
+    qrLoginDialogTitle: 'QRコードでログイン',
+    qrLoginDialogDescription:
+        'ログイン済みの端末でDaiDaiを開き、設定＞アカウント＞セキュリティ＞QRコードによるログインからこのQRコードを読み取ってください。',
+    qrLoginExpiredMessage: 'QRコードの有効期限が切れました',
+    qrLoginRefreshButton: '更新する',
+    qrLoginSignInError: 'ログインに失敗しました',
+    qrLoginScanConfirmTitle: 'この端末でのログインを許可しますか？',
+    qrLoginScanConfirmMessage: '心当たりが無い場合は許可しないでください。',
+    qrLoginScanConfirmButton: '許可する',
+    qrLoginApprovedSnackbar: 'ログインを許可しました',
+    qrLoginInvalidQrError: '無効なQRコードです',
+    qrLoginApproveError: '承認に失敗しました。QRコードの有効期限が切れている可能性があります。',
     settingsPasskey: 'パスキー',
     settingsQrLogin: 'QRコードによるログイン',
     settingsDeleteAccount: 'アカウントを削除する（30日以内なら復元可）',
@@ -889,7 +998,17 @@ class Strings {
     chatEditAction: '編集',
     chatUnsendAction: '送信取り消し',
     chatReactAction: 'リアクション',
-    chatSelectAction: '選択',
+    chatCopyAction: 'コピー',
+    chatPartialCopyAction: '部分コピー',
+    chatCopiedMessage: 'コピーしました',
+    chatSelectAction: 'メッセージを削除',
+    chatScreenshotAction: 'スクリーンショット',
+    chatScreenshotTooltip: '選択した範囲をスクリーンショット',
+    chatScreenshotSelectionModeTitle: (count) => '$count件を撮影',
+    chatScreenshotDialogTitle: 'スクリーンショットを撮影',
+    chatScreenshotBlurCheckboxLabel: '呼び名にぼかしを入れる',
+    chatScreenshotConfirmButton: '撮影する',
+    chatScreenshotErrorMessage: 'スクリーンショットの作成に失敗しました',
     chatEditedLabel: '編集済み',
     chatInputHint: 'メッセージを入力...',
     chatReplyingToLabel: (senderLabel) => '$senderLabelへの返信',
@@ -1136,6 +1255,41 @@ class Strings {
     settingsSecurity: 'Security',
     settingsPassword: 'Password',
     settingsTwoFactor: 'Two-factor authentication',
+    twoFactorEnabledStatus: 'Enabled',
+    twoFactorDisabledStatus: 'Disabled',
+    twoFactorSetupDialogTitle: 'Set up two-factor authentication',
+    twoFactorSetupDescription:
+        'Scan the QR code with an authenticator app (e.g. Google Authenticator), or enter the secret key manually, then enter the 6-digit code shown.',
+    twoFactorSecretKeyLabel: 'Secret key (manual entry)',
+    twoFactorCodeLabel: '6-digit code',
+    twoFactorEnrollButton: 'Enable',
+    twoFactorEnrolledMessage: 'Two-factor authentication enabled',
+    twoFactorInvalidCodeError: 'That code is not correct',
+    twoFactorDisableConfirmTitle: 'Disable two-factor authentication?',
+    twoFactorDisableConfirmMessage:
+        'You will no longer be asked for a code when signing in.',
+    twoFactorDisableConfirmButton: 'Disable',
+    twoFactorDisabledMessage: 'Two-factor authentication disabled',
+    twoFactorRequiresRecentLoginError:
+        'Please sign in again to confirm, then try again.',
+    twoFactorReauthenticateButton: 'Sign in again',
+    twoFactorChallengeTitle: 'Enter authenticator code',
+    twoFactorChallengeDescription:
+        'Enter the 6-digit code shown in your authenticator app.',
+    twoFactorChallengeConfirmButton: 'Confirm',
+    qrLoginDialogTitle: 'Sign in with a QR code',
+    qrLoginDialogDescription:
+        "Open DaiDai on a device where you're already signed in, then go to "
+        'Settings > Account > Security > Sign in with a QR code and scan this.',
+    qrLoginExpiredMessage: 'This QR code has expired',
+    qrLoginRefreshButton: 'Refresh',
+    qrLoginSignInError: 'Sign-in failed',
+    qrLoginScanConfirmTitle: 'Allow sign-in on this device?',
+    qrLoginScanConfirmMessage: "If you don't recognize this, don't allow it.",
+    qrLoginScanConfirmButton: 'Allow',
+    qrLoginApprovedSnackbar: 'Sign-in allowed',
+    qrLoginInvalidQrError: 'Invalid QR code',
+    qrLoginApproveError: 'Approval failed. The QR code may have expired.',
     settingsPasskey: 'Passkey',
     settingsQrLogin: 'Sign in with a QR code',
     settingsDeleteAccount: 'Delete account (restorable within 30 days)',
@@ -1230,7 +1384,17 @@ class Strings {
     chatEditAction: 'Edit',
     chatUnsendAction: 'Unsend',
     chatReactAction: 'React',
-    chatSelectAction: 'Select',
+    chatCopyAction: 'Copy',
+    chatPartialCopyAction: 'Partial copy',
+    chatCopiedMessage: 'Copied',
+    chatSelectAction: 'Delete messages',
+    chatScreenshotAction: 'Screenshot',
+    chatScreenshotTooltip: 'Screenshot selected range',
+    chatScreenshotSelectionModeTitle: (count) => '$count to capture',
+    chatScreenshotDialogTitle: 'Take screenshot',
+    chatScreenshotBlurCheckboxLabel: 'Blur names and avatars',
+    chatScreenshotConfirmButton: 'Capture',
+    chatScreenshotErrorMessage: 'Failed to create the screenshot.',
     chatEditedLabel: 'Edited',
     chatInputHint: 'Type a message...',
     chatReplyingToLabel: (senderLabel) => 'Replying to $senderLabel',

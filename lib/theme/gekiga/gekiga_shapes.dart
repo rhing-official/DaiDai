@@ -117,28 +117,28 @@ List<Offset> monochromeBoxVertices(
   ];
 }
 
-/// メッセージ吹き出し（`_GekigaBubble`）専用の、コミック風バナー形状の頂点
-/// （左辺が段差状にカクカクしたジグザグ、右辺中央にわずかな凹みを挟んだ
-/// 矢羽根状の尖り、という非対称な多角形。2026-08-06追加。参考画像からの
-/// 目視トレースによる固定形状で、他のモノクロボックス系と異なりseedによる
-/// 頂点自体の乱数化は行わない）。左寄せ表示（相手側）を基準の向きとし、
-/// 右寄せ表示（自分・sideBySideレイアウト）では[mirrorHorizontal]で
-/// 左右反転して流用する。
-List<Offset> speechBubbleVertices(double width, double height) {
-  Offset p(double xRatio, double yRatio) =>
-      Offset(width * xRatio, height * yRatio);
+/// メッセージ吹き出し（`_GekigaBubble`）専用の、歪な平行四辺形の頂点
+/// （上辺・下辺をそれぞれ左右へ[skewRatio]分ずらして傾けた平行四辺形を
+/// ベースに、四隅を[seed]で僅かにばらけさせて「歪み」を出す。他の
+/// モノクロボックス系と同じく直線のみで構成し、ジグザグ等の手描き風の
+/// 乱れは加えない。2026-08-09、コミック風バナー形状から変更）。左寄せ
+/// 表示（相手側）を基準の向きとし、右寄せ表示（自分・sideBySideレイアウト）
+/// では[mirrorHorizontal]で左右反転して流用する。
+List<Offset> distortedParallelogramVertices(
+  double width,
+  double height,
+  int seed,
+) {
+  final random = math.Random(seed);
+  double jitter(double range) => (random.nextDouble() - 0.5) * 2 * range;
+  const skewRatio = 0.10;
+  final skew = width * skewRatio;
+  final j = math.min(width, height) * 0.06;
   return [
-    p(0.08, 0.00),
-    p(0.85, 0.00),
-    p(1.00, 0.28),
-    p(0.92, 0.50),
-    p(1.00, 0.72),
-    p(0.85, 1.00),
-    p(0.15, 1.00),
-    p(0.00, 0.78),
-    p(0.10, 0.55),
-    p(0.00, 0.35),
-    p(0.08, 0.15),
+    Offset(skew + jitter(j), jitter(j)),
+    Offset(width + jitter(j), jitter(j)),
+    Offset(width - skew + jitter(j), height + jitter(j)),
+    Offset(jitter(j), height + jitter(j)),
   ];
 }
 
@@ -150,13 +150,6 @@ List<Offset> speechBubbleVertices(double width, double height) {
 List<Offset> mirrorHorizontal(List<Offset> vertices, double width) => [
   for (final v in vertices) Offset(width - v.dx, v.dy),
 ];
-
-/// [seed]に応じて0.7〜1.0倍の範囲で枠線の太さだけをランダム化する係数。
-/// `MonochromeBoxPainter`（`lib/widgets/gekiga/monochrome_box.dart`）が
-/// 枠の太さのみをseedで微妙に変える式と同じ考え方を共通化したもの
-/// （2026-08-06追加、角の形自体はseedで変化させない）。
-double seededThicknessScale(int seed) =>
-    0.7 + math.Random(seed).nextDouble() * 0.3;
 
 Path pathFromPoints(List<Offset> points) {
   final path = Path()..moveTo(points.first.dx, points.first.dy);

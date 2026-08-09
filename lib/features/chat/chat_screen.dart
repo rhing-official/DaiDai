@@ -1,10 +1,15 @@
+import 'dart:ui' as ui;
+
 import 'package:flutter/foundation.dart'
-    show TargetPlatform, defaultTargetPlatform;
+    show TargetPlatform, debugPrint, defaultTargetPlatform;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart'
+    show RenderRepaintBoundary, SelectedContent;
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../l10n/app_locale.dart';
 import '../../l10n/strings.dart';
@@ -22,6 +27,7 @@ import '../../providers/user_providers.dart';
 import '../../theme/app_theme_extras.dart';
 import '../../theme/gekiga/gekiga_colors.dart';
 import '../../theme/gekiga/gekiga_shapes.dart';
+import '../../widgets/gekiga/monochrome_box.dart';
 import '../../utils/link_detection.dart';
 import '../../utils/message_time.dart';
 import '../../widgets/gekiga/gekiga_icon_badge.dart';
@@ -306,10 +312,43 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   /// Firestoreからの再送信のたびに同じメッセージへ既読を送り直さないための重複防止。
   final _markedReadIds = <String>{};
 
-  /// メッセージの範囲選択削除モード。1件を長押しすると入り、以降はタップで
-  /// 選択のオン/オフを切り替える（連続していない複数選択も可能）。
+  /// メッセージの削除用・範囲選択モード。1件を長押しして「メッセージを削除」
+  /// を選ぶと入り、以降はタップで選択のオン/オフを切り替える（連続していない
+  /// 複数選択も可能）。スクリーンショット機能（[_screenshotSelecting]）とは
+  /// 別モードで、同時には成立しない（2026-08-09、当初は同じ状態を共有する
+  /// 実装だったが、削除は「バラバラに複数選択」・スクリーンショットは
+  /// 「区間選択」と選び方の性質が違うため分離した）。
   bool _selecting = false;
   final _selectedMessageIds = <String>{};
+
+  /// スクリーンショット用の範囲選択モード中かどうか（2026-08-09追加）。
+  /// [_selecting]（削除用）とは独立した状態。タップの付け外しは
+  /// [_selectedMessageIds]と全く同じトグル方式（[_toggleScreenshotSelected]）
+  /// だが、実際にハイライト・撮影対象になるのは[_screenshotEffectiveIds]で
+  /// 「選択済みの最古〜最新の間を全て埋めた」区間（2026-08-09、当初は
+  /// 起点・終点の2点だけを保持する方式だったが、同じメッセージを再タップ
+  /// しても値が変わらず「チェックを外せない」ように見える不具合があった
+  /// ため、削除機能と同じ可逆的なトグル方式に変更した）。
+  bool _screenshotSelecting = false;
+  final _screenshotSelectedIds = <String>{};
+
+  /// 文言コピー用に、現在「本文が選択可能」になっているメッセージ1件の
+  /// ID（2026-08-09追加）。削除・スクリーンショットは複数メッセージの
+  /// 選択だが、コピーは長押しした1件の本文中の一部を選ぶ機能のため、
+  /// `Set`ではなく単一のnullableフィールドで持つ。
+  String? _textCopyMessageId;
+
+  /// [_textCopyMessageId]がセットされている間、その[SelectionArea]の
+  /// Stateへアクセスして全文選択（[SelectableRegionState.selectAll]）や
+  /// トースバー非表示（[SelectableRegionState.hideToolbar]）を呼ぶために
+  /// 使う（2026-08-09追加）。1件しか同時に成立しないため使い回しでよい。
+  final _partialCopyKey = GlobalKey<SelectionAreaState>();
+
+  /// [_textCopyMessageId]の[SelectionArea.onSelectionChanged]から更新される、
+  /// 現在の選択内容のキャッシュ（2026-08-09追加）。コピーボタン/Ctrl+C押下時に
+  /// ここから文字列を取り出す（`setState`不要、`_cachedMessages`と同じ
+  /// パターン）。
+  SelectedContent? _partialCopySelectedContent;
 
   /// 返信中・編集中のメッセージ（同時にはどちらか一方のみ）。入力欄上部に
   /// プレビューバーとして表示し、キャンセルボタンでnullに戻す。
@@ -327,6 +366,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   /// 保持しておく置き場（購読はしないので、ここに置かないと再ビルドのたびに
   /// 消えてしまう）。build()で[widget.messagesStream]の内容とマージして表示する。
   final _extraMessages = <String, Message>{};
+
+  /// 直近のStreamBuilderスナップショット（新しい順）のキャッシュ。
+  /// スクリーンショット機能は、選択後にダイアログでのユーザー確認を挟んで
+  /// から実際のキャプチャを行うため、選択した時点のローカル変数
+  /// （combined/messagesById）ではなく、常に最新化されるこのキャッシュから
+  /// Messageを引く（2026-08-09追加）。`_extraMessages`と同じく、build()内で
+  /// setStateを介さず直接更新する（このフィールド自体は再描画のトリガーに
+  /// する必要が無いため）。
+  List<Message> _cachedMessages = [];
 
   /// ジャンプ直後に対象メッセージを一瞬ハイライトするための状態。
   String? _highlightedMessageId;
@@ -393,6 +441,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       _selectedMessageIds
         ..clear()
         ..add(messageId);
+      // 削除用の選択とスクリーンショット用の範囲選択・コピー用の文言選択は
+      // 別モードのため、どれか1つに入ったら他は必ず抜ける（同時には成立
+      // しない）。
+      _screenshotSelecting = false;
+      _screenshotSelectedIds.clear();
+      _textCopyMessageId = null;
     });
   }
 
@@ -409,6 +463,144 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       _selecting = false;
       _selectedMessageIds.clear();
     });
+  }
+
+  /// スクリーンショット用の範囲選択モードに入る。削除用の複数選択とは
+  /// 別モードで、長押しした1件を選択済みにして開始する（2026-08-09、
+  /// 削除機能との混同を避けるためユーザー指摘を受けて分離）。
+  void _enterScreenshotSelection(String messageId) {
+    setState(() {
+      _screenshotSelecting = true;
+      _screenshotSelectedIds
+        ..clear()
+        ..add(messageId);
+      // 削除用の選択モード・コピー用の文言選択モードと同時には成立しない。
+      _selecting = false;
+      _selectedMessageIds.clear();
+      _textCopyMessageId = null;
+    });
+  }
+
+  /// 部分コピー用の文言選択モードに入る。長押しメニューの「部分コピー」
+  /// から呼ばれる（2026-08-09、メッセージへの直接コピー＝ホバーでの入り口は
+  /// 廃止し、メニュー経由のみに変更）。削除・スクリーンショットのような
+  /// 複数メッセージ選択ではなく、[messageId]1件だけの本文を選択可能
+  /// （[SelectionArea]）にし、入った直後は全文が選択済みの状態から
+  /// スタートする（カーソルでコピーしたい範囲だけに絞り込める）。終了は
+  /// 明示的な×ボタンではなく、コピー操作（Ctrl+C／選択ツールバーの
+  /// 「コピー」）をした時点で自動的に行う（[_copyPartialSelectionAndExit]
+  /// 参照、2026-08-09変更）。
+  void _enterTextCopyMode(String messageId) {
+    setState(() {
+      _textCopyMessageId = messageId;
+      _selecting = false;
+      _selectedMessageIds.clear();
+      _screenshotSelecting = false;
+      _screenshotSelectedIds.clear();
+      _partialCopySelectedContent = null;
+    });
+    // web(DDC)ではSelectionAreaのマウント・レイアウトが1フレームで
+    // 完了しないことがある（スクリーンショット撮影のtoImage()と同じ
+    // 事情）ため、2フレーム待ってから全文選択する。
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _partialCopyKey.currentState?.selectableRegion.selectAll();
+      });
+    });
+  }
+
+  void _exitTextCopyMode() {
+    setState(() {
+      _textCopyMessageId = null;
+      _partialCopySelectedContent = null;
+    });
+  }
+
+  /// 部分コピーモード中に、選択済みの文字列をクリップボードへコピーして
+  /// モードを終了する（Ctrl+C・選択ツールバーの「コピー」ボタン双方から
+  /// 呼ばれる共通処理、2026-08-09追加）。
+  void _copyPartialSelectionAndExit() {
+    final text = _partialCopySelectedContent?.plainText;
+    if (text != null && text.isNotEmpty) {
+      Clipboard.setData(ClipboardData(text: text));
+    }
+    _partialCopyKey.currentState?.selectableRegion.hideToolbar();
+    _exitTextCopyMode();
+  }
+
+  /// 長押しメニューの「コピー」。選択操作を挟まず、メッセージ本文全体を
+  /// 即座にクリップボードへコピーする（2026-08-09、部分コピーとは別の
+  /// 即時実行アクション）。
+  Future<void> _copyMessageText(Message message) async {
+    await Clipboard.setData(ClipboardData(text: message.content));
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(ref.read(appStringsProvider).chatCopiedMessage)));
+  }
+
+  /// 現在の実効範囲（[_screenshotEffectiveIds]）に含まれるメッセージを
+  /// クリックした場合は、時系列でそれより後ろ（新しい側）を全て解除する
+  /// （「上にあるメッセージを優先する」、2026-08-09変更）。例:
+  /// 1〜3件目を選択中に2件目をクリック→1件目だけ残る。範囲外のメッセージを
+  /// クリックした場合はこれまで通り追加し、[_screenshotEffectiveIds]の
+  /// 穴埋めで範囲が広がる。
+  void _toggleScreenshotSelected(String messageId) {
+    setState(() {
+      final chronological = [..._cachedMessages]..sort((a, b) {
+        final aTime = a.sentAt?.toDate() ?? DateTime.now();
+        final bTime = b.sentAt?.toDate() ?? DateTime.now();
+        return aTime.compareTo(bTime);
+      });
+      final effective = _screenshotEffectiveIds(chronological);
+      if (effective.contains(messageId)) {
+        final idx = chronological.indexWhere(
+          (m) => m.messageId == messageId,
+        );
+        final lo = chronological.indexWhere(
+          (m) => effective.contains(m.messageId),
+        );
+        if (idx == lo) {
+          _screenshotSelectedIds.clear();
+        } else {
+          _screenshotSelectedIds
+            ..clear()
+            ..addAll(
+              chronological.sublist(lo, idx).map((m) => m.messageId),
+            );
+        }
+      } else {
+        _screenshotSelectedIds.add(messageId);
+      }
+    });
+  }
+
+  void _exitScreenshotSelection() {
+    setState(() {
+      _screenshotSelecting = false;
+      _screenshotSelectedIds.clear();
+    });
+  }
+
+  /// [_screenshotSelectedIds]に含まれるメッセージのうち、[orderedMessages]
+  /// （新しい順・古い順どちらでもよい）上で最も古い位置〜最も新しい位置の
+  /// 間を全て埋めて返す（「1件目・3件目を選ぶと2件目も自動的に選択される」
+  /// という区間選択の実体。実際にトグルされる[_screenshotSelectedIds]自体は
+  /// 個別にon/off可能な集合のままにして、表示・撮影対象の算出にのみ
+  /// この穴埋めを適用する、2026-08-09変更）。
+  Set<String> _screenshotEffectiveIds(List<Message> orderedMessages) {
+    if (_screenshotSelectedIds.isEmpty) return const {};
+    var lo = -1;
+    var hi = -1;
+    for (var i = 0; i < orderedMessages.length; i++) {
+      if (!_screenshotSelectedIds.contains(orderedMessages[i].messageId)) {
+        continue;
+      }
+      if (lo == -1) lo = i;
+      hi = i;
+    }
+    if (lo == -1) return {..._screenshotSelectedIds};
+    return {for (var i = lo; i <= hi; i++) orderedMessages[i].messageId};
   }
 
   Future<void> _confirmDeleteSelected() async {
@@ -437,6 +629,257 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     final ids = _selectedMessageIds.toList();
     _exitSelectionMode();
     await widget.onHideMessages?.call(ids);
+  }
+
+  /// 選択した範囲のスクリーンショットを作成する前に、「呼び名にぼかしを
+  /// 入れる」チェックボックス付きの確認ダイアログを出す（2026-08-09追加）。
+  /// キャンセルした場合は範囲選択モードを維持する（削除と異なり、選び直す
+  /// 余地を残すため即座に[_exitScreenshotSelection]しない）。
+  Future<void> _confirmScreenshotSelected() async {
+    final strings = ref.read(appStringsProvider);
+    var blur = false;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => CallbackShortcuts(
+          // Enterキーで「撮影する」を実行できるようにする（2026-08-09追加）。
+          bindings: {
+            const SingleActivator(LogicalKeyboardKey.enter): () =>
+                Navigator.of(context).pop(true),
+          },
+          child: Focus(
+            autofocus: true,
+            child: AlertDialog(
+              title: Text(strings.chatScreenshotDialogTitle),
+              content: CheckboxListTile(
+                contentPadding: EdgeInsets.zero,
+                controlAffinity: ListTileControlAffinity.leading,
+                value: blur,
+                title: Text(strings.chatScreenshotBlurCheckboxLabel),
+                onChanged: (value) =>
+                    setDialogState(() => blur = value ?? false),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(false),
+                  child: Text(strings.cancel),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.of(context).pop(true),
+                  child: Text(strings.chatScreenshotConfirmButton),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    if (confirmed != true) return;
+    final ids = _screenshotEffectiveIds(_cachedMessages).toList();
+    _exitScreenshotSelection();
+    await _captureAndShareScreenshot(ids, blurSenderInfo: blur);
+  }
+
+  /// [ids]に対応するメッセージだけをオフスクリーンに組み立てて画像化し、
+  /// 共有シート（[SharePlus]）へ渡す（2026-08-09追加）。選択は連続していなく
+  /// てもよいため、表示中のビューポートをそのまま撮影するのではなく、
+  /// 選択分だけを別のウィジェットツリーとして`Overlay`上に組み立てて
+  /// キャプチャする（`Offstage`は`offstage:true`の間`paint`自体を行わない
+  /// ため、`RepaintBoundary.toImage()`用のレイヤーが作られず使えない）。
+  Future<void> _captureAndShareScreenshot(
+    List<String> ids, {
+    required bool blurSenderInfo,
+  }) async {
+    final strings = ref.read(appStringsProvider);
+    final colorScheme = Theme.of(context).colorScheme;
+    final floatingShadow =
+        Theme.of(context).extension<AppThemeExtras>()?.floatingShadow ??
+        AppThemeExtras.none;
+    final uiStyle = ref.read(appUiStyleProvider);
+    final layoutStyle = ref.read(chatLayoutStyleProvider);
+    final timeFormat = ref.read(messageTimeFormatProvider);
+    final locale = ref.read(appLocaleProvider);
+    final scaffoldBackground = Theme.of(context).scaffoldBackgroundColor;
+    final devicePixelRatio = MediaQuery.devicePixelRatioOf(context);
+    final chatAreaWidth =
+        (_autoScrollAreaKey.currentContext?.findRenderObject() as RenderBox?)
+            ?.size
+            .width ??
+        MediaQuery.sizeOf(context).width;
+
+    final idSet = ids.toSet();
+    final selected =
+        _cachedMessages.where((m) => idSet.contains(m.messageId)).toList()
+          ..sort((a, b) {
+            final aTime = a.sentAt?.toDate() ?? DateTime.now();
+            final bTime = b.sentAt?.toDate() ?? DateTime.now();
+            return aTime.compareTo(bTime);
+          });
+    if (selected.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(strings.chatScreenshotErrorMessage)));
+      return;
+    }
+    final messagesById = {for (final m in _cachedMessages) m.messageId: m};
+
+    // アイコン画像は_MessageRowが内部で非同期に読み込むため、キャプチャ前に
+    // 事前読み込みしておかないと空欄のまま撮影されてしまう可能性がある。
+    // 1件failしても他のアイコンの撮影を妨げないよう個別にcatchする。
+    final iconUrls = <String>{};
+    for (final m in selected) {
+      final url = ref
+          .read(watchedUserProvider(m.senderId))
+          .value
+          ?.effectiveIconFor(widget.conversationId)
+          ?.url;
+      if (url != null) iconUrls.add(url);
+    }
+    if (!mounted) return;
+    await Future.wait(
+      iconUrls.map(
+        (url) => precacheImage(
+          NetworkImage(url),
+          context,
+        ).catchError((_) {}),
+      ),
+    );
+    if (!mounted) return;
+
+    final rows = <Widget>[];
+    DateTime? currentDay;
+    for (final message in selected) {
+      final sentAt = message.sentAt?.toDate();
+      if (sentAt != null &&
+          (currentDay == null || !isSameDay(sentAt, currentDay))) {
+        currentDay = sentAt;
+        rows.add(
+          _DateSeparator(
+            date: sentAt,
+            locale: locale,
+            isGekiga: uiStyle == AppUiStyle.gekiga,
+          ),
+        );
+      }
+      rows.add(
+        _MessageRow(
+          key: ValueKey('capture_${message.messageId}'),
+          message: message,
+          isMe: message.senderId == widget.currentUserId,
+          currentUserId: widget.currentUserId,
+          timeLabel: sentAt != null
+              ? formatMessageTime(sentAt, timeFormat)
+              : null,
+          colorScheme: colorScheme,
+          floatingShadow: floatingShadow,
+          uiStyle: uiStyle,
+          readReceiptsEnabled: widget.readReceiptsEnabled,
+          layoutStyle: layoutStyle,
+          isDm: widget.isDm,
+          conversationId: widget.conversationId,
+          senderNameColorResolver: widget.senderNameColorResolver,
+          blurSenderInfo: blurSenderInfo,
+          messagesById: messagesById,
+          timeFormat: timeFormat,
+        ),
+      );
+    }
+
+    final captureKey = GlobalKey();
+    final overlay = Overlay.of(context);
+    final entry = OverlayEntry(
+      // Web(CanvasKit)では極端に画面外（大きな負の座標）へ置いた
+      // RepaintBoundaryがtoImage()で正しく描画されない不具合があるため、
+      // 実座標としては画面左上（0,0）に置いた上でClipRectで見た目上0x0に
+      // 畳んで隠す（ClipRectによる祖先側のクリップはRepaintBoundary自身の
+      // 独立したレイヤーには影響しないため、toImage()側は全体を正しく
+      // キャプチャできる、2026-08-09変更）。
+      builder: (context) => Positioned(
+        left: 0,
+        top: 0,
+        width: 0,
+        height: 0,
+        child: ClipRect(
+          child: Material(
+            type: MaterialType.transparency,
+            child: OverflowBox(
+              minWidth: 0,
+              maxWidth: double.infinity,
+              minHeight: 0,
+              maxHeight: double.infinity,
+              alignment: Alignment.topLeft,
+              child: RepaintBoundary(
+                key: captureKey,
+                child: ColoredBox(
+                  color: scaffoldBackground,
+                  child: SizedBox(
+                    width: chatAreaWidth,
+                    // 通常のメッセージ一覧（ListView）が持つ12pxの余白を
+                    // 再現する。これが無いとアイコンの左上突き出し部分
+                    // （GekigaPhotoFrameのoverflow）が撮影範囲の外に出て
+                    // 左端が欠けて見える（2026-08-09追加）。
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: rows,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    overlay.insert(entry);
+    Uint8List? pngBytes;
+    try {
+      // ネットワーク画像・レイアウトが確実に反映されるよう2フレーム待つ。
+      await WidgetsBinding.instance.endOfFrame;
+      await WidgetsBinding.instance.endOfFrame;
+      final boundary =
+          captureKey.currentContext!.findRenderObject()!
+              as RenderRepaintBoundary;
+      final image = await boundary.toImage(pixelRatio: devicePixelRatio);
+      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      pngBytes = byteData?.buffer.asUint8List();
+      if (pngBytes == null) throw StateError('toByteData returned null');
+    } catch (e, st) {
+      // web-serverターゲットではflutter runのターミナルへdebugPrintが
+      // 転送されないため、ブラウザのDevToolsコンソールでも確認できるよう
+      // 残しておく（2026-08-09追加）。
+      debugPrint('スクリーンショットのキャプチャに失敗: $e\n$st');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(strings.chatScreenshotErrorMessage)),
+        );
+      }
+      return;
+    } finally {
+      entry.remove();
+    }
+    try {
+      final fileName =
+          'daidai_screenshot_${DateTime.now().millisecondsSinceEpoch}.png';
+      await SharePlus.instance.share(
+        ShareParams(
+          files: [
+            XFile.fromData(pngBytes, mimeType: 'image/png', name: fileName),
+          ],
+        ),
+      );
+    } catch (e, st) {
+      debugPrint('スクリーンショットの共有に失敗: $e\n$st');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(strings.chatScreenshotErrorMessage)),
+        );
+      }
+    }
   }
 
   /// 新しく届いたメッセージのうち、まだ自分が読んでいないものを既読にする。
@@ -597,6 +1040,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                 icon: const Icon(Icons.close),
                 onPressed: _exitSelectionMode,
               )
+            : _screenshotSelecting
+            ? IconButton(
+                icon: const Icon(Icons.close),
+                onPressed: _exitScreenshotSelection,
+              )
             : null,
         // 寄合名（widget.title）は、広い画面ではRoomListPaneのタブ、狭い
         // 画面ではRoomTabBarに既に表示されており冗長なため、劇画スタイル
@@ -604,6 +1052,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         // 表示は別物なので維持する。シンプルスタイルは現状通り表示）。
         title: _selecting
             ? Text(strings.chatSelectionModeTitle(_selectedMessageIds.length))
+            : _screenshotSelecting
+            ? Text(
+                strings.chatScreenshotSelectionModeTitle(
+                  _screenshotEffectiveIds(_cachedMessages).length,
+                ),
+              )
             : (isGekiga ? null : Text(widget.title)),
         actions: _selecting
             ? [
@@ -613,6 +1067,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                   onPressed: _selectedMessageIds.isEmpty
                       ? null
                       : _confirmDeleteSelected,
+                ),
+              ]
+            : _screenshotSelecting
+            ? [
+                IconButton(
+                  icon: const Icon(Icons.camera_alt_outlined),
+                  tooltip: strings.chatScreenshotTooltip,
+                  onPressed: _screenshotSelectedIds.isEmpty
+                      ? null
+                      : _confirmScreenshotSelected,
                 ),
               ]
             : [
@@ -696,6 +1160,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                           final bTime = b.sentAt?.toDate() ?? DateTime.now();
                           return bTime.compareTo(aTime);
                         });
+                      _cachedMessages = combined;
 
                       // 返信元メッセージの引用プレビュー・返信先ジャンプに使う。
                       // 現在ロード済み（直近50件＋ジャンプで追加取得した分）の
@@ -719,6 +1184,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                       // ListViewにそのまま渡すと、index 0（リストの末尾＝一番新しい
                       // 要素）が画面下端に来て、見た目は上から古い順（区切り→その日の
                       // メッセージ…）に正しく並ぶ。
+                      final screenshotEffectiveIds = _screenshotSelecting
+                          ? _screenshotEffectiveIds(combined)
+                          : const <String>{};
+
                       final entries = <Widget>[];
                       DateTime? currentDay;
                       for (var i = combined.length - 1; i >= 0; i--) {
@@ -755,16 +1224,37 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                             layoutStyle: layoutStyle,
                             isDm: widget.isDm,
                             conversationId: widget.conversationId,
-                            onSenderTap: _selecting ? null : widget.onSenderTap,
+                            onSenderTap: (_selecting || _screenshotSelecting)
+                                ? null
+                                : widget.onSenderTap,
                             senderNameColorResolver:
                                 widget.senderNameColorResolver,
-                            selecting: _selecting,
-                            selected: _selectedMessageIds.contains(
-                              message.messageId,
-                            ),
+                            selecting: _selecting || _screenshotSelecting,
+                            selected: _selecting
+                                ? _selectedMessageIds.contains(
+                                    message.messageId,
+                                  )
+                                : screenshotEffectiveIds.contains(
+                                    message.messageId,
+                                  ),
                             canSelect: widget.onHideMessages != null,
                             onEnterSelection: _enterSelectionMode,
-                            onToggleSelected: _toggleSelected,
+                            onEnterScreenshotSelection:
+                                _enterScreenshotSelection,
+                            textCopySelecting:
+                                _textCopyMessageId == message.messageId,
+                            onEnterTextCopy: _enterTextCopyMode,
+                            partialCopySelectionKey: _partialCopyKey,
+                            onPartialCopySelectionChanged: (content) =>
+                                _partialCopySelectedContent = content,
+                            onCopyPartialSelection:
+                                _copyPartialSelectionAndExit,
+                            onCopyMessage: _copyMessageText,
+                            onToggleSelected: _selecting
+                                ? _toggleSelected
+                                : (_screenshotSelecting
+                                      ? _toggleScreenshotSelected
+                                      : null),
                             messagesById: messagesById,
                             onReply: _startReply,
                             onEdit: widget.onEditMessage != null
@@ -780,13 +1270,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                 widget.onDeclineAccountDeletionNotice,
                             onDeleteAfterAccountDeletion:
                                 widget.onDeleteAfterAccountDeletion,
-                            onAutoScrollStart: _selecting
+                            onAutoScrollStart: (_selecting || _screenshotSelecting)
                                 ? null
                                 : _startAutoScroll,
-                            onAutoScrollUpdate: _selecting
+                            onAutoScrollUpdate: (_selecting || _screenshotSelecting)
                                 ? null
                                 : _updateAutoScrollPosition,
-                            onAutoScrollEnd: _selecting
+                            onAutoScrollEnd: (_selecting || _screenshotSelecting)
                                 ? null
                                 : _stopAutoScroll,
                             onSwipeBack: widget.onSwipeBack,
@@ -810,7 +1300,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                       // 途切れて見える不具合の修正）。
                       return TweenAnimationBuilder<double>(
                         tween: Tween<double>(
-                          end: _selecting ? 0 : _composerAreaHeight,
+                          end: (_selecting || _screenshotSelecting)
+                              ? 0
+                              : _composerAreaHeight,
                         ),
                         duration: const Duration(milliseconds: 180),
                         curve: Curves.easeOut,
@@ -830,7 +1322,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                   ),
                 ),
                 if (_autoScrollOrigin != null) _buildAutoScrollIndicator(),
-                if (!_selecting)
+                if (!_selecting && !_screenshotSelecting)
                   Positioned(
                     left: 0,
                     right: 0,
@@ -1072,10 +1564,18 @@ class _MessageRow extends ConsumerWidget {
     this.conversationId,
     this.onSenderTap,
     this.senderNameColorResolver,
+    this.blurSenderInfo = false,
     this.selecting = false,
     this.selected = false,
     this.canSelect = false,
     this.onEnterSelection,
+    this.onEnterScreenshotSelection,
+    this.textCopySelecting = false,
+    this.onEnterTextCopy,
+    this.partialCopySelectionKey,
+    this.onPartialCopySelectionChanged,
+    this.onCopyPartialSelection,
+    this.onCopyMessage,
     this.onToggleSelected,
     this.messagesById = const {},
     this.onReply,
@@ -1116,12 +1616,46 @@ class _MessageRow extends ConsumerWidget {
   final void Function(String userId)? onSenderTap;
   final Color? Function(String userId)? senderNameColorResolver;
 
-  /// 範囲選択削除モード中かどうか（[ChatScreen.onHideMessages]が渡されて
-  /// いる場合のみ長押しで入れる）。
+  /// trueなら送信者のアイコン・呼び名をぼかして表示する（2026-08-09追加）。
+  /// スクリーンショット機能でオフスクリーンに組み立てる複製行専用のオプション
+  /// で、通常の画面表示（オンスクリーンの一覧）では常にfalseのまま渡される。
+  final bool blurSenderInfo;
+
+  /// 削除用の複数選択モード、またはスクリーンショット用の範囲選択モード
+  /// （[onEnterScreenshotSelection]参照）中かどうか（[ChatScreen.onHideMessages]
+  /// が渡されている場合のみ長押しで入れる）。
   final bool selecting;
   final bool selected;
   final bool canSelect;
   final void Function(String messageId)? onEnterSelection;
+
+  /// スクリーンショット用の範囲選択モードに入る（[onEnterSelection]とは
+  /// 別モード、2026-08-09追加）。
+  final void Function(String messageId)? onEnterScreenshotSelection;
+
+  /// このメッセージが部分コピー用の文言選択モード中かどうか（2026-08-09
+  /// 追加）。削除・スクリーンショットと違い1件だけが対象になる。
+  final bool textCopySelecting;
+
+  /// 部分コピー用の文言選択モードに入る（長押しメニューの「部分コピー」
+  /// から呼ばれる）。
+  final void Function(String messageId)? onEnterTextCopy;
+
+  /// [textCopySelecting]中の[SelectionArea]へアクセスするためのキー
+  /// （入った直後に全文選択するため、2026-08-09追加）。
+  final GlobalKey<SelectionAreaState>? partialCopySelectionKey;
+
+  /// [textCopySelecting]中、選択内容が変わるたびに呼ばれる
+  /// （2026-08-09追加、コピー実行時にここでキャッシュした文字列を使う）。
+  final ValueChanged<SelectedContent?>? onPartialCopySelectionChanged;
+
+  /// 部分コピーモード中に選択済みの文字列をコピーしてモードを終了する
+  /// （Ctrl+C・選択ツールバーの「コピー」双方から呼ぶ、2026-08-09追加）。
+  final VoidCallback? onCopyPartialSelection;
+
+  /// 長押しメニューの「コピー」。選択操作を挟まず、メッセージ本文全体を
+  /// 即座にクリップボードへコピーする（2026-08-09追加）。
+  final void Function(Message message)? onCopyMessage;
   final void Function(String messageId)? onToggleSelected;
 
   /// 現在ロード済みの（最新50件の）メッセージ一覧。返信先の引用プレビューを
@@ -1639,21 +2173,64 @@ class _MessageRow extends ConsumerWidget {
               const SizedBox(width: 6),
             ],
             Flexible(
-              child: _MessageBubbleTapArea(
-                canSelect: canSelect,
-                strings: strings,
-                onTap: onBubbleTap,
-                onReply: () => onReply?.call(message),
-                onEdit: canEdit ? () => onEdit?.call(message) : null,
-                onUnsend: (isMe && onUnsend != null)
-                    ? () => _confirmUnsend(context, strings)
-                    : null,
-                onReact: onSetReaction == null ? null : _toggleMyReaction,
-                onSelect: canSelect
-                    ? () => onEnterSelection?.call(message.messageId)
-                    : null,
-                child: bubble,
-              ),
+              // 部分コピーモード中は、ドラッグでの範囲選択・Ctrl+Cコピーを
+              // SelectionAreaに任せるため、タップ/長押しを奪う
+              // _MessageBubbleTapAreaは介さない（ジェスチャー競合回避、
+              // 2026-08-09追加）。明示的な×ボタンは廃止し、コピー操作
+              // （Ctrl+C・選択ツールバーの「コピー」）を検知して自動で
+              // モードを終了する。
+              child: textCopySelecting
+                  ? Actions(
+                      actions: <Type, Action<Intent>>{
+                        CopySelectionTextIntent:
+                            CallbackAction<CopySelectionTextIntent>(
+                              onInvoke: (intent) {
+                                onCopyPartialSelection?.call();
+                                return null;
+                              },
+                            ),
+                      },
+                      child: SelectionArea(
+                        key: partialCopySelectionKey,
+                        onSelectionChanged: onPartialCopySelectionChanged,
+                        contextMenuBuilder: (context, state) =>
+                            AdaptiveTextSelectionToolbar.buttonItems(
+                              anchors: state.contextMenuAnchors,
+                              buttonItems: [
+                                ContextMenuButtonItem(
+                                  type: ContextMenuButtonType.copy,
+                                  onPressed: onCopyPartialSelection,
+                                ),
+                              ],
+                            ),
+                        child: bubble,
+                      ),
+                    )
+                  : _MessageBubbleTapArea(
+                      canSelect: canSelect,
+                      strings: strings,
+                      onTap: onBubbleTap,
+                      onReply: () => onReply?.call(message),
+                      onEdit: canEdit ? () => onEdit?.call(message) : null,
+                      onUnsend: (isMe && onUnsend != null)
+                          ? () => _confirmUnsend(context, strings)
+                          : null,
+                      onReact: onSetReaction == null
+                          ? null
+                          : _toggleMyReaction,
+                      onCopySelect: () => onCopyMessage?.call(message),
+                      onPartialCopySelect: () =>
+                          onEnterTextCopy?.call(message.messageId),
+                      onSelect: canSelect
+                          ? () => onEnterSelection?.call(message.messageId)
+                          : null,
+                      onScreenshotSelect: canSelect
+                          ? () => onEnterScreenshotSelection?.call(
+                              message.messageId,
+                            )
+                          : null,
+                      child: bubble,
+                    ),
             ),
             if (!alignRight && readBadge != null) ...[
               const SizedBox(width: 6),
@@ -1715,18 +2292,26 @@ class _MessageRow extends ConsumerWidget {
       );
     } else {
       final canTapSender = !isMe && onSenderTap != null;
-      final senderAvatar = _SenderAvatar(
+      Widget senderAvatar = _SenderAvatar(
         userId: message.senderId,
         rhingId: message.senderRhingId,
         conversationId: conversationId,
         uiStyle: uiStyle,
       );
-      final senderName = _SenderName(
+      Widget senderName = _SenderName(
         userId: message.senderId,
         rhingId: message.senderRhingId,
         conversationId: conversationId,
         color: senderNameColorResolver?.call(message.senderId),
       );
+      if (blurSenderInfo) {
+        // プライバシー配慮のスクリーンショット用（[blurSenderInfo]参照）。
+        // アイコン・呼び名の見た目そのものをぼかすことで、写真でも初見の
+        // 相手でも判読できないようにする。
+        final blur = ui.ImageFilter.blur(sigmaX: 6, sigmaY: 6);
+        senderAvatar = ImageFiltered(imageFilter: blur, child: senderAvatar);
+        senderName = ImageFiltered(imageFilter: blur, child: senderName);
+      }
 
       content = Padding(
         padding: const EdgeInsets.symmetric(vertical: 4),
@@ -1790,6 +2375,11 @@ class _MessageRow extends ConsumerWidget {
       // 選択中はチェックボックスと薄い塗りで示す（開始自体は下記の
       // コンテキストメニューの「選択」項目から行う）。
       body = GestureDetector(
+        // contentはAlignで寄せられているため、指定なし（既定の
+        // deferToChild）だと吹き出し左右の余白（何も描画されていない
+        // 領域）でタップが反応しなかった。opaqueにして行全体で反応する
+        // ようにする（2026-08-09修正）。
+        behavior: HitTestBehavior.opaque,
         onTap: () => onToggleSelected?.call(message.messageId),
         child: Container(
           color: selected ? colorScheme.primary.withValues(alpha: 0.12) : null,
@@ -2089,7 +2679,16 @@ class _MessageRow extends ConsumerWidget {
   }
 }
 
-enum _MessageMenuAction { reply, edit, unsend, react, select }
+enum _MessageMenuAction {
+  reply,
+  edit,
+  unsend,
+  react,
+  copy,
+  partialCopy,
+  select,
+  screenshot,
+}
 
 /// 長押し/右クリック位置に開く各種メニューの位置決め（[_MessageBubbleTapArea]・
 /// [_MessageRow]の＋ボタン双方から使う共通ロジック、2026-08-05切り出し）。
@@ -2135,12 +2734,54 @@ Future<String?> _pickReactionEmoji(
   );
 }
 
+/// 長押しドラッグメニューの1行分の見た目上の高さ。算術での当たり判定を
+/// 前提にするため、各項目ラベルは折り返さず1行固定にする
+/// （[_MessageBubbleTapAreaState._buildMenuItems]参照、2026-08-09追加）。
+const double _kDragMenuItemHeight = kMinInteractiveDimension;
+
+/// 長押しドラッグメニューの表示中、押した指の位置からどの項目の上にいるかを
+/// 算術で求める（個々のウィジェットの`RenderBox`計測に頼らない、
+/// 2026-08-09追加）。範囲外なら-1。
+class _DragMenuGeometry {
+  const _DragMenuGeometry({
+    required this.left,
+    required this.top,
+    required this.width,
+    required this.itemCount,
+  });
+
+  final double left;
+  final double top;
+  final double width;
+  final int itemCount;
+
+  double get height => _kDragMenuItemHeight * itemCount;
+
+  int hitTest(Offset globalPosition) {
+    if (globalPosition.dx < left || globalPosition.dx > left + width) {
+      return -1;
+    }
+    final relativeY = globalPosition.dy - top;
+    if (relativeY < 0 || relativeY >= height) return -1;
+    return (relativeY / _kDragMenuItemHeight).floor().clamp(
+      0,
+      itemCount - 1,
+    );
+  }
+}
+
 /// 吹き出し本体だけに絞った当たり判定。長押し/右クリックでリアクション・
 /// 返信・編集等のコンテキストメニューを開く（2026-07-29変更: 以前は行全体
 /// （余白込み）が対象だったが、余白部分の長押しを自動スクロール
 /// （[_MessageInteractions]参照）に割り当てたため、両者が同じ操作を
 /// 奪い合わないよう吹き出し本体だけに絞った）。
-class _MessageBubbleTapArea extends StatelessWidget {
+///
+/// 右クリック（[onSecondaryTapDown]）は従来通り`showMenu`でクリック選択の
+/// メニューを開くが、長押しは指を離さずメニュー上をスライドし、離した項目が
+/// そのまま実行される「ドラッグ選択」方式にしている（2026-08-09変更、
+/// ジェスチャーの生存期間をまたいで`OverlayEntry`・ハイライト状態を保持する
+/// 必要があるため`StatefulWidget`化した）。
+class _MessageBubbleTapArea extends StatefulWidget {
   const _MessageBubbleTapArea({
     required this.child,
     required this.canSelect,
@@ -2149,7 +2790,10 @@ class _MessageBubbleTapArea extends StatelessWidget {
     this.onEdit,
     this.onUnsend,
     this.onReact,
+    this.onCopySelect,
+    this.onPartialCopySelect,
     this.onSelect,
+    this.onScreenshotSelect,
     this.onTap,
   });
 
@@ -2160,69 +2804,246 @@ class _MessageBubbleTapArea extends StatelessWidget {
   final VoidCallback? onEdit;
   final VoidCallback? onUnsend;
   final void Function(String emoji)? onReact;
+
+  /// メッセージ本文全体を即座にクリップボードへコピーする（削除権限の
+  /// 有無と無関係のため、[canSelect]と関係なく常に出す、2026-08-09追加、
+  /// 選択操作を挟まない即時実行）。
+  final VoidCallback? onCopySelect;
+
+  /// 部分コピー用の文言選択モードに入る（[onCopySelect]の即時コピーとは
+  /// 別のアクション、2026-08-09追加）。全文選択済みの状態から始まり、
+  /// カーソルでコピーしたい範囲だけに絞り込める。
+  final VoidCallback? onPartialCopySelect;
+
+  /// 「メッセージを削除」用の複数選択モードに入る。
   final VoidCallback? onSelect;
+
+  /// スクリーンショット用の範囲選択モードに入る（[onSelect]とは別モード、
+  /// 2026-08-09追加）。
+  final VoidCallback? onScreenshotSelect;
 
   /// 返信先ジャンプ用のタップ。nullなら通常通りタップでは何も起きない。
   final VoidCallback? onTap;
 
+  @override
+  State<_MessageBubbleTapArea> createState() => _MessageBubbleTapAreaState();
+}
+
+class _MessageBubbleTapAreaState extends State<_MessageBubbleTapArea> {
+  final _highlightIndex = ValueNotifier<int>(-1);
+  OverlayEntry? _overlayEntry;
+  _DragMenuGeometry? _dragMenuGeometry;
+  List<({_MessageMenuAction action, String label})> _dragMenuItems = const [];
+
+  @override
+  void dispose() {
+    _removeOverlay();
+    _highlightIndex.dispose();
+    super.dispose();
+  }
+
+  void _removeOverlay() {
+    _overlayEntry?.remove();
+    _overlayEntry = null;
+    _dragMenuGeometry = null;
+  }
+
+  /// メニュー項目の並び（`onReact`/`onEdit`/`onUnsend`のnull有無・
+  /// [_MessageBubbleTapArea.canSelect]によるガードを含む）。右クリックの
+  /// `showMenu`・長押しのドラッグメニュー両方で共有する（2026-08-09切り出し）。
+  List<({_MessageMenuAction action, String label})> _buildMenuItems() {
+    final strings = widget.strings;
+    return [
+      (action: _MessageMenuAction.reply, label: strings.chatReplyAction),
+      if (widget.onReact != null)
+        (action: _MessageMenuAction.react, label: strings.chatReactAction),
+      if (widget.onEdit != null)
+        (action: _MessageMenuAction.edit, label: strings.chatEditAction),
+      if (widget.onUnsend != null)
+        (action: _MessageMenuAction.unsend, label: strings.chatUnsendAction),
+      (action: _MessageMenuAction.copy, label: strings.chatCopyAction),
+      (
+        action: _MessageMenuAction.partialCopy,
+        label: strings.chatPartialCopyAction,
+      ),
+      if (widget.canSelect) ...[
+        (action: _MessageMenuAction.select, label: strings.chatSelectAction),
+        (
+          action: _MessageMenuAction.screenshot,
+          label: strings.chatScreenshotAction,
+        ),
+      ],
+    ];
+  }
+
+  /// 右クリック・ドラッグメニュー双方から呼ばれるアクションの実行本体
+  /// （2026-08-09切り出し）。
+  Future<void> _handleAction(
+    BuildContext context,
+    _MessageMenuAction? action,
+    Offset globalPosition,
+  ) async {
+    if (!context.mounted) return;
+    switch (action) {
+      case _MessageMenuAction.reply:
+        widget.onReply();
+      case _MessageMenuAction.edit:
+        widget.onEdit?.call();
+      case _MessageMenuAction.unsend:
+        widget.onUnsend?.call();
+      case _MessageMenuAction.react:
+        final emoji = await _pickReactionEmoji(context, globalPosition);
+        if (emoji != null) widget.onReact?.call(emoji);
+      case _MessageMenuAction.copy:
+        widget.onCopySelect?.call();
+      case _MessageMenuAction.partialCopy:
+        widget.onPartialCopySelect?.call();
+      case _MessageMenuAction.select:
+        widget.onSelect?.call();
+      case _MessageMenuAction.screenshot:
+        widget.onScreenshotSelect?.call();
+      case null:
+        break;
+    }
+  }
+
+  /// 右クリック用、従来通りのクリック選択メニュー（変更なし）。
   Future<void> _openMenu(BuildContext context, Offset globalPosition) async {
+    final items = _buildMenuItems();
     final action = await showMenu<_MessageMenuAction>(
       context: context,
       position: _menuPosition(context, globalPosition),
       items: [
-        PopupMenuItem(
-          value: _MessageMenuAction.reply,
-          child: Text(strings.chatReplyAction),
-        ),
-        if (onReact != null)
-          PopupMenuItem(
-            value: _MessageMenuAction.react,
-            child: Text(strings.chatReactAction),
-          ),
-        if (onEdit != null)
-          PopupMenuItem(
-            value: _MessageMenuAction.edit,
-            child: Text(strings.chatEditAction),
-          ),
-        if (onUnsend != null)
-          PopupMenuItem(
-            value: _MessageMenuAction.unsend,
-            child: Text(strings.chatUnsendAction),
-          ),
-        if (canSelect)
-          PopupMenuItem(
-            value: _MessageMenuAction.select,
-            child: Text(strings.chatSelectAction),
-          ),
+        for (final item in items)
+          PopupMenuItem(value: item.action, child: Text(item.label)),
       ],
     );
     if (!context.mounted) return;
-    switch (action) {
-      case _MessageMenuAction.reply:
-        onReply();
-      case _MessageMenuAction.edit:
-        onEdit?.call();
-      case _MessageMenuAction.unsend:
-        onUnsend?.call();
-      case _MessageMenuAction.react:
-        final emoji = await _pickReactionEmoji(context, globalPosition);
-        if (emoji != null) onReact?.call(emoji);
-      case _MessageMenuAction.select:
-        onSelect?.call();
-      case null:
-        break;
+    await _handleAction(context, action, globalPosition);
+  }
+
+  void _onLongPressStart(BuildContext context, LongPressStartDetails details) {
+    final items = _buildMenuItems();
+    final colorScheme = Theme.of(context).colorScheme;
+    final overlayBox =
+        Overlay.of(context).context.findRenderObject()! as RenderBox;
+    final screenSize = overlayBox.size;
+    final textStyle = Theme.of(context).textTheme.bodyLarge!;
+    final textScaler = MediaQuery.textScalerOf(context);
+    final direction = Directionality.of(context);
+
+    const hPad = 16.0;
+    var maxLabelWidth = 0.0;
+    for (final item in items) {
+      final painter = TextPainter(
+        text: TextSpan(text: item.label, style: textStyle),
+        textDirection: direction,
+        textScaler: textScaler,
+      )..layout();
+      if (painter.width > maxLabelWidth) maxLabelWidth = painter.width;
     }
+    final menuWidth = (maxLabelWidth + hPad * 2).clamp(140.0, 280.0);
+    final menuHeight = _kDragMenuItemHeight * items.length;
+
+    const screenPad = 8.0;
+    final left = details.globalPosition.dx.clamp(
+      screenPad,
+      screenSize.width - menuWidth - screenPad,
+    );
+    final top = details.globalPosition.dy.clamp(
+      screenPad,
+      screenSize.height - menuHeight - screenPad,
+    );
+
+    final geometry = _DragMenuGeometry(
+      left: left,
+      top: top,
+      width: menuWidth,
+      itemCount: items.length,
+    );
+    _dragMenuItems = items;
+    _dragMenuGeometry = geometry;
+    _highlightIndex.value = geometry.hitTest(details.globalPosition);
+
+    _overlayEntry = OverlayEntry(
+      builder: (_) => Stack(
+        children: [
+          // メニュー表示中、下のメッセージ一覧が誤って反応しないようにする
+          // バリア（showMenuのルートが持つ効果に近づける）。
+          const Positioned.fill(child: ColoredBox(color: Colors.transparent)),
+          Positioned(
+            left: geometry.left,
+            top: geometry.top,
+            width: geometry.width,
+            height: geometry.height,
+            child: Material(
+              color: colorScheme.surfaceContainer,
+              elevation: 3,
+              shadowColor: colorScheme.shadow,
+              shape: const RoundedRectangleBorder(
+                borderRadius: BorderRadius.all(Radius.circular(4)),
+              ),
+              child: ValueListenableBuilder<int>(
+                valueListenable: _highlightIndex,
+                builder: (_, highlighted, _) => Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    for (var i = 0; i < items.length; i++)
+                      Container(
+                        height: _kDragMenuItemHeight,
+                        alignment: AlignmentDirectional.centerStart,
+                        padding: const EdgeInsets.symmetric(horizontal: hPad),
+                        color: i == highlighted
+                            ? colorScheme.primary.withValues(alpha: 0.12)
+                            : Colors.transparent,
+                        child: Text(
+                          items[i].label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: textStyle.copyWith(
+                            color: i == highlighted ? colorScheme.primary : null,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    Overlay.of(context).insert(_overlayEntry!);
+  }
+
+  void _onLongPressMoveUpdate(LongPressMoveUpdateDetails details) {
+    final geometry = _dragMenuGeometry;
+    if (geometry == null) return;
+    _highlightIndex.value = geometry.hitTest(details.globalPosition);
+  }
+
+  void _onLongPressEnd(BuildContext context, LongPressEndDetails details) {
+    final geometry = _dragMenuGeometry;
+    final items = _dragMenuItems;
+    _removeOverlay();
+    if (geometry == null) return;
+    final index = geometry.hitTest(details.globalPosition);
+    if (index < 0) return;
+    _handleAction(context, items[index].action, details.globalPosition);
   }
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: onTap,
-      onLongPressStart: (details) => _openMenu(context, details.globalPosition),
+      onTap: widget.onTap,
+      onLongPressStart: (details) => _onLongPressStart(context, details),
+      onLongPressMoveUpdate: _onLongPressMoveUpdate,
+      onLongPressEnd: (details) => _onLongPressEnd(context, details),
+      onLongPressCancel: _removeOverlay,
       onSecondaryTapDown: (details) =>
           _openMenu(context, details.globalPosition),
-      child: child,
+      child: widget.child,
     );
   }
 }
@@ -2458,9 +3279,10 @@ class _SenderAvatar extends ConsumerWidget {
   }
 }
 
-/// 劇画スタイルの吹き出し本体。手描き風ギザギザ枠線・モノクロの中身
-/// （2026-07-29追加）。自分は白地に黒枠線、相手は黒地に白枠線で白黒反転する
-/// （2026-07-29修正、参考画像の確認により相手側を黒背景・白文字に変更）。
+/// 劇画スタイルの吹き出し本体。歪な平行四辺形＋他のモノクロボックス系と
+/// 同じ黒外枠・白中枠・地色の3層塗り（2026-07-29追加、2026-08-09に
+/// コミック風バナー形状＋単純な塗り+枠線から現在の形へ変更）。自分は
+/// 白地に黒文字（外枠・中枠も反転）、相手は黒地に白文字で白黒反転する。
 class _GekigaBubble extends StatelessWidget {
   const _GekigaBubble({
     required this.child,
@@ -2474,7 +3296,7 @@ class _GekigaBubble extends StatelessWidget {
   final bool isMe;
 
   /// 右寄せ表示（自分・sideBySideレイアウト）かどうか。真なら吹き出しの
-  /// 形状（左辺のジグザグ・右辺の矢羽根）を左右反転する（2026-08-06追加）。
+  /// 形状（平行四辺形の傾き）を左右反転する（2026-08-06追加）。
   final bool alignRight;
 
   @override
@@ -2506,23 +3328,18 @@ class _GekigaBubblePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final vertices = speechBubbleVertices(size.width, size.height);
-    final path = pathFromPoints(
-      alignRight ? mirrorHorizontal(vertices, size.width) : vertices,
+    final vertices = distortedParallelogramVertices(
+      size.width,
+      size.height,
+      seed,
     );
-    final fillColor = isMe ? Colors.white : Colors.black;
-    final strokeColor = isMe ? Colors.black : Colors.white;
-    final strokeWidth = 3.2 * seededThicknessScale(seed);
-    canvas.drawPath(path, Paint()..color = fillColor);
-    canvas.drawPath(
-      path,
-      Paint()
-        ..color = strokeColor
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = strokeWidth
-        ..strokeJoin = StrokeJoin.miter
-        ..strokeCap = StrokeCap.round,
-    );
+    MonochromeBoxPainter(
+      vertices: alignRight ? mirrorHorizontal(vertices, size.width) : vertices,
+      thicknessBase: size.shortestSide,
+      fillColor: isMe ? Colors.white : Colors.black,
+      seed: seed,
+      invert: isMe,
+    ).paint(canvas, size);
   }
 
   @override

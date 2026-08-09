@@ -572,6 +572,21 @@ service cloud.firestore {
         && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.memberIds;
     }
 
+    // qrLoginSessions/{sessionId}: QRコードログイン（2026-08-09追加）。未ログイン
+    // 端末が作成し、ログイン済みの別端末が承認するまでの一時的なセッション。
+    // 未ログイン端末が自身のステータス変化を監視できるよう公開読み取り可能
+    // （sessionIdはFirestore自動生成IDで推測不可なため、userInvites/groupInvitesと
+    // 同じ「知っていれば読める」設計）。承認（approvedUid付与）・claim・カスタム
+    // トークン発行は全てCloud Functions（Admin SDK、ルール適用外）経由で行うため、
+    // クライアントからのupdate/deleteは一切許可しない。
+    match /qrLoginSessions/{sessionId} {
+      allow read: if true;
+      allow create: if request.resource.data.status == 'pending'
+        && request.resource.data.keys().hasOnly(['status', 'createdAt'])
+        && request.resource.data.createdAt == request.time;
+      allow update, delete: if false;
+    }
+
     // calls/{callId}: 音声通話（フェーズ1、一対限定）。発信者・着信者本人のみ読み書き可能。
     // シグナリング（offer/answer/status）はどちらの当事者からも更新できる必要があるため、
     // フィールド単位の制限はせず当事者判定のみで許可する。

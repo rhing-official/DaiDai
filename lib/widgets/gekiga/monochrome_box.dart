@@ -22,12 +22,18 @@ class MonochromeBoxPainter extends CustomPainter {
     required this.thicknessBase,
     this.fillColor,
     this.seed,
+    this.invert = false,
   });
 
   final List<Offset> vertices;
   final double thicknessBase;
   final Color? fillColor;
   final int? seed;
+
+  /// trueなら外枠・中枠の黒白を入れ替える（白外枠・黒中枠）。メッセージ
+  /// 吹き出し（`_GekigaBubble`）で自分のメッセージを色反転させる用途
+  /// （2026-08-09追加、既定はfalseで既存の全呼び出し元の見た目は変わらない）。
+  final bool invert;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -36,8 +42,10 @@ class MonochromeBoxPainter extends CustomPainter {
         ? 1.0
         : 0.7 + math.Random(boxSeed).nextDouble() * 0.3;
     final white = insetPolygon(vertices, thicknessBase * 0.10 * scale);
-    canvas.drawPath(pathFromPoints(vertices), Paint()..color = Colors.black);
-    canvas.drawPath(pathFromPoints(white), Paint()..color = Colors.white);
+    final outerColor = invert ? Colors.white : Colors.black;
+    final middleColor = invert ? Colors.black : Colors.white;
+    canvas.drawPath(pathFromPoints(vertices), Paint()..color = outerColor);
+    canvas.drawPath(pathFromPoints(white), Paint()..color = middleColor);
     final color = fillColor;
     if (color != null) {
       final fill = insetPolygon(vertices, thicknessBase * 0.18 * scale);
@@ -50,7 +58,8 @@ class MonochromeBoxPainter extends CustomPainter {
       oldDelegate.vertices != vertices ||
       oldDelegate.thicknessBase != thicknessBase ||
       oldDelegate.fillColor != fillColor ||
-      oldDelegate.seed != seed;
+      oldDelegate.seed != seed ||
+      oldDelegate.invert != invert;
 }
 
 /// [monochromeBoxVertices]の頂点（または[inset]だけ内側に縮めた形）で
