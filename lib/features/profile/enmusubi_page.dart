@@ -2,13 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
 import '../../l10n/strings.dart';
 import '../../models/app_user.dart';
 import '../../providers/repository_providers.dart';
 import '../../utils/web_link.dart';
+import '../../widgets/qr_scan_screen.dart';
 
 String _inviteLinkFor(String rhingId) => buildWebLink('/invite/$rhingId');
 
@@ -53,8 +53,9 @@ class _EnmusubiPageState extends ConsumerState<EnmusubiPage> {
   }
 
   Future<void> _openScanner(BuildContext context) async {
+    final title = ref.read(appStringsProvider).enmusubiScanScreenTitle;
     final scanned = await Navigator.of(context).push<String>(
-      MaterialPageRoute(builder: (context) => const _QrScanScreen()),
+      MaterialPageRoute(builder: (context) => QrScanScreen(title: title)),
     );
     if (scanned == null || !context.mounted) return;
     final rhingId = parseInviteRhingId(scanned);
@@ -90,9 +91,7 @@ class _EnmusubiPageState extends ConsumerState<EnmusubiPage> {
               ),
               child: Row(
                 children: [
-                  Expanded(
-                    child: SelectableText(link, maxLines: 1),
-                  ),
+                  Expanded(child: SelectableText(link, maxLines: 1)),
                   IconButton(
                     icon: const Icon(Icons.copy_outlined),
                     tooltip: strings.enmusubiCopyLink,
@@ -131,39 +130,6 @@ class _EnmusubiPageState extends ConsumerState<EnmusubiPage> {
           ],
         ),
       ),
-    );
-  }
-}
-
-class _QrScanScreen extends StatefulWidget {
-  const _QrScanScreen();
-
-  @override
-  State<_QrScanScreen> createState() => _QrScanScreenState();
-}
-
-class _QrScanScreenState extends State<_QrScanScreen> {
-  bool _handled = false;
-
-  void _onDetect(BarcodeCapture capture) {
-    if (_handled) return;
-    if (capture.barcodes.isEmpty) return;
-    final rawValue = capture.barcodes.first.rawValue;
-    if (rawValue == null) return;
-    _handled = true;
-    Navigator.of(context).pop(rawValue);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Consumer(
-      builder: (context, ref, _) {
-        final strings = ref.watch(appStringsProvider);
-        return Scaffold(
-          appBar: AppBar(title: Text(strings.enmusubiScanScreenTitle)),
-          body: MobileScanner(onDetect: _onDetect),
-        );
-      },
     );
   }
 }

@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -8,15 +10,72 @@ abstract class AuthRepository {
   Future<User> signInWithGoogle();
   Future<User> signInWithApple();
   Future<void> signOut();
+
+  /// 現在ログイン中ユーザーに登録済みの第2要素一覧（2026-08-09追加）。
+  /// TOTPを1件でも登録していれば2段階認証が有効な状態とみなす。
+  Future<List<MultiFactorInfo>> getEnrolledFactors();
+
+  /// TOTP登録の開始。QRコード（`TotpSecret.generateQrCodeUrl`）・手入力用の
+  /// シークレットキーを含む[TotpSecret]を返す。この時点ではまだ登録は
+  /// 完了していない（[confirmTotpEnrollment]で確定する）。
+  ///
+  /// Firebaseの仕様上、直近の再認証が無いと`requires-recent-login`で
+  /// 失敗することがある（呼び出し側でGoogle/Apple再ログインを促す）。
+  Future<TotpSecret> startTotpEnrollment();
+
+  /// 認証アプリに表示された6桁コードで[startTotpEnrollment]を確定する。
+  /// [displayName]は登録済み要素一覧に表示する名前（例: 端末名や日時）。
+  Future<void> confirmTotpEnrollment({
+    required TotpSecret secret,
+    required String oneTimeCode,
+    required String displayName,
+  });
+
+  /// TOTPを解除する（2段階認証を無効化する）。
+  Future<void> unenrollTotp(MultiFactorInfo info);
+
+  /// [startTotpEnrollment]等が`requires-recent-login`で失敗した場合に呼ぶ。
+  /// 現在ログイン中のプロバイダ（Google/Apple）で再認証し、Firebase側の
+  /// 「直近ログイン」判定を更新する（2026-08-09追加）。
+  Future<void> reauthenticate();
+
+  /// QRコードログイン（2026-08-09追加）。未ログイン端末が`qrLoginSessions`に
+  /// pendingなセッションを作成し、sessionIdを返す。QRコードには
+  /// `daidai:qrlogin:$sessionId`という文字列を埋め込む（実URLではなく、
+  /// DaiDaiアプリ内スキャナーが判定できればよいだけの文字列）。
+  Future<String> createQrLoginSession();
+
+  /// [sessionId]のステータス（'pending'/'approved'/'claimed'）を監視する。
+  Stream<String> watchQrLoginSessionStatus(String sessionId);
+
+  /// ログイン済み端末側が呼ぶ。セッションを承認し、未ログイン端末が
+  /// サインインできるようにする（Cloud Functions経由）。
+  Future<void> approveQrLoginSession(String sessionId);
+
+  /// 未ログイン端末側が、承認済み（approved）になったセッションを検知したら
+  /// 呼ぶ。Cloud Functionsから受け取ったカスタムトークンでサインインまで行う。
+  Future<User> claimQrLoginSession(String sessionId);
 }
 
 class FirebaseAuthRepository implements AuthRepository {
-  FirebaseAuthRepository({FirebaseAuth? auth, GoogleSignIn? googleSignIn})
-      : _auth = auth ?? FirebaseAuth.instance,
-        _googleSignIn = googleSignIn ?? GoogleSignIn.instance;
+  FirebaseAuthRepository({
+    FirebaseAuth? auth,
+    GoogleSignIn? googleSignIn,
+    FirebaseFirestore? firestore,
+    FirebaseFunctions? functions,
+  }) : _auth = auth ?? FirebaseAuth.instance,
+       _googleSignIn = googleSignIn ?? GoogleSignIn.instance,
+       _firestore = firestore ?? FirebaseFirestore.instance,
+       // Cloud Functions（functions/src/index.ts）はasia-northeast1に
+       // デプロイしているため、呼び出し側もリージョンを明示する。
+       _functions =
+           functions ??
+           FirebaseFunctions.instanceFor(region: 'asia-northeast1');
 
   final FirebaseAuth _auth;
   final GoogleSignIn _googleSignIn;
+  final FirebaseFirestore _firestore;
+  final FirebaseFunctions _functions;
 
   @override
   Stream<User?> authStateChanges() => _auth.authStateChanges();
@@ -83,5 +142,117 @@ class FirebaseAuthRepository implements AuthRepository {
       await _googleSignIn.signOut();
     }
     await _auth.signOut();
+  }
+
+  User get _requireCurrentUser {
+    final user = _auth.currentUser;
+    if (user == null) throw StateError('ログインしていません');
+    return user;
+  }
+
+  @override
+  Future<List<MultiFactorInfo>> getEnrolledFactors() {
+    return _requireCurrentUser.multiFactor.getEnrolledFactors();
+  }
+
+  @override
+  Future<TotpSecret> startTotpEnrollment() async {
+    final session = await _requireCurrentUser.multiFactor.getSession();
+    return TotpMultiFactorGenerator.generateSecret(session);
+  }
+
+  @override
+  Future<void> confirmTotpEnrollment({
+    required TotpSecret secret,
+    required String oneTimeCode,
+    required String displayName,
+  }) async {
+    final assertion = await TotpMultiFactorGenerator.getAssertionForEnrollment(
+      secret,
+      oneTimeCode,
+    );
+    await _requireCurrentUser.multiFactor.enroll(
+      assertion,
+      displayName: displayName,
+    );
+  }
+
+  @override
+  Future<void> unenrollTotp(MultiFactorInfo info) {
+    return _requireCurrentUser.multiFactor.unenroll(multiFactorInfo: info);
+  }
+
+  @override
+  Future<void> reauthenticate() async {
+    final user = _requireCurrentUser;
+    final providerId = user.providerData.isNotEmpty
+        ? user.providerData.first.providerId
+        : GoogleAuthProvider.PROVIDER_ID;
+
+    if (providerId == 'apple.com') {
+      final provider = OAuthProvider('apple.com')
+        ..addScope('email')
+        ..addScope('name');
+      if (kIsWeb) {
+        await user.reauthenticateWithPopup(provider);
+      } else {
+        await user.reauthenticateWithProvider(provider);
+      }
+      return;
+    }
+
+    if (kIsWeb) {
+      await user.reauthenticateWithPopup(GoogleAuthProvider());
+      return;
+    }
+
+    await _googleSignIn.initialize();
+    final account = await _googleSignIn.authenticate();
+    final googleAuth = account.authentication;
+    final credential = GoogleAuthProvider.credential(
+      idToken: googleAuth.idToken,
+    );
+    await user.reauthenticateWithCredential(credential);
+  }
+
+  CollectionReference<Map<String, dynamic>> get _qrLoginSessions =>
+      _firestore.collection('qrLoginSessions');
+
+  @override
+  Future<String> createQrLoginSession() async {
+    final ref = await _qrLoginSessions.add({
+      'status': 'pending',
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+    return ref.id;
+  }
+
+  @override
+  Stream<String> watchQrLoginSessionStatus(String sessionId) {
+    return _qrLoginSessions
+        .doc(sessionId)
+        .snapshots()
+        .map((doc) => doc.data()?['status'] as String? ?? 'expired');
+  }
+
+  @override
+  Future<void> approveQrLoginSession(String sessionId) async {
+    await _functions.httpsCallable('approveQrLoginSession').call({
+      'sessionId': sessionId,
+    });
+  }
+
+  @override
+  Future<User> claimQrLoginSession(String sessionId) async {
+    final result = await _functions.httpsCallable('claimQrLoginSession').call({
+      'sessionId': sessionId,
+    });
+    final customToken = (result.data as Map)['customToken'] as String;
+    final userCredential = await _auth.signInWithCustomToken(customToken);
+    final user = userCredential.user;
+    if (user == null) {
+      throw StateError('QRコードログインに失敗しました');
+    }
+    return user;
   }
 }

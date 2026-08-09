@@ -1,3 +1,5 @@
+import 'package:firebase_auth/firebase_auth.dart'
+    show FirebaseAuthException, MultiFactorInfo;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -28,7 +30,9 @@ import '../../utils/color_hex.dart';
 import '../../widgets/gekiga/gekiga_panel_box.dart';
 import '../../widgets/gekiga/gekiga_section_header.dart';
 import '../../widgets/gekiga/gekiga_text_field.dart';
+import '../../widgets/qr_scan_screen.dart';
 import '../../widgets/swipe_gestures.dart';
+import '../auth/two_factor_setup_dialog.dart';
 import '../chat/group_member_list_screen.dart';
 
 /// 画面幅がこれ以上あれば、左にカテゴリ一覧（サイドバー）、右にそのカテゴリの
@@ -428,6 +432,242 @@ class _ActionRow extends StatelessWidget {
   }
 }
 
+/// 2段階認証（TOTP）の状態表示・登録・解除を1行にまとめたもの
+/// （2026-08-09追加）。`_InfoRow`のように現在の状態（有効/無効）を右側に
+/// 出しつつ、`_ActionRow`のようにタップで操作できる。
+class _TwoFactorRow extends ConsumerStatefulWidget {
+  const _TwoFactorRow({required this.strings, required this.rhingId});
+
+  final Strings strings;
+  final String rhingId;
+
+  @override
+  ConsumerState<_TwoFactorRow> createState() => _TwoFactorRowState();
+}
+
+class _TwoFactorRowState extends ConsumerState<_TwoFactorRow> {
+  late Future<List<MultiFactorInfo>> _factorsFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _factorsFuture = _loadFactors();
+  }
+
+  void _refresh() {
+    setState(() {
+      _factorsFuture = _loadFactors();
+    });
+  }
+
+  // asyncでラップすることで、Firebaseが未初期化な環境（ウィジェットテスト等）
+  // でauthRepositoryProviderの生成自体が同期的に例外を投げても、initState内で
+  // 直接クラッシュせずFutureのエラーとして扱えるようにする（2026-08-09追加）。
+  Future<List<MultiFactorInfo>> _loadFactors() async {
+    return ref.read(authRepositoryProvider).getEnrolledFactors();
+  }
+
+  Future<void> _onTap(List<MultiFactorInfo> factors) async {
+    final strings = widget.strings;
+    if (factors.isEmpty) {
+      final enrolled = await TwoFactorSetupDialog.show(context, widget.rhingId);
+      if (enrolled == true && mounted) {
+        _refresh();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(strings.twoFactorEnrolledMessage)),
+        );
+      }
+      return;
+    }
+    final confirmed = await _confirmDisableTwoFactor(context, strings);
+    if (!confirmed || !mounted) return;
+    try {
+      await ref.read(authRepositoryProvider).unenrollTotp(factors.first);
+      if (!mounted) return;
+      _refresh();
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(strings.twoFactorDisabledMessage)));
+    } catch (e) {
+      if (!mounted) return;
+      if (_isRequiresRecentLogin(e)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(strings.twoFactorRequiresRecentLoginError),
+            action: SnackBarAction(
+              label: strings.twoFactorReauthenticateButton,
+              onPressed: () =>
+                  _reauthenticateAndRetryUnenroll(factors.first, strings),
+            ),
+          ),
+        );
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+    }
+  }
+
+  // Web版のfirebase_authプラグインでは、multiFactor関連の一部エラーが
+  // FirebaseAuthException型に正しくマッピングされず素のExceptionとして
+  // 飛んでくることがあるため、型チェックに加えてメッセージ文字列でも
+  // requires-recent-loginを判定する（2026-08-09、実機で確認した挙動）。
+  bool _isRequiresRecentLogin(Object error) {
+    if (error is FirebaseAuthException &&
+        error.code == 'requires-recent-login') {
+      return true;
+    }
+    return error.toString().contains('requires-recent-login');
+  }
+
+  Future<void> _reauthenticateAndRetryUnenroll(
+    MultiFactorInfo info,
+    Strings strings,
+  ) async {
+    try {
+      await ref.read(authRepositoryProvider).reauthenticate();
+      await ref.read(authRepositoryProvider).unenrollTotp(info);
+      if (!mounted) return;
+      _refresh();
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(strings.twoFactorDisabledMessage)));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final strings = widget.strings;
+    final colorScheme = Theme.of(context).colorScheme;
+    return FutureBuilder<List<MultiFactorInfo>>(
+      future: _factorsFuture,
+      builder: (context, snapshot) {
+        final factors = snapshot.data;
+        final statusText = factors == null
+            ? '…'
+            : (factors.isEmpty
+                  ? strings.twoFactorDisabledStatus
+                  : strings.twoFactorEnabledStatus);
+        return ListTile(
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+          title: Text(strings.settingsTwoFactor),
+          trailing: Text(
+            statusText,
+            style: TextStyle(color: colorScheme.onSurfaceVariant),
+          ),
+          onTap: factors == null ? null : () => _onTap(factors),
+        );
+      },
+    );
+  }
+}
+
+/// QRコードによるログイン（ログイン済み端末側、2026-08-09追加）。タップすると
+/// `QrScanScreen`でQRコードを読み取り、`daidai:qrlogin:`で始まる文字列であれば
+/// 確認ダイアログを経てそのセッションを承認する（未ログイン端末側は
+/// `lib/features/auth/qr_login_dialog.dart`のQrLoginDialog）。
+class _QrLoginRow extends ConsumerWidget {
+  const _QrLoginRow({required this.strings});
+
+  final Strings strings;
+
+  Future<void> _scan(BuildContext context, WidgetRef ref) async {
+    final scanned = await Navigator.of(context).push<String>(
+      MaterialPageRoute(
+        builder: (context) => QrScanScreen(title: strings.settingsQrLogin),
+      ),
+    );
+    if (scanned == null || !context.mounted) return;
+
+    const prefix = 'daidai:qrlogin:';
+    if (!scanned.startsWith(prefix)) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(strings.qrLoginInvalidQrError)));
+      return;
+    }
+    final sessionId = scanned.substring(prefix.length);
+
+    final confirmed = await _confirmApproveQrLogin(context, strings);
+    if (!confirmed || !context.mounted) return;
+
+    try {
+      await ref.read(authRepositoryProvider).approveQrLoginSession(sessionId);
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(strings.qrLoginApprovedSnackbar)));
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(strings.qrLoginApproveError)));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return _ActionRow(
+      label: strings.settingsQrLogin,
+      onTap: () => _scan(context, ref),
+    );
+  }
+}
+
+Future<bool> _confirmApproveQrLogin(
+  BuildContext context,
+  Strings strings,
+) async {
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: Text(strings.qrLoginScanConfirmTitle),
+      content: Text(strings.qrLoginScanConfirmMessage),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: Text(strings.cancel),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(context).pop(true),
+          child: Text(strings.qrLoginScanConfirmButton),
+        ),
+      ],
+    ),
+  );
+  return confirmed ?? false;
+}
+
+/// 2段階認証を無効にする前の確認ダイアログ（`_confirmDeleteAccount`と同じ形）。
+Future<bool> _confirmDisableTwoFactor(
+  BuildContext context,
+  Strings strings,
+) async {
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: Text(strings.twoFactorDisableConfirmTitle),
+      content: Text(strings.twoFactorDisableConfirmMessage),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: Text(strings.cancel),
+        ),
+        FilledButton(
+          style: FilledButton.styleFrom(
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+          onPressed: () => Navigator.of(context).pop(true),
+          child: Text(strings.twoFactorDisableConfirmButton),
+        ),
+      ],
+    ),
+  );
+  return confirmed ?? false;
+}
+
 /// アカウントカテゴリの中身。旧: Rhing ID／プロフィール名／セキュリティ／
 /// QRコードログイン／ログアウト／アカウント削除の各サブフォルダを、
 /// 見出し付きセクションとして1ページにまとめた。
@@ -453,18 +693,12 @@ class _AccountPage extends ConsumerWidget {
           label: strings.settingsPassword,
           value: strings.settingsComingSoon,
         ),
-        _InfoRow(
-          label: strings.settingsTwoFactor,
-          value: strings.settingsComingSoon,
-        ),
+        _TwoFactorRow(strings: strings, rhingId: currentUser.rhingId),
         _InfoRow(
           label: strings.settingsPasskey,
           value: strings.settingsComingSoon,
         ),
-        _InfoRow(
-          label: strings.settingsQrLogin,
-          value: strings.settingsComingSoon,
-        ),
+        _QrLoginRow(strings: strings),
         const Divider(height: 24),
         _ActionRow(
           label: strings.settingsLogout,

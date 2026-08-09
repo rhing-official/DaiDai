@@ -62,6 +62,20 @@ class _TalksTabState extends ConsumerState<TalksTab> {
   DirectMessage? _selectedDm;
   Group? _selectedGroup;
 
+  /// 一対⇄広場の横スワイプ切り替え用（2026-08-09追加、`SwipeBackDetector`の
+  /// 速度しきい値判定から`PageView`へ変更。手描きの速度判定だと片方向だけ
+  /// ジェスチャーアリーナで負けて反応しないことがあったため、この用途では
+  /// 双方向のスワイプ切り替えが実績豊富な`PageView`に任せる）。
+  late final PageController _categoryPageController = PageController(
+    initialPage: _category.index,
+  );
+
+  @override
+  void dispose() {
+    _categoryPageController.dispose();
+    super.dispose();
+  }
+
   /// 承認待ちの一対・広場を選択中の場合の会話ペイン（2026-08-05追加）。
   /// `_selectedDm`/`_selectedGroup`と異なり、選択した時点で組み立てた
   /// `ChatScreen`（`disabled: true`）そのものをそのまま保持する。承認待ちの
@@ -123,11 +137,32 @@ class _TalksTabState extends ConsumerState<TalksTab> {
     return _cachedGroupRoomsStream!;
   }
 
-  /// 一対/広場タブを切り替える。承認待ちペイン（[_selectedPendingScreen]）は
-  /// 表示中のタブに紐づくため、切り替え時にクリアする（2026-08-05追加）。
+  /// 一対/広場タブを切り替える（タブ見出しのタップ用）。承認待ちペイン
+  /// （[_selectedPendingScreen]）は表示中のタブに紐づくため、切り替え時に
+  /// クリアする（2026-08-05追加）。`_categoryPageController`がまだ
+  /// 該当ページを表示していなければアニメーションで追従させる
+  /// （2026-08-09追加、スワイプ側の[_handleCategoryPageChanged]と役割分担）。
   void _setCategory(_TalksCategory category) {
     setState(() {
       _category = category;
+      _selectedPendingScreen = null;
+    });
+    if (_categoryPageController.hasClients &&
+        _categoryPageController.page?.round() != category.index) {
+      _categoryPageController.animateToPage(
+        category.index,
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOut,
+      );
+    }
+  }
+
+  /// `_categoryPageController`のスワイプでページが確定した時に呼ばれる
+  /// （2026-08-09追加）。[_setCategory]と異なり、既にその位置までページが
+  /// 動き終えているためコントローラのアニメーションは行わない。
+  void _handleCategoryPageChanged(int index) {
+    setState(() {
+      _category = _TalksCategory.values[index];
       _selectedPendingScreen = null;
     });
   }
@@ -153,13 +188,15 @@ class _TalksTabState extends ConsumerState<TalksTab> {
       return;
     }
     // 狭い画面では、複数モードでも寄合一覧のドリルダウン画面を経由せず、
-    // 常にdefaultRoomIdでチャット画面へ直接遷移する。寄合の切り替えは
+    // 常に一番上の寄合でチャット画面へ直接遷移する。寄合の切り替えは
     // チャット画面上部の横スクロールタブバー（`RoomTabBar`）から行う
-    // （2026-08-03変更、以前は複数モードのみ`/chat/dm-rooms`を経由していた）。
+    // （2026-08-03変更、以前は複数モードのみ`/chat/dm-rooms`を経由していた。
+    // 2026-08-09変更、defaultRoomId固定だったものを一番上（最古）の寄合を
+    // 開くように変更）。
     final rooms = await _dmRoomsStream(dm.dmId).first;
+    final topRoomId = rooms.isNotEmpty ? rooms.first.roomId : dm.defaultRoomId;
     final roomName =
-        rooms.firstWhereOrNull((r) => r.roomId == dm.defaultRoomId)?.name ??
-        'メイン';
+        rooms.firstWhereOrNull((r) => r.roomId == topRoomId)?.name ?? 'メイン';
     ref
         .read(goRouterProvider)
         .push(
@@ -167,7 +204,7 @@ class _TalksTabState extends ConsumerState<TalksTab> {
           extra: DmChatArgs(
             currentUser: widget.currentUser,
             dm: dm,
-            roomId: dm.defaultRoomId,
+            roomId: topRoomId,
             roomName: roomName,
           ),
         );
@@ -182,10 +219,13 @@ class _TalksTabState extends ConsumerState<TalksTab> {
       });
       return;
     }
+    // 一対と同じく、一番上（最古）の寄合を開く（2026-08-09変更）。
     final rooms = await _groupRoomsStream(group.groupId).first;
+    final topRoomId = rooms.isNotEmpty
+        ? rooms.first.roomId
+        : group.defaultRoomId;
     final roomName =
-        rooms.firstWhereOrNull((r) => r.roomId == group.defaultRoomId)?.name ??
-        'メイン';
+        rooms.firstWhereOrNull((r) => r.roomId == topRoomId)?.name ?? 'メイン';
     ref
         .read(goRouterProvider)
         .push(
@@ -193,7 +233,7 @@ class _TalksTabState extends ConsumerState<TalksTab> {
           extra: GroupChatArgs(
             currentUser: widget.currentUser,
             group: group,
-            roomId: group.defaultRoomId,
+            roomId: topRoomId,
             roomName: roomName,
           ),
         );
@@ -519,31 +559,32 @@ class _TalksTabState extends ConsumerState<TalksTab> {
                   if (ref.watch(appUiStyleProvider) == AppUiStyle.gekiga)
                     const SizedBox(height: 12),
                   Expanded(
-                    // 横スワイプで一対⇄広場を切り替える。一対/広場は2値しか
-                    // 無いため、現在のカテゴリに関わらず常に両方向を有効にし、
-                    // 方向ごとに固定の相手側へ切り替える（2026-08-06修正、
-                    // 以前は現在のカテゴリに応じて片方をnullにしていたため、
-                    // 同じ方向へ連続スワイプすると2回目以降反応しなくなって
-                    // いた）。戻る先の一覧が無いためonBackは空実装。
-                    child: SwipeBackDetector(
-                      onBack: () {},
-                      onPrevious: () => _setCategory(_TalksCategory.dm),
-                      onNext: () => _setCategory(_TalksCategory.group),
-                      child: _category == _TalksCategory.dm
-                          ? _buildDirectMessages(
-                              dmSnapshot,
-                              directMessages,
-                              incomingRequests,
-                              outgoingRequests,
-                              prefsById,
-                              blockedIds,
-                            )
-                          : _buildGroups(
-                              groupSnapshot,
-                              groups,
-                              prefsById,
-                              pendingGroupRequests,
-                            ),
+                    // 横スワイプで一対⇄広場を切り替える。速度しきい値判定の
+                    // 自前ジェスチャー（`SwipeBackDetector`）だと片方向だけ
+                    // ジェスチャーアリーナで負けて反応しないことがあったため、
+                    // 双方向のページ送りが実績豊富な`PageView`に置き換えた
+                    // （2026-08-09変更、2026-08-06時点では速度しきい値の
+                    // 条件式自体を両方向常時有効にする修正をしていたが、
+                    // それでも一対→広場方向が反応しない場合が残っていた）。
+                    child: PageView(
+                      controller: _categoryPageController,
+                      onPageChanged: _handleCategoryPageChanged,
+                      children: [
+                        _buildDirectMessages(
+                          dmSnapshot,
+                          directMessages,
+                          incomingRequests,
+                          outgoingRequests,
+                          prefsById,
+                          blockedIds,
+                        ),
+                        _buildGroups(
+                          groupSnapshot,
+                          groups,
+                          prefsById,
+                          pendingGroupRequests,
+                        ),
+                      ],
                     ),
                   ),
                 ],
@@ -616,7 +657,8 @@ class _TalksTabState extends ConsumerState<TalksTab> {
 
   /// 選択中の一対を、寄合一覧サイドバー＋選択中の寄合のChatScreenの
   /// 2ペイン構成で表示する。`_selectedDmRoomId`が現在の寄合一覧に無い
-  /// （未選択・削除された等）場合はdefaultRoomIdにフォールバックする。
+  /// （未選択・削除された等）場合は一番上（最古）の寄合にフォールバックする
+  /// （2026-08-09変更、以前はdefaultRoomIdにフォールバックしていた）。
   Widget _buildDmDetailWithRooms(DirectMessage dm) {
     final dmRepository = ref.read(directMessageRepositoryProvider);
     final otherUserId = dm.otherUserId(widget.currentUser.userId);
@@ -633,7 +675,7 @@ class _TalksTabState extends ConsumerState<TalksTab> {
             (_selectedDmRoomId != null &&
                 rooms.any((r) => r.roomId == _selectedDmRoomId))
             ? _selectedDmRoomId!
-            : dm.defaultRoomId;
+            : (rooms.isNotEmpty ? rooms.first.roomId : dm.defaultRoomId);
         final roomName = rooms
             .firstWhere(
               (r) => r.roomId == roomId,
@@ -684,9 +726,9 @@ class _TalksTabState extends ConsumerState<TalksTab> {
     );
   }
 
-  /// [_buildDmDetailWithRooms]と同じ構成の広場版。寄合の追加・削除は
-  /// manageRooms権限を持つメンバーのみ（firestore.rulesで強制、ここでは
-  /// UI上の操作可否も合わせる）。
+  /// [_buildDmDetailWithRooms]と同じ構成の広場版（フォールバックも同様に
+  /// 一番上の寄合）。寄合の追加・削除はmanageRooms権限を持つメンバーのみ
+  /// （firestore.rulesで強制、ここではUI上の操作可否も合わせる）。
   Widget _buildGroupDetailWithRooms(Group group) {
     final groupRepository = ref.read(groupRepositoryProvider);
     final userId = widget.currentUser.userId;
@@ -703,7 +745,7 @@ class _TalksTabState extends ConsumerState<TalksTab> {
             (_selectedGroupRoomId != null &&
                 rooms.any((r) => r.roomId == _selectedGroupRoomId))
             ? _selectedGroupRoomId!
-            : group.defaultRoomId;
+            : (rooms.isNotEmpty ? rooms.first.roomId : group.defaultRoomId);
         final roomName = rooms
             .firstWhere(
               (r) => r.roomId == roomId,

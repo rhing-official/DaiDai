@@ -248,7 +248,7 @@ DaiDaiは独自の世界観用語を使う。変数名・クラス名・コレ�
 
   
 
-- **User**: `userId`, `rhingId`, `secretQuestions`（bcryptハッシュ）, `twoFactorEnabled`, `passkeyEnabled`, `deviceIds`, `bannedDevices`, `accountStatus`, `subscriptionPlan`(free|kiwami), `profiles[]`（最大3プロフィール＝蔵システム）, `preferences`
+- **User**: `userId`, `rhingId`, `deviceIds`, `bannedDevices`, `accountStatus`, `subscriptionPlan`(free|kiwami), `profiles[]`（最大3プロフィール＝蔵システム）, `preferences`。2段階認証の有効/無効はFirestoreに複製せずFirebase Authenticationの登録済み要素を都度参照する設計にしたため、旧`twoFactorEnabled`という想定フィールドは不要と判明した（2026-08-09、下記「ログイン手段の方針」参照）。`secretQuestions`（bcryptハッシュ）・`passkeyEnabled`は将来のRhing ID＋パスキー導入時のための想定フィールドで、現時点では未実装
 
 - **DirectMessage（一対）**: `dmId`, `participants[2]`, `defaultRoomId`, `settings.sectionEnabled`, `sections[]`。メッセージは`directMessages/{dmId}/rooms/{roomId}/messages`（複数寄合対応、2026-07-28実装）に入る。寄合自体は`directMessages/{dmId}/rooms/{roomId}`（`DmRoom`: `dmId`, `name`, `participants[]`, `createdAt`, `deletionRequestedBy`）。参加者2人はどちらも寄合の追加・削除が可能（確認無しで追加、削除は確認ダイアログあり、最後の1つは削除不可）
 
@@ -274,9 +274,10 @@ DaiDaiは独自の世界観用語を使う。変数名・クラス名・コレ�
 
 - **Rhing ID**: 英数字・`.`・`-`・`_`のみ、筆記体不可、大文字小文字区別なし、重複不可、削除後再利用不可
 
-- **パスワード復旧**: バックアップコードではなく秘密の質問3つ（bcryptハッシュ化）を採用。理由: 国民的インフラを見据えるとコード紛失対応コストが高いため
+- **ログイン手段の方針（2026-08-09決定）**: Google/Apple OAuthのみを採用し、DaiDai独自のRhing ID＋パスワードは新設しない。理由: (1) パスワード運用（忘れた場合の復旧対応・漏洩対策）のサポート負担を避けられる、(2) Google/Appleにログインできない場合の対応はこちらの管轄外にできる、(3) 日本国内でもGoogleアカウント保有率は十分高く、ログイン手段がGoogleのみであること自体が導入の障壁にはなりにくい。この決定に伴い、DaiDai独自のパスキー（WebAuthn）実装も現時点では不要と判断した: DaiDaiは認証情報を一切保持せずGoogle/Appleに完全委任しているため、パスキーが本来置き換える対象（DaiDai自身が持つ認証情報）が存在しない。またFirebaseのMFA機構（下記2段階認証）はパスキーを第2要素として認識しないため、「パスキーでログインすれば2段階認証を省略できる」という設計も現行アーキテクチャでは成立しない。
+  - **将来の検討事項（未着手・未決定）**: プライバシーファーストを掲げる以上、Google/Appleへの依存自体が長期的には理念と緊張関係にある（サインイン時にGoogle/Apple側にDaiDai利用の事実が伝わる、アカウント停止時の依存リスクなど）。「国民的インフラ」を見据えて将来Google/Apple非依存のログイン手段が必要になった場合は、メールアドレス＋パスワードではなく**「Rhing ID＋パスキー」**（メールアドレス不要、DaiDai自身がWebAuthnのRelying Partyになる）を軸に検討する方針とする。これはDaiDai自身が独立した認証基盤を持つことを意味し、フェーズ2の軽微な追加機能ではなく設計判断として改めて相談してから着手する。`secretQuestions`（bcryptハッシュ、データモデル参照）は、この将来のパスキー方式導入時の「端末紛失時のアカウント復旧」用フィールドとして温存しているが、現行のGoogle/Apple OAuthのみの構成では未使用・未実装
 
-- **2段階認証**: TOTP（認証アプリのみ）、SMS非対応。フェーズ2
+- **2段階認証（TOTP、2026-08-09実装済み）**: 認証アプリのみ対応、SMS非対応。Firebase AuthenticationのMulti-Factor Authentication機能を使用（`lib/repositories/auth_repository.dart`のTOTP関連メソッド、登録ダイアログ`lib/features/auth/two_factor_setup_dialog.dart`、サインイン時チャレンジUIは`lib/features/auth/sign_in_screen.dart`）。Firebase ConsoleのUIにはTOTPを有効化するトグルが無く、Identity Platformへのアップグレード後、Admin SDK/REST APIでのプロジェクト設定変更が別途必要だった（一度きりのCloud Functions経由で実行、実行後にソースから削除済み）。フェーズ2計画だったが前倒しで実装済み
 
 - **既読管理**: 極みプランで既読の一部/完全非表示が可能。完全非表示は「寄合に1人でも極みプラン加入者がいれば全員に適用」という設計（個人単位の機能ではない点に注意）
 
@@ -338,7 +339,7 @@ DaiDaiは独自の世界観用語を使う。変数名・クラス名・コレ�
 
 | フェーズ1（MVP・6ヶ月） | 10,000 | Google/Apple認証、Rhing ID、一対・広場（既定は裏広場）、720pビデオ通話、WebP圧縮、基本スパム対策。**E2E暗号化・極みプラン・ペタピタ・1080p通話は含めない** |
 
-| フェーズ2（拡充・12ヶ月） | 100,000 | 極みプラン、ペタピタ・daidai横丁、E2E暗号化（Signal Protocol）、2段階認証、パスキー、QRコードログイン |
+| フェーズ2（拡充・12ヶ月） | 100,000 | 極みプラン、ペタピタ・daidai横丁、E2E暗号化（Signal Protocol）、QRコードログイン。**2段階認証（TOTP）は2026-08-09に前倒し実装済み。パスキーは同日の方針決定によりフェーズ2の実装対象から除外（不採用ではなく将来の検討事項、上記「ログイン手段の方針」参照）** |
 
 | フェーズ3（高度化・24ヶ月） | 1,000,000 | 表広場（公開広場）、安否確認、表組・裏組、方言対応、RNNoise。**一対の複数会話（席機能相当）・広場のカスタムロール機能は2026-07-28に前倒し実装済み（下記参照）** |
 
