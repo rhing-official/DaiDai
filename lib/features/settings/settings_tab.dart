@@ -49,14 +49,9 @@ const _kSettingsSidebarWidth = 240.0;
 /// カテゴリごとに1つの縦スクロールページへ、見出し付きセクションとしてまとめる
 /// （Discordのアカウント設定ページの構成を参考にした。2026-07-24変更）。
 class SettingsTab extends ConsumerStatefulWidget {
-  const SettingsTab({required this.currentUser, this.resetSignal, super.key});
+  const SettingsTab({required this.currentUser, super.key});
 
   final AppUser currentUser;
-
-  /// 発火すると、ドリルダウン中のカテゴリ詳細をカテゴリ一覧トップへ戻す
-  /// （2026-08-10追加、`home_screen.dart`のナビゲーションチップ再タップから
-  /// 渡される）。
-  final Listenable? resetSignal;
 
   @override
   ConsumerState<SettingsTab> createState() => _SettingsTabState();
@@ -66,31 +61,6 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
   /// 狭い画面のドリルダウンでのみ使う、選択中カテゴリのid。
   /// 広い画面では常に先頭（アカウント）を既定選択として表示する。
   String? _selectedId;
-
-  @override
-  void initState() {
-    super.initState();
-    widget.resetSignal?.addListener(_handleResetSignal);
-  }
-
-  @override
-  void didUpdateWidget(SettingsTab oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.resetSignal != widget.resetSignal) {
-      oldWidget.resetSignal?.removeListener(_handleResetSignal);
-      widget.resetSignal?.addListener(_handleResetSignal);
-    }
-  }
-
-  @override
-  void dispose() {
-    widget.resetSignal?.removeListener(_handleResetSignal);
-    super.dispose();
-  }
-
-  void _handleResetSignal() {
-    if (_selectedId != null) setState(() => _selectedId = null);
-  }
 
   @override
   Widget build(BuildContext context) {

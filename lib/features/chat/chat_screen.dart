@@ -1,10 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io' show Platform;
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart'
-    show TargetPlatform, debugPrint, defaultTargetPlatform;
+    show TargetPlatform, debugPrint, defaultTargetPlatform, kIsWeb;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart'
@@ -16,6 +17,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:video_player/video_player.dart';
 
 import '../../l10n/app_locale.dart';
 import '../../l10n/strings.dart';
@@ -2147,10 +2149,7 @@ class _MessageRow extends ConsumerWidget {
     final isMarkdownPreview =
         message.contentType == 'file' &&
         message.fileMetadata != null &&
-        _FileAttachmentBlock.isPreviewableMarkdown(
-          message.fileMetadata!,
-          isVideo: false,
-        );
+        _FileAttachmentBlock.isPreviewableMarkdown(message.fileMetadata!);
 
     final bubbleContent = Column(
       mainAxisSize: MainAxisSize.min,
@@ -2209,7 +2208,10 @@ class _MessageRow extends ConsumerWidget {
             seed: message.messageId.hashCode,
             isMe: isMe,
             alignRight: alignRight,
-            skipFrame: message.contentType == 'image' || isMarkdownPreview,
+            skipFrame:
+                message.contentType == 'image' ||
+                message.contentType == 'video' ||
+                isMarkdownPreview,
             child: bubbleContent,
           )
         : Container(
@@ -2594,11 +2596,21 @@ class _MessageRow extends ConsumerWidget {
     );
   }
 
+  /// 画像・動画のインラインプレビューを、劇画UIなら[_GekigaPhotoMat]、
+  /// そうでなければ`ClipRRect`で囲む共通ラッパー（2026-08-11、動画
+  /// プレビュー追加に伴い画像側の実装から切り出し）。「画像と同様の
+  /// 表示方法」というユーザー要望に沿って、両者で全く同じ関数を使う。
+  Widget _mediaPreviewFrame({required bool isGekiga, required Widget child}) {
+    return isGekiga
+        ? _GekigaPhotoMat(child: child)
+        : ClipRRect(borderRadius: BorderRadius.circular(8), child: child);
+  }
+
   /// contentType='file'|'image'|'video'（添付メッセージ）の表示
-  /// （技術仕様書5.2・5.6参照、2026-08-10追加）。画像はサムネイルを直接
-  /// 表示しタップで全画面表示、ファイル・動画はアイコン+ファイル名+
-  /// サイズを表示しタップでブラウザ等の外部アプリで開く（動画再生用の
-  /// パッケージは未導入のため、アプリ内再生ではなく外部起動にとどめる）。
+  /// （技術仕様書5.2・5.6・5.8参照、2026-08-10追加、2026-08-11に動画の
+  /// アプリ内再生を追加）。画像・動画はサムネイル/プレースホルダーを直接
+  /// 表示しタップで全画面表示、ファイルはアイコン+ファイル名+サイズを
+  /// 表示しタップでブラウザ等の外部アプリで開く。
   Widget _attachmentContent(
     BuildContext context,
     Color onBubbleColor,
@@ -2623,16 +2635,39 @@ class _MessageRow extends ConsumerWidget {
             builder: (_) => _ImageViewerScreen(url: metadata.url),
           ),
         ),
-        child: isGekiga
-            ? _GekigaPhotoMat(child: image)
-            : ClipRRect(borderRadius: BorderRadius.circular(8), child: image),
+        child: _mediaPreviewFrame(isGekiga: isGekiga, child: image),
       );
     }
 
-    final isVideo = message.contentType == 'video';
+    if (message.contentType == 'video') {
+      // video_playerはiOS/Android/Web/macOSのみ対応（Linux/Windowsは
+      // 非対応、技術仕様書5.8参照）。attachment_upload.dartの
+      // 既存プラットフォーム分岐と同じパターンで判定する。
+      final supportsInAppPlayback =
+          kIsWeb || !(Platform.isWindows || Platform.isLinux);
+      return GestureDetector(
+        onTap: () => supportsInAppPlayback
+            ? Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => _VideoViewerScreen(url: metadata.url),
+                ),
+              )
+            : launchUrl(
+                Uri.parse(metadata.url),
+                mode: LaunchMode.externalApplication,
+              ),
+        child: _mediaPreviewFrame(
+          isGekiga: isGekiga,
+          child: _VideoThumbnail(
+            url: metadata.url,
+            canLoad: supportsInAppPlayback,
+          ),
+        ),
+      );
+    }
+
     return _FileAttachmentBlock(
       metadata: metadata,
-      isVideo: isVideo,
       onBubbleColor: onBubbleColor,
       isGekiga: isGekiga,
     );
@@ -3485,6 +3520,249 @@ class _ImageViewerScreen extends StatelessWidget {
   }
 }
 
+/// 動画添付メッセージのインラインプレビュー（[_MessageRow._attachmentContent]
+/// 参照、2026-08-11追加、技術仕様書5.8参照）。画像と同様に実際の最初の
+/// コマを表示する（当初は暗いプレースホルダーのみだったが、ユーザー要望
+/// により変更）。実現には別途サムネイル生成パッケージ（`video_thumbnail`
+/// 等、Android/iOSのみ対応）を使わず、既に導入済みの`video_player`で
+/// `VideoPlayerController`を初期化した直後（`play()`を呼ばない、＝先頭
+/// フレームで一時停止した状態）の`VideoPlayer`ウィジェットをそのまま
+/// 表示する。`canLoad`がfalse（Linux/Windows、`video_player`非対応）の
+/// 場合は読み込み自体を行わず、暗いプレースホルダーのままにする。
+class _VideoThumbnail extends StatefulWidget {
+  const _VideoThumbnail({required this.url, required this.canLoad});
+
+  final String url;
+  final bool canLoad;
+
+  @override
+  State<_VideoThumbnail> createState() => _VideoThumbnailState();
+}
+
+class _VideoThumbnailState extends State<_VideoThumbnail> {
+  VideoPlayerController? _controller;
+  bool _ready = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (!widget.canLoad) return;
+    final controller = VideoPlayerController.networkUrl(Uri.parse(widget.url));
+    _controller = controller;
+    controller
+        .initialize()
+        .then((_) {
+          if (mounted) setState(() => _ready = true);
+        })
+        .catchError((_) {});
+  }
+
+  @override
+  void dispose() {
+    _controller?.dispose();
+    super.dispose();
+  }
+
+  static const _playIcon = Center(
+    child: DecoratedBox(
+      decoration: BoxDecoration(color: Colors.black45, shape: BoxShape.circle),
+      child: Padding(
+        padding: EdgeInsets.all(8),
+        child: Icon(Icons.play_arrow, color: Colors.white, size: 28),
+      ),
+    ),
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = _controller;
+    if (_ready && controller != null) {
+      return SizedBox(
+        width: 280,
+        child: AspectRatio(
+          aspectRatio: controller.value.aspectRatio,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [VideoPlayer(controller), _playIcon],
+          ),
+        ),
+      );
+    }
+    return SizedBox(
+      width: 280,
+      height: 280 * 9 / 16,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          Container(color: Colors.black87),
+          _playIcon,
+        ],
+      ),
+    );
+  }
+}
+
+/// 動画添付メッセージのフルスクリーン再生画面（[_MessageRow._attachmentContent]
+/// 参照、2026-08-11追加、技術仕様書5.8参照）。`video_player`はiOS/Android/
+/// Web/macOSのみ対応のため、Linux/Windowsではこの画面を開かず外部アプリで
+/// 開く（呼び出し元の`_attachmentContent`側で分岐済み）。
+class _VideoViewerScreen extends StatefulWidget {
+  const _VideoViewerScreen({required this.url});
+
+  final String url;
+
+  @override
+  State<_VideoViewerScreen> createState() => _VideoViewerScreenState();
+}
+
+class _VideoViewerScreenState extends State<_VideoViewerScreen> {
+  late final VideoPlayerController _controller;
+  late final Future<void> _initializeFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = VideoPlayerController.networkUrl(Uri.parse(widget.url));
+    _initializeFuture = _controller.initialize().then((_) {
+      _controller.play();
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _togglePlayback() {
+    setState(() {
+      _controller.value.isPlaying ? _controller.pause() : _controller.play();
+    });
+  }
+
+  static String _formatDuration(Duration d) {
+    final minutes = d.inMinutes;
+    final seconds = d.inSeconds.remainder(60).toString().padLeft(2, '0');
+    return '$minutes:$seconds';
+  }
+
+  /// 再生/一時停止ボタン・現在位置/合計時間・白色のプログレスバー
+  /// （2026-08-11追加）。再生位置は再生中も連続的に進むため、`_controller`
+  /// （それ自体が`ValueNotifier<VideoPlayerValue>`）を`ValueListenableBuilder`
+  /// で購読し、位置・再生状態の変化のたびに再描画する。
+  Widget _buildControlBar() {
+    return ValueListenableBuilder<VideoPlayerValue>(
+      valueListenable: _controller,
+      builder: (context, value, _) {
+        return Row(
+          children: [
+            IconButton(
+              icon: Icon(
+                value.isPlaying ? Icons.pause : Icons.play_arrow,
+                color: Colors.white,
+              ),
+              onPressed: _togglePlayback,
+            ),
+            Text(
+              _formatDuration(value.position),
+              style: const TextStyle(color: Colors.white, fontSize: 12),
+            ),
+            Expanded(
+              child: VideoProgressIndicator(
+                _controller,
+                allowScrubbing: true,
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                colors: const VideoProgressColors(
+                  playedColor: Colors.white,
+                  bufferedColor: Colors.white24,
+                  backgroundColor: Colors.white10,
+                ),
+              ),
+            ),
+            Text(
+              _formatDuration(value.duration),
+              style: const TextStyle(color: Colors.white, fontSize: 12),
+            ),
+            const SizedBox(width: 12),
+          ],
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        foregroundColor: Colors.white,
+        elevation: 0,
+      ),
+      // 画像ビューアー（[_ImageViewerScreen]）と同じ、Escキー・動画以外の
+      // 箇所のタップで戻れる構成。ただし動画本体のタップは「閉じる」では
+      // なく再生/一時停止のトグルにする。
+      body: Focus(
+        autofocus: true,
+        onKeyEvent: (node, event) {
+          if (event is KeyDownEvent &&
+              event.logicalKey == LogicalKeyboardKey.escape) {
+            Navigator.of(context).pop();
+            return KeyEventResult.handled;
+          }
+          return KeyEventResult.ignored;
+        },
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => Navigator.of(context).pop(),
+          child: FutureBuilder<void>(
+            future: _initializeFuture,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState != ConnectionState.done) {
+                return const Center(
+                  child: CircularProgressIndicator(color: Colors.white),
+                );
+              }
+              if (snapshot.hasError) {
+                return const Center(
+                  child: Icon(
+                    Icons.error_outline,
+                    color: Colors.white,
+                    size: 48,
+                  ),
+                );
+              }
+              // `AspectRatio`をそのまま`Center`直下に置くと、`Column`が
+              // 主軸（縦）方向に無制限の高さを子へ渡すため、縦長（ポート
+              // レート）動画で画面の高さを大きく超えるオーバーフローが
+              // 発生した（2026-08-11発覚）。`Expanded`で明示的に高さを
+              // 画面残り分に制限し、`AspectRatio`が幅・高さ両方の制約内で
+              // 収まるサイズを計算できるようにする。
+              return Column(
+                children: [
+                  Expanded(
+                    child: Center(
+                      child: GestureDetector(
+                        onTap: _togglePlayback,
+                        child: AspectRatio(
+                          aspectRatio: _controller.value.aspectRatio,
+                          child: VideoPlayer(_controller),
+                        ),
+                      ),
+                    ),
+                  ),
+                  _buildControlBar(),
+                ],
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// ファイル・動画添付メッセージの表示（[_MessageRow._attachmentContent]
 /// 参照、2026-08-10改修）。以前はブロック全体のタップで即座に
 /// `launchUrl`（ダウンロード相当）していたが、ポインターを乗せた時
@@ -3495,13 +3773,11 @@ class _ImageViewerScreen extends StatelessWidget {
 class _FileAttachmentBlock extends StatefulWidget {
   const _FileAttachmentBlock({
     required this.metadata,
-    required this.isVideo,
     required this.onBubbleColor,
     required this.isGekiga,
   });
 
   final MessageFileMetadata metadata;
-  final bool isVideo;
   final Color onBubbleColor;
   final bool isGekiga;
 
@@ -3518,12 +3794,10 @@ class _FileAttachmentBlock extends StatefulWidget {
   /// `_GekigaBubble`の枠を纏わせるかどうかの判定（`_FileAttachmentBlock`
   /// が自前の枠＝`GekigaJointedTileList`を持つため、外側の枠は二重表示に
   /// なる）にも使うため、`State`内の判定ロジックと共有できるようstaticに
-  /// 切り出す（2026-08-10追加）。
-  static bool isPreviewableMarkdown(
-    MessageFileMetadata metadata, {
-    required bool isVideo,
-  }) =>
-      !isVideo &&
+  /// 切り出す（2026-08-10追加）。動画は`_attachmentContent`で別分岐に
+  /// なり`_FileAttachmentBlock`自体に到達しなくなったため、`isVideo`引数は
+  /// 2026-08-11に削除した。
+  static bool isPreviewableMarkdown(MessageFileMetadata metadata) =>
       (metadata.extension == 'md' || metadata.extension == 'markdown') &&
       metadata.sizeBytes <= _maxPreviewBytes;
 
@@ -3536,10 +3810,8 @@ class _FileAttachmentBlockState extends State<_FileAttachmentBlock> {
   bool _expanded = false;
   Future<String?>? _markdownFuture;
 
-  bool get _isMarkdown => _FileAttachmentBlock.isPreviewableMarkdown(
-    widget.metadata,
-    isVideo: widget.isVideo,
-  );
+  bool get _isMarkdown =>
+      _FileAttachmentBlock.isPreviewableMarkdown(widget.metadata);
 
   /// ホバーの概念が無いモバイルでは、ダウンロードボタンを常時表示する
   /// （Web版もモバイルブラウザなら`defaultTargetPlatform`がこの判定になる）。
@@ -3632,9 +3904,7 @@ class _FileAttachmentBlockState extends State<_FileAttachmentBlock> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(
-                  widget.isVideo
-                      ? Icons.videocam_outlined
-                      : Icons.insert_drive_file_outlined,
+                  Icons.insert_drive_file_outlined,
                   color: widget.onBubbleColor,
                 ),
                 const SizedBox(width: 8),
@@ -3845,17 +4115,18 @@ class _GekigaBubble extends StatelessWidget {
   /// 形状（平行四辺形の傾き）を左右反転する（2026-08-06追加）。
   final bool alignRight;
 
-  /// 中身が既に自前の枠を持つコンテンツ（添付画像・マークダウンプレビュー
-  /// カード）かどうか（2026-08-10追加）。画像は当初、傾き（skew）だけを
-  /// 0にして対応していたが、`distortedParallelogramVertices`は傾きとは別に
-  /// 四隅を`seed`でランダムにジッターさせており（[MonochromeBoxPainter]の
-  /// 内側リングのinset量とズレうる）、`ClipRRect`の直線的な写真との不整合で
-  /// 黒い隙間が縁からはみ出す不具合が再発した。マークダウンプレビュー
-  /// カード（`_FileAttachmentBlock`）は`GekigaJointedTileList`という自前の
-  /// 枠を既に持っており、外側にもこの吹き出し枠を重ねると二重表示になる。
-  /// どちらも数値調整で追いかけず、モノクロボックス装飾（[CustomPaint]
-  /// 自体）を纏わせないことで根本的に解消する（テキストメッセージの見た目は
-  /// 変えない）。
+  /// 中身が既に自前の枠を持つコンテンツ（添付画像・動画プレビュー・
+  /// マークダウンプレビューカード）かどうか（2026-08-10追加、2026-08-11に
+  /// 動画も対象に追加）。画像は当初、傾き（skew）だけを0にして対応していた
+  /// が、`distortedParallelogramVertices`は傾きとは別に四隅を`seed`で
+  /// ランダムにジッターさせており（[MonochromeBoxPainter]の内側リングの
+  /// inset量とズレうる）、`ClipRRect`の直線的な写真との不整合で黒い隙間が
+  /// 縁からはみ出す不具合が再発した。動画プレビュー・マークダウンプレビュー
+  /// カード（`_FileAttachmentBlock`）は`_GekigaPhotoMat`/`GekigaJointedTileList`
+  /// という自前の枠を既に持っており、外側にもこの吹き出し枠を重ねると
+  /// 二重表示になる。いずれも数値調整で追いかけず、モノクロボックス装飾
+  /// （[CustomPaint]自体）を纏わせないことで根本的に解消する（テキスト
+  /// メッセージの見た目は変えない）。
   final bool skipFrame;
 
   @override
