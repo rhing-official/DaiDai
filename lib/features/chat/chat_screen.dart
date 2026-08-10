@@ -1413,6 +1413,24 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                               child: Row(
                                 crossAxisAlignment: CrossAxisAlignment.end,
                                 children: [
+                                  // ＋ボタン（技術仕様書5.6参照）。左端に配置し、
+                                  // 送信ボタンとは反対側に置くことでタップ位置を
+                                  // 明確に分ける（2026-08-10変更、以前はテキスト欄の
+                                  // 右・送信ボタンの左にあった）。TextFieldの
+                                  // suffixIconとして持たせると、TextField自身が
+                                  // 持つタップ検出（ジェスチャーアリーナに
+                                  // 参加しない`Listener`ベースの独自実装と
+                                  // 競合しない側）がこのタップも検出してしまい、
+                                  // ソフトウェアキーボードが開いてポップアップの
+                                  // 表示位置がズレる不具合があったため、TextFieldの
+                                  // 外（Rowの兄弟要素）に出している。
+                                  if (widget.onSendAttachment != null &&
+                                      !widget.disabled)
+                                    AttachmentPopupButton(
+                                      strings: strings,
+                                      isGekiga: isGekiga,
+                                      onPicked: _handleAttachmentPicked,
+                                    ),
                                   Expanded(
                                     child: Focus(
                                       onKeyEvent: _handleKeyEvent,
@@ -1472,22 +1490,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                             ),
                                     ),
                                   ),
-                                  // ＋ボタン（技術仕様書5.6参照）。TextFieldの
-                                  // suffixIconとして持たせると、TextField自身が
-                                  // 持つタップ検出（ジェスチャーアリーナに
-                                  // 参加しない`Listener`ベースの独自実装と
-                                  // 競合しない側）がこのタップも検出してしまい、
-                                  // ソフトウェアキーボードが開いてポップアップの
-                                  // 表示位置がズレる不具合があった。TextFieldの
-                                  // 外（送信ボタンと同じRowの兄弟要素）に出すことで
-                                  // 回避する（2026-08-10変更）。
-                                  if (widget.onSendAttachment != null &&
-                                      !widget.disabled)
-                                    AttachmentPopupButton(
-                                      strings: strings,
-                                      isGekiga: isGekiga,
-                                      onPicked: _handleAttachmentPicked,
-                                    ),
                                   // 物理キーボード接続の判定に関わらず、何か入力されている間は
                                   // 常に送信ボタンを表示する（判定を誤っても送信手段が
                                   // 無くならないようにするため）。disabled時は入力自体が
@@ -3571,8 +3573,17 @@ class _GekigaComposerFieldPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     const seed = _GekigaComposerField._seed;
+    // 入力欄は横幅に対して縦が極端に短い箱になりやすく、既定の「横幅の
+    // 10%」の傾きをそのまま使うと文字にかかってしまう。縦幅基準の控えめな
+    // 傾きにする（2026-08-10、`_GekigaComposerField`のpaddingと合わせて
+    // 文字がはみ出さない程度に調整）。
     final vertices = mirrorHorizontal(
-      distortedParallelogramVertices(size.width, size.height, seed),
+      distortedParallelogramVertices(
+        size.width,
+        size.height,
+        seed,
+        skewOverride: size.height * 0.12,
+      ),
       size.width,
     );
     MonochromeBoxPainter(

@@ -59,10 +59,13 @@ class _AnimatedIndexedStackState extends State<AnimatedIndexedStack>
   Widget _buildChild(int i) {
     final child = widget.children[i];
     if (i == widget.index) {
-      return Offstage(child: buildPopSlideTransition(_controller, child));
+      return Offstage(
+        offstage: false,
+        child: buildPopSlideTransition(_controller, child),
+      );
     }
     if (i == _previousIndex) {
-      return Offstage(child: IgnorePointer(child: child));
+      return Offstage(offstage: false, child: IgnorePointer(child: child));
     }
     return Offstage(offstage: true, child: child);
   }

@@ -124,15 +124,23 @@ List<Offset> monochromeBoxVertices(
 /// 乱れは加えない。2026-08-09、コミック風バナー形状から変更）。左寄せ
 /// 表示（相手側）を基準の向きとし、右寄せ表示（自分・sideBySideレイアウト）
 /// では[mirrorHorizontal]で左右反転して流用する。
+///
+/// [skewOverride]を指定すると、[width]基準の既定の傾き量の代わりにこの
+/// ピクセル値を使う（2026-08-10追加）。入力欄（`_GekigaComposerField`）の
+/// ように横幅に対して縦が極端に短い箱では、既定の「横幅の10%」だと傾きが
+/// 大きくなりすぎて文字にかかってしまうため、呼び出し側で縦幅基準の
+/// 控えめな値を渡せるようにしている。メッセージ吹き出しは指定しないため
+/// 既存の見た目のまま。
 List<Offset> distortedParallelogramVertices(
   double width,
   double height,
-  int seed,
-) {
+  int seed, {
+  double? skewOverride,
+}) {
   final random = math.Random(seed);
   double jitter(double range) => (random.nextDouble() - 0.5) * 2 * range;
   const skewRatio = 0.10;
-  final skew = width * skewRatio;
+  final skew = skewOverride ?? width * skewRatio;
   final j = math.min(width, height) * 0.06;
   return [
     Offset(skew + jitter(j), jitter(j)),
