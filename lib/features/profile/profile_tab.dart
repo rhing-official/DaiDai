@@ -57,14 +57,9 @@ String _newLocalId() =>
 /// 身だしなみタブ。「蔵」（素材の登録・管理）と「工房」（蔵の素材を組み合わせた
 /// プロフィールカードの作成）をボタンで切り替えて表示する。
 class ProfileTab extends ConsumerStatefulWidget {
-  const ProfileTab({required this.currentUser, this.resetSignal, super.key});
+  const ProfileTab({required this.currentUser, super.key});
 
   final AppUser currentUser;
-
-  /// 発火すると、ドリルダウン中のカテゴリ詳細をカテゴリ一覧トップへ戻す
-  /// （2026-08-10追加、`home_screen.dart`のナビゲーションチップ再タップから
-  /// 渡される）。
-  final Listenable? resetSignal;
 
   @override
   ConsumerState<ProfileTab> createState() => _ProfileTabState();
@@ -101,27 +96,12 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
     _userSub = _repository.watchUser(widget.currentUser.userId).listen((user) {
       if (user != null && mounted) setState(() => _user = user);
     });
-    widget.resetSignal?.addListener(_handleResetSignal);
-  }
-
-  @override
-  void didUpdateWidget(ProfileTab oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.resetSignal != widget.resetSignal) {
-      oldWidget.resetSignal?.removeListener(_handleResetSignal);
-      widget.resetSignal?.addListener(_handleResetSignal);
-    }
   }
 
   @override
   void dispose() {
     _userSub?.cancel();
-    widget.resetSignal?.removeListener(_handleResetSignal);
     super.dispose();
-  }
-
-  void _handleResetSignal() {
-    if (_selectedSection != null) setState(() => _selectedSection = null);
   }
 
   UserRepository get _repository => ref.read(userRepositoryProvider);
