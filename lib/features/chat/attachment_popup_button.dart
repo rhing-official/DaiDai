@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../l10n/strings.dart';
 import '../../utils/drag_menu_geometry.dart';
+import '../../widgets/gekiga/gekiga_icon_badge.dart';
 import 'camera_capture_screen.dart';
 
 /// 選択済みの添付データ（`ChatScreen.onSendAttachment`に渡す）。
@@ -42,11 +43,19 @@ const double _tapSlop = 12.0;
 class AttachmentPopupButton extends StatefulWidget {
   const AttachmentPopupButton({
     required this.strings,
+    required this.isGekiga,
     required this.onPicked,
     super.key,
   });
 
   final Strings strings;
+
+  /// 劇画スタイル選択時、他のモノクロボックス意匠（寄合追加ボタン等）と
+  /// 統一感を持たせるため、アイコンを[GekigaIconBadge]に差し替える
+  /// （2026-08-10追加）。ドラッグ選択のジオメトリ計算・ポップアップメニュー
+  /// 自体の見た目はスタイル分岐しない。
+  final bool isGekiga;
+
   final void Function(PickedAttachment attachment) onPicked;
 
   @override
@@ -150,6 +159,12 @@ class _AttachmentPopupButtonState extends State<AttachmentPopupButton> {
   }
 
   void _onPointerDown(PointerDownEvent event) {
+    // メッセージ入力欄で文字入力中にこのボタンを押した場合、既に開いている
+    // ソフトウェアキーボードをまず閉じる。開いたままだとレイアウトが
+    // 変化し、この直後に計算するポップアップの表示位置がズレてしまう
+    // （2026-08-10追加、＋ボタンでキーボードが開いてポップアップの位置が
+    // おかしくなる不具合の対策）。
+    FocusScope.of(context).unfocus();
     _pointerDownPosition = event.position;
     final items = _buildItems(widget.strings);
     final colorScheme = Theme.of(context).colorScheme;
@@ -291,10 +306,20 @@ class _AttachmentPopupButtonState extends State<AttachmentPopupButton> {
       onPointerDown: _onPointerDown,
       onPointerMove: _onPointerMove,
       onPointerUp: _onPointerUp,
-      child: Icon(
-        Icons.add_circle_outline,
-        color: Theme.of(context).colorScheme.onSurfaceVariant,
-      ),
+      // 送信ボタン（chat_screen.dartのIcons.send）とタップ領域の大きさを
+      // 揃えるためのpadding。
+      child: widget.isGekiga
+          ? const Padding(
+              padding: EdgeInsets.all(6),
+              child: GekigaIconBadge(icon: Icons.add, size: 32),
+            )
+          : Padding(
+              padding: const EdgeInsets.all(12),
+              child: Icon(
+                Icons.add_circle_outline,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
     );
   }
 }

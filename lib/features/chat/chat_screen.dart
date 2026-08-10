@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart'
@@ -938,9 +939,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   }
 
   /// ＋ボタンで選んだ添付を送信する（技術仕様書5.5・5.6参照、2026-08-10追加）。
-  /// 失敗時はエラー内容に応じたSnackBarを出す。自動リトライ・レジュームは
-  /// 行わず、再送はSnackBarの「再送」アクションから同じ添付を渡して
-  /// もう一度呼び直す形にする。
+  /// 失敗時はエラー内容に応じたバナーを画面上部に3秒程度表示する
+  /// （2026-08-10変更、以前はSnackBarで自動的に消えるまでの時間が
+  /// 分かりにくく、連続失敗時に表示され続けているように見えていたため。
+  /// `MaterialBanner`はSnackBarと違いキューイングされず常に最新の1件だけが
+  /// 表示される）。自動リトライ・レジュームは行わず、再送はバナーの
+  /// 「再送」アクションから同じ添付を渡してもう一度呼び直す形にする。
   Future<void> _handleAttachmentPicked(PickedAttachment attachment) async {
     final onSendAttachment = widget.onSendAttachment;
     if (onSendAttachment == null) return;
@@ -955,19 +959,36 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           strings.chatAttachmentBlockedExtensionMessage,
         _ => strings.chatAttachmentSendFailedMessage,
       };
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(message),
-          action:
-              e is AttachmentTooLargeException ||
-                  e is AttachmentExtensionBlockedException
-              ? null
-              : SnackBarAction(
-                  label: strings.chatResendAction,
-                  onPressed: () => _handleAttachmentPicked(attachment),
+      final messenger = ScaffoldMessenger.of(context);
+      final canResend =
+          e is! AttachmentTooLargeException &&
+          e is! AttachmentExtensionBlockedException;
+      _attachmentBannerTimer?.cancel();
+      messenger
+        ..clearMaterialBanners()
+        ..showMaterialBanner(
+          MaterialBanner(
+            content: Text(message),
+            actions: [
+              if (canResend)
+                TextButton(
+                  onPressed: () {
+                    messenger.hideCurrentMaterialBanner();
+                    _handleAttachmentPicked(attachment);
+                  },
+                  child: Text(strings.chatResendAction),
+                )
+              else
+                TextButton(
+                  onPressed: messenger.hideCurrentMaterialBanner,
+                  child: Text(strings.cancel),
                 ),
-        ),
-      );
+            ],
+          ),
+        );
+      _attachmentBannerTimer = Timer(const Duration(seconds: 3), () {
+        if (mounted) messenger.hideCurrentMaterialBanner();
+      });
     }
   }
 
@@ -1038,11 +1059,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     );
   }
 
+  /// 添付送信失敗バナー（`_handleAttachmentPicked`）を3秒後に自動的に
+  /// 閉じるためのタイマー（2026-08-10追加）。
+  Timer? _attachmentBannerTimer;
+
   @override
   void dispose() {
     _textController.dispose();
     _scrollController.dispose();
     _autoScrollTicker?.dispose();
+    _attachmentBannerTimer?.cancel();
     super.dispose();
   }
 
@@ -1390,42 +1416,78 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                   Expanded(
                                     child: Focus(
                                       onKeyEvent: _handleKeyEvent,
-                                      child: TextField(
-                                        controller: _textController,
-                                        enabled: !widget.disabled,
-                                        minLines: 1,
-                                        maxLines: 6,
-                                        textInputAction:
-                                            TextInputAction.newline,
-                                        keyboardType: TextInputType.multiline,
-                                        decoration: InputDecoration(
-                                          hintText: strings.chatInputHint,
-                                          filled: widget.disabled,
-                                          fillColor: Theme.of(context)
-                                              .disabledColor
-                                              .withValues(alpha: 0.08),
-                                          border: OutlineInputBorder(
-                                            borderRadius: BorderRadius.circular(
-                                              20,
-                                            ),
-                                          ),
-                                          // ＋ボタン（技術仕様書5.6参照）。
-                                          // テキストボックスの右端に配置する
-                                          // ため、Rowの送信ボタンとは別に
-                                          // suffixIconとして持たせる。
-                                          suffixIcon:
-                                              widget.onSendAttachment == null ||
-                                                  widget.disabled
-                                              ? null
-                                              : AttachmentPopupButton(
-                                                  strings: strings,
-                                                  onPicked:
-                                                      _handleAttachmentPicked,
+                                      child: isGekiga
+                                          ? _GekigaComposerField(
+                                              child: TextField(
+                                                controller: _textController,
+                                                enabled: !widget.disabled,
+                                                minLines: 1,
+                                                maxLines: 6,
+                                                textInputAction:
+                                                    TextInputAction.newline,
+                                                keyboardType:
+                                                    TextInputType.multiline,
+                                                style: const TextStyle(
+                                                  color: Colors.black,
                                                 ),
-                                        ),
-                                      ),
+                                                cursorColor: Colors.black,
+                                                decoration: InputDecoration(
+                                                  hintText:
+                                                      strings.chatInputHint,
+                                                  hintStyle: TextStyle(
+                                                    color: Colors.black
+                                                        .withValues(alpha: 0.4),
+                                                  ),
+                                                  filled: false,
+                                                  border: InputBorder.none,
+                                                  enabledBorder:
+                                                      InputBorder.none,
+                                                  focusedBorder:
+                                                      InputBorder.none,
+                                                  contentPadding:
+                                                      EdgeInsets.zero,
+                                                ),
+                                              ),
+                                            )
+                                          : TextField(
+                                              controller: _textController,
+                                              enabled: !widget.disabled,
+                                              minLines: 1,
+                                              maxLines: 6,
+                                              textInputAction:
+                                                  TextInputAction.newline,
+                                              keyboardType:
+                                                  TextInputType.multiline,
+                                              decoration: InputDecoration(
+                                                hintText: strings.chatInputHint,
+                                                filled: widget.disabled,
+                                                fillColor: Theme.of(context)
+                                                    .disabledColor
+                                                    .withValues(alpha: 0.08),
+                                                border: OutlineInputBorder(
+                                                  borderRadius:
+                                                      BorderRadius.circular(20),
+                                                ),
+                                              ),
+                                            ),
                                     ),
                                   ),
+                                  // ＋ボタン（技術仕様書5.6参照）。TextFieldの
+                                  // suffixIconとして持たせると、TextField自身が
+                                  // 持つタップ検出（ジェスチャーアリーナに
+                                  // 参加しない`Listener`ベースの独自実装と
+                                  // 競合しない側）がこのタップも検出してしまい、
+                                  // ソフトウェアキーボードが開いてポップアップの
+                                  // 表示位置がズレる不具合があった。TextFieldの
+                                  // 外（送信ボタンと同じRowの兄弟要素）に出すことで
+                                  // 回避する（2026-08-10変更）。
+                                  if (widget.onSendAttachment != null &&
+                                      !widget.disabled)
+                                    AttachmentPopupButton(
+                                      strings: strings,
+                                      isGekiga: isGekiga,
+                                      onPicked: _handleAttachmentPicked,
+                                    ),
                                   // 物理キーボード接続の判定に関わらず、何か入力されている間は
                                   // 常に送信ボタンを表示する（判定を誤っても送信手段が
                                   // 無くならないようにするため）。disabled時は入力自体が
@@ -3476,4 +3538,53 @@ class _GekigaBubblePainter extends CustomPainter {
       oldDelegate.seed != seed ||
       oldDelegate.isMe != isMe ||
       oldDelegate.alignRight != alignRight;
+}
+
+/// 劇画スタイルの入力欄の外枠。自分のメッセージ吹き出し（[_GekigaBubble]、
+/// `isMe: true`）と同じ「歪な平行四辺形＋モノクロボックス」の意匠を使う
+/// （2026-08-10追加）。メッセージと違い個別のidを持たないため、`seed`は
+/// 固定値にし、入力中に形状がガタつかないようにする。
+class _GekigaComposerField extends StatelessWidget {
+  const _GekigaComposerField({required this.child});
+
+  final Widget child;
+
+  /// 固定シード。メッセージ吹き出しのようなid由来の値を持たないため、
+  /// 常に同じ歪みで安定させる。
+  static const _seed = 0xDA1DA1;
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      painter: const _GekigaComposerFieldPainter(),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+        child: child,
+      ),
+    );
+  }
+}
+
+class _GekigaComposerFieldPainter extends CustomPainter {
+  const _GekigaComposerFieldPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    const seed = _GekigaComposerField._seed;
+    final vertices = mirrorHorizontal(
+      distortedParallelogramVertices(size.width, size.height, seed),
+      size.width,
+    );
+    MonochromeBoxPainter(
+      vertices: vertices,
+      thicknessBase: size.shortestSide,
+      fillColor: Colors.white,
+      seed: seed,
+      invert: true,
+    ).paint(canvas, size);
+  }
+
+  @override
+  bool shouldRepaint(covariant _GekigaComposerFieldPainter oldDelegate) =>
+      false;
 }
