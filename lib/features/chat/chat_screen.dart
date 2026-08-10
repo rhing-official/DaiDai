@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart'
@@ -9,7 +11,9 @@ import 'package:flutter/rendering.dart'
     show RenderRepaintBoundary, SelectedContent;
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:http/http.dart' as http;
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -36,6 +40,7 @@ import '../../utils/drag_menu_geometry.dart';
 import '../../utils/link_detection.dart';
 import '../../utils/message_time.dart';
 import '../../widgets/gekiga/gekiga_icon_badge.dart';
+import '../../widgets/gekiga/gekiga_panel_box.dart';
 import '../../widgets/gekiga/gekiga_photo_frame.dart';
 import '../../widgets/link_preview_card.dart';
 import '../../widgets/linkified_text.dart';
@@ -2136,6 +2141,16 @@ class _MessageRow extends ConsumerWidget {
         message.contentType == 'file' ||
         message.contentType == 'image' ||
         message.contentType == 'video';
+    // マークダウンプレビューカード（`_FileAttachmentBlock`）は自前の枠
+    // （`GekigaJointedTileList`）を持つため、`_GekigaBubble`側の枠は
+    // 二重表示になる（2026-08-10、ユーザー指摘により画像と同じ扱いにした）。
+    final isMarkdownPreview =
+        message.contentType == 'file' &&
+        message.fileMetadata != null &&
+        _FileAttachmentBlock.isPreviewableMarkdown(
+          message.fileMetadata!,
+          isVideo: false,
+        );
 
     final bubbleContent = Column(
       mainAxisSize: MainAxisSize.min,
@@ -2147,7 +2162,7 @@ class _MessageRow extends ConsumerWidget {
         else if (isAccountDeletedNotice)
           _accountDeletedContent(context, ref, strings, onBubbleColor)
         else if (isAttachment)
-          _attachmentContent(context, onBubbleColor)
+          _attachmentContent(context, onBubbleColor, isGekiga)
         else
           Row(
             mainAxisSize: MainAxisSize.min,
@@ -2194,6 +2209,7 @@ class _MessageRow extends ConsumerWidget {
             seed: message.messageId.hashCode,
             isMe: isMe,
             alignRight: alignRight,
+            skipFrame: message.contentType == 'image' || isMarkdownPreview,
             child: bubbleContent,
           )
         : Container(
@@ -2407,7 +2423,8 @@ class _MessageRow extends ConsumerWidget {
               ?timeText,
               const SizedBox(height: 2),
               bubbleWithReadMark,
-              if (previewUrl != null) LinkPreviewCard(url: previewUrl),
+              if (previewUrl != null)
+                LinkPreviewCard(url: previewUrl, isGekiga: isGekiga),
             ],
           ),
         ),
@@ -2481,7 +2498,8 @@ class _MessageRow extends ConsumerWidget {
                       ?timeText,
                     const SizedBox(height: 2),
                     bubbleWithReadMark,
-                    if (previewUrl != null) LinkPreviewCard(url: previewUrl),
+                    if (previewUrl != null)
+                      LinkPreviewCard(url: previewUrl, isGekiga: isGekiga),
                   ],
                 ),
               ),
@@ -2581,71 +2599,42 @@ class _MessageRow extends ConsumerWidget {
   /// 表示しタップで全画面表示、ファイル・動画はアイコン+ファイル名+
   /// サイズを表示しタップでブラウザ等の外部アプリで開く（動画再生用の
   /// パッケージは未導入のため、アプリ内再生ではなく外部起動にとどめる）。
-  Widget _attachmentContent(BuildContext context, Color onBubbleColor) {
+  Widget _attachmentContent(
+    BuildContext context,
+    Color onBubbleColor,
+    bool isGekiga,
+  ) {
     final metadata = message.fileMetadata;
     if (metadata == null) {
       return Text(message.content, style: TextStyle(color: onBubbleColor));
     }
 
     if (message.contentType == 'image') {
+      final image = Image.network(
+        metadata.url,
+        width: 280,
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) =>
+            Icon(Icons.broken_image_outlined, color: onBubbleColor),
+      );
       return GestureDetector(
         onTap: () => Navigator.of(context).push(
           MaterialPageRoute(
             builder: (_) => _ImageViewerScreen(url: metadata.url),
           ),
         ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(8),
-          child: Image.network(
-            metadata.url,
-            width: 220,
-            fit: BoxFit.cover,
-            errorBuilder: (_, _, _) =>
-                Icon(Icons.broken_image_outlined, color: onBubbleColor),
-          ),
-        ),
+        child: isGekiga
+            ? _GekigaPhotoMat(child: image)
+            : ClipRRect(borderRadius: BorderRadius.circular(8), child: image),
       );
     }
 
     final isVideo = message.contentType == 'video';
-    return InkWell(
-      onTap: () => launchUrl(
-        Uri.parse(metadata.url),
-        mode: LaunchMode.externalApplication,
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            isVideo
-                ? Icons.videocam_outlined
-                : Icons.insert_drive_file_outlined,
-            color: onBubbleColor,
-          ),
-          const SizedBox(width: 8),
-          Flexible(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  metadata.fileName,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: onBubbleColor),
-                ),
-                Text(
-                  _formatFileSize(metadata.sizeBytes),
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: onBubbleColor.withValues(alpha: 0.7),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
+    return _FileAttachmentBlock(
+      metadata: metadata,
+      isVideo: isVideo,
+      onBubbleColor: onBubbleColor,
+      isGekiga: isGekiga,
     );
   }
 
@@ -3467,7 +3456,370 @@ class _ImageViewerScreen extends StatelessWidget {
         foregroundColor: Colors.white,
         elevation: 0,
       ),
-      body: Center(child: InteractiveViewer(child: Image.network(url))),
+      // Escキー・画像以外の箇所のタップでも一覧画面へ戻れるようにする
+      // （2026-08-11追加）。内側のGestureDetectorは何もしないonTapで
+      // タップを吸収し、画像自体をタップした際に外側へ伝播して閉じて
+      // しまうのを防ぐ。
+      body: Focus(
+        autofocus: true,
+        onKeyEvent: (node, event) {
+          if (event is KeyDownEvent &&
+              event.logicalKey == LogicalKeyboardKey.escape) {
+            Navigator.of(context).pop();
+            return KeyEventResult.handled;
+          }
+          return KeyEventResult.ignored;
+        },
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => Navigator.of(context).pop(),
+          child: Center(
+            child: GestureDetector(
+              onTap: () {},
+              child: InteractiveViewer(child: Image.network(url)),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// ファイル・動画添付メッセージの表示（[_MessageRow._attachmentContent]
+/// 参照、2026-08-10改修）。以前はブロック全体のタップで即座に
+/// `launchUrl`（ダウンロード相当）していたが、ポインターを乗せた時
+/// （モバイルは常時）だけ右上にダウンロードボタンを出す方式に変更した。
+/// Markdown（.md/.markdown）ファイルはさらに、本文をプレビュー表示できる
+/// カードにする（初期状態は高さを制限した省略表示、シェブロンで全文表示に
+/// 展開、右下に常時ダウンロードボタンを表示）。
+class _FileAttachmentBlock extends StatefulWidget {
+  const _FileAttachmentBlock({
+    required this.metadata,
+    required this.isVideo,
+    required this.onBubbleColor,
+    required this.isGekiga,
+  });
+
+  final MessageFileMetadata metadata;
+  final bool isVideo;
+  final Color onBubbleColor;
+  final bool isGekiga;
+
+  /// Markdownプレビューを提供する上限サイズ。これを超える場合は取得・
+  /// レンダリングのコストを避け、通常のファイル行にフォールバックする。
+  static const _maxPreviewBytes = 1024 * 1024;
+
+  /// マークダウンカードの横幅上限。以前は340だったが、狭さゆえに全表示時
+  /// 折り返しが増えて縦に長大化する不具合が報告された（2026-08-10）ため
+  /// 拡大した。
+  static const _markdownCardMaxWidth = 480.0;
+
+  /// この添付がプレビュー可能なMarkdownファイルかどうか。`_MessageRow`が
+  /// `_GekigaBubble`の枠を纏わせるかどうかの判定（`_FileAttachmentBlock`
+  /// が自前の枠＝`GekigaJointedTileList`を持つため、外側の枠は二重表示に
+  /// なる）にも使うため、`State`内の判定ロジックと共有できるようstaticに
+  /// 切り出す（2026-08-10追加）。
+  static bool isPreviewableMarkdown(
+    MessageFileMetadata metadata, {
+    required bool isVideo,
+  }) =>
+      !isVideo &&
+      (metadata.extension == 'md' || metadata.extension == 'markdown') &&
+      metadata.sizeBytes <= _maxPreviewBytes;
+
+  @override
+  State<_FileAttachmentBlock> createState() => _FileAttachmentBlockState();
+}
+
+class _FileAttachmentBlockState extends State<_FileAttachmentBlock> {
+  bool _hovering = false;
+  bool _expanded = false;
+  Future<String?>? _markdownFuture;
+
+  bool get _isMarkdown => _FileAttachmentBlock.isPreviewableMarkdown(
+    widget.metadata,
+    isVideo: widget.isVideo,
+  );
+
+  /// ホバーの概念が無いモバイルでは、ダウンロードボタンを常時表示する
+  /// （Web版もモバイルブラウザなら`defaultTargetPlatform`がこの判定になる）。
+  bool get _alwaysShowDownload =>
+      defaultTargetPlatform == TargetPlatform.android ||
+      defaultTargetPlatform == TargetPlatform.iOS;
+
+  @override
+  void initState() {
+    super.initState();
+    if (_isMarkdown) {
+      _markdownFuture = _fetchMarkdown();
+    }
+  }
+
+  Future<String?> _fetchMarkdown() async {
+    try {
+      final response = await http
+          .get(Uri.parse(widget.metadata.url))
+          .timeout(const Duration(seconds: 10));
+      if (response.statusCode != 200) return null;
+      // `response.body`はContent-Typeのcharset宣言に依存し、未指定時は
+      // latin1にフォールバックする。Firebase StorageのダウンロードURLは
+      // .mdファイルにcharset=utf-8を明示しないため、日本語が文字化けする
+      // （2026-08-10発覚）。常にUTF-8として復号する。
+      return utf8.decode(response.bodyBytes);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _download() async {
+    await launchUrl(
+      Uri.parse(widget.metadata.url),
+      mode: LaunchMode.externalApplication,
+    );
+  }
+
+  /// ホバー/常時表示のダウンロードボタン。半透明の黒地＋白アイコンという
+  /// 固定配色にすることで、乗っている吹き出し・カードの色（明るい/暗い
+  /// どちらでも、シンプル/劇画どちらでも）に関わらず視認できるようにする。
+  Widget _downloadButton({required bool small}) {
+    return Material(
+      color: Colors.black.withValues(alpha: 0.55),
+      shape: const CircleBorder(),
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: _download,
+        child: Padding(
+          padding: EdgeInsets.all(small ? 6 : 8),
+          child: Icon(
+            Icons.download,
+            size: small ? 16 : 18,
+            color: Colors.white,
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_isMarkdown) return _buildPlainRow();
+
+    return FutureBuilder<String?>(
+      future: _markdownFuture,
+      builder: (context, snapshot) {
+        final content = snapshot.data;
+        if (snapshot.connectionState != ConnectionState.done ||
+            content == null) {
+          // 取得中・取得失敗時は通常のファイル行にフォールバックする。
+          return _buildPlainRow();
+        }
+        return _buildMarkdownCard(context, content);
+      },
+    );
+  }
+
+  Widget _buildPlainRow() {
+    final showIcon = _hovering || _alwaysShowDownload;
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovering = true),
+      onExit: (_) => setState(() => _hovering = false),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 4, right: 4),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  widget.isVideo
+                      ? Icons.videocam_outlined
+                      : Icons.insert_drive_file_outlined,
+                  color: widget.onBubbleColor,
+                ),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        widget.metadata.fileName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(color: widget.onBubbleColor),
+                      ),
+                      Text(
+                        _MessageRow._formatFileSize(widget.metadata.sizeBytes),
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: widget.onBubbleColor.withValues(alpha: 0.7),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (showIcon)
+            Positioned(top: -6, right: -6, child: _downloadButton(small: true)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMarkdownCard(BuildContext context, String markdownText) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final fg = widget.isGekiga ? GekigaColors.onPanel : colorScheme.onSurface;
+    final subFg = widget.isGekiga
+        ? GekigaColors.onPanel.withValues(alpha: 0.75)
+        : colorScheme.onSurfaceVariant;
+
+    // `ThemeData.dark()`を単体で生成すると`textTheme.bodyMedium?.fontSize`が
+    // 未解決（null）のままになり`MarkdownStyleSheet.fromTheme`のassertに
+    // 失敗する（2026-08-10発覚）。`MaterialApp`を経由しないと`Typography`が
+    // 完全には適用されないため。実際に画面へ描画されているアプリ本体の
+    // `Theme.of(context)`は必ずフォントサイズ込みで解決済みなので、これを
+    // ベースにして劇画UI用の文字色だけ上書きする。
+    final baseStyleSheet = MarkdownStyleSheet.fromTheme(Theme.of(context));
+    final markdownStyleSheet = widget.isGekiga
+        ? baseStyleSheet.copyWith(
+            a: baseStyleSheet.a?.copyWith(color: GekigaColors.onPanel),
+            p: baseStyleSheet.p?.copyWith(color: GekigaColors.onPanel),
+            code: baseStyleSheet.code?.copyWith(
+              color: GekigaColors.onPanel,
+              backgroundColor: Colors.black.withValues(alpha: 0.35),
+            ),
+            h1: baseStyleSheet.h1?.copyWith(color: GekigaColors.onPanel),
+            h2: baseStyleSheet.h2?.copyWith(color: GekigaColors.onPanel),
+            h3: baseStyleSheet.h3?.copyWith(color: GekigaColors.onPanel),
+            h4: baseStyleSheet.h4?.copyWith(color: GekigaColors.onPanel),
+            h5: baseStyleSheet.h5?.copyWith(color: GekigaColors.onPanel),
+            h6: baseStyleSheet.h6?.copyWith(color: GekigaColors.onPanel),
+            em: baseStyleSheet.em?.copyWith(color: GekigaColors.onPanel),
+            strong: baseStyleSheet.strong?.copyWith(
+              color: GekigaColors.onPanel,
+            ),
+            del: baseStyleSheet.del?.copyWith(color: GekigaColors.onPanel),
+            blockquote: baseStyleSheet.blockquote?.copyWith(
+              color: GekigaColors.onPanel.withValues(alpha: 0.85),
+            ),
+            listBullet: baseStyleSheet.listBullet?.copyWith(
+              color: GekigaColors.onPanel,
+            ),
+            tableHead: baseStyleSheet.tableHead?.copyWith(
+              color: GekigaColors.onPanel,
+            ),
+            tableBody: baseStyleSheet.tableBody?.copyWith(
+              color: GekigaColors.onPanel,
+            ),
+            horizontalRuleDecoration: BoxDecoration(
+              border: Border(
+                top: BorderSide(
+                  color: GekigaColors.onPanel.withValues(alpha: 0.4),
+                ),
+              ),
+            ),
+          )
+        : baseStyleSheet;
+
+    final markdownBody = MarkdownBody(
+      data: markdownText,
+      styleSheet: markdownStyleSheet,
+    );
+
+    // Markdown本文を文字数で機械的に切ると表・リスト等の構文が壊れる恐れが
+    // あるため、常にフルレンダリングした上で折り畳み時は表示領域の高さだけを
+    // 制限する。表（`Table`+`FlexColumnWidth`）はスクロール前提の縮小表示に
+    // 対応しておらず、単純な`ConstrainedBox(maxHeight)`で高さを強制すると
+    // 制約違反で描画が壊れる（2026-08-10発覚・修正）ため、`SizedBox`で確定
+    // 高さの窓を作り、その中に`SingleChildScrollView`（スクロール無効）で
+    // 本来の自然な高さのまま描画させてクリップする、という標準的な構成にする。
+    final body = Padding(
+      padding: const EdgeInsets.fromLTRB(10, 10, 10, 0),
+      child: _expanded
+          ? markdownBody
+          : SizedBox(
+              height: 140,
+              child: SingleChildScrollView(
+                physics: const NeverScrollableScrollPhysics(),
+                child: markdownBody,
+              ),
+            ),
+    );
+
+    final footer = Padding(
+      padding: const EdgeInsets.fromLTRB(6, 6, 6, 6),
+      child: Row(
+        children: [
+          InkWell(
+            onTap: () => setState(() => _expanded = !_expanded),
+            child: Padding(
+              padding: const EdgeInsets.all(4),
+              child: Icon(
+                _expanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                color: subFg,
+              ),
+            ),
+          ),
+          const SizedBox(width: 4),
+          Icon(Icons.description_outlined, size: 16, color: subFg),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  widget.metadata.fileName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: fg,
+                  ),
+                ),
+                Text(
+                  _MessageRow._formatFileSize(widget.metadata.sizeBytes),
+                  style: TextStyle(fontSize: 10, color: subFg),
+                ),
+              ],
+            ),
+          ),
+          _downloadButton(small: false),
+        ],
+      ),
+    );
+
+    final content = Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [body, footer],
+    );
+
+    if (widget.isGekiga) {
+      return ConstrainedBox(
+        constraints: const BoxConstraints(
+          maxWidth: _FileAttachmentBlock._markdownCardMaxWidth,
+        ),
+        child: GekigaJointedTileList(
+          seeds: [widget.metadata.url.hashCode],
+          selectedFlags: const [false],
+          children: [content],
+        ),
+      );
+    }
+
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 340),
+      child: Material(
+        color: colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(8),
+        clipBehavior: Clip.antiAlias,
+        child: content,
+      ),
     );
   }
 }
@@ -3482,6 +3834,7 @@ class _GekigaBubble extends StatelessWidget {
     required this.seed,
     required this.isMe,
     required this.alignRight,
+    this.skipFrame = false,
   });
 
   final Widget child;
@@ -3492,8 +3845,24 @@ class _GekigaBubble extends StatelessWidget {
   /// 形状（平行四辺形の傾き）を左右反転する（2026-08-06追加）。
   final bool alignRight;
 
+  /// 中身が既に自前の枠を持つコンテンツ（添付画像・マークダウンプレビュー
+  /// カード）かどうか（2026-08-10追加）。画像は当初、傾き（skew）だけを
+  /// 0にして対応していたが、`distortedParallelogramVertices`は傾きとは別に
+  /// 四隅を`seed`でランダムにジッターさせており（[MonochromeBoxPainter]の
+  /// 内側リングのinset量とズレうる）、`ClipRRect`の直線的な写真との不整合で
+  /// 黒い隙間が縁からはみ出す不具合が再発した。マークダウンプレビュー
+  /// カード（`_FileAttachmentBlock`）は`GekigaJointedTileList`という自前の
+  /// 枠を既に持っており、外側にもこの吹き出し枠を重ねると二重表示になる。
+  /// どちらも数値調整で追いかけず、モノクロボックス装飾（[CustomPaint]
+  /// 自体）を纏わせないことで根本的に解消する（テキストメッセージの見た目は
+  /// 変えない）。
+  final bool skipFrame;
+
   @override
   Widget build(BuildContext context) {
+    if (skipFrame) {
+      return child;
+    }
     return CustomPaint(
       painter: _GekigaBubblePainter(
         seed: seed,
@@ -3501,7 +3870,7 @@ class _GekigaBubble extends StatelessWidget {
         alignRight: alignRight,
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+        padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
         child: child,
       ),
     );
@@ -3521,10 +3890,16 @@ class _GekigaBubblePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    // URLのような空白を含まない長い1行のテキストは折り返されず、吹き出しの
+    // 幅がテキスト幅に応じて際限なく広がりうる（吹き出し自体に上限幅の
+    // 制約は無い）。傾き量を「幅の10%」のままにすると、幅が広い吹き出しほど
+    // 傾きがpadding（28px）を上回りテキストが縁からはみ出すため、絶対量を
+    // 20pxで頭打ちにする（2026-08-10追加）。
     final vertices = distortedParallelogramVertices(
       size.width,
       size.height,
       seed,
+      skewOverride: math.min(size.width * 0.10, 20),
     );
     MonochromeBoxPainter(
       vertices: alignRight ? mirrorHorizontal(vertices, size.width) : vertices,
@@ -3540,6 +3915,54 @@ class _GekigaBubblePainter extends CustomPainter {
       oldDelegate.seed != seed ||
       oldDelegate.isMe != isMe ||
       oldDelegate.alignRight != alignRight;
+}
+
+/// 劇画UIで送信・受信した写真メッセージを縁取る白いマット
+/// （2026-08-10追加）。シンプルUIの`ClipRRect`丸角マット（URLプレビュー
+/// サムネイル`_gekigaThumbnail`）とは違い、劇画UIらしく直線のみの面取り
+/// （角カット、[cutCorners]参照）にする。当初[monochromeBoxVertices]
+/// （送信者アイコン枠[GekigaPhotoFrame]が使う不規則四角形）を流用したが、
+/// あの形状は右辺・下辺が最大10〜15%内側に大きく凹む設計（小さい正方形の
+/// アイコン用に調整されたもの）で、矩形いっぱいの写真マットに使うと右・下
+/// 方向に写真がマットからはみ出す不具合になった（2026-08-11発覚）。矩形の
+/// 4頂点に[cutCorners]で角カットを適用するだけの形にすることで、辺の
+/// 中央部分は必ず矩形の端まで届き（`padding`＝[_matWidth]を写真側に
+/// 確保していれば、角の切り欠き部分も含めどこにも写真がマットの外へ出ない）、
+/// かつ直線のみのカクカクした劇画UIらしい見た目になる。写真本体は矩形の
+/// まま、マットの縁だけが角カットされた形になる。
+class _GekigaPhotoMat extends StatelessWidget {
+  const _GekigaPhotoMat({required this.child});
+
+  final Widget child;
+
+  static const _matWidth = 10.0;
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      painter: const _GekigaPhotoMatPainter(),
+      child: Padding(padding: const EdgeInsets.all(_matWidth), child: child),
+    );
+  }
+}
+
+class _GekigaPhotoMatPainter extends CustomPainter {
+  const _GekigaPhotoMatPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rect = [
+      Offset.zero,
+      Offset(size.width, 0),
+      Offset(size.width, size.height),
+      Offset(0, size.height),
+    ];
+    final vertices = cutCorners(rect, _GekigaPhotoMat._matWidth * 0.8);
+    canvas.drawPath(pathFromPoints(vertices), Paint()..color = Colors.white);
+  }
+
+  @override
+  bool shouldRepaint(covariant _GekigaPhotoMatPainter oldDelegate) => false;
 }
 
 /// 劇画スタイルの入力欄の外枠。自分のメッセージ吹き出し（[_GekigaBubble]、
