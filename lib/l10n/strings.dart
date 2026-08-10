@@ -88,6 +88,8 @@ class Strings {
     required this.qrLoginApprovedSnackbar,
     required this.qrLoginInvalidQrError,
     required this.qrLoginApproveError,
+    required this.qrLoginScanInstructionMessage,
+    required this.qrLoginScanInstructionButton,
     required this.settingsPasskey,
     required this.settingsQrLogin,
     required this.settingsDeleteAccount,
@@ -181,6 +183,14 @@ class Strings {
     required this.chatUnsendConfirmTitle,
     required this.chatUnsendConfirmMessage,
     required this.chatUnsendConfirmButton,
+    required this.chatAttachFile,
+    required this.chatAttachImage,
+    required this.chatAttachVideo,
+    required this.chatAttachCapture,
+    required this.chatAttachmentTooLargeMessage,
+    required this.chatAttachmentBlockedExtensionMessage,
+    required this.chatAttachmentSendFailedMessage,
+    required this.chatResendAction,
     required this.cancel,
     required this.add,
     required this.save,
@@ -431,6 +441,8 @@ class Strings {
   final String qrLoginApprovedSnackbar;
   final String qrLoginInvalidQrError;
   final String qrLoginApproveError;
+  final String qrLoginScanInstructionMessage;
+  final String qrLoginScanInstructionButton;
   final String settingsPasskey;
   final String settingsQrLogin;
   final String settingsDeleteAccount;
@@ -535,6 +547,14 @@ class Strings {
   final String chatUnsendConfirmTitle;
   final String chatUnsendConfirmMessage;
   final String chatUnsendConfirmButton;
+  final String chatAttachFile;
+  final String chatAttachImage;
+  final String chatAttachVideo;
+  final String chatAttachCapture;
+  final String chatAttachmentTooLargeMessage;
+  final String chatAttachmentBlockedExtensionMessage;
+  final String chatAttachmentSendFailedMessage;
+  final String chatResendAction;
 
   final String cancel;
   final String add;
@@ -918,6 +938,9 @@ class Strings {
     qrLoginApprovedSnackbar: 'ログインを許可しました',
     qrLoginInvalidQrError: '無効なQRコードです',
     qrLoginApproveError: '承認に失敗しました。QRコードの有効期限が切れている可能性があります。',
+    qrLoginScanInstructionMessage:
+        '別の端末のサインイン画面で「QRコードでログイン」を開き、表示されたQRコードをこの端末で読み取ります。',
+    qrLoginScanInstructionButton: 'スキャンを開始する',
     settingsPasskey: 'パスキー',
     settingsQrLogin: 'QRコードによるログイン',
     settingsDeleteAccount: 'アカウントを削除する（30日以内なら復元可）',
@@ -1017,6 +1040,14 @@ class Strings {
     chatUnsendConfirmMessage:
         'このメッセージは相手の画面からも完全に削除されます（既読・リアクション等も含めて痕跡は残りません）。この操作は取り消せません。',
     chatUnsendConfirmButton: '取り消す',
+    chatAttachFile: 'ファイル',
+    chatAttachImage: '画像',
+    chatAttachVideo: '動画',
+    chatAttachCapture: '撮影',
+    chatAttachmentTooLargeMessage: '2GBを超えるファイルは送信できません',
+    chatAttachmentBlockedExtensionMessage: 'この拡張子のファイルは送信できません',
+    chatAttachmentSendFailedMessage: '送信に失敗しました',
+    chatResendAction: '再送',
     cancel: 'キャンセル',
     add: '追加',
     save: '保存',
@@ -1290,6 +1321,10 @@ class Strings {
     qrLoginApprovedSnackbar: 'Sign-in allowed',
     qrLoginInvalidQrError: 'Invalid QR code',
     qrLoginApproveError: 'Approval failed. The QR code may have expired.',
+    qrLoginScanInstructionMessage:
+        'On another device, open the sign-in screen and tap "Sign in with a '
+        'QR code", then scan the code it shows with this device.',
+    qrLoginScanInstructionButton: 'Start scanning',
     settingsPasskey: 'Passkey',
     settingsQrLogin: 'Sign in with a QR code',
     settingsDeleteAccount: 'Delete account (restorable within 30 days)',
@@ -1405,6 +1440,14 @@ class Strings {
         "screen too (including read receipts and reactions). This can't "
         "be undone.",
     chatUnsendConfirmButton: 'Unsend',
+    chatAttachFile: 'File',
+    chatAttachImage: 'Image',
+    chatAttachVideo: 'Video',
+    chatAttachCapture: 'Capture',
+    chatAttachmentTooLargeMessage: "Files over 2GB can't be sent.",
+    chatAttachmentBlockedExtensionMessage: "This file type can't be sent.",
+    chatAttachmentSendFailedMessage: 'Failed to send.',
+    chatResendAction: 'Resend',
     cancel: 'Cancel',
     add: 'Add',
     save: 'Save',

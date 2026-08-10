@@ -1,9 +1,13 @@
+import 'dart:typed_data';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 
 import '../models/app_user.dart';
 import '../models/direct_message.dart';
 import '../models/dm_room.dart';
 import '../models/message.dart';
+import '../utils/attachment_upload.dart';
 
 abstract class DirectMessageRepository {
   /// 2人のuserから一対を取得する。無ければ作成する
@@ -65,6 +69,23 @@ abstract class DirectMessageRepository {
     required String senderId,
     required String senderRhingId,
     required String content,
+    bool silent = false,
+    Message? replyTo,
+  });
+
+  /// ファイル・画像・動画を添付したメッセージを送信する（技術仕様書5.2参照、
+  /// 2026-08-10追加）。[contentType]はfile|image|videoのいずれか。
+  /// 拡張子ブロックリスト・容量上限（[kMaxAttachmentSizeBytes]）はUI側でも
+  /// 事前に弾くが、`uploadMessageAttachment`側でも再検証する。画像は
+  /// WebPへの圧縮を試みる（失敗時は元のまま）。
+  Future<void> sendAttachmentMessage({
+    required String dmId,
+    required String roomId,
+    required String senderId,
+    required String senderRhingId,
+    required Uint8List bytes,
+    required String fileName,
+    required String contentType,
     bool silent = false,
     Message? replyTo,
   });
@@ -195,10 +216,14 @@ abstract class DirectMessageRepository {
 }
 
 class FirestoreDirectMessageRepository implements DirectMessageRepository {
-  FirestoreDirectMessageRepository({FirebaseFirestore? firestore})
-    : _firestore = firestore ?? FirebaseFirestore.instance;
+  FirestoreDirectMessageRepository({
+    FirebaseFirestore? firestore,
+    FirebaseStorage? storage,
+  }) : _firestore = firestore ?? FirebaseFirestore.instance,
+       _storage = storage ?? FirebaseStorage.instance;
 
   final FirebaseFirestore _firestore;
+  final FirebaseStorage _storage;
 
   CollectionReference<Map<String, dynamic>> get _directMessages =>
       _firestore.collection('directMessages');
@@ -507,6 +532,57 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
     // 語らい一覧（TalksTab）はDM単位でlastMessageAt順に並ぶため、寄合側に
     // 加えてDM本体のlastMessageAtも更新する（どの寄合に投稿しても一覧の
     // 並び順に反映されるようにするため）。
+    batch.update(_directMessages.doc(dmId), {
+      'lastMessageAt': FieldValue.serverTimestamp(),
+    });
+    await batch.commit();
+  }
+
+  @override
+  Future<void> sendAttachmentMessage({
+    required String dmId,
+    required String roomId,
+    required String senderId,
+    required String senderRhingId,
+    required Uint8List bytes,
+    required String fileName,
+    required String contentType,
+    bool silent = false,
+    Message? replyTo,
+  }) async {
+    final roomRef = _dmRoomRef(dmId, roomId);
+    final messageRef = roomRef.collection('messages').doc();
+
+    final fileMetadata = await uploadMessageAttachment(
+      storage: _storage,
+      storagePathPrefix: 'dmFiles/$dmId',
+      attachmentId: messageRef.id,
+      bytes: bytes,
+      fileName: fileName,
+      contentType: contentType,
+    );
+
+    final message = Message(
+      messageId: messageRef.id,
+      conversationId: roomId,
+      conversationType: 'dm',
+      senderId: senderId,
+      senderRhingId: senderRhingId,
+      content: fileName,
+      contentType: contentType,
+      silent: silent,
+      replyToMessageId: replyTo?.messageId,
+      replyToSenderId: replyTo?.senderId,
+      replyToSenderRhingId: replyTo?.senderRhingId,
+      replyToSnippet: replyTo == null
+          ? null
+          : messageSnippetOf(replyTo.content),
+      fileMetadata: fileMetadata,
+    );
+
+    final batch = _firestore.batch();
+    batch.set(messageRef, message.toJson());
+    batch.update(roomRef, {'lastMessageAt': FieldValue.serverTimestamp()});
     batch.update(_directMessages.doc(dmId), {
       'lastMessageAt': FieldValue.serverTimestamp(),
     });

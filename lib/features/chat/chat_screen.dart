@@ -10,6 +10,7 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../l10n/app_locale.dart';
 import '../../l10n/strings.dart';
@@ -28,6 +29,9 @@ import '../../theme/app_theme_extras.dart';
 import '../../theme/gekiga/gekiga_colors.dart';
 import '../../theme/gekiga/gekiga_shapes.dart';
 import '../../widgets/gekiga/monochrome_box.dart';
+import 'attachment_popup_button.dart';
+import '../../utils/attachment_upload.dart';
+import '../../utils/drag_menu_geometry.dart';
 import '../../utils/link_detection.dart';
 import '../../utils/message_time.dart';
 import '../../widgets/gekiga/gekiga_icon_badge.dart';
@@ -46,6 +50,7 @@ class ChatScreen extends ConsumerStatefulWidget {
     this.conversationId,
     required this.messagesStream,
     required this.onSend,
+    this.onSendAttachment,
     this.onCallPressed,
     this.onVideoCallPressed,
     this.extraActions,
@@ -82,6 +87,11 @@ class ChatScreen extends ConsumerStatefulWidget {
   final Stream<List<Message>> messagesStream;
   final Future<void> Function(String content, {bool silent, Message? replyTo})
   onSend;
+
+  /// ファイル・画像・動画を添付したメッセージを送信する（技術仕様書5.6参照、
+  /// 2026-08-10追加）。nullなら＋ボタン自体を表示しない（承認待ちの一対・
+  /// 広場を開いた際の`disabled`なプレースホルダー画面など）。
+  final Future<void> Function(PickedAttachment attachment)? onSendAttachment;
 
   /// 送信済みテキストメッセージの本文を編集する。nullなら編集機能自体を
   /// 提供しない（メニューに「編集」項目を出さない）。
@@ -534,9 +544,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   Future<void> _copyMessageText(Message message) async {
     await Clipboard.setData(ClipboardData(text: message.content));
     if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(ref.read(appStringsProvider).chatCopiedMessage)));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(ref.read(appStringsProvider).chatCopiedMessage)),
+    );
   }
 
   /// 現在の実効範囲（[_screenshotEffectiveIds]）に含まれるメッセージを
@@ -547,16 +557,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   /// 穴埋めで範囲が広がる。
   void _toggleScreenshotSelected(String messageId) {
     setState(() {
-      final chronological = [..._cachedMessages]..sort((a, b) {
-        final aTime = a.sentAt?.toDate() ?? DateTime.now();
-        final bTime = b.sentAt?.toDate() ?? DateTime.now();
-        return aTime.compareTo(bTime);
-      });
+      final chronological = [..._cachedMessages]
+        ..sort((a, b) {
+          final aTime = a.sentAt?.toDate() ?? DateTime.now();
+          final bTime = b.sentAt?.toDate() ?? DateTime.now();
+          return aTime.compareTo(bTime);
+        });
       final effective = _screenshotEffectiveIds(chronological);
       if (effective.contains(messageId)) {
-        final idx = chronological.indexWhere(
-          (m) => m.messageId == messageId,
-        );
+        final idx = chronological.indexWhere((m) => m.messageId == messageId);
         final lo = chronological.indexWhere(
           (m) => effective.contains(m.messageId),
         );
@@ -565,9 +574,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         } else {
           _screenshotSelectedIds
             ..clear()
-            ..addAll(
-              chronological.sublist(lo, idx).map((m) => m.messageId),
-            );
+            ..addAll(chronological.sublist(lo, idx).map((m) => m.messageId));
         }
       } else {
         _screenshotSelectedIds.add(messageId);
@@ -717,9 +724,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           });
     if (selected.isEmpty) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(strings.chatScreenshotErrorMessage)));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(strings.chatScreenshotErrorMessage)),
+      );
       return;
     }
     final messagesById = {for (final m in _cachedMessages) m.messageId: m};
@@ -739,10 +746,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     if (!mounted) return;
     await Future.wait(
       iconUrls.map(
-        (url) => precacheImage(
-          NetworkImage(url),
-          context,
-        ).catchError((_) {}),
+        (url) => precacheImage(NetworkImage(url), context).catchError((_) {}),
       ),
     );
     if (!mounted) return;
@@ -931,6 +935,40 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     _textController.clear();
     setState(() => _replyingTo = null);
     await widget.onSend(content, silent: silent, replyTo: replyTo);
+  }
+
+  /// ＋ボタンで選んだ添付を送信する（技術仕様書5.5・5.6参照、2026-08-10追加）。
+  /// 失敗時はエラー内容に応じたSnackBarを出す。自動リトライ・レジュームは
+  /// 行わず、再送はSnackBarの「再送」アクションから同じ添付を渡して
+  /// もう一度呼び直す形にする。
+  Future<void> _handleAttachmentPicked(PickedAttachment attachment) async {
+    final onSendAttachment = widget.onSendAttachment;
+    if (onSendAttachment == null) return;
+    try {
+      await onSendAttachment(attachment);
+    } catch (e) {
+      if (!mounted) return;
+      final strings = ref.read(appStringsProvider);
+      final message = switch (e) {
+        AttachmentTooLargeException() => strings.chatAttachmentTooLargeMessage,
+        AttachmentExtensionBlockedException() =>
+          strings.chatAttachmentBlockedExtensionMessage,
+        _ => strings.chatAttachmentSendFailedMessage,
+      };
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          action:
+              e is AttachmentTooLargeException ||
+                  e is AttachmentExtensionBlockedException
+              ? null
+              : SnackBarAction(
+                  label: strings.chatResendAction,
+                  onPressed: () => _handleAttachmentPicked(attachment),
+                ),
+        ),
+      );
+    }
   }
 
   /// メッセージ入力欄でのEnterキー処理。設定（[SendKeyMode]）に応じて、
@@ -1270,13 +1308,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                 widget.onDeclineAccountDeletionNotice,
                             onDeleteAfterAccountDeletion:
                                 widget.onDeleteAfterAccountDeletion,
-                            onAutoScrollStart: (_selecting || _screenshotSelecting)
+                            onAutoScrollStart:
+                                (_selecting || _screenshotSelecting)
                                 ? null
                                 : _startAutoScroll,
-                            onAutoScrollUpdate: (_selecting || _screenshotSelecting)
+                            onAutoScrollUpdate:
+                                (_selecting || _screenshotSelecting)
                                 ? null
                                 : _updateAutoScrollPosition,
-                            onAutoScrollEnd: (_selecting || _screenshotSelecting)
+                            onAutoScrollEnd:
+                                (_selecting || _screenshotSelecting)
                                 ? null
                                 : _stopAutoScroll,
                             onSwipeBack: widget.onSwipeBack,
@@ -1368,6 +1409,19 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                               20,
                                             ),
                                           ),
+                                          // ＋ボタン（技術仕様書5.6参照）。
+                                          // テキストボックスの右端に配置する
+                                          // ため、Rowの送信ボタンとは別に
+                                          // suffixIconとして持たせる。
+                                          suffixIcon:
+                                              widget.onSendAttachment == null ||
+                                                  widget.disabled
+                                              ? null
+                                              : AttachmentPopupButton(
+                                                  strings: strings,
+                                                  onPicked:
+                                                      _handleAttachmentPicked,
+                                                ),
                                         ),
                                       ),
                                     ),
@@ -2014,6 +2068,10 @@ class _MessageRow extends ConsumerWidget {
 
     final isCallSummary = message.contentType == 'call';
     final isAccountDeletedNotice = message.contentType == 'accountDeleted';
+    final isAttachment =
+        message.contentType == 'file' ||
+        message.contentType == 'image' ||
+        message.contentType == 'video';
 
     final bubbleContent = Column(
       mainAxisSize: MainAxisSize.min,
@@ -2024,6 +2082,8 @@ class _MessageRow extends ConsumerWidget {
           _callSummaryContent(onBubbleColor)
         else if (isAccountDeletedNotice)
           _accountDeletedContent(context, ref, strings, onBubbleColor)
+        else if (isAttachment)
+          _attachmentContent(context, onBubbleColor)
         else
           Row(
             mainAxisSize: MainAxisSize.min,
@@ -2215,9 +2275,7 @@ class _MessageRow extends ConsumerWidget {
                       onUnsend: (isMe && onUnsend != null)
                           ? () => _confirmUnsend(context, strings)
                           : null,
-                      onReact: onSetReaction == null
-                          ? null
-                          : _toggleMyReaction,
+                      onReact: onSetReaction == null ? null : _toggleMyReaction,
                       onCopySelect: () => onCopyMessage?.call(message),
                       onPartialCopySelect: () =>
                           onEnterTextCopy?.call(message.messageId),
@@ -2452,6 +2510,90 @@ class _MessageRow extends ConsumerWidget {
         ),
       ],
     );
+  }
+
+  /// contentType='file'|'image'|'video'（添付メッセージ）の表示
+  /// （技術仕様書5.2・5.6参照、2026-08-10追加）。画像はサムネイルを直接
+  /// 表示しタップで全画面表示、ファイル・動画はアイコン+ファイル名+
+  /// サイズを表示しタップでブラウザ等の外部アプリで開く（動画再生用の
+  /// パッケージは未導入のため、アプリ内再生ではなく外部起動にとどめる）。
+  Widget _attachmentContent(BuildContext context, Color onBubbleColor) {
+    final metadata = message.fileMetadata;
+    if (metadata == null) {
+      return Text(message.content, style: TextStyle(color: onBubbleColor));
+    }
+
+    if (message.contentType == 'image') {
+      return GestureDetector(
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => _ImageViewerScreen(url: metadata.url),
+          ),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: Image.network(
+            metadata.url,
+            width: 220,
+            fit: BoxFit.cover,
+            errorBuilder: (_, _, _) =>
+                Icon(Icons.broken_image_outlined, color: onBubbleColor),
+          ),
+        ),
+      );
+    }
+
+    final isVideo = message.contentType == 'video';
+    return InkWell(
+      onTap: () => launchUrl(
+        Uri.parse(metadata.url),
+        mode: LaunchMode.externalApplication,
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            isVideo
+                ? Icons.videocam_outlined
+                : Icons.insert_drive_file_outlined,
+            color: onBubbleColor,
+          ),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  metadata.fileName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: onBubbleColor),
+                ),
+                Text(
+                  _formatFileSize(metadata.sizeBytes),
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: onBubbleColor.withValues(alpha: 0.7),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static String _formatFileSize(int bytes) {
+    const units = ['B', 'KB', 'MB', 'GB'];
+    var size = bytes.toDouble();
+    var unitIndex = 0;
+    while (size >= 1024 && unitIndex < units.length - 1) {
+      size /= 1024;
+      unitIndex++;
+    }
+    return '${size.toStringAsFixed(size >= 10 || unitIndex == 0 ? 0 : 1)}${units[unitIndex]}';
   }
 
   /// contentType='accountDeleted'（アカウント削除通知）の表示。DMのみ、
@@ -2734,42 +2876,6 @@ Future<String?> _pickReactionEmoji(
   );
 }
 
-/// 長押しドラッグメニューの1行分の見た目上の高さ。算術での当たり判定を
-/// 前提にするため、各項目ラベルは折り返さず1行固定にする
-/// （[_MessageBubbleTapAreaState._buildMenuItems]参照、2026-08-09追加）。
-const double _kDragMenuItemHeight = kMinInteractiveDimension;
-
-/// 長押しドラッグメニューの表示中、押した指の位置からどの項目の上にいるかを
-/// 算術で求める（個々のウィジェットの`RenderBox`計測に頼らない、
-/// 2026-08-09追加）。範囲外なら-1。
-class _DragMenuGeometry {
-  const _DragMenuGeometry({
-    required this.left,
-    required this.top,
-    required this.width,
-    required this.itemCount,
-  });
-
-  final double left;
-  final double top;
-  final double width;
-  final int itemCount;
-
-  double get height => _kDragMenuItemHeight * itemCount;
-
-  int hitTest(Offset globalPosition) {
-    if (globalPosition.dx < left || globalPosition.dx > left + width) {
-      return -1;
-    }
-    final relativeY = globalPosition.dy - top;
-    if (relativeY < 0 || relativeY >= height) return -1;
-    return (relativeY / _kDragMenuItemHeight).floor().clamp(
-      0,
-      itemCount - 1,
-    );
-  }
-}
-
 /// 吹き出し本体だけに絞った当たり判定。長押し/右クリックでリアクション・
 /// 返信・編集等のコンテキストメニューを開く（2026-07-29変更: 以前は行全体
 /// （余白込み）が対象だったが、余白部分の長押しを自動スクロール
@@ -2832,7 +2938,7 @@ class _MessageBubbleTapArea extends StatefulWidget {
 class _MessageBubbleTapAreaState extends State<_MessageBubbleTapArea> {
   final _highlightIndex = ValueNotifier<int>(-1);
   OverlayEntry? _overlayEntry;
-  _DragMenuGeometry? _dragMenuGeometry;
+  DragMenuGeometry? _dragMenuGeometry;
   List<({_MessageMenuAction action, String label})> _dragMenuItems = const [];
 
   @override
@@ -2943,7 +3049,7 @@ class _MessageBubbleTapAreaState extends State<_MessageBubbleTapArea> {
       if (painter.width > maxLabelWidth) maxLabelWidth = painter.width;
     }
     final menuWidth = (maxLabelWidth + hPad * 2).clamp(140.0, 280.0);
-    final menuHeight = _kDragMenuItemHeight * items.length;
+    final menuHeight = kDragMenuItemHeight * items.length;
 
     const screenPad = 8.0;
     final left = details.globalPosition.dx.clamp(
@@ -2955,7 +3061,7 @@ class _MessageBubbleTapAreaState extends State<_MessageBubbleTapArea> {
       screenSize.height - menuHeight - screenPad,
     );
 
-    final geometry = _DragMenuGeometry(
+    final geometry = DragMenuGeometry(
       left: left,
       top: top,
       width: menuWidth,
@@ -2990,7 +3096,7 @@ class _MessageBubbleTapAreaState extends State<_MessageBubbleTapArea> {
                   children: [
                     for (var i = 0; i < items.length; i++)
                       Container(
-                        height: _kDragMenuItemHeight,
+                        height: kDragMenuItemHeight,
                         alignment: AlignmentDirectional.centerStart,
                         padding: const EdgeInsets.symmetric(horizontal: hPad),
                         color: i == highlighted
@@ -3001,7 +3107,9 @@ class _MessageBubbleTapAreaState extends State<_MessageBubbleTapArea> {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: textStyle.copyWith(
-                            color: i == highlighted ? colorScheme.primary : null,
+                            color: i == highlighted
+                                ? colorScheme.primary
+                                : null,
                           ),
                         ),
                       ),
@@ -3275,6 +3383,27 @@ class _SenderAvatar extends ConsumerWidget {
         id[0].toUpperCase(),
         style: const TextStyle(color: Colors.white, fontSize: 13),
       ),
+    );
+  }
+}
+
+/// 添付画像メッセージのサムネイルをタップした時の全画面表示
+/// （[_MessageRow._attachmentContent]参照、2026-08-10追加）。
+class _ImageViewerScreen extends StatelessWidget {
+  const _ImageViewerScreen({required this.url});
+
+  final String url;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        foregroundColor: Colors.white,
+        elevation: 0,
+      ),
+      body: Center(child: InteractiveViewer(child: Image.network(url))),
     );
   }
 }
