@@ -63,6 +63,14 @@ class _RoomTabBarState extends ConsumerState<RoomTabBar> {
   GlobalKey _keyFor(String roomId) =>
       _cellKeys.putIfAbsent(roomId, GlobalKey.new);
 
+  /// ドラッグ中に指が乗っている寄合（未確定）。`pushReplacement`は指を
+  /// 離した時に1回だけ行い、ドラッグ中はこの値でハイライトだけ追従させる
+  /// （2026-08-10変更、詳細は[_handleSlideHover]参照）。
+  String? _dragHoverRoomId;
+
+  String get _effectiveSelectedRoomId =>
+      _dragHoverRoomId ?? widget.selectedRoomId;
+
   void _scheduleSlideSwitchCheck() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !_scrollController.hasClients) return;
@@ -84,7 +92,7 @@ class _RoomTabBarState extends ConsumerState<RoomTabBar> {
   /// （選択中=黒文字/未選択=白文字のテキスト）のみを組み立てる
   /// （2026-08-06追加）。
   Widget _gekigaCell(RoomListEntry room) {
-    final selected = room.roomId == widget.selectedRoomId;
+    final selected = room.roomId == _effectiveSelectedRoomId;
     final fg = selected ? GekigaColors.panel : GekigaColors.onPanel;
     return Material(
       color: Colors.transparent,
@@ -108,14 +116,38 @@ class _RoomTabBarState extends ConsumerState<RoomTabBar> {
     );
   }
 
-  void _handleSlideUpdate(Offset globalPosition) {
+  /// ドラッグ中、逐次呼ぶ（Start・Updateの両方から）。以前はここで即座に
+  /// `widget.onSelectRoom`（実際の画面遷移）を呼んでいたが、寄合の切り替えは
+  /// `pushReplacement`で`RoomTabBar`自身を含む画面全体を作り直すため、指を
+  /// 一時停止させて遷移アニメーションが完了すると、ここまでドラッグを検出
+  /// していたジェスチャー自体が消滅し、以降指を動かしても次のチップへ切り
+  /// 替わらなくなる不具合があった（2026-08-10発覚）。実際の遷移は指を離した
+  /// 時点で一度だけ行い（[_commitDragSelection]）、ドラッグ中はハイライトの
+  /// 追従のみに留めることでこの問題を回避する。
+  void _handleSlideHover(Offset globalPosition) {
     for (final room in widget.rooms) {
       final rect = _rectFor(room.roomId);
       if (rect == null || !rect.contains(globalPosition)) continue;
-      if (room.roomId != widget.selectedRoomId) {
-        widget.onSelectRoom(room);
+      if (room.roomId != _effectiveSelectedRoomId) {
+        setState(() => _dragHoverRoomId = room.roomId);
       }
       return;
+    }
+  }
+
+  /// 指を離した（またはドラッグがキャンセルされた）時に呼ぶ。ドラッグ中に
+  /// ハイライトが乗っていた寄合が実際の選択中と異なれば、ここで初めて
+  /// `widget.onSelectRoom`（画面遷移）を1回だけ行う。
+  void _commitDragSelection() {
+    final hoverId = _dragHoverRoomId;
+    if (hoverId == null) return;
+    setState(() => _dragHoverRoomId = null);
+    if (hoverId == widget.selectedRoomId) return;
+    for (final room in widget.rooms) {
+      if (room.roomId == hoverId) {
+        widget.onSelectRoom(room);
+        return;
+      }
     }
   }
 
@@ -185,7 +217,7 @@ class _RoomTabBarState extends ConsumerState<RoomTabBar> {
               seeds: [for (final room in widget.rooms) room.roomId.hashCode],
               selectedFlags: [
                 for (final room in widget.rooms)
-                  room.roomId == widget.selectedRoomId,
+                  room.roomId == _effectiveSelectedRoomId,
               ],
               children: [
                 for (final room in widget.rooms)
@@ -204,7 +236,7 @@ class _RoomTabBarState extends ConsumerState<RoomTabBar> {
                 VerticalDivider(width: 1, color: borderColor),
             itemBuilder: (context, index) {
               final room = widget.rooms[index];
-              final selected = room.roomId == widget.selectedRoomId;
+              final selected = room.roomId == _effectiveSelectedRoomId;
               return KeyedSubtree(
                 key: _keyFor(room.roomId),
                 child: cell(
@@ -227,16 +259,22 @@ class _RoomTabBarState extends ConsumerState<RoomTabBar> {
           );
 
     // 全セルが収まりきっている間だけ、メニューチップ（`_NavChip`）と同じ
-    // 「指でなぞった先のタブへその場で切り替える」操作を有効にする
+    // 「指でなぞった先のタブへハイライトが追従する」操作を有効にする
     // （メニューチップと異なり、なぞっている間セルを浮き上がらせる演出は
-    // 付けない）。
+    // 付けない）。メニューチップはなぞった瞬間に即座にタブが切り替わるが、
+    // 寄合の切り替えは`pushReplacement`で`RoomTabBar`自身を含む画面全体を
+    // 作り直すため、同じ即時切り替えにすると一時停止でジェスチャーが
+    // 途切れる不具合が起きる（[_handleSlideHover]参照）。実際の切り替えは
+    // 指を離した時点で一度だけ行う。
     if (_canSlideSwitch) {
       roomList = GestureDetector(
         behavior: HitTestBehavior.translucent,
         onHorizontalDragStart: (details) =>
-            _handleSlideUpdate(details.globalPosition),
+            _handleSlideHover(details.globalPosition),
         onHorizontalDragUpdate: (details) =>
-            _handleSlideUpdate(details.globalPosition),
+            _handleSlideHover(details.globalPosition),
+        onHorizontalDragEnd: (_) => _commitDragSelection(),
+        onHorizontalDragCancel: _commitDragSelection,
         child: roomList,
       );
     }

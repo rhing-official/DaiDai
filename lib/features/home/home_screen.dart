@@ -8,6 +8,7 @@ import '../../models/app_user.dart';
 import '../../providers/app_ui_style_provider.dart';
 import '../../theme/gekiga/gekiga_colors.dart';
 import '../../widgets/gekiga/gekiga_badge.dart';
+import '../../widgets/animated_indexed_stack.dart';
 import '../chat/talks_tab.dart';
 import '../profile/profile_tab.dart';
 import '../settings/settings_tab.dart';
@@ -30,6 +31,19 @@ class HomeScreen extends ConsumerStatefulWidget {
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   int _selectedIndex = 0;
+
+  /// 既に選択中のナビゲーションチップを再タップした時に発火する信号
+  /// （2026-08-10追加）。設定・身だしなみタブが購読し、ドリルダウン中の
+  /// カテゴリ一覧トップへジャンプする（`SettingsTab`/`ProfileTab`の
+  /// `resetSignal`参照）。語らいタブには「トップ」に相当する概念が無いため
+  /// 渡さない。
+  final _tabResetSignal = ValueNotifier<int>(0);
+
+  @override
+  void dispose() {
+    _tabResetSignal.dispose();
+    super.dispose();
+  }
 
   // なぞっている間だけ選択中チップを飛び出させるためのフラグ（2026-07-29追加）。
   // ドラッグ開始でtrue、指を離す/キャンセルでfalseに戻す。
@@ -131,8 +145,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     final tabs = [
       TalksTab(currentUser: widget.currentUser),
-      ProfileTab(currentUser: widget.currentUser),
-      SettingsTab(currentUser: widget.currentUser),
+      ProfileTab(currentUser: widget.currentUser, resetSignal: _tabResetSignal),
+      SettingsTab(
+        currentUser: widget.currentUser,
+        resetSignal: _tabResetSignal,
+      ),
     ];
 
     final isWide = MediaQuery.sizeOf(context).width >= _kWideLayoutBreakpoint;
@@ -146,7 +163,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           selected: _selectedIndex == i,
           popped: _isDragging && _poppedIndexes.contains(i),
           vertical: isWide,
-          onTap: () => setState(() => _selectedIndex = i),
+          // 既に選択中のチップを再タップした場合はタブを切り替えず、
+          // ドリルダウン中のサブメニューをトップへ戻す信号だけ発火する
+          // （2026-08-10追加、SettingsTab/ProfileTabが購読）。
+          onTap: () {
+            if (_selectedIndex == i) {
+              _tabResetSignal.value++;
+            } else {
+              setState(() => _selectedIndex = i);
+            }
+          },
         ),
     ];
 
@@ -162,7 +188,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       padding: isWide
           ? const EdgeInsets.only(left: _chipSize + _chipMargin * 2)
           : const EdgeInsets.only(bottom: _chipSize + _chipMargin * 2),
-      child: IndexedStack(index: _selectedIndex, children: tabs),
+      child: AnimatedIndexedStack(index: _selectedIndex, children: tabs),
     );
 
     Widget wrapWithSwipe(Widget child, {required bool vertical}) {

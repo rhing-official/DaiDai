@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'app_theme_extras.dart';
+import 'motion.dart';
 
 /// シンプルUI用のThemeDataを組み立てる。
 /// アクセントカラーはユーザーがカラーコードで指定でき、そこから
@@ -45,7 +46,9 @@ class AppTheme {
       );
     }
     final backgroundColor = isDark ? darkBackground : colorScheme.surface;
-    final cardColor = isDark ? darkSurface : colorScheme.surfaceContainerHighest;
+    final cardColor = isDark
+        ? darkSurface
+        : colorScheme.surfaceContainerHighest;
 
     final floatingShadow = [
       BoxShadow(
@@ -85,22 +88,23 @@ class AppTheme {
         ),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
-        style: ElevatedButton.styleFrom(
-          backgroundColor: accentColor,
-          foregroundColor: Colors.white,
-          elevation: 10,
-          shadowColor: accentColor.withValues(alpha: 0.5),
-          minimumSize: const Size.fromHeight(52),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-        ).copyWith(
-          // 押した瞬間はぺたっと沈む＝浮いていた分の影が消えるように見せる。
-          elevation: const WidgetStatePropertyAll(10),
-          overlayColor: WidgetStatePropertyAll(
-            Colors.white.withValues(alpha: 0.12),
-          ),
-        ),
+        style:
+            ElevatedButton.styleFrom(
+              backgroundColor: accentColor,
+              foregroundColor: Colors.white,
+              elevation: 10,
+              shadowColor: accentColor.withValues(alpha: 0.5),
+              minimumSize: const Size.fromHeight(52),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+            ).copyWith(
+              // 押した瞬間はぺたっと沈む＝浮いていた分の影が消えるように見せる。
+              elevation: const WidgetStatePropertyAll(10),
+              overlayColor: WidgetStatePropertyAll(
+                Colors.white.withValues(alpha: 0.12),
+              ),
+            ),
       ),
       floatingActionButtonTheme: FloatingActionButtonThemeData(
         backgroundColor: accentColor,
@@ -116,7 +120,8 @@ class AppTheme {
           borderSide: BorderSide.none,
         ),
       ),
-      textTheme: (isDark ? ThemeData.dark() : ThemeData.light()).textTheme.apply(
+      textTheme: (isDark ? ThemeData.dark() : ThemeData.light()).textTheme
+          .apply(
             bodyColor: colorScheme.onSurface,
             displayColor: colorScheme.onSurface,
           ),
@@ -126,6 +131,9 @@ class AppTheme {
 }
 
 /// 少し下から浮き上がりながらフェードイン＋わずかに拡大する「ポップ」演出。
+/// 実体は[buildPopSlideTransition]（`motion.dart`）を呼ぶだけで、同じ演出を
+/// ホームタブ切り替え・設定/身だしなみのドリルダウンとも共有している
+/// （2026-08-10、`motion.dart`へ切り出し）。
 class PopSlidePageTransitionsBuilder extends PageTransitionsBuilder {
   const PopSlidePageTransitionsBuilder();
 
@@ -137,22 +145,6 @@ class PopSlidePageTransitionsBuilder extends PageTransitionsBuilder {
     Animation<double> secondaryAnimation,
     Widget child,
   ) {
-    final curved = CurvedAnimation(
-      parent: animation,
-      curve: Curves.easeOutCubic,
-    );
-    return FadeTransition(
-      opacity: curved,
-      child: SlideTransition(
-        position: Tween<Offset>(
-          begin: const Offset(0, 0.06),
-          end: Offset.zero,
-        ).animate(curved),
-        child: ScaleTransition(
-          scale: Tween<double>(begin: 0.97, end: 1).animate(curved),
-          child: child,
-        ),
-      ),
-    );
+    return buildPopSlideTransition(animation, child);
   }
 }

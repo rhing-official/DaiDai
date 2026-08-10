@@ -18,6 +18,7 @@ import '../../providers/repository_providers.dart';
 import '../../providers/user_providers.dart';
 import '../../repositories/user_repository.dart';
 import '../../theme/gekiga/gekiga_colors.dart';
+import '../../theme/motion.dart';
 import '../../utils/text_truncate.dart';
 import '../../widgets/gekiga/gekiga_icon_badge.dart';
 import '../../widgets/gekiga/gekiga_panel_box.dart';
@@ -56,9 +57,14 @@ String _newLocalId() =>
 /// 身だしなみタブ。「蔵」（素材の登録・管理）と「工房」（蔵の素材を組み合わせた
 /// プロフィールカードの作成）をボタンで切り替えて表示する。
 class ProfileTab extends ConsumerStatefulWidget {
-  const ProfileTab({required this.currentUser, super.key});
+  const ProfileTab({required this.currentUser, this.resetSignal, super.key});
 
   final AppUser currentUser;
+
+  /// 発火すると、ドリルダウン中のカテゴリ詳細をカテゴリ一覧トップへ戻す
+  /// （2026-08-10追加、`home_screen.dart`のナビゲーションチップ再タップから
+  /// 渡される）。
+  final Listenable? resetSignal;
 
   @override
   ConsumerState<ProfileTab> createState() => _ProfileTabState();
@@ -95,12 +101,27 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
     _userSub = _repository.watchUser(widget.currentUser.userId).listen((user) {
       if (user != null && mounted) setState(() => _user = user);
     });
+    widget.resetSignal?.addListener(_handleResetSignal);
+  }
+
+  @override
+  void didUpdateWidget(ProfileTab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.resetSignal != widget.resetSignal) {
+      oldWidget.resetSignal?.removeListener(_handleResetSignal);
+      widget.resetSignal?.addListener(_handleResetSignal);
+    }
   }
 
   @override
   void dispose() {
     _userSub?.cancel();
+    widget.resetSignal?.removeListener(_handleResetSignal);
     super.dispose();
+  }
+
+  void _handleResetSignal() {
+    if (_selectedSection != null) setState(() => _selectedSection = null);
   }
 
   UserRepository get _repository => ref.read(userRepositoryProvider);
@@ -640,55 +661,63 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
     }
 
     final selected = _findCategory(categories, _selectedSection);
-    // 狭い画面での上端位置は設定タブ（settings_tab.dartの`_SettingsTabState`）
-    // と揃える（Align+ConstrainedBox(maxWidth:480)+Padding(top:56)）。
-    if (selected == null) {
-      return Align(
-        alignment: Alignment.topCenter,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 480),
-          child: Padding(
-            padding: const EdgeInsets.only(top: 56),
-            child: _ProfileCategoryList(
-              categories: categories,
-              selectedSection: null,
-              onSelect: (category) =>
-                  setState(() => _selectedSection = category.section),
-            ),
-          ),
-        ),
-      );
-    }
-    final selectedIndex = categories.indexWhere(
-      (c) => c.section == selected.section,
-    );
+    final selectedIndex = selected == null
+        ? -1
+        : categories.indexWhere((c) => c.section == selected.section);
     final nextCategory =
         selectedIndex >= 0 && selectedIndex < categories.length - 1
         ? categories[selectedIndex + 1]
         : null;
+    // 狭い画面での上端位置は設定タブ（settings_tab.dartの`_SettingsTabState`）
+    // と揃える（Align+ConstrainedBox(maxWidth:480)+Padding(top:56)）。
+    // カテゴリ一覧⇔詳細の切り替えは設定タブと同じAnimatedSwitcher+
+    // buildPopSlideTransitionでポップ演出を付ける（2026-08-10追加、
+    // 以前はアニメーション無しの即時切り替えだった）。
     return Align(
       alignment: Alignment.topCenter,
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 480),
         child: Padding(
           padding: const EdgeInsets.only(top: 56),
-          // 右スワイプは常に一覧へ戻る（onPreviousを渡さないことで
-          // SwipeBackDetectorの既定フォールバック=onBackを使う）。戻る導線が
-          // スワイプに一本化されたため、以前あった「←＋セクション名」の
-          // 見出し行は表示しない。
-          child: SwipeBackDetector(
-            onBack: () => setState(() => _selectedSection = null),
-            onNext: nextCategory == null
-                ? null
-                : () => setState(() => _selectedSection = nextCategory.section),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: _buildContent(selected.section, strings, vocab),
-                ),
-              ],
-            ),
+          child: AnimatedSwitcher(
+            duration: popSlideDuration,
+            transitionBuilder: (child, animation) =>
+                buildPopSlideTransition(animation, child),
+            child: selected == null
+                ? _ProfileCategoryList(
+                    key: const ValueKey('profile-categories'),
+                    categories: categories,
+                    selectedSection: null,
+                    onSelect: (category) =>
+                        setState(() => _selectedSection = category.section),
+                  )
+                : KeyedSubtree(
+                    key: ValueKey(selected.section),
+                    // 右スワイプは常に一覧へ戻る（onPreviousを渡さないことで
+                    // SwipeBackDetectorの既定フォールバック=onBackを使う）。
+                    // 戻る導線がスワイプに一本化されたため、以前あった
+                    // 「←＋セクション名」の見出し行は表示しない。
+                    child: SwipeBackDetector(
+                      onBack: () => setState(() => _selectedSection = null),
+                      onNext: nextCategory == null
+                          ? null
+                          : () => setState(
+                              () => _selectedSection = nextCategory.section,
+                            ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: _buildContent(
+                              selected.section,
+                              strings,
+                              vocab,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
           ),
         ),
       ),
@@ -727,6 +756,7 @@ class _ProfileCategoryList extends ConsumerWidget {
     required this.categories,
     required this.selectedSection,
     required this.onSelect,
+    super.key,
   });
 
   final List<_ProfileCategory> categories;
