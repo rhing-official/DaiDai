@@ -574,6 +574,9 @@ class _QrLoginRow extends ConsumerWidget {
   final Strings strings;
 
   Future<void> _scan(BuildContext context, WidgetRef ref) async {
+    final startScan = await _confirmStartScan(context, strings);
+    if (!startScan || !context.mounted) return;
+
     final scanned = await Navigator.of(context).push<String>(
       MaterialPageRoute(
         builder: (context) => QrScanScreen(title: strings.settingsQrLogin),
@@ -614,6 +617,31 @@ class _QrLoginRow extends ConsumerWidget {
       onTap: () => _scan(context, ref),
     );
   }
+}
+
+/// カメラを開く前に「別の端末でQRコードが表示されている」という前提を
+/// 説明する（2026-08-10追加）。この説明無しにいきなりカメラが起動すると、
+/// 1台の端末だけで試したユーザーには「読み取るべきものが無いのにカメラだけ
+/// 起動する」ように見え分かりにくいとの指摘を受けた。
+Future<bool> _confirmStartScan(BuildContext context, Strings strings) async {
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: Text(strings.settingsQrLogin),
+      content: Text(strings.qrLoginScanInstructionMessage),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: Text(strings.cancel),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(context).pop(true),
+          child: Text(strings.qrLoginScanInstructionButton),
+        ),
+      ],
+    ),
+  );
+  return confirmed ?? false;
 }
 
 Future<bool> _confirmApproveQrLogin(

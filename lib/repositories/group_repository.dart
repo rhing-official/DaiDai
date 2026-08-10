@@ -14,6 +14,7 @@ import '../models/group_join_request.dart';
 import '../models/group_profile_card.dart';
 import '../models/group_role.dart';
 import '../models/message.dart';
+import '../utils/attachment_upload.dart';
 import '../utils/image_format.dart';
 
 abstract class GroupRepository {
@@ -210,6 +211,23 @@ abstract class GroupRepository {
     required String senderId,
     required String senderRhingId,
     required String content,
+    bool silent = false,
+    Message? replyTo,
+  });
+
+  /// ファイル・画像・動画を添付したメッセージを送信する（技術仕様書5.2参照、
+  /// 2026-08-10追加）。[contentType]はfile|image|videoのいずれか。
+  /// 拡張子ブロックリスト・容量上限（[kMaxAttachmentSizeBytes]）はUI側でも
+  /// 事前に弾くが、`uploadMessageAttachment`側でも再検証する。画像は
+  /// WebPへの圧縮を試みる（失敗時は元のまま）。
+  Future<void> sendAttachmentMessage({
+    required String groupId,
+    required String roomId,
+    required String senderId,
+    required String senderRhingId,
+    required Uint8List bytes,
+    required String fileName,
+    required String contentType,
     bool silent = false,
     Message? replyTo,
   });
@@ -682,6 +700,54 @@ class FirestoreGroupRepository implements GroupRepository {
       replyToSnippet: replyTo == null
           ? null
           : messageSnippetOf(replyTo.content),
+    );
+
+    final batch = _firestore.batch();
+    batch.set(messageRef, message.toJson());
+    batch.update(roomRef, {'lastMessageAt': FieldValue.serverTimestamp()});
+    await batch.commit();
+  }
+
+  @override
+  Future<void> sendAttachmentMessage({
+    required String groupId,
+    required String roomId,
+    required String senderId,
+    required String senderRhingId,
+    required Uint8List bytes,
+    required String fileName,
+    required String contentType,
+    bool silent = false,
+    Message? replyTo,
+  }) async {
+    final roomRef = _roomRef(groupId, roomId);
+    final messageRef = roomRef.collection('messages').doc();
+
+    final fileMetadata = await uploadMessageAttachment(
+      storage: _storage,
+      storagePathPrefix: 'groupFiles/$groupId',
+      attachmentId: messageRef.id,
+      bytes: bytes,
+      fileName: fileName,
+      contentType: contentType,
+    );
+
+    final message = Message(
+      messageId: messageRef.id,
+      conversationId: roomId,
+      conversationType: 'room',
+      senderId: senderId,
+      senderRhingId: senderRhingId,
+      content: fileName,
+      contentType: contentType,
+      silent: silent,
+      replyToMessageId: replyTo?.messageId,
+      replyToSenderId: replyTo?.senderId,
+      replyToSenderRhingId: replyTo?.senderRhingId,
+      replyToSnippet: replyTo == null
+          ? null
+          : messageSnippetOf(replyTo.content),
+      fileMetadata: fileMetadata,
     );
 
     final batch = _firestore.batch();

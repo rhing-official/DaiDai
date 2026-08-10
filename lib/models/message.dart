@@ -20,6 +20,54 @@ class MessageReadReceipt {
 /// リアクションの固定絵文字セット（firestore.rulesの許可リストと必ず一致させること）。
 const kReactionEmojis = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
 
+/// contentType='file'|'image'|'video'（添付メッセージ）専用のメタデータ
+/// （技術仕様書5.2参照、2026-08-10追加）。
+class MessageFileMetadata {
+  const MessageFileMetadata({
+    required this.url,
+    required this.fileName,
+    required this.extension,
+    required this.sizeBytes,
+    required this.mimeType,
+    this.compressionType,
+  });
+
+  /// Firebase StorageのダウンロードURL。
+  final String url;
+
+  /// 送信時のファイル名（表示用）。
+  final String fileName;
+
+  /// ドット無し・小文字の拡張子（拡張子が無い場合は空文字）。
+  final String extension;
+
+  final int sizeBytes;
+  final String mimeType;
+
+  /// 画像のみ設定（webp|lossless|raw）。ファイル・動画はnull。
+  final String? compressionType;
+
+  factory MessageFileMetadata.fromJson(Map<String, dynamic> json) {
+    return MessageFileMetadata(
+      url: json['url'] as String,
+      fileName: json['fileName'] as String,
+      extension: json['extension'] as String,
+      sizeBytes: json['sizeBytes'] as int,
+      mimeType: json['mimeType'] as String,
+      compressionType: json['compressionType'] as String?,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'url': url,
+    'fileName': fileName,
+    'extension': extension,
+    'sizeBytes': sizeBytes,
+    'mimeType': mimeType,
+    'compressionType': compressionType,
+  };
+}
+
 /// 返信の引用プレビュー用にcontentを切り詰める。
 String messageSnippetOf(String content) {
   const maxLength = 80;
@@ -51,6 +99,7 @@ class Message {
     this.callDurationSeconds,
     this.callIsVideo,
     this.accountDeletionResponse,
+    this.fileMetadata,
   });
 
   final String messageId;
@@ -125,6 +174,10 @@ class Message {
   /// 場合はDM自体が物理削除されるため状態を持つ必要が無い）。
   final String? accountDeletionResponse;
 
+  /// contentType='file'|'image'|'video'専用のメタデータ。それ以外の
+  /// contentTypeでは常にnull。
+  final MessageFileMetadata? fileMetadata;
+
   factory Message.fromJson(String messageId, Map<String, dynamic> json) {
     return Message(
       messageId: messageId,
@@ -163,6 +216,11 @@ class Message {
       callDurationSeconds: json['callDurationSeconds'] as int?,
       callIsVideo: json['callIsVideo'] as bool?,
       accountDeletionResponse: json['accountDeletionResponse'] as String?,
+      fileMetadata: json['fileMetadata'] == null
+          ? null
+          : MessageFileMetadata.fromJson(
+              json['fileMetadata'] as Map<String, dynamic>,
+            ),
     );
   }
 
@@ -189,6 +247,7 @@ class Message {
       'callDurationSeconds': callDurationSeconds,
       'callIsVideo': callIsVideo,
       'accountDeletionResponse': accountDeletionResponse,
+      'fileMetadata': fileMetadata?.toJson(),
     };
   }
 }

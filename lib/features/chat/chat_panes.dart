@@ -322,6 +322,23 @@ class DmChatPane extends ConsumerWidget {
           replyTo: replyTo,
         );
       },
+      onSendAttachment: (attachment) async {
+        if (isBlocked) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(strings.conversationBlockedCannotSend)),
+          );
+          return;
+        }
+        await dmRepository.sendAttachmentMessage(
+          dmId: dm.dmId,
+          roomId: roomId,
+          senderId: currentUser.userId,
+          senderRhingId: currentUser.rhingId,
+          bytes: attachment.bytes,
+          fileName: attachment.fileName,
+          contentType: attachment.contentType,
+        );
+      },
       onCallPressed: onCallPressed,
       onVideoCallPressed: onVideoCallPressed,
       readReceiptsEnabled: dm.readReceiptsEnabled,
@@ -981,6 +998,15 @@ class GroupChatPane extends ConsumerWidget {
             silent: silent,
             replyTo: replyTo,
           ),
+      onSendAttachment: (attachment) => groupRepository.sendAttachmentMessage(
+        groupId: group.groupId,
+        roomId: roomId,
+        senderId: currentUser.userId,
+        senderRhingId: currentUser.rhingId,
+        bytes: attachment.bytes,
+        fileName: attachment.fileName,
+        contentType: attachment.contentType,
+      ),
       onCallPressed: () => _handleCallPressed(context, ref, isVideo: false),
       onVideoCallPressed: () => _handleCallPressed(context, ref, isVideo: true),
       readReceiptsEnabled: effectiveReadReceiptsEnabled(
