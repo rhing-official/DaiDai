@@ -43,5 +43,14 @@ service firebase.storage {
       allow read, write: if request.auth != null
         && request.auth.uid in firestore.get(/databases/(default)/documents/groups/$(groupId)).data.memberIds;
     }
+
+    // stickerPackAssets/{creatorId}/...: daidai横丁に出品するペタピタの
+    // 画像素材（技術仕様書7.4・7.5参照、2026-08-11追加）。商品画像として
+    // 未ログインの一般訪問者にも見せる必要があるため閲覧は誰でも可能。
+    // アップロードは本人（creatorId）のみ。
+    match /stickerPackAssets/{creatorId}/{allPaths=**} {
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.uid == creatorId;
+    }
   }
 }
