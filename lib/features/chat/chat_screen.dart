@@ -21,11 +21,13 @@ import 'package:video_player/video_player.dart';
 
 import '../../l10n/app_locale.dart';
 import '../../l10n/strings.dart';
+import '../../l10n/vocabulary.dart';
 import '../../models/app_ui_style.dart';
 import '../../models/chat_layout_style.dart';
 import '../../models/message.dart';
 import '../../models/message_time_format.dart';
 import '../../models/send_key_mode.dart';
+import '../../models/sticker.dart';
 import '../../providers/app_locale_provider.dart';
 import '../../providers/app_ui_style_provider.dart';
 import '../../providers/chat_layout_style_provider.dart';
@@ -40,13 +42,25 @@ import 'attachment_popup_button.dart';
 import '../../utils/attachment_upload.dart';
 import '../../utils/drag_menu_geometry.dart';
 import '../../utils/link_detection.dart';
+import 'sticker_picker_popup.dart';
+import 'sticker_picker_sheet.dart';
+import 'talks_tab.dart' show kTalksSplitBreakpoint;
 import '../../utils/message_time.dart';
 import '../../widgets/gekiga/gekiga_icon_badge.dart';
 import '../../widgets/gekiga/gekiga_panel_box.dart';
 import '../../widgets/gekiga/gekiga_photo_frame.dart';
 import '../../widgets/link_preview_card.dart';
 import '../../widgets/linkified_text.dart';
-import '../../widgets/swipe_gestures.dart' show kSwipeGestureVelocityThreshold;
+import '../../widgets/swipe_gestures.dart'
+    show SwipeDownToDismiss, kSwipeGestureVelocityThreshold;
+
+/// 劇画UIの吹き出し・入力欄の枠取りの太さ（[MonochromeBoxPainter]の
+/// thicknessBase）。以前は`size.shortestSide`（箱の短辺）に比例させて
+/// いたが、箱の形が極端になる（複数行の吹き出しが縦長になる／入力欄が
+/// 複数行で縦に伸びる）と枠が際限なく太くなり、固定の内側余白を超えて
+/// 文字と重なる不具合があった（2026-08-12発覚）。箱のサイズに関わらず
+/// 固定値にすることで解消する。
+const double _kGekigaBoxBorderThickness = 40.0;
 
 /// 一対・広場（お部屋）どちらの会話でも使える汎用チャット画面。
 /// メッセージの取得・送信方法は呼び出し元がstream/callbackとして渡す。
@@ -59,6 +73,7 @@ class ChatScreen extends ConsumerStatefulWidget {
     required this.messagesStream,
     required this.onSend,
     this.onSendAttachment,
+    this.onSendSticker,
     this.onCallPressed,
     this.onVideoCallPressed,
     this.extraActions,
@@ -100,6 +115,10 @@ class ChatScreen extends ConsumerStatefulWidget {
   /// 2026-08-10追加）。nullなら＋ボタン自体を表示しない（承認待ちの一対・
   /// 広場を開いた際の`disabled`なプレースホルダー画面など）。
   final Future<void> Function(PickedAttachment attachment)? onSendAttachment;
+
+  /// ペタピタ（スタンプ）を送信する（技術仕様書7.4参照、2026-08-11追加）。
+  /// nullなら＋ボタンのメニューに「ペタピタ」項目自体を出さない。
+  final Future<void> Function(Sticker sticker)? onSendSticker;
 
   /// 送信済みテキストメッセージの本文を編集する。nullなら編集機能自体を
   /// 提供しない（メニューに「編集」項目を出さない）。
@@ -207,6 +226,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   /// （2026-07-30、入力欄の直前でメッセージが唐突に途切れて見える不具合の修正）。
   final _composerAreaKey = GlobalKey();
   double _composerAreaHeight = 72;
+
+  /// メッセージ入力欄右端の専用ペタピタ送信アイコン（2026-08-11追加）の
+  /// アンカー位置計算用。デスクトップ幅ではこのキーを基準に
+  /// [showStickerPickerPopup]でアイコン付近にポップアップを浮かせる。
+  final _stickerButtonKey = GlobalKey();
 
   /// ミドルクリック/長押しによる自動スクロールの基準位置（画面座標）。
   /// nullなら非アクティブ（2026-07-29追加、ブラウザのミドルクリック
@@ -999,6 +1023,80 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     }
   }
 
+  /// ペタピタ（スタンプ）選択時の送信処理。バイトデータのアップロードを
+  /// 伴わないため添付ファイルより単純だが、失敗時のバナー表示・再送導線は
+  /// [_handleAttachmentPicked]と同じパターンを踏襲する（2026-08-11追加）。
+  Future<void> _handleStickerPicked(Sticker sticker) async {
+    final onSendSticker = widget.onSendSticker;
+    if (onSendSticker == null) return;
+    try {
+      await onSendSticker(sticker);
+    } catch (_) {
+      if (!mounted) return;
+      final strings = ref.read(appStringsProvider);
+      final messenger = ScaffoldMessenger.of(context);
+      _attachmentBannerTimer?.cancel();
+      messenger
+        ..clearMaterialBanners()
+        ..showMaterialBanner(
+          MaterialBanner(
+            content: Text(strings.chatAttachmentSendFailedMessage),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  messenger.hideCurrentMaterialBanner();
+                  _handleStickerPicked(sticker);
+                },
+                child: Text(strings.chatResendAction),
+              ),
+            ],
+          ),
+        );
+      _attachmentBannerTimer = Timer(const Duration(seconds: 3), () {
+        if (mounted) messenger.hideCurrentMaterialBanner();
+      });
+    }
+  }
+
+  /// メッセージ入力欄右端の専用ペタピタ送信アイコンのタップ処理
+  /// （2026-08-11追加）。既存の「＋」ボタン内のペタピタ項目とは別の近道で、
+  /// 画面幅で表示形式を切り替える：コンピューターUI（`kTalksSplitBreakpoint`
+  /// 以上）はアイコン付近にアンカー表示するポップアップ、モバイルUIは
+  /// ボトムシート（[StickerPickerSheet]、＋ボタン側と共通）。
+  Future<void> _openStickerPicker() async {
+    final isWide = MediaQuery.sizeOf(context).width >= kTalksSplitBreakpoint;
+    final sticker = isWide
+        ? await showStickerPickerPopup(context, anchorKey: _stickerButtonKey)
+        : await showModalBottomSheet<Sticker>(
+            context: context,
+            isScrollControlled: true,
+            builder: (_) => const StickerPickerSheet(),
+          );
+    if (sticker == null || !mounted) return;
+    await _handleStickerPicked(sticker);
+  }
+
+  /// テキスト欄の`suffixIcon`に埋め込むペタピタ送信アイコン本体。
+  /// [_openStickerPicker]の項のコメント参照。劇画スタイルの入力欄
+  /// （`_GekigaComposerField`）は白い吹き出しに黒文字・黒カーソルという
+  /// 配色（`_GekigaComposerFieldPainter`の`fillColor: Colors.white`参照）
+  /// のため、アイコンも同じ黒で明示しないとダークテーマのIconThemeから
+  /// 白が継承され、白背景に白アイコンで見えなくなる（2026-08-11修正）。
+  /// 通常スタイルは他画面のsuffixIcon（例:
+  /// `settings_tab.dart`のアクセントカラー入力欄）と同じくTheme既定に
+  /// 委ねて問題ないため、明示しない。
+  Widget? _stickerComposerButton({required bool isGekiga}) {
+    if (widget.onSendSticker == null || widget.disabled) return null;
+    return IconButton(
+      key: _stickerButtonKey,
+      icon: Icon(
+        Icons.emoji_emotions_outlined,
+        color: isGekiga ? Colors.black : null,
+      ),
+      onPressed: _openStickerPicker,
+    );
+  }
+
   /// メッセージ入力欄でのEnterキー処理。設定（[SendKeyMode]）に応じて、
   /// 送信・相手に通知しない送信・改行のどれを行うかを自前で判定する。
   /// TextFieldの既定のEnter処理（ハードウェアキーボードからの生キーイベントに
@@ -1086,6 +1184,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     final locale = ref.watch(appLocaleProvider);
     final layoutStyle = ref.watch(chatLayoutStyleProvider);
     final strings = ref.watch(appStringsProvider);
+    // ペタピタ送信を使わない呼び出し元（テストの素朴なChatScreen構築を含む）に
+    // 新規プロバイダの購読を強制しないよう、実際に必要な場合のみwatchする。
+    final vocabulary = widget.onSendSticker == null
+        ? null
+        : ref.watch(vocabularyProvider);
     final uiStyle = ref.watch(appUiStyleProvider);
     final isGekiga = uiStyle == AppUiStyle.gekiga;
     final floatingShadow =
@@ -1102,8 +1205,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     // （_measureComposerAreaのコメント参照）。
     WidgetsBinding.instance.addPostFrameCallback((_) => _measureComposerArea());
 
-    return Scaffold(
-      appBar: AppBar(
+    // `primary`はtoolbar行を`RoomTabBar`と共にColumnへ組み込む場合
+    // （下記`roomTabBar`の分岐）に、外側の`SafeArea`と二重にtop paddingが
+    // 付かないよう呼び出し側で`false`を渡す（2026-08-11追加）。
+    AppBar buildToolbar({bool primary = true}) {
+      return AppBar(
+        primary: primary,
         foregroundColor: isGekiga ? Colors.white : null,
         automaticallyImplyLeading: false,
         leading: _selecting
@@ -1173,8 +1280,37 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                         ),
                 ...?widget.extraActions,
               ],
-        bottom: widget.roomTabBar,
-      ),
+      );
+    }
+
+    // 狭い画面（`widget.roomTabBar`が非null）では、寄合タブ帯を通話・
+    // ハンバーガーメニューのアイコン行より上に表示する（2026-08-11変更、
+    // 以前はAppBar.bottomでアイコン行の下に表示していた）。広い画面
+    // （サイドバー`RoomListPane`使用、`roomTabBar`は渡されない）は
+    // 従来通り単一のAppBarのまま。
+    final roomTabBar = widget.roomTabBar;
+    final appBar = roomTabBar == null
+        ? buildToolbar()
+        : PreferredSize(
+            preferredSize: Size.fromHeight(
+              kToolbarHeight + roomTabBar.preferredSize.height,
+            ),
+            child: SafeArea(
+              bottom: false,
+              child: Column(
+                children: [
+                  roomTabBar,
+                  SizedBox(
+                    height: kToolbarHeight,
+                    child: buildToolbar(primary: false),
+                  ),
+                ],
+              ),
+            ),
+          );
+
+    return Scaffold(
+      appBar: appBar,
       body: Column(
         children: [
           if (widget.banner != null) widget.banner!,
@@ -1437,63 +1573,200 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                       strings: strings,
                                       isGekiga: isGekiga,
                                       onPicked: _handleAttachmentPicked,
+                                      stickerLabel: vocabulary?.sticker,
+                                      onStickerPicked:
+                                          widget.onSendSticker == null
+                                          ? null
+                                          : _handleStickerPicked,
                                     ),
                                   Expanded(
                                     child: Focus(
                                       onKeyEvent: _handleKeyEvent,
                                       child: isGekiga
                                           ? _GekigaComposerField(
-                                              child: TextField(
-                                                controller: _textController,
-                                                enabled: !widget.disabled,
-                                                minLines: 1,
-                                                maxLines: 6,
-                                                textInputAction:
-                                                    TextInputAction.newline,
-                                                keyboardType:
-                                                    TextInputType.multiline,
-                                                style: const TextStyle(
-                                                  color: Colors.black,
-                                                ),
-                                                cursorColor: Colors.black,
-                                                decoration: InputDecoration(
-                                                  hintText:
-                                                      strings.chatInputHint,
-                                                  hintStyle: TextStyle(
-                                                    color: Colors.black
-                                                        .withValues(alpha: 0.4),
+                                              // ペタピタアイコンを固定位置に
+                                              // 保つため、Stack+Positioned
+                                              // （確定後サイズを基準に位置
+                                              // 決めする間接的な仕組み）は
+                                              // 狙った通りに動かなかったため
+                                              // 撤回し、Row+
+                                              // CrossAxisAlignment.endに
+                                              // 変更した（2026-08-12修正、
+                                              // 当初.startとしていたのは
+                                              // 誤りだったため再修正）。
+                                              // 入力欄コンテナ自体は画面下端
+                                              // にPositioned(bottom: 0)で
+                                              // 固定されており、行数が増える
+                                              // とボックスは上方向にしか
+                                              // 伸びない。そのため固定48×48
+                                              // のアイコンをRowの下端に揃え
+                                              // れば、アイコンの絶対位置は
+                                              // 行数によらず常に変化しない
+                                              // （逆に上揃えだと、行が増える
+                                              // たびにアイコンが上へ動いて
+                                              // しまっていた）。
+                                              child: Row(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.end,
+                                                children: [
+                                                  Expanded(
+                                                    // Rowが.end（下揃え）の
+                                                    // ため、1行だけの場合
+                                                    // TextField自身の高さが
+                                                    // 48×48のアイコンより
+                                                    // 低いと、その差分だけ
+                                                    // TextFieldの上に空白が
+                                                    // でき、textAlignVertical
+                                                    // .centerで中央寄せして
+                                                    // いても見た目上は下寄り
+                                                    // に見えていた
+                                                    // （2026-08-12修正）。
+                                                    // 最小高さをアイコンと
+                                                    // 揃えることで、1行の
+                                                    // 時もアイコンと同じ
+                                                    // 48px基準で縦中央に
+                                                    // なるようにする。
+                                                    child: ConstrainedBox(
+                                                      constraints:
+                                                          const BoxConstraints(
+                                                            minHeight: 48,
+                                                          ),
+                                                      child: TextField(
+                                                        controller:
+                                                            _textController,
+                                                        enabled:
+                                                            !widget.disabled,
+                                                        minLines: 1,
+                                                        maxLines: 6,
+                                                        textAlignVertical:
+                                                            TextAlignVertical
+                                                                .center,
+                                                        textInputAction:
+                                                            TextInputAction
+                                                                .newline,
+                                                        keyboardType:
+                                                            TextInputType
+                                                                .multiline,
+                                                        style: const TextStyle(
+                                                          color: Colors.black,
+                                                        ),
+                                                        cursorColor:
+                                                            Colors.black,
+                                                        decoration: InputDecoration(
+                                                          hintText: strings
+                                                              .chatInputHint,
+                                                          hintStyle: TextStyle(
+                                                            color: Colors.black
+                                                                .withValues(
+                                                                  alpha: 0.4,
+                                                                ),
+                                                          ),
+                                                          filled: false,
+                                                          border:
+                                                              InputBorder.none,
+                                                          enabledBorder:
+                                                              InputBorder.none,
+                                                          focusedBorder:
+                                                              InputBorder.none,
+                                                          // 内容量に応じて
+                                                          // 箱の高さがぴったり
+                                                          // 詰まるため、上下に
+                                                          // 8pxの余白を確保
+                                                          // して文字が上端に
+                                                          // 張り付いて見え
+                                                          // ないようにする。
+                                                          // 水平方向も明示
+                                                          // しないと0pxに
+                                                          // なり左端に文字が
+                                                          // 寄って見えていた
+                                                          // ため、4pxを確保
+                                                          // する
+                                                          // （2026-08-12修正）。
+                                                          contentPadding:
+                                                              const EdgeInsets.symmetric(
+                                                                horizontal: 4,
+                                                                vertical: 8,
+                                                              ),
+                                                        ),
+                                                      ),
+                                                    ),
                                                   ),
-                                                  filled: false,
-                                                  border: InputBorder.none,
-                                                  enabledBorder:
-                                                      InputBorder.none,
-                                                  focusedBorder:
-                                                      InputBorder.none,
-                                                  contentPadding:
-                                                      EdgeInsets.zero,
-                                                ),
+                                                  if (widget.onSendSticker !=
+                                                          null &&
+                                                      !widget.disabled)
+                                                    SizedBox(
+                                                      width: 48,
+                                                      height: 48,
+                                                      child:
+                                                          _stickerComposerButton(
+                                                            isGekiga: true,
+                                                          ),
+                                                    ),
+                                                ],
                                               ),
                                             )
-                                          : TextField(
-                                              controller: _textController,
-                                              enabled: !widget.disabled,
-                                              minLines: 1,
-                                              maxLines: 6,
-                                              textInputAction:
-                                                  TextInputAction.newline,
-                                              keyboardType:
-                                                  TextInputType.multiline,
-                                              decoration: InputDecoration(
-                                                hintText: strings.chatInputHint,
-                                                filled: widget.disabled,
-                                                fillColor: Theme.of(context)
-                                                    .disabledColor
-                                                    .withValues(alpha: 0.08),
-                                                border: OutlineInputBorder(
-                                                  borderRadius:
-                                                      BorderRadius.circular(20),
+                                          : Stack(
+                                              children: [
+                                                TextField(
+                                                  controller: _textController,
+                                                  enabled: !widget.disabled,
+                                                  minLines: 1,
+                                                  maxLines: 6,
+                                                  textAlignVertical:
+                                                      const TextAlignVertical(
+                                                        y: 0.4,
+                                                      ),
+                                                  textInputAction:
+                                                      TextInputAction.newline,
+                                                  keyboardType:
+                                                      TextInputType.multiline,
+                                                  decoration: InputDecoration(
+                                                    hintText:
+                                                        strings.chatInputHint,
+                                                    filled: widget.disabled,
+                                                    fillColor: Theme.of(context)
+                                                        .disabledColor
+                                                        .withValues(
+                                                          alpha: 0.08,
+                                                        ),
+                                                    border: OutlineInputBorder(
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                            20,
+                                                          ),
+                                                    ),
+                                                    // suffixIconは既定で常に
+                                                    // 縦中央揃えになり、複数
+                                                    // 行になるほど絶対位置が
+                                                    // 動いてしまう。実アイコン
+                                                    // はStack最前面のPositioned
+                                                    // （下揃え固定）で描くため、
+                                                    // ここでは同じ横幅48pxだけ
+                                                    // を確保するダミーにする
+                                                    // （2026-08-12修正）。
+                                                    suffixIcon:
+                                                        widget.onSendSticker !=
+                                                                null &&
+                                                            !widget.disabled
+                                                        ? const SizedBox(
+                                                            width: 48,
+                                                          )
+                                                        : null,
+                                                  ),
                                                 ),
-                                              ),
+                                                if (widget.onSendSticker !=
+                                                        null &&
+                                                    !widget.disabled)
+                                                  Positioned(
+                                                    bottom: 0,
+                                                    right: 4,
+                                                    height: 48,
+                                                    child:
+                                                        _stickerComposerButton(
+                                                          isGekiga: false,
+                                                        )!,
+                                                  ),
+                                              ],
                                             ),
                                     ),
                                   ),
@@ -2139,6 +2412,7 @@ class _MessageRow extends ConsumerWidget {
 
     final isCallSummary = message.contentType == 'call';
     final isAccountDeletedNotice = message.contentType == 'accountDeleted';
+    final isSticker = message.contentType == 'sticker';
     final isAttachment =
         message.contentType == 'file' ||
         message.contentType == 'image' ||
@@ -2162,6 +2436,8 @@ class _MessageRow extends ConsumerWidget {
           _accountDeletedContent(context, ref, strings, onBubbleColor)
         else if (isAttachment)
           _attachmentContent(context, onBubbleColor, isGekiga)
+        else if (isSticker)
+          _stickerContent(onBubbleColor)
         else
           Row(
             mainAxisSize: MainAxisSize.min,
@@ -2211,7 +2487,8 @@ class _MessageRow extends ConsumerWidget {
             skipFrame:
                 message.contentType == 'image' ||
                 message.contentType == 'video' ||
-                isMarkdownPreview,
+                isMarkdownPreview ||
+                isSticker,
             child: bubbleContent,
           )
         : Container(
@@ -2611,6 +2888,24 @@ class _MessageRow extends ConsumerWidget {
   /// アプリ内再生を追加）。画像・動画はサムネイル/プレースホルダーを直接
   /// 表示しタップで全画面表示、ファイルはアイコン+ファイル名+サイズを
   /// 表示しタップでブラウザ等の外部アプリで開く。
+  /// ペタピタ（スタンプ）メッセージの表示。LINE/Discord等の一般的な
+  /// 見せ方に合わせ、吹き出し枠・劇画モノクロ枠（[skipFrame]参照）を
+  /// 付けずに単体の画像として表示する（技術仕様書7.4参照、2026-08-11追加）。
+  Widget _stickerContent(Color onBubbleColor) {
+    final stickerData = message.stickerData;
+    if (stickerData == null) {
+      return Text(message.content, style: TextStyle(color: onBubbleColor));
+    }
+    return Image.network(
+      stickerData.stickerUrl,
+      width: 120,
+      height: 120,
+      fit: BoxFit.contain,
+      errorBuilder: (_, _, _) =>
+          Icon(Icons.broken_image_outlined, color: onBubbleColor),
+    );
+  }
+
   Widget _attachmentContent(
     BuildContext context,
     Color onBubbleColor,
@@ -3139,12 +3434,16 @@ class _MessageBubbleTapAreaState extends State<_MessageBubbleTapArea> {
     final menuWidth = (maxLabelWidth + hPad * 2).clamp(140.0, 280.0);
     final menuHeight = kDragMenuItemHeight * items.length;
 
+    // 長押し座標そのものにメニューの左上を合わせると指がメニューに重なって
+    // 選びにくいため、＋ボタンの添付ポップアップ（AttachmentPopupButton.
+    // _onPointerDown）と同じく、押した座標より少し上に離して表示する
+    // （2026-08-11変更）。
     const screenPad = 8.0;
     final left = details.globalPosition.dx.clamp(
       screenPad,
       screenSize.width - menuWidth - screenPad,
     );
-    final top = details.globalPosition.dy.clamp(
+    final top = (details.globalPosition.dy - menuHeight - 8).clamp(
       screenPad,
       screenSize.height - menuHeight - screenPad,
     );
@@ -3157,7 +3456,7 @@ class _MessageBubbleTapAreaState extends State<_MessageBubbleTapArea> {
     );
     _dragMenuItems = items;
     _dragMenuGeometry = geometry;
-    _highlightIndex.value = geometry.hitTest(details.globalPosition);
+    _highlightIndex.value = -1;
 
     _overlayEntry = OverlayEntry(
       builder: (_) => Stack(
@@ -3491,10 +3790,13 @@ class _ImageViewerScreen extends StatelessWidget {
         foregroundColor: Colors.white,
         elevation: 0,
       ),
-      // Escキー・画像以外の箇所のタップでも一覧画面へ戻れるようにする
-      // （2026-08-11追加）。内側のGestureDetectorは何もしないonTapで
-      // タップを吸収し、画像自体をタップした際に外側へ伝播して閉じて
-      // しまうのを防ぐ。
+      // Escキー・画像以外の箇所のタップ・下スワイプでも一覧画面へ戻れる
+      // ようにする（2026-08-11追加）。内側のGestureDetectorは何もしない
+      // onTapでタップを吸収し、画像自体をタップした際に外側へ伝播して
+      // 閉じてしまうのを防ぐ。下スワイプ（SwipeDownToDismiss）も同じ
+      // 「画像自体の外側で発生した場合のみ届く」構造を利用しており、
+      // 画像をズームしてパン中はInteractiveViewer側のジェスチャーが
+      // 優先されるため誤って閉じない。
       body: Focus(
         autofocus: true,
         onKeyEvent: (node, event) {
@@ -3505,13 +3807,16 @@ class _ImageViewerScreen extends StatelessWidget {
           }
           return KeyEventResult.ignored;
         },
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: () => Navigator.of(context).pop(),
-          child: Center(
-            child: GestureDetector(
-              onTap: () {},
-              child: InteractiveViewer(child: Image.network(url)),
+        child: SwipeDownToDismiss(
+          onDismiss: () => Navigator.of(context).pop(),
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => Navigator.of(context).pop(),
+            child: Center(
+              child: GestureDetector(
+                onTap: () {},
+                child: InteractiveViewer(child: Image.network(url)),
+              ),
             ),
           ),
         ),
@@ -3701,8 +4006,8 @@ class _VideoViewerScreenState extends State<_VideoViewerScreen> {
         elevation: 0,
       ),
       // 画像ビューアー（[_ImageViewerScreen]）と同じ、Escキー・動画以外の
-      // 箇所のタップで戻れる構成。ただし動画本体のタップは「閉じる」では
-      // なく再生/一時停止のトグルにする。
+      // 箇所のタップ・下スワイプで戻れる構成（下スワイプは2026-08-11追加）。
+      // ただし動画本体のタップは「閉じる」ではなく再生/一時停止のトグルにする。
       body: Focus(
         autofocus: true,
         onKeyEvent: (node, event) {
@@ -3713,49 +4018,52 @@ class _VideoViewerScreenState extends State<_VideoViewerScreen> {
           }
           return KeyEventResult.ignored;
         },
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: () => Navigator.of(context).pop(),
-          child: FutureBuilder<void>(
-            future: _initializeFuture,
-            builder: (context, snapshot) {
-              if (snapshot.connectionState != ConnectionState.done) {
-                return const Center(
-                  child: CircularProgressIndicator(color: Colors.white),
-                );
-              }
-              if (snapshot.hasError) {
-                return const Center(
-                  child: Icon(
-                    Icons.error_outline,
-                    color: Colors.white,
-                    size: 48,
-                  ),
-                );
-              }
-              // `AspectRatio`をそのまま`Center`直下に置くと、`Column`が
-              // 主軸（縦）方向に無制限の高さを子へ渡すため、縦長（ポート
-              // レート）動画で画面の高さを大きく超えるオーバーフローが
-              // 発生した（2026-08-11発覚）。`Expanded`で明示的に高さを
-              // 画面残り分に制限し、`AspectRatio`が幅・高さ両方の制約内で
-              // 収まるサイズを計算できるようにする。
-              return Column(
-                children: [
-                  Expanded(
-                    child: Center(
-                      child: GestureDetector(
-                        onTap: _togglePlayback,
-                        child: AspectRatio(
-                          aspectRatio: _controller.value.aspectRatio,
-                          child: VideoPlayer(_controller),
+        child: SwipeDownToDismiss(
+          onDismiss: () => Navigator.of(context).pop(),
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => Navigator.of(context).pop(),
+            child: FutureBuilder<void>(
+              future: _initializeFuture,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState != ConnectionState.done) {
+                  return const Center(
+                    child: CircularProgressIndicator(color: Colors.white),
+                  );
+                }
+                if (snapshot.hasError) {
+                  return const Center(
+                    child: Icon(
+                      Icons.error_outline,
+                      color: Colors.white,
+                      size: 48,
+                    ),
+                  );
+                }
+                // `AspectRatio`をそのまま`Center`直下に置くと、`Column`が
+                // 主軸（縦）方向に無制限の高さを子へ渡すため、縦長（ポート
+                // レート）動画で画面の高さを大きく超えるオーバーフローが
+                // 発生した（2026-08-11発覚）。`Expanded`で明示的に高さを
+                // 画面残り分に制限し、`AspectRatio`が幅・高さ両方の制約内で
+                // 収まるサイズを計算できるようにする。
+                return Column(
+                  children: [
+                    Expanded(
+                      child: Center(
+                        child: GestureDetector(
+                          onTap: _togglePlayback,
+                          child: AspectRatio(
+                            aspectRatio: _controller.value.aspectRatio,
+                            child: VideoPlayer(_controller),
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                  _buildControlBar(),
-                ],
-              );
-            },
+                    _buildControlBar(),
+                  ],
+                );
+              },
+            ),
           ),
         ),
       ),
@@ -3805,13 +4113,29 @@ class _FileAttachmentBlock extends StatefulWidget {
   State<_FileAttachmentBlock> createState() => _FileAttachmentBlockState();
 }
 
-class _FileAttachmentBlockState extends State<_FileAttachmentBlock> {
+class _FileAttachmentBlockState extends State<_FileAttachmentBlock>
+    with AutomaticKeepAliveClientMixin {
   bool _hovering = false;
   bool _expanded = false;
   Future<String?>? _markdownFuture;
 
+  /// URLをキーにしたMarkdown本文の取得結果キャッシュ（クラス全体で共有）。
+  /// メッセージ一覧は`ListView(children: ...)`だが、Sliverの仕組み上、
+  /// 画面外に出た`_FileAttachmentBlockState`は破棄され、再度画面内に
+  /// 入ると`initState()`が再実行されて`http.get`が毎回走ってしまって
+  /// いた（画像は`Image.network`のImageCacheで自動的にキャッシュされる
+  /// ため、この問題が起きない）。`AutomaticKeepAliveClientMixin`（下記
+  /// `wantKeepAlive`）で画面外でもStateごと保持されるようにするのが
+  /// 主対応だが、同じファイルを参照する別インスタンスが現れた場合の保険
+  /// として、取得結果自体もURLキーでキャッシュする（2026-08-12追加）。
+  /// Markdownファイルの内容は不変前提のため、明示的な失効処理は設けない。
+  static final Map<String, Future<String?>> _markdownCache = {};
+
   bool get _isMarkdown =>
       _FileAttachmentBlock.isPreviewableMarkdown(widget.metadata);
+
+  @override
+  bool get wantKeepAlive => _isMarkdown;
 
   /// ホバーの概念が無いモバイルでは、ダウンロードボタンを常時表示する
   /// （Web版もモバイルブラウザなら`defaultTargetPlatform`がこの判定になる）。
@@ -3823,7 +4147,10 @@ class _FileAttachmentBlockState extends State<_FileAttachmentBlock> {
   void initState() {
     super.initState();
     if (_isMarkdown) {
-      _markdownFuture = _fetchMarkdown();
+      _markdownFuture = _markdownCache.putIfAbsent(
+        widget.metadata.url,
+        _fetchMarkdown,
+      );
     }
   }
 
@@ -3850,30 +4177,69 @@ class _FileAttachmentBlockState extends State<_FileAttachmentBlock> {
     );
   }
 
+  /// クリップボードへコピーするのみで、確認UI（スナックバー等）は出さない
+  /// （2026-08-12、ポップアップでの全表示撤回と合わせてユーザー指示により
+  /// スナックバー表示を取りやめた）。
+  Future<void> _copyMarkdown(String markdownText) async {
+    await Clipboard.setData(ClipboardData(text: markdownText));
+  }
+
+  /// 拡大表示（140px⇔360px）の高さ変化量。
+  static const _expandDelta = 220.0;
+
+  /// メッセージ一覧が`ListView(reverse: true)`のため、アイテムの高さが
+  /// 変わると既定では画面下端が起点になり上方向へ伸びる（Sliverの座標系上、
+  /// 各アイテムの「配列上の開始位置＝画面下端」が固定され、高さが変わる分は
+  /// 「配列上の終了位置＝画面上端」側だけが動くため）。上端を起点に下方向へ
+  /// 伸びるように見せるため、高さが変わった直後に周囲のスクロール位置を
+  /// 変化量の分だけ補正する（2026-08-12追加）。`Scrollable.maybeOf`で
+  /// メッセージ一覧の`ListView`（祖先のScrollable）を、ウィジェット階層越しに
+  /// 配線せず取得する。
+  void _toggleExpanded() {
+    final delta = _expanded ? -_expandDelta : _expandDelta;
+    setState(() => _expanded = !_expanded);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final scrollable = Scrollable.maybeOf(context);
+      if (scrollable == null) return;
+      final position = scrollable.position;
+      position.jumpTo(position.pixels + delta);
+    });
+  }
+
   /// ホバー/常時表示のダウンロードボタン。半透明の黒地＋白アイコンという
   /// 固定配色にすることで、乗っている吹き出し・カードの色（明るい/暗い
   /// どちらでも、シンプル/劇画どちらでも）に関わらず視認できるようにする。
-  Widget _downloadButton({required bool small}) {
+  /// [filled]をfalseにすると、この黒丸の背景無しでアイコンだけを描く
+  /// （Markdownカードのfooterはカード自体が既に配色済みで、周りに紛れる
+  /// 心配が無いため、コピーアイコンと揃えて丸背景無しにする、2026-08-12
+  /// 追加）。
+  Widget _downloadButton({
+    required bool small,
+    bool filled = true,
+    Color color = Colors.white,
+  }) {
+    final icon = Icon(Icons.download, size: small ? 16 : 18, color: color);
+    if (!filled) {
+      return InkWell(
+        onTap: _download,
+        child: Padding(padding: EdgeInsets.all(small ? 6 : 8), child: icon),
+      );
+    }
     return Material(
       color: Colors.black.withValues(alpha: 0.55),
       shape: const CircleBorder(),
       child: InkWell(
         customBorder: const CircleBorder(),
         onTap: _download,
-        child: Padding(
-          padding: EdgeInsets.all(small ? 6 : 8),
-          child: Icon(
-            Icons.download,
-            size: small ? 16 : 18,
-            color: Colors.white,
-          ),
-        ),
+        child: Padding(padding: EdgeInsets.all(small ? 6 : 8), child: icon),
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     if (!_isMarkdown) return _buildPlainRow();
 
     return FutureBuilder<String?>(
@@ -4000,23 +4366,32 @@ class _FileAttachmentBlockState extends State<_FileAttachmentBlock> {
     );
 
     // Markdown本文を文字数で機械的に切ると表・リスト等の構文が壊れる恐れが
-    // あるため、常にフルレンダリングした上で折り畳み時は表示領域の高さだけを
-    // 制限する。表（`Table`+`FlexColumnWidth`）はスクロール前提の縮小表示に
-    // 対応しておらず、単純な`ConstrainedBox(maxHeight)`で高さを強制すると
-    // 制約違反で描画が壊れる（2026-08-10発覚・修正）ため、`SizedBox`で確定
-    // 高さの窓を作り、その中に`SingleChildScrollView`（スクロール無効）で
-    // 本来の自然な高さのまま描画させてクリップする、という標準的な構成にする。
-    final body = Padding(
-      padding: const EdgeInsets.fromLTRB(10, 10, 10, 0),
-      child: _expanded
-          ? markdownBody
-          : SizedBox(
-              height: 140,
-              child: SingleChildScrollView(
-                physics: const NeverScrollableScrollPhysics(),
-                child: markdownBody,
-              ),
-            ),
+    // あるため、常にフルレンダリングした上で表示領域の高さだけを制限する。
+    // 表（`Table`+`FlexColumnWidth`）はスクロール前提の縮小表示に対応して
+    // おらず、単純な`ConstrainedBox(maxHeight)`で高さを強制すると制約違反で
+    // 描画が壊れる（2026-08-10発覚・修正）ため、`SizedBox`で確定高さの窓を
+    // 作り、その中に`SingleChildScrollView`で本来の自然な高さのまま描画
+    // させてクリップする、という標準的な構成にする。
+    //
+    // 全表示は一度ポップアップ（`showDialog`）で試したが、メッセージ画面の
+    // ままで拡大表示してほしいとの指摘を受け撤回した（2026-08-12）。以前の
+    // 「その場で無制限に縦へ伸びる」実装ではスクロールできず読みにくかった
+    // ため、代わりに固定高さ（360px）へ拡大した上でスクロール可能にする
+    // （折り畳み時は140pxでスクロール無効のまま）。
+    final body = GestureDetector(
+      onTap: _toggleExpanded,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(10, 10, 10, 0),
+        child: SizedBox(
+          height: _expanded ? 360 : 140,
+          child: SingleChildScrollView(
+            physics: _expanded
+                ? const ClampingScrollPhysics()
+                : const NeverScrollableScrollPhysics(),
+            child: markdownBody,
+          ),
+        ),
+      ),
     );
 
     final footer = Padding(
@@ -4024,11 +4399,12 @@ class _FileAttachmentBlockState extends State<_FileAttachmentBlock> {
       child: Row(
         children: [
           InkWell(
-            onTap: () => setState(() => _expanded = !_expanded),
+            onTap: _toggleExpanded,
             child: Padding(
               padding: const EdgeInsets.all(4),
               child: Icon(
                 _expanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                size: 16,
                 color: subFg,
               ),
             ),
@@ -4058,7 +4434,15 @@ class _FileAttachmentBlockState extends State<_FileAttachmentBlock> {
               ],
             ),
           ),
-          _downloadButton(small: false),
+          InkWell(
+            onTap: () => _copyMarkdown(markdownText),
+            child: Padding(
+              padding: const EdgeInsets.all(4),
+              child: Icon(Icons.copy_outlined, size: 16, color: subFg),
+            ),
+          ),
+          const SizedBox(width: 4),
+          _downloadButton(small: false, filled: false, color: subFg),
         ],
       ),
     );
@@ -4141,7 +4525,7 @@ class _GekigaBubble extends StatelessWidget {
         alignRight: alignRight,
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+        padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 18),
         child: child,
       ),
     );
@@ -4174,7 +4558,7 @@ class _GekigaBubblePainter extends CustomPainter {
     );
     MonochromeBoxPainter(
       vertices: alignRight ? mirrorHorizontal(vertices, size.width) : vertices,
-      thicknessBase: size.shortestSide,
+      thicknessBase: _kGekigaBoxBorderThickness,
       fillColor: isMe ? Colors.white : Colors.black,
       seed: seed,
       invert: isMe,
@@ -4254,7 +4638,7 @@ class _GekigaComposerField extends StatelessWidget {
     return CustomPaint(
       painter: const _GekigaComposerFieldPainter(),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
         child: child,
       ),
     );
@@ -4270,19 +4654,23 @@ class _GekigaComposerFieldPainter extends CustomPainter {
     // 入力欄は横幅に対して縦が極端に短い箱になりやすく、既定の「横幅の
     // 10%」の傾きをそのまま使うと文字にかかってしまう。縦幅基準の控えめな
     // 傾きにする（2026-08-10、`_GekigaComposerField`のpaddingと合わせて
-    // 文字がはみ出さない程度に調整）。
+    // 文字がはみ出さない程度に調整）。ただしこの値をそのまま使うと複数行
+    // 入力で箱が縦に伸びるほど傾きが際限なく大きくなり、外側のPadding
+    // （水平20px）を超えて文字・ペタピタアイコンが平行四辺形の外に
+    // はみ出してしまうため、16.0（水平Paddingを下回る安全な値）で
+    // 頭打ちにする（2026-08-11修正）。
     final vertices = mirrorHorizontal(
       distortedParallelogramVertices(
         size.width,
         size.height,
         seed,
-        skewOverride: size.height * 0.12,
+        skewOverride: math.min(size.height * 0.12, 16.0),
       ),
       size.width,
     );
     MonochromeBoxPainter(
       vertices: vertices,
-      thicknessBase: size.shortestSide,
+      thicknessBase: _kGekigaBoxBorderThickness,
       fillColor: Colors.white,
       seed: seed,
       invert: true,

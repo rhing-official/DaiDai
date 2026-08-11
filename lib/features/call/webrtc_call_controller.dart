@@ -21,8 +21,8 @@ class WebrtcCallController extends ChangeNotifier {
     required this.isCaller,
     required CallRepository callRepository,
     required DirectMessageRepository directMessageRepository,
-  })  : _callRepository = callRepository,
-        _directMessageRepository = directMessageRepository;
+  }) : _callRepository = callRepository,
+       _directMessageRepository = directMessageRepository;
 
   final Call call;
   final bool isCaller;
@@ -84,8 +84,7 @@ class WebrtcCallController extends ChangeNotifier {
   /// 相手が現在ビデオ通話として動作しているか。自分の映像トラックの
   /// 有無には影響せず、UI側が相手の映像表示/プレースホルダーの
   /// 切替に使うだけの表示用フラグ。
-  late bool _remoteIsVideo =
-      isCaller ? call.calleeIsVideo : call.callerIsVideo;
+  late bool _remoteIsVideo = isCaller ? call.calleeIsVideo : call.callerIsVideo;
   bool get remoteIsVideo => _remoteIsVideo;
 
   bool _localRendererInitialized = false;
@@ -143,7 +142,8 @@ class WebrtcCallController extends ChangeNotifier {
       };
 
       _peerConnection!.onIceConnectionState = (iceState) {
-        final issue = iceState == RTCIceConnectionState.RTCIceConnectionStateFailed ||
+        final issue =
+            iceState == RTCIceConnectionState.RTCIceConnectionStateFailed ||
             iceState == RTCIceConnectionState.RTCIceConnectionStateDisconnected;
         if (issue != _connectionIssue) {
           _connectionIssue = issue;
@@ -167,10 +167,10 @@ class WebrtcCallController extends ChangeNotifier {
       _candidatesSub = _callRepository
           .watchCandidates(callId: call.callId, isCaller: isCaller)
           .listen((candidates) {
-        for (final data in candidates) {
-          _applyOrBufferCandidate(data);
-        }
-      });
+            for (final data in candidates) {
+              _applyOrBufferCandidate(data);
+            }
+          });
 
       if (isCaller) {
         await _startAsCaller();
@@ -190,7 +190,8 @@ class WebrtcCallController extends ChangeNotifier {
   /// まとめて適用する。watchCandidatesは毎回累積リスト全体を再送してくる
   /// ため、候補ごとのキーで重複適用を防ぐ。
   void _applyOrBufferCandidate(Map<String, dynamic> data) {
-    final key = '${data['candidate']}|${data['sdpMid']}|${data['sdpMLineIndex']}';
+    final key =
+        '${data['candidate']}|${data['sdpMid']}|${data['sdpMLineIndex']}';
     if (_appliedCandidateKeys.contains(key)) return;
     if (!_remoteDescriptionSet) {
       _pendingRemoteCandidates.add(data);
@@ -206,8 +207,8 @@ class WebrtcCallController extends ChangeNotifier {
           ),
         )
         .catchError((_) {
-      // 相手のPeerConnectionが既に閉じている等。通話自体は継続させる。
-    });
+          // 相手のPeerConnectionが既に閉じている等。通話自体は継続させる。
+        });
   }
 
   void _flushPendingCandidates() {
@@ -249,7 +250,9 @@ class WebrtcCallController extends ChangeNotifier {
       // 状態だけ反映する。実際の映像の出し分けは、この直後に届く相手からの
       // オファー（映像m-lineの追加/削除）に対してアンサーするだけで済む
       // （自分の映像トラックが無ければ自動的にrecvonlyのアンサーになる）。
-      final remoteVideo = isCaller ? updated.calleeIsVideo : updated.callerIsVideo;
+      final remoteVideo = isCaller
+          ? updated.calleeIsVideo
+          : updated.callerIsVideo;
       if (remoteVideo != _remoteIsVideo) {
         _remoteIsVideo = remoteVideo;
         notifyListeners();
@@ -287,7 +290,10 @@ class WebrtcCallController extends ChangeNotifier {
   /// 切り替えた際の再ネゴシエーション）に対して、アンサーを作って返す。
   Future<void> _applyRemoteOfferAndAnswer(Map<String, dynamic> offerMap) async {
     await _peerConnection!.setRemoteDescription(
-      RTCSessionDescription(offerMap['sdp'] as String, offerMap['type'] as String),
+      RTCSessionDescription(
+        offerMap['sdp'] as String,
+        offerMap['type'] as String,
+      ),
     );
     _flushPendingCandidates();
     final answer = await _peerConnection!.createAnswer();
@@ -389,7 +395,8 @@ class WebrtcCallController extends ChangeNotifier {
 
   void toggleMute() {
     _muted = !_muted;
-    for (final track in _localStream?.getAudioTracks() ?? <MediaStreamTrack>[]) {
+    for (final track
+        in _localStream?.getAudioTracks() ?? <MediaStreamTrack>[]) {
       track.enabled = !_muted;
     }
     notifyListeners();
@@ -397,7 +404,8 @@ class WebrtcCallController extends ChangeNotifier {
 
   void toggleCamera() {
     _cameraOff = !_cameraOff;
-    for (final track in _localStream?.getVideoTracks() ?? <MediaStreamTrack>[]) {
+    for (final track
+        in _localStream?.getVideoTracks() ?? <MediaStreamTrack>[]) {
       track.enabled = !_cameraOff;
     }
     notifyListeners();
@@ -475,8 +483,7 @@ class WebrtcCallController extends ChangeNotifier {
     final videoTracks = [...?_localStream?.getVideoTracks()];
     final senders = await _peerConnection?.getSenders() ?? [];
     for (final track in videoTracks) {
-      final sender =
-          senders.firstWhereOrNull((s) => s.track?.id == track.id);
+      final sender = senders.firstWhereOrNull((s) => s.track?.id == track.id);
       if (sender != null) {
         await _peerConnection?.removeTrack(sender);
       }
@@ -529,7 +536,11 @@ class WebrtcCallController extends ChangeNotifier {
         final cameras = await Helper.cameras;
         if (cameras.length < 2) return;
         _cameraIndex = (_cameraIndex + 1) % cameras.length;
-        await Helper.switchCamera(track, cameras[_cameraIndex].deviceId, _localStream);
+        await Helper.switchCamera(
+          track,
+          cameras[_cameraIndex].deviceId,
+          _localStream,
+        );
       } else {
         await Helper.switchCamera(track);
       }

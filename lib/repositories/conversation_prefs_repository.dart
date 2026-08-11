@@ -29,21 +29,27 @@ abstract class ConversationPrefsRepository {
   });
 }
 
-class FirestoreConversationPrefsRepository implements ConversationPrefsRepository {
+class FirestoreConversationPrefsRepository
+    implements ConversationPrefsRepository {
   FirestoreConversationPrefsRepository({FirebaseFirestore? firestore})
-      : _firestore = firestore ?? FirebaseFirestore.instance;
+    : _firestore = firestore ?? FirebaseFirestore.instance;
 
   final FirebaseFirestore _firestore;
 
   CollectionReference<Map<String, dynamic>> _prefsOf(String userId) =>
-      _firestore.collection('users').doc(userId).collection('conversationPrefs');
+      _firestore
+          .collection('users')
+          .doc(userId)
+          .collection('conversationPrefs');
 
   @override
   Stream<Map<String, ConversationPrefs>> watchAll(String userId) {
-    return _prefsOf(userId).snapshots().map((snapshot) => {
-          for (final doc in snapshot.docs)
-            doc.id: ConversationPrefs.fromJson(doc.data()),
-        });
+    return _prefsOf(userId).snapshots().map(
+      (snapshot) => {
+        for (final doc in snapshot.docs)
+          doc.id: ConversationPrefs.fromJson(doc.data()),
+      },
+    );
   }
 
   @override
@@ -52,9 +58,9 @@ class FirestoreConversationPrefsRepository implements ConversationPrefsRepositor
     required String conversationId,
     required bool pinned,
   }) async {
-    await _prefsOf(userId)
-        .doc(conversationId)
-        .set({'pinned': pinned}, SetOptions(merge: true));
+    await _prefsOf(
+      userId,
+    ).doc(conversationId).set({'pinned': pinned}, SetOptions(merge: true));
   }
 
   @override
@@ -63,9 +69,9 @@ class FirestoreConversationPrefsRepository implements ConversationPrefsRepositor
     required String conversationId,
     required bool muted,
   }) async {
-    await _prefsOf(userId)
-        .doc(conversationId)
-        .set({'notificationsMuted': muted}, SetOptions(merge: true));
+    await _prefsOf(userId).doc(conversationId).set({
+      'notificationsMuted': muted,
+    }, SetOptions(merge: true));
   }
 
   @override
@@ -75,11 +81,8 @@ class FirestoreConversationPrefsRepository implements ConversationPrefsRepositor
     required String roomId,
     required bool muted,
   }) async {
-    await _prefsOf(userId).doc(conversationId).set(
-      {
-        'roomNotificationOverrides': {roomId: muted},
-      },
-      SetOptions(merge: true),
-    );
+    await _prefsOf(userId).doc(conversationId).set({
+      'roomNotificationOverrides': {roomId: muted},
+    }, SetOptions(merge: true));
   }
 }

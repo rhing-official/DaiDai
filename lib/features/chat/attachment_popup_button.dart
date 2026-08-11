@@ -5,9 +5,11 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../l10n/strings.dart';
+import '../../models/sticker.dart';
 import '../../utils/drag_menu_geometry.dart';
 import '../../widgets/gekiga/gekiga_icon_badge.dart';
 import 'camera_capture_screen.dart';
+import 'sticker_picker_sheet.dart';
 
 /// 選択済みの添付データ（`ChatScreen.onSendAttachment`に渡す）。
 class PickedAttachment {
@@ -24,7 +26,7 @@ class PickedAttachment {
   final String contentType;
 }
 
-enum _AttachmentMenuItem { file, image, video, capture }
+enum _AttachmentMenuItem { file, image, video, capture, sticker }
 
 /// ポインター位置がこの距離未満しか動かないまま指が離れた場合、
 /// 「押した瞬間にポップアップを開くだけの単純なタップ」とみなし、
@@ -45,10 +47,21 @@ class AttachmentPopupButton extends StatefulWidget {
     required this.strings,
     required this.isGekiga,
     required this.onPicked,
+    this.stickerLabel,
+    this.onStickerPicked,
     super.key,
   });
 
   final Strings strings;
+
+  /// 「ペタピタ」メニュー項目のラベル（用語スタイルに応じて「ペタピタ」/
+  /// 「スタンプ」）。nullの場合はメニューに項目自体を出さない
+  /// （[onStickerPicked]がnullの場合と同じ扱い、2026-08-11追加）。
+  final String? stickerLabel;
+
+  /// ペタピタ選択時の処理。[stickerLabel]・この両方がnullでない場合のみ
+  /// メニューに「ペタピタ」項目を出す。
+  final void Function(Sticker sticker)? onStickerPicked;
 
   /// 劇画スタイル選択時、他のモノクロボックス意匠（寄合追加ボタン等）と
   /// 統一感を持たせるため、アイコンを[GekigaIconBadge]に差し替える
@@ -85,11 +98,14 @@ class _AttachmentPopupButtonState extends State<AttachmentPopupButton> {
   List<({_AttachmentMenuItem item, String label})> _buildItems(
     Strings strings,
   ) {
+    final stickerLabel = widget.stickerLabel;
     return [
       (item: _AttachmentMenuItem.file, label: strings.chatAttachFile),
       (item: _AttachmentMenuItem.image, label: strings.chatAttachImage),
       (item: _AttachmentMenuItem.video, label: strings.chatAttachVideo),
       (item: _AttachmentMenuItem.capture, label: strings.chatAttachCapture),
+      if (stickerLabel != null && widget.onStickerPicked != null)
+        (item: _AttachmentMenuItem.sticker, label: stickerLabel),
     ];
   }
 
@@ -104,6 +120,8 @@ class _AttachmentPopupButtonState extends State<AttachmentPopupButton> {
         await _pickVideo();
       case _AttachmentMenuItem.capture:
         await _openCamera();
+      case _AttachmentMenuItem.sticker:
+        await _pickSticker();
     }
   }
 
@@ -156,6 +174,17 @@ class _AttachmentPopupButtonState extends State<AttachmentPopupButton> {
         contentType: captured.isVideo ? 'video' : 'image',
       ),
     );
+  }
+
+  Future<void> _pickSticker() async {
+    if (!mounted) return;
+    final sticker = await showModalBottomSheet<Sticker>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => const StickerPickerSheet(),
+    );
+    if (sticker == null) return;
+    widget.onStickerPicked?.call(sticker);
   }
 
   void _onPointerDown(PointerDownEvent event) {

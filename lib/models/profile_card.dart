@@ -49,11 +49,13 @@ class ProfileCard {
       id: id,
       name: name ?? this.name,
       iconId: clearIconId ? null : (iconId ?? this.iconId),
-      backgroundImageId:
-          clearBackgroundImageId ? null : (backgroundImageId ?? this.backgroundImageId),
+      backgroundImageId: clearBackgroundImageId
+          ? null
+          : (backgroundImageId ?? this.backgroundImageId),
       nicknameId: clearNicknameId ? null : (nicknameId ?? this.nicknameId),
-      statusMessageId:
-          clearStatusMessageId ? null : (statusMessageId ?? this.statusMessageId),
+      statusMessageId: clearStatusMessageId
+          ? null
+          : (statusMessageId ?? this.statusMessageId),
       snsLinkIds: snsLinkIds ?? this.snsLinkIds,
     );
   }

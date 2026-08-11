@@ -126,10 +126,9 @@ class GroupMemberListPopup extends ConsumerWidget {
       ),
     );
     if (confirmed == true) {
-      await ref.read(groupRepositoryProvider).transferOwnership(
-            groupId: group.groupId,
-            newOwnerId: member.userId,
-          );
+      await ref
+          .read(groupRepositoryProvider)
+          .transferOwnership(groupId: group.groupId, newOwnerId: member.userId);
     }
   }
 
@@ -140,7 +139,8 @@ class GroupMemberListPopup extends ConsumerWidget {
     // groupはこのポップアップが開かれた時点のスナップショットで、開いたまま
     // 長の譲渡・ロール変更等を行っても更新されない別Navigatorルートのため、
     // ライブな値を別途購読する（group_role_list_popup.dartのliveGroupと同じ理由）。
-    final liveGroup = ref.watch(watchedGroupProvider(group.groupId)).value ?? group;
+    final liveGroup =
+        ref.watch(watchedGroupProvider(group.groupId)).value ?? group;
     final isOwner = liveGroup.ownerId == currentUser.userId;
     final canManageRoles = hasGroupPermission(
       group: liveGroup,
@@ -164,7 +164,10 @@ class GroupMemberListPopup extends ConsumerWidget {
               Expanded(
                 child: Text(
                   strings.groupMemberListTitle,
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
                 ),
               ),
               IconButton(
@@ -182,8 +185,9 @@ class GroupMemberListPopup extends ConsumerWidget {
             children: [
               _SectionHeader(strings.groupMemberListMembersSection),
               FutureBuilder<List<AppUser>>(
-                future:
-                    ref.read(userRepositoryProvider).getUsersByIds(liveGroup.memberIds),
+                future: ref
+                    .read(userRepositoryProvider)
+                    .getUsersByIds(liveGroup.memberIds),
                 builder: (context, snapshot) {
                   if (!snapshot.hasData) {
                     return const Padding(
@@ -204,20 +208,22 @@ class GroupMemberListPopup extends ConsumerWidget {
                           vocab: vocab,
                           strings: strings,
                           customRoles: roles,
-                          assignedRoleIds: liveGroup.roleAssignments[member.userId] ??
+                          assignedRoleIds:
+                              liveGroup.roleAssignments[member.userId] ??
                               const <String>[],
                           canManageRoles: canManageRoles,
                           onEditRoles: !canManageRoles
                               ? null
                               : () => _showRolePicker(
-                                    context,
-                                    ref,
-                                    strings,
-                                    member,
-                                    [
-                                      ...?liveGroup.roleAssignments[member.userId],
-                                    ],
-                                  ),
+                                  context,
+                                  ref,
+                                  strings,
+                                  member,
+                                  [
+                                    ...?liveGroup.roleAssignments[member
+                                        .userId],
+                                  ],
+                                ),
                           canTransferOwnership:
                               isOwner && member.userId != currentUser.userId,
                           onTransferOwnership: () => _confirmTransferOwnership(
@@ -290,17 +296,24 @@ class _JoinRequestTile extends ConsumerWidget {
   // 以前はawaitもエラーハンドリングも無い投げっぱなしで、失敗しても
   // ボタンの見た目だけが反応して何も起きていないように見えた（承認・却下が
   // 実は失敗していても気付けなかった）。エラー時は画面に表示する。
-  Future<void> _respond(BuildContext context, WidgetRef ref, bool accept) async {
+  Future<void> _respond(
+    BuildContext context,
+    WidgetRef ref,
+    bool accept,
+  ) async {
     try {
-      await ref.read(groupRepositoryProvider).respondToJoinRequest(
+      await ref
+          .read(groupRepositoryProvider)
+          .respondToJoinRequest(
             request: request,
             accept: accept,
             respondedBy: respondedBy,
           );
     } catch (e) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('エラーが発生しました: $e')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('エラーが発生しました: $e')));
     }
   }
 
@@ -373,9 +386,12 @@ class _MemberTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final iconUrl = user.effectiveIconFor(groupId)?.url;
     final nickname = user.effectiveNicknameFor(groupId)?.text;
-    final label = (nickname?.isNotEmpty ?? false) ? nickname! : '@${user.rhingId}';
-    final assignedRoles =
-        customRoles.where((r) => assignedRoleIds.contains(r.roleId)).toList();
+    final label = (nickname?.isNotEmpty ?? false)
+        ? nickname!
+        : '@${user.rhingId}';
+    final assignedRoles = customRoles
+        .where((r) => assignedRoleIds.contains(r.roleId))
+        .toList();
     return ListTile(
       leading: CircleAvatar(
         backgroundImage: iconUrl != null ? NetworkImage(iconUrl) : null,
@@ -391,7 +407,9 @@ class _MemberTile extends StatelessWidget {
           avatar: assignedRoles.isNotEmpty && assignedRoles.first.color != null
               ? CircleAvatar(
                   radius: 6,
-                  backgroundColor: Color(0xFF000000 | assignedRoles.first.color!),
+                  backgroundColor: Color(
+                    0xFF000000 | assignedRoles.first.color!,
+                  ),
                 )
               : null,
           label: Text(

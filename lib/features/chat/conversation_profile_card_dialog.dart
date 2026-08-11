@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/strings.dart';
@@ -40,33 +41,44 @@ class ConversationProfileCardDialog extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final strings = ref.watch(appStringsProvider);
     final liveUser = ref.watch(watchedUserProvider(currentUserId)).value;
-    return AlertDialog(
-      title: Text(strings.conversationProfileCardMenuLabel),
-      content: liveUser == null
-          ? const SizedBox(
-              height: 48,
-              child: Center(child: CircularProgressIndicator()),
-            )
-          : ProfileCardPicker(
-              strings: strings,
-              cards: liveUser.profileCards,
-              selectedCardId:
-                  liveUser.conversationProfileCardId[conversationId],
-              activeCardName: liveUser.activeProfileCard?.name,
-              onSelected: (id) => ref
-                  .read(userRepositoryProvider)
-                  .setConversationProfileCard(
-                    userId: currentUserId,
-                    conversationId: conversationId,
-                    profileCardId: id,
-                  ),
+    return CallbackShortcuts(
+      // Enterキーで「完了」を実行できるようにする（2026-08-11追加、
+      // `chat_screen.dart`の`_confirmScreenshotSelected`と同じパターン）。
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.enter): () =>
+            Navigator.of(context).pop(),
+      },
+      child: Focus(
+        autofocus: true,
+        child: AlertDialog(
+          title: Text(strings.conversationProfileCardMenuLabel),
+          content: liveUser == null
+              ? const SizedBox(
+                  height: 48,
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              : ProfileCardPicker(
+                  strings: strings,
+                  cards: liveUser.profileCards,
+                  selectedCardId:
+                      liveUser.conversationProfileCardId[conversationId],
+                  activeCardName: liveUser.activeProfileCard?.name,
+                  onSelected: (id) => ref
+                      .read(userRepositoryProvider)
+                      .setConversationProfileCard(
+                        userId: currentUserId,
+                        conversationId: conversationId,
+                        profileCardId: id,
+                      ),
+                ),
+          actions: [
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text(strings.done),
             ),
-      actions: [
-        FilledButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: Text(strings.done),
+          ],
         ),
-      ],
+      ),
     );
   }
 }

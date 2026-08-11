@@ -6,7 +6,9 @@ import 'repository_providers.dart';
 /// URLごとのリンクプレビュー取得結果をキャッシュする。同じURLを含む
 /// メッセージが並んでいても、Riverpodのfamilyキャッシュにより1回しか
 /// 取得しに行かない。
-final linkPreviewProvider =
-    FutureProvider.family<LinkPreview?, String>((ref, url) {
+final linkPreviewProvider = FutureProvider.family<LinkPreview?, String>((
+  ref,
+  url,
+) {
   return ref.watch(linkPreviewRepositoryProvider).fetchPreview(url);
 });

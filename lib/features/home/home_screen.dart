@@ -8,7 +8,6 @@ import '../../models/app_user.dart';
 import '../../providers/app_ui_style_provider.dart';
 import '../../theme/gekiga/gekiga_colors.dart';
 import '../../widgets/gekiga/gekiga_badge.dart';
-import '../../widgets/animated_indexed_stack.dart';
 import '../chat/talks_tab.dart';
 import '../profile/profile_tab.dart';
 import '../settings/settings_tab.dart';
@@ -163,7 +162,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       padding: isWide
           ? const EdgeInsets.only(left: _chipSize + _chipMargin * 2)
           : const EdgeInsets.only(bottom: _chipSize + _chipMargin * 2),
-      child: AnimatedIndexedStack(index: _selectedIndex, children: tabs),
+      child: IndexedStack(index: _selectedIndex, children: tabs),
     );
 
     Widget wrapWithSwipe(Widget child, {required bool vertical}) {

@@ -121,6 +121,9 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
         keyboardType: TextInputType.number,
         maxLength: 6,
         decoration: InputDecoration(labelText: strings.twoFactorCodeLabel),
+        onSubmitted: _isSigningIn
+            ? null
+            : (_) => _confirmTwoFactorCode(strings),
       ),
       const SizedBox(height: 8),
       ElevatedButton(

@@ -13,8 +13,7 @@ class RhingIdSetupScreen extends ConsumerStatefulWidget {
   final String userId;
 
   @override
-  ConsumerState<RhingIdSetupScreen> createState() =>
-      _RhingIdSetupScreenState();
+  ConsumerState<RhingIdSetupScreen> createState() => _RhingIdSetupScreenState();
 }
 
 class _RhingIdSetupScreenState extends ConsumerState<RhingIdSetupScreen> {
@@ -55,9 +54,7 @@ class _RhingIdSetupScreenState extends ConsumerState<RhingIdSetupScreen> {
 
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (_) => HomeScreen(currentUser: appUser),
-        ),
+        MaterialPageRoute(builder: (_) => HomeScreen(currentUser: appUser)),
       );
       return;
     } catch (e) {
@@ -97,13 +94,11 @@ class _RhingIdSetupScreenState extends ConsumerState<RhingIdSetupScreen> {
                 labelText: 'Rhing ID',
                 border: OutlineInputBorder(),
               ),
+              onSubmitted: _isSubmitting ? null : (_) => _submit(),
             ),
             if (_errorMessage != null) ...[
               const SizedBox(height: 8),
-              Text(
-                _errorMessage!,
-                style: const TextStyle(color: Colors.red),
-              ),
+              Text(_errorMessage!, style: const TextStyle(color: Colors.red)),
             ],
             const SizedBox(height: 16),
             ElevatedButton(

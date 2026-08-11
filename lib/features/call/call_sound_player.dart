@@ -50,7 +50,9 @@ class CallSoundPlayer {
 
   Future<void> playJoinBlip() async {
     try {
-      await _joinPlayer.play(AssetSource(CallSound.participantJoined.assetPath));
+      await _joinPlayer.play(
+        AssetSource(CallSound.participantJoined.assetPath),
+      );
     } catch (_) {
       // 再生できない環境でも通話自体は継続させる。
     }

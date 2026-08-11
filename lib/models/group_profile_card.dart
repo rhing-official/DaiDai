@@ -52,8 +52,7 @@ class GroupProfileCard {
       iconUrl: json['iconUrl'] as String?,
       iconStoragePath: json['iconStoragePath'] as String?,
       backgroundImageUrl: json['backgroundImageUrl'] as String?,
-      backgroundImageStoragePath:
-          json['backgroundImageStoragePath'] as String?,
+      backgroundImageStoragePath: json['backgroundImageStoragePath'] as String?,
     );
   }
 

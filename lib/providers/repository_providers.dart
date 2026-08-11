@@ -10,6 +10,7 @@ import '../repositories/friend_repository.dart';
 import '../repositories/group_call_repository.dart';
 import '../repositories/group_repository.dart';
 import '../repositories/link_preview_repository.dart';
+import '../repositories/sticker_repository.dart';
 import '../repositories/user_repository.dart';
 
 final authRepositoryProvider = Provider<AuthRepository>((ref) {
@@ -20,7 +21,9 @@ final userRepositoryProvider = Provider<UserRepository>((ref) {
   return FirestoreUserRepository();
 });
 
-final directMessageRepositoryProvider = Provider<DirectMessageRepository>((ref) {
+final directMessageRepositoryProvider = Provider<DirectMessageRepository>((
+  ref,
+) {
   return FirestoreDirectMessageRepository();
 });
 
@@ -40,9 +43,10 @@ final friendRepositoryProvider = Provider<FriendRepository>((ref) {
   return FirestoreFriendRepository();
 });
 
-final conversationPrefsRepositoryProvider = Provider<ConversationPrefsRepository>((ref) {
-  return FirestoreConversationPrefsRepository();
-});
+final conversationPrefsRepositoryProvider =
+    Provider<ConversationPrefsRepository>((ref) {
+      return FirestoreConversationPrefsRepository();
+    });
 
 final blockRepositoryProvider = Provider<BlockRepository>((ref) {
   return FirestoreBlockRepository();
@@ -50,6 +54,10 @@ final blockRepositoryProvider = Provider<BlockRepository>((ref) {
 
 final linkPreviewRepositoryProvider = Provider<LinkPreviewRepository>((ref) {
   return HttpLinkPreviewRepository();
+});
+
+final stickerRepositoryProvider = Provider<StickerRepository>((ref) {
+  return FirestoreStickerRepository();
 });
 
 final authStateProvider = StreamProvider<User?>((ref) {

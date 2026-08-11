@@ -339,6 +339,23 @@ class DmChatPane extends ConsumerWidget {
           contentType: attachment.contentType,
         );
       },
+      onSendSticker: (sticker) async {
+        if (isBlocked) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(strings.conversationBlockedCannotSend)),
+          );
+          return;
+        }
+        await dmRepository.sendStickerMessage(
+          dmId: dm.dmId,
+          roomId: roomId,
+          senderId: currentUser.userId,
+          senderRhingId: currentUser.rhingId,
+          stickerId: sticker.stickerId,
+          stickerName: sticker.name,
+          stickerUrl: sticker.imageUrl,
+        );
+      },
       onCallPressed: onCallPressed,
       onVideoCallPressed: onVideoCallPressed,
       readReceiptsEnabled: dm.readReceiptsEnabled,
@@ -614,6 +631,7 @@ class _DmMenuButton extends ConsumerWidget {
       icon: isGekiga
           ? const GekigaIconBadge(icon: Icons.menu, size: 36)
           : const Icon(Icons.menu),
+      tooltip: '',
       position: PopupMenuPosition.under,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       onSelected: (action) async {
@@ -726,10 +744,11 @@ class _DmMenuButton extends ConsumerWidget {
         }
       },
       itemBuilder: (context) => [
-        PopupMenuItem(
-          value: _DmMenuAction.conversationProfileCard,
-          child: Text(strings.conversationProfileCardMenuLabel),
-        ),
+        if (currentUser.profileCards.length > 1)
+          PopupMenuItem(
+            value: _DmMenuAction.conversationProfileCard,
+            child: Text(strings.conversationProfileCardMenuLabel),
+          ),
         PopupMenuItem(
           value: _DmMenuAction.renameRoom,
           child: Text(strings.roomRenameLabel(vocabulary.textChannel)),
@@ -1007,6 +1026,15 @@ class GroupChatPane extends ConsumerWidget {
         fileName: attachment.fileName,
         contentType: attachment.contentType,
       ),
+      onSendSticker: (sticker) => groupRepository.sendStickerMessage(
+        groupId: group.groupId,
+        roomId: roomId,
+        senderId: currentUser.userId,
+        senderRhingId: currentUser.rhingId,
+        stickerId: sticker.stickerId,
+        stickerName: sticker.name,
+        stickerUrl: sticker.imageUrl,
+      ),
       onCallPressed: () => _handleCallPressed(context, ref, isVideo: false),
       onVideoCallPressed: () => _handleCallPressed(context, ref, isVideo: true),
       readReceiptsEnabled: effectiveReadReceiptsEnabled(
@@ -1233,6 +1261,7 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
       icon: isGekiga
           ? const GekigaIconBadge(icon: Icons.menu, size: 36)
           : const Icon(Icons.menu),
+      tooltip: '',
       position: PopupMenuPosition.under,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       onSelected: (action) async {
@@ -1441,10 +1470,11 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
             value: _GroupMenuAction.profileCard,
             child: Text(strings.groupMenuProfileCard),
           ),
-          PopupMenuItem(
-            value: _GroupMenuAction.conversationProfileCard,
-            child: Text(strings.conversationProfileCardMenuLabel),
-          ),
+          if (widget.currentUser.profileCards.length > 1)
+            PopupMenuItem(
+              value: _GroupMenuAction.conversationProfileCard,
+              child: Text(strings.conversationProfileCardMenuLabel),
+            ),
           PopupMenuItem(
             value: _GroupMenuAction.memberList,
             child: Text(strings.groupMenuMemberList),

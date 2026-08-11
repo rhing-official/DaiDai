@@ -6,8 +6,8 @@ enum CallSound { ringtone, participantJoined, participantLeft }
 extension CallSoundAsset on CallSound {
   /// `AssetSource`は`assets/`以下の相対パスを取る。
   String get assetPath => switch (this) {
-        CallSound.ringtone => 'sounds/call_ringtone.mp3',
-        CallSound.participantJoined => 'sounds/participant_joined.mp3',
-        CallSound.participantLeft => 'sounds/participant_left.mp3',
-      };
+    CallSound.ringtone => 'sounds/call_ringtone.mp3',
+    CallSound.participantJoined => 'sounds/participant_joined.mp3',
+    CallSound.participantLeft => 'sounds/participant_left.mp3',
+  };
 }

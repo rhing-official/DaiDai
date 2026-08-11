@@ -87,7 +87,9 @@ class Group {
       createdAt: json['createdAt'] as Timestamp?,
       readReceiptsEnabled: json['readReceiptsEnabled'] as bool? ?? true,
       roleAssignments: _decodeRoleAssignments(json['roleAssignments']),
-      rolePriority: List<String>.from(json['rolePriority'] as List? ?? const []),
+      rolePriority: List<String>.from(
+        json['rolePriority'] as List? ?? const [],
+      ),
       memberPermissions: (json['memberPermissions'] as Map? ?? const {}).map(
         (key, value) =>
             MapEntry(key as String, List<String>.from(value as List)),
@@ -148,6 +150,7 @@ class Room {
   final String roomId;
   final String groupId;
   final String name;
+
   /// 広場のmemberIdsを非正規化して保持（セキュリティルールでの参照を単純化するため）。
   final List<String> memberIds;
   final Timestamp? lastMessageAt;
@@ -196,7 +199,8 @@ class Room {
           : null,
       // 既存データ（この機能追加前に作られた寄合）は、rolePriorityOverride
       // が既に設定されていればtrue扱いにして従来の上書き適用を維持する。
-      customSettingsEnabled: json['customSettingsEnabled'] as bool? ??
+      customSettingsEnabled:
+          json['customSettingsEnabled'] as bool? ??
           (priorityOverrideJson is List),
       readReceiptsEnabledOverride: json['readReceiptsEnabledOverride'] as bool?,
     );

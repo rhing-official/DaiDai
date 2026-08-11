@@ -26,6 +26,7 @@ class Vocabulary {
     required this.statusMessage,
     required this.friendConnect,
     required this.owner,
+    required this.sticker,
   });
 
   /// 1対1のチャット（一対／DM／ダイレクト／Private Chat）。
@@ -73,6 +74,9 @@ class Vocabulary {
   /// 広場の管理者（長／管理者）。
   final String owner;
 
+  /// スタンプ機能（ペタピタ／スタンプ、Englishはスタイル問わずSticker）。
+  final String sticker;
+
   static const jaWorldview = Vocabulary._(
     dm: '一対',
     plaza: '広場',
@@ -89,6 +93,7 @@ class Vocabulary {
     statusMessage: '一言',
     friendConnect: '縁結び',
     owner: '長',
+    sticker: 'ペタピタ',
   );
 
   static const jaConvenience = Vocabulary._(
@@ -107,6 +112,7 @@ class Vocabulary {
     statusMessage: 'ステータスメッセージ',
     friendConnect: 'フレンド追加',
     owner: '管理者',
+    sticker: 'スタンプ',
   );
 
   static const enWorldview = Vocabulary._(
@@ -125,6 +131,7 @@ class Vocabulary {
     statusMessage: 'Status message',
     friendConnect: 'Bond Shrine',
     owner: 'Chief',
+    sticker: 'Sticker',
   );
 
   static const enConvenience = Vocabulary._(
@@ -143,6 +150,7 @@ class Vocabulary {
     statusMessage: 'Status message',
     friendConnect: 'Add Friends',
     owner: 'Owner',
+    sticker: 'Sticker',
   );
 
   static Vocabulary of(AppLocale locale, TerminologyStyle style) {
@@ -150,8 +158,7 @@ class Vocabulary {
       (AppLocale.japanese, TerminologyStyle.worldview) => jaWorldview,
       (AppLocale.japanese, TerminologyStyle.convenience) => jaConvenience,
       (AppLocale.britishEnglish, TerminologyStyle.worldview) => enWorldview,
-      (AppLocale.britishEnglish, TerminologyStyle.convenience) =>
-        enConvenience,
+      (AppLocale.britishEnglish, TerminologyStyle.convenience) => enConvenience,
     };
   }
 }

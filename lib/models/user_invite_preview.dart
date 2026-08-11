@@ -30,8 +30,7 @@ class UserInvitePreview {
       iconUrl: json['iconUrl'] as String?,
       statusMessage: json['statusMessage'] as String?,
       backgroundImageUrl: json['backgroundImageUrl'] as String?,
-      snsLinkUrls:
-          (json['snsLinkUrls'] as List?)?.cast<String>() ?? const [],
+      snsLinkUrls: (json['snsLinkUrls'] as List?)?.cast<String>() ?? const [],
     );
   }
 

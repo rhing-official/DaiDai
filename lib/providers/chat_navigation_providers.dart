@@ -22,5 +22,5 @@ class PendingDmSelectionNotifier extends Notifier<DirectMessage?> {
 
 final pendingDmSelectionProvider =
     NotifierProvider<PendingDmSelectionNotifier, DirectMessage?>(
-  PendingDmSelectionNotifier.new,
-);
+      PendingDmSelectionNotifier.new,
+    );

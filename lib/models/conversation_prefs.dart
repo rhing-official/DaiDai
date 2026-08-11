@@ -36,8 +36,8 @@ class ConversationPrefs {
       notificationsMuted: json['notificationsMuted'] as bool? ?? false,
       roomNotificationOverrides:
           (json['roomNotificationOverrides'] as Map? ?? const {}).map(
-        (key, value) => MapEntry(key as String, value as bool),
-      ),
+            (key, value) => MapEntry(key as String, value as bool),
+          ),
     );
   }
 

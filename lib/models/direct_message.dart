@@ -17,6 +17,7 @@ class DirectMessage {
 
   final String dmId;
   final List<String> participants;
+
   /// userId -> rhingId。一覧表示で相手の名前を出すための非正規化データ。
   final Map<String, String> participantRhingIds;
   final Timestamp? lastMessageAt;

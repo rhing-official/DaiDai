@@ -41,7 +41,8 @@ class _GroupProfileCardPopupState extends ConsumerState<GroupProfileCardPopup> {
   @override
   void initState() {
     super.initState();
-    _card = widget.group.profileCard ?? GroupProfileCard(name: widget.group.name);
+    _card =
+        widget.group.profileCard ?? GroupProfileCard(name: widget.group.name);
   }
 
   @override
@@ -54,15 +55,16 @@ class _GroupProfileCardPopupState extends ConsumerState<GroupProfileCardPopup> {
     final card = _card;
     final next = _pendingPersist.then((_) async {
       try {
-        await ref.read(groupRepositoryProvider).updateProfileCard(
-              groupId: widget.group.groupId,
-              card: card,
-            );
+        await ref
+            .read(groupRepositoryProvider)
+            .updateProfileCard(groupId: widget.group.groupId, card: card);
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('${ref.read(appStringsProvider).profileSaveError}: $e'),
+              content: Text(
+                '${ref.read(appStringsProvider).profileSaveError}: $e',
+              ),
             ),
           );
         }
@@ -91,7 +93,11 @@ class _GroupProfileCardPopupState extends ConsumerState<GroupProfileCardPopup> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${ref.read(appStringsProvider).profileIconUploadError}: $e')),
+        SnackBar(
+          content: Text(
+            '${ref.read(appStringsProvider).profileIconUploadError}: $e',
+          ),
+        ),
       );
     } finally {
       if (mounted) {
@@ -119,7 +125,11 @@ class _GroupProfileCardPopupState extends ConsumerState<GroupProfileCardPopup> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${ref.read(appStringsProvider).profileIconUploadError}: $e')),
+        SnackBar(
+          content: Text(
+            '${ref.read(appStringsProvider).profileIconUploadError}: $e',
+          ),
+        ),
       );
     } finally {
       if (mounted) {
@@ -231,8 +241,8 @@ class _GroupProfileCardPopupState extends ConsumerState<GroupProfileCardPopup> {
                         child: _uploadingIcon
                             ? const CircularProgressIndicator()
                             : _card.iconUrl == null
-                                ? const Icon(Icons.groups_outlined)
-                                : null,
+                            ? const Icon(Icons.groups_outlined)
+                            : null,
                       ),
                     ),
                     const SizedBox(height: padding * 0.6),

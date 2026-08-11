@@ -19,7 +19,11 @@ import 'group_role_priority_dialog.dart';
 /// 引き続き`GroupMemberListPopup`側からも行える）。[group]は優先順位
 /// （`rolePriority`）の表示・初期値に使う。
 class GroupRoleListPopup extends ConsumerWidget {
-  const GroupRoleListPopup({required this.currentUser, required this.group, super.key});
+  const GroupRoleListPopup({
+    required this.currentUser,
+    required this.group,
+    super.key,
+  });
 
   final AppUser currentUser;
   final Group group;
@@ -34,9 +38,9 @@ class GroupRoleListPopup extends ConsumerWidget {
     final nameController = TextEditingController(text: existing?.name ?? '');
     final hexController = TextEditingController(
       text: existing?.color != null
-          ? Color(0xFF000000 | existing!.color!)
-              .toHexString()
-              .replaceFirst('#', '')
+          ? Color(
+              0xFF000000 | existing!.color!,
+            ).toHexString().replaceFirst('#', '')
           : 'EE7800',
     );
     var hasColor = existing?.color != null;
@@ -53,7 +57,9 @@ class GroupRoleListPopup extends ConsumerWidget {
         ? const <String>{}
         : {
             for (final member in members)
-              if (group.roleAssignments[member.userId]?.contains(existing.roleId) ??
+              if (group.roleAssignments[member.userId]?.contains(
+                    existing.roleId,
+                  ) ??
                   false)
                 member.userId,
           };
@@ -64,7 +70,18 @@ class GroupRoleListPopup extends ConsumerWidget {
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setState) {
-          final previewColor = hasColor ? tryParseHexColor(hexController.text) : null;
+          final previewColor = hasColor
+              ? tryParseHexColor(hexController.text)
+              : null;
+          void confirm() {
+            if (!isEveryone && nameController.text.trim().isEmpty) return;
+            if (hasColor && tryParseHexColor(hexController.text) == null) {
+              setState(() => errorText = strings.groupRoleColorInvalid);
+              return;
+            }
+            Navigator.of(context).pop(true);
+          }
+
           return AlertDialog(
             title: Text(
               existing == null
@@ -90,8 +107,10 @@ class GroupRoleListPopup extends ConsumerWidget {
                     controller: nameController,
                     autofocus: !isEveryone,
                     enabled: !isEveryone,
-                    decoration:
-                        InputDecoration(labelText: strings.groupRoleDialogNameLabel),
+                    decoration: InputDecoration(
+                      labelText: strings.groupRoleDialogNameLabel,
+                    ),
+                    onSubmitted: (_) => confirm(),
                   ),
                   const SizedBox(height: 16),
                   Row(
@@ -117,7 +136,9 @@ class GroupRoleListPopup extends ConsumerWidget {
                           enabled: hasColor,
                           textCapitalization: TextCapitalization.characters,
                           inputFormatters: [
-                            FilteringTextInputFormatter.allow(RegExp('[0-9a-fA-F]')),
+                            FilteringTextInputFormatter.allow(
+                              RegExp('[0-9a-fA-F]'),
+                            ),
                             LengthLimitingTextInputFormatter(6),
                           ],
                           decoration: InputDecoration(
@@ -128,6 +149,7 @@ class GroupRoleListPopup extends ConsumerWidget {
                             counterText: '',
                           ),
                           onChanged: (_) => setState(() {}),
+                          onSubmitted: (_) => confirm(),
                         ),
                       ),
                     ],
@@ -168,19 +190,21 @@ class GroupRoleListPopup extends ConsumerWidget {
                     CheckboxListTile(
                       contentPadding: EdgeInsets.zero,
                       controlAffinity: ListTileControlAffinity.leading,
-                      value: members.isNotEmpty &&
+                      value:
+                          members.isNotEmpty &&
                           selectedMemberIds.length == members.length,
                       title: Text(strings.groupRoleAssignAllLabel),
                       onChanged: members.isEmpty
                           ? null
                           : (checked) => setState(() {
-                                if (checked ?? false) {
-                                  selectedMemberIds
-                                      .addAll(members.map((m) => m.userId));
-                                } else {
-                                  selectedMemberIds.clear();
-                                }
-                              }),
+                              if (checked ?? false) {
+                                selectedMemberIds.addAll(
+                                  members.map((m) => m.userId),
+                                );
+                              } else {
+                                selectedMemberIds.clear();
+                              }
+                            }),
                     ),
                     for (final member in members)
                       CheckboxListTile(
@@ -218,17 +242,7 @@ class GroupRoleListPopup extends ConsumerWidget {
                 onPressed: () => Navigator.of(context).pop(false),
                 child: Text(strings.cancel),
               ),
-              FilledButton(
-                onPressed: () {
-                  if (!isEveryone && nameController.text.trim().isEmpty) return;
-                  if (hasColor && tryParseHexColor(hexController.text) == null) {
-                    setState(() => errorText = strings.groupRoleColorInvalid);
-                    return;
-                  }
-                  Navigator.of(context).pop(true);
-                },
-                child: Text(strings.save),
-              ),
+              FilledButton(onPressed: confirm, child: Text(strings.save)),
             ],
           );
         },
@@ -266,10 +280,18 @@ class GroupRoleListPopup extends ConsumerWidget {
     final addedIds = selectedMemberIds.difference(initiallyAssignedIds);
     final removedIds = initiallyAssignedIds.difference(selectedMemberIds);
     for (final userId in addedIds) {
-      await repository.assignRole(groupId: group.groupId, userId: userId, roleId: roleId);
+      await repository.assignRole(
+        groupId: group.groupId,
+        userId: userId,
+        roleId: roleId,
+      );
     }
     for (final userId in removedIds) {
-      await repository.unassignRole(groupId: group.groupId, userId: userId, roleId: roleId);
+      await repository.unassignRole(
+        groupId: group.groupId,
+        userId: userId,
+        roleId: roleId,
+      );
     }
   }
 
@@ -299,7 +321,9 @@ class GroupRoleListPopup extends ConsumerWidget {
       ),
     );
     if (confirmed == true) {
-      await ref.read(groupRepositoryProvider).deleteRole(
+      await ref
+          .read(groupRepositoryProvider)
+          .deleteRole(
             groupId: group.groupId,
             roleId: role.roleId,
             requestedBy: currentUser.userId,
@@ -315,7 +339,8 @@ class GroupRoleListPopup extends ConsumerWidget {
     // 開いたまま優先順位ダイアログ等で`rolePriority`を変更しても自動更新
     // されない（ロールの並び順を変更したのに反映されない不具合の原因、
     // 2026-07-29発覚・修正）。ライブな値をここでwatchして使う。
-    final liveGroup = ref.watch(watchedGroupProvider(group.groupId)).value ?? group;
+    final liveGroup =
+        ref.watch(watchedGroupProvider(group.groupId)).value ?? group;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -327,12 +352,16 @@ class GroupRoleListPopup extends ConsumerWidget {
               Expanded(
                 child: Text(
                   strings.groupMenuManageRoles,
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
                 ),
               ),
               IconButton(
                 icon: const Icon(Icons.add),
-                onPressed: () => _showRoleDialog(context, ref, strings, liveGroup),
+                onPressed: () =>
+                    _showRoleDialog(context, ref, strings, liveGroup),
               ),
               IconButton(
                 icon: const Icon(Icons.close),
@@ -359,15 +388,18 @@ class GroupRoleListPopup extends ConsumerWidget {
                 );
               }
               final everyone = allRoles.firstWhereOrNull((r) => r.isEveryone);
-              final regularUnsorted = allRoles.where((r) => !r.isEveryone).toList();
+              final regularUnsorted = allRoles
+                  .where((r) => !r.isEveryone)
+                  .toList();
               final fallbackIndex = regularUnsorted.length;
               final regular = regularUnsorted
                 ..sort((a, b) {
                   final indexA = liveGroup.rolePriority.indexOf(a.roleId);
                   final indexB = liveGroup.rolePriority.indexOf(b.roleId);
                   // rolePriorityに無いロール（作成直後の反映待ち等）は末尾扱い。
-                  return (indexA == -1 ? fallbackIndex : indexA)
-                      .compareTo(indexB == -1 ? fallbackIndex : indexB);
+                  return (indexA == -1 ? fallbackIndex : indexA).compareTo(
+                    indexB == -1 ? fallbackIndex : indexB,
+                  );
                 });
               return ListView(
                 shrinkWrap: true,
@@ -417,7 +449,8 @@ class GroupRoleListPopup extends ConsumerWidget {
                       ),
                       trailing: IconButton(
                         icon: const Icon(Icons.delete_outline),
-                        onPressed: () => _confirmDelete(context, ref, strings, role),
+                        onPressed: () =>
+                            _confirmDelete(context, ref, strings, role),
                       ),
                     ),
                   if (everyone != null) ...[
