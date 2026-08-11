@@ -6,13 +6,30 @@ import {
   Timestamp,
   type WriteBatch,
 } from "firebase-admin/firestore";
+import { getStorage } from "firebase-admin/storage";
 import { logger } from "firebase-functions";
-import { HttpsError, onCall } from "firebase-functions/v2/https";
+import { defineSecret } from "firebase-functions/params";
+import { HttpsError, onCall, onRequest } from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
+import Stripe from "stripe";
 
 initializeApp();
 
 const db = getFirestore();
+
+// Stripe連携用のシークレット（値はFirebase CLIの
+// `firebase functions:secrets:set STRIPE_SECRET_KEY` 等で個別に設定する。
+// コード上には値を持たない）。
+const stripeSecretKey = defineSecret("STRIPE_SECRET_KEY");
+const stripeWebhookSecret = defineSecret("STRIPE_WEBHOOK_SECRET");
+
+let stripeClient: Stripe | null = null;
+function getStripeClient(): Stripe {
+  if (!stripeClient) {
+    stripeClient = new Stripe(stripeSecretKey.value());
+  }
+  return stripeClient;
+}
 
 const DELETION_GRACE_PERIOD_DAYS = 31;
 const ACCOUNT_DELETED_NOTICE_CONTENT = "アカウントを削除しました";
@@ -439,6 +456,15 @@ export const cleanupQrLoginSessions = onSchedule(
 
 const MIN_STICKERS_PER_PACK = 4;
 
+// 有料パックの出品・価格変更・購入を一時的に無効化するフラグ（2026-08-11追加）。
+// 特定商取引法に基づく表記の整備・出品者への収益分配方式の決定・Stripe本番
+// アカウントの審査が完了するまでは、無料（price===0）パックの配布のみに限定する。
+// 再開条件・チェックリストはDaiDai-技術仕様書.md 7.6節を参照。再開時はこの値を
+// trueに変更するだけでよい（Stripe連携コード自体は動作確認済みのため削除しない）。
+const PAID_PACKS_ENABLED = false;
+const PAID_PACKS_DISABLED_MESSAGE =
+  "現在、有料パックには対応していません。無料（0円）パックのみご利用いただけます。";
+
 interface StickerInput {
   stickerId: string;
   name: string;
@@ -494,6 +520,9 @@ export const createStickerPack = onCall(
       throw new HttpsError("invalid-argument", "nameが必要です");
     }
     const price = assertValidPrice(request.data?.price);
+    if (price > 0 && !PAID_PACKS_ENABLED) {
+      throw new HttpsError("failed-precondition", PAID_PACKS_DISABLED_MESSAGE);
+    }
     const stickers = assertValidStickers(request.data?.stickers, MIN_STICKERS_PER_PACK);
     const category = typeof request.data?.category === "string" ? request.data.category : "";
     const tags: string[] = Array.isArray(request.data?.tags)
@@ -509,6 +538,12 @@ export const createStickerPack = onCall(
       category,
       tags,
       salesCount: 0,
+      // 現在このパックを所有しているユーザー数（購入付与Cloud Functionで+1、
+      // アンインストール時のownedStickerPacks削除に連動して-1する想定の
+      // 非正規化カウンタ、2026-08-11追加）。deleteStickerPackの削除可否判定に使う。
+      // 購入付与・アンインストール連動の実処理はまだ未実装のため、現時点では
+      // 常に0のまま（＝どのパックも削除可能）。
+      ownerCount: 0,
       createdAt: FieldValue.serverTimestamp(),
     });
     return { packId: ref.id };
@@ -547,7 +582,14 @@ export const updateStickerPackMeta = onCall(
       update.name = request.data.name.trim();
     }
     if (request.data?.price !== undefined) {
-      update.price = assertValidPrice(request.data.price);
+      const newPrice = assertValidPrice(request.data.price);
+      const currentPrice = typeof doc.data()?.price === "number" ? doc.data()!.price : 0;
+      // 既に有料設定済みのパック（凍結前に作成されたもの）の価格を維持する
+      // 更新までは塞がない。新たに有料へ変更する操作のみを拒否する。
+      if (newPrice > 0 && newPrice !== currentPrice && !PAID_PACKS_ENABLED) {
+        throw new HttpsError("failed-precondition", PAID_PACKS_DISABLED_MESSAGE);
+      }
+      update.price = newPrice;
     }
     if (Object.keys(update).length === 0) {
       throw new HttpsError("invalid-argument", "name・priceのいずれかが必要です");
@@ -625,5 +667,213 @@ export const createStickerPackReport = onCall(
       reason: reason.trim().slice(0, 1000),
       createdAt: FieldValue.serverTimestamp(),
     });
+  },
+);
+
+/** Firebase Storageのダウンロード URL から `/o/` 以降のオブジェクトパスを取り出す。 */
+function storagePathFromDownloadUrl(url: string): string | null {
+  const match = url.match(/\/o\/([^?]+)/);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
+/**
+ * 出品者が自分のパックを削除する。誰か1人でも現在所有していれば
+ * （ownerCount > 0）削除できない（購入済みユーザーの手持ちスタンプを
+ * 消さないため）。ストレージ上の画像も併せてベストエフォートで削除する。
+ */
+export const deleteStickerPack = onCall(
+  { region: "asia-northeast1" },
+  async (request) => {
+    const uid = request.auth?.uid;
+    if (!uid) {
+      throw new HttpsError("unauthenticated", "ログインが必要です");
+    }
+    const packId = request.data?.packId;
+    if (typeof packId !== "string" || !packId) {
+      throw new HttpsError("invalid-argument", "packIdが必要です");
+    }
+    const ref = db.collection("stickerPacks").doc(packId);
+    const doc = await ref.get();
+    if (!doc.exists) {
+      throw new HttpsError("not-found", "パックが見つかりません");
+    }
+    const data = doc.data()!;
+    if (data.creatorId !== uid) {
+      throw new HttpsError("permission-denied", "自分が出品したパックのみ削除できます");
+    }
+    const ownerCount = typeof data.ownerCount === "number" ? data.ownerCount : 0;
+    if (ownerCount > 0) {
+      throw new HttpsError(
+        "failed-precondition",
+        "このパックは現在利用しているユーザーがいるため削除できません",
+      );
+    }
+
+    await ref.delete();
+
+    const stickers = (data.stickers as { imageUrl: string }[] | undefined) ?? [];
+    const bucket = getStorage().bucket();
+    await Promise.all(
+      stickers.map(async (s) => {
+        const path = storagePathFromDownloadUrl(s.imageUrl);
+        if (!path) return;
+        try {
+          await bucket.file(path).delete({ ignoreNotFound: true });
+        } catch (err) {
+          logger.warn(`ストレージオブジェクトの削除に失敗しました: ${path}`, err);
+        }
+      }),
+    );
+  },
+);
+
+// ---------------------------------------------------------------------
+// daidai横丁: 購入付与フロー（2026-08-11追加）。無料パックの直接付与・
+// 有料パックのStripe Checkout経由の付与、どちらも最終的にこの
+// grantOwnershipを通る。ownedStickerPacksの存在チェックで、Webhookの
+// 再送（Stripeは同一イベントを複数回配信しうる）による二重付与を防ぐ。
+// ---------------------------------------------------------------------
+async function grantOwnership(
+  uid: string,
+  packId: string,
+  packRef: FirebaseFirestore.DocumentReference,
+): Promise<void> {
+  const ownedRef = db
+    .collection("users")
+    .doc(uid)
+    .collection("ownedStickerPacks")
+    .doc(packId);
+  await db.runTransaction(async (tx) => {
+    const ownedDoc = await tx.get(ownedRef);
+    if (ownedDoc.exists) return;
+    tx.set(ownedRef, { packId, grantedAt: FieldValue.serverTimestamp() });
+    tx.update(packRef, {
+      ownerCount: FieldValue.increment(1),
+      salesCount: FieldValue.increment(1),
+    });
+  });
+}
+
+// HomePage-Rhingの本番/開発ドメインのみ、Stripe Checkoutの戻り先として許可する。
+const ALLOWED_RETURN_ORIGINS = ["https://rhing.jp", "http://localhost:3000"];
+
+function resolveReturnOrigin(candidate: unknown): string {
+  if (typeof candidate === "string" && ALLOWED_RETURN_ORIGINS.includes(candidate)) {
+    return candidate;
+  }
+  return ALLOWED_RETURN_ORIGINS[0];
+}
+
+/**
+ * パックの入手を開始する。無料パック（price===0）はStripeを介さず直接
+ * 付与し、有料パックはStripe Checkout Session（都度払い）を作成してその
+ * URLを返す。決済確定後の実付与はstripeWebhookが行う。
+ */
+export const createCheckoutSession = onCall(
+  { region: "asia-northeast1", secrets: [stripeSecretKey] },
+  async (request) => {
+    const uid = request.auth?.uid;
+    if (!uid) {
+      throw new HttpsError("unauthenticated", "ログインが必要です");
+    }
+    const packId = request.data?.packId;
+    if (typeof packId !== "string" || !packId) {
+      throw new HttpsError("invalid-argument", "packIdが必要です");
+    }
+
+    const packRef = db.collection("stickerPacks").doc(packId);
+    const packDoc = await packRef.get();
+    if (!packDoc.exists) {
+      throw new HttpsError("not-found", "パックが見つかりません");
+    }
+    const pack = packDoc.data()!;
+
+    const ownedRef = db
+      .collection("users")
+      .doc(uid)
+      .collection("ownedStickerPacks")
+      .doc(packId);
+    if ((await ownedRef.get()).exists) {
+      throw new HttpsError("already-exists", "このパックはすでに入手済みです");
+    }
+
+    const price = typeof pack.price === "number" ? pack.price : 0;
+    if (price > 0 && !PAID_PACKS_ENABLED) {
+      throw new HttpsError("failed-precondition", PAID_PACKS_DISABLED_MESSAGE);
+    }
+    if (price <= 0) {
+      await grantOwnership(uid, packId, packRef);
+      return { granted: true };
+    }
+
+    const origin = resolveReturnOrigin(request.data?.origin);
+    const session = await getStripeClient().checkout.sessions.create({
+      mode: "payment",
+      payment_method_types: ["card"],
+      line_items: [
+        {
+          price_data: {
+            currency: "jpy",
+            product_data: {
+              name: typeof pack.name === "string" ? pack.name : "ペタピタパック",
+            },
+            unit_amount: price,
+          },
+          quantity: 1,
+        },
+      ],
+      metadata: { uid, packId },
+      success_url: `${origin}/daidai-yokocho/${packId}?purchase=success`,
+      cancel_url: `${origin}/daidai-yokocho/${packId}?purchase=cancel`,
+    });
+    return { url: session.url };
+  },
+);
+
+/**
+ * Stripeからの決済完了通知を受け取り、ペタピタパックを購入者に付与する。
+ * HomePage-Rhingは決済へのリダイレクトのみを担当し、実際のFirestore書き込みは
+ * ここ（DaiDai既存のCloud Functions）で行う方針（技術仕様書7.4節参照）。
+ */
+export const stripeWebhook = onRequest(
+  { region: "asia-northeast1", secrets: [stripeSecretKey, stripeWebhookSecret] },
+  async (req, res) => {
+    const sig = req.headers["stripe-signature"];
+    if (typeof sig !== "string") {
+      res.status(400).send("stripe-signatureヘッダーがありません");
+      return;
+    }
+
+    let event: Stripe.Event;
+    try {
+      event = getStripeClient().webhooks.constructEvent(
+        req.rawBody,
+        sig,
+        stripeWebhookSecret.value(),
+      );
+    } catch (err) {
+      logger.error("Stripe Webhookの署名検証に失敗しました:", err);
+      res.status(400).send(`Webhook Error: ${(err as Error).message}`);
+      return;
+    }
+
+    if (event.type === "checkout.session.completed") {
+      const session = event.data.object as Stripe.Checkout.Session;
+      const uid = session.metadata?.uid;
+      const packId = session.metadata?.packId;
+      if (uid && packId) {
+        const packRef = db.collection("stickerPacks").doc(packId);
+        const packDoc = await packRef.get();
+        if (packDoc.exists) {
+          await grantOwnership(uid, packId, packRef);
+        } else {
+          logger.error(`Webhook: stickerPacks/${packId} が見つかりません`);
+        }
+      } else {
+        logger.error("Webhook: checkout.session.completedにuid/packIdのmetadataがありません");
+      }
+    }
+
+    res.json({ received: true });
   },
 );
