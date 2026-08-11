@@ -62,7 +62,8 @@ class _TwoFactorSetupDialogState extends ConsumerState<TwoFactorSetupDialog> {
   // 飛んでくることがあるため、型チェックに加えてメッセージ文字列でも
   // requires-recent-loginを判定する（2026-08-09、実機で確認した挙動）。
   bool _isRequiresRecentLogin(Object error) {
-    if (error is FirebaseAuthException && error.code == 'requires-recent-login') {
+    if (error is FirebaseAuthException &&
+        error.code == 'requires-recent-login') {
       return true;
     }
     return error.toString().contains('requires-recent-login');
@@ -140,7 +141,9 @@ class _TwoFactorSetupDialogState extends ConsumerState<TwoFactorSetupDialog> {
                           ? const CircularProgressIndicator()
                           : FilledButton(
                               onPressed: _reauthenticateAndRetry,
-                              child: Text(strings.twoFactorReauthenticateButton),
+                              child: Text(
+                                strings.twoFactorReauthenticateButton,
+                              ),
                             ),
                     ),
                   ],
@@ -190,6 +193,9 @@ class _TwoFactorSetupDialogState extends ConsumerState<TwoFactorSetupDialog> {
                     labelText: strings.twoFactorCodeLabel,
                     errorText: _errorMessage,
                   ),
+                  onSubmitted: _isConfirming
+                      ? null
+                      : (_) => _confirm(secret, strings),
                 ),
               ],
             );

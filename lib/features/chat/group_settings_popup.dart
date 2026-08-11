@@ -155,15 +155,16 @@ class GroupSettingsPopup extends ConsumerWidget {
                   GroupProfileCardPopup(group: group),
                 ),
               ),
-              ListTile(
-                leading: const Icon(Icons.person_outline),
-                title: Text(strings.conversationProfileCardMenuLabel),
-                onTap: () => ConversationProfileCardDialog.show(
-                  context,
-                  currentUserId: currentUser.userId,
-                  conversationId: group.groupId,
+              if (currentUser.profileCards.length > 1)
+                ListTile(
+                  leading: const Icon(Icons.person_outline),
+                  title: Text(strings.conversationProfileCardMenuLabel),
+                  onTap: () => ConversationProfileCardDialog.show(
+                    context,
+                    currentUserId: currentUser.userId,
+                    conversationId: group.groupId,
+                  ),
                 ),
-              ),
               StreamBuilder<List<GroupRole>>(
                 stream: ref
                     .read(groupRepositoryProvider)

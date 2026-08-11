@@ -43,5 +43,5 @@ class MessageTimeFormatNotifier extends Notifier<MessageTimeFormat> {
 
 final messageTimeFormatProvider =
     NotifierProvider<MessageTimeFormatNotifier, MessageTimeFormat>(
-  MessageTimeFormatNotifier.new,
-);
+      MessageTimeFormatNotifier.new,
+    );

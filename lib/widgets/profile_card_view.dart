@@ -82,8 +82,9 @@ class ProfileCardView extends StatelessWidget {
                 children: [
                   CircleAvatar(
                     radius: avatarRadius,
-                    backgroundImage:
-                        icon != null ? NetworkImage(icon!.url) : null,
+                    backgroundImage: icon != null
+                        ? NetworkImage(icon!.url)
+                        : null,
                     child: icon == null ? const Icon(Icons.person) : null,
                   ),
                   SizedBox(height: padding * 0.6),

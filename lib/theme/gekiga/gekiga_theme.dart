@@ -83,6 +83,13 @@ class GekigaTheme {
         backgroundColor: backgroundColor,
         foregroundColor: GekigaColors.onPanel,
         elevation: 0,
+        // ColorScheme.fromSeedが生成するsurfaceTintだけはcopyWithで
+        // 上書きしていないため、Material3の既定挙動（スクロール時に
+        // surfaceTintを背景に薄く重ねる）でメッセージ一覧をスクロール
+        // すると上部バーだけ他の背景と違う色に見えていた
+        // （2026-08-11修正）。
+        surfaceTintColor: Colors.transparent,
+        scrolledUnderElevation: 0,
         centerTitle: false,
         titleTextStyle: baseText.titleLarge?.copyWith(
           fontWeight: FontWeight.bold,

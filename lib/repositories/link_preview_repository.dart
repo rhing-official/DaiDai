@@ -18,8 +18,9 @@ abstract class LinkPreviewRepository {
 class HttpLinkPreviewRepository implements LinkPreviewRepository {
   @override
   Future<LinkPreview?> fetchPreview(String url) async {
-    final endpoint = Uri.parse('$kProductionWebOrigin/api/url-preview')
-        .replace(queryParameters: {'url': url});
+    final endpoint = Uri.parse(
+      '$kProductionWebOrigin/api/url-preview',
+    ).replace(queryParameters: {'url': url});
     try {
       final response = await http
           .get(endpoint)

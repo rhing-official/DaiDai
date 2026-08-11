@@ -9,11 +9,11 @@ class LinkPreview {
   });
 
   factory LinkPreview.fromJson(Map<String, dynamic> json) => LinkPreview(
-        url: json['url'] as String,
-        title: json['title'] as String?,
-        description: json['description'] as String?,
-        image: json['image'] as String?,
-      );
+    url: json['url'] as String,
+    title: json['title'] as String?,
+    description: json['description'] as String?,
+    image: json['image'] as String?,
+  );
 
   final String url;
   final String? title;

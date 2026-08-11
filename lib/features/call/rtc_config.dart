@@ -9,13 +9,13 @@ const _turnUsername = String.fromEnvironment('DAIDAI_TURN_USERNAME');
 const _turnCredential = String.fromEnvironment('DAIDAI_TURN_CREDENTIAL');
 
 Map<String, dynamic> buildRtcConfiguration() => {
-      'iceServers': [
-        {'urls': 'stun:stun.l.google.com:19302'},
-        if (_turnUrl.isNotEmpty)
-          {
-            'urls': _turnUrl,
-            'username': _turnUsername,
-            'credential': _turnCredential,
-          },
-      ],
-    };
+  'iceServers': [
+    {'urls': 'stun:stun.l.google.com:19302'},
+    if (_turnUrl.isNotEmpty)
+      {
+        'urls': _turnUrl,
+        'username': _turnUsername,
+        'credential': _turnCredential,
+      },
+  ],
+};

@@ -121,7 +121,7 @@ abstract class GroupCallRepository {
 
 class FirestoreGroupCallRepository implements GroupCallRepository {
   FirestoreGroupCallRepository({FirebaseFirestore? firestore})
-      : _firestore = firestore ?? FirebaseFirestore.instance;
+    : _firestore = firestore ?? FirebaseFirestore.instance;
 
   final FirebaseFirestore _firestore;
 
@@ -138,8 +138,7 @@ class FirestoreGroupCallRepository implements GroupCallRepository {
 
   CollectionReference<Map<String, dynamic>> _participantsOf(
     String groupCallId,
-  ) =>
-      _groupCalls.doc(groupCallId).collection('participants');
+  ) => _groupCalls.doc(groupCallId).collection('participants');
 
   CollectionReference<Map<String, dynamic>> _peerLinksOf(String groupCallId) =>
       _groupCalls.doc(groupCallId).collection('peerLinks');
@@ -212,10 +211,10 @@ class FirestoreGroupCallRepository implements GroupCallRepository {
         .limit(1)
         .snapshots()
         .map((snapshot) {
-      if (snapshot.docs.isEmpty) return null;
-      final doc = snapshot.docs.first;
-      return GroupCall.fromJson(doc.id, doc.data());
-    });
+          if (snapshot.docs.isEmpty) return null;
+          final doc = snapshot.docs.first;
+          return GroupCall.fromJson(doc.id, doc.data());
+        });
   }
 
   @override
@@ -224,9 +223,11 @@ class FirestoreGroupCallRepository implements GroupCallRepository {
         .where('memberIds', arrayContains: userId)
         .where('status', isEqualTo: GroupCallStatus.active.name)
         .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => GroupCall.fromJson(doc.id, doc.data()))
-            .toList());
+        .map(
+          (snapshot) => snapshot.docs
+              .map((doc) => GroupCall.fromJson(doc.id, doc.data()))
+              .toList(),
+        );
   }
 
   @override
@@ -247,9 +248,9 @@ class FirestoreGroupCallRepository implements GroupCallRepository {
       rhingId: user.rhingId,
       isVideo: isVideo,
     );
-    await _participantsOf(groupCallId)
-        .doc(user.userId)
-        .set(participant.toJson());
+    await _participantsOf(
+      groupCallId,
+    ).doc(user.userId).set(participant.toJson());
   }
 
   @override
@@ -286,10 +287,11 @@ class FirestoreGroupCallRepository implements GroupCallRepository {
 
   @override
   Stream<List<CallParticipant>> watchParticipants(String groupCallId) {
-    return _participantsOf(groupCallId).snapshots().map((snapshot) => snapshot
-        .docs
-        .map((doc) => CallParticipant.fromJson(doc.id, doc.data()))
-        .toList());
+    return _participantsOf(groupCallId).snapshots().map(
+      (snapshot) => snapshot.docs
+          .map((doc) => CallParticipant.fromJson(doc.id, doc.data()))
+          .toList(),
+    );
   }
 
   @override
@@ -297,9 +299,9 @@ class FirestoreGroupCallRepository implements GroupCallRepository {
     required String groupCallId,
     required String userId,
   }) async {
-    await _participantsOf(groupCallId)
-        .doc(userId)
-        .update({'lastSeenAt': FieldValue.serverTimestamp()});
+    await _participantsOf(
+      groupCallId,
+    ).doc(userId).update({'lastSeenAt': FieldValue.serverTimestamp()});
   }
 
   @override
@@ -375,10 +377,9 @@ class FirestoreGroupCallRepository implements GroupCallRepository {
     required bool isUserA,
     required Map<String, dynamic> candidate,
   }) async {
-    await _peerLinksOf(groupCallId)
-        .doc(pairId)
-        .collection(_candidateCollection(isUserA))
-        .add(candidate);
+    await _peerLinksOf(
+      groupCallId,
+    ).doc(pairId).collection(_candidateCollection(isUserA)).add(candidate);
   }
 
   @override

@@ -184,8 +184,11 @@ class _CallScreenState extends ConsumerState<CallScreen> {
                 ? Container(
                     color: Colors.grey.shade900,
                     child: const Center(
-                      child: Icon(Icons.videocam_off,
-                          color: Colors.white54, size: 48),
+                      child: Icon(
+                        Icons.videocam_off,
+                        color: Colors.white54,
+                        size: 48,
+                      ),
                     ),
                   )
                 : RTCVideoView(
@@ -239,8 +242,10 @@ class _CallScreenState extends ConsumerState<CallScreen> {
               child: Center(
                 child: Container(
                   margin: const EdgeInsets.only(top: 8),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.black54,
                     borderRadius: BorderRadius.circular(8),
@@ -361,9 +366,7 @@ class _CallScreenState extends ConsumerState<CallScreen> {
         Tooltip(
           message: _controller.speakerOn ? 'スピーカーで再生中' : '受話口（イヤピース）で再生中',
           child: CallRoundButton(
-            icon: _controller.speakerOn
-                ? Icons.volume_up
-                : Icons.phone_in_talk,
+            icon: _controller.speakerOn ? Icons.volume_up : Icons.phone_in_talk,
             color: Colors.grey[700]!,
             onPressed: isActive ? _controller.toggleSpeaker : null,
           ),
@@ -380,16 +383,15 @@ class _CallScreenState extends ConsumerState<CallScreen> {
         ),
         if (_myIsVideo) ...[
           CallRoundButton(
-            icon: _controller.cameraOff
-                ? Icons.videocam_off
-                : Icons.videocam,
+            icon: _controller.cameraOff ? Icons.videocam_off : Icons.videocam,
             color: Colors.grey[700]!,
             onPressed: isActive ? _controller.toggleCamera : null,
           ),
           CallRoundButton(
             icon: Icons.cameraswitch,
             color: Colors.grey[700]!,
-            onPressed: isActive &&
+            onPressed:
+                isActive &&
                     !_controller.cameraOff &&
                     !_controller.switchingCamera
                 ? _controller.switchCamera

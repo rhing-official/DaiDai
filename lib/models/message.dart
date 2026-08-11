@@ -68,6 +68,27 @@ class MessageFileMetadata {
   };
 }
 
+/// contentType='sticker'（ペタピタ送信メッセージ）専用のメタデータ
+/// （技術仕様書7.4参照、2026-08-11追加）。
+class MessageStickerData {
+  const MessageStickerData({required this.stickerId, required this.stickerUrl});
+
+  final String stickerId;
+  final String stickerUrl;
+
+  factory MessageStickerData.fromJson(Map<String, dynamic> json) {
+    return MessageStickerData(
+      stickerId: json['stickerId'] as String,
+      stickerUrl: json['stickerUrl'] as String,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'stickerId': stickerId,
+    'stickerUrl': stickerUrl,
+  };
+}
+
 /// 返信の引用プレビュー用にcontentを切り詰める。
 String messageSnippetOf(String content) {
   const maxLength = 80;
@@ -100,6 +121,7 @@ class Message {
     this.callIsVideo,
     this.accountDeletionResponse,
     this.fileMetadata,
+    this.stickerData,
   });
 
   final String messageId;
@@ -178,6 +200,9 @@ class Message {
   /// contentTypeでは常にnull。
   final MessageFileMetadata? fileMetadata;
 
+  /// contentType='sticker'専用のメタデータ。それ以外のcontentTypeでは常にnull。
+  final MessageStickerData? stickerData;
+
   factory Message.fromJson(String messageId, Map<String, dynamic> json) {
     return Message(
       messageId: messageId,
@@ -221,6 +246,11 @@ class Message {
           : MessageFileMetadata.fromJson(
               json['fileMetadata'] as Map<String, dynamic>,
             ),
+      stickerData: json['stickerData'] == null
+          ? null
+          : MessageStickerData.fromJson(
+              json['stickerData'] as Map<String, dynamic>,
+            ),
     );
   }
 
@@ -248,6 +278,7 @@ class Message {
       'callIsVideo': callIsVideo,
       'accountDeletionResponse': accountDeletionResponse,
       'fileMetadata': fileMetadata?.toJson(),
+      'stickerData': stickerData?.toJson(),
     };
   }
 }

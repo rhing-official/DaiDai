@@ -46,8 +46,10 @@ class _GroupIncomingCallListenerState
 
   @override
   Widget build(BuildContext context) {
-    ref.listen(activeGroupCallsForUserProvider(widget.currentUser.userId),
-        (previous, next) {
+    ref.listen(activeGroupCallsForUserProvider(widget.currentUser.userId), (
+      previous,
+      next,
+    ) {
       final calls = next.asData?.value ?? const <GroupCall>[];
       final currentIds = calls.map((c) => c.groupCallId).toSet();
 
@@ -86,8 +88,11 @@ class _GroupIncomingCallListenerState
               groupName: banner.groupName,
               isVideo: banner.call.isVideo,
               onTap: () => _joinCall(banner.call),
-              onDismiss: () => setState(() =>
-                  _banners.removeWhere((b) => b.call.groupCallId == banner.call.groupCallId)),
+              onDismiss: () => setState(
+                () => _banners.removeWhere(
+                  (b) => b.call.groupCallId == banner.call.groupCallId,
+                ),
+              ),
             ),
           ),
       ],
@@ -95,7 +100,9 @@ class _GroupIncomingCallListenerState
   }
 
   Future<void> _handleNewCall(GroupCall call) async {
-    final group = await ref.read(groupRepositoryProvider).getGroup(call.groupId);
+    final group = await ref
+        .read(groupRepositoryProvider)
+        .getGroup(call.groupId);
     if (!mounted) return;
     setState(() {
       _banners.add(_PendingBanner(call: call, groupName: group?.name ?? '広場'));
@@ -104,32 +111,34 @@ class _GroupIncomingCallListenerState
   }
 
   Future<void> _joinCall(GroupCall call) async {
-    setState(() =>
-        _banners.removeWhere((b) => b.call.groupCallId == call.groupCallId));
+    setState(
+      () => _banners.removeWhere((b) => b.call.groupCallId == call.groupCallId),
+    );
 
     final groupCallRepository = ref.read(groupCallRepositoryProvider);
-    final participants =
-        await groupCallRepository.watchParticipants(call.groupCallId).first;
+    final participants = await groupCallRepository
+        .watchParticipants(call.groupCallId)
+        .first;
     if (participants.length >= call.maxParticipants) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('この通話は満員です（上限${call.maxParticipants}人）'),
-          ),
+          SnackBar(content: Text('この通話は満員です（上限${call.maxParticipants}人）')),
         );
       }
       return;
     }
 
     if (!mounted) return;
-    ref.read(goRouterProvider).push(
-      '/group-call',
-      extra: GroupCallArgs(
-        groupCallId: call.groupCallId,
-        currentUser: widget.currentUser,
-        isVideo: call.isVideo,
-      ),
-    );
+    ref
+        .read(goRouterProvider)
+        .push(
+          '/group-call',
+          extra: GroupCallArgs(
+            groupCallId: call.groupCallId,
+            currentUser: widget.currentUser,
+            isVideo: call.isVideo,
+          ),
+        );
   }
 }
 

@@ -42,7 +42,8 @@ class GroupRolePriorityDialog extends StatefulWidget {
   }
 
   @override
-  State<GroupRolePriorityDialog> createState() => _GroupRolePriorityDialogState();
+  State<GroupRolePriorityDialog> createState() =>
+      _GroupRolePriorityDialogState();
 }
 
 class _GroupRolePriorityDialogState extends State<GroupRolePriorityDialog> {
@@ -76,7 +77,10 @@ class _GroupRolePriorityDialogState extends State<GroupRolePriorityDialog> {
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
                   child: Text(
                     strings.groupRolePriorityTitle,
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
                   ),
                 ),
                 Padding(
@@ -97,7 +101,9 @@ class _GroupRolePriorityDialogState extends State<GroupRolePriorityDialog> {
                           child: Text(
                             strings.groupRoleListEmpty,
                             style: TextStyle(
-                              color: Theme.of(context).colorScheme.onSurfaceVariant,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurfaceVariant,
                             ),
                           ),
                         )
@@ -115,7 +121,10 @@ class _GroupRolePriorityDialogState extends State<GroupRolePriorityDialog> {
                                       ? Color(0xFF000000 | role.color!)
                                       : Colors.transparent,
                                   child: role.color == null
-                                      ? const Icon(Icons.circle_outlined, size: 14)
+                                      ? const Icon(
+                                          Icons.circle_outlined,
+                                          size: 14,
+                                        )
                                       : null,
                                 ),
                                 title: Text(role.name),

@@ -147,12 +147,10 @@ class RoomListPane extends ConsumerWidget {
                   isGekiga
                       ? GekigaIconButton(
                           icon: Icons.settings_outlined,
-                          tooltip: strings.groupSettingsTooltip,
                           onPressed: onOpenGroupSettings!,
                         )
                       : IconButton(
                           icon: const Icon(Icons.settings_outlined),
-                          tooltip: strings.groupSettingsTooltip,
                           onPressed: onOpenGroupSettings,
                         ),
                 if (onCreateRoom != null)

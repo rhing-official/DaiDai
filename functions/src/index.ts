@@ -754,6 +754,54 @@ async function grantOwnership(
   });
 }
 
+/**
+ * ユーザーが所有しているペタピタパックをアンインストール（所有解除）する。
+ * grantOwnershipの対称形として、ownedStickerPacksドキュメントを削除し
+ * ownerCountを1減らす（2026-08-11追加、functions/src/index.tsのcreateStickerPack
+ * コメントで予告していたアンインストール連動の実処理）。salesCountは
+ * 「これまでの累計販売数」という別の指標のため変更しない。これによって
+ * ownerCountが0に戻れば、出品者はdeleteStickerPackでパックを削除できるように
+ * なる。無料・有料どちらのパックでも、PAID_PACKS_ENABLEDに関係なく常に許可する。
+ */
+export const uninstallStickerPack = onCall(
+  { region: "asia-northeast1" },
+  async (request) => {
+    const uid = request.auth?.uid;
+    if (!uid) {
+      throw new HttpsError("unauthenticated", "ログインが必要です");
+    }
+    const packId = request.data?.packId;
+    if (typeof packId !== "string" || !packId) {
+      throw new HttpsError("invalid-argument", "packIdが必要です");
+    }
+
+    const packRef = db.collection("stickerPacks").doc(packId);
+    const ownedRef = db
+      .collection("users")
+      .doc(uid)
+      .collection("ownedStickerPacks")
+      .doc(packId);
+
+    await db.runTransaction(async (tx) => {
+      // Firestoreトランザクションは全てのgetをset/update/deleteより先に
+      // 行う必要があるため、2つのドキュメントを先にまとめて読む。
+      const ownedDoc = await tx.get(ownedRef);
+      const packDoc = await tx.get(packRef);
+
+      if (!ownedDoc.exists) {
+        throw new HttpsError("failed-precondition", "このパックは所有していません");
+      }
+      tx.delete(ownedRef);
+
+      if (packDoc.exists) {
+        const currentOwnerCount =
+          typeof packDoc.data()?.ownerCount === "number" ? packDoc.data()!.ownerCount : 0;
+        tx.update(packRef, { ownerCount: Math.max(0, currentOwnerCount - 1) });
+      }
+    });
+  },
+);
+
 // HomePage-Rhingの本番/開発ドメインのみ、Stripe Checkoutの戻り先として許可する。
 const ALLOWED_RETURN_ORIGINS = ["https://rhing.jp", "http://localhost:3000"];
 

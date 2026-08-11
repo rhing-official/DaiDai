@@ -21,10 +21,7 @@ abstract class FriendRepository {
   Stream<List<FriendRequest>> watchOutgoingRequests(String userId);
 
   /// 申請に応答する。承認の場合は双方の友達関係と一対を作成する。
-  Future<void> respond({
-    required FriendRequest request,
-    required bool accept,
-  });
+  Future<void> respond({required FriendRequest request, required bool accept});
 
   /// 自分の友達一覧。
   Stream<List<Friend>> watchFriends(String userId);
@@ -39,7 +36,7 @@ abstract class FriendRepository {
 
 class FirestoreFriendRepository implements FriendRepository {
   FirestoreFriendRepository({FirebaseFirestore? firestore})
-      : _firestore = firestore ?? FirebaseFirestore.instance;
+    : _firestore = firestore ?? FirebaseFirestore.instance;
 
   final FirebaseFirestore _firestore;
 
@@ -74,8 +71,10 @@ class FirestoreFriendRepository implements FriendRepository {
       // 既に削除されている場合がある（friendRequestsドキュメント自体は
       // 削除される設計だが、念のためここでも実データを見て判定する）。
       // 実際にまだ友達なら何もしない。友達でなければ下の再申請処理へ進む。
-      final stillFriends =
-          await isFriend(userId: from.userId, otherUserId: to.userId);
+      final stillFriends = await isFriend(
+        userId: from.userId,
+        otherUserId: to.userId,
+      );
       if (stillFriends) return;
     } else if (existing.status == FriendRequestStatus.pending) {
       if (existing.fromUserId == from.userId) {
@@ -103,9 +102,11 @@ class FirestoreFriendRepository implements FriendRepository {
         .where('toUserId', isEqualTo: userId)
         .where('status', isEqualTo: FriendRequestStatus.pending.name)
         .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => FriendRequest.fromJson(doc.id, doc.data()))
-            .toList());
+        .map(
+          (snapshot) => snapshot.docs
+              .map((doc) => FriendRequest.fromJson(doc.id, doc.data()))
+              .toList(),
+        );
   }
 
   @override
@@ -114,9 +115,11 @@ class FirestoreFriendRepository implements FriendRepository {
         .where('fromUserId', isEqualTo: userId)
         .where('status', isEqualTo: FriendRequestStatus.pending.name)
         .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => FriendRequest.fromJson(doc.id, doc.data()))
-            .toList());
+        .map(
+          (snapshot) => snapshot.docs
+              .map((doc) => FriendRequest.fromJson(doc.id, doc.data()))
+              .toList(),
+        );
   }
 
   @override
@@ -188,9 +191,11 @@ class FirestoreFriendRepository implements FriendRepository {
 
   @override
   Stream<List<Friend>> watchFriends(String userId) {
-    return _friendsOf(userId).snapshots().map((snapshot) => snapshot.docs
-        .map((doc) => Friend.fromJson(doc.id, doc.data()))
-        .toList());
+    return _friendsOf(userId).snapshots().map(
+      (snapshot) => snapshot.docs
+          .map((doc) => Friend.fromJson(doc.id, doc.data()))
+          .toList(),
+    );
   }
 
   @override

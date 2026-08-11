@@ -43,5 +43,5 @@ class ChatLayoutStyleNotifier extends Notifier<ChatLayoutStyle> {
 
 final chatLayoutStyleProvider =
     NotifierProvider<ChatLayoutStyleNotifier, ChatLayoutStyle>(
-  ChatLayoutStyleNotifier.new,
-);
+      ChatLayoutStyleNotifier.new,
+    );

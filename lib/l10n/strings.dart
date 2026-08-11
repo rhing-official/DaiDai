@@ -187,6 +187,15 @@ class Strings {
     required this.chatAttachImage,
     required this.chatAttachVideo,
     required this.chatAttachCapture,
+    required this.chatNoStickersMessage,
+    required this.stickerSearchHint,
+    required this.settingsStickersSection,
+    required this.settingsManageOwnedStickers,
+    required this.ownedStickersScreenTitle,
+    required this.uninstallStickerButton,
+    required this.uninstallStickerConfirmTitle,
+    required this.uninstallStickerConfirmMessage,
+    required this.uninstallStickerConfirmButton,
     required this.chatAttachmentTooLargeMessage,
     required this.chatAttachmentBlockedExtensionMessage,
     required this.chatAttachmentSendFailedMessage,
@@ -318,12 +327,11 @@ class Strings {
     required this.groupJoinOpenGroup,
     required this.groupJoinRetry,
     required this.settingsDeleteAccountConfirmTitle,
-    required this.settingsDeleteAccountConfirmMessage,
-    required this.settingsDeleteAccountConfirmButton,
+    required this.settingsDeleteAccountGraceOption,
+    required this.settingsDeleteAccountGraceOptionSubtitle,
     required this.settingsDeleteAccountImmediate,
-    required this.settingsDeleteAccountImmediateConfirmTitle,
-    required this.settingsDeleteAccountImmediateConfirmMessage,
-    required this.settingsDeleteAccountImmediateConfirmButton,
+    required this.settingsDeleteAccountImmediateOptionSubtitle,
+    required this.settingsDeleteAccountCancelButton,
     required this.accountDeleteOwnerGuardTitle,
     required this.accountDeleteOwnerGuardMessage,
     required this.accountDeleteOwnerGuardCleared,
@@ -551,6 +559,15 @@ class Strings {
   final String chatAttachImage;
   final String chatAttachVideo;
   final String chatAttachCapture;
+  final String chatNoStickersMessage;
+  final String stickerSearchHint;
+  final String settingsStickersSection;
+  final String settingsManageOwnedStickers;
+  final String ownedStickersScreenTitle;
+  final String uninstallStickerButton;
+  final String uninstallStickerConfirmTitle;
+  final String uninstallStickerConfirmMessage;
+  final String uninstallStickerConfirmButton;
   final String chatAttachmentTooLargeMessage;
   final String chatAttachmentBlockedExtensionMessage;
   final String chatAttachmentSendFailedMessage;
@@ -789,15 +806,20 @@ class Strings {
   final String groupJoinOpenGroup;
   final String groupJoinRetry;
 
+  /// アカウント削除の選択ポップアップのタイトル。
   final String settingsDeleteAccountConfirmTitle;
-  final String settingsDeleteAccountConfirmMessage;
-  final String settingsDeleteAccountConfirmButton;
 
-  /// 30日間の復元猶予期間を経ない、即時削除（復元不可）の操作行ラベル。
+  /// 30日間の復元猶予期間を経る通常削除の選択肢カードのタイトル。
+  final String settingsDeleteAccountGraceOption;
+  final String settingsDeleteAccountGraceOptionSubtitle;
+
+  /// 30日間の復元猶予期間を経ない、即時削除（復元不可）の選択肢カードの
+  /// タイトル（操作行ラベルにも流用）。
   final String settingsDeleteAccountImmediate;
-  final String settingsDeleteAccountImmediateConfirmTitle;
-  final String settingsDeleteAccountImmediateConfirmMessage;
-  final String settingsDeleteAccountImmediateConfirmButton;
+  final String settingsDeleteAccountImmediateOptionSubtitle;
+
+  /// アカウント削除の選択ポップアップの「やめる」ボタン。
+  final String settingsDeleteAccountCancelButton;
 
   /// 長を務める広場が残っている間、アカウント削除（通常・即時どちらも）を
   /// 先に進ませないためのガードダイアログの文言（2026-08-02追加）。
@@ -943,7 +965,7 @@ class Strings {
     qrLoginScanInstructionButton: 'スキャンを開始する',
     settingsPasskey: 'パスキー',
     settingsQrLogin: 'QRコードによるログイン',
-    settingsDeleteAccount: 'アカウントを削除する（30日以内なら復元可）',
+    settingsDeleteAccount: 'アカウントを削除',
     settingsComingSoon: '準備中',
     settingsSendKeyTitle: 'メッセージの送信キー',
     settingsSendKeyEnterToSend: 'Enterで送信、Shift+Enterで改行',
@@ -1044,6 +1066,15 @@ class Strings {
     chatAttachImage: '画像',
     chatAttachVideo: '動画',
     chatAttachCapture: '撮影',
+    chatNoStickersMessage: 'まだペタピタがありません',
+    stickerSearchHint: 'ペタピタを検索',
+    settingsStickersSection: 'ペタピタ',
+    settingsManageOwnedStickers: '所持しているペタピタを管理',
+    ownedStickersScreenTitle: '所持しているペタピタ',
+    uninstallStickerButton: 'アンインストール',
+    uninstallStickerConfirmTitle: 'アンインストールしますか？',
+    uninstallStickerConfirmMessage: 'アンインストールすると、このペタピタは送信できなくなります。',
+    uninstallStickerConfirmButton: 'アンインストールする',
     chatAttachmentTooLargeMessage: '2GBを超えるファイルは送信できません',
     chatAttachmentBlockedExtensionMessage: 'この拡張子のファイルは送信できません',
     chatAttachmentSendFailedMessage: '送信に失敗しました',
@@ -1150,7 +1181,7 @@ class Strings {
     settingsProfileCardAssignmentHint:
         '標準カード以外を使っている語らいだけがここに表示されます。＋から新しく設定できます。',
     settingsProfileCardAssignmentEmpty: '標準以外のカードを使っている語らいはまだありません',
-    conversationProfileCardMenuLabel: '使うプロフィールカード',
+    conversationProfileCardMenuLabel: '自分のプロフィールカード',
     workshopConversationCardAddTooltip: '個別にカードを設定する語らいを追加',
     workshopConversationCardAddDialogTitle: 'カードを個別に設定する語らいを選ぶ',
     workshopConversationCardAddEmpty: '設定できる語らいがありません',
@@ -1188,14 +1219,11 @@ class Strings {
     groupJoinOpenGroup: '広場を開く',
     groupJoinRetry: '再読み込み',
     settingsDeleteAccountConfirmTitle: 'アカウントを削除しますか？',
-    settingsDeleteAccountConfirmMessage:
-        '削除すると30日間は復元できます。何も操作をしないまま31日が経過すると、サーバーから全ての情報が完全に削除されます。',
-    settingsDeleteAccountConfirmButton: '削除する',
-    settingsDeleteAccountImmediate: '今すぐ削除する（復元不可）',
-    settingsDeleteAccountImmediateConfirmTitle: '今すぐ削除しますか？',
-    settingsDeleteAccountImmediateConfirmMessage:
-        'この操作は取り消せません。今すぐサーバーから全ての情報が完全に削除されます（30日間の復元期間はありません）。',
-    settingsDeleteAccountImmediateConfirmButton: '今すぐ削除する',
+    settingsDeleteAccountGraceOption: '30日後に削除',
+    settingsDeleteAccountGraceOptionSubtitle: '30日以内に再ログインすれば取り消せます',
+    settingsDeleteAccountImmediate: '今すぐ削除',
+    settingsDeleteAccountImmediateOptionSubtitle: 'この操作は取り消せません',
+    settingsDeleteAccountCancelButton: 'やめる',
     accountDeleteOwnerGuardTitle: '広場の長を譲渡してください',
     accountDeleteOwnerGuardMessage:
         '以下の広場で長を務めています。アカウントを削除する前に、'
@@ -1327,7 +1355,7 @@ class Strings {
     qrLoginScanInstructionButton: 'Start scanning',
     settingsPasskey: 'Passkey',
     settingsQrLogin: 'Sign in with a QR code',
-    settingsDeleteAccount: 'Delete account (restorable within 30 days)',
+    settingsDeleteAccount: 'Delete account',
     settingsComingSoon: 'Coming soon',
     settingsSendKeyTitle: 'Message send key',
     settingsSendKeyEnterToSend: 'Enter to send, Shift+Enter for a new line',
@@ -1444,6 +1472,16 @@ class Strings {
     chatAttachImage: 'Image',
     chatAttachVideo: 'Video',
     chatAttachCapture: 'Capture',
+    chatNoStickersMessage: "You don't have any stickers yet.",
+    stickerSearchHint: 'Search stickers',
+    settingsStickersSection: 'Stickers',
+    settingsManageOwnedStickers: 'Manage owned stickers',
+    ownedStickersScreenTitle: 'Owned stickers',
+    uninstallStickerButton: 'Uninstall',
+    uninstallStickerConfirmTitle: 'Uninstall this pack?',
+    uninstallStickerConfirmMessage:
+        "You won't be able to send these stickers after uninstalling.",
+    uninstallStickerConfirmButton: 'Uninstall',
     chatAttachmentTooLargeMessage: "Files over 2GB can't be sent.",
     chatAttachmentBlockedExtensionMessage: "This file type can't be sent.",
     chatAttachmentSendFailedMessage: 'Failed to send.',
@@ -1562,7 +1600,7 @@ class Strings {
         'Only conversations using a non-standard card are shown here. Tap + to set one up.',
     settingsProfileCardAssignmentEmpty:
         'No conversations are using a non-standard card yet',
-    conversationProfileCardMenuLabel: 'Profile card to use',
+    conversationProfileCardMenuLabel: 'My profile card',
     workshopConversationCardAddTooltip: 'Add a conversation to set a card for',
     workshopConversationCardAddDialogTitle:
         'Choose a conversation to set a card for',
@@ -1607,18 +1645,13 @@ class Strings {
     groupJoinOpenGroup: 'Open plaza',
     groupJoinRetry: 'Retry',
     settingsDeleteAccountConfirmTitle: 'Delete your account?',
-    settingsDeleteAccountConfirmMessage:
-        'You can restore your account within 30 days. If you take no action, '
-        'all your data will be permanently deleted from our servers after '
-        '31 days.',
-    settingsDeleteAccountConfirmButton: 'Delete',
-    settingsDeleteAccountImmediate: 'Delete immediately (not restorable)',
-    settingsDeleteAccountImmediateConfirmTitle: 'Delete immediately?',
-    settingsDeleteAccountImmediateConfirmMessage:
-        'This action cannot be undone. All your data will be permanently '
-        'deleted from our servers right now (there is no 30-day restore '
-        'period).',
-    settingsDeleteAccountImmediateConfirmButton: 'Delete now',
+    settingsDeleteAccountGraceOption: 'Delete after 30 days',
+    settingsDeleteAccountGraceOptionSubtitle:
+        'Undo by logging back in within 30 days',
+    settingsDeleteAccountImmediate: 'Delete immediately',
+    settingsDeleteAccountImmediateOptionSubtitle:
+        'This action cannot be undone',
+    settingsDeleteAccountCancelButton: 'Cancel',
     accountDeleteOwnerGuardTitle: 'Transfer ownership first',
     accountDeleteOwnerGuardMessage:
         'You are the owner of the plazas below. Please transfer ownership '

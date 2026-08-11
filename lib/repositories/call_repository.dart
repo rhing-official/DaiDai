@@ -46,7 +46,7 @@ abstract class CallRepository {
 
 class FirestoreCallRepository implements CallRepository {
   FirestoreCallRepository({FirebaseFirestore? firestore})
-      : _firestore = firestore ?? FirebaseFirestore.instance;
+    : _firestore = firestore ?? FirebaseFirestore.instance;
 
   final FirebaseFirestore _firestore;
 
@@ -97,10 +97,10 @@ class FirestoreCallRepository implements CallRepository {
         .where('status', isEqualTo: CallStatus.ringing.name)
         .snapshots()
         .map((snapshot) {
-      if (snapshot.docs.isEmpty) return null;
-      final doc = snapshot.docs.first;
-      return Call.fromJson(doc.id, doc.data());
-    });
+          if (snapshot.docs.isEmpty) return null;
+          final doc = snapshot.docs.first;
+          return Call.fromJson(doc.id, doc.data());
+        });
   }
 
   @override

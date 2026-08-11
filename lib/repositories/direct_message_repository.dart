@@ -90,6 +90,21 @@ abstract class DirectMessageRepository {
     Message? replyTo,
   });
 
+  /// ペタピタ（スタンプ）を送る。既にStorageにアップロード済みの画像を
+  /// 参照するだけなので、[sendAttachmentMessage]と異なりバイトデータの
+  /// アップロードを伴わない（技術仕様書7.4参照、2026-08-11追加）。
+  Future<void> sendStickerMessage({
+    required String dmId,
+    required String roomId,
+    required String senderId,
+    required String senderRhingId,
+    required String stickerId,
+    required String stickerName,
+    required String stickerUrl,
+    bool silent = false,
+    Message? replyTo,
+  });
+
   /// 通話が終了した際、通話履歴メッセージ（開始時刻・通話時間）を送る。
   /// 発信者側からのみ呼ばれる（`WebrtcCallController`参照）。実際に接続
   /// （応答）された通話のみが対象で、不在着信・拒否の場合は呼ばれない。
@@ -578,6 +593,51 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
           ? null
           : messageSnippetOf(replyTo.content),
       fileMetadata: fileMetadata,
+    );
+
+    final batch = _firestore.batch();
+    batch.set(messageRef, message.toJson());
+    batch.update(roomRef, {'lastMessageAt': FieldValue.serverTimestamp()});
+    batch.update(_directMessages.doc(dmId), {
+      'lastMessageAt': FieldValue.serverTimestamp(),
+    });
+    await batch.commit();
+  }
+
+  @override
+  Future<void> sendStickerMessage({
+    required String dmId,
+    required String roomId,
+    required String senderId,
+    required String senderRhingId,
+    required String stickerId,
+    required String stickerName,
+    required String stickerUrl,
+    bool silent = false,
+    Message? replyTo,
+  }) async {
+    final roomRef = _dmRoomRef(dmId, roomId);
+    final messageRef = roomRef.collection('messages').doc();
+
+    final message = Message(
+      messageId: messageRef.id,
+      conversationId: roomId,
+      conversationType: 'dm',
+      senderId: senderId,
+      senderRhingId: senderRhingId,
+      content: stickerName,
+      contentType: 'sticker',
+      silent: silent,
+      replyToMessageId: replyTo?.messageId,
+      replyToSenderId: replyTo?.senderId,
+      replyToSenderRhingId: replyTo?.senderRhingId,
+      replyToSnippet: replyTo == null
+          ? null
+          : messageSnippetOf(replyTo.content),
+      stickerData: MessageStickerData(
+        stickerId: stickerId,
+        stickerUrl: stickerUrl,
+      ),
     );
 
     final batch = _firestore.batch();

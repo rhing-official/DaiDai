@@ -41,8 +41,8 @@ class _IncomingCallListenerState extends ConsumerState<IncomingCallListener> {
             ),
           )
           .then((_) {
-        _openCallId = null;
-      });
+            _openCallId = null;
+          });
     });
 
     return widget.child;

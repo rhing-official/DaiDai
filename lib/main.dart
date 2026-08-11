@@ -90,6 +90,7 @@ class DaiDaiApp extends ConsumerWidget {
         : AppTheme.dark(accentColor);
     return MaterialApp.router(
       title: 'DaiDai',
+      debugShowCheckedModeBanner: false,
       theme: theme,
       darkTheme: darkTheme,
       themeMode: themeMode,

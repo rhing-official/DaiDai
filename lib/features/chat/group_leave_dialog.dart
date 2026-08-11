@@ -41,10 +41,9 @@ class _GroupLeaveDialogState extends ConsumerState<GroupLeaveDialog> {
       _errorMessage = null;
     });
     try {
-      await ref.read(groupRepositoryProvider).leaveGroup(
-            groupId: widget.groupId,
-            userId: widget.userId,
-          );
+      await ref
+          .read(groupRepositoryProvider)
+          .leaveGroup(groupId: widget.groupId, userId: widget.userId);
       if (!mounted) return;
       Navigator.of(context).pop();
       context.go('/');

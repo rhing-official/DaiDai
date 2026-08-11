@@ -74,7 +74,8 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
   /// ビデオ通話レイアウトを使う（音声⇔ビデオ切替は参加者ごとに独立している
   /// ため、全員が同じ種別とは限らない）。
   bool get _anyVideo =>
-      _controller.isVideo || _controller.remoteParticipants.any((p) => p.isVideo);
+      _controller.isVideo ||
+      _controller.remoteParticipants.any((p) => p.isVideo);
 
   @override
   Widget build(BuildContext context) {
@@ -93,7 +94,10 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
   Widget _audioBody() {
     final colorScheme = Theme.of(context).colorScheme;
     final remoteParticipants = _controller.remoteParticipants;
-    final tiles = [widget.currentUser.rhingId, ...remoteParticipants.map((p) => p.rhingId)];
+    final tiles = [
+      widget.currentUser.rhingId,
+      ...remoteParticipants.map((p) => p.rhingId),
+    ];
 
     return SafeArea(
       child: Column(
@@ -129,7 +133,10 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
                       backgroundColor: colorScheme.primary,
                       child: Text(
                         rhingId.isNotEmpty ? rhingId[0].toUpperCase() : '?',
-                        style: const TextStyle(fontSize: 28, color: Colors.white),
+                        style: const TextStyle(
+                          fontSize: 28,
+                          color: Colors.white,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -161,7 +168,9 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
             Positioned.fill(
               child: _videoTile(
                 rhingId: widget.currentUser.rhingId,
-                renderer: _controller.isVideo ? _controller.localRenderer : null,
+                renderer: _controller.isVideo
+                    ? _controller.localRenderer
+                    : null,
                 mirror: true,
                 micMuted: _controller.muted,
                 cameraOff: _controller.cameraOff,
@@ -226,8 +235,9 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
         ),
     ];
 
-    final focused =
-        entries.firstWhereOrNull((entry) => entry.key == _focusedTileKey);
+    final focused = entries.firstWhereOrNull(
+      (entry) => entry.key == _focusedTileKey,
+    );
 
     if (focused != null) {
       return SafeArea(
@@ -326,7 +336,9 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
             Center(
               child: CircleAvatar(
                 radius: 32,
-                child: Text(rhingId.isNotEmpty ? rhingId[0].toUpperCase() : '?'),
+                child: Text(
+                  rhingId.isNotEmpty ? rhingId[0].toUpperCase() : '?',
+                ),
               ),
             ),
           Positioned(
@@ -354,8 +366,7 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
               top: 8,
               right: 8,
               child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                 decoration: BoxDecoration(
                   color: Colors.black54,
                   borderRadius: BorderRadius.circular(6),
@@ -384,9 +395,7 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
         Tooltip(
           message: _controller.speakerOn ? 'スピーカーで再生中' : '受話口（イヤピース）で再生中',
           child: CallRoundButton(
-            icon: _controller.speakerOn
-                ? Icons.volume_up
-                : Icons.phone_in_talk,
+            icon: _controller.speakerOn ? Icons.volume_up : Icons.phone_in_talk,
             color: Colors.grey[700]!,
             onPressed: isActive ? _controller.toggleSpeaker : null,
           ),
@@ -410,7 +419,8 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
           CallRoundButton(
             icon: Icons.cameraswitch,
             color: Colors.grey[700]!,
-            onPressed: isActive &&
+            onPressed:
+                isActive &&
                     !_controller.cameraOff &&
                     !_controller.switchingCamera
                 ? _controller.switchCamera

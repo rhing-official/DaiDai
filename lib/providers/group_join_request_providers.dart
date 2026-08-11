@@ -7,7 +7,7 @@ import 'repository_providers.dart';
 /// 「申請中」として表示するために使う）。
 final myPendingGroupJoinRequestsProvider =
     StreamProvider.family<List<GroupJoinRequest>, String>((ref, userId) {
-  return ref
-      .watch(groupRepositoryProvider)
-      .watchMyPendingJoinRequests(userId);
-});
+      return ref
+          .watch(groupRepositoryProvider)
+          .watchMyPendingJoinRequests(userId);
+    });

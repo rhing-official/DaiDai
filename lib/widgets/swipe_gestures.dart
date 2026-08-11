@@ -50,7 +50,11 @@ class SwipeBackDetector extends StatelessWidget {
 /// 下方向への縦スワイプで[onDismiss]を呼ぶ。ポップアップ（Dialog）を
 /// 下にスライドして閉じる操作に使う。
 class SwipeDownToDismiss extends StatelessWidget {
-  const SwipeDownToDismiss({required this.onDismiss, required this.child, super.key});
+  const SwipeDownToDismiss({
+    required this.onDismiss,
+    required this.child,
+    super.key,
+  });
 
   final VoidCallback onDismiss;
   final Widget child;

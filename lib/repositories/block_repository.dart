@@ -13,7 +13,7 @@ abstract class BlockRepository {
 
 class FirestoreBlockRepository implements BlockRepository {
   FirestoreBlockRepository({FirebaseFirestore? firestore})
-      : _firestore = firestore ?? FirebaseFirestore.instance;
+    : _firestore = firestore ?? FirebaseFirestore.instance;
 
   final FirebaseFirestore _firestore;
 
@@ -22,20 +22,26 @@ class FirestoreBlockRepository implements BlockRepository {
 
   @override
   Stream<Set<String>> watchBlockedUserIds(String userId) {
-    return _blockedUsersOf(userId)
-        .snapshots()
-        .map((snapshot) => snapshot.docs.map((doc) => doc.id).toSet());
+    return _blockedUsersOf(
+      userId,
+    ).snapshots().map((snapshot) => snapshot.docs.map((doc) => doc.id).toSet());
   }
 
   @override
-  Future<void> block({required String userId, required String targetUserId}) async {
-    await _blockedUsersOf(userId).doc(targetUserId).set({
-      'blockedAt': FieldValue.serverTimestamp(),
-    });
+  Future<void> block({
+    required String userId,
+    required String targetUserId,
+  }) async {
+    await _blockedUsersOf(
+      userId,
+    ).doc(targetUserId).set({'blockedAt': FieldValue.serverTimestamp()});
   }
 
   @override
-  Future<void> unblock({required String userId, required String targetUserId}) async {
+  Future<void> unblock({
+    required String userId,
+    required String targetUserId,
+  }) async {
     await _blockedUsersOf(userId).doc(targetUserId).delete();
   }
 }

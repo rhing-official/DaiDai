@@ -31,7 +31,7 @@ dynamic buildAudioConstraints() {
 }
 
 Map<String, dynamic> buildVideoConstraints() => {
-      'facingMode': 'user',
-      'width': {'ideal': 1280},
-      'height': {'ideal': 720},
-    };
+  'facingMode': 'user',
+  'width': {'ideal': 1280},
+  'height': {'ideal': 720},
+};

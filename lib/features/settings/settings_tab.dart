@@ -35,6 +35,7 @@ import '../../widgets/qr_scan_screen.dart';
 import '../../widgets/swipe_gestures.dart';
 import '../auth/two_factor_setup_dialog.dart';
 import '../chat/group_member_list_screen.dart';
+import 'owned_sticker_packs_popup.dart';
 
 /// 画面幅がこれ以上あれば、左にカテゴリ一覧（サイドバー）、右にそのカテゴリの
 /// 内容を1ページにまとめて表示するDiscord設定風の2ペイン表示にする。
@@ -671,7 +672,7 @@ Future<bool> _confirmApproveQrLogin(
   return confirmed ?? false;
 }
 
-/// 2段階認証を無効にする前の確認ダイアログ（`_confirmDeleteAccount`と同じ形）。
+/// 2段階認証を無効にする前の確認ダイアログ。
 Future<bool> _confirmDisableTwoFactor(
   BuildContext context,
   Strings strings,
@@ -731,6 +732,23 @@ class _AccountPage extends ConsumerWidget {
         ),
         _QrLoginRow(strings: strings),
         const Divider(height: 24),
+        _SectionHeader(strings.settingsStickersSection),
+        _ActionRow(
+          label: strings.settingsManageOwnedStickers,
+          onTap: () => showDialog<void>(
+            context: context,
+            builder: (_) => Dialog(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(
+                  maxWidth: 400,
+                  maxHeight: 640,
+                ),
+                child: OwnedStickerPacksPopup(userId: currentUser.userId),
+              ),
+            ),
+          ),
+        ),
+        const Divider(height: 24),
         _ActionRow(
           label: strings.settingsLogout,
           onTap: () => ref.read(authRepositoryProvider).signOut(),
@@ -743,28 +761,18 @@ class _AccountPage extends ConsumerWidget {
               return;
             }
             if (!context.mounted) return;
-            final confirmed = await _confirmDeleteAccount(context, strings);
-            if (!confirmed || !context.mounted) return;
-            await ref
-                .read(userRepositoryProvider)
-                .requestAccountDeletion(currentUser.userId);
-            await ref.read(authRepositoryProvider).signOut();
-          },
-        ),
-        _ActionRow(
-          label: strings.settingsDeleteAccountImmediate,
-          destructive: true,
-          onTap: () async {
-            if (!await _ensureNoOwnedGroups(context, ref, currentUser)) {
-              return;
+            final choice = await _showDeleteAccountDialog(context, strings);
+            if (choice == null || !context.mounted) return;
+            switch (choice) {
+              case _DeleteAccountChoice.grace:
+                await ref
+                    .read(userRepositoryProvider)
+                    .requestAccountDeletion(currentUser.userId);
+              case _DeleteAccountChoice.immediate:
+                await ref
+                    .read(userRepositoryProvider)
+                    .deleteAccountImmediately();
             }
-            if (!context.mounted) return;
-            final confirmed = await _confirmDeleteAccountImmediately(
-              context,
-              strings,
-            );
-            if (!confirmed || !context.mounted) return;
-            await ref.read(userRepositoryProvider).deleteAccountImmediately();
             if (!context.mounted) return;
             await ref.read(authRepositoryProvider).signOut();
           },
@@ -893,64 +901,122 @@ class _OwnerGroupsGuardDialog extends ConsumerWidget {
   }
 }
 
-/// アカウント削除の申請前に出す確認ダイアログ。30日間は復元できるが、
-/// 何も操作をしないまま31日経過すると全情報が完全に削除される旨を伝える
-/// （`chat_panes.dart`の`_confirmDisableReadReceipts`と同じ形）。
-Future<bool> _confirmDeleteAccount(
+enum _DeleteAccountChoice { grace, immediate }
+
+/// アカウント削除ボタンから開く選択ポップアップ（2026-08-11、それまでの
+/// 「通常削除」「即時削除」2つの操作行＋各々の`AlertDialog`確認という
+/// 2段階UIを、1つの選択ポップアップに統合）。「30日後に削除」「今すぐ削除」
+/// （取り消せない旨をカード内に明記）「やめる」を縦に並べたカード形式で、
+/// タップした時点でその場の1操作として確定する（従来のような2段階目の
+/// 確認ダイアログは挟まない）。
+Future<_DeleteAccountChoice?> _showDeleteAccountDialog(
   BuildContext context,
   Strings strings,
-) async {
-  final confirmed = await showDialog<bool>(
+) {
+  return showDialog<_DeleteAccountChoice>(
     context: context,
-    builder: (context) => AlertDialog(
-      title: Text(strings.settingsDeleteAccountConfirmTitle),
-      content: Text(strings.settingsDeleteAccountConfirmMessage),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(false),
-          child: Text(strings.cancel),
-        ),
-        FilledButton(
-          style: FilledButton.styleFrom(
-            backgroundColor: Theme.of(context).colorScheme.error,
+    builder: (context) => Dialog(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 400),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                strings.settingsDeleteAccountConfirmTitle,
+                style: Theme.of(context).textTheme.titleMedium,
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 20),
+              _DeleteAccountOptionCard(
+                title: strings.settingsDeleteAccountGraceOption,
+                subtitle: strings.settingsDeleteAccountGraceOptionSubtitle,
+                onTap: () =>
+                    Navigator.of(context).pop(_DeleteAccountChoice.grace),
+              ),
+              const SizedBox(height: 12),
+              _DeleteAccountOptionCard(
+                title: strings.settingsDeleteAccountImmediate,
+                subtitle: strings.settingsDeleteAccountImmediateOptionSubtitle,
+                destructive: true,
+                onTap: () =>
+                    Navigator.of(context).pop(_DeleteAccountChoice.immediate),
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: Text(strings.settingsDeleteAccountCancelButton),
+                ),
+              ),
+            ],
           ),
-          onPressed: () => Navigator.of(context).pop(true),
-          child: Text(strings.settingsDeleteAccountConfirmButton),
         ),
-      ],
+      ),
     ),
   );
-  return confirmed ?? false;
 }
 
-/// 即時削除（30日間の復元猶予期間を経ない）前に出す確認ダイアログ。
-/// 取り消せないことを強調する文言にする（`_confirmDeleteAccount`より
-/// 一段階強い警告）。
-Future<bool> _confirmDeleteAccountImmediately(
-  BuildContext context,
-  Strings strings,
-) async {
-  final confirmed = await showDialog<bool>(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: Text(strings.settingsDeleteAccountImmediateConfirmTitle),
-      content: Text(strings.settingsDeleteAccountImmediateConfirmMessage),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(false),
-          child: Text(strings.cancel),
-        ),
-        FilledButton(
-          style: FilledButton.styleFrom(
-            backgroundColor: Theme.of(context).colorScheme.error,
+class _DeleteAccountOptionCard extends StatelessWidget {
+  const _DeleteAccountOptionCard({
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+    this.destructive = false,
+  });
+
+  final String title;
+  final String subtitle;
+  final void Function() onTap;
+  final bool destructive;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final titleColor = destructive ? colorScheme.error : colorScheme.onSurface;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            border: Border.all(
+              color: destructive
+                  ? colorScheme.error.withValues(alpha: 0.5)
+                  : colorScheme.outlineVariant,
+            ),
+            borderRadius: BorderRadius.circular(12),
           ),
-          onPressed: () => Navigator.of(context).pop(true),
-          child: Text(strings.settingsDeleteAccountImmediateConfirmButton),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  color: titleColor,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                subtitle,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: destructive
+                      ? colorScheme.error
+                      : colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
         ),
-      ],
-    ),
-  );
-  return confirmed ?? false;
+      ),
+    );
+  }
 }
 
 /// アプリケーションカテゴリの中身。旧: 色／UI／文字／言語の各サブフォルダを
