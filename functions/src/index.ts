@@ -428,3 +428,202 @@ export const cleanupQrLoginSessions = onSchedule(
     await writer.commit();
   },
 );
+
+// ---------------------------------------------------------------------
+// daidai横丁: ペタピタパッケージ関連のcallable（技術仕様書7.4・7.5参照、
+// 2026-08-11追加）。stickerPacks/stickerPackReportsはfirestore.rulesで
+// クライアントからの書き込みを一律禁止しているため、パックの作成・編集・
+// 通報はすべてここを経由する。HomePage-Rhing（daidai-yokochoセクション）
+// からFirebase Client SDKのhttpsCallableで呼ばれる想定。
+// ---------------------------------------------------------------------
+
+const MIN_STICKERS_PER_PACK = 4;
+
+interface StickerInput {
+  stickerId: string;
+  name: string;
+  imageUrl: string;
+}
+
+/** stickersフィールドの形式（配列・各要素のstickerId/name/imageUrl）を検証する。 */
+function assertValidStickers(value: unknown, minCount: number): StickerInput[] {
+  if (!Array.isArray(value) || value.length < minCount) {
+    throw new HttpsError(
+      "invalid-argument",
+      `stickersは${minCount}件以上の配列が必要です`,
+    );
+  }
+  return value.map((item, index) => {
+    const s = item as Partial<StickerInput> | null;
+    if (
+      typeof s !== "object" ||
+      s === null ||
+      typeof s.stickerId !== "string" || !s.stickerId ||
+      typeof s.name !== "string" || !s.name ||
+      typeof s.imageUrl !== "string" || !s.imageUrl
+    ) {
+      throw new HttpsError(
+        "invalid-argument",
+        `stickers[${index}]の形式が不正です（stickerId/name/imageUrlの文字列が必要）`,
+      );
+    }
+    return { stickerId: s.stickerId, name: s.name, imageUrl: s.imageUrl };
+  });
+}
+
+function assertValidPrice(value: unknown): number {
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 0) {
+    throw new HttpsError("invalid-argument", "priceは0以上の整数が必要です");
+  }
+  return value;
+}
+
+/**
+ * 出品者（DaiDaiアカウントを持つ誰でも即出品可、承認フローなし）が新規パックを
+ * 作成する。creatorIdは呼び出し元のuidで固定し、他人になりすませないようにする。
+ */
+export const createStickerPack = onCall(
+  { region: "asia-northeast1" },
+  async (request) => {
+    const uid = request.auth?.uid;
+    if (!uid) {
+      throw new HttpsError("unauthenticated", "ログインが必要です");
+    }
+    const name = request.data?.name;
+    if (typeof name !== "string" || !name.trim()) {
+      throw new HttpsError("invalid-argument", "nameが必要です");
+    }
+    const price = assertValidPrice(request.data?.price);
+    const stickers = assertValidStickers(request.data?.stickers, MIN_STICKERS_PER_PACK);
+    const category = typeof request.data?.category === "string" ? request.data.category : "";
+    const tags: string[] = Array.isArray(request.data?.tags)
+      ? request.data.tags.filter((t: unknown): t is string => typeof t === "string")
+      : [];
+
+    const ref = db.collection("stickerPacks").doc();
+    await ref.set({
+      creatorId: uid,
+      name: name.trim(),
+      price,
+      stickers,
+      category,
+      tags,
+      salesCount: 0,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    return { packId: ref.id };
+  },
+);
+
+/**
+ * 出品済みパックのname・priceのみを変更する。画像（stickers）はここでは
+ * 変更できない（追加専用の方針、addStickersToStickerPack参照）。
+ */
+export const updateStickerPackMeta = onCall(
+  { region: "asia-northeast1" },
+  async (request) => {
+    const uid = request.auth?.uid;
+    if (!uid) {
+      throw new HttpsError("unauthenticated", "ログインが必要です");
+    }
+    const packId = request.data?.packId;
+    if (typeof packId !== "string" || !packId) {
+      throw new HttpsError("invalid-argument", "packIdが必要です");
+    }
+    const ref = db.collection("stickerPacks").doc(packId);
+    const doc = await ref.get();
+    if (!doc.exists) {
+      throw new HttpsError("not-found", "パックが見つかりません");
+    }
+    if (doc.data()?.creatorId !== uid) {
+      throw new HttpsError("permission-denied", "自分が出品したパックのみ編集できます");
+    }
+
+    const update: { name?: string; price?: number } = {};
+    if (request.data?.name !== undefined) {
+      if (typeof request.data.name !== "string" || !request.data.name.trim()) {
+        throw new HttpsError("invalid-argument", "nameが不正です");
+      }
+      update.name = request.data.name.trim();
+    }
+    if (request.data?.price !== undefined) {
+      update.price = assertValidPrice(request.data.price);
+    }
+    if (Object.keys(update).length === 0) {
+      throw new HttpsError("invalid-argument", "name・priceのいずれかが必要です");
+    }
+    await ref.update(update);
+  },
+);
+
+/**
+ * 出品済みパックに画像を追加する。技術仕様書7.5節の方針により追加専用
+ * （削除・差し替えは不可、購入済みユーザーの手持ちスタンプを変えないため）。
+ */
+export const addStickersToStickerPack = onCall(
+  { region: "asia-northeast1" },
+  async (request) => {
+    const uid = request.auth?.uid;
+    if (!uid) {
+      throw new HttpsError("unauthenticated", "ログインが必要です");
+    }
+    const packId = request.data?.packId;
+    if (typeof packId !== "string" || !packId) {
+      throw new HttpsError("invalid-argument", "packIdが必要です");
+    }
+    // パック全体の下限4件はcreateStickerPack側で保証済みのため、
+    // 追加時は1件以上あればよい。
+    const stickers = assertValidStickers(request.data?.stickers, 1);
+
+    const ref = db.collection("stickerPacks").doc(packId);
+    const doc = await ref.get();
+    if (!doc.exists) {
+      throw new HttpsError("not-found", "パックが見つかりません");
+    }
+    if (doc.data()?.creatorId !== uid) {
+      throw new HttpsError("permission-denied", "自分が出品したパックのみ編集できます");
+    }
+    const existingIds = new Set(
+      ((doc.data()?.stickers as StickerInput[] | undefined) ?? []).map((s) => s.stickerId),
+    );
+    for (const s of stickers) {
+      if (existingIds.has(s.stickerId)) {
+        throw new HttpsError("invalid-argument", `stickerId "${s.stickerId}" は既に存在します`);
+      }
+    }
+    await ref.update({ stickers: FieldValue.arrayUnion(...stickers) });
+  },
+);
+
+/**
+ * パックの通報を記録する（v1は記録のみ、Rhing運営がFirebase console等で
+ * 手動レビューする）。stickerPackReportsもクライアントからの読み書きは
+ * 一律禁止のため、記録はこのcallableを経由する。
+ */
+export const createStickerPackReport = onCall(
+  { region: "asia-northeast1" },
+  async (request) => {
+    const uid = request.auth?.uid;
+    if (!uid) {
+      throw new HttpsError("unauthenticated", "ログインが必要です");
+    }
+    const packId = request.data?.packId;
+    if (typeof packId !== "string" || !packId) {
+      throw new HttpsError("invalid-argument", "packIdが必要です");
+    }
+    const reason = request.data?.reason;
+    if (typeof reason !== "string" || !reason.trim()) {
+      throw new HttpsError("invalid-argument", "reasonが必要です");
+    }
+    const packDoc = await db.collection("stickerPacks").doc(packId).get();
+    if (!packDoc.exists) {
+      throw new HttpsError("not-found", "パックが見つかりません");
+    }
+    await db.collection("stickerPackReports").add({
+      packId,
+      reporterUid: uid,
+      reason: reason.trim().slice(0, 1000),
+      createdAt: FieldValue.serverTimestamp(),
+    });
+  },
+);

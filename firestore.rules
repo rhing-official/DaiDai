@@ -79,6 +79,36 @@ service cloud.firestore {
       match /blockedUsers/{blockedUserId} {
         allow read, write: if request.auth != null && request.auth.uid == userId;
       }
+
+      // users/{userId}/ownedStickerPacks/{packId}: 所有しているペタピタ
+      // パッケージ（技術仕様書7.4・7.5参照、2026-08-11追加）。付与はdaidai横丁
+      // での購入完了時にCloud Function（Admin SDK、rulesを経由しない）が
+      // 行う想定のため、クライアントからの書き込みは一切禁止する。フェーズ①
+      // （アプリ内送受信のみの段階）ではFirebaseコンソールから直接投入して
+      // 動作確認する。
+      match /ownedStickerPacks/{packId} {
+        allow read: if request.auth != null && request.auth.uid == userId;
+        allow write: if false;
+      }
+    }
+
+    // stickerPacks/{packId}: 頒布されているペタピタパッケージのカタログ
+    // （技術仕様書7.4・7.5参照、2026-08-11追加）。daidai横丁
+    // （HomePage-Rhing内のWebストア）が未ログインの一般訪問者にも
+    // カタログを見せる必要があるため、認証不要で誰でも参照可能。
+    // 投入・更新はFirebaseコンソール/Admin SDK・Cloud Functions経由のみで、
+    // クライアントからの書き込みは禁止する。
+    match /stickerPacks/{packId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // stickerPackReports/{reportId}: daidai横丁のパック通報記録（v1は記録のみ、
+    // 2026-08-11追加）。作成はcreateStickerPackReport callable（Admin SDK）
+    // 経由のみで、Rhing運営がFirebase console等で手動レビューする想定のため
+    // クライアントからの読み書きは一律禁止する。
+    match /stickerPackReports/{reportId} {
+      allow read, write: if false;
     }
 
     // userInvites/{rhingId}: 縁結び（個人の招待リンク）の公開プレビュー
