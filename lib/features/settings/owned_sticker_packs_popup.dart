@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../l10n/strings.dart';
 import '../../models/sticker.dart';
 import '../../providers/repository_providers.dart';
+import '../../utils/auto_dismiss_banner.dart';
 
 /// 所持しているペタピタパック一覧・アンインストールのポップアップ（設定＞
 /// アカウントから開く、2026-08-11追加。当初はページ遷移だったが、
@@ -94,7 +95,7 @@ class _OwnedPackCard extends ConsumerWidget {
       await ref.read(stickerRepositoryProvider).uninstallPack(pack.packId);
     } catch (e) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+      showAutoDismissBanner(context, message: '$e');
     }
   }
 

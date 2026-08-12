@@ -2,13 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/strings.dart';
-import '../../l10n/vocabulary.dart';
 import '../../models/app_user.dart';
 import '../../models/group.dart';
 import '../../models/group_join_request.dart';
 import '../../models/group_role.dart';
 import '../../providers/group_providers.dart';
 import '../../providers/repository_providers.dart';
+import '../../utils/auto_dismiss_banner.dart';
 import '../../utils/group_permissions.dart';
 import 'user_profile_card_dialog.dart';
 
@@ -135,7 +135,6 @@ class GroupMemberListPopup extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final strings = ref.watch(appStringsProvider);
-    final vocab = ref.watch(vocabularyProvider);
     // groupはこのポップアップが開かれた時点のスナップショットで、開いたまま
     // 長の譲渡・ロール変更等を行っても更新されない別Navigatorルートのため、
     // ライブな値を別途購読する（group_role_list_popup.dartのliveGroupと同じ理由）。
@@ -205,7 +204,6 @@ class GroupMemberListPopup extends ConsumerWidget {
                           user: member,
                           groupId: liveGroup.groupId,
                           isOwner: member.userId == liveGroup.ownerId,
-                          vocab: vocab,
                           strings: strings,
                           customRoles: roles,
                           assignedRoleIds:
@@ -311,9 +309,7 @@ class _JoinRequestTile extends ConsumerWidget {
           );
     } catch (e) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('エラーが発生しました: $e')));
+      showAutoDismissBanner(context, message: 'エラーが発生しました: $e');
     }
   }
 
@@ -345,7 +341,6 @@ class _MemberTile extends StatelessWidget {
     required this.user,
     required this.groupId,
     required this.isOwner,
-    required this.vocab,
     required this.strings,
     required this.customRoles,
     required this.assignedRoleIds,
@@ -364,7 +359,6 @@ class _MemberTile extends StatelessWidget {
 
   /// このユーザーが長（[Group.ownerId]）かどうか。
   final bool isOwner;
-  final Vocabulary vocab;
   final Strings strings;
 
   /// このユーザーが選べるカスタムロールの一覧（2026-07-28更新: 権限付き）。
@@ -421,10 +415,7 @@ class _MemberTile extends StatelessWidget {
         ),
       ),
       trailing: isOwner
-          ? Tooltip(
-              message: vocab.owner,
-              child: const Icon(Icons.workspace_premium, color: Colors.amber),
-            )
+          ? const Icon(Icons.workspace_premium, color: Colors.amber)
           : null,
       // タップすると相手のプロフィールカードを見られ、友達でなければそこから
       // 友達申請を送れる（chat_screen.dartの送信者アイコンタップと同じ導線）。

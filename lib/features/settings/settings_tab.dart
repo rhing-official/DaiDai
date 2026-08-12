@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:firebase_auth/firebase_auth.dart'
     show FirebaseAuthException, MultiFactorInfo;
 import 'package:flutter/material.dart';
@@ -25,8 +27,10 @@ import '../../providers/repository_providers.dart';
 import '../../providers/send_key_mode_provider.dart';
 import '../../providers/terminology_style_provider.dart';
 import '../../providers/theme_mode_provider.dart';
+import '../../router/app_router.dart';
 import '../../theme/gekiga/gekiga_colors.dart';
 import '../../theme/motion.dart';
+import '../../utils/auto_dismiss_banner.dart';
 import '../../utils/color_hex.dart';
 import '../../widgets/gekiga/gekiga_panel_box.dart';
 import '../../widgets/gekiga/gekiga_section_header.dart';
@@ -34,6 +38,7 @@ import '../../widgets/gekiga/gekiga_text_field.dart';
 import '../../widgets/qr_scan_screen.dart';
 import '../../widgets/swipe_gestures.dart';
 import '../auth/two_factor_setup_dialog.dart';
+import '../chat/announcement_screen.dart';
 import '../chat/group_member_list_screen.dart';
 import 'owned_sticker_packs_popup.dart';
 
@@ -63,6 +68,24 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
   /// 広い画面では常に先頭（アカウント）を既定選択として表示する。
   String? _selectedId;
 
+  /// カテゴリタップの共通ハンドラ。「運営」は中身のページ（`_SettingsPage`
+  /// 経由の設定行一覧）を持たず、お知らせ画面を直接表示する。広い画面では
+  /// 語らいの分割表示と同じく、カテゴリ一覧（サイドバー）を残したまま
+  /// 右側の内容ペインへお知らせを表示する（下記build参照）ためselectedId
+  /// を切り替えるだけでよいが、狭い画面ではその置き場（サイドバー）自体が
+  /// 無いため、通常の語らい同様フルスクリーンでpushする（2026-08-12変更）。
+  void _onCategorySelected(_SettingsCategory category) {
+    final isWide =
+        MediaQuery.sizeOf(context).width >= _kSettingsSplitBreakpoint;
+    if (category.id == 'support' && !isWide) {
+      ref
+          .read(goRouterProvider)
+          .push('/announcements', extra: widget.currentUser);
+      return;
+    }
+    setState(() => _selectedId = category.id);
+  }
+
   @override
   Widget build(BuildContext context) {
     final strings = ref.watch(appStringsProvider);
@@ -83,15 +106,16 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
               child: _CategoryList(
                 categories: categories,
                 selectedId: selected.id,
-                onSelect: (category) =>
-                    setState(() => _selectedId = category.id),
+                onSelect: _onCategorySelected,
               ),
             ),
             const VerticalDivider(width: 1),
             Expanded(
-              child: _SettingsPage(
-                child: Builder(builder: selected.pageBuilder),
-              ),
+              child: selected.id == 'support'
+                  ? AnnouncementScreen(currentUser: widget.currentUser)
+                  : _SettingsPage(
+                      child: Builder(builder: selected.pageBuilder),
+                    ),
             ),
           ],
         ),
@@ -121,8 +145,7 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
                     key: const ValueKey('settings-categories'),
                     categories: categories,
                     selectedId: null,
-                    onSelect: (category) =>
-                        setState(() => _selectedId = category.id),
+                    onSelect: _onCategorySelected,
                   )
                 : _NarrowSettingsPage(
                     key: ValueKey(selected.id),
@@ -203,7 +226,9 @@ List<_SettingsCategory> _categories(
       id: 'support',
       icon: Icons.support_agent_outlined,
       title: strings.settingsFolderSupport,
-      pageBuilder: (context) => _SupportFolder(strings: strings),
+      // 選択時は_onCategorySelectedがページ遷移せず直接お知らせ画面へ
+      // pushするため、このpageBuilderは実際には呼ばれない。
+      pageBuilder: (context) => const SizedBox.shrink(),
     ),
   ];
 }
@@ -451,11 +476,18 @@ class _TwoFactorRow extends ConsumerStatefulWidget {
 
 class _TwoFactorRowState extends ConsumerState<_TwoFactorRow> {
   late Future<List<MultiFactorInfo>> _factorsFuture;
+  Timer? _errorBannerTimer;
 
   @override
   void initState() {
     super.initState();
     _factorsFuture = _loadFactors();
+  }
+
+  @override
+  void dispose() {
+    _errorBannerTimer?.cancel();
+    super.dispose();
   }
 
   void _refresh() {
@@ -477,9 +509,6 @@ class _TwoFactorRowState extends ConsumerState<_TwoFactorRow> {
       final enrolled = await TwoFactorSetupDialog.show(context, widget.rhingId);
       if (enrolled == true && mounted) {
         _refresh();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(strings.twoFactorEnrolledMessage)),
-        );
       }
       return;
     }
@@ -489,25 +518,30 @@ class _TwoFactorRowState extends ConsumerState<_TwoFactorRow> {
       await ref.read(authRepositoryProvider).unenrollTotp(factors.first);
       if (!mounted) return;
       _refresh();
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(strings.twoFactorDisabledMessage)));
     } catch (e) {
       if (!mounted) return;
       if (_isRequiresRecentLogin(e)) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(strings.twoFactorRequiresRecentLoginError),
-            action: SnackBarAction(
-              label: strings.twoFactorReauthenticateButton,
-              onPressed: () =>
-                  _reauthenticateAndRetryUnenroll(factors.first, strings),
+        _errorBannerTimer = showAutoDismissBanner(
+          context,
+          message: strings.twoFactorRequiresRecentLoginError,
+          previousTimer: _errorBannerTimer,
+          actions: [
+            TextButton(
+              onPressed: () {
+                dismissAutoDismissBanner();
+                _reauthenticateAndRetryUnenroll(factors.first, strings);
+              },
+              child: Text(strings.twoFactorReauthenticateButton),
             ),
-          ),
+          ],
         );
         return;
       }
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+      _errorBannerTimer = showAutoDismissBanner(
+        context,
+        message: '$e',
+        previousTimer: _errorBannerTimer,
+      );
     }
   }
 
@@ -532,12 +566,13 @@ class _TwoFactorRowState extends ConsumerState<_TwoFactorRow> {
       await ref.read(authRepositoryProvider).unenrollTotp(info);
       if (!mounted) return;
       _refresh();
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(strings.twoFactorDisabledMessage)));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+      _errorBannerTimer = showAutoDismissBanner(
+        context,
+        message: '$e',
+        previousTimer: _errorBannerTimer,
+      );
     }
   }
 
@@ -590,9 +625,7 @@ class _QrLoginRow extends ConsumerWidget {
 
     const prefix = 'daidai:qrlogin:';
     if (!scanned.startsWith(prefix)) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(strings.qrLoginInvalidQrError)));
+      showAutoDismissBanner(context, message: strings.qrLoginInvalidQrError);
       return;
     }
     final sessionId = scanned.substring(prefix.length);
@@ -602,15 +635,9 @@ class _QrLoginRow extends ConsumerWidget {
 
     try {
       await ref.read(authRepositoryProvider).approveQrLoginSession(sessionId);
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(strings.qrLoginApprovedSnackbar)));
     } catch (e) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(strings.qrLoginApproveError)));
+      showAutoDismissBanner(context, message: strings.qrLoginApproveError);
     }
   }
 
@@ -1803,9 +1830,7 @@ class _BlockedUsersFolder extends ConsumerWidget {
           .unblock(userId: currentUser.userId, targetUserId: targetUserId);
     } catch (e) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('エラーが発生しました: $e')));
+      showAutoDismissBanner(context, message: 'エラーが発生しました: $e');
     }
   }
 
@@ -1972,34 +1997,6 @@ class _ComingSoonFolder extends StatelessWidget {
       child: Center(
         child: Text(message, style: Theme.of(context).textTheme.bodyMedium),
       ),
-    );
-  }
-}
-
-/// 運営カテゴリの中身（2026-07-30、旧「運営」タブを廃止しここへ統合）。
-/// ホームページURLが正式に確定していないため、いずれも準備中として案内する。
-class _SupportFolder extends StatelessWidget {
-  const _SupportFolder({required this.strings});
-
-  final Strings strings;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        _InfoRow(
-          label: strings.supportHomepageUrl,
-          value: strings.settingsComingSoon,
-        ),
-        _InfoRow(
-          label: strings.supportAnnouncements,
-          value: strings.settingsComingSoon,
-        ),
-        _InfoRow(
-          label: strings.supportContactForm,
-          value: strings.settingsComingSoon,
-        ),
-      ],
     );
   }
 }

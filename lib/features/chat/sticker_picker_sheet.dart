@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../l10n/vocabulary.dart';
 import '../../models/sticker.dart';
 import 'sticker_picker_content.dart';
 
@@ -11,36 +9,19 @@ import 'sticker_picker_content.dart';
 /// 入手経路が無いため、所有ペタピタはFirebaseコンソールから手動投入した
 /// ものに限られる（0件時は空状態を表示する）。タップで選択し、選ばれた
 /// [Sticker]でこのシート自身をpopする（呼び出し元の[Navigator.pop]相当、
-/// `showModalBottomSheet`の戻り値として受け取る）。
-class StickerPickerSheet extends ConsumerWidget {
+/// `showModalBottomSheet`の戻り値として受け取る）。見出しテキストは
+/// 表示しない（2026-08-12、ミニマルな見た目を目指す方針）。
+class StickerPickerSheet extends StatelessWidget {
   const StickerPickerSheet({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final vocabulary = ref.watch(vocabularyProvider);
-
+  Widget build(BuildContext context) {
     return SafeArea(
       child: SizedBox(
         height: 420,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-              child: Text(
-                vocabulary.sticker,
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-            ),
-            Expanded(
-              child: StickerPickerContent(
-                railAxis: Axis.horizontal,
-                onStickerSelected: (sticker) =>
-                    Navigator.of(context).pop(sticker),
-              ),
-            ),
-          ],
+        child: StickerPickerContent(
+          railAxis: Axis.horizontal,
+          onStickerSelected: (sticker) => Navigator.of(context).pop(sticker),
         ),
       ),
     );

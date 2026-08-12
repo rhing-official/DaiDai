@@ -55,6 +55,12 @@ abstract class AuthRepository {
   /// 未ログイン端末側が、承認済み（approved）になったセッションを検知したら
   /// 呼ぶ。Cloud Functionsから受け取ったカスタムトークンでサインインまで行う。
   Future<User> claimQrLoginSession(String sessionId);
+
+  /// 現在ログイン中ユーザーが管理者（Firebase Custom Claims `admin: true`）
+  /// かどうか（管理画面向け、2026-08-12追加）。[forceRefresh]をtrueにすると
+  /// IDトークンを再取得し、直前に付与されたクレームも反映する（初回管理者
+  /// 登録直後の確認に使う）。未ログインならfalse。
+  Future<bool> isAdmin({bool forceRefresh = false});
 }
 
 class FirebaseAuthRepository implements AuthRepository {
@@ -254,5 +260,13 @@ class FirebaseAuthRepository implements AuthRepository {
       throw StateError('QRコードログインに失敗しました');
     }
     return user;
+  }
+
+  @override
+  Future<bool> isAdmin({bool forceRefresh = false}) async {
+    final user = _auth.currentUser;
+    if (user == null) return false;
+    final result = await user.getIdTokenResult(forceRefresh);
+    return result.claims?['admin'] == true;
   }
 }

@@ -253,7 +253,6 @@ class _UserProfileCardDialogState extends ConsumerState<UserProfileCardDialog> {
                                         color: Colors.white,
                                       ),
                                       iconSize: 30,
-                                      tooltip: strings.userProfileCardJumpToDm,
                                       onPressed: _jumpToDm,
                                     ),
                                   );
@@ -273,8 +272,6 @@ class _UserProfileCardDialogState extends ConsumerState<UserProfileCardDialog> {
                                       color: colorScheme.onPrimary,
                                     ),
                                     iconSize: 30,
-                                    tooltip:
-                                        strings.groupTransferOwnershipMenuItem,
                                     onPressed: widget.onTransferOwnership,
                                   ),
                                 ),

@@ -5,6 +5,7 @@ import '../../models/app_user.dart';
 import '../../providers/repository_providers.dart';
 import '../../providers/user_preferences_sync.dart';
 import 'account_restore_screen.dart';
+import 'account_suspended_screen.dart';
 import 'rhing_id_setup_screen.dart';
 import 'sign_in_screen.dart';
 
@@ -62,7 +63,13 @@ class _AuthenticatedUserGateState
   // [AccountRestoreScreen.onRestored]からも呼び直す。
   Future<AppUser?> _fetchUser() {
     return ref.read(userRepositoryProvider).getUser(widget.userId).then((user) {
-      if (user != null) applyRemoteUserPreferences(ref, user.preferences);
+      if (user != null) {
+        applyRemoteUserPreferences(ref, user.preferences);
+        // 最終ログイン日時（管理画面向け）。自動ログインでの再開時も含めて
+        // 認証済みセッションを確認するたびに更新する。結果を待つ必要は
+        // 無いためawaitしない。
+        ref.read(userRepositoryProvider).touchLastLogin(user.userId);
+      }
       return user;
     });
   }
@@ -86,6 +93,9 @@ class _AuthenticatedUserGateState
             appUser: appUser,
             onRestored: () => setState(() => _future = _fetchUser()),
           );
+        }
+        if (appUser.accountStatus == AccountStatus.suspended) {
+          return const AccountSuspendedScreen();
         }
         return widget.builder(context, appUser);
       },

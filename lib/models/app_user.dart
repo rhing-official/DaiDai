@@ -5,10 +5,13 @@ import 'profile_card.dart';
 import 'profile_material.dart';
 
 /// アカウント削除の状態。active: 通常。pendingDeletion: 削除申請済みで
-/// 30日間の復元猶予期間中（[AppUser.deletionRequestedAt]参照）。
+/// 30日間の復元猶予期間中（[AppUser.deletionRequestedAt]参照）。suspended:
+/// 運営（管理画面）による手動停止中（2026-08-12追加。技術仕様書8.4の
+/// スパム対策による期限付き自動停止とは別の、シンプルな手動停止/解除のみ）。
 enum AccountStatus {
   active,
-  pendingDeletion;
+  pendingDeletion,
+  suspended;
 
   static AccountStatus fromName(String name) => AccountStatus.values.firstWhere(
     (s) => s.name == name,
@@ -36,6 +39,8 @@ class AppUser {
     this.preferences = AppUserPreferences.empty,
     this.accountStatus = AccountStatus.active,
     this.deletionRequestedAt,
+    this.createdAt,
+    this.lastLoginAt,
   });
 
   final String userId;
@@ -92,6 +97,21 @@ class AppUser {
   /// アカウント削除を申請した日時。[accountStatus]が
   /// [AccountStatus.pendingDeletion]の場合のみ意味を持つ。
   final Timestamp? deletionRequestedAt;
+
+  /// アカウント作成日時（2026-08-12追加、管理画面向け）。`toJson()`自体には
+  /// 含めず、`UserRepository.createUser`が新規作成時のみ`FieldValue.
+  /// serverTimestamp()`を個別にマージして書き込む（`updateUser`は同じ
+  /// `toJson()`を`.set()`で全体上書きしているため、`toJson()`にサーバー
+  /// タイムスタンプを混ぜるとプロフィール更新のたびに現在時刻へリセット
+  /// されてしまう事故を避けるため）。既存ユーザーはnullのままで、
+  /// 管理画面では「不明」表示になる。
+  final Timestamp? createdAt;
+
+  /// 最終ログイン日時（2026-08-12追加、管理画面向け）。`UserRepository.
+  /// touchLastLogin`が認証済みセッション確認のたびに更新する、独立した
+  /// フィールド（理由は[createdAt]と同様、`updateUser`経由での事故を
+  /// 避けるため）。
+  final Timestamp? lastLoginAt;
 
   ProfileMaterial? get activeIcon => _findMaterial(icons, activeIconId);
   ProfileMaterial? get activeBackgroundImage =>
@@ -304,6 +324,8 @@ class AppUser {
         json['accountStatus'] as String? ?? AccountStatus.active.name,
       ),
       deletionRequestedAt: json['deletionRequestedAt'] as Timestamp?,
+      createdAt: json['createdAt'] as Timestamp?,
+      lastLoginAt: json['lastLoginAt'] as Timestamp?,
     );
   }
 
@@ -327,6 +349,8 @@ class AppUser {
       'preferences': preferences.toJson(),
       'accountStatus': accountStatus.name,
       'deletionRequestedAt': deletionRequestedAt,
+      'createdAt': createdAt,
+      'lastLoginAt': lastLoginAt,
     };
   }
 

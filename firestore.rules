@@ -19,8 +19,17 @@ service cloud.firestore {
         || permission in group.memberPermissions[request.auth.uid];
     }
 
+    // 管理者クレーム（`grantFirstAdminOnce`が付与するCustom Claims）を
+    // 持つかどうか（2026-08-12追加、管理画面の便り身だしなみ編集用）。
+    function isAdmin() {
+      return request.auth != null && request.auth.token.admin == true;
+    }
+
     // users/{userId}: 本人のみ作成・更新可能。ログイン済みなら誰でも参照可能
-    // （Rhing ID検索・重複チェックのため一覧クエリを許可する）。
+    // （Rhing ID検索・重複チェックのため一覧クエリを許可する）。便り
+    // （officialAccountUid、Firebase Authの実アカウントを持たない）だけは
+    // 例外的に管理者が更新できる（管理画面の身だしなみタブから。他人には
+    // なりすませないよう対象をこのuidのみに限定して許可、2026-08-12追加）。
     match /users/{userId} {
       allow read: if request.auth != null;
       allow create: if request.auth != null
@@ -33,7 +42,9 @@ service cloud.firestore {
       // 上限値はlib/models/profile_material.dart・profile_card.dartの
       // kMaxIcons(5)/kMaxBackgroundImages(3)/kMaxStatusMessages(10)/
       // kMaxNicknames(10)/kMaxSnsLinks(5)/kMaxProfileCards(3)と一致させること。
-      allow update: if request.auth != null && request.auth.uid == userId
+      allow update: if request.auth != null
+        && (request.auth.uid == userId
+            || (isAdmin() && userId == 'official-tayori'))
         && (!('icons' in request.resource.data) || request.resource.data.icons.size() <= 5)
         && (!('backgroundImages' in request.resource.data) || request.resource.data.backgroundImages.size() <= 3)
         && (!('statusMessages' in request.resource.data) || request.resource.data.statusMessages.size() <= 10)

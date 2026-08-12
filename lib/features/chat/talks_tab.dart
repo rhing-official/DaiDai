@@ -26,6 +26,7 @@ import '../../providers/user_providers.dart';
 import '../../router/app_router.dart';
 import '../../theme/gekiga/gekiga_colors.dart';
 import '../../utils/group_permissions.dart';
+import '../../utils/official_account.dart';
 import '../../utils/text_truncate.dart';
 import '../../widgets/gekiga/gekiga_icon_badge.dart';
 import '../../widgets/gekiga/gekiga_panel_box.dart';
@@ -459,7 +460,13 @@ class _TalksTabState extends ConsumerState<TalksTab> {
       body: StreamBuilder<List<DirectMessage>>(
         stream: directMessagesStream,
         builder: (context, dmSnapshot) {
-          final directMessages = dmSnapshot.data ?? [];
+          final directMessages = (dmSnapshot.data ?? [])
+              .where(
+                (dm) =>
+                    dm.otherUserId(widget.currentUser.userId) !=
+                    officialAccountUid,
+              )
+              .toList();
           return StreamBuilder<List<Group>>(
             stream: groupsStream,
             builder: (context, groupSnapshot) {
@@ -1224,9 +1231,24 @@ class _FriendRequestTile extends ConsumerWidget {
             if (isSplit) {
               onSelectPending(screen);
             } else {
-              Navigator.of(
-                context,
-              ).push(MaterialPageRoute<void>(builder: (_) => screen));
+              // 承認待ち画面は常にメッセージが空（吹き出しが無い＝全面が
+              // 余白）で、通常の語らいのように吹き出し上の右スワイプで
+              // 戻る仕組み（ChatScreen.onSwipeBack）が機能する余地が無い。
+              // 通常の一対・広場（app_router.dartの`swipeBack()`）と同じ
+              // `SwipeBackDetector`で画面全体をラップし、右スワイプで
+              // 戻れるようにする（2026-08-12）。
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (context) => SwipeBackDetector(
+                    onBack: () {
+                      if (Navigator.of(context).canPop()) {
+                        Navigator.of(context).pop();
+                      }
+                    },
+                    child: screen,
+                  ),
+                ),
+              );
             }
           };
 
@@ -1299,9 +1321,21 @@ class _PendingGroupJoinRequestTile extends ConsumerWidget {
           if (isSplit) {
             onSelectPending(screen);
           } else {
-            Navigator.of(
-              context,
-            ).push(MaterialPageRoute<void>(builder: (_) => screen));
+            // _FriendRequestTileと同じ理由（吹き出しが無く
+            // ChatScreen.onSwipeBackが機能しないため、画面全体を
+            // SwipeBackDetectorでラップする、2026-08-12）。
+            Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (context) => SwipeBackDetector(
+                  onBack: () {
+                    if (Navigator.of(context).canPop()) {
+                      Navigator.of(context).pop();
+                    }
+                  },
+                  child: screen,
+                ),
+              ),
+            );
           }
         }
 
@@ -1632,17 +1666,11 @@ class _AddMenuOption extends StatelessWidget {
 }
 
 /// 分割ビューで会話が未選択のときに右側に表示するプレースホルダー。
+/// 以前はアイコンを中央表示していたが、ユーザー指示により何も表示しない
+/// 方針に変更した（2026-08-12）。
 class _EmptyDetailPlaceholder extends StatelessWidget {
   const _EmptyDetailPlaceholder();
 
   @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Icon(
-        Icons.forum_outlined,
-        size: 64,
-        color: Theme.of(context).colorScheme.outlineVariant,
-      ),
-    );
-  }
+  Widget build(BuildContext context) => const SizedBox.shrink();
 }

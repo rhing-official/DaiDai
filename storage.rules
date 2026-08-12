@@ -4,10 +4,16 @@ service firebase.storage {
   match /b/{bucket}/o {
     // profileMaterials/{userId}/...: 蔵（アイコン・背景画像）。
     // 本人のみアップロード・削除可能。閲覧はログイン済みなら誰でも可能
-    // （語らい相手にプロフィール画像を見せる必要があるため）。
+    // （語らい相手にプロフィール画像を見せる必要があるため）。便り
+    // （official-tayori、Firebase Authの実アカウントを持たない）だけは
+    // 例外的に管理者がアップロードできる（管理画面の身だしなみタブから、
+    // firestore.rulesのisAdmin()と同じ考え方で対象をこのuidのみに限定、
+    // 2026-08-12追加）。
     match /profileMaterials/{userId}/{allPaths=**} {
       allow read: if request.auth != null;
-      allow write: if request.auth != null && request.auth.uid == userId;
+      allow write: if request.auth != null
+        && (request.auth.uid == userId
+            || (userId == 'official-tayori' && request.auth.token.admin == true));
     }
 
     // groupIcons/{groupId}/...: 広場のプロフィールカード用アイコン（2026-07-24追加）。

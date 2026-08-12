@@ -40,6 +40,7 @@ import '../../theme/gekiga/gekiga_shapes.dart';
 import '../../widgets/gekiga/monochrome_box.dart';
 import 'attachment_popup_button.dart';
 import '../../utils/attachment_upload.dart';
+import '../../utils/auto_dismiss_banner.dart';
 import '../../utils/drag_menu_geometry.dart';
 import '../../utils/link_detection.dart';
 import 'sticker_picker_popup.dart';
@@ -71,7 +72,7 @@ class ChatScreen extends ConsumerStatefulWidget {
     required this.isDm,
     this.conversationId,
     required this.messagesStream,
-    required this.onSend,
+    this.onSend,
     this.onSendAttachment,
     this.onSendSticker,
     this.onCallPressed,
@@ -108,7 +109,10 @@ class ChatScreen extends ConsumerStatefulWidget {
   final String? conversationId;
 
   final Stream<List<Message>> messagesStream;
-  final Future<void> Function(String content, {bool silent, Message? replyTo})
+
+  /// nullなら入力欄（コンポーザー）自体を表示しない（お知らせ等の
+  /// 読み取り専用画面向け、2026-08-12追加）。
+  final Future<void> Function(String content, {bool silent, Message? replyTo})?
   onSend;
 
   /// ファイル・画像・動画を添付したメッセージを送信する（技術仕様書5.6参照、
@@ -209,6 +213,11 @@ class ChatScreen extends ConsumerStatefulWidget {
 class _ChatScreenState extends ConsumerState<ChatScreen>
     with SingleTickerProviderStateMixin {
   final _textController = TextEditingController();
+
+  /// テキスト入力欄のフォーカス制御用（2026-08-12追加）。返信モード開始時に
+  /// 自動的にフォーカスを当てる、送信ボタンにフォーカスを奪われないよう
+  /// 送信直後に取り戻す、の2用途で使う（[_startReply]/[_send]参照）。
+  final _composerFocusNode = FocusNode();
 
   /// メッセージ一覧のスクロール位置を、自動スクロール機能から直接操作する
   /// ために持つ（返信先ジャンプ機能は従来通りcontextベースの
@@ -458,6 +467,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       _replyingTo = message;
       _editingMessage = null;
     });
+    _composerFocusNode.requestFocus();
   }
 
   void _startEdit(Message message) {
@@ -466,6 +476,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       _replyingTo = null;
       _textController.text = message.content;
     });
+    _composerFocusNode.requestFocus();
   }
 
   void _cancelComposerContext() {
@@ -572,13 +583,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
 
   /// 長押しメニューの「コピー」。選択操作を挟まず、メッセージ本文全体を
   /// 即座にクリップボードへコピーする（2026-08-09、部分コピーとは別の
-  /// 即時実行アクション）。
+  /// 即時実行アクション）。完了通知は表示しない（2026-08-12、成功通知の
+  /// 全面廃止方針）。
   Future<void> _copyMessageText(Message message) async {
     await Clipboard.setData(ClipboardData(text: message.content));
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(ref.read(appStringsProvider).chatCopiedMessage)),
-    );
   }
 
   /// 現在の実効範囲（[_screenshotEffectiveIds]）に含まれるメッセージを
@@ -756,8 +764,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           });
     if (selected.isEmpty) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(strings.chatScreenshotErrorMessage)),
+      _bannerTimer = showAutoDismissBanner(
+        context,
+        message: strings.chatScreenshotErrorMessage,
+        previousTimer: _bannerTimer,
       );
       return;
     }
@@ -890,8 +900,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       // 残しておく（2026-08-09追加）。
       debugPrint('スクリーンショットのキャプチャに失敗: $e\n$st');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(strings.chatScreenshotErrorMessage)),
+        _bannerTimer = showAutoDismissBanner(
+          context,
+          message: strings.chatScreenshotErrorMessage,
+          previousTimer: _bannerTimer,
         );
       }
       return;
@@ -911,8 +923,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     } catch (e, st) {
       debugPrint('スクリーンショットの共有に失敗: $e\n$st');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(strings.chatScreenshotErrorMessage)),
+        _bannerTimer = showAutoDismissBanner(
+          context,
+          message: strings.chatScreenshotErrorMessage,
+          previousTimer: _bannerTimer,
         );
       }
     }
@@ -951,13 +965,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   }
 
   Future<void> _send({bool silent = false}) async {
-    if (widget.disabled) return;
+    if (widget.onSend == null || widget.disabled) return;
     final content = _textController.text.trim();
     if (content.isEmpty) return;
 
     if (_editingMessage != null) {
       final messageId = _editingMessage!.messageId;
       _textController.clear();
+      _composerFocusNode.requestFocus();
       setState(() => _editingMessage = null);
       await widget.onEditMessage?.call(messageId, content);
       return;
@@ -965,8 +980,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
 
     final replyTo = _replyingTo;
     _textController.clear();
+    // 送信ボタン（`InkWell`）のタップでフォーカスを奪われても、モバイルで
+    // ソフトウェアキーボードが閉じないよう、送信直後にテキスト欄へ
+    // フォーカスを戻す（2026-08-12、送信ボタン側のcanRequestFocus:false
+    // と合わせて対処）。
+    _composerFocusNode.requestFocus();
     setState(() => _replyingTo = null);
-    await widget.onSend(content, silent: silent, replyTo: replyTo);
+    await widget.onSend!(content, silent: silent, replyTo: replyTo);
   }
 
   /// ＋ボタンで選んだ添付を送信する（技術仕様書5.5・5.6参照、2026-08-10追加）。
@@ -990,36 +1010,29 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           strings.chatAttachmentBlockedExtensionMessage,
         _ => strings.chatAttachmentSendFailedMessage,
       };
-      final messenger = ScaffoldMessenger.of(context);
       final canResend =
           e is! AttachmentTooLargeException &&
           e is! AttachmentExtensionBlockedException;
-      _attachmentBannerTimer?.cancel();
-      messenger
-        ..clearMaterialBanners()
-        ..showMaterialBanner(
-          MaterialBanner(
-            content: Text(message),
-            actions: [
-              if (canResend)
-                TextButton(
-                  onPressed: () {
-                    messenger.hideCurrentMaterialBanner();
-                    _handleAttachmentPicked(attachment);
-                  },
-                  child: Text(strings.chatResendAction),
-                )
-              else
-                TextButton(
-                  onPressed: messenger.hideCurrentMaterialBanner,
-                  child: Text(strings.cancel),
-                ),
-            ],
-          ),
-        );
-      _attachmentBannerTimer = Timer(const Duration(seconds: 3), () {
-        if (mounted) messenger.hideCurrentMaterialBanner();
-      });
+      _bannerTimer = showAutoDismissBanner(
+        context,
+        message: message,
+        previousTimer: _bannerTimer,
+        actions: [
+          if (canResend)
+            TextButton(
+              onPressed: () {
+                dismissAutoDismissBanner();
+                _handleAttachmentPicked(attachment);
+              },
+              child: Text(strings.chatResendAction),
+            )
+          else
+            TextButton(
+              onPressed: dismissAutoDismissBanner,
+              child: Text(strings.cancel),
+            ),
+        ],
+      );
     }
   }
 
@@ -1034,27 +1047,20 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     } catch (_) {
       if (!mounted) return;
       final strings = ref.read(appStringsProvider);
-      final messenger = ScaffoldMessenger.of(context);
-      _attachmentBannerTimer?.cancel();
-      messenger
-        ..clearMaterialBanners()
-        ..showMaterialBanner(
-          MaterialBanner(
-            content: Text(strings.chatAttachmentSendFailedMessage),
-            actions: [
-              TextButton(
-                onPressed: () {
-                  messenger.hideCurrentMaterialBanner();
-                  _handleStickerPicked(sticker);
-                },
-                child: Text(strings.chatResendAction),
-              ),
-            ],
+      _bannerTimer = showAutoDismissBanner(
+        context,
+        message: strings.chatAttachmentSendFailedMessage,
+        previousTimer: _bannerTimer,
+        actions: [
+          TextButton(
+            onPressed: () {
+              dismissAutoDismissBanner();
+              _handleStickerPicked(sticker);
+            },
+            child: Text(strings.chatResendAction),
           ),
-        );
-      _attachmentBannerTimer = Timer(const Duration(seconds: 3), () {
-        if (mounted) messenger.hideCurrentMaterialBanner();
-      });
+        ],
+      );
     }
   }
 
@@ -1164,16 +1170,19 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     );
   }
 
-  /// 添付送信失敗バナー（`_handleAttachmentPicked`）を3秒後に自動的に
-  /// 閉じるためのタイマー（2026-08-10追加）。
-  Timer? _attachmentBannerTimer;
+  /// このチャット画面で表示する通知バナー（添付・ペタピタ送信失敗、
+  /// スクリーンショットのキャプチャ・共有失敗等）を3秒後に自動的に
+  /// 閉じるためのタイマー（2026-08-10導入、2026-08-12に用途を拡張し
+  /// 共通の[showAutoDismissBanner]ヘルパーを使う形にリファクタ）。
+  Timer? _bannerTimer;
 
   @override
   void dispose() {
     _textController.dispose();
+    _composerFocusNode.dispose();
     _scrollController.dispose();
     _autoScrollTicker?.dispose();
-    _attachmentBannerTimer?.cancel();
+    _bannerTimer?.cancel();
     super.dispose();
   }
 
@@ -1236,12 +1245,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                   _screenshotEffectiveIds(_cachedMessages).length,
                 ),
               )
-            : (isGekiga ? null : Text(widget.title)),
+            : (isGekiga || widget.title.isEmpty ? null : Text(widget.title)),
         actions: _selecting
             ? [
                 IconButton(
                   icon: const Icon(Icons.delete_outline),
-                  tooltip: strings.chatDeleteSelectedTooltip,
                   onPressed: _selectedMessageIds.isEmpty
                       ? null
                       : _confirmDeleteSelected,
@@ -1251,7 +1259,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
             ? [
                 IconButton(
                   icon: const Icon(Icons.camera_alt_outlined),
-                  tooltip: strings.chatScreenshotTooltip,
                   onPressed: _screenshotSelectedIds.isEmpty
                       ? null
                       : _confirmScreenshotSelected,
@@ -1463,7 +1470,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                       ? _toggleScreenshotSelected
                                       : null),
                             messagesById: messagesById,
-                            onReply: _startReply,
+                            onReply: widget.onSend != null ? _startReply : null,
                             onEdit: widget.onEditMessage != null
                                 ? _startEdit
                                 : null,
@@ -1532,7 +1539,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                   ),
                 ),
                 if (_autoScrollOrigin != null) _buildAutoScrollIndicator(),
-                if (!_selecting && !_screenshotSelecting)
+                if (!_selecting &&
+                    !_screenshotSelecting &&
+                    widget.onSend != null)
                   Positioned(
                     left: 0,
                     right: 0,
@@ -1634,6 +1643,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                                       child: TextField(
                                                         controller:
                                                             _textController,
+                                                        focusNode:
+                                                            _composerFocusNode,
                                                         enabled:
                                                             !widget.disabled,
                                                         minLines: 1,
@@ -1709,6 +1720,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                               children: [
                                                 TextField(
                                                   controller: _textController,
+                                                  focusNode: _composerFocusNode,
                                                   enabled: !widget.disabled,
                                                   minLines: 1,
                                                   maxLines: 6,
@@ -1786,6 +1798,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                           shape: const CircleBorder(),
                                           child: InkWell(
                                             customBorder: const CircleBorder(),
+                                            // タップでこのボタン自身が
+                                            // フォーカスを奪うと、テキスト欄が
+                                            // フォーカスを失いモバイルで
+                                            // ソフトウェアキーボードが閉じて
+                                            // しまうため、フォーカス移動を
+                                            // 抑制する（2026-08-12）。
+                                            canRequestFocus: false,
                                             onTap: _send,
                                             onLongPress: () =>
                                                 _send(silent: true),
@@ -1883,7 +1902,6 @@ class _ComposerContextBar extends StatelessWidget {
           IconButton(
             icon: const Icon(Icons.close, size: 18),
             onPressed: onCancel,
-            tooltip: strings.cancel,
           ),
         ],
       ),

@@ -191,6 +191,27 @@ class _FakeUserRepository implements UserRepository {
 
   @override
   Future<void> deleteAccountImmediately() async {}
+
+  @override
+  Future<void> touchLastLogin(String userId) async {}
+
+  @override
+  Stream<List<AppUser>> watchAllUsersForAdmin() => Stream.value(const []);
+
+  @override
+  Future<void> setAccountSuspended(String userId, bool suspended) async {}
+
+  @override
+  Future<void> broadcastAnnouncement(String message) async {}
+
+  @override
+  Future<bool> bootstrapFirstAdmin() async => false;
+
+  @override
+  Future<Map<String, int>> backfillAccountStatusOnce() async => {
+    'scanned': 0,
+    'backfilled': 0,
+  };
 }
 
 Future<void> _pumpProfileTab(
