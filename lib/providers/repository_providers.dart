@@ -63,3 +63,10 @@ final stickerRepositoryProvider = Provider<StickerRepository>((ref) {
 final authStateProvider = StreamProvider<User?>((ref) {
   return ref.watch(authRepositoryProvider).authStateChanges();
 });
+
+/// 現在ログイン中ユーザーが管理者かどうか（管理画面向け、2026-08-12追加）。
+/// [authStateProvider]を購読し、サインイン/サインアウトのたびに再評価する。
+final isAdminProvider = FutureProvider<bool>((ref) async {
+  ref.watch(authStateProvider);
+  return ref.watch(authRepositoryProvider).isAdmin();
+});

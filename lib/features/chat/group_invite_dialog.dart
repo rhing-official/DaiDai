@@ -95,7 +95,6 @@ class GroupInviteDialog extends ConsumerWidget {
                   Expanded(child: SelectableText(link, maxLines: 1)),
                   IconButton(
                     icon: const Icon(Icons.copy_outlined),
-                    tooltip: strings.enmusubiCopyLink,
                     onPressed: () {
                       Clipboard.setData(ClipboardData(text: link));
                     },

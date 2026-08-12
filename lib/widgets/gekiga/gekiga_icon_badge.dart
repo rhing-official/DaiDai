@@ -35,26 +35,22 @@ class GekigaIconButton extends StatelessWidget {
   const GekigaIconButton({
     required this.icon,
     required this.onPressed,
-    this.tooltip,
     this.size = 36,
     super.key,
   });
 
   final IconData icon;
   final VoidCallback onPressed;
-  final String? tooltip;
   final double size;
 
   @override
   Widget build(BuildContext context) {
-    final button = Material(
+    return Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: onPressed,
         child: GekigaIconBadge(icon: icon, size: size),
       ),
     );
-    if (tooltip == null) return button;
-    return Tooltip(message: tooltip!, child: button);
   }
 }

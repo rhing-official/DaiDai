@@ -14,7 +14,9 @@ Future<void> openAddMenuLikeDialog(BuildContext context) async {
     pageBuilder: (dialogContext, animation, secondaryAnimation) {
       return Center(
         child: Dialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
           child: const Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -26,7 +28,10 @@ Future<void> openAddMenuLikeDialog(BuildContext context) async {
       );
     },
     transitionBuilder: (context, animation, secondaryAnimation, child) {
-      final curved = CurvedAnimation(parent: animation, curve: Curves.easeOutBack);
+      final curved = CurvedAnimation(
+        parent: animation,
+        curve: Curves.easeOutBack,
+      );
       return FadeTransition(
         opacity: animation,
         child: ScaleTransition(scale: curved, child: child),

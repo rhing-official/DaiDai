@@ -17,6 +17,7 @@ import '../../providers/conversation_prefs_providers.dart';
 import '../../providers/repository_providers.dart';
 import '../../repositories/group_repository.dart';
 import '../../router/app_router.dart';
+import '../../utils/auto_dismiss_banner.dart';
 import '../../utils/group_permissions.dart';
 import '../../widgets/gekiga/gekiga_icon_badge.dart';
 import 'chat_screen.dart';
@@ -307,8 +308,9 @@ class DmChatPane extends ConsumerWidget {
           ),
       onSend: (content, {silent = false, replyTo}) async {
         if (isBlocked) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(strings.conversationBlockedCannotSend)),
+          showAutoDismissBanner(
+            context,
+            message: strings.conversationBlockedCannotSend,
           );
           return;
         }
@@ -324,8 +326,9 @@ class DmChatPane extends ConsumerWidget {
       },
       onSendAttachment: (attachment) async {
         if (isBlocked) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(strings.conversationBlockedCannotSend)),
+          showAutoDismissBanner(
+            context,
+            message: strings.conversationBlockedCannotSend,
           );
           return;
         }
@@ -341,8 +344,9 @@ class DmChatPane extends ConsumerWidget {
       },
       onSendSticker: (sticker) async {
         if (isBlocked) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(strings.conversationBlockedCannotSend)),
+          showAutoDismissBanner(
+            context,
+            message: strings.conversationBlockedCannotSend,
           );
           return;
         }
@@ -670,8 +674,9 @@ class _DmMenuButton extends ConsumerWidget {
                   );
             } on StateError {
               if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text(strings.roomDeleteLastRoomError)),
+                showAutoDismissBanner(
+                  context,
+                  message: strings.roomDeleteLastRoomError,
                 );
               }
               return;
@@ -890,8 +895,9 @@ class GroupChatPane extends ConsumerWidget {
         .first;
     if (participants.length >= call.maxParticipants) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('この通話は満員です（上限${call.maxParticipants}人）')),
+        showAutoDismissBanner(
+          context,
+          message: 'この通話は満員です（上限${call.maxParticipants}人）',
         );
       }
       return;
@@ -1336,8 +1342,9 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
                   );
             } on StateError {
               if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text(strings.roomDeleteLastRoomError)),
+                showAutoDismissBanner(
+                  context,
+                  message: strings.roomDeleteLastRoomError,
                 );
               }
               return;

@@ -35,9 +35,13 @@ Future<void> _pumpChatScreen(
     ProviderScope(
       overrides: [
         initialSendKeyModeProvider.overrideWithValue(mode),
-        initialMessageTimeFormatProvider.overrideWithValue(MessageTimeFormat.h24),
+        initialMessageTimeFormatProvider.overrideWithValue(
+          MessageTimeFormat.h24,
+        ),
         initialAppLocaleProvider.overrideWithValue(AppLocale.japanese),
-        initialChatLayoutStyleProvider.overrideWithValue(ChatLayoutStyle.sideBySide),
+        initialChatLayoutStyleProvider.overrideWithValue(
+          ChatLayoutStyle.sideBySide,
+        ),
         initialAppUiStyleProvider.overrideWithValue(AppUiStyle.simple),
       ],
       child: MaterialApp(
@@ -79,7 +83,11 @@ void main() {
   testWidgets('enterToSend: Enterのみで通常送信', (tester) async {
     await _withDesktopKeyboard(() async {
       final sent = <_Sent>[];
-      await _pumpChatScreen(tester, mode: SendKeyMode.enterToSend, sentMessages: sent);
+      await _pumpChatScreen(
+        tester,
+        mode: SendKeyMode.enterToSend,
+        sentMessages: sent,
+      );
 
       await tester.enterText(find.byType(TextField), 'hello');
       await tester.sendKeyEvent(LogicalKeyboardKey.enter);
@@ -94,7 +102,11 @@ void main() {
   testWidgets('enterToSend: Shift+Enterは改行のみで送信しない', (tester) async {
     await _withDesktopKeyboard(() async {
       final sent = <_Sent>[];
-      await _pumpChatScreen(tester, mode: SendKeyMode.enterToSend, sentMessages: sent);
+      await _pumpChatScreen(
+        tester,
+        mode: SendKeyMode.enterToSend,
+        sentMessages: sent,
+      );
 
       await tester.enterText(find.byType(TextField), 'hello');
       await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
@@ -111,7 +123,11 @@ void main() {
   testWidgets('enterToSend: Ctrl+Enterで通知せず送信', (tester) async {
     await _withDesktopKeyboard(() async {
       final sent = <_Sent>[];
-      await _pumpChatScreen(tester, mode: SendKeyMode.enterToSend, sentMessages: sent);
+      await _pumpChatScreen(
+        tester,
+        mode: SendKeyMode.enterToSend,
+        sentMessages: sent,
+      );
 
       await tester.enterText(find.byType(TextField), 'hello');
       await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
@@ -128,7 +144,11 @@ void main() {
   testWidgets('ctrlEnterToSend: 素のEnterは改行のみで送信しない', (tester) async {
     await _withDesktopKeyboard(() async {
       final sent = <_Sent>[];
-      await _pumpChatScreen(tester, mode: SendKeyMode.ctrlEnterToSend, sentMessages: sent);
+      await _pumpChatScreen(
+        tester,
+        mode: SendKeyMode.ctrlEnterToSend,
+        sentMessages: sent,
+      );
 
       await tester.enterText(find.byType(TextField), 'hello');
       await tester.sendKeyEvent(LogicalKeyboardKey.enter);
@@ -143,7 +163,11 @@ void main() {
   testWidgets('ctrlEnterToSend: Ctrl+Enterで通常送信', (tester) async {
     await _withDesktopKeyboard(() async {
       final sent = <_Sent>[];
-      await _pumpChatScreen(tester, mode: SendKeyMode.ctrlEnterToSend, sentMessages: sent);
+      await _pumpChatScreen(
+        tester,
+        mode: SendKeyMode.ctrlEnterToSend,
+        sentMessages: sent,
+      );
 
       await tester.enterText(find.byType(TextField), 'hello');
       await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
@@ -160,7 +184,11 @@ void main() {
   testWidgets('ctrlEnterToSend: Ctrl+Shift+Enterで通知せず送信', (tester) async {
     await _withDesktopKeyboard(() async {
       final sent = <_Sent>[];
-      await _pumpChatScreen(tester, mode: SendKeyMode.ctrlEnterToSend, sentMessages: sent);
+      await _pumpChatScreen(
+        tester,
+        mode: SendKeyMode.ctrlEnterToSend,
+        sentMessages: sent,
+      );
 
       await tester.enterText(find.byType(TextField), 'hello');
       await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
@@ -183,7 +211,11 @@ void main() {
     debugDefaultTargetPlatformOverride = TargetPlatform.android;
     try {
       final sent = <_Sent>[];
-      await _pumpChatScreen(tester, mode: SendKeyMode.enterToSend, sentMessages: sent);
+      await _pumpChatScreen(
+        tester,
+        mode: SendKeyMode.enterToSend,
+        sentMessages: sent,
+      );
 
       await tester.enterText(find.byType(TextField), 'hello');
       await tester.pumpAndSettle();
@@ -198,54 +230,58 @@ void main() {
     }
   });
 
-  testWidgets(
-    'モバイル（Android）ではEnterキーは常に改行のみで、送信キー設定に関わらず送信しない（回帰テスト）',
-    (tester) async {
-      // モバイルにはShiftキーが無くShift+Enterによる改行ができない上、
-      // 機種・IMEによっては改行キーを押しただけで生のEnterキーイベントが
-      // 飛んでくることがあり、送信キー設定（enterToSend）をそのまま適用すると
-      // 誤って送信されてしまう（実機で報告された不具合）。モバイルでは
-      // 送信キー設定に関わらずEnterは常に改行のみとし、送信は送信ボタンの
-      // タップに固定していることを確認する。
-      debugDefaultTargetPlatformOverride = TargetPlatform.android;
-      try {
-        final sent = <_Sent>[];
-        await _pumpChatScreen(tester, mode: SendKeyMode.enterToSend, sentMessages: sent);
+  testWidgets('モバイル（Android）ではEnterキーは常に改行のみで、送信キー設定に関わらず送信しない（回帰テスト）', (
+    tester,
+  ) async {
+    // モバイルにはShiftキーが無くShift+Enterによる改行ができない上、
+    // 機種・IMEによっては改行キーを押しただけで生のEnterキーイベントが
+    // 飛んでくることがあり、送信キー設定（enterToSend）をそのまま適用すると
+    // 誤って送信されてしまう（実機で報告された不具合）。モバイルでは
+    // 送信キー設定に関わらずEnterは常に改行のみとし、送信は送信ボタンの
+    // タップに固定していることを確認する。
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    try {
+      final sent = <_Sent>[];
+      await _pumpChatScreen(
+        tester,
+        mode: SendKeyMode.enterToSend,
+        sentMessages: sent,
+      );
 
-        await tester.enterText(find.byType(TextField), 'hello');
-        await tester.pumpAndSettle();
-        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-        await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), 'hello');
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
 
-        expect(sent, isEmpty);
-        expect(find.byIcon(Icons.send), findsOneWidget);
-        final field = tester.widget<TextField>(find.byType(TextField));
-        expect(field.controller!.text, 'hello\n');
-      } finally {
-        debugDefaultTargetPlatformOverride = null;
-      }
-    },
-  );
+      expect(sent, isEmpty);
+      expect(find.byIcon(Icons.send), findsOneWidget);
+      final field = tester.widget<TextField>(find.byType(TextField));
+      expect(field.controller!.text, 'hello\n');
+    } finally {
+      debugDefaultTargetPlatformOverride = null;
+    }
+  });
 
-  testWidgets(
-    'モバイル（iOS）でもEnterキーは常に改行のみで送信しない',
-    (tester) async {
-      debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
-      try {
-        final sent = <_Sent>[];
-        await _pumpChatScreen(tester, mode: SendKeyMode.enterToSend, sentMessages: sent);
+  testWidgets('モバイル（iOS）でもEnterキーは常に改行のみで送信しない', (tester) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+    try {
+      final sent = <_Sent>[];
+      await _pumpChatScreen(
+        tester,
+        mode: SendKeyMode.enterToSend,
+        sentMessages: sent,
+      );
 
-        await tester.enterText(find.byType(TextField), 'hello');
-        await tester.pumpAndSettle();
-        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-        await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), 'hello');
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
 
-        expect(sent, isEmpty);
-        final field = tester.widget<TextField>(find.byType(TextField));
-        expect(field.controller!.text, 'hello\n');
-      } finally {
-        debugDefaultTargetPlatformOverride = null;
-      }
-    },
-  );
+      expect(sent, isEmpty);
+      final field = tester.widget<TextField>(find.byType(TextField));
+      expect(field.controller!.text, 'hello\n');
+    } finally {
+      debugDefaultTargetPlatformOverride = null;
+    }
+  });
 }

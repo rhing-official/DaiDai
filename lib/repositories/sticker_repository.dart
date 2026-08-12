@@ -24,11 +24,15 @@ abstract class StickerRepository {
 }
 
 class FirestoreStickerRepository implements StickerRepository {
-  FirestoreStickerRepository({FirebaseFirestore? firestore, FirebaseFunctions? functions})
-    : _firestore = firestore ?? FirebaseFirestore.instance,
-      // Cloud Functions（functions/src/index.ts）はasia-northeast1に
-      // デプロイしているため、呼び出し側もリージョンを明示する。
-      _functions = functions ?? FirebaseFunctions.instanceFor(region: 'asia-northeast1');
+  FirestoreStickerRepository({
+    FirebaseFirestore? firestore,
+    FirebaseFunctions? functions,
+  }) : _firestore = firestore ?? FirebaseFirestore.instance,
+       // Cloud Functions（functions/src/index.ts）はasia-northeast1に
+       // デプロイしているため、呼び出し側もリージョンを明示する。
+       _functions =
+           functions ??
+           FirebaseFunctions.instanceFor(region: 'asia-northeast1');
 
   final FirebaseFirestore _firestore;
   final FirebaseFunctions _functions;
@@ -69,6 +73,8 @@ class FirestoreStickerRepository implements StickerRepository {
 
   @override
   Future<void> uninstallPack(String packId) async {
-    await _functions.httpsCallable('uninstallStickerPack').call({'packId': packId});
+    await _functions.httpsCallable('uninstallStickerPack').call({
+      'packId': packId,
+    });
   }
 }

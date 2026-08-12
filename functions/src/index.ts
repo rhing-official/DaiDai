@@ -925,3 +925,274 @@ export const stripeWebhook = onRequest(
     res.json({ received: true });
   },
 );
+
+// ---------------------------------------------------------------------
+// 運営向け管理画面（2026-08-12追加）。管理者判定はFirebase Custom Claims
+// （admin: true）。DaiDaiはOAuth専用でメール・パスワード認証を持たないため、
+// 管理者専用の別ログインは作らず、既存のDaiDaiアカウントにクレームを
+// 付与する形にした。
+// ---------------------------------------------------------------------
+
+/**
+ * 初回管理者登録（一時的な機能）。`system/adminBootstrap`の`consumed`
+ * フラグを見て、未消費なら呼び出し元にadmin: trueのカスタムクレームを
+ * 付与しフラグを消費する。最初に呼んだ人だけが管理者になれる、という
+ * ブートストラップ専用の一度きりの仕組み（CLAUDE.md記載の「一度きりの
+ * Cloud Functions」パターンをアプリのUIから安全に行えるようにしたもの）。
+ * 運営が管理者になったことを確認したら、この関数自体をソースから削除し、
+ * `firebase functions:delete grantFirstAdminOnce --region asia-northeast1
+ * --force`で後始末する。
+ */
+export const grantFirstAdminOnce = onCall(
+  { region: "asia-northeast1" },
+  async (request) => {
+    const uid = request.auth?.uid;
+    if (!uid) {
+      throw new HttpsError("unauthenticated", "ログインが必要です");
+    }
+    const flagRef = db.collection("system").doc("adminBootstrap");
+    const granted = await db.runTransaction(async (transaction) => {
+      const flagSnap = await transaction.get(flagRef);
+      if (flagSnap.exists && flagSnap.data()?.consumed === true) {
+        return false;
+      }
+      transaction.set(flagRef, {
+        consumed: true,
+        grantedTo: uid,
+        grantedAt: FieldValue.serverTimestamp(),
+      });
+      return true;
+    });
+    if (!granted) {
+      throw new HttpsError(
+        "failed-precondition",
+        "既に管理者が設定されています",
+      );
+    }
+    await getAuth().setCustomUserClaims(uid, { admin: true });
+    logger.info(`初回管理者を付与: ${uid}`);
+    return { granted: true };
+  },
+);
+
+/**
+ * 指定ユーザーのアカウントを停止/解除する（管理者のみ）。停止時は
+ * 既存セッションを即座に無効化するため`revokeRefreshTokens`も呼ぶ
+ * （AuthGateのaccountStatusチェックは次回のFirestore読み込み待ちに
+ * なるため、実際のログイン不可はrevokeRefreshTokens、UI側の表示切替は
+ * accountStatus、という2段構え）。
+ */
+export const suspendUserAccount = onCall(
+  { region: "asia-northeast1" },
+  async (request) => {
+    if (request.auth?.token.admin !== true) {
+      throw new HttpsError("permission-denied", "管理者のみ実行できます");
+    }
+    const targetUserId = request.data?.targetUserId;
+    if (typeof targetUserId !== "string" || !targetUserId) {
+      throw new HttpsError("invalid-argument", "targetUserIdが必要です");
+    }
+    const suspend = request.data?.suspend;
+    if (typeof suspend !== "boolean") {
+      throw new HttpsError("invalid-argument", "suspendが必要です");
+    }
+    await db.collection("users").doc(targetUserId).update({
+      accountStatus: suspend ? "suspended" : "active",
+    });
+    if (suspend) {
+      await getAuth()
+        .revokeRefreshTokens(targetUserId)
+        .catch((error) => {
+          // Firebase Auth側にユーザーが存在しない等は無視する
+          // （Firestore側の状態変更は既に完了しているため）。
+          logger.warn(`revokeRefreshTokensに失敗: ${targetUserId}`, error);
+        });
+    }
+    logger.info(`アカウント${suspend ? "停止" : "解除"}: ${targetUserId}`);
+  },
+);
+
+/**
+ * 一度きりの移行処理: `accountStatus`フィールドが物理的に存在しない
+ * 古いユーザードキュメント（2026-07-28のアカウント削除機能実装より前に
+ * 作られたアカウント）に`accountStatus: "active"`をバックフィルする。
+ * `broadcastAnnouncement`の`.where("accountStatus", "==", "active")`が、
+ * フィールド自体が存在しないドキュメントをFirestoreの仕様上マッチさせない
+ * ため、便りの配信対象から静かに漏れてしまう不具合の恒久対応。
+ * 実行・べき対性の確認（2回目に`backfilled: 0`になること）が済んだら、
+ * `grantFirstAdminOnce`等と同様にソースから削除し、
+ * `firebase functions:delete backfillAccountStatusOnce --region asia-northeast1 --force`
+ * で後始末する。
+ */
+export const backfillAccountStatusOnce = onCall(
+  { region: "asia-northeast1", timeoutSeconds: 300 },
+  async (request) => {
+    if (request.auth?.token.admin !== true) {
+      throw new HttpsError("permission-denied", "管理者のみ実行できます");
+    }
+    const usersSnapshot = await db.collection("users").get();
+    const writer = new ChunkedWriter();
+    let backfilled = 0;
+    for (const doc of usersSnapshot.docs) {
+      if (!("accountStatus" in doc.data())) {
+        await writer.update(doc.ref, { accountStatus: "active" });
+        backfilled += 1;
+      }
+    }
+    await writer.commit();
+    logger.info(
+      `accountStatusバックフィル: ${backfilled}/${usersSnapshot.size}件`,
+    );
+    return { scanned: usersSnapshot.size, backfilled };
+  },
+);
+
+/** 便り（公式アカウント）の固定UID・Rhing ID。 */
+const OFFICIAL_ACCOUNT_UID = "official-tayori";
+const OFFICIAL_ACCOUNT_RHING_ID = "tayori";
+
+/**
+ * 便り（公式アカウント）用の`users/{OFFICIAL_ACCOUNT_UID}`ドキュメントが
+ * 無ければ作成する。Firebase Authに対応する実アカウントは持たない
+ * （送信者表示は`users/{senderId}`をライブ参照するだけのため、Firestore
+ * ドキュメントのみで既存UIがそのまま正しく描画できる）。アイコンは未設定の
+ * ままにし、Rhing IDから導出される色付きイニシャルへのフォールバック表示
+ * に任せる。
+ */
+async function ensureOfficialAccount(): Promise<void> {
+  const ref = db.collection("users").doc(OFFICIAL_ACCOUNT_UID);
+  const doc = await ref.get();
+  if (doc.exists) return;
+  await ref.set({
+    userId: OFFICIAL_ACCOUNT_UID,
+    rhingId: OFFICIAL_ACCOUNT_RHING_ID,
+    displayName: null,
+    icons: [],
+    backgroundImages: [],
+    statusMessages: [],
+    nicknames: [{ id: "official", text: "便り" }],
+    snsLinks: [],
+    profileCards: [],
+    activeIconId: null,
+    activeBackgroundImageId: null,
+    activeStatusMessageId: null,
+    activeNicknameId: "official",
+    activeProfileCardId: null,
+    conversationProfileCardId: {},
+    preferences: {},
+    accountStatus: "active",
+    deletionRequestedAt: null,
+    createdAt: FieldValue.serverTimestamp(),
+    lastLoginAt: null,
+  });
+}
+
+/**
+ * 全住人（稼働中=accountStatus:'active'のアカウントのみ）に、便り
+ * アカウントからの一対メッセージとしてお知らせを配信する（管理者のみ）。
+ * DirectMessage/DmRoom/Messageのスキーマ・書き込み方は
+ * `getOrCreateDirectMessage`/`sendTextMessage`
+ * （lib/repositories/direct_message_repository.dart）と揃える。dmIdは
+ * クライアント側の`DirectMessage.idFor`と同じ決定的なpairId方式のため、
+ * 2回目以降の配信も既存の一対の続きとして届く。
+ */
+export const broadcastAnnouncement = onCall(
+  { region: "asia-northeast1", timeoutSeconds: 300 },
+  async (request) => {
+    if (request.auth?.token.admin !== true) {
+      throw new HttpsError("permission-denied", "管理者のみ実行できます");
+    }
+    const message = request.data?.message;
+    if (typeof message !== "string" || !message.trim()) {
+      throw new HttpsError("invalid-argument", "messageが必要です");
+    }
+
+    await ensureOfficialAccount();
+
+    const usersSnapshot = await db
+      .collection("users")
+      .where("accountStatus", "==", "active")
+      .get();
+
+    const writer = new ChunkedWriter();
+    let count = 0;
+    for (const userDoc of usersSnapshot.docs) {
+      const userId = userDoc.id;
+      if (userId === OFFICIAL_ACCOUNT_UID) continue;
+      const rhingId: string | undefined = userDoc.data().rhingId;
+
+      const sortedIds = [OFFICIAL_ACCOUNT_UID, userId].sort();
+      const dmId = `${sortedIds[0]}_${sortedIds[1]}`;
+      const dmRef = db.collection("directMessages").doc(dmId);
+      const dmDoc = await dmRef.get();
+
+      let roomId: string;
+      if (dmDoc.exists && dmDoc.data()?.defaultRoomId) {
+        roomId = dmDoc.data()!.defaultRoomId;
+      } else {
+        const newRoomRef = dmRef.collection("rooms").doc();
+        roomId = newRoomRef.id;
+        await writer.set(dmRef, {
+          participants: [OFFICIAL_ACCOUNT_UID, userId],
+          participantRhingIds: {
+            [OFFICIAL_ACCOUNT_UID]: OFFICIAL_ACCOUNT_RHING_ID,
+            [userId]: rhingId ?? userId,
+          },
+          defaultRoomId: roomId,
+          lastMessageAt: FieldValue.serverTimestamp(),
+          severanceRequestedBy: null,
+          readReceiptsEnabled: true,
+          readReceiptsProposalBy: null,
+          accountDeletedUserId: null,
+          roomsEnabled: false,
+        });
+        await writer.set(newRoomRef, {
+          dmId,
+          name: "メイン",
+          participants: [OFFICIAL_ACCOUNT_UID, userId],
+          lastMessageAt: FieldValue.serverTimestamp(),
+          createdAt: FieldValue.serverTimestamp(),
+          deletionRequestedBy: null,
+        });
+      }
+
+      const roomRef = dmRef.collection("rooms").doc(roomId);
+      const messageRef = roomRef.collection("messages").doc();
+      await writer.set(messageRef, {
+        conversationId: roomId,
+        conversationType: "dm",
+        senderId: OFFICIAL_ACCOUNT_UID,
+        senderRhingId: OFFICIAL_ACCOUNT_RHING_ID,
+        content: message,
+        contentType: "text",
+        sentAt: FieldValue.serverTimestamp(),
+        hiddenFor: [],
+        readBy: [],
+        isSpam: false,
+        silent: false,
+        replyToMessageId: null,
+        replyToSenderId: null,
+        replyToSenderRhingId: null,
+        replyToSnippet: null,
+        editedAt: null,
+        reactions: {},
+        callStartedAt: null,
+        callDurationSeconds: null,
+        callIsVideo: null,
+        accountDeletionResponse: null,
+      });
+      if (dmDoc.exists) {
+        await writer.update(roomRef, {
+          lastMessageAt: FieldValue.serverTimestamp(),
+        });
+        await writer.update(dmRef, {
+          lastMessageAt: FieldValue.serverTimestamp(),
+        });
+      }
+      count += 1;
+    }
+    await writer.commit();
+    logger.info(`お知らせを${count}件の一対に配信しました`);
+    return { count };
+  },
+);

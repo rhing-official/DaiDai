@@ -417,7 +417,6 @@ class GroupRoleListPopup extends ConsumerWidget {
                       ),
                       trailing: IconButton(
                         icon: const Icon(Icons.swap_vert),
-                        tooltip: strings.groupRolePriorityTitle,
                         onPressed: () => GroupRolePriorityDialog.show(
                           context,
                           orderedRoles: regular,

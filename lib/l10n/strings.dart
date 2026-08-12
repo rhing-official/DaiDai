@@ -66,12 +66,10 @@ class Strings {
     required this.twoFactorSecretKeyLabel,
     required this.twoFactorCodeLabel,
     required this.twoFactorEnrollButton,
-    required this.twoFactorEnrolledMessage,
     required this.twoFactorInvalidCodeError,
     required this.twoFactorDisableConfirmTitle,
     required this.twoFactorDisableConfirmMessage,
     required this.twoFactorDisableConfirmButton,
-    required this.twoFactorDisabledMessage,
     required this.twoFactorRequiresRecentLoginError,
     required this.twoFactorReauthenticateButton,
     required this.twoFactorChallengeTitle,
@@ -85,7 +83,6 @@ class Strings {
     required this.qrLoginScanConfirmTitle,
     required this.qrLoginScanConfirmMessage,
     required this.qrLoginScanConfirmButton,
-    required this.qrLoginApprovedSnackbar,
     required this.qrLoginInvalidQrError,
     required this.qrLoginApproveError,
     required this.qrLoginScanInstructionMessage,
@@ -94,9 +91,6 @@ class Strings {
     required this.settingsQrLogin,
     required this.settingsDeleteAccount,
     required this.settingsComingSoon,
-    required this.supportHomepageUrl,
-    required this.supportAnnouncements,
-    required this.supportContactForm,
     required this.settingsSendKeyTitle,
     required this.settingsSendKeyEnterToSend,
     required this.settingsSendKeyCtrlEnterToSend,
@@ -118,7 +112,6 @@ class Strings {
     required this.userProfileCardSendRequest,
     required this.userProfileCardAcceptRequest,
     required this.userProfileCardRequestPending,
-    required this.userProfileCardJumpToDm,
     required this.friendRequestIncomingSubtitle,
     required this.friendRequestOutgoingSubtitle,
     required this.conversationPin,
@@ -157,7 +150,6 @@ class Strings {
     required this.readReceiptPopupTitle,
     required this.reactionListPopupTitle,
     required this.chatSelectionModeTitle,
-    required this.chatDeleteSelectedTooltip,
     required this.chatDeleteConfirmTitle,
     required this.chatDeleteConfirmMessage,
     required this.chatDeleteConfirmButton,
@@ -167,10 +159,8 @@ class Strings {
     required this.chatReactAction,
     required this.chatCopyAction,
     required this.chatPartialCopyAction,
-    required this.chatCopiedMessage,
     required this.chatSelectAction,
     required this.chatScreenshotAction,
-    required this.chatScreenshotTooltip,
     required this.chatScreenshotSelectionModeTitle,
     required this.chatScreenshotDialogTitle,
     required this.chatScreenshotBlurCheckboxLabel,
@@ -178,6 +168,7 @@ class Strings {
     required this.chatScreenshotErrorMessage,
     required this.chatEditedLabel,
     required this.chatInputHint,
+    required this.announcementContactFormLabel,
     required this.chatReplyingToLabel,
     required this.chatEditingLabel,
     required this.chatUnsendConfirmTitle,
@@ -293,7 +284,6 @@ class Strings {
     required this.settingsProfileCardAssignmentHint,
     required this.settingsProfileCardAssignmentEmpty,
     required this.conversationProfileCardMenuLabel,
-    required this.workshopConversationCardAddTooltip,
     required this.workshopConversationCardAddDialogTitle,
     required this.workshopConversationCardAddEmpty,
     required this.workshopConversationCardSearchHint,
@@ -340,6 +330,9 @@ class Strings {
     required this.accountRestoreMessage,
     required this.accountRestoreButton,
     required this.accountRestoreSignOutButton,
+    required this.accountSuspendedTitle,
+    required this.accountSuspendedMessage,
+    required this.accountSuspendedSignOutButton,
     required this.chatAccountDeletedNotice,
     required this.chatAccountDeletedDeleteConversationPrompt,
     required this.chatAccountDeletedYesButton,
@@ -427,12 +420,10 @@ class Strings {
   final String twoFactorSecretKeyLabel;
   final String twoFactorCodeLabel;
   final String twoFactorEnrollButton;
-  final String twoFactorEnrolledMessage;
   final String twoFactorInvalidCodeError;
   final String twoFactorDisableConfirmTitle;
   final String twoFactorDisableConfirmMessage;
   final String twoFactorDisableConfirmButton;
-  final String twoFactorDisabledMessage;
   final String twoFactorRequiresRecentLoginError;
   final String twoFactorReauthenticateButton;
   final String twoFactorChallengeTitle;
@@ -446,7 +437,6 @@ class Strings {
   final String qrLoginScanConfirmTitle;
   final String qrLoginScanConfirmMessage;
   final String qrLoginScanConfirmButton;
-  final String qrLoginApprovedSnackbar;
   final String qrLoginInvalidQrError;
   final String qrLoginApproveError;
   final String qrLoginScanInstructionMessage;
@@ -460,10 +450,6 @@ class Strings {
   final String settingsSendKeyCtrlEnterToSend;
   final String settingsSendKeySilentEnterToSend;
   final String settingsSendKeySilentCtrlEnterToSend;
-
-  final String supportHomepageUrl;
-  final String supportAnnouncements;
-  final String supportContactForm;
 
   final String back;
 
@@ -486,9 +472,6 @@ class Strings {
   final String userProfileCardSendRequest;
   final String userProfileCardAcceptRequest;
   final String userProfileCardRequestPending;
-
-  /// 友達のプロフィールカード右上のジャンプ（一対を開く）ボタンのツールチップ。
-  final String userProfileCardJumpToDm;
   final String friendRequestIncomingSubtitle;
   final String friendRequestOutgoingSubtitle;
   final String conversationPin;
@@ -529,7 +512,6 @@ class Strings {
   final String readReceiptPopupTitle;
   final String reactionListPopupTitle;
   final String Function(int count) chatSelectionModeTitle;
-  final String chatDeleteSelectedTooltip;
   final String chatDeleteConfirmTitle;
   final String chatDeleteConfirmMessage;
   final String chatDeleteConfirmButton;
@@ -539,10 +521,8 @@ class Strings {
   final String chatReactAction;
   final String chatCopyAction;
   final String chatPartialCopyAction;
-  final String chatCopiedMessage;
   final String chatSelectAction;
   final String chatScreenshotAction;
-  final String chatScreenshotTooltip;
   final String Function(int count) chatScreenshotSelectionModeTitle;
   final String chatScreenshotDialogTitle;
   final String chatScreenshotBlurCheckboxLabel;
@@ -550,6 +530,7 @@ class Strings {
   final String chatScreenshotErrorMessage;
   final String chatEditedLabel;
   final String chatInputHint;
+  final String announcementContactFormLabel;
   final String Function(String senderLabel) chatReplyingToLabel;
   final String chatEditingLabel;
   final String chatUnsendConfirmTitle;
@@ -747,12 +728,8 @@ class Strings {
   /// タイトルの両方に使う（2026-07-30追加、`ConversationProfileCardDialog`）。
   final String conversationProfileCardMenuLabel;
 
-  /// 工房の会話ごとのプロフィールカードセクションにある＋ボタンのツールチップ
-  /// （2026-08-02追加）。まだ個別のカードを設定していない語らいを選んで
-  /// 新しく設定する導線。
-  final String workshopConversationCardAddTooltip;
-
-  /// 上記＋ボタンで開く、対象の語らいを選ぶダイアログのタイトル。
+  /// 工房の会話ごとのプロフィールカードセクションにある＋ボタンで開く、
+  /// 対象の語らいを選ぶダイアログのタイトル。
   final String workshopConversationCardAddDialogTitle;
 
   /// 上記ダイアログで、選べる語らい（まだ標準カードのままの語らい）が
@@ -840,6 +817,13 @@ class Strings {
   final String Function(int remainingDays) accountRestoreMessage;
   final String accountRestoreButton;
   final String accountRestoreSignOutButton;
+
+  /// アカウント停止中（[AccountStatus.suspended]）に表示する画面の文言
+  /// （2026-08-12追加）。管理者による停止のため、[AccountRestoreScreen]と
+  /// 違い自己解除の手段は用意しない。
+  final String accountSuspendedTitle;
+  final String accountSuspendedMessage;
+  final String accountSuspendedSignOutButton;
 
   /// アカウント削除通知メッセージの文言。相手のRhing IDを差し込む。
   final String Function(String label) chatAccountDeletedNotice;
@@ -937,12 +921,10 @@ class Strings {
     twoFactorSecretKeyLabel: 'シークレットキー（手入力用）',
     twoFactorCodeLabel: '6桁のコード',
     twoFactorEnrollButton: '有効にする',
-    twoFactorEnrolledMessage: '2段階認証を有効にしました',
     twoFactorInvalidCodeError: 'コードが正しくありません',
     twoFactorDisableConfirmTitle: '2段階認証を無効にしますか？',
     twoFactorDisableConfirmMessage: '次回以降のログインでコードの入力を求められなくなります。',
     twoFactorDisableConfirmButton: '無効にする',
-    twoFactorDisabledMessage: '2段階認証を無効にしました',
     twoFactorRequiresRecentLoginError: '確認のため、もう一度ログインしてからお試しください。',
     twoFactorReauthenticateButton: '再ログインする',
     twoFactorChallengeTitle: '認証アプリのコードを入力',
@@ -957,7 +939,6 @@ class Strings {
     qrLoginScanConfirmTitle: 'この端末でのログインを許可しますか？',
     qrLoginScanConfirmMessage: '心当たりが無い場合は許可しないでください。',
     qrLoginScanConfirmButton: '許可する',
-    qrLoginApprovedSnackbar: 'ログインを許可しました',
     qrLoginInvalidQrError: '無効なQRコードです',
     qrLoginApproveError: '承認に失敗しました。QRコードの有効期限が切れている可能性があります。',
     qrLoginScanInstructionMessage:
@@ -972,9 +953,6 @@ class Strings {
     settingsSendKeyCtrlEnterToSend: 'Enterで改行、Ctrl+Enterで送信',
     settingsSendKeySilentEnterToSend: 'Ctrl+Enterで相手に通知せず送信',
     settingsSendKeySilentCtrlEnterToSend: 'Ctrl+Shift+Enterで相手に通知せず送信',
-    supportHomepageUrl: 'ホームページのURL',
-    supportAnnouncements: 'お知らせ',
-    supportContactForm: '質問フォーム',
     back: '戻る',
     friendSearchTitle: '友達を追加',
     friendSearchHint: '相手のRhing IDを入力して友達申請を送ります。承認されると会話できるようになります。',
@@ -991,7 +969,6 @@ class Strings {
     userProfileCardSendRequest: '友達申請を送る',
     userProfileCardAcceptRequest: '友達申請を承認する',
     userProfileCardRequestPending: '申請中です。相手の承認をお待ちください',
-    userProfileCardJumpToDm: '一対を開く',
     friendRequestIncomingSubtitle: '相手から申請が届いています',
     friendRequestOutgoingSubtitle: '相手の承認を待っています',
     conversationPin: 'ピン留め',
@@ -1034,7 +1011,6 @@ class Strings {
     readReceiptPopupTitle: '既読',
     reactionListPopupTitle: 'リアクション',
     chatSelectionModeTitle: (count) => '$count件選択中',
-    chatDeleteSelectedTooltip: '選択したメッセージを削除',
     chatDeleteConfirmTitle: 'メッセージを削除しますか？',
     chatDeleteConfirmMessage:
         '選択したメッセージがあなたのアカウントから見えなくなります（相手には引き続き見えます）。全員が同じメッセージを削除すると、サーバーからも完全に削除されます。この操作は取り消せません。',
@@ -1045,10 +1021,8 @@ class Strings {
     chatReactAction: 'リアクション',
     chatCopyAction: 'コピー',
     chatPartialCopyAction: '部分コピー',
-    chatCopiedMessage: 'コピーしました',
     chatSelectAction: 'メッセージを削除',
     chatScreenshotAction: 'スクリーンショット',
-    chatScreenshotTooltip: '選択した範囲をスクリーンショット',
     chatScreenshotSelectionModeTitle: (count) => '$count件を撮影',
     chatScreenshotDialogTitle: 'スクリーンショットを撮影',
     chatScreenshotBlurCheckboxLabel: '呼び名にぼかしを入れる',
@@ -1056,6 +1030,7 @@ class Strings {
     chatScreenshotErrorMessage: 'スクリーンショットの作成に失敗しました',
     chatEditedLabel: '編集済み',
     chatInputHint: 'メッセージを入力...',
+    announcementContactFormLabel: '質問・要望',
     chatReplyingToLabel: (senderLabel) => '$senderLabelへの返信',
     chatEditingLabel: 'メッセージを編集中',
     chatUnsendConfirmTitle: '送信を取り消しますか？',
@@ -1182,7 +1157,6 @@ class Strings {
         '標準カード以外を使っている語らいだけがここに表示されます。＋から新しく設定できます。',
     settingsProfileCardAssignmentEmpty: '標準以外のカードを使っている語らいはまだありません',
     conversationProfileCardMenuLabel: '自分のプロフィールカード',
-    workshopConversationCardAddTooltip: '個別にカードを設定する語らいを追加',
     workshopConversationCardAddDialogTitle: 'カードを個別に設定する語らいを選ぶ',
     workshopConversationCardAddEmpty: '設定できる語らいがありません',
     workshopConversationCardSearchHint: '名前で検索',
@@ -1235,6 +1209,9 @@ class Strings {
         'あと$remainingDays日で、サーバーから全ての情報が完全に削除されます。',
     accountRestoreButton: 'アカウントを復元する',
     accountRestoreSignOutButton: 'サインアウト',
+    accountSuspendedTitle: 'アカウントが停止されています',
+    accountSuspendedMessage: '運営により、このアカウントは利用を停止されています。',
+    accountSuspendedSignOutButton: 'サインアウト',
     chatAccountDeletedNotice: (label) => '$labelがアカウントを削除しました。',
     chatAccountDeletedDeleteConversationPrompt: '語らいを削除しますか？',
     chatAccountDeletedYesButton: 'はい',
@@ -1322,13 +1299,11 @@ class Strings {
     twoFactorSecretKeyLabel: 'Secret key (manual entry)',
     twoFactorCodeLabel: '6-digit code',
     twoFactorEnrollButton: 'Enable',
-    twoFactorEnrolledMessage: 'Two-factor authentication enabled',
     twoFactorInvalidCodeError: 'That code is not correct',
     twoFactorDisableConfirmTitle: 'Disable two-factor authentication?',
     twoFactorDisableConfirmMessage:
         'You will no longer be asked for a code when signing in.',
     twoFactorDisableConfirmButton: 'Disable',
-    twoFactorDisabledMessage: 'Two-factor authentication disabled',
     twoFactorRequiresRecentLoginError:
         'Please sign in again to confirm, then try again.',
     twoFactorReauthenticateButton: 'Sign in again',
@@ -1346,7 +1321,6 @@ class Strings {
     qrLoginScanConfirmTitle: 'Allow sign-in on this device?',
     qrLoginScanConfirmMessage: "If you don't recognize this, don't allow it.",
     qrLoginScanConfirmButton: 'Allow',
-    qrLoginApprovedSnackbar: 'Sign-in allowed',
     qrLoginInvalidQrError: 'Invalid QR code',
     qrLoginApproveError: 'Approval failed. The QR code may have expired.',
     qrLoginScanInstructionMessage:
@@ -1364,9 +1338,6 @@ class Strings {
         'Ctrl+Enter to send without notifying the recipient',
     settingsSendKeySilentCtrlEnterToSend:
         'Ctrl+Shift+Enter to send without notifying the recipient',
-    supportHomepageUrl: 'Homepage URL',
-    supportAnnouncements: 'Announcements',
-    supportContactForm: 'Contact form',
     back: 'Back',
     friendSearchTitle: 'Add a friend',
     friendSearchHint:
@@ -1385,7 +1356,6 @@ class Strings {
     userProfileCardSendRequest: 'Send friend request',
     userProfileCardAcceptRequest: 'Accept friend request',
     userProfileCardRequestPending: 'Request sent. Waiting for approval.',
-    userProfileCardJumpToDm: 'Open direct chat',
     friendRequestIncomingSubtitle: 'They sent you a friend request',
     friendRequestOutgoingSubtitle: 'Waiting for them to accept',
     conversationPin: 'Pin',
@@ -1435,7 +1405,6 @@ class Strings {
     readReceiptPopupTitle: 'Read by',
     reactionListPopupTitle: 'Reactions',
     chatSelectionModeTitle: (count) => '$count selected',
-    chatDeleteSelectedTooltip: 'Delete selected messages',
     chatDeleteConfirmTitle: 'Delete these messages?',
     chatDeleteConfirmMessage:
         "The selected messages will disappear from your account only "
@@ -1449,10 +1418,8 @@ class Strings {
     chatReactAction: 'React',
     chatCopyAction: 'Copy',
     chatPartialCopyAction: 'Partial copy',
-    chatCopiedMessage: 'Copied',
     chatSelectAction: 'Delete messages',
     chatScreenshotAction: 'Screenshot',
-    chatScreenshotTooltip: 'Screenshot selected range',
     chatScreenshotSelectionModeTitle: (count) => '$count to capture',
     chatScreenshotDialogTitle: 'Take screenshot',
     chatScreenshotBlurCheckboxLabel: 'Blur names and avatars',
@@ -1460,6 +1427,7 @@ class Strings {
     chatScreenshotErrorMessage: 'Failed to create the screenshot.',
     chatEditedLabel: 'Edited',
     chatInputHint: 'Type a message...',
+    announcementContactFormLabel: 'Questions & Feedback',
     chatReplyingToLabel: (senderLabel) => 'Replying to $senderLabel',
     chatEditingLabel: 'Editing message',
     chatUnsendConfirmTitle: 'Unsend this message?',
@@ -1601,7 +1569,6 @@ class Strings {
     settingsProfileCardAssignmentEmpty:
         'No conversations are using a non-standard card yet',
     conversationProfileCardMenuLabel: 'My profile card',
-    workshopConversationCardAddTooltip: 'Add a conversation to set a card for',
     workshopConversationCardAddDialogTitle:
         'Choose a conversation to set a card for',
     workshopConversationCardAddEmpty: 'No conversations available to set',
@@ -1665,6 +1632,9 @@ class Strings {
         '$remainingDays day(s).',
     accountRestoreButton: 'Restore account',
     accountRestoreSignOutButton: 'Sign out',
+    accountSuspendedTitle: 'Your account has been suspended',
+    accountSuspendedMessage: 'This account has been suspended by the operator.',
+    accountSuspendedSignOutButton: 'Sign out',
     chatAccountDeletedNotice: (label) => '$label deleted their account.',
     chatAccountDeletedDeleteConversationPrompt: 'Delete this conversation?',
     chatAccountDeletedYesButton: 'Yes',

@@ -70,6 +70,11 @@ class GekigaTheme {
       scaffoldBackgroundColor: backgroundColor,
       colorScheme: colorScheme,
       textTheme: textTheme,
+      // ボタン押下時の半透明円形の波紋（Material標準リップル）を廃止する
+      // （2026-08-12、ミニマルな見た目を目指す方針）。
+      splashFactory: NoSplash.splashFactory,
+      splashColor: Colors.transparent,
+      highlightColor: Colors.transparent,
       pageTransitionsTheme: const PageTransitionsTheme(
         builders: {
           TargetPlatform.android: PopSlidePageTransitionsBuilder(),

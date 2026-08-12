@@ -8,6 +8,7 @@ import '../../models/group_call.dart';
 import '../../providers/group_call_providers.dart';
 import '../../providers/repository_providers.dart';
 import '../../router/app_router.dart';
+import '../../utils/auto_dismiss_banner.dart';
 import 'call_sound_player.dart';
 
 /// アプリ全体で、自分がメンバーになっている広場の新規通話開始を監視し、
@@ -37,10 +38,12 @@ class _GroupIncomingCallListenerState
   final List<_PendingBanner> _banners = [];
   Set<String> _knownCallIds = {};
   bool _seeded = false;
+  Timer? _errorBannerTimer;
 
   @override
   void dispose() {
     _soundPlayer.dispose();
+    _errorBannerTimer?.cancel();
     super.dispose();
   }
 
@@ -121,8 +124,10 @@ class _GroupIncomingCallListenerState
         .first;
     if (participants.length >= call.maxParticipants) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('この通話は満員です（上限${call.maxParticipants}人）')),
+        _errorBannerTimer = showAutoDismissBanner(
+          context,
+          message: 'この通話は満員です（上限${call.maxParticipants}人）',
+          previousTimer: _errorBannerTimer,
         );
       }
       return;

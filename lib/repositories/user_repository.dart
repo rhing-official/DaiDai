@@ -116,6 +116,39 @@ abstract class UserRepository {
   /// 完了させる（`functions/src/index.ts`の`deleteAccount`ヘルパーを
   /// 定期処理と共用）。認証中のユーザー自身のみ実行可能。
   Future<void> deleteAccountImmediately();
+
+  /// 認証済みセッションを確認するたびに呼び、最終ログイン日時を更新する
+  /// （管理画面向け、2026-08-12追加）。[updateUser]経由にしないのは
+  /// [AppUser.lastLoginAt]のドキュメントコメント参照。
+  Future<void> touchLastLogin(String userId);
+
+  /// 管理画面向けの住人一覧をリアルタイムに購読する（暫定的に直近500件
+  /// まで、2026-08-12追加）。`createdAt`未設定の既存ユーザーも含めて全件
+  /// 取得できるよう、Firestore側では並び替えず（`orderBy`はそのフィールドを
+  /// 持たないドキュメントを結果から除外してしまうため）、呼び出し側で
+  /// 並び替える。
+  Stream<List<AppUser>> watchAllUsersForAdmin();
+
+  /// 指定ユーザーのアカウントを停止/解除する（管理者のみ、Cloud Functions
+  /// `suspendUserAccount`経由、2026-08-12追加）。
+  Future<void> setAccountSuspended(String userId, bool suspended);
+
+  /// 全住人（稼働中のアカウントのみ）に、便りアカウントからの一対メッセージ
+  /// としてお知らせを配信する（管理者のみ、Cloud Functions
+  /// `broadcastAnnouncement`経由、2026-08-12追加）。
+  Future<void> broadcastAnnouncement(String message);
+
+  /// 初回管理者登録（一時的な機能、Cloud Functions `grantFirstAdminOnce`
+  /// 経由。既に管理者が存在する場合は失敗する、2026-08-12追加）。
+  Future<bool> bootstrapFirstAdmin();
+
+  /// 一度きりの移行処理（一時的な機能、Cloud Functions
+  /// `backfillAccountStatusOnce`経由、2026-08-12追加）。`accountStatus`
+  /// フィールドが物理的に存在しない古いユーザードキュメントに
+  /// `accountStatus: 'active'`をバックフィルする。実行・確認後は
+  /// このメソッド・呼び出し元UI・Cloud Function自体を削除する想定
+  /// （`bootstrapFirstAdmin`と同じ「使い捨て」の扱い）。
+  Future<Map<String, int>> backfillAccountStatusOnce();
 }
 
 class FirestoreUserRepository implements UserRepository {
@@ -170,7 +203,13 @@ class FirestoreUserRepository implements UserRepository {
 
   @override
   Future<void> createUser(AppUser user) async {
-    await _users.doc(user.userId).set(user.toJson());
+    // createdAtはtoJson()には含めず、新規作成のこのメソッドでのみサーバー
+    // タイムスタンプをマージする（[AppUser.createdAt]のドキュメントコメント
+    // 参照。updateUserが同じtoJson()を.set()で全体上書きしているため）。
+    await _users.doc(user.userId).set({
+      ...user.toJson(),
+      'createdAt': FieldValue.serverTimestamp(),
+    });
   }
 
   @override
@@ -439,5 +478,56 @@ class FirestoreUserRepository implements UserRepository {
   @override
   Future<void> deleteAccountImmediately() async {
     await _functions.httpsCallable('deleteAccountImmediately').call();
+  }
+
+  @override
+  Future<void> touchLastLogin(String userId) async {
+    await _users.doc(userId).update({
+      'lastLoginAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  @override
+  Stream<List<AppUser>> watchAllUsersForAdmin() {
+    return _users
+        .limit(500)
+        .snapshots()
+        .map(
+          (snap) =>
+              snap.docs.map((doc) => AppUser.fromJson(doc.data())).toList(),
+        );
+  }
+
+  @override
+  Future<void> setAccountSuspended(String userId, bool suspended) async {
+    await _functions.httpsCallable('suspendUserAccount').call({
+      'targetUserId': userId,
+      'suspend': suspended,
+    });
+  }
+
+  @override
+  Future<void> broadcastAnnouncement(String message) async {
+    await _functions.httpsCallable('broadcastAnnouncement').call({
+      'message': message,
+    });
+  }
+
+  @override
+  Future<bool> bootstrapFirstAdmin() async {
+    final result = await _functions.httpsCallable('grantFirstAdminOnce').call();
+    return result.data['granted'] == true;
+  }
+
+  @override
+  Future<Map<String, int>> backfillAccountStatusOnce() async {
+    final result = await _functions
+        .httpsCallable('backfillAccountStatusOnce')
+        .call();
+    final data = Map<String, dynamic>.from(result.data as Map);
+    return {
+      'scanned': data['scanned'] as int,
+      'backfilled': data['backfilled'] as int,
+    };
   }
 }

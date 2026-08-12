@@ -2,9 +2,12 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../features/admin/admin_gate.dart';
 import '../features/app_gate.dart';
+import '../features/auth/auth_gate.dart';
 import '../features/call/call_screen.dart';
 import '../features/call/group_call_screen.dart';
+import '../features/chat/announcement_screen.dart';
 import '../features/chat/chat_panes.dart';
 import '../features/chat/join_group_screen.dart';
 import '../features/profile/invite_screen.dart';
@@ -167,6 +170,17 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         },
       ),
       GoRoute(
+        path: '/announcements',
+        builder: (context, state) => swipeBack(
+          AnnouncementScreen(
+            currentUser: state.extra! as AppUser,
+            onSwipeBack: () {
+              if (router.canPop()) router.pop();
+            },
+          ),
+        ),
+      ),
+      GoRoute(
         path: '/invite/:rhingId',
         builder: (context, state) =>
             swipeBack(InviteScreen(rhingId: state.pathParameters['rhingId']!)),
@@ -207,6 +221,17 @@ final goRouterProvider = Provider<GoRouter>((ref) {
             isVideo: args.isVideo,
           );
         },
+      ),
+      GoRoute(
+        // 運営向け管理画面（隠しルート、2026-08-12新設）。通常のナビゲーション
+        // からは導線を出さず、URLを直接開いた場合のみ到達する。AuthGateで
+        // 通常のDaiDaiサインインを要求した上で、AdminGateが管理者クレームを
+        // 確認する（未サインインでは管理者判定に届かせない）。
+        path: '/admin',
+        builder: (context, state) => AuthGate(
+          builder: (context, currentUser) =>
+              AdminGate(currentUser: currentUser),
+        ),
       ),
     ],
   );

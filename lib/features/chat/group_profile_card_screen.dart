@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
@@ -6,6 +8,7 @@ import '../../l10n/strings.dart';
 import '../../models/group.dart';
 import '../../models/group_profile_card.dart';
 import '../../providers/repository_providers.dart';
+import '../../utils/auto_dismiss_banner.dart';
 
 /// 広場のプロフィールカード（1枚のみ）を作成・編集するポップアップの中身。
 /// メンバー全員が編集できる（個人の工房カードと異なり、蔵の素材を参照せず
@@ -31,6 +34,7 @@ class _GroupProfileCardPopupState extends ConsumerState<GroupProfileCardPopup> {
   bool _uploadingIcon = false;
   bool _uploadingBackground = false;
   final _editController = TextEditingController();
+  Timer? _errorBannerTimer;
 
   // 個人の工房カード編集画面（`_CardZoomEditorState._pendingPersist`）と同じ
   // 理由で、保存呼び出しをFutureチェーンで直列化する。自動保存は短い間隔で
@@ -48,6 +52,7 @@ class _GroupProfileCardPopupState extends ConsumerState<GroupProfileCardPopup> {
   @override
   void dispose() {
     _editController.dispose();
+    _errorBannerTimer?.cancel();
     super.dispose();
   }
 
@@ -60,12 +65,10 @@ class _GroupProfileCardPopupState extends ConsumerState<GroupProfileCardPopup> {
             .updateProfileCard(groupId: widget.group.groupId, card: card);
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                '${ref.read(appStringsProvider).profileSaveError}: $e',
-              ),
-            ),
+          _errorBannerTimer = showAutoDismissBanner(
+            context,
+            message: '${ref.read(appStringsProvider).profileSaveError}: $e',
+            previousTimer: _errorBannerTimer,
           );
         }
       }
@@ -92,12 +95,10 @@ class _GroupProfileCardPopupState extends ConsumerState<GroupProfileCardPopup> {
       await _persist();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            '${ref.read(appStringsProvider).profileIconUploadError}: $e',
-          ),
-        ),
+      _errorBannerTimer = showAutoDismissBanner(
+        context,
+        message: '${ref.read(appStringsProvider).profileIconUploadError}: $e',
+        previousTimer: _errorBannerTimer,
       );
     } finally {
       if (mounted) {
@@ -124,12 +125,10 @@ class _GroupProfileCardPopupState extends ConsumerState<GroupProfileCardPopup> {
       await _persist();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            '${ref.read(appStringsProvider).profileIconUploadError}: $e',
-          ),
-        ),
+      _errorBannerTimer = showAutoDismissBanner(
+        context,
+        message: '${ref.read(appStringsProvider).profileIconUploadError}: $e',
+        previousTimer: _errorBannerTimer,
       );
     } finally {
       if (mounted) {

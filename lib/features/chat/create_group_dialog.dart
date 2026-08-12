@@ -243,7 +243,6 @@ class _CreateGroupDialogContentState
         children: [
           IconButton(
             icon: const Icon(Icons.arrow_back),
-            tooltip: '戻る',
             onPressed: _isCreating ? null : _goBackToStep1,
           ),
           const SizedBox(width: 4),

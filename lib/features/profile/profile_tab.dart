@@ -19,6 +19,7 @@ import '../../providers/user_providers.dart';
 import '../../repositories/user_repository.dart';
 import '../../theme/gekiga/gekiga_colors.dart';
 import '../../theme/motion.dart';
+import '../../utils/auto_dismiss_banner.dart';
 import '../../utils/text_truncate.dart';
 import '../../widgets/gekiga/gekiga_icon_badge.dart';
 import '../../widgets/gekiga/gekiga_panel_box.dart';
@@ -88,6 +89,7 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
   /// なっていた。Firestoreの変更をリアルタイムに購読し、`_user`を
   /// 常に最新へ追従させる。
   StreamSubscription<AppUser?>? _userSub;
+  Timer? _errorBannerTimer;
 
   @override
   void initState() {
@@ -101,6 +103,7 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
   @override
   void dispose() {
     _userSub?.cancel();
+    _errorBannerTimer?.cancel();
     super.dispose();
   }
 
@@ -143,9 +146,11 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
 
   void _showError(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(
+    _errorBannerTimer = showAutoDismissBanner(
       context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+      message: message,
+      previousTimer: _errorBannerTimer,
+    );
   }
 
   Future<void> _pickAndUploadIcon() async {
@@ -1113,8 +1118,9 @@ class _WorkshopConversationCardSection extends ConsumerWidget {
     List<Group> unassignedGroups,
   ) async {
     if (unassignedDms.isEmpty && unassignedGroups.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(strings.workshopConversationCardAddEmpty)),
+      showAutoDismissBanner(
+        context,
+        message: strings.workshopConversationCardAddEmpty,
       );
       return;
     }
@@ -1196,7 +1202,6 @@ class _WorkshopConversationCardSection extends ConsumerWidget {
                 ? GekigaIconButton(
                     icon: Icons.add,
                     size: 40,
-                    tooltip: strings.workshopConversationCardAddTooltip,
                     onPressed: () => _showAddDialog(
                       context,
                       ref,
@@ -1206,7 +1211,6 @@ class _WorkshopConversationCardSection extends ConsumerWidget {
                   )
                 : IconButton(
                     icon: const Icon(Icons.add_circle_outline),
-                    tooltip: strings.workshopConversationCardAddTooltip,
                     onPressed: () => _showAddDialog(
                       context,
                       ref,

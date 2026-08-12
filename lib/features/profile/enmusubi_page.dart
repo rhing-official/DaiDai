@@ -6,8 +6,14 @@ import 'package:qr_flutter/qr_flutter.dart';
 
 import '../../l10n/strings.dart';
 import '../../models/app_user.dart';
+import '../../models/app_ui_style.dart';
+import '../../providers/app_ui_style_provider.dart';
 import '../../providers/repository_providers.dart';
+import '../../theme/gekiga/gekiga_colors.dart';
 import '../../utils/web_link.dart';
+import '../../widgets/gekiga/gekiga_icon_badge.dart';
+import '../../widgets/gekiga/gekiga_panel_box.dart';
+import '../../widgets/gekiga/gekiga_section_header.dart';
 import '../../widgets/qr_scan_screen.dart';
 
 String _inviteLinkFor(String rhingId) => buildWebLink('/invite/$rhingId');
@@ -68,6 +74,7 @@ class _EnmusubiPageState extends ConsumerState<EnmusubiPage> {
     final strings = ref.watch(appStringsProvider);
     final link = _inviteLinkFor(currentUser.rhingId);
     final colorScheme = Theme.of(context).colorScheme;
+    final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
 
     return Align(
       alignment: Alignment.topLeft,
@@ -76,56 +83,105 @@ class _EnmusubiPageState extends ConsumerState<EnmusubiPage> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            Text(
-              strings.enmusubiInviteLinkTitle,
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-            ),
+            GekigaSectionHeader(strings.enmusubiInviteLinkTitle),
             const SizedBox(height: 4),
             Text(strings.enmusubiInviteLinkDescription),
             const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                border: Border.all(color: colorScheme.outlineVariant),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                children: [
-                  Expanded(child: SelectableText(link, maxLines: 1)),
-                  IconButton(
-                    icon: const Icon(Icons.copy_outlined),
-                    tooltip: strings.enmusubiCopyLink,
-                    onPressed: () => _copyLink(link),
+            isGekiga
+                ? GekigaJointedTileList(
+                    seeds: [link.hashCode],
+                    selectedFlags: const [true],
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: SelectableText(
+                                link,
+                                maxLines: 1,
+                                style: const TextStyle(
+                                  color: GekigaColors.panel,
+                                ),
+                              ),
+                            ),
+                            GekigaIconButton(
+                              icon: Icons.copy_outlined,
+                              onPressed: () => _copyLink(link),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  )
+                : Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: colorScheme.outlineVariant),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(child: SelectableText(link, maxLines: 1)),
+                        IconButton(
+                          icon: const Icon(Icons.copy_outlined),
+                          onPressed: () => _copyLink(link),
+                        ),
+                      ],
+                    ),
                   ),
-                ],
-              ),
-            ),
             const SizedBox(height: 32),
-            Text(
-              strings.enmusubiQrTitle,
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-            ),
+            GekigaSectionHeader(strings.enmusubiQrTitle),
             const SizedBox(height: 4),
             Text(strings.enmusubiQrDescription),
             const SizedBox(height: 16),
             Center(
-              child: Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: colorScheme.outlineVariant),
-                ),
-                child: QrImageView(data: link, size: 200),
-              ),
+              child: isGekiga
+                  ? GekigaJointedTileList(
+                      seeds: [link.hashCode + 1],
+                      selectedFlags: const [true],
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: QrImageView(data: link, size: 200),
+                        ),
+                      ],
+                    )
+                  : Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: colorScheme.outlineVariant),
+                      ),
+                      child: QrImageView(data: link, size: 200),
+                    ),
             ),
             const SizedBox(height: 16),
             Center(
-              child: OutlinedButton.icon(
-                icon: const Icon(Icons.qr_code_scanner),
-                label: Text(strings.enmusubiScanButton),
-                onPressed: () => _openScanner(context),
-              ),
+              child: isGekiga
+                  ? GekigaJointedTileList(
+                      seeds: [strings.enmusubiScanButton.hashCode],
+                      selectedFlags: const [true],
+                      children: [
+                        GekigaButton(
+                          label: strings.enmusubiScanButton,
+                          icon: Icons.qr_code_scanner,
+                          onPressed: () => _openScanner(context),
+                        ),
+                      ],
+                    )
+                  : OutlinedButton.icon(
+                      icon: const Icon(Icons.qr_code_scanner),
+                      label: Text(strings.enmusubiScanButton),
+                      onPressed: () => _openScanner(context),
+                    ),
             ),
           ],
         ),

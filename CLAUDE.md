@@ -216,7 +216,7 @@ DaiDaiは独自の世界観用語を使う。変数名・クラス名・コレ�
 
 | 呼び名 | ニックネーム | ニックネーム | 友達に表示する呼び名（2026-07-24追加） |
 
-| 便り | 公式アカウント | （なし） | 公式アカウント（拡張機能・将来検討） |
+| 便り | 公式アカウント | （なし） | 公式アカウント（2026-08-12実装済み、下記「運営向け管理画面」参照。「将来検討」だったが管理画面のお知らせ配信機能とあわせて前倒し実装した） |
 
 | 長（ちょう） | 管理者 | オーナー | 広場の管理者 |
 
@@ -248,7 +248,7 @@ DaiDaiは独自の世界観用語を使う。変数名・クラス名・コレ�
 
   
 
-- **User**: `userId`, `rhingId`, `deviceIds`, `bannedDevices`, `accountStatus`, `subscriptionPlan`(free|kiwami), `profiles[]`（最大3プロフィール＝蔵システム）, `preferences`。2段階認証の有効/無効はFirestoreに複製せずFirebase Authenticationの登録済み要素を都度参照する設計にしたため、旧`twoFactorEnabled`という想定フィールドは不要と判明した（2026-08-09、下記「ログイン手段の方針」参照）。`secretQuestions`（bcryptハッシュ）・`passkeyEnabled`は将来のRhing ID＋パスキー導入時のための想定フィールドで、現時点では未実装
+- **User**: `userId`, `rhingId`, `deviceIds`, `bannedDevices`, `accountStatus`(active|pendingDeletion|suspended、suspendedは2026-08-12追加。運営向け管理画面からの手動停止のみで、技術仕様書8.4の期限付き自動停止とは連携しない), `createdAt`/`lastLoginAt`（2026-08-12追加、管理画面向け。`lastLoginAt`は認証済みセッション確認のたびに更新するため「最終アプリ起動日時」に近い）, `subscriptionPlan`(free|kiwami), `profiles[]`（最大3プロフィール＝蔵システム）, `preferences`。2段階認証の有効/無効はFirestoreに複製せずFirebase Authenticationの登録済み要素を都度参照する設計にしたため、旧`twoFactorEnabled`という想定フィールドは不要と判明した（2026-08-09、下記「ログイン手段の方針」参照）。`secretQuestions`（bcryptハッシュ）・`passkeyEnabled`は将来のRhing ID＋パスキー導入時のための想定フィールドで、現時点では未実装
 
 - **DirectMessage（一対）**: `dmId`, `participants[2]`, `defaultRoomId`, `settings.sectionEnabled`, `sections[]`。メッセージは`directMessages/{dmId}/rooms/{roomId}/messages`（複数寄合対応、2026-07-28実装）に入る。寄合自体は`directMessages/{dmId}/rooms/{roomId}`（`DmRoom`: `dmId`, `name`, `participants[]`, `createdAt`, `deletionRequestedBy`）。参加者2人はどちらも寄合の追加・削除が可能（確認無しで追加、削除は確認ダイアログあり、最後の1つは削除不可）
 
@@ -297,7 +297,12 @@ DaiDaiは独自の世界観用語を使う。変数名・クラス名・コレ�
 
 - **アカウント削除（2026-07-28実装、旧: 3時間以内に完全削除から変更）**: 設定＞アカウントから2パターン選べる。(1) **通常削除**（`UserRepository.requestAccountDeletion`）: 申請後30日間は情報を保持し、その間にログインすると「アカウントを復元しますか？」（`lib/features/auth/account_restore_screen.dart`）から復元できる。何も操作をしないまま31日目の00:00（Asia/Tokyo）になると、Cloud Functions（`functions/src/index.ts`の`processAccountDeletions`、毎日00:00実行のスケジュールトリガー）がサーバーから全情報を完全削除する。(2) **即時削除**（`UserRepository.deleteAccountImmediately`）: 30日間の猶予を経ず、Cloud Functionsのcallable関数`deleteAccountImmediately`（同ファイル、認証中の本人のみ呼び出し可）を通じてその場で完全削除する（復元不可）。どちらも実際の削除処理は共通の`deleteAccount`ヘルパーを使う（Firestore・Firebase Authとも削除）。一対（DM）には削除完了時点で「〇〇がアカウントを削除しました。語らいを削除しますか？」と通知され、「はい」→確認→即時に会話履歴を物理削除、「いいえ」なら通知だけが残る（`DirectMessage.accountDeletedUserId`、`Message.contentType == 'accountDeleted'`）。広場には「〇〇がアカウントを削除しました。」の通知のみで、削除の選択肢は無い。**長を務める広場が1件でも残っている間はアカウントを削除できない（2026-08-02実装）**: 通常削除・即時削除どちらの入り口でも、削除操作前に対象の広場一覧と「長を譲渡」導線（既存の`GroupMemberListPopup`を再利用）を出すガードダイアログ（`settings_tab.dart`の`_OwnerGroupsGuardDialog`）が挟まり、全ての広場で`GroupRepository.transferOwnership`により別のメンバーへ譲渡し終えるまで先へ進めない。Cloud Functions側にも同じ制約の安全策があり、`deleteAccountImmediately`は長を務める広場が残っていれば`failed-precondition`で拒否し、`processAccountDeletions`（30日後の自動削除）も実行直前に再チェックして残っていればその日は削除をスキップする（猶予期間中に新たに広場を作成・譲受した場合への対応）。この制約により、`notifyAndLeaveGroups`内の「長の場合は除去せず通知のみ」という分岐は実質到達しない防御的コードとして残っている
 
-  
+- **運営向け管理画面（2026-08-12実装）**: 住人一覧・アカウント停止/解除・便り（公式アカウント）からのお知らせ配信を行う、`/admin`という隠しルート（`lib/features/admin/`、`lib/router/app_router.dart`）。通常のナビゲーションからは導線を出さず、URLを直接開いた場合のみ到達する。
+  - **管理者判定**: Firebase Custom Claims（`admin: true`）。DaiDaiはOAuth専用でメール・パスワード認証を持たないため、管理者専用の別ログインは作らず既存のDaiDaiアカウントにクレームを付与する。判定は`AuthRepository.isAdmin()`（IDトークンの`claims`を確認）・`isAdminProvider`（`lib/providers/repository_providers.dart`）。
+  - **初回管理者登録**: Cloud Functionsのcallable関数`grantFirstAdminOnce`（`system/adminBootstrap`ドキュメントの`consumed`フラグをトランザクションで確認し、最初に呼んだ人だけが管理者になれる「早い者勝ち」のブートストラップ）。`/admin`を非管理者で開くと表示される「初回管理者として登録」ボタンから、CLIを使わずアプリのUIだけで完結する。他の一度きりのCloud Functionsスクリプト（TOTP有効化等）と同じ「実行後にソースから削除」パターンを踏襲する想定だが、2026-08-12時点では運営本人によるデプロイ・実行・確認がまだ済んでおらず、関数はソースに残っている（確認が取れ次第、削除・`firebase functions:delete`での後始末を行う）。
+  - **アカウント停止**: `AccountStatus.suspended`（シンプルな手動停止/解除のみ、技術仕様書8.4の期限付き自動停止とは連携しない）。Cloud Functionsのcallable関数`suspendUserAccount`（管理者クレームを確認した上で`accountStatus`を更新し、停止時は`revokeRefreshTokens`で既存セッションも即座に無効化）。停止中のアカウントは`AuthGate`が`AccountSuspendedScreen`（`lib/features/auth/account_suspended_screen.dart`）を表示し、`pendingDeletion`と違い自己解除の手段は無い（管理者のみが解除できる）。
+  - **お知らせ配信（便り）**: Cloud Functionsのcallable関数`broadcastAnnouncement`。固定UID（`official-tayori`）の`users`ドキュメント（Firebase Authに対応する実アカウントは持たない）を便りとして用意し、稼働中（`accountStatus == active`）の全住人との一対に、通常の一対と同じスキーマ（`DirectMessage`/`DmRoom`/`Message`）でメッセージを書き込む。dmIdは`DirectMessage.idFor`と同じ決定的なpairId方式のため、2回目以降の配信も同じ一対の続きとして届く。
+  - Firestoreルールの変更は無し（住人一覧の読み取りは既存の全ログイン済みユーザー向け`users`読み取りルールで賄え、停止・配信はAdmin SDK経由でルールを経由しないため）。
 
 ## 実装しない機能（明確な方針）
 

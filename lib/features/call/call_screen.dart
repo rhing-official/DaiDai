@@ -363,23 +363,17 @@ class _CallScreenState extends ConsumerState<CallScreen> {
           color: Colors.grey[700]!,
           onPressed: isActive ? _controller.toggleMute : null,
         ),
-        Tooltip(
-          message: _controller.speakerOn ? 'スピーカーで再生中' : '受話口（イヤピース）で再生中',
-          child: CallRoundButton(
-            icon: _controller.speakerOn ? Icons.volume_up : Icons.phone_in_talk,
-            color: Colors.grey[700]!,
-            onPressed: isActive ? _controller.toggleSpeaker : null,
-          ),
+        CallRoundButton(
+          icon: _controller.speakerOn ? Icons.volume_up : Icons.phone_in_talk,
+          color: Colors.grey[700]!,
+          onPressed: isActive ? _controller.toggleSpeaker : null,
         ),
-        Tooltip(
-          message: _myIsVideo ? '音声通話に切り替える' : 'ビデオ通話に切り替える',
-          child: CallRoundButton(
-            icon: Icons.switch_video,
-            color: Colors.grey[700]!,
-            onPressed: isActive && !_controller.switchingCallType
-                ? () => _controller.setVideoEnabled(!_myIsVideo)
-                : null,
-          ),
+        CallRoundButton(
+          icon: Icons.switch_video,
+          color: Colors.grey[700]!,
+          onPressed: isActive && !_controller.switchingCallType
+              ? () => _controller.setVideoEnabled(!_myIsVideo)
+              : null,
         ),
         if (_myIsVideo) ...[
           CallRoundButton(
