@@ -302,15 +302,21 @@ class _AddChatDialogContentState extends ConsumerState<AddChatDialogContent> {
             child: Text(strings.cancel),
           ),
           const SizedBox(width: 8),
-          ElevatedButton(
-            onPressed: _isSearching ? null : _confirmSend,
-            child: _isSearching
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : Text(strings.friendSearchButton),
+          // テーマの`ElevatedButtonThemeData.minimumSize`が横幅
+          // `double.infinity`のため、`Row`直下に裸で置くと横幅の制約が
+          // 衝突してレイアウトが破綻する（ボタンが見えなくなる不具合の
+          // 原因、2026-08-14修正）。`Expanded`で有限の幅に収める。
+          Expanded(
+            child: ElevatedButton(
+              onPressed: _isSearching ? null : _confirmSend,
+              child: _isSearching
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Text(strings.friendSearchButton),
+            ),
           ),
         ],
       ),

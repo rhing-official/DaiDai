@@ -8,7 +8,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/app_locale.dart';
 import '../../l10n/strings.dart';
-import '../../l10n/terminology_style.dart';
 import '../../models/app_ui_style.dart';
 import '../../models/app_user.dart';
 import '../../models/chat_layout_style.dart';
@@ -28,7 +27,6 @@ import '../../providers/message_time_format_provider.dart';
 import '../../providers/repository_providers.dart';
 import '../../providers/send_key_mode_provider.dart';
 import '../../providers/sticker_send_mode_provider.dart';
-import '../../providers/terminology_style_provider.dart';
 import '../../providers/theme_mode_provider.dart';
 import '../../router/app_router.dart';
 import '../../theme/gekiga/gekiga_colors.dart';
@@ -51,8 +49,10 @@ import 'settings_accordion_section.dart';
 /// これ未満の狭い画面では、カテゴリ一覧→内容ページの1段だけドリルダウンする。
 const _kSettingsSplitBreakpoint = 760.0;
 
-/// サイドバーの幅。
-const _kSettingsSidebarWidth = 240.0;
+/// サイドバーの幅。語らい一覧（`talks_tab.dart`）・身だしなみ
+/// （`profile_tab.dart`）の各サイドバーと区切り線のx座標を揃えるため、
+/// 3画面とも同じ260pxを使う（2026-08-14、240→260→250→260）。
+const _kSettingsSidebarWidth = 260.0;
 
 /// 設定タブ。サイドバーの階層は最上位カテゴリ（アカウント／アプリケーション／
 /// 入力／通知）の1段だけに留め、それぞれの中身（旧: サブフォルダだった項目）は
@@ -1432,9 +1432,11 @@ class _PresetColorSwatch extends StatelessWidget {
   }
 }
 
-/// 表示言語（日本語／English）と、DaiDai独自用語の言い換えスタイル
-/// （世界観重視／利便性重視）の両方をここで切り替える。2軸は独立しており、
-/// 組み合わせは`docs/マップ.md`の対訳表（[Vocabulary]）に対応する。
+/// 表示言語（日本語／English）をここで切り替える。以前はDaiDai独自用語の
+/// 言い換えスタイル（世界観重視／利便性重視）もこの直下で切り替えられたが、
+/// 「言語・用語設定によってブロックの大きさが変わるため、全てに対応するのが
+/// 困難になった」ため2026-08-13に廃止し、世界観重視の用語へ一本化した
+/// （[Vocabulary]参照）。
 class _LanguageFolder extends ConsumerWidget {
   const _LanguageFolder({required this.strings});
 
@@ -1443,13 +1445,10 @@ class _LanguageFolder extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final currentLocale = ref.watch(appLocaleProvider);
-    final currentStyle = ref.watch(terminologyStyleProvider);
     final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
 
     void selectLocale(AppLocale locale) =>
         ref.read(appLocaleProvider.notifier).setLocale(locale);
-    void selectTerminology(TerminologyStyle style) =>
-        ref.read(terminologyStyleProvider.notifier).setStyle(style);
 
     final localeControl = isGekiga
         ? GekigaJointedTileList(
@@ -1487,50 +1486,6 @@ class _LanguageFolder extends ConsumerWidget {
             ),
           );
 
-    String terminologyLabel(TerminologyStyle style) =>
-        style == TerminologyStyle.worldview
-        ? strings.settingsTerminologyWorldview
-        : strings.settingsTerminologyConvenience;
-
-    final terminologyControl = isGekiga
-        ? GekigaJointedTileList(
-            seeds: [
-              for (final style in TerminologyStyle.values) style.hashCode,
-            ],
-            selectedFlags: [
-              for (final style in TerminologyStyle.values)
-                currentStyle == style,
-            ],
-            children: [
-              for (final style in TerminologyStyle.values)
-                GekigaTileContent(
-                  selected: currentStyle == style,
-                  leading: Icon(
-                    currentStyle == style
-                        ? Icons.radio_button_checked
-                        : Icons.radio_button_unchecked,
-                  ),
-                  title: Text(terminologyLabel(style)),
-                  onTap: () => selectTerminology(style),
-                ),
-            ],
-          )
-        : RadioGroup<TerminologyStyle>(
-            groupValue: currentStyle,
-            onChanged: (value) {
-              if (value != null) selectTerminology(value);
-            },
-            child: Column(
-              children: [
-                for (final style in TerminologyStyle.values)
-                  RadioListTile<TerminologyStyle>(
-                    value: style,
-                    title: Text(terminologyLabel(style)),
-                  ),
-              ],
-            ),
-          );
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
@@ -1545,18 +1500,6 @@ class _LanguageFolder extends ConsumerWidget {
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: localeControl,
-        ),
-        const Divider(height: 32),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-          child: Text(
-            strings.settingsTerminology,
-            style: const TextStyle(fontWeight: FontWeight.bold),
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: terminologyControl,
         ),
       ],
     );

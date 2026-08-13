@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../l10n/app_locale.dart';
-import '../l10n/terminology_style.dart';
 import '../models/app_ui_style.dart';
 import '../models/app_user_preferences.dart';
 import '../models/chat_layout_style.dart';
@@ -19,7 +18,6 @@ import 'gekiga_background_color_provider.dart';
 import 'message_time_format_provider.dart';
 import 'send_key_mode_provider.dart';
 import 'sticker_send_mode_provider.dart';
-import 'terminology_style_provider.dart';
 import 'theme_mode_provider.dart';
 
 /// ログイン直後、Firestoreに保存されている表示設定（[AppUserPreferences]）で
@@ -50,13 +48,6 @@ void applyRemoteUserPreferences(WidgetRef ref, AppUserPreferences preferences) {
     ref
         .read(appLocaleProvider.notifier)
         .syncFromRemote(AppLocale.fromLanguageCode(preferences.localeCode));
-  }
-  if (preferences.terminologyStyle != null) {
-    ref
-        .read(terminologyStyleProvider.notifier)
-        .syncFromRemote(
-          TerminologyStyle.fromName(preferences.terminologyStyle),
-        );
   }
   if (preferences.sendKeyMode != null) {
     ref

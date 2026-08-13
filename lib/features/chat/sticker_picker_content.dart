@@ -16,11 +16,16 @@ class StickerPickerContent extends ConsumerStatefulWidget {
   const StickerPickerContent({
     required this.railAxis,
     required this.onStickerSelected,
+    this.initialPackId,
     super.key,
   });
 
   final Axis railAxis;
   final void Function(Sticker sticker) onStickerSelected;
+
+  /// 指定時は「すべて」タブではなく、このパックに絞り込んだ状態で開く
+  /// （他人が送信済みのペタピタをタップして開く導線用、2026-08-14追加）。
+  final String? initialPackId;
 
   @override
   ConsumerState<StickerPickerContent> createState() =>
@@ -30,7 +35,7 @@ class StickerPickerContent extends ConsumerStatefulWidget {
 class _StickerPickerContentState extends ConsumerState<StickerPickerContent> {
   String _query = '';
   // nullは「すべて」タブを表す。
-  String? _selectedPackId;
+  late String? _selectedPackId = widget.initialPackId;
 
   // LINE型送信方式の拡大プレビュー用（2026-08-13追加）。
   Sticker? _pendingPreviewSticker;

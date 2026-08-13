@@ -9,6 +9,7 @@ import {
 import { getStorage } from "firebase-admin/storage";
 import { logger } from "firebase-functions";
 import { defineSecret } from "firebase-functions/params";
+import { onDocumentWritten } from "firebase-functions/v2/firestore";
 import { HttpsError, onCall, onRequest } from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import Stripe from "stripe";
@@ -184,6 +185,9 @@ async function deleteAccount(
   if (rhingId) {
     await writer.delete(db.collection("userInvites").doc(rhingId));
   }
+  // daidai横丁で出品者だった場合のみ存在する公開プロフィールミラー
+  // （creatorProfiles、非出品者には存在しないが、無条件のdeleteは安全）。
+  await writer.delete(db.collection("creatorProfiles").doc(userId));
   await deleteSubcollection(
     db.collection("users").doc(userId).collection("conversationPrefs"),
     writer,
@@ -505,6 +509,61 @@ function assertValidPrice(value: unknown): number {
 }
 
 /**
+ * `users/{uid}`ドキュメントから、daidai横丁で公開してよい最小限の
+ * クリエイター情報を算出する。「工房カード」(profileCards)ごとの
+ * 呼び名/アイコン切り替えは再現せず、蔵のアクティブ素材（activeNicknameId/
+ * activeIconId/activeStatusMessageId）のみを見る簡易実装（v1方針）。
+ */
+function buildCreatorProfileFields(
+  userData: FirebaseFirestore.DocumentData,
+): FirebaseFirestore.DocumentData {
+  const nicknames = Array.isArray(userData.nicknames) ? userData.nicknames : [];
+  const icons = Array.isArray(userData.icons) ? userData.icons : [];
+  const statusMessages = Array.isArray(userData.statusMessages)
+    ? userData.statusMessages
+    : [];
+  const snsLinks = Array.isArray(userData.snsLinks) ? userData.snsLinks : [];
+
+  const activeNickname = nicknames.find(
+    (n: { id?: unknown }) => n?.id === userData.activeNicknameId,
+  );
+  const activeIcon = icons.find(
+    (i: { id?: unknown }) => i?.id === userData.activeIconId,
+  );
+  const activeStatusMessage = statusMessages.find(
+    (s: { id?: unknown }) => s?.id === userData.activeStatusMessageId,
+  );
+
+  return {
+    rhingId: typeof userData.rhingId === "string" ? userData.rhingId : "",
+    nickname: typeof activeNickname?.text === "string" ? activeNickname.text : null,
+    iconUrl: typeof activeIcon?.url === "string" ? activeIcon.url : null,
+    // 専用の自己紹介フィールドが無いため、ステメ（最大40字）を流用する。
+    statusMessage:
+      typeof activeStatusMessage?.text === "string" ? activeStatusMessage.text : null,
+    snsLinkUrls: snsLinks
+      .map((s: { url?: unknown }) => s?.url)
+      .filter((url: unknown): url is string => typeof url === "string"),
+    updatedAt: FieldValue.serverTimestamp(),
+  };
+}
+
+/**
+ * `creatorProfiles/{userId}`（daidai横丁の公開プロフィールミラー、
+ * read:true/write:falseでクライアントからは読み取り専用）をmerge更新する。
+ * `createStickerPack`の初回作成と、`syncCreatorProfile`トリガーの両方から呼ぶ。
+ */
+async function projectCreatorProfile(
+  userId: string,
+  userData: FirebaseFirestore.DocumentData,
+): Promise<void> {
+  await db
+    .collection("creatorProfiles")
+    .doc(userId)
+    .set(buildCreatorProfileFields(userData), { merge: true });
+}
+
+/**
  * 出品者（DaiDaiアカウントを持つ誰でも即出品可、承認フローなし）が新規パックを
  * 作成する。creatorIdは呼び出し元のuidで固定し、他人になりすませないようにする。
  */
@@ -546,6 +605,15 @@ export const createStickerPack = onCall(
       ownerCount: 0,
       createdAt: FieldValue.serverTimestamp(),
     });
+
+    // 初出品のタイミングで、daidai横丁の公開プロフィールミラー
+    // （creatorProfiles）を初回作成する。以後の呼び名/アイコン変更は
+    // syncCreatorProfileトリガーが追随する。
+    const userDoc = await db.collection("users").doc(uid).get();
+    if (userDoc.exists) {
+      await projectCreatorProfile(uid, userDoc.data()!);
+    }
+
     return { packId: ref.id };
   },
 );
@@ -574,7 +642,7 @@ export const updateStickerPackMeta = onCall(
       throw new HttpsError("permission-denied", "自分が出品したパックのみ編集できます");
     }
 
-    const update: { name?: string; price?: number } = {};
+    const update: { name?: string; price?: number; updatedAt?: FirebaseFirestore.FieldValue } = {};
     if (request.data?.name !== undefined) {
       if (typeof request.data.name !== "string" || !request.data.name.trim()) {
         throw new HttpsError("invalid-argument", "nameが不正です");
@@ -594,6 +662,7 @@ export const updateStickerPackMeta = onCall(
     if (Object.keys(update).length === 0) {
       throw new HttpsError("invalid-argument", "name・priceのいずれかが必要です");
     }
+    update.updatedAt = FieldValue.serverTimestamp();
     await ref.update(update);
   },
 );
@@ -633,7 +702,28 @@ export const addStickersToStickerPack = onCall(
         throw new HttpsError("invalid-argument", `stickerId "${s.stickerId}" は既に存在します`);
       }
     }
-    await ref.update({ stickers: FieldValue.arrayUnion(...stickers) });
+    await ref.update({
+      stickers: FieldValue.arrayUnion(...stickers),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+  },
+);
+
+/**
+ * `users/{userId}`が書き込まれるたびに、既に`creatorProfiles/{userId}`
+ * （=出品経験のあるユーザー）が存在する場合のみ公開プロフィールを
+ * 同期する。非出品者への無駄な書き込みを避けるため、存在しない場合は
+ * 何もしない（新規作成は`createStickerPack`側の責務）。
+ */
+export const syncCreatorProfile = onDocumentWritten(
+  { document: "users/{userId}", region: "asia-northeast1" },
+  async (event) => {
+    const after = event.data?.after;
+    if (!after || !after.exists) return; // 削除はdeleteAccount側で処理する
+    const profileRef = db.collection("creatorProfiles").doc(event.params.userId);
+    const existing = await profileRef.get();
+    if (!existing.exists) return;
+    await projectCreatorProfile(event.params.userId, after.data()!);
   },
 );
 

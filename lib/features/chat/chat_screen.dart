@@ -498,9 +498,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   Message? _editingMessage;
 
   /// 返信先ジャンプ機能用に、現在ロード済みの各メッセージ行へのGlobalKey。
-  /// ListView.builderの遅延ビルドだと画面外（未ビルド）の返信先メッセージへは
-  /// Scrollable.ensureVisibleが効かないため、下のbuild()でListView（非lazy）に
-  /// 切り替えている（現在ロード済みメッセージは最新50件程度に収まる想定）。
+  /// 以前は「`ListView.builder`の遅延ビルドを避けるため、下のbuild()で
+  /// `ListView`（非lazy）に切り替えている」としていたが誤りだった:
+  /// `ListView(children: ...)`も内部的には`SliverList`を使うため、
+  /// `ListView.builder`と同様にビューポート＋`cacheExtent`の範囲外の子は
+  /// 実際にはビルドされない（`_FileAttachmentBlockState`のコメント参照、
+  /// こちらは別の不具合で先に発覚していた）。実際に画面外の返信先へも
+  /// GlobalKeyのcurrentContextが付くようにしているのは、下のbuild()で
+  /// 明示指定している`cacheExtent`（既定値250pxを大きく超える値）の方
+  /// （2026-08-14訂正、現在ロード済みメッセージは最新50件程度に収まる想定）。
   final _messageKeys = <String, GlobalKey>{};
 
   /// [widget.messagesStream]の直近50件に含まれない返信先へジャンプする際、
@@ -524,20 +530,40 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   Future<void> _jumpToMessage(String messageId) async {
     if (!_messageKeys.containsKey(messageId)) {
       final fetched = await widget.onFetchMessagesAround?.call(messageId);
-      if (fetched == null || fetched.isEmpty || !mounted) return;
+      if (!mounted) return;
+      if (fetched == null || fetched.isEmpty) {
+        // フェッチしても存在しない＝対象メッセージが本当に無い
+        // （全員から削除され物理削除済み等）と確定できるケース。
+        // 待っても状況が変わらないため即座に通知する。
+        _showJumpNotFoundBanner();
+        return;
+      }
       setState(() {
         for (final message in fetched) {
           _extraMessages[message.messageId] = message;
         }
       });
-      // 取得したメッセージの行が実際にビルドされ、GlobalKeyにcurrentContextが
-      // 付くまで1フレーム待つ（setState直後はまだ間に合わない）。
+    }
+
+    // 対象の行が実際にビルドされ、GlobalKeyにcurrentContextが付くまで、
+    // 最大5回・フレームを挟んでリトライする。既にロード済み
+    // （_messageKeysに登録済み）のメッセージでも、直前までメッセージが
+    // 連続送信されているとFirestoreスナップショットの更新に伴う再構築が
+    // 連続し、1回のフレーム待ちだけでは間に合わないことがあった
+    // （メッセージが実際には存在するのに「元のメッセージが見つかりません」
+    // と誤って表示される不具合の原因、2026-08-14対応）。
+    BuildContext? initialContext;
+    for (var attempt = 0; attempt < 5; attempt++) {
+      initialContext = _messageKeys[messageId]?.currentContext;
+      if (initialContext != null && initialContext.mounted) break;
+      if (attempt == 4) break;
       await WidgetsBinding.instance.endOfFrame;
       if (!mounted) return;
     }
-
-    final initialContext = _messageKeys[messageId]?.currentContext;
-    if (initialContext == null || !initialContext.mounted) return;
+    if (initialContext == null || !initialContext.mounted) {
+      _showJumpNotFoundBanner();
+      return;
+    }
     BuildContext targetContext = initialContext;
 
     // アニメーション付き（旧300ms）だと、会話を開いた直後は
@@ -582,6 +608,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       if (!mounted) return;
       setState(() => _highlightedMessageId = null);
     });
+  }
+
+  /// [_jumpToMessage]で返信元メッセージが見つからなかった（取得できなかった、
+  /// または取得後もリストへ実際にビルドされなかった）場合の通知。参加者
+  /// 全員がその後削除し物理削除済みのメッセージへの返信等で恒久的に起こり
+  /// うるため、無反応のままにせず理由を伝える（2026-08-14追加）。
+  void _showJumpNotFoundBanner() {
+    showAutoDismissBanner(context, message: '元のメッセージが見つかりません');
   }
 
   /// [targetContext]のRenderBoxが、[scrollable]のビューポート範囲内に
@@ -894,6 +928,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     final layoutStyle = ref.read(chatLayoutStyleProvider);
     final timeFormat = ref.read(messageTimeFormatProvider);
     final locale = ref.read(appLocaleProvider);
+    final vocabulary = ref.read(vocabularyProvider);
     final scaffoldBackground = Theme.of(context).scaffoldBackgroundColor;
     final devicePixelRatio = MediaQuery.devicePixelRatioOf(context);
     final chatAreaWidth =
@@ -976,6 +1011,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           blurSenderInfo: blurSenderInfo,
           messagesById: messagesById,
           timeFormat: timeFormat,
+          vocabulary: vocabulary,
         ),
       );
     }
@@ -1224,7 +1260,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   Future<void> _openStickerPicker() async {
     final isWide = MediaQuery.sizeOf(context).width >= kTalksSplitBreakpoint;
     final sticker = isWide
-        ? await showStickerPickerPopup(context, anchorKey: _stickerButtonKey)
+        ? await showStickerPickerPopup(
+            context,
+            anchorRect: _anchorRectFromContext(
+              _stickerButtonKey.currentContext!,
+            ),
+          )
         : await showModalBottomSheet<Sticker>(
             context: context,
             isScrollControlled: true,
@@ -1540,6 +1581,20 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                         for (final m in combined) m.messageId: m,
                       };
 
+                      // 画像/動画の拡大表示（`_MediaViewerScreen`）での
+                      // 前後スワイプ・矢印キーナビゲーション用（2026-08-14
+                      // 追加）。`combined`は新しい順なので反転して古い順にする
+                      // （右スワイプ＝前＝古い方向、という仕様に合わせるため）。
+                      final mediaMessages = combined
+                          .where(
+                            (m) =>
+                                m.contentType == 'image' ||
+                                m.contentType == 'video',
+                          )
+                          .toList()
+                          .reversed
+                          .toList();
+
                       // 画面外に流れたメッセージのGlobalKeyは溜め続けない。
                       final currentIds = messagesById.keys.toSet();
                       _messageKeys.removeWhere(
@@ -1624,6 +1679,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                       ? _toggleScreenshotSelected
                                       : null),
                             messagesById: messagesById,
+                            mediaMessages: mediaMessages,
                             onReply: widget.onSend != null ? _startReply : null,
                             onEdit: widget.onEditMessage != null
                                 ? _startEdit
@@ -1631,6 +1687,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                             onUnsend: widget.onUnsendMessage,
                             onSetReaction: widget.onSetReaction,
                             onJumpToReply: _jumpToMessage,
+                            onSendSticker: widget.onSendSticker != null
+                                ? _handleStickerPicked
+                                : null,
+                            stickerButtonKey: _stickerButtonKey,
                             highlighted:
                                 _highlightedMessageId == message.messageId,
                             timeFormat: timeFormat,
@@ -1639,6 +1699,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                             onDeleteAfterAccountDeletion:
                                 widget.onDeleteAfterAccountDeletion,
                             onSwipeBack: widget.onSwipeBack,
+                            vocabulary: vocabulary,
                           ),
                         );
                       }
@@ -1668,6 +1729,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                         builder: (context, bottomInset, _) => ListView(
                           controller: _scrollController,
                           reverse: true,
+                          // 返信先ジャンプ（_jumpToMessage）が画面外の対象行にも
+                          // 届くよう、既定値（250px）より大きく確保する
+                          // （_messageKeysのdocコメント参照、2026-08-14対応）。
+                          // 代替の`scrollCacheExtent`（`ScrollCacheExtent`型）は
+                          // このFlutterバージョンでrendering.dartからエクスポート
+                          // されておらず参照できなかったため、非推奨だが
+                          // 現行動作する`cacheExtent`をそのまま使う。
+                          // ignore: deprecated_member_use
+                          cacheExtent: 3000,
                           padding: EdgeInsets.fromLTRB(
                             12,
                             12,
@@ -1700,6 +1770,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                               editing: _editingMessage != null,
                               strings: strings,
                               onCancel: _cancelComposerContext,
+                              vocabulary: vocabulary,
                             ),
                           SafeArea(
                             child: Padding(
@@ -1986,6 +2057,7 @@ class _ComposerContextBar extends StatelessWidget {
     required this.editing,
     required this.strings,
     required this.onCancel,
+    this.vocabulary,
   });
 
   final Message? replyingTo;
@@ -1993,9 +2065,17 @@ class _ComposerContextBar extends StatelessWidget {
   final Strings strings;
   final VoidCallback onCancel;
 
+  /// 返信先がペタピタの場合の固定文言に使う（[_MessageRow.vocabulary]と
+  /// 同じ理由でnullableにしている、2026-08-13追加）。
+  final Vocabulary? vocabulary;
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final replying = replyingTo;
+    final thumbnail = replying != null
+        ? _replyPreviewThumbnail(replying)
+        : null;
     return Container(
       color: colorScheme.surfaceContainerHighest,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -2019,8 +2099,8 @@ class _ComposerContextBar extends StatelessWidget {
                     children: [
                       Text(
                         strings.chatReplyingToLabel(
-                          replyingTo?.senderRhingId != null
-                              ? '@${replyingTo!.senderRhingId}'
+                          replying?.senderRhingId != null
+                              ? '@${replying!.senderRhingId}'
                               : '?',
                         ),
                         style: TextStyle(
@@ -2030,7 +2110,9 @@ class _ComposerContextBar extends StatelessWidget {
                         ),
                       ),
                       Text(
-                        messageSnippetOf(replyingTo?.content ?? ''),
+                        replying != null
+                            ? _replySnippetLabel(replying, vocabulary)
+                            : '',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
@@ -2041,6 +2123,10 @@ class _ComposerContextBar extends StatelessWidget {
                     ],
                   ),
           ),
+          if (!editing && thumbnail != null) ...[
+            const SizedBox(width: 4),
+            thumbnail,
+          ],
           IconButton(
             icon: const Icon(Icons.close, size: 18),
             onPressed: onCancel,
@@ -2107,6 +2193,75 @@ class _DateSeparator extends StatelessWidget {
 /// どちらのスタイルでも、誰か（送信者以外）が既読にした場合は吹き出しの角に
 /// チェックマークを表示する（自分のメッセージは左下、相手のメッセージは
 /// 右下）。タップすると既読者一覧がポップアップで出る。
+/// 返信引用プレビューのラベル文言。ペタピタは技術的な`content`
+/// （スタンプ名、コードのように見える）をそのまま出さず、固定の用語
+/// （[Vocabulary.sticker]）に置き換える（2026-08-13追加）。
+/// [showStickerPickerPopup]のアンカー矩形を、与えられた[context]が属する
+/// ウィジェットの画面上の位置・サイズから計算する（2026-08-14追加）。
+/// 送信アイコン（永続的な`GlobalKey`経由）・メッセージ上のペタピタタップ
+/// （タップ時点の`BuildContext`をそのまま利用）の両方から共通で使う。
+Rect _anchorRectFromContext(BuildContext context) {
+  final box = context.findRenderObject()! as RenderBox;
+  return box.localToGlobal(Offset.zero) & box.size;
+}
+
+String _replySnippetLabel(Message target, Vocabulary? vocabulary) {
+  if (target.contentType == 'sticker') {
+    return vocabulary?.sticker ?? 'ペタピタ';
+  }
+  return messageSnippetOf(target.content);
+}
+
+/// 返信引用プレビューの右隣に添える小さいサムネイル（32x32）。
+/// ペタピタ・画像・動画とも実際のサムネイルを表示する（動画は`_VideoThumbnail`
+/// の正方形モードを流用、2026-08-14。画面内に同時に見える「動画への返信」は
+/// 多くても数件程度で、`_VideoThumbnail`自体がController初期化・破棄を
+/// 完結させる作りのため、本文側の動画表示と比べて追加コストは無い）。
+/// それ以外のcontentTypeではnullを返す。
+Widget? _replyPreviewThumbnail(Message target) {
+  const size = 32.0;
+  switch (target.contentType) {
+    case 'sticker':
+      final url = target.stickerData?.stickerUrl;
+      if (url == null) return null;
+      return Image.network(
+        url,
+        width: size,
+        height: size,
+        fit: BoxFit.contain,
+        errorBuilder: (_, _, _) => const SizedBox.shrink(),
+      );
+    case 'image':
+      final url = target.fileMetadata?.url;
+      if (url == null) return null;
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(4),
+        child: Image.network(
+          url,
+          width: size,
+          height: size,
+          fit: BoxFit.cover,
+          errorBuilder: (_, _, _) => const SizedBox.shrink(),
+        ),
+      );
+    case 'video':
+      final url = target.fileMetadata?.url;
+      if (url == null) return null;
+      // video_playerはiOS/Android/Web/macOSのみ対応（Linux/Windowsは
+      // 非対応、技術仕様書5.8参照）。メッセージ本文側の動画表示
+      // （`_attachmentContent`）と同じ判定式。
+      final supportsInAppPlayback =
+          kIsWeb || !(Platform.isWindows || Platform.isLinux);
+      return _VideoThumbnail(
+        url: url,
+        canLoad: supportsInAppPlayback,
+        size: size,
+      );
+    default:
+      return null;
+  }
+}
+
 class _MessageRow extends ConsumerWidget {
   const _MessageRow({
     required this.message,
@@ -2136,16 +2291,20 @@ class _MessageRow extends ConsumerWidget {
     this.onCopyMessage,
     this.onToggleSelected,
     this.messagesById = const {},
+    this.mediaMessages = const [],
     this.onReply,
     this.onEdit,
     this.onUnsend,
     this.onSetReaction,
     this.onJumpToReply,
+    this.onSendSticker,
+    this.stickerButtonKey,
     this.highlighted = false,
     this.timeFormat = MessageTimeFormat.h24,
     this.onDeclineAccountDeletionNotice,
     this.onDeleteAfterAccountDeletion,
     this.onSwipeBack,
+    this.vocabulary,
     super.key,
   });
 
@@ -2218,6 +2377,12 @@ class _MessageRow extends ConsumerWidget {
   /// [Message.replyToSnippet]等の非正規化フィールドにフォールバックする）。
   final Map<String, Message> messagesById;
 
+  /// 現在ロード済みのメッセージのうち、画像/動画のみを古い順に並べたもの。
+  /// 画像/動画の拡大表示（`_MediaViewerScreen`）で、前後スワイプ・矢印キー
+  /// ナビゲーション対象の一覧として使う（`_attachmentContent`参照、
+  /// 2026-08-14追加）。
+  final List<Message> mediaMessages;
+
   final void Function(Message message)? onReply;
 
   /// nullなら編集メニュー自体を出さない（自分の投稿でも[ChatScreen.onEditMessage]
@@ -2235,6 +2400,20 @@ class _MessageRow extends ConsumerWidget {
   /// 呼び出し先（`_ChatScreenState._jumpToMessage`）が
   /// [ChatScreen.onFetchMessagesAround]で取得してからジャンプする。
   final void Function(String messageId)? onJumpToReply;
+
+  /// 他人が送信済みのペタピタをタップし、自分も所持しているパックだった
+  /// 場合にそのパックから選び直して送信する導線で使う（[_stickerContent]
+  /// 参照、2026-08-14追加）。nullなら送信機能自体を出さない
+  /// （[ChatScreen.onSendSticker]がnullの読み取り専用画面等）。
+  final Future<void> Function(Sticker sticker)? onSendSticker;
+
+  /// 送信用の専用ペタピタアイコン（`_ChatScreenState._stickerButtonKey`）の
+  /// `GlobalKey`。所持ペタピタタップ時に開くポップアップの座標を、送信
+  /// アイコンクリック時（[ChatScreen]の`_openStickerPicker`）と完全に
+  /// 一致させるため、`_handleStickerTap`のアンカー計算にそのまま使う
+  /// （2026-08-14追加）。送信アイコン自体が無い画面ではnull（その場合は
+  /// ボトムシートにフォールバックする）。
+  final GlobalKey? stickerButtonKey;
 
   /// 返信先ジャンプ直後、対象メッセージだと分かるよう一瞬背景を強調する。
   final bool highlighted;
@@ -2254,6 +2433,14 @@ class _MessageRow extends ConsumerWidget {
   /// sideBySideレイアウト）ではこの挙動を除外する
   /// （`_MessageInteractions`側で判定）。
   final VoidCallback? onSwipeBack;
+
+  /// 返信引用プレビュー内のペタピタ固定文言（[Vocabulary.sticker]）に使う。
+  /// nullの場合は標準の用語（「ペタピタ」）にフォールバックする
+  /// （2026-08-13追加。テストの素朴な`ChatScreen`構築や`onSendSticker`が
+  /// nullの読み取り専用画面等、`vocabularyProvider`の購読自体を避けたい
+  /// 呼び出し元向けに、呼び出し元（`_ChatScreenState.build`）で計算済みの
+  /// 値を渡してもらう設計にしている）。
+  final Vocabulary? vocabulary;
 
   /// チェックマークバッジ（[badgeContext]）の真下から伸びる形でポップアップを
   /// 表示する。画面全体をグレーアウトしないよう、barrierColorは透明にする
@@ -2530,8 +2717,9 @@ class _MessageRow extends ConsumerWidget {
       final replySenderRhingId =
           target?.senderRhingId ?? message.replyToSenderRhingId;
       final snippet = target != null
-          ? messageSnippetOf(target.content)
+          ? _replySnippetLabel(target, vocabulary)
           : (message.replyToSnippet ?? '');
+      final thumbnail = target != null ? _replyPreviewThumbnail(target) : null;
       if (replySenderId != null) {
         final quoteBox = Container(
           margin: const EdgeInsets.only(bottom: 6),
@@ -2540,21 +2728,37 @@ class _MessageRow extends ConsumerWidget {
             color: onBubbleColor.withValues(alpha: 0.12),
             borderRadius: BorderRadius.circular(8),
           ),
-          child: Column(
+          // mainAxisSize: MainAxisSize.min（既定のmaxのままだと、送信者名や
+          // スニペットが短くても親から渡された最大幅いっぱいに引き伸ばされ、
+          // サムネイル導入時に横幅が不必要に広く見える不具合があった、
+          // 2026-08-14対応）。テキスト列もExpandedではなくFlexibleにして、
+          // 短い内容ならボックス自体が縮むようにする（長い内容は既存の
+          // maxLines: 1 + ellipsisで従来通り省略表示される）。
+          child: Row(
             mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              _SenderName(
-                userId: replySenderId,
-                rhingId: replySenderRhingId,
-                conversationId: conversationId,
+              Flexible(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _SenderName(
+                      userId: replySenderId,
+                      rhingId: replySenderRhingId,
+                      conversationId: conversationId,
+                      color: onBubbleColor,
+                    ),
+                    Text(
+                      snippet,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 12, color: onBubbleColor),
+                    ),
+                  ],
+                ),
               ),
-              Text(
-                snippet,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: 12, color: onBubbleColor),
-              ),
+              if (thumbnail != null) ...[const SizedBox(width: 4), thumbnail],
             ],
           ),
         );
@@ -2604,7 +2808,7 @@ class _MessageRow extends ConsumerWidget {
         else if (isAttachment)
           _attachmentContent(context, onBubbleColor, isGekiga)
         else if (isSticker)
-          _stickerContent(onBubbleColor)
+          _stickerContent(context, ref, onBubbleColor)
         else
           Row(
             mainAxisSize: MainAxisSize.min,
@@ -3039,19 +3243,97 @@ class _MessageRow extends ConsumerWidget {
   /// ペタピタ（スタンプ）メッセージの表示。LINE/Discord等の一般的な
   /// 見せ方に合わせ、吹き出し枠・劇画モノクロ枠（[skipFrame]参照）を
   /// 付けずに単体の画像として表示する（技術仕様書7.4参照、2026-08-11追加）。
-  Widget _stickerContent(Color onBubbleColor) {
+  /// タップすると、自分が所持しているパックのペタピタならそのパックに
+  /// 絞り込んだ送信ピッカーを開き、未所持ならdaidai横丁のストアページを
+  /// ブラウザの別タブで開く（daidai横丁自体はアプリ内に持たない方針の
+  /// ため、Apple/Google手数料回避と軽量化を兼ねる、2026-08-14追加）。
+  /// 自分が送信したペタピタも同じ経路で開ける（所持パックからしか送信
+  /// できない仕様上、常に「所持している」分岐に入る）。
+  Widget _stickerContent(
+    BuildContext context,
+    WidgetRef ref,
+    Color onBubbleColor,
+  ) {
     final stickerData = message.stickerData;
     if (stickerData == null) {
       return Text(message.content, style: TextStyle(color: onBubbleColor));
     }
-    return Image.network(
-      stickerData.stickerUrl,
-      width: 120,
-      height: 120,
-      fit: BoxFit.contain,
-      errorBuilder: (_, _, _) =>
-          Icon(Icons.broken_image_outlined, color: onBubbleColor),
+    return GestureDetector(
+      onTap: () => _handleStickerTap(context, ref, stickerData),
+      child: Image.network(
+        stickerData.stickerUrl,
+        width: 120,
+        height: 120,
+        fit: BoxFit.contain,
+        errorBuilder: (_, _, _) =>
+            Icon(Icons.broken_image_outlined, color: onBubbleColor),
+      ),
     );
+  }
+
+  Future<void> _handleStickerTap(
+    BuildContext context,
+    WidgetRef ref,
+    MessageStickerData stickerData,
+  ) async {
+    final strings = ref.read(appStringsProvider);
+    final stickerRepository = ref.read(stickerRepositoryProvider);
+    final packId = await stickerRepository.findPackIdForSticker(
+      stickerData.stickerId,
+    );
+    if (!context.mounted) return;
+    if (packId == null) {
+      showAutoDismissBanner(
+        context,
+        message: strings.stickerPackNotFoundMessage,
+      );
+      return;
+    }
+
+    final owned = await stickerRepository.ownsPack(currentUserId, packId);
+    if (!context.mounted) return;
+
+    if (owned) {
+      final onSendStickerCallback = onSendSticker;
+      if (onSendStickerCallback == null) return;
+      // 送信用の専用ペタピタアイコン（`_openStickerPicker`）と同じ幅分岐・
+      // 同じアンカー座標を使う（`stickerButtonKey`＝`_stickerButtonKey`を
+      // そのまま参照するため、表示位置が送信アイコンクリック時と完全に
+      // 一致する。デスクトップ幅はそのアイコン付近のポップアップ、
+      // モバイル幅はボトムシート、2026-08-14）。
+      final isWide = MediaQuery.sizeOf(context).width >= kTalksSplitBreakpoint;
+      final anchorContext = stickerButtonKey?.currentContext;
+      final sticker = (isWide && anchorContext != null)
+          ? await showStickerPickerPopup(
+              context,
+              anchorRect: _anchorRectFromContext(anchorContext),
+              initialPackId: packId,
+            )
+          : await showModalBottomSheet<Sticker>(
+              context: context,
+              isScrollControlled: true,
+              builder: (_) => StickerPickerSheet(initialPackId: packId),
+            );
+      if (sticker == null) return;
+      await onSendStickerCallback(sticker);
+      return;
+    }
+
+    // Apple/Googleからのアクセスのみ手数料上乗せ価格を表示する想定
+    // （実際の値付け・表示ロジックはdaidai横丁のストアページ側＝この
+    // リポジトリ外で実装、technical spec参照）。既存の動画再生対応判定
+    // （3184行目付近）と同じ書き方でプラットフォームを判定する。
+    final platform = kIsWeb
+        ? 'web'
+        : Platform.isIOS
+        ? 'ios'
+        : Platform.isAndroid
+        ? 'android'
+        : 'other';
+    final storeUri = Uri.parse(
+      'https://rhing.jp/daidai-yokocho/$packId?platform=$platform',
+    );
+    await launchUrl(storeUri, mode: LaunchMode.externalApplication);
   }
 
   Widget _attachmentContent(
@@ -3075,7 +3357,12 @@ class _MessageRow extends ConsumerWidget {
       return GestureDetector(
         onTap: () => Navigator.of(context).push(
           MaterialPageRoute(
-            builder: (_) => _ImageViewerScreen(url: metadata.url),
+            builder: (_) => _MediaViewerScreen(
+              mediaMessages: mediaMessages,
+              initialIndex: mediaMessages.indexWhere(
+                (m) => m.messageId == message.messageId,
+              ),
+            ),
           ),
         ),
         child: mediaPreviewFrame(isGekiga: isGekiga, child: image),
@@ -3092,7 +3379,12 @@ class _MessageRow extends ConsumerWidget {
         onTap: () => supportsInAppPlayback
             ? Navigator.of(context).push(
                 MaterialPageRoute(
-                  builder: (_) => _VideoViewerScreen(url: metadata.url),
+                  builder: (_) => _MediaViewerScreen(
+                    mediaMessages: mediaMessages,
+                    initialIndex: mediaMessages.indexWhere(
+                      (m) => m.messageId == message.messageId,
+                    ),
+                  ),
                 ),
               )
             : launchUrl(
@@ -3921,12 +4213,52 @@ class _SenderAvatar extends ConsumerWidget {
   }
 }
 
-/// 添付画像メッセージのサムネイルをタップした時の全画面表示
-/// （[_MessageRow._attachmentContent]参照、2026-08-10追加）。
-class _ImageViewerScreen extends StatelessWidget {
-  const _ImageViewerScreen({required this.url});
+/// 添付画像・動画メッセージのサムネイルをタップした時の全画面表示
+/// （[_MessageRow._attachmentContent]参照、2026-08-10追加、2026-08-14に
+/// 前後スワイプ・矢印キーでのナビゲーション対応に伴い[_ImageViewerScreen]/
+/// [_VideoViewerScreen]から統合）。[mediaMessages]（同じ語らい内の画像/動画
+/// メッセージを古い順に並べたもの、[_MessageRow.mediaMessages]参照）を
+/// `PageView`でめくる。右スワイプ（＝`PageView`の前ページ方向）で前
+/// （古い方）、左スワイプで後（新しい方）に切り替わる。コンピューターでは
+/// 矢印キーでも同様に操作できる。動画は、最初に開いた対象（[initialIndex]）
+/// のときだけ自動再生し、スワイプ/矢印キーで切り替えた先の動画は自動再生
+/// せず、中央の再生ボタンをタップして再生を始める（[_VideoViewerPage]参照）。
+class _MediaViewerScreen extends StatefulWidget {
+  const _MediaViewerScreen({required this.mediaMessages, required this.initialIndex});
 
-  final String url;
+  final List<Message> mediaMessages;
+  final int initialIndex;
+
+  @override
+  State<_MediaViewerScreen> createState() => _MediaViewerScreenState();
+}
+
+class _MediaViewerScreenState extends State<_MediaViewerScreen> {
+  late final int _safeInitialIndex = widget.initialIndex.clamp(
+    0,
+    widget.mediaMessages.length - 1,
+  );
+  late final PageController _pageController = PageController(
+    initialPage: _safeInitialIndex,
+  );
+  late int _currentIndex = _safeInitialIndex;
+
+  // 動画ページの`GlobalKey`（messageId基準）。スペースキーで現在表示中の
+  // 動画の再生/一時停止をトグルするために、`_VideoViewerPageState`へ
+  // 直接アクセスする（2026-08-14追加）。`PageView.builder`のindexではなく
+  // messageIdをキーにするのは、ウィジェット自身の`key:`としても兼用し、
+  // スワイプ中の内部再構築でも同じ`_VideoViewerPageState`（＝
+  // `VideoPlayerController`）が保たれるようにするため（GlobalKeyはツリー内
+  // での位置に関わらず同一のStateを保持し続ける）。
+  final Map<String, GlobalKey<_VideoViewerPageState>> _videoPageKeys = {};
+
+  static const _pageChangeDuration = Duration(milliseconds: 200);
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -3936,36 +4268,98 @@ class _ImageViewerScreen extends StatelessWidget {
         backgroundColor: Colors.black,
         foregroundColor: Colors.white,
         elevation: 0,
+        // メッセージ画面へ戻るボタン（2026-08-14、明示化）。
+        // `AppBar`の自動`leading`（`automaticallyImplyLeading`）に任せず
+        // 明示的に`Navigator.pop`を指定する。
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
       ),
-      // Escキー・画像以外の箇所のタップ・下スワイプでも一覧画面へ戻れる
-      // ようにする（2026-08-11追加）。内側のGestureDetectorは何もしない
-      // onTapでタップを吸収し、画像自体をタップした際に外側へ伝播して
-      // 閉じてしまうのを防ぐ。下スワイプ（SwipeDownToDismiss）も同じ
-      // 「画像自体の外側で発生した場合のみ届く」構造を利用しており、
-      // 画像をズームしてパン中はInteractiveViewer側のジェスチャーが
-      // 優先されるため誤って閉じない。
+      // Escキー・矢印キー（コンピューター向け前後ナビゲーション、
+      // 2026-08-14追加）・スペースキー（現在表示中の動画の再生/一時停止、
+      // 2026-08-14追加）・下スワイプで一覧画面へ戻れるようにする
+      // （Escキー・下スワイプは2026-08-11から踏襲）。
       body: Focus(
         autofocus: true,
         onKeyEvent: (node, event) {
-          if (event is KeyDownEvent &&
-              event.logicalKey == LogicalKeyboardKey.escape) {
+          if (event is! KeyDownEvent) return KeyEventResult.ignored;
+          if (event.logicalKey == LogicalKeyboardKey.escape) {
             Navigator.of(context).pop();
+            return KeyEventResult.handled;
+          }
+          if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
+            _pageController.previousPage(
+              duration: _pageChangeDuration,
+              curve: Curves.easeInOut,
+            );
+            return KeyEventResult.handled;
+          }
+          if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
+            _pageController.nextPage(
+              duration: _pageChangeDuration,
+              curve: Curves.easeInOut,
+            );
+            return KeyEventResult.handled;
+          }
+          if (event.logicalKey == LogicalKeyboardKey.space) {
+            final currentMessageId =
+                widget.mediaMessages[_currentIndex].messageId;
+            _videoPageKeys[currentMessageId]?.currentState?._togglePlayback();
             return KeyEventResult.handled;
           }
           return KeyEventResult.ignored;
         },
         child: SwipeDownToDismiss(
           onDismiss: () => Navigator.of(context).pop(),
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: () => Navigator.of(context).pop(),
-            child: Center(
-              child: GestureDetector(
-                onTap: () {},
-                child: InteractiveViewer(child: Image.network(url)),
-              ),
-            ),
+          child: PageView.builder(
+            controller: _pageController,
+            itemCount: widget.mediaMessages.length,
+            onPageChanged: (index) => setState(() => _currentIndex = index),
+            itemBuilder: (context, index) {
+              final message = widget.mediaMessages[index];
+              final url = message.fileMetadata?.url ?? '';
+              if (message.contentType == 'video') {
+                return _VideoViewerPage(
+                  key: _videoPageKeys.putIfAbsent(
+                    message.messageId,
+                    GlobalKey<_VideoViewerPageState>.new,
+                  ),
+                  url: url,
+                  autoPlay: index == _safeInitialIndex,
+                );
+              }
+              return _ImageViewerPage(url: url);
+            },
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// [_MediaViewerScreen]の1ページ分（画像）。Escキー・下スワイプ・
+/// 画面全体の`Scaffold`/`AppBar`は[_MediaViewerScreen]側が共通で持つため、
+/// ここでは画像本体と「画像以外の箇所のタップで閉じる」ジェスチャーのみを
+/// 持つ（2026-08-10追加、2026-08-14に[_MediaViewerScreen]への統合に伴い
+/// [_ImageViewerScreen]から改名）。内側のGestureDetectorは何もしないonTapで
+/// タップを吸収し、画像自体をタップした際に外側へ伝播して閉じてしまうのを
+/// 防ぐ。画像をズームしてパン中はInteractiveViewer側のジェスチャーが
+/// 優先されるため誤って閉じない。
+class _ImageViewerPage extends StatelessWidget {
+  const _ImageViewerPage({required this.url});
+
+  final String url;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => Navigator.of(context).pop(),
+      child: Center(
+        child: GestureDetector(
+          onTap: () {},
+          child: InteractiveViewer(child: Image.network(url)),
         ),
       ),
     );
@@ -3982,10 +4376,15 @@ class _ImageViewerScreen extends StatelessWidget {
 /// 表示する。`canLoad`がfalse（Linux/Windows、`video_player`非対応）の
 /// 場合は読み込み自体を行わず、暗いプレースホルダーのままにする。
 class _VideoThumbnail extends StatefulWidget {
-  const _VideoThumbnail({required this.url, required this.canLoad});
+  const _VideoThumbnail({required this.url, required this.canLoad, this.size});
 
   final String url;
   final bool canLoad;
+
+  /// 指定時は`size`×`size`の正方形（`BoxFit.cover`でクロップ）で表示する
+  /// （返信引用プレビュー用、2026-08-14追加）。未指定なら既存の280px固定＋
+  /// アスペクト比維持のレターボックス表示（メッセージ本文の添付表示用）。
+  final double? size;
 
   @override
   State<_VideoThumbnail> createState() => _VideoThumbnailState();
@@ -4028,6 +4427,36 @@ class _VideoThumbnailState extends State<_VideoThumbnail> {
   @override
   Widget build(BuildContext context) {
     final controller = _controller;
+    final squareSize = widget.size;
+    if (squareSize != null) {
+      // 正方形モード（返信引用プレビュー）。アスペクト比を維持したレター
+      // ボックスではなく、ボックスいっぱいにクロップして小さいサムネイルとして
+      // 見やすくする。
+      final content = _ready && controller != null
+          ? FittedBox(
+              fit: BoxFit.cover,
+              child: SizedBox(
+                width: controller.value.size.width,
+                height: controller.value.size.height,
+                child: VideoPlayer(controller),
+              ),
+            )
+          : Container(color: Colors.black87);
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(4),
+        child: SizedBox(
+          width: squareSize,
+          height: squareSize,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              content,
+              Icon(Icons.play_arrow, color: Colors.white, size: squareSize / 2),
+            ],
+          ),
+        ),
+      );
+    }
     if (_ready && controller != null) {
       return SizedBox(
         width: 280,
@@ -4054,20 +4483,35 @@ class _VideoThumbnailState extends State<_VideoThumbnail> {
   }
 }
 
-/// 動画添付メッセージのフルスクリーン再生画面（[_MessageRow._attachmentContent]
-/// 参照、2026-08-11追加、技術仕様書5.8参照）。`video_player`はiOS/Android/
-/// Web/macOSのみ対応のため、Linux/Windowsではこの画面を開かず外部アプリで
-/// 開く（呼び出し元の`_attachmentContent`側で分岐済み）。
-class _VideoViewerScreen extends StatefulWidget {
-  const _VideoViewerScreen({required this.url});
+/// [_MediaViewerScreen]の1ページ分（動画）。Escキー・下スワイプ・
+/// 画面全体の`Scaffold`/`AppBar`は[_MediaViewerScreen]側が共通で持つため、
+/// ここでは動画本体・再生コントロールのみを持つ（2026-08-11追加、
+/// 2026-08-14に[_MediaViewerScreen]への統合に伴い[_VideoViewerScreen]から
+/// 改名）。`video_player`はiOS/Android/Web/macOSのみ対応のため、
+/// Linux/Windowsではこの画面を開かず外部アプリで開く（呼び出し元の
+/// `_attachmentContent`側で分岐済み）。[autoPlay]がtrueの時だけ初期化後に
+/// 自動再生する（チャットのプレビューから直接開いた対象のみtrue。
+/// スワイプ/矢印キーで切り替えた先はfalseになり、中央の再生ボタン
+/// （[_CenterPlayButton]）をタップするまで一時停止のまま、2026-08-14追加）。
+/// 再生/一時停止は、動画の座標上（レターボックスの余白含む）のどこを
+/// タップしても、またスペースキーでも切り替えられる（[_togglePlayback]、
+/// スペースキーは[_MediaViewerScreen]の`Focus`から`GlobalKey`経由で
+/// 呼び出す、2026-08-14追加）。
+class _VideoViewerPage extends StatefulWidget {
+  const _VideoViewerPage({
+    super.key,
+    required this.url,
+    required this.autoPlay,
+  });
 
   final String url;
+  final bool autoPlay;
 
   @override
-  State<_VideoViewerScreen> createState() => _VideoViewerScreenState();
+  State<_VideoViewerPage> createState() => _VideoViewerPageState();
 }
 
-class _VideoViewerScreenState extends State<_VideoViewerScreen> {
+class _VideoViewerPageState extends State<_VideoViewerPage> {
   late final VideoPlayerController _controller;
   late final Future<void> _initializeFuture;
 
@@ -4076,7 +4520,7 @@ class _VideoViewerScreenState extends State<_VideoViewerScreen> {
     super.initState();
     _controller = VideoPlayerController.networkUrl(Uri.parse(widget.url));
     _initializeFuture = _controller.initialize().then((_) {
-      _controller.play();
+      if (widget.autoPlay) _controller.play();
       if (mounted) setState(() {});
     });
   }
@@ -4091,6 +4535,21 @@ class _VideoViewerScreenState extends State<_VideoViewerScreen> {
     setState(() {
       _controller.value.isPlaying ? _controller.pause() : _controller.play();
     });
+  }
+
+  /// 再生位置を[offset]分早送り/巻き戻しする（2026-08-14追加、
+  /// `_buildControlBar`の10秒送り/戻しボタンで使う）。0秒〜動画の長さの
+  /// 範囲にクランプする。`_controller`は`ValueNotifier`なので、
+  /// `seekTo`後の位置反映は`_buildControlBar`の`ValueListenableBuilder`が
+  /// 自動的に拾う（setState不要）。
+  void _skip(Duration offset) {
+    final target = _controller.value.position + offset;
+    final duration = _controller.value.duration;
+    _controller.seekTo(
+      target < Duration.zero
+          ? Duration.zero
+          : (target > duration ? duration : target),
+    );
   }
 
   static String _formatDuration(Duration d) {
@@ -4110,11 +4569,19 @@ class _VideoViewerScreenState extends State<_VideoViewerScreen> {
         return Row(
           children: [
             IconButton(
+              icon: const Icon(Icons.replay_10, color: Colors.white),
+              onPressed: () => _skip(const Duration(seconds: -10)),
+            ),
+            IconButton(
               icon: Icon(
                 value.isPlaying ? Icons.pause : Icons.play_arrow,
                 color: Colors.white,
               ),
               onPressed: _togglePlayback,
+            ),
+            IconButton(
+              icon: const Icon(Icons.forward_10, color: Colors.white),
+              onPressed: () => _skip(const Duration(seconds: 10)),
             ),
             Text(
               _formatDuration(value.position),
@@ -4145,74 +4612,91 @@ class _VideoViewerScreenState extends State<_VideoViewerScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      appBar: AppBar(
-        backgroundColor: Colors.black,
-        foregroundColor: Colors.white,
-        elevation: 0,
-      ),
-      // 画像ビューアー（[_ImageViewerScreen]）と同じ、Escキー・動画以外の
-      // 箇所のタップ・下スワイプで戻れる構成（下スワイプは2026-08-11追加）。
-      // ただし動画本体のタップは「閉じる」ではなく再生/一時停止のトグルにする。
-      body: Focus(
-        autofocus: true,
-        onKeyEvent: (node, event) {
-          if (event is KeyDownEvent &&
-              event.logicalKey == LogicalKeyboardKey.escape) {
-            Navigator.of(context).pop();
-            return KeyEventResult.handled;
-          }
-          return KeyEventResult.ignored;
-        },
-        child: SwipeDownToDismiss(
-          onDismiss: () => Navigator.of(context).pop(),
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: () => Navigator.of(context).pop(),
-            child: FutureBuilder<void>(
-              future: _initializeFuture,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState != ConnectionState.done) {
-                  return const Center(
-                    child: CircularProgressIndicator(color: Colors.white),
-                  );
-                }
-                if (snapshot.hasError) {
-                  return const Center(
-                    child: Icon(
-                      Icons.error_outline,
-                      color: Colors.white,
-                      size: 48,
+    return FutureBuilder<void>(
+      future: _initializeFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const Center(
+            child: CircularProgressIndicator(color: Colors.white),
+          );
+        }
+        if (snapshot.hasError) {
+          return const Center(
+            child: Icon(Icons.error_outline, color: Colors.white, size: 48),
+          );
+        }
+        // `AspectRatio`をそのまま`Center`直下に置くと、`Column`が
+        // 主軸（縦）方向に無制限の高さを子へ渡すため、縦長（ポート
+        // レート）動画で画面の高さを大きく超えるオーバーフローが
+        // 発生した（2026-08-11発覚）。`Expanded`で明示的に高さを
+        // 画面残り分に制限し、`AspectRatio`が幅・高さ両方の制約内で
+        // 収まるサイズを計算できるようにする。
+        //
+        // タップ判定は`Expanded`領域全体（動画の周囲の黒い余白＝
+        // レターボックス部分も含む）に対して行う（2026-08-14変更。以前は
+        // `AspectRatio`の実サイズにだけ`GestureDetector`を付けていたため、
+        // 動画の座標上でも余白部分をクリックすると反応しない不具合があった）。
+        // 画像ページ（[_ImageViewerPage]）と異なり、動画本体のタップは
+        // 「閉じる」ではなく常に再生/一時停止のトグルにするため、外側の
+        // 「タップで閉じる」ジェスチャーは持たせない（閉じるのはEscキー・
+        // 下スワイプ・AppBarの戻るボタンで行う。以前は動画全体を覆う
+        // 「タップで閉じる」の`GestureDetector`とこのトグル用
+        // `GestureDetector`が入れ子になっており、スワイプで動画ページへ
+        // 遷移した直後は再生ボタンを押しても再生されない不具合があった。
+        // 入れ子のジェスチャー判定自体を無くすことで解消した）。
+        return Column(
+          children: [
+            Expanded(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: _togglePlayback,
+                child: Center(
+                  child: AspectRatio(
+                    aspectRatio: _controller.value.aspectRatio,
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        VideoPlayer(_controller),
+                        // 一時停止中（自動再生を抑止したスワイプ/矢印キー
+                        // 到達時、または手動一時停止時）だけ中央に表示する
+                        // 再生ボタン（2026-08-14追加）。独自の
+                        // GestureDetectorは持たせず、外側の
+                        // `onTap: _togglePlayback`にそのままタップを
+                        // 委ねる（Widget自体は装飾）。
+                        if (!_controller.value.isPlaying)
+                          const _CenterPlayButton(),
+                      ],
                     ),
-                  );
-                }
-                // `AspectRatio`をそのまま`Center`直下に置くと、`Column`が
-                // 主軸（縦）方向に無制限の高さを子へ渡すため、縦長（ポート
-                // レート）動画で画面の高さを大きく超えるオーバーフローが
-                // 発生した（2026-08-11発覚）。`Expanded`で明示的に高さを
-                // 画面残り分に制限し、`AspectRatio`が幅・高さ両方の制約内で
-                // 収まるサイズを計算できるようにする。
-                return Column(
-                  children: [
-                    Expanded(
-                      child: Center(
-                        child: GestureDetector(
-                          onTap: _togglePlayback,
-                          child: AspectRatio(
-                            aspectRatio: _controller.value.aspectRatio,
-                            child: VideoPlayer(_controller),
-                          ),
-                        ),
-                      ),
-                    ),
-                    _buildControlBar(),
-                  ],
-                );
-              },
+                  ),
+                ),
+              ),
             ),
-          ),
+            _buildControlBar(),
+          ],
+        );
+      },
+    );
+  }
+}
+
+/// 動画が一時停止中に画面中央へ表示する再生ボタン（[_VideoViewerPage]参照、
+/// 2026-08-14追加）。タップ処理は持たず、外側の
+/// `GestureDetector(onTap: _togglePlayback)`にそのまま委ねる純粋な装飾
+/// ウィジェット（`IgnorePointer`でヒットテスト自体をスキップする）。
+class _CenterPlayButton extends StatelessWidget {
+  const _CenterPlayButton();
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: Container(
+        width: 64,
+        height: 64,
+        decoration: const BoxDecoration(
+          color: Colors.black45,
+          shape: BoxShape.circle,
         ),
+        child: const Icon(Icons.play_arrow, color: Colors.white, size: 40),
       ),
     );
   }

@@ -21,6 +21,15 @@ abstract class StickerRepository {
   /// `ownedStickerPacks`ドキュメントの削除と`ownerCount`の減算を行う
   /// （2026-08-11追加、functions/src/index.tsの`uninstallStickerPack`）。
   Future<void> uninstallPack(String packId);
+
+  /// [stickerId]が属する[StickerPack.packId]を、カタログ全体を検索して
+  /// 引く（他人が送信済みのペタピタをタップした際、`MessageStickerData`
+  /// が`stickerId`しか持たないため使う、2026-08-14追加）。見つからなければ
+  /// null（パック削除済み等）。
+  Future<String?> findPackIdForSticker(String stickerId);
+
+  /// [userId]が[packId]のペタピタパックを所有しているか。
+  Future<bool> ownsPack(String userId, String packId);
 }
 
 class FirestoreStickerRepository implements StickerRepository {
@@ -76,5 +85,27 @@ class FirestoreStickerRepository implements StickerRepository {
     await _functions.httpsCallable('uninstallStickerPack').call({
       'packId': packId,
     });
+  }
+
+  @override
+  Future<String?> findPackIdForSticker(String stickerId) async {
+    final catalog = await _stickerPacks.get();
+    for (final pack in _packsFromSnapshot(catalog)) {
+      if (pack.stickers.any((sticker) => sticker.stickerId == stickerId)) {
+        return pack.packId;
+      }
+    }
+    return null;
+  }
+
+  @override
+  Future<bool> ownsPack(String userId, String packId) async {
+    final doc = await _firestore
+        .collection('users')
+        .doc(userId)
+        .collection('ownedStickerPacks')
+        .doc(packId)
+        .get();
+    return doc.exists;
   }
 }

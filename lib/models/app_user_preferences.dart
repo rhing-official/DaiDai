@@ -12,7 +12,6 @@ class AppUserPreferences {
     this.gekigaBackgroundColorArgb,
     this.themeMode,
     this.localeCode,
-    this.terminologyStyle,
     this.sendKeyMode,
     this.stickerSendMode,
     this.draftSyncEnabled,
@@ -27,7 +26,6 @@ class AppUserPreferences {
   final int? gekigaBackgroundColorArgb;
   final String? themeMode;
   final String? localeCode;
-  final String? terminologyStyle;
   final String? sendKeyMode;
   final String? stickerSendMode;
   final bool? draftSyncEnabled;
@@ -42,7 +40,6 @@ class AppUserPreferences {
       gekigaBackgroundColorArgb: json['gekigaBackgroundColorArgb'] as int?,
       themeMode: json['themeMode'] as String?,
       localeCode: json['localeCode'] as String?,
-      terminologyStyle: json['terminologyStyle'] as String?,
       sendKeyMode: json['sendKeyMode'] as String?,
       stickerSendMode: json['stickerSendMode'] as String?,
       draftSyncEnabled: json['draftSyncEnabled'] as bool?,
@@ -59,7 +56,6 @@ class AppUserPreferences {
         'gekigaBackgroundColorArgb': gekigaBackgroundColorArgb,
       if (themeMode != null) 'themeMode': themeMode,
       if (localeCode != null) 'localeCode': localeCode,
-      if (terminologyStyle != null) 'terminologyStyle': terminologyStyle,
       if (sendKeyMode != null) 'sendKeyMode': sendKeyMode,
       if (stickerSendMode != null) 'stickerSendMode': stickerSendMode,
       if (draftSyncEnabled != null) 'draftSyncEnabled': draftSyncEnabled,

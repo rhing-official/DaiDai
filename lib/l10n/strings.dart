@@ -35,9 +35,6 @@ class Strings {
     required this.settingsColorPresets,
     required this.settingsLogout,
     required this.settingsDisplayLanguage,
-    required this.settingsTerminology,
-    required this.settingsTerminologyWorldview,
-    required this.settingsTerminologyConvenience,
     required this.settingsTimeFormat,
     required this.settingsTimeFormat24h,
     required this.settingsTimeFormat12h,
@@ -187,6 +184,7 @@ class Strings {
     required this.chatAttachVideo,
     required this.chatAttachCapture,
     required this.chatNoStickersMessage,
+    required this.stickerPackNotFoundMessage,
     required this.stickerSearchHint,
     required this.settingsStickersSection,
     required this.settingsManageOwnedStickers,
@@ -390,9 +388,6 @@ class Strings {
   final String settingsColorPresets;
   final String settingsLogout;
   final String settingsDisplayLanguage;
-  final String settingsTerminology;
-  final String settingsTerminologyWorldview;
-  final String settingsTerminologyConvenience;
   final String settingsTimeFormat;
   final String settingsTimeFormat24h;
   final String settingsTimeFormat12h;
@@ -558,6 +553,7 @@ class Strings {
   final String chatAttachVideo;
   final String chatAttachCapture;
   final String chatNoStickersMessage;
+  final String stickerPackNotFoundMessage;
   final String stickerSearchHint;
   final String settingsStickersSection;
   final String settingsManageOwnedStickers;
@@ -902,9 +898,6 @@ class Strings {
     settingsColorPresets: 'プリセット',
     settingsLogout: 'ログアウト',
     settingsDisplayLanguage: '表示言語',
-    settingsTerminology: '用語・表示設定',
-    settingsTerminologyWorldview: '世界観重視',
-    settingsTerminologyConvenience: '利便性重視',
     settingsTimeFormat: 'メッセージの時刻表示',
     settingsTimeFormat24h: '24時間表記（00:00）',
     settingsTimeFormat12h: '12時間表記（12:00 p.m.）',
@@ -972,9 +965,9 @@ class Strings {
     settingsSendKeySilentCtrlEnterToSend: 'Ctrl+Shift+Enterで相手に通知せず送信',
     settingsAdvancedSectionTitle: '詳細設定',
     settingsStickerSendModeTitle: 'ペタピタの送信方式',
-    settingsStickerSendModeLine: '2回タップで送信（LINE風）',
+    settingsStickerSendModeLine: '2回タップで送信',
     settingsStickerSendModeLineSubtitle: '1回目のタップで拡大表示、同じペタピタをもう一度タップすると送信します',
-    settingsStickerSendModeDiscord: '1回タップで送信（Discord風）',
+    settingsStickerSendModeDiscord: '1回タップで送信',
     settingsStickerSendModeDiscordSubtitle: 'タップすると即座に送信します',
     settingsDraftSyncTitle: '入力中のメッセージを他の端末と同期',
     settingsDraftSyncSubtitle: '入力欄に途中まで書いた内容を、別の端末で同じ語らいを開いたときに復元します',
@@ -1067,6 +1060,7 @@ class Strings {
     chatAttachVideo: '動画',
     chatAttachCapture: '撮影',
     chatNoStickersMessage: 'まだペタピタがありません',
+    stickerPackNotFoundMessage: 'このペタピタは見つかりませんでした',
     stickerSearchHint: 'ペタピタを検索',
     settingsStickersSection: 'ペタピタ',
     settingsManageOwnedStickers: '所持しているペタピタを管理',
@@ -1174,7 +1168,7 @@ class Strings {
     groupSettingsDisableMultipleRoomsConfirmMessage:
         'このサイドバー・複数寄合機能が無くなり、以後の設定は寄合のハンバーガーメニューから行うことになります。',
     groupSettingsDisableMultipleRoomsConfirmButton: 'オフにする',
-    profileCardPickerLabel: '使うプロフィールカード（省略可）',
+    profileCardPickerLabel: '使うプロフィールカード',
     profileCardPickerStandardOption: '標準',
     profileCardPickerStandardOptionWithName: (name) => '標準（$name）',
     settingsProfileCardAssignmentTitle: '会話ごとのプロフィールカード',
@@ -1285,9 +1279,6 @@ class Strings {
     settingsColorPresets: 'Presets',
     settingsLogout: 'Log out',
     settingsDisplayLanguage: 'Display language',
-    settingsTerminology: 'Terminology & display',
-    settingsTerminologyWorldview: 'Worldview-focused',
-    settingsTerminologyConvenience: 'Convenience-focused',
     settingsTimeFormat: 'Message time display',
     settingsTimeFormat24h: '24-hour (00:00)',
     settingsTimeFormat12h: '12-hour (12:00 p.m.)',
@@ -1477,6 +1468,7 @@ class Strings {
     chatAttachVideo: 'Video',
     chatAttachCapture: 'Capture',
     chatNoStickersMessage: "You don't have any stickers yet.",
+    stickerPackNotFoundMessage: "This sticker couldn't be found.",
     stickerSearchHint: 'Search stickers',
     settingsStickersSection: 'Stickers',
     settingsManageOwnedStickers: 'Manage owned stickers',
@@ -1596,7 +1588,7 @@ class Strings {
     groupSettingsDisableMultipleRoomsConfirmMessage:
         'This sidebar and multiple-room feature will be removed, and settings will move back to the room\'s hamburger menu.',
     groupSettingsDisableMultipleRoomsConfirmButton: 'Merge',
-    profileCardPickerLabel: 'Profile card to use (optional)',
+    profileCardPickerLabel: 'Profile card to use',
     profileCardPickerStandardOption: 'Standard',
     profileCardPickerStandardOptionWithName: (name) => 'Standard ($name)',
     settingsProfileCardAssignmentTitle: 'Profile card per conversation',

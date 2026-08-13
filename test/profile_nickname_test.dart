@@ -1,6 +1,5 @@
 import 'package:daidai/features/profile/profile_tab.dart';
 import 'package:daidai/l10n/app_locale.dart';
-import 'package:daidai/l10n/terminology_style.dart';
 import 'package:daidai/models/app_ui_style.dart';
 import 'package:daidai/models/app_user.dart';
 import 'package:daidai/models/profile_card.dart';
@@ -8,7 +7,6 @@ import 'package:daidai/models/profile_material.dart';
 import 'package:daidai/providers/app_locale_provider.dart';
 import 'package:daidai/providers/app_ui_style_provider.dart';
 import 'package:daidai/providers/repository_providers.dart';
-import 'package:daidai/providers/terminology_style_provider.dart';
 import 'package:daidai/repositories/user_repository.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -173,9 +171,6 @@ void main() {
           userRepositoryProvider.overrideWithValue(fakeRepo),
           initialAppLocaleProvider.overrideWithValue(AppLocale.japanese),
           initialAppUiStyleProvider.overrideWithValue(AppUiStyle.flat),
-          initialTerminologyStyleProvider.overrideWithValue(
-            TerminologyStyle.worldview,
-          ),
         ],
         child: const MaterialApp(
           home: Scaffold(body: ProfileTab(currentUser: user)),
@@ -205,9 +200,6 @@ void main() {
           userRepositoryProvider.overrideWithValue(fakeRepo),
           initialAppLocaleProvider.overrideWithValue(AppLocale.japanese),
           initialAppUiStyleProvider.overrideWithValue(AppUiStyle.flat),
-          initialTerminologyStyleProvider.overrideWithValue(
-            TerminologyStyle.worldview,
-          ),
         ],
         child: const MaterialApp(
           home: Scaffold(body: ProfileTab(currentUser: user)),

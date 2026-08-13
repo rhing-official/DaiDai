@@ -621,12 +621,19 @@ class _TalksTabState extends ConsumerState<TalksTab> {
 
               return Row(
                 children: [
-                  // 240px: 語らい一覧のブロック（アイコン＋名前＋ピン/ミュート
+                  // 260px: 語らい一覧のブロック（アイコン＋名前＋ピン/ミュート
                   // アイコン）が重ならない範囲でできるだけ狭め、メッセージ画面
-                  // 側に幅を譲っている（2026-08-05再変更、360→300→240。
-                  // 一対名/広場名を8文字に切るようにしたことで、ブロック自体が
-                  // 十分小さくなったためさらに詰められる）。
-                  SizedBox(width: 240, child: listPane),
+                  // 側に幅を譲っている（2026-08-05再変更、360→300→240。2026-08-13に
+                  // 一旦300へ戻したのは、240だとEnglish表示時の一対/広場切り替え
+                  // タブ（"Private N"/"Plaza N"）＋追加ボタンが収まりきらなかった
+                  // ため。2026-08-14、区切り線の位置を設定サイドバー
+                  // （`_kSettingsSidebarWidth`）・身だしなみサイドバー
+                  // （`_kProfileSidebarWidth`）と揃える目的で一旦240へ戻したところ、
+                  // 劇画UIで一対/広場タブ（`GekigaJointedPair`、横スクロール式で
+                  // 折り返せない）が「+」ボタン手前でクリップされ欠けて見える
+                  // 不具合が発生したため260へ広げ（250へ微調整後、再度260へ
+                  // 戻した）、3画面とも同じ値で揃える。
+                  SizedBox(width: 260, child: listPane),
                   const VerticalDivider(width: 1),
                   Expanded(child: detailPane),
                 ],
@@ -654,18 +661,20 @@ class _TalksTabState extends ConsumerState<TalksTab> {
     if (_category == _TalksCategory.dm) {
       final selected = _selectedDm;
       if (selected == null) return const _EmptyDetailPlaceholder();
-      final dm = directMessages.firstWhere(
+      // 選択中の一対が一覧から消えた（削除された）場合、削除前の
+      // スナップショットへフォールバックすると既に存在しない
+      // messages/roomsサブコレクションを購読し続けpermission-deniedに
+      // なるため、選択自体を解除して空状態に戻す（2026-08-13修正）。
+      final dm = directMessages.firstWhereOrNull(
         (d) => d.dmId == selected.dmId,
-        orElse: () => selected,
       );
+      if (dm == null) return const _EmptyDetailPlaceholder();
       return _buildDmDetailWithRooms(dm);
     }
     final selected = _selectedGroup;
     if (selected == null) return const _EmptyDetailPlaceholder();
-    final group = groups.firstWhere(
-      (g) => g.groupId == selected.groupId,
-      orElse: () => selected,
-    );
+    final group = groups.firstWhereOrNull((g) => g.groupId == selected.groupId);
+    if (group == null) return const _EmptyDetailPlaceholder();
     return _buildGroupDetailWithRooms(group);
   }
 
