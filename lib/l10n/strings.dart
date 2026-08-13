@@ -43,8 +43,8 @@ class Strings {
     required this.settingsTimeFormat12h,
     required this.settingsSubUI,
     required this.settingsUIDescription,
-    required this.settingsUiStyleSimpleLabel,
-    required this.settingsUiStyleSimpleDescription,
+    required this.settingsUiStyleFlatLabel,
+    required this.settingsUiStyleFlatDescription,
     required this.settingsUiStyleGekigaLabel,
     required this.settingsUiStyleGekigaDescription,
     required this.settingsChatLayoutTitle,
@@ -96,6 +96,14 @@ class Strings {
     required this.settingsSendKeyCtrlEnterToSend,
     required this.settingsSendKeySilentEnterToSend,
     required this.settingsSendKeySilentCtrlEnterToSend,
+    required this.settingsAdvancedSectionTitle,
+    required this.settingsStickerSendModeTitle,
+    required this.settingsStickerSendModeLine,
+    required this.settingsStickerSendModeLineSubtitle,
+    required this.settingsStickerSendModeDiscord,
+    required this.settingsStickerSendModeDiscordSubtitle,
+    required this.settingsDraftSyncTitle,
+    required this.settingsDraftSyncSubtitle,
     required this.back,
     required this.friendSearchTitle,
     required this.friendSearchHint,
@@ -391,11 +399,12 @@ class Strings {
   final String settingsSubUI;
   final String settingsUIDescription;
 
-  /// UIスタイル選択肢（2026-07-29追加）。「シンプル」は現行の標準見た目、
-  /// 「劇画」は手描き風・ギザギザした太い黒線・モノクロの吹き出しの
-  /// メッセージ画面用スタイル（現時点ではメッセージ画面のみ対応）。
-  final String settingsUiStyleSimpleLabel;
-  final String settingsUiStyleSimpleDescription;
+  /// UIスタイル選択肢（2026-07-29追加、2026-08-12改名: シンプル→フラット）。
+  /// 「フラット」は現行の標準見た目、「劇画」は手描き風・ギザギザした
+  /// 太い黒線・モノクロの吹き出しのメッセージ画面用スタイル
+  /// （現時点ではメッセージ画面のみ対応）。
+  final String settingsUiStyleFlatLabel;
+  final String settingsUiStyleFlatDescription;
   final String settingsUiStyleGekigaLabel;
   final String settingsUiStyleGekigaDescription;
 
@@ -450,6 +459,14 @@ class Strings {
   final String settingsSendKeyCtrlEnterToSend;
   final String settingsSendKeySilentEnterToSend;
   final String settingsSendKeySilentCtrlEnterToSend;
+  final String settingsAdvancedSectionTitle;
+  final String settingsStickerSendModeTitle;
+  final String settingsStickerSendModeLine;
+  final String settingsStickerSendModeLineSubtitle;
+  final String settingsStickerSendModeDiscord;
+  final String settingsStickerSendModeDiscordSubtitle;
+  final String settingsDraftSyncTitle;
+  final String settingsDraftSyncSubtitle;
 
   final String back;
 
@@ -875,7 +892,7 @@ class Strings {
     settingsBlockedUsersEmpty: 'ブロックしたユーザーはいません',
     settingsBlockedUsersUnblock: 'ブロック解除',
     settingsAccentColor: 'アクセントカラー',
-    settingsAccentColorGekigaHint: '劇画UIでは背景色として使われます（初期値は現在の赤）',
+    settingsAccentColorGekigaHint: '劇画UIでは背景色として使われます',
     settingsAppearanceGekigaLockedHint: '劇画UIを選択中は変更できません',
     settingsAppearance: '外観',
     settingsAppearanceLight: 'ライト',
@@ -893,10 +910,10 @@ class Strings {
     settingsTimeFormat12h: '12時間表記（12:00 p.m.）',
     settingsSubUI: 'UI',
     settingsUIDescription: 'アプリ全体の見た目を選べます。',
-    settingsUiStyleSimpleLabel: 'シンプル',
-    settingsUiStyleSimpleDescription: '現行の標準スタイル',
+    settingsUiStyleFlatLabel: 'フラット',
+    settingsUiStyleFlatDescription: 'デフォルトスタイル',
     settingsUiStyleGekigaLabel: '劇画',
-    settingsUiStyleGekigaDescription: '手描き風の太いギザギザ線・モノクロの吹き出しになります',
+    settingsUiStyleGekigaDescription: 'モノクロのボックススタイル',
     settingsChatLayoutTitle: 'メッセージの表示',
     settingsChatLayoutSideBySide: '自分は右・相手は左',
     settingsChatLayoutSideBySideDescription:
@@ -918,7 +935,7 @@ class Strings {
     twoFactorSetupDialogTitle: '2段階認証を設定',
     twoFactorSetupDescription:
         '認証アプリ（Google Authenticator等）でQRコードを読み取るか、シークレットキーを手入力してから、表示された6桁のコードを入力してください。',
-    twoFactorSecretKeyLabel: 'シークレットキー（手入力用）',
+    twoFactorSecretKeyLabel: 'シークレットキー',
     twoFactorCodeLabel: '6桁のコード',
     twoFactorEnrollButton: '有効にする',
     twoFactorInvalidCodeError: 'コードが正しくありません',
@@ -953,6 +970,14 @@ class Strings {
     settingsSendKeyCtrlEnterToSend: 'Enterで改行、Ctrl+Enterで送信',
     settingsSendKeySilentEnterToSend: 'Ctrl+Enterで相手に通知せず送信',
     settingsSendKeySilentCtrlEnterToSend: 'Ctrl+Shift+Enterで相手に通知せず送信',
+    settingsAdvancedSectionTitle: '詳細設定',
+    settingsStickerSendModeTitle: 'ペタピタの送信方式',
+    settingsStickerSendModeLine: '2回タップで送信（LINE風）',
+    settingsStickerSendModeLineSubtitle: '1回目のタップで拡大表示、同じペタピタをもう一度タップすると送信します',
+    settingsStickerSendModeDiscord: '1回タップで送信（Discord風）',
+    settingsStickerSendModeDiscordSubtitle: 'タップすると即座に送信します',
+    settingsDraftSyncTitle: '入力中のメッセージを他の端末と同期',
+    settingsDraftSyncSubtitle: '入力欄に途中まで書いた内容を、別の端末で同じ語らいを開いたときに復元します',
     back: '戻る',
     friendSearchTitle: '友達を追加',
     friendSearchHint: '相手のRhing IDを入力して友達申請を送ります。承認されると会話できるようになります。',
@@ -1221,7 +1246,7 @@ class Strings {
     roomListAddDialogTitle: (term) => '$termを追加',
     roomListAddButton: '追加',
     roomListDeleteConfirmTitle: (term) => 'この$termを削除しますか？',
-    roomListDeleteConfirmButton: '削除する',
+    roomListDeleteConfirmButton: '削除',
     roomRenameLabel: (term) => '$termの名前を変更',
     roomMenuDeleteLabel: (term) => '$termを削除',
     roomDeleteLastRoomError: '最後の1つの寄合は削除できません',
@@ -1268,8 +1293,8 @@ class Strings {
     settingsTimeFormat12h: '12-hour (12:00 p.m.)',
     settingsSubUI: 'UI',
     settingsUIDescription: 'Choose how the whole app looks.',
-    settingsUiStyleSimpleLabel: 'Simple',
-    settingsUiStyleSimpleDescription: 'The current standard style',
+    settingsUiStyleFlatLabel: 'Flat',
+    settingsUiStyleFlatDescription: 'The current standard style',
     settingsUiStyleGekigaLabel: 'Gekiga',
     settingsUiStyleGekigaDescription:
         'A hand-drawn, thick jagged-line, monochrome speech-bubble look.',
@@ -1338,6 +1363,17 @@ class Strings {
         'Ctrl+Enter to send without notifying the recipient',
     settingsSendKeySilentCtrlEnterToSend:
         'Ctrl+Shift+Enter to send without notifying the recipient',
+    settingsAdvancedSectionTitle: 'Advanced settings',
+    settingsStickerSendModeTitle: 'Sticker sending method',
+    settingsStickerSendModeLine: 'Tap twice to send (LINE-style)',
+    settingsStickerSendModeLineSubtitle:
+        'The first tap shows an enlarged preview; tap the same sticker again to send it',
+    settingsStickerSendModeDiscord: 'Tap once to send (Discord-style)',
+    settingsStickerSendModeDiscordSubtitle:
+        'Tapping a sticker sends it immediately',
+    settingsDraftSyncTitle: 'Sync drafts across devices',
+    settingsDraftSyncSubtitle:
+        'Restores in-progress message text when you open the same conversation on another device',
     back: 'Back',
     friendSearchTitle: 'Add a friend',
     friendSearchHint:

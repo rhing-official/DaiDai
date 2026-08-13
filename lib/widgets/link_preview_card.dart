@@ -6,6 +6,7 @@ import '../models/link_preview.dart';
 import '../providers/link_preview_provider.dart';
 import '../theme/gekiga/gekiga_colors.dart';
 import '../widgets/gekiga/gekiga_panel_box.dart';
+import 'media_preview_frame.dart';
 
 /// 動画リンクと判定するホスト名（サムネイルに再生アイコンを重ねる対象）。
 /// OGPからは`og:type`等を取得していないため、簡易的にホスト名で判定する。
@@ -18,7 +19,7 @@ const _videoHosts = ['youtube.com', 'youtu.be', 'vimeo.com'];
 ///
 /// Discordの埋め込みカード（サイト名→タイトル→説明文→画像、動画には
 /// 再生アイコン）を参考にした構成に統一しつつ、外枠・配色はUIスタイルごとに
-/// 分けている（2026-08-10追加）。シンプルUIはアクセントカラーの縦バー・
+/// 分けている（2026-08-10追加）。フラットUIはアクセントカラーの縦バー・
 /// 色付きタイトルでDiscordに近い配色、劇画UIはアクセントカラーを使わず
 /// （劇画UI選択中はアクセントカラー自体変更不可という既存方針との整合）、
 /// 他の劇画UI要素と同じ「モノクロボックス」意匠にする。
@@ -61,15 +62,25 @@ class LinkPreviewCard extends ConsumerWidget {
           padding: const EdgeInsets.only(top: 8),
           child: isGekiga
               ? _buildGekigaCard(context, data)
-              : _buildSimpleCard(context, data),
+              : _buildFlatCard(context, data),
         );
       },
     );
   }
 
-  Widget _thumbnail(String imageUrl, {required bool isVideo}) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(6),
+  /// リンクプレビューのサムネイル画像。フラット/劇画共通で
+  /// `mediaPreviewFrame`（吹き出し内の添付画像/動画と共通、2026-08-12
+  /// 切り出し）を使い外枠を揃える。以前はフラット/劇画それぞれが独自に
+  /// 角丸のロジックを持っており値がずれていた（フラット6px・劇画は
+  /// `_GekigaPhotoMat`を使わない別実装）。再生アイコンの配色・枠線は
+  /// 各UIスタイルの既存デザインのまま維持する。
+  Widget _thumbnail(
+    String imageUrl, {
+    required bool isVideo,
+    required bool isGekiga,
+  }) {
+    return mediaPreviewFrame(
+      isGekiga: isGekiga,
       child: Stack(
         alignment: Alignment.center,
         children: [
@@ -87,13 +98,18 @@ class LinkPreviewCard extends ConsumerWidget {
               width: 44,
               height: 44,
               decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.6),
+                color: isGekiga
+                    ? GekigaColors.panel.withValues(alpha: 0.6)
+                    : Colors.black.withValues(alpha: 0.6),
                 shape: BoxShape.circle,
+                border: isGekiga
+                    ? Border.all(color: GekigaColors.onPanel, width: 2)
+                    : null,
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.play_arrow,
-                color: Colors.white,
-                size: 28,
+                color: isGekiga ? GekigaColors.onPanel : Colors.white,
+                size: isGekiga ? 26 : 28,
               ),
             ),
         ],
@@ -101,7 +117,7 @@ class LinkPreviewCard extends ConsumerWidget {
     );
   }
 
-  Widget _buildSimpleCard(BuildContext context, LinkPreview data) {
+  Widget _buildFlatCard(BuildContext context, LinkPreview data) {
     final colorScheme = Theme.of(context).colorScheme;
     final host = _hostLabel();
     final isVideo = _looksLikeVideo();
@@ -162,7 +178,11 @@ class LinkPreviewCard extends ConsumerWidget {
                         ],
                         if (data.image != null) ...[
                           const SizedBox(height: 8),
-                          _thumbnail(data.image!, isVideo: isVideo),
+                          _thumbnail(
+                            data.image!,
+                            isVideo: isVideo,
+                            isGekiga: false,
+                          ),
                         ],
                       ],
                     ),
@@ -227,7 +247,7 @@ class LinkPreviewCard extends ConsumerWidget {
                     ],
                     if (data.image != null) ...[
                       const SizedBox(height: 8),
-                      _gekigaThumbnail(data.image!, isVideo: isVideo),
+                      _thumbnail(data.image!, isVideo: isVideo, isGekiga: true),
                     ],
                   ],
                 ),
@@ -235,51 +255,6 @@ class LinkPreviewCard extends ConsumerWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  /// シンプルUIの[_thumbnail]と異なり、他の劇画UI要素（`GekigaPhotoFrame`
-  /// 等）と同じ「白い余白（マット）に写真を余白付きで収める」構成にする
-  /// （2026-08-10変更。以前は黒いモノクロボックスに直接画像を埋め込んでおり、
-  /// 動画サムネイルの黒レターボックス部分が背景と同化して見えていた）。
-  /// 動画の再生アイコンは「黒地・白枠・白アイコン」のモノクロ円のまま、
-  /// 明るい画像の上でも視認しやすいよう半透明にする。
-  Widget _gekigaThumbnail(String imageUrl, {required bool isVideo}) {
-    return Container(
-      color: Colors.white,
-      padding: const EdgeInsets.all(6),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(4),
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 200),
-              child: Image.network(
-                imageUrl,
-                fit: BoxFit.cover,
-                width: double.infinity,
-                errorBuilder: (_, _, _) => const SizedBox.shrink(),
-              ),
-            ),
-            if (isVideo)
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: GekigaColors.panel.withValues(alpha: 0.6),
-                  shape: BoxShape.circle,
-                  border: Border.all(color: GekigaColors.onPanel, width: 2),
-                ),
-                child: const Icon(
-                  Icons.play_arrow,
-                  color: GekigaColors.onPanel,
-                  size: 26,
-                ),
-              ),
-          ],
-        ),
       ),
     );
   }

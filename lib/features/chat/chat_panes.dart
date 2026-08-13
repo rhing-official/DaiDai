@@ -171,8 +171,12 @@ Future<bool> _confirmDeleteRoom(
           child: Text(strings.cancel),
         ),
         FilledButton(
+          // colorScheme.errorはダークテーマ下ではMaterial3の仕様上
+          // 明るめのサーモンピンクに近い色になり「濃い赤」に見えなかった
+          // ため、固定の濃い赤に変更する（2026-08-12）。
           style: FilledButton.styleFrom(
-            backgroundColor: Theme.of(context).colorScheme.error,
+            backgroundColor: Colors.red.shade700,
+            foregroundColor: Colors.white,
           ),
           onPressed: () => Navigator.of(context).pop(true),
           child: Text(strings.roomListDeleteConfirmButton),
@@ -292,6 +296,7 @@ class DmChatPane extends ConsumerWidget {
       currentUserId: currentUser.userId,
       isDm: true,
       conversationId: dm.dmId,
+      roomId: roomId,
       onSenderTap: (userId) => _openProfileCard(context, ref, userId),
       // ブロック中は相手からのメッセージを表示しない（自分が送った過去分は
       // 引き続き見える）。サーバー側の送信拒否ではなく、クライアント側の
@@ -980,6 +985,7 @@ class GroupChatPane extends ConsumerWidget {
       currentUserId: currentUser.userId,
       isDm: false,
       conversationId: group.groupId,
+      roomId: roomId,
       senderNameColorResolver: senderNameColorFor,
       roomTabBar: !showRoomTabBar || !group.roomsEnabled
           ? null

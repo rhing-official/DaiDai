@@ -16,15 +16,18 @@ import '../../models/group.dart';
 import '../../models/group_role.dart';
 import '../../models/message_time_format.dart';
 import '../../models/send_key_mode.dart';
+import '../../models/sticker_send_mode.dart';
 import '../../providers/accent_color_provider.dart';
 import '../../providers/app_locale_provider.dart';
 import '../../providers/app_ui_style_provider.dart';
 import '../../providers/block_providers.dart';
 import '../../providers/chat_layout_style_provider.dart';
+import '../../providers/draft_sync_enabled_provider.dart';
 import '../../providers/gekiga_background_color_provider.dart';
 import '../../providers/message_time_format_provider.dart';
 import '../../providers/repository_providers.dart';
 import '../../providers/send_key_mode_provider.dart';
+import '../../providers/sticker_send_mode_provider.dart';
 import '../../providers/terminology_style_provider.dart';
 import '../../providers/theme_mode_provider.dart';
 import '../../router/app_router.dart';
@@ -41,6 +44,7 @@ import '../auth/two_factor_setup_dialog.dart';
 import '../chat/announcement_screen.dart';
 import '../chat/group_member_list_screen.dart';
 import 'owned_sticker_packs_popup.dart';
+import 'settings_accordion_section.dart';
 
 /// 画面幅がこれ以上あれば、左にカテゴリ一覧（サイドバー）、右にそのカテゴリの
 /// 内容を1ページにまとめて表示するDiscord設定風の2ペイン表示にする。
@@ -320,13 +324,20 @@ class _FolderTile extends ConsumerWidget {
       );
     }
 
-    return Card(
-      margin: const EdgeInsets.symmetric(vertical: 6),
-      color: selected ? colorScheme.primary.withValues(alpha: 0.1) : null,
+    final foreground = selected
+        ? colorScheme.onPrimary
+        : colorScheme.onSurfaceVariant;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
       child: ListTile(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        tileColor: colorScheme.surface,
+        selectedTileColor: colorScheme.primary,
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         selected: selected,
-        selectedColor: colorScheme.primary,
+        selectedColor: colorScheme.onPrimary,
+        iconColor: foreground,
+        textColor: foreground,
         leading: Icon(icon),
         title: Text(title),
         trailing: trailingWidget,
@@ -1097,7 +1108,7 @@ class _DesignFolder extends ConsumerStatefulWidget {
 const _kAccentColorPresets = ['F08300CC', '3D2EE0CC', '88B04Bdd'];
 
 /// 劇画UIの背景色のプリセット（6桁hex＝RRGGBB、不透明）。ColorSchemeの
-/// 種ではなく単色塗りつぶしの背景色として使うため、シンプルUI側のような
+/// 種ではなく単色塗りつぶしの背景色として使うため、フラットUI側のような
 /// 透過は付けない。先頭要素は`kDefaultGekigaBackgroundColor`
 /// （`GekigaColors.background`）と同じ値にすること。
 const _kGekigaBackgroundColorPresets = ['C1272D', 'F08300', '3D2EE0', '88B04B'];
@@ -1152,7 +1163,7 @@ class _DesignFolderState extends ConsumerState<_DesignFolder> {
 
   @override
   Widget build(BuildContext context) {
-    // 同じ入力欄・プリセット一覧をシンプルUIの`accentColorProvider`と
+    // 同じ入力欄・プリセット一覧をフラットUIの`accentColorProvider`と
     // 劇画UIの`gekigaBackgroundColorProvider`で使い回しているため、
     // `_UiStyleFolder`（同じ`_ApplicationPage`内の兄弟）でスタイルを
     // 切り替えた瞬間に、表示中の値を新しく有効になった側のプロバイダの
@@ -1309,7 +1320,7 @@ class _DesignFolderState extends ConsumerState<_DesignFolder> {
             style: const TextStyle(fontWeight: FontWeight.bold),
           ),
         ),
-        // 劇画UI選択中は「背景色」の意味で使う（シンプルUIのようにColorScheme
+        // 劇画UI選択中は「背景色」の意味で使う（フラットUIのようにColorScheme
         // 全体の種にはせず、背景のみを変更する。黒/白基調の他パーツは
         // 引き続き固定）。2026-08-05変更、以前はこの欄自体を劇画UI選択中は
         // 変更不可にしていた。
@@ -1575,19 +1586,19 @@ class _UiStyleFolder extends ConsumerWidget {
     // プレビューになる（2026-08-03、選択肢の見た目統一のため追加）。
     if (isGekiga) {
       return GekigaJointedTileList(
-        seeds: [AppUiStyle.simple.hashCode, AppUiStyle.gekiga.hashCode],
-        selectedFlags: [style == AppUiStyle.simple, style == AppUiStyle.gekiga],
+        seeds: [AppUiStyle.flat.hashCode, AppUiStyle.gekiga.hashCode],
+        selectedFlags: [style == AppUiStyle.flat, style == AppUiStyle.gekiga],
         children: [
           GekigaTileContent(
-            selected: style == AppUiStyle.simple,
+            selected: style == AppUiStyle.flat,
             leading: Icon(
-              style == AppUiStyle.simple
+              style == AppUiStyle.flat
                   ? Icons.radio_button_checked
                   : Icons.radio_button_unchecked,
             ),
-            title: Text(strings.settingsUiStyleSimpleLabel),
-            subtitle: Text(strings.settingsUiStyleSimpleDescription),
-            onTap: () => select(AppUiStyle.simple),
+            title: Text(strings.settingsUiStyleFlatLabel),
+            subtitle: Text(strings.settingsUiStyleFlatDescription),
+            onTap: () => select(AppUiStyle.flat),
           ),
           GekigaTileContent(
             selected: style == AppUiStyle.gekiga,
@@ -1612,9 +1623,9 @@ class _UiStyleFolder extends ConsumerWidget {
       child: Column(
         children: [
           RadioListTile<AppUiStyle>(
-            value: AppUiStyle.simple,
-            title: Text(strings.settingsUiStyleSimpleLabel),
-            subtitle: Text(strings.settingsUiStyleSimpleDescription),
+            value: AppUiStyle.flat,
+            title: Text(strings.settingsUiStyleFlatLabel),
+            subtitle: Text(strings.settingsUiStyleFlatDescription),
           ),
           RadioListTile<AppUiStyle>(
             value: AppUiStyle.gekiga,
@@ -1806,6 +1817,15 @@ class _TalkPage extends StatelessWidget {
         _ChatLayoutFolder(strings: strings),
         const Divider(height: 24),
         _SendKeyFolder(strings: strings),
+        const Divider(height: 24),
+        SettingsAccordionSection(
+          title: strings.settingsAdvancedSectionTitle,
+          children: [
+            _StickerSendModeFolder(strings: strings),
+            const Divider(height: 24),
+            _DraftSyncFolder(strings: strings),
+          ],
+        ),
       ],
     );
   }
@@ -1981,6 +2001,126 @@ class _SendKeyFolder extends ConsumerWidget {
         ),
         control,
       ],
+    );
+  }
+}
+
+/// ペタピタ（スタンプ）の送信方式（LINE型2タップ確認／Discord型1タップ即送信）
+/// の選択。`_SendKeyFolder`と同じ2択ラジオ構成を踏襲する（2026-08-13追加）。
+class _StickerSendModeFolder extends ConsumerWidget {
+  const _StickerSendModeFolder({required this.strings});
+
+  final Strings strings;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final mode = ref.watch(stickerSendModeProvider);
+    final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
+
+    void select(StickerSendMode value) =>
+        ref.read(stickerSendModeProvider.notifier).setMode(value);
+
+    final options = [
+      (
+        value: StickerSendMode.line,
+        title: strings.settingsStickerSendModeLine,
+        subtitle: strings.settingsStickerSendModeLineSubtitle,
+      ),
+      (
+        value: StickerSendMode.discord,
+        title: strings.settingsStickerSendModeDiscord,
+        subtitle: strings.settingsStickerSendModeDiscordSubtitle,
+      ),
+    ];
+
+    final control = isGekiga
+        ? GekigaJointedTileList(
+            seeds: [for (final option in options) option.value.hashCode],
+            selectedFlags: [for (final option in options) mode == option.value],
+            children: [
+              for (final option in options)
+                GekigaTileContent(
+                  selected: mode == option.value,
+                  leading: Icon(
+                    mode == option.value
+                        ? Icons.radio_button_checked
+                        : Icons.radio_button_unchecked,
+                  ),
+                  title: Text(option.title),
+                  subtitle: Text(option.subtitle),
+                  onTap: () => select(option.value),
+                ),
+            ],
+          )
+        : RadioGroup<StickerSendMode>(
+            groupValue: mode,
+            onChanged: (value) {
+              if (value != null) select(value);
+            },
+            child: Column(
+              children: [
+                for (final option in options)
+                  RadioListTile<StickerSendMode>(
+                    value: option.value,
+                    title: Text(option.title),
+                    subtitle: Text(option.subtitle),
+                  ),
+              ],
+            ),
+          );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+          child: Text(
+            strings.settingsStickerSendModeTitle,
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+        ),
+        control,
+      ],
+    );
+  }
+}
+
+/// メッセージ入力欄の下書きを複数端末で同期するかのオン/オフ
+/// （2026-08-13追加、標準オン）。
+class _DraftSyncFolder extends ConsumerWidget {
+  const _DraftSyncFolder({required this.strings});
+
+  final Strings strings;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final enabled = ref.watch(draftSyncEnabledProvider);
+    final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
+
+    void setEnabled(bool value) =>
+        ref.read(draftSyncEnabledProvider.notifier).setEnabled(value);
+
+    if (isGekiga) {
+      return GekigaJointedTileList(
+        seeds: const [0],
+        selectedFlags: [enabled],
+        children: [
+          GekigaTileContent(
+            selected: enabled,
+            title: Text(strings.settingsDraftSyncTitle),
+            subtitle: Text(strings.settingsDraftSyncSubtitle),
+            trailing: Switch(value: enabled, onChanged: setEnabled),
+            onTap: () => setEnabled(!enabled),
+          ),
+        ],
+      );
+    }
+    return SwitchListTile(
+      value: enabled,
+      title: Text(strings.settingsDraftSyncTitle),
+      subtitle: Text(strings.settingsDraftSyncSubtitle),
+      onChanged: setEnabled,
     );
   }
 }

@@ -489,13 +489,18 @@ class _TalksTabState extends ConsumerState<TalksTab> {
                         // （例:「ダイレクトメッセージ」「Terminology & display」相当）ため、
                         // 固定幅のサイドバーでも折り返さず、必要なときだけ
                         // 横スクロールできるようにして＋ボタンが押し出されないようにする。
+                        // フラットUIのみ、塗り潰しチップ化（2026-08-12）で
+                        // 1件あたりの幅が増え、横スクロール前提だと初期表示で
+                        // 「広場」チップの右端が見切れて表示される不具合が
+                        // あったため、`Wrap`に変更しはみ出す場合は折り返す形にした
+                        // （劇画UIは`GekigaJointedPair`が2つのタブを1つの
+                        // ジグザグ枠として連結して描く都合上、引き続き横スクロールを使う）。
                         Expanded(
-                          child: SingleChildScrollView(
-                            scrollDirection: Axis.horizontal,
-                            child:
-                                ref.watch(appUiStyleProvider) ==
-                                    AppUiStyle.gekiga
-                                ? GekigaJointedPair(
+                          child:
+                              ref.watch(appUiStyleProvider) == AppUiStyle.gekiga
+                              ? SingleChildScrollView(
+                                  scrollDirection: Axis.horizontal,
+                                  child: GekigaJointedPair(
                                     leftSeed: vocab.dm.hashCode,
                                     leftSelected:
                                         _category == _TalksCategory.dm,
@@ -517,29 +522,30 @@ class _TalksTabState extends ConsumerState<TalksTab> {
                                       onTap: () =>
                                           _setCategory(_TalksCategory.group),
                                     ),
-                                  )
-                                : Row(
-                                    children: [
-                                      _CategoryTab(
-                                        label: vocab.dm,
-                                        count: directMessages.length,
-                                        selected:
-                                            _category == _TalksCategory.dm,
-                                        onTap: () =>
-                                            _setCategory(_TalksCategory.dm),
-                                      ),
-                                      const SizedBox(width: 20),
-                                      _CategoryTab(
-                                        label: vocab.plaza,
-                                        count: groups.length,
-                                        selected:
-                                            _category == _TalksCategory.group,
-                                        onTap: () =>
-                                            _setCategory(_TalksCategory.group),
-                                      ),
-                                    ],
                                   ),
-                          ),
+                                )
+                              : Wrap(
+                                  crossAxisAlignment: WrapCrossAlignment.center,
+                                  spacing: 12,
+                                  runSpacing: 6,
+                                  children: [
+                                    _CategoryTab(
+                                      label: vocab.dm,
+                                      count: directMessages.length,
+                                      selected: _category == _TalksCategory.dm,
+                                      onTap: () =>
+                                          _setCategory(_TalksCategory.dm),
+                                    ),
+                                    _CategoryTab(
+                                      label: vocab.plaza,
+                                      count: groups.length,
+                                      selected:
+                                          _category == _TalksCategory.group,
+                                      onTap: () =>
+                                          _setCategory(_TalksCategory.group),
+                                    ),
+                                  ],
+                                ),
                         ),
                         const SizedBox(width: 12),
                         ref.watch(appUiStyleProvider) == AppUiStyle.gekiga
@@ -560,11 +566,12 @@ class _TalksTabState extends ConsumerState<TalksTab> {
                     ),
                   ),
                   // ヘッダー（一対/広場切り替えタブ）と一覧の間に隙間を空ける
-                  // （2026-08-04追加、劇画スタイルのみ）。ジグザグ枠の箱が
-                  // 隙間無くヘッダーのタブに接してしまい、被って見える
-                  // 不具合があった。
-                  if (ref.watch(appUiStyleProvider) == AppUiStyle.gekiga)
-                    const SizedBox(height: 12),
+                  // （2026-08-04追加、劇画スタイルのみ→2026-08-12全スタイル
+                  // 共通に変更）。劇画スタイルはジグザグ枠の箱が隙間無く
+                  // ヘッダーのタブに接してしまい被って見える不具合、フラット
+                  // スタイルは選択中チップの塗り潰しと一覧の先頭行が隙間無く
+                  // 接して重なって見える不具合が、それぞれあった。
+                  const SizedBox(height: 12),
                   Expanded(
                     // 横スワイプで一対⇄広場を切り替える。速度しきい値判定の
                     // 自前ジェスチャー（`SwipeBackDetector`）だと片方向だけ
@@ -791,11 +798,17 @@ class _TalksTabState extends ConsumerState<TalksTab> {
                   // 以前はcanManageRolesの間だけロール管理を直接開いていた）。
                   onOpenGroupSettings: () => showDialog<void>(
                     context: context,
+                    // 「自分のプロフィールカード」の項目は蔵が複数ある時だけ
+                    // 増える（GroupSettingsPopup参照）ため、固定の高さ1つでは
+                    // 項目がある時に一覧の下端が僅かに入りきらなかった
+                    // （2026-08-12修正、有無で高さを2種類使い分ける）。
                     builder: (_) => Dialog(
                       child: ConstrainedBox(
-                        constraints: const BoxConstraints(
+                        constraints: BoxConstraints(
                           maxWidth: 420,
-                          maxHeight: 640,
+                          maxHeight: widget.currentUser.profileCards.length > 1
+                              ? 696
+                              : 640,
                         ),
                         child: GroupSettingsPopup(
                           currentUser: widget.currentUser,
@@ -905,6 +918,11 @@ class _TalksTabState extends ConsumerState<TalksTab> {
     }
 
     return ListView(
+      // 選択中タイルの塗り潰し（selectedTileColor）がカラム間の
+      // VerticalDividerに接して重なって見えないよう左右に余白を持たせる
+      // （2026-08-12追加、settings_tab.dart/profile_tab.dartの一覧と
+      // 同じ手法）。
+      padding: const EdgeInsets.symmetric(horizontal: 8),
       children: [
         for (final request in incomingRequests)
           _FriendRequestTile(
@@ -992,6 +1010,11 @@ class _TalksTabState extends ConsumerState<TalksTab> {
     }
 
     return ListView(
+      // 選択中タイルの塗り潰し（selectedTileColor）がカラム間の
+      // VerticalDividerに接して重なって見えないよう左右に余白を持たせる
+      // （2026-08-12追加、settings_tab.dart/profile_tab.dartの一覧と
+      // 同じ手法）。
+      padding: const EdgeInsets.symmetric(horizontal: 8),
       children: [
         for (final request in pendingRequests)
           _PendingGroupJoinRequestTile(
@@ -1061,9 +1084,9 @@ class _CategoryTab extends ConsumerWidget {
         child: InkWell(
           onTap: onTap,
           child: Padding(
-            // 縦幅・フォントサイズをシンプルスタイル側（vertical:6,
+            // 縦幅・フォントサイズをフラットスタイル側（vertical:6,
             // fontSize:16）に揃える（2026-08-04変更）。横方向だけは、
-            // シンプル側に無いジグザグ枠の線に文字が重ならないよう
+            // フラット側に無いジグザグ枠の線に文字が重ならないよう
             // 14を維持する。
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
             child: Text(
@@ -1080,40 +1103,32 @@ class _CategoryTab extends ConsumerWidget {
     }
 
     final colorScheme = Theme.of(context).colorScheme;
-    final color = selected ? colorScheme.primary : Colors.grey;
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 6),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              label,
-              style: TextStyle(
-                fontWeight: selected ? FontWeight.bold : FontWeight.normal,
-                color: color,
-                fontSize: 16,
-              ),
+    final background = selected ? colorScheme.primary : colorScheme.surface;
+    final foreground = selected
+        ? colorScheme.onPrimary
+        : colorScheme.onSurfaceVariant;
+    return Material(
+      color: background,
+      borderRadius: BorderRadius.circular(20),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Padding(
+          // 劇画側（上の分岐、vertical:6）と同じ「ラベルと件数を1つの
+          // Textにまとめる」構成に揃え、独立した件数バッジ分の余白を
+          // 無くすことでチップ1つあたりの幅を縮めている（2026-08-12
+          // 変更。以前は件数を別`Container`の丸バッジにしていたが、
+          // 幅が増えて狭い画面で「一対/広場」チップが1行に収まらず
+          // 折り返される不具合があった）。
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+          child: Text(
+            '$label $count',
+            style: TextStyle(
+              fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+              color: foreground,
+              fontSize: 16,
             ),
-            const SizedBox(width: 6),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(999),
-              ),
-              child: Text(
-                '$count',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                  color: color,
-                ),
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -1229,7 +1244,28 @@ class _FriendRequestTile extends ConsumerWidget {
               ),
             );
             if (isSplit) {
-              onSelectPending(screen);
+              // 承認前はdirectMessagesドキュメント自体が存在せず実データの
+              // 寄合は持てない（firestore.rulesで承認後の作成のみ許可）ため、
+              // 承認後に必ずできる「メイン」1件だけの寄合一覧を模した
+              // プレースホルダーを、他の（承認済みの）語らいと同じ3カラム
+              // 構成で見せる（選択・追加はできない、2026-08-12追加）。
+              onSelectPending(
+                Row(
+                  children: [
+                    SizedBox(
+                      width: 220,
+                      child: RoomListPane(
+                        conversationName: titleText,
+                        rooms: const [(roomId: 'pending-main', name: 'メイン')],
+                        selectedRoomId: 'pending-main',
+                        onSelectRoom: (_) {},
+                      ),
+                    ),
+                    const VerticalDivider(width: 1),
+                    Expanded(child: screen),
+                  ],
+                ),
+              );
             } else {
               // 承認待ち画面は常にメッセージが空（吹き出しが無い＝全面が
               // 余白）で、通常の語らいのように吹き出し上の右スワイプで
@@ -1419,10 +1455,10 @@ class _DirectMessageTile extends ConsumerWidget {
       pinned: pinned,
       muted: muted,
       child: ListTile(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         selected: selected,
-        selectedTileColor: Theme.of(
-          context,
-        ).colorScheme.primary.withValues(alpha: 0.08),
+        selectedTileColor: Theme.of(context).colorScheme.primary,
+        selectedColor: Theme.of(context).colorScheme.onPrimary,
         leading: leadingWidget,
         title: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
         trailing: trailingWidget,
@@ -1491,10 +1527,10 @@ class _GroupTile extends ConsumerWidget {
       pinned: pinned,
       muted: muted,
       child: ListTile(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         selected: selected,
-        selectedTileColor: Theme.of(
-          context,
-        ).colorScheme.primary.withValues(alpha: 0.08),
+        selectedTileColor: Theme.of(context).colorScheme.primary,
+        selectedColor: Theme.of(context).colorScheme.onPrimary,
         leading: leadingWidget,
         title: Text(displayName, maxLines: 1, overflow: TextOverflow.ellipsis),
         subtitle: Text('${group.memberIds.length}人'),

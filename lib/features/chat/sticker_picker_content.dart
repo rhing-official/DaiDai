@@ -3,7 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/strings.dart';
 import '../../models/sticker.dart';
+import '../../models/sticker_send_mode.dart';
 import '../../providers/repository_providers.dart';
+import '../../providers/sticker_send_mode_provider.dart';
 
 /// ペタピタピッカーの本体（検索バー＋パック別レール＋グリッド、2026-08-11
 /// 追加）。モバイル用ボトムシート（`StickerPickerSheet`）とデスクトップ用
@@ -30,10 +32,102 @@ class _StickerPickerContentState extends ConsumerState<StickerPickerContent> {
   // nullは「すべて」タブを表す。
   String? _selectedPackId;
 
+  // LINE型送信方式の拡大プレビュー用（2026-08-13追加）。
+  Sticker? _pendingPreviewSticker;
+  Offset? _pendingTapGlobalPos;
+  Offset? _lastTapDownGlobalPos;
+  OverlayEntry? _previewEntry;
+
+  @override
+  void dispose() {
+    // ピッカー自体が閉じられた（ボトムシートのスワイプ・ポップアップ外
+    // タップ等）際に、挿入済みのOverlayEntryがルートOverlayに残り続ける
+    // リークを防ぐ。
+    _previewEntry?.remove();
+    super.dispose();
+  }
+
+  void _handleStickerTap(Sticker sticker, StickerSendMode mode) {
+    if (mode == StickerSendMode.discord) {
+      widget.onStickerSelected(sticker);
+      return;
+    }
+    // LINE型: 直前にプレビュー中だったのと同じペタピタの2回目タップなら送信。
+    if (_pendingPreviewSticker?.stickerId == sticker.stickerId) {
+      _removePreview();
+      widget.onStickerSelected(sticker);
+      return;
+    }
+    // 1回目のタップ、または別のペタピタへの差し替え。
+    _pendingPreviewSticker = sticker;
+    _pendingTapGlobalPos = _lastTapDownGlobalPos;
+    if (_previewEntry == null) {
+      _previewEntry = OverlayEntry(builder: (_) => _buildPreviewOverlay());
+      Overlay.of(context).insert(_previewEntry!);
+    } else {
+      _previewEntry!.markNeedsBuild();
+    }
+  }
+
+  void _removePreview() {
+    _previewEntry?.remove();
+    _previewEntry = null;
+    _pendingPreviewSticker = null;
+    _pendingTapGlobalPos = null;
+  }
+
+  Widget _buildPreviewOverlay() {
+    final sticker = _pendingPreviewSticker;
+    final anchor = _pendingTapGlobalPos;
+    if (sticker == null || anchor == null) return const SizedBox.shrink();
+
+    final overlayBox =
+        Overlay.of(context).context.findRenderObject()! as RenderBox;
+    final screenSize = overlayBox.size;
+    const previewSize = 180.0;
+    const screenPad = 8.0;
+    final left = (anchor.dx - previewSize / 2).clamp(
+      screenPad,
+      screenSize.width - previewSize - screenPad,
+    );
+    final top = (anchor.dy - previewSize - 24).clamp(
+      screenPad,
+      screenSize.height - previewSize - screenPad,
+    );
+
+    return Positioned(
+      left: left,
+      top: top,
+      width: previewSize,
+      height: previewSize,
+      child: GestureDetector(
+        // 拡大プレビュー自体をタップ＝「同じペタピタをもう一度タップ」と同義。
+        onTap: () => _handleStickerTap(sticker, StickerSendMode.line),
+        child: Material(
+          color: Theme.of(context).colorScheme.surfaceContainerHigh,
+          elevation: 8,
+          shadowColor: Theme.of(context).colorScheme.shadow,
+          borderRadius: BorderRadius.circular(16),
+          clipBehavior: Clip.antiAlias,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Image.network(
+              sticker.imageUrl,
+              fit: BoxFit.contain,
+              errorBuilder: (_, _, _) =>
+                  const Icon(Icons.broken_image_outlined),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final strings = ref.watch(appStringsProvider);
     final currentUserId = ref.watch(authStateProvider).value?.uid;
+    final sendMode = ref.watch(stickerSendModeProvider);
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -62,7 +156,7 @@ class _StickerPickerContentState extends ConsumerState<StickerPickerContent> {
                       .watchOwnedPacks(currentUserId),
                   builder: (context, snapshot) {
                     final packs = snapshot.data ?? const <StickerPack>[];
-                    final content = _buildGrid(strings, packs);
+                    final content = _buildGrid(strings, packs, sendMode);
                     if (packs.isEmpty) return content;
                     final rail = _buildRail(packs);
                     return widget.railAxis == Axis.vertical
@@ -124,7 +218,11 @@ class _StickerPickerContentState extends ConsumerState<StickerPickerContent> {
     );
   }
 
-  Widget _buildGrid(Strings strings, List<StickerPack> packs) {
+  Widget _buildGrid(
+    Strings strings,
+    List<StickerPack> packs,
+    StickerSendMode mode,
+  ) {
     final selectedPackId = _selectedPackId;
     final query = _query.trim().toLowerCase();
     final stickers = packs
@@ -160,7 +258,9 @@ class _StickerPickerContentState extends ConsumerState<StickerPickerContent> {
       itemBuilder: (context, index) {
         final sticker = stickers[index];
         return InkWell(
-          onTap: () => widget.onStickerSelected(sticker),
+          onTapDown: (details) =>
+              _lastTapDownGlobalPos = details.globalPosition,
+          onTap: () => _handleStickerTap(sticker, mode),
           child: Image.network(
             sticker.imageUrl,
             fit: BoxFit.contain,

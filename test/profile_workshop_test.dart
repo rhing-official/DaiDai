@@ -224,7 +224,7 @@ Future<void> _pumpProfileTab(
       overrides: [
         userRepositoryProvider.overrideWithValue(repo),
         initialAppLocaleProvider.overrideWithValue(AppLocale.japanese),
-        initialAppUiStyleProvider.overrideWithValue(AppUiStyle.simple),
+        initialAppUiStyleProvider.overrideWithValue(AppUiStyle.flat),
         initialTerminologyStyleProvider.overrideWithValue(
           TerminologyStyle.worldview,
         ),
@@ -255,7 +255,7 @@ Future<void> _pumpProfileTabNarrow(
       overrides: [
         userRepositoryProvider.overrideWithValue(repo),
         initialAppLocaleProvider.overrideWithValue(AppLocale.japanese),
-        initialAppUiStyleProvider.overrideWithValue(AppUiStyle.simple),
+        initialAppUiStyleProvider.overrideWithValue(AppUiStyle.flat),
         initialTerminologyStyleProvider.overrideWithValue(
           TerminologyStyle.worldview,
         ),
