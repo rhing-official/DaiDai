@@ -448,17 +448,19 @@ DaiDaiは独自の世界観用語を使う。変数名・クラス名・コレ�
 
 - 無料版フォント: BIZ UDPMincho, BIZ UDGothic, チカラヅヨク, チカラヨワク
 
+- ボタンの配色: 背景色が薄い（明度が高い）色に白色のテキストを乗せる組み合わせは禁止。コントラストが不十分で読みにくくなる（`colorScheme.error`はダークテーマ下のMaterial3仕様で明るいサーモンピンクに近い色になり白文字が読みにくくなる、2026-08-12の教訓）。削除確認等の警告色ボタンは固定の濃い赤（`Colors.red.shade700`等）など、実際にコントラストが確保できる色を明示的に指定すること。
+
   
 
 > UI実装・レビュー時は`/home/arata/Obsidian-Personal/コマンド/UI参考.md`（DaiDai専用ではない一般的なUIデザイン原則・Tips集、git管理外）も参照すること。配色を絞る・ボタンの3階層化・確認ダイアログの構成・カードの角丸の決め方など、画面を作る/直すたびに当てはまる点が無いか確認する。
 
   
 
-### UIスタイル（2026-07-22更新: シンプル1本化＋カラーコード自由入力）
+### UIスタイル（2026-07-22更新: フラット1本化＋カラーコード自由入力、2026-08-12改名: シンプル→フラット）
 
   
 
-以前はDaiDai（標準）/シンプルの2スタイル切り替えだったが、シンプルスタイル1本に統合し、アクセントカラーを設定タブでカラーコード（`#RRGGBB`）から自由に指定できるようにした（`lib/theme/app_theme.dart`, `lib/providers/accent_color_provider.dart`, `lib/utils/color_hex.dart`, `lib/features/settings/settings_tab.dart`）。端末のSharedPreferencesに永続化（アカウント間・端末間の同期はまだ未対応）。
+以前はDaiDai（標準）/シンプルの2スタイル切り替えだったが、フラットスタイル1本に統合し、アクセントカラーを設定タブでカラーコード（`#RRGGBB`）から自由に指定できるようにした（`lib/theme/app_theme.dart`, `lib/providers/accent_color_provider.dart`, `lib/utils/color_hex.dart`, `lib/features/settings/settings_tab.dart`）。端末のSharedPreferencesに永続化（アカウント間・端末間の同期はまだ未対応）。
 
   
 

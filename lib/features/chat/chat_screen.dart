@@ -31,13 +31,17 @@ import '../../models/sticker.dart';
 import '../../providers/app_locale_provider.dart';
 import '../../providers/app_ui_style_provider.dart';
 import '../../providers/chat_layout_style_provider.dart';
+import '../../providers/conversation_prefs_providers.dart';
+import '../../providers/draft_sync_enabled_provider.dart';
 import '../../providers/message_time_format_provider.dart';
+import '../../providers/repository_providers.dart';
 import '../../providers/send_key_mode_provider.dart';
 import '../../providers/user_providers.dart';
 import '../../theme/app_theme_extras.dart';
 import '../../theme/gekiga/gekiga_colors.dart';
 import '../../theme/gekiga/gekiga_shapes.dart';
 import '../../widgets/gekiga/monochrome_box.dart';
+import '../../widgets/media_preview_frame.dart';
 import 'attachment_popup_button.dart';
 import '../../utils/attachment_upload.dart';
 import '../../utils/auto_dismiss_banner.dart';
@@ -93,6 +97,7 @@ class ChatScreen extends ConsumerStatefulWidget {
     this.roomTabBar,
     this.disabled = false,
     this.onSwipeBack,
+    this.roomId,
     super.key,
   });
 
@@ -206,6 +211,13 @@ class ChatScreen extends ConsumerStatefulWidget {
   /// では「会話一覧へ戻る」概念が無いため、呼び出し元はnullのまま渡す。
   final VoidCallback? onSwipeBack;
 
+  /// 寄合単位の下書き同期（`draftSyncEnabledProvider`、2026-08-13追加）の
+  /// キーに使う現在表示中の寄合id。[conversationId]が一対のdmId/広場の
+  /// groupIdを表すのに対し、こちらは寄合（`DmRoom.roomId`/`Room.roomId`）
+  /// 単位。nullなら下書き同期機能自体を無効化する（お知らせ画面・承認待ち
+  /// プレースホルダー等、下書きの概念が無い呼び出し元向け）。
+  final String? roomId;
+
   @override
   ConsumerState<ChatScreen> createState() => _ChatScreenState();
 }
@@ -213,6 +225,85 @@ class ChatScreen extends ConsumerStatefulWidget {
 class _ChatScreenState extends ConsumerState<ChatScreen>
     with SingleTickerProviderStateMixin {
   final _textController = TextEditingController();
+
+  /// 入力欄の下書き複数端末同期用（2026-08-13追加）。デバウンス書き込みの
+  /// タイマーと、編集モード中など「今の入力内容を下書きとして書き込んで
+  /// はいけない」場面で立てる抑制フラグ。
+  Timer? _draftSaveTimer;
+  bool _suppressDraftSync = false;
+
+  // widget.roomIdがnullな呼び出し元（お知らせ画面等、既存テストの多くも
+  // 含む）でdraftSyncEnabledProviderの評価自体をスキップするため、
+  // 軽量なnullチェックを先に置く（先にref.read(draftSyncEnabledProvider)を
+  // 評価すると、ProviderScopeがinitialDraftSyncEnabledProviderをoverride
+  // していない場面で無関係にUnimplementedErrorが飛んでしまう）。
+  bool get _draftSyncActive =>
+      widget.conversationId != null &&
+      widget.roomId != null &&
+      widget.onSend != null &&
+      ref.read(draftSyncEnabledProvider);
+
+  @override
+  void initState() {
+    super.initState();
+    _textController.addListener(_onComposerTextChanged);
+    _loadInitialDraft();
+  }
+
+  /// 画面を開いた時に一度だけ、この寄合の下書きをFirestoreから読み込んで
+  /// 入力欄へ反映する（「開いた時に復元」方式、1文字ずつのリアルタイム
+  /// ミラーは行わない）。
+  Future<void> _loadInitialDraft() async {
+    if (!_draftSyncActive) return;
+    final conversationId = widget.conversationId!;
+    final roomId = widget.roomId!;
+    try {
+      final prefsMap = await ref.read(
+        conversationPrefsProvider(widget.currentUserId).future,
+      );
+      if (!mounted) return;
+      final draft = prefsMap[conversationId]?.draftByRoom[roomId];
+      if (draft == null || draft.isEmpty) return;
+      if (_textController.text.isNotEmpty) return;
+      _suppressDraftSync = true;
+      _textController.text = draft;
+      _suppressDraftSync = false;
+    } catch (_) {
+      // 下書きの読み込み失敗は致命的ではないため握りつぶす（入力欄が
+      // 空のまま始まるだけ）。
+    }
+  }
+
+  void _onComposerTextChanged() {
+    if (_suppressDraftSync || _editingMessage != null) return;
+    if (!_draftSyncActive) return;
+    _draftSaveTimer?.cancel();
+    final text = _textController.text;
+    _draftSaveTimer = Timer(const Duration(milliseconds: 600), () {
+      ref
+          .read(conversationPrefsRepositoryProvider)
+          .setDraft(
+            userId: widget.currentUserId,
+            conversationId: widget.conversationId!,
+            roomId: widget.roomId!,
+            draft: text,
+          );
+    });
+  }
+
+  /// 送信直後など、下書きを即座に消したい時に呼ぶ（デバウンス待ちを挟まない）。
+  void _clearDraftNow() {
+    _draftSaveTimer?.cancel();
+    if (!_draftSyncActive) return;
+    ref
+        .read(conversationPrefsRepositoryProvider)
+        .setDraft(
+          userId: widget.currentUserId,
+          conversationId: widget.conversationId!,
+          roomId: widget.roomId!,
+          draft: '',
+        );
+  }
 
   /// テキスト入力欄のフォーカス制御用（2026-08-12追加）。返信モード開始時に
   /// 自動的にフォーカスを当てる、送信ボタンにフォーカスを奪われないよう
@@ -241,10 +332,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   /// [showStickerPickerPopup]でアイコン付近にポップアップを浮かせる。
   final _stickerButtonKey = GlobalKey();
 
-  /// ミドルクリック/長押しによる自動スクロールの基準位置（画面座標）。
-  /// nullなら非アクティブ（2026-07-29追加、ブラウザのミドルクリック
-  /// オートスクロールと同じ挙動を、メッセージ行の吹き出し横の余白の長押しにも
-  /// 割り当てている）。
+  /// ミドルクリックによる自動スクロールの基準位置（画面座標）。nullなら
+  /// 非アクティブ（2026-07-29追加、ブラウザのミドルクリックオートスクロールと
+  /// 同じ挙動。メッセージ行の吹き出し横の余白の長押しにも割り当てていたが
+  /// 2026-08-12に廃止した）。
   Offset? _autoScrollOrigin;
 
   /// 現在のポインタ位置と[_autoScrollOrigin]との縦距離。プラスなら下、
@@ -445,21 +536,74 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       if (!mounted) return;
     }
 
-    final key = _messageKeys[messageId];
-    final targetContext = key?.currentContext;
-    if (targetContext == null) return;
-    await Scrollable.ensureVisible(
-      targetContext,
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeOut,
+    final initialContext = _messageKeys[messageId]?.currentContext;
+    if (initialContext == null || !initialContext.mounted) return;
+    BuildContext targetContext = initialContext;
+
+    // アニメーション付き（旧300ms）だと、会話を開いた直後は
+    // _markUnreadMessagesの既読書き込みがFirestoreの購読ストリームへ
+    // エコーバックしてメッセージ一覧が再構築されやすく、アニメーション中に
+    // それが起きると処理自体は正常完了するのに実際の着地位置がズレる
+    // ケースがあった（「ジャンプが正常に動作しない」報告が2回続いた原因、
+    // 2026-08-12対応）。duration: Duration.zeroで即時移動にし、競合が
+    // 起きうる時間窓そのものを無くす。
+    Future<void> reveal(BuildContext context) => Scrollable.ensureVisible(
+      context,
+      duration: Duration.zero,
       alignment: 0.5,
     );
-    if (!mounted) return;
+
+    // Scrollable.ensureVisible単体では、既読自動書き込み（_markUnreadMessages）
+    // のエコーバック等でアニメーション中にメッセージ一覧が再構築されることが
+    // あり、その場合Flutter側の処理自体は正常完了するため「スクロール位置が
+    // 変化したか」だけでは対象が実際に画面内へ収まったか判別できなかった
+    // （「ハイライトはするがジャンプしない」不具合の原因、2026-08-12対応）。
+    // 実行後に対象行のRenderBoxが実際にビューポート内へ収まっているかを
+    // 直接検証し、収まっていなければ1フレーム待ってGlobalKeyの
+    // currentContextを取り直し、最大2回まで再試行する。
+    for (var attempt = 0; attempt < 3; attempt++) {
+      await reveal(targetContext);
+      if (!mounted || !targetContext.mounted) return;
+
+      final scrollable = Scrollable.maybeOf(targetContext);
+      if (scrollable == null || _isFullyVisible(targetContext, scrollable)) {
+        break;
+      }
+      if (attempt == 2) break;
+      await WidgetsBinding.instance.endOfFrame;
+      if (!mounted) return;
+      final refreshed = _messageKeys[messageId]?.currentContext;
+      if (refreshed == null || !refreshed.mounted) break;
+      targetContext = refreshed;
+    }
+
     setState(() => _highlightedMessageId = messageId);
     Future.delayed(const Duration(milliseconds: 1200), () {
       if (!mounted) return;
       setState(() => _highlightedMessageId = null);
     });
+  }
+
+  /// [targetContext]のRenderBoxが、[scrollable]のビューポート範囲内に
+  /// 完全に収まっているかを判定する（[_jumpToMessage]の再試行判定用、
+  /// 2026-08-12追加）。判定できない場合は再試行を無駄に繰り返さないよう
+  /// trueを返す。
+  bool _isFullyVisible(BuildContext targetContext, ScrollableState scrollable) {
+    final renderObject = targetContext.findRenderObject();
+    final viewportRenderObject = scrollable.context.findRenderObject();
+    if (renderObject is! RenderBox ||
+        !renderObject.attached ||
+        viewportRenderObject is! RenderBox) {
+      return true;
+    }
+    final topLeft = renderObject.localToGlobal(
+      Offset.zero,
+      ancestor: viewportRenderObject,
+    );
+    final targetRect = topLeft & renderObject.size;
+    final viewportRect = Offset.zero & viewportRenderObject.size;
+    return viewportRect.contains(targetRect.topLeft) &&
+        viewportRect.contains(targetRect.bottomRight);
   }
 
   void _startReply(Message message) {
@@ -471,6 +615,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   }
 
   void _startEdit(Message message) {
+    // 編集対象メッセージの本文で、この寄合の下書きを上書きしないよう
+    // 書き込みリスナーを止めておく（2026-08-13追加）。
+    _suppressDraftSync = true;
     setState(() {
       _editingMessage = message;
       _replyingTo = null;
@@ -486,6 +633,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       _editingMessage = null;
       if (wasEditing) _textController.clear();
     });
+    if (wasEditing) _suppressDraftSync = false;
   }
 
   void _enterSelectionMode(String messageId) {
@@ -974,12 +1122,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       _textController.clear();
       _composerFocusNode.requestFocus();
       setState(() => _editingMessage = null);
+      _suppressDraftSync = false;
       await widget.onEditMessage?.call(messageId, content);
       return;
     }
 
     final replyTo = _replyingTo;
     _textController.clear();
+    // 送信済みなのでこの寄合の下書きは残さない（デバウンス待ちを挟まず
+    // 即座に消す、2026-08-13追加）。
+    _clearDraftNow();
     // 送信ボタン（`InkWell`）のタップでフォーカスを奪われても、モバイルで
     // ソフトウェアキーボードが閉じないよう、送信直後にテキスト欄へ
     // フォーカスを戻す（2026-08-12、送信ボタン側のcanRequestFocus:false
@@ -1178,6 +1330,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
 
   @override
   void dispose() {
+    _draftSaveTimer?.cancel();
+    _textController.removeListener(_onComposerTextChanged);
     _textController.dispose();
     _composerFocusNode.dispose();
     _scrollController.dispose();
@@ -1236,7 +1390,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         // 寄合名（widget.title）は、広い画面ではRoomListPaneのタブ、狭い
         // 画面ではRoomTabBarに既に表示されており冗長なため、劇画スタイル
         // では非表示にする（2026-08-04追加。選択モード中の「n件選択中」
-        // 表示は別物なので維持する。シンプルスタイルは現状通り表示）。
+        // 表示は別物なので維持する。フラットスタイルは現状通り表示）。
         title: _selecting
             ? Text(strings.chatSelectionModeTitle(_selectedMessageIds.length))
             : _screenshotSelecting
@@ -1484,18 +1638,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                 widget.onDeclineAccountDeletionNotice,
                             onDeleteAfterAccountDeletion:
                                 widget.onDeleteAfterAccountDeletion,
-                            onAutoScrollStart:
-                                (_selecting || _screenshotSelecting)
-                                ? null
-                                : _startAutoScroll,
-                            onAutoScrollUpdate:
-                                (_selecting || _screenshotSelecting)
-                                ? null
-                                : _updateAutoScrollPosition,
-                            onAutoScrollEnd:
-                                (_selecting || _screenshotSelecting)
-                                ? null
-                                : _stopAutoScroll,
                             onSwipeBack: widget.onSwipeBack,
                           ),
                         );
@@ -1973,7 +2115,7 @@ class _MessageRow extends ConsumerWidget {
     required this.timeLabel,
     required this.colorScheme,
     required this.floatingShadow,
-    this.uiStyle = AppUiStyle.simple,
+    this.uiStyle = AppUiStyle.flat,
     required this.readReceiptsEnabled,
     required this.layoutStyle,
     required this.isDm,
@@ -2003,9 +2145,6 @@ class _MessageRow extends ConsumerWidget {
     this.timeFormat = MessageTimeFormat.h24,
     this.onDeclineAccountDeletionNotice,
     this.onDeleteAfterAccountDeletion,
-    this.onAutoScrollStart,
-    this.onAutoScrollUpdate,
-    this.onAutoScrollEnd,
     this.onSwipeBack,
     super.key,
   });
@@ -2109,12 +2248,6 @@ class _MessageRow extends ConsumerWidget {
   /// contentType='accountDeleted'通知への「はい」（確認ダイアログの上で
   /// 呼ばれる）。DMのみ渡される。
   final Future<void> Function()? onDeleteAfterAccountDeletion;
-
-  /// 吹き出し横の余白（[_MessageInteractions]参照）を長押しすると、
-  /// ミドルクリックと同じ自動スクロールを開始する（2026-07-29追加）。
-  final ValueChanged<Offset>? onAutoScrollStart;
-  final ValueChanged<Offset>? onAutoScrollUpdate;
-  final VoidCallback? onAutoScrollEnd;
 
   /// 縦表示で、吹き出しの上を右スワイプした時に会話一覧へ戻る処理
   /// ([ChatScreen.onSwipeBack]参照)。右寄せ表示（自分のメッセージ・
@@ -2400,7 +2533,7 @@ class _MessageRow extends ConsumerWidget {
           ? messageSnippetOf(target.content)
           : (message.replyToSnippet ?? '');
       if (replySenderId != null) {
-        replyPreview = Container(
+        final quoteBox = Container(
           margin: const EdgeInsets.only(bottom: 6),
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
           decoration: BoxDecoration(
@@ -2425,6 +2558,22 @@ class _MessageRow extends ConsumerWidget {
             ],
           ),
         );
+        // 返信先へのジャンプは、この引用プレビュー自体にだけタップを
+        // 割り当てる（2026-08-12変更）。以前は吹き出し全体
+        // （_MessageBubbleTapArea）にタップを割り当てていたが、画像/動画
+        // 本体（タップでフルスクリーン表示）やURLリンク（LinkifiedTextの
+        // TapGestureRecognizer）と吹き出し内でジェスチャーの取り合いになり、
+        // 最も内側の認識者が優先されるFlutterの仕様上、ジャンプが発火しない
+        // ことがあった（タップ位置次第で結果が変わって見えていた不具合の
+        // 主因）。
+        final targetId = message.replyToMessageId;
+        replyPreview = (targetId != null && onJumpToReply != null)
+            ? InkWell(
+                onTap: () => onJumpToReply!(targetId),
+                borderRadius: BorderRadius.circular(8),
+                child: quoteBox,
+              )
+            : quoteBox;
       }
     }
 
@@ -2451,7 +2600,7 @@ class _MessageRow extends ConsumerWidget {
         if (isCallSummary)
           _callSummaryContent(onBubbleColor)
         else if (isAccountDeletedNotice)
-          _accountDeletedContent(context, ref, strings, onBubbleColor)
+          _accountDeletedContent(context, ref, strings, onBubbleColor, isGekiga)
         else if (isAttachment)
           _attachmentContent(context, onBubbleColor, isGekiga)
         else if (isSticker)
@@ -2564,11 +2713,6 @@ class _MessageRow extends ConsumerWidget {
       child: badgeContent,
     );
 
-    final replyTargetId = message.replyToMessageId;
-    final onBubbleTap = (replyTargetId != null && onJumpToReply != null)
-        ? () => onJumpToReply!(replyTargetId)
-        : null;
-
     final readBadge = showReadMark
         ? (isSimpleDmReadMark
               ? badge
@@ -2646,7 +2790,6 @@ class _MessageRow extends ConsumerWidget {
                   : _MessageBubbleTapArea(
                       canSelect: canSelect,
                       strings: strings,
-                      onTap: onBubbleTap,
                       onReply: () => onReply?.call(message),
                       onEdit: canEdit ? () => onEdit?.call(message) : null,
                       onUnsend: (isMe && onUnsend != null)
@@ -2836,9 +2979,6 @@ class _MessageRow extends ConsumerWidget {
         canEdit: canEdit,
         onReply: () => onReply?.call(message),
         onEdit: canEdit ? () => onEdit?.call(message) : null,
-        onAutoScrollStart: onAutoScrollStart,
-        onAutoScrollUpdate: onAutoScrollUpdate,
-        onAutoScrollEnd: onAutoScrollEnd,
         onSwipeBack: onSwipeBack,
         alignRight: alignRight,
         child: content,
@@ -2891,16 +3031,6 @@ class _MessageRow extends ConsumerWidget {
     );
   }
 
-  /// 画像・動画のインラインプレビューを、劇画UIなら[_GekigaPhotoMat]、
-  /// そうでなければ`ClipRRect`で囲む共通ラッパー（2026-08-11、動画
-  /// プレビュー追加に伴い画像側の実装から切り出し）。「画像と同様の
-  /// 表示方法」というユーザー要望に沿って、両者で全く同じ関数を使う。
-  Widget _mediaPreviewFrame({required bool isGekiga, required Widget child}) {
-    return isGekiga
-        ? _GekigaPhotoMat(child: child)
-        : ClipRRect(borderRadius: BorderRadius.circular(8), child: child);
-  }
-
   /// contentType='file'|'image'|'video'（添付メッセージ）の表示
   /// （技術仕様書5.2・5.6・5.8参照、2026-08-10追加、2026-08-11に動画の
   /// アプリ内再生を追加）。画像・動画はサムネイル/プレースホルダーを直接
@@ -2948,7 +3078,7 @@ class _MessageRow extends ConsumerWidget {
             builder: (_) => _ImageViewerScreen(url: metadata.url),
           ),
         ),
-        child: _mediaPreviewFrame(isGekiga: isGekiga, child: image),
+        child: mediaPreviewFrame(isGekiga: isGekiga, child: image),
       );
     }
 
@@ -2969,7 +3099,7 @@ class _MessageRow extends ConsumerWidget {
                 Uri.parse(metadata.url),
                 mode: LaunchMode.externalApplication,
               ),
-        child: _mediaPreviewFrame(
+        child: mediaPreviewFrame(
           isGekiga: isGekiga,
           child: _VideoThumbnail(
             url: metadata.url,
@@ -3007,6 +3137,7 @@ class _MessageRow extends ConsumerWidget {
     WidgetRef ref,
     Strings strings,
     Color onBubbleColor,
+    bool isGekiga,
   ) {
     final label = message.senderRhingId != null
         ? '@${message.senderRhingId}'
@@ -3040,9 +3171,20 @@ class _MessageRow extends ConsumerWidget {
                 child: Text(strings.chatAccountDeletedNoButton),
               ),
               FilledButton(
-                style: FilledButton.styleFrom(
-                  backgroundColor: Theme.of(context).colorScheme.error,
-                ),
+                // colorScheme.errorはダークテーマ下ではMaterial3の仕様上
+                // 明るめのサーモンピンクに近い色になり、白文字が読みにくく
+                // なるため使わない（CLAUDE.mdのボタン配色ルール参照、
+                // 2026-08-12）。
+                style: isGekiga
+                    ? FilledButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: Colors.black,
+                        side: const BorderSide(color: Colors.black, width: 2),
+                      )
+                    : FilledButton.styleFrom(
+                        backgroundColor: Colors.red.shade700,
+                        foregroundColor: Colors.white,
+                      ),
                 onPressed: () => _confirmDeleteConversation(context, strings),
                 child: Text(strings.chatAccountDeletedYesButton),
               ),
@@ -3067,8 +3209,13 @@ class _MessageRow extends ConsumerWidget {
             child: Text(strings.cancel),
           ),
           FilledButton(
+            // group_delete_dialog.dart等、他の削除確認ダイアログと同じ
+            // 固定の濃い赤に揃える（colorScheme.errorはダークテーマ下では
+            // 明るいサーモンピンクになり白文字が読みにくいため使わない、
+            // CLAUDE.mdのボタン配色ルール参照、2026-08-12）。
             style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(context).colorScheme.error,
+              backgroundColor: Colors.red.shade700,
+              foregroundColor: Colors.white,
             ),
             onPressed: () => Navigator.of(context).pop(true),
             child: Text(strings.chatAccountDeletedConfirmButton),
@@ -3301,7 +3448,6 @@ class _MessageBubbleTapArea extends StatefulWidget {
     this.onPartialCopySelect,
     this.onSelect,
     this.onScreenshotSelect,
-    this.onTap,
   });
 
   final Widget child;
@@ -3328,9 +3474,6 @@ class _MessageBubbleTapArea extends StatefulWidget {
   /// スクリーンショット用の範囲選択モードに入る（[onSelect]とは別モード、
   /// 2026-08-09追加）。
   final VoidCallback? onScreenshotSelect;
-
-  /// 返信先ジャンプ用のタップ。nullなら通常通りタップでは何も起きない。
-  final VoidCallback? onTap;
 
   @override
   State<_MessageBubbleTapArea> createState() => _MessageBubbleTapAreaState();
@@ -3549,7 +3692,6 @@ class _MessageBubbleTapAreaState extends State<_MessageBubbleTapArea> {
   Widget build(BuildContext context) {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: widget.onTap,
       onLongPressStart: (details) => _onLongPressStart(context, details),
       onLongPressMoveUpdate: _onLongPressMoveUpdate,
       onLongPressEnd: (details) => _onLongPressEnd(context, details),
@@ -3561,21 +3703,18 @@ class _MessageBubbleTapAreaState extends State<_MessageBubbleTapArea> {
   }
 }
 
-/// 左スワイプ（軽く=返信、最後まで=編集。編集は[canEdit]がtrueの時のみ）と、
-/// 吹き出し横の余白の長押し/ミドルクリックによる自動スクロール開始を扱う。
-/// メニューを開く長押し/右クリックは吹き出し本体（[_MessageBubbleTapArea]）
-/// 側に分離済みのため、ここでの長押しは自動スクロール専用になる
-/// （2026-07-29変更）。選択モード中（[ChatScreen]の範囲選択削除）は使わない
-/// （_MessageRow.build参照）。
+/// 左スワイプ（軽く=返信、最後まで=編集。編集は[canEdit]がtrueの時のみ）を
+/// 扱う。メニューを開く長押し/右クリックは吹き出し本体
+/// （[_MessageBubbleTapArea]）側に分離済み（2026-07-29変更）。吹き出し横の
+/// 余白の長押しによる自動スクロールは2026-08-12に廃止した（ミドルクリックに
+/// よる自動スクロールは`_ChatScreenState._handleMiddlePointerDown`に残っている）。
+/// 選択モード中（[ChatScreen]の範囲選択削除）は使わない（_MessageRow.build参照）。
 class _MessageInteractions extends StatefulWidget {
   const _MessageInteractions({
     required this.child,
     required this.canEdit,
     required this.onReply,
     this.onEdit,
-    this.onAutoScrollStart,
-    this.onAutoScrollUpdate,
-    this.onAutoScrollEnd,
     this.onSwipeBack,
     this.alignRight = false,
   });
@@ -3584,10 +3723,6 @@ class _MessageInteractions extends StatefulWidget {
   final bool canEdit;
   final VoidCallback onReply;
   final VoidCallback? onEdit;
-
-  final ValueChanged<Offset>? onAutoScrollStart;
-  final ValueChanged<Offset>? onAutoScrollUpdate;
-  final VoidCallback? onAutoScrollEnd;
 
   /// 縦表示で、吹き出しの上を右スワイプした時に会話一覧へ戻る処理
   /// （[ChatScreen.onSwipeBack]参照、2026-08-06追加）。
@@ -3644,12 +3779,6 @@ class _MessageInteractionsState extends State<_MessageInteractions> {
       behavior: HitTestBehavior.opaque,
       onHorizontalDragUpdate: _onDragUpdate,
       onHorizontalDragEnd: _onDragEnd,
-      onLongPressStart: (details) =>
-          widget.onAutoScrollStart?.call(details.globalPosition),
-      onLongPressMoveUpdate: (details) =>
-          widget.onAutoScrollUpdate?.call(details.globalPosition),
-      onLongPressEnd: (_) => widget.onAutoScrollEnd?.call(),
-      onLongPressCancel: widget.onAutoScrollEnd,
       child: Stack(
         children: [
           if (_dragExtent < 0)
@@ -3735,7 +3864,7 @@ class _SenderAvatar extends ConsumerWidget {
     required this.userId,
     required this.rhingId,
     this.conversationId,
-    this.uiStyle = AppUiStyle.simple,
+    this.uiStyle = AppUiStyle.flat,
   });
 
   final String userId;
@@ -4227,7 +4356,7 @@ class _FileAttachmentBlockState extends State<_FileAttachmentBlock>
 
   /// ホバー/常時表示のダウンロードボタン。半透明の黒地＋白アイコンという
   /// 固定配色にすることで、乗っている吹き出し・カードの色（明るい/暗い
-  /// どちらでも、シンプル/劇画どちらでも）に関わらず視認できるようにする。
+  /// どちらでも、フラット/劇画どちらでも）に関わらず視認できるようにする。
   /// [filled]をfalseにすると、この黒丸の背景無しでアイコンだけを描く
   /// （Markdownカードのfooterはカード自体が既に配色済みで、周りに紛れる
   /// 心配が無いため、コピーアイコンと揃えて丸背景無しにする、2026-08-12
@@ -4588,54 +4717,6 @@ class _GekigaBubblePainter extends CustomPainter {
       oldDelegate.seed != seed ||
       oldDelegate.isMe != isMe ||
       oldDelegate.alignRight != alignRight;
-}
-
-/// 劇画UIで送信・受信した写真メッセージを縁取る白いマット
-/// （2026-08-10追加）。シンプルUIの`ClipRRect`丸角マット（URLプレビュー
-/// サムネイル`_gekigaThumbnail`）とは違い、劇画UIらしく直線のみの面取り
-/// （角カット、[cutCorners]参照）にする。当初[monochromeBoxVertices]
-/// （送信者アイコン枠[GekigaPhotoFrame]が使う不規則四角形）を流用したが、
-/// あの形状は右辺・下辺が最大10〜15%内側に大きく凹む設計（小さい正方形の
-/// アイコン用に調整されたもの）で、矩形いっぱいの写真マットに使うと右・下
-/// 方向に写真がマットからはみ出す不具合になった（2026-08-11発覚）。矩形の
-/// 4頂点に[cutCorners]で角カットを適用するだけの形にすることで、辺の
-/// 中央部分は必ず矩形の端まで届き（`padding`＝[_matWidth]を写真側に
-/// 確保していれば、角の切り欠き部分も含めどこにも写真がマットの外へ出ない）、
-/// かつ直線のみのカクカクした劇画UIらしい見た目になる。写真本体は矩形の
-/// まま、マットの縁だけが角カットされた形になる。
-class _GekigaPhotoMat extends StatelessWidget {
-  const _GekigaPhotoMat({required this.child});
-
-  final Widget child;
-
-  static const _matWidth = 10.0;
-
-  @override
-  Widget build(BuildContext context) {
-    return CustomPaint(
-      painter: const _GekigaPhotoMatPainter(),
-      child: Padding(padding: const EdgeInsets.all(_matWidth), child: child),
-    );
-  }
-}
-
-class _GekigaPhotoMatPainter extends CustomPainter {
-  const _GekigaPhotoMatPainter();
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final rect = [
-      Offset.zero,
-      Offset(size.width, 0),
-      Offset(size.width, size.height),
-      Offset(0, size.height),
-    ];
-    final vertices = cutCorners(rect, _GekigaPhotoMat._matWidth * 0.8);
-    canvas.drawPath(pathFromPoints(vertices), Paint()..color = Colors.white);
-  }
-
-  @override
-  bool shouldRepaint(covariant _GekigaPhotoMatPainter oldDelegate) => false;
 }
 
 /// 劇画スタイルの入力欄の外枠。自分のメッセージ吹き出し（[_GekigaBubble]、

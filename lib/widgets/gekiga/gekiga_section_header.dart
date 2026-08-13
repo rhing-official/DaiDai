@@ -6,7 +6,7 @@ import '../../providers/app_ui_style_provider.dart';
 import 'gekiga_label_chip.dart';
 
 /// セクションの見出し。劇画スタイル時は黒地白文字の[GekigaLabelChip]、
-/// シンプルスタイル時は太字テキストにする（2026-08-05新規。元は
+/// フラットスタイル時は太字テキストにする（2026-08-05新規。元は
 /// `settings_tab.dart`の`_SectionHeader`が個別に持っていたロジックだが、
 /// `profile_tab.dart`の蔵・工房の見出し（アイコン・背景画像・呼び名・
 /// 一言・SNSのURL・会話ごとのプロフィールカード）にも同じ見た目を適用する

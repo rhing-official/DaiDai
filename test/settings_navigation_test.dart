@@ -9,10 +9,13 @@ import 'package:daidai/providers/accent_color_provider.dart';
 import 'package:daidai/providers/app_locale_provider.dart';
 import 'package:daidai/providers/app_ui_style_provider.dart';
 import 'package:daidai/providers/chat_layout_style_provider.dart';
+import 'package:daidai/providers/draft_sync_enabled_provider.dart';
 import 'package:daidai/providers/gekiga_background_color_provider.dart';
 import 'package:daidai/models/send_key_mode.dart';
+import 'package:daidai/models/sticker_send_mode.dart';
 import 'package:daidai/providers/message_time_format_provider.dart';
 import 'package:daidai/providers/send_key_mode_provider.dart';
+import 'package:daidai/providers/sticker_send_mode_provider.dart';
 import 'package:daidai/providers/terminology_style_provider.dart';
 import 'package:daidai/providers/theme_mode_provider.dart';
 import 'package:daidai/widgets/swipe_gestures.dart';
@@ -49,6 +52,8 @@ Future<void> _pumpSettingsTab(WidgetTester tester) async {
           const Color(0xFFC1272D),
         ),
         initialSendKeyModeProvider.overrideWithValue(SendKeyMode.enterToSend),
+        initialStickerSendModeProvider.overrideWithValue(StickerSendMode.line),
+        initialDraftSyncEnabledProvider.overrideWithValue(true),
         initialMessageTimeFormatProvider.overrideWithValue(
           MessageTimeFormat.h24,
         ),
@@ -56,7 +61,7 @@ Future<void> _pumpSettingsTab(WidgetTester tester) async {
           ChatLayoutStyle.sideBySide,
         ),
         initialAppThemeModeProvider.overrideWithValue(ThemeMode.system),
-        initialAppUiStyleProvider.overrideWithValue(AppUiStyle.simple),
+        initialAppUiStyleProvider.overrideWithValue(AppUiStyle.flat),
       ],
       child: const MaterialApp(
         home: Scaffold(
@@ -91,6 +96,8 @@ Future<void> _pumpSettingsTabNarrow(WidgetTester tester) async {
           const Color(0xFFC1272D),
         ),
         initialSendKeyModeProvider.overrideWithValue(SendKeyMode.enterToSend),
+        initialStickerSendModeProvider.overrideWithValue(StickerSendMode.line),
+        initialDraftSyncEnabledProvider.overrideWithValue(true),
         initialMessageTimeFormatProvider.overrideWithValue(
           MessageTimeFormat.h24,
         ),
@@ -98,7 +105,7 @@ Future<void> _pumpSettingsTabNarrow(WidgetTester tester) async {
           ChatLayoutStyle.sideBySide,
         ),
         initialAppThemeModeProvider.overrideWithValue(ThemeMode.system),
-        initialAppUiStyleProvider.overrideWithValue(AppUiStyle.simple),
+        initialAppUiStyleProvider.overrideWithValue(AppUiStyle.flat),
       ],
       child: const MaterialApp(
         home: Scaffold(

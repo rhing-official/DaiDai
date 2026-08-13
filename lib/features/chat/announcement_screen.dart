@@ -79,7 +79,7 @@ class AnnouncementScreen extends ConsumerWidget {
 
 /// 質問フォームへの導線ブロック（2026-08-12、旧: AppBarの小さいアイコン
 /// ボタンから、右寄せのタップ可能なブロックへ変更）。現在のUIスタイル
-/// （劇画/シンプル）の配色に合わせて分岐する。
+/// （劇画/フラット）の配色に合わせて分岐する。
 class _ContactFormBanner extends ConsumerWidget {
   const _ContactFormBanner();
 
@@ -101,7 +101,7 @@ class _ContactFormBanner extends ConsumerWidget {
               ),
             ],
           )
-        : _SimpleContactFormButton(label: label);
+        : _FlatContactFormButton(label: label);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Align(alignment: Alignment.centerRight, child: button),
@@ -109,8 +109,8 @@ class _ContactFormBanner extends ConsumerWidget {
   }
 }
 
-class _SimpleContactFormButton extends StatelessWidget {
-  const _SimpleContactFormButton({required this.label});
+class _FlatContactFormButton extends StatelessWidget {
+  const _FlatContactFormButton({required this.label});
 
   final String label;
 

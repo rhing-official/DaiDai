@@ -100,8 +100,10 @@ class RoomListPane extends ConsumerWidget {
       }
 
       return ListTile(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         selected: isSelected,
-        selectedTileColor: colorScheme.primaryContainer.withValues(alpha: 0.3),
+        selectedTileColor: colorScheme.primary,
+        selectedColor: colorScheme.onPrimary,
         leading: const Icon(Icons.tag),
         title: Text(
           truncateName(room.name, 6),
@@ -185,6 +187,12 @@ class RoomListPane extends ConsumerWidget {
                     ),
                   )
                 : ListView(
+                    // 選択中タイルの塗り潰し（selectedTileColor）が、左右は
+                    // カラム間のVerticalDividerに（2026-08-12追加）、上は
+                    // ヘッダー直下のDividerに（同日追加）接して重なって
+                    // 見えないよう余白を持たせる。上余白12pxは劇画UI分岐
+                    // （上の`SingleChildScrollView`、2026-08-04追加）と揃えた。
+                    padding: const EdgeInsets.fromLTRB(8, 12, 8, 0),
                     children: [for (final room in rooms) buildRoomTile(room)],
                   ),
           ),

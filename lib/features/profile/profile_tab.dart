@@ -815,13 +815,20 @@ class _ProfileCategoryTile extends ConsumerWidget {
       );
     }
 
-    return Card(
-      margin: const EdgeInsets.symmetric(vertical: 6),
-      color: selected ? colorScheme.primary.withValues(alpha: 0.1) : null,
+    final foreground = selected
+        ? colorScheme.onPrimary
+        : colorScheme.onSurfaceVariant;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
       child: ListTile(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        tileColor: colorScheme.surface,
+        selectedTileColor: colorScheme.primary,
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         selected: selected,
-        selectedColor: colorScheme.primary,
+        selectedColor: colorScheme.onPrimary,
+        iconColor: foreground,
+        textColor: foreground,
         leading: Icon(icon),
         title: Text(title),
         onTap: onTap,

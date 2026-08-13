@@ -64,6 +64,9 @@ class _GroupDeleteDialogState extends ConsumerState<GroupDeleteDialog> {
     final strings = ref.watch(appStringsProvider);
 
     return AlertDialog(
+      // 横幅いっぱいに広がって縦に詰まって見えないよう幅を制限する
+      // （2026-08-12、横幅を縮め縦幅を確保するようユーザー指摘）。
+      constraints: const BoxConstraints(maxWidth: 400),
       title: Text(strings.groupDeleteConfirmTitle),
       content: Column(
         mainAxisSize: MainAxisSize.min,
@@ -83,8 +86,12 @@ class _GroupDeleteDialogState extends ConsumerState<GroupDeleteDialog> {
         ),
         FilledButton(
           onPressed: _deleting ? null : _delete,
+          // colorScheme.errorはダークテーマ下ではMaterial3の仕様上
+          // 明るめのサーモンピンクに近い色になり「濃い赤」に見えなかった
+          // ため、固定の濃い赤に変更する（2026-08-12）。
           style: FilledButton.styleFrom(
-            backgroundColor: Theme.of(context).colorScheme.error,
+            backgroundColor: Colors.red.shade700,
+            foregroundColor: Colors.white,
           ),
           child: _deleting
               ? const SizedBox(

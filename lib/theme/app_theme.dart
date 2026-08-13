@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'app_theme_extras.dart';
 import 'motion.dart';
 
-/// シンプルUI用のThemeDataを組み立てる。
+/// フラットUI用のThemeDataを組み立てる。
 /// アクセントカラーはユーザーがカラーコードで指定でき、そこから
 /// Material3のカラースキーム全体を導出する。ライト/ダーク共通のロジックは
 /// [_build]にまとめ、[light]/[dark]はbrightness違いの薄いラッパーにしている。
@@ -82,6 +82,8 @@ class AppTheme {
         backgroundColor: backgroundColor,
         foregroundColor: colorScheme.onSurface,
         elevation: 0,
+        surfaceTintColor: Colors.transparent,
+        scrolledUnderElevation: 0,
         centerTitle: false,
       ),
       cardTheme: CardThemeData(

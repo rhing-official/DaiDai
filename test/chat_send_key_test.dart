@@ -42,7 +42,7 @@ Future<void> _pumpChatScreen(
         initialChatLayoutStyleProvider.overrideWithValue(
           ChatLayoutStyle.sideBySide,
         ),
-        initialAppUiStyleProvider.overrideWithValue(AppUiStyle.simple),
+        initialAppUiStyleProvider.overrideWithValue(AppUiStyle.flat),
       ],
       child: MaterialApp(
         home: ChatScreen(

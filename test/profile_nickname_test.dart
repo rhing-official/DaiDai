@@ -172,7 +172,7 @@ void main() {
         overrides: [
           userRepositoryProvider.overrideWithValue(fakeRepo),
           initialAppLocaleProvider.overrideWithValue(AppLocale.japanese),
-          initialAppUiStyleProvider.overrideWithValue(AppUiStyle.simple),
+          initialAppUiStyleProvider.overrideWithValue(AppUiStyle.flat),
           initialTerminologyStyleProvider.overrideWithValue(
             TerminologyStyle.worldview,
           ),
@@ -204,7 +204,7 @@ void main() {
         overrides: [
           userRepositoryProvider.overrideWithValue(fakeRepo),
           initialAppLocaleProvider.overrideWithValue(AppLocale.japanese),
-          initialAppUiStyleProvider.overrideWithValue(AppUiStyle.simple),
+          initialAppUiStyleProvider.overrideWithValue(AppUiStyle.flat),
           initialTerminologyStyleProvider.overrideWithValue(
             TerminologyStyle.worldview,
           ),

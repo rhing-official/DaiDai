@@ -27,6 +27,16 @@ abstract class ConversationPrefsRepository {
     required String roomId,
     required bool muted,
   });
+
+  /// 寄合単位のメッセージ入力欄の下書きを保存する（複数端末同期、
+  /// 2026-08-13追加）。[draft]が空文字列ならそのキー自体を削除する
+  /// （下書きが空になったら残さない）。
+  Future<void> setDraft({
+    required String userId,
+    required String conversationId,
+    required String roomId,
+    required String draft,
+  });
 }
 
 class FirestoreConversationPrefsRepository
@@ -83,6 +93,18 @@ class FirestoreConversationPrefsRepository
   }) async {
     await _prefsOf(userId).doc(conversationId).set({
       'roomNotificationOverrides': {roomId: muted},
+    }, SetOptions(merge: true));
+  }
+
+  @override
+  Future<void> setDraft({
+    required String userId,
+    required String conversationId,
+    required String roomId,
+    required String draft,
+  }) async {
+    await _prefsOf(userId).doc(conversationId).set({
+      'draftByRoom.$roomId': draft.isEmpty ? FieldValue.delete() : draft,
     }, SetOptions(merge: true));
   }
 }

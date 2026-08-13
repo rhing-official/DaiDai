@@ -5,7 +5,7 @@ import '../app_theme.dart';
 import '../app_theme_extras.dart';
 import 'gekiga_colors.dart';
 
-/// 劇画UIスタイル用のThemeData。simpleスタイル（[AppTheme]）のように
+/// 劇画UIスタイル用のThemeData。flatスタイル（[AppTheme]）のように
 /// アクセントカラーをColorScheme全体の種にはせず、背景色だけを
 /// 呼び出し元から受け取る（それ以外＝黒・白のモノクロ部分は完全固定、
 /// 2026-08-04変更。以前はFABなど一部にアクセントカラーを残す方針
