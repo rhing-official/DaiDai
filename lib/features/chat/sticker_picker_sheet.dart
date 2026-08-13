@@ -12,7 +12,10 @@ import 'sticker_picker_content.dart';
 /// `showModalBottomSheet`の戻り値として受け取る）。見出しテキストは
 /// 表示しない（2026-08-12、ミニマルな見た目を目指す方針）。
 class StickerPickerSheet extends StatelessWidget {
-  const StickerPickerSheet({super.key});
+  const StickerPickerSheet({this.initialPackId, super.key});
+
+  /// 指定時はこのパックに絞り込んだ状態で開く（[StickerPickerContent]参照）。
+  final String? initialPackId;
 
   @override
   Widget build(BuildContext context) {
@@ -21,6 +24,7 @@ class StickerPickerSheet extends StatelessWidget {
         height: 420,
         child: StickerPickerContent(
           railAxis: Axis.horizontal,
+          initialPackId: initialPackId,
           onStickerSelected: (sticker) => Navigator.of(context).pop(sticker),
         ),
       ),

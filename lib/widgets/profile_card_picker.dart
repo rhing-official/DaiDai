@@ -1,13 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../l10n/strings.dart';
+import '../models/app_ui_style.dart';
 import '../models/profile_card.dart';
+import '../providers/app_ui_style_provider.dart';
+import 'gekiga/gekiga_panel_box.dart';
 
-/// 会話（一対・広場）ごとに使うプロフィールカードを選ぶ軽量ピッカー。
-/// 「標準」＋[cards]の各カード名を[ChoiceChip]で並べる。広場参加・
-/// 友達申請3系統・全体設定（設定タブ＞語らい）の計5箇所で使い回す
+/// 会話（一対・広場）ごとに使うプロフィールカードを選ぶ単一選択ピッカー。
+/// 「標準」＋[cards]の各カード名を並べる。広場参加・友達申請3系統・
+/// 全体設定（設定タブ＞語らい）の計5箇所で使い回す
 /// （`AppUser.conversationProfileCardId`、2026-07-29追加）。
-class ProfileCardPicker extends StatelessWidget {
+/// 見た目はアプリの他の単一選択UI（`settings_tab.dart`の
+/// `RadioGroup`+`RadioListTile`、劇画UI時は`GekigaJointedTileList`+
+/// `GekigaTileContent`）に揃える（2026-08-14、以前は`ChoiceChip`＋`Wrap`
+/// だったが見た目が浮いていたため変更）。
+class ProfileCardPicker extends ConsumerWidget {
   const ProfileCardPicker({
     required this.strings,
     required this.cards,
@@ -36,28 +44,49 @@ class ProfileCardPicker extends StatelessWidget {
   final String? activeCardName;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
     final name = activeCardName;
-    return Wrap(
-      spacing: 8,
-      runSpacing: 4,
-      children: [
-        ChoiceChip(
-          label: Text(
-            name != null
-                ? strings.profileCardPickerStandardOptionWithName(name)
-                : strings.profileCardPickerStandardOption,
-          ),
-          selected: selectedCardId == null,
-          onSelected: (_) => onSelected(null),
-        ),
-        for (final card in cards)
-          ChoiceChip(
-            label: Text(card.name),
-            selected: selectedCardId == card.id,
-            onSelected: (_) => onSelected(card.id),
-          ),
-      ],
+    final standardLabel = name != null
+        ? strings.profileCardPickerStandardOptionWithName(name)
+        : strings.profileCardPickerStandardOption;
+
+    final options = <({String? id, String label})>[
+      (id: null, label: standardLabel),
+      for (final card in cards) (id: card.id, label: card.name),
+    ];
+
+    if (isGekiga) {
+      return GekigaJointedTileList(
+        seeds: [for (final option in options) option.label.hashCode],
+        selectedFlags: [
+          for (final option in options) option.id == selectedCardId,
+        ],
+        children: [
+          for (final option in options)
+            GekigaTileContent(
+              selected: option.id == selectedCardId,
+              leading: Icon(
+                option.id == selectedCardId
+                    ? Icons.radio_button_checked
+                    : Icons.radio_button_unchecked,
+              ),
+              title: Text(option.label),
+              onTap: () => onSelected(option.id),
+            ),
+        ],
+      );
+    }
+
+    return RadioGroup<String?>(
+      groupValue: selectedCardId,
+      onChanged: onSelected,
+      child: Column(
+        children: [
+          for (final option in options)
+            RadioListTile<String?>(value: option.id, title: Text(option.label)),
+        ],
+      ),
     );
   }
 }

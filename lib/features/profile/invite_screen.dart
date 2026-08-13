@@ -196,22 +196,28 @@ class _InviteConfirmViewState extends ConsumerState<_InviteConfirmView> {
             ),
             const SizedBox(height: 16),
             Row(
-              mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 TextButton(
                   onPressed: _isSending ? null : () => context.go('/'),
                   child: Text(strings.cancel),
                 ),
                 const SizedBox(width: 8),
-                ElevatedButton(
-                  onPressed: _isSending ? null : _sendRequest,
-                  child: _isSending
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : Text(strings.inviteScreenSendButton),
+                // テーマの`ElevatedButtonThemeData.minimumSize`が横幅
+                // `double.infinity`のため、`Row`直下に裸で置くと横幅の
+                // 制約が衝突してレイアウトが破綻する（背景色に紛れて
+                // ボタンが見えなくなる不具合の原因、2026-08-14修正）。
+                // `Expanded`で有限の幅に収める。
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: _isSending ? null : _sendRequest,
+                    child: _isSending
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : Text(strings.inviteScreenSendButton),
+                  ),
                 ),
               ],
             ),

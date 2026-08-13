@@ -1,6 +1,5 @@
 import 'package:daidai/features/settings/settings_tab.dart';
 import 'package:daidai/l10n/app_locale.dart';
-import 'package:daidai/l10n/terminology_style.dart';
 import 'package:daidai/models/app_ui_style.dart';
 import 'package:daidai/models/app_user.dart';
 import 'package:daidai/models/chat_layout_style.dart';
@@ -16,7 +15,6 @@ import 'package:daidai/models/sticker_send_mode.dart';
 import 'package:daidai/providers/message_time_format_provider.dart';
 import 'package:daidai/providers/send_key_mode_provider.dart';
 import 'package:daidai/providers/sticker_send_mode_provider.dart';
-import 'package:daidai/providers/terminology_style_provider.dart';
 import 'package:daidai/providers/theme_mode_provider.dart';
 import 'package:daidai/widgets/swipe_gestures.dart';
 import 'package:flutter/material.dart';
@@ -44,9 +42,6 @@ Future<void> _pumpSettingsTab(WidgetTester tester) async {
     ProviderScope(
       overrides: [
         initialAppLocaleProvider.overrideWithValue(AppLocale.japanese),
-        initialTerminologyStyleProvider.overrideWithValue(
-          TerminologyStyle.worldview,
-        ),
         initialAccentColorProvider.overrideWithValue(const Color(0xFFF08300)),
         initialGekigaBackgroundColorProvider.overrideWithValue(
           const Color(0xFFC1272D),
@@ -88,9 +83,6 @@ Future<void> _pumpSettingsTabNarrow(WidgetTester tester) async {
     ProviderScope(
       overrides: [
         initialAppLocaleProvider.overrideWithValue(AppLocale.japanese),
-        initialTerminologyStyleProvider.overrideWithValue(
-          TerminologyStyle.worldview,
-        ),
         initialAccentColorProvider.overrideWithValue(const Color(0xFFF08300)),
         initialGekigaBackgroundColorProvider.overrideWithValue(
           const Color(0xFFC1272D),
@@ -165,34 +157,6 @@ void main() {
     expect(find.text('プリセット'), findsOneWidget);
     expect(find.text('文字'), findsOneWidget);
     expect(find.text('表示言語'), findsOneWidget);
-    expect(find.text('世界観重視'), findsOneWidget);
-    expect(find.text('利便性重視'), findsOneWidget);
-  });
-
-  testWidgets('アプリケーションページで用語スタイルを切り替えられる', (tester) async {
-    await _pumpSettingsTab(tester);
-
-    await tester.tap(find.text('アプリケーション'));
-    await tester.pumpAndSettle();
-
-    final container = ProviderScope.containerOf(
-      tester.element(find.text('利便性重視')),
-    );
-    expect(
-      container.read(terminologyStyleProvider),
-      TerminologyStyle.worldview,
-    );
-
-    // ページ全体が縦に長く、タップ対象が初期表示のビューポート外にあることがある。
-    await tester.ensureVisible(find.text('利便性重視'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('利便性重視'));
-    await tester.pumpAndSettle();
-
-    expect(
-      container.read(terminologyStyleProvider),
-      TerminologyStyle.convenience,
-    );
   });
 
   testWidgets('狭い画面のドリルダウン中に左スワイプで次のカテゴリへ切り替え、右スワイプで一覧へ戻る（回帰テスト）', (

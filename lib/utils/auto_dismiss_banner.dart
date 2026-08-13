@@ -27,7 +27,10 @@ void dismissAutoDismissBanner() {
 /// 新しいバナーをわずかに早く消してしまう可能性があるが、エラー表示という
 /// 性質上実害は小さい）。
 ///
-/// [actions]を省略すると、閉じるだけの最小限のアイコンボタン1つになる。
+/// [actions]を省略すると、閉じるボタンは出さず[duration]経過での自動消滅の
+/// みになる（2026-08-14、「×ボタンを出さないでほしい」という指摘を受けて
+/// 既定の閉じるアイコンボタンのフォールバックを廃止）。再送信ボタン等、
+/// 意味のある操作を伴う通知では引き続き[actions]に明示的に渡す。
 Timer showAutoDismissBanner(
   BuildContext context, {
   required String message,
@@ -46,23 +49,16 @@ Timer showAutoDismissBanner(
   }
 
   entry = OverlayEntry(
-    builder: (context) => _FloatingBanner(
-      message: message,
-      actions:
-          actions ??
-          [
-            IconButton(
-              icon: const Icon(Icons.close, size: 20),
-              onPressed: dismiss,
-            ),
-          ],
-    ),
+    builder: (context) =>
+        _FloatingBanner(message: message, actions: actions ?? const []),
   );
   _activeEntry = entry;
   overlay.insert(entry);
   return Timer(duration, dismiss);
 }
 
+/// 中央揃え・テキスト量に応じた可変幅のピル状カード（2026-08-14、画面幅
+/// いっぱいに伸びる横長バーから変更）。
 class _FloatingBanner extends StatelessWidget {
   const _FloatingBanner({required this.message, required this.actions});
 
@@ -79,22 +75,29 @@ class _FloatingBanner extends StatelessWidget {
       child: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(12),
-          child: Material(
-            color: colorScheme.surfaceContainerHigh,
-            elevation: 6,
-            borderRadius: BorderRadius.circular(12),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      message,
-                      style: TextStyle(color: colorScheme.onSurface),
+          child: Center(
+            child: Material(
+              color: colorScheme.surfaceContainerHigh,
+              elevation: 6,
+              borderRadius: BorderRadius.circular(12),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Flexible(
+                      child: Text(
+                        message,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: colorScheme.onSurface),
+                      ),
                     ),
-                  ),
-                  ...actions,
-                ],
+                    ...actions,
+                  ],
+                ),
               ),
             ),
           ),

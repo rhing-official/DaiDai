@@ -101,6 +101,21 @@ service cloud.firestore {
         allow read: if request.auth != null && request.auth.uid == userId;
         allow write: if false;
       }
+
+      // users/{userId}/follows/{creatorId}: daidai横丁でフォローしている
+      // クリエイターの一覧（存在＝フォロー中、2026-08-13追加）。集計値
+      // （フォロワー数等）は持たないシンプルな設計のため、Cloud Functions
+      // を介さずクライアントから本人のみ直接読み書きする。
+      match /follows/{creatorId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // users/{userId}/favoritePacks/{packId}: daidai横丁でお気に入り登録
+      // したパックの一覧（存在＝お気に入り、2026-08-13追加）。followsと同様、
+      // 本人のみ直接読み書き可能。
+      match /favoritePacks/{packId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
     }
 
     // stickerPacks/{packId}: 頒布されているペタピタパッケージのカタログ
@@ -110,6 +125,16 @@ service cloud.firestore {
     // 投入・更新はFirebaseコンソール/Admin SDK・Cloud Functions経由のみで、
     // クライアントからの書き込みは禁止する。
     match /stickerPacks/{packId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // creatorProfiles/{userId}: daidai横丁で出品したことがあるユーザーの
+    // 公開プロフィールミラー（呼び名・アイコン・ステメ・SNSリンクのみ、
+    // 2026-08-13追加）。users/{userId}は未ログイン訪問者が読めないため、
+    // Cloud Functions（syncCreatorProfile/createStickerPack、Admin SDK）が
+    // 必要なフィールドだけを投影する。クライアントからの書き込みは禁止。
+    match /creatorProfiles/{userId} {
       allow read: if true;
       allow write: if false;
     }

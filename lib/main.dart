@@ -17,7 +17,6 @@ import 'providers/gekiga_background_color_provider.dart';
 import 'providers/message_time_format_provider.dart';
 import 'providers/send_key_mode_provider.dart';
 import 'providers/sticker_send_mode_provider.dart';
-import 'providers/terminology_style_provider.dart';
 import 'providers/theme_mode_provider.dart';
 import 'router/app_router.dart';
 import 'theme/app_theme.dart';
@@ -42,7 +41,6 @@ Future<void> main() async {
   final initialSendKeyMode = await loadInitialSendKeyMode();
   final initialStickerSendMode = await loadInitialStickerSendMode();
   final initialDraftSyncEnabled = await loadInitialDraftSyncEnabled();
-  final initialTerminologyStyle = await loadInitialTerminologyStyle();
   final initialMessageTimeFormat = await loadInitialMessageTimeFormat();
   final initialChatLayoutStyle = await loadInitialChatLayoutStyle();
   final initialAppThemeMode = await loadInitialAppThemeMode();
@@ -61,9 +59,6 @@ Future<void> main() async {
         ),
         initialDraftSyncEnabledProvider.overrideWithValue(
           initialDraftSyncEnabled,
-        ),
-        initialTerminologyStyleProvider.overrideWithValue(
-          initialTerminologyStyle,
         ),
         initialMessageTimeFormatProvider.overrideWithValue(
           initialMessageTimeFormat,

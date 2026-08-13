@@ -686,9 +686,37 @@ class _DmMenuButton extends ConsumerWidget {
               }
               return;
             }
-            if (context.mounted && Navigator.of(context).canPop()) {
-              Navigator.of(context).pop();
+            if (!context.mounted) return;
+            if (Navigator.of(context).canPop()) {
+              // 狭い画面（フルスクリーンpush）: 語らい一覧へ戻すのではなく、
+              // 一番上（最古）の寄合を開き直す。最後の1つの寄合は削除
+              // できない仕様のため、削除後リストが空になることはない
+              // （2026-08-13追加）。
+              final remainingRooms = await ref
+                  .read(directMessageRepositoryProvider)
+                  .watchRooms(dmId: dm.dmId, userId: currentUser.userId)
+                  .first;
+              if (!context.mounted) return;
+              if (remainingRooms.isNotEmpty) {
+                final topRoom = remainingRooms.first;
+                ref
+                    .read(goRouterProvider)
+                    .pushReplacement(
+                      '/chat/dm',
+                      extra: DmChatArgs(
+                        currentUser: currentUser,
+                        dm: dm,
+                        roomId: topRoom.roomId,
+                        roomName: topRoom.name,
+                      ),
+                    );
+              } else {
+                Navigator.of(context).pop();
+              }
             }
+          // 広い画面（埋め込みペイン）はcanPop()==falseで元々no-op。
+          // TalksTab側の既存フォールバック（rooms.first）が自動的に
+          // 一番上の寄合を選択するため、追加対応不要。
           case _DmMenuAction.enableMultipleRooms:
             await ref
                 .read(directMessageRepositoryProvider)
@@ -1355,9 +1383,40 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
               }
               return;
             }
-            if (context.mounted && Navigator.of(context).canPop()) {
-              Navigator.of(context).pop();
+            if (!context.mounted) return;
+            if (Navigator.of(context).canPop()) {
+              // 狭い画面（フルスクリーンpush）: 語らい一覧へ戻すのではなく、
+              // 一番上（最古）の寄合を開き直す。最後の1つの寄合は削除
+              // できない仕様のため、削除後リストが空になることはない
+              // （2026-08-13追加）。
+              final remainingRooms = await ref
+                  .read(groupRepositoryProvider)
+                  .watchRooms(
+                    groupId: widget.group.groupId,
+                    userId: widget.currentUser.userId,
+                  )
+                  .first;
+              if (!context.mounted) return;
+              if (remainingRooms.isNotEmpty) {
+                final topRoom = remainingRooms.first;
+                ref
+                    .read(goRouterProvider)
+                    .pushReplacement(
+                      '/chat/group',
+                      extra: GroupChatArgs(
+                        currentUser: widget.currentUser,
+                        group: widget.group,
+                        roomId: topRoom.roomId,
+                        roomName: topRoom.name,
+                      ),
+                    );
+              } else {
+                Navigator.of(context).pop();
+              }
             }
+          // 広い画面（埋め込みペイン）はcanPop()==falseで元々no-op。
+          // TalksTab側の既存フォールバック（rooms.first）が自動的に
+          // 一番上の寄合を選択するため、追加対応不要。
           case _GroupMenuAction.enableMultipleRooms:
             if (!canManageRooms) return;
             await ref

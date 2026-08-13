@@ -40,8 +40,9 @@ const _kProfileSplitBreakpoint = 760.0;
 
 /// サイドバーの幅。
 // 設定・運営タブのサイドバー（`_kSettingsSidebarWidth`/`_kSupportSidebarWidth`）
-// と幅をそろえる（以前は220でわずかにずれていた）。
-const _kProfileSidebarWidth = 240.0;
+// と幅をそろえる（以前は220でわずかにずれていた）。語らい一覧
+// （`talks_tab.dart`）とも揃えるため2026-08-14に240→260→250→260へ変更。
+const _kProfileSidebarWidth = 260.0;
 
 /// ニックネーム・ステメ・プロフィールカードのローカル採番id。
 /// 以前は`Random().nextInt(1 << 32)`だったが、`1 << 32`はDart VM（ウィジェット

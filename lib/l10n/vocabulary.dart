@@ -1,14 +1,14 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/app_locale_provider.dart';
-import '../providers/terminology_style_provider.dart';
 import 'app_locale.dart';
-import 'terminology_style.dart';
 
 /// DaiDai独自の世界観用語（蔵・工房・一対・広場…）の対訳。
-/// `docs/マップ.md`の対訳表（言語×用語スタイルの2軸）をそのまま反映したもので、
-/// [TerminologyStyle]（世界観重視／利便性重視）と[AppLocale]（日本語／English）の
-/// 組み合わせ4通りぶんを保持する。
+/// 以前は[AppLocale]（日本語／English）に加え、利便性重視の言い換え
+/// スタイルとの2軸（4通り）を持っていたが、「言語・用語設定によって
+/// ブロックの大きさが変わり、全画面での対応が困難になった」ため
+/// 2026-08-13に世界観重視の用語へ一本化し、[AppLocale]のみの1軸にした
+/// （`docs/マップ.md`の対訳表のうち世界観重視の列を採用）。
 class Vocabulary {
   const Vocabulary._({
     required this.dm,
@@ -29,55 +29,55 @@ class Vocabulary {
     required this.sticker,
   });
 
-  /// 1対1のチャット（一対／DM／ダイレクト／Private Chat）。
+  /// 1対1のチャット（一対／Private）。
   final String dm;
 
-  /// サーバー全体の場（広場／Server／サーバー／Plaza）。
+  /// サーバー全体の場（広場／Plaza）。
   final String plaza;
 
-  /// 不特定多数のサーバー（表広場／Public Server／公開サーバー／Public Plaza）。
+  /// 不特定多数のサーバー（表広場／Public Plaza）。
   final String publicPlaza;
 
-  /// 友人のみのサーバー（裏広場／Private Server／非公開サーバー／Private Plaza）。
+  /// 友人のみのサーバー（裏広場／Private Plaza）。
   final String privatePlaza;
 
-  /// プロフィールの保存庫（蔵／Material Box／マテリアルボックス／Wardrobe）。
+  /// プロフィールの保存庫（蔵／Wardrobe）。
   final String profileStorage;
 
-  /// 複数プロフィールの作成画面（工房／Profile Card／プロフィール作成／Assembly Studio）。
+  /// 複数プロフィールの作成画面（工房／Assembly Studio）。
   final String profileCreator;
 
-  /// 通常のチャット（寄合／Chat Channel／チャンネル／Text Channel）。
+  /// 通常のチャット（寄合／Text Channel）。
   final String textChannel;
 
-  /// 非公開チャット（密談／Private Channel／非公開チャンネル／Secret Council）。
+  /// 非公開チャット（密談／Secret Council）。
   final String privateChannel;
 
-  /// 通常のカテゴリ（表組／Category／カテゴリ／Public District）。
+  /// 通常のカテゴリ（表組／Public District）。
   final String category;
 
-  /// 非公開カテゴリ（裏組／Private Category／非公開カテゴリ／Private District）。
+  /// 非公開カテゴリ（裏組／Private District）。
   final String privateCategory;
 
-  /// 目的達成・進行型のフォーラム（談論／Project Board／プロジェクトボード／Milestone Board）。
+  /// 目的達成・進行型のフォーラム（談論／Milestone Board）。
   final String projectBoard;
 
-  /// 友達に表示する呼び名（呼び名／ニックネーム、Englishはスタイル問わず共通）。
+  /// 友達に表示する呼び名（呼び名／ニックネーム、Englishは共通でNickname）。
   final String nickname;
 
-  /// ひとことのステータス表示（一言／ステータスメッセージ、Englishはスタイル問わず共通）。
+  /// ひとことのステータス表示（一言／ステータスメッセージ、Englishは共通）。
   final String statusMessage;
 
-  /// 招待リンク・QRコードで仲間を追加する画面（縁結び／フレンド追加）。
+  /// 招待リンク・QRコードで仲間を追加する画面（縁結び／Bond Shrine）。
   final String friendConnect;
 
-  /// 広場の管理者（長／管理者）。
+  /// 広場の管理者（長／Chief）。
   final String owner;
 
-  /// スタンプ機能（ペタピタ／スタンプ、Englishはスタイル問わずSticker）。
+  /// スタンプ機能（ペタピタ／Englishは共通でSticker）。
   final String sticker;
 
-  static const jaWorldview = Vocabulary._(
+  static const japanese = Vocabulary._(
     dm: '一対',
     plaza: '広場',
     publicPlaza: '表広場',
@@ -96,27 +96,8 @@ class Vocabulary {
     sticker: 'ペタピタ',
   );
 
-  static const jaConvenience = Vocabulary._(
-    dm: 'ダイレクト',
-    plaza: 'サーバー',
-    publicPlaza: '公開サーバー',
-    privatePlaza: '非公開サーバー',
-    profileStorage: 'マテリアルボックス',
-    profileCreator: 'プロフィール作成',
-    textChannel: 'チャンネル',
-    privateChannel: '非公開チャンネル',
-    category: 'カテゴリ',
-    privateCategory: '非公開カテゴリ',
-    projectBoard: 'プロジェクトボード',
-    nickname: 'ニックネーム',
-    statusMessage: 'ステータスメッセージ',
-    friendConnect: 'フレンド追加',
-    owner: '管理者',
-    sticker: 'スタンプ',
-  );
-
-  static const enWorldview = Vocabulary._(
-    dm: 'Private Chat',
+  static const english = Vocabulary._(
+    dm: 'Private',
     plaza: 'Plaza',
     publicPlaza: 'Public Plaza',
     privatePlaza: 'Private Plaza',
@@ -134,38 +115,16 @@ class Vocabulary {
     sticker: 'Sticker',
   );
 
-  static const enConvenience = Vocabulary._(
-    dm: 'DM',
-    plaza: 'Server',
-    publicPlaza: 'Public Server',
-    privatePlaza: 'Private Server',
-    profileStorage: 'Material Box',
-    profileCreator: 'Profile Card',
-    textChannel: 'Chat Channel',
-    privateChannel: 'Private Channel',
-    category: 'Category',
-    privateCategory: 'Private Category',
-    projectBoard: 'Project Board',
-    nickname: 'Nickname',
-    statusMessage: 'Status message',
-    friendConnect: 'Add Friends',
-    owner: 'Owner',
-    sticker: 'Sticker',
-  );
-
-  static Vocabulary of(AppLocale locale, TerminologyStyle style) {
-    return switch ((locale, style)) {
-      (AppLocale.japanese, TerminologyStyle.worldview) => jaWorldview,
-      (AppLocale.japanese, TerminologyStyle.convenience) => jaConvenience,
-      (AppLocale.britishEnglish, TerminologyStyle.worldview) => enWorldview,
-      (AppLocale.britishEnglish, TerminologyStyle.convenience) => enConvenience,
+  static Vocabulary of(AppLocale locale) {
+    return switch (locale) {
+      AppLocale.japanese => japanese,
+      AppLocale.britishEnglish => english,
     };
   }
 }
 
-/// 現在の表示言語・用語スタイルに対応するDaiDai語彙。
+/// 現在の表示言語に対応するDaiDai語彙（世界観重視の用語で固定）。
 final vocabularyProvider = Provider<Vocabulary>((ref) {
   final locale = ref.watch(appLocaleProvider);
-  final style = ref.watch(terminologyStyleProvider);
-  return Vocabulary.of(locale, style);
+  return Vocabulary.of(locale);
 });
