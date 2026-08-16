@@ -512,15 +512,27 @@ service cloud.firestore {
       // roles/{roleId}: カスタムロール（名前・色・権限を持つ、2026-07-28更新）。
       // 作成・編集・削除はmanageRoles権限を持つメンバーのみ、閲覧はメンバー全員
       // （呼び名の色付け・権限判定にメンバー全員のクライアントが必要なため）。
-      // 基準ロール（isEveryone）はGroupRepository内部でのみ作成するため、
-      // 通常の作成では常にfalseを強制する。
+      // 基準ロール（isEveryone）の初回作成はオーナーのみ許可する
+      // （GroupRepository.createGroup）。以前は「通常の作成では常にfalseを
+      // 強制し、isEveryoneはGroupRepository内部でのみ作成する」という
+      // コメント付きの制限だったが、Firestoreルールは呼び出し元のコード
+      // パスを区別できないため、この制限は広場作成時の基準ロール作成自体を
+      // 常に拒否してしまう不具合だった（2026-08-13発覚・修正。既存広場は
+      // 一度きりのCloud Function移行＝Admin SDK経由でルールを迂回して
+      // 基準ロールを作成済みだったため、この不具合はこれまで新規広場作成時
+      // にしか顕在化していなかった）。
       match /roles/{roleId} {
         allow read: if request.auth != null
           && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.memberIds;
         allow create: if request.auth != null
-          && hasGroupPermission(groupId, 'manageRoles')
           && request.resource.data.groupId == groupId
-          && request.resource.data.isEveryone == false;
+          && (
+            (hasGroupPermission(groupId, 'manageRoles') && request.resource.data.isEveryone == false)
+            || (
+              request.auth.uid == get(/databases/$(database)/documents/groups/$(groupId)).data.ownerId
+              && request.resource.data.isEveryone == true
+            )
+          );
         allow update: if request.auth != null
           && hasGroupPermission(groupId, 'manageRoles');
         allow delete: if request.auth != null
