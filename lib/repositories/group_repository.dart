@@ -421,10 +421,17 @@ class FirestoreGroupRepository implements GroupRepository {
 
     final invitePreview = GroupInvitePreview(name: name);
 
-    final batch = _firestore.batch();
-    batch.set(groupRef, group.toJson());
-    batch.set(roomRef, room.toJson());
-    await batch.commit();
+    await groupRef.set(group.toJson());
+
+    // 直前まで`roomRef`もgroupRefと同じbatchに含めていたが、
+    // `groups/{groupId}/rooms/{roomId}`のcreateルールは
+    // `hasGroupPermission(groupId, 'manageRooms')`（＝groups/{groupId}を
+    // `get()`して判定）を要求するため、下記のgroupInvites・rolesと全く同じ
+    // 「同一バッチ内だとget()が未コミットのgroupsを見られずpermission-denied
+    // になる」問題が起きていた（2026-08-13発覚・修正。groupInvites/roles側は
+    // 既に別書き込みに分離済みだったが、roomRefだけ対応漏れだった）。
+    // groupsのコミット完了後に別書き込みとして実行する。
+    await roomRef.set(room.toJson());
 
     // groupInvites・roles/{everyoneRole}のセキュリティルールはgroups/{groupId}を
     // `get()`で参照してmemberIds/ownerId等を判定するため、groupsのコミット完了後に

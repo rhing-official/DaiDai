@@ -534,10 +534,16 @@ function buildCreatorProfileFields(
     (s: { id?: unknown }) => s?.id === userData.activeStatusMessageId,
   );
 
+  // daidai横丁専用の呼び名・アイコン（2026-08-16追加、users/{uid}.daidaiNickname/
+  // daidaiIconUrl）はDaiDai本体の身だしなみとは独立した任意設定で、設定されて
+  // いればそちらを優先し、無ければ従来通りDaiDaiのアクティブ素材にフォールバックする。
+  const daidaiNickname = typeof userData.daidaiNickname === "string" ? userData.daidaiNickname : null;
+  const daidaiIconUrl = typeof userData.daidaiIconUrl === "string" ? userData.daidaiIconUrl : null;
+
   return {
     rhingId: typeof userData.rhingId === "string" ? userData.rhingId : "",
-    nickname: typeof activeNickname?.text === "string" ? activeNickname.text : null,
-    iconUrl: typeof activeIcon?.url === "string" ? activeIcon.url : null,
+    nickname: daidaiNickname ?? (typeof activeNickname?.text === "string" ? activeNickname.text : null),
+    iconUrl: daidaiIconUrl ?? (typeof activeIcon?.url === "string" ? activeIcon.url : null),
     // 専用の自己紹介フィールドが無いため、ステメ（最大40字）を流用する。
     statusMessage:
       typeof activeStatusMessage?.text === "string" ? activeStatusMessage.text : null,
