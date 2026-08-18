@@ -6,8 +6,10 @@ import '../../l10n/strings.dart';
 import '../../models/app_ui_style.dart';
 import '../../models/app_user.dart';
 import '../../providers/app_ui_style_provider.dart';
+import '../../providers/home_shell_providers.dart';
 import '../../theme/gekiga/gekiga_colors.dart';
 import '../../widgets/gekiga/gekiga_badge.dart';
+import '../call/pinned_call_overlay.dart';
 import '../chat/talks_tab.dart';
 import '../profile/profile_tab.dart';
 import '../settings/settings_tab.dart';
@@ -109,9 +111,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     if (!selectionChanged && !poppedChanged) return;
     setState(() {
       _poppedIndexes = hit.popped;
-      if (selectionChanged)
-        _selectedIndex = hit.hovered!.clamp(0, tabCount - 1);
+      if (selectionChanged) _setSelectedIndex(hit.hovered!.clamp(0, tabCount - 1));
     });
+  }
+
+  /// `_selectedIndex`（`IndexedStack`用のローカル状態）と
+  /// `homeSelectedTabProvider`（外部から「今どのタブを見ているか」を
+  /// 参照するためのミラー、`PinnedCallOverlay`が使う）を常に同期させて
+  /// 更新する（2026-08-19追加）。呼び出し側で`setState`のcallback内から
+  /// 呼ぶこと（`_selectedIndex`自体の代入がsetStateのcallback内で
+  /// 行われるようにするため）。
+  void _setSelectedIndex(int index) {
+    _selectedIndex = index;
+    ref.read(homeSelectedTabProvider.notifier).set(index);
   }
 
   static const _icons = [
@@ -126,6 +138,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // 通話ミニ表示（PinnedCallOverlay）タップ等、このWidgetツリーの外側
+    // から`homeSelectedTabProvider`が変更された場合にも、ローカルの
+    // `_selectedIndex`（IndexedStackの描画に使う実体）へ反映する
+    // （2026-08-19追加）。`_setSelectedIndex`は逆方向（ローカル→
+    // プロバイダ）に既に反映済みのため、値が一致していれば何もしない
+    // （ここでの再代入によるループは発生しない）。
+    ref.listen<int>(homeSelectedTabProvider, (previous, next) {
+      if (next != _selectedIndex) setState(() => _selectedIndex = next);
+    });
+
     final strings = ref.watch(appStringsProvider);
     final titles = [strings.navTalk, strings.navProfile, strings.navSettings];
 
@@ -146,7 +168,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           selected: _selectedIndex == i,
           popped: _isDragging && _poppedIndexes.contains(i),
           vertical: isWide,
-          onTap: () => setState(() => _selectedIndex = i),
+          onTap: () => setState(() => _setSelectedIndex(i)),
         ),
     ];
 
@@ -216,6 +238,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             // テーマの`scaffoldBackgroundColor`（`GekigaColors.background`）
             // による単色の塗り潰しのみにする。
             content,
+            // 通話中、その会話の画面を見ていない間だけ右上に固定表示する
+            // ミニ表示（2026-08-19追加）。タブ切り替えの`IndexedStack`より
+            // 外側（このStack自体）に置くことで、身だしなみ・設定タブへ
+            // 移動しても消えない。
+            const PinnedCallOverlay(),
             if (isWide)
               Positioned(
                 left: _chipMargin,

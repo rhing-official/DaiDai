@@ -5,26 +5,42 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 
+import '../../models/app_ui_style.dart';
 import '../../models/app_user.dart';
+import '../../providers/app_ui_style_provider.dart';
+import '../../providers/camera_availability_provider.dart';
 import '../../providers/repository_providers.dart';
-import 'call_controls.dart';
+import '../../utils/platform_info.dart';
+import '../../widgets/swipe_gestures.dart' show kSwipeGestureVelocityThreshold;
+import 'active_call_session.dart';
+import 'call_avatar.dart';
+import 'call_control_bar.dart';
+import 'camera_availability.dart';
 import 'webrtc_group_call_controller.dart';
 
-/// 広場（グループ）通話画面。メッシュ型P2Pのため、参加者ごとに独立した
-/// `RTCVideoRenderer`をグリッド表示する。1対1の[CallScreen]とは異なり、
-/// 着信（ringing）の概念を持たず「進行中の通話に途中参加する」形になる。
-/// UIも1対1とは意図的に差別化しており、常にグリッド表示から始まり、
-/// 任意の枠をタップするとその参加者を全画面表示、全画面表示中に
-/// 下スワイプするとグリッドに戻る（2026-07-27）。
+/// 広場（グループ）通話のモバイル向け全画面表示。メッシュ型P2Pのため、
+/// 参加者ごとに独立した`RTCVideoRenderer`をグリッド表示する。1対1の
+/// [CallScreen]とは異なり、着信（ringing）の概念を持たず「進行中の通話に
+/// 途中参加する」形になる。UIも1対1とは意図的に差別化しており、常に
+/// グリッド表示から始まり、任意の枠をタップするとその参加者を全画面表示、
+/// 全画面表示中に下スワイプするとグリッドに戻る（2026-07-27）。
+///
+/// 通話コントローラー自体はこの画面ではなく`activeCallSessionProvider`
+/// （`active_call_session.dart`）が所有する（2026-08-19変更）。PCでは
+/// この画面自体を使わず、メッセージ画面内の埋め込み表示・右上ピン留め
+/// ミニ表示を直接使う（広場通話には着信の概念が無いため、1対1と異なり
+/// PCでもこの全画面ビューを経由する場面自体が無い）。
 class GroupCallScreen extends ConsumerStatefulWidget {
   const GroupCallScreen({
     required this.groupCallId,
+    required this.groupId,
     required this.currentUser,
     required this.isVideo,
     super.key,
   });
 
   final String groupCallId;
+  final String groupId;
   final AppUser currentUser;
   final bool isVideo;
 
@@ -33,23 +49,30 @@ class GroupCallScreen extends ConsumerStatefulWidget {
 }
 
 class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
-  late final WebrtcGroupCallController _controller;
+  late final GroupCallSession _session;
 
   /// タップでフォーカス（全画面表示）中のタイルのキー。
   /// 自分は`'self'`、相手は`userId`。nullならグリッド表示。
   String? _focusedTileKey;
 
+  /// このウィジェット自身の意図したpop（下スワイプでのドック・通話終了後の
+  /// 自動クローズ）かどうか。詳細は[CallScreen]の同名フィールドのコメント
+  /// 参照（同じ理由でPopScopeとの競合を避けるため必要）。
+  bool _intentionalPop = false;
+
+  WebrtcGroupCallController get _controller => _session.controller;
+
   @override
   void initState() {
     super.initState();
-    _controller = WebrtcGroupCallController(
+    _session = ref.read(activeCallSessionProvider.notifier).startGroup(
       groupCallId: widget.groupCallId,
+      groupId: widget.groupId,
       currentUser: widget.currentUser,
       isVideo: widget.isVideo,
       groupCallRepository: ref.read(groupCallRepositoryProvider),
     );
     _controller.addListener(_onControllerChanged);
-    _controller.initialize();
   }
 
   void _onControllerChanged() {
@@ -57,7 +80,7 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
     setState(() {});
     if (_controller.state == GroupCallConnectionState.ended) {
       Future.delayed(const Duration(milliseconds: 300), () {
-        if (mounted) Navigator.of(context).pop();
+        if (mounted) _popIntentionally();
       });
     }
   }
@@ -65,9 +88,31 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
   @override
   void dispose() {
     _controller.removeListener(_onControllerChanged);
-    _controller.leave();
-    _controller.dispose();
+    // コントローラー自体は破棄・退出処理をしない。破棄は通話終了
+    // （state==ended）を検知したactiveCallSessionProvider側でのみ行う
+    // （2026-08-19変更、画面を閉じても通話は続くようにするための核と
+    // なる変更）。
     super.dispose();
+  }
+
+  /// モバイルで下スワイプした時、通話を切らずに右上ピン留めミニ表示へ
+  /// ドックする（2026-08-19追加）。フォーカス中タイルの下スワイプ
+  /// （グリッドへ戻る操作）とは別物のため、グリッド/音声表示の時だけ
+  /// 呼ばれる（build参照）。
+  void _dockCall() {
+    ref.read(activeCallSessionProvider.notifier).setMinimized(true);
+    _popIntentionally();
+  }
+
+  /// [CallScreen._popIntentionally]と同じ理由（PopScopeの`canPop`は
+  /// 再構築を経て初めて反映されるため）。
+  void _popIntentionally() {
+    setState(() => _intentionalPop = true);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && Navigator.of(context).canPop()) {
+        Navigator.of(context).pop();
+      }
+    });
   }
 
   /// 自分か、現在つながっている参加者の誰か1人でもビデオ通話中なら
@@ -80,23 +125,43 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
   @override
   Widget build(BuildContext context) {
     return PopScope(
-      canPop: false,
+      canPop: _intentionalPop,
       onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) _controller.leave();
+        if (!didPop && !_intentionalPop) _controller.leave();
       },
       child: Scaffold(
         backgroundColor: _anyVideo ? Colors.black : null,
-        body: _anyVideo ? _videoBody() : _audioBody(),
+        body: _anyVideo ? _videoBody() : _dockable(_audioBody()),
       ),
+    );
+  }
+
+  /// モバイルで下スワイプした時にドックする（2026-08-19追加）。音声のみの
+  /// 通話ではミニ化しても得るものが無いため無効、PCはこの全画面ビュー自体を
+  /// 使わないため無効（ユーザー確認済み）。フォーカス中タイル表示は独自の
+  /// 下スワイプ（グリッドへ戻る）を持つため対象外にする（呼び出し元参照）。
+  Widget _dockable(Widget child) {
+    final dockEnabled =
+        isMobileCallPlatform &&
+        _anyVideo &&
+        _controller.state == GroupCallConnectionState.active;
+    if (!dockEnabled) return child;
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onVerticalDragEnd: (details) {
+        final velocity = details.primaryVelocity ?? 0;
+        if (velocity >= kSwipeGestureVelocityThreshold) _dockCall();
+      },
+      child: child,
     );
   }
 
   Widget _audioBody() {
     final colorScheme = Theme.of(context).colorScheme;
     final remoteParticipants = _controller.remoteParticipants;
-    final tiles = [
-      widget.currentUser.rhingId,
-      ...remoteParticipants.map((p) => p.rhingId),
+    final tiles = <(String userId, String rhingId)>[
+      (widget.currentUser.userId, widget.currentUser.rhingId),
+      ...remoteParticipants.map((p) => (p.userId, p.rhingId)),
     ];
 
     return SafeArea(
@@ -124,20 +189,16 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
             runSpacing: 24,
             alignment: WrapAlignment.center,
             children: [
-              for (final rhingId in tiles)
+              for (final (userId, rhingId) in tiles)
                 Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    CircleAvatar(
+                    CallParticipantAvatar(
+                      userId: userId,
+                      rhingId: rhingId,
+                      conversationId: widget.groupId,
                       radius: 40,
-                      backgroundColor: colorScheme.primary,
-                      child: Text(
-                        rhingId.isNotEmpty ? rhingId[0].toUpperCase() : '?',
-                        style: const TextStyle(
-                          fontSize: 28,
-                          color: Colors.white,
-                        ),
-                      ),
+                      fontSize: 28,
                     ),
                     const SizedBox(height: 8),
                     Text('@$rhingId'),
@@ -162,43 +223,45 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
     if (tileCount == 1) {
       // まだ他の参加者がいない間も、自分の映像がどう見えているか確認できる
       // ようにフルスクリーンで自分のプレビューを表示する。
-      return SafeArea(
-        child: Stack(
-          children: [
-            Positioned.fill(
-              child: _videoTile(
-                rhingId: widget.currentUser.rhingId,
-                renderer: _controller.isVideo
-                    ? _controller.localRenderer
-                    : null,
-                mirror: true,
-                micMuted: _controller.muted,
-                cameraOff: _controller.cameraOff,
-                videoEnabled: _controller.isVideo,
-                connectionIssue: false,
+      return _dockable(
+        SafeArea(
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: _videoTile(
+                  userId: widget.currentUser.userId,
+                  rhingId: widget.currentUser.rhingId,
+                  renderer: _controller.isVideo
+                      ? _controller.localRenderer
+                      : null,
+                  mirror: true,
+                  micMuted: _controller.muted,
+                  videoEnabled: _controller.isVideo,
+                  connectionIssue: false,
+                ),
               ),
-            ),
-            Positioned(
-              top: 16,
-              left: 0,
-              right: 0,
-              child: Center(
-                child: Text(
-                  '他の参加者を待っています…',
-                  style: const TextStyle(
-                    color: Colors.white70,
-                    shadows: [Shadow(blurRadius: 6)],
+              Positioned(
+                top: 16,
+                left: 0,
+                right: 0,
+                child: Center(
+                  child: Text(
+                    '他の参加者を待っています…',
+                    style: const TextStyle(
+                      color: Colors.white70,
+                      shadows: [Shadow(blurRadius: 6)],
+                    ),
                   ),
                 ),
               ),
-            ),
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 24,
-              child: Center(child: _controls()),
-            ),
-          ],
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 24,
+                child: Center(child: _controls()),
+              ),
+            ],
+          ),
         ),
       );
     }
@@ -210,11 +273,11 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
       _CallTileEntry(
         key: 'self',
         tile: _videoTile(
+          userId: widget.currentUser.userId,
           rhingId: widget.currentUser.rhingId,
           renderer: _controller.isVideo ? _controller.localRenderer : null,
           mirror: true,
           micMuted: _controller.muted,
-          cameraOff: _controller.cameraOff,
           videoEnabled: _controller.isVideo,
           connectionIssue: false,
         ),
@@ -223,11 +286,11 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
         _CallTileEntry(
           key: participant.userId,
           tile: _videoTile(
+            userId: participant.userId,
             rhingId: participant.rhingId,
             renderer: _controller.remoteRenderers[participant.userId],
             mirror: false,
             micMuted: participant.micMuted,
-            cameraOff: participant.cameraOff,
             videoEnabled: participant.isVideo,
             connectionIssue:
                 _controller.peerConnectionIssues[participant.userId] ?? false,
@@ -240,6 +303,8 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
     );
 
     if (focused != null) {
+      // フォーカス中は既存の下スワイプ（グリッドへ戻る）を優先し、ドック用の
+      // ジェスチャーは重ねない（同じ縦ドラッグの二重登録を避けるため）。
       return SafeArea(
         child: Stack(
           children: [
@@ -278,39 +343,41 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
 
     final crossAxisCount = sqrt(tileCount).ceil();
 
-    return SafeArea(
-      child: Column(
-        children: [
-          Expanded(
-            child: GridView.count(
-              crossAxisCount: crossAxisCount,
-              padding: const EdgeInsets.all(4),
-              mainAxisSpacing: 4,
-              crossAxisSpacing: 4,
-              children: [
-                for (final entry in entries)
-                  GestureDetector(
-                    onTap: () => setState(() => _focusedTileKey = entry.key),
-                    child: entry.tile,
-                  ),
-              ],
+    return _dockable(
+      SafeArea(
+        child: Column(
+          children: [
+            Expanded(
+              child: GridView.count(
+                crossAxisCount: crossAxisCount,
+                padding: const EdgeInsets.all(4),
+                mainAxisSpacing: 4,
+                crossAxisSpacing: 4,
+                children: [
+                  for (final entry in entries)
+                    GestureDetector(
+                      onTap: () => setState(() => _focusedTileKey = entry.key),
+                      child: entry.tile,
+                    ),
+                ],
+              ),
             ),
-          ),
-          Padding(
-            padding: const EdgeInsets.only(bottom: 16),
-            child: _controls(),
-          ),
-        ],
+            Padding(
+              padding: const EdgeInsets.only(bottom: 16),
+              child: _controls(),
+            ),
+          ],
+        ),
       ),
     );
   }
 
   Widget _videoTile({
+    required String userId,
     required String rhingId,
     required RTCVideoRenderer? renderer,
     required bool mirror,
     required bool micMuted,
-    required bool cameraOff,
     required bool videoEnabled,
     required bool connectionIssue,
   }) {
@@ -319,7 +386,7 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          if (videoEnabled && !cameraOff && renderer != null)
+          if (videoEnabled && renderer != null)
             RTCVideoView(
               // Web版のRTCVideoViewはStatefulWidgetで、実描画に使う
               // videoElementをinitState時にしか取得しない。2人通話の
@@ -334,11 +401,11 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
             )
           else
             Center(
-              child: CircleAvatar(
+              child: CallParticipantAvatar(
+                userId: userId,
+                rhingId: rhingId,
+                conversationId: widget.groupId,
                 radius: 32,
-                child: Text(
-                  rhingId.isNotEmpty ? rhingId[0].toUpperCase() : '?',
-                ),
               ),
             ),
           Positioned(
@@ -383,50 +450,27 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
   }
 
   Widget _controls() {
+    final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
     final isActive = _controller.state == GroupCallConnectionState.active;
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: [
-        CallRoundButton(
-          icon: _controller.muted ? Icons.mic_off : Icons.mic,
-          color: Colors.grey[700]!,
-          onPressed: isActive ? _controller.toggleMute : null,
-        ),
-        CallRoundButton(
-          icon: _controller.speakerOn ? Icons.volume_up : Icons.phone_in_talk,
-          color: Colors.grey[700]!,
-          onPressed: isActive ? _controller.toggleSpeaker : null,
-        ),
-        CallRoundButton(
-          icon: Icons.switch_video,
-          color: Colors.grey[700]!,
-          onPressed: isActive && !_controller.switchingCallType
-              ? () => _controller.setVideoEnabled(!_controller.isVideo)
-              : null,
-        ),
-        if (_controller.isVideo) ...[
-          CallRoundButton(
-            icon: _controller.cameraOff ? Icons.videocam_off : Icons.videocam,
-            color: Colors.grey[700]!,
-            onPressed: isActive ? _controller.toggleCamera : null,
-          ),
-          CallRoundButton(
-            icon: Icons.cameraswitch,
-            color: Colors.grey[700]!,
-            onPressed:
-                isActive &&
-                    !_controller.cameraOff &&
-                    !_controller.switchingCamera
-                ? _controller.switchCamera
-                : null,
-          ),
-        ],
-        CallRoundButton(
-          icon: Icons.call_end,
-          color: Colors.red,
-          onPressed: () => _controller.leave(),
-        ),
-      ],
+    final cameraAvailability =
+        ref.watch(cameraAvailabilityProvider).value ??
+        CameraAvailability.unknown;
+    return CallControlBar(
+      isGekiga: isGekiga,
+      enabled: isActive,
+      muted: _controller.muted,
+      onToggleMute: _controller.toggleMute,
+      speakerOn: _controller.speakerOn,
+      onToggleSpeaker: _controller.toggleSpeaker,
+      switchingCallType: _controller.switchingCallType,
+      onToggleVideoType: cameraAvailability == CameraAvailability.unavailable
+          ? null
+          : () => _controller.setVideoEnabled(!_controller.isVideo),
+      isVideo: _controller.isVideo,
+      hasMultipleCameras: _controller.hasMultipleCameras,
+      switchingCamera: _controller.switchingCamera,
+      onSwitchCamera: _controller.switchCamera,
+      onHangUp: () => _controller.leave(),
     );
   }
 }

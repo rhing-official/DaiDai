@@ -63,6 +63,7 @@ dependencies:
   camera: ^0.12.0+2
   flutter_markdown_plus: ^1.0.12
   video_player: ^2.13.0
+  web: ^1.1.0
 
 dev_dependencies:
   flutter_test:
@@ -74,6 +75,34 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.4
+  flutter_native_splash: ^2.4.8
+
+# アプリアイコン生成設定（flutter_launcher_icons）。
+# assets/branding/app_icon_source.png に最終的な素材（橙の皮を剥くモチーフ）を
+# 配置してから `dart run flutter_launcher_icons` を実行するとアイコンが生成される。
+# 素材未確定のため2026-08-17時点ではまだ配置していない。
+flutter_launcher_icons:
+  image_path: "assets/branding/app_icon_source.png"
+  android: true
+  ios: true
+  web:
+    generate: true
+  windows:
+    generate: true
+
+# 起動スプラッシュ画面生成設定（flutter_native_splash）。
+# 上記と同じ素材を配置してから `dart run flutter_native_splash:create` を実行すると
+# Android/iOS/Webの起動画面が生成される。アクセントカラーは既定のアクセント
+# カラー（lib/providers/accent_color_provider.dart）ではなくブランドカラー
+# #EE7800 を背景に敷く。
+flutter_native_splash:
+  color: "#FFF8F0"
+  image: "assets/branding/app_icon_source.png"
+  android_12:
+    color: "#FFF8F0"
+    image: "assets/branding/app_icon_source.png"
+  web: true
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

@@ -72,9 +72,6 @@ class WebrtcCallController extends ChangeNotifier {
   bool _muted = false;
   bool get muted => _muted;
 
-  bool _cameraOff = false;
-  bool get cameraOff => _cameraOff;
-
   /// 自分が現在ビデオ通話として動作しているか（[call.isVideo]は開始時点の
   /// 値のままなので、通話中の切替を反映する可変の状態として別に持つ）。
   /// 音声⇔ビデオの切替は自分側にのみ適用され、相手には影響しない。
@@ -107,6 +104,23 @@ class WebrtcCallController extends ChangeNotifier {
   bool _switchingCamera = false;
   bool get switchingCamera => _switchingCamera;
 
+  /// 前後（イン/アウト）カメラ切替ボタンの表示可否に使う、映像入力
+  /// デバイスの台数（2026-08-19追加）。`getUserMedia`成功後（＝端末の
+  /// カメラ利用許可が下りた後）にだけ正確に取得できるため、映像取得の
+  /// 直後（[initialize]・[_enableLocalVideoTrack]）に1回だけ取得し直す
+  /// （継続的な監視は行わない）。
+  int? _localCameraCount;
+  bool get hasMultipleCameras => (_localCameraCount ?? 0) >= 2;
+
+  Future<void> _refreshCameraCount() async {
+    try {
+      _localCameraCount = (await Helper.cameras).length;
+      notifyListeners();
+    } catch (_) {
+      // 取得に失敗しても前後切替ボタンを出さないだけで通話自体は継続する。
+    }
+  }
+
   String? _error;
   String? get error => _error;
 
@@ -128,6 +142,7 @@ class WebrtcCallController extends ChangeNotifier {
 
       if (call.isVideo) {
         localRenderer.srcObject = _localStream;
+        unawaited(_refreshCameraCount());
       }
 
       _peerConnection = await createPeerConnection(buildRtcConfiguration());
@@ -402,18 +417,8 @@ class WebrtcCallController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void toggleCamera() {
-    _cameraOff = !_cameraOff;
-    for (final track
-        in _localStream?.getVideoTracks() ?? <MediaStreamTrack>[]) {
-      track.enabled = !_cameraOff;
-    }
-    notifyListeners();
-  }
-
-  /// 通話中に音声通話⇔ビデオ通話を切り替える（[toggleCamera]のような
-  /// 「自分のカメラの一時停止」ではなく、映像トラック自体を追加/削除して
-  /// 通話の種別そのものを変える）。音声のみで開始した通話には映像用の
+  /// 通話中に音声通話⇔ビデオ通話を切り替える（映像トラック自体を追加/
+  /// 削除して通話の種別そのものを変える）。音声のみで開始した通話には映像用の
   /// track/transceiverが最初から存在しないため、[RTCPeerConnection.addTrack]/
   /// [removeTrack]による再ネゴシエーション（新しいオファー/アンサー交換）が
   /// 必須になる。
@@ -477,6 +482,7 @@ class WebrtcCallController extends ChangeNotifier {
     }
     localRenderer.srcObject = _localStream;
     await _peerConnection?.addTrack(videoTrack, _localStream!);
+    unawaited(_refreshCameraCount());
   }
 
   Future<void> _disableLocalVideoTrack() async {
@@ -491,7 +497,6 @@ class WebrtcCallController extends ChangeNotifier {
       await track.stop();
     }
     localRenderer.srcObject = null;
-    _cameraOff = false;
   }
 
   Future<void> _applySpeakerphone(bool enable) async {

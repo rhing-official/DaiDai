@@ -83,7 +83,6 @@ class CallParticipant {
     required this.userId,
     required this.rhingId,
     this.micMuted = false,
-    this.cameraOff = false,
     this.isVideo = false,
     this.joinedAt,
     this.lastSeenAt,
@@ -92,10 +91,6 @@ class CallParticipant {
   final String userId;
   final String rhingId;
   final bool micMuted;
-
-  /// ビデオ通話中に、映像トラック自体はあるまま一時的にカメラを止めている
-  /// 状態（[isVideo]がtrueの間のみ意味を持つ）。
-  final bool cameraOff;
 
   /// この参加者が現在ビデオ通話として参加しているか（音声⇔ビデオ切替は
   /// 参加者ごとに独立しており、他の参加者に強制されない）。
@@ -112,7 +107,6 @@ class CallParticipant {
       userId: userId,
       rhingId: json['rhingId'] as String,
       micMuted: json['micMuted'] as bool? ?? false,
-      cameraOff: json['cameraOff'] as bool? ?? false,
       isVideo: json['isVideo'] as bool? ?? false,
       joinedAt: json['joinedAt'] as Timestamp?,
       lastSeenAt: json['lastSeenAt'] as Timestamp?,
@@ -123,7 +117,6 @@ class CallParticipant {
     return {
       'rhingId': rhingId,
       'micMuted': micMuted,
-      'cameraOff': cameraOff,
       'isVideo': isVideo,
       'joinedAt': joinedAt ?? FieldValue.serverTimestamp(),
       'lastSeenAt': lastSeenAt ?? FieldValue.serverTimestamp(),

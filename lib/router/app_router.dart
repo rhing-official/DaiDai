@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../features/admin/admin_gate.dart';
 import '../features/app_gate.dart';
 import '../features/auth/auth_gate.dart';
+import '../features/call/active_call_session.dart';
 import '../features/call/call_screen.dart';
 import '../features/call/group_call_screen.dart';
 import '../features/chat/announcement_screen.dart';
@@ -16,6 +17,7 @@ import '../models/call.dart';
 import '../models/direct_message.dart';
 import '../models/group.dart';
 import '../providers/repository_providers.dart';
+import '../utils/platform_info.dart';
 import '../widgets/swipe_gestures.dart';
 
 /// 語らい系の画面遷移をURL付きのブラウザ履歴に載せるためのルーター。
@@ -66,10 +68,12 @@ class CallArgs {
 class GroupCallArgs {
   const GroupCallArgs({
     required this.groupCallId,
+    required this.groupId,
     required this.currentUser,
     required this.isVideo,
   });
   final String groupCallId;
+  final String groupId;
   final AppUser currentUser;
   final bool isVideo;
 }
@@ -98,6 +102,10 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         child: child,
       );
 
+  // 発信側は、モバイルのみ全画面の/callへpushする。PCでは全画面ルートを
+  // 使わず、通話セッションを直接開始するだけにする（2026-08-19変更）。
+  // 発信者は既にその会話のメッセージ画面を見ているため、以後は
+  // `EmbeddedCallPane`がそのメッセージ画面内に埋め込み表示として引き継ぐ。
   Future<void> startCall(
     AppUser currentUser,
     DirectMessage dm, {
@@ -114,14 +122,25 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       dmId: dm.dmId,
       isVideo: isVideo,
     );
-    router.push(
-      '/call',
-      extra: CallArgs(
-        call: call,
-        isCaller: true,
-        currentUserId: currentUser.userId,
-      ),
-    );
+    if (isMobileCallPlatform) {
+      router.push(
+        '/call',
+        extra: CallArgs(
+          call: call,
+          isCaller: true,
+          currentUserId: currentUser.userId,
+        ),
+      );
+      return;
+    }
+    ref
+        .read(activeCallSessionProvider.notifier)
+        .startOneToOne(
+          call: call,
+          isCaller: true,
+          callRepository: callRepository,
+          directMessageRepository: ref.read(directMessageRepositoryProvider),
+        );
   }
 
   router = GoRouter(
@@ -217,6 +236,7 @@ final goRouterProvider = Provider<GoRouter>((ref) {
           final args = state.extra! as GroupCallArgs;
           return GroupCallScreen(
             groupCallId: args.groupCallId,
+            groupId: args.groupId,
             currentUser: args.currentUser,
             isVideo: args.isVideo,
           );
