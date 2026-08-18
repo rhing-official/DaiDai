@@ -21,8 +21,13 @@ const _presenceStaleAfter = Duration(seconds: 45);
 
 /// 広場（グループ）通話のWebRTCシグナリング・複数`RTCPeerConnection`の
 /// ライフサイクルを管理する。メッシュ型P2Pのため、参加者が増減するたびに
-/// 自分以外の全参加者との接続を動的に張り直す。通話ごとにインスタンス化し、
-/// 画面を離れる際にdispose()すること。
+/// 自分以外の全参加者との接続を動的に張り直す。通話ごとに1つ生成され、
+/// `lib/features/call/active_call_session.dart`の`activeCallSessionProvider`が
+/// 所有する（2026-08-19変更、以前は`GroupCallScreen`が`initState`/`dispose`で
+/// 生成・破棄していたが、PC埋め込み表示・ピン留めミニ表示に対応するため
+/// 画面のマウント状態から寿命を切り離した）。破棄は`state`が
+/// `GroupCallConnectionState.ended`になったことを検知した
+/// `activeCallSessionProvider`側でのみ行う。
 class WebrtcGroupCallController extends ChangeNotifier {
   WebrtcGroupCallController({
     required this.groupCallId,
@@ -108,6 +113,16 @@ class WebrtcGroupCallController extends ChangeNotifier {
       .where((p) => p.userId != currentUser.userId && !_isStale(p))
       .toList();
 
+  /// ピン留めミニ表示・PC埋め込み表示で「代表1人」として映す相手
+  /// （2026-08-19追加）。本物の音声レベル検出（今しゃべっている人）は
+  /// flutter_webrtcにAPIが無く、getStats()の未サポートポーリングが必要に
+  /// なり割に合わないため見送り、軽量な代理指標にする: 「映像onかつ
+  /// ミュートしていない最初の相手」を優先し、いなければ「映像onの最初の
+  /// 相手」、それも無ければ`null`（＝映像を出している相手がいない）。
+  CallParticipant? get pinnedParticipant =>
+      remoteParticipants.firstWhereOrNull((p) => p.isVideo && !p.micMuted) ??
+      remoteParticipants.firstWhereOrNull((p) => p.isVideo);
+
   bool _isStale(CallParticipant participant) {
     final lastSeenAt = participant.lastSeenAt;
     if (lastSeenAt == null) return false;
@@ -117,8 +132,22 @@ class WebrtcGroupCallController extends ChangeNotifier {
   bool _muted = false;
   bool get muted => _muted;
 
-  bool _cameraOff = false;
-  bool get cameraOff => _cameraOff;
+  /// 前後（イン/アウト）カメラ切替ボタンの表示可否に使う、映像入力
+  /// デバイスの台数（2026-08-19追加）。`getUserMedia`成功後（＝端末の
+  /// カメラ利用許可が下りた後）にだけ正確に取得できるため、映像取得の
+  /// 直後（[initialize]・[_enableLocalVideoTrackForAllPeers]）に1回だけ
+  /// 取得し直す（継続的な監視は行わない）。
+  int? _localCameraCount;
+  bool get hasMultipleCameras => (_localCameraCount ?? 0) >= 2;
+
+  Future<void> _refreshCameraCount() async {
+    try {
+      _localCameraCount = (await Helper.cameras).length;
+      notifyListeners();
+    } catch (_) {
+      // 取得に失敗しても前後切替ボタンを出さないだけで通話自体は継続する。
+    }
+  }
 
   String? _error;
   String? get error => _error;
@@ -140,6 +169,7 @@ class WebrtcGroupCallController extends ChangeNotifier {
 
       if (_isVideo) {
         localRenderer.srcObject = _localStream;
+        unawaited(_refreshCameraCount());
       }
 
       await _repository.joinGroupCall(
@@ -435,20 +465,6 @@ class WebrtcGroupCallController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void toggleCamera() {
-    _cameraOff = !_cameraOff;
-    for (final track
-        in _localStream?.getVideoTracks() ?? <MediaStreamTrack>[]) {
-      track.enabled = !_cameraOff;
-    }
-    _repository.updateParticipantState(
-      groupCallId: groupCallId,
-      userId: currentUser.userId,
-      cameraOff: _cameraOff,
-    );
-    notifyListeners();
-  }
-
   /// 通話中に音声通話⇔ビデオ通話を切り替える（1対1の
   /// `WebrtcCallController.setVideoEnabled`と同じ考え方）。メッシュ型P2Pの
   /// ため、現在つながっている全てのピアに対して個別に映像トラックの追加/
@@ -508,6 +524,7 @@ class WebrtcGroupCallController extends ChangeNotifier {
     for (final pc in _peerConnections.values) {
       await pc.addTrack(track, _localStream!);
     }
+    unawaited(_refreshCameraCount());
   }
 
   Future<void> _disableLocalVideoTrackForAllPeers() async {
@@ -525,7 +542,6 @@ class WebrtcGroupCallController extends ChangeNotifier {
       await track.stop();
     }
     localRenderer.srcObject = null;
-    _cameraOff = false;
   }
 
   Future<void> _applySpeakerphone(bool enable) async {

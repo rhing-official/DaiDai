@@ -9,6 +9,8 @@ import '../../providers/group_call_providers.dart';
 import '../../providers/repository_providers.dart';
 import '../../router/app_router.dart';
 import '../../utils/auto_dismiss_banner.dart';
+import '../../utils/platform_info.dart';
+import 'active_call_session.dart';
 import 'call_sound_player.dart';
 
 /// アプリ全体で、自分がメンバーになっている広場の新規通話開始を監視し、
@@ -134,15 +136,33 @@ class _GroupIncomingCallListenerState
     }
 
     if (!mounted) return;
+    // モバイルのみ全画面の/group-callへpushする。PCでは全画面ルートを
+    // 使わず、通話セッションを直接開始するだけにする（2026-08-19変更）。
+    // その広場のメッセージ画面を開けば`EmbeddedCallPane`が埋め込み表示を
+    // 出し、開いていない間は音声のみなら非表示・映像ありなら右上ピン留め
+    // ミニ表示（`PinnedCallOverlay`）になる。
+    if (isMobileCallPlatform) {
+      ref
+          .read(goRouterProvider)
+          .push(
+            '/group-call',
+            extra: GroupCallArgs(
+              groupCallId: call.groupCallId,
+              groupId: call.groupId,
+              currentUser: widget.currentUser,
+              isVideo: call.isVideo,
+            ),
+          );
+      return;
+    }
     ref
-        .read(goRouterProvider)
-        .push(
-          '/group-call',
-          extra: GroupCallArgs(
-            groupCallId: call.groupCallId,
-            currentUser: widget.currentUser,
-            isVideo: call.isVideo,
-          ),
+        .read(activeCallSessionProvider.notifier)
+        .startGroup(
+          groupCallId: call.groupCallId,
+          groupId: call.groupId,
+          currentUser: widget.currentUser,
+          isVideo: call.isVideo,
+          groupCallRepository: groupCallRepository,
         );
   }
 }

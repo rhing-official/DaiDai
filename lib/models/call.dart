@@ -68,6 +68,10 @@ class Call {
     return currentUserId == callerId ? calleeRhingId : callerRhingId;
   }
 
+  String otherUserId(String currentUserId) {
+    return currentUserId == callerId ? calleeId : callerId;
+  }
+
   factory Call.fromJson(String callId, Map<String, dynamic> json) {
     final legacyIsVideo = json['isVideo'] as bool? ?? false;
     return Call(

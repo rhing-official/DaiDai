@@ -73,7 +73,6 @@ abstract class GroupCallRepository {
     required String groupCallId,
     required String userId,
     bool? micMuted,
-    bool? cameraOff,
     bool? isVideo,
   });
 
@@ -309,12 +308,10 @@ class FirestoreGroupCallRepository implements GroupCallRepository {
     required String groupCallId,
     required String userId,
     bool? micMuted,
-    bool? cameraOff,
     bool? isVideo,
   }) async {
     final data = <String, dynamic>{};
     if (micMuted != null) data['micMuted'] = micMuted;
-    if (cameraOff != null) data['cameraOff'] = cameraOff;
     if (isVideo != null) data['isVideo'] = isVideo;
     if (data.isEmpty) return;
     await _participantsOf(groupCallId).doc(userId).update(data);

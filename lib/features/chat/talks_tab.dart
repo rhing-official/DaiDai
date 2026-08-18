@@ -27,10 +27,12 @@ import '../../router/app_router.dart';
 import '../../theme/gekiga/gekiga_colors.dart';
 import '../../utils/group_permissions.dart';
 import '../../utils/official_account.dart';
+import '../../utils/platform_info.dart';
 import '../../utils/text_truncate.dart';
 import '../../widgets/gekiga/gekiga_icon_badge.dart';
 import '../../widgets/gekiga/gekiga_panel_box.dart';
 import '../../widgets/swipe_gestures.dart';
+import '../call/active_call_session.dart';
 import 'add_chat_dialog.dart';
 import 'chat_panes.dart';
 import 'chat_screen.dart';
@@ -240,6 +242,10 @@ class _TalksTabState extends ConsumerState<TalksTab> {
         );
   }
 
+  // モバイルのみ全画面の/callへpushする。PCでは全画面ルートを使わず、
+  // 通話セッションを直接開始するだけにする（2026-08-19変更）。発信者は
+  // 既に分割表示でこの一対を見ているため、以後は`EmbeddedCallPane`が
+  // その表示エリア内に埋め込み表示として引き継ぐ。
   Future<void> _startCall(DirectMessage dm, {bool isVideo = false}) async {
     final callRepository = ref.read(callRepositoryProvider);
     final other = AppUser(
@@ -252,15 +258,26 @@ class _TalksTabState extends ConsumerState<TalksTab> {
       dmId: dm.dmId,
       isVideo: isVideo,
     );
+    if (isMobileCallPlatform) {
+      ref
+          .read(goRouterProvider)
+          .push(
+            '/call',
+            extra: CallArgs(
+              call: call,
+              isCaller: true,
+              currentUserId: widget.currentUser.userId,
+            ),
+          );
+      return;
+    }
     ref
-        .read(goRouterProvider)
-        .push(
-          '/call',
-          extra: CallArgs(
-            call: call,
-            isCaller: true,
-            currentUserId: widget.currentUser.userId,
-          ),
+        .read(activeCallSessionProvider.notifier)
+        .startOneToOne(
+          call: call,
+          isCaller: true,
+          callRepository: callRepository,
+          directMessageRepository: ref.read(directMessageRepositoryProvider),
         );
   }
 
@@ -416,6 +433,14 @@ class _TalksTabState extends ConsumerState<TalksTab> {
       // 表示し続けてしまうため）。
       setState(() => _category = _TalksCategory.dm);
       _openDirectMessage(next);
+    });
+    // 通話ミニ表示（PinnedCallOverlay）タップでの復帰用（2026-08-19追加）。
+    // 上のDM版と同じ橋渡しパターン。
+    ref.listen<Group?>(pendingGroupSelectionProvider, (previous, next) {
+      if (next == null) return;
+      ref.read(pendingGroupSelectionProvider.notifier).clear();
+      setState(() => _category = _TalksCategory.group);
+      _openGroup(next);
     });
 
     final vocab = ref.watch(vocabularyProvider);

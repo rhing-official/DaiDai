@@ -13,13 +13,17 @@ import '../../models/group.dart';
 import '../../models/group_role.dart';
 import '../../providers/app_ui_style_provider.dart';
 import '../../providers/block_providers.dart';
+import '../../providers/chat_navigation_providers.dart';
 import '../../providers/conversation_prefs_providers.dart';
 import '../../providers/repository_providers.dart';
 import '../../repositories/group_repository.dart';
 import '../../router/app_router.dart';
 import '../../utils/auto_dismiss_banner.dart';
 import '../../utils/group_permissions.dart';
+import '../../utils/platform_info.dart';
 import '../../widgets/gekiga/gekiga_icon_badge.dart';
+import '../call/active_call_session.dart';
+import '../call/embedded_call_pane.dart';
 import 'chat_screen.dart';
 import 'conversation_profile_card_dialog.dart';
 import 'group_delete_dialog.dart';
@@ -245,17 +249,28 @@ class DmChatPane extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // 横スクロールタブバーはこの寄合一覧を必要とする場合のみ購読する
-    // （単一モードや広い画面のサイドバー使用中は不要な購読を増やさない）。
-    if (!showRoomTabBar || !dm.roomsEnabled) {
-      return _buildChatScreen(context, ref, null);
-    }
-    return StreamBuilder<List<DmRoom>>(
-      stream: ref
-          .read(directMessageRepositoryProvider)
-          .watchRooms(dmId: dm.dmId, userId: currentUser.userId),
-      builder: (context, snapshot) =>
-          _buildChatScreen(context, ref, snapshot.data ?? const <DmRoom>[]),
+    // 通話中、PC/Webではこの会話を表示している間だけメッセージ一覧の
+    // 代わりに通話UIを埋め込み表示する（2026-08-19追加、EmbeddedCallPane
+    // 参照）。
+    return EmbeddedCallPane(
+      conversation: ViewedDm(dm.dmId),
+      conversationTitle: roomName,
+      child: Builder(
+        builder: (context) {
+          // 横スクロールタブバーはこの寄合一覧を必要とする場合のみ購読する
+          // （単一モードや広い画面のサイドバー使用中は不要な購読を増やさない）。
+          if (!showRoomTabBar || !dm.roomsEnabled) {
+            return _buildChatScreen(context, ref, null);
+          }
+          return StreamBuilder<List<DmRoom>>(
+            stream: ref
+                .read(directMessageRepositoryProvider)
+                .watchRooms(dmId: dm.dmId, userId: currentUser.userId),
+            builder: (context, snapshot) =>
+                _buildChatScreen(context, ref, snapshot.data ?? const <DmRoom>[]),
+          );
+        },
+      ),
     );
   }
 
@@ -937,58 +952,88 @@ class GroupChatPane extends ConsumerWidget {
     }
 
     if (!context.mounted) return;
+    // モバイルのみ全画面の/group-callへpushする。PCでは全画面ルートを
+    // 使わず、通話セッションを直接開始するだけにする（2026-08-19変更）。
+    // 発信者は既にこの広場のメッセージ画面を見ているため、以後は
+    // `EmbeddedCallPane`がそのメッセージ画面内に埋め込み表示として引き継ぐ。
+    if (isMobileCallPlatform) {
+      ref
+          .read(goRouterProvider)
+          .push(
+            '/group-call',
+            extra: GroupCallArgs(
+              groupCallId: call.groupCallId,
+              groupId: group.groupId,
+              currentUser: currentUser,
+              isVideo: call.isVideo,
+            ),
+          );
+      return;
+    }
     ref
-        .read(goRouterProvider)
-        .push(
-          '/group-call',
-          extra: GroupCallArgs(
-            groupCallId: call.groupCallId,
-            currentUser: currentUser,
-            isVideo: call.isVideo,
-          ),
+        .read(activeCallSessionProvider.notifier)
+        .startGroup(
+          groupCallId: call.groupCallId,
+          groupId: group.groupId,
+          currentUser: currentUser,
+          isVideo: call.isVideo,
+          groupCallRepository: groupCallRepository,
         );
   }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final groupRepository = ref.watch(groupRepositoryProvider);
-    // カスタムロール（見た目専用の呼び名フォントカラー）は広場全体の優先順位・
-    // 寄合ごとの上書きを両方見る必要があるため、ロール一覧・寄合一覧をここで
-    // watchして呼び名の色を解決する（`resolveSenderColor`/`_SenderName`参照）。
-    // 更新頻度が低いためネストしたStreamBuilderのコストは無視できる。
-    return StreamBuilder<List<GroupRole>>(
-      stream: groupRepository.watchRoles(group.groupId),
-      builder: (context, rolesSnapshot) {
-        final roles = rolesSnapshot.data ?? const <GroupRole>[];
-        return StreamBuilder<List<Room>>(
-          stream: groupRepository.watchRooms(
-            groupId: group.groupId,
-            userId: currentUser.userId,
-          ),
-          builder: (context, roomsSnapshot) {
-            final rooms = roomsSnapshot.data ?? const <Room>[];
-            final currentRoom = rooms.firstWhereOrNull(
-              (r) => r.roomId == roomId,
-            );
-            Color? senderNameColorFor(String userId) => resolveSenderColor(
-              group: group,
-              currentRoom: currentRoom,
-              roles: roles,
-              userId: userId,
-            );
+    // 通話中、PC/Webではこの会話を表示している間だけメッセージ一覧の
+    // 代わりに通話UIを埋め込み表示する（2026-08-19追加、EmbeddedCallPane
+    // 参照）。
+    return EmbeddedCallPane(
+      conversation: ViewedGroup(group.groupId),
+      conversationTitle: roomName,
+      child: Builder(
+        builder: (context) {
+          // カスタムロール（見た目専用の呼び名フォントカラー）は広場全体の
+          // 優先順位・寄合ごとの上書きを両方見る必要があるため、ロール
+          // 一覧・寄合一覧をここでwatchして呼び名の色を解決する
+          // （`resolveSenderColor`/`_SenderName`参照）。更新頻度が低いため
+          // ネストしたStreamBuilderのコストは無視できる。
+          return StreamBuilder<List<GroupRole>>(
+            stream: groupRepository.watchRoles(group.groupId),
+            builder: (context, rolesSnapshot) {
+              final roles = rolesSnapshot.data ?? const <GroupRole>[];
+              return StreamBuilder<List<Room>>(
+                stream: groupRepository.watchRooms(
+                  groupId: group.groupId,
+                  userId: currentUser.userId,
+                ),
+                builder: (context, roomsSnapshot) {
+                  final rooms = roomsSnapshot.data ?? const <Room>[];
+                  final currentRoom = rooms.firstWhereOrNull(
+                    (r) => r.roomId == roomId,
+                  );
+                  Color? senderNameColorFor(String userId) =>
+                      resolveSenderColor(
+                        group: group,
+                        currentRoom: currentRoom,
+                        roles: roles,
+                        userId: userId,
+                      );
 
-            return _buildChatScreen(
-              context,
-              ref,
-              groupRepository,
-              rooms,
-              currentRoom,
-              roles,
-              senderNameColorFor,
-            );
-          },
-        );
-      },
+                  return _buildChatScreen(
+                    context,
+                    ref,
+                    groupRepository,
+                    rooms,
+                    currentRoom,
+                    roles,
+                    senderNameColorFor,
+                  );
+                },
+              );
+            },
+          );
+        },
+      ),
     );
   }
 
