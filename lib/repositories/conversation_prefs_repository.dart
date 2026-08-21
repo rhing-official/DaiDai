@@ -103,8 +103,19 @@ class FirestoreConversationPrefsRepository
     required String roomId,
     required String draft,
   }) async {
+    // set()はupdate()と異なりドット区切りキーをネストしたフィールドパスとして
+    // 解釈しない（`cloud_firestore`の`DocumentReference.set`は
+    // `_CodecUtility.replaceValueWithDelegatesInMap`を使い、`update`の
+    // `...InMapFieldPath`とは別経路）。そのため`'draftByRoom.$roomId'`という
+    // キーは`draftByRoom`マップの中ではなく、文字通りドットを含む無関係な
+    // 最上位フィールドを作ってしまい、下書きが一切保存されていなかった
+    // （2026-08-20発覚）。`setRoomNotificationsMuted`と同じネストした
+    // マップリテラルに直し、`merge: true`の再帰マージで該当roomIdキーだけを
+    // 更新する。
     await _prefsOf(userId).doc(conversationId).set({
-      'draftByRoom.$roomId': draft.isEmpty ? FieldValue.delete() : draft,
+      'draftByRoom': {
+        roomId: draft.isEmpty ? FieldValue.delete() : draft,
+      },
     }, SetOptions(merge: true));
   }
 }

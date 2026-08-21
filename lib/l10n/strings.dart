@@ -345,6 +345,7 @@ class Strings {
     required this.chatAccountDeletedNoButton,
     required this.chatAccountDeletedConfirmTitle,
     required this.chatAccountDeletedConfirmButton,
+    required this.chatNoMoreHistory,
     required this.roomListAddDialogTitle,
     required this.roomListAddButton,
     required this.roomListDeleteConfirmTitle,
@@ -846,6 +847,10 @@ class Strings {
   final String chatAccountDeletedConfirmTitle;
   final String chatAccountDeletedConfirmButton;
 
+  /// メッセージ一覧を一番上まで遡り、これ以上古い履歴が無い場合に表示する
+  /// 終端表示（2026-08-20追加、1日単位ページネーション）。
+  final String chatNoMoreHistory;
+
   /// 寄合追加ダイアログのタイトル。用語（「寄合」等）を差し込む。
   final String Function(String term) roomListAddDialogTitle;
   final String roomListAddButton;
@@ -1237,6 +1242,7 @@ class Strings {
     chatAccountDeletedNoButton: 'いいえ',
     chatAccountDeletedConfirmTitle: '本当によろしいですか？',
     chatAccountDeletedConfirmButton: '削除する',
+    chatNoMoreHistory: 'これ以上の履歴はありません',
     roomListAddDialogTitle: (term) => '$termを追加',
     roomListAddButton: '追加',
     roomListDeleteConfirmTitle: (term) => 'この$termを削除しますか？',
@@ -1669,6 +1675,7 @@ class Strings {
     chatAccountDeletedNoButton: 'No',
     chatAccountDeletedConfirmTitle: 'Are you sure?',
     chatAccountDeletedConfirmButton: 'Delete',
+    chatNoMoreHistory: 'No more history',
     roomListAddDialogTitle: (term) => 'Add $term',
     roomListAddButton: 'Add',
     roomListDeleteConfirmTitle: (term) => 'Delete this $term?',

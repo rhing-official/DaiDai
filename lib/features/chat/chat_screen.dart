@@ -10,11 +10,11 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart'
     show RenderRepaintBoundary, SelectedContent;
-import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
+import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:video_player/video_player.dart';
@@ -25,6 +25,7 @@ import '../../l10n/strings.dart';
 import '../../l10n/vocabulary.dart';
 import '../../models/app_ui_style.dart';
 import '../../models/chat_layout_style.dart';
+import '../../models/conversation_prefs.dart';
 import '../../models/message.dart';
 import '../../models/message_time_format.dart';
 import '../../models/send_key_mode.dart';
@@ -97,6 +98,9 @@ class ChatScreen extends ConsumerStatefulWidget {
     this.onDeclineAccountDeletionNotice,
     this.onDeleteAfterAccountDeletion,
     this.onFetchMessagesAround,
+    this.onLoadOlderMessages,
+    this.isLoadingOlderMessages = false,
+    this.hasMoreHistory = true,
     this.roomTabBar,
     this.disabled = false,
     this.onSwipeBack,
@@ -196,6 +200,20 @@ class ChatScreen extends ConsumerStatefulWidget {
   /// 何もしない（ジャンプできない）。
   final Future<List<Message>> Function(String messageId)? onFetchMessagesAround;
 
+  /// メッセージ一覧を一番上（一番古いメッセージ側）までスクロールした時に、
+  /// さらに古い暦日1日分を読み込む（2026-08-20追加、1日単位ページネーション）。
+  /// nullならこの機能自体を使わない（呼び出し元が[messagesStream]を1日単位
+  /// ページネーションに対応させていない場合）。
+  final Future<void> Function()? onLoadOlderMessages;
+
+  /// [onLoadOlderMessages]が現在実行中かどうか。trueの間は一覧の最上部に
+  /// ローディング表示を出し、スクロールでの再発火を防ぐ。
+  final bool isLoadingOlderMessages;
+
+  /// これ以上遡れる履歴が無いかどうか。falseなら一覧の最上部に終端表示を
+  /// 出し、[onLoadOlderMessages]をこれ以上呼ばない。
+  final bool hasMoreHistory;
+
   /// 狭い画面（縦表示）で、AppBarの直下に寄合の横スクロールタブバー
   /// （`RoomTabBar`）を表示する（2026-08-03追加）。単一モードの会話・
   /// 広い画面のサイドバー使用中（`TalksTab`の分割表示）ではnullのまま渡す。
@@ -225,8 +243,7 @@ class ChatScreen extends ConsumerStatefulWidget {
   ConsumerState<ChatScreen> createState() => _ChatScreenState();
 }
 
-class _ChatScreenState extends ConsumerState<ChatScreen>
-    with SingleTickerProviderStateMixin {
+class _ChatScreenState extends ConsumerState<ChatScreen> {
   final _textController = TextEditingController();
 
   /// 入力欄の下書き複数端末同期用（2026-08-13追加）。デバウンス書き込みの
@@ -234,6 +251,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   /// はいけない」場面で立てる抑制フラグ。
   Timer? _draftSaveTimer;
   bool _suppressDraftSync = false;
+
+  /// 他端末の下書き変化を継続的に購読するための手動購読（2026-08-20追加）。
+  /// 以前は`initState`で一度だけ読み込むだけで、開いたまま他端末の下書きが
+  /// 変わっても・後から開き直しても反映されない不具合があったため、
+  /// `ref.listenManual`による永続購読に置き換えた（[_applyRemoteDraft]参照）。
+  ProviderSubscription<AsyncValue<Map<String, ConversationPrefs>>>? _draftSub;
 
   // widget.roomIdがnullな呼び出し元（お知らせ画面等、既存テストの多くも
   // 含む）でdraftSyncEnabledProviderの評価自体をスキップするため、
@@ -250,31 +273,51 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   void initState() {
     super.initState();
     _textController.addListener(_onComposerTextChanged);
-    _loadInitialDraft();
+    if (_draftSyncActive) {
+      _draftSub = ref.listenManual(
+        conversationPrefsProvider(widget.currentUserId),
+        (previous, next) => _applyRemoteDraft(next.value),
+        fireImmediately: true,
+      );
+    }
+    _itemPositionsListener.itemPositions.addListener(_maybeLoadOlderMessages);
   }
 
-  /// 画面を開いた時に一度だけ、この寄合の下書きをFirestoreから読み込んで
-  /// 入力欄へ反映する（「開いた時に復元」方式、1文字ずつのリアルタイム
-  /// ミラーは行わない）。
-  Future<void> _loadInitialDraft() async {
-    if (!_draftSyncActive) return;
-    final conversationId = widget.conversationId!;
-    final roomId = widget.roomId!;
-    try {
-      final prefsMap = await ref.read(
-        conversationPrefsProvider(widget.currentUserId).future,
-      );
-      if (!mounted) return;
-      final draft = prefsMap[conversationId]?.draftByRoom[roomId];
-      if (draft == null || draft.isEmpty) return;
-      if (_textController.text.isNotEmpty) return;
-      _suppressDraftSync = true;
-      _textController.text = draft;
-      _suppressDraftSync = false;
-    } catch (_) {
-      // 下書きの読み込み失敗は致命的ではないため握りつぶす（入力欄が
-      // 空のまま始まるだけ）。
+  /// メッセージ一覧（`reverse:true`の`ScrollablePositionedList`）の一番古い
+  /// メッセージ側の端に近づいたら、[ChatScreen.onLoadOlderMessages]でさらに
+  /// 古い暦日を読み込む（2026-08-20追加、1日単位ページネーション）。
+  /// `reverse:true`のため、indexが大きいほど古いメッセージ側（画面上端）
+  /// にいる。
+  void _maybeLoadOlderMessages() {
+    final onLoadOlderMessages = widget.onLoadOlderMessages;
+    if (onLoadOlderMessages == null) return;
+    if (widget.isLoadingOlderMessages || !widget.hasMoreHistory) return;
+    final positions = _itemPositionsListener.itemPositions.value;
+    if (positions.isEmpty || _entryCount == 0) return;
+    final maxIndex = positions.map((p) => p.index).reduce(math.max);
+    if (_entryCount - 1 - maxIndex <= 5) {
+      onLoadOlderMessages();
     }
+  }
+
+  /// 他端末の下書き（`draftByRoom[roomId]`）が変化した時に呼ばれる。画面を
+  /// 開いた瞬間の復元（`fireImmediately`）と、開いたまま他端末の下書きが
+  /// 変わった場合の反映を同じ経路で行う（2026-08-20変更、以前は`initState`
+  /// で一度だけ読み込むだけで、開いたまま他端末の下書きが変わっても・後から
+  /// 開き直しても反映されない不具合があった）。フォーカス中（＝今まさに
+  /// このタブで入力中）の間だけは上書きしない。以前は「入力欄が既に非空」
+  /// も上書き抑制の条件にしていたが、それだと最初の同期（空→内容あり）が
+  /// 一度成功した後は以後ずっとブロックされ続け、他端末で下書きを消した
+  /// （空文字列に戻した）操作が一切反映されない不具合になっていたため外した
+  /// （2026-08-20修正）。
+  void _applyRemoteDraft(Map<String, ConversationPrefs>? prefsMap) {
+    if (!mounted || prefsMap == null || _composerFocusNode.hasFocus) return;
+    final draft =
+        prefsMap[widget.conversationId!]?.draftByRoom[widget.roomId!] ?? '';
+    if (draft == _textController.text) return;
+    _suppressDraftSync = true;
+    _textController.text = draft;
+    _suppressDraftSync = false;
   }
 
   void _onComposerTextChanged() {
@@ -313,10 +356,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   /// 送信直後に取り戻す、の2用途で使う（[_startReply]/[_send]参照）。
   final _composerFocusNode = FocusNode();
 
-  /// メッセージ一覧のスクロール位置を、自動スクロール機能から直接操作する
-  /// ために持つ（返信先ジャンプ機能は従来通りcontextベースの
-  /// `Scrollable.ensureVisible`を使うため、この`controller`を必要としない）。
-  final _scrollController = ScrollController();
+  /// メッセージ一覧（`ScrollablePositionedList`）のスクロール制御・位置監視用
+  /// （2026-08-21、`ListView`+`GlobalKey`+`Scrollable.ensureVisible`方式から
+  /// 移行。返信先ジャンプ機能は`_itemScrollController.jumpTo(index:)`で
+  /// 未ビルドの行にも確定的にジャンプできる）。
+  final _itemScrollController = ItemScrollController();
+  final _itemPositionsListener = ItemPositionsListener.create();
 
   /// 自動スクロール開始位置（画面座標）を表示するアイコンの位置計算に使う。
   final _autoScrollAreaKey = GlobalKey();
@@ -335,58 +380,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   /// [showStickerPickerPopup]でアイコン付近にポップアップを浮かせる。
   final _stickerButtonKey = GlobalKey();
 
-  /// ミドルクリックによる自動スクロールの基準位置（画面座標）。nullなら
-  /// 非アクティブ（2026-07-29追加、ブラウザのミドルクリックオートスクロールと
-  /// 同じ挙動。メッセージ行の吹き出し横の余白の長押しにも割り当てていたが
-  /// 2026-08-12に廃止した）。
-  Offset? _autoScrollOrigin;
-
-  /// 現在のポインタ位置と[_autoScrollOrigin]との縦距離。プラスなら下、
-  /// マイナスなら上に離れている。
-  double _autoScrollDy = 0;
-
-  Ticker? _autoScrollTicker;
-  Duration _autoScrollLastTick = Duration.zero;
-
-  static const _autoScrollDeadZone = 12.0;
-  static const _autoScrollMaxSpeed = 1350.0;
-
-  void _startAutoScroll(Offset origin) {
-    _autoScrollTicker?.dispose();
-    _autoScrollLastTick = Duration.zero;
-    setState(() {
-      _autoScrollOrigin = origin;
-      _autoScrollDy = 0;
-    });
-    _autoScrollTicker = createTicker(_tickAutoScroll)..start();
-  }
-
-  void _updateAutoScrollPosition(Offset position) {
-    if (_autoScrollOrigin == null) return;
-    setState(() => _autoScrollDy = position.dy - _autoScrollOrigin!.dy);
-  }
-
-  void _stopAutoScroll() {
-    _autoScrollTicker?.dispose();
-    _autoScrollTicker = null;
-    if (_autoScrollOrigin == null) return;
-    setState(() => _autoScrollOrigin = null);
-  }
-
-  /// ミドルクリックは「押して離す」でオン/オフを切り替える（一般的な
-  /// ブラウザの挙動に合わせる）。既にアクティブな間はどのボタンのクリックでも
-  /// 終了させる。
-  void _handleMiddlePointerDown(PointerDownEvent event) {
-    if (_autoScrollOrigin != null) {
-      _stopAutoScroll();
-      return;
-    }
-    if (event.kind == PointerDeviceKind.mouse &&
-        (event.buttons & kMiddleMouseButton) != 0) {
-      _startAutoScroll(event.position);
-    }
-  }
-
   /// [_composerAreaKey]が指す入力欄オーバーレイの実際の描画高さを計測し、
   /// [_composerAreaHeight]（メッセージ一覧の下部余白に使う）へ反映する。
   /// テキスト入力欄が複数行になる、返信/編集バーの表示が切り替わるなど
@@ -401,56 +394,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     if ((height - _composerAreaHeight).abs() > 0.5) {
       setState(() => _composerAreaHeight = height);
     }
-  }
-
-  /// 自動スクロール中、基準位置に表示する小さいアイコン
-  /// （ブラウザのミドルクリックオートスクロールと同じ見た目）。
-  Widget _buildAutoScrollIndicator() {
-    final box =
-        _autoScrollAreaKey.currentContext?.findRenderObject() as RenderBox?;
-    final origin = _autoScrollOrigin;
-    if (box == null || origin == null) return const SizedBox.shrink();
-    final local = box.globalToLocal(origin);
-    return Positioned(
-      left: local.dx - 20,
-      top: local.dy - 20,
-      child: IgnorePointer(
-        child: Container(
-          width: 40,
-          height: 40,
-          decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.55),
-            shape: BoxShape.circle,
-          ),
-          child: const Icon(Icons.unfold_more, color: Colors.white, size: 22),
-        ),
-      ),
-    );
-  }
-
-  void _tickAutoScroll(Duration elapsed) {
-    final dtSeconds =
-        (elapsed - _autoScrollLastTick).inMicroseconds /
-        Duration.microsecondsPerSecond;
-    _autoScrollLastTick = elapsed;
-    if (dtSeconds <= 0 || !_scrollController.hasClients) return;
-    final dy = _autoScrollDy;
-    if (dy.abs() <= _autoScrollDeadZone) return;
-    final overshoot = dy.abs() - _autoScrollDeadZone;
-    // 基準位置から離れるほど速くスクロールする（ブラウザのオートスクロールと
-    // 同じ挙動）。
-    final speed = (overshoot * 6).clamp(0.0, _autoScrollMaxSpeed);
-    // reverse:trueのListViewでは、pixelsが大きいほど古いメッセージ側
-    // （画面上では上方向）へスクロールする。ポインタを下（dy>0）へ動かした
-    // 時は新しいメッセージ側（画面上では下方向）へスクロールしたいので、
-    // pixelsを減らす向きになる。
-    final delta = dtSeconds * speed * (dy > 0 ? -1 : 1);
-    final position = _scrollController.position;
-    final next = (position.pixels + delta).clamp(
-      position.minScrollExtent,
-      position.maxScrollExtent,
-    );
-    _scrollController.jumpTo(next);
   }
 
   /// 既に既読リクエストを送った（または送信中の）メッセージIDの集合。
@@ -500,19 +443,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   Message? _replyingTo;
   Message? _editingMessage;
 
-  /// 返信先ジャンプ機能用に、現在ロード済みの各メッセージ行へのGlobalKey。
-  /// 以前は「`ListView.builder`の遅延ビルドを避けるため、下のbuild()で
-  /// `ListView`（非lazy）に切り替えている」としていたが誤りだった:
-  /// `ListView(children: ...)`も内部的には`SliverList`を使うため、
-  /// `ListView.builder`と同様にビューポート＋`cacheExtent`の範囲外の子は
-  /// 実際にはビルドされない（`_FileAttachmentBlockState`のコメント参照、
-  /// こちらは別の不具合で先に発覚していた）。実際に画面外の返信先へも
-  /// GlobalKeyのcurrentContextが付くようにしているのは、下のbuild()で
-  /// 明示指定している`cacheExtent`（既定値250pxを大きく超える値）の方
-  /// （2026-08-14訂正、現在ロード済みメッセージは最新50件程度に収まる想定）。
-  final _messageKeys = <String, GlobalKey>{};
+  /// 返信先ジャンプ機能用に、現在表示中の各メッセージ行の
+  /// `ScrollablePositionedList`上のインデックス（2026-08-21、`GlobalKey`＋
+  /// `Scrollable.ensureVisible`方式から移行）。build()内でsetStateを介さず
+  /// 直接更新する（[_cachedMessages]と同じパターン、このフィールド自体は
+  /// 再描画のトリガーにする必要が無いため）。
+  Map<String, int> _messageIndexById = {};
 
-  /// [widget.messagesStream]の直近50件に含まれない返信先へジャンプする際、
+  /// [_messageIndexById]構築時点でのメッセージ一覧の総行数
+  /// （日付区切り等を含む、[_maybeLoadOlderMessages]の閾値判定用）。
+  int _entryCount = 0;
+
+  /// [widget.messagesStream]に含まれない返信先へジャンプする際、
   /// [widget.onFetchMessagesAround]で1回だけ取得したメッセージを一時的に
   /// 保持しておく置き場（購読はしないので、ここに置かないと再ビルドのたびに
   /// 消えてしまう）。build()で[widget.messagesStream]の内容とマージして表示する。
@@ -530,14 +472,19 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   /// ジャンプ直後に対象メッセージを一瞬ハイライトするための状態。
   String? _highlightedMessageId;
 
+  /// 返信元メッセージへジャンプする（2026-08-21、`ScrollablePositionedList`
+  /// への移行に伴い書き換え）。`ItemScrollController.jumpTo(index:)`は
+  /// 対象行が事前にビルドされていなくても確定的にジャンプできるため、旧実装
+  /// にあったGlobalKeyのビルド待ちリトライ・`Scrollable.ensureVisible`の
+  /// 再試行は不要になった。
   Future<void> _jumpToMessage(String messageId) async {
-    if (!_messageKeys.containsKey(messageId)) {
+    var index = _messageIndexById[messageId];
+    if (index == null) {
       final fetched = await widget.onFetchMessagesAround?.call(messageId);
       if (!mounted) return;
       if (fetched == null || fetched.isEmpty) {
         // フェッチしても存在しない＝対象メッセージが本当に無い
         // （全員から削除され物理削除済み等）と確定できるケース。
-        // 待っても状況が変わらないため即座に通知する。
         _showJumpNotFoundBanner();
         return;
       }
@@ -546,65 +493,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           _extraMessages[message.messageId] = message;
         }
       });
-    }
-
-    // 対象の行が実際にビルドされ、GlobalKeyにcurrentContextが付くまで、
-    // 最大5回・フレームを挟んでリトライする。既にロード済み
-    // （_messageKeysに登録済み）のメッセージでも、直前までメッセージが
-    // 連続送信されているとFirestoreスナップショットの更新に伴う再構築が
-    // 連続し、1回のフレーム待ちだけでは間に合わないことがあった
-    // （メッセージが実際には存在するのに「元のメッセージが見つかりません」
-    // と誤って表示される不具合の原因、2026-08-14対応）。
-    BuildContext? initialContext;
-    for (var attempt = 0; attempt < 5; attempt++) {
-      initialContext = _messageKeys[messageId]?.currentContext;
-      if (initialContext != null && initialContext.mounted) break;
-      if (attempt == 4) break;
+      // フェッチ結果がbuild()に反映され_messageIndexByIdへ載るまで1フレーム待つ。
       await WidgetsBinding.instance.endOfFrame;
       if (!mounted) return;
+      index = _messageIndexById[messageId];
     }
-    if (initialContext == null || !initialContext.mounted) {
+    if (index == null || !_itemScrollController.isAttached) {
       _showJumpNotFoundBanner();
       return;
     }
-    BuildContext targetContext = initialContext;
 
-    // アニメーション付き（旧300ms）だと、会話を開いた直後は
-    // _markUnreadMessagesの既読書き込みがFirestoreの購読ストリームへ
-    // エコーバックしてメッセージ一覧が再構築されやすく、アニメーション中に
-    // それが起きると処理自体は正常完了するのに実際の着地位置がズレる
-    // ケースがあった（「ジャンプが正常に動作しない」報告が2回続いた原因、
-    // 2026-08-12対応）。duration: Duration.zeroで即時移動にし、競合が
-    // 起きうる時間窓そのものを無くす。
-    Future<void> reveal(BuildContext context) => Scrollable.ensureVisible(
-      context,
-      duration: Duration.zero,
-      alignment: 0.5,
-    );
-
-    // Scrollable.ensureVisible単体では、既読自動書き込み（_markUnreadMessages）
-    // のエコーバック等でアニメーション中にメッセージ一覧が再構築されることが
-    // あり、その場合Flutter側の処理自体は正常完了するため「スクロール位置が
-    // 変化したか」だけでは対象が実際に画面内へ収まったか判別できなかった
-    // （「ハイライトはするがジャンプしない」不具合の原因、2026-08-12対応）。
-    // 実行後に対象行のRenderBoxが実際にビューポート内へ収まっているかを
-    // 直接検証し、収まっていなければ1フレーム待ってGlobalKeyの
-    // currentContextを取り直し、最大2回まで再試行する。
-    for (var attempt = 0; attempt < 3; attempt++) {
-      await reveal(targetContext);
-      if (!mounted || !targetContext.mounted) return;
-
-      final scrollable = Scrollable.maybeOf(targetContext);
-      if (scrollable == null || _isFullyVisible(targetContext, scrollable)) {
-        break;
-      }
-      if (attempt == 2) break;
-      await WidgetsBinding.instance.endOfFrame;
-      if (!mounted) return;
-      final refreshed = _messageKeys[messageId]?.currentContext;
-      if (refreshed == null || !refreshed.mounted) break;
-      targetContext = refreshed;
-    }
+    _itemScrollController.jumpTo(index: index, alignment: 0.5);
 
     setState(() => _highlightedMessageId = messageId);
     Future.delayed(const Duration(milliseconds: 1200), () {
@@ -613,34 +512,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     });
   }
 
-  /// [_jumpToMessage]で返信元メッセージが見つからなかった（取得できなかった、
-  /// または取得後もリストへ実際にビルドされなかった）場合の通知。参加者
+  /// [_jumpToMessage]で返信元メッセージが見つからなかった場合の通知。参加者
   /// 全員がその後削除し物理削除済みのメッセージへの返信等で恒久的に起こり
   /// うるため、無反応のままにせず理由を伝える（2026-08-14追加）。
   void _showJumpNotFoundBanner() {
     showAutoDismissBanner(context, message: '元のメッセージが見つかりません');
-  }
-
-  /// [targetContext]のRenderBoxが、[scrollable]のビューポート範囲内に
-  /// 完全に収まっているかを判定する（[_jumpToMessage]の再試行判定用、
-  /// 2026-08-12追加）。判定できない場合は再試行を無駄に繰り返さないよう
-  /// trueを返す。
-  bool _isFullyVisible(BuildContext targetContext, ScrollableState scrollable) {
-    final renderObject = targetContext.findRenderObject();
-    final viewportRenderObject = scrollable.context.findRenderObject();
-    if (renderObject is! RenderBox ||
-        !renderObject.attached ||
-        viewportRenderObject is! RenderBox) {
-      return true;
-    }
-    final topLeft = renderObject.localToGlobal(
-      Offset.zero,
-      ancestor: viewportRenderObject,
-    );
-    final targetRect = topLeft & renderObject.size;
-    final viewportRect = Offset.zero & viewportRenderObject.size;
-    return viewportRect.contains(targetRect.topLeft) &&
-        viewportRect.contains(targetRect.bottomRight);
   }
 
   void _startReply(Message message) {
@@ -1375,11 +1251,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   @override
   void dispose() {
     _draftSaveTimer?.cancel();
+    _draftSub?.close();
     _textController.removeListener(_onComposerTextChanged);
     _textController.dispose();
     _composerFocusNode.dispose();
-    _scrollController.dispose();
-    _autoScrollTicker?.dispose();
+    _itemPositionsListener.itemPositions.removeListener(
+      _maybeLoadOlderMessages,
+    );
     _bannerTimer?.cancel();
     super.dispose();
   }
@@ -1531,237 +1409,272 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
             child: Stack(
               key: _autoScrollAreaKey,
               children: [
-                Listener(
-                  // translucentにすることで、下のListView（左クリックでの
-                  // ドラッグスクロール等）を邪魔せず、ミドルクリックの検出だけ
-                  // 追加で行える（Listenerはジェスチャーアリーナに参加しない
-                  // 生のポインタ通知のため、他のジェスチャー認識と競合しない）。
-                  behavior: HitTestBehavior.translucent,
-                  onPointerDown: _handleMiddlePointerDown,
-                  onPointerHover: (event) =>
-                      _updateAutoScrollPosition(event.position),
-                  child: StreamBuilder<List<Message>>(
-                    stream: widget.messagesStream,
-                    builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting) {
-                        return Padding(
-                          padding: EdgeInsets.only(bottom: _composerAreaHeight),
-                          child: const Center(
-                            child: CircularProgressIndicator(),
-                          ),
-                        );
-                      }
-                      if (snapshot.hasError) {
-                        return Padding(
-                          padding: EdgeInsets.only(bottom: _composerAreaHeight),
-                          child: Center(child: Text('エラー: ${snapshot.error}')),
-                        );
-                      }
-                      final messages = snapshot.data ?? [];
-                      if (messages.isEmpty) {
-                        return Padding(
-                          padding: EdgeInsets.only(bottom: _composerAreaHeight),
-                          child: const Center(child: Text('まだメッセージはありません')),
-                        );
-                      }
-                      _markUnreadMessages(messages);
-
-                      // 直近50件（messages、購読中）に、返信先ジャンプで一時的に
-                      // 取得したメッセージ（_extraMessages、購読していない）を
-                      // マージして表示する。同じidがあればmessages側を優先する
-                      // （購読中で最新のため）。既にmessagesに含まれるようになった
-                      // 分はもう保持しておく必要が無いので削除する。
-                      _extraMessages.removeWhere(
-                        (id, _) => messages.any((m) => m.messageId == id),
+                StreamBuilder<List<Message>>(
+                  stream: widget.messagesStream,
+                  builder: (context, snapshot) {
+                    // snapshot.hasDataも確認する（2026-08-20追加）。
+                    // streamが（何らかの理由で）再購読された場合でも、
+                    // 既にデータを表示済みならメッセージ一覧のListView
+                    // （＝スクロール位置）を再構築でリセットしないための
+                    // 防御的な措置。根本的な対策は呼び出し元
+                    // （`DmChatPane`/`GroupChatPane`）がmessagesStream
+                    // 自体のidentityを固定していること。
+                    if (snapshot.connectionState == ConnectionState.waiting &&
+                        !snapshot.hasData) {
+                      return Padding(
+                        padding: EdgeInsets.only(bottom: _composerAreaHeight),
+                        child: const Center(child: CircularProgressIndicator()),
                       );
-                      final combined = [...messages, ..._extraMessages.values]
-                        ..sort((a, b) {
-                          final aTime = a.sentAt?.toDate() ?? DateTime.now();
-                          final bTime = b.sentAt?.toDate() ?? DateTime.now();
-                          return bTime.compareTo(aTime);
-                        });
-                      _cachedMessages = combined;
-
-                      // 返信元メッセージの引用プレビュー・返信先ジャンプに使う。
-                      // 現在ロード済み（直近50件＋ジャンプで追加取得した分）の
-                      // 範囲に返信元があれば、こちらを優先して表示する（編集済み
-                      // なら最新の内容を反映できる）。範囲外ならMessage側の
-                      // 非正規化フィールド（replyToSnippet等）にフォールバックする
-                      // （_MessageRow参照）。
-                      final messagesById = {
-                        for (final m in combined) m.messageId: m,
-                      };
-
-                      // 画像/動画の拡大表示（`_MediaViewerScreen`）での
-                      // 前後スワイプ・矢印キーナビゲーション用（2026-08-14
-                      // 追加）。`combined`は新しい順なので反転して古い順にする
-                      // （右スワイプ＝前＝古い方向、という仕様に合わせるため）。
-                      final mediaMessages = combined
-                          .where(
-                            (m) =>
-                                m.contentType == 'image' ||
-                                m.contentType == 'video',
-                          )
-                          .toList()
-                          .reversed
-                          .toList();
-
-                      // 画面外に流れたメッセージのGlobalKeyは溜め続けない。
-                      final currentIds = messagesById.keys.toSet();
-                      _messageKeys.removeWhere(
-                        (id, _) => !currentIds.contains(id),
+                    }
+                    if (snapshot.hasError) {
+                      return Padding(
+                        padding: EdgeInsets.only(bottom: _composerAreaHeight),
+                        child: Center(child: Text('エラー: ${snapshot.error}')),
                       );
+                    }
+                    final messages = snapshot.data ?? [];
+                    if (messages.isEmpty) {
+                      return Padding(
+                        padding: EdgeInsets.only(bottom: _composerAreaHeight),
+                        child: const Center(child: Text('まだメッセージはありません')),
+                      );
+                    }
+                    _markUnreadMessages(messages);
 
-                      // combinedは新しい順（index 0が最新）。日付区切りを「その日の
-                      // 最初のメッセージの直上」に挿入したいので、一旦古い順に走査して
-                      // 区切り込みのリストを組み立ててから反転する。reverse:trueの
-                      // ListViewにそのまま渡すと、index 0（リストの末尾＝一番新しい
-                      // 要素）が画面下端に来て、見た目は上から古い順（区切り→その日の
-                      // メッセージ…）に正しく並ぶ。
-                      final screenshotEffectiveIds = _screenshotSelecting
-                          ? _screenshotEffectiveIds(combined)
-                          : const <String>{};
+                    // 直近50件（messages、購読中）に、返信先ジャンプで一時的に
+                    // 取得したメッセージ（_extraMessages、購読していない）を
+                    // マージして表示する。同じidがあればmessages側を優先する
+                    // （購読中で最新のため）。既にmessagesに含まれるようになった
+                    // 分はもう保持しておく必要が無いので削除する。
+                    _extraMessages.removeWhere(
+                      (id, _) => messages.any((m) => m.messageId == id),
+                    );
+                    final combined = [...messages, ..._extraMessages.values]
+                      ..sort((a, b) {
+                        final aTime = a.sentAt?.toDate() ?? DateTime.now();
+                        final bTime = b.sentAt?.toDate() ?? DateTime.now();
+                        return bTime.compareTo(aTime);
+                      });
+                    _cachedMessages = combined;
 
-                      final entries = <Widget>[];
-                      DateTime? currentDay;
-                      for (var i = combined.length - 1; i >= 0; i--) {
-                        final message = combined[i];
-                        final sentAt = message.sentAt?.toDate();
-                        if (sentAt != null &&
-                            (currentDay == null ||
-                                !isSameDay(sentAt, currentDay))) {
-                          currentDay = sentAt;
-                          entries.add(
-                            _DateSeparator(
-                              date: sentAt,
-                              locale: locale,
-                              isGekiga: isGekiga,
-                            ),
-                          );
-                        }
+                    // 返信元メッセージの引用プレビュー・返信先ジャンプに使う。
+                    // 現在ロード済み（直近50件＋ジャンプで追加取得した分）の
+                    // 範囲に返信元があれば、こちらを優先して表示する（編集済み
+                    // なら最新の内容を反映できる）。範囲外ならMessage側の
+                    // 非正規化フィールド（replyToSnippet等）にフォールバックする
+                    // （_MessageRow参照）。
+                    final messagesById = {
+                      for (final m in combined) m.messageId: m,
+                    };
+
+                    // 画像/動画の拡大表示（`_MediaViewerScreen`）での
+                    // 前後スワイプ・矢印キーナビゲーション用（2026-08-14
+                    // 追加）。`combined`は新しい順なので反転して古い順にする
+                    // （右スワイプ＝前＝古い方向、という仕様に合わせるため）。
+                    final mediaMessages = combined
+                        .where(
+                          (m) =>
+                              m.contentType == 'image' ||
+                              m.contentType == 'video',
+                        )
+                        .toList()
+                        .reversed
+                        .toList();
+
+                    // combinedは新しい順（index 0が最新）。日付区切りを「その日の
+                    // 最初のメッセージの直上」に挿入したいので、一旦古い順に走査して
+                    // 区切り込みのリストを組み立ててから反転する。reverse:trueの
+                    // ListViewにそのまま渡すと、index 0（リストの末尾＝一番新しい
+                    // 要素）が画面下端に来て、見た目は上から古い順（区切り→その日の
+                    // メッセージ…）に正しく並ぶ。
+                    final screenshotEffectiveIds = _screenshotSelecting
+                        ? _screenshotEffectiveIds(combined)
+                        : const <String>{};
+
+                    final entries = <Widget>[];
+                    // 1日単位ページネーション対応の呼び出し元
+                    // （onLoadOlderMessagesが非null）の場合のみ、一覧の
+                    // 一番古いメッセージ側の端（entries[0]、reverse:trueの
+                    // ListViewでは画面上端）にローディング／終端表示を
+                    // 追加する（2026-08-20追加）。
+                    if (widget.onLoadOlderMessages != null) {
+                      if (widget.isLoadingOlderMessages) {
                         entries.add(
-                          _MessageRow(
-                            key: _messageKeys.putIfAbsent(
-                              message.messageId,
-                              GlobalKey.new,
+                          const Padding(
+                            padding: EdgeInsets.all(16),
+                            child: Center(
+                              child: SizedBox(
+                                width: 24,
+                                height: 24,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              ),
                             ),
-                            message: message,
-                            isMe: message.senderId == widget.currentUserId,
-                            currentUserId: widget.currentUserId,
-                            timeLabel: sentAt != null
-                                ? formatMessageTime(sentAt, timeFormat)
-                                : null,
-                            colorScheme: colorScheme,
-                            floatingShadow: floatingShadow,
-                            uiStyle: uiStyle,
-                            readReceiptsEnabled: widget.readReceiptsEnabled,
-                            layoutStyle: layoutStyle,
-                            isDm: widget.isDm,
-                            conversationId: widget.conversationId,
-                            onSenderTap: (_selecting || _screenshotSelecting)
-                                ? null
-                                : widget.onSenderTap,
-                            senderNameColorResolver:
-                                widget.senderNameColorResolver,
-                            selecting: _selecting || _screenshotSelecting,
-                            selected: _selecting
-                                ? _selectedMessageIds.contains(
-                                    message.messageId,
-                                  )
-                                : screenshotEffectiveIds.contains(
-                                    message.messageId,
-                                  ),
-                            canSelect: widget.onHideMessages != null,
-                            onEnterSelection: _enterSelectionMode,
-                            onEnterScreenshotSelection:
-                                _enterScreenshotSelection,
-                            textCopySelecting:
-                                _textCopyMessageId == message.messageId,
-                            onEnterTextCopy: _enterTextCopyMode,
-                            partialCopySelectionKey: _partialCopyKey,
-                            onPartialCopySelectionChanged: (content) =>
-                                _partialCopySelectedContent = content,
-                            onCopyPartialSelection:
-                                _copyPartialSelectionAndExit,
-                            onCopyMessage: _copyMessageText,
-                            onToggleSelected: _selecting
-                                ? _toggleSelected
-                                : (_screenshotSelecting
-                                      ? _toggleScreenshotSelected
-                                      : null),
-                            messagesById: messagesById,
-                            mediaMessages: mediaMessages,
-                            onReply: widget.onSend != null ? _startReply : null,
-                            onEdit: widget.onEditMessage != null
-                                ? _startEdit
-                                : null,
-                            onUnsend: widget.onUnsendMessage,
-                            onSetReaction: widget.onSetReaction,
-                            onJumpToReply: _jumpToMessage,
-                            onSendSticker: widget.onSendSticker != null
-                                ? _handleStickerPicked
-                                : null,
-                            stickerButtonKey: _stickerButtonKey,
-                            highlighted:
-                                _highlightedMessageId == message.messageId,
-                            timeFormat: timeFormat,
-                            onDeclineAccountDeletionNotice:
-                                widget.onDeclineAccountDeletionNotice,
-                            onDeleteAfterAccountDeletion:
-                                widget.onDeleteAfterAccountDeletion,
-                            onSwipeBack: widget.onSwipeBack,
-                            vocabulary: vocabulary,
+                          ),
+                        );
+                      } else if (!widget.hasMoreHistory) {
+                        entries.add(
+                          Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Center(
+                              child: Text(
+                                strings.chatNoMoreHistory,
+                                style: TextStyle(
+                                  color: colorScheme.onSurfaceVariant,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
                           ),
                         );
                       }
-                      final reversedEntries = entries.reversed.toList();
-
-                      // 返信先ジャンプ機能（Scrollable.ensureVisible）は対象行が
-                      // 既にツリー上にビルドされている必要があるため、遅延ビルドの
-                      // ListView.builderではなく全件ビルド済みのListViewを使う
-                      // （現在ロード済みメッセージは最新50件程度に収まる想定）。
-                      //
-                      // メッセージ一覧は入力欄の裏まで全画面分の高さで敷き、
-                      // 入力欄自体はStack最前面のオーバーレイとして重ねる
-                      // （下記Positioned参照）。下部余白（bottomInset）を
-                      // 入力欄の実測高さに合わせてTweenAnimationBuilderで
-                      // アニメーションさせることで、入力欄が伸び縮みする際に
-                      // メッセージがその下へ滑らかに潜り込むように見せている
-                      // （2026-07-30、入力欄の直前でメッセージが唐突に
-                      // 途切れて見える不具合の修正）。
-                      return TweenAnimationBuilder<double>(
-                        tween: Tween<double>(
-                          end: (_selecting || _screenshotSelecting)
-                              ? 0
-                              : _composerAreaHeight,
-                        ),
-                        duration: const Duration(milliseconds: 180),
-                        curve: Curves.easeOut,
-                        builder: (context, bottomInset, _) => ListView(
-                          controller: _scrollController,
-                          reverse: true,
-                          // 返信先ジャンプ（_jumpToMessage）が画面外の対象行にも
-                          // 届くよう、既定値（250px）より大きく確保する
-                          // （_messageKeysのdocコメント参照、2026-08-14対応）。
-                          // 代替の`scrollCacheExtent`（`ScrollCacheExtent`型）は
-                          // このFlutterバージョンでrendering.dartからエクスポート
-                          // されておらず参照できなかったため、非推奨だが
-                          // 現行動作する`cacheExtent`をそのまま使う。
-                          // ignore: deprecated_member_use
-                          cacheExtent: 3000,
-                          padding: EdgeInsets.fromLTRB(
-                            12,
-                            12,
-                            12,
-                            12 + bottomInset,
+                    }
+                    DateTime? currentDay;
+                    for (var i = combined.length - 1; i >= 0; i--) {
+                      final message = combined[i];
+                      final sentAt = message.sentAt?.toDate();
+                      if (sentAt != null &&
+                          (currentDay == null ||
+                              !isSameDay(sentAt, currentDay))) {
+                        currentDay = sentAt;
+                        entries.add(
+                          _DateSeparator(
+                            date: sentAt,
+                            locale: locale,
+                            isGekiga: isGekiga,
                           ),
-                          children: reversedEntries,
+                        );
+                      }
+                      entries.add(
+                        _MessageRow(
+                          key: ValueKey(message.messageId),
+                          message: message,
+                          isMe: message.senderId == widget.currentUserId,
+                          currentUserId: widget.currentUserId,
+                          timeLabel: sentAt != null
+                              ? formatMessageTime(sentAt, timeFormat)
+                              : null,
+                          colorScheme: colorScheme,
+                          floatingShadow: floatingShadow,
+                          uiStyle: uiStyle,
+                          readReceiptsEnabled: widget.readReceiptsEnabled,
+                          layoutStyle: layoutStyle,
+                          isDm: widget.isDm,
+                          conversationId: widget.conversationId,
+                          onSenderTap: (_selecting || _screenshotSelecting)
+                              ? null
+                              : widget.onSenderTap,
+                          senderNameColorResolver:
+                              widget.senderNameColorResolver,
+                          selecting: _selecting || _screenshotSelecting,
+                          selected: _selecting
+                              ? _selectedMessageIds.contains(message.messageId)
+                              : screenshotEffectiveIds.contains(
+                                  message.messageId,
+                                ),
+                          canSelect: widget.onHideMessages != null,
+                          onEnterSelection: _enterSelectionMode,
+                          onEnterScreenshotSelection: _enterScreenshotSelection,
+                          textCopySelecting:
+                              _textCopyMessageId == message.messageId,
+                          onEnterTextCopy: _enterTextCopyMode,
+                          partialCopySelectionKey: _partialCopyKey,
+                          onPartialCopySelectionChanged: (content) =>
+                              _partialCopySelectedContent = content,
+                          onCopyPartialSelection: _copyPartialSelectionAndExit,
+                          onCopyMessage: _copyMessageText,
+                          onToggleSelected: _selecting
+                              ? _toggleSelected
+                              : (_screenshotSelecting
+                                    ? _toggleScreenshotSelected
+                                    : null),
+                          messagesById: messagesById,
+                          mediaMessages: mediaMessages,
+                          onReply: widget.onSend != null ? _startReply : null,
+                          onEdit: widget.onEditMessage != null
+                              ? _startEdit
+                              : null,
+                          onUnsend: widget.onUnsendMessage,
+                          onSetReaction: widget.onSetReaction,
+                          onJumpToReply: _jumpToMessage,
+                          onSendSticker: widget.onSendSticker != null
+                              ? _handleStickerPicked
+                              : null,
+                          stickerButtonKey: _stickerButtonKey,
+                          highlighted:
+                              _highlightedMessageId == message.messageId,
+                          timeFormat: timeFormat,
+                          onDeclineAccountDeletionNotice:
+                              widget.onDeclineAccountDeletionNotice,
+                          onDeleteAfterAccountDeletion:
+                              widget.onDeleteAfterAccountDeletion,
+                          onSwipeBack: widget.onSwipeBack,
+                          vocabulary: vocabulary,
                         ),
                       );
-                    },
-                  ),
+                    }
+                    final reversedEntries = entries.reversed.toList();
+
+                    // 返信先ジャンプ機能（_jumpToMessage）用に、messageIdから
+                    // ScrollablePositionedList上のインデックスを引けるように
+                    // しておく（2026-08-21、ItemScrollController.jumpTo(index:)
+                    // は対象が未ビルドでも確定的にジャンプできるため、旧実装の
+                    // ような「ロード済みは最新50件程度」という前提は不要）。
+                    _entryCount = reversedEntries.length;
+                    _messageIndexById = {
+                      for (var i = 0; i < reversedEntries.length; i++)
+                        if (reversedEntries[i] is _MessageRow)
+                          (reversedEntries[i] as _MessageRow).message.messageId:
+                              i,
+                    };
+
+                    // メッセージ一覧は入力欄の裏まで全画面分の高さで敷き、
+                    // 入力欄自体はStack最前面のオーバーレイとして重ねる
+                    // （下記Positioned参照）。下部余白（bottomInset）を
+                    // 入力欄の実測高さに合わせてTweenAnimationBuilderで
+                    // アニメーションさせることで、入力欄が伸び縮みする際に
+                    // メッセージがその下へ滑らかに潜り込むように見せている
+                    // （2026-07-30、入力欄の直前でメッセージが唐突に
+                    // 途切れて見える不具合の修正）。
+
+                    // 読み込み済みの内容が画面を埋めきらない（＝そもそも
+                    // スクロールする余地が無い）場合、ユーザーのスクロール
+                    // 操作を待つ`_maybeLoadOlderMessages`（スクロール通知
+                    // 起点）が一切発火しない。フレーム描画後にその状態を
+                    // 検知し、スクロール無しでも自動的に次の日を読み込む
+                    // （2026-08-21、直近日のメッセージ数が少ない語らいで
+                    // 過去日が全く読み込まれない不具合の修正）。
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      if (mounted) _maybeLoadOlderMessages();
+                    });
+
+                    return TweenAnimationBuilder<double>(
+                      tween: Tween<double>(
+                        end: (_selecting || _screenshotSelecting)
+                            ? 0
+                            : _composerAreaHeight,
+                      ),
+                      duration: const Duration(milliseconds: 180),
+                      curve: Curves.easeOut,
+                      builder: (context, bottomInset, _) =>
+                          ScrollablePositionedList.builder(
+                            itemScrollController: _itemScrollController,
+                            itemPositionsListener: _itemPositionsListener,
+                            reverse: true,
+                            itemCount: reversedEntries.length,
+                            itemBuilder: (context, index) =>
+                                reversedEntries[index],
+                            padding: EdgeInsets.fromLTRB(
+                              12,
+                              12,
+                              12,
+                              12 + bottomInset,
+                            ),
+                          ),
+                    );
+                  },
                 ),
-                if (_autoScrollOrigin != null) _buildAutoScrollIndicator(),
                 if (!_selecting &&
                     !_screenshotSelecting &&
                     widget.onSend != null)
@@ -4009,8 +3922,8 @@ class _MessageBubbleTapAreaState extends State<_MessageBubbleTapArea> {
 /// 左スワイプ（軽く=返信、最後まで=編集。編集は[canEdit]がtrueの時のみ）を
 /// 扱う。メニューを開く長押し/右クリックは吹き出し本体
 /// （[_MessageBubbleTapArea]）側に分離済み（2026-07-29変更）。吹き出し横の
-/// 余白の長押しによる自動スクロールは2026-08-12に廃止した（ミドルクリックに
-/// よる自動スクロールは`_ChatScreenState._handleMiddlePointerDown`に残っている）。
+/// 余白の長押しによる自動スクロールは2026-08-12に、ミドルクリックによる
+/// 自動スクロールは2026-08-20に、それぞれ廃止した。
 /// 選択モード中（[ChatScreen]の範囲選択削除）は使わない（_MessageRow.build参照）。
 class _MessageInteractions extends StatefulWidget {
   const _MessageInteractions({
@@ -4235,7 +4148,10 @@ class _SenderAvatar extends ConsumerWidget {
 /// のときだけ自動再生し、スワイプ/矢印キーで切り替えた先の動画は自動再生
 /// せず、中央の再生ボタンをタップして再生を始める（[_VideoViewerPage]参照）。
 class _MediaViewerScreen extends StatefulWidget {
-  const _MediaViewerScreen({required this.mediaMessages, required this.initialIndex});
+  const _MediaViewerScreen({
+    required this.mediaMessages,
+    required this.initialIndex,
+  });
 
   final List<Message> mediaMessages;
   final int initialIndex;
@@ -4358,9 +4274,12 @@ class _MediaViewerScreenState extends State<_MediaViewerScreen> {
               // ことで、ジェスチャー全体をこのListenerが確実に消費
               // しきってから閉じるようにする。
               _scrollDismissTimer?.cancel();
-              _scrollDismissTimer = Timer(const Duration(milliseconds: 150), () {
-                if (mounted) Navigator.of(context).pop();
-              });
+              _scrollDismissTimer = Timer(
+                const Duration(milliseconds: 150),
+                () {
+                  if (mounted) Navigator.of(context).pop();
+                },
+              );
             }
           },
           child: SwipeDownToDismiss(
@@ -4688,8 +4607,11 @@ class _VideoViewerPageState extends State<_VideoViewerPage> {
       builder: (context, value, _) {
         final durationMs = value.duration.inMilliseconds.toDouble();
         final sliderMax = durationMs <= 0 ? 1.0 : durationMs;
-        final sliderValue = (_dragPositionMs ?? value.position.inMilliseconds.toDouble())
-            .clamp(0.0, sliderMax);
+        final sliderValue =
+            (_dragPositionMs ?? value.position.inMilliseconds.toDouble()).clamp(
+              0.0,
+              sliderMax,
+            );
         return Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12),
           child: Row(
@@ -4818,9 +4740,9 @@ class _VideoViewerPageState extends State<_VideoViewerPage> {
                       // ダブルタップ判定待ちの分だけ遅延してしまうため）。
                       onDoubleTapDown: _isMobilePlatform
                           ? (details) => _handleDoubleTapSkip(
-                                details,
-                                constraints.maxWidth,
-                              )
+                              details,
+                              constraints.maxWidth,
+                            )
                           : null,
                       child: Center(
                         child: AspectRatio(
@@ -4849,9 +4771,9 @@ class _VideoViewerPageState extends State<_VideoViewerPage> {
                                       onTap: _togglePlayback,
                                       onDoubleTapDown: _isMobilePlatform
                                           ? (details) => _handleDoubleTapSkip(
-                                                details,
-                                                videoConstraints.maxWidth,
-                                              )
+                                              details,
+                                              videoConstraints.maxWidth,
+                                            )
                                           : null,
                                     );
                                   },
@@ -4893,8 +4815,7 @@ class _VideoViewerPageState extends State<_VideoViewerPage> {
                                       ),
                                       decoration: BoxDecoration(
                                         color: Colors.black54,
-                                        borderRadius:
-                                            BorderRadius.circular(20),
+                                        borderRadius: BorderRadius.circular(20),
                                       ),
                                       child: Text(
                                         _skipFlashLabel!,
@@ -5053,7 +4974,7 @@ class _FileAttachmentBlockState extends State<_FileAttachmentBlock>
   Future<String?>? _markdownFuture;
 
   /// URLをキーにしたMarkdown本文の取得結果キャッシュ（クラス全体で共有）。
-  /// メッセージ一覧は`ListView(children: ...)`だが、Sliverの仕組み上、
+  /// メッセージ一覧は`ScrollablePositionedList`（内部的にSliverList相当）だが、
   /// 画面外に出た`_FileAttachmentBlockState`は破棄され、再度画面内に
   /// 入ると`initState()`が再実行されて`http.get`が毎回走ってしまって
   /// いた（画像は`Image.network`のImageCacheで自動的にキャッシュされる
@@ -5120,14 +5041,16 @@ class _FileAttachmentBlockState extends State<_FileAttachmentBlock>
   /// 拡大表示（140px⇔360px）の高さ変化量。
   static const _expandDelta = 220.0;
 
-  /// メッセージ一覧が`ListView(reverse: true)`のため、アイテムの高さが
-  /// 変わると既定では画面下端が起点になり上方向へ伸びる（Sliverの座標系上、
-  /// 各アイテムの「配列上の開始位置＝画面下端」が固定され、高さが変わる分は
-  /// 「配列上の終了位置＝画面上端」側だけが動くため）。上端を起点に下方向へ
-  /// 伸びるように見せるため、高さが変わった直後に周囲のスクロール位置を
-  /// 変化量の分だけ補正する（2026-08-12追加）。`Scrollable.maybeOf`で
-  /// メッセージ一覧の`ListView`（祖先のScrollable）を、ウィジェット階層越しに
-  /// 配線せず取得する。
+  /// メッセージ一覧が`reverse: true`のため、アイテムの高さが変わると既定
+  /// では画面下端が起点になり上方向へ伸びる（Sliverの座標系上、各アイテムの
+  /// 「配列上の開始位置＝画面下端」が固定され、高さが変わる分は「配列上の
+  /// 終了位置＝画面上端」側だけが動くため）。上端を起点に下方向へ伸びるように
+  /// 見せるため、高さが変わった直後に周囲のスクロール位置を変化量の分だけ
+  /// 補正する（2026-08-12追加）。`Scrollable.maybeOf`でメッセージ一覧の
+  /// 祖先Scrollableを、ウィジェット階層越しに配線せず取得する
+  /// （2026-08-21、`ScrollablePositionedList`移行後も内部で通常の
+  /// `Scrollable`を使うため同じ手法が使えるはずだが、内部的に2本のリストを
+  /// 同期させる構造のため要動作確認）。
   void _toggleExpanded() {
     final delta = _expanded ? -_expandDelta : _expandDelta;
     setState(() => _expanded = !_expanded);

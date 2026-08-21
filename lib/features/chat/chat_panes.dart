@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,10 +9,12 @@ import '../../l10n/vocabulary.dart';
 import '../../models/app_ui_style.dart';
 import '../../models/app_user.dart';
 import '../../models/conversation_prefs.dart';
+import '../../models/day_messages_page.dart';
 import '../../models/direct_message.dart';
 import '../../models/dm_room.dart';
 import '../../models/group.dart';
 import '../../models/group_role.dart';
+import '../../models/message.dart';
 import '../../providers/app_ui_style_provider.dart';
 import '../../providers/block_providers.dart';
 import '../../providers/chat_navigation_providers.dart';
@@ -194,7 +198,12 @@ Future<bool> _confirmDeleteRoom(
 /// 一対（DM）のChatScreenを組み立てる。相手のアクティブなニックネームを
 /// タイトルに反映するためConsumer化している。go_routerのフルスクリーン遷移と、
 /// TalksTabの分割ビュー（一覧の右隣に埋め込み表示）の両方から使う共通部品。
-class DmChatPane extends ConsumerWidget {
+/// メッセージの1日単位ページネーション（2026-08-20追加）の状態
+/// （購読・読み込み済みの過去日）を自分自身のStateで保持するため
+/// `ConsumerStatefulWidget`にしている（`DmChatPane`が破棄されない限り
+/// ページネーション状態も保持され続ける。`TalksTab`の会話ペインキャッシュ
+/// と組み合わせることで、会話を切り替えても読み込み直しが起きなくなる）。
+class DmChatPane extends ConsumerStatefulWidget {
   const DmChatPane({
     required this.currentUser,
     required this.dm,
@@ -230,65 +239,164 @@ class DmChatPane extends ConsumerWidget {
   /// 表示からはnullのまま渡す（会話一覧へ戻る概念が無いため）。
   final VoidCallback? onSwipeBack;
 
+  @override
+  ConsumerState<DmChatPane> createState() => _DmChatPaneState();
+}
+
+class _DmChatPaneState extends ConsumerState<DmChatPane> {
+  /// `ChatScreen.messagesStream`へ渡すstream本体（2026-08-20追加）。
+  /// `Stream.value(...)`をbuild()のたびに新規生成すると、streamの
+  /// identityが変わるたびに`ChatScreen`側の`StreamBuilder`が再購読して
+  /// `ConnectionState.waiting`に戻り、メッセージ一覧の`ListView`（＝
+  /// スクロール位置）ごと一瞬破棄・再構築されてしまう（1日単位
+  /// ページネーションのスクロール読み込みが、読み込み直後の再構築で
+  /// スクロール位置を最新側へ戻されてしまい機能しなかった不具合の原因）。
+  /// `initState`で一度だけ生成し、値の更新は`.add()`で流し込むことで
+  /// stream自体のidentityを固定し、`ListView`のScrollableを再構築させない。
+  final _messagesController = StreamController<List<Message>>.broadcast();
+
+  /// 直近の活動日1日分のライブ購読分（メッセージの1日単位ページネーション、
+  /// 2026-08-20追加）。
+  List<Message> _liveTailMessages = const [];
+
+  /// [_loadOlderMessages]で読み込んだ、直近の活動日より古い日の蓄積分。
+  final List<Message> _olderMessages = [];
+
+  /// 次に[_loadOlderMessages]を呼ぶ際の境界（現在読み込み済みの最も古い日の
+  /// 開始時刻）。`watchLatestDayMessages`の初回応答で確定する。
+  DateTime? _oldestLoadedDayStart;
+
+  bool _isLoadingOlder = false;
+  bool _hasMoreHistory = true;
+
+  StreamSubscription<DayMessagesPage>? _tailSub;
+
+  @override
+  void initState() {
+    super.initState();
+    _subscribeTail();
+  }
+
+  void _subscribeTail() {
+    _tailSub = ref
+        .read(directMessageRepositoryProvider)
+        .watchLatestDayMessages(widget.dm.dmId, widget.roomId)
+        .listen((page) {
+          if (!mounted) return;
+          setState(() {
+            _liveTailMessages = page.messages;
+            _oldestLoadedDayStart ??= page.dayStart;
+          });
+        });
+  }
+
+  Future<void> _loadOlderMessages() async {
+    final boundary = _oldestLoadedDayStart;
+    if (_isLoadingOlder || !_hasMoreHistory || boundary == null) return;
+    setState(() => _isLoadingOlder = true);
+    final page = await ref
+        .read(directMessageRepositoryProvider)
+        .loadOlderDayMessages(
+          dmId: widget.dm.dmId,
+          roomId: widget.roomId,
+          beforeDayStart: boundary,
+        );
+    if (!mounted) return;
+    setState(() {
+      _isLoadingOlder = false;
+      if (page == null) {
+        _hasMoreHistory = false;
+      } else {
+        _olderMessages.addAll(page.messages);
+        _oldestLoadedDayStart = page.dayStart;
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _tailSub?.cancel();
+    _messagesController.close();
+    super.dispose();
+  }
+
   /// メッセージの送信者アイコン・呼び名をタップした時に、相手のプロフィール
   /// カードを開く（広場側の`GroupChatPane._openProfileCard`と同じ導線）。
-  Future<void> _openProfileCard(
-    BuildContext context,
-    WidgetRef ref,
-    String userId,
-  ) async {
+  Future<void> _openProfileCard(BuildContext context, String userId) async {
     final user = await ref.read(userRepositoryProvider).getUser(userId);
     if (user == null || !context.mounted) return;
     UserProfileCardDialog.show(
       context,
-      currentUser: currentUser,
+      currentUser: widget.currentUser,
       user: user,
-      conversationId: dm.dmId,
+      conversationId: widget.dm.dmId,
     );
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     // 通話中、PC/Webではこの会話を表示している間だけメッセージ一覧の
     // 代わりに通話UIを埋め込み表示する（2026-08-19追加、EmbeddedCallPane
     // 参照）。
     return EmbeddedCallPane(
-      conversation: ViewedDm(dm.dmId),
-      conversationTitle: roomName,
+      conversation: ViewedDm(widget.dm.dmId),
+      conversationTitle: widget.roomName,
       child: Builder(
         builder: (context) {
           // 横スクロールタブバーはこの寄合一覧を必要とする場合のみ購読する
           // （単一モードや広い画面のサイドバー使用中は不要な購読を増やさない）。
-          if (!showRoomTabBar || !dm.roomsEnabled) {
-            return _buildChatScreen(context, ref, null);
+          if (!widget.showRoomTabBar || !widget.dm.roomsEnabled) {
+            return _buildChatScreen(context, null);
           }
           return StreamBuilder<List<DmRoom>>(
             stream: ref
                 .read(directMessageRepositoryProvider)
-                .watchRooms(dmId: dm.dmId, userId: currentUser.userId),
+                .watchRooms(
+                  dmId: widget.dm.dmId,
+                  userId: widget.currentUser.userId,
+                ),
             builder: (context, snapshot) =>
-                _buildChatScreen(context, ref, snapshot.data ?? const <DmRoom>[]),
+                _buildChatScreen(context, snapshot.data ?? const <DmRoom>[]),
           );
         },
       ),
     );
   }
 
-  Widget _buildChatScreen(
-    BuildContext context,
-    WidgetRef ref,
-    List<DmRoom>? rooms,
-  ) {
+  Widget _buildChatScreen(BuildContext context, List<DmRoom>? rooms) {
     final strings = ref.watch(appStringsProvider);
     final dmRepository = ref.watch(directMessageRepositoryProvider);
+    final dm = widget.dm;
+    final currentUser = widget.currentUser;
+    final roomId = widget.roomId;
+    final roomName = widget.roomName;
     final otherUserId = dm.otherUserId(currentUser.userId);
     final blockedIds =
         ref.watch(blockedUserIdsProvider(currentUser.userId)).value ?? const {};
     final isBlocked = blockedIds.contains(otherUserId);
+    // ブロック中は相手からのメッセージを表示しない（自分が送った過去分は
+    // 引き続き見える）。サーバー側の送信拒否ではなく、クライアント側の
+    // 表示抑制で実現する（`BlockRepository`のコメント参照）。
+    // hiddenForに自分のuserIdが含まれるメッセージ（範囲選択削除で自分が
+    // 削除したもの）も、相手には見えたままここでは表示しないだけにする。
+    final combined = <Message>[..._liveTailMessages, ..._olderMessages]
+      ..sort(
+        (a, b) => (b.sentAt?.millisecondsSinceEpoch ?? 0).compareTo(
+          a.sentAt?.millisecondsSinceEpoch ?? 0,
+        ),
+      );
+    final filteredMessages = combined
+        .where((m) => !m.hiddenFor.contains(currentUser.userId))
+        .where((m) => !isBlocked || m.senderId != otherUserId)
+        .toList();
+    // messagesStreamに渡すstream自体のidentityを固定するため、値は
+    // `_messagesController`へ流し込む（`_messagesController`のdocコメント
+    // 参照）。
+    _messagesController.add(filteredMessages);
     return ChatScreen(
       key: ValueKey('dm-${dm.dmId}-$roomId'),
       title: roomName,
-      onSwipeBack: onSwipeBack,
+      onSwipeBack: widget.onSwipeBack,
       roomTabBar: rooms == null
           ? null
           : RoomTabBar(
@@ -312,20 +420,11 @@ class DmChatPane extends ConsumerWidget {
       isDm: true,
       conversationId: dm.dmId,
       roomId: roomId,
-      onSenderTap: (userId) => _openProfileCard(context, ref, userId),
-      // ブロック中は相手からのメッセージを表示しない（自分が送った過去分は
-      // 引き続き見える）。サーバー側の送信拒否ではなく、クライアント側の
-      // 表示抑制で実現する（`BlockRepository`のコメント参照）。
-      // hiddenForに自分のuserIdが含まれるメッセージ（範囲選択削除で自分が
-      // 削除したもの）も、相手には見えたままここでは表示しないだけにする。
-      messagesStream: dmRepository
-          .watchMessages(dm.dmId, roomId)
-          .map(
-            (messages) => messages
-                .where((m) => !m.hiddenFor.contains(currentUser.userId))
-                .where((m) => !isBlocked || m.senderId != otherUserId)
-                .toList(),
-          ),
+      onSenderTap: (userId) => _openProfileCard(context, userId),
+      messagesStream: _messagesController.stream,
+      onLoadOlderMessages: _loadOlderMessages,
+      isLoadingOlderMessages: _isLoadingOlder,
+      hasMoreHistory: _hasMoreHistory,
       onSend: (content, {silent = false, replyTo}) async {
         if (isBlocked) {
           showAutoDismissBanner(
@@ -380,8 +479,8 @@ class DmChatPane extends ConsumerWidget {
           stickerUrl: sticker.imageUrl,
         );
       },
-      onCallPressed: onCallPressed,
-      onVideoCallPressed: onVideoCallPressed,
+      onCallPressed: widget.onCallPressed,
+      onVideoCallPressed: widget.onVideoCallPressed,
       readReceiptsEnabled: dm.readReceiptsEnabled,
       onMarkRead: (messageIds) => dmRepository.markMessagesRead(
         dmId: dm.dmId,
@@ -869,7 +968,10 @@ class _DmMenuButton extends ConsumerWidget {
 }
 
 /// 広場（グループ）のChatScreenを組み立てる。DmChatPaneと同じ理由で共通部品化。
-class GroupChatPane extends ConsumerWidget {
+/// メッセージの1日単位ページネーション（2026-08-20追加）の状態を自分自身の
+/// Stateで保持するため`ConsumerStatefulWidget`にしている（`DmChatPane`と
+/// 同じ理由、コメント参照）。
+class GroupChatPane extends ConsumerStatefulWidget {
   const GroupChatPane({
     required this.currentUser,
     required this.group,
@@ -899,30 +1001,103 @@ class GroupChatPane extends ConsumerWidget {
   /// [showRoomTabBar]と同じ基準で、TalksTabの分割表示からはnullのまま渡す。
   final VoidCallback? onSwipeBack;
 
+  @override
+  ConsumerState<GroupChatPane> createState() => _GroupChatPaneState();
+}
+
+class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
+  /// `ChatScreen.messagesStream`へ渡すstream本体（2026-08-20追加）。
+  /// `DmChatPane`の同名フィールドと同じ理由（`_DmChatPaneState
+  /// ._messagesController`のdocコメント参照）で、stream自体のidentityを
+  /// `initState`から`dispose`まで固定するために使う。
+  final _messagesController = StreamController<List<Message>>.broadcast();
+
+  /// 直近の活動日1日分のライブ購読分（メッセージの1日単位ページネーション、
+  /// 2026-08-20追加）。
+  List<Message> _liveTailMessages = const [];
+
+  /// [_loadOlderMessages]で読み込んだ、直近の活動日より古い日の蓄積分。
+  final List<Message> _olderMessages = [];
+
+  /// 次に[_loadOlderMessages]を呼ぶ際の境界（現在読み込み済みの最も古い日の
+  /// 開始時刻）。`watchLatestDayRoomMessages`の初回応答で確定する。
+  DateTime? _oldestLoadedDayStart;
+
+  bool _isLoadingOlder = false;
+  bool _hasMoreHistory = true;
+
+  StreamSubscription<DayMessagesPage>? _tailSub;
+
+  @override
+  void initState() {
+    super.initState();
+    _subscribeTail();
+  }
+
+  void _subscribeTail() {
+    _tailSub = ref
+        .read(groupRepositoryProvider)
+        .watchLatestDayRoomMessages(widget.group.groupId, widget.roomId)
+        .listen((page) {
+          if (!mounted) return;
+          setState(() {
+            _liveTailMessages = page.messages;
+            _oldestLoadedDayStart ??= page.dayStart;
+          });
+        });
+  }
+
+  Future<void> _loadOlderMessages() async {
+    final boundary = _oldestLoadedDayStart;
+    if (_isLoadingOlder || !_hasMoreHistory || boundary == null) return;
+    setState(() => _isLoadingOlder = true);
+    final page = await ref
+        .read(groupRepositoryProvider)
+        .loadOlderRoomDayMessages(
+          groupId: widget.group.groupId,
+          roomId: widget.roomId,
+          beforeDayStart: boundary,
+        );
+    if (!mounted) return;
+    setState(() {
+      _isLoadingOlder = false;
+      if (page == null) {
+        _hasMoreHistory = false;
+      } else {
+        _olderMessages.addAll(page.messages);
+        _oldestLoadedDayStart = page.dayStart;
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _tailSub?.cancel();
+    _messagesController.close();
+    super.dispose();
+  }
+
   /// メッセージの送信者アイコン・呼び名をタップした時に、相手のプロフィール
   /// カードを開く。一対と違い広場のメンバーは非友達の場合があるため、
   /// ここから友達申請できるようにする（メンバー一覧からも同じダイアログを開く、
   /// group_member_list_screen.dart参照）。
-  Future<void> _openProfileCard(
-    BuildContext context,
-    WidgetRef ref,
-    String userId,
-  ) async {
+  Future<void> _openProfileCard(BuildContext context, String userId) async {
     final user = await ref.read(userRepositoryProvider).getUser(userId);
     if (user == null || !context.mounted) return;
     UserProfileCardDialog.show(
       context,
-      currentUser: currentUser,
+      currentUser: widget.currentUser,
       user: user,
-      conversationId: group.groupId,
+      conversationId: widget.group.groupId,
     );
   }
 
   Future<void> _handleCallPressed(
-    BuildContext context,
-    WidgetRef ref, {
+    BuildContext context, {
     required bool isVideo,
   }) async {
+    final group = widget.group;
+    final currentUser = widget.currentUser;
     final groupCallRepository = ref.read(groupCallRepositoryProvider);
 
     // 「進行中の通話を確認してから、無ければ新規作成する」という
@@ -982,14 +1157,17 @@ class GroupChatPane extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
+    final group = widget.group;
+    final currentUser = widget.currentUser;
+    final roomId = widget.roomId;
     final groupRepository = ref.watch(groupRepositoryProvider);
     // 通話中、PC/Webではこの会話を表示している間だけメッセージ一覧の
     // 代わりに通話UIを埋め込み表示する（2026-08-19追加、EmbeddedCallPane
     // 参照）。
     return EmbeddedCallPane(
       conversation: ViewedGroup(group.groupId),
-      conversationTitle: roomName,
+      conversationTitle: widget.roomName,
       child: Builder(
         builder: (context) {
           // カスタムロール（見た目専用の呼び名フォントカラー）は広場全体の
@@ -1021,7 +1199,6 @@ class GroupChatPane extends ConsumerWidget {
 
                   return _buildChatScreen(
                     context,
-                    ref,
                     groupRepository,
                     rooms,
                     currentRoom,
@@ -1039,28 +1216,46 @@ class GroupChatPane extends ConsumerWidget {
 
   Widget _buildChatScreen(
     BuildContext context,
-    WidgetRef ref,
     GroupRepository groupRepository,
     List<Room> rooms,
     Room? currentRoom,
     List<GroupRole> roles,
     Color? Function(String userId) senderNameColorFor,
   ) {
+    final group = widget.group;
+    final currentUser = widget.currentUser;
+    final roomId = widget.roomId;
+    final roomName = widget.roomName;
     final canManageRooms = hasGroupPermission(
       group: group,
       userId: currentUser.userId,
       permission: GroupPermission.manageRooms,
     );
+    // hiddenForに自分のuserIdが含まれるメッセージ（範囲選択削除で自分が
+    // 削除したもの）は、他のメンバーには見えたままここでは表示しない。
+    final combined = <Message>[..._liveTailMessages, ..._olderMessages]
+      ..sort(
+        (a, b) => (b.sentAt?.millisecondsSinceEpoch ?? 0).compareTo(
+          a.sentAt?.millisecondsSinceEpoch ?? 0,
+        ),
+      );
+    final filteredMessages = combined
+        .where((m) => !m.hiddenFor.contains(currentUser.userId))
+        .toList();
+    // messagesStreamに渡すstream自体のidentityを固定するため、値は
+    // `_messagesController`へ流し込む（`_messagesController`のdocコメント
+    // 参照）。
+    _messagesController.add(filteredMessages);
     return ChatScreen(
       key: ValueKey('group-${group.groupId}-$roomId'),
       title: roomName,
-      onSwipeBack: onSwipeBack,
+      onSwipeBack: widget.onSwipeBack,
       currentUserId: currentUser.userId,
       isDm: false,
       conversationId: group.groupId,
       roomId: roomId,
       senderNameColorResolver: senderNameColorFor,
-      roomTabBar: !showRoomTabBar || !group.roomsEnabled
+      roomTabBar: !widget.showRoomTabBar || !group.roomsEnabled
           ? null
           : RoomTabBar(
               rooms: [for (final r in rooms) (roomId: r.roomId, name: r.name)],
@@ -1083,15 +1278,10 @@ class GroupChatPane extends ConsumerWidget {
                     )
                   : null,
             ),
-      // hiddenForに自分のuserIdが含まれるメッセージ（範囲選択削除で自分が
-      // 削除したもの）は、他のメンバーには見えたままここでは表示しない。
-      messagesStream: groupRepository
-          .watchRoomMessages(group.groupId, roomId)
-          .map(
-            (messages) => messages
-                .where((m) => !m.hiddenFor.contains(currentUser.userId))
-                .toList(),
-          ),
+      messagesStream: _messagesController.stream,
+      onLoadOlderMessages: _loadOlderMessages,
+      isLoadingOlderMessages: _isLoadingOlder,
+      hasMoreHistory: _hasMoreHistory,
       onSend: (content, {silent = false, replyTo}) =>
           groupRepository.sendRoomMessage(
             groupId: group.groupId,
@@ -1120,8 +1310,8 @@ class GroupChatPane extends ConsumerWidget {
         stickerName: sticker.name,
         stickerUrl: sticker.imageUrl,
       ),
-      onCallPressed: () => _handleCallPressed(context, ref, isVideo: false),
-      onVideoCallPressed: () => _handleCallPressed(context, ref, isVideo: true),
+      onCallPressed: () => _handleCallPressed(context, isVideo: false),
+      onVideoCallPressed: () => _handleCallPressed(context, isVideo: true),
       readReceiptsEnabled: effectiveReadReceiptsEnabled(
         group: group,
         room: currentRoom,
@@ -1173,7 +1363,7 @@ class GroupChatPane extends ConsumerWidget {
           roles: roles,
         ),
       ],
-      onSenderTap: (userId) => _openProfileCard(context, ref, userId),
+      onSenderTap: (userId) => _openProfileCard(context, userId),
     );
   }
 }

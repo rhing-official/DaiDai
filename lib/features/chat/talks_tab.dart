@@ -1,3 +1,5 @@
+import 'dart:collection';
+
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -86,13 +88,6 @@ class _TalksTabState extends ConsumerState<TalksTab> {
   /// `_selectedGroup`のような「最新スナップショットへの再解決」は不要。
   Widget? _selectedPendingScreen;
 
-  /// 分割表示で現在表示中の寄合。nullなら選択中の会話の
-  /// defaultRoomIdにフォールバックする（`_buildDmDetailWithRooms`/
-  /// `_buildGroupDetailWithRooms`参照）。別の一対・広場を選び直すと
-  /// nullに戻し、その会話のdefaultRoomIdから見せ直す。
-  String? _selectedDmRoomId;
-  String? _selectedGroupRoomId;
-
   /// 左右分割表示（[_isSplit]）の時、会話ペインを横いっぱいに広げて
   /// 一覧ペインを隠すか。横長のタブレット等で、固定幅の一覧に会話ペインの
   /// 幅を圧迫されず全画面で読みたい時のための切り替え。
@@ -107,38 +102,15 @@ class _TalksTabState extends ConsumerState<TalksTab> {
     return size.width >= kTalksSplitBreakpoint && size.width > size.height;
   }
 
-  // 選択中の一対・広場の寄合一覧ストリームを、会話一覧の更新（新着メッセージ等）
-  // ごとに再構築されるbuild()の中でも使い回すためのキャッシュ。以前は
-  // _buildDmDetailWithRooms/_buildGroupDetailWithRoomsの中で毎回
-  // watchRooms(id)を呼び直しており、上位のStreamBuilder<List<DirectMessage>>/
-  // <List<Group>>が新着メッセージのたびに再描画されるとその都度Streamの
-  // インスタンスが変わり、購読し直しになるせいでRoomListPaneの寄合一覧が
-  // 定着して表示されない不具合があった（サイドバーを操作した瞬間だけ
-  // 一時的に描画が追いつき、一瞬表示されて消えるように見えていた）。
-  // 選択中のid（dmId/groupId）が変わった時だけ作り直す。
-  String? _cachedDmRoomsId;
-  Stream<List<DmRoom>>? _cachedDmRoomsStream;
-  Stream<List<DmRoom>> _dmRoomsStream(String dmId) {
-    if (_cachedDmRoomsId != dmId) {
-      _cachedDmRoomsId = dmId;
-      _cachedDmRoomsStream = ref
-          .read(directMessageRepositoryProvider)
-          .watchRooms(dmId: dmId, userId: widget.currentUser.userId);
-    }
-    return _cachedDmRoomsStream!;
-  }
-
-  String? _cachedGroupRoomsId;
-  Stream<List<Room>>? _cachedGroupRoomsStream;
-  Stream<List<Room>> _groupRoomsStream(String groupId) {
-    if (_cachedGroupRoomsId != groupId) {
-      _cachedGroupRoomsId = groupId;
-      _cachedGroupRoomsStream = ref
-          .read(groupRepositoryProvider)
-          .watchRooms(groupId: groupId, userId: widget.currentUser.userId);
-    }
-    return _cachedGroupRoomsStream!;
-  }
+  /// 分割表示でこのセッション中に一度でも開いた会話（`'dm-$dmId'`/
+  /// `'group-$groupId'`）を挿入順に記録する（2026-08-20追加、語らい切り替え
+  /// ラグの解消）。[_buildDetailPane]がこの集合の全件を`IndexedStack`で
+  /// 裏側に保持し続けることで、別の会話に切り替えて戻ってきてもChatScreenの
+  /// 作り直し（Firestore購読のやり直し）が起きなくなる。会話が削除されると
+  /// [_buildDetailPane]が集合から取り除く。上限は設けない（ページ再読み込み
+  /// でリセットされるため許容、ユーザー確認済み）。
+  final LinkedHashSet<String> _visitedConversationKeys =
+      LinkedHashSet<String>();
 
   /// 一対/広場タブを切り替える（タブ見出しのタップ用）。承認待ちペイン
   /// （[_selectedPendingScreen]）は表示中のタブに紐づくため、切り替え時に
@@ -185,7 +157,6 @@ class _TalksTabState extends ConsumerState<TalksTab> {
     if (_isSplit) {
       setState(() {
         _selectedDm = dm;
-        _selectedDmRoomId = null;
         _selectedPendingScreen = null;
       });
       return;
@@ -196,7 +167,10 @@ class _TalksTabState extends ConsumerState<TalksTab> {
     // （2026-08-03変更、以前は複数モードのみ`/chat/dm-rooms`を経由していた。
     // 2026-08-09変更、defaultRoomId固定だったものを一番上（最古）の寄合を
     // 開くように変更）。
-    final rooms = await _dmRoomsStream(dm.dmId).first;
+    final rooms = await ref
+        .read(directMessageRepositoryProvider)
+        .watchRooms(dmId: dm.dmId, userId: widget.currentUser.userId)
+        .first;
     final topRoomId = rooms.isNotEmpty ? rooms.first.roomId : dm.defaultRoomId;
     final roomName =
         rooms.firstWhereOrNull((r) => r.roomId == topRoomId)?.name ?? 'メイン';
@@ -217,13 +191,15 @@ class _TalksTabState extends ConsumerState<TalksTab> {
     if (_isSplit) {
       setState(() {
         _selectedGroup = group;
-        _selectedGroupRoomId = null;
         _selectedPendingScreen = null;
       });
       return;
     }
     // 一対と同じく、一番上（最古）の寄合を開く（2026-08-09変更）。
-    final rooms = await _groupRoomsStream(group.groupId).first;
+    final rooms = await ref
+        .read(groupRepositoryProvider)
+        .watchRooms(groupId: group.groupId, userId: widget.currentUser.userId)
+        .first;
     final topRoomId = rooms.isNotEmpty
         ? rooms.first.roomId
         : group.defaultRoomId;
@@ -239,45 +215,6 @@ class _TalksTabState extends ConsumerState<TalksTab> {
             roomId: topRoomId,
             roomName: roomName,
           ),
-        );
-  }
-
-  // モバイルのみ全画面の/callへpushする。PCでは全画面ルートを使わず、
-  // 通話セッションを直接開始するだけにする（2026-08-19変更）。発信者は
-  // 既に分割表示でこの一対を見ているため、以後は`EmbeddedCallPane`が
-  // その表示エリア内に埋め込み表示として引き継ぐ。
-  Future<void> _startCall(DirectMessage dm, {bool isVideo = false}) async {
-    final callRepository = ref.read(callRepositoryProvider);
-    final other = AppUser(
-      userId: dm.otherUserId(widget.currentUser.userId),
-      rhingId: dm.otherRhingId(widget.currentUser.userId),
-    );
-    final call = await callRepository.createCall(
-      caller: widget.currentUser,
-      callee: other,
-      dmId: dm.dmId,
-      isVideo: isVideo,
-    );
-    if (isMobileCallPlatform) {
-      ref
-          .read(goRouterProvider)
-          .push(
-            '/call',
-            extra: CallArgs(
-              call: call,
-              isCaller: true,
-              currentUserId: widget.currentUser.userId,
-            ),
-          );
-      return;
-    }
-    ref
-        .read(activeCallSessionProvider.notifier)
-        .startOneToOne(
-          call: call,
-          isCaller: true,
-          callRepository: callRepository,
-          directMessageRepository: ref.read(directMessageRepositoryProvider),
         );
   }
 
@@ -677,197 +614,72 @@ class _TalksTabState extends ConsumerState<TalksTab> {
   /// 画面再読み込みをするまで古い内容のまま表示され続けてしまう（一覧自体は
   /// 各StreamBuilderで直接再描画されるため最新化されるが、選択状態はここでしか
   /// 保持していないため）。選択中IDに一致する最新の要素があればそちらを使う。
+  ///
+  /// 別の会話に切り替えて戻ってきた時にChatScreenを作り直さない（Firestore
+  /// 購読をやり直さない）ため、このセッション中に一度でも開いた会話
+  /// （[_visitedConversationKeys]）は全て`IndexedStack`で裏側に保持し続ける
+  /// （2026-08-20追加）。会話が削除された場合のみ追跡から取り除く。
   Widget _buildDetailPane(
     List<DirectMessage> directMessages,
     List<Group> groups,
   ) {
     final pending = _selectedPendingScreen;
     if (pending != null) return pending;
+
+    String? activeKey;
     if (_category == _TalksCategory.dm) {
       final selected = _selectedDm;
-      if (selected == null) return const _EmptyDetailPlaceholder();
-      // 選択中の一対が一覧から消えた（削除された）場合、削除前の
-      // スナップショットへフォールバックすると既に存在しない
-      // messages/roomsサブコレクションを購読し続けpermission-deniedに
-      // なるため、選択自体を解除して空状態に戻す（2026-08-13修正）。
-      final dm = directMessages.firstWhereOrNull(
-        (d) => d.dmId == selected.dmId,
-      );
-      if (dm == null) return const _EmptyDetailPlaceholder();
-      return _buildDmDetailWithRooms(dm);
+      final dm = selected == null
+          ? null
+          : directMessages.firstWhereOrNull((d) => d.dmId == selected.dmId);
+      if (dm != null) activeKey = 'dm-${dm.dmId}';
+    } else {
+      final selected = _selectedGroup;
+      final group = selected == null
+          ? null
+          : groups.firstWhereOrNull((g) => g.groupId == selected.groupId);
+      if (group != null) activeKey = 'group-${group.groupId}';
     }
-    final selected = _selectedGroup;
-    if (selected == null) return const _EmptyDetailPlaceholder();
-    final group = groups.firstWhereOrNull((g) => g.groupId == selected.groupId);
-    if (group == null) return const _EmptyDetailPlaceholder();
-    return _buildGroupDetailWithRooms(group);
-  }
+    if (activeKey != null) _visitedConversationKeys.add(activeKey);
 
-  /// 選択中の一対を、寄合一覧サイドバー＋選択中の寄合のChatScreenの
-  /// 2ペイン構成で表示する。`_selectedDmRoomId`が現在の寄合一覧に無い
-  /// （未選択・削除された等）場合は一番上（最古）の寄合にフォールバックする
-  /// （2026-08-09変更、以前はdefaultRoomIdにフォールバックしていた）。
-  Widget _buildDmDetailWithRooms(DirectMessage dm) {
-    final dmRepository = ref.read(directMessageRepositoryProvider);
-    final otherUserId = dm.otherUserId(widget.currentUser.userId);
-    final otherUser = ref.watch(watchedUserProvider(otherUserId)).value;
-    final otherNickname = otherUser?.effectiveNicknameFor(dm.dmId)?.text;
-    final conversationName = (otherNickname?.isNotEmpty ?? false)
-        ? otherNickname!
-        : '@${dm.otherRhingId(widget.currentUser.userId)}';
-    return StreamBuilder<List<DmRoom>>(
-      stream: _dmRoomsStream(dm.dmId),
-      builder: (context, snapshot) {
-        final rooms = snapshot.data ?? const <DmRoom>[];
-        final roomId =
-            (_selectedDmRoomId != null &&
-                rooms.any((r) => r.roomId == _selectedDmRoomId))
-            ? _selectedDmRoomId!
-            : (rooms.isNotEmpty ? rooms.first.roomId : dm.defaultRoomId);
-        final roomName = rooms
-            .firstWhere(
-              (r) => r.roomId == roomId,
-              orElse: () => DmRoom(
-                roomId: roomId,
-                dmId: dm.dmId,
-                name: 'メイン',
-                participants: dm.participants,
-              ),
-            )
-            .name;
-        return Row(
-          children: [
-            // 単一モードではサイドバーを出さない（2026-07-29追加、
-            // `DirectMessage.roomsEnabled`参照）。寄合を増やす操作は
-            // ハンバーガーメニューから行う（`_DmMenuButton`参照）。
-            if (dm.roomsEnabled) ...[
-              SizedBox(
-                width: 220,
-                child: RoomListPane(
-                  conversationName: conversationName,
-                  rooms: [
-                    for (final r in rooms) (roomId: r.roomId, name: r.name),
-                  ],
-                  selectedRoomId: roomId,
-                  onSelectRoom: (room) =>
-                      setState(() => _selectedDmRoomId = room.roomId),
-                  onCreateRoom: (name) =>
-                      dmRepository.createRoom(dmId: dm.dmId, name: name),
-                ),
-              ),
-              const VerticalDivider(width: 1),
-            ],
-            Expanded(
-              child: DmChatPane(
-                key: ValueKey('detail-dm-${dm.dmId}-$roomId'),
-                currentUser: widget.currentUser,
-                dm: dm,
-                roomId: roomId,
-                roomName: roomName,
-                onCallPressed: () => _startCall(dm),
-                onVideoCallPressed: () => _startCall(dm, isVideo: true),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
+    // 選択中の一対・広場が一覧から消えた（削除された）場合、削除前の
+    // スナップショットへフォールバックすると既に存在しないmessages/rooms
+    // サブコレクションを購読し続けpermission-deniedになるため、訪問履歴
+    // からも取り除く（2026-08-13修正、2026-08-20にキャッシュ全体へ拡張）。
+    _visitedConversationKeys.removeWhere((key) {
+      if (key.startsWith('dm-')) {
+        final dmId = key.substring('dm-'.length);
+        return !directMessages.any((d) => d.dmId == dmId);
+      }
+      final groupId = key.substring('group-'.length);
+      return !groups.any((g) => g.groupId == groupId);
+    });
 
-  /// [_buildDmDetailWithRooms]と同じ構成の広場版（フォールバックも同様に
-  /// 一番上の寄合）。寄合の追加・削除はmanageRooms権限を持つメンバーのみ
-  /// （firestore.rulesで強制、ここではUI上の操作可否も合わせる）。
-  Widget _buildGroupDetailWithRooms(Group group) {
-    final groupRepository = ref.read(groupRepositoryProvider);
-    final userId = widget.currentUser.userId;
-    final canManageRooms = hasGroupPermission(
-      group: group,
-      userId: userId,
-      permission: GroupPermission.manageRooms,
-    );
-    return StreamBuilder<List<Room>>(
-      stream: _groupRoomsStream(group.groupId),
-      builder: (context, snapshot) {
-        final rooms = snapshot.data ?? const <Room>[];
-        final roomId =
-            (_selectedGroupRoomId != null &&
-                rooms.any((r) => r.roomId == _selectedGroupRoomId))
-            ? _selectedGroupRoomId!
-            : (rooms.isNotEmpty ? rooms.first.roomId : group.defaultRoomId);
-        final roomName = rooms
-            .firstWhere(
-              (r) => r.roomId == roomId,
-              orElse: () => Room(
-                roomId: roomId,
-                groupId: group.groupId,
-                name: 'メイン',
-                memberIds: group.memberIds,
-              ),
-            )
-            .name;
-        return Row(
-          children: [
-            // 単一モードではサイドバーを出さない（2026-07-29追加、
-            // `Group.roomsEnabled`参照）。「広場自体の設定」・寄合を増やす
-            // 操作はハンバーガーメニューから行う（`_GroupMenuButton`参照）。
-            if (group.roomsEnabled) ...[
-              SizedBox(
-                width: 220,
-                child: RoomListPane(
-                  conversationName: group.name,
-                  rooms: [
-                    for (final r in rooms) (roomId: r.roomId, name: r.name),
-                  ],
-                  selectedRoomId: roomId,
-                  onSelectRoom: (room) =>
-                      setState(() => _selectedGroupRoomId = room.roomId),
-                  onCreateRoom: canManageRooms
-                      ? (name) => groupRepository.createRoom(
-                          groupId: group.groupId,
-                          name: name,
-                        )
-                      : null,
-                  // 全体設定ポップアップ自体は全メンバーが開ける
-                  // （中の各項目が個別に権限ゲートされる、2026-07-29変更。
-                  // 以前はcanManageRolesの間だけロール管理を直接開いていた）。
-                  onOpenGroupSettings: () => showDialog<void>(
-                    context: context,
-                    // 「自分のプロフィールカード」の項目は蔵が複数ある時だけ
-                    // 増える（GroupSettingsPopup参照）ため、固定の高さ1つでは
-                    // 項目がある時に一覧の下端が僅かに入りきらなかった
-                    // （2026-08-12修正、有無で高さを2種類使い分ける）。
-                    builder: (_) => Dialog(
-                      child: ConstrainedBox(
-                        constraints: BoxConstraints(
-                          maxWidth: 420,
-                          maxHeight: widget.currentUser.profileCards.length > 1
-                              ? 696
-                              : 640,
-                        ),
-                        child: GroupSettingsPopup(
-                          currentUser: widget.currentUser,
-                          group: group,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              const VerticalDivider(width: 1),
-            ],
-            Expanded(
-              child: GroupChatPane(
-                key: ValueKey('detail-group-${group.groupId}-$roomId'),
-                currentUser: widget.currentUser,
-                group: group,
-                roomId: roomId,
-                roomName: roomName,
-              ),
+    final visitedList = _visitedConversationKeys.toList();
+    final children = <Widget>[
+      const _EmptyDetailPlaceholder(),
+      for (final key in visitedList)
+        if (key.startsWith('dm-'))
+          _DmDetailWithRooms(
+            key: ValueKey(key),
+            currentUser: widget.currentUser,
+            dm: directMessages.firstWhere(
+              (d) => d.dmId == key.substring('dm-'.length),
             ),
-          ],
-        );
-      },
-    );
+          )
+        else
+          _GroupDetailWithRooms(
+            key: ValueKey(key),
+            currentUser: widget.currentUser,
+            group: groups.firstWhere(
+              (g) => g.groupId == key.substring('group-'.length),
+            ),
+          ),
+    ];
+    final activeIndex = activeKey == null
+        ? 0
+        : 1 + visitedList.indexOf(activeKey);
+    return IndexedStack(index: activeIndex, children: children);
   }
 
   Widget _buildDirectMessages(
@@ -1743,4 +1555,284 @@ class _EmptyDetailPlaceholder extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => const SizedBox.shrink();
+}
+
+/// 選択中の一対を、寄合一覧サイドバー＋選択中の寄合のChatScreenの2ペイン
+/// 構成で表示する。以前は`_TalksTabState`が全会話共通の1つの
+/// `_selectedDmRoomId`フィールドで寄合選択を管理していたが、
+/// `_TalksTabState._buildDetailPane`が複数会話を同時に`IndexedStack`で
+/// 保持するようになった（2026-08-20、語らい切り替えラグの解消）ため、
+/// 会話ごとに独立して寄合選択を保持できるよう、この単位を専用の
+/// `StatefulWidget`として切り出した。`_TalksTabState`から`dm.dmId`単位の
+/// `ValueKey`で構築されるため、そのidの会話が選択され続けている限り
+/// このStateごとDmChatPane（＝Firestore購読）も保持され続ける。
+class _DmDetailWithRooms extends ConsumerStatefulWidget {
+  const _DmDetailWithRooms({
+    required this.currentUser,
+    required this.dm,
+    super.key,
+  });
+
+  final AppUser currentUser;
+  final DirectMessage dm;
+
+  @override
+  ConsumerState<_DmDetailWithRooms> createState() =>
+      _DmDetailWithRoomsState();
+}
+
+class _DmDetailWithRoomsState extends ConsumerState<_DmDetailWithRooms> {
+  /// 現在表示中の寄合。nullなら[widget.dm]のdefaultRoomIdにフォールバック
+  /// する（2026-08-09変更、以前はdefaultRoomId固定だった）。
+  String? _selectedRoomId;
+
+  late final Stream<List<DmRoom>> _roomsStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _roomsStream = ref
+        .read(directMessageRepositoryProvider)
+        .watchRooms(dmId: widget.dm.dmId, userId: widget.currentUser.userId);
+  }
+
+  // モバイルのみ全画面の/callへpushする。PCでは全画面ルートを使わず、
+  // 通話セッションを直接開始するだけにする（2026-08-19変更）。発信者は
+  // 既に分割表示でこの一対を見ているため、以後は`EmbeddedCallPane`が
+  // その表示エリア内に埋め込み表示として引き継ぐ。
+  Future<void> _startCall(DirectMessage dm, {bool isVideo = false}) async {
+    final callRepository = ref.read(callRepositoryProvider);
+    final currentUser = widget.currentUser;
+    final other = AppUser(
+      userId: dm.otherUserId(currentUser.userId),
+      rhingId: dm.otherRhingId(currentUser.userId),
+    );
+    final call = await callRepository.createCall(
+      caller: currentUser,
+      callee: other,
+      dmId: dm.dmId,
+      isVideo: isVideo,
+    );
+    if (isMobileCallPlatform) {
+      ref
+          .read(goRouterProvider)
+          .push(
+            '/call',
+            extra: CallArgs(
+              call: call,
+              isCaller: true,
+              currentUserId: currentUser.userId,
+            ),
+          );
+      return;
+    }
+    ref
+        .read(activeCallSessionProvider.notifier)
+        .startOneToOne(
+          call: call,
+          isCaller: true,
+          callRepository: callRepository,
+          directMessageRepository: ref.read(directMessageRepositoryProvider),
+        );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final dm = widget.dm;
+    final currentUser = widget.currentUser;
+    final dmRepository = ref.read(directMessageRepositoryProvider);
+    final otherUserId = dm.otherUserId(currentUser.userId);
+    final otherUser = ref.watch(watchedUserProvider(otherUserId)).value;
+    final otherNickname = otherUser?.effectiveNicknameFor(dm.dmId)?.text;
+    final conversationName = (otherNickname?.isNotEmpty ?? false)
+        ? otherNickname!
+        : '@${dm.otherRhingId(currentUser.userId)}';
+    return StreamBuilder<List<DmRoom>>(
+      stream: _roomsStream,
+      builder: (context, snapshot) {
+        final rooms = snapshot.data ?? const <DmRoom>[];
+        final roomId =
+            (_selectedRoomId != null &&
+                rooms.any((r) => r.roomId == _selectedRoomId))
+            ? _selectedRoomId!
+            : (rooms.isNotEmpty ? rooms.first.roomId : dm.defaultRoomId);
+        final roomName = rooms
+            .firstWhere(
+              (r) => r.roomId == roomId,
+              orElse: () => DmRoom(
+                roomId: roomId,
+                dmId: dm.dmId,
+                name: 'メイン',
+                participants: dm.participants,
+              ),
+            )
+            .name;
+        return Row(
+          children: [
+            // 単一モードではサイドバーを出さない（2026-07-29追加、
+            // `DirectMessage.roomsEnabled`参照）。寄合を増やす操作は
+            // ハンバーガーメニューから行う（`_DmMenuButton`参照）。
+            if (dm.roomsEnabled) ...[
+              SizedBox(
+                width: 220,
+                child: RoomListPane(
+                  conversationName: conversationName,
+                  rooms: [
+                    for (final r in rooms) (roomId: r.roomId, name: r.name),
+                  ],
+                  selectedRoomId: roomId,
+                  onSelectRoom: (room) =>
+                      setState(() => _selectedRoomId = room.roomId),
+                  onCreateRoom: (name) =>
+                      dmRepository.createRoom(dmId: dm.dmId, name: name),
+                ),
+              ),
+              const VerticalDivider(width: 1),
+            ],
+            Expanded(
+              child: DmChatPane(
+                key: ValueKey('detail-dm-${dm.dmId}-$roomId'),
+                currentUser: currentUser,
+                dm: dm,
+                roomId: roomId,
+                roomName: roomName,
+                onCallPressed: () => _startCall(dm),
+                onVideoCallPressed: () => _startCall(dm, isVideo: true),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+/// [_DmDetailWithRooms]と同じ構成・同じ理由の広場版（フォールバックも同様に
+/// 一番上の寄合）。寄合の追加・削除はmanageRooms権限を持つメンバーのみ
+/// （firestore.rulesで強制、ここではUI上の操作可否も合わせる）。
+class _GroupDetailWithRooms extends ConsumerStatefulWidget {
+  const _GroupDetailWithRooms({
+    required this.currentUser,
+    required this.group,
+    super.key,
+  });
+
+  final AppUser currentUser;
+  final Group group;
+
+  @override
+  ConsumerState<_GroupDetailWithRooms> createState() =>
+      _GroupDetailWithRoomsState();
+}
+
+class _GroupDetailWithRoomsState extends ConsumerState<_GroupDetailWithRooms> {
+  String? _selectedRoomId;
+
+  late final Stream<List<Room>> _roomsStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _roomsStream = ref
+        .read(groupRepositoryProvider)
+        .watchRooms(
+          groupId: widget.group.groupId,
+          userId: widget.currentUser.userId,
+        );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final group = widget.group;
+    final currentUser = widget.currentUser;
+    final groupRepository = ref.read(groupRepositoryProvider);
+    final canManageRooms = hasGroupPermission(
+      group: group,
+      userId: currentUser.userId,
+      permission: GroupPermission.manageRooms,
+    );
+    return StreamBuilder<List<Room>>(
+      stream: _roomsStream,
+      builder: (context, snapshot) {
+        final rooms = snapshot.data ?? const <Room>[];
+        final roomId =
+            (_selectedRoomId != null &&
+                rooms.any((r) => r.roomId == _selectedRoomId))
+            ? _selectedRoomId!
+            : (rooms.isNotEmpty ? rooms.first.roomId : group.defaultRoomId);
+        final roomName = rooms
+            .firstWhere(
+              (r) => r.roomId == roomId,
+              orElse: () => Room(
+                roomId: roomId,
+                groupId: group.groupId,
+                name: 'メイン',
+                memberIds: group.memberIds,
+              ),
+            )
+            .name;
+        return Row(
+          children: [
+            // 単一モードではサイドバーを出さない（2026-07-29追加、
+            // `Group.roomsEnabled`参照）。「広場自体の設定」・寄合を増やす
+            // 操作はハンバーガーメニューから行う（`_GroupMenuButton`参照）。
+            if (group.roomsEnabled) ...[
+              SizedBox(
+                width: 220,
+                child: RoomListPane(
+                  conversationName: group.name,
+                  rooms: [
+                    for (final r in rooms) (roomId: r.roomId, name: r.name),
+                  ],
+                  selectedRoomId: roomId,
+                  onSelectRoom: (room) =>
+                      setState(() => _selectedRoomId = room.roomId),
+                  onCreateRoom: canManageRooms
+                      ? (name) => groupRepository.createRoom(
+                          groupId: group.groupId,
+                          name: name,
+                        )
+                      : null,
+                  // 全体設定ポップアップ自体は全メンバーが開ける
+                  // （中の各項目が個別に権限ゲートされる、2026-07-29変更。
+                  // 以前はcanManageRolesの間だけロール管理を直接開いていた）。
+                  onOpenGroupSettings: () => showDialog<void>(
+                    context: context,
+                    // 「自分のプロフィールカード」の項目は蔵が複数ある時だけ
+                    // 増える（GroupSettingsPopup参照）ため、固定の高さ1つでは
+                    // 項目がある時に一覧の下端が僅かに入りきらなかった
+                    // （2026-08-12修正、有無で高さを2種類使い分ける）。
+                    builder: (_) => Dialog(
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxWidth: 420,
+                          maxHeight: currentUser.profileCards.length > 1
+                              ? 696
+                              : 640,
+                        ),
+                        child: GroupSettingsPopup(
+                          currentUser: currentUser,
+                          group: group,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const VerticalDivider(width: 1),
+            ],
+            Expanded(
+              child: GroupChatPane(
+                key: ValueKey('detail-group-${group.groupId}-$roomId'),
+                currentUser: currentUser,
+                group: group,
+                roomId: roomId,
+                roomName: roomName,
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
 }
