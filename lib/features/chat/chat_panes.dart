@@ -313,6 +313,37 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
     });
   }
 
+  /// 編集・リアクション・既読・削除等のメッセージ変更操作を実行した後、
+  /// 対象が過去日（[_olderMessages]、静的スナップショット）に含まれていれば
+  /// 最新状態を取り直してローカルに反映する（2026-08-21追加）。当日分
+  /// （[_liveTailMessages]）はFirestoreのライブ購読で自動反映されるため
+  /// 何もしない。過去日は`loadOlderDayMessages`が1回だけの取得のため、
+  /// これをしないと書き込み自体は成功していても画面には一切反映されず
+  /// 「リアクション・編集が効かない」ように見えてしまう。
+  Future<void> _afterMutation(
+    Future<void> Function() action, {
+    required List<String> messageIds,
+    required Future<Message?> Function(String messageId) fetchMessage,
+  }) async {
+    await action();
+    if (!mounted) return;
+    for (final id in messageIds) {
+      if (_liveTailMessages.any((m) => m.messageId == id)) continue;
+      if (!_olderMessages.any((m) => m.messageId == id)) continue;
+      final fresh = await fetchMessage(id);
+      if (!mounted) return;
+      setState(() {
+        final index = _olderMessages.indexWhere((m) => m.messageId == id);
+        if (index == -1) return;
+        if (fresh == null) {
+          _olderMessages.removeAt(index);
+        } else {
+          _olderMessages[index] = fresh;
+        }
+      });
+    }
+  }
+
   @override
   void dispose() {
     _tailSub?.cancel();
@@ -482,42 +513,89 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
       onCallPressed: widget.onCallPressed,
       onVideoCallPressed: widget.onVideoCallPressed,
       readReceiptsEnabled: dm.readReceiptsEnabled,
-      onMarkRead: (messageIds) => dmRepository.markMessagesRead(
-        dmId: dm.dmId,
-        roomId: roomId,
-        userId: currentUser.userId,
+      onMarkRead: (messageIds) => _afterMutation(
+        () => dmRepository.markMessagesRead(
+          dmId: dm.dmId,
+          roomId: roomId,
+          userId: currentUser.userId,
+          messageIds: messageIds,
+        ),
         messageIds: messageIds,
+        fetchMessage: (id) => dmRepository.getMessage(
+          dmId: dm.dmId,
+          roomId: roomId,
+          messageId: id,
+        ),
       ),
-      onHideMessages: (messageIds) => dmRepository.hideMessagesForMe(
-        dmId: dm.dmId,
-        roomId: roomId,
-        userId: currentUser.userId,
+      onHideMessages: (messageIds) => _afterMutation(
+        () => dmRepository.hideMessagesForMe(
+          dmId: dm.dmId,
+          roomId: roomId,
+          userId: currentUser.userId,
+          messageIds: messageIds,
+        ),
         messageIds: messageIds,
+        fetchMessage: (id) => dmRepository.getMessage(
+          dmId: dm.dmId,
+          roomId: roomId,
+          messageId: id,
+        ),
       ),
-      onEditMessage: (messageId, newContent) => dmRepository.editMessage(
-        dmId: dm.dmId,
-        roomId: roomId,
-        messageId: messageId,
-        newContent: newContent,
+      onEditMessage: (messageId, newContent) => _afterMutation(
+        () => dmRepository.editMessage(
+          dmId: dm.dmId,
+          roomId: roomId,
+          messageId: messageId,
+          newContent: newContent,
+        ),
+        messageIds: [messageId],
+        fetchMessage: (id) => dmRepository.getMessage(
+          dmId: dm.dmId,
+          roomId: roomId,
+          messageId: id,
+        ),
       ),
-      onUnsendMessage: (messageId) => dmRepository.unsendMessage(
-        dmId: dm.dmId,
-        roomId: roomId,
-        messageId: messageId,
+      onUnsendMessage: (messageId) => _afterMutation(
+        () => dmRepository.unsendMessage(
+          dmId: dm.dmId,
+          roomId: roomId,
+          messageId: messageId,
+        ),
+        messageIds: [messageId],
+        fetchMessage: (id) => dmRepository.getMessage(
+          dmId: dm.dmId,
+          roomId: roomId,
+          messageId: id,
+        ),
       ),
-      onSetReaction: (messageId, emojis) => dmRepository.setReaction(
-        dmId: dm.dmId,
-        roomId: roomId,
-        messageId: messageId,
-        userId: currentUser.userId,
-        emojis: emojis,
+      onSetReaction: (messageId, emojis) => _afterMutation(
+        () => dmRepository.setReaction(
+          dmId: dm.dmId,
+          roomId: roomId,
+          messageId: messageId,
+          userId: currentUser.userId,
+          emojis: emojis,
+        ),
+        messageIds: [messageId],
+        fetchMessage: (id) => dmRepository.getMessage(
+          dmId: dm.dmId,
+          roomId: roomId,
+          messageId: id,
+        ),
       ),
-      onDeclineAccountDeletionNotice: (messageId) =>
-          dmRepository.declineAccountDeletionNotice(
-            dmId: dm.dmId,
-            roomId: roomId,
-            messageId: messageId,
-          ),
+      onDeclineAccountDeletionNotice: (messageId) => _afterMutation(
+        () => dmRepository.declineAccountDeletionNotice(
+          dmId: dm.dmId,
+          roomId: roomId,
+          messageId: messageId,
+        ),
+        messageIds: [messageId],
+        fetchMessage: (id) => dmRepository.getMessage(
+          dmId: dm.dmId,
+          roomId: roomId,
+          messageId: id,
+        ),
+      ),
       onDeleteAfterAccountDeletion: () => dmRepository
           .deleteDmAfterAccountDeletion(dm.dmId, userId: currentUser.userId),
       onFetchMessagesAround: (messageId) => dmRepository.getMessagesAround(
@@ -1070,6 +1148,36 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
     });
   }
 
+  /// 編集・リアクション・既読・削除等のメッセージ変更操作を実行した後、
+  /// 対象が過去日（[_olderMessages]、静的スナップショット）に含まれていれば
+  /// 最新状態を取り直してローカルに反映する（2026-08-21追加、
+  /// `_DmChatPaneState._afterMutation`と同じ設計）。当日分
+  /// （[_liveTailMessages]）はFirestoreのライブ購読で自動反映されるため
+  /// 何もしない。
+  Future<void> _afterMutation(
+    Future<void> Function() action, {
+    required List<String> messageIds,
+    required Future<Message?> Function(String messageId) fetchMessage,
+  }) async {
+    await action();
+    if (!mounted) return;
+    for (final id in messageIds) {
+      if (_liveTailMessages.any((m) => m.messageId == id)) continue;
+      if (!_olderMessages.any((m) => m.messageId == id)) continue;
+      final fresh = await fetchMessage(id);
+      if (!mounted) return;
+      setState(() {
+        final index = _olderMessages.indexWhere((m) => m.messageId == id);
+        if (index == -1) return;
+        if (fresh == null) {
+          _olderMessages.removeAt(index);
+        } else {
+          _olderMessages[index] = fresh;
+        }
+      });
+    }
+  }
+
   @override
   void dispose() {
     _tailSub?.cancel();
@@ -1316,37 +1424,76 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
         group: group,
         room: currentRoom,
       ),
-      onMarkRead: (messageIds) => groupRepository.markRoomMessagesRead(
-        groupId: group.groupId,
-        roomId: roomId,
-        userId: currentUser.userId,
+      onMarkRead: (messageIds) => _afterMutation(
+        () => groupRepository.markRoomMessagesRead(
+          groupId: group.groupId,
+          roomId: roomId,
+          userId: currentUser.userId,
+          messageIds: messageIds,
+        ),
         messageIds: messageIds,
+        fetchMessage: (id) => groupRepository.getRoomMessage(
+          groupId: group.groupId,
+          roomId: roomId,
+          messageId: id,
+        ),
       ),
-      onHideMessages: (messageIds) => groupRepository.hideRoomMessagesForMe(
-        groupId: group.groupId,
-        roomId: roomId,
-        userId: currentUser.userId,
+      onHideMessages: (messageIds) => _afterMutation(
+        () => groupRepository.hideRoomMessagesForMe(
+          groupId: group.groupId,
+          roomId: roomId,
+          userId: currentUser.userId,
+          messageIds: messageIds,
+        ),
         messageIds: messageIds,
+        fetchMessage: (id) => groupRepository.getRoomMessage(
+          groupId: group.groupId,
+          roomId: roomId,
+          messageId: id,
+        ),
       ),
-      onEditMessage: (messageId, newContent) => groupRepository.editRoomMessage(
-        groupId: group.groupId,
-        roomId: roomId,
-        messageId: messageId,
-        newContent: newContent,
+      onEditMessage: (messageId, newContent) => _afterMutation(
+        () => groupRepository.editRoomMessage(
+          groupId: group.groupId,
+          roomId: roomId,
+          messageId: messageId,
+          newContent: newContent,
+        ),
+        messageIds: [messageId],
+        fetchMessage: (id) => groupRepository.getRoomMessage(
+          groupId: group.groupId,
+          roomId: roomId,
+          messageId: id,
+        ),
       ),
-      onUnsendMessage: (messageId) => groupRepository.unsendRoomMessage(
-        groupId: group.groupId,
-        roomId: roomId,
-        messageId: messageId,
+      onUnsendMessage: (messageId) => _afterMutation(
+        () => groupRepository.unsendRoomMessage(
+          groupId: group.groupId,
+          roomId: roomId,
+          messageId: messageId,
+        ),
+        messageIds: [messageId],
+        fetchMessage: (id) => groupRepository.getRoomMessage(
+          groupId: group.groupId,
+          roomId: roomId,
+          messageId: id,
+        ),
       ),
-      onSetReaction: (messageId, emojis) =>
-          groupRepository.setRoomMessageReaction(
-            groupId: group.groupId,
-            roomId: roomId,
-            messageId: messageId,
-            userId: currentUser.userId,
-            emojis: emojis,
-          ),
+      onSetReaction: (messageId, emojis) => _afterMutation(
+        () => groupRepository.setRoomMessageReaction(
+          groupId: group.groupId,
+          roomId: roomId,
+          messageId: messageId,
+          userId: currentUser.userId,
+          emojis: emojis,
+        ),
+        messageIds: [messageId],
+        fetchMessage: (id) => groupRepository.getRoomMessage(
+          groupId: group.groupId,
+          roomId: roomId,
+          messageId: id,
+        ),
+      ),
       onFetchMessagesAround: (messageId) =>
           groupRepository.getRoomMessagesAround(
             groupId: group.groupId,

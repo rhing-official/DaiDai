@@ -716,6 +716,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
+        // 横幅いっぱいに広がって縦に詰まって見えないよう幅を制限する
+        // （2026-08-21、`group_delete_dialog.dart`と同じパターン）。
+        constraints: const BoxConstraints(maxWidth: 400),
         title: Text(strings.chatDeleteConfirmTitle),
         content: Text(strings.chatDeleteConfirmMessage),
         actions: [
@@ -724,8 +727,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             child: Text(strings.cancel),
           ),
           FilledButton(
+            // colorScheme.errorはダークテーマ下では明るいサーモンピンクに
+            // 近い色になり白文字が読みにくいため、固定の濃い赤に変更する
+            // （2026-08-21、`group_delete_dialog.dart`と同じ対応）。
             style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(context).colorScheme.error,
+              backgroundColor: Colors.red.shade700,
+              foregroundColor: Colors.white,
             ),
             onPressed: () => Navigator.of(context).pop(true),
             child: Text(strings.chatDeleteConfirmButton),
@@ -1400,7 +1407,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             ),
           );
 
-    return Scaffold(
+    final scaffold = Scaffold(
       appBar: appBar,
       body: Column(
         children: [
@@ -1970,6 +1977,34 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         ],
       ),
     );
+
+    // 長押しメニューから開いた各種モード（削除選択・スクリーンショット選択・
+    // 編集/返信中断・部分コピー）を、×ボタンに加えEscキーでも終了できる
+    // ようにする（2026-08-21追加）。`CallbackShortcuts`は自身の部分木内の
+    // どこかにフォーカスがあれば発火するため、`Focus(autofocus: true)`で
+    // 起点を確保する（`_confirmScreenshotSelected`のEnterキー対応と同じ
+    // パターン）。
+    return CallbackShortcuts(
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.escape): _handleEscapeKey,
+      },
+      child: Focus(autofocus: true, child: scaffold),
+    );
+  }
+
+  /// Escキーが押された時、現在有効な選択/編集系モードのうち最も内側の
+  /// ものを1つだけ終了する（複数同時には基本的にならない想定だが、念のため
+  /// 優先順位を付けて判定する）。
+  void _handleEscapeKey() {
+    if (_selecting) {
+      _exitSelectionMode();
+    } else if (_screenshotSelecting) {
+      _exitScreenshotSelection();
+    } else if (_textCopyMessageId != null) {
+      _exitTextCopyMode();
+    } else if (_editingMessage != null || _replyingTo != null) {
+      _cancelComposerContext();
+    }
   }
 }
 
@@ -2912,7 +2947,20 @@ class _MessageRow extends ConsumerWidget {
                                 ),
                               ],
                             ),
-                        child: bubble,
+                        // 部分コピーモード中だと一目で分かるよう、選択された
+                        // テキストの背後にはっきり分かる色でハイライトを敷く
+                        // （2026-08-21変更。以前は吹き出し全体を枠線で囲んで
+                        // いたが、テキスト選択そのものを強調するNotion等の
+                        // ハイライト表現に近づけるよう変更した）。
+                        // `DefaultSelectionStyle`はFlutter標準の選択色
+                        // 指定用InheritedWidgetで、配下のTextが選択された
+                        // 際の背景色に反映される。
+                        child: DefaultSelectionStyle(
+                          selectionColor: colorScheme.primary.withValues(
+                            alpha: 0.35,
+                          ),
+                          child: bubble,
+                        ),
                       ),
                     )
                   : _MessageBubbleTapArea(
@@ -3564,6 +3612,9 @@ class _MessageRow extends ConsumerWidget {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
+        // 横幅いっぱいに広がって縦に詰まって見えないよう幅を制限する
+        // （2026-08-21、`_confirmDeleteSelected`と同じパターン）。
+        constraints: const BoxConstraints(maxWidth: 400),
         title: Text(strings.chatUnsendConfirmTitle),
         content: Text(strings.chatUnsendConfirmMessage),
         actions: [
@@ -3572,8 +3623,12 @@ class _MessageRow extends ConsumerWidget {
             child: Text(strings.cancel),
           ),
           FilledButton(
+            // colorScheme.errorはダークテーマ下では明るいサーモンピンクに
+            // 近い色になり白文字が読みにくいため、固定の濃い赤に変更する
+            // （2026-08-21、`_confirmDeleteSelected`と同じ対応）。
             style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(context).colorScheme.error,
+              backgroundColor: Colors.red.shade700,
+              foregroundColor: Colors.white,
             ),
             onPressed: () => Navigator.of(context).pop(true),
             child: Text(strings.chatUnsendConfirmButton),
