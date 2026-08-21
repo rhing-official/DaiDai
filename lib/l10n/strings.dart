@@ -1037,7 +1037,7 @@ class Strings {
     chatDeleteConfirmTitle: 'メッセージを削除しますか？',
     chatDeleteConfirmMessage:
         '選択したメッセージがあなたのアカウントから見えなくなります（相手には引き続き見えます）。全員が同じメッセージを削除すると、サーバーからも完全に削除されます。この操作は取り消せません。',
-    chatDeleteConfirmButton: '削除する',
+    chatDeleteConfirmButton: '削除',
     chatReplyAction: '返信',
     chatEditAction: '編集',
     chatUnsendAction: '送信取り消し',
@@ -1058,7 +1058,7 @@ class Strings {
     chatEditingLabel: 'メッセージを編集中',
     chatUnsendConfirmTitle: '送信を取り消しますか？',
     chatUnsendConfirmMessage:
-        'このメッセージは相手の画面からも完全に削除されます（既読・リアクション等も含めて痕跡は残りません）。この操作は取り消せません。',
+        'このメッセージは相手の画面からも完全に削除されます。既読・リアクション等も含めて痕跡は残りません。この操作は取り消せません。',
     chatUnsendConfirmButton: '取り消す',
     chatAttachFile: 'ファイル',
     chatAttachImage: '画像',

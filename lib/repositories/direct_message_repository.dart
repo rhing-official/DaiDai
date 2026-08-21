@@ -82,6 +82,17 @@ abstract class DirectMessageRepository {
     int contextSize = 25,
   });
 
+  /// 指定した1件のメッセージの最新状態を1回だけ取得する（2026-08-21追加）。
+  /// [loadOlderDayMessages]で読み込んだ過去日はライブ購読しない静的な
+  /// スナップショットのため、その中のメッセージへ編集・リアクション等を
+  /// 行った直後にローカル側の表示を更新する目的で使う。既に物理削除済み
+  /// （送信取り消し等）ならnullを返す。
+  Future<Message?> getMessage({
+    required String dmId,
+    required String roomId,
+    required String messageId,
+  });
+
   Future<void> sendTextMessage({
     required String dmId,
     required String roomId,
@@ -591,6 +602,21 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
         Message.fromJson(doc.id, doc.data()),
       for (final doc in newer.docs) Message.fromJson(doc.id, doc.data()),
     ];
+  }
+
+  @override
+  Future<Message?> getMessage({
+    required String dmId,
+    required String roomId,
+    required String messageId,
+  }) async {
+    final doc = await _dmRoomRef(
+      dmId,
+      roomId,
+    ).collection('messages').doc(messageId).get();
+    final data = doc.data();
+    if (data == null) return null;
+    return Message.fromJson(doc.id, data);
   }
 
   @override

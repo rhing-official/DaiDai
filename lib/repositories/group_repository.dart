@@ -227,6 +227,18 @@ abstract class GroupRepository {
     int contextSize = 25,
   });
 
+  /// 指定した1件のメッセージの最新状態を1回だけ取得する（2026-08-21追加、
+  /// `DirectMessageRepository.getMessage`と同じ設計）。[loadOlderRoomDayMessages]
+  /// で読み込んだ過去日はライブ購読しない静的なスナップショットのため、
+  /// その中のメッセージへ編集・リアクション等を行った直後にローカル側の
+  /// 表示を更新する目的で使う。既に物理削除済み（送信取り消し等）なら
+  /// nullを返す。
+  Future<Message?> getRoomMessage({
+    required String groupId,
+    required String roomId,
+    required String messageId,
+  });
+
   Future<void> sendRoomMessage({
     required String groupId,
     required String roomId,
@@ -777,6 +789,21 @@ class FirestoreGroupRepository implements GroupRepository {
         Message.fromJson(doc.id, doc.data()),
       for (final doc in newer.docs) Message.fromJson(doc.id, doc.data()),
     ];
+  }
+
+  @override
+  Future<Message?> getRoomMessage({
+    required String groupId,
+    required String roomId,
+    required String messageId,
+  }) async {
+    final doc = await _roomRef(
+      groupId,
+      roomId,
+    ).collection('messages').doc(messageId).get();
+    final data = doc.data();
+    if (data == null) return null;
+    return Message.fromJson(doc.id, data);
   }
 
   @override
