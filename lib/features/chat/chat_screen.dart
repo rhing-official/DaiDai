@@ -8,8 +8,7 @@ import 'package:flutter/foundation.dart'
     show TargetPlatform, debugPrint, defaultTargetPlatform, kIsWeb;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart'
-    show RenderRepaintBoundary, SelectedContent;
+import 'package:flutter/rendering.dart' show RenderRepaintBoundary;
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -59,6 +58,7 @@ import '../../widgets/gekiga/gekiga_icon_badge.dart';
 import '../../widgets/gekiga/gekiga_panel_box.dart';
 import '../../widgets/gekiga/gekiga_photo_frame.dart';
 import '../../widgets/link_preview_card.dart';
+import '../../widgets/linkified_editing_controller.dart';
 import '../../widgets/linkified_text.dart';
 import '../../widgets/swipe_gestures.dart'
     show SwipeDownToDismiss, kSwipeGestureVelocityThreshold;
@@ -426,17 +426,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// `Set`ではなく単一のnullableフィールドで持つ。
   String? _textCopyMessageId;
 
-  /// [_textCopyMessageId]がセットされている間、その[SelectionArea]の
-  /// Stateへアクセスして全文選択（[SelectableRegionState.selectAll]）や
-  /// トースバー非表示（[SelectableRegionState.hideToolbar]）を呼ぶために
-  /// 使う（2026-08-09追加）。1件しか同時に成立しないため使い回しでよい。
-  final _partialCopyKey = GlobalKey<SelectionAreaState>();
-
-  /// [_textCopyMessageId]の[SelectionArea.onSelectionChanged]から更新される、
-  /// 現在の選択内容のキャッシュ（2026-08-09追加）。コピーボタン/Ctrl+C押下時に
-  /// ここから文字列を取り出す（`setState`不要、`_cachedMessages`と同じ
-  /// パターン）。
-  SelectedContent? _partialCopySelectedContent;
+  /// [_textCopyMessageId]がセットされている間の本文表示・選択を担う
+  /// `TextField`（読み取り専用）用コントローラ。`TextEditingController`は
+  /// 普通のオブジェクトなので`text`/`selection`を直接いつでも設定できる
+  /// （2026-08-24変更。以前は`SelectionArea`＋`GlobalKey`だったが、選択
+  /// ハイライトが実際の画面に描画されない不具合があり、`TextField`と同じ
+  /// `RenderEditable`系の選択機構に乗り換えた）。1件しか同時に成立しない
+  /// ため使い回しでよい。
+  late final _partialCopyController = LinkifiedEditingController();
 
   /// 返信中・編集中のメッセージ（同時にはどちらか一方のみ）。入力欄上部に
   /// プレビューバーとして表示し、キャンセルボタンでnullに戻す。
@@ -598,47 +595,51 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// 部分コピー用の文言選択モードに入る。長押しメニューの「部分コピー」
   /// から呼ばれる（2026-08-09、メッセージへの直接コピー＝ホバーでの入り口は
   /// 廃止し、メニュー経由のみに変更）。削除・スクリーンショットのような
-  /// 複数メッセージ選択ではなく、[messageId]1件だけの本文を選択可能
-  /// （[SelectionArea]）にし、入った直後は全文が選択済みの状態から
-  /// スタートする（カーソルでコピーしたい範囲だけに絞り込める）。終了は
-  /// 明示的な×ボタンではなく、コピー操作（Ctrl+C／選択ツールバーの
-  /// 「コピー」）をした時点で自動的に行う（[_copyPartialSelectionAndExit]
-  /// 参照、2026-08-09変更）。
-  void _enterTextCopyMode(String messageId) {
+  /// 複数メッセージ選択ではなく、[messageId]1件だけの本文（[content]）を
+  /// 選択可能にし、入った直後は全文が選択済みの状態からスタートする
+  /// （カーソルでコピーしたい範囲だけに絞り込める）。終了は明示的な×ボタン
+  /// ではなく、コピー操作（Ctrl+C／選択ツールバーの「コピー」）をした時点で
+  /// 自動的に行う（[_copyPartialSelectionAndExit]参照、2026-08-09変更）。
+  ///
+  /// `TextEditingController`は普通のオブジェクトなので、`SelectionArea`
+  /// 時代のようにGlobalKey・複数フレーム待機を挟まずその場で
+  /// `text`/`selection`を設定できる（2026-08-24変更）。
+  void _enterTextCopyMode(String messageId, String content) {
+    _partialCopyController.text = content;
+    _partialCopyController.selection = TextSelection(
+      baseOffset: 0,
+      extentOffset: content.length,
+    );
     setState(() {
       _textCopyMessageId = messageId;
       _selecting = false;
       _selectedMessageIds.clear();
       _screenshotSelecting = false;
       _screenshotSelectedIds.clear();
-      _partialCopySelectedContent = null;
-    });
-    // web(DDC)ではSelectionAreaのマウント・レイアウトが1フレームで
-    // 完了しないことがある（スクリーンショット撮影のtoImage()と同じ
-    // 事情）ため、2フレーム待ってから全文選択する。
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _partialCopyKey.currentState?.selectableRegion.selectAll();
-      });
     });
   }
 
   void _exitTextCopyMode() {
-    setState(() {
-      _textCopyMessageId = null;
-      _partialCopySelectedContent = null;
-    });
+    setState(() => _textCopyMessageId = null);
   }
 
   /// 部分コピーモード中に、選択済みの文字列をクリップボードへコピーして
   /// モードを終了する（Ctrl+C・選択ツールバーの「コピー」ボタン双方から
-  /// 呼ばれる共通処理、2026-08-09追加）。
+  /// 呼ばれる共通処理、2026-08-09追加）。選択範囲は`_partialCopyController`
+  /// （`TextEditingController`）自身が保持しているため、専用のキャッシュ
+  /// フィールドは不要（2026-08-24、`onSelectionChanged`が`TextField`には
+  /// 公開されていないため`.selection`を直接参照する方式に変更）。
   void _copyPartialSelectionAndExit() {
-    final text = _partialCopySelectedContent?.plainText;
-    if (text != null && text.isNotEmpty) {
-      Clipboard.setData(ClipboardData(text: text));
+    final selection = _partialCopyController.selection;
+    if (selection.isValid && !selection.isCollapsed) {
+      final text = _partialCopyController.text.substring(
+        selection.start,
+        selection.end,
+      );
+      if (text.isNotEmpty) {
+        Clipboard.setData(ClipboardData(text: text));
+      }
     }
-    _partialCopyKey.currentState?.selectableRegion.hideToolbar();
     _exitTextCopyMode();
   }
 
@@ -1262,6 +1263,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     _textController.removeListener(_onComposerTextChanged);
     _textController.dispose();
     _composerFocusNode.dispose();
+    _partialCopyController.dispose();
     _itemPositionsListener.itemPositions.removeListener(
       _maybeLoadOlderMessages,
     );
@@ -1586,9 +1588,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                           textCopySelecting:
                               _textCopyMessageId == message.messageId,
                           onEnterTextCopy: _enterTextCopyMode,
-                          partialCopySelectionKey: _partialCopyKey,
-                          onPartialCopySelectionChanged: (content) =>
-                              _partialCopySelectedContent = content,
+                          partialCopyController: _partialCopyController,
                           onCopyPartialSelection: _copyPartialSelectionAndExit,
                           onCopyMessage: _copyMessageText,
                           onToggleSelected: _selecting
@@ -2244,8 +2244,7 @@ class _MessageRow extends ConsumerWidget {
     this.onEnterScreenshotSelection,
     this.textCopySelecting = false,
     this.onEnterTextCopy,
-    this.partialCopySelectionKey,
-    this.onPartialCopySelectionChanged,
+    this.partialCopyController,
     this.onCopyPartialSelection,
     this.onCopyMessage,
     this.onToggleSelected,
@@ -2311,16 +2310,16 @@ class _MessageRow extends ConsumerWidget {
   final bool textCopySelecting;
 
   /// 部分コピー用の文言選択モードに入る（長押しメニューの「部分コピー」
-  /// から呼ばれる）。
-  final void Function(String messageId)? onEnterTextCopy;
+  /// から呼ばれる）。本文（[Message.content]）を合わせて渡し、呼び出し先で
+  /// [partialCopyController]へ即座に設定できるようにする（2026-08-24、
+  /// メッセージIDのみだったシグネチャを拡張）。
+  final void Function(String messageId, String content)? onEnterTextCopy;
 
-  /// [textCopySelecting]中の[SelectionArea]へアクセスするためのキー
-  /// （入った直後に全文選択するため、2026-08-09追加）。
-  final GlobalKey<SelectionAreaState>? partialCopySelectionKey;
-
-  /// [textCopySelecting]中、選択内容が変わるたびに呼ばれる
-  /// （2026-08-09追加、コピー実行時にここでキャッシュした文字列を使う）。
-  final ValueChanged<SelectedContent?>? onPartialCopySelectionChanged;
+  /// [textCopySelecting]中、本文を表示・選択させる読み取り専用`TextField`
+  /// 用のコントローラ（2026-08-24、`SelectionArea`＋`GlobalKey`から変更。
+  /// `TextEditingController`は通常のオブジェクトなので、入った直後の全文
+  /// 選択は呼び出し元が`text`/`selection`を直接設定するだけで済む）。
+  final LinkifiedEditingController? partialCopyController;
 
   /// 部分コピーモード中に選択済みの文字列をコピーしてモードを終了する
   /// （Ctrl+C・選択ツールバーの「コピー」双方から呼ぶ、2026-08-09追加）。
@@ -2774,16 +2773,121 @@ class _MessageRow extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Flexible(
-                child: LinkifiedText(
-                  message.content,
-                  style: TextStyle(
-                    color: onBubbleColor,
-                    fontWeight: isGekiga ? FontWeight.w600 : null,
-                  ),
-                  linkColor: isGekiga
-                      ? (isMe ? Colors.black : Colors.white)
-                      : (isMe ? colorScheme.onPrimary : colorScheme.primary),
-                ),
+                child: textCopySelecting
+                    ? Actions(
+                        actions: <Type, Action<Intent>>{
+                          CopySelectionTextIntent:
+                              CallbackAction<CopySelectionTextIntent>(
+                                onInvoke: (intent) {
+                                  onCopyPartialSelection?.call();
+                                  return null;
+                                },
+                              ),
+                        },
+                        // 部分コピーモード中だと一目で分かるよう、選択された
+                        // テキストの背後に青いハイライトを敷く
+                        // （2026-08-24、`TextSelectionTheme`で`TextField`の
+                        // 選択色を直接指定する）。バブル所有者・テーマに
+                        // 関わらず常に同じ青にする（`colorScheme.primary`
+                        // 由来にすると劇画テーマでは白にremapされてしまい
+                        // 「青いハイライト」にならないため、2026-08-24
+                        // 固定色に変更）。
+                        //
+                        // `TextField`は`Text`と異なり、緩い制約下では既定で
+                        // 利用可能な最大幅まで広がろうとし、吹き出しの形が
+                        // 崩れる（劇画UIのジグザグ枠は特に顕著）ため
+                        // `IntrinsicWidth`で本文の幅にシュリンクラップさせる。
+                        child: TextSelectionTheme(
+                          data: TextSelectionThemeData(
+                            selectionColor: Colors.blue.withValues(alpha: 0.4),
+                          ),
+                          // `CopySelectionTextIntent`用の`CallbackAction`
+                          // （上の`Actions`）は仕組みとしてはFlutterが正式に
+                          // サポートする上書き手段だが、Web環境では実際には
+                          // Ctrl+Cを検知できず`onCopyPartialSelection`が
+                          // 呼ばれない不具合が確認された（2026-08-24）。
+                          // そのため、生のキー入力を直接監視する`Focus`を
+                          // 追加し、そちらを実質的なコピー検知の主体とする
+                          // （既存の`CallbackAction`はデスクトップ/モバイル
+                          // 環境向けの保険としてそのまま残す）。
+                          // イベントは`ignored`のまま返し、通常のコピー処理
+                          // 自体は妨げない。
+                          child: Focus(
+                            canRequestFocus: false,
+                            skipTraversal: true,
+                            onKeyEvent: (node, event) {
+                              if (event is KeyDownEvent &&
+                                  (event.logicalKey ==
+                                          LogicalKeyboardKey.keyC ||
+                                      event.logicalKey ==
+                                          LogicalKeyboardKey.keyX) &&
+                                  (HardwareKeyboard.instance
+                                          .isControlPressed ||
+                                      HardwareKeyboard.instance
+                                          .isMetaPressed)) {
+                                onCopyPartialSelection?.call();
+                              }
+                              return KeyEventResult.ignored;
+                            },
+                            child: IntrinsicWidth(
+                              child: TextField(
+                                controller: partialCopyController
+                                  ?..linkColor = isGekiga
+                                      ? (isMe ? Colors.black : Colors.white)
+                                      : (isMe
+                                            ? colorScheme.onPrimary
+                                            : colorScheme.primary),
+                                readOnly: true,
+                                showCursor: false,
+                                maxLines: null,
+                                style: TextStyle(
+                                  color: onBubbleColor,
+                                  fontWeight: isGekiga
+                                      ? FontWeight.w600
+                                      : null,
+                                ),
+                                // `InputDecoration.collapsed`は`filled`が
+                                // 既定で`false`のため、劇画テーマの
+                                // `inputDecorationTheme`（黒塗り、
+                                // `gekiga_theme.dart`参照）を継承しない。
+                                // 通常デコレーションが持つ最小タップ高さ・
+                                // 内部パディングも持たないため、`Text`
+                                // 表示時に近いサイズになる。
+                                decoration: const InputDecoration.collapsed(
+                                  hintText: null,
+                                  border: InputBorder.none,
+                                ),
+                                contextMenuBuilder:
+                                    (context, editableTextState) =>
+                                        AdaptiveTextSelectionToolbar.buttonItems(
+                                          anchors: editableTextState
+                                              .contextMenuAnchors,
+                                          buttonItems: [
+                                            ContextMenuButtonItem(
+                                              type:
+                                                  ContextMenuButtonType.copy,
+                                              onPressed:
+                                                  onCopyPartialSelection,
+                                            ),
+                                          ],
+                                        ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      )
+                    : LinkifiedText(
+                        message.content,
+                        style: TextStyle(
+                          color: onBubbleColor,
+                          fontWeight: isGekiga ? FontWeight.w600 : null,
+                        ),
+                        linkColor: isGekiga
+                            ? (isMe ? Colors.black : Colors.white)
+                            : (isMe
+                                  ? colorScheme.onPrimary
+                                  : colorScheme.primary),
+                      ),
               ),
               if (message.silent) ...[
                 const SizedBox(width: 4),
@@ -2917,52 +3021,14 @@ class _MessageRow extends ConsumerWidget {
               const SizedBox(width: 6),
             ],
             Flexible(
-              // 部分コピーモード中は、ドラッグでの範囲選択・Ctrl+Cコピーを
-              // SelectionAreaに任せるため、タップ/長押しを奪う
-              // _MessageBubbleTapAreaは介さない（ジェスチャー競合回避、
-              // 2026-08-09追加）。明示的な×ボタンは廃止し、コピー操作
-              // （Ctrl+C・選択ツールバーの「コピー」）を検知して自動で
-              // モードを終了する。
+              // 部分コピーモード中は、`bubbleContent`内部（本文部分のみ）で
+              // ドラッグでの範囲選択・Ctrl+Cコピーを直接処理するため、
+              // タップ/長押しを奪う_MessageBubbleTapAreaは介さない
+              // （ジェスチャー競合回避、2026-08-09追加）。明示的な×ボタンは
+              // 廃止し、コピー操作（Ctrl+C・選択ツールバーの「コピー」）や
+              // Escキーを検知して自動でモードを終了する。
               child: textCopySelecting
-                  ? Actions(
-                      actions: <Type, Action<Intent>>{
-                        CopySelectionTextIntent:
-                            CallbackAction<CopySelectionTextIntent>(
-                              onInvoke: (intent) {
-                                onCopyPartialSelection?.call();
-                                return null;
-                              },
-                            ),
-                      },
-                      child: SelectionArea(
-                        key: partialCopySelectionKey,
-                        onSelectionChanged: onPartialCopySelectionChanged,
-                        contextMenuBuilder: (context, state) =>
-                            AdaptiveTextSelectionToolbar.buttonItems(
-                              anchors: state.contextMenuAnchors,
-                              buttonItems: [
-                                ContextMenuButtonItem(
-                                  type: ContextMenuButtonType.copy,
-                                  onPressed: onCopyPartialSelection,
-                                ),
-                              ],
-                            ),
-                        // 部分コピーモード中だと一目で分かるよう、選択された
-                        // テキストの背後にはっきり分かる色でハイライトを敷く
-                        // （2026-08-21変更。以前は吹き出し全体を枠線で囲んで
-                        // いたが、テキスト選択そのものを強調するNotion等の
-                        // ハイライト表現に近づけるよう変更した）。
-                        // `DefaultSelectionStyle`はFlutter標準の選択色
-                        // 指定用InheritedWidgetで、配下のTextが選択された
-                        // 際の背景色に反映される。
-                        child: DefaultSelectionStyle(
-                          selectionColor: colorScheme.primary.withValues(
-                            alpha: 0.35,
-                          ),
-                          child: bubble,
-                        ),
-                      ),
-                    )
+                  ? bubble
                   : _MessageBubbleTapArea(
                       canSelect: canSelect,
                       strings: strings,
@@ -2973,8 +3039,10 @@ class _MessageRow extends ConsumerWidget {
                           : null,
                       onReact: onSetReaction == null ? null : _toggleMyReaction,
                       onCopySelect: () => onCopyMessage?.call(message),
-                      onPartialCopySelect: () =>
-                          onEnterTextCopy?.call(message.messageId),
+                      onPartialCopySelect: () => onEnterTextCopy?.call(
+                        message.messageId,
+                        message.content,
+                      ),
                       onSelect: canSelect
                           ? () => onEnterSelection?.call(message.messageId)
                           : null,

@@ -4,6 +4,48 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../utils/link_detection.dart';
 
+/// [text]内のURLをタップ可能なリンクとして装飾した[InlineSpan]リストを作る。
+/// URLが見つからない場合は単一の[TextSpan]（styleのみ）を返す。
+/// [recognizerSink]には生成した[TapGestureRecognizer]を全て追加するので、
+/// 呼び出し側は不要になったタイミングで必ずdisposeすること（リーク防止）。
+/// `LinkifiedText`と`LinkifiedEditingController`の両方から共有する
+/// （2026-08-24切り出し、部分コピーのTextField化に伴う）。
+List<InlineSpan> buildLinkifiedSpans({
+  required String text,
+  required TextStyle? style,
+  required Color linkColor,
+  required List<TapGestureRecognizer> recognizerSink,
+  required Future<void> Function(String url) onTapUrl,
+}) {
+  final matches = urlPattern.allMatches(text);
+  if (matches.isEmpty) {
+    return [TextSpan(text: text, style: style)];
+  }
+
+  final linkStyle = (style ?? const TextStyle()).copyWith(
+    color: linkColor,
+    decoration: TextDecoration.underline,
+    decorationColor: linkColor,
+  );
+
+  final spans = <InlineSpan>[];
+  var lastEnd = 0;
+  for (final match in matches) {
+    if (match.start > lastEnd) {
+      spans.add(TextSpan(text: text.substring(lastEnd, match.start)));
+    }
+    final url = match.group(0)!;
+    final recognizer = TapGestureRecognizer()..onTap = () => onTapUrl(url);
+    recognizerSink.add(recognizer);
+    spans.add(TextSpan(text: url, style: linkStyle, recognizer: recognizer));
+    lastEnd = match.end;
+  }
+  if (lastEnd < text.length) {
+    spans.add(TextSpan(text: text.substring(lastEnd)));
+  }
+  return spans;
+}
+
 /// 本文中のURLをタップ可能なリンクとして表示する。それ以外の部分は通常の
 /// `Text`と同じスタイルで表示する（メッセージ本文にURLを含めても、これまで
 /// タップしてブラウザで開く手段が無かったため導入した）。
@@ -61,28 +103,14 @@ class _LinkifiedTextState extends State<LinkifiedText> {
       return Text(widget.text, style: widget.style);
     }
 
-    final linkStyle = widget.style.copyWith(
-      color: widget.linkColor,
-      decoration: TextDecoration.underline,
-      decorationColor: widget.linkColor,
-    );
-
     _disposeRecognizers();
-    final spans = <InlineSpan>[];
-    var lastEnd = 0;
-    for (final match in matches) {
-      if (match.start > lastEnd) {
-        spans.add(TextSpan(text: widget.text.substring(lastEnd, match.start)));
-      }
-      final url = match.group(0)!;
-      final recognizer = TapGestureRecognizer()..onTap = () => _openLink(url);
-      _recognizers.add(recognizer);
-      spans.add(TextSpan(text: url, style: linkStyle, recognizer: recognizer));
-      lastEnd = match.end;
-    }
-    if (lastEnd < widget.text.length) {
-      spans.add(TextSpan(text: widget.text.substring(lastEnd)));
-    }
+    final spans = buildLinkifiedSpans(
+      text: widget.text,
+      style: widget.style,
+      linkColor: widget.linkColor,
+      recognizerSink: _recognizers,
+      onTapUrl: _openLink,
+    );
 
     return Text.rich(TextSpan(style: widget.style, children: spans));
   }
