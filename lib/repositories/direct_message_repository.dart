@@ -892,6 +892,7 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
     );
 
     // Firestoreの1バッチは500件までのため、chunk単位でコミットする。
+    final attachmentUrlsToDelete = <String>[];
     for (var i = 0; i < docs.length; i += 400) {
       final chunk = docs.sublist(
         i,
@@ -906,6 +907,10 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
         };
         if (participants.every(hiddenFor.contains)) {
           batch.delete(doc.reference);
+          final fileUrl =
+              (doc.data()?['fileMetadata'] as Map<String, dynamic>?)?['url']
+                  as String?;
+          if (fileUrl != null) attachmentUrlsToDelete.add(fileUrl);
         } else {
           batch.update(doc.reference, {
             'hiddenFor': FieldValue.arrayUnion([userId]),
@@ -914,6 +919,17 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
       }
       await batch.commit();
     }
+
+    // 参加者全員が削除し終え物理削除されたメッセージの添付ファイルは、
+    // Firestore上には残らないがFirebase Storage上には実体が残るため、
+    // ストレージの肥大化防止のためあわせて削除する（削除失敗は無視）。
+    await Future.wait(
+      attachmentUrlsToDelete.map((url) async {
+        try {
+          await _storage.refFromURL(url).delete();
+        } catch (_) {}
+      }),
+    );
   }
 
   @override

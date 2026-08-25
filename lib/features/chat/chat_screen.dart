@@ -40,8 +40,10 @@ import '../../providers/repository_providers.dart';
 import '../../providers/send_key_mode_provider.dart';
 import '../../providers/user_providers.dart';
 import '../../theme/app_theme_extras.dart';
+import '../../theme/dessin/dessin_colors.dart';
 import '../../theme/gekiga/gekiga_colors.dart';
 import '../../theme/gekiga/gekiga_shapes.dart';
+import '../../widgets/dessin/dessin_photo_frame.dart';
 import '../../widgets/gekiga/monochrome_box.dart';
 import '../../widgets/media_preview_frame.dart';
 import 'attachment_popup_button.dart';
@@ -2657,10 +2659,14 @@ class _MessageRow extends ConsumerWidget {
 
     final isGekiga = uiStyle == AppUiStyle.gekiga;
     // 劇画スタイルはモノクロで白黒反転して自分/相手を描き分ける
-    // （自分は白地に黒文字、相手は黒地に白文字、2026-07-29修正）。
-    final onBubbleColor = isGekiga
-        ? (isMe ? Colors.black : Colors.white)
-        : (isMe ? colorScheme.onPrimary : colorScheme.onSurfaceVariant);
+    // （自分は白地に黒文字、相手は黒地に白文字、2026-07-29修正）。デッサン
+    // スタイルは自分/相手どちらも紙の上の鉛筆書きのため色を反転しない。
+    final onBubbleColor = switch (uiStyle) {
+      AppUiStyle.gekiga => isMe ? Colors.black : Colors.white,
+      AppUiStyle.dessin => DessinColors.ink,
+      AppUiStyle.flat =>
+        isMe ? colorScheme.onPrimary : colorScheme.onSurfaceVariant,
+    };
 
     // 返信元の引用プレビュー。ロード済み（最新50件）の範囲に返信元の実物が
     // あればそちらを優先して表示し（編集済みなら最新内容を反映できる）、
@@ -2913,29 +2919,35 @@ class _MessageRow extends ConsumerWidget {
       ],
     );
 
-    final bubble = isGekiga
-        ? _GekigaBubble(
-            seed: message.messageId.hashCode,
-            isMe: isMe,
-            alignRight: alignRight,
-            skipFrame:
-                message.contentType == 'image' ||
-                message.contentType == 'video' ||
-                isMarkdownPreview ||
-                isSticker,
-            child: bubbleContent,
-          )
-        : Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            decoration: BoxDecoration(
-              color: isMe
-                  ? colorScheme.primary
-                  : colorScheme.surfaceContainerHighest,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: floatingShadow,
-            ),
-            child: bubbleContent,
-          );
+    final skipBubbleFrame =
+        message.contentType == 'image' ||
+        message.contentType == 'video' ||
+        isMarkdownPreview ||
+        isSticker;
+    final bubble = switch (uiStyle) {
+      AppUiStyle.gekiga => _GekigaBubble(
+        seed: message.messageId.hashCode,
+        isMe: isMe,
+        alignRight: alignRight,
+        skipFrame: skipBubbleFrame,
+        child: bubbleContent,
+      ),
+      AppUiStyle.dessin => _DessinBubble(
+        skipFrame: skipBubbleFrame,
+        child: bubbleContent,
+      ),
+      AppUiStyle.flat => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: isMe
+              ? colorScheme.primary
+              : colorScheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: floatingShadow,
+        ),
+        child: bubbleContent,
+      ),
+    };
 
     // 既読バッジは吹き出しの横（バブルが右寄せの時は左横、左寄せの時は
     // 右横）に、吹き出しの下端を下限として並べる（2026-08-05変更）。
@@ -2952,7 +2964,12 @@ class _MessageRow extends ConsumerWidget {
     // 劇画スタイルでは、ジグザグ枠にはせず色だけモノクロ（黒地白文字）に
     // 変える（2026-08-04追加。`colorScheme.surface`は劇画テーマだと背景と
     // 同じ赤になっており、そのままでは背景に溶け込んでほぼ見えなかった）。
-    final readBadgeFg = isGekiga ? GekigaColors.onPanel : colorScheme.primary;
+    // デッサンスタイルは墨色の文字に紙色の地。
+    final readBadgeFg = switch (uiStyle) {
+      AppUiStyle.gekiga => GekigaColors.onPanel,
+      AppUiStyle.dessin => DessinColors.ink,
+      AppUiStyle.flat => colorScheme.primary,
+    };
     final badgeContent = isSimpleDmReadMark
         ? Icon(Icons.done, size: 12, color: readBadgeFg)
         : Row(
@@ -2973,7 +2990,11 @@ class _MessageRow extends ConsumerWidget {
     final badge = Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
       decoration: BoxDecoration(
-        color: isGekiga ? GekigaColors.panel : colorScheme.surface,
+        color: switch (uiStyle) {
+          AppUiStyle.gekiga => GekigaColors.panel,
+          AppUiStyle.dessin => DessinColors.paper,
+          AppUiStyle.flat => colorScheme.surface,
+        },
         borderRadius: BorderRadius.circular(999),
         boxShadow: floatingShadow,
       ),
@@ -4231,6 +4252,24 @@ class _SenderAvatar extends ConsumerWidget {
     final color = _palette[id.hashCode.abs() % _palette.length];
     if (uiStyle == AppUiStyle.gekiga) {
       return GekigaPhotoFrame(
+        size: 48,
+        image: iconUrl != null ? NetworkImage(iconUrl) : null,
+        fallback: iconUrl != null
+            ? null
+            : ColoredBox(
+                color: color,
+                child: Center(
+                  child: Text(
+                    id[0].toUpperCase(),
+                    style: const TextStyle(color: Colors.white, fontSize: 13),
+                  ),
+                ),
+              ),
+      );
+    }
+    if (uiStyle == AppUiStyle.dessin) {
+      return DessinPhotoFrame(
+        seed: id.hashCode,
         size: 48,
         image: iconUrl != null ? NetworkImage(iconUrl) : null,
         fallback: iconUrl != null
@@ -5549,6 +5588,38 @@ class _GekigaBubblePainter extends CustomPainter {
       oldDelegate.seed != seed ||
       oldDelegate.isMe != isMe ||
       oldDelegate.alignRight != alignRight;
+}
+
+/// デッサンスタイルのメッセージ吹き出し（[_GekigaBubble]に相当）。手描き風の
+/// 装飾はCustomPainterでは鉛筆画らしく見えず「モノクロの線」止まりになる
+/// ことが実機確認で分かったため（2026-08-25）、細い実線の枠で囲むだけの
+/// ミニマルな見た目に変更した。自分/相手の区別は色反転ではなく位置
+/// （左右）のみで行う。
+class _DessinBubble extends StatelessWidget {
+  const _DessinBubble({required this.child, this.skipFrame = false});
+
+  final Widget child;
+
+  /// 中身が既に自前の枠を持つコンテンツ（添付画像・動画プレビュー・
+  /// マークダウンプレビューカード・スティッカー）かどうか（[_GekigaBubble]と
+  /// 同じ判定基準を流用）。
+  final bool skipFrame;
+
+  @override
+  Widget build(BuildContext context) {
+    if (skipFrame) {
+      return child;
+    }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: DessinColors.paper,
+        border: Border.all(color: DessinColors.ink),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: child,
+    );
+  }
 }
 
 /// 劇画スタイルの入力欄の外枠。自分のメッセージ吹き出し（[_GekigaBubble]、

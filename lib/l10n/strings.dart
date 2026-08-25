@@ -44,6 +44,8 @@ class Strings {
     required this.settingsUiStyleFlatDescription,
     required this.settingsUiStyleGekigaLabel,
     required this.settingsUiStyleGekigaDescription,
+    required this.settingsUiStyleDessinLabel,
+    required this.settingsUiStyleDessinDescription,
     required this.settingsChatLayoutTitle,
     required this.settingsChatLayoutSideBySide,
     required this.settingsChatLayoutSideBySideDescription,
@@ -403,6 +405,8 @@ class Strings {
   final String settingsUiStyleFlatDescription;
   final String settingsUiStyleGekigaLabel;
   final String settingsUiStyleGekigaDescription;
+  final String settingsUiStyleDessinLabel;
+  final String settingsUiStyleDessinDescription;
 
   /// 「メッセージの表示」（2026-07-30改名、旧称: 語らいの表示）。旧「入力」
   /// カテゴリ廃止に伴い、語らいカテゴリへ移動した（settings_tab.dart参照）。
@@ -911,7 +915,9 @@ class Strings {
     settingsUiStyleFlatLabel: 'フラット',
     settingsUiStyleFlatDescription: 'デフォルトスタイル',
     settingsUiStyleGekigaLabel: '劇画',
-    settingsUiStyleGekigaDescription: 'モノクロのボックススタイル',
+    settingsUiStyleGekigaDescription: '奇抜な背景スタイル',
+    settingsUiStyleDessinLabel: 'モノクロ',
+    settingsUiStyleDessinDescription: 'ミニマルなスタイル',
     settingsChatLayoutTitle: 'メッセージの表示',
     settingsChatLayoutSideBySide: '自分は右・相手は左',
     settingsChatLayoutSideBySideDescription:
@@ -1295,6 +1301,9 @@ class Strings {
     settingsUiStyleGekigaLabel: 'Gekiga',
     settingsUiStyleGekigaDescription:
         'A hand-drawn, thick jagged-line, monochrome speech-bubble look.',
+    settingsUiStyleDessinLabel: 'Dessin',
+    settingsUiStyleDessinDescription:
+        'A monochrome, pencil-sketch style on textured paper.',
     settingsChatLayoutTitle: 'Message display',
     settingsChatLayoutSideBySide: 'You on the right, others on the left',
     settingsChatLayoutSideBySideDescription:

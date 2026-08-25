@@ -156,6 +156,21 @@ void main() {
     expect(find.text('アクセントカラー'), findsOneWidget);
     expect(find.text('プリセット'), findsOneWidget);
     expect(find.text('文字'), findsOneWidget);
+
+    // UIスタイルの選択肢が3つ（フラット/劇画/デッサン）に増えたことで
+    // ページが縦に伸び、「表示言語」がSliverListの遅延構築で最初は
+    // マウントされていない（2026-08-25）。2ペイン表示は左のサイドバーも
+    // 同時にScrollableのため、既定の「Scrollableを1つだけ探す」挙動と
+    // 衝突しないよう、右ページのScrollableを明示して探す。
+    final applicationScrollable = find.ancestor(
+      of: find.text('アクセントカラー'),
+      matching: find.byType(Scrollable),
+    );
+    await tester.scrollUntilVisible(
+      find.text('表示言語'),
+      300,
+      scrollable: applicationScrollable,
+    );
     expect(find.text('表示言語'), findsOneWidget);
   });
 

@@ -1034,6 +1034,7 @@ class FirestoreGroupRepository implements GroupRepository {
       messageIds.map((id) => messagesRef.doc(id).get()),
     );
 
+    final attachmentUrlsToDelete = <String>[];
     for (var i = 0; i < docs.length; i += 400) {
       final chunk = docs.sublist(
         i,
@@ -1048,6 +1049,10 @@ class FirestoreGroupRepository implements GroupRepository {
         };
         if (memberIds.every(hiddenFor.contains)) {
           batch.delete(doc.reference);
+          final fileUrl =
+              (doc.data()?['fileMetadata'] as Map<String, dynamic>?)?['url']
+                  as String?;
+          if (fileUrl != null) attachmentUrlsToDelete.add(fileUrl);
         } else {
           batch.update(doc.reference, {
             'hiddenFor': FieldValue.arrayUnion([userId]),
@@ -1056,6 +1061,17 @@ class FirestoreGroupRepository implements GroupRepository {
       }
       await batch.commit();
     }
+
+    // メンバー全員が削除し終え物理削除されたメッセージの添付ファイルは、
+    // Firestore上には残らないがFirebase Storage上には実体が残るため、
+    // ストレージの肥大化防止のためあわせて削除する（削除失敗は無視）。
+    await Future.wait(
+      attachmentUrlsToDelete.map((url) async {
+        try {
+          await _storage.refFromURL(url).delete();
+        } catch (_) {}
+      }),
+    );
   }
 
   @override

@@ -30,6 +30,7 @@ import '../../providers/sticker_send_mode_provider.dart';
 import '../../providers/theme_mode_provider.dart';
 import '../../router/app_router.dart';
 import '../../theme/gekiga/gekiga_colors.dart';
+import '../../widgets/dessin/dessin_option_tile.dart';
 import '../../theme/motion.dart';
 import '../../utils/auto_dismiss_banner.dart';
 import '../../utils/color_hex.dart';
@@ -1529,8 +1530,16 @@ class _UiStyleFolder extends ConsumerWidget {
     // プレビューになる（2026-08-03、選択肢の見た目統一のため追加）。
     if (isGekiga) {
       return GekigaJointedTileList(
-        seeds: [AppUiStyle.flat.hashCode, AppUiStyle.gekiga.hashCode],
-        selectedFlags: [style == AppUiStyle.flat, style == AppUiStyle.gekiga],
+        seeds: [
+          AppUiStyle.flat.hashCode,
+          AppUiStyle.gekiga.hashCode,
+          AppUiStyle.dessin.hashCode,
+        ],
+        selectedFlags: [
+          style == AppUiStyle.flat,
+          style == AppUiStyle.gekiga,
+          style == AppUiStyle.dessin,
+        ],
         children: [
           GekigaTileContent(
             selected: style == AppUiStyle.flat,
@@ -1554,6 +1563,50 @@ class _UiStyleFolder extends ConsumerWidget {
             subtitle: Text(strings.settingsUiStyleGekigaDescription),
             onTap: () => select(AppUiStyle.gekiga),
           ),
+          GekigaTileContent(
+            selected: style == AppUiStyle.dessin,
+            leading: Icon(
+              style == AppUiStyle.dessin
+                  ? Icons.radio_button_checked
+                  : Icons.radio_button_unchecked,
+            ),
+            title: Text(strings.settingsUiStyleDessinLabel),
+            subtitle: Text(strings.settingsUiStyleDessinDescription),
+            onTap: () => select(AppUiStyle.dessin),
+          ),
+        ],
+      );
+    }
+
+    // デッサンスタイル選択中は、この選択肢自体も紙質感の手描き枠
+    // （選択中=紙の陰影地）で表示する（劇画スタイルと同じ「選択結果が
+    // そのままプレビューになる」方針）。
+    if (style == AppUiStyle.dessin) {
+      return Column(
+        children: [
+          DessinOptionTile(
+            selected: style == AppUiStyle.flat,
+            title: strings.settingsUiStyleFlatLabel,
+            subtitle: strings.settingsUiStyleFlatDescription,
+            seed: AppUiStyle.flat.hashCode,
+            onTap: () => select(AppUiStyle.flat),
+          ),
+          const SizedBox(height: 8),
+          DessinOptionTile(
+            selected: style == AppUiStyle.gekiga,
+            title: strings.settingsUiStyleGekigaLabel,
+            subtitle: strings.settingsUiStyleGekigaDescription,
+            seed: AppUiStyle.gekiga.hashCode,
+            onTap: () => select(AppUiStyle.gekiga),
+          ),
+          const SizedBox(height: 8),
+          DessinOptionTile(
+            selected: style == AppUiStyle.dessin,
+            title: strings.settingsUiStyleDessinLabel,
+            subtitle: strings.settingsUiStyleDessinDescription,
+            seed: AppUiStyle.dessin.hashCode,
+            onTap: () => select(AppUiStyle.dessin),
+          ),
         ],
       );
     }
@@ -1574,6 +1627,11 @@ class _UiStyleFolder extends ConsumerWidget {
             value: AppUiStyle.gekiga,
             title: Text(strings.settingsUiStyleGekigaLabel),
             subtitle: Text(strings.settingsUiStyleGekigaDescription),
+          ),
+          RadioListTile<AppUiStyle>(
+            value: AppUiStyle.dessin,
+            title: Text(strings.settingsUiStyleDessinLabel),
+            subtitle: Text(strings.settingsUiStyleDessinDescription),
           ),
         ],
       ),
