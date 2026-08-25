@@ -20,6 +20,7 @@ import 'providers/sticker_send_mode_provider.dart';
 import 'providers/theme_mode_provider.dart';
 import 'router/app_router.dart';
 import 'theme/app_theme.dart';
+import 'theme/dessin/dessin_theme.dart';
 import 'theme/gekiga/gekiga_theme.dart';
 
 Future<void> main() async {
@@ -83,16 +84,21 @@ class DaiDaiApp extends ConsumerWidget {
     final gekigaBackgroundColor = ref.watch(gekigaBackgroundColorProvider);
     final appLocale = ref.watch(appLocaleProvider);
     final themeMode = ref.watch(appThemeModeProvider);
-    final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
-    // 劇画スタイルはライト/ダークどちらのthemeModeでも同じ見た目にするため、
-    // theme/darkThemeの両方に同一のThemeDataを渡す（chat_screen.dartの
-    // 既存方針をアプリ全体に拡張したもの）。
-    final theme = isGekiga
-        ? GekigaTheme.build(gekigaBackgroundColor)
-        : AppTheme.light(accentColor);
-    final darkTheme = isGekiga
-        ? GekigaTheme.build(gekigaBackgroundColor)
-        : AppTheme.dark(accentColor);
+    final uiStyle = ref.watch(appUiStyleProvider);
+    // 劇画・デッサンスタイルはライト/ダークどちらのthemeModeでも同じ見た目に
+    // するため、theme/darkThemeの両方に同一のThemeDataを渡す（chat_screen.dart
+    // の既存方針をアプリ全体に拡張したもの）。switch式にしているのは、新しい
+    // スタイルを追加した際に対応漏れをコンパイラが検知できるようにするため。
+    final theme = switch (uiStyle) {
+      AppUiStyle.flat => AppTheme.light(accentColor),
+      AppUiStyle.gekiga => GekigaTheme.build(gekigaBackgroundColor),
+      AppUiStyle.dessin => DessinTheme.build(),
+    };
+    final darkTheme = switch (uiStyle) {
+      AppUiStyle.flat => AppTheme.dark(accentColor),
+      AppUiStyle.gekiga => GekigaTheme.build(gekigaBackgroundColor),
+      AppUiStyle.dessin => DessinTheme.build(),
+    };
     return MaterialApp.router(
       title: 'DaiDai',
       debugShowCheckedModeBanner: false,
