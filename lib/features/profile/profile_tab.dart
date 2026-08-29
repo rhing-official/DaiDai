@@ -676,6 +676,7 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
                     selectedSection: null,
                     onSelect: (category) =>
                         setState(() => _selectedSection = category.section),
+                    large: true,
                   )
                 : KeyedSubtree(
                     key: ValueKey(selected.section),
@@ -742,12 +743,19 @@ class _ProfileCategoryList extends ConsumerWidget {
     required this.categories,
     required this.selectedSection,
     required this.onSelect,
+    this.large = false,
     super.key,
   });
 
   final List<_ProfileCategory> categories;
   final _ProfileSection? selectedSection;
   final ValueChanged<_ProfileCategory> onSelect;
+
+  /// 狭い画面（モバイル）でこの一覧が画面全体を占めるときに、行を大きく
+  /// 見やすくするか（2026-08-27追加、劇画UIのみ対象。設定タブの
+  /// `_CategoryList.large`と同じ役割）。広い画面のサイドバー表示時は
+  /// `false`のまま従来通りのサイズを保つ。
+  final bool large;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -766,6 +774,7 @@ class _ProfileCategoryList extends ConsumerWidget {
                 icon: category.icon,
                 title: category.title,
                 selected: category.section == selectedSection,
+                large: large,
                 onTap: () => onSelect(category),
               ),
           ],
@@ -793,12 +802,17 @@ class _ProfileCategoryTile extends ConsumerWidget {
     required this.title,
     required this.onTap,
     this.selected = false,
+    this.large = false,
   });
 
   final IconData icon;
   final String title;
   final bool selected;
   final VoidCallback onTap;
+
+  /// 狭い画面でこの一覧が画面全体を占めるときに行を大きくするか
+  /// （2026-08-27追加、劇画UIのみ対象。[_ProfileCategoryList.large]参照）。
+  final bool large;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -810,8 +824,12 @@ class _ProfileCategoryTile extends ConsumerWidget {
       // まとめて描くため、ここでは内容だけを返す（2026-08-04変更）。
       return GekigaTileContent(
         selected: selected,
-        leading: Icon(icon),
+        leading: Icon(icon, size: large ? 32 : null),
         title: Text(title),
+        contentPadding: large
+            ? const EdgeInsets.symmetric(horizontal: 16, vertical: 26)
+            : null,
+        titleFontSize: large ? 20 : null,
         onTap: onTap,
       );
     }

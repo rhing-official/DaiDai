@@ -19,6 +19,8 @@ class GekigaTileContent extends StatelessWidget {
     this.trailing,
     this.selected = false,
     this.onTap,
+    this.contentPadding,
+    this.titleFontSize,
     super.key,
   });
 
@@ -28,6 +30,16 @@ class GekigaTileContent extends StatelessWidget {
   final Widget? trailing;
   final bool selected;
   final VoidCallback? onTap;
+
+  /// 既定（横12・縦16、`ListTile`の実効値に揃えたサイズ）より行を大きく
+  /// したい呼び出し元向けのオプトイン上書き（2026-08-27追加、設定・
+  /// 身だしなみのモバイル版カテゴリ一覧向け）。省略時は他の全ての呼び出し
+  /// 元と同じ既定値のまま変わらない。
+  final EdgeInsetsGeometry? contentPadding;
+
+  /// [contentPadding]と同じ理由でのオプトイン上書き。省略時は
+  /// `textTheme.titleMedium`の既定サイズのまま。
+  final double? titleFontSize;
 
   @override
   Widget build(BuildContext context) {
@@ -43,6 +55,8 @@ class GekigaTileContent extends StatelessWidget {
           title: title,
           subtitle: subtitle,
           trailing: trailing,
+          contentPadding: contentPadding,
+          titleFontSize: titleFontSize,
         ),
       ),
     );
@@ -71,6 +85,8 @@ Widget _gekigaTileContent({
   required Widget title,
   required Widget? subtitle,
   required Widget? trailing,
+  EdgeInsetsGeometry? contentPadding,
+  double? titleFontSize,
 }) {
   final textTheme = Theme.of(context).textTheme;
   return Padding(
@@ -78,7 +94,10 @@ Widget _gekigaTileContent({
     // 一定文字数で切るようにしたことでテキストが十分短くなり、逆に余白が
     // 文字に対して広すぎるとの指摘を受けたため詰めた）。縦方向は
     // 上記の`ListTile`高さ整合のため16のまま変更しない。
-    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+    // （[contentPadding]が指定されていれば上書きする。2026-08-27追加）
+    padding:
+        contentPadding ??
+        const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
     child: Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -95,7 +114,10 @@ Widget _gekigaTileContent({
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               DefaultTextStyle.merge(
-                style: textTheme.titleMedium?.copyWith(color: fg),
+                style: textTheme.titleMedium?.copyWith(
+                  color: fg,
+                  fontSize: titleFontSize,
+                ),
                 child: title,
               ),
               if (subtitle != null)

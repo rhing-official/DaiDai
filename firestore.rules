@@ -25,6 +25,12 @@ service cloud.firestore {
       return request.auth != null && request.auth.token.admin == true;
     }
 
+    // stickerPacks/{packId}の出品者（creatorId）が[userId]自身かどうか
+    // （favoritePacksの自己お気に入り防止用、2026-08-29追加）。
+    function isOwnStickerPack(packId, userId) {
+      return get(/databases/$(database)/documents/stickerPacks/$(packId)).data.creatorId == userId;
+    }
+
     // users/{userId}: 本人のみ作成・更新可能。ログイン済みなら誰でも参照可能
     // （Rhing ID検索・重複チェックのため一覧クエリを許可する）。便り
     // （officialAccountUid、Firebase Authの実アカウントを持たない）だけは
@@ -105,16 +111,23 @@ service cloud.firestore {
       // users/{userId}/follows/{creatorId}: daidai横丁でフォローしている
       // クリエイターの一覧（存在＝フォロー中、2026-08-13追加）。集計値
       // （フォロワー数等）は持たないシンプルな設計のため、Cloud Functions
-      // を介さずクライアントから本人のみ直接読み書きする。
+      // を介さずクライアントから本人のみ直接読み書きする。creatorId != userId
+      // で自己フォローを禁止する（2026-08-29追加、クライアント側の防止に加え
+      // Firestoreルール側でも強制）。
       match /follows/{creatorId} {
-        allow read, write: if request.auth != null && request.auth.uid == userId;
+        allow read, write: if request.auth != null && request.auth.uid == userId
+          && creatorId != userId;
       }
 
       // users/{userId}/favoritePacks/{packId}: daidai横丁でお気に入り登録
       // したパックの一覧（存在＝お気に入り、2026-08-13追加）。followsと同様、
-      // 本人のみ直接読み書き可能。
+      // 本人のみ直接読み書き可能。packIdはstickerPacks側のドキュメントIDのため、
+      // 自己お気に入り防止にはisOwnStickerPack()でstickerPacksをget()して
+      // creatorIdを参照する必要がある（作成時のみチェック、2026-08-29追加）。
       match /favoritePacks/{packId} {
-        allow read, write: if request.auth != null && request.auth.uid == userId;
+        allow read, update, delete: if request.auth != null && request.auth.uid == userId;
+        allow create: if request.auth != null && request.auth.uid == userId
+          && !isOwnStickerPack(packId, userId);
       }
     }
 
@@ -151,10 +164,15 @@ service cloud.firestore {
     // （呼び名・アイコンのみ。友達一覧・語らいの内容は含まない）。招待リンクを
     // 開いた相手や、外部SNSのリンク展開（OGP）にも見せる必要があるため
     // 公開読み取り可能。書き込みは本人のみ（`userId`フィールドで判定）。
+    // 便り（official-tayori）だけは、users/{userId}と同じ理由で管理者が
+    // 代わりに書き込める（UserRepository.syncInvitePreviewは身だしなみ更新の
+    // たびに呼ばれるため、ここに例外が無いとusers側の更新自体は成功しても
+    // このプレビュー同期だけがpermission-deniedになる、2026-08-26発覚・修正）。
     match /userInvites/{rhingId} {
       allow read: if true;
       allow write: if request.auth != null
-        && request.auth.uid == request.resource.data.userId;
+        && (request.auth.uid == request.resource.data.userId
+            || (isAdmin() && request.resource.data.userId == 'official-tayori'));
     }
 
     // friendRequests/{requestId}: 友達申請。申請者・宛先本人のみ読み書き可能。

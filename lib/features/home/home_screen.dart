@@ -132,6 +132,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     Icons.settings_outlined,
   ];
 
+  /// [_icons]の各グリフの見た目の密度差を補正する表示サイズ
+  /// （2026-08-27追加）。face_outlined/settings_outlinedはforum_outlinedより
+  /// グリフ内側の余白が大きく同じ24でも小さく見えるため、個別に拡大する。
+  static const _iconSizes = [24.0, 28.0, 28.0];
+
   static const _chipSize = 56.0;
   static const _chipGap = 16.0;
   static const _chipMargin = 16.0;
@@ -164,6 +169,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         _NavChip(
           key: _chipKeys[i],
           icon: _icons[i],
+          iconSize: _iconSizes[i],
           label: titles[i],
           selected: _selectedIndex == i,
           popped: _isDragging && _poppedIndexes.contains(i),
@@ -302,6 +308,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 class _NavChip extends ConsumerWidget {
   const _NavChip({
     required this.icon,
+    required this.iconSize,
     required this.label,
     required this.selected,
     required this.popped,
@@ -311,6 +318,7 @@ class _NavChip extends ConsumerWidget {
   });
 
   final IconData icon;
+  final double iconSize;
   final String label;
   final bool selected;
 
@@ -359,6 +367,7 @@ class _NavChip extends ConsumerWidget {
                   seed: icon.hashCode,
                   child: Icon(
                     icon,
+                    size: iconSize,
                     color: selected ? GekigaColors.panel : GekigaColors.onPanel,
                   ),
                 ),
@@ -376,7 +385,7 @@ class _NavChip extends ConsumerWidget {
               child: SizedBox(
                 width: _HomeScreenState._chipSize,
                 height: _HomeScreenState._chipSize,
-                child: Icon(icon, color: foreground),
+                child: Icon(icon, size: iconSize, color: foreground),
               ),
             ),
           );

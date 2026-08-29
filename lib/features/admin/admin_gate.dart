@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../models/app_user.dart';
 import '../../providers/repository_providers.dart';
+import '../../theme/app_theme.dart';
 import 'admin_panel_screen.dart';
 
 /// `/admin`（隠しルート）の入り口。管理者クレーム（[isAdminProvider]）を
@@ -50,6 +51,15 @@ class _AdminGateState extends ConsumerState<AdminGate> {
 
   @override
   Widget build(BuildContext context) {
+    return Theme(
+      data: AppTheme.admin(Theme.of(context).brightness),
+      child: Builder(builder: _buildContent),
+    );
+  }
+
+  /// ユーザー設定のアクセントカラーに依存させないため、管理画面全体を
+  /// モノクロテーマ（[AppTheme.admin]）でラップする（2026-08-26追加）。
+  Widget _buildContent(BuildContext context) {
     final isAdminAsync = ref.watch(isAdminProvider);
     return isAdminAsync.when(
       loading: () =>
