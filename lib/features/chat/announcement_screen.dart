@@ -57,6 +57,7 @@ class AnnouncementScreen extends ConsumerWidget {
           title: '',
           currentUserId: currentUser.userId,
           isDm: true,
+          forceShowSenderInfo: true,
           conversationId: dm?.dmId,
           messagesStream: dm == null
               ? const Stream.empty()

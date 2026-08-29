@@ -456,11 +456,22 @@ DaiDaiは独自の世界観用語を使う。変数名・クラス名・コレ�
 
   
 
-### UIスタイル（2026-07-22更新: フラット1本化＋カラーコード自由入力、2026-08-12改名: シンプル→フラット）
+### UIスタイル（2026-07-22更新: フラット1本化＋カラーコード自由入力、2026-08-12改名: シンプル→フラット、2026-08-29追記: ガラス追加）
 
   
 
-以前はDaiDai（標準）/シンプルの2スタイル切り替えだったが、フラットスタイル1本に統合し、アクセントカラーを設定タブでカラーコード（`#RRGGBB`）から自由に指定できるようにした（`lib/theme/app_theme.dart`, `lib/providers/accent_color_provider.dart`, `lib/utils/color_hex.dart`, `lib/features/settings/settings_tab.dart`）。端末のSharedPreferencesに永続化（アカウント間・端末間の同期はまだ未対応）。
+設定＞UIから、アプリ全体の見た目を`AppUiStyle`（`lib/models/app_ui_style.dart`）で切り替え可能（`lib/providers/app_ui_style_provider.dart`、端末のSharedPreferences永続化＋Firestore同期）。現在3種類:
+
+  
+
+- **フラット**（既定）: 以前はDaiDai（標準）/シンプルの2スタイル切り替えだったが、フラットスタイル1本に統合し、アクセントカラーを設定タブでカラーコード（`#RRGGBB`）から自由に指定できるようにした（`lib/theme/app_theme.dart`, `lib/providers/accent_color_provider.dart`, `lib/utils/color_hex.dart`, `lib/features/settings/settings_tab.dart`）。
+
+- **劇画**（2026-07-29追加）: 手描き風・ギザギザした太い黒線・モノクロの吹き出しのスタイル（`lib/theme/gekiga/`, `lib/widgets/gekiga/`）。当初はメッセージ画面のみ対応の想定だったが、実際にはホーム・設定・身だしなみ等ほぼ全画面に`isGekiga`分岐という形で拡張済み。アクセントカラーの代わりに専用の背景色（`gekigaBackgroundColorProvider`）を使い、端末のライト/ダーク設定は無視して常に同じ見た目になる。
+
+- **ガラス**（2026-08-29追加）: Apple Liquid Glassのような、すりガラス越しに背景が透けるスタイル。アクセントカラーは背景を塗らず、マテリアルの縁のうっすらとした光彩（リムライト）としてのみ表れる。`lib/theme/glass/`（`GlassTheme.build`、`GlassThemeExtras`）と`lib/widgets/glass/`（`GlassSurface`が中核の再利用ウィジェット、`GlassAppBar`/`GlassAlertDialog`/`showGlassModalBottomSheet`）で構成。`GlassVariant`で用途別に`BackdropFilter`を使うか（`chrome`=常設の全面パネル1点物、AppBar・ナビチップ・語らい画面の入力欄コンテナ/寄合タブバー/寄合一覧サイドバー、`floating`=ダイアログ・ボトムシート）使わないか（`card`=チャット吹き出し・設定項目等、画面に多数並ぶ面は性能上ぼかさない）を切り替える。劇画と異なり端末のライト/ダーク設定を尊重する。ほぼ全画面（ホーム・設定・身だしなみ・語らい・各種ダイアログ）に適用済み。
+
+- **マテリアルに影（`boxShadow`等）を一切使わない**（2026-08-29決定）。`GlassSurface`（`lib/widgets/glass/glass_surface.dart`）に影を描く仕組み自体が無く、面の境界は縁ストローク（`enableEdgeStroke`、`BorderRadius.zero`の全面パネルでは直線が不要な線に見えるため無効化）と`BackdropFilter`によるぼかし（`chrome`/`floating`バリアント）のみで表現する。同色の背景に全面パネルが溶け込んで見えないようにするには、`card`（ぼかし無し）ではなく`chrome`/`floating`を選ぶこと。**唯一の例外**（2026-08-30追加）: ハンバーガーメニューのアイコンのみ、ユーザー指示により影を残す（`GlassIconBadge`の`shadow`パラメータ、`GlassSurface`自体には手を入れずバッジの外側にのみ`DecoratedBox`で乗せている）。他の要素へ同様の影を追加依頼された場合も、無断で全体方針を崩さずこのバッジ単位のオプトインパターンを踏襲すること。
+- ガラスUIの文字・アイコン色は`GlassTheme`が生成する`ColorScheme`の`onSurface`/`onSurfaceVariant`を`GlassColors.lightForeground`/`darkForeground`（アクセントカラー非依存の固定色）に上書き済み。`ColorScheme.fromSeed`任せにすると選んだアクセントカラーの色相が文字色に乗り視認性が落ちるため、個別ファイルではなくテーマ側で一括固定する方針。
 
   
 

@@ -9,6 +9,7 @@ import '../../theme/gekiga/gekiga_colors.dart';
 import '../../utils/text_truncate.dart';
 import '../../widgets/gekiga/gekiga_icon_badge.dart';
 import '../../widgets/gekiga/gekiga_panel_box.dart';
+import '../../widgets/glass/glass_surface.dart';
 import 'room_list_pane.dart' show RoomListEntry, promptForRoomName;
 
 /// 狭い画面（縦表示）のチャット画面のAppBar下部に表示する、寄合の横スクロール
@@ -172,7 +173,9 @@ class _RoomTabBarState extends ConsumerState<RoomTabBar> {
   Widget build(BuildContext context) {
     final strings = ref.watch(appStringsProvider);
     final vocab = ref.watch(vocabularyProvider);
-    final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
+    final uiStyle = ref.watch(appUiStyleProvider);
+    final isGekiga = uiStyle == AppUiStyle.gekiga;
+    final isGlass = uiStyle == AppUiStyle.glass;
     // AppBar.bottomとして使われる前提のため、AppBar自身のIconTheme（劇画
     // スタイルなら白、それ以外は既定色）をそのまま引き継ぐ。
     final foregroundColor =
@@ -279,26 +282,37 @@ class _RoomTabBarState extends ConsumerState<RoomTabBar> {
       );
     }
 
+    final barContent = Row(
+      children: [
+        Expanded(child: roomList),
+        if (widget.onCreateRoom != null) ...[
+          VerticalDivider(width: 1, color: borderColor),
+          cell(
+            selected: false,
+            onTap: () => _createRoom(context, strings, vocab, isGekiga),
+            child: isGekiga
+                ? const GekigaIconBadge(icon: Icons.add, size: 28)
+                : Icon(Icons.add, size: 20, color: foregroundColor),
+          ),
+        ],
+      ],
+    );
+
+    if (isGlass) {
+      return GlassSurface(
+        variant: GlassVariant.chrome,
+        borderRadius: BorderRadius.zero,
+        enableEdgeStroke: false,
+        child: SizedBox(height: RoomTabBar._height, child: barContent),
+      );
+    }
+
     return Container(
       height: RoomTabBar._height,
       decoration: BoxDecoration(
         border: Border(top: BorderSide(color: borderColor)),
       ),
-      child: Row(
-        children: [
-          Expanded(child: roomList),
-          if (widget.onCreateRoom != null) ...[
-            VerticalDivider(width: 1, color: borderColor),
-            cell(
-              selected: false,
-              onTap: () => _createRoom(context, strings, vocab, isGekiga),
-              child: isGekiga
-                  ? const GekigaIconBadge(icon: Icons.add, size: 28)
-                  : Icon(Icons.add, size: 20, color: foregroundColor),
-            ),
-          ],
-        ],
-      ),
+      child: barContent,
     );
   }
 }

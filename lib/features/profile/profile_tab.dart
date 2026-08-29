@@ -24,6 +24,9 @@ import '../../utils/text_truncate.dart';
 import '../../widgets/gekiga/gekiga_icon_badge.dart';
 import '../../widgets/gekiga/gekiga_panel_box.dart';
 import '../../widgets/gekiga/gekiga_section_header.dart';
+import '../../widgets/glass/glass_dialog.dart';
+import '../../widgets/glass/glass_icon_badge.dart';
+import '../../widgets/glass/glass_surface.dart';
 import '../../widgets/profile_card_picker.dart';
 import '../../widgets/profile_card_view.dart';
 import '../../widgets/swipe_gestures.dart';
@@ -817,7 +820,9 @@ class _ProfileCategoryTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colorScheme = Theme.of(context).colorScheme;
-    final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
+    final uiStyle = ref.watch(appUiStyleProvider);
+    final isGekiga = uiStyle == AppUiStyle.gekiga;
+    final isGlass = uiStyle == AppUiStyle.glass;
 
     if (isGekiga) {
       // 外枠は呼び出し側（`_ProfileCategoryList`の`GekigaJointedTileList`）が
@@ -831,6 +836,36 @@ class _ProfileCategoryTile extends ConsumerWidget {
             : null,
         titleFontSize: large ? 20 : null,
         onTap: onTap,
+      );
+    }
+
+    if (isGlass) {
+      // 選択・非選択で文字色は変えない（背景の塗りだけで選択状態を表す）。
+      final foreground = colorScheme.onSurfaceVariant;
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 3),
+        child: GlassSurface(
+          borderRadius: BorderRadius.circular(12),
+          accentColorOverride: selected ? colorScheme.primary : null,
+          child: Material(
+            color: selected
+                ? colorScheme.primary.withValues(alpha: 0.45)
+                : Colors.transparent,
+            child: ListTile(
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 8,
+              ),
+              selected: selected,
+              selectedColor: foreground,
+              iconColor: foreground,
+              textColor: foreground,
+              leading: Icon(icon),
+              title: Text(title),
+              onTap: onTap,
+            ),
+          ),
+        ),
       );
     }
 
@@ -1175,18 +1210,22 @@ class _WorkshopConversationCardSection extends ConsumerWidget {
     // 複数選択時は、既存の1件専用ConversationProfileCardDialogでは対応
     // できないため、ProfileCardPickerだけを載せた軽量ダイアログでカードを
     // 1つ選ばせ、選んだ全ての会話へ一括適用する（2026-08-05追加）。
+    final isGlass = ref.read(appUiStyleProvider) == AppUiStyle.glass;
     final cardId = await showDialog<String?>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(strings.conversationProfileCardMenuLabel),
-        content: ProfileCardPicker(
+      builder: (context) {
+        final title = Text(strings.conversationProfileCardMenuLabel);
+        final content = ProfileCardPicker(
           strings: strings,
           cards: user.profileCards,
           selectedCardId: null,
           activeCardName: user.activeProfileCard?.name,
           onSelected: (id) => Navigator.of(context).pop(id),
-        ),
-      ),
+        );
+        return isGlass
+            ? GlassAlertDialog(title: title, content: content)
+            : AlertDialog(title: title, content: content);
+      },
     );
     if (!context.mounted) return;
     await Future.wait([for (final id in selectedIds) _select(ref, id, cardId)]);
@@ -1224,26 +1263,37 @@ class _WorkshopConversationCardSection extends ConsumerWidget {
           children: [
             GekigaSectionHeader(strings.settingsProfileCardAssignmentTitle),
             const SizedBox(width: 4),
-            ref.watch(appUiStyleProvider) == AppUiStyle.gekiga
-                ? GekigaIconButton(
-                    icon: Icons.add,
-                    size: 40,
-                    onPressed: () => _showAddDialog(
-                      context,
-                      ref,
-                      unassignedDms,
-                      unassignedGroups,
-                    ),
-                  )
-                : IconButton(
-                    icon: const Icon(Icons.add_circle_outline),
-                    onPressed: () => _showAddDialog(
-                      context,
-                      ref,
-                      unassignedDms,
-                      unassignedGroups,
-                    ),
-                  ),
+            switch (ref.watch(appUiStyleProvider)) {
+              AppUiStyle.gekiga => GekigaIconButton(
+                icon: Icons.add,
+                size: 40,
+                onPressed: () => _showAddDialog(
+                  context,
+                  ref,
+                  unassignedDms,
+                  unassignedGroups,
+                ),
+              ),
+              AppUiStyle.glass => GlassIconButton(
+                icon: Icons.add_circle_outline,
+                size: 40,
+                onPressed: () => _showAddDialog(
+                  context,
+                  ref,
+                  unassignedDms,
+                  unassignedGroups,
+                ),
+              ),
+              AppUiStyle.flat => IconButton(
+                icon: const Icon(Icons.add_circle_outline),
+                onPressed: () => _showAddDialog(
+                  context,
+                  ref,
+                  unassignedDms,
+                  unassignedGroups,
+                ),
+              ),
+            },
           ],
         ),
         Text(
@@ -1344,54 +1394,64 @@ class _AddConversationCardDialogState
         .where((g) => query.isEmpty || g.name.toLowerCase().contains(query))
         .toList();
 
-    return AlertDialog(
-      title: Text(strings.workshopConversationCardAddDialogTitle),
-      content: SizedBox(
-        width: 360,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: _searchController,
-              decoration: InputDecoration(
-                prefixIcon: const Icon(Icons.search),
-                hintText: strings.workshopConversationCardSearchHint,
-                suffixIcon: query.isEmpty
-                    ? null
-                    : IconButton(
-                        icon: const Icon(Icons.clear),
-                        onPressed: () => setState(_searchController.clear),
-                      ),
-              ),
-              onChanged: (_) => setState(() {}),
+    final isGlass = ref.watch(appUiStyleProvider) == AppUiStyle.glass;
+    final content = SizedBox(
+      width: 360,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: _searchController,
+            decoration: InputDecoration(
+              prefixIcon: const Icon(Icons.search),
+              hintText: strings.workshopConversationCardSearchHint,
+              suffixIcon: query.isEmpty
+                  ? null
+                  : IconButton(
+                      icon: const Icon(Icons.clear),
+                      onPressed: () => setState(_searchController.clear),
+                    ),
             ),
-            const SizedBox(height: 8),
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 320),
-              child: ListView(
-                shrinkWrap: true,
-                children: [
-                  for (final dm in filteredDms) _buildDmTile(dm),
-                  for (final group in filteredGroups) _buildGroupTile(group),
-                ],
-              ),
+            onChanged: (_) => setState(() {}),
+          ),
+          const SizedBox(height: 8),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 320),
+            child: ListView(
+              shrinkWrap: true,
+              children: [
+                for (final dm in filteredDms) _buildDmTile(dm),
+                for (final group in filteredGroups) _buildGroupTile(group),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: Text(strings.cancel),
-        ),
-        FilledButton(
-          onPressed: _selectedIds.isEmpty
-              ? null
-              : () => Navigator.of(context).pop(_selectedIds),
-          child: Text(strings.add),
-        ),
-      ],
     );
+    final actions = [
+      TextButton(
+        onPressed: () => Navigator.of(context).pop(),
+        child: Text(strings.cancel),
+      ),
+      FilledButton(
+        onPressed: _selectedIds.isEmpty
+            ? null
+            : () => Navigator.of(context).pop(_selectedIds),
+        child: Text(strings.add),
+      ),
+    ];
+
+    return isGlass
+        ? GlassAlertDialog(
+            title: Text(strings.workshopConversationCardAddDialogTitle),
+            content: content,
+            actions: actions,
+          )
+        : AlertDialog(
+            title: Text(strings.workshopConversationCardAddDialogTitle),
+            content: content,
+            actions: actions,
+          );
   }
 
   Widget _buildDmTile(DirectMessage dm) {
@@ -1490,7 +1550,7 @@ class _ProfileCardAssignmentRow extends StatelessWidget {
   }
 }
 
-class _WorkshopBlankSlot extends StatelessWidget {
+class _WorkshopBlankSlot extends ConsumerWidget {
   const _WorkshopBlankSlot({
     required this.index,
     required this.width,
@@ -1504,39 +1564,52 @@ class _WorkshopBlankSlot extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colorScheme = Theme.of(context).colorScheme;
+    final isGlass = ref.watch(appUiStyleProvider) == AppUiStyle.glass;
+    final icon = Icon(
+      Icons.add,
+      size: (width * 0.2).clamp(32.0, 64.0),
+      color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+    );
+
+    final content = isGlass
+        ? GlassSurface(
+            variant: GlassVariant.card,
+            borderRadius: BorderRadius.circular(16),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: onTap,
+                borderRadius: BorderRadius.circular(16),
+                child: Center(child: icon),
+              ),
+            ),
+          )
+        : Material(
+            color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
+            borderRadius: BorderRadius.circular(16),
+            child: InkWell(
+              onTap: onTap,
+              borderRadius: BorderRadius.circular(16),
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: colorScheme.outlineVariant,
+                    width: 1.5,
+                    style: BorderStyle.solid,
+                  ),
+                ),
+                child: Center(child: icon),
+              ),
+            ),
+          );
+
     return SizedBox(
       width: width,
       height: height,
-      child: Hero(
-        tag: 'profile-card-slot-$index',
-        child: Material(
-          color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
-          borderRadius: BorderRadius.circular(16),
-          child: InkWell(
-            onTap: onTap,
-            borderRadius: BorderRadius.circular(16),
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: colorScheme.outlineVariant,
-                  width: 1.5,
-                  style: BorderStyle.solid,
-                ),
-              ),
-              child: Center(
-                child: Icon(
-                  Icons.add,
-                  size: (width * 0.2).clamp(32.0, 64.0),
-                  color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
+      child: Hero(tag: 'profile-card-slot-$index', child: content),
     );
   }
 }
@@ -1788,6 +1861,39 @@ class _AddThumbButton extends ConsumerWidget {
       );
     }
     final colorScheme = Theme.of(context).colorScheme;
+    final isGlass = ref.watch(appUiStyleProvider) == AppUiStyle.glass;
+    final indicator = loading
+        ? const SizedBox(
+            width: 20,
+            height: 20,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          )
+        : Icon(
+            Icons.add,
+            color: enabled
+                ? colorScheme.onSurfaceVariant
+                : colorScheme.onSurfaceVariant.withValues(alpha: 0.3),
+          );
+
+    if (isGlass) {
+      return SizedBox(
+        width: 72,
+        height: 72,
+        child: GlassSurface(
+          variant: GlassVariant.card,
+          borderRadius: BorderRadius.circular(36),
+          child: Material(
+            color: Colors.transparent,
+            shape: const CircleBorder(),
+            child: InkWell(
+              onTap: enabled ? onTap : null,
+              customBorder: const CircleBorder(),
+              child: Center(child: indicator),
+            ),
+          ),
+        ),
+      );
+    }
     return SizedBox(
       width: 72,
       height: 72,
@@ -1797,20 +1903,7 @@ class _AddThumbButton extends ConsumerWidget {
         child: InkWell(
           onTap: enabled ? onTap : null,
           customBorder: const CircleBorder(),
-          child: Center(
-            child: loading
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : Icon(
-                    Icons.add,
-                    color: enabled
-                        ? colorScheme.onSurfaceVariant
-                        : colorScheme.onSurfaceVariant.withValues(alpha: 0.3),
-                  ),
-          ),
+          child: Center(child: indicator),
         ),
       ),
     );
@@ -2270,36 +2363,37 @@ class _NicknameDialogState extends ConsumerState<_NicknameDialog> {
   Widget build(BuildContext context) {
     final strings = ref.watch(appStringsProvider);
     final vocab = ref.watch(vocabularyProvider);
-    return AlertDialog(
-      title: Text(
-        _isEdit
-            ? strings.profileNicknameDialogEditTitle(vocab.nickname)
-            : strings.profileNicknameDialogTitle(vocab.nickname),
-      ),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          TextField(
-            controller: _controller,
-            autofocus: true,
-            maxLength: kMaxNicknameLength,
-            decoration: InputDecoration(
-              hintText: strings.profileNicknameDialogHint(vocab.nickname),
-              errorText: _errorText,
-            ),
-            onSubmitted: (_) => _submit(),
-          ),
-          _DialogActionRow(
-            showDelete: _isEdit,
-            onDelete: () =>
-                Navigator.of(context).pop(const _EditResult.delete()),
-            onSubmit: _submit,
-            submitLabel: _isEdit ? strings.done : strings.add,
-            deleteLabel: strings.delete,
-          ),
-        ],
-      ),
+    final isGlass = ref.watch(appUiStyleProvider) == AppUiStyle.glass;
+    final title = Text(
+      _isEdit
+          ? strings.profileNicknameDialogEditTitle(vocab.nickname)
+          : strings.profileNicknameDialogTitle(vocab.nickname),
     );
+    final content = Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        TextField(
+          controller: _controller,
+          autofocus: true,
+          maxLength: kMaxNicknameLength,
+          decoration: InputDecoration(
+            hintText: strings.profileNicknameDialogHint(vocab.nickname),
+            errorText: _errorText,
+          ),
+          onSubmitted: (_) => _submit(),
+        ),
+        _DialogActionRow(
+          showDelete: _isEdit,
+          onDelete: () => Navigator.of(context).pop(const _EditResult.delete()),
+          onSubmit: _submit,
+          submitLabel: _isEdit ? strings.done : strings.add,
+          deleteLabel: strings.delete,
+        ),
+      ],
+    );
+    return isGlass
+        ? GlassAlertDialog(title: title, content: content)
+        : AlertDialog(title: title, content: content);
   }
 }
 
@@ -2340,38 +2434,39 @@ class _StatusMessageDialogState extends ConsumerState<_StatusMessageDialog> {
   Widget build(BuildContext context) {
     final strings = ref.watch(appStringsProvider);
     final vocab = ref.watch(vocabularyProvider);
-    return AlertDialog(
-      title: Text(
-        _isEdit
-            ? strings.profileStatusMessageDialogEditTitle(vocab.statusMessage)
-            : strings.profileStatusMessageDialogTitle(vocab.statusMessage),
-      ),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          TextField(
-            controller: _controller,
-            autofocus: true,
-            maxLength: kMaxStatusMessageLength,
-            decoration: InputDecoration(
-              hintText: strings.profileStatusMessageDialogHint(
-                vocab.statusMessage,
-              ),
-              errorText: _errorText,
-            ),
-            onSubmitted: (_) => _submit(),
-          ),
-          _DialogActionRow(
-            showDelete: _isEdit,
-            onDelete: () =>
-                Navigator.of(context).pop(const _EditResult.delete()),
-            onSubmit: _submit,
-            submitLabel: _isEdit ? strings.done : strings.add,
-            deleteLabel: strings.delete,
-          ),
-        ],
-      ),
+    final isGlass = ref.watch(appUiStyleProvider) == AppUiStyle.glass;
+    final title = Text(
+      _isEdit
+          ? strings.profileStatusMessageDialogEditTitle(vocab.statusMessage)
+          : strings.profileStatusMessageDialogTitle(vocab.statusMessage),
     );
+    final content = Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        TextField(
+          controller: _controller,
+          autofocus: true,
+          maxLength: kMaxStatusMessageLength,
+          decoration: InputDecoration(
+            hintText: strings.profileStatusMessageDialogHint(
+              vocab.statusMessage,
+            ),
+            errorText: _errorText,
+          ),
+          onSubmitted: (_) => _submit(),
+        ),
+        _DialogActionRow(
+          showDelete: _isEdit,
+          onDelete: () => Navigator.of(context).pop(const _EditResult.delete()),
+          onSubmit: _submit,
+          submitLabel: _isEdit ? strings.done : strings.add,
+          deleteLabel: strings.delete,
+        ),
+      ],
+    );
+    return isGlass
+        ? GlassAlertDialog(title: title, content: content)
+        : AlertDialog(title: title, content: content);
   }
 }
 
@@ -2420,36 +2515,37 @@ class _SnsLinkDialogState extends ConsumerState<_SnsLinkDialog> {
   @override
   Widget build(BuildContext context) {
     final strings = ref.watch(appStringsProvider);
-    return AlertDialog(
-      title: Text(
-        _isEdit
-            ? strings.profileSnsLinkDialogEditTitle
-            : strings.profileSnsLinkDialogTitle,
-      ),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          TextField(
-            controller: _controller,
-            autofocus: true,
-            keyboardType: TextInputType.url,
-            decoration: InputDecoration(
-              hintText: strings.profileSnsLinkDialogHint,
-              errorText: _errorText,
-            ),
-            onSubmitted: (_) => _submit(),
-          ),
-          _DialogActionRow(
-            showDelete: _isEdit,
-            onDelete: () =>
-                Navigator.of(context).pop(const _EditResult.delete()),
-            onSubmit: _submit,
-            submitLabel: _isEdit ? strings.done : strings.add,
-            deleteLabel: strings.delete,
-          ),
-        ],
-      ),
+    final isGlass = ref.watch(appUiStyleProvider) == AppUiStyle.glass;
+    final title = Text(
+      _isEdit
+          ? strings.profileSnsLinkDialogEditTitle
+          : strings.profileSnsLinkDialogTitle,
     );
+    final content = Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        TextField(
+          controller: _controller,
+          autofocus: true,
+          keyboardType: TextInputType.url,
+          decoration: InputDecoration(
+            hintText: strings.profileSnsLinkDialogHint,
+            errorText: _errorText,
+          ),
+          onSubmitted: (_) => _submit(),
+        ),
+        _DialogActionRow(
+          showDelete: _isEdit,
+          onDelete: () => Navigator.of(context).pop(const _EditResult.delete()),
+          onSubmit: _submit,
+          submitLabel: _isEdit ? strings.done : strings.add,
+          deleteLabel: strings.delete,
+        ),
+      ],
+    );
+    return isGlass
+        ? GlassAlertDialog(title: title, content: content)
+        : AlertDialog(title: title, content: content);
   }
 }
 

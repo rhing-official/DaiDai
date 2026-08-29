@@ -18,6 +18,7 @@ class AppUserPreferences {
     this.chatLayoutStyle,
     this.messageTimeFormat,
     this.appUiStyle,
+    this.customAccentColorsArgb,
   });
 
   static const empty = AppUserPreferences();
@@ -33,6 +34,10 @@ class AppUserPreferences {
   final String? messageTimeFormat;
   final String? appUiStyle;
 
+  /// ユーザーが自分で登録したアクセントカラーの一覧（`accentColorArgb`
+  /// とは別に、繰り返し使うために保存した色。2026-08-29追加）。
+  final List<int>? customAccentColorsArgb;
+
   factory AppUserPreferences.fromJson(Map<String, dynamic>? json) {
     if (json == null) return empty;
     return AppUserPreferences(
@@ -46,6 +51,9 @@ class AppUserPreferences {
       chatLayoutStyle: json['chatLayoutStyle'] as String?,
       messageTimeFormat: json['messageTimeFormat'] as String?,
       appUiStyle: json['appUiStyle'] as String?,
+      customAccentColorsArgb: (json['customAccentColorsArgb'] as List<dynamic>?)
+          ?.map((e) => e as int)
+          .toList(),
     );
   }
 
@@ -62,6 +70,8 @@ class AppUserPreferences {
       if (chatLayoutStyle != null) 'chatLayoutStyle': chatLayoutStyle,
       if (messageTimeFormat != null) 'messageTimeFormat': messageTimeFormat,
       if (appUiStyle != null) 'appUiStyle': appUiStyle,
+      if (customAccentColorsArgb != null)
+        'customAccentColorsArgb': customAccentColorsArgb,
     };
   }
 }

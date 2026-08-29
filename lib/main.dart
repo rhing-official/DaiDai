@@ -12,6 +12,7 @@ import 'providers/accent_color_provider.dart';
 import 'providers/app_locale_provider.dart';
 import 'providers/app_ui_style_provider.dart';
 import 'providers/chat_layout_style_provider.dart';
+import 'providers/custom_accent_colors_provider.dart';
 import 'providers/draft_sync_enabled_provider.dart';
 import 'providers/gekiga_background_color_provider.dart';
 import 'providers/message_time_format_provider.dart';
@@ -21,6 +22,7 @@ import 'providers/theme_mode_provider.dart';
 import 'router/app_router.dart';
 import 'theme/app_theme.dart';
 import 'theme/gekiga/gekiga_theme.dart';
+import 'theme/glass/glass_theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -36,6 +38,7 @@ Future<void> main() async {
   usePathUrlStrategy();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   final initialAccentColor = await loadInitialAccentColor();
+  final initialCustomAccentColors = await loadInitialCustomAccentColors();
   final initialGekigaBackgroundColor = await loadInitialGekigaBackgroundColor();
   final initialAppLocale = await loadInitialAppLocale();
   final initialSendKeyMode = await loadInitialSendKeyMode();
@@ -49,6 +52,9 @@ Future<void> main() async {
     ProviderScope(
       overrides: [
         initialAccentColorProvider.overrideWithValue(initialAccentColor),
+        initialCustomAccentColorsProvider.overrideWithValue(
+          initialCustomAccentColors,
+        ),
         initialGekigaBackgroundColorProvider.overrideWithValue(
           initialGekigaBackgroundColor,
         ),
@@ -91,10 +97,12 @@ class DaiDaiApp extends ConsumerWidget {
     final theme = switch (uiStyle) {
       AppUiStyle.flat => AppTheme.light(accentColor),
       AppUiStyle.gekiga => GekigaTheme.build(gekigaBackgroundColor),
+      AppUiStyle.glass => GlassTheme.light(accentColor),
     };
     final darkTheme = switch (uiStyle) {
       AppUiStyle.flat => AppTheme.dark(accentColor),
       AppUiStyle.gekiga => GekigaTheme.build(gekigaBackgroundColor),
+      AppUiStyle.glass => GlassTheme.dark(accentColor),
     };
     return MaterialApp.router(
       title: 'DaiDai',

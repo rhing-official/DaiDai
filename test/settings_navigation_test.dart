@@ -8,6 +8,7 @@ import 'package:daidai/providers/accent_color_provider.dart';
 import 'package:daidai/providers/app_locale_provider.dart';
 import 'package:daidai/providers/app_ui_style_provider.dart';
 import 'package:daidai/providers/chat_layout_style_provider.dart';
+import 'package:daidai/providers/custom_accent_colors_provider.dart';
 import 'package:daidai/providers/draft_sync_enabled_provider.dart';
 import 'package:daidai/providers/gekiga_background_color_provider.dart';
 import 'package:daidai/models/send_key_mode.dart';
@@ -43,6 +44,7 @@ Future<void> _pumpSettingsTab(WidgetTester tester) async {
       overrides: [
         initialAppLocaleProvider.overrideWithValue(AppLocale.japanese),
         initialAccentColorProvider.overrideWithValue(const Color(0xFFF08300)),
+        initialCustomAccentColorsProvider.overrideWithValue(const []),
         initialGekigaBackgroundColorProvider.overrideWithValue(
           const Color(0xFFC1272D),
         ),
@@ -84,6 +86,7 @@ Future<void> _pumpSettingsTabNarrow(WidgetTester tester) async {
       overrides: [
         initialAppLocaleProvider.overrideWithValue(AppLocale.japanese),
         initialAccentColorProvider.overrideWithValue(const Color(0xFFF08300)),
+        initialCustomAccentColorsProvider.overrideWithValue(const []),
         initialGekigaBackgroundColorProvider.overrideWithValue(
           const Color(0xFFC1272D),
         ),
