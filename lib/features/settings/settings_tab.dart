@@ -30,7 +30,6 @@ import '../../providers/sticker_send_mode_provider.dart';
 import '../../providers/theme_mode_provider.dart';
 import '../../router/app_router.dart';
 import '../../theme/gekiga/gekiga_colors.dart';
-import '../../widgets/dessin/dessin_option_tile.dart';
 import '../../theme/motion.dart';
 import '../../utils/auto_dismiss_banner.dart';
 import '../../utils/color_hex.dart';
@@ -151,6 +150,7 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
                     categories: categories,
                     selectedId: null,
                     onSelect: _onCategorySelected,
+                    large: true,
                   )
                 : _NarrowSettingsPage(
                     key: ValueKey(selected.id),
@@ -245,11 +245,17 @@ class _CategoryList extends ConsumerWidget {
     required this.categories,
     required this.selectedId,
     required this.onSelect,
+    this.large = false,
   });
 
   final List<_SettingsCategory> categories;
   final String? selectedId;
   final ValueChanged<_SettingsCategory> onSelect;
+
+  /// 狭い画面（モバイル）でこの一覧が画面全体を占めるときに、行を大きく
+  /// 見やすくするか（2026-08-27追加、劇画UIのみ対象）。広い画面の
+  /// サイドバー表示時は`false`のまま従来通りのサイズを保つ。
+  final bool large;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -268,6 +274,7 @@ class _CategoryList extends ConsumerWidget {
                 title: category.title,
                 selected: category.id == selectedId,
                 trailingChevron: false,
+                large: large,
                 onTap: () => onSelect(category),
               ),
           ],
@@ -297,6 +304,7 @@ class _FolderTile extends ConsumerWidget {
     required this.onTap,
     this.selected = false,
     this.trailingChevron = true,
+    this.large = false,
   });
 
   final IconData icon;
@@ -304,6 +312,10 @@ class _FolderTile extends ConsumerWidget {
   final bool selected;
   final bool trailingChevron;
   final VoidCallback onTap;
+
+  /// 狭い画面でこの一覧が画面全体を占めるときに行を大きくするか
+  /// （2026-08-27追加、劇画UIのみ対象。[_CategoryList.large]参照）。
+  final bool large;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -318,9 +330,13 @@ class _FolderTile extends ConsumerWidget {
       // まとめて描くため、ここでは内容だけを返す（2026-08-04変更）。
       return GekigaTileContent(
         selected: selected,
-        leading: Icon(icon),
+        leading: Icon(icon, size: large ? 32 : null),
         title: Text(title),
         trailing: trailingWidget,
+        contentPadding: large
+            ? const EdgeInsets.symmetric(horizontal: 16, vertical: 26)
+            : null,
+        titleFontSize: large ? 20 : null,
         onTap: onTap,
       );
     }
@@ -1106,7 +1122,7 @@ class _DesignFolder extends ConsumerStatefulWidget {
 }
 
 /// アクセントカラーのプリセット（8桁hex＝RRGGBBAA）。
-const _kAccentColorPresets = ['F08300CC', '3D2EE0CC', '88B04Bdd'];
+const _kAccentColorPresets = ['F08300CC', '3D2EE0CC', '88B04BCC', '000000CC'];
 
 /// 劇画UIの背景色のプリセット（6桁hex＝RRGGBB、不透明）。ColorSchemeの
 /// 種ではなく単色塗りつぶしの背景色として使うため、フラットUI側のような
@@ -1186,7 +1202,9 @@ class _DesignFolderState extends ConsumerState<_DesignFolder> {
     final accentColor = ref.watch(accentColorProvider);
     final gekigaBackgroundColor = ref.watch(gekigaBackgroundColorProvider);
     final themeMode = ref.watch(appThemeModeProvider);
-    final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
+    final uiStyle = ref.watch(appUiStyleProvider);
+    final isGekiga = uiStyle == AppUiStyle.gekiga;
+    final appearanceLocked = isGekiga;
     final activeColor = isGekiga ? gekigaBackgroundColor : accentColor;
     final colorPresets = isGekiga
         ? _kGekigaBackgroundColorPresets
@@ -1289,10 +1307,9 @@ class _DesignFolderState extends ConsumerState<_DesignFolder> {
           ),
         ),
         // 劇画UI選択中は外観（ライト/ダーク/端末に合わせる）を変更不可にする
-        // （グレーアウト＋操作無効化）。GekigaThemeはthemeModeに関わらず
-        // 常に同じ見た目を返す設計のため、この設定を変えても効果が無い
-        // （2026-08-04追加、アクセントカラー欄と同じロックパターンを適用）。
-        if (isGekiga)
+        // （グレーアウト＋操作無効化）。themeModeに関わらず常に同じ見た目を
+        // 返す設計のため、この設定を変えても効果が無い（2026-08-04追加）。
+        if (appearanceLocked)
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
             child: Text(
@@ -1304,9 +1321,9 @@ class _DesignFolderState extends ConsumerState<_DesignFolder> {
             ),
           ),
         Opacity(
-          opacity: isGekiga ? 0.4 : 1.0,
+          opacity: appearanceLocked ? 0.4 : 1.0,
           child: IgnorePointer(
-            ignoring: isGekiga,
+            ignoring: appearanceLocked,
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
               child: appearanceControl,
@@ -1530,16 +1547,8 @@ class _UiStyleFolder extends ConsumerWidget {
     // プレビューになる（2026-08-03、選択肢の見た目統一のため追加）。
     if (isGekiga) {
       return GekigaJointedTileList(
-        seeds: [
-          AppUiStyle.flat.hashCode,
-          AppUiStyle.gekiga.hashCode,
-          AppUiStyle.dessin.hashCode,
-        ],
-        selectedFlags: [
-          style == AppUiStyle.flat,
-          style == AppUiStyle.gekiga,
-          style == AppUiStyle.dessin,
-        ],
+        seeds: [AppUiStyle.flat.hashCode, AppUiStyle.gekiga.hashCode],
+        selectedFlags: [style == AppUiStyle.flat, style == AppUiStyle.gekiga],
         children: [
           GekigaTileContent(
             selected: style == AppUiStyle.flat,
@@ -1563,50 +1572,6 @@ class _UiStyleFolder extends ConsumerWidget {
             subtitle: Text(strings.settingsUiStyleGekigaDescription),
             onTap: () => select(AppUiStyle.gekiga),
           ),
-          GekigaTileContent(
-            selected: style == AppUiStyle.dessin,
-            leading: Icon(
-              style == AppUiStyle.dessin
-                  ? Icons.radio_button_checked
-                  : Icons.radio_button_unchecked,
-            ),
-            title: Text(strings.settingsUiStyleDessinLabel),
-            subtitle: Text(strings.settingsUiStyleDessinDescription),
-            onTap: () => select(AppUiStyle.dessin),
-          ),
-        ],
-      );
-    }
-
-    // デッサンスタイル選択中は、この選択肢自体も紙質感の手描き枠
-    // （選択中=紙の陰影地）で表示する（劇画スタイルと同じ「選択結果が
-    // そのままプレビューになる」方針）。
-    if (style == AppUiStyle.dessin) {
-      return Column(
-        children: [
-          DessinOptionTile(
-            selected: style == AppUiStyle.flat,
-            title: strings.settingsUiStyleFlatLabel,
-            subtitle: strings.settingsUiStyleFlatDescription,
-            seed: AppUiStyle.flat.hashCode,
-            onTap: () => select(AppUiStyle.flat),
-          ),
-          const SizedBox(height: 8),
-          DessinOptionTile(
-            selected: style == AppUiStyle.gekiga,
-            title: strings.settingsUiStyleGekigaLabel,
-            subtitle: strings.settingsUiStyleGekigaDescription,
-            seed: AppUiStyle.gekiga.hashCode,
-            onTap: () => select(AppUiStyle.gekiga),
-          ),
-          const SizedBox(height: 8),
-          DessinOptionTile(
-            selected: style == AppUiStyle.dessin,
-            title: strings.settingsUiStyleDessinLabel,
-            subtitle: strings.settingsUiStyleDessinDescription,
-            seed: AppUiStyle.dessin.hashCode,
-            onTap: () => select(AppUiStyle.dessin),
-          ),
         ],
       );
     }
@@ -1627,11 +1592,6 @@ class _UiStyleFolder extends ConsumerWidget {
             value: AppUiStyle.gekiga,
             title: Text(strings.settingsUiStyleGekigaLabel),
             subtitle: Text(strings.settingsUiStyleGekigaDescription),
-          ),
-          RadioListTile<AppUiStyle>(
-            value: AppUiStyle.dessin,
-            title: Text(strings.settingsUiStyleDessinLabel),
-            subtitle: Text(strings.settingsUiStyleDessinDescription),
           ),
         ],
       ),

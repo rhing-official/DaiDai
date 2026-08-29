@@ -91,7 +91,7 @@ class _AdminPanelScreenState extends ConsumerState<AdminPanelScreen> {
           NavigationRail(
             selectedIndex: _selectedIndex,
             onDestinationSelected: (i) => setState(() => _selectedIndex = i),
-            labelType: NavigationRailLabelType.all,
+            labelType: NavigationRailLabelType.none,
             destinations: const [
               NavigationRailDestination(
                 icon: Icon(Icons.people_outline),
@@ -439,56 +439,78 @@ class _OfficialAccountProfileSectionState
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    CircleAvatar(
-                      radius: 40,
-                      backgroundImage: icon == null
-                          ? null
-                          : NetworkImage(icon.url),
-                      child: icon == null
-                          ? const Icon(Icons.campaign_outlined, size: 32)
-                          : null,
-                    ),
-                    const SizedBox(width: 16),
-                    OutlinedButton(
-                      onPressed: _uploadingIcon
-                          ? null
-                          : () => _pickAndUploadIcon(user),
-                      child: _uploadingIcon
-                          ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Text('アイコンを変更'),
-                    ),
-                  ],
+                Text('アイコン', style: Theme.of(context).textTheme.titleSmall),
+                const SizedBox(height: 8),
+                _OfficialIconButton(
+                  icon: icon,
+                  uploading: _uploadingIcon,
+                  onTap: () => _pickAndUploadIcon(user),
                 ),
                 const SizedBox(height: 24),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _nicknameController,
-                        decoration: const InputDecoration(labelText: '呼び名'),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    FilledButton(
-                      onPressed: _savingNickname
-                          ? null
-                          : () => _saveNickname(user),
-                      child: const Text('保存'),
-                    ),
-                  ],
+                TextField(
+                  controller: _nicknameController,
+                  enabled: !_savingNickname,
+                  decoration: const InputDecoration(labelText: '呼び名'),
+                  onSubmitted: (_) => _saveNickname(user),
                 ),
               ],
             ),
           ),
         );
       },
+    );
+  }
+}
+
+/// 蔵（身だしなみ）のアイコン登録UIと同じ「丸に+」の見た目を再現する
+/// アイコン変更ボタン（2026-08-26追加）。`profile_tab.dart`の
+/// `_AddThumbButton`/`_CircleMaterialThumb`はどちらも同ファイル内の
+/// private実装で工房の用語スタイル切替・削除バッジ等と結びついているため、
+/// 使い回すのではなく見た目だけをこの画面用に再現する。未登録時は
+/// `Icons.add`、登録済みならアイコン画像を丸の中に表示し、タップで
+/// [onTap]（既存の`_pickAndUploadIcon`）を呼ぶ。
+class _OfficialIconButton extends StatelessWidget {
+  const _OfficialIconButton({
+    required this.icon,
+    required this.uploading,
+    required this.onTap,
+  });
+
+  final ProfileMaterial? icon;
+  final bool uploading;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return SizedBox(
+      width: 72,
+      height: 72,
+      child: Material(
+        shape: const CircleBorder(),
+        color: colorScheme.surfaceContainerHighest,
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: uploading ? null : onTap,
+          child: Center(
+            child: uploading
+                ? const SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : icon == null
+                ? Icon(Icons.add, color: colorScheme.onSurfaceVariant, size: 28)
+                : Image.network(
+                    icon!.url,
+                    width: 72,
+                    height: 72,
+                    fit: BoxFit.cover,
+                  ),
+          ),
+        ),
+      ),
     );
   }
 }

@@ -44,8 +44,6 @@ class Strings {
     required this.settingsUiStyleFlatDescription,
     required this.settingsUiStyleGekigaLabel,
     required this.settingsUiStyleGekigaDescription,
-    required this.settingsUiStyleDessinLabel,
-    required this.settingsUiStyleDessinDescription,
     required this.settingsChatLayoutTitle,
     required this.settingsChatLayoutSideBySide,
     required this.settingsChatLayoutSideBySideDescription,
@@ -405,8 +403,6 @@ class Strings {
   final String settingsUiStyleFlatDescription;
   final String settingsUiStyleGekigaLabel;
   final String settingsUiStyleGekigaDescription;
-  final String settingsUiStyleDessinLabel;
-  final String settingsUiStyleDessinDescription;
 
   /// 「メッセージの表示」（2026-07-30改名、旧称: 語らいの表示）。旧「入力」
   /// カテゴリ廃止に伴い、語らいカテゴリへ移動した（settings_tab.dart参照）。
@@ -908,16 +904,14 @@ class Strings {
     settingsLogout: 'ログアウト',
     settingsDisplayLanguage: '表示言語',
     settingsTimeFormat: 'メッセージの時刻表示',
-    settingsTimeFormat24h: '24時間表記（00:00）',
-    settingsTimeFormat12h: '12時間表記（12:00 p.m.）',
+    settingsTimeFormat24h: '24時間表記',
+    settingsTimeFormat12h: '12時間表記',
     settingsSubUI: 'UI',
     settingsUIDescription: 'アプリ全体の見た目を選べます。',
     settingsUiStyleFlatLabel: 'フラット',
     settingsUiStyleFlatDescription: 'デフォルトスタイル',
     settingsUiStyleGekigaLabel: '劇画',
     settingsUiStyleGekigaDescription: '奇抜な背景スタイル',
-    settingsUiStyleDessinLabel: 'モノクロ',
-    settingsUiStyleDessinDescription: 'ミニマルなスタイル',
     settingsChatLayoutTitle: 'メッセージの表示',
     settingsChatLayoutSideBySide: '自分は右・相手は左',
     settingsChatLayoutSideBySideDescription:
@@ -1292,8 +1286,8 @@ class Strings {
     settingsLogout: 'Log out',
     settingsDisplayLanguage: 'Display language',
     settingsTimeFormat: 'Message time display',
-    settingsTimeFormat24h: '24-hour (00:00)',
-    settingsTimeFormat12h: '12-hour (12:00 p.m.)',
+    settingsTimeFormat24h: '24-hour',
+    settingsTimeFormat12h: '12-hour',
     settingsSubUI: 'UI',
     settingsUIDescription: 'Choose how the whole app looks.',
     settingsUiStyleFlatLabel: 'Flat',
@@ -1301,9 +1295,6 @@ class Strings {
     settingsUiStyleGekigaLabel: 'Gekiga',
     settingsUiStyleGekigaDescription:
         'A hand-drawn, thick jagged-line, monochrome speech-bubble look.',
-    settingsUiStyleDessinLabel: 'Dessin',
-    settingsUiStyleDessinDescription:
-        'A monochrome, pencil-sketch style on textured paper.',
     settingsChatLayoutTitle: 'Message display',
     settingsChatLayoutSideBySide: 'You on the right, others on the left',
     settingsChatLayoutSideBySideDescription:

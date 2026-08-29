@@ -32,6 +32,98 @@ class AppTheme {
   static ThemeData dark(Color accentColor) =>
       _build(accentColor, Brightness.dark);
 
+  /// 運営向け管理画面（`/admin`）専用のモノクロテーマ（2026-08-26追加）。
+  /// ユーザーが設定タブで自由に変更できるアクセントカラーの影響を受けたく
+  /// ないため（管理画面は住人ごとの見た目設定から独立させたい）、
+  /// 通常の[light]/[dark]（アクセントカラーをseedにする）とは別に、
+  /// 彩度を持たせない灰色ベースのColorSchemeを直接組み立てる。
+  static ThemeData admin(Brightness brightness) {
+    final isDark = brightness == Brightness.dark;
+    final background = isDark ? darkBackground : Colors.white;
+    final surface = isDark ? darkSurface : const Color(0xFFF0F0F0);
+    final onSurface = isDark ? Colors.white : Colors.black;
+    final outline = isDark ? Colors.grey.shade600 : Colors.grey.shade400;
+
+    final colorScheme = ColorScheme(
+      brightness: brightness,
+      primary: onSurface,
+      onPrimary: isDark ? Colors.black : Colors.white,
+      secondary: Colors.grey.shade600,
+      onSecondary: isDark ? Colors.black : Colors.white,
+      error: Colors.red.shade700,
+      onError: Colors.white,
+      surface: background,
+      onSurface: onSurface,
+      surfaceContainerHighest: surface,
+      outline: outline,
+    );
+
+    return ThemeData(
+      useMaterial3: true,
+      brightness: brightness,
+      scaffoldBackgroundColor: background,
+      colorScheme: colorScheme,
+      visualDensity: VisualDensity.comfortable,
+      splashFactory: NoSplash.splashFactory,
+      splashColor: Colors.transparent,
+      highlightColor: Colors.transparent,
+      appBarTheme: AppBarTheme(
+        backgroundColor: background,
+        foregroundColor: onSurface,
+        elevation: 0,
+        surfaceTintColor: Colors.transparent,
+        scrolledUnderElevation: 0,
+        centerTitle: false,
+      ),
+      navigationRailTheme: NavigationRailThemeData(
+        backgroundColor: background,
+        indicatorColor: isDark ? Colors.white24 : Colors.black12,
+        selectedIconTheme: IconThemeData(color: onSurface),
+        unselectedIconTheme: IconThemeData(color: Colors.grey.shade500),
+        selectedLabelTextStyle: TextStyle(color: onSurface),
+        unselectedLabelTextStyle: TextStyle(color: Colors.grey.shade500),
+      ),
+      cardTheme: CardThemeData(
+        color: surface,
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: outline),
+        ),
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          backgroundColor: onSurface,
+          foregroundColor: isDark ? Colors.black : Colors.white,
+          minimumSize: const Size(64, 48),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: onSurface,
+          side: BorderSide(color: onSurface),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+        ),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: surface,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide(color: outline),
+        ),
+      ),
+      dividerColor: outline,
+      textTheme: (isDark ? ThemeData.dark() : ThemeData.light()).textTheme
+          .apply(bodyColor: onSurface, displayColor: onSurface),
+    );
+  }
+
   static ThemeData _build(Color accentColor, Brightness brightness) {
     final isDark = brightness == Brightness.dark;
 

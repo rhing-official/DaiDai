@@ -447,16 +447,17 @@ class _TalksTabState extends ConsumerState<TalksTab> {
                     padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
                     child: Row(
                       children: [
-                        // 用語スタイルによってはラベルが長くなる
-                        // （例:「ダイレクトメッセージ」「Terminology & display」相当）ため、
-                        // 固定幅のサイドバーでも折り返さず、必要なときだけ
-                        // 横スクロールできるようにして＋ボタンが押し出されないようにする。
-                        // フラットUIのみ、塗り潰しチップ化（2026-08-12）で
-                        // 1件あたりの幅が増え、横スクロール前提だと初期表示で
-                        // 「広場」チップの右端が見切れて表示される不具合が
-                        // あったため、`Wrap`に変更しはみ出す場合は折り返す形にした
-                        // （劇画UIは`GekigaJointedPair`が2つのタブを1つの
-                        // ジグザグ枠として連結して描く都合上、引き続き横スクロールを使う）。
+                        // 言語によってはラベルが長くなる（例: 英語の
+                        // "Private"/"Plaza"は日本語の「一対」「広場」より幅を
+                        // 取る）。以前は幅が収まらない場合`Wrap`で折り返す形に
+                        // していたが、英語表示時に2つのチップの合計幅が
+                        // 入りきらず縦並びに見えてしまう不具合があった。横
+                        // スクロールで逃がす方式も試したが、常に横並びで
+                        // スクロール無しに収めたいとのユーザー要望のため
+                        // 採用せず、代わりに`_CategoryTab`側のパディング・
+                        // フォントサイズを詰めて260px幅のサイドバーに折り返し・
+                        // スクロールいずれも無しで収まるようにした
+                        // （2026-08-27発覚・修正）。
                         Expanded(
                           child:
                               ref.watch(appUiStyleProvider) == AppUiStyle.gekiga
@@ -486,10 +487,8 @@ class _TalksTabState extends ConsumerState<TalksTab> {
                                     ),
                                   ),
                                 )
-                              : Wrap(
-                                  crossAxisAlignment: WrapCrossAlignment.center,
-                                  spacing: 12,
-                                  runSpacing: 6,
+                              : Row(
+                                  mainAxisSize: MainAxisSize.min,
                                   children: [
                                     _CategoryTab(
                                       label: vocab.dm,
@@ -498,6 +497,7 @@ class _TalksTabState extends ConsumerState<TalksTab> {
                                       onTap: () =>
                                           _setCategory(_TalksCategory.dm),
                                     ),
+                                    const SizedBox(width: 6),
                                     _CategoryTab(
                                       label: vocab.plaza,
                                       count: groups.length,
@@ -509,7 +509,7 @@ class _TalksTabState extends ConsumerState<TalksTab> {
                                   ],
                                 ),
                         ),
-                        const SizedBox(width: 12),
+                        const SizedBox(width: 8),
                         ref.watch(appUiStyleProvider) == AppUiStyle.gekiga
                             ? GekigaIconButton(
                                 icon: Icons.add,
@@ -965,14 +965,17 @@ class _CategoryTab extends ConsumerWidget {
           // 無くすことでチップ1つあたりの幅を縮めている（2026-08-12
           // 変更。以前は件数を別`Container`の丸バッジにしていたが、
           // 幅が増えて狭い画面で「一対/広場」チップが1行に収まらず
-          // 折り返される不具合があった）。
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+          // 折り返される不具合があった）。横幅（14→8）・フォントサイズ
+          // （16→13）もさらに詰め、英語表示（"Private"/"Plaza"は日本語の
+          // 「一対」「広場」より幅を取る）でも横スクロール無しで260px幅の
+          // サイドバーに収まるようにした（2026-08-27変更）。
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
           child: Text(
             '$label $count',
             style: TextStyle(
               fontWeight: selected ? FontWeight.bold : FontWeight.normal,
               color: foreground,
-              fontSize: 16,
+              fontSize: 13,
             ),
           ),
         ),
@@ -1045,6 +1048,8 @@ class _FriendRequestTile extends ConsumerWidget {
 
     final leadingWidget = CircleAvatar(
       backgroundImage: iconUrl != null ? NetworkImage(iconUrl) : null,
+      backgroundColor: Theme.of(context).colorScheme.primary,
+      foregroundColor: Theme.of(context).colorScheme.onPrimary,
       child: iconUrl == null ? const Icon(Icons.person_outline) : null,
     );
     final titleText = '@${request.otherRhingId(currentUserId)}';
@@ -1185,6 +1190,8 @@ class _PendingGroupJoinRequestTile extends ConsumerWidget {
           backgroundImage: preview?.iconUrl != null
               ? NetworkImage(preview!.iconUrl!)
               : null,
+          backgroundColor: Theme.of(context).colorScheme.primary,
+          foregroundColor: Theme.of(context).colorScheme.onPrimary,
           child: preview?.iconUrl == null
               ? const Icon(Icons.hourglass_top_outlined)
               : null,
@@ -1272,6 +1279,8 @@ class _DirectMessageTile extends ConsumerWidget {
 
     final leadingWidget = CircleAvatar(
       backgroundImage: iconUrl != null ? NetworkImage(iconUrl) : null,
+      backgroundColor: Theme.of(context).colorScheme.primary,
+      foregroundColor: Theme.of(context).colorScheme.onPrimary,
       child: iconUrl == null ? const Icon(Icons.person) : null,
     );
     final trailingWidget = _ConversationIndicators(
@@ -1339,6 +1348,8 @@ class _GroupTile extends ConsumerWidget {
 
     final leadingWidget = CircleAvatar(
       backgroundImage: iconUrl != null ? NetworkImage(iconUrl) : null,
+      backgroundColor: Theme.of(context).colorScheme.primary,
+      foregroundColor: Theme.of(context).colorScheme.onPrimary,
       child: iconUrl == null ? const Icon(Icons.groups) : null,
     );
     final trailingWidget = _ConversationIndicators(
