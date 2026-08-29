@@ -96,18 +96,14 @@ class AppTheme {
           backgroundColor: onSurface,
           foregroundColor: isDark ? Colors.black : Colors.white,
           minimumSize: const Size(64, 48),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           foregroundColor: onSurface,
           side: BorderSide(color: onSurface),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
@@ -126,11 +122,16 @@ class AppTheme {
 
   static ThemeData _build(Color accentColor, Brightness brightness) {
     final isDark = brightness == Brightness.dark;
+    // アクセントカラーが白に近い明るい色だと、決め打ちの白文字では
+    // ボタン等が読めなくなる。アクセントカラー自体の明度から動的に
+    // 計算するのではなく、ライトモードは黒・ダークモードは白という
+    // 固定ルールに統一する（2026-08-29追加）。
+    final onAccent = isDark ? Colors.white : Colors.black;
 
     var colorScheme = ColorScheme.fromSeed(
       seedColor: accentColor,
       brightness: brightness,
-    ).copyWith(primary: accentColor, onPrimary: Colors.white);
+    ).copyWith(primary: accentColor, onPrimary: onAccent);
     if (isDark) {
       colorScheme = colorScheme.copyWith(
         surface: darkBackground,
@@ -190,7 +191,7 @@ class AppTheme {
         style:
             ElevatedButton.styleFrom(
               backgroundColor: accentColor,
-              foregroundColor: Colors.white,
+              foregroundColor: onAccent,
               elevation: 10,
               shadowColor: accentColor.withValues(alpha: 0.5),
               minimumSize: const Size.fromHeight(52),
@@ -207,7 +208,7 @@ class AppTheme {
       ),
       floatingActionButtonTheme: FloatingActionButtonThemeData(
         backgroundColor: accentColor,
-        foregroundColor: Colors.white,
+        foregroundColor: onAccent,
         elevation: 10,
         highlightElevation: 14,
       ),

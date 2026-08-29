@@ -17,6 +17,7 @@ import '../../models/message_time_format.dart';
 import '../../models/send_key_mode.dart';
 import '../../models/sticker_send_mode.dart';
 import '../../providers/accent_color_provider.dart';
+import '../../providers/custom_accent_colors_provider.dart';
 import '../../providers/app_locale_provider.dart';
 import '../../providers/app_ui_style_provider.dart';
 import '../../providers/block_providers.dart';
@@ -36,6 +37,8 @@ import '../../utils/color_hex.dart';
 import '../../widgets/gekiga/gekiga_panel_box.dart';
 import '../../widgets/gekiga/gekiga_section_header.dart';
 import '../../widgets/gekiga/gekiga_text_field.dart';
+import '../../widgets/glass/glass_dialog.dart';
+import '../../widgets/glass/glass_surface.dart';
 import '../../widgets/qr_scan_screen.dart';
 import '../../widgets/swipe_gestures.dart';
 import '../auth/two_factor_setup_dialog.dart';
@@ -320,10 +323,44 @@ class _FolderTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colorScheme = Theme.of(context).colorScheme;
-    final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
+    final uiStyle = ref.watch(appUiStyleProvider);
+    final isGekiga = uiStyle == AppUiStyle.gekiga;
+    final isGlass = uiStyle == AppUiStyle.glass;
     final trailingWidget = trailingChevron
         ? const Icon(Icons.chevron_right)
         : null;
+
+    if (isGlass) {
+      // 選択・非選択で文字色は変えない（背景の塗りだけで選択状態を表す、
+      // 2026-08-29変更）。
+      final foreground = colorScheme.onSurfaceVariant;
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 3),
+        child: GlassSurface(
+          borderRadius: BorderRadius.circular(12),
+          accentColorOverride: selected ? colorScheme.primary : null,
+          child: Material(
+            color: selected
+                ? colorScheme.primary.withValues(alpha: 0.45)
+                : Colors.transparent,
+            child: ListTile(
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 8,
+              ),
+              selected: selected,
+              selectedColor: foreground,
+              iconColor: foreground,
+              textColor: foreground,
+              leading: Icon(icon),
+              title: Text(title),
+              trailing: trailingWidget,
+              onTap: onTap,
+            ),
+          ),
+        ),
+      );
+    }
 
     if (isGekiga) {
       // 外枠は呼び出し側（`_CategoryList`の`GekigaJointedTileList`）が
@@ -683,12 +720,15 @@ class _QrLoginRow extends ConsumerWidget {
 /// 1台の端末だけで試したユーザーには「読み取るべきものが無いのにカメラだけ
 /// 起動する」ように見え分かりにくいとの指摘を受けた。
 Future<bool> _confirmStartScan(BuildContext context, Strings strings) async {
+  final isGlass =
+      ProviderScope.containerOf(context).read(appUiStyleProvider) ==
+      AppUiStyle.glass;
   final confirmed = await showDialog<bool>(
     context: context,
-    builder: (context) => AlertDialog(
-      title: Text(strings.settingsQrLogin),
-      content: Text(strings.qrLoginScanInstructionMessage),
-      actions: [
+    builder: (context) {
+      final title = Text(strings.settingsQrLogin);
+      final content = Text(strings.qrLoginScanInstructionMessage);
+      final actions = [
         TextButton(
           onPressed: () => Navigator.of(context).pop(false),
           child: Text(strings.cancel),
@@ -697,8 +737,42 @@ Future<bool> _confirmStartScan(BuildContext context, Strings strings) async {
           onPressed: () => Navigator.of(context).pop(true),
           child: Text(strings.qrLoginScanInstructionButton),
         ),
-      ],
-    ),
+      ];
+      return isGlass
+          ? GlassAlertDialog(title: title, content: content, actions: actions)
+          : AlertDialog(title: title, content: content, actions: actions);
+    },
+  );
+  return confirmed ?? false;
+}
+
+/// 登録したアクセントカラーを削除する前の確認ダイアログ
+/// （`_DesignFolderState`の「登録した色」長押し、2026-08-29追加）。
+Future<bool> _confirmDeleteCustomColor(
+  BuildContext context,
+  Strings strings,
+) async {
+  final isGlass =
+      ProviderScope.containerOf(context).read(appUiStyleProvider) ==
+      AppUiStyle.glass;
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (context) {
+      final title = Text(strings.settingsCustomColorDeleteConfirmTitle);
+      final actions = [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: Text(strings.cancel),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(context).pop(true),
+          child: Text(strings.settingsCustomColorDeleteConfirmButton),
+        ),
+      ];
+      return isGlass
+          ? GlassAlertDialog(title: title, actions: actions)
+          : AlertDialog(title: title, actions: actions);
+    },
   );
   return confirmed ?? false;
 }
@@ -707,12 +781,15 @@ Future<bool> _confirmApproveQrLogin(
   BuildContext context,
   Strings strings,
 ) async {
+  final isGlass =
+      ProviderScope.containerOf(context).read(appUiStyleProvider) ==
+      AppUiStyle.glass;
   final confirmed = await showDialog<bool>(
     context: context,
-    builder: (context) => AlertDialog(
-      title: Text(strings.qrLoginScanConfirmTitle),
-      content: Text(strings.qrLoginScanConfirmMessage),
-      actions: [
+    builder: (context) {
+      final title = Text(strings.qrLoginScanConfirmTitle);
+      final content = Text(strings.qrLoginScanConfirmMessage);
+      final actions = [
         TextButton(
           onPressed: () => Navigator.of(context).pop(false),
           child: Text(strings.cancel),
@@ -721,8 +798,11 @@ Future<bool> _confirmApproveQrLogin(
           onPressed: () => Navigator.of(context).pop(true),
           child: Text(strings.qrLoginScanConfirmButton),
         ),
-      ],
-    ),
+      ];
+      return isGlass
+          ? GlassAlertDialog(title: title, content: content, actions: actions)
+          : AlertDialog(title: title, content: content, actions: actions);
+    },
   );
   return confirmed ?? false;
 }
@@ -732,12 +812,15 @@ Future<bool> _confirmDisableTwoFactor(
   BuildContext context,
   Strings strings,
 ) async {
+  final isGlass =
+      ProviderScope.containerOf(context).read(appUiStyleProvider) ==
+      AppUiStyle.glass;
   final confirmed = await showDialog<bool>(
     context: context,
-    builder: (context) => AlertDialog(
-      title: Text(strings.twoFactorDisableConfirmTitle),
-      content: Text(strings.twoFactorDisableConfirmMessage),
-      actions: [
+    builder: (context) {
+      final title = Text(strings.twoFactorDisableConfirmTitle);
+      final content = Text(strings.twoFactorDisableConfirmMessage);
+      final actions = [
         TextButton(
           onPressed: () => Navigator.of(context).pop(false),
           child: Text(strings.cancel),
@@ -749,8 +832,11 @@ Future<bool> _confirmDisableTwoFactor(
           onPressed: () => Navigator.of(context).pop(true),
           child: Text(strings.twoFactorDisableConfirmButton),
         ),
-      ],
-    ),
+      ];
+      return isGlass
+          ? GlassAlertDialog(title: title, content: content, actions: actions)
+          : AlertDialog(title: title, content: content, actions: actions);
+    },
   );
   return confirmed ?? false;
 }
@@ -908,51 +994,54 @@ class _OwnerGroupsGuardDialog extends ConsumerWidget {
     final ownedGroups = groups
         ?.where((g) => g.ownerId == currentUser.userId)
         .toList();
+    final isGlass = ref.watch(appUiStyleProvider) == AppUiStyle.glass;
 
-    return AlertDialog(
-      title: Text(strings.accountDeleteOwnerGuardTitle),
-      content: SizedBox(
-        width: 360,
-        child: ownedGroups == null
-            ? const Padding(
-                padding: EdgeInsets.all(24),
-                child: Center(child: CircularProgressIndicator()),
-              )
-            : Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    ownedGroups.isEmpty
-                        ? strings.accountDeleteOwnerGuardCleared
-                        : strings.accountDeleteOwnerGuardMessage,
-                  ),
-                  const SizedBox(height: 8),
-                  for (final group in ownedGroups)
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(group.name),
-                      trailing: FilledButton(
-                        onPressed: () => _openTransfer(context, ref, group),
-                        child: Text(strings.groupTransferOwnershipMenuItem),
-                      ),
+    final title = Text(strings.accountDeleteOwnerGuardTitle);
+    final content = SizedBox(
+      width: 360,
+      child: ownedGroups == null
+          ? const Padding(
+              padding: EdgeInsets.all(24),
+              child: Center(child: CircularProgressIndicator()),
+            )
+          : Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  ownedGroups.isEmpty
+                      ? strings.accountDeleteOwnerGuardCleared
+                      : strings.accountDeleteOwnerGuardMessage,
+                ),
+                const SizedBox(height: 8),
+                for (final group in ownedGroups)
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(group.name),
+                    trailing: FilledButton(
+                      onPressed: () => _openTransfer(context, ref, group),
+                      child: Text(strings.groupTransferOwnershipMenuItem),
                     ),
-                ],
-              ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(false),
-          child: Text(strings.cancel),
-        ),
-        FilledButton(
-          onPressed: (ownedGroups != null && ownedGroups.isEmpty)
-              ? () => Navigator.of(context).pop(true)
-              : null,
-          child: Text(strings.accountDeleteOwnerGuardContinue),
-        ),
-      ],
+                  ),
+              ],
+            ),
     );
+    final actions = [
+      TextButton(
+        onPressed: () => Navigator.of(context).pop(false),
+        child: Text(strings.cancel),
+      ),
+      FilledButton(
+        onPressed: (ownedGroups != null && ownedGroups.isEmpty)
+            ? () => Navigator.of(context).pop(true)
+            : null,
+        child: Text(strings.accountDeleteOwnerGuardContinue),
+      ),
+    ];
+
+    return isGlass
+        ? GlassAlertDialog(title: title, content: content, actions: actions)
+        : AlertDialog(title: title, content: content, actions: actions);
   }
 }
 
@@ -1200,6 +1289,7 @@ class _DesignFolderState extends ConsumerState<_DesignFolder> {
     });
 
     final accentColor = ref.watch(accentColorProvider);
+    final customColors = ref.watch(customAccentColorsProvider);
     final gekigaBackgroundColor = ref.watch(gekigaBackgroundColorProvider);
     final themeMode = ref.watch(appThemeModeProvider);
     final uiStyle = ref.watch(appUiStyleProvider);
@@ -1287,9 +1377,33 @@ class _DesignFolderState extends ConsumerState<_DesignFolder> {
               hintText: 'F08300',
               errorText: _errorText,
               counterText: '',
-              suffixIcon: IconButton(
-                icon: const Icon(Icons.check),
-                onPressed: _applyHexInput,
+              suffixIcon: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.check),
+                    onPressed: _applyHexInput,
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.add),
+                    tooltip: widget.strings.settingsCustomColorRegister,
+                    onPressed: () async {
+                      if (customColors.contains(activeColor)) return;
+                      final added = await ref
+                          .read(customAccentColorsProvider.notifier)
+                          .addColor(activeColor);
+                      if (!added && context.mounted) {
+                        showAutoDismissBanner(
+                          context,
+                          message: widget.strings
+                              .settingsCustomColorLimitReachedTemplate(
+                                kMaxCustomAccentColors,
+                              ),
+                        );
+                      }
+                    },
+                  ),
+                ],
               ),
             ),
             onSubmitted: (_) => _applyHexInput(),
@@ -1404,6 +1518,48 @@ class _DesignFolderState extends ConsumerState<_DesignFolder> {
                 ],
               ),
             ),
+            if (!isGekiga && customColors.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      widget.strings.settingsCustomColors,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 12,
+                      runSpacing: 12,
+                      children: [
+                        for (final color in customColors)
+                          _PresetColorSwatch(
+                            hex: color.toHexString(),
+                            selected: color == activeColor,
+                            onTap: () => ref
+                                .read(accentColorProvider.notifier)
+                                .setColor(color),
+                            onLongPress: () async {
+                              final confirmed = await _confirmDeleteCustomColor(
+                                context,
+                                widget.strings,
+                              );
+                              if (confirmed) {
+                                await ref
+                                    .read(customAccentColorsProvider.notifier)
+                                    .removeColor(color);
+                              }
+                            },
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
           ],
         ),
       ],
@@ -1417,17 +1573,24 @@ class _PresetColorSwatch extends StatelessWidget {
     required this.hex,
     required this.selected,
     required this.onTap,
+    this.onLongPress,
   });
 
   final String hex;
   final bool selected;
   final VoidCallback onTap;
 
+  /// 登録した色（[_DesignFolderState]の「登録した色」一覧）の削除導線用。
+  /// nullなら長押し操作自体を無効にする（固定のプリセットでは削除不可、
+  /// 2026-08-29追加）。
+  final VoidCallback? onLongPress;
+
   @override
   Widget build(BuildContext context) {
     final color = tryParseHexColor(hex)!;
     return InkWell(
       onTap: onTap,
+      onLongPress: onLongPress,
       customBorder: const CircleBorder(),
       child: Container(
         width: 40,
@@ -1547,8 +1710,16 @@ class _UiStyleFolder extends ConsumerWidget {
     // プレビューになる（2026-08-03、選択肢の見た目統一のため追加）。
     if (isGekiga) {
       return GekigaJointedTileList(
-        seeds: [AppUiStyle.flat.hashCode, AppUiStyle.gekiga.hashCode],
-        selectedFlags: [style == AppUiStyle.flat, style == AppUiStyle.gekiga],
+        seeds: [
+          AppUiStyle.flat.hashCode,
+          AppUiStyle.gekiga.hashCode,
+          AppUiStyle.glass.hashCode,
+        ],
+        selectedFlags: [
+          style == AppUiStyle.flat,
+          style == AppUiStyle.gekiga,
+          style == AppUiStyle.glass,
+        ],
         children: [
           GekigaTileContent(
             selected: style == AppUiStyle.flat,
@@ -1572,6 +1743,17 @@ class _UiStyleFolder extends ConsumerWidget {
             subtitle: Text(strings.settingsUiStyleGekigaDescription),
             onTap: () => select(AppUiStyle.gekiga),
           ),
+          GekigaTileContent(
+            selected: style == AppUiStyle.glass,
+            leading: Icon(
+              style == AppUiStyle.glass
+                  ? Icons.radio_button_checked
+                  : Icons.radio_button_unchecked,
+            ),
+            title: Text(strings.settingsUiStyleGlassLabel),
+            subtitle: Text(strings.settingsUiStyleGlassDescription),
+            onTap: () => select(AppUiStyle.glass),
+          ),
         ],
       );
     }
@@ -1592,6 +1774,11 @@ class _UiStyleFolder extends ConsumerWidget {
             value: AppUiStyle.gekiga,
             title: Text(strings.settingsUiStyleGekigaLabel),
             subtitle: Text(strings.settingsUiStyleGekigaDescription),
+          ),
+          RadioListTile<AppUiStyle>(
+            value: AppUiStyle.glass,
+            title: Text(strings.settingsUiStyleGlassLabel),
+            subtitle: Text(strings.settingsUiStyleGlassDescription),
           ),
         ],
       ),
@@ -2063,15 +2250,26 @@ class _DraftSyncFolder extends ConsumerWidget {
         ref.read(draftSyncEnabledProvider.notifier).setEnabled(value);
 
     if (isGekiga) {
+      // ボックス自体の色（背景・文字）はON/OFFに関わらず固定のままにし、
+      // スイッチのボール・トラックの色だけを白黒反転させて状態を示す
+      // （2026-08-29変更、以前はボックス全体が反転していた）。
       return GekigaJointedTileList(
         seeds: const [0],
-        selectedFlags: [enabled],
+        selectedFlags: const [false],
         children: [
           GekigaTileContent(
-            selected: enabled,
+            selected: false,
             title: Text(strings.settingsDraftSyncTitle),
             subtitle: Text(strings.settingsDraftSyncSubtitle),
-            trailing: Switch(value: enabled, onChanged: setEnabled),
+            trailing: Switch(
+              value: enabled,
+              onChanged: setEnabled,
+              activeThumbColor: GekigaColors.panel,
+              activeTrackColor: GekigaColors.onPanel,
+              inactiveThumbColor: GekigaColors.onPanel,
+              inactiveTrackColor: GekigaColors.panel,
+              trackOutlineColor: WidgetStatePropertyAll(GekigaColors.onPanel),
+            ),
             onTap: () => setEnabled(!enabled),
           ),
         ],

@@ -14,7 +14,12 @@ enum AppUiStyle {
 
   /// 手描き風・ギザギザした太い黒線・モノクロの吹き出し・アイコンを
   /// 丸で囲むデザイン。
-  gekiga;
+  gekiga,
+
+  /// すりガラス越しに背景が透けるApple Liquid Glass風のデザイン。
+  /// アクセントカラーはマテリアルの縁のうっすらとした光彩としてのみ表れる
+  /// （2026-08-29追加）。
+  glass;
 
   static AppUiStyle fromName(String? name) {
     return AppUiStyle.values.firstWhere(

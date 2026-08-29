@@ -9,6 +9,7 @@ import '../../providers/app_ui_style_provider.dart';
 import '../../providers/home_shell_providers.dart';
 import '../../theme/gekiga/gekiga_colors.dart';
 import '../../widgets/gekiga/gekiga_badge.dart';
+import '../../widgets/glass/glass_surface.dart';
 import '../call/pinned_call_overlay.dart';
 import '../chat/talks_tab.dart';
 import '../profile/profile_tab.dart';
@@ -111,7 +112,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     if (!selectionChanged && !poppedChanged) return;
     setState(() {
       _poppedIndexes = hit.popped;
-      if (selectionChanged) _setSelectedIndex(hit.hovered!.clamp(0, tabCount - 1));
+      if (selectionChanged)
+        _setSelectedIndex(hit.hovered!.clamp(0, tabCount - 1));
     });
   }
 
@@ -334,7 +336,9 @@ class _NavChip extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colorScheme = Theme.of(context).colorScheme;
-    final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
+    final uiStyle = ref.watch(appUiStyleProvider);
+    final isGekiga = uiStyle == AppUiStyle.gekiga;
+    final isGlass = uiStyle == AppUiStyle.glass;
     final background = selected ? colorScheme.primary : colorScheme.surface;
     final foreground = selected
         ? colorScheme.onPrimary
@@ -369,6 +373,32 @@ class _NavChip extends ConsumerWidget {
                     icon,
                     size: iconSize,
                     color: selected ? GekigaColors.panel : GekigaColors.onPanel,
+                  ),
+                ),
+              ),
+            ),
+          )
+        : isGlass
+        ? GlassSurface(
+            variant: GlassVariant.chrome,
+            borderRadius: BorderRadius.circular(_HomeScreenState._chipSize / 2),
+            child: Material(
+              color: selected
+                  ? colorScheme.primary.withValues(alpha: 0.45)
+                  : Colors.transparent,
+              shape: const CircleBorder(),
+              child: InkWell(
+                onTap: onTap,
+                customBorder: const CircleBorder(),
+                child: SizedBox(
+                  width: _HomeScreenState._chipSize,
+                  height: _HomeScreenState._chipSize,
+                  // 選択・非選択で文字色は変えない（背景の塗りだけで選択状態を
+                  // 表す、2026-08-29変更）。
+                  child: Icon(
+                    icon,
+                    size: iconSize,
+                    color: colorScheme.onSurfaceVariant,
                   ),
                 ),
               ),

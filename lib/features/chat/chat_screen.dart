@@ -57,6 +57,9 @@ import '../../utils/message_time.dart';
 import '../../widgets/gekiga/gekiga_icon_badge.dart';
 import '../../widgets/gekiga/gekiga_panel_box.dart';
 import '../../widgets/gekiga/gekiga_photo_frame.dart';
+import '../../widgets/glass/glass_app_bar.dart';
+import '../../widgets/glass/glass_icon_badge.dart';
+import '../../widgets/glass/glass_surface.dart';
 import '../../widgets/link_preview_card.dart';
 import '../../widgets/linkified_editing_controller.dart';
 import '../../widgets/linkified_text.dart';
@@ -105,6 +108,7 @@ class ChatScreen extends ConsumerStatefulWidget {
     this.disabled = false,
     this.onSwipeBack,
     this.roomId,
+    this.forceShowSenderInfo = false,
     super.key,
   });
 
@@ -114,6 +118,13 @@ class ChatScreen extends ConsumerStatefulWidget {
   /// 一対（1対1）か広場（グループ）か。[ChatLayoutStyle.sideBySide]で、
   /// 相手のアイコン・呼び名を表示するかどうかの判定に使う。
   final bool isDm;
+
+  /// [ChatLayoutStyle.sideBySide]でも一対のアイコン・呼び名を常に表示する
+  /// （通常は`isDm`の一対では非表示、[isDm]のdocコメント参照）。便り
+  /// （`AnnouncementScreen`）のように、相手が分かりきった1対1の会話ではなく
+  /// 送信元を明示すべき通知チャンネル的な一対でのみ`true`にする
+  /// （2026-08-29追加）。
+  final bool forceShowSenderInfo;
 
   /// この会話（一対のdmId・広場のgroupId）。会話ごとに使うプロフィールカード
   /// （2026-07-29追加、`AppUser.conversationProfileCardId`）を反映して
@@ -394,6 +405,31 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     if ((height - _composerAreaHeight).abs() > 0.5) {
       setState(() => _composerAreaHeight = height);
     }
+  }
+
+  /// 入力欄オーバーレイの背景。ガラスUIでは半透明の塗り＋縁の光彩
+  /// （影は無し、`GlassVariant.card`）にする（2026-08-29追加）。
+  /// [_composerAreaKey]は[_measureComposerArea]の計測対象のため、
+  /// どちらの分岐でも同じキーを付ける。
+  Widget _buildComposerArea({
+    required bool isGlass,
+    required Color composerBackground,
+    required Widget child,
+  }) {
+    if (isGlass) {
+      return GlassSurface(
+        key: _composerAreaKey,
+        variant: GlassVariant.chrome,
+        borderRadius: BorderRadius.zero,
+        enableEdgeStroke: false,
+        child: child,
+      );
+    }
+    return Container(
+      key: _composerAreaKey,
+      color: composerBackground,
+      child: child,
+    );
   }
 
   /// 既に既読リクエストを送った（または送信中の）メッセージIDの集合。
@@ -871,11 +907,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           (currentDay == null || !isSameDay(sentAt, currentDay))) {
         currentDay = sentAt;
         rows.add(
-          _DateSeparator(
-            date: sentAt,
-            locale: locale,
-            isGekiga: uiStyle == AppUiStyle.gekiga,
-          ),
+          _DateSeparator(date: sentAt, locale: locale, uiStyle: uiStyle),
         );
       }
       rows.add(
@@ -893,6 +925,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           readReceiptsEnabled: widget.readReceiptsEnabled,
           layoutStyle: layoutStyle,
           isDm: widget.isDm,
+          forceShowSenderInfo: widget.forceShowSenderInfo,
           conversationId: widget.conversationId,
           senderNameColorResolver: widget.senderNameColorResolver,
           blurSenderInfo: blurSenderInfo,
@@ -1285,6 +1318,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         : ref.watch(vocabularyProvider);
     final uiStyle = ref.watch(appUiStyleProvider);
     final isGekiga = uiStyle == AppUiStyle.gekiga;
+    final isGlass = uiStyle == AppUiStyle.glass;
     // 端末にカメラが1台も無いと判定できた場合、ビデオ通話の発信自体を
     // 出さない（2026-08-19追加、通話UIの簡略化に伴う。判定は起動後1回のみ
     // 実行してキャッシュされる。cameraAvailabilityProviderのdocコメント
@@ -1337,7 +1371,24 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   _screenshotEffectiveIds(_cachedMessages).length,
                 ),
               )
-            : (isGekiga || widget.title.isEmpty ? null : Text(widget.title)),
+            : (isGekiga || widget.title.isEmpty
+                  ? null
+                  : isGlass
+                  ? GlassSurface(
+                      variant: GlassVariant.chrome,
+                      borderRadius: BorderRadius.circular(999),
+                      opaque: true,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 6,
+                      ),
+                      child: Text(
+                        widget.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    )
+                  : Text(widget.title)),
         actions: _selecting
             ? [
                 IconButton(
@@ -1358,26 +1409,40 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               ]
             : [
                 if (widget.onCallPressed case final onCall?)
-                  isGekiga
-                      ? GekigaIconButton(
-                          icon: Icons.call_outlined,
-                          onPressed: onCall,
-                        )
-                      : IconButton(
-                          icon: const Icon(Icons.call_outlined),
-                          onPressed: onCall,
-                        ),
+                  switch (uiStyle) {
+                    AppUiStyle.gekiga => GekigaIconButton(
+                      icon: Icons.call_outlined,
+                      onPressed: onCall,
+                    ),
+                    AppUiStyle.glass => GlassIconButton(
+                      icon: Icons.call_outlined,
+                      size: 32,
+                      opaque: true,
+                      onPressed: onCall,
+                    ),
+                    AppUiStyle.flat => IconButton(
+                      icon: const Icon(Icons.call_outlined),
+                      onPressed: onCall,
+                    ),
+                  },
                 if (widget.onVideoCallPressed case final onVideoCall?)
                   if (cameraAvailability != CameraAvailability.unavailable)
-                    isGekiga
-                        ? GekigaIconButton(
-                            icon: Icons.videocam_outlined,
-                            onPressed: onVideoCall,
-                          )
-                        : IconButton(
-                            icon: const Icon(Icons.videocam_outlined),
-                            onPressed: onVideoCall,
-                          ),
+                    switch (uiStyle) {
+                      AppUiStyle.gekiga => GekigaIconButton(
+                        icon: Icons.videocam_outlined,
+                        onPressed: onVideoCall,
+                      ),
+                      AppUiStyle.glass => GlassIconButton(
+                        icon: Icons.videocam_outlined,
+                        size: 32,
+                        opaque: true,
+                        onPressed: onVideoCall,
+                      ),
+                      AppUiStyle.flat => IconButton(
+                        icon: const Icon(Icons.videocam_outlined),
+                        onPressed: onVideoCall,
+                      ),
+                    },
                 ...?widget.extraActions,
               ],
       );
@@ -1388,9 +1453,23 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     // 以前はAppBar.bottomでアイコン行の下に表示していた）。広い画面
     // （サイドバー`RoomListPane`使用、`roomTabBar`は渡されない）は
     // 従来通り単一のAppBarのまま。
+    // ガラススタイルでは、AppBarをそのまま使わずtitle/leading/actionsを
+    // GlassAppBar（ぼかし付き）へ差し替える。中身を組み立てるロジック
+    // （選択モード・劇画分岐等）は`buildToolbar`にまとめたまま、その結果の
+    // AppBarから必要なフィールドだけ読み替える（ロジックの二重管理を避ける）。
+    PreferredSizeWidget wrapToolbar(AppBar bar) {
+      if (!isGlass) return bar;
+      return GlassAppBar(
+        title: bar.title,
+        leading: bar.leading,
+        actions: bar.actions,
+        automaticallyImplyLeading: bar.automaticallyImplyLeading,
+      );
+    }
+
     final roomTabBar = widget.roomTabBar;
     final appBar = roomTabBar == null
-        ? buildToolbar()
+        ? wrapToolbar(buildToolbar())
         : PreferredSize(
             preferredSize: Size.fromHeight(
               kToolbarHeight + roomTabBar.preferredSize.height,
@@ -1402,7 +1481,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   roomTabBar,
                   SizedBox(
                     height: kToolbarHeight,
-                    child: buildToolbar(primary: false),
+                    child: wrapToolbar(buildToolbar(primary: false)),
                   ),
                 ],
               ),
@@ -1410,6 +1489,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           );
 
     final scaffold = Scaffold(
+      extendBodyBehindAppBar: isGlass,
       appBar: appBar,
       body: Column(
         children: [
@@ -1551,7 +1631,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                           _DateSeparator(
                             date: sentAt,
                             locale: locale,
-                            isGekiga: isGekiga,
+                            uiStyle: uiStyle,
                           ),
                         );
                       }
@@ -1570,6 +1650,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                           readReceiptsEnabled: widget.readReceiptsEnabled,
                           layoutStyle: layoutStyle,
                           isDm: widget.isDm,
+                          forceShowSenderInfo: widget.forceShowSenderInfo,
                           conversationId: widget.conversationId,
                           onSenderTap: (_selecting || _screenshotSelecting)
                               ? null
@@ -1689,9 +1770,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     left: 0,
                     right: 0,
                     bottom: 0,
-                    child: Container(
-                      key: _composerAreaKey,
-                      color: composerBackground,
+                    child: _buildComposerArea(
+                      isGlass: isGlass,
+                      composerBackground: composerBackground,
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
@@ -1704,6 +1785,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                               vocabulary: vocabulary,
                             ),
                           SafeArea(
+                            top: false,
                             child: Padding(
                               padding: const EdgeInsets.all(8),
                               child: Row(
@@ -1879,18 +1961,39 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                                   decoration: InputDecoration(
                                                     hintText:
                                                         strings.chatInputHint,
-                                                    filled: widget.disabled,
-                                                    fillColor: Theme.of(context)
-                                                        .disabledColor
-                                                        .withValues(
-                                                          alpha: 0.08,
-                                                        ),
-                                                    border: OutlineInputBorder(
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                            20,
+                                                    filled: isGlass
+                                                        ? false
+                                                        : widget.disabled,
+                                                    fillColor: isGlass
+                                                        ? null
+                                                        : Theme.of(context)
+                                                              .disabledColor
+                                                              .withValues(
+                                                                alpha: 0.08,
+                                                              ),
+                                                    // ガラスUIでは、既に入力欄
+                                                    // コンテナ自体がすりガラス
+                                                    // （GlassSurface）のため、
+                                                    // ここでさらに別スタイルの
+                                                    // 縁取りされた箱を重ねない
+                                                    // （二重の箱に見えて
+                                                    // フラットUIっぽく見えて
+                                                    // しまう不具合の修正、
+                                                    // 2026-08-29）。
+                                                    border: isGlass
+                                                        ? InputBorder.none
+                                                        : OutlineInputBorder(
+                                                            borderRadius:
+                                                                BorderRadius.circular(
+                                                                  20,
+                                                                ),
                                                           ),
-                                                    ),
+                                                    enabledBorder: isGlass
+                                                        ? InputBorder.none
+                                                        : null,
+                                                    focusedBorder: isGlass
+                                                        ? InputBorder.none
+                                                        : null,
                                                     // suffixIconは既定で常に
                                                     // 縦中央揃えになり、複数
                                                     // 行になるほど絶対位置が
@@ -2103,36 +2206,52 @@ class _DateSeparator extends StatelessWidget {
   const _DateSeparator({
     required this.date,
     required this.locale,
-    required this.isGekiga,
+    required this.uiStyle,
   });
 
   final DateTime date;
   final AppLocale locale;
-  final bool isGekiga;
+  final AppUiStyle uiStyle;
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final text = Text(
+      formatMessageDate(date, locale),
+      style: TextStyle(fontSize: 12, color: _foreground(colorScheme)),
+    );
+
+    final pill = switch (uiStyle) {
+      AppUiStyle.glass => GlassSurface(
+        variant: GlassVariant.card,
+        borderRadius: BorderRadius.circular(999),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        child: text,
+      ),
+      AppUiStyle.gekiga || AppUiStyle.flat => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        decoration: BoxDecoration(
+          color: uiStyle == AppUiStyle.gekiga
+              ? GekigaColors.panel
+              : colorScheme.primary,
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: text,
+      ),
+    };
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Center(
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-          decoration: BoxDecoration(
-            color: isGekiga ? GekigaColors.panel : colorScheme.primary,
-            borderRadius: BorderRadius.circular(999),
-          ),
-          child: Text(
-            formatMessageDate(date, locale),
-            style: TextStyle(
-              fontSize: 12,
-              color: isGekiga ? GekigaColors.onPanel : colorScheme.onPrimary,
-            ),
-          ),
-        ),
-      ),
+      child: Center(child: pill),
     );
   }
+
+  Color _foreground(ColorScheme colorScheme) => switch (uiStyle) {
+    AppUiStyle.gekiga => GekigaColors.onPanel,
+    // 選択状態を持たないため常時同じ色にする（アクセントカラーは使わない）。
+    AppUiStyle.glass => colorScheme.onSurfaceVariant,
+    AppUiStyle.flat => colorScheme.onPrimary,
+  };
 }
 
 /// メッセージ1件分の表示。設定（[ChatLayoutStyle]、設定＞アプリケーションから
@@ -2229,6 +2348,7 @@ class _MessageRow extends ConsumerWidget {
     required this.readReceiptsEnabled,
     required this.layoutStyle,
     required this.isDm,
+    this.forceShowSenderInfo = false,
     this.conversationId,
     this.onSenderTap,
     this.senderNameColorResolver,
@@ -2275,6 +2395,7 @@ class _MessageRow extends ConsumerWidget {
   final bool readReceiptsEnabled;
   final ChatLayoutStyle layoutStyle;
   final bool isDm;
+  final bool forceShowSenderInfo;
 
   /// このメッセージが属する会話（一対のdmId・広場のgroupId）。会話ごとに
   /// 使うプロフィールカード（2026-07-29追加）を反映して送信者名・アイコンを
@@ -2659,6 +2780,7 @@ class _MessageRow extends ConsumerWidget {
     final onBubbleColor = switch (uiStyle) {
       AppUiStyle.gekiga => isMe ? Colors.black : Colors.white,
       AppUiStyle.flat => colorScheme.onSurface,
+      AppUiStyle.glass => colorScheme.onSurface,
     };
 
     // 返信元の引用プレビュー。ロード済み（最新50件）の範囲に返信元の実物が
@@ -2820,9 +2942,9 @@ class _MessageRow extends ConsumerWidget {
                                           LogicalKeyboardKey.keyC ||
                                       event.logicalKey ==
                                           LogicalKeyboardKey.keyX) &&
-                                  (HardwareKeyboard.instance
-                                          .isControlPressed ||
-                                      HardwareKeyboard.instance
+                                  (HardwareKeyboard.instance.isControlPressed ||
+                                      HardwareKeyboard
+                                          .instance
                                           .isMetaPressed)) {
                                 onCopyPartialSelection?.call();
                               }
@@ -2841,9 +2963,7 @@ class _MessageRow extends ConsumerWidget {
                                 maxLines: null,
                                 style: TextStyle(
                                   color: onBubbleColor,
-                                  fontWeight: isGekiga
-                                      ? FontWeight.w600
-                                      : null,
+                                  fontWeight: isGekiga ? FontWeight.w600 : null,
                                 ),
                                 // `InputDecoration.collapsed`は`filled`が
                                 // 既定で`false`のため、劇画テーマの
@@ -2863,10 +2983,8 @@ class _MessageRow extends ConsumerWidget {
                                               .contextMenuAnchors,
                                           buttonItems: [
                                             ContextMenuButtonItem(
-                                              type:
-                                                  ContextMenuButtonType.copy,
-                                              onPressed:
-                                                  onCopyPartialSelection,
+                                              type: ContextMenuButtonType.copy,
+                                              onPressed: onCopyPartialSelection,
                                             ),
                                           ],
                                         ),
@@ -2934,6 +3052,10 @@ class _MessageRow extends ConsumerWidget {
         ),
         child: bubbleContent,
       ),
+      AppUiStyle.glass => GlassSurface(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        child: bubbleContent,
+      ),
     };
 
     // 既読バッジは吹き出しの横（バブルが右寄せの時は左横、左寄せの時は
@@ -2954,6 +3076,7 @@ class _MessageRow extends ConsumerWidget {
     final readBadgeFg = switch (uiStyle) {
       AppUiStyle.gekiga => GekigaColors.onPanel,
       AppUiStyle.flat => colorScheme.onSurface,
+      AppUiStyle.glass => colorScheme.onSurface,
     };
     final badgeContent = isSimpleDmReadMark
         ? Icon(Icons.done, size: 12, color: readBadgeFg)
@@ -2978,6 +3101,7 @@ class _MessageRow extends ConsumerWidget {
         color: switch (uiStyle) {
           AppUiStyle.gekiga => GekigaColors.panel,
           AppUiStyle.flat => colorScheme.surface,
+          AppUiStyle.glass => colorScheme.surface.withValues(alpha: 0.72),
         },
         borderRadius: BorderRadius.circular(999),
         boxShadow: floatingShadow,
@@ -3082,8 +3206,12 @@ class _MessageRow extends ConsumerWidget {
 
     // allLeftでは自分・相手とも常にアイコン・呼び名を表示する。sideBySideでは
     // 自分のメッセージには表示せず、相手のメッセージも一対では表示しない
-    // （広場では引き続き表示する）。
-    final showAvatarAndName = layoutStyle == ChatLayoutStyle.allLeft
+    // （広場では引き続き表示する）。ただし便り等、送信元を明示すべき一対
+    // （[forceShowSenderInfo]）では、sideBySideでも常に表示する
+    // （2026-08-29追加）。
+    final showAvatarAndName = forceShowSenderInfo
+        ? true
+        : layoutStyle == ChatLayoutStyle.allLeft
         ? true
         : (!isMe && !isDm);
 

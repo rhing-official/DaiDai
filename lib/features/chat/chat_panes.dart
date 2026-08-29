@@ -26,6 +26,7 @@ import '../../utils/auto_dismiss_banner.dart';
 import '../../utils/group_permissions.dart';
 import '../../utils/platform_info.dart';
 import '../../widgets/gekiga/gekiga_icon_badge.dart';
+import '../../widgets/glass/glass_icon_badge.dart';
 import '../call/active_call_session.dart';
 import '../call/embedded_call_pane.dart';
 import 'chat_screen.dart';
@@ -826,12 +827,19 @@ class _DmMenuButton extends ConsumerWidget {
         ref.watch(conversationPrefsProvider(currentUser.userId)).value ??
         const <String, ConversationPrefs>{};
     final muted = prefs[dm.dmId]?.notificationsMuted ?? false;
-    final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
+    final uiStyle = ref.watch(appUiStyleProvider);
 
     return PopupMenuButton<_DmMenuAction>(
-      icon: isGekiga
-          ? const GekigaIconBadge(icon: Icons.menu, size: 36)
-          : const Icon(Icons.menu),
+      icon: switch (uiStyle) {
+        AppUiStyle.gekiga => const GekigaIconBadge(icon: Icons.menu, size: 36),
+        AppUiStyle.glass => const GlassIconBadge(
+          icon: Icons.menu,
+          size: 36,
+          opaque: true,
+          shadow: true,
+        ),
+        AppUiStyle.flat => const Icon(Icons.menu),
+      },
       tooltip: '',
       position: PopupMenuPosition.under,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -1676,13 +1684,20 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
         false;
     final roomReadReceiptsEnabled =
         widget.currentRoom?.readReceiptsEnabledOverride ?? readReceiptsEnabled;
-    final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
+    final uiStyle = ref.watch(appUiStyleProvider);
 
     return PopupMenuButton<_GroupMenuAction>(
       key: _buttonKey,
-      icon: isGekiga
-          ? const GekigaIconBadge(icon: Icons.menu, size: 36)
-          : const Icon(Icons.menu),
+      icon: switch (uiStyle) {
+        AppUiStyle.gekiga => const GekigaIconBadge(icon: Icons.menu, size: 36),
+        AppUiStyle.glass => const GlassIconBadge(
+          icon: Icons.menu,
+          size: 36,
+          opaque: true,
+          shadow: true,
+        ),
+        AppUiStyle.flat => const Icon(Icons.menu),
+      },
       tooltip: '',
       position: PopupMenuPosition.under,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),

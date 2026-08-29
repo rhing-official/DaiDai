@@ -13,6 +13,7 @@ import 'accent_color_provider.dart';
 import 'app_locale_provider.dart';
 import 'app_ui_style_provider.dart';
 import 'chat_layout_style_provider.dart';
+import 'custom_accent_colors_provider.dart';
 import 'draft_sync_enabled_provider.dart';
 import 'gekiga_background_color_provider.dart';
 import 'message_time_format_provider.dart';
@@ -30,6 +31,13 @@ void applyRemoteUserPreferences(WidgetRef ref, AppUserPreferences preferences) {
     ref
         .read(accentColorProvider.notifier)
         .syncFromRemote(Color(preferences.accentColorArgb!));
+  }
+  if (preferences.customAccentColorsArgb != null) {
+    ref
+        .read(customAccentColorsProvider.notifier)
+        .syncFromRemote(
+          preferences.customAccentColorsArgb!.map(Color.new).toList(),
+        );
   }
   if (preferences.gekigaBackgroundColorArgb != null) {
     ref

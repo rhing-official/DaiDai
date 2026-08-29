@@ -33,6 +33,11 @@ class Strings {
     required this.settingsAppearanceSystem,
     required this.settingsColorCode,
     required this.settingsColorPresets,
+    required this.settingsCustomColors,
+    required this.settingsCustomColorRegister,
+    required this.settingsCustomColorLimitReachedTemplate,
+    required this.settingsCustomColorDeleteConfirmTitle,
+    required this.settingsCustomColorDeleteConfirmButton,
     required this.settingsLogout,
     required this.settingsDisplayLanguage,
     required this.settingsTimeFormat,
@@ -44,6 +49,8 @@ class Strings {
     required this.settingsUiStyleFlatDescription,
     required this.settingsUiStyleGekigaLabel,
     required this.settingsUiStyleGekigaDescription,
+    required this.settingsUiStyleGlassLabel,
+    required this.settingsUiStyleGlassDescription,
     required this.settingsChatLayoutTitle,
     required this.settingsChatLayoutSideBySide,
     required this.settingsChatLayoutSideBySideDescription,
@@ -387,6 +394,11 @@ class Strings {
   final String settingsAppearanceSystem;
   final String settingsColorCode;
   final String settingsColorPresets;
+  final String settingsCustomColors;
+  final String settingsCustomColorRegister;
+  final String Function(int max) settingsCustomColorLimitReachedTemplate;
+  final String settingsCustomColorDeleteConfirmTitle;
+  final String settingsCustomColorDeleteConfirmButton;
   final String settingsLogout;
   final String settingsDisplayLanguage;
   final String settingsTimeFormat;
@@ -403,6 +415,8 @@ class Strings {
   final String settingsUiStyleFlatDescription;
   final String settingsUiStyleGekigaLabel;
   final String settingsUiStyleGekigaDescription;
+  final String settingsUiStyleGlassLabel;
+  final String settingsUiStyleGlassDescription;
 
   /// 「メッセージの表示」（2026-07-30改名、旧称: 語らいの表示）。旧「入力」
   /// カテゴリ廃止に伴い、語らいカテゴリへ移動した（settings_tab.dart参照）。
@@ -901,6 +915,11 @@ class Strings {
     settingsAppearanceSystem: '端末に合わせる',
     settingsColorCode: 'カラーコード',
     settingsColorPresets: 'プリセット',
+    settingsCustomColors: '登録した色',
+    settingsCustomColorRegister: 'この色を登録',
+    settingsCustomColorLimitReachedTemplate: (max) => '登録上限（$max色）に達しています',
+    settingsCustomColorDeleteConfirmTitle: 'この色を削除しますか？',
+    settingsCustomColorDeleteConfirmButton: '削除する',
     settingsLogout: 'ログアウト',
     settingsDisplayLanguage: '表示言語',
     settingsTimeFormat: 'メッセージの時刻表示',
@@ -912,6 +931,8 @@ class Strings {
     settingsUiStyleFlatDescription: 'デフォルトスタイル',
     settingsUiStyleGekigaLabel: '劇画',
     settingsUiStyleGekigaDescription: '奇抜な背景スタイル',
+    settingsUiStyleGlassLabel: 'ガラス',
+    settingsUiStyleGlassDescription: '半透明・縁が光るスタイル',
     settingsChatLayoutTitle: 'メッセージの表示',
     settingsChatLayoutSideBySide: '自分は右・相手は左',
     settingsChatLayoutSideBySideDescription:
@@ -1283,6 +1304,12 @@ class Strings {
     settingsAppearanceSystem: 'Match device',
     settingsColorCode: 'Colour code',
     settingsColorPresets: 'Presets',
+    settingsCustomColors: 'Saved colours',
+    settingsCustomColorRegister: 'Save this colour',
+    settingsCustomColorLimitReachedTemplate: (max) =>
+        'You can save up to $max colours',
+    settingsCustomColorDeleteConfirmTitle: 'Delete this colour?',
+    settingsCustomColorDeleteConfirmButton: 'Delete',
     settingsLogout: 'Log out',
     settingsDisplayLanguage: 'Display language',
     settingsTimeFormat: 'Message time display',
@@ -1295,6 +1322,8 @@ class Strings {
     settingsUiStyleGekigaLabel: 'Gekiga',
     settingsUiStyleGekigaDescription:
         'A hand-drawn, thick jagged-line, monochrome speech-bubble look.',
+    settingsUiStyleGlassLabel: 'Glass',
+    settingsUiStyleGlassDescription: 'Frosted, glowing-edge style',
     settingsChatLayoutTitle: 'Message display',
     settingsChatLayoutSideBySide: 'You on the right, others on the left',
     settingsChatLayoutSideBySideDescription:

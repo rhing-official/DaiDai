@@ -9,6 +9,7 @@ import '../../utils/text_truncate.dart';
 import '../../widgets/gekiga/gekiga_icon_badge.dart';
 import '../../widgets/gekiga/gekiga_panel_box.dart';
 import '../../widgets/gekiga/gekiga_text_field.dart';
+import '../../widgets/glass/glass_surface.dart';
 
 /// 寄合（テキストチャンネル）1件分の一覧表示用の軽量データ。
 /// 広場の`Room`・一対の`DmRoom`どちらもこの形にマッピングして渡す。
@@ -79,7 +80,9 @@ class RoomListPane extends ConsumerWidget {
     final strings = ref.watch(appStringsProvider);
     final vocab = ref.watch(vocabularyProvider);
     final colorScheme = Theme.of(context).colorScheme;
-    final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
+    final uiStyle = ref.watch(appUiStyleProvider);
+    final isGekiga = uiStyle == AppUiStyle.gekiga;
+    final isGlass = uiStyle == AppUiStyle.glass;
 
     Widget buildRoomTile(RoomListEntry room) {
       final isSelected = room.roomId == selectedRoomId;
@@ -99,6 +102,34 @@ class RoomListPane extends ConsumerWidget {
         );
       }
 
+      if (isGlass) {
+        // 選択・非選択で文字色は変えない（背景の塗りだけで選択状態を表す）。
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 3),
+          child: GlassSurface(
+            variant: GlassVariant.card,
+            borderRadius: BorderRadius.circular(12),
+            accentColorOverride: isSelected ? colorScheme.primary : null,
+            child: Material(
+              color: isSelected
+                  ? colorScheme.primary.withValues(alpha: 0.45)
+                  : Colors.transparent,
+              child: ListTile(
+                iconColor: colorScheme.onSurfaceVariant,
+                textColor: colorScheme.onSurfaceVariant,
+                leading: const Icon(Icons.tag),
+                title: Text(
+                  truncateName(room.name, 6),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                onTap: () => onSelectRoom(room),
+              ),
+            ),
+          ),
+        );
+      }
+
       return ListTile(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         selected: isSelected,
@@ -114,91 +145,97 @@ class RoomListPane extends ConsumerWidget {
       );
     }
 
-    return Material(
-      color: colorScheme.surface,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 8, 8),
-            child: Row(
-              children: [
-                Expanded(
-                  child: isGekiga
-                      ? GekigaJointedTileList(
-                          seeds: [conversationName.hashCode],
-                          selectedFlags: const [false],
-                          children: [
-                            GekigaTileContent(
-                              title: Text(
-                                truncateName(conversationName, 8),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
+    final paneContent = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 8, 8),
+          child: Row(
+            children: [
+              Expanded(
+                child: isGekiga
+                    ? GekigaJointedTileList(
+                        seeds: [conversationName.hashCode],
+                        selectedFlags: const [false],
+                        children: [
+                          GekigaTileContent(
+                            title: Text(
+                              truncateName(conversationName, 8),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
-                          ],
-                        )
-                      : Text(
-                          truncateName(conversationName, 8),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                ),
-                if (onOpenGroupSettings != null)
-                  isGekiga
-                      ? GekigaIconButton(
-                          icon: Icons.settings_outlined,
-                          onPressed: onOpenGroupSettings!,
-                        )
-                      : IconButton(
-                          icon: const Icon(Icons.settings_outlined),
-                          onPressed: onOpenGroupSettings,
-                        ),
-                if (onCreateRoom != null)
-                  isGekiga
-                      ? GekigaIconButton(
-                          icon: Icons.add,
-                          onPressed: () =>
-                              _createRoom(context, strings, vocab, isGekiga),
-                        )
-                      : IconButton(
-                          icon: const Icon(Icons.add),
-                          onPressed: () =>
-                              _createRoom(context, strings, vocab, isGekiga),
-                        ),
-              ],
-            ),
+                          ),
+                        ],
+                      )
+                    : Text(
+                        truncateName(conversationName, 8),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+              ),
+              if (onOpenGroupSettings != null)
+                isGekiga
+                    ? GekigaIconButton(
+                        icon: Icons.settings_outlined,
+                        onPressed: onOpenGroupSettings!,
+                      )
+                    : IconButton(
+                        icon: const Icon(Icons.settings_outlined),
+                        onPressed: onOpenGroupSettings,
+                      ),
+              if (onCreateRoom != null)
+                isGekiga
+                    ? GekigaIconButton(
+                        icon: Icons.add,
+                        onPressed: () =>
+                            _createRoom(context, strings, vocab, isGekiga),
+                      )
+                    : IconButton(
+                        icon: const Icon(Icons.add),
+                        onPressed: () =>
+                            _createRoom(context, strings, vocab, isGekiga),
+                      ),
+            ],
           ),
-          const Divider(height: 1),
-          Expanded(
-            child: isGekiga
-                ? SingleChildScrollView(
-                    // ヘッダー行と同じ左右の余白に揃える（2026-08-04追加）。
-                    // 上にも余白を入れ、区切り線に一覧の箱が接して被って
-                    // 見える不具合を解消する（2026-08-04追加）。
-                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                    child: GekigaJointedTileList(
-                      seeds: [for (final room in rooms) room.roomId.hashCode],
-                      selectedFlags: [
-                        for (final room in rooms) room.roomId == selectedRoomId,
-                      ],
-                      children: [for (final room in rooms) buildRoomTile(room)],
-                    ),
-                  )
-                : ListView(
-                    // 選択中タイルの塗り潰し（selectedTileColor）が、左右は
-                    // カラム間のVerticalDividerに（2026-08-12追加）、上は
-                    // ヘッダー直下のDividerに（同日追加）接して重なって
-                    // 見えないよう余白を持たせる。上余白12pxは劇画UI分岐
-                    // （上の`SingleChildScrollView`、2026-08-04追加）と揃えた。
-                    padding: const EdgeInsets.fromLTRB(8, 12, 8, 0),
+        ),
+        const Divider(height: 1),
+        Expanded(
+          child: isGekiga
+              ? SingleChildScrollView(
+                  // ヘッダー行と同じ左右の余白に揃える（2026-08-04追加）。
+                  // 上にも余白を入れ、区切り線に一覧の箱が接して被って
+                  // 見える不具合を解消する（2026-08-04追加）。
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                  child: GekigaJointedTileList(
+                    seeds: [for (final room in rooms) room.roomId.hashCode],
+                    selectedFlags: [
+                      for (final room in rooms) room.roomId == selectedRoomId,
+                    ],
                     children: [for (final room in rooms) buildRoomTile(room)],
                   ),
-          ),
-        ],
-      ),
+                )
+              : ListView(
+                  // 選択中タイルの塗り潰し（selectedTileColor）が、左右は
+                  // カラム間のVerticalDividerに（2026-08-12追加）、上は
+                  // ヘッダー直下のDividerに（同日追加）接して重なって
+                  // 見えないよう余白を持たせる。上余白12pxは劇画UI分岐
+                  // （上の`SingleChildScrollView`、2026-08-04追加）と揃えた。
+                  padding: const EdgeInsets.fromLTRB(8, 12, 8, 0),
+                  children: [for (final room in rooms) buildRoomTile(room)],
+                ),
+        ),
+      ],
     );
+
+    return isGlass
+        ? GlassSurface(
+            variant: GlassVariant.chrome,
+            borderRadius: BorderRadius.zero,
+            enableEdgeStroke: false,
+            child: Material(color: Colors.transparent, child: paneContent),
+          )
+        : Material(color: colorScheme.surface, child: paneContent);
   }
 }
 

@@ -33,6 +33,8 @@ import '../../utils/platform_info.dart';
 import '../../utils/text_truncate.dart';
 import '../../widgets/gekiga/gekiga_icon_badge.dart';
 import '../../widgets/gekiga/gekiga_panel_box.dart';
+import '../../widgets/glass/glass_icon_badge.dart';
+import '../../widgets/glass/glass_surface.dart';
 import '../../widgets/swipe_gestures.dart';
 import '../call/active_call_session.dart';
 import 'add_chat_dialog.dart';
@@ -226,6 +228,7 @@ class _TalksTabState extends ConsumerState<TalksTab> {
     BuildContext context,
     Widget Function(VoidCallback closeSelf) contentBuilder,
   ) {
+    final isGlass = ref.read(appUiStyleProvider) == AppUiStyle.glass;
     return showGeneralDialog<void>(
       context: context,
       barrierDismissible: true,
@@ -233,15 +236,23 @@ class _TalksTabState extends ConsumerState<TalksTab> {
       barrierColor: Colors.black54,
       transitionDuration: const Duration(milliseconds: 220),
       pageBuilder: (stackedContext, animation, secondaryAnimation) {
+        final content = ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420, maxHeight: 640),
+          child: contentBuilder(() => Navigator.of(stackedContext).pop()),
+        );
         return Center(
           child: Dialog(
+            backgroundColor: isGlass ? Colors.transparent : null,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(20),
             ),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 420, maxHeight: 640),
-              child: contentBuilder(() => Navigator.of(stackedContext).pop()),
-            ),
+            child: isGlass
+                ? GlassSurface(
+                    variant: GlassVariant.floating,
+                    borderRadius: BorderRadius.circular(20),
+                    child: content,
+                  )
+                : content,
           ),
         );
       },
@@ -261,6 +272,7 @@ class _TalksTabState extends ConsumerState<TalksTab> {
   Future<void> _showAddMenu() async {
     final strings = ref.read(appStringsProvider);
     final vocab = ref.read(vocabularyProvider);
+    final isGlass = ref.read(appUiStyleProvider) == AppUiStyle.glass;
     await showGeneralDialog<void>(
       context: context,
       barrierDismissible: true,
@@ -273,72 +285,83 @@ class _TalksTabState extends ConsumerState<TalksTab> {
         // （実装内容.mdの経緯参照）。Dialogを直接Centerの子にすること。
         // 以前は縦積みのListTile2つ（無駄な余白が目立つ）だったが、
         // 中央の区切り線で左右2分割した大きめのカードに変更（2026-07-29）。
+        // GlassSurfaceも同じ理由でMaterialを持たない実装にしており、
+        // 中身の実サイズにフィットするため、この注意点は引き続き問題ない。
         final colorScheme = Theme.of(dialogContext).colorScheme;
+        final menuContent = SwipeDownToDismiss(
+          onDismiss: () => Navigator.of(dialogContext).pop(),
+          child: IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(
+                  child: _AddMenuOption(
+                    icon: Icons.person_add_outlined,
+                    title: strings.addMenuDmTitleTemplate(vocab.dm),
+                    subtitle: strings.addMenuDmSubtitle,
+                    borderRadius: const BorderRadius.horizontal(
+                      left: Radius.circular(20),
+                    ),
+                    onTap: () => _showStackedDialog(
+                      dialogContext,
+                      (closeSelf) => AddChatDialogContent(
+                        currentUser: widget.currentUser,
+                        onClose: closeSelf,
+                        onCompleted: () {
+                          closeSelf();
+                          Navigator.of(dialogContext).pop();
+                        },
+                      ),
+                    ),
+                  ),
+                ),
+                VerticalDivider(
+                  width: 1,
+                  thickness: 1,
+                  color: colorScheme.outlineVariant,
+                ),
+                Expanded(
+                  child: _AddMenuOption(
+                    icon: Icons.groups_outlined,
+                    title: strings.addMenuGroupTitleTemplate(vocab.plaza),
+                    subtitle: strings.addMenuGroupSubtitle,
+                    borderRadius: const BorderRadius.horizontal(
+                      right: Radius.circular(20),
+                    ),
+                    onTap: () => _showStackedDialog(
+                      dialogContext,
+                      (closeSelf) => CreateGroupDialogContent(
+                        currentUser: widget.currentUser,
+                        onClose: closeSelf,
+                        onCompleted: () {
+                          closeSelf();
+                          Navigator.of(dialogContext).pop();
+                        },
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+        final content = ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 560),
+          child: menuContent,
+        );
         return Center(
           child: Dialog(
+            backgroundColor: isGlass ? Colors.transparent : null,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(20),
             ),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 560),
-              child: SwipeDownToDismiss(
-                onDismiss: () => Navigator.of(dialogContext).pop(),
-                child: IntrinsicHeight(
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Expanded(
-                        child: _AddMenuOption(
-                          icon: Icons.person_add_outlined,
-                          title: strings.addMenuDmTitleTemplate(vocab.dm),
-                          subtitle: strings.addMenuDmSubtitle,
-                          borderRadius: const BorderRadius.horizontal(
-                            left: Radius.circular(20),
-                          ),
-                          onTap: () => _showStackedDialog(
-                            dialogContext,
-                            (closeSelf) => AddChatDialogContent(
-                              currentUser: widget.currentUser,
-                              onClose: closeSelf,
-                              onCompleted: () {
-                                closeSelf();
-                                Navigator.of(dialogContext).pop();
-                              },
-                            ),
-                          ),
-                        ),
-                      ),
-                      VerticalDivider(
-                        width: 1,
-                        thickness: 1,
-                        color: colorScheme.outlineVariant,
-                      ),
-                      Expanded(
-                        child: _AddMenuOption(
-                          icon: Icons.groups_outlined,
-                          title: strings.addMenuGroupTitleTemplate(vocab.plaza),
-                          subtitle: strings.addMenuGroupSubtitle,
-                          borderRadius: const BorderRadius.horizontal(
-                            right: Radius.circular(20),
-                          ),
-                          onTap: () => _showStackedDialog(
-                            dialogContext,
-                            (closeSelf) => CreateGroupDialogContent(
-                              currentUser: widget.currentUser,
-                              onClose: closeSelf,
-                              onCompleted: () {
-                                closeSelf();
-                                Navigator.of(dialogContext).pop();
-                              },
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
+            child: isGlass
+                ? GlassSurface(
+                    variant: GlassVariant.floating,
+                    borderRadius: BorderRadius.circular(20),
+                    child: content,
+                  )
+                : content,
           ),
         );
       },
@@ -510,20 +533,26 @@ class _TalksTabState extends ConsumerState<TalksTab> {
                                 ),
                         ),
                         const SizedBox(width: 8),
-                        ref.watch(appUiStyleProvider) == AppUiStyle.gekiga
-                            ? GekigaIconButton(
-                                icon: Icons.add,
-                                size: 32,
-                                onPressed: _showAddMenu,
-                              )
-                            : IconButton.filled(
-                                icon: const Icon(Icons.add, size: 20),
-                                onPressed: _showAddMenu,
-                                style: IconButton.styleFrom(
-                                  minimumSize: const Size(32, 32),
-                                  padding: EdgeInsets.zero,
-                                ),
-                              ),
+                        switch (ref.watch(appUiStyleProvider)) {
+                          AppUiStyle.gekiga => GekigaIconButton(
+                            icon: Icons.add,
+                            size: 32,
+                            onPressed: _showAddMenu,
+                          ),
+                          AppUiStyle.glass => GlassIconButton(
+                            icon: Icons.add,
+                            size: 32,
+                            onPressed: _showAddMenu,
+                          ),
+                          AppUiStyle.flat => IconButton.filled(
+                            icon: const Icon(Icons.add, size: 20),
+                            onPressed: _showAddMenu,
+                            style: IconButton.styleFrom(
+                              minimumSize: const Size(32, 32),
+                              padding: EdgeInsets.zero,
+                            ),
+                          ),
+                        },
                       ],
                     ),
                   ),
@@ -949,36 +978,56 @@ class _CategoryTab extends ConsumerWidget {
     }
 
     final colorScheme = Theme.of(context).colorScheme;
+    final isGlass = ref.watch(appUiStyleProvider) == AppUiStyle.glass;
     final background = selected ? colorScheme.primary : colorScheme.surface;
-    final foreground = selected
-        ? colorScheme.onPrimary
-        : colorScheme.onSurfaceVariant;
+    // ガラスUIは選択・非選択で文字色を変えない（背景の塗りだけで選択状態を
+    // 表す）。それ以外のスタイルは従来通り選択中に反転させる。
+    final foreground = isGlass
+        ? colorScheme.onSurfaceVariant
+        : (selected ? colorScheme.onPrimary : colorScheme.onSurfaceVariant);
+
+    final content = Padding(
+      // 劇画側（上の分岐、vertical:6）と同じ「ラベルと件数を1つの
+      // Textにまとめる」構成に揃え、独立した件数バッジ分の余白を
+      // 無くすことでチップ1つあたりの幅を縮めている（2026-08-12
+      // 変更。以前は件数を別`Container`の丸バッジにしていたが、
+      // 幅が増えて狭い画面で「一対/広場」チップが1行に収まらず
+      // 折り返される不具合があった）。横幅（14→8）・フォントサイズ
+      // （16→13）もさらに詰め、英語表示（"Private"/"Plaza"は日本語の
+      // 「一対」「広場」より幅を取る）でも横スクロール無しで260px幅の
+      // サイドバーに収まるようにした（2026-08-27変更）。
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      child: Text(
+        '$label $count',
+        style: TextStyle(
+          fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+          color: foreground,
+          fontSize: 13,
+        ),
+      ),
+    );
+
+    if (isGlass) {
+      return GlassSurface(
+        variant: GlassVariant.card,
+        borderRadius: BorderRadius.circular(20),
+        accentColorOverride: selected ? colorScheme.primary : null,
+        child: Material(
+          color: selected
+              ? colorScheme.primary.withValues(alpha: 0.45)
+              : Colors.transparent,
+          child: InkWell(onTap: onTap, child: content),
+        ),
+      );
+    }
+
     return Material(
       color: background,
       borderRadius: BorderRadius.circular(20),
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(20),
-        child: Padding(
-          // 劇画側（上の分岐、vertical:6）と同じ「ラベルと件数を1つの
-          // Textにまとめる」構成に揃え、独立した件数バッジ分の余白を
-          // 無くすことでチップ1つあたりの幅を縮めている（2026-08-12
-          // 変更。以前は件数を別`Container`の丸バッジにしていたが、
-          // 幅が増えて狭い画面で「一対/広場」チップが1行に収まらず
-          // 折り返される不具合があった）。横幅（14→8）・フォントサイズ
-          // （16→13）もさらに詰め、英語表示（"Private"/"Plaza"は日本語の
-          // 「一対」「広場」より幅を取る）でも横スクロール無しで260px幅の
-          // サイドバーに収まるようにした（2026-08-27変更）。
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-          child: Text(
-            '$label $count',
-            style: TextStyle(
-              fontWeight: selected ? FontWeight.bold : FontWeight.normal,
-              color: foreground,
-              fontSize: 13,
-            ),
-          ),
-        ),
+        child: content,
       ),
     );
   }
@@ -1275,7 +1324,10 @@ class _DirectMessageTile extends ConsumerWidget {
       8,
     );
     final iconUrl = otherUser?.effectiveIconFor(dm.dmId)?.url;
-    final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
+    final uiStyle = ref.watch(appUiStyleProvider);
+    final isGekiga = uiStyle == AppUiStyle.gekiga;
+    final isGlass = uiStyle == AppUiStyle.glass;
+    final colorScheme = Theme.of(context).colorScheme;
 
     final leadingWidget = CircleAvatar(
       backgroundImage: iconUrl != null ? NetworkImage(iconUrl) : null,
@@ -1304,6 +1356,41 @@ class _DirectMessageTile extends ConsumerWidget {
       );
     }
 
+    if (isGlass) {
+      // 選択・非選択で文字色は変えない（背景の塗りだけで選択状態を表す）。
+      return _ConversationGestures(
+        conversationId: dm.dmId,
+        userId: currentUser.userId,
+        pinned: pinned,
+        muted: muted,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 3),
+          child: GlassSurface(
+            variant: GlassVariant.card,
+            borderRadius: BorderRadius.circular(12),
+            accentColorOverride: selected ? colorScheme.primary : null,
+            child: Material(
+              color: selected
+                  ? colorScheme.primary.withValues(alpha: 0.45)
+                  : Colors.transparent,
+              child: ListTile(
+                iconColor: colorScheme.onSurfaceVariant,
+                textColor: colorScheme.onSurfaceVariant,
+                leading: leadingWidget,
+                title: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                trailing: trailingWidget,
+                onTap: onTap,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
     return _ConversationGestures(
       conversationId: dm.dmId,
       userId: currentUser.userId,
@@ -1312,8 +1399,8 @@ class _DirectMessageTile extends ConsumerWidget {
       child: ListTile(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         selected: selected,
-        selectedTileColor: Theme.of(context).colorScheme.primary,
-        selectedColor: Theme.of(context).colorScheme.onPrimary,
+        selectedTileColor: colorScheme.primary,
+        selectedColor: colorScheme.onPrimary,
         leading: leadingWidget,
         title: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
         trailing: trailingWidget,
@@ -1343,7 +1430,10 @@ class _GroupTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final iconUrl = group.profileCard?.iconUrl;
-    final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
+    final uiStyle = ref.watch(appUiStyleProvider);
+    final isGekiga = uiStyle == AppUiStyle.gekiga;
+    final isGlass = uiStyle == AppUiStyle.glass;
+    final colorScheme = Theme.of(context).colorScheme;
     final displayName = truncateName(group.name, 8);
 
     final leadingWidget = CircleAvatar(
@@ -1378,6 +1468,42 @@ class _GroupTile extends ConsumerWidget {
       );
     }
 
+    if (isGlass) {
+      // 選択・非選択で文字色は変えない（背景の塗りだけで選択状態を表す）。
+      return _ConversationGestures(
+        conversationId: group.groupId,
+        userId: currentUserId,
+        pinned: pinned,
+        muted: muted,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 3),
+          child: GlassSurface(
+            variant: GlassVariant.card,
+            borderRadius: BorderRadius.circular(12),
+            accentColorOverride: selected ? colorScheme.primary : null,
+            child: Material(
+              color: selected
+                  ? colorScheme.primary.withValues(alpha: 0.45)
+                  : Colors.transparent,
+              child: ListTile(
+                iconColor: colorScheme.onSurfaceVariant,
+                textColor: colorScheme.onSurfaceVariant,
+                leading: leadingWidget,
+                title: Text(
+                  displayName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                subtitle: Text('${group.memberIds.length}人'),
+                trailing: trailingWidget,
+                onTap: onTap,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
     return _ConversationGestures(
       conversationId: group.groupId,
       userId: currentUserId,
@@ -1386,8 +1512,8 @@ class _GroupTile extends ConsumerWidget {
       child: ListTile(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         selected: selected,
-        selectedTileColor: Theme.of(context).colorScheme.primary,
-        selectedColor: Theme.of(context).colorScheme.onPrimary,
+        selectedTileColor: colorScheme.primary,
+        selectedColor: colorScheme.onPrimary,
         leading: leadingWidget,
         title: Text(displayName, maxLines: 1, overflow: TextOverflow.ellipsis),
         subtitle: Text('${group.memberIds.length}人'),
@@ -1588,8 +1714,7 @@ class _DmDetailWithRooms extends ConsumerStatefulWidget {
   final DirectMessage dm;
 
   @override
-  ConsumerState<_DmDetailWithRooms> createState() =>
-      _DmDetailWithRoomsState();
+  ConsumerState<_DmDetailWithRooms> createState() => _DmDetailWithRoomsState();
 }
 
 class _DmDetailWithRoomsState extends ConsumerState<_DmDetailWithRooms> {
