@@ -106,6 +106,11 @@ class WebrtcGroupCallController extends ChangeNotifier {
   bool _switchingCamera = false;
   bool get switchingCamera => _switchingCamera;
 
+  /// 現在のカメラが前面（インカメラ）かどうか（2026-08-30追加、
+  /// `webrtc_call_controller.dart`の同名フィールドと同じ考え方）。
+  bool _isFrontCamera = true;
+  bool get isFrontCamera => _isFrontCamera;
+
   List<CallParticipant> _participants = [];
 
   /// 自分以外の参加者（ハートビートが途絶えている＝離脱扱いの相手は除く）。
@@ -592,6 +597,7 @@ class WebrtcGroupCallController extends ChangeNotifier {
       } else {
         await Helper.switchCamera(track);
       }
+      _isFrontCamera = !_isFrontCamera;
       // Web版のHelper.switchCameraは古いトラックをstop()して_localStreamから
       // 取り除き、新しいトラックを同じ_localStreamに追加する副作用を持つが、
       // それだけではRTCVideoRenderer（Web実装、代入時点でトラックを

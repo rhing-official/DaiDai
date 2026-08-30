@@ -27,10 +27,10 @@ import '../../providers/repository_providers.dart';
 import '../../providers/user_providers.dart';
 import '../../router/app_router.dart';
 import '../../theme/gekiga/gekiga_colors.dart';
+import '../../theme/text_prominence_colors.dart';
 import '../../utils/group_permissions.dart';
 import '../../utils/official_account.dart';
 import '../../utils/platform_info.dart';
-import '../../utils/text_truncate.dart';
 import '../../widgets/gekiga/gekiga_icon_badge.dart';
 import '../../widgets/gekiga/gekiga_panel_box.dart';
 import '../../widgets/gekiga/gekiga_text_field.dart';
@@ -1034,7 +1034,14 @@ class _TalksTabState extends ConsumerState<TalksTab> {
             pinned: prefsById[dm.dmId]?.pinned ?? false,
             muted: prefsById[dm.dmId]?.notificationsMuted ?? false,
             selected: _isSplit && _selectedDm?.dmId == dm.dmId,
-            onTap: () => _openDirectMessage(dm),
+            onTap: () {
+              // 検索結果は一対・広場を横断して表示するため、タップした種類
+              // に`_category`を合わせてから開く（合わせないと`_buildDetailPane`
+              // が表示中タブ側の選択状態しか見ず、分割表示のペインが
+              // 切り替わらない、2026-08-30発覚・修正）。
+              setState(() => _category = _TalksCategory.dm);
+              _openDirectMessage(dm);
+            },
           ),
         for (final group in matchedGroups)
           _GroupTile(
@@ -1043,7 +1050,10 @@ class _TalksTabState extends ConsumerState<TalksTab> {
             pinned: prefsById[group.groupId]?.pinned ?? false,
             muted: prefsById[group.groupId]?.notificationsMuted ?? false,
             selected: _isSplit && _selectedGroup?.groupId == group.groupId,
-            onTap: () => _openGroup(group),
+            onTap: () {
+              setState(() => _category = _TalksCategory.group);
+              _openGroup(group);
+            },
           ),
       ];
       return SingleChildScrollView(
@@ -1066,7 +1076,14 @@ class _TalksTabState extends ConsumerState<TalksTab> {
             pinned: prefsById[dm.dmId]?.pinned ?? false,
             muted: prefsById[dm.dmId]?.notificationsMuted ?? false,
             selected: _isSplit && _selectedDm?.dmId == dm.dmId,
-            onTap: () => _openDirectMessage(dm),
+            onTap: () {
+              // 検索結果は一対・広場を横断して表示するため、タップした種類
+              // に`_category`を合わせてから開く（合わせないと`_buildDetailPane`
+              // が表示中タブ側の選択状態しか見ず、分割表示のペインが
+              // 切り替わらない、2026-08-30発覚・修正）。
+              setState(() => _category = _TalksCategory.dm);
+              _openDirectMessage(dm);
+            },
           ),
         for (final group in matchedGroups)
           _GroupTile(
@@ -1075,7 +1092,10 @@ class _TalksTabState extends ConsumerState<TalksTab> {
             pinned: prefsById[group.groupId]?.pinned ?? false,
             muted: prefsById[group.groupId]?.notificationsMuted ?? false,
             selected: _isSplit && _selectedGroup?.groupId == group.groupId,
-            onTap: () => _openGroup(group),
+            onTap: () {
+              setState(() => _category = _TalksCategory.group);
+              _openGroup(group);
+            },
           ),
       ],
     );
@@ -1501,10 +1521,7 @@ class _DirectMessageTile extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final otherUserId = dm.otherUserId(currentUser.userId);
     final otherUser = ref.watch(watchedUserProvider(otherUserId)).value;
-    final label = truncateName(
-      _dmSearchLabel(otherUser, dm, currentUser.userId),
-      8,
-    );
+    final label = _dmSearchLabel(otherUser, dm, currentUser.userId);
     final iconUrl = otherUser?.effectiveIconFor(dm.dmId)?.url;
     final uiStyle = ref.watch(appUiStyleProvider);
     final isGekiga = uiStyle == AppUiStyle.gekiga;
@@ -1616,7 +1633,7 @@ class _GroupTile extends ConsumerWidget {
     final isGekiga = uiStyle == AppUiStyle.gekiga;
     final isGlass = uiStyle == AppUiStyle.glass;
     final colorScheme = Theme.of(context).colorScheme;
-    final displayName = truncateName(group.name, 8);
+    final displayName = group.name;
 
     final leadingWidget = CircleAvatar(
       backgroundImage: iconUrl != null ? NetworkImage(iconUrl) : null,
@@ -1707,23 +1724,28 @@ class _GroupTile extends ConsumerWidget {
 }
 
 /// ピン留め・通知オフのアイコン表示（両方falseなら何も出さない）。
-class _ConversationIndicators extends StatelessWidget {
+class _ConversationIndicators extends ConsumerWidget {
   const _ConversationIndicators({required this.pinned, required this.muted});
 
   final bool pinned;
   final bool muted;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     if (!pinned && !muted) return const SizedBox.shrink();
+    final uiStyle = ref.watch(appUiStyleProvider);
+    final isGekiga = uiStyle == AppUiStyle.gekiga;
+    final isGlass = uiStyle == AppUiStyle.glass;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         if (muted)
-          const Icon(
+          Icon(
             Icons.notifications_off_outlined,
             size: 18,
-            color: Colors.grey,
+            color: isGekiga
+                ? GekigaColors.onPanel.withValues(alpha: 0.75)
+                : resolveTertiaryTextColor(context, isGlass: isGlass),
           ),
         if (pinned) ...[
           if (muted) const SizedBox(width: 4),
@@ -2064,6 +2086,7 @@ class _GroupDetailWithRoomsState extends ConsumerState<_GroupDetailWithRooms> {
     final group = widget.group;
     final currentUser = widget.currentUser;
     final groupRepository = ref.read(groupRepositoryProvider);
+    final isGlass = ref.watch(appUiStyleProvider) == AppUiStyle.glass;
     final canManageRooms = hasGroupPermission(
       group: group,
       userId: currentUser.userId,
@@ -2120,8 +2143,8 @@ class _GroupDetailWithRoomsState extends ConsumerState<_GroupDetailWithRooms> {
                     // 増える（GroupSettingsPopup参照）ため、固定の高さ1つでは
                     // 項目がある時に一覧の下端が僅かに入りきらなかった
                     // （2026-08-12修正、有無で高さを2種類使い分ける）。
-                    builder: (_) => Dialog(
-                      child: ConstrainedBox(
+                    builder: (_) {
+                      final constrained = ConstrainedBox(
                         constraints: BoxConstraints(
                           maxWidth: 420,
                           maxHeight: currentUser.profileCards.length > 1
@@ -2132,8 +2155,23 @@ class _GroupDetailWithRoomsState extends ConsumerState<_GroupDetailWithRooms> {
                           currentUser: currentUser,
                           group: group,
                         ),
-                      ),
-                    ),
+                      );
+                      // ガラステーマはdialogThemeの背景を透明にしている
+                      // （`GlassAlertDialog`が自前でGlassSurfaceをラップする
+                      // 前提の設計）ため、素の`Dialog`のままだと背景が完全に
+                      // 透明になっていた（2026-08-30修正）。
+                      return isGlass
+                          ? Dialog(
+                              backgroundColor: Colors.transparent,
+                              elevation: 0,
+                              child: GlassSurface(
+                                variant: GlassVariant.floating,
+                                borderRadius: BorderRadius.circular(24),
+                                child: constrained,
+                              ),
+                            )
+                          : Dialog(child: constrained);
+                    },
                   ),
                 ),
               ),

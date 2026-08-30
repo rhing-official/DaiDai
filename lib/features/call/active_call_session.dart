@@ -22,7 +22,10 @@ import 'webrtc_group_call_controller.dart';
 /// 直接listenして拾う（Riverpodの`state`はセッションの生成/終了/ドック状態
 /// だけを表し、ミュート等の変化のたびに再代入はしない）。
 sealed class ActiveCallSession {
-  const ActiveCallSession({required this.conversation, required this.minimized});
+  const ActiveCallSession({
+    required this.conversation,
+    required this.minimized,
+  });
 
   /// この通話がどの会話（一対/広場）に属するか。埋め込み表示・ピン留め
   /// ミニ表示が「今その会話を見ているか」を判定するのに使う。

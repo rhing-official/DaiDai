@@ -367,6 +367,27 @@ class Strings {
     required this.roomMenuDeleteLabel,
     required this.roomDeleteLastRoomError,
     required this.dmMenuDeleteConversation,
+    required this.chatAddToAlbumAction,
+    required this.albumButtonTooltip,
+    required this.albumListTitle,
+    required this.albumListEmptyMessage,
+    required this.albumCreateButtonLabel,
+    required this.albumCreateDialogTitle,
+    required this.albumNameFieldHint,
+    required this.albumRenameAction,
+    required this.albumRenameDialogTitle,
+    required this.albumDeleteAction,
+    required this.albumDeleteConfirmTitle,
+    required this.albumDeleteConfirmMessage,
+    required this.albumItemCountLabel,
+    required this.albumRemoveItemAction,
+    required this.albumRemoveItemConfirmTitle,
+    required this.albumRemoveItemConfirmMessage,
+    required this.albumPickerTitle,
+    required this.albumPickerCreateNewOption,
+    required this.albumAddedSnackbarMessage,
+    required this.albumAddFailedSnackbarMessage,
+    required this.commonCreate,
   });
 
   final String navTalk;
@@ -900,6 +921,29 @@ class Strings {
   /// 削除できる。用語（「一対」等）を差し込む。
   final String Function(String term) dmMenuDeleteConversation;
 
+  // 寄合単位の共有アルバム機能（2026-08-30追加）。
+  final String chatAddToAlbumAction;
+  final String albumButtonTooltip;
+  final String albumListTitle;
+  final String albumListEmptyMessage;
+  final String albumCreateButtonLabel;
+  final String albumCreateDialogTitle;
+  final String albumNameFieldHint;
+  final String albumRenameAction;
+  final String albumRenameDialogTitle;
+  final String albumDeleteAction;
+  final String albumDeleteConfirmTitle;
+  final String albumDeleteConfirmMessage;
+  final String Function(int count) albumItemCountLabel;
+  final String albumRemoveItemAction;
+  final String albumRemoveItemConfirmTitle;
+  final String albumRemoveItemConfirmMessage;
+  final String albumPickerTitle;
+  final String albumPickerCreateNewOption;
+  final String albumAddedSnackbarMessage;
+  final String albumAddFailedSnackbarMessage;
+  final String commonCreate;
+
   static final ja = Strings._(
     navTalk: '語らい',
     navProfile: '身だしなみ',
@@ -1290,6 +1334,27 @@ class Strings {
     roomMenuDeleteLabel: (term) => '$termを削除',
     roomDeleteLastRoomError: '最後の1つの寄合は削除できません',
     dmMenuDeleteConversation: (term) => '$termの削除',
+    chatAddToAlbumAction: 'アルバムに登録',
+    albumButtonTooltip: 'アルバム',
+    albumListTitle: 'アルバム',
+    albumListEmptyMessage: 'まだアルバムがありません',
+    albumCreateButtonLabel: '新しいアルバム',
+    albumCreateDialogTitle: 'アルバムを作成',
+    albumNameFieldHint: 'アルバム名',
+    albumRenameAction: '名前を変更',
+    albumRenameDialogTitle: 'アルバム名を変更',
+    albumDeleteAction: 'アルバムを削除',
+    albumDeleteConfirmTitle: 'アルバムを削除しますか？',
+    albumDeleteConfirmMessage: 'このアルバム内の画像・動画もすべて削除されます。この操作は取り消せません。',
+    albumItemCountLabel: (count) => '$count件',
+    albumRemoveItemAction: 'アルバムから削除',
+    albumRemoveItemConfirmTitle: 'アルバムから削除しますか？',
+    albumRemoveItemConfirmMessage: 'この操作は取り消せません。',
+    albumPickerTitle: 'アルバムに登録',
+    albumPickerCreateNewOption: '新しいアルバムを作成',
+    albumAddedSnackbarMessage: 'アルバムに登録しました',
+    albumAddFailedSnackbarMessage: 'アルバムへの登録に失敗しました',
+    commonCreate: '作成',
   );
 
   static final enGB = Strings._(
@@ -1737,6 +1802,28 @@ class Strings {
     roomMenuDeleteLabel: (term) => 'Delete $term',
     roomDeleteLastRoomError: 'The last remaining room cannot be deleted.',
     dmMenuDeleteConversation: (term) => 'Delete $term',
+    chatAddToAlbumAction: 'Add to album',
+    albumButtonTooltip: 'Album',
+    albumListTitle: 'Album',
+    albumListEmptyMessage: 'No albums yet',
+    albumCreateButtonLabel: 'New album',
+    albumCreateDialogTitle: 'Create album',
+    albumNameFieldHint: 'Album name',
+    albumRenameAction: 'Rename',
+    albumRenameDialogTitle: 'Rename album',
+    albumDeleteAction: 'Delete album',
+    albumDeleteConfirmTitle: 'Delete this album?',
+    albumDeleteConfirmMessage:
+        'All images and videos in this album will also be deleted. This cannot be undone.',
+    albumItemCountLabel: (count) => '$count items',
+    albumRemoveItemAction: 'Remove from album',
+    albumRemoveItemConfirmTitle: 'Remove from this album?',
+    albumRemoveItemConfirmMessage: 'This cannot be undone.',
+    albumPickerTitle: 'Add to album',
+    albumPickerCreateNewOption: 'Create new album',
+    albumAddedSnackbarMessage: 'Added to album',
+    albumAddFailedSnackbarMessage: 'Failed to add to album',
+    commonCreate: 'Create',
   );
 
   static Strings of(AppLocale locale) => switch (locale) {

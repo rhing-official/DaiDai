@@ -2,13 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/strings.dart';
+import '../../models/app_ui_style.dart';
 import '../../models/app_user.dart';
 import '../../models/conversation_prefs.dart';
 import '../../models/group.dart';
 import '../../models/group_role.dart';
+import '../../providers/app_ui_style_provider.dart';
 import '../../providers/conversation_prefs_providers.dart';
 import '../../providers/repository_providers.dart';
 import '../../utils/group_permissions.dart';
+import '../../widgets/glass/glass_dialog.dart';
+import '../../widgets/glass/glass_surface.dart';
 import 'chat_panes.dart' show confirmDisableReadReceipts;
 import 'conversation_profile_card_dialog.dart';
 import 'group_delete_dialog.dart';
@@ -40,17 +44,30 @@ class GroupSettingsPopup extends ConsumerWidget {
   Future<void> _openSubDialog(
     BuildContext context,
     Widget child, {
+    required bool isGlass,
     double maxWidth = 400,
     double maxHeight = 640,
   }) {
+    final constrained = ConstrainedBox(
+      constraints: BoxConstraints(maxWidth: maxWidth, maxHeight: maxHeight),
+      child: child,
+    );
     return showDialog<void>(
       context: context,
-      builder: (_) => Dialog(
-        child: ConstrainedBox(
-          constraints: BoxConstraints(maxWidth: maxWidth, maxHeight: maxHeight),
-          child: child,
-        ),
-      ),
+      // ガラステーマはdialogThemeの背景を透明にしている（`GlassAlertDialog`
+      // が自前でGlassSurfaceをラップする前提の設計）ため、素の`Dialog`の
+      // ままだと背景が完全に透明になっていた（2026-08-30修正）。
+      builder: (_) => isGlass
+          ? Dialog(
+              backgroundColor: Colors.transparent,
+              elevation: 0,
+              child: GlassSurface(
+                variant: GlassVariant.floating,
+                borderRadius: BorderRadius.circular(24),
+                child: constrained,
+              ),
+            )
+          : Dialog(child: constrained),
     );
   }
 
@@ -58,24 +75,28 @@ class GroupSettingsPopup extends ConsumerWidget {
     BuildContext context,
     WidgetRef ref,
     Strings strings,
-    String userId,
-  ) async {
+    String userId, {
+    required bool isGlass,
+  }) async {
+    final title = Text(strings.groupSettingsDisableMultipleRoomsConfirmTitle);
+    final content = Text(
+      strings.groupSettingsDisableMultipleRoomsConfirmMessage,
+    );
+    final actions = [
+      TextButton(
+        onPressed: () => Navigator.of(context).pop(false),
+        child: Text(strings.cancel),
+      ),
+      FilledButton(
+        onPressed: () => Navigator.of(context).pop(true),
+        child: Text(strings.groupSettingsDisableMultipleRoomsConfirmButton),
+      ),
+    ];
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(strings.groupSettingsDisableMultipleRoomsConfirmTitle),
-        content: Text(strings.groupSettingsDisableMultipleRoomsConfirmMessage),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: Text(strings.cancel),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: Text(strings.groupSettingsDisableMultipleRoomsConfirmButton),
-          ),
-        ],
-      ),
+      builder: (context) => isGlass
+          ? GlassAlertDialog(title: title, content: content, actions: actions)
+          : AlertDialog(title: title, content: content, actions: actions),
     );
     if (confirmed == true) {
       await ref
@@ -91,6 +112,7 @@ class GroupSettingsPopup extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final strings = ref.watch(appStringsProvider);
+    final isGlass = ref.watch(appUiStyleProvider) == AppUiStyle.glass;
     final userId = currentUser.userId;
     final canManageRoles = hasGroupPermission(
       group: group,
@@ -153,6 +175,7 @@ class GroupSettingsPopup extends ConsumerWidget {
                 onTap: () => _openSubDialog(
                   context,
                   GroupProfileCardPopup(group: group),
+                  isGlass: isGlass,
                 ),
               ),
               if (currentUser.profileCards.length > 1)
@@ -181,6 +204,7 @@ class GroupSettingsPopup extends ConsumerWidget {
                         group: group,
                         roles: roles,
                       ),
+                      isGlass: isGlass,
                       maxWidth: 340,
                     ),
                   );
@@ -210,6 +234,7 @@ class GroupSettingsPopup extends ConsumerWidget {
                           currentUser: currentUser,
                           group: group,
                         ),
+                        isGlass: isGlass,
                       ),
               ),
               const Divider(),
@@ -236,6 +261,7 @@ class GroupSettingsPopup extends ConsumerWidget {
                             ref,
                             strings,
                             userId,
+                            isGlass: isGlass,
                           ),
                   );
                 },

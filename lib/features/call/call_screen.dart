@@ -72,12 +72,14 @@ class _CallScreenState extends ConsumerState<CallScreen> {
   @override
   void initState() {
     super.initState();
-    _session = ref.read(activeCallSessionProvider.notifier).startOneToOne(
-      call: widget.call,
-      isCaller: widget.isCaller,
-      callRepository: ref.read(callRepositoryProvider),
-      directMessageRepository: ref.read(directMessageRepositoryProvider),
-    );
+    _session = ref
+        .read(activeCallSessionProvider.notifier)
+        .startOneToOne(
+          call: widget.call,
+          isCaller: widget.isCaller,
+          callRepository: ref.read(callRepositoryProvider),
+          directMessageRepository: ref.read(directMessageRepositoryProvider),
+        );
     _controller.addListener(_onControllerChanged);
   }
 
@@ -169,9 +171,18 @@ class _CallScreenState extends ConsumerState<CallScreen> {
         anyVideo &&
         _controller.state == CallConnectionState.active;
 
+    // 表示領域（映像 or その代役のプレースホルダー）は常に固定のグレー、
+    // それ以外（Scaffold自体の背景）は常にテーマの背景色（2026-08-30更新、
+    // 「映像表示領域以外は背景色、音声通話の表示領域内は外観に関わらず
+    // 灰色」という要望。以前はガラスUIのみ背景色を使っていたが3スタイル
+    // 共通にした）。
+    final displayAreaGrey = Colors.grey.shade900;
+
     Widget body = Scaffold(
-      backgroundColor: anyVideo ? Colors.black : colorScheme.surface,
-      body: anyVideo ? _videoBody(colorScheme) : _audioBody(colorScheme),
+      backgroundColor: anyVideo ? colorScheme.surface : displayAreaGrey,
+      body: anyVideo
+          ? _videoBody(colorScheme, displayAreaGrey)
+          : _audioBody(colorScheme),
     );
     if (dockEnabled) {
       body = GestureDetector(
@@ -214,10 +225,14 @@ class _CallScreenState extends ConsumerState<CallScreen> {
           const SizedBox(height: 24),
           Text(
             '@$_otherRhingId',
-            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+            style: const TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
           ),
           const SizedBox(height: 8),
-          Text(_statusLabel, style: const TextStyle(color: Colors.grey)),
+          Text(_statusLabel, style: const TextStyle(color: Colors.white70)),
           const Spacer(),
           Padding(
             padding: const EdgeInsets.only(bottom: 48),
@@ -232,7 +247,7 @@ class _CallScreenState extends ConsumerState<CallScreen> {
   /// 右上に自分のカメラプレビューを重ねる。相手の映像がまだ届いていない
   /// （発信中・接続中）の間は背景が黒いだけになるため、中央にアバターを重ねて
   /// 音声通話と同じように相手が誰かを常に視認できるようにする。
-  Widget _videoBody(ColorScheme colorScheme) {
+  Widget _videoBody(ColorScheme colorScheme, Color placeholderColor) {
     final isConnected = _controller.state == CallConnectionState.active;
     final mainRenderer = _mainViewIsRemote
         ? _controller.remoteRenderer
@@ -259,7 +274,7 @@ class _CallScreenState extends ConsumerState<CallScreen> {
             onTap: swapViews,
             child: mainShowsPlaceholder
                 ? Container(
-                    color: Colors.grey.shade900,
+                    color: placeholderColor,
                     child: const Center(
                       child: Icon(
                         Icons.videocam_off,
@@ -278,7 +293,7 @@ class _CallScreenState extends ConsumerState<CallScreen> {
                     // キーにする。
                     key: ObjectKey(mainRenderer),
                     mainRenderer,
-                    mirror: !_mainViewIsRemote,
+                    mirror: !_mainViewIsRemote && _controller.isFrontCamera,
                     objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
                   ),
           ),
@@ -370,7 +385,7 @@ class _CallScreenState extends ConsumerState<CallScreen> {
                         child: Container(
                           width: 90,
                           height: 130,
-                          color: Colors.grey.shade900,
+                          color: placeholderColor,
                           child: pipShowsPlaceholder
                               ? const Icon(
                                   Icons.videocam_off,
@@ -379,7 +394,9 @@ class _CallScreenState extends ConsumerState<CallScreen> {
                               : RTCVideoView(
                                   key: ObjectKey(pipRenderer),
                                   pipRenderer,
-                                  mirror: _mainViewIsRemote,
+                                  mirror:
+                                      _mainViewIsRemote &&
+                                      _controller.isFrontCamera,
                                   objectFit: RTCVideoViewObjectFit
                                       .RTCVideoViewObjectFitCover,
                                 ),
@@ -402,7 +419,9 @@ class _CallScreenState extends ConsumerState<CallScreen> {
   }
 
   Widget _controls(ColorScheme colorScheme) {
-    final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
+    final uiStyle = ref.watch(appUiStyleProvider);
+    final isGekiga = uiStyle == AppUiStyle.gekiga;
+    final isGlass = uiStyle == AppUiStyle.glass;
     final isRinging = _controller.state == CallConnectionState.connecting;
 
     if (isRinging && !widget.isCaller) {
@@ -414,12 +433,14 @@ class _CallScreenState extends ConsumerState<CallScreen> {
             icon: Icons.call_end,
             color: Colors.red,
             isGekiga: isGekiga,
+            isGlass: isGlass,
             onPressed: _controller.decline,
           ),
           CallRoundButton(
             icon: Icons.call,
             color: Colors.green,
             isGekiga: isGekiga,
+            isGlass: isGlass,
             onPressed: !_controller.accepting
                 ? () {
                     HapticFeedback.vibrate();
@@ -437,6 +458,7 @@ class _CallScreenState extends ConsumerState<CallScreen> {
         CameraAvailability.unknown;
     return CallControlBar(
       isGekiga: isGekiga,
+      isGlass: isGlass,
       enabled: isActive,
       muted: _controller.muted,
       onToggleMute: _controller.toggleMute,

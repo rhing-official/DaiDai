@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'app_theme_extras.dart';
 import 'motion.dart';
+import 'text_prominence_colors.dart';
 
 /// フラットUI用のThemeDataを組み立てる。
 /// アクセントカラーはユーザーがカラーコードで指定でき、そこから
@@ -132,10 +133,40 @@ class AppTheme {
       seedColor: accentColor,
       brightness: brightness,
     ).copyWith(primary: accentColor, onPrimary: onAccent);
+    // surfaceContainer系ロール（PopupMenuButtonのメニュー背景は
+    // surfaceContainer、Dialogの背景はsurfaceContainerHighを使う）を
+    // 明示的に上書きする（2026-08-30追加）。上書きしないと`ColorScheme.
+    // fromSeed`が生成したアクセントカラー由来の中間トーンのまま残り、
+    // 暖色系アクセントカラーではハンバーガーメニュー・ダイアログだけが
+    // 茶色っぽく浮いて見えていた（surface/surfaceContainerHighestは
+    // 既に固定していたのに、この2ロールだけ上書きし忘れていた）。
+    // ライトモードはこれまで通りアクセントカラーの色相を残す方針のため、
+    // 既存のsurface/surfaceContainerHighestと同じ値に揃えるだけにする。
+    // onSurface/onSurfaceVariant（テキスト・アイコンの重要度Tier1/Tier2、
+    // `text_prominence_colors.dart`参照）も、surfaceContainer系ロールと
+    // 同様にここまで上書きし忘れており`fromSeed`由来のアクセントカラーの
+    // 色相が乗ったままだった（2026-08-30修正）。Discordのような「小さい
+    // 要素ほど薄くなる」階調を導入するにあたり、土台となるTier1/Tier2を
+    // アクセントカラーに依存しない固定色に揃える。
     if (isDark) {
       colorScheme = colorScheme.copyWith(
         surface: darkBackground,
+        surfaceContainerLowest: darkBackground,
+        surfaceContainerLow: darkBackground,
+        surfaceContainer: darkSurface,
+        surfaceContainerHigh: darkSurface,
         surfaceContainerHighest: darkSurface,
+        onSurface: TextProminence.darkPrimary,
+        onSurfaceVariant: TextProminence.darkSecondary,
+      );
+    } else {
+      colorScheme = colorScheme.copyWith(
+        surfaceContainerLowest: colorScheme.surface,
+        surfaceContainerLow: colorScheme.surface,
+        surfaceContainer: colorScheme.surfaceContainerHighest,
+        surfaceContainerHigh: colorScheme.surfaceContainerHighest,
+        onSurface: TextProminence.lightPrimary,
+        onSurfaceVariant: TextProminence.lightSecondary,
       );
     }
     final backgroundColor = isDark ? darkBackground : colorScheme.surface;
@@ -225,7 +256,14 @@ class AppTheme {
             bodyColor: colorScheme.onSurface,
             displayColor: colorScheme.onSurface,
           ),
-      extensions: [AppThemeExtras(floatingShadow: floatingShadow)],
+      extensions: [
+        AppThemeExtras(
+          floatingShadow: floatingShadow,
+          textTertiary: isDark
+              ? TextProminence.darkTertiary
+              : TextProminence.lightTertiary,
+        ),
+      ],
     );
   }
 }

@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
@@ -7,6 +10,7 @@ import '../../providers/app_ui_style_provider.dart';
 import '../../providers/camera_availability_provider.dart';
 import '../../providers/chat_navigation_providers.dart';
 import '../../utils/platform_info.dart';
+import '../../widgets/swipe_gestures.dart';
 import 'active_call_session.dart';
 import 'call_avatar.dart';
 import 'call_control_bar.dart';
@@ -24,13 +28,11 @@ import 'webrtc_group_call_controller.dart';
 class EmbeddedCallPane extends ConsumerStatefulWidget {
   const EmbeddedCallPane({
     required this.conversation,
-    required this.conversationTitle,
     required this.child,
     super.key,
   });
 
   final ViewedConversation conversation;
-  final String conversationTitle;
   final Widget child;
 
   @override
@@ -100,7 +102,6 @@ class _EmbeddedCallPaneState extends ConsumerState<EmbeddedCallPane> {
 
     return _EmbeddedCallView(
       session: session,
-      title: widget.conversationTitle,
       onBackToMessages: () => setState(() => _showingCall = false),
     );
   }
@@ -136,38 +137,77 @@ class _ReturnToCallChip extends StatelessWidget {
   }
 }
 
-class _EmbeddedCallView extends StatelessWidget {
+class _EmbeddedCallView extends StatefulWidget {
   const _EmbeddedCallView({
     required this.session,
-    required this.title,
     required this.onBackToMessages,
   });
 
   final ActiveCallSession session;
-  final String title;
   final VoidCallback onBackToMessages;
 
   @override
+  State<_EmbeddedCallView> createState() => _EmbeddedCallViewState();
+}
+
+class _EmbeddedCallViewState extends State<_EmbeddedCallView> {
+  /// マウスホイール/トラックパッドでの上スクロール終了のデバウンス用
+  /// タイマー（2026-08-30追加、`chat_screen.dart`のメディアビューアと同じ
+  /// パターン。1回のトラックパッド操作で多数の`PointerScrollEvent`が連続
+  /// して届くため、即座に[VoidCallback]を呼ぶと残りのイベントが遷移後の
+  /// メッセージ一覧側へ漏れて意図せずスクロールしてしまう不具合を避ける）。
+  Timer? _scrollBackTimer;
+
+  @override
+  void dispose() {
+    _scrollBackTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    // 表示領域以外（ヘッダー・コントロール周りを含むこのパネル全体の背景）は
+    // 常にテーマの背景色にする（2026-08-30更新、以前はガラスUIのみだったが
+    // 3スタイル共通にした）。表示領域自体（映像 or その代役の
+    // プレースホルダー）は各Stageが常に固定グレーを使う。
+    final colorScheme = Theme.of(context).colorScheme;
     return ListenableBuilder(
-      listenable: session.controllerListenable,
+      listenable: widget.session.controllerListenable,
       builder: (context, _) {
-        return ColoredBox(
-          color: Colors.black,
-          child: Column(
-            children: [
-              _Header(title: title, onBackToMessages: onBackToMessages),
-              Expanded(
-                child: switch (session) {
-                  OneToOneCallSession s => _OneToOneStage(session: s),
-                  GroupCallSession s => _GroupStage(session: s),
-                },
+        // 通話画面の座標上のどこでも、左上のボタン（`_Header`の
+        // `expand_more`）を押すのと同じ「メッセージに戻る」動作を、上
+        // スクロール（マウスホイール/トラックパッド）・下スワイプ
+        // （タッチ・マウスドラッグ）どちらからでも行えるようにする
+        // （2026-08-30追加）。
+        return Listener(
+          onPointerSignal: (event) {
+            if (event is PointerScrollEvent && event.scrollDelta.dy < -2.0) {
+              _scrollBackTimer?.cancel();
+              _scrollBackTimer = Timer(const Duration(milliseconds: 150), () {
+                if (mounted) widget.onBackToMessages();
+              });
+            }
+          },
+          child: SwipeDownToDismiss(
+            onDismiss: widget.onBackToMessages,
+            child: ColoredBox(
+              color: colorScheme.surface,
+              child: Column(
+                children: [
+                  _Header(onBackToMessages: widget.onBackToMessages),
+                  Expanded(
+                    child: switch (widget.session) {
+                      OneToOneCallSession s => _OneToOneStage(session: s),
+                      GroupCallSession s => _GroupStage(session: s),
+                    },
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    child: _EmbeddedControls(session: widget.session),
+                  ),
+                ],
               ),
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                child: _EmbeddedControls(session: session),
-              ),
-            ],
+            ),
           ),
         );
       },
@@ -176,8 +216,7 @@ class _EmbeddedCallView extends StatelessWidget {
 }
 
 class _Header extends StatelessWidget {
-  const _Header({required this.title, required this.onBackToMessages});
-  final String title;
+  const _Header({required this.onBackToMessages});
   final VoidCallback onBackToMessages;
 
   @override
@@ -190,18 +229,8 @@ class _Header extends StatelessWidget {
           children: [
             IconButton(
               icon: const Icon(Icons.expand_more, color: Colors.white),
-              tooltip: 'メッセージに戻る',
+              tooltip: '',
               onPressed: onBackToMessages,
-            ),
-            Expanded(
-              child: Text(
-                title,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
-                overflow: TextOverflow.ellipsis,
-              ),
             ),
           ],
         ),
@@ -218,13 +247,16 @@ class _OneToOneStage extends StatelessWidget {
   Widget build(BuildContext context) {
     final controller = session.controller;
     if (!controller.remoteIsVideo && !controller.isVideo) {
-      return Center(
-        child: CallParticipantAvatar(
-          userId: session.call.otherUserId(session.currentUserId),
-          rhingId: session.call.otherRhingId(session.currentUserId),
-          conversationId: session.call.dmId,
-          radius: 56,
-          fontSize: 40,
+      return ColoredBox(
+        color: Colors.grey.shade900,
+        child: Center(
+          child: CallParticipantAvatar(
+            userId: session.call.otherUserId(session.currentUserId),
+            rhingId: session.call.otherRhingId(session.currentUserId),
+            conversationId: session.call.dmId,
+            radius: 56,
+            fontSize: 40,
+          ),
         ),
       );
     }
@@ -237,7 +269,7 @@ class _OneToOneStage extends StatelessWidget {
                   controller.remoteRenderer,
                   objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
                 )
-              : const ColoredBox(color: Color(0xFF212121)),
+              : ColoredBox(color: Colors.grey.shade900),
         ),
         if (controller.isVideo)
           Positioned(
@@ -251,7 +283,7 @@ class _OneToOneStage extends StatelessWidget {
                 child: RTCVideoView(
                   key: ObjectKey(controller.localRenderer),
                   controller.localRenderer,
-                  mirror: true,
+                  mirror: controller.isFrontCamera,
                   objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
                 ),
               ),
@@ -274,7 +306,7 @@ class _GroupStage extends StatelessWidget {
         userId: controller.currentUser.userId,
         rhingId: controller.currentUser.rhingId,
         renderer: controller.isVideo ? controller.localRenderer : null,
-        mirror: true,
+        mirror: controller.isFrontCamera,
         videoEnabled: controller.isVideo,
       ),
       for (final p in controller.remoteParticipants)
@@ -329,13 +361,16 @@ class _EmbeddedControls extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
+    final uiStyle = ref.watch(appUiStyleProvider);
+    final isGekiga = uiStyle == AppUiStyle.gekiga;
+    final isGlass = uiStyle == AppUiStyle.glass;
     final cameraAvailability =
         ref.watch(cameraAvailabilityProvider).value ??
         CameraAvailability.unknown;
     return switch (session) {
       OneToOneCallSession(:final controller) => CallControlBar(
         isGekiga: isGekiga,
+        isGlass: isGlass,
         enabled: controller.state == CallConnectionState.active,
         muted: controller.muted,
         onToggleMute: controller.toggleMute,
@@ -353,6 +388,7 @@ class _EmbeddedControls extends ConsumerWidget {
       ),
       GroupCallSession(:final controller) => CallControlBar(
         isGekiga: isGekiga,
+        isGlass: isGlass,
         enabled: controller.state == GroupCallConnectionState.active,
         muted: controller.muted,
         onToggleMute: controller.toggleMute,

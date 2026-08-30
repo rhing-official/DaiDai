@@ -64,7 +64,6 @@ class GlassIconButton extends StatelessWidget {
     required this.icon,
     required this.onPressed,
     this.size = 36,
-    this.tooltip,
     this.opaque = false,
     super.key,
   });
@@ -72,7 +71,6 @@ class GlassIconButton extends StatelessWidget {
   final IconData icon;
   final VoidCallback? onPressed;
   final double size;
-  final String? tooltip;
 
   /// メッセージが下から重なっても透けないようにしたい場所（通話ボタン等）
   /// 向け。[GlassSurface.opaque]参照。
@@ -94,7 +92,7 @@ class GlassIconButton extends StatelessWidget {
             child: IconButton(
               padding: EdgeInsets.zero,
               icon: Icon(icon, size: size * 0.6),
-              tooltip: tooltip,
+              tooltip: '',
               onPressed: onPressed,
             ),
           ),

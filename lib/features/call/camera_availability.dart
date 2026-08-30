@@ -27,7 +27,9 @@ Future<CameraAvailability> probeCameraAvailability() async {
   try {
     final cameras = await Helper.cameras;
     if (cameras.isEmpty) {
-      return kIsWeb ? CameraAvailability.unknown : CameraAvailability.unavailable;
+      return kIsWeb
+          ? CameraAvailability.unknown
+          : CameraAvailability.unavailable;
     }
     return CameraAvailability.present;
   } catch (_) {

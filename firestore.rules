@@ -386,6 +386,31 @@ service cloud.firestore {
               || resource.data.senderId == request.auth.uid
             );
         }
+
+        // albums/{albumId}: 寄合単位の共有アルバム（2026-08-30追加）。個人の
+        // フォトライブラリではなく、この寄合の参加者全員が対等に作成・登録・
+        // 削除できる共有アルバム。manageRooms等の広場権限とは連動させず、
+        // 単純に「この寄合の参加者かどうか」だけを見る。
+        match /albums/{albumId} {
+          allow read, delete: if request.auth != null
+            && request.auth.uid in get(/databases/$(database)/documents/directMessages/$(dmId)/rooms/$(roomId)).data.participants;
+          allow create: if request.auth != null
+            && request.auth.uid in get(/databases/$(database)/documents/directMessages/$(dmId)/rooms/$(roomId)).data.participants
+            && request.auth.uid == request.resource.data.createdBy;
+          // リネーム、itemCount/cover*の非正規化更新（参加者なら誰でも）。
+          allow update: if request.auth != null
+            && request.auth.uid in get(/databases/$(database)/documents/directMessages/$(dmId)/rooms/$(roomId)).data.participants;
+
+          // items/{itemId}: アルバムに登録された画像・動画1件。編集機能は
+          // 設けないためallow updateは無し（追加・削除のみ）。
+          match /items/{itemId} {
+            allow read, delete: if request.auth != null
+              && request.auth.uid in get(/databases/$(database)/documents/directMessages/$(dmId)/rooms/$(roomId)).data.participants;
+            allow create: if request.auth != null
+              && request.auth.uid in get(/databases/$(database)/documents/directMessages/$(dmId)/rooms/$(roomId)).data.participants
+              && request.auth.uid == request.resource.data.addedBy;
+          }
+        }
       }
     }
 
@@ -657,6 +682,28 @@ service cloud.firestore {
               || resource.data.senderId == request.auth.uid
               || get(/databases/$(database)/documents/groups/$(groupId)/rooms/$(roomId)).data.roomDeletionRequestedBy != null
             );
+        }
+
+        // albums/{albumId}: 寄合単位の共有アルバム（2026-08-30追加）。
+        // 一対側（directMessages/{dmId}/rooms/{roomId}/albums）と同じ設計。
+        // manageRooms等の広場権限とは連動させず、単純に寄合のメンバーで
+        // あるかどうかだけを見る（要件通り、全メンバーが対等）。
+        match /albums/{albumId} {
+          allow read, delete: if request.auth != null
+            && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)/rooms/$(roomId)).data.memberIds;
+          allow create: if request.auth != null
+            && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)/rooms/$(roomId)).data.memberIds
+            && request.auth.uid == request.resource.data.createdBy;
+          allow update: if request.auth != null
+            && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)/rooms/$(roomId)).data.memberIds;
+
+          match /items/{itemId} {
+            allow read, delete: if request.auth != null
+              && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)/rooms/$(roomId)).data.memberIds;
+            allow create: if request.auth != null
+              && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)/rooms/$(roomId)).data.memberIds
+              && request.auth.uid == request.resource.data.addedBy;
+          }
         }
       }
     }

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'glass_colors.dart';
 import 'glass_theme_extras.dart';
 import '../app_theme.dart';
+import '../text_prominence_colors.dart';
 
 /// ガラスUI用のThemeDataを組み立てる。[AppTheme]と同じくアクセントカラーを
 /// seedにしてColorSchemeを導出するが、cardTheme/appBarTheme/dialogThemeは
@@ -35,19 +36,39 @@ class GlassTheme {
     // アクセントカラーの色相が乗って視認性が落ちるため、ライト/ダーク各1色の
     // 固定色に上書きする（2026-08-29追記、GlassColors.lightForeground/
     // darkForeground参照）。
+    // surfaceContainer系ロール（PopupMenuButtonのメニュー背景は
+    // surfaceContainer、Dialogの背景はsurfaceContainerHighを使う）も
+    // 同様にfromSeedの既定（アクセントカラー由来）のまま上書きし忘れて
+    // いた（2026-08-30修正）。背景寄りのLowest/LowはGlassColors.light/
+    // darkBackgroundに、カード寄りのContainer/High/Highestは
+    // GlassColors.light/darkSurfaceBaseに揃える。
+    // onSurface/onSurfaceVariant（テキスト・アイコンの重要度Tier1/Tier2、
+    // `text_prominence_colors.dart`参照）は以前onSurfaceと同一値にして
+    // いたが、Discordのような「小さい要素ほど薄くなる」階調を導入する
+    // ため、Tier1（Primary）/Tier2（Secondary）を分離する（2026-08-30）。
+    // 値自体はTextProminenceの定数に統一し、`GlassColors.lightForeground`/
+    // `darkForeground`と同じ値のTier1を維持することで見た目を変えない。
     if (isDark) {
       colorScheme = colorScheme.copyWith(
         surface: GlassColors.darkBackground,
+        surfaceContainerLowest: GlassColors.darkBackground,
+        surfaceContainerLow: GlassColors.darkBackground,
+        surfaceContainer: GlassColors.darkSurfaceBase,
+        surfaceContainerHigh: GlassColors.darkSurfaceBase,
         surfaceContainerHighest: GlassColors.darkSurfaceBase,
-        onSurface: GlassColors.darkForeground,
-        onSurfaceVariant: GlassColors.darkForeground,
+        onSurface: TextProminence.darkPrimary,
+        onSurfaceVariant: TextProminence.darkSecondary,
       );
     } else {
       colorScheme = colorScheme.copyWith(
         surface: GlassColors.lightBackground,
+        surfaceContainerLowest: GlassColors.lightBackground,
+        surfaceContainerLow: GlassColors.lightBackground,
+        surfaceContainer: GlassColors.lightSurfaceBase,
+        surfaceContainerHigh: GlassColors.lightSurfaceBase,
         surfaceContainerHighest: GlassColors.lightSurfaceBase,
-        onSurface: GlassColors.lightForeground,
-        onSurfaceVariant: GlassColors.lightForeground,
+        onSurface: TextProminence.lightPrimary,
+        onSurfaceVariant: TextProminence.lightSecondary,
       );
     }
     final backgroundColor = isDark
@@ -62,6 +83,9 @@ class GlassTheme {
       cardTintAlpha: isDark ? 0.6 : 0.72,
       edgeBorderBaseAlpha: isDark ? 0.32 : 0.28,
       edgeBorderHighlightAlpha: isDark ? 0.75 : 0.65,
+      textTertiary: isDark
+          ? TextProminence.darkTertiary
+          : TextProminence.lightTertiary,
     );
 
     return ThemeData(

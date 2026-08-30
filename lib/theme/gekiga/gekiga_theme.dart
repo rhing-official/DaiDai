@@ -43,6 +43,17 @@ class GekigaTheme {
           onSurfaceVariant: GekigaColors.onPanel,
           outline: GekigaColors.onPanel,
           outlineVariant: GekigaColors.onPanel.withValues(alpha: 0.24),
+          // surfaceContainer系ロール（PopupMenuButtonのメニュー背景は
+          // surfaceContainer、Dialogの背景はsurfaceContainerHighを使う）
+          // も同様にfromSeedの既定（seedがgreyのため中間グレー）のまま
+          // 上書きし忘れていた（2026-08-30修正）。背景寄りのLowest/Lowは
+          // 実際の背景色に、カード寄りのContainer/High/Highestは
+          // cardThemeと同じGekigaColors.panel（黒）に揃える。
+          surfaceContainerLowest: backgroundColor,
+          surfaceContainerLow: backgroundColor,
+          surfaceContainer: GekigaColors.panel,
+          surfaceContainerHigh: GekigaColors.panel,
+          surfaceContainerHighest: GekigaColors.panel,
         );
 
     // 本文はCJK文字幅の推定崩れ（app_theme.dartのコメント参照）を避ける
@@ -150,7 +161,17 @@ class GekigaTheme {
         ),
       ),
       dividerColor: GekigaColors.onPanel.withValues(alpha: 0.24),
-      extensions: const [AppThemeExtras(floatingShadow: AppThemeExtras.none)],
+      // 劇画はテキスト・アイコンの重要度階調（`text_prominence_colors.dart`）
+      // の対象外（背景色と衝突して視認性が落ちた過去の経緯があるため、
+      // 白1色のまま）。`AppThemeExtras.textTertiary`は他スタイルと型を
+      // 共有するために必須だが、劇画の呼び出し元は自前のisGekiga分岐で
+      // GekigaColors.onPanelを直接使うためこの値は実質参照されない。
+      extensions: const [
+        AppThemeExtras(
+          floatingShadow: AppThemeExtras.none,
+          textTertiary: GekigaColors.onPanel,
+        ),
+      ],
     );
   }
 }

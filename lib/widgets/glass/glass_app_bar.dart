@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../providers/accent_color_provider.dart';
 import '../../theme/glass/glass_theme_extras.dart';
+import '../../theme/text_prominence_colors.dart';
 
 /// ガラスUI用のAppBar。スクロールするコンテンツが下に透けて見えるよう
 /// [flexibleSpace]に`BackdropFilter`をかける。上端固定のバーのため
@@ -42,6 +43,7 @@ class GlassAppBar extends ConsumerWidget implements PreferredSizeWidget {
           cardTintAlpha: 0.72,
           edgeBorderBaseAlpha: 0.28,
           edgeBorderHighlightAlpha: 0.65,
+          textTertiary: TextProminence.lightTertiary,
         );
     final colorScheme = Theme.of(context).colorScheme;
 

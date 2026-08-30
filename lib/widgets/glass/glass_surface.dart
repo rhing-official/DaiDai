@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../providers/accent_color_provider.dart';
 import '../../theme/glass/glass_theme_extras.dart';
+import '../../theme/text_prominence_colors.dart';
 
 /// ガラスマテリアルの用途別バリアント。用途によって`BackdropFilter`を
 /// 使うかどうかを切り替える（性能上の理由、[GlassSurface]のコメント参照）。
@@ -128,6 +129,7 @@ class GlassSurface extends ConsumerWidget {
     cardTintAlpha: 0.72,
     edgeBorderBaseAlpha: 0.28,
     edgeBorderHighlightAlpha: 0.65,
+    textTertiary: TextProminence.lightTertiary,
   );
 }
 
