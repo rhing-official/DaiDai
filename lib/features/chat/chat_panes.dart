@@ -375,11 +375,10 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
       conversationTitle: widget.roomName,
       child: Builder(
         builder: (context) {
-          // 横スクロールタブバーはこの寄合一覧を必要とする場合のみ購読する
-          // （単一モードや広い画面のサイドバー使用中は不要な購読を増やさない）。
-          if (!widget.showRoomTabBar || !widget.dm.roomsEnabled) {
-            return _buildChatScreen(context, null);
-          }
+          // 横スクロールタブバー表示の有無に関わらず、ピン留め済みメッセージ
+          // （`DmRoom.pinnedMessageIds`）を取得するため常に寄合一覧を購読する
+          // （2026-08-30変更、以前は横スクロールタブバーが必要な場合のみ
+          // 購読していた）。
           return StreamBuilder<List<DmRoom>>(
             stream: ref
                 .read(directMessageRepositoryProvider)
@@ -388,7 +387,7 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
                   userId: widget.currentUser.userId,
                 ),
             builder: (context, snapshot) =>
-                _buildChatScreen(context, snapshot.data ?? const <DmRoom>[]),
+                _buildChatScreen(context, snapshot.data),
           );
         },
       ),
@@ -403,6 +402,11 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
     final roomId = widget.roomId;
     final roomName = widget.roomName;
     final otherUserId = dm.otherUserId(currentUser.userId);
+    // 横スクロールタブバーは、単一モード・広い画面のサイドバー使用中は
+    // 表示しない（`rooms`自体はピン留め機能のため常に購読しているが、タブ
+    // バーの表示可否とは独立に判定する）。
+    final showRoomTabBar = widget.showRoomTabBar && dm.roomsEnabled;
+    final currentRoom = rooms?.firstWhereOrNull((r) => r.roomId == roomId);
     final blockedIds =
         ref.watch(blockedUserIdsProvider(currentUser.userId)).value ?? const {};
     final isBlocked = blockedIds.contains(otherUserId);
@@ -429,7 +433,7 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
       key: ValueKey('dm-${dm.dmId}-$roomId'),
       title: roomName,
       onSwipeBack: widget.onSwipeBack,
-      roomTabBar: rooms == null
+      roomTabBar: (!showRoomTabBar || rooms == null)
           ? null
           : RoomTabBar(
               rooms: [for (final r in rooms) (roomId: r.roomId, name: r.name)],
@@ -600,6 +604,22 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
       onDeleteAfterAccountDeletion: () => dmRepository
           .deleteDmAfterAccountDeletion(dm.dmId, userId: currentUser.userId),
       onFetchMessagesAround: (messageId) => dmRepository.getMessagesAround(
+        dmId: dm.dmId,
+        roomId: roomId,
+        messageId: messageId,
+      ),
+      pinnedMessageIds: currentRoom?.pinnedMessageIds ?? const [],
+      onFetchMessage: (messageId) => dmRepository.getMessage(
+        dmId: dm.dmId,
+        roomId: roomId,
+        messageId: messageId,
+      ),
+      onPinMessage: (messageId) => dmRepository.pinMessage(
+        dmId: dm.dmId,
+        roomId: roomId,
+        messageId: messageId,
+      ),
+      onUnpinMessage: (messageId) => dmRepository.unpinMessage(
         dmId: dm.dmId,
         roomId: roomId,
         messageId: messageId,
@@ -1508,6 +1528,22 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
             roomId: roomId,
             messageId: messageId,
           ),
+      pinnedMessageIds: currentRoom?.pinnedMessageIds ?? const [],
+      onFetchMessage: (messageId) => groupRepository.getRoomMessage(
+        groupId: group.groupId,
+        roomId: roomId,
+        messageId: messageId,
+      ),
+      onPinMessage: (messageId) => groupRepository.pinMessage(
+        groupId: group.groupId,
+        roomId: roomId,
+        messageId: messageId,
+      ),
+      onUnpinMessage: (messageId) => groupRepository.unpinMessage(
+        groupId: group.groupId,
+        roomId: roomId,
+        messageId: messageId,
+      ),
       extraActions: [
         _GroupMenuButton(
           currentUser: currentUser,

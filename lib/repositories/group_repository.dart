@@ -310,6 +310,20 @@ abstract class GroupRepository {
     required List<String> emojis,
   });
 
+  /// メッセージをピン留めする（メンバーなら誰でも実行可能）。
+  Future<void> pinMessage({
+    required String groupId,
+    required String roomId,
+    required String messageId,
+  });
+
+  /// メッセージのピン留めを解除する（メンバーなら誰でも実行可能）。
+  Future<void> unpinMessage({
+    required String groupId,
+    required String roomId,
+    required String messageId,
+  });
+
   /// 指定したメッセージ群に、自分（[userId]）が読んだ記録を追加する。
   Future<void> markRoomMessagesRead({
     required String groupId,
@@ -972,6 +986,11 @@ class FirestoreGroupRepository implements GroupRepository {
         'replyToSnippet': FieldValue.delete(),
       });
     }
+    // ピン留めされていた場合、寄合側のpinnedMessageIdsからも取り除く
+    // （存在しないメッセージへのピン参照が残らないようにする）。
+    batch.update(_roomRef(groupId, roomId), {
+      'pinnedMessageIds': FieldValue.arrayRemove([messageId]),
+    });
     await batch.commit();
   }
 
@@ -986,6 +1005,28 @@ class FirestoreGroupRepository implements GroupRepository {
     final ref = _roomRef(groupId, roomId).collection('messages').doc(messageId);
     await ref.update({
       'reactions.$userId': emojis.isEmpty ? FieldValue.delete() : emojis,
+    });
+  }
+
+  @override
+  Future<void> pinMessage({
+    required String groupId,
+    required String roomId,
+    required String messageId,
+  }) async {
+    await _roomRef(groupId, roomId).update({
+      'pinnedMessageIds': FieldValue.arrayUnion([messageId]),
+    });
+  }
+
+  @override
+  Future<void> unpinMessage({
+    required String groupId,
+    required String roomId,
+    required String messageId,
+  }) async {
+    await _roomRef(groupId, roomId).update({
+      'pinnedMessageIds': FieldValue.arrayRemove([messageId]),
     });
   }
 
@@ -1041,6 +1082,7 @@ class FirestoreGroupRepository implements GroupRepository {
         i + 400 > docs.length ? docs.length : i + 400,
       );
       final batch = _firestore.batch();
+      final deletedMessageIds = <String>[];
       for (final doc in chunk) {
         if (!doc.exists) continue;
         final hiddenFor = {
@@ -1049,6 +1091,7 @@ class FirestoreGroupRepository implements GroupRepository {
         };
         if (memberIds.every(hiddenFor.contains)) {
           batch.delete(doc.reference);
+          deletedMessageIds.add(doc.id);
           final fileUrl =
               (doc.data()?['fileMetadata'] as Map<String, dynamic>?)?['url']
                   as String?;
@@ -1058,6 +1101,13 @@ class FirestoreGroupRepository implements GroupRepository {
             'hiddenFor': FieldValue.arrayUnion([userId]),
           });
         }
+      }
+      // 物理削除されたメッセージがピン留めされていた場合、寄合側の
+      // pinnedMessageIdsからも取り除く。
+      if (deletedMessageIds.isNotEmpty) {
+        batch.update(roomRef, {
+          'pinnedMessageIds': FieldValue.arrayRemove(deletedMessageIds),
+        });
       }
       await batch.commit();
     }
