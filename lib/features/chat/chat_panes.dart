@@ -27,6 +27,8 @@ import '../../utils/group_permissions.dart';
 import '../../utils/platform_info.dart';
 import '../../widgets/gekiga/gekiga_icon_badge.dart';
 import '../../widgets/glass/glass_icon_badge.dart';
+import '../album/album_detail_screen.dart';
+import '../album/album_popup_content.dart';
 import '../call/active_call_session.dart';
 import '../call/embedded_call_pane.dart';
 import 'chat_screen.dart';
@@ -372,7 +374,6 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
     // 参照）。
     return EmbeddedCallPane(
       conversation: ViewedDm(widget.dm.dmId),
-      conversationTitle: widget.roomName,
       child: Builder(
         builder: (context) {
           // 横スクロールタブバー表示の有無に関わらず、ピン留め済みメッセージ
@@ -625,6 +626,12 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
         messageId: messageId,
       ),
       extraActions: [
+        _AlbumButton(
+          isDm: true,
+          conversationId: dm.dmId,
+          roomId: roomId,
+          currentUserId: currentUser.userId,
+        ),
         _DmMenuButton(
           currentUser: currentUser,
           dm: dm,
@@ -812,6 +819,93 @@ class _ReadReceiptsProposalBanner extends ConsumerWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// 寄合単位の共有アルバムを開くボタン（2026-08-30追加）。一対・広場どちらの
+/// 寄合でも使う共通ウィジェット（ハンバーガーメニューの項目ではなくAppBarの
+/// 専用アイコンにする方針、ユーザー確定）。
+class _AlbumButton extends ConsumerStatefulWidget {
+  const _AlbumButton({
+    required this.isDm,
+    required this.conversationId,
+    required this.roomId,
+    required this.currentUserId,
+  });
+
+  final bool isDm;
+  final String conversationId;
+  final String roomId;
+  final String currentUserId;
+
+  @override
+  ConsumerState<_AlbumButton> createState() => _AlbumButtonState();
+}
+
+class _AlbumButtonState extends ConsumerState<_AlbumButton> {
+  // ボタンの真下にポップアップを開くための位置計算に使う
+  // （`chat_screen.dart`の`_pinButtonKey`/`_openPinnedMessagesPopup`と同じ
+  // パターン、2026-08-30変更: フルスクリーン遷移だったAlbumListScreenを
+  // ピン留めと同様のポップアップに置き換えた、ユーザー指示）。
+  final _buttonKey = GlobalKey();
+
+  Future<void> _openAlbumPopup() async {
+    final buttonContext = _buttonKey.currentContext;
+    if (buttonContext == null) return;
+    final box = buttonContext.findRenderObject()! as RenderBox;
+    final bottomLeft = box.localToGlobal(Offset(0, box.size.height));
+    final bottomRight = box.localToGlobal(
+      Offset(box.size.width, box.size.height),
+    );
+    final overlay =
+        Overlay.of(context).context.findRenderObject()! as RenderBox;
+    final position = RelativeRect.fromRect(
+      Rect.fromPoints(bottomLeft, bottomRight),
+      Offset.zero & overlay.size,
+    );
+
+    final selected = await showAlbumPopup(
+      context,
+      position: position,
+      isDm: widget.isDm,
+      conversationId: widget.conversationId,
+      roomId: widget.roomId,
+      currentUserId: widget.currentUserId,
+    );
+    if (selected == null || !mounted) return;
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => AlbumDetailScreen(
+          isDm: widget.isDm,
+          conversationId: widget.conversationId,
+          roomId: widget.roomId,
+          album: selected,
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final uiStyle = ref.watch(appUiStyleProvider);
+    return IconButton(
+      key: _buttonKey,
+      tooltip: '',
+      icon: switch (uiStyle) {
+        AppUiStyle.gekiga => const GekigaIconBadge(
+          icon: Icons.photo_library_outlined,
+          size: 36,
+        ),
+        AppUiStyle.glass => const GlassIconBadge(
+          icon: Icons.photo_library_outlined,
+          size: 36,
+          opaque: true,
+          shadow: true,
+        ),
+        AppUiStyle.flat => const Icon(Icons.photo_library_outlined),
+      },
+      onPressed: _openAlbumPopup,
     );
   }
 }
@@ -1303,7 +1397,6 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
     // 参照）。
     return EmbeddedCallPane(
       conversation: ViewedGroup(group.groupId),
-      conversationTitle: widget.roomName,
       child: Builder(
         builder: (context) {
           // カスタムロール（見た目専用の呼び名フォントカラー）は広場全体の
@@ -1545,6 +1638,12 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
         messageId: messageId,
       ),
       extraActions: [
+        _AlbumButton(
+          isDm: false,
+          conversationId: group.groupId,
+          roomId: roomId,
+          currentUserId: currentUser.userId,
+        ),
         _GroupMenuButton(
           currentUser: currentUser,
           group: group,

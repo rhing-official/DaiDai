@@ -65,13 +65,15 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
   @override
   void initState() {
     super.initState();
-    _session = ref.read(activeCallSessionProvider.notifier).startGroup(
-      groupCallId: widget.groupCallId,
-      groupId: widget.groupId,
-      currentUser: widget.currentUser,
-      isVideo: widget.isVideo,
-      groupCallRepository: ref.read(groupCallRepositoryProvider),
-    );
+    _session = ref
+        .read(activeCallSessionProvider.notifier)
+        .startGroup(
+          groupCallId: widget.groupCallId,
+          groupId: widget.groupId,
+          currentUser: widget.currentUser,
+          isVideo: widget.isVideo,
+          groupCallRepository: ref.read(groupCallRepositoryProvider),
+        );
     _controller.addListener(_onControllerChanged);
   }
 
@@ -124,14 +126,21 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // 表示領域（映像 or その代役のプレースホルダー）は常に固定のグレー、
+    // それ以外（Scaffold自体の背景）は常にテーマの背景色（2026-08-30更新、
+    // 「映像表示領域以外は背景色、音声通話の表示領域内は外観に関わらず
+    // 灰色」という要望。以前はガラスUIのみ背景色を使っていたが3スタイル
+    // 共通にした）。
+    final colorScheme = Theme.of(context).colorScheme;
+    final displayAreaGrey = Colors.grey.shade900;
     return PopScope(
       canPop: _intentionalPop,
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop && !_intentionalPop) _controller.leave();
       },
       child: Scaffold(
-        backgroundColor: _anyVideo ? Colors.black : null,
-        body: _anyVideo ? _videoBody() : _dockable(_audioBody()),
+        backgroundColor: _anyVideo ? colorScheme.surface : displayAreaGrey,
+        body: _anyVideo ? _videoBody(displayAreaGrey) : _dockable(_audioBody()),
       ),
     );
   }
@@ -157,7 +166,6 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
   }
 
   Widget _audioBody() {
-    final colorScheme = Theme.of(context).colorScheme;
     final remoteParticipants = _controller.remoteParticipants;
     final tiles = <(String userId, String rhingId)>[
       (widget.currentUser.userId, widget.currentUser.rhingId),
@@ -181,7 +189,7 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
           const SizedBox(height: 24),
           Text(
             '参加者${tiles.length}人',
-            style: TextStyle(color: colorScheme.onSurfaceVariant),
+            style: const TextStyle(color: Colors.white70),
           ),
           const Spacer(),
           Wrap(
@@ -201,7 +209,10 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
                       fontSize: 28,
                     ),
                     const SizedBox(height: 8),
-                    Text('@$rhingId'),
+                    Text(
+                      '@$rhingId',
+                      style: const TextStyle(color: Colors.white),
+                    ),
                   ],
                 ),
             ],
@@ -216,7 +227,7 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
     );
   }
 
-  Widget _videoBody() {
+  Widget _videoBody(Color placeholderColor) {
     final remoteParticipants = _controller.remoteParticipants;
     final tileCount = 1 + remoteParticipants.length;
 
@@ -234,10 +245,11 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
                   renderer: _controller.isVideo
                       ? _controller.localRenderer
                       : null,
-                  mirror: true,
+                  mirror: _controller.isFrontCamera,
                   micMuted: _controller.muted,
                   videoEnabled: _controller.isVideo,
                   connectionIssue: false,
+                  placeholderColor: placeholderColor,
                 ),
               ),
               Positioned(
@@ -276,10 +288,11 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
           userId: widget.currentUser.userId,
           rhingId: widget.currentUser.rhingId,
           renderer: _controller.isVideo ? _controller.localRenderer : null,
-          mirror: true,
+          mirror: _controller.isFrontCamera,
           micMuted: _controller.muted,
           videoEnabled: _controller.isVideo,
           connectionIssue: false,
+          placeholderColor: placeholderColor,
         ),
       ),
       for (final participant in remoteParticipants)
@@ -294,6 +307,7 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
             videoEnabled: participant.isVideo,
             connectionIssue:
                 _controller.peerConnectionIssues[participant.userId] ?? false,
+            placeholderColor: placeholderColor,
           ),
         ),
     ];
@@ -380,9 +394,10 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
     required bool micMuted,
     required bool videoEnabled,
     required bool connectionIssue,
+    required Color placeholderColor,
   }) {
     return Container(
-      color: Colors.grey.shade900,
+      color: placeholderColor,
       child: Stack(
         fit: StackFit.expand,
         children: [
@@ -450,13 +465,16 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
   }
 
   Widget _controls() {
-    final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
+    final uiStyle = ref.watch(appUiStyleProvider);
+    final isGekiga = uiStyle == AppUiStyle.gekiga;
+    final isGlass = uiStyle == AppUiStyle.glass;
     final isActive = _controller.state == GroupCallConnectionState.active;
     final cameraAvailability =
         ref.watch(cameraAvailabilityProvider).value ??
         CameraAvailability.unknown;
     return CallControlBar(
       isGekiga: isGekiga,
+      isGlass: isGlass,
       enabled: isActive,
       muted: _controller.muted,
       onToggleMute: _controller.toggleMute,

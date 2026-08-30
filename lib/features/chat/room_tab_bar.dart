@@ -6,7 +6,6 @@ import '../../l10n/vocabulary.dart';
 import '../../models/app_ui_style.dart';
 import '../../providers/app_ui_style_provider.dart';
 import '../../theme/gekiga/gekiga_colors.dart';
-import '../../utils/text_truncate.dart';
 import '../../widgets/gekiga/gekiga_icon_badge.dart';
 import '../../widgets/gekiga/gekiga_panel_box.dart';
 import '../../widgets/glass/glass_surface.dart';
@@ -104,7 +103,7 @@ class _RoomTabBarState extends ConsumerState<RoomTabBar> {
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           alignment: Alignment.center,
           child: Text(
-            '#${truncateName(room.name, 6)}',
+            '#${room.name}',
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
@@ -246,7 +245,7 @@ class _RoomTabBarState extends ConsumerState<RoomTabBar> {
                   selected: selected,
                   onTap: () => widget.onSelectRoom(room),
                   child: Text(
-                    '#${truncateName(room.name, 6)}',
+                    '#${room.name}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
@@ -309,7 +308,13 @@ class _RoomTabBarState extends ConsumerState<RoomTabBar> {
 
     return Container(
       height: RoomTabBar._height,
+      // 2026-08-30、チャット画面のScaffold.extendBodyBehindAppBarが全
+      // スタイル共通でtrueになったのに合わせ、明示的に不透明背景を指定
+      // する（以前はextendBodyBehindAppBar=falseだったため指定が無くても
+      // 不透明に見えていた。ここは寄合切り替えタブのため、今回の「上部の
+      // アイコン行の背景を消す」変更の対象外として現状の見た目を保つ）。
       decoration: BoxDecoration(
+        color: Theme.of(context).scaffoldBackgroundColor,
         border: Border(top: BorderSide(color: borderColor)),
       ),
       child: barContent,

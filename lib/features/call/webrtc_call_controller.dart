@@ -104,6 +104,17 @@ class WebrtcCallController extends ChangeNotifier {
   bool _switchingCamera = false;
   bool get switchingCamera => _switchingCamera;
 
+  /// 現在のカメラが前面（インカメラ）かどうか（2026-08-30追加）。
+  /// `buildVideoConstraints`の`facingMode: 'user'`により、通話開始直後は
+  /// 常に前面カメラのため`true`初期値。前後2台構成を前提に[switchCamera]の
+  /// たびにトグルする（3台以上の環境では実際のカメラと食い違いうるが、
+  /// 通話UIの前後切替ボタン自体が2択の前提のため許容する）。自分の映像
+  /// プレビューは前面カメラの時だけ左右反転させる（鏡のような見え方が
+  /// 前面カメラでは自然だが、背面カメラでは実際の景色と左右が逆になり
+  /// 不自然なため）。
+  bool _isFrontCamera = true;
+  bool get isFrontCamera => _isFrontCamera;
+
   /// 前後（イン/アウト）カメラ切替ボタンの表示可否に使う、映像入力
   /// デバイスの台数（2026-08-19追加）。`getUserMedia`成功後（＝端末の
   /// カメラ利用許可が下りた後）にだけ正確に取得できるため、映像取得の
@@ -549,6 +560,7 @@ class WebrtcCallController extends ChangeNotifier {
       } else {
         await Helper.switchCamera(track);
       }
+      _isFrontCamera = !_isFrontCamera;
       // Web版のHelper.switchCameraは古いトラックをstop()して_localStreamから
       // 取り除き、新しいトラックを同じ_localStreamに追加するという副作用を
       // 持つが、それだけでは以下の2つが反映されず「切替後に画面が真っ黒に

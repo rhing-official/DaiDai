@@ -19,6 +19,7 @@ import '../../providers/user_providers.dart';
 import '../../repositories/user_repository.dart';
 import '../../theme/gekiga/gekiga_colors.dart';
 import '../../theme/motion.dart';
+import '../../theme/text_prominence_colors.dart';
 import '../../utils/auto_dismiss_banner.dart';
 import '../../utils/text_truncate.dart';
 import '../../widgets/gekiga/gekiga_icon_badge.dart';
@@ -1566,11 +1567,15 @@ class _WorkshopBlankSlot extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colorScheme = Theme.of(context).colorScheme;
-    final isGlass = ref.watch(appUiStyleProvider) == AppUiStyle.glass;
+    final uiStyle = ref.watch(appUiStyleProvider);
+    final isGlass = uiStyle == AppUiStyle.glass;
+    final isGekiga = uiStyle == AppUiStyle.gekiga;
     final icon = Icon(
       Icons.add,
       size: (width * 0.2).clamp(32.0, 64.0),
-      color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+      color: isGekiga
+          ? colorScheme.onSurfaceVariant.withValues(alpha: 0.6)
+          : resolveTertiaryTextColor(context, isGlass: isGlass),
     );
 
     final content = isGlass
@@ -1872,7 +1877,7 @@ class _AddThumbButton extends ConsumerWidget {
             Icons.add,
             color: enabled
                 ? colorScheme.onSurfaceVariant
-                : colorScheme.onSurfaceVariant.withValues(alpha: 0.3),
+                : resolveTertiaryTextColor(context, isGlass: isGlass),
           );
 
     if (isGlass) {
@@ -2162,6 +2167,9 @@ class _NicknameSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final uiStyle = ref.watch(appUiStyleProvider);
+    final isGekiga = uiStyle == AppUiStyle.gekiga;
+    final isGlass = uiStyle == AppUiStyle.glass;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -2170,7 +2178,12 @@ class _NicknameSection extends ConsumerWidget {
         ),
         Text(
           strings.profileNicknameHint(vocab.nickname),
-          style: const TextStyle(fontSize: 12, color: Colors.grey),
+          style: TextStyle(
+            fontSize: 12,
+            color: isGekiga
+                ? GekigaColors.onPanel.withValues(alpha: 0.75)
+                : resolveTertiaryTextColor(context, isGlass: isGlass),
+          ),
         ),
         const SizedBox(height: 4),
         _registeredItemsSection(

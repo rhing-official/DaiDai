@@ -33,14 +33,20 @@ class CallParticipantAvatar extends ConsumerWidget {
     final user = ref.watch(watchedUserProvider(userId)).value;
     final iconUrl = user?.effectiveIconFor(conversationId)?.url;
     if (iconUrl != null) {
-      return CircleAvatar(radius: radius, backgroundImage: NetworkImage(iconUrl));
+      return CircleAvatar(
+        radius: radius,
+        backgroundImage: NetworkImage(iconUrl),
+      );
     }
     return CircleAvatar(
       radius: radius,
       backgroundColor: Theme.of(context).colorScheme.primary,
       child: Text(
         rhingId.isNotEmpty ? rhingId[0].toUpperCase() : '?',
-        style: TextStyle(fontSize: fontSize ?? radius * 0.7, color: Colors.white),
+        style: TextStyle(
+          fontSize: fontSize ?? radius * 0.7,
+          color: Colors.white,
+        ),
       ),
     );
   }

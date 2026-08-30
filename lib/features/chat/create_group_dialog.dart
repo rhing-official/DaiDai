@@ -7,6 +7,7 @@ import '../../providers/app_ui_style_provider.dart';
 import '../../providers/repository_providers.dart';
 import '../../router/app_router.dart';
 import '../../theme/gekiga/gekiga_colors.dart';
+import '../../theme/text_prominence_colors.dart';
 import '../../widgets/gekiga/gekiga_text_field.dart';
 
 /// 友達一覧をプルダウン選択できるよう、Rhing IDではなく呼び名（未設定ならRhing ID）で表示する。
@@ -272,12 +273,16 @@ class _CreateGroupDialogContentState
           final friendsAsync = ref.watch(
             _candidateFriendsProvider(widget.currentUser.userId),
           );
+          final isGlass = ref.watch(appUiStyleProvider) == AppUiStyle.glass;
+          final emptyStateColor = isGekiga
+              ? GekigaColors.onPanel.withValues(alpha: 0.75)
+              : resolveTertiaryTextColor(context, isGlass: isGlass);
           return friendsAsync.when(
             data: (friends) {
               if (friends.isEmpty) {
-                return const Text(
+                return Text(
                   '友達がいません。先に縁結びで友達を追加してください',
-                  style: TextStyle(color: Colors.grey),
+                  style: TextStyle(color: emptyStateColor),
                 );
               }
               final query = _searchController.text.trim().toLowerCase();
@@ -291,9 +296,9 @@ class _CreateGroupDialogContentState
                         )
                         .toList();
               if (filtered.isEmpty) {
-                return const Text(
+                return Text(
                   '該当する友達が見つかりません',
-                  style: TextStyle(color: Colors.grey),
+                  style: TextStyle(color: emptyStateColor),
                 );
               }
               return ConstrainedBox(

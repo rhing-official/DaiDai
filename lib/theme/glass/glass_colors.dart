@@ -16,4 +16,24 @@ class GlassColors {
   /// それぞれ1色に固定する（2026-08-29追記）。
   static const lightForeground = Color(0xFF1C1C1E);
   static const darkForeground = Color(0xFFF2F2F7);
+
+  /// ガラスUIの通話ボタン等、アイコン単体の文字色として使う場面向けに、
+  /// 渡された色をテーマの明暗ごとに視認性の高い色へ調整する
+  /// （2026-08-31追加）。固定の`Colors.grey[700]`等は背景色の透けを
+  /// 止めた（`GlassSurface.opaque`）後も、ダークモードの近黒背景に対しては
+  /// コントラスト不足だったため。無彩色（グレー系、マイク等の中立アイコン）は
+  /// [darkForeground]/[lightForeground]にそのまま寄せ、有彩色（通話終了の赤・
+  /// 応答の緑など）は色味を保ったまま、ダークモードは明るく・ライトモードは
+  /// 暗くしてコントラストを確保する。
+  static Color adaptiveIconColor(Color base, Brightness brightness) {
+    final hsl = HSLColor.fromColor(base);
+    final isDark = brightness == Brightness.dark;
+    if (hsl.saturation < 0.05) {
+      return isDark ? darkForeground : lightForeground;
+    }
+    final lightness = isDark
+        ? (hsl.lightness < 0.62 ? 0.62 : hsl.lightness)
+        : (hsl.lightness > 0.4 ? 0.4 : hsl.lightness);
+    return hsl.withLightness(lightness).toColor();
+  }
 }

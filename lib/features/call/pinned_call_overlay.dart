@@ -4,12 +4,20 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 
 import '../../models/app_user.dart';
+import '../../models/app_ui_style.dart';
+import '../../providers/app_ui_style_provider.dart';
 import '../../providers/camera_availability_provider.dart';
 import '../../providers/chat_navigation_providers.dart';
 import '../../providers/home_shell_providers.dart';
 import '../../providers/repository_providers.dart';
 import '../../router/app_router.dart';
+import '../../theme/gekiga/gekiga_colors.dart';
+import '../../theme/gekiga/gekiga_shapes.dart';
+import '../../theme/glass/glass_colors.dart';
 import '../../utils/platform_info.dart';
+import '../../widgets/gekiga/gekiga_badge.dart';
+import '../../widgets/gekiga/monochrome_box.dart';
+import '../../widgets/glass/glass_surface.dart';
 import 'active_call_session.dart';
 import 'call_avatar.dart';
 import 'camera_availability.dart';
@@ -45,18 +53,19 @@ class PinnedCallOverlay extends ConsumerWidget {
       return const SizedBox.shrink(); // まだ全画面表示中
     }
 
-    // 映像が表示されている間（[pickCallRenderer]が非null）だけ、ミニ表示を
-    // 画面下端まで伸ばす（2026-08-20追加）かどうかをここで判定するため、
-    // コントローラーの状態変化を直接listenする。
+    // ミュート・映像有無等、コントローラーの状態変化に応じて
+    // `_PinnedCallBubble`（マイク/映像アイコンや映像表示）を再描画する
+    // ためlistenする。サイズは音声・映像とも常に固定（2026-08-21に映像
+    // ありだけ画面下端まで伸ばす仕様にしたが、140幅の極端な縦長比率に
+    // 横長のWebカメラ映像を詰め込むと不自然に間延びして見えるとの指摘を
+    // 受け、2026-08-30に音声通話と同じ固定サイズへ戻した）。
     return ListenableBuilder(
       listenable: session.controllerListenable,
       builder: (context, _) {
-        final hasVideo = pickCallRenderer(session) != null;
         return Positioned(
           top: 8,
           right: 8,
-          bottom: hasVideo ? 8 : null,
-          child: _PinnedCallBubble(session: session, hasVideo: hasVideo),
+          child: _PinnedCallBubble(session: session),
         );
       },
     );
@@ -81,12 +90,9 @@ RTCVideoRenderer? pickCallRenderer(ActiveCallSession session) {
 }
 
 class _PinnedCallBubble extends ConsumerWidget {
-  const _PinnedCallBubble({required this.session, required this.hasVideo});
+  const _PinnedCallBubble({required this.session});
 
   final ActiveCallSession session;
-
-  /// 映像領域を画面下端まで伸ばすかどうか（[PinnedCallOverlay]で算出済み）。
-  final bool hasVideo;
 
   /// 映像が無い間（音声のみの通話、またはビデオ通話でも相手・自分どちらも
   /// 映像を出していない間）に中央へ表示するアバター情報（userId・rhingId・
@@ -129,92 +135,185 @@ class _PinnedCallBubble extends ConsumerWidget {
       OneToOneCallSession(:final controller) => controller.switchingCallType,
       GroupCallSession(:final controller) => controller.switchingCallType,
     };
+    // 表示中の映像が自分のものなら、前面カメラの時だけ左右反転させる
+    // （2026-08-30追加、通話画面（call_screen.dart等）と同じ考え方。
+    // 背面カメラの映像まで反転すると実際の景色と左右が逆になり不自然）。
+    final localRenderer = switch (session) {
+      OneToOneCallSession(:final controller) => controller.localRenderer,
+      GroupCallSession(:final controller) => controller.localRenderer,
+    };
+    final isFrontCamera = switch (session) {
+      OneToOneCallSession(:final controller) => controller.isFrontCamera,
+      GroupCallSession(:final controller) => controller.isFrontCamera,
+    };
+    final mirror = renderer == localRenderer && isFrontCamera;
     final cameraAvailability =
         ref.watch(cameraAvailabilityProvider).value ??
         CameraAvailability.unknown;
     final videoToggleVisible =
         cameraAvailability != CameraAvailability.unavailable;
+    final uiStyle = ref.watch(appUiStyleProvider);
+    final isGekiga = uiStyle == AppUiStyle.gekiga;
+    final isGlass = uiStyle == AppUiStyle.glass;
+
+    final content = Stack(
+      fit: StackFit.expand,
+      children: [
+        if (renderer != null)
+          RTCVideoView(
+            key: ObjectKey(renderer),
+            renderer,
+            mirror: mirror,
+            objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+          )
+        else
+          Center(
+            child: CallParticipantAvatar(
+              userId: placeholder.userId,
+              rhingId: placeholder.rhingId,
+              conversationId: placeholder.conversationId,
+              radius: 36,
+              fontSize: 28,
+            ),
+          ),
+        // 通話画面（CallControlBar）と同じ相対順序（マイク→カメラ→
+        // 切断）で1本の行にまとめ、映像領域の下端に浮かせる
+        // （2026-08-20追加）。以前は切断を右上・マイクを左下に散らして
+        // いたが、通話画面と並びを揃えるために統一した。
+        Positioned(
+          left: 8,
+          right: 8,
+          bottom: 8,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              _MiniIconButton(
+                icon: muted ? Icons.mic_off : Icons.mic,
+                color: isGekiga || isGlass ? Colors.grey[700]! : Colors.black54,
+                isGekiga: isGekiga,
+                isGlass: isGlass,
+                onTap: () {
+                  switch (session) {
+                    case OneToOneCallSession(:final controller):
+                      controller.toggleMute();
+                    case GroupCallSession(:final controller):
+                      controller.toggleMute();
+                  }
+                },
+              ),
+              _MiniIconButton(
+                icon: isVideo ? Icons.videocam : Icons.videocam_off,
+                color: isGekiga || isGlass ? Colors.grey[700]! : Colors.black54,
+                isGekiga: isGekiga,
+                isGlass: isGlass,
+                enabled: !switchingCallType,
+                visible: videoToggleVisible,
+                onTap: () {
+                  switch (session) {
+                    case OneToOneCallSession(:final controller):
+                      controller.setVideoEnabled(!controller.isVideo);
+                    case GroupCallSession(:final controller):
+                      controller.setVideoEnabled(!controller.isVideo);
+                  }
+                },
+              ),
+              _MiniIconButton(
+                icon: Icons.call_end,
+                color: Colors.red,
+                isGekiga: isGekiga,
+                isGlass: isGlass,
+                onTap: () =>
+                    ref.read(activeCallSessionProvider.notifier).endCall(),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+
+    final bubbleSize = SizedBox(width: 140, height: 200, child: content);
+
+    if (isGekiga) {
+      // 通話画面のCallControlBar/CallRoundButtonと同じく、劇画スタイルの
+      // 「黒外枠→白内枠」のモノクロボックス（GekigaPhotoFrameと同じ部品）で
+      // 縁取る。丸角・Material elevationの影は劇画の他要素同様に使わない
+      // （2026-08-30修正、新規追加時に劇画・ガラス対応のスイープから漏れて
+      // いた）。
+      return GestureDetector(
+        onTap: () => _reopen(context, ref),
+        child: SizedBox(
+          width: 140,
+          height: 200,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final width = constraints.maxWidth;
+              final height = constraints.maxHeight;
+              // マイク・カメラ・切断ボタンを矩形前提の絶対配置（Positioned）
+              // で内部に置くため、既定の非対称な斜めカット（topLeft等）は
+              // 使わず、四隅とも直角の矩形にする（2026-08-30修正、既定形状
+              // のままだとボタン行の端が斜めカット部分にかかって隠れて
+              // いた）。
+              final vertices = monochromeBoxVertices(
+                width,
+                height,
+                topLeft: false,
+                topRight: false,
+                bottomRight: false,
+                bottomLeft: false,
+              );
+              return Stack(
+                fit: StackFit.expand,
+                children: [
+                  CustomPaint(
+                    painter: MonochromeBoxPainter(
+                      vertices: vertices,
+                      thicknessBase: width < height ? width : height,
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.all(6),
+                    child: ClipPath(
+                      clipper: MonochromeBoxClipper(
+                        vertices: monochromeBoxVertices(
+                          width - 12,
+                          height - 12,
+                          topLeft: false,
+                          topRight: false,
+                          bottomRight: false,
+                          bottomLeft: false,
+                        ),
+                      ),
+                      child: ColoredBox(
+                        color: GekigaColors.panel,
+                        child: content,
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+        ),
+      );
+    }
+
+    if (isGlass) {
+      // 他の浮遊ポップアップ・ダイアログと同じ`GlassVariant.floating`で
+      // 縁の光る線を出す（2026-08-30追加、新規追加時に劇画対応と同時に
+      // 対応すべきだったガラス対応漏れ）。
+      return GlassSurface(
+        variant: GlassVariant.floating,
+        borderRadius: BorderRadius.circular(16),
+        child: InkWell(onTap: () => _reopen(context, ref), child: bubbleSize),
+      );
+    }
 
     return Material(
       elevation: 8,
       borderRadius: BorderRadius.circular(12),
       clipBehavior: Clip.antiAlias,
       color: Colors.grey.shade900,
-      child: InkWell(
-        onTap: () => _reopen(context, ref),
-        child: SizedBox(
-          width: 140,
-          height: hasVideo ? null : 200,
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              if (renderer != null)
-                RTCVideoView(
-                  key: ObjectKey(renderer),
-                  renderer,
-                  objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
-                )
-              else
-                Center(
-                  child: CallParticipantAvatar(
-                    userId: placeholder.userId,
-                    rhingId: placeholder.rhingId,
-                    conversationId: placeholder.conversationId,
-                    radius: 36,
-                    fontSize: 28,
-                  ),
-                ),
-              // 通話画面（CallControlBar）と同じ相対順序（マイク→カメラ→
-              // 切断）で1本の行にまとめ、映像領域の下端に浮かせる
-              // （2026-08-20追加）。以前は切断を右上・マイクを左下に散らして
-              // いたが、通話画面と並びを揃えるために統一した。
-              Positioned(
-                left: 8,
-                right: 8,
-                bottom: 8,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    _MiniIconButton(
-                      icon: muted ? Icons.mic_off : Icons.mic,
-                      color: Colors.black54,
-                      onTap: () {
-                        switch (session) {
-                          case OneToOneCallSession(:final controller):
-                            controller.toggleMute();
-                          case GroupCallSession(:final controller):
-                            controller.toggleMute();
-                        }
-                      },
-                    ),
-                    _MiniIconButton(
-                      icon: isVideo ? Icons.videocam : Icons.videocam_off,
-                      color: Colors.black54,
-                      enabled: !switchingCallType,
-                      visible: videoToggleVisible,
-                      onTap: () {
-                        switch (session) {
-                          case OneToOneCallSession(:final controller):
-                            controller.setVideoEnabled(!controller.isVideo);
-                          case GroupCallSession(:final controller):
-                            controller.setVideoEnabled(!controller.isVideo);
-                        }
-                      },
-                    ),
-                    _MiniIconButton(
-                      icon: Icons.call_end,
-                      color: Colors.red,
-                      onTap: () => ref
-                          .read(activeCallSessionProvider.notifier)
-                          .endCall(),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+      child: InkWell(onTap: () => _reopen(context, ref), child: bubbleSize),
     );
   }
 
@@ -291,6 +390,8 @@ class _MiniIconButton extends StatelessWidget {
   const _MiniIconButton({
     required this.icon,
     required this.color,
+    required this.isGekiga,
+    required this.isGlass,
     required this.onTap,
     this.enabled = true,
     this.visible = true,
@@ -298,6 +399,8 @@ class _MiniIconButton extends StatelessWidget {
 
   final IconData icon;
   final Color color;
+  final bool isGekiga;
+  final bool isGlass;
   final VoidCallback onTap;
 
   /// タップを一時的に無効化する（枠は残したまま暗く表示、
@@ -311,19 +414,76 @@ class _MiniIconButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final button = Material(
-      color: enabled ? color : Colors.black26,
-      shape: const CircleBorder(),
-      child: InkWell(
-        customBorder: const CircleBorder(),
-        onTap: enabled ? onTap : null,
+    // 劇画スタイルは`CallRoundButton`の劇画分岐と同じ`GekigaBadgeShape`
+    // （手描き風モノクロボックス）、ガラススタイルは同じく`CallRoundButton`の
+    // ガラス分岐と同じ`GlassSurface`の円形パネルに切り替える（2026-08-30
+    // 追加、新規追加時にどちらの対応スイープからも漏れていた）。
+    final Widget button;
+    if (isGekiga) {
+      button = Opacity(
+        opacity: enabled ? 1 : 0.4,
         child: SizedBox(
           width: 28,
           height: 28,
-          child: Icon(icon, color: Colors.white, size: 16),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: enabled ? onTap : null,
+              child: GekigaBadgeShape(
+                color: color,
+                seed: icon.hashCode,
+                child: Icon(icon, color: GekigaColors.onPanel, size: 14),
+              ),
+            ),
+          ),
         ),
-      ),
-    );
+      );
+    } else if (isGlass) {
+      button = Opacity(
+        opacity: enabled ? 1 : 0.4,
+        child: SizedBox(
+          width: 28,
+          height: 28,
+          child: GlassSurface(
+            variant: GlassVariant.card,
+            opaque: true,
+            borderRadius: BorderRadius.circular(14),
+            child: Material(
+              color: Colors.transparent,
+              shape: const CircleBorder(),
+              child: InkWell(
+                customBorder: const CircleBorder(),
+                onTap: enabled ? onTap : null,
+                child: Center(
+                  child: Icon(
+                    icon,
+                    color: GlassColors.adaptiveIconColor(
+                      color,
+                      Theme.of(context).brightness,
+                    ),
+                    size: 16,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    } else {
+      button = Material(
+        color: enabled ? color : Colors.black26,
+        shape: const CircleBorder(),
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: enabled ? onTap : null,
+          child: SizedBox(
+            width: 28,
+            height: 28,
+            child: Icon(icon, color: Colors.white, size: 16),
+          ),
+        ),
+      );
+    }
     if (visible) return button;
     return IgnorePointer(child: Opacity(opacity: 0, child: button));
   }

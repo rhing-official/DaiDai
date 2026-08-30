@@ -13,6 +13,7 @@ class GlassThemeExtras extends ThemeExtension<GlassThemeExtras> {
     required this.cardTintAlpha,
     required this.edgeBorderBaseAlpha,
     required this.edgeBorderHighlightAlpha,
+    required this.textTertiary,
   });
 
   /// 常設の浮遊要素（ナビチップ・AppBar）のぼかし強度。
@@ -37,6 +38,10 @@ class GlassThemeExtras extends ThemeExtension<GlassThemeExtras> {
   /// 縁の左上寄りに乗せる、ハイライト部分の不透明度。
   final double edgeBorderHighlightAlpha;
 
+  /// テキスト・アイコンの重要度階調（`text_prominence_colors.dart`参照）の
+  /// Tier3（補助・タイムスタンプ・ヒント・無効化アイコン）用固定色。
+  final Color textTertiary;
+
   @override
   GlassThemeExtras copyWith({
     double? chromeBlurSigma,
@@ -46,6 +51,7 @@ class GlassThemeExtras extends ThemeExtension<GlassThemeExtras> {
     double? cardTintAlpha,
     double? edgeBorderBaseAlpha,
     double? edgeBorderHighlightAlpha,
+    Color? textTertiary,
   }) {
     return GlassThemeExtras(
       chromeBlurSigma: chromeBlurSigma ?? this.chromeBlurSigma,
@@ -56,6 +62,7 @@ class GlassThemeExtras extends ThemeExtension<GlassThemeExtras> {
       edgeBorderBaseAlpha: edgeBorderBaseAlpha ?? this.edgeBorderBaseAlpha,
       edgeBorderHighlightAlpha:
           edgeBorderHighlightAlpha ?? this.edgeBorderHighlightAlpha,
+      textTertiary: textTertiary ?? this.textTertiary,
     );
   }
 

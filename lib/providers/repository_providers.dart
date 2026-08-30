@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../repositories/album_repository.dart';
 import '../repositories/auth_repository.dart';
 import '../repositories/block_repository.dart';
 import '../repositories/call_repository.dart';
@@ -58,6 +59,10 @@ final linkPreviewRepositoryProvider = Provider<LinkPreviewRepository>((ref) {
 
 final stickerRepositoryProvider = Provider<StickerRepository>((ref) {
   return FirestoreStickerRepository();
+});
+
+final albumRepositoryProvider = Provider<AlbumRepository>((ref) {
+  return FirestoreAlbumRepository();
 });
 
 final authStateProvider = StreamProvider<User?>((ref) {

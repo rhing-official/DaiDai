@@ -1386,7 +1386,7 @@ class _DesignFolderState extends ConsumerState<_DesignFolder> {
                   ),
                   IconButton(
                     icon: const Icon(Icons.add),
-                    tooltip: widget.strings.settingsCustomColorRegister,
+                    tooltip: '',
                     onPressed: () async {
                       if (customColors.contains(activeColor)) return;
                       final added = await ref

@@ -39,11 +39,15 @@ import '../../providers/message_time_format_provider.dart';
 import '../../providers/repository_providers.dart';
 import '../../providers/send_key_mode_provider.dart';
 import '../../providers/user_providers.dart';
+import '../../theme/app_theme.dart';
 import '../../theme/app_theme_extras.dart';
 import '../../theme/gekiga/gekiga_colors.dart';
 import '../../theme/gekiga/gekiga_shapes.dart';
+import '../../theme/glass/glass_colors.dart';
+import '../../theme/text_prominence_colors.dart';
 import '../../widgets/gekiga/monochrome_box.dart';
 import '../../widgets/media_preview_frame.dart';
+import '../album/album_picker_sheet.dart';
 import 'attachment_popup_button.dart';
 import '../../utils/attachment_upload.dart';
 import '../../utils/auto_dismiss_banner.dart';
@@ -65,6 +69,7 @@ import '../../widgets/linkified_editing_controller.dart';
 import '../../widgets/linkified_text.dart';
 import '../../widgets/swipe_gestures.dart'
     show SwipeDownToDismiss, kSwipeGestureVelocityThreshold;
+import '../../widgets/video_thumbnail.dart';
 
 /// 劇画UIの吹き出し・入力欄の枠取りの太さ（[MonochromeBoxPainter]の
 /// thicknessBase）。以前は`size.shortestSide`（箱の短辺）に比例させて
@@ -434,12 +439,20 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   /// 入力欄オーバーレイの背景。ガラスUIでは半透明の塗り＋縁の光彩
-  /// （影は無し、`GlassVariant.card`）にする（2026-08-29追加）。
+  /// （影は無し、`GlassVariant.card`）にする（2026-08-29追加）。劇画は
+  /// 背景を透明にし、入力欄の奥をメッセージがスクロールして通っていく
+  /// ように見せる（2026-08-30追加。`_GekigaComposerField`が自前の白い
+  /// 塗り（`_GekigaComposerFieldPainter`のfillColor）を持つため、外側の
+  /// このコンテナが透明でも入力欄自体の視認性は失われない）。フラットは
+  /// 同じ透明化を試みたところ、テキスト入力欄自体（`TextField`の
+  /// `filled: false`）には自前の塗りが無く視認性を損なうことが判明した
+  /// ため、フラットのみ元の不透明な背景に戻す（2026-08-30、ユーザー
+  /// 指摘により修正）。
   /// [_composerAreaKey]は[_measureComposerArea]の計測対象のため、
-  /// どちらの分岐でも同じキーを付ける。
+  /// どの分岐でも同じキーを付ける。
   Widget _buildComposerArea({
     required bool isGlass,
-    required Color composerBackground,
+    required bool isGekiga,
     required Widget child,
   }) {
     if (isGlass) {
@@ -451,9 +464,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         child: child,
       );
     }
+    if (isGekiga) {
+      return Container(key: _composerAreaKey, child: child);
+    }
     return Container(
       key: _composerAreaKey,
-      color: composerBackground,
+      color: Theme.of(context).scaffoldBackgroundColor,
       child: child,
     );
   }
@@ -611,51 +627,30 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           ];
     if (!mounted) return;
     final vocabulary = ref.read(vocabularyProvider);
+    final timeFormat = ref.read(messageTimeFormatProvider);
+    final uiStyle = ref.read(appUiStyleProvider);
 
     final action = await showMenu<String>(
       context: context,
       position: position,
-      items: loaded.isEmpty
-          ? [
-              PopupMenuItem<String>(
-                enabled: false,
-                child: Text(strings.chatPinnedMessagesEmpty),
-              ),
-            ]
-          : [
-              for (final entry in loaded)
-                PopupMenuItem<String>(
-                  value: entry.id,
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Flexible(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _SenderName(
-                              userId: entry.message.senderId,
-                              rhingId: entry.message.senderRhingId,
-                              conversationId: widget.conversationId,
-                            ),
-                            Text(
-                              _replySnippetLabel(entry.message, vocabulary),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
-                        ),
-                      ),
-                      if (_replyPreviewThumbnail(entry.message)
-                          case final thumbnail?) ...[
-                        const SizedBox(width: 8),
-                        thumbnail,
-                      ],
-                    ],
-                  ),
-                ),
-            ],
+      color: Colors.transparent,
+      shadowColor: Colors.transparent,
+      elevation: 0,
+      items: [
+        PopupMenuItem<String>(
+          enabled: false,
+          padding: EdgeInsets.zero,
+          child: _PinnedMessagesPopupContent(
+            initialEntries: loaded,
+            strings: strings,
+            vocabulary: vocabulary,
+            timeFormat: timeFormat,
+            conversationId: widget.conversationId,
+            uiStyle: uiStyle,
+            onUnpinMessage: widget.onUnpinMessage,
+          ),
+        ),
+      ],
     );
     if (action != null) _jumpToMessage(action);
   }
@@ -793,6 +788,20 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// 全面廃止方針）。
   Future<void> _copyMessageText(Message message) async {
     await Clipboard.setData(ClipboardData(text: message.content));
+  }
+
+  /// 寄合単位の共有アルバムへの登録ボトムシートを開く（2026-08-30追加）。
+  /// `widget.conversationId`/`widget.roomId`が非nullの場合のみ呼び出し元
+  /// （`_MessageRow.onAddToAlbum`）から渡される。
+  void _addToAlbum(Message message) {
+    showAlbumPickerSheet(
+      context,
+      isDm: widget.isDm,
+      conversationId: widget.conversationId!,
+      roomId: widget.roomId!,
+      message: message,
+      currentUserId: widget.currentUserId,
+    );
   }
 
   /// 現在の実効範囲（[_screenshotEffectiveIds]）に含まれるメッセージを
@@ -1437,12 +1446,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final floatingShadow =
         Theme.of(context).extension<AppThemeExtras>()?.floatingShadow ??
         AppThemeExtras.none;
-    // 劇画UIの背景色はユーザーが設定タブから編集可能（gekigaBackgroundColorProvider、
-    // 2026-08-05）なため、固定値を決め打ちせずTheme経由で参照する
-    // （どちらのスタイルでもTheme側の値が既に正しいため、isGekigaでの
-    // 分岐自体が不要になった）。
-    final composerBackground = Theme.of(context).scaffoldBackgroundColor;
-
     // 入力欄オーバーレイの高さは行数や返信/編集バーの有無で変わるため、
     // 毎フレーム後に実測してメッセージ一覧の下部余白へ反映する
     // （_measureComposerAreaのコメント参照）。
@@ -1455,6 +1458,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       return AppBar(
         primary: primary,
         foregroundColor: isGekiga ? Colors.white : null,
+        // 上部バーの背景を消し、アイコンだけが浮いているように見せる
+        // （2026-08-30追加、ガラスUIは元々`wrapToolbar`でGlassAppBarに
+        // 差し替わるためここのbackgroundColorは参照されず無関係）。
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        shadowColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
         automaticallyImplyLeading: false,
         leading: _selecting
             ? IconButton(
@@ -1468,9 +1479,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               )
             : null,
         // 寄合名（widget.title）は、広い画面ではRoomListPaneのタブ、狭い
-        // 画面ではRoomTabBarに既に表示されており冗長なため、劇画スタイル
-        // では非表示にする（2026-08-04追加。選択モード中の「n件選択中」
-        // 表示は別物なので維持する。フラットスタイルは現状通り表示）。
+        // 画面ではRoomTabBarに既に表示されており冗長なため、全スタイルで
+        // 非表示にする（2026-08-04劇画スタイルのみ非表示化、2026-08-30に
+        // フラット・ガラスも同様に非表示化。選択モード中の「n件選択中」
+        // 表示は別物なので維持する）。
         title: _selecting
             ? Text(strings.chatSelectionModeTitle(_selectedMessageIds.length))
             : _screenshotSelecting
@@ -1479,24 +1491,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   _screenshotEffectiveIds(_cachedMessages).length,
                 ),
               )
-            : (isGekiga || widget.title.isEmpty
-                  ? null
-                  : isGlass
-                  ? GlassSurface(
-                      variant: GlassVariant.chrome,
-                      borderRadius: BorderRadius.circular(999),
-                      opaque: true,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 6,
-                      ),
-                      child: Text(
-                        widget.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    )
-                  : Text(widget.title)),
+            : null,
         actions: _selecting
             ? [
                 IconButton(
@@ -1568,7 +1563,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     AppUiStyle.flat => IconButton(
                       key: _pinButtonKey,
                       icon: const Icon(Icons.push_pin_outlined),
-                      tooltip: strings.chatPinnedMessagesTooltip,
+                      tooltip: '',
                       onPressed: _openPinnedMessagesPopup,
                     ),
                   },
@@ -1618,7 +1613,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           );
 
     final scaffold = Scaffold(
-      extendBodyBehindAppBar: isGlass,
+      // フラット・劇画UIも含め全スタイルでAppBarの裏までメッセージ一覧を
+      // 伸ばす（2026-08-30変更、以前はガラスUIのみ。上部バーの背景透過と
+      // セットで、アイコンの奥をメッセージがスクロールして通っていくように
+      // 見せる）。
+      extendBodyBehindAppBar: true,
       appBar: appBar,
       body: Column(
         children: [
@@ -1814,6 +1813,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                               : null,
                           onUnsend: widget.onUnsendMessage,
                           onSetReaction: widget.onSetReaction,
+                          onAddToAlbum:
+                              widget.conversationId != null &&
+                                  widget.roomId != null
+                              ? _addToAlbum
+                              : null,
                           pinnedMessageIds: widget.pinnedMessageIds,
                           onPinMessage: widget.onPinMessage,
                           onUnpinMessage: widget.onUnpinMessage,
@@ -1904,7 +1908,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     bottom: 0,
                     child: _buildComposerArea(
                       isGlass: isGlass,
-                      composerBackground: composerBackground,
+                      isGekiga: isGekiga,
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
@@ -2458,13 +2462,301 @@ Widget? _replyPreviewThumbnail(Message target) {
       // （`_attachmentContent`）と同じ判定式。
       final supportsInAppPlayback =
           kIsWeb || !(Platform.isWindows || Platform.isLinux);
-      return _VideoThumbnail(
+      return VideoThumbnail(
         url: url,
         canLoad: supportsInAppPlayback,
         size: size,
       );
     default:
       return null;
+  }
+}
+
+/// ピン留め/アルバムポップアップの背景・文字色（2026-08-30修正）。
+/// `colorScheme.inverseSurface`/`onInverseSurface`はユーザーが指定する
+/// アクセントカラーをseedにした`ColorScheme.fromSeed`から導出されるため、
+/// アクセントカラー次第で視認性が落ちる（ガラススタイルでは背景に
+/// `GlassSurface`の半透明パネルを使う一方、文字色だけ「反転した背景」用に
+/// 設計された`onInverseSurface`のままだったため、特に食い違いが大きかった）。
+/// `colorScheme.error`のダークテーマでの視認性問題（CLAUDE.md記載）・
+/// ガラスUIの`onSurface`/`onSurfaceVariant`固定化（`GlassColors.
+/// lightForeground`/`darkForeground`）と同じ考え方で、アクセントカラーに
+/// 一切依存しない固定色にする。
+/// 当初は背景をわざと現在の明るさと反対色にしていたが、フラットUIの他の
+/// カード・ダイアログ（2026-08-30の`surfaceContainer`系ロール修正で
+/// 統一済み）と色が食い違って見えるとの指摘を受け、背景は外観と同じ
+/// 明るさ側に修正し、代わりに文字色をそのペアに合わせて反転させた
+/// （2026-08-30再修正）。
+Color _popupCardBackground(Brightness brightness) =>
+    brightness == Brightness.dark
+    ? AppTheme.darkSurface
+    : GlassColors.lightSurfaceBase;
+
+Color _popupCardForeground(Brightness brightness) =>
+    brightness == Brightness.dark
+    ? GlassColors.darkForeground
+    : GlassColors.lightForeground;
+
+/// ピン留めポップアップ（[_ChatScreenState._openPinnedMessagesPopup]）の中身。
+/// `showMenu`の1つの`PopupMenuItem`にまるごと収めるStatefulWidgetにして、
+/// ×タップでの解除時（[_PinnedMessagesPopupContentState._handleUnpin]）に
+/// ポップアップを閉じずローカルの一覧だけを更新できるようにする（2026-08-30
+/// 追加）。カード本体タップ時は`Navigator.pop(id)`で値を返し、呼び出し元
+/// （`_openPinnedMessagesPopup`）が従来通り[_ChatScreenState._jumpToMessage]
+/// でジャンプする。
+class _PinnedMessagesPopupContent extends StatefulWidget {
+  const _PinnedMessagesPopupContent({
+    required this.initialEntries,
+    required this.strings,
+    required this.vocabulary,
+    required this.timeFormat,
+    required this.conversationId,
+    required this.uiStyle,
+    required this.onUnpinMessage,
+  });
+
+  final List<({String id, Message message})> initialEntries;
+  final Strings strings;
+  final Vocabulary? vocabulary;
+  final MessageTimeFormat timeFormat;
+  final String? conversationId;
+  final AppUiStyle uiStyle;
+  final void Function(String messageId)? onUnpinMessage;
+
+  @override
+  State<_PinnedMessagesPopupContent> createState() =>
+      _PinnedMessagesPopupContentState();
+}
+
+class _PinnedMessagesPopupContentState
+    extends State<_PinnedMessagesPopupContent> {
+  late final List<({String id, Message message})> _entries = List.of(
+    widget.initialEntries,
+  );
+
+  void _handleUnpin(String messageId) {
+    widget.onUnpinMessage?.call(messageId);
+    setState(() => _entries.removeWhere((e) => e.id == messageId));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isGlass = widget.uiStyle == AppUiStyle.glass;
+    final brightness = Theme.of(context).brightness;
+    final foreground = _popupCardForeground(brightness);
+
+    final content = Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.push_pin, size: 16, color: foreground),
+            const SizedBox(width: 6),
+            Text(
+              widget.strings.chatPinnedMessagesTooltip,
+              style: TextStyle(color: foreground, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        if (_entries.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Text(
+              widget.strings.chatPinnedMessagesEmpty,
+              style: TextStyle(color: foreground),
+            ),
+          )
+        else
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 400),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  for (final entry in _entries)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: _PinnedMessageCard(
+                        message: entry.message,
+                        conversationId: widget.conversationId,
+                        vocabulary: widget.vocabulary,
+                        timeFormat: widget.timeFormat,
+                        uiStyle: widget.uiStyle,
+                        onTap: () => Navigator.of(context).pop(entry.id),
+                        onClose: widget.onUnpinMessage == null
+                            ? null
+                            : () => _handleUnpin(entry.id),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+      ],
+    );
+
+    final padded = Padding(padding: const EdgeInsets.all(12), child: content);
+
+    return SizedBox(
+      width: 300,
+      child: isGlass
+          ? GlassSurface(
+              variant: GlassVariant.floating,
+              borderRadius: BorderRadius.circular(16),
+              child: padded,
+            )
+          : Container(
+              decoration: BoxDecoration(
+                color: _popupCardBackground(brightness),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: padded,
+            ),
+    );
+  }
+}
+
+/// ピン留めポップアップの1件分のカード（2026-08-30追加）。カード本体タップ
+/// でジャンプ、右上の×タップでピン留め解除（`onClose`がnullなら×自体を
+/// 表示しない、既存の「nullなら機能自体を出さない」規約に合わせる）。
+class _PinnedMessageCard extends StatelessWidget {
+  const _PinnedMessageCard({
+    required this.message,
+    required this.conversationId,
+    required this.vocabulary,
+    required this.timeFormat,
+    required this.uiStyle,
+    required this.onTap,
+    required this.onClose,
+  });
+
+  final Message message;
+  final String? conversationId;
+  final Vocabulary? vocabulary;
+  final MessageTimeFormat timeFormat;
+  final AppUiStyle uiStyle;
+  final VoidCallback onTap;
+  final VoidCallback? onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    final isGlass = uiStyle == AppUiStyle.glass;
+    final brightness = Theme.of(context).brightness;
+    final foreground = _popupCardForeground(brightness);
+    final sentAt = message.sentAt?.toDate();
+
+    final body = Padding(
+      padding: EdgeInsets.fromLTRB(10, 10, onClose != null ? 32 : 10, 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _SenderAvatar(
+            userId: message.senderId,
+            rhingId: message.senderRhingId,
+            conversationId: conversationId,
+            uiStyle: uiStyle,
+            size: 32,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Flexible(
+                      child: _SenderName(
+                        userId: message.senderId,
+                        rhingId: message.senderRhingId,
+                        conversationId: conversationId,
+                        color: foreground,
+                      ),
+                    ),
+                    if (sentAt != null) ...[
+                      const SizedBox(width: 6),
+                      Text(
+                        formatMessageTime(sentAt, timeFormat),
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: foreground.withValues(alpha: 0.7),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Flexible(
+                      child: Text(
+                        _replySnippetLabel(message, vocabulary),
+                        maxLines: 4,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(color: foreground),
+                      ),
+                    ),
+                    if (_replyPreviewThumbnail(message)
+                        case final thumbnail?) ...[
+                      const SizedBox(width: 8),
+                      thumbnail,
+                    ],
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+
+    final card = isGlass
+        ? GlassSurface(
+            variant: GlassVariant.card,
+            borderRadius: BorderRadius.circular(12),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: onTap,
+              child: body,
+            ),
+          )
+        : Material(
+            color: foreground.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(12),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: onTap,
+              child: body,
+            ),
+          );
+
+    if (onClose == null) return card;
+
+    return Stack(
+      children: [
+        card,
+        Positioned(
+          top: 4,
+          right: 4,
+          child: InkWell(
+            customBorder: const CircleBorder(),
+            onTap: onClose,
+            child: Container(
+              width: 22,
+              height: 22,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: foreground.withValues(alpha: 0.15),
+              ),
+              child: Icon(Icons.close, size: 14, color: foreground),
+            ),
+          ),
+        ),
+      ],
+    );
   }
 }
 
@@ -2514,6 +2806,7 @@ class _MessageRow extends ConsumerWidget {
     this.onDeleteAfterAccountDeletion,
     this.onSwipeBack,
     this.vocabulary,
+    this.onAddToAlbum,
     super.key,
   });
 
@@ -2580,6 +2873,11 @@ class _MessageRow extends ConsumerWidget {
   /// 長押しメニューの「コピー」。選択操作を挟まず、メッセージ本文全体を
   /// 即座にクリップボードへコピーする（2026-08-09追加）。
   final void Function(Message message)? onCopyMessage;
+
+  /// 寄合単位の共有アルバムへの登録を開始する（2026-08-30追加）。
+  /// nullなら（会話種別がお知らせ画面等でroomId未確定の場合）メニュー
+  /// 項目自体を出さない。
+  final void Function(Message message)? onAddToAlbum;
   final void Function(String messageId)? onToggleSelected;
 
   /// 現在ロード済みの（最新50件の）メッセージ一覧。返信先の引用プレビューを
@@ -3330,6 +3628,12 @@ class _MessageRow extends ConsumerWidget {
                               message.messageId,
                             )
                           : null,
+                      onAddToAlbum:
+                          (onAddToAlbum != null &&
+                              (message.contentType == 'image' ||
+                                  message.contentType == 'video'))
+                          ? () => onAddToAlbum!(message)
+                          : null,
                       child: bubble,
                     ),
             ),
@@ -3371,7 +3675,12 @@ class _MessageRow extends ConsumerWidget {
             timeLabel!,
             style: TextStyle(
               fontSize: 11,
-              color: colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+              color: isGekiga
+                  ? colorScheme.onSurfaceVariant.withValues(alpha: 0.7)
+                  : resolveTertiaryTextColor(
+                      context,
+                      isGlass: uiStyle == AppUiStyle.glass,
+                    ),
             ),
           );
 
@@ -3716,7 +4025,7 @@ class _MessageRow extends ConsumerWidget {
               ),
         child: mediaPreviewFrame(
           isGekiga: isGekiga,
-          child: _VideoThumbnail(
+          child: VideoThumbnail(
             url: metadata.url,
             canLoad: supportsInAppPlayback,
           ),
@@ -4001,6 +4310,7 @@ enum _MessageMenuAction {
   partialCopy,
   select,
   screenshot,
+  addToAlbum,
 }
 
 /// 長押し/右クリック位置に開く各種メニューの位置決め（[_MessageBubbleTapArea]・
@@ -4073,6 +4383,7 @@ class _MessageBubbleTapArea extends StatefulWidget {
     this.onPartialCopySelect,
     this.onSelect,
     this.onScreenshotSelect,
+    this.onAddToAlbum,
   });
 
   final Widget child;
@@ -4106,6 +4417,11 @@ class _MessageBubbleTapArea extends StatefulWidget {
   /// スクリーンショット用の範囲選択モードに入る（[onSelect]とは別モード、
   /// 2026-08-09追加）。
   final VoidCallback? onScreenshotSelect;
+
+  /// 寄合単位の共有アルバムへの登録（2026-08-30追加）。画像・動画
+  /// メッセージのみ呼び出し元がコールバックを渡し、それ以外の
+  /// contentTypeではnullのままメニュー項目自体を出さない。
+  final VoidCallback? onAddToAlbum;
 
   @override
   State<_MessageBubbleTapArea> createState() => _MessageBubbleTapAreaState();
@@ -4162,6 +4478,11 @@ class _MessageBubbleTapAreaState extends State<_MessageBubbleTapArea> {
           label: strings.chatScreenshotAction,
         ),
       ],
+      if (widget.onAddToAlbum != null)
+        (
+          action: _MessageMenuAction.addToAlbum,
+          label: strings.chatAddToAlbumAction,
+        ),
     ];
   }
 
@@ -4193,6 +4514,8 @@ class _MessageBubbleTapAreaState extends State<_MessageBubbleTapArea> {
         widget.onSelect?.call();
       case _MessageMenuAction.screenshot:
         widget.onScreenshotSelect?.call();
+      case _MessageMenuAction.addToAlbum:
+        widget.onAddToAlbum?.call();
       case null:
         break;
     }
@@ -4506,6 +4829,7 @@ class _SenderAvatar extends ConsumerWidget {
     required this.rhingId,
     this.conversationId,
     this.uiStyle = AppUiStyle.flat,
+    this.size = 48,
   });
 
   final String userId;
@@ -4515,6 +4839,10 @@ class _SenderAvatar extends ConsumerWidget {
   final String? conversationId;
 
   final AppUiStyle uiStyle;
+
+  /// アイコンの直径（2026-08-30、ピン留めポップアップのカード用に既定48pxより
+  /// 小さいサイズを指定できるよう追加）。
+  final double size;
 
   static const _palette = [
     Color(0xFFEE7800),
@@ -4531,9 +4859,10 @@ class _SenderAvatar extends ConsumerWidget {
     final iconUrl = user?.effectiveIconFor(conversationId)?.url;
     final id = rhingId ?? '?';
     final color = _palette[id.hashCode.abs() % _palette.length];
+    final fontSize = size / 48 * 13;
     if (uiStyle == AppUiStyle.gekiga) {
       return GekigaPhotoFrame(
-        size: 48,
+        size: size,
         image: iconUrl != null ? NetworkImage(iconUrl) : null,
         fallback: iconUrl != null
             ? null
@@ -4542,7 +4871,7 @@ class _SenderAvatar extends ConsumerWidget {
                 child: Center(
                   child: Text(
                     id[0].toUpperCase(),
-                    style: const TextStyle(color: Colors.white, fontSize: 13),
+                    style: TextStyle(color: Colors.white, fontSize: fontSize),
                   ),
                 ),
               ),
@@ -4551,8 +4880,8 @@ class _SenderAvatar extends ConsumerWidget {
     // フラットも紙に墨で書いたような細い枠付きの円にする（旧デッサン
     // スタイルの`DessinPhotoFrame`を統合、2026-08-27）。
     return Container(
-      width: 48,
-      height: 48,
+      width: size,
+      height: size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         border: Border.all(color: Theme.of(context).colorScheme.outline),
@@ -4565,7 +4894,7 @@ class _SenderAvatar extends ConsumerWidget {
                 child: Center(
                   child: Text(
                     id[0].toUpperCase(),
-                    style: const TextStyle(color: Colors.white, fontSize: 13),
+                    style: TextStyle(color: Colors.white, fontSize: fontSize),
                   ),
                 ),
               ),
@@ -4773,123 +5102,6 @@ class _ImageViewerPage extends StatelessWidget {
             child: Image.network(url, fit: BoxFit.contain),
           ),
         ),
-      ),
-    );
-  }
-}
-
-/// 動画添付メッセージのインラインプレビュー（[_MessageRow._attachmentContent]
-/// 参照、2026-08-11追加、技術仕様書5.8参照）。画像と同様に実際の最初の
-/// コマを表示する（当初は暗いプレースホルダーのみだったが、ユーザー要望
-/// により変更）。実現には別途サムネイル生成パッケージ（`video_thumbnail`
-/// 等、Android/iOSのみ対応）を使わず、既に導入済みの`video_player`で
-/// `VideoPlayerController`を初期化した直後（`play()`を呼ばない、＝先頭
-/// フレームで一時停止した状態）の`VideoPlayer`ウィジェットをそのまま
-/// 表示する。`canLoad`がfalse（Linux/Windows、`video_player`非対応）の
-/// 場合は読み込み自体を行わず、暗いプレースホルダーのままにする。
-class _VideoThumbnail extends StatefulWidget {
-  const _VideoThumbnail({required this.url, required this.canLoad, this.size});
-
-  final String url;
-  final bool canLoad;
-
-  /// 指定時は`size`×`size`の正方形（`BoxFit.cover`でクロップ）で表示する
-  /// （返信引用プレビュー用、2026-08-14追加）。未指定なら既存の280px固定＋
-  /// アスペクト比維持のレターボックス表示（メッセージ本文の添付表示用）。
-  final double? size;
-
-  @override
-  State<_VideoThumbnail> createState() => _VideoThumbnailState();
-}
-
-class _VideoThumbnailState extends State<_VideoThumbnail> {
-  VideoPlayerController? _controller;
-  bool _ready = false;
-
-  @override
-  void initState() {
-    super.initState();
-    if (!widget.canLoad) return;
-    final controller = VideoPlayerController.networkUrl(Uri.parse(widget.url));
-    _controller = controller;
-    controller
-        .initialize()
-        .then((_) {
-          if (mounted) setState(() => _ready = true);
-        })
-        .catchError((_) {});
-  }
-
-  @override
-  void dispose() {
-    _controller?.dispose();
-    super.dispose();
-  }
-
-  static const _playIcon = Center(
-    child: DecoratedBox(
-      decoration: BoxDecoration(color: Colors.black45, shape: BoxShape.circle),
-      child: Padding(
-        padding: EdgeInsets.all(8),
-        child: Icon(Icons.play_arrow, color: Colors.white, size: 28),
-      ),
-    ),
-  );
-
-  @override
-  Widget build(BuildContext context) {
-    final controller = _controller;
-    final squareSize = widget.size;
-    if (squareSize != null) {
-      // 正方形モード（返信引用プレビュー）。アスペクト比を維持したレター
-      // ボックスではなく、ボックスいっぱいにクロップして小さいサムネイルとして
-      // 見やすくする。
-      final content = _ready && controller != null
-          ? FittedBox(
-              fit: BoxFit.cover,
-              child: SizedBox(
-                width: controller.value.size.width,
-                height: controller.value.size.height,
-                child: VideoPlayer(controller),
-              ),
-            )
-          : Container(color: Colors.black87);
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(4),
-        child: SizedBox(
-          width: squareSize,
-          height: squareSize,
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              content,
-              Icon(Icons.play_arrow, color: Colors.white, size: squareSize / 2),
-            ],
-          ),
-        ),
-      );
-    }
-    if (_ready && controller != null) {
-      return SizedBox(
-        width: 280,
-        child: AspectRatio(
-          aspectRatio: controller.value.aspectRatio,
-          child: Stack(
-            fit: StackFit.expand,
-            children: [VideoPlayer(controller), _playIcon],
-          ),
-        ),
-      );
-    }
-    return SizedBox(
-      width: 280,
-      height: 280 * 9 / 16,
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          Container(color: Colors.black87),
-          _playIcon,
-        ],
       ),
     );
   }

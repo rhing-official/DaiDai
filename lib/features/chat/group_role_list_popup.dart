@@ -4,12 +4,15 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/strings.dart';
+import '../../models/app_ui_style.dart';
 import '../../models/app_user.dart';
 import '../../models/group.dart';
 import '../../models/group_role.dart';
+import '../../providers/app_ui_style_provider.dart';
 import '../../providers/group_providers.dart';
 import '../../providers/repository_providers.dart';
 import '../../utils/color_hex.dart';
+import '../../widgets/glass/glass_dialog.dart';
 import 'group_role_priority_dialog.dart';
 
 /// 広場のカスタムロール一覧（ポップアップの中身）。`manageRoles`権限を持つ
@@ -46,6 +49,7 @@ class GroupRoleListPopup extends ConsumerWidget {
     var hasColor = existing?.color != null;
     final permissions = {...?existing?.permissions};
     final isEveryone = existing?.isEveryone ?? false;
+    final isGlass = ref.read(appUiStyleProvider) == AppUiStyle.glass;
     String? errorText;
 
     // 基準ロール（全員に自動適用）はメンバーを個別に選ぶ意味が無いため取得しない。
@@ -82,169 +86,174 @@ class GroupRoleListPopup extends ConsumerWidget {
             Navigator.of(context).pop(true);
           }
 
-          return AlertDialog(
-            title: Text(
-              existing == null
-                  ? strings.groupRoleCreateDialogTitle
-                  : strings.groupRoleEditDialogTitle,
-            ),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (isEveryone) ...[
-                    Text(
-                      strings.groupRoleEveryoneNote,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
+          final title = Text(
+            existing == null
+                ? strings.groupRoleCreateDialogTitle
+                : strings.groupRoleEditDialogTitle,
+          );
+          final content = SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (isEveryone) ...[
+                  Text(
+                    strings.groupRoleEveryoneNote,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
-                    const SizedBox(height: 12),
-                  ],
-                  TextField(
-                    controller: nameController,
-                    autofocus: !isEveryone,
-                    enabled: !isEveryone,
-                    decoration: InputDecoration(
-                      labelText: strings.groupRoleDialogNameLabel,
-                    ),
-                    onSubmitted: (_) => confirm(),
                   ),
-                  const SizedBox(height: 16),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        width: 40,
-                        height: 40,
-                        margin: const EdgeInsets.only(top: 4),
-                        decoration: BoxDecoration(
-                          color: previewColor ?? Colors.transparent,
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.black12),
-                        ),
-                        child: previewColor == null
-                            ? const Icon(Icons.circle_outlined, size: 18)
-                            : null,
+                  const SizedBox(height: 12),
+                ],
+                TextField(
+                  controller: nameController,
+                  autofocus: !isEveryone,
+                  enabled: !isEveryone,
+                  decoration: InputDecoration(
+                    labelText: strings.groupRoleDialogNameLabel,
+                  ),
+                  onSubmitted: (_) => confirm(),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      margin: const EdgeInsets.only(top: 4),
+                      decoration: BoxDecoration(
+                        color: previewColor ?? Colors.transparent,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.black12),
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: TextField(
-                          controller: hexController,
-                          enabled: hasColor,
-                          textCapitalization: TextCapitalization.characters,
-                          inputFormatters: [
-                            FilteringTextInputFormatter.allow(
-                              RegExp('[0-9a-fA-F]'),
-                            ),
-                            LengthLimitingTextInputFormatter(6),
-                          ],
-                          decoration: InputDecoration(
-                            labelText: strings.settingsColorCode,
-                            prefixText: '#',
-                            hintText: 'EE7800',
-                            errorText: errorText,
-                            counterText: '',
+                      child: previewColor == null
+                          ? const Icon(Icons.circle_outlined, size: 18)
+                          : null,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: TextField(
+                        controller: hexController,
+                        enabled: hasColor,
+                        textCapitalization: TextCapitalization.characters,
+                        inputFormatters: [
+                          FilteringTextInputFormatter.allow(
+                            RegExp('[0-9a-fA-F]'),
                           ),
-                          onChanged: (_) => setState(() {}),
-                          onSubmitted: (_) => confirm(),
+                          LengthLimitingTextInputFormatter(6),
+                        ],
+                        decoration: InputDecoration(
+                          labelText: strings.settingsColorCode,
+                          prefixText: '#',
+                          hintText: 'EE7800',
+                          errorText: errorText,
+                          counterText: '',
                         ),
+                        onChanged: (_) => setState(() {}),
+                        onSubmitted: (_) => confirm(),
                       ),
-                    ],
+                    ),
+                  ],
+                ),
+                CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  controlAffinity: ListTileControlAffinity.leading,
+                  value: !hasColor,
+                  title: Text(strings.groupRoleColorNone),
+                  onChanged: (checked) =>
+                      setState(() => hasColor = !(checked ?? false)),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  strings.groupRolePermissionsLabel,
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                for (final permission in GroupPermission.all)
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    controlAffinity: ListTileControlAffinity.leading,
+                    value: permissions.contains(permission),
+                    title: Text(strings.groupPermissionLabel(permission)),
+                    onChanged: (checked) => setState(() {
+                      if (checked ?? false) {
+                        permissions.add(permission);
+                      } else {
+                        permissions.remove(permission);
+                      }
+                    }),
+                  ),
+                if (!isEveryone) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    strings.groupRoleMembersLabel,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                   CheckboxListTile(
                     contentPadding: EdgeInsets.zero,
                     controlAffinity: ListTileControlAffinity.leading,
-                    value: !hasColor,
-                    title: Text(strings.groupRoleColorNone),
-                    onChanged: (checked) =>
-                        setState(() => hasColor = !(checked ?? false)),
+                    value:
+                        members.isNotEmpty &&
+                        selectedMemberIds.length == members.length,
+                    title: Text(strings.groupRoleAssignAllLabel),
+                    onChanged: members.isEmpty
+                        ? null
+                        : (checked) => setState(() {
+                            if (checked ?? false) {
+                              selectedMemberIds.addAll(
+                                members.map((m) => m.userId),
+                              );
+                            } else {
+                              selectedMemberIds.clear();
+                            }
+                          }),
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    strings.groupRolePermissionsLabel,
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  for (final permission in GroupPermission.all)
+                  for (final member in members)
                     CheckboxListTile(
                       contentPadding: EdgeInsets.zero,
                       controlAffinity: ListTileControlAffinity.leading,
-                      value: permissions.contains(permission),
-                      title: Text(strings.groupPermissionLabel(permission)),
+                      value: selectedMemberIds.contains(member.userId),
+                      secondary: CircleAvatar(
+                        radius: 14,
+                        backgroundImage: member.effectiveIcon?.url != null
+                            ? NetworkImage(member.effectiveIcon!.url)
+                            : null,
+                        child: member.effectiveIcon?.url == null
+                            ? const Icon(Icons.person, size: 16)
+                            : null,
+                      ),
+                      title: Text(
+                        (member.effectiveNickname?.text.isNotEmpty ?? false)
+                            ? member.effectiveNickname!.text
+                            : '@${member.rhingId}',
+                      ),
                       onChanged: (checked) => setState(() {
                         if (checked ?? false) {
-                          permissions.add(permission);
+                          selectedMemberIds.add(member.userId);
                         } else {
-                          permissions.remove(permission);
+                          selectedMemberIds.remove(member.userId);
                         }
                       }),
                     ),
-                  if (!isEveryone) ...[
-                    const SizedBox(height: 8),
-                    Text(
-                      strings.groupRoleMembersLabel,
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    CheckboxListTile(
-                      contentPadding: EdgeInsets.zero,
-                      controlAffinity: ListTileControlAffinity.leading,
-                      value:
-                          members.isNotEmpty &&
-                          selectedMemberIds.length == members.length,
-                      title: Text(strings.groupRoleAssignAllLabel),
-                      onChanged: members.isEmpty
-                          ? null
-                          : (checked) => setState(() {
-                              if (checked ?? false) {
-                                selectedMemberIds.addAll(
-                                  members.map((m) => m.userId),
-                                );
-                              } else {
-                                selectedMemberIds.clear();
-                              }
-                            }),
-                    ),
-                    for (final member in members)
-                      CheckboxListTile(
-                        contentPadding: EdgeInsets.zero,
-                        controlAffinity: ListTileControlAffinity.leading,
-                        value: selectedMemberIds.contains(member.userId),
-                        secondary: CircleAvatar(
-                          radius: 14,
-                          backgroundImage: member.effectiveIcon?.url != null
-                              ? NetworkImage(member.effectiveIcon!.url)
-                              : null,
-                          child: member.effectiveIcon?.url == null
-                              ? const Icon(Icons.person, size: 16)
-                              : null,
-                        ),
-                        title: Text(
-                          (member.effectiveNickname?.text.isNotEmpty ?? false)
-                              ? member.effectiveNickname!.text
-                              : '@${member.rhingId}',
-                        ),
-                        onChanged: (checked) => setState(() {
-                          if (checked ?? false) {
-                            selectedMemberIds.add(member.userId);
-                          } else {
-                            selectedMemberIds.remove(member.userId);
-                          }
-                        }),
-                      ),
-                  ],
                 ],
-              ),
+              ],
             ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(false),
-                child: Text(strings.cancel),
-              ),
-              FilledButton(onPressed: confirm, child: Text(strings.save)),
-            ],
           );
+          final actions = [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: Text(strings.cancel),
+            ),
+            FilledButton(onPressed: confirm, child: Text(strings.save)),
+          ];
+          return isGlass
+              ? GlassAlertDialog(
+                  title: title,
+                  content: content,
+                  actions: actions,
+                )
+              : AlertDialog(title: title, content: content, actions: actions);
         },
       ),
     );
@@ -299,26 +308,29 @@ class GroupRoleListPopup extends ConsumerWidget {
     BuildContext context,
     WidgetRef ref,
     Strings strings,
-    GroupRole role,
-  ) async {
+    GroupRole role, {
+    required bool isGlass,
+  }) async {
+    final title = Text(strings.groupRoleDeleteConfirmTitle);
+    final actions = [
+      TextButton(
+        onPressed: () => Navigator.of(context).pop(false),
+        child: Text(strings.cancel),
+      ),
+      FilledButton(
+        style: FilledButton.styleFrom(
+          backgroundColor: Colors.red.shade700,
+          foregroundColor: Colors.white,
+        ),
+        onPressed: () => Navigator.of(context).pop(true),
+        child: Text(strings.groupRoleDeleteConfirmButton),
+      ),
+    ];
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(strings.groupRoleDeleteConfirmTitle),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: Text(strings.cancel),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(context).colorScheme.error,
-            ),
-            onPressed: () => Navigator.of(context).pop(true),
-            child: Text(strings.groupRoleDeleteConfirmButton),
-          ),
-        ],
-      ),
+      builder: (context) => isGlass
+          ? GlassAlertDialog(title: title, actions: actions)
+          : AlertDialog(title: title, actions: actions),
     );
     if (confirmed == true) {
       await ref
@@ -334,6 +346,7 @@ class GroupRoleListPopup extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final strings = ref.watch(appStringsProvider);
+    final isGlass = ref.watch(appUiStyleProvider) == AppUiStyle.glass;
     final groupRepository = ref.watch(groupRepositoryProvider);
     // widget.groupはこのポップアップを開いた時点の静的なスナップショットで、
     // 開いたまま優先順位ダイアログ等で`rolePriority`を変更しても自動更新
@@ -448,8 +461,13 @@ class GroupRoleListPopup extends ConsumerWidget {
                       ),
                       trailing: IconButton(
                         icon: const Icon(Icons.delete_outline),
-                        onPressed: () =>
-                            _confirmDelete(context, ref, strings, role),
+                        onPressed: () => _confirmDelete(
+                          context,
+                          ref,
+                          strings,
+                          role,
+                          isGlass: isGlass,
+                        ),
                       ),
                     ),
                   if (everyone != null) ...[

@@ -13,6 +13,7 @@ import 'call_controls.dart';
 class CallControlBar extends StatelessWidget {
   const CallControlBar({
     required this.isGekiga,
+    required this.isGlass,
     required this.enabled,
     required this.muted,
     required this.onToggleMute,
@@ -29,6 +30,7 @@ class CallControlBar extends StatelessWidget {
   });
 
   final bool isGekiga;
+  final bool isGlass;
 
   /// 通話が接続済み（active）かどうか。マイク・スピーカー・切替系ボタンは
   /// このフラグでのみ有効/無効を切り替える（通話終了ボタンは常に有効）。
@@ -78,6 +80,7 @@ class CallControlBar extends StatelessWidget {
               icon: muted ? Icons.mic_off : Icons.mic,
               color: Colors.grey[700]!,
               isGekiga: isGekiga,
+              isGlass: isGlass,
               onPressed: enabled ? onToggleMute : null,
             ),
             _maybeHidden(
@@ -86,6 +89,7 @@ class CallControlBar extends StatelessWidget {
                 icon: speakerOn ? Icons.volume_up : Icons.phone_in_talk,
                 color: Colors.grey[700]!,
                 isGekiga: isGekiga,
+                isGlass: isGlass,
                 onPressed: enabled ? onToggleSpeaker : null,
               ),
             ),
@@ -95,6 +99,7 @@ class CallControlBar extends StatelessWidget {
                 icon: isVideo ? Icons.videocam : Icons.videocam_off,
                 color: Colors.grey[700]!,
                 isGekiga: isGekiga,
+                isGlass: isGlass,
                 onPressed: enabled && !switchingCallType
                     ? onToggleVideoType
                     : null,
@@ -106,6 +111,7 @@ class CallControlBar extends StatelessWidget {
                 icon: Icons.cameraswitch,
                 color: Colors.grey[700]!,
                 isGekiga: isGekiga,
+                isGlass: isGlass,
                 onPressed: enabled && !switchingCamera ? onSwitchCamera : null,
               ),
             ),
@@ -113,6 +119,7 @@ class CallControlBar extends StatelessWidget {
               icon: Icons.call_end,
               color: Colors.red,
               isGekiga: isGekiga,
+              isGlass: isGlass,
               onPressed: onHangUp,
             ),
           ],
