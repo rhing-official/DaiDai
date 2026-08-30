@@ -101,6 +101,10 @@ class ChatScreen extends ConsumerStatefulWidget {
     this.onDeclineAccountDeletionNotice,
     this.onDeleteAfterAccountDeletion,
     this.onFetchMessagesAround,
+    this.pinnedMessageIds = const [],
+    this.onFetchMessage,
+    this.onPinMessage,
+    this.onUnpinMessage,
     this.onLoadOlderMessages,
     this.isLoadingOlderMessages = false,
     this.hasMoreHistory = true,
@@ -210,6 +214,24 @@ class ChatScreen extends ConsumerStatefulWidget {
   /// `GroupRepository.getRoomMessagesAround`参照）。nullなら未対応として
   /// 何もしない（ジャンプできない）。
   final Future<List<Message>> Function(String messageId)? onFetchMessagesAround;
+
+  /// ピン留めされたメッセージidの一覧（`DmRoom.pinnedMessageIds`/
+  /// `Room.pinnedMessageIds`、2026-08-30追加）。配列の末尾が最後にピン留め
+  /// したもの。AppBarのピンアイコンのポップアップ・長押しメニューの
+  /// 「ピン留め解除」表示切り替えに使う。
+  final List<String> pinnedMessageIds;
+
+  /// 指定した1件のメッセージの最新状態を1回だけ取得する（`getMessage`/
+  /// `getRoomMessage`）。ピン留め一覧ポップアップのプレビュー表示に使う。
+  /// nullならピンボタン自体を表示しない。
+  final Future<Message?> Function(String messageId)? onFetchMessage;
+
+  /// メッセージをピン留めする。nullならピン留め機能自体を提供しない
+  /// （長押しメニューに項目を出さない）。
+  final void Function(String messageId)? onPinMessage;
+
+  /// メッセージのピン留めを解除する。
+  final void Function(String messageId)? onUnpinMessage;
 
   /// メッセージ一覧を一番上（一番古いメッセージ側）までスクロールした時に、
   /// さらに古い暦日1日分を読み込む（2026-08-20追加、1日単位ページネーション）。
@@ -373,6 +395,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// 未ビルドの行にも確定的にジャンプできる）。
   final _itemScrollController = ItemScrollController();
   final _itemPositionsListener = ItemPositionsListener.create();
+
+  /// AppBarのピンアイコン。タップ位置ではなくこのボタン自体の直下に
+  /// ポップアップを開くための位置計算に使う（[_openPinnedMessagesPopup]参照）。
+  final _pinButtonKey = GlobalKey();
 
   /// 自動スクロール開始位置（画面座標）を表示するアイコンの位置計算に使う。
   final _autoScrollAreaKey = GlobalKey();
@@ -550,6 +576,88 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// うるため、無反応のままにせず理由を伝える（2026-08-14追加）。
   void _showJumpNotFoundBanner() {
     showAutoDismissBanner(context, message: '元のメッセージが見つかりません');
+  }
+
+  /// AppBarのピンアイコンをタップした時、ボタンの真下にピン留め済み
+  /// メッセージ一覧をポップアップ表示する（2026-08-30追加）。追跡・ジャンプの
+  /// 仕組みは引用プレビューのタップ（[_jumpToMessage]）と共通。
+  Future<void> _openPinnedMessagesPopup() async {
+    final buttonContext = _pinButtonKey.currentContext;
+    if (buttonContext == null) return;
+    final box = buttonContext.findRenderObject()! as RenderBox;
+    final bottomLeft = box.localToGlobal(Offset(0, box.size.height));
+    final bottomRight = box.localToGlobal(
+      Offset(box.size.width, box.size.height),
+    );
+    final overlay =
+        Overlay.of(context).context.findRenderObject()! as RenderBox;
+    final position = RelativeRect.fromRect(
+      Rect.fromPoints(bottomLeft, bottomRight),
+      Offset.zero & overlay.size,
+    );
+    final strings = ref.read(appStringsProvider);
+
+    final ids = widget.pinnedMessageIds;
+    final fetchMessage = widget.onFetchMessage;
+    final loaded = ids.isEmpty || fetchMessage == null
+        ? const <({String id, Message message})>[]
+        : [
+            for (final r in await Future.wait(
+              ids.reversed.map(
+                (id) async => (id: id, message: await fetchMessage(id)),
+              ),
+            ))
+              if (r.message != null) (id: r.id, message: r.message!),
+          ];
+    if (!mounted) return;
+    final vocabulary = ref.read(vocabularyProvider);
+
+    final action = await showMenu<String>(
+      context: context,
+      position: position,
+      items: loaded.isEmpty
+          ? [
+              PopupMenuItem<String>(
+                enabled: false,
+                child: Text(strings.chatPinnedMessagesEmpty),
+              ),
+            ]
+          : [
+              for (final entry in loaded)
+                PopupMenuItem<String>(
+                  value: entry.id,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Flexible(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _SenderName(
+                              userId: entry.message.senderId,
+                              rhingId: entry.message.senderRhingId,
+                              conversationId: widget.conversationId,
+                            ),
+                            Text(
+                              _replySnippetLabel(entry.message, vocabulary),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (_replyPreviewThumbnail(entry.message)
+                          case final thumbnail?) ...[
+                        const SizedBox(width: 8),
+                        thumbnail,
+                      ],
+                    ],
+                  ),
+                ),
+            ],
+    );
+    if (action != null) _jumpToMessage(action);
   }
 
   void _startReply(Message message) {
@@ -1443,6 +1551,27 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                         onPressed: onVideoCall,
                       ),
                     },
+                if (widget.onFetchMessage != null)
+                  switch (uiStyle) {
+                    AppUiStyle.gekiga => GekigaIconButton(
+                      key: _pinButtonKey,
+                      icon: Icons.push_pin_outlined,
+                      onPressed: _openPinnedMessagesPopup,
+                    ),
+                    AppUiStyle.glass => GlassIconButton(
+                      key: _pinButtonKey,
+                      icon: Icons.push_pin_outlined,
+                      size: 32,
+                      opaque: true,
+                      onPressed: _openPinnedMessagesPopup,
+                    ),
+                    AppUiStyle.flat => IconButton(
+                      key: _pinButtonKey,
+                      icon: const Icon(Icons.push_pin_outlined),
+                      tooltip: strings.chatPinnedMessagesTooltip,
+                      onPressed: _openPinnedMessagesPopup,
+                    ),
+                  },
                 ...?widget.extraActions,
               ],
       );
@@ -1685,6 +1814,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                               : null,
                           onUnsend: widget.onUnsendMessage,
                           onSetReaction: widget.onSetReaction,
+                          pinnedMessageIds: widget.pinnedMessageIds,
+                          onPinMessage: widget.onPinMessage,
+                          onUnpinMessage: widget.onUnpinMessage,
                           onJumpToReply: _jumpToMessage,
                           onSendSticker: widget.onSendSticker != null
                               ? _handleStickerPicked
@@ -2370,6 +2502,9 @@ class _MessageRow extends ConsumerWidget {
     this.onEdit,
     this.onUnsend,
     this.onSetReaction,
+    this.pinnedMessageIds = const [],
+    this.onPinMessage,
+    this.onUnpinMessage,
     this.onJumpToReply,
     this.onSendSticker,
     this.stickerButtonKey,
@@ -2469,6 +2604,14 @@ class _MessageRow extends ConsumerWidget {
 
   /// nullならリアクション機能自体を出さない。
   final void Function(String messageId, List<String> emojis)? onSetReaction;
+
+  /// ピン留めされたメッセージidの一覧（[ChatScreen.pinnedMessageIds]）。
+  /// 長押しメニューの「ピン留め」/「ピン留め解除」表示切り替えに使う。
+  final List<String> pinnedMessageIds;
+
+  /// nullならピン留め機能自体を出さない。
+  final void Function(String messageId)? onPinMessage;
+  final void Function(String messageId)? onUnpinMessage;
 
   /// 返信を含んだメッセージをタップした時に、返信先メッセージへジャンプする。
   /// [messagesById]に返信先が無い（直近50件のロード範囲外）場合は、
@@ -3167,6 +3310,13 @@ class _MessageRow extends ConsumerWidget {
                           ? () => _confirmUnsend(context, strings)
                           : null,
                       onReact: onSetReaction == null ? null : _toggleMyReaction,
+                      isPinned: pinnedMessageIds.contains(message.messageId),
+                      onTogglePin:
+                          (onPinMessage == null && onUnpinMessage == null)
+                          ? null
+                          : () => pinnedMessageIds.contains(message.messageId)
+                                ? onUnpinMessage?.call(message.messageId)
+                                : onPinMessage?.call(message.messageId),
                       onCopySelect: () => onCopyMessage?.call(message),
                       onPartialCopySelect: () => onEnterTextCopy?.call(
                         message.messageId,
@@ -3846,6 +3996,7 @@ enum _MessageMenuAction {
   edit,
   unsend,
   react,
+  pin,
   copy,
   partialCopy,
   select,
@@ -3916,6 +4067,8 @@ class _MessageBubbleTapArea extends StatefulWidget {
     this.onEdit,
     this.onUnsend,
     this.onReact,
+    this.isPinned = false,
+    this.onTogglePin,
     this.onCopySelect,
     this.onPartialCopySelect,
     this.onSelect,
@@ -3929,6 +4082,13 @@ class _MessageBubbleTapArea extends StatefulWidget {
   final VoidCallback? onEdit;
   final VoidCallback? onUnsend;
   final void Function(String emoji)? onReact;
+
+  /// このメッセージが現在ピン留めされているかどうか。長押しメニューの
+  /// 「ピン留め」/「ピン留め解除」表示切り替えに使う（2026-08-30追加）。
+  final bool isPinned;
+
+  /// ピン留め/解除を切り替える。nullならメニュー自体に項目を出さない。
+  final VoidCallback? onTogglePin;
 
   /// メッセージ本文全体を即座にクリップボードへコピーする（削除権限の
   /// 有無と無関係のため、[canSelect]と関係なく常に出す、2026-08-09追加、
@@ -3983,6 +4143,13 @@ class _MessageBubbleTapAreaState extends State<_MessageBubbleTapArea> {
         (action: _MessageMenuAction.edit, label: strings.chatEditAction),
       if (widget.onUnsend != null)
         (action: _MessageMenuAction.unsend, label: strings.chatUnsendAction),
+      if (widget.onTogglePin != null)
+        (
+          action: _MessageMenuAction.pin,
+          label: widget.isPinned
+              ? strings.chatUnpinAction
+              : strings.chatPinAction,
+        ),
       (action: _MessageMenuAction.copy, label: strings.chatCopyAction),
       (
         action: _MessageMenuAction.partialCopy,
@@ -4016,6 +4183,8 @@ class _MessageBubbleTapAreaState extends State<_MessageBubbleTapArea> {
       case _MessageMenuAction.react:
         final emoji = await _pickReactionEmoji(context, globalPosition);
         if (emoji != null) widget.onReact?.call(emoji);
+      case _MessageMenuAction.pin:
+        widget.onTogglePin?.call();
       case _MessageMenuAction.copy:
         widget.onCopySelect?.call();
       case _MessageMenuAction.partialCopy:

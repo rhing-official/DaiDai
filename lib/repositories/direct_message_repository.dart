@@ -179,6 +179,20 @@ abstract class DirectMessageRepository {
     required List<String> emojis,
   });
 
+  /// メッセージをピン留めする（参加者ならどちらでも実行可能）。
+  Future<void> pinMessage({
+    required String dmId,
+    required String roomId,
+    required String messageId,
+  });
+
+  /// メッセージのピン留めを解除する（参加者ならどちらでも実行可能）。
+  Future<void> unpinMessage({
+    required String dmId,
+    required String roomId,
+    required String messageId,
+  });
+
   /// 指定したメッセージ群に、自分（[userId]）が読んだ記録を追加する。
   Future<void> markMessagesRead({
     required String dmId,
@@ -829,6 +843,11 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
         'replyToSnippet': FieldValue.delete(),
       });
     }
+    // ピン留めされていた場合、寄合側のpinnedMessageIdsからも取り除く
+    // （存在しないメッセージへのピン参照が残らないようにする）。
+    batch.update(_dmRoomRef(dmId, roomId), {
+      'pinnedMessageIds': FieldValue.arrayRemove([messageId]),
+    });
     await batch.commit();
   }
 
@@ -843,6 +862,28 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
     final ref = _dmRoomRef(dmId, roomId).collection('messages').doc(messageId);
     await ref.update({
       'reactions.$userId': emojis.isEmpty ? FieldValue.delete() : emojis,
+    });
+  }
+
+  @override
+  Future<void> pinMessage({
+    required String dmId,
+    required String roomId,
+    required String messageId,
+  }) async {
+    await _dmRoomRef(dmId, roomId).update({
+      'pinnedMessageIds': FieldValue.arrayUnion([messageId]),
+    });
+  }
+
+  @override
+  Future<void> unpinMessage({
+    required String dmId,
+    required String roomId,
+    required String messageId,
+  }) async {
+    await _dmRoomRef(dmId, roomId).update({
+      'pinnedMessageIds': FieldValue.arrayRemove([messageId]),
     });
   }
 
@@ -899,6 +940,7 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
         i + 400 > docs.length ? docs.length : i + 400,
       );
       final batch = _firestore.batch();
+      final deletedMessageIds = <String>[];
       for (final doc in chunk) {
         if (!doc.exists) continue;
         final hiddenFor = {
@@ -907,6 +949,7 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
         };
         if (participants.every(hiddenFor.contains)) {
           batch.delete(doc.reference);
+          deletedMessageIds.add(doc.id);
           final fileUrl =
               (doc.data()?['fileMetadata'] as Map<String, dynamic>?)?['url']
                   as String?;
@@ -916,6 +959,13 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
             'hiddenFor': FieldValue.arrayUnion([userId]),
           });
         }
+      }
+      // 物理削除されたメッセージがピン留めされていた場合、寄合側の
+      // pinnedMessageIdsからも取り除く。
+      if (deletedMessageIds.isNotEmpty) {
+        batch.update(_dmRoomRef(dmId, roomId), {
+          'pinnedMessageIds': FieldValue.arrayRemove(deletedMessageIds),
+        });
       }
       await batch.commit();
     }

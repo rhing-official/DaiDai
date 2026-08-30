@@ -145,6 +145,7 @@ class Room {
     this.rolePriorityOverride,
     this.customSettingsEnabled = false,
     this.readReceiptsEnabledOverride,
+    this.pinnedMessageIds = const [],
   });
 
   final String roomId;
@@ -184,8 +185,13 @@ class Room {
   /// （`GroupRepository.deleteRoom`、firestore.rules参照）。
   final String? roomDeletionRequestedBy;
 
+  /// ピン留めされたメッセージidの一覧。配列の末尾が最後にピン留めしたもの
+  /// （表示時は逆順にして新しいピン留めを上に出す）。
+  final List<String> pinnedMessageIds;
+
   factory Room.fromJson(String roomId, Map<String, dynamic> json) {
     final priorityOverrideJson = json['rolePriorityOverride'];
+    final pinnedJson = json['pinnedMessageIds'];
     return Room(
       roomId: roomId,
       groupId: json['groupId'] as String,
@@ -203,6 +209,9 @@ class Room {
           json['customSettingsEnabled'] as bool? ??
           (priorityOverrideJson is List),
       readReceiptsEnabledOverride: json['readReceiptsEnabledOverride'] as bool?,
+      pinnedMessageIds: pinnedJson is List
+          ? List<String>.from(pinnedJson)
+          : const [],
     );
   }
 
@@ -217,6 +226,7 @@ class Room {
       'rolePriorityOverride': rolePriorityOverride,
       'customSettingsEnabled': customSettingsEnabled,
       'readReceiptsEnabledOverride': readReceiptsEnabledOverride,
+      'pinnedMessageIds': pinnedMessageIds,
     };
   }
 }

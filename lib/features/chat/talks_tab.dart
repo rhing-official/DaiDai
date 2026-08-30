@@ -33,6 +33,7 @@ import '../../utils/platform_info.dart';
 import '../../utils/text_truncate.dart';
 import '../../widgets/gekiga/gekiga_icon_badge.dart';
 import '../../widgets/gekiga/gekiga_panel_box.dart';
+import '../../widgets/gekiga/gekiga_text_field.dart';
 import '../../widgets/glass/glass_icon_badge.dart';
 import '../../widgets/glass/glass_surface.dart';
 import '../../widgets/swipe_gestures.dart';
@@ -77,9 +78,13 @@ class _TalksTabState extends ConsumerState<TalksTab> {
     initialPage: _category.index,
   );
 
+  /// 一対・広場を横断して検索するための入力欄（2026-08-30追加）。
+  final _searchController = TextEditingController();
+
   @override
   void dispose() {
     _categoryPageController.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -404,6 +409,8 @@ class _TalksTabState extends ConsumerState<TalksTab> {
     });
 
     final vocab = ref.watch(vocabularyProvider);
+    final strings = ref.watch(appStringsProvider);
+    final searchQuery = _searchController.text.trim().toLowerCase();
     final groupsStream = ref
         .watch(groupRepositoryProvider)
         .watchGroups(widget.currentUser.userId);
@@ -556,6 +563,13 @@ class _TalksTabState extends ConsumerState<TalksTab> {
                       ],
                     ),
                   ),
+                  // 一対/広場切り替えタブの真下に検索欄を置く（2026-08-30
+                  // 追加）。検索中は下のExpandedの中身がカテゴリ別スワイプ
+                  // 表示から検索結果一覧に切り替わる。
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                    child: _buildSearchField(strings),
+                  ),
                   // ヘッダー（一対/広場切り替えタブ）と一覧の間に隙間を空ける
                   // （2026-08-04追加、劇画スタイルのみ→2026-08-12全スタイル
                   // 共通に変更）。劇画スタイルはジグザグ枠の箱が隙間無く
@@ -564,33 +578,43 @@ class _TalksTabState extends ConsumerState<TalksTab> {
                   // 接して重なって見える不具合が、それぞれあった。
                   const SizedBox(height: 12),
                   Expanded(
-                    // 横スワイプで一対⇄広場を切り替える。速度しきい値判定の
-                    // 自前ジェスチャー（`SwipeBackDetector`）だと片方向だけ
-                    // ジェスチャーアリーナで負けて反応しないことがあったため、
-                    // 双方向のページ送りが実績豊富な`PageView`に置き換えた
-                    // （2026-08-09変更、2026-08-06時点では速度しきい値の
-                    // 条件式自体を両方向常時有効にする修正をしていたが、
-                    // それでも一対→広場方向が反応しない場合が残っていた）。
-                    child: PageView(
-                      controller: _categoryPageController,
-                      onPageChanged: _handleCategoryPageChanged,
-                      children: [
-                        _buildDirectMessages(
-                          dmSnapshot,
-                          directMessages,
-                          incomingRequests,
-                          outgoingRequests,
-                          prefsById,
-                          blockedIds,
-                        ),
-                        _buildGroups(
-                          groupSnapshot,
-                          groups,
-                          prefsById,
-                          pendingGroupRequests,
-                        ),
-                      ],
-                    ),
+                    child: searchQuery.isEmpty
+                        ? PageView(
+                            // 横スワイプで一対⇄広場を切り替える。速度しきい値
+                            // 判定の自前ジェスチャー（`SwipeBackDetector`）だと
+                            // 片方向だけジェスチャーアリーナで負けて反応しない
+                            // ことがあったため、双方向のページ送りが実績豊富な
+                            // `PageView`に置き換えた（2026-08-09変更、
+                            // 2026-08-06時点では速度しきい値の条件式自体を
+                            // 両方向常時有効にする修正をしていたが、それでも
+                            // 一対→広場方向が反応しない場合が残っていた）。
+                            controller: _categoryPageController,
+                            onPageChanged: _handleCategoryPageChanged,
+                            children: [
+                              _buildDirectMessages(
+                                dmSnapshot,
+                                directMessages,
+                                incomingRequests,
+                                outgoingRequests,
+                                prefsById,
+                                blockedIds,
+                              ),
+                              _buildGroups(
+                                groupSnapshot,
+                                groups,
+                                prefsById,
+                                pendingGroupRequests,
+                              ),
+                            ],
+                          )
+                        : _buildSearchResults(
+                            searchQuery,
+                            directMessages,
+                            groups,
+                            prefsById,
+                            blockedIds,
+                            strings,
+                          ),
                   ),
                 ],
               );
@@ -898,6 +922,153 @@ class _TalksTabState extends ConsumerState<TalksTab> {
             onSelectPending: _selectPendingScreen,
           ),
         for (final group in sortedGroups)
+          _GroupTile(
+            currentUserId: widget.currentUser.userId,
+            group: group,
+            pinned: prefsById[group.groupId]?.pinned ?? false,
+            muted: prefsById[group.groupId]?.notificationsMuted ?? false,
+            selected: _isSplit && _selectedGroup?.groupId == group.groupId,
+            onTap: () => _openGroup(group),
+          ),
+      ],
+    );
+  }
+
+  /// 一対/広場切り替えタブの真下に置く検索欄（2026-08-30追加）。
+  Widget _buildSearchField(Strings strings) {
+    final uiStyle = ref.watch(appUiStyleProvider);
+    final hasQuery = _searchController.text.isNotEmpty;
+    Widget? clearButton(Color? color) {
+      if (!hasQuery) return null;
+      return IconButton(
+        icon: Icon(Icons.clear, color: color),
+        onPressed: () => setState(_searchController.clear),
+      );
+    }
+
+    switch (uiStyle) {
+      case AppUiStyle.gekiga:
+        return GekigaTextField(
+          controller: _searchController,
+          hintText: strings.talksSearchHint,
+          prefixIcon: const Icon(Icons.search, color: GekigaColors.onPanel),
+          suffixIcon: clearButton(GekigaColors.onPanel),
+          onChanged: (_) => setState(() {}),
+        );
+      case AppUiStyle.glass:
+        // ガラスUIのすりガラス外枠（GlassSurface）の中に、枠・塗り無しの
+        // 素のTextFieldを重ねる（`chat_screen.dart`の入力欄と同じ構成）。
+        return GlassSurface(
+          variant: GlassVariant.card,
+          borderRadius: BorderRadius.circular(24),
+          child: TextField(
+            controller: _searchController,
+            decoration: InputDecoration(
+              filled: false,
+              border: InputBorder.none,
+              hintText: strings.talksSearchHint,
+              prefixIcon: const Icon(Icons.search),
+              suffixIcon: clearButton(null),
+            ),
+            onChanged: (_) => setState(() {}),
+          ),
+        );
+      case AppUiStyle.flat:
+        return TextField(
+          controller: _searchController,
+          decoration: InputDecoration(
+            hintText: strings.talksSearchHint,
+            prefixIcon: const Icon(Icons.search),
+            suffixIcon: clearButton(null),
+            border: const OutlineInputBorder(),
+          ),
+          onChanged: (_) => setState(() {}),
+        );
+    }
+  }
+
+  /// 検索欄に入力がある間、一対/広場の選択（`_category`）に関わらず
+  /// 両方から該当する語らいをまとめて表示する（2026-08-30追加）。フレンド
+  /// 申請・広場参加リクエストは「語らい」そのものではないため対象外にする。
+  Widget _buildSearchResults(
+    String query,
+    List<DirectMessage> directMessages,
+    List<Group> groups,
+    Map<String, ConversationPrefs> prefsById,
+    Set<String> blockedIds,
+    Strings strings,
+  ) {
+    final matchedDms = directMessages.where((dm) {
+      final otherUserId = dm.otherUserId(widget.currentUser.userId);
+      if (blockedIds.contains(otherUserId)) return false;
+      final otherUser = ref.watch(watchedUserProvider(otherUserId)).value;
+      return _dmSearchLabel(
+        otherUser,
+        dm,
+        widget.currentUser.userId,
+      ).toLowerCase().contains(query);
+    }).toList();
+    final matchedGroups = groups
+        .where((g) => g.name.toLowerCase().contains(query))
+        .toList();
+
+    if (matchedDms.isEmpty && matchedGroups.isEmpty) {
+      return Center(child: Text(strings.talksSearchNoResults));
+    }
+
+    if (ref.watch(appUiStyleProvider) == AppUiStyle.gekiga) {
+      final seeds = <int>[
+        for (final dm in matchedDms) dm.dmId.hashCode,
+        for (final group in matchedGroups) group.groupId.hashCode,
+      ];
+      final selectedFlags = <bool>[
+        for (final dm in matchedDms) _isSplit && _selectedDm?.dmId == dm.dmId,
+        for (final group in matchedGroups)
+          _isSplit && _selectedGroup?.groupId == group.groupId,
+      ];
+      final children = <Widget>[
+        for (final dm in matchedDms)
+          _DirectMessageTile(
+            currentUser: widget.currentUser,
+            dm: dm,
+            pinned: prefsById[dm.dmId]?.pinned ?? false,
+            muted: prefsById[dm.dmId]?.notificationsMuted ?? false,
+            selected: _isSplit && _selectedDm?.dmId == dm.dmId,
+            onTap: () => _openDirectMessage(dm),
+          ),
+        for (final group in matchedGroups)
+          _GroupTile(
+            currentUserId: widget.currentUser.userId,
+            group: group,
+            pinned: prefsById[group.groupId]?.pinned ?? false,
+            muted: prefsById[group.groupId]?.notificationsMuted ?? false,
+            selected: _isSplit && _selectedGroup?.groupId == group.groupId,
+            onTap: () => _openGroup(group),
+          ),
+      ];
+      return SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: GekigaJointedTileList(
+          seeds: seeds,
+          selectedFlags: selectedFlags,
+          children: children,
+        ),
+      );
+    }
+
+    return ListView(
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      children: [
+        for (final dm in matchedDms)
+          _DirectMessageTile(
+            currentUser: widget.currentUser,
+            dm: dm,
+            pinned: prefsById[dm.dmId]?.pinned ?? false,
+            muted: prefsById[dm.dmId]?.notificationsMuted ?? false,
+            selected: _isSplit && _selectedDm?.dmId == dm.dmId,
+            onTap: () => _openDirectMessage(dm),
+          ),
+        for (final group in matchedGroups)
           _GroupTile(
             currentUserId: widget.currentUser.userId,
             group: group,
@@ -1295,6 +1466,20 @@ class _PendingGroupJoinRequestTile extends ConsumerWidget {
   }
 }
 
+/// 一対の相手の呼び名（無ければ@RhingID、`truncateName`適用前）。
+/// [_DirectMessageTile]の表示ラベルと`_TalksTabState._buildSearchResults`の
+/// 検索対象ラベルの計算がズレないよう共通化する（2026-08-30追加）。
+String _dmSearchLabel(
+  AppUser? otherUser,
+  DirectMessage dm,
+  String currentUserId,
+) {
+  final nickname = otherUser?.effectiveNicknameFor(dm.dmId)?.text;
+  return (nickname?.isNotEmpty ?? false)
+      ? nickname!
+      : '@${dm.otherRhingId(currentUserId)}';
+}
+
 class _DirectMessageTile extends ConsumerWidget {
   const _DirectMessageTile({
     required this.currentUser,
@@ -1316,11 +1501,8 @@ class _DirectMessageTile extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final otherUserId = dm.otherUserId(currentUser.userId);
     final otherUser = ref.watch(watchedUserProvider(otherUserId)).value;
-    final nickname = otherUser?.effectiveNicknameFor(dm.dmId)?.text;
     final label = truncateName(
-      (nickname?.isNotEmpty ?? false)
-          ? nickname!
-          : '@${dm.otherRhingId(currentUser.userId)}',
+      _dmSearchLabel(otherUser, dm, currentUser.userId),
       8,
     );
     final iconUrl = otherUser?.effectiveIconFor(dm.dmId)?.url;

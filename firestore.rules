@@ -575,6 +575,9 @@ service cloud.firestore {
         // （寄合ごとの既読オン/オフ上書き、2026-07-29追加）だけは、広場全体の
         // 既読オン/オフと同じmanageReadReceipts権限で変更できるようにする
         // （UI側のゲート`canManageReadReceipts`と一致させるため）。
+        // pinnedMessageIds（メッセージのピン留め、2026-08-30追加）は権限
+        // チェック無しで全メンバーに許可する（ユーザー判断、リアクションと
+        // 同様に誰でも触れる軽量な操作として扱う）。
         allow update: if request.auth != null
           && request.auth.uid in resource.data.memberIds
           && (
@@ -584,6 +587,7 @@ service cloud.firestore {
               request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readReceiptsEnabledOverride'])
               && hasGroupPermission(groupId, 'manageReadReceipts')
             )
+            || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['pinnedMessageIds'])
           );
         allow delete: if request.auth != null
           && hasGroupPermission(groupId, 'manageRooms');

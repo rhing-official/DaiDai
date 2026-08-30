@@ -10,6 +10,7 @@ class DmRoom {
     this.lastMessageAt,
     this.createdAt,
     this.deletionRequestedBy,
+    this.pinnedMessageIds = const [],
   });
 
   final String roomId;
@@ -34,7 +35,12 @@ class DmRoom {
   /// （`DirectMessageRepository.deleteRoom`、firestore.rules参照）。
   final String? deletionRequestedBy;
 
+  /// ピン留めされたメッセージidの一覧。配列の末尾が最後にピン留めしたもの
+  /// （表示時は逆順にして新しいピン留めを上に出す）。
+  final List<String> pinnedMessageIds;
+
   factory DmRoom.fromJson(String roomId, Map<String, dynamic> json) {
+    final pinnedJson = json['pinnedMessageIds'];
     return DmRoom(
       roomId: roomId,
       dmId: json['dmId'] as String,
@@ -43,6 +49,9 @@ class DmRoom {
       lastMessageAt: json['lastMessageAt'] as Timestamp?,
       createdAt: json['createdAt'] as Timestamp?,
       deletionRequestedBy: json['deletionRequestedBy'] as String?,
+      pinnedMessageIds: pinnedJson is List
+          ? List<String>.from(pinnedJson)
+          : const [],
     );
   }
 
@@ -54,6 +63,7 @@ class DmRoom {
       'lastMessageAt': lastMessageAt,
       'createdAt': createdAt ?? FieldValue.serverTimestamp(),
       'deletionRequestedBy': deletionRequestedBy,
+      'pinnedMessageIds': pinnedMessageIds,
     };
   }
 }

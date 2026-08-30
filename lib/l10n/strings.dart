@@ -14,6 +14,8 @@ class Strings {
     required this.addMenuDmSubtitle,
     required this.addMenuGroupTitleTemplate,
     required this.addMenuGroupSubtitle,
+    required this.talksSearchHint,
+    required this.talksSearchNoResults,
     required this.settingsFolderAccount,
     required this.settingsFolderApplication,
     required this.settingsFolderDesign,
@@ -172,6 +174,10 @@ class Strings {
     required this.chatCopyAction,
     required this.chatPartialCopyAction,
     required this.chatSelectAction,
+    required this.chatPinAction,
+    required this.chatUnpinAction,
+    required this.chatPinnedMessagesTooltip,
+    required this.chatPinnedMessagesEmpty,
     required this.chatScreenshotAction,
     required this.chatScreenshotSelectionModeTitle,
     required this.chatScreenshotDialogTitle,
@@ -374,6 +380,8 @@ class Strings {
   /// 広場/Server等の用語を差し込んだタイトルを組み立てる（例: 「広場を作る」）。
   final String Function(String plazaTerm) addMenuGroupTitleTemplate;
   final String addMenuGroupSubtitle;
+  final String talksSearchHint;
+  final String talksSearchNoResults;
 
   final String settingsFolderAccount;
   final String settingsFolderApplication;
@@ -549,6 +557,10 @@ class Strings {
   final String chatCopyAction;
   final String chatPartialCopyAction;
   final String chatSelectAction;
+  final String chatPinAction;
+  final String chatUnpinAction;
+  final String chatPinnedMessagesTooltip;
+  final String chatPinnedMessagesEmpty;
   final String chatScreenshotAction;
   final String Function(int count) chatScreenshotSelectionModeTitle;
   final String chatScreenshotDialogTitle;
@@ -896,6 +908,8 @@ class Strings {
     addMenuDmSubtitle: '1対1で話す相手を追加する',
     addMenuGroupTitleTemplate: (plazaTerm) => '$plazaTermを作る',
     addMenuGroupSubtitle: '3人以上のグループを作る',
+    talksSearchHint: '語らいを検索',
+    talksSearchNoResults: '見つかりませんでした',
     settingsFolderAccount: 'アカウント',
     settingsFolderApplication: 'アプリケーション',
     settingsFolderDesign: '色',
@@ -1066,6 +1080,10 @@ class Strings {
     chatCopyAction: 'コピー',
     chatPartialCopyAction: '部分コピー',
     chatSelectAction: 'メッセージを削除',
+    chatPinAction: 'ピン留め',
+    chatUnpinAction: 'ピン留め解除',
+    chatPinnedMessagesTooltip: 'ピン留めされたメッセージ',
+    chatPinnedMessagesEmpty: 'ピン留めされたメッセージはありません',
     chatScreenshotAction: 'スクリーンショット',
     chatScreenshotSelectionModeTitle: (count) => '$count件を撮影',
     chatScreenshotDialogTitle: 'スクリーンショットを撮影',
@@ -1282,6 +1300,8 @@ class Strings {
     addMenuDmSubtitle: 'Add someone to talk to one-on-one',
     addMenuGroupTitleTemplate: (plazaTerm) => 'Create a $plazaTerm',
     addMenuGroupSubtitle: 'Make a group with three or more people',
+    talksSearchHint: 'Search talks',
+    talksSearchNoResults: 'No matches found',
     settingsFolderAccount: 'Account',
     settingsFolderApplication: 'Application',
     settingsFolderDesign: 'Colour',
@@ -1481,6 +1501,10 @@ class Strings {
     chatCopyAction: 'Copy',
     chatPartialCopyAction: 'Partial copy',
     chatSelectAction: 'Delete messages',
+    chatPinAction: 'Pin',
+    chatUnpinAction: 'Unpin',
+    chatPinnedMessagesTooltip: 'Pinned messages',
+    chatPinnedMessagesEmpty: 'No pinned messages',
     chatScreenshotAction: 'Screenshot',
     chatScreenshotSelectionModeTitle: (count) => '$count to capture',
     chatScreenshotDialogTitle: 'Take screenshot',
