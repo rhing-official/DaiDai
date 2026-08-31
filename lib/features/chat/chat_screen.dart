@@ -39,11 +39,10 @@ import '../../providers/message_time_format_provider.dart';
 import '../../providers/repository_providers.dart';
 import '../../providers/send_key_mode_provider.dart';
 import '../../providers/user_providers.dart';
-import '../../theme/app_theme.dart';
 import '../../theme/app_theme_extras.dart';
 import '../../theme/gekiga/gekiga_colors.dart';
 import '../../theme/gekiga/gekiga_shapes.dart';
-import '../../theme/glass/glass_colors.dart';
+import '../../theme/popup_surface_colors.dart';
 import '../../theme/text_prominence_colors.dart';
 import '../../widgets/gekiga/monochrome_box.dart';
 import '../../widgets/media_preview_frame.dart';
@@ -2472,31 +2471,6 @@ Widget? _replyPreviewThumbnail(Message target) {
   }
 }
 
-/// ピン留め/アルバムポップアップの背景・文字色（2026-08-30修正）。
-/// `colorScheme.inverseSurface`/`onInverseSurface`はユーザーが指定する
-/// アクセントカラーをseedにした`ColorScheme.fromSeed`から導出されるため、
-/// アクセントカラー次第で視認性が落ちる（ガラススタイルでは背景に
-/// `GlassSurface`の半透明パネルを使う一方、文字色だけ「反転した背景」用に
-/// 設計された`onInverseSurface`のままだったため、特に食い違いが大きかった）。
-/// `colorScheme.error`のダークテーマでの視認性問題（CLAUDE.md記載）・
-/// ガラスUIの`onSurface`/`onSurfaceVariant`固定化（`GlassColors.
-/// lightForeground`/`darkForeground`）と同じ考え方で、アクセントカラーに
-/// 一切依存しない固定色にする。
-/// 当初は背景をわざと現在の明るさと反対色にしていたが、フラットUIの他の
-/// カード・ダイアログ（2026-08-30の`surfaceContainer`系ロール修正で
-/// 統一済み）と色が食い違って見えるとの指摘を受け、背景は外観と同じ
-/// 明るさ側に修正し、代わりに文字色をそのペアに合わせて反転させた
-/// （2026-08-30再修正）。
-Color _popupCardBackground(Brightness brightness) =>
-    brightness == Brightness.dark
-    ? AppTheme.darkSurface
-    : GlassColors.lightSurfaceBase;
-
-Color _popupCardForeground(Brightness brightness) =>
-    brightness == Brightness.dark
-    ? GlassColors.darkForeground
-    : GlassColors.lightForeground;
-
 /// ピン留めポップアップ（[_ChatScreenState._openPinnedMessagesPopup]）の中身。
 /// `showMenu`の1つの`PopupMenuItem`にまるごと収めるStatefulWidgetにして、
 /// ×タップでの解除時（[_PinnedMessagesPopupContentState._handleUnpin]）に
@@ -2541,9 +2515,8 @@ class _PinnedMessagesPopupContentState
 
   @override
   Widget build(BuildContext context) {
-    final isGlass = widget.uiStyle == AppUiStyle.glass;
     final brightness = Theme.of(context).brightness;
-    final foreground = _popupCardForeground(brightness);
+    final foreground = popupCardForeground(brightness, widget.uiStyle);
 
     final content = Column(
       mainAxisSize: MainAxisSize.min,
@@ -2602,19 +2575,16 @@ class _PinnedMessagesPopupContentState
 
     return SizedBox(
       width: 300,
-      child: isGlass
-          ? GlassSurface(
-              variant: GlassVariant.floating,
-              borderRadius: BorderRadius.circular(16),
-              child: padded,
-            )
-          : Container(
-              decoration: BoxDecoration(
-                color: _popupCardBackground(brightness),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: padded,
-            ),
+      child: Container(
+        decoration: BoxDecoration(
+          color: popupCardBackground(brightness, widget.uiStyle),
+          border: Border.all(
+            color: popupCardBorder(brightness, widget.uiStyle),
+          ),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: padded,
+      ),
     );
   }
 }
@@ -2645,7 +2615,7 @@ class _PinnedMessageCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final isGlass = uiStyle == AppUiStyle.glass;
     final brightness = Theme.of(context).brightness;
-    final foreground = _popupCardForeground(brightness);
+    final foreground = popupCardForeground(brightness, uiStyle);
     final sentAt = message.sentAt?.toDate();
 
     final body = Padding(

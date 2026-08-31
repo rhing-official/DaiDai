@@ -30,6 +30,7 @@ class MessageFileMetadata {
     required this.sizeBytes,
     required this.mimeType,
     this.compressionType,
+    this.thumbnailUrl,
   });
 
   /// Firebase StorageのダウンロードURL。
@@ -47,6 +48,11 @@ class MessageFileMetadata {
   /// 画像のみ設定（webp|lossless|raw）。ファイル・動画はnull。
   final String? compressionType;
 
+  /// 動画のみ設定（Cloud Functions側で送信後に1フレーム抽出して生成、
+  /// プッシュ通知のプレビュー画像に使う、2026-08-31追加）。生成完了までの
+  /// 間・画像・ファイルはnull。
+  final String? thumbnailUrl;
+
   factory MessageFileMetadata.fromJson(Map<String, dynamic> json) {
     return MessageFileMetadata(
       url: json['url'] as String,
@@ -55,6 +61,7 @@ class MessageFileMetadata {
       sizeBytes: json['sizeBytes'] as int,
       mimeType: json['mimeType'] as String,
       compressionType: json['compressionType'] as String?,
+      thumbnailUrl: json['thumbnailUrl'] as String?,
     );
   }
 
@@ -65,6 +72,7 @@ class MessageFileMetadata {
     'sizeBytes': sizeBytes,
     'mimeType': mimeType,
     'compressionType': compressionType,
+    'thumbnailUrl': thumbnailUrl,
   };
 }
 

@@ -1,3 +1,8 @@
+import { randomUUID } from "crypto";
+import * as fs from "fs";
+import * as os from "os";
+import * as path from "path";
+
 import { initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import {
@@ -6,13 +11,22 @@ import {
   Timestamp,
   type WriteBatch,
 } from "firebase-admin/firestore";
+import { getMessaging } from "firebase-admin/messaging";
 import { getStorage } from "firebase-admin/storage";
 import { logger } from "firebase-functions";
 import { defineSecret } from "firebase-functions/params";
-import { onDocumentWritten } from "firebase-functions/v2/firestore";
+import {
+  onDocumentCreated,
+  onDocumentWritten,
+} from "firebase-functions/v2/firestore";
 import { HttpsError, onCall, onRequest } from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
+import { onObjectFinalized } from "firebase-functions/v2/storage";
+import ffmpeg from "fluent-ffmpeg";
+import ffmpegPath from "ffmpeg-static";
 import Stripe from "stripe";
+
+if (ffmpegPath) ffmpeg.setFfmpegPath(ffmpegPath);
 
 initializeApp();
 
@@ -1290,5 +1304,318 @@ export const broadcastAnnouncement = onCall(
     await writer.commit();
     logger.info(`お知らせを${count}件の一対に配信しました`);
     return { count };
+  },
+);
+
+// ===== プッシュ通知（FCM、2026-08-31追加） =====
+// 実装範囲はWeb + Androidのみ（iOS/macOSはApple Developer Program未加入、
+// Windows/Linuxはfirebase_messagingが非対応のため対象外、CLAUDE.md・
+// ユーザーとの相談で確定）。
+
+type FcmTokenEntry = { token: string; platform: string };
+
+/** [lib/models/app_user.dart]の`effectiveIconFor`/`effectiveNicknameFor`と
+ * 同じ解決ロジック（工房カードの会話ごとの上書き→標準の工房カード→
+ * 個別の蔵アイテム、の順）をTypeScript側に移植したもの。DMの通知タイトル・
+ * アイコンは、送信者が自分自身にどう名乗っているか（送信者のusersドキュメント）
+ * を参照する。 */
+function resolveSenderIdentity(
+  sender: FirebaseFirestore.DocumentData,
+  conversationId: string,
+): { name: string; iconUrl: string | null } {
+  const overrideCardId: string | undefined =
+    sender.conversationProfileCardId?.[conversationId] ??
+    sender.activeProfileCardId ??
+    undefined;
+  const cards: Array<Record<string, unknown>> = sender.profileCards ?? [];
+  const card = overrideCardId
+    ? cards.find((c) => c.id === overrideCardId)
+    : undefined;
+
+  const nicknameId = (card ? card.nicknameId : sender.activeNicknameId) as
+    | string
+    | undefined;
+  const nicknames: Array<Record<string, unknown>> = sender.nicknames ?? [];
+  const nickname = nicknameId
+    ? (nicknames.find((n) => n.id === nicknameId)?.text as string | undefined)
+    : undefined;
+
+  const iconId = (card ? card.iconId : sender.activeIconId) as
+    | string
+    | undefined;
+  const icons: Array<Record<string, unknown>> = sender.icons ?? [];
+  const iconUrl = iconId
+    ? ((icons.find((i) => i.id === iconId)?.url as string | undefined) ??
+      null)
+    : null;
+
+  return { name: nickname ?? (sender.rhingId as string) ?? "", iconUrl };
+}
+
+/** [lib/features/chat/chat_screen.dart]の`_replySnippetLabel`と同等の
+ * contentType別プレビュー文言。スタンプ・動画のみプレビュー画像を返す。 */
+function buildMessagePreview(
+  message: FirebaseFirestore.DocumentData,
+): { body: string; previewUrl: string | null } {
+  switch (message.contentType) {
+    case "text":
+      return { body: String(message.content ?? "").slice(0, 80), previewUrl: null };
+    case "sticker":
+      return {
+        body: "ペタピタ",
+        previewUrl: (message.stickerData?.stickerUrl as string) ?? null,
+      };
+    case "image":
+      return { body: "[画像]", previewUrl: null };
+    case "video":
+      return {
+        body: "[動画]",
+        previewUrl: (message.fileMetadata?.thumbnailUrl as string) ?? null,
+      };
+    case "file":
+      return {
+        body: (message.fileMetadata?.fileName as string) ?? "[ファイル]",
+        previewUrl: null,
+      };
+    default:
+      return { body: "", previewUrl: null };
+  }
+}
+
+/** `users/{recipientId}/conversationPrefs/{conversationId}`のミュート設定
+ * （寄合単位の上書きがあればそちらを優先）を見て、通知を送るべきかを判定する。 */
+async function isConversationMuted(
+  recipientId: string,
+  conversationId: string,
+  roomId: string,
+): Promise<boolean> {
+  const prefsDoc = await db
+    .doc(`users/${recipientId}/conversationPrefs/${conversationId}`)
+    .get();
+  if (!prefsDoc.exists) return false;
+  const data = prefsDoc.data()!;
+  const override = data.roomNotificationOverrides?.[roomId];
+  if (typeof override === "boolean") return override;
+  return data.notificationsMuted === true;
+}
+
+async function sendMessageNotification(params: {
+  isDm: boolean;
+  conversationId: string;
+  roomId: string;
+  message: FirebaseFirestore.DocumentData;
+}): Promise<void> {
+  const { isDm, conversationId, roomId, message } = params;
+  if (message.silent === true) return;
+  if (message.contentType === "call" || message.contentType === "accountDeleted") {
+    return;
+  }
+
+  const senderId: string = message.senderId;
+  const senderDoc = await db.doc(`users/${senderId}`).get();
+  if (!senderDoc.exists) return;
+  const sender = senderDoc.data()!;
+
+  let recipientIds: string[];
+  let title: string;
+  let iconUrl: string | null;
+  if (isDm) {
+    const dmDoc = await db.doc(`directMessages/${conversationId}`).get();
+    const participants: string[] = dmDoc.data()?.participants ?? [];
+    recipientIds = participants.filter((id) => id !== senderId);
+    const identity = resolveSenderIdentity(sender, conversationId);
+    title = identity.name;
+    iconUrl = identity.iconUrl;
+  } else {
+    const groupDoc = await db.doc(`groups/${conversationId}`).get();
+    const memberIds: string[] = groupDoc.data()?.memberIds ?? [];
+    recipientIds = memberIds.filter((id) => id !== senderId);
+    const inviteDoc = await db.doc(`groupInvites/${conversationId}`).get();
+    title =
+      (inviteDoc.data()?.name as string) ??
+      (groupDoc.data()?.name as string) ??
+      "";
+    iconUrl = (inviteDoc.data()?.iconUrl as string) ?? null;
+  }
+  if (recipientIds.length === 0) return;
+
+  const { body, previewUrl } = buildMessagePreview(message);
+
+  const androidTokens: string[] = [];
+  const webTokens: string[] = [];
+  for (const recipientId of recipientIds) {
+    if (await isConversationMuted(recipientId, conversationId, roomId)) {
+      continue;
+    }
+    const recipientDoc = await db.doc(`users/${recipientId}`).get();
+    const tokens: FcmTokenEntry[] = recipientDoc.data()?.fcmTokens ?? [];
+    for (const entry of tokens) {
+      if (entry.platform === "android") androidTokens.push(entry.token);
+      else if (entry.platform === "web") webTokens.push(entry.token);
+    }
+  }
+  if (androidTokens.length === 0 && webTokens.length === 0) return;
+
+  const messaging = getMessaging();
+  if (androidTokens.length > 0) {
+    // Androidの通知アイコン/画像はローカルアセットかバイト列でしか渡せない
+    // ため、data-onlyで送りクライアント（lib/push_notifications.dart）側で
+    // flutter_local_notificationsを使い自前でリッチ通知を組み立てる。
+    await messaging.sendEachForMulticast({
+      tokens: androidTokens,
+      data: {
+        title,
+        body,
+        iconUrl: iconUrl ?? "",
+        previewUrl: previewUrl ?? "",
+      },
+      android: { priority: "high" },
+    });
+  }
+  if (webTokens.length > 0) {
+    await messaging.sendEachForMulticast({
+      tokens: webTokens,
+      webpush: {
+        notification: {
+          title,
+          body,
+          icon: iconUrl ?? undefined,
+          image: previewUrl ?? undefined,
+        },
+        fcmOptions: { link: "/" },
+      },
+    });
+  }
+}
+
+export const onDmMessageCreated = onDocumentCreated(
+  {
+    document: "directMessages/{dmId}/rooms/{roomId}/messages/{messageId}",
+    region: "asia-northeast1",
+  },
+  async (event) => {
+    const message = event.data?.data();
+    if (!message) return;
+    await sendMessageNotification({
+      isDm: true,
+      conversationId: event.params.dmId,
+      roomId: event.params.roomId,
+      message,
+    });
+  },
+);
+
+export const onGroupMessageCreated = onDocumentCreated(
+  {
+    document: "groups/{groupId}/rooms/{roomId}/messages/{messageId}",
+    region: "asia-northeast1",
+  },
+  async (event) => {
+    const message = event.data?.data();
+    if (!message) return;
+    await sendMessageNotification({
+      isDm: false,
+      conversationId: event.params.groupId,
+      roomId: event.params.roomId,
+      message,
+    });
+  },
+);
+
+/** [conversationId]（dmId・groupId）直下の各roomを順に確認し、[messageId]の
+ * メッセージが実際にどのroomにあるかを特定する（Storageの保存パスは
+ * `dmFiles/{dmId}/{messageId}.ext`のようにroomをまたいでフラットなため、
+ * アップロードイベント単体からはroomIdが分からない。会話1件あたりの
+ * room数は少数のため、全room走査で十分）。 */
+async function findMessageRef(
+  topCollection: "directMessages" | "groups",
+  parentId: string,
+  messageId: string,
+): Promise<FirebaseFirestore.DocumentReference | null> {
+  const roomsSnap = await db
+    .collection(topCollection)
+    .doc(parentId)
+    .collection("rooms")
+    .get();
+  for (const roomDoc of roomsSnap.docs) {
+    const messageRef = roomDoc.ref.collection("messages").doc(messageId);
+    const messageSnap = await messageRef.get();
+    if (messageSnap.exists) return messageRef;
+  }
+  return null;
+}
+
+/**
+ * 動画メッセージのアップロード完了時に1フレーム抽出してサムネイル画像を
+ * 生成し、Storageへ保存した上でメッセージの`fileMetadata.thumbnailUrl`に
+ * 記録する（プッシュ通知のプレビュー画像用、2026-08-31追加）。
+ * `lib/utils/attachment_upload.dart`が保存する`dmFiles/{dmId}/{messageId}.ext`・
+ * `groupFiles/{groupId}/{messageId}.ext`という規約に依存している。
+ */
+export const generateVideoThumbnail = onObjectFinalized(
+  { region: "asia-northeast1", memory: "1GiB", timeoutSeconds: 120 },
+  async (event) => {
+    const filePath = event.data.name;
+    const contentType = event.data.contentType;
+    if (!filePath || !contentType?.startsWith("video/")) return;
+    if (!filePath.startsWith("dmFiles/") && !filePath.startsWith("groupFiles/")) {
+      return;
+    }
+    if (filePath.includes("_thumb.")) return; // 生成物自身の再帰防止
+
+    const segments = filePath.split("/");
+    if (segments.length !== 3) return;
+    const [prefix, parentId, fileName] = segments;
+    const messageId = fileName.replace(/\.[^.]+$/, "");
+
+    const bucket = getStorage().bucket(event.data.bucket);
+    const tmpVideoPath = path.join(
+      os.tmpdir(),
+      `${messageId}-src${path.extname(fileName)}`,
+    );
+    const tmpThumbFileName = `${messageId}-thumb.jpg`;
+    const tmpThumbPath = path.join(os.tmpdir(), tmpThumbFileName);
+
+    await bucket.file(filePath).download({ destination: tmpVideoPath });
+    await new Promise<void>((resolve, reject) => {
+      ffmpeg(tmpVideoPath)
+        .on("end", () => resolve())
+        .on("error", (err: Error) => reject(err))
+        .screenshots({
+          count: 1,
+          timestamps: ["1"],
+          filename: tmpThumbFileName,
+          folder: os.tmpdir(),
+        });
+    });
+
+    const thumbStoragePath = `${prefix}/${parentId}/${messageId}_thumb.jpg`;
+    const downloadToken = randomUUID();
+    await bucket.upload(tmpThumbPath, {
+      destination: thumbStoragePath,
+      metadata: {
+        contentType: "image/jpeg",
+        metadata: { firebaseStorageDownloadTokens: downloadToken },
+      },
+    });
+    fs.unlinkSync(tmpVideoPath);
+    fs.unlinkSync(tmpThumbPath);
+
+    // Admin SDKにはクライアントSDKのgetDownloadURL()相当が無いため、既存の
+    // 添付ファイルURL（attachment_upload.dart:84）と同じ「トークン付き
+    // ダウンロードURL」形式を自前で組み立てる（GCSのgetSignedUrlは使わない。
+    // ルールを経由せず読める既存添付ファイルURLと形式を揃えるため）。
+    const encodedPath = encodeURIComponent(thumbStoragePath);
+    const thumbnailUrl =
+      `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/` +
+      `${encodedPath}?alt=media&token=${downloadToken}`;
+
+    const topCollection = prefix === "dmFiles" ? "directMessages" : "groups";
+    const messageRef = await findMessageRef(topCollection, parentId, messageId);
+    if (!messageRef) {
+      logger.warn(`動画サムネイル生成: メッセージが見つかりません (${filePath})`);
+      return;
+    }
+    await messageRef.update({ "fileMetadata.thumbnailUrl": thumbnailUrl });
   },
 );

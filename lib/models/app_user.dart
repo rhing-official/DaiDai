@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'app_user_preferences.dart';
+import 'fcm_token_entry.dart';
 import 'profile_card.dart';
 import 'profile_material.dart';
 
@@ -30,6 +31,7 @@ class AppUser {
     this.nicknames = const [],
     this.snsLinks = const [],
     this.profileCards = const [],
+    this.fcmTokens = const [],
     this.activeIconId,
     this.activeBackgroundImageId,
     this.activeStatusMessageId,
@@ -66,6 +68,10 @@ class AppUser {
   /// 和合で作成したプロフィールカード（最大[kMaxProfileCards]枚）。
   /// 蔵の素材を組み合わせて作る「見せ方のセット」。
   final List<ProfileCard> profileCards;
+
+  /// プッシュ通知（FCM）の送信先端末一覧（最大[kMaxFcmTokens]件、
+  /// `PushNotificationRepository`が登録・削除する）。
+  final List<FcmTokenEntry> fcmTokens;
 
   /// 現在表示に使っている素材のid。未選択ならnull。
   final String? activeIconId;
@@ -309,6 +315,7 @@ class AppUser {
       nicknames: _nicknameListFromJson(json['nicknames']),
       snsLinks: _snsLinkListFromJson(json['snsLinks']),
       profileCards: _profileCardListFromJson(json['profileCards']),
+      fcmTokens: _fcmTokenListFromJson(json['fcmTokens']),
       activeIconId: json['activeIconId'] as String?,
       activeBackgroundImageId: json['activeBackgroundImageId'] as String?,
       activeStatusMessageId: json['activeStatusMessageId'] as String?,
@@ -340,6 +347,7 @@ class AppUser {
       'nicknames': nicknames.map((n) => n.toJson()).toList(),
       'snsLinks': snsLinks.map((s) => s.toJson()).toList(),
       'profileCards': profileCards.map((c) => c.toJson()).toList(),
+      'fcmTokens': fcmTokens.map((t) => t.toJson()).toList(),
       'activeIconId': activeIconId,
       'activeBackgroundImageId': activeBackgroundImageId,
       'activeStatusMessageId': activeStatusMessageId,
@@ -386,6 +394,13 @@ class AppUser {
     if (value is! List) return const [];
     return value
         .map((e) => ProfileCard.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  static List<FcmTokenEntry> _fcmTokenListFromJson(dynamic value) {
+    if (value is! List) return const [];
+    return value
+        .map((e) => FcmTokenEntry.fromJson(e as Map<String, dynamic>))
         .toList();
   }
 }

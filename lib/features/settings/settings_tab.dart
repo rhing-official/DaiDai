@@ -34,6 +34,7 @@ import '../../theme/gekiga/gekiga_colors.dart';
 import '../../theme/motion.dart';
 import '../../utils/auto_dismiss_banner.dart';
 import '../../utils/color_hex.dart';
+import '../../widgets/destructive_label.dart';
 import '../../widgets/gekiga/gekiga_panel_box.dart';
 import '../../widgets/gekiga/gekiga_section_header.dart';
 import '../../widgets/gekiga/gekiga_text_field.dart';
@@ -228,7 +229,7 @@ List<_SettingsCategory> _categories(
       icon: Icons.notifications_outlined,
       title: strings.settingsFolderNotifications,
       pageBuilder: (context) =>
-          _ComingSoonFolder(message: strings.settingsComingSoon),
+          _NotificationsPage(strings: strings, currentUser: currentUser),
     ),
     _SettingsCategory(
       id: 'support',
@@ -514,13 +515,9 @@ class _ActionRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 16),
-      title: Text(
-        label,
-        style: destructive ? TextStyle(color: colorScheme.error) : null,
-      ),
+      title: destructive ? DestructiveLabel(label) : Text(label),
       onTap: onTap,
     );
   }
@@ -892,7 +889,12 @@ class _AccountPage extends ConsumerWidget {
         const Divider(height: 24),
         _ActionRow(
           label: strings.settingsLogout,
-          onTap: () => ref.read(authRepositoryProvider).signOut(),
+          onTap: () async {
+            await ref
+                .read(pushNotificationRepositoryProvider)
+                .unregisterCurrentToken(currentUser.userId);
+            await ref.read(authRepositoryProvider).signOut();
+          },
         ),
         _ActionRow(
           label: strings.settingsDeleteAccount,
@@ -1119,7 +1121,9 @@ class _DeleteAccountOptionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final titleColor = destructive ? colorScheme.error : colorScheme.onSurface;
+    final titleStyle = Theme.of(
+      context,
+    ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold);
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -1139,13 +1143,12 @@ class _DeleteAccountOptionCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                title,
-                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  color: titleColor,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+              destructive
+                  ? DestructiveLabel(title, style: titleStyle)
+                  : Text(
+                      title,
+                      style: titleStyle?.copyWith(color: colorScheme.onSurface),
+                    ),
               const SizedBox(height: 4),
               Text(
                 subtitle,
@@ -2284,18 +2287,39 @@ class _DraftSyncFolder extends ConsumerWidget {
   }
 }
 
-class _ComingSoonFolder extends StatelessWidget {
-  const _ComingSoonFolder({required this.message});
+/// プッシュ通知の有効化ボタン（2026-08-31実装、対応: Web・Android。
+/// `PushNotificationBootstrap`がログイン直後に一度自動でリクエストする
+/// ため、このボタンは主に初回に見送った場合の再リクエスト導線として使う）。
+/// OS側の許可状態を都度取得して表示を出し分けるほどの作り込みはせず、
+/// 常に同じ説明文＋ボタンのシンプルな1行にとどめる。
+class _NotificationsPage extends ConsumerWidget {
+  const _NotificationsPage({required this.strings, required this.currentUser});
 
-  final String message;
+  final Strings strings;
+  final AppUser currentUser;
 
   @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(24),
-      child: Center(
-        child: Text(message, style: Theme.of(context).textTheme.bodyMedium),
-      ),
+  Widget build(BuildContext context, WidgetRef ref) {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Text(
+          strings.settingsNotificationsEnableTitle,
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
+        const SizedBox(height: 4),
+        Text(
+          strings.settingsNotificationsEnableSubtitle,
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+        const SizedBox(height: 16),
+        FilledButton(
+          onPressed: () => ref
+              .read(pushNotificationRepositoryProvider)
+              .requestPermissionAndRegister(currentUser.userId),
+          child: Text(strings.settingsNotificationsEnableButton),
+        ),
+      ],
     );
   }
 }
