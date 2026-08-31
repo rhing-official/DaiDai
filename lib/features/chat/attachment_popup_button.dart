@@ -126,10 +126,9 @@ class _AttachmentPopupButtonState extends State<AttachmentPopupButton> {
   }
 
   Future<void> _pickFile() async {
-    final result = await FilePicker.platform.pickFiles(withData: true);
-    final file = result?.files.single;
-    final bytes = file?.bytes;
-    if (file == null || bytes == null) return;
+    final file = await FilePicker.pickFile();
+    if (file == null) return;
+    final bytes = await file.readAsBytes();
     widget.onPicked(
       PickedAttachment(bytes: bytes, fileName: file.name, contentType: 'file'),
     );
