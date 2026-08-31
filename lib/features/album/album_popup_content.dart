@@ -6,31 +6,8 @@ import '../../models/album.dart';
 import '../../models/app_ui_style.dart';
 import '../../providers/app_ui_style_provider.dart';
 import '../../providers/repository_providers.dart';
-import '../../theme/app_theme.dart';
-import '../../theme/glass/glass_colors.dart';
+import '../../theme/popup_surface_colors.dart';
 import '../../widgets/glass/glass_surface.dart';
-
-/// ポップアップの背景・文字色（2026-08-30修正、`chat_screen.dart`の
-/// `_popupCardBackground`/`_popupCardForeground`と同じ内容）。
-/// `colorScheme.inverseSurface`/`onInverseSurface`はアクセントカラーを
-/// seedにした`ColorScheme.fromSeed`から導出されるため、アクセントカラー
-/// 次第で視認性が落ちる（ガラススタイルでは背景に半透明パネル
-/// `GlassSurface`を使う一方、文字色だけ「反転した背景」用の
-/// `onInverseSurface`のままだったため特に食い違いが大きかった）。
-/// アクセントカラーに一切依存しない固定色にする。
-/// 当初は背景をわざと現在の明るさと反対色にしていたが、フラットUIの他の
-/// カード・ダイアログと色が食い違って見えるとの指摘を受け、背景は外観と
-/// 同じ明るさ側に修正し、代わりに文字色をそのペアに合わせて反転させた
-/// （2026-08-30再修正）。
-Color _popupCardBackground(Brightness brightness) =>
-    brightness == Brightness.dark
-    ? AppTheme.darkSurface
-    : GlassColors.lightSurfaceBase;
-
-Color _popupCardForeground(Brightness brightness) =>
-    brightness == Brightness.dark
-    ? GlassColors.darkForeground
-    : GlassColors.lightForeground;
 
 /// アルバムボタンの真下にアルバム一覧をポップアップ表示する（2026-08-30、
 /// `chat_screen.dart`のピン留めポップアップ（`_openPinnedMessagesPopup`/
@@ -210,8 +187,7 @@ class _AlbumPopupContentState extends ConsumerState<_AlbumPopupContent> {
     final strings = ref.watch(appStringsProvider);
     final brightness = Theme.of(context).brightness;
     final uiStyle = ref.watch(appUiStyleProvider);
-    final isGlass = uiStyle == AppUiStyle.glass;
-    final onInverse = _popupCardForeground(brightness);
+    final onInverse = popupCardForeground(brightness, uiStyle);
 
     final content = Column(
       mainAxisSize: MainAxisSize.min,
@@ -282,19 +258,14 @@ class _AlbumPopupContentState extends ConsumerState<_AlbumPopupContent> {
 
     return SizedBox(
       width: 300,
-      child: isGlass
-          ? GlassSurface(
-              variant: GlassVariant.floating,
-              borderRadius: BorderRadius.circular(16),
-              child: padded,
-            )
-          : Container(
-              decoration: BoxDecoration(
-                color: _popupCardBackground(brightness),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: padded,
-            ),
+      child: Container(
+        decoration: BoxDecoration(
+          color: popupCardBackground(brightness, uiStyle),
+          border: Border.all(color: popupCardBorder(brightness, uiStyle)),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: padded,
+      ),
     );
   }
 }
@@ -325,7 +296,7 @@ class _AlbumPopupCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final isGlass = uiStyle == AppUiStyle.glass;
     final brightness = Theme.of(context).brightness;
-    final onInverse = _popupCardForeground(brightness);
+    final onInverse = popupCardForeground(brightness, uiStyle);
     final coverUrl = album.coverThumbnailUrl;
 
     final body = Padding(

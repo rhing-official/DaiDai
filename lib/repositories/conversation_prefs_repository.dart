@@ -113,9 +113,7 @@ class FirestoreConversationPrefsRepository
     // マップリテラルに直し、`merge: true`の再帰マージで該当roomIdキーだけを
     // 更新する。
     await _prefsOf(userId).doc(conversationId).set({
-      'draftByRoom': {
-        roomId: draft.isEmpty ? FieldValue.delete() : draft,
-      },
+      'draftByRoom': {roomId: draft.isEmpty ? FieldValue.delete() : draft},
     }, SetOptions(merge: true));
   }
 }

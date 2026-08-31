@@ -51,3 +51,37 @@ class CallParticipantAvatar extends ConsumerWidget {
     );
   }
 }
+
+/// 通話UIのタイル等に表示する参加者の呼び名。[chat_screen.dart]の
+/// `_SenderName`と同じく、[userId]の`AppUser.effectiveNicknameFor`
+/// （会話ごとのプロフィールカードで設定した呼び名）があればそれを、無ければ
+/// `@rhingId`にフォールバックする。通話UIは従来`rhingId`をそのまま
+/// 「@rhingId」の形で表示しており呼び名を反映していなかった
+/// （2026-08-31修正）。
+class CallParticipantNameLabel extends ConsumerWidget {
+  const CallParticipantNameLabel({
+    required this.userId,
+    required this.rhingId,
+    required this.conversationId,
+    this.style,
+    super.key,
+  });
+
+  final String userId;
+  final String rhingId;
+
+  /// 一対のdmId、または広場のgroupId。
+  final String? conversationId;
+
+  final TextStyle? style;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final user = ref.watch(watchedUserProvider(userId)).value;
+    final nickname = user?.effectiveNicknameFor(conversationId)?.text;
+    final label = (nickname != null && nickname.isNotEmpty)
+        ? nickname
+        : '@$rhingId';
+    return Text(label, style: style);
+  }
+}

@@ -11,6 +11,7 @@ import '../../providers/app_ui_style_provider.dart';
 import '../../providers/conversation_prefs_providers.dart';
 import '../../providers/repository_providers.dart';
 import '../../utils/group_permissions.dart';
+import '../../widgets/destructive_label.dart';
 import '../../widgets/glass/glass_dialog.dart';
 import '../../widgets/glass/glass_surface.dart';
 import 'chat_panes.dart' show confirmDisableReadReceipts;
@@ -308,10 +309,7 @@ class GroupSettingsPopup extends ConsumerWidget {
                   Icons.delete_forever,
                   color: Theme.of(context).colorScheme.error,
                 ),
-                title: Text(
-                  strings.groupDeleteMenuLabel,
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
-                ),
+                title: DestructiveLabel(strings.groupDeleteMenuLabel),
                 enabled: group.ownerId == userId,
                 onTap: () => GroupDeleteDialog.show(
                   context,

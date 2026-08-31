@@ -9,4 +9,5 @@
 /// - `Future<void> exitDocumentFullscreen()`
 library;
 
-export 'fullscreen_stub.dart' if (dart.library.js_interop) 'fullscreen_web.dart';
+export 'fullscreen_stub.dart'
+    if (dart.library.js_interop) 'fullscreen_web.dart';

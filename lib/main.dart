@@ -1,4 +1,5 @@
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -6,6 +7,7 @@ import 'package:flutter_web_plugins/url_strategy.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'firebase_options.dart';
+import 'push_notifications.dart';
 import 'l10n/app_locale.dart';
 import 'models/app_ui_style.dart';
 import 'providers/accent_color_provider.dart';
@@ -37,6 +39,12 @@ Future<void> main() async {
   // 開くだけで何も起きない不具合の原因）。パスベースのURL戦略に切り替える。
   usePathUrlStrategy();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  // プッシュ通知（Web + Androidのみ、lib/push_notifications.dart参照）。
+  // バックグラウンドハンドラの登録・ローカル通知チャンネルの初期化は
+  // 認証状態に関わらず一度だけ行う（実際のトークン登録・権限リクエストは
+  // ログイン後に`PushNotificationBootstrap`が行う）。
+  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+  await initializeLocalNotifications();
   final initialAccentColor = await loadInitialAccentColor();
   final initialCustomAccentColors = await loadInitialCustomAccentColors();
   final initialGekigaBackgroundColor = await loadInitialGekigaBackgroundColor();

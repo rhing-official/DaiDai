@@ -65,6 +65,8 @@ dependencies:
   video_player: ^2.13.0
   web: ^1.1.0
   scrollable_positioned_list: ^0.3.8
+  firebase_messaging: ^16.6.0
+  flutter_local_notifications: ^22.3.0
 
 dev_dependencies:
   flutter_test:

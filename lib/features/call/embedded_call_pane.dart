@@ -308,6 +308,7 @@ class _GroupStage extends StatelessWidget {
         renderer: controller.isVideo ? controller.localRenderer : null,
         mirror: controller.isFrontCamera,
         videoEnabled: controller.isVideo,
+        micMuted: controller.muted,
       ),
       for (final p in controller.remoteParticipants)
         _tile(
@@ -316,14 +317,36 @@ class _GroupStage extends StatelessWidget {
           renderer: controller.remoteRenderers[p.userId],
           mirror: false,
           videoEnabled: p.isVideo,
+          micMuted: p.micMuted,
         ),
     ];
-    return GridView.count(
-      crossAxisCount: tiles.length > 2 ? 2 : tiles.length.clamp(1, 2),
-      padding: const EdgeInsets.all(4),
-      mainAxisSpacing: 4,
-      crossAxisSpacing: 4,
-      children: tiles,
+    final crossAxisCount = tiles.length > 2 ? 2 : tiles.length.clamp(1, 2);
+    const spacing = 4.0;
+    // `GridView.count`は`childAspectRatio`を指定しないと既定で正方形タイルに
+    // なる。PCの埋め込みパネルは横幅に対して縦の表示領域が狭いことが多く、
+    // 参加者が少ない間は正方形タイルが表示可能高さを超えてグリッド自体が
+    // スクロールを要求してしまっていた（2026-08-31修正、「画面いっぱいに
+    // 拡大する」のではなく「与えられた領域に収まるように計算する」という
+    // 設計に転換する）。実際の`LayoutBuilder`の制約から逆算した
+    // `childAspectRatio`を渡すことで、タイル数に関わらず常にスクロール無しで
+    // 収まるようにする。
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final rowCount = (tiles.length / crossAxisCount).ceil();
+        final tileWidth =
+            (constraints.maxWidth - spacing * (crossAxisCount + 1)) /
+            crossAxisCount;
+        final tileHeight =
+            (constraints.maxHeight - spacing * (rowCount + 1)) / rowCount;
+        return GridView.count(
+          crossAxisCount: crossAxisCount,
+          childAspectRatio: tileWidth / tileHeight,
+          padding: const EdgeInsets.all(spacing),
+          mainAxisSpacing: spacing,
+          crossAxisSpacing: spacing,
+          children: tiles,
+        );
+      },
     );
   }
 
@@ -333,24 +356,55 @@ class _GroupStage extends StatelessWidget {
     required RTCVideoRenderer? renderer,
     required bool mirror,
     required bool videoEnabled,
+    required bool micMuted,
   }) {
     return Container(
       color: Colors.grey.shade900,
-      child: videoEnabled && renderer != null
-          ? RTCVideoView(
-              key: ObjectKey(renderer),
-              renderer,
-              mirror: mirror,
-              objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
-            )
-          : Center(
-              child: CallParticipantAvatar(
-                userId: userId,
-                rhingId: rhingId,
-                conversationId: session.groupId,
-                radius: 28,
-              ),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          videoEnabled && renderer != null
+              ? RTCVideoView(
+                  key: ObjectKey(renderer),
+                  renderer,
+                  mirror: mirror,
+                  objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+                )
+              : Center(
+                  child: CallParticipantAvatar(
+                    userId: userId,
+                    rhingId: rhingId,
+                    conversationId: session.groupId,
+                    radius: 28,
+                  ),
+                ),
+          // 表示領域の左下に呼び名、ミュート中はその右隣にミュートアイコンを
+          // 表示する（2026-08-31追加、`group_call_screen.dart`の
+          // `_videoTile`と同じ並び順・見た目に揃える）。
+          Positioned(
+            left: 8,
+            bottom: 8,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CallParticipantNameLabel(
+                  userId: userId,
+                  rhingId: rhingId,
+                  conversationId: session.groupId,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    shadows: [Shadow(blurRadius: 6)],
+                  ),
+                ),
+                if (micMuted) ...[
+                  const SizedBox(width: 4),
+                  const Icon(Icons.mic_off, size: 14, color: Colors.white),
+                ],
+              ],
             ),
+          ),
+        ],
+      ),
     );
   }
 }

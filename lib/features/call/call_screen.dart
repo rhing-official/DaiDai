@@ -223,8 +223,10 @@ class _CallScreenState extends ConsumerState<CallScreen> {
             fontSize: 40,
           ),
           const SizedBox(height: 24),
-          Text(
-            '@$_otherRhingId',
+          CallParticipantNameLabel(
+            userId: _otherUserId,
+            rhingId: _otherRhingId,
+            conversationId: widget.call.dmId,
             style: const TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.bold,
@@ -311,8 +313,10 @@ class _CallScreenState extends ConsumerState<CallScreen> {
                   fontSize: 40,
                 ),
                 const SizedBox(height: 16),
-                Text(
-                  '@$_otherRhingId',
+                CallParticipantNameLabel(
+                  userId: _otherUserId,
+                  rhingId: _otherRhingId,
+                  conversationId: widget.call.dmId,
                   style: const TextStyle(
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
@@ -359,8 +363,10 @@ class _CallScreenState extends ConsumerState<CallScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            '@$_otherRhingId',
+                          CallParticipantNameLabel(
+                            userId: _otherUserId,
+                            rhingId: _otherRhingId,
+                            conversationId: widget.call.dmId,
                             style: const TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.bold,

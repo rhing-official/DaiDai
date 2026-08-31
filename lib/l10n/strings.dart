@@ -21,6 +21,9 @@ class Strings {
     required this.settingsFolderDesign,
     required this.settingsFolderLanguage,
     required this.settingsFolderNotifications,
+    required this.settingsNotificationsEnableTitle,
+    required this.settingsNotificationsEnableSubtitle,
+    required this.settingsNotificationsEnableButton,
     required this.settingsFolderTalk,
     required this.settingsFolderSupport,
     required this.settingsBlockedUsersTitle,
@@ -409,6 +412,9 @@ class Strings {
   final String settingsFolderDesign;
   final String settingsFolderLanguage;
   final String settingsFolderNotifications;
+  final String settingsNotificationsEnableTitle;
+  final String settingsNotificationsEnableSubtitle;
+  final String settingsNotificationsEnableButton;
   final String settingsFolderTalk;
   final String settingsFolderSupport;
   final String settingsBlockedUsersTitle;
@@ -959,6 +965,10 @@ class Strings {
     settingsFolderDesign: '色',
     settingsFolderLanguage: '言語',
     settingsFolderNotifications: '通知',
+    settingsNotificationsEnableTitle: 'プッシュ通知',
+    settingsNotificationsEnableSubtitle:
+        'アプリを閉じていても新着メッセージを通知します（対応: Web・Android）',
+    settingsNotificationsEnableButton: '通知を有効にする',
     settingsFolderTalk: '語らい',
     settingsFolderSupport: '運営',
     settingsBlockedUsersTitle: 'ブロックしたユーザー',
@@ -1372,6 +1382,10 @@ class Strings {
     settingsFolderDesign: 'Colour',
     settingsFolderLanguage: 'Language',
     settingsFolderNotifications: 'Notifications',
+    settingsNotificationsEnableTitle: 'Push notifications',
+    settingsNotificationsEnableSubtitle:
+        'Get notified of new messages even while the app is closed (Web and Android only)',
+    settingsNotificationsEnableButton: 'Enable notifications',
     settingsFolderTalk: 'Talk',
     settingsFolderSupport: 'Support',
     settingsBlockedUsersTitle: 'Blocked users',

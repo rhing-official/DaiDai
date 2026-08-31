@@ -11,6 +11,7 @@ import '../repositories/friend_repository.dart';
 import '../repositories/group_call_repository.dart';
 import '../repositories/group_repository.dart';
 import '../repositories/link_preview_repository.dart';
+import '../repositories/push_notification_repository.dart';
 import '../repositories/sticker_repository.dart';
 import '../repositories/user_repository.dart';
 
@@ -64,6 +65,14 @@ final stickerRepositoryProvider = Provider<StickerRepository>((ref) {
 final albumRepositoryProvider = Provider<AlbumRepository>((ref) {
   return FirestoreAlbumRepository();
 });
+
+final pushNotificationRepositoryProvider = Provider<PushNotificationRepository>(
+  (ref) {
+    return FirebaseMessagingPushNotificationRepository(
+      userRepository: ref.watch(userRepositoryProvider),
+    );
+  },
+);
 
 final authStateProvider = StreamProvider<User?>((ref) {
   return ref.watch(authRepositoryProvider).authStateChanges();
