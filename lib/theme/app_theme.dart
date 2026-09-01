@@ -243,6 +243,20 @@ class AppTheme {
         elevation: 10,
         highlightElevation: 14,
       ),
+      // TextButtonの文字色はMaterial3既定だとcolorScheme.primary（アクセント
+      // カラー）になる。確認ダイアログの「キャンセル」等の文字がアクセント
+      // カラーになり視認性を欠く問題（2026-09-01発覚）を避けるため、
+      // 中立色（onSurface）に固定する。アクセントカラーはボタンの地色等の
+      // 塗りにのみ使い、フォントには使わない方針（CLAUDE.md参照）。
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(foregroundColor: colorScheme.onSurface),
+      ),
+      // 確認ダイアログのような短い文言のみのAlertDialogが、アクション行の
+      // 幅に引っ張られて横長・縦潰れになる問題（2026-09-01発覚）を避けるため、
+      // ダイアログ全体の最大幅を統一する。
+      dialogTheme: const DialogThemeData(
+        constraints: BoxConstraints(maxWidth: 400),
+      ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: cardColor,

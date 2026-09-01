@@ -20,17 +20,21 @@ import '../../providers/block_providers.dart';
 import '../../providers/chat_navigation_providers.dart';
 import '../../providers/conversation_prefs_providers.dart';
 import '../../providers/repository_providers.dart';
+import '../../providers/user_providers.dart';
 import '../../repositories/group_repository.dart';
 import '../../router/app_router.dart';
+import '../../services/google_calendar_auth_service.dart';
 import '../../theme/popup_surface_colors.dart';
 import '../../utils/auto_dismiss_banner.dart';
 import '../../utils/group_permissions.dart';
 import '../../utils/platform_info.dart';
 import '../../widgets/destructive_label.dart';
 import '../../widgets/gekiga/gekiga_icon_badge.dart';
+import '../../widgets/glass/glass_dialog.dart';
 import '../../widgets/glass/glass_icon_badge.dart';
 import '../album/album_detail_screen.dart';
 import '../album/album_popup_content.dart';
+import '../calendar/calendar_pane_view.dart';
 import '../call/active_call_session.dart';
 import '../call/embedded_call_pane.dart';
 import 'chat_screen.dart';
@@ -276,6 +280,10 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
 
   StreamSubscription<DayMessagesPage>? _tailSub;
 
+  /// カレンダーをこの語らいの表示領域内に表示中か（2026-09-01追加、
+  /// `EmbeddedCallPane`の`_showingCall`と同じローカル切り替え方式）。
+  bool _showingCalendar = false;
+
   @override
   void initState() {
     super.initState();
@@ -371,6 +379,15 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
 
   @override
   Widget build(BuildContext context) {
+    if (_showingCalendar) {
+      return CalendarPaneView(
+        isDm: true,
+        conversationId: widget.dm.dmId,
+        roomId: widget.roomId,
+        currentUserId: widget.currentUser.userId,
+        onClose: () => setState(() => _showingCalendar = false),
+      );
+    }
     // 通話中、PC/Webではこの会話を表示している間だけメッセージ一覧の
     // 代わりに通話UIを埋め込み表示する（2026-08-19追加、EmbeddedCallPane
     // 参照）。
@@ -633,6 +650,13 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
           conversationId: dm.dmId,
           roomId: roomId,
           currentUserId: currentUser.userId,
+        ),
+        _CalendarButton(
+          isDm: true,
+          conversationId: dm.dmId,
+          roomId: roomId,
+          currentUser: currentUser,
+          onOpenCalendar: () => setState(() => _showingCalendar = true),
         ),
         _DmMenuButton(
           currentUser: currentUser,
@@ -908,6 +932,147 @@ class _AlbumButtonState extends ConsumerState<_AlbumButton> {
         AppUiStyle.flat => const Icon(Icons.photo_library_outlined),
       },
       onPressed: _openAlbumPopup,
+    );
+  }
+}
+
+/// 寄合単位の共有カレンダーを開くボタン（2026-09-01追加）。[_AlbumButton]と
+/// 同じ構成。そのアカウントで初めて開いたとき（[AppUser.
+/// googleCalendarSyncEnabled]が未確認＝null）だけ、Googleカレンダー同期の
+/// 許可を確認するダイアログを挟む（ユーザー確定仕様）。
+class _CalendarButton extends ConsumerStatefulWidget {
+  const _CalendarButton({
+    required this.isDm,
+    required this.conversationId,
+    required this.roomId,
+    required this.currentUser,
+    required this.onOpenCalendar,
+  });
+
+  final bool isDm;
+  final String conversationId;
+  final String roomId;
+  final AppUser currentUser;
+
+  /// カレンダーをこの語らいの表示領域内に開く（2026-09-01追加。当初は
+  /// `Navigator.push`で全画面ルートとして開いていたが、ワイド画面で
+  /// フレンド/寄合一覧のサイドバーまで覆ってしまう不具合が発覚し、
+  /// `DmChatPane`/`GroupChatPane`自身の表示領域内で`EmbeddedCallPane`と
+  /// 同じ「ローカルなbool切り替えで中身を差し替える」方式に変更した）。
+  final VoidCallback onOpenCalendar;
+
+  @override
+  ConsumerState<_CalendarButton> createState() => _CalendarButtonState();
+}
+
+class _CalendarButtonState extends ConsumerState<_CalendarButton> {
+  final _authService = GoogleCalendarAuthService();
+
+  /// [widget.currentUser]はログイン時に一度だけ取得されたスナップショットが
+  /// props経由でここまで伝播しているだけで、Firestore書き込み後も自動的には
+  /// 更新されない（`AuthGate`〜`HomeScreen`間、2026-09-01発覚）。そのため
+  /// `googleCalendarSyncEnabled`の最新値は`watchedUserProvider`（`profile_tab.dart`
+  /// が同種のバグ修正に使ったのと同じ既存パターン）で別途購読する。`build()`で
+  /// `ref.watch`して購読を維持しておき（下記）、イベントハンドラ側では
+  /// `ref.read`で最新値を読む（ストリームが未取得の間だけpropsの値に
+  /// フォールバック）。
+  bool? get _googleCalendarSyncEnabled {
+    final liveUser = ref.read(watchedUserProvider(widget.currentUser.userId));
+    return liveUser.asData?.value?.googleCalendarSyncEnabled ??
+        widget.currentUser.googleCalendarSyncEnabled;
+  }
+
+  Future<void> _maybeShowSyncOptInDialog() async {
+    if (_googleCalendarSyncEnabled != null) return;
+
+    final strings = ref.read(appStringsProvider);
+    final isGlass =
+        ProviderScope.containerOf(context).read(appUiStyleProvider) ==
+        AppUiStyle.glass;
+    final accepted = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        final title = Text(strings.calendarSyncOptInDialogTitle);
+        final content = Text(strings.calendarSyncOptInDialogMessage);
+        final actions = [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(strings.calendarSyncOptInDeclineButton),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(strings.calendarSyncOptInAcceptButton),
+          ),
+        ];
+        return isGlass
+            ? GlassAlertDialog(title: title, content: content, actions: actions)
+            : AlertDialog(title: title, content: content, actions: actions);
+      },
+    );
+    if (!mounted) return;
+
+    if (accepted == false) {
+      await ref
+          .read(userRepositoryProvider)
+          .setGoogleCalendarSyncEnabled(widget.currentUser.userId, false);
+      return;
+    }
+    if (accepted != true) return;
+
+    try {
+      final granted = await _authService.requestConsent();
+      // キャンセルされた場合(granted == false)はnullのまま据え置き、
+      // 次回このボタンを開いたときに再度確認する。
+      if (granted) {
+        await ref
+            .read(userRepositoryProvider)
+            .setGoogleCalendarSyncEnabled(widget.currentUser.userId, true);
+      }
+    } on GoogleCalendarNotConfiguredException {
+      // Web版のOAuthクライアントID未設定（Phase 0未完了）。同期は使えないが
+      // カレンダー機能自体はブロックしない。初回の期待外れに気づけるよう
+      // ここだけは無言にせずバナーで知らせる。
+      if (mounted) {
+        showAutoDismissBanner(
+          context,
+          message: strings.calendarSyncSetupIncompleteError,
+        );
+      }
+    } catch (_) {
+      // それ以外の同意フロー失敗（ネットワークエラー等）。カレンダー機能
+      // 自体は使えるべきなので、ここではポップアップを開くのを妨げない
+      // （連携は未確定のまま次回また確認する）。
+    }
+  }
+
+  Future<void> _openCalendarFullScreen() async {
+    await _maybeShowSyncOptInDialog();
+    if (!mounted) return;
+    widget.onOpenCalendar();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final uiStyle = ref.watch(appUiStyleProvider);
+    // 購読を維持するためだけにwatchする（値自体はイベントハンドラ側で
+    // `_googleCalendarSyncEnabled`経由のref.readから読む）。
+    ref.watch(watchedUserProvider(widget.currentUser.userId));
+    return IconButton(
+      tooltip: '',
+      icon: switch (uiStyle) {
+        AppUiStyle.gekiga => const GekigaIconBadge(
+          icon: Icons.event_outlined,
+          size: 36,
+        ),
+        AppUiStyle.glass => const GlassIconBadge(
+          icon: Icons.event_outlined,
+          size: 36,
+          opaque: true,
+          shadow: true,
+        ),
+        AppUiStyle.flat => const Icon(Icons.event_outlined),
+      },
+      onPressed: _openCalendarFullScreen,
     );
   }
 }
@@ -1420,6 +1585,10 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
 
   StreamSubscription<DayMessagesPage>? _tailSub;
 
+  /// カレンダーをこの語らいの表示領域内に表示中か（2026-09-01追加、
+  /// `EmbeddedCallPane`の`_showingCall`と同じローカル切り替え方式）。
+  bool _showingCalendar = false;
+
   @override
   void initState() {
     super.initState();
@@ -1584,6 +1753,15 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
     final currentUser = widget.currentUser;
     final roomId = widget.roomId;
     final groupRepository = ref.watch(groupRepositoryProvider);
+    if (_showingCalendar) {
+      return CalendarPaneView(
+        isDm: false,
+        conversationId: group.groupId,
+        roomId: roomId,
+        currentUserId: currentUser.userId,
+        onClose: () => setState(() => _showingCalendar = false),
+      );
+    }
     // 通話中、PC/Webではこの会話を表示している間だけメッセージ一覧の
     // 代わりに通話UIを埋め込み表示する（2026-08-19追加、EmbeddedCallPane
     // 参照）。
@@ -1835,6 +2013,13 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
           conversationId: group.groupId,
           roomId: roomId,
           currentUserId: currentUser.userId,
+        ),
+        _CalendarButton(
+          isDm: false,
+          conversationId: group.groupId,
+          roomId: roomId,
+          currentUser: currentUser,
+          onOpenCalendar: () => setState(() => _showingCalendar = true),
         ),
         _GroupMenuButton(
           currentUser: currentUser,

@@ -68,7 +68,7 @@ class Vocabulary {
   /// ひとことのステータス表示（一言／ステータスメッセージ、Englishは共通）。
   final String statusMessage;
 
-  /// 招待リンク・QRコードで仲間を追加する画面（縁結び／Bond Shrine）。
+  /// 招待リンク・QRコードで友達を追加する画面（縁結び／Bond Shrine）。
   final String friendConnect;
 
   /// 広場の管理者（長／Chief）。

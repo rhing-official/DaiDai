@@ -43,6 +43,8 @@ class AppUser {
     this.deletionRequestedAt,
     this.createdAt,
     this.lastLoginAt,
+    this.googleCalendarSyncEnabled,
+    this.pushNotificationsEnabled,
   });
 
   final String userId;
@@ -118,6 +120,24 @@ class AppUser {
   /// フィールド（理由は[createdAt]と同様、`updateUser`経由での事故を
   /// 避けるため）。
   final Timestamp? lastLoginAt;
+
+  /// Googleカレンダー連携の許可状態（2026-09-01追加）。3値で意味を持たせる:
+  /// null=まだ初回確認前、true=許可済み、false=拒否済み（明示的にオフ）。
+  /// アクセストークン・リフレッシュトークンは一切保存しない（クライアント
+  /// 主導の同期方式、`GoogleCalendarAuthService`参照）。`preferences`
+  /// （端末間で同期する表示設定バッグ）とは意味が異なるため独立フィールドに
+  /// している。
+  final bool? googleCalendarSyncEnabled;
+
+  /// プッシュ通知の許可状態（2026-09-01追加、設定タブのトグルで管理）。
+  /// [googleCalendarSyncEnabled]と同じ3値パターン: null=まだ触れていない
+  /// （`PushNotificationBootstrap`が起動時に自動でOS権限をリクエストする
+  /// 既存挙動のまま）、true=このトグルで明示的にオンにした、false=明示的に
+  /// オフにした（この端末のFCMトークンを`fcmTokens`から削除済み、
+  /// `PushNotificationBootstrap`は次回起動時の自動リクエストをスキップする）。
+  /// OS/ブラウザ側の通知許可自体はアプリから取り消せないため、このフラグは
+  /// あくまで「この端末にDaiDaiが通知を送るかどうか」を表す。
+  final bool? pushNotificationsEnabled;
 
   ProfileMaterial? get activeIcon => _findMaterial(icons, activeIconId);
   ProfileMaterial? get activeBackgroundImage =>
@@ -333,6 +353,8 @@ class AppUser {
       deletionRequestedAt: json['deletionRequestedAt'] as Timestamp?,
       createdAt: json['createdAt'] as Timestamp?,
       lastLoginAt: json['lastLoginAt'] as Timestamp?,
+      googleCalendarSyncEnabled: json['googleCalendarSyncEnabled'] as bool?,
+      pushNotificationsEnabled: json['pushNotificationsEnabled'] as bool?,
     );
   }
 
@@ -359,6 +381,8 @@ class AppUser {
       'deletionRequestedAt': deletionRequestedAt,
       'createdAt': createdAt,
       'lastLoginAt': lastLoginAt,
+      'googleCalendarSyncEnabled': googleCalendarSyncEnabled,
+      'pushNotificationsEnabled': pushNotificationsEnabled,
     };
   }
 

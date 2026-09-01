@@ -135,6 +135,10 @@ class GekigaTheme {
           backgroundColor: GekigaColors.panel,
           foregroundColor: GekigaColors.onPanel,
           elevation: 0,
+          // outlinedButtonThemeと同じ白縁を付ける。ダイアログの背景も
+          // GekigaColors.panel（黒）のため、縁が無いとボタンの境界が
+          // 見えなくなる問題があった（2026-09-01発覚）。
+          side: const BorderSide(color: GekigaColors.onPanel, width: 2),
           shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
           textStyle: baseText.labelLarge?.copyWith(fontWeight: FontWeight.bold),
         ),
@@ -151,6 +155,18 @@ class GekigaTheme {
         backgroundColor: GekigaColors.panel,
         foregroundColor: GekigaColors.onPanel,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+      ),
+      // TextButtonの文字色はMaterial3既定だとcolorScheme.primary（アクセント
+      // 相当）になる。フラット・ガラスと同じ方針で中立色（onPanel＝白）に
+      // 固定する（CLAUDE.md参照）。
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(foregroundColor: colorScheme.onSurface),
+      ),
+      // 確認ダイアログのような短い文言のみのAlertDialogが、アクション行の
+      // 幅に引っ張られて横長・縦潰れになる問題（2026-09-01発覚）を避けるため、
+      // ダイアログ全体の最大幅を統一する（フラット・ガラスと同じ値）。
+      dialogTheme: const DialogThemeData(
+        constraints: BoxConstraints(maxWidth: 400),
       ),
       inputDecorationTheme: const InputDecorationTheme(
         filled: true,

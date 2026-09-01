@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
+import '../utils/google_sign_in_bootstrap.dart';
+
 abstract class AuthRepository {
   Stream<User?> authStateChanges();
   User? get currentUser;
@@ -102,7 +104,7 @@ class FirebaseAuthRepository implements AuthRepository {
       return user;
     }
 
-    await _googleSignIn.initialize();
+    await ensureGoogleSignInInitialized();
     final account = await _googleSignIn.authenticate();
     final googleAuth = account.authentication;
 
@@ -212,7 +214,7 @@ class FirebaseAuthRepository implements AuthRepository {
       return;
     }
 
-    await _googleSignIn.initialize();
+    await ensureGoogleSignInInitialized();
     final account = await _googleSignIn.authenticate();
     final googleAuth = account.authentication;
     final credential = GoogleAuthProvider.credential(

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../repositories/album_repository.dart';
 import '../repositories/auth_repository.dart';
 import '../repositories/block_repository.dart';
+import '../repositories/calendar_event_repository.dart';
 import '../repositories/call_repository.dart';
 import '../repositories/conversation_prefs_repository.dart';
 import '../repositories/direct_message_repository.dart';
@@ -64,6 +65,12 @@ final stickerRepositoryProvider = Provider<StickerRepository>((ref) {
 
 final albumRepositoryProvider = Provider<AlbumRepository>((ref) {
   return FirestoreAlbumRepository();
+});
+
+final calendarEventRepositoryProvider = Provider<CalendarEventRepository>((
+  ref,
+) {
+  return FirestoreCalendarEventRepository();
 });
 
 final pushNotificationRepositoryProvider = Provider<PushNotificationRepository>(
