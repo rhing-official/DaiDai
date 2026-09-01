@@ -210,6 +210,15 @@ class _FakeUserRepository implements UserRepository {
     'scanned': 0,
     'backfilled': 0,
   };
+
+  @override
+  Future<void> setGoogleCalendarSyncEnabled(
+    String userId,
+    bool enabled,
+  ) async {}
+
+  @override
+  Future<void> setPushNotificationsEnabled(String userId, bool enabled) async {}
 }
 
 Future<void> _pumpProfileTab(

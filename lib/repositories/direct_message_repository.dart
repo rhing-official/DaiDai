@@ -1002,6 +1002,39 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
     required String otherUserId,
   }) async {
     final dmRef = _directMessages.doc(dmId);
+
+    // 友達関係を実際に終わらせるcascadeBatchを最優先・最初に実行する
+    // （2026-09-01変更、以前はメッセージ・寄合の削除ループの後に実行して
+    // いた）。firestore.rules上、friends/friendRequestsの削除条件は
+    // 「一対ドキュメントにseveranceRequestedByが立っていて削除者が提案者
+    // 本人でないこと」のみでメッセージ削除の完了を前提としないため、
+    // 順序を入れ替えても問題ない。以前の順序だと、時間のかかるメッセージ
+    // 削除ループの途中でタブを閉じる・通信切断等により処理が中断された場合、
+    // 会話は消えて絶縁が完了したように見えてもfriendsドキュメントが
+    // 削除されないまま残り、後から「すでに友達です」と表示される不具合が
+    // あった。友達関係の解消を最優先の原子的操作として先に完了させることで、
+    // 以降の処理が中断されても実害の少ない残骸（空のメッセージ・寄合・
+    // 一対ドキュメント）が残るだけで済むようにする。
+    final cascadeBatch = _firestore.batch();
+    cascadeBatch.delete(
+      _firestore
+          .collection('users')
+          .doc(currentUserId)
+          .collection('friends')
+          .doc(otherUserId),
+    );
+    cascadeBatch.delete(
+      _firestore
+          .collection('users')
+          .doc(otherUserId)
+          .collection('friends')
+          .doc(currentUserId),
+    );
+    // friendRequestsのidはdirectMessagesのdmIdと同じ組み立て方（pairId）の
+    // ため、同じdmIdでそのままドキュメントを特定できる。
+    cascadeBatch.delete(_firestore.collection('friendRequests').doc(dmId));
+    await cascadeBatch.commit();
+
     // where句はfirestore.rulesの`list`要求を満たすために必須
     // （`deleteRoom`と同じ、2026-07-29追加）。
     final roomsSnapshot = await dmRef
@@ -1026,26 +1059,6 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
       }
       await roomDoc.reference.delete();
     }
-
-    final cascadeBatch = _firestore.batch();
-    cascadeBatch.delete(
-      _firestore
-          .collection('users')
-          .doc(currentUserId)
-          .collection('friends')
-          .doc(otherUserId),
-    );
-    cascadeBatch.delete(
-      _firestore
-          .collection('users')
-          .doc(otherUserId)
-          .collection('friends')
-          .doc(currentUserId),
-    );
-    // friendRequestsのidはdirectMessagesのdmIdと同じ組み立て方（pairId）の
-    // ため、同じdmIdでそのままドキュメントを特定できる。
-    cascadeBatch.delete(_firestore.collection('friendRequests').doc(dmId));
-    await cascadeBatch.commit();
 
     // 一対自体は、上記すべての削除を許可する根拠（severanceRequestedBy）を
     // 持っているため、最後に削除する。

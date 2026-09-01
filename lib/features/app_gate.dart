@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'auth/auth_gate.dart';
+import 'calendar/calendar_sync_bootstrap.dart';
 import 'call/group_incoming_call_listener.dart';
 import 'call/incoming_call_listener.dart';
 import 'home/home_screen.dart';
@@ -16,11 +17,14 @@ class AppGate extends StatelessWidget {
     return AuthGate(
       builder: (context, currentUser) => PushNotificationBootstrap(
         currentUserId: currentUser.userId,
-        child: IncomingCallListener(
+        child: CalendarSyncBootstrap(
           currentUserId: currentUser.userId,
-          child: GroupIncomingCallListener(
-            currentUser: currentUser,
-            child: HomeScreen(currentUser: currentUser),
+          child: IncomingCallListener(
+            currentUserId: currentUser.userId,
+            child: GroupIncomingCallListener(
+              currentUser: currentUser,
+              child: HomeScreen(currentUser: currentUser),
+            ),
           ),
         ),
       ),

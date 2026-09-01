@@ -23,8 +23,10 @@ const _webPushVapidKey =
 abstract class PushNotificationRepository {
   /// 通知権限をリクエストし、許可されればFCMトークンを取得して
   /// [userId]の`fcmTokens`に登録する。対応外プラットフォーム（iOS/macOS/
-  /// Windows/Linux）では何もしない。
-  Future<void> requestPermissionAndRegister(String userId);
+  /// Windows/Linux）では何もしない。戻り値は実際に許可されFCMトークンの
+  /// 登録まで完了したか（2026-09-01、設定タブのトグルUIが結果を表示に
+  /// 反映できるよう`Future<void>`から変更）。
+  Future<bool> requestPermissionAndRegister(String userId);
 
   /// トークンが更新された際、新トークンを[userId]に再登録する。
   Stream<String> onTokenRefresh(String userId);
@@ -47,24 +49,25 @@ class FirebaseMessagingPushNotificationRepository
   static String get _platformName => kIsWeb ? 'web' : 'android';
 
   @override
-  Future<void> requestPermissionAndRegister(String userId) async {
-    if (!_supportedPlatform) return;
+  Future<bool> requestPermissionAndRegister(String userId) async {
+    if (!_supportedPlatform) return false;
 
     final settings = await _messaging.requestPermission();
     if (settings.authorizationStatus != AuthorizationStatus.authorized) {
-      return;
+      return false;
     }
 
     final token = await _messaging.getToken(
       vapidKey: kIsWeb ? _webPushVapidKey : null,
     );
-    if (token == null) return;
+    if (token == null) return false;
 
     await userRepository.addToProfileList(
       userId,
       'fcmTokens',
       FcmTokenEntry(token: token, platform: _platformName).toJson(),
     );
+    return true;
   }
 
   @override

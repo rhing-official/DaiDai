@@ -29,7 +29,9 @@ import '../../providers/repository_providers.dart';
 import '../../providers/send_key_mode_provider.dart';
 import '../../providers/sticker_send_mode_provider.dart';
 import '../../providers/theme_mode_provider.dart';
+import '../../providers/user_providers.dart';
 import '../../router/app_router.dart';
+import '../../services/google_calendar_auth_service.dart';
 import '../../theme/gekiga/gekiga_colors.dart';
 import '../../theme/motion.dart';
 import '../../utils/auto_dismiss_banner.dart';
@@ -838,6 +840,136 @@ Future<bool> _confirmDisableTwoFactor(
   return confirmed ?? false;
 }
 
+/// Googleカレンダー連携の状態表示・切り替え行（2026-09-01追加）。初回確認は
+/// `_CalendarButton`（`chat_panes.dart`、カレンダー機能を初めて開いたとき）が
+/// 主導線で、ここは後からいつでも許可/停止を切り替えるための副導線
+/// （ユーザー確定仕様）。
+class _GoogleCalendarSyncRow extends ConsumerWidget {
+  const _GoogleCalendarSyncRow({
+    required this.strings,
+    required this.currentUser,
+  });
+
+  final Strings strings;
+  final AppUser currentUser;
+
+  Future<void> _connect(BuildContext context, WidgetRef ref) async {
+    try {
+      final granted = await GoogleCalendarAuthService().requestConsent();
+      if (!granted) return;
+      await ref
+          .read(userRepositoryProvider)
+          .setGoogleCalendarSyncEnabled(currentUser.userId, true);
+    } on GoogleCalendarNotConfiguredException {
+      if (!context.mounted) return;
+      showAutoDismissBanner(
+        context,
+        message: strings.calendarSyncSetupIncompleteError,
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      showAutoDismissBanner(context, message: '$e');
+    }
+  }
+
+  Future<void> _disconnect(BuildContext context, WidgetRef ref) async {
+    final confirmed = await _confirmDisconnectGoogleCalendarSync(
+      context,
+      strings,
+    );
+    if (!confirmed || !context.mounted) return;
+    await ref
+        .read(userRepositoryProvider)
+        .setGoogleCalendarSyncEnabled(currentUser.userId, false);
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    // `currentUser`はログイン時の一度きりのスナップショットで、Firestore
+    // 書き込み後も自動更新されない（`chat_panes.dart`の`_CalendarButton`と
+    // 同じ既知の制約）。トグルは押した直後に見た目が反映されないと壊れて
+    // 見えるため、`watchedUserProvider`で最新値を購読する。
+    final liveUser = ref.watch(watchedUserProvider(currentUser.userId));
+    final enabled =
+        liveUser.asData?.value?.googleCalendarSyncEnabled ??
+        currentUser.googleCalendarSyncEnabled ??
+        false;
+    final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
+    final title = Text(
+      enabled
+          ? strings.settingsGoogleCalendarSyncConnectedLabel
+          : strings.settingsGoogleCalendarSyncDisconnectedLabel,
+    );
+
+    void setEnabled(bool value) =>
+        value ? _connect(context, ref) : _disconnect(context, ref);
+
+    if (isGekiga) {
+      return GekigaJointedTileList(
+        seeds: const [0],
+        selectedFlags: const [false],
+        children: [
+          GekigaTileContent(
+            selected: false,
+            title: title,
+            trailing: Switch(
+              value: enabled,
+              onChanged: setEnabled,
+              activeThumbColor: GekigaColors.panel,
+              activeTrackColor: GekigaColors.onPanel,
+              inactiveThumbColor: GekigaColors.onPanel,
+              inactiveTrackColor: GekigaColors.panel,
+              trackOutlineColor: WidgetStatePropertyAll(GekigaColors.onPanel),
+            ),
+            onTap: () => setEnabled(!enabled),
+          ),
+        ],
+      );
+    }
+    return SwitchListTile(value: enabled, title: title, onChanged: setEnabled);
+  }
+}
+
+/// Googleカレンダー連携を解除する前の確認ダイアログ（[_confirmDisableTwoFactor]
+/// と同じGlass対応パターン）。
+Future<bool> _confirmDisconnectGoogleCalendarSync(
+  BuildContext context,
+  Strings strings,
+) async {
+  final isGlass =
+      ProviderScope.containerOf(context).read(appUiStyleProvider) ==
+      AppUiStyle.glass;
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (context) {
+      final title = Text(
+        strings.settingsGoogleCalendarSyncDisconnectConfirmTitle,
+      );
+      final content = Text(
+        strings.settingsGoogleCalendarSyncDisconnectConfirmMessage,
+      );
+      final actions = [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: Text(strings.cancel),
+        ),
+        FilledButton(
+          style: FilledButton.styleFrom(
+            backgroundColor: Colors.red.shade700,
+            foregroundColor: Colors.white,
+          ),
+          onPressed: () => Navigator.of(context).pop(true),
+          child: Text(strings.settingsGoogleCalendarSyncDisconnectAction),
+        ),
+      ];
+      return isGlass
+          ? GlassAlertDialog(title: title, content: content, actions: actions)
+          : AlertDialog(title: title, content: content, actions: actions);
+    },
+  );
+  return confirmed ?? false;
+}
+
 /// アカウントカテゴリの中身。旧: Rhing ID／プロフィール名／セキュリティ／
 /// QRコードログイン／ログアウト／アカウント削除の各サブフォルダを、
 /// 見出し付きセクションとして1ページにまとめた。
@@ -869,6 +1001,9 @@ class _AccountPage extends ConsumerWidget {
           value: strings.settingsComingSoon,
         ),
         _QrLoginRow(strings: strings),
+        const Divider(height: 24),
+        _SectionHeader(strings.settingsGoogleCalendarSyncSectionTitle),
+        _GoogleCalendarSyncRow(strings: strings, currentUser: currentUser),
         const Divider(height: 24),
         _SectionHeader(strings.settingsStickersSection),
         _ActionRow(
@@ -2287,38 +2422,90 @@ class _DraftSyncFolder extends ConsumerWidget {
   }
 }
 
-/// プッシュ通知の有効化ボタン（2026-08-31実装、対応: Web・Android。
-/// `PushNotificationBootstrap`がログイン直後に一度自動でリクエストする
-/// ため、このボタンは主に初回に見送った場合の再リクエスト導線として使う）。
-/// OS側の許可状態を都度取得して表示を出し分けるほどの作り込みはせず、
-/// 常に同じ説明文＋ボタンのシンプルな1行にとどめる。
+/// プッシュ通知の許可トグル（2026-08-31実装、2026-09-01トグル化。
+/// 対応: Web・Android。`PushNotificationBootstrap`がログイン直後に一度
+/// 自動でリクエストするが、ここで明示的にオフにすると次回起動時の自動
+/// リクエストもスキップされるようになる（`PushNotificationBootstrap`
+/// 参照）。OS/ブラウザ側の許可自体はアプリから取り消せないため、オフに
+/// した場合は実際にはこの端末のFCMトークンをFirestoreから削除するだけ）。
 class _NotificationsPage extends ConsumerWidget {
   const _NotificationsPage({required this.strings, required this.currentUser});
 
   final Strings strings;
   final AppUser currentUser;
 
+  Future<void> _setEnabled(
+    BuildContext context,
+    WidgetRef ref,
+    bool value,
+  ) async {
+    final repo = ref.read(pushNotificationRepositoryProvider);
+    if (value) {
+      final granted = await repo.requestPermissionAndRegister(
+        currentUser.userId,
+      );
+      if (!granted && context.mounted) {
+        showAutoDismissBanner(
+          context,
+          message: strings.settingsNotificationsPermissionDeniedError,
+        );
+      }
+    } else {
+      await repo.unregisterCurrentToken(currentUser.userId);
+    }
+    await ref
+        .read(userRepositoryProvider)
+        .setPushNotificationsEnabled(currentUser.userId, value);
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final liveUser = ref.watch(watchedUserProvider(currentUser.userId));
+    final enabled =
+        liveUser.asData?.value?.pushNotificationsEnabled ??
+        currentUser.pushNotificationsEnabled ??
+        false;
+    final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
+    final title = Text(strings.settingsNotificationsEnableTitle);
+    final subtitle = Text(strings.settingsNotificationsEnableSubtitle);
+
+    void setEnabled(bool value) => _setEnabled(context, ref, value);
+
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        Text(
-          strings.settingsNotificationsEnableTitle,
-          style: Theme.of(context).textTheme.titleMedium,
-        ),
-        const SizedBox(height: 4),
-        Text(
-          strings.settingsNotificationsEnableSubtitle,
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
-        const SizedBox(height: 16),
-        FilledButton(
-          onPressed: () => ref
-              .read(pushNotificationRepositoryProvider)
-              .requestPermissionAndRegister(currentUser.userId),
-          child: Text(strings.settingsNotificationsEnableButton),
-        ),
+        if (isGekiga)
+          GekigaJointedTileList(
+            seeds: const [0],
+            selectedFlags: const [false],
+            children: [
+              GekigaTileContent(
+                selected: false,
+                title: title,
+                subtitle: subtitle,
+                trailing: Switch(
+                  value: enabled,
+                  onChanged: setEnabled,
+                  activeThumbColor: GekigaColors.panel,
+                  activeTrackColor: GekigaColors.onPanel,
+                  inactiveThumbColor: GekigaColors.onPanel,
+                  inactiveTrackColor: GekigaColors.panel,
+                  trackOutlineColor: WidgetStatePropertyAll(
+                    GekigaColors.onPanel,
+                  ),
+                ),
+                onTap: () => setEnabled(!enabled),
+              ),
+            ],
+          )
+        else
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            value: enabled,
+            title: title,
+            subtitle: subtitle,
+            onChanged: setEnabled,
+          ),
       ],
     );
   }

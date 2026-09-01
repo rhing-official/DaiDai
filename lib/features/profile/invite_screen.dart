@@ -10,7 +10,7 @@ import '../../widgets/profile_card_picker.dart';
 import '../auth/auth_gate.dart';
 
 /// 招待リンク（`/invite/:rhingId`）・QRコード読み取りの両方から開かれる、
-/// 仲間申請の確認画面。ログイン前に開かれた場合は[AuthGate]がまずログイン・
+/// 友達申請の確認画面。ログイン前に開かれた場合は[AuthGate]がまずログイン・
 /// Rhing ID登録を済ませてから、この画面本体（[_InviteConfirmView]）を表示する。
 class InviteScreen extends StatelessWidget {
   const InviteScreen({required this.rhingId, super.key});

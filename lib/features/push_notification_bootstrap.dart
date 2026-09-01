@@ -29,7 +29,19 @@ class _PushNotificationBootstrapState
   @override
   void initState() {
     super.initState();
-    ref
+    _maybeAutoRequest();
+  }
+
+  /// 設定タブのトグルで明示的にオフにされていた場合（[AppUser.
+  /// pushNotificationsEnabled] == false）は、起動のたびに自動で許可を
+  /// リクエストし直さない（2026-09-01追加。null＝未設定の既存/新規ユーザーは
+  /// 従来通り自動リクエストする、オンボーディング体験は変えない）。
+  Future<void> _maybeAutoRequest() async {
+    final user = await ref
+        .read(userRepositoryProvider)
+        .getUser(widget.currentUserId);
+    if (user?.pushNotificationsEnabled == false) return;
+    await ref
         .read(pushNotificationRepositoryProvider)
         .requestPermissionAndRegister(widget.currentUserId);
   }

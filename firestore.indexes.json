@@ -39,6 +39,14 @@
         { "fieldPath": "accountStatus", "order": "ASCENDING" },
         { "fieldPath": "deletionRequestedAt", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "syncStates",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "uid", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

@@ -121,10 +121,21 @@ class GlassTheme {
           borderRadius: BorderRadius.all(Radius.circular(20)),
         ),
       ),
+      // 確認ダイアログのような短い文言のみのAlertDialogが、アクション行の
+      // 幅に引っ張られて横長・縦潰れになる問題（2026-09-01発覚）を避けるため、
+      // ダイアログ全体の最大幅を統一する（フラットと同じ値）。
       dialogTheme: const DialogThemeData(
         backgroundColor: Colors.transparent,
         elevation: 0,
         surfaceTintColor: Colors.transparent,
+        constraints: BoxConstraints(maxWidth: 400),
+      ),
+      // TextButtonの文字色はMaterial3既定だとcolorScheme.primary（アクセント
+      // カラー）になる。確認ダイアログの「キャンセル」等の文字がアクセント
+      // カラーになり視認性を欠く問題を避けるため中立色（onSurface）に固定する
+      // （フラットと同じ方針、CLAUDE.md参照）。
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(foregroundColor: colorScheme.onSurface),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style:

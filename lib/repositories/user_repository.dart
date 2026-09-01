@@ -149,6 +149,16 @@ abstract class UserRepository {
   /// このメソッド・呼び出し元UI・Cloud Function自体を削除する想定
   /// （`bootstrapFirstAdmin`と同じ「使い捨て」の扱い）。
   Future<Map<String, int>> backfillAccountStatusOnce();
+
+  /// Googleカレンダー連携の許可状態を更新する（2026-09-01追加）。
+  /// `enabled`がnullなのは初回未確認の状態のみを表し、この呼び出しからは
+  /// 使わない（true=許可、false=拒否のどちらかを明示的に書き込む）。
+  /// [AppUser.googleCalendarSyncEnabled]参照。
+  Future<void> setGoogleCalendarSyncEnabled(String userId, bool enabled);
+
+  /// プッシュ通知の許可状態を更新する（2026-09-01追加、設定タブのトグル用）。
+  /// [AppUser.pushNotificationsEnabled]参照。
+  Future<void> setPushNotificationsEnabled(String userId, bool enabled);
 }
 
 class FirestoreUserRepository implements UserRepository {
@@ -529,5 +539,15 @@ class FirestoreUserRepository implements UserRepository {
       'scanned': data['scanned'] as int,
       'backfilled': data['backfilled'] as int,
     };
+  }
+
+  @override
+  Future<void> setGoogleCalendarSyncEnabled(String userId, bool enabled) {
+    return _users.doc(userId).update({'googleCalendarSyncEnabled': enabled});
+  }
+
+  @override
+  Future<void> setPushNotificationsEnabled(String userId, bool enabled) {
+    return _users.doc(userId).update({'pushNotificationsEnabled': enabled});
   }
 }

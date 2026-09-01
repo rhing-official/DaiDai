@@ -23,7 +23,7 @@ class Strings {
     required this.settingsFolderNotifications,
     required this.settingsNotificationsEnableTitle,
     required this.settingsNotificationsEnableSubtitle,
-    required this.settingsNotificationsEnableButton,
+    required this.settingsNotificationsPermissionDeniedError,
     required this.settingsFolderTalk,
     required this.settingsFolderSupport,
     required this.settingsBlockedUsersTitle,
@@ -391,6 +391,34 @@ class Strings {
     required this.albumAddedSnackbarMessage,
     required this.albumAddFailedSnackbarMessage,
     required this.commonCreate,
+    required this.calendarFullScreenTitle,
+    required this.calendarTodayButton,
+    required this.calendarCreateDialogTitle,
+    required this.calendarEditDialogTitle,
+    required this.calendarTitleFieldHint,
+    required this.calendarDescriptionFieldHint,
+    required this.calendarLocationFieldHint,
+    required this.calendarAllDayLabel,
+    required this.calendarStartLabel,
+    required this.calendarEndLabel,
+    required this.calendarDeleteAction,
+    required this.calendarDeleteConfirmTitle,
+    required this.calendarDeleteConfirmMessage,
+    required this.calendarSyncStatusPendingLabel,
+    required this.calendarSyncStatusSyncedLabel,
+    required this.calendarSyncStatusFailedLabel,
+    required this.calendarSyncStatusSkippedLabel,
+    required this.calendarSyncOptInDialogTitle,
+    required this.calendarSyncOptInDialogMessage,
+    required this.calendarSyncOptInAcceptButton,
+    required this.calendarSyncOptInDeclineButton,
+    required this.settingsGoogleCalendarSyncSectionTitle,
+    required this.settingsGoogleCalendarSyncConnectedLabel,
+    required this.settingsGoogleCalendarSyncDisconnectedLabel,
+    required this.settingsGoogleCalendarSyncDisconnectAction,
+    required this.settingsGoogleCalendarSyncDisconnectConfirmTitle,
+    required this.settingsGoogleCalendarSyncDisconnectConfirmMessage,
+    required this.calendarSyncSetupIncompleteError,
   });
 
   final String navTalk;
@@ -414,7 +442,7 @@ class Strings {
   final String settingsFolderNotifications;
   final String settingsNotificationsEnableTitle;
   final String settingsNotificationsEnableSubtitle;
-  final String settingsNotificationsEnableButton;
+  final String settingsNotificationsPermissionDeniedError;
   final String settingsFolderTalk;
   final String settingsFolderSupport;
   final String settingsBlockedUsersTitle;
@@ -950,6 +978,36 @@ class Strings {
   final String albumAddFailedSnackbarMessage;
   final String commonCreate;
 
+  // 寄合単位の共有カレンダー機能（2026-09-01追加）。
+  final String calendarFullScreenTitle;
+  final String calendarTodayButton;
+  final String calendarCreateDialogTitle;
+  final String calendarEditDialogTitle;
+  final String calendarTitleFieldHint;
+  final String calendarDescriptionFieldHint;
+  final String calendarLocationFieldHint;
+  final String calendarAllDayLabel;
+  final String calendarStartLabel;
+  final String calendarEndLabel;
+  final String calendarDeleteAction;
+  final String calendarDeleteConfirmTitle;
+  final String calendarDeleteConfirmMessage;
+  final String calendarSyncStatusPendingLabel;
+  final String calendarSyncStatusSyncedLabel;
+  final String calendarSyncStatusFailedLabel;
+  final String calendarSyncStatusSkippedLabel;
+  final String calendarSyncOptInDialogTitle;
+  final String calendarSyncOptInDialogMessage;
+  final String calendarSyncOptInAcceptButton;
+  final String calendarSyncOptInDeclineButton;
+  final String settingsGoogleCalendarSyncSectionTitle;
+  final String settingsGoogleCalendarSyncConnectedLabel;
+  final String settingsGoogleCalendarSyncDisconnectedLabel;
+  final String settingsGoogleCalendarSyncDisconnectAction;
+  final String settingsGoogleCalendarSyncDisconnectConfirmTitle;
+  final String settingsGoogleCalendarSyncDisconnectConfirmMessage;
+  final String calendarSyncSetupIncompleteError;
+
   static final ja = Strings._(
     navTalk: '語らい',
     navProfile: '身だしなみ',
@@ -968,7 +1026,8 @@ class Strings {
     settingsNotificationsEnableTitle: 'プッシュ通知',
     settingsNotificationsEnableSubtitle:
         'アプリを閉じていても新着メッセージを通知します（対応: Web・Android）',
-    settingsNotificationsEnableButton: '通知を有効にする',
+    settingsNotificationsPermissionDeniedError:
+        '通知の許可が得られませんでした。ブラウザ/OSの設定をご確認ください。',
     settingsFolderTalk: '語らい',
     settingsFolderSupport: '運営',
     settingsBlockedUsersTitle: 'ブロックしたユーザー',
@@ -1208,15 +1267,15 @@ class Strings {
     workshopEmptyMaterialHint: '蔵に素材が登録されていません',
     fieldRequiredError: '入力してください',
     enmusubiInviteLinkTitle: '招待リンク',
-    enmusubiInviteLinkDescription: 'このリンクを知っている住人が開くと、あなたに仲間申請を送れます。',
+    enmusubiInviteLinkDescription: 'このリンクを知っている住人が開くと、あなたに友達申請を送れます。',
     enmusubiCopyLink: 'コピー',
     enmusubiQrTitle: 'QRコードで交換',
-    enmusubiQrDescription: '対面でQRコードを読み取ると、素早く仲間になれます。',
+    enmusubiQrDescription: '対面でQRコードを読み取ると、素早く友達になれます。',
     enmusubiScanButton: 'QRコードを読み取る',
     enmusubiScanScreenTitle: 'QRコードを読み取る',
-    inviteScreenTitle: '仲間申請',
-    inviteConfirmDescriptionTemplate: (rhingId) => '@$rhingIdの住人に仲間申請を送りますか？',
-    inviteScreenSendButton: '仲間申請を送る',
+    inviteScreenTitle: '友達申請',
+    inviteConfirmDescriptionTemplate: (rhingId) => '@$rhingIdの住人に友達申請を送りますか？',
+    inviteScreenSendButton: '友達申請を送る',
     inviteScreenGoHome: 'ホームに戻る',
     inviteScreenInvalid: 'このリンクは無効です',
     groupMenuProfileCard: 'プロフィールカード',
@@ -1365,6 +1424,37 @@ class Strings {
     albumAddedSnackbarMessage: 'アルバムに登録しました',
     albumAddFailedSnackbarMessage: 'アルバムへの登録に失敗しました',
     commonCreate: '作成',
+    calendarFullScreenTitle: 'カレンダー',
+    calendarTodayButton: '今日',
+    calendarCreateDialogTitle: '予定を作成',
+    calendarEditDialogTitle: '予定を編集',
+    calendarTitleFieldHint: 'タイトル',
+    calendarDescriptionFieldHint: '説明（任意）',
+    calendarLocationFieldHint: '場所（任意）',
+    calendarAllDayLabel: '終日',
+    calendarStartLabel: '開始',
+    calendarEndLabel: '終了（任意）',
+    calendarDeleteAction: '予定を削除',
+    calendarDeleteConfirmTitle: '予定を削除しますか？',
+    calendarDeleteConfirmMessage: 'この操作は取り消せません。',
+    calendarSyncStatusPendingLabel: '同期待ち',
+    calendarSyncStatusSyncedLabel: 'Googleカレンダーに反映済み',
+    calendarSyncStatusFailedLabel: '同期に失敗しました',
+    calendarSyncStatusSkippedLabel: '未連携',
+    calendarSyncOptInDialogTitle: 'Googleカレンダーと同期しますか？',
+    calendarSyncOptInDialogMessage:
+        'この語らいで追加した予定（タイトル・日時・場所・説明）が、あなたのGoogleカレンダーに追加されるようになります。設定からいつでも変更できます。',
+    calendarSyncOptInAcceptButton: '同期する',
+    calendarSyncOptInDeclineButton: '今は同期しない',
+    settingsGoogleCalendarSyncSectionTitle: '連携',
+    settingsGoogleCalendarSyncConnectedLabel: 'Googleカレンダー連携: 連携済み',
+    settingsGoogleCalendarSyncDisconnectedLabel: 'Googleカレンダー連携: 未連携',
+    settingsGoogleCalendarSyncDisconnectAction: '連携を解除',
+    settingsGoogleCalendarSyncDisconnectConfirmTitle: '連携を解除しますか？',
+    settingsGoogleCalendarSyncDisconnectConfirmMessage:
+        '以後、DaiDaiで追加した予定はGoogleカレンダーに反映されなくなります。Google側の許可自体を取り消したい場合は、Googleアカウントの設定から行ってください。',
+    calendarSyncSetupIncompleteError:
+        'Googleカレンダー連携の準備がまだ完了していません。しばらくお待ちください。',
   );
 
   static final enGB = Strings._(
@@ -1385,7 +1475,8 @@ class Strings {
     settingsNotificationsEnableTitle: 'Push notifications',
     settingsNotificationsEnableSubtitle:
         'Get notified of new messages even while the app is closed (Web and Android only)',
-    settingsNotificationsEnableButton: 'Enable notifications',
+    settingsNotificationsPermissionDeniedError:
+        "Notification permission wasn't granted. Please check your browser/OS settings.",
     settingsFolderTalk: 'Talk',
     settingsFolderSupport: 'Support',
     settingsBlockedUsersTitle: 'Blocked users',
@@ -1838,6 +1929,38 @@ class Strings {
     albumAddedSnackbarMessage: 'Added to album',
     albumAddFailedSnackbarMessage: 'Failed to add to album',
     commonCreate: 'Create',
+    calendarFullScreenTitle: 'Calendar',
+    calendarTodayButton: 'Today',
+    calendarCreateDialogTitle: 'Create event',
+    calendarEditDialogTitle: 'Edit event',
+    calendarTitleFieldHint: 'Title',
+    calendarDescriptionFieldHint: 'Description (optional)',
+    calendarLocationFieldHint: 'Location (optional)',
+    calendarAllDayLabel: 'All day',
+    calendarStartLabel: 'Start',
+    calendarEndLabel: 'End (optional)',
+    calendarDeleteAction: 'Delete event',
+    calendarDeleteConfirmTitle: 'Delete this event?',
+    calendarDeleteConfirmMessage: 'This cannot be undone.',
+    calendarSyncStatusPendingLabel: 'Syncing soon',
+    calendarSyncStatusSyncedLabel: 'Synced to Google Calendar',
+    calendarSyncStatusFailedLabel: 'Sync failed',
+    calendarSyncStatusSkippedLabel: 'Not connected',
+    calendarSyncOptInDialogTitle: 'Sync with Google Calendar?',
+    calendarSyncOptInDialogMessage:
+        'Events you add here (title, time, location, description) will be added to your Google Calendar. You can change this anytime in settings.',
+    calendarSyncOptInAcceptButton: 'Sync',
+    calendarSyncOptInDeclineButton: 'Not now',
+    settingsGoogleCalendarSyncSectionTitle: 'Integrations',
+    settingsGoogleCalendarSyncConnectedLabel: 'Google Calendar sync: Connected',
+    settingsGoogleCalendarSyncDisconnectedLabel:
+        'Google Calendar sync: Not connected',
+    settingsGoogleCalendarSyncDisconnectAction: 'Disconnect',
+    settingsGoogleCalendarSyncDisconnectConfirmTitle: 'Disconnect?',
+    settingsGoogleCalendarSyncDisconnectConfirmMessage:
+        'Events you add in DaiDai will no longer be added to Google Calendar. To revoke DaiDai\'s access on Google\'s side, use your Google Account settings.',
+    calendarSyncSetupIncompleteError:
+        "Google Calendar sync isn't set up yet. Please check back later.",
   );
 
   static Strings of(AppLocale locale) => switch (locale) {

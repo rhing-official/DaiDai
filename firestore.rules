@@ -413,6 +413,41 @@ service cloud.firestore {
               && request.auth.uid == request.resource.data.addedBy;
           }
         }
+
+        // calendarEvents/{eventId}: 寄合単位の共有カレンダーの予定
+        // （Googleカレンダー同期の元データ、2026-09-01追加）。albumsと同じく
+        // この寄合の参加者全員が対等に作成・編集・削除できる。
+        match /calendarEvents/{eventId} {
+          allow read, delete: if request.auth != null
+            && request.auth.uid in get(/databases/$(database)/documents/directMessages/$(dmId)/rooms/$(roomId)).data.participants;
+          allow create: if request.auth != null
+            && request.auth.uid in get(/databases/$(database)/documents/directMessages/$(dmId)/rooms/$(roomId)).data.participants
+            && request.auth.uid == request.resource.data.createdBy;
+          allow update: if request.auth != null
+            && request.auth.uid in get(/databases/$(database)/documents/directMessages/$(dmId)/rooms/$(roomId)).data.participants;
+
+          // syncStates/{uid}: 「自分がこの予定をGoogle側へ同期したか」の
+          // 個人ごとの状態。
+          match /syncStates/{uid} {
+            // get（詳細画面での自分の同期状態購読）はドキュメントパスの
+            // uidだけで判定できる。list（CalendarSyncWorkerのcollectionGroup
+            // クエリ）はFirestoreがクエリ定義だけから安全性を静的に証明する
+            // 必要があるため、クライアント側のwhere('uid', isEqualTo: ...)と
+            // 対応するresource.data.uidで判定する（パスのuidでは証明できず
+            // permission-deniedになる、2026-07-29に発覚した既存の教訓と同種の罠）。
+            allow get: if request.auth != null && request.auth.uid == uid;
+            allow list: if request.auth != null
+              && request.auth.uid == resource.data.uid;
+            // 書き込みは寄合の参加者なら誰でも可（本人のuidのみに限定して
+            // いたところ、予定作成者が参加者全員分のsyncStatesを一括初期化
+            // する既存のバッチ書き込みと矛盾し、常にpermission-deniedで
+            // 失敗していた。2026-09-01発覚・修正。他人のsyncStatesを書き
+            // 換えられても実害は「その人の同期が行われない」程度で、
+            // Googleの認証情報等の機密性には影響しない）。
+            allow write: if request.auth != null
+              && request.auth.uid in get(/databases/$(database)/documents/directMessages/$(dmId)/rooms/$(roomId)).data.participants;
+          }
+        }
       }
     }
 
@@ -705,6 +740,39 @@ service cloud.firestore {
             allow create: if request.auth != null
               && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)/rooms/$(roomId)).data.memberIds
               && request.auth.uid == request.resource.data.addedBy;
+          }
+        }
+
+        // calendarEvents/{eventId}: 寄合単位の共有カレンダーの予定
+        // （Googleカレンダー同期の元データ、2026-09-01追加）。
+        // 一対側（directMessages/{dmId}/rooms/{roomId}/calendarEvents）と同じ設計。
+        match /calendarEvents/{eventId} {
+          allow read, delete: if request.auth != null
+            && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)/rooms/$(roomId)).data.memberIds;
+          allow create: if request.auth != null
+            && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)/rooms/$(roomId)).data.memberIds
+            && request.auth.uid == request.resource.data.createdBy;
+          allow update: if request.auth != null
+            && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)/rooms/$(roomId)).data.memberIds;
+
+          match /syncStates/{uid} {
+            // get（詳細画面での自分の同期状態購読）はドキュメントパスの
+            // uidだけで判定できる。list（CalendarSyncWorkerのcollectionGroup
+            // クエリ）はFirestoreがクエリ定義だけから安全性を静的に証明する
+            // 必要があるため、クライアント側のwhere('uid', isEqualTo: ...)と
+            // 対応するresource.data.uidで判定する（パスのuidでは証明できず
+            // permission-deniedになる、2026-07-29に発覚した既存の教訓と同種の罠）。
+            allow get: if request.auth != null && request.auth.uid == uid;
+            allow list: if request.auth != null
+              && request.auth.uid == resource.data.uid;
+            // 書き込みは寄合のメンバーなら誰でも可（本人のuidのみに限定して
+            // いたところ、予定作成者が参加者全員分のsyncStatesを一括初期化
+            // する既存のバッチ書き込みと矛盾し、常にpermission-deniedで
+            // 失敗していた。2026-09-01発覚・修正。他人のsyncStatesを書き
+            // 換えられても実害は「その人の同期が行われない」程度で、
+            // Googleの認証情報等の機密性には影響しない）。
+            allow write: if request.auth != null
+              && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)/rooms/$(roomId)).data.memberIds;
           }
         }
       }

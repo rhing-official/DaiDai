@@ -32,7 +32,7 @@ String? parseInviteRhingId(String data) {
 }
 
 /// 縁結びページ: 自分の招待リンク・QRコードの表示と、相手のQRコードを
-/// 読み取って仲間申請を送る導線。
+/// 読み取って友達申請を送る導線。
 class EnmusubiPage extends ConsumerStatefulWidget {
   const EnmusubiPage({required this.currentUser, super.key});
 
