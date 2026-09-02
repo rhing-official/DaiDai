@@ -11,6 +11,7 @@ import '../features/call/group_call_screen.dart';
 import '../features/chat/announcement_screen.dart';
 import '../features/chat/chat_panes.dart';
 import '../features/chat/join_group_screen.dart';
+import '../features/chat/notification_chat_opener.dart';
 import '../features/profile/invite_screen.dart';
 import '../models/app_user.dart';
 import '../models/call.dart';
@@ -77,6 +78,13 @@ class GroupCallArgs {
   final AppUser currentUser;
   final bool isVideo;
 }
+
+/// [goRouterProvider]が構築した`GoRouter`インスタンスへの参照。Riverpodの
+/// `ref`を持たない場所（`push_notifications.dart`の通知タップハンドラ等）
+/// から画面遷移するために使う（2026-09-02追加）。Providerは遅延初期化だが、
+/// `MaterialApp.router`が起動時に`goRouterProvider`を読むため、通知タップが
+/// 起こり得るタイミングには必ず埋まっている。
+GoRouter? globalRouter;
 
 final goRouterProvider = Provider<GoRouter>((ref) {
   late final GoRouter router;
@@ -253,8 +261,34 @@ final goRouterProvider = Provider<GoRouter>((ref) {
               AdminGate(currentUser: currentUser),
         ),
       ),
+      GoRoute(
+        // プッシュ通知タップ用のディープリンク（2026-09-02追加）。既存の
+        // `/chat/dm`（extraベース）とは別ルート。IDのみから会話を復元する
+        // 詳細は`NotificationChatOpener`参照。
+        path: '/chat/dm/:dmId',
+        builder: (context, state) => AuthGate(
+          builder: (context, currentUser) => NotificationChatOpener(
+            currentUser: currentUser,
+            isDm: true,
+            conversationId: state.pathParameters['dmId']!,
+            roomId: state.uri.queryParameters['roomId'],
+          ),
+        ),
+      ),
+      GoRoute(
+        path: '/chat/group/:groupId',
+        builder: (context, state) => AuthGate(
+          builder: (context, currentUser) => NotificationChatOpener(
+            currentUser: currentUser,
+            isDm: false,
+            conversationId: state.pathParameters['groupId']!,
+            roomId: state.uri.queryParameters['roomId'],
+          ),
+        ),
+      ),
     ],
   );
 
+  globalRouter = router;
   return router;
 });

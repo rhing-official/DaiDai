@@ -14,6 +14,7 @@ import 'providers/accent_color_provider.dart';
 import 'providers/app_locale_provider.dart';
 import 'providers/app_ui_style_provider.dart';
 import 'providers/chat_layout_style_provider.dart';
+import 'providers/conversation_sort_order_provider.dart';
 import 'providers/custom_accent_colors_provider.dart';
 import 'providers/draft_sync_enabled_provider.dart';
 import 'providers/gekiga_background_color_provider.dart';
@@ -56,6 +57,7 @@ Future<void> main() async {
   final initialChatLayoutStyle = await loadInitialChatLayoutStyle();
   final initialAppThemeMode = await loadInitialAppThemeMode();
   final initialAppUiStyle = await loadInitialAppUiStyle();
+  final initialConversationSortOrder = await loadInitialConversationSortOrder();
   runApp(
     ProviderScope(
       overrides: [
@@ -82,10 +84,22 @@ Future<void> main() async {
         ),
         initialAppThemeModeProvider.overrideWithValue(initialAppThemeMode),
         initialAppUiStyleProvider.overrideWithValue(initialAppUiStyle),
+        initialConversationSortOrderProvider.overrideWithValue(
+          initialConversationSortOrder,
+        ),
       ],
       child: const DaiDaiApp(),
     ),
   );
+  // 完全終了状態（cold start）から通知タップで起動された場合のディープ
+  // リンク（2026-09-02追加）。`globalRouter`は`MaterialApp.router`が
+  // `goRouterProvider`を読む最初のフレームで埋まるため、その後まで待つ。
+  final launchPayload = await consumeLaunchNotificationPayload();
+  if (launchPayload != null) {
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => navigateFromNotificationPayload(launchPayload),
+    );
+  }
 }
 
 class DaiDaiApp extends ConsumerWidget {

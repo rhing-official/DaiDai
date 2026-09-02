@@ -15,6 +15,11 @@ abstract class DirectMessageRepository {
   /// （既定の寄合「メイン」も同時に1件作る）。
   Future<DirectMessage> getOrCreateDirectMessage(AppUser a, AppUser b);
 
+  /// dmId単体からDirectMessageを取得する（プッシュ通知タップでの
+  /// ディープリンク等、IDしか持たない場面向け。参加者でない/存在しない場合
+  /// はnull、2026-09-02追加）。
+  Future<DirectMessage?> getDirectMessage(String dmId);
+
   /// 自分が参加している一対一覧を、最終メッセージが新しい順に取得する。
   Stream<List<DirectMessage>> watchDirectMessages(String userId);
 
@@ -354,6 +359,18 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
   }
 
   @override
+  Future<DirectMessage?> getDirectMessage(String dmId) async {
+    try {
+      final doc = await _directMessages.doc(dmId).get();
+      if (!doc.exists) return null;
+      return DirectMessage.fromJson(doc.id, doc.data()!);
+    } on FirebaseException catch (e) {
+      if (e.code == 'permission-denied') return null;
+      rethrow;
+    }
+  }
+
+  @override
   Stream<List<DirectMessage>> watchDirectMessages(String userId) {
     // watchRoomsと同じ理由でorderBy('lastMessageAt')は使わない。まだ
     // メッセージを1件も送っていない作成直後の一対はlastMessageAtが
@@ -668,9 +685,15 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
     batch.update(roomRef, {'lastMessageAt': FieldValue.serverTimestamp()});
     // 語らい一覧（TalksTab）はDM単位でlastMessageAt順に並ぶため、寄合側に
     // 加えてDM本体のlastMessageAtも更新する（どの寄合に投稿しても一覧の
-    // 並び順に反映されるようにするため）。
+    // 並び順に反映されるようにするため）。lastMessageSenderIdは一覧の
+    // 「未読優先」並べ替え用（2026-09-02追加）。lastMessageContentType/
+    // lastMessagePreviewは一覧の最新メッセージプレビュー表示用
+    // （2026-09-02追加）。
     batch.update(_directMessages.doc(dmId), {
       'lastMessageAt': FieldValue.serverTimestamp(),
+      'lastMessageSenderId': senderId,
+      'lastMessageContentType': 'text',
+      'lastMessagePreview': messageSnippetOf(content),
     });
     await batch.commit();
   }
@@ -722,6 +745,9 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
     batch.update(roomRef, {'lastMessageAt': FieldValue.serverTimestamp()});
     batch.update(_directMessages.doc(dmId), {
       'lastMessageAt': FieldValue.serverTimestamp(),
+      'lastMessageSenderId': senderId,
+      'lastMessageContentType': contentType,
+      'lastMessagePreview': null,
     });
     await batch.commit();
   }
@@ -767,6 +793,9 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
     batch.update(roomRef, {'lastMessageAt': FieldValue.serverTimestamp()});
     batch.update(_directMessages.doc(dmId), {
       'lastMessageAt': FieldValue.serverTimestamp(),
+      'lastMessageSenderId': senderId,
+      'lastMessageContentType': 'sticker',
+      'lastMessagePreview': null,
     });
     await batch.commit();
   }
@@ -803,7 +832,12 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
     final batch = _firestore.batch();
     batch.set(messageRef, message.toJson());
     batch.update(roomRef, {'lastMessageAt': FieldValue.serverTimestamp()});
-    batch.update(dmRef, {'lastMessageAt': FieldValue.serverTimestamp()});
+    batch.update(dmRef, {
+      'lastMessageAt': FieldValue.serverTimestamp(),
+      'lastMessageSenderId': senderId,
+      'lastMessageContentType': 'call',
+      'lastMessagePreview': messageSnippetOf(message.content),
+    });
     await batch.commit();
   }
 

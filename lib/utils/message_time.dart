@@ -45,3 +45,18 @@ String formatMessageDate(DateTime date, AppLocale locale) {
 bool isSameDay(DateTime a, DateTime b) {
   return a.year == b.year && a.month == b.month && a.day == b.day;
 }
+
+/// 語らい一覧（TalksTab）の最終メッセージ時刻。今日なら時刻のみ、それ以外は
+/// 月/日のみを表示する（幅の限られた一覧行に収めるため、曜日・年は省略する。
+/// [formatMessageDate]と異なりあえて「今日か否か」で表示形式自体を切り替える、
+/// 語らい一覧専用の書式、2026-09-02追加）。
+String formatConversationListTime(
+  DateTime time,
+  DateTime now,
+  MessageTimeFormat format,
+) {
+  if (isSameDay(time, now)) return formatMessageTime(time, format);
+  final month = time.month.toString().padLeft(2, '0');
+  final day = time.day.toString().padLeft(2, '0');
+  return '$month/$day';
+}

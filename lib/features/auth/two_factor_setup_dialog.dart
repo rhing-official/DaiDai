@@ -4,7 +4,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
 import '../../l10n/strings.dart';
+import '../../models/app_ui_style.dart';
+import '../../providers/app_ui_style_provider.dart';
 import '../../providers/repository_providers.dart';
+import '../../widgets/glass/glass_dialog.dart';
 
 /// 2段階認証（TOTP）の登録ダイアログ。QRコード（`GroupInviteDialog`と同じ
 /// `qr_flutter`）＋手入力用シークレットキーを表示し、認証アプリに表示された
@@ -114,116 +117,117 @@ class _TwoFactorSetupDialogState extends ConsumerState<TwoFactorSetupDialog> {
   @override
   Widget build(BuildContext context) {
     final strings = ref.watch(appStringsProvider);
-    return AlertDialog(
-      title: Text(strings.twoFactorSetupDialogTitle),
-      content: SizedBox(
-        width: 320,
-        child: FutureBuilder<({TotpSecret secret, String qrCodeUrl})>(
-          future: _setupFuture,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState != ConnectionState.done) {
-              return const SizedBox(
-                height: 120,
-                child: Center(child: CircularProgressIndicator()),
+    final isGlass = ref.watch(appUiStyleProvider) == AppUiStyle.glass;
+    final title = Text(strings.twoFactorSetupDialogTitle);
+    final content = SizedBox(
+      width: 320,
+      child: FutureBuilder<({TotpSecret secret, String qrCodeUrl})>(
+        future: _setupFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState != ConnectionState.done) {
+            return const SizedBox(
+              height: 120,
+              child: Center(child: CircularProgressIndicator()),
+            );
+          }
+          if (snapshot.hasError) {
+            final error = snapshot.error!;
+            if (_isRequiresRecentLogin(error)) {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(strings.twoFactorRequiresRecentLoginError),
+                  const SizedBox(height: 16),
+                  Center(
+                    child: _isReauthenticating
+                        ? const CircularProgressIndicator()
+                        : FilledButton(
+                            onPressed: _reauthenticateAndRetry,
+                            child: Text(strings.twoFactorReauthenticateButton),
+                          ),
+                  ),
+                ],
               );
             }
-            if (snapshot.hasError) {
-              final error = snapshot.error!;
-              if (_isRequiresRecentLogin(error)) {
-                return Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(strings.twoFactorRequiresRecentLoginError),
-                    const SizedBox(height: 16),
-                    Center(
-                      child: _isReauthenticating
-                          ? const CircularProgressIndicator()
-                          : FilledButton(
-                              onPressed: _reauthenticateAndRetry,
-                              child: Text(
-                                strings.twoFactorReauthenticateButton,
-                              ),
-                            ),
+            return Text('$error', style: const TextStyle(color: Colors.red));
+          }
+          final secret = snapshot.data!.secret;
+          final qrCodeUrl = snapshot.data!.qrCodeUrl;
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(strings.twoFactorSetupDescription),
+              const SizedBox(height: 16),
+              Center(
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: Theme.of(context).colorScheme.outlineVariant,
                     ),
-                  ],
-                );
-              }
-              return Text('$error', style: const TextStyle(color: Colors.red));
-            }
-            final secret = snapshot.data!.secret;
-            final qrCodeUrl = snapshot.data!.qrCodeUrl;
-            return Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(strings.twoFactorSetupDescription),
-                const SizedBox(height: 16),
-                Center(
-                  child: Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: Theme.of(context).colorScheme.outlineVariant,
-                      ),
-                    ),
-                    child: QrImageView(data: qrCodeUrl, size: 180),
                   ),
+                  child: QrImageView(data: qrCodeUrl, size: 180),
                 ),
-                const SizedBox(height: 12),
-                Text(
-                  strings.twoFactorSecretKeyLabel,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                strings.twoFactorSecretKeyLabel,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
-                SelectableText(
-                  secret.secretKey,
-                  style: const TextStyle(fontFamily: 'monospace'),
+              ),
+              SelectableText(
+                secret.secretKey,
+                style: const TextStyle(fontFamily: 'monospace'),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _codeController,
+                keyboardType: TextInputType.number,
+                maxLength: 6,
+                decoration: InputDecoration(
+                  labelText: strings.twoFactorCodeLabel,
+                  errorText: _errorMessage,
                 ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: _codeController,
-                  keyboardType: TextInputType.number,
-                  maxLength: 6,
-                  decoration: InputDecoration(
-                    labelText: strings.twoFactorCodeLabel,
-                    errorText: _errorMessage,
-                  ),
-                  onSubmitted: _isConfirming
-                      ? null
-                      : (_) => _confirm(secret, strings),
-                ),
-              ],
-            );
-          },
-        ),
+                onSubmitted: _isConfirming
+                    ? null
+                    : (_) => _confirm(secret, strings),
+              ),
+            ],
+          );
+        },
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(false),
-          child: Text(strings.cancel),
-        ),
-        FilledButton(
-          onPressed: _isConfirming
-              ? null
-              : () async {
-                  final setup = await _setupFuture;
-                  if (!mounted) return;
-                  await _confirm(setup.secret, strings);
-                },
-          child: _isConfirming
-              ? const SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : Text(strings.twoFactorEnrollButton),
-        ),
-      ],
     );
+    final actions = [
+      TextButton(
+        onPressed: () => Navigator.of(context).pop(false),
+        child: Text(strings.cancel),
+      ),
+      FilledButton(
+        onPressed: _isConfirming
+            ? null
+            : () async {
+                final setup = await _setupFuture;
+                if (!mounted) return;
+                await _confirm(setup.secret, strings);
+              },
+        child: _isConfirming
+            ? const SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : Text(strings.twoFactorEnrollButton),
+      ),
+    ];
+
+    return isGlass
+        ? GlassAlertDialog(title: title, content: content, actions: actions)
+        : AlertDialog(title: title, content: content, actions: actions);
   }
 }

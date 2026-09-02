@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 
 import '../../models/album_item.dart';
+import '../../widgets/swipe_gestures.dart';
 
 /// アルバム内の画像・動画の全画面スワイプビューア（2026-08-30追加）。
 ///
@@ -33,7 +34,7 @@ class AlbumMediaViewerScreen extends StatelessWidget {
           onPressed: () => Navigator.of(context).pop(),
         ),
       ),
-      body: PageView.builder(
+      body: PinchPriorityPageView(
         controller: PageController(initialPage: safeInitialIndex),
         itemCount: items.length,
         itemBuilder: (context, index) {

@@ -551,6 +551,10 @@ service cloud.firestore {
               || 'manageRooms' in resource.data.memberPermissions[request.auth.uid])
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['roomsEnabled'])
           )
+          // メッセージ送信時のlastMessageAt/lastMessageSenderIdの非正規化更新
+          // （語らい一覧の並べ替え用、2026-09-02追加）。メンバー全員が対等に
+          // 更新可能（GroupRepository.sendRoomMessage等参照）。
+          || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastMessageAt', 'lastMessageSenderId'])
         );
       // 広場自体の削除は長のみ（2026-08-02追加、GroupRepository.deleteGroup
       // 参照）。事前にサブコレクション（rooms/messages/roles）を全て物理削除

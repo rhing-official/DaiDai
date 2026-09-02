@@ -4,7 +4,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../l10n/strings.dart';
 import '../../models/album.dart';
 import '../../models/album_item.dart';
+import '../../models/app_ui_style.dart';
+import '../../providers/app_ui_style_provider.dart';
 import '../../providers/repository_providers.dart';
+import '../../widgets/glass/glass_dialog.dart';
 import '../../widgets/video_thumbnail.dart';
 import 'album_media_viewer_screen.dart';
 
@@ -39,12 +42,13 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
 
   Future<void> _removeItem(AlbumItem item) async {
     final strings = ref.read(appStringsProvider);
+    final isGlass = ref.read(appUiStyleProvider) == AppUiStyle.glass;
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
-        title: Text(strings.albumRemoveItemConfirmTitle),
-        content: Text(strings.albumRemoveItemConfirmMessage),
-        actions: [
+      builder: (_) {
+        final title = Text(strings.albumRemoveItemConfirmTitle);
+        final content = Text(strings.albumRemoveItemConfirmMessage);
+        final actions = [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
             child: Text(strings.cancel),
@@ -57,8 +61,11 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
             ),
             child: Text(strings.delete),
           ),
-        ],
-      ),
+        ];
+        return isGlass
+            ? GlassAlertDialog(title: title, content: content, actions: actions)
+            : AlertDialog(title: title, content: content, actions: actions);
+      },
     );
     if (confirmed != true) return;
     await ref

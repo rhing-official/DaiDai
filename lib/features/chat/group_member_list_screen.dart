@@ -2,14 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/strings.dart';
+import '../../models/app_ui_style.dart';
 import '../../models/app_user.dart';
 import '../../models/group.dart';
 import '../../models/group_join_request.dart';
 import '../../models/group_role.dart';
+import '../../providers/app_ui_style_provider.dart';
 import '../../providers/group_providers.dart';
 import '../../providers/repository_providers.dart';
 import '../../utils/auto_dismiss_banner.dart';
 import '../../utils/group_permissions.dart';
+import '../../widgets/glass/glass_dialog.dart';
 import 'user_profile_card_dialog.dart';
 
 /// 広場のメンバー一覧（ポップアップの中身）。manageJoinRequests権限を持つ
@@ -41,62 +44,68 @@ class GroupMemberListPopup extends ConsumerWidget {
   ) async {
     final regularRoles = roles.where((r) => !r.isEveryone).toList();
     final groupRepository = ref.read(groupRepositoryProvider);
+    final isGlass = ref.read(appUiStyleProvider) == AppUiStyle.glass;
     await showDialog<void>(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setState) {
-          return AlertDialog(
-            title: Text(strings.groupRolePickerTitle),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (regularRoles.isEmpty)
-                    Padding(
-                      padding: const EdgeInsets.all(8),
-                      child: Text(strings.groupRoleListEmpty),
+          final title = Text(strings.groupRolePickerTitle);
+          final content = SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (regularRoles.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.all(8),
+                    child: Text(strings.groupRoleListEmpty),
+                  ),
+                for (final role in regularRoles)
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    controlAffinity: ListTileControlAffinity.leading,
+                    value: assignedRoleIds.contains(role.roleId),
+                    secondary: CircleAvatar(
+                      radius: 8,
+                      backgroundColor: role.color != null
+                          ? Color(0xFF000000 | role.color!)
+                          : Colors.transparent,
                     ),
-                  for (final role in regularRoles)
-                    CheckboxListTile(
-                      contentPadding: EdgeInsets.zero,
-                      controlAffinity: ListTileControlAffinity.leading,
-                      value: assignedRoleIds.contains(role.roleId),
-                      secondary: CircleAvatar(
-                        radius: 8,
-                        backgroundColor: role.color != null
-                            ? Color(0xFF000000 | role.color!)
-                            : Colors.transparent,
-                      ),
-                      title: Text(role.name),
-                      onChanged: (checked) async {
-                        if (checked ?? false) {
-                          assignedRoleIds.add(role.roleId);
-                          await groupRepository.assignRole(
-                            groupId: group.groupId,
-                            userId: member.userId,
-                            roleId: role.roleId,
-                          );
-                        } else {
-                          assignedRoleIds.remove(role.roleId);
-                          await groupRepository.unassignRole(
-                            groupId: group.groupId,
-                            userId: member.userId,
-                            roleId: role.roleId,
-                          );
-                        }
-                        setState(() {});
-                      },
-                    ),
-                ],
-              ),
+                    title: Text(role.name),
+                    onChanged: (checked) async {
+                      if (checked ?? false) {
+                        assignedRoleIds.add(role.roleId);
+                        await groupRepository.assignRole(
+                          groupId: group.groupId,
+                          userId: member.userId,
+                          roleId: role.roleId,
+                        );
+                      } else {
+                        assignedRoleIds.remove(role.roleId);
+                        await groupRepository.unassignRole(
+                          groupId: group.groupId,
+                          userId: member.userId,
+                          roleId: role.roleId,
+                        );
+                      }
+                      setState(() {});
+                    },
+                  ),
+              ],
             ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: Text(strings.save),
-              ),
-            ],
           );
+          final actions = [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text(strings.save),
+            ),
+          ];
+          return isGlass
+              ? GlassAlertDialog(
+                  title: title,
+                  content: content,
+                  actions: actions,
+                )
+              : AlertDialog(title: title, content: content, actions: actions);
         },
       ),
     );
@@ -108,12 +117,13 @@ class GroupMemberListPopup extends ConsumerWidget {
     Strings strings,
     AppUser member,
   ) async {
+    final isGlass = ref.read(appUiStyleProvider) == AppUiStyle.glass;
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(strings.groupTransferOwnershipConfirmTitle),
-        content: Text(strings.groupTransferOwnershipConfirmMessage),
-        actions: [
+      builder: (context) {
+        final title = Text(strings.groupTransferOwnershipConfirmTitle);
+        final content = Text(strings.groupTransferOwnershipConfirmMessage);
+        final actions = [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
             child: Text(strings.cancel),
@@ -122,8 +132,11 @@ class GroupMemberListPopup extends ConsumerWidget {
             onPressed: () => Navigator.of(context).pop(true),
             child: Text(strings.groupTransferOwnershipConfirmButton),
           ),
-        ],
-      ),
+        ];
+        return isGlass
+            ? GlassAlertDialog(title: title, content: content, actions: actions)
+            : AlertDialog(title: title, content: content, actions: actions);
+      },
     );
     if (confirmed == true) {
       await ref

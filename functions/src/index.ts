@@ -1468,6 +1468,11 @@ async function sendMessageNotification(params: {
         body,
         iconUrl: iconUrl ?? "",
         previewUrl: previewUrl ?? "",
+        // 通知タップで該当の語らいまで開くためのディープリンク情報
+        // （2026-09-02追加、lib/push_notifications.dart参照）。
+        isDm: String(isDm),
+        conversationId,
+        roomId,
       },
       android: { priority: "high" },
     });
@@ -1482,10 +1487,58 @@ async function sendMessageNotification(params: {
           icon: iconUrl ?? undefined,
           image: previewUrl ?? undefined,
         },
+        // 通知タップで該当の語らいまで開くためのディープリンク情報
+        // （2026-09-02追加、web/firebase-messaging-sw.js参照）。FCMが
+        // webpush通知を自動表示する際、この`data`が表示されたNotificationの
+        // `.data`としてnotificationclickハンドラから参照できる。
+        data: {
+          isDm: String(isDm),
+          conversationId,
+          roomId,
+        },
         fcmOptions: { link: "/" },
       },
     });
   }
+}
+
+/**
+ * 語らい一覧（TalksTab）の未読件数バッジ用に、送信者以外の参加者/メンバー
+ * 全員の`users/{recipientId}/conversationPrefs/{conversationId}.unreadCount`
+ * を+1する（2026-09-02追加）。既読になった側のリセットはクライアントが
+ * 自分の`conversationPrefs`へ直接書き込む
+ * （`ConversationPrefsRepository.setLastRead`）ため、ここでは加算のみ行う。
+ * 通知の送信条件（`silent`・`call`/`accountDeleted`除外）とは独立して、
+ * 実際に届いた全メッセージを対象にする。
+ */
+async function incrementUnreadCounts(params: {
+  isDm: boolean;
+  conversationId: string;
+  message: FirebaseFirestore.DocumentData;
+}): Promise<void> {
+  const { isDm, conversationId, message } = params;
+  const senderId: string = message.senderId;
+
+  let recipientIds: string[];
+  if (isDm) {
+    const dmDoc = await db.doc(`directMessages/${conversationId}`).get();
+    const participants: string[] = dmDoc.data()?.participants ?? [];
+    recipientIds = participants.filter((id) => id !== senderId);
+  } else {
+    const groupDoc = await db.doc(`groups/${conversationId}`).get();
+    const memberIds: string[] = groupDoc.data()?.memberIds ?? [];
+    recipientIds = memberIds.filter((id) => id !== senderId);
+  }
+  if (recipientIds.length === 0) return;
+
+  const batch = db.batch();
+  for (const recipientId of recipientIds) {
+    const ref = db.doc(
+      `users/${recipientId}/conversationPrefs/${conversationId}`,
+    );
+    batch.set(ref, { unreadCount: FieldValue.increment(1) }, { merge: true });
+  }
+  await batch.commit();
 }
 
 export const onDmMessageCreated = onDocumentCreated(
@@ -1496,12 +1549,19 @@ export const onDmMessageCreated = onDocumentCreated(
   async (event) => {
     const message = event.data?.data();
     if (!message) return;
-    await sendMessageNotification({
-      isDm: true,
-      conversationId: event.params.dmId,
-      roomId: event.params.roomId,
-      message,
-    });
+    await Promise.all([
+      sendMessageNotification({
+        isDm: true,
+        conversationId: event.params.dmId,
+        roomId: event.params.roomId,
+        message,
+      }),
+      incrementUnreadCounts({
+        isDm: true,
+        conversationId: event.params.dmId,
+        message,
+      }),
+    ]);
   },
 );
 
@@ -1513,12 +1573,19 @@ export const onGroupMessageCreated = onDocumentCreated(
   async (event) => {
     const message = event.data?.data();
     if (!message) return;
-    await sendMessageNotification({
-      isDm: false,
-      conversationId: event.params.groupId,
-      roomId: event.params.roomId,
-      message,
-    });
+    await Promise.all([
+      sendMessageNotification({
+        isDm: false,
+        conversationId: event.params.groupId,
+        roomId: event.params.roomId,
+        message,
+      }),
+      incrementUnreadCounts({
+        isDm: false,
+        conversationId: event.params.groupId,
+        message,
+      }),
+    ]);
   },
 );
 
