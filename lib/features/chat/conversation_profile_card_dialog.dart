@@ -3,8 +3,11 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/strings.dart';
+import '../../models/app_ui_style.dart';
+import '../../providers/app_ui_style_provider.dart';
 import '../../providers/repository_providers.dart';
 import '../../providers/user_providers.dart';
+import '../../widgets/glass/glass_dialog.dart';
 import '../../widgets/profile_card_picker.dart';
 
 /// 一対・広場ごとに自分が使うプロフィールカードを選ぶダイアログ
@@ -41,6 +44,37 @@ class ConversationProfileCardDialog extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final strings = ref.watch(appStringsProvider);
     final liveUser = ref.watch(watchedUserProvider(currentUserId)).value;
+    final isGlass = ref.watch(appUiStyleProvider) == AppUiStyle.glass;
+
+    final title = Text(strings.conversationProfileCardMenuLabel);
+    final content = liveUser == null
+        ? const SizedBox(
+            height: 48,
+            child: Center(child: CircularProgressIndicator()),
+          )
+        : ProfileCardPicker(
+            strings: strings,
+            cards: liveUser.profileCards,
+            selectedCardId: liveUser.conversationProfileCardId[conversationId],
+            activeCardName: liveUser.activeProfileCard?.name,
+            onSelected: (id) => ref
+                .read(userRepositoryProvider)
+                .setConversationProfileCard(
+                  userId: currentUserId,
+                  conversationId: conversationId,
+                  profileCardId: id,
+                ),
+          );
+    final actions = [
+      FilledButton(
+        onPressed: () => Navigator.of(context).pop(),
+        child: Text(strings.done),
+      ),
+    ];
+    final dialog = isGlass
+        ? GlassAlertDialog(title: title, content: content, actions: actions)
+        : AlertDialog(title: title, content: content, actions: actions);
+
     return CallbackShortcuts(
       // Enterキーで「完了」を実行できるようにする（2026-08-11追加、
       // `chat_screen.dart`の`_confirmScreenshotSelected`と同じパターン）。
@@ -48,37 +82,7 @@ class ConversationProfileCardDialog extends ConsumerWidget {
         const SingleActivator(LogicalKeyboardKey.enter): () =>
             Navigator.of(context).pop(),
       },
-      child: Focus(
-        autofocus: true,
-        child: AlertDialog(
-          title: Text(strings.conversationProfileCardMenuLabel),
-          content: liveUser == null
-              ? const SizedBox(
-                  height: 48,
-                  child: Center(child: CircularProgressIndicator()),
-                )
-              : ProfileCardPicker(
-                  strings: strings,
-                  cards: liveUser.profileCards,
-                  selectedCardId:
-                      liveUser.conversationProfileCardId[conversationId],
-                  activeCardName: liveUser.activeProfileCard?.name,
-                  onSelected: (id) => ref
-                      .read(userRepositoryProvider)
-                      .setConversationProfileCard(
-                        userId: currentUserId,
-                        conversationId: conversationId,
-                        profileCardId: id,
-                      ),
-                ),
-          actions: [
-            FilledButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: Text(strings.done),
-            ),
-          ],
-        ),
-      ),
+      child: Focus(autofocus: true, child: dialog),
     );
   }
 }

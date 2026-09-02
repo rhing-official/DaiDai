@@ -5,13 +5,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../models/app_ui_style.dart';
 import '../../models/app_user.dart';
 import '../../models/direct_message.dart';
 import '../../models/message.dart';
 import '../../models/profile_material.dart';
+import '../../providers/app_ui_style_provider.dart';
 import '../../providers/repository_providers.dart';
 import '../../utils/auto_dismiss_banner.dart';
 import '../../utils/official_account.dart';
+import '../../widgets/glass/glass_dialog.dart';
 import '../chat/chat_screen.dart';
 
 /// 運営向け管理画面本体（2026-08-12新設）。住人一覧・アカウント停止/解除・
@@ -191,12 +194,13 @@ class _UserListTile extends ConsumerWidget {
     WidgetRef ref,
   ) async {
     final suspend = user.accountStatus != AccountStatus.suspended;
+    final isGlass = ref.read(appUiStyleProvider) == AppUiStyle.glass;
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(suspend ? 'このアカウントを停止しますか？' : 'このアカウントの停止を解除しますか？'),
-        content: Text('@${user.rhingId}'),
-        actions: [
+      builder: (context) {
+        final title = Text(suspend ? 'このアカウントを停止しますか？' : 'このアカウントの停止を解除しますか？');
+        final content = Text('@${user.rhingId}');
+        final actions = [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
             child: const Text('やめる'),
@@ -205,8 +209,11 @@ class _UserListTile extends ConsumerWidget {
             onPressed: () => Navigator.of(context).pop(true),
             child: Text(suspend ? '停止する' : '解除する'),
           ),
-        ],
-      ),
+        ];
+        return isGlass
+            ? GlassAlertDialog(title: title, content: content, actions: actions)
+            : AlertDialog(title: title, content: content, actions: actions);
+      },
     );
     if (confirmed != true) return;
     await ref

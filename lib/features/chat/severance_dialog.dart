@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/strings.dart';
+import '../../models/app_ui_style.dart';
+import '../../providers/app_ui_style_provider.dart';
 import '../../providers/repository_providers.dart';
+import '../../widgets/glass/glass_dialog.dart';
 
 /// 絶縁（双方合意による友達関係の解消・会話履歴の完全削除）の確認ダイアログ。
 /// 提案する側（[SeveranceDialogMode.propose]）・同意する側
@@ -85,51 +88,54 @@ class _SeveranceDialogState extends ConsumerState<SeveranceDialog> {
   @override
   Widget build(BuildContext context) {
     final strings = ref.watch(appStringsProvider);
+    final isGlass = ref.watch(appUiStyleProvider) == AppUiStyle.glass;
 
-    return AlertDialog(
-      title: Text(
-        _isPropose
-            ? strings.severanceProposeDialogTitle
-            : strings.severanceAcceptDialogTitle,
-      ),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            _isPropose
-                ? strings.severanceProposeDialogMessage
-                : strings.severanceAcceptDialogMessage,
-          ),
-          if (_errorMessage != null) ...[
-            const SizedBox(height: 8),
-            Text(_errorMessage!, style: const TextStyle(color: Colors.red)),
-          ],
+    final title = Text(
+      _isPropose
+          ? strings.severanceProposeDialogTitle
+          : strings.severanceAcceptDialogTitle,
+    );
+    final content = Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          _isPropose
+              ? strings.severanceProposeDialogMessage
+              : strings.severanceAcceptDialogMessage,
+        ),
+        if (_errorMessage != null) ...[
+          const SizedBox(height: 8),
+          Text(_errorMessage!, style: const TextStyle(color: Colors.red)),
         ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: _submitting ? null : () => Navigator.of(context).pop(),
-          child: Text(strings.cancel),
-        ),
-        FilledButton(
-          onPressed: _submitting ? null : _confirm,
-          style: FilledButton.styleFrom(
-            backgroundColor: Theme.of(context).colorScheme.error,
-          ),
-          child: _submitting
-              ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : Text(
-                  _isPropose
-                      ? strings.severanceProposeButton
-                      : strings.severanceAcceptButton,
-                ),
-        ),
       ],
     );
+    final actions = [
+      TextButton(
+        onPressed: _submitting ? null : () => Navigator.of(context).pop(),
+        child: Text(strings.cancel),
+      ),
+      FilledButton(
+        onPressed: _submitting ? null : _confirm,
+        style: FilledButton.styleFrom(
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+        child: _submitting
+            ? const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : Text(
+                _isPropose
+                    ? strings.severanceProposeButton
+                    : strings.severanceAcceptButton,
+              ),
+      ),
+    ];
+
+    return isGlass
+        ? GlassAlertDialog(title: title, content: content, actions: actions)
+        : AlertDialog(title: title, content: content, actions: actions);
   }
 }

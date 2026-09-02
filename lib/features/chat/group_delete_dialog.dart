@@ -3,7 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../l10n/strings.dart';
+import '../../models/app_ui_style.dart';
+import '../../providers/app_ui_style_provider.dart';
 import '../../providers/repository_providers.dart';
+import '../../widgets/glass/glass_dialog.dart';
 
 /// 広場を丸ごと削除する確認ダイアログ（長のみ、2026-08-02追加）。
 /// `GroupLeaveDialog`と同じ構成。確認後、削除してホームへ戻る。
@@ -62,46 +65,60 @@ class _GroupDeleteDialogState extends ConsumerState<GroupDeleteDialog> {
   @override
   Widget build(BuildContext context) {
     final strings = ref.watch(appStringsProvider);
+    final isGlass = ref.watch(appUiStyleProvider) == AppUiStyle.glass;
 
-    return AlertDialog(
-      // 横幅いっぱいに広がって縦に詰まって見えないよう幅を制限する
-      // （2026-08-12、横幅を縮め縦幅を確保するようユーザー指摘）。
-      constraints: const BoxConstraints(maxWidth: 400),
-      title: Text(strings.groupDeleteConfirmTitle),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(strings.groupDeleteConfirmMessage),
-          if (_errorMessage != null) ...[
-            const SizedBox(height: 8),
-            Text(_errorMessage!, style: const TextStyle(color: Colors.red)),
-          ],
+    final title = Text(strings.groupDeleteConfirmTitle);
+    final content = Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(strings.groupDeleteConfirmMessage),
+        if (_errorMessage != null) ...[
+          const SizedBox(height: 8),
+          Text(_errorMessage!, style: const TextStyle(color: Colors.red)),
         ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: _deleting ? null : () => Navigator.of(context).pop(),
-          child: Text(strings.cancel),
-        ),
-        FilledButton(
-          onPressed: _deleting ? null : _delete,
-          // colorScheme.errorはダークテーマ下ではMaterial3の仕様上
-          // 明るめのサーモンピンクに近い色になり「濃い赤」に見えなかった
-          // ため、固定の濃い赤に変更する（2026-08-12）。
-          style: FilledButton.styleFrom(
-            backgroundColor: Colors.red.shade700,
-            foregroundColor: Colors.white,
-          ),
-          child: _deleting
-              ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : Text(strings.groupDeleteButton),
-        ),
       ],
     );
+    final actions = [
+      TextButton(
+        onPressed: _deleting ? null : () => Navigator.of(context).pop(),
+        child: Text(strings.cancel),
+      ),
+      FilledButton(
+        onPressed: _deleting ? null : _delete,
+        // colorScheme.errorはダークテーマ下ではMaterial3の仕様上
+        // 明るめのサーモンピンクに近い色になり「濃い赤」に見えなかった
+        // ため、固定の濃い赤に変更する（2026-08-12）。
+        style: FilledButton.styleFrom(
+          backgroundColor: Colors.red.shade700,
+          foregroundColor: Colors.white,
+        ),
+        child: _deleting
+            ? const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : Text(strings.groupDeleteButton),
+      ),
+    ];
+
+    // 横幅いっぱいに広がって縦に詰まって見えないよう幅を制限する
+    // （2026-08-12、横幅を縮め縦幅を確保するようユーザー指摘）。
+    return isGlass
+        ? ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 400),
+            child: GlassAlertDialog(
+              title: title,
+              content: content,
+              actions: actions,
+            ),
+          )
+        : AlertDialog(
+            constraints: const BoxConstraints(maxWidth: 400),
+            title: title,
+            content: content,
+            actions: actions,
+          );
   }
 }

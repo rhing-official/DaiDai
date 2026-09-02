@@ -30,19 +30,35 @@ messaging.onBackgroundMessage((payload) => {
   console.log("[firebase-messaging-sw.js] background message", payload);
 });
 
-// 通知タップ時、DaiDaiの既に開いているタブがあればそれをフォーカスし、
-// 無ければ新規タブでルート（語らい一覧）を開く。特定の会話への
-// ディープリンクは今回未対応（go_routerの/chat/dm・/chat/groupがURL単体
-// ではなくextra引数でDirectMessage/Group全体を渡す設計のため、
-// Service Worker側だけでは会話を復元できない）。
+// 通知タップ時、該当の語らいへのディープリンクURLを組み立てて、
+// DaiDaiの既に開いているタブがあればそれをフォーカスの上そのURLへ遷移させ、
+// 無ければ新規タブで開く（2026-09-02追加）。`data`は
+// `functions/src/index.ts`のsendMessageNotificationがwebpush通知と並べて
+// 積んでおり、FCMが自動表示したNotificationの`.data`としてここから
+// 参照できる。`app_router.dart`の`/chat/dm/:dmId`・`/chat/group/:groupId`
+// （ID単体からDirectMessage/Groupを解決する新ルート）が受け口になる。
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
+  const data = event.notification.data || {};
+  const conversationId = data.conversationId;
+  const roomId = data.roomId;
+  let targetUrl = "/";
+  if (conversationId) {
+    targetUrl = data.isDm === "true"
+      ? `/chat/dm/${conversationId}`
+      : `/chat/group/${conversationId}`;
+    if (roomId) targetUrl += `?roomId=${roomId}`;
+  }
   event.waitUntil(
     clients.matchAll({ type: "window", includeUncontrolled: true }).then((windowClients) => {
       for (const client of windowClients) {
-        if ("focus" in client) return client.focus();
+        if ("focus" in client) {
+          client.focus();
+          if ("navigate" in client) client.navigate(targetUrl);
+          return;
+        }
       }
-      if (clients.openWindow) return clients.openWindow("/");
+      if (clients.openWindow) return clients.openWindow(targetUrl);
     }),
   );
 });

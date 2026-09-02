@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/strings.dart';
+import '../../models/app_ui_style.dart';
 import '../../models/sticker.dart';
+import '../../providers/app_ui_style_provider.dart';
 import '../../providers/repository_providers.dart';
 import '../../utils/auto_dismiss_banner.dart';
+import '../../widgets/glass/glass_dialog.dart';
 
 /// 所持しているペタピタパック一覧・アンインストールのポップアップ（設定＞
 /// アカウントから開く、2026-08-11追加。当初はページ遷移だったが、
@@ -89,7 +92,8 @@ class _OwnedPackCard extends ConsumerWidget {
   final StickerPack pack;
 
   Future<void> _uninstall(BuildContext context, WidgetRef ref) async {
-    final confirmed = await _confirmUninstall(context, strings);
+    final isGlass = ref.read(appUiStyleProvider) == AppUiStyle.glass;
+    final confirmed = await _confirmUninstall(context, strings, isGlass);
     if (!confirmed || !context.mounted) return;
     try {
       await ref.read(stickerRepositoryProvider).uninstallPack(pack.packId);
@@ -154,13 +158,17 @@ class _OwnedPackCard extends ConsumerWidget {
   }
 }
 
-Future<bool> _confirmUninstall(BuildContext context, Strings strings) async {
+Future<bool> _confirmUninstall(
+  BuildContext context,
+  Strings strings,
+  bool isGlass,
+) async {
   final confirmed = await showDialog<bool>(
     context: context,
-    builder: (context) => AlertDialog(
-      title: Text(strings.uninstallStickerConfirmTitle),
-      content: Text(strings.uninstallStickerConfirmMessage),
-      actions: [
+    builder: (context) {
+      final title = Text(strings.uninstallStickerConfirmTitle);
+      final content = Text(strings.uninstallStickerConfirmMessage);
+      final actions = [
         TextButton(
           onPressed: () => Navigator.of(context).pop(false),
           child: Text(strings.cancel),
@@ -169,8 +177,11 @@ Future<bool> _confirmUninstall(BuildContext context, Strings strings) async {
           onPressed: () => Navigator.of(context).pop(true),
           child: Text(strings.uninstallStickerConfirmButton),
         ),
-      ],
-    ),
+      ];
+      return isGlass
+          ? GlassAlertDialog(title: title, content: content, actions: actions)
+          : AlertDialog(title: title, content: content, actions: actions);
+    },
   );
   return confirmed ?? false;
 }

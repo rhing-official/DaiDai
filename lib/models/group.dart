@@ -13,6 +13,10 @@ class Group {
     required this.defaultRoomId,
     this.profileCard,
     this.createdAt,
+    this.lastMessageAt,
+    this.lastMessageSenderId,
+    this.lastMessageContentType,
+    this.lastMessagePreview,
     this.readReceiptsEnabled = true,
     this.roleAssignments = const {},
     this.rolePriority = const [],
@@ -64,6 +68,27 @@ class Group {
 
   final Timestamp? createdAt;
 
+  /// どの寄合に投稿しても更新される、広場全体での直近メッセージ時刻。
+  /// 語らい一覧（TalksTab）の並び順に使う（2026-09-02追加。それまでは
+  /// `Room.lastMessageAt`しか無く、広場トップレベルには無かったため
+  /// 一覧が並べ替えできなかった）。
+  final Timestamp? lastMessageAt;
+
+  /// [lastMessageAt]の送信者userId。語らい一覧の「未読優先」並べ替えで、
+  /// 自分が送信した会話を未読扱いしないために使う（2026-09-02追加）。
+  final String? lastMessageSenderId;
+
+  /// [lastMessageAt]時点のメッセージの`Message.contentType`
+  /// （text/image/video/file/sticker/call等）。語らい一覧のプレビュー表示で、
+  /// テキスト以外は種類に応じたラベル（「[画像]」等）に変換するために使う
+  /// （2026-09-02追加）。
+  final String? lastMessageContentType;
+
+  /// [lastMessageContentType]が`text`/`call`のときだけ入る、切り詰め済みの
+  /// 本文プレビュー（`messageSnippetOf`）。それ以外の種類はnull
+  /// （表示ラベルはロケール依存のためUI側で解決する、2026-09-02追加）。
+  final String? lastMessagePreview;
+
   /// 複数の寄合（テキストチャンネル）を扱うか。falseの場合はサイドバーの
   /// 寄合一覧を出さず、`defaultRoomId`の1つだけを使う単一モード
   /// （2026-07-29追加）。作成時にどちらか選び、後からハンバーガーメニューの
@@ -85,6 +110,10 @@ class Group {
           ? GroupProfileCard.fromJson(profileCardJson)
           : null,
       createdAt: json['createdAt'] as Timestamp?,
+      lastMessageAt: json['lastMessageAt'] as Timestamp?,
+      lastMessageSenderId: json['lastMessageSenderId'] as String?,
+      lastMessageContentType: json['lastMessageContentType'] as String?,
+      lastMessagePreview: json['lastMessagePreview'] as String?,
       readReceiptsEnabled: json['readReceiptsEnabled'] as bool? ?? true,
       roleAssignments: _decodeRoleAssignments(json['roleAssignments']),
       rolePriority: List<String>.from(
@@ -107,6 +136,10 @@ class Group {
       'defaultRoomId': defaultRoomId,
       'profileCard': profileCard?.toJson(),
       'createdAt': createdAt ?? FieldValue.serverTimestamp(),
+      'lastMessageAt': lastMessageAt,
+      'lastMessageSenderId': lastMessageSenderId,
+      'lastMessageContentType': lastMessageContentType,
+      'lastMessagePreview': lastMessagePreview,
       'readReceiptsEnabled': readReceiptsEnabled,
       'roleAssignments': roleAssignments,
       'rolePriority': rolePriority,

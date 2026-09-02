@@ -509,14 +509,25 @@ class FirestoreGroupRepository implements GroupRepository {
 
   @override
   Stream<List<Group>> watchGroups(String userId) {
-    return _groups
-        .where('memberIds', arrayContains: userId)
-        .snapshots()
-        .map(
-          (snapshot) => snapshot.docs
-              .map((doc) => Group.fromJson(doc.id, doc.data()))
-              .toList(),
-        );
+    // direct_message_repository.dartのwatchDirectMessagesと同じ理由で
+    // orderBy('lastMessageAt')は使わない。まだメッセージが1件も送られて
+    // いない作成直後の広場はlastMessageAtが常にnullのままのため、orderByを
+    // 付けるとFirestoreのクエリ結果から恒久的に除外されてしまう
+    // （2026-09-02、語らい一覧の並べ替え機能追加に伴いlastMessageAt順ソートを
+    // 追加した際に同じ罠を踏まないよう最初からクライアント側ソートにする）。
+    return _groups.where('memberIds', arrayContains: userId).snapshots().map((
+      snapshot,
+    ) {
+      final groups = snapshot.docs
+          .map((doc) => Group.fromJson(doc.id, doc.data()))
+          .toList();
+      groups.sort(
+        (a, b) => (b.lastMessageAt?.millisecondsSinceEpoch ?? 0).compareTo(
+          a.lastMessageAt?.millisecondsSinceEpoch ?? 0,
+        ),
+      );
+      return groups;
+    });
   }
 
   @override
@@ -853,6 +864,17 @@ class FirestoreGroupRepository implements GroupRepository {
     final batch = _firestore.batch();
     batch.set(messageRef, message.toJson());
     batch.update(roomRef, {'lastMessageAt': FieldValue.serverTimestamp()});
+    // 語らい一覧（TalksTab）は広場単位でlastMessageAt順に並ぶため、寄合側に
+    // 加えて広場本体のlastMessageAt/lastMessageSenderIdも更新する
+    // （direct_message_repository.dartのDM本体更新と同じ理由、2026-09-02追加）。
+    // lastMessageContentType/lastMessagePreviewは一覧の最新メッセージ
+    // プレビュー表示用（2026-09-02追加）。
+    batch.update(_groups.doc(groupId), {
+      'lastMessageAt': FieldValue.serverTimestamp(),
+      'lastMessageSenderId': senderId,
+      'lastMessageContentType': 'text',
+      'lastMessagePreview': messageSnippetOf(content),
+    });
     await batch.commit();
   }
 
@@ -901,6 +923,12 @@ class FirestoreGroupRepository implements GroupRepository {
     final batch = _firestore.batch();
     batch.set(messageRef, message.toJson());
     batch.update(roomRef, {'lastMessageAt': FieldValue.serverTimestamp()});
+    batch.update(_groups.doc(groupId), {
+      'lastMessageAt': FieldValue.serverTimestamp(),
+      'lastMessageSenderId': senderId,
+      'lastMessageContentType': contentType,
+      'lastMessagePreview': null,
+    });
     await batch.commit();
   }
 
@@ -943,6 +971,12 @@ class FirestoreGroupRepository implements GroupRepository {
     final batch = _firestore.batch();
     batch.set(messageRef, message.toJson());
     batch.update(roomRef, {'lastMessageAt': FieldValue.serverTimestamp()});
+    batch.update(_groups.doc(groupId), {
+      'lastMessageAt': FieldValue.serverTimestamp(),
+      'lastMessageSenderId': senderId,
+      'lastMessageContentType': 'sticker',
+      'lastMessagePreview': null,
+    });
     await batch.commit();
   }
 

@@ -3,8 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/strings.dart';
 import '../../models/album.dart';
+import '../../models/app_ui_style.dart';
 import '../../models/message.dart';
+import '../../providers/app_ui_style_provider.dart';
 import '../../providers/repository_providers.dart';
+import '../../widgets/glass/glass_dialog.dart';
 
 /// メッセージ長押しメニューの「アルバムに登録」から開くボトムシート
 /// （2026-08-30追加）。その寄合の既存アルバム一覧から選ぶか、その場で
@@ -93,17 +96,18 @@ class _AlbumPickerSheetState extends ConsumerState<_AlbumPickerSheet> {
   Future<void> _createAndAddTo() async {
     final strings = ref.read(appStringsProvider);
     final controller = TextEditingController();
+    final isGlass = ref.read(appUiStyleProvider) == AppUiStyle.glass;
     final name = await showDialog<String>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(strings.albumCreateDialogTitle),
-        content: TextField(
+      builder: (dialogContext) {
+        final title = Text(strings.albumCreateDialogTitle);
+        final content = TextField(
           controller: controller,
           autofocus: true,
           decoration: InputDecoration(hintText: strings.albumNameFieldHint),
           onSubmitted: (value) => Navigator.of(dialogContext).pop(value.trim()),
-        ),
-        actions: [
+        );
+        final actions = [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(),
             child: Text(strings.cancel),
@@ -113,8 +117,11 @@ class _AlbumPickerSheetState extends ConsumerState<_AlbumPickerSheet> {
                 Navigator.of(dialogContext).pop(controller.text.trim()),
             child: Text(strings.commonCreate),
           ),
-        ],
-      ),
+        ];
+        return isGlass
+            ? GlassAlertDialog(title: title, content: content, actions: actions)
+            : AlertDialog(title: title, content: content, actions: actions);
+      },
     );
     if (name == null || name.isEmpty) return;
     final album = await ref

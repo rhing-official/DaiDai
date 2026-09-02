@@ -8,6 +8,9 @@ class DirectMessage {
     required this.participantRhingIds,
     required this.defaultRoomId,
     this.lastMessageAt,
+    this.lastMessageSenderId,
+    this.lastMessageContentType,
+    this.lastMessagePreview,
     this.severanceRequestedBy,
     this.readReceiptsEnabled = true,
     this.readReceiptsProposalBy,
@@ -21,6 +24,21 @@ class DirectMessage {
   /// userId -> rhingId。一覧表示で相手の名前を出すための非正規化データ。
   final Map<String, String> participantRhingIds;
   final Timestamp? lastMessageAt;
+
+  /// 直近のメッセージを送信したuserId。語らい一覧の「未読優先」並べ替えで、
+  /// 自分が送信した会話を未読扱いしないために使う（2026-09-02追加）。
+  final String? lastMessageSenderId;
+
+  /// [lastMessageAt]時点のメッセージの`Message.contentType`
+  /// （text/image/video/file/sticker/call等）。語らい一覧のプレビュー表示で、
+  /// テキスト以外は種類に応じたラベル（「[画像]」等）に変換するために使う
+  /// （2026-09-02追加）。
+  final String? lastMessageContentType;
+
+  /// [lastMessageContentType]が`text`/`call`のときだけ入る、切り詰め済みの
+  /// 本文プレビュー（`messageSnippetOf`）。それ以外の種類はnull
+  /// （表示ラベルはロケール依存のためUI側で解決する、2026-09-02追加）。
+  final String? lastMessagePreview;
 
   /// この一対の既定の寄合（`rooms`サブコレクション、`Group.defaultRoomId`と
   /// 同じ役割）。`getOrCreateDirectMessage`が作成時に必ず1件作る。
@@ -79,6 +97,9 @@ class DirectMessage {
       ),
       defaultRoomId: json['defaultRoomId'] as String,
       lastMessageAt: json['lastMessageAt'] as Timestamp?,
+      lastMessageSenderId: json['lastMessageSenderId'] as String?,
+      lastMessageContentType: json['lastMessageContentType'] as String?,
+      lastMessagePreview: json['lastMessagePreview'] as String?,
       severanceRequestedBy: json['severanceRequestedBy'] as String?,
       readReceiptsEnabled: json['readReceiptsEnabled'] as bool? ?? true,
       readReceiptsProposalBy: json['readReceiptsProposalBy'] as String?,
@@ -93,6 +114,9 @@ class DirectMessage {
       'participantRhingIds': participantRhingIds,
       'defaultRoomId': defaultRoomId,
       'lastMessageAt': lastMessageAt,
+      'lastMessageSenderId': lastMessageSenderId,
+      'lastMessageContentType': lastMessageContentType,
+      'lastMessagePreview': lastMessagePreview,
       'severanceRequestedBy': severanceRequestedBy,
       'readReceiptsEnabled': readReceiptsEnabled,
       'readReceiptsProposalBy': readReceiptsProposalBy,

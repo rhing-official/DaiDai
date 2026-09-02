@@ -7,6 +7,7 @@ import '../../models/app_ui_style.dart';
 import '../../providers/app_ui_style_provider.dart';
 import '../../providers/repository_providers.dart';
 import '../../theme/popup_surface_colors.dart';
+import '../../widgets/glass/glass_dialog.dart';
 import '../../widgets/glass/glass_surface.dart';
 
 /// アルバムボタンの真下にアルバム一覧をポップアップ表示する（2026-08-30、
@@ -73,17 +74,18 @@ class _AlbumPopupContentState extends ConsumerState<_AlbumPopupContent> {
   Future<void> _createAlbum() async {
     final strings = ref.read(appStringsProvider);
     final controller = TextEditingController();
+    final isGlass = ref.read(appUiStyleProvider) == AppUiStyle.glass;
     final name = await showDialog<String>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(strings.albumCreateDialogTitle),
-        content: TextField(
+      builder: (dialogContext) {
+        final title = Text(strings.albumCreateDialogTitle);
+        final content = TextField(
           controller: controller,
           autofocus: true,
           decoration: InputDecoration(hintText: strings.albumNameFieldHint),
           onSubmitted: (value) => Navigator.of(dialogContext).pop(value.trim()),
-        ),
-        actions: [
+        );
+        final actions = [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(),
             child: Text(strings.cancel),
@@ -93,8 +95,11 @@ class _AlbumPopupContentState extends ConsumerState<_AlbumPopupContent> {
                 Navigator.of(dialogContext).pop(controller.text.trim()),
             child: Text(strings.commonCreate),
           ),
-        ],
-      ),
+        ];
+        return isGlass
+            ? GlassAlertDialog(title: title, content: content, actions: actions)
+            : AlertDialog(title: title, content: content, actions: actions);
+      },
     );
     if (name == null || name.isEmpty) return;
     await ref
@@ -111,17 +116,18 @@ class _AlbumPopupContentState extends ConsumerState<_AlbumPopupContent> {
   Future<void> _renameAlbum(Album album) async {
     final strings = ref.read(appStringsProvider);
     final controller = TextEditingController(text: album.name);
+    final isGlass = ref.read(appUiStyleProvider) == AppUiStyle.glass;
     final name = await showDialog<String>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text(strings.albumRenameDialogTitle),
-        content: TextField(
+      builder: (dialogContext) {
+        final title = Text(strings.albumRenameDialogTitle);
+        final content = TextField(
           controller: controller,
           autofocus: true,
           decoration: InputDecoration(hintText: strings.albumNameFieldHint),
           onSubmitted: (value) => Navigator.of(dialogContext).pop(value.trim()),
-        ),
-        actions: [
+        );
+        final actions = [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(),
             child: Text(strings.cancel),
@@ -131,8 +137,11 @@ class _AlbumPopupContentState extends ConsumerState<_AlbumPopupContent> {
                 Navigator.of(dialogContext).pop(controller.text.trim()),
             child: Text(strings.save),
           ),
-        ],
-      ),
+        ];
+        return isGlass
+            ? GlassAlertDialog(title: title, content: content, actions: actions)
+            : AlertDialog(title: title, content: content, actions: actions);
+      },
     );
     if (name == null || name.isEmpty || name == album.name) return;
     await ref
@@ -148,12 +157,13 @@ class _AlbumPopupContentState extends ConsumerState<_AlbumPopupContent> {
 
   Future<void> _deleteAlbum(Album album) async {
     final strings = ref.read(appStringsProvider);
+    final isGlass = ref.read(appUiStyleProvider) == AppUiStyle.glass;
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
-        title: Text(strings.albumDeleteConfirmTitle),
-        content: Text(strings.albumDeleteConfirmMessage),
-        actions: [
+      builder: (_) {
+        final title = Text(strings.albumDeleteConfirmTitle);
+        final content = Text(strings.albumDeleteConfirmMessage);
+        final actions = [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
             child: Text(strings.cancel),
@@ -168,8 +178,11 @@ class _AlbumPopupContentState extends ConsumerState<_AlbumPopupContent> {
             ),
             child: Text(strings.delete),
           ),
-        ],
-      ),
+        ];
+        return isGlass
+            ? GlassAlertDialog(title: title, content: content, actions: actions)
+            : AlertDialog(title: title, content: content, actions: actions);
+      },
     );
     if (confirmed != true) return;
     await ref

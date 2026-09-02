@@ -9,6 +9,7 @@ import '../../l10n/vocabulary.dart';
 import '../../models/app_ui_style.dart';
 import '../../models/app_user.dart';
 import '../../models/conversation_prefs.dart';
+import '../../models/conversation_sort_order.dart';
 import '../../models/direct_message.dart';
 import '../../models/dm_room.dart';
 import '../../models/friend_request.dart';
@@ -21,14 +22,19 @@ import '../../providers/app_ui_style_provider.dart';
 import '../../providers/block_providers.dart';
 import '../../providers/chat_navigation_providers.dart';
 import '../../providers/conversation_prefs_providers.dart';
+import '../../providers/conversation_sort_order_provider.dart';
 import '../../providers/friend_providers.dart';
 import '../../providers/group_join_request_providers.dart';
+import '../../providers/message_time_format_provider.dart';
 import '../../providers/repository_providers.dart';
 import '../../providers/user_providers.dart';
 import '../../router/app_router.dart';
 import '../../theme/gekiga/gekiga_colors.dart';
 import '../../theme/text_prominence_colors.dart';
+import '../../utils/drag_menu_geometry.dart';
 import '../../utils/group_permissions.dart';
+import '../../utils/kana_sort.dart';
+import '../../utils/message_time.dart';
 import '../../utils/official_account.dart';
 import '../../utils/platform_info.dart';
 import '../../widgets/gekiga/gekiga_icon_badge.dart';
@@ -565,10 +571,17 @@ class _TalksTabState extends ConsumerState<TalksTab> {
                   ),
                   // 一対/広場切り替えタブの真下に検索欄を置く（2026-08-30
                   // 追加）。検索中は下のExpandedの中身がカテゴリ別スワイプ
-                  // 表示から検索結果一覧に切り替わる。
+                  // 表示から検索結果一覧に切り替わる。並べ替えボタンは
+                  // 検索欄の右隣に置く（2026-09-02追加）。
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                    child: _buildSearchField(strings),
+                    child: Row(
+                      children: [
+                        Expanded(child: _buildSearchField(strings)),
+                        const SizedBox(width: 8),
+                        _buildSortButton(strings),
+                      ],
+                    ),
                   ),
                   // ヘッダー（一対/広場切り替えタブ）と一覧の間に隙間を空ける
                   // （2026-08-04追加、劇画スタイルのみ→2026-08-12全スタイル
@@ -763,7 +776,9 @@ class _TalksTabState extends ConsumerState<TalksTab> {
       return Center(child: Text('まだ$dmTermがありません。上の＋から相手を追加してください。'));
     }
 
-    final sortedDms = _sortedByPin(visibleDms, prefsById, (dm) => dm.dmId);
+    final sortOrder = ref.watch(conversationSortOrderProvider);
+    final orderedDms = _applyDmSortOrder(visibleDms, sortOrder, prefsById);
+    final sortedDms = _sortedByPin(orderedDms, prefsById, (dm) => dm.dmId);
 
     if (ref.watch(appUiStyleProvider) == AppUiStyle.gekiga) {
       final seeds = <int>[
@@ -797,6 +812,7 @@ class _TalksTabState extends ConsumerState<TalksTab> {
             dm: dm,
             pinned: prefsById[dm.dmId]?.pinned ?? false,
             muted: prefsById[dm.dmId]?.notificationsMuted ?? false,
+            unreadCount: prefsById[dm.dmId]?.unreadCount ?? 0,
             selected: _isSplit && _selectedDm?.dmId == dm.dmId,
             onTap: () => _openDirectMessage(dm),
           ),
@@ -843,6 +859,7 @@ class _TalksTabState extends ConsumerState<TalksTab> {
             dm: dm,
             pinned: prefsById[dm.dmId]?.pinned ?? false,
             muted: prefsById[dm.dmId]?.notificationsMuted ?? false,
+            unreadCount: prefsById[dm.dmId]?.unreadCount ?? 0,
             selected: _isSplit && _selectedDm?.dmId == dm.dmId,
             onTap: () => _openDirectMessage(dm),
           ),
@@ -864,7 +881,13 @@ class _TalksTabState extends ConsumerState<TalksTab> {
       final plazaTerm = ref.read(vocabularyProvider).plaza;
       return Center(child: Text('まだ$plazaTermがありません。上の＋から作成してください。'));
     }
-    final sortedGroups = _sortedByPin(groups, prefsById, (g) => g.groupId);
+    final sortOrder = ref.watch(conversationSortOrderProvider);
+    final orderedGroups = _applyGroupSortOrder(groups, sortOrder, prefsById);
+    final sortedGroups = _sortedByPin(
+      orderedGroups,
+      prefsById,
+      (g) => g.groupId,
+    );
 
     if (ref.watch(appUiStyleProvider) == AppUiStyle.gekiga) {
       final seeds = <int>[
@@ -889,6 +912,7 @@ class _TalksTabState extends ConsumerState<TalksTab> {
             group: group,
             pinned: prefsById[group.groupId]?.pinned ?? false,
             muted: prefsById[group.groupId]?.notificationsMuted ?? false,
+            unreadCount: prefsById[group.groupId]?.unreadCount ?? 0,
             selected: _isSplit && _selectedGroup?.groupId == group.groupId,
             onTap: () => _openGroup(group),
           ),
@@ -927,6 +951,7 @@ class _TalksTabState extends ConsumerState<TalksTab> {
             group: group,
             pinned: prefsById[group.groupId]?.pinned ?? false,
             muted: prefsById[group.groupId]?.notificationsMuted ?? false,
+            unreadCount: prefsById[group.groupId]?.unreadCount ?? 0,
             selected: _isSplit && _selectedGroup?.groupId == group.groupId,
             onTap: () => _openGroup(group),
           ),
@@ -935,6 +960,47 @@ class _TalksTabState extends ConsumerState<TalksTab> {
   }
 
   /// 一対/広場切り替えタブの真下に置く検索欄（2026-08-30追加）。
+  /// 語らい一覧の並べ替え順を選ぶボタン（検索欄の右隣、2026-09-02追加）。
+  /// ピン留めは並べ替え順に関わらず常に最優先で表示され、この設定は
+  /// ピン留め内・ピン留め外それぞれの並び順のみを決める。
+  Widget _buildSortButton(Strings strings) {
+    final current = ref.watch(conversationSortOrderProvider);
+    return PopupMenuButton<ConversationSortOrder>(
+      icon: const Icon(Icons.sort),
+      tooltip: '',
+      onSelected: (order) =>
+          ref.read(conversationSortOrderProvider.notifier).setOrder(order),
+      itemBuilder: (context) => [
+        for (final order in ConversationSortOrder.values)
+          PopupMenuItem(
+            value: order,
+            child: Row(
+              children: [
+                Icon(
+                  Icons.check,
+                  size: 18,
+                  color: order == current ? null : Colors.transparent,
+                ),
+                const SizedBox(width: 8),
+                Text(_sortOrderLabel(strings, order)),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+
+  String _sortOrderLabel(Strings strings, ConversationSortOrder order) {
+    switch (order) {
+      case ConversationSortOrder.recent:
+        return strings.conversationSortRecent;
+      case ConversationSortOrder.kana:
+        return strings.conversationSortKana;
+      case ConversationSortOrder.unreadFirst:
+        return strings.conversationSortUnreadFirst;
+    }
+  }
+
   Widget _buildSearchField(Strings strings) {
     final uiStyle = ref.watch(appUiStyleProvider);
     final hasQuery = _searchController.text.isNotEmpty;
@@ -1033,6 +1099,7 @@ class _TalksTabState extends ConsumerState<TalksTab> {
             dm: dm,
             pinned: prefsById[dm.dmId]?.pinned ?? false,
             muted: prefsById[dm.dmId]?.notificationsMuted ?? false,
+            unreadCount: prefsById[dm.dmId]?.unreadCount ?? 0,
             selected: _isSplit && _selectedDm?.dmId == dm.dmId,
             onTap: () {
               // 検索結果は一対・広場を横断して表示するため、タップした種類
@@ -1049,6 +1116,7 @@ class _TalksTabState extends ConsumerState<TalksTab> {
             group: group,
             pinned: prefsById[group.groupId]?.pinned ?? false,
             muted: prefsById[group.groupId]?.notificationsMuted ?? false,
+            unreadCount: prefsById[group.groupId]?.unreadCount ?? 0,
             selected: _isSplit && _selectedGroup?.groupId == group.groupId,
             onTap: () {
               setState(() => _category = _TalksCategory.group);
@@ -1075,6 +1143,7 @@ class _TalksTabState extends ConsumerState<TalksTab> {
             dm: dm,
             pinned: prefsById[dm.dmId]?.pinned ?? false,
             muted: prefsById[dm.dmId]?.notificationsMuted ?? false,
+            unreadCount: prefsById[dm.dmId]?.unreadCount ?? 0,
             selected: _isSplit && _selectedDm?.dmId == dm.dmId,
             onTap: () {
               // 検索結果は一対・広場を横断して表示するため、タップした種類
@@ -1091,6 +1160,7 @@ class _TalksTabState extends ConsumerState<TalksTab> {
             group: group,
             pinned: prefsById[group.groupId]?.pinned ?? false,
             muted: prefsById[group.groupId]?.notificationsMuted ?? false,
+            unreadCount: prefsById[group.groupId]?.unreadCount ?? 0,
             selected: _isSplit && _selectedGroup?.groupId == group.groupId,
             onTap: () {
               setState(() => _category = _TalksCategory.group);
@@ -1099,6 +1169,105 @@ class _TalksTabState extends ConsumerState<TalksTab> {
           ),
       ],
     );
+  }
+
+  /// [ConversationSortOrder]に応じて一対の一覧を並べ替える（ピン留めの
+  /// 優先適用は呼び出し側の[_sortedByPin]が別途行う、2026-09-02追加）。
+  /// `recent`はリポジトリのstreamが既に`lastMessageAt`降順で返しているため
+  /// 何もしない（`DirectMessageRepository.watchDirectMessages`参照）。
+  List<DirectMessage> _applyDmSortOrder(
+    List<DirectMessage> dms,
+    ConversationSortOrder order,
+    Map<String, ConversationPrefs> prefsById,
+  ) {
+    switch (order) {
+      case ConversationSortOrder.recent:
+        return dms;
+      case ConversationSortOrder.kana:
+        // 検索機能と同じ`_dmSearchLabel`（呼び名優先、無ければ@RhingID）を
+        // 比較キーに使う。ソート中に何度も同じ値を計算しないよう先に
+        // dmId→ラベルのマップを作る。
+        final labelByDmId = <String, String>{
+          for (final dm in dms)
+            dm.dmId: _dmSearchLabel(
+              ref
+                  .watch(
+                    watchedUserProvider(
+                      dm.otherUserId(widget.currentUser.userId),
+                    ),
+                  )
+                  .value,
+              dm,
+              widget.currentUser.userId,
+            ),
+        };
+        return [...dms]..sort(
+          (a, b) => compareKana(labelByDmId[a.dmId]!, labelByDmId[b.dmId]!),
+        );
+      case ConversationSortOrder.unreadFirst:
+        return [...dms]..sort((a, b) {
+          final unreadDiff =
+              (_isDmUnread(b, prefsById) ? 1 : 0) -
+              (_isDmUnread(a, prefsById) ? 1 : 0);
+          if (unreadDiff != 0) return unreadDiff;
+          return (b.lastMessageAt?.millisecondsSinceEpoch ?? 0).compareTo(
+            a.lastMessageAt?.millisecondsSinceEpoch ?? 0,
+          );
+        });
+    }
+  }
+
+  /// 相手が送った直近メッセージを、自分がまだ既読にしていないか
+  /// （2026-09-02追加。未読管理の仕組み自体を持たないため、
+  /// `DirectMessage.lastMessageSenderId`と`ConversationPrefs.lastReadAt`の
+  /// 2フィールド比較だけで近似する。厳密な未読件数管理ではない）。
+  bool _isDmUnread(DirectMessage dm, Map<String, ConversationPrefs> prefsById) {
+    final lastMessageAt = dm.lastMessageAt;
+    if (lastMessageAt == null) return false;
+    if (dm.lastMessageSenderId == null ||
+        dm.lastMessageSenderId == widget.currentUser.userId) {
+      return false;
+    }
+    final lastReadAt = prefsById[dm.dmId]?.lastReadAt;
+    if (lastReadAt == null) return true;
+    return lastReadAt.compareTo(lastMessageAt) < 0;
+  }
+
+  /// [_applyDmSortOrder]の広場版。
+  List<Group> _applyGroupSortOrder(
+    List<Group> groups,
+    ConversationSortOrder order,
+    Map<String, ConversationPrefs> prefsById,
+  ) {
+    switch (order) {
+      case ConversationSortOrder.recent:
+        return groups;
+      case ConversationSortOrder.kana:
+        return [...groups]..sort((a, b) => compareKana(a.name, b.name));
+      case ConversationSortOrder.unreadFirst:
+        return [...groups]..sort((a, b) {
+          final unreadDiff =
+              (_isGroupUnread(b, prefsById) ? 1 : 0) -
+              (_isGroupUnread(a, prefsById) ? 1 : 0);
+          if (unreadDiff != 0) return unreadDiff;
+          return (b.lastMessageAt?.millisecondsSinceEpoch ?? 0).compareTo(
+            a.lastMessageAt?.millisecondsSinceEpoch ?? 0,
+          );
+        });
+    }
+  }
+
+  /// [_isDmUnread]の広場版。
+  bool _isGroupUnread(Group group, Map<String, ConversationPrefs> prefsById) {
+    final lastMessageAt = group.lastMessageAt;
+    if (lastMessageAt == null) return false;
+    if (group.lastMessageSenderId == null ||
+        group.lastMessageSenderId == widget.currentUser.userId) {
+      return false;
+    }
+    final lastReadAt = prefsById[group.groupId]?.lastReadAt;
+    if (lastReadAt == null) return true;
+    return lastReadAt.compareTo(lastMessageAt) < 0;
   }
 
   static List<T> _sortedByPin<T>(
@@ -1500,12 +1669,44 @@ String _dmSearchLabel(
       : '@${dm.otherRhingId(currentUserId)}';
 }
 
+/// 語らい一覧の最新メッセージプレビュー文字列。テキスト/通話サマリーは
+/// 送信時に切り詰め済みの本文（[DirectMessage.lastMessagePreview]/
+/// [Group.lastMessagePreview]）をそのまま使い、画像/動画/ファイル/
+/// スタンプはロケール依存のためUI側でラベルを組み立てる（2026-09-02追加）。
+/// メッセージが1件も無い会話は`contentType`がnullで、プレビュー自体を
+/// 出さない。
+String? _conversationPreviewLabel(
+  Strings strings,
+  Vocabulary vocabulary,
+  String? contentType,
+  String? textPreview,
+) {
+  switch (contentType) {
+    case null:
+      return null;
+    case 'text':
+    case 'call':
+      return textPreview;
+    case 'image':
+      return strings.talksListPreviewImage;
+    case 'video':
+      return strings.talksListPreviewVideo;
+    case 'file':
+      return strings.talksListPreviewFile;
+    case 'sticker':
+      return '[${vocabulary.sticker}]';
+    default:
+      return textPreview;
+  }
+}
+
 class _DirectMessageTile extends ConsumerWidget {
   const _DirectMessageTile({
     required this.currentUser,
     required this.dm,
     required this.pinned,
     required this.muted,
+    required this.unreadCount,
     required this.onTap,
     this.selected = false,
   });
@@ -1514,6 +1715,7 @@ class _DirectMessageTile extends ConsumerWidget {
   final DirectMessage dm;
   final bool pinned;
   final bool muted;
+  final int unreadCount;
   final bool selected;
   final VoidCallback onTap;
 
@@ -1527,6 +1729,12 @@ class _DirectMessageTile extends ConsumerWidget {
     final isGekiga = uiStyle == AppUiStyle.gekiga;
     final isGlass = uiStyle == AppUiStyle.glass;
     final colorScheme = Theme.of(context).colorScheme;
+    final previewLabel = _conversationPreviewLabel(
+      ref.watch(appStringsProvider),
+      ref.watch(vocabularyProvider),
+      dm.lastMessageContentType,
+      dm.lastMessagePreview,
+    );
 
     final leadingWidget = CircleAvatar(
       backgroundImage: iconUrl != null ? NetworkImage(iconUrl) : null,
@@ -1534,9 +1742,14 @@ class _DirectMessageTile extends ConsumerWidget {
       foregroundColor: Theme.of(context).colorScheme.onPrimary,
       child: iconUrl == null ? const Icon(Icons.person) : null,
     );
-    final trailingWidget = _ConversationIndicators(
+    final subtitleWidget = previewLabel == null
+        ? null
+        : Text(previewLabel, maxLines: 1, overflow: TextOverflow.ellipsis);
+    final trailingWidget = _ConversationTrailing(
       pinned: pinned,
       muted: muted,
+      lastMessageAt: dm.lastMessageAt?.toDate(),
+      unreadCount: unreadCount,
     );
 
     if (isGekiga) {
@@ -1549,6 +1762,7 @@ class _DirectMessageTile extends ConsumerWidget {
           selected: selected,
           leading: leadingWidget,
           title: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
+          subtitle: subtitleWidget,
           trailing: trailingWidget,
           onTap: onTap,
         ),
@@ -1581,6 +1795,7 @@ class _DirectMessageTile extends ConsumerWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
+                subtitle: subtitleWidget,
                 trailing: trailingWidget,
                 onTap: onTap,
               ),
@@ -1602,6 +1817,7 @@ class _DirectMessageTile extends ConsumerWidget {
         selectedColor: colorScheme.onPrimary,
         leading: leadingWidget,
         title: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
+        subtitle: subtitleWidget,
         trailing: trailingWidget,
         onTap: onTap,
       ),
@@ -1615,6 +1831,7 @@ class _GroupTile extends ConsumerWidget {
     required this.group,
     required this.pinned,
     required this.muted,
+    required this.unreadCount,
     required this.onTap,
     this.selected = false,
   });
@@ -1623,6 +1840,7 @@ class _GroupTile extends ConsumerWidget {
   final Group group;
   final bool pinned;
   final bool muted;
+  final int unreadCount;
   final bool selected;
   final VoidCallback onTap;
 
@@ -1634,6 +1852,12 @@ class _GroupTile extends ConsumerWidget {
     final isGlass = uiStyle == AppUiStyle.glass;
     final colorScheme = Theme.of(context).colorScheme;
     final displayName = group.name;
+    final previewLabel = _conversationPreviewLabel(
+      ref.watch(appStringsProvider),
+      ref.watch(vocabularyProvider),
+      group.lastMessageContentType,
+      group.lastMessagePreview,
+    );
 
     final leadingWidget = CircleAvatar(
       backgroundImage: iconUrl != null ? NetworkImage(iconUrl) : null,
@@ -1641,9 +1865,14 @@ class _GroupTile extends ConsumerWidget {
       foregroundColor: Theme.of(context).colorScheme.onPrimary,
       child: iconUrl == null ? const Icon(Icons.groups) : null,
     );
-    final trailingWidget = _ConversationIndicators(
+    final subtitleWidget = previewLabel == null
+        ? null
+        : Text(previewLabel, maxLines: 1, overflow: TextOverflow.ellipsis);
+    final trailingWidget = _ConversationTrailing(
       pinned: pinned,
       muted: muted,
+      lastMessageAt: group.lastMessageAt?.toDate(),
+      unreadCount: unreadCount,
     );
 
     if (isGekiga) {
@@ -1660,7 +1889,7 @@ class _GroupTile extends ConsumerWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
-          subtitle: Text('${group.memberIds.length}人'),
+          subtitle: subtitleWidget,
           trailing: trailingWidget,
           onTap: onTap,
         ),
@@ -1693,7 +1922,7 @@ class _GroupTile extends ConsumerWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-                subtitle: Text('${group.memberIds.length}人'),
+                subtitle: subtitleWidget,
                 trailing: trailingWidget,
                 onTap: onTap,
               ),
@@ -1715,7 +1944,7 @@ class _GroupTile extends ConsumerWidget {
         selectedColor: colorScheme.onPrimary,
         leading: leadingWidget,
         title: Text(displayName, maxLines: 1, overflow: TextOverflow.ellipsis),
-        subtitle: Text('${group.memberIds.length}人'),
+        subtitle: subtitleWidget,
         trailing: trailingWidget,
         onTap: onTap,
       ),
@@ -1723,45 +1952,110 @@ class _GroupTile extends ConsumerWidget {
   }
 }
 
-/// ピン留め・通知オフのアイコン表示（両方falseなら何も出さない）。
-class _ConversationIndicators extends ConsumerWidget {
-  const _ConversationIndicators({required this.pinned, required this.muted});
+/// ピン留め・通知オフのアイコン、最終メッセージ時刻、未読件数バッジをまとめた
+/// タイルのtrailing（2026-09-02追加、以前は`_ConversationIndicators`という
+/// 名前でピン留め/通知オフアイコンのみを担っていたが、責務が増えたため改称）。
+class _ConversationTrailing extends ConsumerWidget {
+  const _ConversationTrailing({
+    required this.pinned,
+    required this.muted,
+    required this.lastMessageAt,
+    required this.unreadCount,
+  });
 
   final bool pinned;
   final bool muted;
+  final DateTime? lastMessageAt;
+  final int unreadCount;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    if (!pinned && !muted) return const SizedBox.shrink();
     final uiStyle = ref.watch(appUiStyleProvider);
     final isGekiga = uiStyle == AppUiStyle.gekiga;
     final isGlass = uiStyle == AppUiStyle.glass;
-    return Row(
+    final timeFormat = ref.watch(messageTimeFormatProvider);
+    final lastMessageAt = this.lastMessageAt;
+    final timeLabel = lastMessageAt == null
+        ? null
+        : formatConversationListTime(lastMessageAt, DateTime.now(), timeFormat);
+    final indicatorColor = isGekiga
+        ? GekigaColors.onPanel.withValues(alpha: 0.75)
+        : resolveTertiaryTextColor(context, isGlass: isGlass);
+
+    return Column(
       mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.end,
       children: [
-        if (muted)
-          Icon(
-            Icons.notifications_off_outlined,
-            size: 18,
-            color: isGekiga
-                ? GekigaColors.onPanel.withValues(alpha: 0.75)
-                : resolveTertiaryTextColor(context, isGlass: isGlass),
+        if (pinned || muted) ...[
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (muted)
+                Icon(
+                  Icons.notifications_off_outlined,
+                  size: 18,
+                  color: indicatorColor,
+                ),
+              if (pinned) ...[
+                if (muted) const SizedBox(width: 4),
+                Icon(
+                  Icons.push_pin,
+                  size: 18,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+              ],
+            ],
           ),
-        if (pinned) ...[
-          if (muted) const SizedBox(width: 4),
-          Icon(
-            Icons.push_pin,
-            size: 18,
-            color: Theme.of(context).colorScheme.primary,
+          const SizedBox(height: 4),
+        ],
+        if (timeLabel != null)
+          Text(
+            timeLabel,
+            style: TextStyle(fontSize: 12, color: indicatorColor),
           ),
+        if (unreadCount > 0) ...[
+          const SizedBox(height: 4),
+          _UnreadBadge(count: unreadCount),
         ],
       ],
     );
   }
 }
 
-/// 右クリック（デスクトップ）・長押し（モバイル）で、ピン留め・通知オフのメニューを出す。
-class _ConversationGestures extends ConsumerWidget {
+/// 未読件数バッジ。CLAUDE.mdの配色規約（薄い背景色に白文字禁止）に従い、
+/// 濃色のアクセントカラーを背景に使う（2026-09-02追加）。
+class _UnreadBadge extends StatelessWidget {
+  const _UnreadBadge({required this.count});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: colorScheme.primary,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Text(
+        count > 99 ? '99+' : '$count',
+        style: TextStyle(
+          color: colorScheme.onPrimary,
+          fontSize: 11,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+  }
+}
+
+/// 右クリック（デスクトップ、離してからタップで選ぶ従来のメニュー）・
+/// 長押し（モバイル、指を離さず滑らせて選ぶドラッグ選択メニュー）で、
+/// ピン留め・通知オフのメニューを出す。ドラッグ選択の実装は
+/// `chat_screen.dart`の`_MessageBubbleTapAreaState`と同じパターン
+/// （2026-09-02、長押しメニューをドラッグ選択方式に統一）。
+class _ConversationGestures extends ConsumerStatefulWidget {
   const _ConversationGestures({
     required this.conversationId,
     required this.userId,
@@ -1776,13 +2070,71 @@ class _ConversationGestures extends ConsumerWidget {
   final bool muted;
   final Widget child;
 
-  Future<void> _showMenu(
-    BuildContext context,
-    WidgetRef ref,
-    Offset position,
-  ) async {
-    final strings = ref.read(appStringsProvider);
-    final selected = await showMenu<String>(
+  @override
+  ConsumerState<_ConversationGestures> createState() =>
+      _ConversationGesturesState();
+}
+
+class _ConversationGesturesState extends ConsumerState<_ConversationGestures> {
+  final _highlightIndex = ValueNotifier<int>(-1);
+  OverlayEntry? _overlayEntry;
+  DragMenuGeometry? _dragMenuGeometry;
+  List<({String action, String label})> _dragMenuItems = const [];
+
+  @override
+  void dispose() {
+    _removeOverlay();
+    _highlightIndex.dispose();
+    super.dispose();
+  }
+
+  void _removeOverlay() {
+    _overlayEntry?.remove();
+    _overlayEntry = null;
+    _dragMenuGeometry = null;
+  }
+
+  List<({String action, String label})> _buildMenuItems(Strings strings) {
+    return [
+      (
+        action: 'pin',
+        label: widget.pinned
+            ? strings.conversationUnpin
+            : strings.conversationPin,
+      ),
+      (
+        action: 'mute',
+        label: widget.muted
+            ? strings.conversationUnmute
+            : strings.conversationMute,
+      ),
+    ];
+  }
+
+  Future<void> _handleAction(String? action) async {
+    if (action == 'pin') {
+      await ref
+          .read(conversationPrefsRepositoryProvider)
+          .setPinned(
+            userId: widget.userId,
+            conversationId: widget.conversationId,
+            pinned: !widget.pinned,
+          );
+    } else if (action == 'mute') {
+      await ref
+          .read(conversationPrefsRepositoryProvider)
+          .setNotificationsMuted(
+            userId: widget.userId,
+            conversationId: widget.conversationId,
+            muted: !widget.muted,
+          );
+    }
+  }
+
+  /// 右クリック用、従来通りのクリック選択メニュー。
+  Future<void> _openMenu(BuildContext context, Offset position) async {
+    final items = _buildMenuItems(ref.read(appStringsProvider));
+    final action = await showMenu<String>(
       context: context,
       position: RelativeRect.fromLTRB(
         position.dx,
@@ -1791,47 +2143,134 @@ class _ConversationGestures extends ConsumerWidget {
         position.dy,
       ),
       items: [
-        PopupMenuItem(
-          value: 'pin',
-          child: Text(
-            pinned ? strings.conversationUnpin : strings.conversationPin,
-          ),
-        ),
-        PopupMenuItem(
-          value: 'mute',
-          child: Text(
-            muted ? strings.conversationUnmute : strings.conversationMute,
-          ),
-        ),
+        for (final item in items)
+          PopupMenuItem(value: item.action, child: Text(item.label)),
       ],
     );
-    if (selected == 'pin') {
-      await ref
-          .read(conversationPrefsRepositoryProvider)
-          .setPinned(
-            userId: userId,
-            conversationId: conversationId,
-            pinned: !pinned,
-          );
-    } else if (selected == 'mute') {
-      await ref
-          .read(conversationPrefsRepositoryProvider)
-          .setNotificationsMuted(
-            userId: userId,
-            conversationId: conversationId,
-            muted: !muted,
-          );
+    if (!context.mounted) return;
+    await _handleAction(action);
+  }
+
+  void _onLongPressStart(LongPressStartDetails details) {
+    final items = _buildMenuItems(ref.read(appStringsProvider));
+    final colorScheme = Theme.of(context).colorScheme;
+    final overlayBox =
+        Overlay.of(context).context.findRenderObject()! as RenderBox;
+    final screenSize = overlayBox.size;
+    final textStyle = Theme.of(context).textTheme.bodyLarge!;
+    final textScaler = MediaQuery.textScalerOf(context);
+    final direction = Directionality.of(context);
+
+    const hPad = 16.0;
+    var maxLabelWidth = 0.0;
+    for (final item in items) {
+      final painter = TextPainter(
+        text: TextSpan(text: item.label, style: textStyle),
+        textDirection: direction,
+        textScaler: textScaler,
+      )..layout();
+      if (painter.width > maxLabelWidth) maxLabelWidth = painter.width;
     }
+    final menuWidth = (maxLabelWidth + hPad * 2).clamp(140.0, 280.0);
+    final menuHeight = kDragMenuItemHeight * items.length;
+
+    const screenPad = 8.0;
+    final left = details.globalPosition.dx.clamp(
+      screenPad,
+      screenSize.width - menuWidth - screenPad,
+    );
+    final top = (details.globalPosition.dy - menuHeight - 8).clamp(
+      screenPad,
+      screenSize.height - menuHeight - screenPad,
+    );
+
+    final geometry = DragMenuGeometry(
+      left: left,
+      top: top,
+      width: menuWidth,
+      itemCount: items.length,
+    );
+    _dragMenuItems = items;
+    _dragMenuGeometry = geometry;
+    _highlightIndex.value = -1;
+
+    _overlayEntry = OverlayEntry(
+      builder: (_) => Stack(
+        children: [
+          const Positioned.fill(child: ColoredBox(color: Colors.transparent)),
+          Positioned(
+            left: geometry.left,
+            top: geometry.top,
+            width: geometry.width,
+            height: geometry.height,
+            child: Material(
+              color: colorScheme.surfaceContainer,
+              elevation: 3,
+              shadowColor: colorScheme.shadow,
+              shape: const RoundedRectangleBorder(
+                borderRadius: BorderRadius.all(Radius.circular(4)),
+              ),
+              child: ValueListenableBuilder<int>(
+                valueListenable: _highlightIndex,
+                builder: (_, highlighted, _) => Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    for (var i = 0; i < items.length; i++)
+                      Container(
+                        height: kDragMenuItemHeight,
+                        alignment: AlignmentDirectional.centerStart,
+                        padding: const EdgeInsets.symmetric(horizontal: hPad),
+                        color: i == highlighted
+                            ? colorScheme.primary.withValues(alpha: 0.12)
+                            : Colors.transparent,
+                        child: Text(
+                          items[i].label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: textStyle.copyWith(
+                            color: i == highlighted
+                                ? colorScheme.primary
+                                : null,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    Overlay.of(context).insert(_overlayEntry!);
+  }
+
+  void _onLongPressMoveUpdate(LongPressMoveUpdateDetails details) {
+    final geometry = _dragMenuGeometry;
+    if (geometry == null) return;
+    _highlightIndex.value = geometry.hitTest(details.globalPosition);
+  }
+
+  void _onLongPressEnd(LongPressEndDetails details) {
+    final geometry = _dragMenuGeometry;
+    final items = _dragMenuItems;
+    _removeOverlay();
+    if (geometry == null) return;
+    final index = geometry.hitTest(details.globalPosition);
+    if (index < 0) return;
+    _handleAction(items[index].action);
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     return GestureDetector(
       onSecondaryTapDown: (details) =>
-          _showMenu(context, ref, details.globalPosition),
-      onLongPressStart: (details) =>
-          _showMenu(context, ref, details.globalPosition),
-      child: child,
+          _openMenu(context, details.globalPosition),
+      onLongPressStart: _onLongPressStart,
+      onLongPressMoveUpdate: _onLongPressMoveUpdate,
+      onLongPressEnd: _onLongPressEnd,
+      onLongPressCancel: _removeOverlay,
+      child: widget.child,
     );
   }
 }
@@ -2137,41 +2576,11 @@ class _GroupDetailWithRoomsState extends ConsumerState<_GroupDetailWithRooms> {
                   // 全体設定ポップアップ自体は全メンバーが開ける
                   // （中の各項目が個別に権限ゲートされる、2026-07-29変更。
                   // 以前はcanManageRolesの間だけロール管理を直接開いていた）。
-                  onOpenGroupSettings: () => showDialog<void>(
-                    context: context,
-                    // 「自分のプロフィールカード」の項目は蔵が複数ある時だけ
-                    // 増える（GroupSettingsPopup参照）ため、固定の高さ1つでは
-                    // 項目がある時に一覧の下端が僅かに入りきらなかった
-                    // （2026-08-12修正、有無で高さを2種類使い分ける）。
-                    builder: (_) {
-                      final constrained = ConstrainedBox(
-                        constraints: BoxConstraints(
-                          maxWidth: 420,
-                          maxHeight: currentUser.profileCards.length > 1
-                              ? 696
-                              : 640,
-                        ),
-                        child: GroupSettingsPopup(
-                          currentUser: currentUser,
-                          group: group,
-                        ),
-                      );
-                      // ガラステーマはdialogThemeの背景を透明にしている
-                      // （`GlassAlertDialog`が自前でGlassSurfaceをラップする
-                      // 前提の設計）ため、素の`Dialog`のままだと背景が完全に
-                      // 透明になっていた（2026-08-30修正）。
-                      return isGlass
-                          ? Dialog(
-                              backgroundColor: Colors.transparent,
-                              elevation: 0,
-                              child: GlassSurface(
-                                variant: GlassVariant.floating,
-                                borderRadius: BorderRadius.circular(24),
-                                child: constrained,
-                              ),
-                            )
-                          : Dialog(child: constrained);
-                    },
+                  onOpenGroupSettings: () => showGroupSettingsDialog(
+                    context,
+                    currentUser: currentUser,
+                    group: group,
+                    isGlass: isGlass,
                   ),
                 ),
               ),

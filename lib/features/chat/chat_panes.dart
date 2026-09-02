@@ -46,6 +46,7 @@ import 'group_member_list_screen.dart';
 import 'group_profile_card_screen.dart';
 import 'group_role_list_popup.dart';
 import 'group_role_priority_dialog.dart';
+import 'group_settings_popup.dart';
 import 'room_tab_bar.dart';
 import 'severance_dialog.dart';
 import 'user_profile_card_dialog.dart';
@@ -57,6 +58,7 @@ enum _GroupMenuAction {
   createInvite,
   manageRoles,
   deleteGroup,
+  openGroupSettings,
   roomRolePriority,
   renameRoom,
   deleteRoom,
@@ -539,12 +541,24 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
       onVideoCallPressed: widget.onVideoCallPressed,
       readReceiptsEnabled: dm.readReceiptsEnabled,
       onMarkRead: (messageIds) => _afterMutation(
-        () => dmRepository.markMessagesRead(
-          dmId: dm.dmId,
-          roomId: roomId,
-          userId: currentUser.userId,
-          messageIds: messageIds,
-        ),
+        () async {
+          await Future.wait([
+            dmRepository.markMessagesRead(
+              dmId: dm.dmId,
+              roomId: roomId,
+              userId: currentUser.userId,
+              messageIds: messageIds,
+            ),
+            // 語らい一覧の「未読優先」並べ替え用に、この語らいを既読にした
+            // 時刻を記録する（2026-09-02追加）。
+            ref
+                .read(conversationPrefsRepositoryProvider)
+                .setLastRead(
+                  userId: currentUser.userId,
+                  conversationId: dm.dmId,
+                ),
+          ]);
+        },
         messageIds: messageIds,
         fetchMessage: (id) => dmRepository.getMessage(
           dmId: dm.dmId,
@@ -1916,12 +1930,24 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
         room: currentRoom,
       ),
       onMarkRead: (messageIds) => _afterMutation(
-        () => groupRepository.markRoomMessagesRead(
-          groupId: group.groupId,
-          roomId: roomId,
-          userId: currentUser.userId,
-          messageIds: messageIds,
-        ),
+        () async {
+          await Future.wait([
+            groupRepository.markRoomMessagesRead(
+              groupId: group.groupId,
+              roomId: roomId,
+              userId: currentUser.userId,
+              messageIds: messageIds,
+            ),
+            // 語らい一覧の「未読優先」並べ替え用に、この語らいを既読にした
+            // 時刻を記録する（2026-09-02追加）。
+            ref
+                .read(conversationPrefsRepositoryProvider)
+                .setLastRead(
+                  userId: currentUser.userId,
+                  conversationId: group.groupId,
+                ),
+          ]);
+        },
         messageIds: messageIds,
         fetchMessage: (id) => groupRepository.getRoomMessage(
           groupId: group.groupId,
@@ -2437,6 +2463,18 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
             groupId: widget.group.groupId,
             userId: widget.currentUser.userId,
           );
+        case _GroupMenuAction.openGroupSettings:
+          // 複数モードの広場の設定一式（プロフィールカード・メンバー一覧・
+          // 招待リンク・ロール管理・広場削除）は、広い画面ではサイドバーの
+          // 歯車アイコンから開けるが、狭い画面（RoomTabBar使用）にはその
+          // サイドバー自体が無いため、ハンバーガーメニューからも同じ
+          // ダイアログを開けるようにする（2026-09-02追加）。
+          showGroupSettingsDialog(
+            context,
+            currentUser: widget.currentUser,
+            group: widget.group,
+            isGlass: ref.read(appUiStyleProvider) == AppUiStyle.glass,
+          );
       }
     }
 
@@ -2520,6 +2558,15 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
                   value: _GroupMenuAction.enableMultipleRooms,
                 ),
               if (widget.group.roomsEnabled) ...[
+                // 複数モードの本来の設定移設先はサイドバーの歯車アイコン
+                // （`talks_tab.dart`のRoomListPane）だが、狭い画面には
+                // サイドバー自体が無いため、ここからも同じダイアログを
+                // 開けるようにする（2026-09-02追加）。
+                _MenuTile(
+                  label: strings.groupMenuOpenSettings,
+                  foreground: foreground,
+                  value: _GroupMenuAction.openGroupSettings,
+                ),
                 // 複数モードでは、通知・既読・ロール優先順位の寄合固有設定は
                 // 「この寄合独自の設定」がオンの間だけ表示する
                 // （2026-07-29変更、広場全体の既定値は`GroupSettingsPopup`

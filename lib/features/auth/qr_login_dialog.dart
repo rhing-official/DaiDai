@@ -5,7 +5,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
 import '../../l10n/strings.dart';
+import '../../models/app_ui_style.dart';
+import '../../providers/app_ui_style_provider.dart';
 import '../../providers/repository_providers.dart';
+import '../../widgets/glass/glass_dialog.dart';
 
 /// QRコードログイン（未ログイン端末側、2026-08-09追加）。開くとすぐに
 /// `qrLoginSessions`にpendingなセッションを作成してQRコードを表示し、
@@ -106,19 +109,23 @@ class _QrLoginDialogState extends ConsumerState<QrLoginDialog> {
   Widget build(BuildContext context) {
     final strings = ref.watch(appStringsProvider);
     final sessionId = _sessionId;
-    return AlertDialog(
-      title: Text(strings.qrLoginDialogTitle),
-      content: SizedBox(
-        width: 280,
-        child: _buildBody(context, strings, sessionId),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(false),
-          child: Text(strings.cancel),
-        ),
-      ],
+    final isGlass = ref.watch(appUiStyleProvider) == AppUiStyle.glass;
+
+    final title = Text(strings.qrLoginDialogTitle);
+    final content = SizedBox(
+      width: 280,
+      child: _buildBody(context, strings, sessionId),
     );
+    final actions = [
+      TextButton(
+        onPressed: () => Navigator.of(context).pop(false),
+        child: Text(strings.cancel),
+      ),
+    ];
+
+    return isGlass
+        ? GlassAlertDialog(title: title, content: content, actions: actions)
+        : AlertDialog(title: title, content: content, actions: actions);
   }
 
   Widget _buildBody(BuildContext context, Strings strings, String? sessionId) {

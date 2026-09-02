@@ -5,10 +5,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../l10n/strings.dart';
+import '../../models/app_ui_style.dart';
 import '../../models/group.dart';
 import '../../models/group_profile_card.dart';
+import '../../providers/app_ui_style_provider.dart';
 import '../../providers/repository_providers.dart';
 import '../../utils/auto_dismiss_banner.dart';
+import '../../widgets/glass/glass_dialog.dart';
 
 /// 広場のプロフィールカード（1枚のみ）を作成・編集するポップアップの中身。
 /// メンバー全員が編集できる（個人の工房カードと異なり、蔵の素材を参照せず
@@ -153,17 +156,21 @@ class _GroupProfileCardPopupState extends ConsumerState<GroupProfileCardPopup> {
       baseOffset: 0,
       extentOffset: currentValue.length,
     );
+    final isGlass = ref.read(appUiStyleProvider) == AppUiStyle.glass;
     await showDialog<void>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(label),
-        content: TextField(
+      builder: (context) {
+        final title = Text(label);
+        final content = TextField(
           controller: _editController,
           autofocus: true,
           maxLength: maxLength,
           onSubmitted: (_) => Navigator.of(context).pop(),
-        ),
-      ),
+        );
+        return isGlass
+            ? GlassAlertDialog(title: title, content: content)
+            : AlertDialog(title: title, content: content);
+      },
     );
     final newValue = _editController.text.trim();
     if (newValue == currentValue) return;

@@ -3,7 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../l10n/strings.dart';
+import '../../models/app_ui_style.dart';
+import '../../providers/app_ui_style_provider.dart';
 import '../../providers/repository_providers.dart';
+import '../../widgets/glass/glass_dialog.dart';
 
 /// 広場からの退会確認ダイアログ。確認後、退会してホームへ戻る。
 class GroupLeaveDialog extends ConsumerStatefulWidget {
@@ -61,39 +64,42 @@ class _GroupLeaveDialogState extends ConsumerState<GroupLeaveDialog> {
   @override
   Widget build(BuildContext context) {
     final strings = ref.watch(appStringsProvider);
+    final isGlass = ref.watch(appUiStyleProvider) == AppUiStyle.glass;
 
-    return AlertDialog(
-      title: Text(strings.groupLeaveConfirmTitle),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(strings.groupLeaveConfirmMessage),
-          if (_errorMessage != null) ...[
-            const SizedBox(height: 8),
-            Text(_errorMessage!, style: const TextStyle(color: Colors.red)),
-          ],
+    final title = Text(strings.groupLeaveConfirmTitle);
+    final content = Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(strings.groupLeaveConfirmMessage),
+        if (_errorMessage != null) ...[
+          const SizedBox(height: 8),
+          Text(_errorMessage!, style: const TextStyle(color: Colors.red)),
         ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: _leaving ? null : () => Navigator.of(context).pop(),
-          child: Text(strings.cancel),
-        ),
-        FilledButton(
-          onPressed: _leaving ? null : _leave,
-          style: FilledButton.styleFrom(
-            backgroundColor: Theme.of(context).colorScheme.error,
-          ),
-          child: _leaving
-              ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : Text(strings.groupLeaveButton),
-        ),
       ],
     );
+    final actions = [
+      TextButton(
+        onPressed: _leaving ? null : () => Navigator.of(context).pop(),
+        child: Text(strings.cancel),
+      ),
+      FilledButton(
+        onPressed: _leaving ? null : _leave,
+        style: FilledButton.styleFrom(
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+        child: _leaving
+            ? const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : Text(strings.groupLeaveButton),
+      ),
+    ];
+
+    return isGlass
+        ? GlassAlertDialog(title: title, content: content, actions: actions)
+        : AlertDialog(title: title, content: content, actions: actions);
   }
 }

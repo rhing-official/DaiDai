@@ -137,7 +137,13 @@ class Strings {
     required this.conversationUnmute,
     required this.conversationBlock,
     required this.conversationUnblock,
+    required this.conversationSortRecent,
+    required this.conversationSortKana,
+    required this.conversationSortUnreadFirst,
     required this.conversationBlockedCannotSend,
+    required this.talksListPreviewImage,
+    required this.talksListPreviewVideo,
+    required this.talksListPreviewFile,
     required this.conversationReadReceiptsDisable,
     required this.conversationReadReceiptsEnable,
     required this.conversationReadReceiptsDisableConfirmTitle,
@@ -265,6 +271,7 @@ class Strings {
     required this.groupMenuMemberList,
     required this.groupMenuCreateInvite,
     required this.groupMenuManageRoles,
+    required this.groupMenuOpenSettings,
     required this.groupMenuLeave,
     required this.groupRoleListEmpty,
     required this.groupRoleCreateDialogTitle,
@@ -570,7 +577,16 @@ class Strings {
   final String conversationUnmute;
   final String conversationBlock;
   final String conversationUnblock;
+  final String conversationSortRecent;
+  final String conversationSortKana;
+  final String conversationSortUnreadFirst;
   final String conversationBlockedCannotSend;
+
+  /// 語らい一覧の最新メッセージプレビューで、画像/動画/ファイル添付
+  /// メッセージを表す簡易ラベル（2026-09-02追加）。
+  final String talksListPreviewImage;
+  final String talksListPreviewVideo;
+  final String talksListPreviewFile;
   final String conversationReadReceiptsDisable;
   final String conversationReadReceiptsEnable;
   final String conversationReadReceiptsDisableConfirmTitle;
@@ -712,6 +728,7 @@ class Strings {
   final String groupMenuMemberList;
   final String groupMenuCreateInvite;
   final String groupMenuManageRoles;
+  final String groupMenuOpenSettings;
   final String groupMenuLeave;
 
   final String groupRoleListEmpty;
@@ -1148,7 +1165,13 @@ class Strings {
     conversationUnmute: '通知オン',
     conversationBlock: 'ブロック',
     conversationUnblock: 'ブロック解除',
+    conversationSortRecent: '最近会話した順',
+    conversationSortKana: '五十音順',
+    conversationSortUnreadFirst: '未読優先',
     conversationBlockedCannotSend: 'ブロック中のため送信できません',
+    talksListPreviewImage: '[画像]',
+    talksListPreviewVideo: '[動画]',
+    talksListPreviewFile: '[ファイル]',
     conversationReadReceiptsDisable: '既読オフ',
     conversationReadReceiptsEnable: '既読オン',
     conversationReadReceiptsDisableConfirmTitle: '既読機能をオフにしますか？',
@@ -1282,6 +1305,7 @@ class Strings {
     groupMenuMemberList: 'メンバー一覧',
     groupMenuCreateInvite: '招待リンク作成',
     groupMenuManageRoles: 'ロール管理',
+    groupMenuOpenSettings: '広場自体の設定',
     groupMenuLeave: '退会',
     groupRoleListEmpty: 'まだロールがありません',
     groupRoleCreateDialogTitle: 'ロールを追加',
@@ -1616,7 +1640,13 @@ class Strings {
     conversationUnmute: 'Unmute notifications',
     conversationBlock: 'Block',
     conversationUnblock: 'Unblock',
+    conversationSortRecent: 'Most recent',
+    conversationSortKana: 'Alphabetical',
+    conversationSortUnreadFirst: 'Unread first',
     conversationBlockedCannotSend: "You can't send messages while blocked",
+    talksListPreviewImage: '[Photo]',
+    talksListPreviewVideo: '[Video]',
+    talksListPreviewFile: '[File]',
     conversationReadReceiptsDisable: 'Turn off read receipts',
     conversationReadReceiptsEnable: 'Turn on read receipts',
     conversationReadReceiptsDisableConfirmTitle: 'Turn off read receipts?',
@@ -1767,6 +1797,7 @@ class Strings {
     groupMenuMemberList: 'Member list',
     groupMenuCreateInvite: 'Create invite link',
     groupMenuManageRoles: 'Manage roles',
+    groupMenuOpenSettings: 'Group settings',
     groupMenuLeave: 'Leave',
     groupRoleListEmpty: 'No roles yet',
     groupRoleCreateDialogTitle: 'Add role',

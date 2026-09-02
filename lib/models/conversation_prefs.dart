@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 /// 一対・広場に対する個人的な表示設定（`users/{userId}/conversationPrefs/{conversationId}`）。
 /// conversationIdはdmIdまたはgroupId。相手には一切公開されない。
 class ConversationPrefs {
@@ -6,10 +8,24 @@ class ConversationPrefs {
     this.notificationsMuted = false,
     this.roomNotificationOverrides = const {},
     this.draftByRoom = const {},
+    this.lastReadAt,
+    this.unreadCount = 0,
   });
 
   final bool pinned;
   final bool notificationsMuted;
+
+  /// 自分がこの語らいを最後に開いて既読を付けた時刻。語らい一覧の
+  /// 「未読優先」並べ替えで、`DirectMessage`/`Group`の`lastMessageAt`と
+  /// 比較して未読かどうかを判定するために使う（2026-09-02追加）。
+  final Timestamp? lastReadAt;
+
+  /// 未読メッセージ件数（語らい一覧のバッジ表示用、2026-09-02追加）。
+  /// 相手からのメッセージ受信時にCloud Functions
+  /// （`functions/src/index.ts`の`onDmMessageCreated`/`onGroupMessageCreated`）
+  /// が加算し、自分がこの語らいを開いて既読を付けたタイミング
+  /// （[ConversationPrefsRepository.setLastRead]）で0にリセットされる。
+  final int unreadCount;
 
   /// 広場の寄合ごとの通知オフの上書き（roomId→muted）。対象の寄合が
   /// `Room.customSettingsEnabled`の間のみ参照され、[notificationsMuted]
@@ -28,6 +44,8 @@ class ConversationPrefs {
     bool? notificationsMuted,
     Map<String, bool>? roomNotificationOverrides,
     Map<String, String>? draftByRoom,
+    Timestamp? lastReadAt,
+    int? unreadCount,
   }) {
     return ConversationPrefs(
       pinned: pinned ?? this.pinned,
@@ -35,6 +53,8 @@ class ConversationPrefs {
       roomNotificationOverrides:
           roomNotificationOverrides ?? this.roomNotificationOverrides,
       draftByRoom: draftByRoom ?? this.draftByRoom,
+      lastReadAt: lastReadAt ?? this.lastReadAt,
+      unreadCount: unreadCount ?? this.unreadCount,
     );
   }
 
@@ -49,6 +69,8 @@ class ConversationPrefs {
       draftByRoom: (json['draftByRoom'] as Map? ?? const {}).map(
         (key, value) => MapEntry(key as String, value as String),
       ),
+      lastReadAt: json['lastReadAt'] as Timestamp?,
+      unreadCount: json['unreadCount'] as int? ?? 0,
     );
   }
 
@@ -58,6 +80,8 @@ class ConversationPrefs {
       'notificationsMuted': notificationsMuted,
       'roomNotificationOverrides': roomNotificationOverrides,
       'draftByRoom': draftByRoom,
+      'lastReadAt': lastReadAt,
+      'unreadCount': unreadCount,
     };
   }
 }

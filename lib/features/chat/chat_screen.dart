@@ -61,13 +61,14 @@ import '../../widgets/gekiga/gekiga_icon_badge.dart';
 import '../../widgets/gekiga/gekiga_panel_box.dart';
 import '../../widgets/gekiga/gekiga_photo_frame.dart';
 import '../../widgets/glass/glass_app_bar.dart';
+import '../../widgets/glass/glass_dialog.dart';
 import '../../widgets/glass/glass_icon_badge.dart';
 import '../../widgets/glass/glass_surface.dart';
 import '../../widgets/link_preview_card.dart';
 import '../../widgets/linkified_editing_controller.dart';
 import '../../widgets/linkified_text.dart';
 import '../../widgets/swipe_gestures.dart'
-    show SwipeDownToDismiss, kSwipeGestureVelocityThreshold;
+    show PinchPriorityPageView, kSwipeGestureVelocityThreshold;
 import '../../widgets/video_thumbnail.dart';
 
 /// 劇画UIの吹き出し・入力欄の枠取りの太さ（[MonochromeBoxPainter]の
@@ -866,15 +867,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   Future<void> _confirmDeleteSelected() async {
     final strings = ref.read(appStringsProvider);
+    final isGlass = ref.read(appUiStyleProvider) == AppUiStyle.glass;
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        // 横幅いっぱいに広がって縦に詰まって見えないよう幅を制限する
-        // （2026-08-21、`group_delete_dialog.dart`と同じパターン）。
-        constraints: const BoxConstraints(maxWidth: 400),
-        title: Text(strings.chatDeleteConfirmTitle),
-        content: Text(strings.chatDeleteConfirmMessage),
-        actions: [
+      builder: (context) {
+        final title = Text(strings.chatDeleteConfirmTitle);
+        final content = Text(strings.chatDeleteConfirmMessage);
+        final actions = [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
             child: Text(strings.cancel),
@@ -890,8 +889,25 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             onPressed: () => Navigator.of(context).pop(true),
             child: Text(strings.chatDeleteConfirmButton),
           ),
-        ],
-      ),
+        ];
+        // 横幅いっぱいに広がって縦に詰まって見えないよう幅を制限する
+        // （2026-08-21、`group_delete_dialog.dart`と同じパターン）。
+        return isGlass
+            ? ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 400),
+                child: GlassAlertDialog(
+                  title: title,
+                  content: content,
+                  actions: actions,
+                ),
+              )
+            : AlertDialog(
+                constraints: const BoxConstraints(maxWidth: 400),
+                title: title,
+                content: content,
+                actions: actions,
+              );
+      },
     );
     if (confirmed != true) return;
     final ids = _selectedMessageIds.toList();
@@ -905,41 +921,47 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// 余地を残すため即座に[_exitScreenshotSelection]しない）。
   Future<void> _confirmScreenshotSelected() async {
     final strings = ref.read(appStringsProvider);
+    final isGlass = ref.read(appUiStyleProvider) == AppUiStyle.glass;
     var blur = false;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => CallbackShortcuts(
-          // Enterキーで「撮影する」を実行できるようにする（2026-08-09追加）。
-          bindings: {
-            const SingleActivator(LogicalKeyboardKey.enter): () =>
-                Navigator.of(context).pop(true),
-          },
-          child: Focus(
-            autofocus: true,
-            child: AlertDialog(
-              title: Text(strings.chatScreenshotDialogTitle),
-              content: CheckboxListTile(
-                contentPadding: EdgeInsets.zero,
-                controlAffinity: ListTileControlAffinity.leading,
-                value: blur,
-                title: Text(strings.chatScreenshotBlurCheckboxLabel),
-                onChanged: (value) =>
-                    setDialogState(() => blur = value ?? false),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(false),
-                  child: Text(strings.cancel),
-                ),
-                FilledButton(
-                  onPressed: () => Navigator.of(context).pop(true),
-                  child: Text(strings.chatScreenshotConfirmButton),
-                ),
-              ],
+        builder: (context, setDialogState) {
+          final title = Text(strings.chatScreenshotDialogTitle);
+          final content = CheckboxListTile(
+            contentPadding: EdgeInsets.zero,
+            controlAffinity: ListTileControlAffinity.leading,
+            value: blur,
+            title: Text(strings.chatScreenshotBlurCheckboxLabel),
+            onChanged: (value) => setDialogState(() => blur = value ?? false),
+          );
+          final actions = [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: Text(strings.cancel),
             ),
-          ),
-        ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: Text(strings.chatScreenshotConfirmButton),
+            ),
+          ];
+          final dialog = isGlass
+              ? GlassAlertDialog(
+                  title: title,
+                  content: content,
+                  actions: actions,
+                )
+              : AlertDialog(title: title, content: content, actions: actions);
+
+          return CallbackShortcuts(
+            // Enterキーで「撮影する」を実行できるようにする（2026-08-09追加）。
+            bindings: {
+              const SingleActivator(LogicalKeyboardKey.enter): () =>
+                  Navigator.of(context).pop(true),
+            },
+            child: Focus(autofocus: true, child: dialog),
+          );
+        },
       ),
     );
     if (confirmed != true) return;
@@ -3575,7 +3597,7 @@ class _MessageRow extends ConsumerWidget {
                       onReply: () => onReply?.call(message),
                       onEdit: canEdit ? () => onEdit?.call(message) : null,
                       onUnsend: (isMe && onUnsend != null)
-                          ? () => _confirmUnsend(context, strings)
+                          ? () => _confirmUnsend(context, ref, strings)
                           : null,
                       onReact: onSetReaction == null ? null : _toggleMyReaction,
                       isPinned: pinnedMessageIds.contains(message.messageId),
@@ -4079,7 +4101,8 @@ class _MessageRow extends ConsumerWidget {
                         backgroundColor: Colors.red.shade700,
                         foregroundColor: Colors.white,
                       ),
-                onPressed: () => _confirmDeleteConversation(context, strings),
+                onPressed: () =>
+                    _confirmDeleteConversation(context, ref, strings),
                 child: Text(strings.chatAccountDeletedYesButton),
               ),
             ],
@@ -4091,13 +4114,15 @@ class _MessageRow extends ConsumerWidget {
 
   Future<void> _confirmDeleteConversation(
     BuildContext context,
+    WidgetRef ref,
     Strings strings,
   ) async {
+    final isGlass = ref.read(appUiStyleProvider) == AppUiStyle.glass;
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(strings.chatAccountDeletedConfirmTitle),
-        actions: [
+      builder: (context) {
+        final title = Text(strings.chatAccountDeletedConfirmTitle);
+        final actions = [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
             child: Text(strings.cancel),
@@ -4114,8 +4139,11 @@ class _MessageRow extends ConsumerWidget {
             onPressed: () => Navigator.of(context).pop(true),
             child: Text(strings.chatAccountDeletedConfirmButton),
           ),
-        ],
-      ),
+        ];
+        return isGlass
+            ? GlassAlertDialog(title: title, actions: actions)
+            : AlertDialog(title: title, actions: actions);
+      },
     );
     if (confirmed == true) await onDeleteAfterAccountDeletion?.call();
   }
@@ -4238,16 +4266,18 @@ class _MessageRow extends ConsumerWidget {
     );
   }
 
-  Future<void> _confirmUnsend(BuildContext context, Strings strings) async {
+  Future<void> _confirmUnsend(
+    BuildContext context,
+    WidgetRef ref,
+    Strings strings,
+  ) async {
+    final isGlass = ref.read(appUiStyleProvider) == AppUiStyle.glass;
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        // 横幅いっぱいに広がって縦に詰まって見えないよう幅を制限する
-        // （2026-08-21、`_confirmDeleteSelected`と同じパターン）。
-        constraints: const BoxConstraints(maxWidth: 400),
-        title: Text(strings.chatUnsendConfirmTitle),
-        content: Text(strings.chatUnsendConfirmMessage),
-        actions: [
+      builder: (context) {
+        final title = Text(strings.chatUnsendConfirmTitle);
+        final content = Text(strings.chatUnsendConfirmMessage);
+        final actions = [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
             child: Text(strings.cancel),
@@ -4263,8 +4293,25 @@ class _MessageRow extends ConsumerWidget {
             onPressed: () => Navigator.of(context).pop(true),
             child: Text(strings.chatUnsendConfirmButton),
           ),
-        ],
-      ),
+        ];
+        // 横幅いっぱいに広がって縦に詰まって見えないよう幅を制限する
+        // （2026-08-21、`_confirmDeleteSelected`と同じパターン）。
+        return isGlass
+            ? ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 400),
+                child: GlassAlertDialog(
+                  title: title,
+                  content: content,
+                  actions: actions,
+                ),
+              )
+            : AlertDialog(
+                constraints: const BoxConstraints(maxWidth: 400),
+                title: title,
+                content: content,
+                actions: actions,
+              );
+      },
     );
     if (confirmed == true) onUnsend?.call(message.messageId);
   }
@@ -5018,28 +5065,26 @@ class _MediaViewerScreenState extends State<_MediaViewerScreen> {
               );
             }
           },
-          child: SwipeDownToDismiss(
+          child: PinchPriorityPageView(
+            controller: _pageController,
             onDismiss: () => Navigator.of(context).pop(),
-            child: PageView.builder(
-              controller: _pageController,
-              itemCount: widget.mediaMessages.length,
-              onPageChanged: (index) => setState(() => _currentIndex = index),
-              itemBuilder: (context, index) {
-                final message = widget.mediaMessages[index];
-                final url = message.fileMetadata?.url ?? '';
-                if (message.contentType == 'video') {
-                  return _VideoViewerPage(
-                    key: _videoPageKeys.putIfAbsent(
-                      message.messageId,
-                      GlobalKey<_VideoViewerPageState>.new,
-                    ),
-                    url: url,
-                    autoPlay: index == _safeInitialIndex,
-                  );
-                }
-                return _ImageViewerPage(url: url);
-              },
-            ),
+            itemCount: widget.mediaMessages.length,
+            onPageChanged: (index) => setState(() => _currentIndex = index),
+            itemBuilder: (context, index) {
+              final message = widget.mediaMessages[index];
+              final url = message.fileMetadata?.url ?? '';
+              if (message.contentType == 'video') {
+                return _VideoViewerPage(
+                  key: _videoPageKeys.putIfAbsent(
+                    message.messageId,
+                    GlobalKey<_VideoViewerPageState>.new,
+                  ),
+                  url: url,
+                  autoPlay: index == _safeInitialIndex,
+                );
+              }
+              return _ImageViewerPage(url: url);
+            },
           ),
         ),
       ),

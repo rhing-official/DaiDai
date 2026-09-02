@@ -48,26 +48,100 @@ class SwipeBackDetector extends StatelessWidget {
 }
 
 /// 下方向への縦スワイプで[onDismiss]を呼ぶ。ポップアップ（Dialog）を
-/// 下にスライドして閉じる操作に使う。
+/// 下にスライドして閉じる操作に使う。[enabled]をfalseにすると縦スワイプの
+/// 検出自体を止める（[PinchPriorityPageView]がピンチ操作中に使う、
+/// 2026-09-02追加）。
 class SwipeDownToDismiss extends StatelessWidget {
   const SwipeDownToDismiss({
     required this.onDismiss,
     required this.child,
+    this.enabled = true,
     super.key,
   });
 
   final VoidCallback onDismiss;
   final Widget child;
+  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       behavior: HitTestBehavior.translucent,
-      onVerticalDragEnd: (details) {
-        final velocity = details.primaryVelocity ?? 0;
-        if (velocity >= kSwipeGestureVelocityThreshold) onDismiss();
-      },
+      onVerticalDragEnd: !enabled
+          ? null
+          : (details) {
+              final velocity = details.primaryVelocity ?? 0;
+              if (velocity >= kSwipeGestureVelocityThreshold) onDismiss();
+            },
       child: child,
+    );
+  }
+}
+
+/// 画像/動画のフルスクリーンビューアで`PageView`（横スワイプでページ送り）と
+/// `InteractiveViewer`（ピンチズーム）を重ねると、ジェスチャーアリーナの
+/// 勝敗判定が確定するまでピンチが`InteractiveViewer`に渡らず、「反応が遅く
+/// 後から一気にズームインする」「画像の外側でピンチしても反応しない」ように
+/// 見える不具合が起きる（2026-09-02判明）。2本指（ピンチ）が画面に触れている
+/// 間は`PageView`のページ送り・[onDismiss]の下スワイプ検出そのものを止め、
+/// `InteractiveViewer`のスケール認識と競合しないようにする。
+class PinchPriorityPageView extends StatefulWidget {
+  const PinchPriorityPageView({
+    required this.controller,
+    required this.itemCount,
+    required this.itemBuilder,
+    this.onPageChanged,
+    this.onDismiss,
+    super.key,
+  });
+
+  final PageController controller;
+  final int itemCount;
+  final IndexedWidgetBuilder itemBuilder;
+  final ValueChanged<int>? onPageChanged;
+
+  /// nullなら[SwipeDownToDismiss]自体でラップしない（アルバムビューアのように
+  /// 下スワイプで閉じる操作を持たない画面向け）。
+  final VoidCallback? onDismiss;
+
+  @override
+  State<PinchPriorityPageView> createState() => _PinchPriorityPageViewState();
+}
+
+class _PinchPriorityPageViewState extends State<PinchPriorityPageView> {
+  int _pointerCount = 0;
+
+  void _incrementPointer(PointerDownEvent _) {
+    setState(() => _pointerCount++);
+  }
+
+  void _decrementPointer(PointerEvent _) {
+    if (_pointerCount == 0) return;
+    setState(() => _pointerCount--);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isMultiTouch = _pointerCount >= 2;
+    final pageView = PageView.builder(
+      controller: widget.controller,
+      physics: isMultiTouch ? const NeverScrollableScrollPhysics() : null,
+      onPageChanged: widget.onPageChanged,
+      itemCount: widget.itemCount,
+      itemBuilder: widget.itemBuilder,
+    );
+    return Listener(
+      behavior: HitTestBehavior.translucent,
+      onPointerDown: _incrementPointer,
+      onPointerUp: _decrementPointer,
+      onPointerCancel: _decrementPointer,
+      child: widget.onDismiss == null
+          ? pageView
+          : SwipeDownToDismiss(
+              onDismiss: widget.onDismiss!,
+              enabled: !isMultiTouch,
+              child: pageView,
+            ),
     );
   }
 }

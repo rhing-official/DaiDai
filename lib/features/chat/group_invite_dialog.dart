@@ -7,8 +7,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
 import '../../l10n/strings.dart';
+import '../../models/app_ui_style.dart';
 import '../../models/group_profile_card.dart';
+import '../../providers/app_ui_style_provider.dart';
 import '../../utils/web_link.dart';
+import '../../widgets/glass/glass_dialog.dart';
 
 /// 広場への招待リンク・QRコードを表示するダイアログ。縁結び（個人の招待リンク）
 /// と同じ考え方で、リンクをコピーできるほか、外部SNSにリンクを貼ってもカードが
@@ -73,50 +76,52 @@ class GroupInviteDialog extends ConsumerWidget {
     final strings = ref.watch(appStringsProvider);
     final link = buildWebLink('/join/$groupId/$cacheBust');
     final colorScheme = Theme.of(context).colorScheme;
+    final isGlass = ref.watch(appUiStyleProvider) == AppUiStyle.glass;
 
-    return AlertDialog(
-      title: Text(strings.groupInviteDialogTitle),
-      content: SizedBox(
-        width: 320,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(strings.groupInviteDialogDescription),
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                border: Border.all(color: colorScheme.outlineVariant),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                children: [
-                  Expanded(child: SelectableText(link, maxLines: 1)),
-                  IconButton(
-                    icon: const Icon(Icons.copy_outlined),
-                    onPressed: () {
-                      Clipboard.setData(ClipboardData(text: link));
-                    },
-                  ),
-                ],
-              ),
+    final title = Text(strings.groupInviteDialogTitle);
+    final content = SizedBox(
+      width: 320,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(strings.groupInviteDialogDescription),
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              border: Border.all(color: colorScheme.outlineVariant),
+              borderRadius: BorderRadius.circular(8),
             ),
-            const SizedBox(height: 16),
-            Center(
-              child: Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: colorScheme.outlineVariant),
+            child: Row(
+              children: [
+                Expanded(child: SelectableText(link, maxLines: 1)),
+                IconButton(
+                  icon: const Icon(Icons.copy_outlined),
+                  onPressed: () {
+                    Clipboard.setData(ClipboardData(text: link));
+                  },
                 ),
-                child: QrImageView(data: link, size: 180),
-              ),
+              ],
             ),
-          ],
-        ),
+          ),
+          const SizedBox(height: 16),
+          Center(
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: colorScheme.outlineVariant),
+              ),
+              child: QrImageView(data: link, size: 180),
+            ),
+          ),
+        ],
       ),
     );
+    return isGlass
+        ? GlassAlertDialog(title: title, content: content)
+        : AlertDialog(title: title, content: content);
   }
 }

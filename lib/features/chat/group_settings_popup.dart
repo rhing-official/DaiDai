@@ -22,6 +22,48 @@ import 'group_member_list_screen.dart';
 import 'group_profile_card_screen.dart';
 import 'group_role_list_popup.dart';
 
+/// [GroupSettingsPopup]をガラスUI対応のダイアログでラップして開く
+/// （2026-09-02、サイドバーの歯車アイコン（`talks_tab.dart`）に加え、狭い
+/// 画面のハンバーガーメニュー（`chat_panes.dart`の`_GroupMenuButton`）からも
+/// 同じ開き方を再利用できるよう切り出した）。
+Future<void> showGroupSettingsDialog(
+  BuildContext context, {
+  required AppUser currentUser,
+  required Group group,
+  required bool isGlass,
+}) {
+  return showDialog<void>(
+    context: context,
+    // 「自分のプロフィールカード」の項目は蔵が複数ある時だけ増える
+    // （GroupSettingsPopup参照）ため、固定の高さ1つでは項目がある時に
+    // 一覧の下端が僅かに入りきらなかった（2026-08-12修正、有無で高さを
+    // 2種類使い分ける）。
+    builder: (_) {
+      final constrained = ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: 420,
+          maxHeight: currentUser.profileCards.length > 1 ? 696 : 640,
+        ),
+        child: GroupSettingsPopup(currentUser: currentUser, group: group),
+      );
+      // ガラステーマはdialogThemeの背景を透明にしている（`GlassAlertDialog`
+      // が自前でGlassSurfaceをラップする前提の設計）ため、素の`Dialog`の
+      // ままだと背景が完全に透明になっていた（2026-08-30修正）。
+      return isGlass
+          ? Dialog(
+              backgroundColor: Colors.transparent,
+              elevation: 0,
+              child: GlassSurface(
+                variant: GlassVariant.floating,
+                borderRadius: BorderRadius.circular(24),
+                child: constrained,
+              ),
+            )
+          : Dialog(child: constrained);
+    },
+  );
+}
+
 /// 広場全体の設定をまとめたポップアップ（2026-07-29追加）。サイドバー
 /// （`RoomListPane`）ヘッダーの歯車アイコンから開く。以前は寄合の
 /// ハンバーガーメニューに置かれていたプロフィールカード・メンバー一覧・
@@ -32,6 +74,10 @@ import 'group_role_list_popup.dart';
 /// 単一モード（`Group.roomsEnabled == false`）の広場はサイドバー自体が
 /// 無くこのポップアップを開けないため、例外的に全ての設定を寄合の
 /// ハンバーガーメニューに残している（`_GroupMenuButton`のroomsEnabled分岐）。
+/// ただし狭い画面（`RoomTabBar`使用）は複数モードでもサイドバー自体を
+/// 持たないため、[showGroupSettingsDialog]を`_GroupMenuButton`からも呼べる
+/// ようにしている（2026-09-02、モバイルで複数寄合時に広場設定へ到達できない
+/// 不具合の修正）。
 class GroupSettingsPopup extends ConsumerWidget {
   const GroupSettingsPopup({
     required this.currentUser,

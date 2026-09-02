@@ -19,6 +19,7 @@ class AppUserPreferences {
     this.messageTimeFormat,
     this.appUiStyle,
     this.customAccentColorsArgb,
+    this.conversationSortOrder,
   });
 
   static const empty = AppUserPreferences();
@@ -38,6 +39,9 @@ class AppUserPreferences {
   /// とは別に、繰り返し使うために保存した色。2026-08-29追加）。
   final List<int>? customAccentColorsArgb;
 
+  /// 語らい一覧の並べ替え順（`ConversationSortOrder`のname、2026-09-02追加）。
+  final String? conversationSortOrder;
+
   factory AppUserPreferences.fromJson(Map<String, dynamic>? json) {
     if (json == null) return empty;
     return AppUserPreferences(
@@ -54,6 +58,7 @@ class AppUserPreferences {
       customAccentColorsArgb: (json['customAccentColorsArgb'] as List<dynamic>?)
           ?.map((e) => e as int)
           .toList(),
+      conversationSortOrder: json['conversationSortOrder'] as String?,
     );
   }
 
@@ -72,6 +77,8 @@ class AppUserPreferences {
       if (appUiStyle != null) 'appUiStyle': appUiStyle,
       if (customAccentColorsArgb != null)
         'customAccentColorsArgb': customAccentColorsArgb,
+      if (conversationSortOrder != null)
+        'conversationSortOrder': conversationSortOrder,
     };
   }
 }
