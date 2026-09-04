@@ -474,6 +474,8 @@ DaiDaiは独自の世界観用語を使う。変数名・クラス名・コレ�
 
 - **マテリアルに影（`boxShadow`等）を一切使わない**（2026-08-29決定）。`GlassSurface`（`lib/widgets/glass/glass_surface.dart`）に影を描く仕組み自体が無く、面の境界は縁ストローク（`enableEdgeStroke`、`BorderRadius.zero`の全面パネルでは直線が不要な線に見えるため無効化）と`BackdropFilter`によるぼかし（`chrome`/`floating`バリアント）のみで表現する。同色の背景に全面パネルが溶け込んで見えないようにするには、`card`（ぼかし無し）ではなく`chrome`/`floating`を選ぶこと。**唯一の例外**（2026-08-30追加）: ハンバーガーメニューのアイコンのみ、ユーザー指示により影を残す（`GlassIconBadge`の`shadow`パラメータ、`GlassSurface`自体には手を入れずバッジの外側にのみ`DecoratedBox`で乗せている）。他の要素へ同様の影を追加依頼された場合も、無断で全体方針を崩さずこのバッジ単位のオプトインパターンを踏襲すること。
 - ガラスUIの文字・アイコン色は`GlassTheme`が生成する`ColorScheme`の`onSurface`/`onSurfaceVariant`を`GlassColors.lightForeground`/`darkForeground`（アクセントカラー非依存の固定色）に上書き済み。`ColorScheme.fromSeed`任せにすると選んだアクセントカラーの色相が文字色に乗り視認性が落ちるため、個別ファイルではなくテーマ側で一括固定する方針。
+- **色使い・ボタン配置・形状はフラットUIと共通にする**（2026-09-04決定）。透明度・ぼかしなど「見た目」自体はガラス独自でよいが、どの要素にどの色（アクセント追従か中立色か）を使うか、ボタンの並び順・寄せ方、角丸半径等の形状は原則フラットUIと揃える。この方針に基づき、チャット画面のタスクバナー（`lib/features/chat/task_banner.dart`）がガラス時だけ中立色（`colorScheme.onSurface`）でアクセントカラーに追従していなかった問題と、`AlertDialog`/`showModalBottomSheet`の角丸がフラット28dp・ガラス24dpとずれていた問題を修正済み（ダイアログ・ボトムシートの角丸24は`lib/theme/app_theme.dart`の`dialogTheme`/`bottomSheetTheme`に追加し、ガラス側の`GlassAlertDialog`/`showGlassModalBottomSheet`の既存値に揃えた）。
+  - **確認済みの例外（現状維持でよいと判断したもの）**: ガラス専用の背景色パレット（`lib/theme/glass/glass_colors.dart`の`GlassColors`固定値、フラットの`darkBackground`/`darkSurface`等とは別の値）と、通話ボタンのアイコン色を明るさに応じて動的補正する`GlassColors.adaptiveIconColor()`（`lib/features/call/call_controls.dart`等で使用）は、ぼかし越しの視認性確保に必要な「見た目」の一部とみなし、フラットとの統一対象外とする。
 
   
 

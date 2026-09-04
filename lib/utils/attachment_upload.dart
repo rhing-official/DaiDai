@@ -2,7 +2,7 @@ import 'dart:io' show Platform;
 import 'dart:typed_data';
 
 import 'package:firebase_storage/firebase_storage.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show ValueChanged, kIsWeb;
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 
 import '../models/message.dart';
@@ -43,6 +43,7 @@ Future<MessageFileMetadata> uploadMessageAttachment({
   required Uint8List bytes,
   required String fileName,
   required String contentType,
+  ValueChanged<double>? onProgress,
 }) async {
   if (bytes.lengthInBytes > kMaxAttachmentSizeBytes) {
     throw const AttachmentTooLargeException();
@@ -80,7 +81,15 @@ Future<MessageFileMetadata> uploadMessageAttachment({
 
   final path = '$storagePathPrefix/$attachmentId.$extension';
   final ref = storage.ref(path);
-  await ref.putData(uploadBytes, SettableMetadata(contentType: mimeType));
+  final task = ref.putData(uploadBytes, SettableMetadata(contentType: mimeType));
+  if (onProgress != null) {
+    task.snapshotEvents.listen((snapshot) {
+      if (snapshot.totalBytes > 0) {
+        onProgress(snapshot.bytesTransferred / snapshot.totalBytes);
+      }
+    });
+  }
+  await task;
   final url = await ref.getDownloadURL();
 
   return MessageFileMetadata(

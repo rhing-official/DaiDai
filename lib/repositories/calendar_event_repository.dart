@@ -1,6 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart' show debugPrint;
 
 import '../models/calendar_event.dart';
+import '../models/calendar_event_rsvp.dart';
 import '../models/calendar_event_sync.dart';
 
 /// 寄合単位の共有カレンダー機能のRepository（2026-09-01追加）。
@@ -31,20 +33,50 @@ abstract class CalendarEventRepository {
     required bool isAllDay,
     String? location,
     required String createdBy,
+    required bool rsvpEnabled,
+    required bool rsvpPerDay,
+    DateTime? rsvpDeadline,
   });
 
+  /// 単発で1件だけ予定を取得する（存在しなければnull、2026-09-04追加）。
+  /// メッセージ画面の予定追加通知メッセージをタップした際、そのeventIdから
+  /// `CalendarEvent`を取得して出欠確認ポップアップを開くために使う
+  /// （`watchEvents`はその寄合の全件ストリームのみで単発取得手段が無かった）。
+  Future<CalendarEvent?> getEvent({
+    required bool isDm,
+    required String conversationId,
+    required String roomId,
+    required String eventId,
+  });
+
+  /// 予定を編集する（[CalendarEvent.rsvpCount]が0の間のみ、作成者が呼べる。
+  /// firestore.rules参照、2026-09-04追加）。編集可能なフィールドのみを更新し、
+  /// `createdBy`/`createdAt`/`syncedCount`/`rsvpCount`は変更しない。
+  /// 各参加者の`syncStates`を`pending`に戻し、Googleカレンダー側も
+  /// 再同期させる。
   Future<void> updateEvent({
     required bool isDm,
     required String conversationId,
     required String roomId,
     required String eventId,
-    required String updatedBy,
-    String? title,
+    required String title,
     String? description,
-    DateTime? startAt,
+    required DateTime startAt,
     DateTime? endAt,
-    bool? isAllDay,
+    required bool isAllDay,
     String? location,
+    required bool rsvpEnabled,
+    required bool rsvpPerDay,
+    DateTime? rsvpDeadline,
+  });
+
+  /// この寄合の参加者一覧（一対は`participants`、広場は`memberIds`）。
+  /// 出欠回答UIが「まだ回答していない参加者」を割り出すために使う
+  /// （2026-09-02追加、以前はRepository内部専用のprivateメソッドだった）。
+  Future<List<String>> participantIds({
+    required bool isDm,
+    required String conversationId,
+    required String roomId,
   });
 
   /// 予定を削除する。参加者全員の`syncStates`を`pendingDelete`にしてから
@@ -110,6 +142,26 @@ abstract class CalendarEventRepository {
     required String roomId,
     required String eventId,
     required String uid,
+  });
+
+  /// この予定への出欠回答一覧を購読する（出欠状況表示・「未回答」の算出用、
+  /// 2026-09-02追加）。
+  Stream<List<CalendarEventRsvp>> watchRsvps({
+    required bool isDm,
+    required String conversationId,
+    required String roomId,
+    required String eventId,
+  });
+
+  /// 自分の出欠回答を書き込む（毎回全体を上書き、2026-09-02追加）。
+  Future<void> setRsvp({
+    required bool isDm,
+    required String conversationId,
+    required String roomId,
+    required String eventId,
+    required String userId,
+    required Map<String, CalendarRsvpStatus> dayStatuses,
+    String? note,
   });
 }
 
@@ -197,8 +249,22 @@ class FirestoreCalendarEventRepository implements CalendarEventRepository {
     ).collection('syncStates');
   }
 
-  /// この寄合の参加者一覧（一対は`participants`、広場は`memberIds`）。
-  Future<List<String>> _participantIds({
+  CollectionReference<Map<String, dynamic>> _rsvpsCollection({
+    required bool isDm,
+    required String conversationId,
+    required String roomId,
+    required String eventId,
+  }) {
+    return _eventRef(
+      isDm: isDm,
+      conversationId: conversationId,
+      roomId: roomId,
+      eventId: eventId,
+    ).collection('rsvps');
+  }
+
+  @override
+  Future<List<String>> participantIds({
     required bool isDm,
     required String conversationId,
     required String roomId,
@@ -238,6 +304,24 @@ class FirestoreCalendarEventRepository implements CalendarEventRepository {
   }
 
   @override
+  Future<CalendarEvent?> getEvent({
+    required bool isDm,
+    required String conversationId,
+    required String roomId,
+    required String eventId,
+  }) async {
+    final doc = await _eventRef(
+      isDm: isDm,
+      conversationId: conversationId,
+      roomId: roomId,
+      eventId: eventId,
+    ).get();
+    final data = doc.data();
+    if (data == null) return null;
+    return CalendarEvent.fromJson(doc.id, data);
+  }
+
+  @override
   Future<CalendarEvent> createEvent({
     required bool isDm,
     required String conversationId,
@@ -249,6 +333,9 @@ class FirestoreCalendarEventRepository implements CalendarEventRepository {
     required bool isAllDay,
     String? location,
     required String createdBy,
+    required bool rsvpEnabled,
+    required bool rsvpPerDay,
+    DateTime? rsvpDeadline,
   }) async {
     final ref = _eventsCollection(
       isDm: isDm,
@@ -265,9 +352,12 @@ class FirestoreCalendarEventRepository implements CalendarEventRepository {
       isAllDay: isAllDay,
       location: location,
       createdBy: createdBy,
+      rsvpEnabled: rsvpEnabled,
+      rsvpPerDay: rsvpPerDay,
+      rsvpDeadline: rsvpDeadline != null ? Timestamp.fromDate(rsvpDeadline) : null,
     );
 
-    final participantIds = await _participantIds(
+    final participants = await participantIds(
       isDm: isDm,
       conversationId: conversationId,
       roomId: roomId,
@@ -280,7 +370,7 @@ class FirestoreCalendarEventRepository implements CalendarEventRepository {
       roomId: roomId,
       eventId: ref.id,
     );
-    for (final uid in participantIds) {
+    for (final uid in participants) {
       batch.set(
         syncStates.doc(uid),
         CalendarEventSync(
@@ -299,52 +389,55 @@ class FirestoreCalendarEventRepository implements CalendarEventRepository {
     required String conversationId,
     required String roomId,
     required String eventId,
-    required String updatedBy,
-    String? title,
+    required String title,
     String? description,
-    DateTime? startAt,
+    required DateTime startAt,
     DateTime? endAt,
-    bool? isAllDay,
+    required bool isAllDay,
     String? location,
+    required bool rsvpEnabled,
+    required bool rsvpPerDay,
+    DateTime? rsvpDeadline,
   }) async {
-    final ref = _eventRef(
+    await _eventRef(
       isDm: isDm,
       conversationId: conversationId,
       roomId: roomId,
       eventId: eventId,
-    );
-    final update = <String, dynamic>{
-      'updatedBy': updatedBy,
-      'updatedAt': FieldValue.serverTimestamp(),
-      'syncedCount': 0,
-      if (title != null) 'title': title,
-      if (description != null) 'description': description,
-      if (startAt != null) 'startAt': Timestamp.fromDate(startAt),
-      if (endAt != null) 'endAt': Timestamp.fromDate(endAt),
-      if (isAllDay != null) 'isAllDay': isAllDay,
-      if (location != null) 'location': location,
-    };
+    ).update({
+      'title': title,
+      'description': description,
+      'startAt': Timestamp.fromDate(startAt),
+      'endAt': endAt != null ? Timestamp.fromDate(endAt) : null,
+      'isAllDay': isAllDay,
+      'location': location,
+      'rsvpEnabled': rsvpEnabled,
+      'rsvpPerDay': rsvpPerDay,
+      'rsvpDeadline': rsvpDeadline != null ? Timestamp.fromDate(rsvpDeadline) : null,
+    });
 
-    final participantIds = await _participantIds(
+    // 内容が変わったため、参加者全員のGoogleカレンダー同期状態を作成時と
+    // 同じくpendingに戻し、CalendarSyncWorkerに再同期させる。
+    final participants = await participantIds(
       isDm: isDm,
       conversationId: conversationId,
       roomId: roomId,
     );
-    final batch = _firestore.batch();
-    batch.update(ref, update);
     final syncStates = _syncStatesCollection(
       isDm: isDm,
       conversationId: conversationId,
       roomId: roomId,
       eventId: eventId,
     );
-    for (final uid in participantIds) {
-      // googleEventIdは保持したままpendingに戻す。CalendarSyncWorkerが
-      // googleEventIdの有無で作成/更新を自然に分岐できるようにするため。
-      batch.set(syncStates.doc(uid), {
-        'uid': uid,
-        'status': CalendarSyncStatus.pending.name,
-      }, SetOptions(merge: true));
+    final batch = _firestore.batch();
+    for (final uid in participants) {
+      batch.set(
+        syncStates.doc(uid),
+        CalendarEventSync(
+          uid: uid,
+          status: CalendarSyncStatus.pending,
+        ).toJson(),
+      );
     }
     await batch.commit();
   }
@@ -356,7 +449,7 @@ class FirestoreCalendarEventRepository implements CalendarEventRepository {
     required String roomId,
     required String eventId,
   }) async {
-    final participantIds = await _participantIds(
+    final participants = await participantIds(
       isDm: isDm,
       conversationId: conversationId,
       roomId: roomId,
@@ -372,7 +465,7 @@ class FirestoreCalendarEventRepository implements CalendarEventRepository {
     // （CalendarSyncWorkerがGoogle側のイベントを削除できるようにするため、
     // 本体を消す前に必ずこのマーカーを立てる）。
     final markBatch = _firestore.batch();
-    for (final uid in participantIds) {
+    for (final uid in participants) {
       markBatch.set(syncStates.doc(uid), {
         'uid': uid,
         'status': CalendarSyncStatus.pendingDelete.name,
@@ -546,5 +639,73 @@ class FirestoreCalendarEventRepository implements CalendarEventRepository {
       roomId: roomId,
       eventId: eventId,
     ).doc(uid).delete();
+  }
+
+  @override
+  Stream<List<CalendarEventRsvp>> watchRsvps({
+    required bool isDm,
+    required String conversationId,
+    required String roomId,
+    required String eventId,
+  }) {
+    return _rsvpsCollection(
+      isDm: isDm,
+      conversationId: conversationId,
+      roomId: roomId,
+      eventId: eventId,
+    ).snapshots().map((snapshot) {
+      return snapshot.docs
+          .map((doc) => CalendarEventRsvp.fromJson(doc.id, doc.data()))
+          .toList();
+    });
+  }
+
+  @override
+  Future<void> setRsvp({
+    required bool isDm,
+    required String conversationId,
+    required String roomId,
+    required String eventId,
+    required String userId,
+    required Map<String, CalendarRsvpStatus> dayStatuses,
+    String? note,
+  }) async {
+    final rsvpRef = _rsvpsCollection(
+      isDm: isDm,
+      conversationId: conversationId,
+      roomId: roomId,
+      eventId: eventId,
+    ).doc(userId);
+    final eventRef = _eventRef(
+      isDm: isDm,
+      conversationId: conversationId,
+      roomId: roomId,
+      eventId: eventId,
+    );
+    // 回答者数の非正規化カウンタ（CalendarEvent.rsvpCount）は、本人の回答が
+    // 新規作成される時だけ+1する（既存回答の更新では増やさない）ため、
+    // 事前にドキュメントの有無を確認する。
+    final existing = await rsvpRef.get();
+    await rsvpRef.set(
+      CalendarEventRsvp(
+        userId: userId,
+        dayStatuses: dayStatuses,
+        note: note,
+      ).toJson(),
+    );
+    if (!existing.exists) {
+      try {
+        await eventRef.update({'rsvpCount': FieldValue.increment(1)});
+      } catch (e) {
+        // rsvpCountは非正規化された副次データであり、更新に失敗しても
+        // 本来の出欠回答の保存（上記set）自体は既に完了しているため
+        // 再スローしない（firestore.rulesの`calendarEvents`のallow update
+        // 未デプロイ環境でも出欠回答自体は保存できるようにするため、
+        // 2026-09-04追加）。原因調査のためログには残す。
+        debugPrint(
+          '[calendarEventRepository.setRsvp] rsvpCount update failed: $e',
+        );
+      }
+    }
   }
 }

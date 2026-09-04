@@ -5,7 +5,6 @@ import 'package:url_launcher/url_launcher.dart';
 import '../models/link_preview.dart';
 import '../providers/link_preview_provider.dart';
 import '../theme/gekiga/gekiga_colors.dart';
-import '../widgets/gekiga/gekiga_panel_box.dart';
 import 'media_preview_frame.dart';
 
 /// 動画リンクと判定するホスト名（サムネイルに再生アイコンを重ねる対象）。
@@ -24,10 +23,16 @@ const _videoHosts = ['youtube.com', 'youtu.be', 'vimeo.com'];
 /// （劇画UI選択中はアクセントカラー自体変更不可という既存方針との整合）、
 /// 他の劇画UI要素と同じ「モノクロボックス」意匠にする。
 class LinkPreviewCard extends ConsumerWidget {
-  const LinkPreviewCard({required this.url, required this.isGekiga, super.key});
+  const LinkPreviewCard({
+    required this.url,
+    required this.isGekiga,
+    required this.isMe,
+    super.key,
+  });
 
   final String url;
   final bool isGekiga;
+  final bool isMe;
 
   Future<void> _open() async {
     final uri = Uri.tryParse(url);
@@ -73,48 +78,57 @@ class LinkPreviewCard extends ConsumerWidget {
   /// 切り出し）を使い外枠を揃える。以前はフラット/劇画それぞれが独自に
   /// 角丸のロジックを持っており値がずれていた（フラット6px・劇画は
   /// `_GekigaPhotoMat`を使わない別実装）。再生アイコンの配色・枠線は
-  /// 各UIスタイルの既存デザインのまま維持する。
+  /// 各UIスタイルの既存デザインのまま維持する。[showFrame]が`false`の場合
+  /// （劇画UIのカード内に置く場合）は`mediaPreviewFrame`自体の枠線を出さず
+  /// 角丸のクリップのみにする。カード自体が既に`GekigaStraightMonochromeBox`
+  /// の枠を持っており、二重表示になるため（2026-09-04追加）。
   Widget _thumbnail(
     String imageUrl, {
     required bool isVideo,
     required bool isGekiga,
+    bool showFrame = true,
   }) {
-    return mediaPreviewFrame(
-      isGekiga: isGekiga,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxHeight: 200),
-            child: Image.network(
-              imageUrl,
-              fit: BoxFit.cover,
-              width: double.infinity,
-              errorBuilder: (_, _, _) => const SizedBox.shrink(),
+    final content = Stack(
+      alignment: Alignment.center,
+      children: [
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxHeight: 200),
+          child: Image.network(
+            imageUrl,
+            fit: BoxFit.cover,
+            width: double.infinity,
+            errorBuilder: (_, _, _) => const SizedBox.shrink(),
+          ),
+        ),
+        if (isVideo)
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: isGekiga
+                  ? GekigaColors.panel.withValues(alpha: 0.6)
+                  : Colors.black.withValues(alpha: 0.6),
+              shape: BoxShape.circle,
+              border: isGekiga
+                  ? Border.all(color: GekigaColors.onPanel, width: 2)
+                  : null,
+            ),
+            child: Icon(
+              Icons.play_arrow,
+              color: isGekiga ? GekigaColors.onPanel : Colors.white,
+              size: isGekiga ? 26 : 28,
             ),
           ),
-          if (isVideo)
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: isGekiga
-                    ? GekigaColors.panel.withValues(alpha: 0.6)
-                    : Colors.black.withValues(alpha: 0.6),
-                shape: BoxShape.circle,
-                border: isGekiga
-                    ? Border.all(color: GekigaColors.onPanel, width: 2)
-                    : null,
-              ),
-              child: Icon(
-                Icons.play_arrow,
-                color: isGekiga ? GekigaColors.onPanel : Colors.white,
-                size: isGekiga ? 26 : 28,
-              ),
-            ),
-        ],
-      ),
+      ],
     );
+
+    if (!showFrame) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(mediaPreviewContentRadius),
+        child: content,
+      );
+    }
+    return mediaPreviewFrame(isGekiga: isGekiga, isMe: isMe, child: content);
   }
 
   Widget _buildFlatCard(BuildContext context, LinkPreview data) {
@@ -199,62 +213,62 @@ class LinkPreviewCard extends ConsumerWidget {
   Widget _buildGekigaCard(BuildContext context, LinkPreview data) {
     final host = _hostLabel();
     final isVideo = _looksLikeVideo();
-    final subFg = GekigaColors.onPanel.withValues(alpha: 0.75);
+    final fg = isMe ? GekigaColors.panel : GekigaColors.onPanel;
+    final subFg = fg.withValues(alpha: 0.75);
 
     return ConstrainedBox(
       constraints: const BoxConstraints(maxWidth: 340),
-      child: GekigaJointedTileList(
-        seeds: [url.hashCode],
-        selectedFlags: const [false],
-        children: [
-          Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: _open,
-              child: Padding(
-                padding: const EdgeInsets.all(14),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (host != null)
-                      Text(
-                        host,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(fontSize: 11, color: subFg),
-                      ),
-                    if (data.title != null) ...[
-                      const SizedBox(height: 2),
-                      Text(
-                        data.title!,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: GekigaColors.onPanel,
-                        ),
-                      ),
-                    ],
-                    if (data.description != null) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        data.description!,
-                        maxLines: 3,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(fontSize: 12, color: subFg),
-                      ),
-                    ],
-                    if (data.image != null) ...[
-                      const SizedBox(height: 8),
-                      _thumbnail(data.image!, isVideo: isVideo, isGekiga: true),
-                    ],
+      child: GekigaStraightMonochromeBox(
+        isMe: isMe,
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: _open,
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (host != null)
+                    Text(
+                      host,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 11, color: subFg),
+                    ),
+                  if (data.title != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      data.title!,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontWeight: FontWeight.bold, color: fg),
+                    ),
                   ],
-                ),
+                  if (data.description != null) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      data.description!,
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 12, color: subFg),
+                    ),
+                  ],
+                  if (data.image != null) ...[
+                    const SizedBox(height: 8),
+                    _thumbnail(
+                      data.image!,
+                      isVideo: isVideo,
+                      isGekiga: true,
+                      showFrame: false,
+                    ),
+                  ],
+                ],
               ),
             ),
           ),
-        ],
+        ),
       ),
     );
   }

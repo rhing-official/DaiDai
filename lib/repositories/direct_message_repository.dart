@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/foundation.dart' show ValueChanged;
 
 import '../models/app_user.dart';
 import '../models/day_messages_page.dart';
@@ -123,6 +124,7 @@ abstract class DirectMessageRepository {
     required String contentType,
     bool silent = false,
     Message? replyTo,
+    ValueChanged<double>? onProgress,
   });
 
   /// ペタピタ（スタンプ）を送る。既にStorageにアップロード済みの画像を
@@ -153,6 +155,18 @@ abstract class DirectMessageRepository {
     required DateTime startedAt,
     required int durationSeconds,
     required bool isVideo,
+  });
+
+  /// カレンダーの予定を追加した際、その寄合に通知メッセージを送る
+  /// （2026-09-04追加）。タップすると`showCalendarEventDetailDialog`で
+  /// 出欠確認ポップアップを開けるよう[eventId]を持たせる。
+  Future<void> sendCalendarEventCreatedMessage({
+    required String dmId,
+    required String roomId,
+    required String senderId,
+    required String senderRhingId,
+    required String eventId,
+    required String eventTitle,
   });
 
   /// 送信済みテキストメッセージの本文を編集する（本文編集のみ・時間制限なし）。
@@ -709,6 +723,7 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
     required String contentType,
     bool silent = false,
     Message? replyTo,
+    ValueChanged<double>? onProgress,
   }) async {
     final roomRef = _dmRoomRef(dmId, roomId);
     final messageRef = roomRef.collection('messages').doc();
@@ -720,6 +735,7 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
       bytes: bytes,
       fileName: fileName,
       contentType: contentType,
+      onProgress: onProgress,
     );
 
     final message = Message(
@@ -836,6 +852,42 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
       'lastMessageAt': FieldValue.serverTimestamp(),
       'lastMessageSenderId': senderId,
       'lastMessageContentType': 'call',
+      'lastMessagePreview': messageSnippetOf(message.content),
+    });
+    await batch.commit();
+  }
+
+  @override
+  Future<void> sendCalendarEventCreatedMessage({
+    required String dmId,
+    required String roomId,
+    required String senderId,
+    required String senderRhingId,
+    required String eventId,
+    required String eventTitle,
+  }) async {
+    final dmRef = _directMessages.doc(dmId);
+    final roomRef = dmRef.collection('rooms').doc(roomId);
+    final messageRef = roomRef.collection('messages').doc();
+
+    final message = Message(
+      messageId: messageRef.id,
+      conversationId: roomId,
+      conversationType: 'dm',
+      senderId: senderId,
+      senderRhingId: senderRhingId,
+      content: eventTitle,
+      contentType: 'calendarEventCreated',
+      calendarEventId: eventId,
+    );
+
+    final batch = _firestore.batch();
+    batch.set(messageRef, message.toJson());
+    batch.update(roomRef, {'lastMessageAt': FieldValue.serverTimestamp()});
+    batch.update(dmRef, {
+      'lastMessageAt': FieldValue.serverTimestamp(),
+      'lastMessageSenderId': senderId,
+      'lastMessageContentType': 'calendarEventCreated',
       'lastMessagePreview': messageSnippetOf(message.content),
     });
     await batch.commit();

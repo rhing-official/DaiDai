@@ -219,6 +219,7 @@ class Strings {
     required this.chatAttachmentBlockedExtensionMessage,
     required this.chatAttachmentSendFailedMessage,
     required this.chatResendAction,
+    required this.chatAttachmentUploadingLabel,
     required this.cancel,
     required this.add,
     required this.save,
@@ -411,6 +412,24 @@ class Strings {
     required this.calendarDeleteAction,
     required this.calendarDeleteConfirmTitle,
     required this.calendarDeleteConfirmMessage,
+    required this.calendarRsvpSectionTitle,
+    required this.calendarRsvpStatusAttending,
+    required this.calendarRsvpStatusNotAttending,
+    required this.calendarRsvpStatusLate,
+    required this.calendarRsvpStatusUndecided,
+    required this.calendarRsvpStatusNoResponse,
+    required this.calendarRsvpNoteFieldHint,
+    required this.calendarRsvpMySectionTitle,
+    required this.calendarRsvpSaveButton,
+    required this.calendarEventCreatedMessageLabel,
+    required this.calendarEventCreatedMessageConfirmAction,
+    required this.calendarTaskBannerLabel,
+    required this.calendarRsvpEnabledLabel,
+    required this.calendarRsvpPerDayLabel,
+    required this.calendarRsvpDeadlineLabel,
+    required this.calendarRsvpDeadlineNoneLabel,
+    required this.calendarRsvpDeadlinePassedLabel,
+    required this.calendarRsvpDeadlinePassedNotice,
     required this.calendarSyncStatusPendingLabel,
     required this.calendarSyncStatusSyncedLabel,
     required this.calendarSyncStatusFailedLabel,
@@ -664,6 +683,9 @@ class Strings {
   final String chatAttachmentBlockedExtensionMessage;
   final String chatAttachmentSendFailedMessage;
   final String chatResendAction;
+
+  /// 画像・動画添付の送信中の進捗表示（2026-09-04追加）。
+  final String Function(int percent) chatAttachmentUploadingLabel;
 
   final String cancel;
   final String add;
@@ -1009,6 +1031,34 @@ class Strings {
   final String calendarDeleteAction;
   final String calendarDeleteConfirmTitle;
   final String calendarDeleteConfirmMessage;
+
+  /// 予定詳細ダイアログの出欠状況セクション見出し（2026-09-02追加）。
+  final String calendarRsvpSectionTitle;
+  final String calendarRsvpStatusAttending;
+  final String calendarRsvpStatusNotAttending;
+  final String calendarRsvpStatusLate;
+  final String calendarRsvpStatusUndecided;
+  final String calendarRsvpStatusNoResponse;
+  final String calendarRsvpNoteFieldHint;
+  final String calendarRsvpMySectionTitle;
+  final String calendarRsvpSaveButton;
+
+  /// 予定追加通知メッセージ（`contentType: 'calendarEventCreated'`）の固定
+  /// ラベル（2026-09-04追加）。実際の予定タイトルはメッセージの本文
+  /// （`Message.content`）に別途表示される。
+  final String calendarEventCreatedMessageLabel;
+  final String calendarEventCreatedMessageConfirmAction;
+  final String Function(String eventTitle) calendarTaskBannerLabel;
+
+  /// 予定作成ポップアップの参加確認トグル（2026-09-02追加）。
+  final String calendarRsvpEnabledLabel;
+  final String calendarRsvpPerDayLabel;
+
+  /// 回答期限（2026-09-04追加）。
+  final String calendarRsvpDeadlineLabel;
+  final String calendarRsvpDeadlineNoneLabel;
+  final String calendarRsvpDeadlinePassedLabel;
+  final String calendarRsvpDeadlinePassedNotice;
   final String calendarSyncStatusPendingLabel;
   final String calendarSyncStatusSyncedLabel;
   final String calendarSyncStatusFailedLabel;
@@ -1253,6 +1303,7 @@ class Strings {
     chatAttachmentBlockedExtensionMessage: 'この拡張子のファイルは送信できません',
     chatAttachmentSendFailedMessage: '送信に失敗しました',
     chatResendAction: '再送',
+    chatAttachmentUploadingLabel: (percent) => 'アップロード中… $percent%',
     cancel: 'キャンセル',
     add: '追加',
     save: '保存',
@@ -1457,10 +1508,28 @@ class Strings {
     calendarLocationFieldHint: '場所（任意）',
     calendarAllDayLabel: '終日',
     calendarStartLabel: '開始',
-    calendarEndLabel: '終了（任意）',
+    calendarEndLabel: '終了',
     calendarDeleteAction: '予定を削除',
     calendarDeleteConfirmTitle: '予定を削除しますか？',
     calendarDeleteConfirmMessage: 'この操作は取り消せません。',
+    calendarRsvpSectionTitle: '出欠状況',
+    calendarRsvpStatusAttending: '参加',
+    calendarRsvpStatusNotAttending: '不参加',
+    calendarRsvpStatusLate: '遅刻',
+    calendarRsvpStatusUndecided: '未定',
+    calendarRsvpStatusNoResponse: '未回答',
+    calendarRsvpNoteFieldHint: '備考（任意）',
+    calendarRsvpMySectionTitle: '自分の回答',
+    calendarRsvpSaveButton: '回答を保存',
+    calendarEventCreatedMessageLabel: '予定が追加されました',
+    calendarEventCreatedMessageConfirmAction: '確認する',
+    calendarTaskBannerLabel: (title) => '予定「$title」の参加確認が未回答です',
+    calendarRsvpEnabledLabel: '参加確認をする',
+    calendarRsvpPerDayLabel: '1日ごとに参加確認する',
+    calendarRsvpDeadlineLabel: '回答期限',
+    calendarRsvpDeadlineNoneLabel: '期限なし',
+    calendarRsvpDeadlinePassedLabel: '（期限切れ）',
+    calendarRsvpDeadlinePassedNotice: '回答期限を過ぎたため、回答できません。',
     calendarSyncStatusPendingLabel: '同期待ち',
     calendarSyncStatusSyncedLabel: 'Googleカレンダーに反映済み',
     calendarSyncStatusFailedLabel: '同期に失敗しました',
@@ -1741,6 +1810,7 @@ class Strings {
     chatAttachmentBlockedExtensionMessage: "This file type can't be sent.",
     chatAttachmentSendFailedMessage: 'Failed to send.',
     chatResendAction: 'Resend',
+    chatAttachmentUploadingLabel: (percent) => 'Uploading… $percent%',
     cancel: 'Cancel',
     add: 'Add',
     save: 'Save',
@@ -1973,6 +2043,25 @@ class Strings {
     calendarDeleteAction: 'Delete event',
     calendarDeleteConfirmTitle: 'Delete this event?',
     calendarDeleteConfirmMessage: 'This cannot be undone.',
+    calendarRsvpSectionTitle: 'Attendance',
+    calendarRsvpStatusAttending: 'Attending',
+    calendarRsvpStatusNotAttending: 'Not attending',
+    calendarRsvpStatusLate: 'Running late',
+    calendarRsvpStatusUndecided: 'Undecided',
+    calendarRsvpStatusNoResponse: 'No response',
+    calendarRsvpNoteFieldHint: 'Note (optional)',
+    calendarRsvpMySectionTitle: 'Your response',
+    calendarRsvpSaveButton: 'Save response',
+    calendarEventCreatedMessageLabel: 'New event added',
+    calendarEventCreatedMessageConfirmAction: 'View',
+    calendarTaskBannerLabel: (title) => 'RSVP needed for "$title"',
+    calendarRsvpEnabledLabel: 'Ask for attendance confirmation',
+    calendarRsvpPerDayLabel: 'Confirm attendance per day',
+    calendarRsvpDeadlineLabel: 'Response deadline',
+    calendarRsvpDeadlineNoneLabel: 'No deadline',
+    calendarRsvpDeadlinePassedLabel: ' (expired)',
+    calendarRsvpDeadlinePassedNotice:
+        'The response deadline has passed. You can no longer respond.',
     calendarSyncStatusPendingLabel: 'Syncing soon',
     calendarSyncStatusSyncedLabel: 'Synced to Google Calendar',
     calendarSyncStatusFailedLabel: 'Sync failed',

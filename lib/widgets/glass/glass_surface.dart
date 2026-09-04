@@ -102,18 +102,33 @@ class GlassSurface extends ConsumerWidget {
           Positioned.fill(
             child: DecoratedBox(decoration: BoxDecoration(color: fillColor)),
           ),
+          Padding(padding: padding ?? EdgeInsets.zero, child: child),
+          // 縁の光彩ストロークは中身より手前（最前面）に描く。以前は中身の
+          // 下にあったため、`padding`が無い（=中身が縁いっぱいまで届く）
+          // 画像・動画プレビュー等で不透明なコンテンツにストロークが完全に
+          // 覆い隠され、枠線が無いように見える不具合があった
+          // （2026-09-04発覚・修正）。
+          //
+          // `IgnorePointer`必須: `RenderCustomPaint.hitTestSelf`は
+          // `_painter.hitTest(position) ?? true`という実装で、`hitTest()`を
+          // オーバーライドしない`CustomPainter`（`_GlassEdgePainter`はそう）
+          // は範囲内を常にヒットしたものとして扱う。最前面に置いたことで
+          // 追加せずにいると、`GlassSurface`配下の全てのタップ（ボタン・
+          // ダイアログ等）を奪ってしまう重大な不具合になる
+          // （2026-09-04、上記の並び替え直後に発覚・即修正）。
           if (enableEdgeStroke)
             Positioned.fill(
-              child: CustomPaint(
-                painter: _GlassEdgePainter(
-                  accentColor: accent,
-                  borderRadius: borderRadius,
-                  baseAlpha: extras.edgeBorderBaseAlpha,
-                  highlightAlpha: extras.edgeBorderHighlightAlpha,
+              child: IgnorePointer(
+                child: CustomPaint(
+                  painter: _GlassEdgePainter(
+                    accentColor: accent,
+                    borderRadius: borderRadius,
+                    baseAlpha: extras.edgeBorderBaseAlpha,
+                    highlightAlpha: extras.edgeBorderHighlightAlpha,
+                  ),
                 ),
               ),
             ),
-          Padding(padding: padding ?? EdgeInsets.zero, child: child),
         ],
       ),
     );
