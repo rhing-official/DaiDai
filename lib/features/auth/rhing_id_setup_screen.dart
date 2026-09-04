@@ -80,38 +80,47 @@ class _RhingIdSetupScreenState extends ConsumerState<RhingIdSetupScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Rhing IDを設定')),
-      body: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('あなただけのRhing IDを決めてください。'),
-            const Text('英数字・.・-・_のみ使用できます（大文字小文字は区別されません）。'),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _controller,
-              decoration: const InputDecoration(
-                labelText: 'Rhing ID',
-                border: OutlineInputBorder(),
-              ),
-              onSubmitted: _isSubmitting ? null : (_) => _submit(),
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 400),
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('あなただけのRhing IDを決めてください。'),
+                const Text('英数字・.・-・_のみ使用できます（大文字小文字は区別されません）。'),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: _controller,
+                  decoration: const InputDecoration(
+                    labelText: 'Rhing ID',
+                    border: OutlineInputBorder(),
+                  ),
+                  onSubmitted: _isSubmitting ? null : (_) => _submit(),
+                ),
+                if (_errorMessage != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    _errorMessage!,
+                    style: const TextStyle(color: Colors.red),
+                  ),
+                ],
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: _isSubmitting ? null : _submit,
+                  child: _isSubmitting
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('決定'),
+                ),
+              ],
             ),
-            if (_errorMessage != null) ...[
-              const SizedBox(height: 8),
-              Text(_errorMessage!, style: const TextStyle(color: Colors.red)),
-            ],
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: _isSubmitting ? null : _submit,
-              child: _isSubmitting
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Text('決定'),
-            ),
-          ],
+          ),
         ),
       ),
     );

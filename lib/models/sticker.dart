@@ -7,17 +7,27 @@ class Sticker {
     required this.stickerId,
     required this.name,
     required this.imageUrl,
+    this.roles = const [],
   });
 
   final String stickerId;
   final String name;
   final String imageUrl;
 
+  /// このペタピタが対応する[StickerRole.roleId]のリスト（0件以上、
+  /// 2026-09-05追加）。メッセージ内容に応じたペタピタ提案（
+  /// `lib/utils/sticker_suggestion.dart`）で、入力文字列がいずれかの役割の
+  /// キーワードに一致した際、その役割idを`roles`に含むスタンプが候補になる。
+  final List<String> roles;
+
   factory Sticker.fromJson(Map<String, dynamic> json) {
     return Sticker(
       stickerId: json['stickerId'] as String,
       name: json['name'] as String,
       imageUrl: json['imageUrl'] as String,
+      roles: (json['roles'] as List<dynamic>? ?? [])
+          .map((e) => e as String)
+          .toList(),
     );
   }
 
@@ -25,6 +35,7 @@ class Sticker {
     'stickerId': stickerId,
     'name': name,
     'imageUrl': imageUrl,
+    'roles': roles,
   };
 }
 

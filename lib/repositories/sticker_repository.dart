@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 
 import '../models/sticker.dart';
+import '../models/sticker_role.dart';
 
 /// ペタピタパッケージのカタログ・所有状況を扱うRepository
 /// （技術仕様書7.4・7.5参照、2026-08-11追加）。フェーズ①では`stickerPacks`
@@ -30,6 +31,12 @@ abstract class StickerRepository {
 
   /// [userId]が[packId]のペタピタパックを所有しているか。
   Future<bool> ownsPack(String userId, String packId);
+
+  /// メッセージ内容に応じたペタピタ提案（`lib/utils/sticker_suggestion.dart`
+  /// 参照、2026-09-05追加）で使う役割定義の一覧。`stickerRoles`コレクション
+  /// はFirestoreコンソールまたは一度きりのシードスクリプトから投入する
+  /// 想定で、クライアントからの書き込みは行わない。
+  Stream<List<StickerRole>> watchRoles();
 }
 
 class FirestoreStickerRepository implements StickerRepository {
@@ -107,5 +114,17 @@ class FirestoreStickerRepository implements StickerRepository {
         .doc(packId)
         .get();
     return doc.exists;
+  }
+
+  @override
+  Stream<List<StickerRole>> watchRoles() {
+    return _firestore
+        .collection('stickerRoles')
+        .snapshots()
+        .map(
+          (snapshot) => snapshot.docs
+              .map((doc) => StickerRole.fromJson(doc.id, doc.data()))
+              .toList(),
+        );
   }
 }
