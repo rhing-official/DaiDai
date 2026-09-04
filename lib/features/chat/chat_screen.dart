@@ -29,6 +29,7 @@ import '../../models/message.dart';
 import '../../models/message_time_format.dart';
 import '../../models/send_key_mode.dart';
 import '../../models/sticker.dart';
+import '../../models/sticker_role.dart';
 import '../../providers/app_locale_provider.dart';
 import '../../providers/app_ui_style_provider.dart';
 import '../../providers/camera_availability_provider.dart';
@@ -54,8 +55,10 @@ import '../../utils/auto_dismiss_banner.dart';
 import '../../utils/drag_menu_geometry.dart';
 import '../../utils/fullscreen/fullscreen.dart';
 import '../../utils/link_detection.dart';
+import '../../utils/sticker_suggestion.dart';
 import 'sticker_picker_popup.dart';
 import 'sticker_picker_sheet.dart';
+import 'sticker_suggestion_strip.dart';
 import 'talks_tab.dart' show kTalksSplitBreakpoint;
 import '../../utils/message_time.dart';
 import '../../widgets/gekiga/gekiga_icon_badge.dart';
@@ -303,6 +306,19 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// `ref.listenManual`による永続購読に置き換えた（[_applyRemoteDraft]参照）。
   ProviderSubscription<AsyncValue<Map<String, ConversationPrefs>>>? _draftSub;
 
+  /// メッセージ内容に応じたペタピタ提案（2026-09-05追加）。役割定義・
+  /// 所有スタンプ一覧はFirestoreのストリームを個別に購読して保持し
+  /// （`_stickerRoles`/`_ownedStickers`）、どちらかが更新されるたびに
+  /// `_updateStickerSuggestions`で入力中のテキストと突き合わせ直す。
+  /// `widget.onSendSticker == null`（スタンプ送信不可の画面）では
+  /// 一切購読しない。
+  List<StickerRole> _stickerRoles = const [];
+  List<Sticker> _ownedStickers = const [];
+  List<Sticker> _stickerSuggestions = const [];
+  StreamSubscription<List<StickerRole>>? _stickerRolesSub;
+  StreamSubscription<List<StickerPack>>? _ownedStickerPacksSub;
+  Timer? _suggestionDebounceTimer;
+
   // widget.roomIdがnullな呼び出し元（お知らせ画面等、既存テストの多くも
   // 含む）でdraftSyncEnabledProviderの評価自体をスキップするため、
   // 軽量なnullチェックを先に置く（先にref.read(draftSyncEnabledProvider)を
@@ -324,6 +340,19 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         (previous, next) => _applyRemoteDraft(next.value),
         fireImmediately: true,
       );
+    }
+    if (widget.onSendSticker != null) {
+      final stickerRepository = ref.read(stickerRepositoryProvider);
+      _stickerRolesSub = stickerRepository.watchRoles().listen((roles) {
+        _stickerRoles = roles;
+        _updateStickerSuggestions();
+      });
+      _ownedStickerPacksSub = stickerRepository
+          .watchOwnedPacks(widget.currentUserId)
+          .listen((packs) {
+            _ownedStickers = packs.expand((pack) => pack.stickers).toList();
+            _updateStickerSuggestions();
+          });
     }
     _itemPositionsListener.itemPositions.addListener(_maybeLoadOlderMessages);
   }
@@ -366,6 +395,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   void _onComposerTextChanged() {
+    _updateStickerSuggestions();
     if (_suppressDraftSync || _editingMessage != null) return;
     if (!_draftSyncActive) return;
     _draftSaveTimer?.cancel();
@@ -380,6 +410,41 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             draft: text,
           );
     });
+  }
+
+  /// メッセージ内容に応じたペタピタ提案の再計算（2026-09-05追加）。
+  /// 入力テキストの変更・役割定義/所有スタンプ一覧の更新のいずれからも
+  /// 呼ばれる。下書き保存と同様デバウンスし、キー入力のたびに毎回
+  /// `suggestStickers`を走らせないようにする。
+  void _updateStickerSuggestions() {
+    if (widget.onSendSticker == null) return;
+    _suggestionDebounceTimer?.cancel();
+    final text = _textController.text;
+    if (text.trim().isEmpty) {
+      _suggestionDebounceTimer = null;
+      if (_stickerSuggestions.isNotEmpty) {
+        setState(() => _stickerSuggestions = const []);
+      }
+      return;
+    }
+    _suggestionDebounceTimer = Timer(const Duration(milliseconds: 400), () {
+      if (!mounted) return;
+      final suggestions = suggestStickers(
+        messageText: _textController.text,
+        roles: _stickerRoles,
+        candidates: _ownedStickers,
+      );
+      setState(() => _stickerSuggestions = suggestions);
+    });
+  }
+
+  /// ペタピタ提案ストリップ（[StickerSuggestionStrip]）のタップ処理
+  /// （2026-09-05追加）。通常のピッカーが持つ`stickerSendMode`の2タップ
+  /// プレビュー挙動は使わず即送信する（`StickerSuggestionStrip`のdoc
+  /// コメント参照）。
+  void _handleSuggestionTap(Sticker sticker) {
+    setState(() => _stickerSuggestions = const []);
+    _handleStickerPicked(sticker);
   }
 
   /// 送信直後など、下書きを即座に消したい時に呼ぶ（デバウンス待ちを挟まない）。
@@ -1521,6 +1586,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   void dispose() {
     _draftSaveTimer?.cancel();
     _draftSub?.close();
+    _suggestionDebounceTimer?.cancel();
+    _stickerRolesSub?.cancel();
+    _ownedStickerPacksSub?.cancel();
     _textController.removeListener(_onComposerTextChanged);
     _textController.dispose();
     _composerFocusNode.dispose();
@@ -2048,6 +2116,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                               strings: strings,
                               onCancel: _cancelComposerContext,
                               vocabulary: vocabulary,
+                            ),
+                          if (_stickerSuggestions.isNotEmpty)
+                            StickerSuggestionStrip(
+                              stickers: _stickerSuggestions.take(10).toList(),
+                              onStickerTap: _handleSuggestionTap,
                             ),
                           SafeArea(
                             top: false,
@@ -4337,7 +4410,10 @@ class _MessageRow extends ConsumerWidget {
             ),
           );
         } else {
-          launchUrl(Uri.parse(metadata.url), mode: LaunchMode.externalApplication);
+          launchUrl(
+            Uri.parse(metadata.url),
+            mode: LaunchMode.externalApplication,
+          );
         }
       }
 
@@ -5320,10 +5396,28 @@ class _MediaViewerScreenState extends State<_MediaViewerScreen> {
   // タイマー（2026-08-19追加、下記onPointerSignal参照）。
   Timer? _scrollDismissTimer;
 
+  // Esc/Space等のキーボード操作を受け取る`Focus`用に明示的に持つ
+  // `FocusNode`（2026-09-05追加）。以前は`autofocus: true`のみに任せて
+  // 暗黙生成のFocusNodeを使っていたが、シークバーの`Slider`や中央ボタンの
+  // `InkWell`など子孫のフォーカス可能なウィジェットをタップすると
+  // フォーカスがそちらへ移ったまま戻らず、以後Esc/Spaceキーが反応しなく
+  // なる不具合があった。以下の`onPointerDown`で毎回このノードへ
+  // フォーカスを戻すことで解消する。
+  final FocusNode _focusNode = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _focusNode.requestFocus();
+    });
+  }
+
   @override
   void dispose() {
     _scrollDismissTimer?.cancel();
     _pageController.dispose();
+    _focusNode.dispose();
     super.dispose();
   }
 
@@ -5358,6 +5452,7 @@ class _MediaViewerScreenState extends State<_MediaViewerScreen> {
       // 2026-08-14追加）・下スワイプで一覧画面へ戻れるようにする
       // （Escキー・下スワイプは2026-08-11から踏襲）。
       body: Focus(
+        focusNode: _focusNode,
         autofocus: true,
         onKeyEvent: (node, event) {
           if (event is! KeyDownEvent) return KeyEventResult.ignored;
@@ -5397,6 +5492,10 @@ class _MediaViewerScreenState extends State<_MediaViewerScreen> {
         // よる`SwipeDownToDismiss`はそのまま維持し、その外側にスクロール
         // 検出用の`Listener`を重ねるだけに留める。
         child: Listener(
+          // 配下のどこをクリック/タップしても（シークバーのドラッグ開始・
+          // 中央ボタン・動画本体タップ含め）ダウン時点で必ずこのノードへ
+          // フォーカスを戻す（2026-09-05追加、上記`_focusNode`のdoc参照）。
+          onPointerDown: (_) => _focusNode.requestFocus(),
           onPointerSignal: (event) {
             if (event is PointerScrollEvent && event.scrollDelta.dy < -2.0) {
               // トラックパッドの2本指スワイプ等は1回の操作で多数の
@@ -5854,7 +5953,18 @@ class _VideoViewerPageState extends State<_VideoViewerPage> {
                 ),
               ),
             ),
-            _buildControlBar(),
+            // 中央の再生/一時停止＋10秒送り/戻しボタンと同じ条件で
+            // 表示/非表示を切り替える（2026-09-05変更、以前は常時表示
+            // だった）。`Column`の兄弟要素のため単純に`if`で取り除くと
+            // 動画エリアが伸びてガタつくので、`maintainSize`で領域だけ
+            // 保持したまま非表示にする。
+            Visibility(
+              visible: !_controller.value.isPlaying || _controlsVisible,
+              maintainSize: true,
+              maintainAnimation: true,
+              maintainState: true,
+              child: _buildControlBar(),
+            ),
           ],
         );
       },

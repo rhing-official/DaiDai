@@ -487,9 +487,15 @@ interface StickerInput {
   stickerId: string;
   name: string;
   imageUrl: string;
+  /**
+   * メッセージ内容に応じたペタピタ提案で使う役割id（`stickerRoles`
+   * コレクション、`seedStickerRolesOnce`参照）のリスト。省略時は`[]`
+   * （2026-09-05追加、`lib/models/sticker.dart`の`Sticker.roles`に対応）。
+   */
+  roles: string[];
 }
 
-/** stickersフィールドの形式（配列・各要素のstickerId/name/imageUrl）を検証する。 */
+/** stickersフィールドの形式（配列・各要素のstickerId/name/imageUrl/roles）を検証する。 */
 function assertValidStickers(value: unknown, minCount: number): StickerInput[] {
   if (!Array.isArray(value) || value.length < minCount) {
     throw new HttpsError(
@@ -511,7 +517,10 @@ function assertValidStickers(value: unknown, minCount: number): StickerInput[] {
         `stickers[${index}]の形式が不正です（stickerId/name/imageUrlの文字列が必要）`,
       );
     }
-    return { stickerId: s.stickerId, name: s.name, imageUrl: s.imageUrl };
+    const roles = Array.isArray(s.roles)
+      ? s.roles.filter((r): r is string => typeof r === "string")
+      : [];
+    return { stickerId: s.stickerId, name: s.name, imageUrl: s.imageUrl, roles };
   });
 }
 
@@ -726,6 +735,53 @@ export const addStickersToStickerPack = onCall(
       stickers: FieldValue.arrayUnion(...stickers),
       updatedAt: FieldValue.serverTimestamp(),
     });
+  },
+);
+
+/**
+ * メッセージ内容に応じたペタピタ提案（`lib/utils/sticker_suggestion.dart`
+ * 参照）で使う役割定義（`stickerRoles`コレクション）を一括投入する
+ * 一度きりの処理（2026-09-05追加）。役割の叩き台自体は
+ * `.claude/plans/`にまとめたレビュー内容を反映しており、実行はべき等
+ * （同じroleIdは`set`で上書きするだけ）。
+ *
+ * 既存の各ペタピタ（`stickerPacks/*.stickers[].roles`）への役割の
+ * 割り振りは、画像の内容確認が要る人力作業のためこの関数ではやらない
+ * （Firestoreコンソールから個別に編集する）。
+ *
+ * 実行・確認が済んだら`grantFirstAdminOnce`等と同様にソースから削除し、
+ * `firebase functions:delete seedStickerRolesOnce --region asia-northeast1 --force`
+ * で後始末する。
+ */
+const STICKER_ROLE_SEEDS: { roleId: string; name: string; keywords: string[] }[] = [
+  { roleId: "greeting", name: "挨拶", keywords: ["おはよう", "こんにちは", "こんばんは", "やあ", "よろしく"] },
+  { roleId: "thanks", name: "感謝", keywords: ["ありがとう", "サンキュー", "あざす", "感謝", "助かる"] },
+  { roleId: "ok", name: "了解", keywords: ["了解", "りょ", "OK", "わかった", "なるほど"] },
+  { roleId: "happy", name: "嬉しい", keywords: ["やった", "よし", "いえーい", "うれしい", "最高"] },
+  { roleId: "sad", name: "悲しい", keywords: ["悲しい", "つらい", "しょんぼり", "泣ける", "へこむ"] },
+  { roleId: "angry", name: "怒り", keywords: ["むかつく", "許せない", "イライラ", "怒"] },
+  { roleId: "surprised", name: "驚き", keywords: ["えっ", "まじで", "びっくり", "うそ", "驚いた"] },
+  { roleId: "tired", name: "お疲れ様", keywords: ["おつかれ", "お疲れ様", "がんばった", "よくやった"] },
+  { roleId: "sorry", name: "ごめん", keywords: ["ごめん", "すまん", "申し訳ない", "ごめんなさい"] },
+  { roleId: "congrats", name: "お祝い", keywords: ["おめでとう", "祝", "やったね"] },
+];
+
+export const seedStickerRolesOnce = onCall(
+  { region: "asia-northeast1" },
+  async (request) => {
+    if (request.auth?.token.admin !== true) {
+      throw new HttpsError("permission-denied", "管理者のみ実行できます");
+    }
+    const writer = new ChunkedWriter();
+    for (const role of STICKER_ROLE_SEEDS) {
+      await writer.set(db.collection("stickerRoles").doc(role.roleId), {
+        name: role.name,
+        keywords: role.keywords,
+      });
+    }
+    await writer.commit();
+    logger.info(`stickerRolesシード: ${STICKER_ROLE_SEEDS.length}件`);
+    return { seeded: STICKER_ROLE_SEEDS.length };
   },
 );
 

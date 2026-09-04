@@ -14,7 +14,7 @@
 
   
 
-返答は日本語
+返答は必ず日本語
 
   
 
@@ -260,11 +260,27 @@ DaiDaiは独自の世界観用語を使う。変数名・クラス名・コレ�
 
 - **Message**: `conversationId`, `conversationType`(dm|seat|room), `contentType`(text|image|file|sticker|video), `fileMetadata.compressionType`(webp|lossless|raw), `readBy[]`, `hiddenFor[]`（範囲選択削除・本人のuserIdを追加するだけの個人単位の非表示）, `isSpam`
 
-- 他: Sticker（ペタピタ）, Purchase（Stripe連携）, SafetyCheck（安否確認）, Album, VideoCall
+- **Sticker（ペタピタ、`StickerPack.stickers[]`）**: `stickerId`, `name`, `imageUrl`, `roles[]`（メッセージ内容に応じたペタピタ提案で使う役割id、2026-09-05追加。詳細は下記「メッセージ内容に応じたペタピタ提案機能」参照）
+
+- **StickerRole（`stickerRoles/{roleId}`）**: `roleId`, `name`（役割の表示名、例:「嬉しい」）, `keywords[]`（この役割を呼び出すキーワード、例: `やった`/`よし`/`いえーい`）。2026-09-05追加
+
+- 他: Purchase（Stripe連携）, SafetyCheck（安否確認）, Album, VideoCall
 
   
 
 詳細なフィールド定義・実装コード例は技術仕様書を参照。
+
+  
+
+### メッセージ内容に応じたペタピタ提案機能（2026-09-05追加）
+
+  
+
+入力中のメッセージ本文にキーワードが含まれると、入力欄のすぐ上に該当するペタピタの候補が横並びで表示され、タップで即送信できる（`lib/features/chat/sticker_suggestion_strip.dart`、`chat_screen.dart`の`_onComposerTextChanged`から400msデバウンスで`lib/utils/sticker_suggestion.dart`の`suggestStickers`を呼ぶ）。LINEの「おすすめスタンプ」機能の設計（クリエイターがスタンプ1枚ごとにタグを設定し、そのタグ経由で提案する方式）を踏襲したもので、DaiDaiでは「役割（`StickerRole`、感情・場面のカテゴリ）→キーワード→ペタピタ（`Sticker.roles`）」という中間層で実装している（採否の根拠は競合調査.md 2026-09-05付エントリ参照）。形態素解析等は導入せず、ひらがな/カタカナ正規化＋大文字小文字統一をした上での単純な部分一致に留めている（表記ゆれ対応の精度をLINE並みに最初から作り込むのはコスト高なため、まず簡易な一致から始める方針）。提案ストリップのタップは、通常のペタピタピッカー（`StickerPickerContent`）が持つ`stickerSendMode`のLINE型2タップ・プレビュー挙動とは独立に、常に即送信にしている。
+
+  
+
+DaiDaiには現状ペタピタパックの「作成」UI自体が無く（下記フェーズ表の通りフェーズ4「ペタピタ作成アプリ（別アプリ）」として別アプリに切り出す計画）、`StickerRole`の初期セット（10種、`functions/src/index.ts`の`seedStickerRolesOnce`に叩き台を実装）はCloud Functionsの一度きりの処理でFirestoreへ投入する想定。既存の各ペタピタへの`roles`の割り振りは画像内容の確認が要る人力作業のため、この一度きり処理には含めておらずFirestoreコンソールから個別に設定する（Cloud Functions側の`createStickerPack`/`addStickersToStickerPack`は`roles`を受け付けるようスキーマだけ対応済み、2026-09-05）。
 
   
 

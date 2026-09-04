@@ -144,6 +144,15 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // stickerRoles/{roleId}: メッセージ内容に応じたペタピタ提案の役割定義
+    // （役割名・キーワード一覧、2026-09-05追加）。stickerPacksと同様
+    // 機密性は無く、投入・更新はCloud Functions（seedStickerRolesOnce）・
+    // Firebaseコンソール経由のみでクライアントからの書き込みは禁止する。
+    match /stickerRoles/{roleId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
     // creatorProfiles/{userId}: daidai横丁で出品したことがあるユーザーの
     // 公開プロフィールミラー（呼び名・アイコン・ステメ・SNSリンクのみ、
     // 2026-08-13追加）。users/{userId}は未ログイン訪問者が読めないため、
