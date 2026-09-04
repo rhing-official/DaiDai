@@ -8,6 +8,7 @@ import 'package:intl/intl.dart';
 
 import '../../l10n/strings.dart';
 import '../../models/app_ui_style.dart';
+import '../../models/app_user.dart';
 import '../../models/calendar_event.dart';
 import '../../models/calendar_event_sync.dart';
 import '../../providers/accent_color_provider.dart';
@@ -18,6 +19,7 @@ import '../../theme/popup_surface_colors.dart';
 import '../../widgets/glass/glass_app_bar.dart';
 import '../../widgets/glass/glass_surface.dart';
 import '../../widgets/swipe_gestures.dart';
+import 'calendar_event_detail_dialog.dart';
 import 'calendar_event_form_dialog.dart';
 
 /// 寄合単位の共有カレンダーを月表示で開く（2026-09-01追加）。
@@ -37,7 +39,7 @@ class CalendarPaneView extends ConsumerStatefulWidget {
     required this.isDm,
     required this.conversationId,
     required this.roomId,
-    required this.currentUserId,
+    required this.currentUser,
     required this.onClose,
     super.key,
   });
@@ -45,7 +47,7 @@ class CalendarPaneView extends ConsumerStatefulWidget {
   final bool isDm;
   final String conversationId;
   final String roomId;
-  final String currentUserId;
+  final AppUser currentUser;
   final VoidCallback onClose;
 
   @override
@@ -65,8 +67,6 @@ class _CalendarPaneViewState extends ConsumerState<CalendarPaneView> {
   Timer? _scrollDismissTimer;
 
   static DateTime _monthOf(DateTime date) => DateTime(date.year, date.month);
-  static DateTime _dateOnly(DateTime date) =>
-      DateTime(date.year, date.month, date.day);
 
   @override
   void dispose() {
@@ -91,7 +91,8 @@ class _CalendarPaneViewState extends ConsumerState<CalendarPaneView> {
       isDm: widget.isDm,
       conversationId: widget.conversationId,
       roomId: widget.roomId,
-      currentUserId: widget.currentUserId,
+      currentUserId: widget.currentUser.userId,
+      currentUserRhingId: widget.currentUser.rhingId,
       initialDate: DateTime(day.year, day.month, day.day, now.hour, now.minute),
     );
   }
@@ -147,7 +148,7 @@ class _CalendarPaneViewState extends ConsumerState<CalendarPaneView> {
             isDm: widget.isDm,
             conversationId: widget.conversationId,
             roomId: widget.roomId,
-            currentUserId: widget.currentUserId,
+            currentUserId: widget.currentUser.userId,
             uiStyle: uiStyle,
             strings: strings,
             localeCode: localeCode,
@@ -155,15 +156,15 @@ class _CalendarPaneViewState extends ConsumerState<CalendarPaneView> {
               Navigator.of(context).pop();
               _createEventOn(day);
             },
-            onEditEvent: (event) {
+            onOpenDetail: (event) {
               Navigator.of(context).pop();
-              showCalendarEventFormDialog(
+              showCalendarEventDetailDialog(
                 context,
                 isDm: widget.isDm,
                 conversationId: widget.conversationId,
                 roomId: widget.roomId,
-                currentUserId: widget.currentUserId,
-                existing: event,
+                event: event,
+                currentUser: widget.currentUser,
               );
             },
           ),
@@ -248,8 +249,11 @@ class _CalendarPaneViewState extends ConsumerState<CalendarPaneView> {
                     final events = snapshot.data ?? const <CalendarEvent>[];
                     final eventsByDate = <DateTime, List<CalendarEvent>>{};
                     for (final event in events) {
-                      final key = _dateOnly(event.startAt.toDate());
-                      (eventsByDate[key] ??= []).add(event);
+                      // 複数日にまたがる予定は、対象日全てにマークを付ける
+                      // （2026-09-04修正、以前は開始日にしか登録していなかった）。
+                      for (final day in calendarEventDates(event)) {
+                        (eventsByDate[day] ??= []).add(event);
+                      }
                     }
                     return Column(
                       children: [
@@ -517,7 +521,7 @@ class _DayEventsPopupContent extends StatelessWidget {
     required this.strings,
     required this.localeCode,
     required this.onAdd,
-    required this.onEditEvent,
+    required this.onOpenDetail,
   });
 
   final DateTime day;
@@ -530,7 +534,7 @@ class _DayEventsPopupContent extends StatelessWidget {
   final Strings strings;
   final String localeCode;
   final VoidCallback onAdd;
-  final void Function(CalendarEvent event) onEditEvent;
+  final void Function(CalendarEvent event) onOpenDetail;
 
   @override
   Widget build(BuildContext context) {
@@ -576,7 +580,7 @@ class _DayEventsPopupContent extends StatelessWidget {
                 uiStyle: uiStyle,
                 strings: strings,
                 localeCode: localeCode,
-                onTap: () => onEditEvent(event),
+                onTap: () => onOpenDetail(event),
               ),
             ),
         ],

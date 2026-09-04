@@ -4,7 +4,7 @@ import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:collection/collection.dart';
 import 'package:firebase_storage/firebase_storage.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show ValueChanged, kIsWeb;
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 
 import '../models/app_user.dart';
@@ -264,6 +264,7 @@ abstract class GroupRepository {
     required String contentType,
     bool silent = false,
     Message? replyTo,
+    ValueChanged<double>? onProgress,
   });
 
   /// ペタピタ（スタンプ）を送る。既にStorageにアップロード済みの画像を
@@ -279,6 +280,18 @@ abstract class GroupRepository {
     required String stickerUrl,
     bool silent = false,
     Message? replyTo,
+  });
+
+  /// カレンダーの予定を追加した際、その寄合に通知メッセージを送る
+  /// （2026-09-04追加）。タップすると`showCalendarEventDetailDialog`で
+  /// 出欠確認ポップアップを開けるよう[eventId]を持たせる。
+  Future<void> sendCalendarEventCreatedMessage({
+    required String groupId,
+    required String roomId,
+    required String senderId,
+    required String senderRhingId,
+    required String eventId,
+    required String eventTitle,
   });
 
   /// 送信済みテキストメッセージの本文を編集する（本文編集のみ・時間制限なし）。
@@ -889,6 +902,7 @@ class FirestoreGroupRepository implements GroupRepository {
     required String contentType,
     bool silent = false,
     Message? replyTo,
+    ValueChanged<double>? onProgress,
   }) async {
     final roomRef = _roomRef(groupId, roomId);
     final messageRef = roomRef.collection('messages').doc();
@@ -898,6 +912,7 @@ class FirestoreGroupRepository implements GroupRepository {
       storagePathPrefix: 'groupFiles/$groupId',
       attachmentId: messageRef.id,
       bytes: bytes,
+      onProgress: onProgress,
       fileName: fileName,
       contentType: contentType,
     );
@@ -976,6 +991,41 @@ class FirestoreGroupRepository implements GroupRepository {
       'lastMessageSenderId': senderId,
       'lastMessageContentType': 'sticker',
       'lastMessagePreview': null,
+    });
+    await batch.commit();
+  }
+
+  @override
+  Future<void> sendCalendarEventCreatedMessage({
+    required String groupId,
+    required String roomId,
+    required String senderId,
+    required String senderRhingId,
+    required String eventId,
+    required String eventTitle,
+  }) async {
+    final roomRef = _roomRef(groupId, roomId);
+    final messageRef = roomRef.collection('messages').doc();
+
+    final message = Message(
+      messageId: messageRef.id,
+      conversationId: roomId,
+      conversationType: 'room',
+      senderId: senderId,
+      senderRhingId: senderRhingId,
+      content: eventTitle,
+      contentType: 'calendarEventCreated',
+      calendarEventId: eventId,
+    );
+
+    final batch = _firestore.batch();
+    batch.set(messageRef, message.toJson());
+    batch.update(roomRef, {'lastMessageAt': FieldValue.serverTimestamp()});
+    batch.update(_groups.doc(groupId), {
+      'lastMessageAt': FieldValue.serverTimestamp(),
+      'lastMessageSenderId': senderId,
+      'lastMessageContentType': 'calendarEventCreated',
+      'lastMessagePreview': messageSnippetOf(message.content),
     });
     await batch.commit();
   }

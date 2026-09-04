@@ -254,8 +254,22 @@ class AppTheme {
       // 確認ダイアログのような短い文言のみのAlertDialogが、アクション行の
       // 幅に引っ張られて横長・縦潰れになる問題（2026-09-01発覚）を避けるため、
       // ダイアログ全体の最大幅を統一する。
+      // shapeの角丸24は、ガラスの`GlassAlertDialog`（`glass_dialog.dart`）が
+      // 明示指定している値に揃えたもの（Material3既定の28dpのままだと
+      // スタイル間で角丸が食い違う、2026-09-04追加）。
       dialogTheme: const DialogThemeData(
         constraints: BoxConstraints(maxWidth: 400),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.all(Radius.circular(24)),
+        ),
+      ),
+      // ガラスの`showGlassModalBottomSheet`（`glass_bottom_sheet.dart`）が
+      // 明示指定している上辺24の角丸に揃える（2026-09-04追加、それまでは
+      // フラットのみMaterial3既定の28dpのままだった）。
+      bottomSheetTheme: const BottomSheetThemeData(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,

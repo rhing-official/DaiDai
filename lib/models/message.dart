@@ -130,6 +130,7 @@ class Message {
     this.accountDeletionResponse,
     this.fileMetadata,
     this.stickerData,
+    this.calendarEventId,
   });
 
   final String messageId;
@@ -141,6 +142,7 @@ class Message {
   final String? senderRhingId;
   final String content;
   // text | image | file | sticker | video | call | accountDeleted
+  // | calendarEventCreated
   final String contentType;
   final Timestamp? sentAt;
 
@@ -211,6 +213,11 @@ class Message {
   /// contentType='sticker'専用のメタデータ。それ以外のcontentTypeでは常にnull。
   final MessageStickerData? stickerData;
 
+  /// contentType='calendarEventCreated'（予定追加通知、2026-09-04追加）専用
+  /// フィールド。[content]には予定タイトルをそのまま入れ、UI（`_MessageRow`）
+  /// はこのIDで`showCalendarEventDetailDialog`を開く。
+  final String? calendarEventId;
+
   factory Message.fromJson(String messageId, Map<String, dynamic> json) {
     return Message(
       messageId: messageId,
@@ -259,6 +266,7 @@ class Message {
           : MessageStickerData.fromJson(
               json['stickerData'] as Map<String, dynamic>,
             ),
+      calendarEventId: json['calendarEventId'] as String?,
     );
   }
 
@@ -287,6 +295,7 @@ class Message {
       'accountDeletionResponse': accountDeletionResponse,
       'fileMetadata': fileMetadata?.toJson(),
       'stickerData': stickerData?.toJson(),
+      'calendarEventId': calendarEventId,
     };
   }
 }

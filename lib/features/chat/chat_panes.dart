@@ -49,6 +49,7 @@ import 'group_role_priority_dialog.dart';
 import 'group_settings_popup.dart';
 import 'room_tab_bar.dart';
 import 'severance_dialog.dart';
+import 'task_banner.dart';
 import 'user_profile_card_dialog.dart';
 
 enum _GroupMenuAction {
@@ -386,7 +387,7 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
         isDm: true,
         conversationId: widget.dm.dmId,
         roomId: widget.roomId,
-        currentUserId: widget.currentUser.userId,
+        currentUser: widget.currentUser,
         onClose: () => setState(() => _showingCalendar = false),
       );
     }
@@ -501,7 +502,7 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
           replyTo: replyTo,
         );
       },
-      onSendAttachment: (attachment) async {
+      onSendAttachment: (attachment, {onProgress}) async {
         if (isBlocked) {
           showAutoDismissBanner(
             context,
@@ -517,6 +518,7 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
           bytes: attachment.bytes,
           fileName: attachment.fileName,
           contentType: attachment.contentType,
+          onProgress: onProgress,
         );
       },
       onSendSticker: (sticker) async {
@@ -681,25 +683,28 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
           roomName: roomName,
         ),
       ],
-      banner:
-          (dm.severanceRequestedBy == null && dm.readReceiptsProposalBy == null)
-          ? null
-          : Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (dm.severanceRequestedBy != null)
-                  _SeveranceBanner(
-                    currentUserId: currentUser.userId,
-                    dm: dm,
-                    otherUserId: otherUserId,
-                  ),
-                if (dm.readReceiptsProposalBy != null)
-                  _ReadReceiptsProposalBanner(
-                    currentUserId: currentUser.userId,
-                    dm: dm,
-                  ),
-              ],
+      banner: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (dm.severanceRequestedBy != null)
+            _SeveranceBanner(
+              currentUserId: currentUser.userId,
+              dm: dm,
+              otherUserId: otherUserId,
             ),
+          if (dm.readReceiptsProposalBy != null)
+            _ReadReceiptsProposalBanner(
+              currentUserId: currentUser.userId,
+              dm: dm,
+            ),
+          ChatTaskBanner(
+            isDm: true,
+            conversationId: dm.dmId,
+            roomId: roomId,
+            currentUserId: currentUser.userId,
+          ),
+        ],
+      ),
     );
   }
 }
@@ -1772,7 +1777,7 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
         isDm: false,
         conversationId: group.groupId,
         roomId: roomId,
-        currentUserId: currentUser.userId,
+        currentUser: currentUser,
         onClose: () => setState(() => _showingCalendar = false),
       );
     }
@@ -1868,6 +1873,12 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
       conversationId: group.groupId,
       roomId: roomId,
       senderNameColorResolver: senderNameColorFor,
+      banner: ChatTaskBanner(
+        isDm: false,
+        conversationId: group.groupId,
+        roomId: roomId,
+        currentUserId: currentUser.userId,
+      ),
       roomTabBar: !widget.showRoomTabBar || !group.roomsEnabled
           ? null
           : RoomTabBar(
@@ -1905,15 +1916,17 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
             silent: silent,
             replyTo: replyTo,
           ),
-      onSendAttachment: (attachment) => groupRepository.sendAttachmentMessage(
-        groupId: group.groupId,
-        roomId: roomId,
-        senderId: currentUser.userId,
-        senderRhingId: currentUser.rhingId,
-        bytes: attachment.bytes,
-        fileName: attachment.fileName,
-        contentType: attachment.contentType,
-      ),
+      onSendAttachment: (attachment, {onProgress}) =>
+          groupRepository.sendAttachmentMessage(
+            groupId: group.groupId,
+            roomId: roomId,
+            senderId: currentUser.userId,
+            senderRhingId: currentUser.rhingId,
+            bytes: attachment.bytes,
+            fileName: attachment.fileName,
+            contentType: attachment.contentType,
+            onProgress: onProgress,
+          ),
       onSendSticker: (sticker) => groupRepository.sendStickerMessage(
         groupId: group.groupId,
         roomId: roomId,

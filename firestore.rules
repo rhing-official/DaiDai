@@ -416,15 +416,49 @@ service cloud.firestore {
 
         // calendarEvents/{eventId}: 寄合単位の共有カレンダーの予定
         // （Googleカレンダー同期の元データ、2026-09-01追加）。albumsと同じく
-        // この寄合の参加者全員が対等に作成・編集・削除できる。
+        // この寄合の参加者全員が対等に作成できる。削除は作成者のみ
+        // （2026-09-02変更）。内容編集は出欠回答済みの住人との齟齬を避ける
+        // ため2026-09-02に一旦廃止したが、回答者が1人もいない
+        // （rsvpCount == 0）間だけ作成者に限り再度許可した（2026-09-04）。
         match /calendarEvents/{eventId} {
-          allow read, delete: if request.auth != null
+          allow read: if request.auth != null
             && request.auth.uid in get(/databases/$(database)/documents/directMessages/$(dmId)/rooms/$(roomId)).data.participants;
           allow create: if request.auth != null
             && request.auth.uid in get(/databases/$(database)/documents/directMessages/$(dmId)/rooms/$(roomId)).data.participants
             && request.auth.uid == request.resource.data.createdBy;
           allow update: if request.auth != null
-            && request.auth.uid in get(/databases/$(database)/documents/directMessages/$(dmId)/rooms/$(roomId)).data.participants;
+            && request.auth.uid in get(/databases/$(database)/documents/directMessages/$(dmId)/rooms/$(roomId)).data.participants
+            && (
+              // 作成者による内容編集。回答者が1人もいない場合のみ、かつ
+              // 編集可能フィールドのみを変更する場合に限る（作成日時・
+              // 非正規化カウンタ等は変更させない）。
+              (
+                request.auth.uid == resource.data.createdBy
+                && resource.data.get('rsvpCount', 0) == 0
+                && request.resource.data.diff(resource.data).affectedKeys()
+                  .hasOnly(['title', 'description', 'startAt', 'endAt',
+                            'isAllDay', 'location', 'rsvpEnabled', 'rsvpPerDay',
+                            'rsvpDeadline'])
+              )
+              // 出欠回答時のrsvpCount非正規化カウンタ更新（rsvps/{uid}参照）。
+              // 参加者なら誰でも、自分の回答を新規作成した際に+1するだけの
+              // 更新を許可する。
+              || (
+                request.resource.data.diff(resource.data).affectedKeys().hasOnly(['rsvpCount'])
+                && request.resource.data.rsvpCount == resource.data.get('rsvpCount', 0) + 1
+              )
+              // syncedCountの非正規化カウンタ更新（Googleカレンダー同期完了時、
+              // CalendarSyncBootstrap._processPending参照、以前はこの条件が
+              // 無く常にpermission-deniedで失敗していた）。参加者なら誰でも、
+              // +1するだけの更新を許可する。
+              || (
+                request.resource.data.diff(resource.data).affectedKeys().hasOnly(['syncedCount'])
+                && request.resource.data.syncedCount == resource.data.get('syncedCount', 0) + 1
+              )
+            );
+          allow delete: if request.auth != null
+            && request.auth.uid in get(/databases/$(database)/documents/directMessages/$(dmId)/rooms/$(roomId)).data.participants
+            && request.auth.uid == resource.data.createdBy;
 
           // syncStates/{uid}: 「自分がこの予定をGoogle側へ同期したか」の
           // 個人ごとの状態。
@@ -446,6 +480,24 @@ service cloud.firestore {
             // Googleの認証情報等の機密性には影響しない）。
             allow write: if request.auth != null
               && request.auth.uid in get(/databases/$(database)/documents/directMessages/$(dmId)/rooms/$(roomId)).data.participants;
+          }
+
+          // rsvps/{uid}: 出欠回答（参加/不参加/遅刻＋備考、2026-09-02追加）。
+          // syncStatesと異なり「他人の分をまとめて初期化するバッチ書き込み」が
+          // 無い（各自が自分の回答だけを書く）ため、書き込みは本人のuidに限定する。
+          match /rsvps/{uid} {
+            allow read: if request.auth != null
+              && request.auth.uid in get(/databases/$(database)/documents/directMessages/$(dmId)/rooms/$(roomId)).data.participants;
+            // 回答期限（CalendarEvent.rsvpDeadline）を過ぎていれば、新規回答・
+            // 既存回答の変更とも拒否する（2026-09-04追加）。期限フィールド
+            // 自体が無い/nullの予定（期限なし）は従来通り常に書き込み可。
+            allow write: if request.auth != null && request.auth.uid == uid
+              && request.auth.uid in get(/databases/$(database)/documents/directMessages/$(dmId)/rooms/$(roomId)).data.participants
+              && (
+                !('rsvpDeadline' in get(/databases/$(database)/documents/directMessages/$(dmId)/rooms/$(roomId)/calendarEvents/$(eventId)).data)
+                || get(/databases/$(database)/documents/directMessages/$(dmId)/rooms/$(roomId)/calendarEvents/$(eventId)).data.rsvpDeadline == null
+                || request.time <= get(/databases/$(database)/documents/directMessages/$(dmId)/rooms/$(roomId)/calendarEvents/$(eventId)).data.rsvpDeadline
+              );
           }
         }
       }
@@ -551,10 +603,16 @@ service cloud.firestore {
               || 'manageRooms' in resource.data.memberPermissions[request.auth.uid])
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['roomsEnabled'])
           )
-          // メッセージ送信時のlastMessageAt/lastMessageSenderIdの非正規化更新
-          // （語らい一覧の並べ替え用、2026-09-02追加）。メンバー全員が対等に
-          // 更新可能（GroupRepository.sendRoomMessage等参照）。
-          || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastMessageAt', 'lastMessageSenderId'])
+          // メッセージ送信時のlastMessageAt/lastMessageSenderId/
+          // lastMessageContentType/lastMessagePreviewの非正規化更新
+          // （語らい一覧の並べ替え・未読件数/簡易表示用、2026-09-02追加、
+          // 2026-09-04にlastMessageContentType/lastMessagePreviewを追加
+          // ——この2つが許可リストに無かったため広場でのメッセージ送信
+          // （batch内のgroups更新が拒否され、同じbatchのmessages書き込みも
+          // 道連れで失敗）が常に失敗していた不具合を修正）。メンバー全員が
+          // 対等に更新可能（GroupRepository.sendRoomMessage等参照）。
+          || request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly(['lastMessageAt', 'lastMessageSenderId', 'lastMessageContentType', 'lastMessagePreview'])
         );
       // 広場自体の削除は長のみ（2026-08-02追加、GroupRepository.deleteGroup
       // 参照）。事前にサブコレクション（rooms/messages/roles）を全て物理削除
@@ -749,15 +807,38 @@ service cloud.firestore {
 
         // calendarEvents/{eventId}: 寄合単位の共有カレンダーの予定
         // （Googleカレンダー同期の元データ、2026-09-01追加）。
-        // 一対側（directMessages/{dmId}/rooms/{roomId}/calendarEvents）と同じ設計。
+        // 一対側（directMessages/{dmId}/rooms/{roomId}/calendarEvents）と同じ設計
+        // （削除は作成者のみ、2026-09-02変更。回答者0人の間だけ作成者に
+        // 限り内容編集も許可、2026-09-04追加）。
         match /calendarEvents/{eventId} {
-          allow read, delete: if request.auth != null
+          allow read: if request.auth != null
             && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)/rooms/$(roomId)).data.memberIds;
           allow create: if request.auth != null
             && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)/rooms/$(roomId)).data.memberIds
             && request.auth.uid == request.resource.data.createdBy;
           allow update: if request.auth != null
-            && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)/rooms/$(roomId)).data.memberIds;
+            && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)/rooms/$(roomId)).data.memberIds
+            && (
+              (
+                request.auth.uid == resource.data.createdBy
+                && resource.data.get('rsvpCount', 0) == 0
+                && request.resource.data.diff(resource.data).affectedKeys()
+                  .hasOnly(['title', 'description', 'startAt', 'endAt',
+                            'isAllDay', 'location', 'rsvpEnabled', 'rsvpPerDay',
+                            'rsvpDeadline'])
+              )
+              || (
+                request.resource.data.diff(resource.data).affectedKeys().hasOnly(['rsvpCount'])
+                && request.resource.data.rsvpCount == resource.data.get('rsvpCount', 0) + 1
+              )
+              || (
+                request.resource.data.diff(resource.data).affectedKeys().hasOnly(['syncedCount'])
+                && request.resource.data.syncedCount == resource.data.get('syncedCount', 0) + 1
+              )
+            );
+          allow delete: if request.auth != null
+            && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)/rooms/$(roomId)).data.memberIds
+            && request.auth.uid == resource.data.createdBy;
 
           match /syncStates/{uid} {
             // get（詳細画面での自分の同期状態購読）はドキュメントパスの
@@ -777,6 +858,24 @@ service cloud.firestore {
             // Googleの認証情報等の機密性には影響しない）。
             allow write: if request.auth != null
               && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)/rooms/$(roomId)).data.memberIds;
+          }
+
+          // rsvps/{uid}: 出欠回答（参加/不参加/遅刻＋備考、2026-09-02追加）。
+          // syncStatesと異なり「他人の分をまとめて初期化するバッチ書き込み」が
+          // 無い（各自が自分の回答だけを書く）ため、書き込みは本人のuidに限定する。
+          match /rsvps/{uid} {
+            allow read: if request.auth != null
+              && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)/rooms/$(roomId)).data.memberIds;
+            // 回答期限（CalendarEvent.rsvpDeadline）を過ぎていれば、新規回答・
+            // 既存回答の変更とも拒否する（2026-09-04追加）。期限フィールド
+            // 自体が無い/nullの予定（期限なし）は従来通り常に書き込み可。
+            allow write: if request.auth != null && request.auth.uid == uid
+              && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)/rooms/$(roomId)).data.memberIds
+              && (
+                !('rsvpDeadline' in get(/databases/$(database)/documents/groups/$(groupId)/rooms/$(roomId)/calendarEvents/$(eventId)).data)
+                || get(/databases/$(database)/documents/groups/$(groupId)/rooms/$(roomId)/calendarEvents/$(eventId)).data.rsvpDeadline == null
+                || request.time <= get(/databases/$(database)/documents/groups/$(groupId)/rooms/$(roomId)/calendarEvents/$(eventId)).data.rsvpDeadline
+              );
           }
         }
       }

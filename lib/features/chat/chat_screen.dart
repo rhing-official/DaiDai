@@ -47,6 +47,7 @@ import '../../theme/text_prominence_colors.dart';
 import '../../widgets/gekiga/monochrome_box.dart';
 import '../../widgets/media_preview_frame.dart';
 import '../album/album_picker_sheet.dart';
+import '../calendar/calendar_event_detail_dialog.dart';
 import 'attachment_popup_button.dart';
 import '../../utils/attachment_upload.dart';
 import '../../utils/auto_dismiss_banner.dart';
@@ -58,7 +59,6 @@ import 'sticker_picker_sheet.dart';
 import 'talks_tab.dart' show kTalksSplitBreakpoint;
 import '../../utils/message_time.dart';
 import '../../widgets/gekiga/gekiga_icon_badge.dart';
-import '../../widgets/gekiga/gekiga_panel_box.dart';
 import '../../widgets/gekiga/gekiga_photo_frame.dart';
 import '../../widgets/glass/glass_app_bar.dart';
 import '../../widgets/glass/glass_dialog.dart';
@@ -150,7 +150,14 @@ class ChatScreen extends ConsumerStatefulWidget {
   /// ファイル・画像・動画を添付したメッセージを送信する（技術仕様書5.6参照、
   /// 2026-08-10追加）。nullなら＋ボタン自体を表示しない（承認待ちの一対・
   /// 広場を開いた際の`disabled`なプレースホルダー画面など）。
-  final Future<void> Function(PickedAttachment attachment)? onSendAttachment;
+  /// [onProgress]はアップロード進捗（0.0〜1.0）を通知するコールバック
+  /// （2026-09-04追加、送信中の体感待ち時間を改善するため`_uploadProgress`
+  /// に反映して進捗バーを表示する）。
+  final Future<void> Function(
+    PickedAttachment attachment, {
+    ValueChanged<double>? onProgress,
+  })?
+  onSendAttachment;
 
   /// ペタピタ（スタンプ）を送信する（技術仕様書7.4参照、2026-08-11追加）。
   /// nullなら＋ボタンのメニューに「ペタピタ」項目自体を出さない。
@@ -455,22 +462,58 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     required bool isGekiga,
     required Widget child,
   }) {
+    final progress = _uploadProgress;
+    final content = progress == null
+        ? child
+        : Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [_uploadProgressIndicator(progress), child],
+          );
     if (isGlass) {
       return GlassSurface(
         key: _composerAreaKey,
         variant: GlassVariant.chrome,
         borderRadius: BorderRadius.zero,
         enableEdgeStroke: false,
-        child: child,
+        child: content,
       );
     }
     if (isGekiga) {
-      return Container(key: _composerAreaKey, child: child);
+      return Container(key: _composerAreaKey, child: content);
     }
     return Container(
       key: _composerAreaKey,
       color: Theme.of(context).scaffoldBackgroundColor,
-      child: child,
+      child: content,
+    );
+  }
+
+  /// 画像・動画添付の送信中に表示する進捗バー（2026-09-04追加）。
+  /// [_uploadProgress]が非nullの間だけ[_buildComposerArea]が入力欄の上に
+  /// 重ねる。
+  Widget _uploadProgressIndicator(double progress) {
+    final strings = ref.watch(appStringsProvider);
+    final percent = (progress * 100).clamp(0, 100).round();
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            strings.chatAttachmentUploadingLabel(percent),
+            style: const TextStyle(fontSize: 12),
+          ),
+          const SizedBox(height: 4),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: progress > 0 ? progress : null,
+              minHeight: 4,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -801,6 +844,40 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       roomId: widget.roomId!,
       message: message,
       currentUserId: widget.currentUserId,
+    );
+  }
+
+  /// 予定追加通知メッセージ（`contentType: 'calendarEventCreated'`）をタップ
+  /// した際、その予定の出欠確認ポップアップを開く（2026-09-04追加）。
+  /// `widget.conversationId`/`widget.roomId`が非nullの場合のみ呼び出し元
+  /// （`_MessageRow.onOpenCalendarEvent`）から渡される。`_MessageRow`は
+  /// `currentUserId`しか持たないため、`showCalendarEventDetailDialog`が
+  /// 必要とするフルの`AppUser`をここで単発取得する。
+  Future<void> _openCalendarEvent(Message message) async {
+    final eventId = message.calendarEventId;
+    if (eventId == null) return;
+    final conversationId = widget.conversationId!;
+    final roomId = widget.roomId!;
+    final event = await ref
+        .read(calendarEventRepositoryProvider)
+        .getEvent(
+          isDm: widget.isDm,
+          conversationId: conversationId,
+          roomId: roomId,
+          eventId: eventId,
+        );
+    if (event == null || !mounted) return;
+    final currentUser = await ref
+        .read(userRepositoryProvider)
+        .getUser(widget.currentUserId);
+    if (currentUser == null || !mounted) return;
+    showCalendarEventDetailDialog(
+      context,
+      isDm: widget.isDm,
+      conversationId: conversationId,
+      roomId: roomId,
+      event: event,
+      currentUser: currentUser,
     );
   }
 
@@ -1245,8 +1322,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   Future<void> _handleAttachmentPicked(PickedAttachment attachment) async {
     final onSendAttachment = widget.onSendAttachment;
     if (onSendAttachment == null) return;
+    setState(() => _uploadProgress = 0);
     try {
-      await onSendAttachment(attachment);
+      await onSendAttachment(
+        attachment,
+        onProgress: (progress) {
+          if (mounted) setState(() => _uploadProgress = progress);
+        },
+      );
     } catch (e) {
       if (!mounted) return;
       final strings = ref.read(appStringsProvider);
@@ -1279,6 +1362,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             ),
         ],
       );
+    } finally {
+      if (mounted) setState(() => _uploadProgress = null);
     }
   }
 
@@ -1426,6 +1511,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// 閉じるためのタイマー（2026-08-10導入、2026-08-12に用途を拡張し
   /// 共通の[showAutoDismissBanner]ヘルパーを使う形にリファクタ）。
   Timer? _bannerTimer;
+
+  /// 画像・動画添付の送信中の進捗（0.0〜1.0）。非送信中は`null`
+  /// （2026-09-04追加、送信中に何も変化が無く「固まっている」ように見える
+  /// 体感の悪さを改善するため）。
+  double? _uploadProgress;
 
   @override
   void dispose() {
@@ -1642,7 +1732,20 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       appBar: appBar,
       body: Column(
         children: [
-          if (widget.banner != null) widget.banner!,
+          // extendBodyBehindAppBarによりbodyはAppBarの裏（y=0）から始まる
+          // ため、バナーをそのまま置くとAppBarの矩形と重なり、AppBar側の
+          // Materialがタップを吸収してしまいバナーに届かない（2026-09-04
+          // 発覚・修正）。AppBarの実高さ分だけ明示的に下げることで、
+          // AppBarの裏を通り抜けるのはメッセージ一覧だけにする。
+          if (widget.banner != null)
+            Padding(
+              padding: EdgeInsets.only(
+                top:
+                    appBar.preferredSize.height +
+                    MediaQuery.paddingOf(context).top,
+              ),
+              child: widget.banner!,
+            ),
           Expanded(
             child: Stack(
               key: _autoScrollAreaKey,
@@ -1838,6 +1941,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                               widget.conversationId != null &&
                                   widget.roomId != null
                               ? _addToAlbum
+                              : null,
+                          onOpenCalendarEvent:
+                              widget.conversationId != null &&
+                                  widget.roomId != null
+                              ? _openCalendarEvent
                               : null,
                           pinnedMessageIds: widget.pinnedMessageIds,
                           onPinMessage: widget.onPinMessage,
@@ -2799,6 +2907,7 @@ class _MessageRow extends ConsumerWidget {
     this.onSwipeBack,
     this.vocabulary,
     this.onAddToAlbum,
+    this.onOpenCalendarEvent,
     super.key,
   });
 
@@ -2870,6 +2979,11 @@ class _MessageRow extends ConsumerWidget {
   /// nullなら（会話種別がお知らせ画面等でroomId未確定の場合）メニュー
   /// 項目自体を出さない。
   final void Function(Message message)? onAddToAlbum;
+
+  /// 予定追加通知メッセージ（`contentType: 'calendarEventCreated'`）をタップ
+  /// した際に呼ぶ（2026-09-04追加）。`onAddToAlbum`と同じくnullなら
+  /// （roomId未確定の場合）通知バブル自体のタップを無効化する。
+  final void Function(Message message)? onOpenCalendarEvent;
   final void Function(String messageId)? onToggleSelected;
 
   /// 現在ロード済みの（最新50件の）メッセージ一覧。返信先の引用プレビューを
@@ -3295,13 +3409,14 @@ class _MessageRow extends ConsumerWidget {
 
     final isCallSummary = message.contentType == 'call';
     final isAccountDeletedNotice = message.contentType == 'accountDeleted';
+    final isCalendarEventNotice = message.contentType == 'calendarEventCreated';
     final isSticker = message.contentType == 'sticker';
     final isAttachment =
         message.contentType == 'file' ||
         message.contentType == 'image' ||
         message.contentType == 'video';
     // マークダウンプレビューカード（`_FileAttachmentBlock`）は自前の枠
-    // （`GekigaJointedTileList`）を持つため、`_GekigaBubble`側の枠は
+    // （`GekigaStraightMonochromeBox`）を持つため、`_GekigaBubble`側の枠は
     // 二重表示になる（2026-08-10、ユーザー指摘により画像と同じ扱いにした）。
     final isMarkdownPreview =
         message.contentType == 'file' &&
@@ -3317,6 +3432,8 @@ class _MessageRow extends ConsumerWidget {
           _callSummaryContent(onBubbleColor)
         else if (isAccountDeletedNotice)
           _accountDeletedContent(context, ref, strings, onBubbleColor, isGekiga)
+        else if (isCalendarEventNotice)
+          _calendarEventNoticeContent(context, strings, isGekiga)
         else if (isAttachment)
           _attachmentContent(context, onBubbleColor, isGekiga)
         else if (isSticker)
@@ -3463,11 +3580,19 @@ class _MessageRow extends ConsumerWidget {
       ],
     );
 
+    // 画像・動画・マークダウンプレビュー・参加確認カードは、コンテンツ
+    // 本体側（`_attachmentContent`/`_FileAttachmentBlock`/
+    // `_calendarEventNoticeContent`）で実サイズに密着した枠線を個別に
+    // 持つため、吹き出し自体の枠（フラット/ガラスの`Border`/縁の光彩、
+    // 劇画の`GekigaStraightMonochromeBox`と重なる`_GekigaBubble`枠）を
+    // 重ねると二重表示になる。スタンプは透過画像のため元々枠を付けない
+    // （2026-09-04、コンテンツ側密着枠線の導入に伴い元の単一フラグに統合）。
     final skipBubbleFrame =
         message.contentType == 'image' ||
         message.contentType == 'video' ||
         isMarkdownPreview ||
-        isSticker;
+        isSticker ||
+        isCalendarEventNotice;
     final bubble = switch (uiStyle) {
       AppUiStyle.gekiga => _GekigaBubble(
         seed: message.messageId.hashCode,
@@ -3480,13 +3605,16 @@ class _MessageRow extends ConsumerWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
           color: colorScheme.surface,
-          border: Border.all(color: colorScheme.outline),
+          border: skipBubbleFrame
+              ? null
+              : Border.all(color: colorScheme.outline),
           borderRadius: BorderRadius.circular(20),
         ),
         child: bubbleContent,
       ),
       AppUiStyle.glass => GlassSurface(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        enableEdgeStroke: !skipBubbleFrame,
         child: bubbleContent,
       ),
     };
@@ -3692,7 +3820,11 @@ class _MessageRow extends ConsumerWidget {
               const SizedBox(height: 2),
               bubbleWithReadMark,
               if (previewUrl != null)
-                LinkPreviewCard(url: previewUrl, isGekiga: isGekiga),
+                LinkPreviewCard(
+                  url: previewUrl,
+                  isGekiga: isGekiga,
+                  isMe: isMe,
+                ),
             ],
           ),
         ),
@@ -3767,7 +3899,11 @@ class _MessageRow extends ConsumerWidget {
                     const SizedBox(height: 2),
                     bubbleWithReadMark,
                     if (previewUrl != null)
-                      LinkPreviewCard(url: previewUrl, isGekiga: isGekiga),
+                      LinkPreviewCard(
+                        url: previewUrl,
+                        isGekiga: isGekiga,
+                        isMe: isMe,
+                      ),
                   ],
                 ),
               ),
@@ -3857,6 +3993,161 @@ class _MessageRow extends ConsumerWidget {
         ),
       ],
     );
+  }
+
+  /// contentType='calendarEventCreated'（予定追加通知）の表示（2026-09-04
+  /// 追加、同日カード化）。予定タイトルは[message.content]をそのまま使う。
+  /// LINEのスケジュール共有カードのような、上部に色ブロック＋アイコン・
+  /// 下部にタイトルと全幅ボタンを持つ縦長の自前カードとして表示する
+  /// （吹き出しの地色（[onBubbleColor]）には依存しない独立配色のため、
+  /// `skipBubbleFrame`の対象に加えている）。カード全体をタップ可能にしつつ、
+  /// 内側のボタンも同じ処理を呼ぶ（ボタン領域はボタン自身のジェスチャーが
+  /// 優先されるだけで競合しない。外側の`_MessageBubbleTapArea`の長押し
+  /// メニューとも別ジェスチャーのため共存できる、`_stickerContent`と同じ
+  /// 考え方）。劇画スタイルのみ、他のカード群とは別配色にする。画像/動画
+  /// 添付・マークダウン/URLプレビューカードと同じ`GekigaStraightMonochromeBox`
+  /// （白枠→黒枠→地色→中身、`isMe`で白黒反転）を使い、通常の吹き出しの
+  /// 歪んだ平行四辺形枠ではなく完全な直角の矩形にする（2026-09-04、ユーザー
+  /// 指摘により修正）。
+  Widget _calendarEventNoticeContent(
+    BuildContext context,
+    Strings strings,
+    bool isGekiga,
+  ) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final label = strings.calendarEventCreatedMessageLabel;
+    final title = message.content;
+    final confirmLabel = strings.calendarEventCreatedMessageConfirmAction;
+    void onTap() => onOpenCalendarEvent?.call(message);
+
+    final gekigaFg = isMe ? GekigaColors.panel : GekigaColors.onPanel;
+
+    final content = isGekiga
+        ? Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.event_outlined, size: 32, color: gekigaFg),
+              const SizedBox(height: 8),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: gekigaFg.withValues(alpha: 0.75),
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                title,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                  color: gekigaFg,
+                ),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: onTap,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: gekigaFg,
+                    side: BorderSide(color: gekigaFg),
+                  ),
+                  child: Text(confirmLabel),
+                ),
+              ),
+            ],
+          )
+        : Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: double.infinity,
+                height: 88,
+                color: colorScheme.primary,
+                alignment: Alignment.center,
+                child: Icon(
+                  Icons.event_outlined,
+                  size: 36,
+                  color: colorScheme.onPrimary,
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      label,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                        color: colorScheme.onSurface,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton(
+                        onPressed: onTap,
+                        child: Text(confirmLabel),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          );
+
+    if (isGekiga) {
+      return GestureDetector(
+        onTap: onTap,
+        child: SizedBox(
+          width: 224,
+          child: GekigaStraightMonochromeBox(
+            isMe: isMe,
+            padding: const EdgeInsets.all(12),
+            child: content,
+          ),
+        ),
+      );
+    }
+
+    // カードの実サイズ（幅224px）に密着した枠線を持たせる（2026-09-04
+    // 追加、以前は吹き出し本体側の枠を流用しており密着していなかった
+    // 不具合の修正）。
+    final cardRadius = BorderRadius.circular(16);
+    final card = uiStyle == AppUiStyle.glass
+        ? GlassSurface(
+            borderRadius: cardRadius,
+            child: SizedBox(width: 224, child: content),
+          )
+        : Container(
+            width: 224,
+            decoration: BoxDecoration(
+              color: colorScheme.surface,
+              border: Border.all(color: colorScheme.outline),
+              borderRadius: cardRadius,
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: content,
+          );
+    return GestureDetector(onTap: onTap, child: card);
   }
 
   /// contentType='file'|'image'|'video'（添付メッセージ）の表示
@@ -3960,6 +4251,32 @@ class _MessageRow extends ConsumerWidget {
     await launchUrl(storeUri, mode: LaunchMode.externalApplication);
   }
 
+  /// 画像・動画プレビューの実サイズに密着した枠線。フラット/ガラスのみ
+  /// 適用し、劇画は`mediaPreviewFrame()`が既に自前の白黒枠
+  /// （`GekigaStraightMonochromeBox`）を持つため素通しする。padding無しで
+  /// `frame`（`mediaPreviewFrame()`の戻り値）を直接包むことで、以前
+  /// 吹き出し本体側のpadding込みの枠を流用していた際に生じていた「画像の
+  /// 縁と枠線の間に隙間ができる」不具合を解消する（2026-09-04追加）。
+  Widget _borderedMediaFrame(
+    BuildContext context,
+    bool isGekiga,
+    Widget frame,
+  ) {
+    if (isGekiga) return frame;
+    final radius = BorderRadius.circular(mediaPreviewContentRadius);
+    if (uiStyle == AppUiStyle.glass) {
+      return GlassSurface(borderRadius: radius, child: frame);
+    }
+    return Container(
+      decoration: BoxDecoration(
+        border: Border.all(color: Theme.of(context).colorScheme.outline),
+        borderRadius: radius,
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: frame,
+    );
+  }
+
   Widget _attachmentContent(
     BuildContext context,
     Color onBubbleColor,
@@ -3978,18 +4295,26 @@ class _MessageRow extends ConsumerWidget {
         errorBuilder: (_, _, _) =>
             Icon(Icons.broken_image_outlined, color: onBubbleColor),
       );
-      return GestureDetector(
-        onTap: () => Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => _MediaViewerScreen(
-              mediaMessages: mediaMessages,
-              initialIndex: mediaMessages.indexWhere(
-                (m) => m.messageId == message.messageId,
+      return _borderedMediaFrame(
+        context,
+        isGekiga,
+        GestureDetector(
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => _MediaViewerScreen(
+                mediaMessages: mediaMessages,
+                initialIndex: mediaMessages.indexWhere(
+                  (m) => m.messageId == message.messageId,
+                ),
               ),
             ),
           ),
+          child: mediaPreviewFrame(
+            isGekiga: isGekiga,
+            isMe: isMe,
+            child: image,
+          ),
         ),
-        child: mediaPreviewFrame(isGekiga: isGekiga, child: image),
       );
     }
 
@@ -3999,27 +4324,52 @@ class _MessageRow extends ConsumerWidget {
       // 既存プラットフォーム分岐と同じパターンで判定する。
       final supportsInAppPlayback =
           kIsWeb || !(Platform.isWindows || Platform.isLinux);
-      return GestureDetector(
-        onTap: () => supportsInAppPlayback
-            ? Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => _MediaViewerScreen(
-                    mediaMessages: mediaMessages,
-                    initialIndex: mediaMessages.indexWhere(
-                      (m) => m.messageId == message.messageId,
-                    ),
-                  ),
+      void openViewer() {
+        if (supportsInAppPlayback) {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => _MediaViewerScreen(
+                mediaMessages: mediaMessages,
+                initialIndex: mediaMessages.indexWhere(
+                  (m) => m.messageId == message.messageId,
                 ),
-              )
-            : launchUrl(
-                Uri.parse(metadata.url),
-                mode: LaunchMode.externalApplication,
               ),
-        child: mediaPreviewFrame(
+            ),
+          );
+        } else {
+          launchUrl(Uri.parse(metadata.url), mode: LaunchMode.externalApplication);
+        }
+      }
+
+      return _borderedMediaFrame(
+        context,
+        isGekiga,
+        mediaPreviewFrame(
           isGekiga: isGekiga,
-          child: VideoThumbnail(
-            url: metadata.url,
-            canLoad: supportsInAppPlayback,
+          isMe: isMe,
+          // サムネイル（動画再生Web実装ではプラットフォームビュー＝実HTML
+          // 要素になりうる）に直接`GestureDetector`を被せるだけだと、
+          // Flutter既定の`HitTestBehavior.deferToChild`が子の描画内容に
+          // 依存し、プラットフォームビュー部分でタップが素通りしうる
+          // （再生アイコンの位置だけ反応する不具合、2026-09-04発覚）。
+          // 常に最前面へ来る透明な当たり判定専用レイヤーを`Stack`で重ねて
+          // 確実に領域全体をタップ可能にする。`fit: StackFit.expand`は
+          // メッセージ一覧内（縦方向が無限制約になりうる）でStack自身の
+          // レイアウトに失敗し、動画メッセージ自体が描画されなくなる不具合
+          // を引き起こしたため使わない（2026-09-04発覚・修正）。
+          // `VideoThumbnail`自身が確定したサイズ（`SizedBox`）を持つため、
+          // 既定の`StackFit.loose`のままでも`Positioned.fill`は正しく
+          // そのサイズ全体を覆う。
+          child: Stack(
+            children: [
+              VideoThumbnail(url: metadata.url, canLoad: supportsInAppPlayback),
+              Positioned.fill(
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: openViewer,
+                ),
+              ),
+            ],
           ),
         ),
       );
@@ -4029,6 +4379,8 @@ class _MessageRow extends ConsumerWidget {
       metadata: metadata,
       onBubbleColor: onBubbleColor,
       isGekiga: isGekiga,
+      isGlass: uiStyle == AppUiStyle.glass,
+      isMe: isMe,
     );
   }
 
@@ -5603,11 +5955,15 @@ class _FileAttachmentBlock extends StatefulWidget {
     required this.metadata,
     required this.onBubbleColor,
     required this.isGekiga,
+    required this.isGlass,
+    required this.isMe,
   });
 
   final MessageFileMetadata metadata;
   final Color onBubbleColor;
   final bool isGekiga;
+  final bool isGlass;
+  final bool isMe;
 
   /// Markdownプレビューを提供する上限サイズ。これを超える場合は取得・
   /// レンダリングのコストを避け、通常のファイル行にフォールバックする。
@@ -5620,8 +5976,8 @@ class _FileAttachmentBlock extends StatefulWidget {
 
   /// この添付がプレビュー可能なMarkdownファイルかどうか。`_MessageRow`が
   /// `_GekigaBubble`の枠を纏わせるかどうかの判定（`_FileAttachmentBlock`
-  /// が自前の枠＝`GekigaJointedTileList`を持つため、外側の枠は二重表示に
-  /// なる）にも使うため、`State`内の判定ロジックと共有できるようstaticに
+  /// が自前の枠＝`GekigaStraightMonochromeBox`を持つため、外側の枠は
+  /// 二重表示になる）にも使うため、`State`内の判定ロジックと共有できるようstaticに
   /// 切り出す（2026-08-10追加）。動画は`_attachmentContent`で別分岐に
   /// なり`_FileAttachmentBlock`自体に到達しなくなったため、`isVideo`引数は
   /// 2026-08-11に削除した。
@@ -5829,9 +6185,10 @@ class _FileAttachmentBlockState extends State<_FileAttachmentBlock>
 
   Widget _buildMarkdownCard(BuildContext context, String markdownText) {
     final colorScheme = Theme.of(context).colorScheme;
-    final fg = widget.isGekiga ? GekigaColors.onPanel : colorScheme.onSurface;
+    final gekigaFg = widget.isMe ? GekigaColors.panel : GekigaColors.onPanel;
+    final fg = widget.isGekiga ? gekigaFg : colorScheme.onSurface;
     final subFg = widget.isGekiga
-        ? GekigaColors.onPanel.withValues(alpha: 0.75)
+        ? gekigaFg.withValues(alpha: 0.75)
         : colorScheme.onSurfaceVariant;
 
     // `ThemeData.dark()`を単体で生成すると`textTheme.bodyMedium?.fontSize`が
@@ -5980,22 +6337,31 @@ class _FileAttachmentBlockState extends State<_FileAttachmentBlock>
         constraints: const BoxConstraints(
           maxWidth: _FileAttachmentBlock._markdownCardMaxWidth,
         ),
-        child: GekigaJointedTileList(
-          seeds: [widget.metadata.url.hashCode],
-          selectedFlags: const [false],
-          children: [content],
-        ),
+        child: GekigaStraightMonochromeBox(isMe: widget.isMe, child: content),
       );
     }
 
+    // カードの実サイズ（`ConstrainedBox`の内側）に密着した枠線を持たせる
+    // （2026-09-04追加、以前は吹き出し本体側の枠を流用しており密着して
+    // いなかった不具合の修正）。
+    final cardRadius = BorderRadius.circular(8);
+    final card = widget.isGlass
+        ? GlassSurface(
+            borderRadius: cardRadius,
+            child: Material(type: MaterialType.transparency, child: content),
+          )
+        : Container(
+            decoration: BoxDecoration(
+              color: colorScheme.surfaceContainerHighest,
+              border: Border.all(color: colorScheme.outline),
+              borderRadius: cardRadius,
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: Material(color: Colors.transparent, child: content),
+          );
     return ConstrainedBox(
       constraints: const BoxConstraints(maxWidth: 340),
-      child: Material(
-        color: colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(8),
-        clipBehavior: Clip.antiAlias,
-        child: content,
-      ),
+      child: card,
     );
   }
 }
@@ -6028,7 +6394,7 @@ class _GekigaBubble extends StatelessWidget {
   /// ランダムにジッターさせており（[MonochromeBoxPainter]の内側リングの
   /// inset量とズレうる）、`ClipRRect`の直線的な写真との不整合で黒い隙間が
   /// 縁からはみ出す不具合が再発した。動画プレビュー・マークダウンプレビュー
-  /// カード（`_FileAttachmentBlock`）は`_GekigaPhotoMat`/`GekigaJointedTileList`
+  /// カード（`_FileAttachmentBlock`）は`GekigaStraightMonochromeBox`
   /// という自前の枠を既に持っており、外側にもこの吹き出し枠を重ねると
   /// 二重表示になる。いずれも数値調整で追いかけず、モノクロボックス装飾
   /// （[CustomPaint]自体）を纏わせないことで根本的に解消する（テキスト
