@@ -169,6 +169,41 @@ abstract class DirectMessageRepository {
     required String eventTitle,
   });
 
+  /// 日程調整を開始した際、その寄合に通知メッセージを送る（2026-09-05追加）。
+  /// タップすると`showScheduleCoordinationDetailDialog`で投票ダイアログを
+  /// 開けるよう[coordinationId]を持たせる。
+  Future<void> sendScheduleCoordinationCreatedMessage({
+    required String dmId,
+    required String roomId,
+    required String senderId,
+    required String senderRhingId,
+    required String coordinationId,
+    required String coordinationTitle,
+  });
+
+  /// 投票を開始した際、その寄合に通知メッセージを送る（2026-09-06追加）。
+  /// タップすると`showPollDetailDialog`で投票ダイアログを開けるよう[pollId]を
+  /// 持たせる。
+  Future<void> sendPollCreatedMessage({
+    required String dmId,
+    required String roomId,
+    required String senderId,
+    required String senderRhingId,
+    required String pollId,
+    required String pollQuestion,
+  });
+
+  /// 共有ノートを作成した際、その寄合に通知メッセージを送る（2026-09-06
+  /// 追加）。タップするとノートの全画面エディタを開けるよう[noteId]を持たせる。
+  Future<void> sendNoteCreatedMessage({
+    required String dmId,
+    required String roomId,
+    required String senderId,
+    required String senderRhingId,
+    required String noteId,
+    required String noteTitle,
+  });
+
   /// 送信済みテキストメッセージの本文を編集する（本文編集のみ・時間制限なし）。
   Future<void> editMessage({
     required String dmId,
@@ -888,6 +923,114 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
       'lastMessageAt': FieldValue.serverTimestamp(),
       'lastMessageSenderId': senderId,
       'lastMessageContentType': 'calendarEventCreated',
+      'lastMessagePreview': messageSnippetOf(message.content),
+    });
+    await batch.commit();
+  }
+
+  @override
+  Future<void> sendScheduleCoordinationCreatedMessage({
+    required String dmId,
+    required String roomId,
+    required String senderId,
+    required String senderRhingId,
+    required String coordinationId,
+    required String coordinationTitle,
+  }) async {
+    final dmRef = _directMessages.doc(dmId);
+    final roomRef = dmRef.collection('rooms').doc(roomId);
+    final messageRef = roomRef.collection('messages').doc();
+
+    final message = Message(
+      messageId: messageRef.id,
+      conversationId: roomId,
+      conversationType: 'dm',
+      senderId: senderId,
+      senderRhingId: senderRhingId,
+      content: coordinationTitle,
+      contentType: 'scheduleCoordinationCreated',
+      scheduleCoordinationId: coordinationId,
+    );
+
+    final batch = _firestore.batch();
+    batch.set(messageRef, message.toJson());
+    batch.update(roomRef, {'lastMessageAt': FieldValue.serverTimestamp()});
+    batch.update(dmRef, {
+      'lastMessageAt': FieldValue.serverTimestamp(),
+      'lastMessageSenderId': senderId,
+      'lastMessageContentType': 'scheduleCoordinationCreated',
+      'lastMessagePreview': messageSnippetOf(message.content),
+    });
+    await batch.commit();
+  }
+
+  @override
+  Future<void> sendPollCreatedMessage({
+    required String dmId,
+    required String roomId,
+    required String senderId,
+    required String senderRhingId,
+    required String pollId,
+    required String pollQuestion,
+  }) async {
+    final dmRef = _directMessages.doc(dmId);
+    final roomRef = dmRef.collection('rooms').doc(roomId);
+    final messageRef = roomRef.collection('messages').doc();
+
+    final message = Message(
+      messageId: messageRef.id,
+      conversationId: roomId,
+      conversationType: 'dm',
+      senderId: senderId,
+      senderRhingId: senderRhingId,
+      content: pollQuestion,
+      contentType: 'pollCreated',
+      pollId: pollId,
+    );
+
+    final batch = _firestore.batch();
+    batch.set(messageRef, message.toJson());
+    batch.update(roomRef, {'lastMessageAt': FieldValue.serverTimestamp()});
+    batch.update(dmRef, {
+      'lastMessageAt': FieldValue.serverTimestamp(),
+      'lastMessageSenderId': senderId,
+      'lastMessageContentType': 'pollCreated',
+      'lastMessagePreview': messageSnippetOf(message.content),
+    });
+    await batch.commit();
+  }
+
+  @override
+  Future<void> sendNoteCreatedMessage({
+    required String dmId,
+    required String roomId,
+    required String senderId,
+    required String senderRhingId,
+    required String noteId,
+    required String noteTitle,
+  }) async {
+    final dmRef = _directMessages.doc(dmId);
+    final roomRef = dmRef.collection('rooms').doc(roomId);
+    final messageRef = roomRef.collection('messages').doc();
+
+    final message = Message(
+      messageId: messageRef.id,
+      conversationId: roomId,
+      conversationType: 'dm',
+      senderId: senderId,
+      senderRhingId: senderRhingId,
+      content: noteTitle,
+      contentType: 'noteCreated',
+      noteId: noteId,
+    );
+
+    final batch = _firestore.batch();
+    batch.set(messageRef, message.toJson());
+    batch.update(roomRef, {'lastMessageAt': FieldValue.serverTimestamp()});
+    batch.update(dmRef, {
+      'lastMessageAt': FieldValue.serverTimestamp(),
+      'lastMessageSenderId': senderId,
+      'lastMessageContentType': 'noteCreated',
       'lastMessagePreview': messageSnippetOf(message.content),
     });
     await batch.commit();

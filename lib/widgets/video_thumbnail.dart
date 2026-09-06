@@ -84,10 +84,20 @@ class _VideoThumbnailState extends State<VideoThumbnail> {
   Widget build(BuildContext context) {
     final controller = _controller;
     final squareSize = widget.size;
+    // ダイアログ・メニュー等が上に被さっている間（自分の乗っているルートが
+    // 最前面でない間）は、実体（`VideoPlayer`＝Web版ではプラットフォーム
+    // ビュー＝実DOMの<video>要素）を一切マウントしない。`BackdropFilter`を
+    // 使うガラスUIのダイアログとプラットフォームビューの組み合わせは
+    // Flutter Web既知の弱点で、Flutterの描画順としては背面にあるはずの
+    // 動画がブラウザ実際のヒットテストでは遮蔽されずクリックが素通り
+    // してしまうことがある（投票ダイアログの回答中に背景の動画が再生されて
+    // しまう不具合、2026-09-06発覚）。`ModalRoute.of`はcontextの依存登録に
+    // より、ダイアログの開閉のたびに自動で再ビルドされる。
+    final isTopRoute = ModalRoute.of(context)?.isCurrent ?? true;
     if (squareSize != null) {
       // 正方形モード。アスペクト比を維持したレターボックスではなく、
       // ボックスいっぱいにクロップして小さいサムネイルとして見やすくする。
-      final content = _ready && controller != null
+      final content = _ready && controller != null && isTopRoute
           ? FittedBox(
               fit: BoxFit.cover,
               child: SizedBox(
@@ -112,7 +122,7 @@ class _VideoThumbnailState extends State<VideoThumbnail> {
         ),
       );
     }
-    if (_ready && controller != null) {
+    if (_ready && controller != null && isTopRoute) {
       return SizedBox(
         width: 280,
         child: AspectRatio(

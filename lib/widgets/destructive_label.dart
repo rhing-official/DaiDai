@@ -8,15 +8,23 @@ import 'package:flutter/material.dart';
 /// 削除確認ダイアログの確定ボタンと同じ固定の濃い赤（`Colors.red.shade700`）
 /// を背景に敷き、白文字を乗せる。
 class DestructiveLabel extends StatelessWidget {
-  const DestructiveLabel(this.label, {this.style, super.key});
+  const DestructiveLabel(
+    this.label, {
+    this.style,
+    this.centered = false,
+    super.key,
+  });
 
   final String label;
   final TextStyle? style;
 
+  /// trueなら赤ピルを行全体の中央に置く（既定は他の項目と揃う左寄せ）。
+  final bool centered;
+
   @override
   Widget build(BuildContext context) {
     return Align(
-      alignment: Alignment.centerLeft,
+      alignment: centered ? Alignment.center : Alignment.centerLeft,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
         decoration: BoxDecoration(

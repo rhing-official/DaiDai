@@ -7,6 +7,7 @@ import '../../l10n/strings.dart';
 import '../../models/app_ui_style.dart';
 import '../../providers/app_ui_style_provider.dart';
 import '../../providers/repository_providers.dart';
+import '../../utils/fullwidth_digits_formatter.dart';
 import '../../widgets/glass/glass_dialog.dart';
 
 /// 2段階認証（TOTP）の登録ダイアログ。QRコード（`GroupInviteDialog`と同じ
@@ -189,6 +190,7 @@ class _TwoFactorSetupDialogState extends ConsumerState<TwoFactorSetupDialog> {
               TextField(
                 controller: _codeController,
                 keyboardType: TextInputType.number,
+                inputFormatters: const [FullwidthDigitsInputFormatter()],
                 maxLength: 6,
                 decoration: InputDecoration(
                   labelText: strings.twoFactorCodeLabel,

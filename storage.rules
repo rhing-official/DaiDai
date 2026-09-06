@@ -16,6 +16,14 @@ service firebase.storage {
             || (userId == 'official-tayori' && request.auth.token.admin == true));
     }
 
+    // userSounds/{userId}/...: 着信音・呼出音のカスタムアップロード音源
+    // （2026-09-06追加）。本人のみアップロード・閲覧可能（通話中に自分の
+    // 端末で再生するだけのプライベートな設定のため、profileMaterialsと
+    // 異なり他ユーザーには公開しない）。
+    match /userSounds/{userId}/{allPaths=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
     // groupIcons/{groupId}/...: 広場のプロフィールカード用アイコン（2026-07-24追加）。
     // 対応する広場のメンバーのみアップロード可能。閲覧はログイン済みなら誰でも可能
     // （語らい相手・招待リンクを開いた相手にも見せる必要があるため）。
@@ -62,6 +70,31 @@ service firebase.storage {
         && request.auth.uid in firestore.get(/databases/(default)/documents/directMessages/$(dmId)).data.participants;
     }
     match /albumFiles/group/{groupId}/{allPaths=**} {
+      allow read, write: if request.auth != null
+        && request.auth.uid in firestore.get(/databases/(default)/documents/groups/$(groupId)).data.memberIds;
+    }
+
+    // pollOptionMedia/dm/{dmId}/...、pollOptionMedia/group/{groupId}/...:
+    // 投票の選択肢に添付された画像・動画（2026-09-06追加、画像専用の
+    // pollOptionImagesから改名）。dmFiles/groupFilesと同じ粒度
+    // （会話全体のメンバーシップ）で判定する。
+    match /pollOptionMedia/dm/{dmId}/{allPaths=**} {
+      allow read, write: if request.auth != null
+        && request.auth.uid in firestore.get(/databases/(default)/documents/directMessages/$(dmId)).data.participants;
+    }
+    match /pollOptionMedia/group/{groupId}/{allPaths=**} {
+      allow read, write: if request.auth != null
+        && request.auth.uid in firestore.get(/databases/(default)/documents/groups/$(groupId)).data.memberIds;
+    }
+
+    // noteAttachments/dm/{dmId}/...、noteAttachments/group/{groupId}/...:
+    // 共有ノートに添付された画像・動画・ファイル（2026-09-06追加）。
+    // dmFiles/groupFilesと同じ粒度（会話全体のメンバーシップ）で判定する。
+    match /noteAttachments/dm/{dmId}/{allPaths=**} {
+      allow read, write: if request.auth != null
+        && request.auth.uid in firestore.get(/databases/(default)/documents/directMessages/$(dmId)).data.participants;
+    }
+    match /noteAttachments/group/{groupId}/{allPaths=**} {
       allow read, write: if request.auth != null
         && request.auth.uid in firestore.get(/databases/(default)/documents/groups/$(groupId)).data.memberIds;
     }

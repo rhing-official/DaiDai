@@ -26,7 +26,6 @@ import '../../widgets/gekiga/gekiga_icon_badge.dart';
 import '../../widgets/gekiga/gekiga_panel_box.dart';
 import '../../widgets/gekiga/gekiga_section_header.dart';
 import '../../widgets/glass/glass_dialog.dart';
-import '../../widgets/glass/glass_icon_badge.dart';
 import '../../widgets/glass/glass_surface.dart';
 import '../../widgets/profile_card_picker.dart';
 import '../../widgets/profile_card_view.dart';
@@ -1022,9 +1021,9 @@ class _WorkshopView extends StatelessWidget {
       children: [
         if (user.profileCards.isNotEmpty) ...[
           Text(
-            '右上の丸いボタンで選んだカードがデフォルトになります。'
+            '右上の丸いボタンで選んだカードが標準になります。'
             '友達申請や広場参加など、指定していない場面では'
-            'デフォルトのカードが使われます',
+            '標準のカードが使われます',
             style: TextStyle(
               fontSize: 13,
               color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -1260,43 +1259,7 @@ class _WorkshopConversationCardSection extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            GekigaSectionHeader(strings.settingsProfileCardAssignmentTitle),
-            const SizedBox(width: 4),
-            switch (ref.watch(appUiStyleProvider)) {
-              AppUiStyle.gekiga => GekigaIconButton(
-                icon: Icons.add,
-                size: 40,
-                onPressed: () => _showAddDialog(
-                  context,
-                  ref,
-                  unassignedDms,
-                  unassignedGroups,
-                ),
-              ),
-              AppUiStyle.glass => GlassIconButton(
-                icon: Icons.add_circle_outline,
-                size: 40,
-                onPressed: () => _showAddDialog(
-                  context,
-                  ref,
-                  unassignedDms,
-                  unassignedGroups,
-                ),
-              ),
-              AppUiStyle.flat => IconButton(
-                icon: const Icon(Icons.add_circle_outline),
-                onPressed: () => _showAddDialog(
-                  context,
-                  ref,
-                  unassignedDms,
-                  unassignedGroups,
-                ),
-              ),
-            },
-          ],
-        ),
+        GekigaSectionHeader(strings.settingsProfileCardAssignmentTitle),
         Text(
           strings.settingsProfileCardAssignmentHint,
           style: TextStyle(
@@ -1335,6 +1298,13 @@ class _WorkshopConversationCardSection extends ConsumerWidget {
               onSelected: (id) => _select(ref, group.groupId, id),
             ),
         ],
+        const SizedBox(height: 8),
+        _AddThumbButton(
+          enabled: true,
+          loading: false,
+          onTap: () =>
+              _showAddDialog(context, ref, unassignedDms, unassignedGroups),
+        ),
       ],
     );
   }

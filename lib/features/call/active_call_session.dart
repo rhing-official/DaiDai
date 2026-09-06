@@ -3,7 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../models/app_user.dart';
 import '../../models/call.dart';
+import '../../models/sound_preset.dart';
+import '../../providers/calling_sound_provider.dart';
 import '../../providers/chat_navigation_providers.dart';
+import '../../providers/ringtone_sound_provider.dart';
 import '../../repositories/call_repository.dart';
 import '../../repositories/direct_message_repository.dart';
 import '../../repositories/group_call_repository.dart';
@@ -146,7 +149,17 @@ class ActiveCallSessionNotifier extends Notifier<ActiveCallSession?> {
     );
     controller.addListener(() => _onControllerChanged(session));
     controller.initialize();
-    if (!isCaller) controller.soundPlayer.startRingtoneLoop();
+    if (isCaller) {
+      final callingSource = SoundCategory.calling.resolveSource(
+        ref.read(callingSoundProvider),
+      );
+      controller.soundPlayer.startCallingLoop(callingSource);
+    } else {
+      final ringtoneSource = SoundCategory.ringtone.resolveSource(
+        ref.read(ringtoneSoundProvider),
+      );
+      controller.soundPlayer.startRingtoneLoop(ringtoneSource);
+    }
     state = session;
     return session;
   }

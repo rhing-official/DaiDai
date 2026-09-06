@@ -17,9 +17,11 @@ import '../../widgets/glass/glass_dialog.dart';
 /// 2026-09-04に再度許可した（[existingEvent]非null時が編集モード、
 /// firestore.rules側でも同条件を強制）。詳細・出欠は
 /// `calendar_event_detail_dialog.dart`。`AlbumRepository`の作成ダイアログと
-/// 同じ`showDialog`パターン。保存されたら`true`、キャンセルされたら`false`
-/// を返す。
-Future<bool> showCalendarEventFormDialog(
+/// 同じ`showDialog`パターン。保存された（作成/編集された）
+/// [CalendarEvent]を返し、キャンセルされたら`null`を返す（2026-09-05変更、
+/// 日程調整の確定機能`schedule_coordination_detail_dialog.dart`が作成された
+/// イベントのidを必要とするため、以前の`Future<bool>`から変更した）。
+Future<CalendarEvent?> showCalendarEventFormDialog(
   BuildContext context, {
   required bool isDm,
   required String conversationId,
@@ -28,8 +30,8 @@ Future<bool> showCalendarEventFormDialog(
   required String currentUserRhingId,
   DateTime? initialDate,
   CalendarEvent? existingEvent,
-}) async {
-  final saved = await showDialog<bool>(
+}) {
+  return showDialog<CalendarEvent>(
     context: context,
     builder: (_) => _CalendarEventFormDialog(
       isDm: isDm,
@@ -41,7 +43,6 @@ Future<bool> showCalendarEventFormDialog(
       existingEvent: existingEvent,
     ),
   );
-  return saved ?? false;
 }
 
 class _CalendarEventFormDialog extends ConsumerStatefulWidget {
@@ -238,6 +239,7 @@ class _CalendarEventFormDialogState
     final location = _locationController.text.trim();
     try {
       final existing = widget.existingEvent;
+      CalendarEvent result;
       if (existing != null) {
         await repo.updateEvent(
           isDm: widget.isDm,
@@ -254,6 +256,11 @@ class _CalendarEventFormDialogState
           rsvpPerDay: _rsvpEnabled && _isMultiDay && _rsvpPerDay,
           rsvpDeadline: _rsvpEnabled ? _rsvpDeadline : null,
         );
+        // 内容は変更済みだが、編集後の再取得はせずexistingEventをそのまま
+        // 返す（呼び出し元は今のところ編集パスの戻り値を「保存できたか」の
+        // 真偽判定にしか使っておらず、eventIdが必要な確定フローは日程調整の
+        // 新規作成パスのみのため）。
+        result = existing;
       } else {
         final created = await repo.createEvent(
           isDm: widget.isDm,
@@ -302,8 +309,9 @@ class _CalendarEventFormDialogState
           // （2026-09-04追加）。
           debugPrint('[calendarEventCreatedMessage] failed: $e');
         }
+        result = created;
       }
-      if (mounted) Navigator.of(context).pop(true);
+      if (mounted) Navigator.of(context).pop(result);
     } catch (e) {
       // 例外を握りつぶすと保存が失敗しても何も起きたように見えず、ユーザーが
       // 気づけない（2026-09-01発覚、firestore.rulesの不整合で常に失敗していた
@@ -419,8 +427,7 @@ class _CalendarEventFormDialogState
                     ? IconButton(
                         icon: const Icon(Icons.clear),
                         tooltip: '',
-                        onPressed: () =>
-                            setState(() => _rsvpDeadline = null),
+                        onPressed: () => setState(() => _rsvpDeadline = null),
                       )
                     : null,
                 onTap: _pickDeadline,
@@ -431,7 +438,7 @@ class _CalendarEventFormDialogState
     );
     final actions = [
       TextButton(
-        onPressed: _saving ? null : () => Navigator.of(context).pop(false),
+        onPressed: _saving ? null : () => Navigator.of(context).pop(),
         child: Text(strings.cancel),
       ),
       FilledButton(

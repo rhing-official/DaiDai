@@ -11,7 +11,6 @@ class GlassIconBadge extends StatelessWidget {
     required this.icon,
     this.size = 36,
     this.opaque = false,
-    this.shadow = false,
     super.key,
   });
 
@@ -22,15 +21,9 @@ class GlassIconBadge extends StatelessWidget {
   /// メニュー等）向け。[GlassSurface.opaque]参照。
   final bool opaque;
 
-  /// ガラスUIは基本的にマテリアルへ影を使わない方針（CLAUDE.md参照）だが、
-  /// ハンバーガーメニューのアイコンのみ例外的に影を残したいという要望
-  /// （2026-08-30追加）に応えるためのオプトイン。`GlassSurface`自体には
-  /// 影を描く仕組みを追加せず、このバッジの外側だけに個別で乗せる。
-  final bool shadow;
-
   @override
   Widget build(BuildContext context) {
-    final badge = SizedBox(
+    return SizedBox(
       width: size,
       height: size,
       child: GlassSurface(
@@ -39,20 +32,6 @@ class GlassIconBadge extends StatelessWidget {
         opaque: opaque,
         child: Center(child: Icon(icon, size: size * 0.6)),
       ),
-    );
-    if (!shadow) return badge;
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.25),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: badge,
     );
   }
 }

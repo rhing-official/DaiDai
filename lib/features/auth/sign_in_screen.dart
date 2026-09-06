@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../l10n/strings.dart';
 import '../../providers/repository_providers.dart';
 import '../../repositories/auth_repository.dart';
+import '../../utils/fullwidth_digits_formatter.dart';
 import 'qr_login_dialog.dart';
 
 class SignInScreen extends ConsumerStatefulWidget {
@@ -119,6 +120,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
       TextField(
         controller: _codeController,
         keyboardType: TextInputType.number,
+        inputFormatters: const [FullwidthDigitsInputFormatter()],
         maxLength: 6,
         decoration: InputDecoration(labelText: strings.twoFactorCodeLabel),
         onSubmitted: _isSigningIn

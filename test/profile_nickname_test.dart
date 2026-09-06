@@ -4,6 +4,7 @@ import 'package:daidai/models/app_ui_style.dart';
 import 'package:daidai/models/app_user.dart';
 import 'package:daidai/models/profile_card.dart';
 import 'package:daidai/models/profile_material.dart';
+import 'package:daidai/models/sound_preset.dart';
 import 'package:daidai/providers/app_locale_provider.dart';
 import 'package:daidai/providers/app_ui_style_provider.dart';
 import 'package:daidai/providers/repository_providers.dart';
@@ -109,6 +110,16 @@ class _FakeUserRepository implements UserRepository {
   Future<ProfileMaterial> uploadBackgroundImage(
     String userId,
     Uint8List bytes,
+  ) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<String> uploadCustomSound(
+    String userId,
+    SoundCategory category,
+    Uint8List bytes,
+    String fileName,
   ) {
     throw UnimplementedError();
   }

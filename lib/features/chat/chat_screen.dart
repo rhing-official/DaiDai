@@ -49,6 +49,9 @@ import '../../widgets/gekiga/monochrome_box.dart';
 import '../../widgets/media_preview_frame.dart';
 import '../album/album_picker_sheet.dart';
 import '../calendar/calendar_event_detail_dialog.dart';
+import '../calendar/schedule_coordination_detail_dialog.dart';
+import '../poll/poll_detail_dialog.dart';
+import '../poll/poll_form_dialog.dart';
 import 'attachment_popup_button.dart';
 import '../../utils/attachment_upload.dart';
 import '../../utils/auto_dismiss_banner.dart';
@@ -121,6 +124,7 @@ class ChatScreen extends ConsumerStatefulWidget {
     this.onSwipeBack,
     this.roomId,
     this.forceShowSenderInfo = false,
+    this.onOpenNote,
     super.key,
   });
 
@@ -286,6 +290,14 @@ class ChatScreen extends ConsumerStatefulWidget {
   /// 単位。nullなら下書き同期機能自体を無効化する（お知らせ画面・承認待ち
   /// プレースホルダー等、下書きの概念が無い呼び出し元向け）。
   final String? roomId;
+
+  /// 共有ノート作成通知メッセージ（`contentType: 'noteCreated'`）をタップ
+  /// した際に呼ばれる（2026-09-06追加）。ノートの全画面エディタは
+  /// `CalendarPaneView`同様呼び出し元（`DmChatPane`/`GroupChatPane`）の
+  /// 表示領域内に表示するため、他のcontentType（poll等）と異なり
+  /// `_ChatScreenState`側で自己完結したダイアログを開かず、noteIdを
+  /// そのまま呼び出し元へ伝える。
+  final ValueChanged<String>? onOpenNote;
 
   @override
   ConsumerState<ChatScreen> createState() => _ChatScreenState();
@@ -943,6 +955,98 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       roomId: roomId,
       event: event,
       currentUser: currentUser,
+    );
+  }
+
+  /// 日程調整開始通知メッセージ（`contentType: 'scheduleCoordinationCreated'`）
+  /// をタップした際、その日程調整の投票ダイアログを開く（2026-09-05追加、
+  /// `_openCalendarEvent`と同じ構造）。
+  Future<void> _openScheduleCoordination(Message message) async {
+    final coordinationId = message.scheduleCoordinationId;
+    if (coordinationId == null) return;
+    final conversationId = widget.conversationId!;
+    final roomId = widget.roomId!;
+    final coordination = await ref
+        .read(scheduleCoordinationRepositoryProvider)
+        .getCoordination(
+          isDm: widget.isDm,
+          conversationId: conversationId,
+          roomId: roomId,
+          coordinationId: coordinationId,
+        );
+    if (coordination == null || !mounted) return;
+    final currentUser = await ref
+        .read(userRepositoryProvider)
+        .getUser(widget.currentUserId);
+    if (currentUser == null || !mounted) return;
+    showScheduleCoordinationDetailDialog(
+      context,
+      isDm: widget.isDm,
+      conversationId: conversationId,
+      roomId: roomId,
+      coordination: coordination,
+      currentUser: currentUser,
+    );
+  }
+
+  /// 投票開始通知メッセージ（`contentType: 'pollCreated'`）をタップした際、
+  /// その投票の詳細/投票ダイアログを開く（2026-09-06追加、
+  /// `_openScheduleCoordination`と同じ構造）。
+  Future<void> _openPoll(Message message) async {
+    final pollId = message.pollId;
+    if (pollId == null) return;
+    final conversationId = widget.conversationId!;
+    final roomId = widget.roomId!;
+    final poll = await ref
+        .read(pollRepositoryProvider)
+        .getPoll(
+          isDm: widget.isDm,
+          conversationId: conversationId,
+          roomId: roomId,
+          pollId: pollId,
+        );
+    if (poll == null || !mounted) return;
+    final currentUser = await ref
+        .read(userRepositoryProvider)
+        .getUser(widget.currentUserId);
+    if (currentUser == null || !mounted) return;
+    showPollDetailDialog(
+      context,
+      isDm: widget.isDm,
+      conversationId: conversationId,
+      roomId: roomId,
+      poll: poll,
+      currentUser: currentUser,
+    );
+  }
+
+  /// ノート作成通知メッセージ（`contentType: 'noteCreated'`）をタップした
+  /// 際、呼び出し元（`DmChatPane`/`GroupChatPane`）へnoteIdを伝えて全画面
+  /// エディタを開かせる（2026-09-06追加、`widget.onOpenNote`参照）。
+  void _openNote(Message message) {
+    final noteId = message.noteId;
+    if (noteId == null) return;
+    widget.onOpenNote?.call(noteId);
+  }
+
+  /// メッセージ入力欄の「＋」メニューから「投票」を選んだ際の処理
+  /// （2026-09-06追加）。`_handleAttachmentPicked`と異なり選択ファイルを
+  /// 伴わないため、`AttachmentPopupButton.onPollRequested`から直接呼ばれる。
+  Future<void> _handlePollRequested() async {
+    final conversationId = widget.conversationId;
+    final roomId = widget.roomId;
+    if (conversationId == null || roomId == null) return;
+    final currentUser = await ref
+        .read(userRepositoryProvider)
+        .getUser(widget.currentUserId);
+    if (currentUser == null || !mounted) return;
+    await showPollFormDialog(
+      context,
+      isDm: widget.isDm,
+      conversationId: conversationId,
+      roomId: roomId,
+      currentUserId: currentUser.userId,
+      currentUserRhingId: currentUser.rhingId,
     );
   }
 
@@ -1690,62 +1794,73 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 ),
               ]
             : [
+                // 通話・動画通話・ピン留めの3アイコンは、`chat_panes.dart`の
+                // アルバム・カレンダー・投票・ハンバーガーメニュー各ボタンと
+                // 同じ「`IconButton`が汎用のタップ領域を持ち、中身の
+                // アイコンだけをスタイル別に差し替える」構成に統一している
+                // （2026-09-06修正、以前は`GekigaIconButton`/`GlassIconButton`
+                // という別系統のタップ済みウィジェットを使っており、
+                // フラットの`IconButton`(48×48)に対しガラス(32×32)・
+                // 劇画(36×36)だけ実サイズが異なりアイコン間隔がばらついて
+                // 見えていた。バッジサイズを32に揃えたことで
+                // `IconButton`既定のpadding込みでどのスタイルも48×48に
+                // 収束する）。
                 if (widget.onCallPressed case final onCall?)
-                  switch (uiStyle) {
-                    AppUiStyle.gekiga => GekigaIconButton(
-                      icon: Icons.call_outlined,
-                      onPressed: onCall,
-                    ),
-                    AppUiStyle.glass => GlassIconButton(
-                      icon: Icons.call_outlined,
-                      size: 32,
-                      opaque: true,
-                      onPressed: onCall,
-                    ),
-                    AppUiStyle.flat => IconButton(
-                      icon: const Icon(Icons.call_outlined),
-                      onPressed: onCall,
-                    ),
-                  },
-                if (widget.onVideoCallPressed case final onVideoCall?)
-                  if (cameraAvailability != CameraAvailability.unavailable)
-                    switch (uiStyle) {
-                      AppUiStyle.gekiga => GekigaIconButton(
-                        icon: Icons.videocam_outlined,
-                        onPressed: onVideoCall,
+                  IconButton(
+                    tooltip: '',
+                    icon: switch (uiStyle) {
+                      AppUiStyle.gekiga => const GekigaIconBadge(
+                        icon: Icons.call_outlined,
+                        size: 32,
+                        seed: gekigaToolbarIconSeed,
                       ),
-                      AppUiStyle.glass => GlassIconButton(
-                        icon: Icons.videocam_outlined,
+                      AppUiStyle.glass => const GlassIconBadge(
+                        icon: Icons.call_outlined,
                         size: 32,
                         opaque: true,
-                        onPressed: onVideoCall,
                       ),
-                      AppUiStyle.flat => IconButton(
-                        icon: const Icon(Icons.videocam_outlined),
-                        onPressed: onVideoCall,
-                      ),
+                      AppUiStyle.flat => const Icon(Icons.call_outlined),
                     },
-                if (widget.onFetchMessage != null)
-                  switch (uiStyle) {
-                    AppUiStyle.gekiga => GekigaIconButton(
-                      key: _pinButtonKey,
-                      icon: Icons.push_pin_outlined,
-                      onPressed: _openPinnedMessagesPopup,
-                    ),
-                    AppUiStyle.glass => GlassIconButton(
-                      key: _pinButtonKey,
-                      icon: Icons.push_pin_outlined,
-                      size: 32,
-                      opaque: true,
-                      onPressed: _openPinnedMessagesPopup,
-                    ),
-                    AppUiStyle.flat => IconButton(
-                      key: _pinButtonKey,
-                      icon: const Icon(Icons.push_pin_outlined),
+                    onPressed: onCall,
+                  ),
+                if (widget.onVideoCallPressed case final onVideoCall?)
+                  if (cameraAvailability != CameraAvailability.unavailable)
+                    IconButton(
                       tooltip: '',
-                      onPressed: _openPinnedMessagesPopup,
+                      icon: switch (uiStyle) {
+                        AppUiStyle.gekiga => const GekigaIconBadge(
+                          icon: Icons.videocam_outlined,
+                          size: 32,
+                          seed: gekigaToolbarIconSeed,
+                        ),
+                        AppUiStyle.glass => const GlassIconBadge(
+                          icon: Icons.videocam_outlined,
+                          size: 32,
+                          opaque: true,
+                        ),
+                        AppUiStyle.flat => const Icon(Icons.videocam_outlined),
+                      },
+                      onPressed: onVideoCall,
                     ),
-                  },
+                if (widget.onFetchMessage != null)
+                  IconButton(
+                    key: _pinButtonKey,
+                    tooltip: '',
+                    icon: switch (uiStyle) {
+                      AppUiStyle.gekiga => const GekigaIconBadge(
+                        icon: Icons.push_pin_outlined,
+                        size: 32,
+                        seed: gekigaToolbarIconSeed,
+                      ),
+                      AppUiStyle.glass => const GlassIconBadge(
+                        icon: Icons.push_pin_outlined,
+                        size: 32,
+                        opaque: true,
+                      ),
+                      AppUiStyle.flat => const Icon(Icons.push_pin_outlined),
+                    },
+                    onPressed: _openPinnedMessagesPopup,
+                  ),
                 ...?widget.extraActions,
               ],
       );
@@ -2015,6 +2130,21 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                   widget.roomId != null
                               ? _openCalendarEvent
                               : null,
+                          onOpenScheduleCoordination:
+                              widget.conversationId != null &&
+                                  widget.roomId != null
+                              ? _openScheduleCoordination
+                              : null,
+                          onOpenPoll:
+                              widget.conversationId != null &&
+                                  widget.roomId != null
+                              ? _openPoll
+                              : null,
+                          onOpenNote:
+                              widget.conversationId != null &&
+                                  widget.roomId != null
+                              ? _openNote
+                              : null,
                           pinnedMessageIds: widget.pinnedMessageIds,
                           onPinMessage: widget.onPinMessage,
                           onUnpinMessage: widget.onUnpinMessage,
@@ -2151,6 +2281,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                           widget.onSendSticker == null
                                           ? null
                                           : _handleStickerPicked,
+                                      onPollRequested:
+                                          widget.conversationId != null &&
+                                              widget.roomId != null
+                                          ? _handlePollRequested
+                                          : null,
                                     ),
                                   Expanded(
                                     child: Focus(
@@ -2981,6 +3116,9 @@ class _MessageRow extends ConsumerWidget {
     this.vocabulary,
     this.onAddToAlbum,
     this.onOpenCalendarEvent,
+    this.onOpenScheduleCoordination,
+    this.onOpenPoll,
+    this.onOpenNote,
     super.key,
   });
 
@@ -3057,6 +3195,19 @@ class _MessageRow extends ConsumerWidget {
   /// した際に呼ぶ（2026-09-04追加）。`onAddToAlbum`と同じくnullなら
   /// （roomId未確定の場合）通知バブル自体のタップを無効化する。
   final void Function(Message message)? onOpenCalendarEvent;
+
+  /// 日程調整開始通知メッセージ（`contentType: 'scheduleCoordinationCreated'`）
+  /// をタップした際に呼ぶ（2026-09-05追加）。`onOpenCalendarEvent`と同じ
+  /// 条件でのみ渡される。
+  final void Function(Message message)? onOpenScheduleCoordination;
+
+  /// 投票開始通知メッセージ（`contentType: 'pollCreated'`）をタップした際に
+  /// 呼ぶ（2026-09-06追加）。`onOpenCalendarEvent`と同じ条件でのみ渡される。
+  final void Function(Message message)? onOpenPoll;
+
+  /// ノート作成通知メッセージ（`contentType: 'noteCreated'`）をタップした際に
+  /// 呼ぶ（2026-09-06追加）。`onOpenCalendarEvent`と同じ条件でのみ渡される。
+  final void Function(Message message)? onOpenNote;
   final void Function(String messageId)? onToggleSelected;
 
   /// 現在ロード済みの（最新50件の）メッセージ一覧。返信先の引用プレビューを
@@ -3483,6 +3634,10 @@ class _MessageRow extends ConsumerWidget {
     final isCallSummary = message.contentType == 'call';
     final isAccountDeletedNotice = message.contentType == 'accountDeleted';
     final isCalendarEventNotice = message.contentType == 'calendarEventCreated';
+    final isScheduleCoordinationNotice =
+        message.contentType == 'scheduleCoordinationCreated';
+    final isPollNotice = message.contentType == 'pollCreated';
+    final isNoteNotice = message.contentType == 'noteCreated';
     final isSticker = message.contentType == 'sticker';
     final isAttachment =
         message.contentType == 'file' ||
@@ -3507,6 +3662,12 @@ class _MessageRow extends ConsumerWidget {
           _accountDeletedContent(context, ref, strings, onBubbleColor, isGekiga)
         else if (isCalendarEventNotice)
           _calendarEventNoticeContent(context, strings, isGekiga)
+        else if (isScheduleCoordinationNotice)
+          _scheduleCoordinationNoticeContent(context, strings, isGekiga)
+        else if (isPollNotice)
+          _pollCreatedNoticeContent(context, strings, isGekiga)
+        else if (isNoteNotice)
+          _noteCreatedNoticeContent(context, strings, isGekiga)
         else if (isAttachment)
           _attachmentContent(context, onBubbleColor, isGekiga)
         else if (isSticker)
@@ -3665,7 +3826,10 @@ class _MessageRow extends ConsumerWidget {
         message.contentType == 'video' ||
         isMarkdownPreview ||
         isSticker ||
-        isCalendarEventNotice;
+        isCalendarEventNotice ||
+        isScheduleCoordinationNotice ||
+        isPollNotice ||
+        isNoteNotice;
     final bubble = switch (uiStyle) {
       AppUiStyle.gekiga => _GekigaBubble(
         seed: message.messageId.hashCode,
@@ -4204,6 +4368,432 @@ class _MessageRow extends ConsumerWidget {
     // カードの実サイズ（幅224px）に密着した枠線を持たせる（2026-09-04
     // 追加、以前は吹き出し本体側の枠を流用しており密着していなかった
     // 不具合の修正）。
+    final cardRadius = BorderRadius.circular(16);
+    final card = uiStyle == AppUiStyle.glass
+        ? GlassSurface(
+            borderRadius: cardRadius,
+            child: SizedBox(width: 224, child: content),
+          )
+        : Container(
+            width: 224,
+            decoration: BoxDecoration(
+              color: colorScheme.surface,
+              border: Border.all(color: colorScheme.outline),
+              borderRadius: cardRadius,
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: content,
+          );
+    return GestureDetector(onTap: onTap, child: card);
+  }
+
+  /// contentType='scheduleCoordinationCreated'（日程調整開始通知、
+  /// 2026-09-05追加）の表示。`_calendarEventNoticeContent`と全く同じ構造・
+  /// 配色ルールで、アイコンと文言だけを日程調整向けに差し替えたもの。
+  Widget _scheduleCoordinationNoticeContent(
+    BuildContext context,
+    Strings strings,
+    bool isGekiga,
+  ) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final label = strings.scheduleCoordinationCreatedMessageLabel;
+    final title = message.content;
+    final confirmLabel =
+        strings.scheduleCoordinationCreatedMessageConfirmAction;
+    void onTap() => onOpenScheduleCoordination?.call(message);
+
+    final gekigaFg = isMe ? GekigaColors.panel : GekigaColors.onPanel;
+
+    final content = isGekiga
+        ? Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.how_to_vote_outlined, size: 32, color: gekigaFg),
+              const SizedBox(height: 8),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: gekigaFg.withValues(alpha: 0.75),
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                title,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                  color: gekigaFg,
+                ),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: onTap,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: gekigaFg,
+                    side: BorderSide(color: gekigaFg),
+                  ),
+                  child: Text(confirmLabel),
+                ),
+              ),
+            ],
+          )
+        : Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: double.infinity,
+                height: 88,
+                color: colorScheme.primary,
+                alignment: Alignment.center,
+                child: Icon(
+                  Icons.how_to_vote_outlined,
+                  size: 36,
+                  color: colorScheme.onPrimary,
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      label,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                        color: colorScheme.onSurface,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton(
+                        onPressed: onTap,
+                        child: Text(confirmLabel),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          );
+
+    if (isGekiga) {
+      return GestureDetector(
+        onTap: onTap,
+        child: SizedBox(
+          width: 224,
+          child: GekigaStraightMonochromeBox(
+            isMe: isMe,
+            padding: const EdgeInsets.all(12),
+            child: content,
+          ),
+        ),
+      );
+    }
+
+    final cardRadius = BorderRadius.circular(16);
+    final card = uiStyle == AppUiStyle.glass
+        ? GlassSurface(
+            borderRadius: cardRadius,
+            child: SizedBox(width: 224, child: content),
+          )
+        : Container(
+            width: 224,
+            decoration: BoxDecoration(
+              color: colorScheme.surface,
+              border: Border.all(color: colorScheme.outline),
+              borderRadius: cardRadius,
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: content,
+          );
+    return GestureDetector(onTap: onTap, child: card);
+  }
+
+  /// contentType='pollCreated'（投票開始通知、2026-09-06追加）の表示。
+  /// `_scheduleCoordinationNoticeContent`と全く同じ構造・配色ルールで、
+  /// アイコンと文言だけを投票向けに差し替えたもの。
+  Widget _pollCreatedNoticeContent(
+    BuildContext context,
+    Strings strings,
+    bool isGekiga,
+  ) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final label = strings.pollCreatedMessageLabel;
+    final title = message.content;
+    final confirmLabel = strings.pollCreatedMessageConfirmAction;
+    void onTap() => onOpenPoll?.call(message);
+
+    final gekigaFg = isMe ? GekigaColors.panel : GekigaColors.onPanel;
+
+    final content = isGekiga
+        ? Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.poll_outlined, size: 32, color: gekigaFg),
+              const SizedBox(height: 8),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: gekigaFg.withValues(alpha: 0.75),
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                title,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                  color: gekigaFg,
+                ),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: onTap,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: gekigaFg,
+                    side: BorderSide(color: gekigaFg),
+                  ),
+                  child: Text(confirmLabel),
+                ),
+              ),
+            ],
+          )
+        : Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: double.infinity,
+                height: 88,
+                color: colorScheme.primary,
+                alignment: Alignment.center,
+                child: Icon(
+                  Icons.poll_outlined,
+                  size: 36,
+                  color: colorScheme.onPrimary,
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      label,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                        color: colorScheme.onSurface,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton(
+                        onPressed: onTap,
+                        child: Text(confirmLabel),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          );
+
+    if (isGekiga) {
+      return GestureDetector(
+        onTap: onTap,
+        child: SizedBox(
+          width: 224,
+          child: GekigaStraightMonochromeBox(
+            isMe: isMe,
+            padding: const EdgeInsets.all(12),
+            child: content,
+          ),
+        ),
+      );
+    }
+
+    final cardRadius = BorderRadius.circular(16);
+    final card = uiStyle == AppUiStyle.glass
+        ? GlassSurface(
+            borderRadius: cardRadius,
+            child: SizedBox(width: 224, child: content),
+          )
+        : Container(
+            width: 224,
+            decoration: BoxDecoration(
+              color: colorScheme.surface,
+              border: Border.all(color: colorScheme.outline),
+              borderRadius: cardRadius,
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: content,
+          );
+    return GestureDetector(onTap: onTap, child: card);
+  }
+
+  /// contentType='noteCreated'（ノート作成通知、2026-09-06追加）の表示。
+  /// `_pollCreatedNoticeContent`と全く同じ構造・配色ルールで、アイコンと
+  /// 文言だけをノート向けに差し替えたもの。
+  Widget _noteCreatedNoticeContent(
+    BuildContext context,
+    Strings strings,
+    bool isGekiga,
+  ) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final label = strings.noteCreatedMessageLabel;
+    final title = message.content.isEmpty
+        ? strings.noteUntitledLabel
+        : message.content;
+    final confirmLabel = strings.noteCreatedMessageOpenAction;
+    void onTap() => onOpenNote?.call(message);
+
+    final gekigaFg = isMe ? GekigaColors.panel : GekigaColors.onPanel;
+
+    final content = isGekiga
+        ? Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.note_alt_outlined, size: 32, color: gekigaFg),
+              const SizedBox(height: 8),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: gekigaFg.withValues(alpha: 0.75),
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                title,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                  color: gekigaFg,
+                ),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: onTap,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: gekigaFg,
+                    side: BorderSide(color: gekigaFg),
+                  ),
+                  child: Text(confirmLabel),
+                ),
+              ),
+            ],
+          )
+        : Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: double.infinity,
+                height: 88,
+                color: colorScheme.primary,
+                alignment: Alignment.center,
+                child: Icon(
+                  Icons.note_alt_outlined,
+                  size: 36,
+                  color: colorScheme.onPrimary,
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      label,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                        color: colorScheme.onSurface,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton(
+                        onPressed: onTap,
+                        child: Text(confirmLabel),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          );
+
+    if (isGekiga) {
+      return GestureDetector(
+        onTap: onTap,
+        child: SizedBox(
+          width: 224,
+          child: GekigaStraightMonochromeBox(
+            isMe: isMe,
+            padding: const EdgeInsets.all(12),
+            child: content,
+          ),
+        ),
+      );
+    }
+
     final cardRadius = BorderRadius.circular(16);
     final card = uiStyle == AppUiStyle.glass
         ? GlassSurface(
@@ -5358,6 +5948,9 @@ class _SenderAvatar extends ConsumerWidget {
 /// 矢印キーでも同様に操作できる。動画は、最初に開いた対象（[initialIndex]）
 /// のときだけ自動再生し、スワイプ/矢印キーで切り替えた先の動画は自動再生
 /// せず、中央の再生ボタンをタップして再生を始める（[_VideoViewerPage]参照）。
+/// ページを離れた動画は自動的に一時停止するため（2026-09-06追加、
+/// `onPageChanged`参照）、一度再生した動画のページへスワイプ/矢印キーで
+/// 戻ってきても自動再生されたままにはならず、常に一時停止から始まる。
 class _MediaViewerScreen extends StatefulWidget {
   const _MediaViewerScreen({
     required this.mediaMessages,
@@ -5387,7 +5980,11 @@ class _MediaViewerScreenState extends State<_MediaViewerScreen> {
   // messageIdをキーにするのは、ウィジェット自身の`key:`としても兼用し、
   // スワイプ中の内部再構築でも同じ`_VideoViewerPageState`（＝
   // `VideoPlayerController`）が保たれるようにするため（GlobalKeyはツリー内
-  // での位置に関わらず同一のStateを保持し続ける）。
+  // での位置に関わらず同一のStateを保持し続ける）。同じ理由で、ページを
+  // 離れる動画を`onPageChanged`から一時停止する際にもこのマップ経由で
+  // アクセスする（2026-09-06追加、GlobalKeyでStateが保持され続ける副作用で
+  // 「一度再生した動画」だけ戻ってきた時に再生中のまま＝自動再生された
+  // ように見えてしまう不具合の修正）。
   final Map<String, GlobalKey<_VideoViewerPageState>> _videoPageKeys = {};
 
   static const _pageChangeDuration = Duration(milliseconds: 200);
@@ -5520,7 +6117,18 @@ class _MediaViewerScreenState extends State<_MediaViewerScreen> {
             controller: _pageController,
             onDismiss: () => Navigator.of(context).pop(),
             itemCount: widget.mediaMessages.length,
-            onPageChanged: (index) => setState(() => _currentIndex = index),
+            onPageChanged: (index) {
+              // 離れる動画は一時停止する（2026-09-06追加）。GlobalKeyで
+              // Stateを保持し続けているため、これをしないと「一度再生した
+              // 動画」だけ戻ってきた時に再生中のまま＝自動再生されたように
+              // 見えてしまう（上記`_videoPageKeys`のdoc参照）。
+              final previousMessage = widget.mediaMessages[_currentIndex];
+              if (previousMessage.contentType == 'video') {
+                _videoPageKeys[previousMessage.messageId]?.currentState
+                    ?._pause();
+              }
+              setState(() => _currentIndex = index);
+            },
             itemBuilder: (context, index) {
               final message = widget.mediaMessages[index];
               final url = message.fileMetadata?.url ?? '';
@@ -5586,7 +6194,9 @@ class _ImageViewerPage extends StatelessWidget {
 /// 再生/一時停止は、動画の座標上（レターボックスの余白含む）のどこを
 /// タップしても、またスペースキーでも切り替えられる（[_togglePlayback]、
 /// スペースキーは[_MediaViewerScreen]の`Focus`から`GlobalKey`経由で
-/// 呼び出す、2026-08-14追加）。
+/// 呼び出す、2026-08-14追加）。ページを離れる際は[_pause]が
+/// [_MediaViewerScreenState]の`onPageChanged`から同様に`GlobalKey`経由で
+/// 呼ばれ、常に一時停止した状態でページを離れる（2026-09-06追加）。
 class _VideoViewerPage extends StatefulWidget {
   const _VideoViewerPage({
     super.key,
@@ -5656,6 +6266,15 @@ class _VideoViewerPageState extends State<_VideoViewerPage> {
       _controller.value.isPlaying ? _controller.pause() : _controller.play();
     });
     _resetControlsVisibility();
+  }
+
+  /// ページを離れる際に呼ばれる一時停止（2026-09-06追加、
+  /// `_MediaViewerScreenState.onPageChanged`参照）。既に一時停止中なら
+  /// 何もしない。
+  void _pause() {
+    if (_controller.value.isPlaying) {
+      setState(() => _controller.pause());
+    }
   }
 
   /// 中央コントロールを表示状態にし、再生中なら数秒後に自動的に

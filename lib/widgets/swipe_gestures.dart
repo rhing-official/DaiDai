@@ -7,7 +7,7 @@ import 'package:flutter/material.dart';
 /// 吸収してしまい一貫して動作しなかったため廃止し、代わりに各画面が持つ
 /// 「戻る」操作（設定・身だしなみ・運営タブの狭い画面でのカテゴリ一覧への
 /// ドリルダウン、go_routerでpushした各画面のpop）に個別にスワイプを割り当てる。
-const kSwipeGestureVelocityThreshold = 150.0;
+const kSwipeGestureVelocityThreshold = 75.0;
 
 /// 右方向への横スワイプで[onPrevious]（無ければ[onBack]）を、
 /// 左方向への横スワイプで[onNext]を呼ぶ。
@@ -78,6 +78,67 @@ class SwipeDownToDismiss extends StatelessWidget {
   }
 }
 
+/// `PageView`既定の`PageScrollPhysics`は、フリングが無いゆっくりしたドラッグ
+/// では「ページ幅の50%（`page.roundToDouble()`）」を超えないと次のページに
+/// 確定しない。これがメディアビューアの「かなり大きくスワイプしないと
+/// 反応しない」というUX上の指摘（2026-09-06）の原因だったため、確定条件を
+/// ページ幅の10%まで緩和したもの（当初20%へ緩和したが、同日さらに半分へ
+/// 再緩和）。フリング時（速度がしきい値を超える場合）の
+/// 「距離に関わらず1ページ分確定する」挙動は元の`PageScrollPhysics`と同じ
+/// （Flutter本体`page_view.dart`の`_getTargetPixels`と同じ構造）。
+class _EasySwipePageScrollPhysics extends PageScrollPhysics {
+  const _EasySwipePageScrollPhysics({super.parent});
+
+  static const double _commitThreshold = 0.1;
+
+  @override
+  _EasySwipePageScrollPhysics applyTo(ScrollPhysics? ancestor) =>
+      _EasySwipePageScrollPhysics(parent: buildParent(ancestor));
+
+  double _getTargetPixels(
+    ScrollMetrics position,
+    Tolerance tolerance,
+    double velocity,
+  ) {
+    // このアプリの`PageView`は全てviewportFraction既定値(1.0)のため、
+    // ページ<->pixel変換はviewportDimensionでの単純な比例計算でよい
+    // （SDK本体の`PageScrollPhysics`が内部で使う`_PagePosition`は非公開の
+    // ためここでは使えない）。
+    var page = position.pixels / position.viewportDimension;
+    if (velocity.abs() > tolerance.velocity) {
+      page += velocity.sign * 0.5;
+    } else {
+      final nearest = page.roundToDouble();
+      final diff = page - nearest;
+      page = diff.abs() >= _commitThreshold ? nearest + diff.sign : nearest;
+    }
+    return page.roundToDouble() * position.viewportDimension;
+  }
+
+  @override
+  Simulation? createBallisticSimulation(
+    ScrollMetrics position,
+    double velocity,
+  ) {
+    if ((velocity <= 0.0 && position.pixels <= position.minScrollExtent) ||
+        (velocity >= 0.0 && position.pixels >= position.maxScrollExtent)) {
+      return super.createBallisticSimulation(position, velocity);
+    }
+    final tolerance = toleranceFor(position);
+    final target = _getTargetPixels(position, tolerance, velocity);
+    if (target != position.pixels) {
+      return ScrollSpringSimulation(
+        spring,
+        position.pixels,
+        target,
+        velocity,
+        tolerance: tolerance,
+      );
+    }
+    return null;
+  }
+}
+
 /// 画像/動画のフルスクリーンビューアで`PageView`（横スワイプでページ送り）と
 /// `InteractiveViewer`（ピンチズーム）を重ねると、ジェスチャーアリーナの
 /// 勝敗判定が確定するまでピンチが`InteractiveViewer`に渡らず、「反応が遅く
@@ -125,7 +186,9 @@ class _PinchPriorityPageViewState extends State<PinchPriorityPageView> {
     final isMultiTouch = _pointerCount >= 2;
     final pageView = PageView.builder(
       controller: widget.controller,
-      physics: isMultiTouch ? const NeverScrollableScrollPhysics() : null,
+      physics: isMultiTouch
+          ? const NeverScrollableScrollPhysics()
+          : const _EasySwipePageScrollPhysics(),
       onPageChanged: widget.onPageChanged,
       itemCount: widget.itemCount,
       itemBuilder: widget.itemBuilder,

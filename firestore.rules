@@ -509,6 +509,139 @@ service cloud.firestore {
               );
           }
         }
+
+        // scheduleCoordinations/{coordinationId}: 日程調整（複数候補日への
+        // ○/△/×投票、2026-09-05追加）。calendarEventsと同じくこの寄合の
+        // 参加者全員が対等に作成できる。削除は作成者のみ。確定
+        // （finalizedCandidateIndex/finalizedEventId）は作成者のみが、
+        // 未確定の状態から一度だけ書ける。
+        match /scheduleCoordinations/{coordinationId} {
+          allow read: if request.auth != null
+            && request.auth.uid in get(/databases/$(database)/documents/directMessages/$(dmId)/rooms/$(roomId)).data.participants;
+          allow create: if request.auth != null
+            && request.auth.uid in get(/databases/$(database)/documents/directMessages/$(dmId)/rooms/$(roomId)).data.participants
+            && request.auth.uid == request.resource.data.createdBy;
+          allow update: if request.auth != null
+            && request.auth.uid in get(/databases/$(database)/documents/directMessages/$(dmId)/rooms/$(roomId)).data.participants
+            && (
+              // 作成者による確定（未確定→finalizedCandidateIndex/
+              // finalizedEventIdの2フィールドのみを同時に設定する場合に限る）。
+              (
+                request.auth.uid == resource.data.createdBy
+                && resource.data.get('finalizedEventId', null) == null
+                && request.resource.data.diff(resource.data).affectedKeys()
+                  .hasOnly(['finalizedCandidateIndex', 'finalizedEventId'])
+                && request.resource.data.finalizedEventId is string
+              )
+              // 投票時のresponseCount非正規化カウンタ更新（responses/{uid}参照）。
+              // 参加者なら誰でも、自分の回答を新規作成した際に+1するだけの
+              // 更新を許可する。
+              || (
+                request.resource.data.diff(resource.data).affectedKeys().hasOnly(['responseCount'])
+                && request.resource.data.responseCount == resource.data.get('responseCount', 0) + 1
+              )
+            );
+          allow delete: if request.auth != null
+            && request.auth.uid in get(/databases/$(database)/documents/directMessages/$(dmId)/rooms/$(roomId)).data.participants
+            && request.auth.uid == resource.data.createdBy;
+
+          // responses/{uid}: 候補日ごとの○/△/×投票。calendarEvents/rsvpsと
+          // 同じ回答期限ゲート付きの書き込みパターン。
+          match /responses/{uid} {
+            allow read: if request.auth != null
+              && request.auth.uid in get(/databases/$(database)/documents/directMessages/$(dmId)/rooms/$(roomId)).data.participants;
+            allow write: if request.auth != null && request.auth.uid == uid
+              && request.auth.uid in get(/databases/$(database)/documents/directMessages/$(dmId)/rooms/$(roomId)).data.participants
+              && (
+                !('deadline' in get(/databases/$(database)/documents/directMessages/$(dmId)/rooms/$(roomId)/scheduleCoordinations/$(coordinationId)).data)
+                || get(/databases/$(database)/documents/directMessages/$(dmId)/rooms/$(roomId)/scheduleCoordinations/$(coordinationId)).data.deadline == null
+                || request.time <= get(/databases/$(database)/documents/directMessages/$(dmId)/rooms/$(roomId)/scheduleCoordinations/$(coordinationId)).data.deadline
+              );
+          }
+        }
+
+        // polls/{pollId}: 投票（2026-09-06追加）。作成はこの寄合の参加者
+        // 全員が対等に可能。responseCount/optionVoteCounts（選択肢ごとの
+        // 得票数）はCloud Functions（Admin SDK、functions/src/index.tsの
+        // onDmPollResponseCreated）だけが書き込む非正規化フィールドで、
+        // クライアントのupdateでは一切触れない。これにより匿名投票
+        // （anonymous）でも、responses/{uid}の読み取りを本人のみに絞りつつ
+        // 選択肢ごとの得票数だけは全員に安全に見せられる。
+        match /polls/{pollId} {
+          allow read: if request.auth != null
+            && request.auth.uid in get(/databases/$(database)/documents/directMessages/$(dmId)/rooms/$(roomId)).data.participants;
+          allow create: if request.auth != null
+            && request.auth.uid in get(/databases/$(database)/documents/directMessages/$(dmId)/rooms/$(roomId)).data.participants
+            && request.auth.uid == request.resource.data.createdBy
+            && request.resource.data.options.size() >= 2
+            && !('optionVoteCounts' in request.resource.data)
+            && request.resource.data.get('responseCount', 0) == 0;
+          // 更新で許可されるのは「選択肢の追加」のみ。responseCount/
+          // optionVoteCountsはCloud Functions専用でクライアントからは
+          // 一切更新できない。
+          allow update: if request.auth != null
+            && request.auth.uid in get(/databases/$(database)/documents/directMessages/$(dmId)/rooms/$(roomId)).data.participants
+            && resource.data.allowAddingOptions == true
+            && (!('deadline' in resource.data) || resource.data.deadline == null || request.time <= resource.data.deadline)
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['options'])
+            && request.resource.data.options.diff(resource.data.options).removedKeys().size() == 0
+            && request.resource.data.options.diff(resource.data.options).changedKeys().size() == 0
+            && request.resource.data.options.diff(resource.data.options).addedKeys().size() == 1
+            && request.resource.data.options.diff(resource.data.options).addedKeys().hasOnly([string(resource.data.options.size())]);
+          allow delete: if request.auth != null
+            && request.auth.uid in get(/databases/$(database)/documents/directMessages/$(dmId)/rooms/$(roomId)).data.participants
+            && request.auth.uid == resource.data.createdBy;
+
+          // responses/{uid}: 回答期限内であれば選び直せる（削除は不可、
+          // 2026-09-06更新）。匿名投票は本人以外読めない（作成者にも見せない）。
+          match /responses/{uid} {
+            allow get: if request.auth != null && request.auth.uid == uid;
+            allow list: if request.auth != null && (
+              request.auth.uid == uid
+              || (
+                get(/databases/$(database)/documents/directMessages/$(dmId)/rooms/$(roomId)/polls/$(pollId)).data.anonymous == false
+                && request.auth.uid in get(/databases/$(database)/documents/directMessages/$(dmId)/rooms/$(roomId)).data.participants
+              )
+            );
+            // create/update（回答期限内なら再投票して選び直せる、2026-09-06
+            // 追加）は同じ条件で許可する。resource.data（更新前の値）を
+            // 参照しないためcreate/updateで条件を分ける必要がない。
+            allow create, update: if request.auth != null && request.auth.uid == uid
+              && request.auth.uid in get(/databases/$(database)/documents/directMessages/$(dmId)/rooms/$(roomId)).data.participants
+              && (
+                !('deadline' in get(/databases/$(database)/documents/directMessages/$(dmId)/rooms/$(roomId)/polls/$(pollId)).data)
+                || get(/databases/$(database)/documents/directMessages/$(dmId)/rooms/$(roomId)/polls/$(pollId)).data.deadline == null
+                || request.time <= get(/databases/$(database)/documents/directMessages/$(dmId)/rooms/$(roomId)/polls/$(pollId)).data.deadline
+              )
+              && request.resource.data.selectedOptionKeys.size() > 0
+              && (
+                get(/databases/$(database)/documents/directMessages/$(dmId)/rooms/$(roomId)/polls/$(pollId)).data.allowMultipleChoices == true
+                || request.resource.data.selectedOptionKeys.size() == 1
+              )
+              && get(/databases/$(database)/documents/directMessages/$(dmId)/rooms/$(roomId)/polls/$(pollId)).data.options.keys().hasAll(request.resource.data.selectedOptionKeys);
+            allow delete: if false;
+          }
+        }
+
+        // notes/{noteId}: 共有ノート（2026-09-06追加）。投票と異なり
+        // 「共有」ノートのため、参加者全員がtitle/content（appflowy_editorの
+        // Document.toJson()）を上書き更新できる（v1は単独保存＝後勝ち方式、
+        // 同時編集のマージは行わない）。削除のみ作成者本人に限定する。
+        match /notes/{noteId} {
+          allow read: if request.auth != null
+            && request.auth.uid in get(/databases/$(database)/documents/directMessages/$(dmId)/rooms/$(roomId)).data.participants;
+          allow create: if request.auth != null
+            && request.auth.uid in get(/databases/$(database)/documents/directMessages/$(dmId)/rooms/$(roomId)).data.participants
+            && request.auth.uid == request.resource.data.createdBy;
+          // title/content/lastEditedBy/updatedAtのみ変更可能（createdBy等は
+          // 不変）。
+          allow update: if request.auth != null
+            && request.auth.uid in get(/databases/$(database)/documents/directMessages/$(dmId)/rooms/$(roomId)).data.participants
+            && request.auth.uid == request.resource.data.lastEditedBy
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'content', 'lastEditedBy', 'updatedAt']);
+          allow delete: if request.auth != null
+            && request.auth.uid == resource.data.createdBy;
+        }
       }
     }
 
@@ -886,6 +1019,125 @@ service cloud.firestore {
                 || request.time <= get(/databases/$(database)/documents/groups/$(groupId)/rooms/$(roomId)/calendarEvents/$(eventId)).data.rsvpDeadline
               );
           }
+        }
+
+        // scheduleCoordinations/{coordinationId}: 日程調整（複数候補日への
+        // ○/△/×投票、2026-09-05追加）。calendarEventsと同じくこの寄合の
+        // メンバー全員が対等に作成できる。削除は作成者のみ。確定
+        // （finalizedCandidateIndex/finalizedEventId）は作成者のみが、
+        // 未確定の状態から一度だけ書ける。
+        match /scheduleCoordinations/{coordinationId} {
+          allow read: if request.auth != null
+            && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)/rooms/$(roomId)).data.memberIds;
+          allow create: if request.auth != null
+            && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)/rooms/$(roomId)).data.memberIds
+            && request.auth.uid == request.resource.data.createdBy;
+          allow update: if request.auth != null
+            && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)/rooms/$(roomId)).data.memberIds
+            && (
+              // 作成者による確定（未確定→finalizedCandidateIndex/
+              // finalizedEventIdの2フィールドのみを同時に設定する場合に限る）。
+              (
+                request.auth.uid == resource.data.createdBy
+                && resource.data.get('finalizedEventId', null) == null
+                && request.resource.data.diff(resource.data).affectedKeys()
+                  .hasOnly(['finalizedCandidateIndex', 'finalizedEventId'])
+                && request.resource.data.finalizedEventId is string
+              )
+              // 投票時のresponseCount非正規化カウンタ更新（responses/{uid}参照）。
+              // メンバーなら誰でも、自分の回答を新規作成した際に+1するだけの
+              // 更新を許可する。
+              || (
+                request.resource.data.diff(resource.data).affectedKeys().hasOnly(['responseCount'])
+                && request.resource.data.responseCount == resource.data.get('responseCount', 0) + 1
+              )
+            );
+          allow delete: if request.auth != null
+            && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)/rooms/$(roomId)).data.memberIds
+            && request.auth.uid == resource.data.createdBy;
+
+          // responses/{uid}: 候補日ごとの○/△/×投票。calendarEvents/rsvpsと
+          // 同じ回答期限ゲート付きの書き込みパターン。
+          match /responses/{uid} {
+            allow read: if request.auth != null
+              && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)/rooms/$(roomId)).data.memberIds;
+            allow write: if request.auth != null && request.auth.uid == uid
+              && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)/rooms/$(roomId)).data.memberIds
+              && (
+                !('deadline' in get(/databases/$(database)/documents/groups/$(groupId)/rooms/$(roomId)/scheduleCoordinations/$(coordinationId)).data)
+                || get(/databases/$(database)/documents/groups/$(groupId)/rooms/$(roomId)/scheduleCoordinations/$(coordinationId)).data.deadline == null
+                || request.time <= get(/databases/$(database)/documents/groups/$(groupId)/rooms/$(roomId)/scheduleCoordinations/$(coordinationId)).data.deadline
+              );
+          }
+        }
+
+        // polls/{pollId}: 投票（2026-09-06追加）。DM側と同型（詳細は
+        // directMessages/{dmId}/rooms/{roomId}/polls側のコメント参照）。
+        match /polls/{pollId} {
+          allow read: if request.auth != null
+            && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)/rooms/$(roomId)).data.memberIds;
+          allow create: if request.auth != null
+            && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)/rooms/$(roomId)).data.memberIds
+            && request.auth.uid == request.resource.data.createdBy
+            && request.resource.data.options.size() >= 2
+            && !('optionVoteCounts' in request.resource.data)
+            && request.resource.data.get('responseCount', 0) == 0;
+          allow update: if request.auth != null
+            && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)/rooms/$(roomId)).data.memberIds
+            && resource.data.allowAddingOptions == true
+            && (!('deadline' in resource.data) || resource.data.deadline == null || request.time <= resource.data.deadline)
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['options'])
+            && request.resource.data.options.diff(resource.data.options).removedKeys().size() == 0
+            && request.resource.data.options.diff(resource.data.options).changedKeys().size() == 0
+            && request.resource.data.options.diff(resource.data.options).addedKeys().size() == 1
+            && request.resource.data.options.diff(resource.data.options).addedKeys().hasOnly([string(resource.data.options.size())]);
+          allow delete: if request.auth != null
+            && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)/rooms/$(roomId)).data.memberIds
+            && request.auth.uid == resource.data.createdBy;
+
+          match /responses/{uid} {
+            allow get: if request.auth != null && request.auth.uid == uid;
+            allow list: if request.auth != null && (
+              request.auth.uid == uid
+              || (
+                get(/databases/$(database)/documents/groups/$(groupId)/rooms/$(roomId)/polls/$(pollId)).data.anonymous == false
+                && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)/rooms/$(roomId)).data.memberIds
+              )
+            );
+            // create/update（回答期限内なら再投票して選び直せる、2026-09-06
+            // 追加）は同じ条件で許可する。resource.data（更新前の値）を
+            // 参照しないためcreate/updateで条件を分ける必要がない。
+            allow create, update: if request.auth != null && request.auth.uid == uid
+              && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)/rooms/$(roomId)).data.memberIds
+              && (
+                !('deadline' in get(/databases/$(database)/documents/groups/$(groupId)/rooms/$(roomId)/polls/$(pollId)).data)
+                || get(/databases/$(database)/documents/groups/$(groupId)/rooms/$(roomId)/polls/$(pollId)).data.deadline == null
+                || request.time <= get(/databases/$(database)/documents/groups/$(groupId)/rooms/$(roomId)/polls/$(pollId)).data.deadline
+              )
+              && request.resource.data.selectedOptionKeys.size() > 0
+              && (
+                get(/databases/$(database)/documents/groups/$(groupId)/rooms/$(roomId)/polls/$(pollId)).data.allowMultipleChoices == true
+                || request.resource.data.selectedOptionKeys.size() == 1
+              )
+              && get(/databases/$(database)/documents/groups/$(groupId)/rooms/$(roomId)/polls/$(pollId)).data.options.keys().hasAll(request.resource.data.selectedOptionKeys);
+            allow delete: if false;
+          }
+        }
+
+        // notes/{noteId}: 共有ノート（2026-09-06追加）。DM側と同型（詳細は
+        // directMessages/{dmId}/rooms/{roomId}/notes側のコメント参照）。
+        match /notes/{noteId} {
+          allow read: if request.auth != null
+            && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)/rooms/$(roomId)).data.memberIds;
+          allow create: if request.auth != null
+            && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)/rooms/$(roomId)).data.memberIds
+            && request.auth.uid == request.resource.data.createdBy;
+          allow update: if request.auth != null
+            && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)/rooms/$(roomId)).data.memberIds
+            && request.auth.uid == request.resource.data.lastEditedBy
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'content', 'lastEditedBy', 'updatedAt']);
+          allow delete: if request.auth != null
+            && request.auth.uid == resource.data.createdBy;
         }
       }
     }

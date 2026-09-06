@@ -1645,6 +1645,81 @@ export const onGroupMessageCreated = onDocumentCreated(
   },
 );
 
+/** 投票（poll）の回答が作成・更新・削除された際、親の投票ドキュメントの
+ * `responseCount`/`optionVoteCounts`（選択肢ごとの得票数）を、`responses`
+ * サブコレクションを都度全件読み直して絶対値で計算し直す（2026-09-06追加、
+ * 同日に差分加算（`before`/`after`のキー差分をFieldValue.incrementで
+ * 積み上げる方式）から変更）。差分加算方式は、Cloud Functionsのトリガー
+ * 配信が"at least once"を保証しない（まれに配信されない・重複することが
+ * ある）ことに弱く、1回でも取りこぼすとその後ずっと数値がズレたままになる
+ * 不具合が実際に発生した（新規デプロイ直後の最初の書き込みイベントが
+ * 反映されず、選択肢の得票数が負になった）。都度全件再集計する方式なら、
+ * 個々のトリガー発火が欠落・重複しても、その時点で発火したトリガーが
+ * 必ず正しい絶対値へ収束させる（自己修復的）。想定回答者数（DM・小規模な
+ * 広場が主対象）では全件読み直しのコストも無視できる範囲。匿名投票では
+ * `responses`サブコレクションの読み取りを本人のみに絞っているため、この
+ * 非正規化カウンタがAdmin SDK経由で正確な集計値を全員に安全に見せる
+ * 唯一の手段になる。 */
+async function recomputePollAggregates(
+  topCollection: "directMessages" | "groups",
+  parentId: string,
+  roomId: string,
+  pollId: string,
+) {
+  const pollRef = db.doc(
+    `${topCollection}/${parentId}/rooms/${roomId}/polls/${pollId}`,
+  );
+  const responsesSnapshot = await pollRef.collection("responses").get();
+
+  let responseCount = 0;
+  const optionVoteCounts: Record<string, number> = {};
+  for (const doc of responsesSnapshot.docs) {
+    // 不正な重複キー（selectedOptionKeysに同じ選択肢が複数回含まれる場合）に
+    // よる二重加算を防ぐため必ずSet化する。
+    const selectedKeys = new Set<string>(
+      (doc.data().selectedOptionKeys ?? []) as string[],
+    );
+    if (selectedKeys.size === 0) continue;
+    responseCount += 1;
+    for (const key of selectedKeys) {
+      optionVoteCounts[key] = (optionVoteCounts[key] ?? 0) + 1;
+    }
+  }
+
+  await pollRef.update({ responseCount, optionVoteCounts });
+}
+
+export const onDmPollResponseWritten = onDocumentWritten(
+  {
+    document:
+      "directMessages/{dmId}/rooms/{roomId}/polls/{pollId}/responses/{uid}",
+    region: "asia-northeast1",
+  },
+  async (event) => {
+    await recomputePollAggregates(
+      "directMessages",
+      event.params.dmId,
+      event.params.roomId,
+      event.params.pollId,
+    );
+  },
+);
+
+export const onGroupPollResponseWritten = onDocumentWritten(
+  {
+    document: "groups/{groupId}/rooms/{roomId}/polls/{pollId}/responses/{uid}",
+    region: "asia-northeast1",
+  },
+  async (event) => {
+    await recomputePollAggregates(
+      "groups",
+      event.params.groupId,
+      event.params.roomId,
+      event.params.pollId,
+    );
+  },
+);
+
 /** [conversationId]（dmId・groupId）直下の各roomを順に確認し、[messageId]の
  * メッセージが実際にどのroomにあるかを特定する（Storageの保存パスは
  * `dmFiles/{dmId}/{messageId}.ext`のようにroomをまたいでフラットなため、

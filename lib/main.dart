@@ -1,3 +1,5 @@
+import 'package:appflowy_editor/appflowy_editor.dart'
+    show AppFlowyEditorLocalizations;
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
@@ -13,12 +15,15 @@ import 'models/app_ui_style.dart';
 import 'providers/accent_color_provider.dart';
 import 'providers/app_locale_provider.dart';
 import 'providers/app_ui_style_provider.dart';
+import 'providers/calling_sound_provider.dart';
 import 'providers/chat_layout_style_provider.dart';
 import 'providers/conversation_sort_order_provider.dart';
 import 'providers/custom_accent_colors_provider.dart';
 import 'providers/draft_sync_enabled_provider.dart';
+import 'providers/font_design_provider.dart';
 import 'providers/gekiga_background_color_provider.dart';
 import 'providers/message_time_format_provider.dart';
+import 'providers/ringtone_sound_provider.dart';
 import 'providers/send_key_mode_provider.dart';
 import 'providers/sticker_send_mode_provider.dart';
 import 'providers/theme_mode_provider.dart';
@@ -58,6 +63,9 @@ Future<void> main() async {
   final initialAppThemeMode = await loadInitialAppThemeMode();
   final initialAppUiStyle = await loadInitialAppUiStyle();
   final initialConversationSortOrder = await loadInitialConversationSortOrder();
+  final initialFontDesign = await loadInitialFontDesign();
+  final initialRingtoneSound = await loadInitialRingtoneSound();
+  final initialCallingSound = await loadInitialCallingSound();
   runApp(
     ProviderScope(
       overrides: [
@@ -87,6 +95,9 @@ Future<void> main() async {
         initialConversationSortOrderProvider.overrideWithValue(
           initialConversationSortOrder,
         ),
+        initialFontDesignProvider.overrideWithValue(initialFontDesign),
+        initialRingtoneSoundProvider.overrideWithValue(initialRingtoneSound),
+        initialCallingSoundProvider.overrideWithValue(initialCallingSound),
       ],
       child: const DaiDaiApp(),
     ),
@@ -112,19 +123,22 @@ class DaiDaiApp extends ConsumerWidget {
     final appLocale = ref.watch(appLocaleProvider);
     final themeMode = ref.watch(appThemeModeProvider);
     final uiStyle = ref.watch(appUiStyleProvider);
+    // 設定タブの「フォントデザイン」（2026-09-06追加）。劇画は手描き風の
+    // 固定デザインのため対象外（GekigaThemeには渡さない）。
+    final fontFamily = ref.watch(fontDesignProvider).fontFamily;
     // 劇画スタイルはライト/ダークどちらのthemeModeでも同じ見た目にするため、
     // theme/darkThemeの両方に同一のThemeDataを渡す（chat_screen.dartの
     // 既存方針をアプリ全体に拡張したもの）。switch式にしているのは、新しい
     // スタイルを追加した際に対応漏れをコンパイラが検知できるようにするため。
     final theme = switch (uiStyle) {
-      AppUiStyle.flat => AppTheme.light(accentColor),
+      AppUiStyle.flat => AppTheme.light(accentColor, fontFamily: fontFamily),
       AppUiStyle.gekiga => GekigaTheme.build(gekigaBackgroundColor),
-      AppUiStyle.glass => GlassTheme.light(accentColor),
+      AppUiStyle.glass => GlassTheme.light(accentColor, fontFamily: fontFamily),
     };
     final darkTheme = switch (uiStyle) {
-      AppUiStyle.flat => AppTheme.dark(accentColor),
+      AppUiStyle.flat => AppTheme.dark(accentColor, fontFamily: fontFamily),
       AppUiStyle.gekiga => GekigaTheme.build(gekigaBackgroundColor),
-      AppUiStyle.glass => GlassTheme.dark(accentColor),
+      AppUiStyle.glass => GlassTheme.dark(accentColor, fontFamily: fontFamily),
     };
     return MaterialApp.router(
       title: 'DaiDai',
@@ -138,6 +152,9 @@ class DaiDaiApp extends ConsumerWidget {
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
+        // 共有ノート機能（appflowy_editor、2026-09-06追加）が要求する
+        // ローカライズデリゲート。
+        AppFlowyEditorLocalizations.delegate,
       ],
       routerConfig: ref.watch(goRouterProvider),
     );

@@ -14,13 +14,17 @@ import '../text_prominence_colors.dart';
 class GlassTheme {
   GlassTheme._();
 
-  static ThemeData light(Color accentColor) =>
-      _build(accentColor, Brightness.light);
+  static ThemeData light(Color accentColor, {String? fontFamily}) =>
+      _build(accentColor, Brightness.light, fontFamily);
 
-  static ThemeData dark(Color accentColor) =>
-      _build(accentColor, Brightness.dark);
+  static ThemeData dark(Color accentColor, {String? fontFamily}) =>
+      _build(accentColor, Brightness.dark, fontFamily);
 
-  static ThemeData _build(Color accentColor, Brightness brightness) {
+  static ThemeData _build(
+    Color accentColor,
+    Brightness brightness,
+    String? fontFamily,
+  ) {
     final isDark = brightness == Brightness.dark;
     // アクセントカラーが白に近い明るい色だと、決め打ちの白文字では
     // ボタン等が読めなくなる。アクセントカラー自体の明度から動的に
@@ -178,6 +182,7 @@ class GlassTheme {
           .apply(
             bodyColor: colorScheme.onSurface,
             displayColor: colorScheme.onSurface,
+            fontFamily: fontFamily,
           ),
       extensions: [extras],
     );

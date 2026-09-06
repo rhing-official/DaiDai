@@ -10,8 +10,10 @@ import 'package:flutter_image_compress/flutter_image_compress.dart';
 import '../models/app_user.dart';
 import '../models/profile_card.dart';
 import '../models/profile_material.dart';
+import '../models/sound_preset.dart';
 import '../models/user_invite_preview.dart';
 import '../utils/image_format.dart';
+import '../utils/sound_upload.dart';
 
 abstract class UserRepository {
   Future<AppUser?> getUser(String userId);
@@ -90,6 +92,17 @@ abstract class UserRepository {
   /// 蔵に背景画像をアップロードする。Firestoreへの反映は呼び出し側で
   /// [updateUser]を通じて行うこと。
   Future<ProfileMaterial> uploadBackgroundImage(String userId, Uint8List bytes);
+
+  /// 着信音・呼出音のカスタム音源をアップロードし、ダウンロードURLを返す
+  /// （2026-09-06追加）。カテゴリごとに1件のみ保持し、再アップロードで
+  /// 上書きする。Firestoreへの反映（`AppUserPreferences.ringtoneSound`/
+  /// `callingSound`）は呼び出し側が別途`updateUserPreference`で行うこと。
+  Future<String> uploadCustomSound(
+    String userId,
+    SoundCategory category,
+    Uint8List bytes,
+    String fileName,
+  );
 
   /// アップロード済み画像素材をStorageから削除する。
   Future<void> deleteProfileMaterial(ProfileMaterial material);
@@ -401,6 +414,24 @@ class FirestoreUserRepository implements UserRepository {
       folder: 'backgroundImages',
       bytes: bytes,
     );
+  }
+
+  @override
+  Future<String> uploadCustomSound(
+    String userId,
+    SoundCategory category,
+    Uint8List bytes,
+    String fileName,
+  ) async {
+    validateSoundUpload(bytes, fileName);
+    final extension = soundExtensionOf(fileName);
+    final path = 'userSounds/$userId/${category.name}.$extension';
+    final ref = _storage.ref(path);
+    await ref.putData(
+      bytes,
+      SettableMetadata(contentType: soundMimeTypeFor(extension)),
+    );
+    return ref.getDownloadURL();
   }
 
   Future<ProfileMaterial> _uploadMaterial({
