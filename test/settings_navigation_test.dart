@@ -3,17 +3,21 @@ import 'package:daidai/l10n/app_locale.dart';
 import 'package:daidai/models/app_ui_style.dart';
 import 'package:daidai/models/app_user.dart';
 import 'package:daidai/models/chat_layout_style.dart';
+import 'package:daidai/models/font_design.dart';
 import 'package:daidai/models/message_time_format.dart';
 import 'package:daidai/providers/accent_color_provider.dart';
 import 'package:daidai/providers/app_locale_provider.dart';
 import 'package:daidai/providers/app_ui_style_provider.dart';
+import 'package:daidai/providers/calling_sound_provider.dart';
 import 'package:daidai/providers/chat_layout_style_provider.dart';
 import 'package:daidai/providers/custom_accent_colors_provider.dart';
 import 'package:daidai/providers/draft_sync_enabled_provider.dart';
+import 'package:daidai/providers/font_design_provider.dart';
 import 'package:daidai/providers/gekiga_background_color_provider.dart';
 import 'package:daidai/models/send_key_mode.dart';
 import 'package:daidai/models/sticker_send_mode.dart';
 import 'package:daidai/providers/message_time_format_provider.dart';
+import 'package:daidai/providers/ringtone_sound_provider.dart';
 import 'package:daidai/providers/send_key_mode_provider.dart';
 import 'package:daidai/providers/sticker_send_mode_provider.dart';
 import 'package:daidai/providers/theme_mode_provider.dart';
@@ -59,6 +63,9 @@ Future<void> _pumpSettingsTab(WidgetTester tester) async {
         ),
         initialAppThemeModeProvider.overrideWithValue(ThemeMode.system),
         initialAppUiStyleProvider.overrideWithValue(AppUiStyle.flat),
+        initialFontDesignProvider.overrideWithValue(FontDesign.standard),
+        initialRingtoneSoundProvider.overrideWithValue(null),
+        initialCallingSoundProvider.overrideWithValue(null),
       ],
       child: const MaterialApp(
         home: Scaffold(
@@ -101,6 +108,9 @@ Future<void> _pumpSettingsTabNarrow(WidgetTester tester) async {
         ),
         initialAppThemeModeProvider.overrideWithValue(ThemeMode.system),
         initialAppUiStyleProvider.overrideWithValue(AppUiStyle.flat),
+        initialFontDesignProvider.overrideWithValue(FontDesign.standard),
+        initialRingtoneSoundProvider.overrideWithValue(null),
+        initialCallingSoundProvider.overrideWithValue(null),
       ],
       child: const MaterialApp(
         home: Scaffold(

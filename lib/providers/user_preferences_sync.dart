@@ -7,17 +7,21 @@ import '../models/app_ui_style.dart';
 import '../models/app_user_preferences.dart';
 import '../models/chat_layout_style.dart';
 import '../models/conversation_sort_order.dart';
+import '../models/font_design.dart';
 import '../models/message_time_format.dart';
 import '../models/send_key_mode.dart';
 import '../models/sticker_send_mode.dart';
 import 'accent_color_provider.dart';
 import 'app_locale_provider.dart';
 import 'app_ui_style_provider.dart';
+import 'calling_sound_provider.dart';
 import 'chat_layout_style_provider.dart';
 import 'conversation_sort_order_provider.dart';
 import 'custom_accent_colors_provider.dart';
 import 'draft_sync_enabled_provider.dart';
+import 'font_design_provider.dart';
 import 'gekiga_background_color_provider.dart';
+import 'ringtone_sound_provider.dart';
 import 'message_time_format_provider.dart';
 import 'send_key_mode_provider.dart';
 import 'sticker_send_mode_provider.dart';
@@ -97,5 +101,20 @@ void applyRemoteUserPreferences(WidgetRef ref, AppUserPreferences preferences) {
         .syncFromRemote(
           ConversationSortOrder.fromName(preferences.conversationSortOrder),
         );
+  }
+  if (preferences.fontDesign != null) {
+    ref
+        .read(fontDesignProvider.notifier)
+        .syncFromRemote(FontDesign.fromName(preferences.fontDesign));
+  }
+  if (preferences.ringtoneSound != null) {
+    ref
+        .read(ringtoneSoundProvider.notifier)
+        .syncFromRemote(preferences.ringtoneSound!);
+  }
+  if (preferences.callingSound != null) {
+    ref
+        .read(callingSoundProvider.notifier)
+        .syncFromRemote(preferences.callingSound!);
   }
 }

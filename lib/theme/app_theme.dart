@@ -9,14 +9,15 @@ import 'text_prominence_colors.dart';
 /// Material3のカラースキーム全体を導出する。ライト/ダーク共通のロジックは
 /// [_build]にまとめ、[light]/[dark]はbrightness違いの薄いラッパーにしている。
 ///
-/// フォントは意図的に指定していない（プラットフォーム既定にフォールバック）。
+/// フォントは既定では指定していない（プラットフォーム既定にフォールバック）。
 /// 以前は`fontFamily: 'monospace'`を指定していたが、CJK（日本語）文字の
 /// 字幅計算とレイアウトエンジンの推定字幅がズレ、複数文字のラベル
 /// （例:「工房」）だけ折り返される不具合の原因になっていた
 /// （1文字のラベルは偶然収まっていたため気づきにくかった）。
-/// CLAUDE.mdが意図する等幅フォント（BIZ UDPMincho/BIZ UDGothic）は
-/// まだフォントアセットが未取得（pubspec.yamlのfonts:も未設定）のため、
-/// 実際に導入する際は日本語グリフの字幅もあわせて確認すること。
+/// ユーザーが設定タブの「フォントデザイン」（`FontDesign`）で日本語フォント
+/// （はんなり明朝・神楽坂）を選んだ場合のみ[fontFamily]経由で適用する
+/// （2026-09-06追加。どちらも実際の日本語グリフを収録した正規のフォント
+/// ファイルのため、上記の等幅フォント特有の字幅ズレは起きない想定）。
 class AppTheme {
   AppTheme._();
 
@@ -27,11 +28,11 @@ class AppTheme {
   static const darkBackground = Color(0xFF121212);
   static const darkSurface = Color(0xFF1E1E1E);
 
-  static ThemeData light(Color accentColor) =>
-      _build(accentColor, Brightness.light);
+  static ThemeData light(Color accentColor, {String? fontFamily}) =>
+      _build(accentColor, Brightness.light, fontFamily);
 
-  static ThemeData dark(Color accentColor) =>
-      _build(accentColor, Brightness.dark);
+  static ThemeData dark(Color accentColor, {String? fontFamily}) =>
+      _build(accentColor, Brightness.dark, fontFamily);
 
   /// 運営向け管理画面（`/admin`）専用のモノクロテーマ（2026-08-26追加）。
   /// ユーザーが設定タブで自由に変更できるアクセントカラーの影響を受けたく
@@ -121,7 +122,11 @@ class AppTheme {
     );
   }
 
-  static ThemeData _build(Color accentColor, Brightness brightness) {
+  static ThemeData _build(
+    Color accentColor,
+    Brightness brightness,
+    String? fontFamily,
+  ) {
     final isDark = brightness == Brightness.dark;
     // アクセントカラーが白に近い明るい色だと、決め打ちの白文字では
     // ボタン等が読めなくなる。アクセントカラー自体の明度から動的に
@@ -283,6 +288,7 @@ class AppTheme {
           .apply(
             bodyColor: colorScheme.onSurface,
             displayColor: colorScheme.onSurface,
+            fontFamily: fontFamily,
           ),
       extensions: [
         AppThemeExtras(

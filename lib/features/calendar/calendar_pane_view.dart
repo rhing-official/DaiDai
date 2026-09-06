@@ -11,6 +11,7 @@ import '../../models/app_ui_style.dart';
 import '../../models/app_user.dart';
 import '../../models/calendar_event.dart';
 import '../../models/calendar_event_sync.dart';
+import '../../models/schedule_coordination.dart';
 import '../../providers/accent_color_provider.dart';
 import '../../providers/app_locale_provider.dart';
 import '../../providers/app_ui_style_provider.dart';
@@ -19,8 +20,13 @@ import '../../theme/popup_surface_colors.dart';
 import '../../widgets/glass/glass_app_bar.dart';
 import '../../widgets/glass/glass_surface.dart';
 import '../../widgets/swipe_gestures.dart';
+import 'calendar_add_choice_dialog.dart';
 import 'calendar_event_detail_dialog.dart';
 import 'calendar_event_form_dialog.dart';
+import 'schedule_coordination_detail_dialog.dart';
+import 'schedule_coordination_form_dialog.dart';
+
+DateTime _dateOnly(DateTime date) => DateTime(date.year, date.month, date.day);
 
 /// 寄合単位の共有カレンダーを月表示で開く（2026-09-01追加）。
 ///
@@ -63,6 +69,14 @@ class _CalendarPaneViewState extends ConsumerState<CalendarPaneView> {
         roomId: widget.roomId,
       );
 
+  late final Stream<List<ScheduleCoordination>> _coordinationsStream = ref
+      .read(scheduleCoordinationRepositoryProvider)
+      .watchCoordinations(
+        isDm: widget.isDm,
+        conversationId: widget.conversationId,
+        roomId: widget.roomId,
+      );
+
   late DateTime _focusedMonth = _monthOf(DateTime.now());
   Timer? _scrollDismissTimer;
 
@@ -97,15 +111,41 @@ class _CalendarPaneViewState extends ConsumerState<CalendarPaneView> {
     );
   }
 
+  Future<void> _createCoordinationOn(DateTime day) {
+    return showScheduleCoordinationFormDialog(
+      context,
+      isDm: widget.isDm,
+      conversationId: widget.conversationId,
+      roomId: widget.roomId,
+      currentUserId: widget.currentUser.userId,
+      currentUserRhingId: widget.currentUser.rhingId,
+      initialCandidateDate: day,
+    );
+  }
+
+  /// 日付クリック/ポップアップの「＋」ボタンから呼ばれる、「予定追加/日程
+  /// 調整」の選択（2026-09-05追加）。
+  Future<void> _addOn(DateTime day) async {
+    final choice = await showCalendarAddChoiceDialog(context);
+    if (choice == null || !mounted) return;
+    switch (choice) {
+      case CalendarAddChoice.event:
+        await _createEventOn(day);
+      case CalendarAddChoice.scheduleCoordination:
+        await _createCoordinationOn(day);
+    }
+  }
+
   void _onDayTap(
     BuildContext cellContext,
     DateTime day,
     List<CalendarEvent> events,
+    List<ScheduleCoordination> coordinations,
   ) {
-    if (events.isEmpty) {
-      _createEventOn(day);
+    if (events.isEmpty && coordinations.isEmpty) {
+      _addOn(day);
     } else {
-      _showDayEventsPopup(cellContext, day, events);
+      _showDayEventsPopup(cellContext, day, events, coordinations);
     }
   }
 
@@ -117,6 +157,7 @@ class _CalendarPaneViewState extends ConsumerState<CalendarPaneView> {
     BuildContext cellContext,
     DateTime day,
     List<CalendarEvent> events,
+    List<ScheduleCoordination> coordinations,
   ) async {
     final strings = ref.read(appStringsProvider);
     final localeCode = ref.read(appLocaleProvider).languageCode;
@@ -145,6 +186,7 @@ class _CalendarPaneViewState extends ConsumerState<CalendarPaneView> {
           child: _DayEventsPopupContent(
             day: day,
             events: events,
+            coordinations: coordinations,
             isDm: widget.isDm,
             conversationId: widget.conversationId,
             roomId: widget.roomId,
@@ -154,7 +196,7 @@ class _CalendarPaneViewState extends ConsumerState<CalendarPaneView> {
             localeCode: localeCode,
             onAdd: () {
               Navigator.of(context).pop();
-              _createEventOn(day);
+              _addOn(day);
             },
             onOpenDetail: (event) {
               Navigator.of(context).pop();
@@ -164,6 +206,17 @@ class _CalendarPaneViewState extends ConsumerState<CalendarPaneView> {
                 conversationId: widget.conversationId,
                 roomId: widget.roomId,
                 event: event,
+                currentUser: widget.currentUser,
+              );
+            },
+            onOpenCoordinationDetail: (coordination) {
+              Navigator.of(context).pop();
+              showScheduleCoordinationDetailDialog(
+                context,
+                isDm: widget.isDm,
+                conversationId: widget.conversationId,
+                roomId: widget.roomId,
+                coordination: coordination,
                 currentUser: widget.currentUser,
               );
             },
@@ -245,8 +298,9 @@ class _CalendarPaneViewState extends ConsumerState<CalendarPaneView> {
                 padding: const EdgeInsets.all(16),
                 child: StreamBuilder<List<CalendarEvent>>(
                   stream: _eventsStream,
-                  builder: (context, snapshot) {
-                    final events = snapshot.data ?? const <CalendarEvent>[];
+                  builder: (context, eventsSnapshot) {
+                    final events =
+                        eventsSnapshot.data ?? const <CalendarEvent>[];
                     final eventsByDate = <DateTime, List<CalendarEvent>>{};
                     for (final event in events) {
                       // 複数日にまたがる予定は、対象日全てにマークを付ける
@@ -255,32 +309,55 @@ class _CalendarPaneViewState extends ConsumerState<CalendarPaneView> {
                         (eventsByDate[day] ??= []).add(event);
                       }
                     }
-                    return Column(
-                      children: [
-                        _MonthHeader(
-                          month: _focusedMonth,
-                          localeCode: localeCode,
-                          todayLabel: strings.calendarTodayButton,
-                          onPrevious: _goToPreviousMonth,
-                          onNext: _goToNextMonth,
-                          onToday: _goToToday,
-                        ),
-                        const SizedBox(height: 8),
-                        _WeekdayHeaderRow(localeCode: localeCode),
-                        const SizedBox(height: 4),
-                        _MonthGrid(
-                          focusedMonth: _focusedMonth,
-                          eventsByDate: eventsByDate,
-                          isGekiga: uiStyle == AppUiStyle.gekiga,
-                          accentColor: accent,
-                          colorScheme: colorScheme,
-                          onDayTap: (cellContext, day) => _onDayTap(
-                            cellContext,
-                            day,
-                            eventsByDate[day] ?? const [],
-                          ),
-                        ),
-                      ],
+                    return StreamBuilder<List<ScheduleCoordination>>(
+                      stream: _coordinationsStream,
+                      builder: (context, coordinationsSnapshot) {
+                        // 月表示に印を付けるのは未確定のものだけ（確定済みは
+                        // 実際の予定として既にeventsByDateに現れる、
+                        // 2026-09-05追加）。
+                        final coordinations =
+                            (coordinationsSnapshot.data ??
+                                    const <ScheduleCoordination>[])
+                                .where((c) => !c.isFinalized)
+                                .toList();
+                        final coordinationsByDate =
+                            <DateTime, List<ScheduleCoordination>>{};
+                        for (final coordination in coordinations) {
+                          for (final ts in coordination.candidateDates) {
+                            final day = _dateOnly(ts.toDate());
+                            (coordinationsByDate[day] ??= []).add(coordination);
+                          }
+                        }
+                        return Column(
+                          children: [
+                            _MonthHeader(
+                              month: _focusedMonth,
+                              localeCode: localeCode,
+                              todayLabel: strings.calendarTodayButton,
+                              onPrevious: _goToPreviousMonth,
+                              onNext: _goToNextMonth,
+                              onToday: _goToToday,
+                            ),
+                            const SizedBox(height: 8),
+                            _WeekdayHeaderRow(localeCode: localeCode),
+                            const SizedBox(height: 4),
+                            _MonthGrid(
+                              focusedMonth: _focusedMonth,
+                              eventsByDate: eventsByDate,
+                              coordinationsByDate: coordinationsByDate,
+                              isGekiga: uiStyle == AppUiStyle.gekiga,
+                              accentColor: accent,
+                              colorScheme: colorScheme,
+                              onDayTap: (cellContext, day) => _onDayTap(
+                                cellContext,
+                                day,
+                                eventsByDate[day] ?? const [],
+                                coordinationsByDate[day] ?? const [],
+                              ),
+                            ),
+                          ],
+                        );
+                      },
                     );
                   },
                 ),
@@ -373,6 +450,7 @@ class _MonthGrid extends StatelessWidget {
   const _MonthGrid({
     required this.focusedMonth,
     required this.eventsByDate,
+    required this.coordinationsByDate,
     required this.isGekiga,
     required this.accentColor,
     required this.colorScheme,
@@ -381,6 +459,7 @@ class _MonthGrid extends StatelessWidget {
 
   final DateTime focusedMonth;
   final Map<DateTime, List<CalendarEvent>> eventsByDate;
+  final Map<DateTime, List<ScheduleCoordination>> coordinationsByDate;
   final bool isGekiga;
   final Color accentColor;
   final ColorScheme colorScheme;
@@ -418,6 +497,7 @@ class _MonthGrid extends StatelessWidget {
             isCurrentMonth: day.month == month,
             isToday: day == today,
             events: eventsByDate[day] ?? const [],
+            coordinations: coordinationsByDate[day] ?? const [],
             isGekiga: isGekiga,
             accentColor: accentColor,
             colorScheme: colorScheme,
@@ -428,9 +508,6 @@ class _MonthGrid extends StatelessWidget {
       ],
     );
   }
-
-  static DateTime _dateOnly(DateTime date) =>
-      DateTime(date.year, date.month, date.day);
 }
 
 class _DayCell extends StatelessWidget {
@@ -439,6 +516,7 @@ class _DayCell extends StatelessWidget {
     required this.isCurrentMonth,
     required this.isToday,
     required this.events,
+    required this.coordinations,
     required this.isGekiga,
     required this.accentColor,
     required this.colorScheme,
@@ -449,6 +527,9 @@ class _DayCell extends StatelessWidget {
   final bool isCurrentMonth;
   final bool isToday;
   final List<CalendarEvent> events;
+
+  /// この日を候補日に含む、未確定の日程調整（2026-09-05追加）。
+  final List<ScheduleCoordination> coordinations;
   final bool isGekiga;
   final Color accentColor;
   final ColorScheme colorScheme;
@@ -460,6 +541,7 @@ class _DayCell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hasEvents = events.isNotEmpty;
+    final hasCoordinations = coordinations.isNotEmpty;
     final dayNumberColor = isCurrentMonth
         ? colorScheme.onSurface
         : colorScheme.onSurface.withValues(alpha: 0.35);
@@ -469,36 +551,60 @@ class _DayCell extends StatelessWidget {
       child: InkWell(
         onTap: onTap == null ? null : () => onTap!(context),
         borderRadius: BorderRadius.circular(8),
-        child: Container(
-          decoration: BoxDecoration(
-            // 予定がある日はアクセントカラーを背景の塗りとしてのみ使う
-            // （CLAUDE.md規約: テキストにはアクセントカラーを使わない）。
-            // 劇画スタイルはアクセントカラーの概念自体を持たないため、
-            // 代わりに単色のドットで示す（下記）。
-            color: (!isGekiga && hasEvents)
-                ? accentColor.withValues(alpha: 0.18)
-                : null,
-            border: isToday
-                ? Border.all(color: colorScheme.outline, width: 2)
-                : null,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text('${day.day}', style: TextStyle(color: dayNumberColor)),
-              if (isGekiga && hasEvents)
-                Container(
-                  width: 4,
-                  height: 4,
-                  margin: const EdgeInsets.only(top: 2),
+        child: Stack(
+          children: [
+            Container(
+              decoration: BoxDecoration(
+                // 予定がある日はアクセントカラーを背景の塗りとしてのみ使う
+                // （CLAUDE.md規約: テキストにはアクセントカラーを使わない）。
+                // 劇画スタイルはアクセントカラーの概念自体を持たないため、
+                // 代わりに単色のドットで示す（下記）。
+                color: (!isGekiga && hasEvents)
+                    ? accentColor.withValues(alpha: 0.18)
+                    : null,
+                border: isToday
+                    ? Border.all(color: colorScheme.outline, width: 2)
+                    : null,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text('${day.day}', style: TextStyle(color: dayNumberColor)),
+                  if (isGekiga && hasEvents)
+                    Container(
+                      width: 4,
+                      height: 4,
+                      margin: const EdgeInsets.only(top: 2),
+                      decoration: BoxDecoration(
+                        color: dayNumberColor,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            // 未確定の日程調整の候補日には、確定済み予定の背景塗り/ドットとは
+            // 別に、右上へ中抜きの円バッジを重ねる（2026-09-05追加）。塗り
+            // つぶさない（＝確定していない）ことを視覚的に示す。確定済み予定
+            // と同じ日でも共存できるよう、背景の塗りとは重ならない角に置く。
+            if (hasCoordinations)
+              Positioned(
+                top: 2,
+                right: 2,
+                child: Container(
+                  width: 8,
+                  height: 8,
                   decoration: BoxDecoration(
-                    color: dayNumberColor,
                     shape: BoxShape.circle,
+                    border: Border.all(
+                      color: isGekiga ? dayNumberColor : accentColor,
+                      width: 1.5,
+                    ),
                   ),
                 ),
-            ],
-          ),
+              ),
+          ],
         ),
       ),
     );
@@ -513,6 +619,7 @@ class _DayEventsPopupContent extends StatelessWidget {
   const _DayEventsPopupContent({
     required this.day,
     required this.events,
+    required this.coordinations,
     required this.isDm,
     required this.conversationId,
     required this.roomId,
@@ -522,10 +629,12 @@ class _DayEventsPopupContent extends StatelessWidget {
     required this.localeCode,
     required this.onAdd,
     required this.onOpenDetail,
+    required this.onOpenCoordinationDetail,
   });
 
   final DateTime day;
   final List<CalendarEvent> events;
+  final List<ScheduleCoordination> coordinations;
   final bool isDm;
   final String conversationId;
   final String roomId;
@@ -535,6 +644,8 @@ class _DayEventsPopupContent extends StatelessWidget {
   final String localeCode;
   final VoidCallback onAdd;
   final void Function(CalendarEvent event) onOpenDetail;
+  final void Function(ScheduleCoordination coordination)
+  onOpenCoordinationDetail;
 
   @override
   Widget build(BuildContext context) {
@@ -581,6 +692,16 @@ class _DayEventsPopupContent extends StatelessWidget {
                 strings: strings,
                 localeCode: localeCode,
                 onTap: () => onOpenDetail(event),
+              ),
+            ),
+          for (final coordination in coordinations)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: _DayCoordinationCard(
+                coordination: coordination,
+                uiStyle: uiStyle,
+                strings: strings,
+                onTap: () => onOpenCoordinationDetail(coordination),
               ),
             ),
         ],
@@ -706,6 +827,74 @@ class _DayEventCard extends ConsumerWidget {
                 fontSize: 11,
               ),
             ),
+        ],
+      ),
+    );
+
+    return isGlass
+        ? GlassSurface(
+            variant: GlassVariant.card,
+            borderRadius: BorderRadius.circular(12),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: onTap,
+              child: body,
+            ),
+          )
+        : Material(
+            color: onInverse.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(12),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: onTap,
+              child: body,
+            ),
+          );
+  }
+}
+
+/// 日程調整1件分のカード（2026-09-05追加）。`_DayEventCard`と同じ
+/// `popup_surface_colors.dart`の反転配色を使うポップアップ専用カード。
+class _DayCoordinationCard extends StatelessWidget {
+  const _DayCoordinationCard({
+    required this.coordination,
+    required this.uiStyle,
+    required this.strings,
+    required this.onTap,
+  });
+
+  final ScheduleCoordination coordination;
+  final AppUiStyle uiStyle;
+  final Strings strings;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final isGlass = uiStyle == AppUiStyle.glass;
+    final brightness = Theme.of(context).brightness;
+    final onInverse = popupCardForeground(brightness, uiStyle);
+
+    final body = Padding(
+      padding: const EdgeInsets.all(10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            coordination.title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(color: onInverse, fontWeight: FontWeight.w600),
+          ),
+          Text(
+            strings.scheduleCoordinationCandidateCountLabel(
+              coordination.candidateDates.length,
+            ),
+            style: TextStyle(
+              color: onInverse.withValues(alpha: 0.7),
+              fontSize: 12,
+            ),
+          ),
         ],
       ),
     );

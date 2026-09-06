@@ -37,6 +37,10 @@ import '../album/album_popup_content.dart';
 import '../calendar/calendar_pane_view.dart';
 import '../call/active_call_session.dart';
 import '../call/embedded_call_pane.dart';
+import '../note/note_pane_view.dart';
+import '../note/note_popup_content.dart';
+import '../poll/poll_detail_dialog.dart';
+import '../poll/poll_popup_content.dart';
 import 'chat_screen.dart';
 import 'conversation_profile_card_dialog.dart';
 import 'group_delete_dialog.dart';
@@ -287,6 +291,11 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
   /// `EmbeddedCallPane`の`_showingCall`と同じローカル切り替え方式）。
   bool _showingCalendar = false;
 
+  /// 全画面表示中の共有ノートのid（2026-09-06追加、`_showingCalendar`と
+  /// 同じ切り替え方式だが、ノートは複数存在しうるためbool一つではなく
+  /// String?で対象を持つ）。
+  String? _openNoteId;
+
   @override
   void initState() {
     super.initState();
@@ -391,6 +400,17 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
         onClose: () => setState(() => _showingCalendar = false),
       );
     }
+    final openNoteId = _openNoteId;
+    if (openNoteId != null) {
+      return NotePaneView(
+        isDm: true,
+        conversationId: widget.dm.dmId,
+        roomId: widget.roomId,
+        noteId: openNoteId,
+        currentUser: widget.currentUser,
+        onClose: () => setState(() => _openNoteId = null),
+      );
+    }
     // 通話中、PC/Webではこの会話を表示している間だけメッセージ一覧の
     // 代わりに通話UIを埋め込み表示する（2026-08-19追加、EmbeddedCallPane
     // 参照）。
@@ -480,6 +500,7 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
       conversationId: dm.dmId,
       roomId: roomId,
       onSenderTap: (userId) => _openProfileCard(context, userId),
+      onOpenNote: (noteId) => setState(() => _openNoteId = noteId),
       messagesStream: _messagesController.stream,
       onLoadOlderMessages: _loadOlderMessages,
       isLoadingOlderMessages: _isLoadingOlder,
@@ -673,6 +694,19 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
           roomId: roomId,
           currentUser: currentUser,
           onOpenCalendar: () => setState(() => _showingCalendar = true),
+        ),
+        _PollButton(
+          isDm: true,
+          conversationId: dm.dmId,
+          roomId: roomId,
+          currentUser: currentUser,
+        ),
+        _NoteButton(
+          isDm: true,
+          conversationId: dm.dmId,
+          roomId: roomId,
+          currentUser: currentUser,
+          onNoteSelected: (noteId) => setState(() => _openNoteId = noteId),
         ),
         _DmMenuButton(
           currentUser: currentUser,
@@ -940,13 +974,13 @@ class _AlbumButtonState extends ConsumerState<_AlbumButton> {
       icon: switch (uiStyle) {
         AppUiStyle.gekiga => const GekigaIconBadge(
           icon: Icons.photo_library_outlined,
-          size: 36,
+          size: 32,
+          seed: gekigaToolbarIconSeed,
         ),
         AppUiStyle.glass => const GlassIconBadge(
           icon: Icons.photo_library_outlined,
-          size: 36,
+          size: 32,
           opaque: true,
-          shadow: true,
         ),
         AppUiStyle.flat => const Icon(Icons.photo_library_outlined),
       },
@@ -1081,17 +1115,177 @@ class _CalendarButtonState extends ConsumerState<_CalendarButton> {
       icon: switch (uiStyle) {
         AppUiStyle.gekiga => const GekigaIconBadge(
           icon: Icons.event_outlined,
-          size: 36,
+          size: 32,
+          seed: gekigaToolbarIconSeed,
         ),
         AppUiStyle.glass => const GlassIconBadge(
           icon: Icons.event_outlined,
-          size: 36,
+          size: 32,
           opaque: true,
-          shadow: true,
         ),
         AppUiStyle.flat => const Icon(Icons.event_outlined),
       },
       onPressed: _openCalendarFullScreen,
+    );
+  }
+}
+
+/// 寄合単位の投票一覧を開くボタン（2026-09-06追加）。[_AlbumButton]と同じ
+/// 「ボタン真下にポップアップ」方式（`showPollPopup`、
+/// `poll_popup_content.dart`参照）で、選ばれた投票を`PollDetailDialog`で開く。
+class _PollButton extends ConsumerStatefulWidget {
+  const _PollButton({
+    required this.isDm,
+    required this.conversationId,
+    required this.roomId,
+    required this.currentUser,
+  });
+
+  final bool isDm;
+  final String conversationId;
+  final String roomId;
+  final AppUser currentUser;
+
+  @override
+  ConsumerState<_PollButton> createState() => _PollButtonState();
+}
+
+class _PollButtonState extends ConsumerState<_PollButton> {
+  final _buttonKey = GlobalKey();
+
+  Future<void> _openPollPopup() async {
+    final buttonContext = _buttonKey.currentContext;
+    if (buttonContext == null) return;
+    final box = buttonContext.findRenderObject()! as RenderBox;
+    final bottomLeft = box.localToGlobal(Offset(0, box.size.height));
+    final bottomRight = box.localToGlobal(
+      Offset(box.size.width, box.size.height),
+    );
+    final overlay =
+        Overlay.of(context).context.findRenderObject()! as RenderBox;
+    final position = RelativeRect.fromRect(
+      Rect.fromPoints(bottomLeft, bottomRight),
+      Offset.zero & overlay.size,
+    );
+
+    final selected = await showPollPopup(
+      context,
+      position: position,
+      isDm: widget.isDm,
+      conversationId: widget.conversationId,
+      roomId: widget.roomId,
+      currentUser: widget.currentUser,
+    );
+    if (selected == null || !mounted) return;
+    showPollDetailDialog(
+      context,
+      isDm: widget.isDm,
+      conversationId: widget.conversationId,
+      roomId: widget.roomId,
+      poll: selected,
+      currentUser: widget.currentUser,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final uiStyle = ref.watch(appUiStyleProvider);
+    return IconButton(
+      key: _buttonKey,
+      tooltip: '',
+      icon: switch (uiStyle) {
+        AppUiStyle.gekiga => const GekigaIconBadge(
+          icon: Icons.poll_outlined,
+          size: 32,
+          seed: gekigaToolbarIconSeed,
+        ),
+        AppUiStyle.glass => const GlassIconBadge(
+          icon: Icons.poll_outlined,
+          size: 32,
+          opaque: true,
+        ),
+        AppUiStyle.flat => const Icon(Icons.poll_outlined),
+      },
+      onPressed: _openPollPopup,
+    );
+  }
+}
+
+/// 共有ノート機能のアイコンボタン（2026-09-06追加）。`_PollButton`と同じ
+/// 「アイコンタップ→真下にポップアップ（一覧＋「＋」で新規作成）」構成だが、
+/// 選ばれた（または新規作成された）ノートは小さなダイアログではなく、
+/// カレンダーと同様に語らいの表示領域全体を覆う全画面エディタ
+/// （[NotePaneView]）で開くため、[onNoteSelected]で対象のnoteIdを親
+/// （`DmChatPane`/`GroupChatPane`の`_openNoteId`）へ伝える。
+class _NoteButton extends ConsumerStatefulWidget {
+  const _NoteButton({
+    required this.isDm,
+    required this.conversationId,
+    required this.roomId,
+    required this.currentUser,
+    required this.onNoteSelected,
+  });
+
+  final bool isDm;
+  final String conversationId;
+  final String roomId;
+  final AppUser currentUser;
+  final ValueChanged<String> onNoteSelected;
+
+  @override
+  ConsumerState<_NoteButton> createState() => _NoteButtonState();
+}
+
+class _NoteButtonState extends ConsumerState<_NoteButton> {
+  final _buttonKey = GlobalKey();
+
+  Future<void> _openNotePopup() async {
+    final buttonContext = _buttonKey.currentContext;
+    if (buttonContext == null) return;
+    final box = buttonContext.findRenderObject()! as RenderBox;
+    final bottomLeft = box.localToGlobal(Offset(0, box.size.height));
+    final bottomRight = box.localToGlobal(
+      Offset(box.size.width, box.size.height),
+    );
+    final overlay =
+        Overlay.of(context).context.findRenderObject()! as RenderBox;
+    final position = RelativeRect.fromRect(
+      Rect.fromPoints(bottomLeft, bottomRight),
+      Offset.zero & overlay.size,
+    );
+
+    final selected = await showNotePopup(
+      context,
+      position: position,
+      isDm: widget.isDm,
+      conversationId: widget.conversationId,
+      roomId: widget.roomId,
+      currentUser: widget.currentUser,
+    );
+    if (selected == null || !mounted) return;
+    widget.onNoteSelected(selected.noteId);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final uiStyle = ref.watch(appUiStyleProvider);
+    return IconButton(
+      key: _buttonKey,
+      tooltip: '',
+      icon: switch (uiStyle) {
+        AppUiStyle.gekiga => const GekigaIconBadge(
+          icon: Icons.note_alt_outlined,
+          size: 32,
+          seed: gekigaToolbarIconSeed,
+        ),
+        AppUiStyle.glass => const GlassIconBadge(
+          icon: Icons.note_alt_outlined,
+          size: 32,
+          opaque: true,
+        ),
+        AppUiStyle.flat => const Icon(Icons.note_alt_outlined),
+      },
+      onPressed: _openNotePopup,
     );
   }
 }
@@ -1110,6 +1304,7 @@ class _MenuTile<T> extends StatelessWidget {
     required this.foreground,
     this.value,
     this.destructive = false,
+    this.centered = false,
     this.enabled = true,
   });
 
@@ -1117,6 +1312,9 @@ class _MenuTile<T> extends StatelessWidget {
   final Color foreground;
   final T? value;
   final bool destructive;
+
+  /// destructive時のみ有効。trueなら赤ピルを行の中央に置く（既定は左寄せ）。
+  final bool centered;
   final bool enabled;
 
   @override
@@ -1130,7 +1328,7 @@ class _MenuTile<T> extends StatelessWidget {
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             child: destructive
-                ? DestructiveLabel(label)
+                ? DestructiveLabel(label, centered: centered)
                 : Text(label, style: TextStyle(color: foreground)),
           ),
         ),
@@ -1322,6 +1520,7 @@ class _DmMenuButtonState extends ConsumerState<_DmMenuButton> {
                 label: strings.roomMenuDeleteLabel(vocabulary.textChannel),
                 foreground: foreground,
                 destructive: true,
+                centered: true,
                 value: _DmMenuAction.deleteRoom,
               ),
               if (!widget.dm.roomsEnabled)
@@ -1529,12 +1728,15 @@ class _DmMenuButtonState extends ConsumerState<_DmMenuButton> {
       key: _buttonKey,
       tooltip: '',
       icon: switch (uiStyle) {
-        AppUiStyle.gekiga => const GekigaIconBadge(icon: Icons.menu, size: 36),
+        AppUiStyle.gekiga => const GekigaIconBadge(
+          icon: Icons.menu,
+          size: 32,
+          seed: gekigaToolbarIconSeed,
+        ),
         AppUiStyle.glass => const GlassIconBadge(
           icon: Icons.menu,
-          size: 36,
+          size: 32,
           opaque: true,
-          shadow: true,
         ),
         AppUiStyle.flat => const Icon(Icons.menu),
       },
@@ -1607,6 +1809,11 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
   /// カレンダーをこの語らいの表示領域内に表示中か（2026-09-01追加、
   /// `EmbeddedCallPane`の`_showingCall`と同じローカル切り替え方式）。
   bool _showingCalendar = false;
+
+  /// 全画面表示中の共有ノートのid（2026-09-06追加、`_showingCalendar`と
+  /// 同じ切り替え方式だが、ノートは複数存在しうるためbool一つではなく
+  /// String?で対象を持つ）。
+  String? _openNoteId;
 
   @override
   void initState() {
@@ -1781,6 +1988,17 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
         onClose: () => setState(() => _showingCalendar = false),
       );
     }
+    final openNoteId = _openNoteId;
+    if (openNoteId != null) {
+      return NotePaneView(
+        isDm: false,
+        conversationId: group.groupId,
+        roomId: roomId,
+        noteId: openNoteId,
+        currentUser: currentUser,
+        onClose: () => setState(() => _openNoteId = null),
+      );
+    }
     // 通話中、PC/Webではこの会話を表示している間だけメッセージ一覧の
     // 代わりに通話UIを埋め込み表示する（2026-08-19追加、EmbeddedCallPane
     // 参照）。
@@ -1873,6 +2091,7 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
       conversationId: group.groupId,
       roomId: roomId,
       senderNameColorResolver: senderNameColorFor,
+      onOpenNote: (noteId) => setState(() => _openNoteId = noteId),
       banner: ChatTaskBanner(
         isDm: false,
         conversationId: group.groupId,
@@ -2060,6 +2279,19 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
           currentUser: currentUser,
           onOpenCalendar: () => setState(() => _showingCalendar = true),
         ),
+        _PollButton(
+          isDm: false,
+          conversationId: group.groupId,
+          roomId: roomId,
+          currentUser: currentUser,
+        ),
+        _NoteButton(
+          isDm: false,
+          conversationId: group.groupId,
+          roomId: roomId,
+          currentUser: currentUser,
+          onNoteSelected: (noteId) => setState(() => _openNoteId = noteId),
+        ),
         _GroupMenuButton(
           currentUser: currentUser,
           group: group,
@@ -2067,6 +2299,7 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
           roomName: roomName,
           currentRoom: currentRoom,
           roles: roles,
+          hasSidebar: !widget.showRoomTabBar,
         ),
       ],
       onSenderTap: (userId) => _openProfileCard(context, userId),
@@ -2107,6 +2340,7 @@ class _GroupMenuButton extends ConsumerStatefulWidget {
     required this.roomName,
     required this.currentRoom,
     required this.roles,
+    required this.hasSidebar,
   });
 
   final AppUser currentUser;
@@ -2115,6 +2349,11 @@ class _GroupMenuButton extends ConsumerStatefulWidget {
   /// 現在表示中の寄合。
   final String roomId;
   final String roomName;
+
+  /// サイドバー（`RoomListPane`）が表示される広い画面かどうか。「広場自体の
+  /// 設定」項目はサイドバーの歯車アイコンと重複するため、サイドバーが無い
+  /// 狭い画面の時だけメニューに表示する（2026-09-06変更）。
+  final bool hasSidebar;
 
   /// [roomId]が指す寄合のドキュメント本体（`rolePriorityOverride`の現在値の
   /// 表示・編集に使う）。ロード中でまだ取得できていない場合はnull。
@@ -2550,6 +2789,14 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
                 enabled: canManageRooms,
                 value: _GroupMenuAction.renameRoom,
               ),
+              // 「名前を変更」と「削除」の間に配置する（2026-09-06変更、
+              // ユーザー指示）。
+              _MenuTile(
+                label: strings.groupMenuLeave,
+                foreground: foreground,
+                enabled: !isOwner,
+                value: _GroupMenuAction.leave,
+              ),
               // 寄合一覧サイドバーのごみ箱アイコンの代わり（2026-07-30変更）。
               // 最後の1つの寄合は選べても実際には削除できず、リポジトリが
               // StateErrorを投げてSnackBarで案内する（`handle`参照）。
@@ -2557,6 +2804,7 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
                 label: strings.roomMenuDeleteLabel(vocabulary.textChannel),
                 foreground: foreground,
                 destructive: true,
+                centered: true,
                 enabled: canManageRooms,
                 value: _GroupMenuAction.deleteRoom,
               ),
@@ -2572,14 +2820,16 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
                 ),
               if (widget.group.roomsEnabled) ...[
                 // 複数モードの本来の設定移設先はサイドバーの歯車アイコン
-                // （`talks_tab.dart`のRoomListPane）だが、狭い画面には
-                // サイドバー自体が無いため、ここからも同じダイアログを
-                // 開けるようにする（2026-09-02追加）。
-                _MenuTile(
-                  label: strings.groupMenuOpenSettings,
-                  foreground: foreground,
-                  value: _GroupMenuAction.openGroupSettings,
-                ),
+                // （`talks_tab.dart`のRoomListPane）。サイドバーが表示される
+                // 広い画面では重複した導線になるため、サイドバー自体が無い
+                // 狭い画面の時だけここにも同じダイアログを開ける項目を出す
+                // （2026-09-02追加、2026-09-06にサイドバー表示中は非表示化）。
+                if (!widget.hasSidebar)
+                  _MenuTile(
+                    label: strings.groupMenuOpenSettings,
+                    foreground: foreground,
+                    value: _GroupMenuAction.openGroupSettings,
+                  ),
                 // 複数モードでは、通知・既読・ロール優先順位の寄合固有設定は
                 // 「この寄合独自の設定」がオンの間だけ表示する
                 // （2026-07-29変更、広場全体の既定値は`GroupSettingsPopup`
@@ -2643,12 +2893,6 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
                   value: _GroupMenuAction.toggleReadReceipts,
                 ),
               ],
-              _MenuTile(
-                label: strings.groupMenuLeave,
-                foreground: foreground,
-                enabled: !isOwner,
-                value: _GroupMenuAction.leave,
-              ),
             ],
           ),
         ),
@@ -2665,12 +2909,15 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
       key: _buttonKey,
       tooltip: '',
       icon: switch (uiStyle) {
-        AppUiStyle.gekiga => const GekigaIconBadge(icon: Icons.menu, size: 36),
+        AppUiStyle.gekiga => const GekigaIconBadge(
+          icon: Icons.menu,
+          size: 32,
+          seed: gekigaToolbarIconSeed,
+        ),
         AppUiStyle.glass => const GlassIconBadge(
           icon: Icons.menu,
-          size: 36,
+          size: 32,
           opaque: true,
-          shadow: true,
         ),
         AppUiStyle.flat => const Icon(Icons.menu),
       },

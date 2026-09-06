@@ -13,6 +13,7 @@ import '../../providers/repository_providers.dart';
 import '../../utils/auto_dismiss_banner.dart';
 import '../../widgets/destructive_label.dart';
 import '../../widgets/glass/glass_dialog.dart';
+import 'calendar_chip.dart';
 import 'calendar_event_form_dialog.dart';
 
 /// 予定の詳細・出欠回答ダイアログ（2026-09-02追加）。予定タップ時の唯一の
@@ -165,7 +166,7 @@ class _CalendarEventDetailDialogState
   /// この詳細ダイアログごと閉じる。キャンセル時はこの詳細ダイアログを
   /// 開いたままにする。
   Future<void> _openEditForm() async {
-    final saved = await showCalendarEventFormDialog(
+    final result = await showCalendarEventFormDialog(
       context,
       isDm: widget.isDm,
       conversationId: widget.conversationId,
@@ -174,7 +175,7 @@ class _CalendarEventDetailDialogState
       currentUserRhingId: widget.currentUser.rhingId,
       existingEvent: widget.event,
     );
-    if (saved && mounted) Navigator.of(context).pop();
+    if (result != null && mounted) Navigator.of(context).pop();
   }
 
   Future<void> _delete() async {
@@ -327,7 +328,7 @@ class _CalendarEventDetailDialogState
                   spacing: 6,
                   children: [
                     for (final day in _days)
-                      _rsvpChip(
+                      calendarChoiceChip(
                         context,
                         label: dayLabelFormat.format(day),
                         selected: _isSameDay(day, _selectedDay),
@@ -375,12 +376,12 @@ class _CalendarEventDetailDialogState
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           for (final status in CalendarRsvpStatus.values)
-                            _RsvpGroup(
+                            CalendarResponseGroup(
                               label: _statusLabel(strings, status),
                               users: byStatus[status]!,
                               conversationId: widget.conversationId,
                             ),
-                          _RsvpGroup(
+                          CalendarResponseGroup(
                             label: strings.calendarRsvpStatusNoResponse,
                             users: noResponse,
                             conversationId: widget.conversationId,
@@ -496,39 +497,6 @@ class _CalendarEventDetailDialogState
 bool _isSameDay(DateTime a, DateTime b) =>
     a.year == b.year && a.month == b.month && a.day == b.day;
 
-/// 日付タブ・自分の出欠回答で使う、独立したピル型のチップ（2026-09-04追加、
-/// 連結されたSegmentedButtonから変更）。アクセントカラーは選択中チップの
-/// 背景の塗りとしてのみ使い、文字・アイコンは`onPrimary`/`onSurfaceVariant`
-/// という固定のコントラスト色にする（CLAUDE.md「テキストにアクセントカラー
-/// を使わない」規約）。`Theme.of(context).colorScheme`はアクセントカラー・
-/// 劇画・ガラスいずれのUIスタイルでも既に正しく導出されているため、
-/// スタイル別の分岐は不要。
-Widget _rsvpChip(
-  BuildContext context, {
-  required String label,
-  IconData? icon,
-  required bool selected,
-  required ValueChanged<bool>? onSelected,
-}) {
-  final colorScheme = Theme.of(context).colorScheme;
-  final foreground = selected
-      ? colorScheme.onPrimary
-      : colorScheme.onSurfaceVariant;
-  return ChoiceChip(
-    avatar: icon != null ? Icon(icon, size: 16, color: foreground) : null,
-    label: Text(label, style: TextStyle(color: foreground)),
-    selected: selected,
-    onSelected: onSelected,
-    showCheckmark: false,
-    shape: const StadiumBorder(),
-    selectedColor: colorScheme.primary,
-    backgroundColor: colorScheme.surfaceContainerHighest,
-    side: BorderSide(
-      color: selected ? colorScheme.primary : colorScheme.outlineVariant,
-    ),
-  );
-}
-
 /// 「自分の回答」1行分（日ごと確認ありなら日付ラベル付き、無ければ
 /// ラベル無しで1行だけ、2026-09-02追加）。
 class _MyDayStatusRow extends StatelessWidget {
@@ -566,74 +534,17 @@ class _MyDayStatusRow extends StatelessWidget {
               runSpacing: 6,
               children: [
                 for (final status in CalendarRsvpStatus.values)
-                  _rsvpChip(
+                  calendarChoiceChip(
                     context,
                     label: statusLabel(status),
                     icon: statusIcon(status),
                     selected: selected == status,
                     onSelected: disabled
                         ? null
-                        : (isSelected) =>
-                              onChanged(isSelected ? status : null),
+                        : (isSelected) => onChanged(isSelected ? status : null),
                   ),
               ],
             ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// 出欠グループ1件分（見出し＋対象住人のチップ一覧）。対象が0人なら何も
-/// 描画しない。
-class _RsvpGroup extends StatelessWidget {
-  const _RsvpGroup({
-    required this.label,
-    required this.users,
-    required this.conversationId,
-  });
-
-  final String label;
-  final List<AppUser> users;
-  final String conversationId;
-
-  @override
-  Widget build(BuildContext context) {
-    if (users.isEmpty) return const SizedBox.shrink();
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            '$label (${users.length})',
-            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-          ),
-          const SizedBox(height: 4),
-          Wrap(
-            spacing: 8,
-            runSpacing: 4,
-            children: [
-              for (final user in users)
-                Chip(
-                  avatar: CircleAvatar(
-                    backgroundImage:
-                        user.effectiveIconFor(conversationId)?.url != null
-                        ? NetworkImage(
-                            user.effectiveIconFor(conversationId)!.url,
-                          )
-                        : null,
-                    child: user.effectiveIconFor(conversationId)?.url == null
-                        ? const Icon(Icons.person, size: 14)
-                        : null,
-                  ),
-                  label: Text(
-                    user.effectiveNicknameFor(conversationId)?.text ??
-                        '@${user.rhingId}',
-                  ),
-                ),
-            ],
           ),
         ],
       ),

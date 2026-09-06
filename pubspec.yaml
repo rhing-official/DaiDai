@@ -71,6 +71,14 @@ dependencies:
   scrollable_positioned_list: ^0.3.8
   firebase_messaging: ^16.6.0
   flutter_local_notifications: ^22.3.0
+  # 共有ノート機能（2026-09-06追加）のエディタ本体。pub.dev版のまま使うと
+  # file_picker v11.0.0の破壊的API変更（`FilePicker.platform.xxx()`廃止）に
+  # 未対応でコンパイルできない（file_pickerをダウングレードしない方針の
+  # ため）。third_party/appflowy_editor/にパッチ済みコピーを取り込んで
+  # 参照している（詳細は同ディレクトリのfile_picker_impl.dartのコメント・
+  # 日記.md参照。appflowy_editorが対応版を出したらpub.dev版に戻すこと）。
+  appflowy_editor:
+    path: third_party/appflowy_editor
 
 dev_dependencies:
   flutter_test:

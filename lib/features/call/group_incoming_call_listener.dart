@@ -5,8 +5,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../models/app_user.dart';
 import '../../models/group_call.dart';
+import '../../models/sound_preset.dart';
 import '../../providers/group_call_providers.dart';
 import '../../providers/repository_providers.dart';
+import '../../providers/ringtone_sound_provider.dart';
 import '../../router/app_router.dart';
 import '../../utils/auto_dismiss_banner.dart';
 import '../../utils/platform_info.dart';
@@ -112,7 +114,10 @@ class _GroupIncomingCallListenerState
     setState(() {
       _banners.add(_PendingBanner(call: call, groupName: group?.name ?? '広場'));
     });
-    unawaited(_soundPlayer.playRingtoneTimes(3));
+    final ringtoneSource = SoundCategory.ringtone.resolveSource(
+      ref.read(ringtoneSoundProvider),
+    );
+    unawaited(_soundPlayer.playRingtoneTimes(3, ringtoneSource));
   }
 
   Future<void> _joinCall(GroupCall call) async {

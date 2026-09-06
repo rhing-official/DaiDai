@@ -26,7 +26,7 @@ class PickedAttachment {
   final String contentType;
 }
 
-enum _AttachmentMenuItem { file, image, video, capture, sticker }
+enum _AttachmentMenuItem { file, image, video, capture, sticker, poll }
 
 /// ポインター位置がこの距離未満しか動かないまま指が離れた場合、
 /// 「押した瞬間にポップアップを開くだけの単純なタップ」とみなし、
@@ -49,6 +49,7 @@ class AttachmentPopupButton extends StatefulWidget {
     required this.onPicked,
     this.stickerLabel,
     this.onStickerPicked,
+    this.onPollRequested,
     super.key,
   });
 
@@ -62,6 +63,11 @@ class AttachmentPopupButton extends StatefulWidget {
   /// ペタピタ選択時の処理。[stickerLabel]・この両方がnullでない場合のみ
   /// メニューに「ペタピタ」項目を出す。
   final void Function(Sticker sticker)? onStickerPicked;
+
+  /// 「投票」メニュー項目の選択時の処理（2026-09-06追加）。nullの場合は
+  /// メニューに項目自体を出さない（一対・広場の会話id・寄合idが未確定な
+  /// 場面では投票を作成できないため、`chat_screen.dart`側でnullを渡す）。
+  final VoidCallback? onPollRequested;
 
   /// 劇画スタイル選択時、他のモノクロボックス意匠（寄合追加ボタン等）と
   /// 統一感を持たせるため、アイコンを[GekigaIconBadge]に差し替える
@@ -106,6 +112,8 @@ class _AttachmentPopupButtonState extends State<AttachmentPopupButton> {
       (item: _AttachmentMenuItem.capture, label: strings.chatAttachCapture),
       if (stickerLabel != null && widget.onStickerPicked != null)
         (item: _AttachmentMenuItem.sticker, label: stickerLabel),
+      if (widget.onPollRequested != null)
+        (item: _AttachmentMenuItem.poll, label: strings.chatAttachPoll),
     ];
   }
 
@@ -122,6 +130,8 @@ class _AttachmentPopupButtonState extends State<AttachmentPopupButton> {
         await _openCamera();
       case _AttachmentMenuItem.sticker:
         await _pickSticker();
+      case _AttachmentMenuItem.poll:
+        widget.onPollRequested?.call();
     }
   }
 

@@ -354,7 +354,9 @@ class FirestoreCalendarEventRepository implements CalendarEventRepository {
       createdBy: createdBy,
       rsvpEnabled: rsvpEnabled,
       rsvpPerDay: rsvpPerDay,
-      rsvpDeadline: rsvpDeadline != null ? Timestamp.fromDate(rsvpDeadline) : null,
+      rsvpDeadline: rsvpDeadline != null
+          ? Timestamp.fromDate(rsvpDeadline)
+          : null,
     );
 
     final participants = await participantIds(
@@ -413,7 +415,9 @@ class FirestoreCalendarEventRepository implements CalendarEventRepository {
       'location': location,
       'rsvpEnabled': rsvpEnabled,
       'rsvpPerDay': rsvpPerDay,
-      'rsvpDeadline': rsvpDeadline != null ? Timestamp.fromDate(rsvpDeadline) : null,
+      'rsvpDeadline': rsvpDeadline != null
+          ? Timestamp.fromDate(rsvpDeadline)
+          : null,
     });
 
     // 内容が変わったため、参加者全員のGoogleカレンダー同期状態を作成時と

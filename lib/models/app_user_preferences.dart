@@ -20,6 +20,9 @@ class AppUserPreferences {
     this.appUiStyle,
     this.customAccentColorsArgb,
     this.conversationSortOrder,
+    this.fontDesign,
+    this.ringtoneSound,
+    this.callingSound,
   });
 
   static const empty = AppUserPreferences();
@@ -42,6 +45,17 @@ class AppUserPreferences {
   /// 語らい一覧の並べ替え順（`ConversationSortOrder`のname、2026-09-02追加）。
   final String? conversationSortOrder;
 
+  /// フォントデザイン（`FontDesign`のname、2026-09-06追加）。
+  final String? fontDesign;
+
+  /// 着信音（`SoundPreset.id`、または`http`で始まるカスタムアップロード音源の
+  /// ダウンロードURL、2026-09-06追加）。
+  final String? ringtoneSound;
+
+  /// 呼出音（発信者が相手の応答を待つ間に聞く音。値の形式は[ringtoneSound]と
+  /// 同じ、2026-09-06追加）。
+  final String? callingSound;
+
   factory AppUserPreferences.fromJson(Map<String, dynamic>? json) {
     if (json == null) return empty;
     return AppUserPreferences(
@@ -59,6 +73,9 @@ class AppUserPreferences {
           ?.map((e) => e as int)
           .toList(),
       conversationSortOrder: json['conversationSortOrder'] as String?,
+      fontDesign: json['fontDesign'] as String?,
+      ringtoneSound: json['ringtoneSound'] as String?,
+      callingSound: json['callingSound'] as String?,
     );
   }
 
@@ -79,6 +96,9 @@ class AppUserPreferences {
         'customAccentColorsArgb': customAccentColorsArgb,
       if (conversationSortOrder != null)
         'conversationSortOrder': conversationSortOrder,
+      if (fontDesign != null) 'fontDesign': fontDesign,
+      if (ringtoneSound != null) 'ringtoneSound': ringtoneSound,
+      if (callingSound != null) 'callingSound': callingSound,
     };
   }
 }

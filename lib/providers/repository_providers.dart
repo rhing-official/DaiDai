@@ -12,7 +12,10 @@ import '../repositories/friend_repository.dart';
 import '../repositories/group_call_repository.dart';
 import '../repositories/group_repository.dart';
 import '../repositories/link_preview_repository.dart';
+import '../repositories/note_repository.dart';
+import '../repositories/poll_repository.dart';
 import '../repositories/push_notification_repository.dart';
+import '../repositories/schedule_coordination_repository.dart';
 import '../repositories/sticker_repository.dart';
 import '../repositories/user_repository.dart';
 
@@ -71,6 +74,19 @@ final calendarEventRepositoryProvider = Provider<CalendarEventRepository>((
   ref,
 ) {
   return FirestoreCalendarEventRepository();
+});
+
+final scheduleCoordinationRepositoryProvider =
+    Provider<ScheduleCoordinationRepository>((ref) {
+      return FirestoreScheduleCoordinationRepository();
+    });
+
+final pollRepositoryProvider = Provider<PollRepository>((ref) {
+  return FirestorePollRepository();
+});
+
+final noteRepositoryProvider = Provider<NoteRepository>((ref) {
+  return FirestoreNoteRepository();
 });
 
 final pushNotificationRepositoryProvider = Provider<PushNotificationRepository>(

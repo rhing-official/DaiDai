@@ -63,6 +63,21 @@ class Strings {
     required this.settingsChatLayoutAllLeftDescription,
     required this.settingsSubTypography,
     required this.settingsFontDesign,
+    required this.fontDesignStandardLabel,
+    required this.fontDesignHannariMinchoLabel,
+    required this.fontDesignKagurazakaLabel,
+    required this.fontDesignKiwiMaruLabel,
+    required this.fontDesignShipporiMinchoLabel,
+    required this.fontDesignKiwamiExclusiveNotice,
+    required this.settingsSubSound,
+    required this.settingsSoundRingtoneTitle,
+    required this.settingsSoundCallingTitle,
+    required this.soundPresetStandardLabel,
+    required this.soundPresetSoftLabel,
+    required this.soundPresetSimpleLabel,
+    required this.soundUploadOptionLabel,
+    required this.soundUploadTooLargeError,
+    required this.soundUploadUnsupportedFormatError,
     required this.settingsAccountInfoSection,
     required this.settingsRhingIdLabel,
     required this.settingsSecurity,
@@ -205,6 +220,7 @@ class Strings {
     required this.chatAttachImage,
     required this.chatAttachVideo,
     required this.chatAttachCapture,
+    required this.chatAttachPoll,
     required this.chatNoStickersMessage,
     required this.stickerPackNotFoundMessage,
     required this.stickerSearchHint,
@@ -445,6 +461,64 @@ class Strings {
     required this.settingsGoogleCalendarSyncDisconnectConfirmTitle,
     required this.settingsGoogleCalendarSyncDisconnectConfirmMessage,
     required this.calendarSyncSetupIncompleteError,
+    required this.calendarAddChoiceDialogTitle,
+    required this.calendarAddChoiceEventOption,
+    required this.calendarAddChoiceCoordinationOption,
+    required this.scheduleCoordinationCreateDialogTitle,
+    required this.scheduleCoordinationAddCandidateButton,
+    required this.scheduleCoordinationDuplicateCandidateError,
+    required this.scheduleCoordinationCandidateCountLabel,
+    required this.scheduleCoordinationVoteYes,
+    required this.scheduleCoordinationVoteMaybe,
+    required this.scheduleCoordinationVoteNo,
+    required this.scheduleCoordinationCandidatesSectionTitle,
+    required this.scheduleCoordinationCreatedMessageLabel,
+    required this.scheduleCoordinationCreatedMessageConfirmAction,
+    required this.scheduleCoordinationTaskBannerLabel,
+    required this.scheduleCoordinationFinalizeAction,
+    required this.scheduleCoordinationFinalizeConfirmTitle,
+    required this.scheduleCoordinationFinalizeConfirmMessage,
+    required this.scheduleCoordinationFinalizedLabel,
+    required this.scheduleCoordinationOpenEventAction,
+    required this.scheduleCoordinationDeleteAction,
+    required this.scheduleCoordinationDeleteConfirmTitle,
+    required this.pollCreateDialogTitle,
+    required this.pollQuestionFieldHint,
+    required this.pollOptionFieldHint,
+    required this.pollModeOptionsLabel,
+    required this.pollModeMaruBatsuLabel,
+    required this.pollAddOptionButton,
+    required this.pollSetDeadlineCheckboxLabel,
+    required this.pollAllowMultipleChoicesCheckboxLabel,
+    required this.pollAnonymousCheckboxLabel,
+    required this.pollAllowAddingOptionsCheckboxLabel,
+    required this.pollMinimumOptionsError,
+    required this.pollCreatedMessageLabel,
+    required this.pollCreatedMessageConfirmAction,
+    required this.pollTaskBannerLabel,
+    required this.pollVoteButton,
+    required this.pollChangeVoteButton,
+    required this.pollAnonymousNotice,
+    required this.pollDeleteAction,
+    required this.pollDeleteConfirmTitle,
+    required this.pollListTitle,
+    required this.pollListEmptyMessage,
+    required this.pollResponseCountLabel,
+    required this.pollClosedBadgeLabel,
+    required this.noteCreatedMessageLabel,
+    required this.noteCreatedMessageOpenAction,
+    required this.noteListTitle,
+    required this.noteListEmptyMessage,
+    required this.noteUntitledLabel,
+    required this.noteTitleFieldHint,
+    required this.noteDeleteAction,
+    required this.noteDeleteConfirmTitle,
+    required this.noteMenuHeading2,
+    required this.noteMenuHeading3,
+    required this.noteMenuBulletedList,
+    required this.noteMenuNumberedList,
+    required this.noteMenuQuote,
+    required this.noteMenuAttachment,
   });
 
   final String navTalk;
@@ -516,6 +590,21 @@ class Strings {
   final String settingsChatLayoutAllLeftDescription;
   final String settingsSubTypography;
   final String settingsFontDesign;
+  final String fontDesignStandardLabel;
+  final String fontDesignHannariMinchoLabel;
+  final String fontDesignKagurazakaLabel;
+  final String fontDesignKiwiMaruLabel;
+  final String fontDesignShipporiMinchoLabel;
+  final String fontDesignKiwamiExclusiveNotice;
+  final String settingsSubSound;
+  final String settingsSoundRingtoneTitle;
+  final String settingsSoundCallingTitle;
+  final String soundPresetStandardLabel;
+  final String soundPresetSoftLabel;
+  final String soundPresetSimpleLabel;
+  final String soundUploadOptionLabel;
+  final String soundUploadTooLargeError;
+  final String soundUploadUnsupportedFormatError;
   final String settingsAccountInfoSection;
   final String settingsRhingIdLabel;
   final String settingsSecurity;
@@ -669,6 +758,7 @@ class Strings {
   final String chatAttachImage;
   final String chatAttachVideo;
   final String chatAttachCapture;
+  final String chatAttachPoll;
   final String chatNoStickersMessage;
   final String stickerPackNotFoundMessage;
   final String stickerSearchHint;
@@ -1075,6 +1165,68 @@ class Strings {
   final String settingsGoogleCalendarSyncDisconnectConfirmMessage;
   final String calendarSyncSetupIncompleteError;
 
+  /// 日付クリック時の「予定追加/日程調整」選択ダイアログ（2026-09-05追加）。
+  final String calendarAddChoiceDialogTitle;
+  final String calendarAddChoiceEventOption;
+  final String calendarAddChoiceCoordinationOption;
+
+  /// 日程調整（複数候補日への○/△/×投票）機能、2026-09-05追加。
+  final String scheduleCoordinationCreateDialogTitle;
+  final String scheduleCoordinationAddCandidateButton;
+  final String scheduleCoordinationDuplicateCandidateError;
+  final String Function(int count) scheduleCoordinationCandidateCountLabel;
+  final String scheduleCoordinationVoteYes;
+  final String scheduleCoordinationVoteMaybe;
+  final String scheduleCoordinationVoteNo;
+  final String scheduleCoordinationCandidatesSectionTitle;
+  final String scheduleCoordinationCreatedMessageLabel;
+  final String scheduleCoordinationCreatedMessageConfirmAction;
+  final String Function(String title) scheduleCoordinationTaskBannerLabel;
+  final String scheduleCoordinationFinalizeAction;
+  final String scheduleCoordinationFinalizeConfirmTitle;
+  final String scheduleCoordinationFinalizeConfirmMessage;
+  final String Function(String dateLabel) scheduleCoordinationFinalizedLabel;
+  final String scheduleCoordinationOpenEventAction;
+  final String scheduleCoordinationDeleteAction;
+  final String scheduleCoordinationDeleteConfirmTitle;
+  final String pollCreateDialogTitle;
+  final String pollQuestionFieldHint;
+  final String pollOptionFieldHint;
+  final String pollModeOptionsLabel;
+  final String pollModeMaruBatsuLabel;
+  final String pollAddOptionButton;
+  final String pollSetDeadlineCheckboxLabel;
+  final String pollAllowMultipleChoicesCheckboxLabel;
+  final String pollAnonymousCheckboxLabel;
+  final String pollAllowAddingOptionsCheckboxLabel;
+  final String pollMinimumOptionsError;
+  final String pollCreatedMessageLabel;
+  final String pollCreatedMessageConfirmAction;
+  final String Function(String title) pollTaskBannerLabel;
+  final String pollVoteButton;
+  final String pollChangeVoteButton;
+  final String pollAnonymousNotice;
+  final String pollDeleteAction;
+  final String pollDeleteConfirmTitle;
+  final String pollListTitle;
+  final String pollListEmptyMessage;
+  final String Function(int count) pollResponseCountLabel;
+  final String pollClosedBadgeLabel;
+  final String noteCreatedMessageLabel;
+  final String noteCreatedMessageOpenAction;
+  final String noteListTitle;
+  final String noteListEmptyMessage;
+  final String noteUntitledLabel;
+  final String noteTitleFieldHint;
+  final String noteDeleteAction;
+  final String noteDeleteConfirmTitle;
+  final String noteMenuHeading2;
+  final String noteMenuHeading3;
+  final String noteMenuBulletedList;
+  final String noteMenuNumberedList;
+  final String noteMenuQuote;
+  final String noteMenuAttachment;
+
   static final ja = Strings._(
     navTalk: '語らい',
     navProfile: '身だしなみ',
@@ -1138,6 +1290,22 @@ class Strings {
         'この設定は自分の画面にのみ反映され、相手の語らいの表示には影響しません。',
     settingsSubTypography: '文字',
     settingsFontDesign: 'フォントデザイン',
+    fontDesignStandardLabel: '標準',
+    fontDesignHannariMinchoLabel: 'はんなり明朝',
+    fontDesignKagurazakaLabel: '神楽坂',
+    fontDesignKiwiMaruLabel: 'キウイ丸',
+    fontDesignShipporiMinchoLabel: 'しっぽり明朝',
+    fontDesignKiwamiExclusiveNotice: '極みプラン限定機能として追加予定（現在は無料で選択できます）',
+    settingsSubSound: 'サウンド',
+    settingsSoundRingtoneTitle: '着信音',
+    settingsSoundCallingTitle: '呼出音',
+    soundPresetStandardLabel: '標準',
+    soundPresetSoftLabel: 'やわらか',
+    soundPresetSimpleLabel: 'シンプル',
+    soundUploadOptionLabel: 'アップロード',
+    soundUploadTooLargeError: 'ファイルサイズが大きすぎます（2MB以下にしてください）',
+    soundUploadUnsupportedFormatError:
+        '対応していない形式です（mp3・wav・m4a・oggのいずれかを選んでください）',
     settingsAccountInfoSection: 'アカウント情報',
     settingsRhingIdLabel: 'Rhing ID',
     settingsSecurity: 'セキュリティ',
@@ -1289,6 +1457,7 @@ class Strings {
     chatAttachImage: '画像',
     chatAttachVideo: '動画',
     chatAttachCapture: '撮影',
+    chatAttachPoll: '投票',
     chatNoStickersMessage: 'まだペタピタがありません',
     stickerPackNotFoundMessage: 'このペタピタは見つかりませんでした',
     stickerSearchHint: 'ペタピタを検索',
@@ -1406,7 +1575,7 @@ class Strings {
     settingsProfileCardAssignmentTitle: '会話ごとのプロフィールカード',
     settingsProfileCardAssignmentHint:
         '標準カード以外を使っている語らいだけがここに表示されます。＋から新しく設定できます。',
-    settingsProfileCardAssignmentEmpty: '標準以外のカードを使っている語らいはまだありません',
+    settingsProfileCardAssignmentEmpty: '標準以外のカードを使っている語らいはありません',
     conversationProfileCardMenuLabel: '自分のプロフィールカード',
     workshopConversationCardAddDialogTitle: 'カードを個別に設定する語らいを選ぶ',
     workshopConversationCardAddEmpty: '設定できる語らいがありません',
@@ -1548,6 +1717,64 @@ class Strings {
         '以後、DaiDaiで追加した予定はGoogleカレンダーに反映されなくなります。Google側の許可自体を取り消したい場合は、Googleアカウントの設定から行ってください。',
     calendarSyncSetupIncompleteError:
         'Googleカレンダー連携の準備がまだ完了していません。しばらくお待ちください。',
+    calendarAddChoiceDialogTitle: '予定の追加方法を選んでください',
+    calendarAddChoiceEventOption: '予定を追加',
+    calendarAddChoiceCoordinationOption: '日程調整を始める',
+    scheduleCoordinationCreateDialogTitle: '日程調整を作成',
+    scheduleCoordinationAddCandidateButton: '候補日を追加',
+    scheduleCoordinationDuplicateCandidateError: 'その日付は既に候補にあります',
+    scheduleCoordinationCandidateCountLabel: (count) => '候補$count件',
+    scheduleCoordinationVoteYes: '○',
+    scheduleCoordinationVoteMaybe: '△',
+    scheduleCoordinationVoteNo: '×',
+    scheduleCoordinationCandidatesSectionTitle: '候補日',
+    scheduleCoordinationCreatedMessageLabel: '日程調整が開始されました',
+    scheduleCoordinationCreatedMessageConfirmAction: '回答する',
+    scheduleCoordinationTaskBannerLabel: (title) => '日程調整「$title」に未回答です',
+    scheduleCoordinationFinalizeAction: 'この日程で確定する',
+    scheduleCoordinationFinalizeConfirmTitle: 'この日程で確定しますか？',
+    scheduleCoordinationFinalizeConfirmMessage: '選んだ候補日で通常の予定を作成します。',
+    scheduleCoordinationFinalizedLabel: (dateLabel) => '確定: $dateLabel',
+    scheduleCoordinationOpenEventAction: '予定を開く',
+    scheduleCoordinationDeleteAction: '日程調整を削除',
+    scheduleCoordinationDeleteConfirmTitle: '日程調整を削除しますか？',
+    pollCreateDialogTitle: '投票を作成',
+    pollQuestionFieldHint: '質問内容を入力してください',
+    pollOptionFieldHint: '選択肢を入力',
+    pollModeOptionsLabel: '選択肢',
+    pollModeMaruBatsuLabel: '二択',
+    pollAddOptionButton: '選択肢を追加',
+    pollSetDeadlineCheckboxLabel: '回答期限を設定',
+    pollAllowMultipleChoicesCheckboxLabel: '複数選択可',
+    pollAnonymousCheckboxLabel: '匿名投票',
+    pollAllowAddingOptionsCheckboxLabel: '選択肢の追加を許可',
+    pollMinimumOptionsError: '選択肢は2件以上入力してください',
+    pollCreatedMessageLabel: '投票が開始されました',
+    pollCreatedMessageConfirmAction: '投票する',
+    pollTaskBannerLabel: (title) => '投票「$title」に未回答です',
+    pollVoteButton: '投票する',
+    pollChangeVoteButton: '投票を変更',
+    pollAnonymousNotice: '匿名投票のため、投票者は表示されません。',
+    pollDeleteAction: '投票を削除',
+    pollDeleteConfirmTitle: '投票を削除しますか？',
+    pollListTitle: '投票',
+    pollListEmptyMessage: 'まだ投票がありません',
+    pollResponseCountLabel: (count) => '$count件の回答',
+    pollClosedBadgeLabel: '終了',
+    noteCreatedMessageLabel: 'ノートが作成されました',
+    noteCreatedMessageOpenAction: '開く',
+    noteListTitle: 'ノート',
+    noteListEmptyMessage: 'まだノートがありません',
+    noteUntitledLabel: '無題のノート',
+    noteTitleFieldHint: 'タイトル',
+    noteDeleteAction: 'ノートを削除',
+    noteDeleteConfirmTitle: 'ノートを削除しますか？',
+    noteMenuHeading2: '見出し2',
+    noteMenuHeading3: '見出し3',
+    noteMenuBulletedList: '箇条書きリスト',
+    noteMenuNumberedList: '番号付きリスト',
+    noteMenuQuote: '引用',
+    noteMenuAttachment: '添付ファイル',
   );
 
   static final enGB = Strings._(
@@ -1620,6 +1847,23 @@ class Strings {
         'the chat.',
     settingsSubTypography: 'Typography',
     settingsFontDesign: 'Font design',
+    fontDesignStandardLabel: 'Standard',
+    fontDesignHannariMinchoLabel: 'Hannari Mincho',
+    fontDesignKagurazakaLabel: 'Kagurazaka',
+    fontDesignKiwiMaruLabel: 'Kiwi Maru',
+    fontDesignShipporiMinchoLabel: 'Shippori Mincho',
+    fontDesignKiwamiExclusiveNotice:
+        'Planned as a Kiwami plan exclusive (free to select for now)',
+    settingsSubSound: 'Sound',
+    settingsSoundRingtoneTitle: 'Ringtone',
+    settingsSoundCallingTitle: 'Calling tone',
+    soundPresetStandardLabel: 'Standard',
+    soundPresetSoftLabel: 'Soft',
+    soundPresetSimpleLabel: 'Simple',
+    soundUploadOptionLabel: 'Upload',
+    soundUploadTooLargeError: 'File is too large (must be 2MB or smaller)',
+    soundUploadUnsupportedFormatError:
+        'Unsupported format (choose mp3, wav, m4a, or ogg)',
     settingsAccountInfoSection: 'Account information',
     settingsRhingIdLabel: 'Rhing ID',
     settingsSecurity: 'Security',
@@ -1795,6 +2039,7 @@ class Strings {
     chatAttachImage: 'Image',
     chatAttachVideo: 'Video',
     chatAttachCapture: 'Capture',
+    chatAttachPoll: 'Poll',
     chatNoStickersMessage: "You don't have any stickers yet.",
     stickerPackNotFoundMessage: "This sticker couldn't be found.",
     stickerSearchHint: 'Search stickers',
@@ -2081,6 +2326,68 @@ class Strings {
         'Events you add in DaiDai will no longer be added to Google Calendar. To revoke DaiDai\'s access on Google\'s side, use your Google Account settings.',
     calendarSyncSetupIncompleteError:
         "Google Calendar sync isn't set up yet. Please check back later.",
+    calendarAddChoiceDialogTitle: 'How would you like to add this?',
+    calendarAddChoiceEventOption: 'Add event',
+    calendarAddChoiceCoordinationOption: 'Start scheduling poll',
+    scheduleCoordinationCreateDialogTitle: 'Create scheduling poll',
+    scheduleCoordinationAddCandidateButton: 'Add candidate date',
+    scheduleCoordinationDuplicateCandidateError:
+        'That date is already a candidate',
+    scheduleCoordinationCandidateCountLabel: (count) =>
+        '$count candidate${count == 1 ? '' : 's'}',
+    scheduleCoordinationVoteYes: '○',
+    scheduleCoordinationVoteMaybe: '△',
+    scheduleCoordinationVoteNo: '×',
+    scheduleCoordinationCandidatesSectionTitle: 'Candidates',
+    scheduleCoordinationCreatedMessageLabel: 'New scheduling poll started',
+    scheduleCoordinationCreatedMessageConfirmAction: 'Respond',
+    scheduleCoordinationTaskBannerLabel: (title) =>
+        'Response needed for "$title"',
+    scheduleCoordinationFinalizeAction: 'Finalize this date',
+    scheduleCoordinationFinalizeConfirmTitle: 'Finalize this date?',
+    scheduleCoordinationFinalizeConfirmMessage:
+        'This will create a regular event on the selected date.',
+    scheduleCoordinationFinalizedLabel: (dateLabel) => 'Finalized: $dateLabel',
+    scheduleCoordinationOpenEventAction: 'Open event',
+    scheduleCoordinationDeleteAction: 'Delete scheduling poll',
+    scheduleCoordinationDeleteConfirmTitle: 'Delete this scheduling poll?',
+    pollCreateDialogTitle: 'Create poll',
+    pollQuestionFieldHint: 'Enter your question',
+    pollOptionFieldHint: 'Enter an option',
+    pollModeOptionsLabel: 'Options',
+    pollModeMaruBatsuLabel: 'Two-choice',
+    pollAddOptionButton: 'Add option',
+    pollSetDeadlineCheckboxLabel: 'Set a deadline',
+    pollAllowMultipleChoicesCheckboxLabel: 'Allow multiple choices',
+    pollAnonymousCheckboxLabel: 'Anonymous poll',
+    pollAllowAddingOptionsCheckboxLabel: 'Allow others to add options',
+    pollMinimumOptionsError: 'Please enter at least 2 options',
+    pollCreatedMessageLabel: 'New poll started',
+    pollCreatedMessageConfirmAction: 'Vote',
+    pollTaskBannerLabel: (title) => 'Poll "$title" needs your response',
+    pollVoteButton: 'Vote',
+    pollChangeVoteButton: 'Change vote',
+    pollAnonymousNotice: 'This is an anonymous poll — voters are not shown.',
+    pollDeleteAction: 'Delete poll',
+    pollDeleteConfirmTitle: 'Delete this poll?',
+    pollListTitle: 'Polls',
+    pollListEmptyMessage: 'No polls yet',
+    pollResponseCountLabel: (count) => '$count responses',
+    pollClosedBadgeLabel: 'Closed',
+    noteCreatedMessageLabel: 'New note created',
+    noteCreatedMessageOpenAction: 'Open',
+    noteListTitle: 'Notes',
+    noteListEmptyMessage: 'No notes yet',
+    noteUntitledLabel: 'Untitled note',
+    noteTitleFieldHint: 'Title',
+    noteDeleteAction: 'Delete note',
+    noteDeleteConfirmTitle: 'Delete this note?',
+    noteMenuHeading2: 'Heading 2',
+    noteMenuHeading3: 'Heading 3',
+    noteMenuBulletedList: 'Bulleted list',
+    noteMenuNumberedList: 'Numbered list',
+    noteMenuQuote: 'Quote',
+    noteMenuAttachment: 'Attachment',
   );
 
   static Strings of(AppLocale locale) => switch (locale) {

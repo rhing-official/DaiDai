@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:audioplayers/audioplayers.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart'
     show FirebaseAuthException, MultiFactorInfo;
 import 'package:flutter/material.dart';
@@ -9,23 +11,28 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../l10n/app_locale.dart';
 import '../../l10n/strings.dart';
 import '../../models/app_ui_style.dart';
+import '../../models/font_design.dart';
 import '../../models/app_user.dart';
 import '../../models/chat_layout_style.dart';
 import '../../models/group.dart';
 import '../../models/group_role.dart';
 import '../../models/message_time_format.dart';
 import '../../models/send_key_mode.dart';
+import '../../models/sound_preset.dart';
 import '../../models/sticker_send_mode.dart';
 import '../../providers/accent_color_provider.dart';
+import '../../providers/calling_sound_provider.dart';
 import '../../providers/custom_accent_colors_provider.dart';
 import '../../providers/app_locale_provider.dart';
 import '../../providers/app_ui_style_provider.dart';
+import '../../providers/font_design_provider.dart';
 import '../../providers/block_providers.dart';
 import '../../providers/chat_layout_style_provider.dart';
 import '../../providers/draft_sync_enabled_provider.dart';
 import '../../providers/gekiga_background_color_provider.dart';
 import '../../providers/message_time_format_provider.dart';
 import '../../providers/repository_providers.dart';
+import '../../providers/ringtone_sound_provider.dart';
 import '../../providers/send_key_mode_provider.dart';
 import '../../providers/sticker_send_mode_provider.dart';
 import '../../providers/theme_mode_provider.dart';
@@ -36,6 +43,7 @@ import '../../theme/gekiga/gekiga_colors.dart';
 import '../../theme/motion.dart';
 import '../../utils/auto_dismiss_banner.dart';
 import '../../utils/color_hex.dart';
+import '../../utils/sound_upload.dart';
 import '../../widgets/destructive_label.dart';
 import '../../widgets/gekiga/gekiga_panel_box.dart';
 import '../../widgets/gekiga/gekiga_section_header.dart';
@@ -1326,10 +1334,7 @@ class _ApplicationPage extends StatelessWidget {
         _UiStyleFolder(strings: strings),
         const Divider(height: 24),
         _SectionHeader(strings.settingsSubTypography),
-        _InfoRow(
-          label: strings.settingsFontDesign,
-          value: strings.settingsComingSoon,
-        ),
+        _FontDesignFolder(strings: strings),
         const Divider(height: 24),
         _LanguageFolder(strings: strings),
         const Divider(height: 24),
@@ -1924,6 +1929,75 @@ class _UiStyleFolder extends ConsumerWidget {
   }
 }
 
+/// フォントデザインの選択（2026-09-06追加）。劇画UIは手描き風の固定
+/// デザインで対象外だが、他の選択項目（`_LanguageFolder`等）と同じく
+/// 劇画スタイル選択中はこの選択肢一覧自体も劇画の見た目に揃える
+/// （実際に選んだフォントが反映されるのはフラット・ガラスに戻した時）。
+class _FontDesignFolder extends ConsumerWidget {
+  const _FontDesignFolder({required this.strings});
+
+  final Strings strings;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final design = ref.watch(fontDesignProvider);
+    final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
+
+    void select(FontDesign value) =>
+        ref.read(fontDesignProvider.notifier).setDesign(value);
+
+    String labelFor(FontDesign value) => switch (value) {
+      FontDesign.standard => strings.fontDesignStandardLabel,
+      FontDesign.hannariMincho => strings.fontDesignHannariMinchoLabel,
+      FontDesign.kagurazaka => strings.fontDesignKagurazakaLabel,
+      FontDesign.kiwiMaru => strings.fontDesignKiwiMaruLabel,
+      FontDesign.shipporiMincho => strings.fontDesignShipporiMinchoLabel,
+    };
+
+    if (isGekiga) {
+      return GekigaJointedTileList(
+        seeds: [for (final value in FontDesign.values) value.hashCode],
+        selectedFlags: [for (final value in FontDesign.values) design == value],
+        children: [
+          for (final value in FontDesign.values)
+            GekigaTileContent(
+              selected: design == value,
+              leading: Icon(
+                design == value
+                    ? Icons.radio_button_checked
+                    : Icons.radio_button_unchecked,
+              ),
+              title: Text(labelFor(value)),
+              subtitle: value.isKiwamiExclusive
+                  ? Text(strings.fontDesignKiwamiExclusiveNotice)
+                  : null,
+              onTap: () => select(value),
+            ),
+        ],
+      );
+    }
+
+    return RadioGroup<FontDesign>(
+      groupValue: design,
+      onChanged: (value) {
+        if (value != null) select(value);
+      },
+      child: Column(
+        children: [
+          for (final value in FontDesign.values)
+            RadioListTile<FontDesign>(
+              value: value,
+              title: Text(labelFor(value)),
+              subtitle: value.isKiwamiExclusive
+                  ? Text(strings.fontDesignKiwamiExclusiveNotice)
+                  : null,
+            ),
+        ],
+      ),
+    );
+  }
+}
+
 class _ChatLayoutFolder extends ConsumerWidget {
   const _ChatLayoutFolder({required this.strings});
 
@@ -2506,7 +2580,214 @@ class _NotificationsPage extends ConsumerWidget {
             subtitle: subtitle,
             onChanged: setEnabled,
           ),
+        const Divider(height: 24),
+        _SectionHeader(strings.settingsSubSound),
+        _SectionHeader(strings.settingsSoundRingtoneTitle),
+        _SoundSettingsFolder(
+          strings: strings,
+          category: SoundCategory.ringtone,
+          currentValue: ref.watch(ringtoneSoundProvider),
+          userId: currentUser.userId,
+        ),
+        const Divider(height: 24),
+        _SectionHeader(strings.settingsSoundCallingTitle),
+        _SoundSettingsFolder(
+          strings: strings,
+          category: SoundCategory.calling,
+          currentValue: ref.watch(callingSoundProvider),
+          userId: currentUser.userId,
+        ),
       ],
+    );
+  }
+}
+
+/// 着信音・呼出音の選択（2026-09-06追加）。プリセットからのラジオ選択に
+/// 加え、末尾の「アップロード」から端末の音声ファイルを選んでカスタム
+/// 音源に設定できる（`UserRepository.uploadCustomSound`参照）。
+/// 通話中に実際に再生する`CallSoundPlayer`とは別に、試聴専用の
+/// 一時的な`AudioPlayer`をこのウィジェットが所有する。
+class _SoundSettingsFolder extends ConsumerStatefulWidget {
+  const _SoundSettingsFolder({
+    required this.strings,
+    required this.category,
+    required this.currentValue,
+    required this.userId,
+  });
+
+  final Strings strings;
+  final SoundCategory category;
+  final String? currentValue;
+  final String userId;
+
+  @override
+  ConsumerState<_SoundSettingsFolder> createState() =>
+      _SoundSettingsFolderState();
+}
+
+/// ラジオグループ上で「アップロードした音源を使う」を表す値
+/// （プリセットidは常に空でないため衝突しない）。
+const _customSoundSentinel = '';
+
+class _SoundSettingsFolderState extends ConsumerState<_SoundSettingsFolder> {
+  final _previewPlayer = AudioPlayer();
+
+  @override
+  void dispose() {
+    _previewPlayer.dispose();
+    super.dispose();
+  }
+
+  Future<void> _preview(String assetOrUrl) async {
+    try {
+      await _previewPlayer.stop();
+      await _previewPlayer.play(
+        assetOrUrl.startsWith('http')
+            ? UrlSource(assetOrUrl)
+            : AssetSource(assetOrUrl),
+      );
+    } catch (_) {
+      // 試聴できない環境でも設定変更自体はブロックしない。
+    }
+  }
+
+  void _select(String presetId) {
+    if (widget.category == SoundCategory.ringtone) {
+      ref.read(ringtoneSoundProvider.notifier).setSound(presetId);
+    } else {
+      ref.read(callingSoundProvider.notifier).setSound(presetId);
+    }
+  }
+
+  Future<void> _uploadCustom() async {
+    final strings = widget.strings;
+    final file = await FilePicker.pickFile(
+      type: FileType.custom,
+      allowedExtensions: kAllowedSoundExtensions.toList(),
+    );
+    if (file == null) return;
+    final bytes = await file.readAsBytes();
+    try {
+      final url = await ref
+          .read(userRepositoryProvider)
+          .uploadCustomSound(widget.userId, widget.category, bytes, file.name);
+      if (widget.category == SoundCategory.ringtone) {
+        await ref.read(ringtoneSoundProvider.notifier).setSound(url);
+      } else {
+        await ref.read(callingSoundProvider.notifier).setSound(url);
+      }
+    } on SoundUploadTooLargeException {
+      if (mounted) {
+        showAutoDismissBanner(
+          context,
+          message: strings.soundUploadTooLargeError,
+        );
+      }
+    } on SoundUploadUnsupportedFormatException {
+      if (mounted) {
+        showAutoDismissBanner(
+          context,
+          message: strings.soundUploadUnsupportedFormatError,
+        );
+      }
+    }
+  }
+
+  String _labelFor(SoundPreset preset) {
+    final strings = widget.strings;
+    return switch (preset.id) {
+      'ringtone_standard' ||
+      'calling_standard' => strings.soundPresetStandardLabel,
+      'ringtone_soft' || 'calling_soft' => strings.soundPresetSoftLabel,
+      'ringtone_simple' => strings.soundPresetSimpleLabel,
+      _ => preset.id,
+    };
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final strings = widget.strings;
+    final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
+    final presets = widget.category.presets;
+    final currentValue = widget.currentValue;
+    final isCustom = currentValue != null && currentValue.startsWith('http');
+    final selectedValue = isCustom
+        ? _customSoundSentinel
+        : (currentValue ?? widget.category.defaultPreset.id);
+
+    Widget previewButton(String assetOrUrl) => IconButton(
+      tooltip: '',
+      icon: const Icon(Icons.play_arrow),
+      onPressed: () => _preview(assetOrUrl),
+    );
+
+    if (isGekiga) {
+      return GekigaJointedTileList(
+        seeds: [
+          for (final preset in presets) preset.id.hashCode,
+          _customSoundSentinel.hashCode,
+        ],
+        selectedFlags: [
+          for (final preset in presets) selectedValue == preset.id,
+          isCustom,
+        ],
+        children: [
+          for (final preset in presets)
+            GekigaTileContent(
+              selected: selectedValue == preset.id,
+              leading: Icon(
+                selectedValue == preset.id
+                    ? Icons.radio_button_checked
+                    : Icons.radio_button_unchecked,
+              ),
+              title: Text(_labelFor(preset)),
+              trailing: previewButton(preset.assetPath),
+              onTap: () => _select(preset.id),
+            ),
+          GekigaTileContent(
+            selected: isCustom,
+            leading: Icon(
+              isCustom
+                  ? Icons.radio_button_checked
+                  : Icons.radio_button_unchecked,
+            ),
+            title: Text(strings.soundUploadOptionLabel),
+            trailing: isCustom
+                ? previewButton(currentValue)
+                : const Icon(Icons.upload_file),
+            onTap: _uploadCustom,
+          ),
+        ],
+      );
+    }
+
+    return RadioGroup<String>(
+      groupValue: selectedValue,
+      onChanged: (value) {
+        if (value == null) return;
+        if (value == _customSoundSentinel) {
+          _uploadCustom();
+        } else {
+          _select(value);
+        }
+      },
+      child: Column(
+        children: [
+          for (final preset in presets)
+            RadioListTile<String>(
+              value: preset.id,
+              title: Text(_labelFor(preset)),
+              secondary: previewButton(preset.assetPath),
+            ),
+          RadioListTile<String>(
+            value: _customSoundSentinel,
+            title: Text(strings.soundUploadOptionLabel),
+            secondary: isCustom
+                ? previewButton(currentValue)
+                : const Icon(Icons.upload_file),
+          ),
+        ],
+      ),
     );
   }
 }

@@ -81,7 +81,10 @@ Future<MessageFileMetadata> uploadMessageAttachment({
 
   final path = '$storagePathPrefix/$attachmentId.$extension';
   final ref = storage.ref(path);
-  final task = ref.putData(uploadBytes, SettableMetadata(contentType: mimeType));
+  final task = ref.putData(
+    uploadBytes,
+    SettableMetadata(contentType: mimeType),
+  );
   if (onProgress != null) {
     task.snapshotEvents.listen((snapshot) {
       if (snapshot.totalBytes > 0) {

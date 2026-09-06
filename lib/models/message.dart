@@ -131,6 +131,9 @@ class Message {
     this.fileMetadata,
     this.stickerData,
     this.calendarEventId,
+    this.scheduleCoordinationId,
+    this.pollId,
+    this.noteId,
   });
 
   final String messageId;
@@ -142,7 +145,8 @@ class Message {
   final String? senderRhingId;
   final String content;
   // text | image | file | sticker | video | call | accountDeleted
-  // | calendarEventCreated
+  // | calendarEventCreated | scheduleCoordinationCreated | pollCreated
+  // | noteCreated
   final String contentType;
   final Timestamp? sentAt;
 
@@ -218,6 +222,22 @@ class Message {
   /// はこのIDで`showCalendarEventDetailDialog`を開く。
   final String? calendarEventId;
 
+  /// contentType='scheduleCoordinationCreated'（日程調整開始通知、
+  /// 2026-09-05追加）専用フィールド。[content]には日程調整のタイトルを
+  /// そのまま入れ、UI（`_MessageRow`）はこのIDで
+  /// `showScheduleCoordinationDetailDialog`を開く。
+  final String? scheduleCoordinationId;
+
+  /// contentType='pollCreated'（投票開始通知、2026-09-06追加）専用フィールド。
+  /// [content]には投票の質問文をそのまま入れ、UI（`_MessageRow`）はこのIDで
+  /// `showPollDetailDialog`を開く。
+  final String? pollId;
+
+  /// contentType='noteCreated'（ノート作成通知、2026-09-06追加）専用
+  /// フィールド。[content]にはノートのタイトルをそのまま入れ、UI
+  /// （`_MessageRow`）はこのIDでノートの全画面エディタを開く。
+  final String? noteId;
+
   factory Message.fromJson(String messageId, Map<String, dynamic> json) {
     return Message(
       messageId: messageId,
@@ -267,6 +287,9 @@ class Message {
               json['stickerData'] as Map<String, dynamic>,
             ),
       calendarEventId: json['calendarEventId'] as String?,
+      scheduleCoordinationId: json['scheduleCoordinationId'] as String?,
+      pollId: json['pollId'] as String?,
+      noteId: json['noteId'] as String?,
     );
   }
 
@@ -296,6 +319,9 @@ class Message {
       'fileMetadata': fileMetadata?.toJson(),
       'stickerData': stickerData?.toJson(),
       'calendarEventId': calendarEventId,
+      'scheduleCoordinationId': scheduleCoordinationId,
+      'pollId': pollId,
+      'noteId': noteId,
     };
   }
 }

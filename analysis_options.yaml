@@ -9,6 +9,14 @@
 # packages, and plugins designed to encourage good coding practices.
 include: package:flutter_lints/flutter.yaml
 
+analyzer:
+  exclude:
+    # 共有ノート機能（2026-09-06追加）が使うappflowy_editorのローカル
+    # パッチ済みコピー（third_party/appflowy_editor/、file_picker v11.0.0
+    # 対応のための一時的な取り込み、詳細はpubspec.yamlのコメント参照）。
+    # サードパーティのソースのためこのプロジェクトのlint対象にしない。
+    - third_party/**
+
 linter:
   # The lint rules applied to this project can be customized in the
   # section below to disable rules from the `package:flutter_lints/flutter.yaml`
