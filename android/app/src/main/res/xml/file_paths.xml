@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    通知音のカスタムアップロード音源をOSの通知システム（NotificationManager）へ
+    content:// URIとして公開するためのFileProvider設定（2026-09-06追加）。
+    公開範囲はキャッシュディレクトリ配下の notification_sounds/ のみに限定する
+    （lib/utils/android_notification_sound_sync.dart が保存するパスと一致させる）。
+-->
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <cache-path name="notification_sounds" path="notification_sounds/" />
+</paths>

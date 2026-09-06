@@ -6,8 +6,10 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'firebase_options.dart';
+import 'models/sound_preset.dart';
 import 'router/app_router.dart' show globalRouter;
 
 /// プッシュ通知（FCM）のAndroid側ローカル表示・バックグラウンドハンドラを
@@ -24,12 +26,28 @@ import 'router/app_router.dart' show globalRouter;
 /// `flutter_local_notifications`でリッチ通知として組み立てる。
 final _localNotifications = FlutterLocalNotificationsPlugin();
 
-const _androidChannel = AndroidNotificationChannel(
-  'daidai_messages',
-  'メッセージ',
-  description: '新着メッセージの通知',
-  importance: Importance.high,
-);
+/// 通知音プリセットごとの通知チャンネル定義（既定は`ringtone_standard`と
+/// 同じ標準プリセット、2026-09-06 Phase B追加）。Android通知チャンネルは
+/// 作成後に音を変更できないため、プリセットごとに別チャンネルを用意し、
+/// [_resolveAndroidChannelId]で表示時にどれを使うか切り替える（カスタム
+/// アップロード音源用のチャンネルは`android_notification_sound_sync.dart`が
+/// 選択・アップロードのタイミングで別途作成する）。
+final _notificationChannels = {
+  for (final preset in SoundCategory.notification.presets)
+    preset.id: AndroidNotificationChannel(
+      androidNotificationChannelIdFor(preset.id),
+      'メッセージ（${_channelLabelFor(preset.id)}）',
+      description: '新着メッセージの通知',
+      importance: Importance.high,
+    ),
+};
+
+String _channelLabelFor(String presetId) => switch (presetId) {
+  'notification_standard' => '標準',
+  'notification_soft' => 'やわらか',
+  'notification_simple' => 'シンプル',
+  _ => presetId,
+};
 
 /// main()から一度だけ呼ぶ。Android通知チャンネルの作成・初期化に加え、
 /// 通知タップ検知（[onDidReceiveNotificationResponse]）を登録する
@@ -41,11 +59,13 @@ const _androidChannel = AndroidNotificationChannel(
 /// 起動＝cold startは[consumeLaunchNotificationPayload]で別途扱う）。
 Future<void> initializeLocalNotifications() async {
   if (kIsWeb) return;
-  await _localNotifications
+  final android = _localNotifications
       .resolvePlatformSpecificImplementation<
         AndroidFlutterLocalNotificationsPlugin
-      >()
-      ?.createNotificationChannel(_androidChannel);
+      >();
+  for (final channel in _notificationChannels.values) {
+    await android?.createNotificationChannel(channel);
+  }
   await _localNotifications.initialize(
     settings: const InitializationSettings(
       android: AndroidInitializationSettings('@mipmap/ic_launcher'),
@@ -113,15 +133,16 @@ Future<void> showRemoteMessageNotification(RemoteMessage message) async {
         )
       : null;
 
+  final channel = await _resolveAndroidChannel();
   await _localNotifications.show(
     id: message.hashCode,
     title: title,
     body: body,
     notificationDetails: NotificationDetails(
       android: AndroidNotificationDetails(
-        _androidChannel.id,
-        _androidChannel.name,
-        channelDescription: _androidChannel.description,
+        channel.id,
+        channel.name,
+        channelDescription: channel.description,
         importance: Importance.high,
         priority: Priority.high,
         largeIcon: largeIcon,
@@ -136,6 +157,34 @@ Future<void> showRemoteMessageNotification(RemoteMessage message) async {
       'roomId': data['roomId'] as String?,
     }),
   );
+}
+
+/// 現在選択されている通知音（`SharedPreferences`の`notificationSound`
+/// キー、`notificationSoundProvider`と同じ永続化）に応じて表示すべき
+/// 通知チャンネルを解決する（2026-09-06 Phase B追加）。バックグラウンド
+/// isolateから呼ばれるためRiverpodの`ref`は使えず、`SharedPreferences`を
+/// 直接読む。カスタムアップロード音源が選択されていても、まだ端末側の
+/// ダウンロード・チャンネル作成（`ensureCustomNotificationChannelReady`）が
+/// 完了していなければ標準プリセットにフォールバックする。
+Future<AndroidNotificationChannel> _resolveAndroidChannel() async {
+  final standard =
+      _notificationChannels[SoundCategory.notification.defaultPreset.id]!;
+  final prefs = await SharedPreferences.getInstance();
+  final selected = prefs.getString('notificationSound');
+  if (selected == null) return standard;
+  if (selected.startsWith('http')) {
+    final readyUrl = prefs.getString('notificationSoundCustomChannelReadyUrl');
+    if (readyUrl == selected) {
+      return AndroidNotificationChannel(
+        androidCustomNotificationChannelId,
+        'メッセージ（カスタム音）',
+        description: '新着メッセージの通知（アップロードした音源）',
+        importance: Importance.high,
+      );
+    }
+    return standard;
+  }
+  return _notificationChannels[selected] ?? standard;
 }
 
 Future<Uint8List?> _downloadBytes(String? url) async {

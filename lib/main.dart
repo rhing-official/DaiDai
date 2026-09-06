@@ -1,3 +1,5 @@
+import 'dart:async' show unawaited;
+
 import 'package:appflowy_editor/appflowy_editor.dart'
     show AppFlowyEditorLocalizations;
 import 'package:firebase_core/firebase_core.dart';
@@ -23,11 +25,13 @@ import 'providers/draft_sync_enabled_provider.dart';
 import 'providers/font_design_provider.dart';
 import 'providers/gekiga_background_color_provider.dart';
 import 'providers/message_time_format_provider.dart';
+import 'providers/notification_sound_provider.dart';
 import 'providers/ringtone_sound_provider.dart';
 import 'providers/send_key_mode_provider.dart';
 import 'providers/sticker_send_mode_provider.dart';
 import 'providers/theme_mode_provider.dart';
 import 'router/app_router.dart';
+import 'utils/android_notification_sound_sync.dart';
 import 'theme/app_theme.dart';
 import 'theme/gekiga/gekiga_theme.dart';
 import 'theme/glass/glass_theme.dart';
@@ -66,6 +70,15 @@ Future<void> main() async {
   final initialFontDesign = await loadInitialFontDesign();
   final initialRingtoneSound = await loadInitialRingtoneSound();
   final initialCallingSound = await loadInitialCallingSound();
+  final initialNotificationSound = await loadInitialNotificationSound();
+  // 他端末で既にアップロード済みのカスタム通知音が同期されてきた場合に
+  // 備え、起動のたびにローカルのダウンロード・チャンネル作成状態を確認する
+  // （Androidのみ、`ensureCustomNotificationChannelReady`は既に準備済みなら
+  // 早期returnするため軽量、2026-09-06 Phase B追加）。
+  if (initialNotificationSound != null &&
+      initialNotificationSound.startsWith('http')) {
+    unawaited(ensureCustomNotificationChannelReady(initialNotificationSound));
+  }
   runApp(
     ProviderScope(
       overrides: [
@@ -98,6 +111,9 @@ Future<void> main() async {
         initialFontDesignProvider.overrideWithValue(initialFontDesign),
         initialRingtoneSoundProvider.overrideWithValue(initialRingtoneSound),
         initialCallingSoundProvider.overrideWithValue(initialCallingSound),
+        initialNotificationSoundProvider.overrideWithValue(
+          initialNotificationSound,
+        ),
       ],
       child: const DaiDaiApp(),
     ),

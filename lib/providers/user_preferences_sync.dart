@@ -21,6 +21,7 @@ import 'custom_accent_colors_provider.dart';
 import 'draft_sync_enabled_provider.dart';
 import 'font_design_provider.dart';
 import 'gekiga_background_color_provider.dart';
+import 'notification_sound_provider.dart';
 import 'ringtone_sound_provider.dart';
 import 'message_time_format_provider.dart';
 import 'send_key_mode_provider.dart';
@@ -116,5 +117,10 @@ void applyRemoteUserPreferences(WidgetRef ref, AppUserPreferences preferences) {
     ref
         .read(callingSoundProvider.notifier)
         .syncFromRemote(preferences.callingSound!);
+  }
+  if (preferences.notificationSound != null) {
+    ref
+        .read(notificationSoundProvider.notifier)
+        .syncFromRemote(preferences.notificationSound!);
   }
 }

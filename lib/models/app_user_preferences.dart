@@ -23,6 +23,7 @@ class AppUserPreferences {
     this.fontDesign,
     this.ringtoneSound,
     this.callingSound,
+    this.notificationSound,
   });
 
   static const empty = AppUserPreferences();
@@ -56,6 +57,10 @@ class AppUserPreferences {
   /// 同じ、2026-09-06追加）。
   final String? callingSound;
 
+  /// 通知音（メッセージ受信音、Androidのみ対応。値の形式は[ringtoneSound]と
+  /// 同じ、2026-09-06 Phase B追加）。
+  final String? notificationSound;
+
   factory AppUserPreferences.fromJson(Map<String, dynamic>? json) {
     if (json == null) return empty;
     return AppUserPreferences(
@@ -76,6 +81,7 @@ class AppUserPreferences {
       fontDesign: json['fontDesign'] as String?,
       ringtoneSound: json['ringtoneSound'] as String?,
       callingSound: json['callingSound'] as String?,
+      notificationSound: json['notificationSound'] as String?,
     );
   }
 
@@ -99,6 +105,7 @@ class AppUserPreferences {
       if (fontDesign != null) 'fontDesign': fontDesign,
       if (ringtoneSound != null) 'ringtoneSound': ringtoneSound,
       if (callingSound != null) 'callingSound': callingSound,
+      if (notificationSound != null) 'notificationSound': notificationSound,
     };
   }
 }

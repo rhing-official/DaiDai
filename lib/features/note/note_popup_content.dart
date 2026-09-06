@@ -8,6 +8,7 @@ import '../../models/note.dart';
 import '../../providers/app_ui_style_provider.dart';
 import '../../providers/repository_providers.dart';
 import '../../theme/popup_surface_colors.dart';
+import '../../utils/auto_dismiss_banner.dart';
 import '../../widgets/glass/glass_surface.dart';
 
 /// ノートボタンの真下にノート一覧をポップアップ表示する（2026-09-06追加、
@@ -115,6 +116,14 @@ class _NotePopupContentState extends ConsumerState<_NotePopupContent> {
       }
       if (!mounted) return;
       Navigator.of(context).pop(note);
+    } catch (e) {
+      // 2026-09-06修正: 以前はcatchが無く、ノート作成自体の失敗
+      // （firestore.rules未デプロイによるpermission-denied等）が
+      // 「＋を押しても読み込みが一瞬出るだけで何も起きない」という
+      // 無反応に見えていた（例外がハンドルされずrethrowされ、UIには
+      // 何も表示されなかった）。poll_form_dialog.dartと同じくエラー内容を
+      // バナーで見えるようにする。
+      if (mounted) showAutoDismissBanner(context, message: '$e');
     } finally {
       if (mounted) setState(() => _creating = false);
     }

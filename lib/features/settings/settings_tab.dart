@@ -1,9 +1,11 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 
 import 'package:audioplayers/audioplayers.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart'
     show FirebaseAuthException, MultiFactorInfo;
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -32,6 +34,7 @@ import '../../providers/draft_sync_enabled_provider.dart';
 import '../../providers/gekiga_background_color_provider.dart';
 import '../../providers/message_time_format_provider.dart';
 import '../../providers/repository_providers.dart';
+import '../../providers/notification_sound_provider.dart';
 import '../../providers/ringtone_sound_provider.dart';
 import '../../providers/send_key_mode_provider.dart';
 import '../../providers/sticker_send_mode_provider.dart';
@@ -2597,6 +2600,20 @@ class _NotificationsPage extends ConsumerWidget {
           currentValue: ref.watch(callingSoundProvider),
           userId: currentUser.userId,
         ),
+        // 通知音（メッセージ受信音）はOSのプッシュ通知を経由するため、
+        // 現状プッシュ通知自体が実装されているAndroidのみ対応（Phase B、
+        // 2026-09-06追加）。Web/iOS/Windows/Linux/macOSには表示しない
+        // （`sound_preset.dart`のSoundCategory.notificationコメント参照）。
+        if (!kIsWeb && Platform.isAndroid) ...[
+          const Divider(height: 24),
+          _SectionHeader(strings.settingsSoundNotificationTitle),
+          _SoundSettingsFolder(
+            strings: strings,
+            category: SoundCategory.notification,
+            currentValue: ref.watch(notificationSoundProvider),
+            userId: currentUser.userId,
+          ),
+        ],
       ],
     );
   }
@@ -2652,10 +2669,13 @@ class _SoundSettingsFolderState extends ConsumerState<_SoundSettingsFolder> {
   }
 
   void _select(String presetId) {
-    if (widget.category == SoundCategory.ringtone) {
-      ref.read(ringtoneSoundProvider.notifier).setSound(presetId);
-    } else {
-      ref.read(callingSoundProvider.notifier).setSound(presetId);
+    switch (widget.category) {
+      case SoundCategory.ringtone:
+        ref.read(ringtoneSoundProvider.notifier).setSound(presetId);
+      case SoundCategory.calling:
+        ref.read(callingSoundProvider.notifier).setSound(presetId);
+      case SoundCategory.notification:
+        ref.read(notificationSoundProvider.notifier).setSound(presetId);
     }
   }
 
@@ -2671,10 +2691,13 @@ class _SoundSettingsFolderState extends ConsumerState<_SoundSettingsFolder> {
       final url = await ref
           .read(userRepositoryProvider)
           .uploadCustomSound(widget.userId, widget.category, bytes, file.name);
-      if (widget.category == SoundCategory.ringtone) {
-        await ref.read(ringtoneSoundProvider.notifier).setSound(url);
-      } else {
-        await ref.read(callingSoundProvider.notifier).setSound(url);
+      switch (widget.category) {
+        case SoundCategory.ringtone:
+          await ref.read(ringtoneSoundProvider.notifier).setSound(url);
+        case SoundCategory.calling:
+          await ref.read(callingSoundProvider.notifier).setSound(url);
+        case SoundCategory.notification:
+          await ref.read(notificationSoundProvider.notifier).setSound(url);
       }
     } on SoundUploadTooLargeException {
       if (mounted) {
@@ -2697,9 +2720,13 @@ class _SoundSettingsFolderState extends ConsumerState<_SoundSettingsFolder> {
     final strings = widget.strings;
     return switch (preset.id) {
       'ringtone_standard' ||
-      'calling_standard' => strings.soundPresetStandardLabel,
-      'ringtone_soft' || 'calling_soft' => strings.soundPresetSoftLabel,
-      'ringtone_simple' => strings.soundPresetSimpleLabel,
+      'calling_standard' ||
+      'notification_standard' => strings.soundPresetStandardLabel,
+      'ringtone_soft' ||
+      'calling_soft' ||
+      'notification_soft' => strings.soundPresetSoftLabel,
+      'ringtone_simple' ||
+      'notification_simple' => strings.soundPresetSimpleLabel,
       _ => preset.id,
     };
   }
