@@ -72,6 +72,7 @@ class Strings {
     required this.settingsSubSound,
     required this.settingsSoundRingtoneTitle,
     required this.settingsSoundCallingTitle,
+    required this.settingsSoundNotificationTitle,
     required this.soundPresetStandardLabel,
     required this.soundPresetSoftLabel,
     required this.soundPresetSimpleLabel,
@@ -599,6 +600,7 @@ class Strings {
   final String settingsSubSound;
   final String settingsSoundRingtoneTitle;
   final String settingsSoundCallingTitle;
+  final String settingsSoundNotificationTitle;
   final String soundPresetStandardLabel;
   final String soundPresetSoftLabel;
   final String soundPresetSimpleLabel;
@@ -1299,6 +1301,7 @@ class Strings {
     settingsSubSound: 'サウンド',
     settingsSoundRingtoneTitle: '着信音',
     settingsSoundCallingTitle: '呼出音',
+    settingsSoundNotificationTitle: '通知音',
     soundPresetStandardLabel: '標準',
     soundPresetSoftLabel: 'やわらか',
     soundPresetSimpleLabel: 'シンプル',
@@ -1857,6 +1860,7 @@ class Strings {
     settingsSubSound: 'Sound',
     settingsSoundRingtoneTitle: 'Ringtone',
     settingsSoundCallingTitle: 'Calling tone',
+    settingsSoundNotificationTitle: 'Notification sound',
     soundPresetStandardLabel: 'Standard',
     soundPresetSoftLabel: 'Soft',
     soundPresetSimpleLabel: 'Simple',

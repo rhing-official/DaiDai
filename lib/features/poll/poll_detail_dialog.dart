@@ -525,18 +525,46 @@ class _OptionsList extends StatelessWidget {
                           ),
                         ),
                       Expanded(
-                        child: Align(
-                          alignment: Alignment.centerLeft,
-                          child: Padding(
-                            padding: const EdgeInsets.only(left: 8),
-                            child: calendarChoiceChip(
-                              context,
-                              label:
-                                  '${poll.options[key]?.text ?? ''} (${poll.voteCountFor(key)})',
-                              selected: selectedKeys.contains(key),
-                              onSelected: interactive
-                                  ? (_) => onToggle(key)
-                                  : null,
+                        child: Padding(
+                          padding: const EdgeInsets.only(left: 8),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(8),
+                            onTap: interactive ? () => onToggle(key) : null,
+                            child: Row(
+                              children: [
+                                IgnorePointer(
+                                  child: poll.allowMultipleChoices
+                                      ? Checkbox(
+                                          value: selectedKeys.contains(key),
+                                          onChanged: interactive
+                                              ? (_) {}
+                                              : null,
+                                          visualDensity: VisualDensity.compact,
+                                          materialTapTargetSize:
+                                              MaterialTapTargetSize.shrinkWrap,
+                                        )
+                                      : RadioGroup<String>(
+                                          groupValue: selectedKeys.isEmpty
+                                              ? null
+                                              : selectedKeys.first,
+                                          onChanged: (_) {},
+                                          child: Radio<String>(
+                                            value: key,
+                                            visualDensity:
+                                                VisualDensity.compact,
+                                            materialTapTargetSize:
+                                                MaterialTapTargetSize
+                                                    .shrinkWrap,
+                                          ),
+                                        ),
+                                ),
+                                const SizedBox(width: 4),
+                                Expanded(
+                                  child: Text(
+                                    '${poll.options[key]?.text ?? ''} (${poll.voteCountFor(key)})',
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ),

@@ -45,3 +45,9 @@ kotlin {
 flutter {
     source = "../.."
 }
+
+dependencies {
+    // MainActivity.ktのFileProvider（通知音のカスタムアップロード音源を
+    // content:// URIとして公開するため、2026-09-06追加）に必要。
+    implementation("androidx.core:core-ktx:1.13.1")
+}
