@@ -69,6 +69,7 @@ class Strings {
     required this.fontDesignKiwiMaruLabel,
     required this.fontDesignShipporiMinchoLabel,
     required this.fontDesignKiwamiExclusiveNotice,
+    required this.fontDesignGekigaNotice,
     required this.settingsSubSound,
     required this.settingsSoundRingtoneTitle,
     required this.settingsSoundCallingTitle,
@@ -147,6 +148,13 @@ class Strings {
     required this.userProfileCardRequestPending,
     required this.friendRequestIncomingSubtitle,
     required this.friendRequestOutgoingSubtitle,
+    required this.friendRequestMessageLabel,
+    required this.friendRequestRateLimited,
+    required this.chatSpamWarningTitle,
+    required this.chatSpamWarningMessage,
+    required this.chatSpamWarningSendAnyway,
+    required this.chatSpamWarningCancel,
+    required this.accountSuspendedAutoUntilTemplate,
     required this.conversationPin,
     required this.conversationUnpin,
     required this.conversationMute,
@@ -467,7 +475,9 @@ class Strings {
     required this.calendarSyncSetupIncompleteError,
     required this.calendarAddChoiceDialogTitle,
     required this.calendarAddChoiceEventOption,
+    required this.calendarAddChoiceEventSubtitle,
     required this.calendarAddChoiceCoordinationOption,
+    required this.calendarAddChoiceCoordinationSubtitle,
     required this.scheduleCoordinationCreateDialogTitle,
     required this.scheduleCoordinationAddCandidateButton,
     required this.scheduleCoordinationDuplicateCandidateError,
@@ -600,6 +610,12 @@ class Strings {
   final String fontDesignKiwiMaruLabel;
   final String fontDesignShipporiMinchoLabel;
   final String fontDesignKiwamiExclusiveNotice;
+
+  /// 劇画UIスタイルのフォントデザイン一覧に添える説明（2026-09-07追加）。
+  /// 劇画は手描き風の固定デザインのためここでの選択は今すぐ反映されず、
+  /// フラット/ガラスに戻した時に使われることを伝える（`settings_tab.dart`の
+  /// `_FontDesignFolder`参照。選択自体は劇画中もできる仕様のまま変えない）。
+  final String fontDesignGekigaNotice;
   final String settingsSubSound;
   final String settingsSoundRingtoneTitle;
   final String settingsSoundCallingTitle;
@@ -684,6 +700,28 @@ class Strings {
   final String userProfileCardRequestPending;
   final String friendRequestIncomingSubtitle;
   final String friendRequestOutgoingSubtitle;
+
+  /// 友達申請に添える任意メッセージ（100文字まで）の入力欄ラベル
+  /// （技術仕様書8.3レイヤー2、2026-09-07追加）。
+  final String friendRequestMessageLabel;
+
+  /// [sendFriendRequest] Cloud Functionsのレート制限（技術仕様書8.3レイヤー1）
+  /// に引っかかった場合のエラーメッセージ。
+  final String friendRequestRateLimited;
+
+  /// クライアント側スパムチェック（技術仕様書8.3レイヤー3）で送信本文が
+  /// キーワードに一致した際の警告ダイアログ一式。
+  final String chatSpamWarningTitle;
+  final String chatSpamWarningMessage;
+  final String chatSpamWarningSendAnyway;
+  final String chatSpamWarningCancel;
+
+  /// 技術仕様書8.4の期限付き自動停止（[[AppUser]]の`autoSuspendedUntil]）
+  /// 中に表示する、解除までの目安時間を差し込む文言。運営の手動停止
+  /// （[accountSuspendedMessage]、`autoSuspendedUntil`を持たない）とは
+  /// 表示を分ける。
+  final String Function(String remaining) accountSuspendedAutoUntilTemplate;
+
   final String conversationPin;
   final String conversationUnpin;
   final String conversationMute;
@@ -1185,7 +1223,9 @@ class Strings {
   /// 日付クリック時の「予定追加/日程調整」選択ダイアログ（2026-09-05追加）。
   final String calendarAddChoiceDialogTitle;
   final String calendarAddChoiceEventOption;
+  final String calendarAddChoiceEventSubtitle;
   final String calendarAddChoiceCoordinationOption;
+  final String calendarAddChoiceCoordinationSubtitle;
 
   /// 日程調整（複数候補日への○/△/×投票）機能、2026-09-05追加。
   final String scheduleCoordinationCreateDialogTitle;
@@ -1313,6 +1353,7 @@ class Strings {
     fontDesignKiwiMaruLabel: 'キウイ丸',
     fontDesignShipporiMinchoLabel: 'しっぽり明朝',
     fontDesignKiwamiExclusiveNotice: '極みプラン限定機能として追加予定（現在は無料で選択できます）',
+    fontDesignGekigaNotice: '劇画スタイルでは専用フォントを使うため、ここでの選択はフラット/ガラスに戻した時に反映されます',
     settingsSubSound: 'サウンド',
     settingsSoundRingtoneTitle: '着信音',
     settingsSoundCallingTitle: '呼出音',
@@ -1321,9 +1362,9 @@ class Strings {
     soundPresetSoftLabel: 'やわらか',
     soundPresetSimpleLabel: 'シンプル',
     soundUploadOptionLabel: 'アップロード',
-    soundUploadTooLargeError: 'ファイルサイズが大きすぎます（2MB以下にしてください）',
+    soundUploadTooLargeError: 'ファイルサイズが大きすぎます（3MB以下にしてください）',
     soundUploadUnsupportedFormatError:
-        '対応していない形式です（mp3・wav・m4a・oggのいずれかを選んでください）',
+        '対応していない形式です（mp3・wav・m4a・ogg・aacのいずれかを選んでください）',
     settingsAccountInfoSection: 'アカウント情報',
     settingsRhingIdLabel: 'Rhing ID',
     settingsSecurity: 'セキュリティ',
@@ -1395,6 +1436,13 @@ class Strings {
     userProfileCardRequestPending: '申請中です。相手の承認をお待ちください',
     friendRequestIncomingSubtitle: '相手から申請が届いています',
     friendRequestOutgoingSubtitle: '相手の承認を待っています',
+    friendRequestMessageLabel: 'メッセージ（任意、100文字まで）',
+    friendRequestRateLimited: '短時間に多くの友達申請を送っているため、しばらく時間をおいてから再度お試しください',
+    chatSpamWarningTitle: 'スパムの可能性があります',
+    chatSpamWarningMessage: '入力した内容がスパムと疑われる特徴を含んでいます。このまま送信しますか？',
+    chatSpamWarningSendAnyway: '送信する',
+    chatSpamWarningCancel: 'やめる',
+    accountSuspendedAutoUntilTemplate: (remaining) => '$remainingで自動的に解除されます',
     conversationPin: 'ピン留め',
     conversationUnpin: 'ピン留めを外す',
     conversationMute: '通知オフ',
@@ -1740,7 +1788,9 @@ class Strings {
         'Googleカレンダー連携の準備がまだ完了していません。しばらくお待ちください。',
     calendarAddChoiceDialogTitle: '予定の追加方法を選んでください',
     calendarAddChoiceEventOption: '予定を追加',
+    calendarAddChoiceEventSubtitle: '日時が決まっている予定を追加する',
     calendarAddChoiceCoordinationOption: '日程調整を始める',
+    calendarAddChoiceCoordinationSubtitle: '候補日を出して都合を募る',
     scheduleCoordinationCreateDialogTitle: '日程調整を作成',
     scheduleCoordinationAddCandidateButton: '候補日を追加',
     scheduleCoordinationDuplicateCandidateError: 'その日付は既に候補にあります',
@@ -1875,6 +1925,9 @@ class Strings {
     fontDesignShipporiMinchoLabel: 'Shippori Mincho',
     fontDesignKiwamiExclusiveNotice:
         'Planned as a Kiwami plan exclusive (free to select for now)',
+    fontDesignGekigaNotice:
+        'Gekiga style uses its own fixed font, so this choice takes effect '
+        'once you switch back to Flat or Glass',
     settingsSubSound: 'Sound',
     settingsSoundRingtoneTitle: 'Ringtone',
     settingsSoundCallingTitle: 'Calling tone',
@@ -1883,9 +1936,9 @@ class Strings {
     soundPresetSoftLabel: 'Soft',
     soundPresetSimpleLabel: 'Simple',
     soundUploadOptionLabel: 'Upload',
-    soundUploadTooLargeError: 'File is too large (must be 2MB or smaller)',
+    soundUploadTooLargeError: 'File is too large (must be 3MB or smaller)',
     soundUploadUnsupportedFormatError:
-        'Unsupported format (choose mp3, wav, m4a, or ogg)',
+        'Unsupported format (choose mp3, wav, m4a, ogg, or aac)',
     settingsAccountInfoSection: 'Account information',
     settingsRhingIdLabel: 'Rhing ID',
     settingsSecurity: 'Security',
@@ -1969,6 +2022,16 @@ class Strings {
     userProfileCardRequestPending: 'Request sent. Waiting for approval.',
     friendRequestIncomingSubtitle: 'They sent you a friend request',
     friendRequestOutgoingSubtitle: 'Waiting for them to accept',
+    friendRequestMessageLabel: 'Message (optional, up to 100 characters)',
+    friendRequestRateLimited:
+        "You've sent a lot of friend requests recently. Please try again later.",
+    chatSpamWarningTitle: 'This may be spam',
+    chatSpamWarningMessage:
+        'Your message contains characteristics associated with spam. Send it anyway?',
+    chatSpamWarningSendAnyway: 'Send anyway',
+    chatSpamWarningCancel: 'Cancel',
+    accountSuspendedAutoUntilTemplate: (remaining) =>
+        'This will be automatically lifted in $remaining.',
     conversationPin: 'Pin',
     conversationUnpin: 'Unpin',
     conversationMute: 'Mute notifications',
@@ -2354,7 +2417,10 @@ class Strings {
         "Google Calendar sync isn't set up yet. Please check back later.",
     calendarAddChoiceDialogTitle: 'How would you like to add this?',
     calendarAddChoiceEventOption: 'Add event',
+    calendarAddChoiceEventSubtitle: 'Add an event with a fixed date and time',
     calendarAddChoiceCoordinationOption: 'Start scheduling poll',
+    calendarAddChoiceCoordinationSubtitle:
+        'Propose dates and collect availability',
     scheduleCoordinationCreateDialogTitle: 'Create scheduling poll',
     scheduleCoordinationAddCandidateButton: 'Add candidate date',
     scheduleCoordinationDuplicateCandidateError:

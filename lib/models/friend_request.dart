@@ -25,6 +25,7 @@ class FriendRequest {
     required this.toUserId,
     required this.toRhingId,
     required this.status,
+    this.message,
     this.createdAt,
     this.respondedAt,
   });
@@ -35,6 +36,10 @@ class FriendRequest {
   final String toUserId;
   final String toRhingId;
   final FriendRequestStatus status;
+
+  /// 申請に添えた任意メッセージ（100文字まで、技術仕様書8.3レイヤー2、
+  /// 2026-09-07追加）。未入力ならnull。送信後の編集はできない。
+  final String? message;
   final Timestamp? createdAt;
   final Timestamp? respondedAt;
 
@@ -51,6 +56,7 @@ class FriendRequest {
       toUserId: json['toUserId'] as String,
       toRhingId: json['toRhingId'] as String,
       status: FriendRequestStatus.fromName(json['status'] as String),
+      message: json['message'] as String?,
       createdAt: json['createdAt'] as Timestamp?,
       respondedAt: json['respondedAt'] as Timestamp?,
     );
@@ -63,6 +69,7 @@ class FriendRequest {
       'toUserId': toUserId,
       'toRhingId': toRhingId,
       'status': status.name,
+      'message': message,
       'createdAt': createdAt ?? FieldValue.serverTimestamp(),
       'respondedAt': respondedAt,
     };

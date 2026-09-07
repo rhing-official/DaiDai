@@ -503,12 +503,15 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
     // 表示抑制で実現する（`BlockRepository`のコメント参照）。
     // hiddenForに自分のuserIdが含まれるメッセージ（範囲選択削除で自分が
     // 削除したもの）も、相手には見えたままここでは表示しないだけにする。
-    final combined = <Message>[..._liveTailMessages, ..._olderMessages]
-      ..sort(
-        (a, b) => (b.sentAt?.millisecondsSinceEpoch ?? 0).compareTo(
-          a.sentAt?.millisecondsSinceEpoch ?? 0,
-        ),
-      );
+    // _liveTailMessages（当日分）・_olderMessagesの各日分はいずれも
+    // Firestoreクエリ側で既にsentAt降順（watchLatestDayMessages/
+    // loadOlderDayMessages参照）。_olderMessagesは「必ずそれまでより古い日」
+    // をaddAllで末尾に追記していく設計のため、単純結合するだけで全体が
+    // 降順ソート済みになる。以前はここで毎回O(n log n)の再ソートを
+    // 行っていたが、遡るたびに_olderMessagesが際限なく増えるため
+    // 遡るほどコストが増大し、スクロールバックのたびにカクつく原因の
+    // 一つになっていた（2026-09-07修正）。
+    final combined = <Message>[..._liveTailMessages, ..._olderMessages];
     final filteredMessages = combined
         .where((m) => !m.hiddenFor.contains(currentUser.userId))
         .where((m) => !isBlocked || m.senderId != otherUserId)
@@ -737,12 +740,12 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
           currentUserId: currentUser.userId,
           onOpenAlbum: (album) => setState(() => _openAlbum = album),
         ),
-        _CalendarButton(
+        _NoteButton(
           isDm: true,
           conversationId: dm.dmId,
           roomId: roomId,
           currentUser: currentUser,
-          onOpenCalendar: () => setState(() => _showingCalendar = true),
+          onNoteSelected: (noteId) => setState(() => _openNoteId = noteId),
         ),
         _PollButton(
           isDm: true,
@@ -750,12 +753,12 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
           roomId: roomId,
           currentUser: currentUser,
         ),
-        _NoteButton(
+        _CalendarButton(
           isDm: true,
           conversationId: dm.dmId,
           roomId: roomId,
           currentUser: currentUser,
-          onNoteSelected: (noteId) => setState(() => _openNoteId = noteId),
+          onOpenCalendar: () => setState(() => _showingCalendar = true),
         ),
         _DmMenuButton(
           currentUser: currentUser,
@@ -2158,12 +2161,15 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
     );
     // hiddenForに自分のuserIdが含まれるメッセージ（範囲選択削除で自分が
     // 削除したもの）は、他のメンバーには見えたままここでは表示しない。
-    final combined = <Message>[..._liveTailMessages, ..._olderMessages]
-      ..sort(
-        (a, b) => (b.sentAt?.millisecondsSinceEpoch ?? 0).compareTo(
-          a.sentAt?.millisecondsSinceEpoch ?? 0,
-        ),
-      );
+    // _liveTailMessages（当日分）・_olderMessagesの各日分はいずれも
+    // Firestoreクエリ側で既にsentAt降順（watchLatestDayMessages/
+    // loadOlderDayMessages参照）。_olderMessagesは「必ずそれまでより古い日」
+    // をaddAllで末尾に追記していく設計のため、単純結合するだけで全体が
+    // 降順ソート済みになる。以前はここで毎回O(n log n)の再ソートを
+    // 行っていたが、遡るたびに_olderMessagesが際限なく増えるため
+    // 遡るほどコストが増大し、スクロールバックのたびにカクつく原因の
+    // 一つになっていた（2026-09-07修正）。
+    final combined = <Message>[..._liveTailMessages, ..._olderMessages];
     final filteredMessages = combined
         .where((m) => !m.hiddenFor.contains(currentUser.userId))
         .toList();
@@ -2365,12 +2371,12 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
           currentUserId: currentUser.userId,
           onOpenAlbum: (album) => setState(() => _openAlbum = album),
         ),
-        _CalendarButton(
+        _NoteButton(
           isDm: false,
           conversationId: group.groupId,
           roomId: roomId,
           currentUser: currentUser,
-          onOpenCalendar: () => setState(() => _showingCalendar = true),
+          onNoteSelected: (noteId) => setState(() => _openNoteId = noteId),
         ),
         _PollButton(
           isDm: false,
@@ -2378,12 +2384,12 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
           roomId: roomId,
           currentUser: currentUser,
         ),
-        _NoteButton(
+        _CalendarButton(
           isDm: false,
           conversationId: group.groupId,
           roomId: roomId,
           currentUser: currentUser,
-          onNoteSelected: (noteId) => setState(() => _openNoteId = noteId),
+          onOpenCalendar: () => setState(() => _showingCalendar = true),
         ),
         _GroupMenuButton(
           currentUser: currentUser,

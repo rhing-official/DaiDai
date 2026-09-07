@@ -153,6 +153,16 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // config/spamKeywords: クライアント側スパムチェック（技術仕様書8.3
+    // レイヤー3）が使うキーワード一覧（`lib/utils/spam_check.dart`参照）。
+    // メッセージ内容自体はサーバー側で監視しない方針のため、ここには
+    // キーワードの一覧のみを置き、実際の照合は端末側で行う。読み取りは
+    // ログイン済みユーザーのみ、更新は管理者のみ（2026-09-07追加）。
+    match /config/spamKeywords {
+      allow read: if request.auth != null;
+      allow write: if isAdmin();
+    }
+
     // creatorProfiles/{userId}: daidai横丁で出品したことがあるユーザーの
     // 公開プロフィールミラー（呼び名・アイコン・ステメ・SNSリンクのみ、
     // 2026-08-13追加）。users/{userId}は未ログイン訪問者が読めないため、
@@ -214,6 +224,28 @@ service cloud.firestore {
         && (request.auth.uid == resource.data.fromUserId || request.auth.uid == resource.data.toUserId)
         && get(/databases/$(database)/documents/directMessages/$(requestId)).data.severanceRequestedBy != null
         && get(/databases/$(database)/documents/directMessages/$(requestId)).data.severanceRequestedBy != request.auth.uid;
+    }
+
+    // friendRequestAttempts/{id}: 友達申請のレート制限（技術仕様書8.3
+    // レイヤー1・2）に使う追記専用ログ。`sendFriendRequest`
+    // （functions/src/index.ts）のAdmin SDKのみが書き込み・参照する。
+    // クライアントからの読み書きは一切許可しない（2026-09-07追加）。
+    match /friendRequestAttempts/{attemptId} {
+      allow read, write: if false;
+    }
+
+    // spamViolations/{id}: スパム対策（技術仕様書8.4段階的アカウント停止）の
+    // 違反ログ。`sendFriendRequest`・`onSpamViolationCreated`
+    // （functions/src/index.ts）はAdmin SDK経由で書き込む。クライアントからは
+    // レイヤー3（クライアント側スパムチェックの警告を見て送信を取りやめた
+    // 場合）のメタデータのみの記録に限り、本人分の新規作成のみ許可する
+    // （読み取り・更新・削除は不可、2026-09-07追加）。
+    match /spamViolations/{violationId} {
+      allow read, update, delete: if false;
+      allow create: if request.auth != null
+        && request.auth.uid == request.resource.data.userId
+        && request.resource.data.kind == 'keywordDeclined'
+        && request.resource.data.keys().hasOnly(['userId', 'kind', 'conversationId', 'createdAt']);
     }
 
     // directMessages/{dmId}: 参加者本人のみ読み書き可能。

@@ -6,6 +6,7 @@ import '../../l10n/strings.dart';
 import '../../models/app_user.dart';
 import '../../models/direct_message.dart';
 import '../../providers/repository_providers.dart';
+import '../../utils/friend_request_error.dart';
 import '../../widgets/profile_card_picker.dart';
 import '../auth/auth_gate.dart';
 
@@ -51,10 +52,19 @@ class _InviteConfirmViewState extends ConsumerState<_InviteConfirmView> {
   /// 2026-07-29追加）。
   String? _selectedProfileCardId;
 
+  /// 申請に添える任意メッセージ（技術仕様書8.3レイヤー2、2026-09-07追加）。
+  final _messageController = TextEditingController();
+
   @override
   void initState() {
     super.initState();
     _resolve();
+  }
+
+  @override
+  void dispose() {
+    _messageController.dispose();
+    super.dispose();
   }
 
   Future<void> _resolve() async {
@@ -100,7 +110,12 @@ class _InviteConfirmViewState extends ConsumerState<_InviteConfirmView> {
     });
     try {
       final friendRepository = ref.read(friendRepositoryProvider);
-      await friendRepository.sendRequest(from: widget.currentUser, to: inviter);
+      final message = _messageController.text.trim();
+      await friendRepository.sendRequest(
+        from: widget.currentUser,
+        to: inviter,
+        message: message.isEmpty ? null : message,
+      );
       final selectedProfileCardId = _selectedProfileCardId;
       if (selectedProfileCardId != null) {
         await ref
@@ -118,7 +133,12 @@ class _InviteConfirmViewState extends ConsumerState<_InviteConfirmView> {
       setState(() => _status = _InviteStatus.sent);
     } catch (e) {
       if (!mounted) return;
-      setState(() => _errorMessage = 'エラーが発生しました: $e');
+      setState(
+        () => _errorMessage = friendRequestErrorMessage(
+          e,
+          ref.read(appStringsProvider),
+        ),
+      );
     } finally {
       if (mounted) {
         setState(() => _isSending = false);
@@ -193,6 +213,16 @@ class _InviteConfirmViewState extends ConsumerState<_InviteConfirmView> {
               selectedCardId: _selectedProfileCardId,
               activeCardName: widget.currentUser.activeProfileCard?.name,
               onSelected: (id) => setState(() => _selectedProfileCardId = id),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _messageController,
+              enabled: !_isSending,
+              maxLength: 100,
+              decoration: InputDecoration(
+                labelText: strings.friendRequestMessageLabel,
+                border: const OutlineInputBorder(),
+              ),
             ),
             const SizedBox(height: 16),
             Row(

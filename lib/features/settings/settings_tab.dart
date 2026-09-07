@@ -1936,6 +1936,9 @@ class _UiStyleFolder extends ConsumerWidget {
 /// デザインで対象外だが、他の選択項目（`_LanguageFolder`等）と同じく
 /// 劇画スタイル選択中はこの選択肢一覧自体も劇画の見た目に揃える
 /// （実際に選んだフォントが反映されるのはフラット・ガラスに戻した時）。
+/// 選択自体は無効化せず劇画中もできるままにするが、選んでも今すぐ見た目が
+/// 変わらないため「壊れているように見える」との指摘を受け、劇画分岐にのみ
+/// 説明文（[fontDesignGekigaNotice]）を添えた（2026-09-07追加）。
 class _FontDesignFolder extends ConsumerWidget {
   const _FontDesignFolder({required this.strings});
 
@@ -1958,24 +1961,40 @@ class _FontDesignFolder extends ConsumerWidget {
     };
 
     if (isGekiga) {
-      return GekigaJointedTileList(
-        seeds: [for (final value in FontDesign.values) value.hashCode],
-        selectedFlags: [for (final value in FontDesign.values) design == value],
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          for (final value in FontDesign.values)
-            GekigaTileContent(
-              selected: design == value,
-              leading: Icon(
-                design == value
-                    ? Icons.radio_button_checked
-                    : Icons.radio_button_unchecked,
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Text(
+              strings.fontDesignGekigaNotice,
+              style: TextStyle(
+                color: GekigaColors.onPanel.withValues(alpha: 0.75),
               ),
-              title: Text(labelFor(value)),
-              subtitle: value.isKiwamiExclusive
-                  ? Text(strings.fontDesignKiwamiExclusiveNotice)
-                  : null,
-              onTap: () => select(value),
             ),
+          ),
+          GekigaJointedTileList(
+            seeds: [for (final value in FontDesign.values) value.hashCode],
+            selectedFlags: [
+              for (final value in FontDesign.values) design == value,
+            ],
+            children: [
+              for (final value in FontDesign.values)
+                GekigaTileContent(
+                  selected: design == value,
+                  leading: Icon(
+                    design == value
+                        ? Icons.radio_button_checked
+                        : Icons.radio_button_unchecked,
+                  ),
+                  title: Text(labelFor(value)),
+                  subtitle: value.isKiwamiExclusive
+                      ? Text(strings.fontDesignKiwamiExclusiveNotice)
+                      : null,
+                  onTap: () => select(value),
+                ),
+            ],
+          ),
         ],
       );
     }

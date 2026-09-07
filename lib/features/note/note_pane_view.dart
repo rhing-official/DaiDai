@@ -407,29 +407,34 @@ class _NotePaneViewState extends ConsumerState<NotePaneView> {
           : _pickAndInsertAttachment,
     );
 
-    return Scaffold(
-      appBar: isGlass
-          ? GlassAppBar(
-              leading: leadingButton,
-              title: titleField,
-              actions: [attachAction],
-            )
-          : AppBar(
-              leading: leadingButton,
-              title: titleField,
-              actions: [attachAction],
-            ),
-      body: Focus(
-        autofocus: true,
-        onKeyEvent: (node, event) {
-          if (event is! KeyDownEvent) return KeyEventResult.ignored;
-          if (event.logicalKey == LogicalKeyboardKey.escape) {
-            _close();
-            return KeyEventResult.handled;
-          }
-          return KeyEventResult.ignored;
-        },
-        child: SwipeDownToDismiss(
+    // タイトル欄（appBar側の`titleField`）にフォーカスがある間にEscを押した
+    // 場合も閉じられるよう、`Scaffold.body`だけでなく`appBar`も含めて
+    // `Focus`で包む（appBarとbodyはフォーカスツリー上兄弟のため、body側だけ
+    // 包んでもタイトル欄フォーカス中はこのハンドラの祖先チェーンに入らない、
+    // 2026-09-07変更）。
+    return Focus(
+      autofocus: true,
+      onKeyEvent: (node, event) {
+        if (event is! KeyDownEvent) return KeyEventResult.ignored;
+        if (event.logicalKey == LogicalKeyboardKey.escape) {
+          _close();
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      },
+      child: Scaffold(
+        appBar: isGlass
+            ? GlassAppBar(
+                leading: leadingButton,
+                title: titleField,
+                actions: [attachAction],
+              )
+            : AppBar(
+                leading: leadingButton,
+                title: titleField,
+                actions: [attachAction],
+              ),
+        body: SwipeDownToDismiss(
           onDismiss: _close,
           child: _buildEditorBody(strings),
         ),
@@ -465,7 +470,15 @@ class _NotePaneViewState extends ConsumerState<NotePaneView> {
           ? EditorStyle.mobile(textStyleConfiguration: textStyleConfiguration)
           : EditorStyle.desktop(textStyleConfiguration: textStyleConfiguration),
       characterShortcutEvents: characterShortcutEvents,
-      commandShortcutEvents: standardCommandShortcutEvents,
+      // 標準の`exitEditingCommand`（Escapeキー）は選択解除・ソフトキーボード
+      // を閉じるだけで`KeyEventResult.handled`を返すため、エディタ本体に
+      // フォーカスがある間はEscapeキーがここで消費されてしまい、外側の
+      // `Focus.onKeyEvent`（`_close()`でノートを閉じる）まで伝播しなかった
+      // （2026-09-07判明）。「/」入力メニューの`slashCommand`除外と同じ要領で
+      // 除外し、Escapeを外側へ伝播させる。
+      commandShortcutEvents: standardCommandShortcutEvents
+          .where((e) => e != exitEditingCommand)
+          .toList(),
       blockComponentBuilders: standardBlockComponentBuilderMap,
     );
     // フローティングツールバー・「/」メニューともにデスクトップ/Web限定の

@@ -18,6 +18,7 @@ import '../models/call.dart';
 import '../models/direct_message.dart';
 import '../models/group.dart';
 import '../providers/repository_providers.dart';
+import '../theme/motion.dart';
 import '../utils/platform_info.dart';
 import '../widgets/interactive_swipe_back.dart';
 import '../widgets/swipe_gestures.dart';
@@ -111,18 +112,44 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         child: child,
       );
 
+  // PageRoute（既定でopaque: true）は、遷移完了後は背後のルートを
+  // ビルド・ペイントしなくなる最適化が働く。インタラクティブな戻る
+  // スワイプで背後の画面を実際に見せるには、このopaque最適化自体を
+  // 無効化する必要がある（Route自身のAnimationControllerをドラッグで
+  // 動かさない限り、Transform.translateで見た目だけ動かしても背後は
+  // 描画されないまま。2026-09-07判明、詳細は日記参照）。go_routerの
+  // `builder:`（既定でopaque:trueのPageになる）ではなく`pageBuilder:`で
+  // `CustomTransitionPage(opaque: false, ...)`を返すことで対応する。
+  // 見た目（フェード＋下からのスライド＋拡大の「ポップ」演出）は
+  // `PopSlidePageTransitionsBuilder`と同じ`buildPopSlideTransition`を
+  // 流用し、変化させない。
+  Page<void> opaqueFalsePage(GoRouterState state, Widget child) =>
+      CustomTransitionPage<void>(
+        key: state.pageKey,
+        opaque: false,
+        transitionsBuilder: (context, animation, secondaryAnimation, child) =>
+            buildPopSlideTransition(animation, child),
+        child: child,
+      );
+
   // 語らい画面（/chat/dm・/chat/group）専用の「右スワイプで戻る」。
   // 指の位置にリアルタイムに追従し、途中で離すとキャンセルできる
   // インタラクティブなジェスチャーにする（2026-09-07追加）。左スワイプは
   // 上の[swipeBack]と同じ、離した瞬間の速度判定のみの挙動を維持する。
-  Widget interactiveChatSwipeBack(Widget child, {bool alsoSwipeLeft = true}) =>
-      InteractiveSwipeBackTransition(
-        onBack: () {
-          if (router.canPop()) router.pop();
-        },
-        alsoSwipeLeft: alsoSwipeLeft,
-        child: child,
-      );
+  Page<void> interactiveChatSwipeBack(
+    GoRouterState state,
+    Widget child, {
+    bool alsoSwipeLeft = true,
+  }) => opaqueFalsePage(
+    state,
+    InteractiveSwipeBackTransition(
+      onBack: () {
+        if (router.canPop()) router.pop();
+      },
+      alsoSwipeLeft: alsoSwipeLeft,
+      child: child,
+    ),
+  );
 
   // 発信側は、モバイルのみ全画面の/callへpushする。PCでは全画面ルートを
   // 使わず、通話セッションを直接開始するだけにする（2026-08-19変更）。
@@ -171,9 +198,10 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/', builder: (context, state) => const AppGate()),
       GoRoute(
         path: '/chat/dm',
-        builder: (context, state) {
+        pageBuilder: (context, state) {
           final args = state.extra! as DmChatArgs;
           return interactiveChatSwipeBack(
+            state,
             DmChatPane(
               currentUser: args.currentUser,
               dm: args.dm,
@@ -189,9 +217,10 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/chat/group',
-        builder: (context, state) {
+        pageBuilder: (context, state) {
           final args = state.extra! as GroupChatArgs;
           return interactiveChatSwipeBack(
+            state,
             GroupChatPane(
               currentUser: args.currentUser,
               group: args.group,
@@ -207,7 +236,8 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         // 便り（公式アカウント）画面もチャット画面と同じ吹き出しUIを使うため、
         // 語らい画面と同じインタラクティブな右スワイプ戻るを適用する
         // （左スワイプは元々`alsoSwipeLeft`未指定＝無効だったため維持）。
-        builder: (context, state) => interactiveChatSwipeBack(
+        pageBuilder: (context, state) => interactiveChatSwipeBack(
+          state,
           AnnouncementScreen(currentUser: state.extra! as AppUser),
           alsoSwipeLeft: false,
         ),
@@ -271,23 +301,31 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         // `/chat/dm`（extraベース）とは別ルート。IDのみから会話を復元する
         // 詳細は`NotificationChatOpener`参照。
         path: '/chat/dm/:dmId',
-        builder: (context, state) => AuthGate(
-          builder: (context, currentUser) => NotificationChatOpener(
-            currentUser: currentUser,
-            isDm: true,
-            conversationId: state.pathParameters['dmId']!,
-            roomId: state.uri.queryParameters['roomId'],
+        // NotificationChatOpenerが内部で既にInteractiveSwipeBackTransitionを
+        // 組み込み済みのため、ここではopaque:falseのPage化のみ行う。
+        pageBuilder: (context, state) => opaqueFalsePage(
+          state,
+          AuthGate(
+            builder: (context, currentUser) => NotificationChatOpener(
+              currentUser: currentUser,
+              isDm: true,
+              conversationId: state.pathParameters['dmId']!,
+              roomId: state.uri.queryParameters['roomId'],
+            ),
           ),
         ),
       ),
       GoRoute(
         path: '/chat/group/:groupId',
-        builder: (context, state) => AuthGate(
-          builder: (context, currentUser) => NotificationChatOpener(
-            currentUser: currentUser,
-            isDm: false,
-            conversationId: state.pathParameters['groupId']!,
-            roomId: state.uri.queryParameters['roomId'],
+        pageBuilder: (context, state) => opaqueFalsePage(
+          state,
+          AuthGate(
+            builder: (context, currentUser) => NotificationChatOpener(
+              currentUser: currentUser,
+              isDm: false,
+              conversationId: state.pathParameters['groupId']!,
+              roomId: state.uri.queryParameters['roomId'],
+            ),
           ),
         ),
       ),
