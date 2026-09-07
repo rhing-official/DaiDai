@@ -22,6 +22,7 @@ class Group {
     this.rolePriority = const [],
     this.memberPermissions = const {},
     this.roomsEnabled = true,
+    this.roomFeatureDisabled = false,
   });
 
   final String groupId;
@@ -97,6 +98,13 @@ class Group {
   /// （fromJsonのデフォルト値、既存の複数寄合表示を維持するため）。
   final bool roomsEnabled;
 
+  /// 寄合機能自体（名前変更・削除・複数化）を無くし、単純な会話として扱うか
+  /// （2026-09-07追加）。単一モード（[roomsEnabled] == false）の時のみtrueに
+  /// できる。他の寄合関連操作と異なりこちらは双方向に切り替え可能
+  /// （`GroupRepository.setRoomFeatureDisabled`参照、[roomsEnabled]自体は
+  /// 変更しない）。
+  final bool roomFeatureDisabled;
+
   factory Group.fromJson(String groupId, Map<String, dynamic> json) {
     final profileCardJson = json['profileCard'] as Map<String, dynamic>?;
     return Group(
@@ -124,6 +132,7 @@ class Group {
             MapEntry(key as String, List<String>.from(value as List)),
       ),
       roomsEnabled: json['roomsEnabled'] as bool? ?? true,
+      roomFeatureDisabled: json['roomFeatureDisabled'] as bool? ?? false,
     );
   }
 
@@ -145,6 +154,7 @@ class Group {
       'rolePriority': rolePriority,
       'memberPermissions': memberPermissions,
       'roomsEnabled': roomsEnabled,
+      'roomFeatureDisabled': roomFeatureDisabled,
     };
   }
 }

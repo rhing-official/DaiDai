@@ -1528,11 +1528,11 @@ class _FriendRequestTile extends ConsumerWidget {
               );
             } else {
               // 承認待ち画面は常にメッセージが空（吹き出しが無い＝全面が
-              // 余白）で、通常の語らいのように吹き出し上の右スワイプで
-              // 戻る仕組み（ChatScreen.onSwipeBack）が機能する余地が無い。
-              // 通常の一対・広場（app_router.dartの`swipeBack()`）と同じ
-              // `SwipeBackDetector`で画面全体をラップし、右スワイプで
-              // 戻れるようにする（2026-08-12）。
+              // 余白）で、通常の語らいのように吹き出し上の右スワイプで戻る
+              // 仕組み（`_MessageInteractionsState`の`InteractiveSwipeBackScope`
+              // 中継）が機能する余地が無い。通常の一対・広場
+              // （app_router.dartの`swipeBack()`）と同じ`SwipeBackDetector`で
+              // 画面全体をラップし、右スワイプで戻れるようにする（2026-08-12）。
               Navigator.of(context).push(
                 MaterialPageRoute<void>(
                   builder: (context) => SwipeBackDetector(
@@ -1620,8 +1620,8 @@ class _PendingGroupJoinRequestTile extends ConsumerWidget {
             onSelectPending(screen);
           } else {
             // _FriendRequestTileと同じ理由（吹き出しが無く
-            // ChatScreen.onSwipeBackが機能しないため、画面全体を
-            // SwipeBackDetectorでラップする、2026-08-12）。
+            // InteractiveSwipeBackScope経由の戻る中継が機能しないため、
+            // 画面全体をSwipeBackDetectorでラップする、2026-08-12）。
             Navigator.of(context).push(
               MaterialPageRoute<void>(
                 builder: (context) => SwipeBackDetector(

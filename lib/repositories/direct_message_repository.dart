@@ -48,6 +48,13 @@ abstract class DirectMessageRepository {
   /// 可能）。複数→単一へ戻すことはできない（2026-07-29追加）。
   Future<void> setRoomsEnabled(String dmId);
 
+  /// 寄合機能自体（名前変更・削除・複数化）を無くし、Discordの一対一DMの
+  /// ような単純な会話として扱うか切り替える（参加者ならどちらでも実行
+  /// 可能、単一モードの時のみ[disabled]をtrueにできる、2026-09-07追加）。
+  /// [DirectMessage.roomsEnabled]自体は変更しないため、双方向に切り替え
+  /// 可能（他の寄合関連操作と異なり一方向ではない）。
+  Future<void> setRoomFeatureDisabled(String dmId, {required bool disabled});
+
   /// 寄合を削除する。全メッセージも物理削除する。この一対の最後の1つの
   /// 寄合は削除できない（[StateError]を投げる）。削除対象が
   /// [DirectMessage.defaultRoomId]の場合は、残った寄合のうち最も古い
@@ -513,6 +520,14 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
   @override
   Future<void> setRoomsEnabled(String dmId) async {
     await _directMessages.doc(dmId).update({'roomsEnabled': true});
+  }
+
+  @override
+  Future<void> setRoomFeatureDisabled(
+    String dmId, {
+    required bool disabled,
+  }) async {
+    await _directMessages.doc(dmId).update({'roomFeatureDisabled': disabled});
   }
 
   @override

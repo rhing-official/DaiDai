@@ -16,6 +16,7 @@ class DirectMessage {
     this.readReceiptsProposalBy,
     this.accountDeletedUserId,
     this.roomsEnabled = true,
+    this.roomFeatureDisabled = false,
   });
 
   final String dmId;
@@ -77,6 +78,13 @@ class DirectMessage {
   /// 維持するため）。
   final bool roomsEnabled;
 
+  /// 寄合機能自体（名前変更・削除・複数化）を無くし、Discordの一対一DMの
+  /// ような単純な会話として扱うか（2026-09-07追加）。単一モード
+  /// （[roomsEnabled] == false）の時のみtrueにできる。他の寄合関連操作と
+  /// 異なりこちらは双方向に切り替え可能（`DirectMessageRepository.
+  /// setRoomFeatureDisabled`参照、`roomsEnabled`自体は変更しない）。
+  final bool roomFeatureDisabled;
+
   /// 自分以外の参加者のuserId。
   String otherUserId(String currentUserId) {
     return participants.firstWhere((id) => id != currentUserId);
@@ -105,6 +113,7 @@ class DirectMessage {
       readReceiptsProposalBy: json['readReceiptsProposalBy'] as String?,
       accountDeletedUserId: json['accountDeletedUserId'] as String?,
       roomsEnabled: json['roomsEnabled'] as bool? ?? true,
+      roomFeatureDisabled: json['roomFeatureDisabled'] as bool? ?? false,
     );
   }
 
@@ -122,6 +131,7 @@ class DirectMessage {
       'readReceiptsProposalBy': readReceiptsProposalBy,
       'accountDeletedUserId': accountDeletedUserId,
       'roomsEnabled': roomsEnabled,
+      'roomFeatureDisabled': roomFeatureDisabled,
     };
   }
 

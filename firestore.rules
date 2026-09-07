@@ -264,6 +264,14 @@ service cloud.firestore {
         && (
           !('roomsEnabled' in request.resource.data.diff(resource.data).affectedKeys())
           || request.resource.data.roomsEnabled == true
+        )
+        // 寄合機能自体を無くす/元に戻す切り替え（参加者ならどちらでも可。
+        // roomsEnabledとは独立したフィールドのため双方向に変更可能だが、
+        // trueにできるのは単一モードの間のみ、2026-09-07追加）。
+        && (
+          !('roomFeatureDisabled' in request.resource.data.diff(resource.data).affectedKeys())
+          || request.resource.data.roomFeatureDisabled == false
+          || (request.resource.data.roomFeatureDisabled == true && resource.data.roomsEnabled == false)
         );
       // 絶縁の実行（最終ステップ）。severanceRequestedByが立っていて、かつ
       // 削除操作者が提案者本人ではない（＝同意した側）場合のみ、この一対
@@ -744,6 +752,19 @@ service cloud.firestore {
             (request.auth.uid == resource.data.ownerId
               || 'manageRooms' in resource.data.memberPermissions[request.auth.uid])
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['roomsEnabled'])
+          )
+          // 寄合機能自体を無くす/元に戻す切り替え（長、またはmanageRooms
+          // 権限を持つロールの付与者のみ）。roomsEnabledとは独立した
+          // フィールドのため双方向に変更可能だが、trueにできるのは単一
+          // モードの間のみ（2026-09-07追加）。
+          || (
+            (request.auth.uid == resource.data.ownerId
+              || 'manageRooms' in resource.data.memberPermissions[request.auth.uid])
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['roomFeatureDisabled'])
+            && (
+              request.resource.data.roomFeatureDisabled == false
+              || (request.resource.data.roomFeatureDisabled == true && resource.data.roomsEnabled == false)
+            )
           )
           // メッセージ送信時のlastMessageAt/lastMessageSenderId/
           // lastMessageContentType/lastMessagePreviewの非正規化更新

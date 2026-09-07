@@ -15,9 +15,27 @@ import '../../models/app_ui_style.dart';
 import '../../models/app_user.dart';
 import '../../providers/app_ui_style_provider.dart';
 import '../../providers/repository_providers.dart';
+import '../../theme/popup_surface_colors.dart';
 import '../../utils/attachment_upload.dart';
 import '../../widgets/glass/glass_app_bar.dart';
 import '../../widgets/swipe_gestures.dart';
+
+/// ダークテーマ（劇画は常時この扱い）でのノート本文の文字色（2026-09-07
+/// 追加）。ライトモードはappflowy_editor既定の黒のまま変更しない
+/// （ユーザー指示）。ベースの`text`を白にすれば`bold`/`italic`/
+/// `underline`/`strikethrough`は色未指定のため自動的にこれを継承する
+/// （`appflowy_rich_text.dart`が`textStyleConfiguration.text.copyWith(...)`
+/// を土台にする実装のため）。`href`/`code`/`autoComplete`は既定で独自の
+/// 色を持つため、明示的に上書きする。
+const _kNoteDarkTextStyleConfiguration = TextStyleConfiguration(
+  text: TextStyle(fontSize: 16, color: Colors.white),
+  href: TextStyle(color: Colors.white, decoration: TextDecoration.underline),
+  code: TextStyle(
+    color: Colors.white,
+    backgroundColor: Color.fromARGB(98, 0, 195, 255),
+  ),
+  autoComplete: TextStyle(color: Colors.white),
+);
 
 /// 共有ノートを寄合の表示領域内で全画面編集する（2026-09-06追加、
 /// `CalendarPaneView`と同じ「ローカルなbool/String切り替えで中身を差し替える」
@@ -60,6 +78,7 @@ class _NotePaneViewState extends ConsumerState<NotePaneView> {
   EditorScrollController? _scrollController;
   final _titleController = TextEditingController();
   final _titleFocusNode = FocusNode();
+  final _attachButtonKey = GlobalKey();
   StreamSubscription<EditorTransactionValue>? _transactionSub;
   Timer? _saveDebounce;
   bool _dirty = false;
@@ -285,32 +304,39 @@ class _NotePaneViewState extends ConsumerState<NotePaneView> {
     }
   }
 
+  /// 添付選択肢のポップアップを開く（2026-09-07、`showModalBottomSheet`から
+  /// 変更）。AppBarの添付ボタン・本文中の「/」挿入メニューどちらから呼ばれた
+  /// 場合も、見た目の一貫性のためAppBarの添付ボタンの位置を基準に開く
+  /// （`chat_panes.dart`の`_NoteButtonState._openNotePopup`と同じ、
+  /// ボタン直下にアンカーする`showMenu`+`RelativeRect`パターン）。
   Future<void> _pickAndInsertAttachment() async {
     final strings = ref.read(appStringsProvider);
-    final choice = await showModalBottomSheet<String>(
+    final buttonContext = _attachButtonKey.currentContext;
+    if (buttonContext == null) return;
+    final box = buttonContext.findRenderObject()! as RenderBox;
+    final bottomLeft = box.localToGlobal(Offset(0, box.size.height));
+    final bottomRight = box.localToGlobal(
+      Offset(box.size.width, box.size.height),
+    );
+    final overlay =
+        Overlay.of(context).context.findRenderObject()! as RenderBox;
+    final position = RelativeRect.fromRect(
+      Rect.fromPoints(bottomLeft, bottomRight),
+      Offset.zero & overlay.size,
+    );
+    final choice = await showMenu<String>(
       context: context,
-      builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.image_outlined),
-              title: Text(strings.chatAttachImage),
-              onTap: () => Navigator.of(context).pop('image'),
-            ),
-            ListTile(
-              leading: const Icon(Icons.videocam_outlined),
-              title: Text(strings.chatAttachVideo),
-              onTap: () => Navigator.of(context).pop('video'),
-            ),
-            ListTile(
-              leading: const Icon(Icons.attach_file),
-              title: Text(strings.chatAttachFile),
-              onTap: () => Navigator.of(context).pop('file'),
-            ),
-          ],
+      position: position,
+      color: Colors.transparent,
+      shadowColor: Colors.transparent,
+      elevation: 0,
+      items: [
+        PopupMenuItem<String>(
+          enabled: false,
+          padding: EdgeInsets.zero,
+          child: _AttachPopupContent(strings: strings),
         ),
-      ),
+      ],
     );
     if (choice == null || !mounted) return;
     switch (choice) {
@@ -367,6 +393,7 @@ class _NotePaneViewState extends ConsumerState<NotePaneView> {
       ),
     );
     final attachAction = IconButton(
+      key: _attachButtonKey,
       icon: _uploading
           ? const SizedBox(
               width: 20,
@@ -424,12 +451,19 @@ class _NotePaneViewState extends ConsumerState<NotePaneView> {
       customSlashCommand(_buildSelectionMenuItems(strings)),
       ...standardCharacterShortcutEvents.where((e) => e != slashCommand),
     ];
+    // ライトモードはappflowy_editor既定の黒のまま（ユーザー指示）、
+    // ダーク時（劇画は常時この扱い）のみ白へ統一する。
+    final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
+    final isDark = isGekiga || Theme.of(context).brightness == Brightness.dark;
+    final textStyleConfiguration = isDark
+        ? _kNoteDarkTextStyleConfiguration
+        : null;
     final editor = AppFlowyEditor(
       editorState: editorState,
       editorScrollController: scrollController,
       editorStyle: _isMobilePlatform
-          ? const EditorStyle.mobile()
-          : const EditorStyle.desktop(),
+          ? EditorStyle.mobile(textStyleConfiguration: textStyleConfiguration)
+          : EditorStyle.desktop(textStyleConfiguration: textStyleConfiguration),
       characterShortcutEvents: characterShortcutEvents,
       commandShortcutEvents: standardCommandShortcutEvents,
       blockComponentBuilders: standardBlockComponentBuilderMap,
@@ -444,6 +478,66 @@ class _NotePaneViewState extends ConsumerState<NotePaneView> {
       editorScrollController: scrollController,
       textDirection: TextDirection.ltr,
       child: editor,
+    );
+  }
+}
+
+/// 添付選択肢ポップアップの中身（2026-09-07追加）。`note_popup_content.dart`
+/// の`_NotePopupContent`と同じ配色規約（`popup_surface_colors.dart`）に
+/// 揃えた、画像/動画/ファイルの3択リスト。
+class _AttachPopupContent extends ConsumerWidget {
+  const _AttachPopupContent({required this.strings});
+
+  final Strings strings;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final brightness = Theme.of(context).brightness;
+    final uiStyle = ref.watch(appUiStyleProvider);
+    final onInverse = popupCardForeground(brightness, uiStyle);
+
+    Widget optionRow(IconData icon, String label, String value) {
+      return Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(8),
+          onTap: () => Navigator.of(context).pop(value),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+            child: Row(
+              children: [
+                Icon(icon, color: onInverse),
+                const SizedBox(width: 12),
+                Text(label, style: TextStyle(color: onInverse)),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    return SizedBox(
+      width: 220,
+      child: Container(
+        decoration: BoxDecoration(
+          color: popupCardBackground(brightness, uiStyle),
+          border: Border.all(color: popupCardBorder(brightness, uiStyle)),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            optionRow(Icons.image_outlined, strings.chatAttachImage, 'image'),
+            optionRow(
+              Icons.videocam_outlined,
+              strings.chatAttachVideo,
+              'video',
+            ),
+            optionRow(Icons.attach_file, strings.chatAttachFile, 'file'),
+          ],
+        ),
+      ),
     );
   }
 }

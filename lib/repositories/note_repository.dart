@@ -15,6 +15,16 @@ abstract class NoteRepository {
     required String roomId,
   });
 
+  /// 1件をライブ購読する（チャット上の通知カード表示用、2026-09-07追加）。
+  /// タイトルが後から編集されても表示が追従するようにするため
+  /// （`chat_screen.dart`の`_noteCreatedNoticeContent`参照）。
+  Stream<Note?> watchNote({
+    required bool isDm,
+    required String conversationId,
+    required String roomId,
+    required String noteId,
+  });
+
   /// 単発で1件だけ取得する（エディタを開く際の初期読み込み用。v1は開いた
   /// 時点の内容を読み込むだけでよく、編集中に他人の更新をライブ反映する
   /// 必要は無い）。
@@ -110,6 +120,25 @@ class FirestoreNoteRepository implements NoteRepository {
       return snapshot.docs
           .map((doc) => Note.fromJson(doc.id, doc.data()))
           .toList();
+    });
+  }
+
+  @override
+  Stream<Note?> watchNote({
+    required bool isDm,
+    required String conversationId,
+    required String roomId,
+    required String noteId,
+  }) {
+    return _noteRef(
+      isDm: isDm,
+      conversationId: conversationId,
+      roomId: roomId,
+      noteId: noteId,
+    ).snapshots().map((doc) {
+      final data = doc.data();
+      if (data == null) return null;
+      return Note.fromJson(doc.id, data);
     });
   }
 
