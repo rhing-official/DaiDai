@@ -8,6 +8,7 @@ import '../../models/direct_message.dart';
 import '../../providers/app_ui_style_provider.dart';
 import '../../providers/repository_providers.dart';
 import '../../router/app_router.dart';
+import '../../utils/friend_request_error.dart';
 import '../../widgets/gekiga/gekiga_text_field.dart';
 import '../../widgets/profile_card_picker.dart';
 
@@ -50,6 +51,9 @@ class _AddChatDialogContentState extends ConsumerState<AddChatDialogContent> {
   /// プロフィールカード選択を含む確認UIを表示する。
   AppUser? _pendingTarget;
   String? _selectedProfileCardId;
+
+  /// 申請に添える任意メッセージ（技術仕様書8.3レイヤー2、2026-09-07追加）。
+  final _messageController = TextEditingController();
 
   Future<void> _search() async {
     final strings = ref.read(appStringsProvider);
@@ -120,6 +124,7 @@ class _AddChatDialogContentState extends ConsumerState<AddChatDialogContent> {
   }
 
   void _cancelPending() {
+    _messageController.clear();
     setState(() {
       _pendingTarget = null;
       _selectedProfileCardId = null;
@@ -137,7 +142,12 @@ class _AddChatDialogContentState extends ConsumerState<AddChatDialogContent> {
     });
     try {
       final friendRepository = ref.read(friendRepositoryProvider);
-      await friendRepository.sendRequest(from: widget.currentUser, to: other);
+      final message = _messageController.text.trim();
+      await friendRepository.sendRequest(
+        from: widget.currentUser,
+        to: other,
+        message: message.isEmpty ? null : message,
+      );
       final selectedProfileCardId = _selectedProfileCardId;
       if (selectedProfileCardId != null) {
         await ref
@@ -158,8 +168,9 @@ class _AddChatDialogContentState extends ConsumerState<AddChatDialogContent> {
         _selectedProfileCardId = null;
       });
       _controller.clear();
+      _messageController.clear();
     } catch (e) {
-      setState(() => _errorMessage = 'エラーが発生しました: $e');
+      setState(() => _errorMessage = friendRequestErrorMessage(e, strings));
     } finally {
       if (mounted) {
         setState(() => _isSearching = false);
@@ -170,6 +181,7 @@ class _AddChatDialogContentState extends ConsumerState<AddChatDialogContent> {
   @override
   void dispose() {
     _controller.dispose();
+    _messageController.dispose();
     super.dispose();
   }
 
@@ -293,6 +305,16 @@ class _AddChatDialogContentState extends ConsumerState<AddChatDialogContent> {
         selectedCardId: _selectedProfileCardId,
         activeCardName: widget.currentUser.activeProfileCard?.name,
         onSelected: (id) => setState(() => _selectedProfileCardId = id),
+      ),
+      const SizedBox(height: 16),
+      TextField(
+        controller: _messageController,
+        enabled: !_isSearching,
+        maxLength: 100,
+        decoration: InputDecoration(
+          labelText: strings.friendRequestMessageLabel,
+          border: const OutlineInputBorder(),
+        ),
       ),
       const SizedBox(height: 16),
       Row(

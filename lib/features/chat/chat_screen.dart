@@ -60,6 +60,7 @@ import '../../utils/drag_menu_geometry.dart';
 import '../../utils/fullscreen/fullscreen.dart';
 import '../../utils/link_detection.dart';
 import '../../utils/note_title.dart';
+import '../../utils/spam_check.dart';
 import '../../utils/sticker_suggestion.dart';
 import 'sticker_picker_popup.dart';
 import 'sticker_picker_sheet.dart';
@@ -296,6 +297,43 @@ class ChatScreen extends ConsumerStatefulWidget {
   ConsumerState<ChatScreen> createState() => _ChatScreenState();
 }
 
+/// メッセージ一覧（`ScrollablePositionedList`）の1行分が何であるかを表す
+/// 軽量なデータ（2026-09-07追加、`task_banner.dart`の`sealed class
+/// _PendingTask`と同じ考え方）。以前はこのループの中で`_MessageRow`/
+/// `_DateSeparator`のWidgetそのものを毎回全件分構築していたため、
+/// `_olderMessages`（1日単位ページネーションで無制限に蓄積される過去分）
+/// が増えるほどWidget構築コストが線形に増大し、スクロールバックのたびに
+/// カクつく原因になっていた。Widget構築を伴わないこの軽量なデータの
+/// リストを先に組み立て、実際の`_MessageRow`/`_DateSeparator`の構築は
+/// `ScrollablePositionedList.builder`の`itemBuilder`側（表示範囲＋
+/// cacheExtent分のみが呼ばれる）に遅延させることで、Widget構築コストを
+/// 「読み込み済み全件」ではなく「実際に画面に表示される範囲」に比例させる。
+sealed class _ChatListEntry {
+  const _ChatListEntry();
+}
+
+/// 一番古いメッセージ側の端（reverse:trueのListViewでは画面上端）に出す
+/// 「読み込み中」インジケータ。
+class _ChatLoadingHeaderEntry extends _ChatListEntry {
+  const _ChatLoadingHeaderEntry();
+}
+
+/// 同じく画面上端に出す「これ以上履歴はありません」表示。
+class _ChatNoMoreHistoryEntry extends _ChatListEntry {
+  const _ChatNoMoreHistoryEntry();
+}
+
+class _ChatDateSeparatorEntry extends _ChatListEntry {
+  const _ChatDateSeparatorEntry(this.date);
+  final DateTime date;
+}
+
+class _ChatMessageEntry extends _ChatListEntry {
+  const _ChatMessageEntry(this.message, this.sentAt);
+  final Message message;
+  final DateTime? sentAt;
+}
+
 class _ChatScreenState extends ConsumerState<ChatScreen> {
   final _textController = TextEditingController();
 
@@ -323,6 +361,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   StreamSubscription<List<StickerRole>>? _stickerRolesSub;
   StreamSubscription<List<StickerPack>>? _ownedStickerPacksSub;
   Timer? _suggestionDebounceTimer;
+
+  /// クライアント側スパムチェック（技術仕様書8.3レイヤー3、2026-09-07追加）
+  /// の同一内容連続送信検知に使う、この画面インスタンスの間だけ保持する
+  /// 直近送信履歴。`spam_check.dart`参照。
+  final _recentSendHistory = RecentSendHistory();
 
   // widget.roomIdがnullな呼び出し元（お知らせ画面等、既存テストの多くも
   // 含む）でdraftSyncEnabledProviderの評価自体をスキップするため、
@@ -1446,10 +1489,70 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     }
   }
 
+  /// クライアント側スパムチェック（技術仕様書8.3レイヤー3）。該当する場合は
+  /// 警告ダイアログを出し、「送信する」ならtrueを返す。「やめる」を選んだ
+  /// 場合は、送信を取りやめたことのメタデータのみ（本文は含めない）を
+  /// サーバーへ報告した上でfalseを返す（呼び出し元は送信処理を続けない）。
+  /// メッセージ内容自体はこの端末の中で判定が完結し、サーバーには送らない。
+  Future<bool> _checkSpamBeforeSend(
+    String conversationId,
+    String content,
+  ) async {
+    final keywords = ref.read(spamKeywordsProvider).value ?? const [];
+    final reason = clientSideSpamCheck(
+      messageText: content,
+      keywords: keywords,
+      conversationId: conversationId,
+      history: _recentSendHistory,
+    );
+    if (reason == null) {
+      _recentSendHistory.record(conversationId, content);
+      return true;
+    }
+
+    final strings = ref.read(appStringsProvider);
+    final sendAnyway = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(strings.chatSpamWarningTitle),
+        content: Text(strings.chatSpamWarningMessage),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(strings.chatSpamWarningCancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(strings.chatSpamWarningSendAnyway),
+          ),
+        ],
+      ),
+    );
+    if (sendAnyway == true) {
+      _recentSendHistory.record(conversationId, content);
+      return true;
+    }
+    if (mounted) {
+      await ref
+          .read(spamConfigRepositoryProvider)
+          .reportSpamWarningDeclined(
+            userId: widget.currentUserId,
+            conversationId: conversationId,
+          );
+    }
+    return false;
+  }
+
   Future<void> _send({bool silent = false}) async {
     if (widget.onSend == null || widget.disabled) return;
     final content = _textController.text.trim();
     if (content.isEmpty) return;
+
+    final conversationId = widget.conversationId;
+    if (conversationId != null) {
+      final proceed = await _checkSpamBeforeSend(conversationId, content);
+      if (!proceed) return;
+    }
 
     if (_editingMessage != null) {
       final messageId = _editingMessage!.messageId;
@@ -1967,12 +2070,21 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     _extraMessages.removeWhere(
                       (id, _) => messages.any((m) => m.messageId == id),
                     );
-                    final combined = [...messages, ..._extraMessages.values]
-                      ..sort((a, b) {
-                        final aTime = a.sentAt?.toDate() ?? DateTime.now();
-                        final bTime = b.sentAt?.toDate() ?? DateTime.now();
-                        return bTime.compareTo(aTime);
-                      });
+                    // messagesは呼び出し元（DmChatPane/GroupChatPane）で
+                    // 既にsentAt降順ソート済み。_extraMessages（返信先ジャンプ
+                    // で一時取得した分）が空のとき（大半のケース）は、
+                    // 追加のO(n log n)ソートを省略する（2026-09-07、遡るたびの
+                    // カクつき対策）。
+                    final combined = _extraMessages.isEmpty
+                        ? messages
+                        : ([...messages, ..._extraMessages.values]..sort((
+                            a,
+                            b,
+                          ) {
+                            final aTime = a.sentAt?.toDate() ?? DateTime.now();
+                            final bTime = b.sentAt?.toDate() ?? DateTime.now();
+                            return bTime.compareTo(aTime);
+                          }));
                     _cachedMessages = combined;
 
                     // 返信元メッセージの引用プレビュー・返信先ジャンプに使う。
@@ -2009,7 +2121,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                         ? _screenshotEffectiveIds(combined)
                         : const <String>{};
 
-                    final entries = <Widget>[];
+                    final entries = <_ChatListEntry>[];
                     // 1日単位ページネーション対応の呼び出し元
                     // （onLoadOlderMessagesが非null）の場合のみ、一覧の
                     // 一番古いメッセージ側の端（entries[0]、reverse:trueの
@@ -2017,35 +2129,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     // 追加する（2026-08-20追加）。
                     if (widget.onLoadOlderMessages != null) {
                       if (widget.isLoadingOlderMessages) {
-                        entries.add(
-                          const Padding(
-                            padding: EdgeInsets.all(16),
-                            child: Center(
-                              child: SizedBox(
-                                width: 24,
-                                height: 24,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              ),
-                            ),
-                          ),
-                        );
+                        entries.add(const _ChatLoadingHeaderEntry());
                       } else if (!widget.hasMoreHistory) {
-                        entries.add(
-                          Padding(
-                            padding: const EdgeInsets.all(16),
-                            child: Center(
-                              child: Text(
-                                strings.chatNoMoreHistory,
-                                style: TextStyle(
-                                  color: colorScheme.onSurfaceVariant,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ),
-                          ),
-                        );
+                        entries.add(const _ChatNoMoreHistoryEntry());
                       }
                     }
                     DateTime? currentDay;
@@ -2056,15 +2142,83 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                           (currentDay == null ||
                               !isSameDay(sentAt, currentDay))) {
                         currentDay = sentAt;
-                        entries.add(
-                          _DateSeparator(
-                            date: sentAt,
-                            locale: locale,
-                            uiStyle: uiStyle,
-                          ),
-                        );
+                        entries.add(_ChatDateSeparatorEntry(sentAt));
                       }
-                      entries.add(
+                      entries.add(_ChatMessageEntry(message, sentAt));
+                    }
+                    final reversedEntries = entries.reversed.toList();
+
+                    // 返信先ジャンプ機能（_jumpToMessage）用に、messageIdから
+                    // ScrollablePositionedList上のインデックスを引けるように
+                    // しておく（2026-08-21、ItemScrollController.jumpTo(index:)
+                    // は対象が未ビルドでも確定的にジャンプできるため、旧実装の
+                    // ような「ロード済みは最新50件程度」という前提は不要）。
+                    // Widgetではなく軽量なエントリのリストから計算するため、
+                    // 件数が多くてもコストは無視できる（2026-09-07）。
+                    _entryCount = reversedEntries.length;
+                    _messageIndexById = {
+                      for (var i = 0; i < reversedEntries.length; i++)
+                        if (reversedEntries[i] case _ChatMessageEntry(
+                          :final message,
+                        ))
+                          message.messageId: i,
+                    };
+
+                    // メッセージ一覧は入力欄の裏まで全画面分の高さで敷き、
+                    // 入力欄自体はStack最前面のオーバーレイとして重ねる
+                    // （下記Positioned参照）。下部余白（bottomInset）を
+                    // 入力欄の実測高さに合わせてTweenAnimationBuilderで
+                    // アニメーションさせることで、入力欄が伸び縮みする際に
+                    // メッセージがその下へ滑らかに潜り込むように見せている
+                    // （2026-07-30、入力欄の直前でメッセージが唐突に
+                    // 途切れて見える不具合の修正）。
+
+                    // 読み込み済みの内容が画面を埋めきらない（＝そもそも
+                    // スクロールする余地が無い）場合、ユーザーのスクロール
+                    // 操作を待つ`_maybeLoadOlderMessages`（スクロール通知
+                    // 起点）が一切発火しない。フレーム描画後にその状態を
+                    // 検知し、スクロール無しでも自動的に次の日を読み込む
+                    // （2026-08-21、直近日のメッセージ数が少ない語らいで
+                    // 過去日が全く読み込まれない不具合の修正）。
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      if (mounted) _maybeLoadOlderMessages();
+                    });
+
+                    // 実際に表示される範囲＋cacheExtent分のみ呼ばれる
+                    // （`ScrollablePositionedList`が要求したindexの分だけ
+                    // その場で構築する、2026-09-07）。`_MessageRow`の
+                    // 引数はこれまで`entries`構築ループ内で直接渡していた
+                    // ものと同一で、いずれもこのStreamBuilder.builderの
+                    // クロージャスコープ内にあるためそのまま参照できる。
+                    Widget buildEntry(_ChatListEntry entry) => switch (entry) {
+                      _ChatLoadingHeaderEntry() => const Padding(
+                        padding: EdgeInsets.all(16),
+                        child: Center(
+                          child: SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                        ),
+                      ),
+                      _ChatNoMoreHistoryEntry() => Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Center(
+                          child: Text(
+                            strings.chatNoMoreHistory,
+                            style: TextStyle(
+                              color: colorScheme.onSurfaceVariant,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      ),
+                      _ChatDateSeparatorEntry(:final date) => _DateSeparator(
+                        date: date,
+                        locale: locale,
+                        uiStyle: uiStyle,
+                      ),
+                      _ChatMessageEntry(:final message, :final sentAt) =>
                         _MessageRow(
                           key: ValueKey(message.messageId),
                           message: message,
@@ -2157,42 +2311,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                               widget.onDeleteAfterAccountDeletion,
                           vocabulary: vocabulary,
                         ),
-                      );
-                    }
-                    final reversedEntries = entries.reversed.toList();
-
-                    // 返信先ジャンプ機能（_jumpToMessage）用に、messageIdから
-                    // ScrollablePositionedList上のインデックスを引けるように
-                    // しておく（2026-08-21、ItemScrollController.jumpTo(index:)
-                    // は対象が未ビルドでも確定的にジャンプできるため、旧実装の
-                    // ような「ロード済みは最新50件程度」という前提は不要）。
-                    _entryCount = reversedEntries.length;
-                    _messageIndexById = {
-                      for (var i = 0; i < reversedEntries.length; i++)
-                        if (reversedEntries[i] is _MessageRow)
-                          (reversedEntries[i] as _MessageRow).message.messageId:
-                              i,
                     };
-
-                    // メッセージ一覧は入力欄の裏まで全画面分の高さで敷き、
-                    // 入力欄自体はStack最前面のオーバーレイとして重ねる
-                    // （下記Positioned参照）。下部余白（bottomInset）を
-                    // 入力欄の実測高さに合わせてTweenAnimationBuilderで
-                    // アニメーションさせることで、入力欄が伸び縮みする際に
-                    // メッセージがその下へ滑らかに潜り込むように見せている
-                    // （2026-07-30、入力欄の直前でメッセージが唐突に
-                    // 途切れて見える不具合の修正）。
-
-                    // 読み込み済みの内容が画面を埋めきらない（＝そもそも
-                    // スクロールする余地が無い）場合、ユーザーのスクロール
-                    // 操作を待つ`_maybeLoadOlderMessages`（スクロール通知
-                    // 起点）が一切発火しない。フレーム描画後にその状態を
-                    // 検知し、スクロール無しでも自動的に次の日を読み込む
-                    // （2026-08-21、直近日のメッセージ数が少ない語らいで
-                    // 過去日が全く読み込まれない不具合の修正）。
-                    WidgetsBinding.instance.addPostFrameCallback((_) {
-                      if (mounted) _maybeLoadOlderMessages();
-                    });
 
                     return TweenAnimationBuilder<double>(
                       tween: Tween<double>(
@@ -2209,7 +2328,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                             reverse: true,
                             itemCount: reversedEntries.length,
                             itemBuilder: (context, index) =>
-                                reversedEntries[index],
+                                buildEntry(reversedEntries[index]),
                             padding: EdgeInsets.fromLTRB(
                               12,
                               12,

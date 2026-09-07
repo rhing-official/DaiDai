@@ -8,6 +8,7 @@ import '../../models/friend_request.dart';
 import '../../providers/chat_navigation_providers.dart';
 import '../../providers/repository_providers.dart';
 import '../../router/app_router.dart';
+import '../../utils/friend_request_error.dart';
 import '../../widgets/profile_card_picker.dart';
 import '../../widgets/profile_card_view.dart';
 import 'talks_tab.dart' show kTalksSplitBreakpoint;
@@ -81,7 +82,18 @@ class _UserProfileCardDialogState extends ConsumerState<UserProfileCardDialog> {
   /// （省略時は標準が適用される、2026-07-29追加）。
   String? _selectedProfileCardId;
 
+  /// 申請に添える任意メッセージ（技術仕様書8.3レイヤー2、2026-09-07追加）。
+  final _messageController = TextEditingController();
+
+  String? _errorMessage;
+
   bool get _isSelf => widget.currentUser.userId == widget.user.userId;
+
+  @override
+  void dispose() {
+    _messageController.dispose();
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -111,11 +123,19 @@ class _UserProfileCardDialogState extends ConsumerState<UserProfileCardDialog> {
   }
 
   Future<void> _sendRequest() async {
-    setState(() => _sending = true);
+    setState(() {
+      _sending = true;
+      _errorMessage = null;
+    });
     try {
+      final message = _messageController.text.trim();
       await ref
           .read(friendRepositoryProvider)
-          .sendRequest(from: widget.currentUser, to: widget.user);
+          .sendRequest(
+            from: widget.currentUser,
+            to: widget.user,
+            message: message.isEmpty ? null : message,
+          );
       final selectedProfileCardId = _selectedProfileCardId;
       if (selectedProfileCardId != null) {
         await ref
@@ -131,6 +151,14 @@ class _UserProfileCardDialogState extends ConsumerState<UserProfileCardDialog> {
       }
       if (!mounted) return;
       setState(() => _statusFuture = _fetchStatus());
+    } catch (e) {
+      if (!mounted) return;
+      setState(
+        () => _errorMessage = friendRequestErrorMessage(
+          e,
+          ref.read(appStringsProvider),
+        ),
+      );
     } finally {
       if (mounted) setState(() => _sending = false);
     }
@@ -352,6 +380,20 @@ class _UserProfileCardDialogState extends ConsumerState<UserProfileCardDialog> {
           activeCardName: widget.currentUser.activeProfileCard?.name,
           onSelected: (id) => setState(() => _selectedProfileCardId = id),
         ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _messageController,
+          enabled: !_sending,
+          maxLength: 100,
+          decoration: InputDecoration(
+            labelText: strings.friendRequestMessageLabel,
+            border: const OutlineInputBorder(),
+          ),
+        ),
+        if (_errorMessage != null) ...[
+          const SizedBox(height: 4),
+          Text(_errorMessage!, style: const TextStyle(color: Colors.red)),
+        ],
         const SizedBox(height: 12),
         FilledButton(
           onPressed: _sending ? null : _sendRequest,

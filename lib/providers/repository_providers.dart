@@ -16,6 +16,7 @@ import '../repositories/note_repository.dart';
 import '../repositories/poll_repository.dart';
 import '../repositories/push_notification_repository.dart';
 import '../repositories/schedule_coordination_repository.dart';
+import '../repositories/spam_config_repository.dart';
 import '../repositories/sticker_repository.dart';
 import '../repositories/user_repository.dart';
 
@@ -47,6 +48,17 @@ final groupCallRepositoryProvider = Provider<GroupCallRepository>((ref) {
 
 final friendRepositoryProvider = Provider<FriendRepository>((ref) {
   return FirestoreFriendRepository();
+});
+
+final spamConfigRepositoryProvider = Provider<SpamConfigRepository>((ref) {
+  return FirestoreSpamConfigRepository();
+});
+
+/// クライアント側スパムチェック（技術仕様書8.3レイヤー3）用のキーワード
+/// 一覧。未取得の間・エラー時は空リストとして扱う（キーワードが引けない
+/// からといって送信をブロックしない方針、2026-09-07追加）。
+final spamKeywordsProvider = StreamProvider<List<String>>((ref) {
+  return ref.watch(spamConfigRepositoryProvider).watchSpamKeywords();
 });
 
 final conversationPrefsRepositoryProvider =

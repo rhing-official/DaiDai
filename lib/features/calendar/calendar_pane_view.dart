@@ -553,35 +553,42 @@ class _DayCell extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
         child: Stack(
           children: [
-            Container(
-              decoration: BoxDecoration(
-                // 予定がある日はアクセントカラーを背景の塗りとしてのみ使う
-                // （CLAUDE.md規約: テキストにはアクセントカラーを使わない）。
-                // 劇画スタイルはアクセントカラーの概念自体を持たないため、
-                // 代わりに単色のドットで示す（下記）。
-                color: (!isGekiga && hasEvents)
-                    ? accentColor.withValues(alpha: 0.18)
-                    : null,
-                border: isToday
-                    ? Border.all(color: colorScheme.outline, width: 2)
-                    : null,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text('${day.day}', style: TextStyle(color: dayNumberColor)),
-                  if (isGekiga && hasEvents)
-                    Container(
-                      width: 4,
-                      height: 4,
-                      margin: const EdgeInsets.only(top: 2),
-                      decoration: BoxDecoration(
-                        color: dayNumberColor,
-                        shape: BoxShape.circle,
+            // 明示的なサイズ指定が無いと、Stackの非Positioned子は内容物に
+            // フィットする最小サイズまで縮んでセル左上に配置されてしまい、
+            // 曜日ヘッダー（列中央寄せ）と横位置が揃わなくなる
+            // （2026-09-07判明の不具合、Positioned.fillでセル全体に広げて
+            // から内部で中央寄せする）。
+            Positioned.fill(
+              child: Container(
+                decoration: BoxDecoration(
+                  // 予定がある日はアクセントカラーを背景の塗りとしてのみ使う
+                  // （CLAUDE.md規約: テキストにはアクセントカラーを使わない）。
+                  // 劇画スタイルはアクセントカラーの概念自体を持たないため、
+                  // 代わりに単色のドットで示す（下記）。
+                  color: (!isGekiga && hasEvents)
+                      ? accentColor.withValues(alpha: 0.18)
+                      : null,
+                  border: isToday
+                      ? Border.all(color: colorScheme.outline, width: 2)
+                      : null,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text('${day.day}', style: TextStyle(color: dayNumberColor)),
+                    if (isGekiga && hasEvents)
+                      Container(
+                        width: 4,
+                        height: 4,
+                        margin: const EdgeInsets.only(top: 2),
+                        decoration: BoxDecoration(
+                          color: dayNumberColor,
+                          shape: BoxShape.circle,
+                        ),
                       ),
-                    ),
-                ],
+                  ],
+                ),
               ),
             ),
             // 未確定の日程調整の候補日には、確定済み予定の背景塗り/ドットとは

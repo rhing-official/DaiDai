@@ -1,4 +1,4 @@
-import { randomUUID } from "crypto";
+import { createHash, randomUUID } from "crypto";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
@@ -1815,5 +1815,373 @@ export const generateVideoThumbnail = onObjectFinalized(
       return;
     }
     await messageRef.update({ "fileMetadata.thumbnailUrl": thumbnailUrl });
+  },
+);
+
+// ============================================================
+// スパム対策（技術仕様書8章「スパム対策・仲間システム」、2026-09-07実装）。
+// 8.4のCAPTCHA（bot的挙動時の要求）は新規の外部サービス契約が必要なため
+// 今回は対象外（日記.mdにフォローアップとして記録）。それ以外の8.3
+// （3層検知）・8.4（段階的停止）をここに実装する。
+// ============================================================
+
+/** 2人のuserIdから決定的なペアidを作る（firestore.rulesのpairId()・
+ * DartモデルのidFor()と同じ規則）。 */
+function pairId(a: string, b: string): string {
+  return [a, b].sort().join("_");
+}
+
+const FRIEND_REQUEST_NEW_ACCOUNT_AGE_DAYS = 7;
+const FRIEND_REQUEST_RATE_LIMIT_NEW = { perHour: 5, perDay: 10 };
+const FRIEND_REQUEST_RATE_LIMIT_NORMAL = { perHour: 30, perDay: 100 };
+const FRIEND_REQUEST_RATE_LIMIT_LOW_APPROVAL_PER_HOUR = 5;
+const FRIEND_REQUEST_LOW_APPROVAL_MIN_SENT = 10;
+const FRIEND_REQUEST_LOW_APPROVAL_THRESHOLD = 0.3;
+const DUPLICATE_BROADCAST_WINDOW_MINUTES = 10;
+const DUPLICATE_BROADCAST_MIN_RECIPIENTS = 5;
+
+/**
+ * 友達申請の送信（技術仕様書8.3レイヤー1「友達リクエスト段階」・
+ * レイヤー2「未承認者へのメッセージ」）。クライアントの直接Firestore
+ * 書き込みでは時間窓ごとのレート制限を安全に強制できないため、
+ * `suspendUserAccount`等と同じくAdmin SDK経由のcallableに寄せている
+ * （`lib/repositories/friend_repository.dart`の`FirestoreFriendRepository.
+ * sendRequest`参照）。新規送信／相互申請の即時承認／拒否後の再送信という
+ * 分岐ロジック自体は、このcallableへ移行する前のクライアント側実装と
+ * 同じ内容をここに移植した。
+ */
+export const sendFriendRequest = onCall(
+  { region: "asia-northeast1" },
+  async (request) => {
+    const uid = request.auth?.uid;
+    if (!uid) {
+      throw new HttpsError("unauthenticated", "ログインが必要です");
+    }
+    const fromUserId = request.data?.fromUserId;
+    const fromRhingId = request.data?.fromRhingId;
+    const toUserId = request.data?.toUserId;
+    const toRhingId = request.data?.toRhingId;
+    const rawMessage = request.data?.message;
+    if (
+      typeof fromUserId !== "string" ||
+      typeof fromRhingId !== "string" ||
+      typeof toUserId !== "string" ||
+      typeof toRhingId !== "string"
+    ) {
+      throw new HttpsError("invalid-argument", "パラメータが不正です");
+    }
+    if (fromUserId !== uid) {
+      throw new HttpsError("permission-denied", "本人としてのみ送信できます");
+    }
+    if (toUserId === fromUserId) {
+      throw new HttpsError("invalid-argument", "自分自身には送信できません");
+    }
+    const message: string | null =
+      typeof rawMessage === "string" && rawMessage.trim() ? rawMessage.trim() : null;
+    if (message !== null && message.length > 100) {
+      throw new HttpsError(
+        "invalid-argument",
+        "メッセージは100文字以内で入力してください",
+      );
+    }
+
+    const now = Timestamp.now();
+    const attempts = db.collection("friendRequestAttempts");
+
+    const [hourSnapshot, daySnapshot, fromUserDoc, sentSnapshot, acceptedSnapshot] =
+      await Promise.all([
+        attempts
+          .where("fromUserId", "==", fromUserId)
+          .where(
+            "createdAt",
+            ">=",
+            Timestamp.fromMillis(now.toMillis() - 60 * 60 * 1000),
+          )
+          .get(),
+        attempts
+          .where("fromUserId", "==", fromUserId)
+          .where(
+            "createdAt",
+            ">=",
+            Timestamp.fromMillis(now.toMillis() - 24 * 60 * 60 * 1000),
+          )
+          .get(),
+        db.collection("users").doc(fromUserId).get(),
+        db.collection("friendRequests").where("fromUserId", "==", fromUserId).get(),
+        db
+          .collection("friendRequests")
+          .where("fromUserId", "==", fromUserId)
+          .where("status", "==", "accepted")
+          .get(),
+      ]);
+
+    // 新規アカウント（技術仕様書8.3の「新規アカウント」）の判定基準は
+    // 明記が無いため、作成から7日未満を新規とみなす（後で調整可能な定数）。
+    const createdAt = fromUserDoc.data()?.createdAt as
+      | FirebaseFirestore.Timestamp
+      | undefined;
+    const isNewAccount =
+      !createdAt ||
+      now.toMillis() - createdAt.toMillis() <
+        FRIEND_REQUEST_NEW_ACCOUNT_AGE_DAYS * 24 * 60 * 60 * 1000;
+
+    // 承認率30%未満の判定は、送信した友達申請の累計（送信数・承認数）に対して行う。
+    const totalSent = sentSnapshot.size;
+    const totalAccepted = acceptedSnapshot.size;
+    const isLowApproval =
+      totalSent >= FRIEND_REQUEST_LOW_APPROVAL_MIN_SENT &&
+      totalAccepted / totalSent < FRIEND_REQUEST_LOW_APPROVAL_THRESHOLD;
+
+    const baseLimit = isNewAccount
+      ? FRIEND_REQUEST_RATE_LIMIT_NEW
+      : FRIEND_REQUEST_RATE_LIMIT_NORMAL;
+    const hourLimit = isLowApproval
+      ? Math.min(baseLimit.perHour, FRIEND_REQUEST_RATE_LIMIT_LOW_APPROVAL_PER_HOUR)
+      : baseLimit.perHour;
+
+    if (hourSnapshot.size >= hourLimit || daySnapshot.size >= baseLimit.perDay) {
+      await db.collection("spamViolations").add({
+        userId: fromUserId,
+        kind: "rateLimitExceeded",
+        createdAt: FieldValue.serverTimestamp(),
+      });
+      throw new HttpsError(
+        "resource-exhausted",
+        "友達申請の送信回数が上限に達しました。しばらく時間をおいてから再度お試しください。",
+      );
+    }
+
+    // レイヤー2: 同一内容メッセージを短時間に複数人へ送るスパムパターンの検知。
+    // メッセージ内容自体はサーバーに保存せずハッシュのみ比較する。
+    let messageHash: string | null = null;
+    if (message) {
+      messageHash = createHash("sha256").update(message).digest("hex");
+      const windowStart = Timestamp.fromMillis(
+        now.toMillis() - DUPLICATE_BROADCAST_WINDOW_MINUTES * 60 * 1000,
+      );
+      const duplicateSnapshot = await attempts
+        .where("fromUserId", "==", fromUserId)
+        .where("messageHash", "==", messageHash)
+        .where("createdAt", ">=", windowStart)
+        .get();
+      const distinctRecipients = new Set(
+        duplicateSnapshot.docs.map((doc) => doc.data().toUserId as string),
+      );
+      distinctRecipients.add(toUserId);
+      if (distinctRecipients.size >= DUPLICATE_BROADCAST_MIN_RECIPIENTS) {
+        await db.collection("spamViolations").add({
+          userId: fromUserId,
+          kind: "duplicateBroadcast",
+          createdAt: FieldValue.serverTimestamp(),
+        });
+        throw new HttpsError(
+          "resource-exhausted",
+          "同一内容のメッセージを短時間に複数人へ送ろうとしたため、送信を拒否しました。",
+        );
+      }
+    }
+
+    // ここまで到達した試行はレート制限のカウント対象として記録する
+    // （実際に友達申請が成立したかどうかに関わらず、送信操作そのものを数える）。
+    await attempts.add({
+      fromUserId,
+      toUserId,
+      messageHash,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+
+    // 相互承認時のfriends/directMessages/dmRoom作成
+    // （`FirestoreFriendRepository.respond`と同じ内容のAdmin SDK版）。
+    const createFriendship = async (
+      userAId: string,
+      userARhingId: string,
+      userBId: string,
+      userBRhingId: string,
+    ): Promise<void> => {
+      const dmId = pairId(userAId, userBId);
+      const dmRef = db.collection("directMessages").doc(dmId);
+      const roomRef = dmRef.collection("rooms").doc();
+      const batch = db.batch();
+      batch.set(
+        db.collection("users").doc(userAId).collection("friends").doc(userBId),
+        { friendRhingId: userBRhingId, addedAt: FieldValue.serverTimestamp() },
+      );
+      batch.set(
+        db.collection("users").doc(userBId).collection("friends").doc(userAId),
+        { friendRhingId: userARhingId, addedAt: FieldValue.serverTimestamp() },
+      );
+      batch.set(dmRef, {
+        participants: [userAId, userBId],
+        participantRhingIds: { [userAId]: userARhingId, [userBId]: userBRhingId },
+        defaultRoomId: roomRef.id,
+        readReceiptsEnabled: true,
+        roomsEnabled: false,
+      });
+      batch.set(roomRef, {
+        dmId,
+        name: "メイン",
+        participants: [userAId, userBId],
+        createdAt: FieldValue.serverTimestamp(),
+        pinnedMessageIds: [],
+      });
+      await batch.commit();
+    };
+
+    const requestId = pairId(fromUserId, toUserId);
+    const ref = db.collection("friendRequests").doc(requestId);
+    const doc = await ref.get();
+
+    if (!doc.exists) {
+      await ref.set({
+        fromUserId,
+        fromRhingId,
+        toUserId,
+        toRhingId,
+        status: "pending",
+        message,
+        createdAt: FieldValue.serverTimestamp(),
+        respondedAt: null,
+      });
+      return;
+    }
+
+    const existing = doc.data()!;
+    if (existing.status === "accepted") {
+      // statusがacceptedのままでも、絶縁等で実際のfriendsサブコレクションが
+      // 既に削除されている場合がある。実際にまだ友達なら何もしない。
+      const stillFriends = (
+        await db
+          .collection("users")
+          .doc(fromUserId)
+          .collection("friends")
+          .doc(toUserId)
+          .get()
+      ).exists;
+      if (stillFriends) return;
+    } else if (existing.status === "pending") {
+      if (existing.fromUserId === fromUserId) {
+        return; // 既に自分から送信済み・返答待ち
+      }
+      // 相手からの申請が届いていた＝相互に追加しようとした。その場で承認扱いにする。
+      await ref.update({
+        status: "accepted",
+        respondedAt: FieldValue.serverTimestamp(),
+      });
+      await createFriendship(
+        existing.fromUserId,
+        existing.fromRhingId,
+        existing.toUserId,
+        existing.toRhingId,
+      );
+      return;
+    }
+
+    // declined、またはaccepted済みだが実際は友達ではない場合: 再申請として上書きする。
+    await ref.set({
+      fromUserId,
+      fromRhingId,
+      toUserId,
+      toRhingId,
+      status: "pending",
+      message,
+      createdAt: FieldValue.serverTimestamp(),
+      respondedAt: null,
+    });
+  },
+);
+
+const SUSPENSION_LOOKBACK_DAYS = 30;
+// 技術仕様書8.4「違反種別×回数」の具体的な回数配分までは明記が無いため、
+// 直近30日の累計違反件数を根拠にした簡易な段階分けとする
+// （1件目は記録のみ、2件目=12時間、3件目=7日間、4件目以降=永久停止）。
+const SUSPENSION_TIER_HOURS: (number | null)[] = [12, 24 * 7, null];
+
+/**
+ * `spamViolations`（レイヤー1・2はサーバー側、レイヤー3はクライアントの
+ * 「送信を取りやめた」報告）が作成されるたびに、直近30日の累計件数を集計し
+ * 段階的にアカウントを自動停止する（技術仕様書8.4）。運営による手動停止
+ * （`suspendUserAccount`、`autoSuspendedUntil`を持たない）とは独立させ、
+ * 手動停止中のアカウントは上書きしない（CLAUDE.md記載の既存方針）。
+ * CAPTCHA（bot的挙動時の要求）は新規の外部サービス契約が必要なため未実装。
+ */
+export const onSpamViolationCreated = onDocumentCreated(
+  { document: "spamViolations/{violationId}", region: "asia-northeast1" },
+  async (event) => {
+    const violation = event.data?.data();
+    const userId = violation?.userId as string | undefined;
+    if (!userId) return;
+
+    const lookback = Timestamp.fromMillis(
+      Date.now() - SUSPENSION_LOOKBACK_DAYS * 24 * 60 * 60 * 1000,
+    );
+    const recentSnapshot = await db
+      .collection("spamViolations")
+      .where("userId", "==", userId)
+      .where("createdAt", ">=", lookback)
+      .get();
+    const count = recentSnapshot.size;
+
+    const tierIndex = count - 2;
+    if (tierIndex < 0) return; // 1件目は様子見（記録のみ）
+
+    const userRef = db.collection("users").doc(userId);
+    const userDoc = await userRef.get();
+    if (
+      userDoc.data()?.accountStatus === "suspended" &&
+      userDoc.data()?.autoSuspendedUntil == null
+    ) {
+      // 運営による手動停止中は自動停止で上書きしない。
+      return;
+    }
+
+    const hours =
+      SUSPENSION_TIER_HOURS[Math.min(tierIndex, SUSPENSION_TIER_HOURS.length - 1)];
+    const autoSuspendedUntil =
+      hours === null ? null : Timestamp.fromMillis(Date.now() + hours * 60 * 60 * 1000);
+
+    await userRef.update({
+      accountStatus: "suspended",
+      autoSuspendedUntil,
+    });
+    await getAuth()
+      .revokeRefreshTokens(userId)
+      .catch((error) => {
+        logger.warn(`revokeRefreshTokensに失敗: ${userId}`, error);
+      });
+    logger.info(
+      `スパム違反によりアカウントを自動停止: ${userId} ` +
+        `(直近${SUSPENSION_LOOKBACK_DAYS}日で${count}件, ` +
+        `${hours === null ? "永久" : `${hours}時間`})`,
+    );
+  },
+);
+
+/**
+ * 技術仕様書8.4の期限付き自動停止（[onSpamViolationCreated]が設定する
+ * `autoSuspendedUntil`）が経過したアカウントを1時間ごとに検出し、
+ * 自動的に解除する。`autoSuspendedUntil`を持たない運営の手動停止は
+ * 対象外（Firestoreのクエリ仕様上、フィールドがnullのドキュメントは
+ * 不等号比較にマッチしないため自然に除外される）。
+ */
+export const reactivateExpiredSuspensions = onSchedule(
+  { schedule: "0 * * * *", timeZone: "Asia/Tokyo", region: "asia-northeast1" },
+  async () => {
+    const now = Timestamp.now();
+    const snapshot = await db
+      .collection("users")
+      .where("accountStatus", "==", "suspended")
+      .where("autoSuspendedUntil", "<=", now)
+      .get();
+    if (snapshot.empty) return;
+
+    const writer = new ChunkedWriter();
+    for (const doc of snapshot.docs) {
+      await writer.update(doc.ref, {
+        accountStatus: "active",
+        autoSuspendedUntil: null,
+      });
+    }
+    await writer.commit();
+    logger.info(`期限付き自動停止を解除: ${snapshot.size}件`);
   },
 );

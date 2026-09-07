@@ -40,6 +40,7 @@ class AppUser {
     this.conversationProfileCardId = const {},
     this.preferences = AppUserPreferences.empty,
     this.accountStatus = AccountStatus.active,
+    this.autoSuspendedUntil,
     this.deletionRequestedAt,
     this.createdAt,
     this.lastLoginAt,
@@ -101,6 +102,14 @@ class AppUser {
   /// サーバーから全情報を完全削除する（`UserRepository.requestAccountDeletion`/
   /// `restoreAccount`参照）。
   final AccountStatus accountStatus;
+
+  /// 技術仕様書8.4の期限付き自動停止（スパム違反の累計に応じた段階的停止、
+  /// `functions/src/index.ts`の`onSpamViolationCreated`が設定）が解除される
+  /// 日時。永久停止の場合はnullのまま[accountStatus]が[AccountStatus.suspended]
+  /// になる。運営の手動停止（`suspendUserAccount`）はこのフィールドを
+  /// 持たないため、値の有無でどちらの停止経路かを判別できる
+  /// （2026-09-07追加、CLAUDE.mdの「2つの停止経路は独立させる」方針参照）。
+  final Timestamp? autoSuspendedUntil;
 
   /// アカウント削除を申請した日時。[accountStatus]が
   /// [AccountStatus.pendingDeletion]の場合のみ意味を持つ。
@@ -350,6 +359,7 @@ class AppUser {
       accountStatus: AccountStatus.fromName(
         json['accountStatus'] as String? ?? AccountStatus.active.name,
       ),
+      autoSuspendedUntil: json['autoSuspendedUntil'] as Timestamp?,
       deletionRequestedAt: json['deletionRequestedAt'] as Timestamp?,
       createdAt: json['createdAt'] as Timestamp?,
       lastLoginAt: json['lastLoginAt'] as Timestamp?,
@@ -378,6 +388,7 @@ class AppUser {
       'conversationProfileCardId': conversationProfileCardId,
       'preferences': preferences.toJson(),
       'accountStatus': accountStatus.name,
+      'autoSuspendedUntil': autoSuspendedUntil,
       'deletionRequestedAt': deletionRequestedAt,
       'createdAt': createdAt,
       'lastLoginAt': lastLoginAt,

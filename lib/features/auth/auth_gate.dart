@@ -95,7 +95,9 @@ class _AuthenticatedUserGateState
           );
         }
         if (appUser.accountStatus == AccountStatus.suspended) {
-          return const AccountSuspendedScreen();
+          return AccountSuspendedScreen(
+            autoSuspendedUntil: appUser.autoSuspendedUntil,
+          );
         }
         return widget.builder(context, appUser);
       },

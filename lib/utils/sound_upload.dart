@@ -3,10 +3,10 @@ import 'dart:typed_data';
 /// 着信音・呼出音のカスタムアップロードの容量上限。数秒〜十数秒程度の
 /// 短い音源を想定した現実的な上限（Telegramの300KB/5秒・Discordの
 /// チャンネル音512KBより緩め）。長さそのものの厳密なバリデーションは
-/// v1では行わない。
-const int kMaxSoundUploadSizeBytes = 2 * 1024 * 1024;
+/// v1では行わない。2026-09-07にユーザー指示で2MB→3MBへ引き上げ。
+const int kMaxSoundUploadSizeBytes = 3 * 1024 * 1024;
 
-const Set<String> kAllowedSoundExtensions = {'mp3', 'wav', 'm4a', 'ogg'};
+const Set<String> kAllowedSoundExtensions = {'mp3', 'wav', 'm4a', 'ogg', 'aac'};
 
 /// [kMaxSoundUploadSizeBytes]超過。呼び出し元のUIがエラーメッセージを
 /// 出し分けるための専用型（`attachment_upload.dart`の
@@ -42,5 +42,6 @@ String soundMimeTypeFor(String extension) => switch (extension) {
   'wav' => 'audio/wav',
   'm4a' => 'audio/mp4',
   'ogg' => 'audio/ogg',
+  'aac' => 'audio/aac',
   _ => 'application/octet-stream',
 };
