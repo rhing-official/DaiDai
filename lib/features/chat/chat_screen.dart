@@ -27,6 +27,7 @@ import '../../models/chat_layout_style.dart';
 import '../../models/conversation_prefs.dart';
 import '../../models/message.dart';
 import '../../models/message_time_format.dart';
+import '../../models/note.dart';
 import '../../models/send_key_mode.dart';
 import '../../models/sticker.dart';
 import '../../models/sticker_role.dart';
@@ -58,6 +59,7 @@ import '../../utils/auto_dismiss_banner.dart';
 import '../../utils/drag_menu_geometry.dart';
 import '../../utils/fullscreen/fullscreen.dart';
 import '../../utils/link_detection.dart';
+import '../../utils/note_title.dart';
 import '../../utils/sticker_suggestion.dart';
 import 'sticker_picker_popup.dart';
 import 'sticker_picker_sheet.dart';
@@ -70,11 +72,11 @@ import '../../widgets/glass/glass_app_bar.dart';
 import '../../widgets/glass/glass_dialog.dart';
 import '../../widgets/glass/glass_icon_badge.dart';
 import '../../widgets/glass/glass_surface.dart';
+import '../../widgets/interactive_swipe_back.dart';
 import '../../widgets/link_preview_card.dart';
 import '../../widgets/linkified_editing_controller.dart';
 import '../../widgets/linkified_text.dart';
-import '../../widgets/swipe_gestures.dart'
-    show PinchPriorityPageView, kSwipeGestureVelocityThreshold;
+import '../../widgets/swipe_gestures.dart' show PinchPriorityPageView;
 import '../../widgets/video_thumbnail.dart';
 
 /// 劇画UIの吹き出し・入力欄の枠取りの太さ（[MonochromeBoxPainter]の
@@ -121,7 +123,6 @@ class ChatScreen extends ConsumerStatefulWidget {
     this.hasMoreHistory = true,
     this.roomTabBar,
     this.disabled = false,
-    this.onSwipeBack,
     this.roomId,
     this.forceShowSenderInfo = false,
     this.onOpenNote,
@@ -275,14 +276,6 @@ class ChatScreen extends ConsumerStatefulWidget {
   /// 一対・広場を開いたときなど、実際には送信・既読取得ができない状態を
   /// 見せるため、2026-08-05追加）。
   final bool disabled;
-
-  /// 縦表示のチャット画面で、メッセージ吹き出しの上を右スワイプした時に
-  /// 会話一覧へ戻る処理（2026-08-06追加）。吹き出し自体が横ドラッグを
-  /// ジェスチャーアリーナ上で先に受理してしまい、外側の`SwipeBackDetector`
-  /// （吹き出しの無い余白では機能する）に伝播しないため、`_MessageInteractions`
-  /// 側に直接組み込む必要がある。広い画面の分割表示（`TalksTab`に埋め込み）
-  /// では「会話一覧へ戻る」概念が無いため、呼び出し元はnullのまま渡す。
-  final VoidCallback? onSwipeBack;
 
   /// 寄合単位の下書き同期（`draftSyncEnabledProvider`、2026-08-13追加）の
   /// キーに使う現在表示中の寄合id。[conversationId]が一対のdmId/広場の
@@ -1311,6 +1304,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           isDm: widget.isDm,
           forceShowSenderInfo: widget.forceShowSenderInfo,
           conversationId: widget.conversationId,
+          roomId: widget.roomId,
           senderNameColorResolver: widget.senderNameColorResolver,
           blurSenderInfo: blurSenderInfo,
           messagesById: messagesById,
@@ -2087,6 +2081,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                           isDm: widget.isDm,
                           forceShowSenderInfo: widget.forceShowSenderInfo,
                           conversationId: widget.conversationId,
+                          roomId: widget.roomId,
                           onSenderTap: (_selecting || _screenshotSelecting)
                               ? null
                               : widget.onSenderTap,
@@ -2160,7 +2155,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                               widget.onDeclineAccountDeletionNotice,
                           onDeleteAfterAccountDeletion:
                               widget.onDeleteAfterAccountDeletion,
-                          onSwipeBack: widget.onSwipeBack,
                           vocabulary: vocabulary,
                         ),
                       );
@@ -3082,6 +3076,7 @@ class _MessageRow extends ConsumerWidget {
     required this.isDm,
     this.forceShowSenderInfo = false,
     this.conversationId,
+    this.roomId,
     this.onSenderTap,
     this.senderNameColorResolver,
     this.blurSenderInfo = false,
@@ -3112,7 +3107,6 @@ class _MessageRow extends ConsumerWidget {
     this.timeFormat = MessageTimeFormat.h24,
     this.onDeclineAccountDeletionNotice,
     this.onDeleteAfterAccountDeletion,
-    this.onSwipeBack,
     this.vocabulary,
     this.onAddToAlbum,
     this.onOpenCalendarEvent,
@@ -3141,6 +3135,11 @@ class _MessageRow extends ConsumerWidget {
   /// 使うプロフィールカード（2026-07-29追加）を反映して送信者名・アイコンを
   /// 表示するために[_SenderName]/[_SenderAvatar]へ伝播する。
   final String? conversationId;
+
+  /// このメッセージが属する寄合（[ChatScreen.roomId]）。ノート作成通知
+  /// メッセージの表示タイトルをライブ購読する際に使う
+  /// （`_noteCreatedNoticeContent`参照、2026-09-07追加）。
+  final String? roomId;
 
   final void Function(String userId)? onSenderTap;
   final Color? Function(String userId)? senderNameColorResolver;
@@ -3273,12 +3272,6 @@ class _MessageRow extends ConsumerWidget {
   /// contentType='accountDeleted'通知への「はい」（確認ダイアログの上で
   /// 呼ばれる）。DMのみ渡される。
   final Future<void> Function()? onDeleteAfterAccountDeletion;
-
-  /// 縦表示で、吹き出しの上を右スワイプした時に会話一覧へ戻る処理
-  /// ([ChatScreen.onSwipeBack]参照)。右寄せ表示（自分のメッセージ・
-  /// sideBySideレイアウト）ではこの挙動を除外する
-  /// （`_MessageInteractions`側で判定）。
-  final VoidCallback? onSwipeBack;
 
   /// 返信引用プレビュー内のペタピタ固定文言（[Vocabulary.sticker]）に使う。
   /// nullの場合は標準の用語（「ペタピタ」）にフォールバックする
@@ -3667,7 +3660,7 @@ class _MessageRow extends ConsumerWidget {
         else if (isPollNotice)
           _pollCreatedNoticeContent(context, strings, isGekiga)
         else if (isNoteNotice)
-          _noteCreatedNoticeContent(context, strings, isGekiga)
+          _noteCreatedNoticeContent(context, ref, strings, isGekiga)
         else if (isAttachment)
           _attachmentContent(context, onBubbleColor, isGekiga)
         else if (isSticker)
@@ -4180,7 +4173,6 @@ class _MessageRow extends ConsumerWidget {
         canEdit: canEdit,
         onReply: () => onReply?.call(message),
         onEdit: canEdit ? () => onEdit?.call(message) : null,
-        onSwipeBack: onSwipeBack,
         alignRight: alignRight,
         child: content,
       );
@@ -4671,18 +4663,57 @@ class _MessageRow extends ConsumerWidget {
   }
 
   /// contentType='noteCreated'（ノート作成通知、2026-09-06追加）の表示。
-  /// `_pollCreatedNoticeContent`と全く同じ構造・配色ルールで、アイコンと
-  /// 文言だけをノート向けに差し替えたもの。
+  /// タイトルはノートドキュメントをライブ購読して表示する（2026-09-07
+  /// 追加）。作成直後は常にタイトルが空（`note_popup_content.dart`の
+  /// 「＋」ボタンはタイトルを渡さず即座に作成するため）で、それをそのまま
+  /// `Message.content`に固定値として書き込んでいた旧実装では、後から
+  /// タイトルを編集してもチャット上の表示が永久に「無題のノート」の
+  /// ままになってしまっていた。ノートの現在の状態から都度タイトルを
+  /// 計算するだけで「作成完了」という特別な瞬間を仮定しないため、将来の
+  /// 共同編集（複数人が随時編集し続ける状態）とも矛盾しない。
   Widget _noteCreatedNoticeContent(
     BuildContext context,
+    WidgetRef ref,
     Strings strings,
     bool isGekiga,
   ) {
+    final noteId = message.noteId;
+    final noteConversationId = conversationId;
+    final noteRoomId = roomId;
+    final noteStream =
+        noteId != null && noteConversationId != null && noteRoomId != null
+        ? ref
+              .read(noteRepositoryProvider)
+              .watchNote(
+                isDm: isDm,
+                conversationId: noteConversationId,
+                roomId: noteRoomId,
+                noteId: noteId,
+              )
+        : null;
+
+    return StreamBuilder<Note?>(
+      stream: noteStream,
+      builder: (context, snapshot) {
+        final note = snapshot.data;
+        final title = note != null
+            ? resolveNoteDisplayTitle(note, fallback: strings.noteUntitledLabel)
+            : (message.content.isEmpty
+                  ? strings.noteUntitledLabel
+                  : message.content);
+        return _noteCreatedNoticeCard(context, strings, isGekiga, title);
+      },
+    );
+  }
+
+  Widget _noteCreatedNoticeCard(
+    BuildContext context,
+    Strings strings,
+    bool isGekiga,
+    String title,
+  ) {
     final colorScheme = Theme.of(context).colorScheme;
     final label = strings.noteCreatedMessageLabel;
-    final title = message.content.isEmpty
-        ? strings.noteUntitledLabel
-        : message.content;
     final confirmLabel = strings.noteCreatedMessageOpenAction;
     void onTap() => onOpenNote?.call(message);
 
@@ -5714,7 +5745,6 @@ class _MessageInteractions extends StatefulWidget {
     required this.canEdit,
     required this.onReply,
     this.onEdit,
-    this.onSwipeBack,
     this.alignRight = false,
   });
 
@@ -5723,12 +5753,8 @@ class _MessageInteractions extends StatefulWidget {
   final VoidCallback onReply;
   final VoidCallback? onEdit;
 
-  /// 縦表示で、吹き出しの上を右スワイプした時に会話一覧へ戻る処理
-  /// （[ChatScreen.onSwipeBack]参照、2026-08-06追加）。
-  final VoidCallback? onSwipeBack;
-
   /// 右寄せ表示（自分のメッセージ・sideBySideレイアウト）かどうか。真の時は
-  /// [onSwipeBack]を無効にする（ユーザー指定の除外仕様）。
+  /// 右スワイプでの「会話一覧へ戻る」中継を無効にする（ユーザー指定の除外仕様）。
   final bool alignRight;
 
   @override
@@ -5736,35 +5762,55 @@ class _MessageInteractions extends StatefulWidget {
 }
 
 class _MessageInteractionsState extends State<_MessageInteractions> {
-  double _dragExtent = 0;
+  /// クランプ前の生の累積ドラッグ量。負値（左方向）は返信/編集用の
+  /// [_dragExtent]、正値（右方向）は[InteractiveSwipeBackScope]への中継に
+  /// それぞれ使う。往復ドラッグでも同じ生データから矛盾なく導出できるよう、
+  /// あえて2つの値に分けずこれ1つで管理する（2026-09-07変更）。
+  double _rawDx = 0;
 
   static const _replyThreshold = -48.0;
   static const _editThreshold = -120.0;
 
   double get _minDrag => widget.canEdit ? _editThreshold : _replyThreshold;
 
+  double get _dragExtent => _rawDx.clamp(_minDrag, 0.0);
+
+  void _onDragStart(DragStartDetails details) {
+    _rawDx = InteractiveSwipeBackScope.maybeOf(context)?.progress.value ?? 0;
+  }
+
   void _onDragUpdate(DragUpdateDetails details) {
     setState(() {
-      _dragExtent = (_dragExtent + details.delta.dx).clamp(_minDrag, 0.0);
+      _rawDx += details.delta.dx;
     });
+    final swipeBack = InteractiveSwipeBackScope.maybeOf(context);
+    if (!widget.alignRight &&
+        swipeBack != null &&
+        (_rawDx > 0 || swipeBack.isGestureActive)) {
+      // 吹き出しの上は返信/編集用の左スワイプをこのGestureDetector自身が
+      // 無条件に受理してしまい、外側の背景ジェスチャー（吹き出しの無い
+      // 余白では機能する）にジェスチャーアリーナ上伝播しないため、右方向の
+      // ドラッグをここから直接[InteractiveSwipeBackScope]へ中継する
+      // （2026-08-06追加、2026-09-07にリアルタイム追従へ変更）。
+      swipeBack.syncFromExternalDrag(
+        context,
+        _rawDx.clamp(0.0, double.infinity),
+      );
+    }
   }
 
   void _onDragEnd(DragEndDetails details) {
     final reachedEdit = widget.canEdit && _dragExtent <= _editThreshold;
     final reachedReply = !reachedEdit && _dragExtent <= _replyThreshold;
-    setState(() => _dragExtent = 0);
+    setState(() => _rawDx = 0);
     if (reachedEdit) {
       widget.onEdit?.call();
     } else if (reachedReply) {
       widget.onReply();
-    } else if (!widget.alignRight &&
-        details.primaryVelocity != null &&
-        details.primaryVelocity! >= kSwipeGestureVelocityThreshold) {
-      // 吹き出しの上は返信/編集用の左スワイプをこのGestureDetector自身が
-      // 無条件に受理してしまい、外側のSwipeBackDetector（吹き出しの無い
-      // 余白では機能する）にジェスチャーアリーナ上伝播しないため、右スワイプ
-      // で会話一覧へ戻る処理をここに直接組み込む（2026-08-06追加）。
-      widget.onSwipeBack?.call();
+    } else if (!widget.alignRight) {
+      InteractiveSwipeBackScope.maybeOf(
+        context,
+      )?.endExternalDrag(context, details.primaryVelocity);
     }
   }
 
@@ -5776,6 +5822,7 @@ class _MessageInteractionsState extends State<_MessageInteractions> {
       // ヒットテスト対象にする（既定のdeferToChildだと、余白部分は下の
       // レンダーオブジェクトが自身を消費しないため反応しない）。
       behavior: HitTestBehavior.opaque,
+      onHorizontalDragStart: _onDragStart,
       onHorizontalDragUpdate: _onDragUpdate,
       onHorizontalDragEnd: _onDragEnd,
       child: Stack(
@@ -6458,6 +6505,18 @@ class _VideoViewerPageState extends State<_VideoViewerPage> {
         // `GestureDetector`が入れ子になっており、スワイプで動画ページへ
         // 遷移した直後は再生ボタンを押しても再生されない不具合があった。
         // 入れ子のジェスチャー判定自体を無くすことで解消した）。
+        //
+        // モバイル（`_isMobilePlatform`）ではタップで再生/一時停止を
+        // トグルしない（2026-09-07変更）。画面タップはデスクトップ/Webで
+        // ポインターを動かした時と同じ`_resetControlsVisibility`（操作
+        // パネルの表示のみ）にする。再生/一時停止は`_CenterControls`の
+        // 中央ボタン（下記、独立した`InkWell`を持つ）を押した時のみ行う。
+        // これにより、以前はタップ用`onTap`とダブルタップ用
+        // `onDoubleTapDown`が同じ`GestureDetector`上で競合し、ダブル
+        // タップのつもりが「タップ2回」（一時停止→再生）としてしか
+        // 認識されない不具合があったが、`onTap`が単なる表示更新になった
+        // ことで解消する。デスクトップ/Webでは従来通りタップでのトグルを
+        // 維持する（ユーザー要望の対象外のため）。
         return Column(
           children: [
             Expanded(
@@ -6469,7 +6528,9 @@ class _VideoViewerPageState extends State<_VideoViewerPage> {
                   builder: (context, constraints) {
                     return GestureDetector(
                       behavior: HitTestBehavior.opaque,
-                      onTap: _togglePlayback,
+                      onTap: _isMobilePlatform
+                          ? _resetControlsVisibility
+                          : _togglePlayback,
                       // モバイル以外では`onDoubleTapDown`自体を渡さない
                       // （`_isMobilePlatform`のdocコメント参照。常設すると
                       // 全プラットフォームでシングルタップの確定が
@@ -6499,18 +6560,30 @@ class _VideoViewerPageState extends State<_VideoViewerPage> {
                               // （＝より手前）に重ね、タップ/ダブルタップを
                               // こちらで捕捉し直す。外側のGestureDetector
                               // （レターボックス部分用）は引き続き維持する。
+                              // ネイティブモバイル（`_isMobilePlatform`）は
+                              // テクスチャ描画でこの問題が起きないため、
+                              // このオーバーレイの`onTap`/`onDoubleTapDown`
+                              // 自体を持たせない（2026-09-07変更）。外側と
+                              // 内側の両方が同じ座標で`TapGestureRecognizer`/
+                              // `DoubleTapGestureRecognizer`を二重に
+                              // ジェスチャーアリーナへ登録してしまい、
+                              // ダブルタップが安定して認識されなかった
+                              // 不具合の根本原因だったため。
                               Positioned.fill(
                                 child: LayoutBuilder(
                                   builder: (context, videoConstraints) {
                                     return GestureDetector(
                                       behavior: HitTestBehavior.opaque,
-                                      onTap: _togglePlayback,
-                                      onDoubleTapDown: _isMobilePlatform
-                                          ? (details) => _handleDoubleTapSkip(
-                                              details,
-                                              videoConstraints.maxWidth,
-                                            )
-                                          : null,
+                                      onTap: _isMobilePlatform
+                                          ? null
+                                          : _togglePlayback,
+                                      // ダブルタップ10秒送り/戻しはモバイル
+                                      // 限定の機能で、モバイルでは外側の
+                                      // `GestureDetector`だけが担う
+                                      // （上記コメント参照）ため、ここでは
+                                      // プラットフォームに関わらず常に
+                                      // 設定しない。
+                                      onDoubleTapDown: null,
                                     );
                                   },
                                 ),
@@ -6594,8 +6667,10 @@ class _VideoViewerPageState extends State<_VideoViewerPage> {
 /// 動画中央に表示する再生/一時停止＋10秒送り/戻しの3ボタン
 /// （[_VideoViewerPage]参照、2026-08-14追加・2026-08-18に10秒送り/戻し
 /// ボタンを追加）。各ボタンは[_CircleIconButton]で実際にタップを
-/// 受け取るため、外側の`GestureDetector(onTap: _togglePlayback)`
-/// （動画本体タップでのトグル）とは独立して動作する。
+/// 受け取るため、外側の`GestureDetector`（動画本体タップ、デスクトップ/Webは
+/// `_togglePlayback`・モバイルは`_resetControlsVisibility`、2026-09-07
+/// 変更）とは独立して動作する。モバイルでは再生/一時停止はこの中央ボタン
+/// からのみ行える。
 class _CenterControls extends StatelessWidget {
   const _CenterControls({
     required this.isPlaying,

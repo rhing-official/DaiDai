@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/strings.dart';
 import '../../l10n/vocabulary.dart';
+import '../../models/album.dart';
 import '../../models/app_ui_style.dart';
 import '../../models/app_user.dart';
 import '../../models/conversation_prefs.dart';
@@ -32,7 +33,7 @@ import '../../widgets/destructive_label.dart';
 import '../../widgets/gekiga/gekiga_icon_badge.dart';
 import '../../widgets/glass/glass_dialog.dart';
 import '../../widgets/glass/glass_icon_badge.dart';
-import '../album/album_detail_screen.dart';
+import '../album/album_pane_view.dart';
 import '../album/album_popup_content.dart';
 import '../calendar/calendar_pane_view.dart';
 import '../call/active_call_session.dart';
@@ -66,6 +67,8 @@ enum _GroupMenuAction {
   openGroupSettings,
   roomRolePriority,
   renameRoom,
+  disableRoomFeature,
+  enableRoomFeature,
   deleteRoom,
   enableMultipleRooms,
   toggleMute,
@@ -76,6 +79,8 @@ enum _GroupMenuAction {
 enum _DmMenuAction {
   conversationProfileCard,
   renameRoom,
+  disableRoomFeature,
+  enableRoomFeature,
   deleteRoom,
   enableMultipleRooms,
   toggleMute,
@@ -211,6 +216,35 @@ Future<bool> _confirmDeleteRoom(
   return confirmed ?? false;
 }
 
+/// 「寄合機能を無くす」実行前の確認ダイアログ。広場・一対どちらの
+/// ハンバーガーメニューからも同じ見た目で使う（2026-09-07追加）。
+/// 元に戻せる操作のため、削除確認（[_confirmDeleteRoom]）と異なり
+/// 警告色ボタンにはしない。
+Future<bool> _confirmDisableRoomFeature(
+  BuildContext context,
+  Strings strings,
+  Vocabulary vocab,
+) async {
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: Text(strings.roomFeatureDisableConfirmTitle(vocab.textChannel)),
+      content: Text(strings.roomFeatureDisableConfirmMessage),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: Text(strings.cancel),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(context).pop(true),
+          child: Text(strings.roomFeatureDisableConfirmButton),
+        ),
+      ],
+    ),
+  );
+  return confirmed ?? false;
+}
+
 /// 一対（DM）のChatScreenを組み立てる。相手のアクティブなニックネームを
 /// タイトルに反映するためConsumer化している。go_routerのフルスクリーン遷移と、
 /// TalksTabの分割ビュー（一覧の右隣に埋め込み表示）の両方から使う共通部品。
@@ -228,7 +262,6 @@ class DmChatPane extends ConsumerStatefulWidget {
     this.onCallPressed,
     this.onVideoCallPressed,
     this.showRoomTabBar = false,
-    this.onSwipeBack,
     super.key,
   });
 
@@ -248,12 +281,6 @@ class DmChatPane extends ConsumerStatefulWidget {
   /// 単一モードでは表示しない。TalksTabの分割表示（サイドバー使用中）からは
   /// falseのまま渡す（サイドバーと二重にならないように）。
   final bool showRoomTabBar;
-
-  /// 縦表示（`/chat/dm`ルート）で、吹き出しの上を右スワイプした時に会話一覧へ
-  /// 戻る処理（2026-08-06追加、`ChatScreen.onSwipeBack`参照）。[showRoomTabBar]
-  /// と同じ「ルート経由か広い画面への埋め込みか」の基準で、TalksTabの分割
-  /// 表示からはnullのまま渡す（会話一覧へ戻る概念が無いため）。
-  final VoidCallback? onSwipeBack;
 
   @override
   ConsumerState<DmChatPane> createState() => _DmChatPaneState();
@@ -295,6 +322,13 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
   /// 同じ切り替え方式だが、ノートは複数存在しうるためbool一つではなく
   /// String?で対象を持つ）。
   String? _openNoteId;
+
+  /// 全画面表示中の共有アルバム（2026-09-07追加、`_openNoteId`と同じ
+  /// 切り替え方式。以前は`Navigator.push`のフルスクリーン別ルートだった
+  /// `AlbumDetailScreen`を、ノート・カレンダーと同じペインスワップ方式の
+  /// `AlbumPaneView`に置き換えた）。アルバム名は改名機能が無いため
+  /// スナップショットのまま表示して問題ない。
+  Album? _openAlbum;
 
   @override
   void initState() {
@@ -411,6 +445,17 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
         onClose: () => setState(() => _openNoteId = null),
       );
     }
+    final openAlbum = _openAlbum;
+    if (openAlbum != null) {
+      return AlbumPaneView(
+        isDm: true,
+        conversationId: widget.dm.dmId,
+        roomId: widget.roomId,
+        album: openAlbum,
+        currentUserId: widget.currentUser.userId,
+        onClose: () => setState(() => _openAlbum = null),
+      );
+    }
     // 通話中、PC/Webではこの会話を表示している間だけメッセージ一覧の
     // 代わりに通話UIを埋め込み表示する（2026-08-19追加、EmbeddedCallPane
     // 参照）。
@@ -475,12 +520,15 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
     return ChatScreen(
       key: ValueKey('dm-${dm.dmId}-$roomId'),
       title: roomName,
-      onSwipeBack: widget.onSwipeBack,
       roomTabBar: (!showRoomTabBar || rooms == null)
           ? null
           : RoomTabBar(
               rooms: [for (final r in rooms) (roomId: r.roomId, name: r.name)],
               selectedRoomId: roomId,
+              maxWidth:
+                  MediaQuery.sizeOf(context).width -
+                  MediaQuery.paddingOf(context).horizontal,
+              textScaler: MediaQuery.textScalerOf(context),
               onSelectRoom: (room) => ref
                   .read(goRouterProvider)
                   .pushReplacement(
@@ -687,6 +735,7 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
           conversationId: dm.dmId,
           roomId: roomId,
           currentUserId: currentUser.userId,
+          onOpenAlbum: (album) => setState(() => _openAlbum = album),
         ),
         _CalendarButton(
           isDm: true,
@@ -911,12 +960,20 @@ class _AlbumButton extends ConsumerStatefulWidget {
     required this.conversationId,
     required this.roomId,
     required this.currentUserId,
+    required this.onOpenAlbum,
   });
 
   final bool isDm;
   final String conversationId;
   final String roomId;
   final String currentUserId;
+
+  /// アルバムをこの語らいの表示領域内に開く（2026-09-07変更。当初は
+  /// `Navigator.push`で全画面ルートとして開いていたが、ノート・カレンダーと
+  /// 同様ワイド画面でフレンド/寄合一覧のサイドバーまで覆ってしまう不具合が
+  /// あったため、`DmChatPane`/`GroupChatPane`自身の表示領域内で
+  /// `_openAlbum`（ローカルなオブジェクト切り替え）を差し替える方式に変更した）。
+  final ValueChanged<Album> onOpenAlbum;
 
   @override
   ConsumerState<_AlbumButton> createState() => _AlbumButtonState();
@@ -953,16 +1010,7 @@ class _AlbumButtonState extends ConsumerState<_AlbumButton> {
       currentUserId: widget.currentUserId,
     );
     if (selected == null || !mounted) return;
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => AlbumDetailScreen(
-          isDm: widget.isDm,
-          conversationId: widget.conversationId,
-          roomId: widget.roomId,
-          album: selected,
-        ),
-      ),
-    );
+    widget.onOpenAlbum(selected);
   }
 
   @override
@@ -1511,23 +1559,38 @@ class _DmMenuButtonState extends ConsumerState<_DmMenuButton> {
                   foreground: foreground,
                   value: _DmMenuAction.conversationProfileCard,
                 ),
-              _MenuTile(
-                label: strings.roomRenameLabel(vocabulary.textChannel),
-                foreground: foreground,
-                value: _DmMenuAction.renameRoom,
-              ),
-              _MenuTile(
-                label: strings.roomMenuDeleteLabel(vocabulary.textChannel),
-                foreground: foreground,
-                destructive: true,
-                centered: true,
-                value: _DmMenuAction.deleteRoom,
-              ),
-              if (!widget.dm.roomsEnabled)
+              if (!widget.dm.roomFeatureDisabled) ...[
                 _MenuTile(
-                  label: strings.dmMenuEnableMultipleRooms,
+                  label: strings.roomRenameLabel(vocabulary.textChannel),
                   foreground: foreground,
-                  value: _DmMenuAction.enableMultipleRooms,
+                  value: _DmMenuAction.renameRoom,
+                ),
+                if (!widget.dm.roomsEnabled)
+                  _MenuTile(
+                    label: strings.roomFeatureDisableLabel(
+                      vocabulary.textChannel,
+                    ),
+                    foreground: foreground,
+                    value: _DmMenuAction.disableRoomFeature,
+                  ),
+                _MenuTile(
+                  label: strings.roomMenuDeleteLabel(vocabulary.textChannel),
+                  foreground: foreground,
+                  destructive: true,
+                  centered: true,
+                  value: _DmMenuAction.deleteRoom,
+                ),
+                if (!widget.dm.roomsEnabled)
+                  _MenuTile(
+                    label: strings.dmMenuEnableMultipleRooms,
+                    foreground: foreground,
+                    value: _DmMenuAction.enableMultipleRooms,
+                  ),
+              ] else
+                _MenuTile(
+                  label: strings.roomFeatureEnableLabel(vocabulary.textChannel),
+                  foreground: foreground,
+                  value: _DmMenuAction.enableRoomFeature,
                 ),
               _MenuTile(
                 label: muted
@@ -1607,6 +1670,20 @@ class _DmMenuButtonState extends ConsumerState<_DmMenuButton> {
         await ref
             .read(directMessageRepositoryProvider)
             .renameRoom(dmId: dm.dmId, roomId: roomId, name: name);
+      case _DmMenuAction.disableRoomFeature:
+        final confirmed = await _confirmDisableRoomFeature(
+          context,
+          strings,
+          vocabulary,
+        );
+        if (!confirmed) return;
+        await ref
+            .read(directMessageRepositoryProvider)
+            .setRoomFeatureDisabled(dm.dmId, disabled: true);
+      case _DmMenuAction.enableRoomFeature:
+        await ref
+            .read(directMessageRepositoryProvider)
+            .setRoomFeatureDisabled(dm.dmId, disabled: false);
       case _DmMenuAction.deleteRoom:
         final confirmed = await _confirmDeleteRoom(
           context,
@@ -1756,7 +1833,6 @@ class GroupChatPane extends ConsumerStatefulWidget {
     required this.roomId,
     required this.roomName,
     this.showRoomTabBar = false,
-    this.onSwipeBack,
     super.key,
   });
 
@@ -1773,11 +1849,6 @@ class GroupChatPane extends ConsumerStatefulWidget {
   /// 表示しない。TalksTabの分割表示（サイドバー使用中）からはfalseのまま渡す
   /// （サイドバーと二重にならないように）。
   final bool showRoomTabBar;
-
-  /// 縦表示（`/chat/group`ルート）で、吹き出しの上を右スワイプした時に会話
-  /// 一覧へ戻る処理（2026-08-06追加、`ChatScreen.onSwipeBack`参照）。
-  /// [showRoomTabBar]と同じ基準で、TalksTabの分割表示からはnullのまま渡す。
-  final VoidCallback? onSwipeBack;
 
   @override
   ConsumerState<GroupChatPane> createState() => _GroupChatPaneState();
@@ -1814,6 +1885,13 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
   /// 同じ切り替え方式だが、ノートは複数存在しうるためbool一つではなく
   /// String?で対象を持つ）。
   String? _openNoteId;
+
+  /// 全画面表示中の共有アルバム（2026-09-07追加、`_openNoteId`と同じ
+  /// 切り替え方式。以前は`Navigator.push`のフルスクリーン別ルートだった
+  /// `AlbumDetailScreen`を、ノート・カレンダーと同じペインスワップ方式の
+  /// `AlbumPaneView`に置き換えた）。アルバム名は改名機能が無いため
+  /// スナップショットのまま表示して問題ない。
+  Album? _openAlbum;
 
   @override
   void initState() {
@@ -1999,6 +2077,17 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
         onClose: () => setState(() => _openNoteId = null),
       );
     }
+    final openAlbum = _openAlbum;
+    if (openAlbum != null) {
+      return AlbumPaneView(
+        isDm: false,
+        conversationId: group.groupId,
+        roomId: roomId,
+        album: openAlbum,
+        currentUserId: currentUser.userId,
+        onClose: () => setState(() => _openAlbum = null),
+      );
+    }
     // 通話中、PC/Webではこの会話を表示している間だけメッセージ一覧の
     // 代わりに通話UIを埋め込み表示する（2026-08-19追加、EmbeddedCallPane
     // 参照）。
@@ -2085,7 +2174,6 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
     return ChatScreen(
       key: ValueKey('group-${group.groupId}-$roomId'),
       title: roomName,
-      onSwipeBack: widget.onSwipeBack,
       currentUserId: currentUser.userId,
       isDm: false,
       conversationId: group.groupId,
@@ -2103,6 +2191,10 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
           : RoomTabBar(
               rooms: [for (final r in rooms) (roomId: r.roomId, name: r.name)],
               selectedRoomId: roomId,
+              maxWidth:
+                  MediaQuery.sizeOf(context).width -
+                  MediaQuery.paddingOf(context).horizontal,
+              textScaler: MediaQuery.textScalerOf(context),
               onSelectRoom: (room) => ref
                   .read(goRouterProvider)
                   .pushReplacement(
@@ -2271,6 +2363,7 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
           conversationId: group.groupId,
           roomId: roomId,
           currentUserId: currentUser.userId,
+          onOpenAlbum: (album) => setState(() => _openAlbum = album),
         ),
         _CalendarButton(
           isDm: false,
@@ -2543,6 +2636,28 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
                 roomId: widget.roomId,
                 name: name,
               );
+        case _GroupMenuAction.disableRoomFeature:
+          if (!canManageRooms) return;
+          final confirmed = await _confirmDisableRoomFeature(
+            context,
+            strings,
+            vocabulary,
+          );
+          if (!confirmed) return;
+          await ref
+              .read(groupRepositoryProvider)
+              .setRoomFeatureDisabled(
+                groupId: widget.group.groupId,
+                disabled: true,
+              );
+        case _GroupMenuAction.enableRoomFeature:
+          if (!canManageRooms) return;
+          await ref
+              .read(groupRepositoryProvider)
+              .setRoomFeatureDisabled(
+                groupId: widget.group.groupId,
+                disabled: false,
+              );
         case _GroupMenuAction.deleteRoom:
           if (!canManageRooms) return;
           final confirmed = await _confirmDeleteRoom(
@@ -2783,41 +2898,63 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
                   value: _GroupMenuAction.deleteGroup,
                 ),
               ],
-              _MenuTile(
-                label: strings.roomRenameLabel(vocabulary.textChannel),
-                foreground: foreground,
-                enabled: canManageRooms,
-                value: _GroupMenuAction.renameRoom,
-              ),
-              // 「名前を変更」と「削除」の間に配置する（2026-09-06変更、
-              // ユーザー指示）。
+              if (!widget.group.roomFeatureDisabled) ...[
+                _MenuTile(
+                  label: strings.roomRenameLabel(vocabulary.textChannel),
+                  foreground: foreground,
+                  enabled: canManageRooms,
+                  value: _GroupMenuAction.renameRoom,
+                ),
+                // 単一モードの間だけ「寄合機能を無くす」を「寄合の名前を
+                // 変更」の直下に出す（2026-09-07追加、ユーザー指示）。
+                if (!widget.group.roomsEnabled)
+                  _MenuTile(
+                    label: strings.roomFeatureDisableLabel(
+                      vocabulary.textChannel,
+                    ),
+                    foreground: foreground,
+                    enabled: canManageRooms,
+                    value: _GroupMenuAction.disableRoomFeature,
+                  ),
+              ] else
+                _MenuTile(
+                  label: strings.roomFeatureEnableLabel(vocabulary.textChannel),
+                  foreground: foreground,
+                  enabled: canManageRooms,
+                  value: _GroupMenuAction.enableRoomFeature,
+                ),
+              // 「名前を変更」（または「寄合機能を無くす」）と「削除」の間に
+              // 配置する（2026-09-06変更、ユーザー指示）。
               _MenuTile(
                 label: strings.groupMenuLeave,
                 foreground: foreground,
                 enabled: !isOwner,
                 value: _GroupMenuAction.leave,
               ),
-              // 寄合一覧サイドバーのごみ箱アイコンの代わり（2026-07-30変更）。
-              // 最後の1つの寄合は選べても実際には削除できず、リポジトリが
-              // StateErrorを投げてSnackBarで案内する（`handle`参照）。
-              _MenuTile(
-                label: strings.roomMenuDeleteLabel(vocabulary.textChannel),
-                foreground: foreground,
-                destructive: true,
-                centered: true,
-                enabled: canManageRooms,
-                value: _GroupMenuAction.deleteRoom,
-              ),
-              // 単一モードの間だけ「寄合を複数扱う」を出す。複数モードへの
-              // 切り替えは一方向のみ（2026-07-29追加、
-              // `Group.roomsEnabled`参照）。
-              if (!widget.group.roomsEnabled)
+              if (!widget.group.roomFeatureDisabled) ...[
+                // 寄合一覧サイドバーのごみ箱アイコンの代わり
+                // （2026-07-30変更）。最後の1つの寄合は選べても実際には
+                // 削除できず、リポジトリがStateErrorを投げてSnackBarで
+                // 案内する（`handle`参照）。
                 _MenuTile(
-                  label: strings.groupMenuEnableMultipleRooms,
+                  label: strings.roomMenuDeleteLabel(vocabulary.textChannel),
                   foreground: foreground,
+                  destructive: true,
+                  centered: true,
                   enabled: canManageRooms,
-                  value: _GroupMenuAction.enableMultipleRooms,
+                  value: _GroupMenuAction.deleteRoom,
                 ),
+                // 単一モードの間だけ「寄合を複数扱う」を出す。複数モードへの
+                // 切り替えは一方向のみ（2026-07-29追加、
+                // `Group.roomsEnabled`参照）。
+                if (!widget.group.roomsEnabled)
+                  _MenuTile(
+                    label: strings.groupMenuEnableMultipleRooms,
+                    foreground: foreground,
+                    enabled: canManageRooms,
+                    value: _GroupMenuAction.enableMultipleRooms,
+                  ),
+              ],
               if (widget.group.roomsEnabled) ...[
                 // 複数モードの本来の設定移設先はサイドバーの歯車アイコン
                 // （`talks_tab.dart`のRoomListPane）。サイドバーが表示される

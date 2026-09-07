@@ -113,48 +113,6 @@ class _AlbumPopupContentState extends ConsumerState<_AlbumPopupContent> {
         );
   }
 
-  Future<void> _renameAlbum(Album album) async {
-    final strings = ref.read(appStringsProvider);
-    final controller = TextEditingController(text: album.name);
-    final isGlass = ref.read(appUiStyleProvider) == AppUiStyle.glass;
-    final name = await showDialog<String>(
-      context: context,
-      builder: (dialogContext) {
-        final title = Text(strings.albumRenameDialogTitle);
-        final content = TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: InputDecoration(hintText: strings.albumNameFieldHint),
-          onSubmitted: (value) => Navigator.of(dialogContext).pop(value.trim()),
-        );
-        final actions = [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(),
-            child: Text(strings.cancel),
-          ),
-          FilledButton(
-            onPressed: () =>
-                Navigator.of(dialogContext).pop(controller.text.trim()),
-            child: Text(strings.save),
-          ),
-        ];
-        return isGlass
-            ? GlassAlertDialog(title: title, content: content, actions: actions)
-            : AlertDialog(title: title, content: content, actions: actions);
-      },
-    );
-    if (name == null || name.isEmpty || name == album.name) return;
-    await ref
-        .read(albumRepositoryProvider)
-        .renameAlbum(
-          isDm: widget.isDm,
-          conversationId: widget.conversationId,
-          roomId: widget.roomId,
-          albumId: album.albumId,
-          newName: name,
-        );
-  }
-
   Future<void> _deleteAlbum(Album album) async {
     final strings = ref.read(appStringsProvider);
     final isGlass = ref.read(appUiStyleProvider) == AppUiStyle.glass;
@@ -254,7 +212,6 @@ class _AlbumPopupContentState extends ConsumerState<_AlbumPopupContent> {
                           uiStyle: uiStyle,
                           strings: strings,
                           onTap: () => Navigator.of(context).pop(album),
-                          onRename: () => _renameAlbum(album),
                           onDelete: () => _deleteAlbum(album),
                         ),
                       ),
@@ -283,18 +240,19 @@ class _AlbumPopupContentState extends ConsumerState<_AlbumPopupContent> {
   }
 }
 
-enum _AlbumCardAction { rename, delete }
-
 /// ポップアップ内のアルバム1件分のカード。`_PinnedMessageCard`
 /// （`chat_screen.dart`）と同じ見た目の構成（カード本体タップで選択・
-/// 右上に操作メニュー）。
+/// 右上にゴミ箱ボタン）。改名機能は2026-09-07に廃止した（このメニュー
+/// 以外に改名する手段が無かったため、ゴミ箱ボタン直接配置への統一と
+/// あわせてユーザー指示により削除）。アルバムの削除は寄合の全メンバーが
+/// 対等（firestore.rules参照、ノート・投票と異なり作成者限定ではない）
+/// ため、[onDelete]は常に渡される。
 class _AlbumPopupCard extends StatelessWidget {
   const _AlbumPopupCard({
     required this.album,
     required this.uiStyle,
     required this.strings,
     required this.onTap,
-    required this.onRename,
     required this.onDelete,
   });
 
@@ -302,7 +260,6 @@ class _AlbumPopupCard extends StatelessWidget {
   final AppUiStyle uiStyle;
   final Strings strings;
   final VoidCallback onTap;
-  final VoidCallback onRename;
   final VoidCallback onDelete;
 
   @override
@@ -313,7 +270,7 @@ class _AlbumPopupCard extends StatelessWidget {
     final coverUrl = album.coverThumbnailUrl;
 
     final body = Padding(
-      padding: const EdgeInsets.fromLTRB(10, 10, 40, 10),
+      padding: const EdgeInsets.fromLTRB(10, 10, 32, 10),
       child: Row(
         children: [
           ClipRRect(
@@ -387,27 +344,18 @@ class _AlbumPopupCard extends StatelessWidget {
         Positioned(
           top: 4,
           right: 4,
-          child: PopupMenuButton<_AlbumCardAction>(
-            icon: Icon(Icons.more_vert, size: 18, color: onInverse),
-            padding: EdgeInsets.zero,
-            onSelected: (action) {
-              switch (action) {
-                case _AlbumCardAction.rename:
-                  onRename();
-                case _AlbumCardAction.delete:
-                  onDelete();
-              }
-            },
-            itemBuilder: (context) => [
-              PopupMenuItem(
-                value: _AlbumCardAction.rename,
-                child: Text(strings.albumRenameAction),
+          child: InkWell(
+            customBorder: const CircleBorder(),
+            onTap: onDelete,
+            child: Container(
+              width: 22,
+              height: 22,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: onInverse.withValues(alpha: 0.15),
               ),
-              PopupMenuItem(
-                value: _AlbumCardAction.delete,
-                child: Text(strings.albumDeleteAction),
-              ),
-            ],
+              child: Icon(Icons.delete_outline, size: 14, color: onInverse),
+            ),
           ),
         ),
       ],

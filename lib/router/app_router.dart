@@ -19,6 +19,7 @@ import '../models/direct_message.dart';
 import '../models/group.dart';
 import '../providers/repository_providers.dart';
 import '../utils/platform_info.dart';
+import '../widgets/interactive_swipe_back.dart';
 import '../widgets/swipe_gestures.dart';
 
 /// 語らい系の画面遷移をURL付きのブラウザ履歴に載せるためのルーター。
@@ -110,6 +111,19 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         child: child,
       );
 
+  // 語らい画面（/chat/dm・/chat/group）専用の「右スワイプで戻る」。
+  // 指の位置にリアルタイムに追従し、途中で離すとキャンセルできる
+  // インタラクティブなジェスチャーにする（2026-09-07追加）。左スワイプは
+  // 上の[swipeBack]と同じ、離した瞬間の速度判定のみの挙動を維持する。
+  Widget interactiveChatSwipeBack(Widget child, {bool alsoSwipeLeft = true}) =>
+      InteractiveSwipeBackTransition(
+        onBack: () {
+          if (router.canPop()) router.pop();
+        },
+        alsoSwipeLeft: alsoSwipeLeft,
+        child: child,
+      );
+
   // 発信側は、モバイルのみ全画面の/callへpushする。PCでは全画面ルートを
   // 使わず、通話セッションを直接開始するだけにする（2026-08-19変更）。
   // 発信者は既にその会話のメッセージ画面を見ているため、以後は
@@ -159,8 +173,7 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         path: '/chat/dm',
         builder: (context, state) {
           final args = state.extra! as DmChatArgs;
-          return swipeBack(
-            alsoSwipeLeft: true,
+          return interactiveChatSwipeBack(
             DmChatPane(
               currentUser: args.currentUser,
               dm: args.dm,
@@ -170,9 +183,6 @@ final goRouterProvider = Provider<GoRouter>((ref) {
               onVideoCallPressed: () =>
                   startCall(args.currentUser, args.dm, isVideo: true),
               showRoomTabBar: true,
-              onSwipeBack: () {
-                if (router.canPop()) router.pop();
-              },
             ),
           );
         },
@@ -181,30 +191,25 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         path: '/chat/group',
         builder: (context, state) {
           final args = state.extra! as GroupChatArgs;
-          return swipeBack(
-            alsoSwipeLeft: true,
+          return interactiveChatSwipeBack(
             GroupChatPane(
               currentUser: args.currentUser,
               group: args.group,
               roomId: args.roomId,
               roomName: args.roomName,
               showRoomTabBar: true,
-              onSwipeBack: () {
-                if (router.canPop()) router.pop();
-              },
             ),
           );
         },
       ),
       GoRoute(
         path: '/announcements',
-        builder: (context, state) => swipeBack(
-          AnnouncementScreen(
-            currentUser: state.extra! as AppUser,
-            onSwipeBack: () {
-              if (router.canPop()) router.pop();
-            },
-          ),
+        // 便り（公式アカウント）画面もチャット画面と同じ吹き出しUIを使うため、
+        // 語らい画面と同じインタラクティブな右スワイプ戻るを適用する
+        // （左スワイプは元々`alsoSwipeLeft`未指定＝無効だったため維持）。
+        builder: (context, state) => interactiveChatSwipeBack(
+          AnnouncementScreen(currentUser: state.extra! as AppUser),
+          alsoSwipeLeft: false,
         ),
       ),
       GoRoute(

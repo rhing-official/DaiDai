@@ -394,6 +394,11 @@ class Strings {
     required this.roomRenameLabel,
     required this.roomMenuDeleteLabel,
     required this.roomDeleteLastRoomError,
+    required this.roomFeatureDisableLabel,
+    required this.roomFeatureEnableLabel,
+    required this.roomFeatureDisableConfirmTitle,
+    required this.roomFeatureDisableConfirmMessage,
+    required this.roomFeatureDisableConfirmButton,
     required this.dmMenuDeleteConversation,
     required this.chatAddToAlbumAction,
     required this.albumButtonTooltip,
@@ -402,8 +407,6 @@ class Strings {
     required this.albumCreateButtonLabel,
     required this.albumCreateDialogTitle,
     required this.albumNameFieldHint,
-    required this.albumRenameAction,
-    required this.albumRenameDialogTitle,
     required this.albumDeleteAction,
     required this.albumDeleteConfirmTitle,
     required this.albumDeleteConfirmMessage,
@@ -1081,6 +1084,20 @@ class Strings {
   /// 最後の1つの寄合を削除しようとした時のエラー表示（SnackBar）。
   final String roomDeleteLastRoomError;
 
+  /// ハンバーガーメニューの「寄合機能を無くす」項目（2026-09-07追加、寄合が
+  /// 単一モードの語らいに限り「寄合の名前を変更」の直下に表示）。押すと
+  /// 寄合の名前変更・削除・複数化のメニュー項目を非表示にし、Discordの
+  /// 一対一DMのような単純な会話に変換する。用語（「寄合」等）を差し込む。
+  final String Function(String term) roomFeatureDisableLabel;
+
+  /// 上記で無効化した後、同じ場所に代わりに表示する「元に戻す」項目。
+  final String Function(String term) roomFeatureEnableLabel;
+
+  /// 「寄合機能を無くす」実行前の確認ダイアログ。
+  final String Function(String term) roomFeatureDisableConfirmTitle;
+  final String roomFeatureDisableConfirmMessage;
+  final String roomFeatureDisableConfirmButton;
+
   /// 一対のハンバーガーメニューの「削除」項目。相手がアカウントを削除した
   /// 通知に「いいえ」と答えた後（または未応答のまま）でも、いつでもここから
   /// 削除できる。用語（「一対」等）を差し込む。
@@ -1094,8 +1111,6 @@ class Strings {
   final String albumCreateButtonLabel;
   final String albumCreateDialogTitle;
   final String albumNameFieldHint;
-  final String albumRenameAction;
-  final String albumRenameDialogTitle;
   final String albumDeleteAction;
   final String albumDeleteConfirmTitle;
   final String albumDeleteConfirmMessage;
@@ -1649,6 +1664,11 @@ class Strings {
     roomRenameLabel: (term) => '$termの名前を変更',
     roomMenuDeleteLabel: (term) => '$termを削除',
     roomDeleteLastRoomError: '最後の1つの寄合は削除できません',
+    roomFeatureDisableLabel: (term) => '$term機能を無くす',
+    roomFeatureEnableLabel: (term) => '$term機能を元に戻す',
+    roomFeatureDisableConfirmTitle: (term) => '$term機能を無くしますか？',
+    roomFeatureDisableConfirmMessage: 'よりシンプルな会話画面になります。この操作はいつでも元に戻せます。',
+    roomFeatureDisableConfirmButton: '無くす',
     dmMenuDeleteConversation: (term) => '$termの削除',
     chatAddToAlbumAction: 'アルバムに登録',
     albumButtonTooltip: 'アルバム',
@@ -1657,8 +1677,6 @@ class Strings {
     albumCreateButtonLabel: '新しいアルバム',
     albumCreateDialogTitle: 'アルバムを作成',
     albumNameFieldHint: 'アルバム名',
-    albumRenameAction: '名前を変更',
-    albumRenameDialogTitle: 'アルバム名を変更',
     albumDeleteAction: 'アルバムを削除',
     albumDeleteConfirmTitle: 'アルバムを削除しますか？',
     albumDeleteConfirmMessage: 'このアルバム内の画像・動画もすべて削除されます。この操作は取り消せません。',
@@ -2256,6 +2274,12 @@ class Strings {
     roomRenameLabel: (term) => 'Rename $term',
     roomMenuDeleteLabel: (term) => 'Delete $term',
     roomDeleteLastRoomError: 'The last remaining room cannot be deleted.',
+    roomFeatureDisableLabel: (term) => 'Remove $term feature',
+    roomFeatureEnableLabel: (term) => 'Restore $term feature',
+    roomFeatureDisableConfirmTitle: (term) => 'Remove the $term feature?',
+    roomFeatureDisableConfirmMessage:
+        'This makes the conversation simpler. You can undo this anytime.',
+    roomFeatureDisableConfirmButton: 'Remove',
     dmMenuDeleteConversation: (term) => 'Delete $term',
     chatAddToAlbumAction: 'Add to album',
     albumButtonTooltip: 'Album',
@@ -2264,8 +2288,6 @@ class Strings {
     albumCreateButtonLabel: 'New album',
     albumCreateDialogTitle: 'Create album',
     albumNameFieldHint: 'Album name',
-    albumRenameAction: 'Rename',
-    albumRenameDialogTitle: 'Rename album',
     albumDeleteAction: 'Delete album',
     albumDeleteConfirmTitle: 'Delete this album?',
     albumDeleteConfirmMessage:

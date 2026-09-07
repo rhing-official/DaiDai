@@ -9,6 +9,8 @@ import '../../providers/app_ui_style_provider.dart';
 import '../../providers/repository_providers.dart';
 import '../../theme/popup_surface_colors.dart';
 import '../../utils/auto_dismiss_banner.dart';
+import '../../utils/note_title.dart';
+import '../../widgets/glass/glass_dialog.dart';
 import '../../widgets/glass/glass_surface.dart';
 
 /// ノートボタンの真下にノート一覧をポップアップ表示する（2026-09-06追加、
@@ -129,6 +131,56 @@ class _NotePopupContentState extends ConsumerState<_NotePopupContent> {
     }
   }
 
+  /// ノートを削除する（2026-09-07追加）。作成者のみ削除可能
+  /// （firestore.rules参照、`build()`側で`onDelete`自体を作成者以外には
+  /// 渡さない）。確認ダイアログは`_AlbumPopupContentState._deleteAlbum`
+  /// （`album_popup_content.dart`）と同じ型。ノート専用の削除確認本文は
+  /// 用意していないため、投票側と同じく`calendarDeleteConfirmMessage`を
+  /// 流用する。
+  Future<void> _deleteNote(Note note) async {
+    final strings = ref.read(appStringsProvider);
+    final isGlass = ref.read(appUiStyleProvider) == AppUiStyle.glass;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) {
+        final title = Text(strings.noteDeleteConfirmTitle);
+        final content = Text(strings.calendarDeleteConfirmMessage);
+        final actions = [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(strings.cancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            // colorScheme.errorはダークテーマ下でコントラストが不十分に
+            // なるため固定の濃い赤にする（CLAUDE.md記載の既存の教訓）。
+            style: FilledButton.styleFrom(
+              backgroundColor: Colors.red.shade700,
+              foregroundColor: Colors.white,
+            ),
+            child: Text(strings.delete),
+          ),
+        ];
+        return isGlass
+            ? GlassAlertDialog(title: title, content: content, actions: actions)
+            : AlertDialog(title: title, content: content, actions: actions);
+      },
+    );
+    if (confirmed != true || !mounted) return;
+    try {
+      await ref
+          .read(noteRepositoryProvider)
+          .deleteNote(
+            isDm: widget.isDm,
+            conversationId: widget.conversationId,
+            roomId: widget.roomId,
+            noteId: note.noteId,
+          );
+    } catch (e) {
+      if (mounted) showAutoDismissBanner(context, message: '$e');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final strings = ref.watch(appStringsProvider);
@@ -209,6 +261,9 @@ class _NotePopupContentState extends ConsumerState<_NotePopupContent> {
                           uiStyle: uiStyle,
                           strings: strings,
                           onTap: () => Navigator.of(context).pop(note),
+                          onDelete: note.createdBy == widget.currentUser.userId
+                              ? () => _deleteNote(note)
+                              : null,
                         ),
                       ),
                   ],
@@ -237,28 +292,38 @@ class _NotePopupContentState extends ConsumerState<_NotePopupContent> {
 }
 
 /// ポップアップ内のノート1件分のカード。`_PollPopupCard`と同じ見た目の構成。
+/// 右上のゴミ箱ボタン（2026-09-07追加、`chat_screen.dart`の
+/// `_PinnedMessageCard`が持つ×ボタンと同じ座標・円形サイズのコンセプトを
+/// 踏襲。アイコンのみ×→ゴミ箱に変更）は、作成者本人が開いた場合のみ
+/// [onDelete]が渡され表示される（他人には`null`、firestore.rulesの
+/// 作成者限定削除と一致させるための表示制御）。
 class _NotePopupCard extends StatelessWidget {
   const _NotePopupCard({
     required this.note,
     required this.uiStyle,
     required this.strings,
     required this.onTap,
+    required this.onDelete,
   });
 
   final Note note;
   final AppUiStyle uiStyle;
   final Strings strings;
   final VoidCallback onTap;
+  final VoidCallback? onDelete;
 
   @override
   Widget build(BuildContext context) {
     final isGlass = uiStyle == AppUiStyle.glass;
     final brightness = Theme.of(context).brightness;
     final onInverse = popupCardForeground(brightness, uiStyle);
-    final title = note.title.isEmpty ? strings.noteUntitledLabel : note.title;
+    final title = resolveNoteDisplayTitle(
+      note,
+      fallback: strings.noteUntitledLabel,
+    );
 
     final body = Padding(
-      padding: const EdgeInsets.all(10),
+      padding: EdgeInsets.fromLTRB(10, 10, onDelete != null ? 32 : 10, 10),
       child: Row(
         children: [
           Container(
@@ -283,7 +348,7 @@ class _NotePopupCard extends StatelessWidget {
       ),
     );
 
-    return isGlass
+    final card = isGlass
         ? GlassSurface(
             variant: GlassVariant.card,
             borderRadius: BorderRadius.circular(12),
@@ -302,5 +367,31 @@ class _NotePopupCard extends StatelessWidget {
               child: body,
             ),
           );
+
+    final onDeletePressed = onDelete;
+    if (onDeletePressed == null) return card;
+
+    return Stack(
+      children: [
+        card,
+        Positioned(
+          top: 4,
+          right: 4,
+          child: InkWell(
+            customBorder: const CircleBorder(),
+            onTap: onDeletePressed,
+            child: Container(
+              width: 22,
+              height: 22,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: onInverse.withValues(alpha: 0.15),
+              ),
+              child: Icon(Icons.delete_outline, size: 14, color: onInverse),
+            ),
+          ),
+        ),
+      ],
+    );
   }
 }

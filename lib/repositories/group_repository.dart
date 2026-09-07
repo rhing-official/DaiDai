@@ -96,6 +96,16 @@ abstract class GroupRepository {
     String? requestedBy,
   });
 
+  /// 寄合機能自体（名前変更・削除・複数化）を無くし、単純な会話として扱うか
+  /// 切り替える（manageRooms権限を持つメンバーのみ、firestore.rulesで
+  /// 強制）。単一モードの時のみ[disabled]をtrueにできる（2026-09-07追加）。
+  /// [Group.roomsEnabled]自体は変更しないため、双方向に切り替え可能
+  /// （他の寄合関連操作と異なり一方向ではない）。
+  Future<void> setRoomFeatureDisabled({
+    required String groupId,
+    required bool disabled,
+  });
+
   /// 寄合を削除する。全メッセージも物理削除する（長・モデレーターのみ、
   /// firestore.rulesで強制）。その広場の最後の1つの寄合は削除できない
   /// （[StateError]を投げる）。削除対象が`Group.defaultRoomId`の場合は、
@@ -693,6 +703,14 @@ class FirestoreGroupRepository implements GroupRepository {
       }
     }
     await _groups.doc(groupId).update({'roomsEnabled': enabled});
+  }
+
+  @override
+  Future<void> setRoomFeatureDisabled({
+    required String groupId,
+    required bool disabled,
+  }) async {
+    await _groups.doc(groupId).update({'roomFeatureDisabled': disabled});
   }
 
   @override

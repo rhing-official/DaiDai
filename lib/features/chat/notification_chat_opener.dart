@@ -7,6 +7,7 @@ import '../../models/app_user.dart';
 import '../../models/direct_message.dart';
 import '../../models/group.dart';
 import '../../providers/repository_providers.dart';
+import '../../widgets/interactive_swipe_back.dart';
 import 'chat_panes.dart';
 
 /// プッシュ通知タップ時、`dmId`/`groupId`（＋任意の`roomId`）だけから
@@ -56,16 +57,19 @@ class NotificationChatOpener extends ConsumerWidget {
           });
           return const SizedBox.shrink();
         }
-        return DmChatPane(
-          currentUser: currentUser,
-          dm: resolved.dm,
-          roomId: resolved.roomId,
-          roomName: resolved.roomName,
-          showRoomTabBar: true,
-          onSwipeBack: () {
+        return InteractiveSwipeBackTransition(
+          onBack: () {
             final router = GoRouter.of(context);
             if (router.canPop()) router.pop();
           },
+          alsoSwipeLeft: true,
+          child: DmChatPane(
+            currentUser: currentUser,
+            dm: resolved.dm,
+            roomId: resolved.roomId,
+            roomName: resolved.roomName,
+            showRoomTabBar: true,
+          ),
         );
       },
     );
@@ -87,16 +91,19 @@ class NotificationChatOpener extends ConsumerWidget {
           });
           return const SizedBox.shrink();
         }
-        return GroupChatPane(
-          currentUser: currentUser,
-          group: resolved.group,
-          roomId: resolved.roomId,
-          roomName: resolved.roomName,
-          showRoomTabBar: true,
-          onSwipeBack: () {
+        return InteractiveSwipeBackTransition(
+          onBack: () {
             final router = GoRouter.of(context);
             if (router.canPop()) router.pop();
           },
+          alsoSwipeLeft: true,
+          child: GroupChatPane(
+            currentUser: currentUser,
+            group: resolved.group,
+            roomId: resolved.roomId,
+            roomName: resolved.roomName,
+            showRoomTabBar: true,
+          ),
         );
       },
     );

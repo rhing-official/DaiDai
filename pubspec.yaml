@@ -137,10 +137,30 @@ flutter:
   # 劇画UIスタイル用フォント（Anton、OFLライセンス）。google_fontsパッケージ
   # 経由のGoogle CDN実行時取得は使わず、プライバシーファースト方針に合わせて
   # ファイルをアプリに同梱しオフライン完結させる（2026-07-30）。
+  #
+  # フォントデザイン設定（`lib/models/font_design.dart`のFontDesign、
+  # 2026-09-06追加）用の4書体。アセットファイル自体は追加済みだったが、
+  # このflutter.fontsへの登録が漏れていたため、設定画面で選択しても
+  # Flutterがファミリー名を解決できず既定フォントへ無言でフォールバック
+  # していた（「フォントデザインを変更しても反映されない」不具合、
+  # 2026-09-07修正）。family名は`FontDesign.fontFamily`の文字列と
+  # 一致させること。
   fonts:
     - family: Anton
       fonts:
         - asset: assets/fonts/Anton-Regular.ttf
+    - family: HannariMincho
+      fonts:
+        - asset: assets/fonts/HannariMincho-Regular.otf
+    - family: KHDotKagurazaka16
+      fonts:
+        - asset: assets/fonts/KH-Dot-Kagurazaka-16.ttf
+    - family: KiwiMaru
+      fonts:
+        - asset: assets/fonts/KiwiMaru-Regular.ttf
+    - family: ShipporiMincho
+      fonts:
+        - asset: assets/fonts/ShipporiMincho-Regular.ttf
 
   # To add assets to your application, add an assets section, like this:
   # assets:

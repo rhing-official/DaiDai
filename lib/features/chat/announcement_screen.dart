@@ -25,19 +25,9 @@ Future<void> _openContactForm() async {
 /// 設定＞運営から開く。通常の一対と同じ[ChatScreen]の見た目を使うが、
 /// [ChatScreen.onSend]をnullにして入力欄自体を出さない。
 class AnnouncementScreen extends ConsumerWidget {
-  const AnnouncementScreen({
-    required this.currentUser,
-    this.onSwipeBack,
-    super.key,
-  });
+  const AnnouncementScreen({required this.currentUser, super.key});
 
   final AppUser currentUser;
-
-  /// 縦表示（`/announcements`ルート）で、吹き出しの上を右スワイプした時に
-  /// 前の画面へ戻る処理。`DmChatPane.onSwipeBack`と同じく、設定の広い画面
-  /// （サイドバーを残したまま内容ペインに埋め込む表示）からはnullのまま
-  /// 渡す（戻る概念が無く、他のカテゴリを選ぶだけのため）。
-  final VoidCallback? onSwipeBack;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -71,7 +61,6 @@ class AnnouncementScreen extends ConsumerWidget {
                           .toList(),
                     ),
           banner: const _ContactFormBanner(),
-          onSwipeBack: onSwipeBack,
         );
       },
     );

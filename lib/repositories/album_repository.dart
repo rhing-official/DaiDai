@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 
@@ -5,6 +7,7 @@ import '../models/album.dart';
 import '../models/album_item.dart';
 import '../models/message.dart';
 import '../utils/album_storage.dart';
+import '../utils/attachment_upload.dart';
 
 /// 寄合単位の共有アルバム機能のRepository（2026-08-30追加）。
 ///
@@ -26,14 +29,6 @@ abstract class AlbumRepository {
     required String roomId,
     required String name,
     required String createdBy,
-  });
-
-  Future<void> renameAlbum({
-    required bool isDm,
-    required String conversationId,
-    required String roomId,
-    required String albumId,
-    required String newName,
   });
 
   /// アルバム自体と、中の全アイテム（Firestoreドキュメント＋Storageファイル）
@@ -61,6 +56,21 @@ abstract class AlbumRepository {
     required String roomId,
     required String albumId,
     required Message message,
+    required String addedBy,
+  });
+
+  /// 端末のギャラリーから選んだ画像・動画をアルバムへ直接アップロードして
+  /// 登録する（2026-09-07追加、`AlbumPaneView`の「＋」ボタン用。既存メッセージ
+  /// の添付をコピーする[addItemFromMessage]とは異なり、元メッセージを持たない
+  /// 新規ファイルが対象）。[contentType]は`image`|`video`のみ対応。
+  Future<AlbumItem> addItemFromUpload({
+    required bool isDm,
+    required String conversationId,
+    required String roomId,
+    required String albumId,
+    required Uint8List bytes,
+    required String fileName,
+    required String contentType,
     required String addedBy,
   });
 
@@ -187,22 +197,6 @@ class FirestoreAlbumRepository implements AlbumRepository {
   }
 
   @override
-  Future<void> renameAlbum({
-    required bool isDm,
-    required String conversationId,
-    required String roomId,
-    required String albumId,
-    required String newName,
-  }) {
-    return _albumRef(
-      isDm: isDm,
-      conversationId: conversationId,
-      roomId: roomId,
-      albumId: albumId,
-    ).update({'name': newName});
-  }
-
-  @override
   Future<void> deleteAlbum({
     required bool isDm,
     required String conversationId,
@@ -314,6 +308,80 @@ class FirestoreAlbumRepository implements AlbumRepository {
       sourceSentAt: message.sentAt,
     );
 
+    await _commitNewItem(
+      isDm: isDm,
+      conversationId: conversationId,
+      roomId: roomId,
+      albumId: albumId,
+      itemRef: itemRef,
+      item: item,
+    );
+    return item;
+  }
+
+  @override
+  Future<AlbumItem> addItemFromUpload({
+    required bool isDm,
+    required String conversationId,
+    required String roomId,
+    required String albumId,
+    required Uint8List bytes,
+    required String fileName,
+    required String contentType,
+    required String addedBy,
+  }) async {
+    final itemRef = _itemsCollection(
+      isDm: isDm,
+      conversationId: conversationId,
+      roomId: roomId,
+      albumId: albumId,
+    ).doc();
+    final scope = isDm ? 'dm' : 'group';
+    final storagePathPrefix =
+        'albumFiles/$scope/$conversationId/$roomId/$albumId';
+    final fileMetadata = await uploadMessageAttachment(
+      storage: _storage,
+      storagePathPrefix: storagePathPrefix,
+      attachmentId: itemRef.id,
+      bytes: bytes,
+      fileName: fileName,
+      contentType: contentType,
+    );
+
+    final item = AlbumItem(
+      itemId: itemRef.id,
+      contentType: contentType,
+      storagePath: '$storagePathPrefix/${itemRef.id}.${fileMetadata.extension}',
+      url: fileMetadata.url,
+      mimeType: fileMetadata.mimeType,
+      extension: fileMetadata.extension,
+      sizeBytes: fileMetadata.sizeBytes,
+      compressionType: fileMetadata.compressionType,
+      addedBy: addedBy,
+    );
+
+    await _commitNewItem(
+      isDm: isDm,
+      conversationId: conversationId,
+      roomId: roomId,
+      albumId: albumId,
+      itemRef: itemRef,
+      item: item,
+    );
+    return item;
+  }
+
+  /// アイテムドキュメントの追加＋アルバムの非正規化カバー情報の更新を
+  /// バッチで行う共通処理（[addItemFromMessage]/[addItemFromUpload]が
+  /// アイテムの取得元だけを変えて共有する、2026-09-07切り出し）。
+  Future<void> _commitNewItem({
+    required bool isDm,
+    required String conversationId,
+    required String roomId,
+    required String albumId,
+    required DocumentReference<Map<String, dynamic>> itemRef,
+    required AlbumItem item,
+  }) {
     final albumRef = _albumRef(
       isDm: isDm,
       conversationId: conversationId,
@@ -328,8 +396,7 @@ class FirestoreAlbumRepository implements AlbumRepository {
       'coverThumbnailUrl': item.url,
       'coverContentType': item.contentType,
     });
-    await batch.commit();
-    return item;
+    return batch.commit();
   }
 
   @override
