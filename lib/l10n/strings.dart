@@ -69,7 +69,6 @@ class Strings {
     required this.fontDesignKiwiMaruLabel,
     required this.fontDesignShipporiMinchoLabel,
     required this.fontDesignKiwamiExclusiveNotice,
-    required this.fontDesignGekigaNotice,
     required this.settingsSubSound,
     required this.settingsSoundRingtoneTitle,
     required this.settingsSoundCallingTitle,
@@ -480,7 +479,7 @@ class Strings {
     required this.calendarAddChoiceCoordinationSubtitle,
     required this.scheduleCoordinationCreateDialogTitle,
     required this.scheduleCoordinationAddCandidateButton,
-    required this.scheduleCoordinationDuplicateCandidateError,
+    required this.scheduleCoordinationCandidatePickerTitle,
     required this.scheduleCoordinationCandidateCountLabel,
     required this.scheduleCoordinationVoteYes,
     required this.scheduleCoordinationVoteMaybe,
@@ -610,12 +609,6 @@ class Strings {
   final String fontDesignKiwiMaruLabel;
   final String fontDesignShipporiMinchoLabel;
   final String fontDesignKiwamiExclusiveNotice;
-
-  /// 劇画UIスタイルのフォントデザイン一覧に添える説明（2026-09-07追加）。
-  /// 劇画は手描き風の固定デザインのためここでの選択は今すぐ反映されず、
-  /// フラット/ガラスに戻した時に使われることを伝える（`settings_tab.dart`の
-  /// `_FontDesignFolder`参照。選択自体は劇画中もできる仕様のまま変えない）。
-  final String fontDesignGekigaNotice;
   final String settingsSubSound;
   final String settingsSoundRingtoneTitle;
   final String settingsSoundCallingTitle;
@@ -1230,7 +1223,7 @@ class Strings {
   /// 日程調整（複数候補日への○/△/×投票）機能、2026-09-05追加。
   final String scheduleCoordinationCreateDialogTitle;
   final String scheduleCoordinationAddCandidateButton;
-  final String scheduleCoordinationDuplicateCandidateError;
+  final String scheduleCoordinationCandidatePickerTitle;
   final String Function(int count) scheduleCoordinationCandidateCountLabel;
   final String scheduleCoordinationVoteYes;
   final String scheduleCoordinationVoteMaybe;
@@ -1353,7 +1346,6 @@ class Strings {
     fontDesignKiwiMaruLabel: 'キウイ丸',
     fontDesignShipporiMinchoLabel: 'しっぽり明朝',
     fontDesignKiwamiExclusiveNotice: '極みプラン限定機能として追加予定（現在は無料で選択できます）',
-    fontDesignGekigaNotice: '劇画スタイルでは専用フォントを使うため、ここでの選択はフラット/ガラスに戻した時に反映されます',
     settingsSubSound: 'サウンド',
     settingsSoundRingtoneTitle: '着信音',
     settingsSoundCallingTitle: '呼出音',
@@ -1788,12 +1780,12 @@ class Strings {
         'Googleカレンダー連携の準備がまだ完了していません。しばらくお待ちください。',
     calendarAddChoiceDialogTitle: '予定の追加方法を選んでください',
     calendarAddChoiceEventOption: '予定を追加',
-    calendarAddChoiceEventSubtitle: '日時が決まっている予定を追加する',
-    calendarAddChoiceCoordinationOption: '日程調整を始める',
+    calendarAddChoiceEventSubtitle: '日時が確定した予定を追加する',
+    calendarAddChoiceCoordinationOption: '日程を調整',
     calendarAddChoiceCoordinationSubtitle: '候補日を出して都合を募る',
     scheduleCoordinationCreateDialogTitle: '日程調整を作成',
     scheduleCoordinationAddCandidateButton: '候補日を追加',
-    scheduleCoordinationDuplicateCandidateError: 'その日付は既に候補にあります',
+    scheduleCoordinationCandidatePickerTitle: '候補日を選択',
     scheduleCoordinationCandidateCountLabel: (count) => '候補$count件',
     scheduleCoordinationVoteYes: '○',
     scheduleCoordinationVoteMaybe: '△',
@@ -1925,9 +1917,6 @@ class Strings {
     fontDesignShipporiMinchoLabel: 'Shippori Mincho',
     fontDesignKiwamiExclusiveNotice:
         'Planned as a Kiwami plan exclusive (free to select for now)',
-    fontDesignGekigaNotice:
-        'Gekiga style uses its own fixed font, so this choice takes effect '
-        'once you switch back to Flat or Glass',
     settingsSubSound: 'Sound',
     settingsSoundRingtoneTitle: 'Ringtone',
     settingsSoundCallingTitle: 'Calling tone',
@@ -2423,8 +2412,7 @@ class Strings {
         'Propose dates and collect availability',
     scheduleCoordinationCreateDialogTitle: 'Create scheduling poll',
     scheduleCoordinationAddCandidateButton: 'Add candidate date',
-    scheduleCoordinationDuplicateCandidateError:
-        'That date is already a candidate',
+    scheduleCoordinationCandidatePickerTitle: 'Select candidate dates',
     scheduleCoordinationCandidateCountLabel: (count) =>
         '$count candidate${count == 1 ? '' : 's'}',
     scheduleCoordinationVoteYes: '○',

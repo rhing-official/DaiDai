@@ -798,6 +798,13 @@ service cloud.firestore {
               || (request.resource.data.roomFeatureDisabled == true && resource.data.roomsEnabled == false)
             )
           )
+          // 寄合一覧（サイドバー）の並べ替え（長、またはmanageRooms権限を
+          // 持つロールの付与者のみ、2026-09-08追加）。
+          || (
+            (request.auth.uid == resource.data.ownerId
+              || 'manageRooms' in resource.data.memberPermissions[request.auth.uid])
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['roomOrder'])
+          )
           // メッセージ送信時のlastMessageAt/lastMessageSenderId/
           // lastMessageContentType/lastMessagePreviewの非正規化更新
           // （語らい一覧の並べ替え・未読件数/簡易表示用、2026-09-02追加、

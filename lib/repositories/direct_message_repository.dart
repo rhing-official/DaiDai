@@ -55,6 +55,13 @@ abstract class DirectMessageRepository {
   /// 可能（他の寄合関連操作と異なり一方向ではない）。
   Future<void> setRoomFeatureDisabled(String dmId, {required bool disabled});
 
+  /// 寄合一覧（サイドバー）の表示順を設定する（寄合idの並び、
+  /// 参加者ならどちらでも実行可能、2026-09-08追加）。
+  Future<void> setRoomOrder({
+    required String dmId,
+    required List<String> roomIds,
+  });
+
   /// 寄合を削除する。全メッセージも物理削除する。この一対の最後の1つの
   /// 寄合は削除できない（[StateError]を投げる）。削除対象が
   /// [DirectMessage.defaultRoomId]の場合は、残った寄合のうち最も古い
@@ -528,6 +535,14 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
     required bool disabled,
   }) async {
     await _directMessages.doc(dmId).update({'roomFeatureDisabled': disabled});
+  }
+
+  @override
+  Future<void> setRoomOrder({
+    required String dmId,
+    required List<String> roomIds,
+  }) async {
+    await _directMessages.doc(dmId).update({'roomOrder': roomIds});
   }
 
   @override

@@ -40,6 +40,7 @@ class RoomTabBar extends ConsumerStatefulWidget implements PreferredSizeWidget {
     required this.selectedRoomId,
     required this.onSelectRoom,
     required this.maxWidth,
+    required this.isGekiga,
     this.textScaler = TextScaler.noScaling,
     this.onCreateRoom,
     super.key,
@@ -60,6 +61,14 @@ class RoomTabBar extends ConsumerStatefulWidget implements PreferredSizeWidget {
   /// アクセシビリティ設定等によるテキスト拡大率（呼び出し元の
   /// `MediaQuery.textScalerOf(context)`）。折り返し判定の幅測定に使う。
   final TextScaler textScaler;
+
+  /// 呼び出し元の`ref.watch(appUiStyleProvider) == AppUiStyle.gekiga`
+  /// （2026-09-08追加）。`preferredSize`は`BuildContext`を持てないため、
+  /// [maxWidth]・[textScaler]と同様にコンストラクタ経由で受け取る。劇画は
+  /// タブ間隔が[GekigaJointedTileList.gap]（8px）とフラット/ガラスの
+  /// [_dividerWidth]（1px）で異なり、`_chunkIntoRows`の折り返し判定を
+  /// スタイルごとの実際の間隔に合わせる必要があるため。
+  final bool isGekiga;
 
   static const double _height = 44;
   static const int _maxVisibleRows = 2;
@@ -92,11 +101,18 @@ class RoomTabBar extends ConsumerStatefulWidget implements PreferredSizeWidget {
   /// セルにも`maxWidth`制約と`Text`の省略表示を持たせて安全策にする）。
   /// `preferredSize`・`build()`の両方がこの関数を同じ引数で呼ぶことで、
   /// バーの高さと実際の行数を常に一致させる。
+  ///
+  /// [itemGap]はタブ間に実際に空く間隔（劇画は[GekigaJointedTileList.gap]
+  /// ＝8px、フラット/ガラスは[_dividerWidth]＝1px）。以前はここが常に
+  /// `_dividerWidth`決め打ちで、劇画の実際の間隔（8px）より狭く見積もって
+  /// いたため、タブ数が多いと1行に収まりきらない数を「収まる」と誤判定して
+  /// いた（2026-09-08修正）。
   static List<List<RoomListEntry?>> _chunkIntoRows({
     required List<RoomListEntry> rooms,
     required bool hasAddCell,
     required double maxWidth,
     required TextScaler textScaler,
+    required double itemGap,
   }) {
     final items = <RoomListEntry?>[...rooms, if (hasAddCell) null];
     final rows = <List<RoomListEntry?>>[[]];
@@ -104,7 +120,7 @@ class RoomTabBar extends ConsumerStatefulWidget implements PreferredSizeWidget {
     for (final item in items) {
       final bareWidth = _itemWidth(item, textScaler);
       final isFirstInRow = rows.last.isEmpty;
-      final addedWidth = isFirstInRow ? bareWidth : bareWidth + _dividerWidth;
+      final addedWidth = isFirstInRow ? bareWidth : bareWidth + itemGap;
       if (!isFirstInRow && currentWidth + addedWidth > maxWidth) {
         rows.add([item]);
         currentWidth = bareWidth;
@@ -116,6 +132,8 @@ class RoomTabBar extends ConsumerStatefulWidget implements PreferredSizeWidget {
     return rows;
   }
 
+  double get _itemGap => isGekiga ? GekigaJointedTileList.gap : _dividerWidth;
+
   @override
   Size get preferredSize {
     final rows = _chunkIntoRows(
@@ -123,6 +141,7 @@ class RoomTabBar extends ConsumerStatefulWidget implements PreferredSizeWidget {
       hasAddCell: onCreateRoom != null,
       maxWidth: maxWidth,
       textScaler: textScaler,
+      itemGap: _itemGap,
     );
     final visibleRows = rows.length.clamp(1, _maxVisibleRows);
     return Size.fromHeight(visibleRows * _height);
@@ -169,9 +188,16 @@ class _RoomTabBarState extends ConsumerState<RoomTabBar> {
       child: InkWell(
         onTap: () => widget.onSelectRoom(room),
         child: Container(
+          // `maxWidth`は行全体の幅ではなく、`_chunkIntoRows`がこのセル分
+          // として見積もった幅そのものにする（2026-09-08修正）。以前は
+          // バー全体の`widget.maxWidth`を上限にしていたため、見積り用の
+          // 固定スタイル（`_measureStyle`）と実際のアンビエントな文字
+          // スタイルがずれた場合に実際の描画幅が見積りを超えても何も
+          // 防げず、行の合計幅が`maxWidth`を超えて隣接する「＋」ボタンに
+          // めり込む不具合があった。
           constraints: BoxConstraints(
             minWidth: RoomTabBar._cellMinWidth,
-            maxWidth: widget.maxWidth,
+            maxWidth: RoomTabBar._itemWidth(room, widget.textScaler),
           ),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           alignment: Alignment.center,
@@ -264,6 +290,7 @@ class _RoomTabBarState extends ConsumerState<RoomTabBar> {
       hasAddCell: widget.onCreateRoom != null,
       maxWidth: widget.maxWidth,
       textScaler: widget.textScaler,
+      itemGap: widget._itemGap,
     );
     final visibleRows = rows.length.clamp(1, RoomTabBar._maxVisibleRows);
     final totalHeight = visibleRows * RoomTabBar._height;
@@ -272,6 +299,12 @@ class _RoomTabBarState extends ConsumerState<RoomTabBar> {
     Widget flatCell(RoomListEntry? room) {
       final isAdd = room == null;
       final selected = !isAdd && room.roomId == _effectiveSelectedRoomId;
+      // `maxWidth`は行全体の幅ではなく、`_chunkIntoRows`がこのセル分として
+      // 見積もった幅そのものにする（2026-09-08修正、`_gekigaCell`と同じ
+      // 理由）。「＋」セルは名前を持たないため見積り不要、固定の最小幅で足りる。
+      final cellMaxWidth = isAdd
+          ? RoomTabBar._cellMinWidth
+          : RoomTabBar._itemWidth(room, widget.textScaler);
       final child = InkWell(
         onTap: isAdd
             ? () => _createRoom(context, strings, vocab, false)
@@ -279,7 +312,7 @@ class _RoomTabBarState extends ConsumerState<RoomTabBar> {
         child: Container(
           constraints: BoxConstraints(
             minWidth: RoomTabBar._cellMinWidth,
-            maxWidth: widget.maxWidth,
+            maxWidth: cellMaxWidth,
           ),
           padding: const EdgeInsets.symmetric(horizontal: RoomTabBar._cellHPad),
           alignment: Alignment.center,
@@ -356,14 +389,19 @@ class _RoomTabBarState extends ConsumerState<RoomTabBar> {
       }
       return SizedBox(
         height: RoomTabBar._height,
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            for (var i = 0; i < row.length; i++) ...[
-              if (i > 0) VerticalDivider(width: 1, color: borderColor),
-              flatCell(row[i]),
+        // 万一この行の合計幅が見積りを超えても、はみ出しがバー外の別要素に
+        // 影響しないようクリップする（2026-09-08追加の安全策、劇画側の
+        // クリップと同じ狙い）。
+        child: ClipRect(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (var i = 0; i < row.length; i++) ...[
+                if (i > 0) VerticalDivider(width: 1, color: borderColor),
+                flatCell(row[i]),
+              ],
             ],
-          ],
+          ),
         ),
       );
     }

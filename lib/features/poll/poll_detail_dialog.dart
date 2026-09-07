@@ -17,7 +17,7 @@ import '../../repositories/poll_repository.dart';
 import '../../utils/auto_dismiss_banner.dart';
 import '../../widgets/destructive_label.dart';
 import '../../widgets/glass/glass_dialog.dart';
-import '../../widgets/media_fullscreen_viewer.dart';
+import '../../widgets/media_viewer_screen.dart';
 import '../../widgets/video_thumbnail.dart';
 import '../calendar/calendar_chip.dart';
 import 'poll_option_media_picker.dart';
@@ -471,6 +471,12 @@ class _OptionsList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final optionKeys = poll.orderedOptionKeys;
+    // メディアビューア（メッセージ画面と全く同じ挙動）での前後ナビゲーション
+    // 対象。同じ投票内でメディア添付がある選択肢のみを、選択肢の並び順の
+    // まま対象にする（2026-09-07追加）。
+    final mediaOptionKeys = optionKeys
+        .where((key) => poll.options[key]?.mediaUrl != null)
+        .toList();
 
     Widget optionsColumn(
       List<PollResponse>? responses,
@@ -502,10 +508,19 @@ class _OptionsList extends StatelessWidget {
                         Padding(
                           padding: const EdgeInsets.only(right: 8),
                           child: GestureDetector(
-                            onTap: () => showMediaFullscreenViewer(
+                            onTap: () => openMediaViewer(
                               context,
-                              url: poll.options[key]!.mediaUrl!,
-                              mediaType: poll.options[key]!.mediaType!,
+                              items: [
+                                for (final k in mediaOptionKeys)
+                                  MediaViewerItem(
+                                    id: k,
+                                    url: poll.options[k]!.mediaUrl!,
+                                    contentType: poll.options[k]!.hasVideo
+                                        ? 'video'
+                                        : 'image',
+                                  ),
+                              ],
+                              initialIndex: mediaOptionKeys.indexOf(key),
                             ),
                             child: poll.options[key]!.hasVideo
                                 ? VideoThumbnail(

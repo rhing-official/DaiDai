@@ -532,6 +532,7 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
                   MediaQuery.sizeOf(context).width -
                   MediaQuery.paddingOf(context).horizontal,
               textScaler: MediaQuery.textScalerOf(context),
+              isGekiga: ref.watch(appUiStyleProvider) == AppUiStyle.gekiga,
               onSelectRoom: (room) => ref
                   .read(goRouterProvider)
                   .pushReplacement(
@@ -1246,16 +1247,16 @@ class _PollButtonState extends ConsumerState<_PollButton> {
       tooltip: '',
       icon: switch (uiStyle) {
         AppUiStyle.gekiga => const GekigaIconBadge(
-          icon: Icons.poll_outlined,
+          icon: Icons.how_to_vote_outlined,
           size: 32,
           seed: gekigaToolbarIconSeed,
         ),
         AppUiStyle.glass => const GlassIconBadge(
-          icon: Icons.poll_outlined,
+          icon: Icons.how_to_vote_outlined,
           size: 32,
           opaque: true,
         ),
-        AppUiStyle.flat => const Icon(Icons.poll_outlined),
+        AppUiStyle.flat => const Icon(Icons.how_to_vote_outlined),
       },
       onPressed: _openPollPopup,
     );
@@ -2201,6 +2202,7 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
                   MediaQuery.sizeOf(context).width -
                   MediaQuery.paddingOf(context).horizontal,
               textScaler: MediaQuery.textScalerOf(context),
+              isGekiga: ref.watch(appUiStyleProvider) == AppUiStyle.gekiga,
               onSelectRoom: (room) => ref
                   .read(goRouterProvider)
                   .pushReplacement(

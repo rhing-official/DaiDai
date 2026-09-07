@@ -76,7 +76,7 @@ class _PendingCoordinationTask extends _PendingTask {
     : super(
         title: coordination.title,
         createdAt: coordination.createdAt,
-        icon: Icons.how_to_vote_outlined,
+        icon: Icons.event_available_outlined,
       );
 
   final ScheduleCoordination coordination;
@@ -87,7 +87,7 @@ class _PendingPollTask extends _PendingTask {
     : super(
         title: poll.question,
         createdAt: poll.createdAt,
-        icon: Icons.poll_outlined,
+        icon: Icons.how_to_vote_outlined,
       );
 
   final Poll poll;

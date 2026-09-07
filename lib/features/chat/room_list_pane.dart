@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show setEquals;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -35,7 +36,7 @@ typedef RoomListEntry = ({String roomId, String name});
 /// `Stream`インスタンスが渡ることで`StreamBuilder`が毎回購読し直され、
 /// 寄合が一覧に定着して表示されない不具合があった。呼び出し側で1箇所だけ
 /// 購読して得た最新値をそのまま渡す形にすることで解消した）。
-class RoomListPane extends ConsumerWidget {
+class RoomListPane extends ConsumerStatefulWidget {
   const RoomListPane({
     required this.conversationName,
     required this.rooms,
@@ -43,6 +44,7 @@ class RoomListPane extends ConsumerWidget {
     required this.onSelectRoom,
     this.onCreateRoom,
     this.onOpenGroupSettings,
+    this.onReorderRooms,
     super.key,
   });
 
@@ -64,6 +66,36 @@ class RoomListPane extends ConsumerWidget {
   /// （一対には広場設定という概念が無いため常にnull）。
   final VoidCallback? onOpenGroupSettings;
 
+  /// 寄合一覧の並べ替え（ブロック左端のハンドルをドラッグ、2026-09-08追加）。
+  /// 並べ替え後の寄合idの並びを渡す。nullなら並べ替え機能自体を出さない
+  /// （広場で`manageRooms`権限を持たないメンバーには渡さない）。
+  final Future<void> Function(List<String> roomIds)? onReorderRooms;
+
+  @override
+  ConsumerState<RoomListPane> createState() => _RoomListPaneState();
+}
+
+class _RoomListPaneState extends ConsumerState<RoomListPane> {
+  /// ドラッグ中・保存の往復中も体感が即応するよう、[widget.rooms]から
+  /// 同期したローカルの並びを保持する（`GroupRolePriorityDialog`と異なり
+  /// 保存ボタンは無く、並べ替えのたびに逐次[RoomListPane.onReorderRooms]で
+  /// 保存するため）。id集合が変わらない限りは外部からの再構築で並びを
+  /// 巻き戻さない（自分の並べ替えがFirestoreを経由して戻ってきただけの
+  /// 場合と、他のメンバーが同時に並べ替えた場合を区別できないため、後者は
+  /// 次にid集合が変わるタイミング＝寄合の追加・削除時まで反映が遅れる
+  /// 既知の制約として許容する）。
+  late List<RoomListEntry> _rooms = List.of(widget.rooms);
+
+  @override
+  void didUpdateWidget(covariant RoomListPane oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final currentIds = _rooms.map((r) => r.roomId).toSet();
+    final incomingIds = widget.rooms.map((r) => r.roomId).toSet();
+    if (!setEquals(currentIds, incomingIds)) {
+      _rooms = List.of(widget.rooms);
+    }
+  }
+
   Future<void> _createRoom(
     BuildContext context,
     Strings strings,
@@ -72,11 +104,19 @@ class RoomListPane extends ConsumerWidget {
   ) async {
     final name = await promptForRoomName(context, strings, vocab, isGekiga);
     if (name == null || name.isEmpty) return;
-    await onCreateRoom?.call(name);
+    await widget.onCreateRoom?.call(name);
+  }
+
+  void _handleReorder(int index, int newIndex) {
+    setState(() {
+      final room = _rooms.removeAt(index);
+      _rooms.insert(newIndex, room);
+    });
+    widget.onReorderRooms?.call([for (final r in _rooms) r.roomId]);
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final strings = ref.watch(appStringsProvider);
     final vocab = ref.watch(vocabularyProvider);
     final colorScheme = Theme.of(context).colorScheme;
@@ -84,21 +124,36 @@ class RoomListPane extends ConsumerWidget {
     final isGekiga = uiStyle == AppUiStyle.gekiga;
     final isGlass = uiStyle == AppUiStyle.glass;
 
-    Widget buildRoomTile(RoomListEntry room) {
-      final isSelected = room.roomId == selectedRoomId;
+    // [index]は並べ替え有効時（[RoomListPane.onReorderRooms]非null）のみ
+    // 渡され、`leading`にドラッグハンドルを追加する（2026-09-08追加）。
+    Widget buildRoomTile(RoomListEntry room, {int? index}) {
+      final isSelected = room.roomId == widget.selectedRoomId;
+      final tagIcon = index == null
+          ? const Icon(Icons.tag)
+          : Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ReorderableDragStartListener(
+                  index: index,
+                  child: const Icon(Icons.drag_indicator, size: 18),
+                ),
+                const SizedBox(width: 4),
+                const Icon(Icons.tag),
+              ],
+            );
 
       if (isGekiga) {
         // 外枠は呼び出し側（下の`GekigaJointedTileList`）が寄合一覧全体を
         // まとめて描くため、ここでは内容だけを返す（2026-08-04変更）。
         return GekigaTileContent(
           selected: isSelected,
-          leading: const Icon(Icons.tag),
+          leading: tagIcon,
           title: Text(
             truncateName(room.name, 6),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
-          onTap: () => onSelectRoom(room),
+          onTap: () => widget.onSelectRoom(room),
         );
       }
 
@@ -117,13 +172,13 @@ class RoomListPane extends ConsumerWidget {
               child: ListTile(
                 iconColor: colorScheme.onSurfaceVariant,
                 textColor: colorScheme.onSurfaceVariant,
-                leading: const Icon(Icons.tag),
+                leading: tagIcon,
                 title: Text(
                   truncateName(room.name, 6),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-                onTap: () => onSelectRoom(room),
+                onTap: () => widget.onSelectRoom(room),
               ),
             ),
           ),
@@ -135,13 +190,13 @@ class RoomListPane extends ConsumerWidget {
         selected: isSelected,
         selectedTileColor: colorScheme.primary,
         selectedColor: colorScheme.onPrimary,
-        leading: const Icon(Icons.tag),
+        leading: tagIcon,
         title: Text(
           truncateName(room.name, 6),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
-        onTap: () => onSelectRoom(room),
+        onTap: () => widget.onSelectRoom(room),
       );
     }
 
@@ -155,12 +210,12 @@ class RoomListPane extends ConsumerWidget {
               Expanded(
                 child: isGekiga
                     ? GekigaJointedTileList(
-                        seeds: [conversationName.hashCode],
+                        seeds: [widget.conversationName.hashCode],
                         selectedFlags: const [false],
                         children: [
                           GekigaTileContent(
                             title: Text(
-                              truncateName(conversationName, 8),
+                              truncateName(widget.conversationName, 8),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -168,23 +223,23 @@ class RoomListPane extends ConsumerWidget {
                         ],
                       )
                     : Text(
-                        truncateName(conversationName, 8),
+                        truncateName(widget.conversationName, 8),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(fontWeight: FontWeight.bold),
                       ),
               ),
-              if (onOpenGroupSettings != null)
+              if (widget.onOpenGroupSettings != null)
                 isGekiga
                     ? GekigaIconButton(
                         icon: Icons.settings_outlined,
-                        onPressed: onOpenGroupSettings!,
+                        onPressed: widget.onOpenGroupSettings!,
                       )
                     : IconButton(
                         icon: const Icon(Icons.settings_outlined),
-                        onPressed: onOpenGroupSettings,
+                        onPressed: widget.onOpenGroupSettings,
                       ),
-              if (onCreateRoom != null)
+              if (widget.onCreateRoom != null)
                 isGekiga
                     ? GekigaIconButton(
                         icon: Icons.add,
@@ -205,24 +260,43 @@ class RoomListPane extends ConsumerWidget {
               ? SingleChildScrollView(
                   // ヘッダー行と同じ左右の余白に揃える（2026-08-04追加）。
                   // 上にも余白を入れ、区切り線に一覧の箱が接して被って
-                  // 見える不具合を解消する（2026-08-04追加）。
+                  // 見える不具合を解消する（2026-08-04追加）。並べ替えは
+                  // 劇画スタイルでは非対応（`GekigaJointedTileList`は連結
+                  // パネルとして描くため、2026-09-08追加）。
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
                   child: GekigaJointedTileList(
-                    seeds: [for (final room in rooms) room.roomId.hashCode],
+                    seeds: [for (final room in _rooms) room.roomId.hashCode],
                     selectedFlags: [
-                      for (final room in rooms) room.roomId == selectedRoomId,
+                      for (final room in _rooms)
+                        room.roomId == widget.selectedRoomId,
                     ],
-                    children: [for (final room in rooms) buildRoomTile(room)],
+                    children: [for (final room in _rooms) buildRoomTile(room)],
                   ),
                 )
-              : ListView(
+              : widget.onReorderRooms == null
+              ? ListView(
                   // 選択中タイルの塗り潰し（selectedTileColor）が、左右は
                   // カラム間のVerticalDividerに（2026-08-12追加）、上は
                   // ヘッダー直下のDividerに（同日追加）接して重なって
                   // 見えないよう余白を持たせる。上余白12pxは劇画UI分岐
                   // （上の`SingleChildScrollView`、2026-08-04追加）と揃えた。
                   padding: const EdgeInsets.fromLTRB(8, 12, 8, 0),
-                  children: [for (final room in rooms) buildRoomTile(room)],
+                  children: [for (final room in _rooms) buildRoomTile(room)],
+                )
+              : ReorderableListView(
+                  // ブロック左端のドラッグハンドル（`Icons.drag_indicator`、
+                  // `buildRoomTile`参照）のみでドラッグを開始させ、行本体の
+                  // タップ＝寄合選択と競合しないようにする（2026-09-08追加）。
+                  buildDefaultDragHandles: false,
+                  padding: const EdgeInsets.fromLTRB(8, 12, 8, 0),
+                  onReorderItem: _handleReorder,
+                  children: [
+                    for (final (index, room) in _rooms.indexed)
+                      KeyedSubtree(
+                        key: ValueKey(room.roomId),
+                        child: buildRoomTile(room, index: index),
+                      ),
+                  ],
                 ),
         ),
       ],
