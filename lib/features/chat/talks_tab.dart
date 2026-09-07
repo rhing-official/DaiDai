@@ -2337,6 +2337,26 @@ class _EmptyDetailPlaceholder extends StatelessWidget {
   Widget build(BuildContext context) => const SizedBox.shrink();
 }
 
+/// [roomOrder]（`Group.roomOrder`/`DirectMessage.roomOrder`、寄合idの並び）
+/// に従って[rooms]を並べ替える（2026-09-08追加、寄合一覧サイドバーの
+/// 並べ替え機能用）。[roomOrder]に含まれない寄合（新規作成直後・機能追加前
+/// の既存データ）は、元の順序（`watchRooms`が返す作成日時順）のまま末尾に
+/// 追加する。[roomOrder]内の既に削除済みの寄合idは単に無視される。
+List<T> _orderedRooms<T>(
+  List<T> rooms,
+  List<String> roomOrder,
+  String Function(T room) roomId,
+) {
+  final byId = {for (final r in rooms) roomId(r): r};
+  final ordered = [
+    for (final id in roomOrder)
+      if (byId.containsKey(id)) byId[id]!,
+  ];
+  final orderedIds = ordered.map(roomId).toSet();
+  ordered.addAll(rooms.where((r) => !orderedIds.contains(roomId(r))));
+  return ordered;
+}
+
 /// 選択中の一対を、寄合一覧サイドバー＋選択中の寄合のChatScreenの2ペイン
 /// 構成で表示する。以前は`_TalksTabState`が全会話共通の1つの
 /// `_selectedDmRoomId`フィールドで寄合選択を管理していたが、
@@ -2457,13 +2477,22 @@ class _DmDetailWithRoomsState extends ConsumerState<_DmDetailWithRooms> {
                 child: RoomListPane(
                   conversationName: conversationName,
                   rooms: [
-                    for (final r in rooms) (roomId: r.roomId, name: r.name),
+                    for (final r in _orderedRooms(
+                      rooms,
+                      dm.roomOrder,
+                      (r) => r.roomId,
+                    ))
+                      (roomId: r.roomId, name: r.name),
                   ],
                   selectedRoomId: roomId,
                   onSelectRoom: (room) =>
                       setState(() => _selectedRoomId = room.roomId),
                   onCreateRoom: (name) =>
                       dmRepository.createRoom(dmId: dm.dmId, name: name),
+                  onReorderRooms: (roomIds) => dmRepository.setRoomOrder(
+                    dmId: dm.dmId,
+                    roomIds: roomIds,
+                  ),
                 ),
               ),
               const VerticalDivider(width: 1),
@@ -2562,7 +2591,12 @@ class _GroupDetailWithRoomsState extends ConsumerState<_GroupDetailWithRooms> {
                 child: RoomListPane(
                   conversationName: group.name,
                   rooms: [
-                    for (final r in rooms) (roomId: r.roomId, name: r.name),
+                    for (final r in _orderedRooms(
+                      rooms,
+                      group.roomOrder,
+                      (r) => r.roomId,
+                    ))
+                      (roomId: r.roomId, name: r.name),
                   ],
                   selectedRoomId: roomId,
                   onSelectRoom: (room) =>
@@ -2571,6 +2605,12 @@ class _GroupDetailWithRoomsState extends ConsumerState<_GroupDetailWithRooms> {
                       ? (name) => groupRepository.createRoom(
                           groupId: group.groupId,
                           name: name,
+                        )
+                      : null,
+                  onReorderRooms: canManageRooms
+                      ? (roomIds) => groupRepository.setRoomOrder(
+                          groupId: group.groupId,
+                          roomIds: roomIds,
                         )
                       : null,
                   // 全体設定ポップアップ自体は全メンバーが開ける

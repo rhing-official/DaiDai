@@ -260,6 +260,13 @@ class GekigaJointedTileList extends StatelessWidget {
   /// `Axis.horizontal`を渡す。
   final Axis axis;
 
+  /// 箱同士の間隔（`_RenderGekigaJointedList._gap`と同じ値）。呼び出し元
+  /// （`RoomTabBar._chunkIntoRows`）が折り返し判定の幅見積りにこの値を
+  /// そのまま使えるよう、2026-09-08に公開定数として切り出した（間隔の
+  /// 出どころを1箇所に保つため、`_RenderGekigaJointedList`側もこの値を
+  /// 参照する）。
+  static const double gap = 8;
+
   @override
   Widget build(BuildContext context) {
     return _GekigaJointedList(
@@ -320,8 +327,10 @@ class _RenderGekigaJointedList extends RenderBox
   // `prefer_initializing_formals`は意図的に無視する。
 
   /// 箱同士の間隔（2026-08-05追加。接合を廃止した代わりに、隙間で
-  /// それぞれの箱を独立して見せる）。
-  static const double _gap = 8;
+  /// それぞれの箱を独立して見せる）。値自体は[GekigaJointedTileList.gap]
+  /// を参照する（2026-09-08、`RoomTabBar`の折り返し判定と値をずれさせない
+  /// ため公開定数に統一）。
+  static const double _gap = GekigaJointedTileList.gap;
 
   /// 枠の太さの基準値（2026-08-05追加）。`MonochromeBoxPainter`の
   /// `thicknessBase`に箱自身のサイズ（`box.size.shortestSide`）を渡すと、
@@ -397,6 +406,19 @@ class _RenderGekigaJointedList extends RenderBox
 
   @override
   void paint(PaintingContext context, Offset offset) {
+    // 行分割の幅見積りに万一の誤差があり子の合計幅が[size]を超えても、
+    // はみ出した内容が隣接ウィジェット（`RoomTabBar`の「＋」ボタン等）の
+    // 上に描画されないよう、常に自身の[size]でクリップする
+    // （2026-09-08追加の安全策）。
+    context.pushClipRect(
+      needsCompositing,
+      offset,
+      Offset.zero & size,
+      _paintChildren,
+    );
+  }
+
+  void _paintChildren(PaintingContext context, Offset offset) {
     final boxes = _collectChildren();
     for (var i = 0; i < boxes.length; i++) {
       final box = boxes[i];

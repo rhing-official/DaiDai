@@ -17,6 +17,7 @@ class DirectMessage {
     this.accountDeletedUserId,
     this.roomsEnabled = true,
     this.roomFeatureDisabled = false,
+    this.roomOrder = const [],
   });
 
   final String dmId;
@@ -85,6 +86,13 @@ class DirectMessage {
   /// setRoomFeatureDisabled`参照、`roomsEnabled`自体は変更しない）。
   final bool roomFeatureDisabled;
 
+  /// 寄合一覧（サイドバー）の表示順（寄合idの並び、先頭が最上位、
+  /// 2026-09-08追加）。ここに含まれない寄合（新規作成直後・機能追加前の
+  /// 既存データ）は、従来通り`DmRoom.createdAt`順で末尾に追加される
+  /// （呼び出し側`talks_tab.dart`が突き合わせる）。含まれていても既に
+  /// 削除済みの寄合idは単に無視される。
+  final List<String> roomOrder;
+
   /// 自分以外の参加者のuserId。
   String otherUserId(String currentUserId) {
     return participants.firstWhere((id) => id != currentUserId);
@@ -114,6 +122,7 @@ class DirectMessage {
       accountDeletedUserId: json['accountDeletedUserId'] as String?,
       roomsEnabled: json['roomsEnabled'] as bool? ?? true,
       roomFeatureDisabled: json['roomFeatureDisabled'] as bool? ?? false,
+      roomOrder: List<String>.from(json['roomOrder'] as List? ?? const []),
     );
   }
 
@@ -132,6 +141,7 @@ class DirectMessage {
       'accountDeletedUserId': accountDeletedUserId,
       'roomsEnabled': roomsEnabled,
       'roomFeatureDisabled': roomFeatureDisabled,
+      'roomOrder': roomOrder,
     };
   }
 

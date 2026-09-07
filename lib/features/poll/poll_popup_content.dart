@@ -143,7 +143,7 @@ class _PollPopupContent extends ConsumerWidget {
       children: [
         Row(
           children: [
-            Icon(Icons.poll_outlined, size: 16, color: onInverse),
+            Icon(Icons.how_to_vote_outlined, size: 16, color: onInverse),
             const SizedBox(width: 6),
             Expanded(
               child: Text(
@@ -267,7 +267,7 @@ class _PollPopupCard extends StatelessWidget {
               color: onInverse.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(6),
             ),
-            child: Icon(Icons.poll_outlined, color: onInverse),
+            child: Icon(Icons.how_to_vote_outlined, color: onInverse),
           ),
           const SizedBox(width: 10),
           Expanded(

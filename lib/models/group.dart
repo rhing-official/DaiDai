@@ -23,6 +23,7 @@ class Group {
     this.memberPermissions = const {},
     this.roomsEnabled = true,
     this.roomFeatureDisabled = false,
+    this.roomOrder = const [],
   });
 
   final String groupId;
@@ -105,6 +106,13 @@ class Group {
   /// 変更しない）。
   final bool roomFeatureDisabled;
 
+  /// 寄合一覧（サイドバー）の表示順（寄合idの並び、先頭が最上位、
+  /// 2026-09-08追加）。ここに含まれない寄合（新規作成直後・機能追加前の
+  /// 既存データ）は、従来通り`Room.createdAt`順で末尾に追加される
+  /// （呼び出し側`talks_tab.dart`が突き合わせる）。含まれていても既に
+  /// 削除済みの寄合idは単に無視される。
+  final List<String> roomOrder;
+
   factory Group.fromJson(String groupId, Map<String, dynamic> json) {
     final profileCardJson = json['profileCard'] as Map<String, dynamic>?;
     return Group(
@@ -133,6 +141,7 @@ class Group {
       ),
       roomsEnabled: json['roomsEnabled'] as bool? ?? true,
       roomFeatureDisabled: json['roomFeatureDisabled'] as bool? ?? false,
+      roomOrder: List<String>.from(json['roomOrder'] as List? ?? const []),
     );
   }
 
@@ -155,6 +164,7 @@ class Group {
       'memberPermissions': memberPermissions,
       'roomsEnabled': roomsEnabled,
       'roomFeatureDisabled': roomFeatureDisabled,
+      'roomOrder': roomOrder,
     };
   }
 }

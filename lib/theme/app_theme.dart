@@ -119,6 +119,11 @@ class AppTheme {
       dividerColor: outline,
       textTheme: (isDark ? ThemeData.dark() : ThemeData.light()).textTheme
           .apply(bodyColor: onSurface, displayColor: onSurface),
+      // ホバーで文言を出さない方針（CLAUDE.md）をFlutter標準ウィジェット
+      // （DatePicker/TimePickerの入力方法切替ボタン等）にも適用するための
+      // 回避策。Tooltipを恒久的に無効化するAPIは無いため、実用上出現しない
+      // 長さまでwaitDurationを伸ばす（2026-09-07追加）。
+      tooltipTheme: const TooltipThemeData(waitDuration: Duration(days: 365)),
     );
   }
 
@@ -290,6 +295,11 @@ class AppTheme {
             displayColor: colorScheme.onSurface,
             fontFamily: fontFamily,
           ),
+      // ホバーで文言を出さない方針（CLAUDE.md）をFlutter標準ウィジェット
+      // （DatePicker/TimePickerの入力方法切替ボタン等）にも適用するための
+      // 回避策。Tooltipを恒久的に無効化するAPIは無いため、実用上出現しない
+      // 長さまでwaitDurationを伸ばす（2026-09-07追加）。
+      tooltipTheme: const TooltipThemeData(waitDuration: Duration(days: 365)),
       extensions: [
         AppThemeExtras(
           floatingShadow: floatingShadow,

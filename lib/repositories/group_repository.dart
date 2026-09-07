@@ -184,6 +184,13 @@ abstract class GroupRepository {
     required List<String>? roleIds,
   });
 
+  /// 寄合一覧（サイドバー）の表示順を設定する（寄合idの並び、
+  /// `GroupPermission.manageRooms`が必要、2026-09-08追加）。
+  Future<void> setRoomOrder({
+    required String groupId,
+    required List<String> roomIds,
+  });
+
   /// 「この寄合独自の設定」トグルを切り替える（`GroupPermission.manageRooms`
   /// が必要）。trueの間、この寄合の`rolePriorityOverride`・
   /// `readReceiptsEnabledOverride`・自分の通知オフ上書きが広場全体の設定より
@@ -1841,6 +1848,14 @@ class FirestoreGroupRepository implements GroupRepository {
     required List<String>? roleIds,
   }) async {
     await _roomRef(groupId, roomId).update({'rolePriorityOverride': roleIds});
+  }
+
+  @override
+  Future<void> setRoomOrder({
+    required String groupId,
+    required List<String> roomIds,
+  }) async {
+    await _groups.doc(groupId).update({'roomOrder': roomIds});
   }
 
   @override

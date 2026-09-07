@@ -9,6 +9,7 @@ import '../../providers/app_ui_style_provider.dart';
 import '../../providers/repository_providers.dart';
 import '../../utils/auto_dismiss_banner.dart';
 import '../../widgets/glass/glass_dialog.dart';
+import 'multi_date_picker_dialog.dart';
 
 /// 日程調整の作成ダイアログ（2026-09-05追加）。`calendar_event_form_dialog.dart`
 /// と同じ`showDialog`パターン。保存されたら`true`、キャンセルされたら
@@ -71,9 +72,6 @@ class _ScheduleCoordinationFormDialogState
   static DateTime _dateOnly(DateTime date) =>
       DateTime(date.year, date.month, date.day);
 
-  static bool _isSameDay(DateTime a, DateTime b) =>
-      a.year == b.year && a.month == b.month && a.day == b.day;
-
   @override
   void dispose() {
     _titleController.dispose();
@@ -93,27 +91,17 @@ class _ScheduleCoordinationFormDialogState
     );
   }
 
-  Future<void> _addCandidate() async {
-    final strings = ref.read(appStringsProvider);
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: DateTime.now(),
-      firstDate: DateTime.now().subtract(const Duration(days: 365 * 5)),
-      lastDate: DateTime.now().add(const Duration(days: 365 * 5)),
-      builder: _resetDialogConstraints,
+  Future<void> _pickCandidates() async {
+    final result = await showMultiDatePickerDialog(
+      context,
+      initialSelectedDates: _candidates.toSet(),
     );
-    if (picked == null || !mounted) return;
-    final date = _dateOnly(picked);
-    if (_candidates.any((d) => _isSameDay(d, date))) {
-      showAutoDismissBanner(
-        context,
-        message: strings.scheduleCoordinationDuplicateCandidateError,
-      );
-      return;
-    }
+    if (result == null || !mounted) return;
     setState(() {
-      _candidates.add(date);
-      _candidates.sort();
+      _candidates
+        ..clear()
+        ..addAll(result)
+        ..sort();
     });
   }
 
@@ -263,7 +251,7 @@ class _ScheduleCoordinationFormDialogState
                 ),
               ),
             TextButton.icon(
-              onPressed: _addCandidate,
+              onPressed: _pickCandidates,
               icon: const Icon(Icons.add),
               label: Text(strings.scheduleCoordinationAddCandidateButton),
             ),

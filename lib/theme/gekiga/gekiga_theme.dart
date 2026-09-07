@@ -18,7 +18,7 @@ import 'gekiga_colors.dart';
 class GekigaTheme {
   GekigaTheme._();
 
-  static ThemeData build(Color backgroundColor) {
+  static ThemeData build(Color backgroundColor, {String? fontFamily}) {
     // `ColorScheme.dark()`をそのまま土台にすると、ここで明示的に
     // 上書きしていないトークン（primaryContainer・tertiary・
     // surfaceContainerHighest・outline等）にMaterial既定のダークテーマ色
@@ -56,17 +56,18 @@ class GekigaTheme {
           surfaceContainerHighest: GekigaColors.panel,
         );
 
-    // 本文はCJK文字幅の推定崩れ（app_theme.dartのコメント参照）を避ける
-    // ため既定のシステムフォントのままにし、太字ラテン体フォント（Anton、
-    // 日本語グリフ非対応）はdisplayLarge/Medium/Smallという、このアプリ
-    // では現状ほぼ使われていない「英数字主体の大きな見出し・ロゴ・
-    // カウンター表示」向けの置き場所だけに限定して当てる。AppBarタイトルや
-    // 設定の見出しラベルなど日本語が主体のテキストには適用しない
-    // （当てても結局グリフが無くシステムフォントへフォールバックする
-    // だけで、太字＋字間調整の方が素直に劇画らしさを出せるため）。
+    // 本文はユーザーが選んだフォントデザイン（[fontFamily]、未選択時は
+    // システム既定のまま）に従う（2026-09-07、劇画も対象化）。太字ラテン体
+    // フォント（Anton、日本語グリフ非対応）はdisplayLarge/Medium/Smallと
+    // いう、このアプリでは現状ほぼ使われていない「英数字主体の大きな
+    // 見出し・ロゴ・カウンター表示」向けの置き場所だけに、ユーザーの
+    // フォント選択とは独立した劇画の固定アイデンティティ要素として
+    // 常に上書きする（`.merge`が`.apply`の後に効くため、下の
+    // `fontFamily: fontFamily`の指定を上書きする形になる）。
     final baseText = ThemeData.dark().textTheme.apply(
       bodyColor: GekigaColors.onPanel,
       displayColor: GekigaColors.onPanel,
+      fontFamily: fontFamily,
     );
     final displayStyle = GoogleFonts.anton();
     final textTheme = baseText.copyWith(
@@ -177,6 +178,11 @@ class GekigaTheme {
         ),
       ),
       dividerColor: GekigaColors.onPanel.withValues(alpha: 0.24),
+      // ホバーで文言を出さない方針（CLAUDE.md）をFlutter標準ウィジェット
+      // （DatePicker/TimePickerの入力方法切替ボタン等）にも適用するための
+      // 回避策。Tooltipを恒久的に無効化するAPIは無いため、実用上出現しない
+      // 長さまでwaitDurationを伸ばす（2026-09-07追加）。
+      tooltipTheme: const TooltipThemeData(waitDuration: Duration(days: 365)),
       // 劇画はテキスト・アイコンの重要度階調（`text_prominence_colors.dart`）
       // の対象外（背景色と衝突して視認性が落ちた過去の経緯があるため、
       // 白1色のまま）。`AppThemeExtras.textTertiary`は他スタイルと型を
