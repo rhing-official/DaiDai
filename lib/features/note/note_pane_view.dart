@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io' show Platform;
 
 import 'package:appflowy_editor/appflowy_editor.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -13,10 +14,12 @@ import 'package:image_picker/image_picker.dart';
 import '../../l10n/strings.dart';
 import '../../models/app_ui_style.dart';
 import '../../models/app_user.dart';
+import '../../models/note_op.dart';
 import '../../providers/app_ui_style_provider.dart';
 import '../../providers/repository_providers.dart';
 import '../../theme/popup_surface_colors.dart';
 import '../../utils/attachment_upload.dart';
+import '../../utils/note_transaction_codec.dart';
 import '../../widgets/glass/glass_app_bar.dart';
 import '../../widgets/swipe_gestures.dart';
 
@@ -48,9 +51,14 @@ const _kNoteDarkTextStyleConfiguration = TextStyleConfiguration(
 /// おり、自作の「記号入力とボタンを同じ判定にする」処理は不要（詳細は
 /// `_buildSelectionMenuItems`/`_buildToolbarItems`参照）。
 ///
-/// v1は単独保存（後勝ち）方式（[NoteRepository]参照）。編集停止から一定時間
-/// 後・画面を閉じる際に[NoteRepository.updateNote]でフルドキュメント上書き
-/// 保存する。
+/// リアルタイム共同編集（2026-09-09追加）: [NoteRepository.appendNoteOp]/
+/// [NoteRepository.watchNoteOpsSince]による操作ログ（`notes/{noteId}/ops`）を
+/// 介して、appflowy_editorの`Transaction`単位で他の参加者の編集を即座に
+/// 反映する。[NoteRepository.updateNote]によるフルドキュメント上書きは
+/// 「チェックポイント」として残し、編集停止から一定時間後・画面を閉じる際・
+/// 操作ログが一定件数溜まった時・画面を開いて追いつき処理が終わった直後に
+/// 実行し、その時点までの操作ログを[NoteRepository.pruneNoteOpsUpTo]で
+/// 間引く。
 class NotePaneView extends ConsumerStatefulWidget {
   const NotePaneView({
     required this.isDm,
@@ -80,11 +88,22 @@ class _NotePaneViewState extends ConsumerState<NotePaneView> {
   final _titleFocusNode = FocusNode();
   final _attachButtonKey = GlobalKey();
   StreamSubscription<EditorTransactionValue>? _transactionSub;
-  Timer? _saveDebounce;
+  StreamSubscription<List<NoteOp>>? _opsSub;
+  Timer? _checkpointDebounce;
+  Timer? _checkpointTimer;
+  Timer? _sendDebounce;
   bool _dirty = false;
   bool _uploading = false;
+  String _sessionId = '';
+  Timestamp? _lastAppliedOpCreatedAt;
+  bool _caughtUpInitialOps = false;
+  int _opsSinceLastCheckpoint = 0;
+  final List<Map<String, dynamic>> _pendingOutgoingTransactions = [];
 
-  static const _saveDebounceDuration = Duration(milliseconds: 1500);
+  static const _checkpointDebounceDuration = Duration(milliseconds: 1500);
+  static const _sendDebounceDuration = Duration(milliseconds: 350);
+  static const _checkpointInterval = Duration(seconds: 30);
+  static const _checkpointOpThreshold = 50;
 
   bool get _isMobilePlatform =>
       !kIsWeb && (Platform.isAndroid || Platform.isIOS);
@@ -96,23 +115,27 @@ class _NotePaneViewState extends ConsumerState<NotePaneView> {
   }
 
   Future<void> _load() async {
-    final note = await ref
-        .read(noteRepositoryProvider)
-        .getNote(
-          isDm: widget.isDm,
-          conversationId: widget.conversationId,
-          roomId: widget.roomId,
-          noteId: widget.noteId,
-        );
+    // ネットワークアクセス無しでランダムIDを生成するトリック（自動採番される
+    // ドキュメントIDをローカルで確定させるだけで、実際には書き込まない）。
+    // このノートを開いている間、操作ログのエコー判定に使う。
+    _sessionId = FirebaseFirestore.instance.collection('_').doc().id;
+    final noteRepository = ref.read(noteRepositoryProvider);
+    final note = await noteRepository.getNote(
+      isDm: widget.isDm,
+      conversationId: widget.conversationId,
+      roomId: widget.roomId,
+      noteId: widget.noteId,
+    );
     if (!mounted) return;
     _titleController.text = note?.title ?? '';
+    _lastAppliedOpCreatedAt = note?.updatedAt;
     final document = note != null && note.content.isNotEmpty
         ? Document.fromJson(note.content)
         : Document.blank(withInitialText: true);
     final editorState = EditorState(document: document);
-    _transactionSub = editorState.transactionStream.listen((_) {
-      _scheduleSave();
-    });
+    _transactionSub = editorState.transactionStream.listen(
+      _handleLocalTransaction,
+    );
     setState(() {
       _editorState = editorState;
       _scrollController = EditorScrollController(
@@ -120,45 +143,177 @@ class _NotePaneViewState extends ConsumerState<NotePaneView> {
         shrinkWrap: false,
       );
     });
-  }
-
-  void _scheduleSave() {
-    _dirty = true;
-    _saveDebounce?.cancel();
-    _saveDebounce = Timer(_saveDebounceDuration, _save);
-  }
-
-  Future<void> _save() async {
-    _saveDebounce?.cancel();
-    final editorState = _editorState;
-    if (!_dirty || editorState == null) return;
-    _dirty = false;
-    await ref
-        .read(noteRepositoryProvider)
-        .updateNote(
+    debugPrint(
+      '[note-sync] subscribing ops, sessionId=$_sessionId, '
+      'afterCreatedAt=$_lastAppliedOpCreatedAt',
+    );
+    _opsSub = noteRepository
+        .watchNoteOpsSince(
           isDm: widget.isDm,
           conversationId: widget.conversationId,
           roomId: widget.roomId,
           noteId: widget.noteId,
-          title: _titleController.text,
-          content: editorState.document.toJson(),
-          editedBy: widget.currentUser.userId,
+          afterCreatedAt: _lastAppliedOpCreatedAt,
+        )
+        .listen(
+          _handleIncomingOps,
+          onError: (Object e, StackTrace st) {
+            debugPrint('[note-sync] ops stream ERROR: $e\n$st');
+          },
         );
+    _checkpointTimer = Timer.periodic(
+      _checkpointInterval,
+      (_) => _checkpointAndPrune(),
+    );
   }
 
-  void _handleTitleChanged(String _) => _scheduleSave();
+  void _handleLocalTransaction(EditorTransactionValue event) {
+    final (time, transaction, _) = event;
+    if (time != TransactionTime.after) return;
+    _pendingOutgoingTransactions.add(encodeTransaction(transaction));
+    _sendDebounce?.cancel();
+    _sendDebounce = Timer(_sendDebounceDuration, _flushOutgoing);
+    _scheduleCheckpoint();
+  }
+
+  Future<void> _flushOutgoing() {
+    if (_pendingOutgoingTransactions.isEmpty) return Future.value();
+    final batch = List<Map<String, dynamic>>.of(_pendingOutgoingTransactions);
+    _pendingOutgoingTransactions.clear();
+    debugPrint(
+      '[note-sync] sending ${batch.length} transaction(s), '
+      'sessionId=$_sessionId',
+    );
+    return ref
+        .read(noteRepositoryProvider)
+        .appendNoteOp(
+          isDm: widget.isDm,
+          conversationId: widget.conversationId,
+          roomId: widget.roomId,
+          noteId: widget.noteId,
+          transactions: batch,
+          sessionId: _sessionId,
+          authorId: widget.currentUser.userId,
+        )
+        .then((_) => debugPrint('[note-sync] send succeeded'))
+        .catchError((Object e, StackTrace st) {
+          debugPrint('[note-sync] send FAILED: $e\n$st');
+        });
+  }
+
+  /// 受信した操作ログを、自分が送信したもの（[NoteOp.sessionId]が自分と一致）
+  /// を除いて`EditorState.apply(isRemote: true)`で適用する。ウォーターマーク
+  /// [_lastAppliedOpCreatedAt]は自分のop含め全件で前進させ、間引きの判定に使う。
+  void _handleIncomingOps(List<NoteOp> ops) {
+    final editorState = _editorState;
+    debugPrint(
+      '[note-sync] received ${ops.length} op(s), '
+      'mySessionId=$_sessionId, watermark=$_lastAppliedOpCreatedAt, '
+      'editorStateNull=${editorState == null}',
+    );
+    if (editorState == null) return;
+    final isInitialCatchUp = !_caughtUpInitialOps;
+    _caughtUpInitialOps = true;
+    for (final op in ops) {
+      final createdAt = op.createdAt;
+      if (createdAt != null &&
+          _lastAppliedOpCreatedAt != null &&
+          createdAt.compareTo(_lastAppliedOpCreatedAt!) <= 0) {
+        debugPrint(
+          '[note-sync] skip op (already applied): '
+          'opSessionId=${op.sessionId}, createdAt=$createdAt',
+        );
+        continue;
+      }
+      if (op.sessionId != _sessionId) {
+        debugPrint(
+          '[note-sync] applying op from sessionId=${op.sessionId}, '
+          '${op.transactions.length} transaction(s)',
+        );
+        for (final txJson in op.transactions) {
+          try {
+            final transaction = decodeTransaction(editorState.document, txJson);
+            editorState.apply(transaction, isRemote: true);
+            debugPrint('[note-sync] apply OK: $txJson');
+          } catch (e, st) {
+            debugPrint('[note-sync] apply FAILED: $e\n$txJson\n$st');
+          }
+        }
+      } else {
+        debugPrint('[note-sync] skip op (own echo): sessionId=${op.sessionId}');
+      }
+      if (createdAt != null) _lastAppliedOpCreatedAt = createdAt;
+      _opsSinceLastCheckpoint++;
+    }
+    if ((isInitialCatchUp && ops.isNotEmpty) ||
+        _opsSinceLastCheckpoint >= _checkpointOpThreshold) {
+      _checkpointAndPrune();
+    }
+  }
+
+  void _scheduleCheckpoint() {
+    _dirty = true;
+    _checkpointDebounce?.cancel();
+    _checkpointDebounce = Timer(
+      _checkpointDebounceDuration,
+      _checkpointAndPrune,
+    );
+  }
+
+  /// フルドキュメントのチェックポイント保存（[NoteRepository.updateNote]）と、
+  /// それより古い操作ログの間引き（[NoteRepository.pruneNoteOpsUpTo]）を行う。
+  /// 間引きの安全性は「既に確定済みのopのcreatedAt（[_lastAppliedOpCreatedAt]）
+  /// より前は、このチェックポイントの内容に反映済み」という前提に依るため、
+  /// ここでのチェックポイント保存は`_dirty`の有無に関わらず常に行う（他人の
+  /// 編集を受信しただけで自分は未編集の場合でも、間引き前には必ず最新の
+  /// マージ済み内容を書き込む）。
+  Future<void> _checkpointAndPrune() async {
+    _checkpointDebounce?.cancel();
+    final editorState = _editorState;
+    if (editorState == null) return;
+    _dirty = false;
+    final noteRepository = ref.read(noteRepositoryProvider);
+    final watermark = _lastAppliedOpCreatedAt;
+    await noteRepository.updateNote(
+      isDm: widget.isDm,
+      conversationId: widget.conversationId,
+      roomId: widget.roomId,
+      noteId: widget.noteId,
+      title: _titleController.text,
+      content: editorState.document.toJson(),
+      editedBy: widget.currentUser.userId,
+    );
+    _opsSinceLastCheckpoint = 0;
+    if (watermark != null) {
+      await noteRepository.pruneNoteOpsUpTo(
+        isDm: widget.isDm,
+        conversationId: widget.conversationId,
+        roomId: widget.roomId,
+        noteId: widget.noteId,
+        upToCreatedAtInclusive: watermark,
+      );
+    }
+  }
+
+  void _handleTitleChanged(String _) => _scheduleCheckpoint();
 
   Future<void> _close() async {
-    await _save();
+    _sendDebounce?.cancel();
+    await _flushOutgoing();
+    await _checkpointAndPrune();
     if (mounted) widget.onClose();
   }
 
   @override
   void dispose() {
-    _saveDebounce?.cancel();
+    _checkpointDebounce?.cancel();
+    _checkpointTimer?.cancel();
+    _sendDebounce?.cancel();
     // dispose中は非同期await不可のため、確定済みの内容をfire-and-forgetで
     // 保存する（ページを閉じる通常経路は`_close`が先にawait済みのため、
-    // ここに到達するのは想定外の破棄経路への保険）。
+    // ここに到達するのは想定外の破棄経路への保険）。次にこのノートを開いた
+    // クライアントが追いつき処理の一環で操作ログの間引きも行うため、ここでは
+    // 間引きまでは行わない。
     final editorState = _editorState;
     if (_dirty && editorState != null) {
       ref
@@ -173,7 +328,21 @@ class _NotePaneViewState extends ConsumerState<NotePaneView> {
             editedBy: widget.currentUser.userId,
           );
     }
+    if (_pendingOutgoingTransactions.isNotEmpty) {
+      ref
+          .read(noteRepositoryProvider)
+          .appendNoteOp(
+            isDm: widget.isDm,
+            conversationId: widget.conversationId,
+            roomId: widget.roomId,
+            noteId: widget.noteId,
+            transactions: _pendingOutgoingTransactions,
+            sessionId: _sessionId,
+            authorId: widget.currentUser.userId,
+          );
+    }
     _transactionSub?.cancel();
+    _opsSub?.cancel();
     _scrollController?.dispose();
     _editorState?.dispose();
     _titleController.dispose();
