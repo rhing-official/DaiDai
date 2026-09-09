@@ -681,6 +681,24 @@ service cloud.firestore {
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'content', 'lastEditedBy', 'updatedAt']);
           allow delete: if request.auth != null
             && request.auth.uid == resource.data.createdBy;
+
+          // ops/{opId}: リアルタイム共同編集の操作ログ（2026-09-09追加）。
+          // 追記専用（update不可）。読み取り・作成は上のnotesと同じ参加者集合。
+          // 間引き（古いopsの削除）は「今このノートを開いている誰か」が行う
+          // メンテナンス操作のため、参加者なら誰でも削除可能とする（notes本体を
+          // 参加者全員が上書きできるのと同水準の信頼モデル）。
+          match /ops/{opId} {
+            allow read: if request.auth != null
+              && request.auth.uid in get(/databases/$(database)/documents/directMessages/$(dmId)/rooms/$(roomId)).data.participants;
+            allow create: if request.auth != null
+              && request.auth.uid in get(/databases/$(database)/documents/directMessages/$(dmId)/rooms/$(roomId)).data.participants
+              && request.auth.uid == request.resource.data.authorId
+              && request.resource.data.createdAt == request.time
+              && request.resource.data.keys().hasOnly(['transactions', 'sessionId', 'authorId', 'createdAt']);
+            allow update: if false;
+            allow delete: if request.auth != null
+              && request.auth.uid in get(/databases/$(database)/documents/directMessages/$(dmId)/rooms/$(roomId)).data.participants;
+          }
         }
       }
     }
@@ -1198,6 +1216,21 @@ service cloud.firestore {
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'content', 'lastEditedBy', 'updatedAt']);
           allow delete: if request.auth != null
             && request.auth.uid == resource.data.createdBy;
+
+          // ops/{opId}: リアルタイム共同編集の操作ログ（2026-09-09追加）。
+          // DM側と同型（詳細はdirectMessages側のnotes/opsコメント参照）。
+          match /ops/{opId} {
+            allow read: if request.auth != null
+              && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)/rooms/$(roomId)).data.memberIds;
+            allow create: if request.auth != null
+              && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)/rooms/$(roomId)).data.memberIds
+              && request.auth.uid == request.resource.data.authorId
+              && request.resource.data.createdAt == request.time
+              && request.resource.data.keys().hasOnly(['transactions', 'sessionId', 'authorId', 'createdAt']);
+            allow update: if false;
+            allow delete: if request.auth != null
+              && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)/rooms/$(roomId)).data.memberIds;
+          }
         }
       }
     }

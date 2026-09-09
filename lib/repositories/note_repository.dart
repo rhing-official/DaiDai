@@ -1,13 +1,16 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../models/note.dart';
+import '../models/note_op.dart';
 
 /// 共有ノート機能のRepository（2026-09-06追加）。`PollRepository`と同じく
 /// 「isDm＋conversationId（dmId|groupId）＋roomId」だけに正規化した薄い実装。
 ///
-/// v1は単独保存（後勝ち）方式のため、[updateNote]は常にフルドキュメント
-/// 上書きに徹する（将来リアルタイム共同編集に拡張する際、部分パッチ適用用の
-/// メソッドを追加しやすいよう責務を分けている）。
+/// [updateNote]はフルドキュメント上書き専任で、リアルタイム共同編集
+/// （2026-09-09追加）における「チェックポイント」保存として使う。実際の
+/// リアルタイム反映は[appendNoteOp]/[watchNoteOpsSince]による操作ログ
+/// （`notes/{noteId}/ops`）経由で行う（`note_pane_view.dart`参照）。
+/// [pruneNoteOpsUpTo]はチェックポイント確定後に古い操作ログを間引く。
 abstract class NoteRepository {
   Stream<List<Note>> watchNotes({
     required bool isDm,
@@ -62,6 +65,41 @@ abstract class NoteRepository {
     required String conversationId,
     required String roomId,
     required String noteId,
+  });
+
+  /// [afterCreatedAt]（省略時は先頭から）より新しい操作ログを、生成順
+  /// （createdAt昇順）でライブ購読する。エディタを開いた直後はチェックポイント
+  /// （`Note.updatedAt`）以降のopsを一括で受け取り（＝追いつき）、その後は
+  /// 新規追加分のみ流れてくる。
+  Stream<List<NoteOp>> watchNoteOpsSince({
+    required bool isDm,
+    required String conversationId,
+    required String roomId,
+    required String noteId,
+    Timestamp? afterCreatedAt,
+  });
+
+  /// ローカルの短いデバウンス窓内に発生した複数[transactions]を1回の書き込み
+  /// にまとめて送信する。[sessionId]はエコー判定用（このノートを開いている
+  /// 間だけ有効なランダムID）。
+  Future<void> appendNoteOp({
+    required bool isDm,
+    required String conversationId,
+    required String roomId,
+    required String noteId,
+    required List<Map<String, dynamic>> transactions,
+    required String sessionId,
+    required String authorId,
+  });
+
+  /// [upToCreatedAtInclusive]以前の操作ログを削除する（チェックポイント確定後
+  /// の間引き）。
+  Future<void> pruneNoteOpsUpTo({
+    required bool isDm,
+    required String conversationId,
+    required String roomId,
+    required String noteId,
+    required Timestamp upToCreatedAtInclusive,
   });
 }
 
@@ -220,5 +258,91 @@ class FirestoreNoteRepository implements NoteRepository {
       roomId: roomId,
       noteId: noteId,
     ).delete();
+  }
+
+  CollectionReference<Map<String, dynamic>> _opsCollection({
+    required bool isDm,
+    required String conversationId,
+    required String roomId,
+    required String noteId,
+  }) {
+    return _noteRef(
+      isDm: isDm,
+      conversationId: conversationId,
+      roomId: roomId,
+      noteId: noteId,
+    ).collection('ops');
+  }
+
+  @override
+  Stream<List<NoteOp>> watchNoteOpsSince({
+    required bool isDm,
+    required String conversationId,
+    required String roomId,
+    required String noteId,
+    Timestamp? afterCreatedAt,
+  }) {
+    Query<Map<String, dynamic>> query = _opsCollection(
+      isDm: isDm,
+      conversationId: conversationId,
+      roomId: roomId,
+      noteId: noteId,
+    ).orderBy('createdAt');
+    if (afterCreatedAt != null) {
+      query = query.where('createdAt', isGreaterThan: afterCreatedAt);
+    }
+    return query.snapshots().map((snapshot) {
+      return snapshot.docs
+          .map((doc) => NoteOp.fromJson(doc.id, doc.data()))
+          .toList();
+    });
+  }
+
+  @override
+  Future<void> appendNoteOp({
+    required bool isDm,
+    required String conversationId,
+    required String roomId,
+    required String noteId,
+    required List<Map<String, dynamic>> transactions,
+    required String sessionId,
+    required String authorId,
+  }) {
+    return _opsCollection(
+      isDm: isDm,
+      conversationId: conversationId,
+      roomId: roomId,
+      noteId: noteId,
+    ).add({
+      'transactions': transactions,
+      'sessionId': sessionId,
+      'authorId': authorId,
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  @override
+  Future<void> pruneNoteOpsUpTo({
+    required bool isDm,
+    required String conversationId,
+    required String roomId,
+    required String noteId,
+    required Timestamp upToCreatedAtInclusive,
+  }) async {
+    final snapshot = await _opsCollection(
+      isDm: isDm,
+      conversationId: conversationId,
+      roomId: roomId,
+      noteId: noteId,
+    ).where('createdAt', isLessThanOrEqualTo: upToCreatedAtInclusive).get();
+    if (snapshot.docs.isEmpty) return;
+    // WriteBatchは1バッチ500件上限のため分割する。
+    for (var i = 0; i < snapshot.docs.length; i += 450) {
+      final batch = _firestore.batch();
+      for (final doc in snapshot.docs.skip(i).take(450)) {
+        batch.delete(doc.reference);
+      }
+      await batch.commit();
+    }
   }
 }
