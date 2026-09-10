@@ -625,10 +625,21 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
     String roomId,
   ) async* {
     final messagesRef = _dmRoomRef(dmId, roomId).collection('messages');
-    final latest = await messagesRef
+    // 「直近の活動日」の特定は、まずローカルキャッシュから即座に試みる
+    // （2026-09-10追加）。Query.get(source: cache)はキャッシュに何も無くても
+    // 例外を投げず空のQuerySnapshotを返すため、空だった場合のみ従来通り
+    // サーバー優先の取得にフォールバックする（キャッシュ未成熟＝0件と
+    // 誤判定しないための2段構え）。
+    var latest = await messagesRef
         .orderBy('sentAt', descending: true)
         .limit(1)
-        .get();
+        .get(const GetOptions(source: Source.cache));
+    if (latest.docs.isEmpty) {
+      latest = await messagesRef
+          .orderBy('sentAt', descending: true)
+          .limit(1)
+          .get();
+    }
     if (latest.docs.isEmpty) {
       final now = DateTime.now();
       yield DayMessagesPage(

@@ -800,10 +800,21 @@ class FirestoreGroupRepository implements GroupRepository {
     String roomId,
   ) async* {
     final messagesRef = _roomRef(groupId, roomId).collection('messages');
-    final latest = await messagesRef
+    // 「直近の活動日」の特定は、まずローカルキャッシュから即座に試みる
+    // （2026-09-10追加、direct_message_repository.dartの
+    // watchLatestDayMessagesと対称の実装）。Query.get(source: cache)は
+    // キャッシュに何も無くても例外を投げず空のQuerySnapshotを返すため、
+    // 空だった場合のみ従来通りサーバー優先の取得にフォールバックする。
+    var latest = await messagesRef
         .orderBy('sentAt', descending: true)
         .limit(1)
-        .get();
+        .get(const GetOptions(source: Source.cache));
+    if (latest.docs.isEmpty) {
+      latest = await messagesRef
+          .orderBy('sentAt', descending: true)
+          .limit(1)
+          .get();
+    }
     if (latest.docs.isEmpty) {
       final now = DateTime.now();
       yield DayMessagesPage(

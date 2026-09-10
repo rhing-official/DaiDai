@@ -2,6 +2,7 @@ import 'dart:async' show unawaited;
 
 import 'package:appflowy_editor/appflowy_editor.dart'
     show AppFlowyEditorLocalizations;
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
@@ -49,6 +50,16 @@ Future<void> main() async {
   // 開くだけで何も起きない不具合の原因）。パスベースのURL戦略に切り替える。
   usePathUrlStrategy();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  // Firestoreのオフライン永続化キャッシュを有効化する（2026-09-10追加）。
+  // 未指定だとWeb版は特にメモリキャッシュのみとなり、画面を離れて購読が
+  // 切れるたびに毎回サーバーへ再取得しに行くことになる。webPersistentTabManagerに
+  // マルチタブ対応を明示指定し、開発中に複数タブを開く運用（別アカウントでの
+  // 動作確認等）でpersistenceが片方だけメモリにフォールバックしないようにする。
+  FirebaseFirestore.instance.settings = const Settings(
+    persistenceEnabled: true,
+    cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
+    webPersistentTabManager: WebPersistentMultipleTabManager(),
+  );
   // プッシュ通知（Web + Androidのみ、lib/push_notifications.dart参照）。
   // バックグラウンドハンドラの登録・ローカル通知チャンネルの初期化は
   // 認証状態に関わらず一度だけ行う（実際のトークン登録・権限リクエストは

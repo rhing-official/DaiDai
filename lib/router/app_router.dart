@@ -93,12 +93,8 @@ final goRouterProvider = Provider<GoRouter>((ref) {
 
   // pushで開いた画面向けの「右スワイプで戻る」。通話画面（/call・/group-call）は
   // 誤スワイプでの離脱・切断事故を避けるため対象外にしている。
-  // [alsoSwipeLeft]を指定した画面（メッセージ画面）は左スワイプでも同じく
-  // 戻れるようにする。他画面の「右スワイプ＝戻る」という規約はそのまま
-  // 維持しつつ、要望のあった左スワイプを追加で許可する形。吹き出し自体が
-  // 左スワイプで返信/編集ジェスチャーを持っているため、吹き出しの上からの
-  // スワイプではそちらが優先され反応しない場合がある（AppBar・入力欄・
-  // 吹き出しの無い余白からのスワイプでは問題なく効く）。
+  // [alsoSwipeLeft]は現在どの呼び出し元からも使われていない（他画面の
+  // 「右スワイプ＝戻る」という規約のみ）。
   Widget swipeBack(Widget child, {bool alsoSwipeLeft = false}) =>
       SwipeBackDetector(
         onBack: () {
@@ -134,22 +130,19 @@ final goRouterProvider = Provider<GoRouter>((ref) {
 
   // 語らい画面（/chat/dm・/chat/group）専用の「右スワイプで戻る」。
   // 指の位置にリアルタイムに追従し、途中で離すとキャンセルできる
-  // インタラクティブなジェスチャーにする（2026-09-07追加）。左スワイプは
-  // 上の[swipeBack]と同じ、離した瞬間の速度判定のみの挙動を維持する。
-  Page<void> interactiveChatSwipeBack(
-    GoRouterState state,
-    Widget child, {
-    bool alsoSwipeLeft = true,
-  }) => opaqueFalsePage(
-    state,
-    InteractiveSwipeBackTransition(
-      onBack: () {
-        if (router.canPop()) router.pop();
-      },
-      alsoSwipeLeft: alsoSwipeLeft,
-      child: child,
-    ),
-  );
+  // インタラクティブなジェスチャーにする（2026-09-07追加）。左スワイプでの
+  // 「戻る」は以前対応していたが誤操作につながるため2026-09-10に廃止した
+  // （`InteractiveSwipeBackTransition`参照）。
+  Page<void> interactiveChatSwipeBack(GoRouterState state, Widget child) =>
+      opaqueFalsePage(
+        state,
+        InteractiveSwipeBackTransition(
+          onBack: () {
+            if (router.canPop()) router.pop();
+          },
+          child: child,
+        ),
+      );
 
   // 発信側は、モバイルのみ全画面の/callへpushする。PCでは全画面ルートを
   // 使わず、通話セッションを直接開始するだけにする（2026-08-19変更）。
@@ -234,12 +227,10 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/announcements',
         // 便り（公式アカウント）画面もチャット画面と同じ吹き出しUIを使うため、
-        // 語らい画面と同じインタラクティブな右スワイプ戻るを適用する
-        // （左スワイプは元々`alsoSwipeLeft`未指定＝無効だったため維持）。
+        // 語らい画面と同じインタラクティブな右スワイプ戻るを適用する。
         pageBuilder: (context, state) => interactiveChatSwipeBack(
           state,
           AnnouncementScreen(currentUser: state.extra! as AppUser),
-          alsoSwipeLeft: false,
         ),
       ),
       GoRoute(

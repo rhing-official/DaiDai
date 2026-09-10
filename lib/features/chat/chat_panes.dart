@@ -10,7 +10,6 @@ import '../../models/album.dart';
 import '../../models/app_ui_style.dart';
 import '../../models/app_user.dart';
 import '../../models/conversation_prefs.dart';
-import '../../models/day_messages_page.dart';
 import '../../models/direct_message.dart';
 import '../../models/dm_room.dart';
 import '../../models/group.dart';
@@ -19,6 +18,7 @@ import '../../models/message.dart';
 import '../../providers/app_ui_style_provider.dart';
 import '../../providers/block_providers.dart';
 import '../../providers/chat_navigation_providers.dart';
+import '../../providers/chat_room_message_cache.dart';
 import '../../providers/conversation_prefs_providers.dart';
 import '../../providers/repository_providers.dart';
 import '../../providers/user_providers.dart';
@@ -248,11 +248,14 @@ Future<bool> _confirmDisableRoomFeature(
 /// 一対（DM）のChatScreenを組み立てる。相手のアクティブなニックネームを
 /// タイトルに反映するためConsumer化している。go_routerのフルスクリーン遷移と、
 /// TalksTabの分割ビュー（一覧の右隣に埋め込み表示）の両方から使う共通部品。
-/// メッセージの1日単位ページネーション（2026-08-20追加）の状態
-/// （購読・読み込み済みの過去日）を自分自身のStateで保持するため
-/// `ConsumerStatefulWidget`にしている（`DmChatPane`が破棄されない限り
-/// ページネーション状態も保持され続ける。`TalksTab`の会話ペインキャッシュ
-/// と組み合わせることで、会話を切り替えても読み込み直しが起きなくなる）。
+/// メッセージの1日単位ページネーション（2026-08-20追加）の購読・読み込み済み
+/// データ自体は、このStateではなく`chatRoomMessageCacheManagerProvider`
+/// （`lib/providers/chat_room_message_cache.dart`、2026-09-10追加）がアプリ
+/// セッション寿命で保持する。寄合切り替えで`ChatScreen`のKeyが変わり
+/// `DmChatPane`ごと破棄・再生成されても、Firestore購読自体は裏で生き続け、
+/// 再訪問時に即座にデータへ再アタッチできる（以前は寄合を切り替えるたびに
+/// 購読も最初からやり直しになり、メッセージが一瞬消えて読み込み直される
+/// 体感遅延の原因だった）。
 class DmChatPane extends ConsumerStatefulWidget {
   const DmChatPane({
     required this.currentUser,
@@ -298,21 +301,14 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
   /// stream自体のidentityを固定し、`ListView`のScrollableを再構築させない。
   final _messagesController = StreamController<List<Message>>.broadcast();
 
-  /// 直近の活動日1日分のライブ購読分（メッセージの1日単位ページネーション、
-  /// 2026-08-20追加）。
-  List<Message> _liveTailMessages = const [];
-
-  /// [_loadOlderMessages]で読み込んだ、直近の活動日より古い日の蓄積分。
-  final List<Message> _olderMessages = [];
-
-  /// 次に[_loadOlderMessages]を呼ぶ際の境界（現在読み込み済みの最も古い日の
-  /// 開始時刻）。`watchLatestDayMessages`の初回応答で確定する。
-  DateTime? _oldestLoadedDayStart;
-
-  bool _isLoadingOlder = false;
-  bool _hasMoreHistory = true;
-
-  StreamSubscription<DayMessagesPage>? _tailSub;
+  /// この寄合のメッセージ購読・読み込み済みリスト（`ChatRoomMessageCacheEntry`
+  /// のdocコメント参照）。[initState]でアタッチし、[dispose]でデタッチする。
+  late final ChatRoomCacheKey _cacheKey = ChatRoomCacheKey(
+    isDm: true,
+    conversationId: widget.dm.dmId,
+    roomId: widget.roomId,
+  );
+  late final ChatRoomMessageCacheEntry _cacheEntry;
 
   /// カレンダーをこの語らいの表示領域内に表示中か（2026-09-01追加、
   /// `EmbeddedCallPane`の`_showingCall`と同じローカル切り替え方式）。
@@ -333,79 +329,59 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
   @override
   void initState() {
     super.initState();
-    _subscribeTail();
+    _cacheEntry = ref
+        .read(chatRoomMessageCacheManagerProvider)
+        .attach(_cacheKey);
+    _cacheEntry.addListener(_onCacheEntryChanged);
+    _cacheEntry.ensureSubscribed(
+      () => ref
+          .read(directMessageRepositoryProvider)
+          .watchLatestDayMessages(widget.dm.dmId, widget.roomId),
+    );
   }
 
-  void _subscribeTail() {
-    _tailSub = ref
-        .read(directMessageRepositoryProvider)
-        .watchLatestDayMessages(widget.dm.dmId, widget.roomId)
-        .listen((page) {
-          if (!mounted) return;
-          setState(() {
-            _liveTailMessages = page.messages;
-            _oldestLoadedDayStart ??= page.dayStart;
-          });
-        });
+  void _onCacheEntryChanged() {
+    if (mounted) setState(() {});
   }
 
-  Future<void> _loadOlderMessages() async {
-    final boundary = _oldestLoadedDayStart;
-    if (_isLoadingOlder || !_hasMoreHistory || boundary == null) return;
-    setState(() => _isLoadingOlder = true);
-    final page = await ref
-        .read(directMessageRepositoryProvider)
-        .loadOlderDayMessages(
-          dmId: widget.dm.dmId,
-          roomId: widget.roomId,
-          beforeDayStart: boundary,
-        );
-    if (!mounted) return;
-    setState(() {
-      _isLoadingOlder = false;
-      if (page == null) {
-        _hasMoreHistory = false;
-      } else {
-        _olderMessages.addAll(page.messages);
-        _oldestLoadedDayStart = page.dayStart;
-      }
-    });
+  Future<void> _loadOlderMessages() {
+    return _cacheEntry.loadOlder(
+      (before) => ref
+          .read(directMessageRepositoryProvider)
+          .loadOlderDayMessages(
+            dmId: widget.dm.dmId,
+            roomId: widget.roomId,
+            beforeDayStart: before,
+          ),
+    );
   }
 
   /// 編集・リアクション・既読・削除等のメッセージ変更操作を実行した後、
-  /// 対象が過去日（[_olderMessages]、静的スナップショット）に含まれていれば
-  /// 最新状態を取り直してローカルに反映する（2026-08-21追加）。当日分
-  /// （[_liveTailMessages]）はFirestoreのライブ購読で自動反映されるため
-  /// 何もしない。過去日は`loadOlderDayMessages`が1回だけの取得のため、
-  /// これをしないと書き込み自体は成功していても画面には一切反映されず
-  /// 「リアクション・編集が効かない」ように見えてしまう。
+  /// 対象が過去日（`ChatRoomMessageCacheEntry.olderMessages`、静的
+  /// スナップショット）に含まれていれば最新状態を取り直してローカルに
+  /// 反映する（2026-08-21追加、ロジック本体は`_cacheEntry.afterMutation`
+  /// 参照）。当日分はFirestoreのライブ購読で自動反映されるため何もしない。
+  /// 過去日は`loadOlderDayMessages`が1回だけの取得のため、これをしないと
+  /// 書き込み自体は成功していても画面には一切反映されず「リアクション・
+  /// 編集が効かない」ように見えてしまう。
   Future<void> _afterMutation(
     Future<void> Function() action, {
     required List<String> messageIds,
     required Future<Message?> Function(String messageId) fetchMessage,
-  }) async {
-    await action();
-    if (!mounted) return;
-    for (final id in messageIds) {
-      if (_liveTailMessages.any((m) => m.messageId == id)) continue;
-      if (!_olderMessages.any((m) => m.messageId == id)) continue;
-      final fresh = await fetchMessage(id);
-      if (!mounted) return;
-      setState(() {
-        final index = _olderMessages.indexWhere((m) => m.messageId == id);
-        if (index == -1) return;
-        if (fresh == null) {
-          _olderMessages.removeAt(index);
-        } else {
-          _olderMessages[index] = fresh;
-        }
-      });
-    }
+  }) {
+    return _cacheEntry.afterMutation(
+      action,
+      messageIds: messageIds,
+      fetchMessage: fetchMessage,
+    );
   }
 
   @override
   void dispose() {
-    _tailSub?.cancel();
+    _cacheEntry.removeListener(_onCacheEntryChanged);
+    ref
+        .read(chatRoomMessageCacheManagerProvider)
+        .detach(_cacheKey, _cacheEntry);
     _messagesController.close();
     super.dispose();
   }
@@ -503,15 +479,18 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
     // 表示抑制で実現する（`BlockRepository`のコメント参照）。
     // hiddenForに自分のuserIdが含まれるメッセージ（範囲選択削除で自分が
     // 削除したもの）も、相手には見えたままここでは表示しないだけにする。
-    // _liveTailMessages（当日分）・_olderMessagesの各日分はいずれも
+    // liveTailMessages（当日分）・olderMessagesの各日分はいずれも
     // Firestoreクエリ側で既にsentAt降順（watchLatestDayMessages/
-    // loadOlderDayMessages参照）。_olderMessagesは「必ずそれまでより古い日」
+    // loadOlderDayMessages参照）。olderMessagesは「必ずそれまでより古い日」
     // をaddAllで末尾に追記していく設計のため、単純結合するだけで全体が
     // 降順ソート済みになる。以前はここで毎回O(n log n)の再ソートを
-    // 行っていたが、遡るたびに_olderMessagesが際限なく増えるため
+    // 行っていたが、遡るたびにolderMessagesが際限なく増えるため
     // 遡るほどコストが増大し、スクロールバックのたびにカクつく原因の
     // 一つになっていた（2026-09-07修正）。
-    final combined = <Message>[..._liveTailMessages, ..._olderMessages];
+    final combined = <Message>[
+      ..._cacheEntry.liveTailMessages,
+      ..._cacheEntry.olderMessages,
+    ];
     final filteredMessages = combined
         .where((m) => !m.hiddenFor.contains(currentUser.userId))
         .where((m) => !isBlocked || m.senderId != otherUserId)
@@ -555,8 +534,8 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
       onOpenNote: (noteId) => setState(() => _openNoteId = noteId),
       messagesStream: _messagesController.stream,
       onLoadOlderMessages: _loadOlderMessages,
-      isLoadingOlderMessages: _isLoadingOlder,
-      hasMoreHistory: _hasMoreHistory,
+      isLoadingOlderMessages: _cacheEntry.isLoadingOlder,
+      hasMoreHistory: _cacheEntry.hasMoreHistory,
       onSend: (content, {silent = false, replyTo}) async {
         if (isBlocked) {
           showAutoDismissBanner(
@@ -1865,21 +1844,14 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
   /// `initState`から`dispose`まで固定するために使う。
   final _messagesController = StreamController<List<Message>>.broadcast();
 
-  /// 直近の活動日1日分のライブ購読分（メッセージの1日単位ページネーション、
-  /// 2026-08-20追加）。
-  List<Message> _liveTailMessages = const [];
-
-  /// [_loadOlderMessages]で読み込んだ、直近の活動日より古い日の蓄積分。
-  final List<Message> _olderMessages = [];
-
-  /// 次に[_loadOlderMessages]を呼ぶ際の境界（現在読み込み済みの最も古い日の
-  /// 開始時刻）。`watchLatestDayRoomMessages`の初回応答で確定する。
-  DateTime? _oldestLoadedDayStart;
-
-  bool _isLoadingOlder = false;
-  bool _hasMoreHistory = true;
-
-  StreamSubscription<DayMessagesPage>? _tailSub;
+  /// この寄合のメッセージ購読・読み込み済みリスト（`ChatRoomMessageCacheEntry`
+  /// のdocコメント参照）。[initState]でアタッチし、[dispose]でデタッチする。
+  late final ChatRoomCacheKey _cacheKey = ChatRoomCacheKey(
+    isDm: false,
+    conversationId: widget.group.groupId,
+    roomId: widget.roomId,
+  );
+  late final ChatRoomMessageCacheEntry _cacheEntry;
 
   /// カレンダーをこの語らいの表示領域内に表示中か（2026-09-01追加、
   /// `EmbeddedCallPane`の`_showingCall`と同じローカル切り替え方式）。
@@ -1900,78 +1872,57 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
   @override
   void initState() {
     super.initState();
-    _subscribeTail();
+    _cacheEntry = ref
+        .read(chatRoomMessageCacheManagerProvider)
+        .attach(_cacheKey);
+    _cacheEntry.addListener(_onCacheEntryChanged);
+    _cacheEntry.ensureSubscribed(
+      () => ref
+          .read(groupRepositoryProvider)
+          .watchLatestDayRoomMessages(widget.group.groupId, widget.roomId),
+    );
   }
 
-  void _subscribeTail() {
-    _tailSub = ref
-        .read(groupRepositoryProvider)
-        .watchLatestDayRoomMessages(widget.group.groupId, widget.roomId)
-        .listen((page) {
-          if (!mounted) return;
-          setState(() {
-            _liveTailMessages = page.messages;
-            _oldestLoadedDayStart ??= page.dayStart;
-          });
-        });
+  void _onCacheEntryChanged() {
+    if (mounted) setState(() {});
   }
 
-  Future<void> _loadOlderMessages() async {
-    final boundary = _oldestLoadedDayStart;
-    if (_isLoadingOlder || !_hasMoreHistory || boundary == null) return;
-    setState(() => _isLoadingOlder = true);
-    final page = await ref
-        .read(groupRepositoryProvider)
-        .loadOlderRoomDayMessages(
-          groupId: widget.group.groupId,
-          roomId: widget.roomId,
-          beforeDayStart: boundary,
-        );
-    if (!mounted) return;
-    setState(() {
-      _isLoadingOlder = false;
-      if (page == null) {
-        _hasMoreHistory = false;
-      } else {
-        _olderMessages.addAll(page.messages);
-        _oldestLoadedDayStart = page.dayStart;
-      }
-    });
+  Future<void> _loadOlderMessages() {
+    return _cacheEntry.loadOlder(
+      (before) => ref
+          .read(groupRepositoryProvider)
+          .loadOlderRoomDayMessages(
+            groupId: widget.group.groupId,
+            roomId: widget.roomId,
+            beforeDayStart: before,
+          ),
+    );
   }
 
   /// 編集・リアクション・既読・削除等のメッセージ変更操作を実行した後、
-  /// 対象が過去日（[_olderMessages]、静的スナップショット）に含まれていれば
-  /// 最新状態を取り直してローカルに反映する（2026-08-21追加、
-  /// `_DmChatPaneState._afterMutation`と同じ設計）。当日分
-  /// （[_liveTailMessages]）はFirestoreのライブ購読で自動反映されるため
-  /// 何もしない。
+  /// 対象が過去日（`ChatRoomMessageCacheEntry.olderMessages`、静的
+  /// スナップショット）に含まれていれば最新状態を取り直してローカルに
+  /// 反映する（2026-08-21追加、`_DmChatPaneState._afterMutation`と同じ設計。
+  /// ロジック本体は`_cacheEntry.afterMutation`参照）。当日分はFirestoreの
+  /// ライブ購読で自動反映されるため何もしない。
   Future<void> _afterMutation(
     Future<void> Function() action, {
     required List<String> messageIds,
     required Future<Message?> Function(String messageId) fetchMessage,
-  }) async {
-    await action();
-    if (!mounted) return;
-    for (final id in messageIds) {
-      if (_liveTailMessages.any((m) => m.messageId == id)) continue;
-      if (!_olderMessages.any((m) => m.messageId == id)) continue;
-      final fresh = await fetchMessage(id);
-      if (!mounted) return;
-      setState(() {
-        final index = _olderMessages.indexWhere((m) => m.messageId == id);
-        if (index == -1) return;
-        if (fresh == null) {
-          _olderMessages.removeAt(index);
-        } else {
-          _olderMessages[index] = fresh;
-        }
-      });
-    }
+  }) {
+    return _cacheEntry.afterMutation(
+      action,
+      messageIds: messageIds,
+      fetchMessage: fetchMessage,
+    );
   }
 
   @override
   void dispose() {
-    _tailSub?.cancel();
+    _cacheEntry.removeListener(_onCacheEntryChanged);
+    ref
+        .read(chatRoomMessageCacheManagerProvider)
+        .detach(_cacheKey, _cacheEntry);
     _messagesController.close();
     super.dispose();
   }
@@ -2162,15 +2113,18 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
     );
     // hiddenForに自分のuserIdが含まれるメッセージ（範囲選択削除で自分が
     // 削除したもの）は、他のメンバーには見えたままここでは表示しない。
-    // _liveTailMessages（当日分）・_olderMessagesの各日分はいずれも
+    // liveTailMessages（当日分）・olderMessagesの各日分はいずれも
     // Firestoreクエリ側で既にsentAt降順（watchLatestDayMessages/
-    // loadOlderDayMessages参照）。_olderMessagesは「必ずそれまでより古い日」
+    // loadOlderDayMessages参照）。olderMessagesは「必ずそれまでより古い日」
     // をaddAllで末尾に追記していく設計のため、単純結合するだけで全体が
     // 降順ソート済みになる。以前はここで毎回O(n log n)の再ソートを
-    // 行っていたが、遡るたびに_olderMessagesが際限なく増えるため
+    // 行っていたが、遡るたびにolderMessagesが際限なく増えるため
     // 遡るほどコストが増大し、スクロールバックのたびにカクつく原因の
     // 一つになっていた（2026-09-07修正）。
-    final combined = <Message>[..._liveTailMessages, ..._olderMessages];
+    final combined = <Message>[
+      ..._cacheEntry.liveTailMessages,
+      ..._cacheEntry.olderMessages,
+    ];
     final filteredMessages = combined
         .where((m) => !m.hiddenFor.contains(currentUser.userId))
         .toList();
@@ -2223,8 +2177,8 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
             ),
       messagesStream: _messagesController.stream,
       onLoadOlderMessages: _loadOlderMessages,
-      isLoadingOlderMessages: _isLoadingOlder,
-      hasMoreHistory: _hasMoreHistory,
+      isLoadingOlderMessages: _cacheEntry.isLoadingOlder,
+      hasMoreHistory: _cacheEntry.hasMoreHistory,
       onSend: (content, {silent = false, replyTo}) =>
           groupRepository.sendRoomMessage(
             groupId: group.groupId,

@@ -21,6 +21,7 @@ import '../../models/message.dart';
 import '../../providers/app_ui_style_provider.dart';
 import '../../providers/block_providers.dart';
 import '../../providers/chat_navigation_providers.dart';
+import '../../providers/chat_room_message_cache.dart';
 import '../../providers/conversation_prefs_providers.dart';
 import '../../providers/conversation_sort_order_provider.dart';
 import '../../providers/friend_providers.dart';
@@ -712,14 +713,27 @@ class _TalksTabState extends ConsumerState<TalksTab> {
     // スナップショットへフォールバックすると既に存在しないmessages/rooms
     // サブコレクションを購読し続けpermission-deniedになるため、訪問履歴
     // からも取り除く（2026-08-13修正、2026-08-20にキャッシュ全体へ拡張）。
-    _visitedConversationKeys.removeWhere((key) {
+    // 併せて`ChatRoomMessageCacheManager`（寄合単位のメッセージ購読キャッシュ、
+    // 2026-09-10追加）側のエントリも破棄し、削除済み会話に対する購読が
+    // 裏で残り続けないようにする。
+    final removedKeys = _visitedConversationKeys.where((key) {
       if (key.startsWith('dm-')) {
         final dmId = key.substring('dm-'.length);
         return !directMessages.any((d) => d.dmId == dmId);
       }
       final groupId = key.substring('group-'.length);
       return !groups.any((g) => g.groupId == groupId);
-    });
+    }).toList();
+    if (removedKeys.isNotEmpty) {
+      _visitedConversationKeys.removeAll(removedKeys);
+      final cacheManager = ref.read(chatRoomMessageCacheManagerProvider);
+      for (final key in removedKeys) {
+        final conversationId = key.startsWith('dm-')
+            ? key.substring('dm-'.length)
+            : key.substring('group-'.length);
+        cacheManager.evictConversation(conversationId);
+      }
+    }
 
     final visitedList = _visitedConversationKeys.toList();
     final children = <Widget>[

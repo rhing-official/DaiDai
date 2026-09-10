@@ -62,7 +62,6 @@ class NotificationChatOpener extends ConsumerWidget {
             final router = GoRouter.of(context);
             if (router.canPop()) router.pop();
           },
-          alsoSwipeLeft: true,
           child: DmChatPane(
             currentUser: currentUser,
             dm: resolved.dm,
@@ -96,7 +95,6 @@ class NotificationChatOpener extends ConsumerWidget {
             final router = GoRouter.of(context);
             if (router.canPop()) router.pop();
           },
-          alsoSwipeLeft: true,
           child: GroupChatPane(
             currentUser: currentUser,
             group: resolved.group,
