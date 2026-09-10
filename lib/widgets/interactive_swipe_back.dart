@@ -1,7 +1,15 @@
+import 'dart:async';
+
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 import '../theme/motion.dart';
 import 'swipe_gestures.dart';
+
+/// トラックパッド/マウスホイールの水平スクロールで「戻る」を発火させる
+/// 際のしきい値（px、2026-09-10追加）。`embedded_call_pane.dart`の縦方向
+/// 実装（`dy < -2.0`）に倣った値。
+const kSwipeBackScrollThreshold = 2.0;
 
 /// ゆっくり指を離した場合に「戻る」を確定させる、画面幅に対する位置の
 /// 閾値（0.4 = 40%）。フリックの場合は[kSwipeGestureVelocityThreshold]の
@@ -117,21 +125,20 @@ class InteractiveSwipeBackScope extends InheritedWidget {
 /// スライドし、一覧画面（Navigatorスタック上で下に残っている画面）が
 /// 見えるようになる。指を離した時、閾値を超えていれば画面外まで
 /// スライドし切ってから[onBack]（戻る）を呼び、超えていなければ
-/// 元の位置へアニメーションで復帰する。
+/// 元の位置へアニメーションで復帰する。トラックパッド/マウスホイールの
+/// 右スクロールでも同じく[onBack]を呼ぶ（`_handleScroll`参照）。
 ///
-/// 左スワイプ（[alsoSwipeLeft]）は既存の[SwipeBackDetector]と同じ、
-/// 離した瞬間の速度判定のみの挙動を維持する（インタラクティブ化の
-/// 対象は右スワイプのみ）。
+/// 左スワイプでの「戻る」は以前は対応していたが（`alsoSwipeLeft`、
+/// ユーザー要望で追加）、誤操作につながるとの判断で2026-09-10に廃止した。
+/// 現在は右方向（ドラッグ・スクロールとも）のみが「戻る」に対応する。
 class InteractiveSwipeBackTransition extends StatefulWidget {
   const InteractiveSwipeBackTransition({
     required this.onBack,
     required this.child,
-    this.alsoSwipeLeft = false,
     super.key,
   });
 
   final VoidCallback onBack;
-  final bool alsoSwipeLeft;
   final Widget child;
 
   @override
@@ -147,10 +154,39 @@ class _InteractiveSwipeBackTransitionState
 
   double _cumulativeDx = 0;
 
+  /// トラックパッド/マウスホイールの水平スクロールで「戻る」を発火させる
+  /// 際のデバウンス用タイマー（2026-09-10追加、`_handleScroll`参照）。
+  Timer? _scrollBackTimer;
+
   @override
   void dispose() {
+    _scrollBackTimer?.cancel();
     _controller.dispose();
     super.dispose();
+  }
+
+  /// コンピューターUI（タッチではなくトラックパッド/マウスホイール操作）
+  /// 向けに、指ドラッグでの右スワイプと同じ「戻る」を右スクロールでも
+  /// 行えるようにする（2026-09-10追加）。`embedded_call_pane.dart`の
+  /// 縦方向実装（上スクロールで「戻る」）と同じ、離散的なスクロール
+  /// イベントを150msデバウンスしてから直接[onBack]を呼ぶだけの単純な
+  /// 実装で、ドラッグ版のような追従アニメーションは行わない（トラック
+  /// パッドのスクロールには連続した「指の位置」に相当する情報が無いため）。
+  ///
+  /// メッセージ一覧（[widget.child]内の`ChatScreen`のListView）は縦
+  /// スクロールが主用途のため、縦方向が主のスクロール中に横方向の微小な
+  /// ノイズで誤って「戻る」が発火しないよう、横方向が縦方向より明確に
+  /// 大きいことを条件にする（`embedded_call_pane.dart`等の縦方向のみの
+  /// 既存実装には無いガード。それらは元々縦スクロールしかしない画面
+  /// だったため不要だった）。
+  void _handleScroll(PointerScrollEvent event) {
+    final dx = event.scrollDelta.dx;
+    final dy = event.scrollDelta.dy;
+    if (dx <= kSwipeBackScrollThreshold || dx.abs() <= dy.abs()) return;
+    _scrollBackTimer?.cancel();
+    _scrollBackTimer = Timer(const Duration(milliseconds: 150), () {
+      if (mounted) widget.onBack();
+    });
   }
 
   @override
@@ -158,37 +194,38 @@ class _InteractiveSwipeBackTransitionState
     _controller.maxDrag = MediaQuery.sizeOf(context).width;
     return InteractiveSwipeBackScope(
       controller: _controller,
-      child: GestureDetector(
-        behavior: HitTestBehavior.translucent,
-        onHorizontalDragStart: (_) {
-          _cumulativeDx = _controller.progress.value;
+      child: Listener(
+        onPointerSignal: (event) {
+          if (event is PointerScrollEvent) _handleScroll(event);
         },
-        onHorizontalDragUpdate: (details) {
-          _cumulativeDx += details.delta.dx;
-          if (_cumulativeDx > 0 || _controller.isGestureActive) {
-            _controller.syncFromExternalDrag(
-              context,
-              _cumulativeDx.clamp(0.0, _controller.maxDrag),
-            );
-          }
-        },
-        onHorizontalDragEnd: (details) {
-          if (!_controller.isGestureActive) {
-            final velocity = details.primaryVelocity ?? 0;
-            if (widget.alsoSwipeLeft &&
-                velocity <= -kSwipeGestureVelocityThreshold) {
-              widget.onBack();
-            }
-            return;
-          }
-          _controller.endExternalDrag(context, details.primaryVelocity);
-        },
-        child: ValueListenableBuilder<double>(
-          valueListenable: _controller.progress,
-          child: RepaintBoundary(child: widget.child),
-          builder: (context, value, child) {
-            return Transform.translate(offset: Offset(value, 0), child: child);
+        child: GestureDetector(
+          behavior: HitTestBehavior.translucent,
+          onHorizontalDragStart: (_) {
+            _cumulativeDx = _controller.progress.value;
           },
+          onHorizontalDragUpdate: (details) {
+            _cumulativeDx += details.delta.dx;
+            if (_cumulativeDx > 0 || _controller.isGestureActive) {
+              _controller.syncFromExternalDrag(
+                context,
+                _cumulativeDx.clamp(0.0, _controller.maxDrag),
+              );
+            }
+          },
+          onHorizontalDragEnd: (details) {
+            if (!_controller.isGestureActive) return;
+            _controller.endExternalDrag(context, details.primaryVelocity);
+          },
+          child: ValueListenableBuilder<double>(
+            valueListenable: _controller.progress,
+            child: RepaintBoundary(child: widget.child),
+            builder: (context, value, child) {
+              return Transform.translate(
+                offset: Offset(value, 0),
+                child: child,
+              );
+            },
+          ),
         ),
       ),
     );
