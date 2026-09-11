@@ -52,6 +52,7 @@ import '../calendar/schedule_coordination_detail_dialog.dart';
 import '../poll/poll_detail_dialog.dart';
 import '../poll/poll_form_dialog.dart';
 import 'attachment_popup_button.dart';
+import 'button_anchored_menu.dart';
 import '../../utils/attachment_upload.dart';
 import '../../utils/auto_dismiss_banner.dart';
 import '../../utils/drag_menu_geometry.dart';
@@ -100,6 +101,7 @@ class ChatScreen extends ConsumerStatefulWidget {
     this.onCallPressed,
     this.onVideoCallPressed,
     this.extraActions,
+    this.menuAnchorKey,
     this.readReceiptsEnabled = true,
     this.onMarkRead,
     this.banner,
@@ -200,6 +202,11 @@ class ChatScreen extends ConsumerStatefulWidget {
 
   /// 呼び出し側固有のAppBarアクション（例: 広場の詳細を開くボタン）。
   final List<Widget>? extraActions;
+
+  /// ハンバーガーメニューボタン（通常は[extraActions]内の最後の要素）の
+  /// 位置（2026-09-12追加）。狭い画面ではピン留めのポップアップ位置を
+  /// このボタンに揃える（`button_anchored_menu.dart`参照）。
+  final GlobalKey? menuAnchorKey;
 
   /// メッセージ一覧の上に常時表示するバナー（例: 絶縁の提案・同意待ち通知）。
   final Widget? banner;
@@ -751,19 +758,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// メッセージ一覧をポップアップ表示する（2026-08-30追加）。追跡・ジャンプの
   /// 仕組みは引用プレビューのタップ（[_jumpToMessage]）と共通。
   Future<void> _openPinnedMessagesPopup() async {
-    final buttonContext = _pinButtonKey.currentContext;
-    if (buttonContext == null) return;
-    final box = buttonContext.findRenderObject()! as RenderBox;
-    final bottomLeft = box.localToGlobal(Offset(0, box.size.height));
-    final bottomRight = box.localToGlobal(
-      Offset(box.size.width, box.size.height),
+    final position = computeButtonAnchoredMenuPosition(
+      context,
+      buttonKey: _pinButtonKey,
+      narrowAnchorKey: widget.menuAnchorKey,
     );
-    final overlay =
-        Overlay.of(context).context.findRenderObject()! as RenderBox;
-    final position = RelativeRect.fromRect(
-      Rect.fromPoints(bottomLeft, bottomRight),
-      Offset.zero & overlay.size,
-    );
+    if (position == null) return;
     final strings = ref.read(appStringsProvider);
 
     final ids = widget.pinnedMessageIds;

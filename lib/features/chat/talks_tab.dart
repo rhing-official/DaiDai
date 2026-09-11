@@ -865,6 +865,17 @@ class _TalksTabState extends ConsumerState<TalksTab> {
   /// 縦表示の標準レイアウトと同じ`isSplit: false`挙動（タップでフルスクリーン
   /// 遷移）のタイルをそのまま流用する。検索・並べ替えはこのレイアウトでは
   /// 提供しない（標準レイアウト側のみ）。
+  ///
+  /// ヘッダー（切り替えピル＋＋ボタン＋Divider）は固定表示のまま、本体の
+  /// タイル一覧だけを標準レイアウト（[_categoryPageController]参照）と同じ
+  /// `PageView`にして、このアイコン列の幅の中だけで一対⇄広場を横スワイプ
+  /// 切り替えできるようにする（2026-09-11追加。右隣の寄合一覧側は項目4の
+  /// 別のスワイプ挙動を持つため、`VerticalDivider`の左側に閉じる必要が
+  /// ある）。縦表示では112px幅に2つのピルを横並びにすると文字が見切れるため
+  /// 縦積みにし、劇画UIではその縦横に合わせて[GekigaJointedTileList]
+  /// （既定で縦積み対応・`axis`で横積みも可）で箱枠を描く（標準レイアウトの
+  /// ヘッダーが使う[GekigaJointedPair]は横並び2個専用のため、縦表示にも
+  /// 対応できるこちらを使う）。
   Widget _buildIconRail(
     List<DirectMessage> directMessages,
     List<Group> groups,
@@ -876,98 +887,139 @@ class _TalksTabState extends ConsumerState<TalksTab> {
   ) {
     final vocab = ref.watch(vocabularyProvider);
     final sortOrder = ref.watch(conversationSortOrderProvider);
+    final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
+    final size = MediaQuery.sizeOf(context);
+    final isPortrait = size.height > size.width;
 
-    final children = <Widget>[
-      Padding(
-        padding: const EdgeInsets.fromLTRB(4, 8, 4, 4),
-        child: SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _CategoryTab(
-                label: vocab.dm,
-                count: directMessages.length,
-                selected: _category == _TalksCategory.dm,
-                onTap: () => _setCategory(_TalksCategory.dm),
-              ),
-              const SizedBox(width: 4),
-              _CategoryTab(
-                label: vocab.plaza,
-                count: groups.length,
-                selected: _category == _TalksCategory.group,
-                onTap: () => _setCategory(_TalksCategory.group),
-              ),
+    final dmTab = _CategoryTab(
+      label: vocab.dm,
+      count: directMessages.length,
+      selected: _category == _TalksCategory.dm,
+      onTap: () => _setCategory(_TalksCategory.dm),
+    );
+    final groupTab = _CategoryTab(
+      label: vocab.plaza,
+      count: groups.length,
+      selected: _category == _TalksCategory.group,
+      onTap: () => _setCategory(_TalksCategory.group),
+    );
+
+    final tabs = isGekiga
+        ? GekigaJointedTileList(
+            axis: isPortrait ? Axis.vertical : Axis.horizontal,
+            seeds: [vocab.dm.hashCode, vocab.plaza.hashCode],
+            selectedFlags: [
+              _category == _TalksCategory.dm,
+              _category == _TalksCategory.group,
             ],
-          ),
-        ),
-      ),
-      Center(
-        child: IconButton(icon: const Icon(Icons.add), onPressed: _showAddMenu),
-      ),
-      const Divider(height: 1),
-    ];
-
-    if (_category == _TalksCategory.dm) {
-      final visibleDms = directMessages
-          .where(
-            (dm) =>
-                !blockedIds.contains(dm.otherUserId(widget.currentUser.userId)),
+            children: [dmTab, groupTab],
           )
-          .toList();
-      final orderedDms = _applyDmSortOrder(visibleDms, sortOrder, prefsById);
-      final sortedDms = _sortedByPin(orderedDms, prefsById, (dm) => dm.dmId);
-      children.addAll([
-        for (final request in incomingRequests)
-          _FriendRequestTile(
-            currentUserId: widget.currentUser.userId,
-            request: request,
-            isSplit: false,
-            onSelectPending: _selectPendingScreen,
-          ),
-        for (final request in outgoingRequests)
-          _FriendRequestTile(
-            currentUserId: widget.currentUser.userId,
-            request: request,
-            isSplit: false,
-            onSelectPending: _selectPendingScreen,
-          ),
-        for (final dm in sortedDms)
-          _DirectMessageIconTile(
-            currentUser: widget.currentUser,
-            dm: dm,
-            unreadCount: prefsById[dm.dmId]?.unreadCount ?? 0,
-            selected: _selectedDm?.dmId == dm.dmId,
-            onTap: () => _openDirectMessage(dm),
-          ),
-      ]);
-    } else {
-      final orderedGroups = _applyGroupSortOrder(groups, sortOrder, prefsById);
-      final sortedGroups = _sortedByPin(
-        orderedGroups,
-        prefsById,
-        (g) => g.groupId,
-      );
-      children.addAll([
-        for (final request in pendingGroupRequests)
-          _PendingGroupJoinRequestTile(
-            request: request,
-            isSplit: false,
-            onSelectPending: _selectPendingScreen,
-          ),
-        for (final group in sortedGroups)
-          _GroupIconTile(
-            group: group,
-            unreadCount: prefsById[group.groupId]?.unreadCount ?? 0,
-            selected: _selectedGroup?.groupId == group.groupId,
-            onTap: () => _openGroup(group),
-          ),
-      ]);
+        : (isPortrait
+              ? Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [dmTab, const SizedBox(height: 4), groupTab],
+                )
+              : Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [dmTab, const SizedBox(width: 4), groupTab],
+                ));
+
+    Widget buildCategoryTiles(_TalksCategory category) {
+      final tiles = <Widget>[];
+      if (category == _TalksCategory.dm) {
+        final visibleDms = directMessages
+            .where(
+              (dm) => !blockedIds.contains(
+                dm.otherUserId(widget.currentUser.userId),
+              ),
+            )
+            .toList();
+        final orderedDms = _applyDmSortOrder(visibleDms, sortOrder, prefsById);
+        final sortedDms = _sortedByPin(orderedDms, prefsById, (dm) => dm.dmId);
+        tiles.addAll([
+          for (final request in incomingRequests)
+            _FriendRequestTile(
+              currentUserId: widget.currentUser.userId,
+              request: request,
+              isSplit: false,
+              onSelectPending: _selectPendingScreen,
+            ),
+          for (final request in outgoingRequests)
+            _FriendRequestTile(
+              currentUserId: widget.currentUser.userId,
+              request: request,
+              isSplit: false,
+              onSelectPending: _selectPendingScreen,
+            ),
+          for (final dm in sortedDms)
+            _DirectMessageIconTile(
+              currentUser: widget.currentUser,
+              dm: dm,
+              unreadCount: prefsById[dm.dmId]?.unreadCount ?? 0,
+              selected: _selectedDm?.dmId == dm.dmId,
+              onTap: () => _openDirectMessage(dm),
+            ),
+        ]);
+      } else {
+        final orderedGroups = _applyGroupSortOrder(
+          groups,
+          sortOrder,
+          prefsById,
+        );
+        final sortedGroups = _sortedByPin(
+          orderedGroups,
+          prefsById,
+          (g) => g.groupId,
+        );
+        tiles.addAll([
+          for (final request in pendingGroupRequests)
+            _PendingGroupJoinRequestTile(
+              request: request,
+              isSplit: false,
+              onSelectPending: _selectPendingScreen,
+            ),
+          for (final group in sortedGroups)
+            _GroupIconTile(
+              group: group,
+              unreadCount: prefsById[group.groupId]?.unreadCount ?? 0,
+              selected: _selectedGroup?.groupId == group.groupId,
+              onTap: () => _openGroup(group),
+            ),
+        ]);
+      }
+      return ListView(padding: EdgeInsets.zero, children: tiles);
     }
 
     return Material(
       color: Theme.of(context).colorScheme.surface,
-      child: ListView(padding: EdgeInsets.zero, children: children),
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(4, 8, 4, 4),
+            child: SingleChildScrollView(
+              scrollDirection: isPortrait ? Axis.vertical : Axis.horizontal,
+              child: tabs,
+            ),
+          ),
+          Center(
+            child: IconButton(
+              icon: const Icon(Icons.add),
+              onPressed: _showAddMenu,
+            ),
+          ),
+          const Divider(height: 1),
+          Expanded(
+            child: PageView(
+              controller: _categoryPageController,
+              onPageChanged: _handleCategoryPageChanged,
+              children: [
+                buildCategoryTiles(_TalksCategory.dm),
+                buildCategoryTiles(_TalksCategory.group),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -2860,6 +2912,28 @@ class _DmDetailWithRoomsState extends ConsumerState<_DmDetailWithRooms> {
             )
             .name;
 
+        // 縦表示のアイコン＋寄合一覧レイアウト（[widget.roomListOnly]）では
+        // チャット本体を埋め込む余白が無いため、寄合をタップしたら
+        // ローカルの選択状態を切り替えるのではなくフルスクリーンチャットへ
+        // 遷移する（既存の`/chat/dm`ルートをそのまま使う、2026-09-11追加）。
+        // このレイアウトの寄合一覧では既に寄合を選んで来ているため、遷移先
+        // チャット画面の寄合タブバーは重複表示になる→非表示にする
+        // （`showRoomTabBar: false`、下の左スワイプでの遷移と共通化）。
+        void openRoomFullscreen(String targetRoomId, String targetRoomName) {
+          ref
+              .read(goRouterProvider)
+              .push(
+                '/chat/dm',
+                extra: DmChatArgs(
+                  currentUser: currentUser,
+                  dm: dm,
+                  roomId: targetRoomId,
+                  roomName: targetRoomName,
+                  showRoomTabBar: false,
+                ),
+              );
+        }
+
         final roomListPane = RoomListPane(
           conversationName: conversationName,
           rooms: [
@@ -2867,22 +2941,8 @@ class _DmDetailWithRoomsState extends ConsumerState<_DmDetailWithRooms> {
               (roomId: r.roomId, name: r.name),
           ],
           selectedRoomId: roomId,
-          // 縦表示のアイコン＋寄合一覧レイアウト（[widget.roomListOnly]）では
-          // チャット本体を埋め込む余白が無いため、寄合をタップしたら
-          // ローカルの選択状態を切り替えるのではなくフルスクリーンチャットへ
-          // 遷移する（既存の`/chat/dm`ルートをそのまま使う、2026-09-11追加）。
           onSelectRoom: widget.roomListOnly
-              ? (room) => ref
-                    .read(goRouterProvider)
-                    .push(
-                      '/chat/dm',
-                      extra: DmChatArgs(
-                        currentUser: currentUser,
-                        dm: dm,
-                        roomId: room.roomId,
-                        roomName: room.name,
-                      ),
-                    )
+              ? (room) => openRoomFullscreen(room.roomId, room.name)
               : (room) => setState(() => _selectedRoomId = room.roomId),
           onCreateRoom: (name) =>
               dmRepository.createRoom(dmId: dm.dmId, name: name),
@@ -2894,9 +2954,18 @@ class _DmDetailWithRoomsState extends ConsumerState<_DmDetailWithRooms> {
           // 単一モードの会話はここに辿り着く前（アイコンタップ時点）で
           // 直接フルスクリーン遷移させているため、通常は到達しない防御的な
           // フォールバック。
-          return dm.roomsEnabled
-              ? roomListPane
-              : const _EmptyDetailPlaceholder();
+          if (!dm.roomsEnabled) return const _EmptyDetailPlaceholder();
+          // 寄合一覧上で左スワイプすると、現在ハイライトされている
+          // （＝色が付いている）寄合を開く（2026-09-11追加）。
+          return GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onHorizontalDragEnd: (details) {
+              if ((details.primaryVelocity ?? 0) < -300) {
+                openRoomFullscreen(roomId, roomName);
+              }
+            },
+            child: roomListPane,
+          );
         }
 
         return Row(
@@ -2996,6 +3065,22 @@ class _GroupDetailWithRoomsState extends ConsumerState<_GroupDetailWithRooms> {
             )
             .name;
 
+        // [_DmDetailWithRooms]と同じ理由（2026-09-11追加）。
+        void openRoomFullscreen(String targetRoomId, String targetRoomName) {
+          ref
+              .read(goRouterProvider)
+              .push(
+                '/chat/group',
+                extra: GroupChatArgs(
+                  currentUser: currentUser,
+                  group: group,
+                  roomId: targetRoomId,
+                  roomName: targetRoomName,
+                  showRoomTabBar: false,
+                ),
+              );
+        }
+
         final roomListPane = RoomListPane(
           conversationName: group.name,
           rooms: [
@@ -3007,19 +3092,8 @@ class _GroupDetailWithRoomsState extends ConsumerState<_GroupDetailWithRooms> {
               (roomId: r.roomId, name: r.name),
           ],
           selectedRoomId: roomId,
-          // [_DmDetailWithRooms]と同じ理由（2026-09-11追加）。
           onSelectRoom: widget.roomListOnly
-              ? (room) => ref
-                    .read(goRouterProvider)
-                    .push(
-                      '/chat/group',
-                      extra: GroupChatArgs(
-                        currentUser: currentUser,
-                        group: group,
-                        roomId: room.roomId,
-                        roomName: room.name,
-                      ),
-                    )
+              ? (room) => openRoomFullscreen(room.roomId, room.name)
               : (room) => setState(() => _selectedRoomId = room.roomId),
           onCreateRoom: canManageRooms
               ? (name) => groupRepository.createRoom(
@@ -3048,9 +3122,18 @@ class _GroupDetailWithRoomsState extends ConsumerState<_GroupDetailWithRooms> {
           // 単一モードの会話はここに辿り着く前（アイコンタップ時点）で
           // 直接フルスクリーン遷移させているため、通常は到達しない防御的な
           // フォールバック。
-          return group.roomsEnabled
-              ? roomListPane
-              : const _EmptyDetailPlaceholder();
+          if (!group.roomsEnabled) return const _EmptyDetailPlaceholder();
+          // 寄合一覧上で左スワイプすると、現在ハイライトされている
+          // （＝色が付いている）寄合を開く（2026-09-11追加）。
+          return GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onHorizontalDragEnd: (details) {
+              if ((details.primaryVelocity ?? 0) < -300) {
+                openRoomFullscreen(roomId, roomName);
+              }
+            },
+            child: roomListPane,
+          );
         }
 
         return Row(
@@ -3069,6 +3152,11 @@ class _GroupDetailWithRoomsState extends ConsumerState<_GroupDetailWithRooms> {
                 group: group,
                 roomId: roomId,
                 roomName: roomName,
+                // このRowは広い分割表示専用で、左側に物理的なサイドバー
+                // （`roomListPane`）が常に存在する（2026-09-11追加、
+                // `hasSidebar`はここでのみtrueにする。他の呼び出し元は
+                // 既定のfalseのまま）。
+                hasSidebar: true,
               ),
             ),
           ],
