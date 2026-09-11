@@ -795,14 +795,11 @@ class _WeekRow extends StatelessWidget {
                   children: [
                     for (final segment in layout.segments)
                       Positioned(
-                        left:
-                            segment.startCol * columnWidth +
-                            (segment.isTrueStart ? _kCellPadding : 0),
+                        left: segment.startCol * columnWidth + _kCellPadding,
                         width:
                             (segment.endCol - segment.startCol + 1) *
                                 columnWidth -
-                            (segment.isTrueStart ? _kCellPadding : 0) -
-                            (segment.isTrueEnd ? _kCellPadding : 0),
+                            _kCellPadding * 2,
                         top: _laneTop(segment.lane),
                         height: _kLaneHeight,
                         child: _SpanBar(
@@ -921,10 +918,10 @@ class _DayCellBackground extends StatelessWidget {
 }
 
 /// 日をまたいで連続する予定/日程調整を表す帯1本分（2026-09-11追加、以前の
-/// セル内チップ`_EventChip`/`_CoordinationChip`を置き換える）。
-/// `WeekLaneSegment.isTrueStart`/`isTrueEnd`に応じて角を出し分け（真の開始/
-/// 終了日なら丸め、週をまたいだ継続なら直角のまま）、Google Calendar本家と
-/// 同じく単体タップでその予定/日程調整の詳細を直接開く。
+/// セル内チップ`_EventChip`/`_CoordinationChip`を置き換える）。同じ週内では
+/// 列をまたいで幅を広げるが、週をまたいだ継続の視覚的な繋がりは表現せず、
+/// 週ごとのセグメントを常に独立した完全な角丸ブロックとして描画する。
+/// Google Calendar本家と同じく単体タップでその予定/日程調整の詳細を直接開く。
 class _SpanBar extends StatelessWidget {
   const _SpanBar({
     required this.segment,
@@ -943,12 +940,7 @@ class _SpanBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final item = segment.item;
-    final borderRadius = BorderRadius.only(
-      topLeft: segment.isTrueStart ? _cornerRadius : Radius.zero,
-      bottomLeft: segment.isTrueStart ? _cornerRadius : Radius.zero,
-      topRight: segment.isTrueEnd ? _cornerRadius : Radius.zero,
-      bottomRight: segment.isTrueEnd ? _cornerRadius : Radius.zero,
-    );
+    final borderRadius = BorderRadius.all(_cornerRadius);
 
     // 予定・日程調整とも共通で、種類（カテゴリ）に設定した色を塗る。未設定
     // ならアクセントカラーで塗る。劇画は色の概念を持たないため常に黒地に
