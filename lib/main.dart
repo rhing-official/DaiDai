@@ -30,6 +30,7 @@ import 'providers/notification_sound_provider.dart';
 import 'providers/ringtone_sound_provider.dart';
 import 'providers/send_key_mode_provider.dart';
 import 'providers/sticker_send_mode_provider.dart';
+import 'providers/talks_list_layout_style_provider.dart';
 import 'providers/theme_mode_provider.dart';
 import 'router/app_router.dart';
 import 'utils/android_notification_sound_sync.dart';
@@ -75,6 +76,7 @@ Future<void> main() async {
   final initialDraftSyncEnabled = await loadInitialDraftSyncEnabled();
   final initialMessageTimeFormat = await loadInitialMessageTimeFormat();
   final initialChatLayoutStyle = await loadInitialChatLayoutStyle();
+  final initialTalksListLayoutStyle = await loadInitialTalksListLayoutStyle();
   final initialAppThemeMode = await loadInitialAppThemeMode();
   final initialAppUiStyle = await loadInitialAppUiStyle();
   final initialConversationSortOrder = await loadInitialConversationSortOrder();
@@ -113,6 +115,9 @@ Future<void> main() async {
         ),
         initialChatLayoutStyleProvider.overrideWithValue(
           initialChatLayoutStyle,
+        ),
+        initialTalksListLayoutStyleProvider.overrideWithValue(
+          initialTalksListLayoutStyle,
         ),
         initialAppThemeModeProvider.overrideWithValue(initialAppThemeMode),
         initialAppUiStyleProvider.overrideWithValue(initialAppUiStyle),

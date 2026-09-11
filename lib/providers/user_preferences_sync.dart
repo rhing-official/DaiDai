@@ -11,6 +11,7 @@ import '../models/font_design.dart';
 import '../models/message_time_format.dart';
 import '../models/send_key_mode.dart';
 import '../models/sticker_send_mode.dart';
+import '../models/talks_list_layout_style.dart';
 import 'accent_color_provider.dart';
 import 'app_locale_provider.dart';
 import 'app_ui_style_provider.dart';
@@ -26,6 +27,7 @@ import 'ringtone_sound_provider.dart';
 import 'message_time_format_provider.dart';
 import 'send_key_mode_provider.dart';
 import 'sticker_send_mode_provider.dart';
+import 'talks_list_layout_style_provider.dart';
 import 'theme_mode_provider.dart';
 
 /// ログイン直後、Firestoreに保存されている表示設定（[AppUserPreferences]）で
@@ -73,6 +75,13 @@ void applyRemoteUserPreferences(WidgetRef ref, AppUserPreferences preferences) {
     ref
         .read(chatLayoutStyleProvider.notifier)
         .syncFromRemote(ChatLayoutStyle.fromName(preferences.chatLayoutStyle));
+  }
+  if (preferences.talksListLayoutStyle != null) {
+    ref
+        .read(talksListLayoutStyleProvider.notifier)
+        .syncFromRemote(
+          TalksListLayoutStyle.fromName(preferences.talksListLayoutStyle),
+        );
   }
   if (preferences.messageTimeFormat != null) {
     ref

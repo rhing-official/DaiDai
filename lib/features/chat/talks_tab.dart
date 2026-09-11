@@ -18,6 +18,7 @@ import '../../models/group_invite_preview.dart';
 import '../../models/group_join_request.dart';
 import '../../models/group_role.dart';
 import '../../models/message.dart';
+import '../../models/talks_list_layout_style.dart';
 import '../../providers/app_ui_style_provider.dart';
 import '../../providers/block_providers.dart';
 import '../../providers/chat_navigation_providers.dart';
@@ -28,6 +29,7 @@ import '../../providers/friend_providers.dart';
 import '../../providers/group_join_request_providers.dart';
 import '../../providers/message_time_format_provider.dart';
 import '../../providers/repository_providers.dart';
+import '../../providers/talks_list_layout_style_provider.dart';
 import '../../providers/user_providers.dart';
 import '../../router/app_router.dart';
 import '../../theme/gekiga/gekiga_colors.dart';
@@ -168,7 +170,17 @@ class _TalksTabState extends ConsumerState<TalksTab> {
   }
 
   Future<void> _openDirectMessage(DirectMessage dm) async {
-    if (_isSplit) {
+    // 縦表示のアイコン＋寄合一覧レイアウト（`TalksListLayoutStyle.iconSplit`）
+    // では、複数寄合モードの会話は広い画面の分割表示と同じく選択状態にして
+    // 右側に寄合一覧を出す。単一モードの会話は右ペインを経由する意味が
+    // 無いため、従来通りその場でフルスクリーンチャットへ遷移する
+    // （2026-09-11追加）。
+    final useIconSplitSelection =
+        !_isSplit &&
+        dm.roomsEnabled &&
+        ref.read(talksListLayoutStyleProvider) ==
+            TalksListLayoutStyle.iconSplit;
+    if (_isSplit || useIconSplitSelection) {
       setState(() {
         _selectedDm = dm;
         _selectedPendingScreen = null;
@@ -202,7 +214,13 @@ class _TalksTabState extends ConsumerState<TalksTab> {
   }
 
   Future<void> _openGroup(Group group) async {
-    if (_isSplit) {
+    // [_openDirectMessage]と同じ理由（2026-09-11追加）。
+    final useIconSplitSelection =
+        !_isSplit &&
+        group.roomsEnabled &&
+        ref.read(talksListLayoutStyleProvider) ==
+            TalksListLayoutStyle.iconSplit;
+    if (_isSplit || useIconSplitSelection) {
       setState(() {
         _selectedGroup = group;
         _selectedPendingScreen = null;
@@ -449,6 +467,7 @@ class _TalksTabState extends ConsumerState<TalksTab> {
         const [];
 
     final isSplit = _isSplit;
+    final talksListLayoutStyle = ref.watch(talksListLayoutStyleProvider);
 
     return Scaffold(
       // 劇画スタイル時にホーム画面の背景装飾（ハーフトーン柄）を透過させる
@@ -633,7 +652,20 @@ class _TalksTabState extends ConsumerState<TalksTab> {
                 ],
               );
 
-              if (!isSplit) return listPane;
+              if (!isSplit) {
+                if (talksListLayoutStyle == TalksListLayoutStyle.iconSplit) {
+                  return _buildIconSplitPane(
+                    directMessages,
+                    groups,
+                    prefsById,
+                    incomingRequests,
+                    outgoingRequests,
+                    pendingGroupRequests,
+                    blockedIds,
+                  );
+                }
+                return listPane;
+              }
 
               // 会話ペインでの横スワイプで一覧の表示/非表示を切り替える
               // （一覧側のスワイプは既に一対⇄広場の切り替えに使っているため、
@@ -760,6 +792,183 @@ class _TalksTabState extends ConsumerState<TalksTab> {
         ? 0
         : 1 + visitedList.indexOf(activeKey);
     return IndexedStack(index: activeIndex, children: children);
+  }
+
+  /// 縦表示専用の新レイアウト（`TalksListLayoutStyle.iconSplit`、設定＞語らいで
+  /// 選択可能、2026-09-11追加）。左にアイコン一覧（[_buildIconRail]）、右に
+  /// 選択中の会話の寄合一覧（[_DmDetailWithRooms]/[_GroupDetailWithRooms]を
+  /// `roomListOnly: true`で流用）を表示する。寄合をタップするとフルスクリーン
+  /// チャットへ遷移する（`roomListOnly`側の実装参照）。
+  Widget _buildIconSplitPane(
+    List<DirectMessage> directMessages,
+    List<Group> groups,
+    Map<String, ConversationPrefs> prefsById,
+    List<FriendRequest> incomingRequests,
+    List<FriendRequest> outgoingRequests,
+    List<GroupJoinRequest> pendingGroupRequests,
+    Set<String> blockedIds,
+  ) {
+    final iconRail = _buildIconRail(
+      directMessages,
+      groups,
+      prefsById,
+      incomingRequests,
+      outgoingRequests,
+      pendingGroupRequests,
+      blockedIds,
+    );
+
+    final Widget detail;
+    if (_category == _TalksCategory.dm) {
+      final selected = _selectedDm;
+      final dm = selected == null
+          ? null
+          : directMessages.firstWhereOrNull((d) => d.dmId == selected.dmId);
+      detail = dm == null
+          ? const _EmptyDetailPlaceholder()
+          : _DmDetailWithRooms(
+              key: ValueKey('icon-split-dm-${dm.dmId}'),
+              currentUser: widget.currentUser,
+              dm: dm,
+              roomListOnly: true,
+            );
+    } else {
+      final selected = _selectedGroup;
+      final group = selected == null
+          ? null
+          : groups.firstWhereOrNull((g) => g.groupId == selected.groupId);
+      detail = group == null
+          ? const _EmptyDetailPlaceholder()
+          : _GroupDetailWithRooms(
+              key: ValueKey('icon-split-group-${group.groupId}'),
+              currentUser: widget.currentUser,
+              group: group,
+              roomListOnly: true,
+            );
+    }
+
+    return Row(
+      children: [
+        SizedBox(width: 112, child: iconRail),
+        const VerticalDivider(width: 1),
+        Expanded(child: detail),
+      ],
+    );
+  }
+
+  /// [_buildIconSplitPane]の左側ペイン。一対/広場の切り替えは[_CategoryTab]を
+  /// そのまま使い、本体は[_buildDirectMessages]/[_buildGroups]と同じソート・
+  /// ピン留めロジック（[_applyDmSortOrder]/[_applyGroupSortOrder]/
+  /// [_sortedByPin]）を使い回した上で、通常のリストタイルの代わりに
+  /// コンパクトなアイコンタイル（[_DirectMessageIconTile]/[_GroupIconTile]）を
+  /// 並べる。友達申請・広場参加リクエストは幅の制約上アイコン化せず、
+  /// 縦表示の標準レイアウトと同じ`isSplit: false`挙動（タップでフルスクリーン
+  /// 遷移）のタイルをそのまま流用する。検索・並べ替えはこのレイアウトでは
+  /// 提供しない（標準レイアウト側のみ）。
+  Widget _buildIconRail(
+    List<DirectMessage> directMessages,
+    List<Group> groups,
+    Map<String, ConversationPrefs> prefsById,
+    List<FriendRequest> incomingRequests,
+    List<FriendRequest> outgoingRequests,
+    List<GroupJoinRequest> pendingGroupRequests,
+    Set<String> blockedIds,
+  ) {
+    final vocab = ref.watch(vocabularyProvider);
+    final sortOrder = ref.watch(conversationSortOrderProvider);
+
+    final children = <Widget>[
+      Padding(
+        padding: const EdgeInsets.fromLTRB(4, 8, 4, 4),
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _CategoryTab(
+                label: vocab.dm,
+                count: directMessages.length,
+                selected: _category == _TalksCategory.dm,
+                onTap: () => _setCategory(_TalksCategory.dm),
+              ),
+              const SizedBox(width: 4),
+              _CategoryTab(
+                label: vocab.plaza,
+                count: groups.length,
+                selected: _category == _TalksCategory.group,
+                onTap: () => _setCategory(_TalksCategory.group),
+              ),
+            ],
+          ),
+        ),
+      ),
+      Center(
+        child: IconButton(icon: const Icon(Icons.add), onPressed: _showAddMenu),
+      ),
+      const Divider(height: 1),
+    ];
+
+    if (_category == _TalksCategory.dm) {
+      final visibleDms = directMessages
+          .where(
+            (dm) =>
+                !blockedIds.contains(dm.otherUserId(widget.currentUser.userId)),
+          )
+          .toList();
+      final orderedDms = _applyDmSortOrder(visibleDms, sortOrder, prefsById);
+      final sortedDms = _sortedByPin(orderedDms, prefsById, (dm) => dm.dmId);
+      children.addAll([
+        for (final request in incomingRequests)
+          _FriendRequestTile(
+            currentUserId: widget.currentUser.userId,
+            request: request,
+            isSplit: false,
+            onSelectPending: _selectPendingScreen,
+          ),
+        for (final request in outgoingRequests)
+          _FriendRequestTile(
+            currentUserId: widget.currentUser.userId,
+            request: request,
+            isSplit: false,
+            onSelectPending: _selectPendingScreen,
+          ),
+        for (final dm in sortedDms)
+          _DirectMessageIconTile(
+            currentUser: widget.currentUser,
+            dm: dm,
+            unreadCount: prefsById[dm.dmId]?.unreadCount ?? 0,
+            selected: _selectedDm?.dmId == dm.dmId,
+            onTap: () => _openDirectMessage(dm),
+          ),
+      ]);
+    } else {
+      final orderedGroups = _applyGroupSortOrder(groups, sortOrder, prefsById);
+      final sortedGroups = _sortedByPin(
+        orderedGroups,
+        prefsById,
+        (g) => g.groupId,
+      );
+      children.addAll([
+        for (final request in pendingGroupRequests)
+          _PendingGroupJoinRequestTile(
+            request: request,
+            isSplit: false,
+            onSelectPending: _selectPendingScreen,
+          ),
+        for (final group in sortedGroups)
+          _GroupIconTile(
+            group: group,
+            unreadCount: prefsById[group.groupId]?.unreadCount ?? 0,
+            selected: _selectedGroup?.groupId == group.groupId,
+            onTap: () => _openGroup(group),
+          ),
+      ]);
+    }
+
+    return Material(
+      color: Theme.of(context).colorScheme.surface,
+      child: ListView(padding: EdgeInsets.zero, children: children),
+    );
   }
 
   Widget _buildDirectMessages(
@@ -1966,6 +2175,169 @@ class _GroupTile extends ConsumerWidget {
   }
 }
 
+/// [_buildIconRail]の一対タイル（2026-09-11追加）。データの取得は
+/// [_DirectMessageTile]と同じ（相手のアイコン・呼び名）だが、表示は
+/// アイコン＋名前のコンパクトな[_ConversationIconTile]に差し替えている。
+class _DirectMessageIconTile extends ConsumerWidget {
+  const _DirectMessageIconTile({
+    required this.currentUser,
+    required this.dm,
+    required this.unreadCount,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final AppUser currentUser;
+  final DirectMessage dm;
+  final int unreadCount;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final otherUserId = dm.otherUserId(currentUser.userId);
+    final otherUser = ref.watch(watchedUserProvider(otherUserId)).value;
+    final label = _dmSearchLabel(otherUser, dm, currentUser.userId);
+    final iconUrl = otherUser?.effectiveIconFor(dm.dmId)?.url;
+    return _ConversationIconTile(
+      avatar: CircleAvatar(
+        backgroundImage: iconUrl != null ? NetworkImage(iconUrl) : null,
+        backgroundColor: Theme.of(context).colorScheme.primary,
+        foregroundColor: Theme.of(context).colorScheme.onPrimary,
+        child: iconUrl == null ? const Icon(Icons.person) : null,
+      ),
+      label: label,
+      unreadCount: unreadCount,
+      selected: selected,
+      onTap: onTap,
+    );
+  }
+}
+
+/// [_buildIconRail]の広場タイル（2026-09-11追加）。[_DirectMessageIconTile]と
+/// 同じ構成の広場版。
+class _GroupIconTile extends StatelessWidget {
+  const _GroupIconTile({
+    required this.group,
+    required this.unreadCount,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final Group group;
+  final int unreadCount;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final iconUrl = group.profileCard?.iconUrl;
+    return _ConversationIconTile(
+      avatar: CircleAvatar(
+        backgroundImage: iconUrl != null ? NetworkImage(iconUrl) : null,
+        backgroundColor: Theme.of(context).colorScheme.primary,
+        foregroundColor: Theme.of(context).colorScheme.onPrimary,
+        child: iconUrl == null ? const Icon(Icons.groups) : null,
+      ),
+      label: group.name,
+      unreadCount: unreadCount,
+      selected: selected,
+      onTap: onTap,
+    );
+  }
+}
+
+/// [_buildIconRail]用の汎用コンパクトタイル（アイコン＋名前を小さく＋未読
+/// バッジ、2026-09-11追加）。UIスタイル（劇画/ガラス/フラット）ごとの
+/// 専用デザインは持たず、`Theme.of(context).colorScheme`（3スタイルとも
+/// テーマ側で調整済み）にそのまま追従する簡易実装。
+class _ConversationIconTile extends StatelessWidget {
+  const _ConversationIconTile({
+    required this.avatar,
+    required this.label,
+    required this.unreadCount,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final Widget avatar;
+  final String label;
+  final int unreadCount;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+        decoration: BoxDecoration(
+          color: selected ? colorScheme.primary.withValues(alpha: 0.18) : null,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                avatar,
+                if (unreadCount > 0)
+                  Positioned(
+                    right: -4,
+                    top: -4,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 5,
+                        vertical: 1,
+                      ),
+                      constraints: const BoxConstraints(
+                        minWidth: 16,
+                        minHeight: 16,
+                      ),
+                      decoration: BoxDecoration(
+                        // CLAUDE.mdの配色方針に合わせ、`colorScheme.error`
+                        // ではなく実際にコントラストが確保できる固定の濃い赤
+                        // を使う。
+                        color: Colors.red.shade700,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        unreadCount > 99 ? '99+' : '$unreadCount',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          height: 1.2,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+                color: colorScheme.onSurface,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 /// ピン留め・通知オフのアイコン、最終メッセージ時刻、未読件数バッジをまとめた
 /// タイルのtrailing（2026-09-02追加、以前は`_ConversationIndicators`という
 /// 名前でピン留め/通知オフアイコンのみを担っていたが、責務が増えたため改称）。
@@ -2384,11 +2756,18 @@ class _DmDetailWithRooms extends ConsumerStatefulWidget {
   const _DmDetailWithRooms({
     required this.currentUser,
     required this.dm,
+    this.roomListOnly = false,
     super.key,
   });
 
   final AppUser currentUser;
   final DirectMessage dm;
+
+  /// trueの場合、チャット本体は埋め込まず寄合一覧のみをペイン全幅で表示し、
+  /// 寄合をタップするとフルスクリーンチャットへ遷移する（縦表示のアイコン＋
+  /// 寄合一覧レイアウト用、2026-09-11追加。広い画面の左右分割表示では
+  /// falseのまま、寄合一覧の右隣にチャット本体を埋め込む従来通りの構成）。
+  final bool roomListOnly;
 
   @override
   ConsumerState<_DmDetailWithRooms> createState() => _DmDetailWithRoomsState();
@@ -2480,35 +2859,53 @@ class _DmDetailWithRoomsState extends ConsumerState<_DmDetailWithRooms> {
               ),
             )
             .name;
+
+        final roomListPane = RoomListPane(
+          conversationName: conversationName,
+          rooms: [
+            for (final r in _orderedRooms(rooms, dm.roomOrder, (r) => r.roomId))
+              (roomId: r.roomId, name: r.name),
+          ],
+          selectedRoomId: roomId,
+          // 縦表示のアイコン＋寄合一覧レイアウト（[widget.roomListOnly]）では
+          // チャット本体を埋め込む余白が無いため、寄合をタップしたら
+          // ローカルの選択状態を切り替えるのではなくフルスクリーンチャットへ
+          // 遷移する（既存の`/chat/dm`ルートをそのまま使う、2026-09-11追加）。
+          onSelectRoom: widget.roomListOnly
+              ? (room) => ref
+                    .read(goRouterProvider)
+                    .push(
+                      '/chat/dm',
+                      extra: DmChatArgs(
+                        currentUser: currentUser,
+                        dm: dm,
+                        roomId: room.roomId,
+                        roomName: room.name,
+                      ),
+                    )
+              : (room) => setState(() => _selectedRoomId = room.roomId),
+          onCreateRoom: (name) =>
+              dmRepository.createRoom(dmId: dm.dmId, name: name),
+          onReorderRooms: (roomIds) =>
+              dmRepository.setRoomOrder(dmId: dm.dmId, roomIds: roomIds),
+        );
+
+        if (widget.roomListOnly) {
+          // 単一モードの会話はここに辿り着く前（アイコンタップ時点）で
+          // 直接フルスクリーン遷移させているため、通常は到達しない防御的な
+          // フォールバック。
+          return dm.roomsEnabled
+              ? roomListPane
+              : const _EmptyDetailPlaceholder();
+        }
+
         return Row(
           children: [
             // 単一モードではサイドバーを出さない（2026-07-29追加、
             // `DirectMessage.roomsEnabled`参照）。寄合を増やす操作は
             // ハンバーガーメニューから行う（`_DmMenuButton`参照）。
             if (dm.roomsEnabled) ...[
-              SizedBox(
-                width: 220,
-                child: RoomListPane(
-                  conversationName: conversationName,
-                  rooms: [
-                    for (final r in _orderedRooms(
-                      rooms,
-                      dm.roomOrder,
-                      (r) => r.roomId,
-                    ))
-                      (roomId: r.roomId, name: r.name),
-                  ],
-                  selectedRoomId: roomId,
-                  onSelectRoom: (room) =>
-                      setState(() => _selectedRoomId = room.roomId),
-                  onCreateRoom: (name) =>
-                      dmRepository.createRoom(dmId: dm.dmId, name: name),
-                  onReorderRooms: (roomIds) => dmRepository.setRoomOrder(
-                    dmId: dm.dmId,
-                    roomIds: roomIds,
-                  ),
-                ),
-              ),
+              SizedBox(width: 220, child: roomListPane),
               const VerticalDivider(width: 1),
             ],
             Expanded(
@@ -2536,11 +2933,15 @@ class _GroupDetailWithRooms extends ConsumerStatefulWidget {
   const _GroupDetailWithRooms({
     required this.currentUser,
     required this.group,
+    this.roomListOnly = false,
     super.key,
   });
 
   final AppUser currentUser;
   final Group group;
+
+  /// [_DmDetailWithRooms.roomListOnly]と同じ（2026-09-11追加）。
+  final bool roomListOnly;
 
   @override
   ConsumerState<_GroupDetailWithRooms> createState() =>
@@ -2594,50 +2995,71 @@ class _GroupDetailWithRoomsState extends ConsumerState<_GroupDetailWithRooms> {
               ),
             )
             .name;
+
+        final roomListPane = RoomListPane(
+          conversationName: group.name,
+          rooms: [
+            for (final r in _orderedRooms(
+              rooms,
+              group.roomOrder,
+              (r) => r.roomId,
+            ))
+              (roomId: r.roomId, name: r.name),
+          ],
+          selectedRoomId: roomId,
+          // [_DmDetailWithRooms]と同じ理由（2026-09-11追加）。
+          onSelectRoom: widget.roomListOnly
+              ? (room) => ref
+                    .read(goRouterProvider)
+                    .push(
+                      '/chat/group',
+                      extra: GroupChatArgs(
+                        currentUser: currentUser,
+                        group: group,
+                        roomId: room.roomId,
+                        roomName: room.name,
+                      ),
+                    )
+              : (room) => setState(() => _selectedRoomId = room.roomId),
+          onCreateRoom: canManageRooms
+              ? (name) => groupRepository.createRoom(
+                  groupId: group.groupId,
+                  name: name,
+                )
+              : null,
+          onReorderRooms: canManageRooms
+              ? (roomIds) => groupRepository.setRoomOrder(
+                  groupId: group.groupId,
+                  roomIds: roomIds,
+                )
+              : null,
+          // 全体設定ポップアップ自体は全メンバーが開ける
+          // （中の各項目が個別に権限ゲートされる、2026-07-29変更。
+          // 以前はcanManageRolesの間だけロール管理を直接開いていた）。
+          onOpenGroupSettings: () => showGroupSettingsDialog(
+            context,
+            currentUser: currentUser,
+            group: group,
+            isGlass: isGlass,
+          ),
+        );
+
+        if (widget.roomListOnly) {
+          // 単一モードの会話はここに辿り着く前（アイコンタップ時点）で
+          // 直接フルスクリーン遷移させているため、通常は到達しない防御的な
+          // フォールバック。
+          return group.roomsEnabled
+              ? roomListPane
+              : const _EmptyDetailPlaceholder();
+        }
+
         return Row(
           children: [
             // 単一モードではサイドバーを出さない（2026-07-29追加、
             // `Group.roomsEnabled`参照）。「広場自体の設定」・寄合を増やす
             // 操作はハンバーガーメニューから行う（`_GroupMenuButton`参照）。
             if (group.roomsEnabled) ...[
-              SizedBox(
-                width: 220,
-                child: RoomListPane(
-                  conversationName: group.name,
-                  rooms: [
-                    for (final r in _orderedRooms(
-                      rooms,
-                      group.roomOrder,
-                      (r) => r.roomId,
-                    ))
-                      (roomId: r.roomId, name: r.name),
-                  ],
-                  selectedRoomId: roomId,
-                  onSelectRoom: (room) =>
-                      setState(() => _selectedRoomId = room.roomId),
-                  onCreateRoom: canManageRooms
-                      ? (name) => groupRepository.createRoom(
-                          groupId: group.groupId,
-                          name: name,
-                        )
-                      : null,
-                  onReorderRooms: canManageRooms
-                      ? (roomIds) => groupRepository.setRoomOrder(
-                          groupId: group.groupId,
-                          roomIds: roomIds,
-                        )
-                      : null,
-                  // 全体設定ポップアップ自体は全メンバーが開ける
-                  // （中の各項目が個別に権限ゲートされる、2026-07-29変更。
-                  // 以前はcanManageRolesの間だけロール管理を直接開いていた）。
-                  onOpenGroupSettings: () => showGroupSettingsDialog(
-                    context,
-                    currentUser: currentUser,
-                    group: group,
-                    isGlass: isGlass,
-                  ),
-                ),
-              ),
+              SizedBox(width: 220, child: roomListPane),
               const VerticalDivider(width: 1),
             ],
             Expanded(

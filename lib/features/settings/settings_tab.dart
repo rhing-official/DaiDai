@@ -16,6 +16,7 @@ import '../../models/app_ui_style.dart';
 import '../../models/font_design.dart';
 import '../../models/app_user.dart';
 import '../../models/chat_layout_style.dart';
+import '../../models/talks_list_layout_style.dart';
 import '../../models/group.dart';
 import '../../models/group_role.dart';
 import '../../models/message_time_format.dart';
@@ -30,6 +31,7 @@ import '../../providers/app_ui_style_provider.dart';
 import '../../providers/font_design_provider.dart';
 import '../../providers/block_providers.dart';
 import '../../providers/chat_layout_style_provider.dart';
+import '../../providers/talks_list_layout_style_provider.dart';
 import '../../providers/draft_sync_enabled_provider.dart';
 import '../../providers/gekiga_background_color_provider.dart';
 import '../../providers/message_time_format_provider.dart';
@@ -55,6 +57,7 @@ import '../../widgets/glass/glass_dialog.dart';
 import '../../widgets/glass/glass_surface.dart';
 import '../../widgets/qr_scan_screen.dart';
 import '../../widgets/swipe_gestures.dart';
+import '../auth/passcode_setup_dialog.dart';
 import '../auth/two_factor_setup_dialog.dart';
 import '../chat/announcement_screen.dart';
 import '../chat/group_member_list_screen.dart';
@@ -1342,6 +1345,8 @@ class _ApplicationPage extends StatelessWidget {
         _LanguageFolder(strings: strings),
         const Divider(height: 24),
         _TimeFormatFolder(strings: strings),
+        const Divider(height: 24),
+        _PasscodeLockFolder(strings: strings),
       ],
     );
   }
@@ -1858,13 +1863,13 @@ class _UiStyleFolder extends ConsumerWidget {
       return GekigaJointedTileList(
         seeds: [
           AppUiStyle.flat.hashCode,
-          AppUiStyle.gekiga.hashCode,
           AppUiStyle.glass.hashCode,
+          AppUiStyle.gekiga.hashCode,
         ],
         selectedFlags: [
           style == AppUiStyle.flat,
-          style == AppUiStyle.gekiga,
           style == AppUiStyle.glass,
+          style == AppUiStyle.gekiga,
         ],
         children: [
           GekigaTileContent(
@@ -1879,17 +1884,6 @@ class _UiStyleFolder extends ConsumerWidget {
             onTap: () => select(AppUiStyle.flat),
           ),
           GekigaTileContent(
-            selected: style == AppUiStyle.gekiga,
-            leading: Icon(
-              style == AppUiStyle.gekiga
-                  ? Icons.radio_button_checked
-                  : Icons.radio_button_unchecked,
-            ),
-            title: Text(strings.settingsUiStyleGekigaLabel),
-            subtitle: Text(strings.settingsUiStyleGekigaDescription),
-            onTap: () => select(AppUiStyle.gekiga),
-          ),
-          GekigaTileContent(
             selected: style == AppUiStyle.glass,
             leading: Icon(
               style == AppUiStyle.glass
@@ -1899,6 +1893,17 @@ class _UiStyleFolder extends ConsumerWidget {
             title: Text(strings.settingsUiStyleGlassLabel),
             subtitle: Text(strings.settingsUiStyleGlassDescription),
             onTap: () => select(AppUiStyle.glass),
+          ),
+          GekigaTileContent(
+            selected: style == AppUiStyle.gekiga,
+            leading: Icon(
+              style == AppUiStyle.gekiga
+                  ? Icons.radio_button_checked
+                  : Icons.radio_button_unchecked,
+            ),
+            title: Text(strings.settingsUiStyleGekigaLabel),
+            subtitle: Text(strings.settingsUiStyleGekigaDescription),
+            onTap: () => select(AppUiStyle.gekiga),
           ),
         ],
       );
@@ -1917,14 +1922,14 @@ class _UiStyleFolder extends ConsumerWidget {
             subtitle: Text(strings.settingsUiStyleFlatDescription),
           ),
           RadioListTile<AppUiStyle>(
-            value: AppUiStyle.gekiga,
-            title: Text(strings.settingsUiStyleGekigaLabel),
-            subtitle: Text(strings.settingsUiStyleGekigaDescription),
-          ),
-          RadioListTile<AppUiStyle>(
             value: AppUiStyle.glass,
             title: Text(strings.settingsUiStyleGlassLabel),
             subtitle: Text(strings.settingsUiStyleGlassDescription),
+          ),
+          RadioListTile<AppUiStyle>(
+            value: AppUiStyle.gekiga,
+            title: Text(strings.settingsUiStyleGekigaLabel),
+            subtitle: Text(strings.settingsUiStyleGekigaDescription),
           ),
         ],
       ),
@@ -2081,6 +2086,90 @@ class _ChatLayoutFolder extends ConsumerWidget {
   }
 }
 
+/// 縦表示での語らい一覧レイアウト（現在の実装UI／アイコン＋寄合一覧UI）の
+/// 切り替え（2026-09-11追加、`talks_tab.dart`の`kTalksSplitBreakpoint`未満の
+/// 狭い画面にのみ影響し、広い画面の左右分割表示には影響しない）。
+class _TalksListLayoutFolder extends ConsumerWidget {
+  const _TalksListLayoutFolder({required this.strings});
+
+  final Strings strings;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final style = ref.watch(talksListLayoutStyleProvider);
+    final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
+
+    void select(TalksListLayoutStyle value) =>
+        ref.read(talksListLayoutStyleProvider.notifier).setStyle(value);
+
+    final options = [
+      (
+        value: TalksListLayoutStyle.standard,
+        title: strings.settingsTalksListLayoutStandard,
+        subtitle: strings.settingsTalksListLayoutStandardDescription,
+      ),
+      (
+        value: TalksListLayoutStyle.iconSplit,
+        title: strings.settingsTalksListLayoutIconSplit,
+        subtitle: strings.settingsTalksListLayoutIconSplitDescription,
+      ),
+    ];
+
+    final control = isGekiga
+        ? GekigaJointedTileList(
+            seeds: [for (final option in options) option.value.hashCode],
+            selectedFlags: [
+              for (final option in options) style == option.value,
+            ],
+            children: [
+              for (final option in options)
+                GekigaTileContent(
+                  selected: style == option.value,
+                  leading: Icon(
+                    style == option.value
+                        ? Icons.radio_button_checked
+                        : Icons.radio_button_unchecked,
+                  ),
+                  title: Text(option.title),
+                  subtitle: Text(option.subtitle),
+                  onTap: () => select(option.value),
+                ),
+            ],
+          )
+        : RadioGroup<TalksListLayoutStyle>(
+            groupValue: style,
+            onChanged: (value) {
+              if (value != null) select(value);
+            },
+            child: Column(
+              children: [
+                for (final option in options)
+                  RadioListTile<TalksListLayoutStyle>(
+                    value: option.value,
+                    title: Text(option.title),
+                    subtitle: Text(option.subtitle),
+                  ),
+              ],
+            ),
+          );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+          child: Text(
+            strings.settingsTalksListLayoutTitle,
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+        ),
+        control,
+      ],
+    );
+  }
+}
+
 /// メッセージの送信時刻表示形式（24時間表記／12時間表記）の切り替え。
 class _TimeFormatFolder extends ConsumerWidget {
   const _TimeFormatFolder({required this.strings});
@@ -2158,6 +2247,136 @@ class _TimeFormatFolder extends ConsumerWidget {
   }
 }
 
+/// アプリ起動時のパスコードロック（2026-09-11追加）。パスコード・生体認証
+/// 設定は端末ローカルのみで完結し、Firestoreへは同期しない
+/// （`PasscodeRepository`参照）。読み込み中（`flutter_secure_storage`からの
+/// 非同期読み出し）はローディング表示にする。
+class _PasscodeLockFolder extends ConsumerStatefulWidget {
+  const _PasscodeLockFolder({required this.strings});
+
+  final Strings strings;
+
+  @override
+  ConsumerState<_PasscodeLockFolder> createState() =>
+      _PasscodeLockFolderState();
+}
+
+class _PasscodeLockFolderState extends ConsumerState<_PasscodeLockFolder> {
+  bool _loading = true;
+  bool _passcodeEnabled = false;
+  bool _biometricEnabled = false;
+  bool _canUseBiometrics = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final repository = ref.read(passcodeRepositoryProvider);
+    final isSet = await repository.isPasscodeSet();
+    final biometricEnabled = await repository.isBiometricEnabled();
+    final canUseBiometrics = await repository.canUseBiometrics();
+    if (!mounted) return;
+    setState(() {
+      _passcodeEnabled = isSet;
+      _biometricEnabled = biometricEnabled;
+      _canUseBiometrics = canUseBiometrics;
+      _loading = false;
+    });
+  }
+
+  Future<void> _onPasscodeToggle(bool enable) async {
+    final repository = ref.read(passcodeRepositoryProvider);
+    if (enable) {
+      final code = await PasscodeSetupDialog.show(context);
+      if (code == null || !mounted) return;
+      await repository.setPasscode(code);
+      final canUseBiometrics = await repository.canUseBiometrics();
+      if (!mounted) return;
+      setState(() {
+        _passcodeEnabled = true;
+        _canUseBiometrics = canUseBiometrics;
+      });
+      return;
+    }
+    // 他人が勝手に無効化できないよう、OFFにする前に現在のパスコードで
+    // 本人確認する（`PasscodeVerifyDialog`参照）。
+    final verified = await PasscodeVerifyDialog.show(context);
+    if (!verified || !mounted) return;
+    await repository.clearPasscode();
+    if (!mounted) return;
+    setState(() {
+      _passcodeEnabled = false;
+      _biometricEnabled = false;
+    });
+  }
+
+  Future<void> _onChangePasscode() async {
+    final verified = await PasscodeVerifyDialog.show(context);
+    if (!verified || !mounted) return;
+    final code = await PasscodeSetupDialog.show(context);
+    if (code == null || !mounted) return;
+    await ref.read(passcodeRepositoryProvider).setPasscode(code);
+  }
+
+  Future<void> _onBiometricToggle(bool enable) async {
+    await ref.read(passcodeRepositoryProvider).setBiometricEnabled(enable);
+    if (!mounted) return;
+    setState(() => _biometricEnabled = enable);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final strings = widget.strings;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          child: Text(
+            strings.settingsPasscodeLockToggleLabel,
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+          child: Text(
+            strings.settingsPasscodeLockDescription,
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+        ),
+        if (_loading)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 16),
+            child: Center(child: CircularProgressIndicator()),
+          )
+        else ...[
+          SwitchListTile(
+            title: Text(strings.settingsPasscodeLockToggleLabel),
+            value: _passcodeEnabled,
+            onChanged: _onPasscodeToggle,
+          ),
+          if (_passcodeEnabled) ...[
+            ListTile(
+              title: Text(strings.settingsPasscodeChangeButton),
+              onTap: _onChangePasscode,
+            ),
+            if (_canUseBiometrics)
+              SwitchListTile(
+                title: Text(strings.settingsPasscodeBiometricToggleLabel),
+                value: _biometricEnabled,
+                onChanged: _onBiometricToggle,
+              ),
+          ],
+        ],
+      ],
+    );
+  }
+}
+
 /// 語らいカテゴリの中身。ブロックしたユーザーの一覧・解除、プロフィール
 /// カードの割り当てに加え、2026-07-30にメッセージの表示・送信キー設定を
 /// （それぞれアプリケーション・入力カテゴリから）ここへ統合した。
@@ -2177,6 +2396,8 @@ class _TalkPage extends StatelessWidget {
         _BlockedUsersFolder(strings: strings, currentUser: currentUser),
         const Divider(height: 24),
         _ChatLayoutFolder(strings: strings),
+        const Divider(height: 24),
+        _TalksListLayoutFolder(strings: strings),
         const Divider(height: 24),
         _SendKeyFolder(strings: strings),
         const Divider(height: 24),

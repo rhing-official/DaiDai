@@ -61,6 +61,11 @@ class Strings {
     required this.settingsChatLayoutSideBySideDescription,
     required this.settingsChatLayoutAllLeft,
     required this.settingsChatLayoutAllLeftDescription,
+    required this.settingsTalksListLayoutTitle,
+    required this.settingsTalksListLayoutStandard,
+    required this.settingsTalksListLayoutStandardDescription,
+    required this.settingsTalksListLayoutIconSplit,
+    required this.settingsTalksListLayoutIconSplitDescription,
     required this.settingsSubTypography,
     required this.settingsFontDesign,
     required this.fontDesignStandardLabel,
@@ -472,6 +477,21 @@ class Strings {
     required this.settingsGoogleCalendarSyncDisconnectConfirmTitle,
     required this.settingsGoogleCalendarSyncDisconnectConfirmMessage,
     required this.calendarSyncSetupIncompleteError,
+    required this.calendarSearchTooltip,
+    required this.calendarSearchHint,
+    required this.calendarSearchEmptyLabel,
+    required this.calendarMoreEventsLabel,
+    required this.calendarCategorySettingsTooltip,
+    required this.calendarCategoryListTitle,
+    required this.calendarCategoryListEmpty,
+    required this.calendarCategoryCreateDialogTitle,
+    required this.calendarCategoryEditDialogTitle,
+    required this.calendarCategoryDialogNameLabel,
+    required this.calendarCategoryColorInvalid,
+    required this.calendarCategoryDeleteConfirmTitle,
+    required this.calendarCategoryDeleteConfirmButton,
+    required this.calendarCategoryNoneLabel,
+    required this.calendarCategoryPickerLabel,
     required this.calendarAddChoiceDialogTitle,
     required this.calendarAddChoiceEventOption,
     required this.calendarAddChoiceEventSubtitle,
@@ -509,6 +529,9 @@ class Strings {
     required this.pollCreatedMessageLabel,
     required this.pollCreatedMessageConfirmAction,
     required this.pollTaskBannerLabel,
+    required this.taskBannerHideConfirmTitle,
+    required this.taskBannerHideConfirmMessage,
+    required this.taskBannerHideAction,
     required this.pollVoteButton,
     required this.pollChangeVoteButton,
     required this.pollAnonymousNotice,
@@ -532,6 +555,23 @@ class Strings {
     required this.noteMenuNumberedList,
     required this.noteMenuQuote,
     required this.noteMenuAttachment,
+    required this.settingsPasscodeLockToggleLabel,
+    required this.settingsPasscodeLockDescription,
+    required this.settingsPasscodeBiometricToggleLabel,
+    required this.settingsPasscodeChangeButton,
+    required this.passcodeSetupTitle,
+    required this.passcodeSetupEnterPrompt,
+    required this.passcodeSetupConfirmPrompt,
+    required this.passcodeSetupMismatchError,
+    required this.passcodeCurrentPrompt,
+    required this.passcodeIncorrectError,
+    required this.passcodeLockScreenTitle,
+    required this.passcodeLockScreenBiometricButton,
+    required this.passcodeLockScreenForgotButton,
+    required this.passcodeLockoutMessageTemplate,
+    required this.passcodeForgotDialogTitle,
+    required this.passcodeForgotDialogMessage,
+    required this.passcodeForgotDialogConfirmButton,
   });
 
   final String navTalk;
@@ -601,6 +641,13 @@ class Strings {
   final String settingsChatLayoutSideBySideDescription;
   final String settingsChatLayoutAllLeft;
   final String settingsChatLayoutAllLeftDescription;
+
+  /// 縦表示での語らい一覧レイアウト（2026-09-11追加、設定＞語らい）。
+  final String settingsTalksListLayoutTitle;
+  final String settingsTalksListLayoutStandard;
+  final String settingsTalksListLayoutStandardDescription;
+  final String settingsTalksListLayoutIconSplit;
+  final String settingsTalksListLayoutIconSplitDescription;
   final String settingsSubTypography;
   final String settingsFontDesign;
   final String fontDesignStandardLabel;
@@ -1213,6 +1260,25 @@ class Strings {
   final String settingsGoogleCalendarSyncDisconnectConfirmMessage;
   final String calendarSyncSetupIncompleteError;
 
+  /// Googleカレンダー風デザイン刷新（2026-09-11追加）。
+  final String calendarSearchTooltip;
+  final String calendarSearchHint;
+  final String calendarSearchEmptyLabel;
+  final String Function(int count) calendarMoreEventsLabel;
+
+  /// 予定/日程調整の種類（カテゴリ）機能（2026-09-11追加）。
+  final String calendarCategorySettingsTooltip;
+  final String calendarCategoryListTitle;
+  final String calendarCategoryListEmpty;
+  final String calendarCategoryCreateDialogTitle;
+  final String calendarCategoryEditDialogTitle;
+  final String calendarCategoryDialogNameLabel;
+  final String calendarCategoryColorInvalid;
+  final String calendarCategoryDeleteConfirmTitle;
+  final String calendarCategoryDeleteConfirmButton;
+  final String calendarCategoryNoneLabel;
+  final String calendarCategoryPickerLabel;
+
   /// 日付クリック時の「予定追加/日程調整」選択ダイアログ（2026-09-05追加）。
   final String calendarAddChoiceDialogTitle;
   final String calendarAddChoiceEventOption;
@@ -1253,6 +1319,13 @@ class Strings {
   final String pollCreatedMessageLabel;
   final String pollCreatedMessageConfirmAction;
   final String Function(String title) pollTaskBannerLabel;
+
+  /// タスクバナー項目の長押しメニュー（`task_banner.dart`）で使う。予定/
+  /// 日程調整/投票のどの種別でも共通の文言（2026-09-10追加）。
+  final String taskBannerHideConfirmTitle;
+  final String taskBannerHideConfirmMessage;
+  final String taskBannerHideAction;
+
   final String pollVoteButton;
   final String pollChangeVoteButton;
   final String pollAnonymousNotice;
@@ -1276,6 +1349,23 @@ class Strings {
   final String noteMenuNumberedList;
   final String noteMenuQuote;
   final String noteMenuAttachment;
+  final String settingsPasscodeLockToggleLabel;
+  final String settingsPasscodeLockDescription;
+  final String settingsPasscodeBiometricToggleLabel;
+  final String settingsPasscodeChangeButton;
+  final String passcodeSetupTitle;
+  final String passcodeSetupEnterPrompt;
+  final String passcodeSetupConfirmPrompt;
+  final String passcodeSetupMismatchError;
+  final String passcodeCurrentPrompt;
+  final String passcodeIncorrectError;
+  final String passcodeLockScreenTitle;
+  final String passcodeLockScreenBiometricButton;
+  final String passcodeLockScreenForgotButton;
+  final String Function(int seconds) passcodeLockoutMessageTemplate;
+  final String passcodeForgotDialogTitle;
+  final String passcodeForgotDialogMessage;
+  final String passcodeForgotDialogConfirmButton;
 
   static final ja = Strings._(
     navTalk: '語らい',
@@ -1338,6 +1428,12 @@ class Strings {
     settingsChatLayoutAllLeftDescription:
         '自分・相手ともにアイコンと呼び名を表示します。'
         'この設定は自分の画面にのみ反映され、相手の語らいの表示には影響しません。',
+    settingsTalksListLayoutTitle: '語らい一覧のレイアウト（縦表示）',
+    settingsTalksListLayoutStandard: '現在の実装UI',
+    settingsTalksListLayoutStandardDescription: '一対・広場を縦一列のリストで表示します。',
+    settingsTalksListLayoutIconSplit: 'アイコン＋寄合一覧UI',
+    settingsTalksListLayoutIconSplitDescription:
+        '左にアイコン一覧、右に選んだ相手・広場の寄合一覧を表示します。',
     settingsSubTypography: '文字',
     settingsFontDesign: 'フォントデザイン',
     fontDesignStandardLabel: '標準',
@@ -1778,6 +1874,21 @@ class Strings {
         '以後、DaiDaiで追加した予定はGoogleカレンダーに反映されなくなります。Google側の許可自体を取り消したい場合は、Googleアカウントの設定から行ってください。',
     calendarSyncSetupIncompleteError:
         'Googleカレンダー連携の準備がまだ完了していません。しばらくお待ちください。',
+    calendarSearchTooltip: '検索',
+    calendarSearchHint: '予定・日程調整を検索',
+    calendarSearchEmptyLabel: '見つかりませんでした',
+    calendarMoreEventsLabel: (count) => '他$count件',
+    calendarCategorySettingsTooltip: '種類の設定',
+    calendarCategoryListTitle: '予定・日程調整の種類',
+    calendarCategoryListEmpty: 'まだ種類がありません',
+    calendarCategoryCreateDialogTitle: '種類を追加',
+    calendarCategoryEditDialogTitle: '種類を編集',
+    calendarCategoryDialogNameLabel: '種類名',
+    calendarCategoryColorInvalid: '「#RRGGBB」の形式で入力してください',
+    calendarCategoryDeleteConfirmTitle: 'この種類を削除しますか？',
+    calendarCategoryDeleteConfirmButton: '削除する',
+    calendarCategoryNoneLabel: '種類なし',
+    calendarCategoryPickerLabel: '種類',
     calendarAddChoiceDialogTitle: '予定の追加方法を選んでください',
     calendarAddChoiceEventOption: '予定を追加',
     calendarAddChoiceEventSubtitle: '日時が確定した予定を追加する',
@@ -1815,6 +1926,9 @@ class Strings {
     pollCreatedMessageLabel: '投票が開始されました',
     pollCreatedMessageConfirmAction: '投票する',
     pollTaskBannerLabel: (title) => '投票「$title」に未回答です',
+    taskBannerHideConfirmTitle: 'バナーから非表示にしますか？',
+    taskBannerHideConfirmMessage: 'あなたの画面にのみ適用されます。他の参加者には引き続き表示され、削除は行われません。',
+    taskBannerHideAction: '非表示にする',
     pollVoteButton: '投票する',
     pollChangeVoteButton: '投票を変更',
     pollAnonymousNotice: '匿名投票のため、投票者は表示されません。',
@@ -1838,6 +1952,25 @@ class Strings {
     noteMenuNumberedList: '番号付きリスト',
     noteMenuQuote: '引用',
     noteMenuAttachment: '添付ファイル',
+    settingsPasscodeLockToggleLabel: 'パスコードロック',
+    settingsPasscodeLockDescription:
+        '有効にすると、アプリを起動するたびにパスコード（または生体認証）の入力が必要になります。',
+    settingsPasscodeBiometricToggleLabel: '生体認証で解除',
+    settingsPasscodeChangeButton: 'パスコードを変更',
+    passcodeSetupTitle: 'パスコードを設定',
+    passcodeSetupEnterPrompt: '6桁のパスコードを入力してください',
+    passcodeSetupConfirmPrompt: 'もう一度入力して確認してください',
+    passcodeSetupMismatchError: 'パスコードが一致しません',
+    passcodeCurrentPrompt: '現在のパスコードを入力してください',
+    passcodeIncorrectError: 'パスコードが違います',
+    passcodeLockScreenTitle: 'パスコードを入力',
+    passcodeLockScreenBiometricButton: '生体認証でやり直す',
+    passcodeLockScreenForgotButton: 'パスコードを忘れた場合',
+    passcodeLockoutMessageTemplate: (seconds) => 'しばらくお待ちください（あと$seconds秒）',
+    passcodeForgotDialogTitle: 'パスコードを忘れた場合',
+    passcodeForgotDialogMessage:
+        'サインアウトすると、この端末のパスコードは解除されます。再度ログインすると、また設定し直せます。',
+    passcodeForgotDialogConfirmButton: 'サインアウトしてリセット',
   );
 
   static final enGB = Strings._(
@@ -1908,6 +2041,14 @@ class Strings {
         'Always shows both your own and the other person\'s avatar and '
         'nickname. This only changes your own screen, not how others see '
         'the chat.',
+    settingsTalksListLayoutTitle: 'Talks list layout (portrait)',
+    settingsTalksListLayoutStandard: 'Current UI',
+    settingsTalksListLayoutStandardDescription:
+        'Shows direct messages and plazas as a single vertical list.',
+    settingsTalksListLayoutIconSplit: 'Icon + room list UI',
+    settingsTalksListLayoutIconSplitDescription:
+        'Shows an icon list on the left and the selected chat\'s room list '
+        'on the right.',
     settingsSubTypography: 'Typography',
     settingsFontDesign: 'Font design',
     fontDesignStandardLabel: 'Standard',
@@ -2404,6 +2545,21 @@ class Strings {
         'Events you add in DaiDai will no longer be added to Google Calendar. To revoke DaiDai\'s access on Google\'s side, use your Google Account settings.',
     calendarSyncSetupIncompleteError:
         "Google Calendar sync isn't set up yet. Please check back later.",
+    calendarSearchTooltip: 'Search',
+    calendarSearchHint: 'Search events',
+    calendarSearchEmptyLabel: 'No results found',
+    calendarMoreEventsLabel: (count) => '+$count more',
+    calendarCategorySettingsTooltip: 'Manage categories',
+    calendarCategoryListTitle: 'Event categories',
+    calendarCategoryListEmpty: 'No categories yet',
+    calendarCategoryCreateDialogTitle: 'Add category',
+    calendarCategoryEditDialogTitle: 'Edit category',
+    calendarCategoryDialogNameLabel: 'Category name',
+    calendarCategoryColorInvalid: 'Enter in "#RRGGBB" format',
+    calendarCategoryDeleteConfirmTitle: 'Delete this category?',
+    calendarCategoryDeleteConfirmButton: 'Delete',
+    calendarCategoryNoneLabel: 'No category',
+    calendarCategoryPickerLabel: 'Category',
     calendarAddChoiceDialogTitle: 'How would you like to add this?',
     calendarAddChoiceEventOption: 'Add event',
     calendarAddChoiceEventSubtitle: 'Add an event with a fixed date and time',
@@ -2445,6 +2601,10 @@ class Strings {
     pollCreatedMessageLabel: 'New poll started',
     pollCreatedMessageConfirmAction: 'Vote',
     pollTaskBannerLabel: (title) => 'Poll "$title" needs your response',
+    taskBannerHideConfirmTitle: 'Hide from banner?',
+    taskBannerHideConfirmMessage:
+        'This only applies to your view. It stays visible to other participants and nothing is deleted.',
+    taskBannerHideAction: 'Hide',
     pollVoteButton: 'Vote',
     pollChangeVoteButton: 'Change vote',
     pollAnonymousNotice: 'This is an anonymous poll — voters are not shown.',
@@ -2468,6 +2628,26 @@ class Strings {
     noteMenuNumberedList: 'Numbered list',
     noteMenuQuote: 'Quote',
     noteMenuAttachment: 'Attachment',
+    settingsPasscodeLockToggleLabel: 'Passcode lock',
+    settingsPasscodeLockDescription:
+        'When enabled, you\'ll need to enter a passcode (or use biometrics) every time you launch the app.',
+    settingsPasscodeBiometricToggleLabel: 'Unlock with biometrics',
+    settingsPasscodeChangeButton: 'Change passcode',
+    passcodeSetupTitle: 'Set a passcode',
+    passcodeSetupEnterPrompt: 'Enter a 6-digit passcode',
+    passcodeSetupConfirmPrompt: 'Enter it again to confirm',
+    passcodeSetupMismatchError: 'Passcodes don\'t match',
+    passcodeCurrentPrompt: 'Enter your current passcode',
+    passcodeIncorrectError: 'Incorrect passcode',
+    passcodeLockScreenTitle: 'Enter passcode',
+    passcodeLockScreenBiometricButton: 'Try biometrics again',
+    passcodeLockScreenForgotButton: 'Forgot your passcode?',
+    passcodeLockoutMessageTemplate: (seconds) =>
+        'Please wait ($seconds sec remaining)',
+    passcodeForgotDialogTitle: 'Forgot your passcode?',
+    passcodeForgotDialogMessage:
+        'Signing out will remove the passcode from this device. You can set a new one after signing in again.',
+    passcodeForgotDialogConfirmButton: 'Sign out and reset',
   );
 
   static Strings of(AppLocale locale) => switch (locale) {

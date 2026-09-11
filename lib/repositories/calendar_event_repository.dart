@@ -36,6 +36,7 @@ abstract class CalendarEventRepository {
     required bool rsvpEnabled,
     required bool rsvpPerDay,
     DateTime? rsvpDeadline,
+    String? categoryId,
   });
 
   /// 単発で1件だけ予定を取得する（存在しなければnull、2026-09-04追加）。
@@ -68,6 +69,7 @@ abstract class CalendarEventRepository {
     required bool rsvpEnabled,
     required bool rsvpPerDay,
     DateTime? rsvpDeadline,
+    String? categoryId,
   });
 
   /// この寄合の参加者一覧（一対は`participants`、広場は`memberIds`）。
@@ -162,6 +164,17 @@ abstract class CalendarEventRepository {
     required String userId,
     required Map<String, CalendarRsvpStatus> dayStatuses,
     String? note,
+  });
+
+  /// この予定を`ChatTaskBanner`から自分だけ非表示にする（2026-09-10追加）。
+  /// 予定本体は削除せず、カレンダー画面には引き続き表示される
+  /// （[CalendarEvent.bannerHiddenFor]参照）。
+  Future<void> hideFromBanner({
+    required bool isDm,
+    required String conversationId,
+    required String roomId,
+    required String eventId,
+    required String userId,
   });
 }
 
@@ -336,6 +349,7 @@ class FirestoreCalendarEventRepository implements CalendarEventRepository {
     required bool rsvpEnabled,
     required bool rsvpPerDay,
     DateTime? rsvpDeadline,
+    String? categoryId,
   }) async {
     final ref = _eventsCollection(
       isDm: isDm,
@@ -357,6 +371,7 @@ class FirestoreCalendarEventRepository implements CalendarEventRepository {
       rsvpDeadline: rsvpDeadline != null
           ? Timestamp.fromDate(rsvpDeadline)
           : null,
+      categoryId: categoryId,
     );
 
     final participants = await participantIds(
@@ -400,6 +415,7 @@ class FirestoreCalendarEventRepository implements CalendarEventRepository {
     required bool rsvpEnabled,
     required bool rsvpPerDay,
     DateTime? rsvpDeadline,
+    String? categoryId,
   }) async {
     await _eventRef(
       isDm: isDm,
@@ -418,6 +434,7 @@ class FirestoreCalendarEventRepository implements CalendarEventRepository {
       'rsvpDeadline': rsvpDeadline != null
           ? Timestamp.fromDate(rsvpDeadline)
           : null,
+      'categoryId': categoryId,
     });
 
     // 内容が変わったため、参加者全員のGoogleカレンダー同期状態を作成時と
@@ -711,5 +728,24 @@ class FirestoreCalendarEventRepository implements CalendarEventRepository {
         );
       }
     }
+  }
+
+  @override
+  Future<void> hideFromBanner({
+    required bool isDm,
+    required String conversationId,
+    required String roomId,
+    required String eventId,
+    required String userId,
+  }) async {
+    final eventRef = _eventRef(
+      isDm: isDm,
+      conversationId: conversationId,
+      roomId: roomId,
+      eventId: eventId,
+    );
+    await eventRef.update({
+      'bannerHiddenFor': FieldValue.arrayUnion([userId]),
+    });
   }
 }

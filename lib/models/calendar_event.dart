@@ -26,6 +26,8 @@ class CalendarEvent {
     this.rsvpPerDay = true,
     this.rsvpCount = 0,
     this.rsvpDeadline,
+    this.bannerHiddenFor = const [],
+    this.categoryId,
   });
 
   final String eventId;
@@ -67,6 +69,16 @@ class CalendarEvent {
   /// クライアント側でもUI無効化する）。
   final Timestamp? rsvpDeadline;
 
+  /// この予定を`ChatTaskBanner`（`task_banner.dart`）から個人的に非表示に
+  /// した住人のuserId一覧（2026-09-10追加）。`Message.hiddenFor`と異なり
+  /// 予定本体は消さず、カレンダー画面（`calendar_pane_view.dart`）等では
+  /// 引き続き表示される。バナー上でのみ本人の分を除外するために使う。
+  final List<String> bannerHiddenFor;
+
+  /// この予定の種類（`CalendarCategory.categoryId`、2026-09-11追加）。
+  /// nullなら種類無し（単色のアクセントカラー表示にフォールバック）。
+  final String? categoryId;
+
   factory CalendarEvent.fromJson(String eventId, Map<String, dynamic> json) {
     return CalendarEvent(
       eventId: eventId,
@@ -84,6 +96,10 @@ class CalendarEvent {
       rsvpPerDay: json['rsvpPerDay'] as bool? ?? true,
       rsvpCount: json['rsvpCount'] as int? ?? 0,
       rsvpDeadline: json['rsvpDeadline'] as Timestamp?,
+      bannerHiddenFor: (json['bannerHiddenFor'] as List<dynamic>? ?? [])
+          .map((e) => e as String)
+          .toList(),
+      categoryId: json['categoryId'] as String?,
     );
   }
 
@@ -102,6 +118,8 @@ class CalendarEvent {
     'rsvpPerDay': rsvpPerDay,
     'rsvpCount': rsvpCount,
     'rsvpDeadline': rsvpDeadline,
+    'categoryId': categoryId,
+    'bannerHiddenFor': bannerHiddenFor,
   };
 }
 

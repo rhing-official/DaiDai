@@ -16,6 +16,7 @@ class AppUserPreferences {
     this.stickerSendMode,
     this.draftSyncEnabled,
     this.chatLayoutStyle,
+    this.talksListLayoutStyle,
     this.messageTimeFormat,
     this.appUiStyle,
     this.customAccentColorsArgb,
@@ -36,6 +37,10 @@ class AppUserPreferences {
   final String? stickerSendMode;
   final bool? draftSyncEnabled;
   final String? chatLayoutStyle;
+
+  /// 縦表示での語らい一覧レイアウト（`TalksListLayoutStyle`のname、
+  /// 2026-09-11追加）。
+  final String? talksListLayoutStyle;
   final String? messageTimeFormat;
   final String? appUiStyle;
 
@@ -72,6 +77,7 @@ class AppUserPreferences {
       stickerSendMode: json['stickerSendMode'] as String?,
       draftSyncEnabled: json['draftSyncEnabled'] as bool?,
       chatLayoutStyle: json['chatLayoutStyle'] as String?,
+      talksListLayoutStyle: json['talksListLayoutStyle'] as String?,
       messageTimeFormat: json['messageTimeFormat'] as String?,
       appUiStyle: json['appUiStyle'] as String?,
       customAccentColorsArgb: (json['customAccentColorsArgb'] as List<dynamic>?)
@@ -96,6 +102,8 @@ class AppUserPreferences {
       if (stickerSendMode != null) 'stickerSendMode': stickerSendMode,
       if (draftSyncEnabled != null) 'draftSyncEnabled': draftSyncEnabled,
       if (chatLayoutStyle != null) 'chatLayoutStyle': chatLayoutStyle,
+      if (talksListLayoutStyle != null)
+        'talksListLayoutStyle': talksListLayoutStyle,
       if (messageTimeFormat != null) 'messageTimeFormat': messageTimeFormat,
       if (appUiStyle != null) 'appUiStyle': appUiStyle,
       if (customAccentColorsArgb != null)

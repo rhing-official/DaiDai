@@ -70,5 +70,7 @@
 	<string>音声通話でマイクを使用します</string>
 	<key>NSCameraUsageDescription</key>
 	<string>ビデオ通話でカメラを使用します</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>パスコードロックの解除にFace IDを使用します</string>
 </dict>
 </plist>
