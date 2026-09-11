@@ -64,6 +64,7 @@ class Poll {
     this.allowAddingOptions = false,
     this.responseCount = 0,
     this.optionVoteCounts = const {},
+    this.bannerHiddenFor = const [],
   });
 
   final String pollId;
@@ -93,6 +94,11 @@ class Poll {
 
   /// [pollOptionKey] -> 得票数（非正規化カウンタ、Cloud Functionsのみ更新）。
   final Map<String, int> optionVoteCounts;
+
+  /// この投票を`ChatTaskBanner`（`task_banner.dart`）から個人的に非表示に
+  /// した住人のuserId一覧（2026-09-10追加、`CalendarEvent.bannerHiddenFor`と
+  /// 同じ設計）。
+  final List<String> bannerHiddenFor;
 
   /// [options]を配列indexの昇順に並べたキー一覧。
   List<String> get orderedOptionKeys =>
@@ -132,6 +138,9 @@ class Poll {
       allowAddingOptions: json['allowAddingOptions'] as bool? ?? false,
       responseCount: json['responseCount'] as int? ?? 0,
       optionVoteCounts: optionVoteCounts,
+      bannerHiddenFor: (json['bannerHiddenFor'] as List<dynamic>? ?? [])
+          .map((e) => e as String)
+          .toList(),
     );
   }
 
@@ -148,5 +157,6 @@ class Poll {
     'anonymous': anonymous,
     'allowAddingOptions': allowAddingOptions,
     'responseCount': responseCount,
+    'bannerHiddenFor': bannerHiddenFor,
   };
 }

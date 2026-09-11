@@ -39,6 +39,8 @@ class ScheduleCoordination {
     this.responseCount = 0,
     this.finalizedCandidateIndex,
     this.finalizedEventId,
+    this.bannerHiddenFor = const [],
+    this.categoryId,
   });
 
   final String coordinationId;
@@ -67,6 +69,15 @@ class ScheduleCoordination {
   /// 確定によって作成された[CalendarEvent.eventId]。未確定ならnull。
   final String? finalizedEventId;
 
+  /// この日程調整を`ChatTaskBanner`（`task_banner.dart`）から個人的に
+  /// 非表示にした住人のuserId一覧（2026-09-10追加、`CalendarEvent.
+  /// bannerHiddenFor`と同じ設計）。
+  final List<String> bannerHiddenFor;
+
+  /// この日程調整の種類（`CalendarCategory.categoryId`、2026-09-11追加）。
+  /// 作成後の編集手段が無いため、作成時に指定した値のまま変更されない。
+  final String? categoryId;
+
   bool get isFinalized => finalizedEventId != null;
 
   factory ScheduleCoordination.fromJson(
@@ -87,6 +98,10 @@ class ScheduleCoordination {
       responseCount: json['responseCount'] as int? ?? 0,
       finalizedCandidateIndex: json['finalizedCandidateIndex'] as int?,
       finalizedEventId: json['finalizedEventId'] as String?,
+      bannerHiddenFor: (json['bannerHiddenFor'] as List<dynamic>? ?? [])
+          .map((e) => e as String)
+          .toList(),
+      categoryId: json['categoryId'] as String?,
     );
   }
 
@@ -101,6 +116,8 @@ class ScheduleCoordination {
     'responseCount': responseCount,
     'finalizedCandidateIndex': finalizedCandidateIndex,
     'finalizedEventId': finalizedEventId,
+    'bannerHiddenFor': bannerHiddenFor,
+    'categoryId': categoryId,
   };
 }
 

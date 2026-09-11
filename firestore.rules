@@ -487,7 +487,7 @@ service cloud.firestore {
                 && request.resource.data.diff(resource.data).affectedKeys()
                   .hasOnly(['title', 'description', 'startAt', 'endAt',
                             'isAllDay', 'location', 'rsvpEnabled', 'rsvpPerDay',
-                            'rsvpDeadline'])
+                            'rsvpDeadline', 'categoryId'])
               )
               // 出欠回答時のrsvpCount非正規化カウンタ更新（rsvps/{uid}参照）。
               // 参加者なら誰でも、自分の回答を新規作成した際に+1するだけの
@@ -503,6 +503,14 @@ service cloud.firestore {
               || (
                 request.resource.data.diff(resource.data).affectedKeys().hasOnly(['syncedCount'])
                 && request.resource.data.syncedCount == resource.data.get('syncedCount', 0) + 1
+              )
+              // タスクバナーからの個人的な非表示（2026-09-10追加）。自分の
+              // uidを1件追加するだけの更新のみ許可し、他人の分の追加・削除や
+              // それ以外のフィールド変更は拒否する（hiddenForと同じパターン）。
+              || (
+                request.resource.data.diff(resource.data).affectedKeys().hasOnly(['bannerHiddenFor'])
+                && request.resource.data.bannerHiddenFor.hasAll('bannerHiddenFor' in resource.data ? resource.data.bannerHiddenFor : [])
+                && request.resource.data.bannerHiddenFor.removeAll('bannerHiddenFor' in resource.data ? resource.data.bannerHiddenFor : []).hasOnly([request.auth.uid])
               )
             );
           allow delete: if request.auth != null
@@ -550,6 +558,18 @@ service cloud.firestore {
           }
         }
 
+        // calendarCategories/{categoryId}: 予定/日程調整の種類（カテゴリ、
+        // 2026-09-11追加）。calendarEventsと同じくこの寄合の参加者全員が
+        // 対等に作成できるが、寄合共有の分類設定という性質上（Room/DmRoomの
+        // 追加・削除と同じ位置づけ）、GroupRoleのような専用権限は設けず
+        // 参加者なら誰でも編集・削除できる。
+        match /calendarCategories/{categoryId} {
+          allow read: if request.auth != null
+            && request.auth.uid in get(/databases/$(database)/documents/directMessages/$(dmId)/rooms/$(roomId)).data.participants;
+          allow create, update, delete: if request.auth != null
+            && request.auth.uid in get(/databases/$(database)/documents/directMessages/$(dmId)/rooms/$(roomId)).data.participants;
+        }
+
         // scheduleCoordinations/{coordinationId}: 日程調整（複数候補日への
         // ○/△/×投票、2026-09-05追加）。calendarEventsと同じくこの寄合の
         // 参加者全員が対等に作成できる。削除は作成者のみ。確定
@@ -579,6 +599,13 @@ service cloud.firestore {
               || (
                 request.resource.data.diff(resource.data).affectedKeys().hasOnly(['responseCount'])
                 && request.resource.data.responseCount == resource.data.get('responseCount', 0) + 1
+              )
+              // タスクバナーからの個人的な非表示（2026-09-10追加、calendarEvents
+              // と同じパターン）。
+              || (
+                request.resource.data.diff(resource.data).affectedKeys().hasOnly(['bannerHiddenFor'])
+                && request.resource.data.bannerHiddenFor.hasAll('bannerHiddenFor' in resource.data ? resource.data.bannerHiddenFor : [])
+                && request.resource.data.bannerHiddenFor.removeAll('bannerHiddenFor' in resource.data ? resource.data.bannerHiddenFor : []).hasOnly([request.auth.uid])
               )
             );
           allow delete: if request.auth != null
@@ -621,13 +648,24 @@ service cloud.firestore {
           // 一切更新できない。
           allow update: if request.auth != null
             && request.auth.uid in get(/databases/$(database)/documents/directMessages/$(dmId)/rooms/$(roomId)).data.participants
-            && resource.data.allowAddingOptions == true
-            && (!('deadline' in resource.data) || resource.data.deadline == null || request.time <= resource.data.deadline)
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['options'])
-            && request.resource.data.options.diff(resource.data.options).removedKeys().size() == 0
-            && request.resource.data.options.diff(resource.data.options).changedKeys().size() == 0
-            && request.resource.data.options.diff(resource.data.options).addedKeys().size() == 1
-            && request.resource.data.options.diff(resource.data.options).addedKeys().hasOnly([string(resource.data.options.size())]);
+            && (
+              (
+                resource.data.allowAddingOptions == true
+                && (!('deadline' in resource.data) || resource.data.deadline == null || request.time <= resource.data.deadline)
+                && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['options'])
+                && request.resource.data.options.diff(resource.data.options).removedKeys().size() == 0
+                && request.resource.data.options.diff(resource.data.options).changedKeys().size() == 0
+                && request.resource.data.options.diff(resource.data.options).addedKeys().size() == 1
+                && request.resource.data.options.diff(resource.data.options).addedKeys().hasOnly([string(resource.data.options.size())])
+              )
+              // タスクバナーからの個人的な非表示（2026-09-10追加、
+              // calendarEventsと同じパターン）。
+              || (
+                request.resource.data.diff(resource.data).affectedKeys().hasOnly(['bannerHiddenFor'])
+                && request.resource.data.bannerHiddenFor.hasAll('bannerHiddenFor' in resource.data ? resource.data.bannerHiddenFor : [])
+                && request.resource.data.bannerHiddenFor.removeAll('bannerHiddenFor' in resource.data ? resource.data.bannerHiddenFor : []).hasOnly([request.auth.uid])
+              )
+            );
           allow delete: if request.auth != null
             && request.auth.uid in get(/databases/$(database)/documents/directMessages/$(dmId)/rooms/$(roomId)).data.participants
             && request.auth.uid == resource.data.createdBy;
@@ -1045,7 +1083,7 @@ service cloud.firestore {
                 && request.resource.data.diff(resource.data).affectedKeys()
                   .hasOnly(['title', 'description', 'startAt', 'endAt',
                             'isAllDay', 'location', 'rsvpEnabled', 'rsvpPerDay',
-                            'rsvpDeadline'])
+                            'rsvpDeadline', 'categoryId'])
               )
               || (
                 request.resource.data.diff(resource.data).affectedKeys().hasOnly(['rsvpCount'])
@@ -1054,6 +1092,14 @@ service cloud.firestore {
               || (
                 request.resource.data.diff(resource.data).affectedKeys().hasOnly(['syncedCount'])
                 && request.resource.data.syncedCount == resource.data.get('syncedCount', 0) + 1
+              )
+              // タスクバナーからの個人的な非表示（2026-09-10追加）。自分の
+              // uidを1件追加するだけの更新のみ許可し、他人の分の追加・削除や
+              // それ以外のフィールド変更は拒否する（hiddenForと同じパターン）。
+              || (
+                request.resource.data.diff(resource.data).affectedKeys().hasOnly(['bannerHiddenFor'])
+                && request.resource.data.bannerHiddenFor.hasAll('bannerHiddenFor' in resource.data ? resource.data.bannerHiddenFor : [])
+                && request.resource.data.bannerHiddenFor.removeAll('bannerHiddenFor' in resource.data ? resource.data.bannerHiddenFor : []).hasOnly([request.auth.uid])
               )
             );
           allow delete: if request.auth != null
@@ -1099,6 +1145,16 @@ service cloud.firestore {
           }
         }
 
+        // calendarCategories/{categoryId}: 予定/日程調整の種類（カテゴリ、
+        // 2026-09-11追加）。DM側と同じく寄合共有の分類設定として、専用権限を
+        // 設けずメンバーなら誰でも編集・削除できる。
+        match /calendarCategories/{categoryId} {
+          allow read: if request.auth != null
+            && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)/rooms/$(roomId)).data.memberIds;
+          allow create, update, delete: if request.auth != null
+            && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)/rooms/$(roomId)).data.memberIds;
+        }
+
         // scheduleCoordinations/{coordinationId}: 日程調整（複数候補日への
         // ○/△/×投票、2026-09-05追加）。calendarEventsと同じくこの寄合の
         // メンバー全員が対等に作成できる。削除は作成者のみ。確定
@@ -1128,6 +1184,13 @@ service cloud.firestore {
               || (
                 request.resource.data.diff(resource.data).affectedKeys().hasOnly(['responseCount'])
                 && request.resource.data.responseCount == resource.data.get('responseCount', 0) + 1
+              )
+              // タスクバナーからの個人的な非表示（2026-09-10追加、calendarEvents
+              // と同じパターン）。
+              || (
+                request.resource.data.diff(resource.data).affectedKeys().hasOnly(['bannerHiddenFor'])
+                && request.resource.data.bannerHiddenFor.hasAll('bannerHiddenFor' in resource.data ? resource.data.bannerHiddenFor : [])
+                && request.resource.data.bannerHiddenFor.removeAll('bannerHiddenFor' in resource.data ? resource.data.bannerHiddenFor : []).hasOnly([request.auth.uid])
               )
             );
           allow delete: if request.auth != null
@@ -1162,13 +1225,24 @@ service cloud.firestore {
             && request.resource.data.get('responseCount', 0) == 0;
           allow update: if request.auth != null
             && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)/rooms/$(roomId)).data.memberIds
-            && resource.data.allowAddingOptions == true
-            && (!('deadline' in resource.data) || resource.data.deadline == null || request.time <= resource.data.deadline)
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['options'])
-            && request.resource.data.options.diff(resource.data.options).removedKeys().size() == 0
-            && request.resource.data.options.diff(resource.data.options).changedKeys().size() == 0
-            && request.resource.data.options.diff(resource.data.options).addedKeys().size() == 1
-            && request.resource.data.options.diff(resource.data.options).addedKeys().hasOnly([string(resource.data.options.size())]);
+            && (
+              (
+                resource.data.allowAddingOptions == true
+                && (!('deadline' in resource.data) || resource.data.deadline == null || request.time <= resource.data.deadline)
+                && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['options'])
+                && request.resource.data.options.diff(resource.data.options).removedKeys().size() == 0
+                && request.resource.data.options.diff(resource.data.options).changedKeys().size() == 0
+                && request.resource.data.options.diff(resource.data.options).addedKeys().size() == 1
+                && request.resource.data.options.diff(resource.data.options).addedKeys().hasOnly([string(resource.data.options.size())])
+              )
+              // タスクバナーからの個人的な非表示（2026-09-10追加、
+              // calendarEventsと同じパターン）。
+              || (
+                request.resource.data.diff(resource.data).affectedKeys().hasOnly(['bannerHiddenFor'])
+                && request.resource.data.bannerHiddenFor.hasAll('bannerHiddenFor' in resource.data ? resource.data.bannerHiddenFor : [])
+                && request.resource.data.bannerHiddenFor.removeAll('bannerHiddenFor' in resource.data ? resource.data.bannerHiddenFor : []).hasOnly([request.auth.uid])
+              )
+            );
           allow delete: if request.auth != null
             && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)/rooms/$(roomId)).data.memberIds
             && request.auth.uid == resource.data.createdBy;

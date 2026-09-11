@@ -10,6 +10,8 @@
     <!-- プッシュ通知（FCM）用。Android 13+はランタイム許可も必要
          （firebase_messagingのrequestPermission()が内包、2026-08-31追加）。 -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <!-- パスコードロック機能の生体認証（Android BiometricPrompt）用（2026-09-11追加）。 -->
+    <uses-permission android:name="android.permission.USE_BIOMETRIC"/>
     <uses-feature android:name="android.hardware.camera" android:required="false"/>
     <uses-feature android:name="android.hardware.camera.autofocus" android:required="false"/>
     <application

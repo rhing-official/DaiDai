@@ -301,14 +301,20 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
   /// stream自体のidentityを固定し、`ListView`のScrollableを再構築させない。
   final _messagesController = StreamController<List<Message>>.broadcast();
 
+  /// 現在表示中の寄合（2026-09-11変更、以前は`widget.roomId`固定だった）。
+  /// 狭い画面の`RoomTabBar`から`_switchRoom`で切り替えられる。
+  late String _currentRoomId = widget.roomId;
+  late String _currentRoomName = widget.roomName;
+
   /// この寄合のメッセージ購読・読み込み済みリスト（`ChatRoomMessageCacheEntry`
-  /// のdocコメント参照）。[initState]でアタッチし、[dispose]でデタッチする。
-  late final ChatRoomCacheKey _cacheKey = ChatRoomCacheKey(
+  /// のdocコメント参照）。[initState]/[_switchRoom]でアタッチし、
+  /// [dispose]/[_switchRoom]でデタッチする。
+  late ChatRoomCacheKey _cacheKey = ChatRoomCacheKey(
     isDm: true,
     conversationId: widget.dm.dmId,
-    roomId: widget.roomId,
+    roomId: _currentRoomId,
   );
-  late final ChatRoomMessageCacheEntry _cacheEntry;
+  late ChatRoomMessageCacheEntry _cacheEntry;
 
   /// カレンダーをこの語らいの表示領域内に表示中か（2026-09-01追加、
   /// `EmbeddedCallPane`の`_showingCall`と同じローカル切り替え方式）。
@@ -336,12 +342,68 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
     _cacheEntry.ensureSubscribed(
       () => ref
           .read(directMessageRepositoryProvider)
-          .watchLatestDayMessages(widget.dm.dmId, widget.roomId),
+          .watchLatestDayMessages(widget.dm.dmId, _currentRoomId),
     );
+    _scheduleGuaranteedMessagesEmit();
   }
 
   void _onCacheEntryChanged() {
     if (mounted) setState(() {});
+  }
+
+  /// [_cacheEntry]をアタッチした直後（[initState]/[_switchRoom]）に呼ぶ。
+  /// 新しくマウントされる（[_currentRoomId]の変化で`key`が変わる）
+  /// `ChatScreen`内部の`StreamBuilder`は、呼び出し元と同じbuild()内で行う
+  /// `_messagesController.add()`を、購読開始のタイミングが後になるため
+  /// 必ず一度取りこぼす（broadcastストリームは購読前のイベントを再送しない）。
+  /// キャッシュ済み寄合への再訪問時、これを放置すると新しいFirestore更新が
+  /// 来るまで永久にローディング表示のままになる（2026-09-11発覚）。1フレーム
+  /// 後に空のsetStateで`_buildChatScreen`をもう一度走らせ、その時点では
+  /// 新しいStreamBuilderは購読済みなので正しく受け取れる。
+  void _scheduleGuaranteedMessagesEmit() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  /// 狭い画面の`RoomTabBar`から呼ばれる、寄合の切り替え（2026-09-11追加）。
+  /// 以前は`pushReplacement`で画面ごと作り直していたが、220msのページ遷移
+  /// アニメーションの分だけ切り替えが遅れて見えるうえ、広い画面の
+  /// `RoomListPane`（`talks_tab.dart`）と挙動が揃っていなかった。ここでは
+  /// `RoomListPane`と同じくローカルstateの変更のみで切り替える一方、
+  /// `ChatScreen`自身の`key`は引き続き寄合ごとに変わるため、下書き・返信先・
+  /// スクロール位置等の「寄合ごとにまっさらな状態へ戻す」という既存の挙動は
+  /// 変わらない。
+  void _switchRoom(String roomId, String roomName) {
+    if (roomId == _currentRoomId) return;
+    final oldKey = _cacheKey;
+    final oldEntry = _cacheEntry;
+    final newKey = ChatRoomCacheKey(
+      isDm: true,
+      conversationId: widget.dm.dmId,
+      roomId: roomId,
+    );
+    final newEntry = ref
+        .read(chatRoomMessageCacheManagerProvider)
+        .attach(newKey);
+    newEntry.addListener(_onCacheEntryChanged);
+    newEntry.ensureSubscribed(
+      () => ref
+          .read(directMessageRepositoryProvider)
+          .watchLatestDayMessages(widget.dm.dmId, roomId),
+    );
+    setState(() {
+      _currentRoomId = roomId;
+      _currentRoomName = roomName;
+      _cacheKey = newKey;
+      _cacheEntry = newEntry;
+      _showingCalendar = false;
+      _openNoteId = null;
+      _openAlbum = null;
+    });
+    oldEntry.removeListener(_onCacheEntryChanged);
+    ref.read(chatRoomMessageCacheManagerProvider).detach(oldKey, oldEntry);
+    _scheduleGuaranteedMessagesEmit();
   }
 
   Future<void> _loadOlderMessages() {
@@ -350,7 +412,7 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
           .read(directMessageRepositoryProvider)
           .loadOlderDayMessages(
             dmId: widget.dm.dmId,
-            roomId: widget.roomId,
+            roomId: _currentRoomId,
             beforeDayStart: before,
           ),
     );
@@ -405,7 +467,7 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
       return CalendarPaneView(
         isDm: true,
         conversationId: widget.dm.dmId,
-        roomId: widget.roomId,
+        roomId: _currentRoomId,
         currentUser: widget.currentUser,
         onClose: () => setState(() => _showingCalendar = false),
       );
@@ -415,7 +477,7 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
       return NotePaneView(
         isDm: true,
         conversationId: widget.dm.dmId,
-        roomId: widget.roomId,
+        roomId: _currentRoomId,
         noteId: openNoteId,
         currentUser: widget.currentUser,
         onClose: () => setState(() => _openNoteId = null),
@@ -426,7 +488,7 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
       return AlbumPaneView(
         isDm: true,
         conversationId: widget.dm.dmId,
-        roomId: widget.roomId,
+        roomId: _currentRoomId,
         album: openAlbum,
         currentUserId: widget.currentUser.userId,
         onClose: () => setState(() => _openAlbum = null),
@@ -463,8 +525,8 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
     final dmRepository = ref.watch(directMessageRepositoryProvider);
     final dm = widget.dm;
     final currentUser = widget.currentUser;
-    final roomId = widget.roomId;
-    final roomName = widget.roomName;
+    final roomId = _currentRoomId;
+    final roomName = _currentRoomName;
     final otherUserId = dm.otherUserId(currentUser.userId);
     // 横スクロールタブバーは、単一モード・広い画面のサイドバー使用中は
     // 表示しない（`rooms`自体はピン留め機能のため常に購読しているが、タブ
@@ -512,17 +574,7 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
                   MediaQuery.paddingOf(context).horizontal,
               textScaler: MediaQuery.textScalerOf(context),
               isGekiga: ref.watch(appUiStyleProvider) == AppUiStyle.gekiga,
-              onSelectRoom: (room) => ref
-                  .read(goRouterProvider)
-                  .pushReplacement(
-                    '/chat/dm',
-                    extra: DmChatArgs(
-                      currentUser: currentUser,
-                      dm: dm,
-                      roomId: room.roomId,
-                      roomName: room.name,
-                    ),
-                  ),
+              onSelectRoom: (room) => _switchRoom(room.roomId, room.name),
               onCreateRoom: (name) =>
                   dmRepository.createRoom(dmId: dm.dmId, name: name),
             ),
@@ -1844,14 +1896,20 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
   /// `initState`から`dispose`まで固定するために使う。
   final _messagesController = StreamController<List<Message>>.broadcast();
 
+  /// 現在表示中の寄合（2026-09-11変更、以前は`widget.roomId`固定だった）。
+  /// 狭い画面の`RoomTabBar`から`_switchRoom`で切り替えられる。
+  late String _currentRoomId = widget.roomId;
+  late String _currentRoomName = widget.roomName;
+
   /// この寄合のメッセージ購読・読み込み済みリスト（`ChatRoomMessageCacheEntry`
-  /// のdocコメント参照）。[initState]でアタッチし、[dispose]でデタッチする。
-  late final ChatRoomCacheKey _cacheKey = ChatRoomCacheKey(
+  /// のdocコメント参照）。[initState]/[_switchRoom]でアタッチし、
+  /// [dispose]/[_switchRoom]でデタッチする。
+  late ChatRoomCacheKey _cacheKey = ChatRoomCacheKey(
     isDm: false,
     conversationId: widget.group.groupId,
-    roomId: widget.roomId,
+    roomId: _currentRoomId,
   );
-  late final ChatRoomMessageCacheEntry _cacheEntry;
+  late ChatRoomMessageCacheEntry _cacheEntry;
 
   /// カレンダーをこの語らいの表示領域内に表示中か（2026-09-01追加、
   /// `EmbeddedCallPane`の`_showingCall`と同じローカル切り替え方式）。
@@ -1879,12 +1937,58 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
     _cacheEntry.ensureSubscribed(
       () => ref
           .read(groupRepositoryProvider)
-          .watchLatestDayRoomMessages(widget.group.groupId, widget.roomId),
+          .watchLatestDayRoomMessages(widget.group.groupId, _currentRoomId),
     );
+    _scheduleGuaranteedMessagesEmit();
   }
 
   void _onCacheEntryChanged() {
     if (mounted) setState(() {});
+  }
+
+  /// [_cacheEntry]をアタッチした直後（[initState]/[_switchRoom]）に呼ぶ。
+  /// `_DmChatPaneState._scheduleGuaranteedMessagesEmit`と同じ理由・同じ実装
+  /// （キャッシュ済み寄合への再訪問時、新しくマウントされる`ChatScreen`の
+  /// `StreamBuilder`が1回目の`_messagesController.add()`を取りこぼし、
+  /// ローディング表示のまま止まってしまう問題への対策）。
+  void _scheduleGuaranteedMessagesEmit() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  /// 狭い画面の`RoomTabBar`から呼ばれる、寄合の切り替え（2026-09-11追加、
+  /// `_DmChatPaneState._switchRoom`と同じ設計）。
+  void _switchRoom(String roomId, String roomName) {
+    if (roomId == _currentRoomId) return;
+    final oldKey = _cacheKey;
+    final oldEntry = _cacheEntry;
+    final newKey = ChatRoomCacheKey(
+      isDm: false,
+      conversationId: widget.group.groupId,
+      roomId: roomId,
+    );
+    final newEntry = ref
+        .read(chatRoomMessageCacheManagerProvider)
+        .attach(newKey);
+    newEntry.addListener(_onCacheEntryChanged);
+    newEntry.ensureSubscribed(
+      () => ref
+          .read(groupRepositoryProvider)
+          .watchLatestDayRoomMessages(widget.group.groupId, roomId),
+    );
+    setState(() {
+      _currentRoomId = roomId;
+      _currentRoomName = roomName;
+      _cacheKey = newKey;
+      _cacheEntry = newEntry;
+      _showingCalendar = false;
+      _openNoteId = null;
+      _openAlbum = null;
+    });
+    oldEntry.removeListener(_onCacheEntryChanged);
+    ref.read(chatRoomMessageCacheManagerProvider).detach(oldKey, oldEntry);
+    _scheduleGuaranteedMessagesEmit();
   }
 
   Future<void> _loadOlderMessages() {
@@ -1893,7 +1997,7 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
           .read(groupRepositoryProvider)
           .loadOlderRoomDayMessages(
             groupId: widget.group.groupId,
-            roomId: widget.roomId,
+            roomId: _currentRoomId,
             beforeDayStart: before,
           ),
     );
@@ -2010,7 +2114,7 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
   Widget build(BuildContext context) {
     final group = widget.group;
     final currentUser = widget.currentUser;
-    final roomId = widget.roomId;
+    final roomId = _currentRoomId;
     final groupRepository = ref.watch(groupRepositoryProvider);
     if (_showingCalendar) {
       return CalendarPaneView(
@@ -2104,8 +2208,8 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
   ) {
     final group = widget.group;
     final currentUser = widget.currentUser;
-    final roomId = widget.roomId;
-    final roomName = widget.roomName;
+    final roomId = _currentRoomId;
+    final roomName = _currentRoomName;
     final canManageRooms = hasGroupPermission(
       group: group,
       userId: currentUser.userId,
@@ -2157,17 +2261,7 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
                   MediaQuery.paddingOf(context).horizontal,
               textScaler: MediaQuery.textScalerOf(context),
               isGekiga: ref.watch(appUiStyleProvider) == AppUiStyle.gekiga,
-              onSelectRoom: (room) => ref
-                  .read(goRouterProvider)
-                  .pushReplacement(
-                    '/chat/group',
-                    extra: GroupChatArgs(
-                      currentUser: currentUser,
-                      group: group,
-                      roomId: room.roomId,
-                      roomName: room.name,
-                    ),
-                  ),
+              onSelectRoom: (room) => _switchRoom(room.roomId, room.name),
               onCreateRoom: canManageRooms
                   ? (name) => groupRepository.createRoom(
                       groupId: group.groupId,

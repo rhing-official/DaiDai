@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../../l10n/strings.dart';
 import '../../models/app_ui_style.dart';
+import '../../models/calendar_category.dart';
 import '../../models/calendar_event.dart';
 import '../../providers/app_locale_provider.dart';
 import '../../providers/app_ui_style_provider.dart';
@@ -95,6 +96,7 @@ class _CalendarEventFormDialogState
   late bool _rsvpEnabled = widget.existingEvent?.rsvpEnabled ?? true;
   late bool _rsvpPerDay = widget.existingEvent?.rsvpPerDay ?? false;
   late DateTime? _rsvpDeadline = widget.existingEvent?.rsvpDeadline?.toDate();
+  late String? _categoryId = widget.existingEvent?.categoryId;
   bool _saving = false;
 
   bool get _isEditing => widget.existingEvent != null;
@@ -255,6 +257,7 @@ class _CalendarEventFormDialogState
           rsvpEnabled: _rsvpEnabled,
           rsvpPerDay: _rsvpEnabled && _isMultiDay && _rsvpPerDay,
           rsvpDeadline: _rsvpEnabled ? _rsvpDeadline : null,
+          categoryId: _categoryId,
         );
         // 内容は変更済みだが、編集後の再取得はせずexistingEventをそのまま
         // 返す（呼び出し元は今のところ編集パスの戻り値を「保存できたか」の
@@ -276,6 +279,7 @@ class _CalendarEventFormDialogState
           rsvpEnabled: _rsvpEnabled,
           rsvpPerDay: _rsvpEnabled && _isMultiDay && _rsvpPerDay,
           rsvpDeadline: _rsvpEnabled ? _rsvpDeadline : null,
+          categoryId: _categoryId,
         );
         // メッセージ画面への通知は副次的な効果であり、失敗しても予定の
         // 作成自体は成功として扱う（setRsvpのrsvpCount更新と同じ設計判断、
@@ -357,6 +361,58 @@ class _CalendarEventFormDialogState
               decoration: InputDecoration(
                 hintText: strings.calendarTitleFieldHint,
               ),
+            ),
+            const SizedBox(height: 8),
+            StreamBuilder<List<CalendarCategory>>(
+              stream: ref
+                  .watch(calendarCategoryRepositoryProvider)
+                  .watchCategories(
+                    isDm: widget.isDm,
+                    conversationId: widget.conversationId,
+                    roomId: widget.roomId,
+                  ),
+              builder: (context, snapshot) {
+                final categories = snapshot.data ?? const <CalendarCategory>[];
+                // 削除済み等で一覧に無いcategoryIdを選択状態のまま渡すと
+                // DropdownButtonFormFieldがassertion errorになるため、現在の
+                // 一覧に存在する値のみ選択状態として扱う。
+                final validCategoryId =
+                    categories.any((c) => c.categoryId == _categoryId)
+                    ? _categoryId
+                    : null;
+                return DropdownButtonFormField<String?>(
+                  initialValue: validCategoryId,
+                  decoration: InputDecoration(
+                    labelText: strings.calendarCategoryPickerLabel,
+                  ),
+                  items: [
+                    DropdownMenuItem(
+                      value: null,
+                      child: Text(strings.calendarCategoryNoneLabel),
+                    ),
+                    for (final category in categories)
+                      DropdownMenuItem(
+                        value: category.categoryId,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 12,
+                              height: 12,
+                              decoration: BoxDecoration(
+                                color: Color(0xFF000000 | category.color),
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(category.name),
+                          ],
+                        ),
+                      ),
+                  ],
+                  onChanged: (value) => setState(() => _categoryId = value),
+                );
+              },
             ),
             const SizedBox(height: 8),
             SwitchListTile(

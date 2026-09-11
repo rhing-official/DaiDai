@@ -19,7 +19,9 @@ import 'package:daidai/models/sticker_send_mode.dart';
 import 'package:daidai/providers/message_time_format_provider.dart';
 import 'package:daidai/providers/ringtone_sound_provider.dart';
 import 'package:daidai/providers/send_key_mode_provider.dart';
+import 'package:daidai/models/talks_list_layout_style.dart';
 import 'package:daidai/providers/sticker_send_mode_provider.dart';
+import 'package:daidai/providers/talks_list_layout_style_provider.dart';
 import 'package:daidai/providers/theme_mode_provider.dart';
 import 'package:daidai/widgets/swipe_gestures.dart';
 import 'package:flutter/material.dart';
@@ -60,6 +62,9 @@ Future<void> _pumpSettingsTab(WidgetTester tester) async {
         ),
         initialChatLayoutStyleProvider.overrideWithValue(
           ChatLayoutStyle.sideBySide,
+        ),
+        initialTalksListLayoutStyleProvider.overrideWithValue(
+          TalksListLayoutStyle.standard,
         ),
         initialAppThemeModeProvider.overrideWithValue(ThemeMode.system),
         initialAppUiStyleProvider.overrideWithValue(AppUiStyle.flat),
@@ -105,6 +110,9 @@ Future<void> _pumpSettingsTabNarrow(WidgetTester tester) async {
         ),
         initialChatLayoutStyleProvider.overrideWithValue(
           ChatLayoutStyle.sideBySide,
+        ),
+        initialTalksListLayoutStyleProvider.overrideWithValue(
+          TalksListLayoutStyle.standard,
         ),
         initialAppThemeModeProvider.overrideWithValue(ThemeMode.system),
         initialAppUiStyleProvider.overrideWithValue(AppUiStyle.flat),

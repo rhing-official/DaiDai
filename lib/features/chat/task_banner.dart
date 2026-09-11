@@ -171,7 +171,10 @@ class _ChatTaskBannerState extends ConsumerState<ChatTaskBanner> {
   void _onEvents(List<CalendarEvent> events) {
     final candidates = {
       for (final e in events)
-        if (e.rsvpEnabled && _isUpcoming(e)) e.eventId: e,
+        if (e.rsvpEnabled &&
+            _isUpcoming(e) &&
+            !e.bannerHiddenFor.contains(widget.currentUserId))
+          e.eventId: e,
     };
 
     for (final eventId in _rsvpSubs.keys.toList()) {
@@ -229,7 +232,8 @@ class _ChatTaskBannerState extends ConsumerState<ChatTaskBanner> {
   void _onCoordinations(List<ScheduleCoordination> coordinations) {
     final candidates = {
       for (final c in coordinations)
-        if (!c.isFinalized) c.coordinationId: c,
+        if (!c.isFinalized && !c.bannerHiddenFor.contains(widget.currentUserId))
+          c.coordinationId: c,
     };
 
     for (final id in _responseSubs.keys.toList()) {
@@ -274,7 +278,8 @@ class _ChatTaskBannerState extends ConsumerState<ChatTaskBanner> {
   void _onPolls(List<Poll> polls) {
     final candidates = {
       for (final p in polls)
-        if (!p.isClosed) p.pollId: p,
+        if (!p.isClosed && !p.bannerHiddenFor.contains(widget.currentUserId))
+          p.pollId: p,
     };
 
     for (final id in _pollResponseSubs.keys.toList()) {
@@ -347,6 +352,70 @@ class _ChatTaskBannerState extends ConsumerState<ChatTaskBanner> {
           poll: poll,
           currentUser: currentUser,
         );
+    }
+  }
+
+  /// 長押し確認ダイアログから呼ばれる、タスクバナーからの個人的な非表示
+  /// （2026-09-10追加）。対象は削除せず、自分の`bannerHiddenFor`に自分の
+  /// userIdを追加するだけ（他の参加者のバナーには影響しない）。呼び出し後は
+  /// Firestoreストリームの更新で自動的にバナーから消えるため、追加の状態
+  /// 更新は不要。
+  Future<void> _hideTask(_PendingTask task) async {
+    switch (task) {
+      case _PendingEventTask(:final event):
+        await ref
+            .read(calendarEventRepositoryProvider)
+            .hideFromBanner(
+              isDm: widget.isDm,
+              conversationId: widget.conversationId,
+              roomId: widget.roomId,
+              eventId: event.eventId,
+              userId: widget.currentUserId,
+            );
+      case _PendingCoordinationTask(:final coordination):
+        await ref
+            .read(scheduleCoordinationRepositoryProvider)
+            .hideFromBanner(
+              isDm: widget.isDm,
+              conversationId: widget.conversationId,
+              roomId: widget.roomId,
+              coordinationId: coordination.coordinationId,
+              userId: widget.currentUserId,
+            );
+      case _PendingPollTask(:final poll):
+        await ref
+            .read(pollRepositoryProvider)
+            .hideFromBanner(
+              isDm: widget.isDm,
+              conversationId: widget.conversationId,
+              roomId: widget.roomId,
+              pollId: poll.pollId,
+              userId: widget.currentUserId,
+            );
+    }
+  }
+
+  Future<void> _confirmHideTask(_PendingTask task) async {
+    final strings = ref.read(appStringsProvider);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(strings.taskBannerHideConfirmTitle),
+        content: Text(strings.taskBannerHideConfirmMessage),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(strings.cancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(strings.taskBannerHideAction),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      await _hideTask(task);
     }
   }
 
@@ -429,6 +498,7 @@ class _ChatTaskBannerState extends ConsumerState<ChatTaskBanner> {
       children: [
         InkWell(
           onTap: () => _openTask(primaryTask),
+          onLongPress: () => _confirmHideTask(primaryTask),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             child: Row(
@@ -458,6 +528,7 @@ class _ChatTaskBannerState extends ConsumerState<ChatTaskBanner> {
                 setState(() => _expanded = false);
                 _openTask(task);
               },
+              onLongPress: () => _confirmHideTask(task),
               child: Padding(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 16,

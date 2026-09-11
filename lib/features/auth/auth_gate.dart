@@ -6,6 +6,7 @@ import '../../providers/repository_providers.dart';
 import '../../providers/user_preferences_sync.dart';
 import 'account_restore_screen.dart';
 import 'account_suspended_screen.dart';
+import 'passcode_lock_gate.dart';
 import 'rhing_id_setup_screen.dart';
 import 'sign_in_screen.dart';
 
@@ -99,7 +100,7 @@ class _AuthenticatedUserGateState
             autoSuspendedUntil: appUser.autoSuspendedUntil,
           );
         }
-        return widget.builder(context, appUser);
+        return PasscodeLockGate(child: widget.builder(context, appUser));
       },
     );
   }

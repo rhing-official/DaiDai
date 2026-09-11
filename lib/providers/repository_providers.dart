@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../repositories/album_repository.dart';
 import '../repositories/auth_repository.dart';
 import '../repositories/block_repository.dart';
+import '../repositories/calendar_category_repository.dart';
 import '../repositories/calendar_event_repository.dart';
 import '../repositories/call_repository.dart';
 import '../repositories/conversation_prefs_repository.dart';
@@ -13,6 +14,7 @@ import '../repositories/group_call_repository.dart';
 import '../repositories/group_repository.dart';
 import '../repositories/link_preview_repository.dart';
 import '../repositories/note_repository.dart';
+import '../repositories/passcode_repository.dart';
 import '../repositories/poll_repository.dart';
 import '../repositories/push_notification_repository.dart';
 import '../repositories/schedule_coordination_repository.dart';
@@ -26,6 +28,13 @@ final authRepositoryProvider = Provider<AuthRepository>((ref) {
 
 final userRepositoryProvider = Provider<UserRepository>((ref) {
   return FirestoreUserRepository();
+});
+
+/// アプリ起動時のパスコードロック機能（2026-09-11追加）。他のRepositoryと
+/// 違いFirebaseに依存せず端末ローカルのみで完結するが、置き場所は他と
+/// 統一してここに集約する。
+final passcodeRepositoryProvider = Provider<PasscodeRepository>((ref) {
+  return SecureStoragePasscodeRepository();
 });
 
 final directMessageRepositoryProvider = Provider<DirectMessageRepository>((
@@ -87,6 +96,12 @@ final calendarEventRepositoryProvider = Provider<CalendarEventRepository>((
 ) {
   return FirestoreCalendarEventRepository();
 });
+
+final calendarCategoryRepositoryProvider = Provider<CalendarCategoryRepository>(
+  (ref) {
+    return FirestoreCalendarCategoryRepository();
+  },
+);
 
 final scheduleCoordinationRepositoryProvider =
     Provider<ScheduleCoordinationRepository>((ref) {

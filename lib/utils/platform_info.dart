@@ -8,3 +8,11 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 /// 実際のプラットフォームで判定したい場面に使う。
 bool get isMobileCallPlatform =>
     !kIsWeb && (Platform.isAndroid || Platform.isIOS);
+
+/// `local_auth`パッケージが生体認証（Face ID/Touch ID/指紋、Android
+/// BiometricPrompt）を実質サポートするプラットフォームかどうか
+/// （2026-09-11追加）。Web・Windows・Linuxは対象外（`local_auth`が
+/// 未対応/実質使えないため）。パスコードロック機能自体は全プラットフォーム
+/// で使えるが、生体認証トグルの表示可否はこれで判定する。
+bool get isBiometricCapablePlatform =>
+    !kIsWeb && (Platform.isAndroid || Platform.isIOS || Platform.isMacOS);

@@ -23,6 +23,7 @@ abstract class ScheduleCoordinationRepository {
     required List<DateTime> candidateDates,
     required String createdBy,
     DateTime? deadline,
+    String? categoryId,
   });
 
   /// 単発で1件だけ取得する（存在しなければnull）。メッセージ画面の日程調整
@@ -79,6 +80,17 @@ abstract class ScheduleCoordinationRepository {
     required String coordinationId,
     required int finalizedCandidateIndex,
     required String finalizedEventId,
+  });
+
+  /// この日程調整を`ChatTaskBanner`から自分だけ非表示にする（2026-09-10
+  /// 追加）。本体は削除せず、カレンダー画面には引き続き表示される
+  /// （[ScheduleCoordination.bannerHiddenFor]参照）。
+  Future<void> hideFromBanner({
+    required bool isDm,
+    required String conversationId,
+    required String roomId,
+    required String coordinationId,
+    required String userId,
   });
 }
 
@@ -199,6 +211,7 @@ class FirestoreScheduleCoordinationRepository
     required List<DateTime> candidateDates,
     required String createdBy,
     DateTime? deadline,
+    String? categoryId,
   }) async {
     final ref = _coordinationsCollection(
       isDm: isDm,
@@ -215,6 +228,7 @@ class FirestoreScheduleCoordinationRepository
           .toList(),
       createdBy: createdBy,
       deadline: deadline != null ? Timestamp.fromDate(deadline) : null,
+      categoryId: categoryId,
     );
     await ref.set(coordination.toJson());
     return coordination;
@@ -321,6 +335,24 @@ class FirestoreScheduleCoordinationRepository
     ).update({
       'finalizedCandidateIndex': finalizedCandidateIndex,
       'finalizedEventId': finalizedEventId,
+    });
+  }
+
+  @override
+  Future<void> hideFromBanner({
+    required bool isDm,
+    required String conversationId,
+    required String roomId,
+    required String coordinationId,
+    required String userId,
+  }) {
+    return _coordinationRef(
+      isDm: isDm,
+      conversationId: conversationId,
+      roomId: roomId,
+      coordinationId: coordinationId,
+    ).update({
+      'bannerHiddenFor': FieldValue.arrayUnion([userId]),
     });
   }
 }

@@ -80,6 +80,8 @@ dependencies:
   # 日記.md参照。appflowy_editorが対応版を出したらpub.dev版に戻すこと）。
   appflowy_editor:
     path: third_party/appflowy_editor
+  local_auth: ^3.0.2
+  flutter_secure_storage: ^11.1.0
 
 dev_dependencies:
   flutter_test:

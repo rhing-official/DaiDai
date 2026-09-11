@@ -130,6 +130,17 @@ abstract class PollRepository {
     required String roomId,
     required String pollId,
   });
+
+  /// この投票を`ChatTaskBanner`から自分だけ非表示にする（2026-09-10追加）。
+  /// 投票本体は削除せず、投票一覧（`poll_popup_content.dart`）には引き続き
+  /// 表示される（[Poll.bannerHiddenFor]参照）。
+  Future<void> hideFromBanner({
+    required bool isDm,
+    required String conversationId,
+    required String roomId,
+    required String pollId,
+    required String userId,
+  });
 }
 
 class FirestorePollRepository implements PollRepository {
@@ -434,6 +445,24 @@ class FirestorePollRepository implements PollRepository {
       return snapshot.docs
           .map((doc) => PollResponse.fromJson(doc.id, doc.data()))
           .toList();
+    });
+  }
+
+  @override
+  Future<void> hideFromBanner({
+    required bool isDm,
+    required String conversationId,
+    required String roomId,
+    required String pollId,
+    required String userId,
+  }) {
+    return _pollRef(
+      isDm: isDm,
+      conversationId: conversationId,
+      roomId: roomId,
+      pollId: pollId,
+    ).update({
+      'bannerHiddenFor': FieldValue.arrayUnion([userId]),
     });
   }
 }

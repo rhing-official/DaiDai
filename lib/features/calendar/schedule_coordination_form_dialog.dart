@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../../l10n/strings.dart';
 import '../../models/app_ui_style.dart';
+import '../../models/calendar_category.dart';
 import '../../providers/app_locale_provider.dart';
 import '../../providers/app_ui_style_provider.dart';
 import '../../providers/repository_providers.dart';
@@ -67,6 +68,7 @@ class _ScheduleCoordinationFormDialogState
     _dateOnly(widget.initialCandidateDate),
   ];
   DateTime? _deadline;
+  String? _categoryId;
   bool _saving = false;
 
   static DateTime _dateOnly(DateTime date) =>
@@ -158,6 +160,7 @@ class _ScheduleCoordinationFormDialogState
             candidateDates: _candidates,
             createdBy: widget.currentUserId,
             deadline: _deadline,
+            categoryId: _categoryId,
           );
       // メッセージ画面への通知は副次的な効果であり、失敗しても日程調整の
       // 作成自体は成功として扱う（calendar_event_form_dialog.dartの
@@ -232,6 +235,55 @@ class _ScheduleCoordinationFormDialogState
               decoration: InputDecoration(
                 hintText: strings.calendarDescriptionFieldHint,
               ),
+            ),
+            const SizedBox(height: 8),
+            StreamBuilder<List<CalendarCategory>>(
+              stream: ref
+                  .watch(calendarCategoryRepositoryProvider)
+                  .watchCategories(
+                    isDm: widget.isDm,
+                    conversationId: widget.conversationId,
+                    roomId: widget.roomId,
+                  ),
+              builder: (context, snapshot) {
+                final categories = snapshot.data ?? const <CalendarCategory>[];
+                final validCategoryId =
+                    categories.any((c) => c.categoryId == _categoryId)
+                    ? _categoryId
+                    : null;
+                return DropdownButtonFormField<String?>(
+                  initialValue: validCategoryId,
+                  decoration: InputDecoration(
+                    labelText: strings.calendarCategoryPickerLabel,
+                  ),
+                  items: [
+                    DropdownMenuItem(
+                      value: null,
+                      child: Text(strings.calendarCategoryNoneLabel),
+                    ),
+                    for (final category in categories)
+                      DropdownMenuItem(
+                        value: category.categoryId,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 12,
+                              height: 12,
+                              decoration: BoxDecoration(
+                                color: Color(0xFF000000 | category.color),
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(category.name),
+                          ],
+                        ),
+                      ),
+                  ],
+                  onChanged: (value) => setState(() => _categoryId = value),
+                );
+              },
             ),
             const Divider(height: 24),
             Text(
