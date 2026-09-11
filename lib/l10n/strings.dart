@@ -78,9 +78,13 @@ class Strings {
     required this.settingsSoundRingtoneTitle,
     required this.settingsSoundCallingTitle,
     required this.settingsSoundNotificationTitle,
-    required this.soundPresetStandardLabel,
-    required this.soundPresetSoftLabel,
-    required this.soundPresetSimpleLabel,
+    required this.soundPresetRetroLabel,
+    required this.soundPresetMarimbaLabel,
+    required this.soundPresetClassicLabel,
+    required this.soundPresetFutureLabel,
+    required this.soundPresetChimeLabel,
+    required this.soundPresetPopLabel,
+    required this.soundPresetHappyLabel,
     required this.soundUploadOptionLabel,
     required this.soundUploadTooLargeError,
     required this.soundUploadUnsupportedFormatError,
@@ -660,9 +664,13 @@ class Strings {
   final String settingsSoundRingtoneTitle;
   final String settingsSoundCallingTitle;
   final String settingsSoundNotificationTitle;
-  final String soundPresetStandardLabel;
-  final String soundPresetSoftLabel;
-  final String soundPresetSimpleLabel;
+  final String soundPresetRetroLabel;
+  final String soundPresetMarimbaLabel;
+  final String soundPresetClassicLabel;
+  final String soundPresetFutureLabel;
+  final String soundPresetChimeLabel;
+  final String soundPresetPopLabel;
+  final String soundPresetHappyLabel;
   final String soundUploadOptionLabel;
   final String soundUploadTooLargeError;
   final String soundUploadUnsupportedFormatError;
@@ -1446,9 +1454,13 @@ class Strings {
     settingsSoundRingtoneTitle: '着信音',
     settingsSoundCallingTitle: '呼出音',
     settingsSoundNotificationTitle: '通知音',
-    soundPresetStandardLabel: '標準',
-    soundPresetSoftLabel: 'やわらか',
-    soundPresetSimpleLabel: 'シンプル',
+    soundPresetRetroLabel: 'レトロ',
+    soundPresetMarimbaLabel: 'マリンバ',
+    soundPresetClassicLabel: 'クラシック',
+    soundPresetFutureLabel: 'フューチャー',
+    soundPresetChimeLabel: 'チャイム',
+    soundPresetPopLabel: 'ポップ',
+    soundPresetHappyLabel: 'ハッピー',
     soundUploadOptionLabel: 'アップロード',
     soundUploadTooLargeError: 'ファイルサイズが大きすぎます（3MB以下にしてください）',
     soundUploadUnsupportedFormatError:
@@ -1499,9 +1511,9 @@ class Strings {
     settingsSendKeySilentEnterToSend: 'Ctrl+Enterで相手に通知せず送信',
     settingsSendKeySilentCtrlEnterToSend: 'Ctrl+Shift+Enterで相手に通知せず送信',
     settingsAdvancedSectionTitle: '詳細設定',
-    settingsStickerSendModeTitle: 'ペタピタの送信方式',
+    settingsStickerSendModeTitle: 'ぺったんの送信方式',
     settingsStickerSendModeLine: '2回タップで送信',
-    settingsStickerSendModeLineSubtitle: '1回目のタップで拡大表示、同じペタピタをもう一度タップすると送信します',
+    settingsStickerSendModeLineSubtitle: '1回目のタップで拡大表示、同じぺったんをもう一度タップすると送信します',
     settingsStickerSendModeDiscord: '1回タップで送信',
     settingsStickerSendModeDiscordSubtitle: 'タップすると即座に送信します',
     settingsDraftSyncTitle: '入力中のメッセージを他の端末と同期',
@@ -1612,15 +1624,15 @@ class Strings {
     chatAttachVideo: '動画',
     chatAttachCapture: '撮影',
     chatAttachPoll: '投票',
-    chatNoStickersMessage: 'まだペタピタがありません',
-    stickerPackNotFoundMessage: 'このペタピタは見つかりませんでした',
-    stickerSearchHint: 'ペタピタを検索',
-    settingsStickersSection: 'ペタピタ',
-    settingsManageOwnedStickers: '所持しているペタピタを管理',
-    ownedStickersScreenTitle: '所持しているペタピタ',
+    chatNoStickersMessage: 'まだぺったんがありません',
+    stickerPackNotFoundMessage: 'このぺったんは見つかりませんでした',
+    stickerSearchHint: 'ぺったんを検索',
+    settingsStickersSection: 'ぺったん',
+    settingsManageOwnedStickers: '所持しているぺったんを管理',
+    ownedStickersScreenTitle: '所持しているぺったん',
     uninstallStickerButton: 'アンインストール',
     uninstallStickerConfirmTitle: 'アンインストールしますか？',
-    uninstallStickerConfirmMessage: 'アンインストールすると、このペタピタは送信できなくなります。',
+    uninstallStickerConfirmMessage: 'アンインストールすると、このぺったんは送信できなくなります。',
     uninstallStickerConfirmButton: 'アンインストールする',
     chatAttachmentTooLargeMessage: '2GBを超えるファイルは送信できません',
     chatAttachmentBlockedExtensionMessage: 'この拡張子のファイルは送信できません',
@@ -2062,9 +2074,13 @@ class Strings {
     settingsSoundRingtoneTitle: 'Ringtone',
     settingsSoundCallingTitle: 'Calling tone',
     settingsSoundNotificationTitle: 'Notification sound',
-    soundPresetStandardLabel: 'Standard',
-    soundPresetSoftLabel: 'Soft',
-    soundPresetSimpleLabel: 'Simple',
+    soundPresetRetroLabel: 'Retro',
+    soundPresetMarimbaLabel: 'Marimba',
+    soundPresetClassicLabel: 'Classic',
+    soundPresetFutureLabel: 'Future',
+    soundPresetChimeLabel: 'Chime',
+    soundPresetPopLabel: 'Pop',
+    soundPresetHappyLabel: 'Happy',
     soundUploadOptionLabel: 'Upload',
     soundUploadTooLargeError: 'File is too large (must be 3MB or smaller)',
     soundUploadUnsupportedFormatError:

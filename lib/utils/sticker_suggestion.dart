@@ -2,7 +2,7 @@ import '../models/sticker.dart';
 import '../models/sticker_role.dart';
 import 'text_normalize.dart';
 
-/// メッセージ本文の内容に応じたペタピタ提案（2026-09-05追加、
+/// メッセージ本文の内容に応じたぺったん提案（2026-09-05追加、
 /// `lib/features/chat/chat_screen.dart`の`_onComposerTextChanged`から
 /// 呼ばれる想定）。[roles]の中から`keywords`のいずれかが[messageText]に
 /// 部分一致する役割idを集め、[candidates]の中でその役割idを1つ以上

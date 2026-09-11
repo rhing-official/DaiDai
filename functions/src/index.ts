@@ -465,7 +465,7 @@ export const cleanupQrLoginSessions = onSchedule(
 );
 
 // ---------------------------------------------------------------------
-// daidai横丁: ペタピタパッケージ関連のcallable（技術仕様書7.4・7.5参照、
+// daidai横丁: ぺったんパッケージ関連のcallable（技術仕様書7.4・7.5参照、
 // 2026-08-11追加）。stickerPacks/stickerPackReportsはfirestore.rulesで
 // クライアントからの書き込みを一律禁止しているため、パックの作成・編集・
 // 通報はすべてここを経由する。HomePage-Rhing（daidai-yokochoセクション）
@@ -488,7 +488,7 @@ interface StickerInput {
   name: string;
   imageUrl: string;
   /**
-   * メッセージ内容に応じたペタピタ提案で使う役割id（`stickerRoles`
+   * メッセージ内容に応じたぺったん提案で使う役割id（`stickerRoles`
    * コレクション、`seedStickerRolesOnce`参照）のリスト。省略時は`[]`
    * （2026-09-05追加、`lib/models/sticker.dart`の`Sticker.roles`に対応）。
    */
@@ -739,13 +739,13 @@ export const addStickersToStickerPack = onCall(
 );
 
 /**
- * メッセージ内容に応じたペタピタ提案（`lib/utils/sticker_suggestion.dart`
+ * メッセージ内容に応じたぺったん提案（`lib/utils/sticker_suggestion.dart`
  * 参照）で使う役割定義（`stickerRoles`コレクション）を一括投入する
  * 一度きりの処理（2026-09-05追加）。役割の叩き台自体は
  * `.claude/plans/`にまとめたレビュー内容を反映しており、実行はべき等
  * （同じroleIdは`set`で上書きするだけ）。
  *
- * 既存の各ペタピタ（`stickerPacks/*.stickers[].roles`）への役割の
+ * 既存の各ぺったん（`stickerPacks/*.stickers[].roles`）への役割の
  * 割り振りは、画像の内容確認が要る人力作業のためこの関数ではやらない
  * （Firestoreコンソールから個別に編集する）。
  *
@@ -921,7 +921,7 @@ async function grantOwnership(
 }
 
 /**
- * ユーザーが所有しているペタピタパックをアンインストール（所有解除）する。
+ * ユーザーが所有しているぺったんパックをアンインストール（所有解除）する。
  * grantOwnershipの対称形として、ownedStickerPacksドキュメントを削除し
  * ownerCountを1減らす（2026-08-11追加、functions/src/index.tsのcreateStickerPack
  * コメントで予告していたアンインストール連動の実処理）。salesCountは
@@ -1029,7 +1029,7 @@ export const createCheckoutSession = onCall(
           price_data: {
             currency: "jpy",
             product_data: {
-              name: typeof pack.name === "string" ? pack.name : "ペタピタパック",
+              name: typeof pack.name === "string" ? pack.name : "ぺったんパック",
             },
             unit_amount: price,
           },
@@ -1045,7 +1045,7 @@ export const createCheckoutSession = onCall(
 );
 
 /**
- * Stripeからの決済完了通知を受け取り、ペタピタパックを購入者に付与する。
+ * Stripeからの決済完了通知を受け取り、ぺったんパックを購入者に付与する。
  * HomePage-Rhingは決済へのリダイレクトのみを担当し、実際のFirestore書き込みは
  * ここ（DaiDai既存のCloud Functions）で行う方針（技術仕様書7.4節参照）。
  */
@@ -1418,7 +1418,7 @@ function buildMessagePreview(
       return { body: String(message.content ?? "").slice(0, 80), previewUrl: null };
     case "sticker":
       return {
-        body: "ペタピタ",
+        body: "ぺったん",
         previewUrl: (message.stickerData?.stickerUrl as string) ?? null,
       };
     case "image":

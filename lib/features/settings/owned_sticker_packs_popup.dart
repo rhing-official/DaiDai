@@ -9,7 +9,7 @@ import '../../providers/repository_providers.dart';
 import '../../utils/auto_dismiss_banner.dart';
 import '../../widgets/glass/glass_dialog.dart';
 
-/// 所持しているペタピタパック一覧・アンインストールのポップアップ（設定＞
+/// 所持しているぺったんパック一覧・アンインストールのポップアップ（設定＞
 /// アカウントから開く、2026-08-11追加。当初はページ遷移だったが、
 /// `group_role_list_popup.dart`と同じ「ヘッダー＋区切り線＋中身」の
 /// ダイアログ形式に変更）。`sticker_picker_sheet.dart`と同じ

@@ -41,7 +41,7 @@ void main() {
   );
   final candidates = [happySticker, thanksSticker, bothSticker, noRoleSticker];
 
-  test('キーワードを含む文には対応する役割のペタピタが候補になる', () {
+  test('キーワードを含む文には対応する役割のぺったんが候補になる', () {
     final result = suggestStickers(
       messageText: '今日は本当にやったーー！',
       roles: roles,

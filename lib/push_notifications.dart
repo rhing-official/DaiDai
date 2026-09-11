@@ -26,8 +26,8 @@ import 'router/app_router.dart' show globalRouter;
 /// `flutter_local_notifications`でリッチ通知として組み立てる。
 final _localNotifications = FlutterLocalNotificationsPlugin();
 
-/// 通知音プリセットごとの通知チャンネル定義（既定は`ringtone_standard`と
-/// 同じ標準プリセット、2026-09-06 Phase B追加）。Android通知チャンネルは
+/// 通知音プリセットごとの通知チャンネル定義（既定は`SoundCategory.
+/// notification.defaultPreset`、2026-09-06 Phase B追加）。Android通知チャンネルは
 /// 作成後に音を変更できないため、プリセットごとに別チャンネルを用意し、
 /// [_resolveAndroidChannelId]で表示時にどれを使うか切り替える（カスタム
 /// アップロード音源用のチャンネルは`android_notification_sound_sync.dart`が
@@ -39,13 +39,14 @@ final _notificationChannels = {
       'メッセージ（${_channelLabelFor(preset.id)}）',
       description: '新着メッセージの通知',
       importance: Importance.high,
+      sound: RawResourceAndroidNotificationSound(preset.id),
     ),
 };
 
 String _channelLabelFor(String presetId) => switch (presetId) {
-  'notification_standard' => '標準',
-  'notification_soft' => 'やわらか',
-  'notification_simple' => 'シンプル',
+  'notification_lasomarie' => 'チャイム',
+  'notification_message_pop' => 'ポップ',
+  'notification_happy_bells' => 'ハッピー',
   _ => presetId,
 };
 

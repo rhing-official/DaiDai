@@ -141,7 +141,7 @@ abstract class DirectMessageRepository {
     ValueChanged<double>? onProgress,
   });
 
-  /// ペタピタ（スタンプ）を送る。既にStorageにアップロード済みの画像を
+  /// ぺったん（スタンプ）を送る。既にStorageにアップロード済みの画像を
   /// 参照するだけなので、[sendAttachmentMessage]と異なりバイトデータの
   /// アップロードを伴わない（技術仕様書7.4参照、2026-08-11追加）。
   Future<void> sendStickerMessage({

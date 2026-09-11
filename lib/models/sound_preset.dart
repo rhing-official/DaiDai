@@ -28,55 +28,47 @@ class SoundPreset {
   final String assetPath;
 }
 
+/// 着信音・呼出音で共通に選べるプリセット一覧（2026-09-12本番音源に差し替え、
+/// 着信音・呼出音はユーザー判断で選択肢自体を共通化した。どちらを選ぶかは
+/// `ringtoneSoundProvider`/`callingSoundProvider`で個別に保存されるが、
+/// 選べる音源のリストは同じもの）。BigSoundBank（CC0）・Mixkit（Free
+/// License）の音源、詳細は`assets/sounds/LICENSE.md`参照。
+const _callTonePresets = [
+  SoundPreset(id: 'phonebooth_ring', assetPath: 'sounds/phonebooth_ring.mp3'),
+  SoundPreset(id: 'marimba_ring', assetPath: 'sounds/marimba_ring.mp3'),
+  SoundPreset(
+    id: 'european_ringback',
+    assetPath: 'sounds/european_ringback.mp3',
+  ),
+  SoundPreset(id: 'futuristic_dial', assetPath: 'sounds/futuristic_dial.mp3'),
+];
+
+/// 通知音のプリセット一覧（2026-09-12本番音源に差し替え）。idはそのまま
+/// Androidのraw resource名として使う規約（`android/app/src/main/res/raw/`
+/// 配下のファイル名と一致させること、[androidNotificationChannelIdFor]と
+/// `push_notifications.dart`の`_notificationChannels`参照）。
+const _notificationPresets = [
+  SoundPreset(
+    id: 'notification_lasomarie',
+    assetPath: 'sounds/notification_lasomarie.mp3',
+  ),
+  SoundPreset(
+    id: 'notification_message_pop',
+    assetPath: 'sounds/notification_message_pop.mp3',
+  ),
+  SoundPreset(
+    id: 'notification_happy_bells',
+    assetPath: 'sounds/notification_happy_bells.mp3',
+  ),
+];
+
 extension SoundCategoryPresets on SoundCategory {
-  /// このカテゴリで選べるプリセット一覧。
-  ///
-  /// 実際の音源ファイルの選定・確保は別途行う必要があるため、本番音源が
-  /// 揃うまでの暫定措置として既存の`assets/sounds/`内3ファイルを使い回して
-  /// いる（`call_ringtone.mp3`が「ユーザー提供のFLACをffmpeg変換した暫定
-  /// 音源、後から差し替え可能な構成にした」だった前例と同じ運用、日記.md
-  /// 参照）。本番音源が揃い次第、`assets/sounds/`へのファイル追加とこの
-  /// 一覧の更新だけで差し替えられる（`pubspec.yaml`はディレクトリ単位で
-  /// 宣言済みのため追加設定は不要）。
+  /// このカテゴリで選べるプリセット一覧。着信音・呼出音は選択肢を共通化
+  /// している（設定自体は`AppUserPreferences.ringtoneSound`/`callingSound`
+  /// で個別に保存される）。
   List<SoundPreset> get presets => switch (this) {
-    SoundCategory.ringtone => const [
-      SoundPreset(
-        id: 'ringtone_standard',
-        assetPath: 'sounds/call_ringtone.mp3',
-      ),
-      SoundPreset(
-        id: 'ringtone_soft',
-        assetPath: 'sounds/participant_joined.mp3',
-      ),
-      SoundPreset(
-        id: 'ringtone_simple',
-        assetPath: 'sounds/participant_left.mp3',
-      ),
-    ],
-    SoundCategory.calling => const [
-      SoundPreset(
-        id: 'calling_standard',
-        assetPath: 'sounds/call_ringtone.mp3',
-      ),
-      SoundPreset(
-        id: 'calling_soft',
-        assetPath: 'sounds/participant_joined.mp3',
-      ),
-    ],
-    SoundCategory.notification => const [
-      SoundPreset(
-        id: 'notification_standard',
-        assetPath: 'sounds/call_ringtone.mp3',
-      ),
-      SoundPreset(
-        id: 'notification_soft',
-        assetPath: 'sounds/participant_joined.mp3',
-      ),
-      SoundPreset(
-        id: 'notification_simple',
-        assetPath: 'sounds/participant_left.mp3',
-      ),
-    ],
+    SoundCategory.ringtone || SoundCategory.calling => _callTonePresets,
+    SoundCategory.notification => _notificationPresets,
   };
 
   SoundPreset get defaultPreset => presets.first;

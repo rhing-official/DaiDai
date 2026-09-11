@@ -16,3 +16,12 @@ bool get isMobileCallPlatform =>
 /// で使えるが、生体認証トグルの表示可否はこれで判定する。
 bool get isBiometricCapablePlatform =>
     !kIsWeb && (Platform.isAndroid || Platform.isIOS || Platform.isMacOS);
+
+/// 着信音・呼出音のカスタム音源アップロード（`file_picker`でファイル選択→
+/// Firebase Storageへアップロード）が使えるプラットフォームかどうか
+/// （2026-09-12追加）。Windowsは`firebase_options.dart`が未設定でアプリ自体
+/// まだ起動できず、LinuxはFirebase未設定に加え`firebase_storage`パッケージが
+/// そもそもLinux向け実装を持たないため、恒久的にアップロード非対応となる
+/// 見込み。プリセットからの選択自体は全プラットフォームで使える。
+bool get isSoundUploadCapablePlatform =>
+    kIsWeb || Platform.isAndroid || Platform.isIOS || Platform.isMacOS;

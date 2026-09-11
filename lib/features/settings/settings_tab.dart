@@ -48,6 +48,7 @@ import '../../theme/gekiga/gekiga_colors.dart';
 import '../../theme/motion.dart';
 import '../../utils/auto_dismiss_banner.dart';
 import '../../utils/color_hex.dart';
+import '../../utils/platform_info.dart';
 import '../../utils/sound_upload.dart';
 import '../../widgets/destructive_label.dart';
 import '../../widgets/gekiga/gekiga_panel_box.dart';
@@ -2588,7 +2589,7 @@ class _SendKeyFolder extends ConsumerWidget {
   }
 }
 
-/// ペタピタ（スタンプ）の送信方式（LINE型2タップ確認／Discord型1タップ即送信）
+/// ぺったん（スタンプ）の送信方式（LINE型2タップ確認／Discord型1タップ即送信）
 /// の選択。`_SendKeyFolder`と同じ2択ラジオ構成を踏襲する（2026-08-13追加）。
 class _StickerSendModeFolder extends ConsumerWidget {
   const _StickerSendModeFolder({required this.strings});
@@ -2867,18 +2868,23 @@ class _SoundSettingsFolder extends ConsumerStatefulWidget {
 const _customSoundSentinel = '';
 
 class _SoundSettingsFolderState extends ConsumerState<_SoundSettingsFolder> {
-  final _previewPlayer = AudioPlayer();
+  // ブラウザ環境によってはAudioPlayer()のコンストラクタ自体が例外を投げる
+  // ことがあり、State構築時に即座に生成するとこのウィジェット全体が
+  // マウントに失敗してしまう（2026-09-12発覚）。試聴を諦めても選択UIは
+  // 表示され続けるよう、初回試聴時まで生成を遅延させる。
+  AudioPlayer? _previewPlayer;
 
   @override
   void dispose() {
-    _previewPlayer.dispose();
+    _previewPlayer?.dispose();
     super.dispose();
   }
 
   Future<void> _preview(String assetOrUrl) async {
     try {
-      await _previewPlayer.stop();
-      await _previewPlayer.play(
+      final player = _previewPlayer ??= AudioPlayer();
+      await player.stop();
+      await player.play(
         assetOrUrl.startsWith('http')
             ? UrlSource(assetOrUrl)
             : AssetSource(assetOrUrl),
@@ -2939,14 +2945,13 @@ class _SoundSettingsFolderState extends ConsumerState<_SoundSettingsFolder> {
   String _labelFor(SoundPreset preset) {
     final strings = widget.strings;
     return switch (preset.id) {
-      'ringtone_standard' ||
-      'calling_standard' ||
-      'notification_standard' => strings.soundPresetStandardLabel,
-      'ringtone_soft' ||
-      'calling_soft' ||
-      'notification_soft' => strings.soundPresetSoftLabel,
-      'ringtone_simple' ||
-      'notification_simple' => strings.soundPresetSimpleLabel,
+      'phonebooth_ring' => strings.soundPresetRetroLabel,
+      'marimba_ring' => strings.soundPresetMarimbaLabel,
+      'european_ringback' => strings.soundPresetClassicLabel,
+      'futuristic_dial' => strings.soundPresetFutureLabel,
+      'notification_lasomarie' => strings.soundPresetChimeLabel,
+      'notification_message_pop' => strings.soundPresetPopLabel,
+      'notification_happy_bells' => strings.soundPresetHappyLabel,
       _ => preset.id,
     };
   }
@@ -2958,6 +2963,7 @@ class _SoundSettingsFolderState extends ConsumerState<_SoundSettingsFolder> {
     final presets = widget.category.presets;
     final currentValue = widget.currentValue;
     final isCustom = currentValue != null && currentValue.startsWith('http');
+    final canUpload = isSoundUploadCapablePlatform;
     final selectedValue = isCustom
         ? _customSoundSentinel
         : (currentValue ?? widget.category.defaultPreset.id);
@@ -2972,11 +2978,11 @@ class _SoundSettingsFolderState extends ConsumerState<_SoundSettingsFolder> {
       return GekigaJointedTileList(
         seeds: [
           for (final preset in presets) preset.id.hashCode,
-          _customSoundSentinel.hashCode,
+          if (canUpload) _customSoundSentinel.hashCode,
         ],
         selectedFlags: [
           for (final preset in presets) selectedValue == preset.id,
-          isCustom,
+          if (canUpload) isCustom,
         ],
         children: [
           for (final preset in presets)
@@ -2991,19 +2997,20 @@ class _SoundSettingsFolderState extends ConsumerState<_SoundSettingsFolder> {
               trailing: previewButton(preset.assetPath),
               onTap: () => _select(preset.id),
             ),
-          GekigaTileContent(
-            selected: isCustom,
-            leading: Icon(
-              isCustom
-                  ? Icons.radio_button_checked
-                  : Icons.radio_button_unchecked,
+          if (canUpload)
+            GekigaTileContent(
+              selected: isCustom,
+              leading: Icon(
+                isCustom
+                    ? Icons.radio_button_checked
+                    : Icons.radio_button_unchecked,
+              ),
+              title: Text(strings.soundUploadOptionLabel),
+              trailing: isCustom
+                  ? previewButton(currentValue)
+                  : const Icon(Icons.upload_file),
+              onTap: _uploadCustom,
             ),
-            title: Text(strings.soundUploadOptionLabel),
-            trailing: isCustom
-                ? previewButton(currentValue)
-                : const Icon(Icons.upload_file),
-            onTap: _uploadCustom,
-          ),
         ],
       );
     }
@@ -3026,13 +3033,14 @@ class _SoundSettingsFolderState extends ConsumerState<_SoundSettingsFolder> {
               title: Text(_labelFor(preset)),
               secondary: previewButton(preset.assetPath),
             ),
-          RadioListTile<String>(
-            value: _customSoundSentinel,
-            title: Text(strings.soundUploadOptionLabel),
-            secondary: isCustom
-                ? previewButton(currentValue)
-                : const Icon(Icons.upload_file),
-          ),
+          if (canUpload)
+            RadioListTile<String>(
+              value: _customSoundSentinel,
+              title: Text(strings.soundUploadOptionLabel),
+              secondary: isCustom
+                  ? previewButton(currentValue)
+                  : const Icon(Icons.upload_file),
+            ),
         ],
       ),
     );

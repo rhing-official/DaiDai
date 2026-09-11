@@ -74,7 +74,7 @@ class Vocabulary {
   /// 広場の管理者（長／Chief）。
   final String owner;
 
-  /// スタンプ機能（ペタピタ／Englishは共通でSticker）。
+  /// スタンプ機能（ぺったん／Englishは共通でSticker）。
   final String sticker;
 
   static const japanese = Vocabulary._(
@@ -93,7 +93,7 @@ class Vocabulary {
     statusMessage: '一言',
     friendConnect: '縁結び',
     owner: '長',
-    sticker: 'ペタピタ',
+    sticker: 'ぺったん',
   );
 
   static const english = Vocabulary._(
