@@ -116,5 +116,15 @@ service firebase.storage {
       allow read: if true;
       allow write: if request.auth != null && request.auth.uid == userId;
     }
+
+    // contactAttachments/{fileName}: お問い合わせフォーム（HomePageリポジトリ）から
+    // 添付された画像（2026-09-11追加）。未ログインの一般訪問者が送信するお問い合わせの
+    // 裏付け画像のため認証無しでアップロード可能とする。スパム・不正利用対策として
+    // 画像のみ・5MB以下に制限。閲覧は問い合わせ確認担当が見られるよう誰でも可能。
+    match /contactAttachments/{fileName} {
+      allow read: if true;
+      allow write: if request.resource.size < 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+    }
   }
 }
