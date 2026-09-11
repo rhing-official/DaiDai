@@ -38,6 +38,7 @@ class DmChatArgs {
     required this.roomId,
     required this.roomName,
     this.showRoomTabBar = true,
+    this.enterFromRight = false,
   });
   final AppUser currentUser;
   final DirectMessage dm;
@@ -50,6 +51,14 @@ class DmChatArgs {
   /// 既にそちらで寄合を選んで来ているためfalseにして重複表示を避ける
   /// （`talks_tab.dart`の`_DmDetailWithRooms.openRoomFullscreen`参照）。
   final bool showRoomTabBar;
+
+  /// trueなら入場アニメーションを`slideInChatFromRight`（画面右外から
+  /// スライドイン）にする（2026-09-11追加）。寄合一覧（`RoomListPane`）から
+  /// 開く場合、右スワイプで戻る動き（`InteractiveSwipeBackTransition`）と
+  /// 対称に見えるようにするため（`talks_tab.dart`の
+  /// `_DmDetailWithRooms.openRoomFullscreen`参照）。falseなら既定の
+  /// `interactiveChatSwipeBack`（フェード＋下からのポップ演出）のまま。
+  final bool enterFromRight;
 }
 
 class GroupChatArgs {
@@ -59,6 +68,7 @@ class GroupChatArgs {
     required this.roomId,
     required this.roomName,
     this.showRoomTabBar = true,
+    this.enterFromRight = false,
   });
   final AppUser currentUser;
   final Group group;
@@ -67,6 +77,9 @@ class GroupChatArgs {
 
   /// [DmChatArgs.showRoomTabBar]と同じ理由（2026-09-11追加）。
   final bool showRoomTabBar;
+
+  /// [DmChatArgs.enterFromRight]と同じ理由（2026-09-11追加）。
+  final bool enterFromRight;
 }
 
 class CallArgs {
@@ -156,6 +169,25 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         ),
       );
 
+  // 寄合一覧（`RoomListPane`）から開く場合専用（2026-09-11追加）。戻り時の
+  // 右スワイプ追従（`InteractiveSwipeBackTransition`）はそのまま有効にしつつ、
+  // 入場時のアニメーションだけ`buildSlideInFromRightTransition`（画面右外
+  // からのスライドイン）に差し替える。`DmChatArgs.enterFromRight`/
+  // `GroupChatArgs.enterFromRight`参照。
+  Page<void> slideInChatFromRight(GoRouterState state, Widget child) =>
+      CustomTransitionPage<void>(
+        key: state.pageKey,
+        opaque: false,
+        transitionsBuilder: (context, animation, secondaryAnimation, child) =>
+            buildSlideInFromRightTransition(animation, child),
+        child: InteractiveSwipeBackTransition(
+          onBack: () {
+            if (router.canPop()) router.pop();
+          },
+          child: child,
+        ),
+      );
+
   // 発信側は、モバイルのみ全画面の/callへpushする。PCでは全画面ルートを
   // 使わず、通話セッションを直接開始するだけにする（2026-08-19変更）。
   // 発信者は既にその会話のメッセージ画面を見ているため、以後は
@@ -205,35 +237,35 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         path: '/chat/dm',
         pageBuilder: (context, state) {
           final args = state.extra! as DmChatArgs;
-          return interactiveChatSwipeBack(
-            state,
-            DmChatPane(
-              currentUser: args.currentUser,
-              dm: args.dm,
-              roomId: args.roomId,
-              roomName: args.roomName,
-              onCallPressed: () => startCall(args.currentUser, args.dm),
-              onVideoCallPressed: () =>
-                  startCall(args.currentUser, args.dm, isVideo: true),
-              showRoomTabBar: args.showRoomTabBar,
-            ),
+          final pane = DmChatPane(
+            currentUser: args.currentUser,
+            dm: args.dm,
+            roomId: args.roomId,
+            roomName: args.roomName,
+            onCallPressed: () => startCall(args.currentUser, args.dm),
+            onVideoCallPressed: () =>
+                startCall(args.currentUser, args.dm, isVideo: true),
+            showRoomTabBar: args.showRoomTabBar,
           );
+          return args.enterFromRight
+              ? slideInChatFromRight(state, pane)
+              : interactiveChatSwipeBack(state, pane);
         },
       ),
       GoRoute(
         path: '/chat/group',
         pageBuilder: (context, state) {
           final args = state.extra! as GroupChatArgs;
-          return interactiveChatSwipeBack(
-            state,
-            GroupChatPane(
-              currentUser: args.currentUser,
-              group: args.group,
-              roomId: args.roomId,
-              roomName: args.roomName,
-              showRoomTabBar: args.showRoomTabBar,
-            ),
+          final pane = GroupChatPane(
+            currentUser: args.currentUser,
+            group: args.group,
+            roomId: args.roomId,
+            roomName: args.roomName,
+            showRoomTabBar: args.showRoomTabBar,
           );
+          return args.enterFromRight
+              ? slideInChatFromRight(state, pane)
+              : interactiveChatSwipeBack(state, pane);
         },
       ),
       GoRoute(

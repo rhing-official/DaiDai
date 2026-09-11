@@ -6,6 +6,7 @@ import '../../l10n/strings.dart';
 import '../../providers/repository_providers.dart';
 import '../../repositories/auth_repository.dart';
 import '../../utils/fullwidth_digits_formatter.dart';
+import '../../widgets/google_sign_in_button.dart';
 import 'qr_login_dialog.dart';
 
 class SignInScreen extends ConsumerStatefulWidget {
@@ -168,23 +169,9 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
         Text(_errorMessage!, style: const TextStyle(color: Colors.red)),
         const SizedBox(height: 16),
       ],
-      ElevatedButton(
-        onPressed: _isSigningIn
-            ? null
-            : () => _signIn((repo) => repo.signInWithGoogle()),
-        style: ElevatedButton.styleFrom(
-          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-        ),
-        child: _isSigningIn
-            ? const SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: Colors.white,
-                ),
-              )
-            : const Text('Googleでログイン'),
+      GoogleSignInButton(
+        loading: _isSigningIn,
+        onPressed: () => _signIn((repo) => repo.signInWithGoogle()),
       ),
       // Appleでのログインは、Apple Developer Program（有料）側でのService ID/
       // 秘密鍵の設定が済むまで実際には使えないため、その設定を行うまでUIから
