@@ -1429,11 +1429,11 @@ class Strings {
         '自分・相手ともにアイコンと呼び名を表示します。'
         'この設定は自分の画面にのみ反映され、相手の語らいの表示には影響しません。',
     settingsTalksListLayoutTitle: '語らい一覧のレイアウト（縦表示）',
-    settingsTalksListLayoutStandard: '現在の実装UI',
-    settingsTalksListLayoutStandardDescription: '一対・広場を縦一列のリストで表示します。',
-    settingsTalksListLayoutIconSplit: 'アイコン＋寄合一覧UI',
+    settingsTalksListLayoutStandard: 'アイコンのみ',
+    settingsTalksListLayoutStandardDescription: '一対・広場をアイコンで縦一列に表示します。',
+    settingsTalksListLayoutIconSplit: 'アイコン＋寄合一覧',
     settingsTalksListLayoutIconSplitDescription:
-        '左にアイコン一覧、右に選んだ相手・広場の寄合一覧を表示します。',
+        '左にアイコン一覧、右に選んだ語らいの寄合一覧を表示します。',
     settingsSubTypography: '文字',
     settingsFontDesign: 'フォントデザイン',
     fontDesignStandardLabel: '標準',

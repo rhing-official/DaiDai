@@ -37,11 +37,19 @@ class DmChatArgs {
     required this.dm,
     required this.roomId,
     required this.roomName,
+    this.showRoomTabBar = true,
   });
   final AppUser currentUser;
   final DirectMessage dm;
   final String roomId;
   final String roomName;
+
+  /// AppBar直下に寄合の横スクロールタブバー（`RoomTabBar`）を表示するか
+  /// （2026-09-11追加）。縦表示のアイコン＋寄合一覧レイアウト
+  /// （`TalksListLayoutStyle.iconSplit`）の寄合一覧から遷移してきた場合は、
+  /// 既にそちらで寄合を選んで来ているためfalseにして重複表示を避ける
+  /// （`talks_tab.dart`の`_DmDetailWithRooms.openRoomFullscreen`参照）。
+  final bool showRoomTabBar;
 }
 
 class GroupChatArgs {
@@ -50,11 +58,15 @@ class GroupChatArgs {
     required this.group,
     required this.roomId,
     required this.roomName,
+    this.showRoomTabBar = true,
   });
   final AppUser currentUser;
   final Group group;
   final String roomId;
   final String roomName;
+
+  /// [DmChatArgs.showRoomTabBar]と同じ理由（2026-09-11追加）。
+  final bool showRoomTabBar;
 }
 
 class CallArgs {
@@ -203,7 +215,7 @@ final goRouterProvider = Provider<GoRouter>((ref) {
               onCallPressed: () => startCall(args.currentUser, args.dm),
               onVideoCallPressed: () =>
                   startCall(args.currentUser, args.dm, isVideo: true),
-              showRoomTabBar: true,
+              showRoomTabBar: args.showRoomTabBar,
             ),
           );
         },
@@ -219,7 +231,7 @@ final goRouterProvider = Provider<GoRouter>((ref) {
               group: args.group,
               roomId: args.roomId,
               roomName: args.roomName,
-              showRoomTabBar: true,
+              showRoomTabBar: args.showRoomTabBar,
             ),
           );
         },

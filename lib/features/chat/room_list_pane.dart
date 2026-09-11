@@ -10,6 +10,7 @@ import '../../utils/text_truncate.dart';
 import '../../widgets/gekiga/gekiga_icon_badge.dart';
 import '../../widgets/gekiga/gekiga_panel_box.dart';
 import '../../widgets/gekiga/gekiga_text_field.dart';
+import '../../widgets/glass/glass_dialog.dart';
 import '../../widgets/glass/glass_surface.dart';
 
 /// 寄合（テキストチャンネル）1件分の一覧表示用の軽量データ。
@@ -101,8 +102,15 @@ class _RoomListPaneState extends ConsumerState<RoomListPane> {
     Strings strings,
     Vocabulary vocab,
     bool isGekiga,
+    bool isGlass,
   ) async {
-    final name = await promptForRoomName(context, strings, vocab, isGekiga);
+    final name = await promptForRoomName(
+      context,
+      strings,
+      vocab,
+      isGekiga,
+      isGlass,
+    );
     if (name == null || name.isEmpty) return;
     await widget.onCreateRoom?.call(name);
   }
@@ -243,13 +251,23 @@ class _RoomListPaneState extends ConsumerState<RoomListPane> {
                 isGekiga
                     ? GekigaIconButton(
                         icon: Icons.add,
-                        onPressed: () =>
-                            _createRoom(context, strings, vocab, isGekiga),
+                        onPressed: () => _createRoom(
+                          context,
+                          strings,
+                          vocab,
+                          isGekiga,
+                          isGlass,
+                        ),
                       )
                     : IconButton(
                         icon: const Icon(Icons.add),
-                        onPressed: () =>
-                            _createRoom(context, strings, vocab, isGekiga),
+                        onPressed: () => _createRoom(
+                          context,
+                          strings,
+                          vocab,
+                          isGekiga,
+                          isGlass,
+                        ),
                       ),
             ],
           ),
@@ -321,35 +339,55 @@ Future<String?> promptForRoomName(
   Strings strings,
   Vocabulary vocab, [
   bool isGekiga = false,
+  bool isGlass = false,
 ]) {
   final controller = TextEditingController();
+  final title = Text(strings.roomListAddDialogTitle(vocab.textChannel));
+  final content = isGekiga
+      ? GekigaTextField(
+          controller: controller,
+          autofocus: true,
+          hintText: vocab.textChannel,
+          onSubmitted: (value) => Navigator.of(context).pop(value.trim()),
+        )
+      : TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: InputDecoration(hintText: vocab.textChannel),
+          onSubmitted: (value) => Navigator.of(context).pop(value.trim()),
+        );
+  final actions = [
+    TextButton(
+      onPressed: () => Navigator.of(context).pop(),
+      child: Text(strings.cancel),
+    ),
+    FilledButton(
+      onPressed: () => Navigator.of(context).pop(controller.text.trim()),
+      child: Text(strings.roomListAddButton),
+    ),
+  ];
   return showDialog<String>(
     context: context,
-    builder: (context) => AlertDialog(
-      title: Text(strings.roomListAddDialogTitle(vocab.textChannel)),
-      content: isGekiga
-          ? GekigaTextField(
-              controller: controller,
-              autofocus: true,
-              hintText: vocab.textChannel,
-              onSubmitted: (value) => Navigator.of(context).pop(value.trim()),
-            )
-          : TextField(
-              controller: controller,
-              autofocus: true,
-              decoration: InputDecoration(hintText: vocab.textChannel),
-              onSubmitted: (value) => Navigator.of(context).pop(value.trim()),
+    // ガラスUIは素の`AlertDialog`だと`GlassTheme.dialogTheme.background
+    // Color`がColors.transparentのため、実際の塗り・ぼかしを描く
+    // `GlassSurface`でラップしていないと背景が透明のまま素通しになる
+    // （2026-09-11発覚・修正、`group_delete_dialog.dart`等と同じ
+    // `isGlass ? Dialog(child: GlassAlertDialog(...)) : AlertDialog(...)`
+    // 分岐に揃えた）。
+    builder: (context) => isGlass
+        ? ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 400),
+            child: GlassAlertDialog(
+              title: title,
+              content: content,
+              actions: actions,
             ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: Text(strings.cancel),
-        ),
-        FilledButton(
-          onPressed: () => Navigator.of(context).pop(controller.text.trim()),
-          child: Text(strings.roomListAddButton),
-        ),
-      ],
-    ),
+          )
+        : AlertDialog(
+            constraints: const BoxConstraints(maxWidth: 400),
+            title: title,
+            content: content,
+            actions: actions,
+          ),
   );
 }

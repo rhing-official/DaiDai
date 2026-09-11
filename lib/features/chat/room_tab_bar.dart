@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -26,8 +27,12 @@ import 'room_list_pane.dart' show RoomListEntry, promptForRoomName;
 /// 寄合が増えて1行に収まらなくなった場合、横スクロールではなく複数行へ
 /// 折り返す（ブラウザのタブのように、ユーザー選択の「多段タブ」方式）。
 /// 折り返し後の行数は最大[_maxVisibleRows]行までバーの高さを伸ばし、それを
-/// 超える分は固定高さの中で縦スクロールして到達できるようにする（寄合数が
-/// 際限なく増えてもヘッダーが無限に伸びないようにするため）。
+/// 超える分は固定高さの中に収める（寄合数が際限なく増えてもヘッダーが
+/// 無限に伸びないようにするため）。バー自体は直接のスクロール操作には
+/// 反応せず（2026-09-11変更）、寄合の選択操作（[_RoomTabBarState
+/// ._handleSlideHover]、指を置いた寄合をなぞって選ぶ、横方向に加え縦方向にも
+/// 対応）中に指が上端/下端の縁に達すると自動でスクロールする形で、隠れた行・
+/// 「＋」ボタンへの到達手段を統合している。
 ///
 /// `preferredSize`（`PreferredSizeWidget`のgetter、`BuildContext`を持たない）
 /// で折り返し後の行数を知るには利用可能幅が要るが、この値は呼び出し元
@@ -144,7 +149,12 @@ class RoomTabBar extends ConsumerStatefulWidget implements PreferredSizeWidget {
       itemGap: _itemGap,
     );
     final visibleRows = rows.length.clamp(1, _maxVisibleRows);
-    return Size.fromHeight(visibleRows * _height);
+    // 行間の区切り（`isGekiga`はSizedBox(height:8)、それ以外はDivider(height:1)、
+    // `build()`参照）の分を含めないと、劇画UIで2行目が実際のコンテンツ高さより
+    // 低いこの`Size`からはみ出し途切れて見える不具合があった（2026-09-11修正）。
+    return Size.fromHeight(
+      visibleRows * _height + (visibleRows - 1) * _itemGap,
+    );
   }
 
   @override
@@ -153,6 +163,11 @@ class RoomTabBar extends ConsumerStatefulWidget implements PreferredSizeWidget {
 
 class _RoomTabBarState extends ConsumerState<RoomTabBar> {
   final _verticalScrollController = ScrollController();
+
+  /// 表示領域（`totalHeight`分の`SizedBox`）自体の実座標を引くための
+  /// `GlobalKey`（2026-09-11追加）。縁でのオートスクロール（[_updateEdgeAutoScroll]
+  /// 参照）が、指が上端/下端のどちら寄りかを判定するために使う。
+  final _viewportKey = GlobalKey();
 
   /// セルごとのRenderBoxを引くための`GlobalKey`（roomId単位でキャッシュ）。
   /// 指でなぞっている間、どのセルの上に指があるかを実座標で判定するために
@@ -167,11 +182,33 @@ class _RoomTabBarState extends ConsumerState<RoomTabBar> {
   /// （2026-08-10変更、詳細は[_handleSlideHover]参照）。
   String? _dragHoverRoomId;
 
+  /// 縁でのオートスクロール中、次のtickでもハイライト判定をやり直すために
+  /// 直近の指のグローバル座標を保持する（2026-09-11追加）。指が止まっていても
+  /// スクロールで寄合の位置自体が動くため、指の移動イベント無しでも
+  /// ハイライトを追従させる必要がある（[_autoScrollTimer]参照）。
+  Offset? _lastDragGlobalPosition;
+
+  /// 縁でのオートスクロールが動作中の方向（-1=上端方向／1=下端方向、
+  /// nullなら停止中）。方向が変わった時だけタイマーを張り替える
+  /// （2026-09-11追加）。
+  double? _autoScrollDirection;
+  Timer? _autoScrollTimer;
+
+  static const _autoScrollEdgeThreshold = 32.0;
+  static const _autoScrollStepPerTick = 6.0;
+  static const _autoScrollTickInterval = Duration(milliseconds: 16);
+
   String get _effectiveSelectedRoomId =>
       _dragHoverRoomId ?? widget.selectedRoomId;
 
   Rect? _rectFor(String roomId) {
     final box = _cellKeys[roomId]?.currentContext?.findRenderObject();
+    if (box is! RenderBox || !box.attached) return null;
+    return box.localToGlobal(Offset.zero) & box.size;
+  }
+
+  Rect? get _viewportRect {
+    final box = _viewportKey.currentContext?.findRenderObject();
     if (box is! RenderBox || !box.attached) return null;
     return box.localToGlobal(Offset.zero) & box.size;
   }
@@ -215,19 +252,24 @@ class _RoomTabBarState extends ConsumerState<RoomTabBar> {
     );
   }
 
-  /// ドラッグ中、逐次呼ぶ（Start・Updateの両方から）。以前はここで即座に
-  /// `widget.onSelectRoom`（実際の画面遷移）を呼んでいたが、寄合の切り替えは
-  /// `pushReplacement`で`RoomTabBar`自身を含む画面全体を作り直すため、指を
-  /// 一時停止させて遷移アニメーションが完了すると、ここまでドラッグを検出
-  /// していたジェスチャー自体が消滅し、以降指を動かしても次のチップへ切り
-  /// 替わらなくなる不具合があった（2026-08-10発覚）。実際の遷移は指を離した
-  /// 時点で一度だけ行い（[_commitDragSelection]）、ドラッグ中はハイライトの
-  /// 追従のみに留めることでこの問題を回避する。各セルの実座標（`GlobalKey`
-  /// 経由）による2D判定のため、複数行に折り返っても行をまたいだ誤判定は
-  /// 起きない（横方向にドラッグしている間はY座標が同じ行の帯内に留まる）。
-  /// 行の右端を超えてドラッグしても次の行へは自動で移らない（1行だった頃の
-  /// 「最後のセルを超えると追従が止まる」動作と同じ）。
+  /// ドラッグ中、逐次呼ぶ（横方向・縦方向どちらのStart・Updateからも、
+  /// 2026-09-11に縦方向を追加）。以前はここで即座に`widget.onSelectRoom`
+  /// （実際の画面遷移）を呼んでいたが、寄合の切り替えは`pushReplacement`で
+  /// `RoomTabBar`自身を含む画面全体を作り直すため、指を一時停止させて遷移
+  /// アニメーションが完了すると、ここまでドラッグを検出していたジェスチャー
+  /// 自体が消滅し、以降指を動かしても次のチップへ切り替わらなくなる不具合
+  /// があった（2026-08-10発覚）。実際の遷移は指を離した時点で一度だけ行い
+  /// （[_commitDragSelection]）、ドラッグ中はハイライトの追従のみに留めることで
+  /// この問題を回避する。各セルの実座標（`GlobalKey`経由）による2D判定のため、
+  /// 複数行に折り返っても行をまたいだ判定ができる（縦方向にドラッグして
+  /// 行を移動する場合も同じ判定で追従する）。
   void _handleSlideHover(Offset globalPosition) {
+    _lastDragGlobalPosition = globalPosition;
+    _updateHoverHighlight(globalPosition);
+    _updateEdgeAutoScroll(globalPosition);
+  }
+
+  void _updateHoverHighlight(Offset globalPosition) {
     for (final room in widget.rooms) {
       final rect = _rectFor(room.roomId);
       if (rect == null || !rect.contains(globalPosition)) continue;
@@ -238,10 +280,68 @@ class _RoomTabBarState extends ConsumerState<RoomTabBar> {
     }
   }
 
+  /// 指が表示領域の上端/下端の縁（[_autoScrollEdgeThreshold]px以内）に
+  /// 達していて、かつその方向にまだスクロールできる内容があれば、
+  /// [_verticalScrollController]を少しずつ動かし続ける（2026-09-11追加）。
+  /// バー自体は[NeverScrollableScrollPhysics]で直接のスクロール操作には
+  /// 反応しないが、2行を超える寄合・「＋」ボタンには、この「縁に指を置いた
+  /// ままにすると自動でスクロールする」操作だけで到達できるようにする
+  /// （2行目の寄合の上から指を下へ動かし続けると隠れた3行目以降へ追従する）。
+  void _updateEdgeAutoScroll(Offset globalPosition) {
+    final viewport = _viewportRect;
+    if (viewport == null ||
+        !_verticalScrollController.hasClients ||
+        !_verticalScrollController.position.hasContentDimensions) {
+      _stopAutoScroll();
+      return;
+    }
+    final localY = globalPosition.dy - viewport.top;
+    final position = _verticalScrollController.position;
+    double? direction;
+    if (localY > viewport.height - _autoScrollEdgeThreshold &&
+        position.pixels < position.maxScrollExtent) {
+      direction = 1;
+    } else if (localY < _autoScrollEdgeThreshold &&
+        position.pixels > position.minScrollExtent) {
+      direction = -1;
+    }
+    if (direction == null) {
+      _stopAutoScroll();
+      return;
+    }
+    if (_autoScrollDirection == direction) return;
+    _stopAutoScroll();
+    _autoScrollDirection = direction;
+    _autoScrollTimer = Timer.periodic(_autoScrollTickInterval, (_) {
+      if (!_verticalScrollController.hasClients) {
+        _stopAutoScroll();
+        return;
+      }
+      final position = _verticalScrollController.position;
+      final next = (position.pixels + direction! * _autoScrollStepPerTick)
+          .clamp(position.minScrollExtent, position.maxScrollExtent);
+      if (next == position.pixels) {
+        _stopAutoScroll();
+        return;
+      }
+      _verticalScrollController.jumpTo(next);
+      final pos = _lastDragGlobalPosition;
+      if (pos != null) _updateHoverHighlight(pos);
+    });
+  }
+
+  void _stopAutoScroll() {
+    _autoScrollTimer?.cancel();
+    _autoScrollTimer = null;
+    _autoScrollDirection = null;
+  }
+
   /// 指を離した（またはドラッグがキャンセルされた）時に呼ぶ。ドラッグ中に
   /// ハイライトが乗っていた寄合が実際の選択中と異なれば、ここで初めて
   /// `widget.onSelectRoom`（画面遷移）を1回だけ行う。
   void _commitDragSelection() {
+    _stopAutoScroll();
+    _lastDragGlobalPosition = null;
     final hoverId = _dragHoverRoomId;
     if (hoverId == null) return;
     setState(() => _dragHoverRoomId = null);
@@ -259,14 +359,22 @@ class _RoomTabBarState extends ConsumerState<RoomTabBar> {
     Strings strings,
     Vocabulary vocab,
     bool isGekiga,
+    bool isGlass,
   ) async {
-    final name = await promptForRoomName(context, strings, vocab, isGekiga);
+    final name = await promptForRoomName(
+      context,
+      strings,
+      vocab,
+      isGekiga,
+      isGlass,
+    );
     if (name == null || name.isEmpty) return;
     await widget.onCreateRoom?.call(name);
   }
 
   @override
   void dispose() {
+    _autoScrollTimer?.cancel();
     _verticalScrollController.dispose();
     super.dispose();
   }
@@ -293,7 +401,9 @@ class _RoomTabBarState extends ConsumerState<RoomTabBar> {
       itemGap: widget._itemGap,
     );
     final visibleRows = rows.length.clamp(1, RoomTabBar._maxVisibleRows);
-    final totalHeight = visibleRows * RoomTabBar._height;
+    // [RoomTabBar.preferredSize]と同じ理由（2026-09-11修正）。
+    final totalHeight =
+        visibleRows * RoomTabBar._height + (visibleRows - 1) * widget._itemGap;
 
     // フラット/ガラス共通のセル。`room`がnullなら末尾の「＋」追加セル。
     Widget flatCell(RoomListEntry? room) {
@@ -307,7 +417,7 @@ class _RoomTabBarState extends ConsumerState<RoomTabBar> {
           : RoomTabBar._itemWidth(room, widget.textScaler);
       final child = InkWell(
         onTap: isAdd
-            ? () => _createRoom(context, strings, vocab, false)
+            ? () => _createRoom(context, strings, vocab, false, isGlass)
             : () => widget.onSelectRoom(room),
         child: Container(
           constraints: BoxConstraints(
@@ -336,13 +446,18 @@ class _RoomTabBarState extends ConsumerState<RoomTabBar> {
     }
 
     Widget buildRow(List<RoomListEntry?> row) {
+      // 「＋」は`_chunkIntoRows`の構成上、必ず全体の最後の要素＝最後の行の
+      // 末尾にしか現れない。フラット/ガラス・劇画のいずれも、寄合chip群を
+      // `Flexible`で包み「＋」をその外（`VerticalDivider`を挟んだ固定スロット）
+      // に置くことで、行のRowが画面幅いっぱいに広がる分だけ「＋」が常にバー
+      // 右端（画面端）に固定される（2026-09-11修正、以前はフラット/ガラス側
+      // だけ`Flexible`が無く、「＋」がchip数に応じて位置が動いていた）。
+      final realRooms = row.whereType<RoomListEntry>().toList();
+      final hasAdd = row.isNotEmpty && row.last == null;
       if (isGekiga) {
         // 「＋」は劇画でも他の一覧と共通の`GekigaIconBadge`を使う、
         // ジョイント枠の外の独立したセルのまま維持する（追加セルの並びが
-        // 変わっても既存の見た目を保つため）。「＋」は`_chunkIntoRows`の
-        // 構成上、必ず全体の最後の要素＝最後の行の末尾にしか現れない。
-        final realRooms = row.whereType<RoomListEntry>().toList();
-        final hasAdd = row.isNotEmpty && row.last == null;
+        // 変わっても既存の見た目を保つため）。
         return SizedBox(
           height: RoomTabBar._height,
           child: Row(
@@ -371,7 +486,8 @@ class _RoomTabBarState extends ConsumerState<RoomTabBar> {
                 Material(
                   color: Colors.transparent,
                   child: InkWell(
-                    onTap: () => _createRoom(context, strings, vocab, true),
+                    onTap: () =>
+                        _createRoom(context, strings, vocab, true, false),
                     child: Container(
                       constraints: const BoxConstraints(
                         minWidth: RoomTabBar._cellMinWidth,
@@ -389,30 +505,55 @@ class _RoomTabBarState extends ConsumerState<RoomTabBar> {
       }
       return SizedBox(
         height: RoomTabBar._height,
-        // 万一この行の合計幅が見積りを超えても、はみ出しがバー外の別要素に
-        // 影響しないようクリップする（2026-09-08追加の安全策、劇画側の
-        // クリップと同じ狙い）。
-        child: ClipRect(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              for (var i = 0; i < row.length; i++) ...[
-                if (i > 0) VerticalDivider(width: 1, color: borderColor),
-                flatCell(row[i]),
-              ],
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Flexible(
+              // 万一chip群の合計幅が見積りを超えても、はみ出しが「＋」ボタン
+              // 側に影響しないようクリップする（2026-09-08追加の安全策、
+              // 劇画側のクリップと同じ狙い。2026-09-11、「＋」を含む行全体
+              // ではなくchip群側だけをクリップする構成に変更）。
+              child: ClipRect(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    for (var i = 0; i < realRooms.length; i++) ...[
+                      if (i > 0) VerticalDivider(width: 1, color: borderColor),
+                      flatCell(realRooms[i]),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+            if (hasAdd) ...[
+              VerticalDivider(width: 1, color: borderColor),
+              flatCell(null),
             ],
-          ),
+          ],
         ),
       );
     }
 
     Widget content = SizedBox(
+      key: _viewportKey,
       height: totalHeight,
       child: SingleChildScrollView(
         controller: _verticalScrollController,
+        // 直接のスクロール操作には反応しない（2026-09-11変更）。2行を超える
+        // 寄合・「＋」ボタンには、[_updateEdgeAutoScroll]による「縁に指を
+        // 置いたままにすると自動でスクロールする」操作だけで到達させる方針
+        // にしたため、独立したスクロールジェスチャーは不要になった
+        // （`_verticalScrollController`自体は残し、そちらからの
+        // `jumpTo`/`animateTo`でのみ動かす）。
+        physics: const NeverScrollableScrollPhysics(),
         child: Column(
           children: [
             for (var i = 0; i < rows.length; i++) ...[
+              // 行間の区切り幅は`_itemGap`（本来は横方向のセル間隔用）と同じ値
+              // （劇画8px／それ以外1px）を流用する。`totalHeight`・
+              // `preferredSize`の計算にもこの値を使っており、ずれると劇画UIで
+              // 2行目が途切れる不具合になる（2026-09-11修正）。
               if (i > 0)
                 isGekiga
                     ? const SizedBox(height: 8)
@@ -424,10 +565,10 @@ class _RoomTabBarState extends ConsumerState<RoomTabBar> {
       ),
     );
 
-    // 複数行に折り返っても、バー内で横スクロールする箇所自体が無くなった
-    // （各行は`maxWidth`に収まるよう構成されるため）ため、以前あった
-    // 「横スクロールが不要な時だけ有効化」というガードは不要になり、常時
-    // 有効にする（2026-09-07変更）。
+    // 横方向のドラッグ（既存）・縦方向のドラッグ（2026-09-11追加）の両方で
+    // 寄合の選択が追従する。縦方向は複数行に折り返った時に行をまたいで
+    // 選択するための操作で、指が表示領域の縁に達すると[_updateEdgeAutoScroll]
+    // が自動でスクロールし、2行を超える寄合・「＋」ボタンにも到達できる。
     content = GestureDetector(
       behavior: HitTestBehavior.translucent,
       onHorizontalDragStart: (details) =>
@@ -436,6 +577,12 @@ class _RoomTabBarState extends ConsumerState<RoomTabBar> {
           _handleSlideHover(details.globalPosition),
       onHorizontalDragEnd: (_) => _commitDragSelection(),
       onHorizontalDragCancel: _commitDragSelection,
+      onVerticalDragStart: (details) =>
+          _handleSlideHover(details.globalPosition),
+      onVerticalDragUpdate: (details) =>
+          _handleSlideHover(details.globalPosition),
+      onVerticalDragEnd: (_) => _commitDragSelection(),
+      onVerticalDragCancel: _commitDragSelection,
       child: content,
     );
 

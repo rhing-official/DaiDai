@@ -42,6 +42,7 @@ import '../note/note_pane_view.dart';
 import '../note/note_popup_content.dart';
 import '../poll/poll_detail_dialog.dart';
 import '../poll/poll_popup_content.dart';
+import 'button_anchored_menu.dart';
 import 'chat_screen.dart';
 import 'conversation_profile_card_dialog.dart';
 import 'group_delete_dialog.dart';
@@ -290,6 +291,12 @@ class DmChatPane extends ConsumerStatefulWidget {
 }
 
 class _DmChatPaneState extends ConsumerState<DmChatPane> {
+  /// ハンバーガーメニューボタンの位置を、AppBarの他のポップアップボタン
+  /// （ピン留め・アルバム・ノート・投票）が狭い画面でのポップアップ位置の
+  /// 基準にするための共有キー（2026-09-12追加、`button_anchored_menu.dart`
+  /// の`computeButtonAnchoredMenuPosition`参照）。
+  final _menuAnchorKey = GlobalKey();
+
   /// `ChatScreen.messagesStream`へ渡すstream本体（2026-08-20追加）。
   /// `Stream.value(...)`をbuild()のたびに新規生成すると、streamの
   /// identityが変わるたびに`ChatScreen`側の`StreamBuilder`が再購読して
@@ -764,6 +771,7 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
         roomId: roomId,
         messageId: messageId,
       ),
+      menuAnchorKey: _menuAnchorKey,
       extraActions: [
         _AlbumButton(
           isDm: true,
@@ -771,6 +779,7 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
           roomId: roomId,
           currentUserId: currentUser.userId,
           onOpenAlbum: (album) => setState(() => _openAlbum = album),
+          menuAnchorKey: _menuAnchorKey,
         ),
         _NoteButton(
           isDm: true,
@@ -778,12 +787,14 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
           roomId: roomId,
           currentUser: currentUser,
           onNoteSelected: (noteId) => setState(() => _openNoteId = noteId),
+          menuAnchorKey: _menuAnchorKey,
         ),
         _PollButton(
           isDm: true,
           conversationId: dm.dmId,
           roomId: roomId,
           currentUser: currentUser,
+          menuAnchorKey: _menuAnchorKey,
         ),
         _CalendarButton(
           isDm: true,
@@ -799,6 +810,7 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
           isBlocked: isBlocked,
           roomId: roomId,
           roomName: roomName,
+          menuAnchorKey: _menuAnchorKey,
         ),
       ],
       banner: Column(
@@ -996,6 +1008,7 @@ class _AlbumButton extends ConsumerStatefulWidget {
     required this.roomId,
     required this.currentUserId,
     required this.onOpenAlbum,
+    this.menuAnchorKey,
   });
 
   final bool isDm;
@@ -1010,6 +1023,10 @@ class _AlbumButton extends ConsumerStatefulWidget {
   /// `_openAlbum`（ローカルなオブジェクト切り替え）を差し替える方式に変更した）。
   final ValueChanged<Album> onOpenAlbum;
 
+  /// ハンバーガーメニューボタンの位置（2026-09-12追加、狭い画面での
+  /// ポップアップ位置統一に使う。`button_anchored_menu.dart`参照）。
+  final GlobalKey? menuAnchorKey;
+
   @override
   ConsumerState<_AlbumButton> createState() => _AlbumButtonState();
 }
@@ -1022,19 +1039,12 @@ class _AlbumButtonState extends ConsumerState<_AlbumButton> {
   final _buttonKey = GlobalKey();
 
   Future<void> _openAlbumPopup() async {
-    final buttonContext = _buttonKey.currentContext;
-    if (buttonContext == null) return;
-    final box = buttonContext.findRenderObject()! as RenderBox;
-    final bottomLeft = box.localToGlobal(Offset(0, box.size.height));
-    final bottomRight = box.localToGlobal(
-      Offset(box.size.width, box.size.height),
+    final position = computeButtonAnchoredMenuPosition(
+      context,
+      buttonKey: _buttonKey,
+      narrowAnchorKey: widget.menuAnchorKey,
     );
-    final overlay =
-        Overlay.of(context).context.findRenderObject()! as RenderBox;
-    final position = RelativeRect.fromRect(
-      Rect.fromPoints(bottomLeft, bottomRight),
-      Offset.zero & overlay.size,
-    );
+    if (position == null) return;
 
     final selected = await showAlbumPopup(
       context,
@@ -1222,12 +1232,17 @@ class _PollButton extends ConsumerStatefulWidget {
     required this.conversationId,
     required this.roomId,
     required this.currentUser,
+    this.menuAnchorKey,
   });
 
   final bool isDm;
   final String conversationId;
   final String roomId;
   final AppUser currentUser;
+
+  /// ハンバーガーメニューボタンの位置（2026-09-12追加、狭い画面での
+  /// ポップアップ位置統一に使う。`button_anchored_menu.dart`参照）。
+  final GlobalKey? menuAnchorKey;
 
   @override
   ConsumerState<_PollButton> createState() => _PollButtonState();
@@ -1237,19 +1252,12 @@ class _PollButtonState extends ConsumerState<_PollButton> {
   final _buttonKey = GlobalKey();
 
   Future<void> _openPollPopup() async {
-    final buttonContext = _buttonKey.currentContext;
-    if (buttonContext == null) return;
-    final box = buttonContext.findRenderObject()! as RenderBox;
-    final bottomLeft = box.localToGlobal(Offset(0, box.size.height));
-    final bottomRight = box.localToGlobal(
-      Offset(box.size.width, box.size.height),
+    final position = computeButtonAnchoredMenuPosition(
+      context,
+      buttonKey: _buttonKey,
+      narrowAnchorKey: widget.menuAnchorKey,
     );
-    final overlay =
-        Overlay.of(context).context.findRenderObject()! as RenderBox;
-    final position = RelativeRect.fromRect(
-      Rect.fromPoints(bottomLeft, bottomRight),
-      Offset.zero & overlay.size,
-    );
+    if (position == null) return;
 
     final selected = await showPollPopup(
       context,
@@ -1307,6 +1315,7 @@ class _NoteButton extends ConsumerStatefulWidget {
     required this.roomId,
     required this.currentUser,
     required this.onNoteSelected,
+    this.menuAnchorKey,
   });
 
   final bool isDm;
@@ -1314,6 +1323,10 @@ class _NoteButton extends ConsumerStatefulWidget {
   final String roomId;
   final AppUser currentUser;
   final ValueChanged<String> onNoteSelected;
+
+  /// ハンバーガーメニューボタンの位置（2026-09-12追加、狭い画面での
+  /// ポップアップ位置統一に使う。`button_anchored_menu.dart`参照）。
+  final GlobalKey? menuAnchorKey;
 
   @override
   ConsumerState<_NoteButton> createState() => _NoteButtonState();
@@ -1323,19 +1336,12 @@ class _NoteButtonState extends ConsumerState<_NoteButton> {
   final _buttonKey = GlobalKey();
 
   Future<void> _openNotePopup() async {
-    final buttonContext = _buttonKey.currentContext;
-    if (buttonContext == null) return;
-    final box = buttonContext.findRenderObject()! as RenderBox;
-    final bottomLeft = box.localToGlobal(Offset(0, box.size.height));
-    final bottomRight = box.localToGlobal(
-      Offset(box.size.width, box.size.height),
+    final position = computeButtonAnchoredMenuPosition(
+      context,
+      buttonKey: _buttonKey,
+      narrowAnchorKey: widget.menuAnchorKey,
     );
-    final overlay =
-        Overlay.of(context).context.findRenderObject()! as RenderBox;
-    final position = RelativeRect.fromRect(
-      Rect.fromPoints(bottomLeft, bottomRight),
-      Offset.zero & overlay.size,
-    );
+    if (position == null) return;
 
     final selected = await showNotePopup(
       context,
@@ -1531,6 +1537,7 @@ class _DmMenuButton extends ConsumerStatefulWidget {
     required this.isBlocked,
     required this.roomId,
     required this.roomName,
+    required this.menuAnchorKey,
   });
 
   final AppUser currentUser;
@@ -1542,27 +1549,22 @@ class _DmMenuButton extends ConsumerStatefulWidget {
   final String roomId;
   final String roomName;
 
+  /// このボタン自身の位置（2026-09-12追加）。狭い画面ではAppBarの他の
+  /// ポップアップボタン（ピン留め・アルバム・ノート・投票）がこのキーを
+  /// 基準にポップアップ位置を揃える（`button_anchored_menu.dart`参照）。
+  final GlobalKey menuAnchorKey;
+
   @override
   ConsumerState<_DmMenuButton> createState() => _DmMenuButtonState();
 }
 
 class _DmMenuButtonState extends ConsumerState<_DmMenuButton> {
-  final _buttonKey = GlobalKey();
-
   Future<void> _openMenu() async {
-    final buttonContext = _buttonKey.currentContext;
-    if (buttonContext == null) return;
-    final box = buttonContext.findRenderObject()! as RenderBox;
-    final bottomLeft = box.localToGlobal(Offset(0, box.size.height));
-    final bottomRight = box.localToGlobal(
-      Offset(box.size.width, box.size.height),
+    final position = computeButtonAnchoredMenuPosition(
+      context,
+      buttonKey: widget.menuAnchorKey,
     );
-    final overlay =
-        Overlay.of(context).context.findRenderObject()! as RenderBox;
-    final position = RelativeRect.fromRect(
-      Rect.fromPoints(bottomLeft, bottomRight),
-      Offset.zero & overlay.size,
-    );
+    if (position == null) return;
 
     final strings = ref.read(appStringsProvider);
     final vocabulary = ref.read(vocabularyProvider);
@@ -1837,7 +1839,7 @@ class _DmMenuButtonState extends ConsumerState<_DmMenuButton> {
   Widget build(BuildContext context) {
     final uiStyle = ref.watch(appUiStyleProvider);
     return IconButton(
-      key: _buttonKey,
+      key: widget.menuAnchorKey,
       tooltip: '',
       icon: switch (uiStyle) {
         AppUiStyle.gekiga => const GekigaIconBadge(
@@ -1868,6 +1870,7 @@ class GroupChatPane extends ConsumerStatefulWidget {
     required this.roomId,
     required this.roomName,
     this.showRoomTabBar = false,
+    this.hasSidebar = false,
     super.key,
   });
 
@@ -1885,11 +1888,27 @@ class GroupChatPane extends ConsumerStatefulWidget {
   /// （サイドバーと二重にならないように）。
   final bool showRoomTabBar;
 
+  /// 物理的な寄合一覧サイドバー（`RoomListPane`）が、このペインの隣に
+  /// 常に存在するか（2026-09-11追加、`showRoomTabBar`から独立した引数に
+  /// 分離）。以前は`hasSidebar`を`!showRoomTabBar`から逆算していたが、
+  /// 「タブバーもサイドバーも無い」状態（縦表示のアイコン＋寄合一覧
+  /// レイアウトから遷移した場合）が増えたことでこの前提が崩れた。既定は
+  /// false（ハンバーガーメニュー側に寄合管理項目を出す）で、実際にサイドバー
+  /// が隣にあるのはTalksTabの広い分割表示（`talks_tab.dart`の
+  /// `_GroupDetailWithRooms`）のみ。
+  final bool hasSidebar;
+
   @override
   ConsumerState<GroupChatPane> createState() => _GroupChatPaneState();
 }
 
 class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
+  /// ハンバーガーメニューボタンの位置を、AppBarの他のポップアップボタン
+  /// （ピン留め・アルバム・ノート・投票）が狭い画面でのポップアップ位置の
+  /// 基準にするための共有キー（2026-09-12追加、`button_anchored_menu.dart`
+  /// の`computeButtonAnchoredMenuPosition`参照）。
+  final _menuAnchorKey = GlobalKey();
+
   /// `ChatScreen.messagesStream`へ渡すstream本体（2026-08-20追加）。
   /// `DmChatPane`の同名フィールドと同じ理由（`_DmChatPaneState
   /// ._messagesController`のdocコメント参照）で、stream自体のidentityを
@@ -2413,6 +2432,7 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
         roomId: roomId,
         messageId: messageId,
       ),
+      menuAnchorKey: _menuAnchorKey,
       extraActions: [
         _AlbumButton(
           isDm: false,
@@ -2420,6 +2440,7 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
           roomId: roomId,
           currentUserId: currentUser.userId,
           onOpenAlbum: (album) => setState(() => _openAlbum = album),
+          menuAnchorKey: _menuAnchorKey,
         ),
         _NoteButton(
           isDm: false,
@@ -2427,12 +2448,14 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
           roomId: roomId,
           currentUser: currentUser,
           onNoteSelected: (noteId) => setState(() => _openNoteId = noteId),
+          menuAnchorKey: _menuAnchorKey,
         ),
         _PollButton(
           isDm: false,
           conversationId: group.groupId,
           roomId: roomId,
           currentUser: currentUser,
+          menuAnchorKey: _menuAnchorKey,
         ),
         _CalendarButton(
           isDm: false,
@@ -2448,7 +2471,8 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
           roomName: roomName,
           currentRoom: currentRoom,
           roles: roles,
-          hasSidebar: !widget.showRoomTabBar,
+          hasSidebar: widget.hasSidebar,
+          menuAnchorKey: _menuAnchorKey,
         ),
       ],
       onSenderTap: (userId) => _openProfileCard(context, userId),
@@ -2490,6 +2514,7 @@ class _GroupMenuButton extends ConsumerStatefulWidget {
     required this.currentRoom,
     required this.roles,
     required this.hasSidebar,
+    required this.menuAnchorKey,
   });
 
   final AppUser currentUser;
@@ -2511,15 +2536,19 @@ class _GroupMenuButton extends ConsumerStatefulWidget {
   /// この広場のカスタムロール一覧（優先順位並べ替えダイアログに渡す）。
   final List<GroupRole> roles;
 
+  /// このボタン自身の位置（2026-09-12追加）。狭い画面ではAppBarの他の
+  /// ポップアップボタン（ピン留め・アルバム・ノート・投票）がこのキーを
+  /// 基準にポップアップ位置を揃える（`button_anchored_menu.dart`参照）。
+  final GlobalKey menuAnchorKey;
+
   @override
   ConsumerState<_GroupMenuButton> createState() => _GroupMenuButtonState();
 }
 
 class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
-  final _buttonKey = GlobalKey();
-
   Rect _buttonRect() {
-    final box = _buttonKey.currentContext!.findRenderObject()! as RenderBox;
+    final box =
+        widget.menuAnchorKey.currentContext!.findRenderObject()! as RenderBox;
     return box.localToGlobal(Offset.zero) & box.size;
   }
 
@@ -3099,7 +3128,7 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
   Widget build(BuildContext context) {
     final uiStyle = ref.watch(appUiStyleProvider);
     return IconButton(
-      key: _buttonKey,
+      key: widget.menuAnchorKey,
       tooltip: '',
       icon: switch (uiStyle) {
         AppUiStyle.gekiga => const GekigaIconBadge(

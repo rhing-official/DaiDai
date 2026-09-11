@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'app_theme_extras.dart';
+import 'glass/glass_colors.dart';
 import 'motion.dart';
 import 'text_prominence_colors.dart';
 
@@ -170,9 +171,16 @@ class AppTheme {
         onSurfaceVariant: TextProminence.darkSecondary,
       );
     } else {
+      // ライトモードの背景は、ガラスUIと同じ固定の中立色
+      // （`GlassColors.lightBackground`）に統一する（2026-09-12変更、
+      // ユーザー指示。以前はダークモードと違いアクセントカラーの色相を
+      // 残していたが、フラット/ガラス間で背景の見た目を揃える）。カード/
+      // ダイアログ等（surfaceContainer/surfaceContainerHigh/Highest）は
+      // 引き続きアクセントカラーの色相を残す従来方針のまま変更しない。
       colorScheme = colorScheme.copyWith(
-        surfaceContainerLowest: colorScheme.surface,
-        surfaceContainerLow: colorScheme.surface,
+        surface: GlassColors.lightBackground,
+        surfaceContainerLowest: GlassColors.lightBackground,
+        surfaceContainerLow: GlassColors.lightBackground,
         surfaceContainer: colorScheme.surfaceContainerHighest,
         surfaceContainerHigh: colorScheme.surfaceContainerHighest,
         onSurface: TextProminence.lightPrimary,
