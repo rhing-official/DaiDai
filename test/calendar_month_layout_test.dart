@@ -101,16 +101,11 @@ void main() {
       final segment1 = layout1.segments.single;
       final segment2 = layout2.segments.single;
 
-      // 週1: 水(9/2)始まり、真の開始日と一致。週末(土=9/5)まで続き、
-      // 本当の終了日(9/8)とは一致しないので角は丸めない。
-      expect(segment1.isTrueStart, isTrue);
-      expect(segment1.isTrueEnd, isFalse);
+      // 週1: 水(9/2)始まり、週末(土=9/5)まで続く。
       expect(segment1.startCol, start.difference(week1Sunday).inDays);
       expect(segment1.endCol, 6);
 
       // 週2: 日曜(9/6)始まりで継続、火(9/8)で本当に終わる。
-      expect(segment2.isTrueStart, isFalse);
-      expect(segment2.isTrueEnd, isTrue);
       expect(segment2.startCol, 0);
       expect(segment2.endCol, end.difference(week2Sunday).inDays);
 

@@ -108,8 +108,6 @@ class WeekLaneSegment {
     required this.startCol,
     required this.endCol,
     required this.lane,
-    required this.isTrueStart,
-    required this.isTrueEnd,
   });
 
   final CalendarMonthItem item;
@@ -120,11 +118,6 @@ class WeekLaneSegment {
 
   /// この週の中での表示行（レーン、0始まり）。
   final int lane;
-
-  /// この週内セグメントの開始/終了が、元の予定/日程調整の本当の開始/終了
-  /// 日と一致するか。falseなら週をまたいだ継続のため、その側の角を丸めない。
-  final bool isTrueStart;
-  final bool isTrueEnd;
 }
 
 /// 1週間分の`CalendarMonthItem`を、レーン（表示行）へ貪欲法（区間グラフの
@@ -198,8 +191,6 @@ WeekLaneLayout computeWeekLaneLayout(
         startCol: entry.startCol,
         endCol: entry.endCol,
         lane: assignedLane,
-        isTrueStart: entry.item.startDate == weekDays[entry.startCol],
-        isTrueEnd: entry.item.endDate == weekDays[entry.endCol],
       ),
     );
   }
