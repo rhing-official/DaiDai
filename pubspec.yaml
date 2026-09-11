@@ -135,6 +135,11 @@ flutter:
 
   assets:
     - assets/sounds/
+    # Googleの「Sign in with Google」ブランドガイドライン
+    # （https://developers.google.com/identity/branding-guidelines）配布の
+    # 公式アセットZipから抽出した「G」ロゴ単体（2026-09-11追加、
+    # `lib/widgets/google_sign_in_button.dart`参照）。
+    - assets/branding/google_g_logo.png
 
   # 劇画UIスタイル用フォント（Anton、OFLライセンス）。google_fontsパッケージ
   # 経由のGoogle CDN実行時取得は使わず、プライバシーファースト方針に合わせて

@@ -29,3 +29,23 @@ Widget buildPopSlideTransition(Animation<double> animation, Widget child) {
     ),
   );
 }
+
+/// 画面右外から`Offset.zero`へ平行移動するだけの入場演出（フェード・拡大は
+/// 付けない、2026-09-11追加）。`InteractiveSwipeBackTransition`が右スワイプで
+/// 戻る時に行う`Transform.translate`（画面を右へ動かして背後を見せる）の
+/// 逆再生に相当する見え方にすることで、寄合一覧を左スワイプ/タップで開いた
+/// 時の入場アニメーションと、右スワイプで戻る動きを対称にする（`talks_tab.dart`
+/// の`openRoomFullscreen`参照）。
+Widget buildSlideInFromRightTransition(
+  Animation<double> animation,
+  Widget child,
+) {
+  final curved = CurvedAnimation(parent: animation, curve: popSlideCurve);
+  return SlideTransition(
+    position: Tween<Offset>(
+      begin: const Offset(1, 0),
+      end: Offset.zero,
+    ).animate(curved),
+    child: child,
+  );
+}

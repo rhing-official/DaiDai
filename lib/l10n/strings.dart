@@ -1464,7 +1464,7 @@ class Strings {
     twoFactorSetupDescription:
         '認証アプリ（Google Authenticator等）でQRコードを読み取るか、シークレットキーを手入力してから、表示された6桁のコードを入力してください。',
     twoFactorSecretKeyLabel: 'シークレットキー',
-    twoFactorCodeLabel: '6桁のコード',
+    twoFactorCodeLabel: 'コード',
     twoFactorEnrollButton: '有効にする',
     twoFactorInvalidCodeError: 'コードが正しくありません',
     twoFactorDisableConfirmTitle: '2段階認証を無効にしますか？',
@@ -1473,7 +1473,7 @@ class Strings {
     twoFactorRequiresRecentLoginError: '確認のため、もう一度ログインしてからお試しください。',
     twoFactorReauthenticateButton: '再ログインする',
     twoFactorChallengeTitle: '認証アプリのコードを入力',
-    twoFactorChallengeDescription: '認証アプリに表示されている6桁のコードを入力してください。',
+    twoFactorChallengeDescription: 'アプリに表示されているコードを入力してください。',
     twoFactorChallengeConfirmButton: '確認',
     qrLoginDialogTitle: 'QRコードでログイン',
     qrLoginDialogDescription:

@@ -2930,6 +2930,7 @@ class _DmDetailWithRoomsState extends ConsumerState<_DmDetailWithRooms> {
                   roomId: targetRoomId,
                   roomName: targetRoomName,
                   showRoomTabBar: false,
+                  enterFromRight: true,
                 ),
               );
         }
@@ -3077,6 +3078,7 @@ class _GroupDetailWithRoomsState extends ConsumerState<_GroupDetailWithRooms> {
                   roomId: targetRoomId,
                   roomName: targetRoomName,
                   showRoomTabBar: false,
+                  enterFromRight: true,
                 ),
               );
         }
