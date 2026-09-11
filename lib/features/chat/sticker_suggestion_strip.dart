@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 
 import '../../models/sticker.dart';
 
-/// メッセージ内容に応じたペタピタ提案の横並び表示（2026-09-05追加、
+/// メッセージ内容に応じたぺったん提案の横並び表示（2026-09-05追加、
 /// `lib/utils/sticker_suggestion.dart`の`suggestStickers`が返す候補を
 /// 入力欄のすぐ上に表示する）。LINEの「おすすめスタンプ」がタップした
 /// 時点でそのまま確定・送信される挙動（競合調査.md 2026-09-05付エントリ
-/// 参照）に合わせ、通常のペタピタピッカー（`StickerPickerContent`）が持つ
+/// 参照）に合わせ、通常のぺったんピッカー（`StickerPickerContent`）が持つ
 /// LINE型2タップ・プレビュー挙動（`stickerSendMode`設定）とは独立に、
 /// ここではタップ即送信にしている。
 class StickerSuggestionStrip extends StatelessWidget {

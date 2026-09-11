@@ -11,6 +11,7 @@ import 'package:flutter/rendering.dart' show RenderRepaintBoundary;
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:audioplayers/audioplayers.dart';
 import 'package:http/http.dart' as http;
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'package:share_plus/share_plus.dart';
@@ -32,6 +33,7 @@ import '../../models/sticker_role.dart';
 import '../../providers/app_locale_provider.dart';
 import '../../providers/app_ui_style_provider.dart';
 import '../../providers/camera_availability_provider.dart';
+import '../../providers/chat_audio_playback_provider.dart';
 import '../../providers/chat_layout_style_provider.dart';
 import '../../providers/conversation_prefs_providers.dart';
 import '../../providers/draft_sync_enabled_provider.dart';
@@ -58,6 +60,7 @@ import '../../utils/auto_dismiss_banner.dart';
 import '../../utils/drag_menu_geometry.dart';
 import '../../utils/link_detection.dart';
 import '../../utils/note_title.dart';
+import '../../utils/sound_upload.dart' show kAllowedSoundExtensions;
 import '../../utils/spam_check.dart';
 import '../../utils/sticker_suggestion.dart';
 import 'sticker_picker_popup.dart';
@@ -167,8 +170,8 @@ class ChatScreen extends ConsumerStatefulWidget {
   })?
   onSendAttachment;
 
-  /// ペタピタ（スタンプ）を送信する（技術仕様書7.4参照、2026-08-11追加）。
-  /// nullなら＋ボタンのメニューに「ペタピタ」項目自体を出さない。
+  /// ぺったん（スタンプ）を送信する（技術仕様書7.4参照、2026-08-11追加）。
+  /// nullなら＋ボタンのメニューに「ぺったん」項目自体を出さない。
   final Future<void> Function(Sticker sticker)? onSendSticker;
 
   /// 送信済みテキストメッセージの本文を編集する。nullなら編集機能自体を
@@ -353,7 +356,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// `ref.listenManual`による永続購読に置き換えた（[_applyRemoteDraft]参照）。
   ProviderSubscription<AsyncValue<Map<String, ConversationPrefs>>>? _draftSub;
 
-  /// メッセージ内容に応じたペタピタ提案（2026-09-05追加）。役割定義・
+  /// メッセージ内容に応じたぺったん提案（2026-09-05追加）。役割定義・
   /// 所有スタンプ一覧はFirestoreのストリームを個別に購読して保持し
   /// （`_stickerRoles`/`_ownedStickers`）、どちらかが更新されるたびに
   /// `_updateStickerSuggestions`で入力中のテキストと突き合わせ直す。
@@ -464,7 +467,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     });
   }
 
-  /// メッセージ内容に応じたペタピタ提案の再計算（2026-09-05追加）。
+  /// メッセージ内容に応じたぺったん提案の再計算（2026-09-05追加）。
   /// 入力テキストの変更・役割定義/所有スタンプ一覧の更新のいずれからも
   /// 呼ばれる。下書き保存と同様デバウンスし、キー入力のたびに毎回
   /// `suggestStickers`を走らせないようにする。
@@ -490,7 +493,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     });
   }
 
-  /// ペタピタ提案ストリップ（[StickerSuggestionStrip]）のタップ処理
+  /// ぺったん提案ストリップ（[StickerSuggestionStrip]）のタップ処理
   /// （2026-09-05追加）。通常のピッカーが持つ`stickerSendMode`の2タップ
   /// プレビュー挙動は使わず即送信する（`StickerSuggestionStrip`のdoc
   /// コメント参照）。
@@ -541,7 +544,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   final _composerAreaKey = GlobalKey();
   double _composerAreaHeight = 72;
 
-  /// メッセージ入力欄右端の専用ペタピタ送信アイコン（2026-08-11追加）の
+  /// メッセージ入力欄右端の専用ぺったん送信アイコン（2026-08-11追加）の
   /// アンカー位置計算用。デスクトップ幅ではこのキーを基準に
   /// [showStickerPickerPopup]でアイコン付近にポップアップを浮かせる。
   final _stickerButtonKey = GlobalKey();
@@ -1630,7 +1633,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     }
   }
 
-  /// ペタピタ（スタンプ）選択時の送信処理。バイトデータのアップロードを
+  /// ぺったん（スタンプ）選択時の送信処理。バイトデータのアップロードを
   /// 伴わないため添付ファイルより単純だが、失敗時のバナー表示・再送導線は
   /// [_handleAttachmentPicked]と同じパターンを踏襲する（2026-08-11追加）。
   Future<void> _handleStickerPicked(Sticker sticker) async {
@@ -1658,8 +1661,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     }
   }
 
-  /// メッセージ入力欄右端の専用ペタピタ送信アイコンのタップ処理
-  /// （2026-08-11追加）。既存の「＋」ボタン内のペタピタ項目とは別の近道で、
+  /// メッセージ入力欄右端の専用ぺったん送信アイコンのタップ処理
+  /// （2026-08-11追加）。既存の「＋」ボタン内のぺったん項目とは別の近道で、
   /// 画面幅で表示形式を切り替える：コンピューターUI（`kTalksSplitBreakpoint`
   /// 以上）はアイコン付近にアンカー表示するポップアップ、モバイルUIは
   /// ボトムシート（[StickerPickerSheet]、＋ボタン側と共通）。
@@ -1681,7 +1684,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     await _handleStickerPicked(sticker);
   }
 
-  /// テキスト欄の`suffixIcon`に埋め込むペタピタ送信アイコン本体。
+  /// テキスト欄の`suffixIcon`に埋め込むぺったん送信アイコン本体。
   /// [_openStickerPicker]の項のコメント参照。劇画スタイルの入力欄
   /// （`_GekigaComposerField`）は白い吹き出しに黒文字・黒カーソルという
   /// 配色（`_GekigaComposerFieldPainter`の`fillColor: Colors.white`参照）
@@ -1769,7 +1772,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     );
   }
 
-  /// このチャット画面で表示する通知バナー（添付・ペタピタ送信失敗、
+  /// このチャット画面で表示する通知バナー（添付・ぺったん送信失敗、
   /// スクリーンショットのキャプチャ・共有失敗等）を3秒後に自動的に
   /// 閉じるためのタイマー（2026-08-10導入、2026-08-12に用途を拡張し
   /// 共通の[showAutoDismissBanner]ヘルパーを使う形にリファクタ）。
@@ -1805,7 +1808,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final locale = ref.watch(appLocaleProvider);
     final layoutStyle = ref.watch(chatLayoutStyleProvider);
     final strings = ref.watch(appStringsProvider);
-    // ペタピタ送信を使わない呼び出し元（テストの素朴なChatScreen構築を含む）に
+    // ぺったん送信を使わない呼び出し元（テストの素朴なChatScreen構築を含む）に
     // 新規プロバイダの購読を強制しないよう、実際に必要な場合のみwatchする。
     final vocabulary = widget.onSendSticker == null
         ? null
@@ -2402,7 +2405,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                       onKeyEvent: _handleKeyEvent,
                                       child: isGekiga
                                           ? _GekigaComposerField(
-                                              // ペタピタアイコンを固定位置に
+                                              // ぺったんアイコンを固定位置に
                                               // 保つため、Stack+Positioned
                                               // （確定後サイズを基準に位置
                                               // 決めする間接的な仕組み）は
@@ -2710,7 +2713,7 @@ class _ComposerContextBar extends StatelessWidget {
   final Strings strings;
   final VoidCallback onCancel;
 
-  /// 返信先がペタピタの場合の固定文言に使う（[_MessageRow.vocabulary]と
+  /// 返信先がぺったんの場合の固定文言に使う（[_MessageRow.vocabulary]と
   /// 同じ理由でnullableにしている、2026-08-13追加）。
   final Vocabulary? vocabulary;
 
@@ -2850,12 +2853,12 @@ class _DateSeparator extends StatelessWidget {
 /// どちらのスタイルでも、誰か（送信者以外）が既読にした場合は吹き出しの角に
 /// チェックマークを表示する（自分のメッセージは左下、相手のメッセージは
 /// 右下）。タップすると既読者一覧がポップアップで出る。
-/// 返信引用プレビューのラベル文言。ペタピタは技術的な`content`
+/// 返信引用プレビューのラベル文言。ぺったんは技術的な`content`
 /// （スタンプ名、コードのように見える）をそのまま出さず、固定の用語
 /// （[Vocabulary.sticker]）に置き換える（2026-08-13追加）。
 /// [showStickerPickerPopup]のアンカー矩形を、与えられた[context]が属する
 /// ウィジェットの画面上の位置・サイズから計算する（2026-08-14追加）。
-/// 送信アイコン（永続的な`GlobalKey`経由）・メッセージ上のペタピタタップ
+/// 送信アイコン（永続的な`GlobalKey`経由）・メッセージ上のぺったんタップ
 /// （タップ時点の`BuildContext`をそのまま利用）の両方から共通で使う。
 Rect _anchorRectFromContext(BuildContext context) {
   final box = context.findRenderObject()! as RenderBox;
@@ -2864,13 +2867,13 @@ Rect _anchorRectFromContext(BuildContext context) {
 
 String _replySnippetLabel(Message target, Vocabulary? vocabulary) {
   if (target.contentType == 'sticker') {
-    return vocabulary?.sticker ?? 'ペタピタ';
+    return vocabulary?.sticker ?? 'ぺったん';
   }
   return messageSnippetOf(target.content);
 }
 
 /// 返信引用プレビューの右隣に添える小さいサムネイル（32x32）。
-/// ペタピタ・画像・動画とも実際のサムネイルを表示する（動画は`_VideoThumbnail`
+/// ぺったん・画像・動画とも実際のサムネイルを表示する（動画は`_VideoThumbnail`
 /// の正方形モードを流用、2026-08-14。画面内に同時に見える「動画への返信」は
 /// 多くても数件程度で、`_VideoThumbnail`自体がController初期化・破棄を
 /// 完結させる作りのため、本文側の動画表示と比べて追加コストは無い）。
@@ -3362,14 +3365,14 @@ class _MessageRow extends ConsumerWidget {
   /// [ChatScreen.onFetchMessagesAround]で取得してからジャンプする。
   final void Function(String messageId)? onJumpToReply;
 
-  /// 他人が送信済みのペタピタをタップし、自分も所持しているパックだった
+  /// 他人が送信済みのぺったんをタップし、自分も所持しているパックだった
   /// 場合にそのパックから選び直して送信する導線で使う（[_stickerContent]
   /// 参照、2026-08-14追加）。nullなら送信機能自体を出さない
   /// （[ChatScreen.onSendSticker]がnullの読み取り専用画面等）。
   final Future<void> Function(Sticker sticker)? onSendSticker;
 
-  /// 送信用の専用ペタピタアイコン（`_ChatScreenState._stickerButtonKey`）の
-  /// `GlobalKey`。所持ペタピタタップ時に開くポップアップの座標を、送信
+  /// 送信用の専用ぺったんアイコン（`_ChatScreenState._stickerButtonKey`）の
+  /// `GlobalKey`。所持ぺったんタップ時に開くポップアップの座標を、送信
   /// アイコンクリック時（[ChatScreen]の`_openStickerPicker`）と完全に
   /// 一致させるため、`_handleStickerTap`のアンカー計算にそのまま使う
   /// （2026-08-14追加）。送信アイコン自体が無い画面ではnull（その場合は
@@ -3389,8 +3392,8 @@ class _MessageRow extends ConsumerWidget {
   /// 呼ばれる）。DMのみ渡される。
   final Future<void> Function()? onDeleteAfterAccountDeletion;
 
-  /// 返信引用プレビュー内のペタピタ固定文言（[Vocabulary.sticker]）に使う。
-  /// nullの場合は標準の用語（「ペタピタ」）にフォールバックする
+  /// 返信引用プレビュー内のぺったん固定文言（[Vocabulary.sticker]）に使う。
+  /// nullの場合は標準の用語（「ぺったん」）にフォールバックする
   /// （2026-08-13追加。テストの素朴な`ChatScreen`構築や`onSendSticker`が
   /// nullの読み取り専用画面等、`vocabularyProvider`の購読自体を避けたい
   /// 呼び出し元向けに、呼び出し元（`_ChatScreenState.build`）で計算済みの
@@ -4965,14 +4968,14 @@ class _MessageRow extends ConsumerWidget {
   /// アプリ内再生を追加）。画像・動画はサムネイル/プレースホルダーを直接
   /// 表示しタップで全画面表示、ファイルはアイコン+ファイル名+サイズを
   /// 表示しタップでブラウザ等の外部アプリで開く。
-  /// ペタピタ（スタンプ）メッセージの表示。LINE/Discord等の一般的な
+  /// ぺったん（スタンプ）メッセージの表示。LINE/Discord等の一般的な
   /// 見せ方に合わせ、吹き出し枠・劇画モノクロ枠（[skipFrame]参照）を
   /// 付けずに単体の画像として表示する（技術仕様書7.4参照、2026-08-11追加）。
-  /// タップすると、自分が所持しているパックのペタピタならそのパックに
+  /// タップすると、自分が所持しているパックのぺったんならそのパックに
   /// 絞り込んだ送信ピッカーを開き、未所持ならdaidai横丁のストアページを
   /// ブラウザの別タブで開く（daidai横丁自体はアプリ内に持たない方針の
   /// ため、Apple/Google手数料回避と軽量化を兼ねる、2026-08-14追加）。
-  /// 自分が送信したペタピタも同じ経路で開ける（所持パックからしか送信
+  /// 自分が送信したぺったんも同じ経路で開ける（所持パックからしか送信
   /// できない仕様上、常に「所持している」分岐に入る）。
   Widget _stickerContent(
     BuildContext context,
@@ -5021,7 +5024,7 @@ class _MessageRow extends ConsumerWidget {
     if (owned) {
       final onSendStickerCallback = onSendSticker;
       if (onSendStickerCallback == null) return;
-      // 送信用の専用ペタピタアイコン（`_openStickerPicker`）と同じ幅分岐・
+      // 送信用の専用ぺったんアイコン（`_openStickerPicker`）と同じ幅分岐・
       // 同じアンカー座標を使う（`stickerButtonKey`＝`_stickerButtonKey`を
       // そのまま参照するため、表示位置が送信アイコンクリック時と完全に
       // 一致する。デスクトップ幅はそのアイコン付近のポップアップ、
@@ -5187,6 +5190,7 @@ class _MessageRow extends ConsumerWidget {
 
     return _FileAttachmentBlock(
       metadata: metadata,
+      messageId: message.messageId,
       onBubbleColor: onBubbleColor,
       isGekiga: isGekiga,
       isGlass: uiStyle == AppUiStyle.glass,
@@ -6105,9 +6109,10 @@ class _SenderAvatar extends ConsumerWidget {
 /// Markdown（.md/.markdown）ファイルはさらに、本文をプレビュー表示できる
 /// カードにする（初期状態は高さを制限した省略表示、シェブロンで全文表示に
 /// 展開、右下に常時ダウンロードボタンを表示）。
-class _FileAttachmentBlock extends StatefulWidget {
+class _FileAttachmentBlock extends ConsumerStatefulWidget {
   const _FileAttachmentBlock({
     required this.metadata,
+    required this.messageId,
     required this.onBubbleColor,
     required this.isGekiga,
     required this.isGlass,
@@ -6115,6 +6120,7 @@ class _FileAttachmentBlock extends StatefulWidget {
   });
 
   final MessageFileMetadata metadata;
+  final String messageId;
   final Color onBubbleColor;
   final bool isGekiga;
   final bool isGlass;
@@ -6140,11 +6146,19 @@ class _FileAttachmentBlock extends StatefulWidget {
       (metadata.extension == 'md' || metadata.extension == 'markdown') &&
       metadata.sizeBytes <= _maxPreviewBytes;
 
+  /// この添付がインライン再生プレビューを提供する音声ファイルかどうか
+  /// （2026-09-12追加）。`kAllowedSoundExtensions`は着信音アップロード用に
+  /// 定義された拡張子集合だが、機能に閉じたものではない汎用の値のため
+  /// そのまま流用する。
+  static bool isPlayableAudio(MessageFileMetadata metadata) =>
+      kAllowedSoundExtensions.contains(metadata.extension);
+
   @override
-  State<_FileAttachmentBlock> createState() => _FileAttachmentBlockState();
+  ConsumerState<_FileAttachmentBlock> createState() =>
+      _FileAttachmentBlockState();
 }
 
-class _FileAttachmentBlockState extends State<_FileAttachmentBlock>
+class _FileAttachmentBlockState extends ConsumerState<_FileAttachmentBlock>
     with AutomaticKeepAliveClientMixin {
   bool _hovering = false;
   bool _expanded = false;
@@ -6165,8 +6179,21 @@ class _FileAttachmentBlockState extends State<_FileAttachmentBlock>
   bool get _isMarkdown =>
       _FileAttachmentBlock.isPreviewableMarkdown(widget.metadata);
 
+  bool get _isAudio => _FileAttachmentBlock.isPlayableAudio(widget.metadata);
+
   @override
   bool get wantKeepAlive => _isMarkdown;
+
+  // --- 音声プレビュー再生（2026-09-12追加） ---
+
+  AudioPlayer? _audioPlayer;
+  PlayerState _playerState = PlayerState.stopped;
+  Duration _position = Duration.zero;
+  Duration? _duration;
+  StreamSubscription<PlayerState>? _playerStateSub;
+  StreamSubscription<Duration>? _positionSub;
+  StreamSubscription<Duration>? _durationSub;
+  ProviderSubscription<String?>? _playingAudioSub;
 
   /// ホバーの概念が無いモバイルでは、ダウンロードボタンを常時表示する
   /// （Web版もモバイルブラウザなら`defaultTargetPlatform`がこの判定になる）。
@@ -6183,6 +6210,72 @@ class _FileAttachmentBlockState extends State<_FileAttachmentBlock>
         _fetchMarkdown,
       );
     }
+    if (_isAudio) {
+      // 他の音声添付が再生を始めたら、自分が再生中の場合のみ一時停止する
+      // （`playingAudioMessageIdProvider`参照）。
+      _playingAudioSub = ref.listenManual<String?>(
+        playingAudioMessageIdProvider,
+        (previous, next) {
+          if (next != widget.messageId) _audioPlayer?.pause();
+        },
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _playerStateSub?.cancel();
+    _positionSub?.cancel();
+    _durationSub?.cancel();
+    _playingAudioSub?.close();
+    _audioPlayer?.dispose();
+    super.dispose();
+  }
+
+  Future<void> _toggleAudioPlayback() async {
+    try {
+      final player = _audioPlayer ??= AudioPlayer();
+      if (_audioPlayer == player && _playerStateSub == null) {
+        _playerStateSub = player.onPlayerStateChanged.listen((state) {
+          if (mounted) setState(() => _playerState = state);
+        });
+        _positionSub = player.onPositionChanged.listen((position) {
+          if (mounted) setState(() => _position = position);
+        });
+        _durationSub = player.onDurationChanged.listen((duration) {
+          if (mounted) setState(() => _duration = duration);
+        });
+      }
+      if (_playerState == PlayerState.playing) {
+        await player.pause();
+        return;
+      }
+      // 再生開始前に、他の再生中インスタンスへ一時停止を伝える。
+      ref.read(playingAudioMessageIdProvider.notifier).setPlaying(
+        widget.messageId,
+      );
+      if (_playerState == PlayerState.paused) {
+        await player.resume();
+      } else {
+        await player.play(UrlSource(widget.metadata.url));
+      }
+    } catch (_) {
+      // 再生できない環境でもファイル自体のダウンロードは引き続き行える。
+    }
+  }
+
+  Future<void> _seekAudio(Duration position) async {
+    try {
+      await _audioPlayer?.seek(position);
+    } catch (_) {
+      // シークに失敗しても致命的ではないため無視する。
+    }
+  }
+
+  static String _formatAudioDuration(Duration d) {
+    final minutes = d.inMinutes;
+    final seconds = d.inSeconds.remainder(60).toString().padLeft(2, '0');
+    return '$minutes:$seconds';
   }
 
   Future<String?> _fetchMarkdown() async {
@@ -6273,6 +6366,7 @@ class _FileAttachmentBlockState extends State<_FileAttachmentBlock>
   @override
   Widget build(BuildContext context) {
     super.build(context);
+    if (_isAudio) return _buildAudioRow();
     if (!_isMarkdown) return _buildPlainRow();
 
     return FutureBuilder<String?>(
@@ -6320,6 +6414,101 @@ class _FileAttachmentBlockState extends State<_FileAttachmentBlock>
                       ),
                       Text(
                         _MessageRow._formatFileSize(widget.metadata.sizeBytes),
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: widget.onBubbleColor.withValues(alpha: 0.7),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (showIcon)
+            Positioned(top: -6, right: -6, child: _downloadButton(small: true)),
+        ],
+      ),
+    );
+  }
+
+  /// 音声ファイル添付のインライン再生行（2026-09-12追加）。`_buildPlainRow`
+  /// と骨格（ファイル名・ホバー/モバイルでのダウンロードボタン）を揃え、
+  /// 静的アイコン＋ファイルサイズの代わりに再生/一時停止ボタン＋シーク
+  /// バー＋再生時間を表示する。波形表示は行わず単純な`Slider`のみに留める。
+  Widget _buildAudioRow() {
+    final showIcon = _hovering || _alwaysShowDownload;
+    final duration = _duration;
+    final durationMs = duration?.inMilliseconds.toDouble();
+    final sliderMax = (durationMs == null || durationMs <= 0)
+        ? 1.0
+        : durationMs;
+    final sliderValue = _position.inMilliseconds
+        .toDouble()
+        .clamp(0.0, sliderMax);
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovering = true),
+      onExit: (_) => setState(() => _hovering = false),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 4, right: 4),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  icon: Icon(
+                    _playerState == PlayerState.playing
+                        ? Icons.pause_circle_filled
+                        : Icons.play_circle_fill,
+                    color: widget.onBubbleColor,
+                    size: 32,
+                  ),
+                  padding: EdgeInsets.zero,
+                  onPressed: _toggleAudioPlayback,
+                ),
+                const SizedBox(width: 4),
+                Flexible(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        widget.metadata.fileName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(color: widget.onBubbleColor),
+                      ),
+                      SizedBox(
+                        width: 160,
+                        child: SliderTheme(
+                          data: SliderThemeData(
+                            trackHeight: 2,
+                            thumbShape: const RoundSliderThumbShape(
+                              enabledThumbRadius: 5,
+                            ),
+                            overlayShape: SliderComponentShape.noOverlay,
+                            activeTrackColor: widget.onBubbleColor,
+                            inactiveTrackColor: widget.onBubbleColor
+                                .withValues(alpha: 0.3),
+                            thumbColor: widget.onBubbleColor,
+                          ),
+                          child: Slider(
+                            min: 0,
+                            max: sliderMax,
+                            value: sliderValue,
+                            onChanged: durationMs == null
+                                ? null
+                                : (v) => _seekAudio(
+                                    Duration(milliseconds: v.round()),
+                                  ),
+                          ),
+                        ),
+                      ),
+                      Text(
+                        '${_formatAudioDuration(_position)} / '
+                        '${duration == null ? '--:--' : _formatAudioDuration(duration)}',
                         style: TextStyle(
                           fontSize: 11,
                           color: widget.onBubbleColor.withValues(alpha: 0.7),
@@ -6651,7 +6840,7 @@ class _GekigaComposerFieldPainter extends CustomPainter {
     // 傾きにする（2026-08-10、`_GekigaComposerField`のpaddingと合わせて
     // 文字がはみ出さない程度に調整）。ただしこの値をそのまま使うと複数行
     // 入力で箱が縦に伸びるほど傾きが際限なく大きくなり、外側のPadding
-    // （水平20px）を超えて文字・ペタピタアイコンが平行四辺形の外に
+    // （水平20px）を超えて文字・ぺったんアイコンが平行四辺形の外に
     // はみ出してしまうため、16.0（水平Paddingを下回る安全な値）で
     // 頭打ちにする（2026-08-11修正）。
     final vertices = mirrorHorizontal(

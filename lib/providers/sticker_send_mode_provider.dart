@@ -6,7 +6,7 @@ import 'repository_providers.dart';
 
 const _prefsKey = 'stickerSendMode';
 
-/// 端末に保存されている初期のペタピタ送信方式設定。main()で起動前に読み込み、
+/// 端末に保存されている初期のぺったん送信方式設定。main()で起動前に読み込み、
 /// ProviderScopeのoverrideとして渡す。
 final initialStickerSendModeProvider = Provider<StickerSendMode>((ref) {
   throw UnimplementedError('main()でoverrideすること');

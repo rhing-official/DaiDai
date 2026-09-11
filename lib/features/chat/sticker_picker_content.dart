@@ -7,7 +7,7 @@ import '../../models/sticker_send_mode.dart';
 import '../../providers/repository_providers.dart';
 import '../../providers/sticker_send_mode_provider.dart';
 
-/// ペタピタピッカーの本体（検索バー＋パック別レール＋グリッド、2026-08-11
+/// ぺったんピッカーの本体（検索バー＋パック別レール＋グリッド、2026-08-11
 /// 追加）。モバイル用ボトムシート（`StickerPickerSheet`）とデスクトップ用
 /// アンカーポップアップ（`sticker_picker_popup.dart`）の両方から共有される。
 /// [railAxis]で、パック切り替えレールを左サイド（`Axis.vertical`）に
@@ -24,7 +24,7 @@ class StickerPickerContent extends ConsumerStatefulWidget {
   final void Function(Sticker sticker) onStickerSelected;
 
   /// 指定時は「すべて」タブではなく、このパックに絞り込んだ状態で開く
-  /// （他人が送信済みのペタピタをタップして開く導線用、2026-08-14追加）。
+  /// （他人が送信済みのぺったんをタップして開く導線用、2026-08-14追加）。
   final String? initialPackId;
 
   @override
@@ -57,13 +57,13 @@ class _StickerPickerContentState extends ConsumerState<StickerPickerContent> {
       widget.onStickerSelected(sticker);
       return;
     }
-    // LINE型: 直前にプレビュー中だったのと同じペタピタの2回目タップなら送信。
+    // LINE型: 直前にプレビュー中だったのと同じぺったんの2回目タップなら送信。
     if (_pendingPreviewSticker?.stickerId == sticker.stickerId) {
       _removePreview();
       widget.onStickerSelected(sticker);
       return;
     }
-    // 1回目のタップ、または別のペタピタへの差し替え。
+    // 1回目のタップ、または別のぺったんへの差し替え。
     _pendingPreviewSticker = sticker;
     _pendingTapGlobalPos = _lastTapDownGlobalPos;
     if (_previewEntry == null) {
@@ -106,7 +106,7 @@ class _StickerPickerContentState extends ConsumerState<StickerPickerContent> {
       width: previewSize,
       height: previewSize,
       child: GestureDetector(
-        // 拡大プレビュー自体をタップ＝「同じペタピタをもう一度タップ」と同義。
+        // 拡大プレビュー自体をタップ＝「同じぺったんをもう一度タップ」と同義。
         onTap: () => _handleStickerTap(sticker, StickerSendMode.line),
         child: Material(
           color: Theme.of(context).colorScheme.surfaceContainerHigh,

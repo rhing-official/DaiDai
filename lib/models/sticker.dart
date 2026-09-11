@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-/// daidai横丁のペタピタパッケージ（[StickerPack]）内の1枚。DaiDaiアプリでの
+/// daidai横丁のぺったんパッケージ（[StickerPack]）内の1枚。DaiDaiアプリでの
 /// 送信単位（技術仕様書7.5参照、2026-08-11追加）。
 class Sticker {
   const Sticker({
@@ -14,8 +14,8 @@ class Sticker {
   final String name;
   final String imageUrl;
 
-  /// このペタピタが対応する[StickerRole.roleId]のリスト（0件以上、
-  /// 2026-09-05追加）。メッセージ内容に応じたペタピタ提案（
+  /// このぺったんが対応する[StickerRole.roleId]のリスト（0件以上、
+  /// 2026-09-05追加）。メッセージ内容に応じたぺったん提案（
   /// `lib/utils/sticker_suggestion.dart`）で、入力文字列がいずれかの役割の
   /// キーワードに一致した際、その役割idを`roles`に含むスタンプが候補になる。
   final List<String> roles;
@@ -39,7 +39,7 @@ class Sticker {
   };
 }
 
-/// daidai横丁で販売されるペタピタパッケージ（技術仕様書7.5参照、
+/// daidai横丁で販売されるぺったんパッケージ（技術仕様書7.5参照、
 /// 2026-08-11追加）。複数枚の[Sticker]をまとめた販売単位で、購入すると
 /// 中の[Sticker]全てをDaiDaiアプリで送信できるようになる。
 class StickerPack {

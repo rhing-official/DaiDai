@@ -5,14 +5,14 @@ import 'package:flutter/material.dart';
 import '../../models/sticker.dart';
 import 'sticker_picker_content.dart';
 
-/// デスクトップ幅（`kTalksSplitBreakpoint`以上）でのペタピタ送信アイコン
-/// タップ時、および所持済みパックのペタピタをメッセージ上でタップした際
+/// デスクトップ幅（`kTalksSplitBreakpoint`以上）でのぺったん送信アイコン
+/// タップ時、および所持済みパックのぺったんをメッセージ上でタップした際
 /// （2026-08-14〜、`chat_screen.dart`の`_handleStickerTap`）に、アンカー
 /// 近くに表示するポップアップ（2026-08-11追加）。メッセージ長押しメニュー
 /// （`chat_screen.dart`の`_MessageBubbleTapAreaState._onLongPressStart`）と
 /// 同じ「`Overlay`に直接`OverlayEntry`を差し込み、画面端でclampする」
 /// パターンで実装する（狭い幅の`showDialog`中央配置ではなく、Discordの
-/// ペタピタピッカーと同じくアンカー付近に浮かせたいという要望のため）。
+/// ぺったんピッカーと同じくアンカー付近に浮かせたいという要望のため）。
 /// アンカー矩形は呼び出し側で計算して渡す（送信アイコンは永続的な
 /// `GlobalKey`から、メッセージタップは呼び出し時の`BuildContext`から、と
 /// 起点が異なるため）。

@@ -55,13 +55,13 @@ class AttachmentPopupButton extends StatefulWidget {
 
   final Strings strings;
 
-  /// 「ペタピタ」メニュー項目のラベル（用語スタイルに応じて「ペタピタ」/
+  /// 「ぺったん」メニュー項目のラベル（用語スタイルに応じて「ぺったん」/
   /// 「スタンプ」）。nullの場合はメニューに項目自体を出さない
   /// （[onStickerPicked]がnullの場合と同じ扱い、2026-08-11追加）。
   final String? stickerLabel;
 
-  /// ペタピタ選択時の処理。[stickerLabel]・この両方がnullでない場合のみ
-  /// メニューに「ペタピタ」項目を出す。
+  /// ぺったん選択時の処理。[stickerLabel]・この両方がnullでない場合のみ
+  /// メニューに「ぺったん」項目を出す。
   final void Function(Sticker sticker)? onStickerPicked;
 
   /// 「投票」メニュー項目の選択時の処理（2026-09-06追加）。nullの場合は

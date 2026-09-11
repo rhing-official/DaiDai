@@ -76,7 +76,7 @@ class MessageFileMetadata {
   };
 }
 
-/// contentType='sticker'（ペタピタ送信メッセージ）専用のメタデータ
+/// contentType='sticker'（ぺったん送信メッセージ）専用のメタデータ
 /// （技術仕様書7.4参照、2026-08-11追加）。
 class MessageStickerData {
   const MessageStickerData({required this.stickerId, required this.stickerUrl});

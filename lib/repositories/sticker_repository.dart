@@ -4,35 +4,35 @@ import 'package:cloud_functions/cloud_functions.dart';
 import '../models/sticker.dart';
 import '../models/sticker_role.dart';
 
-/// ペタピタパッケージのカタログ・所有状況を扱うRepository
+/// ぺったんパッケージのカタログ・所有状況を扱うRepository
 /// （技術仕様書7.4・7.5参照、2026-08-11追加）。フェーズ①では`stickerPacks`
 /// コレクション・`users/{uid}/ownedStickerPacks`サブコレクションとも
 /// Firestoreコンソールから手動投入する（daidai横丁実装後は、購入付与用Cloud
 /// FunctionがownedStickerPacksへ書き込む想定。firestore.rulesでクライアント
 /// からの書き込みは禁止している）。
 abstract class StickerRepository {
-  /// 頒布されている全ペタピタパッケージのカタログ。
+  /// 頒布されている全ぺったんパッケージのカタログ。
   Stream<List<StickerPack>> watchPacks();
 
-  /// 指定したユーザーが所有しているペタピタパッケージ一覧。
+  /// 指定したユーザーが所有しているぺったんパッケージ一覧。
   Stream<List<StickerPack>> watchOwnedPacks(String userId);
 
-  /// [packId]のペタピタパックをアンインストール（所有解除）する。
+  /// [packId]のぺったんパックをアンインストール（所有解除）する。
   /// 購入付与（grantOwnership）の対称形として、サーバー側（Cloud Functions）が
   /// `ownedStickerPacks`ドキュメントの削除と`ownerCount`の減算を行う
   /// （2026-08-11追加、functions/src/index.tsの`uninstallStickerPack`）。
   Future<void> uninstallPack(String packId);
 
   /// [stickerId]が属する[StickerPack.packId]を、カタログ全体を検索して
-  /// 引く（他人が送信済みのペタピタをタップした際、`MessageStickerData`
+  /// 引く（他人が送信済みのぺったんをタップした際、`MessageStickerData`
   /// が`stickerId`しか持たないため使う、2026-08-14追加）。見つからなければ
   /// null（パック削除済み等）。
   Future<String?> findPackIdForSticker(String stickerId);
 
-  /// [userId]が[packId]のペタピタパックを所有しているか。
+  /// [userId]が[packId]のぺったんパックを所有しているか。
   Future<bool> ownsPack(String userId, String packId);
 
-  /// メッセージ内容に応じたペタピタ提案（`lib/utils/sticker_suggestion.dart`
+  /// メッセージ内容に応じたぺったん提案（`lib/utils/sticker_suggestion.dart`
   /// 参照、2026-09-05追加）で使う役割定義の一覧。`stickerRoles`コレクション
   /// はFirestoreコンソールまたは一度きりのシードスクリプトから投入する
   /// 想定で、クライアントからの書き込みは行わない。
