@@ -18,7 +18,6 @@ import '../../providers/repository_providers.dart';
 import '../../providers/user_providers.dart';
 import '../../repositories/user_repository.dart';
 import '../../theme/gekiga/gekiga_colors.dart';
-import '../../theme/motion.dart';
 import '../../theme/text_prominence_colors.dart';
 import '../../utils/auto_dismiss_banner.dart';
 import '../../utils/text_truncate.dart';
@@ -29,7 +28,7 @@ import '../../widgets/glass/glass_dialog.dart';
 import '../../widgets/glass/glass_surface.dart';
 import '../../widgets/profile_card_picker.dart';
 import '../../widgets/profile_card_view.dart';
-import '../../widgets/swipe_gestures.dart';
+import '../../widgets/slide_drilldown.dart';
 import '../chat/conversation_profile_card_dialog.dart';
 import 'enmusubi_page.dart';
 
@@ -659,55 +658,40 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
         : null;
     // 狭い画面での上端位置は設定タブ（settings_tab.dartの`_SettingsTabState`）
     // と揃える（Align+ConstrainedBox(maxWidth:480)+Padding(top:56)）。
-    // カテゴリ一覧⇔詳細の切り替えは設定タブと同じAnimatedSwitcher+
-    // buildPopSlideTransitionでポップ演出を付ける（2026-08-10追加、
-    // 以前はアニメーション無しの即時切り替えだった）。
+    // カテゴリ一覧⇔詳細の切り替えは設定タブと同じ`SlideDrilldown`で、
+    // 指追従の右スワイプで戻る／画面右外からのスライドインを付ける
+    // （2026-08-10にAnimatedSwitcher+ポップ演出として追加、2026-09-12に
+    // インタラクティブなスライドへ変更）。
     return Align(
       alignment: Alignment.topCenter,
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 480),
         child: Padding(
           padding: const EdgeInsets.only(top: 56),
-          child: AnimatedSwitcher(
-            duration: popSlideDuration,
-            transitionBuilder: (child, animation) =>
-                buildPopSlideTransition(animation, child),
-            child: selected == null
-                ? _ProfileCategoryList(
-                    key: const ValueKey('profile-categories'),
-                    categories: categories,
-                    selectedSection: null,
-                    onSelect: (category) =>
-                        setState(() => _selectedSection = category.section),
-                    large: true,
-                  )
-                : KeyedSubtree(
-                    key: ValueKey(selected.section),
-                    // 右スワイプは常に一覧へ戻る（onPreviousを渡さないことで
-                    // SwipeBackDetectorの既定フォールバック=onBackを使う）。
-                    // 戻る導線がスワイプに一本化されたため、以前あった
-                    // 「←＋セクション名」の見出し行は表示しない。
-                    child: SwipeBackDetector(
-                      onBack: () => setState(() => _selectedSection = null),
-                      onNext: nextCategory == null
-                          ? null
-                          : () => setState(
-                              () => _selectedSection = nextCategory.section,
-                            ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(
-                            child: _buildContent(
-                              selected.section,
-                              strings,
-                              vocab,
-                            ),
-                          ),
-                        ],
+          child: SlideDrilldown(
+            master: _ProfileCategoryList(
+              key: const ValueKey('profile-categories'),
+              categories: categories,
+              selectedSection: null,
+              onSelect: (category) =>
+                  setState(() => _selectedSection = category.section),
+              large: true,
+            ),
+            detail: selected == null
+                ? null
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: _buildContent(selected.section, strings, vocab),
                       ),
-                    ),
+                    ],
                   ),
+            detailKey: selected?.section,
+            onBack: () => setState(() => _selectedSection = null),
+            onNext: nextCategory == null
+                ? null
+                : () => setState(() => _selectedSection = nextCategory.section),
           ),
         ),
       ),

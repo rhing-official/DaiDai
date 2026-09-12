@@ -23,7 +23,8 @@ import 'package:daidai/models/talks_list_layout_style.dart';
 import 'package:daidai/providers/sticker_send_mode_provider.dart';
 import 'package:daidai/providers/talks_list_layout_style_provider.dart';
 import 'package:daidai/providers/theme_mode_provider.dart';
-import 'package:daidai/widgets/swipe_gestures.dart';
+import 'package:daidai/widgets/interactive_swipe_back.dart';
+import 'package:daidai/widgets/slide_drilldown.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -209,7 +210,7 @@ void main() {
 
     // 左スワイプで次のカテゴリ（語らい）へ。
     await tester.fling(
-      find.byType(SwipeBackDetector),
+      find.byType(InteractiveSwipeBackTransition),
       const Offset(-300, 0),
       1000,
     );
@@ -219,7 +220,7 @@ void main() {
 
     // さらに左スワイプで次のカテゴリ（通知）へ。
     await tester.fling(
-      find.byType(SwipeBackDetector),
+      find.byType(InteractiveSwipeBackTransition),
       const Offset(-300, 0),
       1000,
     );
@@ -229,40 +230,61 @@ void main() {
 
     // 右スワイプすると、隣接カテゴリではなく常にカテゴリ一覧へ戻る。
     await tester.fling(
-      find.byType(SwipeBackDetector),
+      find.byType(InteractiveSwipeBackTransition),
       const Offset(300, 0),
       1000,
     );
     await tester.pumpAndSettle();
-    expect(find.byType(SwipeBackDetector), findsNothing);
+    expect(find.byType(InteractiveSwipeBackTransition), findsNothing);
     expect(find.text('アプリケーション'), findsOneWidget); // 一覧のカテゴリ名として表示される
   });
 
   testWidgets('語らいページにはメッセージの表示・送信キー設定も含まれる'
       '（2026-07-30、アプリケーション/入力カテゴリからの統合）', (tester) async {
-    // 狭い画面のドリルダウンにする（広い画面の2ペインは左のサイドバーと
-    // 右のページが同時にScrollableとなり、scrollUntilVisibleの既定の
-    // 「Scrollableを1つだけ探す」挙動と衝突するため）。
+    // 狭い画面のドリルダウンにする。
     await _pumpSettingsTabNarrow(tester);
 
     await tester.tap(find.text('語らい'));
     await tester.pumpAndSettle();
 
+    // `SlideDrilldown`導入（2026-09-12）によりカテゴリ一覧（master）が
+    // 詳細ページの裏で常時マウントされ続けるため、狭い画面でも
+    // Scrollableが2つ（一覧側・詳細ページ側）同時に存在する。
+    // scrollUntilVisibleの既定の「Scrollableを1つだけ探す」挙動と
+    // 衝突しないよう、詳細ページ側のScrollableを明示して探す。
+    // `SlideDrilldown`はdetailだけを`Positioned.fill`で包む
+    // （masterは素のStack子）ため、スクロール位置に左右されない
+    // 安定した目印としてPositionedを経由して絞り込む。
+    final talkPageScrollable = find.descendant(
+      of: find.descendant(
+        of: find.byType(SlideDrilldown),
+        matching: find.byType(Positioned),
+      ),
+      matching: find.byType(Scrollable),
+    );
     // ブロックしたユーザー・プロフィールカードの各セクションは、テスト環境に
     // Firebaseが初期化されていないためエラー表示になるが、その下に続く
     // メッセージの表示・送信キー設定のセクション自体はそれとは独立して
     // 描画される。ページが縦に長くSliverListの遅延構築で最初は
     // マウントされていないため、scrollUntilVisibleでスクロールしてから探す。
-    await tester.scrollUntilVisible(find.text('メッセージの表示'), 300);
+    await tester.scrollUntilVisible(
+      find.text('メッセージの表示'),
+      300,
+      scrollable: talkPageScrollable,
+    );
     expect(find.text('メッセージの表示'), findsOneWidget);
-    await tester.scrollUntilVisible(find.text('メッセージの送信キー'), 300);
+    await tester.scrollUntilVisible(
+      find.text('メッセージの送信キー'),
+      300,
+      scrollable: talkPageScrollable,
+    );
     expect(find.text('メッセージの送信キー'), findsOneWidget);
 
     // 一覧へ戻り（右スワイプ）、アプリケーションページには両方とも
     // もう出てこないことを確認する（見つからない場合の判定はスクロール
     // 位置に依存しないため、ここではscrollUntilVisible不要）。
     await tester.fling(
-      find.byType(SwipeBackDetector),
+      find.byType(InteractiveSwipeBackTransition),
       const Offset(300, 0),
       1000,
     );

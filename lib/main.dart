@@ -84,6 +84,10 @@ Future<void> main() async {
   final initialRingtoneSound = await loadInitialRingtoneSound();
   final initialCallingSound = await loadInitialCallingSound();
   final initialNotificationSound = await loadInitialNotificationSound();
+  final initialRingtoneCustomSound = await loadInitialRingtoneCustomSound();
+  final initialCallingCustomSound = await loadInitialCallingCustomSound();
+  final initialNotificationCustomSound =
+      await loadInitialNotificationCustomSound();
   // 他端末で既にアップロード済みのカスタム通知音が同期されてきた場合に
   // 備え、起動のたびにローカルのダウンロード・チャンネル作成状態を確認する
   // （Androidのみ、`ensureCustomNotificationChannelReady`は既に準備済みなら
@@ -129,6 +133,15 @@ Future<void> main() async {
         initialCallingSoundProvider.overrideWithValue(initialCallingSound),
         initialNotificationSoundProvider.overrideWithValue(
           initialNotificationSound,
+        ),
+        initialRingtoneCustomSoundProvider.overrideWithValue(
+          initialRingtoneCustomSound,
+        ),
+        initialCallingCustomSoundProvider.overrideWithValue(
+          initialCallingCustomSound,
+        ),
+        initialNotificationCustomSoundProvider.overrideWithValue(
+          initialNotificationCustomSound,
         ),
       ],
       child: const DaiDaiApp(),

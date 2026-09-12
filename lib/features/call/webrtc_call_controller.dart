@@ -305,6 +305,10 @@ class WebrtcCallController extends ChangeNotifier {
           _state = CallConnectionState.active;
           _connectedAt ??= DateTime.now();
           unawaited(_applySpeakerphoneWithRetry());
+          // 相手（着信側）が応答したことで届いたanswer。発信側が聞いていた
+          // 呼出音をここで止める（2026-09-12追加、以前は通話終了まで
+          // 止める箇所が無かった）。
+          soundPlayer.stopRingtone();
         }
         _switchingCallType = false;
         notifyListeners();
@@ -333,6 +337,9 @@ class WebrtcCallController extends ChangeNotifier {
       _state = CallConnectionState.active;
       _connectedAt ??= DateTime.now();
       unawaited(_applySpeakerphoneWithRetry());
+      // 着信側が応答したことでこのアンサーを送った瞬間。着信音をここで
+      // 止める（2026-09-12追加、以前は通話終了まで止める箇所が無かった）。
+      soundPlayer.stopRingtone();
     }
     _switchingCallType = false;
     notifyListeners();

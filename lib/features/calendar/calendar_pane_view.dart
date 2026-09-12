@@ -870,6 +870,17 @@ class _DayCellBackground extends StatelessWidget {
             child: Text(
               '${day.day}',
               style: TextStyle(fontSize: 14, color: colorScheme.onSurface),
+              // フォントの行送り（アセント/ディセント）を打ち消し、丸の
+              // 幾何中心と数字の見た目の中心を一致させる（2026-09-12）。
+              strutStyle: const StrutStyle(
+                fontSize: 14,
+                height: 1,
+                forceStrutHeight: true,
+              ),
+              textHeightBehavior: const TextHeightBehavior(
+                applyHeightToFirstAscent: false,
+                applyHeightToLastDescent: false,
+              ),
             ),
           )
         : Text(

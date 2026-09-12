@@ -130,15 +130,20 @@ class InteractiveSwipeBackScope extends InheritedWidget {
 ///
 /// 左スワイプでの「戻る」は以前は対応していたが（`alsoSwipeLeft`、
 /// ユーザー要望で追加）、誤操作につながるとの判断で2026-09-10に廃止した。
-/// 現在は右方向（ドラッグ・スクロールとも）のみが「戻る」に対応する。
+/// 現在は右方向（ドラッグ・スクロールとも）のみが指追従の「戻る」に対応する。
+/// [onNext]（2026-09-12追加）は左方向のフリックのみに反応する離散的な
+/// コールバックで、指追従の演出は付かない（`SwipeBackDetector.onNext`と
+/// 同じ挙動）。設定/身だしなみのドリルダウンで隣接カテゴリへの切替に使う。
 class InteractiveSwipeBackTransition extends StatefulWidget {
   const InteractiveSwipeBackTransition({
     required this.onBack,
     required this.child,
+    this.onNext,
     super.key,
   });
 
   final VoidCallback onBack;
+  final VoidCallback? onNext;
   final Widget child;
 
   @override
@@ -213,7 +218,13 @@ class _InteractiveSwipeBackTransitionState
             }
           },
           onHorizontalDragEnd: (details) {
-            if (!_controller.isGestureActive) return;
+            if (!_controller.isGestureActive) {
+              final velocity = details.primaryVelocity ?? 0;
+              if (velocity <= -kSwipeGestureVelocityThreshold) {
+                widget.onNext?.call();
+              }
+              return;
+            }
             _controller.endExternalDrag(context, details.primaryVelocity);
           },
           child: ValueListenableBuilder<double>(
@@ -230,4 +241,26 @@ class _InteractiveSwipeBackTransitionState
       ),
     );
   }
+}
+
+/// go_routerを経由しない`Navigator.push`向けに、右スワイプでの
+/// インタラクティブな「戻る」（[InteractiveSwipeBackTransition]）と、
+/// 画面右外からのスライド入場（[buildSlideInFromRightTransition]）を
+/// 適用するルート（`app_router.dart`の`slideDetailPage`のNavigator版、
+/// 2026-09-12追加）。承認待ち画面・QRスキャン画面など、GoRouteを
+/// 持たないpush先で使う。
+Route<T> slideBackRoute<T>({required WidgetBuilder builder}) {
+  return PageRouteBuilder<T>(
+    opaque: false,
+    transitionsBuilder: (context, animation, secondaryAnimation, child) =>
+        buildSlideInFromRightTransition(animation, child),
+    pageBuilder: (context, animation, secondaryAnimation) {
+      return InteractiveSwipeBackTransition(
+        onBack: () {
+          if (Navigator.of(context).canPop()) Navigator.of(context).pop();
+        },
+        child: Builder(builder: builder),
+      );
+    },
+  );
 }

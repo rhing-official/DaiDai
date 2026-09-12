@@ -11,7 +11,7 @@ import 'package:daidai/providers/app_locale_provider.dart';
 import 'package:daidai/providers/app_ui_style_provider.dart';
 import 'package:daidai/providers/repository_providers.dart';
 import 'package:daidai/repositories/user_repository.dart';
-import 'package:daidai/widgets/swipe_gestures.dart';
+import 'package:daidai/widgets/interactive_swipe_back.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -596,7 +596,7 @@ void main() {
 
     // 左スワイプで次のカテゴリ（縁結び）へ。
     await tester.fling(
-      find.byType(SwipeBackDetector),
+      find.byType(InteractiveSwipeBackTransition),
       const Offset(-300, 0),
       1000,
     );
@@ -606,12 +606,12 @@ void main() {
 
     // 右スワイプすると、隣接カテゴリではなく常にカテゴリ一覧へ戻る。
     await tester.fling(
-      find.byType(SwipeBackDetector),
+      find.byType(InteractiveSwipeBackTransition),
       const Offset(300, 0),
       1000,
     );
     await tester.pumpAndSettle();
-    expect(find.byType(SwipeBackDetector), findsNothing);
+    expect(find.byType(InteractiveSwipeBackTransition), findsNothing);
     expect(find.text('工房'), findsOneWidget); // 一覧のカテゴリ名として表示される
   });
 

@@ -94,9 +94,12 @@ abstract class UserRepository {
   Future<ProfileMaterial> uploadBackgroundImage(String userId, Uint8List bytes);
 
   /// 着信音・呼出音のカスタム音源をアップロードし、ダウンロードURLを返す
-  /// （2026-09-06追加）。カテゴリごとに1件のみ保持し、再アップロードで
-  /// 上書きする。Firestoreへの反映（`AppUserPreferences.ringtoneSound`/
-  /// `callingSound`）は呼び出し側が別途`updateUserPreference`で行うこと。
+  /// （2026-09-06追加）。アップロードのたびに一意なパスへ保存するため、
+  /// 以前アップロードした音源ファイルを上書き・削除することはない
+  /// （2026-09-12更新: 他の音に変更しても元のファイルが消えないように、
+  /// カテゴリ固定パスへの上書き方式から変更した）。Firestoreへの反映
+  /// （`AppUserPreferences.ringtoneSound`/`callingSound`）は呼び出し側が
+  /// 別途`updateUserPreference`で行うこと。
   Future<String> uploadCustomSound(
     String userId,
     SoundCategory category,
@@ -425,7 +428,8 @@ class FirestoreUserRepository implements UserRepository {
   ) async {
     validateSoundUpload(bytes, fileName);
     final extension = soundExtensionOf(fileName);
-    final path = 'userSounds/$userId/${category.name}.$extension';
+    final uniqueId = _users.doc().id;
+    final path = 'userSounds/$userId/${category.name}_$uniqueId.$extension';
     final ref = _storage.ref(path);
     await ref.putData(
       bytes,

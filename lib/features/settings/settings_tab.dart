@@ -16,6 +16,7 @@ import '../../models/app_ui_style.dart';
 import '../../models/font_design.dart';
 import '../../models/app_user.dart';
 import '../../models/chat_layout_style.dart';
+import '../../models/custom_sound_upload.dart';
 import '../../models/talks_list_layout_style.dart';
 import '../../models/group.dart';
 import '../../models/group_role.dart';
@@ -45,7 +46,6 @@ import '../../providers/user_providers.dart';
 import '../../router/app_router.dart';
 import '../../services/google_calendar_auth_service.dart';
 import '../../theme/gekiga/gekiga_colors.dart';
-import '../../theme/motion.dart';
 import '../../utils/auto_dismiss_banner.dart';
 import '../../utils/color_hex.dart';
 import '../../utils/platform_info.dart';
@@ -56,8 +56,9 @@ import '../../widgets/gekiga/gekiga_section_header.dart';
 import '../../widgets/gekiga/gekiga_text_field.dart';
 import '../../widgets/glass/glass_dialog.dart';
 import '../../widgets/glass/glass_surface.dart';
+import '../../widgets/interactive_swipe_back.dart';
 import '../../widgets/qr_scan_screen.dart';
-import '../../widgets/swipe_gestures.dart';
+import '../../widgets/slide_drilldown.dart';
 import '../auth/passcode_setup_dialog.dart';
 import '../auth/two_factor_setup_dialog.dart';
 import '../chat/announcement_screen.dart';
@@ -161,26 +162,22 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
         constraints: const BoxConstraints(maxWidth: 480),
         child: Padding(
           padding: const EdgeInsets.only(top: 56),
-          child: AnimatedSwitcher(
-            duration: popSlideDuration,
-            transitionBuilder: (child, animation) =>
-                buildPopSlideTransition(animation, child),
-            child: selected == null
-                ? _CategoryList(
-                    key: const ValueKey('settings-categories'),
-                    categories: categories,
-                    selectedId: null,
-                    onSelect: _onCategorySelected,
-                    large: true,
-                  )
-                : _NarrowSettingsPage(
-                    key: ValueKey(selected.id),
-                    category: selected,
-                    onBack: () => setState(() => _selectedId = null),
-                    onNext: nextCategory == null
-                        ? null
-                        : () => setState(() => _selectedId = nextCategory.id),
-                  ),
+          child: SlideDrilldown(
+            master: _CategoryList(
+              key: const ValueKey('settings-categories'),
+              categories: categories,
+              selectedId: null,
+              onSelect: _onCategorySelected,
+              large: true,
+            ),
+            detail: selected == null
+                ? null
+                : _NarrowSettingsPage(category: selected),
+            detailKey: selected?.id,
+            onBack: () => setState(() => _selectedId = null),
+            onNext: nextCategory == null
+                ? null
+                : () => setState(() => _selectedId = nextCategory.id),
           ),
         ),
       ),
@@ -447,33 +444,23 @@ class _SettingsPage extends StatelessWidget {
   }
 }
 
-/// 狭い画面でのドリルダウン先。戻る行＋カテゴリの中身（1ページ）。
+/// 狭い画面でのドリルダウン先。カテゴリの中身（1ページ）のみを持つ。
+/// 戻る／次へのスワイプ処理は`SlideDrilldown`側が担う
+/// （2026-09-12、`SwipeBackDetector`直接ラップから移行）。
 class _NarrowSettingsPage extends StatelessWidget {
-  const _NarrowSettingsPage({
-    super.key,
-    required this.category,
-    required this.onBack,
-    this.onNext,
-  });
+  const _NarrowSettingsPage({required this.category});
 
   final _SettingsCategory category;
-  final VoidCallback onBack;
-  final VoidCallback? onNext;
 
   @override
   Widget build(BuildContext context) {
     // mainAxisSizeをmin指定にすると、内側のListView（例: _AccountPage）が
     // 無限の高さ制約を受けてクラッシュする。既定（max）のままExpandedで包む。
-    // 右スワイプは常に一覧へ戻る（onPreviousを渡さないことでSwipeBackDetector
-    // の既定フォールバック=onBackを使う）。戻る導線がスワイプに一本化された
-    // ため、以前ここにあった「←＋カテゴリ名」の見出し行は表示しない。
-    return SwipeBackDetector(
-      onBack: onBack,
-      onNext: onNext,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [Expanded(child: Builder(builder: category.pageBuilder))],
-      ),
+    // 戻る導線がスワイプに一本化されたため、以前ここにあった
+    // 「←＋カテゴリ名」の見出し行は表示しない。
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [Expanded(child: Builder(builder: category.pageBuilder))],
     );
   }
 }
@@ -696,7 +683,7 @@ class _QrLoginRow extends ConsumerWidget {
     if (!startScan || !context.mounted) return;
 
     final scanned = await Navigator.of(context).push<String>(
-      MaterialPageRoute(
+      slideBackRoute<String>(
         builder: (context) => QrScanScreen(title: strings.settingsQrLogin),
       ),
     );
@@ -2811,6 +2798,7 @@ class _NotificationsPage extends ConsumerWidget {
           strings: strings,
           category: SoundCategory.ringtone,
           currentValue: ref.watch(ringtoneSoundProvider),
+          customSoundUpload: ref.watch(ringtoneCustomSoundProvider),
           userId: currentUser.userId,
         ),
         const Divider(height: 24),
@@ -2819,6 +2807,7 @@ class _NotificationsPage extends ConsumerWidget {
           strings: strings,
           category: SoundCategory.calling,
           currentValue: ref.watch(callingSoundProvider),
+          customSoundUpload: ref.watch(callingCustomSoundProvider),
           userId: currentUser.userId,
         ),
         // 通知音（メッセージ受信音）はOSのプッシュ通知を経由するため、
@@ -2832,6 +2821,7 @@ class _NotificationsPage extends ConsumerWidget {
             strings: strings,
             category: SoundCategory.notification,
             currentValue: ref.watch(notificationSoundProvider),
+            customSoundUpload: ref.watch(notificationCustomSoundProvider),
             userId: currentUser.userId,
           ),
         ],
@@ -2850,12 +2840,18 @@ class _SoundSettingsFolder extends ConsumerStatefulWidget {
     required this.strings,
     required this.category,
     required this.currentValue,
+    required this.customSoundUpload,
     required this.userId,
   });
 
   final Strings strings;
   final SoundCategory category;
   final String? currentValue;
+
+  /// この端末で最後にアップロードしたカスタム音源（プリセットへ切り替えた
+  /// あとも保持され続ける、`xxxCustomSoundProvider`参照）。まだ一度も
+  /// アップロードしたことがなければnull。
+  final CustomSoundUpload? customSoundUpload;
   final String userId;
 
   @override
@@ -2874,23 +2870,39 @@ class _SoundSettingsFolderState extends ConsumerState<_SoundSettingsFolder> {
   // 表示され続けるよう、初回試聴時まで生成を遅延させる。
   AudioPlayer? _previewPlayer;
 
+  /// 現在試聴再生中の音源（アセットパスまたはURL）。再生ボタンを停止
+  /// ボタンに切り替える判定に使う（2026-09-12追加）。
+  String? _playingId;
+
   @override
   void dispose() {
     _previewPlayer?.dispose();
     super.dispose();
   }
 
+  /// 再生ボタンのトグル。同じ音源を再度押したら停止し、別の音源を押したら
+  /// 切り替えて再生する（2026-09-12追加）。
   Future<void> _preview(String assetOrUrl) async {
     try {
-      final player = _previewPlayer ??= AudioPlayer();
+      final player = _previewPlayer ??= AudioPlayer()
+        ..onPlayerComplete.listen((_) {
+          if (mounted) setState(() => _playingId = null);
+        });
+      if (_playingId == assetOrUrl) {
+        await player.stop();
+        if (mounted) setState(() => _playingId = null);
+        return;
+      }
       await player.stop();
       await player.play(
         assetOrUrl.startsWith('http')
             ? UrlSource(assetOrUrl)
             : AssetSource(assetOrUrl),
       );
+      if (mounted) setState(() => _playingId = assetOrUrl);
     } catch (_) {
       // 試聴できない環境でも設定変更自体はブロックしない。
+      if (mounted) setState(() => _playingId = null);
     }
   }
 
@@ -2902,6 +2914,36 @@ class _SoundSettingsFolderState extends ConsumerState<_SoundSettingsFolder> {
         ref.read(callingSoundProvider.notifier).setSound(presetId);
       case SoundCategory.notification:
         ref.read(notificationSoundProvider.notifier).setSound(presetId);
+    }
+  }
+
+  Future<void> _remember(String url, String? fileName) {
+    switch (widget.category) {
+      case SoundCategory.ringtone:
+        return ref
+            .read(ringtoneCustomSoundProvider.notifier)
+            .remember(url, fileName);
+      case SoundCategory.calling:
+        return ref
+            .read(callingCustomSoundProvider.notifier)
+            .remember(url, fileName);
+      case SoundCategory.notification:
+        return ref
+            .read(notificationCustomSoundProvider.notifier)
+            .remember(url, fileName);
+    }
+  }
+
+  /// 「アップロード」行本体をタップした際、既に有効なカスタム音源
+  /// （[url]）があれば再アップロードせずそれを選び直すだけにする
+  /// （2026-09-12追加）。この端末の記憶（[remembered]）がまだ無い・
+  /// 一致しない場合は、その場でバックフィルする（ファイル名は不明なので
+  /// null。以前はこのバックフィルが無く、記憶が無い間は行本体タップでも
+  /// アップロードが開いてしまう不具合があった）。
+  void _selectExistingCustom(String url, CustomSoundUpload? remembered) {
+    _select(url);
+    if (remembered == null || remembered.url != url) {
+      _remember(url, null);
     }
   }
 
@@ -2917,14 +2959,8 @@ class _SoundSettingsFolderState extends ConsumerState<_SoundSettingsFolder> {
       final url = await ref
           .read(userRepositoryProvider)
           .uploadCustomSound(widget.userId, widget.category, bytes, file.name);
-      switch (widget.category) {
-        case SoundCategory.ringtone:
-          await ref.read(ringtoneSoundProvider.notifier).setSound(url);
-        case SoundCategory.calling:
-          await ref.read(callingSoundProvider.notifier).setSound(url);
-        case SoundCategory.notification:
-          await ref.read(notificationSoundProvider.notifier).setSound(url);
-      }
+      _select(url);
+      await _remember(url, file.name);
     } on SoundUploadTooLargeException {
       if (mounted) {
         showAutoDismissBanner(
@@ -2962,17 +2998,55 @@ class _SoundSettingsFolderState extends ConsumerState<_SoundSettingsFolder> {
     final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
     final presets = widget.category.presets;
     final currentValue = widget.currentValue;
+    final remembered = widget.customSoundUpload;
+    // 現在有効な値そのものがカスタムURLかどうか（他端末でアップロードした
+    // ものが同期されてきた場合も含む。ラジオの選択状態表示に使う）。
     final isCustom = currentValue != null && currentValue.startsWith('http');
+    // 実効値: 現在有効な値がカスタムURLならそれを優先し、そうでなければ
+    // この端末の記憶にフォールバックする（2026-09-12修正。以前はこの2つの
+    // 判定がバラバラで、有効な値はカスタムなのにこの端末の記憶がまだ無い
+    // ケースで行本体タップがアップロードに落ちてしまう不具合があった）。
+    final effectiveCustomUrl = isCustom ? currentValue : remembered?.url;
+    final hasCustom = effectiveCustomUrl != null;
+    final effectiveFileName = remembered?.url == effectiveCustomUrl
+        ? remembered?.fileName
+        : null;
+    final customLabel = effectiveFileName ?? strings.soundUploadOptionLabel;
     final canUpload = isSoundUploadCapablePlatform;
     final selectedValue = isCustom
         ? _customSoundSentinel
         : (currentValue ?? widget.category.defaultPreset.id);
 
-    Widget previewButton(String assetOrUrl) => IconButton(
+    Widget previewButton(String assetOrUrl) {
+      final isPlaying = _playingId == assetOrUrl;
+      return IconButton(
+        tooltip: '',
+        icon: Icon(isPlaying ? Icons.stop : Icons.play_arrow),
+        onPressed: () => _preview(assetOrUrl),
+      );
+    }
+
+    Widget uploadButton() => IconButton(
       tooltip: '',
-      icon: const Icon(Icons.play_arrow),
-      onPressed: () => _preview(assetOrUrl),
+      icon: const Icon(Icons.upload_file),
+      onPressed: _uploadCustom,
     );
+
+    Widget customSoundTrailing() => Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (effectiveCustomUrl != null) previewButton(effectiveCustomUrl),
+        uploadButton(),
+      ],
+    );
+
+    void onCustomTap() {
+      if (hasCustom) {
+        _selectExistingCustom(effectiveCustomUrl, remembered);
+      } else {
+        _uploadCustom();
+      }
+    }
 
     if (isGekiga) {
       return GekigaJointedTileList(
@@ -3005,11 +3079,9 @@ class _SoundSettingsFolderState extends ConsumerState<_SoundSettingsFolder> {
                     ? Icons.radio_button_checked
                     : Icons.radio_button_unchecked,
               ),
-              title: Text(strings.soundUploadOptionLabel),
-              trailing: isCustom
-                  ? previewButton(currentValue)
-                  : const Icon(Icons.upload_file),
-              onTap: _uploadCustom,
+              title: Text(customLabel),
+              trailing: customSoundTrailing(),
+              onTap: onCustomTap,
             ),
         ],
       );
@@ -3020,7 +3092,7 @@ class _SoundSettingsFolderState extends ConsumerState<_SoundSettingsFolder> {
       onChanged: (value) {
         if (value == null) return;
         if (value == _customSoundSentinel) {
-          _uploadCustom();
+          onCustomTap();
         } else {
           _select(value);
         }
@@ -3036,10 +3108,8 @@ class _SoundSettingsFolderState extends ConsumerState<_SoundSettingsFolder> {
           if (canUpload)
             RadioListTile<String>(
               value: _customSoundSentinel,
-              title: Text(strings.soundUploadOptionLabel),
-              secondary: isCustom
-                  ? previewButton(currentValue)
-                  : const Icon(Icons.upload_file),
+              title: Text(customLabel),
+              secondary: customSoundTrailing(),
             ),
         ],
       ),

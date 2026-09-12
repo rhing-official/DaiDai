@@ -21,7 +21,6 @@ import '../providers/repository_providers.dart';
 import '../theme/motion.dart';
 import '../utils/platform_info.dart';
 import '../widgets/interactive_swipe_back.dart';
-import '../widgets/swipe_gestures.dart';
 
 /// 語らい系の画面遷移をURL付きのブラウザ履歴に載せるためのルーター。
 /// これによりブラウザ/マウスの「戻る」「進む」がアプリ内の画面遷移と対応する
@@ -52,12 +51,14 @@ class DmChatArgs {
   /// （`talks_tab.dart`の`_DmDetailWithRooms.openRoomFullscreen`参照）。
   final bool showRoomTabBar;
 
-  /// trueなら入場アニメーションを`slideInChatFromRight`（画面右外から
-  /// スライドイン）にする（2026-09-11追加）。寄合一覧（`RoomListPane`）から
-  /// 開く場合、右スワイプで戻る動き（`InteractiveSwipeBackTransition`）と
-  /// 対称に見えるようにするため（`talks_tab.dart`の
-  /// `_DmDetailWithRooms.openRoomFullscreen`参照）。falseなら既定の
-  /// `interactiveChatSwipeBack`（フェード＋下からのポップ演出）のまま。
+  /// trueなら入場アニメーションを画面右外からのスライドイン（既定の
+  /// `slideDetailPage`の演出）にする（2026-09-11追加、2026-09-12に
+  /// 語らい一覧からの通常遷移にも適用範囲を拡大）。右スワイプで戻る動き
+  /// （`InteractiveSwipeBackTransition`）と対称に見えるようにするため
+  /// （`talks_tab.dart`の`_openDirectMessage`/`openRoomFullscreen`参照）。
+  /// falseなら旧来の`buildPopSlideTransition`（フェード＋下からのポップ
+  /// 演出）のまま（部屋作成直後の自動遷移等、一覧からの遷移ではない経路が
+  /// 引き続き使う）。
   final bool enterFromRight;
 }
 
@@ -116,23 +117,6 @@ GoRouter? globalRouter;
 final goRouterProvider = Provider<GoRouter>((ref) {
   late final GoRouter router;
 
-  // pushで開いた画面向けの「右スワイプで戻る」。通話画面（/call・/group-call）は
-  // 誤スワイプでの離脱・切断事故を避けるため対象外にしている。
-  // [alsoSwipeLeft]は現在どの呼び出し元からも使われていない（他画面の
-  // 「右スワイプ＝戻る」という規約のみ）。
-  Widget swipeBack(Widget child, {bool alsoSwipeLeft = false}) =>
-      SwipeBackDetector(
-        onBack: () {
-          if (router.canPop()) router.pop();
-        },
-        onNext: alsoSwipeLeft
-            ? () {
-                if (router.canPop()) router.pop();
-              }
-            : null,
-        child: child,
-      );
-
   // PageRoute（既定でopaque: true）は、遷移完了後は背後のルートを
   // ビルド・ペイントしなくなる最適化が働く。インタラクティブな戻る
   // スワイプで背後の画面を実際に見せるには、このopaque最適化自体を
@@ -141,52 +125,43 @@ final goRouterProvider = Provider<GoRouter>((ref) {
   // 描画されないまま。2026-09-07判明、詳細は日記参照）。go_routerの
   // `builder:`（既定でopaque:trueのPageになる）ではなく`pageBuilder:`で
   // `CustomTransitionPage(opaque: false, ...)`を返すことで対応する。
-  // 見た目（フェード＋下からのスライド＋拡大の「ポップ」演出）は
-  // `PopSlidePageTransitionsBuilder`と同じ`buildPopSlideTransition`を
-  // 流用し、変化させない。
-  Page<void> opaqueFalsePage(GoRouterState state, Widget child) =>
-      CustomTransitionPage<void>(
-        key: state.pageKey,
-        opaque: false,
-        transitionsBuilder: (context, animation, secondaryAnimation, child) =>
-            buildPopSlideTransition(animation, child),
-        child: child,
-      );
+  // 入場アニメーションは[transition]で選べ、既定は画面右外からの
+  // スライドイン（`buildSlideInFromRightTransition`）。
+  Page<void> opaqueFalsePage(
+    GoRouterState state,
+    Widget child, {
+    Widget Function(Animation<double>, Widget) transition =
+        buildSlideInFromRightTransition,
+  }) => CustomTransitionPage<void>(
+    key: state.pageKey,
+    opaque: false,
+    transitionsBuilder: (context, animation, secondaryAnimation, child) =>
+        transition(animation, child),
+    child: child,
+  );
 
-  // 語らい画面（/chat/dm・/chat/group）専用の「右スワイプで戻る」。
-  // 指の位置にリアルタイムに追従し、途中で離すとキャンセルできる
-  // インタラクティブなジェスチャーにする（2026-09-07追加）。左スワイプでの
-  // 「戻る」は以前対応していたが誤操作につながるため2026-09-10に廃止した
-  // （`InteractiveSwipeBackTransition`参照）。
-  Page<void> interactiveChatSwipeBack(GoRouterState state, Widget child) =>
-      opaqueFalsePage(
-        state,
-        InteractiveSwipeBackTransition(
-          onBack: () {
-            if (router.canPop()) router.pop();
-          },
-          child: child,
-        ),
-      );
-
-  // 寄合一覧（`RoomListPane`）から開く場合専用（2026-09-11追加）。戻り時の
-  // 右スワイプ追従（`InteractiveSwipeBackTransition`）はそのまま有効にしつつ、
-  // 入場時のアニメーションだけ`buildSlideInFromRightTransition`（画面右外
-  // からのスライドイン）に差し替える。`DmChatArgs.enterFromRight`/
-  // `GroupChatArgs.enterFromRight`参照。
-  Page<void> slideInChatFromRight(GoRouterState state, Widget child) =>
-      CustomTransitionPage<void>(
-        key: state.pageKey,
-        opaque: false,
-        transitionsBuilder: (context, animation, secondaryAnimation, child) =>
-            buildSlideInFromRightTransition(animation, child),
-        child: InteractiveSwipeBackTransition(
-          onBack: () {
-            if (router.canPop()) router.pop();
-          },
-          child: child,
-        ),
-      );
+  // pushで開く画面向けの共通ヘルパー（旧`interactiveChatSwipeBack`/
+  // `slideInChatFromRight`/`swipeBack`を統合、2026-09-12）。右スワイプでの
+  // インタラクティブな「戻る」（`InteractiveSwipeBackTransition`、指の位置に
+  // リアルタイムに追従し途中で離すとキャンセルできるジェスチャー。左スワイプ
+  // での「戻る」は誤操作につながるため2026-09-10に廃止済み）を必ず適用し、
+  // 入場アニメーションのみ[transition]で選べる。通話画面（/call・
+  // /group-call）は誤スワイプでの離脱・切断事故を避けるため対象外にしている。
+  Page<void> slideDetailPage(
+    GoRouterState state,
+    Widget child, {
+    Widget Function(Animation<double>, Widget) transition =
+        buildSlideInFromRightTransition,
+  }) => opaqueFalsePage(
+    state,
+    InteractiveSwipeBackTransition(
+      onBack: () {
+        if (router.canPop()) router.pop();
+      },
+      child: child,
+    ),
+    transition: transition,
+  );
 
   // 発信側は、モバイルのみ全画面の/callへpushする。PCでは全画面ルートを
   // 使わず、通話セッションを直接開始するだけにする（2026-08-19変更）。
@@ -248,8 +223,12 @@ final goRouterProvider = Provider<GoRouter>((ref) {
             showRoomTabBar: args.showRoomTabBar,
           );
           return args.enterFromRight
-              ? slideInChatFromRight(state, pane)
-              : interactiveChatSwipeBack(state, pane);
+              ? slideDetailPage(state, pane)
+              : slideDetailPage(
+                  state,
+                  pane,
+                  transition: buildPopSlideTransition,
+                );
         },
       ),
       GoRoute(
@@ -264,27 +243,36 @@ final goRouterProvider = Provider<GoRouter>((ref) {
             showRoomTabBar: args.showRoomTabBar,
           );
           return args.enterFromRight
-              ? slideInChatFromRight(state, pane)
-              : interactiveChatSwipeBack(state, pane);
+              ? slideDetailPage(state, pane)
+              : slideDetailPage(
+                  state,
+                  pane,
+                  transition: buildPopSlideTransition,
+                );
         },
       ),
       GoRoute(
         path: '/announcements',
         // 便り（公式アカウント）画面もチャット画面と同じ吹き出しUIを使うため、
-        // 語らい画面と同じインタラクティブな右スワイプ戻るを適用する。
-        pageBuilder: (context, state) => interactiveChatSwipeBack(
+        // 語らい画面と同じインタラクティブな右スワイプ戻るを適用する
+        // （入場は元々のポップ演出のまま維持）。
+        pageBuilder: (context, state) => slideDetailPage(
           state,
           AnnouncementScreen(currentUser: state.extra! as AppUser),
+          transition: buildPopSlideTransition,
         ),
       ),
       GoRoute(
         path: '/invite/:rhingId',
-        builder: (context, state) =>
-            swipeBack(InviteScreen(rhingId: state.pathParameters['rhingId']!)),
+        pageBuilder: (context, state) => slideDetailPage(
+          state,
+          InviteScreen(rhingId: state.pathParameters['rhingId']!),
+        ),
       ),
       GoRoute(
         path: '/join/:groupId',
-        builder: (context, state) => swipeBack(
+        pageBuilder: (context, state) => slideDetailPage(
+          state,
           JoinGroupScreen(groupId: state.pathParameters['groupId']!),
         ),
       ),
@@ -293,7 +281,8 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         // 追加パスセグメントを付けたURL（group_invite_dialog.dart参照）。
         // 実際のアプリ内ルーティングとしては`:groupId`のみを使う。
         path: '/join/:groupId/:cacheBust',
-        builder: (context, state) => swipeBack(
+        pageBuilder: (context, state) => slideDetailPage(
+          state,
           JoinGroupScreen(groupId: state.pathParameters['groupId']!),
         ),
       ),
@@ -326,9 +315,12 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         // 通常のDaiDaiサインインを要求した上で、AdminGateが管理者クレームを
         // 確認する（未サインインでは管理者判定に届かせない）。
         path: '/admin',
-        builder: (context, state) => AuthGate(
-          builder: (context, currentUser) =>
-              AdminGate(currentUser: currentUser),
+        pageBuilder: (context, state) => slideDetailPage(
+          state,
+          AuthGate(
+            builder: (context, currentUser) =>
+                AdminGate(currentUser: currentUser),
+          ),
         ),
       ),
       GoRoute(
