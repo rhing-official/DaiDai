@@ -12,6 +12,7 @@ import '../features/chat/announcement_screen.dart';
 import '../features/chat/chat_panes.dart';
 import '../features/chat/join_group_screen.dart';
 import '../features/chat/notification_chat_opener.dart';
+import '../features/chat/talks_search_screen.dart';
 import '../features/profile/invite_screen.dart';
 import '../models/app_user.dart';
 import '../models/call.dart';
@@ -260,6 +261,18 @@ final goRouterProvider = Provider<GoRouter>((ref) {
           state,
           AnnouncementScreen(currentUser: state.extra! as AppUser),
           transition: buildPopSlideTransition,
+        ),
+      ),
+      GoRoute(
+        // モバイル実機＋アイコン＋寄合一覧レイアウト（`TalksListLayoutStyle
+        // .iconSplit`）専用の語らい検索フルページ（2026-09-12追加）。112px幅の
+        // アイコン列内ではインラインの検索結果表示が窮屈なための別ページ化。
+        // それ以外（標準レイアウト・コンピューター全般）は`talks_tab.dart`の
+        // インライン検索のまま（`TalksSearchScreen`のdocコメント参照）。
+        path: '/talks/search',
+        pageBuilder: (context, state) => slideDetailPage(
+          state,
+          TalksSearchScreen(currentUser: state.extra! as AppUser),
         ),
       ),
       GoRoute(

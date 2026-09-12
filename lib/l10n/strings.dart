@@ -16,6 +16,8 @@ class Strings {
     required this.addMenuGroupSubtitle,
     required this.talksSearchHint,
     required this.talksSearchNoResults,
+    required this.talksSearchSectionMessages,
+    required this.talksSearchScreenTitle,
     required this.settingsFolderAccount,
     required this.settingsFolderApplication,
     required this.settingsFolderDesign,
@@ -591,6 +593,15 @@ class Strings {
   final String addMenuGroupSubtitle;
   final String talksSearchHint;
   final String talksSearchNoResults;
+
+  /// 語らい検索結果のメッセージ内容一致セクションの見出し（2026-09-12追加）。
+  /// 一対/広場の見出しは`Vocabulary.dm`/`Vocabulary.plaza`を再利用するため
+  /// 専用フィールドは無い。
+  final String talksSearchSectionMessages;
+
+  /// モバイル実機＋アイコン＋寄合一覧レイアウト専用の検索フルページ
+  /// （`TalksSearchScreen`）のAppBarタイトル（2026-09-12追加）。
+  final String talksSearchScreenTitle;
 
   final String settingsFolderAccount;
   final String settingsFolderApplication;
@@ -1385,6 +1396,8 @@ class Strings {
     addMenuGroupSubtitle: '3人以上のグループを作る',
     talksSearchHint: '語らいを検索',
     talksSearchNoResults: '見つかりませんでした',
+    talksSearchSectionMessages: 'メッセージ',
+    talksSearchScreenTitle: '検索',
     settingsFolderAccount: 'アカウント',
     settingsFolderApplication: 'アプリケーション',
     settingsFolderDesign: '色',
@@ -1436,7 +1449,7 @@ class Strings {
     settingsChatLayoutAllLeftDescription:
         '自分・相手ともにアイコンと呼び名を表示します。'
         'この設定は自分の画面にのみ反映され、相手の語らいの表示には影響しません。',
-    settingsTalksListLayoutTitle: '語らい一覧のレイアウト（縦表示）',
+    settingsTalksListLayoutTitle: '語らい一覧のレイアウト',
     settingsTalksListLayoutStandard: 'アイコンのみ',
     settingsTalksListLayoutStandardDescription: '一対・広場をアイコンで縦一列に表示します。',
     settingsTalksListLayoutIconSplit: 'アイコン＋寄合一覧',
@@ -1995,6 +2008,8 @@ class Strings {
     addMenuGroupSubtitle: 'Make a group with three or more people',
     talksSearchHint: 'Search talks',
     talksSearchNoResults: 'No matches found',
+    talksSearchSectionMessages: 'Messages',
+    talksSearchScreenTitle: 'Search',
     settingsFolderAccount: 'Account',
     settingsFolderApplication: 'Application',
     settingsFolderDesign: 'Colour',

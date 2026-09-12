@@ -244,6 +244,15 @@ abstract class GroupRepository {
     int contextSize = 25,
   });
 
+  /// 語らい検索（`talks_search.dart`）のメッセージ内容検索用に、直近
+  /// [limit]件のメッセージを1回だけ取得する（2026-09-12追加、
+  /// `DirectMessageRepository.getRecentMessagesForSearch`と同じ設計）。
+  Future<List<Message>> getRoomRecentMessagesForSearch({
+    required String groupId,
+    required String roomId,
+    int limit = 200,
+  });
+
   /// 指定した1件のメッセージの最新状態を1回だけ取得する（2026-08-21追加、
   /// `DirectMessageRepository.getMessage`と同じ設計）。[loadOlderRoomDayMessages]
   /// で読み込んだ過去日はライブ購読しない静的なスナップショットのため、
@@ -897,6 +906,22 @@ class FirestoreGroupRepository implements GroupRepository {
       for (final doc in olderAndTarget.docs)
         Message.fromJson(doc.id, doc.data()),
       for (final doc in newer.docs) Message.fromJson(doc.id, doc.data()),
+    ];
+  }
+
+  @override
+  Future<List<Message>> getRoomRecentMessagesForSearch({
+    required String groupId,
+    required String roomId,
+    int limit = 200,
+  }) async {
+    final snapshot = await _roomRef(groupId, roomId)
+        .collection('messages')
+        .orderBy('sentAt', descending: true)
+        .limit(limit)
+        .get();
+    return [
+      for (final doc in snapshot.docs) Message.fromJson(doc.id, doc.data()),
     ];
   }
 
