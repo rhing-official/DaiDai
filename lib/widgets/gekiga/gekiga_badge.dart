@@ -15,12 +15,18 @@ class GekigaBadgeShape extends StatelessWidget {
     required this.color,
     this.child,
     this.seed,
+    this.invert = false,
     super.key,
   });
 
   final Color color;
   final Widget? child;
   final int? seed;
+
+  /// trueなら外枠・中枠の黒白を入れ替える（`MonochromeBoxPainter.invert`
+  /// 参照）。[color]を白地に切り替える選択中表現と組み合わせて使う想定
+  /// （2026-09-12追加、既定はfalseで既存の全呼び出し元の見た目は変わらない）。
+  final bool invert;
 
   @override
   Widget build(BuildContext context) {
@@ -43,6 +49,7 @@ class GekigaBadgeShape extends StatelessWidget {
                 thicknessBase: size,
                 fillColor: color,
                 seed: seed,
+                invert: invert,
               ),
             ),
             ?child,

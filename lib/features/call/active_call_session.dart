@@ -200,11 +200,15 @@ class ActiveCallSessionNotifier extends Notifier<ActiveCallSession?> {
     if (session.hasEnded) _teardown(session);
   }
 
-  void _teardown(ActiveCallSession session) {
+  Future<void> _teardown(ActiveCallSession session) async {
     if (state == session) state = null;
     switch (session) {
       case OneToOneCallSession(:final controller):
-        controller.soundPlayer.stopRingtone();
+        // 停止の完了を待ってから破棄する（2026-09-12変更）。以前は
+        // stopRingtone()をawaitせずdispose()していたため、特にWebで
+        // 停止要求が反映される前にプレイヤーごと破棄され、音が鳴り
+        // 続けてしまう競合状態があった。
+        await controller.soundPlayer.stopRingtone();
         controller.dispose();
       case GroupCallSession(:final controller):
         controller.dispose();

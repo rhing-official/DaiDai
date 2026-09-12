@@ -14,6 +14,7 @@ import '../../utils/web_link.dart';
 import '../../widgets/gekiga/gekiga_icon_badge.dart';
 import '../../widgets/gekiga/gekiga_panel_box.dart';
 import '../../widgets/gekiga/gekiga_section_header.dart';
+import '../../widgets/interactive_swipe_back.dart';
 import '../../widgets/qr_scan_screen.dart';
 
 String _inviteLinkFor(String rhingId) => buildWebLink('/invite/$rhingId');
@@ -61,7 +62,7 @@ class _EnmusubiPageState extends ConsumerState<EnmusubiPage> {
   Future<void> _openScanner(BuildContext context) async {
     final title = ref.read(appStringsProvider).enmusubiScanScreenTitle;
     final scanned = await Navigator.of(context).push<String>(
-      MaterialPageRoute(builder: (context) => QrScanScreen(title: title)),
+      slideBackRoute(builder: (context) => QrScanScreen(title: title)),
     );
     if (scanned == null || !context.mounted) return;
     final rhingId = parseInviteRhingId(scanned);

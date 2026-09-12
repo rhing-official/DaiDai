@@ -1,7 +1,7 @@
 import 'dart:async';
-import 'dart:io' show Platform;
 
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart'
+    show defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -352,9 +352,17 @@ class _VideoViewerPageState extends State<_VideoViewerPage> {
   /// 判定（2026-08-18追加）。デスクトップ/Webで`onDoubleTapDown`を
   /// 常設すると、既存の動画本体クリック（`onTap: _togglePlayback`）が
   /// ダブルタップ判定待ちのため約300ms遅延してしまうため、モバイル以外
-  /// では`onDoubleTapDown`自体を渡さない。
+  /// では`onDoubleTapDown`自体を渡さない。`defaultTargetPlatform`は
+  /// ネイティブアプリだけでなくWeb上でもUser-Agentから推測した実機OSを
+  /// 返すため（`webrtc_media_constraints.dart`の`buildAudioConstraints`と
+  /// 同じ前提）、モバイル版ブラウザ（Android Chrome・iOS Safari等）も
+  /// ここに含まれる。デスクトップブラウザでは`defaultTargetPlatform`が
+  /// windows/macOS/linuxを返すため対象外のまま（2026-09-12変更、以前は
+  /// `!kIsWeb`でWebを一律除外しており、モバイル版ブラウザだけデスクトップと
+  /// 同じ「タップで即トグル」挙動になっていた）。
   bool get _isMobilePlatform =>
-      !kIsWeb && (Platform.isAndroid || Platform.isIOS);
+      defaultTargetPlatform == TargetPlatform.android ||
+      defaultTargetPlatform == TargetPlatform.iOS;
 
   @override
   void initState() {

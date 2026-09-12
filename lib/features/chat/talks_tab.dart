@@ -45,6 +45,7 @@ import '../../widgets/gekiga/gekiga_panel_box.dart';
 import '../../widgets/gekiga/gekiga_text_field.dart';
 import '../../widgets/glass/glass_icon_badge.dart';
 import '../../widgets/glass/glass_surface.dart';
+import '../../widgets/interactive_swipe_back.dart';
 import '../../widgets/swipe_gestures.dart';
 import '../call/active_call_session.dart';
 import 'add_chat_dialog.dart';
@@ -209,6 +210,7 @@ class _TalksTabState extends ConsumerState<TalksTab> {
             dm: dm,
             roomId: topRoomId,
             roomName: roomName,
+            enterFromRight: true,
           ),
         );
   }
@@ -246,6 +248,7 @@ class _TalksTabState extends ConsumerState<TalksTab> {
             group: group,
             roomId: topRoomId,
             roomName: roomName,
+            enterFromRight: true,
           ),
         );
   }
@@ -1806,20 +1809,12 @@ class _FriendRequestTile extends ConsumerWidget {
               // 余白）で、通常の語らいのように吹き出し上の右スワイプで戻る
               // 仕組み（`_MessageInteractionsState`の`InteractiveSwipeBackScope`
               // 中継）が機能する余地が無い。通常の一対・広場
-              // （app_router.dartの`swipeBack()`）と同じ`SwipeBackDetector`で
-              // 画面全体をラップし、右スワイプで戻れるようにする（2026-08-12）。
-              Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (context) => SwipeBackDetector(
-                    onBack: () {
-                      if (Navigator.of(context).canPop()) {
-                        Navigator.of(context).pop();
-                      }
-                    },
-                    child: screen,
-                  ),
-                ),
-              );
+              // （app_router.dartの`slideDetailPage`）と同じ、指追従の右スワイプ
+              // 戻る＋画面右外からのスライドインを`slideBackRoute`で適用する
+              // （2026-08-12追加、2026-09-12にインタラクティブなスライドへ変更）。
+              Navigator.of(
+                context,
+              ).push(slideBackRoute<void>(builder: (context) => screen));
             }
           };
 
@@ -1896,19 +1891,11 @@ class _PendingGroupJoinRequestTile extends ConsumerWidget {
           } else {
             // _FriendRequestTileと同じ理由（吹き出しが無く
             // InteractiveSwipeBackScope経由の戻る中継が機能しないため、
-            // 画面全体をSwipeBackDetectorでラップする、2026-08-12）。
-            Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (context) => SwipeBackDetector(
-                  onBack: () {
-                    if (Navigator.of(context).canPop()) {
-                      Navigator.of(context).pop();
-                    }
-                  },
-                  child: screen,
-                ),
-              ),
-            );
+            // slideBackRouteで画面全体をラップする、2026-08-12追加、
+            // 2026-09-12にインタラクティブなスライドへ変更）。
+            Navigator.of(
+              context,
+            ).push(slideBackRoute<void>(builder: (context) => screen));
           }
         }
 

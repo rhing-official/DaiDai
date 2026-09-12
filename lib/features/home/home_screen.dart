@@ -369,6 +369,7 @@ class _NavChip extends ConsumerWidget {
                 child: GekigaBadgeShape(
                   color: selected ? GekigaColors.onPanel : GekigaColors.panel,
                   seed: icon.hashCode,
+                  invert: selected,
                   child: Icon(
                     icon,
                     size: iconSize,

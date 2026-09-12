@@ -441,6 +441,7 @@ class _RenderGekigaJointedList extends RenderBox
         thicknessBase: _fixedThicknessBase,
         fillColor: selected ? GekigaColors.onPanel : GekigaColors.panel,
         seed: _seeds[i],
+        invert: selected,
       ).paint(context.canvas, box.size);
       context.canvas.restore();
     }
