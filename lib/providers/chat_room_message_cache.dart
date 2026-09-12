@@ -158,6 +158,13 @@ class ChatRoomMessageCacheManager {
   /// [ChatRoomMessageCacheEntry.idleSequence]採番用の単調増加カウンタ。
   int _idleSequenceCounter = 0;
 
+  /// 表示を開始せず（`refCount`を増やさず）、既存エントリがあれば参照だけ
+  /// 覗き見る（2026-09-12追加、語らい検索のメッセージ内容検索
+  /// `TalksMessageSearchSession`専用）。無ければ新規エントリを作らずnullを
+  /// 返す（[attach]と異なり、検索のためだけに空のFirestore購読を新設したく
+  /// ないため）。
+  ChatRoomMessageCacheEntry? peek(ChatRoomCacheKey key) => _entries[key];
+
   /// この寄合の表示を開始する。既存エントリがあれば（購読・読み込み済み
   /// データを保ったまま）それを返し、無ければ新規に作る。
   ChatRoomMessageCacheEntry attach(ChatRoomCacheKey key) {

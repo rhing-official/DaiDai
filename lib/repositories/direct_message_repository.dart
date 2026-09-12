@@ -102,6 +102,18 @@ abstract class DirectMessageRepository {
     int contextSize = 25,
   });
 
+  /// 語らい検索（`talks_search.dart`）のメッセージ内容検索用に、直近
+  /// [limit]件のメッセージを1回だけ取得する（2026-09-12追加、購読はしない）。
+  /// サーバー側の全文検索インデックスは持たない方針（プライバシーファースト
+  /// ＋フェーズ2のE2E暗号化方針と矛盾するため）のため、ここでFirestoreから
+  /// バルク取得した結果をクライアント側で`content`の部分一致フィルタに
+  /// かける（`TalksMessageSearchSession`参照）。
+  Future<List<Message>> getRecentMessagesForSearch({
+    required String dmId,
+    required String roomId,
+    int limit = 200,
+  });
+
   /// 指定した1件のメッセージの最新状態を1回だけ取得する（2026-08-21追加）。
   /// [loadOlderDayMessages]で読み込んだ過去日はライブ購読しない静的な
   /// スナップショットのため、その中のメッセージへ編集・リアクション等を
@@ -722,6 +734,22 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
       for (final doc in olderAndTarget.docs)
         Message.fromJson(doc.id, doc.data()),
       for (final doc in newer.docs) Message.fromJson(doc.id, doc.data()),
+    ];
+  }
+
+  @override
+  Future<List<Message>> getRecentMessagesForSearch({
+    required String dmId,
+    required String roomId,
+    int limit = 200,
+  }) async {
+    final snapshot = await _dmRoomRef(dmId, roomId)
+        .collection('messages')
+        .orderBy('sentAt', descending: true)
+        .limit(limit)
+        .get();
+    return [
+      for (final doc in snapshot.docs) Message.fromJson(doc.id, doc.data()),
     ];
   }
 

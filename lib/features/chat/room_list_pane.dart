@@ -274,13 +274,11 @@ class _RoomListPaneState extends ConsumerState<RoomListPane> {
         ),
         const Divider(height: 1),
         Expanded(
-          child: isGekiga
+          child: isGekiga && widget.onReorderRooms == null
               ? SingleChildScrollView(
                   // ヘッダー行と同じ左右の余白に揃える（2026-08-04追加）。
                   // 上にも余白を入れ、区切り線に一覧の箱が接して被って
-                  // 見える不具合を解消する（2026-08-04追加）。並べ替えは
-                  // 劇画スタイルでは非対応（`GekigaJointedTileList`は連結
-                  // パネルとして描くため、2026-09-08追加）。
+                  // 見える不具合を解消する（2026-08-04追加）。
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
                   child: GekigaJointedTileList(
                     seeds: [for (final room in _rooms) room.roomId.hashCode],
@@ -291,7 +289,7 @@ class _RoomListPaneState extends ConsumerState<RoomListPane> {
                     children: [for (final room in _rooms) buildRoomTile(room)],
                   ),
                 )
-              : widget.onReorderRooms == null
+              : !isGekiga && widget.onReorderRooms == null
               ? ListView(
                   // 選択中タイルの塗り潰し（selectedTileColor）が、左右は
                   // カラム間のVerticalDividerに（2026-08-12追加）、上は
@@ -305,6 +303,13 @@ class _RoomListPaneState extends ConsumerState<RoomListPane> {
                   // ブロック左端のドラッグハンドル（`Icons.drag_indicator`、
                   // `buildRoomTile`参照）のみでドラッグを開始させ、行本体の
                   // タップ＝寄合選択と競合しないようにする（2026-09-08追加）。
+                  // 劇画UIも他のUIスタイルと同じくこの分岐で並べ替える
+                  // （2026-09-12追加、以前は劇画UIだけ非対応だった。
+                  // `GekigaJointedTileList`は2026-08-05の変更で複数の箱を
+                  // 接合せず、間隔を空けてそれぞれ独立した箱として描くように
+                  // なっているため、1件だけ渡しても他の項目と見た目が変わらない
+                  // 独立した箱になる＝`ReorderableListView`の1行として個別に
+                  // ドラッグできる）。
                   buildDefaultDragHandles: false,
                   padding: const EdgeInsets.fromLTRB(8, 12, 8, 0),
                   onReorderItem: _handleReorder,
@@ -312,7 +317,15 @@ class _RoomListPaneState extends ConsumerState<RoomListPane> {
                     for (final (index, room) in _rooms.indexed)
                       KeyedSubtree(
                         key: ValueKey(room.roomId),
-                        child: buildRoomTile(room, index: index),
+                        child: isGekiga
+                            ? GekigaJointedTileList(
+                                seeds: [room.roomId.hashCode],
+                                selectedFlags: [
+                                  room.roomId == widget.selectedRoomId,
+                                ],
+                                children: [buildRoomTile(room, index: index)],
+                              )
+                            : buildRoomTile(room, index: index),
                       ),
                   ],
                 ),

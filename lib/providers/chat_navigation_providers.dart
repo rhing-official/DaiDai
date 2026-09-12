@@ -94,3 +94,26 @@ final activeConversationProvider =
     NotifierProvider<ActiveConversationNotifier, ViewedConversation?>(
       ActiveConversationNotifier.new,
     );
+
+/// 語らい検索（`talks_search.dart`）のメッセージ内容検索結果をタップした時、
+/// 該当メッセージまでジャンプ＆ハイライトするよう`ChatScreen`へ伝える一時的な
+/// 橋渡し（2026-09-12追加、[pendingDmSelectionProvider]と同じ一度きり消費
+/// パターン）。狭い画面のルートpushで新規に構築される`ChatScreen`・分割表示
+/// （`TalksTab._isSplit`）で既に構築済みの`ChatScreen`のどちらも、初回build時に
+/// [ChatScreen.conversationId]/`isDm`が一致するかを確認してから1回だけ
+/// ジャンプを実行し、この状態をクリアする。
+class PendingMessageJumpNotifier
+    extends Notifier<(ViewedConversation, String)?> {
+  @override
+  (ViewedConversation, String)? build() => null;
+
+  void set(ViewedConversation conversation, String messageId) =>
+      state = (conversation, messageId);
+
+  void clear() => state = null;
+}
+
+final pendingMessageJumpProvider =
+    NotifierProvider<PendingMessageJumpNotifier, (ViewedConversation, String)?>(
+      PendingMessageJumpNotifier.new,
+    );

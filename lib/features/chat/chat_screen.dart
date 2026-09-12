@@ -35,6 +35,7 @@ import '../../providers/app_ui_style_provider.dart';
 import '../../providers/camera_availability_provider.dart';
 import '../../providers/chat_audio_playback_provider.dart';
 import '../../providers/chat_layout_style_provider.dart';
+import '../../providers/chat_navigation_providers.dart';
 import '../../providers/conversation_prefs_providers.dart';
 import '../../providers/draft_sync_enabled_provider.dart';
 import '../../providers/message_time_format_provider.dart';
@@ -356,6 +357,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// `ref.listenManual`による永続購読に置き換えた（[_applyRemoteDraft]参照）。
   ProviderSubscription<AsyncValue<Map<String, ConversationPrefs>>>? _draftSub;
 
+  /// 語らい検索（`talks_search.dart`）のメッセージ内容検索結果をタップした
+  /// 時、該当メッセージまでジャンプ＆ハイライトするための購読（2026-09-12
+  /// 追加）。狭い画面のルートpushで新規構築される場合・分割表示で既に
+  /// 構築済みの場合のどちらも、`fireImmediately: true`により初回build時点で
+  /// 既に立っている保留ジャンプ要求を取りこぼさない
+  /// （[pendingMessageJumpProvider]のdocコメント参照）。
+  ProviderSubscription<(ViewedConversation, String)?>? _pendingJumpSub;
+
   /// メッセージ内容に応じたぺったん提案（2026-09-05追加）。役割定義・
   /// 所有スタンプ一覧はFirestoreのストリームを個別に購読して保持し
   /// （`_stickerRoles`/`_ownedStickers`）、どちらかが更新されるたびに
@@ -395,6 +404,21 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         (previous, next) => _applyRemoteDraft(next.value),
         fireImmediately: true,
       );
+    }
+    if (widget.conversationId != null) {
+      _pendingJumpSub = ref.listenManual(pendingMessageJumpProvider, (
+        previous,
+        next,
+      ) {
+        if (next == null) return;
+        final (conversation, messageId) = next;
+        final own = widget.isDm
+            ? ViewedDm(widget.conversationId!)
+            : ViewedGroup(widget.conversationId!);
+        if (conversation != own) return;
+        ref.read(pendingMessageJumpProvider.notifier).clear();
+        _jumpToMessage(messageId);
+      }, fireImmediately: true);
     }
     if (widget.onSendSticker != null) {
       final stickerRepository = ref.read(stickerRepositoryProvider);
@@ -1787,6 +1811,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   void dispose() {
     _draftSaveTimer?.cancel();
     _draftSub?.close();
+    _pendingJumpSub?.close();
     _suggestionDebounceTimer?.cancel();
     _stickerRolesSub?.cancel();
     _ownedStickerPacksSub?.cancel();
@@ -6251,9 +6276,9 @@ class _FileAttachmentBlockState extends ConsumerState<_FileAttachmentBlock>
         return;
       }
       // 再生開始前に、他の再生中インスタンスへ一時停止を伝える。
-      ref.read(playingAudioMessageIdProvider.notifier).setPlaying(
-        widget.messageId,
-      );
+      ref
+          .read(playingAudioMessageIdProvider.notifier)
+          .setPlaying(widget.messageId);
       if (_playerState == PlayerState.paused) {
         await player.resume();
       } else {
@@ -6443,9 +6468,10 @@ class _FileAttachmentBlockState extends ConsumerState<_FileAttachmentBlock>
     final sliderMax = (durationMs == null || durationMs <= 0)
         ? 1.0
         : durationMs;
-    final sliderValue = _position.inMilliseconds
-        .toDouble()
-        .clamp(0.0, sliderMax);
+    final sliderValue = _position.inMilliseconds.toDouble().clamp(
+      0.0,
+      sliderMax,
+    );
     return MouseRegion(
       onEnter: (_) => setState(() => _hovering = true),
       onExit: (_) => setState(() => _hovering = false),
@@ -6490,8 +6516,9 @@ class _FileAttachmentBlockState extends ConsumerState<_FileAttachmentBlock>
                             ),
                             overlayShape: SliderComponentShape.noOverlay,
                             activeTrackColor: widget.onBubbleColor,
-                            inactiveTrackColor: widget.onBubbleColor
-                                .withValues(alpha: 0.3),
+                            inactiveTrackColor: widget.onBubbleColor.withValues(
+                              alpha: 0.3,
+                            ),
                             thumbColor: widget.onBubbleColor,
                           ),
                           child: Slider(
