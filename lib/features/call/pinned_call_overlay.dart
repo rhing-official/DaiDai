@@ -21,6 +21,7 @@ import '../../widgets/glass/glass_surface.dart';
 import 'active_call_session.dart';
 import 'call_avatar.dart';
 import 'camera_availability.dart';
+import 'webrtc_call_controller.dart';
 
 /// 通話中、その会話の画面を見ていない間だけ表示する右上固定のミニ表示
 /// （2026-08-19追加）。`HomeScreen`の外側`Stack`（ナビチップと同じ階層）に
@@ -156,6 +157,15 @@ class _PinnedCallBubble extends ConsumerWidget {
     final isGekiga = uiStyle == AppUiStyle.gekiga;
     final isGlass = uiStyle == AppUiStyle.glass;
 
+    // 着信中（応答前）かどうか。PCでは着信もフルスクリーンを経由しなく
+    // なったため（2026-09-12変更）、会話を開いていない間のミニ表示からも
+    // 拒否・応答できるようにする必要がある。
+    final incomingSession = session;
+    final isIncomingRinging =
+        incomingSession is OneToOneCallSession &&
+        !incomingSession.controller.isCaller &&
+        incomingSession.controller.state == CallConnectionState.connecting;
+
     final content = Stack(
       fit: StackFit.expand,
       children: [
@@ -186,46 +196,70 @@ class _PinnedCallBubble extends ConsumerWidget {
           bottom: 8,
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              _MiniIconButton(
-                icon: muted ? Icons.mic_off : Icons.mic,
-                color: isGekiga || isGlass ? Colors.grey[700]! : Colors.black54,
-                isGekiga: isGekiga,
-                isGlass: isGlass,
-                onTap: () {
-                  switch (session) {
-                    case OneToOneCallSession(:final controller):
-                      controller.toggleMute();
-                    case GroupCallSession(:final controller):
-                      controller.toggleMute();
-                  }
-                },
-              ),
-              _MiniIconButton(
-                icon: isVideo ? Icons.videocam : Icons.videocam_off,
-                color: isGekiga || isGlass ? Colors.grey[700]! : Colors.black54,
-                isGekiga: isGekiga,
-                isGlass: isGlass,
-                enabled: !switchingCallType,
-                visible: videoToggleVisible,
-                onTap: () {
-                  switch (session) {
-                    case OneToOneCallSession(:final controller):
-                      controller.setVideoEnabled(!controller.isVideo);
-                    case GroupCallSession(:final controller):
-                      controller.setVideoEnabled(!controller.isVideo);
-                  }
-                },
-              ),
-              _MiniIconButton(
-                icon: Icons.call_end,
-                color: Colors.red,
-                isGekiga: isGekiga,
-                isGlass: isGlass,
-                onTap: () =>
-                    ref.read(activeCallSessionProvider.notifier).endCall(),
-              ),
-            ],
+            children: isIncomingRinging
+                ? [
+                    // 着信中（応答前）: 拒否・応答の2択（2026-09-12追加）。
+                    _MiniIconButton(
+                      icon: Icons.call_end,
+                      color: Colors.red,
+                      isGekiga: isGekiga,
+                      isGlass: isGlass,
+                      onTap: incomingSession.controller.decline,
+                    ),
+                    _MiniIconButton(
+                      icon: Icons.call,
+                      color: Colors.green,
+                      isGekiga: isGekiga,
+                      isGlass: isGlass,
+                      enabled: !incomingSession.controller.accepting,
+                      onTap: incomingSession.controller.accept,
+                    ),
+                  ]
+                : [
+                    _MiniIconButton(
+                      icon: muted ? Icons.mic_off : Icons.mic,
+                      color: isGekiga || isGlass
+                          ? Colors.grey[700]!
+                          : Colors.black54,
+                      isGekiga: isGekiga,
+                      isGlass: isGlass,
+                      onTap: () {
+                        switch (session) {
+                          case OneToOneCallSession(:final controller):
+                            controller.toggleMute();
+                          case GroupCallSession(:final controller):
+                            controller.toggleMute();
+                        }
+                      },
+                    ),
+                    _MiniIconButton(
+                      icon: isVideo ? Icons.videocam : Icons.videocam_off,
+                      color: isGekiga || isGlass
+                          ? Colors.grey[700]!
+                          : Colors.black54,
+                      isGekiga: isGekiga,
+                      isGlass: isGlass,
+                      enabled: !switchingCallType,
+                      visible: videoToggleVisible,
+                      onTap: () {
+                        switch (session) {
+                          case OneToOneCallSession(:final controller):
+                            controller.setVideoEnabled(!controller.isVideo);
+                          case GroupCallSession(:final controller):
+                            controller.setVideoEnabled(!controller.isVideo);
+                        }
+                      },
+                    ),
+                    _MiniIconButton(
+                      icon: Icons.call_end,
+                      color: Colors.red,
+                      isGekiga: isGekiga,
+                      isGlass: isGlass,
+                      onTap: () => ref
+                          .read(activeCallSessionProvider.notifier)
+                          .endCall(),
+                    ),
+                  ],
           ),
         ),
       ],

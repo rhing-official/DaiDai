@@ -14,6 +14,7 @@ import '../../widgets/swipe_gestures.dart';
 import 'active_call_session.dart';
 import 'call_avatar.dart';
 import 'call_control_bar.dart';
+import 'call_controls.dart';
 import 'camera_availability.dart';
 import 'webrtc_call_controller.dart';
 import 'webrtc_group_call_controller.dart';
@@ -422,6 +423,32 @@ class _EmbeddedControls extends ConsumerWidget {
         ref.watch(cameraAvailabilityProvider).value ??
         CameraAvailability.unknown;
     return switch (session) {
+      OneToOneCallSession(:final controller)
+          when !controller.isCaller &&
+              controller.state == CallConnectionState.connecting =>
+        // 着信中（応答前）: 拒否・応答の2択（2026-09-12追加、call_screen.dartの
+        // 全画面着信画面と同じ`CallRoundButton`の組み合わせ。PCでは着信も
+        // フルスクリーンを経由しなくなったため、埋め込み表示側にもこの2択を
+        // 持たせる必要がある）。
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            CallRoundButton(
+              icon: Icons.call_end,
+              color: Colors.red,
+              isGekiga: isGekiga,
+              isGlass: isGlass,
+              onPressed: controller.decline,
+            ),
+            CallRoundButton(
+              icon: Icons.call,
+              color: Colors.green,
+              isGekiga: isGekiga,
+              isGlass: isGlass,
+              onPressed: !controller.accepting ? controller.accept : null,
+            ),
+          ],
+        ),
       OneToOneCallSession(:final controller) => CallControlBar(
         isGekiga: isGekiga,
         isGlass: isGlass,
