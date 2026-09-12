@@ -389,6 +389,12 @@ class WebrtcCallController extends ChangeNotifier {
   void _finish() {
     if (_state == CallConnectionState.ended) return;
     _state = CallConnectionState.ended;
+    // 終了を検知した瞬間、その場で自分の音を止める（2026-09-12追加）。
+    // 拒否・切断・キャンセル検知等どの経路で終了しても確実に止まるよう、
+    // 外側（active_call_session.dartの_teardown、Riverpodのリスナー経由）に
+    // 頼り切らず自分で止める。stopRingtone()は着信音・呼出音の両方を
+    // まとめて止めるため、発信側/着信側どちらの呼び出し中の音も対応できる。
+    soundPlayer.stopRingtone();
     notifyListeners();
     // 通話履歴メッセージは発信者側からのみ送る（両側から送ると二重投稿に
     // なるため）。実際に接続（応答）された通話のみが対象で、不在着信・

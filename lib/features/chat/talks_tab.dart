@@ -62,6 +62,14 @@ enum _TalksCategory { dm, group }
 /// これ未満の狭い画面では、従来通り会話をフルスクリーンで開く。
 const kTalksSplitBreakpoint = 760.0;
 
+/// 縦表示の「アイコン+寄合一覧」レイアウト（[TalksListLayoutStyle.iconSplit]）で、
+/// 寄合一覧の右隣にメッセージ画面も同時表示するかどうかを判定する横幅の閾値
+/// （`home_screen.dart`の`_kWideLayoutBreakpoint`と同じ値、タブレット・
+/// コンピューター相当、2026-09-12追加）。これ未満の幅（スマホ縦表示相当）では、
+/// 画面が狭くメッセージ画面を同時に収められないため、従来通り寄合をタップした
+/// 時点でフルスクリーンチャットへ遷移する。
+const kIconSplitPeekBreakpoint = 600.0;
+
 /// 語らいタブの中身。上部の「一対」「広場」を横並びで切り替えて一覧表示する。
 /// 相手の追加・広場の作成は、この画面内の＋ボタン（中央ポップアップ）から行う。
 /// 一対タブの最上部には、届いている／送った友達申請が会話より先に表示される
@@ -79,6 +87,11 @@ class _TalksTabState extends ConsumerState<TalksTab> {
   _TalksCategory _category = _TalksCategory.dm;
   DirectMessage? _selectedDm;
   Group? _selectedGroup;
+
+  /// [_buildIconRail]で検索欄を表示中か（2026-09-12追加）。この列は112px幅しか
+  /// 無く、標準レイアウトの`_buildSearchField`のようにタブ＋検索欄を常設で
+  /// 並べる余白が無いため、検索アイコンのタップでタブ表示と切り替える。
+  bool _iconRailSearchOpen = false;
 
   /// 一対⇄広場の横スワイプ切り替え用（2026-08-09追加、`SwipeBackDetector`の
   /// 速度しきい値判定から`PageView`へ変更。手描きの速度判定だと片方向だけ
@@ -799,9 +812,17 @@ class _TalksTabState extends ConsumerState<TalksTab> {
 
   /// 縦表示専用の新レイアウト（`TalksListLayoutStyle.iconSplit`、設定＞語らいで
   /// 選択可能、2026-09-11追加）。左にアイコン一覧（[_buildIconRail]）、右に
-  /// 選択中の会話の寄合一覧（[_DmDetailWithRooms]/[_GroupDetailWithRooms]を
-  /// `roomListOnly: true`で流用）を表示する。寄合をタップするとフルスクリーン
-  /// チャットへ遷移する（`roomListOnly`側の実装参照）。
+  /// 選択中の会話の寄合一覧（[_DmDetailWithRooms]/[_GroupDetailWithRooms]）を
+  /// 表示する。
+  ///
+  /// 横幅が[kIconSplitPeekBreakpoint]以上のタブレット・コンピューター縦表示
+  /// では、寄合一覧の右隣にメッセージ画面本体も同時表示する
+  /// （`roomListOnly: false`で流用、2026-09-12追加）。寄合一覧を左スワイプ
+  /// すると、既存のフルスクリーン遷移（スライドインアニメーション込み）で
+  /// メッセージ画面へ遷移する（`enablePeekSwipeToFullscreen`）。
+  /// それ未満の幅（スマホ縦表示相当）では画面が狭くメッセージ画面を同時に
+  /// 収められないため、従来通り`roomListOnly: true`のまま、寄合をタップした
+  /// 時点でフルスクリーンチャットへ遷移する。
   Widget _buildIconSplitPane(
     List<DirectMessage> directMessages,
     List<Group> groups,
@@ -821,6 +842,10 @@ class _TalksTabState extends ConsumerState<TalksTab> {
       blockedIds,
     );
 
+    final size = MediaQuery.sizeOf(context);
+    final showPeek =
+        size.height > size.width && size.width >= kIconSplitPeekBreakpoint;
+
     final Widget detail;
     if (_category == _TalksCategory.dm) {
       final selected = _selectedDm;
@@ -833,7 +858,8 @@ class _TalksTabState extends ConsumerState<TalksTab> {
               key: ValueKey('icon-split-dm-${dm.dmId}'),
               currentUser: widget.currentUser,
               dm: dm,
-              roomListOnly: true,
+              roomListOnly: !showPeek,
+              enablePeekSwipeToFullscreen: showPeek,
             );
     } else {
       final selected = _selectedGroup;
@@ -846,7 +872,8 @@ class _TalksTabState extends ConsumerState<TalksTab> {
               key: ValueKey('icon-split-group-${group.groupId}'),
               currentUser: widget.currentUser,
               group: group,
-              roomListOnly: true,
+              roomListOnly: !showPeek,
+              enablePeekSwipeToFullscreen: showPeek,
             );
     }
 
@@ -866,8 +893,15 @@ class _TalksTabState extends ConsumerState<TalksTab> {
   /// コンパクトなアイコンタイル（[_DirectMessageIconTile]/[_GroupIconTile]）を
   /// 並べる。友達申請・広場参加リクエストは幅の制約上アイコン化せず、
   /// 縦表示の標準レイアウトと同じ`isSplit: false`挙動（タップでフルスクリーン
-  /// 遷移）のタイルをそのまま流用する。検索・並べ替えはこのレイアウトでは
-  /// 提供しない（標準レイアウト側のみ）。
+  /// 遷移）のタイルをそのまま流用する。
+  ///
+  /// 検索・並べ替え（2026-09-12追加、それまではこのレイアウトには無かった）:
+  /// 並べ替えは標準レイアウトと同じ[_buildSortButton]をそのままアイコンボタンで
+  /// 並べる。検索は112px幅にタブと検索欄を同時に置けないため、検索アイコンの
+  /// タップで[_iconRailSearchOpen]を切り替え、タブ表示と標準レイアウトの
+  /// [_buildSearchField]を差し替える形にした（一対・広場を横断する標準の
+  /// [_buildSearchResults]とは異なり、この列では現在のタブ内で
+  /// [_DirectMessageIconTile]/[_GroupIconTile]を絞り込むだけに留めている）。
   ///
   /// ヘッダー（切り替えピル＋＋ボタン＋Divider）は固定表示のまま、本体の
   /// タイル一覧だけを標準レイアウト（[_categoryPageController]参照）と同じ
@@ -889,10 +923,14 @@ class _TalksTabState extends ConsumerState<TalksTab> {
     Set<String> blockedIds,
   ) {
     final vocab = ref.watch(vocabularyProvider);
+    final strings = ref.watch(appStringsProvider);
     final sortOrder = ref.watch(conversationSortOrderProvider);
     final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
     final size = MediaQuery.sizeOf(context);
     final isPortrait = size.height > size.width;
+    final searchQuery = _iconRailSearchOpen
+        ? _searchController.text.trim().toLowerCase()
+        : '';
 
     final dmTab = _CategoryTab(
       label: vocab.dm,
@@ -938,22 +976,40 @@ class _TalksTabState extends ConsumerState<TalksTab> {
             )
             .toList();
         final orderedDms = _applyDmSortOrder(visibleDms, sortOrder, prefsById);
-        final sortedDms = _sortedByPin(orderedDms, prefsById, (dm) => dm.dmId);
+        var sortedDms = _sortedByPin(orderedDms, prefsById, (dm) => dm.dmId);
+        if (searchQuery.isNotEmpty) {
+          sortedDms = sortedDms.where((dm) {
+            final otherUser = ref
+                .watch(
+                  watchedUserProvider(
+                    dm.otherUserId(widget.currentUser.userId),
+                  ),
+                )
+                .value;
+            return _dmSearchLabel(
+              otherUser,
+              dm,
+              widget.currentUser.userId,
+            ).toLowerCase().contains(searchQuery);
+          }).toList();
+        }
         tiles.addAll([
-          for (final request in incomingRequests)
-            _FriendRequestTile(
-              currentUserId: widget.currentUser.userId,
-              request: request,
-              isSplit: false,
-              onSelectPending: _selectPendingScreen,
-            ),
-          for (final request in outgoingRequests)
-            _FriendRequestTile(
-              currentUserId: widget.currentUser.userId,
-              request: request,
-              isSplit: false,
-              onSelectPending: _selectPendingScreen,
-            ),
+          if (searchQuery.isEmpty) ...[
+            for (final request in incomingRequests)
+              _FriendRequestTile(
+                currentUserId: widget.currentUser.userId,
+                request: request,
+                isSplit: false,
+                onSelectPending: _selectPendingScreen,
+              ),
+            for (final request in outgoingRequests)
+              _FriendRequestTile(
+                currentUserId: widget.currentUser.userId,
+                request: request,
+                isSplit: false,
+                onSelectPending: _selectPendingScreen,
+              ),
+          ],
           for (final dm in sortedDms)
             _DirectMessageIconTile(
               currentUser: widget.currentUser,
@@ -969,18 +1025,24 @@ class _TalksTabState extends ConsumerState<TalksTab> {
           sortOrder,
           prefsById,
         );
-        final sortedGroups = _sortedByPin(
+        var sortedGroups = _sortedByPin(
           orderedGroups,
           prefsById,
           (g) => g.groupId,
         );
+        if (searchQuery.isNotEmpty) {
+          sortedGroups = sortedGroups
+              .where((g) => g.name.toLowerCase().contains(searchQuery))
+              .toList();
+        }
         tiles.addAll([
-          for (final request in pendingGroupRequests)
-            _PendingGroupJoinRequestTile(
-              request: request,
-              isSplit: false,
-              onSelectPending: _selectPendingScreen,
-            ),
+          if (searchQuery.isEmpty)
+            for (final request in pendingGroupRequests)
+              _PendingGroupJoinRequestTile(
+                request: request,
+                isSplit: false,
+                onSelectPending: _selectPendingScreen,
+              ),
           for (final group in sortedGroups)
             _GroupIconTile(
               group: group,
@@ -999,16 +1061,32 @@ class _TalksTabState extends ConsumerState<TalksTab> {
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(4, 8, 4, 4),
-            child: SingleChildScrollView(
-              scrollDirection: isPortrait ? Axis.vertical : Axis.horizontal,
-              child: tabs,
-            ),
+            child: _iconRailSearchOpen
+                ? _buildSearchField(strings)
+                : SingleChildScrollView(
+                    scrollDirection: isPortrait
+                        ? Axis.vertical
+                        : Axis.horizontal,
+                    child: tabs,
+                  ),
           ),
-          Center(
-            child: IconButton(
-              icon: const Icon(Icons.add),
-              onPressed: _showAddMenu,
-            ),
+          // 検索・並べ替え（2026-09-12追加、以前はこのレイアウトには無かった）。
+          // 112px幅では検索欄とタブを同時に並べる余白が無いため、検索アイコンの
+          // タップで上のタブ表示と切り替える。
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              IconButton(
+                icon: Icon(_iconRailSearchOpen ? Icons.close : Icons.search),
+                tooltip: '',
+                onPressed: () => setState(() {
+                  _iconRailSearchOpen = !_iconRailSearchOpen;
+                  if (!_iconRailSearchOpen) _searchController.clear();
+                }),
+              ),
+              _buildSortButton(strings),
+              IconButton(icon: const Icon(Icons.add), onPressed: _showAddMenu),
+            ],
           ),
           const Divider(height: 1),
           Expanded(
@@ -2796,6 +2874,7 @@ class _DmDetailWithRooms extends ConsumerStatefulWidget {
     required this.currentUser,
     required this.dm,
     this.roomListOnly = false,
+    this.enablePeekSwipeToFullscreen = false,
     super.key,
   });
 
@@ -2807,6 +2886,14 @@ class _DmDetailWithRooms extends ConsumerStatefulWidget {
   /// 寄合一覧レイアウト用、2026-09-11追加。広い画面の左右分割表示では
   /// falseのまま、寄合一覧の右隣にチャット本体を埋め込む従来通りの構成）。
   final bool roomListOnly;
+
+  /// [roomListOnly]がfalseの状態（＝寄合一覧の右隣にチャット本体を同時表示中）
+  /// でも、寄合一覧を左スワイプしたら現在ハイライト中の寄合を既存のフルスクリーン
+  /// チャットへ遷移させるか（タブレット・コンピューター縦表示のアイコン＋寄合
+  /// 一覧レイアウト用、2026-09-12追加）。広い左右分割表示（`_isSplit`）側からは
+  /// 渡さず、既定のfalseのままにする（あちらは寄合一覧が常設サイドバーのため、
+  /// スワイプでの全画面遷移という概念自体が無い）。
+  final bool enablePeekSwipeToFullscreen;
 
   @override
   ConsumerState<_DmDetailWithRooms> createState() => _DmDetailWithRoomsState();
@@ -2956,13 +3043,29 @@ class _DmDetailWithRoomsState extends ConsumerState<_DmDetailWithRooms> {
           );
         }
 
+        // タブレット・コンピューター縦表示のアイコン＋寄合一覧レイアウトでは、
+        // 寄合一覧の右隣にチャット本体を同時表示しつつ、寄合一覧を左スワイプ
+        // したら既存のフルスクリーン遷移（スライドインアニメーション込み）で
+        // 開けるようにする（2026-09-12追加）。
+        final effectiveRoomListPane = widget.enablePeekSwipeToFullscreen
+            ? GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                onHorizontalDragEnd: (details) {
+                  if ((details.primaryVelocity ?? 0) < -300) {
+                    openRoomFullscreen(roomId, roomName);
+                  }
+                },
+                child: roomListPane,
+              )
+            : roomListPane;
+
         return Row(
           children: [
             // 単一モードではサイドバーを出さない（2026-07-29追加、
             // `DirectMessage.roomsEnabled`参照）。寄合を増やす操作は
             // ハンバーガーメニューから行う（`_DmMenuButton`参照）。
             if (dm.roomsEnabled) ...[
-              SizedBox(width: 220, child: roomListPane),
+              SizedBox(width: 220, child: effectiveRoomListPane),
               const VerticalDivider(width: 1),
             ],
             Expanded(
@@ -2991,6 +3094,7 @@ class _GroupDetailWithRooms extends ConsumerStatefulWidget {
     required this.currentUser,
     required this.group,
     this.roomListOnly = false,
+    this.enablePeekSwipeToFullscreen = false,
     super.key,
   });
 
@@ -2999,6 +3103,9 @@ class _GroupDetailWithRooms extends ConsumerStatefulWidget {
 
   /// [_DmDetailWithRooms.roomListOnly]と同じ（2026-09-11追加）。
   final bool roomListOnly;
+
+  /// [_DmDetailWithRooms.enablePeekSwipeToFullscreen]と同じ（2026-09-12追加）。
+  final bool enablePeekSwipeToFullscreen;
 
   @override
   ConsumerState<_GroupDetailWithRooms> createState() =>
@@ -3125,13 +3232,26 @@ class _GroupDetailWithRoomsState extends ConsumerState<_GroupDetailWithRooms> {
           );
         }
 
+        // [_DmDetailWithRoomsState]と同じ理由（2026-09-12追加）。
+        final effectiveRoomListPane = widget.enablePeekSwipeToFullscreen
+            ? GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                onHorizontalDragEnd: (details) {
+                  if ((details.primaryVelocity ?? 0) < -300) {
+                    openRoomFullscreen(roomId, roomName);
+                  }
+                },
+                child: roomListPane,
+              )
+            : roomListPane;
+
         return Row(
           children: [
             // 単一モードではサイドバーを出さない（2026-07-29追加、
             // `Group.roomsEnabled`参照）。「広場自体の設定」・寄合を増やす
             // 操作はハンバーガーメニューから行う（`_GroupMenuButton`参照）。
             if (group.roomsEnabled) ...[
-              SizedBox(width: 220, child: roomListPane),
+              SizedBox(width: 220, child: effectiveRoomListPane),
               const VerticalDivider(width: 1),
             ],
             Expanded(
