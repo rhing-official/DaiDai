@@ -1434,7 +1434,7 @@ class Strings {
     addMenuDmSubtitle: '1対1で話す相手を追加する',
     addMenuGroupTitleTemplate: (plazaTerm) => '$plazaTermを作る',
     addMenuGroupSubtitle: '3人以上のグループを作る',
-    talksSearchHint: '語らいを検索',
+    talksSearchHint: '検索',
     talksSearchNoResults: '見つかりませんでした',
     talksSearchSectionMessages: 'メッセージ',
     talksSearchScreenTitle: '検索',

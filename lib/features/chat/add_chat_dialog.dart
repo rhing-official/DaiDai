@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 
 import '../../l10n/strings.dart';
 import '../../models/app_ui_style.dart';
@@ -9,8 +10,13 @@ import '../../providers/app_ui_style_provider.dart';
 import '../../providers/repository_providers.dart';
 import '../../router/app_router.dart';
 import '../../utils/friend_request_error.dart';
+import '../../utils/web_link.dart';
+import '../../widgets/gekiga/gekiga_panel_box.dart';
 import '../../widgets/gekiga/gekiga_text_field.dart';
+import '../../widgets/interactive_swipe_back.dart';
 import '../../widgets/profile_card_picker.dart';
+import '../../widgets/qr_scan_screen.dart';
+import '../profile/enmusubi_page.dart' show parseInviteRhingId;
 
 /// 友達申請の送信ポップアップ（2026-07-29、画面遷移からポップアップ化）。
 /// 相手のRhing IDを検索し、まだ友達でなければ申請を送る。既に友達の場合は
@@ -123,6 +129,30 @@ class _AddChatDialogContentState extends ConsumerState<AddChatDialogContent> {
         setState(() => _isSearching = false);
       }
     }
+  }
+
+  /// QRコードリーダーを開き、読み取った招待リンクをこのポップアップ自身の
+  /// 検索ロジック（[_search]）にそのまま乗せる（2026-09-14追加）。縁結び
+  /// ページ（`enmusubi_page.dart`の`_openScanner`）と違い、`/invite/:rhingId`
+  /// （`InviteScreen`）へは遷移せず、この一対作成ポップアップ内で完結させる
+  /// （既に友達ならそのまま一対を開き、未だ友達でなければこのポップアップの
+  /// 確認ステップへ切り替わる）。
+  Future<void> _openScanner(BuildContext context) async {
+    final strings = ref.read(appStringsProvider);
+    final scanned = await Navigator.of(context).push<String>(
+      slideBackRoute(
+        builder: (context) =>
+            QrScanScreen(title: strings.enmusubiScanScreenTitle),
+      ),
+    );
+    if (scanned == null || !mounted) return;
+    final rhingId = parseInviteRhingId(scanned);
+    if (rhingId == null) {
+      setState(() => _errorMessage = strings.friendSearchNotFound);
+      return;
+    }
+    _controller.text = '@$rhingId';
+    await _search();
   }
 
   void _cancelPending() {
@@ -280,6 +310,63 @@ class _AddChatDialogContentState extends ConsumerState<AddChatDialogContent> {
                 )
               : Text(strings.friendSearchSearchButton),
         ),
+      ),
+      const SizedBox(height: 24),
+      const Divider(),
+      const SizedBox(height: 8),
+      Text(strings.enmusubiQrDescription),
+      const SizedBox(height: 12),
+      Center(
+        child: isGekiga
+            ? GekigaJointedTileList(
+                seeds: [widget.currentUser.rhingId.hashCode],
+                selectedFlags: const [true],
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: QrImageView(
+                      data: buildWebLink(
+                        '/invite/${widget.currentUser.rhingId}',
+                      ),
+                      size: 160,
+                    ),
+                  ),
+                ],
+              )
+            : Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: Theme.of(context).colorScheme.outlineVariant,
+                  ),
+                ),
+                child: QrImageView(
+                  data: buildWebLink('/invite/${widget.currentUser.rhingId}'),
+                  size: 160,
+                ),
+              ),
+      ),
+      const SizedBox(height: 16),
+      Center(
+        child: isGekiga
+            ? GekigaJointedTileList(
+                seeds: [strings.enmusubiScanButton.hashCode],
+                selectedFlags: const [true],
+                children: [
+                  GekigaButton(
+                    label: strings.enmusubiScanButton,
+                    icon: Icons.qr_code_scanner,
+                    onPressed: () => _openScanner(context),
+                  ),
+                ],
+              )
+            : OutlinedButton.icon(
+                icon: const Icon(Icons.qr_code_scanner),
+                label: Text(strings.enmusubiScanButton),
+                onPressed: () => _openScanner(context),
+              ),
       ),
     ];
   }
