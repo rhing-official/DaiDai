@@ -107,7 +107,10 @@ const kMinMessageSearchQueryLength = 2;
 const kMessageSearchDebounce = Duration(milliseconds: 400);
 
 /// 1つの寄合あたり、メッセージ内容検索のために1回だけ取得する最大件数。
-const kMessageSearchPerRoomLimit = 200;
+/// 2026-09-14: 検索対象が会話1件→既定の寄合1件から会話1件→全寄合に
+/// 広がった（寄合が多い会話ほど合計の取得件数が増える）ため、200→100へ
+/// 引き下げてコストを緩和した。
+const kMessageSearchPerRoomLimit = 100;
 
 /// メッセージ内容検索結果の最大表示件数。
 const kMessageSearchMaxResults = 50;
@@ -118,13 +121,26 @@ const kMessageSearchMaxResults = 50;
 /// （プライバシーファースト＋フェーズ2のE2E暗号化方針と矛盾するため）のため、
 /// Firestoreからバルク取得した結果をここでクライアント側フィルタする。
 ///
+/// 各会話（一対/広場）が持つ**全ての寄合**を検索対象にする（2026-09-14
+/// 変更。以前は各会話の既定の寄合（defaultRoomId）1つだけが対象だったが、
+/// 「既定の寄合」はユーザーから不可視・変更不可の内部実装で、それ以外の
+/// 寄合に送ったメッセージが検索にヒットしないのは体験として壊れていると
+/// 判断し、会話が持つ全寄合を対象に広げた）。
+///
 /// 検索欄を開いている間（検索UIのState 1つにつき1インスタンス）だけ
-/// 生存させ、`clear()`で取得済みメッセージのメモ化を破棄する。同じ寄合を
-/// 2回以上検索した場合、2回目以降はFirestoreへ再取得しない。
+/// 生存させ、`clear()`で取得済みメッセージ・寄合一覧のメモ化を破棄する。
+/// 同じ会話・同じ寄合を2回以上検索した場合、2回目以降はFirestoreへ
+/// 再取得しない。
 class TalksMessageSearchSession {
   final _fetchedByRoomKey = <ChatRoomCacheKey, List<Message>>{};
+  final _dmRoomIdsByDmId = <String, List<String>>{};
+  final _groupRoomIdsByGroupId = <String, List<String>>{};
 
-  void clear() => _fetchedByRoomKey.clear();
+  void clear() {
+    _fetchedByRoomKey.clear();
+    _dmRoomIdsByDmId.clear();
+    _groupRoomIdsByGroupId.clear();
+  }
 
   Future<List<Message>> _messagesForRoom({
     required bool isDm,
@@ -165,14 +181,51 @@ class TalksMessageSearchSession {
   DateTime _sentAtOf(MessageSearchHit hit) =>
       hit.message.sentAt?.toDate() ?? DateTime.fromMillisecondsSinceEpoch(0);
 
-  /// 1件の一対の読み取りに失敗しても検索全体（[search]の`Future.wait`）を
-  /// 巻き込まないよう、ここで例外を捕捉し空リストにフォールバックする
-  /// （2026-09-13追加。移行漏れの`defaultRoomId`や壊れた/レガシーな
+  /// この一対が持つ寄合IDの一覧をセッション内でメモ化して返す（2026-09-14
+  /// 追加）。`watchRooms`はStreamしか提供しないため、既存コード
+  /// （`talks_search_screen.dart`の`_openDm`等）と同じ`.first`で1回分だけ
+  /// 取り出す。
+  Future<List<String>> _roomIdsForDm(
+    DirectMessage dm,
+    DirectMessageRepository dmRepository,
+    String currentUserId,
+  ) async {
+    final cached = _dmRoomIdsByDmId[dm.dmId];
+    if (cached != null) return cached;
+    final rooms = await dmRepository
+        .watchRooms(dmId: dm.dmId, userId: currentUserId)
+        .first;
+    final roomIds = [for (final room in rooms) room.roomId];
+    _dmRoomIdsByDmId[dm.dmId] = roomIds;
+    return roomIds;
+  }
+
+  /// [_roomIdsForDm]の広場版。
+  Future<List<String>> _roomIdsForGroup(
+    Group group,
+    GroupRepository groupRepository,
+    String currentUserId,
+  ) async {
+    final cached = _groupRoomIdsByGroupId[group.groupId];
+    if (cached != null) return cached;
+    final rooms = await groupRepository
+        .watchRooms(groupId: group.groupId, userId: currentUserId)
+        .first;
+    final roomIds = [for (final room in rooms) room.roomId];
+    _groupRoomIdsByGroupId[group.groupId] = roomIds;
+    return roomIds;
+  }
+
+  /// 一対の1つの寄合を検索する。1つの寄合の読み取りに失敗しても、同じ一対の
+  /// 他の寄合・他の会話の検索を巻き込まないよう、ここで例外を捕捉し空リストに
+  /// フォールバックする（2026-09-13追加。移行漏れの寄合や壊れた/レガシーな
   /// メッセージドキュメントが1件でもあると`Message.fromJson`等が例外を
   /// 投げ、以前は`Future.wait`ごと失敗して検索結果が恒久的に空になる
-  /// 不具合があった）。
-  Future<List<MessageSearchHit>> _searchDm(
+  /// 不具合があった。2026-09-14: 対象が会話1件→寄合1件から会話1件→
+  /// 全寄合に広がったのに合わせて、寄合単位で捕捉するよう変更）。
+  Future<List<MessageSearchHit>> _searchDmRoom(
     DirectMessage dm,
+    String roomId,
     String normalizedQuery,
     String currentUserId,
     DirectMessageRepository dmRepository,
@@ -182,11 +235,11 @@ class TalksMessageSearchSession {
       final messages = await _messagesForRoom(
         isDm: true,
         conversationId: dm.dmId,
-        roomId: dm.defaultRoomId,
+        roomId: roomId,
         cacheManager: cacheManager,
         fetch: () => dmRepository.getRecentMessagesForSearch(
           dmId: dm.dmId,
-          roomId: dm.defaultRoomId,
+          roomId: roomId,
           limit: kMessageSearchPerRoomLimit,
         ),
       );
@@ -197,18 +250,19 @@ class TalksMessageSearchSession {
               message: message,
               isDm: true,
               dm: dm,
-              roomId: dm.defaultRoomId,
+              roomId: roomId,
             ),
       ];
     } catch (error, stackTrace) {
-      debugPrint('メッセージ検索: 一対${dm.dmId}の取得に失敗: $error\n$stackTrace');
+      debugPrint('メッセージ検索: 一対${dm.dmId}の寄合$roomIdの取得に失敗: $error\n$stackTrace');
       return const [];
     }
   }
 
-  /// [_searchDm]と同じ理由で例外を捕捉する（2026-09-13追加）。
-  Future<List<MessageSearchHit>> _searchGroup(
+  /// [_searchDmRoom]の広場版。
+  Future<List<MessageSearchHit>> _searchGroupRoom(
     Group group,
+    String roomId,
     String normalizedQuery,
     String currentUserId,
     GroupRepository groupRepository,
@@ -218,11 +272,11 @@ class TalksMessageSearchSession {
       final messages = await _messagesForRoom(
         isDm: false,
         conversationId: group.groupId,
-        roomId: group.defaultRoomId,
+        roomId: roomId,
         cacheManager: cacheManager,
         fetch: () => groupRepository.getRoomRecentMessagesForSearch(
           groupId: group.groupId,
-          roomId: group.defaultRoomId,
+          roomId: roomId,
           limit: kMessageSearchPerRoomLimit,
         ),
       );
@@ -233,19 +287,82 @@ class TalksMessageSearchSession {
               message: message,
               isDm: false,
               group: group,
-              roomId: group.defaultRoomId,
+              roomId: roomId,
             ),
       ];
     } catch (error, stackTrace) {
-      debugPrint('メッセージ検索: 広場${group.groupId}の取得に失敗: $error\n$stackTrace');
+      debugPrint(
+        'メッセージ検索: 広場${group.groupId}の寄合$roomIdの取得に失敗: $error\n$stackTrace',
+      );
       return const [];
     }
   }
 
-  /// [directMessages]・[groups]それぞれの既定寄合（[DirectMessage.defaultRoomId]/
-  /// [Group.defaultRoomId]）だけを対象にメッセージ内容を検索する（v1スコープ、
-  /// 複数寄合の全件対応は未対応）。ブロック済みの相手との一対は対象外にする
-  /// （名前検索・語らい一覧と同じ扱い）。
+  /// 1件の一対が持つ全ての寄合を検索する（2026-09-14変更、以前は
+  /// 既定の寄合1つだけが対象だった）。寄合一覧の取得自体が失敗した場合も
+  /// 検索全体を巻き込まないよう、ここで例外を捕捉し空リスト（この一対だけ
+  /// 検索結果から漏れる）にフォールバックする。
+  Future<List<MessageSearchHit>> _searchDm(
+    DirectMessage dm,
+    String normalizedQuery,
+    String currentUserId,
+    DirectMessageRepository dmRepository,
+    ChatRoomMessageCacheManager cacheManager,
+  ) async {
+    List<String> roomIds;
+    try {
+      roomIds = await _roomIdsForDm(dm, dmRepository, currentUserId);
+    } catch (error, stackTrace) {
+      debugPrint('メッセージ検索: 一対${dm.dmId}の寄合一覧取得に失敗: $error\n$stackTrace');
+      return const [];
+    }
+    final results = await Future.wait([
+      for (final roomId in roomIds)
+        _searchDmRoom(
+          dm,
+          roomId,
+          normalizedQuery,
+          currentUserId,
+          dmRepository,
+          cacheManager,
+        ),
+    ]);
+    return [for (final list in results) ...list];
+  }
+
+  /// [_searchDm]の広場版。
+  Future<List<MessageSearchHit>> _searchGroup(
+    Group group,
+    String normalizedQuery,
+    String currentUserId,
+    GroupRepository groupRepository,
+    ChatRoomMessageCacheManager cacheManager,
+  ) async {
+    List<String> roomIds;
+    try {
+      roomIds = await _roomIdsForGroup(group, groupRepository, currentUserId);
+    } catch (error, stackTrace) {
+      debugPrint('メッセージ検索: 広場${group.groupId}の寄合一覧取得に失敗: $error\n$stackTrace');
+      return const [];
+    }
+    final results = await Future.wait([
+      for (final roomId in roomIds)
+        _searchGroupRoom(
+          group,
+          roomId,
+          normalizedQuery,
+          currentUserId,
+          groupRepository,
+          cacheManager,
+        ),
+    ]);
+    return [for (final list in results) ...list];
+  }
+
+  /// [directMessages]・[groups]それぞれが持つ**全ての寄合**を対象に
+  /// メッセージ内容を検索する（2026-09-14変更、以前は既定の寄合1つだけが
+  /// 対象だった）。ブロック済みの相手との一対は対象外にする（名前検索・
+  /// 語らい一覧と同じ扱い）。
   Future<List<MessageSearchHit>> search({
     required String query,
     required String currentUserId,

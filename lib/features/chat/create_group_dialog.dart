@@ -121,8 +121,13 @@ class _CreateGroupDialogContentState
         members: _members,
         roomsEnabled: _roomsEnabled,
       );
+      // 作成直後の広場は常に「メイン」という名前の寄合が1つだけ存在する
+      // （GroupRepository.createGroup参照）。
+      final rooms = await groupRepository
+          .watchRooms(groupId: group.groupId, userId: widget.currentUser.userId)
+          .first;
 
-      if (!mounted) return;
+      if (!mounted || rooms.isEmpty) return;
       widget.onCompleted();
       ref
           .read(goRouterProvider)
@@ -131,10 +136,8 @@ class _CreateGroupDialogContentState
             extra: GroupChatArgs(
               currentUser: widget.currentUser,
               group: group,
-              roomId: group.defaultRoomId,
-              // 作成直後の広場は常に「メイン」という名前の寄合が1つだけ
-              // 存在する（GroupRepository.createGroup参照）。
-              roomName: 'メイン',
+              roomId: rooms.first.roomId,
+              roomName: rooms.first.name,
             ),
           );
     } catch (e) {

@@ -165,13 +165,15 @@ class _UserProfileCardDialogState extends ConsumerState<UserProfileCardDialog> {
   }
 
   Future<void> _jumpToDm() async {
-    final dm = await ref
-        .read(directMessageRepositoryProvider)
-        .getOrCreateDirectMessage(widget.currentUser, widget.user);
+    final dmRepository = ref.read(directMessageRepositoryProvider);
+    final dm = await dmRepository.getOrCreateDirectMessage(
+      widget.currentUser,
+      widget.user,
+    );
     if (!mounted) return;
     final isSplit = MediaQuery.sizeOf(context).width >= kTalksSplitBreakpoint;
-    Navigator.of(context).pop();
     if (isSplit) {
+      Navigator.of(context).pop();
       // 左右分割表示ではTalksTabが一覧＋チャットを自前のStateで表示している
       // ため、ここでルートをpushすると全画面ルートがサイドバーごと覆って
       // しまい、一覧から開いた時と見え方が変わってしまう（2026-07-29修正）。
@@ -180,6 +182,14 @@ class _UserProfileCardDialogState extends ConsumerState<UserProfileCardDialog> {
       ref.read(pendingDmSelectionProvider.notifier).set(dm);
       return;
     }
+    // この一対で最も古い（`createdAt`が最小の）寄合を開く（2026-09-14変更、
+    // 以前は`defaultRoomId`を直接参照していた。`talks_tab.dart`の
+    // `_openDirectMessage`と同じ考え方）。
+    final rooms = await dmRepository
+        .watchRooms(dmId: dm.dmId, userId: widget.currentUser.userId)
+        .first;
+    if (!mounted || rooms.isEmpty) return;
+    Navigator.of(context).pop();
     ref
         .read(goRouterProvider)
         .push(
@@ -187,8 +197,8 @@ class _UserProfileCardDialogState extends ConsumerState<UserProfileCardDialog> {
           extra: DmChatArgs(
             currentUser: widget.currentUser,
             dm: dm,
-            roomId: dm.defaultRoomId,
-            roomName: 'メイン',
+            roomId: rooms.first.roomId,
+            roomName: rooms.first.name,
           ),
         );
   }

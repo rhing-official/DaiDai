@@ -390,13 +390,16 @@ class _TalksTabState extends ConsumerState<TalksTab>
     // 常に一番上の寄合でチャット画面へ直接遷移する。寄合の切り替えは
     // チャット画面上部の横スクロールタブバー（`RoomTabBar`）から行う
     // （2026-08-03変更、以前は複数モードのみ`/chat/dm-rooms`を経由していた。
-    // 2026-08-09変更、defaultRoomId固定だったものを一番上（最古）の寄合を
-    // 開くように変更）。
+    // 2026-08-09変更、一番上（最古）の寄合を開くように変更）。
     final rooms = await ref
         .read(directMessageRepositoryProvider)
         .watchRooms(dmId: dm.dmId, userId: widget.currentUser.userId)
         .first;
-    final topRoomId = rooms.isNotEmpty ? rooms.first.roomId : dm.defaultRoomId;
+    // 健全な一対は常に1件以上の寄合を持つため、空になるのは移行漏れ等の
+    // 壊れたデータのみ（`DirectMessageRepository.getOrCreateDirectMessage`の
+    // 自己修復ロジック参照）。その場合は遷移をあきらめる。
+    if (rooms.isEmpty) return;
+    final topRoomId = rooms.first.roomId;
     final roomName =
         rooms.firstWhereOrNull((r) => r.roomId == topRoomId)?.name ?? 'メイン';
     ref
@@ -434,9 +437,9 @@ class _TalksTabState extends ConsumerState<TalksTab>
         .read(groupRepositoryProvider)
         .watchRooms(groupId: group.groupId, userId: widget.currentUser.userId)
         .first;
-    final topRoomId = rooms.isNotEmpty
-        ? rooms.first.roomId
-        : group.defaultRoomId;
+    // [_openDirectMessage]と同じ理由。
+    if (rooms.isEmpty) return;
+    final topRoomId = rooms.first.roomId;
     final roomName =
         rooms.firstWhereOrNull((r) => r.roomId == topRoomId)?.name ?? 'メイン';
     ref
@@ -455,11 +458,13 @@ class _TalksTabState extends ConsumerState<TalksTab>
 
   /// 語らい検索のメッセージ内容一致（[MessageSearchHit]）をタップした時に
   /// 開く（2026-09-12追加）。[_openDirectMessage]/[_openGroup]と同じ
-  /// 分割表示・アイコン+寄合一覧の判定を踏襲するが、v1のメッセージ内容検索が
-  /// 各語らいの既定寄合（`defaultRoomId`）しか対象にしていないため、
-  /// `topRoomId`解決を経由せず必ず[hit.roomId]（＝既定寄合）を直接開く。
+  /// 分割表示・アイコン+寄合一覧の判定を踏襲するが、メッセージ内容検索は
+  /// 会話が持つ全寄合が対象（2026-09-14変更）なため、`topRoomId`解決を
+  /// 経由せず必ず[hit.roomId]（＝実際にヒットした寄合）を直接開く。
   /// 該当メッセージまでのジャンプ＆ハイライトは[pendingMessageJumpProvider]
   /// 経由で`ChatScreen`側に伝える（`chat_navigation_providers.dart`参照）。
+  /// 分割表示の場合は`_DmDetailWithRoomsState`/`_GroupDetailWithRoomsState`
+  /// 側も同じ状態を監視して選択中の寄合を[hit.roomId]へ切り替える。
   Future<void> _openMessageSearchHit(MessageSearchHit hit) async {
     final conversation = hit.isDm
         ? ViewedDm(hit.dm!.dmId)
@@ -475,7 +480,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
 
     ref
         .read(pendingMessageJumpProvider.notifier)
-        .set(conversation, hit.message.messageId);
+        .set(conversation, hit.message.messageId, hit.roomId);
 
     if (_isSplit || useIconSplitSelection) {
       _iconSplitCollapse.value = 0;
@@ -3320,8 +3325,8 @@ class _DmDetailWithRooms extends ConsumerStatefulWidget {
 }
 
 class _DmDetailWithRoomsState extends ConsumerState<_DmDetailWithRooms> {
-  /// 現在表示中の寄合。nullなら[widget.dm]のdefaultRoomIdにフォールバック
-  /// する（2026-08-09変更、以前はdefaultRoomId固定だった）。
+  /// 現在表示中の寄合。nullなら寄合一覧の先頭（最古）にフォールバックする
+  /// （2026-08-09変更）。
   String? _selectedRoomId;
 
   late final Stream<List<DmRoom>> _roomsStream;
@@ -3377,6 +3382,17 @@ class _DmDetailWithRoomsState extends ConsumerState<_DmDetailWithRooms> {
   @override
   Widget build(BuildContext context) {
     final dm = widget.dm;
+    // 語らい検索のメッセージ内容一致タップで別の寄合宛てのジャンプ要求が
+    // 来た場合、選択中の寄合をそちらへ切り替える（2026-09-14追加）。
+    // `pendingMessageJumpProvider`自体はここではクリアしない
+    // （`chat_screen.dart`の`_pendingJumpSub`のdocコメント参照）。
+    ref.listen(pendingMessageJumpProvider, (previous, next) {
+      if (next == null) return;
+      final (conversation, _, roomId) = next;
+      if (conversation != ViewedDm(dm.dmId)) return;
+      if (roomId == _selectedRoomId) return;
+      setState(() => _selectedRoomId = roomId);
+    });
     final currentUser = widget.currentUser;
     final dmRepository = ref.read(directMessageRepositoryProvider);
     final otherUserId = dm.otherUserId(currentUser.userId);
@@ -3398,7 +3414,10 @@ class _DmDetailWithRoomsState extends ConsumerState<_DmDetailWithRooms> {
             (_selectedRoomId != null &&
                 rooms.any((r) => r.roomId == _selectedRoomId))
             ? _selectedRoomId!
-            : (rooms.isNotEmpty ? rooms.first.roomId : dm.defaultRoomId);
+            // 寄合一覧の初回ストリーム未着時（一瞬）は空文字列のまま
+            // 描画し、届き次第再描画されるのに任せる（2026-09-14変更、
+            // 以前はdm.defaultRoomIdにフォールバックしていた）。
+            : (rooms.isNotEmpty ? rooms.first.roomId : '');
         final roomName = rooms
             .firstWhere(
               (r) => r.roomId == roomId,
@@ -3572,6 +3591,14 @@ class _GroupDetailWithRoomsState extends ConsumerState<_GroupDetailWithRooms> {
   @override
   Widget build(BuildContext context) {
     final group = widget.group;
+    // [_DmDetailWithRoomsState.build]と同じ理由（2026-09-14追加）。
+    ref.listen(pendingMessageJumpProvider, (previous, next) {
+      if (next == null) return;
+      final (conversation, _, roomId) = next;
+      if (conversation != ViewedGroup(group.groupId)) return;
+      if (roomId == _selectedRoomId) return;
+      setState(() => _selectedRoomId = roomId);
+    });
     final currentUser = widget.currentUser;
     final groupRepository = ref.read(groupRepositoryProvider);
     final isGlass = ref.watch(appUiStyleProvider) == AppUiStyle.glass;
@@ -3588,7 +3615,8 @@ class _GroupDetailWithRoomsState extends ConsumerState<_GroupDetailWithRooms> {
             (_selectedRoomId != null &&
                 rooms.any((r) => r.roomId == _selectedRoomId))
             ? _selectedRoomId!
-            : (rooms.isNotEmpty ? rooms.first.roomId : group.defaultRoomId);
+            // [_DmDetailWithRoomsState.build]と同じ理由。
+            : (rooms.isNotEmpty ? rooms.first.roomId : '');
         final roomName = rooms
             .firstWhere(
               (r) => r.roomId == roomId,

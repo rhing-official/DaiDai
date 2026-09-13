@@ -363,7 +363,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// 構築済みの場合のどちらも、`fireImmediately: true`により初回build時点で
   /// 既に立っている保留ジャンプ要求を取りこぼさない
   /// （[pendingMessageJumpProvider]のdocコメント参照）。
-  ProviderSubscription<(ViewedConversation, String)?>? _pendingJumpSub;
+  ProviderSubscription<(ViewedConversation, String, String)?>? _pendingJumpSub;
 
   /// メッセージ内容に応じたぺったん提案（2026-09-05追加）。役割定義・
   /// 所有スタンプ一覧はFirestoreのストリームを個別に購読して保持し
@@ -411,11 +411,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         next,
       ) {
         if (next == null) return;
-        final (conversation, messageId) = next;
+        final (conversation, messageId, roomId) = next;
         final own = widget.isDm
             ? ViewedDm(widget.conversationId!)
             : ViewedGroup(widget.conversationId!);
         if (conversation != own) return;
+        // 会話は一致するが寄合が違う場合は、別の寄合を表示中の別の
+        // ChatScreenインスタンス（分割表示）宛て。ここではクリアも消費もせず
+        // 残す（2026-09-14追加、[pendingMessageJumpProvider]のdocコメント
+        // 参照）。この寄合宛てなら消費してジャンプする。
+        if (roomId != widget.roomId) return;
         ref.read(pendingMessageJumpProvider.notifier).clear();
         _jumpToMessage(messageId);
       }, fireImmediately: true);
