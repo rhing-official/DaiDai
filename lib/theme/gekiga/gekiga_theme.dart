@@ -177,6 +177,17 @@ class GekigaTheme {
           borderSide: BorderSide.none,
         ),
       ),
+      // テキスト入力欄の選択ハイライト色。未指定だとMaterial既定の
+      // colorScheme.primary（=GekigaColors.onPanel＝白）基準になるが、
+      // それ自体が劇画の白黒方針に沿った値のため明示的に同じ色にする
+      // （2026-09-14追加。黒背景に白文字の入力欄が大半のため白で問題ないが、
+      // 白背景・黒文字固定のメッセージ入力欄だけはローカルに黒へ上書きする、
+      // chat_screen.dart参照）。
+      textSelectionTheme: TextSelectionThemeData(
+        cursorColor: GekigaColors.onPanel,
+        selectionColor: GekigaColors.onPanel.withValues(alpha: 0.35),
+        selectionHandleColor: GekigaColors.onPanel,
+      ),
       dividerColor: GekigaColors.onPanel.withValues(alpha: 0.24),
       // ホバーで文言を出さない方針（CLAUDE.md）をFlutter標準ウィジェット
       // （DatePicker/TimePickerの入力方法切替ボタン等）にも適用するための

@@ -117,6 +117,15 @@ class AppTheme {
           borderSide: BorderSide(color: outline),
         ),
       ),
+      // テキスト入力欄の選択ハイライト色。未指定だとMaterial既定の
+      // colorScheme.primary基準になり、意図せず白になる場合があったため
+      // 明示する（2026-09-14追加）。管理画面はアクセントカラーの概念が
+      // 無いモノクロ画面のためonSurfaceを使う。
+      textSelectionTheme: TextSelectionThemeData(
+        cursorColor: onSurface,
+        selectionColor: onSurface.withValues(alpha: 0.35),
+        selectionHandleColor: onSurface,
+      ),
       dividerColor: outline,
       textTheme: (isDark ? ThemeData.dark() : ThemeData.light()).textTheme
           .apply(bodyColor: onSurface, displayColor: onSurface),
@@ -296,6 +305,14 @@ class AppTheme {
           borderRadius: BorderRadius.circular(16),
           borderSide: BorderSide.none,
         ),
+      ),
+      // テキスト入力欄の選択ハイライト色。未指定だとMaterial既定の
+      // colorScheme.primary基準になり、意図せず白になる場合があったため
+      // アクセントカラーを明示する（2026-09-14追加）。
+      textSelectionTheme: TextSelectionThemeData(
+        cursorColor: accentColor,
+        selectionColor: accentColor.withValues(alpha: 0.35),
+        selectionHandleColor: accentColor,
       ),
       textTheme: (isDark ? ThemeData.dark() : ThemeData.light()).textTheme
           .apply(

@@ -183,6 +183,14 @@ class GlassTheme {
           ),
         ),
       ),
+      // テキスト入力欄の選択ハイライト色。未指定だとMaterial既定の
+      // colorScheme.primary基準になり、意図せず白になる場合があったため
+      // アクセントカラーを明示する（フラットと同じ方針、2026-09-14追加）。
+      textSelectionTheme: TextSelectionThemeData(
+        cursorColor: accentColor,
+        selectionColor: accentColor.withValues(alpha: 0.35),
+        selectionHandleColor: accentColor,
+      ),
       textTheme: (isDark ? ThemeData.dark() : ThemeData.light()).textTheme
           .apply(
             bodyColor: colorScheme.onSurface,

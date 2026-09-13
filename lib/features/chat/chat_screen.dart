@@ -2482,64 +2482,94 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                                           const BoxConstraints(
                                                             minHeight: 48,
                                                           ),
-                                                      child: TextField(
-                                                        controller:
-                                                            _textController,
-                                                        focusNode:
-                                                            _composerFocusNode,
-                                                        enabled:
-                                                            !widget.disabled,
-                                                        minLines: 1,
-                                                        maxLines: 6,
-                                                        textAlignVertical:
-                                                            TextAlignVertical
-                                                                .center,
-                                                        textInputAction:
-                                                            TextInputAction
-                                                                .newline,
-                                                        keyboardType:
-                                                            TextInputType
-                                                                .multiline,
-                                                        style: const TextStyle(
-                                                          color: Colors.black,
+                                                      // 劇画テーマ全体の
+                                                      // 選択ハイライトは白
+                                                      // 基準だが、この入力欄
+                                                      // だけ白背景・黒文字
+                                                      // 固定（fillColor:
+                                                      // Colors.white、
+                                                      // _GekigaComposerField
+                                                      // Painter参照）のため、
+                                                      // 選択色も黒系にローカル
+                                                      // 上書きしないと白地に
+                                                      // 白ハイライトで見えなく
+                                                      // なる（2026-09-14）。
+                                                      child: TextSelectionTheme(
+                                                        data: const TextSelectionThemeData(
+                                                          cursorColor:
+                                                              Colors.black,
+                                                          selectionColor:
+                                                              Color.fromRGBO(
+                                                                0,
+                                                                0,
+                                                                0,
+                                                                0.25,
+                                                              ),
+                                                          selectionHandleColor:
+                                                              Colors.black,
                                                         ),
-                                                        cursorColor:
-                                                            Colors.black,
-                                                        decoration: InputDecoration(
-                                                          hintText: strings
-                                                              .chatInputHint,
-                                                          hintStyle: TextStyle(
-                                                            color: Colors.black
-                                                                .withValues(
-                                                                  alpha: 0.4,
+                                                        child: TextField(
+                                                          controller:
+                                                              _textController,
+                                                          focusNode:
+                                                              _composerFocusNode,
+                                                          enabled:
+                                                              !widget.disabled,
+                                                          minLines: 1,
+                                                          maxLines: 6,
+                                                          textAlignVertical:
+                                                              TextAlignVertical
+                                                                  .center,
+                                                          textInputAction:
+                                                              TextInputAction
+                                                                  .newline,
+                                                          keyboardType:
+                                                              TextInputType
+                                                                  .multiline,
+                                                          style:
+                                                              const TextStyle(
+                                                                color: Colors
+                                                                    .black,
+                                                              ),
+                                                          decoration: InputDecoration(
+                                                            hintText: strings
+                                                                .chatInputHint,
+                                                            hintStyle: TextStyle(
+                                                              color: Colors
+                                                                  .black
+                                                                  .withValues(
+                                                                    alpha: 0.4,
+                                                                  ),
+                                                            ),
+                                                            filled: false,
+                                                            border: InputBorder
+                                                                .none,
+                                                            enabledBorder:
+                                                                InputBorder
+                                                                    .none,
+                                                            focusedBorder:
+                                                                InputBorder
+                                                                    .none,
+                                                            // 内容量に応じて
+                                                            // 箱の高さがぴったり
+                                                            // 詰まるため、上下に
+                                                            // 8pxの余白を確保
+                                                            // して文字が上端に
+                                                            // 張り付いて見え
+                                                            // ないようにする。
+                                                            // 水平方向も明示
+                                                            // しないと0pxに
+                                                            // なり左端に文字が
+                                                            // 寄って見えていた
+                                                            // ため、4pxを確保
+                                                            // する
+                                                            // （2026-08-12修正）。
+                                                            contentPadding:
+                                                                const EdgeInsets.symmetric(
+                                                                  horizontal: 4,
+                                                                  vertical: 8,
                                                                 ),
                                                           ),
-                                                          filled: false,
-                                                          border:
-                                                              InputBorder.none,
-                                                          enabledBorder:
-                                                              InputBorder.none,
-                                                          focusedBorder:
-                                                              InputBorder.none,
-                                                          // 内容量に応じて
-                                                          // 箱の高さがぴったり
-                                                          // 詰まるため、上下に
-                                                          // 8pxの余白を確保
-                                                          // して文字が上端に
-                                                          // 張り付いて見え
-                                                          // ないようにする。
-                                                          // 水平方向も明示
-                                                          // しないと0pxに
-                                                          // なり左端に文字が
-                                                          // 寄って見えていた
-                                                          // ため、4pxを確保
-                                                          // する
-                                                          // （2026-08-12修正）。
-                                                          contentPadding:
-                                                              const EdgeInsets.symmetric(
-                                                                horizontal: 4,
-                                                                vertical: 8,
-                                                              ),
                                                         ),
                                                       ),
                                                     ),
