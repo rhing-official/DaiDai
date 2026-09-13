@@ -93,7 +93,12 @@ class _AddChatDialogContentState extends ConsumerState<AddChatDialogContent> {
           widget.currentUser,
           other,
         );
-        if (!mounted) return;
+        // この一対で最も古い（`createdAt`が最小の）寄合を開く（2026-09-14
+        // 変更、以前は`defaultRoomId`を直接参照していた）。
+        final rooms = await dmRepository
+            .watchRooms(dmId: dm.dmId, userId: widget.currentUser.userId)
+            .first;
+        if (!mounted || rooms.isEmpty) return;
         widget.onCompleted();
         ref
             .read(goRouterProvider)
@@ -102,11 +107,8 @@ class _AddChatDialogContentState extends ConsumerState<AddChatDialogContent> {
               extra: DmChatArgs(
                 currentUser: widget.currentUser,
                 dm: dm,
-                roomId: dm.defaultRoomId,
-                // 作成直後の一対は常に「メイン」という名前の寄合が1つだけ
-                // 存在する（DirectMessageRepository.getOrCreateDirectMessage/
-                // FriendRepository.respond参照）。
-                roomName: 'メイン',
+                roomId: rooms.first.roomId,
+                roomName: rooms.first.name,
               ),
             );
         return;

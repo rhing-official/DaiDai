@@ -111,7 +111,10 @@ class _TalksSearchScreenState extends ConsumerState<TalksSearchScreen> {
         .read(directMessageRepositoryProvider)
         .watchRooms(dmId: dm.dmId, userId: widget.currentUser.userId)
         .first;
-    final topRoomId = rooms.isNotEmpty ? rooms.first.roomId : dm.defaultRoomId;
+    // 健全な一対は常に1件以上の寄合を持つ（`talks_tab.dart`の
+    // `_openDirectMessage`と同じ理由）。
+    if (rooms.isEmpty) return;
+    final topRoomId = rooms.first.roomId;
     final roomName =
         rooms.firstWhereOrNull((r) => r.roomId == topRoomId)?.name ?? 'メイン';
     if (!mounted) return;
@@ -134,9 +137,9 @@ class _TalksSearchScreenState extends ConsumerState<TalksSearchScreen> {
         .read(groupRepositoryProvider)
         .watchRooms(groupId: group.groupId, userId: widget.currentUser.userId)
         .first;
-    final topRoomId = rooms.isNotEmpty
-        ? rooms.first.roomId
-        : group.defaultRoomId;
+    // [_openDm]と同じ理由。
+    if (rooms.isEmpty) return;
+    final topRoomId = rooms.first.roomId;
     final roomName =
         rooms.firstWhereOrNull((r) => r.roomId == topRoomId)?.name ?? 'メイン';
     if (!mounted) return;
@@ -154,9 +157,9 @@ class _TalksSearchScreenState extends ConsumerState<TalksSearchScreen> {
         );
   }
 
-  /// メッセージ内容一致のタップ（2026-09-12追加）。v1のメッセージ内容検索は
-  /// 各語らいの既定寄合（`defaultRoomId`）しか対象にしていないため、
-  /// `topRoomId`解決を経由せず必ず[hit.roomId]（＝既定寄合）を直接開く
+  /// メッセージ内容一致のタップ（2026-09-12追加）。メッセージ内容検索は
+  /// 会話が持つ全寄合が対象（2026-09-14変更）なため、`topRoomId`解決を
+  /// 経由せず必ず[hit.roomId]（＝実際にヒットした寄合）を直接開く
   /// （`talks_tab.dart`の`_openMessageSearchHit`と同じ理由）。該当メッセージ
   /// までのジャンプ＆ハイライトは[pendingMessageJumpProvider]経由で
   /// `ChatScreen`側に伝える。
@@ -166,7 +169,7 @@ class _TalksSearchScreenState extends ConsumerState<TalksSearchScreen> {
         : ViewedGroup(hit.group!.groupId);
     ref
         .read(pendingMessageJumpProvider.notifier)
-        .set(conversation, hit.message.messageId);
+        .set(conversation, hit.message.messageId, hit.roomId);
 
     if (hit.isDm) {
       final dm = hit.dm!;

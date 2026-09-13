@@ -108,8 +108,7 @@ abstract class GroupRepository {
 
   /// 寄合を削除する。全メッセージも物理削除する（長・モデレーターのみ、
   /// firestore.rulesで強制）。その広場の最後の1つの寄合は削除できない
-  /// （[StateError]を投げる）。削除対象が`Group.defaultRoomId`の場合は、
-  /// 残った寄合のうち最も古いものに`defaultRoomId`を差し替える。
+  /// （[StateError]を投げる）。
   Future<void> deleteRoom({
     required String groupId,
     required String roomId,
@@ -419,7 +418,7 @@ abstract class GroupRepository {
   });
 
   /// 既読機能のオン/オフを切り替える（長のみ実行可能、firestore.rulesで
-  /// 強制）。オフにする場合は、`defaultRoomId`の全メッセージ・全メンバー分の
+  /// 強制）。オフにする場合は、全ての寄合の全メッセージ・全メンバー分の
   /// 既読履歴をサーバーから削除する。再度オンにした場合は新規メッセージの
   /// 既読記録が新たに始まる（過去分の復元はしない）。
   /// [userId]は呼び出し元本人のuserId（`rooms`サブコレクションの絞り込み無し
@@ -530,7 +529,6 @@ class FirestoreGroupRepository implements GroupRepository {
       ownerId: owner.userId,
       memberIds: memberIds,
       memberRoles: memberRoles,
-      defaultRoomId: roomRef.id,
       roomsEnabled: roomsEnabled,
     );
 
@@ -767,26 +765,6 @@ class FirestoreGroupRepository implements GroupRepository {
       await batch.commit();
     }
     await roomRef.delete();
-
-    final group = await getGroup(groupId);
-    if (group != null && group.defaultRoomId == roomId) {
-      final remaining = roomsSnapshot.docs.where((d) => d.id != roomId).toList()
-        ..sort(
-          (a, b) =>
-              ((a.data()['createdAt'] as Timestamp?)?.millisecondsSinceEpoch ??
-                      0)
-                  .compareTo(
-                    (b.data()['createdAt'] as Timestamp?)
-                            ?.millisecondsSinceEpoch ??
-                        0,
-                  ),
-        );
-      if (remaining.isNotEmpty) {
-        await _groups.doc(groupId).update({
-          'defaultRoomId': remaining.first.id,
-        });
-      }
-    }
   }
 
   @override

@@ -6,7 +6,6 @@ class DirectMessage {
     required this.dmId,
     required this.participants,
     required this.participantRhingIds,
-    required this.defaultRoomId,
     this.lastMessageAt,
     this.lastMessageSenderId,
     this.lastMessageContentType,
@@ -42,10 +41,6 @@ class DirectMessage {
   /// （表示ラベルはロケール依存のためUI側で解決する、2026-09-02追加）。
   final String? lastMessagePreview;
 
-  /// この一対の既定の寄合（`rooms`サブコレクション、`Group.defaultRoomId`と
-  /// 同じ役割）。`getOrCreateDirectMessage`が作成時に必ず1件作る。
-  final String defaultRoomId;
-
   /// 絶縁（双方合意による友達関係の解消・会話履歴の完全削除）を提案した側の
   /// userId。nullなら提案なし。提案した本人以外の参加者が同意すると、
   /// [DirectMessageRepository.acceptSeverance]がこのフラグを根拠に
@@ -71,7 +66,7 @@ class DirectMessage {
   final String? accountDeletedUserId;
 
   /// 複数の寄合（テキストチャンネル）を扱うか。falseの場合はサイドバーの
-  /// 寄合一覧を出さず、`defaultRoomId`の1つだけを使う単一モード
+  /// 寄合一覧を出さず、この一対が持つ唯一の寄合だけを使う単一モード
   /// （2026-07-29追加）。一対は常にfalse（単一）で作られ、後から
   /// ハンバーガーメニューの「寄合を増やす」でtrueへの切り替えのみ可能
   /// （falseへは戻せない）。既存データ（この機能追加前に作られた一対）は
@@ -111,7 +106,6 @@ class DirectMessage {
       participantRhingIds: Map<String, String>.from(
         json['participantRhingIds'] as Map? ?? {},
       ),
-      defaultRoomId: json['defaultRoomId'] as String,
       lastMessageAt: json['lastMessageAt'] as Timestamp?,
       lastMessageSenderId: json['lastMessageSenderId'] as String?,
       lastMessageContentType: json['lastMessageContentType'] as String?,
@@ -130,7 +124,6 @@ class DirectMessage {
     return {
       'participants': participants,
       'participantRhingIds': participantRhingIds,
-      'defaultRoomId': defaultRoomId,
       'lastMessageAt': lastMessageAt,
       'lastMessageSenderId': lastMessageSenderId,
       'lastMessageContentType': lastMessageContentType,

@@ -118,9 +118,12 @@ class NotificationChatOpener extends ConsumerWidget {
     final rooms = await repository
         .watchRooms(dmId: dm.dmId, userId: currentUser.userId)
         .first;
+    // 健全な一対は常に1件以上の寄合を持つ（`talks_tab.dart`の
+    // `_openDirectMessage`と同じ理由）。
+    if (rooms.isEmpty) return null;
     final targetRoomId =
         rooms.firstWhereOrNull((r) => r.roomId == roomId)?.roomId ??
-        (rooms.isNotEmpty ? rooms.first.roomId : dm.defaultRoomId);
+        rooms.first.roomId;
     final roomName =
         rooms.firstWhereOrNull((r) => r.roomId == targetRoomId)?.name ?? 'メイン';
     return (dm: dm, roomId: targetRoomId, roomName: roomName);
@@ -137,9 +140,11 @@ class NotificationChatOpener extends ConsumerWidget {
     final rooms = await repository
         .watchRooms(groupId: group.groupId, userId: currentUser.userId)
         .first;
+    // [_resolveDm]と同じ理由。
+    if (rooms.isEmpty) return null;
     final targetRoomId =
         rooms.firstWhereOrNull((r) => r.roomId == roomId)?.roomId ??
-        (rooms.isNotEmpty ? rooms.first.roomId : group.defaultRoomId);
+        rooms.first.roomId;
     final roomName =
         rooms.firstWhereOrNull((r) => r.roomId == targetRoomId)?.name ?? 'メイン';
     return (group: group, roomId: targetRoomId, roomName: roomName);

@@ -10,7 +10,6 @@ class Group {
     required this.ownerId,
     required this.memberIds,
     required this.memberRoles,
-    required this.defaultRoomId,
     this.profileCard,
     this.createdAt,
     this.lastMessageAt,
@@ -40,7 +39,6 @@ class Group {
   /// メンバー一覧の表示・退会時のクリーンアップ以外の権限判定には使わない
   /// （権限判定は[ownerId]と[memberPermissions]を使う）。
   final Map<String, String> memberRoles;
-  final String defaultRoomId;
 
   /// userId -> [GroupRole.roleId]のリスト（広場全体でのカスタムロール付与、
   /// 複数可）。全メンバーに暗黙適用される基準ロール（`isEveryone`）は
@@ -58,9 +56,9 @@ class Group {
   /// 再計算してここに非正規化して持たせる（`Room.memberIds`と同じ設計）。
   final Map<String, List<String>> memberPermissions;
 
-  /// 既読機能のオン/オフ（広場全体・長のみ変更可）。オフにすると
-  /// `defaultRoomId`の全メッセージ・全メンバー分の既読履歴をサーバーから
-  /// 削除する（`GroupRepository.setReadReceiptsEnabled`参照）。
+  /// 既読機能のオン/オフ（広場全体・長のみ変更可）。オフにすると全ての寄合の
+  /// 全メッセージ・全メンバー分の既読履歴をサーバーから削除する
+  /// （`GroupRepository.setReadReceiptsEnabled`参照）。
   final bool readReceiptsEnabled;
 
   /// 広場を代表するプロフィールカード（最大1枚）。未作成ならnull。
@@ -92,7 +90,7 @@ class Group {
   final String? lastMessagePreview;
 
   /// 複数の寄合（テキストチャンネル）を扱うか。falseの場合はサイドバーの
-  /// 寄合一覧を出さず、`defaultRoomId`の1つだけを使う単一モード
+  /// 寄合一覧を出さず、この広場が持つ唯一の寄合だけを使う単一モード
   /// （2026-07-29追加）。作成時にどちらか選び、後からハンバーガーメニューの
   /// 「寄合を複数扱う」でtrueへの切り替えのみ可能（falseへは戻せない）。
   /// 既存データ（この機能追加前に作られた広場）は全てtrue扱いにする
@@ -121,7 +119,6 @@ class Group {
       ownerId: json['ownerId'] as String,
       memberIds: List<String>.from(json['memberIds'] as List),
       memberRoles: Map<String, String>.from(json['memberRoles'] as Map),
-      defaultRoomId: json['defaultRoomId'] as String,
       profileCard: profileCardJson != null
           ? GroupProfileCard.fromJson(profileCardJson)
           : null,
@@ -151,7 +148,6 @@ class Group {
       'ownerId': ownerId,
       'memberIds': memberIds,
       'memberRoles': memberRoles,
-      'defaultRoomId': defaultRoomId,
       'profileCard': profileCard?.toJson(),
       'createdAt': createdAt ?? FieldValue.serverTimestamp(),
       'lastMessageAt': lastMessageAt,

@@ -63,9 +63,7 @@ abstract class DirectMessageRepository {
   });
 
   /// 寄合を削除する。全メッセージも物理削除する。この一対の最後の1つの
-  /// 寄合は削除できない（[StateError]を投げる）。削除対象が
-  /// [DirectMessage.defaultRoomId]の場合は、残った寄合のうち最も古い
-  /// ものに`defaultRoomId`を差し替える。
+  /// 寄合は削除できない（[StateError]を投げる）。
   Future<void> deleteRoom({
     required String dmId,
     required String roomId,
@@ -171,8 +169,8 @@ abstract class DirectMessageRepository {
   /// 通話が終了した際、通話履歴メッセージ（開始時刻・通話時間）を送る。
   /// 発信者側からのみ呼ばれる（`WebrtcCallController`参照）。実際に接続
   /// （応答）された通話のみが対象で、不在着信・拒否の場合は呼ばれない。
-  /// 通話はどの寄合を開いていても発信できるため、常にこの一対の
-  /// [DirectMessage.defaultRoomId]に投稿する（呼び出し側でroomIdを
+  /// 通話はどの寄合を開いていても発信できるため、常にこの一対で最も
+  /// 古い（`createdAt`が最小の）寄合に投稿する（呼び出し側でroomIdを
   /// 意識させないための設計）。
   Future<void> sendCallSummaryMessage({
     required String dmId,
@@ -382,12 +380,13 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
 
     if (doc.exists) {
       final data = doc.data()!;
-      if (data['defaultRoomId'] != null) {
+      final existingRooms = await ref.collection('rooms').limit(1).get();
+      if (existingRooms.docs.isNotEmpty) {
         return DirectMessage.fromJson(dmId, data);
       }
       // 複数寄合機能移行時（migrateDirectMessagesToRoomsOnce、実行後ソースから
       // 削除済み）は、当時メッセージが1件も無かった一対を移行対象から漏らして
-      // おり、defaultRoomId未設定のまま取り残されたドキュメントが存在した
+      // おり、寄合が1件も無いまま取り残されたドキュメントが存在した
       // （一対の一覧が丸ごと表示されなくなる不具合の原因、watchDirectMessages
       // 参照）。ここで気付いた時点で「メイン」寄合を作って補修する。
       final repairedRoomRef = ref.collection('rooms').doc();
@@ -401,11 +400,7 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
         participants: existingParticipants,
       );
       await repairedRoomRef.set(repairedRoom.toJson());
-      await ref.update({'defaultRoomId': repairedRoomRef.id});
-      return DirectMessage.fromJson(dmId, {
-        ...data,
-        'defaultRoomId': repairedRoomRef.id,
-      });
+      return DirectMessage.fromJson(dmId, data);
     }
 
     final roomRef = ref.collection('rooms').doc();
@@ -414,7 +409,6 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
       dmId: dmId,
       participants: participants,
       participantRhingIds: {a.userId: a.rhingId, b.userId: b.rhingId},
-      defaultRoomId: roomRef.id,
       // 一対は常に単一モードで作られる（FriendRepository.respondと同じ、
       // 2026-07-29追加）。
       roomsEnabled: false,
@@ -460,8 +454,8 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
             try {
               dms.add(DirectMessage.fromJson(doc.id, doc.data()));
             } catch (_) {
-              // defaultRoomId未設定など、過去の移行漏れで不完全なドキュメントが
-              // 混ざっていても一覧全体を巻き込まないよう、その1件だけ読み飛ばす
+              // 過去の移行漏れで不完全なドキュメントが混ざっていても一覧全体を
+              // 巻き込まないよう、その1件だけ読み飛ばす
               // （getOrCreateDirectMessageが次に開かれた際に自己修復する）。
             }
           }
@@ -594,27 +588,6 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
       await batch.commit();
     }
     await roomRef.delete();
-
-    final dmDoc = await _directMessages.doc(dmId).get();
-    final defaultRoomId = dmDoc.data()?['defaultRoomId'] as String?;
-    if (defaultRoomId == roomId) {
-      final remaining = roomsSnapshot.docs.where((d) => d.id != roomId).toList()
-        ..sort(
-          (a, b) =>
-              ((a.data()['createdAt'] as Timestamp?)?.millisecondsSinceEpoch ??
-                      0)
-                  .compareTo(
-                    (b.data()['createdAt'] as Timestamp?)
-                            ?.millisecondsSinceEpoch ??
-                        0,
-                  ),
-        );
-      if (remaining.isNotEmpty) {
-        await _directMessages.doc(dmId).update({
-          'defaultRoomId': remaining.first.id,
-        });
-      }
-    }
   }
 
   @override
@@ -930,15 +903,19 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
     required bool isVideo,
   }) async {
     final dmRef = _directMessages.doc(dmId);
-    final dmDoc = await dmRef.get();
-    final defaultRoomId = dmDoc.data()?['defaultRoomId'] as String?;
-    if (defaultRoomId == null) return;
-    final roomRef = dmRef.collection('rooms').doc(defaultRoomId);
+    final oldestRoom = await dmRef
+        .collection('rooms')
+        .orderBy('createdAt')
+        .limit(1)
+        .get();
+    if (oldestRoom.docs.isEmpty) return;
+    final targetRoomId = oldestRoom.docs.first.id;
+    final roomRef = dmRef.collection('rooms').doc(targetRoomId);
     final messageRef = roomRef.collection('messages').doc();
 
     final message = Message(
       messageId: messageRef.id,
-      conversationId: defaultRoomId,
+      conversationId: targetRoomId,
       conversationType: 'dm',
       senderId: senderId,
       senderRhingId: senderRhingId,

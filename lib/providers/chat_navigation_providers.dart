@@ -100,20 +100,26 @@ final activeConversationProvider =
 /// 橋渡し（2026-09-12追加、[pendingDmSelectionProvider]と同じ一度きり消費
 /// パターン）。狭い画面のルートpushで新規に構築される`ChatScreen`・分割表示
 /// （`TalksTab._isSplit`）で既に構築済みの`ChatScreen`のどちらも、初回build時に
-/// [ChatScreen.conversationId]/`isDm`が一致するかを確認してから1回だけ
-/// ジャンプを実行し、この状態をクリアする。
+/// [ChatScreen.conversationId]/`isDm`に加え`roomId`（2026-09-14追加、
+/// メッセージ内容検索が会話の全寄合を対象にするようになったため）が
+/// 一致するかを確認してから1回だけジャンプを実行し、この状態をクリアする。
+/// 会話は一致するが`roomId`が一致しない場合（分割表示で別の寄合を表示中）は
+/// 状態をクリアせず残す。`_DmDetailWithRoomsState`/`_GroupDetailWithRoomsState`
+/// （`talks_tab.dart`）が別途この状態を監視して選択中の寄合を切り替え、
+/// 寄合ごとに再マウントされる新しい`ChatScreen`が改めてこの状態を拾う。
 class PendingMessageJumpNotifier
-    extends Notifier<(ViewedConversation, String)?> {
+    extends Notifier<(ViewedConversation, String, String)?> {
   @override
-  (ViewedConversation, String)? build() => null;
+  (ViewedConversation, String, String)? build() => null;
 
-  void set(ViewedConversation conversation, String messageId) =>
-      state = (conversation, messageId);
+  void set(ViewedConversation conversation, String messageId, String roomId) =>
+      state = (conversation, messageId, roomId);
 
   void clear() => state = null;
 }
 
 final pendingMessageJumpProvider =
-    NotifierProvider<PendingMessageJumpNotifier, (ViewedConversation, String)?>(
-      PendingMessageJumpNotifier.new,
-    );
+    NotifierProvider<
+      PendingMessageJumpNotifier,
+      (ViewedConversation, String, String)?
+    >(PendingMessageJumpNotifier.new);

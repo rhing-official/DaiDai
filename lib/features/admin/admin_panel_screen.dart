@@ -8,6 +8,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../models/app_ui_style.dart';
 import '../../models/app_user.dart';
 import '../../models/direct_message.dart';
+import '../../models/dm_room.dart';
 import '../../models/message.dart';
 import '../../models/profile_material.dart';
 import '../../providers/app_ui_style_provider.dart';
@@ -273,24 +274,48 @@ class _AnnouncementSection extends ConsumerWidget {
         // まだ一度も配信していない場合は便りとの一対自体が存在しないため、
         // 履歴は空のまま表示する（初回の配信で`broadcastAnnouncement`が
         // 一対・寄合を自動作成する）。
-        return ChatScreen(
-          key: ValueKey('admin-broadcast-${dm?.defaultRoomId ?? 'none'}'),
-          title: '',
-          currentUserId: currentUser.userId,
-          isDm: true,
-          conversationId: dm?.dmId,
-          messagesStream: dm == null
-              ? const Stream.empty()
-              : dmRepository
-                    .watchMessages(dm.dmId, dm.defaultRoomId)
-                    .map(
-                      (messages) => messages
-                          .where(
-                            (m) => !m.hiddenFor.contains(currentUser.userId),
-                          )
-                          .toList(),
-                    ),
-          onSend: send,
+        if (dm == null) {
+          return ChatScreen(
+            key: const ValueKey('admin-broadcast-none'),
+            title: '',
+            currentUserId: currentUser.userId,
+            isDm: true,
+            conversationId: null,
+            messagesStream: const Stream.empty(),
+            onSend: send,
+          );
+        }
+        // この一対で最も古い（`createdAt`が最小の）寄合に投稿・表示する
+        // （2026-09-14変更、以前は`defaultRoomId`を直接参照していた）。
+        return StreamBuilder<List<DmRoom>>(
+          stream: dmRepository.watchRooms(
+            dmId: dm.dmId,
+            userId: currentUser.userId,
+          ),
+          builder: (context, roomsSnapshot) {
+            final rooms = roomsSnapshot.data ?? const <DmRoom>[];
+            final roomId = rooms.isNotEmpty ? rooms.first.roomId : null;
+            return ChatScreen(
+              key: ValueKey('admin-broadcast-${roomId ?? 'none'}'),
+              title: '',
+              currentUserId: currentUser.userId,
+              isDm: true,
+              conversationId: dm.dmId,
+              messagesStream: roomId == null
+                  ? const Stream.empty()
+                  : dmRepository
+                        .watchMessages(dm.dmId, roomId)
+                        .map(
+                          (messages) => messages
+                              .where(
+                                (m) =>
+                                    !m.hiddenFor.contains(currentUser.userId),
+                              )
+                              .toList(),
+                        ),
+              onSend: send,
+            );
+          },
         );
       },
     );

@@ -154,15 +154,13 @@ class _JoinGroupViewState extends ConsumerState<_JoinGroupView> {
     // 複数モードでも寄合一覧のドリルダウン画面を経由せず、常に一番上（最古）の
     // 寄合でチャット画面へ直接開く。寄合の切り替えはチャット画面上部の
     // 横スクロールタブバーから行う（2026-08-03変更、以前は複数モードのみ
-    // `/chat/group-rooms`を経由していた。2026-08-09変更、defaultRoomId固定
-    // だったものを一番上の寄合を開くように変更、talks_tab.dartの
-    // `_openGroup`と同じ理由）。
+    // `/chat/group-rooms`を経由していた。2026-08-09変更、一番上の寄合を
+    // 開くように変更、talks_tab.dartの`_openGroup`と同じ理由）。
     final rooms = await groupRepository
         .watchRooms(groupId: group.groupId, userId: widget.currentUser.userId)
         .first;
-    final topRoomId = rooms.isNotEmpty
-        ? rooms.first.roomId
-        : group.defaultRoomId;
+    if (!mounted || rooms.isEmpty) return;
+    final topRoomId = rooms.first.roomId;
     final roomName =
         rooms.firstWhereOrNull((r) => r.roomId == topRoomId)?.name ?? 'メイン';
     if (!mounted) return;

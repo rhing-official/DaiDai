@@ -221,8 +221,9 @@ async function deleteAccount(
 }
 
 /** 参加中の一対それぞれに、アカウント削除通知メッセージを1件追加する。
- * この一対の既定の寄合（defaultRoomId）に投稿する（どの寄合を開いていても
- * 内容が分かるようにするため）。メッセージ・寄合・DMドキュメント自体は
+ * この一対で最も古い（createdAtが最小の）寄合に投稿する（どの寄合を
+ * 開いていても内容が分かるようにするため、2026-09-14変更、以前は
+ * defaultRoomIdを直接参照していた）。メッセージ・寄合・DMドキュメント自体は
  * ここでは削除しない（もう一方の参加者がチャット画面で「はい」を選んだ
  * 場合のみクライアント側で物理削除される。
  * DirectMessageRepository.deleteDmAfterAccountDeletion参照）。 */
@@ -237,13 +238,18 @@ async function notifyDirectMessages(
     .get();
 
   for (const dm of dms.docs) {
-    const defaultRoomId: string | undefined = dm.data().defaultRoomId;
-    if (!defaultRoomId) continue;
+    const oldestRoom = await dm.ref
+      .collection("rooms")
+      .orderBy("createdAt")
+      .limit(1)
+      .get();
+    if (oldestRoom.empty) continue;
+    const targetRoomId = oldestRoom.docs[0].id;
 
-    const roomRef = dm.ref.collection("rooms").doc(defaultRoomId);
+    const roomRef = dm.ref.collection("rooms").doc(targetRoomId);
     const messageRef = roomRef.collection("messages").doc();
     await writer.set(messageRef, {
-      conversationId: defaultRoomId,
+      conversationId: targetRoomId,
       conversationType: "dm",
       senderId: userId,
       senderRhingId: rhingId ?? null,
@@ -285,13 +291,18 @@ async function notifyAndLeaveGroups(
 
   for (const group of groups.docs) {
     const groupData = group.data();
-    const defaultRoomId: string | undefined = groupData.defaultRoomId;
-    if (!defaultRoomId) continue;
+    const oldestRoom = await group.ref
+      .collection("rooms")
+      .orderBy("createdAt")
+      .limit(1)
+      .get();
+    if (oldestRoom.empty) continue;
+    const targetRoomId = oldestRoom.docs[0].id;
 
-    const roomRef = group.ref.collection("rooms").doc(defaultRoomId);
+    const roomRef = group.ref.collection("rooms").doc(targetRoomId);
     const messageRef = roomRef.collection("messages").doc();
     await writer.set(messageRef, {
-      conversationId: defaultRoomId,
+      conversationId: targetRoomId,
       conversationType: "room",
       senderId: userId,
       senderRhingId: rhingId ?? null,
@@ -1293,8 +1304,13 @@ export const broadcastAnnouncement = onCall(
       const dmDoc = await dmRef.get();
 
       let roomId: string;
-      if (dmDoc.exists && dmDoc.data()?.defaultRoomId) {
-        roomId = dmDoc.data()!.defaultRoomId;
+      // この一対で最も古い（createdAtが最小の）寄合を使う（2026-09-14変更、
+      // 以前はdefaultRoomIdを直接参照していた）。
+      const existingOldestRoom = dmDoc.exists
+        ? await dmRef.collection("rooms").orderBy("createdAt").limit(1).get()
+        : null;
+      if (existingOldestRoom && !existingOldestRoom.empty) {
+        roomId = existingOldestRoom.docs[0].id;
       } else {
         const newRoomRef = dmRef.collection("rooms").doc();
         roomId = newRoomRef.id;
@@ -1304,7 +1320,6 @@ export const broadcastAnnouncement = onCall(
             [OFFICIAL_ACCOUNT_UID]: OFFICIAL_ACCOUNT_RHING_ID,
             [userId]: rhingId ?? userId,
           },
-          defaultRoomId: roomId,
           lastMessageAt: FieldValue.serverTimestamp(),
           severanceRequestedBy: null,
           readReceiptsEnabled: true,
@@ -2013,7 +2028,6 @@ export const sendFriendRequest = onCall(
       batch.set(dmRef, {
         participants: [userAId, userBId],
         participantRhingIds: { [userAId]: userARhingId, [userBId]: userBRhingId },
-        defaultRoomId: roomRef.id,
         readReceiptsEnabled: true,
         roomsEnabled: false,
       });
