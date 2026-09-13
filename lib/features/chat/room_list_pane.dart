@@ -44,7 +44,7 @@ class RoomListPane extends ConsumerStatefulWidget {
     required this.selectedRoomId,
     required this.onSelectRoom,
     this.onCreateRoom,
-    this.onOpenGroupSettings,
+    this.onOpenConversationSettings,
     this.onReorderRooms,
     super.key,
   });
@@ -62,10 +62,10 @@ class RoomListPane extends ConsumerStatefulWidget {
   final void Function(RoomListEntry room) onSelectRoom;
   final Future<void> Function(String name)? onCreateRoom;
 
-  /// 「広場自体の設定」を開く（サイドバーの歯車アイコン、2026-07-28追加）。
-  /// 広場の長・モデレーターにのみ渡す。nullなら歯車アイコン自体を出さない
-  /// （一対には広場設定という概念が無いため常にnull）。
-  final VoidCallback? onOpenGroupSettings;
+  /// 「広場自体の設定」/「一対の設定」を開く（サイドバーの歯車アイコン、
+  /// 2026-07-28追加、2026-09-13に一対にも配線）。広場は長・モデレーターにのみ
+  /// 渡す。nullなら歯車アイコン自体を出さない。
+  final VoidCallback? onOpenConversationSettings;
 
   /// 寄合一覧の並べ替え（ブロック左端のハンドルをドラッグ、2026-09-08追加）。
   /// 並べ替え後の寄合idの並びを渡す。nullなら並べ替え機能自体を出さない
@@ -237,15 +237,15 @@ class _RoomListPaneState extends ConsumerState<RoomListPane> {
                         style: const TextStyle(fontWeight: FontWeight.bold),
                       ),
               ),
-              if (widget.onOpenGroupSettings != null)
+              if (widget.onOpenConversationSettings != null)
                 isGekiga
                     ? GekigaIconButton(
                         icon: Icons.settings_outlined,
-                        onPressed: widget.onOpenGroupSettings!,
+                        onPressed: widget.onOpenConversationSettings!,
                       )
                     : IconButton(
                         icon: const Icon(Icons.settings_outlined),
-                        onPressed: widget.onOpenGroupSettings,
+                        onPressed: widget.onOpenConversationSettings,
                       ),
               if (widget.onCreateRoom != null)
                 isGekiga

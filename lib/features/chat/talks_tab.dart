@@ -55,6 +55,7 @@ import 'add_chat_dialog.dart';
 import 'chat_panes.dart';
 import 'chat_screen.dart';
 import 'create_group_dialog.dart';
+import 'dm_settings_popup.dart';
 import 'group_settings_popup.dart';
 import 'room_list_pane.dart';
 import 'talks_search.dart';
@@ -166,16 +167,25 @@ class _TalksTabState extends ConsumerState<TalksTab>
       return;
     }
     _messageSearchDebounce = Timer(kMessageSearchDebounce, () async {
-      final hits = await _messageSearchSession.search(
-        query: query,
-        currentUserId: widget.currentUser.userId,
-        directMessages: _lastDirectMessages,
-        groups: _lastGroups,
-        blockedIds: _lastBlockedIds,
-        dmRepository: ref.read(directMessageRepositoryProvider),
-        groupRepository: ref.read(groupRepositoryProvider),
-        cacheManager: ref.read(chatRoomMessageCacheManagerProvider),
-      );
+      // 個々の会話の取得失敗は`TalksMessageSearchSession`内で既に捕捉して
+      // いるが、念のためここでも捕捉し、予期しない例外で検索欄が無反応の
+      // ままにならないようにする（2026-09-13追加）。
+      List<MessageSearchHit> hits;
+      try {
+        hits = await _messageSearchSession.search(
+          query: query,
+          currentUserId: widget.currentUser.userId,
+          directMessages: _lastDirectMessages,
+          groups: _lastGroups,
+          blockedIds: _lastBlockedIds,
+          dmRepository: ref.read(directMessageRepositoryProvider),
+          groupRepository: ref.read(groupRepositoryProvider),
+          cacheManager: ref.read(chatRoomMessageCacheManagerProvider),
+        );
+      } catch (error, stackTrace) {
+        debugPrint('メッセージ検索に失敗: $error\n$stackTrace');
+        hits = const [];
+      }
       if (!mounted || _searchController.text.trim() != query) return;
       setState(() => _messageMatches = hits);
     });
@@ -3370,6 +3380,11 @@ class _DmDetailWithRoomsState extends ConsumerState<_DmDetailWithRooms> {
     final currentUser = widget.currentUser;
     final dmRepository = ref.read(directMessageRepositoryProvider);
     final otherUserId = dm.otherUserId(currentUser.userId);
+    final isBlocked =
+        (ref.watch(blockedUserIdsProvider(currentUser.userId)).value ??
+                const <String>{})
+            .contains(otherUserId);
+    final isGlass = ref.watch(appUiStyleProvider) == AppUiStyle.glass;
     final otherUser = ref.watch(watchedUserProvider(otherUserId)).value;
     final otherNickname = otherUser?.effectiveNicknameFor(dm.dmId)?.text;
     final conversationName = (otherNickname?.isNotEmpty ?? false)
@@ -3433,6 +3448,14 @@ class _DmDetailWithRoomsState extends ConsumerState<_DmDetailWithRooms> {
               dmRepository.createRoom(dmId: dm.dmId, name: name),
           onReorderRooms: (roomIds) =>
               dmRepository.setRoomOrder(dmId: dm.dmId, roomIds: roomIds),
+          onOpenConversationSettings: () => showDmSettingsDialog(
+            context,
+            currentUser: currentUser,
+            dm: dm,
+            otherUserId: otherUserId,
+            isBlocked: isBlocked,
+            isGlass: isGlass,
+          ),
         );
 
         if (widget.roomListOnly) {
@@ -3624,7 +3647,7 @@ class _GroupDetailWithRoomsState extends ConsumerState<_GroupDetailWithRooms> {
           // 全体設定ポップアップ自体は全メンバーが開ける
           // （中の各項目が個別に権限ゲートされる、2026-07-29変更。
           // 以前はcanManageRolesの間だけロール管理を直接開いていた）。
-          onOpenGroupSettings: () => showGroupSettingsDialog(
+          onOpenConversationSettings: () => showGroupSettingsDialog(
             context,
             currentUser: currentUser,
             group: group,
@@ -3682,11 +3705,6 @@ class _GroupDetailWithRoomsState extends ConsumerState<_GroupDetailWithRooms> {
                   group: group,
                   roomId: roomId,
                   roomName: roomName,
-                  // このRowは広い分割表示専用で、左側に物理的なサイドバー
-                  // （`roomListPane`）が常に存在する（2026-09-11追加、
-                  // `hasSidebar`はここでのみtrueにする。他の呼び出し元は
-                  // 既定のfalseのまま）。
-                  hasSidebar: true,
                 ),
               ),
             ),
