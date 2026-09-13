@@ -165,6 +165,12 @@ class TalksMessageSearchSession {
   DateTime _sentAtOf(MessageSearchHit hit) =>
       hit.message.sentAt?.toDate() ?? DateTime.fromMillisecondsSinceEpoch(0);
 
+  /// 1件の一対の読み取りに失敗しても検索全体（[search]の`Future.wait`）を
+  /// 巻き込まないよう、ここで例外を捕捉し空リストにフォールバックする
+  /// （2026-09-13追加。移行漏れの`defaultRoomId`や壊れた/レガシーな
+  /// メッセージドキュメントが1件でもあると`Message.fromJson`等が例外を
+  /// 投げ、以前は`Future.wait`ごと失敗して検索結果が恒久的に空になる
+  /// 不具合があった）。
   Future<List<MessageSearchHit>> _searchDm(
     DirectMessage dm,
     String normalizedQuery,
@@ -172,29 +178,35 @@ class TalksMessageSearchSession {
     DirectMessageRepository dmRepository,
     ChatRoomMessageCacheManager cacheManager,
   ) async {
-    final messages = await _messagesForRoom(
-      isDm: true,
-      conversationId: dm.dmId,
-      roomId: dm.defaultRoomId,
-      cacheManager: cacheManager,
-      fetch: () => dmRepository.getRecentMessagesForSearch(
-        dmId: dm.dmId,
+    try {
+      final messages = await _messagesForRoom(
+        isDm: true,
+        conversationId: dm.dmId,
         roomId: dm.defaultRoomId,
-        limit: kMessageSearchPerRoomLimit,
-      ),
-    );
-    return [
-      for (final message in messages)
-        if (_matches(message, normalizedQuery, currentUserId))
-          MessageSearchHit(
-            message: message,
-            isDm: true,
-            dm: dm,
-            roomId: dm.defaultRoomId,
-          ),
-    ];
+        cacheManager: cacheManager,
+        fetch: () => dmRepository.getRecentMessagesForSearch(
+          dmId: dm.dmId,
+          roomId: dm.defaultRoomId,
+          limit: kMessageSearchPerRoomLimit,
+        ),
+      );
+      return [
+        for (final message in messages)
+          if (_matches(message, normalizedQuery, currentUserId))
+            MessageSearchHit(
+              message: message,
+              isDm: true,
+              dm: dm,
+              roomId: dm.defaultRoomId,
+            ),
+      ];
+    } catch (error, stackTrace) {
+      debugPrint('メッセージ検索: 一対${dm.dmId}の取得に失敗: $error\n$stackTrace');
+      return const [];
+    }
   }
 
+  /// [_searchDm]と同じ理由で例外を捕捉する（2026-09-13追加）。
   Future<List<MessageSearchHit>> _searchGroup(
     Group group,
     String normalizedQuery,
@@ -202,27 +214,32 @@ class TalksMessageSearchSession {
     GroupRepository groupRepository,
     ChatRoomMessageCacheManager cacheManager,
   ) async {
-    final messages = await _messagesForRoom(
-      isDm: false,
-      conversationId: group.groupId,
-      roomId: group.defaultRoomId,
-      cacheManager: cacheManager,
-      fetch: () => groupRepository.getRoomRecentMessagesForSearch(
-        groupId: group.groupId,
+    try {
+      final messages = await _messagesForRoom(
+        isDm: false,
+        conversationId: group.groupId,
         roomId: group.defaultRoomId,
-        limit: kMessageSearchPerRoomLimit,
-      ),
-    );
-    return [
-      for (final message in messages)
-        if (_matches(message, normalizedQuery, currentUserId))
-          MessageSearchHit(
-            message: message,
-            isDm: false,
-            group: group,
-            roomId: group.defaultRoomId,
-          ),
-    ];
+        cacheManager: cacheManager,
+        fetch: () => groupRepository.getRoomRecentMessagesForSearch(
+          groupId: group.groupId,
+          roomId: group.defaultRoomId,
+          limit: kMessageSearchPerRoomLimit,
+        ),
+      );
+      return [
+        for (final message in messages)
+          if (_matches(message, normalizedQuery, currentUserId))
+            MessageSearchHit(
+              message: message,
+              isDm: false,
+              group: group,
+              roomId: group.defaultRoomId,
+            ),
+      ];
+    } catch (error, stackTrace) {
+      debugPrint('メッセージ検索: 広場${group.groupId}の取得に失敗: $error\n$stackTrace');
+      return const [];
+    }
   }
 
   /// [directMessages]・[groups]それぞれの既定寄合（[DirectMessage.defaultRoomId]/

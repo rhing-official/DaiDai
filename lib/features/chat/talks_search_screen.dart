@@ -84,16 +84,23 @@ class _TalksSearchScreenState extends ConsumerState<TalksSearchScreen> {
       return;
     }
     _messageSearchDebounce = Timer(kMessageSearchDebounce, () async {
-      final hits = await _messageSearchSession.search(
-        query: query,
-        currentUserId: widget.currentUser.userId,
-        directMessages: _lastDirectMessages,
-        groups: _lastGroups,
-        blockedIds: _lastBlockedIds,
-        dmRepository: ref.read(directMessageRepositoryProvider),
-        groupRepository: ref.read(groupRepositoryProvider),
-        cacheManager: ref.read(chatRoomMessageCacheManagerProvider),
-      );
+      // `talks_tab.dart`の`_onSearchTextChanged`と同じ理由（2026-09-13追加）。
+      List<MessageSearchHit> hits;
+      try {
+        hits = await _messageSearchSession.search(
+          query: query,
+          currentUserId: widget.currentUser.userId,
+          directMessages: _lastDirectMessages,
+          groups: _lastGroups,
+          blockedIds: _lastBlockedIds,
+          dmRepository: ref.read(directMessageRepositoryProvider),
+          groupRepository: ref.read(groupRepositoryProvider),
+          cacheManager: ref.read(chatRoomMessageCacheManagerProvider),
+        );
+      } catch (error, stackTrace) {
+        debugPrint('メッセージ検索に失敗: $error\n$stackTrace');
+        hits = const [];
+      }
       if (!mounted || _searchController.text.trim() != query) return;
       setState(() => _messageMatches = hits);
     });

@@ -44,13 +44,8 @@ import '../poll/poll_detail_dialog.dart';
 import '../poll/poll_popup_content.dart';
 import 'button_anchored_menu.dart';
 import 'chat_screen.dart';
-import 'conversation_profile_card_dialog.dart';
-import 'group_delete_dialog.dart';
-import 'group_invite_dialog.dart';
+import 'dm_settings_popup.dart';
 import 'group_leave_dialog.dart';
-import 'group_member_list_screen.dart';
-import 'group_profile_card_screen.dart';
-import 'group_role_list_popup.dart';
 import 'group_role_priority_dialog.dart';
 import 'group_settings_popup.dart';
 import 'room_tab_bar.dart';
@@ -59,37 +54,16 @@ import 'task_banner.dart';
 import 'user_profile_card_dialog.dart';
 
 enum _GroupMenuAction {
-  profileCard,
-  conversationProfileCard,
-  memberList,
-  createInvite,
-  manageRoles,
-  deleteGroup,
   openGroupSettings,
   roomRolePriority,
   renameRoom,
-  disableRoomFeature,
-  enableRoomFeature,
   deleteRoom,
-  enableMultipleRooms,
   toggleMute,
   toggleReadReceipts,
   leave,
 }
 
-enum _DmMenuAction {
-  conversationProfileCard,
-  renameRoom,
-  disableRoomFeature,
-  enableRoomFeature,
-  deleteRoom,
-  enableMultipleRooms,
-  toggleMute,
-  toggleBlock,
-  toggleReadReceipts,
-  proposeSeverance,
-  deleteConversation,
-}
+enum _DmMenuAction { renameRoom, deleteRoom, openDmSettings }
 
 /// 既読機能をオフにする方向の操作（広場: 長が直接オフにする／DM: オフを
 /// 提案する・オフの提案を承認する）から共通で呼ぶ確認ダイアログ。
@@ -114,33 +88,6 @@ Future<bool> confirmDisableReadReceipts(
           ),
           onPressed: () => Navigator.of(context).pop(true),
           child: Text(strings.conversationReadReceiptsDisableConfirmButton),
-        ),
-      ],
-    ),
-  );
-  return confirmed ?? false;
-}
-
-/// 一対の削除確認ダイアログ。`chat_screen.dart`の`_confirmDeleteConversation`
-/// （アカウント削除通知メッセージの「はい」ボタンから呼ばれるもの）と同じ
-/// 文言・見た目を使う（相手のアカウント削除通知に「いいえ」と答えた後、または
-/// 未応答のまま、ハンバーガーメニューからいつでも削除できるようにする経路）。
-Future<bool> _confirmDeleteDm(BuildContext context, Strings strings) async {
-  final confirmed = await showDialog<bool>(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: Text(strings.chatAccountDeletedConfirmTitle),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(false),
-          child: Text(strings.cancel),
-        ),
-        FilledButton(
-          style: FilledButton.styleFrom(
-            backgroundColor: Theme.of(context).colorScheme.error,
-          ),
-          onPressed: () => Navigator.of(context).pop(true),
-          child: Text(strings.chatAccountDeletedConfirmButton),
         ),
       ],
     ),
@@ -218,10 +165,11 @@ Future<bool> _confirmDeleteRoom(
 }
 
 /// 「寄合機能を無くす」実行前の確認ダイアログ。広場・一対どちらの
-/// ハンバーガーメニューからも同じ見た目で使う（2026-09-07追加）。
-/// 元に戻せる操作のため、削除確認（[_confirmDeleteRoom]）と異なり
-/// 警告色ボタンにはしない。
-Future<bool> _confirmDisableRoomFeature(
+/// 設定画面（`DmSettingsPopup`/`GroupSettingsPopup`の寄合モード選択、
+/// 2026-09-13に各ハンバーガーメニューから移設）からも同じ見た目で使う
+/// （2026-09-07追加）。元に戻せる操作のため、削除確認（[_confirmDeleteRoom]）
+/// と異なり警告色ボタンにはしない。
+Future<bool> confirmDisableRoomFeature(
   BuildContext context,
   Strings strings,
   Vocabulary vocab,
@@ -1568,10 +1516,6 @@ class _DmMenuButtonState extends ConsumerState<_DmMenuButton> {
 
     final strings = ref.read(appStringsProvider);
     final vocabulary = ref.read(vocabularyProvider);
-    final prefs =
-        ref.read(conversationPrefsProvider(widget.currentUser.userId)).value ??
-        const <String, ConversationPrefs>{};
-    final muted = prefs[widget.dm.dmId]?.notificationsMuted ?? false;
     final brightness = Theme.of(context).brightness;
     final foreground = popupCardForeground(
       brightness,
@@ -1590,26 +1534,12 @@ class _DmMenuButtonState extends ConsumerState<_DmMenuButton> {
           padding: EdgeInsets.zero,
           child: _MenuPanel(
             children: [
-              if (widget.currentUser.profileCards.length > 1)
-                _MenuTile(
-                  label: strings.conversationProfileCardMenuLabel,
-                  foreground: foreground,
-                  value: _DmMenuAction.conversationProfileCard,
-                ),
               if (!widget.dm.roomFeatureDisabled) ...[
                 _MenuTile(
                   label: strings.roomRenameLabel(vocabulary.textChannel),
                   foreground: foreground,
                   value: _DmMenuAction.renameRoom,
                 ),
-                if (!widget.dm.roomsEnabled)
-                  _MenuTile(
-                    label: strings.roomFeatureDisableLabel(
-                      vocabulary.textChannel,
-                    ),
-                    foreground: foreground,
-                    value: _DmMenuAction.disableRoomFeature,
-                  ),
                 _MenuTile(
                   label: strings.roomMenuDeleteLabel(vocabulary.textChannel),
                   foreground: foreground,
@@ -1617,53 +1547,12 @@ class _DmMenuButtonState extends ConsumerState<_DmMenuButton> {
                   centered: true,
                   value: _DmMenuAction.deleteRoom,
                 ),
-                if (!widget.dm.roomsEnabled)
-                  _MenuTile(
-                    label: strings.dmMenuEnableMultipleRooms,
-                    foreground: foreground,
-                    value: _DmMenuAction.enableMultipleRooms,
-                  ),
-              ] else
-                _MenuTile(
-                  label: strings.roomFeatureEnableLabel(vocabulary.textChannel),
-                  foreground: foreground,
-                  value: _DmMenuAction.enableRoomFeature,
-                ),
+              ],
               _MenuTile(
-                label: muted
-                    ? strings.conversationUnmute
-                    : strings.conversationMute,
+                label: strings.dmMenuOpenSettings,
                 foreground: foreground,
-                value: _DmMenuAction.toggleMute,
+                value: _DmMenuAction.openDmSettings,
               ),
-              _MenuTile(
-                label: widget.isBlocked
-                    ? strings.conversationUnblock
-                    : strings.conversationBlock,
-                foreground: foreground,
-                value: _DmMenuAction.toggleBlock,
-              ),
-              _MenuTile(
-                label: widget.dm.readReceiptsEnabled
-                    ? strings.conversationReadReceiptsProposeDisable
-                    : strings.conversationReadReceiptsProposeEnable,
-                foreground: foreground,
-                enabled: widget.dm.readReceiptsProposalBy == null,
-                value: _DmMenuAction.toggleReadReceipts,
-              ),
-              _MenuTile(
-                label: strings.conversationProposeSeverance,
-                foreground: foreground,
-                enabled: widget.dm.severanceRequestedBy == null,
-                value: _DmMenuAction.proposeSeverance,
-              ),
-              if (widget.dm.accountDeletedUserId != null)
-                _MenuTile(
-                  label: strings.dmMenuDeleteConversation(vocabulary.dm),
-                  foreground: foreground,
-                  destructive: true,
-                  value: _DmMenuAction.deleteConversation,
-                ),
             ],
           ),
         ),
@@ -1682,20 +1571,7 @@ class _DmMenuButtonState extends ConsumerState<_DmMenuButton> {
     final dm = widget.dm;
     final roomId = widget.roomId;
     final roomName = widget.roomName;
-    final otherUserId = widget.otherUserId;
-    final isBlocked = widget.isBlocked;
-    final muted =
-        (ref.read(conversationPrefsProvider(currentUser.userId)).value ??
-                const <String, ConversationPrefs>{})[dm.dmId]
-            ?.notificationsMuted ??
-        false;
     switch (action) {
-      case _DmMenuAction.conversationProfileCard:
-        ConversationProfileCardDialog.show(
-          context,
-          currentUserId: currentUser.userId,
-          conversationId: dm.dmId,
-        );
       case _DmMenuAction.renameRoom:
         final name = await _showRenameRoomDialog(
           context,
@@ -1707,20 +1583,15 @@ class _DmMenuButtonState extends ConsumerState<_DmMenuButton> {
         await ref
             .read(directMessageRepositoryProvider)
             .renameRoom(dmId: dm.dmId, roomId: roomId, name: name);
-      case _DmMenuAction.disableRoomFeature:
-        final confirmed = await _confirmDisableRoomFeature(
+      case _DmMenuAction.openDmSettings:
+        showDmSettingsDialog(
           context,
-          strings,
-          vocabulary,
+          currentUser: currentUser,
+          dm: dm,
+          otherUserId: widget.otherUserId,
+          isBlocked: widget.isBlocked,
+          isGlass: ref.read(appUiStyleProvider) == AppUiStyle.glass,
         );
-        if (!confirmed) return;
-        await ref
-            .read(directMessageRepositoryProvider)
-            .setRoomFeatureDisabled(dm.dmId, disabled: true);
-      case _DmMenuAction.enableRoomFeature:
-        await ref
-            .read(directMessageRepositoryProvider)
-            .setRoomFeatureDisabled(dm.dmId, disabled: false);
       case _DmMenuAction.deleteRoom:
         final confirmed = await _confirmDeleteRoom(
           context,
@@ -1776,62 +1647,6 @@ class _DmMenuButtonState extends ConsumerState<_DmMenuButton> {
       // 広い画面（埋め込みペイン）はcanPop()==falseで元々no-op。
       // TalksTab側の既存フォールバック（rooms.first）が自動的に
       // 一番上の寄合を選択するため、追加対応不要。
-      case _DmMenuAction.enableMultipleRooms:
-        await ref
-            .read(directMessageRepositoryProvider)
-            .setRoomsEnabled(dm.dmId);
-      case _DmMenuAction.toggleMute:
-        ref
-            .read(conversationPrefsRepositoryProvider)
-            .setNotificationsMuted(
-              userId: currentUser.userId,
-              conversationId: dm.dmId,
-              muted: !muted,
-            );
-      case _DmMenuAction.toggleBlock:
-        final repository = ref.read(blockRepositoryProvider);
-        if (isBlocked) {
-          repository.unblock(
-            userId: currentUser.userId,
-            targetUserId: otherUserId,
-          );
-        } else {
-          repository.block(
-            userId: currentUser.userId,
-            targetUserId: otherUserId,
-          );
-        }
-      case _DmMenuAction.toggleReadReceipts:
-        // 既読オン/オフは一対共有の1つの設定で、どちら向きの変更も
-        // 相手の承認が必要（提案は常に現在値の反転を意味する）。
-        // オフにする提案の場合のみ、提案前に警告を出す。
-        if (dm.readReceiptsEnabled) {
-          final confirmed = await confirmDisableReadReceipts(context, strings);
-          if (!confirmed) return;
-        }
-        ref
-            .read(directMessageRepositoryProvider)
-            .proposeReadReceiptsToggle(
-              dmId: dm.dmId,
-              userId: currentUser.userId,
-            );
-      case _DmMenuAction.proposeSeverance:
-        SeveranceDialog.show(
-          context,
-          mode: SeveranceDialogMode.propose,
-          dmId: dm.dmId,
-          currentUserId: currentUser.userId,
-          otherUserId: otherUserId,
-        );
-      case _DmMenuAction.deleteConversation:
-        final confirmed = await _confirmDeleteDm(context, strings);
-        if (!confirmed) return;
-        await ref
-            .read(directMessageRepositoryProvider)
-            .deleteDmAfterAccountDeletion(dm.dmId, userId: currentUser.userId);
-        if (context.mounted) {
-          ref.read(goRouterProvider).go('/');
-        }
     }
   }
 
@@ -1870,7 +1685,6 @@ class GroupChatPane extends ConsumerStatefulWidget {
     required this.roomId,
     required this.roomName,
     this.showRoomTabBar = false,
-    this.hasSidebar = false,
     super.key,
   });
 
@@ -1887,16 +1701,6 @@ class GroupChatPane extends ConsumerStatefulWidget {
   /// 表示しない。TalksTabの分割表示（サイドバー使用中）からはfalseのまま渡す
   /// （サイドバーと二重にならないように）。
   final bool showRoomTabBar;
-
-  /// 物理的な寄合一覧サイドバー（`RoomListPane`）が、このペインの隣に
-  /// 常に存在するか（2026-09-11追加、`showRoomTabBar`から独立した引数に
-  /// 分離）。以前は`hasSidebar`を`!showRoomTabBar`から逆算していたが、
-  /// 「タブバーもサイドバーも無い」状態（縦表示のアイコン＋寄合一覧
-  /// レイアウトから遷移した場合）が増えたことでこの前提が崩れた。既定は
-  /// false（ハンバーガーメニュー側に寄合管理項目を出す）で、実際にサイドバー
-  /// が隣にあるのはTalksTabの広い分割表示（`talks_tab.dart`の
-  /// `_GroupDetailWithRooms`）のみ。
-  final bool hasSidebar;
 
   @override
   ConsumerState<GroupChatPane> createState() => _GroupChatPaneState();
@@ -2471,7 +2275,6 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
           roomName: roomName,
           currentRoom: currentRoom,
           roles: roles,
-          hasSidebar: widget.hasSidebar,
           menuAnchorKey: _menuAnchorKey,
         ),
       ],
@@ -2480,31 +2283,13 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
   }
 }
 
-/// ハンバーガーメニュー・メンバー一覧・プロフィールカードいずれのポップアップも
-/// 使う共通の見た目（角丸のMaterialカード）。
-class _PopupCard extends StatelessWidget {
-  const _PopupCard({required this.child, required this.constraints});
-
-  final Widget child;
-  final BoxConstraints constraints;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Theme.of(context).colorScheme.surface,
-      elevation: 8,
-      borderRadius: BorderRadius.circular(16),
-      clipBehavior: Clip.antiAlias,
-      child: ConstrainedBox(constraints: constraints, child: child),
-    );
-  }
-}
-
-/// 広場の「プロフィールカード・メンバー一覧・招待リンク作成・退会」を
-/// まとめたハンバーガーメニュー（2026-07-24追加、広場のカスタマイズ機能）。
-/// メニュー自体はボタンの真下に開く（`PopupMenuPosition.under`）。
-/// メンバー一覧・プロフィールカードは全画面遷移ではなく、それぞれボタンの
-/// 左隣・画面中央に角丸のポップアップとして開く（2026-07-25変更）。
+/// 広場の寄合（現在開いている寄合）固有の操作をまとめたハンバーガーメニュー
+/// （2026-07-24追加、広場のカスタマイズ機能）。プロフィールカード・
+/// メンバー一覧・招待リンク作成・ロール管理・広場削除・寄合モード選択は
+/// `GroupSettingsPopup`（`openGroupSettings`項目から開く）に集約済み
+/// （2026-09-13、単一モードでもこのメニューから同じ設定画面へ到達できる
+/// ようにしたため、フラット化した重複表示をやめた）。メニュー自体はボタンの
+/// 真下に開く（`PopupMenuPosition.under`）。
 class _GroupMenuButton extends ConsumerStatefulWidget {
   const _GroupMenuButton({
     required this.currentUser,
@@ -2513,7 +2298,6 @@ class _GroupMenuButton extends ConsumerStatefulWidget {
     required this.roomName,
     required this.currentRoom,
     required this.roles,
-    required this.hasSidebar,
     required this.menuAnchorKey,
   });
 
@@ -2523,11 +2307,6 @@ class _GroupMenuButton extends ConsumerStatefulWidget {
   /// 現在表示中の寄合。
   final String roomId;
   final String roomName;
-
-  /// サイドバー（`RoomListPane`）が表示される広い画面かどうか。「広場自体の
-  /// 設定」項目はサイドバーの歯車アイコンと重複するため、サイドバーが無い
-  /// 狭い画面の時だけメニューに表示する（2026-09-06変更）。
-  final bool hasSidebar;
 
   /// [roomId]が指す寄合のドキュメント本体（`rolePriorityOverride`の現在値の
   /// 表示・編集に使う）。ロード中でまだ取得できていない場合はnull。
@@ -2550,65 +2329,6 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
     final box =
         widget.menuAnchorKey.currentContext!.findRenderObject()! as RenderBox;
     return box.localToGlobal(Offset.zero) & box.size;
-  }
-
-  // メンバー一覧ポップアップを、ハンバーガーメニューのボタンの左隣（右端を
-  // ボタンの左端に合わせる位置）に表示する。画面外にはみ出す場合は画面内に収める。
-  Future<void> _showMemberListPopup() {
-    final buttonRect = _buttonRect();
-    const width = 340.0;
-    return showGeneralDialog<void>(
-      context: context,
-      barrierDismissible: true,
-      barrierLabel: '',
-      barrierColor: Colors.black26,
-      transitionDuration: const Duration(milliseconds: 150),
-      pageBuilder: (context, animation, secondaryAnimation) {
-        final screenSize = MediaQuery.sizeOf(context);
-        final left = (buttonRect.left - width).clamp(
-          8.0,
-          screenSize.width - width - 8.0,
-        );
-        final top = buttonRect.top;
-        return Stack(
-          children: [
-            Positioned(
-              left: left,
-              top: top,
-              child: _PopupCard(
-                constraints: BoxConstraints(
-                  maxWidth: width,
-                  maxHeight: screenSize.height - top - 24,
-                ),
-                child: GroupMemberListPopup(
-                  currentUser: widget.currentUser,
-                  group: widget.group,
-                  roles: widget.roles,
-                ),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Future<void> _showProfileCardPopup() {
-    return showGeneralDialog<void>(
-      context: context,
-      barrierDismissible: true,
-      barrierLabel: '',
-      barrierColor: Colors.black26,
-      transitionDuration: const Duration(milliseconds: 150),
-      pageBuilder: (context, animation, secondaryAnimation) {
-        return Center(
-          child: _PopupCard(
-            constraints: const BoxConstraints(maxWidth: 400, maxHeight: 640),
-            child: GroupProfileCardPopup(group: widget.group),
-          ),
-        );
-      },
-    );
   }
 
   Future<void> _openMenu() async {
@@ -2637,11 +2357,6 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
       userId: userId,
       permission: GroupPermission.manageReadReceipts,
     );
-    final canCreateInvite = hasGroupPermission(
-      group: widget.group,
-      userId: userId,
-      permission: GroupPermission.createInvite,
-    );
     final canManageRooms = hasGroupPermission(
       group: widget.group,
       userId: userId,
@@ -2650,7 +2365,6 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
     final prefs =
         ref.read(conversationPrefsProvider(widget.currentUser.userId)).value ??
         const <String, ConversationPrefs>{};
-    final muted = prefs[widget.group.groupId]?.notificationsMuted ?? false;
     final readReceiptsEnabled = widget.group.readReceiptsEnabled;
     // 「この寄合独自の設定」がオンの間だけ、通知・既読はこの寄合専用の値を
     // 使う（広場全体の値より優先、2026-07-29追加）。単一モードにはこの
@@ -2669,42 +2383,6 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
 
     Future<void> handle(_GroupMenuAction action) async {
       switch (action) {
-        case _GroupMenuAction.profileCard:
-          _showProfileCardPopup();
-        case _GroupMenuAction.conversationProfileCard:
-          ConversationProfileCardDialog.show(
-            context,
-            currentUserId: widget.currentUser.userId,
-            conversationId: widget.group.groupId,
-          );
-        case _GroupMenuAction.memberList:
-          _showMemberListPopup();
-        case _GroupMenuAction.createInvite:
-          if (!canCreateInvite) return;
-          GroupInviteDialog.show(
-            context,
-            widget.group.groupId,
-            widget.group.profileCard,
-          );
-        case _GroupMenuAction.manageRoles:
-          // 単一モード専用（2026-07-29追加）。複数モードのロール管理は
-          // サイドバーの「広場自体の設定」（歯車アイコン）から行う。
-          if (!canManageRoles) return;
-          showDialog<void>(
-            context: context,
-            builder: (_) => Dialog(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(
-                  maxWidth: 400,
-                  maxHeight: 640,
-                ),
-                child: GroupRoleListPopup(
-                  currentUser: widget.currentUser,
-                  group: widget.group,
-                ),
-              ),
-            ),
-          );
         case _GroupMenuAction.renameRoom:
           if (!canManageRooms) return;
           final name = await _showRenameRoomDialog(
@@ -2720,28 +2398,6 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
                 groupId: widget.group.groupId,
                 roomId: widget.roomId,
                 name: name,
-              );
-        case _GroupMenuAction.disableRoomFeature:
-          if (!canManageRooms) return;
-          final confirmed = await _confirmDisableRoomFeature(
-            context,
-            strings,
-            vocabulary,
-          );
-          if (!confirmed) return;
-          await ref
-              .read(groupRepositoryProvider)
-              .setRoomFeatureDisabled(
-                groupId: widget.group.groupId,
-                disabled: true,
-              );
-        case _GroupMenuAction.enableRoomFeature:
-          if (!canManageRooms) return;
-          await ref
-              .read(groupRepositoryProvider)
-              .setRoomFeatureDisabled(
-                groupId: widget.group.groupId,
-                disabled: false,
               );
         case _GroupMenuAction.deleteRoom:
           if (!canManageRooms) return;
@@ -2802,11 +2458,6 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
         // 広い画面（埋め込みペイン）はcanPop()==falseで元々no-op。
         // TalksTab側の既存フォールバック（rooms.first）が自動的に
         // 一番上の寄合を選択するため、追加対応不要。
-        case _GroupMenuAction.enableMultipleRooms:
-          if (!canManageRooms) return;
-          await ref
-              .read(groupRepositoryProvider)
-              .setRoomsEnabled(groupId: widget.group.groupId, enabled: true);
         case _GroupMenuAction.roomRolePriority:
           if (!canManageRoles) return;
           final regularRoles = widget.roles
@@ -2842,85 +2493,54 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
                       ),
           );
         case _GroupMenuAction.toggleMute:
-          // 複数モードでは「この寄合独自の設定」がオンの間だけこの項目が
-          // 表示され、その場合はこの寄合専用の値を切り替える（広場全体の
-          // 既定値は全体設定ポップアップから編集する、2026-07-29変更）。
-          if (widget.group.roomsEnabled) {
-            ref
-                .read(conversationPrefsRepositoryProvider)
-                .setRoomNotificationsMuted(
-                  userId: widget.currentUser.userId,
-                  conversationId: widget.group.groupId,
-                  roomId: widget.roomId,
-                  muted: !roomMuted,
-                );
-          } else {
-            ref
-                .read(conversationPrefsRepositoryProvider)
-                .setNotificationsMuted(
-                  userId: widget.currentUser.userId,
-                  conversationId: widget.group.groupId,
-                  muted: !muted,
-                );
-          }
+          // 「この寄合独自の設定」がオンの間だけこの項目が表示され、この
+          // 寄合専用の値を切り替える（広場全体の既定値は`GroupSettingsPopup`
+          // から編集する、2026-07-29変更）。
+          ref
+              .read(conversationPrefsRepositoryProvider)
+              .setRoomNotificationsMuted(
+                userId: widget.currentUser.userId,
+                conversationId: widget.group.groupId,
+                roomId: widget.roomId,
+                muted: !roomMuted,
+              );
         case _GroupMenuAction.toggleReadReceipts:
           // 既読機能のオン/オフはmanageReadReceipts権限を持つメンバーのみ
           // 操作可能（firestore.rulesで強制、メニュー項目自体もそれ以外は
           // enabled: falseにしている）。オフにする場合のみ、確定前に
-          // 既読履歴が消える旨を警告する。複数モードでは「この寄合独自の
-          // 設定」がオンの間だけこの項目が表示され、この寄合専用の値を
-          // 切り替える（2026-07-29変更）。
+          // 既読履歴が消える旨を警告する。「この寄合独自の設定」がオンの間
+          // だけこの項目が表示され、この寄合専用の値を切り替える
+          // （広場全体の既定値は`GroupSettingsPopup`から編集する、
+          // 2026-07-29変更）。
           if (!canManageReadReceipts) return;
-          if (widget.group.roomsEnabled) {
-            if (roomReadReceiptsEnabled) {
-              final confirmed = await confirmDisableReadReceipts(
-                context,
-                strings,
-              );
-              if (!confirmed) return;
-            }
-            ref
-                .read(groupRepositoryProvider)
-                .setRoomReadReceiptsEnabledOverride(
-                  groupId: widget.group.groupId,
-                  roomId: widget.roomId,
-                  enabled: !roomReadReceiptsEnabled,
-                );
-          } else {
-            if (readReceiptsEnabled) {
-              final confirmed = await confirmDisableReadReceipts(
-                context,
-                strings,
-              );
-              if (!confirmed) return;
-            }
-            ref
-                .read(groupRepositoryProvider)
-                .setReadReceiptsEnabled(
-                  groupId: widget.group.groupId,
-                  enabled: !readReceiptsEnabled,
-                  userId: widget.currentUser.userId,
-                );
+          if (roomReadReceiptsEnabled) {
+            final confirmed = await confirmDisableReadReceipts(
+              context,
+              strings,
+            );
+            if (!confirmed) return;
           }
+          ref
+              .read(groupRepositoryProvider)
+              .setRoomReadReceiptsEnabledOverride(
+                groupId: widget.group.groupId,
+                roomId: widget.roomId,
+                enabled: !roomReadReceiptsEnabled,
+              );
         case _GroupMenuAction.leave:
           GroupLeaveDialog.show(
             context,
             groupId: widget.group.groupId,
             userId: widget.currentUser.userId,
           );
-        case _GroupMenuAction.deleteGroup:
-          if (!isOwner) return;
-          GroupDeleteDialog.show(
-            context,
-            groupId: widget.group.groupId,
-            userId: widget.currentUser.userId,
-          );
         case _GroupMenuAction.openGroupSettings:
-          // 複数モードの広場の設定一式（プロフィールカード・メンバー一覧・
-          // 招待リンク・ロール管理・広場削除）は、広い画面ではサイドバーの
-          // 歯車アイコンから開けるが、狭い画面（RoomTabBar使用）にはその
-          // サイドバー自体が無いため、ハンバーガーメニューからも同じ
-          // ダイアログを開けるようにする（2026-09-02追加）。
+          // 広場の設定一式（プロフィールカード・メンバー一覧・招待リンク・
+          // ロール管理・広場削除・寄合モード選択）はモード問わず
+          // `GroupSettingsPopup`に集約している。広い画面ではサイドバーの
+          // 歯車アイコンからも開けるが、単一モード（サイドバー自体が無い）
+          // や狭い画面（RoomTabBar使用）にはその手段が無いため、
+          // ハンバーガーメニューからも同じダイアログを開けるようにする
+          // （2026-09-02追加、2026-09-13に常時表示化）。
           showGroupSettingsDialog(
             context,
             currentUser: widget.currentUser,
@@ -2942,47 +2562,6 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
           padding: EdgeInsets.zero,
           child: _MenuPanel(
             children: [
-              // 単一モード（サイドバー・全体設定ポップアップが無い）の間だけ、
-              // 本来は全体設定に置くべき項目もここへ集約する例外扱い
-              // （2026-07-29変更。複数モードではサイドバーの「広場自体の設定」
-              // 歯車アイコン＝`GroupSettingsPopup`にこれらを移設した）。
-              if (!widget.group.roomsEnabled) ...[
-                _MenuTile(
-                  label: strings.groupMenuProfileCard,
-                  foreground: foreground,
-                  value: _GroupMenuAction.profileCard,
-                ),
-                if (widget.currentUser.profileCards.length > 1)
-                  _MenuTile(
-                    label: strings.conversationProfileCardMenuLabel,
-                    foreground: foreground,
-                    value: _GroupMenuAction.conversationProfileCard,
-                  ),
-                _MenuTile(
-                  label: strings.groupMenuMemberList,
-                  foreground: foreground,
-                  value: _GroupMenuAction.memberList,
-                ),
-                _MenuTile(
-                  label: strings.groupMenuCreateInvite,
-                  foreground: foreground,
-                  enabled: canCreateInvite,
-                  value: _GroupMenuAction.createInvite,
-                ),
-                _MenuTile(
-                  label: strings.groupMenuManageRoles,
-                  foreground: foreground,
-                  enabled: canManageRoles,
-                  value: _GroupMenuAction.manageRoles,
-                ),
-                _MenuTile(
-                  label: strings.groupDeleteMenuLabel,
-                  foreground: foreground,
-                  destructive: true,
-                  enabled: isOwner,
-                  value: _GroupMenuAction.deleteGroup,
-                ),
-              ],
               if (!widget.group.roomFeatureDisabled) ...[
                 _MenuTile(
                   label: strings.roomRenameLabel(vocabulary.textChannel),
@@ -2990,33 +2569,6 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
                   enabled: canManageRooms,
                   value: _GroupMenuAction.renameRoom,
                 ),
-                // 単一モードの間だけ「寄合機能を無くす」を「寄合の名前を
-                // 変更」の直下に出す（2026-09-07追加、ユーザー指示）。
-                if (!widget.group.roomsEnabled)
-                  _MenuTile(
-                    label: strings.roomFeatureDisableLabel(
-                      vocabulary.textChannel,
-                    ),
-                    foreground: foreground,
-                    enabled: canManageRooms,
-                    value: _GroupMenuAction.disableRoomFeature,
-                  ),
-              ] else
-                _MenuTile(
-                  label: strings.roomFeatureEnableLabel(vocabulary.textChannel),
-                  foreground: foreground,
-                  enabled: canManageRooms,
-                  value: _GroupMenuAction.enableRoomFeature,
-                ),
-              // 「名前を変更」（または「寄合機能を無くす」）と「削除」の間に
-              // 配置する（2026-09-06変更、ユーザー指示）。
-              _MenuTile(
-                label: strings.groupMenuLeave,
-                foreground: foreground,
-                enabled: !isOwner,
-                value: _GroupMenuAction.leave,
-              ),
-              if (!widget.group.roomFeatureDisabled) ...[
                 // 寄合一覧サイドバーのごみ箱アイコンの代わり
                 // （2026-07-30変更）。最後の1つの寄合は選べても実際には
                 // 削除できず、リポジトリがStateErrorを投げてSnackBarで
@@ -3029,33 +2581,30 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
                   enabled: canManageRooms,
                   value: _GroupMenuAction.deleteRoom,
                 ),
-                // 単一モードの間だけ「寄合を複数扱う」を出す。複数モードへの
-                // 切り替えは一方向のみ（2026-07-29追加、
-                // `Group.roomsEnabled`参照）。
-                if (!widget.group.roomsEnabled)
-                  _MenuTile(
-                    label: strings.groupMenuEnableMultipleRooms,
-                    foreground: foreground,
-                    enabled: canManageRooms,
-                    value: _GroupMenuAction.enableMultipleRooms,
-                  ),
               ],
+              _MenuTile(
+                label: strings.groupMenuLeave,
+                foreground: foreground,
+                enabled: !isOwner,
+                value: _GroupMenuAction.leave,
+              ),
+              // プロフィールカード・メンバー一覧・招待リンク・ロール管理・
+              // 広場削除・寄合モード選択（単一/複数/寄合機能なし）は全て
+              // `GroupSettingsPopup`に集約している（モードを問わず常時表示、
+              // 2026-09-13変更。以前は単一モードだけこのメニューへ直接
+              // フラット化していたが、単一モードでもこの項目から同じ設定
+              // 画面へ到達できるようになったため重複表示をやめた）。広い
+              // 画面ではサイドバーの歯車アイコンとも重複するが実害は無い。
+              _MenuTile(
+                label: strings.groupMenuOpenSettings,
+                foreground: foreground,
+                value: _GroupMenuAction.openGroupSettings,
+              ),
               if (widget.group.roomsEnabled) ...[
-                // 複数モードの本来の設定移設先はサイドバーの歯車アイコン
-                // （`talks_tab.dart`のRoomListPane）。サイドバーが表示される
-                // 広い画面では重複した導線になるため、サイドバー自体が無い
-                // 狭い画面の時だけここにも同じダイアログを開ける項目を出す
-                // （2026-09-02追加、2026-09-06にサイドバー表示中は非表示化）。
-                if (!widget.hasSidebar)
-                  _MenuTile(
-                    label: strings.groupMenuOpenSettings,
-                    foreground: foreground,
-                    value: _GroupMenuAction.openGroupSettings,
-                  ),
-                // 複数モードでは、通知・既読・ロール優先順位の寄合固有設定は
-                // 「この寄合独自の設定」がオンの間だけ表示する
-                // （2026-07-29変更、広場全体の既定値は`GroupSettingsPopup`
-                // から編集する）。
+                // 通知・既読・ロール優先順位の寄合固有設定は「この寄合独自の
+                // 設定」がオンの間だけ表示する（2026-07-29変更、広場全体の
+                // 既定値は`GroupSettingsPopup`から編集する）。単一モードには
+                // 寄合固有設定という概念自体が無い。
                 if (customSettingsEnabled) ...[
                   _MenuTile(
                     label: strings.groupRoomRolePriorityMenuItem,
@@ -3093,26 +2642,6 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
                         roomId: widget.roomId,
                         enabled: value,
                       ),
-                ),
-              ] else ...[
-                _MenuTile(
-                  label: muted
-                      ? strings.conversationUnmute
-                      : strings.conversationMute,
-                  foreground: foreground,
-                  value: _GroupMenuAction.toggleMute,
-                ),
-                // 既読機能のオン/オフはmanageReadReceipts権限を持つメンバーのみ
-                // 操作可能。それ以外には現在の状態を示すラベルとして表示するが、
-                // 操作はできない（leaveがisOwnerで無効化されているのと同じ
-                // 考え方）。
-                _MenuTile(
-                  label: readReceiptsEnabled
-                      ? strings.conversationReadReceiptsDisable
-                      : strings.conversationReadReceiptsEnable,
-                  foreground: foreground,
-                  enabled: canManageReadReceipts,
-                  value: _GroupMenuAction.toggleReadReceipts,
                 ),
               ],
             ],

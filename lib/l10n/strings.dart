@@ -342,6 +342,13 @@ class Strings {
     required this.groupSettingsDisableMultipleRoomsConfirmTitle,
     required this.groupSettingsDisableMultipleRoomsConfirmMessage,
     required this.groupSettingsDisableMultipleRoomsConfirmButton,
+    required this.dmMenuOpenSettings,
+    required this.dmSettingsTooltip,
+    required this.roomModeSectionTitle,
+    required this.roomModeSingleLabel,
+    required this.roomModeDisabledLabel,
+    required this.roomModeSingleLockedHint,
+    required this.roomModeMultipleIrreversibleHint,
     required this.profileCardPickerLabel,
     required this.profileCardPickerStandardOption,
     required this.profileCardPickerStandardOptionWithName,
@@ -1016,6 +1023,39 @@ class Strings {
   final String groupSettingsDisableMultipleRoomsConfirmTitle;
   final String groupSettingsDisableMultipleRoomsConfirmMessage;
   final String groupSettingsDisableMultipleRoomsConfirmButton;
+
+  /// 一対のハンバーガーメニュー、`DmSettingsPopup`を開く項目
+  /// （2026-09-13追加、`GroupSettingsPopup`の`groupMenuOpenSettings`に相当）。
+  final String dmMenuOpenSettings;
+
+  /// `DmSettingsPopup`のヘッダータイトル（2026-09-13追加、
+  /// `groupSettingsTooltip`に相当）。
+  final String dmSettingsTooltip;
+
+  /// `DmSettingsPopup`/`GroupSettingsPopup`内の寄合モード（単一/複数/
+  /// 寄合機能なし）選択の見出し（2026-09-13追加、`roomsEnabled`と
+  /// `roomFeatureDisabled`という独立した2フィールドを1つの選択式
+  /// コントロールに統合した際に新設）。
+  final String roomModeSectionTitle;
+
+  /// 寄合モード選択の「単一」選択肢のラベル。
+  final String roomModeSingleLabel;
+
+  /// 寄合モード選択の「寄合機能なし」選択肢のラベル（`roomFeatureDisabled`
+  /// がtrueの状態。実行アクションの文言は既存の`roomFeatureDisableLabel`を
+  /// 別途再利用する）。
+  final String roomModeDisabledLabel;
+
+  /// 一対の寄合モードで「複数」を選んだ後は「単一」に戻せないことを、
+  /// 「単一」選択肢が無効化されている間に説明する文言（`DirectMessage.
+  /// roomsEnabled`が一方向のみのため。広場は寄合が複数ある間だけ一時的に
+  /// 無効化される点が異なり、既存の`groupSettingsDisableMultipleRoomsBlockedHint`
+  /// を使う）。
+  final String roomModeSingleLockedHint;
+
+  /// 一対の寄合モードで「複数」を選ぶ前に、一方向の変更であることを示す
+  /// 注意書き。
+  final String roomModeMultipleIrreversibleHint;
 
   /// 会話（一対・広場）ごとに使うプロフィールカードを選ぶピッカーのラベル
   /// （`AppUser.conversationProfileCardId`、2026-07-29追加）。広場参加・
@@ -1748,6 +1788,13 @@ class Strings {
     groupSettingsDisableMultipleRoomsConfirmMessage:
         'このサイドバー・複数寄合機能が無くなり、以後の設定は寄合のハンバーガーメニューから行うことになります。',
     groupSettingsDisableMultipleRoomsConfirmButton: 'オフにする',
+    dmMenuOpenSettings: '一対の設定',
+    dmSettingsTooltip: '一対の設定',
+    roomModeSectionTitle: '寄合の扱い方',
+    roomModeSingleLabel: '単一',
+    roomModeDisabledLabel: '寄合機能なし',
+    roomModeSingleLockedHint: '一度複数にすると単一には戻せません',
+    roomModeMultipleIrreversibleHint: '一度切り替えると元に戻せません',
     profileCardPickerLabel: '使うプロフィールカード',
     profileCardPickerStandardOption: '標準',
     profileCardPickerStandardOptionWithName: (name) => '標準（$name）',
@@ -2409,6 +2456,13 @@ class Strings {
     groupSettingsDisableMultipleRoomsConfirmMessage:
         'This sidebar and multiple-room feature will be removed, and settings will move back to the room\'s hamburger menu.',
     groupSettingsDisableMultipleRoomsConfirmButton: 'Merge',
+    dmMenuOpenSettings: 'DM settings',
+    dmSettingsTooltip: 'Direct message settings',
+    roomModeSectionTitle: 'Room handling',
+    roomModeSingleLabel: 'Single',
+    roomModeDisabledLabel: 'No room feature',
+    roomModeSingleLockedHint: "Can't be undone once switched to multiple",
+    roomModeMultipleIrreversibleHint: "This can't be undone once switched",
     profileCardPickerLabel: 'Profile card to use',
     profileCardPickerStandardOption: 'Standard',
     profileCardPickerStandardOptionWithName: (name) => 'Standard ($name)',
