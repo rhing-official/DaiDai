@@ -1357,9 +1357,14 @@ class _TalksTabState extends ConsumerState<TalksTab>
                 // 専用のフルページ検索（`/talks/search`）へ遷移する
                 // （2026-09-12追加、requirement 1）。それ以外
                 // （コンピューター・タブレット全般）は従来通りこの列内で
-                // トグルする。
+                // トグルする。判定はレイアウト起因の問題（幅の狭さ）なので
+                // OS（`isMobileCallPlatform`はWeb版が常にfalseで不適）
+                // ではなく、画面サイズ＋アスペクト比でコンピューター／
+                // タブレット／スマホを判定する`classifyDevice`を使う
+                // （2026-09-13修正、タブレットの誤判定防止のため
+                // OSファミリーのみの判定から変更）。
                 onPressed: () {
-                  if (isMobileCallPlatform) {
+                  if (classifyDevice(context) == DeviceClass.phone) {
                     ref
                         .read(goRouterProvider)
                         .push('/talks/search', extra: widget.currentUser);
