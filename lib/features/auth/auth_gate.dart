@@ -9,6 +9,7 @@ import 'account_suspended_screen.dart';
 import 'passcode_lock_gate.dart';
 import 'rhing_id_setup_screen.dart';
 import 'sign_in_screen.dart';
+import 'terms_consent_screen.dart';
 
 /// 認証状態・Rhing ID登録状態に応じて表示を切り替える汎用ゲート。
 /// ログイン済み・Rhing ID登録済みになった時点で[builder]を呼ぶ。
@@ -52,6 +53,10 @@ class _AuthenticatedUserGateState
     extends ConsumerState<_AuthenticatedUserGate> {
   late Future<AppUser?> _future;
 
+  /// 新規アカウント作成時、[RhingIdSetupScreen]の前に[TermsConsentScreen]で
+  /// 同意したかどうか（このセッション内のみの一時的な状態、2026-09-14追加）。
+  bool _termsAgreed = false;
+
   @override
   void initState() {
     super.initState();
@@ -87,6 +92,11 @@ class _AuthenticatedUserGateState
         }
         final appUser = snapshot.data;
         if (appUser == null) {
+          if (!_termsAgreed) {
+            return TermsConsentScreen(
+              onAgree: () => setState(() => _termsAgreed = true),
+            );
+          }
           return RhingIdSetupScreen(userId: widget.userId);
         }
         if (appUser.accountStatus == AccountStatus.pendingDeletion) {

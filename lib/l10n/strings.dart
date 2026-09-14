@@ -28,6 +28,13 @@ class Strings {
     required this.settingsNotificationsPermissionDeniedError,
     required this.settingsFolderTalk,
     required this.settingsFolderSupport,
+    required this.settingsAnnouncements,
+    required this.settingsAboutApp,
+    required this.settingsAppVersion,
+    required this.settingsTermsOfService,
+    required this.settingsPrivacyPolicy,
+    required this.settingsDisclaimer,
+    required this.settingsOpenSourceLicenses,
     required this.settingsBlockedUsersTitle,
     required this.settingsBlockedUsersEmpty,
     required this.settingsBlockedUsersUnblock,
@@ -632,6 +639,13 @@ class Strings {
   final String settingsNotificationsPermissionDeniedError;
   final String settingsFolderTalk;
   final String settingsFolderSupport;
+  final String settingsAnnouncements;
+  final String settingsAboutApp;
+  final String settingsAppVersion;
+  final String settingsTermsOfService;
+  final String settingsPrivacyPolicy;
+  final String settingsDisclaimer;
+  final String settingsOpenSourceLicenses;
   final String settingsBlockedUsersTitle;
   final String settingsBlockedUsersEmpty;
   final String settingsBlockedUsersUnblock;
@@ -1456,6 +1470,13 @@ class Strings {
         '通知の許可が得られませんでした。ブラウザ/OSの設定をご確認ください。',
     settingsFolderTalk: '語らい',
     settingsFolderSupport: '運営',
+    settingsAnnouncements: 'お知らせ',
+    settingsAboutApp: 'このアプリについて',
+    settingsAppVersion: 'バージョン',
+    settingsTermsOfService: '利用規約',
+    settingsPrivacyPolicy: 'プライバシーポリシー',
+    settingsDisclaimer: '免責事項',
+    settingsOpenSourceLicenses: 'オープンソースライセンス',
     settingsBlockedUsersTitle: 'ブロックしたユーザー',
     settingsBlockedUsersEmpty: 'ブロックしたユーザーはいません',
     settingsBlockedUsersUnblock: 'ブロック解除',
@@ -2087,6 +2108,13 @@ class Strings {
         "Notification permission wasn't granted. Please check your browser/OS settings.",
     settingsFolderTalk: 'Talk',
     settingsFolderSupport: 'Support',
+    settingsAnnouncements: 'Announcements',
+    settingsAboutApp: 'About this app',
+    settingsAppVersion: 'Version',
+    settingsTermsOfService: 'Terms of Service',
+    settingsPrivacyPolicy: 'Privacy Policy',
+    settingsDisclaimer: 'Disclaimer',
+    settingsOpenSourceLicenses: 'Open Source Licenses',
     settingsBlockedUsersTitle: 'Blocked users',
     settingsBlockedUsersEmpty: 'No blocked users',
     settingsBlockedUsersUnblock: 'Unblock',

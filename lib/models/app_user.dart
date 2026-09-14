@@ -44,6 +44,7 @@ class AppUser {
     this.deletionRequestedAt,
     this.createdAt,
     this.lastLoginAt,
+    this.termsAgreedAt,
     this.googleCalendarSyncEnabled,
     this.pushNotificationsEnabled,
   });
@@ -129,6 +130,16 @@ class AppUser {
   /// フィールド（理由は[createdAt]と同様、`updateUser`経由での事故を
   /// 避けるため）。
   final Timestamp? lastLoginAt;
+
+  /// 利用規約・プライバシーポリシー・免責事項に同意した日時（2026-09-14
+  /// 追加）。新規アカウント作成フローの`TermsConsentScreen`で同意した
+  /// タイミングでのみ設定される。[createdAt]/[lastLoginAt]と同じ理由
+  /// （`updateUser`が`toJson()`を`.set()`で全体上書きするため、既存値を
+  /// そのまま書き戻す分には無害だが新規作成時だけはサーバータイムスタンプを
+  /// 差し込みたい）で、`UserRepository.createUser`が個別にマージする。
+  /// この機能追加より前に作られた既存アカウントはnullのまま
+  /// （遡及的な再同意は求めていない）。
+  final Timestamp? termsAgreedAt;
 
   /// Googleカレンダー連携の許可状態（2026-09-01追加）。3値で意味を持たせる:
   /// null=まだ初回確認前、true=許可済み、false=拒否済み（明示的にオフ）。
@@ -363,6 +374,7 @@ class AppUser {
       deletionRequestedAt: json['deletionRequestedAt'] as Timestamp?,
       createdAt: json['createdAt'] as Timestamp?,
       lastLoginAt: json['lastLoginAt'] as Timestamp?,
+      termsAgreedAt: json['termsAgreedAt'] as Timestamp?,
       googleCalendarSyncEnabled: json['googleCalendarSyncEnabled'] as bool?,
       pushNotificationsEnabled: json['pushNotificationsEnabled'] as bool?,
     );
@@ -392,6 +404,7 @@ class AppUser {
       'deletionRequestedAt': deletionRequestedAt,
       'createdAt': createdAt,
       'lastLoginAt': lastLoginAt,
+      'termsAgreedAt': termsAgreedAt,
       'googleCalendarSyncEnabled': googleCalendarSyncEnabled,
       'pushNotificationsEnabled': pushNotificationsEnabled,
     };
