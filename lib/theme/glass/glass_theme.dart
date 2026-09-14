@@ -14,18 +14,38 @@ import '../text_prominence_colors.dart';
 class GlassTheme {
   GlassTheme._();
 
-  static ThemeData light(Color accentColor, {String? fontFamily}) =>
-      _build(accentColor, Brightness.light, fontFamily);
+  static ThemeData light(
+    Color accentColor, {
+    Color? textColor,
+    String? fontFamily,
+  }) => _build(accentColor, Brightness.light, fontFamily, textColor);
 
-  static ThemeData dark(Color accentColor, {String? fontFamily}) =>
-      _build(accentColor, Brightness.dark, fontFamily);
+  static ThemeData dark(
+    Color accentColor, {
+    Color? textColor,
+    String? fontFamily,
+  }) => _build(accentColor, Brightness.dark, fontFamily, textColor);
 
   static ThemeData _build(
     Color accentColor,
     Brightness brightness,
     String? fontFamily,
+    Color? textColor,
   ) {
     final isDark = brightness == Brightness.dark;
+    // ユーザーが設定タブで指定した文字色（未設定なら既存の固定色のまま、
+    // 2026-09-14追加、フラットと同じ方針）。
+    final resolvedTextColor =
+        textColor ??
+        (isDark ? TextProminence.darkPrimary : TextProminence.lightPrimary);
+    final textSecondary = textColor == null
+        ? (isDark
+              ? TextProminence.darkSecondary
+              : TextProminence.lightSecondary)
+        : textColor.withValues(alpha: 0.82);
+    final textTertiary = textColor == null
+        ? (isDark ? TextProminence.darkTertiary : TextProminence.lightTertiary)
+        : textColor.withValues(alpha: 0.6);
     // アクセントカラーが白に近い明るい色だと、決め打ちの白文字では
     // ボタン等が読めなくなる。アクセントカラー自体の明度から動的に
     // 計算するのではなく、ライトモードは黒・ダークモードは白という
@@ -60,8 +80,8 @@ class GlassTheme {
         surfaceContainer: GlassColors.darkSurfaceBase,
         surfaceContainerHigh: GlassColors.darkSurfaceBase,
         surfaceContainerHighest: GlassColors.darkSurfaceBase,
-        onSurface: TextProminence.darkPrimary,
-        onSurfaceVariant: TextProminence.darkSecondary,
+        onSurface: resolvedTextColor,
+        onSurfaceVariant: textSecondary,
       );
     } else {
       colorScheme = colorScheme.copyWith(
@@ -71,8 +91,8 @@ class GlassTheme {
         surfaceContainer: GlassColors.lightSurfaceBase,
         surfaceContainerHigh: GlassColors.lightSurfaceBase,
         surfaceContainerHighest: GlassColors.lightSurfaceBase,
-        onSurface: TextProminence.lightPrimary,
-        onSurfaceVariant: TextProminence.lightSecondary,
+        onSurface: resolvedTextColor,
+        onSurfaceVariant: textSecondary,
       );
     }
     final backgroundColor = isDark
@@ -87,9 +107,7 @@ class GlassTheme {
       cardTintAlpha: isDark ? 0.6 : 0.72,
       edgeBorderBaseAlpha: isDark ? 0.32 : 0.28,
       edgeBorderHighlightAlpha: isDark ? 0.75 : 0.65,
-      textTertiary: isDark
-          ? TextProminence.darkTertiary
-          : TextProminence.lightTertiary,
+      textTertiary: textTertiary,
     );
 
     return ThemeData(
@@ -140,6 +158,13 @@ class GlassTheme {
       // （フラットと同じ方針、CLAUDE.md参照）。
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(foregroundColor: colorScheme.onSurface),
+      ),
+      // OutlinedButtonも同じ理由（CLAUDE.md参照）で中立色に固定する。
+      // これが未指定だったため「QRコードを読み取る」ボタン等の文字色が
+      // Material3既定のcolorScheme.primary（アクセントカラー）のままになり
+      // 視認性を欠いていた（2026-09-14発覚、フラットと同じ修正）。
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(foregroundColor: colorScheme.onSurface),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style:

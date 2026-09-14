@@ -28,6 +28,7 @@ import 'message_time_format_provider.dart';
 import 'send_key_mode_provider.dart';
 import 'sticker_send_mode_provider.dart';
 import 'talks_list_layout_style_provider.dart';
+import 'text_color_provider.dart';
 import 'theme_mode_provider.dart';
 
 /// ログイン直後、Firestoreに保存されている表示設定（[AppUserPreferences]）で
@@ -52,6 +53,16 @@ void applyRemoteUserPreferences(WidgetRef ref, AppUserPreferences preferences) {
     ref
         .read(gekigaBackgroundColorProvider.notifier)
         .syncFromRemote(Color(preferences.gekigaBackgroundColorArgb!));
+  }
+  if (preferences.textColorLightArgb != null) {
+    ref
+        .read(textColorLightProvider.notifier)
+        .syncFromRemote(Color(preferences.textColorLightArgb!));
+  }
+  if (preferences.textColorDarkArgb != null) {
+    ref
+        .read(textColorDarkProvider.notifier)
+        .syncFromRemote(Color(preferences.textColorDarkArgb!));
   }
   if (preferences.themeMode != null) {
     final mode = ThemeMode.values.firstWhereOrNull(

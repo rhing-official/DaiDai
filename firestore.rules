@@ -290,21 +290,20 @@ service cloud.firestore {
             && request.resource.data.readReceiptsProposalBy == null
             && request.resource.data.readReceiptsEnabled == !resource.data.readReceiptsEnabled
           )
-        )
-        // 単一→複数モードへの切り替え（参加者ならどちらでも可。trueへの
-        // 変更のみ許可し、逆方向は不可、2026-07-29追加）。
-        && (
-          !('roomsEnabled' in request.resource.data.diff(resource.data).affectedKeys())
-          || request.resource.data.roomsEnabled == true
-        )
-        // 寄合機能自体を無くす/元に戻す切り替え（参加者ならどちらでも可。
-        // roomsEnabledとは独立したフィールドのため双方向に変更可能だが、
-        // trueにできるのは単一モードの間のみ、2026-09-07追加）。
-        && (
-          !('roomFeatureDisabled' in request.resource.data.diff(resource.data).affectedKeys())
-          || request.resource.data.roomFeatureDisabled == false
-          || (request.resource.data.roomFeatureDisabled == true && resource.data.roomsEnabled == false)
         );
+      // `roomsEnabled`（寄合機能のオン/オフ）は上のallow updateには制約を
+      // 設けていない＝値の制約なく双方向に変更できる（参加者ならどちらでも
+      // 可）。オフに戻す方向は寄合が1つだけの場合に限りクライアント
+      // （DirectMessageRepository.setRoomsEnabled）側で制限する。
+      // firestore.rulesはサブコレクションの件数を検証できないため、
+      // Groupの`roomsEnabled`と同じくクライアントの計算結果を信頼する設計
+      // （2026-09-14変更、以前はtrueへの変更のみ許可する一方向仕様だった）。
+      //
+      // `roomFeatureDisabled`という独立フィールドは、単一モード選択肢と
+      // ほぼ同じ機能（寄合の名前変更・削除メニューの表示/非表示のみ）しか
+      // 持たず、3択という複雑さの割に得られる差が小さかったため2026-09-14
+      // に廃止し、この`roomsEnabled`1つのオン/オフに統合した（フィールド
+      // 自体はFirestore上に無害な残留データとして残る）。
       // 絶縁の実行（最終ステップ）。severanceRequestedByが立っていて、かつ
       // 削除操作者が提案者本人ではない（＝同意した側）場合のみ、この一対
       // 自体の削除を許可する。messages/friends/friendRequestsの削除も
@@ -830,29 +829,21 @@ service cloud.firestore {
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['ownerId'])
             && request.resource.data.ownerId in resource.data.memberIds
           )
-          // 単一↔複数モードの切り替え（長、またはmanageRooms権限を持つ
-          // ロールの付与者のみ）。単一に戻す方向（false）は寄合が1つだけの
+          // 寄合機能（複数寄合）のオン/オフ切り替え（長、またはmanageRooms
+          // 権限を持つロールの付与者のみ）。オフに戻す方向は寄合が1つだけの
           // 場合に限りクライアント（GroupRepository.setRoomsEnabled）側で
           // 制限する。firestore.rulesはサブコレクションの件数を検証できない
           // ため、memberPermissionsキャッシュと同じく計算結果をクライアント
           // から信頼する設計（2026-07-29変更、以前はtrueへの変更のみ許可）。
+          // `roomFeatureDisabled`という独立フィールドは、単一モード選択肢と
+          // ほぼ同じ機能（寄合の名前変更・削除メニューの表示/非表示のみ）
+          // しか持たなかったため2026-09-14に廃止し、この`roomsEnabled`1つの
+          // オン/オフに統合した（フィールド自体はFirestore上に無害な残留
+          // データとして残る）。
           || (
             (request.auth.uid == resource.data.ownerId
               || 'manageRooms' in resource.data.memberPermissions[request.auth.uid])
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['roomsEnabled'])
-          )
-          // 寄合機能自体を無くす/元に戻す切り替え（長、またはmanageRooms
-          // 権限を持つロールの付与者のみ）。roomsEnabledとは独立した
-          // フィールドのため双方向に変更可能だが、trueにできるのは単一
-          // モードの間のみ（2026-09-07追加）。
-          || (
-            (request.auth.uid == resource.data.ownerId
-              || 'manageRooms' in resource.data.memberPermissions[request.auth.uid])
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['roomFeatureDisabled'])
-            && (
-              request.resource.data.roomFeatureDisabled == false
-              || (request.resource.data.roomFeatureDisabled == true && resource.data.roomsEnabled == false)
-            )
           )
           // 寄合一覧（サイドバー）の並べ替え（長、またはmanageRooms権限を
           // 持つロールの付与者のみ、2026-09-08追加）。

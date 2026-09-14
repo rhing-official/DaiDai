@@ -14,15 +14,22 @@ import '../../widgets/gekiga/gekiga_panel_box.dart';
 import '../../widgets/glass/glass_surface.dart';
 import 'room_list_pane.dart' show RoomListEntry, promptForRoomName;
 
-/// 狭い画面（縦表示）のチャット画面のAppBar下部に表示する、寄合の一覧タブバー
+/// 狭い画面（縦表示）のチャット画面上部に表示する、寄合の一覧タブバー
 /// （2026-08-03追加、2026-09-07に複数行折り返し対応）。広い画面のサイドバー
-/// （`RoomListPane`）と同じ役割を、AppBar直下に収まる形で提供する。単一モードの
-/// 会話（`roomsEnabled == false`）では呼び出し側がそもそもこのウィジェットを
+/// （`RoomListPane`）と同じ役割を果たす。単一モードの会話
+/// （`roomsEnabled == false`）では呼び出し側がそもそもこのウィジェットを
 /// 使わない。削除・改名はこのバーからは行わず、開いている寄合のハンバーガー
 /// メニュー（「寄合を削除」等）から行う（`RoomListPane`と同じ方針）。
-/// タップした寄合への切り替えは呼び出し側が`pushReplacement`で画面自体を
-/// 差し替えることで行う（`DmChatPane`/`GroupChatPane`参照。メッセージ一覧の
-/// 購読・入力欄の状態などを寄合ごとにまっさらな状態へ戻すため）。
+///
+/// 呼び出し元（`chat_panes.dart`の`_DmChatPaneState`/`_GroupChatPaneState`）
+/// は`ChatScreen`とは別に、寄合切替でも作り直されない位置にこのウィジェットを
+/// 配置する（2026-09-14変更、詳細は`chat_panes.dart`参照）。以前は
+/// `ChatScreen.roomTabBar`パラメータ経由で`ChatScreen`のScaffold.appBarの
+/// 一部として組み込んでいたが、`ChatScreen`自体が寄合ごとに固有の`key`
+/// （roomId込み）を持ち部屋切替のたびに丸ごと作り直されるため、指でなぞって
+/// 寄合を選ぶドラッグ操作の途中でこのウィジェットの状態（ドラッグ検出）
+/// 自体が消滅する問題があった。ステータスバー分の余白は呼び出し元では
+/// なくこのウィジェット自身が確保する（`build()`末尾の`SafeArea`参照）。
 ///
 /// 寄合が増えて1行に収まらなくなった場合、横スクロールではなく複数行へ
 /// 折り返す（ブラウザのタブのように、ユーザー選択の「多段タブ」方式）。
@@ -31,15 +38,14 @@ import 'room_list_pane.dart' show RoomListEntry, promptForRoomName;
 /// 無限に伸びないようにするため）。バー自体は直接のスクロール操作には
 /// 反応せず（2026-09-11変更）、寄合の選択操作（[_RoomTabBarState
 /// ._handleSlideHover]、指を置いた寄合をなぞって選ぶ、横方向に加え縦方向にも
-/// 対応）中に指が上端/下端の縁に達すると自動でスクロールする形で、隠れた行・
-/// 「＋」ボタンへの到達手段を統合している。
+/// 対応。座標が別の寄合に移った瞬間に切り替わる、2026-09-14変更）中に指が
+/// 上端/下端の縁に達すると自動でスクロールする形で、隠れた行・「＋」ボタンへの
+/// 到達手段を統合している。
 ///
-/// `preferredSize`（`PreferredSizeWidget`のgetter、`BuildContext`を持たない）
-/// で折り返し後の行数を知るには利用可能幅が要るが、この値は呼び出し元
+/// 折り返し後の行数を知るには利用可能幅が要るが、この値は呼び出し元
 /// （`chat_panes.dart`、`BuildContext`を持つ）から[maxWidth]・[textScaler]と
-/// してコンストラクタ経由で受け取る。`preferredSize`と`build()`の両方が
-/// 同じ入力から[_chunkIntoRows]を呼ぶため、高さと実際の行数は必ず一致する。
-class RoomTabBar extends ConsumerStatefulWidget implements PreferredSizeWidget {
+/// してコンストラクタ経由で受け取る。
+class RoomTabBar extends ConsumerStatefulWidget {
   const RoomTabBar({
     required this.rooms,
     required this.selectedRoomId,
@@ -68,8 +74,8 @@ class RoomTabBar extends ConsumerStatefulWidget implements PreferredSizeWidget {
   final TextScaler textScaler;
 
   /// 呼び出し元の`ref.watch(appUiStyleProvider) == AppUiStyle.gekiga`
-  /// （2026-09-08追加）。`preferredSize`は`BuildContext`を持てないため、
-  /// [maxWidth]・[textScaler]と同様にコンストラクタ経由で受け取る。劇画は
+  /// （2026-09-08追加）。[maxWidth]・[textScaler]と同様にコンストラクタ
+  /// 経由で受け取る。劇画は
   /// タブ間隔が[GekigaJointedTileList.gap]（8px）とフラット/ガラスの
   /// [_dividerWidth]（1px）で異なり、`_chunkIntoRows`の折り返し判定を
   /// スタイルごとの実際の間隔に合わせる必要があるため。
@@ -104,8 +110,6 @@ class RoomTabBar extends ConsumerStatefulWidget implements PreferredSizeWidget {
   /// [maxWidth]に収まるよう貪欲法で複数行に分ける。1件だけで[maxWidth]を
   /// 超える長い名前も、分割・削除せずその行に単独で置く（実際の描画側の
   /// セルにも`maxWidth`制約と`Text`の省略表示を持たせて安全策にする）。
-  /// `preferredSize`・`build()`の両方がこの関数を同じ引数で呼ぶことで、
-  /// バーの高さと実際の行数を常に一致させる。
   ///
   /// [itemGap]はタブ間に実際に空く間隔（劇画は[GekigaJointedTileList.gap]
   /// ＝8px、フラット/ガラスは[_dividerWidth]＝1px）。以前はここが常に
@@ -138,24 +142,6 @@ class RoomTabBar extends ConsumerStatefulWidget implements PreferredSizeWidget {
   }
 
   double get _itemGap => isGekiga ? GekigaJointedTileList.gap : _dividerWidth;
-
-  @override
-  Size get preferredSize {
-    final rows = _chunkIntoRows(
-      rooms: rooms,
-      hasAddCell: onCreateRoom != null,
-      maxWidth: maxWidth,
-      textScaler: textScaler,
-      itemGap: _itemGap,
-    );
-    final visibleRows = rows.length.clamp(1, _maxVisibleRows);
-    // 行間の区切り（`isGekiga`はSizedBox(height:8)、それ以外はDivider(height:1)、
-    // `build()`参照）の分を含めないと、劇画UIで2行目が実際のコンテンツ高さより
-    // 低いこの`Size`からはみ出し途切れて見える不具合があった（2026-09-11修正）。
-    return Size.fromHeight(
-      visibleRows * _height + (visibleRows - 1) * _itemGap,
-    );
-  }
 
   @override
   ConsumerState<RoomTabBar> createState() => _RoomTabBarState();
@@ -253,28 +239,45 @@ class _RoomTabBarState extends ConsumerState<RoomTabBar> {
   }
 
   /// ドラッグ中、逐次呼ぶ（横方向・縦方向どちらのStart・Updateからも、
-  /// 2026-09-11に縦方向を追加）。以前はここで即座に`widget.onSelectRoom`
-  /// （実際の画面遷移）を呼んでいたが、寄合の切り替えは`pushReplacement`で
-  /// `RoomTabBar`自身を含む画面全体を作り直すため、指を一時停止させて遷移
-  /// アニメーションが完了すると、ここまでドラッグを検出していたジェスチャー
-  /// 自体が消滅し、以降指を動かしても次のチップへ切り替わらなくなる不具合
-  /// があった（2026-08-10発覚）。実際の遷移は指を離した時点で一度だけ行い
-  /// （[_commitDragSelection]）、ドラッグ中はハイライトの追従のみに留めることで
-  /// この問題を回避する。各セルの実座標（`GlobalKey`経由）による2D判定のため、
-  /// 複数行に折り返っても行をまたいだ判定ができる（縦方向にドラッグして
-  /// 行を移動する場合も同じ判定で追従する）。
+  /// 2026-09-11に縦方向を追加）。指が乗っている寄合が変わった瞬間に
+  /// `widget.onSelectRoom`（実際の切り替え）を呼ぶ（2026-09-14変更、以前は
+  /// 指を離した時点で一度だけ行っていた。詳細は[_updateHoverHighlight]
+  /// 参照）。各セルの実座標（`GlobalKey`経由）による2D判定のため、複数行に
+  /// 折り返っても行をまたいだ判定ができる（縦方向にドラッグして行を移動する
+  /// 場合も同じ判定で追従する）。
   void _handleSlideHover(Offset globalPosition) {
     _lastDragGlobalPosition = globalPosition;
     _updateHoverHighlight(globalPosition);
     _updateEdgeAutoScroll(globalPosition);
   }
 
+  /// 指が乗っている寄合に応じてハイライト・実際の選択を更新する。
+  ///
+  /// 以前はここでハイライトの追従のみ行い、実際の切り替え
+  /// （`widget.onSelectRoom`）は指を離した瞬間に1回だけ行っていた
+  /// （[_commitDragSelection]、2026-08-10導入）。これは当時、寄合の
+  /// 切り替えが`pushReplacement`で`RoomTabBar`自身を含む画面全体を
+  /// 作り直す実装だったため、ドラッグ中に切り替えると、ここまでドラッグを
+  /// 検出していたジェスチャー自体が消滅し、以降指を動かしても次の寄合へ
+  /// 切り替わらなくなる不具合があったための回避策だった。
+  ///
+  /// 2026-09-14、`RoomTabBar`自体を`ChatScreen`の外（`chat_panes.dart`の
+  /// `_DmChatPaneState`/`_GroupChatPaneState`側、寄合切替でkeyが変わらず
+  /// 生き続ける位置）へ配置するよう構造を変更したことで、寄合を切り替えても
+  /// `RoomTabBar`・このドラッグ検出自体は破棄されなくなった。これにより
+  /// 上記の回避策が不要になったため、ユーザー要望（指を離すのを待たず、
+  /// 座標が別の寄合に移った瞬間に切り替える）通り、ハイライト変更と同時に
+  /// 実際の切り替えも即座に行うよう変更した。1回のドラッグで複数の寄合を
+  /// 連続してなぞった場合、その都度この場で切り替えが起きる。
   void _updateHoverHighlight(Offset globalPosition) {
     for (final room in widget.rooms) {
       final rect = _rectFor(room.roomId);
       if (rect == null || !rect.contains(globalPosition)) continue;
       if (room.roomId != _effectiveSelectedRoomId) {
         setState(() => _dragHoverRoomId = room.roomId);
+        if (room.roomId != widget.selectedRoomId) {
+          widget.onSelectRoom(room);
+        }
       }
       return;
     }
@@ -336,21 +339,14 @@ class _RoomTabBarState extends ConsumerState<RoomTabBar> {
     _autoScrollDirection = null;
   }
 
-  /// 指を離した（またはドラッグがキャンセルされた）時に呼ぶ。ドラッグ中に
-  /// ハイライトが乗っていた寄合が実際の選択中と異なれば、ここで初めて
-  /// `widget.onSelectRoom`（画面遷移）を1回だけ行う。
+  /// 指を離した（またはドラッグがキャンセルされた）時に呼ぶ。実際の切り替え
+  /// は[_updateHoverHighlight]でドラッグ中に既に行われているため
+  /// （2026-09-14変更）、ここではドラッグ関連の一時状態の後始末のみ行う。
   void _commitDragSelection() {
     _stopAutoScroll();
     _lastDragGlobalPosition = null;
-    final hoverId = _dragHoverRoomId;
-    if (hoverId == null) return;
-    setState(() => _dragHoverRoomId = null);
-    if (hoverId == widget.selectedRoomId) return;
-    for (final room in widget.rooms) {
-      if (room.roomId == hoverId) {
-        widget.onSelectRoom(room);
-        return;
-      }
+    if (_dragHoverRoomId != null) {
+      setState(() => _dragHoverRoomId = null);
     }
   }
 
@@ -386,10 +382,13 @@ class _RoomTabBarState extends ConsumerState<RoomTabBar> {
     final uiStyle = ref.watch(appUiStyleProvider);
     final isGekiga = uiStyle == AppUiStyle.gekiga;
     final isGlass = uiStyle == AppUiStyle.glass;
-    // AppBar.bottomとして使われる前提のため、AppBar自身のIconTheme（劇画
-    // スタイルなら白、それ以外は既定色）をそのまま引き継ぐ。
-    final foregroundColor =
-        IconTheme.of(context).color ?? Theme.of(context).colorScheme.onSurface;
+    // 以前はAppBar.bottomとして使われる前提でAppBar自身のIconThemeから色を
+    // 引き継いでいたが、`ChatScreen`の外（`chat_panes.dart`）へ配置される
+    // ようになった（2026-09-14変更）ため、AppBarの文脈に頼らずこの場で
+    // 直接同じ値（劇画は白固定、それ以外はcolorScheme.onSurface）を計算する。
+    final foregroundColor = isGekiga
+        ? Colors.white
+        : Theme.of(context).colorScheme.onSurface;
     final borderColor = foregroundColor.withValues(alpha: 0.35);
     final highlightColor = foregroundColor.withValues(alpha: 0.15);
 
@@ -401,7 +400,9 @@ class _RoomTabBarState extends ConsumerState<RoomTabBar> {
       itemGap: widget._itemGap,
     );
     final visibleRows = rows.length.clamp(1, RoomTabBar._maxVisibleRows);
-    // [RoomTabBar.preferredSize]と同じ理由（2026-09-11修正）。
+    // 行間の区切り（`isGekiga`はSizedBox(height:8)、それ以外はDivider(height:1)、
+    // 下記参照）の分を含めないと、劇画UIで2行目が実際のコンテンツ高さより
+    // 低くなり途切れて見える不具合があった（2026-09-11修正）。
     final totalHeight =
         visibleRows * RoomTabBar._height + (visibleRows - 1) * widget._itemGap;
 
@@ -551,9 +552,9 @@ class _RoomTabBarState extends ConsumerState<RoomTabBar> {
           children: [
             for (var i = 0; i < rows.length; i++) ...[
               // 行間の区切り幅は`_itemGap`（本来は横方向のセル間隔用）と同じ値
-              // （劇画8px／それ以外1px）を流用する。`totalHeight`・
-              // `preferredSize`の計算にもこの値を使っており、ずれると劇画UIで
-              // 2行目が途切れる不具合になる（2026-09-11修正）。
+              // （劇画8px／それ以外1px）を流用する。`totalHeight`の計算にも
+              // この値を使っており、ずれると劇画UIで2行目が途切れる不具合に
+              // なる（2026-09-11修正）。
               if (i > 0)
                 isGekiga
                     ? const SizedBox(height: 8)
@@ -586,17 +587,28 @@ class _RoomTabBarState extends ConsumerState<RoomTabBar> {
       child: content,
     );
 
+    // ステータスバー分の余白は、以前は呼び出し元（`ChatScreen`のScaffold.
+    // appBar、Scaffoldが`preferredSize.height`にtopPadding分の余白を自動で
+    // 上乗せする仕組み）が担っていたが、`RoomTabBar`が`ChatScreen`の外
+    // （呼び出し元の`chat_panes.dart`）へ退避したのに伴い（2026-09-14変更、
+    // 詳細は`chat_panes.dart`参照）、ここで自前に確保する。塗り（背景色・
+    // ぼかし）が不透明・不透明に近い方針（直後のコメント参照）のため、
+    // `SafeArea`は塗りの外ではなく内側に置き、余白部分にも同じ背景が
+    // 続くようにする（`SafeArea`を外側に置くと、余白部分だけ背景の塗りが
+    // 無く後ろが透けて見えてしまう）。
     if (isGlass) {
       return GlassSurface(
         variant: GlassVariant.chrome,
         borderRadius: BorderRadius.zero,
         enableEdgeStroke: false,
-        child: SizedBox(height: totalHeight, child: content),
+        child: SafeArea(
+          bottom: false,
+          child: SizedBox(height: totalHeight, child: content),
+        ),
       );
     }
 
     return Container(
-      height: totalHeight,
       // 2026-08-30、チャット画面のScaffold.extendBodyBehindAppBarが全
       // スタイル共通でtrueになったのに合わせ、明示的に不透明背景を指定
       // する（以前はextendBodyBehindAppBar=falseだったため指定が無くても
@@ -606,7 +618,10 @@ class _RoomTabBarState extends ConsumerState<RoomTabBar> {
         color: Theme.of(context).scaffoldBackgroundColor,
         border: Border(top: BorderSide(color: borderColor)),
       ),
-      child: content,
+      child: SafeArea(
+        bottom: false,
+        child: SizedBox(height: totalHeight, child: content),
+      ),
     );
   }
 }

@@ -125,7 +125,6 @@ class ChatScreen extends ConsumerStatefulWidget {
     this.onLoadOlderMessages,
     this.isLoadingOlderMessages = false,
     this.hasMoreHistory = true,
-    this.roomTabBar,
     this.disabled = false,
     this.roomId,
     this.forceShowSenderInfo = false,
@@ -275,11 +274,6 @@ class ChatScreen extends ConsumerStatefulWidget {
   /// これ以上遡れる履歴が無いかどうか。falseなら一覧の最上部に終端表示を
   /// 出し、[onLoadOlderMessages]をこれ以上呼ばない。
   final bool hasMoreHistory;
-
-  /// 狭い画面（縦表示）で、AppBarの直下に寄合の横スクロールタブバー
-  /// （`RoomTabBar`）を表示する（2026-08-03追加）。単一モードの会話・
-  /// 広い画面のサイドバー使用中（`TalksTab`の分割表示）ではnullのまま渡す。
-  final PreferredSizeWidget? roomTabBar;
 
   /// trueの場合、入力欄をグレーアウトして操作不能にする（承認待ちの
   /// 一対・広場を開いたときなど、実際には送信・既読取得ができない状態を
@@ -1861,12 +1855,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     // （_measureComposerAreaのコメント参照）。
     WidgetsBinding.instance.addPostFrameCallback((_) => _measureComposerArea());
 
-    // `primary`はtoolbar行を`RoomTabBar`と共にColumnへ組み込む場合
-    // （下記`roomTabBar`の分岐）に、外側の`SafeArea`と二重にtop paddingが
-    // 付かないよう呼び出し側で`false`を渡す（2026-08-11追加）。
-    AppBar buildToolbar({bool primary = true}) {
+    AppBar buildToolbar() {
       return AppBar(
-        primary: primary,
         foregroundColor: isGekiga ? Colors.white : null,
         // 上部バーの背景を消し、アイコンだけが浮いているように見せる
         // （2026-08-30追加、ガラスUIは元々`wrapToolbar`でGlassAppBarに
@@ -1993,11 +1983,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       );
     }
 
-    // 狭い画面（`widget.roomTabBar`が非null）では、寄合タブ帯を通話・
-    // ハンバーガーメニューのアイコン行より上に表示する（2026-08-11変更、
-    // 以前はAppBar.bottomでアイコン行の下に表示していた）。広い画面
-    // （サイドバー`RoomListPane`使用、`roomTabBar`は渡されない）は
-    // 従来通り単一のAppBarのまま。
+    // 狭い画面の寄合タブ帯（`RoomTabBar`）は、`ChatScreen`のkeyがroomId込み
+    // で部屋切替のたびに作り直されるのを避けるため、`ChatScreen`の外
+    // （呼び出し元の`chat_panes.dart`）で組み立てるようになった（2026-09-14
+    // 変更、以前は`ChatScreen.roomTabBar`パラメータでここに渡しAppBarの
+    // 一部として組み込んでいた。詳細は`chat_panes.dart`参照）。そのため
+    // ここのAppBarは常に単一の通常のツールバーのままでよい。
     // ガラススタイルでは、AppBarをそのまま使わずtitle/leading/actionsを
     // GlassAppBar（ぼかし付き）へ差し替える。中身を組み立てるロジック
     // （選択モード・劇画分岐等）は`buildToolbar`にまとめたまま、その結果の
@@ -2012,26 +2003,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       );
     }
 
-    final roomTabBar = widget.roomTabBar;
-    final appBar = roomTabBar == null
-        ? wrapToolbar(buildToolbar())
-        : PreferredSize(
-            preferredSize: Size.fromHeight(
-              kToolbarHeight + roomTabBar.preferredSize.height,
-            ),
-            child: SafeArea(
-              bottom: false,
-              child: Column(
-                children: [
-                  roomTabBar,
-                  SizedBox(
-                    height: kToolbarHeight,
-                    child: wrapToolbar(buildToolbar(primary: false)),
-                  ),
-                ],
-              ),
-            ),
-          );
+    final appBar = wrapToolbar(buildToolbar());
 
     final scaffold = Scaffold(
       // フラット・劇画UIも含め全スタイルでAppBarの裏までメッセージ一覧を
@@ -4352,7 +4324,6 @@ class _MessageRow extends ConsumerWidget {
         canEdit: canEdit,
         onReply: () => onReply?.call(message),
         onEdit: canEdit ? () => onEdit?.call(message) : null,
-        alignRight: alignRight,
         child: content,
       );
     }
@@ -5922,17 +5893,12 @@ class _MessageInteractions extends StatefulWidget {
     required this.canEdit,
     required this.onReply,
     this.onEdit,
-    this.alignRight = false,
   });
 
   final Widget child;
   final bool canEdit;
   final VoidCallback onReply;
   final VoidCallback? onEdit;
-
-  /// 右寄せ表示（自分のメッセージ・sideBySideレイアウト）かどうか。真の時は
-  /// 右スワイプでの「会話一覧へ戻る」中継を無効にする（ユーザー指定の除外仕様）。
-  final bool alignRight;
 
   @override
   State<_MessageInteractions> createState() => _MessageInteractionsState();
@@ -5961,14 +5927,13 @@ class _MessageInteractionsState extends State<_MessageInteractions> {
       _rawDx += details.delta.dx;
     });
     final swipeBack = InteractiveSwipeBackScope.maybeOf(context);
-    if (!widget.alignRight &&
-        swipeBack != null &&
-        (_rawDx > 0 || swipeBack.isGestureActive)) {
+    if (swipeBack != null && (_rawDx > 0 || swipeBack.isGestureActive)) {
       // 吹き出しの上は返信/編集用の左スワイプをこのGestureDetector自身が
       // 無条件に受理してしまい、外側の背景ジェスチャー（吹き出しの無い
       // 余白では機能する）にジェスチャーアリーナ上伝播しないため、右方向の
       // ドラッグをここから直接[InteractiveSwipeBackScope]へ中継する
-      // （2026-08-06追加、2026-09-07にリアルタイム追従へ変更）。
+      // （2026-08-06追加、2026-09-07にリアルタイム追従へ変更、2026-09-14に
+      // 自分のメッセージ（右寄せ表示）だけ除外していた仕様を撤廃）。
       swipeBack.syncFromExternalDrag(
         context,
         _rawDx.clamp(0.0, double.infinity),
@@ -5984,7 +5949,7 @@ class _MessageInteractionsState extends State<_MessageInteractions> {
       widget.onEdit?.call();
     } else if (reachedReply) {
       widget.onReply();
-    } else if (!widget.alignRight) {
+    } else {
       InteractiveSwipeBackScope.maybeOf(
         context,
       )?.endExternalDrag(context, details.primaryVelocity);

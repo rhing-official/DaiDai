@@ -142,7 +142,13 @@ class _EnmusubiPageState extends ConsumerState<EnmusubiPage> {
             const SizedBox(height: 4),
             Text(strings.enmusubiQrDescription),
             const SizedBox(height: 16),
-            Center(
+            // 招待リンクボックスと左端を揃えるため、中央寄せの`Center`ではなく
+            // `Align(centerLeft)`で左揃えにする（2026-09-14変更。招待リンク
+            // ボックスは横幅いっぱいに広がるため左端が`ListView`のpadding分に
+            // 揃うが、`Center`だと中身のサイズだけで中央寄せされ左端がずれて
+            // 見えていた）。
+            Align(
+              alignment: Alignment.centerLeft,
               child: isGekiga
                   ? GekigaJointedTileList(
                       seeds: [link.hashCode + 1],
@@ -165,7 +171,8 @@ class _EnmusubiPageState extends ConsumerState<EnmusubiPage> {
                     ),
             ),
             const SizedBox(height: 16),
-            Center(
+            Align(
+              alignment: Alignment.centerLeft,
               child: isGekiga
                   ? GekigaJointedTileList(
                       seeds: [strings.enmusubiScanButton.hashCode],

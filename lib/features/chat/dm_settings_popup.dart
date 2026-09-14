@@ -6,30 +6,18 @@ import '../../l10n/vocabulary.dart';
 import '../../models/app_user.dart';
 import '../../models/conversation_prefs.dart';
 import '../../models/direct_message.dart';
+import '../../models/dm_room.dart';
+import '../../providers/block_providers.dart';
 import '../../providers/conversation_prefs_providers.dart';
 import '../../providers/repository_providers.dart';
 import '../../router/app_router.dart';
+import '../../utils/auto_dismiss_banner.dart';
 import '../../widgets/destructive_label.dart';
 import '../../widgets/glass/glass_surface.dart';
 import 'chat_panes.dart'
     show confirmDisableReadReceipts, confirmDisableRoomFeature;
 import 'conversation_profile_card_dialog.dart';
 import 'severance_dialog.dart';
-
-/// 一対（DM）の寄合モード（`DmSettingsPopup`/`GroupSettingsPopup`共通の
-/// 考え方、2026-09-13追加）。`roomsEnabled`（単一→複数、一方向のみ）と
-/// `roomFeatureDisabled`（単一モードの間だけ双方向に切り替え可能）という
-/// 独立した2フィールドの組み合わせを、UI上は3択の1つの選択式コントロールに
-/// 見せるための列挙。一対と広場で許可される遷移が異なる（一対は複数から
-/// 戻せない）ため、共通ウィジェット化はせずそれぞれのファイルに同じ形の
-/// 列挙を用意する。
-enum _RoomMode { single, multiple, disabled }
-
-_RoomMode _dmRoomMode(DirectMessage dm) {
-  if (dm.roomsEnabled) return _RoomMode.multiple;
-  if (dm.roomFeatureDisabled) return _RoomMode.disabled;
-  return _RoomMode.single;
-}
 
 /// [DmSettingsPopup]をガラスUI対応のダイアログでラップして開く
 /// （`showGroupSettingsDialog`と同じ構成、2026-09-13追加）。
@@ -38,7 +26,6 @@ Future<void> showDmSettingsDialog(
   required AppUser currentUser,
   required DirectMessage dm,
   required String otherUserId,
-  required bool isBlocked,
   required bool isGlass,
 }) {
   return showDialog<void>(
@@ -50,7 +37,6 @@ Future<void> showDmSettingsDialog(
           currentUser: currentUser,
           dm: dm,
           otherUserId: otherUserId,
-          isBlocked: isBlocked,
         ),
       );
       return isGlass
@@ -80,44 +66,46 @@ class DmSettingsPopup extends ConsumerWidget {
     required this.currentUser,
     required this.dm,
     required this.otherUserId,
-    required this.isBlocked,
     super.key,
   });
 
   final AppUser currentUser;
   final DirectMessage dm;
   final String otherUserId;
-  final bool isBlocked;
 
-  Future<void> _selectRoomMode(
+  /// 寄合機能（複数寄合）のオン/オフを切り替える（2026-09-14変更、以前の
+  /// 3択「単一／複数／寄合機能なし」を1つのトグルに簡略化した）。オフに
+  /// する場合は事前に確認ダイアログを出す。オフへの変更は寄合が1つだけの
+  /// 場合しか許可されない（`DirectMessageRepository.setRoomsEnabled`が
+  /// 件数を検証し[StateError]を投げる）が、UI側も寄合が複数ある間は
+  /// トグル自体を無効化するため、通常はここに到達する前に弾かれる
+  /// （購読中の件数と実際の書き込み時点の件数がずれる競合状態のみ
+  /// フォールバックとしてここで捕捉する）。
+  Future<void> _toggleRoomsEnabled(
     BuildContext context,
     WidgetRef ref,
     Strings strings,
     Vocabulary vocab,
-    _RoomMode target,
+    bool enabled,
   ) async {
-    final current = _dmRoomMode(dm);
-    if (target == current) return;
-    final repository = ref.read(directMessageRepositoryProvider);
-    switch (target) {
-      case _RoomMode.single:
-        await repository.setRoomFeatureDisabled(dm.dmId, disabled: false);
-      case _RoomMode.multiple:
-        // 「機能なし」から選んだ場合は先に単一モードへ戻してから複数化する
-        // （以前は一度「単一」に戻す手順が別途必要だったのを1手順に簡略化、
-        // 2026-09-13）。
-        if (current == _RoomMode.disabled) {
-          await repository.setRoomFeatureDisabled(dm.dmId, disabled: false);
-        }
-        await repository.setRoomsEnabled(dm.dmId);
-      case _RoomMode.disabled:
-        final confirmed = await confirmDisableRoomFeature(
-          context,
-          strings,
-          vocab,
-        );
-        if (!confirmed) return;
-        await repository.setRoomFeatureDisabled(dm.dmId, disabled: true);
+    if (!enabled) {
+      final confirmed = await confirmDisableRoomFeature(
+        context,
+        strings,
+        vocab,
+      );
+      if (!confirmed) return;
+    }
+    try {
+      await ref
+          .read(directMessageRepositoryProvider)
+          .setRoomsEnabled(
+            dm.dmId,
+            enabled: enabled,
+            requestedBy: currentUser.userId,
+          );
+    } on StateError catch (e) {
+      if (context.mounted) showAutoDismissBanner(context, message: '$e');
     }
   }
 
@@ -156,7 +144,18 @@ class DmSettingsPopup extends ConsumerWidget {
         ref.watch(conversationPrefsProvider(userId)).value ??
         const <String, ConversationPrefs>{};
     final muted = prefs[dm.dmId]?.notificationsMuted ?? false;
-    final roomMode = _dmRoomMode(dm);
+    // ポップアップを開いたまま切り替えても見た目がすぐ反映されるよう、
+    // 呼び出し元から渡された一度きりのスナップショットではなく、ここで
+    // 直接プロバイダをwatchする（2026-09-14修正。以前はコンストラクタ引数
+    // `isBlocked`を使っていたが、`showDmSettingsDialog`の`showDialog`
+    // builderが呼ばれた時点の値に固定され、トグル操作でFirestoreへの
+    // 書き込み自体は成功してもダイアログの表示だけ更新されなかった）。
+    final isBlocked =
+        ref
+            .watch(blockedUserIdsProvider(userId))
+            .value
+            ?.contains(otherUserId) ??
+        false;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -205,41 +204,30 @@ class DmSettingsPopup extends ConsumerWidget {
                   style: Theme.of(context).textTheme.labelLarge,
                 ),
               ),
-              RadioGroup<_RoomMode>(
-                groupValue: roomMode,
-                onChanged: (value) {
-                  if (value != null) {
-                    _selectRoomMode(context, ref, strings, vocabulary, value);
-                  }
+              StreamBuilder<List<DmRoom>>(
+                stream: ref
+                    .read(directMessageRepositoryProvider)
+                    .watchRooms(dmId: dm.dmId, userId: userId),
+                builder: (context, snapshot) {
+                  final rooms = snapshot.data ?? const <DmRoom>[];
+                  final locked = dm.roomsEnabled && rooms.length > 1;
+                  return SwitchListTile(
+                    value: dm.roomsEnabled,
+                    title: Text(strings.dmMenuEnableMultipleRooms),
+                    subtitle: locked
+                        ? Text(strings.roomModeToggleLockedHint)
+                        : null,
+                    onChanged: locked
+                        ? null
+                        : (value) => _toggleRoomsEnabled(
+                            context,
+                            ref,
+                            strings,
+                            vocabulary,
+                            value,
+                          ),
+                  );
                 },
-                child: Column(
-                  children: [
-                    RadioListTile<_RoomMode>(
-                      value: _RoomMode.single,
-                      enabled: roomMode != _RoomMode.multiple,
-                      title: Text(strings.roomModeSingleLabel),
-                      subtitle: roomMode == _RoomMode.multiple
-                          ? Text(strings.roomModeSingleLockedHint)
-                          : null,
-                    ),
-                    RadioListTile<_RoomMode>(
-                      value: _RoomMode.multiple,
-                      enabled: roomMode != _RoomMode.multiple,
-                      title: Text(strings.dmMenuEnableMultipleRooms),
-                      subtitle: roomMode == _RoomMode.multiple
-                          ? null
-                          : Text(strings.roomModeMultipleIrreversibleHint),
-                    ),
-                    RadioListTile<_RoomMode>(
-                      value: _RoomMode.disabled,
-                      enabled: roomMode != _RoomMode.multiple,
-                      title: Text(strings.roomModeDisabledLabel),
-                      subtitle: roomMode == _RoomMode.multiple
-                          ? Text(strings.roomModeSingleLockedHint)
-                          : Text(strings.roomFeatureDisableConfirmMessage),
-                    ),
-                  ],
-                ),
               ),
               const Divider(),
               SwitchListTile(

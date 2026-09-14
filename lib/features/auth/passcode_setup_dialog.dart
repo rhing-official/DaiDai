@@ -32,6 +32,12 @@ class _PasscodeSetupDialogState extends ConsumerState<PasscodeSetupDialog> {
   final _controller = TextEditingController();
   String? _firstEntry;
   String? _errorText;
+  // 常時`obscureText: true`で入力した数字が全く見えず、かつ確定用の
+  // ボタンも無かったため、入力が反映されているのか分からないまま
+  // ダイアログを閉じてしまい「設定しても何も起こらない」という報告に
+  // つながっていた（2026-09-14修正）。目アイコンで表示/非表示を
+  // 切り替えられるようにする。
+  bool _obscure = true;
 
   @override
   void dispose() {
@@ -40,6 +46,11 @@ class _PasscodeSetupDialogState extends ConsumerState<PasscodeSetupDialog> {
   }
 
   void _onChanged(String value) {
+    setState(() {}); // 入力中も「設定」ボタンの有効/無効を再評価する。
+  }
+
+  void _submit() {
+    final value = _controller.text;
     if (value.length != 6) return;
     final firstEntry = _firstEntry;
     if (firstEntry == null) {
@@ -83,11 +94,20 @@ class _PasscodeSetupDialogState extends ConsumerState<PasscodeSetupDialog> {
           controller: _controller,
           autofocus: true,
           keyboardType: TextInputType.number,
-          obscureText: true,
+          obscureText: _obscure,
           textAlign: TextAlign.center,
           inputFormatters: const [FullwidthDigitsInputFormatter()],
           maxLength: 6,
+          decoration: InputDecoration(
+            border: const OutlineInputBorder(),
+            counterText: '',
+            suffixIcon: IconButton(
+              icon: Icon(_obscure ? Icons.visibility : Icons.visibility_off),
+              onPressed: () => setState(() => _obscure = !_obscure),
+            ),
+          ),
           onChanged: _onChanged,
+          onSubmitted: (_) => _submit(),
         ),
       ],
     );
@@ -95,6 +115,10 @@ class _PasscodeSetupDialogState extends ConsumerState<PasscodeSetupDialog> {
       TextButton(
         onPressed: () => Navigator.of(context).pop(),
         child: Text(strings.cancel),
+      ),
+      FilledButton(
+        onPressed: _controller.text.length == 6 ? _submit : null,
+        child: Text(strings.passcodeSetupConfirmButton),
       ),
     ];
     return isGlass

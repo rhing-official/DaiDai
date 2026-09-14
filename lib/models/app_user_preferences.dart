@@ -25,6 +25,8 @@ class AppUserPreferences {
     this.ringtoneSound,
     this.callingSound,
     this.notificationSound,
+    this.textColorLightArgb,
+    this.textColorDarkArgb,
   });
 
   static const empty = AppUserPreferences();
@@ -66,6 +68,12 @@ class AppUserPreferences {
   /// 同じ、2026-09-06 Phase B追加）。
   final String? notificationSound;
 
+  /// ユーザーが指定した文字色（フラット/ガラスの`colorScheme.onSurface`
+  /// 相当、2026-09-14追加）。アクセントカラーと異なり背景とのコントラストが
+  /// 直接可読性に関わるため、ライト/ダークで別々に保存する。
+  final int? textColorLightArgb;
+  final int? textColorDarkArgb;
+
   factory AppUserPreferences.fromJson(Map<String, dynamic>? json) {
     if (json == null) return empty;
     return AppUserPreferences(
@@ -88,6 +96,8 @@ class AppUserPreferences {
       ringtoneSound: json['ringtoneSound'] as String?,
       callingSound: json['callingSound'] as String?,
       notificationSound: json['notificationSound'] as String?,
+      textColorLightArgb: json['textColorLightArgb'] as int?,
+      textColorDarkArgb: json['textColorDarkArgb'] as int?,
     );
   }
 
@@ -114,6 +124,8 @@ class AppUserPreferences {
       if (ringtoneSound != null) 'ringtoneSound': ringtoneSound,
       if (callingSound != null) 'callingSound': callingSound,
       if (notificationSound != null) 'notificationSound': notificationSound,
+      if (textColorLightArgb != null) 'textColorLightArgb': textColorLightArgb,
+      if (textColorDarkArgb != null) 'textColorDarkArgb': textColorDarkArgb,
     };
   }
 }

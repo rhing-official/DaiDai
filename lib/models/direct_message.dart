@@ -14,8 +14,7 @@ class DirectMessage {
     this.readReceiptsEnabled = true,
     this.readReceiptsProposalBy,
     this.accountDeletedUserId,
-    this.roomsEnabled = true,
-    this.roomFeatureDisabled = false,
+    this.roomsEnabled = false,
     this.roomOrder = const [],
   });
 
@@ -67,19 +66,16 @@ class DirectMessage {
 
   /// 複数の寄合（テキストチャンネル）を扱うか。falseの場合はサイドバーの
   /// 寄合一覧を出さず、この一対が持つ唯一の寄合だけを使う単一モード
-  /// （2026-07-29追加）。一対は常にfalse（単一）で作られ、後から
-  /// ハンバーガーメニューの「寄合を増やす」でtrueへの切り替えのみ可能
-  /// （falseへは戻せない）。既存データ（この機能追加前に作られた一対）は
-  /// 全てtrue扱いにする（fromJsonのデフォルト値、既存の複数寄合表示を
-  /// 維持するため）。
+  /// （2026-07-29追加）。一対は常にfalse（単一）で作られ、ハンバーガー
+  /// メニューの「寄合を増やす」でtrueへの切り替えができる。falseへ戻す
+  /// （オフにする）ことも、寄合が1つだけの場合に限り可能（2026-09-14変更、
+  /// 以前はtrueへの変更のみ許可する一方向仕様だった。あわせて独立していた
+  /// `roomFeatureDisabled`フィールド——寄合の名前変更・削除メニューの
+  /// 表示/非表示のみを切り替える3択目——は、この`roomsEnabled`のオン/オフ
+  /// だけで十分と判断し廃止した）。fromJsonのデフォルト値はfalse
+  /// （単一）: 一対はこの機能追加前から一貫して単一の会話構造しか
+  /// 持たなかったため、フィールド欠落＝旧来通りの単一で問題ない。
   final bool roomsEnabled;
-
-  /// 寄合機能自体（名前変更・削除・複数化）を無くし、Discordの一対一DMの
-  /// ような単純な会話として扱うか（2026-09-07追加）。単一モード
-  /// （[roomsEnabled] == false）の時のみtrueにできる。他の寄合関連操作と
-  /// 異なりこちらは双方向に切り替え可能（`DirectMessageRepository.
-  /// setRoomFeatureDisabled`参照、`roomsEnabled`自体は変更しない）。
-  final bool roomFeatureDisabled;
 
   /// 寄合一覧（サイドバー）の表示順（寄合idの並び、先頭が最上位、
   /// 2026-09-08追加）。ここに含まれない寄合（新規作成直後・機能追加前の
@@ -114,8 +110,7 @@ class DirectMessage {
       readReceiptsEnabled: json['readReceiptsEnabled'] as bool? ?? true,
       readReceiptsProposalBy: json['readReceiptsProposalBy'] as String?,
       accountDeletedUserId: json['accountDeletedUserId'] as String?,
-      roomsEnabled: json['roomsEnabled'] as bool? ?? true,
-      roomFeatureDisabled: json['roomFeatureDisabled'] as bool? ?? false,
+      roomsEnabled: json['roomsEnabled'] as bool? ?? false,
       roomOrder: List<String>.from(json['roomOrder'] as List? ?? const []),
     );
   }
@@ -133,7 +128,6 @@ class DirectMessage {
       'readReceiptsProposalBy': readReceiptsProposalBy,
       'accountDeletedUserId': accountDeletedUserId,
       'roomsEnabled': roomsEnabled,
-      'roomFeatureDisabled': roomFeatureDisabled,
       'roomOrder': roomOrder,
     };
   }

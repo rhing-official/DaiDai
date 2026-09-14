@@ -164,11 +164,15 @@ Future<bool> _confirmDeleteRoom(
   return confirmed ?? false;
 }
 
-/// 「寄合機能を無くす」実行前の確認ダイアログ。広場・一対どちらの
-/// 設定画面（`DmSettingsPopup`/`GroupSettingsPopup`の寄合モード選択、
-/// 2026-09-13に各ハンバーガーメニューから移設）からも同じ見た目で使う
-/// （2026-09-07追加）。元に戻せる操作のため、削除確認（[_confirmDeleteRoom]）
-/// と異なり警告色ボタンにはしない。
+/// 寄合機能（複数寄合）のトグルをオフにする実行前の確認ダイアログ。
+/// 広場・一対どちらの設定画面（`DmSettingsPopup`/`GroupSettingsPopup`の
+/// 寄合機能トグル、2026-09-13に各ハンバーガーメニューから移設）からも
+/// 同じ見た目で使う（2026-09-07追加、2026-09-14に3択の「機能なし」選択
+/// 専用から、単一トグルの「オフにする」共通確認へ用途を広げた）。寄合が
+/// 1つだけの場合に限りオフにできる（`DirectMessageRepository`/
+/// `GroupRepository`の`setRoomsEnabled`が検証）ため常に元に戻せる操作
+/// であり、削除確認（[_confirmDeleteRoom]）と異なり警告色ボタンには
+/// しない。
 Future<bool> confirmDisableRoomFeature(
   BuildContext context,
   Strings strings,
@@ -516,23 +520,27 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
     // `_messagesController`へ流し込む（`_messagesController`のdocコメント
     // 参照）。
     _messagesController.add(filteredMessages);
-    return ChatScreen(
+    // 寄合タブバーは`ChatScreen`の外（`ChatScreen`のkeyがroomId込みで
+    // 部屋切替のたびに作り直されるのに対し、この`_buildChatScreen`自体は
+    // 生き続ける）に配置する（2026-09-14変更、詳細は下の`return`直前の
+    // コメント参照）。
+    final roomTabBarWidget = (!showRoomTabBar || rooms == null)
+        ? null
+        : RoomTabBar(
+            rooms: [for (final r in rooms) (roomId: r.roomId, name: r.name)],
+            selectedRoomId: roomId,
+            maxWidth:
+                MediaQuery.sizeOf(context).width -
+                MediaQuery.paddingOf(context).horizontal,
+            textScaler: MediaQuery.textScalerOf(context),
+            isGekiga: ref.watch(appUiStyleProvider) == AppUiStyle.gekiga,
+            onSelectRoom: (room) => _switchRoom(room.roomId, room.name),
+            onCreateRoom: (name) =>
+                dmRepository.createRoom(dmId: dm.dmId, name: name),
+          );
+    final chatScreen = ChatScreen(
       key: ValueKey('dm-${dm.dmId}-$roomId'),
       title: roomName,
-      roomTabBar: (!showRoomTabBar || rooms == null)
-          ? null
-          : RoomTabBar(
-              rooms: [for (final r in rooms) (roomId: r.roomId, name: r.name)],
-              selectedRoomId: roomId,
-              maxWidth:
-                  MediaQuery.sizeOf(context).width -
-                  MediaQuery.paddingOf(context).horizontal,
-              textScaler: MediaQuery.textScalerOf(context),
-              isGekiga: ref.watch(appUiStyleProvider) == AppUiStyle.gekiga,
-              onSelectRoom: (room) => _switchRoom(room.roomId, room.name),
-              onCreateRoom: (name) =>
-                  dmRepository.createRoom(dmId: dm.dmId, name: name),
-            ),
       currentUserId: currentUser.userId,
       isDm: true,
       conversationId: dm.dmId,
@@ -755,7 +763,6 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
           currentUser: currentUser,
           dm: dm,
           otherUserId: otherUserId,
-          isBlocked: isBlocked,
           roomId: roomId,
           roomName: roomName,
           menuAnchorKey: _menuAnchorKey,
@@ -783,6 +790,32 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
           ),
         ],
       ),
+    );
+    if (roomTabBarWidget == null) return chatScreen;
+    // `RoomTabBar`を`ChatScreen`のScaffold.appBarの一部として組み込んでいた
+    // 以前の構成（`ChatScreen.roomTabBar`パラメータ、2026-08-03〜）では、
+    // `ChatScreen`のkeyがroomId込みのため部屋切替のたびに`RoomTabBar`ごと
+    // 作り直されており、指でなぞって寄合を選ぶドラッグ操作の途中でジェス
+    // チャー自体が消滅する問題があった。ここ（`_buildChatScreen`の外側）は
+    // roomId変化ではkeyが変わらず生き続けるため、`RoomTabBar`をこの位置に
+    // 配置することでドラッグ中の部屋切替でも`_RoomTabBarState`が破棄されず、
+    // 連続してなぞり続けられる（2026-09-14変更）。
+    // `ChatScreen`側の`AppBar`は常にステータスバー分の余白を自前で確保する
+    // （`primary: true`が既定）ため、その手前に`RoomTabBar`を独立して置くと
+    // 余白が二重になる。`MediaQuery.removePadding(removeTop: true)`で
+    // `ChatScreen`配下のMediaQuery.padding.topをゼロにし、ステータスバー分の
+    // 余白は`RoomTabBar`自身が内部で確保する（`room_tab_bar.dart`参照）。
+    return Column(
+      children: [
+        roomTabBarWidget,
+        Expanded(
+          child: MediaQuery.removePadding(
+            context: context,
+            removeTop: true,
+            child: chatScreen,
+          ),
+        ),
+      ],
     );
   }
 }
@@ -1482,7 +1515,6 @@ class _DmMenuButton extends ConsumerStatefulWidget {
     required this.currentUser,
     required this.dm,
     required this.otherUserId,
-    required this.isBlocked,
     required this.roomId,
     required this.roomName,
     required this.menuAnchorKey,
@@ -1491,7 +1523,6 @@ class _DmMenuButton extends ConsumerStatefulWidget {
   final AppUser currentUser;
   final DirectMessage dm;
   final String otherUserId;
-  final bool isBlocked;
 
   /// 現在表示中の寄合（名前変更の対象）。
   final String roomId;
@@ -1534,20 +1565,18 @@ class _DmMenuButtonState extends ConsumerState<_DmMenuButton> {
           padding: EdgeInsets.zero,
           child: _MenuPanel(
             children: [
-              if (!widget.dm.roomFeatureDisabled) ...[
-                _MenuTile(
-                  label: strings.roomRenameLabel(vocabulary.textChannel),
-                  foreground: foreground,
-                  value: _DmMenuAction.renameRoom,
-                ),
-                _MenuTile(
-                  label: strings.roomMenuDeleteLabel(vocabulary.textChannel),
-                  foreground: foreground,
-                  destructive: true,
-                  centered: true,
-                  value: _DmMenuAction.deleteRoom,
-                ),
-              ],
+              _MenuTile(
+                label: strings.roomRenameLabel(vocabulary.textChannel),
+                foreground: foreground,
+                value: _DmMenuAction.renameRoom,
+              ),
+              _MenuTile(
+                label: strings.roomMenuDeleteLabel(vocabulary.textChannel),
+                foreground: foreground,
+                destructive: true,
+                centered: true,
+                value: _DmMenuAction.deleteRoom,
+              ),
               _MenuTile(
                 label: strings.dmMenuOpenSettings,
                 foreground: foreground,
@@ -1589,7 +1618,6 @@ class _DmMenuButtonState extends ConsumerState<_DmMenuButton> {
           currentUser: currentUser,
           dm: dm,
           otherUserId: widget.otherUserId,
-          isBlocked: widget.isBlocked,
           isGlass: ref.read(appUiStyleProvider) == AppUiStyle.glass,
         );
       case _DmMenuAction.deleteRoom:
@@ -2059,7 +2087,27 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
     // `_messagesController`へ流し込む（`_messagesController`のdocコメント
     // 参照）。
     _messagesController.add(filteredMessages);
-    return ChatScreen(
+    // 寄合タブバーは`ChatScreen`の外へ配置する（DM側の`_buildChatScreen`と
+    // 同じ理由、2026-09-14変更。詳細は下の`return`直前のコメント参照）。
+    final roomTabBarWidget = !widget.showRoomTabBar || !group.roomsEnabled
+        ? null
+        : RoomTabBar(
+            rooms: [for (final r in rooms) (roomId: r.roomId, name: r.name)],
+            selectedRoomId: roomId,
+            maxWidth:
+                MediaQuery.sizeOf(context).width -
+                MediaQuery.paddingOf(context).horizontal,
+            textScaler: MediaQuery.textScalerOf(context),
+            isGekiga: ref.watch(appUiStyleProvider) == AppUiStyle.gekiga,
+            onSelectRoom: (room) => _switchRoom(room.roomId, room.name),
+            onCreateRoom: canManageRooms
+                ? (name) => groupRepository.createRoom(
+                    groupId: group.groupId,
+                    name: name,
+                  )
+                : null,
+          );
+    final chatScreen = ChatScreen(
       key: ValueKey('group-${group.groupId}-$roomId'),
       title: roomName,
       currentUserId: currentUser.userId,
@@ -2074,24 +2122,6 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
         roomId: roomId,
         currentUserId: currentUser.userId,
       ),
-      roomTabBar: !widget.showRoomTabBar || !group.roomsEnabled
-          ? null
-          : RoomTabBar(
-              rooms: [for (final r in rooms) (roomId: r.roomId, name: r.name)],
-              selectedRoomId: roomId,
-              maxWidth:
-                  MediaQuery.sizeOf(context).width -
-                  MediaQuery.paddingOf(context).horizontal,
-              textScaler: MediaQuery.textScalerOf(context),
-              isGekiga: ref.watch(appUiStyleProvider) == AppUiStyle.gekiga,
-              onSelectRoom: (room) => _switchRoom(room.roomId, room.name),
-              onCreateRoom: canManageRooms
-                  ? (name) => groupRepository.createRoom(
-                      groupId: group.groupId,
-                      name: name,
-                    )
-                  : null,
-            ),
       messagesStream: _messagesController.stream,
       onLoadOlderMessages: _loadOlderMessages,
       isLoadingOlderMessages: _cacheEntry.isLoadingOlder,
@@ -2279,6 +2309,22 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
         ),
       ],
       onSenderTap: (userId) => _openProfileCard(context, userId),
+    );
+    if (roomTabBarWidget == null) return chatScreen;
+    // DM側の`_buildChatScreen`と同じ構成（`ChatScreen.roomTabBar`param
+    // 廃止に伴う退避＋`MediaQuery.removePadding`によるステータスバー分の
+    // 余白調整、2026-09-14変更、詳細はDM側のコメント参照）。
+    return Column(
+      children: [
+        roomTabBarWidget,
+        Expanded(
+          child: MediaQuery.removePadding(
+            context: context,
+            removeTop: true,
+            child: chatScreen,
+          ),
+        ),
+      ],
     );
   }
 }
@@ -2562,26 +2608,24 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
           padding: EdgeInsets.zero,
           child: _MenuPanel(
             children: [
-              if (!widget.group.roomFeatureDisabled) ...[
-                _MenuTile(
-                  label: strings.roomRenameLabel(vocabulary.textChannel),
-                  foreground: foreground,
-                  enabled: canManageRooms,
-                  value: _GroupMenuAction.renameRoom,
-                ),
-                // 寄合一覧サイドバーのごみ箱アイコンの代わり
-                // （2026-07-30変更）。最後の1つの寄合は選べても実際には
-                // 削除できず、リポジトリがStateErrorを投げてSnackBarで
-                // 案内する（`handle`参照）。
-                _MenuTile(
-                  label: strings.roomMenuDeleteLabel(vocabulary.textChannel),
-                  foreground: foreground,
-                  destructive: true,
-                  centered: true,
-                  enabled: canManageRooms,
-                  value: _GroupMenuAction.deleteRoom,
-                ),
-              ],
+              _MenuTile(
+                label: strings.roomRenameLabel(vocabulary.textChannel),
+                foreground: foreground,
+                enabled: canManageRooms,
+                value: _GroupMenuAction.renameRoom,
+              ),
+              // 寄合一覧サイドバーのごみ箱アイコンの代わり
+              // （2026-07-30変更）。最後の1つの寄合は選べても実際には
+              // 削除できず、リポジトリがStateErrorを投げてSnackBarで
+              // 案内する（`handle`参照）。
+              _MenuTile(
+                label: strings.roomMenuDeleteLabel(vocabulary.textChannel),
+                foreground: foreground,
+                destructive: true,
+                centered: true,
+                enabled: canManageRooms,
+                value: _GroupMenuAction.deleteRoom,
+              ),
               _MenuTile(
                 label: strings.groupMenuLeave,
                 foreground: foreground,

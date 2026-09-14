@@ -29,11 +29,17 @@ class AppTheme {
   static const darkBackground = Color(0xFF121212);
   static const darkSurface = Color(0xFF1E1E1E);
 
-  static ThemeData light(Color accentColor, {String? fontFamily}) =>
-      _build(accentColor, Brightness.light, fontFamily);
+  static ThemeData light(
+    Color accentColor, {
+    Color? textColor,
+    String? fontFamily,
+  }) => _build(accentColor, Brightness.light, fontFamily, textColor);
 
-  static ThemeData dark(Color accentColor, {String? fontFamily}) =>
-      _build(accentColor, Brightness.dark, fontFamily);
+  static ThemeData dark(
+    Color accentColor, {
+    Color? textColor,
+    String? fontFamily,
+  }) => _build(accentColor, Brightness.dark, fontFamily, textColor);
 
   /// 運営向け管理画面（`/admin`）専用のモノクロテーマ（2026-08-26追加）。
   /// ユーザーが設定タブで自由に変更できるアクセントカラーの影響を受けたく
@@ -141,8 +147,25 @@ class AppTheme {
     Color accentColor,
     Brightness brightness,
     String? fontFamily,
+    Color? textColor,
   ) {
     final isDark = brightness == Brightness.dark;
+    // ユーザーが設定タブで指定した文字色（未設定なら既存の固定色
+    // `TextProminence.light/darkPrimary`のまま、2026-09-14追加）。
+    // Secondary/Tertiaryは元々`TextProminence`の個別に調整された固定値
+    // だったが、任意のユーザー指定色に対して同じ関係を保つため、
+    // アルファ値による階調（`withValues`）で近似する。
+    final resolvedTextColor =
+        textColor ??
+        (isDark ? TextProminence.darkPrimary : TextProminence.lightPrimary);
+    final textSecondary = textColor == null
+        ? (isDark
+              ? TextProminence.darkSecondary
+              : TextProminence.lightSecondary)
+        : textColor.withValues(alpha: 0.82);
+    final textTertiary = textColor == null
+        ? (isDark ? TextProminence.darkTertiary : TextProminence.lightTertiary)
+        : textColor.withValues(alpha: 0.6);
     // アクセントカラーが白に近い明るい色だと、決め打ちの白文字では
     // ボタン等が読めなくなる。アクセントカラー自体の明度から動的に
     // 計算するのではなく、ライトモードは黒・ダークモードは白という
@@ -176,8 +199,8 @@ class AppTheme {
         surfaceContainer: darkSurface,
         surfaceContainerHigh: darkSurface,
         surfaceContainerHighest: darkSurface,
-        onSurface: TextProminence.darkPrimary,
-        onSurfaceVariant: TextProminence.darkSecondary,
+        onSurface: resolvedTextColor,
+        onSurfaceVariant: textSecondary,
       );
     } else {
       // ライトモードの背景は、ガラスUIと同じ固定の中立色
@@ -192,8 +215,8 @@ class AppTheme {
         surfaceContainerLow: GlassColors.lightBackground,
         surfaceContainer: colorScheme.surfaceContainerHighest,
         surfaceContainerHigh: colorScheme.surfaceContainerHighest,
-        onSurface: TextProminence.lightPrimary,
-        onSurfaceVariant: TextProminence.lightSecondary,
+        onSurface: resolvedTextColor,
+        onSurfaceVariant: textSecondary,
       );
     }
     final backgroundColor = isDark ? darkBackground : colorScheme.surface;
@@ -278,6 +301,13 @@ class AppTheme {
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(foregroundColor: colorScheme.onSurface),
       ),
+      // OutlinedButtonも同じ理由（CLAUDE.md参照）で中立色に固定する。
+      // これが未指定だったため「QRコードを読み取る」ボタン等の文字色が
+      // Material3既定のcolorScheme.primary（アクセントカラー）のままになり
+      // 視認性を欠いていた（2026-09-14発覚）。
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(foregroundColor: colorScheme.onSurface),
+      ),
       // 確認ダイアログのような短い文言のみのAlertDialogが、アクション行の
       // 幅に引っ張られて横長・縦潰れになる問題（2026-09-01発覚）を避けるため、
       // ダイアログ全体の最大幅を統一する。
@@ -328,9 +358,7 @@ class AppTheme {
       extensions: [
         AppThemeExtras(
           floatingShadow: floatingShadow,
-          textTertiary: isDark
-              ? TextProminence.darkTertiary
-              : TextProminence.lightTertiary,
+          textTertiary: textTertiary,
         ),
       ],
     );

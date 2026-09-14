@@ -6,6 +6,7 @@ import '../../models/app_ui_style.dart';
 import '../../models/sticker.dart';
 import '../../providers/app_ui_style_provider.dart';
 import '../../providers/repository_providers.dart';
+import '../../theme/popup_surface_colors.dart';
 import '../../utils/auto_dismiss_banner.dart';
 import '../../widgets/glass/glass_dialog.dart';
 
@@ -105,9 +106,23 @@ class _OwnedPackCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Card(
-      margin: EdgeInsets.zero,
+    final brightness = Theme.of(context).brightness;
+    final uiStyle = ref.watch(appUiStyleProvider);
+    // ポップアップ本体（`Dialog`/`GlassSurface`）と同じ`surfaceContainerHigh`
+    // 系の色をこのカードも既定で使ってしまい、境目が分からず視認性を欠いて
+    // いた（2026-09-14修正）。他のポップアップ内カード（`album_popup_content.
+    // dart`の`_AlbumPopupCard`等）と同じ、アクセントカラーに依存しない
+    // 固定色（`popupCardBackground`/`popupCardForeground`/`popupCardBorder`）
+    // に差し替える。
+    final background = popupCardBackground(brightness, uiStyle);
+    final foreground = popupCardForeground(brightness, uiStyle);
+    final border = popupCardBorder(brightness, uiStyle);
+    return Container(
+      decoration: BoxDecoration(
+        color: background,
+        border: Border.all(color: border),
+        borderRadius: BorderRadius.circular(12),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(12),
         child: Column(
@@ -118,13 +133,15 @@ class _OwnedPackCard extends ConsumerWidget {
                 Expanded(
                   child: Text(
                     pack.name,
-                    style: Theme.of(context).textTheme.titleMedium,
+                    style: Theme.of(
+                      context,
+                    ).textTheme.titleMedium?.copyWith(color: foreground),
                   ),
                 ),
                 TextButton(
                   onPressed: () => _uninstall(context, ref),
                   style: TextButton.styleFrom(
-                    foregroundColor: colorScheme.error,
+                    foregroundColor: Theme.of(context).colorScheme.error,
                   ),
                   child: Text(strings.uninstallStickerButton),
                 ),
@@ -145,7 +162,7 @@ class _OwnedPackCard extends ConsumerWidget {
                       sticker.imageUrl,
                       fit: BoxFit.contain,
                       errorBuilder: (_, _, _) =>
-                          const Icon(Icons.broken_image_outlined),
+                          Icon(Icons.broken_image_outlined, color: foreground),
                     ),
                   );
                 },
