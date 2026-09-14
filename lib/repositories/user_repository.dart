@@ -235,6 +235,7 @@ class FirestoreUserRepository implements UserRepository {
     await _users.doc(user.userId).set({
       ...user.toJson(),
       'createdAt': FieldValue.serverTimestamp(),
+      'termsAgreedAt': FieldValue.serverTimestamp(),
     });
   }
 

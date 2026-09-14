@@ -9,6 +9,8 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../l10n/app_locale.dart';
 import '../../l10n/strings.dart';
@@ -62,7 +64,6 @@ import '../../widgets/qr_scan_screen.dart';
 import '../../widgets/slide_drilldown.dart';
 import '../auth/passcode_setup_dialog.dart';
 import '../auth/two_factor_setup_dialog.dart';
-import '../chat/announcement_screen.dart';
 import '../chat/group_member_list_screen.dart';
 import 'owned_sticker_packs_popup.dart';
 import 'settings_accordion_section.dart';
@@ -95,21 +96,8 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
   /// 広い画面では常に先頭（アカウント）を既定選択として表示する。
   String? _selectedId;
 
-  /// カテゴリタップの共通ハンドラ。「運営」は中身のページ（`_SettingsPage`
-  /// 経由の設定行一覧）を持たず、お知らせ画面を直接表示する。広い画面では
-  /// 語らいの分割表示と同じく、カテゴリ一覧（サイドバー）を残したまま
-  /// 右側の内容ペインへお知らせを表示する（下記build参照）ためselectedId
-  /// を切り替えるだけでよいが、狭い画面ではその置き場（サイドバー）自体が
-  /// 無いため、通常の語らい同様フルスクリーンでpushする（2026-08-12変更）。
+  /// カテゴリタップの共通ハンドラ。
   void _onCategorySelected(_SettingsCategory category) {
-    final isWide =
-        MediaQuery.sizeOf(context).width >= _kSettingsSplitBreakpoint;
-    if (category.id == 'support' && !isWide) {
-      ref
-          .read(goRouterProvider)
-          .push('/announcements', extra: widget.currentUser);
-      return;
-    }
     setState(() => _selectedId = category.id);
   }
 
@@ -138,11 +126,9 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
             ),
             const VerticalDivider(width: 1),
             Expanded(
-              child: selected.id == 'support'
-                  ? AnnouncementScreen(currentUser: widget.currentUser)
-                  : _SettingsPage(
-                      child: Builder(builder: selected.pageBuilder),
-                    ),
+              child: _SettingsPage(
+                child: Builder(builder: selected.pageBuilder),
+              ),
             ),
           ],
         ),
@@ -250,9 +236,8 @@ List<_SettingsCategory> _categories(
       id: 'support',
       icon: Icons.support_agent_outlined,
       title: strings.settingsFolderSupport,
-      // 選択時は_onCategorySelectedがページ遷移せず直接お知らせ画面へ
-      // pushするため、このpageBuilderは実際には呼ばれない。
-      pageBuilder: (context) => const SizedBox.shrink(),
+      pageBuilder: (context) =>
+          _SupportPage(strings: strings, currentUser: currentUser),
     ),
   ];
 }
@@ -971,6 +956,113 @@ Future<bool> _confirmDisconnectGoogleCalendarSync(
     },
   );
   return confirmed ?? false;
+}
+
+/// 運営（サポート）カテゴリの中身。以前は「サポート」タップで直接
+/// お知らせ画面へ遷移していたが、バージョン情報・規約類の参照ページ
+/// （このアプリについて）を置く場所として他カテゴリと同じ一覧構成に
+/// 変更した（2026-09-14追加）。
+class _SupportPage extends ConsumerWidget {
+  const _SupportPage({required this.strings, required this.currentUser});
+
+  final Strings strings;
+  final AppUser currentUser;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return ListView(
+      padding: const EdgeInsets.only(bottom: 24),
+      children: [
+        _ActionRow(
+          label: strings.settingsAnnouncements,
+          onTap: () => ref
+              .read(goRouterProvider)
+              .push('/announcements', extra: currentUser),
+        ),
+        _ActionRow(
+          label: strings.settingsAboutApp,
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => _AboutPage(strings: strings)),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// このアプリについて（バージョン・利用規約・プライバシーポリシー・
+/// 免責事項・オープンソースライセンス）。規約・プライバシーポリシー・
+/// 免責事項の本文はHomePage-Rhing側（`_termsUrl`等）に既に用意されている
+/// ため複製せず、外部リンクとして扱う（2026-09-14追加）。
+class _AboutPage extends StatefulWidget {
+  const _AboutPage({required this.strings});
+
+  final Strings strings;
+
+  @override
+  State<_AboutPage> createState() => _AboutPageState();
+}
+
+const _termsUrl = 'https://rhing.jp/legal/terms';
+const _privacyPolicyUrl = 'https://rhing.jp/legal/privacy';
+const _disclaimerUrl = 'https://rhing.jp/legal/disclaimer';
+
+Future<void> _openExternalUrl(String url) async {
+  final uri = Uri.tryParse(url);
+  if (uri == null) return;
+  await launchUrl(uri, mode: LaunchMode.externalApplication);
+}
+
+class _AboutPageState extends State<_AboutPage> {
+  late final Future<PackageInfo> _packageInfoFuture =
+      PackageInfo.fromPlatform();
+
+  @override
+  Widget build(BuildContext context) {
+    final strings = widget.strings;
+    return Scaffold(
+      appBar: AppBar(title: Text(strings.settingsAboutApp)),
+      body: FutureBuilder<PackageInfo>(
+        future: _packageInfoFuture,
+        builder: (context, snapshot) {
+          final info = snapshot.data;
+          return ListView(
+            padding: const EdgeInsets.only(bottom: 24),
+            children: [
+              _InfoRow(
+                label: strings.settingsAppVersion,
+                value: info == null
+                    ? ''
+                    : '${info.version} (${info.buildNumber})',
+              ),
+              const Divider(height: 24),
+              _ActionRow(
+                label: strings.settingsTermsOfService,
+                onTap: () => _openExternalUrl(_termsUrl),
+              ),
+              _ActionRow(
+                label: strings.settingsPrivacyPolicy,
+                onTap: () => _openExternalUrl(_privacyPolicyUrl),
+              ),
+              _ActionRow(
+                label: strings.settingsDisclaimer,
+                onTap: () => _openExternalUrl(_disclaimerUrl),
+              ),
+              const Divider(height: 24),
+              _ActionRow(
+                label: strings.settingsOpenSourceLicenses,
+                onTap: () => showLicensePage(
+                  context: context,
+                  applicationName: 'DaiDai',
+                  applicationVersion: info?.version,
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
 }
 
 /// アカウントカテゴリの中身。旧: Rhing ID／プロフィール名／セキュリティ／
