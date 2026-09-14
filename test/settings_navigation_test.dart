@@ -22,6 +22,7 @@ import 'package:daidai/providers/send_key_mode_provider.dart';
 import 'package:daidai/models/talks_list_layout_style.dart';
 import 'package:daidai/providers/sticker_send_mode_provider.dart';
 import 'package:daidai/providers/talks_list_layout_style_provider.dart';
+import 'package:daidai/providers/text_color_provider.dart';
 import 'package:daidai/providers/theme_mode_provider.dart';
 import 'package:daidai/widgets/interactive_swipe_back.dart';
 import 'package:daidai/widgets/slide_drilldown.dart';
@@ -51,6 +52,8 @@ Future<void> _pumpSettingsTab(WidgetTester tester) async {
       overrides: [
         initialAppLocaleProvider.overrideWithValue(AppLocale.japanese),
         initialAccentColorProvider.overrideWithValue(const Color(0xFFF08300)),
+        initialTextColorLightProvider.overrideWithValue(kDefaultTextColorLight),
+        initialTextColorDarkProvider.overrideWithValue(kDefaultTextColorDark),
         initialCustomAccentColorsProvider.overrideWithValue(const []),
         initialGekigaBackgroundColorProvider.overrideWithValue(
           const Color(0xFFC1272D),
@@ -69,7 +72,7 @@ Future<void> _pumpSettingsTab(WidgetTester tester) async {
         ),
         initialAppThemeModeProvider.overrideWithValue(ThemeMode.system),
         initialAppUiStyleProvider.overrideWithValue(AppUiStyle.flat),
-        initialFontDesignProvider.overrideWithValue(FontDesign.standard),
+        initialFontDesignProvider.overrideWithValue(FontDesign.hannariMincho),
         initialRingtoneSoundProvider.overrideWithValue(null),
         initialCallingSoundProvider.overrideWithValue(null),
       ],
@@ -99,6 +102,8 @@ Future<void> _pumpSettingsTabNarrow(WidgetTester tester) async {
       overrides: [
         initialAppLocaleProvider.overrideWithValue(AppLocale.japanese),
         initialAccentColorProvider.overrideWithValue(const Color(0xFFF08300)),
+        initialTextColorLightProvider.overrideWithValue(kDefaultTextColorLight),
+        initialTextColorDarkProvider.overrideWithValue(kDefaultTextColorDark),
         initialCustomAccentColorsProvider.overrideWithValue(const []),
         initialGekigaBackgroundColorProvider.overrideWithValue(
           const Color(0xFFC1272D),
@@ -117,7 +122,7 @@ Future<void> _pumpSettingsTabNarrow(WidgetTester tester) async {
         ),
         initialAppThemeModeProvider.overrideWithValue(ThemeMode.system),
         initialAppUiStyleProvider.overrideWithValue(AppUiStyle.flat),
-        initialFontDesignProvider.overrideWithValue(FontDesign.standard),
+        initialFontDesignProvider.overrideWithValue(FontDesign.hannariMincho),
         initialRingtoneSoundProvider.overrideWithValue(null),
         initialCallingSoundProvider.overrideWithValue(null),
       ],
@@ -177,17 +182,31 @@ void main() {
 
     expect(find.text('アクセントカラー'), findsOneWidget);
     expect(find.text('プリセット'), findsOneWidget);
-    expect(find.text('文字'), findsOneWidget);
 
-    // UIスタイルの選択肢が3つ（フラット/劇画/デッサン）に増えたことで
-    // ページが縦に伸び、「表示言語」がSliverListの遅延構築で最初は
-    // マウントされていない（2026-08-25）。2ペイン表示は左のサイドバーも
-    // 同時にScrollableのため、既定の「Scrollableを1つだけ探す」挙動と
-    // 衝突しないよう、右ページのScrollableを明示して探す。
-    final applicationScrollable = find.ancestor(
-      of: find.text('アクセントカラー'),
-      matching: find.byType(Scrollable),
+    // UIスタイルの選択肢が3つ（フラット/劇画/デッサン）に増え、さらに
+    // 文字色設定・フォントデザインの選択肢増加（2026-09-14）でページが
+    // さらに縦に伸びたことで、「文字」（Typographyセクション見出し）・
+    // 「表示言語」がSliverListの遅延構築で最初はマウントされていない
+    // （2026-08-25、2026-09-14追記）。2ペイン表示は左のサイドバーも同時に
+    // Scrollableのため、既定の「Scrollableを1つだけ探す」挙動と衝突しない
+    // よう、右ページのScrollableを明示して探す。
+    //
+    // 以前は「アクセントカラー」等、スクロールで画面外に出て遅延構築から
+    // 外れうるテキストを足場（`find.ancestor`の探索元）にしていたが、
+    // フォントデザインの選択肢が増えてスクロール距離が伸びたことで、
+    // 1回のスクロール中に足場自体がマウント解除されてしまい失敗するように
+    // なった（2026-09-14）。Scrollableウィジェット自体は自分の子が
+    // 画面外に出てもマウント解除されない（スクロールされているのは中身の
+    // 子であって、リスト自体ではないため）ため、`find.byType(Scrollable)`
+    // で直接特定する（サイドバー・右ページの順で2つあるうちの2つ目）方が
+    // スクロール距離に依存せず安定する。
+    final applicationScrollable = find.byType(Scrollable).at(1);
+    await tester.scrollUntilVisible(
+      find.text('文字'),
+      300,
+      scrollable: applicationScrollable,
     );
+    expect(find.text('文字'), findsOneWidget);
     await tester.scrollUntilVisible(
       find.text('表示言語'),
       300,

@@ -44,16 +44,17 @@ abstract class DirectMessageRepository {
     required String name,
   });
 
-  /// 単一モードの一対を複数モードに切り替える（参加者ならどちらでも実行
-  /// 可能）。複数→単一へ戻すことはできない（2026-07-29追加）。
-  Future<void> setRoomsEnabled(String dmId);
-
-  /// 寄合機能自体（名前変更・削除・複数化）を無くし、Discordの一対一DMの
-  /// ような単純な会話として扱うか切り替える（参加者ならどちらでも実行
-  /// 可能、単一モードの時のみ[disabled]をtrueにできる、2026-09-07追加）。
-  /// [DirectMessage.roomsEnabled]自体は変更しないため、双方向に切り替え
-  /// 可能（他の寄合関連操作と異なり一方向ではない）。
-  Future<void> setRoomFeatureDisabled(String dmId, {required bool disabled});
+  /// 一対の寄合機能（複数寄合）をオン/オフする（参加者ならどちらでも実行
+  /// 可能、双方向）。オフにする場合は寄合が1つだけの時のみ許可し、複数
+  /// 残っている場合は[StateError]を投げる（`GroupRepository.setRoomsEnabled`
+  /// と同じ設計、2026-09-14変更。以前はオンへの変更のみ許可する一方向
+  /// 仕様で、加えて独立した`roomFeatureDisabled`という3択目のフィールドも
+  /// あったが、この1つのオン/オフに統合した）。
+  Future<void> setRoomsEnabled(
+    String dmId, {
+    required bool enabled,
+    required String requestedBy,
+  });
 
   /// 寄合一覧（サイドバー）の表示順を設定する（寄合idの並び、
   /// 参加者ならどちらでも実行可能、2026-09-08追加）。
@@ -531,16 +532,25 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
   }
 
   @override
-  Future<void> setRoomsEnabled(String dmId) async {
-    await _directMessages.doc(dmId).update({'roomsEnabled': true});
-  }
-
-  @override
-  Future<void> setRoomFeatureDisabled(
+  Future<void> setRoomsEnabled(
     String dmId, {
-    required bool disabled,
+    required bool enabled,
+    required String requestedBy,
   }) async {
-    await _directMessages.doc(dmId).update({'roomFeatureDisabled': disabled});
+    if (!enabled) {
+      // watchRooms/deleteRoomと同じ理由でwhere句が必須（list操作の
+      // firestore.rules要求を満たすため、`GroupRepository.setRoomsEnabled`
+      // 参照）。
+      final roomsSnapshot = await _directMessages
+          .doc(dmId)
+          .collection('rooms')
+          .where('participants', arrayContains: requestedBy)
+          .get();
+      if (roomsSnapshot.docs.length > 1) {
+        throw StateError('寄合が複数あるため単一モードに戻せません');
+      }
+    }
+    await _directMessages.doc(dmId).update({'roomsEnabled': enabled});
   }
 
   @override

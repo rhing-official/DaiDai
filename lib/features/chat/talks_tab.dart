@@ -67,15 +67,17 @@ enum _TalksCategory { dm, group }
 /// これ未満の狭い画面では、従来通り会話をフルスクリーンで開く。
 const kTalksSplitBreakpoint = 760.0;
 
-/// 縦表示の「アイコン+寄合一覧」レイアウト（[TalksListLayoutStyle.iconSplit]）で、
-/// 寄合一覧の右隣にメッセージ画面も同時表示するかどうかを判定する横幅の閾値
-/// （`home_screen.dart`の`_kWideLayoutBreakpoint`と同じ値、タブレット・
-/// コンピューター相当、2026-09-12追加）。これ未満の幅（スマホ縦表示相当）では、
-/// 画面が狭くメッセージ画面を同時に収められないため、従来通り寄合をタップした
-/// 時点でフルスクリーンチャットへ遷移する。
+/// 「アイコン+寄合一覧」レイアウト（[TalksListLayoutStyle.iconSplit]）で、
+/// 寄合一覧の右隣にメッセージ画面も同時表示するかどうかを判定する、論理サイズ
+/// 短辺の閾値（`home_screen.dart`の`_kWideLayoutBreakpoint`・
+/// `platform_info.dart`の`kTabletShortestSideThreshold`と同じ値、タブレット・
+/// コンピューター相当、2026-09-12追加）。向きを問わず判定するため2026-09-14に
+/// 幅から短辺基準へ変更した（[_TalksTabState._showIconSplitPeek]参照）。
+/// これ未満の端末（スマホ相当）では、画面が狭くメッセージ画面を同時に収められ
+/// ないため、従来通り寄合をタップした時点でフルスクリーンチャットへ遷移する。
 const kIconSplitPeekBreakpoint = 600.0;
 
-/// [kIconSplitPeekBreakpoint]以上の縦表示で寄合一覧＋メッセージ画面を同時
+/// [kIconSplitPeekBreakpoint]以上の端末で寄合一覧＋メッセージ画面を同時
 /// 表示する時の、アイコン列＋寄合一覧（畳める部分）の合計幅（2026-09-12追加）。
 /// アイコン列112px＋区切り線1px＋寄合一覧220px。ドラッグの進行度計算と、
 /// 畳んだ時に実際に隠す幅の両方で使う。
@@ -95,7 +97,7 @@ class TalksTab extends ConsumerStatefulWidget {
 }
 
 class _TalksTabState extends ConsumerState<TalksTab>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   _TalksCategory _category = _TalksCategory.dm;
   DirectMessage? _selectedDm;
   Group? _selectedGroup;
@@ -130,6 +132,47 @@ class _TalksTabState extends ConsumerState<TalksTab>
   /// 状態から始まるドラッグは無視し、「開く」方向（既に畳まれている状態から
   /// の右ドラッグ）だけを受け付ける。
   bool _iconSplitDragEnabled = false;
+
+  /// メッセージ吹き出しの上で右スワイプしても[_buildIconSplitPane]の
+  /// 全画面表示から3ブロック表示へ戻れない不具合（2026-09-14発覚）の対応。
+  /// 日付区切り行等の余白でしか反応しなかったのは、`chat_screen.dart`の
+  /// `_MessageInteractionsState`が返信/編集用の横ドラッグをジェスチャー
+  /// アリーナ上で先に受理してしまい、`_handleIconSplitDragStart`等の外側の
+  /// `GestureDetector`（1182行目）まで伝播しないため。`_MessageInteractions`
+  /// は元々右方向のドラッグを`InteractiveSwipeBackScope`（`slideBackRoute`/
+  /// `app_router.dart`の`slideDetailPage`が提供）へ中継する仕組みを既に
+  /// 持っているので、この3ブロック表示にも同じ型のスコープを提供し、
+  /// メッセージ吹き出し上のドラッグもここへ中継させる。
+  /// 進行度は[_iconSplitCollapse]と双方向に同期する（[_setIconSplitCollapse]
+  /// が明示的な変更を、`progress`のリスナーがこのコントローラ主導の変更
+  /// （中継されたドラッグ・その後の収束アニメーション）を反映する）。
+  late final InteractiveSwipeBackController _iconSplitSwipeBackController =
+      InteractiveSwipeBackController(vsync: this, onCommit: () {})
+        ..maxDrag = kIconSplitCollapseWidth;
+
+  @override
+  void initState() {
+    super.initState();
+    _iconSplitSwipeBackController.progress.addListener(() {
+      final controller = _iconSplitSwipeBackController;
+      _iconSplitCollapse.value =
+          (1 - controller.progress.value / controller.maxDrag).clamp(0.0, 1.0);
+    });
+  }
+
+  /// [_iconSplitCollapse]を明示的に変更する箇所（ドラッグ中の直接計算・
+  /// タップ時のアニメーション・会話切り替え時のリセット）は、必ずこの
+  /// メソッドを経由して[_iconSplitSwipeBackController]の`progress`も
+  /// 同じ状態に同期させる（2026-09-14追加）。これを怠ると、次に
+  /// メッセージ吹き出し上で右スワイプした際の中継（[_iconSplitSwipeBackController]
+  /// 参照）が古い`progress`値から再開してしまい、実際の開閉状態と
+  /// ズレて誤動作する。
+  void _setIconSplitCollapse(double value) {
+    final clamped = value.clamp(0.0, 1.0);
+    _iconSplitCollapse.value = clamped;
+    _iconSplitSwipeBackController.progress.value =
+        (1 - clamped) * _iconSplitSwipeBackController.maxDrag;
+  }
 
   /// 一対⇄広場の横スワイプ切り替え用（2026-08-09追加、`SwipeBackDetector`の
   /// 速度しきい値判定から`PageView`へ変更。手描きの速度判定だと片方向だけ
@@ -207,6 +250,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
     _messageSearchDebounce?.cancel();
     _iconSplitCollapse.dispose();
     _iconSplitCollapseAnimController.dispose();
+    _iconSplitSwipeBackController.dispose();
     super.dispose();
   }
 
@@ -230,11 +274,9 @@ class _TalksTabState extends ConsumerState<TalksTab>
     // 左ドラッグ（dx負）で畳む＝progress増加、右ドラッグ（dx正）で開く＝
     // progress減少という向きにするため、dxを引く。
     _iconSplitCollapseDragCumulative -= details.delta.dx;
-    _iconSplitCollapse.value =
-        (_iconSplitCollapseDragCumulative / kIconSplitCollapseWidth).clamp(
-          0.0,
-          1.0,
-        );
+    _setIconSplitCollapse(
+      _iconSplitCollapseDragCumulative / kIconSplitCollapseWidth,
+    );
   }
 
   void _handleIconSplitDragEnd(DragEndDetails details) {
@@ -269,7 +311,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
         curve: popSlideCurve,
       ),
     );
-    void listener() => _iconSplitCollapse.value = animation.value;
+    void listener() => _setIconSplitCollapse(animation.value);
     animation.addListener(listener);
     _iconSplitCollapseAnimController.forward().whenCompleteOrCancel(
       () => animation.removeListener(listener),
@@ -299,14 +341,24 @@ class _TalksTabState extends ConsumerState<TalksTab>
 
   /// [_buildIconSplitPane]（`TalksListLayoutStyle.iconSplit`）で、寄合一覧の
   /// 右隣にメッセージ画面本体も同時表示する「3ブロック表示」を使うか
-  /// （2026-09-12追加）。タブレット・コンピューターの縦表示相当（幅
-  /// [kIconSplitPeekBreakpoint]以上かつ縦表示）でのみtrueになる。
+  /// （2026-09-12追加）。タブレット・コンピューター相当の端末でのみtrueに
+  /// なる（[kIconSplitPeekBreakpoint]は`platform_info.dart`の
+  /// `kTabletShortestSideThreshold`と同じ600を踏襲した値、コメント参照）。
   /// [_openDirectMessage]/[_openGroup]が「寄合を複数化していない会話でも
   /// ローカル表示にするか」の判定にも使うため、`_buildIconSplitPane`内だけに
   /// 閉じていたローカル変数から昇格させた。
+  ///
+  /// 判定は論理サイズの短辺（`shortestSide`）で行う（2026-09-14修正）。
+  /// 以前は`size.width >= kIconSplitPeekBreakpoint && size.height > size.width`
+  /// （＝縦表示限定）としており、iPadを横向きにすると常にfalseになって
+  /// この3ブロック表示自体に到達できない不具合があった（横向きでは
+  /// `size.width`が最長辺になるため）。タブレット判定は向きに関わらず
+  /// 短辺で行うのが正しく（`classifyDevice`の`kTabletShortestSideThreshold`
+  /// と同じ考え方）、この修正で横向きのタブレットも対象になる一方、
+  /// 横向きの大型スマホ（短辺＝縦の高さが600未満）は引き続き対象外のまま
+  /// になる。
   bool get _showIconSplitPeek {
-    final size = MediaQuery.sizeOf(context);
-    return size.height > size.width && size.width >= kIconSplitPeekBreakpoint;
+    return MediaQuery.sizeOf(context).shortestSide >= kIconSplitPeekBreakpoint;
   }
 
   /// 分割表示でこのセッション中に一度でも開いた会話（`'dm-$dmId'`/
@@ -379,7 +431,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
       // 別の会話に切り替えたら、直前の会話で畳んでいた状態
       // （[_iconSplitCollapse]）を引き継がず、寄合一覧から見せ直す
       // （2026-09-12追加）。
-      _iconSplitCollapse.value = 0;
+      _setIconSplitCollapse(0);
       setState(() {
         _selectedDm = dm;
         _selectedPendingScreen = null;
@@ -425,7 +477,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
             TalksListLayoutStyle.iconSplit;
     if (_isSplit || useIconSplitSelection) {
       // [_openDirectMessage]と同じ理由（2026-09-12追加）。
-      _iconSplitCollapse.value = 0;
+      _setIconSplitCollapse(0);
       setState(() {
         _selectedGroup = group;
         _selectedPendingScreen = null;
@@ -483,7 +535,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
         .set(conversation, hit.message.messageId, hit.roomId);
 
     if (_isSplit || useIconSplitSelection) {
-      _iconSplitCollapse.value = 0;
+      _setIconSplitCollapse(0);
       setState(() {
         if (hit.isDm) {
           _category = _TalksCategory.dm;
@@ -949,18 +1001,29 @@ class _TalksTabState extends ConsumerState<TalksTab>
                 ],
               );
 
+              // アイコン+寄合一覧レイアウト（[TalksListLayoutStyle.iconSplit]）を
+              // 選んでいる場合は、向き（[_isSplit]は横表示限定）を問わず常に
+              // [_buildIconSplitPane]を使う（2026-09-14変更、以前は横表示の
+              // 広い画面だと下の[_isSplit]分岐が優先され、タブレットを横に
+              // するとタップで全画面化・右スワイプで3ブロック表示に戻る
+              // という設計とは別物の、スワイプのみで開閉する旧来の2ペイン
+              // 分割表示になってしまっていた）。`_buildIconSplitPane`自身が
+              // 画面が狭い場合のフォールバック（寄合一覧のみ表示しタップで
+              // フルスクリーン遷移）も内包しているため、ここでの向き判定は
+              // 不要。
+              if (talksListLayoutStyle == TalksListLayoutStyle.iconSplit) {
+                return _buildIconSplitPane(
+                  directMessages,
+                  groups,
+                  prefsById,
+                  incomingRequests,
+                  outgoingRequests,
+                  pendingGroupRequests,
+                  blockedIds,
+                );
+              }
+
               if (!isSplit) {
-                if (talksListLayoutStyle == TalksListLayoutStyle.iconSplit) {
-                  return _buildIconSplitPane(
-                    directMessages,
-                    groups,
-                    prefsById,
-                    incomingRequests,
-                    outgoingRequests,
-                    pendingGroupRequests,
-                    blockedIds,
-                  );
-                }
                 return listPane;
               }
 
@@ -1091,12 +1154,15 @@ class _TalksTabState extends ConsumerState<TalksTab>
     return IndexedStack(index: activeIndex, children: children);
   }
 
-  /// 縦表示専用の新レイアウト（`TalksListLayoutStyle.iconSplit`、設定＞語らいで
-  /// 選択可能、2026-09-11追加）。左にアイコン一覧（[_buildIconRail]）、右に
-  /// 選択中の会話の寄合一覧（[_DmDetailWithRooms]/[_GroupDetailWithRooms]）を
-  /// 表示する。
+  /// 新レイアウト（`TalksListLayoutStyle.iconSplit`、設定＞語らいで選択可能、
+  /// 2026-09-11追加）。左にアイコン一覧（[_buildIconRail]）、右に選択中の
+  /// 会話の寄合一覧（[_DmDetailWithRooms]/[_GroupDetailWithRooms]）を表示する。
+  /// 向き（縦表示/横表示）を問わず、この設定を選んでいる限り常にこのメソッドが
+  /// 使われる（2026-09-14変更、[_TalksTabState.build]参照。以前は横表示の
+  /// 広い画面だと[_isSplit]の旧来の2ペイン分割表示が優先され、この設定が
+  /// 無視されていた）。
   ///
-  /// 横幅が[kIconSplitPeekBreakpoint]以上のタブレット・コンピューター縦表示
+  /// [_showIconSplitPeek]（タブレット・コンピューター相当の端末、向き不問）
   /// では、寄合一覧の右隣にメッセージ画面本体も同時表示する
   /// （`roomListOnly: false`で流用、2026-09-12追加）。この時、アイコン列＋
   /// 寄合一覧をまとめて左にドラッグすると、[_iconSplitCollapse]の進行度に
@@ -1108,7 +1174,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
   /// （既に埋め込み表示している`DmChatPane`/`GroupChatPane`がそのまま
   /// 全幅になるだけで、別ルートを積まない）。
   ///
-  /// [kIconSplitPeekBreakpoint]未満の幅（スマホ縦表示相当）では画面が狭く
+  /// [_showIconSplitPeek]がfalseの端末（スマホ相当）では画面が狭く
   /// メッセージ画面を同時に収められないため、従来通り`roomListOnly: true`の
   /// まま、寄合をタップした時点でフルスクリーンチャットへ遷移する。
   Widget _buildIconSplitPane(
@@ -1192,7 +1258,16 @@ class _TalksTabState extends ConsumerState<TalksTab>
             child: iconRail,
           ),
           _CollapsibleDivider(progress: _iconSplitCollapse),
-          Expanded(child: detail),
+          // メッセージ吹き出しの上の右スワイプでも全画面表示から3ブロック
+          // 表示に戻れるよう、`chat_screen.dart`の`_MessageInteractions`が
+          // 中継先を探す`InteractiveSwipeBackScope`を提供する（2026-09-14
+          // 追加、[_iconSplitSwipeBackController]参照）。
+          Expanded(
+            child: InteractiveSwipeBackScope(
+              controller: _iconSplitSwipeBackController,
+              child: detail,
+            ),
+          ),
         ],
       ),
     );
@@ -3396,10 +3471,6 @@ class _DmDetailWithRoomsState extends ConsumerState<_DmDetailWithRooms> {
     final currentUser = widget.currentUser;
     final dmRepository = ref.read(directMessageRepositoryProvider);
     final otherUserId = dm.otherUserId(currentUser.userId);
-    final isBlocked =
-        (ref.watch(blockedUserIdsProvider(currentUser.userId)).value ??
-                const <String>{})
-            .contains(otherUserId);
     final isGlass = ref.watch(appUiStyleProvider) == AppUiStyle.glass;
     final otherUser = ref.watch(watchedUserProvider(otherUserId)).value;
     final otherNickname = otherUser?.effectiveNicknameFor(dm.dmId)?.text;
@@ -3472,7 +3543,6 @@ class _DmDetailWithRoomsState extends ConsumerState<_DmDetailWithRooms> {
             currentUser: currentUser,
             dm: dm,
             otherUserId: otherUserId,
-            isBlocked: isBlocked,
             isGlass: isGlass,
           ),
         );

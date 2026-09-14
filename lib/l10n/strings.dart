@@ -31,6 +31,7 @@ class Strings {
     required this.settingsBlockedUsersTitle,
     required this.settingsBlockedUsersEmpty,
     required this.settingsBlockedUsersUnblock,
+    required this.settingsBlockedUsersShowMoreTemplate,
     required this.settingsAccentColor,
     required this.settingsAccentColorGekigaHint,
     required this.settingsAppearanceGekigaLockedHint,
@@ -41,6 +42,10 @@ class Strings {
     required this.settingsColorCode,
     required this.settingsColorPresets,
     required this.settingsCustomColors,
+    required this.settingsTextColorTitle,
+    required this.settingsTextColorDescription,
+    required this.settingsTextColorLightLabel,
+    required this.settingsTextColorDarkLabel,
     required this.settingsCustomColorRegister,
     required this.settingsCustomColorLimitReachedTemplate,
     required this.settingsCustomColorDeleteConfirmTitle,
@@ -70,11 +75,27 @@ class Strings {
     required this.settingsTalksListLayoutIconSplitDescription,
     required this.settingsSubTypography,
     required this.settingsFontDesign,
-    required this.fontDesignStandardLabel,
     required this.fontDesignHannariMinchoLabel,
     required this.fontDesignKagurazakaLabel,
     required this.fontDesignKiwiMaruLabel,
     required this.fontDesignShipporiMinchoLabel,
+    required this.fontDesignNotoSansJpLabel,
+    required this.fontDesignNotoSerifJpLabel,
+    required this.fontDesignGenShinGothicLabel,
+    required this.fontDesignGenJyuuGothicLabel,
+    required this.fontDesignRoundedMPlusLabel,
+    required this.fontDesignGochikakutto851Label,
+    required this.fontDesignDarumadropOneLabel,
+    required this.fontDesignZenKakuGothicNewLabel,
+    required this.fontDesignZenOldMinchoLabel,
+    required this.fontDesignZenMaruGothicLabel,
+    required this.fontDesignKleeOneLabel,
+    required this.fontDesignYomogiLabel,
+    required this.fontDesignKaiseiDecolLabel,
+    required this.fontDesignBizUdpMinchoLabel,
+    required this.fontDesignBizUdGothicLabel,
+    required this.fontDesignChikaraDzuyoku851Label,
+    required this.fontDesignChikaraYowaku851Label,
     required this.fontDesignKiwamiExclusiveNotice,
     required this.settingsSubSound,
     required this.settingsSoundRingtoneTitle,
@@ -336,19 +357,10 @@ class Strings {
     required this.groupSettingsDefaultReadReceiptsHint,
     required this.groupRoomCustomSettingsLabel,
     required this.groupRoomCustomSettingsHint,
-    required this.groupSettingsDisableMultipleRoomsLabel,
-    required this.groupSettingsDisableMultipleRoomsHint,
-    required this.groupSettingsDisableMultipleRoomsBlockedHint,
-    required this.groupSettingsDisableMultipleRoomsConfirmTitle,
-    required this.groupSettingsDisableMultipleRoomsConfirmMessage,
-    required this.groupSettingsDisableMultipleRoomsConfirmButton,
     required this.dmMenuOpenSettings,
     required this.dmSettingsTooltip,
     required this.roomModeSectionTitle,
-    required this.roomModeSingleLabel,
-    required this.roomModeDisabledLabel,
-    required this.roomModeSingleLockedHint,
-    required this.roomModeMultipleIrreversibleHint,
+    required this.roomModeToggleLockedHint,
     required this.profileCardPickerLabel,
     required this.profileCardPickerStandardOption,
     required this.profileCardPickerStandardOptionWithName,
@@ -576,6 +588,7 @@ class Strings {
     required this.passcodeSetupEnterPrompt,
     required this.passcodeSetupConfirmPrompt,
     required this.passcodeSetupMismatchError,
+    required this.passcodeSetupConfirmButton,
     required this.passcodeCurrentPrompt,
     required this.passcodeIncorrectError,
     required this.passcodeLockScreenTitle,
@@ -623,6 +636,10 @@ class Strings {
   final String settingsBlockedUsersTitle;
   final String settingsBlockedUsersEmpty;
   final String settingsBlockedUsersUnblock;
+
+  /// ブロックしたユーザー一覧が[kBlockedUsersPreviewCount]件を超える場合に
+  /// 表示する「もっと見る」バーの文言（残り件数を差し込む、2026-09-14追加）。
+  final String Function(int remaining) settingsBlockedUsersShowMoreTemplate;
   final String settingsAccentColor;
   final String settingsAccentColorGekigaHint;
   final String settingsAppearanceGekigaLockedHint;
@@ -633,6 +650,10 @@ class Strings {
   final String settingsColorCode;
   final String settingsColorPresets;
   final String settingsCustomColors;
+  final String settingsTextColorTitle;
+  final String settingsTextColorDescription;
+  final String settingsTextColorLightLabel;
+  final String settingsTextColorDarkLabel;
   final String settingsCustomColorRegister;
   final String Function(int max) settingsCustomColorLimitReachedTemplate;
   final String settingsCustomColorDeleteConfirmTitle;
@@ -672,11 +693,27 @@ class Strings {
   final String settingsTalksListLayoutIconSplitDescription;
   final String settingsSubTypography;
   final String settingsFontDesign;
-  final String fontDesignStandardLabel;
   final String fontDesignHannariMinchoLabel;
   final String fontDesignKagurazakaLabel;
   final String fontDesignKiwiMaruLabel;
   final String fontDesignShipporiMinchoLabel;
+  final String fontDesignNotoSansJpLabel;
+  final String fontDesignNotoSerifJpLabel;
+  final String fontDesignGenShinGothicLabel;
+  final String fontDesignGenJyuuGothicLabel;
+  final String fontDesignRoundedMPlusLabel;
+  final String fontDesignGochikakutto851Label;
+  final String fontDesignDarumadropOneLabel;
+  final String fontDesignZenKakuGothicNewLabel;
+  final String fontDesignZenOldMinchoLabel;
+  final String fontDesignZenMaruGothicLabel;
+  final String fontDesignKleeOneLabel;
+  final String fontDesignYomogiLabel;
+  final String fontDesignKaiseiDecolLabel;
+  final String fontDesignBizUdpMinchoLabel;
+  final String fontDesignBizUdGothicLabel;
+  final String fontDesignChikaraDzuyoku851Label;
+  final String fontDesignChikaraYowaku851Label;
   final String fontDesignKiwamiExclusiveNotice;
   final String settingsSubSound;
   final String settingsSoundRingtoneTitle;
@@ -1013,17 +1050,6 @@ class Strings {
   final String groupRoomCustomSettingsLabel;
   final String groupRoomCustomSettingsHint;
 
-  /// 全体設定の「寄合を単一にまとめる」項目。寄合が1つだけの場合のみ
-  /// 有効化できる（2026-07-29追加）。
-  final String groupSettingsDisableMultipleRoomsLabel;
-  final String groupSettingsDisableMultipleRoomsHint;
-
-  /// 寄合が複数あって無効化できない場合の説明文言。
-  final String groupSettingsDisableMultipleRoomsBlockedHint;
-  final String groupSettingsDisableMultipleRoomsConfirmTitle;
-  final String groupSettingsDisableMultipleRoomsConfirmMessage;
-  final String groupSettingsDisableMultipleRoomsConfirmButton;
-
   /// 一対のハンバーガーメニュー、`DmSettingsPopup`を開く項目
   /// （2026-09-13追加、`GroupSettingsPopup`の`groupMenuOpenSettings`に相当）。
   final String dmMenuOpenSettings;
@@ -1032,30 +1058,18 @@ class Strings {
   /// `groupSettingsTooltip`に相当）。
   final String dmSettingsTooltip;
 
-  /// `DmSettingsPopup`/`GroupSettingsPopup`内の寄合モード（単一/複数/
-  /// 寄合機能なし）選択の見出し（2026-09-13追加、`roomsEnabled`と
-  /// `roomFeatureDisabled`という独立した2フィールドを1つの選択式
-  /// コントロールに統合した際に新設）。
+  /// `DmSettingsPopup`/`GroupSettingsPopup`内の寄合機能（複数寄合）
+  /// オン/オフトグルの見出し（2026-09-13追加。2026-09-14に「単一/複数/
+  /// 寄合機能なし」の3択から、`roomsEnabled`1つのオン/オフトグルへ
+  /// 簡略化した。独立していた`roomFeatureDisabled`フィールドは、寄合の
+  /// 名前変更・削除メニューの表示/非表示のみを切り替える程度の機能差しか
+  /// 無く、3択という複雑さに見合わなかったため廃止した）。
   final String roomModeSectionTitle;
 
-  /// 寄合モード選択の「単一」選択肢のラベル。
-  final String roomModeSingleLabel;
-
-  /// 寄合モード選択の「寄合機能なし」選択肢のラベル（`roomFeatureDisabled`
-  /// がtrueの状態。実行アクションの文言は既存の`roomFeatureDisableLabel`を
-  /// 別途再利用する）。
-  final String roomModeDisabledLabel;
-
-  /// 一対の寄合モードで「複数」を選んだ後は「単一」に戻せないことを、
-  /// 「単一」選択肢が無効化されている間に説明する文言（`DirectMessage.
-  /// roomsEnabled`が一方向のみのため。広場は寄合が複数ある間だけ一時的に
-  /// 無効化される点が異なり、既存の`groupSettingsDisableMultipleRoomsBlockedHint`
-  /// を使う）。
-  final String roomModeSingleLockedHint;
-
-  /// 一対の寄合モードで「複数」を選ぶ前に、一方向の変更であることを示す
-  /// 注意書き。
-  final String roomModeMultipleIrreversibleHint;
+  /// 寄合機能トグルがオンのまま無効化されている（オフに戻せない）ことを
+  /// 説明する文言。寄合が2件以上ある間はオフにできない（一対・広場共通、
+  /// 2026-09-14追加、以前の「単一には戻せません」等の個別文言から統合）。
+  final String roomModeToggleLockedHint;
 
   /// 会話（一対・広場）ごとに使うプロフィールカードを選ぶピッカーのラベル
   /// （`AppUser.conversationProfileCardId`、2026-07-29追加）。広場参加・
@@ -1416,6 +1430,7 @@ class Strings {
   final String passcodeSetupEnterPrompt;
   final String passcodeSetupConfirmPrompt;
   final String passcodeSetupMismatchError;
+  final String passcodeSetupConfirmButton;
   final String passcodeCurrentPrompt;
   final String passcodeIncorrectError;
   final String passcodeLockScreenTitle;
@@ -1453,6 +1468,7 @@ class Strings {
     settingsBlockedUsersTitle: 'ブロックしたユーザー',
     settingsBlockedUsersEmpty: 'ブロックしたユーザーはいません',
     settingsBlockedUsersUnblock: 'ブロック解除',
+    settingsBlockedUsersShowMoreTemplate: (remaining) => 'もっと見る（あと$remaining件）',
     settingsAccentColor: 'アクセントカラー',
     settingsAccentColorGekigaHint: '劇画UIでは背景色として使われます',
     settingsAppearanceGekigaLockedHint: '劇画UIを選択中は変更できません',
@@ -1463,6 +1479,11 @@ class Strings {
     settingsColorCode: 'カラーコード',
     settingsColorPresets: 'プリセット',
     settingsCustomColors: '登録した色',
+    settingsTextColorTitle: '文字色',
+    settingsTextColorDescription:
+        'ライト・ダークそれぞれの文字色をカラーコードで指定できます。背景に近い色を選ぶと読みにくくなるため注意してください。',
+    settingsTextColorLightLabel: 'ライト用',
+    settingsTextColorDarkLabel: 'ダーク用',
     settingsCustomColorRegister: 'この色を登録',
     settingsCustomColorLimitReachedTemplate: (max) => '登録上限（$max色）に達しています',
     settingsCustomColorDeleteConfirmTitle: 'この色を削除しますか？',
@@ -1497,11 +1518,27 @@ class Strings {
         '左にアイコン一覧、右に選んだ語らいの寄合一覧を表示します。',
     settingsSubTypography: '文字',
     settingsFontDesign: 'フォントデザイン',
-    fontDesignStandardLabel: '標準',
     fontDesignHannariMinchoLabel: 'はんなり明朝',
     fontDesignKagurazakaLabel: '神楽坂',
     fontDesignKiwiMaruLabel: 'キウイ丸',
     fontDesignShipporiMinchoLabel: 'しっぽり明朝',
+    fontDesignNotoSansJpLabel: 'Noto Sans JP',
+    fontDesignNotoSerifJpLabel: 'Noto Serif JP',
+    fontDesignGenShinGothicLabel: '源真ゴシック',
+    fontDesignGenJyuuGothicLabel: '源柔ゴシック',
+    fontDesignRoundedMPlusLabel: '自家製 Rounded M+',
+    fontDesignGochikakutto851Label: '851ゴチカクット',
+    fontDesignDarumadropOneLabel: 'だるまドロップ',
+    fontDesignZenKakuGothicNewLabel: 'Zen角ゴシック New',
+    fontDesignZenOldMinchoLabel: 'Zenオールド明朝',
+    fontDesignZenMaruGothicLabel: 'Zen丸ゴシック',
+    fontDesignKleeOneLabel: 'Klee One',
+    fontDesignYomogiLabel: 'よもぎ',
+    fontDesignKaiseiDecolLabel: 'Kaisei Decol',
+    fontDesignBizUdpMinchoLabel: 'BIZ UDPMincho',
+    fontDesignBizUdGothicLabel: 'BIZ UDGothic',
+    fontDesignChikaraDzuyoku851Label: '851チカラヅヨク',
+    fontDesignChikaraYowaku851Label: '851チカラヨワク',
     fontDesignKiwamiExclusiveNotice: '極みプラン限定機能として追加予定（現在は無料で選択できます）',
     settingsSubSound: 'サウンド',
     settingsSoundRingtoneTitle: '着信音',
@@ -1781,20 +1818,10 @@ class Strings {
     groupRoomCustomSettingsLabel: 'この寄合独自の設定',
     groupRoomCustomSettingsHint:
         'オンにすると、通知・既読・ロールの優先順位を広場全体の設定より優先してこの寄合だけ個別に設定できます',
-    groupSettingsDisableMultipleRoomsLabel: '寄合複数機能をオフにする',
-    groupSettingsDisableMultipleRoomsHint: '複数の寄合機能をオフにし、この1つの寄合だけの広場に戻します',
-    groupSettingsDisableMultipleRoomsBlockedHint: '寄合が複数あるため、1つにまとめてからオフにできます',
-    groupSettingsDisableMultipleRoomsConfirmTitle: '寄合複数機能をオフにしますか？',
-    groupSettingsDisableMultipleRoomsConfirmMessage:
-        'このサイドバー・複数寄合機能が無くなり、以後の設定は寄合のハンバーガーメニューから行うことになります。',
-    groupSettingsDisableMultipleRoomsConfirmButton: 'オフにする',
     dmMenuOpenSettings: '一対の設定',
     dmSettingsTooltip: '一対の設定',
     roomModeSectionTitle: '寄合の扱い方',
-    roomModeSingleLabel: '単一',
-    roomModeDisabledLabel: '寄合機能なし',
-    roomModeSingleLockedHint: '一度複数にすると単一には戻せません',
-    roomModeMultipleIrreversibleHint: '一度切り替えると元に戻せません',
+    roomModeToggleLockedHint: '寄合が複数あるため、1つにまとめてからオフにできます',
     profileCardPickerLabel: '使うプロフィールカード',
     profileCardPickerStandardOption: '標準',
     profileCardPickerStandardOptionWithName: (name) => '標準（$name）',
@@ -2033,6 +2060,7 @@ class Strings {
     passcodeSetupEnterPrompt: '6桁のパスコードを入力してください',
     passcodeSetupConfirmPrompt: 'もう一度入力して確認してください',
     passcodeSetupMismatchError: 'パスコードが一致しません',
+    passcodeSetupConfirmButton: '設定',
     passcodeCurrentPrompt: '現在のパスコードを入力してください',
     passcodeIncorrectError: 'パスコードが違います',
     passcodeLockScreenTitle: 'パスコードを入力',
@@ -2072,6 +2100,8 @@ class Strings {
     settingsBlockedUsersTitle: 'Blocked users',
     settingsBlockedUsersEmpty: 'No blocked users',
     settingsBlockedUsersUnblock: 'Unblock',
+    settingsBlockedUsersShowMoreTemplate: (remaining) =>
+        'Show more ($remaining more)',
     settingsAccentColor: 'Accent colour',
     settingsAccentColorGekigaHint:
         'Used as the background colour in Gekiga UI style '
@@ -2085,6 +2115,11 @@ class Strings {
     settingsColorCode: 'Colour code',
     settingsColorPresets: 'Presets',
     settingsCustomColors: 'Saved colours',
+    settingsTextColorTitle: 'Text colour',
+    settingsTextColorDescription:
+        'Set the text colour separately for light and dark mode using a colour code. Choosing a colour too close to the background will make text hard to read.',
+    settingsTextColorLightLabel: 'Light mode',
+    settingsTextColorDarkLabel: 'Dark mode',
     settingsCustomColorRegister: 'Save this colour',
     settingsCustomColorLimitReachedTemplate: (max) =>
         'You can save up to $max colours',
@@ -2125,11 +2160,27 @@ class Strings {
         'on the right.',
     settingsSubTypography: 'Typography',
     settingsFontDesign: 'Font design',
-    fontDesignStandardLabel: 'Standard',
     fontDesignHannariMinchoLabel: 'Hannari Mincho',
     fontDesignKagurazakaLabel: 'Kagurazaka',
     fontDesignKiwiMaruLabel: 'Kiwi Maru',
     fontDesignShipporiMinchoLabel: 'Shippori Mincho',
+    fontDesignNotoSansJpLabel: 'Noto Sans JP',
+    fontDesignNotoSerifJpLabel: 'Noto Serif JP',
+    fontDesignGenShinGothicLabel: 'GenShin Gothic',
+    fontDesignGenJyuuGothicLabel: 'GenJyuu Gothic',
+    fontDesignRoundedMPlusLabel: 'Jikasei Rounded M+',
+    fontDesignGochikakutto851Label: '851 Gochikakutto',
+    fontDesignDarumadropOneLabel: 'Darumadrop One',
+    fontDesignZenKakuGothicNewLabel: 'Zen Kaku Gothic New',
+    fontDesignZenOldMinchoLabel: 'Zen Old Mincho',
+    fontDesignZenMaruGothicLabel: 'Zen Maru Gothic',
+    fontDesignKleeOneLabel: 'Klee One',
+    fontDesignYomogiLabel: 'Yomogi',
+    fontDesignKaiseiDecolLabel: 'Kaisei Decol',
+    fontDesignBizUdpMinchoLabel: 'BIZ UDPMincho',
+    fontDesignBizUdGothicLabel: 'BIZ UDGothic',
+    fontDesignChikaraDzuyoku851Label: '851 Chikara-dzuyoku',
+    fontDesignChikaraYowaku851Label: '851 Chikara-yowaku',
     fontDesignKiwamiExclusiveNotice:
         'Planned as a Kiwami plan exclusive (free to select for now)',
     settingsSubSound: 'Sound',
@@ -2446,23 +2497,11 @@ class Strings {
     groupRoomCustomSettingsLabel: "This room's own settings",
     groupRoomCustomSettingsHint:
         'When on, this room\'s notification, read receipts, and role priority settings take priority over the plaza defaults',
-    groupSettingsDisableMultipleRoomsLabel: 'Merge back into a single room',
-    groupSettingsDisableMultipleRoomsHint:
-        'Turns off multiple rooms and returns this plaza to a single room',
-    groupSettingsDisableMultipleRoomsBlockedHint:
-        'You can turn this off once only one room remains',
-    groupSettingsDisableMultipleRoomsConfirmTitle:
-        'Merge back into a single room?',
-    groupSettingsDisableMultipleRoomsConfirmMessage:
-        'This sidebar and multiple-room feature will be removed, and settings will move back to the room\'s hamburger menu.',
-    groupSettingsDisableMultipleRoomsConfirmButton: 'Merge',
     dmMenuOpenSettings: 'DM settings',
     dmSettingsTooltip: 'Direct message settings',
     roomModeSectionTitle: 'Room handling',
-    roomModeSingleLabel: 'Single',
-    roomModeDisabledLabel: 'No room feature',
-    roomModeSingleLockedHint: "Can't be undone once switched to multiple",
-    roomModeMultipleIrreversibleHint: "This can't be undone once switched",
+    roomModeToggleLockedHint:
+        'You can turn this off once only one room remains',
     profileCardPickerLabel: 'Profile card to use',
     profileCardPickerStandardOption: 'Standard',
     profileCardPickerStandardOptionWithName: (name) => 'Standard ($name)',
@@ -2722,6 +2761,7 @@ class Strings {
     passcodeSetupEnterPrompt: 'Enter a 6-digit passcode',
     passcodeSetupConfirmPrompt: 'Enter it again to confirm',
     passcodeSetupMismatchError: 'Passcodes don\'t match',
+    passcodeSetupConfirmButton: 'Set',
     passcodeCurrentPrompt: 'Enter your current passcode',
     passcodeIncorrectError: 'Incorrect passcode',
     passcodeLockScreenTitle: 'Enter passcode',

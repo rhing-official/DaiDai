@@ -168,6 +168,57 @@ flutter:
     - family: ShipporiMincho
       fonts:
         - asset: assets/fonts/ShipporiMincho-Regular.ttf
+    - family: NotoSansJP
+      fonts:
+        - asset: assets/fonts/NotoSansJP-Regular.ttf
+    - family: NotoSerifJP
+      fonts:
+        - asset: assets/fonts/NotoSerifJP-Regular.ttf
+    - family: GenShinGothic
+      fonts:
+        - asset: assets/fonts/GenShinGothic-Regular.ttf
+    - family: GenJyuuGothic
+      fonts:
+        - asset: assets/fonts/GenJyuuGothic-Regular.ttf
+    - family: RoundedMPlus1c
+      fonts:
+        - asset: assets/fonts/RoundedMPlus1c-Regular.ttf
+    - family: Gochikakutto851
+      fonts:
+        - asset: assets/fonts/851Gochikakutto-Regular.ttf
+    - family: DarumadropOne
+      fonts:
+        - asset: assets/fonts/DarumadropOne-Regular.ttf
+    - family: ZenKakuGothicNew
+      fonts:
+        - asset: assets/fonts/ZenKakuGothicNew-Regular.ttf
+    - family: ZenOldMincho
+      fonts:
+        - asset: assets/fonts/ZenOldMincho-Regular.ttf
+    - family: ZenMaruGothic
+      fonts:
+        - asset: assets/fonts/ZenMaruGothic-Regular.ttf
+    - family: KleeOne
+      fonts:
+        - asset: assets/fonts/KleeOne-Regular.ttf
+    - family: Yomogi
+      fonts:
+        - asset: assets/fonts/Yomogi-Regular.ttf
+    - family: KaiseiDecol
+      fonts:
+        - asset: assets/fonts/KaiseiDecol-Regular.ttf
+    - family: BIZUDPMincho
+      fonts:
+        - asset: assets/fonts/BIZUDPMincho-Regular.ttf
+    - family: BIZUDGothic
+      fonts:
+        - asset: assets/fonts/BIZUDGothic-Regular.ttf
+    - family: Chikara851Dzuyoku
+      fonts:
+        - asset: assets/fonts/851ChikaraDzuyoku-Regular.ttf
+    - family: Chikara851Yowaku
+      fonts:
+        - asset: assets/fonts/851ChikaraYowaku-Regular.ttf
 
   # To add assets to your application, add an assets section, like this:
   # assets:

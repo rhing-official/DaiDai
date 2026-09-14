@@ -420,7 +420,7 @@ DaiDaiには現状ぺったんパックの「作成」UI自体が無く（下記
 
   
 
-広場は作成時に、一対は常に、まず「単一モード」（`roomsEnabled: false`、寄合はdefaultRoomIdの1つだけ・サイドバー非表示・設定は全てハンバーガーメニューに格納）で始められる。広場作成画面（`create_group_screen.dart`）に「寄合を複数作成する」トグルがあり、オフを選ぶと単一モードになる。単一モードから複数モードへは、ハンバーガーメニューの「寄合を複数扱う」（広場、`manageRooms`権限が必要）・「寄合を増やす」（一対、参加者ならどちらでも）でいつでも切り替えられる（`Group.roomsEnabled`/`DirectMessage.roomsEnabled`、`GroupRepository.setRoomsEnabled`/`DirectMessageRepository.setRoomsEnabled`）。複数→単一に戻す機能は無い（firestore.rulesでも`true`への変更のみ許可）。この機能追加前に作られた既存の広場・一対は、フィールド欠落時のfromJsonデフォルト値により全て複数モード扱いになる（既存の複数寄合表示を維持するため）。
+広場は作成時に、一対は常に、まず「単一モード」（`roomsEnabled: false`、寄合はその会話が持つ最古の1つだけ・サイドバー非表示・設定は全てハンバーガーメニューに格納。`defaultRoomId`という専用フィールドは2026-09-14に全面撤去済み、日記.md参照）で始められる。広場作成画面（`create_group_screen.dart`）に「寄合を複数作成する」トグルがあり、オフを選ぶと単一モードになる。単一モードから複数モードへは、`DmSettingsPopup`/`GroupSettingsPopup`（一対・広場それぞれの設定画面）の「寄合機能」トグル（一対は参加者ならどちらでも、広場は`manageRooms`権限が必要）でいつでも切り替えられる（`Group.roomsEnabled`/`DirectMessage.roomsEnabled`、`GroupRepository.setRoomsEnabled`/`DirectMessageRepository.setRoomsEnabled`）。複数→単一へ戻す（オフにする）ことも、寄合が1つだけの場合に限り可能（2026-09-14変更、以前はオンへの変更のみ許可する一方向仕様で、加えて「寄合機能なし」という独立した3択目のフィールド`roomFeatureDisabled`——寄合の名前変更・削除メニューの表示/非表示のみを切り替える程度の機能差しか無かった——もあったが、この1つのオン/オフトグルに統合し廃止した）。一対はこの機能追加前から単一の会話構造しか持たなかったため、フィールド欠落時のfromJsonデフォルト値はfalse（単一）。広場は既存データ（この機能追加前に作られた広場）を全て複数モード扱いにする（fromJsonデフォルト値、既存の複数寄合表示を維持するため）という以前からの方針を維持している。
 
   
 
@@ -462,11 +462,11 @@ DaiDaiには現状ぺったんパックの「作成」UI自体が無く（下記
 
 - 和紙に色が染み込むようなグラフィック、メッセージが横から「シュポン」と飛び出る演出（凝ったグラフィックはデザイナー雇用後）
 
-- 無料版フォント: BIZ UDPMincho, BIZ UDGothic, チカラヅヨク, チカラヨワク
+- 無料版フォント（設定＞アプリケーションの「フォントデザイン」、`FontDesign`、2026-09-14更新。この節は元々企画段階のBIZ UDPMincho/BIZ UDGothic/チカラヅヨク/チカラヨワクという記述だったが実装には反映されておらず、商用利用可否を確認した上でこれらも含めて実装した）: はんなり明朝、KHドットフォント 12神楽坂、キウイ丸、しっぽり明朝、Noto Sans JP、Noto Serif JP、源真ゴシック、源柔ゴシック、自家製 Rounded M+、851ゴチカクット、だるまドロップ、Zen Kaku Gothic New、Zen Old Mincho、Zen Maru Gothic、Klee One、Yomogi、Kaisei Decol、BIZ UDPMincho、BIZ UDGothic、851チカラヅヨク、851チカラヨワク（全21種）。「標準（プラットフォーム既定フォントのまま）」は2026-09-14にユーザー指示で廃止し、必ずいずれかのフォントを適用する
 
 - ボタンの配色: 背景色が薄い（明度が高い）色に白色のテキストを乗せる組み合わせは禁止。コントラストが不十分で読みにくくなる（`colorScheme.error`はダークテーマ下のMaterial3仕様で明るいサーモンピンクに近い色になり白文字が読みにくくなる、2026-08-12の教訓）。削除確認等の警告色ボタンは固定の濃い赤（`Colors.red.shade700`等）など、実際にコントラストが確保できる色を明示的に指定すること。
 
-- テキスト（フォント）にアクセントカラーを使わない。`TextButton`等の文字色はアクセントカラー（`colorScheme.primary`）ではなく、各UIスタイルで固定された中立色（`colorScheme.onSurface`等）を使うこと。アクセントカラーはボタンの地色・ガラスUIのリムライトなど、背景の塗りとしてのみ使う（2026-09-01の教訓、確認ダイアログの「今は同期しない」等の文字がアクセントカラーになり視認性を欠いた）。`lib/theme/app_theme.dart`・`lib/theme/glass/glass_theme.dart`・`lib/theme/gekiga/gekiga_theme.dart`の`textButtonTheme`で一括対応済みのため、個別のボタンで`foregroundColor`を指定する必要は無い。
+- **テキストは必ず外観（背景）の色と反対の色を適用する**。ボタンの種類（`TextButton`/`OutlinedButton`等）を問わず、文字色にアクセントカラー（`colorScheme.primary`）を使わないこと。各UIスタイルで固定された中立色（フラット/ガラスは`colorScheme.onSurface`等、劇画は`GekigaColors.onPanel`）を使う。アクセントカラーはボタンの地色・ガラスUIのリムライトなど、背景の塗りとしてのみ使う（2026-09-01の教訓、確認ダイアログの「今は同期しない」等の文字がアクセントカラーになり視認性を欠いた）。`lib/theme/app_theme.dart`・`lib/theme/glass/glass_theme.dart`・`lib/theme/gekiga/gekiga_theme.dart`の`textButtonTheme`・`outlinedButtonTheme`で一括対応済みのため、個別のボタンで`foregroundColor`を指定する必要は無い（2026-09-14追記: `outlinedButtonTheme`はフラット/ガラスで対応漏れがあり、「QRコードを読み取る」ボタン等の文字がアクセントカラーのままになっていたため追加した。今後新しいボタン種別を使う際も、このテーマ側の一括対応から漏れていないか確認すること）。
 
   
 

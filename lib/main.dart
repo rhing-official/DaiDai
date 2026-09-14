@@ -31,6 +31,7 @@ import 'providers/ringtone_sound_provider.dart';
 import 'providers/send_key_mode_provider.dart';
 import 'providers/sticker_send_mode_provider.dart';
 import 'providers/talks_list_layout_style_provider.dart';
+import 'providers/text_color_provider.dart';
 import 'providers/theme_mode_provider.dart';
 import 'router/app_router.dart';
 import 'utils/android_notification_sound_sync.dart';
@@ -68,6 +69,8 @@ Future<void> main() async {
   FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
   await initializeLocalNotifications();
   final initialAccentColor = await loadInitialAccentColor();
+  final initialTextColorLight = await loadInitialTextColorLight();
+  final initialTextColorDark = await loadInitialTextColorDark();
   final initialCustomAccentColors = await loadInitialCustomAccentColors();
   final initialGekigaBackgroundColor = await loadInitialGekigaBackgroundColor();
   final initialAppLocale = await loadInitialAppLocale();
@@ -100,6 +103,8 @@ Future<void> main() async {
     ProviderScope(
       overrides: [
         initialAccentColorProvider.overrideWithValue(initialAccentColor),
+        initialTextColorLightProvider.overrideWithValue(initialTextColorLight),
+        initialTextColorDarkProvider.overrideWithValue(initialTextColorDark),
         initialCustomAccentColorsProvider.overrideWithValue(
           initialCustomAccentColors,
         ),
@@ -164,6 +169,8 @@ class DaiDaiApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final accentColor = ref.watch(accentColorProvider);
+    final textColorLight = ref.watch(textColorLightProvider);
+    final textColorDark = ref.watch(textColorDarkProvider);
     final gekigaBackgroundColor = ref.watch(gekigaBackgroundColorProvider);
     final appLocale = ref.watch(appLocaleProvider);
     final themeMode = ref.watch(appThemeModeProvider);
@@ -175,21 +182,38 @@ class DaiDaiApp extends ConsumerWidget {
     // theme/darkThemeの両方に同一のThemeDataを渡す（chat_screen.dartの
     // 既存方針をアプリ全体に拡張したもの）。switch式にしているのは、新しい
     // スタイルを追加した際に対応漏れをコンパイラが検知できるようにするため。
+    // 劇画は独自の固定モノクロ配色のため文字色設定の対象外（既存方針）。
     final theme = switch (uiStyle) {
-      AppUiStyle.flat => AppTheme.light(accentColor, fontFamily: fontFamily),
+      AppUiStyle.flat => AppTheme.light(
+        accentColor,
+        textColor: textColorLight,
+        fontFamily: fontFamily,
+      ),
       AppUiStyle.gekiga => GekigaTheme.build(
         gekigaBackgroundColor,
         fontFamily: fontFamily,
       ),
-      AppUiStyle.glass => GlassTheme.light(accentColor, fontFamily: fontFamily),
+      AppUiStyle.glass => GlassTheme.light(
+        accentColor,
+        textColor: textColorLight,
+        fontFamily: fontFamily,
+      ),
     };
     final darkTheme = switch (uiStyle) {
-      AppUiStyle.flat => AppTheme.dark(accentColor, fontFamily: fontFamily),
+      AppUiStyle.flat => AppTheme.dark(
+        accentColor,
+        textColor: textColorDark,
+        fontFamily: fontFamily,
+      ),
       AppUiStyle.gekiga => GekigaTheme.build(
         gekigaBackgroundColor,
         fontFamily: fontFamily,
       ),
-      AppUiStyle.glass => GlassTheme.dark(accentColor, fontFamily: fontFamily),
+      AppUiStyle.glass => GlassTheme.dark(
+        accentColor,
+        textColor: textColorDark,
+        fontFamily: fontFamily,
+      ),
     };
     return MaterialApp.router(
       title: 'DaiDai',

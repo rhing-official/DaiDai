@@ -21,7 +21,6 @@ class Group {
     this.rolePriority = const [],
     this.memberPermissions = const {},
     this.roomsEnabled = true,
-    this.roomFeatureDisabled = false,
     this.roomOrder = const [],
   });
 
@@ -92,17 +91,15 @@ class Group {
   /// 複数の寄合（テキストチャンネル）を扱うか。falseの場合はサイドバーの
   /// 寄合一覧を出さず、この広場が持つ唯一の寄合だけを使う単一モード
   /// （2026-07-29追加）。作成時にどちらか選び、後からハンバーガーメニューの
-  /// 「寄合を複数扱う」でtrueへの切り替えのみ可能（falseへは戻せない）。
-  /// 既存データ（この機能追加前に作られた広場）は全てtrue扱いにする
-  /// （fromJsonのデフォルト値、既存の複数寄合表示を維持するため）。
+  /// 「寄合を複数扱う」でtrueへ切り替えられる。falseへ戻す（オフにする）
+  /// ことも、寄合が1つだけの場合に限り可能（`GroupRepository.
+  /// setRoomsEnabled`が件数を検証する）。既存データ（この機能追加前に
+  /// 作られた広場）は全てtrue扱いにする（fromJsonのデフォルト値、既存の
+  /// 複数寄合表示を維持するため）。独立していた`roomFeatureDisabled`
+  /// フィールド——寄合の名前変更・削除メニューの表示/非表示のみを切り替える
+  /// 3択目——は、この`roomsEnabled`のオン/オフだけで十分と判断し2026-09-14に
+  /// 廃止した。
   final bool roomsEnabled;
-
-  /// 寄合機能自体（名前変更・削除・複数化）を無くし、単純な会話として扱うか
-  /// （2026-09-07追加）。単一モード（[roomsEnabled] == false）の時のみtrueに
-  /// できる。他の寄合関連操作と異なりこちらは双方向に切り替え可能
-  /// （`GroupRepository.setRoomFeatureDisabled`参照、[roomsEnabled]自体は
-  /// 変更しない）。
-  final bool roomFeatureDisabled;
 
   /// 寄合一覧（サイドバー）の表示順（寄合idの並び、先頭が最上位、
   /// 2026-09-08追加）。ここに含まれない寄合（新規作成直後・機能追加前の
@@ -137,7 +134,6 @@ class Group {
             MapEntry(key as String, List<String>.from(value as List)),
       ),
       roomsEnabled: json['roomsEnabled'] as bool? ?? true,
-      roomFeatureDisabled: json['roomFeatureDisabled'] as bool? ?? false,
       roomOrder: List<String>.from(json['roomOrder'] as List? ?? const []),
     );
   }
@@ -159,7 +155,6 @@ class Group {
       'rolePriority': rolePriority,
       'memberPermissions': memberPermissions,
       'roomsEnabled': roomsEnabled,
-      'roomFeatureDisabled': roomFeatureDisabled,
       'roomOrder': roomOrder,
     };
   }

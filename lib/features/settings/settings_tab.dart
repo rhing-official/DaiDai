@@ -41,6 +41,7 @@ import '../../providers/notification_sound_provider.dart';
 import '../../providers/ringtone_sound_provider.dart';
 import '../../providers/send_key_mode_provider.dart';
 import '../../providers/sticker_send_mode_provider.dart';
+import '../../providers/text_color_provider.dart';
 import '../../providers/theme_mode_provider.dart';
 import '../../providers/user_providers.dart';
 import '../../router/app_router.dart';
@@ -1010,18 +1011,32 @@ class _AccountPage extends ConsumerWidget {
         _SectionHeader(strings.settingsStickersSection),
         _ActionRow(
           label: strings.settingsManageOwnedStickers,
-          onTap: () => showDialog<void>(
-            context: context,
-            builder: (_) => Dialog(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(
-                  maxWidth: 400,
-                  maxHeight: 640,
-                ),
-                child: OwnedStickerPacksPopup(userId: currentUser.userId),
-              ),
-            ),
-          ),
+          onTap: () {
+            final isGlass = ref.read(appUiStyleProvider) == AppUiStyle.glass;
+            final content = ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 400, maxHeight: 640),
+              child: OwnedStickerPacksPopup(userId: currentUser.userId),
+            );
+            showDialog<void>(
+              context: context,
+              // ガラスUIでは素の`Dialog`だと背景・`Card`とも透明になり
+              // ダイアログの輪郭自体が見えなくなっていた（2026-09-14修正、
+              // 中のカードがポップアップと同色で視認性を欠くという報告の
+              // 調査で判明。`GlassAlertDialog`と同じ「透明なDialog＋
+              // GlassSurfaceで縁取り」パターンを踏襲）。
+              builder: (_) => isGlass
+                  ? Dialog(
+                      backgroundColor: Colors.transparent,
+                      elevation: 0,
+                      child: GlassSurface(
+                        variant: GlassVariant.floating,
+                        borderRadius: BorderRadius.circular(24),
+                        child: content,
+                      ),
+                    )
+                  : Dialog(child: content),
+            );
+          },
         ),
         const Divider(height: 24),
         _ActionRow(
@@ -1349,14 +1364,28 @@ class _DesignFolder extends ConsumerStatefulWidget {
   ConsumerState<_DesignFolder> createState() => _DesignFolderState();
 }
 
-/// アクセントカラーのプリセット（8桁hex＝RRGGBBAA）。
-const _kAccentColorPresets = ['F08300CC', '3D2EE0CC', '88B04BCC', '000000CC'];
+/// アクセントカラーのプリセット（8桁hex＝RRGGBBAA、2026-09-14更新:
+/// `000000CC`を削除し`C1272DCC`/`F08567CC`を追加）。
+const _kAccentColorPresets = [
+  'F08300CC',
+  '3D2EE0CC',
+  '88B04BCC',
+  'C1272DCC',
+  'F08567CC',
+];
 
 /// 劇画UIの背景色のプリセット（6桁hex＝RRGGBB、不透明）。ColorSchemeの
 /// 種ではなく単色塗りつぶしの背景色として使うため、フラットUI側のような
 /// 透過は付けない。先頭要素は`kDefaultGekigaBackgroundColor`
-/// （`GekigaColors.background`）と同じ値にすること。
-const _kGekigaBackgroundColorPresets = ['C1272D', 'F08300', '3D2EE0', '88B04B'];
+/// （`GekigaColors.background`）と同じ値にすること。2026-09-14に
+/// `F08567`を追加。
+const _kGekigaBackgroundColorPresets = [
+  'C1272D',
+  'F08300',
+  '3D2EE0',
+  '88B04B',
+  'F08567',
+];
 
 class _DesignFolderState extends ConsumerState<_DesignFolder> {
   late final TextEditingController _hexController;
@@ -1516,6 +1545,23 @@ class _DesignFolderState extends ConsumerState<_DesignFolder> {
               hintText: 'F08300',
               errorText: _errorText,
               counterText: '',
+              // フラットUIでもこの欄だけガラスUIと同じ見た目
+              // （半透明の塗り＋アクセントカラーの縁取り）にする
+              // （2026-09-14変更、ユーザー要望）。フラットの標準
+              // `inputDecorationTheme`は不透明な塗り・枠線無しのため、
+              // ここだけ`glass_theme.dart`の`inputDecorationTheme`と
+              // 同じ考え方（`colorScheme.surfaceContainerHighest`の
+              // 半透明＋`activeColor`の縁取り）を個別に上書きする。
+              filled: true,
+              fillColor: Theme.of(
+                context,
+              ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.65),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide(
+                  color: activeColor.withValues(alpha: 0.3),
+                ),
+              ),
               suffixIcon: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -1700,6 +1746,206 @@ class _DesignFolderState extends ConsumerState<_DesignFolder> {
                 ),
               ),
           ],
+        ),
+        // 劇画UIは固定モノクロ配色のため文字色設定の対象外（アクセントカラーが
+        // 背景色に転用されているのと同じ理由）。
+        if (!isGekiga) ...[const Divider(height: 32), const _TextColorFolder()],
+      ],
+    );
+  }
+}
+
+/// 文字色（`colorScheme.onSurface`相当）をライト/ダークそれぞれカラー
+/// コードで指定する設定（2026-09-14追加）。アクセントカラーと違い背景との
+/// コントラストが直接可読性に関わるため、`accentColorProvider`のような
+/// ライト/ダーク共通の1色ではなく、`textColorLightProvider`/
+/// `textColorDarkProvider`の2つを別々に持つ（ユーザー確認済み）。
+class _TextColorFolder extends ConsumerStatefulWidget {
+  const _TextColorFolder();
+
+  @override
+  ConsumerState<_TextColorFolder> createState() => _TextColorFolderState();
+}
+
+class _TextColorFolderState extends ConsumerState<_TextColorFolder> {
+  late final TextEditingController _lightController;
+  late final TextEditingController _darkController;
+  String? _lightErrorText;
+  String? _darkErrorText;
+
+  @override
+  void initState() {
+    super.initState();
+    _lightController = TextEditingController(
+      text: ref
+          .read(textColorLightProvider)
+          .toHexString()
+          .replaceFirst('#', ''),
+    );
+    _darkController = TextEditingController(
+      text: ref.read(textColorDarkProvider).toHexString().replaceFirst('#', ''),
+    );
+  }
+
+  @override
+  void dispose() {
+    _lightController.dispose();
+    _darkController.dispose();
+    super.dispose();
+  }
+
+  void _applyLight() {
+    final color = tryParseHexColor(_lightController.text);
+    if (color == null) {
+      setState(() => _lightErrorText = '「#RRGGBB」の形式で入力してください');
+      return;
+    }
+    setState(() => _lightErrorText = null);
+    ref.read(textColorLightProvider.notifier).setColor(color);
+  }
+
+  void _applyDark() {
+    final color = tryParseHexColor(_darkController.text);
+    if (color == null) {
+      setState(() => _darkErrorText = '「#RRGGBB」の形式で入力してください');
+      return;
+    }
+    setState(() => _darkErrorText = null);
+    ref.read(textColorDarkProvider.notifier).setColor(color);
+  }
+
+  void _resetLight() {
+    setState(() {
+      _lightErrorText = null;
+      _lightController.text = kDefaultTextColorLight.toHexString().replaceFirst(
+        '#',
+        '',
+      );
+    });
+    ref.read(textColorLightProvider.notifier).setColor(kDefaultTextColorLight);
+  }
+
+  void _resetDark() {
+    setState(() {
+      _darkErrorText = null;
+      _darkController.text = kDefaultTextColorDark.toHexString().replaceFirst(
+        '#',
+        '',
+      );
+    });
+    ref.read(textColorDarkProvider.notifier).setColor(kDefaultTextColorDark);
+  }
+
+  Widget _colorRow({
+    required Color color,
+    required String label,
+    required TextEditingController controller,
+    required String? errorText,
+    required VoidCallback onApply,
+    required VoidCallback onReset,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            margin: const EdgeInsets.only(top: 4),
+            decoration: BoxDecoration(
+              color: color,
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.black12),
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: TextField(
+              controller: controller,
+              textCapitalization: TextCapitalization.characters,
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp('[0-9a-fA-F]')),
+                LengthLimitingTextInputFormatter(8),
+              ],
+              decoration: InputDecoration(
+                labelText: label,
+                prefixText: '#',
+                hintText: '1C1C1E',
+                errorText: errorText,
+                counterText: '',
+                // アクセントカラーの入力欄と同じ、ガラスUI風の見た目に揃える
+                // （2026-09-14変更、`_DesignFolderState`のアクセントカラー欄参照）。
+                filled: true,
+                fillColor: Theme.of(
+                  context,
+                ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.65),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide(color: color.withValues(alpha: 0.3)),
+                ),
+                suffixIcon: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.check),
+                      onPressed: onApply,
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.refresh),
+                      tooltip: '',
+                      onPressed: onReset,
+                    ),
+                  ],
+                ),
+              ),
+              onSubmitted: (_) => onApply(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final strings = ref.watch(appStringsProvider);
+    final textColorLight = ref.watch(textColorLightProvider);
+    final textColorDark = ref.watch(textColorDarkProvider);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+          child: Text(
+            strings.settingsTextColorTitle,
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+          child: Text(
+            strings.settingsTextColorDescription,
+            style: TextStyle(fontSize: 12, color: Theme.of(context).hintColor),
+          ),
+        ),
+        const SizedBox(height: 8),
+        _colorRow(
+          color: textColorLight,
+          label: strings.settingsTextColorLightLabel,
+          controller: _lightController,
+          errorText: _lightErrorText,
+          onApply: _applyLight,
+          onReset: _resetLight,
+        ),
+        _colorRow(
+          color: textColorDark,
+          label: strings.settingsTextColorDarkLabel,
+          controller: _darkController,
+          errorText: _darkErrorText,
+          onApply: _applyDark,
+          onReset: _resetDark,
         ),
       ],
     );
@@ -1942,11 +2188,27 @@ class _FontDesignFolder extends ConsumerWidget {
         ref.read(fontDesignProvider.notifier).setDesign(value);
 
     String labelFor(FontDesign value) => switch (value) {
-      FontDesign.standard => strings.fontDesignStandardLabel,
       FontDesign.hannariMincho => strings.fontDesignHannariMinchoLabel,
       FontDesign.kagurazaka => strings.fontDesignKagurazakaLabel,
       FontDesign.kiwiMaru => strings.fontDesignKiwiMaruLabel,
       FontDesign.shipporiMincho => strings.fontDesignShipporiMinchoLabel,
+      FontDesign.notoSansJp => strings.fontDesignNotoSansJpLabel,
+      FontDesign.notoSerifJp => strings.fontDesignNotoSerifJpLabel,
+      FontDesign.genShinGothic => strings.fontDesignGenShinGothicLabel,
+      FontDesign.genJyuuGothic => strings.fontDesignGenJyuuGothicLabel,
+      FontDesign.roundedMPlus => strings.fontDesignRoundedMPlusLabel,
+      FontDesign.gochikakutto851 => strings.fontDesignGochikakutto851Label,
+      FontDesign.darumadropOne => strings.fontDesignDarumadropOneLabel,
+      FontDesign.zenKakuGothicNew => strings.fontDesignZenKakuGothicNewLabel,
+      FontDesign.zenOldMincho => strings.fontDesignZenOldMinchoLabel,
+      FontDesign.zenMaruGothic => strings.fontDesignZenMaruGothicLabel,
+      FontDesign.kleeOne => strings.fontDesignKleeOneLabel,
+      FontDesign.yomogi => strings.fontDesignYomogiLabel,
+      FontDesign.kaiseiDecol => strings.fontDesignKaiseiDecolLabel,
+      FontDesign.bizUdpMincho => strings.fontDesignBizUdpMinchoLabel,
+      FontDesign.bizUdGothic => strings.fontDesignBizUdGothicLabel,
+      FontDesign.chikaraDzuyoku851 => strings.fontDesignChikaraDzuyoku851Label,
+      FontDesign.chikaraYowaku851 => strings.fontDesignChikaraYowaku851Label,
     };
 
     if (isGekiga) {
@@ -2387,11 +2649,11 @@ class _TalkPage extends StatelessWidget {
         const Divider(height: 24),
         _TalksListLayoutFolder(strings: strings),
         const Divider(height: 24),
-        _SendKeyFolder(strings: strings),
-        const Divider(height: 24),
         SettingsAccordionSection(
           title: strings.settingsAdvancedSectionTitle,
           children: [
+            _SendKeyFolder(strings: strings),
+            const Divider(height: 24),
             _StickerSendModeFolder(strings: strings),
             const Divider(height: 24),
             _DraftSyncFolder(strings: strings),
@@ -2402,13 +2664,25 @@ class _TalkPage extends StatelessWidget {
   }
 }
 
+/// [_BlockedUsersFolder]が展開前に表示する件数（2026-09-14追加）。これを
+/// 超える場合は「もっと見る」バーを出し、タップで全件表示に切り替える。
+const kBlockedUsersPreviewCount = 3;
+
 /// ブロックしたユーザーの一覧＋解除ボタン。一対のハンバーガーメニューから
 /// ブロックした相手（`users/{userId}/blockedUsers`）をここにまとめて表示する。
-class _BlockedUsersFolder extends ConsumerWidget {
+class _BlockedUsersFolder extends ConsumerStatefulWidget {
   const _BlockedUsersFolder({required this.strings, required this.currentUser});
 
   final Strings strings;
   final AppUser currentUser;
+
+  @override
+  ConsumerState<_BlockedUsersFolder> createState() =>
+      _BlockedUsersFolderState();
+}
+
+class _BlockedUsersFolderState extends ConsumerState<_BlockedUsersFolder> {
+  bool _expanded = false;
 
   Future<void> _unblock(
     BuildContext context,
@@ -2418,7 +2692,10 @@ class _BlockedUsersFolder extends ConsumerWidget {
     try {
       await ref
           .read(blockRepositoryProvider)
-          .unblock(userId: currentUser.userId, targetUserId: targetUserId);
+          .unblock(
+            userId: widget.currentUser.userId,
+            targetUserId: targetUserId,
+          );
     } catch (e) {
       if (!context.mounted) return;
       showAutoDismissBanner(context, message: 'エラーが発生しました: $e');
@@ -2426,9 +2703,10 @@ class _BlockedUsersFolder extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
+    final strings = widget.strings;
     final blockedIdsAsync = ref.watch(
-      blockedUserIdsProvider(currentUser.userId),
+      blockedUserIdsProvider(widget.currentUser.userId),
     );
 
     return blockedIdsAsync.when(
@@ -2465,9 +2743,13 @@ class _BlockedUsersFolder extends ConsumerWidget {
             }
             final blockedUsers = [...snapshot.data!]
               ..sort((a, b) => a.rhingId.compareTo(b.rhingId));
+            final visibleUsers = _expanded
+                ? blockedUsers
+                : blockedUsers.take(kBlockedUsersPreviewCount).toList();
+            final remaining = blockedUsers.length - visibleUsers.length;
             return Column(
               children: [
-                for (final user in blockedUsers)
+                for (final user in visibleUsers)
                   ListTile(
                     contentPadding: const EdgeInsets.symmetric(horizontal: 16),
                     leading: CircleAvatar(
@@ -2487,6 +2769,15 @@ class _BlockedUsersFolder extends ConsumerWidget {
                       onPressed: () => _unblock(context, ref, user.userId),
                       child: Text(strings.settingsBlockedUsersUnblock),
                     ),
+                  ),
+                if (remaining > 0)
+                  ListTile(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                    leading: const Icon(Icons.expand_more),
+                    title: Text(
+                      strings.settingsBlockedUsersShowMoreTemplate(remaining),
+                    ),
+                    onTap: () => setState(() => _expanded = true),
                   ),
               ],
             );

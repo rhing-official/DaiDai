@@ -464,16 +464,15 @@ class _ChatTaskBannerState extends ConsumerState<ChatTaskBanner> {
       _PendingPollTask() => strings.pollTaskBannerLabel(task.title),
     };
 
-    // 劇画テーマは`primaryContainer`/`onPrimaryContainer`ロールだけ黒赤白へ
-    // の上書きが漏れており、Material3のseed生成が残す意図しない青緑になる
-    // （`gekiga_theme.dart`参照）。このためこの2ロールはここでは使わず、
-    // スタイルごとに意図した色を明示する。
-    final background = isGekiga
-        ? GekigaColors.panel
-        : colorScheme.primaryContainer;
-    final foreground = isGekiga
-        ? GekigaColors.onPanel
-        : colorScheme.onPrimaryContainer;
+    // バナーの色をアクセントカラーと完全に一致させる（2026-09-14変更、
+    // ユーザー要望）。以前は`colorScheme.primaryContainer`（`ColorScheme.
+    // fromSeed`がアクセントカラーから自動生成する近似色、薄いパステル調に
+    // なりがちで実際に設定した色とは異なって見えた）を使っていたが、
+    // `colorScheme.primary`はapp_theme.dart/glass_theme.dartの両方で
+    // `accentColor`そのものに明示上書き済みのため、ここでは`primary`/
+    // `onPrimary`を使う。劇画は元々アクセントカラーの概念が無く固定配色。
+    final background = isGekiga ? GekigaColors.panel : colorScheme.primary;
+    final foreground = isGekiga ? GekigaColors.onPanel : colorScheme.onPrimary;
 
     Widget arrowButton() => switch (uiStyle) {
       AppUiStyle.gekiga => GekigaIconButton(
@@ -560,8 +559,8 @@ class _ChatTaskBannerState extends ConsumerState<ChatTaskBanner> {
     );
 
     if (isGlass) {
-      // 背景の塗り自体はフラットと同じ`background`（アクセントカラーで
-      // seedした`colorScheme.primaryContainer`）を使い、その上に
+      // 背景の塗り自体はフラットと同じ`background`（アクセントカラー
+      // そのもの、`colorScheme.primary`）を使い、その上に
       // `GlassSurface`のぼかし・半透明という「見た目」だけを重ねる
       // （2026-09-04変更、以前は`colorScheme.surface`ベースの中立色任せで
       // アクセントカラーに追従していなかった）。

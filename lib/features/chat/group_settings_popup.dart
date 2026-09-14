@@ -11,9 +11,9 @@ import '../../models/group_role.dart';
 import '../../providers/app_ui_style_provider.dart';
 import '../../providers/conversation_prefs_providers.dart';
 import '../../providers/repository_providers.dart';
+import '../../utils/auto_dismiss_banner.dart';
 import '../../utils/group_permissions.dart';
 import '../../widgets/destructive_label.dart';
-import '../../widgets/glass/glass_dialog.dart';
 import '../../widgets/glass/glass_surface.dart';
 import 'chat_panes.dart'
     show confirmDisableReadReceipts, confirmDisableRoomFeature;
@@ -64,21 +64,6 @@ Future<void> showGroupSettingsDialog(
           : Dialog(child: constrained);
     },
   );
-}
-
-/// 広場の寄合モード（`dm_settings_popup.dart`の`_RoomMode`と同じ考え方、
-/// 2026-09-13追加）。`roomsEnabled`（単一→複数、寄合が1つの間だけ複数→単一
-/// にも戻せる）と`roomFeatureDisabled`（単一モードの間だけ双方向に切り替え
-/// 可能）という独立した2フィールドの組み合わせを、UI上は3択の1つの選択式
-/// コントロールに見せるための列挙。一対と広場で許可される遷移が異なる
-/// （広場は寄合1つの間だけ複数→単一に戻せる）ため、共通ウィジェット化は
-/// せずそれぞれのファイルに同じ形の列挙を用意する。
-enum _RoomMode { single, multiple, disabled }
-
-_RoomMode _groupRoomMode(Group group) {
-  if (group.roomsEnabled) return _RoomMode.multiple;
-  if (group.roomFeatureDisabled) return _RoomMode.disabled;
-  return _RoomMode.single;
 }
 
 /// 広場全体の設定をまとめたポップアップ（2026-07-29追加）。サイドバー
@@ -135,93 +120,42 @@ class GroupSettingsPopup extends ConsumerWidget {
     );
   }
 
-  Future<void> _confirmDisableMultipleRooms(
-    BuildContext context,
-    WidgetRef ref,
-    Strings strings,
-    String userId, {
-    required bool isGlass,
-  }) async {
-    final title = Text(strings.groupSettingsDisableMultipleRoomsConfirmTitle);
-    final content = Text(
-      strings.groupSettingsDisableMultipleRoomsConfirmMessage,
-    );
-    final actions = [
-      TextButton(
-        onPressed: () => Navigator.of(context).pop(false),
-        child: Text(strings.cancel),
-      ),
-      FilledButton(
-        onPressed: () => Navigator.of(context).pop(true),
-        child: Text(strings.groupSettingsDisableMultipleRoomsConfirmButton),
-      ),
-    ];
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => isGlass
-          ? GlassAlertDialog(title: title, content: content, actions: actions)
-          : AlertDialog(title: title, content: content, actions: actions),
-    );
-    if (confirmed == true) {
-      await ref
-          .read(groupRepositoryProvider)
-          .setRoomsEnabled(
-            groupId: group.groupId,
-            enabled: false,
-            requestedBy: userId,
-          );
-    }
-  }
-
-  Future<void> _selectRoomMode(
+  /// 寄合機能（複数寄合）のオン/オフを切り替える（2026-09-14変更、以前の
+  /// 3択「単一／複数／寄合機能なし」を1つのトグルに簡略化した。オフに
+  /// する場合の確認ダイアログも、以前はGroup独自の
+  /// `_confirmDisableMultipleRooms`だったが、一対と共通の
+  /// `confirmDisableRoomFeature`に統一した）。オフへの変更は寄合が1つだけの
+  /// 場合しか許可されない（`GroupRepository.setRoomsEnabled`が件数を検証し
+  /// [StateError]を投げる）が、UI側も寄合が複数ある間はトグル自体を無効化
+  /// するため、通常はここに到達する前に弾かれる（購読中の件数と実際の
+  /// 書き込み時点の件数がずれる競合状態のみフォールバックとしてここで
+  /// 捕捉する）。
+  Future<void> _toggleRoomsEnabled(
     BuildContext context,
     WidgetRef ref,
     Strings strings,
     Vocabulary vocab,
-    String userId, {
-    required bool isGlass,
-    required _RoomMode current,
-    required _RoomMode target,
-  }) async {
-    if (target == current) return;
-    final repository = ref.read(groupRepositoryProvider);
-    switch (target) {
-      case _RoomMode.single:
-        if (current == _RoomMode.multiple) {
-          await _confirmDisableMultipleRooms(
-            context,
-            ref,
-            strings,
-            userId,
-            isGlass: isGlass,
-          );
-        } else {
-          await repository.setRoomFeatureDisabled(
+    String userId,
+    bool enabled,
+  ) async {
+    if (!enabled) {
+      final confirmed = await confirmDisableRoomFeature(
+        context,
+        strings,
+        vocab,
+      );
+      if (!confirmed) return;
+    }
+    try {
+      await ref
+          .read(groupRepositoryProvider)
+          .setRoomsEnabled(
             groupId: group.groupId,
-            disabled: false,
+            enabled: enabled,
+            requestedBy: userId,
           );
-        }
-      case _RoomMode.multiple:
-        // 「機能なし」から選んだ場合は先に単一モードへ戻してから複数化する
-        // （2026-09-13、一対と同じく1手順に簡略化）。
-        if (current == _RoomMode.disabled) {
-          await repository.setRoomFeatureDisabled(
-            groupId: group.groupId,
-            disabled: false,
-          );
-        }
-        await repository.setRoomsEnabled(groupId: group.groupId, enabled: true);
-      case _RoomMode.disabled:
-        final confirmed = await confirmDisableRoomFeature(
-          context,
-          strings,
-          vocab,
-        );
-        if (!confirmed) return;
-        await repository.setRoomFeatureDisabled(
-          groupId: group.groupId,
-          disabled: true,
-        );
+    } on StateError catch (e) {
+      if (context.mounted) showAutoDismissBanner(context, message: '$e');
     }
   }
 
@@ -368,59 +302,23 @@ class GroupSettingsPopup extends ConsumerWidget {
                     .watchRooms(groupId: group.groupId, userId: userId),
                 builder: (context, snapshot) {
                   final rooms = snapshot.data ?? const <Room>[];
-                  final roomMode = _groupRoomMode(group);
-                  final canReturnToSingle =
-                      roomMode != _RoomMode.multiple || rooms.length <= 1;
-                  return RadioGroup<_RoomMode>(
-                    groupValue: roomMode,
-                    onChanged: (target) {
-                      if (target == null) return;
-                      _selectRoomMode(
-                        context,
-                        ref,
-                        strings,
-                        vocabulary,
-                        userId,
-                        isGlass: isGlass,
-                        current: roomMode,
-                        target: target,
-                      );
-                    },
-                    child: Column(
-                      children: [
-                        RadioListTile<_RoomMode>(
-                          value: _RoomMode.single,
-                          enabled: canManageRooms && canReturnToSingle,
-                          title: Text(strings.roomModeSingleLabel),
-                          subtitle: roomMode == _RoomMode.multiple
-                              ? Text(
-                                  rooms.length > 1
-                                      ? strings
-                                            .groupSettingsDisableMultipleRoomsBlockedHint
-                                      : strings
-                                            .groupSettingsDisableMultipleRoomsHint,
-                                )
-                              : null,
-                        ),
-                        RadioListTile<_RoomMode>(
-                          value: _RoomMode.multiple,
-                          enabled: canManageRooms,
-                          title: Text(strings.groupMenuEnableMultipleRooms),
-                        ),
-                        RadioListTile<_RoomMode>(
-                          value: _RoomMode.disabled,
-                          enabled:
-                              canManageRooms && roomMode != _RoomMode.multiple,
-                          title: Text(strings.roomModeDisabledLabel),
-                          subtitle: roomMode == _RoomMode.multiple
-                              ? Text(
-                                  strings
-                                      .groupSettingsDisableMultipleRoomsBlockedHint,
-                                )
-                              : Text(strings.roomFeatureDisableConfirmMessage),
-                        ),
-                      ],
-                    ),
+                  final locked = group.roomsEnabled && rooms.length > 1;
+                  return SwitchListTile(
+                    value: group.roomsEnabled,
+                    title: Text(strings.groupMenuEnableMultipleRooms),
+                    subtitle: locked
+                        ? Text(strings.roomModeToggleLockedHint)
+                        : null,
+                    onChanged: !canManageRooms || locked
+                        ? null
+                        : (value) => _toggleRoomsEnabled(
+                            context,
+                            ref,
+                            strings,
+                            vocabulary,
+                            userId,
+                            value,
+                          ),
                   );
                 },
               ),
