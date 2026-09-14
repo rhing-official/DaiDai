@@ -9,6 +9,7 @@ import '../../models/direct_message.dart';
 import '../../models/dm_room.dart';
 import '../../providers/block_providers.dart';
 import '../../providers/conversation_prefs_providers.dart';
+import '../../providers/direct_message_providers.dart';
 import '../../providers/repository_providers.dart';
 import '../../router/app_router.dart';
 import '../../utils/auto_dismiss_banner.dart';
@@ -140,10 +141,6 @@ class DmSettingsPopup extends ConsumerWidget {
     final strings = ref.watch(appStringsProvider);
     final vocabulary = ref.watch(vocabularyProvider);
     final userId = currentUser.userId;
-    final prefs =
-        ref.watch(conversationPrefsProvider(userId)).value ??
-        const <String, ConversationPrefs>{};
-    final muted = prefs[dm.dmId]?.notificationsMuted ?? false;
     // ポップアップを開いたまま切り替えても見た目がすぐ反映されるよう、
     // 呼び出し元から渡された一度きりのスナップショットではなく、ここで
     // 直接プロバイダをwatchする（2026-09-14修正。以前はコンストラクタ引数
@@ -156,6 +153,14 @@ class DmSettingsPopup extends ConsumerWidget {
             .value
             ?.contains(otherUserId) ??
         false;
+    // `dm`自体も同じ理由で陳腐化する（寄合機能トグルの見た目が更新
+    // されない不具合、2026-09-14修正）。`GroupSettingsPopup`と同じ
+    // `watchedDmProvider`を新設して直接watchする。
+    final liveDm = ref.watch(watchedDmProvider(dm.dmId)).value ?? dm;
+    final prefs =
+        ref.watch(conversationPrefsProvider(userId)).value ??
+        const <String, ConversationPrefs>{};
+    final muted = prefs[liveDm.dmId]?.notificationsMuted ?? false;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -193,26 +198,19 @@ class DmSettingsPopup extends ConsumerWidget {
                   onTap: () => ConversationProfileCardDialog.show(
                     context,
                     currentUserId: userId,
-                    conversationId: dm.dmId,
+                    conversationId: liveDm.dmId,
                   ),
                 ),
               const Divider(),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-                child: Text(
-                  strings.roomModeSectionTitle,
-                  style: Theme.of(context).textTheme.labelLarge,
-                ),
-              ),
               StreamBuilder<List<DmRoom>>(
                 stream: ref
                     .read(directMessageRepositoryProvider)
-                    .watchRooms(dmId: dm.dmId, userId: userId),
+                    .watchRooms(dmId: liveDm.dmId, userId: userId),
                 builder: (context, snapshot) {
                   final rooms = snapshot.data ?? const <DmRoom>[];
-                  final locked = dm.roomsEnabled && rooms.length > 1;
+                  final locked = liveDm.roomsEnabled && rooms.length > 1;
                   return SwitchListTile(
-                    value: dm.roomsEnabled,
+                    value: liveDm.roomsEnabled,
                     title: Text(strings.dmMenuEnableMultipleRooms),
                     subtitle: locked
                         ? Text(strings.roomModeToggleLockedHint)
@@ -239,7 +237,7 @@ class DmSettingsPopup extends ConsumerWidget {
                     .read(conversationPrefsRepositoryProvider)
                     .setNotificationsMuted(
                       userId: userId,
-                      conversationId: dm.dmId,
+                      conversationId: liveDm.dmId,
                       muted: value,
                     ),
               ),
@@ -264,16 +262,16 @@ class DmSettingsPopup extends ConsumerWidget {
               ),
               ListTile(
                 title: Text(
-                  dm.readReceiptsEnabled
+                  liveDm.readReceiptsEnabled
                       ? strings.conversationReadReceiptsProposeDisable
                       : strings.conversationReadReceiptsProposeEnable,
                 ),
-                enabled: dm.readReceiptsProposalBy == null,
+                enabled: liveDm.readReceiptsProposalBy == null,
                 onTap: () async {
                   // 既読オン/オフは一対共有の1つの設定で、どちら向きの変更も
                   // 相手の承認が必要（提案は常に現在値の反転を意味する）。
                   // オフにする提案の場合のみ、提案前に警告を出す。
-                  if (dm.readReceiptsEnabled) {
+                  if (liveDm.readReceiptsEnabled) {
                     final confirmed = await confirmDisableReadReceipts(
                       context,
                       strings,
@@ -282,21 +280,24 @@ class DmSettingsPopup extends ConsumerWidget {
                   }
                   ref
                       .read(directMessageRepositoryProvider)
-                      .proposeReadReceiptsToggle(dmId: dm.dmId, userId: userId);
+                      .proposeReadReceiptsToggle(
+                        dmId: liveDm.dmId,
+                        userId: userId,
+                      );
                 },
               ),
               ListTile(
                 title: Text(strings.conversationProposeSeverance),
-                enabled: dm.severanceRequestedBy == null,
+                enabled: liveDm.severanceRequestedBy == null,
                 onTap: () => SeveranceDialog.show(
                   context,
                   mode: SeveranceDialogMode.propose,
-                  dmId: dm.dmId,
+                  dmId: liveDm.dmId,
                   currentUserId: userId,
                   otherUserId: otherUserId,
                 ),
               ),
-              if (dm.accountDeletedUserId != null) ...[
+              if (liveDm.accountDeletedUserId != null) ...[
                 const Divider(),
                 ListTile(
                   leading: Icon(
@@ -314,7 +315,10 @@ class DmSettingsPopup extends ConsumerWidget {
                     if (!confirmed) return;
                     await ref
                         .read(directMessageRepositoryProvider)
-                        .deleteDmAfterAccountDeletion(dm.dmId, userId: userId);
+                        .deleteDmAfterAccountDeletion(
+                          liveDm.dmId,
+                          userId: userId,
+                        );
                     if (context.mounted) {
                       Navigator.of(context).pop();
                       ref.read(goRouterProvider).go('/');

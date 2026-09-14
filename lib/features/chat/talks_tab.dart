@@ -3238,6 +3238,121 @@ class _EmptyDetailPlaceholder extends StatelessWidget {
   Widget build(BuildContext context) => const SizedBox.shrink();
 }
 
+/// 縦表示のアイコン＋寄合一覧レイアウトで、寄合一覧上の左スワイプに
+/// [preview]（選択中の寄合のメッセージ画面）を指の動きに追従させながら
+/// 表示する（2026-09-14追加）。以前はフリックを検知した瞬間に
+/// `openRoomFullscreen`をpushするだけで、ドラッグ中は画面上で何も
+/// 動かず離した後に短い自動アニメーションが1回再生されるだけだった
+/// （＝右スワイプで戻る`InteractiveSwipeBackTransition`のような、
+/// 指に追従する連続的な演出になっていなかった）ため、ユーザー報告を受け
+/// 対称な演出に作り直した。
+///
+/// [InteractiveSwipeBackController]をそのまま流用する（「戻る」専用の
+/// 作りではなく、0→[InteractiveSwipeBackController.maxDrag]の抽象的な
+/// 進捗を管理するだけの汎用実装のため）。「戻る」は既にpush済みの画面を
+/// ドラッグで動かすだけで済むが、こちらは遷移前にはまだ画面が存在しない
+/// ため、ドラッグ中だけ[preview]をこのウィジェット内のローカルな
+/// `Stack`のオーバーレイとして重ねる方式にする（go_routerへは実際に
+/// pushしない）。キャンセルされた場合はオーバーレイを取り除くだけで
+/// ナビゲーションスタックに一切影響しない。コミットされた場合のみ、
+/// オーバーレイが「開き切った」直後に[onOpen]を呼び、呼び出し側が
+/// 実際のpushを行う（この時点で既に同じ絵が見えているため、pushの入場
+/// アニメーションは呼び出し側で無効化しておく必要がある。
+/// `talks_tab.dart`の`openRoomFullscreen`・`DmChatArgs.instant`参照）。
+class _SwipeToOpenRoomPreview extends StatefulWidget {
+  const _SwipeToOpenRoomPreview({
+    required this.roomList,
+    required this.preview,
+    required this.onOpen,
+  });
+
+  final Widget roomList;
+  final Widget preview;
+  final VoidCallback onOpen;
+
+  @override
+  State<_SwipeToOpenRoomPreview> createState() =>
+      _SwipeToOpenRoomPreviewState();
+}
+
+class _SwipeToOpenRoomPreviewState extends State<_SwipeToOpenRoomPreview>
+    with SingleTickerProviderStateMixin {
+  late final InteractiveSwipeBackController _controller =
+      InteractiveSwipeBackController(vsync: this, onCommit: _handleCommitted);
+
+  double _cumulativeDx = 0;
+
+  void _handleCommitted() {
+    widget.onOpen();
+    // 実際のpushが（同フレーム内、または次フレームまでに）画面最前面へ
+    // 反映された後で進捗をリセットする。ここで即座にリセットすると、
+    // pushされた本物の画面がまだ乗る前の1フレームだけ寄合一覧が
+    // 露出してしまう（一瞬だけ後退して見える）ため、
+    // `addPostFrameCallback`で1フレーム遅らせる。
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _controller.progress.value = 0;
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    _controller.maxDrag = MediaQuery.sizeOf(context).width;
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onHorizontalDragStart: (_) {
+        _cumulativeDx = _controller.progress.value;
+      },
+      onHorizontalDragUpdate: (details) {
+        // 左方向への移動量を進捗として扱う（`InteractiveSwipeBackController`
+        // は「右方向＝正の進捗」前提のため、符号を反転して累積する）。
+        _cumulativeDx -= details.delta.dx;
+        if (_cumulativeDx > 0 || _controller.isGestureActive) {
+          _controller.syncFromExternalDrag(
+            context,
+            _cumulativeDx.clamp(0.0, _controller.maxDrag),
+          );
+        }
+      },
+      onHorizontalDragEnd: (details) {
+        if (!_controller.isGestureActive) return;
+        // 速度の符号も同じ理由で反転する（左方向のフリック＝正の速度＝
+        // コミット方向）。
+        final velocity = details.primaryVelocity;
+        _controller.endExternalDrag(
+          context,
+          velocity == null ? null : -velocity,
+        );
+      },
+      child: Stack(
+        children: [
+          widget.roomList,
+          ValueListenableBuilder<double>(
+            valueListenable: _controller.progress,
+            builder: (context, value, child) {
+              // 進捗が0の間は[preview]自体をツリーに含めない
+              // （`Offstage`等で隠すだけだと`DmChatPane`/`GroupChatPane`が
+              // ドラッグの有無に関わらず常時マウントされ、Firestore購読の
+              // コストが常にかかってしまうため）。
+              if (value <= 0) return const SizedBox.shrink();
+              return Transform.translate(
+                offset: Offset(_controller.maxDrag - value, 0),
+                child: RepaintBoundary(child: child),
+              );
+            },
+            child: widget.preview,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// [progress]（0=[width]分の全幅表示、1=幅0まで畳む）に応じて、固定幅
 /// [width]を持つ[child]を左詰めで畳んでいく共通ウィジェット
 /// （[_TalksTabState._buildIconSplitPane]のアイコン列・寄合一覧の両方の
@@ -3508,7 +3623,11 @@ class _DmDetailWithRoomsState extends ConsumerState<_DmDetailWithRooms> {
         // このレイアウトの寄合一覧では既に寄合を選んで来ているため、遷移先
         // チャット画面の寄合タブバーは重複表示になる→非表示にする
         // （`showRoomTabBar: false`、下の左スワイプでの遷移と共通化）。
-        void openRoomFullscreen(String targetRoomId, String targetRoomName) {
+        void openRoomFullscreen(
+          String targetRoomId,
+          String targetRoomName, {
+          bool instant = false,
+        }) {
           ref
               .read(goRouterProvider)
               .push(
@@ -3520,6 +3639,7 @@ class _DmDetailWithRoomsState extends ConsumerState<_DmDetailWithRooms> {
                   roomName: targetRoomName,
                   showRoomTabBar: false,
                   enterFromRight: true,
+                  instant: instant,
                 ),
               );
         }
@@ -3553,15 +3673,19 @@ class _DmDetailWithRoomsState extends ConsumerState<_DmDetailWithRooms> {
           // フォールバック。
           if (!dm.roomsEnabled) return const _EmptyDetailPlaceholder();
           // 寄合一覧上で左スワイプすると、現在ハイライトされている
-          // （＝色が付いている）寄合を開く（2026-09-11追加）。
-          return GestureDetector(
-            behavior: HitTestBehavior.translucent,
-            onHorizontalDragEnd: (details) {
-              if ((details.primaryVelocity ?? 0) < -300) {
-                openRoomFullscreen(roomId, roomName);
-              }
-            },
-            child: roomListPane,
+          // （＝色が付いている）寄合を指の動きに追従しながら開く
+          // （2026-09-11追加、2026-09-14にインタラクティブ化。
+          // `_SwipeToOpenRoomPreview`参照）。
+          return _SwipeToOpenRoomPreview(
+            roomList: roomListPane,
+            preview: DmChatPane(
+              currentUser: currentUser,
+              dm: dm,
+              roomId: roomId,
+              roomName: roomName,
+              showRoomTabBar: false,
+            ),
+            onOpen: () => openRoomFullscreen(roomId, roomName, instant: true),
           );
         }
 
@@ -3700,7 +3824,11 @@ class _GroupDetailWithRoomsState extends ConsumerState<_GroupDetailWithRooms> {
             .name;
 
         // [_DmDetailWithRooms]と同じ理由（2026-09-11追加）。
-        void openRoomFullscreen(String targetRoomId, String targetRoomName) {
+        void openRoomFullscreen(
+          String targetRoomId,
+          String targetRoomName, {
+          bool instant = false,
+        }) {
           ref
               .read(goRouterProvider)
               .push(
@@ -3712,6 +3840,7 @@ class _GroupDetailWithRoomsState extends ConsumerState<_GroupDetailWithRooms> {
                   roomName: targetRoomName,
                   showRoomTabBar: false,
                   enterFromRight: true,
+                  instant: instant,
                 ),
               );
         }
@@ -3758,16 +3887,18 @@ class _GroupDetailWithRoomsState extends ConsumerState<_GroupDetailWithRooms> {
           // 直接フルスクリーン遷移させているため、通常は到達しない防御的な
           // フォールバック。
           if (!group.roomsEnabled) return const _EmptyDetailPlaceholder();
-          // 寄合一覧上で左スワイプすると、現在ハイライトされている
-          // （＝色が付いている）寄合を開く（2026-09-11追加）。
-          return GestureDetector(
-            behavior: HitTestBehavior.translucent,
-            onHorizontalDragEnd: (details) {
-              if ((details.primaryVelocity ?? 0) < -300) {
-                openRoomFullscreen(roomId, roomName);
-              }
-            },
-            child: roomListPane,
+          // [_DmDetailWithRooms]と同じ理由（2026-09-11追加、2026-09-14に
+          // インタラクティブ化）。
+          return _SwipeToOpenRoomPreview(
+            roomList: roomListPane,
+            preview: GroupChatPane(
+              currentUser: currentUser,
+              group: group,
+              roomId: roomId,
+              roomName: roomName,
+              showRoomTabBar: false,
+            ),
+            onOpen: () => openRoomFullscreen(roomId, roomName, instant: true),
           );
         }
 

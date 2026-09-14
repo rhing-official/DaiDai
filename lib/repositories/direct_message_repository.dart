@@ -21,6 +21,12 @@ abstract class DirectMessageRepository {
   /// はnull、2026-09-02追加）。
   Future<DirectMessage?> getDirectMessage(String dmId);
 
+  /// dmId単体のDirectMessageドキュメントをリアルタイムに購読する
+  /// （`DmSettingsPopup`等、開いている間も`roomsEnabled`等の変更を反映する
+  /// 必要がある画面で使う。`GroupRepository.watchGroup`と同じ設計、
+  /// 2026-09-14追加）。
+  Stream<DirectMessage?> watchDirectMessage(String dmId);
+
   /// 自分が参加している一対一覧を、最終メッセージが新しい順に取得する。
   Stream<List<DirectMessage>> watchDirectMessages(String userId);
 
@@ -438,6 +444,17 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
       if (e.code == 'permission-denied') return null;
       rethrow;
     }
+  }
+
+  @override
+  Stream<DirectMessage?> watchDirectMessage(String dmId) {
+    return _directMessages
+        .doc(dmId)
+        .snapshots()
+        .map(
+          (doc) =>
+              doc.exists ? DirectMessage.fromJson(doc.id, doc.data()!) : null,
+        );
   }
 
   @override

@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart'
     show defaultTargetPlatform, TargetPlatform;
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -107,10 +106,6 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
 
   static const _pageChangeDuration = Duration(milliseconds: 200);
 
-  // マウスホイール/トラックパッドでの下スクロール終了のデバウンス用
-  // タイマー（2026-08-19追加、下記onPointerSignal参照）。
-  Timer? _scrollDismissTimer;
-
   // Esc/Space等のキーボード操作を受け取る`Focus`用に明示的に持つ
   // `FocusNode`（2026-09-05追加）。以前は`autofocus: true`のみに任せて
   // 暗黙生成のFocusNodeを使っていたが、シークバーの`Slider`や中央ボタンの
@@ -130,7 +125,6 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
 
   @override
   void dispose() {
-    _scrollDismissTimer?.cancel();
     _pageController.dispose();
     _focusNode.dispose();
     super.dispose();
@@ -200,36 +194,16 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
           }
           return KeyEventResult.ignored;
         },
-        // マウスホイール/トラックパッドで上方向へスクロールしただけで
-        // 閉じられるようにする（2026-08-19追加、ドラッグ操作は不要。
-        // 同日、PCのみ方向をユーザー指示で反転）。モバイルのフリックに
-        // よる`SwipeDownToDismiss`はそのまま維持し、その外側にスクロール
-        // 検出用の`Listener`を重ねるだけに留める。
+        // マウスホイール/トラックパッドのスクロールで閉じる操作は廃止した
+        // （2026-09-14変更、ユーザー指示。代わりにコンピューター・モバイル
+        // 共通でメディア範囲外のクリック/タップで閉じる方式に統一した。
+        // `_ImageViewerPage`/`_VideoViewerPage`参照）。モバイルのフリックに
+        // よる`SwipeDownToDismiss`は引き続き維持する。
         child: Listener(
           // 配下のどこをクリック/タップしても（シークバーのドラッグ開始・
           // 中央ボタン・動画本体タップ含め）ダウン時点で必ずこのノードへ
           // フォーカスを戻す（2026-09-05追加、上記`_focusNode`のdoc参照）。
           onPointerDown: (_) => _focusNode.requestFocus(),
-          onPointerSignal: (event) {
-            if (event is PointerScrollEvent && event.scrollDelta.dy < -2.0) {
-              // トラックパッドの2本指スワイプ等は1回の操作で多数の
-              // PointerScrollEventが連続して届く。即座にpop()すると、
-              // 同じジェスチャーの残りのイベントがpop後の最前面ルート
-              // （メッセージ画面）へ漏れて、その分だけ意図せず
-              // スクロールされてしまう不具合があった（2026-08-19判明）。
-              // 新しいスクロールイベントが来るたびタイマーを延長し、
-              // 一定時間（150ms）イベントが来なくなってからpop()する
-              // ことで、ジェスチャー全体をこのListenerが確実に消費
-              // しきってから閉じるようにする。
-              _scrollDismissTimer?.cancel();
-              _scrollDismissTimer = Timer(
-                const Duration(milliseconds: 150),
-                () {
-                  if (mounted) Navigator.of(context).pop();
-                },
-              );
-            }
-          },
           child: PinchPriorityPageView(
             controller: _pageController,
             onDismiss: () => Navigator.of(context).pop(),
@@ -268,30 +242,72 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
 
 /// [MediaViewerScreen]の1ページ分（画像）。Escキー・下スワイプ・画面全体の
 /// `Scaffold`/`AppBar`は[MediaViewerScreen]側が共通で持つため、ここでは
-/// 画像本体と「画像以外の箇所のタップで閉じる」ジェスチャーのみを持つ
+/// 画像本体と「画像の表示範囲外のタップで閉じる」ジェスチャーのみを持つ
 /// （2026-08-10追加、2026-08-14に[MediaViewerScreen]への統合に伴い
-/// `_ImageViewerScreen`から改名）。内側のGestureDetectorは何もしないonTapで
-/// タップを吸収し、画像自体をタップした際に外側へ伝播して閉じてしまうのを
-/// 防ぐ。画像をズームしてパン中はInteractiveViewer側のジェスチャーが
-/// 優先されるため誤って閉じない。
-class _ImageViewerPage extends StatelessWidget {
+/// `_ImageViewerScreen`から改名）。
+///
+/// 画像の自然な幅・高さ（アスペクト比）を`Image.network`のものと同じ
+/// `ImageProvider`から解決し、`AspectRatio`で`BoxFit.contain`と同じ矩形を
+/// 再現する。この矩形の内側は何もしないonTapでタップを吸収し（画像自体を
+/// タップした際に外側へ伝播して閉じてしまうのを防ぐ）、矩形の外側
+/// （レターボックス部分）をタップすると閉じる（2026-09-14変更、以前は
+/// 画面全体を内側として扱っており実質どこをタップしても閉じなかった）。
+/// アスペクト比が解決するまでの間（読み込み中）は矩形を決められないため、
+/// 従来通り画面全体を内側として扱うフォールバックのままにする。画像を
+/// ズームしてパン中はInteractiveViewer側のジェスチャーが優先されるため
+/// 誤って閉じない（`InteractiveViewer`は既定でクリップするため、ズーム中も
+/// 当たり判定の矩形自体はズーム前のレイアウト矩形のまま変わらない）。
+class _ImageViewerPage extends StatefulWidget {
   const _ImageViewerPage({required this.url});
 
   final String url;
 
   @override
+  State<_ImageViewerPage> createState() => _ImageViewerPageState();
+}
+
+class _ImageViewerPageState extends State<_ImageViewerPage> {
+  double? _aspectRatio;
+  ImageStream? _imageStream;
+  late final _imageStreamListener = ImageStreamListener(_onImageInfo);
+
+  @override
+  void initState() {
+    super.initState();
+    final stream = NetworkImage(widget.url).resolve(const ImageConfiguration());
+    _imageStream = stream..addListener(_imageStreamListener);
+  }
+
+  void _onImageInfo(ImageInfo info, bool synchronousCall) {
+    final ratio = info.image.width / info.image.height;
+    if (mounted) setState(() => _aspectRatio = ratio);
+  }
+
+  @override
+  void dispose() {
+    _imageStream?.removeListener(_imageStreamListener);
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final image = InteractiveViewer(
+      child: Image.network(widget.url, fit: BoxFit.contain),
+    );
+    final aspectRatio = _aspectRatio;
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: () => Navigator.of(context).pop(),
-      child: GestureDetector(
-        onTap: () {},
-        child: SizedBox.expand(
-          child: InteractiveViewer(
-            child: Image.network(url, fit: BoxFit.contain),
-          ),
-        ),
-      ),
+      child: aspectRatio == null
+          ? SizedBox.expand(
+              child: GestureDetector(onTap: () {}, child: image),
+            )
+          : Center(
+              child: AspectRatio(
+                aspectRatio: aspectRatio,
+                child: GestureDetector(onTap: () {}, child: image),
+              ),
+            ),
     );
   }
 }
@@ -305,10 +321,12 @@ class _ImageViewerPage extends StatelessWidget {
 /// 分岐済み）。[autoPlay]がtrueの時だけ初期化後に自動再生する（プレビューから
 /// 直接開いた対象のみtrue。スワイプ/矢印キーで切り替えた先はfalseになり、
 /// 中央の再生ボタン（[_CenterControls]）をタップするまで一時停止のまま、
-/// 2026-08-14追加）。再生/一時停止は、動画の座標上（レターボックスの余白
-/// 含む）のどこをタップしても、またスペースキーでも切り替えられる
-/// （[_togglePlayback]、スペースキーは[MediaViewerScreen]の`Focus`から
-/// `GlobalKey`経由で呼び出す、2026-08-14追加）。ページを離れる際は[_pause]が
+/// 2026-08-14追加）。再生/一時停止は、動画の実際の表示範囲（レターボックス
+/// の余白は含まない、2026-09-14変更）をタップしても、またスペースキーでも
+/// 切り替えられる（[_togglePlayback]、スペースキーは[MediaViewerScreen]の
+/// `Focus`から`GlobalKey`経由で呼び出す、2026-08-14追加）。レターボックス
+/// 部分（動画の外側）をタップした場合は、画像ページ（[_ImageViewerPage]）と
+/// 同様にビューア自体を閉じる（2026-09-14追加）。ページを離れる際は[_pause]が
 /// `_MediaViewerScreenState`の`onPageChanged`から同様に`GlobalKey`経由で
 /// 呼ばれ、常に一時停止した状態でページを離れる（2026-09-06追加）。
 class _VideoViewerPage extends StatefulWidget {
@@ -568,21 +586,19 @@ class _VideoViewerPageState extends State<_VideoViewerPage> {
         // 画面残り分に制限し、`AspectRatio`が幅・高さ両方の制約内で
         // 収まるサイズを計算できるようにする。
         //
-        // タップ判定は`Expanded`領域全体（動画の周囲の黒い余白＝
-        // レターボックス部分も含む）に対して行う（2026-08-14変更。以前は
-        // `AspectRatio`の実サイズにだけ`GestureDetector`を付けていたため、
-        // 動画の座標上でも余白部分をクリックすると反応しない不具合があった）。
-        // 画像ページ（[_ImageViewerPage]）と異なり、動画本体のタップは
-        // 「閉じる」ではなく常に再生/一時停止のトグルにするため、外側の
-        // 「タップで閉じる」ジェスチャーは持たせない（閉じるのはEscキー・
-        // 下スワイプ・AppBarの戻るボタンで行う。以前は動画全体を覆う
-        // 「タップで閉じる」の`GestureDetector`とこのトグル用
-        // `GestureDetector`が入れ子になっており、スワイプで動画ページへ
-        // 遷移した直後は再生ボタンを押しても再生されない不具合があった。
-        // 入れ子のジェスチャー判定自体を無くすことで解消した）。
+        // タップ判定を「動画の実際の矩形（`AspectRatio`の内側）」と
+        // 「その外側＝レターボックスの余白」で分ける（2026-09-14変更、
+        // ユーザー指示。以前はレターボックス部分も動画本体と同じ
+        // 再生/一時停止トグルの対象にしており、動画ページには「タップで
+        // 閉じる」ジェスチャー自体が無かった。画像ページ（[_ImageViewerPage]）
+        // と挙動を揃え、レターボックス＝範囲外タップで閉じるようにした）。
+        // 外側の`GestureDetector`が`Expanded`全体（レターボックス含む）を
+        // 覆って`onTap`で閉じ、`AspectRatio`の内側にトグル用の
+        // `GestureDetector`を新たに設けて外側へのタップ伝播を止める
+        // （`opaque`のためヒットテストが内側で止まる）。
         //
-        // モバイル（`_isMobilePlatform`）ではタップで再生/一時停止を
-        // トグルしない（2026-09-07変更）。画面タップはデスクトップ/Webで
+        // モバイル（`_isMobilePlatform`）では動画本体タップで再生/一時停止を
+        // トグルしない（2026-09-07変更）。動画本体タップはデスクトップ/Webで
         // ポインターを動かした時と同じ`_resetControlsVisibility`（操作
         // パネルの表示のみ）にする。再生/一時停止は`_CenterControls`の
         // 中央ボタン（下記、独立した`InkWell`を持つ）を押した時のみ行う。
@@ -595,128 +611,142 @@ class _VideoViewerPageState extends State<_VideoViewerPage> {
         return Column(
           children: [
             Expanded(
-              child: MouseRegion(
-                onHover: (_) => _resetControlsVisibility(),
-                // ダブルタップの左右判定に動画エリアの幅が要るため
-                // `LayoutBuilder`で包む（2026-08-18追加）。
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    return GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onTap: _isMobilePlatform
-                          ? _resetControlsVisibility
-                          : _togglePlayback,
-                      // モバイル以外では`onDoubleTapDown`自体を渡さない
-                      // （`_isMobilePlatform`のdocコメント参照。常設すると
-                      // 全プラットフォームでシングルタップの確定が
-                      // ダブルタップ判定待ちの分だけ遅延してしまうため）。
-                      onDoubleTapDown: _isMobilePlatform
-                          ? (details) => _handleDoubleTapSkip(
-                              details,
-                              constraints.maxWidth,
-                            )
-                          : null,
-                      child: Center(
-                        child: AspectRatio(
-                          aspectRatio: _controller.value.aspectRatio,
-                          child: Stack(
-                            alignment: Alignment.center,
-                            children: [
-                              VideoPlayer(_controller),
-                              // Web（video_player_web）は<video>要素を直接
-                              // DOMへ描画するプラットフォームビューのため、
-                              // 動画のピクセル上のクリックがFlutterの
-                              // ジェスチャー検出まで届かないことがある
-                              // （2026-08-19判明。レターボックス部分は
-                              // Flutterが直接描画しているため外側の
-                              // GestureDetectorで問題無く反応するが、動画
-                              // 本体は無反応だった）。動画と同じ範囲を覆う
-                              // 透明なオーバーレイをVideoPlayerの直後
-                              // （＝より手前）に重ね、タップ/ダブルタップを
-                              // こちらで捕捉し直す。外側のGestureDetector
-                              // （レターボックス部分用）は引き続き維持する。
-                              // ネイティブモバイル（`_isMobilePlatform`）は
-                              // テクスチャ描画でこの問題が起きないため、
-                              // このオーバーレイの`onTap`/`onDoubleTapDown`
-                              // 自体を持たせない（2026-09-07変更）。外側と
-                              // 内側の両方が同じ座標で`TapGestureRecognizer`/
-                              // `DoubleTapGestureRecognizer`を二重に
-                              // ジェスチャーアリーナへ登録してしまい、
-                              // ダブルタップが安定して認識されなかった
-                              // 不具合の根本原因だったため。
-                              Positioned.fill(
-                                child: LayoutBuilder(
-                                  builder: (context, videoConstraints) {
-                                    return GestureDetector(
-                                      behavior: HitTestBehavior.opaque,
-                                      onTap: _isMobilePlatform
-                                          ? null
-                                          : _togglePlayback,
-                                      // ダブルタップ10秒送り/戻しはモバイル
-                                      // 限定の機能で、モバイルでは外側の
-                                      // `GestureDetector`だけが担う
-                                      // （上記コメント参照）ため、ここでは
-                                      // プラットフォームに関わらず常に
-                                      // 設定しない。
-                                      onDoubleTapDown: null,
-                                    );
-                                  },
+              // レターボックス部分（動画の外側）をタップすると閉じる
+              // （2026-09-14追加）。`MouseRegion`はレターボックス上での
+              // ポインター移動でも操作パネルを表示させたいため、この
+              // 「閉じる」ジェスチャーの内側に置く。
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => Navigator.of(context).pop(),
+                child: MouseRegion(
+                  onHover: (_) => _resetControlsVisibility(),
+                  child: Center(
+                    child: AspectRatio(
+                      aspectRatio: _controller.value.aspectRatio,
+                      // ダブルタップの左右判定に動画の実際の幅が要るため
+                      // `LayoutBuilder`で包む（2026-08-18追加、2026-09-14に
+                      // 対象を`Expanded`全体から動画の実際の矩形に変更
+                      // ——レターボックス込みの幅で左右判定すると、画面が
+                      // 動画よりずっと横長の場合に判定の境界が動画本体の
+                      // 中心とずれてしまうため、より正確になった）。
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          return GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: _isMobilePlatform
+                                ? _resetControlsVisibility
+                                : _togglePlayback,
+                            // モバイル以外では`onDoubleTapDown`自体を渡さない
+                            // （`_isMobilePlatform`のdocコメント参照。常設すると
+                            // 全プラットフォームでシングルタップの確定が
+                            // ダブルタップ判定待ちの分だけ遅延してしまうため）。
+                            onDoubleTapDown: _isMobilePlatform
+                                ? (details) => _handleDoubleTapSkip(
+                                    details,
+                                    constraints.maxWidth,
+                                  )
+                                : null,
+                            child: Stack(
+                              alignment: Alignment.center,
+                              children: [
+                                VideoPlayer(_controller),
+                                // Web（video_player_web）は<video>要素を直接
+                                // DOMへ描画するプラットフォームビューのため、
+                                // 動画のピクセル上のクリックがFlutterの
+                                // ジェスチャー検出まで届かないことがある
+                                // （2026-08-19判明。レターボックス部分は
+                                // Flutterが直接描画しているため外側の
+                                // GestureDetectorで問題無く反応するが、動画
+                                // 本体は無反応だった）。動画と同じ範囲を覆う
+                                // 透明なオーバーレイをVideoPlayerの直後
+                                // （＝より手前）に重ね、タップ/ダブルタップを
+                                // こちらで捕捉し直す。外側のGestureDetector
+                                // （レターボックス部分用）は引き続き維持する。
+                                // ネイティブモバイル（`_isMobilePlatform`）は
+                                // テクスチャ描画でこの問題が起きないため、
+                                // このオーバーレイの`onTap`/`onDoubleTapDown`
+                                // 自体を持たせない（2026-09-07変更）。外側と
+                                // 内側の両方が同じ座標で`TapGestureRecognizer`/
+                                // `DoubleTapGestureRecognizer`を二重に
+                                // ジェスチャーアリーナへ登録してしまい、
+                                // ダブルタップが安定して認識されなかった
+                                // 不具合の根本原因だったため。
+                                Positioned.fill(
+                                  child: LayoutBuilder(
+                                    builder: (context, videoConstraints) {
+                                      return GestureDetector(
+                                        behavior: HitTestBehavior.opaque,
+                                        onTap: _isMobilePlatform
+                                            ? null
+                                            : _togglePlayback,
+                                        // ダブルタップ10秒送り/戻しはモバイル
+                                        // 限定の機能で、モバイルでは外側の
+                                        // `GestureDetector`だけが担う
+                                        // （上記コメント参照）ため、ここでは
+                                        // プラットフォームに関わらず常に
+                                        // 設定しない。
+                                        onDoubleTapDown: null,
+                                      );
+                                    },
+                                  ),
                                 ),
-                              ),
-                              // 一時停止中は常時、再生中はポインター移動から
-                              // 数秒間だけ、中央に再生/一時停止＋10秒送り/戻し
-                              // ボタンを表示する（2026-08-14追加・2026-08-18に
-                              // 10秒送り/戻し追加＋ポインター連動化）。個々の
-                              // ボタンは実際にタップを受け取るため、外側の
-                              // `onTap: _togglePlayback`（動画本体タップでの
-                              // トグル）とは独立して共存する。
-                              if (!_controller.value.isPlaying ||
-                                  _controlsVisible)
-                                _CenterControls(
-                                  isPlaying: _controller.value.isPlaying,
-                                  onTogglePlayback: _togglePlayback,
-                                  onSkipBack: () {
-                                    _skip(const Duration(seconds: -10));
-                                    _resetControlsVisibility();
-                                  },
-                                  onSkipForward: () {
-                                    _skip(const Duration(seconds: 10));
-                                    _resetControlsVisibility();
-                                  },
-                                ),
-                              // モバイルでのダブルタップ10秒送り/戻し操作の
-                              // フィードバック（2026-08-18追加）。中央の
-                              // `_CenterControls`と重ならないよう上寄せに
-                              // 配置する。
-                              if (_skipFlashLabel != null)
-                                Align(
-                                  alignment: const Alignment(0, -0.5),
-                                  child: IgnorePointer(
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 16,
-                                        vertical: 8,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: Colors.black54,
-                                        borderRadius: BorderRadius.circular(20),
-                                      ),
-                                      child: Text(
-                                        _skipFlashLabel!,
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 16,
+                                // 一時停止中は常時、再生中はポインター移動から
+                                // 数秒間だけ、中央に再生/一時停止＋10秒送り/戻し
+                                // ボタンを表示する（2026-08-14追加・2026-08-18に
+                                // 10秒送り/戻し追加＋ポインター連動化）。個々の
+                                // ボタンは実際にタップを受け取るため、外側の
+                                // `onTap: _togglePlayback`（動画本体タップでの
+                                // トグル）とは独立して共存する。
+                                if (!_controller.value.isPlaying ||
+                                    _controlsVisible)
+                                  _CenterControls(
+                                    isPlaying: _controller.value.isPlaying,
+                                    onTogglePlayback: _togglePlayback,
+                                    onSkipBack: () {
+                                      _skip(const Duration(seconds: -10));
+                                      _resetControlsVisibility();
+                                    },
+                                    onSkipForward: () {
+                                      _skip(const Duration(seconds: 10));
+                                      _resetControlsVisibility();
+                                    },
+                                  ),
+                                // モバイルでのダブルタップ10秒送り/戻し操作の
+                                // フィードバック（2026-08-18追加）。中央の
+                                // `_CenterControls`と重ならないよう上寄せに
+                                // 配置する。
+                                if (_skipFlashLabel != null)
+                                  Align(
+                                    alignment: const Alignment(0, -0.5),
+                                    child: IgnorePointer(
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 16,
+                                          vertical: 8,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Colors.black54,
+                                          borderRadius: BorderRadius.circular(
+                                            20,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          _skipFlashLabel!,
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 16,
+                                          ),
                                         ),
                                       ),
                                     ),
                                   ),
-                                ),
-                            ],
-                          ),
-                        ),
+                              ],
+                            ),
+                          );
+                        },
                       ),
-                    );
-                  },
+                    ),
+                  ),
                 ),
               ),
             ),

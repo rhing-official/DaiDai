@@ -10,6 +10,7 @@ import '../../models/group.dart';
 import '../../models/group_role.dart';
 import '../../providers/app_ui_style_provider.dart';
 import '../../providers/conversation_prefs_providers.dart';
+import '../../providers/group_providers.dart';
 import '../../providers/repository_providers.dart';
 import '../../utils/auto_dismiss_banner.dart';
 import '../../utils/group_permissions.dart';
@@ -165,31 +166,40 @@ class GroupSettingsPopup extends ConsumerWidget {
     final vocabulary = ref.watch(vocabularyProvider);
     final isGlass = ref.watch(appUiStyleProvider) == AppUiStyle.glass;
     final userId = currentUser.userId;
+    // ポップアップを開いたまま設定を切り替えても見た目がすぐ反映されるよう、
+    // 呼び出し元から渡された一度きりのスナップショットではなく、ここで
+    // `watchedGroupProvider`を直接watchする（2026-09-14修正。以前は
+    // コンストラクタ引数`group`を使っており、寄合機能トグル操作時に
+    // Firestoreへの書き込み自体は成功してもスイッチの見た目だけ更新
+    // されなかった。`group_role_list_popup.dart`/`group_member_list_screen.dart`
+    // と同じ既存パターンを踏襲）。
+    final liveGroup =
+        ref.watch(watchedGroupProvider(group.groupId)).value ?? group;
     final canManageRoles = hasGroupPermission(
-      group: group,
+      group: liveGroup,
       userId: userId,
       permission: GroupPermission.manageRoles,
     );
     final canCreateInvite = hasGroupPermission(
-      group: group,
+      group: liveGroup,
       userId: userId,
       permission: GroupPermission.createInvite,
     );
     final canManageReadReceipts = hasGroupPermission(
-      group: group,
+      group: liveGroup,
       userId: userId,
       permission: GroupPermission.manageReadReceipts,
     );
     final canManageRooms = hasGroupPermission(
-      group: group,
+      group: liveGroup,
       userId: userId,
       permission: GroupPermission.manageRooms,
     );
     final prefs =
         ref.watch(conversationPrefsProvider(userId)).value ??
         const <String, ConversationPrefs>{};
-    final muted = prefs[group.groupId]?.notificationsMuted ?? false;
-    final readReceiptsEnabled = group.readReceiptsEnabled;
+    final muted = prefs[liveGroup.groupId]?.notificationsMuted ?? false;
+    final readReceiptsEnabled = liveGroup.readReceiptsEnabled;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -225,7 +235,7 @@ class GroupSettingsPopup extends ConsumerWidget {
                 title: Text(strings.groupMenuProfileCard),
                 onTap: () => _openSubDialog(
                   context,
-                  GroupProfileCardPopup(group: group),
+                  GroupProfileCardPopup(group: liveGroup),
                   isGlass: isGlass,
                 ),
               ),
@@ -236,13 +246,13 @@ class GroupSettingsPopup extends ConsumerWidget {
                   onTap: () => ConversationProfileCardDialog.show(
                     context,
                     currentUserId: currentUser.userId,
-                    conversationId: group.groupId,
+                    conversationId: liveGroup.groupId,
                   ),
                 ),
               StreamBuilder<List<GroupRole>>(
                 stream: ref
                     .read(groupRepositoryProvider)
-                    .watchRoles(group.groupId),
+                    .watchRoles(liveGroup.groupId),
                 builder: (context, snapshot) {
                   final roles = snapshot.data ?? const <GroupRole>[];
                   return ListTile(
@@ -252,7 +262,7 @@ class GroupSettingsPopup extends ConsumerWidget {
                       context,
                       GroupMemberListPopup(
                         currentUser: currentUser,
-                        group: group,
+                        group: liveGroup,
                         roles: roles,
                       ),
                       isGlass: isGlass,
@@ -269,8 +279,8 @@ class GroupSettingsPopup extends ConsumerWidget {
                     ? null
                     : () => GroupInviteDialog.show(
                         context,
-                        group.groupId,
-                        group.profileCard,
+                        liveGroup.groupId,
+                        liveGroup.profileCard,
                       ),
               ),
               ListTile(
@@ -283,28 +293,21 @@ class GroupSettingsPopup extends ConsumerWidget {
                         context,
                         GroupRoleListPopup(
                           currentUser: currentUser,
-                          group: group,
+                          group: liveGroup,
                         ),
                         isGlass: isGlass,
                       ),
               ),
               const Divider(),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-                child: Text(
-                  strings.roomModeSectionTitle,
-                  style: Theme.of(context).textTheme.labelLarge,
-                ),
-              ),
               StreamBuilder<List<Room>>(
                 stream: ref
                     .read(groupRepositoryProvider)
-                    .watchRooms(groupId: group.groupId, userId: userId),
+                    .watchRooms(groupId: liveGroup.groupId, userId: userId),
                 builder: (context, snapshot) {
                   final rooms = snapshot.data ?? const <Room>[];
-                  final locked = group.roomsEnabled && rooms.length > 1;
+                  final locked = liveGroup.roomsEnabled && rooms.length > 1;
                   return SwitchListTile(
-                    value: group.roomsEnabled,
+                    value: liveGroup.roomsEnabled,
                     title: Text(strings.groupMenuEnableMultipleRooms),
                     subtitle: locked
                         ? Text(strings.roomModeToggleLockedHint)
@@ -331,7 +334,7 @@ class GroupSettingsPopup extends ConsumerWidget {
                     .read(conversationPrefsRepositoryProvider)
                     .setNotificationsMuted(
                       userId: userId,
-                      conversationId: group.groupId,
+                      conversationId: liveGroup.groupId,
                       muted: value,
                     ),
               ),
@@ -352,7 +355,7 @@ class GroupSettingsPopup extends ConsumerWidget {
                         ref
                             .read(groupRepositoryProvider)
                             .setReadReceiptsEnabled(
-                              groupId: group.groupId,
+                              groupId: liveGroup.groupId,
                               enabled: value,
                               userId: userId,
                             );
@@ -365,10 +368,10 @@ class GroupSettingsPopup extends ConsumerWidget {
                   color: Theme.of(context).colorScheme.error,
                 ),
                 title: DestructiveLabel(strings.groupDeleteMenuLabel),
-                enabled: group.ownerId == userId,
+                enabled: liveGroup.ownerId == userId,
                 onTap: () => GroupDeleteDialog.show(
                   context,
-                  groupId: group.groupId,
+                  groupId: liveGroup.groupId,
                   userId: userId,
                 ),
               ),
