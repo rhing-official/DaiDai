@@ -596,32 +596,40 @@ class _RoomTabBarState extends ConsumerState<RoomTabBar> {
     // `SafeArea`は塗りの外ではなく内側に置き、余白部分にも同じ背景が
     // 続くようにする（`SafeArea`を外側に置くと、余白部分だけ背景の塗りが
     // 無く後ろが透けて見えてしまう）。
-    if (isGlass) {
-      return GlassSurface(
-        variant: GlassVariant.chrome,
-        borderRadius: BorderRadius.zero,
-        enableEdgeStroke: false,
-        child: SafeArea(
-          bottom: false,
-          child: SizedBox(height: totalHeight, child: content),
-        ),
-      );
-    }
+    final bar = isGlass
+        ? GlassSurface(
+            variant: GlassVariant.chrome,
+            borderRadius: BorderRadius.zero,
+            enableEdgeStroke: false,
+            child: SafeArea(
+              bottom: false,
+              child: SizedBox(height: totalHeight, child: content),
+            ),
+          )
+        : Container(
+            // 2026-08-30、チャット画面のScaffold.extendBodyBehindAppBarが全
+            // スタイル共通でtrueになったのに合わせ、明示的に不透明背景を指定
+            // する（以前はextendBodyBehindAppBar=falseだったため指定が無くても
+            // 不透明に見えていた。ここは寄合切り替えタブのため、今回の「上部の
+            // アイコン行の背景を消す」変更の対象外として現状の見た目を保つ）。
+            decoration: BoxDecoration(
+              color: Theme.of(context).scaffoldBackgroundColor,
+              border: Border(top: BorderSide(color: borderColor)),
+            ),
+            child: SafeArea(
+              bottom: false,
+              child: SizedBox(height: totalHeight, child: content),
+            ),
+          );
 
-    return Container(
-      // 2026-08-30、チャット画面のScaffold.extendBodyBehindAppBarが全
-      // スタイル共通でtrueになったのに合わせ、明示的に不透明背景を指定
-      // する（以前はextendBodyBehindAppBar=falseだったため指定が無くても
-      // 不透明に見えていた。ここは寄合切り替えタブのため、今回の「上部の
-      // アイコン行の背景を消す」変更の対象外として現状の見た目を保つ）。
-      decoration: BoxDecoration(
-        color: Theme.of(context).scaffoldBackgroundColor,
-        border: Border(top: BorderSide(color: borderColor)),
-      ),
-      child: SafeArea(
-        bottom: false,
-        child: SizedBox(height: totalHeight, child: content),
-      ),
-    );
+    // `RoomTabBar`は`ChatScreen`のScaffold（＝Material）の外に配置される
+    // ようになった（2026-09-14変更、`chat_panes.dart`参照）ため、祖先に
+    // Materialが無いと`Text`の`DefaultTextStyle`がFlutter既定の
+    // フォールバック（fontSize:48等）にフォールバックしてしまい、モバイルの
+    // フラット/ガラスUIで文字が異常に巨大化する不具合があった
+    // （2026-09-14発覚・修正）。劇画UIは各セルを個別に`Material`で包んで
+    // いたため影響が無かった。見た目に影響しない`MaterialType.transparency`
+    // でバー全体を包み、`DefaultTextStyle`を通常の`bodyMedium`に戻す。
+    return Material(type: MaterialType.transparency, child: bar);
   }
 }

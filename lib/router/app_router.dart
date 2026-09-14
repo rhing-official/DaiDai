@@ -39,6 +39,7 @@ class DmChatArgs {
     required this.roomName,
     this.showRoomTabBar = true,
     this.enterFromRight = false,
+    this.instant = false,
   });
   final AppUser currentUser;
   final DirectMessage dm;
@@ -59,8 +60,16 @@ class DmChatArgs {
   /// （`talks_tab.dart`の`_openDirectMessage`/`openRoomFullscreen`参照）。
   /// falseなら旧来の`buildPopSlideTransition`（フェード＋下からのポップ
   /// 演出）のまま（部屋作成直後の自動遷移等、一覧からの遷移ではない経路が
-  /// 引き続き使う）。
+  /// 引き続き使う）。[instant]がtrueの場合はこの値は無視される。
   final bool enterFromRight;
+
+  /// trueの場合、入場アニメーション自体を行わず即時表示する
+  /// （2026-09-14追加）。寄合一覧上の左スワイプで指の動きに追従する
+  /// プレビュー（`talks_tab.dart`の`_SwipeToOpenRoomPreview`）が既に
+  /// 「開き切った」見た目までドラッグで表示し終えた直後にこの遷移を行う
+  /// 場合に使う。既にプレビューで同じ絵が見えているため、ここで通常の
+  /// スライドインを再生すると二重にアニメーションして見えてしまうため。
+  final bool instant;
 }
 
 class GroupChatArgs {
@@ -71,6 +80,7 @@ class GroupChatArgs {
     required this.roomName,
     this.showRoomTabBar = true,
     this.enterFromRight = false,
+    this.instant = false,
   });
   final AppUser currentUser;
   final Group group;
@@ -82,6 +92,9 @@ class GroupChatArgs {
 
   /// [DmChatArgs.enterFromRight]と同じ理由（2026-09-11追加）。
   final bool enterFromRight;
+
+  /// [DmChatArgs.instant]と同じ理由（2026-09-14追加）。
+  final bool instant;
 }
 
 class CallArgs {
@@ -223,6 +236,13 @@ final goRouterProvider = Provider<GoRouter>((ref) {
                 startCall(args.currentUser, args.dm, isVideo: true),
             showRoomTabBar: args.showRoomTabBar,
           );
+          if (args.instant) {
+            return slideDetailPage(
+              state,
+              pane,
+              transition: (animation, child) => child,
+            );
+          }
           return args.enterFromRight
               ? slideDetailPage(state, pane)
               : slideDetailPage(
@@ -243,6 +263,13 @@ final goRouterProvider = Provider<GoRouter>((ref) {
             roomName: args.roomName,
             showRoomTabBar: args.showRoomTabBar,
           );
+          if (args.instant) {
+            return slideDetailPage(
+              state,
+              pane,
+              transition: (animation, child) => child,
+            );
+          }
           return args.enterFromRight
               ? slideDetailPage(state, pane)
               : slideDetailPage(

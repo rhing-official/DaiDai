@@ -359,7 +359,6 @@ class Strings {
     required this.groupRoomCustomSettingsHint,
     required this.dmMenuOpenSettings,
     required this.dmSettingsTooltip,
-    required this.roomModeSectionTitle,
     required this.roomModeToggleLockedHint,
     required this.profileCardPickerLabel,
     required this.profileCardPickerStandardOption,
@@ -1057,14 +1056,6 @@ class Strings {
   /// `DmSettingsPopup`のヘッダータイトル（2026-09-13追加、
   /// `groupSettingsTooltip`に相当）。
   final String dmSettingsTooltip;
-
-  /// `DmSettingsPopup`/`GroupSettingsPopup`内の寄合機能（複数寄合）
-  /// オン/オフトグルの見出し（2026-09-13追加。2026-09-14に「単一/複数/
-  /// 寄合機能なし」の3択から、`roomsEnabled`1つのオン/オフトグルへ
-  /// 簡略化した。独立していた`roomFeatureDisabled`フィールドは、寄合の
-  /// 名前変更・削除メニューの表示/非表示のみを切り替える程度の機能差しか
-  /// 無く、3択という複雑さに見合わなかったため廃止した）。
-  final String roomModeSectionTitle;
 
   /// 寄合機能トグルがオンのまま無効化されている（オフに戻せない）ことを
   /// 説明する文言。寄合が2件以上ある間はオフにできない（一対・広場共通、
@@ -1820,7 +1811,6 @@ class Strings {
         'オンにすると、通知・既読・ロールの優先順位を広場全体の設定より優先してこの寄合だけ個別に設定できます',
     dmMenuOpenSettings: '一対の設定',
     dmSettingsTooltip: '一対の設定',
-    roomModeSectionTitle: '寄合の扱い方',
     roomModeToggleLockedHint: '寄合が複数あるため、1つにまとめてからオフにできます',
     profileCardPickerLabel: '使うプロフィールカード',
     profileCardPickerStandardOption: '標準',
@@ -1903,7 +1893,7 @@ class Strings {
     roomFeatureEnableLabel: (term) => '$term機能を元に戻す',
     roomFeatureDisableConfirmTitle: (term) => '$term機能を無くしますか？',
     roomFeatureDisableConfirmMessage: 'よりシンプルな会話画面になります。この操作はいつでも元に戻せます。',
-    roomFeatureDisableConfirmButton: '無くす',
+    roomFeatureDisableConfirmButton: 'はい',
     dmMenuDeleteConversation: (term) => '$termの削除',
     chatAddToAlbumAction: 'アルバムに登録',
     albumButtonTooltip: 'アルバム',
@@ -2499,7 +2489,6 @@ class Strings {
         'When on, this room\'s notification, read receipts, and role priority settings take priority over the plaza defaults',
     dmMenuOpenSettings: 'DM settings',
     dmSettingsTooltip: 'Direct message settings',
-    roomModeSectionTitle: 'Room handling',
     roomModeToggleLockedHint:
         'You can turn this off once only one room remains',
     profileCardPickerLabel: 'Profile card to use',
@@ -2596,7 +2585,7 @@ class Strings {
     roomFeatureDisableConfirmTitle: (term) => 'Remove the $term feature?',
     roomFeatureDisableConfirmMessage:
         'This makes the conversation simpler. You can undo this anytime.',
-    roomFeatureDisableConfirmButton: 'Remove',
+    roomFeatureDisableConfirmButton: 'Yes',
     dmMenuDeleteConversation: (term) => 'Delete $term',
     chatAddToAlbumAction: 'Add to album',
     albumButtonTooltip: 'Album',
