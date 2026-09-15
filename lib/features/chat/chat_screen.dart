@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io' show Platform;
+import 'dart:io' show File, Platform, Process;
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
@@ -12,6 +12,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:audioplayers/audioplayers.dart';
+import 'package:gal/gal.dart';
 import 'package:http/http.dart' as http;
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import 'package:share_plus/share_plus.dart';
@@ -53,7 +54,6 @@ import '../album/album_picker_sheet.dart';
 import '../calendar/calendar_event_detail_dialog.dart';
 import '../calendar/schedule_coordination_detail_dialog.dart';
 import '../poll/poll_detail_dialog.dart';
-import '../poll/poll_form_dialog.dart';
 import 'attachment_popup_button.dart';
 import 'button_anchored_menu.dart';
 import '../../utils/attachment_upload.dart';
@@ -61,6 +61,8 @@ import '../../utils/auto_dismiss_banner.dart';
 import '../../utils/drag_menu_geometry.dart';
 import '../../utils/link_detection.dart';
 import '../../utils/note_title.dart';
+import '../../utils/platform_info.dart';
+import '../../utils/screenshot_save_directory.dart';
 import '../../utils/sound_upload.dart' show kAllowedSoundExtensions;
 import '../../utils/spam_check.dart';
 import '../../utils/sticker_suggestion.dart';
@@ -89,6 +91,15 @@ import '../../widgets/video_thumbnail.dart';
 /// 文字と重なる不具合があった（2026-08-12発覚）。箱のサイズに関わらず
 /// 固定値にすることで解消する。
 const double _kGekigaBoxBorderThickness = 40.0;
+
+/// スクリーンショット機能で、選択範囲を画像化する際に1枚あたりに含める
+/// 最大メッセージ数（2026-09-15追加）。選択範囲全体を1枚の画像として
+/// キャプチャすると、件数が増えるほど動作が重くなり、合成画像の物理
+/// ピクセル数がGPU/Skiaの最大テクスチャサイズを超えた時点で`toImage()`
+/// 自体が失敗する不具合があった（`_captureAndShareScreenshot`参照）。
+/// 実測でおおむね11件までは動作したという報告を踏まえ、画像・動画添付を
+/// 含むメッセージが混ざっても安全なよう余裕を持たせてこの値にした。
+const int _kScreenshotChunkMessageCount = 8;
 
 /// 一対・広場（お部屋）どちらの会話でも使える汎用チャット画面。
 /// メッセージの取得・送信方法は呼び出し元がstream/callbackとして渡す。
@@ -1088,27 +1099,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     widget.onOpenNote?.call(noteId);
   }
 
-  /// メッセージ入力欄の「＋」メニューから「投票」を選んだ際の処理
-  /// （2026-09-06追加）。`_handleAttachmentPicked`と異なり選択ファイルを
-  /// 伴わないため、`AttachmentPopupButton.onPollRequested`から直接呼ばれる。
-  Future<void> _handlePollRequested() async {
-    final conversationId = widget.conversationId;
-    final roomId = widget.roomId;
-    if (conversationId == null || roomId == null) return;
-    final currentUser = await ref
-        .read(userRepositoryProvider)
-        .getUser(widget.currentUserId);
-    if (currentUser == null || !mounted) return;
-    await showPollFormDialog(
-      context,
-      isDm: widget.isDm,
-      conversationId: conversationId,
-      roomId: roomId,
-      currentUserId: currentUser.userId,
-      currentUserRhingId: currentUser.rhingId,
-    );
-  }
-
   /// 現在の実効範囲（[_screenshotEffectiveIds]）に含まれるメッセージを
   /// クリックした場合は、時系列でそれより後ろ（新しい側）を全て解除する
   /// （「上にあるメッセージを優先する」、2026-08-09変更）。例:
@@ -1281,6 +1271,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// 選択分だけを別のウィジェットツリーとして`Overlay`上に組み立てて
   /// キャプチャする（`Offstage`は`offstage:true`の間`paint`自体を行わない
   /// ため、`RepaintBoundary.toImage()`用のレイヤーが作られず使えない）。
+  ///
+  /// 選択範囲全体を1枚の巨大な画像として`RepaintBoundary`ごとキャプチャ
+  /// すると、件数が増えるほど動作が重くなり、合成画像の物理ピクセル数が
+  /// GPU/Skiaの最大テクスチャサイズを超えた時点で`toImage()`自体が失敗する
+  /// 不具合があった（2026-09-15修正）。[_kScreenshotChunkMessageCount]件
+  /// ごとに複数の`RepaintBoundary`へ分割してそれぞれ個別にキャプチャし、
+  /// 複数枚のPNGとして共有する（1枚に合成し直すと結局同じ上限に当たり
+  /// 得るため、分割したまま複数ファイルで共有する）。選択件数がこの定数
+  /// 以下なら従来通り1枚になり、挙動は変わらない。
   Future<void> _captureAndShareScreenshot(
     List<String> ids, {
     required bool blurSenderInfo,
@@ -1296,7 +1295,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final locale = ref.read(appLocaleProvider);
     final vocabulary = ref.read(vocabularyProvider);
     final scaffoldBackground = Theme.of(context).scaffoldBackgroundColor;
-    final devicePixelRatio = MediaQuery.devicePixelRatioOf(context);
+    // 高DPI環境（devicePixelRatio 3〜4等）では物理ピクセル数が過大になり
+    // 重くなる/失敗しやすくなるため上限を設ける（2026-09-15追加）。
+    final devicePixelRatio = MediaQuery.devicePixelRatioOf(
+      context,
+    ).clamp(1.0, 2.0);
     final chatAreaWidth =
         (_autoScrollAreaKey.currentContext?.findRenderObject() as RenderBox?)
             ?.size
@@ -1342,18 +1345,29 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     );
     if (!mounted) return;
 
-    final rows = <Widget>[];
+    // 選択範囲を[_kScreenshotChunkMessageCount]件ごとのチャンクに分割する。
+    // 日付区切りはチャンクの先頭でその日の分を出し直す（各画像が単独で
+    // 見ても日付が分かるようにするため）。
+    final chunks = <List<Widget>>[];
+    var currentRows = <Widget>[];
+    var currentCount = 0;
     DateTime? currentDay;
     for (final message in selected) {
+      if (currentCount >= _kScreenshotChunkMessageCount) {
+        chunks.add(currentRows);
+        currentRows = <Widget>[];
+        currentCount = 0;
+        currentDay = null;
+      }
       final sentAt = message.sentAt?.toDate();
       if (sentAt != null &&
           (currentDay == null || !isSameDay(sentAt, currentDay))) {
         currentDay = sentAt;
-        rows.add(
+        currentRows.add(
           _DateSeparator(date: sentAt, locale: locale, uiStyle: uiStyle),
         );
       }
-      rows.add(
+      currentRows.add(
         _MessageRow(
           key: ValueKey('capture_${message.messageId}'),
           message: message,
@@ -1378,9 +1392,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           vocabulary: vocabulary,
         ),
       );
+      currentCount++;
     }
+    if (currentRows.isNotEmpty) chunks.add(currentRows);
 
-    final captureKey = GlobalKey();
+    final chunkKeys = [for (var i = 0; i < chunks.length; i++) GlobalKey()];
     final overlay = Overlay.of(context);
     final entry = OverlayEntry(
       // Web(CanvasKit)では極端に画面外（大きな負の座標）へ置いた
@@ -1403,26 +1419,34 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               minHeight: 0,
               maxHeight: double.infinity,
               alignment: Alignment.topLeft,
-              child: RepaintBoundary(
-                key: captureKey,
-                child: ColoredBox(
-                  color: scaffoldBackground,
-                  child: SizedBox(
-                    width: chatAreaWidth,
-                    // 通常のメッセージ一覧（ListView）が持つ12pxの余白を
-                    // 再現する。これが無いとアイコンの左上突き出し部分
-                    // （GekigaPhotoFrameのoverflow）が撮影範囲の外に出て
-                    // 左端が欠けて見える（2026-08-09追加）。
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: rows,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  for (var i = 0; i < chunks.length; i++)
+                    RepaintBoundary(
+                      key: chunkKeys[i],
+                      child: ColoredBox(
+                        color: scaffoldBackground,
+                        child: SizedBox(
+                          width: chatAreaWidth,
+                          // 通常のメッセージ一覧（ListView）が持つ12pxの
+                          // 余白を再現する。これが無いとアイコンの左上
+                          // 突き出し部分（GekigaPhotoFrameのoverflow）が
+                          // 撮影範囲の外に出て左端が欠けて見える
+                          // （2026-08-09追加）。
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: chunks[i],
+                            ),
+                          ),
+                        ),
                       ),
                     ),
-                  ),
-                ),
+                ],
               ),
             ),
           ),
@@ -1430,18 +1454,20 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       ),
     );
     overlay.insert(entry);
-    Uint8List? pngBytes;
+    final pngList = <Uint8List>[];
     try {
       // ネットワーク画像・レイアウトが確実に反映されるよう2フレーム待つ。
       await WidgetsBinding.instance.endOfFrame;
       await WidgetsBinding.instance.endOfFrame;
-      final boundary =
-          captureKey.currentContext!.findRenderObject()!
-              as RenderRepaintBoundary;
-      final image = await boundary.toImage(pixelRatio: devicePixelRatio);
-      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-      pngBytes = byteData?.buffer.asUint8List();
-      if (pngBytes == null) throw StateError('toByteData returned null');
+      for (final key in chunkKeys) {
+        final boundary =
+            key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+        final image = await boundary.toImage(pixelRatio: devicePixelRatio);
+        final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+        final bytes = byteData?.buffer.asUint8List();
+        if (bytes == null) throw StateError('toByteData returned null');
+        pngList.add(bytes);
+      }
     } catch (e, st) {
       // web-serverターゲットではflutter runのターミナルへdebugPrintが
       // 転送されないため、ブラウザのDevToolsコンソールでも確認できるよう
@@ -1458,16 +1484,153 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     } finally {
       entry.remove();
     }
-    try {
-      final fileName =
-          'daidai_screenshot_${DateTime.now().millisecondsSinceEpoch}.png';
-      await SharePlus.instance.share(
-        ShareParams(
-          files: [
-            XFile.fromData(pngBytes, mimeType: 'image/png', name: fileName),
-          ],
-        ),
+    final timestamp = DateTime.now().millisecondsSinceEpoch;
+    final multiple = pngList.length > 1;
+
+    // コンピューター版: OS標準のスクリーンショット保存先へ直接書き込む
+    // （2026-09-15追加）。以前は全プラットフォームで`SharePlus`の共有シートに
+    // 任せていたが、Linuxではファイル共有自体が未対応で常に失敗し、
+    // Windows/macOSでも一時フォルダ経由でOS標準の共有UIを開くだけで保存先が
+    // ユーザーの選択次第で不定だった。
+    if (isDesktopPlatform) {
+      try {
+        final directory = await resolveScreenshotSaveDirectory();
+        for (var i = 0; i < pngList.length; i++) {
+          final fileName = multiple
+              ? 'daidai_screenshot_${timestamp}_${i + 1}.png'
+              : 'daidai_screenshot_$timestamp.png';
+          final file = File(
+            '${directory.path}${Platform.pathSeparator}$fileName',
+          );
+          await file.writeAsBytes(pngList[i]);
+        }
+        if (mounted) {
+          _bannerTimer = showAutoDismissBanner(
+            context,
+            message: strings.chatScreenshotSavedMessage(
+              pngList.length,
+              directory.path,
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  dismissAutoDismissBanner();
+                  final openCommand = Platform.isWindows
+                      ? 'explorer'
+                      : Platform.isMacOS
+                      ? 'open'
+                      : 'xdg-open';
+                  Process.run(openCommand, [directory.path]);
+                },
+                child: Text(strings.chatScreenshotOpenFolderAction),
+              ),
+            ],
+            previousTimer: _bannerTimer,
+          );
+        }
+      } catch (e, st) {
+        debugPrint('スクリーンショットの保存に失敗: $e\n$st');
+        if (mounted) {
+          _bannerTimer = showAutoDismissBanner(
+            context,
+            message: strings.chatScreenshotErrorMessage,
+            previousTimer: _bannerTimer,
+          );
+        }
+      }
+      return;
+    }
+
+    // モバイル版: OSの写真ライブラリへ直接保存する（2026-09-15追加）。
+    // Android/iOSにはアプリから任意のパスへ書き込める「スクリーンショット
+    // フォルダ」は無いため（スコープドストレージ/Photosサンドボックス）、
+    // `gal`パッケージ経由でMediaStore/PHPhotoLibraryへ追加する。iOSには
+    // サードパーティアプリが書き込める「スクリーンショット」専用アルバムが
+    // 存在しない（OS自身が撮った本物のスクリーンショットのみ自動分類される
+    // 仕組みのため）ので、通常の写真ライブラリへそのまま保存する。Androidは
+    // OS標準のスクリーンショットの慣習（`Pictures/Screenshots`）に合わせて
+    // アルバムを指定する。
+    if (isMobileCallPlatform) {
+      try {
+        final toAlbum = Platform.isAndroid;
+        var hasAccess = await Gal.hasAccess(toAlbum: toAlbum);
+        if (!hasAccess) {
+          hasAccess = await Gal.requestAccess(toAlbum: toAlbum);
+        }
+        if (!hasAccess) {
+          if (mounted) {
+            _bannerTimer = showAutoDismissBanner(
+              context,
+              message: strings.chatScreenshotPhotoPermissionDeniedMessage,
+              previousTimer: _bannerTimer,
+            );
+          }
+          return;
+        }
+        for (var i = 0; i < pngList.length; i++) {
+          await Gal.putImageBytes(
+            pngList[i],
+            name: multiple
+                ? 'daidai_screenshot_${timestamp}_${i + 1}'
+                : 'daidai_screenshot_$timestamp',
+            album: Platform.isAndroid ? 'Screenshots' : null,
+          );
+        }
+        if (mounted) {
+          _bannerTimer = showAutoDismissBanner(
+            context,
+            message: strings.chatScreenshotSavedToGalleryMessage(
+              pngList.length,
+            ),
+            previousTimer: _bannerTimer,
+          );
+        }
+      } on GalException catch (e, st) {
+        debugPrint('スクリーンショットの保存に失敗: $e\n$st');
+        if (mounted) {
+          final message = e.type == GalExceptionType.accessDenied
+              ? strings.chatScreenshotPhotoPermissionDeniedMessage
+              : strings.chatScreenshotErrorMessage;
+          _bannerTimer = showAutoDismissBanner(
+            context,
+            message: message,
+            previousTimer: _bannerTimer,
+          );
+        }
+      } catch (e, st) {
+        debugPrint('スクリーンショットの保存に失敗: $e\n$st');
+        if (mounted) {
+          _bannerTimer = showAutoDismissBanner(
+            context,
+            message: strings.chatScreenshotErrorMessage,
+            previousTimer: _bannerTimer,
+          );
+        }
+      }
+      return;
+    }
+
+    // Web: 従来通りOSの共有シートに委ねる（ブラウザの既定ダウンロード先が
+    // 明確な着地点になるため対象外）。
+    if (mounted && multiple) {
+      _bannerTimer = showAutoDismissBanner(
+        context,
+        message: strings.chatScreenshotSplitMessage(pngList.length),
+        previousTimer: _bannerTimer,
       );
+    }
+    try {
+      final files = [
+        for (var i = 0; i < pngList.length; i++)
+          XFile.fromData(
+            pngList[i],
+            mimeType: 'image/png',
+            name: multiple
+                ? 'daidai_screenshot_${timestamp}_${i + 1}.png'
+                : 'daidai_screenshot_$timestamp.png',
+          ),
+      ];
+      await SharePlus.instance.share(ShareParams(files: files));
     } catch (e, st) {
       debugPrint('スクリーンショットの共有に失敗: $e\n$st');
       if (mounted) {
@@ -2391,16 +2554,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                       strings: strings,
                                       isGekiga: isGekiga,
                                       onPicked: _handleAttachmentPicked,
-                                      stickerLabel: vocabulary?.sticker,
-                                      onStickerPicked:
-                                          widget.onSendSticker == null
-                                          ? null
-                                          : _handleStickerPicked,
-                                      onPollRequested:
-                                          widget.conversationId != null &&
-                                              widget.roomId != null
-                                          ? _handlePollRequested
-                                          : null,
                                     ),
                                   Expanded(
                                     child: Focus(

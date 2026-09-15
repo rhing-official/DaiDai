@@ -80,7 +80,6 @@ class Strings {
     required this.settingsTalksListLayoutStandardDescription,
     required this.settingsTalksListLayoutIconSplit,
     required this.settingsTalksListLayoutIconSplitDescription,
-    required this.settingsSubTypography,
     required this.settingsFontDesign,
     required this.fontDesignHannariMinchoLabel,
     required this.fontDesignKagurazakaLabel,
@@ -255,6 +254,11 @@ class Strings {
     required this.chatScreenshotBlurCheckboxLabel,
     required this.chatScreenshotConfirmButton,
     required this.chatScreenshotErrorMessage,
+    required this.chatScreenshotSplitMessage,
+    required this.chatScreenshotSavedMessage,
+    required this.chatScreenshotSavedToGalleryMessage,
+    required this.chatScreenshotOpenFolderAction,
+    required this.chatScreenshotPhotoPermissionDeniedMessage,
     required this.chatEditedLabel,
     required this.chatInputHint,
     required this.announcementContactFormLabel,
@@ -704,7 +708,6 @@ class Strings {
   final String settingsTalksListLayoutStandardDescription;
   final String settingsTalksListLayoutIconSplit;
   final String settingsTalksListLayoutIconSplitDescription;
-  final String settingsSubTypography;
   final String settingsFontDesign;
   final String fontDesignHannariMinchoLabel;
   final String fontDesignKagurazakaLabel;
@@ -905,6 +908,11 @@ class Strings {
   final String chatScreenshotBlurCheckboxLabel;
   final String chatScreenshotConfirmButton;
   final String chatScreenshotErrorMessage;
+  final String Function(int count) chatScreenshotSplitMessage;
+  final String Function(int count, String path) chatScreenshotSavedMessage;
+  final String Function(int count) chatScreenshotSavedToGalleryMessage;
+  final String chatScreenshotOpenFolderAction;
+  final String chatScreenshotPhotoPermissionDeniedMessage;
   final String chatEditedLabel;
   final String chatInputHint;
   final String announcementContactFormLabel;
@@ -1471,7 +1479,7 @@ class Strings {
     settingsFolderTalk: '語らい',
     settingsFolderSupport: '運営',
     settingsAnnouncements: 'お知らせ',
-    settingsAboutApp: 'このアプリについて',
+    settingsAboutApp: 'アプリについて',
     settingsAppVersion: 'バージョン',
     settingsTermsOfService: '利用規約',
     settingsPrivacyPolicy: 'プライバシーポリシー',
@@ -1491,7 +1499,7 @@ class Strings {
     settingsColorCode: 'カラーコード',
     settingsColorPresets: 'プリセット',
     settingsCustomColors: '登録した色',
-    settingsTextColorTitle: '文字色',
+    settingsTextColorTitle: 'フォントカラー',
     settingsTextColorDescription:
         'ライト・ダークそれぞれの文字色をカラーコードで指定できます。背景に近い色を選ぶと読みにくくなるため注意してください。',
     settingsTextColorLightLabel: 'ライト用',
@@ -1528,7 +1536,6 @@ class Strings {
     settingsTalksListLayoutIconSplit: 'アイコン＋寄合一覧',
     settingsTalksListLayoutIconSplitDescription:
         '左にアイコン一覧、右に選んだ語らいの寄合一覧を表示します。',
-    settingsSubTypography: '文字',
     settingsFontDesign: 'フォントデザイン',
     fontDesignHannariMinchoLabel: 'はんなり明朝',
     fontDesignKagurazakaLabel: '神楽坂',
@@ -1712,6 +1719,14 @@ class Strings {
     chatScreenshotBlurCheckboxLabel: '呼び名にぼかしを入れる',
     chatScreenshotConfirmButton: '撮影する',
     chatScreenshotErrorMessage: 'スクリーンショットの作成に失敗しました',
+    chatScreenshotSplitMessage: (count) => '選択範囲が長いため、画像を$count枚に分割しました',
+    chatScreenshotSavedMessage: (count, path) =>
+        '$count枚のスクリーンショットを保存しました: $path',
+    chatScreenshotSavedToGalleryMessage: (count) =>
+        '$count枚のスクリーンショットを写真に保存しました',
+    chatScreenshotOpenFolderAction: 'フォルダを開く',
+    chatScreenshotPhotoPermissionDeniedMessage:
+        '写真への保存が許可されていません。OSの設定をご確認ください。',
     chatEditedLabel: '編集済み',
     chatInputHint: 'メッセージを入力...',
     announcementContactFormLabel: '質問・要望',
@@ -2133,7 +2148,7 @@ class Strings {
     settingsColorCode: 'Colour code',
     settingsColorPresets: 'Presets',
     settingsCustomColors: 'Saved colours',
-    settingsTextColorTitle: 'Text colour',
+    settingsTextColorTitle: 'Font colour',
     settingsTextColorDescription:
         'Set the text colour separately for light and dark mode using a colour code. Choosing a colour too close to the background will make text hard to read.',
     settingsTextColorLightLabel: 'Light mode',
@@ -2176,7 +2191,6 @@ class Strings {
     settingsTalksListLayoutIconSplitDescription:
         'Shows an icon list on the left and the selected chat\'s room list '
         'on the right.',
-    settingsSubTypography: 'Typography',
     settingsFontDesign: 'Font design',
     fontDesignHannariMinchoLabel: 'Hannari Mincho',
     fontDesignKagurazakaLabel: 'Kagurazaka',
@@ -2386,6 +2400,15 @@ class Strings {
     chatScreenshotBlurCheckboxLabel: 'Blur names and avatars',
     chatScreenshotConfirmButton: 'Capture',
     chatScreenshotErrorMessage: 'Failed to create the screenshot.',
+    chatScreenshotSplitMessage: (count) =>
+        'Split into $count images because the selection was long.',
+    chatScreenshotSavedMessage: (count, path) =>
+        'Saved $count screenshot(s) to: $path',
+    chatScreenshotSavedToGalleryMessage: (count) =>
+        'Saved $count screenshot(s) to your photos.',
+    chatScreenshotOpenFolderAction: 'Open folder',
+    chatScreenshotPhotoPermissionDeniedMessage:
+        'Permission to save photos was denied. Please check your OS settings.',
     chatEditedLabel: 'Edited',
     chatInputHint: 'Type a message...',
     announcementContactFormLabel: 'Questions & Feedback',

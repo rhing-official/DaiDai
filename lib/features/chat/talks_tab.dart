@@ -415,16 +415,17 @@ class _TalksTabState extends ConsumerState<TalksTab>
   Future<void> _openDirectMessage(DirectMessage dm) async {
     // 縦表示のアイコン＋寄合一覧レイアウト（`TalksListLayoutStyle.iconSplit`）
     // では、複数寄合モードの会話は広い画面の分割表示と同じく選択状態にして
-    // 右側に寄合一覧を出す。単一モードの会話は右ペインを経由する意味が
-    // 無いため、従来通りその場でフルスクリーンチャットへ遷移する
-    // （2026-09-11追加）。ただし[_showIconSplitPeek]（タブレット・
-    // コンピューター縦表示でアイコン列＋寄合一覧＋メッセージ画面を同時表示
-    // するモード）の間は、単一モードの会話でもコンピューターの横表示
-    // （`_isSplit`）と同様にアイコン列を残したままその場で表示したいため、
-    // `roomsEnabled`を問わず選択状態にする（2026-09-12追加）。
+    // 右側に寄合一覧を出す。単一モードの会話も、[_showIconSplitPeek]
+    // （タブレット・コンピューター縦表示）と同様にアイコン列を残したまま
+    // その場で（寄合一覧列は出さずチャット本体のみ）表示する
+    // （2026-09-15変更。以前はスマホ幅×単一モードの組み合わせだけ右ペインを
+    // 経由する意味が無いとしてフルスクリーン遷移していたが、タブレット縦
+    // 画面と挙動が揃わずUXが悪いとのフィードバックを受け、`roomsEnabled`・
+    // `_showIconSplitPeek`を問わず常にインライン表示するよう統一した。
+    // 実際に寄合一覧列を出すかどうかは[_buildIconSplitPane]の
+    // `roomListOnly`計算側で判断する）。
     final useIconSplitSelection =
         !_isSplit &&
-        (dm.roomsEnabled || _showIconSplitPeek) &&
         ref.read(talksListLayoutStyleProvider) ==
             TalksListLayoutStyle.iconSplit;
     if (_isSplit || useIconSplitSelection) {
@@ -469,10 +470,10 @@ class _TalksTabState extends ConsumerState<TalksTab>
   }
 
   Future<void> _openGroup(Group group) async {
-    // [_openDirectMessage]と同じ理由（2026-09-11追加、2026-09-12更新）。
+    // [_openDirectMessage]と同じ理由（2026-09-11追加、2026-09-12更新、
+    // 2026-09-15更新）。
     final useIconSplitSelection =
         !_isSplit &&
-        (group.roomsEnabled || _showIconSplitPeek) &&
         ref.read(talksListLayoutStyleProvider) ==
             TalksListLayoutStyle.iconSplit;
     if (_isSplit || useIconSplitSelection) {
@@ -1210,7 +1211,10 @@ class _TalksTabState extends ConsumerState<TalksTab>
               key: ValueKey('icon-split-dm-${dm.dmId}'),
               currentUser: widget.currentUser,
               dm: dm,
-              roomListOnly: !showPeek,
+              // 単一モード（`roomsEnabled == false`）の会話は寄合一覧列を
+              // 出す意味が無いため、スマホ幅でもタブレット縦画面と同じく
+              // チャット本体を直接インライン表示する（2026-09-15追加）。
+              roomListOnly: !showPeek && dm.roomsEnabled,
               collapseProgress: showPeek ? _iconSplitCollapse : null,
               onExpandTap: showPeek
                   ? () => _animateIconSplitCollapse(1.0)
@@ -1227,7 +1231,8 @@ class _TalksTabState extends ConsumerState<TalksTab>
               key: ValueKey('icon-split-group-${group.groupId}'),
               currentUser: widget.currentUser,
               group: group,
-              roomListOnly: !showPeek,
+              // [_DmDetailWithRooms]と同じ理由（2026-09-15追加）。
+              roomListOnly: !showPeek && group.roomsEnabled,
               collapseProgress: showPeek ? _iconSplitCollapse : null,
               onExpandTap: showPeek
                   ? () => _animateIconSplitCollapse(1.0)
@@ -3282,6 +3287,44 @@ class _SwipeToOpenRoomPreviewState extends State<_SwipeToOpenRoomPreview>
 
   double _cumulativeDx = 0;
 
+  /// 指がタッチダウンした瞬間（実際に水平ドラッグと判定される前）に
+  /// [widget.preview]を画面外へ先行マウントしておくためのフラグ
+  /// （2026-09-15追加）。以前は`_controller.progress`が0の間は
+  /// [widget.preview]自体をツリーに含めない実装だったため、左スワイプが
+  /// 実際に始まった最初のフレームで初めて`DmChatPane`/`GroupChatPane`
+  /// （内部の`ChatScreen`はFirestore購読開始・7000行超の初回buildを伴う）
+  /// がマウントされ、そのコストがジェスチャー開始と同フレームで発生して
+  /// 描画が指の動きに対して数フレーム遅れる問題があった。タッチダウン
+  /// （水平ドラッグかどうかの判定より前）の時点で先行マウントしておくことで、
+  /// 実際にドラッグが動き出す前にマウントコストを消化させる。
+  ///
+  /// setStateではなく`ValueNotifier`にし、フラグ変化時の再buildを
+  /// `build`内の対応する`ValueListenableBuilder`だけに閉じる。
+  final ValueNotifier<bool> _warm = ValueNotifier<bool>(false);
+
+  @override
+  void initState() {
+    super.initState();
+    // 実際にジェスチャーがコントローラへ同期された後
+    // （`isGestureActive`がtrueになった後）のキャンセル・コミット
+    // いずれも、最終的に`progress`が0へ着地した時点でのみ`_warm`を
+    // 倒す（`_maybeCoolDown`のdocコメント参照）。
+    _controller.progress.addListener(_maybeCoolDown);
+  }
+
+  void _maybeCoolDown() {
+    // アニメーションで0へ復帰し切った瞬間だけ倒す。`isGestureActive`が
+    // まだtrueの間（＝ドラッグ中に一時的にprogressが0を通過した場合）は
+    // 倒さない。これを怠ると、指を離さないまま一度0まで戻して再度左に
+    // スワイプし直したときに、途中でpreviewが一瞬アンマウント→
+    // 再マウントされてしまう（今回直したいバグの再発）。
+    if (_warm.value &&
+        !_controller.isGestureActive &&
+        _controller.progress.value <= 0) {
+      _warm.value = false;
+    }
+  }
+
   void _handleCommitted() {
     widget.onOpen();
     // 実際のpushが（同フレーム内、または次フレームまでに）画面最前面へ
@@ -3296,7 +3339,9 @@ class _SwipeToOpenRoomPreviewState extends State<_SwipeToOpenRoomPreview>
 
   @override
   void dispose() {
+    _controller.progress.removeListener(_maybeCoolDown);
     _controller.dispose();
+    _warm.dispose();
     super.dispose();
   }
 
@@ -3305,6 +3350,15 @@ class _SwipeToOpenRoomPreviewState extends State<_SwipeToOpenRoomPreview>
     _controller.maxDrag = MediaQuery.sizeOf(context).width;
     return GestureDetector(
       behavior: HitTestBehavior.translucent,
+      onHorizontalDragDown: (_) {
+        _warm.value = true;
+      },
+      onHorizontalDragCancel: () {
+        // `onHorizontalDragStart`が一度も呼ばれずに裁定負け＝単純タップ
+        // （寄合一覧内の項目タップで別の寄合を選ぶ操作等）、または
+        // `RoomListPane`内の並べ替えドラッグ等が裁定に勝った場合。
+        _warm.value = false;
+      },
       onHorizontalDragStart: (_) {
         _cumulativeDx = _controller.progress.value;
       },
@@ -3320,7 +3374,15 @@ class _SwipeToOpenRoomPreviewState extends State<_SwipeToOpenRoomPreview>
         }
       },
       onHorizontalDragEnd: (details) {
-        if (!_controller.isGestureActive) return;
+        if (!_controller.isGestureActive) {
+          // `onHorizontalDragStart`は発火したが、終始右方向にしか
+          // 動かさなかった等で`syncFromExternalDrag`が一度も呼ばれず
+          // `progress`が0のまま推移したケース。`_maybeCoolDown`は
+          // `progress`の変化をトリガーに動くため、ここで明示的に倒す
+          // 必要がある。
+          _warm.value = false;
+          return;
+        }
         // 速度の符号も同じ理由で反転する（左方向のフリック＝正の速度＝
         // コミット方向）。
         final velocity = details.primaryVelocity;
@@ -3332,17 +3394,24 @@ class _SwipeToOpenRoomPreviewState extends State<_SwipeToOpenRoomPreview>
       child: Stack(
         children: [
           widget.roomList,
-          ValueListenableBuilder<double>(
-            valueListenable: _controller.progress,
-            builder: (context, value, child) {
-              // 進捗が0の間は[preview]自体をツリーに含めない
-              // （`Offstage`等で隠すだけだと`DmChatPane`/`GroupChatPane`が
-              // ドラッグの有無に関わらず常時マウントされ、Firestore購読の
-              // コストが常にかかってしまうため）。
-              if (value <= 0) return const SizedBox.shrink();
-              return Transform.translate(
-                offset: Offset(_controller.maxDrag - value, 0),
-                child: RepaintBoundary(child: child),
+          ValueListenableBuilder<bool>(
+            valueListenable: _warm,
+            builder: (context, warm, child) {
+              if (!warm) return const SizedBox.shrink();
+              return ValueListenableBuilder<double>(
+                valueListenable: _controller.progress,
+                builder: (context, value, child) {
+                  // warmだが進捗0（タッチダウン直後、まだ水平ドラッグと
+                  // 判定される前）の間は、maxDrag分右にオフセットして
+                  // 画面外に配置する（Stack既定の`Clip.hardEdge`により
+                  // 非表示になる）。この間に[widget.preview]の初回
+                  // マウントコストを消化させるのが本ウィジェットの狙い。
+                  return Transform.translate(
+                    offset: Offset(_controller.maxDrag - value, 0),
+                    child: RepaintBoundary(child: child),
+                  );
+                },
+                child: child,
               );
             },
             child: widget.preview,
@@ -3604,6 +3673,11 @@ class _DmDetailWithRoomsState extends ConsumerState<_DmDetailWithRooms> {
             // 描画し、届き次第再描画されるのに任せる（2026-09-14変更、
             // 以前はdm.defaultRoomIdにフォールバックしていた）。
             : (rooms.isNotEmpty ? rooms.first.roomId : '');
+        // 空文字列のままチャット本体（`DmChatPane`）を構築すると`initState`が
+        // 同期的にFirestoreの`.doc('')`を呼んでしまい、"A document path must
+        // be a non-empty string"のエラー画面が一瞬映る不具合があった。
+        // ストリームの実データが届くまでは何も描画せず待つ（2026-09-15追加）。
+        if (roomId.isEmpty) return const _EmptyDetailPlaceholder();
         final roomName = rooms
             .firstWhere(
               (r) => r.roomId == roomId,
@@ -3811,6 +3885,8 @@ class _GroupDetailWithRoomsState extends ConsumerState<_GroupDetailWithRooms> {
             ? _selectedRoomId!
             // [_DmDetailWithRoomsState.build]と同じ理由。
             : (rooms.isNotEmpty ? rooms.first.roomId : '');
+        // [_DmDetailWithRoomsState.build]と同じ理由（2026-09-15追加）。
+        if (roomId.isEmpty) return const _EmptyDetailPlaceholder();
         final roomName = rooms
             .firstWhere(
               (r) => r.roomId == roomId,
