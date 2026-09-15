@@ -96,15 +96,35 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
   /// 広い画面では常に先頭（アカウント）を既定選択として表示する。
   String? _selectedId;
 
-  /// カテゴリタップの共通ハンドラ。
+  /// 運営カテゴリの中からさらに1段階下の「アプリについて」を表示中か
+  /// （2026-09-15追加）。以前は`_AboutPage`を独立した`MaterialPageRoute`で
+  /// pushしていたため、サイドバー・区切り線ごと覆い隠し、スワイプで戻る
+  /// 操作も効かなかった。カテゴリ一覧⇄カテゴリの中身と同じ
+  /// `SlideDrilldown`の仕組みをもう1段だけ使い回すことで両方を解消する
+  /// （`build`参照。専用の入れ子`SlideDrilldown`を使わないのは、
+  /// `InteractiveSwipeBackTransition`の水平ドラッグ`GestureDetector`を
+  /// 親子で二重に重ねるとジェスチャーアリーナで競合しかねないため）。
+  bool _showAbout = false;
+
+  /// カテゴリタップの共通ハンドラ。広い画面はサイドバーが常設のため、
+  /// 「アプリについて」表示中でも別カテゴリをクリックできてしまう——
+  /// その場合は`_showAbout`も一緒にリセットする（2026-09-15追加）。
   void _onCategorySelected(_SettingsCategory category) {
-    setState(() => _selectedId = category.id);
+    setState(() {
+      _selectedId = category.id;
+      _showAbout = false;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     final strings = ref.watch(appStringsProvider);
-    final categories = _categories(strings, ref, widget.currentUser);
+    final categories = _categories(
+      strings,
+      ref,
+      widget.currentUser,
+      () => setState(() => _showAbout = true),
+    );
     final isWide =
         MediaQuery.sizeOf(context).width >= _kSettingsSplitBreakpoint;
 
@@ -127,7 +147,12 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
             const VerticalDivider(width: 1),
             Expanded(
               child: _SettingsPage(
-                child: Builder(builder: selected.pageBuilder),
+                // サイドバー・区切り線はこの分岐の外にあるため、「アプリに
+                // ついて」表示中も常に見えたままになる（2026-09-15追加、
+                // 以前は`Navigator.push`の別ルートで覆い隠していた）。
+                child: _showAbout
+                    ? _AboutPageContent(strings: strings)
+                    : Builder(builder: selected.pageBuilder),
               ),
             ),
           ],
@@ -143,6 +168,44 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
         selectedIndex >= 0 && selectedIndex < categories.length - 1
         ? categories[selectedIndex + 1]
         : null;
+
+    final Widget master;
+    final Widget? detail;
+    final Object? detailKey;
+    final VoidCallback onBack;
+    final VoidCallback? onNext;
+    if (_showAbout) {
+      // 「アプリについて」からスワイプで戻ると、トップのカテゴリ一覧
+      // ではなく運営自身の一覧が現れるようにする（2026-09-15追加）。
+      master = Builder(
+        builder: (context) => _SupportPage(
+          strings: strings,
+          currentUser: widget.currentUser,
+          onOpenAbout: () => setState(() => _showAbout = true),
+        ),
+      );
+      detail = _AboutPageContent(strings: strings);
+      detailKey = 'about';
+      onBack = () => setState(() => _showAbout = false);
+      onNext = null;
+    } else {
+      master = _CategoryList(
+        key: const ValueKey('settings-categories'),
+        categories: categories,
+        selectedId: null,
+        onSelect: _onCategorySelected,
+        large: true,
+      );
+      detail = selected == null
+          ? null
+          : _NarrowSettingsPage(category: selected);
+      detailKey = selected?.id;
+      onBack = () => setState(() => _selectedId = null);
+      onNext = nextCategory == null
+          ? null
+          : () => setState(() => _selectedId = nextCategory.id);
+    }
+
     return Align(
       alignment: Alignment.topCenter,
       child: ConstrainedBox(
@@ -150,21 +213,11 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
         child: Padding(
           padding: const EdgeInsets.only(top: 56),
           child: SlideDrilldown(
-            master: _CategoryList(
-              key: const ValueKey('settings-categories'),
-              categories: categories,
-              selectedId: null,
-              onSelect: _onCategorySelected,
-              large: true,
-            ),
-            detail: selected == null
-                ? null
-                : _NarrowSettingsPage(category: selected),
-            detailKey: selected?.id,
-            onBack: () => setState(() => _selectedId = null),
-            onNext: nextCategory == null
-                ? null
-                : () => setState(() => _selectedId = nextCategory.id),
+            master: master,
+            detail: detail,
+            detailKey: detailKey,
+            onBack: onBack,
+            onNext: onNext,
           ),
         ),
       ),
@@ -203,6 +256,7 @@ List<_SettingsCategory> _categories(
   Strings strings,
   WidgetRef ref,
   AppUser currentUser,
+  VoidCallback onOpenAbout,
 ) {
   return [
     _SettingsCategory(
@@ -236,8 +290,11 @@ List<_SettingsCategory> _categories(
       id: 'support',
       icon: Icons.support_agent_outlined,
       title: strings.settingsFolderSupport,
-      pageBuilder: (context) =>
-          _SupportPage(strings: strings, currentUser: currentUser),
+      pageBuilder: (context) => _SupportPage(
+        strings: strings,
+        currentUser: currentUser,
+        onOpenAbout: onOpenAbout,
+      ),
     ),
   ];
 }
@@ -960,13 +1017,24 @@ Future<bool> _confirmDisconnectGoogleCalendarSync(
 
 /// 運営（サポート）カテゴリの中身。以前は「サポート」タップで直接
 /// お知らせ画面へ遷移していたが、バージョン情報・規約類の参照ページ
-/// （このアプリについて）を置く場所として他カテゴリと同じ一覧構成に
+/// （アプリについて）を置く場所として他カテゴリと同じ一覧構成に
 /// 変更した（2026-09-14追加）。
 class _SupportPage extends ConsumerWidget {
-  const _SupportPage({required this.strings, required this.currentUser});
+  const _SupportPage({
+    required this.strings,
+    required this.currentUser,
+    required this.onOpenAbout,
+  });
 
   final Strings strings;
   final AppUser currentUser;
+
+  /// 「アプリについて」タップ時の処理（2026-09-15追加）。以前はここで
+  /// `Navigator.push`していたが、サイドバー・区切り線を覆い隠しスワイプ
+  /// 戻るも効かない問題があったため、`_SettingsTabState`側の状態
+  /// （`_showAbout`）を切り替えるだけにし、実際の表示はそちら側の
+  /// `SlideDrilldown`/`_SettingsPage`に任せる。
+  final VoidCallback onOpenAbout;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -979,28 +1047,10 @@ class _SupportPage extends ConsumerWidget {
               .read(goRouterProvider)
               .push('/announcements', extra: currentUser),
         ),
-        _ActionRow(
-          label: strings.settingsAboutApp,
-          onTap: () => Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => _AboutPage(strings: strings)),
-          ),
-        ),
+        _ActionRow(label: strings.settingsAboutApp, onTap: onOpenAbout),
       ],
     );
   }
-}
-
-/// このアプリについて（バージョン・利用規約・プライバシーポリシー・
-/// 免責事項・オープンソースライセンス）。規約・プライバシーポリシー・
-/// 免責事項の本文はHomePage-Rhing側（`_termsUrl`等）に既に用意されている
-/// ため複製せず、外部リンクとして扱う（2026-09-14追加）。
-class _AboutPage extends StatefulWidget {
-  const _AboutPage({required this.strings});
-
-  final Strings strings;
-
-  @override
-  State<_AboutPage> createState() => _AboutPageState();
 }
 
 const _termsUrl = 'https://rhing.jp/legal/terms';
@@ -1013,54 +1063,69 @@ Future<void> _openExternalUrl(String url) async {
   await launchUrl(uri, mode: LaunchMode.externalApplication);
 }
 
-class _AboutPageState extends State<_AboutPage> {
+/// アプリについて（バージョン・利用規約・プライバシーポリシー・
+/// 免責事項・オープンソースライセンス）。規約・プライバシーポリシー・
+/// 免責事項の本文はHomePage-Rhing側（`_termsUrl`等）に既に用意されている
+/// ため複製せず、外部リンクとして扱う（2026-09-14追加）。以前は独自の
+/// `Scaffold`＋`AppBar`を持つ`_AboutPage`として`Navigator.push`していたが、
+/// サイドバー・区切り線を覆い隠しスワイプ戻るも効かなかったため、
+/// 中身だけを持つこのウィジェットに置き換え、`_SettingsTabState`が
+/// 他カテゴリの中身と同じ`_SettingsPage`/`SlideDrilldown`のdetailスロットに
+/// 埋め込む（2026-09-15変更）。
+class _AboutPageContent extends StatefulWidget {
+  const _AboutPageContent({required this.strings});
+
+  final Strings strings;
+
+  @override
+  State<_AboutPageContent> createState() => _AboutPageContentState();
+}
+
+class _AboutPageContentState extends State<_AboutPageContent> {
   late final Future<PackageInfo> _packageInfoFuture =
       PackageInfo.fromPlatform();
 
   @override
   Widget build(BuildContext context) {
     final strings = widget.strings;
-    return Scaffold(
-      appBar: AppBar(title: Text(strings.settingsAboutApp)),
-      body: FutureBuilder<PackageInfo>(
-        future: _packageInfoFuture,
-        builder: (context, snapshot) {
-          final info = snapshot.data;
-          return ListView(
-            padding: const EdgeInsets.only(bottom: 24),
-            children: [
-              _InfoRow(
-                label: strings.settingsAppVersion,
-                value: info == null
-                    ? ''
-                    : '${info.version} (${info.buildNumber})',
+    return FutureBuilder<PackageInfo>(
+      future: _packageInfoFuture,
+      builder: (context, snapshot) {
+        final info = snapshot.data;
+        return ListView(
+          padding: const EdgeInsets.only(bottom: 24),
+          children: [
+            _InfoRow(
+              label: strings.settingsAppVersion,
+              value: info == null
+                  ? ''
+                  : '${info.version} (${info.buildNumber})',
+            ),
+            const Divider(height: 24),
+            _ActionRow(
+              label: strings.settingsTermsOfService,
+              onTap: () => _openExternalUrl(_termsUrl),
+            ),
+            _ActionRow(
+              label: strings.settingsPrivacyPolicy,
+              onTap: () => _openExternalUrl(_privacyPolicyUrl),
+            ),
+            _ActionRow(
+              label: strings.settingsDisclaimer,
+              onTap: () => _openExternalUrl(_disclaimerUrl),
+            ),
+            const Divider(height: 24),
+            _ActionRow(
+              label: strings.settingsOpenSourceLicenses,
+              onTap: () => showLicensePage(
+                context: context,
+                applicationName: 'DaiDai',
+                applicationVersion: info?.version,
               ),
-              const Divider(height: 24),
-              _ActionRow(
-                label: strings.settingsTermsOfService,
-                onTap: () => _openExternalUrl(_termsUrl),
-              ),
-              _ActionRow(
-                label: strings.settingsPrivacyPolicy,
-                onTap: () => _openExternalUrl(_privacyPolicyUrl),
-              ),
-              _ActionRow(
-                label: strings.settingsDisclaimer,
-                onTap: () => _openExternalUrl(_disclaimerUrl),
-              ),
-              const Divider(height: 24),
-              _ActionRow(
-                label: strings.settingsOpenSourceLicenses,
-                onTap: () => showLicensePage(
-                  context: context,
-                  applicationName: 'DaiDai',
-                  applicationVersion: info?.version,
-                ),
-              ),
-            ],
-          );
-        },
-      ),
+            ),
+          ],
+        );
+      },
     );
   }
 }
@@ -1412,13 +1477,18 @@ class _DeleteAccountOptionCard extends StatelessWidget {
 
 /// アプリケーションカテゴリの中身。旧: 色／UI／文字／言語の各サブフォルダを
 /// 1ページにまとめた。
-class _ApplicationPage extends StatelessWidget {
+class _ApplicationPage extends ConsumerWidget {
   const _ApplicationPage({required this.strings});
 
   final Strings strings;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    // 「フォントカラー」（旧・文字色）は劇画スタイル選択中は対象外
+    // （固定モノクロ配色のため、`_TextColorFolder`参照）。以前は
+    // `_DesignFolder`内に埋め込まれていたが、2026-09-15にUIスタイルと
+    // フォントデザインの間へ独立させた。
+    final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
     return ListView(
       padding: const EdgeInsets.only(bottom: 24),
       children: [
@@ -1434,7 +1504,8 @@ class _ApplicationPage extends StatelessWidget {
         ),
         _UiStyleFolder(strings: strings),
         const Divider(height: 24),
-        _SectionHeader(strings.settingsSubTypography),
+        if (!isGekiga) ...[const _TextColorFolder(), const Divider(height: 24)],
+        _SectionHeader(strings.settingsFontDesign),
         _FontDesignFolder(strings: strings),
         const Divider(height: 24),
         _LanguageFolder(strings: strings),
@@ -1839,19 +1910,19 @@ class _DesignFolderState extends ConsumerState<_DesignFolder> {
               ),
           ],
         ),
-        // 劇画UIは固定モノクロ配色のため文字色設定の対象外（アクセントカラーが
-        // 背景色に転用されているのと同じ理由）。
-        if (!isGekiga) ...[const Divider(height: 32), const _TextColorFolder()],
       ],
     );
   }
 }
 
-/// 文字色（`colorScheme.onSurface`相当）をライト/ダークそれぞれカラー
-/// コードで指定する設定（2026-09-14追加）。アクセントカラーと違い背景との
-/// コントラストが直接可読性に関わるため、`accentColorProvider`のような
-/// ライト/ダーク共通の1色ではなく、`textColorLightProvider`/
-/// `textColorDarkProvider`の2つを別々に持つ（ユーザー確認済み）。
+/// フォントカラー（旧称: 文字色、`colorScheme.onSurface`相当）をライト/
+/// ダークそれぞれカラーコードで指定する設定（2026-09-14追加）。アクセント
+/// カラーと違い背景とのコントラストが直接可読性に関わるため、
+/// `accentColorProvider`のようなライト/ダーク共通の1色ではなく、
+/// `textColorLightProvider`/`textColorDarkProvider`の2つを別々に持つ
+/// （ユーザー確認済み）。設定画面上は「UIスタイル」と「フォントデザイン」の
+/// 間に独立したセクションとして表示する（`_ApplicationPage`参照、
+/// 以前は`_DesignFolder`内に埋め込まれていた）。
 class _TextColorFolder extends ConsumerStatefulWidget {
   const _TextColorFolder();
 
@@ -2316,7 +2387,10 @@ class _FontDesignFolder extends ConsumerWidget {
                     ? Icons.radio_button_checked
                     : Icons.radio_button_unchecked,
               ),
-              title: Text(labelFor(value)),
+              title: Text(
+                labelFor(value),
+                style: TextStyle(fontFamily: value.fontFamily),
+              ),
               subtitle: value.isKiwamiExclusive
                   ? Text(strings.fontDesignKiwamiExclusiveNotice)
                   : null,
@@ -2336,7 +2410,10 @@ class _FontDesignFolder extends ConsumerWidget {
           for (final value in FontDesign.values)
             RadioListTile<FontDesign>(
               value: value,
-              title: Text(labelFor(value)),
+              title: Text(
+                labelFor(value),
+                style: TextStyle(fontFamily: value.fontFamily),
+              ),
               subtitle: value.isKiwamiExclusive
                   ? Text(strings.fontDesignKiwamiExclusiveNotice)
                   : null,

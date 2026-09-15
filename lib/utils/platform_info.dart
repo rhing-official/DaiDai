@@ -11,6 +11,13 @@ import 'package:flutter/widgets.dart' show BuildContext, MediaQuery;
 bool get isMobileCallPlatform =>
     !kIsWeb && (Platform.isAndroid || Platform.isIOS);
 
+/// コンピューター（Windows/Linux/macOS）実機かどうか（2026-09-15追加）。
+/// Web版は常にfalse（`kIsWeb`が先に評価されるため`Platform`自体には
+/// 触れない）。スクリーンショットの保存先をOS標準のディレクトリへ直接
+/// 書き込むか、写真ライブラリ（`gal`）に保存するかの出し分け等に使う。
+bool get isDesktopPlatform =>
+    !kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS);
+
 /// コンピューター・タブレット・スマホの3値の端末分類（2026-09-13追加、
 /// 語らい検索の別ページ遷移の判定用）。ネイティブアプリ・Web版のどちらも
 /// 同じロジックで判定する（同じ端末でネイティブアプリとブラウザで結果が

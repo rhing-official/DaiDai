@@ -2415,7 +2415,7 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
     // 「この寄合独自の設定」がオンの間だけ、通知・既読はこの寄合専用の値を
     // 使う（広場全体の値より優先、2026-07-29追加）。単一モードにはこの
     // 概念自体が無い（常に広場全体の値を直接編集する）。
-    final customSettingsEnabled =
+    var customSettingsEnabled =
         widget.currentRoom?.customSettingsEnabled ?? false;
     final roomMuted =
         prefs[widget.group.groupId]?.roomNotificationOverrides[widget.roomId] ??
@@ -2606,89 +2606,100 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
         PopupMenuItem<_GroupMenuAction>(
           enabled: false,
           padding: EdgeInsets.zero,
-          child: _MenuPanel(
-            children: [
-              _MenuTile(
-                label: strings.roomRenameLabel(vocabulary.textChannel),
-                foreground: foreground,
-                enabled: canManageRooms,
-                value: _GroupMenuAction.renameRoom,
-              ),
-              // 寄合一覧サイドバーのごみ箱アイコンの代わり
-              // （2026-07-30変更）。最後の1つの寄合は選べても実際には
-              // 削除できず、リポジトリがStateErrorを投げてSnackBarで
-              // 案内する（`handle`参照）。
-              _MenuTile(
-                label: strings.roomMenuDeleteLabel(vocabulary.textChannel),
-                foreground: foreground,
-                destructive: true,
-                centered: true,
-                enabled: canManageRooms,
-                value: _GroupMenuAction.deleteRoom,
-              ),
-              _MenuTile(
-                label: strings.groupMenuLeave,
-                foreground: foreground,
-                enabled: !isOwner,
-                value: _GroupMenuAction.leave,
-              ),
-              // プロフィールカード・メンバー一覧・招待リンク・ロール管理・
-              // 広場削除・寄合モード選択（単一/複数/寄合機能なし）は全て
-              // `GroupSettingsPopup`に集約している（モードを問わず常時表示、
-              // 2026-09-13変更。以前は単一モードだけこのメニューへ直接
-              // フラット化していたが、単一モードでもこの項目から同じ設定
-              // 画面へ到達できるようになったため重複表示をやめた）。広い
-              // 画面ではサイドバーの歯車アイコンとも重複するが実害は無い。
-              _MenuTile(
-                label: strings.groupMenuOpenSettings,
-                foreground: foreground,
-                value: _GroupMenuAction.openGroupSettings,
-              ),
-              if (widget.group.roomsEnabled) ...[
-                // 通知・既読・ロール優先順位の寄合固有設定は「この寄合独自の
-                // 設定」がオンの間だけ表示する（2026-07-29変更、広場全体の
-                // 既定値は`GroupSettingsPopup`から編集する）。単一モードには
-                // 寄合固有設定という概念自体が無い。
-                if (customSettingsEnabled) ...[
-                  _MenuTile(
-                    label: strings.groupRoomRolePriorityMenuItem,
+          // 「この寄合独自の設定」スイッチはタップしてもポップアップ全体を
+          // 閉じない仕様のため（`_MenuSwitchTile`参照）、`StatefulBuilder`で
+          // ローカルな再描画経路を用意し、スイッチの見た目とそれに連動する
+          // 3項目の表示/非表示をタップと同時に反映させる（2026-09-15追加。
+          // 他の`_MenuTile`はタップと同時にポップアップごと閉じるため
+          // 対象外）。
+          child: StatefulBuilder(
+            builder: (context, setMenuState) => _MenuPanel(
+              children: [
+                _MenuTile(
+                  label: strings.roomRenameLabel(vocabulary.textChannel),
+                  foreground: foreground,
+                  enabled: canManageRooms,
+                  value: _GroupMenuAction.renameRoom,
+                ),
+                // 寄合一覧サイドバーのごみ箱アイコンの代わり
+                // （2026-07-30変更）。最後の1つの寄合は選べても実際には
+                // 削除できず、リポジトリがStateErrorを投げてSnackBarで
+                // 案内する（`handle`参照）。
+                _MenuTile(
+                  label: strings.roomMenuDeleteLabel(vocabulary.textChannel),
+                  foreground: foreground,
+                  destructive: true,
+                  centered: true,
+                  enabled: canManageRooms,
+                  value: _GroupMenuAction.deleteRoom,
+                ),
+                _MenuTile(
+                  label: strings.groupMenuLeave,
+                  foreground: foreground,
+                  enabled: !isOwner,
+                  value: _GroupMenuAction.leave,
+                ),
+                // プロフィールカード・メンバー一覧・招待リンク・ロール管理・
+                // 広場削除・寄合モード選択（単一/複数/寄合機能なし）は全て
+                // `GroupSettingsPopup`に集約している（モードを問わず常時表示、
+                // 2026-09-13変更。以前は単一モードだけこのメニューへ直接
+                // フラット化していたが、単一モードでもこの項目から同じ設定
+                // 画面へ到達できるようになったため重複表示をやめた）。広い
+                // 画面ではサイドバーの歯車アイコンとも重複するが実害は無い。
+                _MenuTile(
+                  label: strings.groupMenuOpenSettings,
+                  foreground: foreground,
+                  value: _GroupMenuAction.openGroupSettings,
+                ),
+                if (widget.group.roomsEnabled) ...[
+                  // 通知・既読・ロール優先順位の寄合固有設定は「この寄合独自の
+                  // 設定」がオンの間だけ表示する（2026-07-29変更、広場全体の
+                  // 既定値は`GroupSettingsPopup`から編集する）。単一モードには
+                  // 寄合固有設定という概念自体が無い。
+                  if (customSettingsEnabled) ...[
+                    _MenuTile(
+                      label: strings.groupRoomRolePriorityMenuItem,
+                      foreground: foreground,
+                      enabled: canManageRoles,
+                      value: _GroupMenuAction.roomRolePriority,
+                    ),
+                    _MenuTile(
+                      label: roomMuted
+                          ? strings.conversationUnmute
+                          : strings.conversationMute,
+                      foreground: foreground,
+                      value: _GroupMenuAction.toggleMute,
+                    ),
+                    _MenuTile(
+                      label: roomReadReceiptsEnabled
+                          ? strings.conversationReadReceiptsDisable
+                          : strings.conversationReadReceiptsEnable,
+                      foreground: foreground,
+                      enabled: canManageReadReceipts,
+                      value: _GroupMenuAction.toggleReadReceipts,
+                    ),
+                  ],
+                  _MenuDivider(foreground: foreground),
+                  _MenuSwitchTile(
+                    title: strings.groupRoomCustomSettingsLabel,
+                    subtitle: strings.groupRoomCustomSettingsHint,
                     foreground: foreground,
-                    enabled: canManageRoles,
-                    value: _GroupMenuAction.roomRolePriority,
-                  ),
-                  _MenuTile(
-                    label: roomMuted
-                        ? strings.conversationUnmute
-                        : strings.conversationMute,
-                    foreground: foreground,
-                    value: _GroupMenuAction.toggleMute,
-                  ),
-                  _MenuTile(
-                    label: roomReadReceiptsEnabled
-                        ? strings.conversationReadReceiptsDisable
-                        : strings.conversationReadReceiptsEnable,
-                    foreground: foreground,
-                    enabled: canManageReadReceipts,
-                    value: _GroupMenuAction.toggleReadReceipts,
+                    value: customSettingsEnabled,
+                    enabled: canManageRooms,
+                    onChanged: (value) {
+                      setMenuState(() => customSettingsEnabled = value);
+                      ref
+                          .read(groupRepositoryProvider)
+                          .setRoomCustomSettingsEnabled(
+                            groupId: widget.group.groupId,
+                            roomId: widget.roomId,
+                            enabled: value,
+                          );
+                    },
                   ),
                 ],
-                _MenuDivider(foreground: foreground),
-                _MenuSwitchTile(
-                  title: strings.groupRoomCustomSettingsLabel,
-                  subtitle: strings.groupRoomCustomSettingsHint,
-                  foreground: foreground,
-                  value: customSettingsEnabled,
-                  enabled: canManageRooms,
-                  onChanged: (value) => ref
-                      .read(groupRepositoryProvider)
-                      .setRoomCustomSettingsEnabled(
-                        groupId: widget.group.groupId,
-                        roomId: widget.roomId,
-                        enabled: value,
-                      ),
-                ),
               ],
-            ],
+            ),
           ),
         ),
       ],

@@ -451,8 +451,14 @@ class _RoomTabBarState extends ConsumerState<RoomTabBar> {
       // 末尾にしか現れない。フラット/ガラス・劇画のいずれも、寄合chip群を
       // `Flexible`で包み「＋」をその外（`VerticalDivider`を挟んだ固定スロット）
       // に置くことで、行のRowが画面幅いっぱいに広がる分だけ「＋」が常にバー
-      // 右端（画面端）に固定される（2026-09-11修正、以前はフラット/ガラス側
-      // だけ`Flexible`が無く、「＋」がchip数に応じて位置が動いていた）。
+      // 右端（画面端）に固定される（2026-09-15修正。2026-09-11に一度
+      // `Flexible`を追加したが、フラット/ガラス側は内側の`Row`が
+      // `mainAxisSize: MainAxisSize.min`のままでchip群の実幅にしか
+      // 広がらず、`Flexible`が縮んで良い（`FlexFit.loose`）ため実際には
+      // 固定されていなかった。劇画側と同じく`Center`で包み、境界のある
+      // 幅制約下では自分に割り当てられた領域いっぱいに広がるという
+      // `Center`の性質を利用することで、chip数・寄合名の長さに関わらず
+      // 「＋」の座標を劇画と揃えた）。
       final realRooms = row.whereType<RoomListEntry>().toList();
       final hasAdd = row.isNotEmpty && row.last == null;
       if (isGekiga) {
@@ -510,20 +516,23 @@ class _RoomTabBarState extends ConsumerState<RoomTabBar> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Flexible(
-              // 万一chip群の合計幅が見積りを超えても、はみ出しが「＋」ボタン
-              // 側に影響しないようクリップする（2026-09-08追加の安全策、
-              // 劇画側のクリップと同じ狙い。2026-09-11、「＋」を含む行全体
-              // ではなくchip群側だけをクリップする構成に変更）。
-              child: ClipRect(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    for (var i = 0; i < realRooms.length; i++) ...[
-                      if (i > 0) VerticalDivider(width: 1, color: borderColor),
-                      flatCell(realRooms[i]),
+              child: Center(
+                // 万一chip群の合計幅が見積りを超えても、はみ出しが「＋」ボタン
+                // 側に影響しないようクリップする（2026-09-08追加の安全策、
+                // 劇画側のクリップと同じ狙い。2026-09-11、「＋」を含む行全体
+                // ではなくchip群側だけをクリップする構成に変更）。
+                child: ClipRect(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      for (var i = 0; i < realRooms.length; i++) ...[
+                        if (i > 0)
+                          VerticalDivider(width: 1, color: borderColor),
+                        flatCell(realRooms[i]),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
               ),
             ),
