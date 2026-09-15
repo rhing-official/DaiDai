@@ -15,6 +15,7 @@ import '../../repositories/group_repository.dart';
 import '../../theme/gekiga/gekiga_colors.dart';
 import '../../utils/message_time.dart';
 import '../../widgets/gekiga/gekiga_panel_box.dart';
+import '../../widgets/glass/glass_avatar.dart';
 import '../../widgets/glass/glass_surface.dart';
 import 'talks_tab.dart' show dmSearchLabel;
 
@@ -563,18 +564,25 @@ class MessageSearchHitTile extends ConsumerWidget {
         ? null
         : formatConversationListTime(sentAt, DateTime.now(), timeFormat);
 
-    final avatar = CircleAvatar(
-      radius: compact ? 14 : 20,
-      backgroundImage: iconUrl != null ? NetworkImage(iconUrl) : null,
-      backgroundColor: colorScheme.primary,
-      foregroundColor: colorScheme.onPrimary,
-      child: iconUrl == null
-          ? Icon(
-              hit.isDm ? Icons.person : Icons.groups,
-              size: compact ? 14 : 20,
-            )
-          : null,
+    final avatarRadius = compact ? 14.0 : 20.0;
+    final avatarFallback = Icon(
+      hit.isDm ? Icons.person : Icons.groups,
+      size: compact ? 14 : 20,
+      color: colorScheme.onSurfaceVariant,
     );
+    final avatar = uiStyle == AppUiStyle.glass
+        ? GlassAvatar(
+            size: avatarRadius * 2,
+            image: iconUrl != null ? NetworkImage(iconUrl) : null,
+            fallback: iconUrl != null ? null : avatarFallback,
+          )
+        : CircleAvatar(
+            radius: avatarRadius,
+            backgroundImage: iconUrl != null ? NetworkImage(iconUrl) : null,
+            backgroundColor: Colors.transparent,
+            foregroundColor: colorScheme.onSurfaceVariant,
+            child: iconUrl == null ? avatarFallback : null,
+          );
     final titleWidget = Text(
       conversationLabel,
       maxLines: 1,

@@ -12,6 +12,7 @@ import '../../providers/app_ui_style_provider.dart';
 import '../../providers/group_providers.dart';
 import '../../providers/repository_providers.dart';
 import '../../utils/color_hex.dart';
+import '../../widgets/glass/glass_avatar.dart';
 import '../../widgets/glass/glass_dialog.dart';
 import 'group_role_priority_dialog.dart';
 
@@ -214,15 +215,31 @@ class GroupRoleListPopup extends ConsumerWidget {
                       contentPadding: EdgeInsets.zero,
                       controlAffinity: ListTileControlAffinity.leading,
                       value: selectedMemberIds.contains(member.userId),
-                      secondary: CircleAvatar(
-                        radius: 14,
-                        backgroundImage: member.effectiveIcon?.url != null
-                            ? NetworkImage(member.effectiveIcon!.url)
-                            : null,
-                        child: member.effectiveIcon?.url == null
-                            ? const Icon(Icons.person, size: 16)
-                            : null,
-                      ),
+                      secondary: isGlass
+                          ? GlassAvatar(
+                              size: 28,
+                              image: member.effectiveIcon?.url != null
+                                  ? NetworkImage(member.effectiveIcon!.url)
+                                  : null,
+                              fallback: member.effectiveIcon?.url != null
+                                  ? null
+                                  : Icon(
+                                      Icons.person,
+                                      size: 16,
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.onSurfaceVariant,
+                                    ),
+                            )
+                          : CircleAvatar(
+                              radius: 14,
+                              backgroundImage: member.effectiveIcon?.url != null
+                                  ? NetworkImage(member.effectiveIcon!.url)
+                                  : null,
+                              child: member.effectiveIcon?.url == null
+                                  ? const Icon(Icons.person, size: 16)
+                                  : null,
+                            ),
                       title: Text(
                         (member.effectiveNickname?.text.isNotEmpty ?? false)
                             ? member.effectiveNickname!.text

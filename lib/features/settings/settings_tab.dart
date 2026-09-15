@@ -38,6 +38,7 @@ import '../../providers/talks_list_layout_style_provider.dart';
 import '../../providers/draft_sync_enabled_provider.dart';
 import '../../providers/gekiga_background_color_provider.dart';
 import '../../providers/message_time_format_provider.dart';
+import '../../providers/removed_default_color_presets_provider.dart';
 import '../../providers/repository_providers.dart';
 import '../../providers/notification_sound_provider.dart';
 import '../../providers/ringtone_sound_provider.dart';
@@ -46,9 +47,9 @@ import '../../providers/sticker_send_mode_provider.dart';
 import '../../providers/text_color_provider.dart';
 import '../../providers/theme_mode_provider.dart';
 import '../../providers/user_providers.dart';
-import '../../router/app_router.dart';
 import '../../services/google_calendar_auth_service.dart';
 import '../../theme/gekiga/gekiga_colors.dart';
+import '../../theme/glass/glass_colors.dart';
 import '../../utils/auto_dismiss_banner.dart';
 import '../../utils/color_hex.dart';
 import '../../utils/platform_info.dart';
@@ -64,6 +65,7 @@ import '../../widgets/qr_scan_screen.dart';
 import '../../widgets/slide_drilldown.dart';
 import '../auth/passcode_setup_dialog.dart';
 import '../auth/two_factor_setup_dialog.dart';
+import '../chat/announcement_screen.dart';
 import '../chat/group_member_list_screen.dart';
 import 'owned_sticker_packs_popup.dart';
 import 'settings_accordion_section.dart';
@@ -106,13 +108,29 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
   /// 親子で二重に重ねるとジェスチャーアリーナで競合しかねないため）。
   bool _showAbout = false;
 
+  /// 「アプリについて」の中からさらに1段階下の「オープンソースライセンス」を
+  /// 表示中か（2026-09-15追加）。以前は`showLicensePage`（Flutter SDK標準）
+  /// が独立した`MaterialPageRoute`でpushしていたため、サイドバー・区切り線
+  /// ごと覆い隠し、スワイプで戻る操作も効かなかった。`_showAbout`と同じ
+  /// 仕組みをもう1段だけ使い回すことで両方を解消する（`build`参照）。
+  bool _showLicenses = false;
+
+  /// 運営カテゴリの中からさらに1段階下の「お知らせ」を表示中か
+  /// （2026-09-15追加）。以前はgo_routerの`/announcements`ルートへ
+  /// `push`していたため、サイドバー・区切り線ごと覆い隠していた
+  /// （スワイプで戻る操作自体は`slideDetailPage`側で既に機能していたが、
+  /// サイドバーが消える点は`_showAbout`と同じ問題を抱えていた）。
+  bool _showAnnouncements = false;
+
   /// カテゴリタップの共通ハンドラ。広い画面はサイドバーが常設のため、
   /// 「アプリについて」表示中でも別カテゴリをクリックできてしまう——
-  /// その場合は`_showAbout`も一緒にリセットする（2026-09-15追加）。
+  /// その場合は`_showAbout`等も一緒にリセットする（2026-09-15追加）。
   void _onCategorySelected(_SettingsCategory category) {
     setState(() {
       _selectedId = category.id;
       _showAbout = false;
+      _showLicenses = false;
+      _showAnnouncements = false;
     });
   }
 
@@ -124,6 +142,7 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
       ref,
       widget.currentUser,
       () => setState(() => _showAbout = true),
+      () => setState(() => _showAnnouncements = true),
     );
     final isWide =
         MediaQuery.sizeOf(context).width >= _kSettingsSplitBreakpoint;
@@ -148,10 +167,19 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
             Expanded(
               child: _SettingsPage(
                 // サイドバー・区切り線はこの分岐の外にあるため、「アプリに
-                // ついて」表示中も常に見えたままになる（2026-09-15追加、
-                // 以前は`Navigator.push`の別ルートで覆い隠していた）。
-                child: _showAbout
-                    ? _AboutPageContent(strings: strings)
+                // ついて」「オープンソースライセンス」「お知らせ」表示中も
+                // 常に見えたままになる（2026-09-15追加、以前はそれぞれ
+                // `Navigator.push`/go_routerの別ルートで覆い隠していた）。
+                child: _showLicenses
+                    ? const _LicensePageContent()
+                    : _showAbout
+                    ? _AboutPageContent(
+                        strings: strings,
+                        onOpenLicenses: () =>
+                            setState(() => _showLicenses = true),
+                      )
+                    : _showAnnouncements
+                    ? AnnouncementScreen(currentUser: widget.currentUser)
                     : Builder(builder: selected.pageBuilder),
               ),
             ),
@@ -174,7 +202,18 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
     final Object? detailKey;
     final VoidCallback onBack;
     final VoidCallback? onNext;
-    if (_showAbout) {
+    if (_showLicenses) {
+      // 「オープンソースライセンス」からスワイプで戻ると、「アプリに
+      // ついて」自身が現れるようにする（2026-09-15追加）。
+      master = _AboutPageContent(
+        strings: strings,
+        onOpenLicenses: () => setState(() => _showLicenses = true),
+      );
+      detail = const _LicensePageContent();
+      detailKey = 'licenses';
+      onBack = () => setState(() => _showLicenses = false);
+      onNext = null;
+    } else if (_showAbout) {
       // 「アプリについて」からスワイプで戻ると、トップのカテゴリ一覧
       // ではなく運営自身の一覧が現れるようにする（2026-09-15追加）。
       master = Builder(
@@ -182,11 +221,30 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
           strings: strings,
           currentUser: widget.currentUser,
           onOpenAbout: () => setState(() => _showAbout = true),
+          onOpenAnnouncements: () => setState(() => _showAnnouncements = true),
         ),
       );
-      detail = _AboutPageContent(strings: strings);
+      detail = _AboutPageContent(
+        strings: strings,
+        onOpenLicenses: () => setState(() => _showLicenses = true),
+      );
       detailKey = 'about';
       onBack = () => setState(() => _showAbout = false);
+      onNext = null;
+    } else if (_showAnnouncements) {
+      // 「お知らせ」からスワイプで戻ると、運営自身の一覧が現れるように
+      // する（2026-09-15追加。以前はgo_routerの別ルートに積んでいた）。
+      master = Builder(
+        builder: (context) => _SupportPage(
+          strings: strings,
+          currentUser: widget.currentUser,
+          onOpenAbout: () => setState(() => _showAbout = true),
+          onOpenAnnouncements: () => setState(() => _showAnnouncements = true),
+        ),
+      );
+      detail = AnnouncementScreen(currentUser: widget.currentUser);
+      detailKey = 'announcements';
+      onBack = () => setState(() => _showAnnouncements = false);
       onNext = null;
     } else {
       master = _CategoryList(
@@ -257,6 +315,7 @@ List<_SettingsCategory> _categories(
   WidgetRef ref,
   AppUser currentUser,
   VoidCallback onOpenAbout,
+  VoidCallback onOpenAnnouncements,
 ) {
   return [
     _SettingsCategory(
@@ -294,6 +353,7 @@ List<_SettingsCategory> _categories(
         strings: strings,
         currentUser: currentUser,
         onOpenAbout: onOpenAbout,
+        onOpenAnnouncements: onOpenAnnouncements,
       ),
     ),
   ];
@@ -790,9 +850,12 @@ Future<bool> _confirmStartScan(BuildContext context, Strings strings) async {
   return confirmed ?? false;
 }
 
-/// 登録したアクセントカラーを削除する前の確認ダイアログ
-/// （`_DesignFolderState`の「登録した色」長押し、2026-08-29追加）。
-Future<bool> _confirmDeleteCustomColor(
+/// アクセントカラーのプリセットを削除する前の確認ダイアログ
+/// （`_AccentColorFolderState`の「プリセット」長押し、2026-08-29追加。
+/// 2026-09-15、固定プリセット・ユーザー登録色の両方を統合した「プリセット」
+/// 1セクションの削除確認に使うよう拡張し`_confirmDeleteCustomColor`から
+/// 改名）。
+Future<bool> _confirmDeletePresetColor(
   BuildContext context,
   Strings strings,
 ) async {
@@ -1024,6 +1087,7 @@ class _SupportPage extends ConsumerWidget {
     required this.strings,
     required this.currentUser,
     required this.onOpenAbout,
+    required this.onOpenAnnouncements,
   });
 
   final Strings strings;
@@ -1036,6 +1100,14 @@ class _SupportPage extends ConsumerWidget {
   /// `SlideDrilldown`/`_SettingsPage`に任せる。
   final VoidCallback onOpenAbout;
 
+  /// 「お知らせ」タップ時の処理（2026-09-15追加）。以前はここで
+  /// go_routerの`/announcements`ルートへ`push`していたが、サイドバー・
+  /// 区切り線を覆い隠す問題があったため（スワイプ戻る自体はgo_router側の
+  /// `slideDetailPage`で既に機能していた）、`onOpenAbout`と同じく
+  /// `_SettingsTabState`側の状態（`_showAnnouncements`）を切り替える
+  /// だけにする。
+  final VoidCallback onOpenAnnouncements;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return ListView(
@@ -1043,9 +1115,7 @@ class _SupportPage extends ConsumerWidget {
       children: [
         _ActionRow(
           label: strings.settingsAnnouncements,
-          onTap: () => ref
-              .read(goRouterProvider)
-              .push('/announcements', extra: currentUser),
+          onTap: onOpenAnnouncements,
         ),
         _ActionRow(label: strings.settingsAboutApp, onTap: onOpenAbout),
       ],
@@ -1073,9 +1143,19 @@ Future<void> _openExternalUrl(String url) async {
 /// 他カテゴリの中身と同じ`_SettingsPage`/`SlideDrilldown`のdetailスロットに
 /// 埋め込む（2026-09-15変更）。
 class _AboutPageContent extends StatefulWidget {
-  const _AboutPageContent({required this.strings});
+  const _AboutPageContent({
+    required this.strings,
+    required this.onOpenLicenses,
+  });
 
   final Strings strings;
+
+  /// 「オープンソースライセンス」タップ時の処理（2026-09-15追加）。以前は
+  /// ここでFlutter SDK標準の`showLicensePage`を呼び、独立した
+  /// `MaterialPageRoute`でpushしていたが、サイドバー・区切り線を覆い隠し
+  /// スワイプ戻るも効かない問題があったため、`onOpenAbout`と同じく
+  /// `_SettingsTabState`側の状態（`_showLicenses`）を切り替えるだけにする。
+  final VoidCallback onOpenLicenses;
 
   @override
   State<_AboutPageContent> createState() => _AboutPageContentState();
@@ -1117,13 +1197,49 @@ class _AboutPageContentState extends State<_AboutPageContent> {
             const Divider(height: 24),
             _ActionRow(
               label: strings.settingsOpenSourceLicenses,
-              onTap: () => showLicensePage(
-                context: context,
-                applicationName: 'DaiDai',
-                applicationVersion: info?.version,
-              ),
+              onTap: widget.onOpenLicenses,
             ),
           ],
+        );
+      },
+    );
+  }
+}
+
+/// オープンソースライセンス一覧（2026-09-15変更）。以前は`showLicensePage`が
+/// アプリ全体のNavigatorへフルスクリーンでpushしていたため、サイドバー・
+/// 区切り線ごと覆い隠し、スワイプで戻る操作も効かなかった。`LicensePage`
+/// 自体はFlutter標準のものをそのまま使いつつ、専用のローカル`Navigator`で
+/// 包むことでパッケージ詳細へのpushをこのdetailスロット内に閉じ込め、
+/// 外側（「アプリについて」への復帰）は`_SettingsTabState._showLicenses`の
+/// トグル＋既存の`SlideDrilldown`/`InteractiveSwipeBackTransition`に任せる。
+class _LicensePageContent extends StatefulWidget {
+  const _LicensePageContent();
+
+  @override
+  State<_LicensePageContent> createState() => _LicensePageContentState();
+}
+
+class _LicensePageContentState extends State<_LicensePageContent> {
+  late final Future<PackageInfo> _packageInfoFuture =
+      PackageInfo.fromPlatform();
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<PackageInfo>(
+      future: _packageInfoFuture,
+      builder: (context, snapshot) {
+        final info = snapshot.data;
+        if (info == null) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        return Navigator(
+          onGenerateRoute: (settings) => MaterialPageRoute<void>(
+            builder: (context) => LicensePage(
+              applicationName: 'DaiDai',
+              applicationVersion: info.version,
+            ),
+          ),
         );
       },
     );
@@ -1492,7 +1608,7 @@ class _ApplicationPage extends ConsumerWidget {
     return ListView(
       padding: const EdgeInsets.only(bottom: 24),
       children: [
-        _DesignFolder(strings: strings),
+        _AppearanceFolder(strings: strings),
         const Divider(height: 24),
         _SectionHeader(strings.settingsSubUI),
         Padding(
@@ -1503,6 +1619,8 @@ class _ApplicationPage extends ConsumerWidget {
           ),
         ),
         _UiStyleFolder(strings: strings),
+        const Divider(height: 24),
+        _AccentColorFolder(strings: strings),
         const Divider(height: 24),
         if (!isGekiga) ...[const _TextColorFolder(), const Divider(height: 24)],
         _SectionHeader(strings.settingsFontDesign),
@@ -1518,126 +1636,28 @@ class _ApplicationPage extends ConsumerWidget {
   }
 }
 
-class _DesignFolder extends ConsumerStatefulWidget {
-  const _DesignFolder({required this.strings});
+/// 外観（ライト/ダーク/端末に合わせる）の選択（2026-09-15、`_DesignFolder`
+/// から分離。以前はアクセントカラーと同じウィジェット内にまとめていたが、
+/// 設定画面の項目順を「外観→UI→アクセントカラー→…」に揃えるため、
+/// UIスタイル選択（`_UiStyleFolder`）を挟んで別ウィジェットにした）。
+class _AppearanceFolder extends ConsumerWidget {
+  const _AppearanceFolder({required this.strings});
 
   final Strings strings;
 
   @override
-  ConsumerState<_DesignFolder> createState() => _DesignFolderState();
-}
-
-/// アクセントカラーのプリセット（8桁hex＝RRGGBBAA、2026-09-14更新:
-/// `000000CC`を削除し`C1272DCC`/`F08567CC`を追加）。
-const _kAccentColorPresets = [
-  'F08300CC',
-  '3D2EE0CC',
-  '88B04BCC',
-  'C1272DCC',
-  'F08567CC',
-];
-
-/// 劇画UIの背景色のプリセット（6桁hex＝RRGGBB、不透明）。ColorSchemeの
-/// 種ではなく単色塗りつぶしの背景色として使うため、フラットUI側のような
-/// 透過は付けない。先頭要素は`kDefaultGekigaBackgroundColor`
-/// （`GekigaColors.background`）と同じ値にすること。2026-09-14に
-/// `F08567`を追加。
-const _kGekigaBackgroundColorPresets = [
-  'C1272D',
-  'F08300',
-  '3D2EE0',
-  '88B04B',
-  'F08567',
-];
-
-class _DesignFolderState extends ConsumerState<_DesignFolder> {
-  late final TextEditingController _hexController;
-  String? _errorText;
-
-  @override
-  void initState() {
-    super.initState();
-    _hexController = TextEditingController(
-      text: ref.read(accentColorProvider).toHexString().replaceFirst('#', ''),
-    );
-  }
-
-  @override
-  void dispose() {
-    _hexController.dispose();
-    super.dispose();
-  }
-
-  void _applyHexInput() {
-    final color = tryParseHexColor(_hexController.text);
-    if (color == null) {
-      setState(() => _errorText = '「#RRGGBB」の形式で入力してください');
-      return;
-    }
-    setState(() => _errorText = null);
-    final isGekiga = ref.read(appUiStyleProvider) == AppUiStyle.gekiga;
-    if (isGekiga) {
-      ref.read(gekigaBackgroundColorProvider.notifier).setColor(color);
-    } else {
-      ref.read(accentColorProvider.notifier).setColor(color);
-    }
-  }
-
-  void _applyPreset(String hex) {
-    final color = tryParseHexColor(hex);
-    if (color == null) return;
-    setState(() {
-      _errorText = null;
-      _hexController.text = hex.toUpperCase();
-    });
-    final isGekiga = ref.read(appUiStyleProvider) == AppUiStyle.gekiga;
-    if (isGekiga) {
-      ref.read(gekigaBackgroundColorProvider.notifier).setColor(color);
-    } else {
-      ref.read(accentColorProvider.notifier).setColor(color);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    // 同じ入力欄・プリセット一覧をフラットUIの`accentColorProvider`と
-    // 劇画UIの`gekigaBackgroundColorProvider`で使い回しているため、
-    // `_UiStyleFolder`（同じ`_ApplicationPage`内の兄弟）でスタイルを
-    // 切り替えた瞬間に、表示中の値を新しく有効になった側のプロバイダの
-    // 現在値へリセットする。build中に`_hexController`を直接書き換えると
-    // GekigaTextField/TextFieldという別ウィジェット間の切り替え時に
-    // タイミング次第で不安定になるため、`ref.listen`のコールバック内で
-    // 安全にsetStateする。
-    ref.listen<AppUiStyle>(appUiStyleProvider, (previous, next) {
-      if (previous == next) return;
-      final color = next == AppUiStyle.gekiga
-          ? ref.read(gekigaBackgroundColorProvider)
-          : ref.read(accentColorProvider);
-      setState(() {
-        _errorText = null;
-        _hexController.text = color.toHexString().replaceFirst('#', '');
-      });
-    });
-
-    final accentColor = ref.watch(accentColorProvider);
-    final customColors = ref.watch(customAccentColorsProvider);
-    final gekigaBackgroundColor = ref.watch(gekigaBackgroundColorProvider);
+  Widget build(BuildContext context, WidgetRef ref) {
     final themeMode = ref.watch(appThemeModeProvider);
-    final uiStyle = ref.watch(appUiStyleProvider);
-    final isGekiga = uiStyle == AppUiStyle.gekiga;
+    final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
     final appearanceLocked = isGekiga;
-    final activeColor = isGekiga ? gekigaBackgroundColor : accentColor;
-    final colorPresets = isGekiga
-        ? _kGekigaBackgroundColorPresets
-        : _kAccentColorPresets;
 
     void selectThemeMode(ThemeMode mode) =>
         ref.read(appThemeModeProvider.notifier).setMode(mode);
 
     final appearanceOptions = [
-      (mode: ThemeMode.light, label: widget.strings.settingsAppearanceLight),
-      (mode: ThemeMode.dark, label: widget.strings.settingsAppearanceDark),
-      (mode: ThemeMode.system, label: widget.strings.settingsAppearanceSystem),
+      (mode: ThemeMode.light, label: strings.settingsAppearanceLight),
+      (mode: ThemeMode.dark, label: strings.settingsAppearanceDark),
+      (mode: ThemeMode.system, label: strings.settingsAppearanceSystem),
     ];
 
     final appearanceControl = isGekiga
@@ -1678,6 +1698,215 @@ class _DesignFolderState extends ConsumerState<_DesignFolder> {
             ),
           );
 
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          child: Text(
+            strings.settingsAppearance,
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+        ),
+        // 劇画UI選択中は外観（ライト/ダーク/端末に合わせる）を変更不可にする
+        // （グレーアウト＋操作無効化）。themeModeに関わらず常に同じ見た目を
+        // 返す設計のため、この設定を変えても効果が無い（2026-08-04追加）。
+        if (appearanceLocked)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+            child: Text(
+              strings.settingsAppearanceGekigaLockedHint,
+              style: TextStyle(
+                fontSize: 12,
+                color: Theme.of(context).hintColor,
+              ),
+            ),
+          ),
+        Opacity(
+          opacity: appearanceLocked ? 0.4 : 1.0,
+          child: IgnorePointer(
+            ignoring: appearanceLocked,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: appearanceControl,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// アクセントカラー（フラットUI/ガラスUI）・劇画UIの背景色の選択
+/// （2026-09-15、`_DesignFolder`から分離。上記[_AppearanceFolder]参照）。
+class _AccentColorFolder extends ConsumerStatefulWidget {
+  const _AccentColorFolder({required this.strings});
+
+  final Strings strings;
+
+  @override
+  ConsumerState<_AccentColorFolder> createState() => _AccentColorFolderState();
+}
+
+/// アクセントカラーのプリセット（8桁hex＝RRGGBBAA）。フラット/ガラス/劇画の
+/// 3スタイル共通の1リスト（2026-09-15、以前はフラット/ガラス用の
+/// `_kAccentColorPresets`と劇画用の`_kGekigaBackgroundColorPresets`に
+/// 分かれていたが、中身は同じRGB5色だったため統合した）。劇画UIの背景色は
+/// 常に不透明として扱う（`GekigaBackgroundColorNotifier.setColor`参照）ため、
+/// 末尾のアルファは劇画側では単に無視される。ユーザーが長押しで削除した
+/// 要素は`removedDefaultColorPresetsProvider`側の集合で管理し、この
+/// リスト自体からは取り除かない（削除は表示フィルタで実現し、復活手段は
+/// 設けない）。
+const _kDefaultColorPresets = [
+  'F08300CC',
+  '3D2EE0CC',
+  '88B04BCC',
+  'C1272DCC',
+  'F08567CC',
+];
+
+class _AccentColorFolderState extends ConsumerState<_AccentColorFolder> {
+  late final TextEditingController _hexController;
+  String? _errorText;
+
+  @override
+  void initState() {
+    super.initState();
+    _hexController = TextEditingController(
+      text: ref.read(accentColorProvider).toHexString().replaceFirst('#', ''),
+    );
+  }
+
+  @override
+  void dispose() {
+    _hexController.dispose();
+    super.dispose();
+  }
+
+  void _applyHexInput() {
+    final color = tryParseHexColor(_hexController.text);
+    if (color == null) {
+      setState(() => _errorText = '「#RRGGBB」の形式で入力してください');
+      return;
+    }
+    setState(() => _errorText = null);
+    final isGekiga = ref.read(appUiStyleProvider) == AppUiStyle.gekiga;
+    if (isGekiga) {
+      // 劇画UIの背景色は`GekigaBackgroundColorNotifier.setColor`内で常に
+      // 不透明化されて保存されるが、入力欄のテキスト自体は書き換えない
+      // （2026-09-15変更）。よって確定直後は入力した8桁表示のまま残るが、
+      // これは画面を開いている間（このセッション限り）でよく、設定画面を
+      // 再訪したりUIスタイルを切り替えて戻った場合は上の`ref.listen`/
+      // `initState`が実際に保存された6桁の値へ再読込する。
+      ref.read(gekigaBackgroundColorProvider.notifier).setColor(color);
+    } else {
+      ref.read(accentColorProvider.notifier).setColor(color);
+    }
+  }
+
+  void _applyPreset(String hex) {
+    final color = tryParseHexColor(hex);
+    if (color == null) return;
+    setState(() {
+      _errorText = null;
+      _hexController.text = hex.toUpperCase();
+    });
+    final isGekiga = ref.read(appUiStyleProvider) == AppUiStyle.gekiga;
+    if (isGekiga) {
+      ref.read(gekigaBackgroundColorProvider.notifier).setColor(color);
+    } else {
+      ref.read(accentColorProvider.notifier).setColor(color);
+    }
+  }
+
+  /// 現在有効な色を「プリセット」へ登録する（フラット/ガラス/劇画共通、
+  /// 2026-09-15追加。以前はフラット/ガラスの入力欄のみに直書きしていた）。
+  Future<void> _registerCustomColor(BuildContext context) async {
+    final isGekiga = ref.read(appUiStyleProvider) == AppUiStyle.gekiga;
+    final activeColor = isGekiga
+        ? ref.read(gekigaBackgroundColorProvider)
+        : ref.read(accentColorProvider);
+    final customColors = ref.read(customAccentColorsProvider);
+    final removedDefaultHex = ref.read(removedDefaultColorPresetsProvider);
+    final defaultColors = [
+      for (final hex in _kDefaultColorPresets)
+        if (!removedDefaultHex.contains(hex)) tryParseHexColor(hex)!,
+    ];
+    // 劇画UIは背景色を常に不透明として扱うため、アルファ差だけの重複は
+    // 同一色とみなして弾く（同じ見た目の色が2つのスウォッチとして並ぶのを
+    // 防ぐ）。フラット/ガラスは従来通りアルファ込みの完全一致で比較する。
+    bool sameColor(Color a, Color b) =>
+        isGekiga ? a.withAlpha(0xFF) == b.withAlpha(0xFF) : a == b;
+    final alreadyShown =
+        defaultColors.any((c) => sameColor(c, activeColor)) ||
+        customColors.any((c) => sameColor(c, activeColor));
+    if (alreadyShown) return;
+    final added = await ref
+        .read(customAccentColorsProvider.notifier)
+        .addColor(activeColor);
+    if (!added && context.mounted) {
+      showAutoDismissBanner(
+        context,
+        message: widget.strings.settingsCustomColorLimitReachedTemplate(
+          kMaxCustomAccentColors,
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // 同じ入力欄・プリセット一覧をフラットUIの`accentColorProvider`と
+    // 劇画UIの`gekigaBackgroundColorProvider`で使い回しているため、
+    // `_UiStyleFolder`（同じ`_ApplicationPage`内の兄弟）でスタイルを
+    // 切り替えた瞬間に、表示中の値を新しく有効になった側のプロバイダの
+    // 現在値へリセットする。build中に`_hexController`を直接書き換えると
+    // GekigaTextField/TextFieldという別ウィジェット間の切り替え時に
+    // タイミング次第で不安定になるため、`ref.listen`のコールバック内で
+    // 安全にsetStateする。
+    ref.listen<AppUiStyle>(appUiStyleProvider, (previous, next) {
+      if (previous == next) return;
+      final color = next == AppUiStyle.gekiga
+          ? ref.read(gekigaBackgroundColorProvider)
+          : ref.read(accentColorProvider);
+      setState(() {
+        _errorText = null;
+        _hexController.text = color.toHexString().replaceFirst('#', '');
+      });
+    });
+
+    final accentColor = ref.watch(accentColorProvider);
+    final customColors = ref.watch(customAccentColorsProvider);
+    final gekigaBackgroundColor = ref.watch(gekigaBackgroundColorProvider);
+    final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
+    final activeColor = isGekiga ? gekigaBackgroundColor : accentColor;
+    final removedDefaultHex = ref.watch(removedDefaultColorPresetsProvider);
+
+    // 劇画UIは背景色を常に不透明として扱うため、選択中判定・登録時の重複
+    // チェックはアルファを無視して比較する（そうしないと透明度付きの固定
+    // プリセットが劇画側で永遠に「選択中」にならない）。フラット/ガラスは
+    // 従来通りアルファ込みの完全一致で比較する。
+    bool sameColor(Color a, Color b) =>
+        isGekiga ? a.withAlpha(0xFF) == b.withAlpha(0xFF) : a == b;
+
+    // 固定プリセット（削除されていないもの）とユーザー登録色を1つの
+    // 「プリセット」一覧にまとめる（2026-09-15、以前は「プリセット」
+    // 「登録した色」の2セクションに分かれ、劇画UIでは後者を非表示にして
+    // いた）。出自を`isDefault`で区別し、長押し削除時にどちらのプロバイダを
+    // 更新するか振り分ける。
+    final presetEntries = [
+      for (final hex in _kDefaultColorPresets)
+        if (!removedDefaultHex.contains(hex))
+          (hex: hex, isDefault: true, color: tryParseHexColor(hex)!),
+      for (final color in customColors)
+        (
+          hex: color.toHexString().replaceFirst('#', ''),
+          isDefault: false,
+          color: color,
+        ),
+    ];
+
     final accentColorField = isGekiga
         ? GekigaTextField(
             controller: _hexController,
@@ -1689,9 +1918,19 @@ class _DesignFolderState extends ConsumerState<_DesignFolder> {
             prefixText: '#',
             hintText: 'F08300',
             errorText: _errorText,
-            suffixIcon: IconButton(
-              icon: const Icon(Icons.check, color: GekigaColors.onPanel),
-              onPressed: _applyHexInput,
+            suffixIcon: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.check, color: GekigaColors.onPanel),
+                  onPressed: _applyHexInput,
+                ),
+                IconButton(
+                  icon: const Icon(Icons.add, color: GekigaColors.onPanel),
+                  tooltip: '',
+                  onPressed: () => _registerCustomColor(context),
+                ),
+              ],
             ),
             onSubmitted: (_) => _applyHexInput(),
           )
@@ -1710,15 +1949,17 @@ class _DesignFolderState extends ConsumerState<_DesignFolder> {
               counterText: '',
               // フラットUIでもこの欄だけガラスUIと同じ見た目
               // （半透明の塗り＋アクセントカラーの縁取り）にする
-              // （2026-09-14変更、ユーザー要望）。フラットの標準
-              // `inputDecorationTheme`は不透明な塗り・枠線無しのため、
-              // ここだけ`glass_theme.dart`の`inputDecorationTheme`と
-              // 同じ考え方（`colorScheme.surfaceContainerHighest`の
-              // 半透明＋`activeColor`の縁取り）を個別に上書きする。
+              // （2026-09-14変更、ユーザー要望）。塗り色は
+              // `colorScheme.surfaceContainerHighest`だとフラット/
+              // ガラスでアクセントカラーの色味有無が異なり見た目が
+              // ズレていたため、`GlassColors`の固定値を直接参照して
+              // UIスタイルに関係なく常に同じ色にする（2026-09-15修正）。
               filled: true,
-              fillColor: Theme.of(
-                context,
-              ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.65),
+              fillColor:
+                  (Theme.of(context).brightness == Brightness.dark
+                          ? GlassColors.darkSurfaceBase
+                          : GlassColors.lightSurfaceBase)
+                      .withValues(alpha: 0.65),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(16),
                 borderSide: BorderSide(
@@ -1735,21 +1976,7 @@ class _DesignFolderState extends ConsumerState<_DesignFolder> {
                   IconButton(
                     icon: const Icon(Icons.add),
                     tooltip: '',
-                    onPressed: () async {
-                      if (customColors.contains(activeColor)) return;
-                      final added = await ref
-                          .read(customAccentColorsProvider.notifier)
-                          .addColor(activeColor);
-                      if (!added && context.mounted) {
-                        showAutoDismissBanner(
-                          context,
-                          message: widget.strings
-                              .settingsCustomColorLimitReachedTemplate(
-                                kMaxCustomAccentColors,
-                              ),
-                        );
-                      }
-                    },
+                    onPressed: () => _registerCustomColor(context),
                   ),
                 ],
               ),
@@ -1761,38 +1988,6 @@ class _DesignFolderState extends ConsumerState<_DesignFolder> {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-          child: Text(
-            widget.strings.settingsAppearance,
-            style: const TextStyle(fontWeight: FontWeight.bold),
-          ),
-        ),
-        // 劇画UI選択中は外観（ライト/ダーク/端末に合わせる）を変更不可にする
-        // （グレーアウト＋操作無効化）。themeModeに関わらず常に同じ見た目を
-        // 返す設計のため、この設定を変えても効果が無い（2026-08-04追加）。
-        if (appearanceLocked)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
-            child: Text(
-              widget.strings.settingsAppearanceGekigaLockedHint,
-              style: TextStyle(
-                fontSize: 12,
-                color: Theme.of(context).hintColor,
-              ),
-            ),
-          ),
-        Opacity(
-          opacity: appearanceLocked ? 0.4 : 1.0,
-          child: IgnorePointer(
-            ignoring: appearanceLocked,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-              child: appearanceControl,
-            ),
-          ),
-        ),
-        const Divider(height: 32),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
           child: Text(
@@ -1855,59 +2050,35 @@ class _DesignFolderState extends ConsumerState<_DesignFolder> {
                     spacing: 12,
                     runSpacing: 12,
                     children: [
-                      for (final hex in colorPresets)
+                      for (final entry in presetEntries)
                         _PresetColorSwatch(
-                          hex: hex,
-                          selected: tryParseHexColor(hex) == activeColor,
-                          onTap: () => _applyPreset(hex),
+                          hex: entry.hex,
+                          selected: sameColor(entry.color, activeColor),
+                          onTap: () => _applyPreset(entry.hex),
+                          onLongPress: () async {
+                            final confirmed = await _confirmDeletePresetColor(
+                              context,
+                              widget.strings,
+                            );
+                            if (!confirmed) return;
+                            if (entry.isDefault) {
+                              await ref
+                                  .read(
+                                    removedDefaultColorPresetsProvider.notifier,
+                                  )
+                                  .markRemoved(entry.hex);
+                            } else {
+                              await ref
+                                  .read(customAccentColorsProvider.notifier)
+                                  .removeColor(entry.color);
+                            }
+                          },
                         ),
                     ],
                   ),
                 ],
               ),
             ),
-            if (!isGekiga && customColors.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      widget.strings.settingsCustomColors,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 13,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 12,
-                      runSpacing: 12,
-                      children: [
-                        for (final color in customColors)
-                          _PresetColorSwatch(
-                            hex: color.toHexString(),
-                            selected: color == activeColor,
-                            onTap: () => ref
-                                .read(accentColorProvider.notifier)
-                                .setColor(color),
-                            onLongPress: () async {
-                              final confirmed = await _confirmDeleteCustomColor(
-                                context,
-                                widget.strings,
-                              );
-                              if (confirmed) {
-                                await ref
-                                    .read(customAccentColorsProvider.notifier)
-                                    .removeColor(color);
-                              }
-                            },
-                          ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
           ],
         ),
       ],
@@ -2039,10 +2210,15 @@ class _TextColorFolderState extends ConsumerState<_TextColorFolder> {
                 counterText: '',
                 // アクセントカラーの入力欄と同じ、ガラスUI風の見た目に揃える
                 // （2026-09-14変更、`_DesignFolderState`のアクセントカラー欄参照）。
+                // 塗り色は`GlassColors`の固定値を直接参照し、フラット/ガラスで
+                // 常に同じ色になるようにする（2026-09-15修正、理由は
+                // アクセントカラー欄側のコメント参照）。
                 filled: true,
-                fillColor: Theme.of(
-                  context,
-                ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.65),
+                fillColor:
+                    (Theme.of(context).brightness == Brightness.dark
+                            ? GlassColors.darkSurfaceBase
+                            : GlassColors.lightSurfaceBase)
+                        .withValues(alpha: 0.65),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(16),
                   borderSide: BorderSide(color: color.withValues(alpha: 0.3)),
@@ -2128,9 +2304,12 @@ class _PresetColorSwatch extends StatelessWidget {
   final bool selected;
   final VoidCallback onTap;
 
-  /// 登録した色（[_DesignFolderState]の「登録した色」一覧）の削除導線用。
-  /// nullなら長押し操作自体を無効にする（固定のプリセットでは削除不可、
-  /// 2026-08-29追加）。
+  /// 削除導線用のコールバック。固定プリセット・ユーザー登録色のどちらも
+  /// この`_PresetColorSwatch`を共通で使うため、呼び出し元
+  /// （[_AccentColorFolderState]）が出自に応じて
+  /// `removedDefaultColorPresetsProvider`か`customAccentColorsProvider`の
+  /// どちらを更新するか振り分ける（2026-09-15、以前は固定プリセットに対して
+  /// nullを渡し削除不可にしていた）。
   final VoidCallback? onLongPress;
 
   @override
@@ -2334,16 +2513,29 @@ class _UiStyleFolder extends ConsumerWidget {
   }
 }
 
-/// フォントデザインの選択（2026-09-06追加、2026-09-07に劇画も対象化）。
-/// 他の選択項目（`_LanguageFolder`等）と同じく、劇画スタイル選択中は
-/// この選択肢一覧自体も劇画の見た目に揃える（選択は即座に反映される）。
-class _FontDesignFolder extends ConsumerWidget {
+/// [_FontDesignFolder]が展開前に表示する件数（2026-09-15追加）。これを
+/// 超える場合は「もっと見る」タイルを出し、タップで全件表示に切り替える。
+const kFontDesignPreviewCount = 5;
+
+/// フォントデザインの選択（2026-09-06追加、2026-09-07に劇画も対象化、
+/// 2026-09-15に「もっと見る」展開式に変更）。他の選択項目
+/// （`_LanguageFolder`等）と同じく、劇画スタイル選択中はこの選択肢一覧
+/// 自体も劇画の見た目に揃える（選択は即座に反映される）。
+class _FontDesignFolder extends ConsumerStatefulWidget {
   const _FontDesignFolder({required this.strings});
 
   final Strings strings;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_FontDesignFolder> createState() => _FontDesignFolderState();
+}
+
+class _FontDesignFolderState extends ConsumerState<_FontDesignFolder> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final strings = widget.strings;
     final design = ref.watch(fontDesignProvider);
     final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
 
@@ -2361,7 +2553,12 @@ class _FontDesignFolder extends ConsumerWidget {
       FontDesign.genJyuuGothic => strings.fontDesignGenJyuuGothicLabel,
       FontDesign.roundedMPlus => strings.fontDesignRoundedMPlusLabel,
       FontDesign.gochikakutto851 => strings.fontDesignGochikakutto851Label,
-      FontDesign.darumadropOne => strings.fontDesignDarumadropOneLabel,
+      FontDesign.makinas4Flat => strings.fontDesignMakinas4FlatLabel,
+      FontDesign.kurobaraCinderella =>
+        strings.fontDesignKurobaraCinderellaLabel,
+      FontDesign.pigmo01 => strings.fontDesignPigmo01Label,
+      FontDesign.keifont => strings.fontDesignKeifontLabel,
+      FontDesign.popRumCute => strings.fontDesignPopRumCuteLabel,
       FontDesign.zenKakuGothicNew => strings.fontDesignZenKakuGothicNewLabel,
       FontDesign.zenOldMincho => strings.fontDesignZenOldMinchoLabel,
       FontDesign.zenMaruGothic => strings.fontDesignZenMaruGothicLabel,
@@ -2374,12 +2571,23 @@ class _FontDesignFolder extends ConsumerWidget {
       FontDesign.chikaraYowaku851 => strings.fontDesignChikaraYowaku851Label,
     };
 
+    final visibleDesigns = _expanded
+        ? FontDesign.values
+        : FontDesign.values.take(kFontDesignPreviewCount);
+    final remaining = FontDesign.values.length - visibleDesigns.length;
+
     if (isGekiga) {
       return GekigaJointedTileList(
-        seeds: [for (final value in FontDesign.values) value.hashCode],
-        selectedFlags: [for (final value in FontDesign.values) design == value],
+        seeds: [
+          for (final value in visibleDesigns) value.hashCode,
+          if (remaining > 0) 'fontDesignShowMore'.hashCode,
+        ],
+        selectedFlags: [
+          for (final value in visibleDesigns) design == value,
+          if (remaining > 0) false,
+        ],
         children: [
-          for (final value in FontDesign.values)
+          for (final value in visibleDesigns)
             GekigaTileContent(
               selected: design == value,
               leading: Icon(
@@ -2396,6 +2604,12 @@ class _FontDesignFolder extends ConsumerWidget {
                   : null,
               onTap: () => select(value),
             ),
+          if (remaining > 0)
+            GekigaTileContent(
+              leading: const Icon(Icons.expand_more),
+              title: Text(strings.fontDesignShowMoreTemplate(remaining)),
+              onTap: () => setState(() => _expanded = true),
+            ),
         ],
       );
     }
@@ -2407,7 +2621,7 @@ class _FontDesignFolder extends ConsumerWidget {
       },
       child: Column(
         children: [
-          for (final value in FontDesign.values)
+          for (final value in visibleDesigns)
             RadioListTile<FontDesign>(
               value: value,
               title: Text(
@@ -2417,6 +2631,13 @@ class _FontDesignFolder extends ConsumerWidget {
               subtitle: value.isKiwamiExclusive
                   ? Text(strings.fontDesignKiwamiExclusiveNotice)
                   : null,
+            ),
+          if (remaining > 0)
+            ListTile(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+              leading: const Icon(Icons.expand_more),
+              title: Text(strings.fontDesignShowMoreTemplate(remaining)),
+              onTap: () => setState(() => _expanded = true),
             ),
         ],
       ),

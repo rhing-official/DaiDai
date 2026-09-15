@@ -48,7 +48,6 @@ class Strings {
     required this.settingsAppearanceSystem,
     required this.settingsColorCode,
     required this.settingsColorPresets,
-    required this.settingsCustomColors,
     required this.settingsTextColorTitle,
     required this.settingsTextColorDescription,
     required this.settingsTextColorLightLabel,
@@ -91,7 +90,11 @@ class Strings {
     required this.fontDesignGenJyuuGothicLabel,
     required this.fontDesignRoundedMPlusLabel,
     required this.fontDesignGochikakutto851Label,
-    required this.fontDesignDarumadropOneLabel,
+    required this.fontDesignMakinas4FlatLabel,
+    required this.fontDesignKurobaraCinderellaLabel,
+    required this.fontDesignPigmo01Label,
+    required this.fontDesignKeifontLabel,
+    required this.fontDesignPopRumCuteLabel,
     required this.fontDesignZenKakuGothicNewLabel,
     required this.fontDesignZenOldMinchoLabel,
     required this.fontDesignZenMaruGothicLabel,
@@ -103,6 +106,7 @@ class Strings {
     required this.fontDesignChikaraDzuyoku851Label,
     required this.fontDesignChikaraYowaku851Label,
     required this.fontDesignKiwamiExclusiveNotice,
+    required this.fontDesignShowMoreTemplate,
     required this.settingsSubSound,
     required this.settingsSoundRingtoneTitle,
     required this.settingsSoundCallingTitle,
@@ -443,9 +447,6 @@ class Strings {
     required this.roomDeleteLastRoomError,
     required this.roomFeatureDisableLabel,
     required this.roomFeatureEnableLabel,
-    required this.roomFeatureDisableConfirmTitle,
-    required this.roomFeatureDisableConfirmMessage,
-    required this.roomFeatureDisableConfirmButton,
     required this.dmMenuDeleteConversation,
     required this.chatAddToAlbumAction,
     required this.albumButtonTooltip,
@@ -666,7 +667,6 @@ class Strings {
   final String settingsAppearanceSystem;
   final String settingsColorCode;
   final String settingsColorPresets;
-  final String settingsCustomColors;
   final String settingsTextColorTitle;
   final String settingsTextColorDescription;
   final String settingsTextColorLightLabel;
@@ -719,7 +719,11 @@ class Strings {
   final String fontDesignGenJyuuGothicLabel;
   final String fontDesignRoundedMPlusLabel;
   final String fontDesignGochikakutto851Label;
-  final String fontDesignDarumadropOneLabel;
+  final String fontDesignMakinas4FlatLabel;
+  final String fontDesignKurobaraCinderellaLabel;
+  final String fontDesignPigmo01Label;
+  final String fontDesignKeifontLabel;
+  final String fontDesignPopRumCuteLabel;
   final String fontDesignZenKakuGothicNewLabel;
   final String fontDesignZenOldMinchoLabel;
   final String fontDesignZenMaruGothicLabel;
@@ -731,6 +735,7 @@ class Strings {
   final String fontDesignChikaraDzuyoku851Label;
   final String fontDesignChikaraYowaku851Label;
   final String fontDesignKiwamiExclusiveNotice;
+  final String Function(int remaining) fontDesignShowMoreTemplate;
   final String settingsSubSound;
   final String settingsSoundRingtoneTitle;
   final String settingsSoundCallingTitle;
@@ -1257,11 +1262,6 @@ class Strings {
   /// 上記で無効化した後、同じ場所に代わりに表示する「元に戻す」項目。
   final String Function(String term) roomFeatureEnableLabel;
 
-  /// 「寄合機能を無くす」実行前の確認ダイアログ。
-  final String Function(String term) roomFeatureDisableConfirmTitle;
-  final String roomFeatureDisableConfirmMessage;
-  final String roomFeatureDisableConfirmButton;
-
   /// 一対のハンバーガーメニューの「削除」項目。相手がアカウントを削除した
   /// 通知に「いいえ」と答えた後（または未応答のまま）でも、いつでもここから
   /// 削除できる。用語（「一対」等）を差し込む。
@@ -1498,7 +1498,6 @@ class Strings {
     settingsAppearanceSystem: '端末に合わせる',
     settingsColorCode: 'カラーコード',
     settingsColorPresets: 'プリセット',
-    settingsCustomColors: '登録した色',
     settingsTextColorTitle: 'フォントカラー',
     settingsTextColorDescription:
         'ライト・ダークそれぞれの文字色をカラーコードで指定できます。背景に近い色を選ぶと読みにくくなるため注意してください。',
@@ -1509,8 +1508,8 @@ class Strings {
     settingsCustomColorDeleteConfirmTitle: 'この色を削除しますか？',
     settingsCustomColorDeleteConfirmButton: '削除する',
     settingsLogout: 'ログアウト',
-    settingsDisplayLanguage: '表示言語',
-    settingsTimeFormat: 'メッセージの時刻表示',
+    settingsDisplayLanguage: '言語',
+    settingsTimeFormat: '時刻の表示方法',
     settingsTimeFormat24h: '24時間表記',
     settingsTimeFormat12h: '12時間表記',
     settingsSubUI: 'UI',
@@ -1547,7 +1546,11 @@ class Strings {
     fontDesignGenJyuuGothicLabel: '源柔ゴシック',
     fontDesignRoundedMPlusLabel: '自家製 Rounded M+',
     fontDesignGochikakutto851Label: '851ゴチカクット',
-    fontDesignDarumadropOneLabel: 'だるまドロップ',
+    fontDesignMakinas4FlatLabel: 'マキナス',
+    fontDesignKurobaraCinderellaLabel: '黒薔薇シンデレラ',
+    fontDesignPigmo01Label: 'ピグモ01',
+    fontDesignKeifontLabel: 'けいふぉんと！',
+    fontDesignPopRumCuteLabel: 'ポプらむ☆キュート',
     fontDesignZenKakuGothicNewLabel: 'Zen角ゴシック New',
     fontDesignZenOldMinchoLabel: 'Zenオールド明朝',
     fontDesignZenMaruGothicLabel: 'Zen丸ゴシック',
@@ -1559,6 +1562,7 @@ class Strings {
     fontDesignChikaraDzuyoku851Label: '851チカラヅヨク',
     fontDesignChikaraYowaku851Label: '851チカラヨワク',
     fontDesignKiwamiExclusiveNotice: '極みプラン限定機能として追加予定（現在は無料で選択できます）',
+    fontDesignShowMoreTemplate: (remaining) => 'もっと見る（あと$remaining件）',
     settingsSubSound: 'サウンド',
     settingsSoundRingtoneTitle: '着信音',
     settingsSoundCallingTitle: '呼出音',
@@ -1669,8 +1673,8 @@ class Strings {
     conversationReadReceiptsEnable: '既読オン',
     conversationReadReceiptsDisableConfirmTitle: '既読機能をオフにしますか？',
     conversationReadReceiptsDisableConfirmMessage: 'オフにすると今までの既読履歴が全て消えます。',
-    conversationReadReceiptsDisableConfirmButton: 'オフにする',
-    conversationReadReceiptsProposeDisable: '既読オフを提案する',
+    conversationReadReceiptsDisableConfirmButton: 'はい',
+    conversationReadReceiptsProposeDisable: '既読オフを提案',
     conversationReadReceiptsProposeEnable: '既読オンを提案する',
     conversationReadReceiptsBannerWaitingOff: '既読機能オフの提案の承認待ちです',
     conversationReadReceiptsBannerWaitingOn: '既読機能オンの提案の承認待ちです',
@@ -1685,7 +1689,7 @@ class Strings {
     severanceProposeDialogTitle: '絶縁を提案しますか？',
     severanceProposeDialogMessage:
         '相手が同意すると、これまでの会話履歴が完全に削除され、友達関係も解消されます。相手が同意するまでは何も起こりません。',
-    severanceProposeButton: '提案する',
+    severanceProposeButton: 'はい',
     severanceAcceptDialogTitle: '絶縁に同意しますか？',
     severanceAcceptDialogMessage:
         '同意すると、これまでの会話履歴が完全に削除され、友達関係も解消されます。この操作は取り消せません。',
@@ -1836,11 +1840,11 @@ class Strings {
     groupRolePriorityHint: '上にあるロールほど呼び名の色が優先されます',
     groupRoomRolePriorityMenuItem: 'この寄合の色優先順位を設定',
     groupRoomRolePriorityResetButton: '広場全体の設定に戻す',
-    groupMenuEnableMultipleRooms: '寄合を複数扱う',
-    dmMenuEnableMultipleRooms: '寄合を増やす',
-    groupSettingsDefaultMuteLabel: '通知オフ（既定）',
+    groupMenuEnableMultipleRooms: '寄合機能をオン',
+    dmMenuEnableMultipleRooms: '寄合機能をオン',
+    groupSettingsDefaultMuteLabel: '通知オフ',
     groupSettingsDefaultMuteHint: '寄合ごとに「この寄合独自の設定」をオンにすると個別に上書きできます',
-    groupSettingsDefaultReadReceiptsLabel: '既読機能（既定）',
+    groupSettingsDefaultReadReceiptsLabel: '既読機能',
     groupSettingsDefaultReadReceiptsHint: '寄合ごとに「この寄合独自の設定」をオンにすると個別に上書きできます',
     groupRoomCustomSettingsLabel: 'この寄合独自の設定',
     groupRoomCustomSettingsHint:
@@ -1927,9 +1931,6 @@ class Strings {
     roomDeleteLastRoomError: '最後の1つの寄合は削除できません',
     roomFeatureDisableLabel: (term) => '$term機能を無くす',
     roomFeatureEnableLabel: (term) => '$term機能を元に戻す',
-    roomFeatureDisableConfirmTitle: (term) => '$term機能を無くしますか？',
-    roomFeatureDisableConfirmMessage: 'よりシンプルな会話画面になります。この操作はいつでも元に戻せます。',
-    roomFeatureDisableConfirmButton: 'はい',
     dmMenuDeleteConversation: (term) => '$termの削除',
     chatAddToAlbumAction: 'アルバムに登録',
     albumButtonTooltip: 'アルバム',
@@ -2147,7 +2148,6 @@ class Strings {
     settingsAppearanceSystem: 'Match device',
     settingsColorCode: 'Colour code',
     settingsColorPresets: 'Presets',
-    settingsCustomColors: 'Saved colours',
     settingsTextColorTitle: 'Font colour',
     settingsTextColorDescription:
         'Set the text colour separately for light and dark mode using a colour code. Choosing a colour too close to the background will make text hard to read.',
@@ -2202,7 +2202,11 @@ class Strings {
     fontDesignGenJyuuGothicLabel: 'GenJyuu Gothic',
     fontDesignRoundedMPlusLabel: 'Jikasei Rounded M+',
     fontDesignGochikakutto851Label: '851 Gochikakutto',
-    fontDesignDarumadropOneLabel: 'Darumadrop One',
+    fontDesignMakinas4FlatLabel: 'Makinas 4 Flat',
+    fontDesignKurobaraCinderellaLabel: 'Kurobara Cinderella',
+    fontDesignPigmo01Label: 'Pigmo 01',
+    fontDesignKeifontLabel: 'Keifont',
+    fontDesignPopRumCuteLabel: 'PopRum Cute',
     fontDesignZenKakuGothicNewLabel: 'Zen Kaku Gothic New',
     fontDesignZenOldMinchoLabel: 'Zen Old Mincho',
     fontDesignZenMaruGothicLabel: 'Zen Maru Gothic',
@@ -2215,6 +2219,7 @@ class Strings {
     fontDesignChikaraYowaku851Label: '851 Chikara-yowaku',
     fontDesignKiwamiExclusiveNotice:
         'Planned as a Kiwami plan exclusive (free to select for now)',
+    fontDesignShowMoreTemplate: (remaining) => 'Show more ($remaining more)',
     settingsSubSound: 'Sound',
     settingsSoundRingtoneTitle: 'Ringtone',
     settingsSoundCallingTitle: 'Calling tone',
@@ -2341,7 +2346,7 @@ class Strings {
     conversationReadReceiptsDisableConfirmTitle: 'Turn off read receipts?',
     conversationReadReceiptsDisableConfirmMessage:
         'Turning this off will delete all existing read receipt history.',
-    conversationReadReceiptsDisableConfirmButton: 'Turn off',
+    conversationReadReceiptsDisableConfirmButton: 'Yes',
     conversationReadReceiptsProposeDisable: 'Propose turning off read receipts',
     conversationReadReceiptsProposeEnable: 'Propose turning on read receipts',
     conversationReadReceiptsBannerWaitingOff:
@@ -2361,7 +2366,7 @@ class Strings {
         "If the other person agrees, all conversation history will be "
         "permanently deleted and you'll no longer be friends. Nothing "
         "happens until they agree.",
-    severanceProposeButton: 'Propose',
+    severanceProposeButton: 'Yes',
     severanceAcceptDialogTitle: 'Agree to severance?',
     severanceAcceptDialogMessage:
         'Agreeing will permanently delete all conversation history and '
@@ -2528,7 +2533,7 @@ class Strings {
     groupRoomRolePriorityMenuItem: 'Set this room\'s colour priority',
     groupRoomRolePriorityResetButton: 'Reset to plaza default',
     groupMenuEnableMultipleRooms: 'Enable multiple rooms',
-    dmMenuEnableMultipleRooms: 'Add more rooms',
+    dmMenuEnableMultipleRooms: 'Enable multiple rooms',
     groupSettingsDefaultMuteLabel: 'Mute (default)',
     groupSettingsDefaultMuteHint:
         'Rooms can override this individually with "This room\'s own settings"',
@@ -2633,10 +2638,6 @@ class Strings {
     roomDeleteLastRoomError: 'The last remaining room cannot be deleted.',
     roomFeatureDisableLabel: (term) => 'Remove $term feature',
     roomFeatureEnableLabel: (term) => 'Restore $term feature',
-    roomFeatureDisableConfirmTitle: (term) => 'Remove the $term feature?',
-    roomFeatureDisableConfirmMessage:
-        'This makes the conversation simpler. You can undo this anytime.',
-    roomFeatureDisableConfirmButton: 'Yes',
     dmMenuDeleteConversation: (term) => 'Delete $term',
     chatAddToAlbumAction: 'Add to album',
     albumButtonTooltip: 'Album',

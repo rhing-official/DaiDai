@@ -8,7 +8,6 @@ import '../features/auth/auth_gate.dart';
 import '../features/call/active_call_session.dart';
 import '../features/call/call_screen.dart';
 import '../features/call/group_call_screen.dart';
-import '../features/chat/announcement_screen.dart';
 import '../features/chat/chat_panes.dart';
 import '../features/chat/join_group_screen.dart';
 import '../features/chat/notification_chat_opener.dart';
@@ -278,17 +277,6 @@ final goRouterProvider = Provider<GoRouter>((ref) {
                   transition: buildPopSlideTransition,
                 );
         },
-      ),
-      GoRoute(
-        path: '/announcements',
-        // 便り（公式アカウント）画面もチャット画面と同じ吹き出しUIを使うため、
-        // 語らい画面と同じインタラクティブな右スワイプ戻るを適用する
-        // （入場は元々のポップ演出のまま維持）。
-        pageBuilder: (context, state) => slideDetailPage(
-          state,
-          AnnouncementScreen(currentUser: state.extra! as AppUser),
-          transition: buildPopSlideTransition,
-        ),
       ),
       GoRoute(
         // モバイル実機＋アイコン＋寄合一覧レイアウト（`TalksListLayoutStyle

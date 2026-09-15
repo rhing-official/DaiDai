@@ -46,6 +46,7 @@ import '../../utils/platform_info.dart';
 import '../../widgets/gekiga/gekiga_icon_badge.dart';
 import '../../widgets/gekiga/gekiga_panel_box.dart';
 import '../../widgets/gekiga/gekiga_text_field.dart';
+import '../../widgets/glass/glass_avatar.dart';
 import '../../widgets/glass/glass_icon_badge.dart';
 import '../../widgets/glass/glass_surface.dart';
 import '../../widgets/interactive_swipe_back.dart';
@@ -361,6 +362,17 @@ class _TalksTabState extends ConsumerState<TalksTab>
     return MediaQuery.sizeOf(context).shortestSide >= kIconSplitPeekBreakpoint;
   }
 
+  /// [_showIconSplitPeek]が真の3ブロック表示中、メッセージ画面をクリックして
+  /// 寄合一覧ごと畳み全画面化する機能を使うかどうか（2026-09-15追加）。
+  /// コンピューター（`classifyDevice`が[DeviceClass.computer]）では、
+  /// メッセージ画面をクリックしただけで意図せず全画面化してしまうという
+  /// ユーザー報告を受け無効化する。タブレットはモバイル相当として引き続き
+  /// 対象に含める（ユーザー確認済み）。[_showIconSplitPeek]自体（3ブロック
+  /// 表示にするかどうか）はこの変更と独立で変えない。左ドラッグでの畳み込み
+  /// （`_handleIconSplitDragStart`等）はクリックとは別経路のため影響しない。
+  bool get _showIconSplitExpandOnTap =>
+      classifyDevice(context) != DeviceClass.computer;
+
   /// 分割表示でこのセッション中に一度でも開いた会話（`'dm-$dmId'`/
   /// `'group-$groupId'`）を挿入順に記録する（2026-08-20追加、語らい切り替え
   /// ラグの解消）。[_buildDetailPane]がこの集合の全件を`IndexedStack`で
@@ -415,17 +427,16 @@ class _TalksTabState extends ConsumerState<TalksTab>
   Future<void> _openDirectMessage(DirectMessage dm) async {
     // 縦表示のアイコン＋寄合一覧レイアウト（`TalksListLayoutStyle.iconSplit`）
     // では、複数寄合モードの会話は広い画面の分割表示と同じく選択状態にして
-    // 右側に寄合一覧を出す。単一モードの会話も、[_showIconSplitPeek]
-    // （タブレット・コンピューター縦表示）と同様にアイコン列を残したまま
-    // その場で（寄合一覧列は出さずチャット本体のみ）表示する
-    // （2026-09-15変更。以前はスマホ幅×単一モードの組み合わせだけ右ペインを
-    // 経由する意味が無いとしてフルスクリーン遷移していたが、タブレット縦
-    // 画面と挙動が揃わずUXが悪いとのフィードバックを受け、`roomsEnabled`・
-    // `_showIconSplitPeek`を問わず常にインライン表示するよう統一した。
-    // 実際に寄合一覧列を出すかどうかは[_buildIconSplitPane]の
-    // `roomListOnly`計算側で判断する）。
+    // 右側に寄合一覧を出す。タブレット・コンピューター縦表示
+    // （[_showIconSplitPeek]）では単一モードの会話もアイコン列を残したまま
+    // その場でチャット本体のみ表示する。一方スマホ幅×単一モードは右ペインを
+    // 経由する意味が無いため、[_isSplit]でない狭い画面の従来経路と同じく
+    // フルスクリーン遷移する（2026-09-16修正、[_openMessageSearchHit]と同じ
+    // 条件に統一。2026-09-15に一度`roomsEnabled`の判定が誤って落ち、スマホ幅
+    // でも単一モードがインライン表示になってしまう回帰が入っていた）。
     final useIconSplitSelection =
         !_isSplit &&
+        (dm.roomsEnabled || _showIconSplitPeek) &&
         ref.read(talksListLayoutStyleProvider) ==
             TalksListLayoutStyle.iconSplit;
     if (_isSplit || useIconSplitSelection) {
@@ -471,9 +482,10 @@ class _TalksTabState extends ConsumerState<TalksTab>
 
   Future<void> _openGroup(Group group) async {
     // [_openDirectMessage]と同じ理由（2026-09-11追加、2026-09-12更新、
-    // 2026-09-15更新）。
+    // 2026-09-16修正）。
     final useIconSplitSelection =
         !_isSplit &&
+        (group.roomsEnabled || _showIconSplitPeek) &&
         ref.read(talksListLayoutStyleProvider) ==
             TalksListLayoutStyle.iconSplit;
     if (_isSplit || useIconSplitSelection) {
@@ -1216,7 +1228,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
               // チャット本体を直接インライン表示する（2026-09-15追加）。
               roomListOnly: !showPeek && dm.roomsEnabled,
               collapseProgress: showPeek ? _iconSplitCollapse : null,
-              onExpandTap: showPeek
+              onExpandTap: showPeek && _showIconSplitExpandOnTap
                   ? () => _animateIconSplitCollapse(1.0)
                   : null,
             );
@@ -1234,7 +1246,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
               // [_DmDetailWithRooms]と同じ理由（2026-09-15追加）。
               roomListOnly: !showPeek && group.roomsEnabled,
               collapseProgress: showPeek ? _iconSplitCollapse : null,
-              onExpandTap: showPeek
+              onExpandTap: showPeek && _showIconSplitExpandOnTap
                   ? () => _animateIconSplitCollapse(1.0)
                   : null,
             );
@@ -2210,14 +2222,26 @@ class _FriendRequestTile extends ConsumerWidget {
     // プロフィールカードがあればそれを反映して表示する（2026-07-29追加）。
     final dmId = DirectMessage.idFor(currentUserId, _otherUserId);
     final iconUrl = otherUser?.effectiveIconFor(dmId)?.url;
-    final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
+    final uiStyle = ref.watch(appUiStyleProvider);
+    final isGekiga = uiStyle == AppUiStyle.gekiga;
 
-    final leadingWidget = CircleAvatar(
-      backgroundImage: iconUrl != null ? NetworkImage(iconUrl) : null,
-      backgroundColor: Theme.of(context).colorScheme.primary,
-      foregroundColor: Theme.of(context).colorScheme.onPrimary,
-      child: iconUrl == null ? const Icon(Icons.person_outline) : null,
-    );
+    final leadingWidget = uiStyle == AppUiStyle.glass
+        ? GlassAvatar(
+            size: 40,
+            image: iconUrl != null ? NetworkImage(iconUrl) : null,
+            fallback: iconUrl != null
+                ? null
+                : Icon(
+                    Icons.person_outline,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+          )
+        : CircleAvatar(
+            backgroundImage: iconUrl != null ? NetworkImage(iconUrl) : null,
+            backgroundColor: Colors.transparent,
+            foregroundColor: Theme.of(context).colorScheme.onSurfaceVariant,
+            child: iconUrl == null ? const Icon(Icons.person_outline) : null,
+          );
     final titleText = '@${request.otherRhingId(currentUserId)}';
     // outgoing（自分が送った申請）は「相手の承認を待っています」という
     // 待ちの情報を、一覧のブロックからは消してタップ時のプレビュー画面側に
@@ -2337,23 +2361,37 @@ class _PendingGroupJoinRequestTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final strings = ref.watch(appStringsProvider);
-    final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
+    final uiStyle = ref.watch(appUiStyleProvider);
+    final isGekiga = uiStyle == AppUiStyle.gekiga;
     return FutureBuilder<GroupInvitePreview?>(
       future: ref
           .read(groupRepositoryProvider)
           .getInvitePreview(request.groupId),
       builder: (context, snapshot) {
         final preview = snapshot.data;
-        final leadingWidget = CircleAvatar(
-          backgroundImage: preview?.iconUrl != null
-              ? NetworkImage(preview!.iconUrl!)
-              : null,
-          backgroundColor: Theme.of(context).colorScheme.primary,
-          foregroundColor: Theme.of(context).colorScheme.onPrimary,
-          child: preview?.iconUrl == null
-              ? const Icon(Icons.hourglass_top_outlined)
-              : null,
-        );
+        final leadingWidget = uiStyle == AppUiStyle.glass
+            ? GlassAvatar(
+                size: 40,
+                image: preview?.iconUrl != null
+                    ? NetworkImage(preview!.iconUrl!)
+                    : null,
+                fallback: preview?.iconUrl == null
+                    ? Icon(
+                        Icons.hourglass_top_outlined,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      )
+                    : null,
+              )
+            : CircleAvatar(
+                backgroundImage: preview?.iconUrl != null
+                    ? NetworkImage(preview!.iconUrl!)
+                    : null,
+                backgroundColor: Colors.transparent,
+                foregroundColor: Theme.of(context).colorScheme.onSurfaceVariant,
+                child: preview?.iconUrl == null
+                    ? const Icon(Icons.hourglass_top_outlined)
+                    : null,
+              );
         final titleText = preview?.name ?? '...';
         void onTap() {
           final screen = ChatScreen(
@@ -2478,12 +2516,20 @@ class DirectMessageTile extends ConsumerWidget {
       dm.lastMessagePreview,
     );
 
-    final leadingWidget = CircleAvatar(
-      backgroundImage: iconUrl != null ? NetworkImage(iconUrl) : null,
-      backgroundColor: Theme.of(context).colorScheme.primary,
-      foregroundColor: Theme.of(context).colorScheme.onPrimary,
-      child: iconUrl == null ? const Icon(Icons.person) : null,
-    );
+    final leadingWidget = isGlass
+        ? GlassAvatar(
+            size: 40,
+            image: iconUrl != null ? NetworkImage(iconUrl) : null,
+            fallback: iconUrl != null
+                ? null
+                : Icon(Icons.person, color: colorScheme.onSurfaceVariant),
+          )
+        : CircleAvatar(
+            backgroundImage: iconUrl != null ? NetworkImage(iconUrl) : null,
+            backgroundColor: Colors.transparent,
+            foregroundColor: colorScheme.onSurfaceVariant,
+            child: iconUrl == null ? const Icon(Icons.person) : null,
+          );
     final subtitleWidget = previewLabel == null
         ? null
         : Text(previewLabel, maxLines: 1, overflow: TextOverflow.ellipsis);
@@ -2602,12 +2648,20 @@ class GroupTile extends ConsumerWidget {
       group.lastMessagePreview,
     );
 
-    final leadingWidget = CircleAvatar(
-      backgroundImage: iconUrl != null ? NetworkImage(iconUrl) : null,
-      backgroundColor: Theme.of(context).colorScheme.primary,
-      foregroundColor: Theme.of(context).colorScheme.onPrimary,
-      child: iconUrl == null ? const Icon(Icons.groups) : null,
-    );
+    final leadingWidget = isGlass
+        ? GlassAvatar(
+            size: 40,
+            image: iconUrl != null ? NetworkImage(iconUrl) : null,
+            fallback: iconUrl != null
+                ? null
+                : Icon(Icons.groups, color: colorScheme.onSurfaceVariant),
+          )
+        : CircleAvatar(
+            backgroundImage: iconUrl != null ? NetworkImage(iconUrl) : null,
+            backgroundColor: Colors.transparent,
+            foregroundColor: colorScheme.onSurfaceVariant,
+            child: iconUrl == null ? const Icon(Icons.groups) : null,
+          );
     final subtitleWidget = previewLabel == null
         ? null
         : Text(previewLabel, maxLines: 1, overflow: TextOverflow.ellipsis);
@@ -2719,13 +2773,23 @@ class _DirectMessageIconTile extends ConsumerWidget {
     final otherUser = ref.watch(watchedUserProvider(otherUserId)).value;
     final label = dmSearchLabel(otherUser, dm, currentUser.userId);
     final iconUrl = otherUser?.effectiveIconFor(dm.dmId)?.url;
+    final isGlass = ref.watch(appUiStyleProvider) == AppUiStyle.glass;
+    final colorScheme = Theme.of(context).colorScheme;
     return _ConversationIconTile(
-      avatar: CircleAvatar(
-        backgroundImage: iconUrl != null ? NetworkImage(iconUrl) : null,
-        backgroundColor: Theme.of(context).colorScheme.primary,
-        foregroundColor: Theme.of(context).colorScheme.onPrimary,
-        child: iconUrl == null ? const Icon(Icons.person) : null,
-      ),
+      avatar: isGlass
+          ? GlassAvatar(
+              size: 40,
+              image: iconUrl != null ? NetworkImage(iconUrl) : null,
+              fallback: iconUrl != null
+                  ? null
+                  : Icon(Icons.person, color: colorScheme.onSurfaceVariant),
+            )
+          : CircleAvatar(
+              backgroundImage: iconUrl != null ? NetworkImage(iconUrl) : null,
+              backgroundColor: Colors.transparent,
+              foregroundColor: colorScheme.onSurfaceVariant,
+              child: iconUrl == null ? const Icon(Icons.person) : null,
+            ),
       label: label,
       unreadCount: unreadCount,
       selected: selected,
@@ -2736,7 +2800,7 @@ class _DirectMessageIconTile extends ConsumerWidget {
 
 /// [_buildIconRail]の広場タイル（2026-09-11追加）。[_DirectMessageIconTile]と
 /// 同じ構成の広場版。
-class _GroupIconTile extends StatelessWidget {
+class _GroupIconTile extends ConsumerWidget {
   const _GroupIconTile({
     required this.group,
     required this.unreadCount,
@@ -2750,15 +2814,25 @@ class _GroupIconTile extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final iconUrl = group.profileCard?.iconUrl;
+    final isGlass = ref.watch(appUiStyleProvider) == AppUiStyle.glass;
+    final colorScheme = Theme.of(context).colorScheme;
     return _ConversationIconTile(
-      avatar: CircleAvatar(
-        backgroundImage: iconUrl != null ? NetworkImage(iconUrl) : null,
-        backgroundColor: Theme.of(context).colorScheme.primary,
-        foregroundColor: Theme.of(context).colorScheme.onPrimary,
-        child: iconUrl == null ? const Icon(Icons.groups) : null,
-      ),
+      avatar: isGlass
+          ? GlassAvatar(
+              size: 40,
+              image: iconUrl != null ? NetworkImage(iconUrl) : null,
+              fallback: iconUrl != null
+                  ? null
+                  : Icon(Icons.groups, color: colorScheme.onSurfaceVariant),
+            )
+          : CircleAvatar(
+              backgroundImage: iconUrl != null ? NetworkImage(iconUrl) : null,
+              backgroundColor: Colors.transparent,
+              foregroundColor: colorScheme.onSurfaceVariant,
+              child: iconUrl == null ? const Icon(Icons.groups) : null,
+            ),
       label: group.name,
       unreadCount: unreadCount,
       selected: selected,

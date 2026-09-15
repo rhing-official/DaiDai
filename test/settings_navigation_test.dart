@@ -17,6 +17,7 @@ import 'package:daidai/providers/gekiga_background_color_provider.dart';
 import 'package:daidai/models/send_key_mode.dart';
 import 'package:daidai/models/sticker_send_mode.dart';
 import 'package:daidai/providers/message_time_format_provider.dart';
+import 'package:daidai/providers/removed_default_color_presets_provider.dart';
 import 'package:daidai/providers/ringtone_sound_provider.dart';
 import 'package:daidai/providers/send_key_mode_provider.dart';
 import 'package:daidai/models/talks_list_layout_style.dart';
@@ -55,6 +56,7 @@ Future<void> _pumpSettingsTab(WidgetTester tester) async {
         initialTextColorLightProvider.overrideWithValue(kDefaultTextColorLight),
         initialTextColorDarkProvider.overrideWithValue(kDefaultTextColorDark),
         initialCustomAccentColorsProvider.overrideWithValue(const []),
+        initialRemovedDefaultColorPresetsProvider.overrideWithValue(const {}),
         initialGekigaBackgroundColorProvider.overrideWithValue(
           const Color(0xFFC1272D),
         ),
@@ -105,6 +107,7 @@ Future<void> _pumpSettingsTabNarrow(WidgetTester tester) async {
         initialTextColorLightProvider.overrideWithValue(kDefaultTextColorLight),
         initialTextColorDarkProvider.overrideWithValue(kDefaultTextColorDark),
         initialCustomAccentColorsProvider.overrideWithValue(const []),
+        initialRemovedDefaultColorPresetsProvider.overrideWithValue(const {}),
         initialGekigaBackgroundColorProvider.overrideWithValue(
           const Color(0xFFC1272D),
         ),

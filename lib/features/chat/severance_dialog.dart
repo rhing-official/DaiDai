@@ -117,8 +117,11 @@ class _SeveranceDialogState extends ConsumerState<SeveranceDialog> {
       ),
       FilledButton(
         onPressed: _submitting ? null : _confirm,
+        // 大事な選択のボタンは「広場を削除」（group_delete_dialog.dart）と
+        // 同じ固定の濃い赤にする（CLAUDE.md参照、2026-09-16）。
         style: FilledButton.styleFrom(
-          backgroundColor: Theme.of(context).colorScheme.error,
+          backgroundColor: Colors.red.shade700,
+          foregroundColor: Colors.white,
         ),
         child: _submitting
             ? const SizedBox(

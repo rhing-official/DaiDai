@@ -9,6 +9,7 @@ import '../../router/app_router.dart';
 import '../../theme/gekiga/gekiga_colors.dart';
 import '../../theme/text_prominence_colors.dart';
 import '../../widgets/gekiga/gekiga_text_field.dart';
+import '../../widgets/glass/glass_avatar.dart';
 
 /// 友達一覧をプルダウン選択できるよう、Rhing IDではなく呼び名（未設定ならRhing ID）で表示する。
 String _displayName(AppUser user) {
@@ -319,12 +320,33 @@ class _CreateGroupDialogContentState
                       value: selected,
                       contentPadding: EdgeInsets.zero,
                       controlAffinity: ListTileControlAffinity.trailing,
-                      secondary: CircleAvatar(
-                        backgroundImage: icon != null
-                            ? NetworkImage(icon.url)
-                            : null,
-                        child: icon == null ? const Icon(Icons.person) : null,
-                      ),
+                      secondary: isGlass
+                          ? GlassAvatar(
+                              size: 40,
+                              image: icon != null
+                                  ? NetworkImage(icon.url)
+                                  : null,
+                              fallback: icon != null
+                                  ? null
+                                  : Icon(
+                                      Icons.person,
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.onSurfaceVariant,
+                                    ),
+                            )
+                          : CircleAvatar(
+                              backgroundImage: icon != null
+                                  ? NetworkImage(icon.url)
+                                  : null,
+                              backgroundColor: Colors.transparent,
+                              foregroundColor: Theme.of(
+                                context,
+                              ).colorScheme.onSurfaceVariant,
+                              child: icon == null
+                                  ? const Icon(Icons.person)
+                                  : null,
+                            ),
                       title: Text(_displayName(friend)),
                       onChanged: (checked) => setState(() {
                         if (checked ?? false) {

@@ -74,6 +74,7 @@ import '../../utils/message_time.dart';
 import '../../widgets/gekiga/gekiga_icon_badge.dart';
 import '../../widgets/gekiga/gekiga_photo_frame.dart';
 import '../../widgets/glass/glass_app_bar.dart';
+import '../../widgets/glass/glass_avatar.dart';
 import '../../widgets/glass/glass_dialog.dart';
 import '../../widgets/glass/glass_icon_badge.dart';
 import '../../widgets/glass/glass_surface.dart';
@@ -140,6 +141,8 @@ class ChatScreen extends ConsumerStatefulWidget {
     this.roomId,
     this.forceShowSenderInfo = false,
     this.onOpenNote,
+    this.initialScrollPosition,
+    this.onDisposeScrollPosition,
     super.key,
   });
 
@@ -306,6 +309,22 @@ class ChatScreen extends ConsumerStatefulWidget {
   /// そのまま呼び出し元へ伝える。
   final ValueChanged<String>? onOpenNote;
 
+  /// マウント直後のメッセージ一覧の初期スクロール位置（2026-09-15追加）。
+  /// カレンダー・共有ノート・共有アルバム・通話UI等、`DmChatPane`/
+  /// `GroupChatPane`が[ChatScreen]を一時的に木から外して別のペインへ
+  /// 差し替える機能（`_showingCalendar`等）から戻ってきた際、この
+  /// `ChatScreen`はStateごと作り直されるため通常はスクロール位置が最新
+  /// メッセージ側にリセットされてしまう。呼び出し元が
+  /// [onDisposeScrollPosition]で保存しておいた直前の位置をここへ渡すことで
+  /// 復元する。nullなら通常通り最新メッセージ側から表示する。
+  final ItemPosition? initialScrollPosition;
+
+  /// [_ChatScreenState.dispose]時に、その時点の表示位置（画面下端＝最新側
+  /// に最も近いアイテム、`_beginPopupGuard`と同じ算出方法）を呼び出し元へ
+  /// 伝える。呼び出し元はこれをフィールドに保持し、次にこの寄合の
+  /// `ChatScreen`を作る際[initialScrollPosition]として渡し戻す。
+  final ValueChanged<ItemPosition?>? onDisposeScrollPosition;
+
   @override
   ConsumerState<ChatScreen> createState() => _ChatScreenState();
 }
@@ -444,6 +463,29 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           });
     }
     _itemPositionsListener.itemPositions.addListener(_maybeLoadOlderMessages);
+    _itemPositionsListener.itemPositions.addListener(_cacheLatestItemPosition);
+  }
+
+  /// [_lastKnownItemPosition]を最新の表示位置で更新するだけのリスナー
+  /// （2026-09-15追加）。`itemPositions`が値を持つたびに呼ばれるため、
+  /// これが呼ばれた後は[_currentItemPosition]が空リスト問題に当たらない。
+  void _cacheLatestItemPosition() {
+    final positions = _itemPositionsListener.itemPositions.value;
+    if (positions.isEmpty) return;
+    _lastKnownItemPosition = positions.reduce(
+      (a, b) => a.index < b.index ? a : b,
+    );
+  }
+
+  /// 現在の表示位置（`reverse:true`のため画面下端＝最新側に最も近い
+  /// アイテム＝最小index）を返す（2026-09-15追加）。`itemPositions.value`が
+  /// たまたま空（`ScrollablePositionedList`がまだ1フレームもレイアウト
+  /// されていない等）の場合は[_lastKnownItemPosition]へフォールバックする。
+  /// [_beginPopupGuard]・dispose時の位置保存の双方から使う共通ロジック。
+  ItemPosition? _currentItemPosition() {
+    final positions = _itemPositionsListener.itemPositions.value;
+    if (positions.isEmpty) return _lastKnownItemPosition;
+    return positions.reduce((a, b) => a.index < b.index ? a : b);
   }
 
   /// メッセージ一覧（`reverse:true`の`ScrollablePositionedList`）の一番古い
@@ -471,10 +513,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// 履歴読み込みの取りこぼしにはならない（閉じれば直ちに復帰する）。
   void _beginPopupGuard() {
     if (_popupGuardDepth == 0) {
-      final positions = _itemPositionsListener.itemPositions.value;
-      _popupGuardSavedPosition = positions.isEmpty
-          ? null
-          : positions.reduce((a, b) => a.index < b.index ? a : b);
+      _popupGuardSavedPosition = _currentItemPosition();
       _itemPositionsListener.itemPositions.removeListener(
         _maybeLoadOlderMessages,
       );
@@ -613,6 +652,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   int _popupGuardDepth = 0;
   ItemPosition? _popupGuardSavedPosition;
   int _scrollIntentToken = 0;
+
+  /// 直近に確認できた表示位置のキャッシュ（2026-09-15追加）。
+  /// `ItemPositionsListener.itemPositions`は`ScrollablePositionedList`が
+  /// まだ1フレームもレイアウトされていない間（マウント直後・寄合切り替え
+  /// 直後等）は空のまま（`scrollable_positioned_list`パッケージの実装上、
+  /// `SchedulerBinding.addPostFrameCallback`で1フレーム遅れて値が入る）。
+  /// この間に[_beginPopupGuard]やdispose時の位置保存が呼ばれると
+  /// `itemPositions.value`が空で保存できず、ポップアップ表示時のスクロール
+  /// 保護が効かない不具合があった（ユーザー報告「最初はずれるが数回で
+  /// 直る」）。[_currentItemPosition]がこのキャッシュへ随時フォールバック
+  /// することで解消する。
+  ItemPosition? _lastKnownItemPosition;
 
   /// AppBarのピンアイコン。タップ位置ではなくこのボタン自体の直下に
   /// ポップアップを開くための位置計算に使う（[_openPinnedMessagesPopup]参照）。
@@ -2040,7 +2091,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     _itemPositionsListener.itemPositions.removeListener(
       _maybeLoadOlderMessages,
     );
+    _itemPositionsListener.itemPositions.removeListener(
+      _cacheLatestItemPosition,
+    );
     _bannerTimer?.cancel();
+    // カレンダー・ノート・アルバム・通話UI等への切り替えで、呼び出し元
+    // （`DmChatPane`/`GroupChatPane`）がこの`ChatScreen`を作り直す直前に
+    // 呼ばれる。現在の表示位置（画面下端＝最新側に最も近いアイテム）を
+    // 伝え、再構築時に`initialScrollPosition`として渡し戻してもらうことで、
+    // 最新メッセージへ強制的にジャンプしてしまう不具合を防ぐ
+    // （2026-09-15追加）。
+    widget.onDisposeScrollPosition?.call(_currentItemPosition());
     super.dispose();
   }
 
@@ -2377,6 +2438,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     // Widgetではなく軽量なエントリのリストから計算するため、
                     // 件数が多くてもコストは無視できる（2026-09-07）。
                     _entryCount = reversedEntries.length;
+                    final initialScrollPosition = widget.initialScrollPosition;
+                    final initialScrollIndex =
+                        initialScrollPosition == null || reversedEntries.isEmpty
+                        ? 0
+                        : initialScrollPosition.index.clamp(
+                            0,
+                            reversedEntries.length - 1,
+                          );
                     _messageIndexById = {
                       for (var i = 0; i < reversedEntries.length; i++)
                         if (reversedEntries[i] case _ChatMessageEntry(
@@ -2550,6 +2619,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                             itemCount: reversedEntries.length,
                             itemBuilder: (context, index) =>
                                 buildEntry(reversedEntries[index]),
+                            initialScrollIndex: initialScrollIndex,
+                            initialAlignment:
+                                initialScrollPosition?.itemLeadingEdge ?? 0,
                             padding: EdgeInsets.fromLTRB(
                               12,
                               12,
@@ -6310,6 +6382,25 @@ class _SenderAvatar extends ConsumerWidget {
                     id[0].toUpperCase(),
                     style: TextStyle(color: Colors.white, fontSize: fontSize),
                   ),
+                ),
+              ),
+      );
+    }
+    if (uiStyle == AppUiStyle.glass) {
+      // ガラス版は背景の塗りをアクセントカラーの縁の光彩のみで表現する
+      // 設計のため（`GlassSurface`参照）、フラット/劇画版のような色分け
+      // 背景（`ColoredBox(color: color, ...)`）は使わず、頭文字だけを
+      // `GlassAvatar`の上に乗せる（2026-09-16追加）。
+      return GlassAvatar(
+        size: size,
+        image: iconUrl != null ? NetworkImage(iconUrl) : null,
+        fallback: iconUrl != null
+            ? null
+            : Text(
+                id[0].toUpperCase(),
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurface,
+                  fontSize: fontSize,
                 ),
               ),
       );

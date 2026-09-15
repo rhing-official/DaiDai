@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../models/app_ui_style.dart';
+import '../../providers/app_ui_style_provider.dart';
 import '../../providers/user_providers.dart';
+import '../../widgets/glass/glass_avatar.dart';
 
 /// 通話UI（全画面・PC埋め込み・ピン留めミニ表示）で使う、参加者の中央
 /// アバター。[chat_screen.dart]の`_SenderAvatar`と同じく、[userId]の
@@ -32,6 +35,24 @@ class CallParticipantAvatar extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(watchedUserProvider(userId)).value;
     final iconUrl = user?.effectiveIconFor(conversationId)?.url;
+    final isGlass = ref.watch(appUiStyleProvider) == AppUiStyle.glass;
+    final initial = rhingId.isNotEmpty ? rhingId[0].toUpperCase() : '?';
+    final resolvedFontSize = fontSize ?? radius * 0.7;
+    if (isGlass) {
+      return GlassAvatar(
+        size: radius * 2,
+        image: iconUrl != null ? NetworkImage(iconUrl) : null,
+        fallback: iconUrl != null
+            ? null
+            : Text(
+                initial,
+                style: TextStyle(
+                  fontSize: resolvedFontSize,
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
+              ),
+      );
+    }
     if (iconUrl != null) {
       return CircleAvatar(
         radius: radius,
@@ -42,11 +63,8 @@ class CallParticipantAvatar extends ConsumerWidget {
       radius: radius,
       backgroundColor: Theme.of(context).colorScheme.primary,
       child: Text(
-        rhingId.isNotEmpty ? rhingId[0].toUpperCase() : '?',
-        style: TextStyle(
-          fontSize: fontSize ?? radius * 0.7,
-          color: Colors.white,
-        ),
+        initial,
+        style: TextStyle(fontSize: resolvedFontSize, color: Colors.white),
       ),
     );
   }

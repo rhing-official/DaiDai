@@ -244,6 +244,10 @@ class _GroupProfileCardPopupState extends ConsumerState<GroupProfileCardPopup> {
                         backgroundImage: _card.iconUrl != null
                             ? NetworkImage(_card.iconUrl!)
                             : null,
+                        backgroundColor: Colors.transparent,
+                        foregroundColor: Theme.of(
+                          context,
+                        ).colorScheme.onSurfaceVariant,
                         child: _uploadingIcon
                             ? const CircularProgressIndicator()
                             : _card.iconUrl == null

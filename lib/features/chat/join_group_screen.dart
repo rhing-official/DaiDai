@@ -4,11 +4,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../l10n/strings.dart';
+import '../../models/app_ui_style.dart';
 import '../../models/app_user.dart';
 import '../../models/group_invite_preview.dart';
 import '../../models/group_join_request.dart';
+import '../../providers/app_ui_style_provider.dart';
 import '../../providers/repository_providers.dart';
 import '../../router/app_router.dart';
+import '../../widgets/glass/glass_avatar.dart';
 import '../../widgets/profile_card_picker.dart';
 import '../auth/auth_gate.dart';
 
@@ -224,18 +227,36 @@ class _JoinGroupViewState extends ConsumerState<_JoinGroupView> {
         return _Message(text: strings.groupJoinRequestSent, strings: strings);
       case _JoinStatus.ready:
         final preview = _preview!;
+        final isGlass = ref.watch(appUiStyleProvider) == AppUiStyle.glass;
         return Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            CircleAvatar(
-              radius: 40,
-              backgroundImage: preview.iconUrl != null
-                  ? NetworkImage(preview.iconUrl!)
-                  : null,
-              child: preview.iconUrl == null
-                  ? const Icon(Icons.groups_outlined, size: 36)
-                  : null,
-            ),
+            if (isGlass)
+              GlassAvatar(
+                size: 80,
+                image: preview.iconUrl != null
+                    ? NetworkImage(preview.iconUrl!)
+                    : null,
+                fallback: preview.iconUrl != null
+                    ? null
+                    : Icon(
+                        Icons.groups_outlined,
+                        size: 36,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+              )
+            else
+              CircleAvatar(
+                radius: 40,
+                backgroundImage: preview.iconUrl != null
+                    ? NetworkImage(preview.iconUrl!)
+                    : null,
+                backgroundColor: Colors.transparent,
+                foregroundColor: Theme.of(context).colorScheme.onSurfaceVariant,
+                child: preview.iconUrl == null
+                    ? const Icon(Icons.groups_outlined, size: 36)
+                    : null,
+              ),
             const SizedBox(height: 16),
             Text(
               preview.name,

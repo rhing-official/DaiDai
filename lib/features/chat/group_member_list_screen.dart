@@ -12,6 +12,7 @@ import '../../providers/group_providers.dart';
 import '../../providers/repository_providers.dart';
 import '../../utils/auto_dismiss_banner.dart';
 import '../../utils/group_permissions.dart';
+import '../../widgets/glass/glass_avatar.dart';
 import '../../widgets/glass/glass_dialog.dart';
 import 'user_profile_card_dialog.dart';
 
@@ -165,6 +166,7 @@ class GroupMemberListPopup extends ConsumerWidget {
       permission: GroupPermission.manageJoinRequests,
     );
     final groupRepository = ref.read(groupRepositoryProvider);
+    final isGlass = ref.watch(appUiStyleProvider) == AppUiStyle.glass;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -217,6 +219,7 @@ class GroupMemberListPopup extends ConsumerWidget {
                           user: member,
                           groupId: liveGroup.groupId,
                           isOwner: member.userId == liveGroup.ownerId,
+                          isGlass: isGlass,
                           strings: strings,
                           customRoles: roles,
                           assignedRoleIds:
@@ -354,6 +357,7 @@ class _MemberTile extends StatelessWidget {
     required this.user,
     required this.groupId,
     required this.isOwner,
+    required this.isGlass,
     required this.strings,
     required this.customRoles,
     required this.assignedRoleIds,
@@ -372,6 +376,11 @@ class _MemberTile extends StatelessWidget {
 
   /// このユーザーが長（[Group.ownerId]）かどうか。
   final bool isOwner;
+
+  /// アイコン未設定時のプレースホルダーをガラスUI調にするか
+  /// （2026-09-16追加、`GroupMemberListPopup.build`が算出した値をそのまま
+  /// 受け取る）。
+  final bool isGlass;
   final Strings strings;
 
   /// このユーザーが選べるカスタムロールの一覧（2026-07-28更新: 権限付き）。
@@ -400,10 +409,23 @@ class _MemberTile extends StatelessWidget {
         .where((r) => assignedRoleIds.contains(r.roleId))
         .toList();
     return ListTile(
-      leading: CircleAvatar(
-        backgroundImage: iconUrl != null ? NetworkImage(iconUrl) : null,
-        child: iconUrl == null ? const Icon(Icons.person) : null,
-      ),
+      leading: isGlass
+          ? GlassAvatar(
+              size: 40,
+              image: iconUrl != null ? NetworkImage(iconUrl) : null,
+              fallback: iconUrl != null
+                  ? null
+                  : Icon(
+                      Icons.person,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+            )
+          : CircleAvatar(
+              backgroundImage: iconUrl != null ? NetworkImage(iconUrl) : null,
+              backgroundColor: Colors.transparent,
+              foregroundColor: Theme.of(context).colorScheme.onSurfaceVariant,
+              child: iconUrl == null ? const Icon(Icons.person) : null,
+            ),
       title: Text(label),
       // ロールチップをtrailingに縦積みすると、ListTileの既定の高さ
       // （1行分・56dp程度）に収まらずBOTTOM OVERFLOWが発生していたため、
