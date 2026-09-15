@@ -24,6 +24,7 @@ import '../../utils/text_truncate.dart';
 import '../../widgets/gekiga/gekiga_icon_badge.dart';
 import '../../widgets/gekiga/gekiga_panel_box.dart';
 import '../../widgets/gekiga/gekiga_section_header.dart';
+import '../../widgets/glass/glass_avatar.dart';
 import '../../widgets/glass/glass_dialog.dart';
 import '../../widgets/glass/glass_surface.dart';
 import '../../widgets/profile_card_picker.dart';
@@ -1414,13 +1415,27 @@ class _AddConversationCardDialogState
     final otherUserId = dm.otherUserId(widget.userId);
     final otherUser = ref.watch(watchedUserProvider(otherUserId)).value;
     final iconUrl = otherUser?.effectiveIconFor(dm.dmId)?.url;
+    final isGlass = ref.watch(appUiStyleProvider) == AppUiStyle.glass;
     return CheckboxListTile(
       value: _selectedIds.contains(dm.dmId),
       controlAffinity: ListTileControlAffinity.trailing,
-      secondary: CircleAvatar(
-        backgroundImage: iconUrl != null ? NetworkImage(iconUrl) : null,
-        child: iconUrl == null ? const Icon(Icons.person) : null,
-      ),
+      secondary: isGlass
+          ? GlassAvatar(
+              size: 40,
+              image: iconUrl != null ? NetworkImage(iconUrl) : null,
+              fallback: iconUrl != null
+                  ? null
+                  : Icon(
+                      Icons.person,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+            )
+          : CircleAvatar(
+              backgroundImage: iconUrl != null ? NetworkImage(iconUrl) : null,
+              backgroundColor: Colors.transparent,
+              foregroundColor: Theme.of(context).colorScheme.onSurfaceVariant,
+              child: iconUrl == null ? const Icon(Icons.person) : null,
+            ),
       title: Text(
         truncateName(title, 8),
         maxLines: 1,
@@ -1438,13 +1453,27 @@ class _AddConversationCardDialogState
 
   Widget _buildGroupTile(Group group) {
     final iconUrl = group.profileCard?.iconUrl;
+    final isGlass = ref.watch(appUiStyleProvider) == AppUiStyle.glass;
     return CheckboxListTile(
       value: _selectedIds.contains(group.groupId),
       controlAffinity: ListTileControlAffinity.trailing,
-      secondary: CircleAvatar(
-        backgroundImage: iconUrl != null ? NetworkImage(iconUrl) : null,
-        child: iconUrl == null ? const Icon(Icons.groups) : null,
-      ),
+      secondary: isGlass
+          ? GlassAvatar(
+              size: 40,
+              image: iconUrl != null ? NetworkImage(iconUrl) : null,
+              fallback: iconUrl != null
+                  ? null
+                  : Icon(
+                      Icons.groups,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+            )
+          : CircleAvatar(
+              backgroundImage: iconUrl != null ? NetworkImage(iconUrl) : null,
+              backgroundColor: Colors.transparent,
+              foregroundColor: Theme.of(context).colorScheme.onSurfaceVariant,
+              child: iconUrl == null ? const Icon(Icons.groups) : null,
+            ),
       title: Text(
         truncateName(group.name, 8),
         maxLines: 1,
@@ -2886,6 +2915,10 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
                                       backgroundImage: icon != null
                                           ? NetworkImage(icon.url)
                                           : null,
+                                      backgroundColor: Colors.transparent,
+                                      foregroundColor: Theme.of(
+                                        context,
+                                      ).colorScheme.onSurfaceVariant,
                                       child: icon == null
                                           ? const Icon(Icons.person)
                                           : null,

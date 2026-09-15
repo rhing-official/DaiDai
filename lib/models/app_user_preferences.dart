@@ -20,6 +20,7 @@ class AppUserPreferences {
     this.messageTimeFormat,
     this.appUiStyle,
     this.customAccentColorsArgb,
+    this.removedDefaultColorPresetsHex,
     this.conversationSortOrder,
     this.fontDesign,
     this.ringtoneSound,
@@ -49,6 +50,11 @@ class AppUserPreferences {
   /// ユーザーが自分で登録したアクセントカラーの一覧（`accentColorArgb`
   /// とは別に、繰り返し使うために保存した色。2026-08-29追加）。
   final List<int>? customAccentColorsArgb;
+
+  /// ユーザーが長押しで削除した固定プリセットのhex文字列一覧
+  /// （設定タブ`_kDefaultColorPresets`の要素のうち非表示化されたもの。
+  /// 復活させる手段は無い、2026-09-15追加）。
+  final List<String>? removedDefaultColorPresetsHex;
 
   /// 語らい一覧の並べ替え順（`ConversationSortOrder`のname、2026-09-02追加）。
   final String? conversationSortOrder;
@@ -91,6 +97,10 @@ class AppUserPreferences {
       customAccentColorsArgb: (json['customAccentColorsArgb'] as List<dynamic>?)
           ?.map((e) => e as int)
           .toList(),
+      removedDefaultColorPresetsHex:
+          (json['removedDefaultColorPresetsHex'] as List<dynamic>?)
+              ?.map((e) => e as String)
+              .toList(),
       conversationSortOrder: json['conversationSortOrder'] as String?,
       fontDesign: json['fontDesign'] as String?,
       ringtoneSound: json['ringtoneSound'] as String?,
@@ -118,6 +128,8 @@ class AppUserPreferences {
       if (appUiStyle != null) 'appUiStyle': appUiStyle,
       if (customAccentColorsArgb != null)
         'customAccentColorsArgb': customAccentColorsArgb,
+      if (removedDefaultColorPresetsHex != null)
+        'removedDefaultColorPresetsHex': removedDefaultColorPresetsHex,
       if (conversationSortOrder != null)
         'conversationSortOrder': conversationSortOrder,
       if (fontDesign != null) 'fontDesign': fontDesign,

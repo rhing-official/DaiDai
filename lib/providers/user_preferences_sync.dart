@@ -23,6 +23,7 @@ import 'draft_sync_enabled_provider.dart';
 import 'font_design_provider.dart';
 import 'gekiga_background_color_provider.dart';
 import 'notification_sound_provider.dart';
+import 'removed_default_color_presets_provider.dart';
 import 'ringtone_sound_provider.dart';
 import 'message_time_format_provider.dart';
 import 'send_key_mode_provider.dart';
@@ -48,6 +49,11 @@ void applyRemoteUserPreferences(WidgetRef ref, AppUserPreferences preferences) {
         .syncFromRemote(
           preferences.customAccentColorsArgb!.map(Color.new).toList(),
         );
+  }
+  if (preferences.removedDefaultColorPresetsHex != null) {
+    ref
+        .read(removedDefaultColorPresetsProvider.notifier)
+        .syncFromRemote(preferences.removedDefaultColorPresetsHex!.toSet());
   }
   if (preferences.gekigaBackgroundColorArgb != null) {
     ref

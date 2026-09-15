@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../models/app_ui_style.dart';
 import '../../models/app_user.dart';
+import '../../providers/app_ui_style_provider.dart';
+import '../../widgets/glass/glass_avatar.dart';
 
 /// 出欠回答・日程調整回答で共通して使う、独立したピル型のチップ
 /// （2026-09-04追加、2026-09-05に`calendar_event_detail_dialog.dart`から
@@ -38,7 +42,7 @@ Widget calendarChoiceChip(
 
 /// 回答グループ1件分（見出し＋対象住人のチップ一覧、2026-09-02追加・
 /// 2026-09-05に共有化）。対象が0人なら何も描画しない。
-class CalendarResponseGroup extends StatelessWidget {
+class CalendarResponseGroup extends ConsumerWidget {
   const CalendarResponseGroup({
     required this.label,
     required this.users,
@@ -51,8 +55,10 @@ class CalendarResponseGroup extends StatelessWidget {
   final String conversationId;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     if (users.isEmpty) return const SizedBox.shrink();
+    final isGlass = ref.watch(appUiStyleProvider) == AppUiStyle.glass;
+    final onSurfaceVariant = Theme.of(context).colorScheme.onSurfaceVariant;
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Column(
@@ -69,17 +75,31 @@ class CalendarResponseGroup extends StatelessWidget {
             children: [
               for (final user in users)
                 Chip(
-                  avatar: CircleAvatar(
-                    backgroundImage:
-                        user.effectiveIconFor(conversationId)?.url != null
-                        ? NetworkImage(
-                            user.effectiveIconFor(conversationId)!.url,
+                  avatar: () {
+                    final iconUrl = user.effectiveIconFor(conversationId)?.url;
+                    return isGlass
+                        ? GlassAvatar(
+                            size: 28,
+                            image: iconUrl != null
+                                ? NetworkImage(iconUrl)
+                                : null,
+                            fallback: iconUrl != null
+                                ? null
+                                : Icon(
+                                    Icons.person,
+                                    size: 14,
+                                    color: onSurfaceVariant,
+                                  ),
                           )
-                        : null,
-                    child: user.effectiveIconFor(conversationId)?.url == null
-                        ? const Icon(Icons.person, size: 14)
-                        : null,
-                  ),
+                        : CircleAvatar(
+                            backgroundImage: iconUrl != null
+                                ? NetworkImage(iconUrl)
+                                : null,
+                            child: iconUrl == null
+                                ? const Icon(Icons.person, size: 14)
+                                : null,
+                          );
+                  }(),
                   label: Text(
                     user.effectiveNicknameFor(conversationId)?.text ??
                         '@${user.rhingId}',

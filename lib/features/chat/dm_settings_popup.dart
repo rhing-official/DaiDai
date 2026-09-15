@@ -15,8 +15,7 @@ import '../../router/app_router.dart';
 import '../../utils/auto_dismiss_banner.dart';
 import '../../widgets/destructive_label.dart';
 import '../../widgets/glass/glass_surface.dart';
-import 'chat_panes.dart'
-    show confirmDisableReadReceipts, confirmDisableRoomFeature;
+import 'chat_panes.dart' show confirmDisableReadReceipts;
 import 'conversation_profile_card_dialog.dart';
 import 'severance_dialog.dart';
 
@@ -75,28 +74,19 @@ class DmSettingsPopup extends ConsumerWidget {
   final String otherUserId;
 
   /// 寄合機能（複数寄合）のオン/オフを切り替える（2026-09-14変更、以前の
-  /// 3択「単一／複数／寄合機能なし」を1つのトグルに簡略化した）。オフに
-  /// する場合は事前に確認ダイアログを出す。オフへの変更は寄合が1つだけの
-  /// 場合しか許可されない（`DirectMessageRepository.setRoomsEnabled`が
-  /// 件数を検証し[StateError]を投げる）が、UI側も寄合が複数ある間は
-  /// トグル自体を無効化するため、通常はここに到達する前に弾かれる
-  /// （購読中の件数と実際の書き込み時点の件数がずれる競合状態のみ
-  /// フォールバックとしてここで捕捉する）。
+  /// 3択「単一／複数／寄合機能なし」を1つのトグルに簡略化した。2026-09-15、
+  /// オフにする前の確認ダイアログを廃止し、トグル操作で即座に反映される
+  /// ようにした）。オフへの変更は寄合が1つだけの場合しか許可されない
+  /// （`DirectMessageRepository.setRoomsEnabled`が件数を検証し
+  /// [StateError]を投げる）が、UI側も寄合が複数ある間はトグル自体を
+  /// 無効化するため、通常はここに到達する前に弾かれる（購読中の件数と
+  /// 実際の書き込み時点の件数がずれる競合状態のみフォールバックとして
+  /// ここで捕捉する）。
   Future<void> _toggleRoomsEnabled(
     BuildContext context,
     WidgetRef ref,
-    Strings strings,
-    Vocabulary vocab,
     bool enabled,
   ) async {
-    if (!enabled) {
-      final confirmed = await confirmDisableRoomFeature(
-        context,
-        strings,
-        vocab,
-      );
-      if (!confirmed) return;
-    }
     try {
       await ref
           .read(directMessageRepositoryProvider)
@@ -201,7 +191,6 @@ class DmSettingsPopup extends ConsumerWidget {
                     conversationId: liveDm.dmId,
                   ),
                 ),
-              const Divider(),
               StreamBuilder<List<DmRoom>>(
                 stream: ref
                     .read(directMessageRepositoryProvider)
@@ -209,30 +198,33 @@ class DmSettingsPopup extends ConsumerWidget {
                 builder: (context, snapshot) {
                   final rooms = snapshot.data ?? const <DmRoom>[];
                   final locked = liveDm.roomsEnabled && rooms.length > 1;
+                  final colorScheme = Theme.of(context).colorScheme;
                   return SwitchListTile(
                     value: liveDm.roomsEnabled,
-                    title: Text(strings.dmMenuEnableMultipleRooms),
+                    title: Text(
+                      strings.dmMenuEnableMultipleRooms,
+                      style: TextStyle(color: colorScheme.onSurface),
+                    ),
                     subtitle: locked
-                        ? Text(strings.roomModeToggleLockedHint)
+                        ? Text(
+                            strings.roomModeToggleLockedHint,
+                            style: TextStyle(
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                          )
                         : null,
                     onChanged: locked
                         ? null
-                        : (value) => _toggleRoomsEnabled(
-                            context,
-                            ref,
-                            strings,
-                            vocabulary,
-                            value,
-                          ),
+                        : (value) => _toggleRoomsEnabled(context, ref, value),
                   );
                 },
               ),
-              const Divider(),
               SwitchListTile(
                 value: muted,
-                title: Text(
-                  muted ? strings.conversationUnmute : strings.conversationMute,
-                ),
+                // 「通知オフ」の文言は常に固定（2026-09-16変更、以前はミュート
+                // 状態に応じて「通知オフ」⇔「通知オン」と入れ替わっていたが、
+                // オン/オフの表示はスイッチ自体に任せる）。
+                title: Text(strings.conversationMute),
                 onChanged: (value) => ref
                     .read(conversationPrefsRepositoryProvider)
                     .setNotificationsMuted(

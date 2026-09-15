@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/strings.dart';
-import '../../l10n/vocabulary.dart';
 import '../../models/app_ui_style.dart';
 import '../../models/app_user.dart';
 import '../../models/conversation_prefs.dart';
@@ -16,8 +15,7 @@ import '../../utils/auto_dismiss_banner.dart';
 import '../../utils/group_permissions.dart';
 import '../../widgets/destructive_label.dart';
 import '../../widgets/glass/glass_surface.dart';
-import 'chat_panes.dart'
-    show confirmDisableReadReceipts, confirmDisableRoomFeature;
+import 'chat_panes.dart' show confirmDisableReadReceipts;
 import 'conversation_profile_card_dialog.dart';
 import 'group_delete_dialog.dart';
 import 'group_invite_dialog.dart';
@@ -122,31 +120,19 @@ class GroupSettingsPopup extends ConsumerWidget {
   }
 
   /// 寄合機能（複数寄合）のオン/オフを切り替える（2026-09-14変更、以前の
-  /// 3択「単一／複数／寄合機能なし」を1つのトグルに簡略化した。オフに
-  /// する場合の確認ダイアログも、以前はGroup独自の
-  /// `_confirmDisableMultipleRooms`だったが、一対と共通の
-  /// `confirmDisableRoomFeature`に統一した）。オフへの変更は寄合が1つだけの
-  /// 場合しか許可されない（`GroupRepository.setRoomsEnabled`が件数を検証し
-  /// [StateError]を投げる）が、UI側も寄合が複数ある間はトグル自体を無効化
-  /// するため、通常はここに到達する前に弾かれる（購読中の件数と実際の
-  /// 書き込み時点の件数がずれる競合状態のみフォールバックとしてここで
-  /// 捕捉する）。
+  /// 3択「単一／複数／寄合機能なし」を1つのトグルに簡略化した。2026-09-15、
+  /// オフにする前の確認ダイアログを廃止し、トグル操作で即座に反映される
+  /// ようにした）。オフへの変更は寄合が1つだけの場合しか許可されない
+  /// （`GroupRepository.setRoomsEnabled`が件数を検証し[StateError]を
+  /// 投げる）が、UI側も寄合が複数ある間はトグル自体を無効化するため、
+  /// 通常はここに到達する前に弾かれる（購読中の件数と実際の書き込み
+  /// 時点の件数がずれる競合状態のみフォールバックとしてここで捕捉する）。
   Future<void> _toggleRoomsEnabled(
     BuildContext context,
     WidgetRef ref,
-    Strings strings,
-    Vocabulary vocab,
     String userId,
     bool enabled,
   ) async {
-    if (!enabled) {
-      final confirmed = await confirmDisableRoomFeature(
-        context,
-        strings,
-        vocab,
-      );
-      if (!confirmed) return;
-    }
     try {
       await ref
           .read(groupRepositoryProvider)
@@ -163,7 +149,6 @@ class GroupSettingsPopup extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final strings = ref.watch(appStringsProvider);
-    final vocabulary = ref.watch(vocabularyProvider);
     final isGlass = ref.watch(appUiStyleProvider) == AppUiStyle.glass;
     final userId = currentUser.userId;
     // ポップアップを開いたまま設定を切り替えても見た目がすぐ反映されるよう、
@@ -306,22 +291,25 @@ class GroupSettingsPopup extends ConsumerWidget {
                 builder: (context, snapshot) {
                   final rooms = snapshot.data ?? const <Room>[];
                   final locked = liveGroup.roomsEnabled && rooms.length > 1;
+                  final colorScheme = Theme.of(context).colorScheme;
                   return SwitchListTile(
                     value: liveGroup.roomsEnabled,
-                    title: Text(strings.groupMenuEnableMultipleRooms),
+                    title: Text(
+                      strings.groupMenuEnableMultipleRooms,
+                      style: TextStyle(color: colorScheme.onSurface),
+                    ),
                     subtitle: locked
-                        ? Text(strings.roomModeToggleLockedHint)
+                        ? Text(
+                            strings.roomModeToggleLockedHint,
+                            style: TextStyle(
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                          )
                         : null,
                     onChanged: !canManageRooms || locked
                         ? null
-                        : (value) => _toggleRoomsEnabled(
-                            context,
-                            ref,
-                            strings,
-                            vocabulary,
-                            userId,
-                            value,
-                          ),
+                        : (value) =>
+                              _toggleRoomsEnabled(context, ref, userId, value),
                   );
                 },
               ),
@@ -363,10 +351,6 @@ class GroupSettingsPopup extends ConsumerWidget {
               ),
               const Divider(),
               ListTile(
-                leading: Icon(
-                  Icons.delete_forever,
-                  color: Theme.of(context).colorScheme.error,
-                ),
                 title: DestructiveLabel(strings.groupDeleteMenuLabel),
                 enabled: liveGroup.ownerId == userId,
                 onTap: () => GroupDeleteDialog.show(

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
 import '../../l10n/strings.dart';
 import '../../l10n/vocabulary.dart';
@@ -72,25 +73,36 @@ Future<bool> confirmDisableReadReceipts(
   BuildContext context,
   Strings strings,
 ) async {
+  final isGlass =
+      ProviderScope.containerOf(context).read(appUiStyleProvider) ==
+      AppUiStyle.glass;
   final confirmed = await showDialog<bool>(
     context: context,
-    builder: (context) => AlertDialog(
-      title: Text(strings.conversationReadReceiptsDisableConfirmTitle),
-      content: Text(strings.conversationReadReceiptsDisableConfirmMessage),
-      actions: [
+    builder: (context) {
+      final title = Text(strings.conversationReadReceiptsDisableConfirmTitle);
+      final content = Text(
+        strings.conversationReadReceiptsDisableConfirmMessage,
+      );
+      final actions = [
         TextButton(
           onPressed: () => Navigator.of(context).pop(false),
           child: Text(strings.cancel),
         ),
         FilledButton(
+          // 大事な選択のボタンは「広場を削除」（group_delete_dialog.dart）と
+          // 同じ固定の濃い赤にする（CLAUDE.md参照、2026-09-16）。
           style: FilledButton.styleFrom(
-            backgroundColor: Theme.of(context).colorScheme.error,
+            backgroundColor: Colors.red.shade700,
+            foregroundColor: Colors.white,
           ),
           onPressed: () => Navigator.of(context).pop(true),
           child: Text(strings.conversationReadReceiptsDisableConfirmButton),
         ),
-      ],
-    ),
+      ];
+      return isGlass
+          ? GlassAlertDialog(title: title, content: content, actions: actions)
+          : AlertDialog(title: title, content: content, actions: actions);
+    },
   );
   return confirmed ?? false;
 }
@@ -157,40 +169,6 @@ Future<bool> _confirmDeleteRoom(
           ),
           onPressed: () => Navigator.of(context).pop(true),
           child: Text(strings.roomListDeleteConfirmButton),
-        ),
-      ],
-    ),
-  );
-  return confirmed ?? false;
-}
-
-/// 寄合機能（複数寄合）のトグルをオフにする実行前の確認ダイアログ。
-/// 広場・一対どちらの設定画面（`DmSettingsPopup`/`GroupSettingsPopup`の
-/// 寄合機能トグル、2026-09-13に各ハンバーガーメニューから移設）からも
-/// 同じ見た目で使う（2026-09-07追加、2026-09-14に3択の「機能なし」選択
-/// 専用から、単一トグルの「オフにする」共通確認へ用途を広げた）。寄合が
-/// 1つだけの場合に限りオフにできる（`DirectMessageRepository`/
-/// `GroupRepository`の`setRoomsEnabled`が検証）ため常に元に戻せる操作
-/// であり、削除確認（[_confirmDeleteRoom]）と異なり警告色ボタンには
-/// しない。
-Future<bool> confirmDisableRoomFeature(
-  BuildContext context,
-  Strings strings,
-  Vocabulary vocab,
-) async {
-  final confirmed = await showDialog<bool>(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: Text(strings.roomFeatureDisableConfirmTitle(vocab.textChannel)),
-      content: Text(strings.roomFeatureDisableConfirmMessage),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(false),
-          child: Text(strings.cancel),
-        ),
-        FilledButton(
-          onPressed: () => Navigator.of(context).pop(true),
-          child: Text(strings.roomFeatureDisableConfirmButton),
         ),
       ],
     ),
@@ -291,6 +269,15 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
   /// スナップショットのまま表示して問題ない。
   Album? _openAlbum;
 
+  /// 直前に表示していた`ChatScreen`のスクロール位置（2026-09-15追加）。
+  /// カレンダー・ノート・アルバム・通話UIとの切り替え（[_showingCalendar]
+  /// 等）で`ChatScreen`が作り直されても、`ChatScreen.onDisposeScrollPosition`
+  /// 経由でここに保存し`ChatScreen.initialScrollPosition`として渡し戻す
+  /// ことで、意図せず最新メッセージへジャンプする不具合を防ぐ。寄合を
+  /// 切り替えると[_switchRoom]でクリアし、別の寄合の位置が誤って
+  /// 引き継がれないようにする。
+  ItemPosition? _lastScrollPosition;
+
   @override
   void initState() {
     super.initState();
@@ -359,6 +346,7 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
       _showingCalendar = false;
       _openNoteId = null;
       _openAlbum = null;
+      _lastScrollPosition = null;
     });
     oldEntry.removeListener(_onCacheEntryChanged);
     ref.read(chatRoomMessageCacheManagerProvider).detach(oldKey, oldEntry);
@@ -547,6 +535,8 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
       roomId: roomId,
       onSenderTap: (userId) => _openProfileCard(context, userId),
       onOpenNote: (noteId) => setState(() => _openNoteId = noteId),
+      initialScrollPosition: _lastScrollPosition,
+      onDisposeScrollPosition: (pos) => _lastScrollPosition = pos,
       messagesStream: _messagesController.stream,
       onLoadOlderMessages: _loadOlderMessages,
       isLoadingOlderMessages: _cacheEntry.isLoadingOlder,
@@ -1778,6 +1768,15 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
   /// スナップショットのまま表示して問題ない。
   Album? _openAlbum;
 
+  /// 直前に表示していた`ChatScreen`のスクロール位置（2026-09-15追加）。
+  /// カレンダー・ノート・アルバム・通話UIとの切り替え（[_showingCalendar]
+  /// 等）で`ChatScreen`が作り直されても、`ChatScreen.onDisposeScrollPosition`
+  /// 経由でここに保存し`ChatScreen.initialScrollPosition`として渡し戻す
+  /// ことで、意図せず最新メッセージへジャンプする不具合を防ぐ。寄合を
+  /// 切り替えると[_switchRoom]でクリアし、別の寄合の位置が誤って
+  /// 引き継がれないようにする。
+  ItemPosition? _lastScrollPosition;
+
   @override
   void initState() {
     super.initState();
@@ -1836,6 +1835,7 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
       _showingCalendar = false;
       _openNoteId = null;
       _openAlbum = null;
+      _lastScrollPosition = null;
     });
     oldEntry.removeListener(_onCacheEntryChanged);
     ref.read(chatRoomMessageCacheManagerProvider).detach(oldKey, oldEntry);
@@ -2116,6 +2116,8 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
       roomId: roomId,
       senderNameColorResolver: senderNameColorFor,
       onOpenNote: (noteId) => setState(() => _openNoteId = noteId),
+      initialScrollPosition: _lastScrollPosition,
+      onDisposeScrollPosition: (pos) => _lastScrollPosition = pos,
       banner: ChatTaskBanner(
         isDm: false,
         conversationId: group.groupId,

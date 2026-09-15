@@ -188,9 +188,21 @@ flutter:
     - family: Gochikakutto851
       fonts:
         - asset: assets/fonts/851Gochikakutto-Regular.ttf
-    - family: DarumadropOne
+    - family: Makinas4Flat
       fonts:
-        - asset: assets/fonts/DarumadropOne-Regular.ttf
+        - asset: assets/fonts/Makinas4Flat-Regular.otf
+    - family: KurobaraCinderella
+      fonts:
+        - asset: assets/fonts/KurobaraCinderella-Regular.ttf
+    - family: Pigmo01
+      fonts:
+        - asset: assets/fonts/Pigmo01-Regular.otf
+    - family: Keifont
+      fonts:
+        - asset: assets/fonts/Keifont-Regular.ttf
+    - family: PopRumCute
+      fonts:
+        - asset: assets/fonts/PopRumCute-Regular.otf
     - family: ZenKakuGothicNew
       fonts:
         - asset: assets/fonts/ZenKakuGothicNew-Regular.ttf

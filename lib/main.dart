@@ -22,6 +22,7 @@ import 'providers/calling_sound_provider.dart';
 import 'providers/chat_layout_style_provider.dart';
 import 'providers/conversation_sort_order_provider.dart';
 import 'providers/custom_accent_colors_provider.dart';
+import 'providers/removed_default_color_presets_provider.dart';
 import 'providers/draft_sync_enabled_provider.dart';
 import 'providers/font_design_provider.dart';
 import 'providers/gekiga_background_color_provider.dart';
@@ -72,6 +73,8 @@ Future<void> main() async {
   final initialTextColorLight = await loadInitialTextColorLight();
   final initialTextColorDark = await loadInitialTextColorDark();
   final initialCustomAccentColors = await loadInitialCustomAccentColors();
+  final initialRemovedDefaultColorPresets =
+      await loadInitialRemovedDefaultColorPresets();
   final initialGekigaBackgroundColor = await loadInitialGekigaBackgroundColor();
   final initialAppLocale = await loadInitialAppLocale();
   final initialSendKeyMode = await loadInitialSendKeyMode();
@@ -107,6 +110,9 @@ Future<void> main() async {
         initialTextColorDarkProvider.overrideWithValue(initialTextColorDark),
         initialCustomAccentColorsProvider.overrideWithValue(
           initialCustomAccentColors,
+        ),
+        initialRemovedDefaultColorPresetsProvider.overrideWithValue(
+          initialRemovedDefaultColorPresets,
         ),
         initialGekigaBackgroundColorProvider.overrideWithValue(
           initialGekigaBackgroundColor,
