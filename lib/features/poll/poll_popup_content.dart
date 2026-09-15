@@ -11,6 +11,7 @@ import '../../theme/popup_surface_colors.dart';
 import '../../utils/auto_dismiss_banner.dart';
 import '../../widgets/glass/glass_dialog.dart';
 import '../../widgets/glass/glass_surface.dart';
+import '../chat/button_anchored_menu.dart';
 import 'poll_form_dialog.dart';
 
 /// 投票ボタンの真下に投票一覧をポップアップ表示する（2026-09-06追加、
@@ -32,7 +33,7 @@ Future<Poll?> showPollPopup(
   required String roomId,
   required AppUser currentUser,
 }) {
-  return showMenu<Poll>(
+  return showAnchoredMenu<Poll>(
     context: context,
     position: position,
     color: Colors.transparent,

@@ -12,6 +12,7 @@ import '../../utils/auto_dismiss_banner.dart';
 import '../../utils/note_title.dart';
 import '../../widgets/glass/glass_dialog.dart';
 import '../../widgets/glass/glass_surface.dart';
+import '../chat/button_anchored_menu.dart';
 
 /// ノートボタンの真下にノート一覧をポップアップ表示する（2026-09-06追加、
 /// `poll_popup_content.dart`の`showPollPopup`と同じ構成）。位置計算済みの
@@ -29,7 +30,7 @@ Future<Note?> showNotePopup(
   required String roomId,
   required AppUser currentUser,
 }) {
-  return showMenu<Note>(
+  return showAnchoredMenu<Note>(
     context: context,
     position: position,
     color: Colors.transparent,

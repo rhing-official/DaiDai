@@ -9,6 +9,7 @@ import '../../providers/repository_providers.dart';
 import '../../theme/popup_surface_colors.dart';
 import '../../widgets/glass/glass_dialog.dart';
 import '../../widgets/glass/glass_surface.dart';
+import '../chat/button_anchored_menu.dart';
 
 /// アルバムボタンの真下にアルバム一覧をポップアップ表示する（2026-08-30、
 /// `chat_screen.dart`のピン留めポップアップ（`_openPinnedMessagesPopup`/
@@ -24,7 +25,7 @@ Future<Album?> showAlbumPopup(
   required String roomId,
   required String currentUserId,
 }) {
-  return showMenu<Album>(
+  return showAnchoredMenu<Album>(
     context: context,
     position: position,
     color: Colors.transparent,
