@@ -36,3 +36,56 @@ RelativeRect? computeButtonAnchoredMenuPosition(
     Offset.zero & overlay.size,
   );
 }
+
+/// [ChatScreen]がメッセージ一覧のスクロール位置保護（[showAnchoredMenu]参照）
+/// を子孫に公開するためのスコープ（2026-09-15追加）。`showMenu`でポップアップ
+/// を開くと、Navigatorへのルートpushに伴うフォーカス変化等が原因と見られる
+/// 形で背後のメッセージ一覧（`ScrollablePositionedList`）の表示位置が勝手に
+/// ずれる不具合があったため、ポップアップの開閉とメッセージ一覧の表示状態を
+/// 切り離す目的で導入した。`lib/widgets/interactive_swipe_back.dart`の
+/// `InteractiveSwipeBackScope`と同じ形のスコープ。
+class ChatScrollGuardScope extends InheritedWidget {
+  const ChatScrollGuardScope({
+    required this.beginPopup,
+    required this.endPopup,
+    required super.child,
+    super.key,
+  });
+
+  final VoidCallback beginPopup;
+  final VoidCallback endPopup;
+
+  static ChatScrollGuardScope? maybeOf(BuildContext context) =>
+      context.getInheritedWidgetOfExactType<ChatScrollGuardScope>();
+
+  @override
+  bool updateShouldNotify(ChatScrollGuardScope oldWidget) => false;
+}
+
+/// `showMenu`の薄いラッパー（2026-09-15追加）。祖先に[ChatScrollGuardScope]
+/// があれば、ポップアップを開いている間メッセージ一覧のスクロール位置が
+/// ずれないよう保護する。スコープが無い文脈（チャット画面以外）では通常の
+/// `showMenu`と同じ挙動になる。
+Future<T?> showAnchoredMenu<T>({
+  required BuildContext context,
+  required RelativeRect position,
+  required List<PopupMenuEntry<T>> items,
+  Color? color,
+  Color? shadowColor,
+  double? elevation,
+}) async {
+  final guard = ChatScrollGuardScope.maybeOf(context);
+  guard?.beginPopup();
+  try {
+    return await showMenu<T>(
+      context: context,
+      position: position,
+      items: items,
+      color: color,
+      shadowColor: shadowColor,
+      elevation: elevation,
+    );
+  } finally {
+    guard?.endPopup();
+  }
+}

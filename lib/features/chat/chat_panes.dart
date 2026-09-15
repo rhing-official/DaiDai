@@ -1553,7 +1553,7 @@ class _DmMenuButtonState extends ConsumerState<_DmMenuButton> {
       ref.read(appUiStyleProvider),
     );
 
-    final action = await showMenu<_DmMenuAction>(
+    final action = await showAnchoredMenu<_DmMenuAction>(
       context: context,
       position: position,
       color: Colors.transparent,
@@ -2596,7 +2596,7 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
       }
     }
 
-    final action = await showMenu<_GroupMenuAction>(
+    final action = await showAnchoredMenu<_GroupMenuAction>(
       context: context,
       position: position,
       color: Colors.transparent,

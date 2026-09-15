@@ -463,6 +463,48 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     }
   }
 
+  /// [ChatScrollGuardScope]から呼ばれる、ポップアップ表示開始時の処理
+  /// （2026-09-15追加）。現在の表示位置（`reverse:true`のため画面下端＝
+  /// 最新側に最も近いアイテム＝最小index）を保存し、[_maybeLoadOlderMessages]
+  /// を一時的に無効化する。ポップアップが短時間しか開かない上、開いている
+  /// 間はメッセージ一覧を操作できないため、この間だけリスナーを止めても
+  /// 履歴読み込みの取りこぼしにはならない（閉じれば直ちに復帰する）。
+  void _beginPopupGuard() {
+    if (_popupGuardDepth == 0) {
+      final positions = _itemPositionsListener.itemPositions.value;
+      _popupGuardSavedPosition = positions.isEmpty
+          ? null
+          : positions.reduce((a, b) => a.index < b.index ? a : b);
+      _itemPositionsListener.itemPositions.removeListener(
+        _maybeLoadOlderMessages,
+      );
+    }
+    _popupGuardDepth++;
+  }
+
+  /// [_beginPopupGuard]の対。ポップアップが閉じたら[_maybeLoadOlderMessages]
+  /// を再登録し、表示位置がずれていれば保存しておいた位置へ戻す。
+  /// [_jumpToMessage]（ピン留めポップアップでメッセージを選んだ場合等）による
+  /// 意図的なジャンプが既に発生していたら、[_scrollIntentToken]の不一致で
+  /// この復元処理は自動的にスキップされる。
+  void _endPopupGuard() {
+    _popupGuardDepth--;
+    if (_popupGuardDepth > 0) return;
+    _itemPositionsListener.itemPositions.addListener(_maybeLoadOlderMessages);
+    final saved = _popupGuardSavedPosition;
+    _popupGuardSavedPosition = null;
+    if (saved == null) return;
+    final token = ++_scrollIntentToken;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || token != _scrollIntentToken) return;
+      if (!_itemScrollController.isAttached) return;
+      _itemScrollController.jumpTo(
+        index: saved.index,
+        alignment: saved.itemLeadingEdge,
+      );
+    });
+  }
+
   /// 他端末の下書き（`draftByRoom[roomId]`）が変化した時に呼ばれる。画面を
   /// 開いた瞬間の復元（`fireImmediately`）と、開いたまま他端末の下書きが
   /// 変わった場合の反映を同じ経路で行う（2026-08-20変更、以前は`initState`
@@ -561,6 +603,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// 未ビルドの行にも確定的にジャンプできる）。
   final _itemScrollController = ItemScrollController();
   final _itemPositionsListener = ItemPositionsListener.create();
+
+  /// ポップアップ（[ChatScrollGuardScope]/[showAnchoredMenu]参照）表示中に
+  /// メッセージ一覧のスクロール位置を保護するための状態（2026-09-15追加）。
+  /// [_popupGuardDepth]はポップアップが入れ子で開かれた場合の保険で、最も
+  /// 外側の開始・終了時だけ実際の保存・復元を行う。[_scrollIntentToken]は
+  /// [_jumpToMessage]による意図的なジャンプと競合しないための世代カウンタ
+  /// （[_endPopupGuard]参照）。
+  int _popupGuardDepth = 0;
+  ItemPosition? _popupGuardSavedPosition;
+  int _scrollIntentToken = 0;
 
   /// AppBarのピンアイコン。タップ位置ではなくこのボタン自体の直下に
   /// ポップアップを開くための位置計算に使う（[_openPinnedMessagesPopup]参照）。
@@ -750,6 +802,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// にあったGlobalKeyのビルド待ちリトライ・`Scrollable.ensureVisible`の
   /// 再試行は不要になった。
   Future<void> _jumpToMessage(String messageId) async {
+    // ポップアップを閉じた際の位置復元（[_endPopupGuard]参照）と競合しない
+    // よう、意図的なジャンプが発生したことを世代トークンで記録しておく
+    // （2026-09-15追加）。
+    _scrollIntentToken++;
     var index = _messageIndexById[messageId];
     if (index == null) {
       final fetched = await widget.onFetchMessagesAround?.call(messageId);
@@ -820,7 +876,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final timeFormat = ref.read(messageTimeFormatProvider);
     final uiStyle = ref.read(appUiStyleProvider);
 
-    final action = await showMenu<String>(
+    final action = await showAnchoredMenu<String>(
       context: context,
       position: position,
       color: Colors.transparent,
@@ -2858,11 +2914,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     // どこかにフォーカスがあれば発火するため、`Focus(autofocus: true)`で
     // 起点を確保する（`_confirmScreenshotSelected`のEnterキー対応と同じ
     // パターン）。
-    return CallbackShortcuts(
-      bindings: {
-        const SingleActivator(LogicalKeyboardKey.escape): _handleEscapeKey,
-      },
-      child: Focus(autofocus: true, child: scaffold),
+    return ChatScrollGuardScope(
+      beginPopup: _beginPopupGuard,
+      endPopup: _endPopupGuard,
+      child: CallbackShortcuts(
+        bindings: {
+          const SingleActivator(LogicalKeyboardKey.escape): _handleEscapeKey,
+        },
+        child: Focus(autofocus: true, child: scaffold),
+      ),
     );
   }
 
@@ -5697,7 +5757,7 @@ Future<String?> _pickReactionEmoji(
   BuildContext context,
   Offset globalPosition,
 ) {
-  return showMenu<String>(
+  return showAnchoredMenu<String>(
     context: context,
     position: _menuPosition(context, globalPosition),
     items: [
@@ -5891,7 +5951,7 @@ class _MessageBubbleTapAreaState extends State<_MessageBubbleTapArea> {
   /// 右クリック用、従来通りのクリック選択メニュー（変更なし）。
   Future<void> _openMenu(BuildContext context, Offset globalPosition) async {
     final items = _buildMenuItems();
-    final action = await showMenu<_MessageMenuAction>(
+    final action = await showAnchoredMenu<_MessageMenuAction>(
       context: context,
       position: _menuPosition(context, globalPosition),
       items: [
