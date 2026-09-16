@@ -296,6 +296,7 @@ class Strings {
     required this.save,
     required this.done,
     required this.delete,
+    required this.showLess,
     required this.profileIconSection,
     required this.profileBackgroundSection,
     required this.profileNicknameHint,
@@ -954,6 +955,10 @@ class Strings {
   final String save;
   final String done;
   final String delete;
+
+  /// 「もっと見る」で展開した一覧を再び閉じるための汎用文言（フォント
+  /// デザイン・ブロックしたユーザー一覧で共用、2026-09-16追加）。
+  final String showLess;
 
   final String profileIconSection;
   final String profileBackgroundSection;
@@ -1765,6 +1770,7 @@ class Strings {
     save: '保存',
     done: '完了',
     delete: '削除',
+    showLess: '折りたたむ',
     profileIconSection: 'アイコン',
     profileBackgroundSection: '背景画像',
     profileNicknameHint: (term) => '友達には、Rhing IDの代わりにここで選んだ$termが表示されます。',
@@ -2138,8 +2144,7 @@ class Strings {
         'Show more ($remaining more)',
     settingsAccentColor: 'Accent colour',
     settingsAccentColorGekigaHint:
-        'Used as the background colour in Gekiga UI style '
-        '(defaults to the current red).',
+        'Used as the background colour in Gekiga UI style.',
     settingsAppearanceGekigaLockedHint:
         'Cannot be changed while the Gekiga UI style is selected',
     settingsAppearance: 'Appearance',
@@ -2168,8 +2173,7 @@ class Strings {
     settingsUiStyleFlatLabel: 'Flat',
     settingsUiStyleFlatDescription: 'The current standard style',
     settingsUiStyleGekigaLabel: 'Gekiga',
-    settingsUiStyleGekigaDescription:
-        'A hand-drawn, thick jagged-line, monochrome speech-bubble look.',
+    settingsUiStyleGekigaDescription: 'An unconventional background style',
     settingsUiStyleGlassLabel: 'Glass',
     settingsUiStyleGlassDescription: 'Frosted, glowing-edge style',
     settingsChatLayoutTitle: 'Message display',
@@ -2184,7 +2188,7 @@ class Strings {
         'nickname. This only changes your own screen, not how others see '
         'the chat.',
     settingsTalksListLayoutTitle: 'Talks list layout (portrait)',
-    settingsTalksListLayoutStandard: 'Current UI',
+    settingsTalksListLayoutStandard: 'Icon only',
     settingsTalksListLayoutStandardDescription:
         'Shows direct messages and plazas as a single vertical list.',
     settingsTalksListLayoutIconSplit: 'Icon + room list UI',
@@ -2245,7 +2249,7 @@ class Strings {
     twoFactorSetupDialogTitle: 'Set up two-factor authentication',
     twoFactorSetupDescription:
         'Scan the QR code with an authenticator app (e.g. Google Authenticator), or enter the secret key manually, then enter the 6-digit code shown.',
-    twoFactorSecretKeyLabel: 'Secret key (manual entry)',
+    twoFactorSecretKeyLabel: 'Secret key',
     twoFactorCodeLabel: '6-digit code',
     twoFactorEnrollButton: 'Enable',
     twoFactorInvalidCodeError: 'That code is not correct',
@@ -2451,6 +2455,7 @@ class Strings {
     save: 'Save',
     done: 'Done',
     delete: 'Delete',
+    showLess: 'Show less',
     profileIconSection: 'Icons',
     profileBackgroundSection: 'Background images',
     profileNicknameHint: (_) =>
@@ -2502,7 +2507,7 @@ class Strings {
     groupMenuMemberList: 'Member list',
     groupMenuCreateInvite: 'Create invite link',
     groupMenuManageRoles: 'Manage roles',
-    groupMenuOpenSettings: 'Group settings',
+    groupMenuOpenSettings: 'Plaza settings',
     groupMenuLeave: 'Leave',
     groupRoleListEmpty: 'No roles yet',
     groupRoleCreateDialogTitle: 'Add role',
@@ -2534,10 +2539,10 @@ class Strings {
     groupRoomRolePriorityResetButton: 'Reset to plaza default',
     groupMenuEnableMultipleRooms: 'Enable multiple rooms',
     dmMenuEnableMultipleRooms: 'Enable multiple rooms',
-    groupSettingsDefaultMuteLabel: 'Mute (default)',
+    groupSettingsDefaultMuteLabel: 'Mute',
     groupSettingsDefaultMuteHint:
         'Rooms can override this individually with "This room\'s own settings"',
-    groupSettingsDefaultReadReceiptsLabel: 'Read receipts (default)',
+    groupSettingsDefaultReadReceiptsLabel: 'Read receipts',
     groupSettingsDefaultReadReceiptsHint:
         'Rooms can override this individually with "This room\'s own settings"',
     groupRoomCustomSettingsLabel: "This room's own settings",
@@ -2668,7 +2673,7 @@ class Strings {
     calendarLocationFieldHint: 'Location (optional)',
     calendarAllDayLabel: 'All day',
     calendarStartLabel: 'Start',
-    calendarEndLabel: 'End (optional)',
+    calendarEndLabel: 'End',
     calendarDeleteAction: 'Delete event',
     calendarDeleteConfirmTitle: 'Delete this event?',
     calendarDeleteConfirmMessage: 'This cannot be undone.',

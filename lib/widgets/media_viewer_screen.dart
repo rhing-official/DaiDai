@@ -242,21 +242,24 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
 
 /// [MediaViewerScreen]の1ページ分（画像）。Escキー・下スワイプ・画面全体の
 /// `Scaffold`/`AppBar`は[MediaViewerScreen]側が共通で持つため、ここでは
-/// 画像本体と「画像の表示範囲外のタップで閉じる」ジェスチャーのみを持つ
-/// （2026-08-10追加、2026-08-14に[MediaViewerScreen]への統合に伴い
-/// `_ImageViewerScreen`から改名）。
+/// 画像本体と「タップで閉じる」ジェスチャーのみを持つ（2026-08-10追加、
+/// 2026-08-14に[MediaViewerScreen]への統合に伴い`_ImageViewerScreen`から
+/// 改名）。
 ///
-/// 画像の自然な幅・高さ（アスペクト比）を`Image.network`のものと同じ
-/// `ImageProvider`から解決し、`AspectRatio`で`BoxFit.contain`と同じ矩形を
-/// 再現する。この矩形の内側は何もしないonTapでタップを吸収し（画像自体を
-/// タップした際に外側へ伝播して閉じてしまうのを防ぐ）、矩形の外側
-/// （レターボックス部分）をタップすると閉じる（2026-09-14変更、以前は
-/// 画面全体を内側として扱っており実質どこをタップしても閉じなかった）。
-/// アスペクト比が解決するまでの間（読み込み中）は矩形を決められないため、
-/// 従来通り画面全体を内側として扱うフォールバックのままにする。画像を
-/// ズームしてパン中はInteractiveViewer側のジェスチャーが優先されるため
-/// 誤って閉じない（`InteractiveViewer`は既定でクリップするため、ズーム中も
-/// 当たり判定の矩形自体はズーム前のレイアウト矩形のまま変わらない）。
+/// `InteractiveViewer`には画面いっぱいの制約（[SizedBox.expand]）をそのまま
+/// 渡す。以前は画像本来のアスペクト比で計算した`AspectRatio`矩形の中に
+/// `InteractiveViewer`ごと閉じ込めており、「矩形の外側（レターボックス部分）
+/// をタップしたときだけ閉じる」というヒットテストには都合が良かったが、
+/// 副作用として`InteractiveViewer`自体のレイアウト制約もその矩形に縮まり、
+/// 他のSNS（Instagram/Twitter等）のように画面いっぱいまでズームすることが
+/// できなかった（2026-09-16修正）。
+///
+/// 画面いっぱいの制約を与えると「矩形の外側だけ閉じる」ヒットテストの前提
+/// （静止時の矩形＝実際に見えている画像の範囲）が、ズーム後は画像が矩形の
+/// 外まで広がるため崩れてしまう。そのため閉じる判定自体を単純化し、
+/// [TransformationController]でズーム倍率（≈1.0=等倍）を見て、ズームして
+/// いない時だけ画面のどこをタップしても閉じる、ズーム中はタップで閉じない
+/// （パン操作の邪魔をしない）方式にした。
 class _ImageViewerPage extends StatefulWidget {
   const _ImageViewerPage({required this.url});
 
@@ -267,47 +270,30 @@ class _ImageViewerPage extends StatefulWidget {
 }
 
 class _ImageViewerPageState extends State<_ImageViewerPage> {
-  double? _aspectRatio;
-  ImageStream? _imageStream;
-  late final _imageStreamListener = ImageStreamListener(_onImageInfo);
-
-  @override
-  void initState() {
-    super.initState();
-    final stream = NetworkImage(widget.url).resolve(const ImageConfiguration());
-    _imageStream = stream..addListener(_imageStreamListener);
-  }
-
-  void _onImageInfo(ImageInfo info, bool synchronousCall) {
-    final ratio = info.image.width / info.image.height;
-    if (mounted) setState(() => _aspectRatio = ratio);
-  }
+  final _transformationController = TransformationController();
 
   @override
   void dispose() {
-    _imageStream?.removeListener(_imageStreamListener);
+    _transformationController.dispose();
     super.dispose();
+  }
+
+  void _handleTap() {
+    final scale = _transformationController.value.getMaxScaleOnAxis();
+    if (scale <= 1.01) Navigator.of(context).pop();
   }
 
   @override
   Widget build(BuildContext context) {
-    final image = InteractiveViewer(
-      child: Image.network(widget.url, fit: BoxFit.contain),
-    );
-    final aspectRatio = _aspectRatio;
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: () => Navigator.of(context).pop(),
-      child: aspectRatio == null
-          ? SizedBox.expand(
-              child: GestureDetector(onTap: () {}, child: image),
-            )
-          : Center(
-              child: AspectRatio(
-                aspectRatio: aspectRatio,
-                child: GestureDetector(onTap: () {}, child: image),
-              ),
-            ),
+      onTap: _handleTap,
+      child: SizedBox.expand(
+        child: InteractiveViewer(
+          transformationController: _transformationController,
+          child: Image.network(widget.url, fit: BoxFit.contain),
+        ),
+      ),
     );
   }
 }

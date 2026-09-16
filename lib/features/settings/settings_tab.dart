@@ -2571,6 +2571,7 @@ class _FontDesignFolderState extends ConsumerState<_FontDesignFolder> {
       FontDesign.chikaraYowaku851 => strings.fontDesignChikaraYowaku851Label,
     };
 
+    final hasMore = FontDesign.values.length > kFontDesignPreviewCount;
     final visibleDesigns = _expanded
         ? FontDesign.values
         : FontDesign.values.take(kFontDesignPreviewCount);
@@ -2580,11 +2581,11 @@ class _FontDesignFolderState extends ConsumerState<_FontDesignFolder> {
       return GekigaJointedTileList(
         seeds: [
           for (final value in visibleDesigns) value.hashCode,
-          if (remaining > 0) 'fontDesignShowMore'.hashCode,
+          if (hasMore) 'fontDesignShowMore'.hashCode,
         ],
         selectedFlags: [
           for (final value in visibleDesigns) design == value,
-          if (remaining > 0) false,
+          if (hasMore) false,
         ],
         children: [
           for (final value in visibleDesigns)
@@ -2604,11 +2605,15 @@ class _FontDesignFolderState extends ConsumerState<_FontDesignFolder> {
                   : null,
               onTap: () => select(value),
             ),
-          if (remaining > 0)
+          if (hasMore)
             GekigaTileContent(
-              leading: const Icon(Icons.expand_more),
-              title: Text(strings.fontDesignShowMoreTemplate(remaining)),
-              onTap: () => setState(() => _expanded = true),
+              leading: Icon(_expanded ? Icons.expand_less : Icons.expand_more),
+              title: Text(
+                _expanded
+                    ? strings.showLess
+                    : strings.fontDesignShowMoreTemplate(remaining),
+              ),
+              onTap: () => setState(() => _expanded = !_expanded),
             ),
         ],
       );
@@ -2632,12 +2637,16 @@ class _FontDesignFolderState extends ConsumerState<_FontDesignFolder> {
                   ? Text(strings.fontDesignKiwamiExclusiveNotice)
                   : null,
             ),
-          if (remaining > 0)
+          if (hasMore)
             ListTile(
               contentPadding: const EdgeInsets.symmetric(horizontal: 16),
-              leading: const Icon(Icons.expand_more),
-              title: Text(strings.fontDesignShowMoreTemplate(remaining)),
-              onTap: () => setState(() => _expanded = true),
+              leading: Icon(_expanded ? Icons.expand_less : Icons.expand_more),
+              title: Text(
+                _expanded
+                    ? strings.showLess
+                    : strings.fontDesignShowMoreTemplate(remaining),
+              ),
+              onTap: () => setState(() => _expanded = !_expanded),
             ),
         ],
       ),
@@ -3133,6 +3142,7 @@ class _BlockedUsersFolderState extends ConsumerState<_BlockedUsersFolder> {
             }
             final blockedUsers = [...snapshot.data!]
               ..sort((a, b) => a.rhingId.compareTo(b.rhingId));
+            final hasMore = blockedUsers.length > kBlockedUsersPreviewCount;
             final visibleUsers = _expanded
                 ? blockedUsers
                 : blockedUsers.take(kBlockedUsersPreviewCount).toList();
@@ -3160,14 +3170,20 @@ class _BlockedUsersFolderState extends ConsumerState<_BlockedUsersFolder> {
                       child: Text(strings.settingsBlockedUsersUnblock),
                     ),
                   ),
-                if (remaining > 0)
+                if (hasMore)
                   ListTile(
                     contentPadding: const EdgeInsets.symmetric(horizontal: 16),
-                    leading: const Icon(Icons.expand_more),
-                    title: Text(
-                      strings.settingsBlockedUsersShowMoreTemplate(remaining),
+                    leading: Icon(
+                      _expanded ? Icons.expand_less : Icons.expand_more,
                     ),
-                    onTap: () => setState(() => _expanded = true),
+                    title: Text(
+                      _expanded
+                          ? strings.showLess
+                          : strings.settingsBlockedUsersShowMoreTemplate(
+                              remaining,
+                            ),
+                    ),
+                    onTap: () => setState(() => _expanded = !_expanded),
                   ),
               ],
             );

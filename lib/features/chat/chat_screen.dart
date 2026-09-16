@@ -6875,40 +6875,35 @@ class _FileAttachmentBlockState extends ConsumerState<_FileAttachmentBlock>
     final baseStyleSheet = MarkdownStyleSheet.fromTheme(Theme.of(context));
     final markdownStyleSheet = widget.isGekiga
         ? baseStyleSheet.copyWith(
-            a: baseStyleSheet.a?.copyWith(color: GekigaColors.onPanel),
-            p: baseStyleSheet.p?.copyWith(color: GekigaColors.onPanel),
+            // 本文の文字色は`gekigaFg`（isMe対応、上記参照）を使う。固定で
+            // `GekigaColors.onPanel`（白）にしていると、自分が送った
+            // マークダウン（カード地色が白になる、`GekigaStraightMonochromeBox`
+            // 参照）で白背景に白文字となり視認できなくなる不具合があった
+            // （2026-09-16修正）。
+            a: baseStyleSheet.a?.copyWith(color: gekigaFg),
+            p: baseStyleSheet.p?.copyWith(color: gekigaFg),
             code: baseStyleSheet.code?.copyWith(
-              color: GekigaColors.onPanel,
+              color: gekigaFg,
               backgroundColor: Colors.black.withValues(alpha: 0.35),
             ),
-            h1: baseStyleSheet.h1?.copyWith(color: GekigaColors.onPanel),
-            h2: baseStyleSheet.h2?.copyWith(color: GekigaColors.onPanel),
-            h3: baseStyleSheet.h3?.copyWith(color: GekigaColors.onPanel),
-            h4: baseStyleSheet.h4?.copyWith(color: GekigaColors.onPanel),
-            h5: baseStyleSheet.h5?.copyWith(color: GekigaColors.onPanel),
-            h6: baseStyleSheet.h6?.copyWith(color: GekigaColors.onPanel),
-            em: baseStyleSheet.em?.copyWith(color: GekigaColors.onPanel),
-            strong: baseStyleSheet.strong?.copyWith(
-              color: GekigaColors.onPanel,
-            ),
-            del: baseStyleSheet.del?.copyWith(color: GekigaColors.onPanel),
+            h1: baseStyleSheet.h1?.copyWith(color: gekigaFg),
+            h2: baseStyleSheet.h2?.copyWith(color: gekigaFg),
+            h3: baseStyleSheet.h3?.copyWith(color: gekigaFg),
+            h4: baseStyleSheet.h4?.copyWith(color: gekigaFg),
+            h5: baseStyleSheet.h5?.copyWith(color: gekigaFg),
+            h6: baseStyleSheet.h6?.copyWith(color: gekigaFg),
+            em: baseStyleSheet.em?.copyWith(color: gekigaFg),
+            strong: baseStyleSheet.strong?.copyWith(color: gekigaFg),
+            del: baseStyleSheet.del?.copyWith(color: gekigaFg),
             blockquote: baseStyleSheet.blockquote?.copyWith(
-              color: GekigaColors.onPanel.withValues(alpha: 0.85),
+              color: gekigaFg.withValues(alpha: 0.85),
             ),
-            listBullet: baseStyleSheet.listBullet?.copyWith(
-              color: GekigaColors.onPanel,
-            ),
-            tableHead: baseStyleSheet.tableHead?.copyWith(
-              color: GekigaColors.onPanel,
-            ),
-            tableBody: baseStyleSheet.tableBody?.copyWith(
-              color: GekigaColors.onPanel,
-            ),
+            listBullet: baseStyleSheet.listBullet?.copyWith(color: gekigaFg),
+            tableHead: baseStyleSheet.tableHead?.copyWith(color: gekigaFg),
+            tableBody: baseStyleSheet.tableBody?.copyWith(color: gekigaFg),
             horizontalRuleDecoration: BoxDecoration(
               border: Border(
-                top: BorderSide(
-                  color: GekigaColors.onPanel.withValues(alpha: 0.4),
-                ),
+                top: BorderSide(color: gekigaFg.withValues(alpha: 0.4)),
               ),
             ),
           )
@@ -7153,7 +7148,7 @@ class _GekigaComposerField extends StatelessWidget {
     return CustomPaint(
       painter: const _GekigaComposerFieldPainter(),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
         child: child,
       ),
     );
