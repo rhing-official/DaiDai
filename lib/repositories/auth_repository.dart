@@ -1,10 +1,54 @@
+import 'dart:convert';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:passkeys/authenticator.dart';
+import 'package:passkeys/types.dart';
 
 import '../utils/google_sign_in_bootstrap.dart';
+
+/// 秘密の質問1組（設定時の入力用、2026-09-16追加）。
+class SecretQuestionInput {
+  const SecretQuestionInput({required this.question, required this.answer});
+  final String question;
+  final String answer;
+}
+
+/// 秘密の質問の設定状況（ハッシュ自体は含まない、2026-09-16追加）。
+class SecretQuestionsStatus {
+  const SecretQuestionsStatus({required this.configured, this.updatedAt});
+  final bool configured;
+  final DateTime? updatedAt;
+}
+
+/// 登録済みパスキー1件のメタ情報（設定画面の一覧表示用、2026-09-16追加）。
+class PasskeyCredentialInfo {
+  const PasskeyCredentialInfo({
+    required this.id,
+    required this.deviceType,
+    required this.backedUp,
+    this.createdAt,
+    this.lastUsedAt,
+  });
+  final String id;
+  final String deviceType;
+  final bool backedUp;
+  final DateTime? createdAt;
+  final DateTime? lastUsedAt;
+}
+
+/// パスキー紛失時の復旧フロー第1段階で返される質問一覧（2026-09-16追加）。
+class PasskeyRecoveryQuestions {
+  const PasskeyRecoveryQuestions({
+    required this.recoveryId,
+    required this.questions,
+  });
+  final String recoveryId;
+  final List<String> questions;
+}
 
 abstract class AuthRepository {
   Stream<User?> authStateChanges();
@@ -57,6 +101,46 @@ abstract class AuthRepository {
   /// 未ログイン端末側が、承認済み（approved）になったセッションを検知したら
   /// 呼ぶ。Cloud Functionsから受け取ったカスタムトークンでサインインまで行う。
   Future<User> claimQrLoginSession(String sessionId);
+
+  /// Rhing ID＋パスキー（WebAuthn）による新規アカウント作成（2026-09-16追加）。
+  /// デバイスの生体認証/画面ロックで新しいパスキーを作成し、対応する
+  /// Firebase Authユーザーを作成してサインインする。この時点ではまだ
+  /// FirestoreのAppUserドキュメントは存在しないため、呼び出し後はGoogle/Apple
+  /// サインイン後と同様に`AuthGate`が`TermsConsentScreen`→
+  /// `RhingIdSetupScreen`へ自然に遷移する（Rhing ID自体はそこで決める）。
+  Future<User> registerWithPasskey();
+
+  /// Rhing ID＋パスキーでのログイン（2026-09-16追加）。[rhingId]に登録済みの
+  /// パスキーでデバイスに認証を要求し、成功したらサインインする。
+  Future<User> signInWithPasskey(String rhingId);
+
+  /// 秘密の質問（3問固定）を設定・更新する（2026-09-16追加、パスキー紛失時の
+  /// 復旧用）。既存の設定があれば3問まるごと置き換える。回答はサーバー側で
+  /// ハッシュ化して保存し、平文は保持しない。
+  Future<void> setSecretQuestions(List<SecretQuestionInput> questions);
+
+  /// 秘密の質問の設定状況を取得する（ハッシュ自体は取得できない）。
+  Future<SecretQuestionsStatus> getSecretQuestionsStatus();
+
+  /// 現在ログイン中ユーザーが登録済みのパスキー一覧を取得する
+  /// （設定画面のパスキー管理UI用）。
+  Future<List<PasskeyCredentialInfo>> listPasskeyCredentials();
+
+  /// ログイン中のアカウントに追加のパスキーを登録する（複数端末対応）。
+  /// [registerWithPasskey]と異なり新規アカウントは作らず、既存アカウントに
+  /// クレデンシャルを追加するだけ。
+  Future<void> addPasskeyCredential();
+
+  /// 登録済みパスキーを削除する。
+  Future<void> deletePasskeyCredential(String credentialId);
+
+  /// パスキー紛失時の復旧フロー第1段階（2026-09-16追加）。[rhingId]の
+  /// アカウントに秘密の質問が設定されていれば質問一覧を返す。
+  Future<PasskeyRecoveryQuestions> beginPasskeyRecovery(String rhingId);
+
+  /// 復旧フロー第2段階。[answers]は[beginPasskeyRecovery]が返した質問と
+  /// 同じ順序の3つの回答。3問すべて正解した場合のみサインインする。
+  Future<User> finishPasskeyRecovery(String recoveryId, List<String> answers);
 
   /// 現在ログイン中ユーザーが管理者（Firebase Custom Claims `admin: true`）
   /// かどうか（管理画面向け、2026-08-12追加）。[forceRefresh]をtrueにすると
@@ -260,6 +344,179 @@ class FirebaseAuthRepository implements AuthRepository {
     final user = userCredential.user;
     if (user == null) {
       throw StateError('QRコードログインに失敗しました');
+    }
+    return user;
+  }
+
+  /// Cloud Functionsの`HttpsCallableResult.data`は（特にWeb版で）ネストした
+  /// マップが`Map<Object?, Object?>`として返ってくることがあり、そのままでは
+  /// `Map<String, dynamic>`にキャストできない。JSONを経由して往復させることで
+  /// 純粋な`Map<String, dynamic>`/`List<dynamic>`構造に正規化する
+  /// （2026-09-16追加、パスキーのregistration/authentication optionsのように
+  /// ネストしたレスポンスを扱うため新設）。
+  Map<String, dynamic> _asJsonMap(Object? data) =>
+      jsonDecode(jsonEncode(data)) as Map<String, dynamic>;
+
+  @override
+  Future<User> registerWithPasskey() async {
+    final beginResult = await _functions
+        .httpsCallable('beginPasskeyRegistration')
+        .call();
+    final beginData = _asJsonMap(beginResult.data);
+    final challengeId = beginData['challengeId'] as String;
+    final options = beginData['options'] as Map<String, dynamic>;
+
+    final authenticator = PasskeyAuthenticator();
+    final attestationResponse = await authenticator.register(
+      RegisterRequestType.fromJson(options),
+    );
+
+    final finishResult = await _functions
+        .httpsCallable('finishPasskeyRegistration')
+        .call({
+          'challengeId': challengeId,
+          'attestationResponse': attestationResponse.toJson(),
+        });
+    final customToken = (finishResult.data as Map)['customToken'] as String;
+    final userCredential = await _auth.signInWithCustomToken(customToken);
+    final user = userCredential.user;
+    if (user == null) {
+      throw StateError('パスキーでのアカウント作成に失敗しました');
+    }
+    return user;
+  }
+
+  @override
+  Future<User> signInWithPasskey(String rhingId) async {
+    final beginResult = await _functions
+        .httpsCallable('beginPasskeyAuthentication')
+        .call({'rhingId': rhingId});
+    final beginData = _asJsonMap(beginResult.data);
+    final challengeId = beginData['challengeId'] as String;
+    final options = beginData['options'] as Map<String, dynamic>;
+
+    final authenticator = PasskeyAuthenticator();
+    final assertionResponse = await authenticator.authenticate(
+      AuthenticateRequestType.fromJson(options),
+    );
+
+    final finishResult = await _functions
+        .httpsCallable('finishPasskeyAuthentication')
+        .call({
+          'challengeId': challengeId,
+          'assertionResponse': assertionResponse.toJson(),
+        });
+    final customToken = (finishResult.data as Map)['customToken'] as String;
+    final userCredential = await _auth.signInWithCustomToken(customToken);
+    final user = userCredential.user;
+    if (user == null) {
+      throw StateError('パスキーログインに失敗しました');
+    }
+    return user;
+  }
+
+  @override
+  Future<void> setSecretQuestions(List<SecretQuestionInput> questions) async {
+    await _functions.httpsCallable('setSecretQuestions').call({
+      'questions': questions
+          .map((q) => {'question': q.question, 'answer': q.answer})
+          .toList(),
+    });
+  }
+
+  @override
+  Future<SecretQuestionsStatus> getSecretQuestionsStatus() async {
+    final result = await _functions
+        .httpsCallable('getSecretQuestionsStatus')
+        .call();
+    final data = _asJsonMap(result.data);
+    final updatedAtMs = data['updatedAt'] as int?;
+    return SecretQuestionsStatus(
+      configured: data['configured'] as bool,
+      updatedAt: updatedAtMs == null
+          ? null
+          : DateTime.fromMillisecondsSinceEpoch(updatedAtMs),
+    );
+  }
+
+  @override
+  Future<List<PasskeyCredentialInfo>> listPasskeyCredentials() async {
+    final result = await _functions
+        .httpsCallable('listPasskeyCredentials')
+        .call();
+    final data = _asJsonMap(result.data);
+    final credentials = data['credentials'] as List<dynamic>;
+    return credentials.map((raw) {
+      final c = raw as Map<String, dynamic>;
+      final createdAtMs = c['createdAt'] as int?;
+      final lastUsedAtMs = c['lastUsedAt'] as int?;
+      return PasskeyCredentialInfo(
+        id: c['id'] as String,
+        deviceType: c['deviceType'] as String,
+        backedUp: c['backedUp'] as bool,
+        createdAt: createdAtMs == null
+            ? null
+            : DateTime.fromMillisecondsSinceEpoch(createdAtMs),
+        lastUsedAt: lastUsedAtMs == null
+            ? null
+            : DateTime.fromMillisecondsSinceEpoch(lastUsedAtMs),
+      );
+    }).toList();
+  }
+
+  @override
+  Future<void> addPasskeyCredential() async {
+    final beginResult = await _functions
+        .httpsCallable('beginAddPasskey')
+        .call();
+    final beginData = _asJsonMap(beginResult.data);
+    final challengeId = beginData['challengeId'] as String;
+    final options = beginData['options'] as Map<String, dynamic>;
+
+    final authenticator = PasskeyAuthenticator();
+    final attestationResponse = await authenticator.register(
+      RegisterRequestType.fromJson(options),
+    );
+
+    await _functions.httpsCallable('finishAddPasskey').call({
+      'challengeId': challengeId,
+      'attestationResponse': attestationResponse.toJson(),
+    });
+  }
+
+  @override
+  Future<void> deletePasskeyCredential(String credentialId) async {
+    await _functions.httpsCallable('deletePasskeyCredential').call({
+      'credentialId': credentialId,
+    });
+  }
+
+  @override
+  Future<PasskeyRecoveryQuestions> beginPasskeyRecovery(String rhingId) async {
+    final result = await _functions.httpsCallable('beginPasskeyRecovery').call({
+      'rhingId': rhingId,
+    });
+    final data = _asJsonMap(result.data);
+    final questions = (data['questions'] as List<dynamic>).cast<String>();
+    return PasskeyRecoveryQuestions(
+      recoveryId: data['recoveryId'] as String,
+      questions: questions,
+    );
+  }
+
+  @override
+  Future<User> finishPasskeyRecovery(
+    String recoveryId,
+    List<String> answers,
+  ) async {
+    final result = await _functions.httpsCallable('finishPasskeyRecovery').call(
+      {'recoveryId': recoveryId, 'answers': answers},
+    );
+    final customToken = (result.data as Map)['customToken'] as String;
+    final userCredential = await _auth.signInWithCustomToken(customToken);
+    final user = userCredential.user;
+    if (user == null) {
+      throw StateError('アカウントの復旧に失敗しました');
     }
     return user;
   }

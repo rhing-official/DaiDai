@@ -6,8 +6,11 @@ import '../../l10n/strings.dart';
 import '../../providers/repository_providers.dart';
 import '../../repositories/auth_repository.dart';
 import '../../utils/fullwidth_digits_formatter.dart';
+import '../../utils/platform_info.dart';
 import '../../widgets/fixed_font_theme.dart';
 import '../../widgets/google_sign_in_button.dart';
+import 'passkey_recovery_dialog.dart';
+import 'passkey_sign_in_dialog.dart';
 import 'qr_login_dialog.dart';
 
 class SignInScreen extends ConsumerStatefulWidget {
@@ -180,6 +183,33 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
       // 秘密鍵の設定が済むまで実際には使えないため、その設定を行うまでUIから
       // 非表示にしている。AuthRepository.signInWithApple()自体は実装済みなので、
       // 設定が完了したらボタンを復活させるだけでよい。
+      // Rhing ID＋パスキー（WebAuthn）でのログイン・新規アカウント作成
+      // （2026-09-16追加）。Linuxはパスキー非対応のため導線ごと出さない
+      // （`isPasskeyCapablePlatform`参照、当面Google/Appleログインのみ）。
+      if (isPasskeyCapablePlatform) ...[
+        const SizedBox(height: 12),
+        OutlinedButton.icon(
+          onPressed: _isSigningIn
+              ? null
+              : () => PasskeySignInDialog.show(context),
+          icon: const Icon(Icons.key),
+          label: Text(strings.passkeySignInButton),
+        ),
+        const SizedBox(height: 12),
+        TextButton(
+          onPressed: _isSigningIn
+              ? null
+              : () => _signIn((repo) => repo.registerWithPasskey()),
+          child: Text(strings.passkeyCreateAccountButton),
+        ),
+        const SizedBox(height: 4),
+        TextButton(
+          onPressed: _isSigningIn
+              ? null
+              : () => PasskeyRecoveryDialog.show(context),
+          child: Text(strings.passkeyRecoveryLinkLabel),
+        ),
+      ],
       const SizedBox(height: 12),
       TextButton.icon(
         onPressed: () => QrLoginDialog.show(context),

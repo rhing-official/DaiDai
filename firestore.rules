@@ -110,6 +110,31 @@ service cloud.firestore {
         allow write: if false;
       }
 
+      // users/{userId}/passkeyCredentials/{credentialId}: Rhing ID＋パスキー
+      // （WebAuthn）ログインで登録した認証情報（2026-09-16追加）。作成・
+      // カウンタ更新は必ずfinishPasskeyRegistration/finishPasskeyAuthentication
+      // （Cloud Functions、Admin SDK経由）で行うため、クライアントからの
+      // 書き込みは一切禁止する。読み取りのみ本人に許可し、将来のパスキー
+      // 管理UI（settings_tab.dartの「パスキー」項目）で使う。
+      match /passkeyCredentials/{credentialId} {
+        allow read: if request.auth != null && request.auth.uid == userId;
+        allow write: if false;
+      }
+
+      // users/{userId}/secretQuestions/config・users/{userId}/recoveryLockout/state:
+      // パスキー紛失時の復旧用の秘密の質問（bcryptハッシュ）と、復旧試行の
+      // ロックアウト状態（2026-09-16追加）。bcryptハッシュは本人であっても
+      // クライアントに返す必要が無く、passkeyCredentialsより厳格に
+      // 読み取りも含めて一切禁止する（setSecretQuestions/
+      // getSecretQuestionsStatus/beginPasskeyRecovery/finishPasskeyRecovery、
+      // いずれもCloud Functions・Admin SDK経由）。
+      match /secretQuestions/{docId} {
+        allow read, write: if false;
+      }
+      match /recoveryLockout/{docId} {
+        allow read, write: if false;
+      }
+
       // users/{userId}/follows/{creatorId}: daidai横丁でフォローしている
       // クリエイターの一覧（存在＝フォロー中、2026-08-13追加）。集計値
       // （フォロワー数等）は持たないシンプルな設計のため、Cloud Functions
@@ -1324,6 +1349,25 @@ service cloud.firestore {
         && request.resource.data.keys().hasOnly(['status', 'createdAt'])
         && request.resource.data.createdAt == request.time;
       allow update, delete: if false;
+    }
+
+    // passkeyChallenges/{challengeId}: Rhing ID＋パスキー（WebAuthn）の登録/
+    // 認証チャレンジの一時保存（2026-09-16追加）。qrLoginSessionsと異なり
+    // 別端末からのポーリングが不要（同一端末・同一のCloud Functions往復で
+    // 完結する）ため、クライアントからの読み書きは一切許可しない
+    // （beginPasskeyRegistration/finishPasskeyRegistration/
+    // beginPasskeyAuthentication/finishPasskeyAuthentication、いずれも
+    // Admin SDK経由）。
+    match /passkeyChallenges/{challengeId} {
+      allow read, write: if false;
+    }
+
+    // passkeyRecoverySessions/{sessionId}: パスキー紛失時、秘密の質問による
+    // 復旧フローの一時セッション（2026-09-16追加）。passkeyChallengesと同じ
+    // 理由でクライアントからの読み書きは一切許可しない（beginPasskeyRecovery/
+    // finishPasskeyRecovery、いずれもAdmin SDK経由）。
+    match /passkeyRecoverySessions/{sessionId} {
+      allow read, write: if false;
     }
 
     // calls/{callId}: 音声通話（フェーズ1、一対限定）。発信者・着信者本人のみ読み書き可能。

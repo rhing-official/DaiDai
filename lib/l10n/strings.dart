@@ -124,7 +124,6 @@ class Strings {
     required this.settingsAccountInfoSection,
     required this.settingsRhingIdLabel,
     required this.settingsSecurity,
-    required this.settingsPassword,
     required this.settingsTwoFactor,
     required this.twoFactorEnabledStatus,
     required this.twoFactorDisabledStatus,
@@ -147,6 +146,26 @@ class Strings {
     required this.qrLoginExpiredMessage,
     required this.qrLoginRefreshButton,
     required this.qrLoginSignInError,
+    required this.passkeyCreateAccountButton,
+    required this.passkeySignInButton,
+    required this.passkeySignInDialogDescription,
+    required this.passkeySignInDialogRhingIdLabel,
+    required this.passkeySignInDialogSubmitButton,
+    required this.passkeySignInDialogError,
+    required this.passkeyRecoveryLinkLabel,
+    required this.passkeyRecoveryDialogTitle,
+    required this.passkeyRecoveryDialogRhingIdDescription,
+    required this.passkeyRecoveryDialogNextButton,
+    required this.passkeyRecoveryDialogAnswerDescription,
+    required this.passkeyRecoveryDialogSubmitButton,
+    required this.passkeyRecoveryErrorNotFound,
+    required this.passkeyRecoveryErrorNoQuestionsConfigured,
+    required this.passkeyRecoveryErrorLocked,
+    required this.passkeyRecoveryErrorWrongAnswers,
+    required this.passkeyRecoveryErrorGeneric,
+    required this.passkeyRecoveryAddNewPasskeyTitle,
+    required this.passkeyRecoveryAddNewPasskeyDescription,
+    required this.passkeyRecoveryAddNewPasskeyConfirmButton,
     required this.qrLoginScanConfirmTitle,
     required this.qrLoginScanConfirmMessage,
     required this.qrLoginScanConfirmButton,
@@ -155,9 +174,27 @@ class Strings {
     required this.qrLoginScanInstructionMessage,
     required this.qrLoginScanInstructionButton,
     required this.settingsPasskey,
+    required this.passkeyManagementListTitle,
+    required this.passkeyManagementEmptyMessage,
+    required this.passkeyManagementAddButton,
+    required this.passkeyManagementDeleteConfirmTitle,
+    required this.passkeyManagementDeleteConfirmMessage,
+    required this.passkeyManagementDeleteConfirmButton,
+    required this.passkeyManagementLastCredentialWarning,
+    required this.passkeyManagementAddError,
+    required this.passkeyManagementDeleteError,
+    required this.secretQuestionsSectionTitle,
+    required this.secretQuestionsSectionDescription,
+    required this.secretQuestionsStatusConfigured,
+    required this.secretQuestionsStatusNotConfigured,
+    required this.secretQuestionsEditButton,
+    required this.secretQuestionsQuestionLabel,
+    required this.secretQuestionsAnswerLabel,
+    required this.secretQuestionsSaveButton,
+    required this.secretQuestionsSavedMessage,
+    required this.secretQuestionsSaveError,
     required this.settingsQrLogin,
     required this.settingsDeleteAccount,
-    required this.settingsComingSoon,
     required this.settingsSendKeyTitle,
     required this.settingsSendKeyEnterToSend,
     required this.settingsSendKeyCtrlEnterToSend,
@@ -754,7 +791,6 @@ class Strings {
   final String settingsAccountInfoSection;
   final String settingsRhingIdLabel;
   final String settingsSecurity;
-  final String settingsPassword;
   final String settingsTwoFactor;
   final String twoFactorEnabledStatus;
   final String twoFactorDisabledStatus;
@@ -777,6 +813,26 @@ class Strings {
   final String qrLoginExpiredMessage;
   final String qrLoginRefreshButton;
   final String qrLoginSignInError;
+  final String passkeyCreateAccountButton;
+  final String passkeySignInButton;
+  final String passkeySignInDialogDescription;
+  final String passkeySignInDialogRhingIdLabel;
+  final String passkeySignInDialogSubmitButton;
+  final String passkeySignInDialogError;
+  final String passkeyRecoveryLinkLabel;
+  final String passkeyRecoveryDialogTitle;
+  final String passkeyRecoveryDialogRhingIdDescription;
+  final String passkeyRecoveryDialogNextButton;
+  final String passkeyRecoveryDialogAnswerDescription;
+  final String passkeyRecoveryDialogSubmitButton;
+  final String passkeyRecoveryErrorNotFound;
+  final String passkeyRecoveryErrorNoQuestionsConfigured;
+  final String passkeyRecoveryErrorLocked;
+  final String passkeyRecoveryErrorWrongAnswers;
+  final String passkeyRecoveryErrorGeneric;
+  final String passkeyRecoveryAddNewPasskeyTitle;
+  final String passkeyRecoveryAddNewPasskeyDescription;
+  final String passkeyRecoveryAddNewPasskeyConfirmButton;
   final String qrLoginScanConfirmTitle;
   final String qrLoginScanConfirmMessage;
   final String qrLoginScanConfirmButton;
@@ -785,9 +841,27 @@ class Strings {
   final String qrLoginScanInstructionMessage;
   final String qrLoginScanInstructionButton;
   final String settingsPasskey;
+  final String passkeyManagementListTitle;
+  final String passkeyManagementEmptyMessage;
+  final String passkeyManagementAddButton;
+  final String passkeyManagementDeleteConfirmTitle;
+  final String passkeyManagementDeleteConfirmMessage;
+  final String passkeyManagementDeleteConfirmButton;
+  final String passkeyManagementLastCredentialWarning;
+  final String passkeyManagementAddError;
+  final String passkeyManagementDeleteError;
+  final String secretQuestionsSectionTitle;
+  final String secretQuestionsSectionDescription;
+  final String secretQuestionsStatusConfigured;
+  final String secretQuestionsStatusNotConfigured;
+  final String secretQuestionsEditButton;
+  final String secretQuestionsQuestionLabel;
+  final String secretQuestionsAnswerLabel;
+  final String secretQuestionsSaveButton;
+  final String secretQuestionsSavedMessage;
+  final String secretQuestionsSaveError;
   final String settingsQrLogin;
   final String settingsDeleteAccount;
-  final String settingsComingSoon;
   final String settingsSendKeyTitle;
   final String settingsSendKeyEnterToSend;
   final String settingsSendKeyCtrlEnterToSend;
@@ -1586,7 +1660,6 @@ class Strings {
     settingsAccountInfoSection: 'アカウント情報',
     settingsRhingIdLabel: 'Rhing ID',
     settingsSecurity: 'セキュリティ',
-    settingsPassword: 'パスワード',
     settingsTwoFactor: '2段階認証',
     twoFactorEnabledStatus: '有効',
     twoFactorDisabledStatus: '無効',
@@ -1611,6 +1684,26 @@ class Strings {
     qrLoginExpiredMessage: 'QRコードの有効期限が切れました',
     qrLoginRefreshButton: '更新する',
     qrLoginSignInError: 'ログインに失敗しました',
+    passkeyCreateAccountButton: 'Rhing IDでアカウントを作成',
+    passkeySignInButton: 'Rhing IDでログイン',
+    passkeySignInDialogDescription: '登録済みのRhing IDを入力してください。',
+    passkeySignInDialogRhingIdLabel: 'Rhing ID',
+    passkeySignInDialogSubmitButton: 'ログイン',
+    passkeySignInDialogError: 'ログインに失敗しました。Rhing IDまたはパスキーをご確認ください。',
+    passkeyRecoveryLinkLabel: 'パスキーが使えない場合',
+    passkeyRecoveryDialogTitle: 'アカウントの復旧',
+    passkeyRecoveryDialogRhingIdDescription: '登録済みのRhing IDを入力してください。',
+    passkeyRecoveryDialogNextButton: '次へ',
+    passkeyRecoveryDialogAnswerDescription: '以下の質問に回答してください。',
+    passkeyRecoveryDialogSubmitButton: '復旧する',
+    passkeyRecoveryErrorNotFound: 'そのRhing IDのアカウントが見つかりません。',
+    passkeyRecoveryErrorNoQuestionsConfigured: 'このアカウントには復旧手段が設定されていません。',
+    passkeyRecoveryErrorLocked: '試行回数が多すぎます。しばらくしてから再度お試しください。',
+    passkeyRecoveryErrorWrongAnswers: '入力内容が正しくありません。',
+    passkeyRecoveryErrorGeneric: '復旧に失敗しました。',
+    passkeyRecoveryAddNewPasskeyTitle: '新しいパスキーを登録しますか？',
+    passkeyRecoveryAddNewPasskeyDescription: '紛失した端末の代わりに、この端末で新しいパスキーを登録できます。',
+    passkeyRecoveryAddNewPasskeyConfirmButton: '今すぐ登録',
     qrLoginScanConfirmTitle: 'この端末でのログインを許可しますか？',
     qrLoginScanConfirmMessage: '心当たりが無い場合は許可しないでください。',
     qrLoginScanConfirmButton: '許可する',
@@ -1620,9 +1713,28 @@ class Strings {
         '別の端末のサインイン画面で「QRコードでログイン」を開き、表示されたQRコードをこの端末で読み取ります。',
     qrLoginScanInstructionButton: 'スキャンを開始する',
     settingsPasskey: 'パスキー',
+    passkeyManagementListTitle: '登録済みのパスキー',
+    passkeyManagementEmptyMessage: '登録済みのパスキーはありません。',
+    passkeyManagementAddButton: '＋ 新しいパスキーを追加',
+    passkeyManagementDeleteConfirmTitle: 'このパスキーを削除しますか？',
+    passkeyManagementDeleteConfirmMessage: '削除すると、この端末ではパスキーでログインできなくなります。',
+    passkeyManagementDeleteConfirmButton: 'はい',
+    passkeyManagementLastCredentialWarning:
+        '最後のパスキーです。秘密の質問を設定していないと、紛失時にアカウントへアクセスできなくなります。',
+    passkeyManagementAddError: 'パスキーの追加に失敗しました。',
+    passkeyManagementDeleteError: 'パスキーの削除に失敗しました。',
+    secretQuestionsSectionTitle: '秘密の質問',
+    secretQuestionsSectionDescription: 'パスキーが使えなくなった場合、この質問でアカウントを復旧できます。',
+    secretQuestionsStatusConfigured: '設定済み',
+    secretQuestionsStatusNotConfigured: '未設定',
+    secretQuestionsEditButton: '設定・変更する',
+    secretQuestionsQuestionLabel: '質問',
+    secretQuestionsAnswerLabel: '回答',
+    secretQuestionsSaveButton: '保存',
+    secretQuestionsSavedMessage: '秘密の質問を保存しました。',
+    secretQuestionsSaveError: '保存に失敗しました。',
     settingsQrLogin: 'QRコードによるログイン',
     settingsDeleteAccount: 'アカウントを削除',
-    settingsComingSoon: '準備中',
     settingsSendKeyTitle: 'メッセージの送信キー',
     settingsSendKeyEnterToSend: 'Enterで送信、Shift+Enterで改行',
     settingsSendKeyCtrlEnterToSend: 'Enterで改行、Ctrl+Enterで送信',
@@ -2242,7 +2354,6 @@ class Strings {
     settingsAccountInfoSection: 'Account information',
     settingsRhingIdLabel: 'Rhing ID',
     settingsSecurity: 'Security',
-    settingsPassword: 'Password',
     settingsTwoFactor: 'Two-factor authentication',
     twoFactorEnabledStatus: 'Enabled',
     twoFactorDisabledStatus: 'Disabled',
@@ -2271,6 +2382,30 @@ class Strings {
     qrLoginExpiredMessage: 'This QR code has expired',
     qrLoginRefreshButton: 'Refresh',
     qrLoginSignInError: 'Sign-in failed',
+    passkeyCreateAccountButton: 'Create account with Rhing ID',
+    passkeySignInButton: 'Sign in with Rhing ID',
+    passkeySignInDialogDescription: 'Enter your registered Rhing ID.',
+    passkeySignInDialogRhingIdLabel: 'Rhing ID',
+    passkeySignInDialogSubmitButton: 'Sign in',
+    passkeySignInDialogError:
+        'Sign-in failed. Please check your Rhing ID or passkey.',
+    passkeyRecoveryLinkLabel: "Can't use your passkey?",
+    passkeyRecoveryDialogTitle: 'Recover account',
+    passkeyRecoveryDialogRhingIdDescription: 'Enter your registered Rhing ID.',
+    passkeyRecoveryDialogNextButton: 'Next',
+    passkeyRecoveryDialogAnswerDescription: 'Answer the questions below.',
+    passkeyRecoveryDialogSubmitButton: 'Recover account',
+    passkeyRecoveryErrorNotFound: 'No account was found for that Rhing ID.',
+    passkeyRecoveryErrorNoQuestionsConfigured:
+        'This account has no recovery method set up.',
+    passkeyRecoveryErrorLocked: 'Too many attempts. Please try again later.',
+    passkeyRecoveryErrorWrongAnswers: "That doesn't match our records.",
+    passkeyRecoveryErrorGeneric: 'Account recovery failed.',
+    passkeyRecoveryAddNewPasskeyTitle: 'Register a new passkey?',
+    passkeyRecoveryAddNewPasskeyDescription:
+        'You can register a new passkey on this device to replace the one '
+        'you lost.',
+    passkeyRecoveryAddNewPasskeyConfirmButton: 'Register now',
     qrLoginScanConfirmTitle: 'Allow sign-in on this device?',
     qrLoginScanConfirmMessage: "If you don't recognize this, don't allow it.",
     qrLoginScanConfirmButton: 'Allow',
@@ -2281,9 +2416,32 @@ class Strings {
         'QR code", then scan the code it shows with this device.',
     qrLoginScanInstructionButton: 'Start scanning',
     settingsPasskey: 'Passkey',
+    passkeyManagementListTitle: 'Registered passkeys',
+    passkeyManagementEmptyMessage: 'No passkeys are registered yet.',
+    passkeyManagementAddButton: '+ Add a new passkey',
+    passkeyManagementDeleteConfirmTitle: 'Delete this passkey?',
+    passkeyManagementDeleteConfirmMessage:
+        "You won't be able to sign in with this device's passkey anymore.",
+    passkeyManagementDeleteConfirmButton: 'Yes',
+    passkeyManagementLastCredentialWarning:
+        "This is your last passkey. Without secret questions set up, you "
+        "won't be able to recover this account if you lose it.",
+    passkeyManagementAddError: 'Failed to add the passkey.',
+    passkeyManagementDeleteError: 'Failed to delete the passkey.',
+    secretQuestionsSectionTitle: 'Secret questions',
+    secretQuestionsSectionDescription:
+        'If you lose access to your passkey, you can recover your account '
+        'with these questions.',
+    secretQuestionsStatusConfigured: 'Set up',
+    secretQuestionsStatusNotConfigured: 'Not set up',
+    secretQuestionsEditButton: 'Set up / change',
+    secretQuestionsQuestionLabel: 'Question',
+    secretQuestionsAnswerLabel: 'Answer',
+    secretQuestionsSaveButton: 'Save',
+    secretQuestionsSavedMessage: 'Secret questions saved.',
+    secretQuestionsSaveError: 'Failed to save.',
     settingsQrLogin: 'Sign in with a QR code',
     settingsDeleteAccount: 'Delete account',
-    settingsComingSoon: 'Coming soon',
     settingsSendKeyTitle: 'Message send key',
     settingsSendKeyEnterToSend: 'Enter to send, Shift+Enter for a new line',
     settingsSendKeyCtrlEnterToSend: 'Enter for a new line, Ctrl+Enter to send',
