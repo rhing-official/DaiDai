@@ -84,6 +84,10 @@ dependencies:
   flutter_secure_storage: ^11.1.0
   package_info_plus: ^10.2.1
   gal: ^2.3.3
+  # Rhing ID＋パスキー（WebAuthn）ログイン（2026-09-16追加）。対応プラットフォームは
+  # Web/Android/iOS/macOS/Windowsの5つ、Linuxは非対応（lib/utils/platform_info.dartの
+  # isPasskeyCapablePlatform参照）。
+  passkeys: ^2.23.1
 
 dev_dependencies:
   flutter_test:

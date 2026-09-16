@@ -13,8 +13,16 @@ import {
 } from "firebase-admin/firestore";
 import { getMessaging } from "firebase-admin/messaging";
 import { getStorage } from "firebase-admin/storage";
+import {
+  type AuthenticatorTransportFuture,
+  generateAuthenticationOptions,
+  generateRegistrationOptions,
+  verifyAuthenticationResponse,
+  verifyRegistrationResponse,
+} from "@simplewebauthn/server";
+import bcrypt from "bcryptjs";
 import { logger } from "firebase-functions";
-import { defineSecret } from "firebase-functions/params";
+import { defineSecret, defineString } from "firebase-functions/params";
 import {
   onDocumentCreated,
   onDocumentWritten,
@@ -465,6 +473,762 @@ export const cleanupQrLoginSessions = onSchedule(
     const cutoff = Timestamp.fromMillis(Date.now() - QR_LOGIN_SESSION_TTL_MS);
     const snapshot = await db
       .collection("qrLoginSessions")
+      .where("createdAt", "<", cutoff)
+      .get();
+    const writer = new ChunkedWriter();
+    for (const doc of snapshot.docs) {
+      await writer.delete(doc.ref);
+    }
+    await writer.commit();
+  },
+);
+
+// ---------------------------------------------------------------------
+// パスキー（WebAuthn）によるRhing IDログイン・新規アカウント作成
+// （2026-09-16実装。CLAUDE.md「ログイン手段の方針」の将来検討事項として
+// 構想されていた「Rhing ID＋パスキー」の実装。メールアドレス・電話番号を
+// 一切使わず、DaiDai自身がWebAuthnのRelying Partyになる）。
+//
+// QRコードログイン（claimQrLoginSession等、上記）と同じ「独自検証→
+// admin.auth().createCustomToken(uid)発行→クライアントでsignInWithCustomToken」
+// という型を踏襲する。クライアント側の実装は
+// `lib/repositories/auth_repository.dart`の`registerWithPasskey`/
+// `signInWithPasskey`参照。
+//
+// 対象プラットフォームはWeb/Android/iOS/macOS/Windowsの5つ（Linuxはパスキー
+// 非対応、`lib/utils/platform_info.dart`の`isPasskeyCapablePlatform`で
+// 導線ごと非表示にする）。パスキー紛失時の復旧（秘密の質問）・複数パスキー
+// 管理（追加登録・一覧・削除）は2026-09-16に追加実装した（本セクション後半）。
+// ---------------------------------------------------------------------
+
+// RPドメイン・許可オリジンは非シークレット値のため`defineSecret`ではなく
+// `defineString`で管理する。本番ドメイン確定後にデプロイ時のパラメータ
+// 入力（または`.env`）で値を設定する。開発中はデフォルト値のまま
+// Web版（localhost）で動作確認できる。
+const passkeyRpId = defineString("PASSKEY_RP_ID", { default: "localhost" });
+const passkeyAllowedOrigins = defineString("PASSKEY_ALLOWED_ORIGINS", {
+  default: "http://localhost:8765",
+});
+
+function getPasskeyAllowedOrigins(): string[] {
+  return passkeyAllowedOrigins
+    .value()
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter((origin) => origin.length > 0);
+}
+
+const PASSKEY_CHALLENGE_TTL_MS = 5 * 60 * 1000;
+
+/**
+ * チャレンジドキュメントを取得し、種別とTTLを検証したうえで即座に削除する
+ * （検証前に消費することで、同じchallengeIdでの二重呼び出し・リプレイの
+ * 余地を最小化する）。戻り値はチャレンジに紐づく`uid`と`challenge`文字列。
+ */
+async function consumePasskeyChallenge(
+  challengeId: string,
+  expectedType: "registration" | "authentication" | "addCredential",
+): Promise<{ uid: string; challenge: string }> {
+  const challengeRef = db.collection("passkeyChallenges").doc(challengeId);
+  const challengeDoc = await challengeRef.get();
+  if (!challengeDoc.exists) {
+    throw new HttpsError("not-found", "チャレンジが見つかりません");
+  }
+  const data = challengeDoc.data()!;
+  await challengeRef.delete();
+  if (data.type !== expectedType) {
+    throw new HttpsError("failed-precondition", "不正なチャレンジです");
+  }
+  const createdAt = data.createdAt as Timestamp | undefined;
+  if (
+    !createdAt ||
+    Date.now() - createdAt.toMillis() > PASSKEY_CHALLENGE_TTL_MS
+  ) {
+    throw new HttpsError("deadline-exceeded", "チャレンジの有効期限が切れています");
+  }
+  return { uid: data.uid as string, challenge: data.challenge as string };
+}
+
+/**
+ * Rhing ID＋パスキーによる新規アカウント作成の第1段階
+ * （`AuthRepository.registerWithPasskey`から呼ぶ）。まだFirebase Auth
+ * ユーザーは作らず、WebAuthnのregistration challengeだけを発行する
+ * （実際のユーザー作成は`finishPasskeyRegistration`で行う）。
+ */
+export const beginPasskeyRegistration = onCall(
+  { region: "asia-northeast1" },
+  async () => {
+    const uid = randomUUID();
+    const options = await generateRegistrationOptions({
+      rpName: "DaiDai",
+      rpID: passkeyRpId.value(),
+      userName: uid,
+      userID: Buffer.from(uid, "utf8"),
+      attestationType: "none",
+      authenticatorSelection: {
+        residentKey: "preferred",
+        userVerification: "required",
+      },
+    });
+    const challengeRef = await db.collection("passkeyChallenges").add({
+      type: "registration",
+      uid,
+      challenge: options.challenge,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    return { challengeId: challengeRef.id, options };
+  },
+);
+
+/**
+ * 新規アカウント作成の第2段階。デバイスで生成されたattestationResponseを
+ * 検証し、成功したらFirebase Authユーザーを新規作成してカスタムトークンを
+ * 返す。この時点ではFirestoreに`users/{uid}`ドキュメントはまだ作らない
+ * （Google/Apple/QRログインと同じく、`AuthGate`がTermsConsentScreen→
+ * RhingIdSetupScreenへ自然に遷移させるのに任せる設計）。
+ */
+export const finishPasskeyRegistration = onCall(
+  { region: "asia-northeast1" },
+  async (request) => {
+    const challengeId = request.data?.challengeId;
+    const attestationResponse = request.data?.attestationResponse;
+    if (
+      typeof challengeId !== "string" ||
+      !challengeId ||
+      !attestationResponse
+    ) {
+      throw new HttpsError(
+        "invalid-argument",
+        "challengeId/attestationResponseが必要です",
+      );
+    }
+    const { uid, challenge } = await consumePasskeyChallenge(
+      challengeId,
+      "registration",
+    );
+
+    let verification;
+    try {
+      verification = await verifyRegistrationResponse({
+        response: attestationResponse,
+        expectedChallenge: challenge,
+        expectedOrigin: getPasskeyAllowedOrigins(),
+        expectedRPID: passkeyRpId.value(),
+      });
+    } catch (error) {
+      logger.warn("パスキー登録の検証に失敗", error);
+      throw new HttpsError("invalid-argument", "パスキーの検証に失敗しました");
+    }
+    if (!verification.verified || !verification.registrationInfo) {
+      throw new HttpsError("invalid-argument", "パスキーの検証に失敗しました");
+    }
+
+    const { credential, credentialDeviceType, credentialBackedUp } =
+      verification.registrationInfo;
+
+    await getAuth().createUser({ uid });
+    await db
+      .collection("users")
+      .doc(uid)
+      .collection("passkeyCredentials")
+      .doc(credential.id)
+      .set({
+        publicKey: Buffer.from(credential.publicKey),
+        counter: credential.counter,
+        transports: credential.transports ?? [],
+        deviceType: credentialDeviceType,
+        backedUp: credentialBackedUp,
+        createdAt: FieldValue.serverTimestamp(),
+        lastUsedAt: null,
+      });
+
+    const customToken = await getAuth().createCustomToken(uid);
+    return { customToken };
+  },
+);
+
+/**
+ * Rhing ID＋パスキーでのログインの第1段階（`AuthRepository.signInWithPasskey`
+ * から呼ぶ）。指定されたRhing IDに登録済みのパスキーでauthentication
+ * challengeを発行する。
+ */
+export const beginPasskeyAuthentication = onCall(
+  { region: "asia-northeast1" },
+  async (request) => {
+    const rhingId = request.data?.rhingId;
+    if (typeof rhingId !== "string" || !rhingId) {
+      throw new HttpsError("invalid-argument", "rhingIdが必要です");
+    }
+    const usersSnapshot = await db
+      .collection("users")
+      .where("rhingId", "==", rhingId.toLowerCase())
+      .limit(1)
+      .get();
+    if (usersSnapshot.empty) {
+      throw new HttpsError(
+        "not-found",
+        "そのRhing IDのアカウントが見つかりません",
+      );
+    }
+    const uid = usersSnapshot.docs[0].id;
+    const credentialsSnapshot = await db
+      .collection("users")
+      .doc(uid)
+      .collection("passkeyCredentials")
+      .get();
+    if (credentialsSnapshot.empty) {
+      throw new HttpsError(
+        "failed-precondition",
+        "このアカウントにはパスキーが登録されていません",
+      );
+    }
+    const allowCredentials = credentialsSnapshot.docs.map((doc) => ({
+      id: doc.id,
+      transports: (doc.data().transports ??
+        []) as AuthenticatorTransportFuture[],
+    }));
+    const options = await generateAuthenticationOptions({
+      rpID: passkeyRpId.value(),
+      allowCredentials,
+      userVerification: "required",
+    });
+    const challengeRef = await db.collection("passkeyChallenges").add({
+      type: "authentication",
+      uid,
+      challenge: options.challenge,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    return { challengeId: challengeRef.id, options };
+  },
+);
+
+/**
+ * ログインの第2段階。assertionResponseを検証し、成功したらカスタムトークンを
+ * 返す。
+ */
+export const finishPasskeyAuthentication = onCall(
+  { region: "asia-northeast1" },
+  async (request) => {
+    const challengeId = request.data?.challengeId;
+    const assertionResponse = request.data?.assertionResponse;
+    if (
+      typeof challengeId !== "string" ||
+      !challengeId ||
+      !assertionResponse
+    ) {
+      throw new HttpsError(
+        "invalid-argument",
+        "challengeId/assertionResponseが必要です",
+      );
+    }
+    const { uid, challenge } = await consumePasskeyChallenge(
+      challengeId,
+      "authentication",
+    );
+    const credentialId = assertionResponse.id as string | undefined;
+    if (!credentialId) {
+      throw new HttpsError("invalid-argument", "不正なパスキー応答です");
+    }
+    const credentialRef = db
+      .collection("users")
+      .doc(uid)
+      .collection("passkeyCredentials")
+      .doc(credentialId);
+    const credentialDoc = await credentialRef.get();
+    if (!credentialDoc.exists) {
+      throw new HttpsError("not-found", "パスキーが見つかりません");
+    }
+    const credentialData = credentialDoc.data()!;
+
+    let verification;
+    try {
+      verification = await verifyAuthenticationResponse({
+        response: assertionResponse,
+        expectedChallenge: challenge,
+        expectedOrigin: getPasskeyAllowedOrigins(),
+        expectedRPID: passkeyRpId.value(),
+        credential: {
+          id: credentialId,
+          publicKey: new Uint8Array(credentialData.publicKey as Buffer),
+          counter: credentialData.counter as number,
+          transports:
+            credentialData.transports as AuthenticatorTransportFuture[],
+        },
+      });
+    } catch (error) {
+      logger.warn("パスキー認証の検証に失敗", error);
+      throw new HttpsError("invalid-argument", "パスキーの検証に失敗しました");
+    }
+    if (!verification.verified) {
+      throw new HttpsError("invalid-argument", "パスキーの検証に失敗しました");
+    }
+
+    await credentialRef.update({
+      counter: verification.authenticationInfo.newCounter,
+      lastUsedAt: FieldValue.serverTimestamp(),
+    });
+
+    const customToken = await getAuth().createCustomToken(uid);
+    return { customToken };
+  },
+);
+
+/**
+ * 期限切れの`passkeyChallenges`を定期的に掃除する（`cleanupQrLoginSessions`と
+ * 同じパターン。`consumePasskeyChallenge`が検証のたびに即削除するため
+ * セキュリティ上必須ではないが、途中で放棄されたチャレンジのゴミを
+ * 掃除する衛生用ジョブ）。
+ */
+export const cleanupPasskeyChallenges = onSchedule(
+  { schedule: "every 60 minutes", region: "asia-northeast1" },
+  async () => {
+    const cutoff = Timestamp.fromMillis(Date.now() - PASSKEY_CHALLENGE_TTL_MS);
+    const snapshot = await db
+      .collection("passkeyChallenges")
+      .where("createdAt", "<", cutoff)
+      .get();
+    const writer = new ChunkedWriter();
+    for (const doc of snapshot.docs) {
+      await writer.delete(doc.ref);
+    }
+    await writer.commit();
+  },
+);
+
+// -----------------------------------------------------------------------
+// パスキー紛失時の復旧（秘密の質問）・複数パスキー管理（2026-09-16追加）。
+// 秘密の質問の回答はbcryptjsでハッシュ化し、`users/{uid}/secretQuestions/
+// config`（Cloud Functions・Admin SDK経由の書き込み・読み取りのみ、
+// firestore.rulesで`allow read, write: if false`）に保存する。CLAUDE.mdが
+// 想定していた「Userモデルのフィールド」ではなく保護されたサブコレクションに
+// した理由は、`users/{userId}`ドキュメント自体はログイン済みなら誰でも
+// 読める設計（`allow read: if request.auth != null`）のため、直接載せると
+// bcryptハッシュが他の住人から読める状態になってしまうため。
+// -----------------------------------------------------------------------
+
+/**
+ * 秘密の質問の回答を比較・保存用に正規化する（前後空白除去＋小文字化）。
+ * 表記ゆれの許容はこの最小限に留める。
+ */
+function normalizeSecretAnswer(answer: string): string {
+  return answer.trim().toLowerCase();
+}
+
+const PASSKEY_RECOVERY_TTL_MS = 10 * 60 * 1000;
+const RECOVERY_LOCKOUT_MAX_ATTEMPTS = 5;
+const RECOVERY_LOCKOUT_DURATION_MS = 15 * 60 * 1000;
+
+/**
+ * 秘密の質問（3問固定）を設定・更新する（本人のみ）。既存の設定がある場合も
+ * 3問まるごと置き換える。回答は正規化した上でbcryptハッシュ化し、平文は
+ * 一切保持しない。
+ */
+export const setSecretQuestions = onCall(
+  { region: "asia-northeast1" },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "ログインが必要です");
+    }
+    const questions = request.data?.questions;
+    if (
+      !Array.isArray(questions) ||
+      questions.length !== 3 ||
+      questions.some(
+        (q) =>
+          typeof q?.question !== "string" ||
+          !q.question.trim() ||
+          typeof q?.answer !== "string" ||
+          !q.answer.trim(),
+      )
+    ) {
+      throw new HttpsError(
+        "invalid-argument",
+        "質問・回答の組を3つ指定してください",
+      );
+    }
+    const hashed = await Promise.all(
+      questions.map(async (q) => ({
+        question: (q.question as string).trim(),
+        answerHash: await bcrypt.hash(
+          normalizeSecretAnswer(q.answer as string),
+          10,
+        ),
+      })),
+    );
+    await db
+      .collection("users")
+      .doc(request.auth.uid)
+      .collection("secretQuestions")
+      .doc("config")
+      .set({ questions: hashed, updatedAt: FieldValue.serverTimestamp() });
+    return { success: true };
+  },
+);
+
+/**
+ * 秘密の質問の設定状況のみを返す（ハッシュ自体は返さない）。設定画面の
+ * パスキー管理UIで使う。
+ */
+export const getSecretQuestionsStatus = onCall(
+  { region: "asia-northeast1" },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "ログインが必要です");
+    }
+    const doc = await db
+      .collection("users")
+      .doc(request.auth.uid)
+      .collection("secretQuestions")
+      .doc("config")
+      .get();
+    if (!doc.exists) {
+      return { configured: false, updatedAt: null };
+    }
+    const updatedAt = doc.data()?.updatedAt as Timestamp | undefined;
+    return { configured: true, updatedAt: updatedAt?.toMillis() ?? null };
+  },
+);
+
+/**
+ * 登録済みパスキーの一覧を返す（公開鍵・カウンタ等の機微情報は含めない）。
+ */
+export const listPasskeyCredentials = onCall(
+  { region: "asia-northeast1" },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "ログインが必要です");
+    }
+    const snapshot = await db
+      .collection("users")
+      .doc(request.auth.uid)
+      .collection("passkeyCredentials")
+      .get();
+    return {
+      credentials: snapshot.docs.map((doc) => {
+        const data = doc.data();
+        const createdAt = data.createdAt as Timestamp | undefined;
+        const lastUsedAt = data.lastUsedAt as Timestamp | undefined;
+        return {
+          id: doc.id,
+          deviceType: data.deviceType as string,
+          backedUp: data.backedUp as boolean,
+          createdAt: createdAt?.toMillis() ?? null,
+          lastUsedAt: lastUsedAt?.toMillis() ?? null,
+        };
+      }),
+    };
+  },
+);
+
+/**
+ * ログイン中のアカウントに追加のパスキーを登録する第1段階。
+ * `beginPasskeyRegistration`と異なり新規uidは発行せず`request.auth.uid`に
+ * 対してチャレンジを発行し、既存の登録済みクレデンシャルを
+ * `excludeCredentials`で除外することで同じ認証器の重複登録を防ぐ。
+ */
+export const beginAddPasskey = onCall(
+  { region: "asia-northeast1" },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "ログインが必要です");
+    }
+    const uid = request.auth.uid;
+    const existingSnapshot = await db
+      .collection("users")
+      .doc(uid)
+      .collection("passkeyCredentials")
+      .get();
+    const excludeCredentials = existingSnapshot.docs.map((doc) => ({
+      id: doc.id,
+      transports: (doc.data().transports ??
+        []) as AuthenticatorTransportFuture[],
+    }));
+    const options = await generateRegistrationOptions({
+      rpName: "DaiDai",
+      rpID: passkeyRpId.value(),
+      userName: uid,
+      userID: Buffer.from(uid, "utf8"),
+      attestationType: "none",
+      excludeCredentials,
+      authenticatorSelection: {
+        residentKey: "preferred",
+        userVerification: "required",
+      },
+    });
+    const challengeRef = await db.collection("passkeyChallenges").add({
+      type: "addCredential",
+      uid,
+      challenge: options.challenge,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    return { challengeId: challengeRef.id, options };
+  },
+);
+
+/**
+ * 追加パスキー登録の第2段階。`finishPasskeyRegistration`と異なり
+ * Firebase Authユーザーの新規作成・カスタムトークン発行は行わず、
+ * 既にログイン中のアカウントへクレデンシャルを追加するだけ。
+ */
+export const finishAddPasskey = onCall(
+  { region: "asia-northeast1" },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "ログインが必要です");
+    }
+    const challengeId = request.data?.challengeId;
+    const attestationResponse = request.data?.attestationResponse;
+    if (
+      typeof challengeId !== "string" ||
+      !challengeId ||
+      !attestationResponse
+    ) {
+      throw new HttpsError(
+        "invalid-argument",
+        "challengeId/attestationResponseが必要です",
+      );
+    }
+    const { uid, challenge } = await consumePasskeyChallenge(
+      challengeId,
+      "addCredential",
+    );
+    if (uid !== request.auth.uid) {
+      throw new HttpsError("permission-denied", "不正なチャレンジです");
+    }
+
+    let verification;
+    try {
+      verification = await verifyRegistrationResponse({
+        response: attestationResponse,
+        expectedChallenge: challenge,
+        expectedOrigin: getPasskeyAllowedOrigins(),
+        expectedRPID: passkeyRpId.value(),
+      });
+    } catch (error) {
+      logger.warn("パスキー追加登録の検証に失敗", error);
+      throw new HttpsError("invalid-argument", "パスキーの検証に失敗しました");
+    }
+    if (!verification.verified || !verification.registrationInfo) {
+      throw new HttpsError("invalid-argument", "パスキーの検証に失敗しました");
+    }
+
+    const { credential, credentialDeviceType, credentialBackedUp } =
+      verification.registrationInfo;
+    await db
+      .collection("users")
+      .doc(uid)
+      .collection("passkeyCredentials")
+      .doc(credential.id)
+      .set({
+        publicKey: Buffer.from(credential.publicKey),
+        counter: credential.counter,
+        transports: credential.transports ?? [],
+        deviceType: credentialDeviceType,
+        backedUp: credentialBackedUp,
+        createdAt: FieldValue.serverTimestamp(),
+        lastUsedAt: null,
+      });
+    return { success: true };
+  },
+);
+
+/**
+ * 登録済みパスキーを削除する（本人の分のみ）。
+ */
+export const deletePasskeyCredential = onCall(
+  { region: "asia-northeast1" },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "ログインが必要です");
+    }
+    const credentialId = request.data?.credentialId;
+    if (typeof credentialId !== "string" || !credentialId) {
+      throw new HttpsError("invalid-argument", "credentialIdが必要です");
+    }
+    await db
+      .collection("users")
+      .doc(request.auth.uid)
+      .collection("passkeyCredentials")
+      .doc(credentialId)
+      .delete();
+    return { success: true };
+  },
+);
+
+/**
+ * パスキー紛失時の復旧フロー第1段階。指定されたRhing IDのアカウントに
+ * 秘密の質問が設定されていれば、質問文（ハッシュは含まない）を返す。
+ * ロックアウト中は`resource-exhausted`で拒否する。
+ */
+export const beginPasskeyRecovery = onCall(
+  { region: "asia-northeast1" },
+  async (request) => {
+    const rhingId = request.data?.rhingId;
+    if (typeof rhingId !== "string" || !rhingId) {
+      throw new HttpsError("invalid-argument", "rhingIdが必要です");
+    }
+    const usersSnapshot = await db
+      .collection("users")
+      .where("rhingId", "==", rhingId.toLowerCase())
+      .limit(1)
+      .get();
+    if (usersSnapshot.empty) {
+      throw new HttpsError(
+        "not-found",
+        "そのRhing IDのアカウントが見つかりません",
+      );
+    }
+    const uid = usersSnapshot.docs[0].id;
+
+    const lockoutRef = db
+      .collection("users")
+      .doc(uid)
+      .collection("recoveryLockout")
+      .doc("state");
+    const lockoutDoc = await lockoutRef.get();
+    const lockedUntil = lockoutDoc.data()?.lockedUntil as
+      | Timestamp
+      | undefined;
+    if (lockedUntil && lockedUntil.toMillis() > Date.now()) {
+      throw new HttpsError(
+        "resource-exhausted",
+        "試行回数が多すぎます。しばらくしてから再度お試しください",
+      );
+    }
+
+    const questionsDoc = await db
+      .collection("users")
+      .doc(uid)
+      .collection("secretQuestions")
+      .doc("config")
+      .get();
+    if (!questionsDoc.exists) {
+      throw new HttpsError(
+        "failed-precondition",
+        "このアカウントには復旧手段が設定されていません",
+      );
+    }
+    const questions = (
+      questionsDoc.data()!.questions as { question: string }[]
+    ).map((q) => q.question);
+
+    const sessionRef = await db.collection("passkeyRecoverySessions").add({
+      uid,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    return { recoveryId: sessionRef.id, questions };
+  },
+);
+
+/**
+ * 復旧フロー第2段階。3問すべての回答が一致すればカスタムトークンを返す
+ * （ユーザー確認済みの判定基準）。失敗時はロックアウトカウンタを進め、
+ * 規定回数（5回）に達すると15分間ロックする。どの問いが誤りかは応答に
+ * 含めない。
+ */
+export const finishPasskeyRecovery = onCall(
+  { region: "asia-northeast1" },
+  async (request) => {
+    const recoveryId = request.data?.recoveryId;
+    const answers = request.data?.answers;
+    if (
+      typeof recoveryId !== "string" ||
+      !recoveryId ||
+      !Array.isArray(answers) ||
+      answers.length !== 3 ||
+      answers.some((a) => typeof a !== "string")
+    ) {
+      throw new HttpsError("invalid-argument", "recoveryId/answersが必要です");
+    }
+
+    const sessionRef = db
+      .collection("passkeyRecoverySessions")
+      .doc(recoveryId);
+    const sessionDoc = await sessionRef.get();
+    if (!sessionDoc.exists) {
+      throw new HttpsError("not-found", "セッションが見つかりません");
+    }
+    const sessionData = sessionDoc.data()!;
+    await sessionRef.delete();
+    const createdAt = sessionData.createdAt as Timestamp | undefined;
+    if (
+      !createdAt ||
+      Date.now() - createdAt.toMillis() > PASSKEY_RECOVERY_TTL_MS
+    ) {
+      throw new HttpsError(
+        "deadline-exceeded",
+        "セッションの有効期限が切れています",
+      );
+    }
+    const uid = sessionData.uid as string;
+
+    const lockoutRef = db
+      .collection("users")
+      .doc(uid)
+      .collection("recoveryLockout")
+      .doc("state");
+
+    const questionsDoc = await db
+      .collection("users")
+      .doc(uid)
+      .collection("secretQuestions")
+      .doc("config")
+      .get();
+    if (!questionsDoc.exists) {
+      throw new HttpsError(
+        "failed-precondition",
+        "このアカウントには復旧手段が設定されていません",
+      );
+    }
+    const storedQuestions = questionsDoc.data()!.questions as {
+      answerHash: string;
+    }[];
+
+    const results = await Promise.all(
+      storedQuestions.map((q, i) =>
+        bcrypt.compare(normalizeSecretAnswer(answers[i] as string), q.answerHash),
+      ),
+    );
+    const allCorrect = results.every((r) => r);
+
+    if (!allCorrect) {
+      await db.runTransaction(async (tx) => {
+        const lockoutDoc = await tx.get(lockoutRef);
+        const failedAttempts =
+          ((lockoutDoc.data()?.failedAttempts as number | undefined) ?? 0) +
+          1;
+        if (failedAttempts >= RECOVERY_LOCKOUT_MAX_ATTEMPTS) {
+          tx.set(lockoutRef, {
+            failedAttempts: 0,
+            lockedUntil: Timestamp.fromMillis(
+              Date.now() + RECOVERY_LOCKOUT_DURATION_MS,
+            ),
+          });
+        } else {
+          tx.set(lockoutRef, { failedAttempts, lockedUntil: null });
+        }
+      });
+      throw new HttpsError("invalid-argument", "入力内容が正しくありません");
+    }
+
+    await lockoutRef.delete();
+    const customToken = await getAuth().createCustomToken(uid);
+    return { customToken };
+  },
+);
+
+/**
+ * 期限切れの`passkeyRecoverySessions`を定期的に掃除する
+ * （`cleanupPasskeyChallenges`と同じパターン）。
+ */
+export const cleanupPasskeyRecoverySessions = onSchedule(
+  { schedule: "every 60 minutes", region: "asia-northeast1" },
+  async () => {
+    const cutoff = Timestamp.fromMillis(
+      Date.now() - PASSKEY_RECOVERY_TTL_MS,
+    );
+    const snapshot = await db
+      .collection("passkeyRecoverySessions")
       .where("createdAt", "<", cutoff)
       .get();
     const writer = new ChunkedWriter();

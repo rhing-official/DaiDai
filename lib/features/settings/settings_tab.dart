@@ -68,6 +68,7 @@ import '../auth/two_factor_setup_dialog.dart';
 import '../chat/announcement_screen.dart';
 import '../chat/group_member_list_screen.dart';
 import 'owned_sticker_packs_popup.dart';
+import 'passkey_management_dialog.dart';
 import 'settings_accordion_section.dart';
 
 /// 画面幅がこれ以上あれば、左にカテゴリ一覧（サイドバー）、右にそのカテゴリの
@@ -1267,14 +1268,10 @@ class _AccountPage extends ConsumerWidget {
         ),
         const Divider(height: 24),
         _SectionHeader(strings.settingsSecurity),
-        _InfoRow(
-          label: strings.settingsPassword,
-          value: strings.settingsComingSoon,
-        ),
         _TwoFactorRow(strings: strings, rhingId: currentUser.rhingId),
-        _InfoRow(
+        _ActionRow(
           label: strings.settingsPasskey,
-          value: strings.settingsComingSoon,
+          onTap: () => PasskeyManagementDialog.show(context),
         ),
         _QrLoginRow(strings: strings),
         const Divider(height: 24),
