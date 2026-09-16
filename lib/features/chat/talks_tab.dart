@@ -1403,6 +1403,8 @@ class _TalksTabState extends ConsumerState<TalksTab>
               currentUser: widget.currentUser,
               dm: dm,
               unreadCount: prefsById[dm.dmId]?.unreadCount ?? 0,
+              pinned: prefsById[dm.dmId]?.pinned ?? false,
+              muted: prefsById[dm.dmId]?.notificationsMuted ?? false,
               selected: _selectedDm?.dmId == dm.dmId,
               onTap: () => _openDirectMessage(dm),
             ),
@@ -1427,8 +1429,11 @@ class _TalksTabState extends ConsumerState<TalksTab>
             ),
           for (final group in sortedGroups)
             _GroupIconTile(
+              currentUserId: widget.currentUser.userId,
               group: group,
               unreadCount: prefsById[group.groupId]?.unreadCount ?? 0,
+              pinned: prefsById[group.groupId]?.pinned ?? false,
+              muted: prefsById[group.groupId]?.notificationsMuted ?? false,
               selected: _selectedGroup?.groupId == group.groupId,
               onTap: () => _openGroup(group),
             ),
@@ -1528,12 +1533,18 @@ class _TalksTabState extends ConsumerState<TalksTab>
                       currentUser: widget.currentUser,
                       dm: dm,
                       unreadCount: prefsById[dm.dmId]?.unreadCount ?? 0,
+                      pinned: prefsById[dm.dmId]?.pinned ?? false,
+                      muted: prefsById[dm.dmId]?.notificationsMuted ?? false,
                       selected: _selectedDm?.dmId == dm.dmId,
                       onTap: () => _openDirectMessage(dm),
                     ),
                     groupTileBuilder: (context, group) => _GroupIconTile(
+                      currentUserId: widget.currentUser.userId,
                       group: group,
                       unreadCount: prefsById[group.groupId]?.unreadCount ?? 0,
+                      pinned: prefsById[group.groupId]?.pinned ?? false,
+                      muted:
+                          prefsById[group.groupId]?.notificationsMuted ?? false,
                       selected: _selectedGroup?.groupId == group.groupId,
                       onTap: () => _openGroup(group),
                     ),
@@ -2757,6 +2768,8 @@ class _DirectMessageIconTile extends ConsumerWidget {
     required this.currentUser,
     required this.dm,
     required this.unreadCount,
+    required this.pinned,
+    required this.muted,
     required this.selected,
     required this.onTap,
   });
@@ -2764,6 +2777,8 @@ class _DirectMessageIconTile extends ConsumerWidget {
   final AppUser currentUser;
   final DirectMessage dm;
   final int unreadCount;
+  final bool pinned;
+  final bool muted;
   final bool selected;
   final VoidCallback onTap;
 
@@ -2776,6 +2791,8 @@ class _DirectMessageIconTile extends ConsumerWidget {
     final isGlass = ref.watch(appUiStyleProvider) == AppUiStyle.glass;
     final colorScheme = Theme.of(context).colorScheme;
     return _ConversationIconTile(
+      conversationId: dm.dmId,
+      userId: currentUser.userId,
       avatar: isGlass
           ? GlassAvatar(
               size: 40,
@@ -2792,6 +2809,8 @@ class _DirectMessageIconTile extends ConsumerWidget {
             ),
       label: label,
       unreadCount: unreadCount,
+      pinned: pinned,
+      muted: muted,
       selected: selected,
       onTap: onTap,
     );
@@ -2802,14 +2821,20 @@ class _DirectMessageIconTile extends ConsumerWidget {
 /// 同じ構成の広場版。
 class _GroupIconTile extends ConsumerWidget {
   const _GroupIconTile({
+    required this.currentUserId,
     required this.group,
     required this.unreadCount,
+    required this.pinned,
+    required this.muted,
     required this.selected,
     required this.onTap,
   });
 
+  final String currentUserId;
   final Group group;
   final int unreadCount;
+  final bool pinned;
+  final bool muted;
   final bool selected;
   final VoidCallback onTap;
 
@@ -2819,6 +2844,8 @@ class _GroupIconTile extends ConsumerWidget {
     final isGlass = ref.watch(appUiStyleProvider) == AppUiStyle.glass;
     final colorScheme = Theme.of(context).colorScheme;
     return _ConversationIconTile(
+      conversationId: group.groupId,
+      userId: currentUserId,
       avatar: isGlass
           ? GlassAvatar(
               size: 40,
@@ -2835,6 +2862,8 @@ class _GroupIconTile extends ConsumerWidget {
             ),
       label: group.name,
       unreadCount: unreadCount,
+      pinned: pinned,
+      muted: muted,
       selected: selected,
       onTap: onTap,
     );
@@ -2847,85 +2876,101 @@ class _GroupIconTile extends ConsumerWidget {
 /// テーマ側で調整済み）にそのまま追従する簡易実装。
 class _ConversationIconTile extends StatelessWidget {
   const _ConversationIconTile({
+    required this.conversationId,
+    required this.userId,
     required this.avatar,
     required this.label,
     required this.unreadCount,
+    required this.pinned,
+    required this.muted,
     required this.selected,
     required this.onTap,
   });
 
+  final String conversationId;
+  final String userId;
   final Widget avatar;
   final String label;
   final int unreadCount;
+  final bool pinned;
+  final bool muted;
   final bool selected;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    return InkWell(
-      borderRadius: BorderRadius.circular(12),
-      onTap: onTap,
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-        decoration: BoxDecoration(
-          color: selected ? colorScheme.primary.withValues(alpha: 0.18) : null,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Stack(
-              clipBehavior: Clip.none,
-              children: [
-                avatar,
-                if (unreadCount > 0)
-                  Positioned(
-                    right: -4,
-                    top: -4,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 5,
-                        vertical: 1,
-                      ),
-                      constraints: const BoxConstraints(
-                        minWidth: 16,
-                        minHeight: 16,
-                      ),
-                      decoration: BoxDecoration(
-                        // CLAUDE.mdの配色方針に合わせ、`colorScheme.error`
-                        // ではなく実際にコントラストが確保できる固定の濃い赤
-                        // を使う。
-                        color: Colors.red.shade700,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Text(
-                        unreadCount > 99 ? '99+' : '$unreadCount',
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 10,
-                          height: 1.2,
+    return _ConversationGestures(
+      conversationId: conversationId,
+      userId: userId,
+      pinned: pinned,
+      muted: muted,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+          decoration: BoxDecoration(
+            color: selected
+                ? colorScheme.primary.withValues(alpha: 0.18)
+                : null,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  avatar,
+                  if (unreadCount > 0)
+                    Positioned(
+                      right: -4,
+                      top: -4,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 5,
+                          vertical: 1,
+                        ),
+                        constraints: const BoxConstraints(
+                          minWidth: 16,
+                          minHeight: 16,
+                        ),
+                        decoration: BoxDecoration(
+                          // CLAUDE.mdの配色方針に合わせ、`colorScheme.error`
+                          // ではなく実際にコントラストが確保できる固定の濃い赤
+                          // を使う。
+                          color: Colors.red.shade700,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          unreadCount > 99 ? '99+' : '$unreadCount',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            height: 1.2,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: selected ? FontWeight.bold : FontWeight.normal,
-                color: colorScheme.onSurface,
+                ],
               ),
-            ),
-          ],
+              const SizedBox(height: 4),
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+                  color: colorScheme.onSurface,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

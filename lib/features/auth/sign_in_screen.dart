@@ -6,6 +6,7 @@ import '../../l10n/strings.dart';
 import '../../providers/repository_providers.dart';
 import '../../repositories/auth_repository.dart';
 import '../../utils/fullwidth_digits_formatter.dart';
+import '../../widgets/fixed_font_theme.dart';
 import '../../widgets/google_sign_in_button.dart';
 import 'qr_login_dialog.dart';
 
@@ -87,17 +88,19 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
     final strings = ref.watch(appStringsProvider);
     final colorScheme = Theme.of(context).colorScheme;
     final resolver = _resolver;
-    return Scaffold(
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 400),
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: resolver != null
-                  ? _buildTwoFactorChallenge(strings)
-                  : _buildSignInButtons(context, colorScheme),
+    return FixedFontTheme(
+      child: Scaffold(
+        body: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 400),
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: resolver != null
+                    ? _buildTwoFactorChallenge(strings)
+                    : _buildSignInButtons(context, colorScheme),
+              ),
             ),
           ),
         ),

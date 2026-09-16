@@ -29,7 +29,7 @@ class Vocabulary {
     required this.sticker,
   });
 
-  /// 1対1のチャット（一対／Private）。
+  /// 1対1のチャット（一対／Direct）。
   final String dm;
 
   /// サーバー全体の場（広場／Plaza）。
@@ -41,25 +41,25 @@ class Vocabulary {
   /// 友人のみのサーバー（裏広場／Private Plaza）。
   final String privatePlaza;
 
-  /// プロフィールの保存庫（蔵／Wardrobe）。
+  /// プロフィールの保存庫（蔵／Material Box）。
   final String profileStorage;
 
-  /// 複数プロフィールの作成画面（工房／Assembly Studio）。
+  /// 複数プロフィールの作成画面（工房／Profile Creator）。
   final String profileCreator;
 
   /// 通常のチャット（寄合／Text Channel）。
   final String textChannel;
 
-  /// 非公開チャット（密談／Secret Council）。
+  /// 非公開チャット（密談／Private Channel）。
   final String privateChannel;
 
-  /// 通常のカテゴリ（表組／Public District）。
+  /// 通常のカテゴリ（表組／Category）。
   final String category;
 
-  /// 非公開カテゴリ（裏組／Private District）。
+  /// 非公開カテゴリ（裏組／Private Category）。
   final String privateCategory;
 
-  /// 目的達成・進行型のフォーラム（談論／Milestone Board）。
+  /// 目的達成・進行型のフォーラム（談論／Project Board）。
   final String projectBoard;
 
   /// 友達に表示する呼び名（呼び名／ニックネーム、Englishは共通でNickname）。
@@ -68,10 +68,10 @@ class Vocabulary {
   /// ひとことのステータス表示（一言／ステータスメッセージ、Englishは共通）。
   final String statusMessage;
 
-  /// 招待リンク・QRコードで友達を追加する画面（縁結び／Bond Shrine）。
+  /// 招待リンク・QRコードで友達を追加する画面（縁結び／Add Friend）。
   final String friendConnect;
 
-  /// 広場の管理者（長／Chief）。
+  /// 広場の管理者（長／Owner）。
   final String owner;
 
   /// スタンプ機能（ぺったん／Englishは共通でSticker）。
@@ -97,21 +97,21 @@ class Vocabulary {
   );
 
   static const english = Vocabulary._(
-    dm: 'Private',
+    dm: 'Direct',
     plaza: 'Plaza',
     publicPlaza: 'Public Plaza',
     privatePlaza: 'Private Plaza',
-    profileStorage: 'Wardrobe',
-    profileCreator: 'Assembly Studio',
+    profileStorage: 'Material Box',
+    profileCreator: 'Profile Creator',
     textChannel: 'Text Channel',
-    privateChannel: 'Secret Council',
-    category: 'Public District',
-    privateCategory: 'Private District',
-    projectBoard: 'Milestone Board',
+    privateChannel: 'Private Channel',
+    category: 'Category',
+    privateCategory: 'Private Category',
+    projectBoard: 'Project Board',
     nickname: 'Nickname',
     statusMessage: 'Status message',
-    friendConnect: 'Bond Shrine',
-    owner: 'Chief',
+    friendConnect: 'Add Friend',
+    owner: 'Owner',
     sticker: 'Sticker',
   );
 

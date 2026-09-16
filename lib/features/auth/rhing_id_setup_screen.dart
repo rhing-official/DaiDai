@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../models/app_user.dart';
 import '../../providers/repository_providers.dart';
+import '../../widgets/fixed_font_theme.dart';
 import '../home/home_screen.dart';
 
 /// Rhing IDの最小設定画面。
@@ -78,47 +79,49 @@ class _RhingIdSetupScreenState extends ConsumerState<RhingIdSetupScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Rhing IDを設定')),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 400),
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text('あなただけのRhing IDを決めてください。'),
-                const Text('英数字・.・-・_のみ使用できます（大文字小文字は区別されません）。'),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: _controller,
-                  decoration: const InputDecoration(
-                    labelText: 'Rhing ID',
-                    border: OutlineInputBorder(),
+    return FixedFontTheme(
+      child: Scaffold(
+        appBar: AppBar(title: const Text('Rhing IDを設定')),
+        body: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 400),
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('あなただけのRhing IDを決めてください。'),
+                  const Text('英数字・.・-・_のみ使用できます（大文字小文字は区別されません）。'),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: _controller,
+                    decoration: const InputDecoration(
+                      labelText: 'Rhing ID',
+                      border: OutlineInputBorder(),
+                    ),
+                    onSubmitted: _isSubmitting ? null : (_) => _submit(),
                   ),
-                  onSubmitted: _isSubmitting ? null : (_) => _submit(),
-                ),
-                if (_errorMessage != null) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    _errorMessage!,
-                    style: const TextStyle(color: Colors.red),
+                  if (_errorMessage != null) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      _errorMessage!,
+                      style: const TextStyle(color: Colors.red),
+                    ),
+                  ],
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: _isSubmitting ? null : _submit,
+                    child: _isSubmitting
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Text('決定'),
                   ),
                 ],
-                const SizedBox(height: 16),
-                ElevatedButton(
-                  onPressed: _isSubmitting ? null : _submit,
-                  child: _isSubmitting
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Text('決定'),
-                ),
-              ],
+              ),
             ),
           ),
         ),
