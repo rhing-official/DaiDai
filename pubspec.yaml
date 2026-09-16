@@ -88,6 +88,9 @@ dependencies:
   # Web/Android/iOS/macOS/Windowsの5つ、Linuxは非対応（lib/utils/platform_info.dartの
   # isPasskeyCapablePlatform参照）。
   passkeys: ^2.23.1
+  # ↑の可用性チェックAPI（`GetAvailability`が返す`PasskeysPlatform.instance`）に
+  # 直接触れるため、passkeysが依存する推移的パッケージを明示的にも依存させる。
+  passkeys_platform_interface: ^2.10.0
 
 dev_dependencies:
   flutter_test:

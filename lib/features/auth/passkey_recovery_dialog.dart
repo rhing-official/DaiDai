@@ -48,7 +48,10 @@ class _PasskeyRecoveryDialogState extends ConsumerState<PasskeyRecoveryDialog> {
   }
 
   Future<void> _requestQuestions(Strings strings) async {
-    final rhingId = _rhingIdController.text.trim();
+    final rhingId = _rhingIdController.text.trim().toLowerCase().replaceFirst(
+      RegExp(r'^@+'),
+      '',
+    );
     if (rhingId.isEmpty) return;
     setState(() {
       _isSubmitting = true;
@@ -210,6 +213,7 @@ class _PasskeyRecoveryDialogState extends ConsumerState<PasskeyRecoveryDialog> {
           autofocus: true,
           decoration: InputDecoration(
             labelText: strings.passkeySignInDialogRhingIdLabel,
+            prefixText: '@',
           ),
           onSubmitted: _isSubmitting ? null : (_) => _requestQuestions(strings),
         ),

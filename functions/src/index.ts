@@ -550,6 +550,34 @@ async function consumePasskeyChallenge(
 }
 
 /**
+ * Conditional UI（パスワードマネージャー自動候補表示、2026-09-16追加）向けの
+ * チャレンジ消費版。discoverable credential方式ではユーザーを事前に特定
+ * できないため`uid`を持たない点だけが[consumePasskeyChallenge]と異なる。
+ */
+async function consumeDiscoverablePasskeyChallenge(
+  challengeId: string,
+): Promise<{ challenge: string }> {
+  const challengeRef = db.collection("passkeyChallenges").doc(challengeId);
+  const challengeDoc = await challengeRef.get();
+  if (!challengeDoc.exists) {
+    throw new HttpsError("not-found", "チャレンジが見つかりません");
+  }
+  const data = challengeDoc.data()!;
+  await challengeRef.delete();
+  if (data.type !== "authenticationDiscoverable") {
+    throw new HttpsError("failed-precondition", "不正なチャレンジです");
+  }
+  const createdAt = data.createdAt as Timestamp | undefined;
+  if (
+    !createdAt ||
+    Date.now() - createdAt.toMillis() > PASSKEY_CHALLENGE_TTL_MS
+  ) {
+    throw new HttpsError("deadline-exceeded", "チャレンジの有効期限が切れています");
+  }
+  return { challenge: data.challenge as string };
+}
+
+/**
  * Rhing ID＋パスキーによる新規アカウント作成の第1段階
  * （`AuthRepository.registerWithPasskey`から呼ぶ）。まだFirebase Auth
  * ユーザーは作らず、WebAuthnのregistration challengeだけを発行する
@@ -661,7 +689,7 @@ export const beginPasskeyAuthentication = onCall(
     }
     const usersSnapshot = await db
       .collection("users")
-      .where("rhingId", "==", rhingId.toLowerCase())
+      .where("rhingId", "==", rhingId.trim().toLowerCase())
       .limit(1)
       .get();
     if (usersSnapshot.empty) {
@@ -757,6 +785,108 @@ export const finishPasskeyAuthentication = onCall(
       });
     } catch (error) {
       logger.warn("パスキー認証の検証に失敗", error);
+      throw new HttpsError("invalid-argument", "パスキーの検証に失敗しました");
+    }
+    if (!verification.verified) {
+      throw new HttpsError("invalid-argument", "パスキーの検証に失敗しました");
+    }
+
+    await credentialRef.update({
+      counter: verification.authenticationInfo.newCounter,
+      lastUsedAt: FieldValue.serverTimestamp(),
+    });
+
+    const customToken = await getAuth().createCustomToken(uid);
+    return { customToken };
+  },
+);
+
+/**
+ * Conditional UI（パスワードマネージャー自動候補表示）によるログインの
+ * 第1段階（2026-09-16追加、Web版のみ`AuthRepository`から呼ぶ）。
+ * `beginPasskeyAuthentication`と異なりRhing IDによる事前のユーザー特定を
+ * 行わず、`allowCredentials`を指定しないdiscoverable credential方式の
+ * challengeを発行する。どのユーザーかは`finishPasskeyAuthenticationDiscoverable`
+ * 側で、assertionResponseに含まれるuserHandleから特定する
+ * （`beginPasskeyRegistration`/`beginAddPasskey`が登録時にuidをそのまま
+ * `userID`として埋め込んでいるため、認証応答から直接uidを復元できる）。
+ */
+export const beginPasskeyAuthenticationDiscoverable = onCall(
+  { region: "asia-northeast1" },
+  async () => {
+    const options = await generateAuthenticationOptions({
+      rpID: passkeyRpId.value(),
+      userVerification: "required",
+    });
+    const challengeRef = await db.collection("passkeyChallenges").add({
+      type: "authenticationDiscoverable",
+      challenge: options.challenge,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    return { challengeId: challengeRef.id, options };
+  },
+);
+
+/**
+ * Conditional UIログインの第2段階。assertionResponseのuserHandleを
+ * base64urlデコードしてuidを復元し、そのアカウントのパスキーとして検証する。
+ */
+export const finishPasskeyAuthenticationDiscoverable = onCall(
+  { region: "asia-northeast1" },
+  async (request) => {
+    const challengeId = request.data?.challengeId;
+    const assertionResponse = request.data?.assertionResponse;
+    if (
+      typeof challengeId !== "string" ||
+      !challengeId ||
+      !assertionResponse
+    ) {
+      throw new HttpsError(
+        "invalid-argument",
+        "challengeId/assertionResponseが必要です",
+      );
+    }
+    const { challenge } = await consumeDiscoverablePasskeyChallenge(
+      challengeId,
+    );
+
+    const credentialId = assertionResponse.id as string | undefined;
+    const rawUserHandle = assertionResponse.response?.userHandle as
+      | string
+      | undefined;
+    if (!credentialId || !rawUserHandle) {
+      throw new HttpsError("invalid-argument", "不正なパスキー応答です");
+    }
+    const uid = Buffer.from(rawUserHandle, "base64url").toString("utf8");
+
+    const credentialRef = db
+      .collection("users")
+      .doc(uid)
+      .collection("passkeyCredentials")
+      .doc(credentialId);
+    const credentialDoc = await credentialRef.get();
+    if (!credentialDoc.exists) {
+      throw new HttpsError("not-found", "パスキーが見つかりません");
+    }
+    const credentialData = credentialDoc.data()!;
+
+    let verification;
+    try {
+      verification = await verifyAuthenticationResponse({
+        response: assertionResponse,
+        expectedChallenge: challenge,
+        expectedOrigin: getPasskeyAllowedOrigins(),
+        expectedRPID: passkeyRpId.value(),
+        credential: {
+          id: credentialId,
+          publicKey: new Uint8Array(credentialData.publicKey as Buffer),
+          counter: credentialData.counter as number,
+          transports:
+            credentialData.transports as AuthenticatorTransportFuture[],
+        },
+      });
+    } catch (error) {
+      logger.warn("パスキー認証（Conditional UI）の検証に失敗", error);
       throw new HttpsError("invalid-argument", "パスキーの検証に失敗しました");
     }
     if (!verification.verified) {
@@ -1069,7 +1199,7 @@ export const beginPasskeyRecovery = onCall(
     }
     const usersSnapshot = await db
       .collection("users")
-      .where("rhingId", "==", rhingId.toLowerCase())
+      .where("rhingId", "==", rhingId.trim().toLowerCase())
       .limit(1)
       .get();
     if (usersSnapshot.empty) {

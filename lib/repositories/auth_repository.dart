@@ -6,7 +6,9 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:passkeys/authenticator.dart';
+import 'package:passkeys/availability.dart';
 import 'package:passkeys/types.dart';
+import 'package:passkeys_platform_interface/passkeys_platform_interface.dart';
 
 import '../utils/google_sign_in_bootstrap.dart';
 
@@ -113,6 +115,24 @@ abstract class AuthRepository {
   /// Rhing ID＋パスキーでのログイン（2026-09-16追加）。[rhingId]に登録済みの
   /// パスキーでデバイスに認証を要求し、成功したらサインインする。
   Future<User> signInWithPasskey(String rhingId);
+
+  /// Conditional UI（パスワードマネージャー自動候補表示）によるパスキー
+  /// ログイン（2026-09-16追加、Web版のみ対応）。Rhing IDの入力なしに
+  /// ブラウザ側のパスキー候補一覧をユーザーに提示し、選択されたパスキーで
+  /// サインインする。ユーザーが候補を選ぶ前に他の操作（Google/Rhing ID
+  /// ログイン等）で認証が横取りされた場合はnullを返す。対応していない
+  /// 環境（Web以外、またはブラウザがConditional Mediation未対応）では
+  /// 呼び出し側が判断できるよう[isConditionalPasskeyAvailable]を用意する。
+  Future<User?> trySignInWithConditionalPasskey();
+
+  /// [trySignInWithConditionalPasskey]が実際に使える環境かどうか。
+  Future<bool> isConditionalPasskeyAvailable();
+
+  /// [trySignInWithConditionalPasskey]の待機を中断する。呼び出し元の画面が
+  /// ユーザーの選択を待たずに閉じられた場合に呼ぶ（明示的なRhing ID
+  /// ログイン等、他の認証操作を開始する場合は各操作側が自動的に中断するため
+  /// 呼ぶ必要はない）。
+  Future<void> cancelConditionalPasskeyAttempt();
 
   /// 秘密の質問（3問固定）を設定・更新する（2026-09-16追加、パスキー紛失時の
   /// 復旧用）。既存の設定があれば3問まるごと置き換える。回答はサーバー側で
@@ -413,6 +433,56 @@ class FirebaseAuthRepository implements AuthRepository {
       throw StateError('パスキーログインに失敗しました');
     }
     return user;
+  }
+
+  @override
+  Future<bool> isConditionalPasskeyAvailable() async {
+    if (!kIsWeb) return false;
+    final availability = await GetAvailability(
+      platform: PasskeysPlatform.instance,
+    ).web();
+    return availability.isConditionalMediationAvailable ?? false;
+  }
+
+  @override
+  Future<User?> trySignInWithConditionalPasskey() async {
+    if (!kIsWeb) return null;
+    final beginResult = await _functions
+        .httpsCallable('beginPasskeyAuthenticationDiscoverable')
+        .call();
+    final beginData = _asJsonMap(beginResult.data);
+    final challengeId = beginData['challengeId'] as String;
+    final options = beginData['options'] as Map<String, dynamic>;
+
+    final authenticator = PasskeyAuthenticator();
+    final AuthenticateResponseType assertionResponse;
+    try {
+      assertionResponse = await authenticator.authenticate(
+        AuthenticateRequestType.fromJson(
+          options,
+          mediation: MediationType.Conditional,
+        ),
+      );
+    } on PasskeyAuthCancelledException {
+      return null;
+    } on NoCredentialsAvailableException {
+      return null;
+    }
+
+    final finishResult = await _functions
+        .httpsCallable('finishPasskeyAuthenticationDiscoverable')
+        .call({
+          'challengeId': challengeId,
+          'assertionResponse': assertionResponse.toJson(),
+        });
+    final customToken = (finishResult.data as Map)['customToken'] as String;
+    final userCredential = await _auth.signInWithCustomToken(customToken);
+    return userCredential.user;
+  }
+
+  @override
+  Future<void> cancelConditionalPasskeyAttempt() {
+    return PasskeyAuthenticator().cancelCurrentAuthenticatorOperation();
   }
 
   @override

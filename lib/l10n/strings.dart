@@ -152,6 +152,8 @@ class Strings {
     required this.passkeySignInDialogRhingIdLabel,
     required this.passkeySignInDialogSubmitButton,
     required this.passkeySignInDialogError,
+    required this.passkeySignInDialogErrorNotFound,
+    required this.passkeySignInDialogErrorNoPasskey,
     required this.passkeyRecoveryLinkLabel,
     required this.passkeyRecoveryDialogTitle,
     required this.passkeyRecoveryDialogRhingIdDescription,
@@ -819,6 +821,8 @@ class Strings {
   final String passkeySignInDialogRhingIdLabel;
   final String passkeySignInDialogSubmitButton;
   final String passkeySignInDialogError;
+  final String passkeySignInDialogErrorNotFound;
+  final String passkeySignInDialogErrorNoPasskey;
   final String passkeyRecoveryLinkLabel;
   final String passkeyRecoveryDialogTitle;
   final String passkeyRecoveryDialogRhingIdDescription;
@@ -1690,6 +1694,9 @@ class Strings {
     passkeySignInDialogRhingIdLabel: 'Rhing ID',
     passkeySignInDialogSubmitButton: 'ログイン',
     passkeySignInDialogError: 'ログインに失敗しました。Rhing IDまたはパスキーをご確認ください。',
+    passkeySignInDialogErrorNotFound: 'そのRhing IDのアカウントが見つかりません。',
+    passkeySignInDialogErrorNoPasskey:
+        'このアカウントにはパスキーが登録されていません。Googleでログイン後、設定＞セキュリティからパスキーを追加できます。',
     passkeyRecoveryLinkLabel: 'パスキーが使えない場合',
     passkeyRecoveryDialogTitle: 'アカウントの復旧',
     passkeyRecoveryDialogRhingIdDescription: '登録済みのRhing IDを入力してください。',
@@ -2389,6 +2396,10 @@ class Strings {
     passkeySignInDialogSubmitButton: 'Sign in',
     passkeySignInDialogError:
         'Sign-in failed. Please check your Rhing ID or passkey.',
+    passkeySignInDialogErrorNotFound: 'No account was found for that Rhing ID.',
+    passkeySignInDialogErrorNoPasskey:
+        'This account has no passkey registered. After signing in with '
+        'Google, you can add one from Settings > Security.',
     passkeyRecoveryLinkLabel: "Can't use your passkey?",
     passkeyRecoveryDialogTitle: 'Recover account',
     passkeyRecoveryDialogRhingIdDescription: 'Enter your registered Rhing ID.',

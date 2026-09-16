@@ -183,6 +183,12 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
       // 秘密鍵の設定が済むまで実際には使えないため、その設定を行うまでUIから
       // 非表示にしている。AuthRepository.signInWithApple()自体は実装済みなので、
       // 設定が完了したらボタンを復活させるだけでよい。
+      const SizedBox(height: 12),
+      TextButton.icon(
+        onPressed: () => QrLoginDialog.show(context),
+        icon: const Icon(Icons.qr_code_scanner),
+        label: Text(strings.qrLoginDialogTitle),
+      ),
       // Rhing ID＋パスキー（WebAuthn）でのログイン・新規アカウント作成
       // （2026-09-16追加）。Linuxはパスキー非対応のため導線ごと出さない
       // （`isPasskeyCapablePlatform`参照、当面Google/Appleログインのみ）。
@@ -195,7 +201,9 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
           icon: const Icon(Icons.key),
           label: Text(strings.passkeySignInButton),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 20),
+        const Divider(),
+        const SizedBox(height: 8),
         TextButton(
           onPressed: _isSigningIn
               ? null
@@ -210,12 +218,6 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
           child: Text(strings.passkeyRecoveryLinkLabel),
         ),
       ],
-      const SizedBox(height: 12),
-      TextButton.icon(
-        onPressed: () => QrLoginDialog.show(context),
-        icon: const Icon(Icons.qr_code_scanner),
-        label: Text(strings.qrLoginDialogTitle),
-      ),
     ];
   }
 }
