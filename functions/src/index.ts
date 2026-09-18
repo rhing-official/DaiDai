@@ -502,9 +502,11 @@ export const cleanupQrLoginSessions = onSchedule(
 // ---------------------------------------------------------------------
 
 // RPドメイン・許可オリジンは非シークレット値のため`defineSecret`ではなく
-// `defineString`で管理する。本番ドメイン確定後にデプロイ時のパラメータ
-// 入力（または`.env`）で値を設定する。開発中はデフォルト値のまま
-// Web版（localhost）で動作確認できる。
+// `defineString`で管理する。本番（daidai-rhing）には`.env.daidai-rhing`で
+// 本番ドメイン（dai-dai-phi.vercel.app）の値を上書きデプロイ済み
+// （2026-09-18、それまでlocalhost固定のままで本番のパスキー機能が
+// 全て失敗していた）。ここのデフォルト値はローカル開発（localhost）
+// 向けのフォールバックとして残す。
 const passkeyRpId = defineString("PASSKEY_RP_ID", { default: "localhost" });
 const passkeyAllowedOrigins = defineString("PASSKEY_ALLOWED_ORIGINS", {
   default: "http://localhost:8765",
@@ -516,6 +518,21 @@ function getPasskeyAllowedOrigins(): string[] {
     .split(",")
     .map((origin) => origin.trim())
     .filter((origin) => origin.length > 0);
+}
+
+const PASSKEY_NAME_MAX_LENGTH = 30;
+
+/**
+ * 住人が付けるパスキーの名前を正規化する（2026-09-18追加）。文字列以外・
+ * 前後空白を除くと空になる場合は「名前無し」として`null`を返し、一覧では
+ * 作成日時にフォールバック表示する。
+ */
+function normalizePasskeyName(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const trimmed = value.trim().slice(0, PASSKEY_NAME_MAX_LENGTH);
+  return trimmed.length > 0 ? trimmed : null;
 }
 
 const PASSKEY_CHALLENGE_TTL_MS = 5 * 60 * 1000;
@@ -1044,6 +1061,7 @@ export const listPasskeyCredentials = onCall(
           backedUp: data.backedUp as boolean,
           createdAt: createdAt?.toMillis() ?? null,
           lastUsedAt: lastUsedAt?.toMillis() ?? null,
+          name: (data.name as string | undefined) ?? null,
         };
       }),
     };
@@ -1118,6 +1136,7 @@ export const finishAddPasskey = onCall(
         "challengeId/attestationResponseが必要です",
       );
     }
+    const name = normalizePasskeyName(request.data?.name);
     const { uid, challenge } = await consumePasskeyChallenge(
       challengeId,
       "addCredential",
@@ -1157,6 +1176,7 @@ export const finishAddPasskey = onCall(
         backedUp: credentialBackedUp,
         createdAt: FieldValue.serverTimestamp(),
         lastUsedAt: null,
+        name,
       });
     return { success: true };
   },
@@ -1181,6 +1201,30 @@ export const deletePasskeyCredential = onCall(
       .collection("passkeyCredentials")
       .doc(credentialId)
       .delete();
+    return { success: true };
+  },
+);
+
+/**
+ * 登録済みパスキーの名前を変更する（本人の分のみ、2026-09-18追加）。
+ */
+export const renamePasskeyCredential = onCall(
+  { region: "asia-northeast1" },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "ログインが必要です");
+    }
+    const credentialId = request.data?.credentialId;
+    if (typeof credentialId !== "string" || !credentialId) {
+      throw new HttpsError("invalid-argument", "credentialIdが必要です");
+    }
+    const name = normalizePasskeyName(request.data?.name);
+    await db
+      .collection("users")
+      .doc(request.auth.uid)
+      .collection("passkeyCredentials")
+      .doc(credentialId)
+      .update({ name });
     return { success: true };
   },
 );
