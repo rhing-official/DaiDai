@@ -185,6 +185,10 @@ class Strings {
     required this.passkeyManagementLastCredentialWarning,
     required this.passkeyManagementAddError,
     required this.passkeyManagementDeleteError,
+    required this.passkeyManagementRenameError,
+    required this.passkeyManagementNameDialogTitle,
+    required this.passkeyManagementNameDialogHint,
+    required this.passkeyManagementRenameTooltip,
     required this.secretQuestionsSectionTitle,
     required this.secretQuestionsSectionDescription,
     required this.secretQuestionsStatusConfigured,
@@ -854,6 +858,10 @@ class Strings {
   final String passkeyManagementLastCredentialWarning;
   final String passkeyManagementAddError;
   final String passkeyManagementDeleteError;
+  final String passkeyManagementRenameError;
+  final String passkeyManagementNameDialogTitle;
+  final String passkeyManagementNameDialogHint;
+  final String passkeyManagementRenameTooltip;
   final String secretQuestionsSectionTitle;
   final String secretQuestionsSectionDescription;
   final String secretQuestionsStatusConfigured;
@@ -1730,6 +1738,10 @@ class Strings {
         '最後のパスキーです。秘密の質問を設定していないと、紛失時にアカウントへアクセスできなくなります。',
     passkeyManagementAddError: 'パスキーの追加に失敗しました。',
     passkeyManagementDeleteError: 'パスキーの削除に失敗しました。',
+    passkeyManagementRenameError: 'パスキーの名前の変更に失敗しました。',
+    passkeyManagementNameDialogTitle: 'パスキーの名前',
+    passkeyManagementNameDialogHint: '例: MacBookのパスキー（空欄でも可）',
+    passkeyManagementRenameTooltip: '名前を変更',
     secretQuestionsSectionTitle: '秘密の質問',
     secretQuestionsSectionDescription: 'パスキーが使えなくなった場合、この質問でアカウントを復旧できます。',
     secretQuestionsStatusConfigured: '設定済み',
@@ -2439,6 +2451,10 @@ class Strings {
         "won't be able to recover this account if you lose it.",
     passkeyManagementAddError: 'Failed to add the passkey.',
     passkeyManagementDeleteError: 'Failed to delete the passkey.',
+    passkeyManagementRenameError: 'Failed to rename the passkey.',
+    passkeyManagementNameDialogTitle: 'Passkey name',
+    passkeyManagementNameDialogHint: 'e.g. MacBook passkey (optional)',
+    passkeyManagementRenameTooltip: 'Rename',
     secretQuestionsSectionTitle: 'Secret questions',
     secretQuestionsSectionDescription:
         'If you lose access to your passkey, you can recover your account '

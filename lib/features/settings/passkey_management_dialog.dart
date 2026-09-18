@@ -1,4 +1,6 @@
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
@@ -10,6 +12,11 @@ import '../../providers/repository_providers.dart';
 import '../../repositories/auth_repository.dart';
 import '../../widgets/glass/glass_dialog.dart';
 import 'secret_questions_setup_dialog.dart';
+
+/// パスキーの名前の最大文字数。サーバー側（`normalizePasskeyName`、
+/// `functions/src/index.ts`）の`PASSKEY_NAME_MAX_LENGTH`と揃える
+/// （2026-09-18追加）。
+const _kPasskeyNameMaxLength = 30;
 
 /// 登録済みパスキーの一覧・追加登録・削除と、秘密の質問（復旧手段）の
 /// 設定状況をまとめたダイアログ（2026-09-16追加）。設定＞アカウント＞
@@ -67,20 +74,84 @@ class _PasskeyManagementDialogState
   }
 
   Future<void> _addPasskey(Strings strings) async {
+    // 追加前に名前を入力させる（2026-09-18追加）。空欄のまま決定した場合は
+    // 「名前無し」として扱い、一覧では作成日時にフォールバック表示する
+    // （新規アカウント作成時のパスキー作成は一発実行のままこのダイアログを
+    // 挟まない、ユーザー確認済みの方針）。
+    final name = await _PasskeyNameDialog.show(
+      context,
+      title: strings.passkeyManagementNameDialogTitle,
+    );
+    if (name == null || !mounted) return;
     setState(() {
       _isBusy = true;
       _errorMessage = null;
     });
     try {
-      await ref.read(authRepositoryProvider).addPasskeyCredential();
+      await ref
+          .read(authRepositoryProvider)
+          .addPasskeyCredential(name: name.isEmpty ? null : name);
       if (!mounted) return;
       _reload();
     } catch (e) {
       if (!mounted) return;
-      setState(() => _errorMessage = strings.passkeyManagementAddError);
+      setState(
+        () => _errorMessage = _withErrorCode(
+          strings.passkeyManagementAddError,
+          e,
+        ),
+      );
     } finally {
       if (mounted) setState(() => _isBusy = false);
     }
+  }
+
+  Future<void> _renamePasskey(
+    Strings strings,
+    PasskeyCredentialInfo credential,
+  ) async {
+    final name = await _PasskeyNameDialog.show(
+      context,
+      title: strings.passkeyManagementNameDialogTitle,
+      initialName: credential.name,
+    );
+    if (name == null || !mounted) return;
+    setState(() {
+      _isBusy = true;
+      _errorMessage = null;
+    });
+    try {
+      await ref
+          .read(authRepositoryProvider)
+          .renamePasskeyCredential(credential.id, name);
+      if (!mounted) return;
+      _reload();
+    } catch (e) {
+      if (!mounted) return;
+      setState(
+        () => _errorMessage = _withErrorCode(
+          strings.passkeyManagementRenameError,
+          e,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isBusy = false);
+    }
+  }
+
+  /// 例外の種類ごとのコード名を[message]の末尾に付記する。ブラウザ層
+  /// （`PasskeyAuthenticator().register()`、Web実装は`PlatformException`を
+  /// 投げる）由来かCloud Functions層（`FirebaseFunctionsException`）由来かで
+  /// 原因が大きく異なるため、固定文言だけでは調査に手がかりが無かった
+  /// （2026-09-18追加。本番でRP ID設定がlocalhost固定のままパスキー追加が
+  /// 常に失敗していた不具合の調査で必要性が判明した）。
+  String _withErrorCode(String message, Object error) {
+    final code = switch (error) {
+      PlatformException(:final code) => code,
+      FirebaseFunctionsException(:final code) => code,
+      _ => null,
+    };
+    return code == null ? message : '$message ($code)';
   }
 
   Future<void> _deletePasskey(
@@ -107,7 +178,12 @@ class _PasskeyManagementDialogState
       _reload();
     } catch (e) {
       if (!mounted) return;
-      setState(() => _errorMessage = strings.passkeyManagementDeleteError);
+      setState(
+        () => _errorMessage = _withErrorCode(
+          strings.passkeyManagementDeleteError,
+          e,
+        ),
+      );
     } finally {
       if (mounted) setState(() => _isBusy = false);
     }
@@ -160,23 +236,36 @@ class _PasskeyManagementDialogState
                       dense: true,
                       leading: const Icon(Icons.key),
                       title: Text(
-                        credential.createdAt == null
-                            ? strings.settingsPasskey
-                            : dateFormat.format(credential.createdAt!),
+                        credential.name ??
+                            (credential.createdAt == null
+                                ? strings.settingsPasskey
+                                : dateFormat.format(credential.createdAt!)),
                       ),
                       subtitle: credential.lastUsedAt == null
                           ? null
                           : Text(dateFormat.format(credential.lastUsedAt!)),
-                      trailing: IconButton(
-                        icon: const Icon(Icons.delete_outline),
-                        onPressed: _isBusy
-                            ? null
-                            : () => _deletePasskey(
-                                strings,
-                                credential,
-                                credentials.length == 1,
-                                questionsStatus.configured,
-                              ),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.edit_outlined),
+                            tooltip: strings.passkeyManagementRenameTooltip,
+                            onPressed: _isBusy
+                                ? null
+                                : () => _renamePasskey(strings, credential),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.delete_outline),
+                            onPressed: _isBusy
+                                ? null
+                                : () => _deletePasskey(
+                                    strings,
+                                    credential,
+                                    credentials.length == 1,
+                                    questionsStatus.configured,
+                                  ),
+                          ),
+                        ],
                       ),
                     ),
                 const SizedBox(height: 8),
@@ -230,6 +319,72 @@ class _PasskeyManagementDialogState
       ),
     ];
 
+    return isGlass
+        ? GlassAlertDialog(title: title, content: content, actions: actions)
+        : AlertDialog(title: title, content: content, actions: actions);
+  }
+}
+
+/// パスキーの名前を入力・編集するダイアログ（2026-09-18追加）。追加時
+/// （[initialName]がnull）・変更時のどちらにも使う。空欄のまま決定すると
+/// 「名前無し」（呼び出し元が空文字列を受け取る）として扱われる。
+class _PasskeyNameDialog extends ConsumerStatefulWidget {
+  const _PasskeyNameDialog({required this.title, this.initialName});
+
+  final String title;
+  final String? initialName;
+
+  /// キャンセル時は`null`、決定時は入力文字列（空文字列を含みうる）を返す。
+  static Future<String?> show(
+    BuildContext context, {
+    required String title,
+    String? initialName,
+  }) {
+    return showDialog<String>(
+      context: context,
+      builder: (_) =>
+          _PasskeyNameDialog(title: title, initialName: initialName),
+    );
+  }
+
+  @override
+  ConsumerState<_PasskeyNameDialog> createState() => _PasskeyNameDialogState();
+}
+
+class _PasskeyNameDialogState extends ConsumerState<_PasskeyNameDialog> {
+  late final _controller = TextEditingController(text: widget.initialName);
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    Navigator.of(context).pop(_controller.text.trim());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final strings = ref.watch(appStringsProvider);
+    final isGlass = ref.watch(appUiStyleProvider) == AppUiStyle.glass;
+    final title = Text(widget.title);
+    final content = TextField(
+      controller: _controller,
+      autofocus: true,
+      maxLength: _kPasskeyNameMaxLength,
+      decoration: InputDecoration(
+        hintText: strings.passkeyManagementNameDialogHint,
+      ),
+      onSubmitted: (_) => _submit(),
+    );
+    final actions = [
+      TextButton(
+        onPressed: () => Navigator.of(context).pop(),
+        child: Text(strings.cancel),
+      ),
+      FilledButton(onPressed: _submit, child: Text(strings.done)),
+    ];
     return isGlass
         ? GlassAlertDialog(title: title, content: content, actions: actions)
         : AlertDialog(title: title, content: content, actions: actions);

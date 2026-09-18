@@ -151,6 +151,58 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
     if (isWide) {
       final selected =
           _findCategoryById(categories, _selectedId) ?? categories.first;
+
+      // サポート→アプリについて→オープンソースライセンス／お知らせという
+      // 下位階層は、下の狭い画面向け分岐と同じ`master`/`detail`を組み立てて
+      // `SlideDrilldown`で包む（2026-09-18追加）。以前はここで対象の
+      // ウィジェットへ直接差し替えるだけだったため、サイドバーは常に
+      // 見えたままだったものの、タブレット等サイドバー常設幅の端末では
+      // スワイプで戻る手段が無かった（スマホ幅だけスワイプできる食い違い
+      // があった）。サイドバー・区切り線はこの分岐の外にあるため、
+      // 下位階層表示中も常に見えたままになる点は変わらない。
+      Widget? wideMaster;
+      Widget? wideDetail;
+      Object? wideDetailKey;
+      VoidCallback? wideOnBack;
+      if (_showLicenses) {
+        wideMaster = _AboutPageContent(
+          strings: strings,
+          onOpenLicenses: () => setState(() => _showLicenses = true),
+        );
+        wideDetail = const _LicensePageContent();
+        wideDetailKey = 'licenses';
+        wideOnBack = () => setState(() => _showLicenses = false);
+      } else if (_showAbout) {
+        wideMaster = Builder(
+          builder: (context) => _SupportPage(
+            strings: strings,
+            currentUser: widget.currentUser,
+            onOpenAbout: () => setState(() => _showAbout = true),
+            onOpenAnnouncements: () =>
+                setState(() => _showAnnouncements = true),
+          ),
+        );
+        wideDetail = _AboutPageContent(
+          strings: strings,
+          onOpenLicenses: () => setState(() => _showLicenses = true),
+        );
+        wideDetailKey = 'about';
+        wideOnBack = () => setState(() => _showAbout = false);
+      } else if (_showAnnouncements) {
+        wideMaster = Builder(
+          builder: (context) => _SupportPage(
+            strings: strings,
+            currentUser: widget.currentUser,
+            onOpenAbout: () => setState(() => _showAbout = true),
+            onOpenAnnouncements: () =>
+                setState(() => _showAnnouncements = true),
+          ),
+        );
+        wideDetail = AnnouncementScreen(currentUser: widget.currentUser);
+        wideDetailKey = 'announcements';
+        wideOnBack = () => setState(() => _showAnnouncements = false);
+      }
+
       return Padding(
         padding: const EdgeInsets.only(top: 24),
         child: Row(
@@ -167,21 +219,19 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
             const VerticalDivider(width: 1),
             Expanded(
               child: _SettingsPage(
-                // サイドバー・区切り線はこの分岐の外にあるため、「アプリに
-                // ついて」「オープンソースライセンス」「お知らせ」表示中も
-                // 常に見えたままになる（2026-09-15追加、以前はそれぞれ
-                // `Navigator.push`/go_routerの別ルートで覆い隠していた）。
-                child: _showLicenses
-                    ? const _LicensePageContent()
-                    : _showAbout
-                    ? _AboutPageContent(
-                        strings: strings,
-                        onOpenLicenses: () =>
-                            setState(() => _showLicenses = true),
-                      )
-                    : _showAnnouncements
-                    ? AnnouncementScreen(currentUser: widget.currentUser)
-                    : Builder(builder: selected.pageBuilder),
+                // オープンソースライセンス画面だけは頭打ちを外し、Flutter
+                // 標準の`LicensePage`が内蔵する840px以上での左右並列表示
+                // （パッケージ一覧⇄ライセンス本文）が働く余地を残す
+                // （2026-09-18追加、詳細は`_LicensePageContent`参照）。
+                maxWidth: _showLicenses ? double.infinity : 640,
+                child: wideMaster == null
+                    ? Builder(builder: selected.pageBuilder)
+                    : SlideDrilldown(
+                        master: wideMaster,
+                        detail: wideDetail,
+                        detailKey: wideDetailKey,
+                        onBack: wideOnBack!,
+                      ),
               ),
             ),
           ],
@@ -522,9 +572,15 @@ class _FolderTile extends ConsumerWidget {
 
 /// 広い画面での内容ペイン。タイトルの下に、カテゴリの中身を1ページで表示する。
 class _SettingsPage extends StatelessWidget {
-  const _SettingsPage({required this.child});
+  const _SettingsPage({required this.child, this.maxWidth = 640});
 
   final Widget child;
+
+  /// 内容ペインの頭打ち幅。既定は640（下記コメント参照）。オープンソース
+  /// ライセンス画面はFlutter標準の`LicensePage`が内蔵する840px以上での
+  /// 左右並列表示（パッケージ一覧⇄ライセンス本文）を働かせたいため、
+  /// `double.infinity`を渡して頭打ちを外す（2026-09-18追加）。
+  final double maxWidth;
 
   @override
   Widget build(BuildContext context) {
@@ -538,7 +594,7 @@ class _SettingsPage extends StatelessWidget {
     return Align(
       alignment: Alignment.topLeft,
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 640),
+        constraints: BoxConstraints(maxWidth: maxWidth),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(24, 4, 24, 12),
           child: child,

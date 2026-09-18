@@ -34,12 +34,17 @@ class PasskeyCredentialInfo {
     required this.backedUp,
     this.createdAt,
     this.lastUsedAt,
+    this.name,
   });
   final String id;
   final String deviceType;
   final bool backedUp;
   final DateTime? createdAt;
   final DateTime? lastUsedAt;
+
+  /// 住人が付けた任意の名前（2026-09-18追加）。未設定なら`null`で、一覧では
+  /// 作成日時にフォールバック表示する。
+  final String? name;
 }
 
 /// パスキー紛失時の復旧フロー第1段階で返される質問一覧（2026-09-16追加）。
@@ -148,11 +153,16 @@ abstract class AuthRepository {
 
   /// ログイン中のアカウントに追加のパスキーを登録する（複数端末対応）。
   /// [registerWithPasskey]と異なり新規アカウントは作らず、既存アカウントに
-  /// クレデンシャルを追加するだけ。
-  Future<void> addPasskeyCredential();
+  /// クレデンシャルを追加するだけ。[name]は住人が付けた任意の名前
+  /// （2026-09-18追加、設定画面の「追加」フローでのみ入力させる。新規
+  /// アカウント作成時のパスキー作成は一発実行のまま名前を挟まない）。
+  Future<void> addPasskeyCredential({String? name});
 
   /// 登録済みパスキーを削除する。
   Future<void> deletePasskeyCredential(String credentialId);
+
+  /// 登録済みパスキーの名前を変更する（2026-09-18追加）。
+  Future<void> renamePasskeyCredential(String credentialId, String name);
 
   /// パスキー紛失時の復旧フロー第1段階（2026-09-16追加）。[rhingId]の
   /// アカウントに秘密の質問が設定されていれば質問一覧を返す。
@@ -530,12 +540,13 @@ class FirebaseAuthRepository implements AuthRepository {
         lastUsedAt: lastUsedAtMs == null
             ? null
             : DateTime.fromMillisecondsSinceEpoch(lastUsedAtMs),
+        name: c['name'] as String?,
       );
     }).toList();
   }
 
   @override
-  Future<void> addPasskeyCredential() async {
+  Future<void> addPasskeyCredential({String? name}) async {
     final beginResult = await _functions
         .httpsCallable('beginAddPasskey')
         .call();
@@ -551,6 +562,7 @@ class FirebaseAuthRepository implements AuthRepository {
     await _functions.httpsCallable('finishAddPasskey').call({
       'challengeId': challengeId,
       'attestationResponse': attestationResponse.toJson(),
+      'name': name,
     });
   }
 
@@ -558,6 +570,14 @@ class FirebaseAuthRepository implements AuthRepository {
   Future<void> deletePasskeyCredential(String credentialId) async {
     await _functions.httpsCallable('deletePasskeyCredential').call({
       'credentialId': credentialId,
+    });
+  }
+
+  @override
+  Future<void> renamePasskeyCredential(String credentialId, String name) async {
+    await _functions.httpsCallable('renamePasskeyCredential').call({
+      'credentialId': credentialId,
+      'name': name,
     });
   }
 
