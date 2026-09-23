@@ -210,10 +210,7 @@ class _PasskeyManagementDialogState
         future: _future,
         builder: (context, snapshot) {
           if (!snapshot.hasData) {
-            return const SizedBox(
-              height: 160,
-              child: Center(child: CircularProgressIndicator()),
-            );
+            return const SizedBox(height: 160);
           }
           final credentials = snapshot.data!.credentials;
           final questionsStatus = snapshot.data!.questionsStatus;

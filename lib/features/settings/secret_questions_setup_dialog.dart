@@ -127,11 +127,7 @@ class _SecretQuestionsSetupDialogState
       FilledButton(
         onPressed: (_isSaving || !_canSave) ? null : () => _save(strings),
         child: _isSaving
-            ? const SizedBox(
-                width: 18,
-                height: 18,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
+            ? const SizedBox.shrink()
             : Text(strings.secretQuestionsSaveButton),
       ),
     ];
