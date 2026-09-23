@@ -1,10 +1,10 @@
-// 招待リンク（/invite/:rhingId）・広場の招待リンク（/join/:groupId）用の
+// 招待リンク（/invite/:rhingSeed）・広場の招待リンク（/join/:groupId）用の
 // OGP（外部SNS等でリンクを貼った時のリッチカード表示）対応。
 //
 // Flutter Webはビルドすると静的なindex.html 1枚で全ルートを描画するSPAになる
 // ため、クローラー（Discord/LINE/X等のリンク展開ボット）はog:title等の
 // メタタグを個別URLごとに動的化できない。この関数がvercel.jsonのrewritesで
-// /invite/:rhingId・/join/:groupId宛のリクエストを肩代わりし、Firestoreの
+// /invite/:rhingSeed・/join/:groupId宛のリクエストを肩代わりし、Firestoreの
 // 公開プレビュー（userInvites/groupInvites、いずれもセキュリティルールで
 // 誰でも読み取り可能）から取得した内容でog:*タグだけを差し込んだindex.htmlを
 // 返す。中身（bootstrapスクリプト等）は本物のindex.htmlをそのまま流用するため、
@@ -40,13 +40,13 @@ module.exports = async (req, res) => {
 
   try {
     if (inviteMatch) {
-      const rhingId = decodeURIComponent(inviteMatch[1]);
-      const doc = await fetchFirestoreDoc(`userInvites/${rhingId}`);
+      const rhingSeed = decodeURIComponent(inviteMatch[1]);
+      const doc = await fetchFirestoreDoc(`userInvites/${rhingSeed}`);
       if (doc) {
-        title = doc.nickname ? `${doc.nickname}（@${rhingId}）` : `@${rhingId}`;
+        title = doc.nickname ? `${doc.nickname}（@${rhingSeed}）` : `@${rhingSeed}`;
         description = 'DaiDaiで仲間になりましょう';
         image = doc.iconUrl
-          ? `https://${host}/api/og-image?type=user&id=${encodeURIComponent(rhingId)}`
+          ? `https://${host}/api/og-image?type=user&id=${encodeURIComponent(rhingSeed)}`
           : null;
       }
     } else if (joinMatch) {

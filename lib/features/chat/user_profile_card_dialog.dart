@@ -211,7 +211,7 @@ class _UserProfileCardDialogState extends ConsumerState<UserProfileCardDialog> {
     final nickname = user.effectiveNicknameFor(widget.conversationId);
     final name = (nickname?.text.isNotEmpty ?? false)
         ? nickname!.text
-        : '@${user.rhingId}';
+        : '@${user.rhingSeed}';
     final icon = user.effectiveIconFor(widget.conversationId);
     final background = user.effectiveBackgroundImageFor(widget.conversationId);
     final statusMessage = user

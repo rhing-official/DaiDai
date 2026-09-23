@@ -5,7 +5,7 @@ class DirectMessage {
   const DirectMessage({
     required this.dmId,
     required this.participants,
-    required this.participantRhingIds,
+    required this.participantRhingSeeds,
     this.lastMessageAt,
     this.lastMessageSenderId,
     this.lastMessageContentType,
@@ -21,8 +21,8 @@ class DirectMessage {
   final String dmId;
   final List<String> participants;
 
-  /// userId -> rhingId。一覧表示で相手の名前を出すための非正規化データ。
-  final Map<String, String> participantRhingIds;
+  /// userId -> rhingSeed。一覧表示で相手の名前を出すための非正規化データ。
+  final Map<String, String> participantRhingSeeds;
   final Timestamp? lastMessageAt;
 
   /// 直近のメッセージを送信したuserId。語らい一覧の「未読優先」並べ替えで、
@@ -89,18 +89,18 @@ class DirectMessage {
     return participants.firstWhere((id) => id != currentUserId);
   }
 
-  /// 自分以外の参加者のRhing ID。
-  String otherRhingId(String currentUserId) {
+  /// 自分以外の参加者のRhing Seed。
+  String otherRhingSeed(String currentUserId) {
     final otherId = otherUserId(currentUserId);
-    return participantRhingIds[otherId] ?? otherId;
+    return participantRhingSeeds[otherId] ?? otherId;
   }
 
   factory DirectMessage.fromJson(String dmId, Map<String, dynamic> json) {
     return DirectMessage(
       dmId: dmId,
       participants: List<String>.from(json['participants'] as List),
-      participantRhingIds: Map<String, String>.from(
-        json['participantRhingIds'] as Map? ?? {},
+      participantRhingSeeds: Map<String, String>.from(
+        json['participantRhingSeeds'] as Map? ?? {},
       ),
       lastMessageAt: json['lastMessageAt'] as Timestamp?,
       lastMessageSenderId: json['lastMessageSenderId'] as String?,
@@ -118,7 +118,7 @@ class DirectMessage {
   Map<String, dynamic> toJson() {
     return {
       'participants': participants,
-      'participantRhingIds': participantRhingIds,
+      'participantRhingSeeds': participantRhingSeeds,
       'lastMessageAt': lastMessageAt,
       'lastMessageSenderId': lastMessageSenderId,
       'lastMessageContentType': lastMessageContentType,

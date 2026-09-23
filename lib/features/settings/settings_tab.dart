@@ -48,6 +48,7 @@ import '../../providers/text_color_provider.dart';
 import '../../providers/theme_mode_provider.dart';
 import '../../providers/user_providers.dart';
 import '../../services/google_calendar_auth_service.dart';
+import '../../services/google_calendar_link_coordinator.dart';
 import '../../theme/gekiga/gekiga_colors.dart';
 import '../../theme/glass/glass_colors.dart';
 import '../../utils/auto_dismiss_banner.dart';
@@ -691,10 +692,10 @@ class _ActionRow extends StatelessWidget {
 /// （2026-08-09追加）。`_InfoRow`のように現在の状態（有効/無効）を右側に
 /// 出しつつ、`_ActionRow`のようにタップで操作できる。
 class _TwoFactorRow extends ConsumerStatefulWidget {
-  const _TwoFactorRow({required this.strings, required this.rhingId});
+  const _TwoFactorRow({required this.strings, required this.rhingSeed});
 
   final Strings strings;
-  final String rhingId;
+  final String rhingSeed;
 
   @override
   ConsumerState<_TwoFactorRow> createState() => _TwoFactorRowState();
@@ -732,7 +733,10 @@ class _TwoFactorRowState extends ConsumerState<_TwoFactorRow> {
   Future<void> _onTap(List<MultiFactorInfo> factors) async {
     final strings = widget.strings;
     if (factors.isEmpty) {
-      final enrolled = await TwoFactorSetupDialog.show(context, widget.rhingId);
+      final enrolled = await TwoFactorSetupDialog.show(
+        context,
+        widget.rhingSeed,
+      );
       if (enrolled == true && mounted) {
         _refresh();
       }
@@ -1020,11 +1024,15 @@ class _GoogleCalendarSyncRow extends ConsumerWidget {
 
   Future<void> _connect(BuildContext context, WidgetRef ref) async {
     try {
-      final granted = await GoogleCalendarAuthService().requestConsent();
-      if (!granted) return;
+      final calendarId = await GoogleCalendarLinkCoordinator().connect();
+      if (calendarId == null) return;
       await ref
           .read(userRepositoryProvider)
-          .setGoogleCalendarSyncEnabled(currentUser.userId, true);
+          .setGoogleCalendarSyncEnabled(
+            currentUser.userId,
+            true,
+            calendarId: calendarId,
+          );
     } on GoogleCalendarNotConfiguredException {
       if (!context.mounted) return;
       showAutoDismissBanner(
@@ -1037,12 +1045,17 @@ class _GoogleCalendarSyncRow extends ConsumerWidget {
     }
   }
 
-  Future<void> _disconnect(BuildContext context, WidgetRef ref) async {
+  Future<void> _disconnect(
+    BuildContext context,
+    WidgetRef ref,
+    String? calendarId,
+  ) async {
     final confirmed = await _confirmDisconnectGoogleCalendarSync(
       context,
       strings,
     );
     if (!confirmed || !context.mounted) return;
+    await GoogleCalendarLinkCoordinator().disconnect(calendarId);
     await ref
         .read(userRepositoryProvider)
         .setGoogleCalendarSyncEnabled(currentUser.userId, false);
@@ -1059,15 +1072,26 @@ class _GoogleCalendarSyncRow extends ConsumerWidget {
         liveUser.asData?.value?.googleCalendarSyncEnabled ??
         currentUser.googleCalendarSyncEnabled ??
         false;
+    final calendarId =
+        liveUser.asData?.value?.googleCalendarId ??
+        currentUser.googleCalendarId;
+    // `enabled`のみで判定すると、旧スコープ時代に連携済みだったが専用
+    // カレンダー未作成の「壊れた」状態（`chat_panes.dart`の`_CalendarButton.
+    // _googleCalendarId`ドキュメントコメント参照）でもON表示のままになり、
+    // 実際には同期が一切機能していないことに気づけない。calendarIdの有無も
+    // 合わせて判定することで、壊れた状態ではOFF表示にし、ユーザーがONへ
+    // 切り替える操作（`setEnabled(true)`）がそのまま再連携の自己修復導線に
+    // なるようにする（2026-09-23追加）。
+    final showConnected = enabled && calendarId != null;
     final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
     final title = Text(
-      enabled
+      showConnected
           ? strings.settingsGoogleCalendarSyncConnectedLabel
           : strings.settingsGoogleCalendarSyncDisconnectedLabel,
     );
 
     void setEnabled(bool value) =>
-        value ? _connect(context, ref) : _disconnect(context, ref);
+        value ? _connect(context, ref) : _disconnect(context, ref, calendarId);
 
     if (isGekiga) {
       return GekigaJointedTileList(
@@ -1078,7 +1102,7 @@ class _GoogleCalendarSyncRow extends ConsumerWidget {
             selected: false,
             title: title,
             trailing: Switch(
-              value: enabled,
+              value: showConnected,
               onChanged: setEnabled,
               activeThumbColor: GekigaColors.panel,
               activeTrackColor: GekigaColors.onPanel,
@@ -1086,12 +1110,16 @@ class _GoogleCalendarSyncRow extends ConsumerWidget {
               inactiveTrackColor: GekigaColors.panel,
               trackOutlineColor: WidgetStatePropertyAll(GekigaColors.onPanel),
             ),
-            onTap: () => setEnabled(!enabled),
+            onTap: () => setEnabled(!showConnected),
           ),
         ],
       );
     }
-    return SwitchListTile(value: enabled, title: title, onChanged: setEnabled);
+    return SwitchListTile(
+      value: showConnected,
+      title: title,
+      onChanged: setEnabled,
+    );
   }
 }
 
@@ -1303,7 +1331,7 @@ class _LicensePageContentState extends State<_LicensePageContent> {
   }
 }
 
-/// アカウントカテゴリの中身。旧: Rhing ID／プロフィール名／セキュリティ／
+/// アカウントカテゴリの中身。旧: Rhing Seed／プロフィール名／セキュリティ／
 /// QRコードログイン／ログアウト／アカウント削除の各サブフォルダを、
 /// 見出し付きセクションとして1ページにまとめた。
 class _AccountPage extends ConsumerWidget {
@@ -1319,12 +1347,12 @@ class _AccountPage extends ConsumerWidget {
       children: [
         _SectionHeader(strings.settingsAccountInfoSection),
         _InfoRow(
-          label: strings.settingsRhingIdLabel,
-          value: '@${currentUser.rhingId}',
+          label: strings.settingsRhingSeedLabel,
+          value: '@${currentUser.rhingSeed}',
         ),
         const Divider(height: 24),
         _SectionHeader(strings.settingsSecurity),
-        _TwoFactorRow(strings: strings, rhingId: currentUser.rhingId),
+        _TwoFactorRow(strings: strings, rhingSeed: currentUser.rhingSeed),
         _ActionRow(
           label: strings.settingsPasskey,
           onTap: () => PasskeyManagementDialog.show(context),
@@ -3194,7 +3222,7 @@ class _BlockedUsersFolderState extends ConsumerState<_BlockedUsersFolder> {
               );
             }
             final blockedUsers = [...snapshot.data!]
-              ..sort((a, b) => a.rhingId.compareTo(b.rhingId));
+              ..sort((a, b) => a.rhingSeed.compareTo(b.rhingSeed));
             final hasMore = blockedUsers.length > kBlockedUsersPreviewCount;
             final visibleUsers = _expanded
                 ? blockedUsers
@@ -3211,13 +3239,13 @@ class _BlockedUsersFolderState extends ConsumerState<_BlockedUsersFolder> {
                           : null,
                       child: user.effectiveIcon?.url == null
                           ? Text(
-                              user.rhingId.isNotEmpty
-                                  ? user.rhingId[0].toUpperCase()
+                              user.rhingSeed.isNotEmpty
+                                  ? user.rhingSeed[0].toUpperCase()
                                   : '?',
                             )
                           : null,
                     ),
-                    title: Text('@${user.rhingId}'),
+                    title: Text('@${user.rhingSeed}'),
                     trailing: TextButton(
                       onPressed: () => _unblock(context, ref, user.userId),
                       child: Text(strings.settingsBlockedUsersUnblock),

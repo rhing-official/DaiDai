@@ -111,7 +111,7 @@ class Message {
     required this.conversationId,
     required this.conversationType,
     required this.senderId,
-    this.senderRhingId,
+    this.senderRhingSeed,
     required this.content,
     required this.contentType,
     this.sentAt,
@@ -120,7 +120,7 @@ class Message {
     this.readBy = const [],
     this.replyToMessageId,
     this.replyToSenderId,
-    this.replyToSenderRhingId,
+    this.replyToSenderRhingSeed,
     this.replyToSnippet,
     this.editedAt,
     this.reactions = const {},
@@ -141,8 +141,8 @@ class Message {
   final String conversationType; // dm | seat | room
   final String senderId;
 
-  /// 送信者のRhing ID（グループ会話でアイコン・名前を表示するための非正規化）。
-  final String? senderRhingId;
+  /// 送信者のRhing Seed（グループ会話でアイコン・名前を表示するための非正規化）。
+  final String? senderRhingSeed;
   final String content;
   // text | image | file | sticker | video | call | accountDeleted
   // | calendarEventCreated | scheduleCoordinationCreated | pollCreated
@@ -175,7 +175,7 @@ class Message {
   /// あればそちらを優先し（最新の内容・編集済みラベルを反映できる）、
   /// 無ければこのフィールドにフォールバックする。
   final String? replyToSenderId;
-  final String? replyToSenderRhingId;
+  final String? replyToSenderRhingSeed;
 
   /// 返信元メッセージの本文スニペット（返信作成時点の内容、非正規化）。
   /// 返信元が送信取り消しされた場合は、`unsendMessage`/`unsendRoomMessage`が
@@ -244,7 +244,13 @@ class Message {
       conversationId: json['conversationId'] as String,
       conversationType: json['conversationType'] as String,
       senderId: json['senderId'] as String,
-      senderRhingId: json['senderRhingId'] as String?,
+      // rhingId→rhingSeedへの改名（2026-09-23）以前に送信されたメッセージは
+      // 依然として旧フィールド名`senderRhingId`のまま永続化されている
+      // （メッセージ数が膨大なため全件移行はせず、恒久的にこのフォールバックで
+      // 対応する方針）。
+      senderRhingSeed:
+          json['senderRhingSeed'] as String? ??
+          json['senderRhingId'] as String?,
       content: json['content'] as String,
       contentType: json['contentType'] as String,
       sentAt: json['sentAt'] as Timestamp?,
@@ -257,7 +263,10 @@ class Message {
           .toList(),
       replyToMessageId: json['replyToMessageId'] as String?,
       replyToSenderId: json['replyToSenderId'] as String?,
-      replyToSenderRhingId: json['replyToSenderRhingId'] as String?,
+      // 同上（senderRhingSeed参照）の理由で旧フィールド名にもフォールバックする。
+      replyToSenderRhingSeed:
+          json['replyToSenderRhingSeed'] as String? ??
+          json['replyToSenderRhingId'] as String?,
       replyToSnippet: json['replyToSnippet'] as String?,
       editedAt: json['editedAt'] as Timestamp?,
       // 旧形式（reactions.$userIdが単一の絵文字文字列）のドキュメントも
@@ -298,7 +307,7 @@ class Message {
       'conversationId': conversationId,
       'conversationType': conversationType,
       'senderId': senderId,
-      'senderRhingId': senderRhingId,
+      'senderRhingSeed': senderRhingSeed,
       'content': content,
       'contentType': contentType,
       'sentAt': sentAt ?? FieldValue.serverTimestamp(),
@@ -308,7 +317,7 @@ class Message {
       'silent': silent,
       'replyToMessageId': replyToMessageId,
       'replyToSenderId': replyToSenderId,
-      'replyToSenderRhingId': replyToSenderRhingId,
+      'replyToSenderRhingSeed': replyToSenderRhingSeed,
       'replyToSnippet': replyToSnippet,
       'editedAt': editedAt,
       'reactions': reactions,

@@ -25,9 +25,9 @@ class Call {
     required this.callId,
     required this.dmId,
     required this.callerId,
-    required this.callerRhingId,
+    required this.callerRhingSeed,
     required this.calleeId,
-    required this.calleeRhingId,
+    required this.calleeRhingSeed,
     required this.status,
     this.isVideo = false,
     this.callerIsVideo = false,
@@ -44,9 +44,9 @@ class Call {
   /// 投稿するか特定するために使う（`WebrtcCallController`参照）。
   final String dmId;
   final String callerId;
-  final String callerRhingId;
+  final String callerRhingSeed;
   final String calleeId;
-  final String calleeRhingId;
+  final String calleeRhingSeed;
   final CallStatus status;
 
   /// 通話開始時点の種別（true: 720pビデオ通話、false: 音声のみ通話）。
@@ -64,8 +64,8 @@ class Call {
   final Timestamp? createdAt;
   final Timestamp? endedAt;
 
-  String otherRhingId(String currentUserId) {
-    return currentUserId == callerId ? calleeRhingId : callerRhingId;
+  String otherRhingSeed(String currentUserId) {
+    return currentUserId == callerId ? calleeRhingSeed : callerRhingSeed;
   }
 
   String otherUserId(String currentUserId) {
@@ -78,9 +78,9 @@ class Call {
       callId: callId,
       dmId: json['dmId'] as String? ?? '',
       callerId: json['callerId'] as String,
-      callerRhingId: json['callerRhingId'] as String,
+      callerRhingSeed: json['callerRhingSeed'] as String,
       calleeId: json['calleeId'] as String,
-      calleeRhingId: json['calleeRhingId'] as String,
+      calleeRhingSeed: json['calleeRhingSeed'] as String,
       status: CallStatus.fromName(json['status'] as String),
       isVideo: legacyIsVideo,
       callerIsVideo: json['callerIsVideo'] as bool? ?? legacyIsVideo,
@@ -96,9 +96,9 @@ class Call {
     return {
       'dmId': dmId,
       'callerId': callerId,
-      'callerRhingId': callerRhingId,
+      'callerRhingSeed': callerRhingSeed,
       'calleeId': calleeId,
-      'calleeRhingId': calleeRhingId,
+      'calleeRhingSeed': calleeRhingSeed,
       'status': status.name,
       'isVideo': isVideo,
       'callerIsVideo': callerIsVideo,

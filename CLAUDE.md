@@ -256,7 +256,7 @@ DaiDaiは独自の世界観用語を使う。変数名・クラス名・コレ�
 
   
 
-- **User**: `userId`, `rhingId`, `deviceIds`, `bannedDevices`, `accountStatus`(active|pendingDeletion|suspended、suspendedは2026-08-12追加。運営向け管理画面からの手動停止のみで、技術仕様書8.4の期限付き自動停止とは連携しない), `createdAt`/`lastLoginAt`（2026-08-12追加、管理画面向け。`lastLoginAt`は認証済みセッション確認のたびに更新するため「最終アプリ起動日時」に近い）, `subscriptionPlan`(free|kiwami), `profiles[]`（最大3プロフィール＝蔵システム）, `preferences`。2段階認証の有効/無効はFirestoreに複製せずFirebase Authenticationの登録済み要素を都度参照する設計にしたため、旧`twoFactorEnabled`という想定フィールドは不要と判明した（2026-08-09、下記「ログイン手段の方針」参照）。同じ理由でパスキーの登録有無・秘密の質問の設定有無もUserモデル本体へのフィールド追加はしておらず、`users/{uid}/passkeyCredentials`・`users/{uid}/secretQuestions/config`という保護されたサブコレクション（firestore.rulesで`allow read, write: if false`または本人のみreadに限定）の存在有無で判定する（2026-09-16実装、下記「ログイン手段の方針」参照）
+- **User**: `userId`, `rhingSeed`, `deviceIds`, `bannedDevices`, `accountStatus`(active|pendingDeletion|suspended、suspendedは2026-08-12追加。運営向け管理画面からの手動停止のみで、技術仕様書8.4の期限付き自動停止とは連携しない), `createdAt`/`lastLoginAt`（2026-08-12追加、管理画面向け。`lastLoginAt`は認証済みセッション確認のたびに更新するため「最終アプリ起動日時」に近い）, `subscriptionPlan`(free|kiwami), `profiles[]`（最大3プロフィール＝蔵システム）, `preferences`。2段階認証の有効/無効はFirestoreに複製せずFirebase Authenticationの登録済み要素を都度参照する設計にしたため、旧`twoFactorEnabled`という想定フィールドは不要と判明した（2026-08-09、下記「ログイン手段の方針」参照）。同じ理由でパスキーの登録有無・秘密の質問の設定有無もUserモデル本体へのフィールド追加はしておらず、`users/{uid}/passkeyCredentials`・`users/{uid}/secretQuestions/config`という保護されたサブコレクション（firestore.rulesで`allow read, write: if false`または本人のみreadに限定）の存在有無で判定する（2026-09-16実装、下記「ログイン手段の方針」参照）
 
 - **DirectMessage（一対）**: `dmId`, `participants[2]`, `defaultRoomId`, `settings.sectionEnabled`, `sections[]`。メッセージは`directMessages/{dmId}/rooms/{roomId}/messages`（複数寄合対応、2026-07-28実装）に入る。寄合自体は`directMessages/{dmId}/rooms/{roomId}`（`DmRoom`: `dmId`, `name`, `participants[]`, `createdAt`, `deletionRequestedBy`）。参加者2人はどちらも寄合の追加・削除が可能（確認無しで追加、削除は確認ダイアログあり、最後の1つは削除不可）
 
@@ -296,9 +296,9 @@ DaiDaiには現状ぺったんパックの「作成」UI自体が無く（下記
 
   
 
-- **Rhing ID**: 英数字・`.`・`-`・`_`のみ、筆記体不可、大文字小文字区別なし、重複不可、削除後再利用不可
+- **Rhing Seed**（2026-09-23に「Rhing ID」から改名。Firestoreフィールド名`rhingId`→`rhingSeed`、招待URLのルートパラメータ名等コード識別子まで含めて完全リネームした。移行作業の詳細は`functions/src/index.ts`の一度きり移行処理`migrateRhingSeedOnce`のコメント、および`日記.md`2026-09-23参照）: 英数字・`.`・`-`・`_`のみ、筆記体不可、大文字小文字区別なし、重複不可、削除後再利用不可
 
-- **ログイン手段の方針（2026-08-09決定、2026-09-16実装反映のため更新）**: DaiDai独自のRhing ID＋パスワード（メールアドレス＋パスワード方式）は新設しない方針を維持する。理由: (1) パスワード運用（忘れた場合の復旧対応・漏洩対策）のサポート負担を避けられる、(2) 日本国内でもGoogleアカウント保有率は十分高く、Google/Appleログインの提供自体は引き続き主要な入口として維持する。2026-08-09時点では「DaiDaiは認証情報を一切保持せずGoogle/Appleに完全委任しているため、パスキーが本来置き換える対象が存在しない」との理由でパスキー実装も不要と判断していたが、2026-09-16にユーザーから「Googleでしかアカウントを作れないのは信用に関わる」との指摘を受け、以下の「将来の検討事項」だった**「Rhing ID＋パスキー」**（メールアドレス不要、DaiDai自身がWebAuthnのRelying Partyになる）を前倒しで実装した（Google/Appleログインを置き換えるのではなく選択肢として追加する形）。
+- **ログイン手段の方針（2026-08-09決定、2026-09-16実装反映のため更新）**: DaiDai独自のRhing Seed＋パスワード（メールアドレス＋パスワード方式）は新設しない方針を維持する。理由: (1) パスワード運用（忘れた場合の復旧対応・漏洩対策）のサポート負担を避けられる、(2) 日本国内でもGoogleアカウント保有率は十分高く、Google/Appleログインの提供自体は引き続き主要な入口として維持する。2026-08-09時点では「DaiDaiは認証情報を一切保持せずGoogle/Appleに完全委任しているため、パスキーが本来置き換える対象が存在しない」との理由でパスキー実装も不要と判断していたが、2026-09-16にユーザーから「Googleでしかアカウントを作れないのは信用に関わる」との指摘を受け、以下の「将来の検討事項」だった**「Rhing Seed＋パスキー」**（メールアドレス不要、DaiDai自身がWebAuthnのRelying Partyになる）を前倒しで実装した（Google/Appleログインを置き換えるのではなく選択肢として追加する形）。
   - **実装済みの内容（2026-09-16）**: 新規アカウント作成・ログイン（`functions/src/index.ts`の`beginPasskeyRegistration`/`finishPasskeyRegistration`/`beginPasskeyAuthentication`/`finishPasskeyAuthentication`、`lib/repositories/auth_repository.dart`の`registerWithPasskey`/`signInWithPasskey`）、複数端末分のパスキーを事前に追加登録できる管理UI（`lib/features/settings/passkey_management_dialog.dart`、`beginAddPasskey`/`finishAddPasskey`/`listPasskeyCredentials`/`deletePasskeyCredential`）、パスキー紛失時の秘密の質問による復旧（`beginPasskeyRecovery`/`finishPasskeyRecovery`、自由入力の質問・回答3組をbcryptハッシュ化して`users/{uid}/secretQuestions/config`に保存、3問すべて正解が復旧条件、5回失敗で15分ロックする簡易なロックアウト機構込み）。対応プラットフォームはWeb/Android/iOS/macOS/Windowsの5つで、Linuxはパスキー非対応のため当面Google/Appleログインのみ（`lib/utils/platform_info.dart`の`isPasskeyCapablePlatform`）。
   - **将来の検討事項（未着手・未決定）**: プライバシーファーストを掲げる以上、Google/Appleへの依存自体が長期的には理念と緊張関係にある（サインイン時にGoogle/Apple側にDaiDai利用の事実が伝わる、アカウント停止時の依存リスクなど）。パスキー実装によりGoogle/Apple非依存のログイン手段自体は用意できたが、Google/Appleログインを廃止する・必須にしないといった大きな方針転換はまだ行っていない
 
@@ -351,7 +351,7 @@ DaiDaiには現状ぺったんパックの「作成」UI自体が無く（下記
 
 | マイナンバー連携 | 必要性がない |
 
-| 着せ替え | DaiDai本来のUIを崩す恐れ |
+| 着せ替え | DaiDai本来のUIを崩す恐れ（2026-09-23: LINE等の競合調査の結果、実装・審査体制の運用負荷も大きいと判断し見送り方針を維持。ユーザーから強い希望があれば再検討する。調査詳細は`競合調査.md`の「2026-09-23 「着せ替え」機能の導入可否に関する調査」参照） |
 
 | メーラー | 機能複雑化を避ける。作るなら別アプリ |
 
@@ -367,7 +367,7 @@ DaiDaiには現状ぺったんパックの「作成」UI自体が無く（下記
 
 |---------|--------|-------------|
 
-| フェーズ1（MVP・6ヶ月） | 10,000 | Google/Apple認証、Rhing ID、一対・広場（既定は裏広場）、720pビデオ通話、WebP圧縮、基本スパム対策。**E2E暗号化・ぺったん・1080p通話は含めない。極みプランは2026-09-14の方針転換により機能自体はフェーズ1で実装するが、課金ゲートは商取引の手続きが整うまで無効化し全員に無料開放する（下記「極みプランの無料先行公開」参照）** |
+| フェーズ1（MVP・6ヶ月） | 10,000 | Google/Apple認証、Rhing Seed、一対・広場（既定は裏広場）、720pビデオ通話、WebP圧縮、基本スパム対策。**E2E暗号化・ぺったん・1080p通話は含めない。極みプランは2026-09-14の方針転換により機能自体はフェーズ1で実装するが、課金ゲートは商取引の手続きが整うまで無効化し全員に無料開放する（下記「極みプランの無料先行公開」参照）** |
 
 | フェーズ2（拡充・12ヶ月） | 100,000 | 極みプラン（課金化）、ぺったん・daidai横丁、E2E暗号化（Signal Protocol）、QRコードログイン。**2段階認証（TOTP）は2026-08-09に前倒し実装済み。極みプランの機能自体も2026-09-14に前倒し（無料開放という形、下記参照）、フェーズ2で行うのは課金ゲートの有効化のみ。パスキーは同日の方針決定によりフェーズ2の実装対象から除外（不採用ではなく将来の検討事項、上記「ログイン手段の方針」参照）** |
 
@@ -542,7 +542,7 @@ Google Play Consoleの本人確認は、住所の表記ゆれでパスポート�
 
 - 無料版フォント（設定＞アプリケーションの「フォントデザイン」、`FontDesign`、2026-09-15更新。この節は元々企画段階のBIZ UDPMincho/BIZ UDGothic/チカラヅヨク/チカラヨワクという記述だったが実装には反映されておらず、商用利用可否を確認した上でこれらも含めて実装した）: はんなり明朝、KHドットフォント 12神楽坂、キウイ丸、しっぽり明朝、Noto Sans JP、Noto Serif JP、源真ゴシック、源柔ゴシック、自家製 Rounded M+、851ゴチカクット、マキナス、黒薔薇シンデレラ、ピグモ01、けいふぉんと！、ポプらむ☆キュート、Zen Kaku Gothic New、Zen Old Mincho、Zen Maru Gothic、Klee One、Yomogi、Kaisei Decol、BIZ UDPMincho、BIZ UDGothic、851チカラヅヨク、851チカラヨワク（全25種）。「標準（プラットフォーム既定フォントのまま）」は2026-09-14にユーザー指示で廃止し、必ずいずれかのフォントを適用する。2026-09-15、ユーザー指示で「だるまドロップ」を廃止し、新たに5書体を追加した（マキナス・黒薔薇シンデレラ・ピグモ01・けいふぉんと！・ポプらむ☆キュート、いずれも商用利用・アプリへの組み込みが可能であることを配布元の利用規約で確認済み）。当初依頼のあった「マキナス Scrapスクラップ」は配布元（もじワク研究）で廃盤になっており入手できなかったため、同シリーズの現行版「マキナス（4 Flat）」で代用、「g_コミック古印体」はGoogle Drive経由の配布で自動取得できなかったため見送った
 
-- ボタンの配色: 背景色が薄い（明度が高い）色に白色のテキストを乗せる組み合わせは禁止。コントラストが不十分で読みにくくなる（`colorScheme.error`はダークテーマ下のMaterial3仕様で明るいサーモンピンクに近い色になり白文字が読みにくくなる、2026-08-12の教訓）。削除確認等の警告色ボタンは固定の濃い赤（`Colors.red.shade700`等）など、実際にコントラストが確保できる色を明示的に指定すること。**大事な選択を確定させるボタン**（削除確認に限らず、既読オフ・絶縁提案への同意ボタン等の後戻りしにくい選択全般）は、広場削除の確認ダイアログ（`lib/features/chat/group_delete_dialog.dart`の「広場を削除」ボタン）で採用している鮮やかな赤（`Colors.red.shade700`、文字色`Colors.white`）に統一する（2026-09-16追記）。
+- ボタンの配色: 背景色が薄い（明度が高い）色に白色のテキストを乗せる組み合わせは禁止。コントラストが不十分で読みにくくなる（`colorScheme.error`はダークテーマ下のMaterial3仕様で明るいサーモンピンクに近い色になり白文字が読みにくくなる、2026-08-12の教訓）。削除確認等の警告色ボタンは固定の濃い赤（`Colors.red.shade700`等）など、実際にコントラストが確保できる色を明示的に指定すること。**大事な選択を確定させるボタン**（削除確認に限らず、既読オフ・絶縁提案への同意ボタン等の後戻りしにくい選択全般）は、広場削除の確認ダイアログ（`lib/features/chat/group_delete_dialog.dart`の「広場を削除」ボタン）で採用している鮮やかな赤（`Colors.red.shade700`、文字色`Colors.white`）に統一する（2026-09-16追記）。ログイン画面の主要ログイン手段ボタン（Googleでログイン・QRコードでログイン・パスキーでログイン）は`lib/widgets/branded_block_button.dart`の`BrandedBlockButton`（Googleの公式ブランドガイドライン準拠の固定白/黒配色ロジックを共通化したもの）により統一しており、他のボタンとは異なり3 UIスタイル（フラット/ガラス/劇画）・アクセントカラーには追従しない意図的な例外（2026-09-23、デザイン統一のためGoogleボタンの配色をQR/パスキーにも拡張）。
 
 - **テキストは必ず外観（背景）の色と反対の色を適用する**。ボタンの種類（`TextButton`/`OutlinedButton`等）を問わず、文字色にアクセントカラー（`colorScheme.primary`）を使わないこと。各UIスタイルで固定された中立色（フラット/ガラスは`colorScheme.onSurface`等、劇画は`GekigaColors.onPanel`）を使う。アクセントカラーはボタンの地色・ガラスUIのリムライトなど、背景の塗りとしてのみ使う（2026-09-01の教訓、確認ダイアログの「今は同期しない」等の文字がアクセントカラーになり視認性を欠いた）。`lib/theme/app_theme.dart`・`lib/theme/glass/glass_theme.dart`・`lib/theme/gekiga/gekiga_theme.dart`の`textButtonTheme`・`outlinedButtonTheme`で一括対応済みのため、個別のボタンで`foregroundColor`を指定する必要は無い（2026-09-14追記: `outlinedButtonTheme`はフラット/ガラスで対応漏れがあり、「QRコードを読み取る」ボタン等の文字がアクセントカラーのままになっていたため追加した。今後新しいボタン種別を使う際も、このテーマ側の一括対応から漏れていないか確認すること）。
 

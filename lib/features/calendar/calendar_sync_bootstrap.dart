@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../models/calendar_event_sync.dart';
 import '../../providers/repository_providers.dart';
+import '../../providers/user_providers.dart';
 import '../../repositories/calendar_event_repository.dart';
 import '../../services/google_calendar_auth_service.dart';
 import '../../services/google_calendar_sync_service.dart';
@@ -34,6 +35,13 @@ class CalendarSyncBootstrap extends ConsumerStatefulWidget {
 class _CalendarSyncBootstrapState extends ConsumerState<CalendarSyncBootstrap> {
   final _authService = GoogleCalendarAuthService();
   final _syncService = GoogleCalendarSyncService();
+
+  /// 住人ごとに1つだけ作成される専用カレンダーのid（[AppUser.googleCalendarId]
+  /// 参照）。未連携・作成前はnull。
+  String? get _googleCalendarId {
+    final liveUser = ref.read(watchedUserProvider(widget.currentUserId));
+    return liveUser.asData?.value?.googleCalendarId;
+  }
 
   Future<void> _processTask(CalendarEventSyncTask task) async {
     final repo = ref.read(calendarEventRepositoryProvider);
@@ -71,7 +79,8 @@ class _CalendarSyncBootstrapState extends ConsumerState<CalendarSyncBootstrap> {
     if (!claimed) return;
 
     final accessToken = await _authService.getAccessTokenSilently();
-    if (accessToken == null) {
+    final calendarId = _googleCalendarId;
+    if (accessToken == null || calendarId == null) {
       await repo.writeSyncState(
         isDm: task.isDm,
         conversationId: task.conversationId,
@@ -91,20 +100,24 @@ class _CalendarSyncBootstrapState extends ConsumerState<CalendarSyncBootstrap> {
       if (existingGoogleEventId == null) {
         googleEventId = await _syncService.createGoogleEvent(
           accessToken: accessToken,
+          calendarId: calendarId,
           event: event,
         );
       } else {
         try {
           await _syncService.updateGoogleEvent(
             accessToken: accessToken,
+            calendarId: calendarId,
             googleEventId: existingGoogleEventId,
             event: event,
           );
           googleEventId = existingGoogleEventId;
         } on GoogleCalendarEventNotFoundException {
-          // ユーザーがGoogle Calendar側で直接削除した場合等。作り直す。
+          // ユーザーがGoogle Calendar側で直接削除した場合、または連携解除→
+          // 再連携で専用カレンダーが作り直された場合等。作り直す。
           googleEventId = await _syncService.createGoogleEvent(
             accessToken: accessToken,
+            calendarId: calendarId,
             event: event,
           );
         }
@@ -118,6 +131,7 @@ class _CalendarSyncBootstrapState extends ConsumerState<CalendarSyncBootstrap> {
         syncState: CalendarEventSync(
           uid: widget.currentUserId,
           googleEventId: googleEventId,
+          googleCalendarId: calendarId,
           status: CalendarSyncStatus.synced,
           syncedAt: Timestamp.now(),
         ),
@@ -189,6 +203,7 @@ class _CalendarSyncBootstrapState extends ConsumerState<CalendarSyncBootstrap> {
     try {
       await _syncService.deleteGoogleEvent(
         accessToken: accessToken,
+        calendarId: task.syncState.googleCalendarId,
         googleEventId: googleEventId,
       );
       await repo.deleteSyncState(

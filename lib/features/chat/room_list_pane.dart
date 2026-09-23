@@ -50,7 +50,7 @@ class RoomListPane extends ConsumerStatefulWidget {
   });
 
   /// このペインが今表示している会話（広場名、または一対の相手の呼び名/
-  /// Rhing ID）。ヘッダーに表示する（以前は用語「寄合」の固定文言だったが、
+  /// Rhing Seed）。ヘッダーに表示する（以前は用語「寄合」の固定文言だったが、
   /// どの会話の寄合一覧を見ているか分かりにくいとの指摘を受けて変更）。
   final String conversationName;
 

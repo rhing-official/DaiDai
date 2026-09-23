@@ -7,7 +7,7 @@ import 'call/incoming_call_listener.dart';
 import 'home/home_screen.dart';
 import 'push_notification_bootstrap.dart';
 
-/// アプリのルート画面。認証状態・Rhing ID登録状態に応じて表示を切り替える
+/// アプリのルート画面。認証状態・Rhing Seed登録状態に応じて表示を切り替える
 /// （実体は[AuthGate]。ログイン済みならホーム画面を表示する）。
 class AppGate extends StatelessWidget {
   const AppGate({super.key});

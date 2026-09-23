@@ -172,7 +172,7 @@ class _CalendarEventDetailDialogState
       conversationId: widget.conversationId,
       roomId: widget.roomId,
       currentUserId: widget.currentUser.userId,
-      currentUserRhingId: widget.currentUser.rhingId,
+      currentUserRhingSeed: widget.currentUser.rhingSeed,
       existingEvent: widget.event,
     );
     if (result != null && mounted) Navigator.of(context).pop();

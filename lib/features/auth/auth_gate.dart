@@ -7,13 +7,13 @@ import '../../providers/user_preferences_sync.dart';
 import 'account_restore_screen.dart';
 import 'account_suspended_screen.dart';
 import 'passcode_lock_gate.dart';
-import 'rhing_id_setup_screen.dart';
+import 'rhing_seed_setup_screen.dart';
 import 'sign_in_screen.dart';
 import 'terms_consent_screen.dart';
 
-/// 認証状態・Rhing ID登録状態に応じて表示を切り替える汎用ゲート。
-/// ログイン済み・Rhing ID登録済みになった時点で[builder]を呼ぶ。
-/// [AppGate]（アプリのルート画面）と、招待リンク（`/invite/:rhingId`）など
+/// 認証状態・Rhing Seed登録状態に応じて表示を切り替える汎用ゲート。
+/// ログイン済み・Rhing Seed登録済みになった時点で[builder]を呼ぶ。
+/// [AppGate]（アプリのルート画面）と、招待リンク（`/invite/:rhingSeed`）など
 /// 未ログインでも開かれうる入り口の両方から使う。
 class AuthGate extends ConsumerWidget {
   const AuthGate({required this.builder, super.key});
@@ -53,7 +53,7 @@ class _AuthenticatedUserGateState
     extends ConsumerState<_AuthenticatedUserGate> {
   late Future<AppUser?> _future;
 
-  /// 新規アカウント作成時、[RhingIdSetupScreen]の前に[TermsConsentScreen]で
+  /// 新規アカウント作成時、[RhingSeedSetupScreen]の前に[TermsConsentScreen]で
   /// 同意したかどうか（このセッション内のみの一時的な状態、2026-09-14追加）。
   bool _termsAgreed = false;
 
@@ -97,7 +97,7 @@ class _AuthenticatedUserGateState
               onAgree: () => setState(() => _termsAgreed = true),
             );
           }
-          return RhingIdSetupScreen(userId: widget.userId);
+          return RhingSeedSetupScreen(userId: widget.userId);
         }
         if (appUser.accountStatus == AccountStatus.pendingDeletion) {
           return AccountRestoreScreen(

@@ -23,7 +23,7 @@ class GroupJoinRequest {
     required this.requestId,
     required this.groupId,
     required this.requesterId,
-    required this.requesterRhingId,
+    required this.requesterRhingSeed,
     required this.status,
     this.createdAt,
     this.respondedAt,
@@ -32,7 +32,7 @@ class GroupJoinRequest {
   final String requestId;
   final String groupId;
   final String requesterId;
-  final String requesterRhingId;
+  final String requesterRhingSeed;
   final GroupJoinRequestStatus status;
   final Timestamp? createdAt;
   final Timestamp? respondedAt;
@@ -45,7 +45,7 @@ class GroupJoinRequest {
       requestId: requestId,
       groupId: json['groupId'] as String,
       requesterId: json['requesterId'] as String,
-      requesterRhingId: json['requesterRhingId'] as String,
+      requesterRhingSeed: json['requesterRhingSeed'] as String,
       status: GroupJoinRequestStatus.fromName(json['status'] as String),
       createdAt: json['createdAt'] as Timestamp?,
       respondedAt: json['respondedAt'] as Timestamp?,
@@ -56,7 +56,7 @@ class GroupJoinRequest {
     return {
       'groupId': groupId,
       'requesterId': requesterId,
-      'requesterRhingId': requesterRhingId,
+      'requesterRhingSeed': requesterRhingSeed,
       'status': status.name,
       'createdAt': createdAt ?? FieldValue.serverTimestamp(),
       'respondedAt': respondedAt,

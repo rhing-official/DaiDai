@@ -102,7 +102,7 @@ class CalendarResponseGroup extends ConsumerWidget {
                   }(),
                   label: Text(
                     user.effectiveNicknameFor(conversationId)?.text ??
-                        '@${user.rhingId}',
+                        '@${user.rhingSeed}',
                   ),
                 ),
             ],

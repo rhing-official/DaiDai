@@ -2253,7 +2253,7 @@ class _FriendRequestTile extends ConsumerWidget {
             foregroundColor: Theme.of(context).colorScheme.onSurfaceVariant,
             child: iconUrl == null ? const Icon(Icons.person_outline) : null,
           );
-    final titleText = '@${request.otherRhingId(currentUserId)}';
+    final titleText = '@${request.otherRhingSeed(currentUserId)}';
     // outgoing（自分が送った申請）は「相手の承認を待っています」という
     // 待ちの情報を、一覧のブロックからは消してタップ時のプレビュー画面側に
     // 表示する（2026-08-04変更）。incoming（相手から届いた申請）は
@@ -2456,7 +2456,7 @@ String dmSearchLabel(
   final nickname = otherUser?.effectiveNicknameFor(dm.dmId)?.text;
   return (nickname?.isNotEmpty ?? false)
       ? nickname!
-      : '@${dm.otherRhingId(currentUserId)}';
+      : '@${dm.otherRhingSeed(currentUserId)}';
 }
 
 /// 語らい一覧の最新メッセージプレビュー文字列。テキスト/通話サマリーは
@@ -3726,7 +3726,7 @@ class _DmDetailWithRoomsState extends ConsumerState<_DmDetailWithRooms> {
     final currentUser = widget.currentUser;
     final other = AppUser(
       userId: dm.otherUserId(currentUser.userId),
-      rhingId: dm.otherRhingId(currentUser.userId),
+      rhingSeed: dm.otherRhingSeed(currentUser.userId),
     );
     final call = await callRepository.createCall(
       caller: currentUser,
@@ -3779,7 +3779,7 @@ class _DmDetailWithRoomsState extends ConsumerState<_DmDetailWithRooms> {
     final otherNickname = otherUser?.effectiveNicknameFor(dm.dmId)?.text;
     final conversationName = (otherNickname?.isNotEmpty ?? false)
         ? otherNickname!
-        : '@${dm.otherRhingId(currentUser.userId)}';
+        : '@${dm.otherRhingSeed(currentUser.userId)}';
     return StreamBuilder<List<DmRoom>>(
       stream: _roomsStream,
       builder: (context, snapshot) {

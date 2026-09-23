@@ -109,22 +109,22 @@ abstract class AuthRepository {
   /// 呼ぶ。Cloud Functionsから受け取ったカスタムトークンでサインインまで行う。
   Future<User> claimQrLoginSession(String sessionId);
 
-  /// Rhing ID＋パスキー（WebAuthn）による新規アカウント作成（2026-09-16追加）。
+  /// Rhing Seed＋パスキー（WebAuthn）による新規アカウント作成（2026-09-16追加）。
   /// デバイスの生体認証/画面ロックで新しいパスキーを作成し、対応する
   /// Firebase Authユーザーを作成してサインインする。この時点ではまだ
   /// FirestoreのAppUserドキュメントは存在しないため、呼び出し後はGoogle/Apple
   /// サインイン後と同様に`AuthGate`が`TermsConsentScreen`→
-  /// `RhingIdSetupScreen`へ自然に遷移する（Rhing ID自体はそこで決める）。
+  /// `RhingSeedSetupScreen`へ自然に遷移する（Rhing Seed自体はそこで決める）。
   Future<User> registerWithPasskey();
 
-  /// Rhing ID＋パスキーでのログイン（2026-09-16追加）。[rhingId]に登録済みの
+  /// Rhing Seed＋パスキーでのログイン（2026-09-16追加）。[rhingSeed]に登録済みの
   /// パスキーでデバイスに認証を要求し、成功したらサインインする。
-  Future<User> signInWithPasskey(String rhingId);
+  Future<User> signInWithPasskey(String rhingSeed);
 
   /// Conditional UI（パスワードマネージャー自動候補表示）によるパスキー
-  /// ログイン（2026-09-16追加、Web版のみ対応）。Rhing IDの入力なしに
+  /// ログイン（2026-09-16追加、Web版のみ対応）。Rhing Seedの入力なしに
   /// ブラウザ側のパスキー候補一覧をユーザーに提示し、選択されたパスキーで
-  /// サインインする。ユーザーが候補を選ぶ前に他の操作（Google/Rhing ID
+  /// サインインする。ユーザーが候補を選ぶ前に他の操作（Google/Rhing Seed
   /// ログイン等）で認証が横取りされた場合はnullを返す。対応していない
   /// 環境（Web以外、またはブラウザがConditional Mediation未対応）では
   /// 呼び出し側が判断できるよう[isConditionalPasskeyAvailable]を用意する。
@@ -134,7 +134,7 @@ abstract class AuthRepository {
   Future<bool> isConditionalPasskeyAvailable();
 
   /// [trySignInWithConditionalPasskey]の待機を中断する。呼び出し元の画面が
-  /// ユーザーの選択を待たずに閉じられた場合に呼ぶ（明示的なRhing ID
+  /// ユーザーの選択を待たずに閉じられた場合に呼ぶ（明示的なRhing Seed
   /// ログイン等、他の認証操作を開始する場合は各操作側が自動的に中断するため
   /// 呼ぶ必要はない）。
   Future<void> cancelConditionalPasskeyAttempt();
@@ -164,9 +164,9 @@ abstract class AuthRepository {
   /// 登録済みパスキーの名前を変更する（2026-09-18追加）。
   Future<void> renamePasskeyCredential(String credentialId, String name);
 
-  /// パスキー紛失時の復旧フロー第1段階（2026-09-16追加）。[rhingId]の
+  /// パスキー紛失時の復旧フロー第1段階（2026-09-16追加）。[rhingSeed]の
   /// アカウントに秘密の質問が設定されていれば質問一覧を返す。
-  Future<PasskeyRecoveryQuestions> beginPasskeyRecovery(String rhingId);
+  Future<PasskeyRecoveryQuestions> beginPasskeyRecovery(String rhingSeed);
 
   /// 復旧フロー第2段階。[answers]は[beginPasskeyRecovery]が返した質問と
   /// 同じ順序の3つの回答。3問すべて正解した場合のみサインインする。
@@ -417,10 +417,10 @@ class FirebaseAuthRepository implements AuthRepository {
   }
 
   @override
-  Future<User> signInWithPasskey(String rhingId) async {
+  Future<User> signInWithPasskey(String rhingSeed) async {
     final beginResult = await _functions
         .httpsCallable('beginPasskeyAuthentication')
-        .call({'rhingId': rhingId});
+        .call({'rhingSeed': rhingSeed});
     final beginData = _asJsonMap(beginResult.data);
     final challengeId = beginData['challengeId'] as String;
     final options = beginData['options'] as Map<String, dynamic>;
@@ -582,9 +582,11 @@ class FirebaseAuthRepository implements AuthRepository {
   }
 
   @override
-  Future<PasskeyRecoveryQuestions> beginPasskeyRecovery(String rhingId) async {
+  Future<PasskeyRecoveryQuestions> beginPasskeyRecovery(
+    String rhingSeed,
+  ) async {
     final result = await _functions.httpsCallable('beginPasskeyRecovery').call({
-      'rhingId': rhingId,
+      'rhingSeed': rhingSeed,
     });
     final data = _asJsonMap(result.data);
     final questions = (data['questions'] as List<dynamic>).cast<String>();

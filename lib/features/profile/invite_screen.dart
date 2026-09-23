@@ -10,19 +10,21 @@ import '../../utils/friend_request_error.dart';
 import '../../widgets/profile_card_picker.dart';
 import '../auth/auth_gate.dart';
 
-/// 招待リンク（`/invite/:rhingId`）・QRコード読み取りの両方から開かれる、
+/// 招待リンク（`/invite/:rhingSeed`）・QRコード読み取りの両方から開かれる、
 /// 友達申請の確認画面。ログイン前に開かれた場合は[AuthGate]がまずログイン・
-/// Rhing ID登録を済ませてから、この画面本体（[_InviteConfirmView]）を表示する。
+/// Rhing Seed登録を済ませてから、この画面本体（[_InviteConfirmView]）を表示する。
 class InviteScreen extends StatelessWidget {
-  const InviteScreen({required this.rhingId, super.key});
+  const InviteScreen({required this.rhingSeed, super.key});
 
-  final String rhingId;
+  final String rhingSeed;
 
   @override
   Widget build(BuildContext context) {
     return AuthGate(
-      builder: (context, currentUser) =>
-          _InviteConfirmView(currentUser: currentUser, inviterRhingId: rhingId),
+      builder: (context, currentUser) => _InviteConfirmView(
+        currentUser: currentUser,
+        inviterRhingSeed: rhingSeed,
+      ),
     );
   }
 }
@@ -32,11 +34,11 @@ enum _InviteStatus { loading, invalid, self, alreadyFriends, ready, sent }
 class _InviteConfirmView extends ConsumerStatefulWidget {
   const _InviteConfirmView({
     required this.currentUser,
-    required this.inviterRhingId,
+    required this.inviterRhingSeed,
   });
 
   final AppUser currentUser;
-  final String inviterRhingId;
+  final String inviterRhingSeed;
 
   @override
   ConsumerState<_InviteConfirmView> createState() => _InviteConfirmViewState();
@@ -68,14 +70,14 @@ class _InviteConfirmViewState extends ConsumerState<_InviteConfirmView> {
   }
 
   Future<void> _resolve() async {
-    final rhingId = widget.inviterRhingId.trim().toLowerCase();
-    if (rhingId.isEmpty) {
+    final rhingSeed = widget.inviterRhingSeed.trim().toLowerCase();
+    if (rhingSeed.isEmpty) {
       setState(() => _status = _InviteStatus.invalid);
       return;
     }
 
     final userRepository = ref.read(userRepositoryProvider);
-    final inviter = await userRepository.findByRhingId(rhingId);
+    final inviter = await userRepository.findByRhingSeed(rhingSeed);
     if (!mounted) return;
     if (inviter == null) {
       setState(() => _status = _InviteStatus.invalid);
@@ -189,7 +191,7 @@ class _InviteConfirmViewState extends ConsumerState<_InviteConfirmView> {
             const Icon(Icons.handshake_outlined, size: 48),
             const SizedBox(height: 16),
             Text(
-              strings.inviteConfirmDescriptionTemplate(_inviter!.rhingId),
+              strings.inviteConfirmDescriptionTemplate(_inviter!.rhingSeed),
               textAlign: TextAlign.center,
             ),
             if (_errorMessage != null) ...[

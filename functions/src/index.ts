@@ -196,16 +196,16 @@ async function deleteAccount(
   userId: string,
   userData: FirebaseFirestore.DocumentData,
 ): Promise<void> {
-  const rhingId: string | undefined = userData.rhingId;
+  const rhingSeed: string | undefined = userData.rhingSeed;
   const writer = new ChunkedWriter();
 
-  await notifyDirectMessages(userId, rhingId, writer);
-  await notifyAndLeaveGroups(userId, rhingId, writer);
+  await notifyDirectMessages(userId, rhingSeed, writer);
+  await notifyAndLeaveGroups(userId, rhingSeed, writer);
   await deleteFriends(userId, writer);
   await deleteFriendRequests(userId, writer);
 
-  if (rhingId) {
-    await writer.delete(db.collection("userInvites").doc(rhingId));
+  if (rhingSeed) {
+    await writer.delete(db.collection("userInvites").doc(rhingSeed));
   }
   // daidai横丁で出品者だった場合のみ存在する公開プロフィールミラー
   // （creatorProfiles、非出品者には存在しないが、無条件のdeleteは安全）。
@@ -237,7 +237,7 @@ async function deleteAccount(
  * DirectMessageRepository.deleteDmAfterAccountDeletion参照）。 */
 async function notifyDirectMessages(
   userId: string,
-  rhingId: string | undefined,
+  rhingSeed: string | undefined,
   writer: ChunkedWriter,
 ): Promise<void> {
   const dms = await db
@@ -260,7 +260,7 @@ async function notifyDirectMessages(
       conversationId: targetRoomId,
       conversationType: "dm",
       senderId: userId,
-      senderRhingId: rhingId ?? null,
+      senderRhingSeed: rhingSeed ?? null,
       content: ACCOUNT_DELETED_NOTICE_CONTENT,
       contentType: "accountDeleted",
       sentAt: FieldValue.serverTimestamp(),
@@ -289,7 +289,7 @@ async function notifyDirectMessages(
  * 長のままの場合は除去せず通知のみ行う防御的分岐を残す。 */
 async function notifyAndLeaveGroups(
   userId: string,
-  rhingId: string | undefined,
+  rhingSeed: string | undefined,
   writer: ChunkedWriter,
 ): Promise<void> {
   const groups = await db
@@ -313,7 +313,7 @@ async function notifyAndLeaveGroups(
       conversationId: targetRoomId,
       conversationType: "room",
       senderId: userId,
-      senderRhingId: rhingId ?? null,
+      senderRhingSeed: rhingSeed ?? null,
       content: ACCOUNT_DELETED_NOTICE_CONTENT,
       contentType: "accountDeleted",
       sentAt: FieldValue.serverTimestamp(),
@@ -484,9 +484,9 @@ export const cleanupQrLoginSessions = onSchedule(
 );
 
 // ---------------------------------------------------------------------
-// パスキー（WebAuthn）によるRhing IDログイン・新規アカウント作成
+// パスキー（WebAuthn）によるRhing Seedログイン・新規アカウント作成
 // （2026-09-16実装。CLAUDE.md「ログイン手段の方針」の将来検討事項として
-// 構想されていた「Rhing ID＋パスキー」の実装。メールアドレス・電話番号を
+// 構想されていた「Rhing Seed＋パスキー」の実装。メールアドレス・電話番号を
 // 一切使わず、DaiDai自身がWebAuthnのRelying Partyになる）。
 //
 // QRコードログイン（claimQrLoginSession等、上記）と同じ「独自検証→
@@ -595,7 +595,7 @@ async function consumeDiscoverablePasskeyChallenge(
 }
 
 /**
- * Rhing ID＋パスキーによる新規アカウント作成の第1段階
+ * Rhing Seed＋パスキーによる新規アカウント作成の第1段階
  * （`AuthRepository.registerWithPasskey`から呼ぶ）。まだFirebase Auth
  * ユーザーは作らず、WebAuthnのregistration challengeだけを発行する
  * （実際のユーザー作成は`finishPasskeyRegistration`で行う）。
@@ -630,7 +630,7 @@ export const beginPasskeyRegistration = onCall(
  * 検証し、成功したらFirebase Authユーザーを新規作成してカスタムトークンを
  * 返す。この時点ではFirestoreに`users/{uid}`ドキュメントはまだ作らない
  * （Google/Apple/QRログインと同じく、`AuthGate`がTermsConsentScreen→
- * RhingIdSetupScreenへ自然に遷移させるのに任せる設計）。
+ * RhingSeedSetupScreenへ自然に遷移させるのに任せる設計）。
  */
 export const finishPasskeyRegistration = onCall(
   { region: "asia-northeast1" },
@@ -693,26 +693,30 @@ export const finishPasskeyRegistration = onCall(
 );
 
 /**
- * Rhing ID＋パスキーでのログインの第1段階（`AuthRepository.signInWithPasskey`
- * から呼ぶ）。指定されたRhing IDに登録済みのパスキーでauthentication
+ * Rhing Seed＋パスキーでのログインの第1段階（`AuthRepository.signInWithPasskey`
+ * から呼ぶ）。指定されたRhing Seedに登録済みのパスキーでauthentication
  * challengeを発行する。
  */
 export const beginPasskeyAuthentication = onCall(
   { region: "asia-northeast1" },
   async (request) => {
-    const rhingId = request.data?.rhingId;
-    if (typeof rhingId !== "string" || !rhingId) {
-      throw new HttpsError("invalid-argument", "rhingIdが必要です");
+    // rhingId→rhingSeedへの改名に伴う移行期間シム（2026-09-23追加）。
+    // クライアント（Web）のデプロイが完了するまでの一瞬、旧キー`rhingId`で
+    // 送られてくる可能性があるため両方受け付ける。クライアントの動作確認が
+    // 済んだら`request.data?.rhingId`のフォールバックを削除すること。
+    const rhingSeed = request.data?.rhingSeed ?? request.data?.rhingId;
+    if (typeof rhingSeed !== "string" || !rhingSeed) {
+      throw new HttpsError("invalid-argument", "rhingSeedが必要です");
     }
     const usersSnapshot = await db
       .collection("users")
-      .where("rhingId", "==", rhingId.trim().toLowerCase())
+      .where("rhingSeed", "==", rhingSeed.trim().toLowerCase())
       .limit(1)
       .get();
     if (usersSnapshot.empty) {
       throw new HttpsError(
         "not-found",
-        "そのRhing IDのアカウントが見つかりません",
+        "そのRhing Seedのアカウントが見つかりません",
       );
     }
     const uid = usersSnapshot.docs[0].id;
@@ -821,7 +825,7 @@ export const finishPasskeyAuthentication = onCall(
 /**
  * Conditional UI（パスワードマネージャー自動候補表示）によるログインの
  * 第1段階（2026-09-16追加、Web版のみ`AuthRepository`から呼ぶ）。
- * `beginPasskeyAuthentication`と異なりRhing IDによる事前のユーザー特定を
+ * `beginPasskeyAuthentication`と異なりRhing Seedによる事前のユーザー特定を
  * 行わず、`allowCredentials`を指定しないdiscoverable credential方式の
  * challengeを発行する。どのユーザーかは`finishPasskeyAuthenticationDiscoverable`
  * 側で、assertionResponseに含まれるuserHandleから特定する
@@ -1230,26 +1234,29 @@ export const renamePasskeyCredential = onCall(
 );
 
 /**
- * パスキー紛失時の復旧フロー第1段階。指定されたRhing IDのアカウントに
+ * パスキー紛失時の復旧フロー第1段階。指定されたRhing Seedのアカウントに
  * 秘密の質問が設定されていれば、質問文（ハッシュは含まない）を返す。
  * ロックアウト中は`resource-exhausted`で拒否する。
  */
 export const beginPasskeyRecovery = onCall(
   { region: "asia-northeast1" },
   async (request) => {
-    const rhingId = request.data?.rhingId;
-    if (typeof rhingId !== "string" || !rhingId) {
-      throw new HttpsError("invalid-argument", "rhingIdが必要です");
+    // rhingId→rhingSeedへの改名に伴う移行期間シム（2026-09-23追加、
+    // beginPasskeyAuthenticationと同じ理由）。クライアントの動作確認が
+    // 済んだら`request.data?.rhingId`のフォールバックを削除すること。
+    const rhingSeed = request.data?.rhingSeed ?? request.data?.rhingId;
+    if (typeof rhingSeed !== "string" || !rhingSeed) {
+      throw new HttpsError("invalid-argument", "rhingSeedが必要です");
     }
     const usersSnapshot = await db
       .collection("users")
-      .where("rhingId", "==", rhingId.trim().toLowerCase())
+      .where("rhingSeed", "==", rhingSeed.trim().toLowerCase())
       .limit(1)
       .get();
     if (usersSnapshot.empty) {
       throw new HttpsError(
         "not-found",
-        "そのRhing IDのアカウントが見つかりません",
+        "そのRhing Seedのアカウントが見つかりません",
       );
     }
     const uid = usersSnapshot.docs[0].id;
@@ -1513,7 +1520,7 @@ function buildCreatorProfileFields(
   const daidaiIconUrl = typeof userData.daidaiIconUrl === "string" ? userData.daidaiIconUrl : null;
 
   return {
-    rhingId: typeof userData.rhingId === "string" ? userData.rhingId : "",
+    rhingSeed: typeof userData.rhingSeed === "string" ? userData.rhingSeed : "",
     nickname: daidaiNickname ?? (typeof activeNickname?.text === "string" ? activeNickname.text : null),
     iconUrl: daidaiIconUrl ?? (typeof activeIcon?.url === "string" ? activeIcon.url : null),
     // 専用の自己紹介フィールドが無いため、ステメ（最大40字）を流用する。
@@ -2162,16 +2169,146 @@ export const backfillAccountStatusOnce = onCall(
   },
 );
 
-/** 便り（公式アカウント）の固定UID・Rhing ID。 */
+/**
+ * 一度きりの移行処理: 「Rhing ID」から「Rhing Seed」への改名（2026-09-23）に
+ * 伴い、本番データに残る旧フィールド名（`rhingId`/`friendRhingId`/
+ * `fromRhingId`/`toRhingId`/`participantRhingIds`/`callerRhingId`/
+ * `calleeRhingId`）から新フィールド名（`rhingSeed`等）へ値をコピーする。
+ * べき等（新フィールドが既にあるドキュメントはスキップ）。
+ *
+ * `directMessages/{dmId}/rooms/{roomId}/messages`（メッセージ本体）は対象外。
+ * 他のコレクションと桁違いにドキュメント数が多く全件書き換えが非現実的な上、
+ * `senderRhingId`等はメッセージ送信「時点」のスナップショットという性質上
+ * 移行の必然性が本質的に低いため、クライアント側（`Message.fromJson`）で
+ * `senderRhingSeed ?? senderRhingId`という恒久的な読み取りフォールバックで
+ * 対応する方針とした（`lib/models/message.dart`参照）。
+ *
+ * 実行・べき等性の確認（2回目に全カテゴリ`0`になること）が済んだら、
+ * 他の一度きり処理と同様にソースから削除し、
+ * `firebase functions:delete migrateRhingSeedOnce --region asia-northeast1 --force`
+ * で後始末する。
+ */
+export const migrateRhingSeedOnce = onCall(
+  { region: "asia-northeast1", timeoutSeconds: 540 },
+  async (request) => {
+    if (request.auth?.token.admin !== true) {
+      throw new HttpsError("permission-denied", "管理者のみ実行できます");
+    }
+    const writer = new ChunkedWriter();
+    const migrated = {
+      users: 0,
+      friends: 0,
+      friendRequests: 0,
+      directMessages: 0,
+      calls: 0,
+      groupCallParticipants: 0,
+    };
+
+    const usersSnapshot = await db.collection("users").get();
+    for (const doc of usersSnapshot.docs) {
+      const data = doc.data();
+      if (data.rhingSeed === undefined && typeof data.rhingId === "string") {
+        await writer.update(doc.ref, { rhingSeed: data.rhingId });
+        migrated.users += 1;
+      }
+    }
+
+    const friendsSnapshot = await db.collectionGroup("friends").get();
+    for (const doc of friendsSnapshot.docs) {
+      const data = doc.data();
+      if (
+        data.friendRhingSeed === undefined &&
+        typeof data.friendRhingId === "string"
+      ) {
+        await writer.update(doc.ref, { friendRhingSeed: data.friendRhingId });
+        migrated.friends += 1;
+      }
+    }
+
+    const friendRequestsSnapshot = await db.collection("friendRequests").get();
+    for (const doc of friendRequestsSnapshot.docs) {
+      const data = doc.data();
+      const update: FirebaseFirestore.DocumentData = {};
+      if (
+        data.fromRhingSeed === undefined &&
+        typeof data.fromRhingId === "string"
+      ) {
+        update.fromRhingSeed = data.fromRhingId;
+      }
+      if (
+        data.toRhingSeed === undefined &&
+        typeof data.toRhingId === "string"
+      ) {
+        update.toRhingSeed = data.toRhingId;
+      }
+      if (Object.keys(update).length > 0) {
+        await writer.update(doc.ref, update);
+        migrated.friendRequests += 1;
+      }
+    }
+
+    const directMessagesSnapshot = await db.collection("directMessages").get();
+    for (const doc of directMessagesSnapshot.docs) {
+      const data = doc.data();
+      if (
+        data.participantRhingSeeds === undefined &&
+        data.participantRhingIds &&
+        typeof data.participantRhingIds === "object"
+      ) {
+        await writer.update(doc.ref, {
+          participantRhingSeeds: data.participantRhingIds,
+        });
+        migrated.directMessages += 1;
+      }
+    }
+
+    const callsSnapshot = await db.collection("calls").get();
+    for (const doc of callsSnapshot.docs) {
+      const data = doc.data();
+      const update: FirebaseFirestore.DocumentData = {};
+      if (
+        data.callerRhingSeed === undefined &&
+        typeof data.callerRhingId === "string"
+      ) {
+        update.callerRhingSeed = data.callerRhingId;
+      }
+      if (
+        data.calleeRhingSeed === undefined &&
+        typeof data.calleeRhingId === "string"
+      ) {
+        update.calleeRhingSeed = data.calleeRhingId;
+      }
+      if (Object.keys(update).length > 0) {
+        await writer.update(doc.ref, update);
+        migrated.calls += 1;
+      }
+    }
+
+    const participantsSnapshot = await db.collectionGroup("participants").get();
+    for (const doc of participantsSnapshot.docs) {
+      const data = doc.data();
+      if (data.rhingSeed === undefined && typeof data.rhingId === "string") {
+        await writer.update(doc.ref, { rhingSeed: data.rhingId });
+        migrated.groupCallParticipants += 1;
+      }
+    }
+
+    await writer.commit();
+    logger.info(`rhingSeed移行: ${JSON.stringify(migrated)}`);
+    return migrated;
+  },
+);
+
+/** 便り（公式アカウント）の固定UID・Rhing Seed。 */
 const OFFICIAL_ACCOUNT_UID = "official-tayori";
-const OFFICIAL_ACCOUNT_RHING_ID = "tayori";
+const OFFICIAL_ACCOUNT_RHING_SEED = "tayori";
 
 /**
  * 便り（公式アカウント）用の`users/{OFFICIAL_ACCOUNT_UID}`ドキュメントが
  * 無ければ作成する。Firebase Authに対応する実アカウントは持たない
  * （送信者表示は`users/{senderId}`をライブ参照するだけのため、Firestore
  * ドキュメントのみで既存UIがそのまま正しく描画できる）。アイコンは未設定の
- * ままにし、Rhing IDから導出される色付きイニシャルへのフォールバック表示
+ * ままにし、Rhing Seedから導出される色付きイニシャルへのフォールバック表示
  * に任せる。
  */
 async function ensureOfficialAccount(): Promise<void> {
@@ -2180,7 +2317,7 @@ async function ensureOfficialAccount(): Promise<void> {
   if (doc.exists) return;
   await ref.set({
     userId: OFFICIAL_ACCOUNT_UID,
-    rhingId: OFFICIAL_ACCOUNT_RHING_ID,
+    rhingSeed: OFFICIAL_ACCOUNT_RHING_SEED,
     displayName: null,
     icons: [],
     backgroundImages: [],
@@ -2234,7 +2371,7 @@ export const broadcastAnnouncement = onCall(
     for (const userDoc of usersSnapshot.docs) {
       const userId = userDoc.id;
       if (userId === OFFICIAL_ACCOUNT_UID) continue;
-      const rhingId: string | undefined = userDoc.data().rhingId;
+      const rhingSeed: string | undefined = userDoc.data().rhingSeed;
 
       const sortedIds = [OFFICIAL_ACCOUNT_UID, userId].sort();
       const dmId = `${sortedIds[0]}_${sortedIds[1]}`;
@@ -2254,9 +2391,9 @@ export const broadcastAnnouncement = onCall(
         roomId = newRoomRef.id;
         await writer.set(dmRef, {
           participants: [OFFICIAL_ACCOUNT_UID, userId],
-          participantRhingIds: {
-            [OFFICIAL_ACCOUNT_UID]: OFFICIAL_ACCOUNT_RHING_ID,
-            [userId]: rhingId ?? userId,
+          participantRhingSeeds: {
+            [OFFICIAL_ACCOUNT_UID]: OFFICIAL_ACCOUNT_RHING_SEED,
+            [userId]: rhingSeed ?? userId,
           },
           lastMessageAt: FieldValue.serverTimestamp(),
           severanceRequestedBy: null,
@@ -2281,7 +2418,7 @@ export const broadcastAnnouncement = onCall(
         conversationId: roomId,
         conversationType: "dm",
         senderId: OFFICIAL_ACCOUNT_UID,
-        senderRhingId: OFFICIAL_ACCOUNT_RHING_ID,
+        senderRhingSeed: OFFICIAL_ACCOUNT_RHING_SEED,
         content: message,
         contentType: "text",
         sentAt: FieldValue.serverTimestamp(),
@@ -2291,7 +2428,7 @@ export const broadcastAnnouncement = onCall(
         silent: false,
         replyToMessageId: null,
         replyToSenderId: null,
-        replyToSenderRhingId: null,
+        replyToSenderRhingSeed: null,
         replyToSnippet: null,
         editedAt: null,
         reactions: {},
@@ -2358,7 +2495,7 @@ function resolveSenderIdentity(
       null)
     : null;
 
-  return { name: nickname ?? (sender.rhingId as string) ?? "", iconUrl };
+  return { name: nickname ?? (sender.rhingSeed as string) ?? "", iconUrl };
 }
 
 /** [lib/features/chat/chat_screen.dart]の`_replySnippetLabel`と同等の
@@ -2811,15 +2948,18 @@ export const sendFriendRequest = onCall(
       throw new HttpsError("unauthenticated", "ログインが必要です");
     }
     const fromUserId = request.data?.fromUserId;
-    const fromRhingId = request.data?.fromRhingId;
+    // rhingId→rhingSeedへの改名に伴う移行期間シム（2026-09-23追加）。
+    // クライアントの動作確認が済んだら`request.data?.fromRhingId`/
+    // `request.data?.toRhingId`のフォールバックを削除すること。
+    const fromRhingSeed = request.data?.fromRhingSeed ?? request.data?.fromRhingId;
     const toUserId = request.data?.toUserId;
-    const toRhingId = request.data?.toRhingId;
+    const toRhingSeed = request.data?.toRhingSeed ?? request.data?.toRhingId;
     const rawMessage = request.data?.message;
     if (
       typeof fromUserId !== "string" ||
-      typeof fromRhingId !== "string" ||
+      typeof fromRhingSeed !== "string" ||
       typeof toUserId !== "string" ||
-      typeof toRhingId !== "string"
+      typeof toRhingSeed !== "string"
     ) {
       throw new HttpsError("invalid-argument", "パラメータが不正です");
     }
@@ -2947,9 +3087,9 @@ export const sendFriendRequest = onCall(
     // （`FirestoreFriendRepository.respond`と同じ内容のAdmin SDK版）。
     const createFriendship = async (
       userAId: string,
-      userARhingId: string,
+      userARhingSeed: string,
       userBId: string,
-      userBRhingId: string,
+      userBRhingSeed: string,
     ): Promise<void> => {
       const dmId = pairId(userAId, userBId);
       const dmRef = db.collection("directMessages").doc(dmId);
@@ -2957,15 +3097,15 @@ export const sendFriendRequest = onCall(
       const batch = db.batch();
       batch.set(
         db.collection("users").doc(userAId).collection("friends").doc(userBId),
-        { friendRhingId: userBRhingId, addedAt: FieldValue.serverTimestamp() },
+        { friendRhingSeed: userBRhingSeed, addedAt: FieldValue.serverTimestamp() },
       );
       batch.set(
         db.collection("users").doc(userBId).collection("friends").doc(userAId),
-        { friendRhingId: userARhingId, addedAt: FieldValue.serverTimestamp() },
+        { friendRhingSeed: userARhingSeed, addedAt: FieldValue.serverTimestamp() },
       );
       batch.set(dmRef, {
         participants: [userAId, userBId],
-        participantRhingIds: { [userAId]: userARhingId, [userBId]: userBRhingId },
+        participantRhingSeeds: { [userAId]: userARhingSeed, [userBId]: userBRhingSeed },
         readReceiptsEnabled: true,
         roomsEnabled: false,
       });
@@ -2986,9 +3126,9 @@ export const sendFriendRequest = onCall(
     if (!doc.exists) {
       await ref.set({
         fromUserId,
-        fromRhingId,
+        fromRhingSeed,
         toUserId,
-        toRhingId,
+        toRhingSeed,
         status: "pending",
         message,
         createdAt: FieldValue.serverTimestamp(),
@@ -3021,9 +3161,9 @@ export const sendFriendRequest = onCall(
       });
       await createFriendship(
         existing.fromUserId,
-        existing.fromRhingId,
+        existing.fromRhingSeed,
         existing.toUserId,
-        existing.toRhingId,
+        existing.toRhingSeed,
       );
       return;
     }
@@ -3031,9 +3171,9 @@ export const sendFriendRequest = onCall(
     // declined、またはaccepted済みだが実際は友達ではない場合: 再申請として上書きする。
     await ref.set({
       fromUserId,
-      fromRhingId,
+      fromRhingSeed,
       toUserId,
-      toRhingId,
+      toRhingSeed,
       status: "pending",
       message,
       createdAt: FieldValue.serverTimestamp(),

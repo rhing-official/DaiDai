@@ -21,7 +21,7 @@ Future<bool> showScheduleCoordinationFormDialog(
   required String conversationId,
   required String roomId,
   required String currentUserId,
-  required String currentUserRhingId,
+  required String currentUserRhingSeed,
   required DateTime initialCandidateDate,
 }) async {
   final saved = await showDialog<bool>(
@@ -31,7 +31,7 @@ Future<bool> showScheduleCoordinationFormDialog(
       conversationId: conversationId,
       roomId: roomId,
       currentUserId: currentUserId,
-      currentUserRhingId: currentUserRhingId,
+      currentUserRhingSeed: currentUserRhingSeed,
       initialCandidateDate: initialCandidateDate,
     ),
   );
@@ -44,7 +44,7 @@ class _ScheduleCoordinationFormDialog extends ConsumerStatefulWidget {
     required this.conversationId,
     required this.roomId,
     required this.currentUserId,
-    required this.currentUserRhingId,
+    required this.currentUserRhingSeed,
     required this.initialCandidateDate,
   });
 
@@ -52,7 +52,7 @@ class _ScheduleCoordinationFormDialog extends ConsumerStatefulWidget {
   final String conversationId;
   final String roomId;
   final String currentUserId;
-  final String currentUserRhingId;
+  final String currentUserRhingSeed;
   final DateTime initialCandidateDate;
 
   @override
@@ -173,7 +173,7 @@ class _ScheduleCoordinationFormDialogState
                 dmId: widget.conversationId,
                 roomId: widget.roomId,
                 senderId: widget.currentUserId,
-                senderRhingId: widget.currentUserRhingId,
+                senderRhingSeed: widget.currentUserRhingSeed,
                 coordinationId: created.coordinationId,
                 coordinationTitle: created.title,
               );
@@ -184,7 +184,7 @@ class _ScheduleCoordinationFormDialogState
                 groupId: widget.conversationId,
                 roomId: widget.roomId,
                 senderId: widget.currentUserId,
-                senderRhingId: widget.currentUserRhingId,
+                senderRhingSeed: widget.currentUserRhingSeed,
                 coordinationId: created.coordinationId,
                 coordinationTitle: created.title,
               );

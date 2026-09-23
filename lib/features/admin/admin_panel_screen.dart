@@ -33,6 +33,7 @@ class AdminPanelScreen extends ConsumerStatefulWidget {
 class _AdminPanelScreenState extends ConsumerState<AdminPanelScreen> {
   int _selectedIndex = 0;
   bool _backfilling = false;
+  bool _migratingRhingSeed = false;
   Timer? _bannerTimer;
 
   @override
@@ -72,6 +73,36 @@ class _AdminPanelScreenState extends ConsumerState<AdminPanelScreen> {
     }
   }
 
+  /// 一度きりの「Rhing ID」→「Rhing Seed」フィールド名移行
+  /// （`lib/repositories/user_repository.dart`の`migrateRhingSeedOnce`参照）。
+  /// `_runBackfill`と同じ「使い捨て」の扱い。運営本人が実行・べき等性確認
+  /// （2回目に全カテゴリ`0`になること）を終えたら、このボタン・
+  /// repositoryメソッド・Cloud Function自体をまとめて削除する想定
+  /// （2026-09-23追加）。
+  Future<void> _runRhingSeedMigration() async {
+    setState(() => _migratingRhingSeed = true);
+    try {
+      final result = await ref
+          .read(userRepositoryProvider)
+          .migrateRhingSeedOnce();
+      if (!mounted) return;
+      _bannerTimer = showAutoDismissBanner(
+        context,
+        message: 'rhingSeed移行: $result',
+        previousTimer: _bannerTimer,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      _bannerTimer = showAutoDismissBanner(
+        context,
+        message: 'rhingSeed移行に失敗しました: $e',
+        previousTimer: _bannerTimer,
+      );
+    } finally {
+      if (mounted) setState(() => _migratingRhingSeed = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -87,6 +118,17 @@ class _AdminPanelScreenState extends ConsumerState<AdminPanelScreen> {
                   )
                 : const Icon(Icons.build_outlined),
             onPressed: _backfilling ? null : _runBackfill,
+          ),
+          IconButton(
+            icon: _migratingRhingSeed
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.grass_outlined),
+            tooltip: 'Rhing Seed移行',
+            onPressed: _migratingRhingSeed ? null : _runRhingSeedMigration,
           ),
         ],
       ),
@@ -200,7 +242,7 @@ class _UserListTile extends ConsumerWidget {
       context: context,
       builder: (context) {
         final title = Text(suspend ? 'このアカウントを停止しますか？' : 'このアカウントの停止を解除しますか？');
-        final content = Text('@${user.rhingId}');
+        final content = Text('@${user.rhingSeed}');
         final actions = [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -226,7 +268,7 @@ class _UserListTile extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final isSuspended = user.accountStatus == AccountStatus.suspended;
     return ListTile(
-      title: Text('@${user.rhingId}'),
+      title: Text('@${user.rhingSeed}'),
       subtitle: Text(
         '作成: ${_formatTimestamp(user.createdAt?.toDate())}\n'
         '最終ログイン: ${_formatTimestamp(user.lastLoginAt?.toDate())}\n'

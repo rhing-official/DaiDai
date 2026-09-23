@@ -70,10 +70,10 @@ class _FakeUserRepository implements UserRepository {
   Future<void> createUser(AppUser user) async => saved = user;
 
   @override
-  Future<AppUser?> findByRhingId(String rhingId) async => null;
+  Future<AppUser?> findByRhingSeed(String rhingSeed) async => null;
 
   @override
-  Future<bool> isRhingIdAvailable(String rhingId) async => true;
+  Future<bool> isRhingSeedAvailable(String rhingSeed) async => true;
 
   @override
   Future<void> updateUser(AppUser user) async => saved = user;
@@ -85,7 +85,7 @@ class _FakeUserRepository implements UserRepository {
     Map<String, dynamic> value,
   ) async {
     if (field == delayedField) await _delayGate!.future;
-    final base = saved ?? AppUser(userId: userId, rhingId: '');
+    final base = saved ?? AppUser(userId: userId, rhingSeed: '');
     final json = base.toJson();
     final list = List<Map<String, dynamic>>.from(
       (json[field] as List).cast<Map<String, dynamic>>(),
@@ -100,7 +100,7 @@ class _FakeUserRepository implements UserRepository {
     String field,
     Map<String, dynamic> value,
   ) async {
-    final base = saved ?? AppUser(userId: userId, rhingId: '');
+    final base = saved ?? AppUser(userId: userId, rhingSeed: '');
     final json = base.toJson();
     final list = List<Map<String, dynamic>>.from(
       (json[field] as List).cast<Map<String, dynamic>>(),
@@ -115,7 +115,7 @@ class _FakeUserRepository implements UserRepository {
     String field,
     String? value,
   ) async {
-    final base = saved ?? AppUser(userId: userId, rhingId: '');
+    final base = saved ?? AppUser(userId: userId, rhingSeed: '');
     final json = base.toJson();
     json[field] = value;
     saved = AppUser.fromJson(json);
@@ -141,7 +141,7 @@ class _FakeUserRepository implements UserRepository {
 
   @override
   Future<void> saveProfileCard(String userId, ProfileCard card) async {
-    final base = saved ?? AppUser(userId: userId, rhingId: '');
+    final base = saved ?? AppUser(userId: userId, rhingSeed: '');
     final cards = [...base.profileCards];
     final index = cards.indexWhere((c) => c.id == card.id);
     if (index == -1) {
@@ -154,7 +154,7 @@ class _FakeUserRepository implements UserRepository {
 
   @override
   Future<void> deleteProfileCard(String userId, String cardId) async {
-    final base = saved ?? AppUser(userId: userId, rhingId: '');
+    final base = saved ?? AppUser(userId: userId, rhingSeed: '');
     final remaining = base.profileCards.where((c) => c.id != cardId).toList();
     final wasActive = base.activeProfileCardId == cardId;
     saved = base.copyWith(
@@ -223,10 +223,14 @@ class _FakeUserRepository implements UserRepository {
   };
 
   @override
+  Future<Map<String, int>> migrateRhingSeedOnce() async => {};
+
+  @override
   Future<void> setGoogleCalendarSyncEnabled(
     String userId,
-    bool enabled,
-  ) async {}
+    bool enabled, {
+    String? calendarId,
+  }) async {}
 
   @override
   Future<void> setPushNotificationsEnabled(String userId, bool enabled) async {}
@@ -282,7 +286,7 @@ Future<void> _pumpProfileTabNarrow(
 
 void main() {
   testWidgets('工房タブは常に3枠表示し、白紙枠をタップするとカードが作れる', (tester) async {
-    const user = AppUser(userId: 'u1', rhingId: 'taro');
+    const user = AppUser(userId: 'u1', rhingSeed: 'taro');
     final repo = _FakeUserRepository();
     await _pumpProfileTab(tester, user, repo);
 
@@ -308,7 +312,7 @@ void main() {
 
   testWidgets('既存カードをタップすると内容が入った選択画面が開く', (tester) async {
     const card = ProfileCard(id: 'c1', name: '既存カード');
-    const user = AppUser(userId: 'u1', rhingId: 'taro', profileCards: [card]);
+    const user = AppUser(userId: 'u1', rhingSeed: 'taro', profileCards: [card]);
     final repo = _FakeUserRepository();
     await _pumpProfileTab(tester, user, repo);
 
@@ -323,7 +327,7 @@ void main() {
   });
 
   testWidgets('カード名が未入力のまま保存を押すとエラーが表示され、ダイアログは閉じない', (tester) async {
-    const user = AppUser(userId: 'u1', rhingId: 'taro');
+    const user = AppUser(userId: 'u1', rhingSeed: 'taro');
     final repo = _FakeUserRepository();
     await _pumpProfileTab(tester, user, repo);
 
@@ -343,7 +347,7 @@ void main() {
   });
 
   testWidgets('ニックネームが未入力のまま追加を押すとエラーが表示され、ダイアログは閉じない', (tester) async {
-    const user = AppUser(userId: 'u1', rhingId: 'taro');
+    const user = AppUser(userId: 'u1', rhingSeed: 'taro');
     final repo = _FakeUserRepository();
     await _pumpProfileTab(tester, user, repo);
 
@@ -359,7 +363,7 @@ void main() {
   });
 
   testWidgets('ニックネームは指定字数（20字）を超えて入力できない', (tester) async {
-    const user = AppUser(userId: 'u1', rhingId: 'taro');
+    const user = AppUser(userId: 'u1', rhingSeed: 'taro');
     final repo = _FakeUserRepository();
     await _pumpProfileTab(tester, user, repo);
 
@@ -372,7 +376,7 @@ void main() {
   });
 
   testWidgets('ステメは指定字数（40字）を超えて入力できない', (tester) async {
-    const user = AppUser(userId: 'u1', rhingId: 'taro');
+    const user = AppUser(userId: 'u1', rhingSeed: 'taro');
     final repo = _FakeUserRepository();
     await _pumpProfileTab(tester, user, repo);
 
@@ -391,7 +395,7 @@ void main() {
     // 後から完了した書き込みが先の書き込みを消してしまっていた。
     // ここではステメの保存をわざと遅延させ、その間にニックネームを
     // 追加した場合に両方とも生き残ることを検証する。
-    const user = AppUser(userId: 'u1', rhingId: 'taro');
+    const user = AppUser(userId: 'u1', rhingSeed: 'taro');
     final repo = _FakeUserRepository();
     await _pumpProfileTab(tester, user, repo);
 
@@ -439,7 +443,7 @@ void main() {
     const card = ProfileCard(id: 'c1', name: '既存カード', backgroundImageId: 'bg1');
     const user = AppUser(
       userId: 'u1',
-      rhingId: 'taro',
+      rhingSeed: 'taro',
       backgroundImages: [bg1],
       profileCards: [card],
     );
@@ -498,7 +502,7 @@ void main() {
     const card = ProfileCard(id: 'c1', name: '既存カード');
     const user = AppUser(
       userId: 'u1',
-      rhingId: 'taro',
+      rhingSeed: 'taro',
       snsLinks: [link1, link2],
       profileCards: [card],
     );
@@ -532,7 +536,7 @@ void main() {
     // 遅れて見えるため、素早く連打すると_openCardZoomが多重に呼ばれ、同じ枠に
     // 対して別々のidを持つ内容の同じカードが2件作られてしまっていた。
     // ガードにより2回目以降の呼び出しは無視されることを確認する。
-    const user = AppUser(userId: 'u1', rhingId: 'taro');
+    const user = AppUser(userId: 'u1', rhingSeed: 'taro');
     final repo = _FakeUserRepository();
     await _pumpProfileTab(tester, user, repo);
 
@@ -560,7 +564,7 @@ void main() {
     const card = ProfileCard(id: 'c1', name: '既存カード', snsLinkIds: ['l1', 'l2']);
     const user = AppUser(
       userId: 'u1',
-      rhingId: 'taro',
+      rhingSeed: 'taro',
       snsLinks: [link1, link2],
       profileCards: [card],
     );
@@ -579,7 +583,7 @@ void main() {
   testWidgets('狭い画面のドリルダウン中に左スワイプで次のカテゴリへ切り替え、右スワイプで一覧へ戻る（回帰テスト）', (
     tester,
   ) async {
-    const user = AppUser(userId: 'u1', rhingId: 'taro');
+    const user = AppUser(userId: 'u1', rhingSeed: 'taro');
     final repo = _FakeUserRepository();
     await _pumpProfileTabNarrow(tester, user, repo);
 
@@ -629,7 +633,7 @@ void main() {
       ProfileCard(id: 'c3', name: 'カード3'),
       ProfileCard(id: 'c4', name: '重複してしまったカード'),
     ];
-    const user = AppUser(userId: 'u1', rhingId: 'taro', profileCards: cards);
+    const user = AppUser(userId: 'u1', rhingSeed: 'taro', profileCards: cards);
     final repo = _FakeUserRepository()..saved = user;
     await _pumpProfileTab(tester, user, repo);
 

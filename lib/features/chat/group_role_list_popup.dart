@@ -57,7 +57,7 @@ class GroupRoleListPopup extends ConsumerWidget {
     final members = isEveryone
         ? <AppUser>[]
         : await ref.read(userRepositoryProvider).getUsersByIds(group.memberIds);
-    members.sort((a, b) => a.rhingId.compareTo(b.rhingId));
+    members.sort((a, b) => a.rhingSeed.compareTo(b.rhingSeed));
     final initiallyAssignedIds = existing == null
         ? const <String>{}
         : {
@@ -243,7 +243,7 @@ class GroupRoleListPopup extends ConsumerWidget {
                       title: Text(
                         (member.effectiveNickname?.text.isNotEmpty ?? false)
                             ? member.effectiveNickname!.text
-                            : '@${member.rhingId}',
+                            : '@${member.rhingSeed}',
                       ),
                       onChanged: (checked) => setState(() {
                         if (checked ?? false) {

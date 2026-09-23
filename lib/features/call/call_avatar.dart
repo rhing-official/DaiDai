@@ -9,13 +9,13 @@ import '../../widgets/glass/glass_avatar.dart';
 /// 通話UI（全画面・PC埋め込み・ピン留めミニ表示）で使う、参加者の中央
 /// アバター。[chat_screen.dart]の`_SenderAvatar`と同じく、[userId]の
 /// `AppUser.effectiveIconFor(conversationId)`（蔵/工房で設定した会話ごとの
-/// アイコン）があればそれを表示し、無ければRhing IDの頭文字イニシャルに
-/// フォールバックする。通話UIは従来`rhingId`文字列のみを持ち回っており
+/// アイコン）があればそれを表示し、無ければRhing Seedの頭文字イニシャルに
+/// フォールバックする。通話UIは従来`rhingSeed`文字列のみを持ち回っており
 /// アイコン解決を一切行っていなかった（2026-08-18修正）。
 class CallParticipantAvatar extends ConsumerWidget {
   const CallParticipantAvatar({
     required this.userId,
-    required this.rhingId,
+    required this.rhingSeed,
     required this.conversationId,
     required this.radius,
     this.fontSize,
@@ -23,7 +23,7 @@ class CallParticipantAvatar extends ConsumerWidget {
   });
 
   final String userId;
-  final String rhingId;
+  final String rhingSeed;
 
   /// 一対のdmId、または広場のgroupId。
   final String? conversationId;
@@ -36,7 +36,7 @@ class CallParticipantAvatar extends ConsumerWidget {
     final user = ref.watch(watchedUserProvider(userId)).value;
     final iconUrl = user?.effectiveIconFor(conversationId)?.url;
     final isGlass = ref.watch(appUiStyleProvider) == AppUiStyle.glass;
-    final initial = rhingId.isNotEmpty ? rhingId[0].toUpperCase() : '?';
+    final initial = rhingSeed.isNotEmpty ? rhingSeed[0].toUpperCase() : '?';
     final resolvedFontSize = fontSize ?? radius * 0.7;
     if (isGlass) {
       return GlassAvatar(
@@ -73,20 +73,20 @@ class CallParticipantAvatar extends ConsumerWidget {
 /// 通話UIのタイル等に表示する参加者の呼び名。[chat_screen.dart]の
 /// `_SenderName`と同じく、[userId]の`AppUser.effectiveNicknameFor`
 /// （会話ごとのプロフィールカードで設定した呼び名）があればそれを、無ければ
-/// `@rhingId`にフォールバックする。通話UIは従来`rhingId`をそのまま
-/// 「@rhingId」の形で表示しており呼び名を反映していなかった
+/// `@rhingSeed`にフォールバックする。通話UIは従来`rhingSeed`をそのまま
+/// 「@rhingSeed」の形で表示しており呼び名を反映していなかった
 /// （2026-08-31修正）。
 class CallParticipantNameLabel extends ConsumerWidget {
   const CallParticipantNameLabel({
     required this.userId,
-    required this.rhingId,
+    required this.rhingSeed,
     required this.conversationId,
     this.style,
     super.key,
   });
 
   final String userId;
-  final String rhingId;
+  final String rhingSeed;
 
   /// 一対のdmId、または広場のgroupId。
   final String? conversationId;
@@ -99,7 +99,7 @@ class CallParticipantNameLabel extends ConsumerWidget {
     final nickname = user?.effectiveNicknameFor(conversationId)?.text;
     final label = (nickname != null && nickname.isNotEmpty)
         ? nickname
-        : '@$rhingId';
+        : '@$rhingSeed';
     return Text(label, style: style);
   }
 }

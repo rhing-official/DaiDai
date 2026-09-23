@@ -10,7 +10,7 @@ import '../../repositories/auth_repository.dart';
 import '../../widgets/glass/glass_dialog.dart';
 
 /// パスキー紛失時の復旧フロー（2026-09-16追加）。サインイン画面の
-/// 「パスキーが使えない場合」リンクから開く。Rhing IDを入力→秘密の質問
+/// 「パスキーが使えない場合」リンクから開く。Rhing Seedを入力→秘密の質問
 /// （3問すべて正解が必要）に回答する2ステップ構成で、成功するとその場で
 /// サインインする（以降は`AuthGate`が認証状態の変化を検知して自動的に
 /// 画面遷移する）。
@@ -32,7 +32,7 @@ class PasskeyRecoveryDialog extends ConsumerStatefulWidget {
 }
 
 class _PasskeyRecoveryDialogState extends ConsumerState<PasskeyRecoveryDialog> {
-  final _rhingIdController = TextEditingController();
+  final _rhingSeedController = TextEditingController();
   List<TextEditingController> _answerControllers = [];
   PasskeyRecoveryQuestions? _questions;
   bool _isSubmitting = false;
@@ -40,7 +40,7 @@ class _PasskeyRecoveryDialogState extends ConsumerState<PasskeyRecoveryDialog> {
 
   @override
   void dispose() {
-    _rhingIdController.dispose();
+    _rhingSeedController.dispose();
     for (final c in _answerControllers) {
       c.dispose();
     }
@@ -48,11 +48,11 @@ class _PasskeyRecoveryDialogState extends ConsumerState<PasskeyRecoveryDialog> {
   }
 
   Future<void> _requestQuestions(Strings strings) async {
-    final rhingId = _rhingIdController.text.trim().toLowerCase().replaceFirst(
-      RegExp(r'^@+'),
-      '',
-    );
-    if (rhingId.isEmpty) return;
+    final rhingSeed = _rhingSeedController.text
+        .trim()
+        .toLowerCase()
+        .replaceFirst(RegExp(r'^@+'), '');
+    if (rhingSeed.isEmpty) return;
     setState(() {
       _isSubmitting = true;
       _errorMessage = null;
@@ -60,7 +60,7 @@ class _PasskeyRecoveryDialogState extends ConsumerState<PasskeyRecoveryDialog> {
     try {
       final questions = await ref
           .read(authRepositoryProvider)
-          .beginPasskeyRecovery(rhingId);
+          .beginPasskeyRecovery(rhingSeed);
       if (!mounted) return;
       setState(() {
         _questions = questions;
@@ -168,7 +168,7 @@ class _PasskeyRecoveryDialogState extends ConsumerState<PasskeyRecoveryDialog> {
     final content = SizedBox(
       width: 320,
       child: questions == null
-          ? _buildRhingIdStep(strings)
+          ? _buildRhingSeedStep(strings)
           : _buildAnswerStep(strings, questions),
     );
     final actions = [
@@ -201,18 +201,18 @@ class _PasskeyRecoveryDialogState extends ConsumerState<PasskeyRecoveryDialog> {
         : AlertDialog(title: title, content: content, actions: actions);
   }
 
-  Widget _buildRhingIdStep(Strings strings) {
+  Widget _buildRhingSeedStep(Strings strings) {
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(strings.passkeyRecoveryDialogRhingIdDescription),
+        Text(strings.passkeyRecoveryDialogRhingSeedDescription),
         const SizedBox(height: 16),
         TextField(
-          controller: _rhingIdController,
+          controller: _rhingSeedController,
           autofocus: true,
           decoration: InputDecoration(
-            labelText: strings.passkeySignInDialogRhingIdLabel,
+            labelText: strings.passkeySignInDialogRhingSeedLabel,
             prefixText: '@',
           ),
           onSubmitted: _isSubmitting ? null : (_) => _requestQuestions(strings),

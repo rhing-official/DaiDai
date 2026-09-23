@@ -170,7 +170,7 @@ class _ScheduleCoordinationDetailDialogState
       conversationId: widget.conversationId,
       roomId: widget.roomId,
       currentUserId: widget.currentUser.userId,
-      currentUserRhingId: widget.currentUser.rhingId,
+      currentUserRhingSeed: widget.currentUser.rhingSeed,
       initialDate: candidateDate,
     );
     if (result == null || !mounted) return;

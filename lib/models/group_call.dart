@@ -81,7 +81,7 @@ class GroupCall {
 class CallParticipant {
   const CallParticipant({
     required this.userId,
-    required this.rhingId,
+    required this.rhingSeed,
     this.micMuted = false,
     this.isVideo = false,
     this.joinedAt,
@@ -89,7 +89,7 @@ class CallParticipant {
   });
 
   final String userId;
-  final String rhingId;
+  final String rhingSeed;
   final bool micMuted;
 
   /// この参加者が現在ビデオ通話として参加しているか（音声⇔ビデオ切替は
@@ -105,7 +105,7 @@ class CallParticipant {
   factory CallParticipant.fromJson(String userId, Map<String, dynamic> json) {
     return CallParticipant(
       userId: userId,
-      rhingId: json['rhingId'] as String,
+      rhingSeed: json['rhingSeed'] as String,
       micMuted: json['micMuted'] as bool? ?? false,
       isVideo: json['isVideo'] as bool? ?? false,
       joinedAt: json['joinedAt'] as Timestamp?,
@@ -115,7 +115,7 @@ class CallParticipant {
 
   Map<String, dynamic> toJson() {
     return {
-      'rhingId': rhingId,
+      'rhingSeed': rhingSeed,
       'micMuted': micMuted,
       'isVideo': isVideo,
       'joinedAt': joinedAt ?? FieldValue.serverTimestamp(),

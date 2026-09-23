@@ -210,7 +210,7 @@ class GroupMemberListPopup extends ConsumerWidget {
                     );
                   }
                   final members = [...snapshot.data!]
-                    ..sort((a, b) => a.rhingId.compareTo(b.rhingId));
+                    ..sort((a, b) => a.rhingSeed.compareTo(b.rhingSeed));
                   return Column(
                     children: [
                       for (final member in members)
@@ -333,7 +333,7 @@ class _JoinRequestTile extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return ListTile(
       leading: const Icon(Icons.person_add_alt_1_outlined),
-      title: Text('@${request.requesterRhingId}'),
+      title: Text('@${request.requesterRhingSeed}'),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -404,7 +404,7 @@ class _MemberTile extends StatelessWidget {
     final nickname = user.effectiveNicknameFor(groupId)?.text;
     final label = (nickname?.isNotEmpty ?? false)
         ? nickname!
-        : '@${user.rhingId}';
+        : '@${user.rhingSeed}';
     final assignedRoles = customRoles
         .where((r) => assignedRoleIds.contains(r.roleId))
         .toList();

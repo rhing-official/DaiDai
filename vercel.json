@@ -8,7 +8,7 @@
     }
   },
   "rewrites": [
-    { "source": "/invite/:rhingId", "destination": "/api/link-preview" },
+    { "source": "/invite/:rhingSeed", "destination": "/api/link-preview" },
     { "source": "/join/:groupId", "destination": "/api/link-preview" },
     { "source": "/join/:groupId/:cacheBust", "destination": "/api/link-preview" }
   ]

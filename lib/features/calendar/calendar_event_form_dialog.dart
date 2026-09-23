@@ -28,7 +28,7 @@ Future<CalendarEvent?> showCalendarEventFormDialog(
   required String conversationId,
   required String roomId,
   required String currentUserId,
-  required String currentUserRhingId,
+  required String currentUserRhingSeed,
   DateTime? initialDate,
   CalendarEvent? existingEvent,
 }) {
@@ -39,7 +39,7 @@ Future<CalendarEvent?> showCalendarEventFormDialog(
       conversationId: conversationId,
       roomId: roomId,
       currentUserId: currentUserId,
-      currentUserRhingId: currentUserRhingId,
+      currentUserRhingSeed: currentUserRhingSeed,
       initialDate: initialDate,
       existingEvent: existingEvent,
     ),
@@ -52,7 +52,7 @@ class _CalendarEventFormDialog extends ConsumerStatefulWidget {
     required this.conversationId,
     required this.roomId,
     required this.currentUserId,
-    required this.currentUserRhingId,
+    required this.currentUserRhingSeed,
     this.initialDate,
     this.existingEvent,
   });
@@ -61,7 +61,7 @@ class _CalendarEventFormDialog extends ConsumerStatefulWidget {
   final String conversationId;
   final String roomId;
   final String currentUserId;
-  final String currentUserRhingId;
+  final String currentUserRhingSeed;
 
   /// 月表示カレンダーで予定の無い日をタップして新規作成する場合の初期日付
   /// （2026-09-01追加）。
@@ -292,7 +292,7 @@ class _CalendarEventFormDialogState
                   dmId: widget.conversationId,
                   roomId: widget.roomId,
                   senderId: widget.currentUserId,
-                  senderRhingId: widget.currentUserRhingId,
+                  senderRhingSeed: widget.currentUserRhingSeed,
                   eventId: created.eventId,
                   eventTitle: created.title,
                 );
@@ -303,7 +303,7 @@ class _CalendarEventFormDialogState
                   groupId: widget.conversationId,
                   roomId: widget.roomId,
                   senderId: widget.currentUserId,
-                  senderRhingId: widget.currentUserRhingId,
+                  senderRhingSeed: widget.currentUserRhingSeed,
                   eventId: created.eventId,
                   eventTitle: created.title,
                 );

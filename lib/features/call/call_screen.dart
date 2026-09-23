@@ -135,7 +135,8 @@ class _CallScreenState extends ConsumerState<CallScreen> {
     });
   }
 
-  String get _otherRhingId => widget.call.otherRhingId(widget.currentUserId);
+  String get _otherRhingSeed =>
+      widget.call.otherRhingSeed(widget.currentUserId);
 
   String get _otherUserId => widget.call.otherUserId(widget.currentUserId);
 
@@ -217,7 +218,7 @@ class _CallScreenState extends ConsumerState<CallScreen> {
           const Spacer(),
           CallParticipantAvatar(
             userId: _otherUserId,
-            rhingId: _otherRhingId,
+            rhingSeed: _otherRhingSeed,
             conversationId: widget.call.dmId,
             radius: 56,
             fontSize: 40,
@@ -225,7 +226,7 @@ class _CallScreenState extends ConsumerState<CallScreen> {
           const SizedBox(height: 24),
           CallParticipantNameLabel(
             userId: _otherUserId,
-            rhingId: _otherRhingId,
+            rhingSeed: _otherRhingSeed,
             conversationId: widget.call.dmId,
             style: const TextStyle(
               fontSize: 24,
@@ -307,7 +308,7 @@ class _CallScreenState extends ConsumerState<CallScreen> {
               children: [
                 CallParticipantAvatar(
                   userId: _otherUserId,
-                  rhingId: _otherRhingId,
+                  rhingSeed: _otherRhingSeed,
                   conversationId: widget.call.dmId,
                   radius: 56,
                   fontSize: 40,
@@ -315,7 +316,7 @@ class _CallScreenState extends ConsumerState<CallScreen> {
                 const SizedBox(height: 16),
                 CallParticipantNameLabel(
                   userId: _otherUserId,
-                  rhingId: _otherRhingId,
+                  rhingSeed: _otherRhingSeed,
                   conversationId: widget.call.dmId,
                   style: const TextStyle(
                     fontSize: 24,
@@ -365,7 +366,7 @@ class _CallScreenState extends ConsumerState<CallScreen> {
                         children: [
                           CallParticipantNameLabel(
                             userId: _otherUserId,
-                            rhingId: _otherRhingId,
+                            rhingSeed: _otherRhingSeed,
                             conversationId: widget.call.dmId,
                             style: const TextStyle(
                               fontSize: 18,

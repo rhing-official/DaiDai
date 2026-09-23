@@ -253,7 +253,7 @@ class _OneToOneStage extends StatelessWidget {
         child: Center(
           child: CallParticipantAvatar(
             userId: session.call.otherUserId(session.currentUserId),
-            rhingId: session.call.otherRhingId(session.currentUserId),
+            rhingSeed: session.call.otherRhingSeed(session.currentUserId),
             conversationId: session.call.dmId,
             radius: 56,
             fontSize: 40,
@@ -305,7 +305,7 @@ class _GroupStage extends StatelessWidget {
     final tiles = [
       _tile(
         userId: controller.currentUser.userId,
-        rhingId: controller.currentUser.rhingId,
+        rhingSeed: controller.currentUser.rhingSeed,
         renderer: controller.isVideo ? controller.localRenderer : null,
         mirror: controller.isFrontCamera,
         videoEnabled: controller.isVideo,
@@ -314,7 +314,7 @@ class _GroupStage extends StatelessWidget {
       for (final p in controller.remoteParticipants)
         _tile(
           userId: p.userId,
-          rhingId: p.rhingId,
+          rhingSeed: p.rhingSeed,
           renderer: controller.remoteRenderers[p.userId],
           mirror: false,
           videoEnabled: p.isVideo,
@@ -353,7 +353,7 @@ class _GroupStage extends StatelessWidget {
 
   Widget _tile({
     required String userId,
-    required String rhingId,
+    required String rhingSeed,
     required RTCVideoRenderer? renderer,
     required bool mirror,
     required bool videoEnabled,
@@ -374,7 +374,7 @@ class _GroupStage extends StatelessWidget {
               : Center(
                   child: CallParticipantAvatar(
                     userId: userId,
-                    rhingId: rhingId,
+                    rhingSeed: rhingSeed,
                     conversationId: session.groupId,
                     radius: 28,
                   ),
@@ -390,7 +390,7 @@ class _GroupStage extends StatelessWidget {
               children: [
                 CallParticipantNameLabel(
                   userId: userId,
-                  rhingId: rhingId,
+                  rhingSeed: rhingSeed,
                   conversationId: session.groupId,
                   style: const TextStyle(
                     color: Colors.white,

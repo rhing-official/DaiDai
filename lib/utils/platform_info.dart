@@ -82,7 +82,7 @@ bool get isBiometricCapablePlatform =>
 bool get isSoundUploadCapablePlatform =>
     kIsWeb || Platform.isAndroid || Platform.isIOS || Platform.isMacOS;
 
-/// Rhing ID＋パスキー（WebAuthn）ログインが使えるプラットフォームかどうか
+/// Rhing Seed＋パスキー（WebAuthn）ログインが使えるプラットフォームかどうか
 /// （2026-09-16追加）。`passkeys`パッケージがWeb/Android/iOS/macOS/Windowsに
 /// 対応する一方、Linuxデスクトップネイティブアプリ向けの実装は無い
 /// （OS標準のプラットフォーム認証器が存在しないため）。Linux版は当面
