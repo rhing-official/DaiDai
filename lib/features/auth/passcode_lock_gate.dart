@@ -37,9 +37,7 @@ class _PasscodeLockGateState extends ConsumerState<PasscodeLockGate> {
       future: _isPasscodeSetFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          );
+          return const Scaffold(body: SizedBox.shrink());
         }
         if (snapshot.data == true) return const PasscodeLockScreen();
         return widget.child;

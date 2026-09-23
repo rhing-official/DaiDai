@@ -25,8 +25,7 @@ class AuthGate extends ConsumerWidget {
     final authState = ref.watch(authStateProvider);
 
     return authState.when(
-      loading: () =>
-          const Scaffold(body: Center(child: CircularProgressIndicator())),
+      loading: () => const Scaffold(body: SizedBox.shrink()),
       error: (error, _) => Scaffold(body: Center(child: Text('エラー: $error'))),
       data: (user) {
         if (user == null) {
@@ -86,9 +85,7 @@ class _AuthenticatedUserGateState
       future: _future,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          );
+          return const Scaffold(body: SizedBox.shrink());
         }
         final appUser = snapshot.data;
         if (appUser == null) {
