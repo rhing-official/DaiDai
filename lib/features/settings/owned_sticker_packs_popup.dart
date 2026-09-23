@@ -57,10 +57,7 @@ class OwnedStickerPacksPopup extends ConsumerWidget {
             builder: (context, snapshot) {
               final packs = snapshot.data;
               if (packs == null) {
-                return const Padding(
-                  padding: EdgeInsets.all(24),
-                  child: Center(child: CircularProgressIndicator()),
-                );
+                return const SizedBox.shrink();
               }
               if (packs.isEmpty) {
                 return Padding(

@@ -1316,7 +1316,7 @@ class _LicensePageContentState extends State<_LicensePageContent> {
       builder: (context, snapshot) {
         final info = snapshot.data;
         if (info == null) {
-          return const Center(child: CircularProgressIndicator());
+          return const SizedBox.shrink();
         }
         return Navigator(
           onGenerateRoute: (settings) => MaterialPageRoute<void>(
@@ -1508,10 +1508,7 @@ class _OwnerGroupsGuardDialog extends ConsumerWidget {
     final content = SizedBox(
       width: 360,
       child: ownedGroups == null
-          ? const Padding(
-              padding: EdgeInsets.all(24),
-              child: Center(child: CircularProgressIndicator()),
-            )
+          ? const SizedBox.shrink()
           : Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -3079,10 +3076,7 @@ class _PasscodeLockFolderState extends ConsumerState<_PasscodeLockFolder> {
           ),
         ),
         if (_loading)
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 16),
-            child: Center(child: CircularProgressIndicator()),
-          )
+          const SizedBox.shrink()
         else ...[
           SwitchListTile(
             title: Text(strings.settingsPasscodeLockToggleLabel),
@@ -3190,10 +3184,7 @@ class _BlockedUsersFolderState extends ConsumerState<_BlockedUsersFolder> {
     );
 
     return blockedIdsAsync.when(
-      loading: () => const Padding(
-        padding: EdgeInsets.all(24),
-        child: Center(child: CircularProgressIndicator()),
-      ),
+      loading: () => const SizedBox.shrink(),
       error: (e, _) => Padding(
         padding: const EdgeInsets.all(16),
         child: Text('エラーが発生しました: $e'),
@@ -3216,10 +3207,7 @@ class _BlockedUsersFolderState extends ConsumerState<_BlockedUsersFolder> {
               .getUsersByIds(blockedIds.toList()),
           builder: (context, snapshot) {
             if (!snapshot.hasData) {
-              return const Padding(
-                padding: EdgeInsets.all(24),
-                child: Center(child: CircularProgressIndicator()),
-              );
+              return const SizedBox.shrink();
             }
             final blockedUsers = [...snapshot.data!]
               ..sort((a, b) => a.rhingSeed.compareTo(b.rhingSeed));
