@@ -183,11 +183,7 @@ class _PasskeyRecoveryDialogState extends ConsumerState<PasskeyRecoveryDialog> {
                   ? _requestQuestions(strings)
                   : _submitAnswers(strings),
         child: _isSubmitting
-            ? const SizedBox(
-                width: 18,
-                height: 18,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
+            ? const SizedBox.shrink()
             : Text(
                 questions == null
                     ? strings.passkeyRecoveryDialogNextButton

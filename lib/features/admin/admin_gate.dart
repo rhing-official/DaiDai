@@ -62,8 +62,7 @@ class _AdminGateState extends ConsumerState<AdminGate> {
   Widget _buildContent(BuildContext context) {
     final isAdminAsync = ref.watch(isAdminProvider);
     return isAdminAsync.when(
-      loading: () =>
-          const Scaffold(body: Center(child: CircularProgressIndicator())),
+      loading: () => const Scaffold(body: SizedBox.shrink()),
       error: (error, _) => Scaffold(body: Center(child: Text('エラー: $error'))),
       data: (isAdmin) {
         if (isAdmin) return AdminPanelScreen(currentUser: widget.currentUser);
@@ -90,11 +89,7 @@ class _AdminGateState extends ConsumerState<AdminGate> {
                   OutlinedButton(
                     onPressed: _bootstrapping ? null : _bootstrap,
                     child: _bootstrapping
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
+                        ? const SizedBox.shrink()
                         : const Text('初回管理者として登録'),
                   ),
                 ],
