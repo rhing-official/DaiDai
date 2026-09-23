@@ -204,10 +204,7 @@ class GroupMemberListPopup extends ConsumerWidget {
                     .getUsersByIds(liveGroup.memberIds),
                 builder: (context, snapshot) {
                   if (!snapshot.hasData) {
-                    return const Padding(
-                      padding: EdgeInsets.all(24),
-                      child: Center(child: CircularProgressIndicator()),
-                    );
+                    return const SizedBox.shrink();
                   }
                   final members = [...snapshot.data!]
                     ..sort((a, b) => a.rhingSeed.compareTo(b.rhingSeed));

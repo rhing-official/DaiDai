@@ -2326,7 +2326,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                         !snapshot.hasData) {
                       return Padding(
                         padding: EdgeInsets.only(bottom: _composerAreaHeight),
-                        child: const Center(child: CircularProgressIndicator()),
+                        child: const SizedBox.shrink(),
                       );
                     }
                     if (snapshot.hasError) {
@@ -2481,16 +2481,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     // ものと同一で、いずれもこのStreamBuilder.builderの
                     // クロージャスコープ内にあるためそのまま参照できる。
                     Widget buildEntry(_ChatListEntry entry) => switch (entry) {
-                      _ChatLoadingHeaderEntry() => const Padding(
-                        padding: EdgeInsets.all(16),
-                        child: Center(
-                          child: SizedBox(
-                            width: 24,
-                            height: 24,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          ),
-                        ),
-                      ),
+                      _ChatLoadingHeaderEntry() => const SizedBox.shrink(),
                       _ChatNoMoreHistoryEntry() => Padding(
                         padding: const EdgeInsets.all(16),
                         child: Center(

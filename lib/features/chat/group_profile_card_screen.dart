@@ -249,7 +249,7 @@ class _GroupProfileCardPopupState extends ConsumerState<GroupProfileCardPopup> {
                           context,
                         ).colorScheme.onSurfaceVariant,
                         child: _uploadingIcon
-                            ? const CircularProgressIndicator()
+                            ? const SizedBox.shrink()
                             : _card.iconUrl == null
                             ? const Icon(Icons.groups_outlined)
                             : null,
@@ -307,8 +307,7 @@ class _GroupProfileCardPopupState extends ConsumerState<GroupProfileCardPopup> {
                   ],
                 ),
               ),
-              if (_uploadingBackground)
-                const Center(child: CircularProgressIndicator()),
+              if (_uploadingBackground) const SizedBox.shrink(),
             ],
           ),
         ),

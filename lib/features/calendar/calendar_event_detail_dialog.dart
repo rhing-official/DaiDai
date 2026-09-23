@@ -343,10 +343,7 @@ class _CalendarEventDetailDialogState
                 builder: (context, participantsSnapshot) {
                   final participants = participantsSnapshot.data;
                   if (participants == null) {
-                    return const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 8),
-                      child: Center(child: CircularProgressIndicator()),
-                    );
+                    return const SizedBox.shrink();
                   }
                   return StreamBuilder<List<CalendarEventRsvp>>(
                     stream: _rsvpsStream,
