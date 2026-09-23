@@ -564,11 +564,7 @@ class _NotePaneViewState extends ConsumerState<NotePaneView> {
     final attachAction = IconButton(
       key: _attachButtonKey,
       icon: _uploading
-          ? const SizedBox(
-              width: 20,
-              height: 20,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            )
+          ? const SizedBox.shrink()
           : const Icon(Icons.attach_file),
       tooltip: '',
       onPressed: _uploading || _editorState == null
@@ -615,7 +611,7 @@ class _NotePaneViewState extends ConsumerState<NotePaneView> {
     final editorState = _editorState;
     final scrollController = _scrollController;
     if (editorState == null || scrollController == null) {
-      return const Center(child: CircularProgressIndicator());
+      return const SizedBox.shrink();
     }
     // 「/」入力メニュー（note.comの「+」ボタンに相当）はappflowy_editorの
     // 仕様上デスクトップ/Web限定（`slash_command.dart`のPlatformExtension.

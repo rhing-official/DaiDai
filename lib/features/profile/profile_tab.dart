@@ -1222,10 +1222,7 @@ class _WorkshopConversationCardSection extends ConsumerWidget {
     final groups = ref.watch(_groupListProvider(user.userId)).value;
 
     if (dms == null || groups == null) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 16),
-        child: Center(child: CircularProgressIndicator()),
-      );
+      return const SizedBox.shrink();
     }
 
     final assignedDms = dms
@@ -1825,20 +1822,7 @@ class _AddThumbButton extends ConsumerWidget {
       // 40px: サムネイル（72px）と同じ大きさだと目立ちすぎるとの指摘を受け、
       // 縮小した（2026-08-05変更、以前は72）。
       if (loading) {
-        return const SizedBox(
-          width: 40,
-          height: 40,
-          child: Center(
-            child: SizedBox(
-              width: 18,
-              height: 18,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: GekigaColors.onPanel,
-              ),
-            ),
-          ),
-        );
+        return const SizedBox(width: 40, height: 40);
       }
       return Opacity(
         opacity: enabled ? 1 : 0.4,
@@ -1851,11 +1835,7 @@ class _AddThumbButton extends ConsumerWidget {
     final colorScheme = Theme.of(context).colorScheme;
     final isGlass = ref.watch(appUiStyleProvider) == AppUiStyle.glass;
     final indicator = loading
-        ? const SizedBox(
-            width: 20,
-            height: 20,
-            child: CircularProgressIndicator(strokeWidth: 2),
-          )
+        ? const SizedBox.shrink()
         : Icon(
             Icons.add,
             color: enabled

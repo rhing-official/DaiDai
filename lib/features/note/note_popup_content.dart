@@ -204,14 +204,7 @@ class _NotePopupContentState extends ConsumerState<_NotePopupContent> {
               ),
             ),
             _creating
-                ? SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: onInverse,
-                    ),
-                  )
+                ? const SizedBox(width: 20, height: 20)
                 : IconButton(
                     icon: Icon(Icons.add, size: 20, color: onInverse),
                     tooltip: '',
