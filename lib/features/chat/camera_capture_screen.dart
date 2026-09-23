@@ -292,7 +292,7 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
             : preview != null
             ? _buildPreview(preview)
             : controller == null || !controller.value.isInitialized
-            ? const Center(child: CircularProgressIndicator())
+            ? const SizedBox.shrink()
             : GestureDetector(
                 onHorizontalDragEnd: _handleSwipe,
                 child: Stack(
@@ -477,7 +477,7 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
                         aspectRatio: videoController.value.aspectRatio,
                         child: VideoPlayer(videoController),
                       )
-                    : const CircularProgressIndicator())
+                    : const SizedBox.shrink())
               : Image.memory(preview.bytes, fit: BoxFit.contain),
         ),
         Positioned(

@@ -407,13 +407,7 @@ class _UserProfileCardDialogState extends ConsumerState<UserProfileCardDialog> {
         const SizedBox(height: 12),
         FilledButton(
           onPressed: _sending ? null : _sendRequest,
-          child: _sending
-              ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : Text(buttonLabel),
+          child: _sending ? const SizedBox.shrink() : Text(buttonLabel),
         ),
       ],
     );

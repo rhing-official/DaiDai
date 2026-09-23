@@ -48,10 +48,7 @@ class ConversationProfileCardDialog extends ConsumerWidget {
 
     final title = Text(strings.conversationProfileCardMenuLabel);
     final content = liveUser == null
-        ? const SizedBox(
-            height: 48,
-            child: Center(child: CircularProgressIndicator()),
-          )
+        ? const SizedBox(height: 48)
         : ProfileCardPicker(
             strings: strings,
             cards: liveUser.profileCards,

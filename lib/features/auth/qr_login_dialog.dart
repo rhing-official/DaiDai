@@ -130,10 +130,7 @@ class _QrLoginDialogState extends ConsumerState<QrLoginDialog> {
 
   Widget _buildBody(BuildContext context, Strings strings, String? sessionId) {
     if (sessionId == null) {
-      return const SizedBox(
-        height: 200,
-        child: Center(child: CircularProgressIndicator()),
-      );
+      return const SizedBox(height: 200);
     }
     if (_isExpired) {
       return Column(
@@ -173,7 +170,7 @@ class _QrLoginDialogState extends ConsumerState<QrLoginDialog> {
                   width: 200,
                   height: 200,
                   color: Colors.white70,
-                  child: const Center(child: CircularProgressIndicator()),
+                  child: const SizedBox.shrink(),
                 ),
             ],
           ),
