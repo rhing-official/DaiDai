@@ -23,7 +23,7 @@ enum AccountStatus {
 class AppUser {
   const AppUser({
     required this.userId,
-    required this.rhingId,
+    required this.rhingSeed,
     this.displayName,
     this.icons = const [],
     this.backgroundImages = const [],
@@ -46,11 +46,12 @@ class AppUser {
     this.lastLoginAt,
     this.termsAgreedAt,
     this.googleCalendarSyncEnabled,
+    this.googleCalendarId,
     this.pushNotificationsEnabled,
   });
 
   final String userId;
-  final String rhingId;
+  final String rhingSeed;
   final String? displayName;
 
   /// 蔵に保管しているアイコン素材（最大[kMaxIcons]件）。
@@ -63,7 +64,7 @@ class AppUser {
   final List<StatusMessage> statusMessages;
 
   /// 蔵に保管しているニックネーム（最大[kMaxNicknames]件）。
-  /// 友達には、相手のRhing IDの代わりにここで選んだニックネームが表示される。
+  /// 友達には、相手のRhing Seedの代わりにここで選んだニックネームが表示される。
   final List<Nickname> nicknames;
 
   /// 蔵に保管している他のSNSのURL（最大[kMaxSnsLinks]件）。
@@ -148,6 +149,14 @@ class AppUser {
   /// （端末間で同期する表示設定バッグ）とは意味が異なるため独立フィールドに
   /// している。
   final bool? googleCalendarSyncEnabled;
+
+  /// 連携時にDaiDaiが作成した専用のGoogleカレンダーのID（2026-09-23追加）。
+  /// 住人ごとに1つだけ作成し（会話ごとには分けない）、以後の予定同期は
+  /// すべてこのカレンダーに書き込む（`GoogleCalendarSyncService`参照）。
+  /// [googleCalendarSyncEnabled]がfalse/nullの間はnull。連携解除時は
+  /// Google側のカレンダー自体を削除した上でこのフィールドもnullに戻す
+  /// （ユーザー確定仕様、再連携時は新しい専用カレンダーを作り直す）。
+  final String? googleCalendarId;
 
   /// プッシュ通知の許可状態（2026-09-01追加、設定タブのトグルで管理）。
   /// [googleCalendarSyncEnabled]と同じ3値パターン: null=まだ触れていない
@@ -321,7 +330,7 @@ class AppUser {
   }) {
     return AppUser(
       userId: userId,
-      rhingId: rhingId,
+      rhingSeed: rhingSeed,
       displayName: displayName,
       icons: icons ?? this.icons,
       backgroundImages: backgroundImages ?? this.backgroundImages,
@@ -347,7 +356,7 @@ class AppUser {
   factory AppUser.fromJson(Map<String, dynamic> json) {
     return AppUser(
       userId: json['userId'] as String,
-      rhingId: json['rhingId'] as String,
+      rhingSeed: json['rhingSeed'] as String,
       displayName: json['displayName'] as String?,
       icons: _materialListFromJson(json['icons']),
       backgroundImages: _materialListFromJson(json['backgroundImages']),
@@ -376,6 +385,7 @@ class AppUser {
       lastLoginAt: json['lastLoginAt'] as Timestamp?,
       termsAgreedAt: json['termsAgreedAt'] as Timestamp?,
       googleCalendarSyncEnabled: json['googleCalendarSyncEnabled'] as bool?,
+      googleCalendarId: json['googleCalendarId'] as String?,
       pushNotificationsEnabled: json['pushNotificationsEnabled'] as bool?,
     );
   }
@@ -383,7 +393,7 @@ class AppUser {
   Map<String, dynamic> toJson() {
     return {
       'userId': userId,
-      'rhingId': rhingId,
+      'rhingSeed': rhingSeed,
       'displayName': displayName,
       'icons': icons.map((m) => m.toJson()).toList(),
       'backgroundImages': backgroundImages.map((m) => m.toJson()).toList(),
@@ -406,6 +416,7 @@ class AppUser {
       'lastLoginAt': lastLoginAt,
       'termsAgreedAt': termsAgreedAt,
       'googleCalendarSyncEnabled': googleCalendarSyncEnabled,
+      'googleCalendarId': googleCalendarId,
       'pushNotificationsEnabled': pushNotificationsEnabled,
     };
   }

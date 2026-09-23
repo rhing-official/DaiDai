@@ -3064,8 +3064,8 @@ class _ComposerContextBar extends StatelessWidget {
                     children: [
                       Text(
                         strings.chatReplyingToLabel(
-                          replying?.senderRhingId != null
-                              ? '@${replying!.senderRhingId}'
+                          replying?.senderRhingSeed != null
+                              ? '@${replying!.senderRhingSeed}'
                               : '?',
                         ),
                         style: TextStyle(
@@ -3393,7 +3393,7 @@ class _PinnedMessageCard extends StatelessWidget {
         children: [
           _SenderAvatar(
             userId: message.senderId,
-            rhingId: message.senderRhingId,
+            rhingSeed: message.senderRhingSeed,
             conversationId: conversationId,
             uiStyle: uiStyle,
             size: 32,
@@ -3408,7 +3408,7 @@ class _PinnedMessageCard extends StatelessWidget {
                     Flexible(
                       child: _SenderName(
                         userId: message.senderId,
-                        rhingId: message.senderRhingId,
+                        rhingSeed: message.senderRhingSeed,
                         conversationId: conversationId,
                         color: foreground,
                       ),
@@ -3793,14 +3793,14 @@ class _MessageRow extends ConsumerWidget {
                                 children: [
                                   _SenderAvatar(
                                     userId: reader.userId,
-                                    rhingId: null,
+                                    rhingSeed: null,
                                     conversationId: conversationId,
                                   ),
                                   const SizedBox(width: 12),
                                   Expanded(
                                     child: _SenderName(
                                       userId: reader.userId,
-                                      rhingId: null,
+                                      rhingSeed: null,
                                       conversationId: conversationId,
                                     ),
                                   ),
@@ -3904,14 +3904,14 @@ class _MessageRow extends ConsumerWidget {
                                 children: [
                                   _SenderAvatar(
                                     userId: entry.key,
-                                    rhingId: null,
+                                    rhingSeed: null,
                                     conversationId: conversationId,
                                   ),
                                   const SizedBox(width: 12),
                                   Expanded(
                                     child: _SenderName(
                                       userId: entry.key,
-                                      rhingId: null,
+                                      rhingSeed: null,
                                       conversationId: conversationId,
                                     ),
                                   ),
@@ -3993,8 +3993,8 @@ class _MessageRow extends ConsumerWidget {
     if (message.replyToMessageId != null) {
       final target = messagesById[message.replyToMessageId];
       final replySenderId = target?.senderId ?? message.replyToSenderId;
-      final replySenderRhingId =
-          target?.senderRhingId ?? message.replyToSenderRhingId;
+      final replySenderRhingSeed =
+          target?.senderRhingSeed ?? message.replyToSenderRhingSeed;
       final snippet = target != null
           ? _replySnippetLabel(target, vocabulary)
           : (message.replyToSnippet ?? '');
@@ -4024,7 +4024,7 @@ class _MessageRow extends ConsumerWidget {
                   children: [
                     _SenderName(
                       userId: replySenderId,
-                      rhingId: replySenderRhingId,
+                      rhingSeed: replySenderRhingSeed,
                       conversationId: conversationId,
                       color: onBubbleColor,
                     ),
@@ -4499,13 +4499,13 @@ class _MessageRow extends ConsumerWidget {
       final canTapSender = !isMe && onSenderTap != null;
       Widget senderAvatar = _SenderAvatar(
         userId: message.senderId,
-        rhingId: message.senderRhingId,
+        rhingSeed: message.senderRhingSeed,
         conversationId: conversationId,
         uiStyle: uiStyle,
       );
       Widget senderName = _SenderName(
         userId: message.senderId,
-        rhingId: message.senderRhingId,
+        rhingSeed: message.senderRhingSeed,
         conversationId: conversationId,
         color: senderNameColorResolver?.call(message.senderId),
       );
@@ -5537,8 +5537,8 @@ class _MessageRow extends ConsumerWidget {
     Color onBubbleColor,
     bool isGekiga,
   ) {
-    final label = message.senderRhingId != null
-        ? '@${message.senderRhingId}'
+    final label = message.senderRhingSeed != null
+        ? '@${message.senderRhingSeed}'
         : message.senderId;
     final showPrompt =
         isDm &&
@@ -6285,17 +6285,17 @@ class _MessageInteractionsState extends State<_MessageInteractions> {
 }
 
 /// 送信者の呼び名。[AppUser.effectiveNickname]（適用中の工房カードがあれば
-/// そちらを優先）があればそれを表示し、未設定ならRhing IDにフォールバックする。
+/// そちらを優先）があればそれを表示し、未設定ならRhing Seedにフォールバックする。
 class _SenderName extends ConsumerWidget {
   const _SenderName({
     required this.userId,
-    required this.rhingId,
+    required this.rhingSeed,
     this.conversationId,
     this.color,
   });
 
   final String userId;
-  final String? rhingId;
+  final String? rhingSeed;
 
   /// この送信者が使っている会話ごとのプロフィールカード（2026-07-29追加）を
   /// 反映するための会話id（一対のdmId・広場のgroupId）。nullなら標準の
@@ -6315,7 +6315,7 @@ class _SenderName extends ConsumerWidget {
         ?.text;
     final label = (nickname != null && nickname.isNotEmpty)
         ? nickname
-        : '@${rhingId ?? '?'}';
+        : '@${rhingSeed ?? '?'}';
     return Text(
       label,
       maxLines: 1,
@@ -6330,19 +6330,19 @@ class _SenderName extends ConsumerWidget {
 }
 
 /// 送信者のアイコン。蔵で設定した実際のアイコン（[AppUser.effectiveIcon]）が
-/// あればそれを表示し、未設定ならRhing IDから生成する色分けイニシャルに
+/// あればそれを表示し、未設定ならRhing Seedから生成する色分けイニシャルに
 /// フォールバックする。
 class _SenderAvatar extends ConsumerWidget {
   const _SenderAvatar({
     required this.userId,
-    required this.rhingId,
+    required this.rhingSeed,
     this.conversationId,
     this.uiStyle = AppUiStyle.flat,
     this.size = 48,
   });
 
   final String userId;
-  final String? rhingId;
+  final String? rhingSeed;
 
   /// [_SenderName.conversationId]と同じ。
   final String? conversationId;
@@ -6366,7 +6366,7 @@ class _SenderAvatar extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(watchedUserProvider(userId)).value;
     final iconUrl = user?.effectiveIconFor(conversationId)?.url;
-    final id = rhingId ?? '?';
+    final id = rhingSeed ?? '?';
     final color = _palette[id.hashCode.abs() % _palette.length];
     final fontSize = size / 48 * 13;
     if (uiStyle == AppUiStyle.gekiga) {

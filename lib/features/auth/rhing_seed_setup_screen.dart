@@ -6,18 +6,19 @@ import '../../providers/repository_providers.dart';
 import '../../widgets/fixed_font_theme.dart';
 import '../home/home_screen.dart';
 
-/// Rhing IDの最小設定画面。
+/// Rhing Seedの最小設定画面。
 /// 本実装（秘密の質問・2段階認証など）はフェーズ1の後続タスクで追加する。
-class RhingIdSetupScreen extends ConsumerStatefulWidget {
-  const RhingIdSetupScreen({required this.userId, super.key});
+class RhingSeedSetupScreen extends ConsumerStatefulWidget {
+  const RhingSeedSetupScreen({required this.userId, super.key});
 
   final String userId;
 
   @override
-  ConsumerState<RhingIdSetupScreen> createState() => _RhingIdSetupScreenState();
+  ConsumerState<RhingSeedSetupScreen> createState() =>
+      _RhingSeedSetupScreenState();
 }
 
-class _RhingIdSetupScreenState extends ConsumerState<RhingIdSetupScreen> {
+class _RhingSeedSetupScreenState extends ConsumerState<RhingSeedSetupScreen> {
   final _controller = TextEditingController();
   static final _validPattern = RegExp(r'^[a-zA-Z0-9._-]{3,20}$');
 
@@ -25,8 +26,8 @@ class _RhingIdSetupScreenState extends ConsumerState<RhingIdSetupScreen> {
   String? _errorMessage;
 
   Future<void> _submit() async {
-    final rhingId = _controller.text.trim();
-    if (!_validPattern.hasMatch(rhingId)) {
+    final rhingSeed = _controller.text.trim();
+    if (!_validPattern.hasMatch(rhingSeed)) {
       setState(() {
         _errorMessage = '英数字・.・-・_のみ、3〜20文字で入力してください';
       });
@@ -40,16 +41,16 @@ class _RhingIdSetupScreenState extends ConsumerState<RhingIdSetupScreen> {
 
     final userRepository = ref.read(userRepositoryProvider);
     try {
-      final available = await userRepository.isRhingIdAvailable(rhingId);
+      final available = await userRepository.isRhingSeedAvailable(rhingSeed);
       if (!available) {
         setState(() {
-          _errorMessage = 'このRhing IDはすでに使われています';
+          _errorMessage = 'このRhing Seedはすでに使われています';
         });
         return;
       }
       final appUser = AppUser(
         userId: widget.userId,
-        rhingId: rhingId.toLowerCase(),
+        rhingSeed: rhingSeed.toLowerCase(),
       );
       await userRepository.createUser(appUser);
 
@@ -81,7 +82,7 @@ class _RhingIdSetupScreenState extends ConsumerState<RhingIdSetupScreen> {
   Widget build(BuildContext context) {
     return FixedFontTheme(
       child: Scaffold(
-        appBar: AppBar(title: const Text('Rhing IDを設定')),
+        appBar: AppBar(title: const Text('Rhing Seedを設定')),
         body: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 400),
@@ -91,13 +92,13 @@ class _RhingIdSetupScreenState extends ConsumerState<RhingIdSetupScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text('あなただけのRhing IDを決めてください。'),
+                  const Text('あなただけのRhing Seedを決めてください。'),
                   const Text('英数字・.・-・_のみ使用できます（大文字小文字は区別されません）。'),
                   const SizedBox(height: 16),
                   TextField(
                     controller: _controller,
                     decoration: const InputDecoration(
-                      labelText: 'Rhing ID',
+                      labelText: 'Rhing Seed',
                       border: OutlineInputBorder(),
                     ),
                     onSubmitted: _isSubmitting ? null : (_) => _submit(),

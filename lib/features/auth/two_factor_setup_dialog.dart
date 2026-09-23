@@ -17,14 +17,14 @@ import '../../widgets/glass/glass_dialog.dart';
 ///
 /// [show]はtrue（登録完了）/false・null（キャンセル）を返す。
 class TwoFactorSetupDialog extends ConsumerStatefulWidget {
-  const TwoFactorSetupDialog({required this.rhingId, super.key});
+  const TwoFactorSetupDialog({required this.rhingSeed, super.key});
 
-  final String rhingId;
+  final String rhingSeed;
 
-  static Future<bool?> show(BuildContext context, String rhingId) {
+  static Future<bool?> show(BuildContext context, String rhingSeed) {
     return showDialog<bool>(
       context: context,
-      builder: (_) => TwoFactorSetupDialog(rhingId: rhingId),
+      builder: (_) => TwoFactorSetupDialog(rhingSeed: rhingSeed),
     );
   }
 
@@ -49,7 +49,7 @@ class _TwoFactorSetupDialogState extends ConsumerState<TwoFactorSetupDialog> {
   Future<({TotpSecret secret, String qrCodeUrl})> _startEnrollment() async {
     final secret = await ref.read(authRepositoryProvider).startTotpEnrollment();
     final qrCodeUrl = await secret.generateQrCodeUrl(
-      accountName: widget.rhingId,
+      accountName: widget.rhingSeed,
       issuer: 'DaiDai',
     );
     return (secret: secret, qrCodeUrl: qrCodeUrl);

@@ -74,7 +74,7 @@ class _PollPopupContent extends ConsumerWidget {
       conversationId: conversationId,
       roomId: roomId,
       currentUserId: currentUser.userId,
-      currentUserRhingId: currentUser.rhingId,
+      currentUserRhingSeed: currentUser.rhingSeed,
     );
   }
 

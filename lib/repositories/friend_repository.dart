@@ -78,9 +78,9 @@ class FirestoreFriendRepository implements FriendRepository {
     // 移植している。
     await _functions.httpsCallable('sendFriendRequest').call({
       'fromUserId': from.userId,
-      'fromRhingId': from.rhingId,
+      'fromRhingSeed': from.rhingSeed,
       'toUserId': to.userId,
-      'toRhingId': to.rhingId,
+      'toRhingSeed': to.rhingSeed,
       'message': message,
     });
   }
@@ -141,9 +141,9 @@ class FirestoreFriendRepository implements FriendRepository {
     final dm = DirectMessage(
       dmId: dmId,
       participants: participants,
-      participantRhingIds: {
-        request.fromUserId: request.fromRhingId,
-        request.toUserId: request.toRhingId,
+      participantRhingSeeds: {
+        request.fromUserId: request.fromRhingSeed,
+        request.toUserId: request.toRhingSeed,
       },
       // 一対は常に単一モードで作られる（GroupのroomsEnabledと同じ考え方、
       // 2026-07-29追加）。後からハンバーガーメニューの「寄合を増やす」で
@@ -162,14 +162,14 @@ class FirestoreFriendRepository implements FriendRepository {
       _friendsOf(request.fromUserId).doc(request.toUserId),
       Friend(
         friendUserId: request.toUserId,
-        friendRhingId: request.toRhingId,
+        friendRhingSeed: request.toRhingSeed,
       ).toJson(),
     );
     batch.set(
       _friendsOf(request.toUserId).doc(request.fromUserId),
       Friend(
         friendUserId: request.fromUserId,
-        friendRhingId: request.fromRhingId,
+        friendRhingSeed: request.fromRhingSeed,
       ).toJson(),
     );
     batch.set(dmRef, dm.toJson());

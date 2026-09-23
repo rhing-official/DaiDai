@@ -33,10 +33,10 @@ class _FakeUserRepository implements UserRepository {
   Future<void> createUser(AppUser user) async => saved = user;
 
   @override
-  Future<AppUser?> findByRhingId(String rhingId) async => null;
+  Future<AppUser?> findByRhingSeed(String rhingSeed) async => null;
 
   @override
-  Future<bool> isRhingIdAvailable(String rhingId) async => true;
+  Future<bool> isRhingSeedAvailable(String rhingSeed) async => true;
 
   @override
   Future<void> updateUser(AppUser user) async => saved = user;
@@ -47,7 +47,7 @@ class _FakeUserRepository implements UserRepository {
     String field,
     Map<String, dynamic> value,
   ) async {
-    final base = saved ?? AppUser(userId: userId, rhingId: '');
+    final base = saved ?? AppUser(userId: userId, rhingSeed: '');
     final json = base.toJson();
     final list = List<Map<String, dynamic>>.from(
       (json[field] as List).cast<Map<String, dynamic>>(),
@@ -62,7 +62,7 @@ class _FakeUserRepository implements UserRepository {
     String field,
     Map<String, dynamic> value,
   ) async {
-    final base = saved ?? AppUser(userId: userId, rhingId: '');
+    final base = saved ?? AppUser(userId: userId, rhingSeed: '');
     final json = base.toJson();
     final list = List<Map<String, dynamic>>.from(
       (json[field] as List).cast<Map<String, dynamic>>(),
@@ -77,7 +77,7 @@ class _FakeUserRepository implements UserRepository {
     String field,
     String? value,
   ) async {
-    final base = saved ?? AppUser(userId: userId, rhingId: '');
+    final base = saved ?? AppUser(userId: userId, rhingSeed: '');
     final json = base.toJson();
     json[field] = value;
     saved = AppUser.fromJson(json);
@@ -171,10 +171,14 @@ class _FakeUserRepository implements UserRepository {
   };
 
   @override
+  Future<Map<String, int>> migrateRhingSeedOnce() async => {};
+
+  @override
   Future<void> setGoogleCalendarSyncEnabled(
     String userId,
-    bool enabled,
-  ) async {}
+    bool enabled, {
+    String? calendarId,
+  }) async {}
 
   @override
   Future<void> setPushNotificationsEnabled(String userId, bool enabled) async {}
@@ -182,7 +186,7 @@ class _FakeUserRepository implements UserRepository {
 
 void main() {
   testWidgets('ニックネームを追加すると一覧に表示される', (tester) async {
-    const user = AppUser(userId: 'u1', rhingId: 'taro');
+    const user = AppUser(userId: 'u1', rhingSeed: 'taro');
     final fakeRepo = _FakeUserRepository();
 
     await tester.pumpWidget(
@@ -211,7 +215,7 @@ void main() {
   });
 
   testWidgets('ステメを追加すると一覧に表示される', (tester) async {
-    const user = AppUser(userId: 'u1', rhingId: 'taro');
+    const user = AppUser(userId: 'u1', rhingSeed: 'taro');
     final fakeRepo = _FakeUserRepository();
 
     await tester.pumpWidget(

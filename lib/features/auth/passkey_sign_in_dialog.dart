@@ -9,8 +9,8 @@ import '../../providers/repository_providers.dart';
 import '../../repositories/auth_repository.dart';
 import '../../widgets/glass/glass_dialog.dart';
 
-/// Rhing ID＋パスキー（WebAuthn）でのログイン（2026-09-16追加）。
-/// `qr_login_dialog.dart`と同系統の見た目。Rhing IDを入力して確定すると
+/// Rhing Seed＋パスキー（WebAuthn）でのログイン（2026-09-16追加）。
+/// `qr_login_dialog.dart`と同系統の見た目。Rhing Seedを入力して確定すると
 /// `AuthRepository.signInWithPasskey`を呼び、デバイスにパスキー認証を
 /// 要求する。成功すればダイアログを閉じ、以降は`AuthGate`が認証状態の変化を
 /// 検知して自動的に画面遷移する。
@@ -18,9 +18,9 @@ import '../../widgets/glass/glass_dialog.dart';
 /// Web版かつブラウザがConditional Mediation（パスワードマネージャーの
 /// 自動候補表示）に対応していれば、ダイアログを開いた時点で裏側で
 /// `AuthRepository.trySignInWithConditionalPasskey`も並行して開始する
-/// （2026-09-16追加）。Rhing IDを一切入力せずブラウザ側の候補をタップする
+/// （2026-09-16追加）。Rhing Seedを一切入力せずブラウザ側の候補をタップする
 /// だけでログインできるようにするための導線で、対応していない環境では
-/// 何も起こらず、これまで通りRhing IDを入力して「ログイン」ボタンを押す
+/// 何も起こらず、これまで通りRhing Seedを入力して「ログイン」ボタンを押す
 /// 流れになる。
 class PasskeySignInDialog extends ConsumerStatefulWidget {
   const PasskeySignInDialog({super.key});
@@ -38,7 +38,7 @@ class PasskeySignInDialog extends ConsumerStatefulWidget {
 }
 
 class _PasskeySignInDialogState extends ConsumerState<PasskeySignInDialog> {
-  final _rhingIdController = TextEditingController();
+  final _rhingSeedController = TextEditingController();
   late final AuthRepository _authRepository = ref.read(authRepositoryProvider);
   bool _isSigningIn = false;
   String? _errorMessage;
@@ -60,7 +60,7 @@ class _PasskeySignInDialogState extends ConsumerState<PasskeySignInDialog> {
       Navigator.of(context).pop(true);
     } catch (_) {
       // バックグラウンドでの試行のため失敗してもエラー表示はしない。
-      // ユーザーはRhing ID入力欄からいつも通りログインできる。
+      // ユーザーはRhing Seed入力欄からいつも通りログインできる。
     }
   }
 
@@ -69,22 +69,22 @@ class _PasskeySignInDialogState extends ConsumerState<PasskeySignInDialog> {
     if (_conditionalAttemptStarted) {
       _authRepository.cancelConditionalPasskeyAttempt();
     }
-    _rhingIdController.dispose();
+    _rhingSeedController.dispose();
     super.dispose();
   }
 
   Future<void> _submit(Strings strings) async {
-    final rhingId = _rhingIdController.text.trim().toLowerCase().replaceFirst(
-      RegExp(r'^@+'),
-      '',
-    );
-    if (rhingId.isEmpty) return;
+    final rhingSeed = _rhingSeedController.text
+        .trim()
+        .toLowerCase()
+        .replaceFirst(RegExp(r'^@+'), '');
+    if (rhingSeed.isEmpty) return;
     setState(() {
       _isSigningIn = true;
       _errorMessage = null;
     });
     try {
-      await ref.read(authRepositoryProvider).signInWithPasskey(rhingId);
+      await ref.read(authRepositoryProvider).signInWithPasskey(rhingSeed);
       if (!mounted) return;
       Navigator.of(context).pop(true);
     } catch (e) {
@@ -121,14 +121,14 @@ class _PasskeySignInDialogState extends ConsumerState<PasskeySignInDialog> {
         Text(strings.passkeySignInDialogDescription),
         const SizedBox(height: 16),
         TextField(
-          controller: _rhingIdController,
+          controller: _rhingSeedController,
           autofocus: true,
           // 'webauthn'は、対応ブラウザ（Web版）でこの欄にパスキー候補の
           // 自動候補を表示させるための標準トークン
           // （https://www.w3.org/TR/webauthn-3/#input-autofill）。
           autofillHints: const [AutofillHints.username, 'webauthn'],
           decoration: InputDecoration(
-            labelText: strings.passkeySignInDialogRhingIdLabel,
+            labelText: strings.passkeySignInDialogRhingSeedLabel,
             prefixText: '@',
           ),
           onSubmitted: _isSigningIn ? null : (_) => _submit(strings),

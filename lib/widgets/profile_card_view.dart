@@ -86,7 +86,9 @@ class ProfileCardView extends StatelessWidget {
                         ? NetworkImage(icon!.url)
                         : null,
                     backgroundColor: Colors.transparent,
-                    foregroundColor: Theme.of(context).colorScheme.onSurfaceVariant,
+                    foregroundColor: Theme.of(
+                      context,
+                    ).colorScheme.onSurfaceVariant,
                     child: icon == null ? const Icon(Icons.person) : null,
                   ),
                   SizedBox(height: padding * 0.6),

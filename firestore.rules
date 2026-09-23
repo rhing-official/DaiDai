@@ -32,7 +32,7 @@ service cloud.firestore {
     }
 
     // users/{userId}: 本人のみ作成・更新可能。ログイン済みなら誰でも参照可能
-    // （Rhing ID検索・重複チェックのため一覧クエリを許可する）。便り
+    // （Rhing Seed検索・重複チェックのため一覧クエリを許可する）。便り
     // （officialAccountUid、Firebase Authの実アカウントを持たない）だけは
     // 例外的に管理者が更新できる（管理画面の身だしなみタブから。他人には
     // なりすませないよう対象をこのuidのみに限定して許可、2026-08-12追加）。
@@ -110,7 +110,7 @@ service cloud.firestore {
         allow write: if false;
       }
 
-      // users/{userId}/passkeyCredentials/{credentialId}: Rhing ID＋パスキー
+      // users/{userId}/passkeyCredentials/{credentialId}: Rhing Seed＋パスキー
       // （WebAuthn）ログインで登録した認証情報（2026-09-16追加）。作成・
       // カウンタ更新は必ずfinishPasskeyRegistration/finishPasskeyAuthentication
       // （Cloud Functions、Admin SDK経由）で行うため、クライアントからの
@@ -206,7 +206,7 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
-    // userInvites/{rhingId}: 縁結び（個人の招待リンク）の公開プレビュー
+    // userInvites/{rhingSeed}: 縁結び（個人の招待リンク）の公開プレビュー
     // （呼び名・アイコンのみ。友達一覧・語らいの内容は含まない）。招待リンクを
     // 開いた相手や、外部SNSのリンク展開（OGP）にも見せる必要があるため
     // 公開読み取り可能。書き込みは本人のみ（`userId`フィールドで判定）。
@@ -214,7 +214,7 @@ service cloud.firestore {
     // 代わりに書き込める（UserRepository.syncInvitePreviewは身だしなみ更新の
     // たびに呼ばれるため、ここに例外が無いとusers側の更新自体は成功しても
     // このプレビュー同期だけがpermission-deniedになる、2026-08-26発覚・修正）。
-    match /userInvites/{rhingId} {
+    match /userInvites/{rhingSeed} {
       allow read: if true;
       allow write: if request.auth != null
         && (request.auth.uid == request.resource.data.userId
@@ -422,11 +422,17 @@ service cloud.firestore {
                 )
               )
               || (
+                // replyToSenderRhingId/replyToSenderRhingSeed: 「Rhing ID」
+                // →「Rhing Seed」への改名（2026-09-23）でメッセージ本体は
+                // 移行していない（Tier 2、`lib/models/message.dart`参照）ため、
+                // 改名前後どちらのフィールド名を持つメッセージの返信取り消しも
+                // 通せるよう恒久的に両方許可する。
                 request.resource.data.diff(resource.data).affectedKeys()
-                  .hasOnly(['replyToMessageId', 'replyToSenderId', 'replyToSenderRhingId', 'replyToSnippet'])
+                  .hasOnly(['replyToMessageId', 'replyToSenderId', 'replyToSenderRhingId', 'replyToSenderRhingSeed', 'replyToSnippet'])
                 && !('replyToMessageId' in request.resource.data)
                 && !('replyToSenderId' in request.resource.data)
                 && !('replyToSenderRhingId' in request.resource.data)
+                && !('replyToSenderRhingSeed' in request.resource.data)
                 && !('replyToSnippet' in request.resource.data)
               )
               // アカウント削除通知への「いいえ」（2026-07-28追加）。以後
@@ -1033,11 +1039,17 @@ service cloud.firestore {
                 )
               )
               || (
+                // replyToSenderRhingId/replyToSenderRhingSeed: 「Rhing ID」
+                // →「Rhing Seed」への改名（2026-09-23）でメッセージ本体は
+                // 移行していない（Tier 2、`lib/models/message.dart`参照）ため、
+                // 改名前後どちらのフィールド名を持つメッセージの返信取り消しも
+                // 通せるよう恒久的に両方許可する。
                 request.resource.data.diff(resource.data).affectedKeys()
-                  .hasOnly(['replyToMessageId', 'replyToSenderId', 'replyToSenderRhingId', 'replyToSnippet'])
+                  .hasOnly(['replyToMessageId', 'replyToSenderId', 'replyToSenderRhingId', 'replyToSenderRhingSeed', 'replyToSnippet'])
                 && !('replyToMessageId' in request.resource.data)
                 && !('replyToSenderId' in request.resource.data)
                 && !('replyToSenderRhingId' in request.resource.data)
+                && !('replyToSenderRhingSeed' in request.resource.data)
                 && !('replyToSnippet' in request.resource.data)
               )
             );
@@ -1351,7 +1363,7 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
-    // passkeyChallenges/{challengeId}: Rhing ID＋パスキー（WebAuthn）の登録/
+    // passkeyChallenges/{challengeId}: Rhing Seed＋パスキー（WebAuthn）の登録/
     // 認証チャレンジの一時保存（2026-09-16追加）。qrLoginSessionsと異なり
     // 別端末からのポーリングが不要（同一端末・同一のCloud Functions往復で
     // 完結する）ため、クライアントからの読み書きは一切許可しない

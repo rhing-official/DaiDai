@@ -23,8 +23,14 @@ class GoogleCalendarNotConfiguredException implements Exception {
 /// アプリ全体で1回しか呼べない制約があるため、`AuthRepository`と共有の
 /// [ensureGoogleSignInInitialized]を経由する。
 class GoogleCalendarAuthService {
+  /// `calendar.app.created`（2026-09-23変更、以前は`calendar.events`）:
+  /// アプリ自身が作成したカレンダー・イベントにしか触れられない、Googleが
+  /// 用意している最も狭いスコープ。DaiDaiは住人の既存カレンダー・予定を
+  /// 一切読み書きしないため（専用カレンダーを作成しそこにだけ書き込む方式、
+  /// `GoogleCalendarSyncService.createCalendar`参照）、要求データを最小化
+  /// できプライバシーファーストの方針にも合う。
   static const List<String> _scopes = [
-    'https://www.googleapis.com/auth/calendar.events',
+    'https://www.googleapis.com/auth/calendar.app.created',
   ];
 
   /// Web専用のOAuthクライアントID。
@@ -52,19 +58,23 @@ class GoogleCalendarAuthService {
   /// 設定画面・初回確認ダイアログの「同期する」から呼ぶ。ユーザー操作の
   /// 直後であることが前提（同意ポップアップが出ることがある）。
   ///
-  /// ユーザーが同意画面でキャンセルした場合はfalseを返す（呼び出し側は
+  /// 成功時はアクセストークンを返す（呼び出し側はこれをそのまま
+  /// `GoogleCalendarSyncService.createCalendar`に渡し、専用カレンダーを
+  /// 作成できる。2026-09-23変更、以前はbool固定でトークンを捨てていた）。
+  /// ユーザーが同意画面でキャンセルした場合はnullを返す（呼び出し側は
   /// `googleCalendarSyncEnabled`を更新せずnullのまま据え置く）。それ以外の
   /// 失敗（ネットワークエラー・設定不備等）は例外をそのまま投げる。
-  Future<bool> requestConsent() async {
+  Future<String?> requestConsent() async {
     if (kIsWeb && _webClientId == null) {
       throw const GoogleCalendarNotConfiguredException();
     }
     await ensureInitialized();
     try {
-      await GoogleSignIn.instance.authorizationClient.authorizeScopes(_scopes);
-      return true;
+      final authorization = await GoogleSignIn.instance.authorizationClient
+          .authorizeScopes(_scopes);
+      return authorization.accessToken;
     } on GoogleSignInException catch (e) {
-      if (e.code == GoogleSignInExceptionCode.canceled) return false;
+      if (e.code == GoogleSignInExceptionCode.canceled) return null;
       rethrow;
     }
   }

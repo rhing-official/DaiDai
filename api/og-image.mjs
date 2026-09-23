@@ -1,4 +1,4 @@
-// 招待リンク（/invite/:rhingId・/join/:groupId）のOGP画像を、アプリ内の
+// 招待リンク（/invite/:rhingSeed・/join/:groupId）のOGP画像を、アプリ内の
 // プロフィールカード（工房カード・広場のプロフィールカード）とそのままの
 // 見た目で生成するVercel Function（Node.js Runtime）。
 // `api/link-preview.js`がog:imageとしてこのエンドポイント

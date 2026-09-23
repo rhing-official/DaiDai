@@ -21,9 +21,9 @@ class FriendRequest {
   const FriendRequest({
     required this.requestId,
     required this.fromUserId,
-    required this.fromRhingId,
+    required this.fromRhingSeed,
     required this.toUserId,
-    required this.toRhingId,
+    required this.toRhingSeed,
     required this.status,
     this.message,
     this.createdAt,
@@ -32,9 +32,9 @@ class FriendRequest {
 
   final String requestId;
   final String fromUserId;
-  final String fromRhingId;
+  final String fromRhingSeed;
   final String toUserId;
-  final String toRhingId;
+  final String toRhingSeed;
   final FriendRequestStatus status;
 
   /// 申請に添えた任意メッセージ（100文字まで、技術仕様書8.3レイヤー2、
@@ -43,18 +43,18 @@ class FriendRequest {
   final Timestamp? createdAt;
   final Timestamp? respondedAt;
 
-  /// 自分以外の相手のRhing ID。
-  String otherRhingId(String currentUserId) {
-    return currentUserId == fromUserId ? toRhingId : fromRhingId;
+  /// 自分以外の相手のRhing Seed。
+  String otherRhingSeed(String currentUserId) {
+    return currentUserId == fromUserId ? toRhingSeed : fromRhingSeed;
   }
 
   factory FriendRequest.fromJson(String requestId, Map<String, dynamic> json) {
     return FriendRequest(
       requestId: requestId,
       fromUserId: json['fromUserId'] as String,
-      fromRhingId: json['fromRhingId'] as String,
+      fromRhingSeed: json['fromRhingSeed'] as String,
       toUserId: json['toUserId'] as String,
-      toRhingId: json['toRhingId'] as String,
+      toRhingSeed: json['toRhingSeed'] as String,
       status: FriendRequestStatus.fromName(json['status'] as String),
       message: json['message'] as String?,
       createdAt: json['createdAt'] as Timestamp?,
@@ -65,9 +65,9 @@ class FriendRequest {
   Map<String, dynamic> toJson() {
     return {
       'fromUserId': fromUserId,
-      'fromRhingId': fromRhingId,
+      'fromRhingSeed': fromRhingSeed,
       'toUserId': toUserId,
-      'toRhingId': toRhingId,
+      'toRhingSeed': toRhingSeed,
       'status': status.name,
       'message': message,
       'createdAt': createdAt ?? FieldValue.serverTimestamp(),

@@ -411,7 +411,7 @@ class WebrtcCallController extends ChangeNotifier {
       await _directMessageRepository.sendCallSummaryMessage(
         dmId: call.dmId,
         senderId: call.callerId,
-        senderRhingId: call.callerRhingId,
+        senderRhingSeed: call.callerRhingSeed,
         startedAt: startedAt,
         durationSeconds: durationSeconds,
         isVideo: call.isVideo,

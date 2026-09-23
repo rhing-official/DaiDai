@@ -96,25 +96,27 @@ class _PinnedCallBubble extends ConsumerWidget {
   final ActiveCallSession session;
 
   /// 映像が無い間（音声のみの通話、またはビデオ通話でも相手・自分どちらも
-  /// 映像を出していない間）に中央へ表示するアバター情報（userId・rhingId・
+  /// 映像を出していない間）に中央へ表示するアバター情報（userId・rhingSeed・
   /// 会話id）。通話画面の音声通話時（`CallScreen._audioBody`/
   /// `GroupCallScreen._audioBody`）と同じ[CallParticipantAvatar]を、
   /// 代表1人分だけ小さく表示する（2026-08-19追加、音声通話でもミニ表示を
   /// 出すようにした際に追加）。
-  ({String userId, String rhingId, String? conversationId}) _placeholderInfo() {
+  ({String userId, String rhingSeed, String? conversationId})
+  _placeholderInfo() {
     switch (session) {
       case OneToOneCallSession(:final call, :final currentUserId):
         return (
           userId: call.otherUserId(currentUserId),
-          rhingId: call.otherRhingId(currentUserId),
+          rhingSeed: call.otherRhingSeed(currentUserId),
           conversationId: call.dmId,
         );
       case GroupCallSession(:final controller, :final groupId):
         final remoteRepresentative = controller.remoteParticipants.firstOrNull;
         return (
           userId: remoteRepresentative?.userId ?? controller.currentUser.userId,
-          rhingId:
-              remoteRepresentative?.rhingId ?? controller.currentUser.rhingId,
+          rhingSeed:
+              remoteRepresentative?.rhingSeed ??
+              controller.currentUser.rhingSeed,
           conversationId: groupId,
         );
     }
@@ -180,7 +182,7 @@ class _PinnedCallBubble extends ConsumerWidget {
           Center(
             child: CallParticipantAvatar(
               userId: placeholder.userId,
-              rhingId: placeholder.rhingId,
+              rhingSeed: placeholder.rhingSeed,
               conversationId: placeholder.conversationId,
               radius: 36,
               fontSize: 28,
@@ -398,11 +400,11 @@ class _PinnedCallBubble extends ConsumerWidget {
       case OneToOneCallSession(:final call):
         final caller = AppUser(
           userId: call.callerId,
-          rhingId: call.callerRhingId,
+          rhingSeed: call.callerRhingSeed,
         );
         final callee = AppUser(
           userId: call.calleeId,
-          rhingId: call.calleeRhingId,
+          rhingSeed: call.calleeRhingSeed,
         );
         ref
             .read(directMessageRepositoryProvider)

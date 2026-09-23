@@ -10,13 +10,13 @@ void main() {
         conversationId: 'dm1',
         conversationType: 'dm',
         senderId: 'u1',
-        senderRhingId: 'user1',
+        senderRhingSeed: 'user1',
         content: '編集後の本文',
         contentType: 'text',
         sentAt: Timestamp.fromMillisecondsSinceEpoch(1000),
         replyToMessageId: 'm0',
         replyToSenderId: 'u2',
-        replyToSenderRhingId: 'user2',
+        replyToSenderRhingSeed: 'user2',
         replyToSnippet: '元のメッセージ',
         editedAt: Timestamp.fromMillisecondsSinceEpoch(2000),
         reactions: const {
@@ -30,7 +30,7 @@ void main() {
 
       expect(restored.replyToMessageId, 'm0');
       expect(restored.replyToSenderId, 'u2');
-      expect(restored.replyToSenderRhingId, 'user2');
+      expect(restored.replyToSenderRhingSeed, 'user2');
       expect(restored.replyToSnippet, '元のメッセージ');
       expect(restored.editedAt, original.editedAt);
       expect(restored.reactions, {
@@ -71,7 +71,7 @@ void main() {
 
       expect(message.replyToMessageId, isNull);
       expect(message.replyToSenderId, isNull);
-      expect(message.replyToSenderRhingId, isNull);
+      expect(message.replyToSenderRhingSeed, isNull);
       expect(message.replyToSnippet, isNull);
       expect(message.editedAt, isNull);
       expect(message.reactions, isEmpty);
@@ -91,7 +91,7 @@ void main() {
 
       expect(json['replyToMessageId'], isNull);
       expect(json['replyToSenderId'], isNull);
-      expect(json['replyToSenderRhingId'], isNull);
+      expect(json['replyToSenderRhingSeed'], isNull);
       expect(json['replyToSnippet'], isNull);
       expect(json['editedAt'], isNull);
       expect(json['reactions'], isEmpty);

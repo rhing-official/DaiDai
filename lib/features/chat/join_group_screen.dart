@@ -17,7 +17,7 @@ import '../auth/auth_gate.dart';
 
 /// 招待リンク（`/join/:groupId`）・QRコード読み取りの両方から開かれる、
 /// 広場への参加リクエスト確認画面。ログイン前に開かれた場合は[AuthGate]が
-/// まずログイン・Rhing ID登録を済ませてから、この画面本体を表示する。
+/// まずログイン・Rhing Seed登録を済ませてから、この画面本体を表示する。
 class JoinGroupScreen extends StatelessWidget {
   const JoinGroupScreen({required this.groupId, super.key});
 

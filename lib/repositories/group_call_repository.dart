@@ -244,7 +244,7 @@ class FirestoreGroupCallRepository implements GroupCallRepository {
   }) async {
     final participant = CallParticipant(
       userId: user.userId,
-      rhingId: user.rhingId,
+      rhingSeed: user.rhingSeed,
       isVideo: isVideo,
     );
     await _participantsOf(

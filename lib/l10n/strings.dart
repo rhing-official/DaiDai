@@ -122,7 +122,7 @@ class Strings {
     required this.soundUploadTooLargeError,
     required this.soundUploadUnsupportedFormatError,
     required this.settingsAccountInfoSection,
-    required this.settingsRhingIdLabel,
+    required this.settingsRhingSeedLabel,
     required this.settingsSecurity,
     required this.settingsTwoFactor,
     required this.twoFactorEnabledStatus,
@@ -149,14 +149,14 @@ class Strings {
     required this.passkeyCreateAccountButton,
     required this.passkeySignInButton,
     required this.passkeySignInDialogDescription,
-    required this.passkeySignInDialogRhingIdLabel,
+    required this.passkeySignInDialogRhingSeedLabel,
     required this.passkeySignInDialogSubmitButton,
     required this.passkeySignInDialogError,
     required this.passkeySignInDialogErrorNotFound,
     required this.passkeySignInDialogErrorNoPasskey,
     required this.passkeyRecoveryLinkLabel,
     required this.passkeyRecoveryDialogTitle,
-    required this.passkeyRecoveryDialogRhingIdDescription,
+    required this.passkeyRecoveryDialogRhingSeedDescription,
     required this.passkeyRecoveryDialogNextButton,
     required this.passkeyRecoveryDialogAnswerDescription,
     required this.passkeyRecoveryDialogSubmitButton,
@@ -795,7 +795,7 @@ class Strings {
   final String soundUploadTooLargeError;
   final String soundUploadUnsupportedFormatError;
   final String settingsAccountInfoSection;
-  final String settingsRhingIdLabel;
+  final String settingsRhingSeedLabel;
   final String settingsSecurity;
   final String settingsTwoFactor;
   final String twoFactorEnabledStatus;
@@ -822,14 +822,14 @@ class Strings {
   final String passkeyCreateAccountButton;
   final String passkeySignInButton;
   final String passkeySignInDialogDescription;
-  final String passkeySignInDialogRhingIdLabel;
+  final String passkeySignInDialogRhingSeedLabel;
   final String passkeySignInDialogSubmitButton;
   final String passkeySignInDialogError;
   final String passkeySignInDialogErrorNotFound;
   final String passkeySignInDialogErrorNoPasskey;
   final String passkeyRecoveryLinkLabel;
   final String passkeyRecoveryDialogTitle;
-  final String passkeyRecoveryDialogRhingIdDescription;
+  final String passkeyRecoveryDialogRhingSeedDescription;
   final String passkeyRecoveryDialogNextButton;
   final String passkeyRecoveryDialogAnswerDescription;
   final String passkeyRecoveryDialogSubmitButton;
@@ -895,7 +895,7 @@ class Strings {
   final String friendSearchLabel;
   final String friendSearchButton;
 
-  /// Rhing ID検索フォームの最初の一歩（検索）ボタン。相手が見つかったら
+  /// Rhing Seed検索フォームの最初の一歩（検索）ボタン。相手が見つかったら
   /// カード選択を含む確認UIに切り替わり、[friendSearchButton]が送信ボタンに
   /// なる（2026-07-29追加）。
   final String friendSearchSearchButton;
@@ -1093,8 +1093,8 @@ class Strings {
 
   final String inviteScreenTitle;
 
-  /// 招待リンク/QRコードから開いた確認画面の説明文。相手のRhing IDを差し込む。
-  final String Function(String rhingId) inviteConfirmDescriptionTemplate;
+  /// 招待リンク/QRコードから開いた確認画面の説明文。相手のRhing Seedを差し込む。
+  final String Function(String rhingSeed) inviteConfirmDescriptionTemplate;
   final String inviteScreenSendButton;
   final String inviteScreenGoHome;
   final String inviteScreenInvalid;
@@ -1314,7 +1314,7 @@ class Strings {
   final String accountSuspendedMessage;
   final String accountSuspendedSignOutButton;
 
-  /// アカウント削除通知メッセージの文言。相手のRhing IDを差し込む。
+  /// アカウント削除通知メッセージの文言。相手のRhing Seedを差し込む。
   final String Function(String label) chatAccountDeletedNotice;
   final String chatAccountDeletedDeleteConversationPrompt;
   final String chatAccountDeletedYesButton;
@@ -1670,7 +1670,7 @@ class Strings {
     soundUploadUnsupportedFormatError:
         '対応していない形式です（mp3・wav・m4a・ogg・aacのいずれかを選んでください）',
     settingsAccountInfoSection: 'アカウント情報',
-    settingsRhingIdLabel: 'Rhing ID',
+    settingsRhingSeedLabel: 'Rhing Seed',
     settingsSecurity: 'セキュリティ',
     settingsTwoFactor: '2段階認証',
     twoFactorEnabledStatus: '有効',
@@ -1696,22 +1696,22 @@ class Strings {
     qrLoginExpiredMessage: 'QRコードの有効期限が切れました',
     qrLoginRefreshButton: '更新する',
     qrLoginSignInError: 'ログインに失敗しました',
-    passkeyCreateAccountButton: 'Rhing IDでアカウントを作成',
-    passkeySignInButton: 'Rhing IDでログイン',
-    passkeySignInDialogDescription: '登録済みのRhing IDを入力してください。',
-    passkeySignInDialogRhingIdLabel: 'Rhing ID',
+    passkeyCreateAccountButton: 'Rhing Seedでアカウントを作成',
+    passkeySignInButton: 'パスキーでログイン',
+    passkeySignInDialogDescription: '登録済みのRhing Seedを入力してください。',
+    passkeySignInDialogRhingSeedLabel: 'Rhing Seed',
     passkeySignInDialogSubmitButton: 'ログイン',
-    passkeySignInDialogError: 'ログインに失敗しました。Rhing IDまたはパスキーをご確認ください。',
-    passkeySignInDialogErrorNotFound: 'そのRhing IDのアカウントが見つかりません。',
+    passkeySignInDialogError: 'ログインに失敗しました。Rhing Seedまたはパスキーをご確認ください。',
+    passkeySignInDialogErrorNotFound: 'そのRhing Seedのアカウントが見つかりません。',
     passkeySignInDialogErrorNoPasskey:
         'このアカウントにはパスキーが登録されていません。Googleでログイン後、設定＞セキュリティからパスキーを追加できます。',
     passkeyRecoveryLinkLabel: 'パスキーが使えない場合',
     passkeyRecoveryDialogTitle: 'アカウントの復旧',
-    passkeyRecoveryDialogRhingIdDescription: '登録済みのRhing IDを入力してください。',
+    passkeyRecoveryDialogRhingSeedDescription: '登録済みのRhing Seedを入力してください。',
     passkeyRecoveryDialogNextButton: '次へ',
     passkeyRecoveryDialogAnswerDescription: '以下の質問に回答してください。',
     passkeyRecoveryDialogSubmitButton: '復旧する',
-    passkeyRecoveryErrorNotFound: 'そのRhing IDのアカウントが見つかりません。',
+    passkeyRecoveryErrorNotFound: 'そのRhing Seedのアカウントが見つかりません。',
     passkeyRecoveryErrorNoQuestionsConfigured: 'このアカウントには復旧手段が設定されていません。',
     passkeyRecoveryErrorLocked: '試行回数が多すぎます。しばらくしてから再度お試しください。',
     passkeyRecoveryErrorWrongAnswers: '入力内容が正しくありません。',
@@ -1769,11 +1769,11 @@ class Strings {
     settingsDraftSyncSubtitle: '入力欄に途中まで書いた内容を、別の端末で同じ語らいを開いたときに復元します',
     back: '戻る',
     friendSearchTitle: '友達を追加',
-    friendSearchHint: '相手のRhing IDを入力して友達申請を送ります。承認されると会話できるようになります。',
-    friendSearchLabel: '相手のRhing ID',
+    friendSearchHint: '相手のRhing Seedを入力して友達申請を送ります。承認されると会話できるようになります。',
+    friendSearchLabel: '相手のRhing Seed',
     friendSearchButton: '申請を送る',
     friendSearchSearchButton: '検索',
-    friendSearchNotFound: 'そのRhing IDの住人は見つかりませんでした',
+    friendSearchNotFound: 'そのRhing Seedの住人は見つかりませんでした',
     friendSearchSelf: '自分自身には申請できません',
     friendRequestSent: '友達申請を送りました',
     friendRequestAlreadySent: 'すでに申請中です',
@@ -1904,7 +1904,7 @@ class Strings {
     showLess: '折りたたむ',
     profileIconSection: 'アイコン',
     profileBackgroundSection: '背景画像',
-    profileNicknameHint: (term) => '友達には、Rhing IDの代わりにここで選んだ$termが表示されます。',
+    profileNicknameHint: (term) => '友達には、Rhing Seedの代わりにここで選んだ$termが表示されます。',
     profileAddNickname: (term) => '$termを追加',
     profileAddStatusMessage: (term) => '$termを追加',
     profileNicknameDialogTitle: (term) => '$termを追加',
@@ -1941,7 +1941,8 @@ class Strings {
     enmusubiScanButton: 'QRコードを読み取る',
     enmusubiScanScreenTitle: 'QRコードを読み取る',
     inviteScreenTitle: '友達申請',
-    inviteConfirmDescriptionTemplate: (rhingId) => '@$rhingIdの住人に友達申請を送りますか？',
+    inviteConfirmDescriptionTemplate: (rhingSeed) =>
+        '@$rhingSeedの住人に友達申請を送りますか？',
     inviteScreenSendButton: '友達申請を送る',
     inviteScreenGoHome: 'ホームに戻る',
     inviteScreenInvalid: 'このリンクは無効です',
@@ -2371,7 +2372,7 @@ class Strings {
     soundUploadUnsupportedFormatError:
         'Unsupported format (choose mp3, wav, m4a, ogg, or aac)',
     settingsAccountInfoSection: 'Account information',
-    settingsRhingIdLabel: 'Rhing ID',
+    settingsRhingSeedLabel: 'Rhing Seed',
     settingsSecurity: 'Security',
     settingsTwoFactor: 'Two-factor authentication',
     twoFactorEnabledStatus: 'Enabled',
@@ -2401,24 +2402,26 @@ class Strings {
     qrLoginExpiredMessage: 'This QR code has expired',
     qrLoginRefreshButton: 'Refresh',
     qrLoginSignInError: 'Sign-in failed',
-    passkeyCreateAccountButton: 'Create account with Rhing ID',
-    passkeySignInButton: 'Sign in with Rhing ID',
-    passkeySignInDialogDescription: 'Enter your registered Rhing ID.',
-    passkeySignInDialogRhingIdLabel: 'Rhing ID',
+    passkeyCreateAccountButton: 'Create account with Rhing Seed',
+    passkeySignInButton: 'Sign in with Rhing Seed',
+    passkeySignInDialogDescription: 'Enter your registered Rhing Seed.',
+    passkeySignInDialogRhingSeedLabel: 'Rhing Seed',
     passkeySignInDialogSubmitButton: 'Sign in',
     passkeySignInDialogError:
-        'Sign-in failed. Please check your Rhing ID or passkey.',
-    passkeySignInDialogErrorNotFound: 'No account was found for that Rhing ID.',
+        'Sign-in failed. Please check your Rhing Seed or passkey.',
+    passkeySignInDialogErrorNotFound:
+        'No account was found for that Rhing Seed.',
     passkeySignInDialogErrorNoPasskey:
         'This account has no passkey registered. After signing in with '
         'Google, you can add one from Settings > Security.',
     passkeyRecoveryLinkLabel: "Can't use your passkey?",
     passkeyRecoveryDialogTitle: 'Recover account',
-    passkeyRecoveryDialogRhingIdDescription: 'Enter your registered Rhing ID.',
+    passkeyRecoveryDialogRhingSeedDescription:
+        'Enter your registered Rhing Seed.',
     passkeyRecoveryDialogNextButton: 'Next',
     passkeyRecoveryDialogAnswerDescription: 'Answer the questions below.',
     passkeyRecoveryDialogSubmitButton: 'Recover account',
-    passkeyRecoveryErrorNotFound: 'No account was found for that Rhing ID.',
+    passkeyRecoveryErrorNotFound: 'No account was found for that Rhing Seed.',
     passkeyRecoveryErrorNoQuestionsConfigured:
         'This account has no recovery method set up.',
     passkeyRecoveryErrorLocked: 'Too many attempts. Please try again later.',
@@ -2490,12 +2493,12 @@ class Strings {
     back: 'Back',
     friendSearchTitle: 'Add a friend',
     friendSearchHint:
-        "Enter the other person's Rhing ID to send a friend request. "
+        "Enter the other person's Rhing Seed to send a friend request. "
         'Once accepted, you can start talking.',
-    friendSearchLabel: "Their Rhing ID",
+    friendSearchLabel: "Their Rhing Seed",
     friendSearchButton: 'Send request',
     friendSearchSearchButton: 'Search',
-    friendSearchNotFound: 'No resident found with that Rhing ID',
+    friendSearchNotFound: 'No resident found with that Rhing Seed',
     friendSearchSelf: "You can't send a request to yourself",
     friendRequestSent: 'Friend request sent',
     friendRequestAlreadySent: 'Request already pending',
@@ -2644,7 +2647,7 @@ class Strings {
     profileIconSection: 'Icons',
     profileBackgroundSection: 'Background images',
     profileNicknameHint: (_) =>
-        "Friends see the nickname you've selected here instead of your Rhing ID.",
+        "Friends see the nickname you've selected here instead of your Rhing Seed.",
     profileAddNickname: (_) => 'Add a nickname',
     profileAddStatusMessage: (_) => 'Add a status message',
     profileNicknameDialogTitle: (_) => 'Add a nickname',
@@ -2683,8 +2686,8 @@ class Strings {
     enmusubiScanButton: 'Scan a QR code',
     enmusubiScanScreenTitle: 'Scan a QR code',
     inviteScreenTitle: 'Friend request',
-    inviteConfirmDescriptionTemplate: (rhingId) =>
-        'Send a friend request to @$rhingId?',
+    inviteConfirmDescriptionTemplate: (rhingSeed) =>
+        'Send a friend request to @$rhingSeed?',
     inviteScreenSendButton: 'Send friend request',
     inviteScreenGoHome: 'Back to home',
     inviteScreenInvalid: 'This link is invalid',

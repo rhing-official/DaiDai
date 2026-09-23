@@ -11,12 +11,12 @@ import '../../theme/text_prominence_colors.dart';
 import '../../widgets/gekiga/gekiga_text_field.dart';
 import '../../widgets/glass/glass_avatar.dart';
 
-/// 友達一覧をプルダウン選択できるよう、Rhing IDではなく呼び名（未設定ならRhing ID）で表示する。
+/// 友達一覧をプルダウン選択できるよう、Rhing Seedではなく呼び名（未設定ならRhing Seed）で表示する。
 String _displayName(AppUser user) {
   final nickname = user.activeNickname?.text;
   return (nickname != null && nickname.isNotEmpty)
       ? nickname
-      : '@${user.rhingId}';
+      : '@${user.rhingSeed}';
 }
 
 /// 友達一覧（フルプロフィール、呼び名表示のため）を監視する。
@@ -296,7 +296,7 @@ class _CreateGroupDialogContentState
                         .where(
                           (u) =>
                               _displayName(u).toLowerCase().contains(query) ||
-                              u.rhingId.toLowerCase().contains(query),
+                              u.rhingSeed.toLowerCase().contains(query),
                         )
                         .toList();
               if (filtered.isEmpty) {

@@ -122,7 +122,7 @@ class _CalendarPaneViewState extends ConsumerState<CalendarPaneView> {
       conversationId: widget.conversationId,
       roomId: widget.roomId,
       currentUserId: widget.currentUser.userId,
-      currentUserRhingId: widget.currentUser.rhingId,
+      currentUserRhingSeed: widget.currentUser.rhingSeed,
       initialDate: DateTime(day.year, day.month, day.day, now.hour, now.minute),
     );
   }
@@ -134,7 +134,7 @@ class _CalendarPaneViewState extends ConsumerState<CalendarPaneView> {
       conversationId: widget.conversationId,
       roomId: widget.roomId,
       currentUserId: widget.currentUser.userId,
-      currentUserRhingId: widget.currentUser.rhingId,
+      currentUserRhingSeed: widget.currentUser.rhingSeed,
       initialCandidateDate: day,
     );
   }

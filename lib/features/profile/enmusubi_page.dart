@@ -17,19 +17,19 @@ import '../../widgets/gekiga/gekiga_section_header.dart';
 import '../../widgets/interactive_swipe_back.dart';
 import '../../widgets/qr_scan_screen.dart';
 
-String _inviteLinkFor(String rhingId) => buildWebLink('/invite/$rhingId');
+String _inviteLinkFor(String rhingSeed) => buildWebLink('/invite/$rhingSeed');
 
-/// QRコードや招待リンクとして共有された文字列から、招待元のRhing IDを
-/// 取り出す。`https://.../invite/<rhingId>`の形式であれば platform/host を
+/// QRコードや招待リンクとして共有された文字列から、招待元のRhing Seedを
+/// 取り出す。`https://.../invite/<rhingSeed>`の形式であれば platform/host を
 /// 問わず解決できる。
-String? parseInviteRhingId(String data) {
+String? parseInviteRhingSeed(String data) {
   final uri = Uri.tryParse(data.trim());
   if (uri == null) return null;
   final segments = uri.pathSegments;
   final index = segments.indexOf('invite');
   if (index == -1 || index + 1 >= segments.length) return null;
-  final rhingId = segments[index + 1];
-  return rhingId.isEmpty ? null : rhingId;
+  final rhingSeed = segments[index + 1];
+  return rhingSeed.isEmpty ? null : rhingSeed;
 }
 
 /// 縁結びページ: 自分の招待リンク・QRコードの表示と、相手のQRコードを
@@ -65,15 +65,15 @@ class _EnmusubiPageState extends ConsumerState<EnmusubiPage> {
       slideBackRoute(builder: (context) => QrScanScreen(title: title)),
     );
     if (scanned == null || !context.mounted) return;
-    final rhingId = parseInviteRhingId(scanned);
-    if (rhingId == null) return;
-    context.push('/invite/$rhingId');
+    final rhingSeed = parseInviteRhingSeed(scanned);
+    if (rhingSeed == null) return;
+    context.push('/invite/$rhingSeed');
   }
 
   @override
   Widget build(BuildContext context) {
     final strings = ref.watch(appStringsProvider);
-    final link = _inviteLinkFor(currentUser.rhingId);
+    final link = _inviteLinkFor(currentUser.rhingSeed);
     final colorScheme = Theme.of(context).colorScheme;
     final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
 

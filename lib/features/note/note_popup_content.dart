@@ -98,7 +98,7 @@ class _NotePopupContentState extends ConsumerState<_NotePopupContent> {
                 dmId: widget.conversationId,
                 roomId: widget.roomId,
                 senderId: widget.currentUser.userId,
-                senderRhingId: widget.currentUser.rhingId,
+                senderRhingSeed: widget.currentUser.rhingSeed,
                 noteId: note.noteId,
                 noteTitle: title,
               );
@@ -109,7 +109,7 @@ class _NotePopupContentState extends ConsumerState<_NotePopupContent> {
                 groupId: widget.conversationId,
                 roomId: widget.roomId,
                 senderId: widget.currentUser.userId,
-                senderRhingId: widget.currentUser.rhingId,
+                senderRhingSeed: widget.currentUser.rhingSeed,
                 noteId: note.noteId,
                 noteTitle: title,
               );

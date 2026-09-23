@@ -33,7 +33,7 @@ Future<bool> showPollFormDialog(
   required String conversationId,
   required String roomId,
   required String currentUserId,
-  required String currentUserRhingId,
+  required String currentUserRhingSeed,
 }) async {
   final saved = await showDialog<bool>(
     context: context,
@@ -42,7 +42,7 @@ Future<bool> showPollFormDialog(
       conversationId: conversationId,
       roomId: roomId,
       currentUserId: currentUserId,
-      currentUserRhingId: currentUserRhingId,
+      currentUserRhingSeed: currentUserRhingSeed,
     ),
   );
   return saved ?? false;
@@ -73,14 +73,14 @@ class _PollFormDialog extends ConsumerStatefulWidget {
     required this.conversationId,
     required this.roomId,
     required this.currentUserId,
-    required this.currentUserRhingId,
+    required this.currentUserRhingSeed,
   });
 
   final bool isDm;
   final String conversationId;
   final String roomId;
   final String currentUserId;
-  final String currentUserRhingId;
+  final String currentUserRhingSeed;
 
   @override
   ConsumerState<_PollFormDialog> createState() => _PollFormDialogState();
@@ -240,7 +240,7 @@ class _PollFormDialogState extends ConsumerState<_PollFormDialog> {
                 dmId: widget.conversationId,
                 roomId: widget.roomId,
                 senderId: widget.currentUserId,
-                senderRhingId: widget.currentUserRhingId,
+                senderRhingSeed: widget.currentUserRhingSeed,
                 pollId: poll.pollId,
                 pollQuestion: poll.question,
               );
@@ -251,7 +251,7 @@ class _PollFormDialogState extends ConsumerState<_PollFormDialog> {
                 groupId: widget.conversationId,
                 roomId: widget.roomId,
                 senderId: widget.currentUserId,
-                senderRhingId: widget.currentUserRhingId,
+                senderRhingSeed: widget.currentUserRhingSeed,
                 pollId: poll.pollId,
                 pollQuestion: poll.question,
               );

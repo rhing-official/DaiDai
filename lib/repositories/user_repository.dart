@@ -25,8 +25,8 @@ abstract class UserRepository {
   Stream<AppUser?> watchUser(String userId);
 
   Future<void> createUser(AppUser user);
-  Future<AppUser?> findByRhingId(String rhingId);
-  Future<bool> isRhingIdAvailable(String rhingId);
+  Future<AppUser?> findByRhingSeed(String rhingSeed);
+  Future<bool> isRhingSeedAvailable(String rhingSeed);
   Future<void> updateUser(AppUser user);
 
   /// 蔵の配列フィールド（icons/backgroundImages/statusMessages/nicknames/
@@ -111,7 +111,7 @@ abstract class UserRepository {
   Future<void> deleteProfileMaterial(ProfileMaterial material);
 
   /// 縁結びの招待リンクを外部SNSで展開（OGP）した時に見せる公開プレビュー
-  /// （`userInvites/{rhingId}`）を、現在のアクティブなアイコン・呼び名から
+  /// （`userInvites/{rhingSeed}`）を、現在のアクティブなアイコン・呼び名から
   /// 同期する。蔵の更新時（[addToProfileList]等）に自動で呼ばれるほか、
   /// この機能追加より前から使っているユーザーはその同期がまだ一度も
   /// 走っていないため、縁結びページを開いた際にも呼び直してバックフィルする。
@@ -166,11 +166,29 @@ abstract class UserRepository {
   /// （`bootstrapFirstAdmin`と同じ「使い捨て」の扱い）。
   Future<Map<String, int>> backfillAccountStatusOnce();
 
+  /// 一度きりの移行処理（一時的な機能、Cloud Functions
+  /// `migrateRhingSeedOnce`経由、2026-09-23追加）。「Rhing ID」から
+  /// 「Rhing Seed」への改名に伴い、本番データに残る旧フィールド名
+  /// （`rhingId`等）から新フィールド名（`rhingSeed`等）へ値をコピーする。
+  /// 実行・確認後は`backfillAccountStatusOnce`と同様、このメソッド・
+  /// 呼び出し元UI・Cloud Function自体を削除する想定の「使い捨て」。
+  Future<Map<String, int>> migrateRhingSeedOnce();
+
   /// Googleカレンダー連携の許可状態を更新する（2026-09-01追加）。
   /// `enabled`がnullなのは初回未確認の状態のみを表し、この呼び出しからは
   /// 使わない（true=許可、false=拒否のどちらかを明示的に書き込む）。
   /// [AppUser.googleCalendarSyncEnabled]参照。
-  Future<void> setGoogleCalendarSyncEnabled(String userId, bool enabled);
+  ///
+  /// [calendarId]はDaiDaiが作成した専用Googleカレンダーのidで、
+  /// [AppUser.googleCalendarId]に書き込む（2026-09-23追加）。`enabled: true`
+  /// にする呼び出しでは、Google側にカレンダーを作成した直後にそのidを渡す。
+  /// `enabled: false`（連携解除）にする呼び出しでは、Google側のカレンダー
+  /// 自体を削除した後にnullを渡し、両方のフィールドを同時にクリアする。
+  Future<void> setGoogleCalendarSyncEnabled(
+    String userId,
+    bool enabled, {
+    String? calendarId,
+  });
 
   /// プッシュ通知の許可状態を更新する（2026-09-01追加、設定タブのトグル用）。
   /// [AppUser.pushNotificationsEnabled]参照。
@@ -380,14 +398,14 @@ class FirestoreUserRepository implements UserRepository {
     );
     await _firestore
         .collection('userInvites')
-        .doc(user.rhingId)
+        .doc(user.rhingSeed)
         .set(preview.toJson());
   }
 
   @override
-  Future<AppUser?> findByRhingId(String rhingId) async {
+  Future<AppUser?> findByRhingSeed(String rhingSeed) async {
     final snapshot = await _users
-        .where('rhingId', isEqualTo: rhingId.toLowerCase())
+        .where('rhingSeed', isEqualTo: rhingSeed.toLowerCase())
         .limit(1)
         .get();
     if (snapshot.docs.isEmpty) return null;
@@ -395,9 +413,9 @@ class FirestoreUserRepository implements UserRepository {
   }
 
   @override
-  Future<bool> isRhingIdAvailable(String rhingId) async {
+  Future<bool> isRhingSeedAvailable(String rhingSeed) async {
     final snapshot = await _users
-        .where('rhingId', isEqualTo: rhingId.toLowerCase())
+        .where('rhingSeed', isEqualTo: rhingSeed.toLowerCase())
         .limit(1)
         .get();
     return snapshot.docs.isEmpty;
@@ -578,8 +596,23 @@ class FirestoreUserRepository implements UserRepository {
   }
 
   @override
-  Future<void> setGoogleCalendarSyncEnabled(String userId, bool enabled) {
-    return _users.doc(userId).update({'googleCalendarSyncEnabled': enabled});
+  Future<Map<String, int>> migrateRhingSeedOnce() async {
+    final result = await _functions
+        .httpsCallable('migrateRhingSeedOnce')
+        .call();
+    return Map<String, int>.from(result.data as Map);
+  }
+
+  @override
+  Future<void> setGoogleCalendarSyncEnabled(
+    String userId,
+    bool enabled, {
+    String? calendarId,
+  }) {
+    return _users.doc(userId).update({
+      'googleCalendarSyncEnabled': enabled,
+      'googleCalendarId': calendarId,
+    });
   }
 
   @override

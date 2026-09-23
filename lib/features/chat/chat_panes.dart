@@ -26,6 +26,7 @@ import '../../providers/user_providers.dart';
 import '../../repositories/group_repository.dart';
 import '../../router/app_router.dart';
 import '../../services/google_calendar_auth_service.dart';
+import '../../services/google_calendar_link_coordinator.dart';
 import '../../theme/popup_surface_colors.dart';
 import '../../utils/auto_dismiss_banner.dart';
 import '../../utils/group_permissions.dart';
@@ -553,7 +554,7 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
           dmId: dm.dmId,
           roomId: roomId,
           senderId: currentUser.userId,
-          senderRhingId: currentUser.rhingId,
+          senderRhingSeed: currentUser.rhingSeed,
           content: content,
           silent: silent,
           replyTo: replyTo,
@@ -571,7 +572,7 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
           dmId: dm.dmId,
           roomId: roomId,
           senderId: currentUser.userId,
-          senderRhingId: currentUser.rhingId,
+          senderRhingSeed: currentUser.rhingSeed,
           bytes: attachment.bytes,
           fileName: attachment.fileName,
           contentType: attachment.contentType,
@@ -590,7 +591,7 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
           dmId: dm.dmId,
           roomId: roomId,
           senderId: currentUser.userId,
-          senderRhingId: currentUser.rhingId,
+          senderRhingSeed: currentUser.rhingSeed,
           stickerId: sticker.stickerId,
           stickerName: sticker.name,
           stickerUrl: sticker.imageUrl,
@@ -914,7 +915,7 @@ class _ReadReceiptsProposalBanner extends ConsumerWidget {
     final colorScheme = Theme.of(context).colorScheme;
     final isProposedByMe = dm.readReceiptsProposalBy == currentUserId;
     final turningOn = !dm.readReceiptsEnabled;
-    final otherLabel = '@${dm.otherRhingId(currentUserId)}';
+    final otherLabel = '@${dm.otherRhingSeed(currentUserId)}';
 
     return Material(
       color: colorScheme.errorContainer,
@@ -1083,7 +1084,7 @@ class _CalendarButton extends ConsumerStatefulWidget {
 }
 
 class _CalendarButtonState extends ConsumerState<_CalendarButton> {
-  final _authService = GoogleCalendarAuthService();
+  final _linkCoordinator = GoogleCalendarLinkCoordinator();
 
   /// [widget.currentUser]はログイン時に一度だけ取得されたスナップショットが
   /// props経由でここまで伝播しているだけで、Firestore書き込み後も自動的には
@@ -1099,8 +1100,33 @@ class _CalendarButtonState extends ConsumerState<_CalendarButton> {
         widget.currentUser.googleCalendarSyncEnabled;
   }
 
+  /// 専用カレンダーのid（[AppUser.googleCalendarId]参照）。
+  /// `_googleCalendarSyncEnabled == true`なのにこれがnullなのは、
+  /// `calendar.events`スコープでprimaryカレンダーに直書きしていた旧方式の
+  /// 時代に連携済みだったユーザー（2026-09-23の専用カレンダー方式への
+  /// 移行前）。旧スコープの同意は新スコープ`calendar.app.created`を
+  /// 自動的にはカバーしないため、このままでは`CalendarSyncBootstrap`が
+  /// 永久に同期をスキップし続ける「壊れた」状態になる（下記
+  /// `_maybeShowSyncOptInDialog`参照）。
+  String? get _googleCalendarId {
+    final liveUser = ref.read(watchedUserProvider(widget.currentUser.userId));
+    return liveUser.asData?.value?.googleCalendarId ??
+        widget.currentUser.googleCalendarId;
+  }
+
   Future<void> _maybeShowSyncOptInDialog() async {
-    if (_googleCalendarSyncEnabled != null) return;
+    final syncEnabled = _googleCalendarSyncEnabled;
+    if (syncEnabled == false) return;
+    if (syncEnabled == true && _googleCalendarId != null) return;
+
+    if (syncEnabled == true) {
+      // 旧スコープ時代に連携済みだったが専用カレンダーが未作成の壊れた状態
+      // （[_googleCalendarId]のドキュメントコメント参照）。既に一度同意して
+      // いるため、DaiDai独自の確認ダイアログは出さず直接再連携する
+      // （Google側の同意画面自体は新スコープ未カバーのため結果的に表示される）。
+      await _connect();
+      return;
+    }
 
     final strings = ref.read(appStringsProvider);
     final isGlass =
@@ -1136,14 +1162,23 @@ class _CalendarButtonState extends ConsumerState<_CalendarButton> {
     }
     if (accepted != true) return;
 
+    await _connect();
+  }
+
+  Future<void> _connect() async {
+    final strings = ref.read(appStringsProvider);
     try {
-      final granted = await _authService.requestConsent();
-      // キャンセルされた場合(granted == false)はnullのまま据え置き、
+      final calendarId = await _linkCoordinator.connect();
+      // キャンセルされた場合(calendarId == null)はnullのまま据え置き、
       // 次回このボタンを開いたときに再度確認する。
-      if (granted) {
+      if (calendarId != null) {
         await ref
             .read(userRepositoryProvider)
-            .setGoogleCalendarSyncEnabled(widget.currentUser.userId, true);
+            .setGoogleCalendarSyncEnabled(
+              widget.currentUser.userId,
+              true,
+              calendarId: calendarId,
+            );
       }
     } on GoogleCalendarNotConfiguredException {
       // Web版のOAuthクライアントID未設定（Phase 0未完了）。同期は使えないが
@@ -1155,10 +1190,15 @@ class _CalendarButtonState extends ConsumerState<_CalendarButton> {
           message: strings.calendarSyncSetupIncompleteError,
         );
       }
-    } catch (_) {
-      // それ以外の同意フロー失敗（ネットワークエラー等）。カレンダー機能
-      // 自体は使えるべきなので、ここではポップアップを開くのを妨げない
-      // （連携は未確定のまま次回また確認する）。
+    } catch (e) {
+      // それ以外の失敗（ネットワークエラー・Google Calendar API呼び出しの
+      // 失敗等）。`connect()`はユーザーがキャンセルした場合は例外を投げず
+      // nullを返す設計のため、ここに来るのは実際の失敗のみ。無言にすると
+      // 「連携したのに何も起きない」という原因不明の不具合に見えてしまうため、
+      // カレンダー機能自体はブロックしないままバナーで知らせる。
+      if (mounted) {
+        showAutoDismissBanner(context, message: '$e');
+      }
     }
   }
 
@@ -2133,7 +2173,7 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
             groupId: group.groupId,
             roomId: roomId,
             senderId: currentUser.userId,
-            senderRhingId: currentUser.rhingId,
+            senderRhingSeed: currentUser.rhingSeed,
             content: content,
             silent: silent,
             replyTo: replyTo,
@@ -2143,7 +2183,7 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
             groupId: group.groupId,
             roomId: roomId,
             senderId: currentUser.userId,
-            senderRhingId: currentUser.rhingId,
+            senderRhingSeed: currentUser.rhingSeed,
             bytes: attachment.bytes,
             fileName: attachment.fileName,
             contentType: attachment.contentType,
@@ -2153,7 +2193,7 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
         groupId: group.groupId,
         roomId: roomId,
         senderId: currentUser.userId,
-        senderRhingId: currentUser.rhingId,
+        senderRhingSeed: currentUser.rhingSeed,
         stickerId: sticker.stickerId,
         stickerName: sticker.name,
         stickerUrl: sticker.imageUrl,

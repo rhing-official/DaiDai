@@ -16,10 +16,10 @@ import '../../widgets/gekiga/gekiga_text_field.dart';
 import '../../widgets/interactive_swipe_back.dart';
 import '../../widgets/profile_card_picker.dart';
 import '../../widgets/qr_scan_screen.dart';
-import '../profile/enmusubi_page.dart' show parseInviteRhingId;
+import '../profile/enmusubi_page.dart' show parseInviteRhingSeed;
 
 /// 友達申請の送信ポップアップ（2026-07-29、画面遷移からポップアップ化）。
-/// 相手のRhing IDを検索し、まだ友達でなければ申請を送る。既に友達の場合は
+/// 相手のRhing Seedを検索し、まだ友達でなければ申請を送る。既に友達の場合は
 /// そのまま一対を開く（＝IDを使うのは最初の1回だけで、以降はニックネームで
 /// 見分けられるようにする方針）。「＋」ボタンのメニューポップアップの上に
 /// 重ねて表示される（`TalksTab._showAddMenu`参照）。
@@ -63,11 +63,11 @@ class _AddChatDialogContentState extends ConsumerState<AddChatDialogContent> {
 
   Future<void> _search() async {
     final strings = ref.read(appStringsProvider);
-    final rhingId = _controller.text.trim().toLowerCase().replaceFirst(
+    final rhingSeed = _controller.text.trim().toLowerCase().replaceFirst(
       RegExp(r'^@+'),
       '',
     );
-    if (rhingId.isEmpty) return;
+    if (rhingSeed.isEmpty) return;
 
     setState(() {
       _isSearching = true;
@@ -77,7 +77,7 @@ class _AddChatDialogContentState extends ConsumerState<AddChatDialogContent> {
 
     try {
       final userRepository = ref.read(userRepositoryProvider);
-      final other = await userRepository.findByRhingId(rhingId);
+      final other = await userRepository.findByRhingSeed(rhingSeed);
       if (other == null) {
         setState(() => _errorMessage = strings.friendSearchNotFound);
         return;
@@ -133,7 +133,7 @@ class _AddChatDialogContentState extends ConsumerState<AddChatDialogContent> {
 
   /// QRコードリーダーを開き、読み取った招待リンクをこのポップアップ自身の
   /// 検索ロジック（[_search]）にそのまま乗せる（2026-09-14追加）。縁結び
-  /// ページ（`enmusubi_page.dart`の`_openScanner`）と違い、`/invite/:rhingId`
+  /// ページ（`enmusubi_page.dart`の`_openScanner`）と違い、`/invite/:rhingSeed`
   /// （`InviteScreen`）へは遷移せず、この一対作成ポップアップ内で完結させる
   /// （既に友達ならそのまま一対を開き、未だ友達でなければこのポップアップの
   /// 確認ステップへ切り替わる）。
@@ -146,12 +146,12 @@ class _AddChatDialogContentState extends ConsumerState<AddChatDialogContent> {
       ),
     );
     if (scanned == null || !mounted) return;
-    final rhingId = parseInviteRhingId(scanned);
-    if (rhingId == null) {
+    final rhingSeed = parseInviteRhingSeed(scanned);
+    if (rhingSeed == null) {
       setState(() => _errorMessage = strings.friendSearchNotFound);
       return;
     }
-    _controller.text = '@$rhingId';
+    _controller.text = '@$rhingSeed';
     await _search();
   }
 
@@ -319,14 +319,14 @@ class _AddChatDialogContentState extends ConsumerState<AddChatDialogContent> {
       Center(
         child: isGekiga
             ? GekigaJointedTileList(
-                seeds: [widget.currentUser.rhingId.hashCode],
+                seeds: [widget.currentUser.rhingSeed.hashCode],
                 selectedFlags: const [true],
                 children: [
                   Padding(
                     padding: const EdgeInsets.all(12),
                     child: QrImageView(
                       data: buildWebLink(
-                        '/invite/${widget.currentUser.rhingId}',
+                        '/invite/${widget.currentUser.rhingSeed}',
                       ),
                       size: 160,
                     ),
@@ -343,7 +343,7 @@ class _AddChatDialogContentState extends ConsumerState<AddChatDialogContent> {
                   ),
                 ),
                 child: QrImageView(
-                  data: buildWebLink('/invite/${widget.currentUser.rhingId}'),
+                  data: buildWebLink('/invite/${widget.currentUser.rhingSeed}'),
                   size: 160,
                 ),
               ),
@@ -377,7 +377,7 @@ class _AddChatDialogContentState extends ConsumerState<AddChatDialogContent> {
     AppUser target,
   ) {
     return [
-      Text('@${target.rhingId}'),
+      Text('@${target.rhingSeed}'),
       if (_errorMessage != null) ...[
         const SizedBox(height: 8),
         Text(_errorMessage!, style: const TextStyle(color: Colors.red)),

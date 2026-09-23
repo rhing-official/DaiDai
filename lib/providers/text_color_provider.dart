@@ -92,8 +92,10 @@ class TextColorDarkNotifier extends _TextColorNotifier {
       );
 }
 
-final textColorLightProvider =
-    NotifierProvider<TextColorLightNotifier, Color>(TextColorLightNotifier.new);
+final textColorLightProvider = NotifierProvider<TextColorLightNotifier, Color>(
+  TextColorLightNotifier.new,
+);
 
-final textColorDarkProvider =
-    NotifierProvider<TextColorDarkNotifier, Color>(TextColorDarkNotifier.new);
+final textColorDarkProvider = NotifierProvider<TextColorDarkNotifier, Color>(
+  TextColorDarkNotifier.new,
+);

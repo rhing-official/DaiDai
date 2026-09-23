@@ -5,25 +5,25 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 class Friend {
   const Friend({
     required this.friendUserId,
-    required this.friendRhingId,
+    required this.friendRhingSeed,
     this.addedAt,
   });
 
   final String friendUserId;
-  final String friendRhingId;
+  final String friendRhingSeed;
   final Timestamp? addedAt;
 
   factory Friend.fromJson(String friendUserId, Map<String, dynamic> json) {
     return Friend(
       friendUserId: friendUserId,
-      friendRhingId: json['friendRhingId'] as String,
+      friendRhingSeed: json['friendRhingSeed'] as String,
       addedAt: json['addedAt'] as Timestamp?,
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
-      'friendRhingId': friendRhingId,
+      'friendRhingSeed': friendRhingSeed,
       'addedAt': addedAt ?? FieldValue.serverTimestamp(),
     };
   }

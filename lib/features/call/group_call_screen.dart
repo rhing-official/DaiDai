@@ -167,9 +167,9 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
 
   Widget _audioBody() {
     final remoteParticipants = _controller.remoteParticipants;
-    final tiles = <(String userId, String rhingId)>[
-      (widget.currentUser.userId, widget.currentUser.rhingId),
-      ...remoteParticipants.map((p) => (p.userId, p.rhingId)),
+    final tiles = <(String userId, String rhingSeed)>[
+      (widget.currentUser.userId, widget.currentUser.rhingSeed),
+      ...remoteParticipants.map((p) => (p.userId, p.rhingSeed)),
     ];
 
     return SafeArea(
@@ -197,13 +197,13 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
             runSpacing: 24,
             alignment: WrapAlignment.center,
             children: [
-              for (final (userId, rhingId) in tiles)
+              for (final (userId, rhingSeed) in tiles)
                 Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     CallParticipantAvatar(
                       userId: userId,
-                      rhingId: rhingId,
+                      rhingSeed: rhingSeed,
                       conversationId: widget.groupId,
                       radius: 40,
                       fontSize: 28,
@@ -211,7 +211,7 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
                     const SizedBox(height: 8),
                     CallParticipantNameLabel(
                       userId: userId,
-                      rhingId: rhingId,
+                      rhingSeed: rhingSeed,
                       conversationId: widget.groupId,
                       style: const TextStyle(color: Colors.white),
                     ),
@@ -243,7 +243,7 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
               Positioned.fill(
                 child: _videoTile(
                   userId: widget.currentUser.userId,
-                  rhingId: widget.currentUser.rhingId,
+                  rhingSeed: widget.currentUser.rhingSeed,
                   renderer: _controller.isVideo
                       ? _controller.localRenderer
                       : null,
@@ -288,7 +288,7 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
         key: 'self',
         tile: _videoTile(
           userId: widget.currentUser.userId,
-          rhingId: widget.currentUser.rhingId,
+          rhingSeed: widget.currentUser.rhingSeed,
           renderer: _controller.isVideo ? _controller.localRenderer : null,
           mirror: _controller.isFrontCamera,
           micMuted: _controller.muted,
@@ -302,7 +302,7 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
           key: participant.userId,
           tile: _videoTile(
             userId: participant.userId,
-            rhingId: participant.rhingId,
+            rhingSeed: participant.rhingSeed,
             renderer: _controller.remoteRenderers[participant.userId],
             mirror: false,
             micMuted: participant.micMuted,
@@ -412,7 +412,7 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
 
   Widget _videoTile({
     required String userId,
-    required String rhingId,
+    required String rhingSeed,
     required RTCVideoRenderer? renderer,
     required bool mirror,
     required bool micMuted,
@@ -442,7 +442,7 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
             Center(
               child: CallParticipantAvatar(
                 userId: userId,
-                rhingId: rhingId,
+                rhingSeed: rhingSeed,
                 conversationId: widget.groupId,
                 radius: 32,
               ),
@@ -455,7 +455,7 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
               children: [
                 CallParticipantNameLabel(
                   userId: userId,
-                  rhingId: rhingId,
+                  rhingSeed: rhingSeed,
                   conversationId: widget.groupId,
                   style: const TextStyle(
                     color: Colors.white,

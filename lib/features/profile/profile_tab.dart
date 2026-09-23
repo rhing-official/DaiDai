@@ -1267,7 +1267,7 @@ class _WorkshopConversationCardSection extends ConsumerWidget {
           for (final dm in assignedDms)
             _ProfileCardAssignmentRow(
               strings: strings,
-              title: '@${dm.otherRhingId(user.userId)}',
+              title: '@${dm.otherRhingSeed(user.userId)}',
               cards: user.profileCards,
               selectedCardId: user.conversationProfileCardId[dm.dmId],
               activeCardName: user.activeProfileCard?.name,
@@ -1297,8 +1297,8 @@ class _WorkshopConversationCardSection extends ConsumerWidget {
 
 /// [_WorkshopConversationCardSection]の「＋」から開く追加先選択ポップアップ。
 /// チェックボックスで一対・広場を複数選択できる（2026-08-05変更。以前は
-/// `SimpleDialog`のテキストのみの単一選択で、一対はRhing IDそのまま表示
-/// だった）。一対の行は呼び名（無ければ@Rhing ID、`talks_tab.dart`の
+/// `SimpleDialog`のテキストのみの単一選択で、一対はRhing Seedそのまま表示
+/// だった）。一対の行は呼び名（無ければ@Rhing Seed、`talks_tab.dart`の
 /// `_buildDmDetailWithRooms`と同じフォールバック順序）、広場の行は
 /// `Group.profileCard`のアイコンをそれぞれ左端に表示する。
 class _AddConversationCardDialog extends ConsumerStatefulWidget {
@@ -1334,7 +1334,7 @@ class _AddConversationCardDialogState
     final nickname = otherUser?.effectiveNicknameFor(dm.dmId)?.text;
     return (nickname != null && nickname.isNotEmpty)
         ? nickname
-        : '@${dm.otherRhingId(widget.userId)}';
+        : '@${dm.otherRhingSeed(widget.userId)}';
   }
 
   @override

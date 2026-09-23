@@ -81,7 +81,7 @@ Future<void> _pumpSettingsTab(WidgetTester tester) async {
       child: const MaterialApp(
         home: Scaffold(
           body: SettingsTab(
-            currentUser: AppUser(userId: 'u1', rhingId: 'taro'),
+            currentUser: AppUser(userId: 'u1', rhingSeed: 'taro'),
           ),
         ),
       ),
@@ -132,7 +132,7 @@ Future<void> _pumpSettingsTabNarrow(WidgetTester tester) async {
       child: const MaterialApp(
         home: Scaffold(
           body: SettingsTab(
-            currentUser: AppUser(userId: 'u1', rhingId: 'taro'),
+            currentUser: AppUser(userId: 'u1', rhingSeed: 'taro'),
           ),
         ),
       ),
@@ -142,11 +142,11 @@ Future<void> _pumpSettingsTabNarrow(WidgetTester tester) async {
 }
 
 void main() {
-  testWidgets('既定でアカウントページが選択され、Rhing IDの値が表示される', (tester) async {
+  testWidgets('既定でアカウントページが選択され、Rhing Seedの値が表示される', (tester) async {
     await _pumpSettingsTab(tester);
 
     // サイドバーからクリックしなくても、既定でアカウントが選ばれている。
-    expect(find.text('Rhing ID'), findsOneWidget);
+    expect(find.text('Rhing Seed'), findsOneWidget);
     expect(find.text('@taro'), findsOneWidget);
   });
 

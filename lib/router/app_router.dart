@@ -188,7 +188,7 @@ final goRouterProvider = Provider<GoRouter>((ref) {
     final callRepository = ref.read(callRepositoryProvider);
     final other = AppUser(
       userId: dm.otherUserId(currentUser.userId),
-      rhingId: dm.otherRhingId(currentUser.userId),
+      rhingSeed: dm.otherRhingSeed(currentUser.userId),
     );
     final call = await callRepository.createCall(
       caller: currentUser,
@@ -291,10 +291,10 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         ),
       ),
       GoRoute(
-        path: '/invite/:rhingId',
+        path: '/invite/:rhingSeed',
         pageBuilder: (context, state) => slideDetailPage(
           state,
-          InviteScreen(rhingId: state.pathParameters['rhingId']!),
+          InviteScreen(rhingSeed: state.pathParameters['rhingSeed']!),
         ),
       ),
       GoRoute(

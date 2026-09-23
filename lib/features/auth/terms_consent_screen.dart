@@ -13,7 +13,7 @@ Future<void> _openExternalUrl(String url) async {
   await launchUrl(uri, mode: LaunchMode.externalApplication);
 }
 
-/// 新規アカウント作成時、[RhingIdSetupScreen]より前段に挟む同意画面。
+/// 新規アカウント作成時、[RhingSeedSetupScreen]より前段に挟む同意画面。
 /// 利用規約・プライバシーポリシー・免責事項への同意を必須にする
 /// （技術仕様書のオンボーディング計画の前倒し実装、2026-09-14追加）。
 class TermsConsentScreen extends StatefulWidget {
