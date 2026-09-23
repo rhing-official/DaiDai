@@ -556,9 +556,7 @@ class _VideoViewerPageState extends State<_VideoViewerPage> {
       future: _initializeFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState != ConnectionState.done) {
-          return const Center(
-            child: CircularProgressIndicator(color: Colors.white),
-          );
+          return const SizedBox.shrink();
         }
         if (snapshot.hasError) {
           return const Center(

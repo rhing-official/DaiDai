@@ -202,11 +202,7 @@ class _AlbumPaneViewState extends ConsumerState<AlbumPaneView> {
     final addAction = IconButton(
       key: _addButtonKey,
       icon: _uploading
-          ? const SizedBox(
-              width: 20,
-              height: 20,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            )
+          ? const SizedBox.shrink()
           : const Icon(Icons.add_photo_alternate_outlined),
       tooltip: '',
       onPressed: _uploading ? null : _pickAndUpload,

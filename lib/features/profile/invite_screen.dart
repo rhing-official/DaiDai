@@ -172,7 +172,7 @@ class _InviteConfirmViewState extends ConsumerState<_InviteConfirmView> {
   Widget _buildBody(BuildContext context, Strings strings) {
     switch (_status) {
       case _InviteStatus.loading:
-        return const Center(child: CircularProgressIndicator());
+        return const SizedBox.shrink();
       case _InviteStatus.invalid:
         return _Message(text: strings.inviteScreenInvalid, strings: strings);
       case _InviteStatus.self:
@@ -243,11 +243,7 @@ class _InviteConfirmViewState extends ConsumerState<_InviteConfirmView> {
                   child: ElevatedButton(
                     onPressed: _isSending ? null : _sendRequest,
                     child: _isSending
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
+                        ? const SizedBox.shrink()
                         : Text(strings.inviteScreenSendButton),
                   ),
                 ),
