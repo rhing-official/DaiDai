@@ -126,10 +126,7 @@ class _TwoFactorSetupDialogState extends ConsumerState<TwoFactorSetupDialog> {
         future: _setupFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState != ConnectionState.done) {
-            return const SizedBox(
-              height: 120,
-              child: Center(child: CircularProgressIndicator()),
-            );
+            return const SizedBox(height: 120);
           }
           if (snapshot.hasError) {
             final error = snapshot.error!;
@@ -142,7 +139,7 @@ class _TwoFactorSetupDialogState extends ConsumerState<TwoFactorSetupDialog> {
                   const SizedBox(height: 16),
                   Center(
                     child: _isReauthenticating
-                        ? const CircularProgressIndicator()
+                        ? const SizedBox.shrink()
                         : FilledButton(
                             onPressed: _reauthenticateAndRetry,
                             child: Text(strings.twoFactorReauthenticateButton),
@@ -219,11 +216,7 @@ class _TwoFactorSetupDialogState extends ConsumerState<TwoFactorSetupDialog> {
                 await _confirm(setup.secret, strings);
               },
         child: _isConfirming
-            ? const SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
+            ? const SizedBox.shrink()
             : Text(strings.twoFactorEnrollButton),
       ),
     ];

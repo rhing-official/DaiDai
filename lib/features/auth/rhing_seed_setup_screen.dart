@@ -114,11 +114,7 @@ class _RhingSeedSetupScreenState extends ConsumerState<RhingSeedSetupScreen> {
                   ElevatedButton(
                     onPressed: _isSubmitting ? null : _submit,
                     child: _isSubmitting
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
+                        ? const SizedBox.shrink()
                         : const Text('決定'),
                   ),
                 ],

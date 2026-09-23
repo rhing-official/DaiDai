@@ -147,11 +147,7 @@ class _PasskeySignInDialogState extends ConsumerState<PasskeySignInDialog> {
       FilledButton(
         onPressed: _isSigningIn ? null : () => _submit(strings),
         child: _isSigningIn
-            ? const SizedBox(
-                width: 18,
-                height: 18,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
+            ? const SizedBox.shrink()
             : Text(strings.passkeySignInDialogSubmitButton),
       ),
     ];

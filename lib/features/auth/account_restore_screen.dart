@@ -72,11 +72,7 @@ class _AccountRestoreScreenState extends ConsumerState<AccountRestoreScreen> {
                 FilledButton(
                   onPressed: _isSubmitting ? null : _restore,
                   child: _isSubmitting
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
+                      ? const SizedBox.shrink()
                       : Text(strings.accountRestoreButton),
                 ),
                 const SizedBox(height: 8),
