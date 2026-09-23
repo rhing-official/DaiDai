@@ -204,7 +204,7 @@ class _JoinGroupViewState extends ConsumerState<_JoinGroupView> {
   Widget _buildBody(BuildContext context, Strings strings) {
     switch (_status) {
       case _JoinStatus.loading:
-        return const Center(child: CircularProgressIndicator());
+        return const SizedBox.shrink();
       case _JoinStatus.invalid:
         return _Message(text: strings.groupJoinInvalid, strings: strings);
       case _JoinStatus.alreadyMember:
@@ -298,11 +298,7 @@ class _JoinGroupViewState extends ConsumerState<_JoinGroupView> {
             ElevatedButton(
               onPressed: _isSending ? null : _requestToJoin,
               child: _isSending
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
+                  ? const SizedBox.shrink()
                   : Text(strings.groupJoinRequestButton),
             ),
           ],

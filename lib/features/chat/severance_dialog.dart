@@ -124,11 +124,7 @@ class _SeveranceDialogState extends ConsumerState<SeveranceDialog> {
           foregroundColor: Colors.white,
         ),
         child: _submitting
-            ? const SizedBox(
-                width: 18,
-                height: 18,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
+            ? const SizedBox.shrink()
             : Text(
                 _isPropose
                     ? strings.severanceProposeButton

@@ -94,11 +94,7 @@ class _GroupDeleteDialogState extends ConsumerState<GroupDeleteDialog> {
           foregroundColor: Colors.white,
         ),
         child: _deleting
-            ? const SizedBox(
-                width: 18,
-                height: 18,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
+            ? const SizedBox.shrink()
             : Text(strings.groupDeleteButton),
       ),
     ];
