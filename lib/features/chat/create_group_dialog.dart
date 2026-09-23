@@ -363,7 +363,7 @@ class _CreateGroupDialogContentState
                 ),
               );
             },
-            loading: () => const LinearProgressIndicator(),
+            loading: () => const SizedBox.shrink(),
             error: (e, _) => Text(
               '友達一覧の取得に失敗しました: $e',
               style: const TextStyle(color: Colors.red),
@@ -385,13 +385,7 @@ class _CreateGroupDialogContentState
         width: double.infinity,
         child: ElevatedButton(
           onPressed: _isCreating ? null : _createGroup,
-          child: _isCreating
-              ? const SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Text('作成'),
+          child: _isCreating ? const SizedBox.shrink() : const Text('作成'),
         ),
       ),
     ];

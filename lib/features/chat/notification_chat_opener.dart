@@ -46,9 +46,7 @@ class NotificationChatOpener extends ConsumerWidget {
       future: _resolveDm(ref),
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          );
+          return const Scaffold(body: SizedBox.shrink());
         }
         final resolved = snapshot.data;
         if (resolved == null) {
@@ -79,9 +77,7 @@ class NotificationChatOpener extends ConsumerWidget {
       future: _resolveGroup(ref),
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          );
+          return const Scaffold(body: SizedBox.shrink());
         }
         final resolved = snapshot.data;
         if (resolved == null) {

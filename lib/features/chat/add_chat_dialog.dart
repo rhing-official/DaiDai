@@ -303,11 +303,7 @@ class _AddChatDialogContentState extends ConsumerState<AddChatDialogContent> {
         child: ElevatedButton(
           onPressed: _isSearching ? null : _search,
           child: _isSearching
-              ? const SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
+              ? const SizedBox.shrink()
               : Text(strings.friendSearchSearchButton),
         ),
       ),
@@ -421,11 +417,7 @@ class _AddChatDialogContentState extends ConsumerState<AddChatDialogContent> {
             child: ElevatedButton(
               onPressed: _isSearching ? null : _confirmSend,
               child: _isSearching
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
+                  ? const SizedBox.shrink()
                   : Text(strings.friendSearchButton),
             ),
           ),

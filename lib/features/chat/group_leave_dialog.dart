@@ -89,11 +89,7 @@ class _GroupLeaveDialogState extends ConsumerState<GroupLeaveDialog> {
           backgroundColor: Theme.of(context).colorScheme.error,
         ),
         child: _leaving
-            ? const SizedBox(
-                width: 18,
-                height: 18,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
+            ? const SizedBox.shrink()
             : Text(strings.groupLeaveButton),
       ),
     ];
