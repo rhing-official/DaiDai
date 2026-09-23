@@ -142,14 +142,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
         ),
         child: _isSigningIn
-            ? const SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: Colors.white,
-                ),
-              )
+            ? const SizedBox.shrink()
             : Text(strings.twoFactorChallengeConfirmButton),
       ),
     ];

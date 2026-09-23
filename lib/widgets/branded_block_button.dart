@@ -49,14 +49,7 @@ class BrandedBlockButton extends StatelessWidget {
         splashFactory: NoSplash.splashFactory,
       ),
       child: loading
-          ? SizedBox(
-              width: 20,
-              height: 20,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: textColor,
-              ),
-            )
+          ? const SizedBox.shrink()
           : Row(
               mainAxisSize: MainAxisSize.min,
               children: [
