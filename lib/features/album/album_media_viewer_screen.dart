@@ -106,9 +106,7 @@ class _AlbumVideoPageState extends State<_AlbumVideoPage> {
   @override
   Widget build(BuildContext context) {
     if (!_controller.value.isInitialized) {
-      return const Center(
-        child: CircularProgressIndicator(color: Colors.white),
-      );
+      return const SizedBox.shrink();
     }
     return GestureDetector(
       onTap: _togglePlayback,

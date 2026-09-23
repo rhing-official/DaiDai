@@ -111,21 +111,13 @@ class _AdminPanelScreenState extends ConsumerState<AdminPanelScreen> {
         actions: [
           IconButton(
             icon: _backfilling
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
+                ? const SizedBox.shrink()
                 : const Icon(Icons.build_outlined),
             onPressed: _backfilling ? null : _runBackfill,
           ),
           IconButton(
             icon: _migratingRhingSeed
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
+                ? const SizedBox.shrink()
                 : const Icon(Icons.grass_outlined),
             tooltip: 'Rhing Seed移行',
             onPressed: _migratingRhingSeed ? null : _runRhingSeedMigration,
@@ -177,7 +169,7 @@ class _UserListSection extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final usersAsync = ref.watch(_allUsersProvider);
     return usersAsync.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
+      loading: () => const SizedBox.shrink(),
       error: (error, _) => Center(child: Text('エラー: $error')),
       data: (users) {
         final sorted = [...users]
@@ -488,7 +480,7 @@ class _OfficialAccountProfileSectionState
       stream: _userStream,
       builder: (context, snapshot) {
         if (!snapshot.hasData && !snapshot.hasError) {
-          return const Center(child: CircularProgressIndicator());
+          return const SizedBox.shrink();
         }
         final user = snapshot.data;
         if (user == null) {
@@ -569,11 +561,7 @@ class _OfficialIconButton extends StatelessWidget {
           onTap: uploading ? null : onTap,
           child: Center(
             child: uploading
-                ? const SizedBox(
-                    width: 24,
-                    height: 24,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
+                ? const SizedBox.shrink()
                 : icon == null
                 ? Icon(Icons.add, color: colorScheme.onSurfaceVariant, size: 28)
                 : Image.network(
