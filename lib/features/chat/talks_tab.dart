@@ -825,6 +825,16 @@ class _TalksTabState extends ConsumerState<TalksTab>
 
     final isSplit = _isSplit;
     final talksListLayoutStyle = ref.watch(talksListLayoutStyleProvider);
+    // PC（`classifyDevice`が[DeviceClass.computer]）かつ広い横画面（[isSplit]）
+    // の場合のみ、[TalksListLayoutStyle.iconSplit]設定を無視して固定のRow
+    // （260px一覧+会話ペイン）を使う（2026-09-24修正、当初の2026-09-11時点の
+    // 仕様に復元）。[isSplit]自体は画面サイズのみの判定でタブレット横向きと
+    // 区別できないため、`classifyDevice`を追加で見てPCのみに絞る（単純に
+    // 2026-09-14以前の判定に戻すと、[isSplit]が真であるタブレット横向きでも
+    // 常にiconSplitが無視され、`bc57c56`が本来修正したかった「iPad横向きで
+    // 3ブロック表示に到達できない」不具合が再発してしまうため）。
+    final ignoreIconSplitOnComputer =
+        isSplit && classifyDevice(context) == DeviceClass.computer;
 
     return Scaffold(
       // 劇画スタイル時にホーム画面の背景装飾（ハーフトーン柄）を透過させる
@@ -1015,16 +1025,19 @@ class _TalksTabState extends ConsumerState<TalksTab>
               );
 
               // アイコン+寄合一覧レイアウト（[TalksListLayoutStyle.iconSplit]）を
-              // 選んでいる場合は、向き（[_isSplit]は横表示限定）を問わず常に
-              // [_buildIconSplitPane]を使う（2026-09-14変更、以前は横表示の
-              // 広い画面だと下の[_isSplit]分岐が優先され、タブレットを横に
-              // するとタップで全画面化・右スワイプで3ブロック表示に戻る
-              // という設計とは別物の、スワイプのみで開閉する旧来の2ペイン
-              // 分割表示になってしまっていた）。`_buildIconSplitPane`自身が
-              // 画面が狭い場合のフォールバック（寄合一覧のみ表示しタップで
-              // フルスクリーン遷移）も内包しているため、ここでの向き判定は
-              // 不要。
-              if (talksListLayoutStyle == TalksListLayoutStyle.iconSplit) {
+              // 選んでいる場合、[ignoreIconSplitOnComputer]（PCの広い横画面）
+              // でない限り[_buildIconSplitPane]を使う（2026-09-24修正、当初の
+              // 2026-09-11時点の仕様に復元。2026-09-14に画面幅のみで判定する
+              // 下の[isSplit]分岐を常に優先する実装に一旦変更していたが、
+              // それだとPCでも常にiconSplitが強制される回帰になっていた）。
+              // タブレットを横にした場合はこの設定が引き続き適用され、
+              // タップで全画面化・右スワイプで3ブロック表示に戻る挙動になる
+              // （[ignoreIconSplitOnComputer]の判定理由は定義箇所参照）。
+              // `_buildIconSplitPane`自身が画面が狭い場合のフォールバック
+              // （寄合一覧のみ表示しタップでフルスクリーン遷移）も内包して
+              // いるため、狭い画面側の向き判定は不要。
+              if (talksListLayoutStyle == TalksListLayoutStyle.iconSplit &&
+                  !ignoreIconSplitOnComputer) {
                 return _buildIconSplitPane(
                   directMessages,
                   groups,
@@ -1170,10 +1183,10 @@ class _TalksTabState extends ConsumerState<TalksTab>
   /// 新レイアウト（`TalksListLayoutStyle.iconSplit`、設定＞語らいで選択可能、
   /// 2026-09-11追加）。左にアイコン一覧（[_buildIconRail]）、右に選択中の
   /// 会話の寄合一覧（[_DmDetailWithRooms]/[_GroupDetailWithRooms]）を表示する。
-  /// 向き（縦表示/横表示）を問わず、この設定を選んでいる限り常にこのメソッドが
-  /// 使われる（2026-09-14変更、[_TalksTabState.build]参照。以前は横表示の
-  /// 広い画面だと[_isSplit]の旧来の2ペイン分割表示が優先され、この設定が
-  /// 無視されていた）。
+  /// PC（`classifyDevice`が[DeviceClass.computer]）の広い横画面（[_isSplit]）
+  /// を除き、この設定を選んでいる限りこのメソッドが使われる
+  /// （[_TalksTabState.build]の`ignoreIconSplitOnComputer`参照、2026-09-24
+  /// 修正。タブレットを横にした場合は引き続きこのメソッドが使われる）。
   ///
   /// [_showIconSplitPeek]（タブレット・コンピューター相当の端末、向き不問）
   /// では、寄合一覧の右隣にメッセージ画面本体も同時表示する

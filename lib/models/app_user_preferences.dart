@@ -41,8 +41,9 @@ class AppUserPreferences {
   final bool? draftSyncEnabled;
   final String? chatLayoutStyle;
 
-  /// 縦表示での語らい一覧レイアウト（`TalksListLayoutStyle`のname、
-  /// 2026-09-11追加）。
+  /// 語らい一覧レイアウト（`TalksListLayoutStyle`のname、2026-09-11追加）。
+  /// コンピューターの広い横画面では無視される
+  /// （`talks_tab.dart`の`_TalksTabState.build`参照）。
   final String? talksListLayoutStyle;
   final String? messageTimeFormat;
   final String? appUiStyle;

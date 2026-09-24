@@ -356,7 +356,15 @@ class AppUser {
   factory AppUser.fromJson(Map<String, dynamic> json) {
     return AppUser(
       userId: json['userId'] as String,
-      rhingSeed: json['rhingSeed'] as String,
+      // 2026-09-23のrhingId→rhingSeedリネーム移行期間中、Firestore側の
+      // 移行処理（`migrateRhingSeedOnce`）がまだ実行されていないドキュメント
+      // には新フィールドが無い場合があるため、旧フィールドへのフォールバック
+      // を持たせる（2026-09-24追加。このフォールバックが無いと`as String`が
+      // 例外を投げ、AuthGateが既存ユーザーを新規ユーザーと誤判定して新規
+      // 登録フローに送り込み、身だしなみ等の既存データが上書き消失する
+      // 重大インシデントが発生した。詳細は日記.md参照）。
+      rhingSeed:
+          (json['rhingSeed'] as String?) ?? (json['rhingId'] as String?) ?? '',
       displayName: json['displayName'] as String?,
       icons: _materialListFromJson(json['icons']),
       backgroundImages: _materialListFromJson(json['backgroundImages']),

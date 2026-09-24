@@ -2813,9 +2813,11 @@ class _ChatLayoutFolder extends ConsumerWidget {
   }
 }
 
-/// 縦表示での語らい一覧レイアウト（現在の実装UI／アイコン＋寄合一覧UI）の
-/// 切り替え（2026-09-11追加、`talks_tab.dart`の`kTalksSplitBreakpoint`未満の
-/// 狭い画面にのみ影響し、広い画面の左右分割表示には影響しない）。
+/// 語らい一覧レイアウト（現在の実装UI／アイコン＋寄合一覧UI）の切り替え
+/// （2026-09-11追加）。コンピューター（`classifyDevice`が
+/// `DeviceClass.computer`）で`talks_tab.dart`の`kTalksSplitBreakpoint`以上
+/// かつ横長の広い画面（`_isSplit`）の場合はこの設定を無視し、常に固定の
+/// 左右分割表示になる（タブレットを横向きにした場合はこの設定が適用される）。
 class _TalksListLayoutFolder extends ConsumerWidget {
   const _TalksListLayoutFolder({required this.strings});
 

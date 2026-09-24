@@ -250,10 +250,28 @@ class FirestoreUserRepository implements UserRepository {
     // createdAtはtoJson()には含めず、新規作成のこのメソッドでのみサーバー
     // タイムスタンプをマージする（[AppUser.createdAt]のドキュメントコメント
     // 参照。updateUserが同じtoJson()を.set()で全体上書きしているため）。
-    await _users.doc(user.userId).set({
-      ...user.toJson(),
-      'createdAt': FieldValue.serverTimestamp(),
-      'termsAgreedAt': FieldValue.serverTimestamp(),
+    //
+    // 既存ドキュメントの有無をトランザクションで確認してから作成する
+    // （2026-09-24追加）。既存ユーザーが何らかの原因（2026-09-23の
+    // rhingId→rhingSeedリネーム移行漏れ等）で誤って新規登録フローに
+    // 流入した場合、この確認が無いと蔵の素材等の既存データが空の新規
+    // ドキュメントで丸ごと上書き消失する重大な事故になる。詳細は日記.md
+    // 参照。
+    final ref = _users.doc(user.userId);
+    await _firestore.runTransaction((transaction) async {
+      final existing = await transaction.get(ref);
+      if (existing.exists) {
+        throw StateError(
+          'users/${user.userId} already exists; refusing to overwrite '
+          'via createUser (an existing account should never reach the '
+          'sign-up flow).',
+        );
+      }
+      transaction.set(ref, {
+        ...user.toJson(),
+        'createdAt': FieldValue.serverTimestamp(),
+        'termsAgreedAt': FieldValue.serverTimestamp(),
+      });
     });
   }
 
