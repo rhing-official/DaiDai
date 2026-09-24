@@ -77,6 +77,12 @@ module.exports = async (req, res) => {
   }
 
   const ogTags = [
+    // og:site_nameが無いと、URLホスト名を自前で短縮表示しないクローラー
+    // （LINE等）がキャプション行に生のURLをそのまま出してしまう
+    // （2026-09-25追加。Discord・DaiDaiアプリ内プレビューは自前でホスト名
+    // を抽出して表示するため、この差し込みが無くても既に正しく短縮表示
+    // されていた）。
+    `<meta property="og:site_name" content="DaiDai">`,
     `<meta property="og:title" content="${escapeHtml(title)}">`,
     `<meta property="og:description" content="${escapeHtml(description)}">`,
     `<meta property="og:url" content="${escapeHtml(url.toString())}">`,
