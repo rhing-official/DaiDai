@@ -230,6 +230,9 @@ class Strings {
     required this.userProfileCardSendRequest,
     required this.userProfileCardAcceptRequest,
     required this.userProfileCardRequestPending,
+    required this.userProfileCardComposerHint,
+    required this.userProfileCardComposerLockedHint,
+    required this.userProfileCardAcceptNotice,
     required this.friendRequestIncomingSubtitle,
     required this.friendRequestOutgoingSubtitle,
     required this.friendRequestMessageLabel,
@@ -913,6 +916,17 @@ class Strings {
   final String userProfileCardSendRequest;
   final String userProfileCardAcceptRequest;
   final String userProfileCardRequestPending;
+
+  /// [ProfileCardComposer]の未送信時のヒントテキスト（2026-09-24追加）。
+  final String userProfileCardComposerHint;
+
+  /// [ProfileCardComposer]の、自分から送信済み・返答待ちの間のヒント
+  /// テキスト（欄自体は消さずグレーアウトして表示する、2026-09-24追加）。
+  final String userProfileCardComposerLockedHint;
+
+  /// 相手からの友達申請が既に届いている状態で[ProfileCardComposer]の上に
+  /// 表示する注記（送信すると承認扱いになることを明示する、2026-09-24追加）。
+  final String userProfileCardAcceptNotice;
   final String friendRequestIncomingSubtitle;
   final String friendRequestOutgoingSubtitle;
 
@@ -1796,6 +1810,9 @@ class Strings {
     userProfileCardSendRequest: '友達申請を送る',
     userProfileCardAcceptRequest: '友達申請を承認する',
     userProfileCardRequestPending: '申請中です。相手の承認をお待ちください',
+    userProfileCardComposerHint: 'メッセージを添えて友達申請（任意、100文字まで）',
+    userProfileCardComposerLockedHint: '友達申請を送信済みです。相手が承認するまで送れません',
+    userProfileCardAcceptNotice: '送信すると友達申請を承認したことになります',
     friendRequestIncomingSubtitle: '相手から申請が届いています',
     friendRequestOutgoingSubtitle: '相手の承認を待っています',
     friendRequestMessageLabel: 'メッセージ（任意、100文字まで）',
@@ -1963,7 +1980,7 @@ class Strings {
     groupMenuMemberList: 'メンバー一覧',
     groupMenuCreateInvite: '招待リンク作成',
     groupMenuManageRoles: 'ロール管理',
-    groupMenuOpenSettings: '広場自体の設定',
+    groupMenuOpenSettings: '広場の設定',
     groupMenuLeave: '退会',
     groupRoleListEmpty: 'まだロールがありません',
     groupRoleCreateDialogTitle: 'ロールを追加',
@@ -2014,7 +2031,7 @@ class Strings {
     workshopConversationCardAddDialogTitle: 'カードを個別に設定する語らいを選ぶ',
     workshopConversationCardAddEmpty: '設定できる語らいがありません',
     workshopConversationCardSearchHint: '名前で検索',
-    groupSettingsTooltip: '広場自体の設定',
+    groupSettingsTooltip: '広場の設定',
     groupTransferOwnershipMenuItem: '長を譲渡する',
     groupTransferOwnershipConfirmTitle: '長を譲渡しますか？',
     groupTransferOwnershipConfirmMessage: '再度長になるには譲渡してもらう必要があります。',
@@ -2525,6 +2542,12 @@ class Strings {
     userProfileCardSendRequest: 'Send friend request',
     userProfileCardAcceptRequest: 'Accept friend request',
     userProfileCardRequestPending: 'Request sent. Waiting for approval.',
+    userProfileCardComposerHint:
+        'Add a message with your request (optional, up to 100 characters)',
+    userProfileCardComposerLockedHint:
+        "You've already sent a friend request. You can't send another until they accept.",
+    userProfileCardAcceptNotice:
+        'Sending this will accept their friend request.',
     friendRequestIncomingSubtitle: 'They sent you a friend request',
     friendRequestOutgoingSubtitle: 'Waiting for them to accept',
     friendRequestMessageLabel: 'Message (optional, up to 100 characters)',
