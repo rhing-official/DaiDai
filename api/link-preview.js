@@ -20,9 +20,6 @@
 // 確認が別途必要。
 
 const FIRESTORE_PROJECT_ID = 'daidai-rhing';
-// api/og-image.mjsが生成する画像の実サイズと合わせる。
-const OG_IMAGE_WIDTH = 800;
-const OG_IMAGE_HEIGHT = 1000;
 
 module.exports = async (req, res) => {
   const host = req.headers.host;
@@ -80,8 +77,11 @@ module.exports = async (req, res) => {
     `<meta property="og:description" content="${escapeHtml(description)}">`,
     `<meta property="og:url" content="${escapeHtml(url.toString())}">`,
     image ? `<meta property="og:image" content="${escapeHtml(image)}">` : '',
-    image ? `<meta property="og:image:width" content="${OG_IMAGE_WIDTH}">` : '',
-    image ? `<meta property="og:image:height" content="${OG_IMAGE_HEIGHT}">` : '',
+    // og:image:width/heightは付けない（2026-09-24削除）。api/og-image.mjs
+    // が生成するキャンバスサイズは背景画像ごとに可変になったため、固定値の
+    // ヒントを付けると実画像と食い違い、送信先クローラーに誤った寸法を
+    // 伝えてしまう。og:image:width/heightは任意のヒントであり、省略しても
+    // クローラーは実際に画像を取得してそのサイズを見る。
     `<meta name="twitter:card" content="${image ? 'summary_large_image' : 'summary'}">`,
   ].filter(Boolean).join('\n    ');
 

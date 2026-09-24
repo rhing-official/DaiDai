@@ -31,13 +31,32 @@
 // WebPデコードを自前で行えないため、Node.js Runtime（configのruntime指定を
 // 外すと既定でNode.jsになる）に変更し、`sharp`でWebP→PNGのdata URIに
 // 変換してからSatoriに渡すようにして解消した。
+//
+// 工房カード・広場カードUI自体（`profile_tab.dart`等）は名刺型の4:5固定
+// アスペクト比＋BoxFit.coverのまま維持する一方、OGP画像は「背景画像がある
+// 場合はその元画像のアスペクト比をできる限り保つ」方針に変更している
+// （2026-09-24、縦長画像が4:5固定キャンバスにcoverで敷かれて上下が
+// クロップされる不具合の修正）。背景画像が無い場合のみ従来通り800x1000
+// （4:5）の既定キャンバスを使う。
 
 import sharp from 'sharp';
 import { ImageResponse } from '@vercel/og';
 
 const FIRESTORE_PROJECT_ID = 'daidai-rhing';
-const CARD_WIDTH = 800;
-const CARD_HEIGHT = 1000;
+// 背景画像が無い場合に使う既定サイズ（プロフィールカードの名刺型4:5と同じ比率）。
+const DEFAULT_CARD_WIDTH = 800;
+const DEFAULT_CARD_HEIGHT = 1000;
+// 背景画像がある場合はそのアスペクト比を保ってキャンバスサイズを決める
+// （computeCanvasSize参照）。長辺はこの値までに縮小する（重くなり過ぎない
+// ための上限。元画像がこれより小さい場合は拡大しない）。
+const MAX_CARD_DIMENSION = 1200;
+// テキストオーバーレイ（アイコン・名前・説明・SNSリンク）が収まる程度の
+// 最小サイズ。極端に小さい元画像でもここより小さくしない。
+const MIN_CARD_DIMENSION = 480;
+// 極端な比率（非常に細長いバナー等）でオーバーレイのpadding=64が機能しなく
+// なることを避けるためのクランプ。通常の写真・暖簾等はこの範囲に収まる。
+const MIN_ASPECT_RATIO = 0.5; // 幅:高さ = 1:2 より縦長にはしない
+const MAX_ASPECT_RATIO = 2; // 幅:高さ = 2:1 より横長にはしない
 
 function el(type, style, children) {
   return { type, props: { style, children } };
@@ -85,13 +104,16 @@ export async function GET(request) {
   // フォント取得（Google Fontsへの2回の往復）は画像変換と依存関係が無いため、
   // 直列にせず同じPromise.allで並列に走らせて待ち時間を短縮する。
   const fontText = `${name}${description}${snsLinks.join('')}DaiDai`;
-  const [iconDataUri, backgroundDataUri, fontData] = await Promise.all([
+  const [iconDataUri, background, fontData] = await Promise.all([
     doc?.iconUrl ? toPngDataUri(doc.iconUrl).catch(() => null) : null,
     doc?.backgroundImageUrl
-      ? toPngDataUri(doc.backgroundImageUrl).catch(() => null)
+      ? toBackgroundPngDataUri(doc.backgroundImageUrl).catch(() => null)
       : null,
     loadNotoSansJpCached(fontText).catch(() => null),
   ]);
+  const backgroundDataUri = background?.dataUri ?? null;
+  const cardWidth = background?.width ?? DEFAULT_CARD_WIDTH;
+  const cardHeight = background?.height ?? DEFAULT_CARD_HEIGHT;
   const hasBackground = Boolean(backgroundDataUri);
   const textColor = hasBackground ? '#FFFFFF' : '#2E2A24';
   const subTextColor = hasBackground ? 'rgba(255,255,255,0.75)' : '#6B6459';
@@ -147,7 +169,11 @@ export async function GET(request) {
         inset: 0,
         width: '100%',
         height: '100%',
-        objectFit: 'cover',
+        // キャンバス自体を画像のアスペクト比（クランプ後）に合わせている
+        // ため、通常はcover/containの結果は同一になる。極端な比率で
+        // クランプが効いた稀なケースでもcontainならクロップせず上下/左右に
+        // 背景色（#EFE7DC）の余白が出るだけになる（2026-09-24変更）。
+        objectFit: 'contain',
       }),
     );
     layers.push(
@@ -190,8 +216,8 @@ export async function GET(request) {
   );
 
   const response = new ImageResponse(root, {
-    width: CARD_WIDTH,
-    height: CARD_HEIGHT,
+    width: cardWidth,
+    height: cardHeight,
     fonts: fontData
       ? [{ name: 'Noto Sans JP', data: fontData, weight: 700, style: 'normal' }]
       : undefined,
@@ -219,6 +245,7 @@ export async function GET(request) {
 // 際限なく増えないよう上限を設けて古いものから捨てる。
 const MAX_CACHE_ENTRIES = 50;
 const pngCache = new Map();
+const backgroundCache = new Map();
 const fontCache = new Map();
 
 function rememberInCache(cache, key, value) {
@@ -238,6 +265,58 @@ async function toPngDataUri(url) {
   const dataUri = `data:image/png;base64,${png.toString('base64')}`;
   rememberInCache(pngCache, url, dataUri);
   return dataUri;
+}
+
+// 背景画像はアイコンと違い、キャンバス全体のサイズ決定にも使うため、
+// PNG変換に加えてサイズ計算・ダウンスケールも行う（アイコン用の
+// toPngDataUriは変換のみで正方形cover前提のため分離、2026-09-24追加）。
+async function toBackgroundPngDataUri(url) {
+  if (backgroundCache.has(url)) return backgroundCache.get(url);
+  const res = await fetch(url);
+  if (!res.ok) return null;
+  const buffer = Buffer.from(await res.arrayBuffer());
+  const image = sharp(buffer);
+  const metadata = await image.metadata();
+  const { width: cardWidth, height: cardHeight } = computeCanvasSize(
+    metadata.width,
+    metadata.height,
+  );
+  // 解像度が高い場合はアスペクト比を保ったままピクセル数だけ落とす
+  // （fit: 'inside'は指定した箱に収まるよう縮小するだけで、拡大や
+  // クロップは行わない）。
+  const png = await image
+    .resize(cardWidth, cardHeight, { fit: 'inside', withoutEnlargement: true })
+    .png()
+    .toBuffer();
+  const dataUri = `data:image/png;base64,${png.toString('base64')}`;
+  const result = { dataUri, width: cardWidth, height: cardHeight };
+  rememberInCache(backgroundCache, url, result);
+  return result;
+}
+
+// 背景画像の実際のアスペクト比に合わせてキャンバス（ImageResponseに渡す
+// width/height）を決める。以前は常に800x1000（4:5）固定で背景に
+// objectFit: 'cover'を敷いていたため、縦長画像（暖簾等）の上下が
+// 切られていた（2026-09-24修正）。
+function computeCanvasSize(originalWidth, originalHeight) {
+  if (!originalWidth || !originalHeight) {
+    return { width: DEFAULT_CARD_WIDTH, height: DEFAULT_CARD_HEIGHT };
+  }
+  const rawAspect = originalWidth / originalHeight;
+  const aspect = Math.min(
+    Math.max(rawAspect, MIN_ASPECT_RATIO),
+    MAX_ASPECT_RATIO,
+  );
+  const longSide = Math.max(
+    Math.min(Math.max(originalWidth, originalHeight), MAX_CARD_DIMENSION),
+    MIN_CARD_DIMENSION,
+  );
+  if (aspect >= 1) {
+    const width = longSide;
+    return { width, height: Math.round(width / aspect) };
+  }
+  const height = longSide;
+  return { width: Math.round(height * aspect), height };
 }
 
 async function loadNotoSansJpCached(text) {

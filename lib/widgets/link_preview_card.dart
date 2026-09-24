@@ -95,8 +95,14 @@ class LinkPreviewCard extends ConsumerWidget {
           constraints: const BoxConstraints(maxHeight: 200),
           child: Image.network(
             imageUrl,
-            fit: BoxFit.cover,
+            // クロップせず元画像のアスペクト比のまま表示する（2026-09-24
+            // 変更、以前はcoverで縦長/横長どちらの画像も切られていた）。
+            fit: BoxFit.contain,
             width: double.infinity,
+            // デコード時のメモリ使用量を抑える（表示上の最大高さは200なので
+            // Retina等を考慮してもこの幅で十分。アスペクト比はFlutterが
+            // 自動で保持する）。
+            cacheWidth: 800,
             errorBuilder: (_, _, _) => const SizedBox.shrink(),
           ),
         ),
