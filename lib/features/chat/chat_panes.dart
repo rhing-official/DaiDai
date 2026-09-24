@@ -1569,6 +1569,20 @@ class _DmMenuButton extends ConsumerStatefulWidget {
 
 class _DmMenuButtonState extends ConsumerState<_DmMenuButton> {
   Future<void> _openMenu() async {
+    // 寄合機能オフ（単一モード）の間は、寄合の名前変更・削除など寄合関連の
+    // 項目を出す意味が無いため、ハンバーガーメニュー自体を飛ばして一対の
+    // 設定ポップアップを直接開く（2026-09-25追加）。
+    if (!widget.dm.roomsEnabled) {
+      showDmSettingsDialog(
+        context,
+        currentUser: widget.currentUser,
+        dm: widget.dm,
+        otherUserId: widget.otherUserId,
+        isGlass: ref.read(appUiStyleProvider) == AppUiStyle.glass,
+      );
+      return;
+    }
+
     final position = computeButtonAnchoredMenuPosition(
       context,
       buttonKey: widget.menuAnchorKey,
@@ -2420,6 +2434,21 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
   }
 
   Future<void> _openMenu() async {
+    // 寄合機能オフ（単一モード）の間は、寄合の名前変更・削除・退会など
+    // 寄合関連の項目を出す意味が無いため、ハンバーガーメニュー自体を
+    // 飛ばして広場の設定ポップアップを直接開く（2026-09-25追加）。
+    // 退会は多寄合モードのメニューにのみ残る項目のため、単一モードでも
+    // 退会できるよう`GroupSettingsPopup`側に退会ボタンを追加している。
+    if (!widget.group.roomsEnabled) {
+      showGroupSettingsDialog(
+        context,
+        currentUser: widget.currentUser,
+        group: widget.group,
+        isGlass: ref.read(appUiStyleProvider) == AppUiStyle.glass,
+      );
+      return;
+    }
+
     final buttonRect = _buttonRect();
     final overlay =
         Overlay.of(context).context.findRenderObject()! as RenderBox;

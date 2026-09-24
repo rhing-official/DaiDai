@@ -20,9 +20,10 @@
 // 確認が別途必要。
 
 const FIRESTORE_PROJECT_ID = 'daidai-rhing';
-// api/og-image.mjsが生成する画像の実サイズと合わせる。
-const OG_IMAGE_WIDTH = 800;
-const OG_IMAGE_HEIGHT = 1000;
+// api/og-image.mjsが生成する画像の実サイズと合わせる（2026-09-25、
+// 800x1000から1200x1500へ変更したのに合わせて更新）。
+const OG_IMAGE_WIDTH = 1200;
+const OG_IMAGE_HEIGHT = 1500;
 
 module.exports = async (req, res) => {
   const host = req.headers.host;
