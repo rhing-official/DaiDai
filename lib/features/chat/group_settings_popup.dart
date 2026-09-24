@@ -19,6 +19,7 @@ import 'chat_panes.dart' show confirmDisableReadReceipts;
 import 'conversation_profile_card_dialog.dart';
 import 'group_delete_dialog.dart';
 import 'group_invite_dialog.dart';
+import 'group_leave_dialog.dart';
 import 'group_member_list_screen.dart';
 import 'group_profile_card_screen.dart';
 import 'group_role_list_popup.dart';
@@ -348,6 +349,21 @@ class GroupSettingsPopup extends ConsumerWidget {
                               userId: userId,
                             );
                       },
+              ),
+              const Divider(),
+              // 寄合機能オフ（単一モード）の広場ではハンバーガーメニュー
+              // 自体を飛ばしてこのポップアップを直接開くようになった
+              // （2026-09-25、`chat_panes.dart`の`_GroupMenuButton`参照）。
+              // 「退会」は多寄合モードのハンバーガーメニューにのみ残る
+              // 項目のため、単一モードでも退会できるようここに追加する。
+              ListTile(
+                title: Text(strings.groupMenuLeave),
+                enabled: liveGroup.ownerId != userId,
+                onTap: () => GroupLeaveDialog.show(
+                  context,
+                  groupId: liveGroup.groupId,
+                  userId: userId,
+                ),
               ),
               const Divider(),
               ListTile(

@@ -50,8 +50,12 @@ import sharp from 'sharp';
 import { ImageResponse } from '@vercel/og';
 
 const FIRESTORE_PROJECT_ID = 'daidai-rhing';
-const CARD_WIDTH = 800;
-const CARD_HEIGHT = 1000;
+// 4:5比率を維持したまま解像度を引き上げている（2026-09-25、800x1000から
+// 1.5倍。埋め込みカードの表示幅自体は各SNS側のレイアウトに依存し
+// 強制はできないが、iMessage等の画像実解像度に応じてカードサイズを
+// 決めるタイプのリンクプレビューでは表示が大きくなる場合がある）。
+const CARD_WIDTH = 1200;
+const CARD_HEIGHT = 1500;
 
 function el(type, style, children) {
   return { type, props: { style, children } };
@@ -289,11 +293,19 @@ function parseSnsLinkUrls(value) {
   return value.filter((v) => typeof v === 'string');
 }
 
-// カードに表示するURLは`https://www.`部分を除いた短い表示にする
-// （アプリ内のカード編集画面と同じ表示ルール、`lib/features/profile/profile_tab.dart`の
-// `_displaySnsLinkUrl`参照）。
+// カードに表示するURLはドメインのみの短い表示にする（アプリ内の
+// プロフィールカード表示と同じ表示ルール、`lib/widgets/profile_card_view.dart`の
+// `displaySnsLinkUrl()`参照。蔵の編集画面はフルパス表示のままだが、
+// カード表示はドメインのみに短縮する方針のため、OGP画像もそれに合わせる
+// 2026-09-25修正、以前は蔵用のフルパス表示ロジックのまま追従できていなかった）。
 function displaySnsLinkUrl(link) {
-  return link.replace(/^https?:\/\/(www\.)?/i, '');
+  try {
+    const host = new URL(link).hostname;
+    return host.replace(/^www\./i, '');
+  } catch {
+    // パース出来ない値は従来通りscheme部分だけ除去するフォールバック。
+    return link.replace(/^https?:\/\/(www\.)?/i, '');
+  }
 }
 
 async function loadNotoSansJp(text) {
