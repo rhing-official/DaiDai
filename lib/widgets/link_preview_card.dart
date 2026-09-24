@@ -97,8 +97,14 @@ class LinkPreviewCard extends ConsumerWidget {
             imageUrl,
             // クロップせず元画像のアスペクト比のまま表示する（2026-09-24
             // 変更、以前はcoverで縦長/横長どちらの画像も切られていた）。
+            // widthは指定しない（2026-09-24修正）。widthを与えると
+            // Flutterがそれをtight制約として扱い、画像を描画する箱自体が
+            // 常にカード全幅×maxHeight(200)の横長になってしまい、縦長画像は
+            // その中でcontainにより左右へレターボックス（無駄な余白）が
+            // 入った状態で描画されていた。widthを省略すればmaxHeightと
+            // 親から伝わるmaxWidthの範囲内でアスペクト比を保った最小限の
+            // 箱サイズになり、縦長画像は自然に横幅の狭い箱に収まる。
             fit: BoxFit.contain,
-            width: double.infinity,
             // デコード時のメモリ使用量を抑える（表示上の最大高さは200なので
             // Retina等を考慮してもこの幅で十分。アスペクト比はFlutterが
             // 自動で保持する）。
