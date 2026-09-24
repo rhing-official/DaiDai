@@ -202,12 +202,18 @@ class SnsLinksInline extends StatelessWidget {
   }
 }
 
-/// 選択肢などに表示する際、先頭の`https://www.`（または`http://www.`・
-/// `www.`なしの場合はscheme部分のみ）を取り除いた短い表示用文字列にする。
-/// 実際に保存・使用するURL自体（[SnsLink.url]）は変更しない。
+/// カード上に表示する際、URLをドメイン部分のみに短縮する。実際に保存・
+/// 使用するURL自体（[SnsLink.url]）は変更しない（蔵ではフルパスのまま
+/// 表示するが、カードに貼り付けた際はドメインまでの表示に短縮する、
+/// 2026-09-24変更）。
 String displaySnsLinkUrl(String url) {
-  return url.replaceFirst(
-    RegExp(r'^https?://(www\.)?', caseSensitive: false),
-    '',
-  );
+  final host = Uri.tryParse(url)?.host;
+  if (host == null || host.isEmpty) {
+    // パース出来ない値（scheme無し等）は従来通りscheme部分だけ除去する。
+    return url.replaceFirst(
+      RegExp(r'^https?://(www\.)?', caseSensitive: false),
+      '',
+    );
+  }
+  return host.replaceFirst(RegExp(r'^www\.', caseSensitive: false), '');
 }
