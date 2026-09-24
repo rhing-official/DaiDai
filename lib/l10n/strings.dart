@@ -475,6 +475,10 @@ class Strings {
     required this.accountSuspendedTitle,
     required this.accountSuspendedMessage,
     required this.accountSuspendedSignOutButton,
+    required this.authLoadErrorTitle,
+    required this.authLoadErrorMessage,
+    required this.authLoadErrorRetryButton,
+    required this.authLoadErrorSignOutButton,
     required this.chatAccountDeletedNotice,
     required this.chatAccountDeletedDeleteConversationPrompt,
     required this.chatAccountDeletedYesButton,
@@ -1314,6 +1318,15 @@ class Strings {
   final String accountSuspendedMessage;
   final String accountSuspendedSignOutButton;
 
+  /// 既存ユーザーの住人データ取得・パースに失敗した際に表示する画面の
+  /// 文言（2026-09-24追加、`AuthGate`参照）。取得失敗を新規ユーザーと
+  /// 誤判定して新規登録フローに送り込むとデータ上書き事故になるため、
+  /// エラー時はこの画面で再試行を促す。
+  final String authLoadErrorTitle;
+  final String authLoadErrorMessage;
+  final String authLoadErrorRetryButton;
+  final String authLoadErrorSignOutButton;
+
   /// アカウント削除通知メッセージの文言。相手のRhing Seedを差し込む。
   final String Function(String label) chatAccountDeletedNotice;
   final String chatAccountDeletedDeleteConversationPrompt;
@@ -2053,6 +2066,10 @@ class Strings {
     accountSuspendedTitle: 'アカウントが停止されています',
     accountSuspendedMessage: '運営により、このアカウントは利用を停止されています。',
     accountSuspendedSignOutButton: 'サインアウト',
+    authLoadErrorTitle: '読み込みに失敗しました',
+    authLoadErrorMessage: '住人情報の読み込みに失敗しました。通信状況をご確認の上、もう一度お試しください。',
+    authLoadErrorRetryButton: '再試行',
+    authLoadErrorSignOutButton: 'サインアウト',
     chatAccountDeletedNotice: (label) => '$labelがアカウントを削除しました。',
     chatAccountDeletedDeleteConversationPrompt: '語らいを削除しますか？',
     chatAccountDeletedYesButton: 'はい',
@@ -2815,6 +2832,11 @@ class Strings {
     accountSuspendedTitle: 'Your account has been suspended',
     accountSuspendedMessage: 'This account has been suspended by the operator.',
     accountSuspendedSignOutButton: 'Sign out',
+    authLoadErrorTitle: 'Failed to load',
+    authLoadErrorMessage:
+        'Failed to load your account data. Please check your connection and try again.',
+    authLoadErrorRetryButton: 'Retry',
+    authLoadErrorSignOutButton: 'Sign out',
     chatAccountDeletedNotice: (label) => '$label deleted their account.',
     chatAccountDeletedDeleteConversationPrompt: 'Delete this conversation?',
     chatAccountDeletedYesButton: 'Yes',

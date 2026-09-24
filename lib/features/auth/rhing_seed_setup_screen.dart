@@ -59,6 +59,16 @@ class _RhingSeedSetupScreenState extends ConsumerState<RhingSeedSetupScreen> {
         MaterialPageRoute(builder: (_) => HomeScreen(currentUser: appUser)),
       );
       return;
+    } on StateError catch (_) {
+      // `UserRepository.createUser`が既存ドキメントを検知して投げる例外
+      // （2026-09-24追加）。本来この画面は新規ユーザー専用のため、ここに
+      // 到達した時点で何らかの誤判定（AuthGateの取得失敗等）が起きている。
+      // 詳細は日記.md参照。
+      setState(() {
+        _errorMessage =
+            'このアカウントには既に住人情報が登録されています。'
+            '一度サインアウトしてから、もう一度ログインし直してください。';
+      });
     } catch (e) {
       setState(() {
         _errorMessage = '登録に失敗しました: $e';

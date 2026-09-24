@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../l10n/strings.dart';
 import '../../models/app_user.dart';
 import '../../providers/repository_providers.dart';
 import '../../providers/user_preferences_sync.dart';
@@ -87,6 +88,19 @@ class _AuthenticatedUserGateState
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(body: SizedBox.shrink());
         }
+        // 住人データの取得・パースに失敗した場合（例: 2026-09-23の
+        // rhingId→rhingSeedリネーム移行漏れで`AppUser.fromJson`が例外を
+        // 投げた事例）、既存ユーザーを「ドキュメントが存在しない＝新規
+        // ユーザー」と誤判定して下のTermsConsentScreen/RhingSeedSetupScreen
+        // （新規登録フロー）へ進めてしまうと、既存データが`.set()`で上書き
+        // 消失する重大な事故になる。エラー時は絶対に新規登録フローへ進めず、
+        // 再試行可能なエラー画面を表示する（2026-09-24追加、詳細は日記.md
+        // 参照）。
+        if (snapshot.hasError) {
+          return _AuthLoadErrorScreen(
+            onRetry: () => setState(() => _future = _fetchUser()),
+          );
+        }
         final appUser = snapshot.data;
         if (appUser == null) {
           if (!_termsAgreed) {
@@ -109,6 +123,50 @@ class _AuthenticatedUserGateState
         }
         return PasscodeLockGate(child: widget.builder(context, appUser));
       },
+    );
+  }
+}
+
+/// 住人データの取得・パースに失敗した際に表示するエラー画面
+/// （2026-09-24追加、`_AuthenticatedUserGateState.build`参照）。
+class _AuthLoadErrorScreen extends ConsumerWidget {
+  const _AuthLoadErrorScreen({required this.onRetry});
+
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final strings = ref.watch(appStringsProvider);
+    return Scaffold(
+      body: SafeArea(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  strings.authLoadErrorTitle,
+                  style: Theme.of(context).textTheme.headlineSmall,
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 12),
+                Text(strings.authLoadErrorMessage, textAlign: TextAlign.center),
+                const SizedBox(height: 24),
+                ElevatedButton(
+                  onPressed: onRetry,
+                  child: Text(strings.authLoadErrorRetryButton),
+                ),
+                const SizedBox(height: 8),
+                TextButton(
+                  onPressed: () => ref.read(authRepositoryProvider).signOut(),
+                  child: Text(strings.authLoadErrorSignOutButton),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
