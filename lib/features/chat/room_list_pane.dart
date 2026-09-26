@@ -123,6 +123,57 @@ class _RoomListPaneState extends ConsumerState<RoomListPane> {
     widget.onReorderRooms?.call([for (final r in _rooms) r.roomId]);
   }
 
+  /// ドラッグ中の「浮いている」演出（2026-09-26追加）。`ReorderableListView`
+  /// は`proxyDecorator`未指定だとFlutter既定の`Material.elevation`アニメ
+  /// （＝影の描画）を使うが、CLAUDE.mdの「影を一切使わない」方針に反するため
+  /// 独自実装で置き換える。Flat/Glassは`GlassSurface`の縁ストローク
+  /// （`_GlassEdgePainter`）と同じ意匠のアクセントカラーの縁取りを、劇画は
+  /// ジグザグの手描き枠との衝突を避けて僅かな傾きを使い分ける。共通で
+  /// 僅かなスケールアップ・不透明度低下も加え、影なしで「持ち上げられて
+  /// いる」感を出す。
+  Widget _dragLiftDecorator(
+    Widget child,
+    int index,
+    Animation<double> animation,
+    ColorScheme colorScheme,
+    bool isGekiga,
+  ) {
+    // `proxyDecorator`が返すウィジェットはOverlayに差し込まれて描画される
+    // ため、フラットUIの`ListTile`（Scaffold周囲のMaterialに暗黙で頼っている）
+    // がMaterial祖先を見失い「No Material widget found」でクラッシュする
+    // （2026-09-26発覚、フラットUIのみ再現。ガラスUIは`buildRoomTile`が自前で
+    // `Material`を内包済み、劇画UIは`ListTile`自体を使わないため無関係だった）。
+    // 見た目には影響しない`MaterialType.transparency`でMaterial祖先を用意する。
+    return Material(
+      type: MaterialType.transparency,
+      child: AnimatedBuilder(
+        animation: animation,
+        builder: (context, _) {
+          final t = animation.value;
+          Widget result = Transform.scale(scale: 1.0 + 0.04 * t, child: child);
+
+          if (isGekiga) {
+            result = Transform.rotate(angle: 0.02 * t, child: result);
+          } else {
+            result = DecoratedBox(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: colorScheme.primary.withValues(alpha: 0.7 * t),
+                  width: 1.4,
+                ),
+              ),
+              child: result,
+            );
+          }
+
+          return Opacity(opacity: 1.0 - 0.06 * t, child: result);
+        },
+        child: child,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final strings = ref.watch(appStringsProvider);
@@ -313,6 +364,14 @@ class _RoomListPaneState extends ConsumerState<RoomListPane> {
                   buildDefaultDragHandles: false,
                   padding: const EdgeInsets.fromLTRB(8, 12, 8, 0),
                   onReorderItem: _handleReorder,
+                  proxyDecorator: (child, index, animation) =>
+                      _dragLiftDecorator(
+                        child,
+                        index,
+                        animation,
+                        colorScheme,
+                        isGekiga,
+                      ),
                   children: [
                     for (final (index, room) in _rooms.indexed)
                       KeyedSubtree(

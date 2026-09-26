@@ -204,6 +204,9 @@ class _UserProfileCardDialogState extends ConsumerState<UserProfileCardDialog> {
         .effectiveStatusMessageFor(widget.conversationId)
         ?.text;
     final snsLinks = user.effectiveSnsLinksFor(widget.conversationId);
+    final fontFamily = user
+        .effectiveFontDesignFor(widget.conversationId)
+        ?.fontFamily;
 
     // 身だしなみ・工房で作るカード（ProfileCardView）と全く同じ比率
     // （height = width * 1.25）で表示する。以前は固定height:360を使っており
@@ -255,6 +258,7 @@ class _UserProfileCardDialogState extends ConsumerState<UserProfileCardDialog> {
                       // 表示しない。カードの下にタップ可能な別要素
                       // （SnsLinkList）として表示する（2026-09-24変更）。
                       snsLinks: const [],
+                      fontFamily: fontFamily,
                     ),
                     if (!_isSelf)
                       Positioned(

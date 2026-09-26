@@ -713,7 +713,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// ため、フラットのみ元の不透明な背景に戻す（2026-08-30、ユーザー
   /// 指摘により修正）。
   /// [_composerAreaKey]は[_measureComposerArea]の計測対象のため、
-  /// どの分岐でも同じキーを付ける。
+  /// どの分岐でも同じキーを付ける（現在は一番外側の[GestureDetector]に付与、
+  /// 子のサイズをそのまま反映するプロキシのため計測結果は変わらない）。
   Widget _buildComposerArea({
     required bool isGlass,
     required bool isGekiga,
@@ -726,22 +727,40 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [_uploadProgressIndicator(progress), child],
           );
+    final Widget background;
     if (isGlass) {
-      return GlassSurface(
-        key: _composerAreaKey,
+      background = GlassSurface(
         variant: GlassVariant.chrome,
         borderRadius: BorderRadius.zero,
         enableEdgeStroke: false,
         child: content,
       );
+    } else if (isGekiga) {
+      background = Container(child: content);
+    } else {
+      background = Container(
+        color: Theme.of(context).scaffoldBackgroundColor,
+        child: content,
+      );
     }
-    if (isGekiga) {
-      return Container(key: _composerAreaKey, child: content);
-    }
-    return Container(
+    // 語らい画面全体は`InteractiveSwipeBackTransition`で右スワイプの
+    // 「戻る」ジェスチャーに包まれているため、何も指定しないと入力欄上の
+    // 横方向のドラッグ（テキスト選択操作等）もそのまま画面遷移として
+    // 拾われてしまっていた。ここに横ドラッグを検知するだけの
+    // （何もしない）GestureDetectorを挟むと、ジェスチャーアリーナ上は
+    // 子側にあるこちらが祖先より先に登録され優先されるため、入力欄起点の
+    // ドラッグは画面遷移側へ伝播しなくなる（`_MessageInteractions`が
+    // 同じ仕組みを使って右方向だけ`InteractiveSwipeBackScope`へ中継して
+    // いるのに対し、こちらは中継せずただ吸収するだけでよい、2026-09-26追加）。
+    // 劇画スタイルは背景が透明なContainerのため、`opaque`にしないと
+    // 余白部分のヒットテストが素通りしてしまう点にも注意。
+    return GestureDetector(
       key: _composerAreaKey,
-      color: Theme.of(context).scaffoldBackgroundColor,
-      child: content,
+      behavior: HitTestBehavior.opaque,
+      onHorizontalDragStart: (_) {},
+      onHorizontalDragUpdate: (_) {},
+      onHorizontalDragEnd: (_) {},
+      child: background,
     );
   }
 
@@ -1869,6 +1888,24 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     _composerFocusNode.requestFocus();
     setState(() => _replyingTo = null);
     await widget.onSend!(content, silent: silent, replyTo: replyTo);
+    _scrollToLatestMessage();
+  }
+
+  /// 自分が送信したメッセージが必ず画面に表示されるよう、送信後は一覧の
+  /// 最新側（`reverse:true`のためindex 0）へジャンプする（2026-09-26追加）。
+  /// 返信対象を選ぶ長押し/右クリックメニューを経由した送信では、
+  /// [_endPopupGuard]がメニューを開いた時点の表示位置（返信対象が画面を
+  /// 遡った古いメッセージなら、その古い位置）へ強制的に復元してしまい、
+  /// その後に送信した新着メッセージが画面外のままになる不具合があった。
+  /// [_scrollIntentToken]を進めることで、その復元処理がまだ実行されて
+  /// いなくても無効化されるようにする（[_jumpToMessage]と同じパターン）。
+  void _scrollToLatestMessage() {
+    final token = ++_scrollIntentToken;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || token != _scrollIntentToken) return;
+      if (!_itemScrollController.isAttached) return;
+      _itemScrollController.jumpTo(index: 0);
+    });
   }
 
   /// ＋ボタンで選んだ添付を送信する（技術仕様書5.5・5.6参照、2026-08-10追加）。
@@ -3173,6 +3210,35 @@ Rect _anchorRectFromContext(BuildContext context) {
   return box.localToGlobal(Offset.zero) & box.size;
 }
 
+/// 吹き出しの塗り色（自分/相手共通、2026-09-26追加）。当初はユーザー指示で
+/// 自分の吹き出しだけ選んだアクセントカラーそのままにしていたが、アクセント
+/// カラーの明暗次第で文字コントラストが破綻するケースが解消しきれず、
+/// 「これ以上細部に拘っても本質的な開発が滞る」というユーザー判断により
+/// 自分/相手ともテーマ非依存の固定グレーへ統一した。吹き出しの自分/相手の
+/// 見分けは塗りではなく枠線のアクセントカラー（`bubbleAccentBorderColor`）で
+/// 表現する。
+const _bubbleFillDark = Color(0xFF3A3A3C);
+const _bubbleFillLight = Color(0xFFE5E5EA);
+
+/// 実際に塗る背景色（[background]）の明るさから、読める文字色を判定する
+/// （2026-09-26追加）。固定の`onPrimary`/`onSurface`だけに頼ると、ユーザーが
+/// 選んだアクセントカラーの明暗次第ではコントラスト不足になり得るため、
+/// 実際に合成される色の輝度から都度判定する。
+///
+/// アクセントカラーは半透明を許容する仕様（`lib/utils/color_hex.dart`の
+/// `RRGGBBAA`形式、既定値`kDefaultAccentColor`自体がアルファ`0xCC`）のため、
+/// [background]をそのまま`estimateBrightnessForColor`（透明度を無視しRGBの
+/// 生値だけで判定する）に渡すと、実際にチャット背景[surfaceBase]へ合成された
+/// 後の見た目の明るさとズレる（2026-09-26発覚: 濃いアクセントカラーの吹き
+/// 出しで黒文字がかみ合わない不具合の原因）。判定直前に[surfaceBase]へ
+/// 合成してから明るさを見る（[background]が不透明ならそのままの値になる）。
+Color _readableTextColorOn(Color background, Color surfaceBase) {
+  final composited = Color.alphaBlend(background, surfaceBase);
+  return ThemeData.estimateBrightnessForColor(composited) == Brightness.dark
+      ? TextProminence.darkPrimary
+      : TextProminence.lightPrimary;
+}
+
 String _replySnippetLabel(Message target, Vocabulary? vocabulary) {
   if (target.contentType == 'sticker') {
     return vocabulary?.sticker ?? 'ぺったん';
@@ -3968,10 +4034,26 @@ class _MessageRow extends ConsumerWidget {
     // （自分は白地に黒文字、相手は黒地に白文字、2026-07-29修正）。フラット
     // スタイルは紙に墨で書いたような枠線ボックス（旧デッサンスタイル、
     // 2026-08-27統合）のため自分/相手どちらも同じ色で色を反転しない。
+    // フラット/ガラスは2026-09-26より、自分/相手とも同じ固定グレー
+    // （`_bubbleFillDark`/`Light`、テーマ・アクセントカラーに依存しない）で
+    // 塗る。自分/相手の見分けは枠線のアクセントカラーで表現する（下記
+    // `bubble`のdecoration切り替え参照）。文字色は固定の`onPrimary`/
+    // `onSurface`ではなく、実際に塗る色の輝度から[_readableTextColorOn]で
+    // 都度判定する。
+    final bubbleFill = colorScheme.brightness == Brightness.dark
+        ? _bubbleFillDark
+        : _bubbleFillLight;
+    // 吹き出し本体の枠線はアクセントカラーを自分/相手共通で使う（2026-09-26、
+    // 塗りを自他共通にした代わりに枠で「DaiDaiらしさ」を出す）。カレンダー・
+    // 予定調整・投票・ノート通知カード・画像/動画プレビュー・ファイル添付等、
+    // 吹き出し本体以外のカードの枠線も、各カードのbuildメソッド側で同じ
+    // アクセントカラーを使うよう揃えている（ガラスUIの`GlassSurface`縁の
+    // 光彩と統一するため）。
+    final bubbleAccentBorderColor = colorScheme.primary;
     final onBubbleColor = switch (uiStyle) {
       AppUiStyle.gekiga => isMe ? Colors.black : Colors.white,
-      AppUiStyle.flat => colorScheme.onSurface,
-      AppUiStyle.glass => colorScheme.onSurface,
+      AppUiStyle.flat => _readableTextColorOn(bubbleFill, colorScheme.surface),
+      AppUiStyle.glass => _readableTextColorOn(bubbleFill, colorScheme.surface),
     };
 
     // 返信元の引用プレビュー。ロード済み（最新50件）の範囲に返信元の実物が
@@ -4159,9 +4241,7 @@ class _MessageRow extends ConsumerWidget {
                                 controller: partialCopyController
                                   ?..linkColor = isGekiga
                                       ? (isMe ? Colors.black : Colors.white)
-                                      : (isMe
-                                            ? colorScheme.onPrimary
-                                            : colorScheme.primary),
+                                      : onBubbleColor,
                                 readOnly: true,
                                 showCursor: false,
                                 maxLines: null,
@@ -4205,9 +4285,7 @@ class _MessageRow extends ConsumerWidget {
                         ),
                         linkColor: isGekiga
                             ? (isMe ? Colors.black : Colors.white)
-                            : (isMe
-                                  ? colorScheme.onPrimary
-                                  : colorScheme.primary),
+                            : onBubbleColor,
                       ),
               ),
               if (message.silent) ...[
@@ -4250,6 +4328,12 @@ class _MessageRow extends ConsumerWidget {
         isScheduleCoordinationNotice ||
         isPollNotice ||
         isNoteNotice;
+    // 自分/相手とも同じ固定グレーで塗り、枠線のアクセントカラーで
+    // 「DaiDaiらしさ」を出す（2026-09-26。以前は自分の吹き出しだけ選んだ
+    // アクセントカラーそのままで塗っていたが、明暗次第で文字コントラストが
+    // 破綻するケースが解消しきれず、ユーザー判断でこの方式に一本化した）。
+    // ガラスUIは`accentColorOverride`を自分/相手とも未指定にし、
+    // `GlassSurface`既定の環境アクセントカラーをそのまま縁の光彩に使う。
     final bubble = switch (uiStyle) {
       AppUiStyle.gekiga => _GekigaBubble(
         seed: message.messageId.hashCode,
@@ -4261,10 +4345,16 @@ class _MessageRow extends ConsumerWidget {
       AppUiStyle.flat => Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
-          color: colorScheme.surface,
+          // ブロックメッセージ（`skipBubbleFrame`）は自前の独立したカード
+          // 見た目を持つため、外枠の塗りも無効化する。以前は`colorScheme.
+          // surface`（チャット背景と同色）だったため見えない余白として
+          // 気づかれずに済んでいたが、`bubbleFill`（固定グレー）に差し替えた
+          // 際にこの無効化を付け忘れ、カードの外側に灰色の枠が可視化されて
+          // しまっていた（2026-09-26発覚）。
+          color: skipBubbleFrame ? null : bubbleFill,
           border: skipBubbleFrame
               ? null
-              : Border.all(color: colorScheme.outline),
+              : Border.all(color: bubbleAccentBorderColor),
           borderRadius: BorderRadius.circular(20),
         ),
         child: bubbleContent,
@@ -4272,6 +4362,7 @@ class _MessageRow extends ConsumerWidget {
       AppUiStyle.glass => GlassSurface(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         enableEdgeStroke: !skipBubbleFrame,
+        fillColorOverride: skipBubbleFrame ? null : bubbleFill,
         child: bubbleContent,
       ),
     };
@@ -4604,14 +4695,7 @@ class _MessageRow extends ConsumerWidget {
       );
     }
 
-    // 返信先ジャンプの着地先だと分かるよう、一瞬だけ背景を強調する。
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 300),
-      color: highlighted
-          ? colorScheme.primary.withValues(alpha: 0.15)
-          : Colors.transparent,
-      child: body,
-    );
+    return _JumpHighlightShake(trigger: highlighted, child: body);
   }
 
   /// 通話履歴メッセージ（contentType='call'）の表示。「通話が終了しました」
@@ -4796,7 +4880,7 @@ class _MessageRow extends ConsumerWidget {
             width: 224,
             decoration: BoxDecoration(
               color: colorScheme.surface,
-              border: Border.all(color: colorScheme.outline),
+              border: Border.all(color: colorScheme.primary),
               borderRadius: cardRadius,
             ),
             clipBehavior: Clip.antiAlias,
@@ -4938,7 +5022,7 @@ class _MessageRow extends ConsumerWidget {
             width: 224,
             decoration: BoxDecoration(
               color: colorScheme.surface,
-              border: Border.all(color: colorScheme.outline),
+              border: Border.all(color: colorScheme.primary),
               borderRadius: cardRadius,
             ),
             clipBehavior: Clip.antiAlias,
@@ -5079,7 +5163,7 @@ class _MessageRow extends ConsumerWidget {
             width: 224,
             decoration: BoxDecoration(
               color: colorScheme.surface,
-              border: Border.all(color: colorScheme.outline),
+              border: Border.all(color: colorScheme.primary),
               borderRadius: cardRadius,
             ),
             clipBehavior: Clip.antiAlias,
@@ -5261,7 +5345,7 @@ class _MessageRow extends ConsumerWidget {
             width: 224,
             decoration: BoxDecoration(
               color: colorScheme.surface,
-              border: Border.all(color: colorScheme.outline),
+              border: Border.all(color: colorScheme.primary),
               borderRadius: cardRadius,
             ),
             clipBehavior: Clip.antiAlias,
@@ -5389,7 +5473,7 @@ class _MessageRow extends ConsumerWidget {
     }
     return Container(
       decoration: BoxDecoration(
-        border: Border.all(color: Theme.of(context).colorScheme.outline),
+        border: Border.all(color: Theme.of(context).colorScheme.primary),
         borderRadius: radius,
       ),
       clipBehavior: Clip.antiAlias,
@@ -5845,6 +5929,66 @@ Future<String?> _pickReactionEmoji(
       ),
     ],
   );
+}
+
+/// 返信先ジャンプ/ピン留めジャンプの着地先だと分かるよう、一瞬だけ左右に
+/// 揺れる（2026-09-26変更、以前はアクセントカラーで背景を光らせる演出
+/// だったが、LINEのような揺れる演出に置き換えた）。[trigger]が
+/// false→trueに変わった瞬間だけ振動を再生する。
+class _JumpHighlightShake extends StatefulWidget {
+  const _JumpHighlightShake({required this.trigger, required this.child});
+
+  final bool trigger;
+  final Widget child;
+
+  @override
+  State<_JumpHighlightShake> createState() => _JumpHighlightShakeState();
+}
+
+class _JumpHighlightShakeState extends State<_JumpHighlightShake>
+    with SingleTickerProviderStateMixin {
+  static const _duration = Duration(milliseconds: 500);
+  static const _cycles = 2.5; // 左右に2.5往復（sin(2.5*2π)=0で中央に戻り着地）
+  static const _maxOffset = 8.0; // 最初の振れ幅（px）
+
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: _duration,
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.trigger) _controller.forward(from: 0);
+  }
+
+  @override
+  void didUpdateWidget(covariant _JumpHighlightShake oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.trigger && !oldWidget.trigger) {
+      _controller.forward(from: 0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      child: widget.child,
+      builder: (context, child) {
+        final t = _controller.value;
+        final decay = 1.0 - t;
+        final dx = math.sin(t * _cycles * 2 * math.pi) * decay * _maxOffset;
+        return Transform.translate(offset: Offset(dx, 0), child: child);
+      },
+    );
+  }
 }
 
 /// 吹き出し本体だけに絞った当たり判定。長押し/右クリックでリアクション・
@@ -7014,7 +7158,7 @@ class _FileAttachmentBlockState extends ConsumerState<_FileAttachmentBlock>
         : Container(
             decoration: BoxDecoration(
               color: colorScheme.surfaceContainerHighest,
-              border: Border.all(color: colorScheme.outline),
+              border: Border.all(color: colorScheme.primary),
               borderRadius: cardRadius,
             ),
             clipBehavior: Clip.antiAlias,

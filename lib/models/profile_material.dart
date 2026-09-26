@@ -1,9 +1,12 @@
+import 'font_design.dart';
+
 /// 身だしなみ（プロフィール）の蔵に保管できる素材の上限数。
 const kMaxIcons = 5;
 const kMaxBackgroundImages = 3;
 const kMaxStatusMessages = 10;
 const kMaxNicknames = 10;
 const kMaxSnsLinks = 5;
+const kMaxFontDesigns = 5;
 
 /// 工房のプロフィールカード1枚に掲載できるSNSのURLの上限数。
 const kMaxProfileCardSnsLinks = 2;
@@ -71,6 +74,34 @@ class Nickname {
 
   Map<String, dynamic> toJson() {
     return {'id': id, 'text': text};
+  }
+}
+
+/// 蔵に保管するフォントデザイン（2026-09-26追加）。工房のプロフィールカードに
+/// 割り当てると、そのカードの呼び名・一言・URLは[design]のフォントで固定表示
+/// され、見る側の端末のフォントデザイン設定（設定＞アプリケーション）に
+/// 関わらず変わらなくなる。[design]が`null`の場合は「システムと同じ」
+/// （＝今まで通り見る側の設定を継承し、上書きしない）を表す。
+/// 最大[kMaxFontDesigns]件まで登録できる。
+class FontDesignMaterial {
+  const FontDesignMaterial({required this.id, this.design});
+
+  final String id;
+
+  /// nullなら「システムと同じ」。
+  final FontDesign? design;
+
+  factory FontDesignMaterial.fromJson(Map<String, dynamic> json) {
+    return FontDesignMaterial(
+      id: json['id'] as String,
+      design: json['design'] != null
+          ? FontDesign.fromName(json['design'] as String)
+          : null,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {'id': id, 'design': design?.name};
   }
 }
 
