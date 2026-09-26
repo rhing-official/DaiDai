@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'app_user_preferences.dart';
 import 'fcm_token_entry.dart';
+import 'font_design.dart';
 import 'profile_card.dart';
 import 'profile_material.dart';
 
@@ -30,12 +31,14 @@ class AppUser {
     this.statusMessages = const [],
     this.nicknames = const [],
     this.snsLinks = const [],
+    this.fontDesignMaterials = const [],
     this.profileCards = const [],
     this.fcmTokens = const [],
     this.activeIconId,
     this.activeBackgroundImageId,
     this.activeStatusMessageId,
     this.activeNicknameId,
+    this.activeFontDesignMaterialId,
     this.activeProfileCardId,
     this.conversationProfileCardId = const {},
     this.preferences = AppUserPreferences.empty,
@@ -70,6 +73,11 @@ class AppUser {
   /// 蔵に保管している他のSNSのURL（最大[kMaxSnsLinks]件）。
   final List<SnsLink> snsLinks;
 
+  /// 蔵に保管しているフォントデザイン（最大[kMaxFontDesigns]件、2026-09-26追加）。
+  /// 工房のプロフィールカードに割り当てると、見る側の設定に関わらずそのカードの
+  /// 呼び名・一言・URLのフォントを固定できる。
+  final List<FontDesignMaterial> fontDesignMaterials;
+
   /// 和合で作成したプロフィールカード（最大[kMaxProfileCards]枚）。
   /// 蔵の素材を組み合わせて作る「見せ方のセット」。
   final List<ProfileCard> profileCards;
@@ -83,6 +91,7 @@ class AppUser {
   final String? activeBackgroundImageId;
   final String? activeStatusMessageId;
   final String? activeNicknameId;
+  final String? activeFontDesignMaterialId;
 
   /// 縁結びの招待リンク等に適用する、工房で作成したプロフィールカードのid。
   /// 未選択（null）の場合は、リンク側は個別の蔵アイテム（activeIcon/activeNickname）
@@ -174,6 +183,8 @@ class AppUser {
   StatusMessage? get activeStatusMessage =>
       _findStatusMessage(statusMessages, activeStatusMessageId);
   Nickname? get activeNickname => _findNickname(nicknames, activeNicknameId);
+  FontDesignMaterial? get activeFontDesignMaterial =>
+      _findFontDesignMaterial(fontDesignMaterials, activeFontDesignMaterialId);
   ProfileCard? get activeProfileCard =>
       _findProfileCard(profileCards, activeProfileCardId);
 
@@ -208,6 +219,18 @@ class AppUser {
     return card != null
         ? _findMaterial(backgroundImages, card.backgroundImageId)
         : activeBackgroundImage;
+  }
+
+  /// [effectiveIcon]と同様、適用中のプロフィールカードのフォントデザインを
+  /// 優先する。nullは「システムと同じ」（見る側の端末設定を継承、上書きしない）。
+  FontDesign? get effectiveFontDesign {
+    final card = activeProfileCard;
+    return card != null
+        ? _findFontDesignMaterial(
+            fontDesignMaterials,
+            card.fontDesignId,
+          )?.design
+        : activeFontDesignMaterial?.design;
   }
 
   /// 適用中のプロフィールカードに掲載しているSNSのURL一覧
@@ -265,6 +288,17 @@ class AppUser {
         : activeBackgroundImage;
   }
 
+  /// [effectiveFontDesign]の会話対応版。
+  FontDesign? effectiveFontDesignFor(String? conversationId) {
+    final card = profileCardFor(conversationId);
+    return card != null
+        ? _findFontDesignMaterial(
+            fontDesignMaterials,
+            card.fontDesignId,
+          )?.design
+        : activeFontDesignMaterial?.design;
+  }
+
   /// [effectiveSnsLinks]の会話対応版。
   List<SnsLink> effectiveSnsLinksFor(String? conversationId) {
     final card = profileCardFor(conversationId);
@@ -305,6 +339,17 @@ class AppUser {
     return null;
   }
 
+  static FontDesignMaterial? _findFontDesignMaterial(
+    List<FontDesignMaterial> items,
+    String? id,
+  ) {
+    if (id == null) return null;
+    for (final item in items) {
+      if (item.id == id) return item;
+    }
+    return null;
+  }
+
   static ProfileCard? _findProfileCard(List<ProfileCard> items, String? id) {
     if (id == null) return null;
     for (final item in items) {
@@ -319,11 +364,13 @@ class AppUser {
     List<StatusMessage>? statusMessages,
     List<Nickname>? nicknames,
     List<SnsLink>? snsLinks,
+    List<FontDesignMaterial>? fontDesignMaterials,
     List<ProfileCard>? profileCards,
     String? activeIconId,
     String? activeBackgroundImageId,
     String? activeStatusMessageId,
     String? activeNicknameId,
+    String? activeFontDesignMaterialId,
     String? activeProfileCardId,
     bool clearActiveProfileCardId = false,
     Map<String, String>? conversationProfileCardId,
@@ -337,6 +384,7 @@ class AppUser {
       statusMessages: statusMessages ?? this.statusMessages,
       nicknames: nicknames ?? this.nicknames,
       snsLinks: snsLinks ?? this.snsLinks,
+      fontDesignMaterials: fontDesignMaterials ?? this.fontDesignMaterials,
       profileCards: profileCards ?? this.profileCards,
       activeIconId: activeIconId ?? this.activeIconId,
       activeBackgroundImageId:
@@ -344,6 +392,8 @@ class AppUser {
       activeStatusMessageId:
           activeStatusMessageId ?? this.activeStatusMessageId,
       activeNicknameId: activeNicknameId ?? this.activeNicknameId,
+      activeFontDesignMaterialId:
+          activeFontDesignMaterialId ?? this.activeFontDesignMaterialId,
       activeProfileCardId: clearActiveProfileCardId
           ? null
           : (activeProfileCardId ?? this.activeProfileCardId),
@@ -371,12 +421,16 @@ class AppUser {
       statusMessages: _statusListFromJson(json['statusMessages']),
       nicknames: _nicknameListFromJson(json['nicknames']),
       snsLinks: _snsLinkListFromJson(json['snsLinks']),
+      fontDesignMaterials: _fontDesignMaterialListFromJson(
+        json['fontDesignMaterials'],
+      ),
       profileCards: _profileCardListFromJson(json['profileCards']),
       fcmTokens: _fcmTokenListFromJson(json['fcmTokens']),
       activeIconId: json['activeIconId'] as String?,
       activeBackgroundImageId: json['activeBackgroundImageId'] as String?,
       activeStatusMessageId: json['activeStatusMessageId'] as String?,
       activeNicknameId: json['activeNicknameId'] as String?,
+      activeFontDesignMaterialId: json['activeFontDesignMaterialId'] as String?,
       activeProfileCardId: json['activeProfileCardId'] as String?,
       conversationProfileCardId:
           (json['conversationProfileCardId'] as Map?)?.cast<String, String>() ??
@@ -408,12 +462,16 @@ class AppUser {
       'statusMessages': statusMessages.map((m) => m.toJson()).toList(),
       'nicknames': nicknames.map((n) => n.toJson()).toList(),
       'snsLinks': snsLinks.map((s) => s.toJson()).toList(),
+      'fontDesignMaterials': fontDesignMaterials
+          .map((f) => f.toJson())
+          .toList(),
       'profileCards': profileCards.map((c) => c.toJson()).toList(),
       'fcmTokens': fcmTokens.map((t) => t.toJson()).toList(),
       'activeIconId': activeIconId,
       'activeBackgroundImageId': activeBackgroundImageId,
       'activeStatusMessageId': activeStatusMessageId,
       'activeNicknameId': activeNicknameId,
+      'activeFontDesignMaterialId': activeFontDesignMaterialId,
       'activeProfileCardId': activeProfileCardId,
       'conversationProfileCardId': conversationProfileCardId,
       'preferences': preferences.toJson(),
@@ -454,6 +512,15 @@ class AppUser {
     if (value is! List) return const [];
     return value
         .map((e) => SnsLink.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  static List<FontDesignMaterial> _fontDesignMaterialListFromJson(
+    dynamic value,
+  ) {
+    if (value is! List) return const [];
+    return value
+        .map((e) => FontDesignMaterial.fromJson(e as Map<String, dynamic>))
         .toList();
   }
 

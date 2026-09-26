@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../models/font_design.dart';
 import '../providers/app_locale_provider.dart';
 import 'app_locale.dart';
 
@@ -107,6 +108,11 @@ class Strings {
     required this.fontDesignChikaraYowaku851Label,
     required this.fontDesignKiwamiExclusiveNotice,
     required this.fontDesignShowMoreTemplate,
+    required this.fontDesignSameAsSystemLabel,
+    required this.profileFontDesignSectionTitle,
+    required this.profileAddFontDesign,
+    required this.profileFontDesignDialogTitle,
+    required this.profileFontDesignDialogEditTitle,
     required this.settingsSubSound,
     required this.settingsSoundRingtoneTitle,
     required this.settingsSoundCallingTitle,
@@ -517,6 +523,10 @@ class Strings {
     required this.albumPickerCreateNewOption,
     required this.albumAddedSnackbarMessage,
     required this.albumAddFailedSnackbarMessage,
+    required this.albumAddSourceDeviceLabel,
+    required this.albumAddSourceMessageLabel,
+    required this.albumMessagePickerTitle,
+    required this.albumMessagePickerEmptyMessage,
     required this.commonCreate,
     required this.calendarFullScreenTitle,
     required this.calendarTodayButton,
@@ -787,6 +797,14 @@ class Strings {
   final String fontDesignChikaraYowaku851Label;
   final String fontDesignKiwamiExclusiveNotice;
   final String Function(int remaining) fontDesignShowMoreTemplate;
+
+  /// 蔵のフォントデザイン素材・工房のカード割り当てで選べる「システムと同じ」
+  /// （見る側の端末のフォントデザイン設定を継承し、上書きしない）の選択肢ラベル。
+  final String fontDesignSameAsSystemLabel;
+  final String profileFontDesignSectionTitle;
+  final String profileAddFontDesign;
+  final String profileFontDesignDialogTitle;
+  final String profileFontDesignDialogEditTitle;
   final String settingsSubSound;
   final String settingsSoundRingtoneTitle;
   final String settingsSoundCallingTitle;
@@ -1404,6 +1422,13 @@ class Strings {
   final String albumPickerCreateNewOption;
   final String albumAddedSnackbarMessage;
   final String albumAddFailedSnackbarMessage;
+
+  /// アルバムへの追加元を選ぶポップアップ（端末/メッセージ）と、メッセージから
+  /// 選ぶ画面（2026-09-26追加）。
+  final String albumAddSourceDeviceLabel;
+  final String albumAddSourceMessageLabel;
+  final String albumMessagePickerTitle;
+  final String albumMessagePickerEmptyMessage;
   final String commonCreate;
 
   // 寄合単位の共有カレンダー機能（2026-09-01追加）。
@@ -1681,6 +1706,11 @@ class Strings {
     fontDesignChikaraYowaku851Label: '851チカラヨワク',
     fontDesignKiwamiExclusiveNotice: '極みプラン限定機能として追加予定（現在は無料で選択できます）',
     fontDesignShowMoreTemplate: (remaining) => 'もっと見る（あと$remaining件）',
+    fontDesignSameAsSystemLabel: 'システムと同じ',
+    profileFontDesignSectionTitle: 'フォントデザイン',
+    profileAddFontDesign: 'フォントデザインを追加',
+    profileFontDesignDialogTitle: 'フォントデザインを追加',
+    profileFontDesignDialogEditTitle: 'フォントデザインを編集',
     settingsSubSound: 'サウンド',
     settingsSoundRingtoneTitle: '着信音',
     settingsSoundCallingTitle: '呼出音',
@@ -2122,6 +2152,10 @@ class Strings {
     albumPickerCreateNewOption: '新しいアルバムを作成',
     albumAddedSnackbarMessage: 'アルバムに登録しました',
     albumAddFailedSnackbarMessage: 'アルバムへの登録に失敗しました',
+    albumAddSourceDeviceLabel: '端末から',
+    albumAddSourceMessageLabel: 'メッセージから',
+    albumMessagePickerTitle: 'メッセージから選ぶ',
+    albumMessagePickerEmptyMessage: 'まだ画像・動画のメッセージがありません',
     commonCreate: '作成',
     calendarFullScreenTitle: 'カレンダー',
     calendarTodayButton: '今日',
@@ -2390,6 +2424,11 @@ class Strings {
     fontDesignKiwamiExclusiveNotice:
         'Planned as a Kiwami plan exclusive (free to select for now)',
     fontDesignShowMoreTemplate: (remaining) => 'Show more ($remaining more)',
+    fontDesignSameAsSystemLabel: 'Same as system',
+    profileFontDesignSectionTitle: 'Font design',
+    profileAddFontDesign: 'Add a font design',
+    profileFontDesignDialogTitle: 'Add a font design',
+    profileFontDesignDialogEditTitle: 'Edit font design',
     settingsSubSound: 'Sound',
     settingsSoundRingtoneTitle: 'Ringtone',
     settingsSoundCallingTitle: 'Calling tone',
@@ -2896,6 +2935,10 @@ class Strings {
     albumPickerCreateNewOption: 'Create new album',
     albumAddedSnackbarMessage: 'Added to album',
     albumAddFailedSnackbarMessage: 'Failed to add to album',
+    albumAddSourceDeviceLabel: 'From device',
+    albumAddSourceMessageLabel: 'From messages',
+    albumMessagePickerTitle: 'Choose from messages',
+    albumMessagePickerEmptyMessage: 'No image or video messages yet',
     commonCreate: 'Create',
     calendarFullScreenTitle: 'Calendar',
     calendarTodayButton: 'Today',
@@ -3057,6 +3100,39 @@ class Strings {
   static Strings of(AppLocale locale) => switch (locale) {
     AppLocale.japanese => ja,
     AppLocale.britishEnglish => enGB,
+  };
+
+  /// [FontDesign]値ごとの表示ラベル。設定タブのフォントデザイン選択
+  /// （`_FontDesignFolder`）と、蔵のフォントデザイン素材選択
+  /// （`_FontDesignMaterialDialog`）の両方から共通で使う（2026-09-26、
+  /// 元は設定タブ内のプライベートな`labelFor`関数として重複していたものを
+  /// このメソッドに一本化した）。
+  String fontDesignLabel(FontDesign value) => switch (value) {
+    FontDesign.hannariMincho => fontDesignHannariMinchoLabel,
+    FontDesign.kagurazaka => fontDesignKagurazakaLabel,
+    FontDesign.kiwiMaru => fontDesignKiwiMaruLabel,
+    FontDesign.shipporiMincho => fontDesignShipporiMinchoLabel,
+    FontDesign.notoSansJp => fontDesignNotoSansJpLabel,
+    FontDesign.notoSerifJp => fontDesignNotoSerifJpLabel,
+    FontDesign.genShinGothic => fontDesignGenShinGothicLabel,
+    FontDesign.genJyuuGothic => fontDesignGenJyuuGothicLabel,
+    FontDesign.roundedMPlus => fontDesignRoundedMPlusLabel,
+    FontDesign.gochikakutto851 => fontDesignGochikakutto851Label,
+    FontDesign.makinas4Flat => fontDesignMakinas4FlatLabel,
+    FontDesign.kurobaraCinderella => fontDesignKurobaraCinderellaLabel,
+    FontDesign.pigmo01 => fontDesignPigmo01Label,
+    FontDesign.keifont => fontDesignKeifontLabel,
+    FontDesign.popRumCute => fontDesignPopRumCuteLabel,
+    FontDesign.zenKakuGothicNew => fontDesignZenKakuGothicNewLabel,
+    FontDesign.zenOldMincho => fontDesignZenOldMinchoLabel,
+    FontDesign.zenMaruGothic => fontDesignZenMaruGothicLabel,
+    FontDesign.kleeOne => fontDesignKleeOneLabel,
+    FontDesign.yomogi => fontDesignYomogiLabel,
+    FontDesign.kaiseiDecol => fontDesignKaiseiDecolLabel,
+    FontDesign.bizUdpMincho => fontDesignBizUdpMinchoLabel,
+    FontDesign.bizUdGothic => fontDesignBizUdGothicLabel,
+    FontDesign.chikaraDzuyoku851 => fontDesignChikaraDzuyoku851Label,
+    FontDesign.chikaraYowaku851 => fontDesignChikaraYowaku851Label,
   };
 }
 

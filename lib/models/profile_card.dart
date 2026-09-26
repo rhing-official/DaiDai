@@ -18,6 +18,7 @@ class ProfileCard {
     this.nicknameId,
     this.statusMessageId,
     this.snsLinkIds = const [],
+    this.fontDesignId,
   });
 
   final String id;
@@ -29,6 +30,10 @@ class ProfileCard {
   final String? backgroundImageId;
   final String? nicknameId;
   final String? statusMessageId;
+
+  /// このカードに固定表示するフォントデザイン（蔵の[FontDesignMaterial]の
+  /// id）。未選択（null）なら見る側の端末設定を継承する（2026-09-26追加）。
+  final String? fontDesignId;
 
   /// このカードに掲載するSNSのURL（蔵の[SnsLink]のid）。最大[kMaxProfileCardSnsLinks]件。
   final List<String> snsLinkIds;
@@ -44,6 +49,8 @@ class ProfileCard {
     String? statusMessageId,
     bool clearStatusMessageId = false,
     List<String>? snsLinkIds,
+    String? fontDesignId,
+    bool clearFontDesignId = false,
   }) {
     return ProfileCard(
       id: id,
@@ -57,6 +64,9 @@ class ProfileCard {
           ? null
           : (statusMessageId ?? this.statusMessageId),
       snsLinkIds: snsLinkIds ?? this.snsLinkIds,
+      fontDesignId: clearFontDesignId
+          ? null
+          : (fontDesignId ?? this.fontDesignId),
     );
   }
 
@@ -69,6 +79,7 @@ class ProfileCard {
       nicknameId: json['nicknameId'] as String?,
       statusMessageId: json['statusMessageId'] as String?,
       snsLinkIds: (json['snsLinkIds'] as List?)?.cast<String>() ?? const [],
+      fontDesignId: json['fontDesignId'] as String?,
     );
   }
 
@@ -81,6 +92,7 @@ class ProfileCard {
       'nicknameId': nicknameId,
       'statusMessageId': statusMessageId,
       'snsLinkIds': snsLinkIds,
+      'fontDesignId': fontDesignId,
     };
   }
 }

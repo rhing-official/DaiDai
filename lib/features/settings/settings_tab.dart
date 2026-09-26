@@ -2591,10 +2591,6 @@ class _UiStyleFolder extends ConsumerWidget {
   }
 }
 
-/// [_FontDesignFolder]が展開前に表示する件数（2026-09-15追加）。これを
-/// 超える場合は「もっと見る」タイルを出し、タップで全件表示に切り替える。
-const kFontDesignPreviewCount = 5;
-
 /// フォントデザインの選択（2026-09-06追加、2026-09-07に劇画も対象化、
 /// 2026-09-15に「もっと見る」展開式に変更）。他の選択項目
 /// （`_LanguageFolder`等）と同じく、劇画スタイル選択中はこの選択肢一覧
@@ -2620,34 +2616,10 @@ class _FontDesignFolderState extends ConsumerState<_FontDesignFolder> {
     void select(FontDesign value) =>
         ref.read(fontDesignProvider.notifier).setDesign(value);
 
-    String labelFor(FontDesign value) => switch (value) {
-      FontDesign.hannariMincho => strings.fontDesignHannariMinchoLabel,
-      FontDesign.kagurazaka => strings.fontDesignKagurazakaLabel,
-      FontDesign.kiwiMaru => strings.fontDesignKiwiMaruLabel,
-      FontDesign.shipporiMincho => strings.fontDesignShipporiMinchoLabel,
-      FontDesign.notoSansJp => strings.fontDesignNotoSansJpLabel,
-      FontDesign.notoSerifJp => strings.fontDesignNotoSerifJpLabel,
-      FontDesign.genShinGothic => strings.fontDesignGenShinGothicLabel,
-      FontDesign.genJyuuGothic => strings.fontDesignGenJyuuGothicLabel,
-      FontDesign.roundedMPlus => strings.fontDesignRoundedMPlusLabel,
-      FontDesign.gochikakutto851 => strings.fontDesignGochikakutto851Label,
-      FontDesign.makinas4Flat => strings.fontDesignMakinas4FlatLabel,
-      FontDesign.kurobaraCinderella =>
-        strings.fontDesignKurobaraCinderellaLabel,
-      FontDesign.pigmo01 => strings.fontDesignPigmo01Label,
-      FontDesign.keifont => strings.fontDesignKeifontLabel,
-      FontDesign.popRumCute => strings.fontDesignPopRumCuteLabel,
-      FontDesign.zenKakuGothicNew => strings.fontDesignZenKakuGothicNewLabel,
-      FontDesign.zenOldMincho => strings.fontDesignZenOldMinchoLabel,
-      FontDesign.zenMaruGothic => strings.fontDesignZenMaruGothicLabel,
-      FontDesign.kleeOne => strings.fontDesignKleeOneLabel,
-      FontDesign.yomogi => strings.fontDesignYomogiLabel,
-      FontDesign.kaiseiDecol => strings.fontDesignKaiseiDecolLabel,
-      FontDesign.bizUdpMincho => strings.fontDesignBizUdpMinchoLabel,
-      FontDesign.bizUdGothic => strings.fontDesignBizUdGothicLabel,
-      FontDesign.chikaraDzuyoku851 => strings.fontDesignChikaraDzuyoku851Label,
-      FontDesign.chikaraYowaku851 => strings.fontDesignChikaraYowaku851Label,
-    };
+    // 2026-09-26: 蔵のフォントデザイン素材選択（`_FontDesignMaterialDialog`）
+    // でも同じラベル一覧が必要になったため、`Strings.fontDesignLabel`に
+    // 一本化した（以前はここに25分岐のswitchを直書きしていた）。
+    String labelFor(FontDesign value) => strings.fontDesignLabel(value);
 
     final hasMore = FontDesign.values.length > kFontDesignPreviewCount;
     final visibleDesigns = _expanded

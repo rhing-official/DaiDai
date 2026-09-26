@@ -10,6 +10,7 @@ import '../../l10n/vocabulary.dart';
 import '../../models/app_ui_style.dart';
 import '../../models/app_user.dart';
 import '../../models/direct_message.dart';
+import '../../models/font_design.dart';
 import '../../models/group.dart';
 import '../../models/profile_card.dart';
 import '../../models/profile_material.dart';
@@ -391,6 +392,80 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
     if (wasActive) await _setField('activeNicknameId', nextActiveId);
   }
 
+  Future<void> _addFontDesignMaterial() async {
+    if (_user.fontDesignMaterials.length >= kMaxFontDesigns) return;
+    final result = await showDialog<_FontDesignEditResult>(
+      context: context,
+      builder: (context) => const _FontDesignMaterialDialog(),
+    );
+    if (result == null || result.isDelete) return;
+
+    final material = FontDesignMaterial(
+      id: _newLocalId(),
+      design: result.design,
+    );
+    final shouldActivate = _user.activeFontDesignMaterialId == null;
+    setState(() {
+      _user = _user.copyWith(
+        fontDesignMaterials: [..._user.fontDesignMaterials, material],
+        activeFontDesignMaterialId:
+            _user.activeFontDesignMaterialId ?? material.id,
+      );
+    });
+    await _addToList('fontDesignMaterials', material.toJson());
+    if (shouldActivate) {
+      await _setField('activeFontDesignMaterialId', material.id);
+    }
+  }
+
+  Future<void> _editFontDesignMaterial(FontDesignMaterial material) async {
+    final result = await showDialog<_FontDesignEditResult>(
+      context: context,
+      builder: (context) => _FontDesignMaterialDialog(
+        initialDesign: material.design,
+        isEdit: true,
+      ),
+    );
+    if (result == null) return;
+    if (result.isDelete) {
+      await _deleteFontDesignMaterial(material);
+      return;
+    }
+    if (result.design == material.design) return;
+
+    final updated = FontDesignMaterial(id: material.id, design: result.design);
+    setState(() {
+      _user = _user.copyWith(
+        fontDesignMaterials: [
+          for (final m in _user.fontDesignMaterials)
+            if (m.id == material.id) updated else m,
+        ],
+      );
+    });
+    await _removeFromList('fontDesignMaterials', material.toJson());
+    await _addToList('fontDesignMaterials', updated.toJson());
+  }
+
+  Future<void> _deleteFontDesignMaterial(FontDesignMaterial material) async {
+    final remaining = _user.fontDesignMaterials
+        .where((m) => m.id != material.id)
+        .toList();
+    final wasActive = _user.activeFontDesignMaterialId == material.id;
+    final nextActiveId = wasActive
+        ? (remaining.isEmpty ? null : remaining.first.id)
+        : _user.activeFontDesignMaterialId;
+    setState(() {
+      _user = _user.copyWith(
+        fontDesignMaterials: remaining,
+        activeFontDesignMaterialId: nextActiveId,
+      );
+    });
+    await _removeFromList('fontDesignMaterials', material.toJson());
+    if (wasActive) {
+      await _setField('activeFontDesignMaterialId', nextActiveId);
+    }
+  }
+
   Future<void> _addSnsLink() async {
     if (_user.snsLinks.length >= kMaxSnsLinks) return;
     final result = await showDialog<_EditResult>(
@@ -604,6 +679,8 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
           onEditStatusMessage: _editStatusMessage,
           onAddSnsLink: _addSnsLink,
           onEditSnsLink: _editSnsLink,
+          onAddFontDesign: _addFontDesignMaterial,
+          onEditFontDesign: _editFontDesignMaterial,
         );
       case _ProfileSection.koubou:
         return _WorkshopView(
@@ -894,6 +971,8 @@ class _KuraView extends StatelessWidget {
     required this.onEditStatusMessage,
     required this.onAddSnsLink,
     required this.onEditSnsLink,
+    required this.onAddFontDesign,
+    required this.onEditFontDesign,
   });
 
   final AppUser user;
@@ -911,6 +990,8 @@ class _KuraView extends StatelessWidget {
   final ValueChanged<StatusMessage> onEditStatusMessage;
   final VoidCallback onAddSnsLink;
   final ValueChanged<SnsLink> onEditSnsLink;
+  final VoidCallback onAddFontDesign;
+  final ValueChanged<FontDesignMaterial> onEditFontDesign;
 
   @override
   Widget build(BuildContext context) {
@@ -968,6 +1049,13 @@ class _KuraView extends StatelessWidget {
           links: user.snsLinks,
           onAdd: onAddSnsLink,
           onEdit: onEditSnsLink,
+        ),
+        const SizedBox(height: 24),
+        _FontDesignMaterialSection(
+          strings: strings,
+          materials: user.fontDesignMaterials,
+          onAdd: onAddFontDesign,
+          onEdit: onEditFontDesign,
         ),
       ],
     );
@@ -1636,6 +1724,10 @@ class _WorkshopCardSlot extends StatelessWidget {
       card.statusMessageId,
     )?.text;
     final selectedSnsLinks = _selectedSnsLinksFor(user, card.snsLinkIds);
+    final fontFamily = _findById(
+      user.fontDesignMaterials,
+      card.fontDesignId,
+    )?.design?.fontFamily;
 
     // 右上バッジの位置合わせにだけ使う（他のサイズ計算はProfileCardView内で
     // 行う。ズーム編集画面[_CardZoomEditor]と全く同じ比率）。
@@ -1690,6 +1782,7 @@ class _WorkshopCardSlot extends StatelessWidget {
                         statusMessage: statusMessage ?? vocab.statusMessage,
                         snsLinks: selectedSnsLinks,
                         borderRadius: BorderRadius.circular(16),
+                        fontFamily: fontFamily,
                       ),
                     ),
                     Positioned(
@@ -2029,6 +2122,7 @@ Widget _registeredItemsSection<T>({
   required bool canAdd,
   required VoidCallback onAdd,
   required String addLabel,
+  TextStyle? Function(T)? styleOf,
 }) {
   if (ref.watch(appUiStyleProvider) == AppUiStyle.gekiga) {
     return Column(
@@ -2043,6 +2137,7 @@ Widget _registeredItemsSection<T>({
                 _RegisteredItemRow(
                   text: textOf(item),
                   onEdit: () => onEdit(item),
+                  textStyle: styleOf?.call(item),
                 ),
             ],
           ),
@@ -2063,7 +2158,11 @@ Widget _registeredItemsSection<T>({
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
       for (final item in items)
-        _RegisteredItemRow(text: textOf(item), onEdit: () => onEdit(item)),
+        _RegisteredItemRow(
+          text: textOf(item),
+          onEdit: () => onEdit(item),
+          textStyle: styleOf?.call(item),
+        ),
       if (canAdd)
         TextButton.icon(
           onPressed: onAdd,
@@ -2204,22 +2303,84 @@ class _SnsLinkSection extends ConsumerWidget {
   }
 }
 
+/// 蔵に登録するフォントデザイン（2026-09-26追加）。工房のカード編集画面
+/// （`_CardZoomEditor._pickMaterial('fontDesign')`）でここに登録した素材から
+/// 1つをカードに割り当てると、見る側の端末設定に関わらずそのカードの
+/// 呼び名・一言・URLのフォントを固定できる。一覧表示・登録数の仕組みは
+/// ニックネーム等と同じ（[_registeredItemsSection]を共用）だが、自由入力
+/// ではなく設定タブと同じセレクターで選ぶため、追加・編集ダイアログは
+/// [_NicknameDialog]ではなく[_FontDesignMaterialDialog]を使う。
+class _FontDesignMaterialSection extends ConsumerWidget {
+  const _FontDesignMaterialSection({
+    required this.strings,
+    required this.materials,
+    required this.onAdd,
+    required this.onEdit,
+  });
+
+  final Strings strings;
+  final List<FontDesignMaterial> materials;
+  final VoidCallback onAdd;
+  final ValueChanged<FontDesignMaterial> onEdit;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        GekigaSectionHeader(
+          '${strings.profileFontDesignSectionTitle}'
+          '（${materials.length}/$kMaxFontDesigns）',
+        ),
+        const SizedBox(height: 4),
+        _registeredItemsSection(
+          ref: ref,
+          items: materials,
+          idOf: (m) => m.id,
+          textOf: (m) => m.design == null
+              ? strings.fontDesignSameAsSystemLabel
+              : strings.fontDesignLabel(m.design!),
+          onEdit: onEdit,
+          canAdd: materials.length < kMaxFontDesigns,
+          onAdd: onAdd,
+          addLabel: strings.profileAddFontDesign,
+          // 一覧の各行自体をそのフォントデザインで表示し、蔵に登録した時点で
+          // 見た目を保てるようにする（「システムと同じ」はfontFamily未指定の
+          // ままにして周囲のテーマを継承させる）。
+          styleOf: (m) => m.design != null
+              ? TextStyle(fontFamily: m.design!.fontFamily)
+              : null,
+        ),
+      ],
+    );
+  }
+}
+
 /// ニックネーム・ステメの1行。テキスト部分をタップすると編集ポップアップ
 /// （[_NicknameDialog]/[_StatusMessageDialog]）が開き、編集・削除の両方を
 /// そこで行う。「使うものを選ぶ」機能は蔵では不要なため持たない
 /// （表示にどれを使うかは登録順で自動的に決まる）。
 class _RegisteredItemRow extends ConsumerWidget {
-  const _RegisteredItemRow({required this.text, required this.onEdit});
+  const _RegisteredItemRow({
+    required this.text,
+    required this.onEdit,
+    this.textStyle,
+  });
 
   final String text;
   final VoidCallback onEdit;
+
+  /// フォントデザイン素材のように、一覧表示自体がその素材の見た目を
+  /// 表す場合に指定する（2026-09-26追加。未指定ならニックネーム等と同じ
+  /// 既定のテキストスタイル）。
+  final TextStyle? textStyle;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     if (ref.watch(appUiStyleProvider) == AppUiStyle.gekiga) {
       return GekigaTileContent(
         leading: const Icon(Icons.edit_outlined),
-        title: Text(text, overflow: TextOverflow.ellipsis),
+        title: Text(text, overflow: TextOverflow.ellipsis, style: textStyle),
         onTap: onEdit,
       );
     }
@@ -2227,7 +2388,7 @@ class _RegisteredItemRow extends ConsumerWidget {
       onTap: onEdit,
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 8),
-        child: Text(text, overflow: TextOverflow.ellipsis),
+        child: Text(text, overflow: TextOverflow.ellipsis, style: textStyle),
       ),
     );
   }
@@ -2363,6 +2524,148 @@ class _NicknameDialogState extends ConsumerState<_NicknameDialog> {
           onDelete: () => Navigator.of(context).pop(const _EditResult.delete()),
           onSubmit: _submit,
           submitLabel: _isEdit ? strings.done : strings.add,
+          deleteLabel: strings.delete,
+        ),
+      ],
+    );
+    return isGlass
+        ? GlassAlertDialog(title: title, content: content)
+        : AlertDialog(title: title, content: content);
+  }
+}
+
+/// [_FontDesignMaterialDialog]の結果。保存（[design]、nullは「システムと同じ」）
+/// と削除の両方を区別する（[_EditResult]と同じ考え方だが、フォントデザインの
+/// 保存値自体がnullableなため専用の型にしている）。
+class _FontDesignEditResult {
+  const _FontDesignEditResult._({this.design, required this.isDelete});
+  const _FontDesignEditResult.save(FontDesign? design)
+    : this._(design: design, isDelete: false);
+  const _FontDesignEditResult.delete() : this._(isDelete: true);
+
+  final FontDesign? design;
+  final bool isDelete;
+}
+
+/// 蔵のフォントデザイン素材の追加・編集ダイアログ（2026-09-26追加）。
+/// ニックネーム等と違い自由入力ではなく、設定タブのフォントデザイン選択
+/// （`_FontDesignFolder`）と全く同じ「システムと同じ＋25種からのRadioGroup
+/// 選択、もっと見るで展開」というUIをそのまま流用する（ユーザー指示）。
+class _FontDesignMaterialDialog extends ConsumerStatefulWidget {
+  const _FontDesignMaterialDialog({this.initialDesign, this.isEdit = false});
+
+  /// 編集時の現在値（「システムと同じ」ならnull）。[isEdit]がfalseの新規
+  /// 追加時は無視し、選択初期値は常に「システムと同じ」にする。
+  final FontDesign? initialDesign;
+  final bool isEdit;
+
+  @override
+  ConsumerState<_FontDesignMaterialDialog> createState() =>
+      _FontDesignMaterialDialogState();
+}
+
+class _FontDesignMaterialDialogState
+    extends ConsumerState<_FontDesignMaterialDialog> {
+  late FontDesign? _selected = widget.isEdit ? widget.initialDesign : null;
+
+  void _submit() {
+    Navigator.of(context).pop(_FontDesignEditResult.save(_selected));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final strings = ref.watch(appStringsProvider);
+    final isGlass = ref.watch(appUiStyleProvider) == AppUiStyle.glass;
+    final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
+    final title = Text(
+      widget.isEdit
+          ? strings.profileFontDesignDialogEditTitle
+          : strings.profileFontDesignDialogTitle,
+    );
+
+    // 蔵での登録時点で毎回全件から選び直せるよう、設定タブと違い
+    // 「もっと見る」による絞り込みは行わず最初から全件表示する（ユーザー指示）。
+    Widget optionList;
+    if (isGekiga) {
+      optionList = GekigaJointedTileList(
+        seeds: [
+          'fontDesignSameAsSystem'.hashCode,
+          for (final value in FontDesign.values) value.hashCode,
+        ],
+        selectedFlags: [
+          _selected == null,
+          for (final value in FontDesign.values) _selected == value,
+        ],
+        children: [
+          GekigaTileContent(
+            selected: _selected == null,
+            leading: Icon(
+              _selected == null
+                  ? Icons.radio_button_checked
+                  : Icons.radio_button_unchecked,
+            ),
+            title: Text(strings.fontDesignSameAsSystemLabel),
+            onTap: () => setState(() => _selected = null),
+          ),
+          for (final value in FontDesign.values)
+            GekigaTileContent(
+              selected: _selected == value,
+              leading: Icon(
+                _selected == value
+                    ? Icons.radio_button_checked
+                    : Icons.radio_button_unchecked,
+              ),
+              title: Text(
+                strings.fontDesignLabel(value),
+                style: TextStyle(fontFamily: value.fontFamily),
+              ),
+              subtitle: value.isKiwamiExclusive
+                  ? Text(strings.fontDesignKiwamiExclusiveNotice)
+                  : null,
+              onTap: () => setState(() => _selected = value),
+            ),
+        ],
+      );
+    } else {
+      optionList = RadioGroup<FontDesign?>(
+        groupValue: _selected,
+        onChanged: (value) => setState(() => _selected = value),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            RadioListTile<FontDesign?>(
+              value: null,
+              title: Text(strings.fontDesignSameAsSystemLabel),
+            ),
+            for (final value in FontDesign.values)
+              RadioListTile<FontDesign?>(
+                value: value,
+                title: Text(
+                  strings.fontDesignLabel(value),
+                  style: TextStyle(fontFamily: value.fontFamily),
+                ),
+                subtitle: value.isKiwamiExclusive
+                    ? Text(strings.fontDesignKiwamiExclusiveNotice)
+                    : null,
+              ),
+          ],
+        ),
+      );
+    }
+
+    final content = Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxHeight: 360),
+          child: SingleChildScrollView(child: optionList),
+        ),
+        _DialogActionRow(
+          showDelete: widget.isEdit,
+          onDelete: () =>
+              Navigator.of(context).pop(const _FontDesignEditResult.delete()),
+          onSubmit: _submit,
+          submitLabel: widget.isEdit ? strings.done : strings.add,
           deleteLabel: strings.delete,
         ),
       ],
@@ -2677,6 +2980,22 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
           card.statusMessageId,
           strings,
         );
+      case 'fontDesign':
+        result = await _showTextMaterialMenu(
+          context,
+          position,
+          [
+            for (final m in widget.user.fontDesignMaterials)
+              (
+                m.id,
+                m.design == null
+                    ? strings.fontDesignSameAsSystemLabel
+                    : strings.fontDesignLabel(m.design!),
+              ),
+          ],
+          card.fontDesignId,
+          strings,
+        );
     }
     if (result == null || !mounted) return;
 
@@ -2688,7 +3007,11 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
         clearBackgroundImageId: id == null,
       ),
       'nickname' => card.copyWith(nicknameId: id, clearNicknameId: id == null),
-      _ => card.copyWith(statusMessageId: id, clearStatusMessageId: id == null),
+      'statusMessage' => card.copyWith(
+        statusMessageId: id,
+        clearStatusMessageId: id == null,
+      ),
+      _ => card.copyWith(fontDesignId: id, clearFontDesignId: id == null),
     };
     setState(() => _card = updated);
     await _persist();
@@ -2777,6 +3100,10 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
       card.statusMessageId,
     );
     final selectedSnsLinks = _selectedSnsLinksFor(widget.user, card.snsLinkIds);
+    final fontFamily = _findById(
+      widget.user.fontDesignMaterials,
+      card.fontDesignId,
+    )?.design?.fontFamily;
     // ニックネーム・ステメはカード内（背景画像や暗いオーバーレイの上）に
     // 表示するため、背景の有無で見やすい色を切り替える。カード名はカードの
     // 外（下、暗転した背景の上）に表示するため常に白系の固定色にする。
@@ -2784,8 +3111,11 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
     final statusColor = background != null
         ? Colors.white70
         : colorScheme.onSurfaceVariant;
-    // カード内のニックネーム（width*0.075）に近い比率で、カードの主見出しとして
-    // 十分読める大きさにする（以前の「既定サイズの8割」だと逆に小さすぎた）。
+    // カード内のニックネーム（[kProfileCardNicknameFontSize]）に近い比率で、
+    // カードの主見出しとして十分読める大きさにする（以前の「既定サイズの8割」
+    // だと逆に小さすぎた）。カード名自体はカード内要素ではなくカードの外
+    // （下）に表示するため、[kProfileCardNicknameFontSize]と揃える対象では
+    // なく、widthに応じて可変のままにする。
     final nameFontSize = (width * 0.06).clamp(16.0, 22.0);
 
     // カード名がズーム中も取り残されず一緒に移動して見えるよう、カード本体と
@@ -2871,7 +3201,7 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
                               ),
                             ),
                           Padding(
-                            padding: EdgeInsets.all(width * 0.08),
+                            padding: const EdgeInsets.all(kProfileCardPadding),
                             // アイコン・ニックネーム・ステメ・URLの4行を常に
                             // 収めるため、内容をFittedBoxで包み必要なら縮小する。
                             // Hero飛行中は矩形が対角2頂点それぞれ独立の円弧で
@@ -2891,7 +3221,7 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
                                         details.globalPosition,
                                     onTap: () => _pickMaterial('icon'),
                                     child: CircleAvatar(
-                                      radius: width * 0.13,
+                                      radius: kProfileCardAvatarRadius,
                                       backgroundImage: icon != null
                                           ? NetworkImage(icon.url)
                                           : null,
@@ -2904,7 +3234,9 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
                                           : null,
                                     ),
                                   ),
-                                  SizedBox(height: width * 0.05),
+                                  const SizedBox(
+                                    height: kProfileCardPadding * 0.6,
+                                  ),
                                   // カード内はニックネームを主役として表示し、
                                   // その下にステメを補足として表示する。
                                   GestureDetector(
@@ -2916,13 +3248,13 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                       style: TextStyle(
-                                        fontSize: width * 0.075,
+                                        fontSize: kProfileCardNicknameFontSize,
                                         fontWeight: FontWeight.bold,
                                         color: nicknameColor,
+                                        fontFamily: fontFamily,
                                       ),
                                     ),
                                   ),
-                                  SizedBox(height: width * 0.02),
                                   GestureDetector(
                                     onTapDown: (details) => _lastTapPosition =
                                         details.globalPosition,
@@ -2933,20 +3265,24 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                       style: TextStyle(
-                                        fontSize: width * 0.045,
+                                        fontSize: kProfileCardStatusFontSize,
                                         color: statusColor,
+                                        fontFamily: fontFamily,
                                       ),
                                     ),
                                   ),
-                                  SizedBox(height: width * 0.02),
+                                  const SizedBox(
+                                    height: kProfileCardPadding * 0.3,
+                                  ),
                                   SnsLinksInline(
                                     links: selectedSnsLinks,
-                                    iconSize: width * 0.045,
-                                    fontSize: width * 0.04,
+                                    iconSize: kProfileCardStatusFontSize,
+                                    fontSize: kProfileCardStatusFontSize * 0.9,
                                     color: statusColor,
                                     placeholder:
                                         strings.workshopSnsLinkFieldLabel,
                                     onTap: _pickSnsLinks,
+                                    fontFamily: fontFamily,
                                   ),
                                 ],
                               ),
@@ -3020,17 +3356,32 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
             top: -12,
             child: _RoundIconButton(onTap: _handleDelete),
           ),
+        // フォントデザインは呼び名・一言等と違いカード上に見た目として現れない
+        // 設定項目のため、専用のタップ領域（右上）を用意する（2026-09-26追加）。
+        Positioned(
+          right: -12,
+          top: -12,
+          child: _RoundIconButton(
+            icon: Icons.font_download_outlined,
+            onTap: () => _pickMaterial('fontDesign'),
+          ),
+        ),
       ],
     );
   }
 }
 
-/// ズームイン編集画面左上の削除ボタンに使う丸ボタン。
-/// Hero対象の外側に置くため、[_CardZoomEditor]の独自ウィジェットとして分離している。
+/// ズームイン編集画面左上の削除ボタン・右上のフォントデザインボタンに使う
+/// 丸ボタン。Hero対象の外側に置くため、[_CardZoomEditor]の独自ウィジェットと
+/// して分離している。
 class _RoundIconButton extends StatelessWidget {
-  const _RoundIconButton({required this.onTap});
+  const _RoundIconButton({
+    required this.onTap,
+    this.icon = Icons.delete_outline,
+  });
 
   final VoidCallback onTap;
+  final IconData icon;
 
   @override
   Widget build(BuildContext context) {
@@ -3042,9 +3393,9 @@ class _RoundIconButton extends StatelessWidget {
         customBorder: const CircleBorder(),
         // タップ範囲が狭いという指摘を受け、アイコン本体（18px）より
         // 一回り大きい余白（14px）を確保し、実質46px角の押しやすさにする。
-        child: const Padding(
-          padding: EdgeInsets.all(14),
-          child: Icon(Icons.delete_outline, size: 18, color: Colors.white),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Icon(icon, size: 18, color: Colors.white),
         ),
       ),
     );

@@ -45,6 +45,17 @@
 // 撤回した。実際の不具合は招待リンクの共有先ではなくDaiDaiアプリ内の
 // リンクプレビュー（`lib/widgets/link_preview_card.dart`）側で下半分が
 // クロップされていたことが原因で、そちらは別途`BoxFit.contain`化で対応済み。
+//
+// アイコン・フォント・余白の各pxは、`lib/widgets/profile_card_view.dart`の
+// `ProfileCardView`が使う固定値（`kProfileCardAvatarRadius`=64・
+// `kProfileCardPadding`=32・`kProfileCardNicknameFontSize`=28・
+// `kProfileCardStatusFontSize`=18、いずれもモバイル/PC問わず共通の固定サイズ、
+// 2026-09-26変更）を、このファイルのCARD_WIDTH（1200）を基準にスケール
+// （倍率 = CARD_WIDTH / 480。480はProfileCardViewの固定値が元々想定して
+// いたカード幅で、`UserProfileCardDialog`の最大カード幅と一致する）した
+// ものを使う。アプリ内のプレビュー（=工房カード）とOGP画像の見た目を
+// 完全に一致させるための対応で、以前は工房側の比率と無関係な独自のpx値
+// だったため、OGP画像だけアイコン・文字が明らかに小さく見えていた。
 
 import sharp from 'sharp';
 import { ImageResponse } from '@vercel/og';
@@ -56,6 +67,17 @@ const FIRESTORE_PROJECT_ID = 'daidai-rhing';
 // 決めるタイプのリンクプレビューでは表示が大きくなる場合がある）。
 const CARD_WIDTH = 1200;
 const CARD_HEIGHT = 1500;
+
+// `ProfileCardView`の固定値（想定カード幅480pxに対するもの）をCARD_WIDTHへ
+// スケールする倍率。
+const SCALE = CARD_WIDTH / 480;
+const ICON_SIZE = 64 * 2 * SCALE; // kProfileCardAvatarRadius×2（直径）
+const CONTENT_PADDING = 32 * SCALE; // kProfileCardPadding
+const NAME_FONT_SIZE = 28 * SCALE; // kProfileCardNicknameFontSize
+const DESCRIPTION_FONT_SIZE = 18 * SCALE; // kProfileCardStatusFontSize
+const SNS_FONT_SIZE = DESCRIPTION_FONT_SIZE * 0.9;
+const ICON_NAME_GAP = CONTENT_PADDING * 0.6;
+const SNS_LINKS_GAP = CONTENT_PADDING * 0.3;
 
 function el(type, style, children) {
   return { type, props: { style, children } };
@@ -118,13 +140,13 @@ export async function GET(request) {
     el(
       'div',
       {
-        width: 112,
-        height: 112,
+        width: ICON_SIZE,
+        height: ICON_SIZE,
         borderRadius: '50%',
         display: 'flex',
         overflow: 'hidden',
         backgroundColor: '#D8CCBB',
-        marginBottom: 28,
+        marginBottom: ICON_NAME_GAP,
       },
       iconDataUri
         ? [img(iconDataUri, { width: '100%', height: '100%', objectFit: 'cover' })]
@@ -132,7 +154,13 @@ export async function GET(request) {
     ),
     el(
       'div',
-      { display: 'flex', fontSize: 56, fontWeight: 700, color: textColor, lineHeight: 1.2 },
+      {
+        display: 'flex',
+        fontSize: NAME_FONT_SIZE,
+        fontWeight: 700,
+        color: textColor,
+        lineHeight: 1.2,
+      },
       [name],
     ),
   ];
@@ -141,17 +169,23 @@ export async function GET(request) {
     contentChildren.push(
       el(
         'div',
-        { display: 'flex', fontSize: 32, marginTop: 12, color: subTextColor },
+        { display: 'flex', fontSize: DESCRIPTION_FONT_SIZE, color: subTextColor },
         [description],
       ),
     );
   }
 
-  for (const link of snsLinks) {
+  for (const [index, link] of snsLinks.entries()) {
     contentChildren.push(
       el(
         'div',
-        { display: 'flex', alignItems: 'center', marginTop: 10, fontSize: 28, color: subTextColor },
+        {
+          display: 'flex',
+          alignItems: 'center',
+          marginTop: index === 0 ? SNS_LINKS_GAP : SNS_LINKS_GAP * 0.15,
+          fontSize: SNS_FONT_SIZE,
+          color: subTextColor,
+        },
         [`🔗 ${link}`],
       ),
     );
@@ -189,7 +223,7 @@ export async function GET(request) {
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'flex-start',
-        padding: 64,
+        padding: CONTENT_PADDING,
       },
       contentChildren,
     ),

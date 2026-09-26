@@ -2,6 +2,22 @@ import 'package:flutter/material.dart';
 
 import '../models/profile_material.dart';
 
+/// カード内のアイコン・余白・文字サイズは、カード自体の横幅（モバイルは
+/// 狭い・PCは広い）に関わらず常にこの固定値を使う（2026-09-26変更）。
+/// 以前は`width`に対する比率＋`.clamp()`で計算しており、クランプの上限が
+/// `UserProfileCardDialog`の最大カード幅（480px）付近を想定して調整されて
+/// いたため、それより広い工房カード一覧（最大640px）ではクランプに掛かって
+/// 頭打ちになる一方、クランプに掛からないモバイル幅ではほぼ素の比率のまま
+/// 表示され、同じカードなのにモバイルとPCで見た目が異なってしまっていた。
+/// PC（頭打ち時）の見た目が良いとのユーザー判断により、その頭打ち値
+/// （このクラスの各定数）をカード幅に関わらず常に使う固定サイズとして採用し、
+/// SNS向けOGP画像生成（`api/og-image.mjs`）もこの値をCARD_WIDTH基準に
+/// スケールして揃えている。
+const double kProfileCardAvatarRadius = 64.0;
+const double kProfileCardPadding = 32.0;
+const double kProfileCardNicknameFontSize = 28.0;
+const double kProfileCardStatusFontSize = 18.0;
+
 /// 身だしなみ・工房で作るプロフィールカードの見た目そのもの
 /// （背景画像＋アイコン・呼び名・ステメ・SNSリンクを左下にまとめた構成）を、
 /// 工房のカード一覧（`_WorkshopCardSlot`）とプロフィールカードダイアログ
@@ -9,9 +25,9 @@ import '../models/profile_material.dart';
 /// レイアウトを合わせ直すと（実際に2度ズレが起きた）、片方だけ更新されて
 /// デザインが食い違うため、実際の描画コード自体を1箇所にまとめている。
 ///
-/// カード内の比率（アイコン半径・余白・文字サイズ）は工房のカード一覧・
-/// ズーム編集画面（`profile_tab.dart`の`_WorkshopCardSlot`/`_CardZoomEditor`）
-/// と全く同じ計算式を使う。
+/// カード内のアイコン半径・余白・文字サイズは、カード幅に関わらず常に
+/// [kProfileCardAvatarRadius]等の固定値を使う。ズーム編集画面
+/// （`profile_tab.dart`の`_CardZoomEditor`）も同じ定数を使っている。
 class ProfileCardView extends StatelessWidget {
   const ProfileCardView({
     required this.width,
@@ -22,6 +38,7 @@ class ProfileCardView extends StatelessWidget {
     this.statusMessage,
     this.snsLinks = const [],
     this.borderRadius = const BorderRadius.all(Radius.circular(16)),
+    this.fontFamily,
     super.key,
   });
 
@@ -42,12 +59,19 @@ class ProfileCardView extends StatelessWidget {
   final List<SnsLink> snsLinks;
   final BorderRadius borderRadius;
 
+  /// カード作者が蔵で明示的に選んだフォントデザイン（2026-09-26追加）。
+  /// nullなら「システムと同じ」として何も指定せず、周囲の`Theme`（＝見る側の
+  /// 端末のフォントデザイン設定）をそのまま継承する。非nullの場合、見る側の
+  /// 設定に関わらずこのフォントで固定表示する。呼び出し側で
+  /// `AppUser.effectiveFontDesignFor(conversationId)?.fontFamily`等から解決する。
+  final String? fontFamily;
+
   @override
   Widget build(BuildContext context) {
-    final avatarRadius = (width * 0.13).clamp(18.0, 64.0);
-    final padding = (width * 0.08).clamp(12.0, 32.0);
-    final nicknameFontSize = (width * 0.075).clamp(14.0, 28.0);
-    final statusFontSize = (width * 0.045).clamp(11.0, 18.0);
+    const avatarRadius = kProfileCardAvatarRadius;
+    const padding = kProfileCardPadding;
+    const nicknameFontSize = kProfileCardNicknameFontSize;
+    const statusFontSize = kProfileCardStatusFontSize;
     final subtitleColor = background != null
         ? Colors.white70
         : Theme.of(context).colorScheme.onSurfaceVariant;
@@ -76,52 +100,63 @@ class ProfileCardView extends StatelessWidget {
               ),
             Padding(
               padding: EdgeInsets.all(padding),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  CircleAvatar(
-                    radius: avatarRadius,
-                    backgroundImage: icon != null
-                        ? NetworkImage(icon!.url)
-                        : null,
-                    backgroundColor: Colors.transparent,
-                    foregroundColor: Theme.of(
-                      context,
-                    ).colorScheme.onSurfaceVariant,
-                    child: icon == null ? const Icon(Icons.person) : null,
-                  ),
-                  SizedBox(height: padding * 0.6),
-                  Text(
-                    nickname,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: nicknameFontSize,
-                      fontWeight: FontWeight.bold,
-                      color: background != null ? Colors.white : null,
+              // アイコン・呼び名・一言・URLのサイズを固定値にしたことで、
+              // 想定より極端に狭いカード幅（呼び出し側のclamp下限等）では
+              // 収まりきらない可能性があるため、その場合だけ自動的に
+              // 縮小してオーバーフローを防ぐ（拡大はしない）。
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.bottomLeft,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    CircleAvatar(
+                      radius: avatarRadius,
+                      backgroundImage: icon != null
+                          ? NetworkImage(icon!.url)
+                          : null,
+                      backgroundColor: Colors.transparent,
+                      foregroundColor: Theme.of(
+                        context,
+                      ).colorScheme.onSurfaceVariant,
+                      child: icon == null ? const Icon(Icons.person) : null,
                     ),
-                  ),
-                  if (statusMessage != null && statusMessage!.isNotEmpty)
+                    SizedBox(height: padding * 0.6),
                     Text(
-                      statusMessage!,
+                      nickname,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        fontSize: statusFontSize,
-                        color: subtitleColor,
+                        fontSize: nicknameFontSize,
+                        fontWeight: FontWeight.bold,
+                        color: background != null ? Colors.white : null,
+                        fontFamily: fontFamily,
                       ),
                     ),
-                  if (snsLinks.isNotEmpty) ...[
-                    SizedBox(height: padding * 0.3),
-                    SnsLinksInline(
-                      links: snsLinks,
-                      iconSize: statusFontSize,
-                      fontSize: statusFontSize * 0.9,
-                      color: subtitleColor,
-                    ),
+                    if (statusMessage != null && statusMessage!.isNotEmpty)
+                      Text(
+                        statusMessage!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: statusFontSize,
+                          color: subtitleColor,
+                          fontFamily: fontFamily,
+                        ),
+                      ),
+                    if (snsLinks.isNotEmpty) ...[
+                      SizedBox(height: padding * 0.3),
+                      SnsLinksInline(
+                        links: snsLinks,
+                        iconSize: statusFontSize,
+                        fontSize: statusFontSize * 0.9,
+                        color: subtitleColor,
+                        fontFamily: fontFamily,
+                      ),
+                    ],
                   ],
-                ],
+                ),
               ),
             ),
           ],
@@ -142,6 +177,7 @@ class SnsLinksInline extends StatelessWidget {
     required this.color,
     this.placeholder,
     this.onTap,
+    this.fontFamily,
     super.key,
   });
 
@@ -153,6 +189,9 @@ class SnsLinksInline extends StatelessWidget {
   /// 未登録時に表示するプレースホルダー文言。nullなら未登録時は何も表示しない。
   final String? placeholder;
   final VoidCallback? onTap;
+
+  /// [ProfileCardView.fontFamily]参照。nullなら周囲の`Theme`を継承する。
+  final String? fontFamily;
 
   @override
   Widget build(BuildContext context) {
@@ -167,7 +206,11 @@ class SnsLinksInline extends StatelessWidget {
               const SizedBox(width: 4),
               Text(
                 placeholder!,
-                style: TextStyle(fontSize: fontSize, color: color),
+                style: TextStyle(
+                  fontSize: fontSize,
+                  color: color,
+                  fontFamily: fontFamily,
+                ),
               ),
             ],
           )
@@ -188,7 +231,11 @@ class SnsLinksInline extends StatelessWidget {
                           displaySnsLinkUrl(link.url),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: TextStyle(fontSize: fontSize, color: color),
+                          style: TextStyle(
+                            fontSize: fontSize,
+                            color: color,
+                            fontFamily: fontFamily,
+                          ),
                         ),
                       ),
                     ],

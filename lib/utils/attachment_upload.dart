@@ -111,6 +111,18 @@ String _extensionOf(String fileName) {
   return fileName.substring(dotIndex + 1).toLowerCase();
 }
 
+const _videoExtensions = {'mp4', 'mov', 'webm', 'mkv', 'avi'};
+
+/// `ImagePicker().pickMedia()`のように画像・動画いずれかを返す単一ピッカー
+/// から得た`XFile`が動画かどうかを、拡張子で判定する（2026-09-26追加）。
+/// `XFile.mimeType`はWeb以外のプラットフォームで信頼できない
+/// （image_pickerのio実装が明示的に渡さない限りnullのまま）ため、
+/// Webでは`mimeType`を優先しつつ拡張子ベースの判定にフォールバックする。
+bool isVideoFileName(String fileName, {String? mimeType}) {
+  if (mimeType != null) return mimeType.startsWith('video/');
+  return _videoExtensions.contains(_extensionOf(fileName));
+}
+
 const Map<String, String> _mimeTypesByExtension = {
   'pdf': 'application/pdf',
   'doc': 'application/msword',

@@ -47,6 +47,17 @@ abstract class AlbumRepository {
     required String albumId,
   });
 
+  /// その寄合（roomId）に投稿された画像・動画メッセージ一覧（2026-09-26追加、
+  /// アルバムへの「メッセージから追加」用）。`hiddenFor`によるクライアント側
+  /// フィルタは呼び出し側（`AlbumMessagePickerScreen`）の責務とする（他の
+  /// メッセージ一覧箇所と同じ慣習、`AlbumRepository`はDM/広場固有の概念に
+  /// 依存しない薄い設計方針のため）。
+  Stream<List<Message>> watchMediaMessages({
+    required bool isDm,
+    required String conversationId,
+    required String roomId,
+  });
+
   /// 画像・動画メッセージをアルバムに登録する。元ファイルをコピーして
   /// 独立保存するため、[message]の`fileMetadata`がnullの場合や
   /// `contentType`が`image`/`video`以外の場合は[ArgumentError]を投げる。
@@ -253,6 +264,26 @@ class FirestoreAlbumRepository implements AlbumRepository {
             );
       return items;
     });
+  }
+
+  @override
+  Stream<List<Message>> watchMediaMessages({
+    required bool isDm,
+    required String conversationId,
+    required String roomId,
+  }) {
+    return _roomsCollection(isDm, conversationId)
+        .doc(roomId)
+        .collection('messages')
+        .where('contentType', whereIn: ['image', 'video'])
+        .orderBy('sentAt', descending: true)
+        .limit(200)
+        .snapshots()
+        .map(
+          (snapshot) => snapshot.docs
+              .map((doc) => Message.fromJson(doc.id, doc.data()))
+              .toList(),
+        );
   }
 
   @override

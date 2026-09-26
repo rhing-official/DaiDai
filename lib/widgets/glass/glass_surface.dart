@@ -22,7 +22,10 @@ enum GlassVariant {
 
 /// Apple Liquid Glassのような「すりガラス越しに背景が透ける」マテリアル。
 /// アクセントカラーは背景の塗りには使わず、縁のうっすらとした光彩
-/// （リムライト）としてのみ表現する。
+/// （リムライト）としてのみ表現する（[fillColorOverride]未指定時の既定の
+/// 挙動。呼び出し側が明示的に[fillColorOverride]を指定した場合のみの例外で、
+/// チャット吹き出しの自分/相手の塗り分けなど、意図的にガラス越しの色みを
+/// 変えたい用途向け、2026-09-26追加）。
 ///
 /// [GlassVariant.chrome]/[.floating]は`BackdropFilter`で実際に背景をぼかす。
 /// [GlassVariant.card]は`BackdropFilter`を使わない。1回ごとにフルの
@@ -36,6 +39,7 @@ class GlassSurface extends ConsumerWidget {
     this.borderRadius = const BorderRadius.all(Radius.circular(20)),
     this.padding,
     this.accentColorOverride,
+    this.fillColorOverride,
     this.enableEdgeStroke = true,
     this.opaque = false,
     super.key,
@@ -49,6 +53,13 @@ class GlassSurface extends ConsumerWidget {
   /// 呼び出し側で明示的に色を指定したい場合（例: 選択中の状態を強調したい
   /// ナビチップ）に上書きする。未指定なら[accentColorProvider]の値を使う。
   final Color? accentColorOverride;
+
+  /// 塗り（[fillColor]のベース色）を呼び出し側で明示的に指定したい場合
+  /// （例: チャット吹き出しで自分/相手を塗り分ける、2026-09-26追加）に
+  /// 上書きする。未指定なら`colorScheme.surface`を使う（既存の見た目のまま）。
+  /// バリアント別の`tintAlpha`（半透明度）はこの値にもそのまま適用されるため、
+  /// ここに不透明な色を渡してもガラスの透け感自体は保たれる。
+  final Color? fillColorOverride;
 
   /// 縁の光彩ストローク（[_GlassEdgePainter]）を出すか。角丸の浮遊カード・
   /// タイル・ダイアログでは意匠の一部だが、`borderRadius: BorderRadius.zero`
@@ -83,7 +94,9 @@ class GlassSurface extends ConsumerWidget {
             GlassVariant.card => extras.cardTintAlpha,
           };
 
-    final fillColor = colorScheme.surface.withValues(alpha: tintAlpha);
+    final fillColor = (fillColorOverride ?? colorScheme.surface).withValues(
+      alpha: tintAlpha,
+    );
 
     Widget content = ClipRRect(
       borderRadius: borderRadius,

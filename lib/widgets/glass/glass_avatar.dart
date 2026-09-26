@@ -25,7 +25,18 @@ class GlassAvatar extends StatelessWidget {
         borderRadius: BorderRadius.circular(size / 2),
         child: ClipOval(
           child: image != null
-              ? Image(image: image!, fit: BoxFit.cover)
+              ? Image(
+                  image: image!,
+                  // 明示サイズを指定しないと、`GlassSurface`内の`Stack`が
+                  // 緩い（loose）制約しか渡さないため、正方形でない画像は
+                  // 本来のアスペクト比を保った（size×sizeより小さい）ボックス
+                  // として描画され、円の一部が透明のまま残ってしまっていた
+                  // （フラット版`_SenderAvatar`はContainerの明示サイズで
+                  // タイトな制約が伝わるため発生しない、2026-09-26修正）。
+                  width: size,
+                  height: size,
+                  fit: BoxFit.cover,
+                )
               : Center(child: fallback ?? const SizedBox.shrink()),
         ),
       ),
