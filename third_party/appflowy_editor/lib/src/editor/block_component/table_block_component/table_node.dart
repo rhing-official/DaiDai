@@ -143,7 +143,13 @@ class TableNode {
         0,
         (prev, cur) => prev + getRowHeight(cur) + _config.borderWidth,
       ) +
-      _config.borderWidth;
+      _config.borderWidth +
+      // 1行目（見出し行）と2行目の間の罫線だけ太線（borderWidth*2）で
+      // 描画される（table_col.dartの_buildCells参照）分を反映する
+      // （2026-09-27修正。以前はここが抜けており、この値を実際の高さの
+      // 制約として使うガター実装を追加した際に2pxのオーバーフローとして
+      // 顕在化した）。
+      (rowsLen >= 2 ? _config.borderWidth : 0);
 
   double getColWidth(int col) =>
       double.tryParse(
@@ -157,6 +163,58 @@ class TableNode {
         (prev, cur) => prev + getColWidth(cur) + _config.borderWidth,
       ) +
       _config.borderWidth;
+
+  // 以下は表の外周ルーラー（列の並び替えハンドル用の上端ルーラー・行の
+  // 並び替えハンドル用の左端ルーラー・列幅リサイズの当たり領域）が、
+  // ポインター座標から対象の列/行を求めるための補助（2026-09-27追加）。
+  // `tableWidth`/`colsHeight`の合計値の式はそのまま変更しない。
+
+  // col番目の列の右側罫線の中心x座標。
+  double colDividerCenterX(int col) {
+    double x = _config.borderWidth;
+    for (var i = 0; i < col; i++) {
+      x += getColWidth(i) + _config.borderWidth;
+    }
+    return x + getColWidth(col) + _config.borderWidth / 2;
+  }
+
+  // x座標からその位置が属する列のインデックスを求める。
+  int colIndexAtX(double dx) {
+    double x = _config.borderWidth;
+    for (var i = 0; i < colsLen; i++) {
+      final w = getColWidth(i);
+      if (dx < x + w + _config.borderWidth || i == colsLen - 1) {
+        return i;
+      }
+      x += w + _config.borderWidth;
+    }
+    return colsLen - 1;
+  }
+
+  // row番目の行の上端y座標。1行目（見出し行）の直後だけ罫線が太い
+  // （`table_col.dart`の`_buildCells`参照）ことを反映する。
+  double rowTopY(int row) {
+    double y = _config.borderWidth;
+    for (var i = 0; i < row; i++) {
+      y += getRowHeight(i) +
+          (i == 0 ? _config.borderWidth * 2 : _config.borderWidth);
+    }
+    return y;
+  }
+
+  // y座標からその位置が属する行のインデックスを求める。
+  int rowIndexAtY(double dy) {
+    double y = _config.borderWidth;
+    for (var i = 0; i < rowsLen; i++) {
+      final h = getRowHeight(i);
+      final divider = i == 0 ? _config.borderWidth * 2 : _config.borderWidth;
+      if (dy < y + h + divider || i == rowsLen - 1) {
+        return i;
+      }
+      y += h + divider;
+    }
+    return rowsLen - 1;
+  }
 
   void setColWidth(
     int col,

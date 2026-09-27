@@ -31,6 +31,22 @@
 
   <title>daidai</title>
   <link rel="manifest" href="manifest.json">
+
+  <!-- Flutter Web用の隠しIME入力要素等で、ブラウザ純正のテキスト選択ハイライトが
+       見えてしまい、アプリ自身の選択ハイライトと二重に見える不具合の対策
+       （2026-09-27追加）。アプリ自身の選択ハイライトはcanvas描画のため、
+       これらのルールとは無関係に働き続ける。 -->
+  <style>
+    flt-glass-pane, flt-glass-pane *,
+    flt-text-editing-host, flt-text-editing-host * {
+      -webkit-user-select: none;
+      -moz-user-select: none;
+      user-select: none;
+    }
+    input::selection, textarea::selection, ::selection {
+      background: transparent !important;
+    }
+  </style>
 </head>
 <body>
   <!--

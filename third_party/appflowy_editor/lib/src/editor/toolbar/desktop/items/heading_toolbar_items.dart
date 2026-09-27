@@ -1,4 +1,5 @@
 import 'package:appflowy_editor/appflowy_editor.dart';
+import 'package:appflowy_editor/src/editor/block_component/base_component/markdown_prefix_reveal.dart';
 
 List<ToolbarItem> headingItems = [1, 2, 3]
     .map((index) => _HeadingToolbarItem(index))
@@ -31,19 +32,44 @@ class _HeadingToolbarItem extends ToolbarItem {
               iconColor: iconColor,
               onPressed: () => editorState.formatNode(
                 selection,
-                (node) => node.copyWith(
-                  type: isHighlight
-                      ? ParagraphBlockKeys.type
-                      : HeadingBlockKeys.type,
-                  attributes: {
-                    HeadingBlockKeys.level: level,
-                    blockComponentBackgroundColor:
-                        node.attributes[blockComponentBackgroundColor],
-                    blockComponentTextDirection:
-                        node.attributes[blockComponentTextDirection],
-                    blockComponentDelta: delta,
-                  },
-                ),
+                (node) {
+                  if (isHighlight) {
+                    return node.copyWith(
+                      type: ParagraphBlockKeys.type,
+                      attributes: {
+                        blockComponentBackgroundColor:
+                            node.attributes[blockComponentBackgroundColor],
+                        blockComponentTextDirection:
+                            node.attributes[blockComponentTextDirection],
+                        blockComponentDelta: delta,
+                      },
+                    );
+                  }
+                  // ボタンで見出しに変換した場合も、`# `入力による変換と同じ
+                  // ように先頭記号を保持する（2026-09-27修正、DaiDai側の
+                  // 対応）。以前はここで`#`を一切挿入せず、カーソルを合わせても
+                  // `#`が現れないという不一致があった。
+                  final prefixed = applyMarkdownPrefix(
+                    existingDelta: node.delta ?? Delta(),
+                    existingMarkdownPrefixLength:
+                        node.attributes[HeadingBlockKeys.markdownPrefixLength]
+                            as int?,
+                    prefix: '${'#' * level} ',
+                  );
+                  return node.copyWith(
+                    type: HeadingBlockKeys.type,
+                    attributes: {
+                      HeadingBlockKeys.level: level,
+                      HeadingBlockKeys.markdownPrefixLength:
+                          prefixed.markdownPrefixLength,
+                      blockComponentBackgroundColor:
+                          node.attributes[blockComponentBackgroundColor],
+                      blockComponentTextDirection:
+                          node.attributes[blockComponentTextDirection],
+                      blockComponentDelta: prefixed.delta.toJson(),
+                    },
+                  );
+                },
               ),
             );
 

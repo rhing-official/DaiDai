@@ -15,6 +15,24 @@ enum BlockSelectionType {
   block,
 }
 
+/// テーブルの複数セル選択時、各セル内の通常のテキストハイライトを個別に
+/// 描画せず、代わりに選択範囲全体を囲む1つの枠線を表示するための抑制スコープ
+/// （2026-09-27追加、DaiDai側の対応。`table_block_component.dart`参照）。
+/// 存在しない祖先を辿った場合は何も変わらない（常に非表示のまま）ため、
+/// テーブル以外の描画には影響しない。
+class SuppressBlockSelectionHighlight extends InheritedWidget {
+  const SuppressBlockSelectionHighlight({super.key, required super.child});
+
+  static bool of(BuildContext context) {
+    return context.dependOnInheritedWidgetOfExactType<
+            SuppressBlockSelectionHighlight>() !=
+        null;
+  }
+
+  @override
+  bool updateShouldNotify(SuppressBlockSelectionHighlight oldWidget) => false;
+}
+
 /// [BlockSelectionArea] is a widget that renders the selection area or the cursor of a block.
 class BlockSelectionArea extends StatefulWidget {
   const BlockSelectionArea({
@@ -148,7 +166,8 @@ class _BlockSelectionAreaState extends State<BlockSelectionArea> {
           return cursor;
         } else {
           // show the selection area when the selection is not collapsed
-          if (!widget.supportTypes.contains(BlockSelectionType.selection) ||
+          if (SuppressBlockSelectionHighlight.of(context) ||
+              !widget.supportTypes.contains(BlockSelectionType.selection) ||
               prevSelectionRects == null ||
               prevSelectionRects!.isEmpty ||
               (prevSelectionRects!.length == 1 &&

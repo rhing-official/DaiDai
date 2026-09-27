@@ -301,6 +301,12 @@ class _SelectionMenuWidgetState extends State<SelectionMenuWidget> {
   final _focusNode = FocusNode(debugLabel: 'popup_list_widget');
 
   int _selectedIndex = 0;
+  // メニューを開いた直後は矢印キー/Tabでまだ何も操作していないため、先頭
+  // 項目（index 0）が常に選択済みに見えてしまう不具合の修正
+  // （2026-09-27追加、DaiDai側の対応）。`_selectedIndex`自体は0のままにし、
+  // Enterキーでの先頭項目確定という既存挙動は変えず、見た目上のハイライト
+  // だけキーボード操作するまで表示しないようにする。
+  bool _hasNavigated = false;
   List<SelectionMenuItem> _showingItems = [];
   AutoScrollController? _scrollController;
 
@@ -390,7 +396,7 @@ class _SelectionMenuWidgetState extends State<SelectionMenuWidget> {
                 context,
                 _showingItems,
                 widget.itemCountFilter,
-                _selectedIndex,
+                _hasNavigated ? _selectedIndex : -1,
               ),
       ),
     );
@@ -600,6 +606,7 @@ class _SelectionMenuWidgetState extends State<SelectionMenuWidget> {
     if (newSelectedIndex != _selectedIndex) {
       setState(() {
         _selectedIndex = newSelectedIndex.clamp(0, _showingItems.length - 1);
+        _hasNavigated = true;
         _scrollToSelectedIndex();
       });
       return KeyEventResult.handled;

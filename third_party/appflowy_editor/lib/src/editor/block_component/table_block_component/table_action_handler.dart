@@ -78,25 +78,25 @@ Widget defaultMenuBuilder(
   int position,
   TableDirection dir,
 ) {
-  return Card(
-    elevation: 3.0,
-    child: MouseRegion(
-      cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        onTap: () => showActionMenu(
-          context,
-          node,
-          editorState,
-          position,
-          dir,
-        ),
-        child: dir == TableDirection.col
-            ? Transform.rotate(
-                angle: math.pi / 2,
-                child: TableDefaults.handlerIcon,
-              )
-            : TableDefaults.handlerIcon,
+  // 添付画像を参考に、影付きの`Card`ではなく枠線の外に浮かぶ素のアイコンに
+  // する（2026-09-27変更、ユーザー指示。CLAUDE.mdの「マテリアルに影を一切
+  // 使わない」方針にも合わせた）。
+  return MouseRegion(
+    cursor: SystemMouseCursors.click,
+    child: GestureDetector(
+      onTap: () => showActionMenu(
+        context,
+        node,
+        editorState,
+        position,
+        dir,
       ),
+      child: dir == TableDirection.col
+          ? Transform.rotate(
+              angle: math.pi / 2,
+              child: TableDefaults.handlerIcon,
+            )
+          : TableDefaults.handlerIcon,
     ),
   );
 }

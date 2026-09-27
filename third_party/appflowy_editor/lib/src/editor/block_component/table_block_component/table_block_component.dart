@@ -1,4 +1,7 @@
+import 'dart:math';
+
 import 'package:appflowy_editor/appflowy_editor.dart';
+import 'package:appflowy_editor/src/editor/block_component/base_component/selection/block_selection_area.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -212,12 +215,102 @@ class _TableBlockComponentWidgetState extends State<TableBlockComponentWidget>
   late final editorState = Provider.of<EditorState>(context, listen: false);
   final _scrollController = ScrollController();
 
+  // 複数セルにまたがる選択が行われた時、選択範囲全体を囲む枠線を描画する
+  // ための矩形（2026-09-27追加、ユーザー指示。Notion/スプレッドシートの
+  // セル範囲選択を参考にした）。単一セル内のテキスト選択の間はnullのままで、
+  // 従来通りの通常のテキストハイライトに任せる。
+  Rect? _rangeSelectionRect;
+
+  @override
+  void initState() {
+    super.initState();
+    editorState.selectionNotifier.addListener(_updateRangeSelectionRect);
+    _scrollController.addListener(_updateRangeSelectionRect);
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _updateRangeSelectionRect(),
+    );
+  }
+
+  @override
+  void dispose() {
+    editorState.selectionNotifier.removeListener(_updateRangeSelectionRect);
+    _scrollController.removeListener(_updateRangeSelectionRect);
+    super.dispose();
+  }
+
+  void _updateRangeSelectionRect() {
+    if (!mounted) return;
+    final selection = editorState.selection;
+    final rect = (selection != null && !selection.isCollapsed)
+        ? _computeCellRangeRect(selection)
+        : null;
+    if (rect != _rangeSelectionRect) {
+      setState(() => _rangeSelectionRect = rect);
+    }
+  }
+
+  Node? _findAncestorCell(Path path) {
+    var node = editorState.getNodeAtPath(path);
+    while (node != null && node.type != TableCellBlockKeys.type) {
+      node = node.parent;
+    }
+    return node;
+  }
+
+  Rect? _computeCellRangeRect(Selection selection) {
+    final startCell = _findAncestorCell(selection.start.path);
+    final endCell = _findAncestorCell(selection.end.path);
+    if (startCell == null ||
+        endCell == null ||
+        startCell.parent != widget.node ||
+        endCell.parent != widget.node ||
+        startCell == endCell) {
+      return null;
+    }
+    final startRow =
+        startCell.attributes[TableCellBlockKeys.rowPosition] as int;
+    final startCol =
+        startCell.attributes[TableCellBlockKeys.colPosition] as int;
+    final endRow = endCell.attributes[TableCellBlockKeys.rowPosition] as int;
+    final endCol = endCell.attributes[TableCellBlockKeys.colPosition] as int;
+    final rowMin = min(startRow, endRow);
+    final rowMax = max(startRow, endRow);
+    final colMin = min(startCol, endCol);
+    final colMax = max(startCol, endCol);
+    final topLeftCell = widget.tableNode.getCell(colMin, rowMin);
+    final bottomRightCell = widget.tableNode.getCell(colMax, rowMax);
+    final tableBox = tableKey.currentContext?.findRenderObject();
+    final topLeftBox = topLeftCell.key.currentContext?.findRenderObject();
+    final bottomRightBox =
+        bottomRightCell.key.currentContext?.findRenderObject();
+    if (tableBox is! RenderBox ||
+        topLeftBox is! RenderBox ||
+        bottomRightBox is! RenderBox) {
+      return null;
+    }
+    final topLeft = topLeftBox.localToGlobal(Offset.zero, ancestor: tableBox);
+    final bottomRight = bottomRightBox.localToGlobal(
+      bottomRightBox.size.bottomRight(Offset.zero),
+      ancestor: tableBox,
+    );
+    return Rect.fromPoints(topLeft, bottomRight);
+  }
+
   @override
   Widget build(BuildContext context) {
     Widget child = Scrollbar(
       controller: _scrollController,
+      // 列の追加・列幅リサイズで表が表示領域の右端を超えて見えなくなっても
+      // スクロール可能なことが常に分かるよう、常時表示にする
+      // （2026-09-27追加、ユーザー指摘）。
+      thumbVisibility: true,
       child: SingleChildScrollView(
-        padding: const EdgeInsets.only(top: 10, left: 10, bottom: 4),
+        // 左のパディングは本文（段落等）の左端と揃えるために無くした
+        // （2026-09-27修正、ユーザー指示）。以前は列のリサイズハンドル用に
+        // 10px確保していたが、ホバー時のみ表示されるハンドルのはみ出しより
+        // 本文との左揃えを優先する。表は行の並び替えハンドル用ガターの分
+        // だけ右にずれる（2026-09-27、ユーザー確認済み）。
+        padding: const EdgeInsets.only(top: 10, bottom: 4),
         controller: _scrollController,
         scrollDirection: Axis.horizontal,
         child: TableView(
@@ -225,15 +318,46 @@ class _TableBlockComponentWidgetState extends State<TableBlockComponentWidget>
           editorState: editorState,
           menuBuilder: widget.menuBuilder,
           tableStyle: widget.tableStyle,
+          scrollController: _scrollController,
         ),
       ),
     );
+
+    // 複数セル選択中は、各セルの個別ハイライトの代わりに選択範囲全体を囲む
+    // 枠線オーバーレイ（下記）だけを見せる（2026-09-27追加、ユーザー指示）。
+    if (_rangeSelectionRect != null) {
+      child = SuppressBlockSelectionHighlight(child: child);
+    }
 
     child = Padding(
       key: tableKey,
       padding: padding,
       child: child,
     );
+
+    final rangeSelectionRect = _rangeSelectionRect;
+    if (rangeSelectionRect != null) {
+      child = Stack(
+        children: [
+          child,
+          Positioned.fromRect(
+            rect: rangeSelectionRect,
+            child: IgnorePointer(
+              child: Container(
+                decoration: BoxDecoration(
+                  border: Border.all(
+                    color: editorState.editorStyle.cursorColor,
+                    width: 2,
+                  ),
+                  borderRadius: BorderRadius.circular(6),
+                  color: editorState.editorStyle.selectionColor,
+                ),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
 
     child = BlockSelectionContainer(
       node: node,

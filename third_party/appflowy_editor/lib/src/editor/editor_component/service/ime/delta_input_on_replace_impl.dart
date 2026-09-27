@@ -18,6 +18,21 @@ Future<void> onReplace(
   }
 
   if (selection.isSingle) {
+    // モバイルのIMEが`# `等を1回の置換イベントでまとめて送ってきた場合、
+    // `onInsert`側で行う「トリガーより前の部分を先に挿入→末尾のトリガー
+    // 文字だけ判定」という分割処理に委譲する（2026-09-26追加、DaiDai側の
+    // 対応。ロジックの重複を避けるため、判定に一致する場合だけ挿入への
+    // 変換経路に合流させる）。
+    if (splitTrailingMarkdownShortcutTrigger(replacement.replacementText) !=
+        null) {
+      await onInsert(
+        replacement.toInsertion(),
+        editorState,
+        characterShortcutEvents,
+      );
+      return;
+    }
+
     final execution = await executeCharacterShortcutEvent(
       editorState,
       replacement.replacementText,

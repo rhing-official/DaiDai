@@ -21,6 +21,7 @@ import '../../providers/block_providers.dart';
 import '../../providers/chat_navigation_providers.dart';
 import '../../providers/chat_room_message_cache.dart';
 import '../../providers/conversation_prefs_providers.dart';
+import '../../providers/last_opened_room_provider.dart';
 import '../../providers/repository_providers.dart';
 import '../../providers/user_providers.dart';
 import '../../repositories/group_repository.dart';
@@ -292,6 +293,13 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
           .watchLatestDayMessages(widget.dm.dmId, _currentRoomId),
     );
     _scheduleGuaranteedMessagesEmit();
+    // この一対で最後に開いていた寄合として記憶する（2026-09-26追加）。
+    // 広い分割表示・アイコン＋寄合一覧レイアウトはどちらも寄合idを含む
+    // `ValueKey`でこのStateを寄合ごとに作り直すため、`initState`だけで
+    // それらの経路を網羅できる（同一State内での切り替えは`_switchRoom`側）。
+    ref
+        .read(lastOpenedRoomProvider.notifier)
+        .setLastRoom(ViewedDm(widget.dm.dmId), _currentRoomId);
   }
 
   void _onCacheEntryChanged() {
@@ -352,6 +360,9 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
     oldEntry.removeListener(_onCacheEntryChanged);
     ref.read(chatRoomMessageCacheManagerProvider).detach(oldKey, oldEntry);
     _scheduleGuaranteedMessagesEmit();
+    ref
+        .read(lastOpenedRoomProvider.notifier)
+        .setLastRoom(ViewedDm(widget.dm.dmId), roomId);
   }
 
   Future<void> _loadOlderMessages() {
@@ -1844,6 +1855,10 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
           .watchLatestDayRoomMessages(widget.group.groupId, _currentRoomId),
     );
     _scheduleGuaranteedMessagesEmit();
+    // `_DmChatPaneState.initState`と同じ理由（2026-09-26追加）。
+    ref
+        .read(lastOpenedRoomProvider.notifier)
+        .setLastRoom(ViewedGroup(widget.group.groupId), _currentRoomId);
   }
 
   void _onCacheEntryChanged() {
@@ -1894,6 +1909,9 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
     oldEntry.removeListener(_onCacheEntryChanged);
     ref.read(chatRoomMessageCacheManagerProvider).detach(oldKey, oldEntry);
     _scheduleGuaranteedMessagesEmit();
+    ref
+        .read(lastOpenedRoomProvider.notifier)
+        .setLastRoom(ViewedGroup(widget.group.groupId), roomId);
   }
 
   Future<void> _loadOlderMessages() {

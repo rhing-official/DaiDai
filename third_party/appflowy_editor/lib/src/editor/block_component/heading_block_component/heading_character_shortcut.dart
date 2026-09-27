@@ -26,11 +26,23 @@ CharacterShortcutEvent formatSignToHeading = CharacterShortcutEvent(
       return [
         headingNode(
           level: numberOfSign,
-          delta: delta.compose(Delta()..delete(numberOfSign)),
+          // `#`を削除せず残し、消費されたトリガーのスペースを挿入する
+          // （2026-09-26変更、DaiDai側の対応。Obsidianのライブプレビュー同様、
+          // 常に生のMarkdownテキストを保持し描画側でカーソル行のみ表示する
+          // ため）。
+          delta: delta.compose(Delta()
+            ..retain(numberOfSign)
+            ..insert(' ')),
+          attributes: {
+            HeadingBlockKeys.markdownPrefixLength: numberOfSign + 1,
+          },
         ),
         if (node.children.isNotEmpty) ...node.children,
       ];
     },
+    // `#`/スペースを保持したままにしたため、変換後のカーソルは行頭ではなく
+    // 元テキストの直後に置く（2026-09-26追加）。
+    cursorOffset: (text) => text.length + 1,
   ),
 );
 

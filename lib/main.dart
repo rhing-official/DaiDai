@@ -26,6 +26,7 @@ import 'providers/removed_default_color_presets_provider.dart';
 import 'providers/draft_sync_enabled_provider.dart';
 import 'providers/font_design_provider.dart';
 import 'providers/gekiga_background_color_provider.dart';
+import 'providers/last_opened_room_provider.dart';
 import 'providers/message_time_format_provider.dart';
 import 'providers/notification_sound_provider.dart';
 import 'providers/ringtone_sound_provider.dart';
@@ -83,6 +84,7 @@ Future<void> main() async {
   final initialMessageTimeFormat = await loadInitialMessageTimeFormat();
   final initialChatLayoutStyle = await loadInitialChatLayoutStyle();
   final initialTalksListLayoutStyle = await loadInitialTalksListLayoutStyle();
+  final initialLastOpenedRooms = await loadInitialLastOpenedRooms();
   final initialAppThemeMode = await loadInitialAppThemeMode();
   final initialAppUiStyle = await loadInitialAppUiStyle();
   final initialConversationSortOrder = await loadInitialConversationSortOrder();
@@ -133,6 +135,9 @@ Future<void> main() async {
         ),
         initialTalksListLayoutStyleProvider.overrideWithValue(
           initialTalksListLayoutStyle,
+        ),
+        initialLastOpenedRoomsProvider.overrideWithValue(
+          initialLastOpenedRooms,
         ),
         initialAppThemeModeProvider.overrideWithValue(initialAppThemeMode),
         initialAppUiStyleProvider.overrideWithValue(initialAppUiStyle),

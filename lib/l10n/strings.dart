@@ -652,6 +652,16 @@ class Strings {
     required this.noteMenuNumberedList,
     required this.noteMenuQuote,
     required this.noteMenuAttachment,
+    required this.noteMenuImage,
+    required this.noteMenuAudio,
+    required this.noteMenuFile,
+    required this.noteMenuEmbed,
+    required this.noteMenuTable,
+    required this.noteMenuTableOfContents,
+    required this.noteEmbedUrlPromptTitle,
+    required this.noteEmbedUrlPromptHint,
+    required this.noteEmbedUrlPromptConfirm,
+    required this.noteTableOfContentsEmpty,
     required this.settingsPasscodeLockToggleLabel,
     required this.settingsPasscodeLockDescription,
     required this.settingsPasscodeBiometricToggleLabel,
@@ -1578,6 +1588,16 @@ class Strings {
   final String noteMenuNumberedList;
   final String noteMenuQuote;
   final String noteMenuAttachment;
+  final String noteMenuImage;
+  final String noteMenuAudio;
+  final String noteMenuFile;
+  final String noteMenuEmbed;
+  final String noteMenuTable;
+  final String noteMenuTableOfContents;
+  final String noteEmbedUrlPromptTitle;
+  final String noteEmbedUrlPromptHint;
+  final String noteEmbedUrlPromptConfirm;
+  final String noteTableOfContentsEmpty;
   final String settingsPasscodeLockToggleLabel;
   final String settingsPasscodeLockDescription;
   final String settingsPasscodeBiometricToggleLabel;
@@ -2284,6 +2304,16 @@ class Strings {
     noteMenuNumberedList: '番号付きリスト',
     noteMenuQuote: '引用',
     noteMenuAttachment: '添付ファイル',
+    noteMenuImage: '画像',
+    noteMenuAudio: '音声',
+    noteMenuFile: 'ファイル',
+    noteMenuEmbed: 'URL',
+    noteMenuTable: '表',
+    noteMenuTableOfContents: '目次',
+    noteEmbedUrlPromptTitle: 'URLを埋め込み',
+    noteEmbedUrlPromptHint: 'https://...',
+    noteEmbedUrlPromptConfirm: '埋め込む',
+    noteTableOfContentsEmpty: '見出しがありません',
     settingsPasscodeLockToggleLabel: 'パスコードロック',
     settingsPasscodeLockDescription:
         '有効にすると、アプリを起動するたびにパスコード（または生体認証）の入力が必要になります。',
@@ -3074,6 +3104,16 @@ class Strings {
     noteMenuNumberedList: 'Numbered list',
     noteMenuQuote: 'Quote',
     noteMenuAttachment: 'Attachment',
+    noteMenuImage: 'Image',
+    noteMenuAudio: 'Audio',
+    noteMenuFile: 'File',
+    noteMenuEmbed: 'URL',
+    noteMenuTable: 'Table',
+    noteMenuTableOfContents: 'Table of contents',
+    noteEmbedUrlPromptTitle: 'Embed URL',
+    noteEmbedUrlPromptHint: 'https://...',
+    noteEmbedUrlPromptConfirm: 'Embed',
+    noteTableOfContentsEmpty: 'No headings yet',
     settingsPasscodeLockToggleLabel: 'Passcode lock',
     settingsPasscodeLockDescription:
         'When enabled, you\'ll need to enter a passcode (or use biometrics) every time you launch the app.',

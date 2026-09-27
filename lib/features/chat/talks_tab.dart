@@ -29,6 +29,7 @@ import '../../providers/conversation_prefs_providers.dart';
 import '../../providers/conversation_sort_order_provider.dart';
 import '../../providers/friend_providers.dart';
 import '../../providers/group_join_request_providers.dart';
+import '../../providers/last_opened_room_provider.dart';
 import '../../providers/message_time_format_provider.dart';
 import '../../providers/repository_providers.dart';
 import '../../providers/talks_list_layout_style_provider.dart';
@@ -440,6 +441,18 @@ class _TalksTabState extends ConsumerState<TalksTab>
         ref.read(talksListLayoutStyleProvider) ==
             TalksListLayoutStyle.iconSplit;
     if (_isSplit || useIconSplitSelection) {
+      // 既にこの一対が選択中（＝寄合一覧が表示済み）のアイコンを、モバイル幅
+      // （[_showIconSplitPeek]がfalse、チャット本体を同時表示しないため
+      // タップの2回目に意味がある）でもう一度タップした場合は、選択のやり
+      // 直しではなく選択中の寄合へ直接フルスクリーン遷移する（2026-09-26
+      // 追加のUX改善、要望「アイコン2回タップで開く」）。
+      if (!_showIconSplitPeek &&
+          !_isSplit &&
+          _selectedDm?.dmId == dm.dmId &&
+          dm.roomsEnabled) {
+        await _pushDmRoomFullscreen(dm);
+        return;
+      }
       // 別の会話に切り替えたら、直前の会話で畳んでいた状態
       // （[_iconSplitCollapse]）を引き継がず、寄合一覧から見せ直す
       // （2026-09-12追加）。
@@ -451,10 +464,17 @@ class _TalksTabState extends ConsumerState<TalksTab>
       return;
     }
     // 狭い画面では、複数モードでも寄合一覧のドリルダウン画面を経由せず、
-    // 常に一番上の寄合でチャット画面へ直接遷移する。寄合の切り替えは
-    // チャット画面上部の横スクロールタブバー（`RoomTabBar`）から行う
-    // （2026-08-03変更、以前は複数モードのみ`/chat/dm-rooms`を経由していた。
-    // 2026-08-09変更、一番上（最古）の寄合を開くように変更）。
+    // 直接チャット画面へ遷移する。寄合の切り替えはチャット画面上部の横
+    // スクロールタブバー（`RoomTabBar`）から行う（2026-08-03変更、以前は
+    // 複数モードのみ`/chat/dm-rooms`を経由していた）。
+    await _pushDmRoomFullscreen(dm);
+  }
+
+  /// [dm]のチャット画面へフルスクリーン遷移する。開く寄合は、この一対で
+  /// 最後に開いていた寄合（[lastOpenedRoomProvider]）が実在すればそれを、
+  /// 無ければ一番上（最古）の寄合を使う（2026-09-26変更、以前は常に
+  /// 一番上の寄合へ決め打ちしていた）。
+  Future<void> _pushDmRoomFullscreen(DirectMessage dm) async {
     final rooms = await ref
         .read(directMessageRepositoryProvider)
         .watchRooms(dmId: dm.dmId, userId: widget.currentUser.userId)
@@ -463,9 +483,15 @@ class _TalksTabState extends ConsumerState<TalksTab>
     // 壊れたデータのみ（`DirectMessageRepository.getOrCreateDirectMessage`の
     // 自己修復ロジック参照）。その場合は遷移をあきらめる。
     if (rooms.isEmpty) return;
-    final topRoomId = rooms.first.roomId;
+    final lastRoomId = ref
+        .read(lastOpenedRoomProvider.notifier)
+        .lastRoomFor(ViewedDm(dm.dmId));
+    final targetRoomId =
+        (lastRoomId != null && rooms.any((r) => r.roomId == lastRoomId))
+        ? lastRoomId
+        : rooms.first.roomId;
     final roomName =
-        rooms.firstWhereOrNull((r) => r.roomId == topRoomId)?.name ?? 'メイン';
+        rooms.firstWhereOrNull((r) => r.roomId == targetRoomId)?.name ?? 'メイン';
     ref
         .read(goRouterProvider)
         .push(
@@ -473,7 +499,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
           extra: DmChatArgs(
             currentUser: widget.currentUser,
             dm: dm,
-            roomId: topRoomId,
+            roomId: targetRoomId,
             roomName: roomName,
             enterFromRight: true,
           ),
@@ -489,7 +515,15 @@ class _TalksTabState extends ConsumerState<TalksTab>
         ref.read(talksListLayoutStyleProvider) ==
             TalksListLayoutStyle.iconSplit;
     if (_isSplit || useIconSplitSelection) {
-      // [_openDirectMessage]と同じ理由（2026-09-12追加）。
+      // [_openDirectMessage]と同じ理由（2026-09-12追加、2026-09-26に2回目
+      // タップの直接遷移を追加）。
+      if (!_showIconSplitPeek &&
+          !_isSplit &&
+          _selectedGroup?.groupId == group.groupId &&
+          group.roomsEnabled) {
+        await _pushGroupRoomFullscreen(group);
+        return;
+      }
       _setIconSplitCollapse(0);
       setState(() {
         _selectedGroup = group;
@@ -497,16 +531,27 @@ class _TalksTabState extends ConsumerState<TalksTab>
       });
       return;
     }
-    // 一対と同じく、一番上（最古）の寄合を開く（2026-08-09変更）。
+    // [_openDirectMessage]と同じ理由。
+    await _pushGroupRoomFullscreen(group);
+  }
+
+  /// [_pushDmRoomFullscreen]の広場版（2026-09-26追加）。
+  Future<void> _pushGroupRoomFullscreen(Group group) async {
     final rooms = await ref
         .read(groupRepositoryProvider)
         .watchRooms(groupId: group.groupId, userId: widget.currentUser.userId)
         .first;
-    // [_openDirectMessage]と同じ理由。
+    // [_pushDmRoomFullscreen]と同じ理由。
     if (rooms.isEmpty) return;
-    final topRoomId = rooms.first.roomId;
+    final lastRoomId = ref
+        .read(lastOpenedRoomProvider.notifier)
+        .lastRoomFor(ViewedGroup(group.groupId));
+    final targetRoomId =
+        (lastRoomId != null && rooms.any((r) => r.roomId == lastRoomId))
+        ? lastRoomId
+        : rooms.first.roomId;
     final roomName =
-        rooms.firstWhereOrNull((r) => r.roomId == topRoomId)?.name ?? 'メイン';
+        rooms.firstWhereOrNull((r) => r.roomId == targetRoomId)?.name ?? 'メイン';
     ref
         .read(goRouterProvider)
         .push(
@@ -514,7 +559,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
           extra: GroupChatArgs(
             currentUser: widget.currentUser,
             group: group,
-            roomId: topRoomId,
+            roomId: targetRoomId,
             roomName: roomName,
             enterFromRight: true,
           ),
@@ -3797,13 +3842,23 @@ class _DmDetailWithRoomsState extends ConsumerState<_DmDetailWithRooms> {
       stream: _roomsStream,
       builder: (context, snapshot) {
         final rooms = snapshot.data ?? const <DmRoom>[];
+        final lastRoomId = ref
+            .read(lastOpenedRoomProvider.notifier)
+            .lastRoomFor(ViewedDm(dm.dmId));
         final roomId =
             (_selectedRoomId != null &&
                 rooms.any((r) => r.roomId == _selectedRoomId))
             ? _selectedRoomId!
-            // 寄合一覧の初回ストリーム未着時（一瞬）は空文字列のまま
-            // 描画し、届き次第再描画されるのに任せる（2026-09-14変更、
-            // 以前はdm.defaultRoomIdにフォールバックしていた）。
+            // このインスタンスでまだ何も選んでいない場合、この一対で最後に
+            // 開いていた寄合（[lastOpenedRoomProvider]）があればそれへ
+            // フォールバックする（2026-09-26変更、以前は必ず一番上＝最古の
+            // 寄合にフォールバックしており、直前に開いていた寄合を覚えて
+            // いなかった）。それも無ければ寄合一覧の初回ストリーム未着時
+            // （一瞬）は空文字列のまま描画し、届き次第再描画されるのに
+            // 任せる（2026-09-14変更、以前はdm.defaultRoomIdにフォール
+            // バックしていた）。
+            : (lastRoomId != null && rooms.any((r) => r.roomId == lastRoomId))
+            ? lastRoomId
             : (rooms.isNotEmpty ? rooms.first.roomId : '');
         // 空文字列のままチャット本体（`DmChatPane`）を構築すると`initState`が
         // 同期的にFirestoreの`.doc('')`を呼んでしまい、"A document path must
@@ -4011,11 +4066,16 @@ class _GroupDetailWithRoomsState extends ConsumerState<_GroupDetailWithRooms> {
       stream: _roomsStream,
       builder: (context, snapshot) {
         final rooms = snapshot.data ?? const <Room>[];
+        final lastRoomId = ref
+            .read(lastOpenedRoomProvider.notifier)
+            .lastRoomFor(ViewedGroup(group.groupId));
         final roomId =
             (_selectedRoomId != null &&
                 rooms.any((r) => r.roomId == _selectedRoomId))
             ? _selectedRoomId!
-            // [_DmDetailWithRoomsState.build]と同じ理由。
+            // [_DmDetailWithRoomsState.build]と同じ理由（2026-09-26変更）。
+            : (lastRoomId != null && rooms.any((r) => r.roomId == lastRoomId))
+            ? lastRoomId
             : (rooms.isNotEmpty ? rooms.first.roomId : '');
         // [_DmDetailWithRoomsState.build]と同じ理由（2026-09-15追加）。
         if (roomId.isEmpty) return const _EmptyDetailPlaceholder();

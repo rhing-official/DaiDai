@@ -117,9 +117,20 @@ class SelectionAreaPainter extends CustomPainter {
       ..color = selectionColor
       ..style = PaintingStyle.fill;
 
+    // 他に実体のある（幅>0の）矩形が同じリストに存在する場合、幅0の矩形は
+    // スタイルの異なる隣接ランの境界にドラッグの起点/終点が来た際に紛れ込む
+    // 縮退した矩形であり、本来の選択領域ではない（2026-09-27修正、DaiDai側の
+    // 対応）。これをそのまま幅8pxとして描画すると、境界のすぐ右側にある本文の
+    // 文字の上に重なってしまい、選択時に文字が二重に見える不具合の原因になって
+    // いた。矩形が1件だけでそれが幅0のケース（空ノードの選択位置を示す本来の
+    // 用途）のみ、引き続き幅8pxの矩形として描画する。
+    final hasRealContent = rects.any((rect) => rect.width > 0);
     for (var rect in rects) {
       // if rect.width is 0, we draw a small rect to indicate the selection area
       if (rect.width <= 0) {
+        if (hasRealContent) {
+          continue;
+        }
         rect = Rect.fromLTWH(rect.left, rect.top, 8.0, rect.height);
       }
       canvas.drawRect(

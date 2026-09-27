@@ -222,8 +222,12 @@ class _NumberedListIcon extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final editorState = context.read<EditorState>();
-    final text = editorState.editorStyle.textStyleConfiguration.text;
+    final textStyleConfiguration =
+        editorState.editorStyle.textStyleConfiguration;
+    final text = textStyleConfiguration.text;
     final textScaleFactor = editorState.editorStyle.textScaleFactor;
+    // 本文（`AppFlowyRichText`）と同じ`height`/`TextHeightBehavior`を
+    // アイコン側にも適用し、上下位置のずれを無くす（2026-09-27修正）。
     return Container(
       constraints:
           const BoxConstraints(minWidth: 26, minHeight: 22) * textScaleFactor,
@@ -231,13 +235,18 @@ class _NumberedListIcon extends StatelessWidget {
       child: Center(
         child: Text.rich(
           textScaler: TextScaler.linear(textScaleFactor),
-          textHeightBehavior: const TextHeightBehavior(
-            applyHeightToFirstAscent: false,
-            applyHeightToLastDescent: false,
+          textHeightBehavior: TextHeightBehavior(
+            applyHeightToFirstAscent:
+                textStyleConfiguration.applyHeightToFirstAscent,
+            applyHeightToLastDescent:
+                textStyleConfiguration.applyHeightToLastDescent,
+            leadingDistribution: textStyleConfiguration.leadingDistribution,
           ),
           TextSpan(
             text: node.levelString,
-            style: text.combine(textStyle),
+            style: text
+                .copyWith(height: textStyleConfiguration.lineHeight)
+                .combine(textStyle),
           ),
           textDirection: direction,
         ),

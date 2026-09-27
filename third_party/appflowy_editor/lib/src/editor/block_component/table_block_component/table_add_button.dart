@@ -8,12 +8,18 @@ class TableActionButton extends StatefulWidget {
     required this.padding,
     required this.onPressed,
     required this.icon,
+    required this.borderColor,
   });
 
   final double width, height;
   final EdgeInsetsGeometry padding;
   final Function onPressed;
   final Widget icon;
+
+  // 影付きの`Card`の代わりに、細い枠線で囲む見た目にするための色
+  // （2026-09-27変更、ユーザー指示。CLAUDE.mdの「マテリアルに影を一切
+  // 使わない」方針にも合わせた）。
+  final Color borderColor;
 
   @override
   State<TableActionButton> createState() => _TableActionButtonState();
@@ -34,12 +40,16 @@ class _TableActionButtonState extends State<TableActionButton> {
         child: Center(
           child: Visibility(
             visible: _visible,
-            child: Card(
-              elevation: 1.0,
-              child: MouseRegion(
-                cursor: SystemMouseCursors.click,
-                child: GestureDetector(
-                  onTap: () => widget.onPressed(),
+            child: MouseRegion(
+              cursor: SystemMouseCursors.click,
+              child: GestureDetector(
+                onTap: () => widget.onPressed(),
+                child: Container(
+                  padding: const EdgeInsets.all(2),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: widget.borderColor),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
                   child: widget.icon,
                 ),
               ),

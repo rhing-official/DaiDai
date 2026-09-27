@@ -48,6 +48,12 @@ dependencies:
   cloud_functions: ^6.3.5
   google_sign_in: ^7.2.0
   flutter_riverpod: ^3.3.2
+  # appflowy_editor（third_party/）が内部でDI用に使っているpackage:providerを
+  # DaiDai側のノート機能カスタムブロック（埋め込み・目次）からも直接使うため
+  # 明示的な依存として追加（2026-09-27追加。バージョンはappflowy_editorの
+  # pubspec.yamlに合わせた、既に間接依存として解決済みのためバージョン
+  # 衝突リスクは無い）
+  provider: ^6.0.5
   shared_preferences: ^2.5.5
   flutter_webrtc: ^1.5.2
   firebase_storage: ^13.4.5

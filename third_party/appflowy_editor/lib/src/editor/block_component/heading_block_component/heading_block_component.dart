@@ -1,4 +1,5 @@
 import 'package:appflowy_editor/appflowy_editor.dart';
+import 'package:appflowy_editor/src/editor/block_component/base_component/markdown_prefix_reveal.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -18,6 +19,10 @@ class HeadingBlockKeys {
   static const String backgroundColor = blockComponentBackgroundColor;
 
   static const String textDirection = blockComponentTextDirection;
+
+  /// Markdown変換で残した先頭記号（`# `等）の文字数（2026-09-26追加、
+  /// DaiDai側の対応）。`markdown_prefix_reveal.dart`参照。
+  static const String markdownPrefixLength = 'markdownPrefixLength';
 }
 
 Node headingNode({
@@ -119,6 +124,38 @@ class _HeadingBlockComponentWidgetState
 
   int get level => widget.node.attributes[HeadingBlockKeys.level] as int? ?? 1;
 
+  // カーソル/選択がこのノードの行にあるかどうか（2026-09-26追加、DaiDai側の
+  // 対応）。`markdown_prefix_reveal.dart`参照。
+  bool _isFocused = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _isFocused = _computeIsFocused();
+    editorState.selectionNotifier.addListener(_handleSelectionChanged);
+  }
+
+  @override
+  void dispose() {
+    editorState.selectionNotifier.removeListener(_handleSelectionChanged);
+    super.dispose();
+  }
+
+  void _handleSelectionChanged() {
+    final next = _computeIsFocused();
+    if (next != _isFocused && mounted) {
+      setState(() => _isFocused = next);
+    }
+  }
+
+  bool _computeIsFocused() {
+    final selection = editorState.selection;
+    if (selection == null) return false;
+    final normalized = selection.normalized;
+    return !(node.path < normalized.start.path ||
+        node.path > normalized.end.path);
+  }
+
   @override
   Widget build(BuildContext context) {
     final textDirection = calculateTextDirection(
@@ -150,6 +187,14 @@ class _HeadingBlockComponentWidgetState
                 result = result.updateTextStyle(
                   widget.textStyleBuilder?.call(level) ??
                       defaultTextStyle(level),
+                );
+                // 2026-09-26追加、DaiDai側の対応。
+                result = hideMarkdownPrefixWhenNotFocused(
+                  textSpan: result,
+                  prefixLength: widget.node
+                          .attributes[HeadingBlockKeys.markdownPrefixLength]
+                      as int?,
+                  isFocused: _isFocused,
                 );
                 return result;
               },

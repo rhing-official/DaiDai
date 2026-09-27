@@ -18,11 +18,28 @@ String resolveNoteDisplayTitle(Note note, {required String fallback}) {
   try {
     final document = Document.fromJson(note.content);
     for (final node in document.root.children) {
-      final text = node.delta?.toPlainText().trim() ?? '';
+      final text = plainTextWithoutMarkdownPrefix(node).trim();
       if (text.isNotEmpty) return text;
     }
   } catch (_) {
     // 壊れた/未知形式のcontentは無視してfallbackへ。
   }
   return fallback;
+}
+
+/// 見出し/箇条書きに変換済みのノードは、生の`#`/`-`をDeltaに保持したまま
+/// カーソル行のみ表示する（`markdown_prefix_reveal.dart`参照、2026-09-26
+/// 追加）。表示用テキストにはこの先頭記号を含めない（2026-09-27、目次機能
+/// からも再利用するため公開関数に変更）。
+String plainTextWithoutMarkdownPrefix(Node node) {
+  final text = node.delta?.toPlainText() ?? '';
+  final prefixLength = switch (node.type) {
+    HeadingBlockKeys.type =>
+      node.attributes[HeadingBlockKeys.markdownPrefixLength] as int?,
+    BulletedListBlockKeys.type =>
+      node.attributes[BulletedListBlockKeys.markdownPrefixLength] as int?,
+    _ => null,
+  };
+  if (prefixLength == null || prefixLength > text.length) return text;
+  return text.substring(prefixLength);
 }

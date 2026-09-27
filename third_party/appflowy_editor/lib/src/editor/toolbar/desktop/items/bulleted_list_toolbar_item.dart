@@ -1,4 +1,5 @@
 import 'package:appflowy_editor/appflowy_editor.dart';
+import 'package:appflowy_editor/src/editor/block_component/base_component/markdown_prefix_reveal.dart';
 
 const _kBulletedListItemId = 'editor.bulleted_list';
 
@@ -17,9 +18,28 @@ final ToolbarItem bulletedListItem = ToolbarItem(
       iconColor: iconColor,
       onPressed: () => editorState.formatNode(
         selection,
-        (node) => node.copyWith(
-          type: isHighlight ? 'paragraph' : 'bulleted_list',
-        ),
+        (node) {
+          if (isHighlight) {
+            return node.copyWith(type: ParagraphBlockKeys.type);
+          }
+          // ボタンで箇条書きに変換した場合も、`- `入力による変換と同じように
+          // 先頭記号を保持する（2026-09-27修正、DaiDai側の対応。
+          // heading_toolbar_items.dartと同じ理由）。
+          final prefixed = applyMarkdownPrefix(
+            existingDelta: node.delta ?? Delta(),
+            existingMarkdownPrefixLength: node
+                .attributes[BulletedListBlockKeys.markdownPrefixLength] as int?,
+            prefix: '- ',
+          );
+          return node.copyWith(
+            type: BulletedListBlockKeys.type,
+            attributes: {
+              BulletedListBlockKeys.markdownPrefixLength:
+                  prefixed.markdownPrefixLength,
+              blockComponentDelta: prefixed.delta.toJson(),
+            },
+          );
+        },
       ),
     );
 

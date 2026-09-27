@@ -11,7 +11,7 @@ Future<void> onInsert(
 ) async {
   AppFlowyEditorLog.input.debug('onInsert: $insertion');
 
-  final textInserted = insertion.textInserted;
+  var textInserted = insertion.textInserted;
 
   /// On mobile devices, the "/" is context-sensitive,which means it can't be
   /// recognized as a standalone character. This requires special handling.
@@ -22,6 +22,14 @@ Future<void> onInsert(
   // We should prevent the execution of character shortcut events when the
   // composing range is not collapsed.
   if (insertion.composing.isCollapsed || isMobileSlash) {
+    // モバイルのIMEが`# `等を1回の入力イベントでまとめて送ってきた場合、
+    // トリガーより前の部分を先に挿入してから末尾のトリガー文字だけを
+    // ショートカット判定にかける（2026-09-26追加、DaiDai側の対応）。
+    final split = splitTrailingMarkdownShortcutTrigger(textInserted);
+    if (split != null) {
+      await insertPlainTextWithoutShortcutCheck(editorState, split.$1);
+      textInserted = split.$2;
+    }
     // execute character shortcut events
     final execution = await executeCharacterShortcutEvent(
       editorState,

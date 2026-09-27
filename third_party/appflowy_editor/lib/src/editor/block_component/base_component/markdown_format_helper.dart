@@ -25,8 +25,13 @@ Future<bool> formatMarkdownSymbol(
     String text,
     Node node,
     Delta delta,
-  ) nodesBuilder,
-) async {
+  ) nodesBuilder, {
+  // 変換後のカーソル位置を、行頭（既定の0）以外にしたい場合に指定する
+  // （2026-09-26追加、DaiDai側の対応）。見出し/箇条書きへの変換で`#`/`-`を
+  // 削除せず残すようにした際、カーソルは行頭ではなく元のテキストの末尾に
+  // 置きたいため`(text) => text.length + 1`を渡す用途。
+  int Function(String text)? cursorOffset,
+}) async {
   final selection = editorState.selection;
   if (selection == null || !selection.isCollapsed) {
     return false;
@@ -55,7 +60,7 @@ Future<bool> formatMarkdownSymbol(
   final afterSelection = Selection.collapsed(
     Position(
       path: node.path,
-      offset: 0,
+      offset: cursorOffset?.call(text) ?? 0,
     ),
   );
 

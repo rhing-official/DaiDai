@@ -1,5 +1,6 @@
 import 'package:appflowy_editor/appflowy_editor.dart';
 import 'package:appflowy_editor/src/editor/block_component/base_component/block_icon_builder.dart';
+import 'package:appflowy_editor/src/editor/block_component/base_component/markdown_prefix_reveal.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -13,6 +14,10 @@ class BulletedListBlockKeys {
   static const String backgroundColor = blockComponentBackgroundColor;
 
   static const String textDirection = blockComponentTextDirection;
+
+  /// Markdown変換で残した先頭記号（`- `/`* `）の文字数（2026-09-26追加、
+  /// DaiDai側の対応）。`markdown_prefix_reveal.dart`参照。
+  static const String markdownPrefixLength = 'markdownPrefixLength';
 }
 
 Node bulletedListNode({
@@ -112,6 +117,38 @@ class _BulletedListBlockComponentWidgetState
   @override
   Node get node => widget.node;
 
+  // カーソル/選択がこのノードの行にあるかどうか（2026-09-26追加、DaiDai側の
+  // 対応）。`markdown_prefix_reveal.dart`参照。
+  bool _isFocused = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _isFocused = _computeIsFocused();
+    editorState.selectionNotifier.addListener(_handleSelectionChanged);
+  }
+
+  @override
+  void dispose() {
+    editorState.selectionNotifier.removeListener(_handleSelectionChanged);
+    super.dispose();
+  }
+
+  void _handleSelectionChanged() {
+    final next = _computeIsFocused();
+    if (next != _isFocused && mounted) {
+      setState(() => _isFocused = next);
+    }
+  }
+
+  bool _computeIsFocused() {
+    final selection = editorState.selection;
+    if (selection == null) return false;
+    final normalized = selection.normalized;
+    return !(node.path < normalized.start.path ||
+        node.path > normalized.end.path);
+  }
+
   @override
   Widget buildComponent(
     BuildContext context, {
@@ -120,6 +157,8 @@ class _BulletedListBlockComponentWidgetState
     final textDirection = calculateTextDirection(
       layoutDirection: Directionality.maybeOf(context),
     );
+    final markdownPrefixLength = widget
+        .node.attributes[BulletedListBlockKeys.markdownPrefixLength] as int?;
 
     Widget child = Container(
       width: double.infinity,
@@ -130,12 +169,16 @@ class _BulletedListBlockComponentWidgetState
         mainAxisSize: MainAxisSize.min,
         textDirection: textDirection,
         children: [
-          widget.iconBuilder != null
-              ? widget.iconBuilder!(context, node)
-              : _BulletedListIcon(
-                  node: widget.node,
-                  textStyle: textStyleWithTextSpan(),
-                ),
+          // 生の`- `/`* `をテキスト側に表示している間（カーソルがこの行に
+          // ある間）は、記号アイコンとの二重表示を避けるため隠す
+          // （2026-09-26追加、DaiDai側の対応）。
+          if (!(markdownPrefixLength != null && _isFocused))
+            widget.iconBuilder != null
+                ? widget.iconBuilder!(context, node)
+                : _BulletedListIcon(
+                    node: widget.node,
+                    textStyle: textStyleWithTextSpan(),
+                  ),
           Flexible(
             child: AppFlowyRichText(
               key: forwardKey,
@@ -144,9 +187,20 @@ class _BulletedListBlockComponentWidgetState
               editorState: editorState,
               textAlign: alignment?.toTextAlign ?? textAlign,
               placeholderText: placeholderText,
-              textSpanDecorator: (textSpan) => textSpan.updateTextStyle(
-                textStyleWithTextSpan(textSpan: textSpan),
-              ),
+              textSpanDecorator: (textSpan) {
+                final result = textSpan.updateTextStyle(
+                  textStyleWithTextSpan(textSpan: textSpan),
+                );
+                // 2026-09-26追加、DaiDai側の対応。非フォーカス時は記号
+                // アイコンと二重に幅を取らないよう`omitPrefixWhenHidden`を
+                // 指定する（2026-09-27修正、`markdown_prefix_reveal.dart`参照）。
+                return hideMarkdownPrefixWhenNotFocused(
+                  textSpan: result,
+                  prefixLength: markdownPrefixLength,
+                  isFocused: _isFocused,
+                  omitPrefixWhenHidden: true,
+                );
+              },
               placeholderTextSpanDecorator: (textSpan) =>
                   textSpan.updateTextStyle(
                 placeholderTextStyleWithTextSpan(textSpan: textSpan),
@@ -224,8 +278,12 @@ class _BulletedListIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final textScaleFactor =
-        context.read<EditorState>().editorStyle.textScaleFactor;
+    final editorState = context.read<EditorState>();
+    final textScaleFactor = editorState.editorStyle.textScaleFactor;
+    // 本文（`AppFlowyRichText`）と同じ`height`/`TextHeightBehavior`を
+    // アイコン側にも適用し、上下位置のずれを無くす（2026-09-27修正）。
+    final textStyleConfiguration =
+        editorState.editorStyle.textStyleConfiguration;
     return Container(
       constraints:
           const BoxConstraints(minWidth: 26, minHeight: 22) * textScaleFactor,
@@ -233,8 +291,15 @@ class _BulletedListIcon extends StatelessWidget {
       child: Center(
         child: Text(
           icon,
-          style: textStyle,
+          style: textStyle.copyWith(height: textStyleConfiguration.lineHeight),
           textScaler: TextScaler.linear(0.5 * textScaleFactor),
+          textHeightBehavior: TextHeightBehavior(
+            applyHeightToFirstAscent:
+                textStyleConfiguration.applyHeightToFirstAscent,
+            applyHeightToLastDescent:
+                textStyleConfiguration.applyHeightToLastDescent,
+            leadingDistribution: textStyleConfiguration.leadingDistribution,
+          ),
         ),
       ),
     );
