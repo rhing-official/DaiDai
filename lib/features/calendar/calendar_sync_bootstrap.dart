@@ -36,13 +36,6 @@ class _CalendarSyncBootstrapState extends ConsumerState<CalendarSyncBootstrap> {
   final _authService = GoogleCalendarAuthService();
   final _syncService = GoogleCalendarSyncService();
 
-  /// 住人ごとに1つだけ作成される専用カレンダーのid（[AppUser.googleCalendarId]
-  /// 参照）。未連携・作成前はnull。
-  String? get _googleCalendarId {
-    final liveUser = ref.read(watchedUserProvider(widget.currentUserId));
-    return liveUser.asData?.value?.googleCalendarId;
-  }
-
   Future<void> _processTask(CalendarEventSyncTask task) async {
     final repo = ref.read(calendarEventRepositoryProvider);
     switch (task.syncState.status) {
@@ -68,6 +61,46 @@ class _CalendarSyncBootstrapState extends ConsumerState<CalendarSyncBootstrap> {
     final event = task.event;
     if (event == null) return;
 
+    // Googleへ同期済みの予定の内容更新だけを処理する（2026-10-04変更）。
+    // 同期は出欠で参加を保存した時に`CalendarRsvpSync`が行うため、
+    // Google側にまだ無い（googleEventIdが無い）pendingは、旧仕様（予定作成時に
+    // 参加者全員分を自動でpendingにしていた）の残骸。参加していない住人の
+    // Googleカレンダーに勝手に予定を入れないよう、掃除するだけにする。
+    if (task.syncState.googleEventId == null) {
+      await repo.deleteSyncState(
+        isDm: task.isDm,
+        conversationId: task.conversationId,
+        roomId: task.roomId,
+        eventId: task.eventId,
+        uid: widget.currentUserId,
+      );
+      return;
+    }
+
+    final liveUser = ref
+        .read(watchedUserProvider(widget.currentUserId))
+        .asData
+        ?.value;
+    // ユーザー情報が未取得の間は判断できないため何もしない（pendingのまま
+    // 残り、取得後の再購読で処理される）。
+    if (liveUser == null) return;
+
+    final accessToken = liveUser.googleCalendarSyncEnabled == true
+        ? await _authService.getAccessTokenSilently()
+        : null;
+    final calendarId = liveUser.googleCalendarId;
+    if (liveUser.googleCalendarSyncEnabled == true &&
+        (accessToken == null || calendarId == null)) {
+      // 連携済みだがアクセストークンが取れない（Webではリロード後・失効後は
+      // ユーザー操作なしに取得できない）。skippedにして捨てず、pendingのまま
+      // 残す。カレンダー画面の「再接続して同期」でトークンを取り直すと処理
+      // される（2026-10-04変更、以前はここでskippedにして二度と同期されなかった）。
+      debugPrint(
+        'CalendarSync: pending保持 token=${accessToken != null} calendarId=$calendarId',
+      );
+      return;
+    }
+
     final claimed = await repo.claimSyncTask(
       isDm: task.isDm,
       conversationId: task.conversationId,
@@ -78,9 +111,8 @@ class _CalendarSyncBootstrapState extends ConsumerState<CalendarSyncBootstrap> {
     );
     if (!claimed) return;
 
-    final accessToken = await _authService.getAccessTokenSilently();
-    final calendarId = _googleCalendarId;
     if (accessToken == null || calendarId == null) {
+      // 連携していない（オプトインしていない）住人。
       await repo.writeSyncState(
         isDm: task.isDm,
         conversationId: task.conversationId,
@@ -143,6 +175,7 @@ class _CalendarSyncBootstrapState extends ConsumerState<CalendarSyncBootstrap> {
         eventId: task.eventId,
       );
     } catch (e) {
+      debugPrint('CalendarSync: 同期失敗 $e');
       await repo.writeSyncState(
         isDm: task.isDm,
         conversationId: task.conversationId,
@@ -232,10 +265,15 @@ class _CalendarSyncBootstrapState extends ConsumerState<CalendarSyncBootstrap> {
 
   @override
   Widget build(BuildContext context) {
-    ref.listen(_pendingSyncTasksProvider(widget.currentUserId), (
+    ref.listen(pendingSyncTasksProvider(widget.currentUserId), (
       previous,
       next,
     ) {
+      if (next.hasError) {
+        // 購読の失敗（複合インデックス未デプロイ・権限エラー等）が無言で
+        // 同期を止めないよう、ログに残す（2026-10-04追加）。
+        debugPrint('CalendarSync: 保留タスクの購読に失敗 ${next.error}');
+      }
       final tasks = next.asData?.value;
       if (tasks == null) return;
       for (final task in tasks) {
@@ -246,7 +284,9 @@ class _CalendarSyncBootstrapState extends ConsumerState<CalendarSyncBootstrap> {
   }
 }
 
-final _pendingSyncTasksProvider = StreamProvider.family(
+/// 自分の未処理（pending/pendingDelete）な同期タスク。カレンダー画面の
+/// 「再接続して同期」バナーの表示判定にも使う。
+final pendingSyncTasksProvider = StreamProvider.family(
   (ref, String uid) =>
       ref.watch(calendarEventRepositoryProvider).watchPendingSyncTasks(uid),
 );

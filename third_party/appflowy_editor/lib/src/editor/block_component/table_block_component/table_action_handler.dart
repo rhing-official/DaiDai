@@ -138,13 +138,19 @@ Widget defaultMenuBuilder(
       // （table_view.dartの_buildResizeStrips）が既に`opaque`かつ実際の
       // 範囲全体をヒットテスト対象にしている、実証済みのパターンに揃えた）。
       behavior: HitTestBehavior.opaque,
-      onTap: () => showActionMenu(
-        context,
-        node,
-        editorState,
-        position,
-        dir,
-      ),
+      onTap: () {
+        // メニューを開く前に、この行/列を複数セル選択の状態にする
+        // （2026-10-04追加、ユーザー指示。メニューを閉じた後にBackspace/
+        // Deleteで行/列を削除できる）。
+        TableActions.select(node, position, editorState, dir);
+        showActionMenu(
+          context,
+          node,
+          editorState,
+          position,
+          dir,
+        );
+      },
       // Tap系とHorizontal/Vertical Drag系はFlutterが標準で1つの
       // GestureDetectorに併記できる（Pan/Scale系との組み合わせのみ非対応）。
       // 列は横方向、行は縦方向のドラッグとして並び替えを行う

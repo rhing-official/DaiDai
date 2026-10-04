@@ -185,6 +185,13 @@ class _BulletedListBlockComponentWidgetState
               delegate: this,
               node: widget.node,
               editorState: editorState,
+              // 非フォーカス時に描画から外しているプレフィックスの長さ
+              // （2026-10-04追加。座標計算をDeltaのオフセットへ換算する）。
+              hiddenPrefixLength: hiddenMarkdownPrefixLength(
+                node: widget.node,
+                prefixLength: markdownPrefixLength,
+                isFocused: _isFocused,
+              ),
               textAlign: alignment?.toTextAlign ?? textAlign,
               placeholderText: placeholderText,
               textSpanDecorator: (textSpan) {

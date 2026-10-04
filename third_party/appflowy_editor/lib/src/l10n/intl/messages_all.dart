@@ -55,6 +55,7 @@ Map<String, LibraryLoader> _deferredLibraries = {
   'hu_HU': () => new SynchronousFuture(null),
   'id_ID': () => new SynchronousFuture(null),
   'it_IT': () => new SynchronousFuture(null),
+  'ja': () => new SynchronousFuture(null),
   'ja_JP': () => new SynchronousFuture(null),
   'ml_IN': () => new SynchronousFuture(null),
   'nl_NL': () => new SynchronousFuture(null),
@@ -95,6 +96,10 @@ MessageLookupByLibrary? _findExact(String localeName) {
       return messages_id_id.messages;
     case 'it_IT':
       return messages_it_it.messages;
+    // DaiDai patch（2026-10-04）: アプリのロケールは`ja`（国コード無し）のため、
+    // 日本語メッセージが引かれず英語に落ちていた。
+    case 'ja':
+      return messages_ja_jp.messages;
     case 'ja_JP':
       return messages_ja_jp.messages;
     case 'ml_IN':

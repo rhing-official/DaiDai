@@ -85,10 +85,16 @@ class TableBlockComponentBuilder extends BlockComponentBuilder {
     super.configuration,
     this.tableStyle = const TableStyle(),
     this.menuBuilder,
+    this.cornerHandleBuilder,
   });
 
   final TableBlockComponentMenuBuilder? menuBuilder;
   final TableStyle tableStyle;
+
+  // 表の左上の角（列ハンドル用ガターと行ハンドル用ガターが交わる空き）に
+  // 置くウィジェットを差し込むためのコールバック（2026-10-04追加、DaiDai
+  // patch。表全体をドラッグで移動するハンドル用）。nullなら従来どおり空白。
+  final Widget Function(BuildContext context, Node node)? cornerHandleBuilder;
 
   @override
   BlockComponentWidget build(BlockComponentContext blockComponentContext) {
@@ -103,6 +109,7 @@ class TableBlockComponentBuilder extends BlockComponentBuilder {
       node: node,
       configuration: configuration,
       menuBuilder: menuBuilder,
+      cornerHandleBuilder: cornerHandleBuilder,
       tableStyle: tableStyle,
       showActions: showActions(node),
       actionBuilder: (context, state) => actionBuilder(
@@ -188,6 +195,7 @@ class TableBlockComponentWidget extends BlockComponentStatefulWidget {
     required super.node,
     this.tableStyle = const TableStyle(),
     this.menuBuilder,
+    this.cornerHandleBuilder,
     super.showActions,
     super.actionBuilder,
     super.actionTrailingBuilder,
@@ -198,6 +206,7 @@ class TableBlockComponentWidget extends BlockComponentStatefulWidget {
 
   final TableBlockComponentMenuBuilder? menuBuilder;
   final TableStyle tableStyle;
+  final Widget Function(BuildContext context, Node node)? cornerHandleBuilder;
 
   @override
   State<TableBlockComponentWidget> createState() =>
@@ -317,6 +326,7 @@ class _TableBlockComponentWidgetState extends State<TableBlockComponentWidget>
           tableNode: widget.tableNode,
           editorState: editorState,
           menuBuilder: widget.menuBuilder,
+          cornerHandleBuilder: widget.cornerHandleBuilder,
           tableStyle: widget.tableStyle,
           scrollController: _scrollController,
         ),

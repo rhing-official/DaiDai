@@ -16,6 +16,7 @@ import '../../models/schedule_coordination.dart';
 import '../../providers/accent_color_provider.dart';
 import '../../providers/app_locale_provider.dart';
 import '../../providers/app_ui_style_provider.dart';
+import '../../providers/calendar_week_start_provider.dart';
 import '../../providers/repository_providers.dart';
 import '../../theme/popup_surface_colors.dart';
 import '../../widgets/glass/glass_app_bar.dart';
@@ -592,7 +593,7 @@ class _MonthHeader extends StatelessWidget {
   }
 }
 
-class _WeekdayHeaderRow extends StatelessWidget {
+class _WeekdayHeaderRow extends ConsumerWidget {
   const _WeekdayHeaderRow({
     required this.localeCode,
     required this.gridLineColor,
@@ -602,9 +603,9 @@ class _WeekdayHeaderRow extends StatelessWidget {
   final Color gridLineColor;
 
   @override
-  Widget build(BuildContext context) {
-    // 2023-01-01は日曜日。この週の7日分から曜日ラベル（最短表記）を作る。
-    final anchor = DateTime(2023, 1, 1);
+  Widget build(BuildContext context, WidgetRef ref) {
+    // 週の先頭の曜日（日曜/月曜、設定）から7日分の曜日ラベル（最短表記）を作る。
+    final anchor = ref.watch(calendarWeekStartProvider).weekdayLabelAnchor;
     final labelStyle = Theme.of(context).textTheme.bodySmall?.copyWith(
       color: Theme.of(context).colorScheme.onSurfaceVariant,
     );
@@ -650,7 +651,7 @@ double _rowHeightFor(int maxLanes) =>
 double _laneTop(int lane) =>
     _kCellPadding + _kDayNumberAreaHeight + lane * (_kLaneHeight + _kLaneGap);
 
-class _MonthGrid extends StatelessWidget {
+class _MonthGrid extends ConsumerWidget {
   const _MonthGrid({
     required this.focusedMonth,
     required this.monthItems,
@@ -677,13 +678,15 @@ class _MonthGrid extends StatelessWidget {
   static const _mobileMaxLanes = 2;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final year = focusedMonth.year;
     final month = focusedMonth.month;
     final firstOfMonth = DateTime(year, month);
     final daysInMonth = DateTime(year, month + 1, 0).day;
-    // DateTime.weekday: 月=1...日=7。日曜始まりの先頭余白マス数に変換する。
-    final leadingBlanks = firstOfMonth.weekday % 7;
+    // 週の始まり（日曜/月曜、設定）に応じた先頭余白マス数。
+    final leadingBlanks = ref
+        .watch(calendarWeekStartProvider)
+        .leadingBlanks(firstOfMonth);
     final totalCells = leadingBlanks + daysInMonth;
     final trailingBlanks = (7 - totalCells % 7) % 7;
 
@@ -1455,5 +1458,6 @@ final _syncStateProvider = StreamProvider.family((ref, _SyncStateKey key) {
         roomId: key.roomId,
         eventId: key.eventId,
         uid: key.uid,
-      );
+      )
+      .handleError((Object e) => debugPrint('CalendarSync: syncState購読失敗 $e'));
 });

@@ -11,8 +11,11 @@ class TableView extends StatefulWidget {
     required this.tableNode,
     required this.tableStyle,
     this.menuBuilder,
+    this.cornerHandleBuilder,
     this.scrollController,
   });
+
+  final Widget Function(BuildContext context, Node node)? cornerHandleBuilder;
 
   final EditorState editorState;
   final TableNode tableNode;
@@ -86,6 +89,10 @@ class _TableViewState extends State<TableView> {
                   tableNode: widget.tableNode,
                   editorState: widget.editorState,
                   menuBuilder: widget.menuBuilder,
+                  cornerHandle: widget.cornerHandleBuilder?.call(
+                    context,
+                    widget.tableNode.node,
+                  ),
                   onRowHandleDragStart: _onRowHandleDragStart,
                   onRowHandleDragUpdate: _onRowHandleDragUpdate,
                   onRowHandleDragEnd: _onRowHandleDragEnd,

@@ -136,6 +136,15 @@ abstract class CalendarEventRepository {
   });
 
   /// 自分の同期状態ドキュメントを削除する（`CalendarSyncWorker`専用）。
+  /// [uid]の同期状態を1回だけ読み取る（無ければnull、2026-10-04追加）。
+  Future<CalendarEventSync?> getSyncState({
+    required bool isDm,
+    required String conversationId,
+    required String roomId,
+    required String eventId,
+    required String uid,
+  });
+
   /// `pendingDelete`の処理が完了した後の掃除、または未連携で最初から
   /// 同期する必要がない場合に使う。
   Future<void> deleteSyncState({
@@ -374,29 +383,10 @@ class FirestoreCalendarEventRepository implements CalendarEventRepository {
       categoryId: categoryId,
     );
 
-    final participants = await participantIds(
-      isDm: isDm,
-      conversationId: conversationId,
-      roomId: roomId,
-    );
-    final batch = _firestore.batch();
-    batch.set(ref, event.toJson());
-    final syncStates = _syncStatesCollection(
-      isDm: isDm,
-      conversationId: conversationId,
-      roomId: roomId,
-      eventId: ref.id,
-    );
-    for (final uid in participants) {
-      batch.set(
-        syncStates.doc(uid),
-        CalendarEventSync(
-          uid: uid,
-          status: CalendarSyncStatus.pending,
-        ).toJson(),
-      );
-    }
-    await batch.commit();
+    // Googleカレンダーへの同期は、予定作成時には行わない（2026-10-04変更、
+    // ユーザー指示）。各住人が出欠で「参加/遅刻」を保存した時に、その人の
+    // Googleカレンダーへだけ同期する（`CalendarRsvpSync`参照）。
+    await ref.set(event.toJson());
     return event;
   }
 
@@ -436,31 +426,9 @@ class FirestoreCalendarEventRepository implements CalendarEventRepository {
           : null,
       'categoryId': categoryId,
     });
-
-    // 内容が変わったため、参加者全員のGoogleカレンダー同期状態を作成時と
-    // 同じくpendingに戻し、CalendarSyncWorkerに再同期させる。
-    final participants = await participantIds(
-      isDm: isDm,
-      conversationId: conversationId,
-      roomId: roomId,
-    );
-    final syncStates = _syncStatesCollection(
-      isDm: isDm,
-      conversationId: conversationId,
-      roomId: roomId,
-      eventId: eventId,
-    );
-    final batch = _firestore.batch();
-    for (final uid in participants) {
-      batch.set(
-        syncStates.doc(uid),
-        CalendarEventSync(
-          uid: uid,
-          status: CalendarSyncStatus.pending,
-        ).toJson(),
-      );
-    }
-    await batch.commit();
+    // 編集は回答者0人の間だけ可能で、Googleカレンダーへの同期は出欠で参加を
+    // 保存した人にだけ行われる（2026-10-04変更）ため、ここで同期状態を
+    // 触る必要は無い。
   }
 
   @override
@@ -629,6 +597,24 @@ class FirestoreCalendarEventRepository implements CalendarEventRepository {
       transaction.update(ref, {'status': nextStatus.name});
       return true;
     });
+  }
+
+  @override
+  Future<CalendarEventSync?> getSyncState({
+    required bool isDm,
+    required String conversationId,
+    required String roomId,
+    required String eventId,
+    required String uid,
+  }) async {
+    final doc = await _syncStatesCollection(
+      isDm: isDm,
+      conversationId: conversationId,
+      roomId: roomId,
+      eventId: eventId,
+    ).doc(uid).get();
+    final data = doc.data();
+    return data == null ? null : CalendarEventSync.fromJson(uid, data);
   }
 
   @override

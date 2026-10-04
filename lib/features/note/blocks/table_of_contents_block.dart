@@ -5,6 +5,7 @@ import 'package:provider/provider.dart' hide Consumer;
 
 import '../../../l10n/strings.dart';
 import '../../../utils/note_title.dart';
+import '../block_move_drag.dart';
 
 /// 文書内の見出し一覧をタップでジャンプできる形で表示する目次ブロック
 /// （2026-09-27追加、ユーザー指示）。見出しの追加・削除に追従するため、
@@ -108,6 +109,30 @@ class _TableOfContentsBlockComponentWidgetState
   /// 目次の項目の開閉（保存しない、このブロック表示中のみ）。
   bool _expanded = true;
 
+  final _headerKey = GlobalKey();
+  final List<GlobalKey> _itemKeys = [];
+
+  bool _contains(GlobalKey key, Offset globalPosition) {
+    final box = key.currentContext?.findRenderObject();
+    if (box is! RenderBox || !box.attached) return false;
+    final local = box.globalToLocal(globalPosition);
+    return (Offset.zero & box.size).contains(local);
+  }
+
+  void _onTap(Offset globalPosition, List<Node> headings) {
+    if (_contains(_headerKey, globalPosition)) {
+      setState(() => _expanded = !_expanded);
+      return;
+    }
+    if (!_expanded) return;
+    for (var i = 0; i < headings.length && i < _itemKeys.length; i++) {
+      if (_contains(_itemKeys[i], globalPosition)) {
+        _jumpTo(headings[i]);
+        return;
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final baseStyle = editorState.editorStyle.textStyleConfiguration.text;
@@ -126,20 +151,29 @@ class _TableOfContentsBlockComponentWidgetState
         return Consumer(
           builder: (context, ref, _) {
             final strings = ref.watch(appStringsProvider);
-            return Container(
-              decoration: BoxDecoration(
-                color: textColor.withValues(alpha: 0.06),
-                border: Border.all(color: dividerColor),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  InkWell(
-                    borderRadius: BorderRadius.circular(8),
-                    onTap: () => setState(() => _expanded = !_expanded),
-                    child: Padding(
+            _itemKeys
+              ..clear()
+              ..addAll([for (final _ in headings) GlobalKey()]);
+            // 目次全体をドラッグの掴み所にする（2026-10-04追加、ユーザー指示）。
+            // ドラッグ認識は押下で勝つため、`InkWell`ではなく
+            // `BlockMoveHandle.onTap`で開閉・ジャンプを受ける。
+            return BlockMoveHandle(
+              node: node,
+              editorState: editorState,
+              color: textColor.withValues(alpha: 0.55),
+              onTap: (position) => _onTap(position, headings),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: textColor.withValues(alpha: 0.06),
+                  border: Border.all(color: dividerColor),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Padding(
+                      key: _headerKey,
                       padding: const EdgeInsets.symmetric(
                         horizontal: 12,
                         vertical: 10,
@@ -165,29 +199,30 @@ class _TableOfContentsBlockComponentWidgetState
                         ],
                       ),
                     ),
-                  ),
-                  if (_expanded && headings.isEmpty)
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 12, 12),
-                      child: Text(
-                        strings.noteTableOfContentsEmpty,
-                        style: baseStyle.copyWith(
-                          color: textColor.withValues(alpha: 0.6),
-                          fontSize: 14,
+                    if (_expanded && headings.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 12, 12),
+                        child: Text(
+                          strings.noteTableOfContentsEmpty,
+                          style: baseStyle.copyWith(
+                            color: textColor.withValues(alpha: 0.6),
+                            fontSize: 14,
+                          ),
                         ),
                       ),
-                    ),
-                  if (_expanded)
-                    for (var i = 0; i < headings.length; i++)
-                      _buildItem(
-                        headings[i],
-                        indents[i],
-                        baseStyle,
-                        textColor,
-                        dividerColor,
-                        isLast: i == headings.length - 1,
-                      ),
-                ],
+                    if (_expanded)
+                      for (var i = 0; i < headings.length; i++)
+                        _buildItem(
+                          _itemKeys[i],
+                          headings[i],
+                          indents[i],
+                          baseStyle,
+                          textColor,
+                          dividerColor,
+                          isLast: i == headings.length - 1,
+                        ),
+                  ],
+                ),
               ),
             );
           },
@@ -205,11 +240,8 @@ class _TableOfContentsBlockComponentWidgetState
       blockColor: editorState.editorStyle.selectionColor,
       cursorColor: editorState.editorStyle.cursorColor,
       selectionColor: editorState.editorStyle.selectionColor,
-      supportTypes: const [
-        BlockSelectionType.block,
-        BlockSelectionType.cursor,
-        BlockSelectionType.selection,
-      ],
+      // 目次はハイライト選択させない（2026-10-04、ユーザー指示）。
+      supportTypes: const [],
       child: child,
     );
 
@@ -226,6 +258,7 @@ class _TableOfContentsBlockComponentWidgetState
   }
 
   Widget _buildItem(
+    GlobalKey key,
     Node heading,
     int depth,
     TextStyle baseStyle,
@@ -236,8 +269,8 @@ class _TableOfContentsBlockComponentWidgetState
     final label = plainTextWithoutMarkdownPrefix(heading).trim();
     // 階層が深いほど字下げし、やや小さく淡くする（最上位=本文の文字色）。
     final indent = 12.0 + depth * 16.0;
-    return InkWell(
-      onTap: () => _jumpTo(heading),
+    return KeyedSubtree(
+      key: key,
       child: Padding(
         padding: EdgeInsets.only(left: indent),
         child: DecoratedBox(

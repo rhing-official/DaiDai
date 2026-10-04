@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../l10n/app_locale.dart';
 import '../models/app_ui_style.dart';
 import '../models/app_user_preferences.dart';
+import '../models/calendar_week_start.dart';
 import '../models/chat_layout_style.dart';
 import '../models/conversation_sort_order.dart';
 import '../models/font_design.dart';
@@ -15,6 +16,7 @@ import '../models/talks_list_layout_style.dart';
 import 'accent_color_provider.dart';
 import 'app_locale_provider.dart';
 import 'app_ui_style_provider.dart';
+import 'calendar_week_start_provider.dart';
 import 'calling_sound_provider.dart';
 import 'chat_layout_style_provider.dart';
 import 'conversation_sort_order_provider.dart';
@@ -98,6 +100,13 @@ void applyRemoteUserPreferences(WidgetRef ref, AppUserPreferences preferences) {
         .read(talksListLayoutStyleProvider.notifier)
         .syncFromRemote(
           TalksListLayoutStyle.fromName(preferences.talksListLayoutStyle),
+        );
+  }
+  if (preferences.calendarWeekStart != null) {
+    ref
+        .read(calendarWeekStartProvider.notifier)
+        .syncFromRemote(
+          CalendarWeekStart.fromName(preferences.calendarWeekStart),
         );
   }
   if (preferences.messageTimeFormat != null) {

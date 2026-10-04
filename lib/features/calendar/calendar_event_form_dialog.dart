@@ -92,7 +92,11 @@ class _CalendarEventFormDialogState
       widget.existingEvent?.startAt.toDate() ??
       widget.initialDate ??
       DateTime.now().add(const Duration(hours: 1));
-  late DateTime? _endAt = widget.existingEvent?.endAt?.toDate();
+  // 終了日時は必須（2026-10-04、ユーザー指示）。未設定の既存予定を開いた時や
+  // 新規作成時は既定値（[defaultEventEnd]）で埋める。
+  late DateTime? _endAt =
+      widget.existingEvent?.endAt?.toDate() ??
+      defaultEventEnd(_startAt, _isAllDay);
   late bool _rsvpEnabled = widget.existingEvent?.rsvpEnabled ?? true;
   late bool _rsvpPerDay = widget.existingEvent?.rsvpPerDay ?? false;
   late DateTime? _rsvpDeadline = widget.existingEvent?.rsvpDeadline?.toDate();
@@ -157,8 +161,8 @@ class _CalendarEventFormDialogState
     if (picked == null) return;
     setState(() {
       _startAt = picked;
-      if (_endAt != null && _endAt!.isBefore(_startAt)) {
-        _endAt = null;
+      if (_endAt == null || _endAt!.isBefore(_startAt)) {
+        _endAt = defaultEventEnd(_startAt, _isAllDay);
       }
     });
   }
@@ -235,6 +239,14 @@ class _CalendarEventFormDialogState
   Future<void> _save() async {
     final title = _titleController.text.trim();
     if (title.isEmpty) return;
+    final end = _endAt;
+    if (end == null || end.isBefore(_startAt)) {
+      showAutoDismissBanner(
+        context,
+        message: ref.read(appStringsProvider).calendarEndBeforeStartError,
+      );
+      return;
+    }
     setState(() => _saving = true);
     final repo = ref.read(calendarEventRepositoryProvider);
     final description = _descriptionController.text.trim();
@@ -431,13 +443,6 @@ class _CalendarEventFormDialogState
               contentPadding: EdgeInsets.zero,
               title: Text(strings.calendarEndLabel),
               subtitle: Text(_endAt != null ? dateFormat.format(_endAt!) : '-'),
-              trailing: _endAt != null
-                  ? IconButton(
-                      icon: const Icon(Icons.clear),
-                      tooltip: '',
-                      onPressed: () => setState(() => _endAt = null),
-                    )
-                  : null,
               onTap: _pickEnd,
             ),
             const SizedBox(height: 8),
@@ -507,4 +512,11 @@ class _CalendarEventFormDialogState
         ? GlassAlertDialog(title: title, content: content, actions: actions)
         : AlertDialog(title: title, content: content, actions: actions);
   }
+}
+
+/// 予定の終了日時の既定値（開始の1時間後、終日なら開始日と同じ日、
+/// 2026-10-04追加）。
+DateTime defaultEventEnd(DateTime start, bool isAllDay) {
+  if (isAllDay) return DateTime(start.year, start.month, start.day);
+  return start.add(const Duration(hours: 1));
 }

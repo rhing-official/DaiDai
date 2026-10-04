@@ -580,6 +580,10 @@ class Strings {
     required this.calendarMoreEventsLabel,
     required this.calendarCategorySettingsTooltip,
     required this.calendarCategoryListTitle,
+    required this.calendarWeekStartLabel,
+    required this.calendarEndBeforeStartError,
+    required this.calendarWeekStartSunday,
+    required this.calendarWeekStartMonday,
     required this.calendarCategoryListEmpty,
     required this.calendarCategoryCreateDialogTitle,
     required this.calendarCategoryEditDialogTitle,
@@ -672,6 +676,11 @@ class Strings {
     required this.noteMenuEmbed,
     required this.noteMenuTable,
     required this.noteMenuTableOfContents,
+    required this.noteSelectionCut,
+    required this.noteSelectionCopy,
+    required this.noteSelectionPaste,
+    required this.noteInsertTooltip,
+    required this.noteBlockMoveTooltip,
     required this.noteEmbedUrlPromptTitle,
     required this.noteEmbedUrlPromptHint,
     required this.noteEmbedUrlPromptConfirm,
@@ -1522,6 +1531,10 @@ class Strings {
   /// 予定/日程調整の種類（カテゴリ）機能（2026-09-11追加）。
   final String calendarCategorySettingsTooltip;
   final String calendarCategoryListTitle;
+  final String calendarWeekStartLabel;
+  final String calendarEndBeforeStartError;
+  final String calendarWeekStartSunday;
+  final String calendarWeekStartMonday;
   final String calendarCategoryListEmpty;
   final String calendarCategoryCreateDialogTitle;
   final String calendarCategoryEditDialogTitle;
@@ -1622,6 +1635,11 @@ class Strings {
   final String noteMenuEmbed;
   final String noteMenuTable;
   final String noteMenuTableOfContents;
+  final String noteSelectionCut;
+  final String noteSelectionCopy;
+  final String noteSelectionPaste;
+  final String noteInsertTooltip;
+  final String noteBlockMoveTooltip;
   final String noteEmbedUrlPromptTitle;
   final String noteEmbedUrlPromptHint;
   final String noteEmbedUrlPromptConfirm;
@@ -2261,6 +2279,10 @@ class Strings {
     calendarMoreEventsLabel: (count) => '他$count件',
     calendarCategorySettingsTooltip: '種類の設定',
     calendarCategoryListTitle: '予定・日程調整の種類',
+    calendarWeekStartLabel: '週の始まり',
+    calendarEndBeforeStartError: '終了日時は開始日時より後にしてください',
+    calendarWeekStartSunday: '日曜日',
+    calendarWeekStartMonday: '月曜日',
     calendarCategoryListEmpty: 'まだ種類がありません',
     calendarCategoryCreateDialogTitle: '種類を追加',
     calendarCategoryEditDialogTitle: '種類を編集',
@@ -2353,6 +2375,11 @@ class Strings {
     noteMenuEmbed: 'URL',
     noteMenuTable: '表',
     noteMenuTableOfContents: '目次',
+    noteSelectionCut: '切り取り',
+    noteSelectionCopy: 'コピー',
+    noteSelectionPaste: '貼り付け',
+    noteInsertTooltip: '挿入',
+    noteBlockMoveTooltip: 'ドラッグして移動',
     noteEmbedUrlPromptTitle: 'URLを埋め込み',
     noteEmbedUrlPromptHint: 'https://...',
     noteEmbedUrlPromptConfirm: '埋め込む',
@@ -3071,6 +3098,10 @@ class Strings {
     calendarMoreEventsLabel: (count) => '+$count more',
     calendarCategorySettingsTooltip: 'Manage categories',
     calendarCategoryListTitle: 'Event categories',
+    calendarWeekStartLabel: 'Week starts on',
+    calendarEndBeforeStartError: 'The end must not be before the start',
+    calendarWeekStartSunday: 'Sunday',
+    calendarWeekStartMonday: 'Monday',
     calendarCategoryListEmpty: 'No categories yet',
     calendarCategoryCreateDialogTitle: 'Add category',
     calendarCategoryEditDialogTitle: 'Edit category',
@@ -3168,6 +3199,11 @@ class Strings {
     noteMenuEmbed: 'URL',
     noteMenuTable: 'Table',
     noteMenuTableOfContents: 'Table of contents',
+    noteSelectionCut: 'Cut',
+    noteSelectionCopy: 'Copy',
+    noteSelectionPaste: 'Paste',
+    noteInsertTooltip: 'Insert',
+    noteBlockMoveTooltip: 'Drag to move',
     noteEmbedUrlPromptTitle: 'Embed URL',
     noteEmbedUrlPromptHint: 'https://...',
     noteEmbedUrlPromptConfirm: 'Embed',

@@ -808,6 +808,23 @@ class _MobileSelectionServiceWidgetState
       } else {
         newSelection = _panStartSelection;
       }
+    } else {
+      // DaiDai patch (2026-10-04): the word boundary is null over blocks that
+      // have no word to snap to (blank lines, tables, embeds, ...). Previously
+      // the update was dropped there, so the highlight stopped at the last
+      // text line the finger crossed. Fall back to the exact position under
+      // the finger so the selection keeps extending across such blocks.
+      final position =
+          getNodeInOffset(offset)?.selectable?.getPositionInOffset(offset);
+      if (position != null) {
+        final start = _panStartSelection!.start;
+        final end = _panStartSelection!.end;
+        final isBeforeStart = position.path < start.path ||
+            position.path.equals(start.path) && position.offset < start.offset;
+        newSelection = isBeforeStart
+            ? Selection(start: end, end: position).normalized
+            : Selection(start: start, end: position).normalized;
+      }
     }
 
     if (newSelection != null) {

@@ -7,9 +7,14 @@ import '../../models/app_ui_style.dart';
 import '../../models/app_user.dart';
 import '../../models/calendar_event.dart';
 import '../../models/calendar_event_rsvp.dart';
+import '../../models/calendar_event_sync.dart';
 import '../../providers/app_locale_provider.dart';
 import '../../providers/app_ui_style_provider.dart';
 import '../../providers/repository_providers.dart';
+import '../../providers/user_providers.dart';
+import '../../services/calendar_rsvp_sync.dart';
+import '../../services/google_calendar_auth_service.dart';
+import '../../services/google_calendar_sync_service.dart';
 import '../../utils/auto_dismiss_banner.dart';
 import '../../widgets/destructive_label.dart';
 import '../../widgets/glass/glass_dialog.dart';
@@ -99,6 +104,18 @@ class _CalendarEventDetailDialogState
         eventId: widget.event.eventId,
       );
 
+  /// 自分のGoogleカレンダー同期状態（参加して同期した予定にだけ存在する、
+  /// 2026-10-04追加）。
+  late final Stream<CalendarEventSync?> _mySyncStream = ref
+      .read(calendarEventRepositoryProvider)
+      .watchSyncState(
+        isDm: widget.isDm,
+        conversationId: widget.conversationId,
+        roomId: widget.roomId,
+        eventId: widget.event.eventId,
+        uid: widget.currentUser.userId,
+      );
+
   late final Future<_ParticipantsData> _participantsFuture =
       _loadParticipants();
 
@@ -137,6 +154,22 @@ class _CalendarEventDetailDialogState
     setState(() => _saving = true);
     try {
       final note = _noteController.text.trim();
+      final uid = widget.currentUser.userId;
+      // 連携済みの住人は、ボタン操作の最初（ユーザー操作の有効期間内）に
+      // Googleのアクセストークンを取得しておく（Webではユーザー操作なしに
+      // 取れないため。2026-10-04追加）。
+      final user =
+          ref.read(watchedUserProvider(uid)).asData?.value ??
+          widget.currentUser;
+      final calendarId = user.googleCalendarId;
+      String? token;
+      if (user.googleCalendarSyncEnabled == true && calendarId != null) {
+        try {
+          token = await GoogleCalendarAuthService().requestConsent();
+        } catch (e) {
+          debugPrint('[calendarRsvpSync] token failed: $e');
+        }
+      }
       await ref
           .read(calendarEventRepositoryProvider)
           .setRsvp(
@@ -148,6 +181,28 @@ class _CalendarEventDetailDialogState
             dayStatuses: _myDayStatuses,
             note: note.isEmpty ? null : note,
           );
+      // 出欠の保存後、自分のGoogleカレンダーへ同期する（参加/遅刻なら追加・
+      // 更新、そうでなくなったら削除）。同期の失敗は出欠の保存自体を巻き戻さず、
+      // エラー表示のみ行う。
+      if (token != null && calendarId != null) {
+        try {
+          await CalendarRsvpSync(
+            repository: ref.read(calendarEventRepositoryProvider),
+            syncService: GoogleCalendarSyncService(),
+          ).syncOnRsvp(
+            isDm: widget.isDm,
+            conversationId: widget.conversationId,
+            roomId: widget.roomId,
+            event: widget.event,
+            uid: uid,
+            calendarId: calendarId,
+            accessToken: token,
+            dayStatuses: _myDayStatuses,
+          );
+        } catch (e) {
+          if (mounted) showAutoDismissBanner(context, message: '$e');
+        }
+      }
     } catch (e) {
       // 例外を握りつぶすと保存が失敗しても何も起きたように見えず、ユーザーが
       // 気づけない（calendar_event_form_dialog.dartの_save()と同じ教訓、
@@ -448,6 +503,28 @@ class _CalendarEventDetailDialogState
                 decoration: InputDecoration(
                   hintText: strings.calendarRsvpNoteFieldHint,
                 ),
+              ),
+              StreamBuilder<CalendarEventSync?>(
+                stream: _mySyncStream,
+                builder: (context, snapshot) {
+                  final label = switch (snapshot.data?.status) {
+                    CalendarSyncStatus.synced =>
+                      strings.calendarSyncStatusSyncedLabel,
+                    CalendarSyncStatus.failed =>
+                      strings.calendarSyncStatusFailedLabel,
+                    CalendarSyncStatus.pending || CalendarSyncStatus.syncing =>
+                      strings.calendarSyncStatusPendingLabel,
+                    _ => null,
+                  };
+                  if (label == null) return const SizedBox.shrink();
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(
+                      label,
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  );
+                },
               ),
             ],
           ],

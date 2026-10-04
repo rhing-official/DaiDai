@@ -30,6 +30,57 @@ class TableActions {
     }
   }
 
+  /// [position]番目の行/列の全セルを複数セル選択の状態にする（2026-10-04追加、
+  /// DaiDai patch。行/列ハンドルのクリックで選択し、Backspace/Deleteで
+  /// その行/列を削除できるようにするため。削除そのものは`note_table_delete.dart`
+  /// のコマンドが行う）。選択は、行/列の最初のセルの先頭の段落の先頭から
+  /// 最後のセルの末尾の段落の末尾まで。
+  static void select(
+    Node node,
+    int position,
+    EditorState editorState,
+    TableDirection dir,
+  ) {
+    final key = dir == TableDirection.col
+        ? TableCellBlockKeys.colPosition
+        : TableCellBlockKeys.rowPosition;
+    final otherKey = dir == TableDirection.col
+        ? TableCellBlockKeys.rowPosition
+        : TableCellBlockKeys.colPosition;
+    final cells =
+        node.children.where((cell) => cell.attributes[key] == position).toList()
+          ..sort(
+            (a, b) => (a.attributes[otherKey] as int)
+                .compareTo(b.attributes[otherKey] as int),
+          );
+    if (cells.isEmpty) return;
+    Node? firstLeaf(Node n) {
+      if (n.delta != null) return n;
+      for (final child in n.children) {
+        final leaf = firstLeaf(child);
+        if (leaf != null) return leaf;
+      }
+      return null;
+    }
+
+    Node? lastLeaf(Node n) {
+      if (n.delta != null) return n;
+      for (final child in n.children.toList().reversed) {
+        final leaf = lastLeaf(child);
+        if (leaf != null) return leaf;
+      }
+      return null;
+    }
+
+    final first = firstLeaf(cells.first);
+    final last = lastLeaf(cells.last);
+    if (first == null || last == null) return;
+    editorState.selection = Selection(
+      start: Position(path: first.path),
+      end: Position(path: last.path, offset: last.delta?.length ?? 0),
+    );
+  }
+
   static void duplicate(
     Node node,
     int position,

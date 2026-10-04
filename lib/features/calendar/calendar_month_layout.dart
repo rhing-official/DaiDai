@@ -112,7 +112,7 @@ class WeekLaneSegment {
 
   final CalendarMonthItem item;
 
-  /// この週内での列index（0=日曜〜6=土曜、`weekDays`の並びに従う）。
+  /// この週内での列index（`weekDays`の並びに従う。週の始まりの曜日は設定で日曜/月曜）。
   final int startCol;
   final int endCol;
 

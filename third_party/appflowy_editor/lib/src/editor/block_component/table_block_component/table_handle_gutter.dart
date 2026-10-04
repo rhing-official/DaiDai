@@ -28,11 +28,16 @@ class TableRowHandleGutter extends StatelessWidget {
     required this.rowDragIndexNotifier,
     required this.rowDragOffsetNotifier,
     this.menuBuilder,
+    this.cornerHandle,
   });
 
   final TableNode tableNode;
   final EditorState editorState;
   final TableBlockComponentMenuBuilder? menuBuilder;
+
+  // 左上の角（列ハンドル用ガターと交わる空き）に置く、表全体の移動ハンドル
+  // （2026-10-04追加、DaiDai patch）。
+  final Widget? cornerHandle;
 
   // 行の並び替えドラッグ（2026-09-28追加、ユーザー指示）。座標計算・確定
   // 処理は`table_view.dart`側に集約し、ここでは行インデックスを束縛して
@@ -86,7 +91,7 @@ class TableRowHandleGutter extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const SizedBox(height: kTableHandleGutterSize),
+          SizedBox(height: kTableHandleGutterSize, child: cornerHandle),
           ...rows,
         ],
       ),

@@ -46,8 +46,15 @@ TextSpan hideMarkdownPrefixWhenNotFocused({
   // 箇条書きの呼び出し元だけ`omitPrefixWhenHidden: true`を渡し、非フォーカス時は
   // プレフィックスのテキストラン自体を無くして幅を予約しないようにする。
   if (!isFocused && omitPrefixWhenHidden) {
-    final restSpan =
-        restText.isEmpty ? null : TextSpan(text: restText, style: first.style);
+    // プレフィックスしか無い行（`# `だけ等）は描画テキストが空になり行の高さが
+    // 0に潰れるため、幅0の文字（ゼロ幅スペース）を1つだけ置いて高さを保つ
+    // （2026-10-04追加）。この1文字はDelta側には無い描画専用の文字で、位置の
+    // 変換（[hiddenMarkdownPrefixLength]）側で末尾へ丸める。
+    final restSpan = restText.isEmpty
+        ? (children.length == 1
+            ? TextSpan(text: '\u200B', style: first.style)
+            : null)
+        : TextSpan(text: restText, style: first.style);
     return TextSpan(
       children: [if (restSpan != null) restSpan, ...children.skip(1)],
     );
@@ -75,6 +82,27 @@ TextSpan hideMarkdownPrefixWhenNotFocused({
   return TextSpan(
     children: [prefixSpan, if (restSpan != null) restSpan, ...children.skip(1)],
   );
+}
+
+/// 非フォーカス時に描画から外している（[hideMarkdownPrefixWhenNotFocused]の
+/// `omitPrefixWhenHidden: true`）プレフィックスの長さ。外していなければ0
+/// （2026-10-04追加、ユーザー指示: 非フォーカス時の`#`は透明にして幅を残す
+/// のではなく、テキストとして扱わず左詰めにする）。
+///
+/// 描画テキストはこの長さだけDeltaより短くなるため、`AppFlowyRichText`の
+/// `hiddenPrefixLength`へ渡して、カーソル・選択・クリック位置の座標を
+/// Deltaのオフセットへ換算させる。[hideMarkdownPrefixWhenNotFocused]が
+/// プレフィックスを外せる条件（先頭のdelta runがプレフィックス以上の長さの
+/// テキスト）と同じ判定にしてあるため、両者が食い違うことはない。
+int hiddenMarkdownPrefixLength({
+  required Node node,
+  required int? prefixLength,
+  required bool isFocused,
+}) {
+  if (isFocused || prefixLength == null || prefixLength <= 0) return 0;
+  final first = node.delta?.firstOrNull;
+  if (first is! TextInsert || first.text.length < prefixLength) return 0;
+  return prefixLength;
 }
 
 /// 見出しボタン・「/」選択メニュー等、`# `/`- `入力によるMarkdownショート

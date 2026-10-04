@@ -179,6 +179,12 @@ class _HeadingBlockComponentWidgetState
               delegate: this,
               node: widget.node,
               editorState: editorState,
+              hiddenPrefixLength: hiddenMarkdownPrefixLength(
+                node: widget.node,
+                prefixLength: widget.node
+                    .attributes[HeadingBlockKeys.markdownPrefixLength] as int?,
+                isFocused: _isFocused,
+              ),
               textAlign: alignment?.toTextAlign ?? textAlign,
               textSpanDecorator: (textSpan) {
                 var result = textSpan.updateTextStyle(
@@ -189,12 +195,16 @@ class _HeadingBlockComponentWidgetState
                       defaultTextStyle(level),
                 );
                 // 2026-09-26追加、DaiDai側の対応。
+                // 非フォーカス時は`#`を透明にして幅を残すのではなく描画から外し
+                // （2026-10-04変更、ユーザー指示）、座標計算は
+                // `hiddenPrefixLength`でDeltaのオフセットへ換算する。
                 result = hideMarkdownPrefixWhenNotFocused(
                   textSpan: result,
                   prefixLength: widget.node
                           .attributes[HeadingBlockKeys.markdownPrefixLength]
                       as int?,
                   isFocused: _isFocused,
+                  omitPrefixWhenHidden: true,
                 );
                 return result;
               },

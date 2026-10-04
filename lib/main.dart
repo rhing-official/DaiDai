@@ -27,6 +27,7 @@ import 'providers/draft_sync_enabled_provider.dart';
 import 'providers/font_design_provider.dart';
 import 'providers/gekiga_background_color_provider.dart';
 import 'providers/last_opened_room_provider.dart';
+import 'providers/calendar_week_start_provider.dart';
 import 'providers/message_time_format_provider.dart';
 import 'providers/notification_sound_provider.dart';
 import 'providers/ringtone_sound_provider.dart';
@@ -82,6 +83,7 @@ Future<void> main() async {
   final initialStickerSendMode = await loadInitialStickerSendMode();
   final initialDraftSyncEnabled = await loadInitialDraftSyncEnabled();
   final initialMessageTimeFormat = await loadInitialMessageTimeFormat();
+  final initialCalendarWeekStart = await loadInitialCalendarWeekStart();
   final initialChatLayoutStyle = await loadInitialChatLayoutStyle();
   final initialTalksListLayoutStyle = await loadInitialTalksListLayoutStyle();
   final initialLastOpenedRooms = await loadInitialLastOpenedRooms();
@@ -129,6 +131,9 @@ Future<void> main() async {
         ),
         initialMessageTimeFormatProvider.overrideWithValue(
           initialMessageTimeFormat,
+        ),
+        initialCalendarWeekStartProvider.overrideWithValue(
+          initialCalendarWeekStart,
         ),
         initialChatLayoutStyleProvider.overrideWithValue(
           initialChatLayoutStyle,

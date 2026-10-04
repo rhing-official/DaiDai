@@ -28,6 +28,7 @@ class AppUserPreferences {
     this.notificationSound,
     this.textColorLightArgb,
     this.textColorDarkArgb,
+    this.calendarWeekStart,
   });
 
   static const empty = AppUserPreferences();
@@ -81,6 +82,9 @@ class AppUserPreferences {
   final int? textColorLightArgb;
   final int? textColorDarkArgb;
 
+  /// カレンダーの週の始まり（`CalendarWeekStart`のname、2026-10-04追加）。
+  final String? calendarWeekStart;
+
   factory AppUserPreferences.fromJson(Map<String, dynamic>? json) {
     if (json == null) return empty;
     return AppUserPreferences(
@@ -109,6 +113,7 @@ class AppUserPreferences {
       notificationSound: json['notificationSound'] as String?,
       textColorLightArgb: json['textColorLightArgb'] as int?,
       textColorDarkArgb: json['textColorDarkArgb'] as int?,
+      calendarWeekStart: json['calendarWeekStart'] as String?,
     );
   }
 
@@ -139,6 +144,7 @@ class AppUserPreferences {
       if (notificationSound != null) 'notificationSound': notificationSound,
       if (textColorLightArgb != null) 'textColorLightArgb': textColorLightArgb,
       if (textColorDarkArgb != null) 'textColorDarkArgb': textColorDarkArgb,
+      if (calendarWeekStart != null) 'calendarWeekStart': calendarWeekStart,
     };
   }
 }

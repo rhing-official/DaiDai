@@ -189,6 +189,9 @@ void _showColorMenu(
         },
         resetText: AppFlowyEditorL10n.current.clearHighlightColor,
         resetIconName: 'clear_highlight_color',
+        // DaiDai patch（2026-10-04）: 背景色を解除して透明に戻すボタンを表示
+        // （nullを渡すとセルの背景色属性が外れる）。
+        showClearButton: true,
       );
     },
   ).build();

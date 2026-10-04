@@ -18,25 +18,23 @@ final messages = new MessageLookup();
 typedef String MessageIfAbsent(String messageStr, List<dynamic> args);
 
 class MessageLookup extends MessageLookupByLibrary {
-  String get localeName => 'ja_JP';
+  String get localeName => 'ja';
 
   final messages = _notInlinedMessages(_notInlinedMessages);
   static Map<String, Function> _notInlinedMessages(_) => <String, Function>{
-        "bold": MessageLookupByLibrary.simpleMessage(""),
-        "bulletedList": MessageLookupByLibrary.simpleMessage(""),
-        "checkbox": MessageLookupByLibrary.simpleMessage(""),
-        "embedCode": MessageLookupByLibrary.simpleMessage(""),
-        "heading1": MessageLookupByLibrary.simpleMessage(""),
-        "heading2": MessageLookupByLibrary.simpleMessage(""),
-        "heading3": MessageLookupByLibrary.simpleMessage(""),
-        "highlight": MessageLookupByLibrary.simpleMessage(""),
-        "image": MessageLookupByLibrary.simpleMessage(""),
-        "italic": MessageLookupByLibrary.simpleMessage(""),
-        "link": MessageLookupByLibrary.simpleMessage(""),
-        "numberedList": MessageLookupByLibrary.simpleMessage(""),
-        "quote": MessageLookupByLibrary.simpleMessage(""),
-        "strikethrough": MessageLookupByLibrary.simpleMessage(""),
-        "text": MessageLookupByLibrary.simpleMessage(""),
-        "underline": MessageLookupByLibrary.simpleMessage("")
+        // DaiDai patch（2026-10-04）: 表の行/列メニューが英語のままだったため追加。
+        "clearHighlightColor": MessageLookupByLibrary.simpleMessage("背景色を解除"),
+        "highlightColor": MessageLookupByLibrary.simpleMessage("背景色"),
+        "backgroundColor": MessageLookupByLibrary.simpleMessage("背景色"),
+        "colAddAfter": MessageLookupByLibrary.simpleMessage("右に追加"),
+        "colAddBefore": MessageLookupByLibrary.simpleMessage("左に追加"),
+        "colClear": MessageLookupByLibrary.simpleMessage("内容を消去"),
+        "colDuplicate": MessageLookupByLibrary.simpleMessage("複製"),
+        "colRemove": MessageLookupByLibrary.simpleMessage("削除"),
+        "rowAddAfter": MessageLookupByLibrary.simpleMessage("下に追加"),
+        "rowAddBefore": MessageLookupByLibrary.simpleMessage("上に追加"),
+        "rowClear": MessageLookupByLibrary.simpleMessage("内容を消去"),
+        "rowDuplicate": MessageLookupByLibrary.simpleMessage("複製"),
+        "rowRemove": MessageLookupByLibrary.simpleMessage("削除"),
       };
 }

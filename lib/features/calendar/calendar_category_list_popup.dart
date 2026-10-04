@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../l10n/strings.dart';
 import '../../models/app_ui_style.dart';
 import '../../models/calendar_category.dart';
+import '../../models/calendar_week_start.dart';
+import '../../providers/calendar_week_start_provider.dart';
 import '../../providers/app_ui_style_provider.dart';
 import '../../providers/repository_providers.dart';
 import '../../theme/popup_surface_colors.dart';
@@ -223,6 +225,15 @@ class CalendarCategoryListPopup extends ConsumerWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // 週の始まり（日曜／月曜、2026-10-04追加、ユーザー指示）。
+          _WeekStartSelector(
+            label: strings.calendarWeekStartLabel,
+            sundayLabel: strings.calendarWeekStartSunday,
+            mondayLabel: strings.calendarWeekStartMonday,
+            foreground: foreground,
+            background: background,
+          ),
+          Divider(height: 24, color: foreground.withValues(alpha: 0.2)),
           Row(
             children: [
               Expanded(
@@ -315,6 +326,74 @@ class CalendarCategoryListPopup extends ConsumerWidget {
         ),
         child: content,
       ),
+    );
+  }
+}
+
+/// カレンダーの週の始まり（日曜／月曜）を選ぶ2択のチップ行。ポップアップは
+/// 反転配色（[foreground]が文字色、背景はその反対色）のため、選択中は
+/// 文字色と同じ色で塗り、文字は背景色側にする（アクセントカラーは文字に
+/// 使わない）。
+class _WeekStartSelector extends ConsumerWidget {
+  const _WeekStartSelector({
+    required this.label,
+    required this.sundayLabel,
+    required this.mondayLabel,
+    required this.foreground,
+    required this.background,
+  });
+
+  final String label;
+  final String sundayLabel;
+  final String mondayLabel;
+  final Color foreground;
+  final Color background;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final current = ref.watch(calendarWeekStartProvider);
+    Widget chip(CalendarWeekStart value, String text) {
+      final selected = current == value;
+      return Expanded(
+        child: GestureDetector(
+          onTap: () =>
+              ref.read(calendarWeekStartProvider.notifier).setWeekStart(value),
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: selected ? foreground : Colors.transparent,
+              border: Border.all(color: foreground.withValues(alpha: 0.6)),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              text,
+              style: TextStyle(
+                color: selected ? background : foreground,
+                fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(fontWeight: FontWeight.bold, color: foreground),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            chip(CalendarWeekStart.sunday, sundayLabel),
+            const SizedBox(width: 8),
+            chip(CalendarWeekStart.monday, mondayLabel),
+          ],
+        ),
+      ],
     );
   }
 }

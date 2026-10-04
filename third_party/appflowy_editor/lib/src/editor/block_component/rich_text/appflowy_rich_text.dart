@@ -47,7 +47,15 @@ class AppFlowyRichText extends StatefulWidget {
     required this.delegate,
     required this.node,
     required this.editorState,
+    this.hiddenPrefixLength = 0,
   });
+
+  /// 描画から外している（`# `等のMarkdownプレフィックス）先頭の文字数
+  /// （2026-10-04追加、DaiDai patch。`markdown_prefix_reveal.dart`参照）。
+  /// 描画テキストはDeltaより[hiddenPrefixLength]文字短いため、カーソル・
+  /// 選択・クリック位置の座標計算でDeltaのオフセットと描画のオフセットを
+  /// 相互に換算する。
+  final int hiddenPrefixLength;
 
   /// The node of the rich text.
   final Node node;
@@ -110,6 +118,18 @@ class _AppFlowyRichTextState extends State<AppFlowyRichText>
 
   RenderParagraph? get _renderParagraph =>
       textKey.currentContext?.findRenderObject() as RenderParagraph?;
+
+  // Deltaのオフセット→描画テキストのオフセット（隠したプレフィックス内は
+  // 描画の先頭に丸める）。
+  int _toRendered(int deltaOffset) =>
+      max(0, deltaOffset - widget.hiddenPrefixLength);
+
+  // 描画テキストのオフセット→Deltaのオフセット（Deltaの長さを超えない）。
+  int _toDelta(int renderedOffset) {
+    final converted = renderedOffset + widget.hiddenPrefixLength;
+    final length = widget.node.delta?.length;
+    return length == null ? converted : min(converted, length);
+  }
 
   RenderParagraph? get _placeholderRenderParagraph =>
       placeholderTextKey.currentContext?.findRenderObject() as RenderParagraph?;
@@ -203,7 +223,7 @@ class _AppFlowyRichTextState extends State<AppFlowyRichText>
       return null;
     }
 
-    final textPosition = TextPosition(offset: position.offset);
+    final textPosition = TextPosition(offset: _toRendered(position.offset));
     double? placeholderCursorHeight =
         _placeholderRenderParagraph?.getFullHeightForCaret(textPosition);
     Offset? placeholderCursorOffset =
@@ -254,8 +274,8 @@ class _AppFlowyRichTextState extends State<AppFlowyRichText>
   @override
   Position getPositionInOffset(Offset start) {
     final offset = _renderParagraph?.globalToLocal(start) ?? Offset.zero;
-    final baseOffset =
-        _renderParagraph?.getPositionForOffset(offset).offset ?? -1;
+    final rendered = _renderParagraph?.getPositionForOffset(offset).offset;
+    final baseOffset = rendered == null ? -1 : _toDelta(rendered);
     return Position(path: widget.node.path, offset: baseOffset);
   }
 
@@ -271,7 +291,7 @@ class _AppFlowyRichTextState extends State<AppFlowyRichText>
         : textRange.end;
 
     return Selection.collapsed(
-      Position(path: widget.node.path, offset: wordEdgeOffset),
+      Position(path: widget.node.path, offset: _toDelta(wordEdgeOffset)),
     );
   }
 
@@ -282,18 +302,30 @@ class _AppFlowyRichTextState extends State<AppFlowyRichText>
         const TextPosition(offset: 0);
     final textRange =
         _renderParagraph?.getWordBoundary(textPosition) ?? TextRange.empty;
-    final start = Position(path: widget.node.path, offset: textRange.start);
-    final end = Position(path: widget.node.path, offset: textRange.end);
+    final start = Position(
+      path: widget.node.path,
+      offset: _toDelta(textRange.start),
+    );
+    final end = Position(
+      path: widget.node.path,
+      offset: _toDelta(textRange.end),
+    );
     return Selection(start: start, end: end);
   }
 
   @override
   Selection? getWordBoundaryInPosition(Position position) {
-    final textPosition = TextPosition(offset: position.offset);
+    final textPosition = TextPosition(offset: _toRendered(position.offset));
     final textRange =
         _renderParagraph?.getWordBoundary(textPosition) ?? TextRange.empty;
-    final start = Position(path: widget.node.path, offset: textRange.start);
-    final end = Position(path: widget.node.path, offset: textRange.end);
+    final start = Position(
+      path: widget.node.path,
+      offset: _toDelta(textRange.start),
+    );
+    final end = Position(
+      path: widget.node.path,
+      offset: _toDelta(textRange.end),
+    );
     return Selection(start: start, end: end);
   }
 
@@ -307,10 +339,16 @@ class _AppFlowyRichTextState extends State<AppFlowyRichText>
     if (kDebugMode && paragraph?.debugNeedsLayout == true) {
       return [];
     }
-    final textSelection = textSelectionFromEditorSelection(selection);
-    if (textSelection == null) {
+    final deltaTextSelection = textSelectionFromEditorSelection(selection);
+    if (deltaTextSelection == null) {
       return [];
     }
+    // Deltaのオフセットで組み立てた選択を、描画テキストのオフセットへ換算する
+    // （隠したプレフィックス分）。
+    final textSelection = TextSelection(
+      baseOffset: _toRendered(deltaTextSelection.baseOffset),
+      extentOffset: _toRendered(deltaTextSelection.extentOffset),
+    );
     final rects = paragraph
         ?.getBoxesForSelection(
           textSelection,
@@ -356,10 +394,12 @@ class _AppFlowyRichTextState extends State<AppFlowyRichText>
     }
     final localStart = _renderParagraph?.globalToLocal(start) ?? Offset.zero;
     final localEnd = _renderParagraph?.globalToLocal(end) ?? Offset.zero;
-    final baseOffset =
-        _renderParagraph?.getPositionForOffset(localStart).offset ?? -1;
-    final extentOffset =
-        _renderParagraph?.getPositionForOffset(localEnd).offset ?? -1;
+    final renderedBase =
+        _renderParagraph?.getPositionForOffset(localStart).offset;
+    final renderedExtent =
+        _renderParagraph?.getPositionForOffset(localEnd).offset;
+    final baseOffset = renderedBase == null ? -1 : _toDelta(renderedBase);
+    final extentOffset = renderedExtent == null ? -1 : _toDelta(renderedExtent);
     return Selection.single(
       path: widget.node.path,
       startOffset: baseOffset,

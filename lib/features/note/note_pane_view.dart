@@ -28,7 +28,9 @@ import '../../widgets/glass/glass_bottom_sheet.dart';
 import '../../widgets/glass/glass_dialog.dart';
 import '../../widgets/swipe_gestures.dart';
 import 'blocks/link_embed_block.dart';
+import 'block_move_drag.dart';
 import 'draw_canvas_view.dart';
+import 'note_table_delete.dart';
 import 'blocks/table_of_contents_block.dart';
 
 /// Obsidianの既定テーマに寄せた固定パレット（2026-09-26追加、ユーザー指示。
@@ -481,47 +483,55 @@ class _NotePaneViewState extends ConsumerState<NotePaneView> {
     return isDark ? _ObsidianNoteColors.dark : _ObsidianNoteColors.light;
   }
 
-  /// モバイル用の書式ボトムシート（2026-09-26追加、ユーザー指示）。PCの
-  /// `FloatingToolbar`（[_buildToolbarItems]）と全く同じ操作項目を、選択の
-  /// 有無に関わらずいつでもタップして開けるボトムシートとして提供する
-  /// （note.com等のモバイルUIを参考にした）。`ToolbarItem.builder`は
-  /// `FloatingToolbar`自身が内部で呼ぶのと同じビルダーのため、そのまま
-  /// 呼び出せば実際に機能する（押すと書式を適用する）アイコンが得られる。
-  /// [EditorState.transactionStream]を監視して、書式適用直後にハイライト
-  /// 状態（太字が有効か等）を再描画する。項目を押してもシートは自動で
-  /// 閉じない（複数の書式を続けて適用できるようにするため、note.comの
-  /// モバイル書式パネルと同じ挙動）。
-  Future<void> _openFormatBottomSheet() async {
+  /// モバイル用の挿入メニュー（2026-10-04追加、ユーザー指示）。PCの「+」
+  /// （[_CursorLineAddButton]）／「/」メニューと同じ項目
+  /// （[_buildSelectionMenuItems]）を、AppBarの「+」から開くボトムシートで
+  /// 提供する。`appflowy_editor`の「/」メニューはモバイル不可のため、各項目の
+  /// `handler`は`menuService`を使わない実装であることを利用し、PC用の
+  /// `SelectionMenu`オーバーレイを介さず直接呼ぶ（`SelectionMenu`は
+  /// `SelectionMenuService`を満たす値として渡すだけで`show()`は呼ばない）。
+  /// 書式（太字等）は同日に廃止した「T」ボタンのボトムシートから、
+  /// テキスト選択時のポップアップ（[_buildMobileSelectionToolbar]）へ移した。
+  Future<void> _openInsertBottomSheet() async {
     final editorState = _editorState;
     if (editorState == null) return;
     final isGlass = ref.read(appUiStyleProvider) == AppUiStyle.glass;
-    final noteColors = _noteColors;
-    final items = _buildToolbarItems()
-        .where((item) => item.isActive?.call(editorState) ?? true)
-        .toList();
+    final strings = ref.read(appStringsProvider);
+    // 「/」入力の後始末（直前の文字を消す処理）は挿入メニューを開いた
+    // 経緯に依存するため、AppBarから開くここでは無効にする。PCの「+」が
+    // `SelectionMenu.show()`内で行うのと同じ設定（`deleteSlashByDefault:
+    // false`相当）を、`show()`を呼ばないこの経路では自前で適用する。
+    final items = _buildSelectionMenuItems(strings)
+      ..forEach((item) {
+        item.deleteSlash = false;
+        item.deleteKeywords = false;
+      });
+    final menu = SelectionMenu(
+      context: context,
+      editorState: editorState,
+      selectionMenuItems: items,
+      deleteSlashByDefault: false,
+    );
     Widget builder(BuildContext sheetContext) => SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: StreamBuilder<EditorTransactionValue>(
-          stream: editorState.transactionStream,
-          builder: (context, _) {
-            return Wrap(
-              spacing: 4,
-              runSpacing: 4,
-              children: [
-                for (final item in items)
-                  if (item.builder != null)
-                    item.builder!(
-                      context,
-                      editorState,
-                      noteColors.accent,
-                      noteColors.text,
-                      null,
-                    ),
-              ],
-            );
-          },
-        ),
+      child: ListView(
+        shrinkWrap: true,
+        children: [
+          for (final item in items)
+            ListTile(
+              leading: item.icon(
+                editorState,
+                false,
+                Theme.of(sheetContext).brightness == Brightness.dark
+                    ? SelectionMenuStyle.dark
+                    : SelectionMenuStyle.light,
+              ),
+              title: Text(item.name),
+              onTap: () {
+                Navigator.of(sheetContext).pop();
+                item.handler(editorState, menu, context);
+              },
+            ),
+        ],
       ),
     );
     if (isGlass) {
@@ -529,6 +539,89 @@ class _NotePaneViewState extends ConsumerState<NotePaneView> {
     } else {
       await showModalBottomSheet<void>(context: context, builder: builder);
     }
+  }
+
+  /// モバイルのテキスト選択ポップアップ（2026-10-04追加、ユーザー指示）。
+  /// 範囲選択された時に[MobileFloatingToolbar]が[anchor]（選択範囲の上端
+  /// 中央、グローバル座標）に呼ぶ。切り取り／コピー／貼り付けと、PCの選択
+  /// ツールバーと同じ書式項目（[_buildToolbarItems]）を横並びで出す。
+  Widget _buildMobileSelectionToolbar(
+    BuildContext context,
+    Offset anchor,
+    VoidCallback closeToolbar,
+    EditorState editorState,
+  ) {
+    final strings = ref.read(appStringsProvider);
+    final noteColors = _noteColors;
+    final formatItems = _buildToolbarItems()
+        .where((item) => item.isActive?.call(editorState) ?? true)
+        .toList();
+    Widget textAction(String label, CommandShortcutEvent command) {
+      return TextButton(
+        style: TextButton.styleFrom(
+          foregroundColor: noteColors.text,
+          minimumSize: const Size(0, 36),
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+        ),
+        onPressed: () {
+          command.handler(editorState);
+          closeToolbar();
+        },
+        child: Text(label),
+      );
+    }
+
+    final media = MediaQuery.of(context);
+    const toolbarHeight = 44.0;
+    const margin = 8.0;
+    // 選択範囲の上に出し、上端に近ければ下へ回す。左右は画面内に収める。
+    final top = anchor.dy - toolbarHeight - margin < media.padding.top
+        ? anchor.dy + margin + 24
+        : anchor.dy - toolbarHeight - margin;
+    return Positioned(
+      top: top,
+      left: margin,
+      right: margin,
+      child: Align(
+        alignment: Alignment.topCenter,
+        child: Material(
+          color: noteColors.background,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: BorderSide(color: noteColors.divider),
+          ),
+          child: SizedBox(
+            height: toolbarHeight,
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: StreamBuilder<EditorTransactionValue>(
+                stream: editorState.transactionStream,
+                builder: (context, _) {
+                  return Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      textAction(strings.noteSelectionCut, cutCommand),
+                      textAction(strings.noteSelectionCopy, copyCommand),
+                      textAction(strings.noteSelectionPaste, pasteCommand),
+                      for (final item in formatItems)
+                        if (item.builder != null)
+                          item.builder!(
+                            context,
+                            editorState,
+                            noteColors.accent,
+                            noteColors.text,
+                            null,
+                          ),
+                    ],
+                  );
+                },
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   List<SelectionMenuItem> _buildSelectionMenuItems(Strings strings) {
@@ -913,14 +1006,13 @@ class _NotePaneViewState extends ConsumerState<NotePaneView> {
       tooltip: '',
       onPressed: !_noteLoaded ? null : _download,
     );
-    // モバイルは選択によるポップアップメニュー（`FloatingToolbar`）を出さない
-    // ため、代わりにいつでもタップできる書式ボタンをAppBarに常設する
-    // （2026-09-26追加、ユーザー指示。note.com等のモバイルUIを参考にした
-    // ボトムシート、`_openFormatBottomSheet`参照）。
-    final formatAction = IconButton(
-      icon: const Icon(Icons.format_size),
-      tooltip: '',
-      onPressed: _editorState == null ? null : () => _openFormatBottomSheet(),
+    // モバイル専用の挿入ボタン（2026-10-04追加、ユーザー指示）。PCの「+」
+    // /「/」メニューが使えないため、AppBarからボトムシートで同じ項目を開く
+    // （`_openInsertBottomSheet`参照）。書式は選択時ポップアップへ移した。
+    final insertAction = IconButton(
+      icon: const Icon(Icons.add),
+      tooltip: strings.noteInsertTooltip,
+      onPressed: _editorState == null ? null : () => _openInsertBottomSheet(),
     );
 
     // タイトル欄（appBar側の`titleField`）にフォーカスがある間にEscを押した
@@ -945,7 +1037,7 @@ class _NotePaneViewState extends ConsumerState<NotePaneView> {
                 leading: leadingButton,
                 title: titleField,
                 actions: [
-                  if (isMobile && !_isDraw) formatAction,
+                  if (isMobile && !_isDraw) insertAction,
                   downloadAction,
                 ],
               )
@@ -955,7 +1047,7 @@ class _NotePaneViewState extends ConsumerState<NotePaneView> {
                 leading: leadingButton,
                 title: titleField,
                 actions: [
-                  if (isMobile && !_isDraw) formatAction,
+                  if (isMobile && !_isDraw) insertAction,
                   downloadAction,
                 ],
               ),
@@ -1016,6 +1108,16 @@ class _NotePaneViewState extends ConsumerState<NotePaneView> {
       // 埋め込み・目次（2026-09-27追加、ユーザー指示）。
       LinkEmbedBlockKeys.type: LinkEmbedBlockComponentBuilder(),
       TableOfContentsBlockKeys.type: TableOfContentsBlockComponentBuilder(),
+      // 表の左上の角に、表全体を文書内の別の位置へ移動するドラッグハンドルを
+      // 置く（2026-10-04追加、ユーザー指示。行/列の並び替えハンドルとは別）。
+      TableBlockKeys.type: TableBlockComponentBuilder(
+        cornerHandleBuilder: (context, node) => BlockMoveHandle(
+          node: node,
+          editorState: editorState,
+          color: noteColors.text.withValues(alpha: 0.55),
+          tooltip: strings.noteBlockMoveTooltip,
+        ),
+      ),
       // 表の1行目（見出し行）を常に太字にする（2026-09-27追加、ユーザー指示）。
       // 段落ノードの`parent`が表のセル（`rowPosition == 0`）かどうかで判定する
       // ため、テーブル外の通常の段落には影響しない。
@@ -1054,16 +1156,33 @@ class _NotePaneViewState extends ConsumerState<NotePaneView> {
       // `Focus.onKeyEvent`（`_close()`でノートを閉じる）まで伝播しなかった
       // （2026-09-07判明）。「/」入力メニューの`slashCommand`除外と同じ要領で
       // 除外し、Escapeを外側へ伝播させる。
-      commandShortcutEvents: standardCommandShortcutEvents
-          .where((e) => e != exitEditingCommand)
-          .toList(),
+      // 表の全セルを覆う範囲選択でのBackspace/Deleteは表ごと消す
+      // （`note_table_delete.dart`、標準のコマンドより前に置く）。
+      commandShortcutEvents: [
+        wholeTableBackspaceCommand,
+        wholeTableDeleteCommand,
+        ...standardCommandShortcutEvents.where((e) => e != exitEditingCommand),
+      ],
       blockComponentBuilders: blockComponentBuilders,
     );
-    // モバイルは選択によるポップアップメニューを出さず、常設の書式ボタン
-    // （AppBarの`formatAction`）からボトムシートを開く方式にする
-    // （2026-09-26変更、以前は「/」メニューとMarkdownショートカットのみで
-    // 見出し・リスト等を付ける既知の制約があった）。
-    if (isMobile) return editor;
+    // モバイル: テキスト選択時にポップアップ（切り取り/コピー/貼り付け＋
+    // 書式）を出す（2026-10-04変更、ユーザー指示。以前は「T」の書式ボタン
+    // からボトムシートを開く方式だったが廃止）。挿入はAppBarの「+」。
+    if (isMobile) {
+      return MobileFloatingToolbar(
+        editorState: editorState,
+        editorScrollController: scrollController,
+        floatingToolbarHeight: 44,
+        toolbarBuilder: (context, anchor, closeToolbar) =>
+            _buildMobileSelectionToolbar(
+              context,
+              anchor,
+              closeToolbar,
+              editorState,
+            ),
+        child: editor,
+      );
+    }
     // PC専用: カーソルが乗っている行の右端に常設の「+」を表示し、「/」入力と
     // 同じ挿入メニューをクリックだけで開けるようにする（2026-09-27追加、
     // ユーザー指示。note.com等を参考にしたNotion風の導線）。
