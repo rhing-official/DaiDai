@@ -48,6 +48,8 @@ import '../../theme/gekiga/gekiga_colors.dart';
 import '../../theme/gekiga/gekiga_shapes.dart';
 import '../../theme/popup_surface_colors.dart';
 import '../../theme/text_prominence_colors.dart';
+import '../../providers/chat_room_message_cache.dart';
+import '../../widgets/always_animated_image.dart';
 import '../../widgets/gekiga/monochrome_box.dart';
 import '../../widgets/media_preview_frame.dart';
 import '../album/album_picker_sheet.dart';
@@ -141,8 +143,8 @@ class ChatScreen extends ConsumerStatefulWidget {
     this.roomId,
     this.forceShowSenderInfo = false,
     this.onOpenNote,
-    this.initialScrollPosition,
-    this.onDisposeScrollPosition,
+    this.initialScrollAnchor,
+    this.onDisposeScrollAnchor,
     super.key,
   });
 
@@ -317,13 +319,13 @@ class ChatScreen extends ConsumerStatefulWidget {
   /// メッセージ側にリセットされてしまう。呼び出し元が
   /// [onDisposeScrollPosition]で保存しておいた直前の位置をここへ渡すことで
   /// 復元する。nullなら通常通り最新メッセージ側から表示する。
-  final ItemPosition? initialScrollPosition;
+  final ChatScrollAnchor? initialScrollAnchor;
 
   /// [_ChatScreenState.dispose]時に、その時点の表示位置（画面下端＝最新側
   /// に最も近いアイテム、`_beginPopupGuard`と同じ算出方法）を呼び出し元へ
   /// 伝える。呼び出し元はこれをフィールドに保持し、次にこの寄合の
   /// `ChatScreen`を作る際[initialScrollPosition]として渡し戻す。
-  final ValueChanged<ItemPosition?>? onDisposeScrollPosition;
+  final ValueChanged<ChatScrollAnchor?>? onDisposeScrollAnchor;
 
   @override
   ConsumerState<ChatScreen> createState() => _ChatScreenState();
@@ -466,6 +468,27 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     _itemPositionsListener.itemPositions.addListener(_cacheLatestItemPosition);
   }
 
+  /// 現在の表示位置を「見ているメッセージ」のアンカーへ変換する。最新側
+  /// （index 0）を見ている場合は、戻った時も通常どおり最新から始めるため
+  /// null。日付区切り等メッセージでない行なら、最新側の近傍のメッセージ行を
+  /// 探す（2026-10-04追加）。
+  ChatScrollAnchor? _currentScrollAnchor() {
+    final position = _currentItemPosition();
+    if (position == null || position.index <= 0) return null;
+    for (var i = position.index; i >= 0; i--) {
+      if (i >= _messageIdByIndex.length) continue;
+      final id = _messageIdByIndex[i];
+      if (id == null) continue;
+      return i == 0
+          ? null
+          : ChatScrollAnchor(
+              messageId: id,
+              leadingEdge: i == position.index ? position.itemLeadingEdge : 0,
+            );
+    }
+    return null;
+  }
+
   /// [_lastKnownItemPosition]を最新の表示位置で更新するだけのリスナー
   /// （2026-09-15追加）。`itemPositions`が値を持つたびに呼ばれるため、
   /// これが呼ばれた後は[_currentItemPosition]が空リスト問題に当たらない。
@@ -475,6 +498,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     _lastKnownItemPosition = positions.reduce(
       (a, b) => a.index < b.index ? a : b,
     );
+    // 最新（index 0）が表示範囲に含まれない間だけジャンプボタンを出す。
+    // 値が変わった時だけ代入するのでスクロール中の再描画は発生しない。
+    final latestVisible = positions.any(
+      (p) => p.index == 0 && p.itemTrailingEdge > 0,
+    );
+    final show = !latestVisible;
+    if (_showJumpToLatest.value != show) _showJumpToLatest.value = show;
   }
 
   /// 現在の表示位置（`reverse:true`のため画面下端＝最新側に最も近い
@@ -843,6 +873,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// 直接更新する（[_cachedMessages]と同じパターン、このフィールド自体は
   /// 再描画のトリガーにする必要が無いため）。
   Map<String, int> _messageIndexById = {};
+
+  /// 「最新へジャンプ」ボタンの表示可否（[_cacheLatestItemPosition]が更新）。
+  final _showJumpToLatest = ValueNotifier<bool>(false);
+
+  /// [_messageIndexById]の逆引き（indexが指す行のメッセージID、日付区切り等
+  /// メッセージでない行はnull）。dispose時に表示位置をメッセージIDの
+  /// アンカーへ変換するために使う（2026-10-04追加）。
+  List<String?> _messageIdByIndex = const [];
 
   /// [_messageIndexById]構築時点でのメッセージ一覧の総行数
   /// （日付区切り等を含む、[_maybeLoadOlderMessages]の閾値判定用）。
@@ -2131,6 +2169,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     _itemPositionsListener.itemPositions.removeListener(
       _cacheLatestItemPosition,
     );
+    _showJumpToLatest.dispose();
     _bannerTimer?.cancel();
     // カレンダー・ノート・アルバム・通話UI等への切り替えで、呼び出し元
     // （`DmChatPane`/`GroupChatPane`）がこの`ChatScreen`を作り直す直前に
@@ -2138,7 +2177,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     // 伝え、再構築時に`initialScrollPosition`として渡し戻してもらうことで、
     // 最新メッセージへ強制的にジャンプしてしまう不具合を防ぐ
     // （2026-09-15追加）。
-    widget.onDisposeScrollPosition?.call(_currentItemPosition());
+    widget.onDisposeScrollAnchor?.call(_currentScrollAnchor());
     super.dispose();
   }
 
@@ -2475,14 +2514,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     // Widgetではなく軽量なエントリのリストから計算するため、
                     // 件数が多くてもコストは無視できる（2026-09-07）。
                     _entryCount = reversedEntries.length;
-                    final initialScrollPosition = widget.initialScrollPosition;
-                    final initialScrollIndex =
-                        initialScrollPosition == null || reversedEntries.isEmpty
-                        ? 0
-                        : initialScrollPosition.index.clamp(
-                            0,
-                            reversedEntries.length - 1,
-                          );
                     _messageIndexById = {
                       for (var i = 0; i < reversedEntries.length; i++)
                         if (reversedEntries[i] case _ChatMessageEntry(
@@ -2490,6 +2521,21 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                         ))
                           message.messageId: i,
                     };
+                    _messageIdByIndex = [
+                      for (final entry in reversedEntries)
+                        if (entry case _ChatMessageEntry(:final message))
+                          message.messageId
+                        else
+                          null,
+                    ];
+                    // 離れる直前に見ていたメッセージのアンカーから、現在の
+                    // 一覧でのindexを引き直す（新着でindexがずれても同じ
+                    // メッセージに戻る）。見つからなければ最新から始める。
+                    final initialAnchor = widget.initialScrollAnchor;
+                    final anchoredIndex = initialAnchor == null
+                        ? null
+                        : _messageIndexById[initialAnchor.messageId];
+                    final initialScrollIndex = anchoredIndex ?? 0;
 
                     // メッセージ一覧は入力欄の裏まで全画面分の高さで敷き、
                     // 入力欄自体はStack最前面のオーバーレイとして重ねる
@@ -2648,8 +2694,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                             itemBuilder: (context, index) =>
                                 buildEntry(reversedEntries[index]),
                             initialScrollIndex: initialScrollIndex,
-                            initialAlignment:
-                                initialScrollPosition?.itemLeadingEdge ?? 0,
+                            initialAlignment: anchoredIndex == null
+                                ? 0
+                                : initialAnchor!.leadingEdge,
                             padding: EdgeInsets.fromLTRB(
                               12,
                               12,
@@ -2999,6 +3046,23 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                           ),
                         ],
                       ),
+                    ),
+                  ),
+                // 最新メッセージが画面外へスクロールされている間だけ、右下に
+                // 「最新へジャンプ」ボタンを出す（2026-10-04追加）。
+                if (!_selecting && !_screenshotSelecting)
+                  Positioned(
+                    right: 12,
+                    bottom:
+                        (widget.onSend != null ? _composerAreaHeight : 0) + 12,
+                    child: ValueListenableBuilder<bool>(
+                      valueListenable: _showJumpToLatest,
+                      builder: (context, show, _) => show
+                          ? _JumpToLatestButton(
+                              uiStyle: uiStyle,
+                              onPressed: _scrollToLatestMessage,
+                            )
+                          : const SizedBox.shrink(),
                     ),
                   ),
               ],
@@ -6551,7 +6615,9 @@ class _SenderAvatar extends ConsumerWidget {
       ),
       child: ClipOval(
         child: iconUrl != null
-            ? Image(image: NetworkImage(iconUrl), fit: BoxFit.cover)
+            ? AlwaysAnimatedImage(
+                child: Image(image: NetworkImage(iconUrl), fit: BoxFit.cover),
+              )
             : ColoredBox(
                 color: color,
                 child: Center(
@@ -7325,4 +7391,55 @@ class _GekigaComposerFieldPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _GekigaComposerFieldPainter oldDelegate) =>
       false;
+}
+
+/// 「最新メッセージへジャンプ」の下矢印ボタン（2026-10-04追加）。UIスタイルごとに
+/// 見た目を変える（影は使わない）。フラット: アクセントカラー塗り＋反対色の
+/// アイコン、ガラス: 不透明のガラス丸ボタン、劇画: モノクロのパネルボタン。
+class _JumpToLatestButton extends StatelessWidget {
+  const _JumpToLatestButton({required this.uiStyle, required this.onPressed});
+
+  final AppUiStyle uiStyle;
+  final VoidCallback onPressed;
+
+  static const double _size = 44;
+
+  @override
+  Widget build(BuildContext context) {
+    switch (uiStyle) {
+      case AppUiStyle.gekiga:
+        return GekigaIconButton(
+          icon: Icons.keyboard_arrow_down,
+          onPressed: onPressed,
+          size: _size,
+        );
+      case AppUiStyle.glass:
+        return GlassIconButton(
+          icon: Icons.keyboard_arrow_down,
+          onPressed: onPressed,
+          size: _size,
+          opaque: true,
+        );
+      default:
+        final colorScheme = Theme.of(context).colorScheme;
+        return SizedBox(
+          width: _size,
+          height: _size,
+          child: Material(
+            color: colorScheme.primary,
+            shape: const CircleBorder(),
+            elevation: 0,
+            child: InkWell(
+              customBorder: const CircleBorder(),
+              onTap: onPressed,
+              child: Icon(
+                Icons.keyboard_arrow_down,
+                size: _size * 0.6,
+                color: colorScheme.onPrimary,
+              ),
+            ),
+          ),
+        );
+    }
+  }
 }

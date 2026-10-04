@@ -21,7 +21,9 @@ import '../../repositories/user_repository.dart';
 import '../../theme/gekiga/gekiga_colors.dart';
 import '../../theme/text_prominence_colors.dart';
 import '../../utils/auto_dismiss_banner.dart';
+import '../../utils/official_account.dart';
 import '../../utils/text_truncate.dart';
+import '../../widgets/always_animated_image.dart';
 import '../../widgets/gekiga/gekiga_icon_badge.dart';
 import '../../widgets/gekiga/gekiga_panel_box.dart';
 import '../../widgets/gekiga/gekiga_section_header.dart';
@@ -32,6 +34,7 @@ import '../../widgets/profile_card_picker.dart';
 import '../../widgets/profile_card_view.dart';
 import '../../widgets/slide_drilldown.dart';
 import '../chat/conversation_profile_card_dialog.dart';
+import '../chat/talks_tab.dart' show CategoryTab;
 import 'enmusubi_page.dart';
 
 enum _ProfileSection { kura, koubou, enmusubi }
@@ -1320,7 +1323,11 @@ class _WorkshopConversationCardSection extends ConsumerWidget {
         .where((group) => user.conversationProfileCardId[group.groupId] != null)
         .toList();
     final unassignedDms = dms
-        .where((dm) => user.conversationProfileCardId[dm.dmId] == null)
+        .where(
+          (dm) =>
+              user.conversationProfileCardId[dm.dmId] == null &&
+              dm.otherUserId(user.userId) != officialAccountUid,
+        )
         .toList();
     final unassignedGroups = groups
         .where((group) => user.conversationProfileCardId[group.groupId] == null)
@@ -1406,6 +1413,7 @@ class _AddConversationCardDialogState
     extends ConsumerState<_AddConversationCardDialog> {
   final _selectedIds = <String>{};
   final _searchController = TextEditingController();
+  bool _showGroups = false;
 
   @override
   void dispose() {
@@ -1435,7 +1443,22 @@ class _AddConversationCardDialogState
         .where((g) => query.isEmpty || g.name.toLowerCase().contains(query))
         .toList();
 
-    final isGlass = ref.watch(appUiStyleProvider) == AppUiStyle.glass;
+    final uiStyle = ref.watch(appUiStyleProvider);
+    final isGlass = uiStyle == AppUiStyle.glass;
+    final isGekiga = uiStyle == AppUiStyle.gekiga;
+    final vocab = ref.watch(vocabularyProvider);
+    final dmTab = CategoryTab(
+      label: vocab.dm,
+      count: filteredDms.length,
+      selected: !_showGroups,
+      onTap: () => setState(() => _showGroups = false),
+    );
+    final groupTab = CategoryTab(
+      label: vocab.plaza,
+      count: filteredGroups.length,
+      selected: _showGroups,
+      onTap: () => setState(() => _showGroups = true),
+    );
     final content = SizedBox(
       width: 360,
       child: Column(
@@ -1456,13 +1479,38 @@ class _AddConversationCardDialogState
             onChanged: (_) => setState(() {}),
           ),
           const SizedBox(height: 8),
+          // 検索中は一対・広場の垣根なく両方の結果を出すため、切り替えタブは
+          // 隠す（語らい一覧の検索と同じ挙動、2026-10-04）。
+          if (query.isEmpty)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: isGekiga
+                  ? GekigaJointedPair(
+                      leftSeed: vocab.dm.hashCode,
+                      leftSelected: !_showGroups,
+                      left: dmTab,
+                      rightSeed: vocab.plaza.hashCode,
+                      rightSelected: _showGroups,
+                      right: groupTab,
+                    )
+                  : Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [dmTab, const SizedBox(width: 6), groupTab],
+                    ),
+            ),
+          if (query.isEmpty) const SizedBox(height: 8),
           ConstrainedBox(
             constraints: const BoxConstraints(maxHeight: 320),
             child: ListView(
               shrinkWrap: true,
               children: [
-                for (final dm in filteredDms) _buildDmTile(dm),
-                for (final group in filteredGroups) _buildGroupTile(group),
+                if (query.isNotEmpty) ...[
+                  for (final dm in filteredDms) _buildDmTile(dm),
+                  for (final group in filteredGroups) _buildGroupTile(group),
+                ] else if (_showGroups)
+                  for (final group in filteredGroups) _buildGroupTile(group)
+                else
+                  for (final dm in filteredDms) _buildDmTile(dm),
               ],
             ),
           ),
@@ -1501,10 +1549,9 @@ class _AddConversationCardDialogState
     final otherUser = ref.watch(watchedUserProvider(otherUserId)).value;
     final iconUrl = otherUser?.effectiveIconFor(dm.dmId)?.url;
     final isGlass = ref.watch(appUiStyleProvider) == AppUiStyle.glass;
-    return CheckboxListTile(
-      value: _selectedIds.contains(dm.dmId),
-      controlAffinity: ListTileControlAffinity.trailing,
-      secondary: isGlass
+    return _buildSelectableTile(
+      id: dm.dmId,
+      avatar: isGlass
           ? GlassAvatar(
               size: 40,
               image: iconUrl != null ? NetworkImage(iconUrl) : null,
@@ -1521,28 +1568,50 @@ class _AddConversationCardDialogState
               foregroundColor: Theme.of(context).colorScheme.onSurfaceVariant,
               child: iconUrl == null ? const Icon(Icons.person) : null,
             ),
-      title: Text(
-        truncateName(title, 8),
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-      ),
-      onChanged: (checked) => setState(() {
-        if (checked ?? false) {
-          _selectedIds.add(dm.dmId);
+      title: title,
+    );
+  }
+
+  /// チェックボックス→アイコン→名前（右端まで、入りきらない時のみ省略）の順に並べる行。
+  Widget _buildSelectableTile({
+    required String id,
+    required Widget avatar,
+    required String title,
+  }) {
+    final selected = _selectedIds.contains(id);
+    return InkWell(
+      onTap: () => setState(() {
+        if (selected) {
+          _selectedIds.remove(id);
         } else {
-          _selectedIds.remove(dm.dmId);
+          _selectedIds.add(id);
         }
       }),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(
+          children: [
+            // タップは行全体（InkWell）で受けるため、チェックボックス自体は表示専用。
+            IgnorePointer(
+              child: Checkbox(value: selected, onChanged: (_) {}),
+            ),
+            avatar,
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
   Widget _buildGroupTile(Group group) {
     final iconUrl = group.profileCard?.iconUrl;
     final isGlass = ref.watch(appUiStyleProvider) == AppUiStyle.glass;
-    return CheckboxListTile(
-      value: _selectedIds.contains(group.groupId),
-      controlAffinity: ListTileControlAffinity.trailing,
-      secondary: isGlass
+    return _buildSelectableTile(
+      id: group.groupId,
+      avatar: isGlass
           ? GlassAvatar(
               size: 40,
               image: iconUrl != null ? NetworkImage(iconUrl) : null,
@@ -1559,18 +1628,7 @@ class _AddConversationCardDialogState
               foregroundColor: Theme.of(context).colorScheme.onSurfaceVariant,
               child: iconUrl == null ? const Icon(Icons.groups) : null,
             ),
-      title: Text(
-        truncateName(group.name, 8),
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-      ),
-      onChanged: (checked) => setState(() {
-        if (checked ?? false) {
-          _selectedIds.add(group.groupId);
-        } else {
-          _selectedIds.remove(group.groupId);
-        }
-      }),
+      title: group.name,
     );
   }
 }
@@ -1982,24 +2040,26 @@ class _NetworkThumbImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Image.network(
-      url,
-      fit: BoxFit.cover,
-      loadingBuilder: (context, child, progress) {
-        if (progress == null) return child;
-        return const Center(
-          child: SizedBox(
-            width: 20,
-            height: 20,
-            child: CircularProgressIndicator(strokeWidth: 2),
+    return AlwaysAnimatedImage(
+      child: Image.network(
+        url,
+        fit: BoxFit.cover,
+        loadingBuilder: (context, child, progress) {
+          if (progress == null) return child;
+          return const Center(
+            child: SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          );
+        },
+        errorBuilder: (context, error, stackTrace) => ColoredBox(
+          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+          child: Icon(
+            Icons.broken_image_outlined,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
           ),
-        );
-      },
-      errorBuilder: (context, error, stackTrace) => ColoredBox(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
-        child: Icon(
-          Icons.broken_image_outlined,
-          color: Theme.of(context).colorScheme.onSurfaceVariant,
         ),
       ),
     );

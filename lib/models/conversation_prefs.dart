@@ -10,6 +10,7 @@ class ConversationPrefs {
     this.draftByRoom = const {},
     this.lastReadAt,
     this.unreadCount = 0,
+    this.unreadByRoom = const {},
   });
 
   final bool pinned;
@@ -26,6 +27,12 @@ class ConversationPrefs {
   /// が加算し、自分がこの語らいを開いて既読を付けたタイミング
   /// （[ConversationPrefsRepository.setLastRead]）で0にリセットされる。
   final int unreadCount;
+
+  /// 寄合ごとの未読メッセージ件数（roomId→件数、寄合一覧のバッジ表示用、
+  /// 2026-10-04追加）。[unreadCount]と同じく`incrementUnreadCounts`が加算し、
+  /// その寄合を開いて既読を付けたタイミング（[ConversationPrefsRepository
+  /// .setLastRead]の`roomId`指定）で該当キーだけ0に戻る。
+  final Map<String, int> unreadByRoom;
 
   /// 広場の寄合ごとの通知オフの上書き（roomId→muted）。対象の寄合が
   /// `Room.customSettingsEnabled`の間のみ参照され、[notificationsMuted]
@@ -46,6 +53,7 @@ class ConversationPrefs {
     Map<String, String>? draftByRoom,
     Timestamp? lastReadAt,
     int? unreadCount,
+    Map<String, int>? unreadByRoom,
   }) {
     return ConversationPrefs(
       pinned: pinned ?? this.pinned,
@@ -55,6 +63,7 @@ class ConversationPrefs {
       draftByRoom: draftByRoom ?? this.draftByRoom,
       lastReadAt: lastReadAt ?? this.lastReadAt,
       unreadCount: unreadCount ?? this.unreadCount,
+      unreadByRoom: unreadByRoom ?? this.unreadByRoom,
     );
   }
 
@@ -71,6 +80,9 @@ class ConversationPrefs {
       ),
       lastReadAt: json['lastReadAt'] as Timestamp?,
       unreadCount: json['unreadCount'] as int? ?? 0,
+      unreadByRoom: (json['unreadByRoom'] as Map? ?? const {}).map(
+        (key, value) => MapEntry(key as String, (value as num).toInt()),
+      ),
     );
   }
 
@@ -82,6 +94,7 @@ class ConversationPrefs {
       'draftByRoom': draftByRoom,
       'lastReadAt': lastReadAt,
       'unreadCount': unreadCount,
+      'unreadByRoom': unreadByRoom,
     };
   }
 }

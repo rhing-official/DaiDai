@@ -7,6 +7,17 @@ import '../models/day_messages_page.dart';
 import '../models/message.dart';
 import 'repository_providers.dart';
 
+/// メッセージ画面のスクロール位置を「見ていたメッセージ」で覚えるアンカー
+/// （2026-10-04追加）。リストはreverse（index 0が最新）のため、離れている間に
+/// 新着が来るとindexは別のメッセージを指してしまう。そこでメッセージIDと、
+/// そのアイテムの先頭端の位置（`ItemPosition.itemLeadingEdge`）で保持する。
+class ChatScrollAnchor {
+  const ChatScrollAnchor({required this.messageId, required this.leadingEdge});
+
+  final String messageId;
+  final double leadingEdge;
+}
+
 /// 一対の寄合1つ、または広場の寄合1つを一意に指す不変のキー
 /// （2026-09-10追加）。[ChatRoomMessageCacheManager]のMapキーに使う。
 @immutable
@@ -62,6 +73,12 @@ class ChatRoomMessageCacheEntry extends ChangeNotifier {
 
   bool isLoadingOlder = false;
   bool hasMoreHistory = true;
+
+  /// この寄合を最後に離れた時点のスクロール位置（最新側にいた場合はnull）。
+  /// `ChatScreen`はPaneの再生成・寄合切替・一覧へのpopで作り直されるため、
+  /// Paneより長生きするこのキャッシュに保持して、戻ってきた時に最新へ
+  /// ジャンプしないようにする（2026-10-04追加）。
+  ChatScrollAnchor? lastScrollAnchor;
 
   /// 現在この寄合を表示しているWidget Stateの数。0より大きい間は
   /// [ChatRoomMessageCacheManager]のLRU破棄対象にならない。

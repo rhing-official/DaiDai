@@ -12,10 +12,11 @@ import '../../widgets/gekiga/gekiga_panel_box.dart';
 import '../../widgets/gekiga/gekiga_text_field.dart';
 import '../../widgets/glass/glass_dialog.dart';
 import '../../widgets/glass/glass_surface.dart';
+import '../../widgets/unread_badge.dart';
 
 /// 寄合（テキストチャンネル）1件分の一覧表示用の軽量データ。
 /// 広場の`Room`・一対の`DmRoom`どちらもこの形にマッピングして渡す。
-typedef RoomListEntry = ({String roomId, String name});
+typedef RoomListEntry = ({String roomId, String name, int unreadCount});
 
 /// 友達一覧・広場一覧のサイドバーの右隣に表示する、選択中の会話の寄合
 /// （テキストチャンネル）一覧サイドバー。広場・一対どちらでも使えるよう
@@ -212,6 +213,9 @@ class _RoomListPaneState extends ConsumerState<RoomListPane> {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
+          trailing: room.unreadCount > 0
+              ? UnreadBadge(count: room.unreadCount)
+              : null,
           onTap: () => widget.onSelectRoom(room),
         );
       }
@@ -237,6 +241,9 @@ class _RoomListPaneState extends ConsumerState<RoomListPane> {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
+                trailing: room.unreadCount > 0
+                    ? UnreadBadge(count: room.unreadCount)
+                    : null,
                 onTap: () => widget.onSelectRoom(room),
               ),
             ),
@@ -255,6 +262,9 @@ class _RoomListPaneState extends ConsumerState<RoomListPane> {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
+        trailing: room.unreadCount > 0
+            ? UnreadBadge(count: room.unreadCount)
+            : null,
         onTap: () => widget.onSelectRoom(room),
       );
     }

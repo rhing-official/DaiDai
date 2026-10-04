@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../theme/gekiga/gekiga_shapes.dart';
+import '../always_animated_image.dart';
 import 'monochrome_box.dart';
 
 /// メッセージ画面の送信者アイコンを、劇画UI専用のモノクロボックス
@@ -61,7 +62,9 @@ class GekigaPhotoFrame extends StatelessWidget {
                   inset: size * 0.15,
                 ),
                 child: image != null
-                    ? Image(image: image!, fit: BoxFit.cover)
+                    ? AlwaysAnimatedImage(
+                        child: Image(image: image!, fit: BoxFit.cover),
+                      )
                     : (fallback ?? const SizedBox.shrink()),
               ),
             ),

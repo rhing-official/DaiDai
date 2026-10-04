@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
 import '../../l10n/strings.dart';
 import '../../l10n/vocabulary.dart';
@@ -178,6 +177,14 @@ Future<bool> _confirmDeleteRoom(
   return confirmed ?? false;
 }
 
+/// [ChatScreen.onDisposeScrollAnchor]用。作成時点の[entry]へ位置を保存する
+/// コールバックを返す（寄合切替でPaneの`_cacheEntry`が差し替わっても、
+/// 旧ChatScreenのdispose時に新しい寄合のentryへ誤って書き込まない）。
+ValueChanged<ChatScrollAnchor?> _scrollAnchorSaver(
+  ChatRoomMessageCacheEntry entry,
+) =>
+    (anchor) => entry.lastScrollAnchor = anchor;
+
 /// 一対（DM）のChatScreenを組み立てる。相手のアクティブなニックネームを
 /// タイトルに反映するためConsumer化している。go_routerのフルスクリーン遷移と、
 /// TalksTabの分割ビュー（一覧の右隣に埋め込み表示）の両方から使う共通部品。
@@ -271,15 +278,6 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
   /// スナップショットのまま表示して問題ない。
   Album? _openAlbum;
 
-  /// 直前に表示していた`ChatScreen`のスクロール位置（2026-09-15追加）。
-  /// カレンダー・ノート・アルバム・通話UIとの切り替え（[_showingCalendar]
-  /// 等）で`ChatScreen`が作り直されても、`ChatScreen.onDisposeScrollPosition`
-  /// 経由でここに保存し`ChatScreen.initialScrollPosition`として渡し戻す
-  /// ことで、意図せず最新メッセージへジャンプする不具合を防ぐ。寄合を
-  /// 切り替えると[_switchRoom]でクリアし、別の寄合の位置が誤って
-  /// 引き継がれないようにする。
-  ItemPosition? _lastScrollPosition;
-
   @override
   void initState() {
     super.initState();
@@ -355,7 +353,6 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
       _showingCalendar = false;
       _openNoteId = null;
       _openAlbum = null;
-      _lastScrollPosition = null;
     });
     oldEntry.removeListener(_onCacheEntryChanged);
     ref.read(chatRoomMessageCacheManagerProvider).detach(oldKey, oldEntry);
@@ -524,10 +521,25 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
     // 部屋切替のたびに作り直されるのに対し、この`_buildChatScreen`自体は
     // 生き続ける）に配置する（2026-09-14変更、詳細は下の`return`直前の
     // コメント参照）。
+    final unreadByRoom =
+        ref
+            .watch(conversationPrefsProvider(currentUser.userId))
+            .value?[dm.dmId]
+            ?.unreadByRoom ??
+        const <String, int>{};
     final roomTabBarWidget = (!showRoomTabBar || rooms == null)
         ? null
         : RoomTabBar(
-            rooms: [for (final r in rooms) (roomId: r.roomId, name: r.name)],
+            rooms: [
+              for (final r in rooms)
+                (
+                  roomId: r.roomId,
+                  name: r.name,
+                  unreadCount: r.roomId == roomId
+                      ? 0
+                      : (unreadByRoom[r.roomId] ?? 0),
+                ),
+            ],
             selectedRoomId: roomId,
             maxWidth:
                 MediaQuery.sizeOf(context).width -
@@ -547,8 +559,10 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
       roomId: roomId,
       onSenderTap: (userId) => _openProfileCard(context, userId),
       onOpenNote: (noteId) => setState(() => _openNoteId = noteId),
-      initialScrollPosition: _lastScrollPosition,
-      onDisposeScrollPosition: (pos) => _lastScrollPosition = pos,
+      initialScrollAnchor: _cacheEntry.lastScrollAnchor,
+      // 旧寄合のChatScreenのdispose時に新寄合のentryへ書き込まないよう、
+      // 作成時点のentryを束縛しておく。
+      onDisposeScrollAnchor: _scrollAnchorSaver(_cacheEntry),
       messagesStream: _messagesController.stream,
       onLoadOlderMessages: _loadOlderMessages,
       isLoadingOlderMessages: _cacheEntry.isLoadingOlder,
@@ -627,6 +641,7 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
                 .setLastRead(
                   userId: currentUser.userId,
                   conversationId: dm.dmId,
+                  roomId: roomId,
                 ),
           ]);
         },
@@ -1833,15 +1848,6 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
   /// スナップショットのまま表示して問題ない。
   Album? _openAlbum;
 
-  /// 直前に表示していた`ChatScreen`のスクロール位置（2026-09-15追加）。
-  /// カレンダー・ノート・アルバム・通話UIとの切り替え（[_showingCalendar]
-  /// 等）で`ChatScreen`が作り直されても、`ChatScreen.onDisposeScrollPosition`
-  /// 経由でここに保存し`ChatScreen.initialScrollPosition`として渡し戻す
-  /// ことで、意図せず最新メッセージへジャンプする不具合を防ぐ。寄合を
-  /// 切り替えると[_switchRoom]でクリアし、別の寄合の位置が誤って
-  /// 引き継がれないようにする。
-  ItemPosition? _lastScrollPosition;
-
   @override
   void initState() {
     super.initState();
@@ -1904,7 +1910,6 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
       _showingCalendar = false;
       _openNoteId = null;
       _openAlbum = null;
-      _lastScrollPosition = null;
     });
     oldEntry.removeListener(_onCacheEntryChanged);
     ref.read(chatRoomMessageCacheManagerProvider).detach(oldKey, oldEntry);
@@ -2161,10 +2166,25 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
     _messagesController.add(filteredMessages);
     // 寄合タブバーは`ChatScreen`の外へ配置する（DM側の`_buildChatScreen`と
     // 同じ理由、2026-09-14変更。詳細は下の`return`直前のコメント参照）。
+    final unreadByRoom =
+        ref
+            .watch(conversationPrefsProvider(currentUser.userId))
+            .value?[group.groupId]
+            ?.unreadByRoom ??
+        const <String, int>{};
     final roomTabBarWidget = !widget.showRoomTabBar || !group.roomsEnabled
         ? null
         : RoomTabBar(
-            rooms: [for (final r in rooms) (roomId: r.roomId, name: r.name)],
+            rooms: [
+              for (final r in rooms)
+                (
+                  roomId: r.roomId,
+                  name: r.name,
+                  unreadCount: r.roomId == roomId
+                      ? 0
+                      : (unreadByRoom[r.roomId] ?? 0),
+                ),
+            ],
             selectedRoomId: roomId,
             maxWidth:
                 MediaQuery.sizeOf(context).width -
@@ -2188,8 +2208,10 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
       roomId: roomId,
       senderNameColorResolver: senderNameColorFor,
       onOpenNote: (noteId) => setState(() => _openNoteId = noteId),
-      initialScrollPosition: _lastScrollPosition,
-      onDisposeScrollPosition: (pos) => _lastScrollPosition = pos,
+      initialScrollAnchor: _cacheEntry.lastScrollAnchor,
+      // 旧寄合のChatScreenのdispose時に新寄合のentryへ書き込まないよう、
+      // 作成時点のentryを束縛しておく。
+      onDisposeScrollAnchor: _scrollAnchorSaver(_cacheEntry),
       banner: ChatTaskBanner(
         isDm: false,
         conversationId: group.groupId,
@@ -2252,6 +2274,7 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
                 .setLastRead(
                   userId: currentUser.userId,
                   conversationId: group.groupId,
+                  roomId: roomId,
                 ),
           ]);
         },

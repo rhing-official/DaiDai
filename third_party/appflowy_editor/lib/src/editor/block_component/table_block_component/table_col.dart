@@ -16,6 +16,14 @@ class TableCol extends StatefulWidget {
     required this.tableStyle,
     required this.resizeHoverColNotifier,
     required this.resizeDraggingColNotifier,
+    required this.onDragStart,
+    required this.onDragUpdate,
+    required this.onDragEnd,
+    required this.onDragCancel,
+    required this.colDragIndexNotifier,
+    required this.colDragOffsetNotifier,
+    required this.rowDragIndexNotifier,
+    required this.rowDragOffsetNotifier,
     this.menuBuilder,
   });
 
@@ -33,6 +41,22 @@ class TableCol extends StatefulWidget {
   final ValueListenable<int?> resizeHoverColNotifier;
   final ValueListenable<int?> resizeDraggingColNotifier;
 
+  // 列の並び替えドラッグ（2026-09-28追加、ユーザー指示）。座標計算・確定
+  // 処理は`table_view.dart`側に集約し、ここではコールバックを中継する。
+  final GestureDragStartCallback onDragStart;
+  final GestureDragUpdateCallback onDragUpdate;
+  final GestureDragEndCallback onDragEnd;
+  final GestureDragCancelCallback onDragCancel;
+
+  // ドラッグ中の列/行がポインターに追従して見えるようにするための共有
+  // notifier（2026-09-28追加、ユーザー指示）。列のドラッグ自身の追従には
+  // col側を、行のドラッグ中に自分の列内の該当セルを追従させるにはrow側を
+  // 使う（`_buildCells`参照）。
+  final ValueListenable<int?> colDragIndexNotifier;
+  final ValueListenable<double> colDragOffsetNotifier;
+  final ValueListenable<int?> rowDragIndexNotifier;
+  final ValueListenable<double> rowDragOffsetNotifier;
+
   @override
   State<TableCol> createState() => _TableColState();
 }
@@ -48,6 +72,7 @@ class _TableColState extends State<TableCol> {
   // 実サイズのガター（`kTableHandleGutterSize`分の高さ）として確保し、その
   // ガター自身のホバーで表示を切り替えるローカルstateに変更した。
   bool _colHandleHovering = false;
+  bool _colHandleDragging = false;
 
   @override
   Widget build(BuildContext context) {
@@ -65,43 +90,85 @@ class _TableColState extends State<TableCol> {
     }
 
     children.addAll([
-      SizedBox(
-        width: context.select(
-          (Node n) => getCellNode(n, widget.colIdx, 0)?.cellWidth,
-        ),
-        height: kTableHandleGutterSize +
-            context.select((Node n) => n.attributes[TableBlockKeys.colsHeight]),
-        child: Stack(
-          clipBehavior: Clip.none,
-          children: [
-            Positioned(
-              left: 0,
-              right: 0,
-              top: kTableHandleGutterSize,
-              child: Column(children: _buildCells(context)),
-            ),
-            Positioned(
-              left: 0,
-              right: 0,
-              top: 0,
-              height: kTableHandleGutterSize,
-              child: MouseRegion(
-                cursor: SystemMouseCursors.grab,
-                onEnter: (_) => setState(() => _colHandleHovering = true),
-                onExit: (_) => setState(() => _colHandleHovering = false),
-                child: TableActionHandler(
-                  visible: _colHandleHovering,
-                  node: widget.tableNode.node,
-                  editorState: widget.editorState,
-                  position: widget.colIdx,
-                  alignment: Alignment.center,
-                  transform: Matrix4.identity(),
-                  menuBuilder: widget.menuBuilder,
-                  dir: TableDirection.col,
+      ValueListenableBuilder<int?>(
+        valueListenable: widget.colDragIndexNotifier,
+        builder: (context, dragIndex, child) {
+          return ValueListenableBuilder<double>(
+            valueListenable: widget.colDragOffsetNotifier,
+            builder: (context, offset, child) {
+              // ドラッグ中かどうかで別のウィジェット構造（ラップの有無）を
+              // 返すと、その位置のElementの型が変わり、既存のサブツリー
+              // （進行中のGestureDetectorを含む）が破棄・再構築されてしまう
+              // （2026-09-28修正、ユーザー指摘: ハイライト機能追加で並び替え
+              // ドラッグがまた効かなくなった不具合）。ドラッグ中かどうかに
+              // 関わらず常に同じ構造（IgnorePointer→Transform.translate）を
+              // 維持し、値だけを切り替えることでサブツリーを維持する。
+              final isDragging = dragIndex == widget.colIdx;
+              return IgnorePointer(
+                ignoring: isDragging,
+                child: Transform.translate(
+                  offset: Offset(isDragging ? offset : 0, 0),
+                  child: child,
+                ),
+              );
+            },
+            child: child,
+          );
+        },
+        child: SizedBox(
+          width: context.select(
+            (Node n) => getCellNode(n, widget.colIdx, 0)?.cellWidth,
+          ),
+          height: kTableHandleGutterSize +
+              context
+                  .select((Node n) => n.attributes[TableBlockKeys.colsHeight]),
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Positioned(
+                left: 0,
+                right: 0,
+                top: kTableHandleGutterSize,
+                child: Column(children: _buildCells(context)),
+              ),
+              Positioned(
+                left: 0,
+                right: 0,
+                top: 0,
+                height: kTableHandleGutterSize,
+                child: MouseRegion(
+                  cursor: _colHandleDragging
+                      ? SystemMouseCursors.grabbing
+                      : SystemMouseCursors.grab,
+                  onEnter: (_) => setState(() => _colHandleHovering = true),
+                  onExit: (_) => setState(() => _colHandleHovering = false),
+                  child: TableActionHandler(
+                    visible: _colHandleHovering,
+                    node: widget.tableNode.node,
+                    editorState: widget.editorState,
+                    position: widget.colIdx,
+                    alignment: Alignment.center,
+                    transform: Matrix4.identity(),
+                    menuBuilder: widget.menuBuilder,
+                    dir: TableDirection.col,
+                    onHandleDragStart: (details) {
+                      setState(() => _colHandleDragging = true);
+                      widget.onDragStart(details);
+                    },
+                    onHandleDragUpdate: widget.onDragUpdate,
+                    onHandleDragEnd: (details) {
+                      setState(() => _colHandleDragging = false);
+                      widget.onDragEnd(details);
+                    },
+                    onHandleDragCancel: () {
+                      setState(() => _colHandleDragging = false);
+                      widget.onDragCancel();
+                    },
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
       ValueListenableBuilder<int?>(
@@ -147,9 +214,12 @@ class _TableColState extends State<TableCol> {
       addListener(node.children.first, i);
 
       cells.addAll([
-        widget.editorState.renderer.build(
-          context,
-          node,
+        _buildDragFollowingCell(
+          widget.editorState.renderer.build(
+            context,
+            node,
+          ),
+          i,
         ),
         buildCellBorder(thick: i == 0),
       ]);
@@ -159,6 +229,36 @@ class _TableColState extends State<TableCol> {
       buildCellBorder(),
       ...cells,
     ];
+  }
+
+  // 行の並び替えドラッグ中、対象行のセルがポインターに追従して見えるように
+  // する（2026-09-28追加、ユーザー指示）。行のセル本体は列ごとに分散して
+  // 描画されているため、各列でこのラップを行い1行分の見た目を揃える。
+  Widget _buildDragFollowingCell(Widget cell, int rowIdx) {
+    return ValueListenableBuilder<int?>(
+      valueListenable: widget.rowDragIndexNotifier,
+      builder: (context, dragIndex, child) {
+        return ValueListenableBuilder<double>(
+          valueListenable: widget.rowDragOffsetNotifier,
+          builder: (context, offset, child) {
+            // 常に同じ構造（IgnorePointer→Transform.translate）を維持し、
+            // 値だけを切り替える（2026-09-28修正、上のcolDragIndexNotifier
+            // 側と同じ理由。構造を条件分岐で変えるとサブツリーが破棄・
+            // 再構築され、セル内容の状態が失われうる）。
+            final isDragging = dragIndex == rowIdx;
+            return IgnorePointer(
+              ignoring: isDragging,
+              child: Transform.translate(
+                offset: Offset(0, isDragging ? offset : 0),
+                child: child,
+              ),
+            );
+          },
+          child: child,
+        );
+      },
+      child: cell,
+    );
   }
 
   void addListener(Node node, int row) {

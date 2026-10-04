@@ -2660,9 +2660,10 @@ async function sendMessageNotification(params: {
 async function incrementUnreadCounts(params: {
   isDm: boolean;
   conversationId: string;
+  roomId: string;
   message: FirebaseFirestore.DocumentData;
 }): Promise<void> {
-  const { isDm, conversationId, message } = params;
+  const { isDm, conversationId, roomId, message } = params;
   const senderId: string = message.senderId;
 
   let recipientIds: string[];
@@ -2682,7 +2683,16 @@ async function incrementUnreadCounts(params: {
     const ref = db.doc(
       `users/${recipientId}/conversationPrefs/${conversationId}`,
     );
-    batch.set(ref, { unreadCount: FieldValue.increment(1) }, { merge: true });
+    // 寄合ごとの未読数（`unreadByRoom`）も加算する（2026-10-04追加）。
+    // ドット記法はset+mergeではネストとして扱われないため、ネストMapで書く。
+    batch.set(
+      ref,
+      {
+        unreadCount: FieldValue.increment(1),
+        unreadByRoom: { [roomId]: FieldValue.increment(1) },
+      },
+      { merge: true },
+    );
   }
   await batch.commit();
 }
@@ -2705,6 +2715,7 @@ export const onDmMessageCreated = onDocumentCreated(
       incrementUnreadCounts({
         isDm: true,
         conversationId: event.params.dmId,
+        roomId: event.params.roomId,
         message,
       }),
     ]);
@@ -2729,6 +2740,7 @@ export const onGroupMessageCreated = onDocumentCreated(
       incrementUnreadCounts({
         isDm: false,
         conversationId: event.params.groupId,
+        roomId: event.params.roomId,
         message,
       }),
     ]);

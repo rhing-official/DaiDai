@@ -12,6 +12,7 @@ import '../../theme/gekiga/gekiga_colors.dart';
 import '../../widgets/gekiga/gekiga_icon_badge.dart';
 import '../../widgets/gekiga/gekiga_panel_box.dart';
 import '../../widgets/glass/glass_surface.dart';
+import '../../widgets/unread_badge.dart';
 import 'room_list_pane.dart' show RoomListEntry, promptForRoomName;
 
 /// 狭い画面（縦表示）のチャット画面上部に表示する、寄合の一覧タブバー
@@ -199,6 +200,25 @@ class _RoomTabBarState extends ConsumerState<RoomTabBar> {
     return box.localToGlobal(Offset.zero) & box.size;
   }
 
+  /// 未読がある寄合のセルの右上に件数バッジを重ねる。`_itemWidth`の折り返し
+  /// 見積りを変えないよう幅は消費せず、`Stack`で重ねるだけにする
+  /// （2026-10-04追加）。選択中の寄合は常に既読のため出さない。
+  Widget _withUnreadBadge(RoomListEntry room, bool selected, Widget label) {
+    if (selected || room.unreadCount <= 0) return label;
+    return Stack(
+      clipBehavior: Clip.none,
+      alignment: Alignment.center,
+      children: [
+        label,
+        Positioned(
+          top: -10,
+          right: -14,
+          child: UnreadBadge(count: room.unreadCount),
+        ),
+      ],
+    );
+  }
+
   /// 劇画スタイル用のタブセル。塗り・枠は`GekigaJointedTileList`（呼び出し元）
   /// が`MonochromeBoxPainter`でまとめて描くため、ここでは中身
   /// （選択中=黒文字/未選択=白文字のテキスト）のみを組み立てる
@@ -224,13 +244,17 @@ class _RoomTabBarState extends ConsumerState<RoomTabBar> {
           ),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           alignment: Alignment.center,
-          child: Text(
-            '#${room.name}',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: fg,
-              fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+          child: _withUnreadBadge(
+            room,
+            selected,
+            Text(
+              '#${room.name}',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: fg,
+                fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+              ),
             ),
           ),
         ),
@@ -430,13 +454,19 @@ class _RoomTabBarState extends ConsumerState<RoomTabBar> {
           color: selected ? highlightColor : null,
           child: isAdd
               ? Icon(Icons.add, size: 20, color: foregroundColor)
-              : Text(
-                  '#${room.name}',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: foregroundColor,
-                    fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+              : _withUnreadBadge(
+                  room,
+                  selected,
+                  Text(
+                    '#${room.name}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: foregroundColor,
+                      fontWeight: selected
+                          ? FontWeight.bold
+                          : FontWeight.normal,
+                    ),
                   ),
                 ),
         ),

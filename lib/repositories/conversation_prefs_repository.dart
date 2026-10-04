@@ -21,9 +21,13 @@ abstract class ConversationPrefsRepository {
 
   /// 語らいを開いて既読を付けたタイミングで、その時刻を記録する
   /// （語らい一覧の「未読優先」並べ替え用、2026-09-02追加）。
+  ///
+  /// [roomId]を指定すると、その寄合の未読数（`unreadByRoom`）も0に戻す
+  /// （2026-10-04追加）。
   Future<void> setLastRead({
     required String userId,
     required String conversationId,
+    String? roomId,
   });
 
   /// 広場の寄合ごとの通知オフを設定する（`Room.customSettingsEnabled`が
@@ -95,6 +99,7 @@ class FirestoreConversationPrefsRepository
   Future<void> setLastRead({
     required String userId,
     required String conversationId,
+    String? roomId,
   }) async {
     // unreadCountもここで0にリセットする（2026-09-02追加）。加算側は
     // Cloud Functions（functions/src/index.tsの`incrementUnreadCounts`）が
@@ -104,6 +109,9 @@ class FirestoreConversationPrefsRepository
     await _prefsOf(userId).doc(conversationId).set({
       'lastReadAt': FieldValue.serverTimestamp(),
       'unreadCount': 0,
+      // set()はドット区切りキーをネストとして解釈しないため、
+      // `setRoomNotificationsMuted`と同じネストMapリテラルで書く。
+      if (roomId != null) 'unreadByRoom': {roomId: 0},
     }, SetOptions(merge: true));
   }
 

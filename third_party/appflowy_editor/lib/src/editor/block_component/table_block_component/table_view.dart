@@ -40,16 +40,41 @@ class _TableViewState extends State<TableView> {
   // 列を広げる/増やすと表の表示領域の右端からはみ出て見えなくなる件）。
   bool _wasAtEndWhenResizeStarted = false;
 
+  // 行/列の並び替えドラッグ用（2026-09-28追加、ユーザー指示）。
+  // `table`（Stackの唯一の非Positioned子）は`SingleChildScrollView`の実際の
+  // スクロール対象そのものなので、このキー経由の`globalToLocal`はスクロール
+  // 位置を考慮した「表コンテンツ内座標」をそのまま返す。
+  final GlobalKey _tableContentKey = GlobalKey();
+  final ValueNotifier<int?> _colDropIndex = ValueNotifier(null);
+  final ValueNotifier<int?> _rowDropIndex = ValueNotifier(null);
+  int? _colDragFrom;
+  int? _rowDragFrom;
+
+  // ドラッグ中の列/行がポインターに追従して見えるようにするための、
+  // 掴んでいる対象のインデックスとドラッグ開始位置からの累積オフセット
+  // （2026-09-28追加、ユーザー指示: 紫の枠で囲み実際に追従して動かす）。
+  final ValueNotifier<int?> _colDragIndex = ValueNotifier(null);
+  final ValueNotifier<double> _colDragOffset = ValueNotifier(0);
+  final ValueNotifier<int?> _rowDragIndex = ValueNotifier(null);
+  final ValueNotifier<double> _rowDragOffset = ValueNotifier(0);
+
   @override
   void dispose() {
     _resizeHoverCol.dispose();
     _resizeDraggingCol.dispose();
+    _colDropIndex.dispose();
+    _rowDropIndex.dispose();
+    _colDragIndex.dispose();
+    _colDragOffset.dispose();
+    _rowDragIndex.dispose();
+    _rowDragOffset.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final table = Row(
+      key: _tableContentKey,
       mainAxisSize: MainAxisSize.min,
       children: [
         Column(
@@ -61,6 +86,12 @@ class _TableViewState extends State<TableView> {
                   tableNode: widget.tableNode,
                   editorState: widget.editorState,
                   menuBuilder: widget.menuBuilder,
+                  onRowHandleDragStart: _onRowHandleDragStart,
+                  onRowHandleDragUpdate: _onRowHandleDragUpdate,
+                  onRowHandleDragEnd: _onRowHandleDragEnd,
+                  onRowHandleDragCancel: _onRowHandleDragCancel,
+                  rowDragIndexNotifier: _rowDragIndex,
+                  rowDragOffsetNotifier: _rowDragOffset,
                 ),
                 ..._buildColumns(context),
                 TableActionButton(
@@ -111,8 +142,236 @@ class _TableViewState extends State<TableView> {
       children: [
         table,
         ..._buildResizeStrips(context),
+        _buildColDropIndicator(context),
+        _buildRowDropIndicator(context),
+        _buildColDragHighlight(context),
+        _buildRowDragHighlight(context),
       ],
     );
+  }
+
+  // ドラッグ中の列/行全体を紫の角丸枠で囲むハイライト（2026-09-28追加、
+  // ユーザー指示）。ドラッグ開始位置からの累積オフセット分だけ位置をずらし、
+  // ポインターに追従しているように見せる。
+  Widget _buildColDragHighlight(BuildContext context) {
+    return ValueListenableBuilder<int?>(
+      valueListenable: _colDragIndex,
+      builder: (context, index, _) {
+        if (index == null) {
+          return const SizedBox.shrink();
+        }
+        return ValueListenableBuilder<double>(
+          valueListenable: _colDragOffset,
+          builder: (context, offset, _) {
+            final tableNode = widget.tableNode;
+            final left =
+                kTableHandleGutterSize + tableNode.colBoundaryX(index) + offset;
+            return Positioned(
+              left: left,
+              top: kTableHandleGutterSize,
+              width: tableNode.getColWidth(index),
+              height: tableNode.colsHeight,
+              child: IgnorePointer(
+                child: Container(
+                  decoration: BoxDecoration(
+                    border: Border.all(
+                      color: widget.editorState.editorStyle.cursorColor,
+                      width: 2,
+                    ),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildRowDragHighlight(BuildContext context) {
+    return ValueListenableBuilder<int?>(
+      valueListenable: _rowDragIndex,
+      builder: (context, index, _) {
+        if (index == null) {
+          return const SizedBox.shrink();
+        }
+        return ValueListenableBuilder<double>(
+          valueListenable: _rowDragOffset,
+          builder: (context, offset, _) {
+            final tableNode = widget.tableNode;
+            final top =
+                kTableHandleGutterSize + tableNode.rowTopY(index) + offset;
+            return Positioned(
+              left: 0,
+              top: top,
+              width: kTableHandleGutterSize + tableNode.tableWidth,
+              height: tableNode.getRowHeight(index),
+              child: IgnorePointer(
+                child: Container(
+                  decoration: BoxDecoration(
+                    border: Border.all(
+                      color: widget.editorState.editorStyle.cursorColor,
+                      width: 2,
+                    ),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // 列/行の並び替えドラッグ中、ドロップ先の境界を示す線
+  // （2026-09-28追加、ユーザー指示）。`IgnorePointer`でホバー/クリックを
+  // 奪わないようにする。色は範囲選択の枠線オーバーレイと同じ
+  // `cursorColor`で統一する。
+  Widget _buildColDropIndicator(BuildContext context) {
+    return ValueListenableBuilder<int?>(
+      valueListenable: _colDropIndex,
+      builder: (context, dropIndex, _) {
+        if (dropIndex == null) {
+          return const SizedBox.shrink();
+        }
+        final x =
+            kTableHandleGutterSize + widget.tableNode.colBoundaryX(dropIndex);
+        return Positioned(
+          left: x - 1,
+          top: kTableHandleGutterSize,
+          width: 2,
+          height: widget.tableNode.colsHeight,
+          child: IgnorePointer(
+            child: Container(color: widget.editorState.editorStyle.cursorColor),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildRowDropIndicator(BuildContext context) {
+    return ValueListenableBuilder<int?>(
+      valueListenable: _rowDropIndex,
+      builder: (context, dropIndex, _) {
+        if (dropIndex == null) {
+          return const SizedBox.shrink();
+        }
+        final y = kTableHandleGutterSize + widget.tableNode.rowTopY(dropIndex);
+        return Positioned(
+          left: 0,
+          top: y - 1,
+          width: kTableHandleGutterSize + widget.tableNode.tableWidth,
+          height: 2,
+          child: IgnorePointer(
+            child: Container(color: widget.editorState.editorStyle.cursorColor),
+          ),
+        );
+      },
+    );
+  }
+
+  // 列の並び替えドラッグ（2026-09-28追加、ユーザー指示）。
+  void _onColHandleDragStart(int colIdx, DragStartDetails details) {
+    _colDragFrom = colIdx;
+    _colDragIndex.value = colIdx;
+    _colDragOffset.value = 0;
+    _updateColDropIndicator(details.globalPosition);
+  }
+
+  void _onColHandleDragUpdate(int colIdx, DragUpdateDetails details) {
+    _colDragOffset.value += details.delta.dx;
+    _updateColDropIndicator(details.globalPosition);
+  }
+
+  void _updateColDropIndicator(Offset globalPosition) {
+    final box = _tableContentKey.currentContext?.findRenderObject();
+    if (box is! RenderBox) {
+      return;
+    }
+    final x = box.globalToLocal(globalPosition).dx - kTableHandleGutterSize;
+    final tableNode = widget.tableNode;
+    final c = tableNode.colIndexAtX(x).clamp(0, tableNode.colsLen - 1);
+    final mid = (tableNode.colBoundaryX(c) + tableNode.colBoundaryX(c + 1)) / 2;
+    _colDropIndex.value = x < mid ? c : c + 1;
+  }
+
+  void _onColHandleDragEnd(int colIdx, DragEndDetails details) {
+    final from = _colDragFrom;
+    final to = _colDropIndex.value;
+    _colDragFrom = null;
+    _colDropIndex.value = null;
+    _colDragIndex.value = null;
+    _colDragOffset.value = 0;
+    if (from == null || to == null) {
+      return;
+    }
+    final transaction = widget.editorState.transaction;
+    widget.tableNode.moveCol(from, to, transaction: transaction);
+    if (transaction.operations.isNotEmpty) {
+      transaction.afterSelection = transaction.beforeSelection;
+      widget.editorState.apply(transaction);
+    }
+  }
+
+  // ドラッグが途中でキャンセルされた場合（例: ポインターが画面外に出る等）に
+  // ドロップ位置インジケーターが残り続けないようにする（2026-09-28追加）。
+  void _onColHandleDragCancel(int colIdx) {
+    _colDragFrom = null;
+    _colDropIndex.value = null;
+    _colDragIndex.value = null;
+    _colDragOffset.value = 0;
+  }
+
+  // 行の並び替えドラッグ。列側の縦横を入れ替えた対称実装。
+  void _onRowHandleDragStart(int rowIdx, DragStartDetails details) {
+    _rowDragFrom = rowIdx;
+    _rowDragIndex.value = rowIdx;
+    _rowDragOffset.value = 0;
+    _updateRowDropIndicator(details.globalPosition);
+  }
+
+  void _onRowHandleDragUpdate(int rowIdx, DragUpdateDetails details) {
+    _rowDragOffset.value += details.delta.dy;
+    _updateRowDropIndicator(details.globalPosition);
+  }
+
+  void _updateRowDropIndicator(Offset globalPosition) {
+    final box = _tableContentKey.currentContext?.findRenderObject();
+    if (box is! RenderBox) {
+      return;
+    }
+    final y = box.globalToLocal(globalPosition).dy - kTableHandleGutterSize;
+    final tableNode = widget.tableNode;
+    final r = tableNode.rowIndexAtY(y).clamp(0, tableNode.rowsLen - 1);
+    final mid = (tableNode.rowTopY(r) + tableNode.rowTopY(r + 1)) / 2;
+    _rowDropIndex.value = y < mid ? r : r + 1;
+  }
+
+  void _onRowHandleDragEnd(int rowIdx, DragEndDetails details) {
+    final from = _rowDragFrom;
+    final to = _rowDropIndex.value;
+    _rowDragFrom = null;
+    _rowDropIndex.value = null;
+    _rowDragIndex.value = null;
+    _rowDragOffset.value = 0;
+    if (from == null || to == null) {
+      return;
+    }
+    final transaction = widget.editorState.transaction;
+    widget.tableNode.moveRow(from, to, transaction: transaction);
+    if (transaction.operations.isNotEmpty) {
+      transaction.afterSelection = transaction.beforeSelection;
+      widget.editorState.apply(transaction);
+    }
+  }
+
+  void _onRowHandleDragCancel(int rowIdx) {
+    _rowDragFrom = null;
+    _rowDropIndex.value = null;
+    _rowDragIndex.value = null;
+    _rowDragOffset.value = 0;
   }
 
   // 各列の右側罫線（列幅リサイズ用）ごとの当たり領域。見た目上の罫線の
@@ -213,6 +472,14 @@ class _TableViewState extends State<TableView> {
         tableStyle: widget.tableStyle,
         resizeHoverColNotifier: _resizeHoverCol,
         resizeDraggingColNotifier: _resizeDraggingCol,
+        onDragStart: (details) => _onColHandleDragStart(i, details),
+        onDragUpdate: (details) => _onColHandleDragUpdate(i, details),
+        onDragEnd: (details) => _onColHandleDragEnd(i, details),
+        onDragCancel: () => _onColHandleDragCancel(i),
+        colDragIndexNotifier: _colDragIndex,
+        colDragOffsetNotifier: _colDragOffset,
+        rowDragIndexNotifier: _rowDragIndex,
+        rowDragOffsetNotifier: _rowDragOffset,
       ),
     );
   }

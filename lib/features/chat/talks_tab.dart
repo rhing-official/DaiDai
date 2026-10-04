@@ -50,6 +50,7 @@ import '../../widgets/gekiga/gekiga_text_field.dart';
 import '../../widgets/glass/glass_avatar.dart';
 import '../../widgets/glass/glass_icon_badge.dart';
 import '../../widgets/glass/glass_surface.dart';
+import '../../widgets/unread_badge.dart';
 import '../../widgets/interactive_swipe_back.dart';
 import '../../widgets/swipe_gestures.dart';
 import '../call/active_call_session.dart';
@@ -927,7 +928,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
                         // 入りきらず縦並びに見えてしまう不具合があった。横
                         // スクロールで逃がす方式も試したが、常に横並びで
                         // スクロール無しに収めたいとのユーザー要望のため
-                        // 採用せず、代わりに`_CategoryTab`側のパディング・
+                        // 採用せず、代わりに`CategoryTab`側のパディング・
                         // フォントサイズを詰めて260px幅のサイドバーに折り返し・
                         // スクロールいずれも無しで収まるようにした
                         // （2026-08-27発覚・修正）。
@@ -940,7 +941,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
                                     leftSeed: vocab.dm.hashCode,
                                     leftSelected:
                                         _category == _TalksCategory.dm,
-                                    left: _CategoryTab(
+                                    left: CategoryTab(
                                       label: vocab.dm,
                                       count: directMessages.length,
                                       selected: _category == _TalksCategory.dm,
@@ -950,7 +951,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
                                     rightSeed: vocab.plaza.hashCode,
                                     rightSelected:
                                         _category == _TalksCategory.group,
-                                    right: _CategoryTab(
+                                    right: CategoryTab(
                                       label: vocab.plaza,
                                       count: groups.length,
                                       selected:
@@ -963,7 +964,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
                               : Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    _CategoryTab(
+                                    CategoryTab(
                                       label: vocab.dm,
                                       count: directMessages.length,
                                       selected: _category == _TalksCategory.dm,
@@ -971,7 +972,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
                                           _setCategory(_TalksCategory.dm),
                                     ),
                                     const SizedBox(width: 6),
-                                    _CategoryTab(
+                                    CategoryTab(
                                       label: vocab.plaza,
                                       count: groups.length,
                                       selected:
@@ -1348,7 +1349,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
     );
   }
 
-  /// [_buildIconSplitPane]の左側ペイン。一対/広場の切り替えは[_CategoryTab]を
+  /// [_buildIconSplitPane]の左側ペイン。一対/広場の切り替えは[CategoryTab]を
   /// そのまま使い、本体は[_buildDirectMessages]/[_buildGroups]と同じソート・
   /// ピン留めロジック（[_applyDmSortOrder]/[_applyGroupSortOrder]/
   /// [_sortedByPin]）を使い回した上で、通常のリストタイルの代わりに
@@ -1401,13 +1402,13 @@ class _TalksTabState extends ConsumerState<TalksTab>
         : '';
     final showSearchResults = searchQuery.isNotEmpty;
 
-    final dmTab = _CategoryTab(
+    final dmTab = CategoryTab(
       label: vocab.dm,
       count: directMessages.length,
       selected: _category == _TalksCategory.dm,
       onTap: () => _setCategory(_TalksCategory.dm),
     );
-    final groupTab = _CategoryTab(
+    final groupTab = CategoryTab(
       label: vocab.plaza,
       count: groups.length,
       selected: _category == _TalksCategory.group,
@@ -2130,8 +2131,9 @@ class _TalksTabState extends ConsumerState<TalksTab>
 /// 劇画スタイルでは選択中=白地黒字／未選択=黒地白字のモノクロボックス
 /// （[GekigaJointedPair]）にする（2026-08-03追加、appUiStyleProviderを見る
 /// ためConsumerWidget化）。
-class _CategoryTab extends ConsumerWidget {
-  const _CategoryTab({
+class CategoryTab extends ConsumerWidget {
+  const CategoryTab({
+    super.key,
     required this.label,
     required this.count,
     required this.selected,
@@ -2366,7 +2368,9 @@ class _FriendRequestTile extends ConsumerWidget {
                       width: 220,
                       child: RoomListPane(
                         conversationName: titleText,
-                        rooms: const [(roomId: 'pending-main', name: 'メイン')],
+                        rooms: const [
+                          (roomId: 'pending-main', name: 'メイン', unreadCount: 0),
+                        ],
                         selectedRoomId: 'pending-main',
                         onSelectRoom: (_) {},
                       ),
@@ -3098,37 +3102,9 @@ class _ConversationTrailing extends ConsumerWidget {
           ),
         if (unreadCount > 0) ...[
           const SizedBox(height: 4),
-          _UnreadBadge(count: unreadCount),
+          UnreadBadge(count: unreadCount),
         ],
       ],
-    );
-  }
-}
-
-/// 未読件数バッジ。CLAUDE.mdの配色規約（薄い背景色に白文字禁止）に従い、
-/// 濃色のアクセントカラーを背景に使う（2026-09-02追加）。
-class _UnreadBadge extends StatelessWidget {
-  const _UnreadBadge({required this.count});
-
-  final int count;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(
-        color: colorScheme.primary,
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Text(
-        count > 99 ? '99+' : '$count',
-        style: TextStyle(
-          color: colorScheme.onPrimary,
-          fontSize: 11,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
     );
   }
 }
@@ -3838,6 +3814,9 @@ class _DmDetailWithRoomsState extends ConsumerState<_DmDetailWithRooms> {
     final conversationName = (otherNickname?.isNotEmpty ?? false)
         ? otherNickname!
         : '@${dm.otherRhingSeed(currentUser.userId)}';
+    final prefsById =
+        ref.watch(conversationPrefsProvider(currentUser.userId)).value ??
+        const <String, ConversationPrefs>{};
     return StreamBuilder<List<DmRoom>>(
       stream: _roomsStream,
       builder: (context, snapshot) {
@@ -3909,7 +3888,13 @@ class _DmDetailWithRoomsState extends ConsumerState<_DmDetailWithRooms> {
           conversationName: conversationName,
           rooms: [
             for (final r in _orderedRooms(rooms, dm.roomOrder, (r) => r.roomId))
-              (roomId: r.roomId, name: r.name),
+              (
+                roomId: r.roomId,
+                name: r.name,
+                unreadCount: r.roomId == roomId
+                    ? 0
+                    : (prefsById[dm.dmId]?.unreadByRoom[r.roomId] ?? 0),
+              ),
           ],
           selectedRoomId: roomId,
           onSelectRoom: widget.roomListOnly
@@ -4055,6 +4040,9 @@ class _GroupDetailWithRoomsState extends ConsumerState<_GroupDetailWithRooms> {
       setState(() => _selectedRoomId = roomId);
     });
     final currentUser = widget.currentUser;
+    final prefsById =
+        ref.watch(conversationPrefsProvider(currentUser.userId)).value ??
+        const <String, ConversationPrefs>{};
     final groupRepository = ref.read(groupRepositoryProvider);
     final isGlass = ref.watch(appUiStyleProvider) == AppUiStyle.glass;
     final canManageRooms = hasGroupPermission(
@@ -4121,7 +4109,13 @@ class _GroupDetailWithRoomsState extends ConsumerState<_GroupDetailWithRooms> {
               group.roomOrder,
               (r) => r.roomId,
             ))
-              (roomId: r.roomId, name: r.name),
+              (
+                roomId: r.roomId,
+                name: r.name,
+                unreadCount: r.roomId == roomId
+                    ? 0
+                    : (prefsById[group.groupId]?.unreadByRoom[r.roomId] ?? 0),
+              ),
           ],
           selectedRoomId: roomId,
           onSelectRoom: widget.roomListOnly

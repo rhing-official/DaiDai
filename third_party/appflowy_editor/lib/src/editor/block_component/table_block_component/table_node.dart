@@ -191,6 +191,16 @@ class TableNode {
     return colsLen - 1;
   }
 
+  // index番目の列の左端x座標（index==colsLenなら表の右端＝tableWidthと一致）。
+  // 列の並び替えドラッグ中のドロップ位置インジケーターに使う（2026-09-28追加）。
+  double colBoundaryX(int index) {
+    double x = _config.borderWidth;
+    for (var i = 0; i < index; i++) {
+      x += getColWidth(i) + _config.borderWidth;
+    }
+    return x;
+  }
+
   // row番目の行の上端y座標。1行目（見出し行）の直後だけ罫線が太い
   // （`table_col.dart`の`_buildCells`参照）ことを反映する。
   double rowTopY(int row) {
@@ -237,6 +247,83 @@ class TableNode {
       } else {
         node.updateAttributes(node.attributes);
       }
+    }
+  }
+
+  // 列の並び替え（2026-09-28追加、ユーザー指示）。`to`は元の並びを基準にした
+  // 挿入境界（0..colsLen、colsLenなら末尾へ挿入）。`from`を取り除いた後の
+  // 配列に対する位置へ変換してから並べ替える（`to == from`または
+  // `to == from + 1`はどちらも実質ノーオペレーション）。各セルの
+  // `colPosition`属性を付け替えるだけで、`node.children`自体の並びは
+  // 変更しない（`TableBlockComponentBuilder.validate`は属性のみを見るため）。
+  void moveCol(int from, int to, {Transaction? transaction}) {
+    assert(from >= 0 && from < colsLen);
+    assert(to >= 0 && to <= colsLen);
+    final adjustedTo = to > from ? to - 1 : to;
+    if (adjustedTo == from) {
+      return;
+    }
+
+    final order = List<int>.generate(colsLen, (i) => i);
+    final moved = order.removeAt(from);
+    order.insert(adjustedTo, moved);
+
+    for (var newIndex = 0; newIndex < order.length; newIndex++) {
+      final oldIndex = order[newIndex];
+      if (oldIndex == newIndex) {
+        continue;
+      }
+      for (var row = 0; row < rowsLen; row++) {
+        final cell = _cells[oldIndex][row];
+        if (transaction != null) {
+          transaction
+              .updateNode(cell, {TableCellBlockKeys.colPosition: newIndex});
+        } else {
+          cell.updateAttributes({TableCellBlockKeys.colPosition: newIndex});
+        }
+      }
+    }
+
+    if (transaction != null) {
+      transaction.updateNode(node, node.attributes);
+    } else {
+      node.updateAttributes(node.attributes);
+    }
+  }
+
+  // 行の並び替え。`moveCol`のrow/col入れ替え版。
+  void moveRow(int from, int to, {Transaction? transaction}) {
+    assert(from >= 0 && from < rowsLen);
+    assert(to >= 0 && to <= rowsLen);
+    final adjustedTo = to > from ? to - 1 : to;
+    if (adjustedTo == from) {
+      return;
+    }
+
+    final order = List<int>.generate(rowsLen, (i) => i);
+    final moved = order.removeAt(from);
+    order.insert(adjustedTo, moved);
+
+    for (var newIndex = 0; newIndex < order.length; newIndex++) {
+      final oldIndex = order[newIndex];
+      if (oldIndex == newIndex) {
+        continue;
+      }
+      for (var col = 0; col < colsLen; col++) {
+        final cell = _cells[col][oldIndex];
+        if (transaction != null) {
+          transaction
+              .updateNode(cell, {TableCellBlockKeys.rowPosition: newIndex});
+        } else {
+          cell.updateAttributes({TableCellBlockKeys.rowPosition: newIndex});
+        }
+      }
+    }
+
+    if (transaction != null) {
+      transaction.updateNode(node, node.attributes);
+    } else {
+      node.updateAttributes(node.attributes);
     }
   }
 

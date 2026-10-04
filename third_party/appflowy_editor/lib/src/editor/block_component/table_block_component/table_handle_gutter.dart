@@ -1,5 +1,6 @@
 import 'package:appflowy_editor/appflowy_editor.dart';
 import 'package:appflowy_editor/src/editor/block_component/table_block_component/table_action_handler.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -20,12 +21,33 @@ class TableRowHandleGutter extends StatelessWidget {
     super.key,
     required this.tableNode,
     required this.editorState,
+    required this.onRowHandleDragStart,
+    required this.onRowHandleDragUpdate,
+    required this.onRowHandleDragEnd,
+    required this.onRowHandleDragCancel,
+    required this.rowDragIndexNotifier,
+    required this.rowDragOffsetNotifier,
     this.menuBuilder,
   });
 
   final TableNode tableNode;
   final EditorState editorState;
   final TableBlockComponentMenuBuilder? menuBuilder;
+
+  // 行の並び替えドラッグ（2026-09-28追加、ユーザー指示）。座標計算・確定
+  // 処理は`table_view.dart`側に集約し、ここでは行インデックスを束縛して
+  // 中継するだけ。
+  final void Function(int rowIdx, DragStartDetails details)
+      onRowHandleDragStart;
+  final void Function(int rowIdx, DragUpdateDetails details)
+      onRowHandleDragUpdate;
+  final void Function(int rowIdx, DragEndDetails details) onRowHandleDragEnd;
+  final void Function(int rowIdx) onRowHandleDragCancel;
+
+  // ドラッグ中の行がポインターに追従して見えるようにするための共有notifier
+  // （2026-09-28追加、ユーザー指示）。
+  final ValueListenable<int?> rowDragIndexNotifier;
+  final ValueListenable<double> rowDragOffsetNotifier;
 
   @override
   Widget build(BuildContext context) {
@@ -47,6 +69,12 @@ class TableRowHandleGutter extends StatelessWidget {
           editorState: editorState,
           rowIdx: i,
           menuBuilder: menuBuilder,
+          onDragStart: (details) => onRowHandleDragStart(i, details),
+          onDragUpdate: (details) => onRowHandleDragUpdate(i, details),
+          onDragEnd: (details) => onRowHandleDragEnd(i, details),
+          onDragCancel: () => onRowHandleDragCancel(i),
+          dragIndexNotifier: rowDragIndexNotifier,
+          dragOffsetNotifier: rowDragOffsetNotifier,
         ),
         buildSpacer(thick: i == 0),
       ]);
@@ -71,6 +99,12 @@ class _RowHandleCell extends StatefulWidget {
     required this.tableNode,
     required this.editorState,
     required this.rowIdx,
+    required this.onDragStart,
+    required this.onDragUpdate,
+    required this.onDragEnd,
+    required this.onDragCancel,
+    required this.dragIndexNotifier,
+    required this.dragOffsetNotifier,
     this.menuBuilder,
   });
 
@@ -78,6 +112,12 @@ class _RowHandleCell extends StatefulWidget {
   final EditorState editorState;
   final int rowIdx;
   final TableBlockComponentMenuBuilder? menuBuilder;
+  final GestureDragStartCallback onDragStart;
+  final GestureDragUpdateCallback onDragUpdate;
+  final GestureDragEndCallback onDragEnd;
+  final GestureDragCancelCallback onDragCancel;
+  final ValueListenable<int?> dragIndexNotifier;
+  final ValueListenable<double> dragOffsetNotifier;
 
   @override
   State<_RowHandleCell> createState() => _RowHandleCellState();
@@ -85,24 +125,63 @@ class _RowHandleCell extends StatefulWidget {
 
 class _RowHandleCellState extends State<_RowHandleCell> {
   bool _hovering = false;
+  bool _dragging = false;
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: widget.tableNode.getRowHeight(widget.rowIdx),
-      child: MouseRegion(
-        cursor: SystemMouseCursors.grab,
-        onEnter: (_) => setState(() => _hovering = true),
-        onExit: (_) => setState(() => _hovering = false),
-        child: TableActionHandler(
-          visible: _hovering,
-          node: widget.tableNode.node,
-          editorState: widget.editorState,
-          position: widget.rowIdx,
-          alignment: Alignment.center,
-          transform: Matrix4.identity(),
-          menuBuilder: widget.menuBuilder,
-          dir: TableDirection.row,
+    return ValueListenableBuilder<int?>(
+      valueListenable: widget.dragIndexNotifier,
+      builder: (context, dragIndex, child) {
+        return ValueListenableBuilder<double>(
+          valueListenable: widget.dragOffsetNotifier,
+          builder: (context, offset, child) {
+            // 常に同じ構造（IgnorePointer→Transform.translate）を維持し、
+            // 値だけを切り替える（2026-09-28修正、ユーザー指摘: ハイライト
+            // 機能追加で並び替えドラッグがまた効かなくなった不具合。構造を
+            // 条件分岐で変えると、その位置のElementの型が変わり進行中の
+            // GestureDetectorを含むサブツリーが破棄・再構築されてしまう）。
+            final isDragging = dragIndex == widget.rowIdx;
+            return IgnorePointer(
+              ignoring: isDragging,
+              child: Transform.translate(
+                offset: Offset(0, isDragging ? offset : 0),
+                child: child,
+              ),
+            );
+          },
+          child: child,
+        );
+      },
+      child: SizedBox(
+        height: widget.tableNode.getRowHeight(widget.rowIdx),
+        child: MouseRegion(
+          cursor:
+              _dragging ? SystemMouseCursors.grabbing : SystemMouseCursors.grab,
+          onEnter: (_) => setState(() => _hovering = true),
+          onExit: (_) => setState(() => _hovering = false),
+          child: TableActionHandler(
+            visible: _hovering,
+            node: widget.tableNode.node,
+            editorState: widget.editorState,
+            position: widget.rowIdx,
+            alignment: Alignment.center,
+            transform: Matrix4.identity(),
+            menuBuilder: widget.menuBuilder,
+            dir: TableDirection.row,
+            onHandleDragStart: (details) {
+              setState(() => _dragging = true);
+              widget.onDragStart(details);
+            },
+            onHandleDragUpdate: widget.onDragUpdate,
+            onHandleDragEnd: (details) {
+              setState(() => _dragging = false);
+              widget.onDragEnd(details);
+            },
+            onHandleDragCancel: () {
+              setState(() => _dragging = false);
+              widget.onDragCancel();
+            },
+          ),
         ),
       ),
     );
