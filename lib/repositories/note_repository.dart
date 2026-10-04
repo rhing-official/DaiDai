@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../models/note.dart';
 import '../models/note_op.dart';
+import '../models/note_stroke.dart';
 
 /// 共有ノート機能のRepository（2026-09-06追加）。`PollRepository`と同じく
 /// 「isDm＋conversationId（dmId|groupId）＋roomId」だけに正規化した薄い実装。
@@ -46,6 +47,7 @@ abstract class NoteRepository {
     required String roomId,
     required String createdBy,
     String title = '',
+    String type = noteTypeMarkdown,
   });
 
   /// フルドキュメント上書き保存。[updatedAt]/[lastEditedBy]も同時更新する。
@@ -90,6 +92,32 @@ abstract class NoteRepository {
     required List<Map<String, dynamic>> transactions,
     required String sessionId,
     required String authorId,
+  });
+
+  /// ドローノートの線をライブ購読する（作成順）。
+  Stream<List<NoteStroke>> watchStrokes({
+    required bool isDm,
+    required String conversationId,
+    required String roomId,
+    required String noteId,
+  });
+
+  /// 線を1本追加する。生成した[NoteStroke.strokeId]を返す。
+  Future<String> addStroke({
+    required bool isDm,
+    required String conversationId,
+    required String roomId,
+    required String noteId,
+    required NoteStroke stroke,
+  });
+
+  /// [strokeIds]の線を削除する（消しゴム・取り消し・全消去）。
+  Future<void> deleteStrokes({
+    required bool isDm,
+    required String conversationId,
+    required String roomId,
+    required String noteId,
+    required List<String> strokeIds,
   });
 
   /// [upToCreatedAtInclusive]以前の操作ログを削除する（チェックポイント確定後
@@ -205,6 +233,7 @@ class FirestoreNoteRepository implements NoteRepository {
     required String roomId,
     required String createdBy,
     String title = '',
+    String type = noteTypeMarkdown,
   }) async {
     final ref = _notesCollection(
       isDm: isDm,
@@ -217,6 +246,7 @@ class FirestoreNoteRepository implements NoteRepository {
       title: title,
       content: const {},
       createdBy: createdBy,
+      type: type,
     );
     await ref.set(note.toJson());
     return note;
@@ -341,6 +371,81 @@ class FirestoreNoteRepository implements NoteRepository {
       final batch = _firestore.batch();
       for (final doc in snapshot.docs.skip(i).take(450)) {
         batch.delete(doc.reference);
+      }
+      await batch.commit();
+    }
+  }
+
+  CollectionReference<Map<String, dynamic>> _strokesCollection({
+    required bool isDm,
+    required String conversationId,
+    required String roomId,
+    required String noteId,
+  }) {
+    return _noteRef(
+      isDm: isDm,
+      conversationId: conversationId,
+      roomId: roomId,
+      noteId: noteId,
+    ).collection('strokes');
+  }
+
+  @override
+  Stream<List<NoteStroke>> watchStrokes({
+    required bool isDm,
+    required String conversationId,
+    required String roomId,
+    required String noteId,
+  }) {
+    return _strokesCollection(
+      isDm: isDm,
+      conversationId: conversationId,
+      roomId: roomId,
+      noteId: noteId,
+    ).orderBy('createdAt').snapshots().map((snapshot) {
+      return snapshot.docs
+          .map((doc) => NoteStroke.fromJson(doc.id, doc.data()))
+          .toList();
+    });
+  }
+
+  @override
+  Future<String> addStroke({
+    required bool isDm,
+    required String conversationId,
+    required String roomId,
+    required String noteId,
+    required NoteStroke stroke,
+  }) async {
+    final ref = await _strokesCollection(
+      isDm: isDm,
+      conversationId: conversationId,
+      roomId: roomId,
+      noteId: noteId,
+    ).add(stroke.toJson());
+    return ref.id;
+  }
+
+  @override
+  Future<void> deleteStrokes({
+    required bool isDm,
+    required String conversationId,
+    required String roomId,
+    required String noteId,
+    required List<String> strokeIds,
+  }) async {
+    if (strokeIds.isEmpty) return;
+    final collection = _strokesCollection(
+      isDm: isDm,
+      conversationId: conversationId,
+      roomId: roomId,
+      noteId: noteId,
+    );
+    // バッチの上限（500件）ごとに分けて削除する。
+    for (var i = 0; i < strokeIds.length; i += 400) {
+      final batch = _firestore.batch();
+      for (final id in strokeIds.skip(i).take(400)) {
+        batch.delete(collection.doc(id));
       }
       await batch.commit();
     }

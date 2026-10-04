@@ -78,13 +78,21 @@ class _PasskeySignInDialogState extends ConsumerState<PasskeySignInDialog> {
         .trim()
         .toLowerCase()
         .replaceFirst(RegExp(r'^@+'), '');
-    if (rhingSeed.isEmpty) return;
     setState(() {
       _isSigningIn = true;
       _errorMessage = null;
     });
     try {
-      await ref.read(authRepositoryProvider).signInWithPasskey(rhingSeed);
+      if (rhingSeed.isEmpty) {
+        // Seed空欄: パスキー選択モーダルから選ぶ方式（2026-10-04追加）。
+        // 裏で待機中のConditional試行とモーダルが競合しないよう先に中断する。
+        if (_conditionalAttemptStarted) {
+          await _authRepository.cancelConditionalPasskeyAttempt();
+        }
+        await _authRepository.signInWithDiscoverablePasskey();
+      } else {
+        await _authRepository.signInWithPasskey(rhingSeed);
+      }
       if (!mounted) return;
       Navigator.of(context).pop(true);
     } catch (e) {

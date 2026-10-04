@@ -644,6 +644,20 @@ class Strings {
     required this.noteListEmptyMessage,
     required this.noteUntitledLabel,
     required this.noteTitleFieldHint,
+    required this.noteTypeMarkdownLabel,
+    required this.noteTypeDrawLabel,
+    required this.noteDrawToolPen,
+    required this.noteDrawToolEraser,
+    required this.noteDrawToolPan,
+    required this.noteDrawUndo,
+    required this.noteDrawRedo,
+    required this.noteDrawClearAll,
+    required this.noteDrawClearConfirm,
+    required this.noteDrawClearConfirmButton,
+    required this.noteDrawNothingToExport,
+    required this.noteDrawColorHint,
+    required this.noteDownloadFailed,
+    required this.noteDownloadDefaultName,
     required this.noteDeleteAction,
     required this.noteDeleteConfirmTitle,
     required this.noteMenuHeading2,
@@ -1580,6 +1594,20 @@ class Strings {
   final String noteListEmptyMessage;
   final String noteUntitledLabel;
   final String noteTitleFieldHint;
+  final String noteTypeMarkdownLabel;
+  final String noteTypeDrawLabel;
+  final String noteDrawToolPen;
+  final String noteDrawToolEraser;
+  final String noteDrawToolPan;
+  final String noteDrawUndo;
+  final String noteDrawRedo;
+  final String noteDrawClearAll;
+  final String noteDrawClearConfirm;
+  final String noteDrawClearConfirmButton;
+  final String noteDrawNothingToExport;
+  final String noteDrawColorHint;
+  final String noteDownloadFailed;
+  final String noteDownloadDefaultName;
   final String noteDeleteAction;
   final String noteDeleteConfirmTitle;
   final String noteMenuHeading2;
@@ -1775,8 +1803,9 @@ class Strings {
     qrLoginSignInError: 'ログインに失敗しました',
     passkeyCreateAccountButton: 'Rhing Seedでアカウントを作成',
     passkeySignInButton: 'パスキーでログイン',
-    passkeySignInDialogDescription: '登録済みのRhing Seedを入力してください。',
-    passkeySignInDialogRhingSeedLabel: 'Rhing Seed',
+    passkeySignInDialogDescription:
+        '登録済みのRhing Seedを入力してください。空欄のまま「ログイン」を押すと、保存済みのパスキーから選べます。',
+    passkeySignInDialogRhingSeedLabel: 'Rhing Seed（空欄でもOK）',
     passkeySignInDialogSubmitButton: 'ログイン',
     passkeySignInDialogError: 'ログインに失敗しました。Rhing Seedまたはパスキーをご確認ください。',
     passkeySignInDialogErrorNotFound: 'そのRhing Seedのアカウントが見つかりません。',
@@ -2296,6 +2325,20 @@ class Strings {
     noteListEmptyMessage: 'まだノートがありません',
     noteUntitledLabel: '無題のノート',
     noteTitleFieldHint: 'タイトル',
+    noteTypeMarkdownLabel: 'マークダウン',
+    noteTypeDrawLabel: 'ドロー',
+    noteDrawToolPen: 'ペン',
+    noteDrawToolEraser: '消しゴム',
+    noteDrawToolPan: '移動・拡大縮小',
+    noteDrawUndo: '元に戻す',
+    noteDrawRedo: 'やり直し',
+    noteDrawClearAll: '全て消去',
+    noteDrawClearConfirm: '描いた線をすべて消しますか？',
+    noteDrawClearConfirmButton: '消去する',
+    noteDrawNothingToExport: '描画がありません',
+    noteDrawColorHint: '#RRGGBB',
+    noteDownloadFailed: 'ダウンロードに失敗しました',
+    noteDownloadDefaultName: 'ノート',
     noteDeleteAction: 'ノートを削除',
     noteDeleteConfirmTitle: 'ノートを削除しますか？',
     noteMenuHeading2: '見出し2',
@@ -2507,8 +2550,9 @@ class Strings {
     qrLoginSignInError: 'Sign-in failed',
     passkeyCreateAccountButton: 'Create account with Rhing Seed',
     passkeySignInButton: 'Sign in with Rhing Seed',
-    passkeySignInDialogDescription: 'Enter your registered Rhing Seed.',
-    passkeySignInDialogRhingSeedLabel: 'Rhing Seed',
+    passkeySignInDialogDescription:
+        'Enter your registered Rhing Seed. Leave it blank and tap "Sign in" to choose from your saved passkeys.',
+    passkeySignInDialogRhingSeedLabel: 'Rhing Seed (optional)',
     passkeySignInDialogSubmitButton: 'Sign in',
     passkeySignInDialogError:
         'Sign-in failed. Please check your Rhing Seed or passkey.',
@@ -3096,6 +3140,20 @@ class Strings {
     noteListEmptyMessage: 'No notes yet',
     noteUntitledLabel: 'Untitled note',
     noteTitleFieldHint: 'Title',
+    noteTypeMarkdownLabel: 'Markdown',
+    noteTypeDrawLabel: 'Draw',
+    noteDrawToolPen: 'Pen',
+    noteDrawToolEraser: 'Eraser',
+    noteDrawToolPan: 'Move / zoom',
+    noteDrawUndo: 'Undo',
+    noteDrawRedo: 'Redo',
+    noteDrawClearAll: 'Clear all',
+    noteDrawClearConfirm: 'Erase everything on this canvas?',
+    noteDrawClearConfirmButton: 'Erase',
+    noteDrawNothingToExport: 'Nothing drawn yet',
+    noteDrawColorHint: '#RRGGBB',
+    noteDownloadFailed: 'Download failed',
+    noteDownloadDefaultName: 'note',
     noteDeleteAction: 'Delete note',
     noteDeleteConfirmTitle: 'Delete this note?',
     noteMenuHeading2: 'Heading 2',

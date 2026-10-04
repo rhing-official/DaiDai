@@ -12,7 +12,7 @@ const MAX_BODY_BYTES = 2 * 1024 * 1024; // 2MB読めれば大抵<head>は取得�
 
 module.exports = async (req, res) => {
   // このAPIはFlutterクライアントからブラウザのJS（fetch/XHR）経由で直接
-  // 叩かれる。本番デプロイ先（dai-dai-phi.vercel.app）自身から呼ぶ分には
+  // 叩かれる。本番デプロイ先（daidai.rhing.jp）自身から呼ぶ分には
   // 同一オリジンなので問題ないが、ローカル開発サーバー（localhost:8765等）
   // から呼ぶと別オリジンへのクロスオリジンリクエストになり、この
   // ヘッダーが無いとブラウザ側でレスポンスがブロックされる
@@ -140,7 +140,7 @@ async function fetchTextWithLimit(url) {
         // 一部サイトはUser-Agent無しのリクエストを弾くため、一般的な
         // クローラーに偽装せず、素直にブラウザ風のUAを名乗る。
         'User-Agent':
-          'Mozilla/5.0 (compatible; DaiDaiLinkPreview/1.0; +https://dai-dai-phi.vercel.app)',
+          'Mozilla/5.0 (compatible; DaiDaiLinkPreview/1.0; +https://daidai.rhing.jp)',
         // Googleのサービス（YouTube含む）はリージョンによってGDPR同意の
         // 中間ページを返すことがあるため、同意済みのCookieを付けて回避する。
         Cookie: 'CONSENT=YES+',

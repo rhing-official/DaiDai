@@ -451,7 +451,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
           !_isSplit &&
           _selectedDm?.dmId == dm.dmId &&
           dm.roomsEnabled) {
-        await _pushDmRoomFullscreen(dm);
+        await _pushDmRoomFullscreen(dm, showRoomTabBar: false);
         return;
       }
       // 別の会話に切り替えたら、直前の会話で畳んでいた状態
@@ -475,7 +475,14 @@ class _TalksTabState extends ConsumerState<TalksTab>
   /// 最後に開いていた寄合（[lastOpenedRoomProvider]）が実在すればそれを、
   /// 無ければ一番上（最古）の寄合を使う（2026-09-26変更、以前は常に
   /// 一番上の寄合へ決め打ちしていた）。
-  Future<void> _pushDmRoomFullscreen(DirectMessage dm) async {
+  ///
+  /// [showRoomTabBar]は寄合タブバーを出すか。アイコン＋寄合一覧モードの
+  /// 2回目タップ（寄合一覧サイドバーが別にある文脈）ではfalseにして、
+  /// 寄合一覧の寄合をタップして開いた画面と同じ見た目にする（2026-10-04）。
+  Future<void> _pushDmRoomFullscreen(
+    DirectMessage dm, {
+    bool showRoomTabBar = true,
+  }) async {
     final rooms = await ref
         .read(directMessageRepositoryProvider)
         .watchRooms(dmId: dm.dmId, userId: widget.currentUser.userId)
@@ -502,6 +509,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
             dm: dm,
             roomId: targetRoomId,
             roomName: roomName,
+            showRoomTabBar: showRoomTabBar,
             enterFromRight: true,
           ),
         );
@@ -522,7 +530,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
           !_isSplit &&
           _selectedGroup?.groupId == group.groupId &&
           group.roomsEnabled) {
-        await _pushGroupRoomFullscreen(group);
+        await _pushGroupRoomFullscreen(group, showRoomTabBar: false);
         return;
       }
       _setIconSplitCollapse(0);
@@ -537,7 +545,10 @@ class _TalksTabState extends ConsumerState<TalksTab>
   }
 
   /// [_pushDmRoomFullscreen]の広場版（2026-09-26追加）。
-  Future<void> _pushGroupRoomFullscreen(Group group) async {
+  Future<void> _pushGroupRoomFullscreen(
+    Group group, {
+    bool showRoomTabBar = true,
+  }) async {
     final rooms = await ref
         .read(groupRepositoryProvider)
         .watchRooms(groupId: group.groupId, userId: widget.currentUser.userId)
@@ -562,6 +573,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
             group: group,
             roomId: targetRoomId,
             roomName: roomName,
+            showRoomTabBar: showRoomTabBar,
             enterFromRight: true,
           ),
         );

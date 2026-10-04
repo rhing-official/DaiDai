@@ -20,6 +20,15 @@ Node tableOfContentsNode() {
   return Node(type: TableOfContentsBlockKeys.type);
 }
 
+/// 見出しレベルの列を、最小レベルを第0階層とする相対階層（最大3）へ変換する
+/// （例: [2,3,3,2] → [0,1,1,0]、[1,2,3,4,5] → [0,1,2,3,3]）。見出しの
+/// 使い方（H1から使う/H2から使う等）に依らず、目次の字下げが揃うようにする。
+List<int> tocIndentLevels(List<int> levels) {
+  if (levels.isEmpty) return const [];
+  final minLevel = levels.reduce((a, b) => a < b ? a : b);
+  return [for (final level in levels) (level - minLevel).clamp(0, 3)];
+}
+
 List<Node> _collectHeadings(Node root) {
   final result = <Node>[];
   void walk(Node node) {
@@ -96,51 +105,92 @@ class _TableOfContentsBlockComponentWidgetState
     editorState.service.scrollService?.jumpTo(headingNode.path.first);
   }
 
+  /// 目次の項目の開閉（保存しない、このブロック表示中のみ）。
+  bool _expanded = true;
+
   @override
   Widget build(BuildContext context) {
+    final baseStyle = editorState.editorStyle.textStyleConfiguration.text;
+    final textColor =
+        baseStyle.color ?? Theme.of(context).colorScheme.onSurface;
+    final dividerColor = textColor.withValues(alpha: 0.14);
+
     Widget child = StreamBuilder<EditorTransactionValue>(
       stream: editorState.transactionStream,
       builder: (context, _) {
         final headings = _collectHeadings(editorState.document.root);
-        if (headings.isEmpty) {
-          return Consumer(
-            builder: (context, ref, _) => Text(
-              ref.watch(appStringsProvider).noteTableOfContentsEmpty,
-              style: DefaultTextStyle.of(context).style.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
+        final indents = tocIndentLevels([
+          for (final h in headings)
+            h.attributes[HeadingBlockKeys.level] as int? ?? 1,
+        ]);
+        return Consumer(
+          builder: (context, ref, _) {
+            final strings = ref.watch(appStringsProvider);
+            return Container(
+              decoration: BoxDecoration(
+                color: textColor.withValues(alpha: 0.06),
+                border: Border.all(color: dividerColor),
+                borderRadius: BorderRadius.circular(8),
               ),
-            ),
-          );
-        }
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            for (final heading in headings)
-              Padding(
-                padding: EdgeInsets.only(
-                  left:
-                      ((heading.attributes[HeadingBlockKeys.level] as int? ??
-                              1) -
-                          1) *
-                      16.0,
-                  top: 2,
-                  bottom: 2,
-                ),
-                child: InkWell(
-                  onTap: () => _jumpTo(heading),
-                  child: Text(
-                    plainTextWithoutMarkdownPrefix(heading).trim().isEmpty
-                        ? ' '
-                        : plainTextWithoutMarkdownPrefix(heading).trim(),
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.primary,
-                      decoration: TextDecoration.underline,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  InkWell(
+                    borderRadius: BorderRadius.circular(8),
+                    onTap: () => setState(() => _expanded = !_expanded),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            _expanded
+                                ? Icons.arrow_drop_down
+                                : Icons.arrow_right,
+                            size: 20,
+                            color: textColor,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            strings.noteMenuTableOfContents,
+                            style: baseStyle.copyWith(
+                              color: textColor,
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                ),
+                  if (_expanded && headings.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 12, 12),
+                      child: Text(
+                        strings.noteTableOfContentsEmpty,
+                        style: baseStyle.copyWith(
+                          color: textColor.withValues(alpha: 0.6),
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                  if (_expanded)
+                    for (var i = 0; i < headings.length; i++)
+                      _buildItem(
+                        headings[i],
+                        indents[i],
+                        baseStyle,
+                        textColor,
+                        dividerColor,
+                        isLast: i == headings.length - 1,
+                      ),
+                ],
               ),
-          ],
+            );
+          },
         );
       },
     );
@@ -173,6 +223,44 @@ class _TableOfContentsBlockComponentWidgetState
     }
 
     return child;
+  }
+
+  Widget _buildItem(
+    Node heading,
+    int depth,
+    TextStyle baseStyle,
+    Color textColor,
+    Color dividerColor, {
+    required bool isLast,
+  }) {
+    final label = plainTextWithoutMarkdownPrefix(heading).trim();
+    // 階層が深いほど字下げし、やや小さく淡くする（最上位=本文の文字色）。
+    final indent = 12.0 + depth * 16.0;
+    return InkWell(
+      onTap: () => _jumpTo(heading),
+      child: Padding(
+        padding: EdgeInsets.only(left: indent),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            border: isLast
+                ? null
+                : Border(bottom: BorderSide(color: dividerColor)),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(0, 9, 12, 9),
+            child: Text(
+              label.isEmpty ? ' ' : label,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: baseStyle.copyWith(
+                color: textColor.withValues(alpha: depth == 0 ? 1 : 0.78),
+                fontSize: depth == 0 ? 15 : 14,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   @override

@@ -121,6 +121,13 @@ abstract class AuthRepository {
   /// パスキーでデバイスに認証を要求し、成功したらサインインする。
   Future<User> signInWithPasskey(String rhingSeed);
 
+  /// Rhing Seedを入力せずに、デバイスのパスキー選択画面（モーダル）から
+  /// 選んだパスキーでログインする（2026-10-04追加）。登録時にuidを
+  /// `userID`へ埋め込んでいるため、サーバーはSeedなしで本人を特定できる
+  /// （`beginPasskeyAuthenticationDiscoverable`）。Conditional UIと違い
+  /// Web以外（ネイティブ）でも使える。
+  Future<User> signInWithDiscoverablePasskey();
+
   /// Conditional UI（パスワードマネージャー自動候補表示）によるパスキー
   /// ログイン（2026-09-16追加、Web版のみ対応）。Rhing Seedの入力なしに
   /// ブラウザ側のパスキー候補一覧をユーザーに提示し、選択されたパスキーで
@@ -446,6 +453,43 @@ class FirebaseAuthRepository implements AuthRepository {
   }
 
   @override
+  Future<User> signInWithDiscoverablePasskey() async {
+    final beginResult = await _functions
+        .httpsCallable('beginPasskeyAuthenticationDiscoverable')
+        .call();
+    final beginData = _asJsonMap(beginResult.data);
+    final challengeId = beginData['challengeId'] as String;
+    final options = beginData['options'] as Map<String, dynamic>;
+
+    final assertionResponse = await PasskeyAuthenticator().authenticate(
+      AuthenticateRequestType.fromJson(options),
+    );
+    final user = await _finishDiscoverablePasskeySignIn(
+      challengeId,
+      assertionResponse,
+    );
+    if (user == null) {
+      throw StateError('パスキーログインに失敗しました');
+    }
+    return user;
+  }
+
+  Future<User?> _finishDiscoverablePasskeySignIn(
+    String challengeId,
+    AuthenticateResponseType assertionResponse,
+  ) async {
+    final finishResult = await _functions
+        .httpsCallable('finishPasskeyAuthenticationDiscoverable')
+        .call({
+          'challengeId': challengeId,
+          'assertionResponse': assertionResponse.toJson(),
+        });
+    final customToken = (finishResult.data as Map)['customToken'] as String;
+    final userCredential = await _auth.signInWithCustomToken(customToken);
+    return userCredential.user;
+  }
+
+  @override
   Future<bool> isConditionalPasskeyAvailable() async {
     if (!kIsWeb) return false;
     final availability = await GetAvailability(
@@ -479,15 +523,7 @@ class FirebaseAuthRepository implements AuthRepository {
       return null;
     }
 
-    final finishResult = await _functions
-        .httpsCallable('finishPasskeyAuthenticationDiscoverable')
-        .call({
-          'challengeId': challengeId,
-          'assertionResponse': assertionResponse.toJson(),
-        });
-    final customToken = (finishResult.data as Map)['customToken'] as String;
-    final userCredential = await _auth.signInWithCustomToken(customToken);
-    return userCredential.user;
+    return _finishDiscoverablePasskeySignIn(challengeId, assertionResponse);
   }
 
   @override

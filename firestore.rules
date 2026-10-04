@@ -768,6 +768,21 @@ service cloud.firestore {
             allow delete: if request.auth != null
               && request.auth.uid in get(/databases/$(database)/documents/directMessages/$(dmId)/rooms/$(roomId)).data.participants;
           }
+
+          // strokes/{strokeId}: ドローノートの線（2026-10-04追加）。1線1ドキュメントで
+          // 追加・削除のみ（update不可）。消しゴム・取り消し・全消去は参加者なら
+          // 誰の線でも削除可能（共有ノート本体を参加者全員が編集できるのと同水準）。
+          match /strokes/{strokeId} {
+            allow read: if request.auth != null
+              && request.auth.uid in get(/databases/$(database)/documents/directMessages/$(dmId)/rooms/$(roomId)).data.participants;
+            allow create: if request.auth != null
+              && request.auth.uid in get(/databases/$(database)/documents/directMessages/$(dmId)/rooms/$(roomId)).data.participants
+              && request.auth.uid == request.resource.data.authorId
+              && request.resource.data.keys().hasOnly(['points', 'color', 'width', 'authorId', 'createdAt']);
+            allow update: if false;
+            allow delete: if request.auth != null
+              && request.auth.uid in get(/databases/$(database)/documents/directMessages/$(dmId)/rooms/$(roomId)).data.participants;
+          }
         }
       }
     }
@@ -1330,6 +1345,21 @@ service cloud.firestore {
               && request.auth.uid == request.resource.data.authorId
               && request.resource.data.createdAt == request.time
               && request.resource.data.keys().hasOnly(['transactions', 'sessionId', 'authorId', 'createdAt']);
+            allow update: if false;
+            allow delete: if request.auth != null
+              && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)/rooms/$(roomId)).data.memberIds;
+          }
+
+          // strokes/{strokeId}: ドローノートの線（2026-10-04追加）。1線1ドキュメントで
+          // 追加・削除のみ（update不可）。消しゴム・取り消し・全消去は参加者なら
+          // 誰の線でも削除可能（共有ノート本体を参加者全員が編集できるのと同水準）。
+          match /strokes/{strokeId} {
+            allow read: if request.auth != null
+              && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)/rooms/$(roomId)).data.memberIds;
+            allow create: if request.auth != null
+              && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)/rooms/$(roomId)).data.memberIds
+              && request.auth.uid == request.resource.data.authorId
+              && request.resource.data.keys().hasOnly(['points', 'color', 'width', 'authorId', 'createdAt']);
             allow update: if false;
             allow delete: if request.auth != null
               && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)/rooms/$(roomId)).data.memberIds;

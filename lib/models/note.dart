@@ -9,6 +9,11 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 /// 複数人が同時に開いた場合は後から保存した方が反映される。ノート自体は
 /// 寄合の参加者/メンバー全員が編集できる「共有」ノートのため、更新は誰でも
 /// 可能（削除のみ[createdBy]本人限定、firestore.rules参照）。
+/// [Note.type]の値（2026-10-04追加）。作成時に選んだ種別で固定され、後から
+/// 切り替えることはできない。
+const noteTypeMarkdown = 'markdown';
+const noteTypeDraw = 'draw';
+
 class Note {
   const Note({
     required this.noteId,
@@ -16,6 +21,7 @@ class Note {
     required this.title,
     required this.content,
     required this.createdBy,
+    this.type = noteTypeMarkdown,
     this.createdAt,
     this.lastEditedBy,
     this.updatedAt,
@@ -28,6 +34,11 @@ class Note {
   /// appflowy_editorの`Document.toJson()`。
   final Map<String, dynamic> content;
   final String createdBy;
+
+  /// [noteTypeMarkdown]（appflowyエディタ、[content]に本文）か[noteTypeDraw]
+  /// （手描き、線は`strokes`サブコレクション、[content]は空）。フィールドが
+  /// 無い既存ノートはマークダウン。
+  final String type;
   final Timestamp? createdAt;
   final String? lastEditedBy;
   final Timestamp? updatedAt;
@@ -39,6 +50,7 @@ class Note {
       title: json['title'] as String? ?? '',
       content: (json['content'] as Map?)?.cast<String, dynamic>() ?? const {},
       createdBy: json['createdBy'] as String,
+      type: json['type'] as String? ?? noteTypeMarkdown,
       createdAt: json['createdAt'] as Timestamp?,
       lastEditedBy: json['lastEditedBy'] as String?,
       updatedAt: json['updatedAt'] as Timestamp?,
@@ -50,6 +62,7 @@ class Note {
     'title': title,
     'content': content,
     'createdBy': createdBy,
+    'type': type,
     'createdAt': createdAt ?? FieldValue.serverTimestamp(),
     'lastEditedBy': lastEditedBy,
     'updatedAt': updatedAt ?? FieldValue.serverTimestamp(),

@@ -71,7 +71,7 @@ class _NotePopupContent extends ConsumerStatefulWidget {
 class _NotePopupContentState extends ConsumerState<_NotePopupContent> {
   bool _creating = false;
 
-  Future<void> _createNote() async {
+  Future<void> _createNote(String type) async {
     if (_creating) return;
     setState(() => _creating = true);
     try {
@@ -83,6 +83,7 @@ class _NotePopupContentState extends ConsumerState<_NotePopupContent> {
             conversationId: widget.conversationId,
             roomId: widget.roomId,
             createdBy: widget.currentUser.userId,
+            type: type,
           );
       // メッセージ画面への通知は副次的な効果であり、失敗してもノートの作成
       // 自体は成功として扱う（poll_form_dialog.dartのsendPollCreatedMessageと
@@ -205,13 +206,35 @@ class _NotePopupContentState extends ConsumerState<_NotePopupContent> {
             ),
             _creating
                 ? const SizedBox(width: 20, height: 20)
-                : IconButton(
+                // 作成時にマークダウンかドローかを選び、以後その種別で固定
+                // （2026-10-04変更、以前は選択なしでマークダウンを即作成）。
+                : PopupMenuButton<String>(
                     icon: Icon(Icons.add, size: 20, color: onInverse),
                     tooltip: '',
-                    onPressed: _createNote,
-                    visualDensity: VisualDensity.compact,
                     padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
+                    onSelected: _createNote,
+                    itemBuilder: (context) => [
+                      PopupMenuItem<String>(
+                        value: noteTypeMarkdown,
+                        child: Row(
+                          children: [
+                            const Icon(Icons.note_alt_outlined),
+                            const SizedBox(width: 12),
+                            Text(strings.noteTypeMarkdownLabel),
+                          ],
+                        ),
+                      ),
+                      PopupMenuItem<String>(
+                        value: noteTypeDraw,
+                        child: Row(
+                          children: [
+                            const Icon(Icons.brush_outlined),
+                            const SizedBox(width: 12),
+                            Text(strings.noteTypeDrawLabel),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
           ],
         ),
@@ -327,7 +350,12 @@ class _NotePopupCard extends StatelessWidget {
               color: onInverse.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(6),
             ),
-            child: Icon(Icons.note_alt_outlined, color: onInverse),
+            child: Icon(
+              note.type == noteTypeDraw
+                  ? Icons.brush_outlined
+                  : Icons.note_alt_outlined,
+              color: onInverse,
+            ),
           ),
           const SizedBox(width: 10),
           Expanded(

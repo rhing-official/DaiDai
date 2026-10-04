@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:appflowy_editor/appflowy_editor.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -12,12 +13,14 @@ import 'package:image_picker/image_picker.dart';
 import '../../l10n/strings.dart';
 import '../../models/app_ui_style.dart';
 import '../../models/app_user.dart';
+import '../../models/note.dart';
 import '../../models/note_op.dart';
 import '../../providers/app_ui_style_provider.dart';
 import '../../providers/home_shell_providers.dart';
 import '../../providers/repository_providers.dart';
-import '../../theme/popup_surface_colors.dart';
 import '../../utils/attachment_upload.dart';
+import '../../utils/auto_dismiss_banner.dart';
+import '../../utils/note_export.dart';
 import '../../utils/note_transaction_codec.dart';
 import '../../utils/platform_info.dart';
 import '../../widgets/glass/glass_app_bar.dart';
@@ -25,6 +28,7 @@ import '../../widgets/glass/glass_bottom_sheet.dart';
 import '../../widgets/glass/glass_dialog.dart';
 import '../../widgets/swipe_gestures.dart';
 import 'blocks/link_embed_block.dart';
+import 'draw_canvas_view.dart';
 import 'blocks/table_of_contents_block.dart';
 
 /// Obsidianの既定テーマに寄せた固定パレット（2026-09-26追加、ユーザー指示。
@@ -137,10 +141,14 @@ class NotePaneView extends ConsumerStatefulWidget {
 
 class _NotePaneViewState extends ConsumerState<NotePaneView> {
   EditorState? _editorState;
+
+  /// ドローノート（`Note.type == noteTypeDraw`）かどうか。読み込み完了までは
+  /// false。種別は作成時に固定され、後から切り替わることはない。
+  bool _isDraw = false;
+  bool _noteLoaded = false;
   EditorScrollController? _scrollController;
   final _titleController = TextEditingController();
   final _titleFocusNode = FocusNode();
-  final _attachButtonKey = GlobalKey();
   // PC専用のカーソル行追従「+」ボタン（2026-09-27追加）の位置計算に使う、
   // エディタを包む`Stack`のキー。`_CursorLineAddButton`参照。
   final _editorStackKey = GlobalKey();
@@ -191,6 +199,15 @@ class _NotePaneViewState extends ConsumerState<NotePaneView> {
     if (!mounted) return;
     _titleController.text = note?.title ?? '';
     _lastAppliedOpCreatedAt = note?.updatedAt;
+    if (note?.type == noteTypeDraw) {
+      // ドローノートはappflowyエディタ・操作ログを使わない（線は
+      // `DrawCanvasView`が`strokes`サブコレクションで同期する）。
+      setState(() {
+        _isDraw = true;
+        _noteLoaded = true;
+      });
+      return;
+    }
     final document = note != null && note.content.isNotEmpty
         ? Document.fromJson(note.content)
         : Document.blank(withInitialText: true);
@@ -199,6 +216,7 @@ class _NotePaneViewState extends ConsumerState<NotePaneView> {
       _handleLocalTransaction,
     );
     setState(() {
+      _noteLoaded = true;
       _editorState = editorState;
       _scrollController = EditorScrollController(
         editorState: editorState,
@@ -332,6 +350,23 @@ class _NotePaneViewState extends ConsumerState<NotePaneView> {
   Future<void> _checkpointAndPrune() async {
     _checkpointDebounce?.cancel();
     final editorState = _editorState;
+    if (_isDraw) {
+      // ドローノートはタイトルだけを保存する（本文`content`は空のまま）。
+      if (!_dirty) return;
+      _dirty = false;
+      await ref
+          .read(noteRepositoryProvider)
+          .updateNote(
+            isDm: widget.isDm,
+            conversationId: widget.conversationId,
+            roomId: widget.roomId,
+            noteId: widget.noteId,
+            title: _titleController.text,
+            content: const {},
+            editedBy: widget.currentUser.userId,
+          );
+      return;
+    }
     if (editorState == null) return;
     _dirty = false;
     final noteRepository = ref.read(noteRepositoryProvider);
@@ -377,7 +412,19 @@ class _NotePaneViewState extends ConsumerState<NotePaneView> {
     // クライアントが追いつき処理の一環で操作ログの間引きも行うため、ここでは
     // 間引きまでは行わない。
     final editorState = _editorState;
-    if (_dirty && editorState != null) {
+    if (_dirty && _isDraw) {
+      ref
+          .read(noteRepositoryProvider)
+          .updateNote(
+            isDm: widget.isDm,
+            conversationId: widget.conversationId,
+            roomId: widget.roomId,
+            noteId: widget.noteId,
+            title: _titleController.text,
+            content: const {},
+            editedBy: widget.currentUser.userId,
+          );
+    } else if (_dirty && editorState != null) {
       ref
           .read(noteRepositoryProvider)
           .updateNote(
@@ -770,70 +817,54 @@ class _NotePaneViewState extends ConsumerState<NotePaneView> {
     }
   }
 
-  /// 添付選択肢のポップアップを開く（2026-09-07、`showModalBottomSheet`から
-  /// 変更）。AppBarの添付ボタン・本文中の「/」挿入メニューどちらから呼ばれた
-  /// 場合も、見た目の一貫性のためAppBarの添付ボタンの位置を基準に開く
-  /// （`chat_panes.dart`の`_NoteButtonState._openNotePopup`と同じ、
-  /// ボタン直下にアンカーする`showMenu`+`RelativeRect`パターン）。
-  Future<void> _pickAndInsertAttachment() async {
+  /// ダウンロード（2026-10-04追加、以前の添付ボタンの位置）。マークダウンは
+  /// `.md`、ドローは白背景の`.png`で端末へ保存する。
+  Future<void> _download() async {
     final strings = ref.read(appStringsProvider);
-    final buttonContext = _attachButtonKey.currentContext;
-    if (buttonContext == null) return;
-    final box = buttonContext.findRenderObject()! as RenderBox;
-    final bottomLeft = box.localToGlobal(Offset(0, box.size.height));
-    final bottomRight = box.localToGlobal(
-      Offset(box.size.width, box.size.height),
+    final baseName = sanitizeFileName(
+      _titleController.text,
+      strings.noteDownloadDefaultName,
     );
-    final overlay =
-        Overlay.of(context).context.findRenderObject()! as RenderBox;
-    final position = RelativeRect.fromRect(
-      Rect.fromPoints(bottomLeft, bottomRight),
-      Offset.zero & overlay.size,
-    );
-    final choice = await showMenu<String>(
-      context: context,
-      position: position,
-      color: Colors.transparent,
-      shadowColor: Colors.transparent,
-      elevation: 0,
-      items: [
-        PopupMenuItem<String>(
-          enabled: false,
-          padding: EdgeInsets.zero,
-          child: _AttachPopupContent(strings: strings),
-        ),
-      ],
-    );
-    if (choice == null || !mounted) return;
-    switch (choice) {
-      case 'image':
-        final picked = await ImagePicker().pickImage(
-          source: ImageSource.gallery,
+    try {
+      if (_isDraw) {
+        final strokes = await ref
+            .read(noteRepositoryProvider)
+            .watchStrokes(
+              isDm: widget.isDm,
+              conversationId: widget.conversationId,
+              roomId: widget.roomId,
+              noteId: widget.noteId,
+            )
+            .first;
+        final png = await renderStrokesToPng(strokes);
+        if (!mounted) return;
+        if (png == null) {
+          showAutoDismissBanner(
+            context,
+            message: strings.noteDrawNothingToExport,
+          );
+          return;
+        }
+        await saveNoteFile(
+          fileName: '$baseName.png',
+          bytes: png,
+          mimeType: 'image/png',
         );
-        if (picked == null) return;
-        await _insertAttachment(
-          bytes: await picked.readAsBytes(),
-          fileName: picked.name,
-          contentType: 'image',
+      } else {
+        final editorState = _editorState;
+        if (editorState == null) return;
+        final markdown = documentToMarkdown(editorState.document);
+        await saveNoteFile(
+          fileName: '$baseName.md',
+          bytes: Uint8List.fromList(utf8.encode(markdown)),
+          mimeType: 'text/markdown',
         );
-      case 'video':
-        final picked = await ImagePicker().pickVideo(
-          source: ImageSource.gallery,
-        );
-        if (picked == null) return;
-        await _insertAttachment(
-          bytes: await picked.readAsBytes(),
-          fileName: picked.name,
-          contentType: 'video',
-        );
-      case 'file':
-        final file = await FilePicker.pickFile();
-        if (file == null) return;
-        await _insertAttachment(
-          bytes: await file.readAsBytes(),
-          fileName: file.name,
-          contentType: 'file',
-        );
+      }
+    } catch (e) {
+      debugPrint('[note-download] failed: $e');
+      if (mounted) {
+        showAutoDismissBanner(context, message: strings.noteDownloadFailed);
+      }
     }
   }
 
@@ -877,15 +908,10 @@ class _NotePaneViewState extends ConsumerState<NotePaneView> {
         border: InputBorder.none,
       ),
     );
-    final attachAction = IconButton(
-      key: _attachButtonKey,
-      icon: _uploading
-          ? const SizedBox.shrink()
-          : const Icon(Icons.attach_file),
+    final downloadAction = IconButton(
+      icon: const Icon(Icons.download),
       tooltip: '',
-      onPressed: _uploading || _editorState == null
-          ? null
-          : _pickAndInsertAttachment,
+      onPressed: !_noteLoaded ? null : _download,
     );
     // モバイルは選択によるポップアップメニュー（`FloatingToolbar`）を出さない
     // ため、代わりにいつでもタップできる書式ボタンをAppBarに常設する
@@ -918,14 +944,20 @@ class _NotePaneViewState extends ConsumerState<NotePaneView> {
             ? GlassAppBar(
                 leading: leadingButton,
                 title: titleField,
-                actions: [if (isMobile) formatAction, attachAction],
+                actions: [
+                  if (isMobile && !_isDraw) formatAction,
+                  downloadAction,
+                ],
               )
             : AppBar(
                 backgroundColor: noteColors.background,
                 foregroundColor: noteColors.text,
                 leading: leadingButton,
                 title: titleField,
-                actions: [if (isMobile) formatAction, attachAction],
+                actions: [
+                  if (isMobile && !_isDraw) formatAction,
+                  downloadAction,
+                ],
               ),
         // 下スワイプ（既存）に加え、右スワイプでも閉じられるようにする
         // （2026-09-26追加、ユーザー指示）。`SwipeBackDetector`は設定・
@@ -935,7 +967,17 @@ class _NotePaneViewState extends ConsumerState<NotePaneView> {
           onBack: _close,
           child: SwipeDownToDismiss(
             onDismiss: _close,
-            child: _buildEditorBody(strings, noteColors, isMobile),
+            child: _isDraw
+                ? DrawCanvasView(
+                    isDm: widget.isDm,
+                    conversationId: widget.conversationId,
+                    roomId: widget.roomId,
+                    noteId: widget.noteId,
+                    currentUser: widget.currentUser,
+                    foreground: noteColors.text,
+                    background: noteColors.background,
+                  )
+                : _buildEditorBody(strings, noteColors, isMobile),
           ),
         ),
       ),
@@ -1227,66 +1269,6 @@ class _TableSizePickerState extends State<_TableSizePicker> {
           style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
         ),
       ],
-    );
-  }
-}
-
-/// 添付選択肢ポップアップの中身（2026-09-07追加）。`note_popup_content.dart`
-/// の`_NotePopupContent`と同じ配色規約（`popup_surface_colors.dart`）に
-/// 揃えた、画像/動画/ファイルの3択リスト。
-class _AttachPopupContent extends ConsumerWidget {
-  const _AttachPopupContent({required this.strings});
-
-  final Strings strings;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final brightness = Theme.of(context).brightness;
-    final uiStyle = ref.watch(appUiStyleProvider);
-    final onInverse = popupCardForeground(brightness, uiStyle);
-
-    Widget optionRow(IconData icon, String label, String value) {
-      return Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(8),
-          onTap: () => Navigator.of(context).pop(value),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
-            child: Row(
-              children: [
-                Icon(icon, color: onInverse),
-                const SizedBox(width: 12),
-                Text(label, style: TextStyle(color: onInverse)),
-              ],
-            ),
-          ),
-        ),
-      );
-    }
-
-    return SizedBox(
-      width: 220,
-      child: Container(
-        decoration: BoxDecoration(
-          color: popupCardBackground(brightness, uiStyle),
-          border: Border.all(color: popupCardBorder(brightness, uiStyle)),
-          borderRadius: BorderRadius.circular(16),
-        ),
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            optionRow(Icons.image_outlined, strings.chatAttachImage, 'image'),
-            optionRow(
-              Icons.videocam_outlined,
-              strings.chatAttachVideo,
-              'video',
-            ),
-            optionRow(Icons.attach_file, strings.chatAttachFile, 'file'),
-          ],
-        ),
-      ),
     );
   }
 }
