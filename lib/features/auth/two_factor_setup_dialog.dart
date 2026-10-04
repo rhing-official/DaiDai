@@ -50,7 +50,7 @@ class _TwoFactorSetupDialogState extends ConsumerState<TwoFactorSetupDialog> {
     final secret = await ref.read(authRepositoryProvider).startTotpEnrollment();
     final qrCodeUrl = await secret.generateQrCodeUrl(
       accountName: widget.rhingSeed,
-      issuer: 'DaiDai',
+      issuer: 'Rhing',
     );
     return (secret: secret, qrCodeUrl: qrCodeUrl);
   }
