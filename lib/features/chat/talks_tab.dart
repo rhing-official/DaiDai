@@ -59,11 +59,41 @@ import 'chat_panes.dart';
 import 'chat_screen.dart';
 import 'create_group_dialog.dart';
 import 'dm_settings_popup.dart';
+import '../../router/back_stack.dart';
 import 'group_settings_popup.dart';
 import 'room_list_pane.dart';
 import 'talks_search.dart';
 
 enum _TalksCategory { dm, group }
+
+/// 語らいタブの「どこを見ているか」（カテゴリ・選択中の会話・その会話で最後に
+/// 開いた寄合）。戻る・進む（`BackStackController`）の履歴の1件分
+/// （2026-10-06追加）。
+@immutable
+class _TalksLocation {
+  const _TalksLocation({
+    required this.category,
+    this.dmId,
+    this.groupId,
+    this.roomId,
+  });
+
+  final _TalksCategory category;
+  final String? dmId;
+  final String? groupId;
+  final String? roomId;
+
+  @override
+  bool operator ==(Object other) =>
+      other is _TalksLocation &&
+      other.category == category &&
+      other.dmId == dmId &&
+      other.groupId == groupId &&
+      other.roomId == roomId;
+
+  @override
+  int get hashCode => Object.hash(category, dmId, groupId, roomId);
+}
 
 /// 画面幅がこれ以上あれば、一覧と会話を左右分割で同時表示する
 /// （Discordのような「一覧は常に見えたまま、選んだ会話が右隣に開く」構成）。
@@ -384,6 +414,65 @@ class _TalksTabState extends ConsumerState<TalksTab>
   /// でリセットされるため許容、ユーザー確認済み）。
   final LinkedHashSet<String> _visitedConversationKeys =
       LinkedHashSet<String>();
+
+  /// 現在の表示位置（戻る・進むの履歴の1件、2026-10-06追加）。選択中の会話の
+  /// 寄合がまだ分からない間（チャット本体が`setLastRoom`する前）はnullを返し、
+  /// 記録を見送る（1回の操作が「寄合なし」「寄合あり」の2件になるのを防ぐ）。
+  _TalksLocation? _currentLocation(Map<String, String> lastRooms) {
+    final ViewedConversation? conversation = _selectedDm != null
+        ? ViewedDm(_selectedDm!.dmId)
+        : _selectedGroup != null
+        ? ViewedGroup(_selectedGroup!.groupId)
+        : null;
+    final roomId = conversation == null
+        ? null
+        : lastOpenedRoomIn(lastRooms, conversation);
+    if (conversation != null && roomId == null) return null;
+    return _TalksLocation(
+      category: _category,
+      dmId: _selectedDm?.dmId,
+      groupId: _selectedGroup?.groupId,
+      roomId: roomId,
+    );
+  }
+
+  /// 履歴上の位置へ表示を戻す（カテゴリ・会話の選択・その会話の寄合）。
+  void _applyLocation(_TalksLocation location) {
+    setState(() {
+      _category = location.category;
+      _selectedPendingScreen = null;
+      _selectedDm = location.dmId == null
+          ? null
+          : _lastDirectMessages.firstWhereOrNull(
+              (d) => d.dmId == location.dmId,
+            );
+      _selectedGroup = location.groupId == null
+          ? null
+          : _lastGroups.firstWhereOrNull((g) => g.groupId == location.groupId);
+    });
+    if (_categoryPageController.hasClients &&
+        _categoryPageController.page?.round() != location.category.index) {
+      _categoryPageController.animateToPage(
+        location.category.index,
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOut,
+      );
+    }
+    final roomId = location.roomId;
+    final ViewedConversation? conversation = location.dmId != null
+        ? ViewedDm(location.dmId!)
+        : location.groupId != null
+        ? ViewedGroup(location.groupId!)
+        : null;
+    if (conversation != null && roomId != null) {
+      ref
+          .read(lastOpenedRoomProvider.notifier)
+          .setLastRoom(conversation, roomId);
+      ref
+          .read(roomSelectionRequestProvider.notifier)
+          .request(conversation, roomId);
+    }
+  }
 
   /// 一対/広場タブを切り替える（タブ見出しのタップ用）。承認待ちペイン
   /// （[_selectedPendingScreen]）は表示中のタブに紐づくため、切り替え時に
@@ -894,258 +983,269 @@ class _TalksTabState extends ConsumerState<TalksTab>
     final ignoreIconSplitOnComputer =
         isSplit && classifyDevice(context) == DeviceClass.computer;
 
-    return Scaffold(
-      // 劇画スタイル時にホーム画面の背景装飾（ハーフトーン柄）を透過させる
-      // 変更を一度試したが、リスト項目の隙間からドット柄が中途半端に透けて
-      // しまい「赤一色の塗りつぶし」に見えないとの指摘を受け撤回した
-      // （2026-08-04）。既定（`backgroundColor`未指定）のまま、テーマの
-      // `scaffoldBackgroundColor`＝`GekigaColors.background`で不透明に塗る。
-      body: StreamBuilder<List<DirectMessage>>(
-        stream: directMessagesStream,
-        builder: (context, dmSnapshot) {
-          final directMessages = (dmSnapshot.data ?? [])
-              .where(
-                (dm) =>
-                    dm.otherUserId(widget.currentUser.userId) !=
-                    officialAccountUid,
-              )
-              .toList();
-          return StreamBuilder<List<Group>>(
-            stream: groupsStream,
-            builder: (context, groupSnapshot) {
-              final groups = groupSnapshot.data ?? [];
-              // `_onSearchTextChanged`のデバウンスコールバック（build()の外）
-              // から参照するためのスナップショット（2026-09-12追加）。
-              _lastDirectMessages = directMessages;
-              _lastGroups = groups;
-              _lastBlockedIds = blockedIds;
+    // 戻る・進むは会話・寄合・カテゴリの履歴を辿る（2026-10-06変更、以前は
+    // 広い画面で選択中の会話を解除するだけの1ビットのエントリだった。
+    // `BackStackController`参照）。
+    return NavHistoryBackEntry<_TalksLocation>(
+      scope: BackScope.talks,
+      location: _currentLocation(ref.watch(lastOpenedRoomProvider)),
+      onRestore: _applyLocation,
+      child: Scaffold(
+        // 劇画スタイル時にホーム画面の背景装飾（ハーフトーン柄）を透過させる
+        // 変更を一度試したが、リスト項目の隙間からドット柄が中途半端に透けて
+        // しまい「赤一色の塗りつぶし」に見えないとの指摘を受け撤回した
+        // （2026-08-04）。既定（`backgroundColor`未指定）のまま、テーマの
+        // `scaffoldBackgroundColor`＝`GekigaColors.background`で不透明に塗る。
+        body: StreamBuilder<List<DirectMessage>>(
+          stream: directMessagesStream,
+          builder: (context, dmSnapshot) {
+            final directMessages = (dmSnapshot.data ?? [])
+                .where(
+                  (dm) =>
+                      dm.otherUserId(widget.currentUser.userId) !=
+                      officialAccountUid,
+                )
+                .toList();
+            return StreamBuilder<List<Group>>(
+              stream: groupsStream,
+              builder: (context, groupSnapshot) {
+                final groups = groupSnapshot.data ?? [];
+                // `_onSearchTextChanged`のデバウンスコールバック（build()の外）
+                // から参照するためのスナップショット（2026-09-12追加）。
+                _lastDirectMessages = directMessages;
+                _lastGroups = groups;
+                _lastBlockedIds = blockedIds;
 
-              final listPane = Column(
-                // 既定値（center）のままだと、一覧の中身（`GekigaJointedTileList`）
-                // が自身の内容に応じた幅だけを主張し、その幅ぶん中央寄せされて
-                // しまう。一対一覧と広場一覧では中身の最大幅が異なるため、
-                // 中央寄せの基準がズレて左端の位置が一致しない不具合があった
-                // （2026-08-04発覚・修正。`room_list_pane.dart`は元々`start`
-                // 指定済みだったため同じ問題は起きていなかった）。
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                    child: Row(
-                      children: [
-                        // 言語によってはラベルが長くなる（例: 英語の
-                        // "Private"/"Plaza"は日本語の「一対」「広場」より幅を
-                        // 取る）。以前は幅が収まらない場合`Wrap`で折り返す形に
-                        // していたが、英語表示時に2つのチップの合計幅が
-                        // 入りきらず縦並びに見えてしまう不具合があった。横
-                        // スクロールで逃がす方式も試したが、常に横並びで
-                        // スクロール無しに収めたいとのユーザー要望のため
-                        // 採用せず、代わりに`CategoryTab`側のパディング・
-                        // フォントサイズを詰めて260px幅のサイドバーに折り返し・
-                        // スクロールいずれも無しで収まるようにした
-                        // （2026-08-27発覚・修正）。
-                        Expanded(
-                          child:
-                              ref.watch(appUiStyleProvider) == AppUiStyle.gekiga
-                              ? SingleChildScrollView(
-                                  scrollDirection: Axis.horizontal,
-                                  child: GekigaJointedPair(
-                                    leftSeed: vocab.dm.hashCode,
-                                    leftSelected:
-                                        _category == _TalksCategory.dm,
-                                    left: CategoryTab(
-                                      label: vocab.dm,
-                                      count: directMessages.length,
-                                      selected: _category == _TalksCategory.dm,
-                                      onTap: () =>
-                                          _setCategory(_TalksCategory.dm),
-                                    ),
-                                    rightSeed: vocab.plaza.hashCode,
-                                    rightSelected:
-                                        _category == _TalksCategory.group,
-                                    right: CategoryTab(
-                                      label: vocab.plaza,
-                                      count: groups.length,
-                                      selected:
+                final listPane = Column(
+                  // 既定値（center）のままだと、一覧の中身（`GekigaJointedTileList`）
+                  // が自身の内容に応じた幅だけを主張し、その幅ぶん中央寄せされて
+                  // しまう。一対一覧と広場一覧では中身の最大幅が異なるため、
+                  // 中央寄せの基準がズレて左端の位置が一致しない不具合があった
+                  // （2026-08-04発覚・修正。`room_list_pane.dart`は元々`start`
+                  // 指定済みだったため同じ問題は起きていなかった）。
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                      child: Row(
+                        children: [
+                          // 言語によってはラベルが長くなる（例: 英語の
+                          // "Private"/"Plaza"は日本語の「一対」「広場」より幅を
+                          // 取る）。以前は幅が収まらない場合`Wrap`で折り返す形に
+                          // していたが、英語表示時に2つのチップの合計幅が
+                          // 入りきらず縦並びに見えてしまう不具合があった。横
+                          // スクロールで逃がす方式も試したが、常に横並びで
+                          // スクロール無しに収めたいとのユーザー要望のため
+                          // 採用せず、代わりに`CategoryTab`側のパディング・
+                          // フォントサイズを詰めて260px幅のサイドバーに折り返し・
+                          // スクロールいずれも無しで収まるようにした
+                          // （2026-08-27発覚・修正）。
+                          Expanded(
+                            child:
+                                ref.watch(appUiStyleProvider) ==
+                                    AppUiStyle.gekiga
+                                ? SingleChildScrollView(
+                                    scrollDirection: Axis.horizontal,
+                                    child: GekigaJointedPair(
+                                      leftSeed: vocab.dm.hashCode,
+                                      leftSelected:
+                                          _category == _TalksCategory.dm,
+                                      left: CategoryTab(
+                                        label: vocab.dm,
+                                        count: directMessages.length,
+                                        selected:
+                                            _category == _TalksCategory.dm,
+                                        onTap: () =>
+                                            _setCategory(_TalksCategory.dm),
+                                      ),
+                                      rightSeed: vocab.plaza.hashCode,
+                                      rightSelected:
                                           _category == _TalksCategory.group,
-                                      onTap: () =>
-                                          _setCategory(_TalksCategory.group),
+                                      right: CategoryTab(
+                                        label: vocab.plaza,
+                                        count: groups.length,
+                                        selected:
+                                            _category == _TalksCategory.group,
+                                        onTap: () =>
+                                            _setCategory(_TalksCategory.group),
+                                      ),
                                     ),
+                                  )
+                                : Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      CategoryTab(
+                                        label: vocab.dm,
+                                        count: directMessages.length,
+                                        selected:
+                                            _category == _TalksCategory.dm,
+                                        onTap: () =>
+                                            _setCategory(_TalksCategory.dm),
+                                      ),
+                                      const SizedBox(width: 6),
+                                      CategoryTab(
+                                        label: vocab.plaza,
+                                        count: groups.length,
+                                        selected:
+                                            _category == _TalksCategory.group,
+                                        onTap: () =>
+                                            _setCategory(_TalksCategory.group),
+                                      ),
+                                    ],
                                   ),
-                                )
-                              : Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    CategoryTab(
-                                      label: vocab.dm,
-                                      count: directMessages.length,
-                                      selected: _category == _TalksCategory.dm,
-                                      onTap: () =>
-                                          _setCategory(_TalksCategory.dm),
-                                    ),
-                                    const SizedBox(width: 6),
-                                    CategoryTab(
-                                      label: vocab.plaza,
-                                      count: groups.length,
-                                      selected:
-                                          _category == _TalksCategory.group,
-                                      onTap: () =>
-                                          _setCategory(_TalksCategory.group),
-                                    ),
-                                  ],
-                                ),
-                        ),
-                        const SizedBox(width: 8),
-                        switch (ref.watch(appUiStyleProvider)) {
-                          AppUiStyle.gekiga => GekigaIconButton(
-                            icon: Icons.add,
-                            size: 32,
-                            onPressed: _showAddMenu,
                           ),
-                          AppUiStyle.glass => GlassIconButton(
-                            icon: Icons.add,
-                            size: 32,
-                            onPressed: _showAddMenu,
-                          ),
-                          AppUiStyle.flat => IconButton.filled(
-                            icon: const Icon(Icons.add, size: 20),
-                            onPressed: _showAddMenu,
-                            style: IconButton.styleFrom(
-                              minimumSize: const Size(32, 32),
-                              padding: EdgeInsets.zero,
+                          const SizedBox(width: 8),
+                          switch (ref.watch(appUiStyleProvider)) {
+                            AppUiStyle.gekiga => GekigaIconButton(
+                              icon: Icons.add,
+                              size: 32,
+                              onPressed: _showAddMenu,
                             ),
-                          ),
-                        },
-                      ],
-                    ),
-                  ),
-                  // 一対/広場切り替えタブの真下に検索欄を置く（2026-08-30
-                  // 追加）。検索中は下のExpandedの中身がカテゴリ別スワイプ
-                  // 表示から検索結果一覧に切り替わる。並べ替えボタンは
-                  // 検索欄の右隣に置く（2026-09-02追加）。
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                    child: Row(
-                      children: [
-                        Expanded(child: _buildSearchField(strings)),
-                        const SizedBox(width: 8),
-                        _buildSortButton(strings),
-                      ],
-                    ),
-                  ),
-                  // ヘッダー（一対/広場切り替えタブ）と一覧の間に隙間を空ける
-                  // （2026-08-04追加、劇画スタイルのみ→2026-08-12全スタイル
-                  // 共通に変更）。劇画スタイルはジグザグ枠の箱が隙間無く
-                  // ヘッダーのタブに接してしまい被って見える不具合、フラット
-                  // スタイルは選択中チップの塗り潰しと一覧の先頭行が隙間無く
-                  // 接して重なって見える不具合が、それぞれあった。
-                  const SizedBox(height: 12),
-                  Expanded(
-                    child: searchQuery.isEmpty
-                        ? PageView(
-                            // 横スワイプで一対⇄広場を切り替える。速度しきい値
-                            // 判定の自前ジェスチャー（`SwipeBackDetector`）だと
-                            // 片方向だけジェスチャーアリーナで負けて反応しない
-                            // ことがあったため、双方向のページ送りが実績豊富な
-                            // `PageView`に置き換えた（2026-08-09変更、
-                            // 2026-08-06時点では速度しきい値の条件式自体を
-                            // 両方向常時有効にする修正をしていたが、それでも
-                            // 一対→広場方向が反応しない場合が残っていた）。
-                            controller: _categoryPageController,
-                            onPageChanged: _handleCategoryPageChanged,
-                            children: [
-                              _buildDirectMessages(
-                                dmSnapshot,
-                                directMessages,
-                                incomingRequests,
-                                outgoingRequests,
-                                prefsById,
-                                blockedIds,
+                            AppUiStyle.glass => GlassIconButton(
+                              icon: Icons.add,
+                              size: 32,
+                              onPressed: _showAddMenu,
+                            ),
+                            AppUiStyle.flat => IconButton.filled(
+                              icon: const Icon(Icons.add, size: 20),
+                              onPressed: _showAddMenu,
+                              style: IconButton.styleFrom(
+                                minimumSize: const Size(32, 32),
+                                padding: EdgeInsets.zero,
                               ),
-                              _buildGroups(
-                                groupSnapshot,
-                                groups,
-                                prefsById,
-                                pendingGroupRequests,
-                              ),
-                            ],
-                          )
-                        : _buildSearchResults(
-                            searchQuery,
-                            directMessages,
-                            groups,
-                            prefsById,
-                            blockedIds,
-                            strings,
-                          ),
-                  ),
-                ],
-              );
-
-              // アイコン+寄合一覧レイアウト（[TalksListLayoutStyle.iconSplit]）を
-              // 選んでいる場合、[ignoreIconSplitOnComputer]（PCの広い横画面）
-              // でない限り[_buildIconSplitPane]を使う（2026-09-24修正、当初の
-              // 2026-09-11時点の仕様に復元。2026-09-14に画面幅のみで判定する
-              // 下の[isSplit]分岐を常に優先する実装に一旦変更していたが、
-              // それだとPCでも常にiconSplitが強制される回帰になっていた）。
-              // タブレットを横にした場合はこの設定が引き続き適用され、
-              // タップで全画面化・右スワイプで3ブロック表示に戻る挙動になる
-              // （[ignoreIconSplitOnComputer]の判定理由は定義箇所参照）。
-              // `_buildIconSplitPane`自身が画面が狭い場合のフォールバック
-              // （寄合一覧のみ表示しタップでフルスクリーン遷移）も内包して
-              // いるため、狭い画面側の向き判定は不要。
-              if (talksListLayoutStyle == TalksListLayoutStyle.iconSplit &&
-                  !ignoreIconSplitOnComputer) {
-                return _buildIconSplitPane(
-                  directMessages,
-                  groups,
-                  prefsById,
-                  incomingRequests,
-                  outgoingRequests,
-                  pendingGroupRequests,
-                  blockedIds,
+                            ),
+                          },
+                        ],
+                      ),
+                    ),
+                    // 一対/広場切り替えタブの真下に検索欄を置く（2026-08-30
+                    // 追加）。検索中は下のExpandedの中身がカテゴリ別スワイプ
+                    // 表示から検索結果一覧に切り替わる。並べ替えボタンは
+                    // 検索欄の右隣に置く（2026-09-02追加）。
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                      child: Row(
+                        children: [
+                          Expanded(child: _buildSearchField(strings)),
+                          const SizedBox(width: 8),
+                          _buildSortButton(strings),
+                        ],
+                      ),
+                    ),
+                    // ヘッダー（一対/広場切り替えタブ）と一覧の間に隙間を空ける
+                    // （2026-08-04追加、劇画スタイルのみ→2026-08-12全スタイル
+                    // 共通に変更）。劇画スタイルはジグザグ枠の箱が隙間無く
+                    // ヘッダーのタブに接してしまい被って見える不具合、フラット
+                    // スタイルは選択中チップの塗り潰しと一覧の先頭行が隙間無く
+                    // 接して重なって見える不具合が、それぞれあった。
+                    const SizedBox(height: 12),
+                    Expanded(
+                      child: searchQuery.isEmpty
+                          ? PageView(
+                              // 横スワイプで一対⇄広場を切り替える。速度しきい値
+                              // 判定の自前ジェスチャー（`SwipeBackDetector`）だと
+                              // 片方向だけジェスチャーアリーナで負けて反応しない
+                              // ことがあったため、双方向のページ送りが実績豊富な
+                              // `PageView`に置き換えた（2026-08-09変更、
+                              // 2026-08-06時点では速度しきい値の条件式自体を
+                              // 両方向常時有効にする修正をしていたが、それでも
+                              // 一対→広場方向が反応しない場合が残っていた）。
+                              controller: _categoryPageController,
+                              onPageChanged: _handleCategoryPageChanged,
+                              children: [
+                                _buildDirectMessages(
+                                  dmSnapshot,
+                                  directMessages,
+                                  incomingRequests,
+                                  outgoingRequests,
+                                  prefsById,
+                                  blockedIds,
+                                ),
+                                _buildGroups(
+                                  groupSnapshot,
+                                  groups,
+                                  prefsById,
+                                  pendingGroupRequests,
+                                ),
+                              ],
+                            )
+                          : _buildSearchResults(
+                              searchQuery,
+                              directMessages,
+                              groups,
+                              prefsById,
+                              blockedIds,
+                              strings,
+                            ),
+                    ),
+                  ],
                 );
-              }
 
-              if (!isSplit) {
-                return listPane;
-              }
+                // アイコン+寄合一覧レイアウト（[TalksListLayoutStyle.iconSplit]）を
+                // 選んでいる場合、[ignoreIconSplitOnComputer]（PCの広い横画面）
+                // でない限り[_buildIconSplitPane]を使う（2026-09-24修正、当初の
+                // 2026-09-11時点の仕様に復元。2026-09-14に画面幅のみで判定する
+                // 下の[isSplit]分岐を常に優先する実装に一旦変更していたが、
+                // それだとPCでも常にiconSplitが強制される回帰になっていた）。
+                // タブレットを横にした場合はこの設定が引き続き適用され、
+                // タップで全画面化・右スワイプで3ブロック表示に戻る挙動になる
+                // （[ignoreIconSplitOnComputer]の判定理由は定義箇所参照）。
+                // `_buildIconSplitPane`自身が画面が狭い場合のフォールバック
+                // （寄合一覧のみ表示しタップでフルスクリーン遷移）も内包して
+                // いるため、狭い画面側の向き判定は不要。
+                if (talksListLayoutStyle == TalksListLayoutStyle.iconSplit &&
+                    !ignoreIconSplitOnComputer) {
+                  return _buildIconSplitPane(
+                    directMessages,
+                    groups,
+                    prefsById,
+                    incomingRequests,
+                    outgoingRequests,
+                    pendingGroupRequests,
+                    blockedIds,
+                  );
+                }
 
-              // 会話ペインでの横スワイプで一覧の表示/非表示を切り替える
-              // （一覧側のスワイプは既に一対⇄広場の切り替えに使っているため、
-              // ここは会話ペインのみに閉じたジェスチャーにする）。
-              // 左スワイプ＝広げる、右スワイプ＝戻す、という他画面と同じ
-              // 「進む/戻る」の向きに合わせている。
-              final detailPane = SwipeBackDetector(
-                onBack: () => setState(() => _chatExpanded = false),
-                onNext: () => setState(() => _chatExpanded = true),
-                child: _buildDetailPane(directMessages, groups),
-              );
+                if (!isSplit) {
+                  return listPane;
+                }
 
-              if (_chatExpanded) return detailPane;
+                // 会話ペインでの横スワイプで一覧の表示/非表示を切り替える
+                // （一覧側のスワイプは既に一対⇄広場の切り替えに使っているため、
+                // ここは会話ペインのみに閉じたジェスチャーにする）。
+                // 左スワイプ＝広げる、右スワイプ＝戻す、という他画面と同じ
+                // 「進む/戻る」の向きに合わせている。
+                final detailPane = SwipeBackDetector(
+                  onBack: () => setState(() => _chatExpanded = false),
+                  onNext: () => setState(() => _chatExpanded = true),
+                  child: _buildDetailPane(directMessages, groups),
+                );
 
-              return Row(
-                children: [
-                  // 260px: 語らい一覧のブロック（アイコン＋名前＋ピン/ミュート
-                  // アイコン）が重ならない範囲でできるだけ狭め、メッセージ画面
-                  // 側に幅を譲っている（2026-08-05再変更、360→300→240。2026-08-13に
-                  // 一旦300へ戻したのは、240だとEnglish表示時の一対/広場切り替え
-                  // タブ（"Private N"/"Plaza N"）＋追加ボタンが収まりきらなかった
-                  // ため。2026-08-14、区切り線の位置を設定サイドバー
-                  // （`_kSettingsSidebarWidth`）・身だしなみサイドバー
-                  // （`_kProfileSidebarWidth`）と揃える目的で一旦240へ戻したところ、
-                  // 劇画UIで一対/広場タブ（`GekigaJointedPair`、横スクロール式で
-                  // 折り返せない）が「+」ボタン手前でクリップされ欠けて見える
-                  // 不具合が発生したため260へ広げ（250へ微調整後、再度260へ
-                  // 戻した）、3画面とも同じ値で揃える。
-                  SizedBox(width: 260, child: listPane),
-                  const VerticalDivider(width: 1),
-                  Expanded(child: detailPane),
-                ],
-              );
-            },
-          );
-        },
+                if (_chatExpanded) return detailPane;
+
+                return Row(
+                  children: [
+                    // 260px: 語らい一覧のブロック（アイコン＋名前＋ピン/ミュート
+                    // アイコン）が重ならない範囲でできるだけ狭め、メッセージ画面
+                    // 側に幅を譲っている（2026-08-05再変更、360→300→240。2026-08-13に
+                    // 一旦300へ戻したのは、240だとEnglish表示時の一対/広場切り替え
+                    // タブ（"Private N"/"Plaza N"）＋追加ボタンが収まりきらなかった
+                    // ため。2026-08-14、区切り線の位置を設定サイドバー
+                    // （`_kSettingsSidebarWidth`）・身だしなみサイドバー
+                    // （`_kProfileSidebarWidth`）と揃える目的で一旦240へ戻したところ、
+                    // 劇画UIで一対/広場タブ（`GekigaJointedPair`、横スクロール式で
+                    // 折り返せない）が「+」ボタン手前でクリップされ欠けて見える
+                    // 不具合が発生したため260へ広げ（250へ微調整後、再度260へ
+                    // 戻した）、3画面とも同じ値で揃える。
+                    SizedBox(width: 260, child: listPane),
+                    const VerticalDivider(width: 1),
+                    Expanded(child: detailPane),
+                  ],
+                );
+              },
+            );
+          },
+        ),
       ),
     );
   }
@@ -3753,6 +3853,10 @@ class _DmDetailWithRoomsState extends ConsumerState<_DmDetailWithRooms> {
   /// （2026-08-09変更）。
   String? _selectedRoomId;
 
+  /// 寄合一覧のタップでチャット本体を作り直す際に増やし、`ValueKey`へ含める
+  /// （チャット本体内の寄合切り替えでは増やさず、作り直さない、2026-10-06追加）。
+  int _paneGeneration = 0;
+
   late final Stream<List<DmRoom>> _roomsStream;
 
   @override
@@ -3814,9 +3918,48 @@ class _DmDetailWithRoomsState extends ConsumerState<_DmDetailWithRooms> {
       if (next == null) return;
       final (conversation, _, roomId) = next;
       if (conversation != ViewedDm(dm.dmId)) return;
-      if (roomId == _selectedRoomId) return;
-      setState(() => _selectedRoomId = roomId);
+      if (widget.roomListOnly) {
+        ref
+            .read(lastOpenedRoomProvider.notifier)
+            .setLastRoom(ViewedDm(dm.dmId), roomId);
+        return;
+      }
+      if (roomId ==
+          lastOpenedRoomIn(
+            ref.read(lastOpenedRoomProvider),
+            ViewedDm(dm.dmId),
+          )) {
+        return;
+      }
+      setState(() {
+        _selectedRoomId = roomId;
+        _paneGeneration++;
+      });
     });
+    // 戻る・進むで履歴上の寄合へ戻る要求（2026-10-06追加）。縦表示は
+    // `lastOpenedRoomProvider`のwatchだけで追従するため何もしない。分割表示は
+    // チャット本体を作り直して指定の寄合を表示する。
+    ref.listen(roomSelectionRequestProvider, (previous, next) {
+      if (next == null || widget.roomListOnly) return;
+      final (conversation, roomId, _) = next;
+      if (conversation != ViewedDm(dm.dmId)) return;
+      setState(() {
+        _selectedRoomId = roomId;
+        _paneGeneration++;
+      });
+    });
+    // メッセージ画面で最後に開いた寄合をwatchし、寄合一覧のハイライトを
+    // それに追従させる（2026-10-06修正）。以前は`StreamBuilder`内の
+    // `ref.read`のみで、寄合一覧のストリームが次に流れるまで（1分程度）
+    // 反映されなかった。縦表示（[widget.roomListOnly]）ではこれが表示する
+    // 寄合そのもの、分割表示（メッセージ画面を同時表示）ではチャット本体を
+    // 作り直さずハイライトだけを追従させる（チャット本体の寄合切り替えは
+    // `DmChatPane._switchRoom`のローカル状態変更で完結しているため）。
+    final watchedLastRoomId = ref.watch(
+      lastOpenedRoomProvider.select(
+        (m) => lastOpenedRoomIn(m, ViewedDm(dm.dmId)),
+      ),
+    );
     final currentUser = widget.currentUser;
     final dmRepository = ref.read(directMessageRepositoryProvider);
     final otherUserId = dm.otherUserId(currentUser.userId);
@@ -3833,11 +3976,14 @@ class _DmDetailWithRoomsState extends ConsumerState<_DmDetailWithRooms> {
       stream: _roomsStream,
       builder: (context, snapshot) {
         final rooms = snapshot.data ?? const <DmRoom>[];
-        final lastRoomId = ref
-            .read(lastOpenedRoomProvider.notifier)
-            .lastRoomFor(ViewedDm(dm.dmId));
+        final lastRoomId = widget.roomListOnly
+            ? watchedLastRoomId
+            : ref
+                  .read(lastOpenedRoomProvider.notifier)
+                  .lastRoomFor(ViewedDm(dm.dmId));
         final roomId =
-            (_selectedRoomId != null &&
+            (!widget.roomListOnly &&
+                _selectedRoomId != null &&
                 rooms.any((r) => r.roomId == _selectedRoomId))
             ? _selectedRoomId!
             // このインスタンスでまだ何も選んでいない場合、この一対で最後に
@@ -3851,6 +3997,13 @@ class _DmDetailWithRoomsState extends ConsumerState<_DmDetailWithRooms> {
             : (lastRoomId != null && rooms.any((r) => r.roomId == lastRoomId))
             ? lastRoomId
             : (rooms.isNotEmpty ? rooms.first.roomId : '');
+        // 寄合一覧でハイライトする寄合（2026-10-06追加）。チャット本体の
+        // 寄合（[roomId]）とは別に、最後に開いた寄合へ追従させる。
+        final highlightRoomId =
+            (watchedLastRoomId != null &&
+                rooms.any((r) => r.roomId == watchedLastRoomId))
+            ? watchedLastRoomId
+            : roomId;
         // 空文字列のままチャット本体（`DmChatPane`）を構築すると`initState`が
         // 同期的にFirestoreの`.doc('')`を呼んでしまい、"A document path must
         // be a non-empty string"のエラー画面が一瞬映る不具合があった。
@@ -3903,15 +4056,21 @@ class _DmDetailWithRoomsState extends ConsumerState<_DmDetailWithRooms> {
               (
                 roomId: r.roomId,
                 name: r.name,
-                unreadCount: r.roomId == roomId
+                unreadCount: r.roomId == highlightRoomId
                     ? 0
                     : (prefsById[dm.dmId]?.unreadByRoom[r.roomId] ?? 0),
               ),
           ],
-          selectedRoomId: roomId,
+          selectedRoomId: highlightRoomId,
           onSelectRoom: widget.roomListOnly
               ? (room) => openRoomFullscreen(room.roomId, room.name)
-              : (room) => setState(() => _selectedRoomId = room.roomId),
+              : (room) {
+                  if (room.roomId == highlightRoomId) return;
+                  setState(() {
+                    _selectedRoomId = room.roomId;
+                    _paneGeneration++;
+                  });
+                },
           onCreateRoom: (name) =>
               dmRepository.createRoom(dmId: dm.dmId, name: name),
           onReorderRooms: (roomIds) =>
@@ -3937,6 +4096,7 @@ class _DmDetailWithRoomsState extends ConsumerState<_DmDetailWithRooms> {
           return _SwipeToOpenRoomPreview(
             roomList: roomListPane,
             preview: DmChatPane(
+              key: ValueKey('preview-dm-${dm.dmId}-$roomId'),
               currentUser: currentUser,
               dm: dm,
               roomId: roomId,
@@ -3977,7 +4137,9 @@ class _DmDetailWithRoomsState extends ConsumerState<_DmDetailWithRooms> {
                 collapseProgress: collapseProgress,
                 onExpandTap: widget.onExpandTap,
                 chatPane: DmChatPane(
-                  key: ValueKey('detail-dm-${dm.dmId}-$roomId'),
+                  key: ValueKey(
+                    'detail-dm-${dm.dmId}-$roomId-$_paneGeneration',
+                  ),
                   currentUser: currentUser,
                   dm: dm,
                   roomId: roomId,
@@ -4027,6 +4189,10 @@ class _GroupDetailWithRooms extends ConsumerStatefulWidget {
 class _GroupDetailWithRoomsState extends ConsumerState<_GroupDetailWithRooms> {
   String? _selectedRoomId;
 
+  /// 寄合一覧のタップでチャット本体を作り直す際に増やし、`ValueKey`へ含める
+  /// （チャット本体内の寄合切り替えでは増やさず、作り直さない、2026-10-06追加）。
+  int _paneGeneration = 0;
+
   late final Stream<List<Room>> _roomsStream;
 
   @override
@@ -4048,9 +4214,48 @@ class _GroupDetailWithRoomsState extends ConsumerState<_GroupDetailWithRooms> {
       if (next == null) return;
       final (conversation, _, roomId) = next;
       if (conversation != ViewedGroup(group.groupId)) return;
-      if (roomId == _selectedRoomId) return;
-      setState(() => _selectedRoomId = roomId);
+      if (widget.roomListOnly) {
+        ref
+            .read(lastOpenedRoomProvider.notifier)
+            .setLastRoom(ViewedGroup(group.groupId), roomId);
+        return;
+      }
+      if (roomId ==
+          lastOpenedRoomIn(
+            ref.read(lastOpenedRoomProvider),
+            ViewedGroup(group.groupId),
+          )) {
+        return;
+      }
+      setState(() {
+        _selectedRoomId = roomId;
+        _paneGeneration++;
+      });
     });
+    // 戻る・進むで履歴上の寄合へ戻る要求（2026-10-06追加）。縦表示は
+    // `lastOpenedRoomProvider`のwatchだけで追従するため何もしない。分割表示は
+    // チャット本体を作り直して指定の寄合を表示する。
+    ref.listen(roomSelectionRequestProvider, (previous, next) {
+      if (next == null || widget.roomListOnly) return;
+      final (conversation, roomId, _) = next;
+      if (conversation != ViewedGroup(group.groupId)) return;
+      setState(() {
+        _selectedRoomId = roomId;
+        _paneGeneration++;
+      });
+    });
+    // メッセージ画面で最後に開いた寄合をwatchし、寄合一覧のハイライトを
+    // それに追従させる（2026-10-06修正）。以前は`StreamBuilder`内の
+    // `ref.read`のみで、寄合一覧のストリームが次に流れるまで（1分程度）
+    // 反映されなかった。縦表示（[widget.roomListOnly]）ではこれが表示する
+    // 寄合そのもの、分割表示（メッセージ画面を同時表示）ではチャット本体を
+    // 作り直さずハイライトだけを追従させる（チャット本体の寄合切り替えは
+    // `GroupChatPane._switchRoom`のローカル状態変更で完結しているため）。
+    final watchedLastRoomId = ref.watch(
+      lastOpenedRoomProvider.select(
+        (m) => lastOpenedRoomIn(m, ViewedGroup(group.groupId)),
+      ),
+    );
     final currentUser = widget.currentUser;
     final prefsById =
         ref.watch(conversationPrefsProvider(currentUser.userId)).value ??
@@ -4066,17 +4271,27 @@ class _GroupDetailWithRoomsState extends ConsumerState<_GroupDetailWithRooms> {
       stream: _roomsStream,
       builder: (context, snapshot) {
         final rooms = snapshot.data ?? const <Room>[];
-        final lastRoomId = ref
-            .read(lastOpenedRoomProvider.notifier)
-            .lastRoomFor(ViewedGroup(group.groupId));
+        final lastRoomId = widget.roomListOnly
+            ? watchedLastRoomId
+            : ref
+                  .read(lastOpenedRoomProvider.notifier)
+                  .lastRoomFor(ViewedGroup(group.groupId));
         final roomId =
-            (_selectedRoomId != null &&
+            (!widget.roomListOnly &&
+                _selectedRoomId != null &&
                 rooms.any((r) => r.roomId == _selectedRoomId))
             ? _selectedRoomId!
             // [_DmDetailWithRoomsState.build]と同じ理由（2026-09-26変更）。
             : (lastRoomId != null && rooms.any((r) => r.roomId == lastRoomId))
             ? lastRoomId
             : (rooms.isNotEmpty ? rooms.first.roomId : '');
+        // 寄合一覧でハイライトする寄合（2026-10-06追加）。チャット本体の
+        // 寄合（[roomId]）とは別に、最後に開いた寄合へ追従させる。
+        final highlightRoomId =
+            (watchedLastRoomId != null &&
+                rooms.any((r) => r.roomId == watchedLastRoomId))
+            ? watchedLastRoomId
+            : roomId;
         // [_DmDetailWithRoomsState.build]と同じ理由（2026-09-15追加）。
         if (roomId.isEmpty) return const _EmptyDetailPlaceholder();
         final roomName = rooms
@@ -4124,15 +4339,21 @@ class _GroupDetailWithRoomsState extends ConsumerState<_GroupDetailWithRooms> {
               (
                 roomId: r.roomId,
                 name: r.name,
-                unreadCount: r.roomId == roomId
+                unreadCount: r.roomId == highlightRoomId
                     ? 0
                     : (prefsById[group.groupId]?.unreadByRoom[r.roomId] ?? 0),
               ),
           ],
-          selectedRoomId: roomId,
+          selectedRoomId: highlightRoomId,
           onSelectRoom: widget.roomListOnly
               ? (room) => openRoomFullscreen(room.roomId, room.name)
-              : (room) => setState(() => _selectedRoomId = room.roomId),
+              : (room) {
+                  if (room.roomId == highlightRoomId) return;
+                  setState(() {
+                    _selectedRoomId = room.roomId;
+                    _paneGeneration++;
+                  });
+                },
           onCreateRoom: canManageRooms
               ? (name) => groupRepository.createRoom(
                   groupId: group.groupId,
@@ -4166,6 +4387,7 @@ class _GroupDetailWithRoomsState extends ConsumerState<_GroupDetailWithRooms> {
           return _SwipeToOpenRoomPreview(
             roomList: roomListPane,
             preview: GroupChatPane(
+              key: ValueKey('preview-group-${group.groupId}-$roomId'),
               currentUser: currentUser,
               group: group,
               roomId: roomId,
@@ -4203,7 +4425,9 @@ class _GroupDetailWithRoomsState extends ConsumerState<_GroupDetailWithRooms> {
                 collapseProgress: collapseProgress,
                 onExpandTap: widget.onExpandTap,
                 chatPane: GroupChatPane(
-                  key: ValueKey('detail-group-${group.groupId}-$roomId'),
+                  key: ValueKey(
+                    'detail-group-${group.groupId}-$roomId-$_paneGeneration',
+                  ),
                   currentUser: currentUser,
                   group: group,
                   roomId: roomId,

@@ -22,9 +22,14 @@ class SwipeBackDetector extends StatelessWidget {
     required this.child,
     this.onPrevious,
     this.onNext,
+    this.enabled = true,
     super.key,
   });
 
+  /// falseなら横スワイプの検出を止める（ハンドラを外すだけで、ウィジェット木の
+  /// 形は変えない。`enabled`の切り替えで子（編集中のエディタ等）の状態が
+  /// 作り直されないようにするため、2026-10-06変更）。
+  final bool enabled;
   final VoidCallback onBack;
   final VoidCallback? onPrevious;
   final VoidCallback? onNext;
@@ -34,14 +39,16 @@ class SwipeBackDetector extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       behavior: HitTestBehavior.translucent,
-      onHorizontalDragEnd: (details) {
-        final velocity = details.primaryVelocity ?? 0;
-        if (velocity >= kSwipeGestureVelocityThreshold) {
-          (onPrevious ?? onBack)();
-        } else if (velocity <= -kSwipeGestureVelocityThreshold) {
-          onNext?.call();
-        }
-      },
+      onHorizontalDragEnd: !enabled
+          ? null
+          : (details) {
+              final velocity = details.primaryVelocity ?? 0;
+              if (velocity >= kSwipeGestureVelocityThreshold) {
+                (onPrevious ?? onBack)();
+              } else if (velocity <= -kSwipeGestureVelocityThreshold) {
+                onNext?.call();
+              }
+            },
       child: child,
     );
   }

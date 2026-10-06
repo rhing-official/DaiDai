@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/strings.dart';
+import '../../router/back_stack.dart';
 import '../../models/app_ui_style.dart';
 import '../../models/app_user.dart';
 import '../../providers/app_ui_style_provider.dart';
@@ -125,7 +126,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   /// 行われるようにするため）。
   void _setSelectedIndex(int index) {
     _selectedIndex = index;
+    _syncBackScope();
     ref.read(homeSelectedTabProvider.notifier).set(index);
+  }
+
+  /// 現在のタブに対応する戻る・進む履歴のスコープを[BackStackController]へ
+  /// 伝える（2026-10-06追加）。
+  void _syncBackScope() {
+    ref.read(backStackControllerProvider).activeScope =
+        BackScope.values[_selectedIndex.clamp(0, 2)];
   }
 
   static const _icons = [
@@ -152,7 +161,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     // プロバイダ）に既に反映済みのため、値が一致していれば何もしない
     // （ここでの再代入によるループは発生しない）。
     ref.listen<int>(homeSelectedTabProvider, (previous, next) {
-      if (next != _selectedIndex) setState(() => _selectedIndex = next);
+      if (next != _selectedIndex) {
+        setState(() => _selectedIndex = next);
+        _syncBackScope();
+      }
     });
 
     final strings = ref.watch(appStringsProvider);
@@ -192,6 +204,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       padding: isWide
           ? const EdgeInsets.only(left: _chipSize + _chipMargin * 2)
           : const EdgeInsets.only(bottom: _chipSize + _chipMargin * 2),
+      // 戻る・進むはタブごとの履歴で、タブをまたいで戻らない（2026-10-06変更、
+      // 以前は語らい以外のタブで戻ると語らいタブへ戻る`BackEntry`だった）。
+      // 現在のタブを`BackStackController.activeScope`へ伝える。
       child: IndexedStack(index: _selectedIndex, children: tabs),
     );
 
@@ -236,67 +251,71 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       );
     }
 
-    return Scaffold(
-      body: SafeArea(
-        child: Stack(
-          children: [
-            // 劇画スタイル時のハーフトーン柄・ダイアゴナルアクセントの背景装飾
-            // （2026-07-30追加）は、語らいタブ等で中途半端に模様が透けて見える
-            // 見た目が良くないとの指摘を受け廃止した（2026-08-04）。背景は
-            // テーマの`scaffoldBackgroundColor`（`GekigaColors.background`）
-            // による単色の塗り潰しのみにする。
-            content,
-            // 通話中、その会話の画面を見ていない間だけ右上に固定表示する
-            // ミニ表示（2026-08-19追加）。タブ切り替えの`IndexedStack`より
-            // 外側（このStack自体）に置くことで、身だしなみ・設定タブへ
-            // 移動しても消えない。
-            const PinnedCallOverlay(),
-            if (isWide)
-              Positioned(
-                left: _chipMargin,
-                top: 0,
-                bottom: 0,
-                // GestureDetectorをCenterの外側に置くことで、当たり判定を
-                // チップ自体の大きさではなく帯全体（Positionedの領域）に
-                // 広げる。内側だとCenterの中でChild自身のサイズに縮んで
-                // しまい、チップとチップの間の余白でスワイプしても
-                // 反応しなかった。
-                child: wrapWithSwipe(
-                  vertical: true,
-                  Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        for (var i = 0; i < chips.length; i++) ...[
-                          if (i > 0) const SizedBox(height: _chipGap),
-                          chips[i],
+    // ホーム表示中は常に履歴の「ベース」エントリを積み、戻るボタンでアプリの
+    // 外（ホームより前）へ出ないようにする（2026-10-04追加）。
+    return BackBaseGuard(
+      child: Scaffold(
+        body: SafeArea(
+          child: Stack(
+            children: [
+              // 劇画スタイル時のハーフトーン柄・ダイアゴナルアクセントの背景装飾
+              // （2026-07-30追加）は、語らいタブ等で中途半端に模様が透けて見える
+              // 見た目が良くないとの指摘を受け廃止した（2026-08-04）。背景は
+              // テーマの`scaffoldBackgroundColor`（`GekigaColors.background`）
+              // による単色の塗り潰しのみにする。
+              content,
+              // 通話中、その会話の画面を見ていない間だけ右上に固定表示する
+              // ミニ表示（2026-08-19追加）。タブ切り替えの`IndexedStack`より
+              // 外側（このStack自体）に置くことで、身だしなみ・設定タブへ
+              // 移動しても消えない。
+              const PinnedCallOverlay(),
+              if (isWide)
+                Positioned(
+                  left: _chipMargin,
+                  top: 0,
+                  bottom: 0,
+                  // GestureDetectorをCenterの外側に置くことで、当たり判定を
+                  // チップ自体の大きさではなく帯全体（Positionedの領域）に
+                  // 広げる。内側だとCenterの中でChild自身のサイズに縮んで
+                  // しまい、チップとチップの間の余白でスワイプしても
+                  // 反応しなかった。
+                  child: wrapWithSwipe(
+                    vertical: true,
+                    Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          for (var i = 0; i < chips.length; i++) ...[
+                            if (i > 0) const SizedBox(height: _chipGap),
+                            chips[i],
+                          ],
                         ],
-                      ],
+                      ),
+                    ),
+                  ),
+                )
+              else
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: _chipMargin,
+                  child: wrapWithSwipe(
+                    vertical: false,
+                    Center(
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          for (var i = 0; i < chips.length; i++) ...[
+                            if (i > 0) const SizedBox(width: _chipGap),
+                            chips[i],
+                          ],
+                        ],
+                      ),
                     ),
                   ),
                 ),
-              )
-            else
-              Positioned(
-                left: 0,
-                right: 0,
-                bottom: _chipMargin,
-                child: wrapWithSwipe(
-                  vertical: false,
-                  Center(
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        for (var i = 0; i < chips.length; i++) ...[
-                          if (i > 0) const SizedBox(width: _chipGap),
-                          chips[i],
-                        ],
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-          ],
+            ],
+          ),
         ),
       ),
     );

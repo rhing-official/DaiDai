@@ -37,6 +37,7 @@ import 'providers/talks_list_layout_style_provider.dart';
 import 'providers/text_color_provider.dart';
 import 'providers/theme_mode_provider.dart';
 import 'router/app_router.dart';
+import 'router/back_stack.dart';
 import 'utils/android_notification_sound_sync.dart';
 import 'theme/app_theme.dart';
 import 'theme/gekiga/gekiga_theme.dart';
@@ -247,6 +248,10 @@ class DaiDaiApp extends ConsumerWidget {
         // ローカライズデリゲート。
         AppFlowyEditorLocalizations.delegate,
       ],
+      // デスクトップのマウスの戻る・進むボタン対応（2026-10-06、Webでは
+      // ブラウザが履歴を操作するため何もしない）。
+      builder: (context, child) =>
+          MouseBackForwardListener(child: child ?? const SizedBox.shrink()),
       routerConfig: ref.watch(goRouterProvider),
     );
   }

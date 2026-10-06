@@ -14,6 +14,14 @@ String _keyFor(ViewedConversation conversation) => switch (conversation) {
   ViewedGroup(:final groupId) => 'group:$groupId',
 };
 
+/// [LastOpenedRoomNotifier]の状態（[lastOpenedRoomProvider]の値）から
+/// [conversation]の最後に開いた寄合idを引く。`ref.watch(...select)`で
+/// リアクティブに読むために公開している（2026-10-06追加）。
+String? lastOpenedRoomIn(
+  Map<String, String> state,
+  ViewedConversation conversation,
+) => state[_keyFor(conversation)];
+
 /// 端末に保存されている、会話ごとに最後に開いていた寄合idの初期値。main()で
 /// 起動前に読み込み、ProviderScopeのoverrideとして渡す（[AccentColorNotifier]
 /// と同じ方式）。
@@ -47,6 +55,12 @@ class LastOpenedRoomNotifier extends Notifier<Map<String, String>> {
     ViewedConversation conversation,
     String roomId,
   ) async {
+    // `DmChatPane`/`GroupChatPane`の`initState`（ウィジェット構築中）からも
+    // 呼ばれるため、次のマイクロタスクまで待ってからstateを更新する
+    // （2026-10-06修正。構築中のプロバイダ変更はRiverpodが例外
+    // 「Tried to modify a provider while the widget tree was building」を
+    // 投げ、初回表示時の「最後に開いた寄合」の記録が丸ごと失敗していた）。
+    await Future<void>.value();
     final key = _keyFor(conversation);
     if (state[key] == roomId) return;
     state = {...state, key: roomId};

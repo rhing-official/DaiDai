@@ -1,10 +1,11 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../models/day_messages_page.dart';
 import '../models/message.dart';
+import '../models/message_cursor.dart';
 import 'repository_providers.dart';
 
 /// メッセージ画面のスクロール位置を「見ていたメッセージ」で覚えるアンカー
@@ -61,15 +62,29 @@ class ChatRoomCacheKey {
 /// Stateが破棄されても購読は裏で生き続け、同じ寄合に戻った時は
 /// 既に読み込み済みのデータへ即座にアタッチできる。
 class ChatRoomMessageCacheEntry extends ChangeNotifier {
-  /// 直近の活動日1日分のライブ購読分。
+  /// 最新[kMessagePageSize]件のライブ窓（Firestoreの`limit`付き購読）。
+  /// 新着で窓が進むと、押し出された分は[olderMessages]の先頭へ移される
+  /// （[_applyLiveWindow]）。
   List<Message> liveTailMessages = const [];
 
-  /// [loadOlder]で読み込んだ、直近の活動日より古い日の蓄積分。
+  /// ライブ窓より古い蓄積分（新しい順）。[loadOlder]で読み込んだ過去ページと、
+  /// ライブ窓から押し出されたメッセージ。常に[liveTailMessages]のどれよりも
+  /// 古く、互いに重複しない（`chat_panes.dart`は単純結合するだけで全体が
+  /// 降順になる前提）。
   final List<Message> olderMessages = [];
 
-  /// 次に[loadOlder]を呼ぶ際の境界（現在読み込み済みの最も古い日の
-  /// 開始時刻）。[ensureSubscribed]の初回応答で確定する。
-  DateTime? oldestLoadedDayStart;
+  /// 次に[loadOlder]で読み始める位置（現在ロード済みの最も古いメッセージ）。
+  /// まだ何も無い、または`sentAt`未確定（送信直後）ならnull。
+  MessageCursor? get oldestLoadedCursor {
+    final oldest = olderMessages.isNotEmpty
+        ? olderMessages.last
+        : (liveTailMessages.isNotEmpty ? liveTailMessages.last : null);
+    final sentAt = oldest?.sentAt;
+    if (oldest == null || sentAt == null) return null;
+    return MessageCursor(sentAt: sentAt, messageId: oldest.messageId);
+  }
+
+  bool _hasReceivedLive = false;
 
   bool isLoadingOlder = false;
   bool hasMoreHistory = true;
@@ -90,36 +105,127 @@ class ChatRoomMessageCacheEntry extends ChangeNotifier {
   /// 表示中はnull。
   int? idleSequence;
 
-  StreamSubscription<DayMessagesPage>? _tailSub;
+  StreamSubscription<List<Message>>? _tailSub;
 
-  /// まだ購読していなければ[watchLatestDay]で購読を開始する（冪等）。
+  /// 購読が終了・エラーで止まった際の自動再購読の連続失敗回数
+  /// （バックオフ計算用。1件でも受信できれば0に戻す）。
+  int _retryCount = 0;
+  Timer? _retryTimer;
+
+  /// まだ購読していなければ[watchLiveWindow]で購読を開始する（冪等）。
   /// 既に購読済みの場合は何もせず、これまでに蓄積済みの
   /// [liveTailMessages]等をそのまま使わせる。
-  void ensureSubscribed(Stream<DayMessagesPage> Function() watchLatestDay) {
+  ///
+  /// 購読が終了・エラーで止まった場合は`_tailSub`を解放し（2026-10-06修正。
+  /// 以前は止まった購読が残り続け、寄合に戻っても二度と更新されなかった）、
+  /// 表示中（[refCount] > 0）なら間隔を延ばしながら自動で再購読する。
+  /// 非表示のままなら、次に表示した際の本メソッド呼び出しで再購読される。
+  void ensureSubscribed(Stream<List<Message>> Function() watchLiveWindow) {
     if (_tailSub != null) return;
-    _tailSub = watchLatestDay().listen((page) {
-      liveTailMessages = page.messages;
-      oldestLoadedDayStart ??= page.dayStart;
-      notifyListeners();
-    });
+    _retryTimer?.cancel();
+    _retryTimer = null;
+    late final StreamSubscription<List<Message>> sub;
+    void onStopped(Object? error) {
+      if (!identical(_tailSub, sub)) return;
+      debugPrint('ChatRoomMessageCacheEntry: 購読が停止しました: $error');
+      _tailSub = null;
+      if (refCount <= 0) return;
+      final delay = Duration(seconds: min(30, 3 * (1 << min(_retryCount, 3))));
+      _retryCount++;
+      _retryTimer = Timer(delay, () {
+        _retryTimer = null;
+        if (refCount > 0) ensureSubscribed(watchLiveWindow);
+      });
+    }
+
+    sub = watchLiveWindow().listen(
+      (window) {
+        _retryCount = 0;
+        _applyLiveWindow(window);
+        notifyListeners();
+      },
+      onError: onStopped,
+      onDone: () => onStopped('done'),
+      cancelOnError: true,
+    );
+    _tailSub = sub;
   }
 
+  /// [a]が[pivot]より古い（Firestoreの`sentAt`降順＋`__name__`降順の並びで
+  /// 後ろにある）か。`sentAt`未確定（送信直後）は最新扱いで、古いとはみなさない。
+  static bool _isOlderThan(Message a, Message pivot) {
+    final aSentAt = a.sentAt;
+    final pivotSentAt = pivot.sentAt;
+    if (aSentAt == null || pivotSentAt == null) return false;
+    final byTime = aSentAt.compareTo(pivotSentAt);
+    if (byTime != 0) return byTime < 0;
+    return a.messageId.compareTo(pivot.messageId) < 0;
+  }
+
+  /// 新しいライブ窓[next]を反映し、[olderMessages]との整合を保つ
+  /// （2026-10-06追加。日単位だった頃は2つのリストが互いに素な前提で
+  /// 重複排除が不要だったが、件数ベースでは窓が新着で進むため必要）。
+  /// - 窓が満杯（[kMessagePageSize]件）で、直前の窓と重なりがある場合のみ、
+  ///   窓から押し出された分（新しい窓の最古より古いもの）を[olderMessages]の
+  ///   先頭へ移す。窓内で物理削除されたものは移さず捨てる。
+  /// - 直前の窓と全く重ならない場合（古いキャッシュ表示の後にサーバーの
+  ///   最新が届いた等）は、間の欠落を作らないよう[olderMessages]を捨てて
+  ///   読み直す。
+  /// - 新しい窓に現れたIDは[olderMessages]から除く（窓内の削除で古い
+  ///   メッセージが窓へ繰り上がった場合の重複防止）。
+  void _applyLiveWindow(List<Message> next) {
+    final previous = liveTailMessages;
+    final nextIds = {for (final m in next) m.messageId};
+    if (previous.isNotEmpty) {
+      final overlaps = previous.any((m) => nextIds.contains(m.messageId));
+      if (!overlaps && next.isNotEmpty) {
+        olderMessages.clear();
+        hasMoreHistory = true;
+      } else if (next.length >= kMessagePageSize) {
+        final pivot = next.last;
+        final spilled = [
+          for (final m in previous)
+            if (!nextIds.contains(m.messageId) && _isOlderThan(m, pivot)) m,
+        ];
+        olderMessages.removeWhere((m) => nextIds.contains(m.messageId));
+        olderMessages.insertAll(0, spilled);
+      }
+    }
+    olderMessages.removeWhere((m) => nextIds.contains(m.messageId));
+    liveTailMessages = next;
+    _hasReceivedLive = true;
+  }
+
+  /// 現在ロード済みの最も古いメッセージより古い1ページ（最大
+  /// [kMessagePageSize]件）を[loadOlderPage]で取得して[olderMessages]へ
+  /// 追記する。取得件数がページ未満なら、これ以上遡る履歴は無いとみなす。
   Future<void> loadOlder(
-    Future<DayMessagesPage?> Function(DateTime beforeDayStart) loadOlderDay,
+    Future<List<Message>> Function(MessageCursor before) loadOlderPage,
   ) async {
-    final boundary = oldestLoadedDayStart;
-    if (isLoadingOlder || !hasMoreHistory || boundary == null) return;
+    if (isLoadingOlder || !hasMoreHistory) return;
+    final cursor = oldestLoadedCursor;
+    if (cursor == null) {
+      // ライブ窓を受信済みで1件も無い（空の寄合）なら、遡る履歴も無い。
+      if (_hasReceivedLive && liveTailMessages.isEmpty) {
+        hasMoreHistory = false;
+        notifyListeners();
+      }
+      return;
+    }
     isLoadingOlder = true;
     notifyListeners();
-    final page = await loadOlderDay(boundary);
-    isLoadingOlder = false;
-    if (page == null) {
-      hasMoreHistory = false;
-    } else {
-      olderMessages.addAll(page.messages);
-      oldestLoadedDayStart = page.dayStart;
+    try {
+      final page = await loadOlderPage(cursor);
+      final known = {
+        for (final m in liveTailMessages) m.messageId,
+        for (final m in olderMessages) m.messageId,
+      };
+      olderMessages.addAll(page.where((m) => !known.contains(m.messageId)));
+      if (page.length < kMessagePageSize) hasMoreHistory = false;
+    } finally {
+      isLoadingOlder = false;
+      notifyListeners();
     }
-    notifyListeners();
   }
 
   /// 編集・リアクション・既読・削除等のメッセージ変更操作を実行した後、
@@ -153,6 +259,8 @@ class ChatRoomMessageCacheEntry extends ChangeNotifier {
   /// 会話自体の削除時にのみ呼ばれる。表示中のStateを持つ`dispose()`からは
   /// 呼ばない — それがこのキャッシュ層の存在意義そのもの）。
   void cancelSubscription() {
+    _retryTimer?.cancel();
+    _retryTimer = null;
     _tailSub?.cancel();
     _tailSub = null;
   }

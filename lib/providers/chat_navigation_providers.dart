@@ -123,3 +123,22 @@ final pendingMessageJumpProvider =
       PendingMessageJumpNotifier,
       (ViewedConversation, String, String)?
     >(PendingMessageJumpNotifier.new);
+
+/// 戻る・進む（`BackStackController`）で履歴上の寄合へ戻る際に、その会話の
+/// チャット本体（`TalksTab`の分割表示で寄合ごとに保持している選択状態）へ
+/// 「この寄合を表示して」と伝える橋渡し（2026-10-06追加）。`nonce`は同じ寄合を
+/// 続けて要求しても変化として通知させるための連番。
+class RoomSelectionRequestNotifier
+    extends Notifier<(ViewedConversation, String, int)?> {
+  @override
+  (ViewedConversation, String, int)? build() => null;
+
+  void request(ViewedConversation conversation, String roomId) =>
+      state = (conversation, roomId, (state?.$3 ?? 0) + 1);
+}
+
+final roomSelectionRequestProvider =
+    NotifierProvider<
+      RoomSelectionRequestNotifier,
+      (ViewedConversation, String, int)?
+    >(RoomSelectionRequestNotifier.new);

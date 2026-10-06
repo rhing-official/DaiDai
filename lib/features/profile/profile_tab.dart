@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../router/back_stack.dart';
 import '../../l10n/strings.dart';
 import '../../l10n/vocabulary.dart';
 import '../../models/app_ui_style.dart';
@@ -698,8 +699,20 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
     }
   }
 
+  /// 戻る・進む（`BackStackController`）の履歴に記録する現在位置
+  /// （2026-10-06追加）。身だしなみタブ内のカテゴリ（セクション）移動。
+  /// `null`（一覧）も有効な位置のため、1要素のレコードで包む。
   @override
   Widget build(BuildContext context) {
+    return NavHistoryBackEntry<(_ProfileSection?,)>(
+      scope: BackScope.profile,
+      location: (_selectedSection,),
+      onRestore: (location) => setState(() => _selectedSection = location.$1),
+      child: _buildTabBody(context),
+    );
+  }
+
+  Widget _buildTabBody(BuildContext context) {
     final strings = ref.watch(appStringsProvider);
     final vocab = ref.watch(vocabularyProvider);
     final categories = _categories(vocab);

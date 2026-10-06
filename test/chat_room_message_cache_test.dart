@@ -1,12 +1,15 @@
 import 'dart:async';
 
-import 'package:daidai/models/day_messages_page.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:daidai/models/message_cursor.dart';
+
 import 'package:daidai/models/message.dart';
 import 'package:daidai/providers/chat_room_message_cache.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-Message _message(String id) => Message(
+Message _message(String id, {int? seconds}) => Message(
   messageId: id,
+  sentAt: seconds == null ? null : Timestamp(seconds, 0),
   conversationId: 'conv',
   conversationType: 'room',
   senderId: 'sender',
@@ -23,17 +26,14 @@ void main() {
 
   test('ensureSubscribedで購読した値がliveTailMessagesへ反映される', () async {
     final entry = ChatRoomMessageCacheEntry();
-    final controller = StreamController<DayMessagesPage>();
+    final controller = StreamController<List<Message>>();
     entry.ensureSubscribed(() => controller.stream);
 
-    final dayStart = DateTime(2026, 9, 10);
-    controller.add(
-      DayMessagesPage(dayStart: dayStart, messages: [_message('a')]),
-    );
+    controller.add([_message('a', seconds: 100)]);
     await pumpEventQueue();
 
     expect(entry.liveTailMessages.map((m) => m.messageId), ['a']);
-    expect(entry.oldestLoadedDayStart, dayStart);
+    expect(entry.oldestLoadedCursor?.messageId, 'a');
 
     await controller.close();
   });
@@ -41,20 +41,15 @@ void main() {
   test('同じキーでattachし直しても既存データを引き継ぎ、購読を張り直さない', () async {
     final manager = ChatRoomMessageCacheManager();
     var subscribeCount = 0;
-    final controller = StreamController<DayMessagesPage>();
-    Stream<DayMessagesPage> watch() {
+    final controller = StreamController<List<Message>>();
+    Stream<List<Message>> watch() {
       subscribeCount++;
       return controller.stream;
     }
 
     final first = manager.attach(key);
     first.ensureSubscribed(watch);
-    controller.add(
-      DayMessagesPage(
-        dayStart: DateTime(2026, 9, 10),
-        messages: [_message('a')],
-      ),
-    );
+    controller.add([_message('a')]);
     await pumpEventQueue();
     manager.detach(key, first);
 
@@ -71,7 +66,7 @@ void main() {
   test('detachしてもrefCountが0になるだけで購読はキャンセルされない', () {
     final manager = ChatRoomMessageCacheManager();
     var cancelled = false;
-    final controller = StreamController<DayMessagesPage>(
+    final controller = StreamController<List<Message>>(
       onCancel: () => cancelled = true,
     );
     addTearDown(controller.close);
@@ -88,7 +83,7 @@ void main() {
 
   test('maxIdleEntriesを超えたら最も古くdetachされたものから購読が破棄される', () {
     final manager = ChatRoomMessageCacheManager();
-    final controllers = <StreamController<DayMessagesPage>>[];
+    final controllers = <StreamController<List<Message>>>[];
     addTearDown(() {
       for (final c in controllers) {
         c.close();
@@ -105,7 +100,7 @@ void main() {
     );
     final entries = <ChatRoomCacheKey, ChatRoomMessageCacheEntry>{};
     for (final k in keys) {
-      final controller = StreamController<DayMessagesPage>();
+      final controller = StreamController<List<Message>>();
       controllers.add(controller);
       final entry = manager.attach(k);
       entry.ensureSubscribed(() => controller.stream);
@@ -126,7 +121,7 @@ void main() {
 
   test('表示中(refCount>0)のエントリはmaxIdleEntriesを超えても破棄されない', () {
     final manager = ChatRoomMessageCacheManager();
-    final controllers = <StreamController<DayMessagesPage>>[];
+    final controllers = <StreamController<List<Message>>>[];
     addTearDown(() {
       for (final c in controllers) {
         c.close();
@@ -138,7 +133,7 @@ void main() {
       conversationId: 'dm-1',
       roomId: 'displayed',
     );
-    final displayedController = StreamController<DayMessagesPage>();
+    final displayedController = StreamController<List<Message>>();
     controllers.add(displayedController);
     final displayedEntry = manager.attach(displayedKey);
     displayedEntry.ensureSubscribed(() => displayedController.stream);
@@ -150,7 +145,7 @@ void main() {
         conversationId: 'dm-1',
         roomId: 'idle-$i',
       );
-      final controller = StreamController<DayMessagesPage>();
+      final controller = StreamController<List<Message>>();
       controllers.add(controller);
       final entry = manager.attach(k);
       entry.ensureSubscribed(() => controller.stream);
@@ -161,56 +156,143 @@ void main() {
     expect(identical(reattachedDisplayed, displayedEntry), isTrue);
   });
 
-  test('loadOlderはページが無くなるとhasMoreHistoryをfalseにする', () async {
+  test('loadOlderは50件未満のページを受け取るとhasMoreHistoryをfalseにする', () async {
     final entry = ChatRoomMessageCacheEntry();
-    final controller = StreamController<DayMessagesPage>();
+    final controller = StreamController<List<Message>>();
     addTearDown(controller.close);
     entry.ensureSubscribed(() => controller.stream);
-    final dayStart = DateTime(2026, 9, 10);
-    controller.add(DayMessagesPage(dayStart: dayStart, messages: const []));
+    controller.add([_message('a', seconds: 100)]);
     await pumpEventQueue();
 
-    await entry.loadOlder((before) async => null);
+    await entry.loadOlder((before) async => const []);
 
     expect(entry.hasMoreHistory, isFalse);
   });
 
-  test('loadOlderは取得したページをolderMessagesへ追記し境界を更新する', () async {
+  test('loadOlderは空の寄合（ライブ窓が空）ならhasMoreHistoryをfalseにする', () async {
     final entry = ChatRoomMessageCacheEntry();
-    final controller = StreamController<DayMessagesPage>();
+    final controller = StreamController<List<Message>>();
     addTearDown(controller.close);
     entry.ensureSubscribed(() => controller.stream);
-    final dayStart = DateTime(2026, 9, 10);
-    controller.add(DayMessagesPage(dayStart: dayStart, messages: const []));
+    controller.add(const []);
     await pumpEventQueue();
 
-    final olderDayStart = DateTime(2026, 9, 9);
+    await entry.loadOlder((before) async => fail('呼ばれないはず'));
+
+    expect(entry.hasMoreHistory, isFalse);
+  });
+
+  test('loadOlderは最古のメッセージをカーソルに渡し、ページ分を追記して継続する', () async {
+    final entry = ChatRoomMessageCacheEntry();
+    final controller = StreamController<List<Message>>();
+    addTearDown(controller.close);
+    entry.ensureSubscribed(() => controller.stream);
+    controller.add([_message('b', seconds: 200), _message('a', seconds: 100)]);
+    await pumpEventQueue();
+
+    late MessageCursor received;
     await entry.loadOlder((before) async {
-      expect(before, dayStart);
-      return DayMessagesPage(
-        dayStart: olderDayStart,
-        messages: [_message('old')],
-      );
+      received = before;
+      return [
+        for (var i = 0; i < kMessagePageSize; i++)
+          _message('old-$i', seconds: 99 - i),
+      ];
     });
 
-    expect(entry.olderMessages.map((m) => m.messageId), ['old']);
-    expect(entry.oldestLoadedDayStart, olderDayStart);
+    expect(received, MessageCursor(sentAt: Timestamp(100, 0), messageId: 'a'));
+    expect(entry.olderMessages, hasLength(kMessagePageSize));
+    expect(entry.oldestLoadedCursor?.messageId, 'old-${kMessagePageSize - 1}');
     expect(entry.hasMoreHistory, isTrue);
+  });
+
+  List<Message> fullWindow(int newestSeconds) => [
+    for (var i = 0; i < kMessagePageSize; i++)
+      _message('m${newestSeconds - i}', seconds: newestSeconds - i),
+  ];
+
+  test('ライブ窓が新着で進むと、押し出された分はolderMessagesの先頭へ移る', () async {
+    final entry = ChatRoomMessageCacheEntry();
+    final controller = StreamController<List<Message>>();
+    addTearDown(controller.close);
+    entry.ensureSubscribed(() => controller.stream);
+    controller.add(fullWindow(1000)); // 1000..951
+    await pumpEventQueue();
+    controller.add(fullWindow(1001)); // 1001..952（951が押し出される）
+    await pumpEventQueue();
+
+    expect(entry.liveTailMessages.first.messageId, 'm1001');
+    expect(entry.olderMessages.map((m) => m.messageId), ['m951']);
+  });
+
+  test('窓内で物理削除されたメッセージは、押し出し扱いにせず捨てる', () async {
+    final entry = ChatRoomMessageCacheEntry();
+    final controller = StreamController<List<Message>>();
+    addTearDown(controller.close);
+    entry.ensureSubscribed(() => controller.stream);
+    final first = fullWindow(1000); // 1000..951
+    controller.add(first);
+    await pumpEventQueue();
+    // m990が削除され、窓の下端に950が繰り上がる（件数は50のまま）
+    final second = [
+      for (final m in first)
+        if (m.messageId != 'm990') m,
+      _message('m950', seconds: 950),
+    ];
+    controller.add(second);
+    await pumpEventQueue();
+
+    expect(entry.olderMessages, isEmpty);
+    expect(entry.liveTailMessages.any((m) => m.messageId == 'm990'), isFalse);
+  });
+
+  test('olderMessagesにいたメッセージが窓へ繰り上がったら重複しないよう除く', () async {
+    final entry = ChatRoomMessageCacheEntry();
+    final controller = StreamController<List<Message>>();
+    addTearDown(controller.close);
+    entry.ensureSubscribed(() => controller.stream);
+    final first = fullWindow(1000); // 1000..951
+    controller.add(first);
+    await pumpEventQueue();
+    entry.olderMessages.add(_message('m950', seconds: 950));
+    final second = [
+      for (final m in first)
+        if (m.messageId != 'm990') m,
+      _message('m950', seconds: 950),
+    ];
+    controller.add(second);
+    await pumpEventQueue();
+
+    expect(entry.olderMessages.where((m) => m.messageId == 'm950'), isEmpty);
+    expect(entry.liveTailMessages.last.messageId, 'm950');
+  });
+
+  test('直前の窓と全く重ならない更新（古いキャッシュ→最新）はolderMessagesを捨てて読み直す', () async {
+    final entry = ChatRoomMessageCacheEntry();
+    final controller = StreamController<List<Message>>();
+    addTearDown(controller.close);
+    entry.ensureSubscribed(() => controller.stream);
+    controller.add([_message('stale', seconds: 10)]);
+    await pumpEventQueue();
+    entry.olderMessages.add(_message('stale-old', seconds: 5));
+    await entry.loadOlder((before) async => const []); // hasMoreHistory=false
+    expect(entry.hasMoreHistory, isFalse);
+
+    controller.add(fullWindow(1000));
+    await pumpEventQueue();
+
+    expect(entry.olderMessages, isEmpty);
+    expect(entry.hasMoreHistory, isTrue);
+    expect(entry.oldestLoadedCursor?.messageId, 'm951');
   });
 
   test(
     'afterMutationはliveTailMessages側のIDを無視し、olderMessages側のみ差し替える',
     () async {
       final entry = ChatRoomMessageCacheEntry();
-      final controller = StreamController<DayMessagesPage>();
+      final controller = StreamController<List<Message>>();
       addTearDown(controller.close);
       entry.ensureSubscribed(() => controller.stream);
-      controller.add(
-        DayMessagesPage(
-          dayStart: DateTime(2026, 9, 10),
-          messages: [_message('live-1')],
-        ),
-      );
+      controller.add([_message('live-1')]);
       await pumpEventQueue();
       entry.olderMessages.add(_message('older-1'));
 
@@ -246,8 +328,8 @@ void main() {
 
   test('evictConversationは同じ会話に属する全寄合の購読を破棄する', () {
     final manager = ChatRoomMessageCacheManager();
-    final controllerA = StreamController<DayMessagesPage>();
-    final controllerB = StreamController<DayMessagesPage>();
+    final controllerA = StreamController<List<Message>>();
+    final controllerB = StreamController<List<Message>>();
     addTearDown(() {
       controllerA.close();
       controllerB.close();

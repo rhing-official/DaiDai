@@ -520,9 +520,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   /// メッセージ一覧（`reverse:true`の`ScrollablePositionedList`）の一番古い
   /// メッセージ側の端に近づいたら、[ChatScreen.onLoadOlderMessages]でさらに
-  /// 古い暦日を読み込む（2026-08-20追加、1日単位ページネーション）。
+  /// 古いメッセージ1ページを読み込む（2026-08-20追加、2026-10-06に日単位から
+  /// 件数ベースへ変更）。
   /// `reverse:true`のため、indexが大きいほど古いメッセージ側（画面上端）
   /// にいる。
+  /// 上端（最も古いロード済み行）までこの行数以内に近づいたら次のページを
+  /// 先読みする（2026-10-06、従来の5行から変更。件数ベースのページネーション
+  /// で、上端に着いてから読み始めると継ぎ目が体感されるため。日付区切り等を
+  /// 含む行数基準）。
+  static const _loadOlderPrefetchRows = 20;
+
   void _maybeLoadOlderMessages() {
     final onLoadOlderMessages = widget.onLoadOlderMessages;
     if (onLoadOlderMessages == null) return;
@@ -530,7 +537,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final positions = _itemPositionsListener.itemPositions.value;
     if (positions.isEmpty || _entryCount == 0) return;
     final maxIndex = positions.map((p) => p.index).reduce(math.max);
-    if (_entryCount - 1 - maxIndex <= 5) {
+    if (_entryCount - 1 - maxIndex <= _loadOlderPrefetchRows) {
       onLoadOlderMessages();
     }
   }

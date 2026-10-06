@@ -21,6 +21,7 @@ import '../providers/repository_providers.dart';
 import '../theme/motion.dart';
 import '../utils/platform_info.dart';
 import '../widgets/interactive_swipe_back.dart';
+import 'back_stack.dart';
 
 /// 語らい系の画面遷移をURL付きのブラウザ履歴に載せるためのルーター。
 /// これによりブラウザ/マウスの「戻る」「進む」がアプリ内の画面遷移と対応する
@@ -217,12 +218,42 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         );
   }
 
+  final backStack = ref.read(backStackControllerProvider);
   router = GoRouter(
     initialLocation: '/',
+    observers: [BackStackObserver(backStack)],
+    // リロード・進むボタンで、有効な履歴エントリの無い`/_b/*`（戻る操作用の
+    // 透明ルート、`BackStackController`参照）に来た場合はホームへ戻す。
+    redirect: (context, state) {
+      final path = state.uri.path;
+      if (path.startsWith('/_b/')) {
+        final id = int.tryParse(path.substring(4));
+        if (id == null || !backStack.isLive(id)) return '/';
+      }
+      // `extra`（引数）はメモリ上のみで、ブラウザの進む・リロードでは失われる。
+      // nullのまま`state.extra!`で例外にならないよう、ホームへ戻す
+      // （2026-10-06追加）。
+      if ((path == '/chat/dm' || path == '/chat/group') &&
+          state.extra == null) {
+        return '/';
+      }
+      return null;
+    },
     routes: [
+      GoRoute(
+        path: '/_b/:id',
+        pageBuilder: (context, state) => BackPage(
+          id: int.parse(state.pathParameters['id']!),
+          key: state.pageKey,
+        ),
+      ),
       GoRoute(path: '/', builder: (context, state) => const AppGate()),
       GoRoute(
         path: '/chat/dm',
+        // ブラウザの戻るでこのルートが消える前に、開いているポップアップ・
+        // 画像/動画ビューアがあればそれだけを閉じ、寄合から出ない
+        // （2026-10-06追加、`BackStackController.closeTopOverlay`）。
+        onExit: (context, state) => !backStack.closeTopOverlay(),
         pageBuilder: (context, state) {
           final args = state.extra! as DmChatArgs;
           final pane = DmChatPane(
@@ -253,6 +284,10 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/chat/group',
+        // ブラウザの戻るでこのルートが消える前に、開いているポップアップ・
+        // 画像/動画ビューアがあればそれだけを閉じ、寄合から出ない
+        // （2026-10-06追加、`BackStackController.closeTopOverlay`）。
+        onExit: (context, state) => !backStack.closeTopOverlay(),
         pageBuilder: (context, state) {
           final args = state.extra! as GroupChatArgs;
           final pane = GroupChatPane(
@@ -386,6 +421,8 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       ),
     ],
   );
+
+  backStack.attach(push: (id) => router.push('/_b/$id'));
 
   globalRouter = router;
   return router;

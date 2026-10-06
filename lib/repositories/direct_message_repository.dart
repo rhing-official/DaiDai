@@ -5,10 +5,10 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart' show ValueChanged;
 
 import '../models/app_user.dart';
-import '../models/day_messages_page.dart';
 import '../models/direct_message.dart';
 import '../models/dm_room.dart';
 import '../models/message.dart';
+import '../models/message_cursor.dart';
 import '../utils/attachment_upload.dart';
 
 abstract class DirectMessageRepository {
@@ -79,22 +79,16 @@ abstract class DirectMessageRepository {
 
   Stream<List<Message>> watchMessages(String dmId, String roomId);
 
-  /// 直近に活動があった暦日（メッセージが送信されたローカル日付）1日分の
-  /// メッセージをライブ購読する（2026-08-20追加、1日単位ページネーションの
-  /// 起点）。日をまたいで新着メッセージが届いても継続して拾われる。
-  /// メッセージが1件も無い会話では空リストのまま。
-  Stream<DayMessagesPage> watchLatestDayMessages(String dmId, String roomId);
-
-  /// [beforeDayStart]（暦日の開始時刻）より古い、直近の「メッセージが
-  /// 存在する暦日」1日分を1回だけ取得する（2026-08-20追加）。該当する
-  /// メッセージが無ければ（＝これ以上遡る履歴が無ければ）nullを返す。
-  /// [watchLatestDayMessages]と異なりライブ購読はしない（過去日は静的な
-  /// スナップショットのまま、既読・編集・削除等はその日を開き直すまで
-  /// 反映されない）。
-  Future<DayMessagesPage?> loadOlderDayMessages({
+  /// [before]（[watchMessages]のライブ窓、または前回の続き）より古い
+  /// メッセージを最大[limit]件、新しい順に1回だけ取得する（2026-10-06追加、
+  /// 件数ベースのページネーション。従来の日単位から変更）。ライブ購読は
+  /// せず、過去分は静的なスナップショットのまま（編集・リアクション等の
+  /// 反映は`ChatRoomMessageCacheEntry.afterMutation`が再取得で補う）。
+  Future<List<Message>> loadOlderMessages({
     required String dmId,
     required String roomId,
-    required DateTime beforeDayStart,
+    required MessageCursor before,
+    int limit = kMessagePageSize,
   });
 
   /// [watchMessages]の直近50件に含まれない古い返信先へジャンプする際に使う。
@@ -120,7 +114,7 @@ abstract class DirectMessageRepository {
   });
 
   /// 指定した1件のメッセージの最新状態を1回だけ取得する（2026-08-21追加）。
-  /// [loadOlderDayMessages]で読み込んだ過去日はライブ購読しない静的な
+  /// [loadOlderMessages]で読み込んだ過去分はライブ購読しない静的な
   /// スナップショットのため、その中のメッセージへ編集・リアクション等を
   /// 行った直後にローカル側の表示を更新する目的で使う。既に物理削除済み
   /// （送信取り消し等）ならnullを返す。
@@ -622,7 +616,7 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
     return _dmRoomRef(dmId, roomId)
         .collection('messages')
         .orderBy('sentAt', descending: true)
-        .limit(50)
+        .limit(kMessagePageSize)
         .snapshots()
         .map(
           (snapshot) => snapshot.docs
@@ -632,77 +626,22 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
   }
 
   @override
-  Stream<DayMessagesPage> watchLatestDayMessages(
-    String dmId,
-    String roomId,
-  ) async* {
-    final messagesRef = _dmRoomRef(dmId, roomId).collection('messages');
-    // 「直近の活動日」の特定は、まずローカルキャッシュから即座に試みる
-    // （2026-09-10追加）。Query.get(source: cache)はキャッシュに何も無くても
-    // 例外を投げず空のQuerySnapshotを返すため、空だった場合のみ従来通り
-    // サーバー優先の取得にフォールバックする（キャッシュ未成熟＝0件と
-    // 誤判定しないための2段構え）。
-    var latest = await messagesRef
-        .orderBy('sentAt', descending: true)
-        .limit(1)
-        .get(const GetOptions(source: Source.cache));
-    if (latest.docs.isEmpty) {
-      latest = await messagesRef
-          .orderBy('sentAt', descending: true)
-          .limit(1)
-          .get();
-    }
-    if (latest.docs.isEmpty) {
-      final now = DateTime.now();
-      yield DayMessagesPage(
-        dayStart: DateTime(now.year, now.month, now.day),
-        messages: const [],
-      );
-      return;
-    }
-    final sentAt = (latest.docs.first.data()['sentAt'] as Timestamp).toDate();
-    final dayStart = DateTime(sentAt.year, sentAt.month, sentAt.day);
-    yield* messagesRef
-        .where('sentAt', isGreaterThanOrEqualTo: Timestamp.fromDate(dayStart))
-        .orderBy('sentAt', descending: true)
-        .snapshots()
-        .map(
-          (snapshot) => DayMessagesPage(
-            dayStart: dayStart,
-            messages: snapshot.docs
-                .map((doc) => Message.fromJson(doc.id, doc.data()))
-                .toList(),
-          ),
-        );
-  }
-
-  @override
-  Future<DayMessagesPage?> loadOlderDayMessages({
+  Future<List<Message>> loadOlderMessages({
     required String dmId,
     required String roomId,
-    required DateTime beforeDayStart,
+    required MessageCursor before,
+    int limit = kMessagePageSize,
   }) async {
-    final messagesRef = _dmRoomRef(dmId, roomId).collection('messages');
-    final peek = await messagesRef
-        .where('sentAt', isLessThan: Timestamp.fromDate(beforeDayStart))
+    final snapshot = await _dmRoomRef(dmId, roomId)
+        .collection('messages')
         .orderBy('sentAt', descending: true)
-        .limit(1)
+        .orderBy(FieldPath.documentId, descending: true)
+        .startAfter([before.sentAt, before.messageId])
+        .limit(limit)
         .get();
-    if (peek.docs.isEmpty) return null;
-    final sentAt = (peek.docs.first.data()['sentAt'] as Timestamp).toDate();
-    final dayStart = DateTime(sentAt.year, sentAt.month, sentAt.day);
-    final dayEnd = dayStart.add(const Duration(days: 1));
-    final snapshot = await messagesRef
-        .where('sentAt', isGreaterThanOrEqualTo: Timestamp.fromDate(dayStart))
-        .where('sentAt', isLessThan: Timestamp.fromDate(dayEnd))
-        .orderBy('sentAt', descending: true)
-        .get();
-    return DayMessagesPage(
-      dayStart: dayStart,
-      messages: snapshot.docs
-          .map((doc) => Message.fromJson(doc.id, doc.data()))
-          .toList(),
-    );
+    return [
+      for (final doc in snapshot.docs) Message.fromJson(doc.id, doc.data()),
+    ];
   }
 
   @override

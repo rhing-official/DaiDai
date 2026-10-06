@@ -333,6 +333,17 @@ class _TableBlockComponentWidgetState extends State<TableBlockComponentWidget>
       ),
     );
 
+    // 表領域上の横ドラッグを祖先（ノート画面の右スワイプで戻る検出）へ
+    // 伝えない。表がスクロール不要な幅でも、表の上の横操作で画面が
+    // 戻らないようにする（2026-10-06追加、ユーザー指示）。
+    child = GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onHorizontalDragStart: (_) {},
+      onHorizontalDragUpdate: (_) {},
+      onHorizontalDragEnd: (_) {},
+      child: child,
+    );
+
     // 複数セル選択中は、各セルの個別ハイライトの代わりに選択範囲全体を囲む
     // 枠線オーバーレイ（下記）だけを見せる（2026-09-27追加、ユーザー指示）。
     if (_rangeSelectionRect != null) {

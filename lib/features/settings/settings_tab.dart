@@ -12,6 +12,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../router/back_stack.dart';
 import '../../l10n/app_locale.dart';
 import '../../l10n/strings.dart';
 import '../../models/app_ui_style.dart';
@@ -136,8 +137,24 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
     });
   }
 
+  /// 戻る・進む（`BackStackController`）の履歴に記録する現在位置
+  /// （2026-10-06追加）。設定タブ内のカテゴリ移動と下位階層の表示状態。
   @override
   Widget build(BuildContext context) {
+    return NavHistoryBackEntry<(String?, bool, bool, bool)>(
+      scope: BackScope.settings,
+      location: (_selectedId, _showAbout, _showLicenses, _showAnnouncements),
+      onRestore: (location) => setState(() {
+        _selectedId = location.$1;
+        _showAbout = location.$2;
+        _showLicenses = location.$3;
+        _showAnnouncements = location.$4;
+      }),
+      child: _buildContent(context),
+    );
+  }
+
+  Widget _buildContent(BuildContext context) {
     final strings = ref.watch(appStringsProvider);
     final categories = _categories(
       strings,

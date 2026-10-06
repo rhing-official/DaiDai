@@ -45,6 +45,7 @@ import '../note/note_popup_content.dart';
 import '../poll/poll_detail_dialog.dart';
 import '../poll/poll_popup_content.dart';
 import 'button_anchored_menu.dart';
+import '../../router/back_stack.dart';
 import 'chat_screen.dart';
 import 'dm_settings_popup.dart';
 import 'group_leave_dialog.dart';
@@ -288,7 +289,7 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
     _cacheEntry.ensureSubscribed(
       () => ref
           .read(directMessageRepositoryProvider)
-          .watchLatestDayMessages(widget.dm.dmId, _currentRoomId),
+          .watchMessages(widget.dm.dmId, _currentRoomId),
     );
     _scheduleGuaranteedMessagesEmit();
     // この一対で最後に開いていた寄合として記憶する（2026-09-26追加）。
@@ -343,7 +344,7 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
     newEntry.ensureSubscribed(
       () => ref
           .read(directMessageRepositoryProvider)
-          .watchLatestDayMessages(widget.dm.dmId, roomId),
+          .watchMessages(widget.dm.dmId, roomId),
     );
     setState(() {
       _currentRoomId = roomId;
@@ -366,10 +367,10 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
     return _cacheEntry.loadOlder(
       (before) => ref
           .read(directMessageRepositoryProvider)
-          .loadOlderDayMessages(
+          .loadOlderMessages(
             dmId: widget.dm.dmId,
             roomId: _currentRoomId,
-            beforeDayStart: before,
+            before: before,
           ),
     );
   }
@@ -379,7 +380,7 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
   /// スナップショット）に含まれていれば最新状態を取り直してローカルに
   /// 反映する（2026-08-21追加、ロジック本体は`_cacheEntry.afterMutation`
   /// 参照）。当日分はFirestoreのライブ購読で自動反映されるため何もしない。
-  /// 過去日は`loadOlderDayMessages`が1回だけの取得のため、これをしないと
+  /// 過去分は`loadOlderMessages`が1回だけの取得のため、これをしないと
   /// 書き込み自体は成功していても画面には一切反映されず「リアクション・
   /// 編集が効かない」ように見えてしまう。
   Future<void> _afterMutation(
@@ -420,34 +421,52 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
   @override
   Widget build(BuildContext context) {
     if (_showingCalendar) {
-      return CalendarPaneView(
-        isDm: true,
-        conversationId: widget.dm.dmId,
-        roomId: _currentRoomId,
-        currentUser: widget.currentUser,
-        onClose: () => setState(() => _showingCalendar = false),
+      return BackEntry(
+        key: const ValueKey('back-calendar'),
+        scope: BackScope.talks,
+        active: true,
+        onBack: () => setState(() => _showingCalendar = false),
+        child: CalendarPaneView(
+          isDm: true,
+          conversationId: widget.dm.dmId,
+          roomId: _currentRoomId,
+          currentUser: widget.currentUser,
+          onClose: () => setState(() => _showingCalendar = false),
+        ),
       );
     }
     final openNoteId = _openNoteId;
     if (openNoteId != null) {
-      return NotePaneView(
-        isDm: true,
-        conversationId: widget.dm.dmId,
-        roomId: _currentRoomId,
-        noteId: openNoteId,
-        currentUser: widget.currentUser,
-        onClose: () => setState(() => _openNoteId = null),
+      return BackEntry(
+        key: const ValueKey('back-note'),
+        scope: BackScope.talks,
+        active: true,
+        onBack: () => setState(() => _openNoteId = null),
+        child: NotePaneView(
+          isDm: true,
+          conversationId: widget.dm.dmId,
+          roomId: _currentRoomId,
+          noteId: openNoteId,
+          currentUser: widget.currentUser,
+          onClose: () => setState(() => _openNoteId = null),
+        ),
       );
     }
     final openAlbum = _openAlbum;
     if (openAlbum != null) {
-      return AlbumPaneView(
-        isDm: true,
-        conversationId: widget.dm.dmId,
-        roomId: _currentRoomId,
-        album: openAlbum,
-        currentUserId: widget.currentUser.userId,
-        onClose: () => setState(() => _openAlbum = null),
+      return BackEntry(
+        key: const ValueKey('back-album'),
+        scope: BackScope.talks,
+        active: true,
+        onBack: () => setState(() => _openAlbum = null),
+        child: AlbumPaneView(
+          isDm: true,
+          conversationId: widget.dm.dmId,
+          roomId: _currentRoomId,
+          album: openAlbum,
+          currentUserId: widget.currentUser.userId,
+          onClose: () => setState(() => _openAlbum = null),
+        ),
       );
     }
     // 通話中、PC/Webではこの会話を表示している間だけメッセージ一覧の
@@ -497,10 +516,10 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
     // 表示抑制で実現する（`BlockRepository`のコメント参照）。
     // hiddenForに自分のuserIdが含まれるメッセージ（範囲選択削除で自分が
     // 削除したもの）も、相手には見えたままここでは表示しないだけにする。
-    // liveTailMessages（当日分）・olderMessagesの各日分はいずれも
-    // Firestoreクエリ側で既にsentAt降順（watchLatestDayMessages/
-    // loadOlderDayMessages参照）。olderMessagesは「必ずそれまでより古い日」
-    // をaddAllで末尾に追記していく設計のため、単純結合するだけで全体が
+    // liveTailMessages（最新の件数窓）・olderMessages（それより古い蓄積分）は
+    // いずれもFirestoreクエリ側で既にsentAt降順（watchMessages/
+    // loadOlderMessages参照）。olderMessagesは常にlive窓より古く重複しない
+    // よう`ChatRoomMessageCacheEntry`が保つ設計のため、単純結合するだけで全体が
     // 降順ソート済みになる。以前はここで毎回O(n log n)の再ソートを
     // 行っていたが、遡るたびにolderMessagesが際限なく増えるため
     // 遡るほどコストが増大し、スクロールバックのたびにカクつく原因の
@@ -1858,7 +1877,7 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
     _cacheEntry.ensureSubscribed(
       () => ref
           .read(groupRepositoryProvider)
-          .watchLatestDayRoomMessages(widget.group.groupId, _currentRoomId),
+          .watchRoomMessages(widget.group.groupId, _currentRoomId),
     );
     _scheduleGuaranteedMessagesEmit();
     // `_DmChatPaneState.initState`と同じ理由（2026-09-26追加）。
@@ -1900,7 +1919,7 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
     newEntry.ensureSubscribed(
       () => ref
           .read(groupRepositoryProvider)
-          .watchLatestDayRoomMessages(widget.group.groupId, roomId),
+          .watchRoomMessages(widget.group.groupId, roomId),
     );
     setState(() {
       _currentRoomId = roomId;
@@ -1923,10 +1942,10 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
     return _cacheEntry.loadOlder(
       (before) => ref
           .read(groupRepositoryProvider)
-          .loadOlderRoomDayMessages(
+          .loadOlderRoomMessages(
             groupId: widget.group.groupId,
             roomId: _currentRoomId,
-            beforeDayStart: before,
+            before: before,
           ),
     );
   }
@@ -2045,34 +2064,52 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
     final roomId = _currentRoomId;
     final groupRepository = ref.watch(groupRepositoryProvider);
     if (_showingCalendar) {
-      return CalendarPaneView(
-        isDm: false,
-        conversationId: group.groupId,
-        roomId: roomId,
-        currentUser: currentUser,
-        onClose: () => setState(() => _showingCalendar = false),
+      return BackEntry(
+        key: const ValueKey('back-calendar'),
+        scope: BackScope.talks,
+        active: true,
+        onBack: () => setState(() => _showingCalendar = false),
+        child: CalendarPaneView(
+          isDm: false,
+          conversationId: group.groupId,
+          roomId: roomId,
+          currentUser: currentUser,
+          onClose: () => setState(() => _showingCalendar = false),
+        ),
       );
     }
     final openNoteId = _openNoteId;
     if (openNoteId != null) {
-      return NotePaneView(
-        isDm: false,
-        conversationId: group.groupId,
-        roomId: roomId,
-        noteId: openNoteId,
-        currentUser: currentUser,
-        onClose: () => setState(() => _openNoteId = null),
+      return BackEntry(
+        key: const ValueKey('back-note'),
+        scope: BackScope.talks,
+        active: true,
+        onBack: () => setState(() => _openNoteId = null),
+        child: NotePaneView(
+          isDm: false,
+          conversationId: group.groupId,
+          roomId: roomId,
+          noteId: openNoteId,
+          currentUser: currentUser,
+          onClose: () => setState(() => _openNoteId = null),
+        ),
       );
     }
     final openAlbum = _openAlbum;
     if (openAlbum != null) {
-      return AlbumPaneView(
-        isDm: false,
-        conversationId: group.groupId,
-        roomId: roomId,
-        album: openAlbum,
-        currentUserId: currentUser.userId,
-        onClose: () => setState(() => _openAlbum = null),
+      return BackEntry(
+        key: const ValueKey('back-album'),
+        scope: BackScope.talks,
+        active: true,
+        onBack: () => setState(() => _openAlbum = null),
+        child: AlbumPaneView(
+          isDm: false,
+          conversationId: group.groupId,
+          roomId: roomId,
+          album: openAlbum,
+          currentUserId: currentUser.userId,
+          onClose: () => setState(() => _openAlbum = null),
+        ),
       );
     }
     // 通話中、PC/Webではこの会話を表示している間だけメッセージ一覧の
@@ -2145,10 +2182,10 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
     );
     // hiddenForに自分のuserIdが含まれるメッセージ（範囲選択削除で自分が
     // 削除したもの）は、他のメンバーには見えたままここでは表示しない。
-    // liveTailMessages（当日分）・olderMessagesの各日分はいずれも
-    // Firestoreクエリ側で既にsentAt降順（watchLatestDayMessages/
-    // loadOlderDayMessages参照）。olderMessagesは「必ずそれまでより古い日」
-    // をaddAllで末尾に追記していく設計のため、単純結合するだけで全体が
+    // liveTailMessages（最新の件数窓）・olderMessages（それより古い蓄積分）は
+    // いずれもFirestoreクエリ側で既にsentAt降順（watchMessages/
+    // loadOlderMessages参照）。olderMessagesは常にlive窓より古く重複しない
+    // よう`ChatRoomMessageCacheEntry`が保つ設計のため、単純結合するだけで全体が
     // 降順ソート済みになる。以前はここで毎回O(n log n)の再ソートを
     // 行っていたが、遡るたびにolderMessagesが際限なく増えるため
     // 遡るほどコストが増大し、スクロールバックのたびにカクつく原因の

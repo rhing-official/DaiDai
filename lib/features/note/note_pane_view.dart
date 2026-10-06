@@ -5,6 +5,7 @@ import 'package:appflowy_editor/appflowy_editor.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -141,8 +142,19 @@ class NotePaneView extends ConsumerStatefulWidget {
   ConsumerState<NotePaneView> createState() => _NotePaneViewState();
 }
 
-class _NotePaneViewState extends ConsumerState<NotePaneView> {
+class _NotePaneViewState extends ConsumerState<NotePaneView>
+    with WidgetsBindingObserver {
   EditorState? _editorState;
+
+  /// エディタに選択（カーソル・範囲選択）があるか（2026-10-06追加）。選択の
+  /// null/非nullが切り替わった時だけ通知する。モバイルの右スワイプで戻る操作は
+  /// これがfalse（カーソル非表示）の間だけ有効にする（Obsidianと同様、
+  /// 文中をタップするまでカーソルは出ない）。
+  final ValueNotifier<bool> _caretVisible = ValueNotifier(false);
+
+  /// モバイルでキーボードが一度開いたか。閉じた時にカーソルを消すための状態
+  /// （[didChangeMetrics]）。
+  bool _keyboardWasOpen = false;
 
   /// ドローノート（`Note.type == noteTypeDraw`）かどうか。読み込み完了までは
   /// false。種別は作成時に固定され、後から切り替わることはない。
@@ -183,7 +195,48 @@ class _NotePaneViewState extends ConsumerState<NotePaneView> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _titleFocusNode.addListener(
+      () => _debugCaret('title focus=${_titleFocusNode.hasFocus}'),
+    );
     _load();
+  }
+
+  void _onSelectionChanged() {
+    final visible = _editorState?.selection != null;
+    if (_caretVisible.value != visible) _caretVisible.value = visible;
+    _debugCaret(
+      'selection changed: ${_editorState?.selection} '
+      'reason=${_editorState?.selectionUpdateReason}',
+    );
+  }
+
+  // [NOTE-CARET]: 「ノートを開いた直後にカーソルが出る」原因調査用の一時ログ
+  // （原因特定後に削除する）。
+  void _debugCaret(String message) {
+    if (kDebugMode) {
+      debugPrint('[NOTE-CARET] ${DateTime.now().toIso8601String()} $message');
+    }
+  }
+
+  /// モバイルでソフトキーボードを閉じたら、カーソルも消す（2026-10-06追加、
+  /// ユーザー指示。Obsidianの「編集を終えるとカーソルが無い状態に戻る」を
+  /// 模倣し、右スワイプで戻れる状態に戻すため）。キーボードが開いた後に
+  /// 閉じた場合のみ。PC・Webのデスクトップはカーソルを出したままにする。
+  @override
+  void didChangeMetrics() {
+    if (!mounted) return;
+    final open = View.of(context).viewInsets.bottom > 0;
+    if (open) {
+      _keyboardWasOpen = true;
+      return;
+    }
+    if (!_keyboardWasOpen) return;
+    _keyboardWasOpen = false;
+    if (_isMobilePlatform && _editorState?.selection != null) {
+      _debugCaret('keyboard closed: clear selection');
+      _editorState!.selection = null;
+    }
   }
 
   Future<void> _load() async {
@@ -214,6 +267,8 @@ class _NotePaneViewState extends ConsumerState<NotePaneView> {
         ? Document.fromJson(note.content)
         : Document.blank(withInitialText: true);
     final editorState = EditorState(document: document);
+    editorState.selectionNotifier.addListener(_onSelectionChanged);
+    _debugCaret('editor created, selection=${editorState.selection}');
     _transactionSub = editorState.transactionStream.listen(
       _handleLocalTransaction,
     );
@@ -452,6 +507,9 @@ class _NotePaneViewState extends ConsumerState<NotePaneView> {
             authorId: widget.currentUser.userId,
           );
     }
+    WidgetsBinding.instance.removeObserver(this);
+    _editorState?.selectionNotifier.removeListener(_onSelectionChanged);
+    _caretVisible.dispose();
     _transactionSub?.cancel();
     _opsSub?.cancel();
     _scrollController?.dispose();
@@ -1055,8 +1113,18 @@ class _NotePaneViewState extends ConsumerState<NotePaneView> {
         // （2026-09-26追加、ユーザー指示）。`SwipeBackDetector`は設定・
         // 身だしなみ画面の狭い画面ドリルダウン等で既に使っている汎用の
         // 右スワイプ検出（`lib/widgets/swipe_gestures.dart`）。
-        body: SwipeBackDetector(
-          onBack: _close,
+        // 右スワイプはモバイルのみ・ドロー以外で有効（2026-10-06、ユーザー指示。
+        // ドローはペンの横ストロークで誤って閉じるため除外、表の横操作は
+        // 表側（third_party table_block_component）で吸収している）。
+        body: ValueListenableBuilder<bool>(
+          valueListenable: _caretVisible,
+          // カーソル（選択）がある間は右スワイプで戻らない。エディタ（child）は
+          // 再生成しない。
+          builder: (context, caretVisible, child) => SwipeBackDetector(
+            enabled: isMobile && !_isDraw && !caretVisible,
+            onBack: _close,
+            child: child!,
+          ),
           child: SwipeDownToDismiss(
             onDismiss: _close,
             child: _isDraw

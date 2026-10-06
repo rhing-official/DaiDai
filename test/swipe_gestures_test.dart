@@ -71,6 +71,8 @@ class _ProbeState extends State<_Probe> {
 }
 
 void main() {
+  _swipeBackDetectorEnabledTests();
+  _swipeBackDetectorKeepsChildStateTests();
   testWidgets('縦スクロールが必要な一対リストの上で、わずかに斜めの左スワイプをすると広場へ切り替わらない', (tester) async {
     tester.view.physicalSize = const Size(800, 400);
     tester.view.devicePixelRatio = 1.0;
@@ -113,5 +115,73 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('DM'), findsOneWidget);
+  });
+}
+
+void _swipeBackDetectorEnabledTests() {
+  for (final enabled in [true, false]) {
+    testWidgets('SwipeBackDetector enabled=$enabled', (tester) async {
+      var backed = 0;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: SwipeBackDetector(
+            enabled: enabled,
+            onBack: () => backed++,
+            child: const SizedBox.expand(),
+          ),
+        ),
+      );
+      await tester.fling(
+        find.byType(SizedBox).first,
+        const Offset(300, 0),
+        1000,
+      );
+      expect(backed, enabled ? 1 : 0);
+    });
+  }
+}
+
+class _StatefulChild extends StatefulWidget {
+  const _StatefulChild();
+
+  @override
+  State<_StatefulChild> createState() => _StatefulChildState();
+}
+
+class _StatefulChildState extends State<_StatefulChild> {
+  static int created = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    created++;
+  }
+
+  @override
+  Widget build(BuildContext context) => const SizedBox.expand();
+}
+
+void _swipeBackDetectorKeepsChildStateTests() {
+  testWidgets('SwipeBackDetectorのenabledを切り替えても子のStateは作り直されない', (
+    tester,
+  ) async {
+    _StatefulChildState.created = 0;
+    final enabled = ValueNotifier(true);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ValueListenableBuilder<bool>(
+          valueListenable: enabled,
+          builder: (context, value, child) =>
+              SwipeBackDetector(enabled: value, onBack: () {}, child: child!),
+          child: const _StatefulChild(),
+        ),
+      ),
+    );
+    enabled.value = false;
+    await tester.pump();
+    enabled.value = true;
+    await tester.pump();
+
+    expect(_StatefulChildState.created, 1);
   });
 }

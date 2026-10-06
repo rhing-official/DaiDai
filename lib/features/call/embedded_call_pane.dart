@@ -18,6 +18,7 @@ import 'call_controls.dart';
 import 'camera_availability.dart';
 import 'webrtc_call_controller.dart';
 import 'webrtc_group_call_controller.dart';
+import '../../router/back_stack.dart';
 
 /// PC/Web限定: 通話中の会話画面で、メッセージ一覧の代わりに通話UIを
 /// 埋め込み表示する（2026-08-19追加、通話UIの再設計に伴う）。
@@ -101,9 +102,16 @@ class _EmbeddedCallPaneState extends ConsumerState<EmbeddedCallPane> {
       );
     }
 
-    return _EmbeddedCallView(
-      session: session,
-      onBackToMessages: () => setState(() => _showingCall = false),
+    // 通話UIを埋め込み表示している間は、ブラウザの戻るでメッセージ表示へ
+    // 戻れる（2026-10-04追加、`BackStackController`参照）。
+    return BackEntry(
+      scope: BackScope.talks,
+      active: true,
+      onBack: () => setState(() => _showingCall = false),
+      child: _EmbeddedCallView(
+        session: session,
+        onBackToMessages: () => setState(() => _showingCall = false),
+      ),
     );
   }
 }
