@@ -129,8 +129,49 @@ void main() {
       expect(notified, 1); // BackBaseGuardが積み直す合図
 
       c.ensureBase();
-      expect(pushed, [BackStackController.baseId, BackStackController.baseId]);
-      expect(c.isLive(BackStackController.baseId), isTrue);
+      expect(pushed, [0, 1]);
+      expect(c.isLive(1), isTrue);
+    });
+
+    test('複数トークン: 戻っても積み直さず、ブラウザの進むでやり直せる', () {
+      final c = BackStackController(tokenCount: 3);
+      final pushed = <int>[];
+      c.attach(push: pushed.add);
+      c.ensureBase();
+      expect(pushed, [0, 1, 2]);
+
+      var back = 0;
+      var forward = 0;
+      c.add(() => back++, scope: BackScope.talks, onForward: () => forward++);
+      var notified = 0;
+      c.addListener(() => notified++);
+
+      c.onRouteGone(2); // ブラウザの戻る
+      expect(back, 1);
+      expect(notified, 0); // 積み直さない（進む先を残す）
+      expect(pushed, [0, 1, 2]);
+      expect(c.isLive(2), isTrue); // 進むで復元されうる
+
+      c.onBrowserForward(2); // ブラウザの進む
+      expect(forward, 1);
+
+      c.onBrowserForward(2); // 復元済みのidは無視
+      expect(forward, 1);
+    });
+
+    test('トークンが尽きたら積み直す（進む先は捨てる）', () {
+      final c = BackStackController(tokenCount: 2);
+      final pushed = <int>[];
+      c.attach(push: pushed.add);
+      c.ensureBase();
+      var notified = 0;
+      c.addListener(() => notified++);
+      c.onRouteGone(1);
+      c.onRouteGone(0);
+      expect(notified, 1);
+      c.ensureBase();
+      expect(pushed, [0, 1, 2, 3]);
+      expect(c.isLive(0), isFalse);
     });
   });
 

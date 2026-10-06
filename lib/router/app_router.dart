@@ -219,6 +219,11 @@ final goRouterProvider = Provider<GoRouter>((ref) {
   }
 
   final backStack = ref.read(backStackControllerProvider);
+  // `extra`はブラウザの進むで失われるため、最後に開いたチャット画面の引数を
+  // メモリに覚えておき、進むでメッセージ画面を復元できるようにする
+  // （2026-10-07追加。リロードでは消えるので、その場合は下のredirectでホームへ）。
+  DmChatArgs? lastDmArgs;
+  GroupChatArgs? lastGroupArgs;
   router = GoRouter(
     initialLocation: '/',
     observers: [BackStackObserver(backStack)],
@@ -233,8 +238,12 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       // `extra`（引数）はメモリ上のみで、ブラウザの進む・リロードでは失われる。
       // nullのまま`state.extra!`で例外にならないよう、ホームへ戻す
       // （2026-10-06追加）。
-      if ((path == '/chat/dm' || path == '/chat/group') &&
-          state.extra == null) {
+      if (path == '/chat/dm' && state.extra == null && lastDmArgs == null) {
+        return '/';
+      }
+      if (path == '/chat/group' &&
+          state.extra == null &&
+          lastGroupArgs == null) {
         return '/';
       }
       return null;
@@ -255,7 +264,8 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         // （2026-10-06追加、`BackStackController.closeTopOverlay`）。
         onExit: (context, state) => !backStack.closeTopOverlay(),
         pageBuilder: (context, state) {
-          final args = state.extra! as DmChatArgs;
+          final args = (state.extra as DmChatArgs?) ?? lastDmArgs!;
+          lastDmArgs = args;
           final pane = DmChatPane(
             currentUser: args.currentUser,
             dm: args.dm,
@@ -289,7 +299,8 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         // （2026-10-06追加、`BackStackController.closeTopOverlay`）。
         onExit: (context, state) => !backStack.closeTopOverlay(),
         pageBuilder: (context, state) {
-          final args = state.extra! as GroupChatArgs;
+          final args = (state.extra as GroupChatArgs?) ?? lastGroupArgs!;
+          lastGroupArgs = args;
           final pane = GroupChatPane(
             currentUser: args.currentUser,
             group: args.group,

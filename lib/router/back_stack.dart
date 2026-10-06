@@ -31,8 +31,16 @@ const kMaxBackHistory = 30;
 /// 2. 現在のタブ（[activeScope]）で最後に登録された有効なエントリの`onBack`
 /// 3. 何も無ければ何もしない（アプリの外へは出ない）
 class BackStackController extends ChangeNotifier {
-  /// ホーム用の常設ルート（ブラウザ履歴の入口）のid。
+  /// 最初の透明ルート（ブラウザ履歴の入口）のid。以降は単調増加。
   static const int baseId = 0;
+
+  BackStackController({int? tokenCount})
+    : _tokenCount = tokenCount ?? (kIsWeb ? kMaxBackHistory + 1 : 1);
+
+  /// 一度に積む透明ルート（履歴トークン）の数。Webでは、戻っても積み直さずに
+  /// 済むよう戻れる回数分を事前に積み、ブラウザの「進む」履歴を残す
+  /// （2026-10-07）。ネイティブは進むをマウスボタンで直接処理するので1個。
+  final int _tokenCount;
 
   void Function(int id)? _push;
 
@@ -42,7 +50,9 @@ class BackStackController extends ChangeNotifier {
   final List<_Entry> _stack = [];
   final Map<int, VoidCallback> _dialogs = {};
   final Map<BackScope, List<VoidCallback>> _redo = {};
-  bool _hasBase = false;
+  final List<int> _tokens = [];
+  final Set<int> _forwardIds = {};
+  int _nextTokenId = baseId;
   int _nextId = 1;
   int _nextDialogKey = 1;
 
@@ -51,21 +61,28 @@ class BackStackController extends ChangeNotifier {
     _push = push;
   }
 
-  bool get hasBase => _hasBase;
+  bool get hasBase => _tokens.isNotEmpty;
 
-  /// 指定idの透明ルートが有効か。ルーターの`redirect`が、リロード・進むボタンで
-  /// 来た無効な`/_b/*`を弾くのに使う。
-  bool isLive(int id) => id == baseId && _hasBase;
+  /// 指定idの透明ルートが有効か（積んでいる、または戻るで消えてブラウザの
+  /// 「進む」で復元されうる）。ルーターの`redirect`が、リロード等で来た無効な
+  /// `/_b/*`を弾くのに使う。
+  bool isLive(int id) => _tokens.contains(id) || _forwardIds.contains(id);
 
   /// 現在のタブの有効なエントリ数（テスト・デバッグ用）。
   int depthOf(BackScope scope) =>
       _stack.where((e) => e.scope == null || e.scope == scope).length;
 
-  /// ホームの常設ルートを積む（既にあれば何もしない）。
+  /// ホームの履歴トークンを積む（残りがあれば何もしない）。積み直しは進む先を
+  /// 捨てることになるため、トークンが尽きた時だけ行う。
   void ensureBase() {
-    if (_hasBase) return;
-    _hasBase = true;
-    _push?.call(baseId);
+    if (_tokens.isNotEmpty) return;
+    _forwardIds.clear();
+    for (var i = 0; i < _tokenCount; i++) {
+      final id = _nextTokenId++;
+      _tokens.add(id);
+      _push?.call(id);
+    }
+    _log('tokens pushed: $_tokenCount');
   }
 
   /// ローカル状態を開いた時に呼ぶ。戻る要求で[onBack]が呼ばれる。[onForward]
@@ -101,10 +118,20 @@ class BackStackController extends ChangeNotifier {
   /// 呼ぶ。[NavigatorObserver]から届く。ブラウザ/Androidの戻るはここへ来て、
   /// 戻る要求として処理した後、[BackBaseGuard]がルートを積み直す。
   void onRouteGone(int id) {
-    if (id != baseId) return;
-    _hasBase = false;
+    if (!_tokens.remove(id)) return;
+    // 戻るで消えたトークンはブラウザの「進む」で復元されうる。
+    _forwardIds.add(id);
     requestBack();
-    notifyListeners();
+    if (_tokens.isEmpty) notifyListeners();
+  }
+
+  /// ブラウザの「進む」で履歴トークン`/_b/{id}`が復元された時に呼ぶ
+  /// （[BackStackObserver]から届く）。直前の戻るをやり直す。
+  void onBrowserForward(int id) {
+    if (!_forwardIds.remove(id)) return;
+    _tokens.add(id);
+    _log('forward from browser id=$id');
+    requestForward();
   }
 
   /// 開いているダイアログ・ポップアップ・全画面ビューア（画像・動画等、
@@ -279,6 +306,13 @@ class BackStackObserver extends NavigatorObserver {
     // ビューア等。go_routerのページは`Page`なので対象外）も、戻る要求ではまず
     // これだけを閉じる（2026-10-06追加）。
     final imperative = route.settings is! Page<dynamic>;
+    final backId = backIdOf(route);
+    if (backId != null) {
+      // 自前で積んだトークンは対象外（コントローラが`_forwardIds`にあるidだけ
+      // 進む操作として扱う）。
+      scheduleMicrotask(() => controller.onBrowserForward(backId));
+      return;
+    }
     if (backIdOf(route) == null &&
         imperative &&
         (route is PopupRoute || route is PageRoute)) {

@@ -56,7 +56,7 @@ void main() {
     expect(find.text('pane'), findsNothing);
     expect(
       router.routerDelegate.currentConfiguration.last.matchedLocation,
-      '/_b/0',
+      '/_b/1',
     );
 
     // ダイアログを開いて戻る操作 → ダイアログだけが閉じる（ペインは残る）。
@@ -81,7 +81,7 @@ void main() {
     expect(find.text('open'), findsOneWidget);
     expect(
       router.routerDelegate.currentConfiguration.last.matchedLocation,
-      '/_b/0',
+      '/_b/3',
     );
   });
 }
