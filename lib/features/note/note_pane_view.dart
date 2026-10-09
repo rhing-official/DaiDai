@@ -27,6 +27,7 @@ import '../../utils/platform_info.dart';
 import '../../widgets/glass/glass_app_bar.dart';
 import '../../widgets/glass/glass_bottom_sheet.dart';
 import '../../widgets/glass/glass_dialog.dart';
+import '../../widgets/interactive_swipe_back.dart';
 import '../../widgets/swipe_gestures.dart';
 import 'blocks/link_embed_block.dart';
 import 'block_move_drag.dart';
@@ -1078,7 +1079,7 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
     // `Focus`で包む（appBarとbodyはフォーカスツリー上兄弟のため、body側だけ
     // 包んでもタイトル欄フォーカス中はこのハンドラの祖先チェーンに入らない、
     // 2026-09-07変更）。
-    return Focus(
+    final page = Focus(
       autofocus: true,
       onKeyEvent: (node, event) {
         if (event is! KeyDownEvent) return KeyEventResult.ignored;
@@ -1109,38 +1110,46 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
                   downloadAction,
                 ],
               ),
-        // 下スワイプ（既存）に加え、右スワイプでも閉じられるようにする
-        // （2026-09-26追加、ユーザー指示）。`SwipeBackDetector`は設定・
-        // 身だしなみ画面の狭い画面ドリルダウン等で既に使っている汎用の
-        // 右スワイプ検出（`lib/widgets/swipe_gestures.dart`）。
-        // 右スワイプはモバイルのみ・ドロー以外で有効（2026-10-06、ユーザー指示。
-        // ドローはペンの横ストロークで誤って閉じるため除外、表の横操作は
-        // 表側（third_party table_block_component）で吸収している）。
-        body: ValueListenableBuilder<bool>(
-          valueListenable: _caretVisible,
-          // カーソル（選択）がある間は右スワイプで戻らない。エディタ（child）は
-          // 再生成しない。
-          builder: (context, caretVisible, child) => SwipeBackDetector(
-            enabled: isMobile && !_isDraw && !caretVisible,
-            onBack: _close,
-            child: child!,
-          ),
-          child: SwipeDownToDismiss(
-            onDismiss: _close,
-            child: _isDraw
-                ? DrawCanvasView(
-                    isDm: widget.isDm,
-                    conversationId: widget.conversationId,
-                    roomId: widget.roomId,
-                    noteId: widget.noteId,
-                    currentUser: widget.currentUser,
-                    foreground: noteColors.text,
-                    background: noteColors.background,
-                  )
-                : _buildEditorBody(strings, noteColors, isMobile),
-          ),
+        // 下スワイプで閉じる（既存）。右スワイプは画面全体（AppBar込み）を
+        // `InteractiveSwipeBackTransition`で包む（下の`return`参照）。
+        body: SwipeDownToDismiss(
+          onDismiss: _close,
+          // ドローノートは矢印とEscでしか閉じない（2026-10-10、ユーザー指示。
+          // ペンで下へなぞって誤って閉じるのを防ぐ）。
+          enabled: !_isDraw,
+          child: _isDraw
+              ? DrawCanvasView(
+                  isDm: widget.isDm,
+                  conversationId: widget.conversationId,
+                  roomId: widget.roomId,
+                  noteId: widget.noteId,
+                  currentUser: widget.currentUser,
+                  foreground: noteColors.text,
+                  background: noteColors.background,
+                )
+              : _buildEditorBody(strings, noteColors, isMobile),
         ),
       ),
+    );
+    // 右スワイプで閉じる操作は、設定・身だしなみ・チャットと同じ指追従の
+    // `InteractiveSwipeBackTransition`（2026-10-07、以前は離散的な
+    // `SwipeBackDetector`でアニメーションが無かった）。モバイルのみ・ドロー
+    // 以外（ペンの横ストロークで誤って閉じるため）・カーソル（選択）が無い間
+    // だけ有効（2026-10-06、ユーザー指示）。表の横操作は表側
+    // （third_party table_block_component）で吸収している。エディタ（child）は
+    // 再生成しない。流れた後ろには`DmChatPane`/`GroupChatPane`が
+    // `SlideDrilldown`で残しているメッセージ画面が見える。
+    return ValueListenableBuilder<bool>(
+      valueListenable: _caretVisible,
+      builder: (context, caretVisible, child) => InteractiveSwipeBackTransition(
+        enabled: isMobile && !_isDraw && !caretVisible,
+        onBack: _close,
+        child: child!,
+      ),
+      // ドローノートは、メッセージ画面のルート全体の右スワイプ戻る等の外側の
+      // 水平スワイプも受けないよう、水平ドラッグを吸収する（2026-10-10、
+      // `HorizontalDragAbsorber`参照）。閉じる手段は左上の矢印とEscのみ。
+      child: _isDraw ? HorizontalDragAbsorber(child: page) : page,
     );
   }
 
@@ -1206,6 +1215,11 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
     final editor = AppFlowyEditor(
       editorState: editorState,
       editorScrollController: scrollController,
+      // モバイル判定のWeb版は、appflowy_editorがisDesktopOrWebでデスクトップ用の
+      // 選択処理を使い、指を置いた瞬間にカーソル・ドラッグ選択が作られて右スワイプ
+      // で閉じる操作（`SwipeBackDetector`）が負けていた（2026-10-07修正）。
+      // モバイルのみ押下即時のドラッグ選択を切り、水平スワイプを先に勝たせる。
+      enablePanImmediate: !isMobile,
       editorStyle: isMobile
           ? EditorStyle.mobile(
               textStyleConfiguration: textStyleConfiguration,

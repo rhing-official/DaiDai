@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 /// スワイプジェスチャーを「切り替え」ではなく「戻る／閉じる」操作として
@@ -49,6 +50,36 @@ class SwipeBackDetector extends StatelessWidget {
                 onNext?.call();
               }
             },
+      child: child,
+    );
+  }
+}
+
+/// 水平ドラッグを子孫側で吸収して、外側（祖先）の水平スワイプ（右スワイプで
+/// 戻る・タブ切り替え等）に渡さないようにする（2026-10-10追加）。ドローノートは
+/// ペン・消しゴムを生のポインタイベント（`Listener`）で取るためジェスチャー
+/// アリーナに参加せず、横になぞると外側の水平ドラッグ認識器が勝って画面ごと
+/// 閉じてしまっていた。子孫側の認識器は同じスロップ量なら祖先より先に勝つ
+/// ため、何もしない水平ドラッグ認識器を置くだけで外側へ渡らなくなる。タップ・
+/// ペン/消しゴム（`Listener`）・縦スクロールには影響しない。
+class HorizontalDragAbsorber extends StatelessWidget {
+  const HorizontalDragAbsorber({required this.child, super.key});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return RawGestureDetector(
+      behavior: HitTestBehavior.translucent,
+      gestures: {
+        HorizontalDragGestureRecognizer:
+            GestureRecognizerFactoryWithHandlers<
+              HorizontalDragGestureRecognizer
+            >(
+              () => HorizontalDragGestureRecognizer(),
+              (recognizer) => recognizer.onUpdate = (_) {},
+            ),
+      },
       child: child,
     );
   }

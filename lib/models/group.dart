@@ -22,6 +22,8 @@ class Group {
     this.memberPermissions = const {},
     this.roomsEnabled = true,
     this.roomOrder = const [],
+    this.historyVisibleToNewMembers = false,
+    this.memberJoinedAt = const {},
   });
 
   final String groupId;
@@ -108,6 +110,21 @@ class Group {
   /// 削除済みの寄合idは単に無視される。
   final List<String> roomOrder;
 
+  /// 新しく加入したメンバーに、加入前のメッセージを見せるか（2026-10-08追加、
+  /// 既定false）。寄合ごとに[Room.historyVisibleOverride]で上書きできる
+  /// （`effectiveHistoryVisible`参照）。対象はメッセージ（添付含む）のみで、
+  /// アルバム・ノート・カレンダー・投票は共有物のため従来どおり全員に見える。
+  /// フィールド欠落（この機能追加前の広場）もfalse扱い。ただし制限がかかるのは
+  /// [memberJoinedAt]に記録された今後の新規加入者だけで、既存メンバーは変わらない。
+  final bool historyVisibleToNewMembers;
+
+  /// 新規加入（参加リクエストの承認）時にだけサーバー時刻で記録する、
+  /// userId→加入時刻（2026-10-08追加）。キーが無いメンバー（この機能追加前の
+  /// メンバー・広場作成者）は制限なしで全履歴が見える。退会で削除し、再加入は
+  /// 新規扱い（加入し直した時刻以降のみ）。firestore.rulesが、メッセージの
+  /// 読み取り可否（`sentAt >= 加入時刻`）の根拠にする。
+  final Map<String, Timestamp> memberJoinedAt;
+
   factory Group.fromJson(String groupId, Map<String, dynamic> json) {
     final profileCardJson = json['profileCard'] as Map<String, dynamic>?;
     return Group(
@@ -135,6 +152,14 @@ class Group {
       ),
       roomsEnabled: json['roomsEnabled'] as bool? ?? true,
       roomOrder: List<String>.from(json['roomOrder'] as List? ?? const []),
+      historyVisibleToNewMembers:
+          json['historyVisibleToNewMembers'] as bool? ?? false,
+      memberJoinedAt: {
+        for (final entry
+            in (json['memberJoinedAt'] as Map? ?? const {}).entries)
+          if (entry.value is Timestamp)
+            entry.key as String: entry.value as Timestamp,
+      },
     );
   }
 
@@ -156,6 +181,8 @@ class Group {
       'memberPermissions': memberPermissions,
       'roomsEnabled': roomsEnabled,
       'roomOrder': roomOrder,
+      'historyVisibleToNewMembers': historyVisibleToNewMembers,
+      'memberJoinedAt': memberJoinedAt,
     };
   }
 }
@@ -189,6 +216,7 @@ class Room {
     this.rolePriorityOverride,
     this.customSettingsEnabled = false,
     this.readReceiptsEnabledOverride,
+    this.historyVisibleOverride,
     this.pinnedMessageIds = const [],
   });
 
@@ -219,6 +247,11 @@ class Room {
   /// trueの間のみ有効（nullなら広場全体の`Group.readReceiptsEnabled`を使う、
   /// 2026-07-29追加）。
   final bool? readReceiptsEnabledOverride;
+
+  /// この寄合限定での「加入前のメッセージを新規メンバーに見せるか」の上書き。
+  /// [customSettingsEnabled]がtrueの間のみ有効（nullなら広場全体の
+  /// [Group.historyVisibleToNewMembers]を使う、2026-10-08追加）。
+  final bool? historyVisibleOverride;
 
   /// 寄合一覧の並び順（作成順）に使う。
   final Timestamp? createdAt;
@@ -253,6 +286,7 @@ class Room {
           json['customSettingsEnabled'] as bool? ??
           (priorityOverrideJson is List),
       readReceiptsEnabledOverride: json['readReceiptsEnabledOverride'] as bool?,
+      historyVisibleOverride: json['historyVisibleOverride'] as bool?,
       pinnedMessageIds: pinnedJson is List
           ? List<String>.from(pinnedJson)
           : const [],
@@ -270,6 +304,7 @@ class Room {
       'rolePriorityOverride': rolePriorityOverride,
       'customSettingsEnabled': customSettingsEnabled,
       'readReceiptsEnabledOverride': readReceiptsEnabledOverride,
+      'historyVisibleOverride': historyVisibleOverride,
       'pinnedMessageIds': pinnedMessageIds,
     };
   }

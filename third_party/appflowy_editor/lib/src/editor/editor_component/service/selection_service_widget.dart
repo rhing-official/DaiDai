@@ -11,10 +11,14 @@ class SelectionServiceWidget extends StatefulWidget {
     this.cursorColor = const Color(0xFF00BCF0),
     this.selectionColor = const Color.fromARGB(53, 111, 201, 231),
     this.showMagnifier = true,
+    this.enablePanImmediate = true,
     this.contextMenuBuilder,
     this.dropTargetStyle,
     required this.child,
   });
+
+  /// Web/デスクトップ用選択処理のみに効く（`AppFlowyEditor.enablePanImmediate`参照）。
+  final bool enablePanImmediate;
 
   final Widget child;
   final Color cursorColor;
@@ -48,6 +52,7 @@ class _SelectionServiceWidgetState extends State<SelectionServiceWidget>
         cursorColor: widget.cursorColor,
         selectionColor: widget.selectionColor,
         contextMenuBuilder: widget.contextMenuBuilder,
+        enablePanImmediate: widget.enablePanImmediate,
         dropTargetStyle:
             widget.dropTargetStyle ?? const AppFlowyDropTargetStyle(),
         child: widget.child,

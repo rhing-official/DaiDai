@@ -20,6 +20,7 @@ import '../chat/button_anchored_menu.dart';
 Future<Album?> showAlbumPopup(
   BuildContext context, {
   required RelativeRect position,
+  GlobalKey? anchorKey,
   required bool isDm,
   required String conversationId,
   required String roomId,
@@ -28,6 +29,7 @@ Future<Album?> showAlbumPopup(
   return showAnchoredMenu<Album>(
     context: context,
     position: position,
+    anchorKey: anchorKey,
     color: Colors.transparent,
     shadowColor: Colors.transparent,
     elevation: 0,

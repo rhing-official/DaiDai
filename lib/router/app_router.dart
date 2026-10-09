@@ -259,10 +259,12 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/', builder: (context, state) => const AppGate()),
       GoRoute(
         path: '/chat/dm',
-        // ブラウザの戻るでこのルートが消える前に、開いているポップアップ・
-        // 画像/動画ビューアがあればそれだけを閉じ、寄合から出ない
-        // （2026-10-06追加、`BackStackController.closeTopOverlay`）。
-        onExit: (context, state) => !backStack.closeTopOverlay(),
+        // 戻る（ブラウザ・Androidのシステム戻る・マウスの戻る）でこのルートが
+        // 消える前に、開いているポップアップ・画像/動画ビューア・カレンダー・
+        // ノート・アルバム等の層があれば、それを1つだけ閉じて寄合に留まる
+        // （2026-10-06追加、2026-10-07に層（`BackEntry.layer`）まで拡張。
+        // `BackStackController.closeTopLayer`）。
+        onExit: (context, state) => !backStack.closeTopLayer(),
         pageBuilder: (context, state) {
           final args = (state.extra as DmChatArgs?) ?? lastDmArgs!;
           lastDmArgs = args;
@@ -275,6 +277,9 @@ final goRouterProvider = Provider<GoRouter>((ref) {
             onVideoCallPressed: () =>
                 startCall(args.currentUser, args.dm, isVideo: true),
             showRoomTabBar: args.showRoomTabBar,
+            // フルスクリーンのチャットでは、寄合の切り替えを履歴に記録して
+            // 戻るで直前の寄合へ戻れるようにする（2026-10-10追加）。
+            trackRoomHistory: true,
           );
           if (args.instant) {
             return slideDetailPage(
@@ -294,10 +299,12 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/chat/group',
-        // ブラウザの戻るでこのルートが消える前に、開いているポップアップ・
-        // 画像/動画ビューアがあればそれだけを閉じ、寄合から出ない
-        // （2026-10-06追加、`BackStackController.closeTopOverlay`）。
-        onExit: (context, state) => !backStack.closeTopOverlay(),
+        // 戻る（ブラウザ・Androidのシステム戻る・マウスの戻る）でこのルートが
+        // 消える前に、開いているポップアップ・画像/動画ビューア・カレンダー・
+        // ノート・アルバム等の層があれば、それを1つだけ閉じて寄合に留まる
+        // （2026-10-06追加、2026-10-07に層（`BackEntry.layer`）まで拡張。
+        // `BackStackController.closeTopLayer`）。
+        onExit: (context, state) => !backStack.closeTopLayer(),
         pageBuilder: (context, state) {
           final args = (state.extra as GroupChatArgs?) ?? lastGroupArgs!;
           lastGroupArgs = args;
@@ -307,6 +314,9 @@ final goRouterProvider = Provider<GoRouter>((ref) {
             roomId: args.roomId,
             roomName: args.roomName,
             showRoomTabBar: args.showRoomTabBar,
+            // フルスクリーンのチャットでは、寄合の切り替えを履歴に記録して
+            // 戻るで直前の寄合へ戻れるようにする（2026-10-10追加）。
+            trackRoomHistory: true,
           );
           if (args.instant) {
             return slideDetailPage(

@@ -32,6 +32,7 @@ class AppFlowyEditor extends StatefulWidget {
     this.focusedSelection,
     this.shrinkWrap = false,
     this.showMagnifier = true,
+    this.enablePanImmediate = true,
     this.editorScrollController,
     this.editorStyle = const EditorStyle.desktop(),
     this.header,
@@ -174,6 +175,11 @@ class AppFlowyEditor extends StatefulWidget {
   ///
   /// only works on iOS or Android.
   final bool showMagnifier;
+
+  /// DaiDai独自拡張。Web/デスクトップ用の選択処理で、指を置いた瞬間にドラッグ
+  /// 選択を始めるか（既定true）。falseにすると通常のスロップ判定のパンになり、
+  /// 外側の水平スワイプ（右スワイプで閉じる等）が先に勝てる。
+  final bool enablePanImmediate;
 
   /// If you want to enable the auto complete feature, you must set this value to true
   ///   and provide the [autoCompleteTextProvider].
@@ -340,6 +346,7 @@ class _AppFlowyEditorState extends State<AppFlowyEditor> {
         cursorColor: widget.editorStyle.cursorColor,
         selectionColor: widget.editorStyle.selectionColor,
         showMagnifier: widget.showMagnifier,
+        enablePanImmediate: widget.enablePanImmediate,
         contextMenuBuilder: widget.contextMenuBuilder,
         dropTargetStyle: widget.dropTargetStyle,
         child: child,

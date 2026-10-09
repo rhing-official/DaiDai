@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -12,6 +13,7 @@ import '../../providers/message_time_format_provider.dart';
 import '../../providers/user_providers.dart';
 import '../../repositories/direct_message_repository.dart';
 import '../../repositories/group_repository.dart';
+import '../../utils/group_permissions.dart';
 import '../../theme/gekiga/gekiga_colors.dart';
 import '../../utils/message_time.dart';
 import '../../widgets/gekiga/gekiga_panel_box.dart';
@@ -137,10 +139,16 @@ class TalksMessageSearchSession {
   final _dmRoomIdsByDmId = <String, List<String>>{};
   final _groupRoomIdsByGroupId = <String, List<String>>{};
 
+  /// 広場の寄合（上書き設定を含む）。加入前のメッセージを見せない設定
+  /// （`messageVisibleFrom`）の閲覧開始時刻を、検索でも同じ条件で絞るために使う
+  /// （2026-10-08追加）。
+  final _groupRoomsByGroupId = <String, Map<String, Room>>{};
+
   void clear() {
     _fetchedByRoomKey.clear();
     _dmRoomIdsByDmId.clear();
     _groupRoomIdsByGroupId.clear();
+    _groupRoomsByGroupId.clear();
   }
 
   Future<List<Message>> _messagesForRoom({
@@ -149,11 +157,13 @@ class TalksMessageSearchSession {
     required String roomId,
     required ChatRoomMessageCacheManager cacheManager,
     required Future<List<Message>> Function() fetch,
+    Timestamp? visibleFrom,
   }) async {
     final key = ChatRoomCacheKey(
       isDm: isDm,
       conversationId: conversationId,
       roomId: roomId,
+      visibleFromMicros: visibleFrom?.microsecondsSinceEpoch,
     );
     final cached = _fetchedByRoomKey[key];
     if (cached != null) return cached;
@@ -214,6 +224,9 @@ class TalksMessageSearchSession {
         .first;
     final roomIds = [for (final room in rooms) room.roomId];
     _groupRoomIdsByGroupId[group.groupId] = roomIds;
+    _groupRoomsByGroupId[group.groupId] = {
+      for (final room in rooms) room.roomId: room,
+    };
     return roomIds;
   }
 
@@ -270,15 +283,22 @@ class TalksMessageSearchSession {
     ChatRoomMessageCacheManager cacheManager,
   ) async {
     try {
+      final visibleFrom = messageVisibleFrom(
+        group: group,
+        room: _groupRoomsByGroupId[group.groupId]?[roomId],
+        userId: currentUserId,
+      );
       final messages = await _messagesForRoom(
         isDm: false,
         conversationId: group.groupId,
         roomId: roomId,
         cacheManager: cacheManager,
+        visibleFrom: visibleFrom,
         fetch: () => groupRepository.getRoomRecentMessagesForSearch(
           groupId: group.groupId,
           roomId: roomId,
           limit: kMessageSearchPerRoomLimit,
+          visibleFrom: visibleFrom,
         ),
       );
       return [

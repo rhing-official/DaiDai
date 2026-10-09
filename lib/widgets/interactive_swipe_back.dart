@@ -28,9 +28,23 @@ class InteractiveSwipeBackController {
   InteractiveSwipeBackController({
     required TickerProvider vsync,
     required this.onCommit,
+    this.notifyNavigator = true,
   }) : _animationController = AnimationController(vsync: vsync);
 
   final VoidCallback onCommit;
+
+  /// ドラッグ中、`Navigator.didStartUserGesture`／`didStopUserGesture`で
+  /// Navigatorへ通知するか（2026-10-07追加）。Flutterの`ModalRoute`は通知中
+  /// 全ルートを`IgnorePointer`にするため、終了が呼ばれないとアプリ全体が
+  /// タッチ不能のまま固まる（タブレット横表示の3分割で右スワイプすると固まる
+  /// 不具合の原因）。ルートをpopするジェスチャーではない用途（3分割の開閉、
+  /// 寄合一覧の左スワイプで開く）ではfalseにして、バランスが崩れても被害が
+  /// 出ないようにする。
+  final bool notifyNavigator;
+
+  /// 開始時に通知した[NavigatorState]。終了時は`context`が無効でも確実に
+  /// 同じNavigatorへ通知を返せるよう保持する。
+  NavigatorState? _navigator;
   final AnimationController _animationController;
 
   final ValueNotifier<double> progress = ValueNotifier<double>(0);
@@ -44,15 +58,15 @@ class InteractiveSwipeBackController {
     if (!isGestureActive) {
       isGestureActive = true;
       _animationController.stop();
-      Navigator.of(context).didStartUserGesture();
+      if (notifyNavigator) {
+        _navigator = Navigator.of(context)..didStartUserGesture();
+      }
     }
     progress.value = absoluteOffsetPx.clamp(0.0, maxDrag);
   }
 
   void endExternalDrag(BuildContext context, double? velocityPxPerSec) {
     if (!isGestureActive) return;
-    isGestureActive = false;
-
     final velocity = velocityPxPerSec ?? 0;
     final bool commit;
     if (velocity <= -kSwipeGestureVelocityThreshold) {
@@ -62,6 +76,25 @@ class InteractiveSwipeBackController {
     } else {
       commit = progress.value / maxDrag >= kSwipeBackPositionThreshold;
     }
+    _finish(commit);
+  }
+
+  /// ドラッグがキャンセルされた（ブラウザ/OSがタッチを奪った、ウィジェットが
+  /// 消えた、等で`onHorizontalDragEnd`が来ない）時に呼ぶ（2026-10-07追加）。
+  /// コミットせず元の位置へ戻し、Navigatorへの通知も必ず解除する。
+  void cancelExternalDrag() {
+    if (!isGestureActive) return;
+    _finish(false);
+  }
+
+  void _stopNavigatorGesture() {
+    final navigator = _navigator;
+    _navigator = null;
+    if (navigator != null && navigator.mounted) navigator.didStopUserGesture();
+  }
+
+  void _finish(bool commit) {
+    isGestureActive = false;
 
     final start = progress.value;
     final target = commit ? maxDrag : 0.0;
@@ -74,7 +107,7 @@ class InteractiveSwipeBackController {
       ),
     );
 
-    Navigator.of(context).didStopUserGesture();
+    _stopNavigatorGesture();
 
     _animationController
       ..duration = duration
@@ -91,6 +124,16 @@ class InteractiveSwipeBackController {
   }
 
   void dispose() {
+    isGestureActive = false;
+    // ツリーの破棄中にNavigatorのリスナー（各ルートのIgnorePointer）を
+    // 再構築させないよう、解除は次のマイクロタスクで行う。
+    final navigator = _navigator;
+    _navigator = null;
+    if (navigator != null) {
+      scheduleMicrotask(() {
+        if (navigator.mounted) navigator.didStopUserGesture();
+      });
+    }
     _animationController.dispose();
     progress.dispose();
   }
@@ -139,12 +182,20 @@ class InteractiveSwipeBackTransition extends StatefulWidget {
     required this.onBack,
     required this.child,
     this.onNext,
+    this.enabled = true,
     super.key,
   });
 
   final VoidCallback onBack;
   final VoidCallback? onNext;
   final Widget child;
+
+  /// falseの間は右スワイプ・右スクロールの「戻る」を受け付けない
+  /// （2026-10-07追加、ノートのモバイル限定・カーソル非表示時のみ有効の
+  /// 条件用）。切り替えで子のStateが作り直されないよう、
+  /// `GestureDetector`/`Listener`/`Transform`の木構造は変えずハンドラだけ
+  /// 外す（`SwipeBackDetector.enabled`と同じ方針）。
+  final bool enabled;
 
   @override
   State<InteractiveSwipeBackTransition> createState() =>
@@ -201,32 +252,46 @@ class _InteractiveSwipeBackTransitionState
       controller: _controller,
       child: Listener(
         onPointerSignal: (event) {
-          if (event is PointerScrollEvent) _handleScroll(event);
+          if (widget.enabled && event is PointerScrollEvent) {
+            _handleScroll(event);
+          }
         },
         child: GestureDetector(
           behavior: HitTestBehavior.translucent,
-          onHorizontalDragStart: (_) {
-            _cumulativeDx = _controller.progress.value;
-          },
-          onHorizontalDragUpdate: (details) {
-            _cumulativeDx += details.delta.dx;
-            if (_cumulativeDx > 0 || _controller.isGestureActive) {
-              _controller.syncFromExternalDrag(
-                context,
-                _cumulativeDx.clamp(0.0, _controller.maxDrag),
-              );
-            }
-          },
-          onHorizontalDragEnd: (details) {
-            if (!_controller.isGestureActive) {
-              final velocity = details.primaryVelocity ?? 0;
-              if (velocity <= -kSwipeGestureVelocityThreshold) {
-                widget.onNext?.call();
-              }
-              return;
-            }
-            _controller.endExternalDrag(context, details.primaryVelocity);
-          },
+          onHorizontalDragStart: widget.enabled
+              ? (_) {
+                  _cumulativeDx = _controller.progress.value;
+                }
+              : null,
+          onHorizontalDragUpdate: widget.enabled
+              ? (details) {
+                  _cumulativeDx += details.delta.dx;
+                  if (_cumulativeDx > 0 || _controller.isGestureActive) {
+                    _controller.syncFromExternalDrag(
+                      context,
+                      _cumulativeDx.clamp(0.0, _controller.maxDrag),
+                    );
+                  }
+                }
+              : null,
+          onHorizontalDragCancel: widget.enabled
+              ? () {
+                  _cumulativeDx = 0;
+                  _controller.cancelExternalDrag();
+                }
+              : null,
+          onHorizontalDragEnd: widget.enabled
+              ? (details) {
+                  if (!_controller.isGestureActive) {
+                    final velocity = details.primaryVelocity ?? 0;
+                    if (velocity <= -kSwipeGestureVelocityThreshold) {
+                      widget.onNext?.call();
+                    }
+                    return;
+                  }
+                  _controller.endExternalDrag(context, details.primaryVelocity);
+                }
+              : null,
           child: ValueListenableBuilder<double>(
             valueListenable: _controller.progress,
             child: RepaintBoundary(child: widget.child),

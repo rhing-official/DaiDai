@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -12,6 +13,7 @@ import '../../models/app_user.dart';
 import '../../models/calendar_category.dart';
 import '../../models/calendar_event.dart';
 import '../../models/calendar_event_sync.dart';
+import '../../models/calendar_week_start.dart';
 import '../../models/schedule_coordination.dart';
 import '../../providers/accent_color_provider.dart';
 import '../../providers/app_locale_provider.dart';
@@ -105,15 +107,30 @@ class _CalendarPaneViewState extends ConsumerState<CalendarPaneView> {
     super.dispose();
   }
 
+  /// 月送りのスライド方向（1=未来へ＝新しい月が右から入る、-1=過去へ、
+  /// 2026-10-10追加）。[_setFocusedMonth]が移動先との前後関係で決める。
+  int _slideDirection = 1;
+
+  /// 表示する月を変える（setState内で呼ぶ）。移動先が今の月より前か後かで
+  /// スライド方向を決める。
+  void _setFocusedMonth(DateTime month) {
+    final cmp = month.compareTo(_focusedMonth);
+    if (cmp != 0) _slideDirection = cmp > 0 ? 1 : -1;
+    _focusedMonth = month;
+  }
+
   void _goToPreviousMonth() => setState(
-    () => _focusedMonth = DateTime(_focusedMonth.year, _focusedMonth.month - 1),
+    () =>
+        _setFocusedMonth(DateTime(_focusedMonth.year, _focusedMonth.month - 1)),
   );
 
   void _goToNextMonth() => setState(
-    () => _focusedMonth = DateTime(_focusedMonth.year, _focusedMonth.month + 1),
+    () =>
+        _setFocusedMonth(DateTime(_focusedMonth.year, _focusedMonth.month + 1)),
   );
 
-  void _goToToday() => setState(() => _focusedMonth = _monthOf(DateTime.now()));
+  void _goToToday() =>
+      setState(() => _setFocusedMonth(_monthOf(DateTime.now())));
 
   Future<void> _createEventOn(DateTime day) {
     final now = DateTime.now();
@@ -174,7 +191,7 @@ class _CalendarPaneViewState extends ConsumerState<CalendarPaneView> {
     if (result == null || !mounted) return;
     switch (result) {
       case _CalendarSearchEventSelection(:final event):
-        setState(() => _focusedMonth = _monthOf(event.startAt.toDate()));
+        setState(() => _setFocusedMonth(_monthOf(event.startAt.toDate())));
         await showCalendarEventDetailDialog(
           context,
           isDm: widget.isDm,
@@ -185,7 +202,7 @@ class _CalendarPaneViewState extends ConsumerState<CalendarPaneView> {
         );
       case _CalendarSearchCoordinationSelection(:final coordination):
         final firstCandidate = coordination.candidateDates.first.toDate();
-        setState(() => _focusedMonth = _monthOf(firstCandidate));
+        setState(() => _setFocusedMonth(_monthOf(firstCandidate)));
         await showScheduleCoordinationDetailDialog(
           context,
           isDm: widget.isDm,
@@ -416,102 +433,143 @@ class _CalendarPaneViewState extends ConsumerState<CalendarPaneView> {
             },
             child: SwipeDownToDismiss(
               onDismiss: widget.onClose,
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(16),
-                child: StreamBuilder<List<CalendarEvent>>(
-                  stream: _eventsStream,
-                  builder: (context, eventsSnapshot) {
-                    final events =
-                        eventsSnapshot.data ?? const <CalendarEvent>[];
-                    final eventsByDate = <DateTime, List<CalendarEvent>>{};
-                    for (final event in events) {
-                      // 複数日にまたがる予定は、対象日全てにマークを付ける
-                      // （2026-09-04修正、以前は開始日にしか登録していなかった）。
-                      for (final day in calendarEventDates(event)) {
-                        (eventsByDate[day] ??= []).add(event);
-                      }
-                    }
-                    return StreamBuilder<List<ScheduleCoordination>>(
-                      stream: _coordinationsStream,
-                      builder: (context, coordinationsSnapshot) {
-                        // 月表示に印を付けるのは未確定のものだけ（確定済みは
-                        // 実際の予定として既にeventsByDateに現れる、
-                        // 2026-09-05追加）。
-                        final coordinations =
-                            (coordinationsSnapshot.data ??
-                                    const <ScheduleCoordination>[])
-                                .where((c) => !c.isFinalized)
-                                .toList();
-                        final coordinationsByDate =
-                            <DateTime, List<ScheduleCoordination>>{};
-                        for (final coordination in coordinations) {
-                          for (final ts in coordination.candidateDates) {
-                            final day = _dateOnly(ts.toDate());
-                            (coordinationsByDate[day] ??= []).add(coordination);
+              // 月全体をスクロール無しで1画面に収める（2026-10-07、ユーザー指示。
+              // Googleカレンダー同様）。週の高さは利用可能な高さから決まり
+              // （`_MonthGrid`）、収まっている間は縦スクロールが発生しないため
+              // 下スワイプ（`SwipeDownToDismiss`）が効く。極端に低い画面だけは
+              // 最小行高を保つためスクロールにフォールバックする。モバイルは
+              // 横いっぱいに広げる（水平パディング0）。
+              child: LayoutBuilder(
+                builder: (context, viewport) {
+                  final padding = isMobile
+                      ? const EdgeInsets.symmetric(vertical: 8)
+                      : const EdgeInsets.all(16);
+                  final weekCount = _weekCountOf(
+                    _focusedMonth,
+                    ref.watch(calendarWeekStartProvider),
+                  );
+                  final contentHeight = math.max(
+                    viewport.maxHeight - padding.vertical,
+                    _kMonthChromeHeight + weekCount * _rowHeightFor(1),
+                  );
+                  return SingleChildScrollView(
+                    padding: padding,
+                    child: SizedBox(
+                      height: contentHeight,
+                      child: StreamBuilder<List<CalendarEvent>>(
+                        stream: _eventsStream,
+                        builder: (context, eventsSnapshot) {
+                          final events =
+                              eventsSnapshot.data ?? const <CalendarEvent>[];
+                          final eventsByDate =
+                              <DateTime, List<CalendarEvent>>{};
+                          for (final event in events) {
+                            // 複数日にまたがる予定は、対象日全てにマークを付ける
+                            // （2026-09-04修正、以前は開始日にしか登録していなかった）。
+                            for (final day in calendarEventDates(event)) {
+                              (eventsByDate[day] ??= []).add(event);
+                            }
                           }
-                        }
-                        return StreamBuilder<List<CalendarCategory>>(
-                          stream: _categoriesStream,
-                          builder: (context, categoriesSnapshot) {
-                            final categories =
-                                categoriesSnapshot.data ??
-                                const <CalendarCategory>[];
-                            final categoriesById = {
-                              for (final category in categories)
-                                category.categoryId: category,
-                            };
-                            final monthItems = buildMonthItems(
-                              events,
-                              coordinations,
-                              categoriesById,
-                            );
-                            return Column(
-                              children: [
-                                _MonthHeader(
-                                  month: _focusedMonth,
-                                  localeCode: localeCode,
-                                  todayLabel: strings.calendarTodayButton,
-                                  searchTooltip: strings.calendarSearchTooltip,
-                                  categorySettingsTooltip:
-                                      strings.calendarCategorySettingsTooltip,
-                                  onPrevious: _goToPreviousMonth,
-                                  onNext: _goToNextMonth,
-                                  onToday: _goToToday,
-                                  onSearch: () => _openCalendarSearch(
+                          return StreamBuilder<List<ScheduleCoordination>>(
+                            stream: _coordinationsStream,
+                            builder: (context, coordinationsSnapshot) {
+                              // 月表示に印を付けるのは未確定のものだけ（確定済みは
+                              // 実際の予定として既にeventsByDateに現れる、
+                              // 2026-09-05追加）。
+                              final coordinations =
+                                  (coordinationsSnapshot.data ??
+                                          const <ScheduleCoordination>[])
+                                      .where((c) => !c.isFinalized)
+                                      .toList();
+                              final coordinationsByDate =
+                                  <DateTime, List<ScheduleCoordination>>{};
+                              for (final coordination in coordinations) {
+                                for (final ts in coordination.candidateDates) {
+                                  final day = _dateOnly(ts.toDate());
+                                  (coordinationsByDate[day] ??= []).add(
+                                    coordination,
+                                  );
+                                }
+                              }
+                              return StreamBuilder<List<CalendarCategory>>(
+                                stream: _categoriesStream,
+                                builder: (context, categoriesSnapshot) {
+                                  final categories =
+                                      categoriesSnapshot.data ??
+                                      const <CalendarCategory>[];
+                                  final categoriesById = {
+                                    for (final category in categories)
+                                      category.categoryId: category,
+                                  };
+                                  final monthItems = buildMonthItems(
                                     events,
                                     coordinations,
-                                  ),
-                                  onManageCategories: _openCategoryManagement,
-                                ),
-                                const SizedBox(height: 8),
-                                _WeekdayHeaderRow(
-                                  localeCode: localeCode,
-                                  gridLineColor: colorScheme.outline,
-                                ),
-                                _MonthGrid(
-                                  focusedMonth: _focusedMonth,
-                                  monthItems: monthItems,
-                                  isGekiga: isGekiga,
-                                  isMobile: isMobile,
-                                  accentColor: accent,
-                                  colorScheme: colorScheme,
-                                  strings: strings,
-                                  onDayTap: (cellContext, day) => _onDayTap(
-                                    cellContext,
-                                    day,
-                                    eventsByDate[day] ?? const [],
-                                    coordinationsByDate[day] ?? const [],
-                                  ),
-                                  onItemTap: _openItemDetail,
-                                ),
-                              ],
-                            );
-                          },
-                        );
-                      },
-                    );
-                  },
-                ),
+                                    categoriesById,
+                                  );
+                                  return Column(
+                                    children: [
+                                      _MonthHeader(
+                                        month: _focusedMonth,
+                                        localeCode: localeCode,
+                                        todayLabel: strings.calendarTodayButton,
+                                        searchTooltip:
+                                            strings.calendarSearchTooltip,
+                                        categorySettingsTooltip: strings
+                                            .calendarCategorySettingsTooltip,
+                                        onPrevious: _goToPreviousMonth,
+                                        onNext: _goToNextMonth,
+                                        onToday: _goToToday,
+                                        onSearch: () => _openCalendarSearch(
+                                          events,
+                                          coordinations,
+                                        ),
+                                        onManageCategories:
+                                            _openCategoryManagement,
+                                      ),
+                                      const SizedBox(height: 8),
+                                      _WeekdayHeaderRow(
+                                        localeCode: localeCode,
+                                        gridLineColor: colorScheme.outline,
+                                      ),
+                                      Expanded(
+                                        // 月送りは、新しい月が移動方向から
+                                        // スライドして入り、前の月が反対側へ
+                                        // 出ていく（2026-10-10追加）。
+                                        child: _MonthSlideSwitcher(
+                                          month: _focusedMonth,
+                                          direction: _slideDirection,
+                                          child: _MonthGrid(
+                                            key: ValueKey(_focusedMonth),
+                                            focusedMonth: _focusedMonth,
+                                            monthItems: monthItems,
+                                            isGekiga: isGekiga,
+                                            isMobile: isMobile,
+                                            accentColor: accent,
+                                            colorScheme: colorScheme,
+                                            strings: strings,
+                                            onDayTap: (cellContext, day) =>
+                                                _onDayTap(
+                                                  cellContext,
+                                                  day,
+                                                  eventsByDate[day] ?? const [],
+                                                  coordinationsByDate[day] ??
+                                                      const [],
+                                                ),
+                                            onItemTap: _openItemDetail,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  );
+                                },
+                              );
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                  );
+                },
               ),
             ),
           ),
@@ -648,11 +706,68 @@ double _rowHeightFor(int maxLanes) =>
     maxLanes * (_kLaneHeight + _kLaneGap) +
     _kOverflowRowHeight;
 
+/// 月ヘッダー（アイコンボタン48＋余白8）と曜日行（約22）の合計高さの目安。
+/// 月全体を1画面に収められるか（スクロールへフォールバックするか）の判定用。
+const _kMonthChromeHeight = 80.0;
+
+int _weekCountOf(DateTime month, CalendarWeekStart weekStart) {
+  final daysInMonth = DateTime(month.year, month.month + 1, 0).day;
+  final leading = weekStart.leadingBlanks(DateTime(month.year, month.month));
+  return ((leading + daysInMonth) / 7).ceil();
+}
+
 double _laneTop(int lane) =>
     _kCellPadding + _kDayNumberAreaHeight + lane * (_kLaneHeight + _kLaneGap);
 
+/// 月グリッドの切り替えを、移動方向へのスライドで見せる（2026-10-10追加）。
+/// [direction]が1なら新しい月は右から入り前の月は左へ出る（-1なら逆）。
+/// 子には月ごとの`ValueKey`を付けること。
+class _MonthSlideSwitcher extends StatelessWidget {
+  const _MonthSlideSwitcher({
+    required this.month,
+    required this.direction,
+    required this.child,
+  });
+
+  final DateTime month;
+  final int direction;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRect(
+      child: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 260),
+        switchInCurve: Curves.easeOutCubic,
+        switchOutCurve: Curves.easeInCubic,
+        layoutBuilder: (currentChild, previousChildren) => Stack(
+          fit: StackFit.expand,
+          children: [...previousChildren, ?currentChild],
+        ),
+        transitionBuilder: (child, animation) {
+          final entering = child.key == ValueKey(month);
+          // 入る側: 移動方向の端から中央へ。出る側（逆再生）: 中央から反対側へ。
+          final begin = Offset(
+            entering ? direction.toDouble() : -direction.toDouble(),
+            0,
+          );
+          return SlideTransition(
+            position: Tween<Offset>(
+              begin: begin,
+              end: Offset.zero,
+            ).animate(animation),
+            child: child,
+          );
+        },
+        child: child,
+      ),
+    );
+  }
+}
+
 class _MonthGrid extends ConsumerWidget {
   const _MonthGrid({
+    super.key,
     required this.focusedMonth,
     required this.monthItems,
     required this.isGekiga,
@@ -673,9 +788,6 @@ class _MonthGrid extends ConsumerWidget {
   final Strings strings;
   final void Function(BuildContext cellContext, DateTime day) onDayTap;
   final void Function(CalendarMonthItem item) onItemTap;
-
-  static const _desktopMaxLanes = 3;
-  static const _mobileMaxLanes = 2;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -699,30 +811,44 @@ class _MonthGrid extends ConsumerWidget {
     ];
 
     final today = _dateOnly(DateTime.now());
-    final maxLanes = isMobile ? _mobileMaxLanes : _desktopMaxLanes;
-    final rowHeight = _rowHeightFor(maxLanes);
     final weeks = <List<DateTime>>[
       for (var i = 0; i < cells.length; i += 7) cells.sublist(i, i + 7),
     ];
 
-    return Column(
-      children: [
-        for (final week in weeks)
-          _WeekRow(
-            weekDays: week,
-            month: month,
-            today: today,
-            monthItems: monthItems,
-            maxLanes: maxLanes,
-            rowHeight: rowHeight,
-            isGekiga: isGekiga,
-            accentColor: accentColor,
-            colorScheme: colorScheme,
-            strings: strings,
-            onDayTap: onDayTap,
-            onItemTap: onItemTap,
-          ),
-      ],
+    // 利用可能な高さを週数で等分し（最小は1レーン分）、その行高に収まる
+    // レーン数だけ予定の帯を表示する（残りは「他N件」、2026-10-07変更。
+    // 以前は端末幅で固定の2/3レーンと固定の行高だったため、画面高を超えて
+    // スクロールが必要になっていた）。
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final available = constraints.hasBoundedHeight
+            ? constraints.maxHeight / weeks.length
+            : _rowHeightFor(isMobile ? 2 : 3);
+        final rowHeight = math.max(_rowHeightFor(1), available);
+        final maxLanes =
+            ((rowHeight - _rowHeightFor(0)) / (_kLaneHeight + _kLaneGap))
+                .floor()
+                .clamp(1, 6);
+        return Column(
+          children: [
+            for (final week in weeks)
+              _WeekRow(
+                weekDays: week,
+                month: month,
+                today: today,
+                monthItems: monthItems,
+                maxLanes: maxLanes,
+                rowHeight: rowHeight,
+                isGekiga: isGekiga,
+                accentColor: accentColor,
+                colorScheme: colorScheme,
+                strings: strings,
+                onDayTap: onDayTap,
+                onItemTap: onItemTap,
+              ),
+          ],
+        );
+      },
     );
   }
 }

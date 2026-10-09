@@ -14,8 +14,10 @@ class DesktopSelectionServiceWidget extends StatefulWidget {
     this.contextMenuBuilder,
     required this.child,
     this.dropTargetStyle = const AppFlowyDropTargetStyle(),
+    this.enablePanImmediate = true,
   });
 
+  final bool enablePanImmediate;
   final Widget child;
   final Color cursorColor;
   final Color selectionColor;
@@ -102,6 +104,7 @@ class _DesktopSelectionServiceWidgetState
   @override
   Widget build(BuildContext context) {
     return SelectionGestureDetector(
+      enablePanImmediate: widget.enablePanImmediate,
       onPanStart: _onPanStart,
       onPanUpdate: _onPanUpdate,
       onPanEnd: _onPanEnd,

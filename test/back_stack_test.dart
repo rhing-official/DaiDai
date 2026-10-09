@@ -3,6 +3,35 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('BackStackController', () {
+    test('closeTopLayerは最後のエントリが層ならそれだけ閉じ、履歴エントリには触れない', () {
+      final c = BackStackController();
+      final calls = <String>[];
+      c.add(() => calls.add('history'), scope: BackScope.talks);
+      c.add(() => calls.add('note'), scope: BackScope.talks, layer: true);
+      c.add(() => calls.add('album'), scope: BackScope.talks, layer: true);
+
+      expect(c.closeTopLayer(), isTrue);
+      expect(calls, ['album']);
+      expect(c.closeTopLayer(), isTrue);
+      expect(calls, ['album', 'note']);
+      // 残りは層ではない履歴エントリだけ → 閉じず、falseを返す。
+      expect(c.closeTopLayer(), isFalse);
+      expect(calls, ['album', 'note']);
+    });
+
+    test('closeTopLayerはダイアログ（オーバーレイ）を層より先に閉じる', () {
+      final c = BackStackController();
+      final calls = <String>[];
+      c.add(() => calls.add('note'), scope: BackScope.talks, layer: true);
+      c.addDialog(() => calls.add('dialog'));
+
+      expect(c.closeTopLayer(), isTrue);
+      expect(calls, ['dialog']);
+      expect(c.closeTopLayer(), isTrue);
+      expect(calls, ['dialog', 'note']);
+      expect(c.closeTopLayer(), isFalse);
+    });
+
     test('戻る要求は現在のタブで最後に登録されたエントリのonBackを呼ぶ', () {
       final c = BackStackController();
       final calls = <String>[];

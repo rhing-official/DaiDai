@@ -28,6 +28,7 @@ import 'poll_form_dialog.dart';
 Future<Poll?> showPollPopup(
   BuildContext context, {
   required RelativeRect position,
+  GlobalKey? anchorKey,
   required bool isDm,
   required String conversationId,
   required String roomId,
@@ -36,6 +37,7 @@ Future<Poll?> showPollPopup(
   return showAnchoredMenu<Poll>(
     context: context,
     position: position,
+    anchorKey: anchorKey,
     color: Colors.transparent,
     shadowColor: Colors.transparent,
     elevation: 0,

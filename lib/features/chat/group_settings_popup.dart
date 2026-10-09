@@ -350,6 +350,21 @@ class GroupSettingsPopup extends ConsumerWidget {
                             );
                       },
               ),
+              SwitchListTile(
+                value: liveGroup.historyVisibleToNewMembers,
+                title: Text(strings.groupSettingsHistoryVisibleLabel),
+                subtitle: Text(strings.groupSettingsHistoryVisibleHint),
+                // manageRooms権限を持つメンバーのみ（firestore.rulesで強制、
+                // 2026-10-08追加）。
+                onChanged: !canManageRooms
+                    ? null
+                    : (value) => ref
+                          .read(groupRepositoryProvider)
+                          .setHistoryVisibleToNewMembers(
+                            groupId: liveGroup.groupId,
+                            enabled: value,
+                          ),
+              ),
               const Divider(),
               // 寄合機能オフ（単一モード）の広場ではハンバーガーメニュー
               // 自体を飛ばしてこのポップアップを直接開くようになった

@@ -25,6 +25,7 @@ import '../chat/button_anchored_menu.dart';
 Future<Note?> showNotePopup(
   BuildContext context, {
   required RelativeRect position,
+  GlobalKey? anchorKey,
   required bool isDm,
   required String conversationId,
   required String roomId,
@@ -33,6 +34,7 @@ Future<Note?> showNotePopup(
   return showAnchoredMenu<Note>(
     context: context,
     position: position,
+    anchorKey: anchorKey,
     color: Colors.transparent,
     shadowColor: Colors.transparent,
     elevation: 0,

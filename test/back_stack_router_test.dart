@@ -115,7 +115,7 @@ void _chatRouteTests() {
         ),
         GoRoute(
           path: '/chat',
-          onExit: (context, state) => !backStack.closeTopOverlay(),
+          onExit: (context, state) => !backStack.closeTopLayer(),
           builder: (context, state) => Scaffold(
             body: Column(
               children: [
@@ -183,6 +183,53 @@ void _chatRouteTests() {
     // 何も開いていなければ通常どおり一覧へ戻る。
     router.go('/');
     await tester.pumpAndSettle();
+    expect(find.text('chat'), findsNothing);
+    expect(find.text('list'), findsOneWidget);
+  });
+
+  testWidgets('Androidのシステム戻る（popRoute）でも、層を1つ閉じるだけで寄合に留まる', (tester) async {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    final backStack = container.read(backStackControllerProvider);
+    await pumpApp(tester, container);
+
+    await tester.tap(find.text('to-chat'));
+    await tester.pumpAndSettle();
+    expect(find.text('chat'), findsOneWidget);
+
+    // 層（カレンダー・ノート・アルバム相当）を登録 → システム戻るで閉じるだけ。
+    var layerClosed = false;
+    backStack.add(
+      () => layerClosed = true,
+      scope: BackScope.talks,
+      layer: true,
+    );
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(layerClosed, isTrue);
+    expect(find.text('chat'), findsOneWidget);
+
+    // ポップアップ・全画面ビューアも同様。
+    await tester.tap(find.text('dialog'));
+    await tester.pumpAndSettle();
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(find.text('dialog-body'), findsNothing);
+    expect(find.text('chat'), findsOneWidget);
+
+    await tester.tap(find.text('viewer-open'));
+    await tester.pumpAndSettle();
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(find.text('viewer'), findsNothing);
+    expect(find.text('chat'), findsOneWidget);
+
+    // 語らいの履歴（層ではない）エントリだけなら巻き戻さず、一覧へ戻る。
+    var historyRestored = false;
+    backStack.add(() => historyRestored = true, scope: BackScope.talks);
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(historyRestored, isFalse);
     expect(find.text('chat'), findsNothing);
     expect(find.text('list'), findsOneWidget);
   });

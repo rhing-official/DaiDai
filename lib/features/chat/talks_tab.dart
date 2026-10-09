@@ -180,8 +180,13 @@ class _TalksTabState extends ConsumerState<TalksTab>
   /// が明示的な変更を、`progress`のリスナーがこのコントローラ主導の変更
   /// （中継されたドラッグ・その後の収束アニメーション）を反映する）。
   late final InteractiveSwipeBackController _iconSplitSwipeBackController =
-      InteractiveSwipeBackController(vsync: this, onCommit: () {})
-        ..maxDrag = kIconSplitCollapseWidth;
+      InteractiveSwipeBackController(
+        vsync: this,
+        onCommit: () {},
+        // ルートをpopするジェスチャーではない。Navigatorへ通知すると、終了が
+        // 呼ばれなかった時に全画面がタッチ不能になる（2026-10-07）。
+        notifyNavigator: false,
+      )..maxDrag = kIconSplitCollapseWidth;
 
   @override
   void initState() {
@@ -405,6 +410,15 @@ class _TalksTabState extends ConsumerState<TalksTab>
   bool get _showIconSplitExpandOnTap =>
       classifyDevice(context) != DeviceClass.computer;
 
+  /// [_buildIconSplitPane]の3ブロック表示で、選択中の語らいアイコンを再タップ
+  /// した時に全画面表示へ畳むか（2026-10-07追加）。メッセージ画面クリックでの
+  /// 全画面化（[_showIconSplitExpandOnTap]）と同じくタブレットのみ。
+  bool get _iconSplitExpandActive =>
+      ref.read(talksListLayoutStyleProvider) ==
+          TalksListLayoutStyle.iconSplit &&
+      _showIconSplitPeek &&
+      _showIconSplitExpandOnTap;
+
   /// 分割表示でこのセッション中に一度でも開いた会話（`'dm-$dmId'`/
   /// `'group-$groupId'`）を挿入順に記録する（2026-08-20追加、語らい切り替え
   /// ラグの解消）。[_buildDetailPane]がこの集合の全件を`IndexedStack`で
@@ -543,6 +557,12 @@ class _TalksTabState extends ConsumerState<TalksTab>
         await _pushDmRoomFullscreen(dm, showRoomTabBar: false);
         return;
       }
+      // タブレットで選択中の一対のアイコンを再タップしたら、選択中の寄合の
+      // メッセージ画面を全画面表示する（2026-10-07、ユーザー指示）。
+      if (_iconSplitExpandActive && _selectedDm?.dmId == dm.dmId) {
+        _animateIconSplitCollapse(1.0);
+        return;
+      }
       // 別の会話に切り替えたら、直前の会話で畳んでいた状態
       // （[_iconSplitCollapse]）を引き継がず、寄合一覧から見せ直す
       // （2026-09-12追加）。
@@ -620,6 +640,11 @@ class _TalksTabState extends ConsumerState<TalksTab>
           _selectedGroup?.groupId == group.groupId &&
           group.roomsEnabled) {
         await _pushGroupRoomFullscreen(group, showRoomTabBar: false);
+        return;
+      }
+      // [_openDirectMessage]と同じ（2026-10-07）。
+      if (_iconSplitExpandActive && _selectedGroup?.groupId == group.groupId) {
+        _animateIconSplitCollapse(1.0);
         return;
       }
       _setIconSplitCollapse(0);
@@ -1438,6 +1463,10 @@ class _TalksTabState extends ConsumerState<TalksTab>
       onHorizontalDragStart: _handleIconSplitDragStart,
       onHorizontalDragUpdate: _handleIconSplitDragUpdate,
       onHorizontalDragEnd: _handleIconSplitDragEnd,
+      // キャンセル時も、途中の位置に残さず最寄りの開閉へ収束させる
+      // （2026-10-07）。
+      onHorizontalDragCancel: () =>
+          _handleIconSplitDragEnd(DragEndDetails(primaryVelocity: 0)),
       child: Row(
         children: [
           _CollapsibleWidthPanel(
@@ -3548,7 +3577,12 @@ class _SwipeToOpenRoomPreview extends StatefulWidget {
 class _SwipeToOpenRoomPreviewState extends State<_SwipeToOpenRoomPreview>
     with SingleTickerProviderStateMixin {
   late final InteractiveSwipeBackController _controller =
-      InteractiveSwipeBackController(vsync: this, onCommit: _handleCommitted);
+      InteractiveSwipeBackController(
+        vsync: this,
+        onCommit: _handleCommitted,
+        // 同上。ルートをpopするジェスチャーではない（2026-10-07）。
+        notifyNavigator: false,
+      );
 
   double _cumulativeDx = 0;
 
@@ -3619,6 +3653,10 @@ class _SwipeToOpenRoomPreviewState extends State<_SwipeToOpenRoomPreview>
         _warm.value = true;
       },
       onHorizontalDragCancel: () {
+        // ドラッグ中にキャンセルされた（ブラウザ/OSがタッチを奪った等）場合は
+        // コミットせず元へ戻す（2026-10-07、以前は`isGestureActive`が残った）。
+        _controller.cancelExternalDrag();
+        _cumulativeDx = 0;
         // `onHorizontalDragStart`が一度も呼ばれずに裁定負け＝単純タップ
         // （寄合一覧内の項目タップで別の寄合を選ぶ操作等）、または
         // `RoomListPane`内の並べ替えドラッグ等が裁定に勝った場合。
@@ -4065,7 +4103,14 @@ class _DmDetailWithRoomsState extends ConsumerState<_DmDetailWithRooms> {
           onSelectRoom: widget.roomListOnly
               ? (room) => openRoomFullscreen(room.roomId, room.name)
               : (room) {
-                  if (room.roomId == highlightRoomId) return;
+                  if (room.roomId == highlightRoomId) {
+                    // 選択中の寄合を再タップしたらメッセージ画面を全画面表示する
+                    // （2026-10-07、ユーザー指示。タブレットのみ＝
+                    // `onExpandTap`がnullでない時だけ、PC・スマホは従来どおり
+                    // 何もしない）。
+                    widget.onExpandTap?.call();
+                    return;
+                  }
                   setState(() {
                     _selectedRoomId = room.roomId;
                     _paneGeneration++;
@@ -4348,7 +4393,14 @@ class _GroupDetailWithRoomsState extends ConsumerState<_GroupDetailWithRooms> {
           onSelectRoom: widget.roomListOnly
               ? (room) => openRoomFullscreen(room.roomId, room.name)
               : (room) {
-                  if (room.roomId == highlightRoomId) return;
+                  if (room.roomId == highlightRoomId) {
+                    // 選択中の寄合を再タップしたらメッセージ画面を全画面表示する
+                    // （2026-10-07、ユーザー指示。タブレットのみ＝
+                    // `onExpandTap`がnullでない時だけ、PC・スマホは従来どおり
+                    // 何もしない）。
+                    widget.onExpandTap?.call();
+                    return;
+                  }
                   setState(() {
                     _selectedRoomId = room.roomId;
                     _paneGeneration++;

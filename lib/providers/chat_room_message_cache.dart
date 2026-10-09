@@ -27,6 +27,7 @@ class ChatRoomCacheKey {
     required this.isDm,
     required this.conversationId,
     required this.roomId,
+    this.visibleFromMicros,
   });
 
   final bool isDm;
@@ -35,19 +36,28 @@ class ChatRoomCacheKey {
   final String conversationId;
   final String roomId;
 
+  /// 新規加入者に加入前のメッセージを見せない設定（`messageVisibleFrom`）の
+  /// 閲覧開始時刻（マイクロ秒）。nullなら制限なし。購読するクエリが変わるため
+  /// キーの一部にして、設定・加入時刻が変わったら別エントリで購読し直す
+  /// （2026-10-08追加）。一対は常にnull。
+  final int? visibleFromMicros;
+
   @override
   bool operator ==(Object other) =>
       other is ChatRoomCacheKey &&
       other.isDm == isDm &&
       other.conversationId == conversationId &&
-      other.roomId == roomId;
+      other.roomId == roomId &&
+      other.visibleFromMicros == visibleFromMicros;
 
   @override
-  int get hashCode => Object.hash(isDm, conversationId, roomId);
+  int get hashCode =>
+      Object.hash(isDm, conversationId, roomId, visibleFromMicros);
 
   @override
   String toString() =>
-      'ChatRoomCacheKey(${isDm ? 'dm' : 'group'}:$conversationId/$roomId)';
+      'ChatRoomCacheKey(${isDm ? 'dm' : 'group'}:$conversationId/$roomId'
+      '${visibleFromMicros == null ? '' : ' from=$visibleFromMicros'})';
 }
 
 /// 1つの(会話, 寄合)ペア分のメッセージ購読・読み込み済みリストを、

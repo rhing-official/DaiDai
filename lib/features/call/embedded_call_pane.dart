@@ -107,6 +107,7 @@ class _EmbeddedCallPaneState extends ConsumerState<EmbeddedCallPane> {
     return BackEntry(
       scope: BackScope.talks,
       active: true,
+      layer: true,
       onBack: () => setState(() => _showingCall = false),
       child: _EmbeddedCallView(
         session: session,

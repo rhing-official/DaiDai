@@ -40,7 +40,15 @@ abstract class GroupRepository {
   /// `rolePriority`等の変更を反映する必要がある画面で使う、2026-07-29追加）。
   Stream<Group?> watchGroup(String groupId);
 
-  Stream<List<Message>> watchRoomMessages(String groupId, String roomId);
+  /// [visibleFrom]が非nullなら`sentAt >= visibleFrom`のメッセージだけを
+  /// 購読する（新規加入者に加入前のメッセージを見せない設定、2026-10-08追加。
+  /// `messageVisibleFrom`参照。firestore.rulesの`list`はクエリ自体にこの絞り込み
+  /// が無いと拒否するため、取得系は全て同じ[visibleFrom]を渡す）。
+  Stream<List<Message>> watchRoomMessages(
+    String groupId,
+    String roomId, {
+    Timestamp? visibleFrom,
+  });
 
   /// [before]（[watchRoomMessages]のライブ窓、または前回の続き）より古い
   /// メッセージを最大[limit]件、新しい順に1回だけ取得する（2026-10-06追加、
@@ -51,6 +59,7 @@ abstract class GroupRepository {
     required String roomId,
     required MessageCursor before,
     int limit = kMessagePageSize,
+    Timestamp? visibleFrom,
   });
 
   /// この広場の寄合（テキストチャンネル）一覧を作成順に購読する。[userId]は
@@ -221,6 +230,7 @@ abstract class GroupRepository {
     required String roomId,
     required String messageId,
     int contextSize = 25,
+    Timestamp? visibleFrom,
   });
 
   /// 語らい検索（`talks_search.dart`）のメッセージ内容検索用に、直近
@@ -230,6 +240,7 @@ abstract class GroupRepository {
     required String groupId,
     required String roomId,
     int limit = 200,
+    Timestamp? visibleFrom,
   });
 
   /// 指定した1件のメッセージの最新状態を1回だけ取得する（2026-08-21追加、
@@ -408,6 +419,21 @@ abstract class GroupRepository {
     required String groupId,
     required bool enabled,
     required String userId,
+  });
+
+  /// 新しく加入した人に、加入前のメッセージを見せるかの広場全体の既定値を変更する
+  /// （manageRooms権限を持つメンバーのみ、firestore.rulesで強制、2026-10-08追加）。
+  Future<void> setHistoryVisibleToNewMembers({
+    required String groupId,
+    required bool enabled,
+  });
+
+  /// [setHistoryVisibleToNewMembers]の寄合ごとの上書き。nullで広場の既定に戻す。
+  /// 「この寄合独自の設定」（`Room.customSettingsEnabled`）がオンの間だけ有効。
+  Future<void> setRoomHistoryVisibleOverride({
+    required String groupId,
+    required String roomId,
+    required bool? enabled,
   });
 
   /// 広場のプロフィールカードを作成・更新する。メンバー全員が実行できる。
@@ -739,10 +765,25 @@ class FirestoreGroupRepository implements GroupRepository {
     await roomRef.delete();
   }
 
+  /// [visibleFrom]が非nullなら`sentAt >= visibleFrom`で絞り込む
+  /// （新規加入者に加入前のメッセージを見せない設定、2026-10-08追加）。
+  Query<Map<String, dynamic>> _visibleMessages(
+    CollectionReference<Map<String, dynamic>> messagesRef,
+    Timestamp? visibleFrom,
+  ) => visibleFrom == null
+      ? messagesRef
+      : messagesRef.where('sentAt', isGreaterThanOrEqualTo: visibleFrom);
+
   @override
-  Stream<List<Message>> watchRoomMessages(String groupId, String roomId) {
-    return _roomRef(groupId, roomId)
-        .collection('messages')
+  Stream<List<Message>> watchRoomMessages(
+    String groupId,
+    String roomId, {
+    Timestamp? visibleFrom,
+  }) {
+    return _visibleMessages(
+          _roomRef(groupId, roomId).collection('messages'),
+          visibleFrom,
+        )
         .orderBy('sentAt', descending: true)
         .limit(kMessagePageSize)
         .snapshots()
@@ -759,14 +800,18 @@ class FirestoreGroupRepository implements GroupRepository {
     required String roomId,
     required MessageCursor before,
     int limit = kMessagePageSize,
+    Timestamp? visibleFrom,
   }) async {
-    final snapshot = await _roomRef(groupId, roomId)
-        .collection('messages')
-        .orderBy('sentAt', descending: true)
-        .orderBy(FieldPath.documentId, descending: true)
-        .startAfter([before.sentAt, before.messageId])
-        .limit(limit)
-        .get();
+    final snapshot =
+        await _visibleMessages(
+              _roomRef(groupId, roomId).collection('messages'),
+              visibleFrom,
+            )
+            .orderBy('sentAt', descending: true)
+            .orderBy(FieldPath.documentId, descending: true)
+            .startAfter([before.sentAt, before.messageId])
+            .limit(limit)
+            .get();
     return [
       for (final doc in snapshot.docs) Message.fromJson(doc.id, doc.data()),
     ];
@@ -778,20 +823,31 @@ class FirestoreGroupRepository implements GroupRepository {
     required String roomId,
     required String messageId,
     int contextSize = 25,
+    Timestamp? visibleFrom,
   }) async {
     final messagesRef = _roomRef(groupId, roomId).collection('messages');
-    final targetDoc = await messagesRef.doc(messageId).get();
+    final DocumentSnapshot<Map<String, dynamic>> targetDoc;
+    try {
+      targetDoc = await messagesRef.doc(messageId).get();
+    } on FirebaseException catch (e) {
+      // 加入前のメッセージ（見せない設定）は読めない。見つからない扱いにする。
+      if (e.code == 'permission-denied') return [];
+      rethrow;
+    }
     final targetData = targetDoc.data();
     if (targetData == null) return [];
     final targetSentAt = targetData['sentAt'] as Timestamp?;
     if (targetSentAt == null) return [];
+    if (visibleFrom != null && targetSentAt.compareTo(visibleFrom) < 0) {
+      return [];
+    }
 
-    final olderAndTarget = await messagesRef
+    final olderAndTarget = await _visibleMessages(messagesRef, visibleFrom)
         .orderBy('sentAt', descending: true)
         .where('sentAt', isLessThanOrEqualTo: targetSentAt)
         .limit(contextSize)
         .get();
-    final newer = await messagesRef
+    final newer = await _visibleMessages(messagesRef, visibleFrom)
         .orderBy('sentAt')
         .where('sentAt', isGreaterThan: targetSentAt)
         .limit(contextSize)
@@ -809,12 +865,12 @@ class FirestoreGroupRepository implements GroupRepository {
     required String groupId,
     required String roomId,
     int limit = 200,
+    Timestamp? visibleFrom,
   }) async {
-    final snapshot = await _roomRef(groupId, roomId)
-        .collection('messages')
-        .orderBy('sentAt', descending: true)
-        .limit(limit)
-        .get();
+    final snapshot = await _visibleMessages(
+      _roomRef(groupId, roomId).collection('messages'),
+      visibleFrom,
+    ).orderBy('sentAt', descending: true).limit(limit).get();
     return [
       for (final doc in snapshot.docs) Message.fromJson(doc.id, doc.data()),
     ];
@@ -826,10 +882,18 @@ class FirestoreGroupRepository implements GroupRepository {
     required String roomId,
     required String messageId,
   }) async {
-    final doc = await _roomRef(
-      groupId,
-      roomId,
-    ).collection('messages').doc(messageId).get();
+    final DocumentSnapshot<Map<String, dynamic>> doc;
+    try {
+      doc = await _roomRef(
+        groupId,
+        roomId,
+      ).collection('messages').doc(messageId).get();
+    } on FirebaseException catch (e) {
+      // 加入前のメッセージ（見せない設定）は読めない。見つからない扱いにする
+      // （2026-10-08）。
+      if (e.code == 'permission-denied') return null;
+      rethrow;
+    }
     final data = doc.data();
     if (data == null) return null;
     return Message.fromJson(doc.id, data);
@@ -1585,6 +1649,9 @@ class FirestoreGroupRepository implements GroupRepository {
     batch.update(groupRef, {
       'memberIds': FieldValue.arrayUnion([request.requesterId]),
       'memberRoles': {...group.memberRoles, request.requesterId: 'member'},
+      // 加入前のメッセージを見せない設定の根拠になる加入時刻（2026-10-08追加、
+      // firestore.rulesが`sentAt >= この値`でメッセージの読み取りを制限する）。
+      'memberJoinedAt.${request.requesterId}': FieldValue.serverTimestamp(),
     });
     for (final roomDoc in roomsSnapshot.docs) {
       batch.update(roomDoc.reference, {
@@ -1624,6 +1691,7 @@ class FirestoreGroupRepository implements GroupRepository {
       'memberRoles': updatedRoles,
       'roleAssignments.$userId': FieldValue.delete(),
       'memberPermissions.$userId': FieldValue.delete(),
+      'memberJoinedAt.$userId': FieldValue.delete(),
     });
     for (final roomDoc in roomsSnapshot.docs) {
       batch.update(roomDoc.reference, {
@@ -1796,6 +1864,23 @@ class FirestoreGroupRepository implements GroupRepository {
     required bool enabled,
   }) async {
     await _roomRef(groupId, roomId).update({'customSettingsEnabled': enabled});
+  }
+
+  @override
+  Future<void> setHistoryVisibleToNewMembers({
+    required String groupId,
+    required bool enabled,
+  }) async {
+    await _groups.doc(groupId).update({'historyVisibleToNewMembers': enabled});
+  }
+
+  @override
+  Future<void> setRoomHistoryVisibleOverride({
+    required String groupId,
+    required String roomId,
+    required bool? enabled,
+  }) async {
+    await _roomRef(groupId, roomId).update({'historyVisibleOverride': enabled});
   }
 
   @override

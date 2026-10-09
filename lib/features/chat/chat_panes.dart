@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:cloud_firestore/cloud_firestore.dart' show Timestamp;
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -32,6 +33,7 @@ import '../../utils/auto_dismiss_banner.dart';
 import '../../utils/group_permissions.dart';
 import '../../utils/platform_info.dart';
 import '../../widgets/destructive_label.dart';
+import '../../widgets/slide_drilldown.dart';
 import '../../widgets/gekiga/gekiga_icon_badge.dart';
 import '../../widgets/glass/glass_dialog.dart';
 import '../../widgets/glass/glass_icon_badge.dart';
@@ -63,6 +65,7 @@ enum _GroupMenuAction {
   deleteRoom,
   toggleMute,
   toggleReadReceipts,
+  toggleHistoryVisible,
   leave,
 }
 
@@ -206,11 +209,17 @@ class DmChatPane extends ConsumerStatefulWidget {
     this.onCallPressed,
     this.onVideoCallPressed,
     this.showRoomTabBar = false,
+    this.trackRoomHistory = false,
     super.key,
   });
 
   final AppUser currentUser;
   final DirectMessage dm;
+
+  /// 狭い画面のフルスクリーンのチャット（`/chat/dm`ルート）で、寄合の切り替えを
+  /// 履歴に記録し、戻るで直前の寄合へ戻れるようにするか（2026-10-10追加）。
+  /// 広い画面の埋め込みペインは語らいタブ側の履歴が記録するためfalse。
+  final bool trackRoomHistory;
 
   /// 現在表示中の寄合。呼び出し側（TalksTab分割表示、またはgo_routerの
   /// フルスクリーン遷移）が選択状態を管理し、渡す。
@@ -420,10 +429,26 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
 
   @override
   Widget build(BuildContext context) {
+    final body = _buildBody(context);
+    if (!widget.trackRoomHistory) return body;
+    // 狭い画面のフルスクリーンのチャットでは、寄合の切り替えを履歴に記録して
+    // 戻るで直前の寄合へ戻れるようにする（2026-10-10追加、層として登録し
+    // `GoRoute.onExit`の`closeTopLayer`が1つ戻す）。
+    return NavHistoryBackEntry<({String roomId, String roomName})>(
+      scope: BackScope.talks,
+      layer: true,
+      location: (roomId: _currentRoomId, roomName: _currentRoomName),
+      onRestore: (location) => _switchRoom(location.roomId, location.roomName),
+      child: body,
+    );
+  }
+
+  Widget _buildBody(BuildContext context) {
     if (_showingCalendar) {
       return BackEntry(
         key: const ValueKey('back-calendar'),
         scope: BackScope.talks,
+        layer: true,
         active: true,
         onBack: () => setState(() => _showingCalendar = false),
         child: CalendarPaneView(
@@ -436,27 +461,29 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
       );
     }
     final openNoteId = _openNoteId;
-    if (openNoteId != null) {
-      return BackEntry(
-        key: const ValueKey('back-note'),
-        scope: BackScope.talks,
-        active: true,
-        onBack: () => setState(() => _openNoteId = null),
-        child: NotePaneView(
-          isDm: true,
-          conversationId: widget.dm.dmId,
-          roomId: _currentRoomId,
-          noteId: openNoteId,
-          currentUser: widget.currentUser,
-          onClose: () => setState(() => _openNoteId = null),
-        ),
-      );
-    }
+    final noteDetail = openNoteId == null
+        ? null
+        : BackEntry(
+            key: const ValueKey('back-note'),
+            scope: BackScope.talks,
+            layer: true,
+            active: true,
+            onBack: () => setState(() => _openNoteId = null),
+            child: NotePaneView(
+              isDm: true,
+              conversationId: widget.dm.dmId,
+              roomId: _currentRoomId,
+              noteId: openNoteId,
+              currentUser: widget.currentUser,
+              onClose: () => setState(() => _openNoteId = null),
+            ),
+          );
     final openAlbum = _openAlbum;
     if (openAlbum != null) {
       return BackEntry(
         key: const ValueKey('back-album'),
         scope: BackScope.talks,
+        layer: true,
         active: true,
         onBack: () => setState(() => _openAlbum = null),
         child: AlbumPaneView(
@@ -472,7 +499,7 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
     // 通話中、PC/Webではこの会話を表示している間だけメッセージ一覧の
     // 代わりに通話UIを埋め込み表示する（2026-08-19追加、EmbeddedCallPane
     // 参照）。
-    return EmbeddedCallPane(
+    final chatBody = EmbeddedCallPane(
       conversation: ViewedDm(widget.dm.dmId),
       child: Builder(
         builder: (context) {
@@ -492,6 +519,15 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
           );
         },
       ),
+    );
+    // ノートはメッセージ画面を置き換えず、その上に右からスライドインで重ねる
+    // （2026-10-07、ユーザー指示）。右スワイプで戻る時に指追従で流れた後ろへ
+    // メッセージ画面が見えるようにするため。メッセージ画面は`SlideDrilldown`の
+    // masterとして常に同じ位置にマウントし続ける（ノートの開閉で作り直さない）。
+    return SlideDrilldown(
+      master: chatBody,
+      detail: noteDetail,
+      detailKey: openNoteId,
     );
   }
 
@@ -1055,6 +1091,26 @@ class _AlbumButtonState extends ConsumerState<_AlbumButton> {
   // ピン留めと同様のポップアップに置き換えた、ユーザー指示）。
   final _buttonKey = GlobalKey();
 
+  VoidCallback? _unregisterTrigger;
+
+  @override
+  void initState() {
+    super.initState();
+    // ドロップダウンを開いたまま、このボタンを押して直接切り替えられるように
+    // 登録する（2026-10-10追加、`HeaderMenuSwitcher`参照）。
+    _unregisterTrigger = registerHeaderMenuTrigger(
+      context,
+      _buttonKey,
+      _openAlbumPopup,
+    );
+  }
+
+  @override
+  void dispose() {
+    _unregisterTrigger?.call();
+    super.dispose();
+  }
+
   Future<void> _openAlbumPopup() async {
     final position = computeButtonAnchoredMenuPosition(
       context,
@@ -1066,6 +1122,7 @@ class _AlbumButtonState extends ConsumerState<_AlbumButton> {
     final selected = await showAlbumPopup(
       context,
       position: position,
+      anchorKey: _buttonKey,
       isDm: widget.isDm,
       conversationId: widget.conversationId,
       roomId: widget.roomId,
@@ -1130,6 +1187,27 @@ class _CalendarButton extends ConsumerStatefulWidget {
 
 class _CalendarButtonState extends ConsumerState<_CalendarButton> {
   final _linkCoordinator = GoogleCalendarLinkCoordinator();
+  final _buttonKey = GlobalKey();
+
+  VoidCallback? _unregisterTrigger;
+
+  @override
+  void initState() {
+    super.initState();
+    // ドロップダウンを開いたまま、このボタンを押して直接切り替えられるように
+    // 登録する（2026-10-10追加、`HeaderMenuSwitcher`参照）。
+    _unregisterTrigger = registerHeaderMenuTrigger(
+      context,
+      _buttonKey,
+      _openCalendarFullScreen,
+    );
+  }
+
+  @override
+  void dispose() {
+    _unregisterTrigger?.call();
+    super.dispose();
+  }
 
   /// [widget.currentUser]はログイン時に一度だけ取得されたスナップショットが
   /// props経由でここまで伝播しているだけで、Firestore書き込み後も自動的には
@@ -1260,6 +1338,7 @@ class _CalendarButtonState extends ConsumerState<_CalendarButton> {
     // `_googleCalendarSyncEnabled`経由のref.readから読む）。
     ref.watch(watchedUserProvider(widget.currentUser.userId));
     return IconButton(
+      key: _buttonKey,
       tooltip: '',
       icon: switch (uiStyle) {
         AppUiStyle.gekiga => const GekigaIconBadge(
@@ -1307,6 +1386,26 @@ class _PollButton extends ConsumerStatefulWidget {
 class _PollButtonState extends ConsumerState<_PollButton> {
   final _buttonKey = GlobalKey();
 
+  VoidCallback? _unregisterTrigger;
+
+  @override
+  void initState() {
+    super.initState();
+    // ドロップダウンを開いたまま、このボタンを押して直接切り替えられるように
+    // 登録する（2026-10-10追加、`HeaderMenuSwitcher`参照）。
+    _unregisterTrigger = registerHeaderMenuTrigger(
+      context,
+      _buttonKey,
+      _openPollPopup,
+    );
+  }
+
+  @override
+  void dispose() {
+    _unregisterTrigger?.call();
+    super.dispose();
+  }
+
   Future<void> _openPollPopup() async {
     final position = computeButtonAnchoredMenuPosition(
       context,
@@ -1318,6 +1417,7 @@ class _PollButtonState extends ConsumerState<_PollButton> {
     final selected = await showPollPopup(
       context,
       position: position,
+      anchorKey: _buttonKey,
       isDm: widget.isDm,
       conversationId: widget.conversationId,
       roomId: widget.roomId,
@@ -1391,6 +1491,26 @@ class _NoteButton extends ConsumerStatefulWidget {
 class _NoteButtonState extends ConsumerState<_NoteButton> {
   final _buttonKey = GlobalKey();
 
+  VoidCallback? _unregisterTrigger;
+
+  @override
+  void initState() {
+    super.initState();
+    // ドロップダウンを開いたまま、このボタンを押して直接切り替えられるように
+    // 登録する（2026-10-10追加、`HeaderMenuSwitcher`参照）。
+    _unregisterTrigger = registerHeaderMenuTrigger(
+      context,
+      _buttonKey,
+      _openNotePopup,
+    );
+  }
+
+  @override
+  void dispose() {
+    _unregisterTrigger?.call();
+    super.dispose();
+  }
+
   Future<void> _openNotePopup() async {
     final position = computeButtonAnchoredMenuPosition(
       context,
@@ -1402,6 +1522,7 @@ class _NoteButtonState extends ConsumerState<_NoteButton> {
     final selected = await showNotePopup(
       context,
       position: position,
+      anchorKey: _buttonKey,
       isDm: widget.isDm,
       conversationId: widget.conversationId,
       roomId: widget.roomId,
@@ -1613,6 +1734,26 @@ class _DmMenuButton extends ConsumerStatefulWidget {
 }
 
 class _DmMenuButtonState extends ConsumerState<_DmMenuButton> {
+  VoidCallback? _unregisterTrigger;
+
+  @override
+  void initState() {
+    super.initState();
+    // ドロップダウンを開いたまま、このボタンを押して直接切り替えられるように
+    // 登録する（2026-10-10追加、`HeaderMenuSwitcher`参照）。
+    _unregisterTrigger = registerHeaderMenuTrigger(
+      context,
+      widget.menuAnchorKey,
+      _openMenu,
+    );
+  }
+
+  @override
+  void dispose() {
+    _unregisterTrigger?.call();
+    super.dispose();
+  }
+
   Future<void> _openMenu() async {
     // 寄合機能オフ（単一モード）の間は、寄合の名前変更・削除など寄合関連の
     // 項目を出す意味が無いため、ハンバーガーメニュー自体を飛ばして一対の
@@ -1645,6 +1786,7 @@ class _DmMenuButtonState extends ConsumerState<_DmMenuButton> {
     final action = await showAnchoredMenu<_DmMenuAction>(
       context: context,
       position: position,
+      anchorKey: widget.menuAnchorKey,
       color: Colors.transparent,
       shadowColor: Colors.transparent,
       elevation: 0,
@@ -1802,11 +1944,15 @@ class GroupChatPane extends ConsumerStatefulWidget {
     required this.roomId,
     required this.roomName,
     this.showRoomTabBar = false,
+    this.trackRoomHistory = false,
     super.key,
   });
 
   final AppUser currentUser;
   final Group group;
+
+  /// [DmChatPane.trackRoomHistory]と同じ（2026-10-10追加）。
+  final bool trackRoomHistory;
 
   /// 現在表示中の寄合。呼び出し側（TalksTab分割表示、またはgo_routerの
   /// フルスクリーン遷移）が選択状態を管理し、渡す。
@@ -1844,10 +1990,22 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
   /// この寄合のメッセージ購読・読み込み済みリスト（`ChatRoomMessageCacheEntry`
   /// のdocコメント参照）。[initState]/[_switchRoom]でアタッチし、
   /// [dispose]/[_switchRoom]でデタッチする。
+  /// この寄合で自分が閲覧できるメッセージの最古時刻（新規加入者に加入前の
+  /// メッセージを見せない設定、`messageVisibleFrom`参照、2026-10-08追加）。
+  /// nullなら制限なし。寄合ごとの上書きは寄合一覧の購読（[_buildChatScreen]）が
+  /// 届いてから分かるため、最初は広場全体の設定だけで決め、届いた後に差があれば
+  /// [_syncVisibleFrom]で購読し直す。
+  late Timestamp? _visibleFrom = messageVisibleFrom(
+    group: widget.group,
+    room: null,
+    userId: widget.currentUser.userId,
+  );
+
   late ChatRoomCacheKey _cacheKey = ChatRoomCacheKey(
     isDm: false,
     conversationId: widget.group.groupId,
     roomId: _currentRoomId,
+    visibleFromMicros: _visibleFrom?.microsecondsSinceEpoch,
   );
   late ChatRoomMessageCacheEntry _cacheEntry;
 
@@ -1877,13 +2035,64 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
     _cacheEntry.ensureSubscribed(
       () => ref
           .read(groupRepositoryProvider)
-          .watchRoomMessages(widget.group.groupId, _currentRoomId),
+          .watchRoomMessages(
+            widget.group.groupId,
+            _currentRoomId,
+            visibleFrom: _visibleFrom,
+          ),
     );
     _scheduleGuaranteedMessagesEmit();
     // `_DmChatPaneState.initState`と同じ理由（2026-09-26追加）。
     ref
         .read(lastOpenedRoomProvider.notifier)
         .setLastRoom(ViewedGroup(widget.group.groupId), _currentRoomId);
+  }
+
+  /// 寄合一覧の購読から分かった寄合ごとの上書きを反映した閲覧開始時刻
+  /// （[messageVisibleFrom]）が[_visibleFrom]と異なっていたら、別のキャッシュ
+  /// エントリで購読し直す（2026-10-08追加）。`build`中に呼ばれるため、実際の
+  /// 切り替えは次フレームへ遅らせる。
+  void _syncVisibleFrom(Room? currentRoom) {
+    final next = messageVisibleFrom(
+      group: widget.group,
+      room: currentRoom,
+      userId: widget.currentUser.userId,
+    );
+    if (next?.microsecondsSinceEpoch == _visibleFrom?.microsecondsSinceEpoch) {
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final oldKey = _cacheKey;
+      final oldEntry = _cacheEntry;
+      final newKey = ChatRoomCacheKey(
+        isDm: false,
+        conversationId: widget.group.groupId,
+        roomId: _currentRoomId,
+        visibleFromMicros: next?.microsecondsSinceEpoch,
+      );
+      final newEntry = ref
+          .read(chatRoomMessageCacheManagerProvider)
+          .attach(newKey);
+      newEntry.addListener(_onCacheEntryChanged);
+      newEntry.ensureSubscribed(
+        () => ref
+            .read(groupRepositoryProvider)
+            .watchRoomMessages(
+              widget.group.groupId,
+              _currentRoomId,
+              visibleFrom: next,
+            ),
+      );
+      setState(() {
+        _visibleFrom = next;
+        _cacheKey = newKey;
+        _cacheEntry = newEntry;
+      });
+      oldEntry.removeListener(_onCacheEntryChanged);
+      ref.read(chatRoomMessageCacheManagerProvider).detach(oldKey, oldEntry);
+      _scheduleGuaranteedMessagesEmit();
+    });
   }
 
   void _onCacheEntryChanged() {
@@ -1907,10 +2116,18 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
     if (roomId == _currentRoomId) return;
     final oldKey = _cacheKey;
     final oldEntry = _cacheEntry;
+    // 切り替え先の寄合ごとの上書きは、その寄合の一覧が届くまで分からない
+    // ため、いったん広場全体の設定だけで決める（[_syncVisibleFrom]が補正）。
+    final nextVisibleFrom = messageVisibleFrom(
+      group: widget.group,
+      room: null,
+      userId: widget.currentUser.userId,
+    );
     final newKey = ChatRoomCacheKey(
       isDm: false,
       conversationId: widget.group.groupId,
       roomId: roomId,
+      visibleFromMicros: nextVisibleFrom?.microsecondsSinceEpoch,
     );
     final newEntry = ref
         .read(chatRoomMessageCacheManagerProvider)
@@ -1919,9 +2136,14 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
     newEntry.ensureSubscribed(
       () => ref
           .read(groupRepositoryProvider)
-          .watchRoomMessages(widget.group.groupId, roomId),
+          .watchRoomMessages(
+            widget.group.groupId,
+            roomId,
+            visibleFrom: nextVisibleFrom,
+          ),
     );
     setState(() {
+      _visibleFrom = nextVisibleFrom;
       _currentRoomId = roomId;
       _currentRoomName = roomName;
       _cacheKey = newKey;
@@ -1946,6 +2168,7 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
             groupId: widget.group.groupId,
             roomId: _currentRoomId,
             before: before,
+            visibleFrom: _visibleFrom,
           ),
     );
   }
@@ -2059,6 +2282,21 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
 
   @override
   Widget build(BuildContext context) {
+    final body = _buildBody(context);
+    if (!widget.trackRoomHistory) return body;
+    // 狭い画面のフルスクリーンのチャットでは、寄合の切り替えを履歴に記録して
+    // 戻るで直前の寄合へ戻れるようにする（2026-10-10追加、層として登録し
+    // `GoRoute.onExit`の`closeTopLayer`が1つ戻す）。
+    return NavHistoryBackEntry<({String roomId, String roomName})>(
+      scope: BackScope.talks,
+      layer: true,
+      location: (roomId: _currentRoomId, roomName: _currentRoomName),
+      onRestore: (location) => _switchRoom(location.roomId, location.roomName),
+      child: body,
+    );
+  }
+
+  Widget _buildBody(BuildContext context) {
     final group = widget.group;
     final currentUser = widget.currentUser;
     final roomId = _currentRoomId;
@@ -2067,6 +2305,7 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
       return BackEntry(
         key: const ValueKey('back-calendar'),
         scope: BackScope.talks,
+        layer: true,
         active: true,
         onBack: () => setState(() => _showingCalendar = false),
         child: CalendarPaneView(
@@ -2079,27 +2318,29 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
       );
     }
     final openNoteId = _openNoteId;
-    if (openNoteId != null) {
-      return BackEntry(
-        key: const ValueKey('back-note'),
-        scope: BackScope.talks,
-        active: true,
-        onBack: () => setState(() => _openNoteId = null),
-        child: NotePaneView(
-          isDm: false,
-          conversationId: group.groupId,
-          roomId: roomId,
-          noteId: openNoteId,
-          currentUser: currentUser,
-          onClose: () => setState(() => _openNoteId = null),
-        ),
-      );
-    }
+    final noteDetail = openNoteId == null
+        ? null
+        : BackEntry(
+            key: const ValueKey('back-note'),
+            scope: BackScope.talks,
+            layer: true,
+            active: true,
+            onBack: () => setState(() => _openNoteId = null),
+            child: NotePaneView(
+              isDm: false,
+              conversationId: group.groupId,
+              roomId: roomId,
+              noteId: openNoteId,
+              currentUser: currentUser,
+              onClose: () => setState(() => _openNoteId = null),
+            ),
+          );
     final openAlbum = _openAlbum;
     if (openAlbum != null) {
       return BackEntry(
         key: const ValueKey('back-album'),
         scope: BackScope.talks,
+        layer: true,
         active: true,
         onBack: () => setState(() => _openAlbum = null),
         child: AlbumPaneView(
@@ -2115,7 +2356,7 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
     // 通話中、PC/Webではこの会話を表示している間だけメッセージ一覧の
     // 代わりに通話UIを埋め込み表示する（2026-08-19追加、EmbeddedCallPane
     // 参照）。
-    return EmbeddedCallPane(
+    final chatBody = EmbeddedCallPane(
       conversation: ViewedGroup(group.groupId),
       child: Builder(
         builder: (context) {
@@ -2161,6 +2402,15 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
         },
       ),
     );
+    // ノートはメッセージ画面を置き換えず、その上に右からスライドインで重ねる
+    // （2026-10-07、ユーザー指示）。右スワイプで戻る時に指追従で流れた後ろへ
+    // メッセージ画面が見えるようにするため。メッセージ画面は`SlideDrilldown`の
+    // masterとして常に同じ位置にマウントし続ける（ノートの開閉で作り直さない）。
+    return SlideDrilldown(
+      master: chatBody,
+      detail: noteDetail,
+      detailKey: openNoteId,
+    );
   }
 
   Widget _buildChatScreen(
@@ -2175,6 +2425,9 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
     final currentUser = widget.currentUser;
     final roomId = _currentRoomId;
     final roomName = _currentRoomName;
+    // 寄合ごとの上書きが分かった時点で、閲覧開始時刻が変わっていれば購読し直す
+    // （2026-10-08追加）。
+    _syncVisibleFrom(currentRoom);
     final canManageRooms = hasGroupPermission(
       group: group,
       userId: currentUser.userId,
@@ -2383,6 +2636,7 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
             groupId: group.groupId,
             roomId: roomId,
             messageId: messageId,
+            visibleFrom: _visibleFrom,
           ),
       pinnedMessageIds: currentRoom?.pinnedMessageIds ?? const [],
       onFetchMessage: (messageId) => groupRepository.getRoomMessage(
@@ -2505,6 +2759,26 @@ class _GroupMenuButton extends ConsumerStatefulWidget {
 }
 
 class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
+  VoidCallback? _unregisterTrigger;
+
+  @override
+  void initState() {
+    super.initState();
+    // ドロップダウンを開いたまま、このボタンを押して直接切り替えられるように
+    // 登録する（2026-10-10追加、`HeaderMenuSwitcher`参照）。
+    _unregisterTrigger = registerHeaderMenuTrigger(
+      context,
+      widget.menuAnchorKey,
+      _openMenu,
+    );
+  }
+
+  @override
+  void dispose() {
+    _unregisterTrigger?.call();
+    super.dispose();
+  }
+
   Rect _buttonRect() {
     final box =
         widget.menuAnchorKey.currentContext!.findRenderObject()! as RenderBox;
@@ -2571,6 +2845,11 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
         false;
     final roomReadReceiptsEnabled =
         widget.currentRoom?.readReceiptsEnabledOverride ?? readReceiptsEnabled;
+    // 「加入前のメッセージを新規メンバーに見せる」の現在の有効値（この寄合独自の
+    // 設定がオンならその上書き、なければ広場全体の値、2026-10-08追加）。
+    final roomHistoryVisible =
+        widget.currentRoom?.historyVisibleOverride ??
+        widget.group.historyVisibleToNewMembers;
     final foreground = popupCardForeground(
       Theme.of(context).brightness,
       ref.read(appUiStyleProvider),
@@ -2722,6 +3001,17 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
                 roomId: widget.roomId,
                 enabled: !roomReadReceiptsEnabled,
               );
+        case _GroupMenuAction.toggleHistoryVisible:
+          // manageRooms権限を持つメンバーのみ（firestore.rulesで強制、メニュー
+          // 項目自体もそれ以外はenabled: false、2026-10-08追加）。
+          if (!canManageRooms) return;
+          ref
+              .read(groupRepositoryProvider)
+              .setRoomHistoryVisibleOverride(
+                groupId: widget.group.groupId,
+                roomId: widget.roomId,
+                enabled: !roomHistoryVisible,
+              );
         case _GroupMenuAction.leave:
           GroupLeaveDialog.show(
             context,
@@ -2748,6 +3038,7 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
     final action = await showAnchoredMenu<_GroupMenuAction>(
       context: context,
       position: position,
+      anchorKey: widget.menuAnchorKey,
       color: Colors.transparent,
       shadowColor: Colors.transparent,
       elevation: 0,
@@ -2826,6 +3117,14 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
                       foreground: foreground,
                       enabled: canManageReadReceipts,
                       value: _GroupMenuAction.toggleReadReceipts,
+                    ),
+                    _MenuTile(
+                      label: roomHistoryVisible
+                          ? strings.groupRoomHistoryVisibleHide
+                          : strings.groupRoomHistoryVisibleShow,
+                      foreground: foreground,
+                      enabled: canManageRooms,
+                      value: _GroupMenuAction.toggleHistoryVisible,
                     ),
                   ],
                   _MenuDivider(foreground: foreground),

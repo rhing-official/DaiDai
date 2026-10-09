@@ -423,6 +423,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   @override
   void initState() {
     super.initState();
+    // ドロップダウンを開いたまま、通話・動画通話・ピン留めのボタンを押して
+    // 直接切り替えられるように登録する（2026-10-10追加、他のヘッダーのボタン
+    // は`chat_panes.dart`の各ボタンが自分で登録する。ボタンが表示されて
+    // いない場合は`HeaderMenuSwitcher.triggerAt`が読み飛ばす）。
+    _menuSwitcher
+      ..register(_pinButtonKey, _openPinnedMessagesPopup)
+      ..register(_callButtonKey, () => widget.onCallPressed?.call())
+      ..register(_videoCallButtonKey, () => widget.onVideoCallPressed?.call());
     _textController.addListener(_onComposerTextChanged);
     if (_draftSyncActive) {
       _draftSub = ref.listenManual(
@@ -550,7 +558,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// 履歴読み込みの取りこぼしにはならない（閉じれば直ちに復帰する）。
   void _beginPopupGuard() {
     if (_popupGuardDepth == 0) {
-      _popupGuardSavedPosition = _currentItemPosition();
+      final pending = _popupGuardPendingRestore;
+      if (pending != null) {
+        // 別のドロップダウンへ切り替えた場合（直前のメニューを閉じた直後の
+        // 開始）。直前のメニューの保留中の復元は取り消し、元の保存位置を
+        // 引き継ぐ（切り替えの途中では復元ジャンプを走らせない、2026-10-10）。
+        _popupGuardSavedPosition = pending;
+        _popupGuardPendingRestore = null;
+        _scrollIntentToken++;
+      } else {
+        _popupGuardSavedPosition = _currentItemPosition();
+      }
       _itemPositionsListener.itemPositions.removeListener(
         _maybeLoadOlderMessages,
       );
@@ -570,10 +588,29 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final saved = _popupGuardSavedPosition;
     _popupGuardSavedPosition = null;
     if (saved == null) return;
+    _popupGuardPendingRestore = saved;
     final token = ++_scrollIntentToken;
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      // 意図的なジャンプ（[_jumpToMessage]）等で取り消された場合も、保留中の
+      // 位置は必ず手放す（古い位置を次のメニューが引き継がないように）。
+      if (identical(_popupGuardPendingRestore, saved)) {
+        _popupGuardPendingRestore = null;
+      }
       if (!mounted || token != _scrollIntentToken) return;
       if (!_itemScrollController.isAttached) return;
+      // 位置が変わっていなければ復元しない（2026-10-10）。最新のメッセージを
+      // 表示している時に、ずれていないのに復元ジャンプが一覧を動かしてしまう
+      // 不要なモーションを避ける。
+      final current = _currentItemPosition();
+      if (current != null &&
+          isSameItemPosition(
+            indexA: current.index,
+            leadingEdgeA: current.itemLeadingEdge,
+            indexB: saved.index,
+            leadingEdgeB: saved.itemLeadingEdge,
+          )) {
+        return;
+      }
       _itemScrollController.jumpTo(
         index: saved.index,
         alignment: saved.itemLeadingEdge,
@@ -688,6 +725,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// （[_endPopupGuard]参照）。
   int _popupGuardDepth = 0;
   ItemPosition? _popupGuardSavedPosition;
+
+  /// メニューを閉じた後、次フレームで復元判定を行うまでの間の保存位置
+  /// （2026-10-10追加）。この間に別のドロップダウンが開かれたら
+  /// （[_beginPopupGuard]）、この位置を引き継いで復元を取り消す。
+  ItemPosition? _popupGuardPendingRestore;
   int _scrollIntentToken = 0;
 
   /// 直近に確認できた表示位置のキャッシュ（2026-09-15追加）。
@@ -705,6 +747,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// AppBarのピンアイコン。タップ位置ではなくこのボタン自体の直下に
   /// ポップアップを開くための位置計算に使う（[_openPinnedMessagesPopup]参照）。
   final _pinButtonKey = GlobalKey();
+
+  /// ヘッダーのボタン同士の直接切り替え（[HeaderMenuSwitcher]）の登録先と、
+  /// 通話・動画通話ボタンのキー（2026-10-10追加）。
+  final _menuSwitcher = HeaderMenuSwitcher();
+  final _callButtonKey = GlobalKey();
+  final _videoCallButtonKey = GlobalKey();
 
   /// 自動スクロール開始位置（画面座標）を表示するアイコンの位置計算に使う。
   final _autoScrollAreaKey = GlobalKey();
@@ -994,6 +1042,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final action = await showAnchoredMenu<String>(
       context: context,
       position: position,
+      anchorKey: _pinButtonKey,
       color: Colors.transparent,
       shadowColor: Colors.transparent,
       elevation: 0,
@@ -2274,74 +2323,100 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 ),
               ]
             : [
-                // 通話・動画通話・ピン留めの3アイコンは、`chat_panes.dart`の
-                // アルバム・カレンダー・投票・ハンバーガーメニュー各ボタンと
-                // 同じ「`IconButton`が汎用のタップ領域を持ち、中身の
-                // アイコンだけをスタイル別に差し替える」構成に統一している
-                // （2026-09-06修正、以前は`GekigaIconButton`/`GlassIconButton`
-                // という別系統のタップ済みウィジェットを使っており、
-                // フラットの`IconButton`(48×48)に対しガラス(32×32)・
-                // 劇画(36×36)だけ実サイズが異なりアイコン間隔がばらついて
-                // 見えていた。バッジサイズを32に揃えたことで
-                // `IconButton`既定のpadding込みでどのスタイルも48×48に
-                // 収束する）。
-                if (widget.onCallPressed case final onCall?)
-                  IconButton(
-                    tooltip: '',
-                    icon: switch (uiStyle) {
-                      AppUiStyle.gekiga => const GekigaIconBadge(
-                        icon: Icons.call_outlined,
-                        size: 32,
-                        seed: gekigaToolbarIconSeed,
-                      ),
-                      AppUiStyle.glass => const GlassIconBadge(
-                        icon: Icons.call_outlined,
-                        size: 32,
-                        opaque: true,
-                      ),
-                      AppUiStyle.flat => const Icon(Icons.call_outlined),
-                    },
-                    onPressed: onCall,
-                  ),
-                if (widget.onVideoCallPressed case final onVideoCall?)
-                  if (cameraAvailability != CameraAvailability.unavailable)
-                    IconButton(
-                      tooltip: '',
-                      icon: switch (uiStyle) {
-                        AppUiStyle.gekiga => const GekigaIconBadge(
-                          icon: Icons.videocam_outlined,
-                          size: 32,
-                          seed: gekigaToolbarIconSeed,
-                        ),
-                        AppUiStyle.glass => const GlassIconBadge(
-                          icon: Icons.videocam_outlined,
-                          size: 32,
-                          opaque: true,
-                        ),
-                        AppUiStyle.flat => const Icon(Icons.videocam_outlined),
-                      },
-                      onPressed: onVideoCall,
+                // 幅が足りない時（3分割のメッセージ画面・スマホ縦持ち等、8個×48dp
+                // =384dpに満たない）は、列全体を縮小して全ボタンを収める
+                // （2026-10-07、以前はRowがあふれて右端のハンバーガーメニューが
+                // 見えなかった）。`Flexible`で有限幅を与えないと`FittedBox`が
+                // 縮小できない（AppBarのactionsはRowの非flex子として幅無制限で
+                // 渡されるため）。
+                Flexible(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerRight,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // 通話・動画通話・ピン留めの3アイコンは、`chat_panes.dart`の
+                        // アルバム・カレンダー・投票・ハンバーガーメニュー各ボタンと
+                        // 同じ「`IconButton`が汎用のタップ領域を持ち、中身の
+                        // アイコンだけをスタイル別に差し替える」構成に統一している
+                        // （2026-09-06修正、以前は`GekigaIconButton`/`GlassIconButton`
+                        // という別系統のタップ済みウィジェットを使っており、
+                        // フラットの`IconButton`(48×48)に対しガラス(32×32)・
+                        // 劇画(36×36)だけ実サイズが異なりアイコン間隔がばらついて
+                        // 見えていた。バッジサイズを32に揃えたことで
+                        // `IconButton`既定のpadding込みでどのスタイルも48×48に
+                        // 収束する）。
+                        if (widget.onCallPressed case final onCall?)
+                          IconButton(
+                            key: _callButtonKey,
+                            tooltip: '',
+                            icon: switch (uiStyle) {
+                              AppUiStyle.gekiga => const GekigaIconBadge(
+                                icon: Icons.call_outlined,
+                                size: 32,
+                                seed: gekigaToolbarIconSeed,
+                              ),
+                              AppUiStyle.glass => const GlassIconBadge(
+                                icon: Icons.call_outlined,
+                                size: 32,
+                                opaque: true,
+                              ),
+                              AppUiStyle.flat => const Icon(
+                                Icons.call_outlined,
+                              ),
+                            },
+                            onPressed: onCall,
+                          ),
+                        if (widget.onVideoCallPressed case final onVideoCall?)
+                          if (cameraAvailability !=
+                              CameraAvailability.unavailable)
+                            IconButton(
+                              key: _videoCallButtonKey,
+                              tooltip: '',
+                              icon: switch (uiStyle) {
+                                AppUiStyle.gekiga => const GekigaIconBadge(
+                                  icon: Icons.videocam_outlined,
+                                  size: 32,
+                                  seed: gekigaToolbarIconSeed,
+                                ),
+                                AppUiStyle.glass => const GlassIconBadge(
+                                  icon: Icons.videocam_outlined,
+                                  size: 32,
+                                  opaque: true,
+                                ),
+                                AppUiStyle.flat => const Icon(
+                                  Icons.videocam_outlined,
+                                ),
+                              },
+                              onPressed: onVideoCall,
+                            ),
+                        if (widget.onFetchMessage != null)
+                          IconButton(
+                            key: _pinButtonKey,
+                            tooltip: '',
+                            icon: switch (uiStyle) {
+                              AppUiStyle.gekiga => const GekigaIconBadge(
+                                icon: Icons.push_pin_outlined,
+                                size: 32,
+                                seed: gekigaToolbarIconSeed,
+                              ),
+                              AppUiStyle.glass => const GlassIconBadge(
+                                icon: Icons.push_pin_outlined,
+                                size: 32,
+                                opaque: true,
+                              ),
+                              AppUiStyle.flat => const Icon(
+                                Icons.push_pin_outlined,
+                              ),
+                            },
+                            onPressed: _openPinnedMessagesPopup,
+                          ),
+                        ...?widget.extraActions,
+                      ],
                     ),
-                if (widget.onFetchMessage != null)
-                  IconButton(
-                    key: _pinButtonKey,
-                    tooltip: '',
-                    icon: switch (uiStyle) {
-                      AppUiStyle.gekiga => const GekigaIconBadge(
-                        icon: Icons.push_pin_outlined,
-                        size: 32,
-                        seed: gekigaToolbarIconSeed,
-                      ),
-                      AppUiStyle.glass => const GlassIconBadge(
-                        icon: Icons.push_pin_outlined,
-                        size: 32,
-                        opaque: true,
-                      ),
-                      AppUiStyle.flat => const Icon(Icons.push_pin_outlined),
-                    },
-                    onPressed: _openPinnedMessagesPopup,
                   ),
-                ...?widget.extraActions,
+                ),
               ],
       );
     }
@@ -3088,6 +3163,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     return ChatScrollGuardScope(
       beginPopup: _beginPopupGuard,
       endPopup: _endPopupGuard,
+      menuSwitcher: _menuSwitcher,
       child: CallbackShortcuts(
         bindings: {
           const SingleActivator(LogicalKeyboardKey.escape): _handleEscapeKey,
@@ -6409,6 +6485,18 @@ class _MessageInteractionsState extends State<_MessageInteractions> {
 
   double get _dragExtent => _rawDx.clamp(_minDrag, 0.0);
 
+  /// このドラッグで中継を開始した[InteractiveSwipeBackController]。終了・
+  /// キャンセル・破棄のどれでも必ず手放す（開始だけで終了されないと、中継先が
+  /// Navigatorへ通知する設定の場合に全画面がタッチ不能になる、2026-10-07）。
+  InteractiveSwipeBackController? _relaying;
+
+  @override
+  void dispose() {
+    _relaying?.cancelExternalDrag();
+    _relaying = null;
+    super.dispose();
+  }
+
   void _onDragStart(DragStartDetails details) {
     _rawDx = InteractiveSwipeBackScope.maybeOf(context)?.progress.value ?? 0;
   }
@@ -6425,6 +6513,7 @@ class _MessageInteractionsState extends State<_MessageInteractions> {
       // ドラッグをここから直接[InteractiveSwipeBackScope]へ中継する
       // （2026-08-06追加、2026-09-07にリアルタイム追従へ変更、2026-09-14に
       // 自分のメッセージ（右寄せ表示）だけ除外していた仕様を撤廃）。
+      _relaying = swipeBack;
       swipeBack.syncFromExternalDrag(
         context,
         _rawDx.clamp(0.0, double.infinity),
@@ -6432,18 +6521,30 @@ class _MessageInteractionsState extends State<_MessageInteractions> {
     }
   }
 
+  void _onDragCancel() {
+    setState(() => _rawDx = 0);
+    _relaying?.cancelExternalDrag();
+    _relaying = null;
+  }
+
   void _onDragEnd(DragEndDetails details) {
     final reachedEdit = widget.canEdit && _dragExtent <= _editThreshold;
     final reachedReply = !reachedEdit && _dragExtent <= _replyThreshold;
     setState(() => _rawDx = 0);
-    if (reachedEdit) {
-      widget.onEdit?.call();
-    } else if (reachedReply) {
-      widget.onReply();
+    final relaying = _relaying;
+    _relaying = null;
+    if (reachedEdit || reachedReply) {
+      // 右へ引いてから左へ戻して返信/編集に達した場合も、開始済みの中継は
+      // 必ず終了させる（以前はここで終了を呼ばず、Navigatorへの通知が残って
+      // アプリ全体がタッチ不能になっていた、2026-10-07）。
+      relaying?.cancelExternalDrag();
+      if (reachedEdit) {
+        widget.onEdit?.call();
+      } else {
+        widget.onReply();
+      }
     } else {
-      InteractiveSwipeBackScope.maybeOf(
-        context,
-      )?.endExternalDrag(context, details.primaryVelocity);
+      relaying?.endExternalDrag(context, details.primaryVelocity);
     }
   }
 
@@ -6458,6 +6559,7 @@ class _MessageInteractionsState extends State<_MessageInteractions> {
       onHorizontalDragStart: _onDragStart,
       onHorizontalDragUpdate: _onDragUpdate,
       onHorizontalDragEnd: _onDragEnd,
+      onHorizontalDragCancel: _onDragCancel,
       child: Stack(
         children: [
           if (_dragExtent < 0)

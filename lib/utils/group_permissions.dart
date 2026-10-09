@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 
@@ -28,6 +29,33 @@ bool effectiveReadReceiptsEnabled({required Group group, Room? room}) {
     return room?.readReceiptsEnabledOverride ?? group.readReceiptsEnabled;
   }
   return group.readReceiptsEnabled;
+}
+
+/// この寄合で「加入前のメッセージを新規メンバーに見せる」かを解決する
+/// （2026-10-08追加）。[room]の`customSettingsEnabled`がtrueかつ
+/// `historyVisibleOverride`が設定されていればそちらを、それ以外は[group]全体の
+/// `historyVisibleToNewMembers`を使う。firestore.rulesの`historyVisible`と
+/// 同じ判定にしておくこと。
+bool effectiveHistoryVisible({required Group group, Room? room}) {
+  if (room?.customSettingsEnabled ?? false) {
+    return room?.historyVisibleOverride ?? group.historyVisibleToNewMembers;
+  }
+  return group.historyVisibleToNewMembers;
+}
+
+/// [userId]がこの寄合で閲覧できるメッセージの最古時刻（`sentAt >= この値`）。
+/// nullなら制限なし（加入時刻の記録が無い既存メンバー・長、または履歴を見せる
+/// 設定）。メッセージ取得クエリへそのまま`where`として渡す（firestore.rulesの
+/// `list`は、クエリ自体が条件を満たす絞り込みを持たないと拒否されるため）。
+Timestamp? messageVisibleFrom({
+  required Group group,
+  required Room? room,
+  required String userId,
+}) {
+  final joinedAt = group.memberJoinedAt[userId];
+  if (joinedAt == null) return null;
+  if (effectiveHistoryVisible(group: group, room: room)) return null;
+  return joinedAt;
 }
 
 /// 送信者[userId]の呼び名に適用するフォントカラーを解決する。

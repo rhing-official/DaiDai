@@ -423,6 +423,10 @@ class Strings {
     required this.groupSettingsDefaultMuteHint,
     required this.groupSettingsDefaultReadReceiptsLabel,
     required this.groupSettingsDefaultReadReceiptsHint,
+    required this.groupSettingsHistoryVisibleLabel,
+    required this.groupSettingsHistoryVisibleHint,
+    required this.groupRoomHistoryVisibleShow,
+    required this.groupRoomHistoryVisibleHide,
     required this.groupRoomCustomSettingsLabel,
     required this.groupRoomCustomSettingsHint,
     required this.dmMenuOpenSettings,
@@ -1229,6 +1233,15 @@ class Strings {
   /// 広場全体設定ポップアップの、既読機能オン/オフのデフォルト値トグル。
   final String groupSettingsDefaultReadReceiptsLabel;
   final String groupSettingsDefaultReadReceiptsHint;
+
+  /// 新しく加入した人に、加入前のメッセージを見せるかの設定（2026-10-08追加）。
+  final String groupSettingsHistoryVisibleLabel;
+  final String groupSettingsHistoryVisibleHint;
+
+  /// 寄合のメニュー項目（「この寄合独自の設定」がオンの間だけ表示）。現在の
+  /// 有効値と反対の操作を文言にする。
+  final String groupRoomHistoryVisibleShow;
+  final String groupRoomHistoryVisibleHide;
 
   /// 寄合ハンバーガーメニュー最下部の「この寄合独自の設定」トグル。ONの間、
   /// 通知・既読・ロールの優先順位を広場全体の設定より優先してこの寄合だけ
@@ -2111,9 +2124,14 @@ class Strings {
     groupSettingsDefaultMuteHint: '寄合ごとに「この寄合独自の設定」をオンにすると個別に上書きできます',
     groupSettingsDefaultReadReceiptsLabel: '既読機能',
     groupSettingsDefaultReadReceiptsHint: '寄合ごとに「この寄合独自の設定」をオンにすると個別に上書きできます',
+    groupSettingsHistoryVisibleLabel: '加入前のメッセージを新規メンバーに見せる',
+    groupSettingsHistoryVisibleHint:
+        'オフの間、新しく加入した人は加入後のメッセージだけが見えます（添付ファイルを含む。アルバム・ノート・カレンダー・投票は対象外）。寄合ごとに「この寄合独自の設定」をオンにすると個別に上書きできます',
+    groupRoomHistoryVisibleShow: '加入前のメッセージを新規メンバーに見せる',
+    groupRoomHistoryVisibleHide: '加入前のメッセージを新規メンバーに見せない',
     groupRoomCustomSettingsLabel: 'この寄合独自の設定',
     groupRoomCustomSettingsHint:
-        'オンにすると、通知・既読・ロールの優先順位を広場全体の設定より優先してこの寄合だけ個別に設定できます',
+        'オンにすると、通知・既読・ロールの優先順位・加入前メッセージの公開を広場全体の設定より優先してこの寄合だけ個別に設定できます',
     dmMenuOpenSettings: '一対の設定',
     dmSettingsTooltip: '一対の設定',
     roomModeToggleLockedHint: '寄合が複数あるため、1つにまとめてからオフにできます',
@@ -2913,9 +2931,14 @@ class Strings {
     groupSettingsDefaultReadReceiptsLabel: 'Read receipts',
     groupSettingsDefaultReadReceiptsHint:
         'Rooms can override this individually with "This room\'s own settings"',
+    groupSettingsHistoryVisibleLabel: 'Show earlier messages to new members',
+    groupSettingsHistoryVisibleHint:
+        'While off, people who newly join only see messages sent after they joined (attachments included; albums, notes, calendar and polls are not affected). Rooms can override this individually with "This room\'s own settings"',
+    groupRoomHistoryVisibleShow: 'Show earlier messages to new members',
+    groupRoomHistoryVisibleHide: 'Hide earlier messages from new members',
     groupRoomCustomSettingsLabel: "This room's own settings",
     groupRoomCustomSettingsHint:
-        'When on, this room\'s notification, read receipts, and role priority settings take priority over the plaza defaults',
+        'When on, this room\'s notification, read receipts, role priority and earlier-message visibility settings take priority over the plaza defaults',
     dmMenuOpenSettings: 'DM settings',
     dmSettingsTooltip: 'Direct message settings',
     roomModeToggleLockedHint:

@@ -19,6 +19,42 @@ service cloud.firestore {
         || permission in group.memberPermissions[request.auth.uid];
     }
 
+    // 広場の寄合メッセージを、request.auth.uidが閲覧してよいか（2026-10-08追加）。
+    // 寄合のメンバーであり、かつ次のいずれか: ①加入時刻の記録が無い（この機能
+    // 追加前のメンバー・長。制限なし）②「加入前のメッセージを新規メンバーに
+    // 見せる」設定が有効（寄合の上書き（customSettingsEnabledかつ
+    // historyVisibleOverrideが設定済み）があればそれ、無ければ広場の
+    // historyVisibleToNewMembers。既定false）③メッセージが加入後のもの。
+    // Dart側の`effectiveHistoryVisible`/`messageVisibleFrom`
+    // （lib/utils/group_permissions.dart）と同じ判定にしておくこと。
+    // `list`はクエリ自体が`sentAt >= 加入時刻`の絞り込みを持たないと拒否される
+    // ため、クライアントの取得系は全て同じ絞り込みを付ける。
+    function canReadRoomMessage(groupId, roomId, sentAt) {
+      let group = get(/databases/$(database)/documents/groups/$(groupId)).data;
+      let room = get(/databases/$(database)/documents/groups/$(groupId)/rooms/$(roomId)).data;
+      let joinedAt = group.get('memberJoinedAt', {}).get(request.auth.uid, null);
+      let hasOverride = room.get('customSettingsEnabled', false)
+        && room.get('historyVisibleOverride', null) != null;
+      let visible = hasOverride
+        ? room.get('historyVisibleOverride', false)
+        : group.get('historyVisibleToNewMembers', false);
+      return request.auth.uid in room.memberIds
+        && (joinedAt == null || visible || sentAt >= joinedAt);
+    }
+
+    // 参加承認でgroupsにmemberJoinedAtを書き込む変更が正しいか（2026-10-08追加）。
+    // 新しく加わったメンバー1人分だけを、サーバー時刻（request.time）で追加する
+    // こと。既存メンバーの加入時刻は変更・削除できない（過去へ改ざんして履歴を
+    // 見られるようにするのを防ぐ）。
+    function joinedAtAddedForNewMember(oldGroup, newGroup) {
+      let added = newGroup.memberIds.removeAll(oldGroup.memberIds);
+      let newJoined = newGroup.get('memberJoinedAt', {});
+      let oldJoined = oldGroup.get('memberJoinedAt', {});
+      return added.size() == 1
+        && newJoined.diff(oldJoined).affectedKeys().hasOnly([added[0]])
+        && newJoined[added[0]] == request.time;
+    }
+
     // 管理者クレーム（`grantFirstAdminOnce`が付与するCustom Claims）を
     // 持つかどうか（2026-08-12追加、管理画面の便り身だしなみ編集用）。
     function isAdmin() {
@@ -833,16 +869,20 @@ service cloud.firestore {
           || (
             (request.auth.uid == resource.data.ownerId
               || 'manageJoinRequests' in resource.data.memberPermissions[request.auth.uid])
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberIds', 'memberRoles'])
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberIds', 'memberRoles', 'memberJoinedAt'])
             && request.resource.data.memberIds.hasAll(resource.data.memberIds)
+            && joinedAtAddedForNewMember(resource.data, request.resource.data)
           )
           // 自分自身の退会（memberIds/memberRolesに加え、自分のロール付与・
           // 実効権限キャッシュも同じ書き込みでクリアする、2026-07-28更新）。
           || (
             request.auth.uid != resource.data.ownerId
             && request.resource.data.diff(resource.data).affectedKeys()
-                 .hasOnly(['memberIds', 'memberRoles', 'roleAssignments', 'memberPermissions'])
+                 .hasOnly(['memberIds', 'memberRoles', 'roleAssignments', 'memberPermissions', 'memberJoinedAt'])
             && request.resource.data.memberIds == resource.data.memberIds.removeAll([request.auth.uid])
+            // 加入時刻は自分の分を削除することしかできない（2026-10-08追加）。
+            && request.resource.data.get('memberJoinedAt', {}).diff(resource.data.get('memberJoinedAt', {})).affectedKeys().hasOnly([request.auth.uid])
+            && request.resource.data.get('memberJoinedAt', {}).get(request.auth.uid, null) == null
           )
           // 既読機能のオン/オフ（長、またはmanageReadReceipts権限を持つ
           // ロールの付与者のみ変更可、2026-07-28更新）。
@@ -891,6 +931,13 @@ service cloud.firestore {
             (request.auth.uid == resource.data.ownerId
               || 'manageRooms' in resource.data.memberPermissions[request.auth.uid])
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['roomsEnabled'])
+          )
+          // 新規加入者に加入前のメッセージを見せるかの広場全体の既定値
+          // （長、またはmanageRooms権限を持つロールの付与者のみ、2026-10-08追加）。
+          || (
+            (request.auth.uid == resource.data.ownerId
+              || 'manageRooms' in resource.data.memberPermissions[request.auth.uid])
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['historyVisibleToNewMembers'])
           )
           // 寄合一覧（サイドバー）の並べ替え（長、またはmanageRooms権限を
           // 持つロールの付与者のみ、2026-09-08追加）。
@@ -1013,8 +1060,10 @@ service cloud.firestore {
           && hasGroupPermission(groupId, 'manageRooms');
 
         match /messages/{messageId} {
+          // 加入前のメッセージを新規メンバーに見せない設定を反映する
+          // （`canReadRoomMessage`参照、2026-10-08変更）。
           allow read: if request.auth != null
-            && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)/rooms/$(roomId)).data.memberIds;
+            && canReadRoomMessage(groupId, roomId, resource.data.sentAt);
           allow create: if request.auth != null
             && request.auth.uid == request.resource.data.senderId
             && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)/rooms/$(roomId)).data.memberIds;

@@ -88,9 +88,18 @@ class BackStackController extends ChangeNotifier {
   /// ローカル状態を開いた時に呼ぶ。戻る要求で[onBack]が呼ばれる。[onForward]
   /// を渡すと、そのエントリを戻った後の「進む」でやり直せる。[scope]がnullなら
   /// どのタブからでも戻れる共通エントリ。
-  int add(VoidCallback onBack, {BackScope? scope, VoidCallback? onForward}) {
+  ///
+  /// [layer]がtrueのエントリは、カレンダー・ノート・アルバム・通話のように
+  /// メッセージ画面の上に重なる「層」（[closeTopLayer]が閉じる対象）。語らいの
+  /// 会話・寄合の履歴のような、層ではない履歴エントリと区別する。
+  int add(
+    VoidCallback onBack, {
+    BackScope? scope,
+    VoidCallback? onForward,
+    bool layer = false,
+  }) {
     final id = _nextId++;
-    _stack.add(_Entry(id, scope, onBack, onForward));
+    _stack.add(_Entry(id, scope, onBack, onForward, layer));
     _log('add id=$id scope=${scope?.name} depth=${_stack.length}');
     return id;
   }
@@ -147,6 +156,31 @@ class BackStackController extends ChangeNotifier {
     return true;
   }
 
+  /// 狭い画面のフルスクリーンのメッセージ画面（`/chat/*`）から戻る前に、上に
+  /// 重なっている層を1つだけ閉じる（2026-10-07追加）。①ダイアログ・ポップアップ・
+  /// 全画面ビューア（[closeTopOverlay]）、②無ければ、現在のタブで最後に登録
+  /// されたエントリが層（カレンダー・ノート・アルバム・通話の[BackEntry.layer]）
+  /// ならそれ。最後のエントリが語らいの会話・寄合の履歴（層ではない）の場合は
+  /// 触らない（フルスクリーンのチャットを表示中に背後の一覧の選択だけが戻って
+  /// しまうのを避ける）。閉じたらtrue＝ルートの遷移（一覧へ戻る）を中止する。
+  bool closeTopLayer() {
+    if (closeTopOverlay()) return true;
+    for (var i = _stack.length - 1; i >= 0; i--) {
+      final entry = _stack[i];
+      if (entry.scope != null && entry.scope != activeScope) continue;
+      if (!entry.layer) {
+        _log('closeTopLayer: top entry id=${entry.id} is not a layer');
+        return false;
+      }
+      _stack.removeAt(i);
+      _log('closeTopLayer: id=${entry.id} depth=${_stack.length}');
+      entry.onBack();
+      return true;
+    }
+    _log('closeTopLayer: nothing open (overlays=${_dialogs.length})');
+    return false;
+  }
+
   /// 戻る要求。何かを戻した（閉じた）ならtrue。
   bool requestBack() {
     if (closeTopOverlay()) return true;
@@ -191,8 +225,9 @@ class BackStackController extends ChangeNotifier {
 }
 
 class _Entry {
-  _Entry(this.id, this.scope, this.onBack, this.onForward);
+  _Entry(this.id, this.scope, this.onBack, this.onForward, this.layer);
 
+  final bool layer;
   final int id;
   final BackScope? scope;
   final VoidCallback onBack;
@@ -347,9 +382,13 @@ class BackEntry extends ConsumerStatefulWidget {
     required this.child,
     this.scope,
     this.onForward,
+    this.layer = false,
     super.key,
   });
 
+  /// メッセージ画面の上に重なる層（カレンダー・ノート・アルバム・通話）か。
+  /// `BackStackController.closeTopLayer`が閉じる対象になる。
+  final bool layer;
   final bool active;
   final VoidCallback onBack;
   final VoidCallback? onForward;
@@ -393,6 +432,7 @@ class _BackEntryState extends ConsumerState<BackEntry> {
             onForward: widget.onForward == null
                 ? null
                 : () => widget.onForward!(),
+            layer: widget.layer,
           );
         }
       });
@@ -432,6 +472,7 @@ class NavHistoryBackEntry<T> extends ConsumerStatefulWidget {
     required this.location,
     required this.onRestore,
     required this.child,
+    this.layer = false,
     super.key,
   });
 
@@ -439,6 +480,11 @@ class NavHistoryBackEntry<T> extends ConsumerStatefulWidget {
   final T? location;
   final void Function(T location) onRestore;
   final Widget child;
+
+  /// trueなら、この履歴をメッセージ画面の上に重なる「層」として登録する
+  /// （`BackStackController.closeTopLayer`が1つ戻す対象になる、2026-10-10追加）。
+  /// 狭い画面のフルスクリーンのチャット（`/chat/*`）内の寄合の切り替え履歴用。
+  final bool layer;
 
   @override
   ConsumerState<NavHistoryBackEntry<T>> createState() =>
@@ -483,6 +529,7 @@ class _NavHistoryBackEntryState<T>
         },
         scope: widget.scope,
         onForward: () => _go(_history.forward()),
+        layer: widget.layer,
       );
     } else if (!_history.canBack && _entryId != null) {
       _controller.remove(_entryId!);

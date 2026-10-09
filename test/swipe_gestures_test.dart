@@ -71,6 +71,7 @@ class _ProbeState extends State<_Probe> {
 }
 
 void main() {
+  _horizontalDragAbsorberTests();
   _swipeBackDetectorEnabledTests();
   _swipeBackDetectorKeepsChildStateTests();
   testWidgets('縦スクロールが必要な一対リストの上で、わずかに斜めの左スワイプをすると広場へ切り替わらない', (tester) async {
@@ -183,5 +184,64 @@ void _swipeBackDetectorKeepsChildStateTests() {
     await tester.pump();
 
     expect(_StatefulChildState.created, 1);
+  });
+}
+
+void _horizontalDragAbsorberTests() {
+  Widget app({required bool absorb, required VoidCallback onOuter}) {
+    final inner = Container(color: Colors.white, width: 300, height: 300);
+    return MaterialApp(
+      home: Scaffold(
+        body: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onHorizontalDragEnd: (_) => onOuter(),
+          child: absorb ? HorizontalDragAbsorber(child: inner) : inner,
+        ),
+      ),
+    );
+  }
+
+  testWidgets('HorizontalDragAbsorber: 子孫が水平ドラッグを吸収し、外側の水平スワイプは動かない', (
+    tester,
+  ) async {
+    var outer = 0;
+    await tester.pumpWidget(app(absorb: true, onOuter: () => outer++));
+    await tester.fling(
+      find.byType(Container).first,
+      const Offset(250, 0),
+      1500,
+    );
+    await tester.pumpAndSettle();
+    expect(outer, 0);
+  });
+
+  testWidgets('対照: 吸収しないと外側の水平スワイプが動く', (tester) async {
+    var outer = 0;
+    await tester.pumpWidget(app(absorb: false, onOuter: () => outer++));
+    await tester.fling(
+      find.byType(Container).first,
+      const Offset(250, 0),
+      1500,
+    );
+    await tester.pumpAndSettle();
+    expect(outer, 1);
+  });
+
+  testWidgets('SwipeDownToDismiss(enabled: false)では下スワイプしても閉じない', (
+    tester,
+  ) async {
+    var dismissed = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SwipeDownToDismiss(
+          enabled: false,
+          onDismiss: () => dismissed++,
+          child: const SizedBox.expand(),
+        ),
+      ),
+    );
+    await tester.fling(find.byType(SizedBox).first, const Offset(0, 300), 1500);
+    await tester.pumpAndSettle();
+    expect(dismissed, 0);
   });
 }
