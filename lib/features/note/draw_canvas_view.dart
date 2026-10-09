@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/strings.dart';
@@ -12,6 +14,26 @@ import '../../utils/color_hex.dart';
 import '../../utils/note_export.dart';
 
 enum _DrawTool { pen, eraser, pan }
+
+/// ズーム倍率の範囲（25%〜500%、2026-10-10追加）。
+const kDrawMinZoom = 0.25;
+const kDrawMaxZoom = 5.0;
+
+/// ツールバーの＋／−ボタン1回あたりの倍率。
+const kDrawZoomStep = 1.25;
+
+double clampDrawZoom(double zoom) =>
+    zoom.clamp(kDrawMinZoom, kDrawMaxZoom).toDouble();
+
+/// 焦点（ビューポート内の座標）[focal]が動かないように、倍率を[oldZoom]から
+/// [newZoom]へ変えた時のスクロール量を返す。コンテンツ上の同じ点が焦点の下に
+/// 残るようにする（ピンチ・Ctrl＋ホイールのズーム用）。
+double zoomedScrollOffset({
+  required double offset,
+  required double focal,
+  required double oldZoom,
+  required double newZoom,
+}) => (offset + focal) * newZoom / oldZoom - focal;
 
 /// ドローノートのキャンバスとツールバー（2026-10-04追加）。
 ///
@@ -66,6 +88,26 @@ class _DrawCanvasViewState extends ConsumerState<DrawCanvasView> {
   List<NoteStroke> _strokes = const [];
   final _scrollController = ScrollController();
 
+  /// 拡大で幅が画面幅を超えた時の横スクロール。`NeverScrollableScrollPhysics`で、
+  /// 「移動」ツールのドラッグ・トラックパッドの横スクロール・ピンチの焦点補正だけが
+  /// `jumpTo`で動かす（2026-10-10追加）。
+  final _hController = ScrollController();
+
+  /// ズーム倍率（1.0＝画面幅フィット、2026-10-10追加、保存・同期しない）。
+  double _zoom = 1.0;
+
+  /// ビューポート（スクロール領域）のキーと大きさ。ピンチ・Ctrl＋ホイールの
+  /// 焦点（グローバル座標）をビューポート内の座標へ変換するのに使う。
+  final _viewportKey = GlobalKey();
+  Size _viewportSize = Size.zero;
+
+  /// 押されているポインタ（グローバル座標）。2本になったらピンチを始める。
+  final _pointers = <int, Offset>{};
+  bool _pinching = false;
+  double _pinchStartDistance = 1;
+  double _pinchStartZoom = 1;
+  double _panZoomStartZoom = 1;
+
   _DrawTool _tool = _DrawTool.pen;
   int _color = 0xFF000000;
   double _width = 5;
@@ -105,6 +147,7 @@ class _DrawCanvasViewState extends ConsumerState<DrawCanvasView> {
   void dispose() {
     _sub?.cancel();
     _scrollController.dispose();
+    _hController.dispose();
     _currentPoints.dispose();
     super.dispose();
   }
@@ -126,7 +169,135 @@ class _DrawCanvasViewState extends ConsumerState<DrawCanvasView> {
 
   Offset _toLogical(Offset local, double scale) => local / scale;
 
+  /// グローバル座標をビューポート内の座標へ変換する。
+  Offset _toViewport(Offset global) {
+    final box = _viewportKey.currentContext?.findRenderObject();
+    return box is RenderBox ? box.globalToLocal(global) : global;
+  }
+
+  void _jumpClamped(ScrollController controller, double target) {
+    if (!controller.hasClients) return;
+    final position = controller.position;
+    controller.jumpTo(
+      target.clamp(position.minScrollExtent, position.maxScrollExtent),
+    );
+  }
+
+  /// 倍率を[target]へ変える。ビューポート内の座標[focal]の下のコンテンツが
+  /// 動かないよう、レイアウト更新後のフレームでスクロール量を補正する。
+  void _applyZoom(double target, Offset focal) {
+    final newZoom = clampDrawZoom(target);
+    final oldZoom = _zoom;
+    if ((newZoom - oldZoom).abs() < 0.0001) return;
+    final h = _hController.hasClients ? _hController.offset : 0.0;
+    final v = _scrollController.hasClients ? _scrollController.offset : 0.0;
+    final newH = zoomedScrollOffset(
+      offset: h,
+      focal: focal.dx,
+      oldZoom: oldZoom,
+      newZoom: newZoom,
+    );
+    final newV = zoomedScrollOffset(
+      offset: v,
+      focal: focal.dy,
+      oldZoom: oldZoom,
+      newZoom: newZoom,
+    );
+    setState(() => _zoom = newZoom);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _jumpClamped(_hController, newH);
+      _jumpClamped(_scrollController, newV);
+    });
+  }
+
+  /// ツールバーの＋／−（ビューポートの中心を焦点にする）。
+  void _zoomByStep(double factor) => _applyZoom(
+    _zoom * factor,
+    Offset(_viewportSize.width / 2, _viewportSize.height / 2),
+  );
+
+  void _startPinch() {
+    // 描画中の線は破棄する（ピンチの1本目の動きを線として残さない）。
+    _currentPoints.value = const [];
+    _drawingPointer = null;
+    final points = _pointers.values.take(2).toList();
+    _pinchStartDistance = math.max((points[0] - points[1]).distance, 1);
+    _pinchStartZoom = _zoom;
+    setState(() => _pinching = true);
+  }
+
+  void _updatePinch() {
+    final points = _pointers.values.take(2).toList();
+    if (points.length < 2) return;
+    final distance = (points[0] - points[1]).distance;
+    _applyZoom(
+      _pinchStartZoom * distance / _pinchStartDistance,
+      _toViewport((points[0] + points[1]) / 2),
+    );
+  }
+
+  /// ビューポート全体で受ける、ピンチ・「移動」ツールの横ドラッグ用のポインタ
+  /// 追跡（ペン/消しゴムの描画は内側の`Listener`が受ける）。
+  void _onViewportPointerDown(PointerDownEvent event) {
+    _pointers[event.pointer] = event.position;
+    if (_pointers.length == 2) _startPinch();
+  }
+
+  void _onViewportPointerMove(PointerMoveEvent event) {
+    if (!_pointers.containsKey(event.pointer)) return;
+    _pointers[event.pointer] = event.position;
+    if (_pinching) {
+      _updatePinch();
+    } else if (_tool == _DrawTool.pan && _pointers.length == 1) {
+      // 横方向は自前で動かす（縦は`SingleChildScrollView`の慣性付きスクロール）。
+      if (_hController.hasClients) {
+        _jumpClamped(_hController, _hController.offset - event.delta.dx);
+      }
+    }
+  }
+
+  void _onViewportPointerEnd(PointerEvent event) {
+    _pointers.remove(event.pointer);
+    // 全ての指が離れるまでは描画を再開しない。
+    if (_pointers.isEmpty && _pinching) setState(() => _pinching = false);
+  }
+
+  void _onViewportSignal(PointerSignalEvent signal) {
+    final focal = _toViewport(signal.position);
+    if (signal is PointerScaleEvent) {
+      // Webでは、トラックパッドのピンチ・Ctrl＋ホイールがこの形で届く。
+      _applyZoom(_zoom * signal.scale, focal);
+    } else if (signal is PointerScrollEvent) {
+      final keyboard = HardwareKeyboard.instance;
+      if (keyboard.isControlPressed || keyboard.isMetaPressed) {
+        _applyZoom(_zoom * math.exp(-signal.scrollDelta.dy / 200), focal);
+        return;
+      }
+      // マウスホイールはペン/消しゴム中でもスクロールできるようにする。
+      if (_scrollController.hasClients) {
+        _jumpClamped(
+          _scrollController,
+          _scrollController.offset + signal.scrollDelta.dy,
+        );
+      }
+      if (signal.scrollDelta.dx != 0 && _hController.hasClients) {
+        _jumpClamped(_hController, _hController.offset + signal.scrollDelta.dx);
+      }
+    }
+  }
+
+  void _onPanZoomStart(PointerPanZoomStartEvent event) {
+    _panZoomStartZoom = _zoom;
+  }
+
+  void _onPanZoomUpdate(PointerPanZoomUpdateEvent event) {
+    // ネイティブ（デスクトップ）のトラックパッドのピンチ。
+    _applyZoom(_panZoomStartZoom * event.scale, _toViewport(event.position));
+  }
+
   void _onPointerDown(PointerDownEvent event, double scale) {
+    if (_pinching || _pointers.length >= 2) return;
     if (_tool == _DrawTool.pan || _drawingPointer != null) return;
     _drawingPointer = event.pointer;
     final point = _toLogical(event.localPosition, scale);
@@ -138,7 +309,7 @@ class _DrawCanvasViewState extends ConsumerState<DrawCanvasView> {
   }
 
   void _onPointerMove(PointerMoveEvent event, double scale) {
-    if (event.pointer != _drawingPointer) return;
+    if (_pinching || event.pointer != _drawingPointer) return;
     final point = _toLogical(event.localPosition, scale);
     if (_tool == _DrawTool.pen) {
       final points = _currentPoints.value;
@@ -152,7 +323,7 @@ class _DrawCanvasViewState extends ConsumerState<DrawCanvasView> {
   }
 
   void _onPointerEnd(PointerEvent event) {
-    if (event.pointer != _drawingPointer) return;
+    if (_pinching || event.pointer != _drawingPointer) return;
     _drawingPointer = null;
     if (_tool == _DrawTool.pen) _commitCurrentStroke();
   }
@@ -392,6 +563,30 @@ class _DrawCanvasViewState extends ConsumerState<DrawCanvasView> {
                   ? null
                   : () => _clearAll(strings),
             ),
+            const SizedBox(width: 6),
+            // ズーム（2026-10-10追加）。ピンチ・Ctrl＋ホイールでも操作できる。
+            IconButton(
+              icon: Icon(Icons.zoom_out, color: fg),
+              tooltip: '',
+              onPressed: _zoom <= kDrawMinZoom + 0.0001
+                  ? null
+                  : () => _zoomByStep(1 / kDrawZoomStep),
+            ),
+            TextButton(
+              // 倍率表示。タップで100%（画面幅フィット）へ戻す。
+              onPressed: () => _applyZoom(1.0, Offset.zero),
+              child: Text(
+                '${(_zoom * 100).round()}%',
+                style: TextStyle(color: fg),
+              ),
+            ),
+            IconButton(
+              icon: Icon(Icons.zoom_in, color: fg),
+              tooltip: '',
+              onPressed: _zoom >= kDrawMaxZoom - 0.0001
+                  ? null
+                  : () => _zoomByStep(kDrawZoomStep),
+            ),
           ],
         ),
       ),
@@ -403,7 +598,12 @@ class _DrawCanvasViewState extends ConsumerState<DrawCanvasView> {
         Expanded(
           child: LayoutBuilder(
             builder: (context, constraints) {
-              final scale = constraints.maxWidth / NoteStroke.canvasWidth;
+              _viewportSize = constraints.biggest;
+              // 画面幅フィットの倍率に、ズーム倍率を掛けたものが実効倍率
+              // （2026-10-10）。ポインタの座標変換・描画・キャンバスの大きさは
+              // すべてこの実効倍率基準。
+              final fitScale = constraints.maxWidth / NoteStroke.canvasWidth;
+              final scale = fitScale * _zoom;
               final viewportLogicalHeight = constraints.maxHeight / scale;
               final logicalHeight = _logicalHeight(
                 viewportLogicalHeight < _minViewportHeight
@@ -411,52 +611,64 @@ class _DrawCanvasViewState extends ConsumerState<DrawCanvasView> {
                     : viewportLogicalHeight,
               );
               final visible = _visibleStrokes;
+              final canvasWidth = constraints.maxWidth * _zoom;
+              final contentWidth = math.max(constraints.maxWidth, canvasWidth);
               return Listener(
-                // マウスホイールはペン/消しゴム中でもスクロールできるようにする。
-                onPointerSignal: (signal) {
-                  if (signal is PointerScrollEvent &&
-                      _scrollController.hasClients) {
-                    final position = _scrollController.position;
-                    _scrollController.jumpTo(
-                      (position.pixels + signal.scrollDelta.dy).clamp(
-                        0.0,
-                        position.maxScrollExtent,
-                      ),
-                    );
-                  }
-                },
-                child: SingleChildScrollView(
-                  controller: _scrollController,
-                  physics: _tool == _DrawTool.pan
-                      ? const ClampingScrollPhysics()
-                      : const NeverScrollableScrollPhysics(),
-                  child: Listener(
-                    onPointerDown: (e) => _onPointerDown(e, scale),
-                    onPointerMove: (e) => _onPointerMove(e, scale),
-                    onPointerUp: _onPointerEnd,
-                    onPointerCancel: _onPointerEnd,
-                    child: Container(
-                      width: constraints.maxWidth,
-                      height: logicalHeight * scale,
-                      color: Colors.white,
-                      child: Stack(
-                        children: [
-                          RepaintBoundary(
-                            child: CustomPaint(
-                              size: Size.infinite,
-                              painter: _StrokesPainter(visible, scale),
+                key: _viewportKey,
+                onPointerDown: _onViewportPointerDown,
+                onPointerMove: _onViewportPointerMove,
+                onPointerUp: _onViewportPointerEnd,
+                onPointerCancel: _onViewportPointerEnd,
+                onPointerSignal: _onViewportSignal,
+                onPointerPanZoomStart: _onPanZoomStart,
+                onPointerPanZoomUpdate: _onPanZoomUpdate,
+                child: ColoredBox(
+                  color: widget.background,
+                  child: SingleChildScrollView(
+                    controller: _hController,
+                    scrollDirection: Axis.horizontal,
+                    physics: const NeverScrollableScrollPhysics(),
+                    child: SizedBox(
+                      width: contentWidth,
+                      height: constraints.maxHeight,
+                      child: SingleChildScrollView(
+                        controller: _scrollController,
+                        physics: _tool == _DrawTool.pan && !_pinching
+                            ? const ClampingScrollPhysics()
+                            : const NeverScrollableScrollPhysics(),
+                        // 縮小で幅が画面幅に満たない時は、キャンバスを中央に置く。
+                        child: Center(
+                          child: Listener(
+                            onPointerDown: (e) => _onPointerDown(e, scale),
+                            onPointerMove: (e) => _onPointerMove(e, scale),
+                            onPointerUp: _onPointerEnd,
+                            onPointerCancel: _onPointerEnd,
+                            child: Container(
+                              width: canvasWidth,
+                              height: logicalHeight * scale,
+                              color: Colors.white,
+                              child: Stack(
+                                children: [
+                                  RepaintBoundary(
+                                    child: CustomPaint(
+                                      size: Size.infinite,
+                                      painter: _StrokesPainter(visible, scale),
+                                    ),
+                                  ),
+                                  CustomPaint(
+                                    size: Size.infinite,
+                                    painter: _CurrentStrokePainter(
+                                      _currentPoints,
+                                      Color(_color),
+                                      _width,
+                                      scale,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
-                          CustomPaint(
-                            size: Size.infinite,
-                            painter: _CurrentStrokePainter(
-                              _currentPoints,
-                              Color(_color),
-                              _width,
-                              scale,
-                            ),
-                          ),
-                        ],
+                        ),
                       ),
                     ),
                   ),
