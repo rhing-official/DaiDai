@@ -68,3 +68,6 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 /android/build/
+
+# Claude Code（ローカル設定・スキル・エージェント。公開リポジトリには含めない、2026-10-10）
+.claude/
