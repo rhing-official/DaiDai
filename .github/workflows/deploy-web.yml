@@ -1,0 +1,39 @@
+# Web版の本番デプロイ（Cloudflare Pages）。`release`ブランチへのpush（=`/release`
+# スキルによる main→release の反映）でのみ動く。Flutter SDKはCloudflareのビルド
+# 環境に無いため、ここでビルドして`wrangler pages deploy`で成果物を上げる。
+name: Deploy web (Cloudflare Pages)
+
+on:
+  push:
+    branches: [release]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-web
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - run: flutter config --enable-web
+      - run: flutter pub get
+      - run: flutter build web --release
+
+      # Pages Functions（Advanced Mode）: OGP・リンクプレビュー用のWorkerを成果物へ同梱する
+      - run: |
+          cp cloudflare/worker.js build/web/_worker.js
+          cp cloudflare/_routes.json build/web/_routes.json
+
+      - uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy build/web --project-name=daidai --branch=main --commit-dirty=true
