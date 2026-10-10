@@ -31,7 +31,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('404 MUSEUM'), findsOneWidget);
-    expect(find.text('お探しページは見つかりませんでした'), findsOneWidget);
+    expect(find.text('お探しのページは見つかりませんでした'), findsOneWidget);
     expect(find.textContaining('存在しないページ特別展'), findsOneWidget);
     expect(find.text('トップページへ戻る'), findsOneWidget);
     expect(find.text('お問い合わせ'), findsOneWidget);
