@@ -4,13 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/strings.dart';
 import '../../router/back_stack.dart';
-import '../../models/app_ui_style.dart';
 import '../../models/app_user.dart';
-import '../../providers/app_ui_style_provider.dart';
 import '../../providers/home_shell_providers.dart';
-import '../../theme/gekiga/gekiga_colors.dart';
-import '../../widgets/gekiga/gekiga_badge.dart';
-import '../../widgets/glass/glass_surface.dart';
+import '../../widgets/nav_chip.dart';
 import '../call/pinned_call_overlay.dart';
 import '../chat/talks_tab.dart';
 import '../profile/profile_tab.dart';
@@ -34,6 +30,9 @@ class HomeScreen extends ConsumerStatefulWidget {
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   int _selectedIndex = 0;
+
+  AppUser? _cachedTabsUser;
+  List<Widget>? _cachedTabs;
 
   // なぞっている間だけ選択中チップを飛び出させるためのフラグ（2026-07-29追加）。
   // ドラッグ開始でtrue、指を離す/キャンセルでfalseに戻す。
@@ -100,12 +99,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   /// 集合を更新する。
   void _handleSwipeUpdate(Offset globalPosition, int tabCount, bool vertical) {
     // showDialog/showGeneralDialog/showMenu等のポップアップはNavigatorに
-    // ルートとして積まれるため、開いている間はHomeScreen自身のルートが
-    // isCurrent=falseになる。ここで弾かないと、開いたポップアップの背後で
+    // ルートとして積まれる。ここで弾かないと、開いたポップアップの背後で
     // タブが切り替わってしまい、以前の実装が「一貫して動作しない」原因に
     // なっていた（ポップアップの種類によってバリアの有無・挙動が異なり、
     // スワイプが素通りするものとしないものが混在していたため）。
-    if (!(ModalRoute.of(context)?.isCurrent ?? true)) return;
+    // 以前は`ModalRoute.isCurrent`で判定していたが、2026-10-04以降は戻る用の
+    // 透明ルート`/_b/*`が常にホームの上に積まれてisCurrentが常にfalseになり、
+    // なぞり遷移が一切効かなくなっていた（2026-10-10修正）。透明ルートを
+    // 数えない`hasOpenOverlay`で判定する。
+    if (ref.read(backStackControllerProvider).hasOpenOverlay) return;
     final hit = _hitTestChips(globalPosition, vertical);
     final selectionChanged =
         hit.hovered != null && hit.hovered != _selectedIndex;
@@ -148,9 +150,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   /// グリフ内側の余白が大きく同じ24でも小さく見えるため、個別に拡大する。
   static const _iconSizes = [24.0, 28.0, 28.0];
 
-  static const _chipSize = 56.0;
-  static const _chipGap = 16.0;
-  static const _chipMargin = 16.0;
+  static const _chipSize = kNavChipSize;
+  static const _chipGap = kNavChipGap;
+  static const _chipMargin = kNavChipMargin;
 
   @override
   Widget build(BuildContext context) {
@@ -170,17 +172,24 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final strings = ref.watch(appStringsProvider);
     final titles = [strings.navTalk, strings.navProfile, strings.navSettings];
 
-    final tabs = [
-      TalksTab(currentUser: widget.currentUser),
-      ProfileTab(currentUser: widget.currentUser),
-      SettingsTab(currentUser: widget.currentUser),
-    ];
+    // チップのタップ・なぞりの`setState`のたびに各タブが再構築されないよう、
+    // `currentUser`が変わった時だけ作り直す（2026-10-10追加）。語らいタブは
+    // 再構築のたびに購読を張り直すため、チップ操作で一覧が一瞬点滅していた。
+    if (_cachedTabs == null || _cachedTabsUser != widget.currentUser) {
+      _cachedTabsUser = widget.currentUser;
+      _cachedTabs = [
+        TalksTab(currentUser: widget.currentUser),
+        ProfileTab(currentUser: widget.currentUser),
+        SettingsTab(currentUser: widget.currentUser),
+      ];
+    }
+    final tabs = _cachedTabs!;
 
     final isWide = MediaQuery.sizeOf(context).width >= _kWideLayoutBreakpoint;
 
     final chips = [
       for (var i = 0; i < titles.length; i++)
-        _NavChip(
+        NavChip(
           key: _chipKeys[i],
           icon: _icons[i],
           iconSize: _iconSizes[i],
@@ -317,139 +326,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-/// メニューバーを使わず、タブ切り替えを1つずつ独立した丸いチップで表す。
-/// 選択中はアクセントカラーで塗り、常に浮いて見えるよう影を付ける。
-/// 劇画スタイル時は丸いチップの代わりにジグザグのバッジ意匠を使う
-/// （2026-07-30、appUiStyleProviderを見るためConsumerWidget化）。
-class _NavChip extends ConsumerWidget {
-  const _NavChip({
-    required this.icon,
-    required this.iconSize,
-    required this.label,
-    required this.selected,
-    required this.popped,
-    required this.vertical,
-    required this.onTap,
-    super.key,
-  });
-
-  final IconData icon;
-  final double iconSize;
-  final String label;
-  final bool selected;
-
-  /// なぞっている間、選択中のこのチップを帯からはみ出させて強調するか。
-  final bool popped;
-
-  /// チップが縦並び（広い画面のサイドバー）か。飛び出す方向の判定に使う
-  /// （横並びなら上、縦並びなら右に飛び出す）。
-  final bool vertical;
-
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final uiStyle = ref.watch(appUiStyleProvider);
-    final isGekiga = uiStyle == AppUiStyle.gekiga;
-    final isGlass = uiStyle == AppUiStyle.glass;
-    final background = selected ? colorScheme.primary : colorScheme.surface;
-    final foreground = selected
-        ? colorScheme.onPrimary
-        : colorScheme.onSurfaceVariant;
-
-    // popped中は帯から浮き出させ、指を離す（popped=falseに戻る）と
-    // AnimatedSlideが規定位置までスライドして戻す。
-    final offset = popped
-        ? (vertical ? const Offset(0.35, 0) : const Offset(0, -0.35))
-        : Offset.zero;
-
-    // 劇画スタイルは他のメニューチップ（GekigaMenuTile/GekigaPanelBox）と
-    // 同じ「選択中=白地黒字、非選択中=黒地白字」の規則に統一する
-    // （2026-08-04変更。以前は選択中のみアクセントカラー塗りのバッジだったが、
-    // アクセントカラーは劇画UI選択中は変更不可にしたため、この画面だけ
-    // 固定色になったアクセントカラーが残るのは一貫しない）。
-    final chip = isGekiga
-        ? Material(
-            color: Colors.transparent,
-            shape: const RoundedRectangleBorder(
-              borderRadius: BorderRadius.zero,
-            ),
-            child: InkWell(
-              onTap: onTap,
-              child: SizedBox(
-                width: _HomeScreenState._chipSize,
-                height: _HomeScreenState._chipSize,
-                child: GekigaBadgeShape(
-                  color: selected ? GekigaColors.onPanel : GekigaColors.panel,
-                  seed: icon.hashCode,
-                  invert: selected,
-                  child: Icon(
-                    icon,
-                    size: iconSize,
-                    color: selected ? GekigaColors.panel : GekigaColors.onPanel,
-                  ),
-                ),
-              ),
-            ),
-          )
-        : isGlass
-        ? GlassSurface(
-            variant: GlassVariant.chrome,
-            borderRadius: BorderRadius.circular(_HomeScreenState._chipSize / 2),
-            child: Material(
-              color: selected
-                  ? colorScheme.primary.withValues(alpha: 0.45)
-                  : Colors.transparent,
-              shape: const CircleBorder(),
-              child: InkWell(
-                onTap: onTap,
-                customBorder: const CircleBorder(),
-                child: SizedBox(
-                  width: _HomeScreenState._chipSize,
-                  height: _HomeScreenState._chipSize,
-                  // 選択・非選択で文字色は変えない（背景の塗りだけで選択状態を
-                  // 表す、2026-08-29変更）。
-                  child: Icon(
-                    icon,
-                    size: iconSize,
-                    color: colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ),
-            ),
-          )
-        : Material(
-            color: background,
-            shape: const CircleBorder(),
-            elevation: selected ? 8 : 4,
-            shadowColor: colorScheme.primary.withValues(alpha: 0.4),
-            child: InkWell(
-              onTap: onTap,
-              customBorder: const CircleBorder(),
-              child: SizedBox(
-                width: _HomeScreenState._chipSize,
-                height: _HomeScreenState._chipSize,
-                child: Icon(icon, size: iconSize, color: foreground),
-              ),
-            ),
-          );
-
-    // RepaintBoundaryで囲み、なぞっている間の飛び出しアニメーションが
-    // 選択中タブの中身（語らい一覧など）まで巻き込んで再描画させないように
-    // する（2026-07-29追加。囲む前はチップの帯全体・場合によっては背後の
-    // コンテンツまで毎フレーム再描画され、実機でカクついて見えていた）。
-    return RepaintBoundary(
-      child: AnimatedSlide(
-        offset: offset,
-        duration: const Duration(milliseconds: 150),
-        curve: Curves.easeOut,
-        child: chip,
       ),
     );
   }

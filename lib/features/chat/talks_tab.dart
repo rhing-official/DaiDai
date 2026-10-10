@@ -42,7 +42,6 @@ import '../../utils/drag_menu_geometry.dart';
 import '../../utils/group_permissions.dart';
 import '../../utils/kana_sort.dart';
 import '../../utils/message_time.dart';
-import '../../utils/official_account.dart';
 import '../../utils/platform_info.dart';
 import '../../widgets/gekiga/gekiga_icon_badge.dart';
 import '../../widgets/gekiga/gekiga_panel_box.dart';
@@ -1024,13 +1023,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
         body: StreamBuilder<List<DirectMessage>>(
           stream: directMessagesStream,
           builder: (context, dmSnapshot) {
-            final directMessages = (dmSnapshot.data ?? [])
-                .where(
-                  (dm) =>
-                      dm.otherUserId(widget.currentUser.userId) !=
-                      officialAccountUid,
-                )
-                .toList();
+            final directMessages = dmSnapshot.data ?? [];
             return StreamBuilder<List<Group>>(
               stream: groupsStream,
               builder: (context, groupSnapshot) {

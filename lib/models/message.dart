@@ -113,6 +113,7 @@ class Message {
     required this.senderId,
     this.senderRhingSeed,
     this.botName,
+    this.botIconUrl,
     required this.content,
     required this.contentType,
     this.sentAt,
@@ -150,6 +151,12 @@ class Message {
   /// `users`ドキュメントを持たず、UIは名前と「BOT」バッジで表示する。
   /// Cloud Functions（Admin SDK）だけが書き込める（firestore.rules参照）。
   final String? botName;
+
+  /// お便り（運営の発信元、`senderId`は`system:official`）の表示用アイコンURL
+  /// （2026-10-10追加）。Firestoreには保存せず、`announcements`を[Message]へ
+  /// 写す時にクライアントが`system/official`から埋める（[botName]と同じく
+  /// `users`ドキュメントを持たない発信元の表示に使う）。
+  final String? botIconUrl;
   final String content;
   // text | image | file | sticker | video | call | accountDeleted
   // | calendarEventCreated | scheduleCoordinationCreated | pollCreated

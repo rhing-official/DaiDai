@@ -17,10 +17,12 @@ Widget _app({required bool isAdmin}) {
 }
 
 void main() {
-  testWidgets('非管理者には「存在しないページ」を見せ、管理画面・登録ボタンは出さない', (tester) async {
+  testWidgets('非管理者には「404 美術館」を見せ、管理画面・登録ボタンは出さない', (tester) async {
     await tester.pumpWidget(_app(isAdmin: false));
     await tester.pumpAndSettle();
-    expect(find.text('ページが見つかりません'), findsOneWidget);
+    // 未定義URLと同じ「404 美術館」を表示する。
+    expect(find.text('404 MUSEUM'), findsOneWidget);
+    expect(find.text('トップページへ戻る'), findsOneWidget);
     expect(find.text('権限がありません。'), findsNothing);
     expect(find.text('初回管理者として登録'), findsNothing);
   });

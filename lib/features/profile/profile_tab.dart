@@ -22,7 +22,6 @@ import '../../repositories/user_repository.dart';
 import '../../theme/gekiga/gekiga_colors.dart';
 import '../../theme/text_prominence_colors.dart';
 import '../../utils/auto_dismiss_banner.dart';
-import '../../utils/official_account.dart';
 import '../../utils/text_truncate.dart';
 import '../../widgets/always_animated_image.dart';
 import '../../widgets/gekiga/gekiga_icon_badge.dart';
@@ -1336,11 +1335,7 @@ class _WorkshopConversationCardSection extends ConsumerWidget {
         .where((group) => user.conversationProfileCardId[group.groupId] != null)
         .toList();
     final unassignedDms = dms
-        .where(
-          (dm) =>
-              user.conversationProfileCardId[dm.dmId] == null &&
-              dm.otherUserId(user.userId) != officialAccountUid,
-        )
+        .where((dm) => user.conversationProfileCardId[dm.dmId] == null)
         .toList();
     final unassignedGroups = groups
         .where((group) => user.conversationProfileCardId[group.groupId] == null)

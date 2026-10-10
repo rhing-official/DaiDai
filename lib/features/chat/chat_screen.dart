@@ -3598,6 +3598,7 @@ class _PinnedMessageCard extends StatelessWidget {
           _SenderAvatar(
             userId: message.senderId,
             rhingSeed: message.senderRhingSeed ?? message.botName,
+            botIconUrl: message.botIconUrl,
             conversationId: conversationId,
             uiStyle: uiStyle,
             size: 32,
@@ -4730,6 +4731,7 @@ class _MessageRow extends ConsumerWidget {
       Widget senderAvatar = _SenderAvatar(
         userId: message.senderId,
         rhingSeed: message.senderRhingSeed ?? message.botName,
+        botIconUrl: message.botIconUrl,
         conversationId: conversationId,
         uiStyle: uiStyle,
       );
@@ -6625,6 +6627,9 @@ class _SenderName extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     if (botName != null || userId.startsWith(kWebhookSenderPrefix)) {
+      // お便り（`system:`）は住人でもBOTでもない運営の発信元のため、
+      // 名前だけを出し「BOT」バッジは付けない（2026-10-10）。
+      final isSystem = userId.startsWith(kSystemSenderPrefix);
       final style = TextStyle(
         fontSize: 12,
         fontWeight: FontWeight.w600,
@@ -6641,8 +6646,10 @@ class _SenderName extends ConsumerWidget {
               style: style,
             ),
           ),
-          const SizedBox(width: 4),
-          _BotBadge(color: style.color!),
+          if (!isSystem) ...[
+            const SizedBox(width: 4),
+            _BotBadge(color: style.color!),
+          ],
         ],
       );
     }
@@ -6670,6 +6677,11 @@ class _SenderName extends ConsumerWidget {
 /// 受信Webhook由来の投稿の`senderId`の接頭辞（`webhook:{webhookId}`、
 /// `functions/src/webhook.ts`の`webhookSenderId`と同じ、2026-10-10追加）。
 const kWebhookSenderPrefix = 'webhook:';
+
+/// お便り（運営の発信元）の`senderId`の接頭辞（`system:official`、
+/// `OfficialProfile.senderId`、2026-10-10追加）。住人（`users`）ではないため
+/// 送信者の名前・アイコンは`users`を引かず、`Message.botName`・`botIconUrl`で表示する。
+const kSystemSenderPrefix = 'system:';
 
 /// 送信者名の横に出す小さな「BOT」バッジ。
 class _BotBadge extends StatelessWidget {
@@ -6707,10 +6719,15 @@ class _SenderAvatar extends ConsumerWidget {
     this.conversationId,
     this.uiStyle = AppUiStyle.flat,
     this.size = 48,
+    this.botIconUrl,
   });
 
   final String userId;
   final String? rhingSeed;
+
+  /// お便り（`system:`）の発信元アイコンURL（`Message.botIconUrl`）。
+  /// nullなら頭文字のフォールバック表示。
+  final String? botIconUrl;
 
   /// [_SenderName.conversationId]と同じ。
   final String? conversationId;
@@ -6732,10 +6749,12 @@ class _SenderAvatar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final user = userId.startsWith(kWebhookSenderPrefix)
+    final user =
+        (userId.startsWith(kWebhookSenderPrefix) ||
+            userId.startsWith(kSystemSenderPrefix))
         ? null
         : ref.watch(watchedUserProvider(userId)).value;
-    final iconUrl = user?.effectiveIconFor(conversationId)?.url;
+    final iconUrl = botIconUrl ?? user?.effectiveIconFor(conversationId)?.url;
     final id = (rhingSeed == null || rhingSeed!.isEmpty) ? '?' : rhingSeed!;
     final color = _palette[id.hashCode.abs() % _palette.length];
     final fontSize = size / 48 * 13;

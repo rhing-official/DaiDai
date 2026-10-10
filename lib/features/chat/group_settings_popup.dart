@@ -22,6 +22,7 @@ import 'group_invite_dialog.dart';
 import 'group_leave_dialog.dart';
 import 'group_member_list_screen.dart';
 import 'group_profile_card_screen.dart';
+import 'group_permission_manage_popup.dart';
 import 'group_role_list_popup.dart';
 import 'webhook_management_popup.dart';
 
@@ -102,6 +103,13 @@ class GroupSettingsPopup extends ConsumerWidget {
       constraints: BoxConstraints(maxWidth: maxWidth, maxHeight: maxHeight),
       child: child,
     );
+    // 各テーマの`dialogTheme.constraints`が`maxWidth: 400`でダイアログ全体を
+    // 頭打ちにしているため、400より広くしたい場合は`Dialog`側の
+    // `constraints`で上書きする（2026-10-10、権限管理ポップアップが
+    // ロール数に応じて広がらなかった原因）。既定（400以下）は従来どおり。
+    final dialogConstraints = maxWidth > 400
+        ? BoxConstraints(maxWidth: maxWidth)
+        : null;
     return showDialog<void>(
       context: context,
       // ガラステーマはdialogThemeの背景を透明にしている（`GlassAlertDialog`
@@ -111,13 +119,14 @@ class GroupSettingsPopup extends ConsumerWidget {
           ? Dialog(
               backgroundColor: Colors.transparent,
               elevation: 0,
+              constraints: dialogConstraints,
               child: GlassSurface(
                 variant: GlassVariant.floating,
                 borderRadius: BorderRadius.circular(24),
                 child: constrained,
               ),
             )
-          : Dialog(child: constrained),
+          : Dialog(constraints: dialogConstraints, child: constrained),
     );
   }
 
@@ -303,6 +312,19 @@ class GroupSettingsPopup extends ConsumerWidget {
                           group: liveGroup,
                         ),
                         isGlass: isGlass,
+                      ),
+              ),
+              ListTile(
+                leading: const Icon(Icons.rule_outlined),
+                title: Text(strings.groupMenuManagePermissions),
+                enabled: canManageRoles,
+                onTap: !canManageRoles
+                    ? null
+                    : () => _openSubDialog(
+                        context,
+                        GroupPermissionManagePopup(group: liveGroup),
+                        isGlass: isGlass,
+                        maxWidth: 2000,
                       ),
               ),
               const Divider(),

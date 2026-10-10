@@ -396,6 +396,10 @@ class Strings {
     required this.groupMenuMemberList,
     required this.groupMenuCreateInvite,
     required this.groupMenuManageRoles,
+    required this.groupMenuManagePermissions,
+    required this.groupPermissionMatrixHint,
+    required this.groupPermissionColumnOwner,
+    required this.groupPermissionColumnEveryone,
     required this.groupMenuOpenSettings,
     required this.groupMenuLeave,
     required this.groupRoleListEmpty,
@@ -1195,6 +1199,12 @@ class Strings {
   final String groupMenuMemberList;
   final String groupMenuCreateInvite;
   final String groupMenuManageRoles;
+
+  /// 広場の設定の「権限の管理」項目名・ダイアログ見出し（2026-10-10追加）。
+  final String groupMenuManagePermissions;
+  final String groupPermissionMatrixHint;
+  final String groupPermissionColumnOwner;
+  final String groupPermissionColumnEveryone;
   final String groupMenuOpenSettings;
   final String groupMenuLeave;
 
@@ -1740,7 +1750,7 @@ class Strings {
         '通知の許可が得られませんでした。ブラウザ/OSの設定をご確認ください。',
     settingsFolderTalk: '語らい',
     settingsFolderSupport: '運営',
-    settingsAnnouncements: 'お知らせ',
+    settingsAnnouncements: 'お便り',
     settingsAboutApp: 'アプリについて',
     settingsAppVersion: 'バージョン',
     settingsTermsOfService: '利用規約',
@@ -2130,6 +2140,11 @@ class Strings {
     groupMenuMemberList: 'メンバー一覧',
     groupMenuCreateInvite: '招待リンク作成',
     groupMenuManageRoles: 'ロール管理',
+    groupMenuManagePermissions: '権限管理',
+    groupPermissionMatrixHint:
+        '「全員」の列は、全メンバーに最初から付いている権限です。ほかのロールはそこへ追加で付与されます。長は常にすべての権限を持ちます。',
+    groupPermissionColumnOwner: '長',
+    groupPermissionColumnEveryone: '全員',
     groupMenuOpenSettings: '広場の設定',
     groupMenuLeave: '退会',
     groupRoleListEmpty: 'まだロールがありません',
@@ -2954,6 +2969,11 @@ class Strings {
     groupMenuMemberList: 'Member list',
     groupMenuCreateInvite: 'Create invite link',
     groupMenuManageRoles: 'Manage roles',
+    groupMenuManagePermissions: 'Manage permissions',
+    groupPermissionMatrixHint:
+        'The "Everyone" column lists the permissions every member has by default. Other roles add to it. The owner always has every permission.',
+    groupPermissionColumnOwner: 'Owner',
+    groupPermissionColumnEveryone: 'Everyone',
     groupMenuOpenSettings: 'Plaza settings',
     groupMenuLeave: 'Leave',
     groupRoleListEmpty: 'No roles yet',

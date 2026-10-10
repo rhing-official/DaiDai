@@ -13,7 +13,20 @@ import '../models/profile_material.dart';
 import '../models/sound_preset.dart';
 import '../models/user_invite_preview.dart';
 import '../utils/image_format.dart';
+import '../utils/reserved_rhing_seeds.dart';
 import '../utils/sound_upload.dart';
+
+/// 一括停止/解除（[UserRepository.setAccountsSuspended]）の結果。
+class BulkSuspendResult {
+  const BulkSuspendResult({required this.changed, required this.skipped});
+
+  /// 実際に状態を変えたユーザーid。
+  final List<String> changed;
+
+  /// 対象外にしたユーザーidと理由（`self`/`official`/`not-found`/
+  /// `pending-deletion`/`admin`/`duplicate`/`invalid`）。
+  final List<({String id, String reason})> skipped;
+}
 
 abstract class UserRepository {
   Future<AppUser?> getUser(String userId);
@@ -149,30 +162,28 @@ abstract class UserRepository {
   /// `suspendUserAccount`経由、2026-08-12追加）。
   Future<void> setAccountSuspended(String userId, bool suspended);
 
-  /// 全住人（稼働中のアカウントのみ）に、便りアカウントからの一対メッセージ
-  /// としてお知らせを配信する（管理者のみ、Cloud Functions
-  /// `broadcastAnnouncement`経由、2026-08-12追加）。
-  Future<void> broadcastAnnouncement(String message);
+  /// 複数のアカウントをまとめて停止/解除する（管理者のみ、Cloud Functions
+  /// `suspendUserAccounts`経由、2026-10-10追加）。1回100件まで。自分自身・
+  /// 便り・不在・削除申請中、停止時は他の管理者が対象外になり、対象外にした分は
+  /// [BulkSuspendResult.skipped]に理由つきで入る。
+  Future<BulkSuspendResult> setAccountsSuspended(
+    List<String> userIds,
+    bool suspended,
+  );
+
+  /// 管理者が住人のプロフィール（カード）を確認する操作をサーバーに記録する
+  /// （Cloud Functions `logAdminProfileView`経由、2026-10-10追加）。
+  /// [reason]は`report`/`investigation`/`other`。記録に成功した時だけ
+  /// 呼び出し側がカードを表示する。
+  Future<void> logAdminProfileView(
+    String userId, {
+    required String reason,
+    String note = '',
+  });
 
   /// 初回管理者登録（一時的な機能、Cloud Functions `grantFirstAdminOnce`
   /// 経由。既に管理者が存在する場合は失敗する、2026-08-12追加）。
   Future<bool> bootstrapFirstAdmin();
-
-  /// 一度きりの移行処理（一時的な機能、Cloud Functions
-  /// `backfillAccountStatusOnce`経由、2026-08-12追加）。`accountStatus`
-  /// フィールドが物理的に存在しない古いユーザードキュメントに
-  /// `accountStatus: 'active'`をバックフィルする。実行・確認後は
-  /// このメソッド・呼び出し元UI・Cloud Function自体を削除する想定
-  /// （`bootstrapFirstAdmin`と同じ「使い捨て」の扱い）。
-  Future<Map<String, int>> backfillAccountStatusOnce();
-
-  /// 一度きりの移行処理（一時的な機能、Cloud Functions
-  /// `migrateRhingSeedOnce`経由、2026-09-23追加）。「Rhing ID」から
-  /// 「Rhing Seed」への改名に伴い、本番データに残る旧フィールド名
-  /// （`rhingId`等）から新フィールド名（`rhingSeed`等）へ値をコピーする。
-  /// 実行・確認後は`backfillAccountStatusOnce`と同様、このメソッド・
-  /// 呼び出し元UI・Cloud Function自体を削除する想定の「使い捨て」。
-  Future<Map<String, int>> migrateRhingSeedOnce();
 
   /// Googleカレンダー連携の許可状態を更新する（2026-09-01追加）。
   /// `enabled`がnullなのは初回未確認の状態のみを表し、この呼び出しからは
@@ -432,6 +443,7 @@ class FirestoreUserRepository implements UserRepository {
 
   @override
   Future<bool> isRhingSeedAvailable(String rhingSeed) async {
+    if (isReservedRhingSeed(rhingSeed)) return false;
     final snapshot = await _users
         .where('rhingSeed', isEqualTo: rhingSeed.toLowerCase())
         .limit(1)
@@ -589,9 +601,34 @@ class FirestoreUserRepository implements UserRepository {
   }
 
   @override
-  Future<void> broadcastAnnouncement(String message) async {
-    await _functions.httpsCallable('broadcastAnnouncement').call({
-      'message': message,
+  Future<BulkSuspendResult> setAccountsSuspended(
+    List<String> userIds,
+    bool suspended,
+  ) async {
+    final result = await _functions.httpsCallable('suspendUserAccounts').call({
+      'targetUserIds': userIds,
+      'suspend': suspended,
+    });
+    final data = Map<String, dynamic>.from(result.data as Map);
+    return BulkSuspendResult(
+      changed: List<String>.from(data['changed'] as List),
+      skipped: [
+        for (final item in data['skipped'] as List)
+          (id: (item as Map)['id'] as String, reason: item['reason'] as String),
+      ],
+    );
+  }
+
+  @override
+  Future<void> logAdminProfileView(
+    String userId, {
+    required String reason,
+    String note = '',
+  }) async {
+    await _functions.httpsCallable('logAdminProfileView').call({
+      'targetUserId': userId,
+      'reason': reason,
+      'note': note,
     });
   }
 
@@ -599,26 +636,6 @@ class FirestoreUserRepository implements UserRepository {
   Future<bool> bootstrapFirstAdmin() async {
     final result = await _functions.httpsCallable('grantFirstAdminOnce').call();
     return result.data['granted'] == true;
-  }
-
-  @override
-  Future<Map<String, int>> backfillAccountStatusOnce() async {
-    final result = await _functions
-        .httpsCallable('backfillAccountStatusOnce')
-        .call();
-    final data = Map<String, dynamic>.from(result.data as Map);
-    return {
-      'scanned': data['scanned'] as int,
-      'backfilled': data['backfilled'] as int,
-    };
-  }
-
-  @override
-  Future<Map<String, int>> migrateRhingSeedOnce() async {
-    final result = await _functions
-        .httpsCallable('migrateRhingSeedOnce')
-        .call();
-    return Map<String, int>.from(result.data as Map);
   }
 
   @override

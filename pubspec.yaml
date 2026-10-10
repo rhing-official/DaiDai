@@ -97,6 +97,7 @@ dependencies:
   # ↑の可用性チェックAPI（`GetAvailability`が返す`PasskeysPlatform.instance`）に
   # 直接触れるため、passkeysが依存する推移的パッケージを明示的にも依存させる。
   passkeys_platform_interface: ^2.10.0
+  flutter_svg: ^2.3.0
 
 dev_dependencies:
   flutter_test:
@@ -150,6 +151,10 @@ flutter:
 
   assets:
     - assets/sounds/
+    # 404ページ（「404 美術館」、`lib/features/not_found/`）の展示画像・イラスト
+    # （2026-10-10追加、HomePage-Rhingのnot-found.tsxと同じ素材）。
+    - assets/museum/
+    - assets/illustrations/
     # Googleの「Sign in with Google」ブランドガイドライン
     # （https://developers.google.com/identity/branding-guidelines）配布の
     # 公式アセットZipから抽出した「G」ロゴ単体（2026-09-11追加、

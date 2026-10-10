@@ -83,6 +83,13 @@ const _kSettingsSplitBreakpoint = 760.0;
 /// 3画面とも同じ260pxを使う（2026-08-14、240→260→250→260）。
 const _kSettingsSidebarWidth = 260.0;
 
+/// コンピューターで運営の下位階層を右隣に並べて表示する際の、運営の一覧の幅
+/// （2026-10-10追加）。
+const _kSupportListWidth = 280.0;
+
+/// 同じく、ライセンスを右隣に並べる時の「アプリについて」の幅（2026-10-10追加）。
+const _kAboutPaneWidth = 380.0;
+
 /// 設定タブ。サイドバーの階層は最上位カテゴリ（アカウント／アプリケーション／
 /// 入力／通知）の1段だけに留め、それぞれの中身（旧: サブフォルダだった項目）は
 /// カテゴリごとに1つの縦スクロールページへ、見出し付きセクションとしてまとめる
@@ -118,6 +125,40 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
   /// 仕組みをもう1段だけ使い回すことで両方を解消する（`build`参照）。
   bool _showLicenses = false;
 
+  /// オープンソースライセンスの中で、個別のパッケージのライセンス本文を
+  /// 開いているか（2026-10-10追加）。ライセンス画面は専用のローカル
+  /// `Navigator`を持ち、パッケージ詳細はそこへpushされる。戻る操作
+  /// （スワイプ・戻る履歴）がこの階層を飛ばして「アプリについて」まで
+  /// 戻らないよう、状態を追跡して1段だけ戻れるようにする。
+  bool _licenseDetailOpen = false;
+
+  final GlobalKey<NavigatorState> _licenseNavigatorKey =
+      GlobalKey<NavigatorState>();
+
+  /// ライセンス画面の戻る。パッケージ詳細を開いていれば詳細を閉じて
+  /// ライセンス一覧へ戻り、一覧なら「アプリについて」へ戻る。
+  void _backFromLicenses() {
+    if (_popLicenseDetail()) return;
+    setState(() => _showLicenses = false);
+  }
+
+  /// 開いているパッケージ詳細があれば閉じる（閉じたらtrue）。
+  bool _popLicenseDetail() {
+    final navigator = _findLicenseDetailNavigator(_licenseNavigatorKey);
+    if (navigator == null || !navigator.canPop()) return false;
+    navigator.pop();
+    return true;
+  }
+
+  Widget _buildLicensePage() => _LicensePageContent(
+    navigatorKey: _licenseNavigatorKey,
+    onDetailChanged: (open) {
+      if (_licenseDetailOpen == open) return;
+      setState(() => _licenseDetailOpen = open);
+    },
+    onDisposed: () => _licenseDetailOpen = false,
+  );
+
   /// 運営カテゴリの中からさらに1段階下の「お知らせ」を表示中か
   /// （2026-09-15追加）。以前はgo_routerの`/announcements`ルートへ
   /// `push`していたため、サイドバー・区切り線ごと覆い隠していた
@@ -141,14 +182,23 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
   /// （2026-10-06追加）。設定タブ内のカテゴリ移動と下位階層の表示状態。
   @override
   Widget build(BuildContext context) {
-    return NavHistoryBackEntry<(String?, bool, bool, bool)>(
+    return NavHistoryBackEntry<(String?, bool, bool, bool, bool)>(
       scope: BackScope.settings,
-      location: (_selectedId, _showAbout, _showLicenses, _showAnnouncements),
+      location: (
+        _selectedId,
+        _showAbout,
+        _showLicenses,
+        _showAnnouncements,
+        _showLicenses && _licenseDetailOpen,
+      ),
       onRestore: (location) => setState(() {
         _selectedId = location.$1;
         _showAbout = location.$2;
         _showLicenses = location.$3;
         _showAnnouncements = location.$4;
+        // 履歴上の位置がライセンス一覧（詳細を開いていない）なら、開いている
+        // パッケージ詳細を閉じる。
+        if (!location.$5) _popLicenseDetail();
       }),
       child: _buildContent(context),
     );
@@ -187,9 +237,9 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
           strings: strings,
           onOpenLicenses: () => setState(() => _showLicenses = true),
         );
-        wideDetail = const _LicensePageContent();
+        wideDetail = _buildLicensePage();
         wideDetailKey = 'licenses';
-        wideOnBack = () => setState(() => _showLicenses = false);
+        wideOnBack = _backFromLicenses;
       } else if (_showAbout) {
         wideMaster = Builder(
           builder: (context) => _SupportPage(
@@ -221,6 +271,88 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
         wideOnBack = () => setState(() => _showAnnouncements = false);
       }
 
+      // コンピューターでは、運営の下位階層（お便り／アプリについて）を
+      // 運営の一覧の上に重ねず、右隣に並べて表示する（2026-10-10追加）。
+      // 幅だけの判定（`isWide`）はタブレット横向きも含むため、
+      // `classifyDevice`でコンピューターに限定する。タブレット・スマホは
+      // 従来どおり`SlideDrilldown`による重ね表示のまま。
+      final sideBySide =
+          classifyDevice(context) == DeviceClass.computer &&
+          (_showAbout || _showAnnouncements || _showLicenses);
+      final Widget contentColumns;
+      if (sideBySide) {
+        // ライセンスは「アプリについて」の右隣にさらに並べて表示する
+        // （一覧 | アプリについて | ライセンス）。
+        final Widget detailPane;
+        if (_showAbout || _showLicenses) {
+          detailPane = _AboutPageContent(
+            strings: strings,
+            onOpenLicenses: () => setState(() => _showLicenses = true),
+          );
+        } else {
+          detailPane = AnnouncementScreen(currentUser: widget.currentUser);
+        }
+        contentColumns = Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SizedBox(
+              width: _kSupportListWidth,
+              child: _SettingsPage(
+                maxWidth: _kSupportListWidth,
+                child: _SupportPage(
+                  strings: strings,
+                  currentUser: widget.currentUser,
+                  onOpenAbout: () => setState(() {
+                    _showAbout = true;
+                    _showLicenses = false;
+                    _showAnnouncements = false;
+                  }),
+                  onOpenAnnouncements: () => setState(() {
+                    _showAnnouncements = true;
+                    _showAbout = false;
+                    _showLicenses = false;
+                  }),
+                ),
+              ),
+            ),
+            const VerticalDivider(width: 1),
+            if (_showLicenses) ...[
+              SizedBox(
+                width: _kAboutPaneWidth,
+                child: _SettingsPage(
+                  maxWidth: _kAboutPaneWidth,
+                  child: detailPane,
+                ),
+              ),
+              const VerticalDivider(width: 1),
+              Expanded(
+                child: _SettingsPage(
+                  maxWidth: double.infinity,
+                  child: _buildLicensePage(),
+                ),
+              ),
+            ] else
+              Expanded(child: _SettingsPage(maxWidth: 640, child: detailPane)),
+          ],
+        );
+      } else {
+        contentColumns = _SettingsPage(
+          // オープンソースライセンス画面だけは頭打ちを外し、Flutter
+          // 標準の`LicensePage`が内蔵する840px以上での左右並列表示
+          // （パッケージ一覧⇄ライセンス本文）が働く余地を残す
+          // （2026-09-18追加、詳細は`_LicensePageContent`参照）。
+          maxWidth: _showLicenses ? double.infinity : 640,
+          child: wideMaster == null
+              ? Builder(builder: selected.pageBuilder)
+              : SlideDrilldown(
+                  master: wideMaster,
+                  detail: wideDetail,
+                  detailKey: wideDetailKey,
+                  onBack: wideOnBack!,
+                ),
+        );
+      }
+
       return Padding(
         padding: const EdgeInsets.only(top: 24),
         child: Row(
@@ -235,23 +367,7 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
               ),
             ),
             const VerticalDivider(width: 1),
-            Expanded(
-              child: _SettingsPage(
-                // オープンソースライセンス画面だけは頭打ちを外し、Flutter
-                // 標準の`LicensePage`が内蔵する840px以上での左右並列表示
-                // （パッケージ一覧⇄ライセンス本文）が働く余地を残す
-                // （2026-09-18追加、詳細は`_LicensePageContent`参照）。
-                maxWidth: _showLicenses ? double.infinity : 640,
-                child: wideMaster == null
-                    ? Builder(builder: selected.pageBuilder)
-                    : SlideDrilldown(
-                        master: wideMaster,
-                        detail: wideDetail,
-                        detailKey: wideDetailKey,
-                        onBack: wideOnBack!,
-                      ),
-              ),
-            ),
+            Expanded(child: contentColumns),
           ],
         ),
       );
@@ -278,9 +394,9 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
         strings: strings,
         onOpenLicenses: () => setState(() => _showLicenses = true),
       );
-      detail = const _LicensePageContent();
+      detail = _buildLicensePage();
       detailKey = 'licenses';
-      onBack = () => setState(() => _showLicenses = false);
+      onBack = _backFromLicenses;
       onNext = null;
     } else if (_showAbout) {
       // 「アプリについて」からスワイプで戻ると、トップのカテゴリ一覧
@@ -1316,7 +1432,21 @@ class _AboutPageContentState extends State<_AboutPageContent> {
 /// 外側（「アプリについて」への復帰）は`_SettingsTabState._showLicenses`の
 /// トグル＋既存の`SlideDrilldown`/`InteractiveSwipeBackTransition`に任せる。
 class _LicensePageContent extends StatefulWidget {
-  const _LicensePageContent();
+  const _LicensePageContent({
+    required this.navigatorKey,
+    required this.onDetailChanged,
+    required this.onDisposed,
+  });
+
+  /// ローカル`Navigator`のキー。外側の戻る操作がパッケージ詳細を1段閉じる
+  /// ために使う（2026-10-10追加）。
+  final GlobalKey<NavigatorState> navigatorKey;
+
+  /// パッケージ詳細を開いた／閉じた時の通知。
+  final ValueChanged<bool> onDetailChanged;
+
+  /// このページが破棄された時の通知（詳細の開閉状態をリセットする用）。
+  final VoidCallback onDisposed;
 
   @override
   State<_LicensePageContent> createState() => _LicensePageContentState();
@@ -1325,6 +1455,30 @@ class _LicensePageContent extends StatefulWidget {
 class _LicensePageContentState extends State<_LicensePageContent> {
   late final Future<PackageInfo> _packageInfoFuture =
       PackageInfo.fromPlatform();
+
+  // パッケージ詳細は`LicensePage`が内部に持つ`Navigator`へpushされ、外側から
+  // push/popを購読する手段が無いため、開閉を一定間隔で確認して親へ伝える。
+  Timer? _pollTimer;
+  bool _detailOpen = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _pollTimer = Timer.periodic(const Duration(milliseconds: 150), (_) {
+      final open =
+          _findLicenseDetailNavigator(widget.navigatorKey)?.canPop() ?? false;
+      if (open == _detailOpen) return;
+      _detailOpen = open;
+      widget.onDetailChanged(open);
+    });
+  }
+
+  @override
+  void dispose() {
+    _pollTimer?.cancel();
+    widget.onDisposed();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1336,6 +1490,7 @@ class _LicensePageContentState extends State<_LicensePageContent> {
           return const SizedBox.shrink();
         }
         return Navigator(
+          key: widget.navigatorKey,
           onGenerateRoute: (settings) => MaterialPageRoute<void>(
             builder: (context) => LicensePage(
               applicationName: 'DaiDai',
@@ -1689,9 +1844,14 @@ class _DeleteAccountOptionCard extends StatelessWidget {
 /// アプリケーションカテゴリの中身。旧: 色／UI／文字／言語の各サブフォルダを
 /// 1ページにまとめた。
 class _ApplicationPage extends ConsumerWidget {
-  const _ApplicationPage({required this.strings});
+  const _ApplicationPage({required this.strings, this.showPasscode = true});
 
   final Strings strings;
+
+  /// パスコードロックの項目を出すか。端末ローカルのセキュアストレージ・
+  /// 生体認証に依存するため、管理画面（[ApplicationSettingsView]）では出さない
+  /// （2026-10-10追加）。
+  final bool showPasscode;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -1724,9 +1884,32 @@ class _ApplicationPage extends ConsumerWidget {
         _LanguageFolder(strings: strings),
         const Divider(height: 24),
         _TimeFormatFolder(strings: strings),
-        const Divider(height: 24),
-        _PasscodeLockFolder(strings: strings),
+        if (showPasscode) ...[
+          const Divider(height: 24),
+          _PasscodeLockFolder(strings: strings),
+        ],
       ],
+    );
+  }
+}
+
+/// 管理画面（`lib/features/admin/`）の設定タブ。利用者画面の設定>
+/// アプリケーションと同じ項目（外観・UI・アクセントカラー・フォントカラー・
+/// フォントデザイン・言語・時刻の表示方法）を、パスコードロック以外について
+/// そのまま表示する（2026-10-10追加）。設定の保存先は利用者画面と同じ
+/// （端末のSharedPreferences＋管理者本人の`users/{uid}.preferences`）で、
+/// 管理画面で変えると同じアカウントの利用者画面にも反映される。
+class ApplicationSettingsView extends ConsumerWidget {
+  const ApplicationSettingsView({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final strings = ref.watch(appStringsProvider);
+    return Padding(
+      padding: const EdgeInsets.only(top: 56),
+      child: _SettingsPage(
+        child: _ApplicationPage(strings: strings, showPasscode: false),
+      ),
     );
   }
 }
@@ -3872,4 +4055,25 @@ class _SoundSettingsFolderState extends ConsumerState<_SoundSettingsFolder> {
       ),
     );
   }
+}
+
+/// ライセンス画面の内側にある、パッケージ詳細をpushする`Navigator`を探す
+/// （2026-10-10追加）。`LicensePage`（`MasterDetailFlow`）は狭い画面で自前の
+/// `Navigator`を持つため、外側のローカル`Navigator`（[key]）ではなく
+/// その子孫の`Navigator`に詳細が積まれる。見つからなければnull。
+NavigatorState? _findLicenseDetailNavigator(GlobalKey<NavigatorState> key) {
+  final root = key.currentContext;
+  if (root == null) return null;
+  NavigatorState? found;
+  void visit(Element element) {
+    if (found != null) return;
+    if (element is StatefulElement && element.state is NavigatorState) {
+      found = element.state as NavigatorState;
+      return;
+    }
+    element.visitChildren(visit);
+  }
+
+  (root as Element).visitChildren(visit);
+  return found;
 }

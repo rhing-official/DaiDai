@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../features/admin/admin_gate.dart';
+import '../features/not_found/not_found_screen.dart';
 import '../features/app_gate.dart';
 import '../features/auth/auth_gate.dart';
 import '../features/call/active_call_session.dart';
@@ -227,6 +228,8 @@ final goRouterProvider = Provider<GoRouter>((ref) {
   router = GoRouter(
     initialLocation: '/',
     observers: [BackStackObserver(backStack)],
+    // 未定義のURLは「404 美術館」を表示する（2026-10-10追加）。
+    errorBuilder: (context, state) => const NotFoundScreen(),
     // リロード・進むボタンで、有効な履歴エントリの無い`/_b/*`（戻る操作用の
     // 透明ルート、`BackStackController`参照）に来た場合はホームへ戻す。
     redirect: (context, state) {

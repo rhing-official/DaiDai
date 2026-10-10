@@ -3,6 +3,17 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('BackStackController', () {
+    test('hasOpenOverlayはダイアログが登録されている間だけtrue（履歴トークンは数えない）', () {
+      final c = BackStackController();
+      expect(c.hasOpenOverlay, isFalse);
+      c.add(() {}, scope: BackScope.talks);
+      expect(c.hasOpenOverlay, isFalse);
+      final key = c.addDialog(() {});
+      expect(c.hasOpenOverlay, isTrue);
+      c.removeDialog(key);
+      expect(c.hasOpenOverlay, isFalse);
+    });
+
     test('closeTopLayerは最後のエントリが層ならそれだけ閉じ、履歴エントリには触れない', () {
       final c = BackStackController();
       final calls = <String>[];

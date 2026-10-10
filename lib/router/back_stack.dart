@@ -63,6 +63,13 @@ class BackStackController extends ChangeNotifier {
 
   bool get hasBase => _tokens.isNotEmpty;
 
+  /// ダイアログ・ポップアップ・メニュー・全画面ビューア等が開いているか
+  /// （2026-10-10追加）。ホーム画面のチップ帯のなぞり遷移が、これらの背後で
+  /// タブを切り替えないための判定。ホームの上には常に透明ルート`/_b/*`が
+  /// 積まれていて`ModalRoute.isCurrent`では判定できないため、透明ルートを
+  /// 数えないこちらを使う。
+  bool get hasOpenOverlay => _dialogs.isNotEmpty;
+
   /// 指定idの透明ルートが有効か（積んでいる、または戻るで消えてブラウザの
   /// 「進む」で復元されうる）。ルーターの`redirect`が、リロード等で来た無効な
   /// `/_b/*`を弾くのに使う。

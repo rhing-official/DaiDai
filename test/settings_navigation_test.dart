@@ -27,6 +27,8 @@ import 'package:daidai/providers/text_color_provider.dart';
 import 'package:daidai/providers/theme_mode_provider.dart';
 import 'package:daidai/widgets/interactive_swipe_back.dart';
 import 'package:daidai/widgets/slide_drilldown.dart';
+import 'package:flutter/foundation.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -142,6 +144,102 @@ Future<void> _pumpSettingsTabNarrow(WidgetTester tester) async {
 }
 
 void main() {
+  testWidgets('ライセンスのパッケージ詳細を開いた状態で戻ると、アプリについてではなくライセンス一覧へ1階層だけ戻る', (
+    tester,
+  ) async {
+    PackageInfo.setMockInitialValues(
+      appName: 'DaiDai',
+      packageName: 'jp.rhing.daidai',
+      version: '1.0.0',
+      buildNumber: '1',
+      buildSignature: '',
+    );
+    LicenseRegistry.addLicense(
+      () => Stream.value(
+        const LicenseEntryWithLineBreaks(['test_package'], 'test license text'),
+      ),
+    );
+    await _pumpSettingsTabNarrow(tester);
+    await tester.tap(find.text('運営'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('アプリについて'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('オープンソースライセンス'));
+    await tester.pumpAndSettle();
+    expect(find.byType(LicensePage), findsOneWidget);
+
+    // パッケージ一覧の1件目を開く。
+    await tester.tap(
+      find
+          .descendant(
+            of: find.byType(LicensePage),
+            matching: find.byType(ListTile),
+          )
+          .first,
+    );
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.byType(LicensePage), findsOneWidget);
+
+    // 1回目の右スワイプ: パッケージ詳細からライセンス一覧へ（アプリについてには戻らない）。
+    await tester.fling(
+      find.byType(InteractiveSwipeBackTransition).last,
+      const Offset(300, 0),
+      1000,
+    );
+    await tester.pumpAndSettle();
+    expect(find.byType(LicensePage), findsOneWidget);
+    expect(find.text('test license text'), findsNothing);
+    expect(find.text('test_package'), findsOneWidget);
+
+    // 2回目: ライセンス一覧からアプリについてへ。
+    await tester.fling(
+      find.byType(InteractiveSwipeBackTransition).last,
+      const Offset(300, 0),
+      1000,
+    );
+    await tester.pumpAndSettle();
+    expect(find.byType(LicensePage), findsNothing);
+    expect(find.text('オープンソースライセンス'), findsOneWidget);
+  });
+
+  // 設定＞運営の下位階層（アプリについて等）は、コンピューターでは運営の
+  // 一覧の右隣に並べて表示し、タブレット・スマホは従来どおり一覧の上に
+  // 重ねて表示する（2026-10-10）。flutter_testの既定プラットフォームは
+  // Androidで、幅1400x900は`classifyDevice`上タブレットになる。
+  testWidgets('コンピューターでは運営の「アプリについて」が一覧の右隣に並んで表示される', (tester) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+    try {
+      await _pumpSettingsTab(tester);
+      await tester.tap(find.text('運営'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('アプリについて'));
+      await tester.pumpAndSettle();
+
+      // 運営の一覧（お便り・アプリについて）が見えたまま、右に内容が出る。
+      expect(find.text('お便り'), findsOneWidget);
+      expect(find.text('アプリについて'), findsOneWidget);
+      expect(find.text('オープンソースライセンス'), findsOneWidget);
+      expect(find.byType(SlideDrilldown), findsNothing);
+      expect(
+        tester.getTopLeft(find.text('オープンソースライセンス')).dx,
+        greaterThan(tester.getTopRight(find.text('お便り')).dx),
+      );
+    } finally {
+      debugDefaultTargetPlatformOverride = null;
+    }
+  });
+
+  testWidgets('タブレットでは運営の「アプリについて」は従来どおり重ねて表示される', (tester) async {
+    await _pumpSettingsTab(tester);
+    await tester.tap(find.text('運営'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('アプリについて'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(SlideDrilldown), findsOneWidget);
+  });
+
   testWidgets('既定でアカウントページが選択され、Rhing Seedの値が表示される', (tester) async {
     await _pumpSettingsTab(tester);
 

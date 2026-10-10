@@ -47,6 +47,12 @@ import {
   verifyWebhookToken,
   webhookSenderId,
 } from "./webhook";
+import {
+  type SkippedTarget,
+  classifyTarget,
+  normalizeBulkTargets,
+  parseProfileViewRequest,
+} from "./adminUsers";
 import { renderOgImage } from "./ogImage";
 
 if (ffmpegPath) ffmpeg.setFfmpegPath(ffmpegPath);
@@ -2145,7 +2151,135 @@ export const suspendUserAccount = onCall(
           logger.warn(`revokeRefreshTokensに失敗: ${targetUserId}`, error);
         });
     }
+    await writeAdminAuditLog({
+      adminUid: request.auth.uid,
+      action: suspend ? "suspend" : "unsuspend",
+      targetUserIds: [targetUserId],
+    });
     logger.info(`アカウント${suspend ? "停止" : "解除"}: ${targetUserId}`);
+  },
+);
+
+/**
+ * 管理者の操作の監査ログ（`adminAuditLogs`、2026-10-10追加）。誰が・いつ・
+ * 誰に何をしたかを残す。Admin SDKのみが書き、クライアントからは読み書き
+ * できない（firestore.rulesに該当コレクションの許可が無く既定で拒否される）。
+ * 記録の失敗で操作自体を失敗させない（操作は既に完了しているため、ログだけ
+ * 落とす）。
+ */
+async function writeAdminAuditLog(entry: {
+  adminUid: string;
+  action: "suspend" | "unsuspend" | "viewProfile";
+  targetUserIds: string[];
+  reason?: string;
+  note?: string;
+}): Promise<void> {
+  try {
+    await db.collection("adminAuditLogs").add({
+      ...entry,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+  } catch (error) {
+    logger.error("監査ログの記録に失敗しました", error);
+  }
+}
+
+/**
+ * 複数のアカウントをまとめて停止/解除する（管理者のみ、2026-10-10追加）。
+ * 1回100件まで。自分自身・便り・重複・不在・削除申請中は対象外、他の管理者は
+ * 停止の対象外（解除は可）。対象外にした分は理由つきで返す。停止時は
+ * `suspendUserAccount`と同じく既存セッションを無効化する。
+ */
+export const suspendUserAccounts = onCall(
+  { region: "asia-northeast1" },
+  async (request) => {
+    if (request.auth?.token.admin !== true) {
+      throw new HttpsError("permission-denied", "管理者のみ実行できます");
+    }
+    const suspend = request.data?.suspend;
+    if (typeof suspend !== "boolean") {
+      throw new HttpsError("invalid-argument", "suspendが必要です");
+    }
+    const normalized = normalizeBulkTargets(
+      request.data?.targetUserIds,
+      request.auth.uid,
+    );
+    if (!normalized.ok) {
+      throw new HttpsError("invalid-argument", normalized.reason);
+    }
+    const skipped: SkippedTarget[] = [...normalized.skipped];
+    const changed: string[] = [];
+    const writer = new ChunkedWriter();
+    for (const id of normalized.ids) {
+      const snapshot = await db.collection("users").doc(id).get();
+      let isAdmin = false;
+      if (suspend && snapshot.exists) {
+        isAdmin = await getAuth()
+          .getUser(id)
+          .then((user) => user.customClaims?.admin === true)
+          .catch(() => false);
+      }
+      const reason = classifyTarget(snapshot.data(), suspend, isAdmin);
+      if (reason) {
+        skipped.push({ id, reason });
+        continue;
+      }
+      await writer.update(snapshot.ref, {
+        accountStatus: suspend ? "suspended" : "active",
+      });
+      changed.push(id);
+    }
+    await writer.commit();
+    if (suspend) {
+      await Promise.all(
+        changed.map((id) =>
+          getAuth()
+            .revokeRefreshTokens(id)
+            .catch((error) => {
+              logger.warn(`revokeRefreshTokensに失敗: ${id}`, error);
+            }),
+        ),
+      );
+    }
+    if (changed.length > 0) {
+      await writeAdminAuditLog({
+        adminUid: request.auth.uid,
+        action: suspend ? "suspend" : "unsuspend",
+        targetUserIds: changed,
+      });
+    }
+    logger.info(
+      `アカウント一括${suspend ? "停止" : "解除"}: ${changed.length}件（対象外${skipped.length}件）`,
+    );
+    return { changed, skipped };
+  },
+);
+
+/**
+ * 管理者が住人のプロフィール（カード）を確認する操作を記録する（2026-10-10
+ * 追加）。理由（通報対応/不正利用の調査/その他）を必須とし、記録に成功した
+ * 時だけクライアントがカードを表示する。カードの実データ自体は`users`の
+ * 読み取りルール上クライアントから直接読めるため、これは技術的な遮断では
+ * なく、運営の閲覧を事後に検証できるようにするための記録。
+ */
+export const logAdminProfileView = onCall(
+  { region: "asia-northeast1" },
+  async (request) => {
+    if (request.auth?.token.admin !== true) {
+      throw new HttpsError("permission-denied", "管理者のみ実行できます");
+    }
+    const parsed = parseProfileViewRequest(request.data);
+    if (!parsed.ok) {
+      throw new HttpsError("invalid-argument", parsed.reason);
+    }
+    await db.collection("adminAuditLogs").add({
+      adminUid: request.auth.uid,
+      action: "viewProfile",
+      targetUserIds: [parsed.targetUserId],
+      reason: parsed.reason,
+      note: parsed.note,
+      createdAt: FieldValue.serverTimestamp(),
+    });
   },
 );
 
@@ -2314,54 +2448,21 @@ export const migrateRhingSeedOnce = onCall(
   },
 );
 
-/** 便り（公式アカウント）の固定UID・Rhing Seed。 */
-const OFFICIAL_ACCOUNT_UID = "official-tayori";
-const OFFICIAL_ACCOUNT_RHING_SEED = "tayori";
+/** お便りの名前の既定値（`system/official`が未作成の時に使う）。 */
+const OFFICIAL_DEFAULT_NAME = "お便り";
+
+/** お便り1件の本文の最大文字数。 */
+const ANNOUNCEMENT_MAX_LENGTH = 2000;
 
 /**
- * 便り（公式アカウント）用の`users/{OFFICIAL_ACCOUNT_UID}`ドキュメントが
- * 無ければ作成する。Firebase Authに対応する実アカウントは持たない
- * （送信者表示は`users/{senderId}`をライブ参照するだけのため、Firestore
- * ドキュメントのみで既存UIがそのまま正しく描画できる）。アイコンは未設定の
- * ままにし、Rhing Seedから導出される色付きイニシャルへのフォールバック表示
- * に任せる。
- */
-async function ensureOfficialAccount(): Promise<void> {
-  const ref = db.collection("users").doc(OFFICIAL_ACCOUNT_UID);
-  const doc = await ref.get();
-  if (doc.exists) return;
-  await ref.set({
-    userId: OFFICIAL_ACCOUNT_UID,
-    rhingSeed: OFFICIAL_ACCOUNT_RHING_SEED,
-    displayName: null,
-    icons: [],
-    backgroundImages: [],
-    statusMessages: [],
-    nicknames: [{ id: "official", text: "便り" }],
-    snsLinks: [],
-    profileCards: [],
-    activeIconId: null,
-    activeBackgroundImageId: null,
-    activeStatusMessageId: null,
-    activeNicknameId: "official",
-    activeProfileCardId: null,
-    conversationProfileCardId: {},
-    preferences: {},
-    accountStatus: "active",
-    deletionRequestedAt: null,
-    createdAt: FieldValue.serverTimestamp(),
-    lastLoginAt: null,
-  });
-}
-
-/**
- * 全住人（稼働中=accountStatus:'active'のアカウントのみ）に、便り
- * アカウントからの一対メッセージとしてお知らせを配信する（管理者のみ）。
- * DirectMessage/DmRoom/Messageのスキーマ・書き込み方は
- * `getOrCreateDirectMessage`/`sendTextMessage`
- * （lib/repositories/direct_message_repository.dart）と揃える。dmIdは
- * クライアント側の`DirectMessage.idFor`と同じ決定的なpairId方式のため、
- * 2回目以降の配信も既存の一対の続きとして届く。
+ * 全住人（稼働中=accountStatus:'active'のアカウントのみ）にお便りを配信する
+ * （管理者のみ）。お便りは住人（`users`）ではなく「そこにある物」として扱い
+ * （2026-10-10変更、以前は固定UID`official-tayori`の住人から全員との一対へ
+ * メッセージを書き込んでいた）、`announcements`に1件保存するだけで住人ごとの
+ * 書き込みはしない。住人は設定>運営>お便りで`announcements`を読む。
+ * 通知は、保存後に稼働中の住人のFCMトークンへ直接プッシュする（一対が無い
+ * ため通知のディープリンクは付けない）。発信元の名前・アイコンは
+ * `system/official`（管理画面の身だしなみタブで編集）を使う。
  */
 export const broadcastAnnouncement = onCall(
   { region: "asia-northeast1", timeoutSeconds: 300 },
@@ -2373,98 +2474,146 @@ export const broadcastAnnouncement = onCall(
     if (typeof message !== "string" || !message.trim()) {
       throw new HttpsError("invalid-argument", "messageが必要です");
     }
+    if (message.length > ANNOUNCEMENT_MAX_LENGTH) {
+      throw new HttpsError(
+        "invalid-argument",
+        `messageは${ANNOUNCEMENT_MAX_LENGTH}文字以内にしてください`,
+      );
+    }
 
-    await ensureOfficialAccount();
+    await db.collection("announcements").add({
+      content: message,
+      createdAt: FieldValue.serverTimestamp(),
+      createdBy: request.auth.uid,
+    });
+
+    const official = (await db.doc("system/official").get()).data();
+    const title: string =
+      typeof official?.name === "string" && official.name
+        ? official.name
+        : OFFICIAL_DEFAULT_NAME;
+    const iconUrl: string | null =
+      typeof official?.iconUrl === "string" ? official.iconUrl : null;
 
     const usersSnapshot = await db
       .collection("users")
       .where("accountStatus", "==", "active")
       .get();
-
-    const writer = new ChunkedWriter();
-    let count = 0;
+    const androidTokens: string[] = [];
+    const webTokens: string[] = [];
     for (const userDoc of usersSnapshot.docs) {
-      const userId = userDoc.id;
-      if (userId === OFFICIAL_ACCOUNT_UID) continue;
-      const rhingSeed: string | undefined = userDoc.data().rhingSeed;
-
-      const sortedIds = [OFFICIAL_ACCOUNT_UID, userId].sort();
-      const dmId = `${sortedIds[0]}_${sortedIds[1]}`;
-      const dmRef = db.collection("directMessages").doc(dmId);
-      const dmDoc = await dmRef.get();
-
-      let roomId: string;
-      // この一対で最も古い（createdAtが最小の）寄合を使う（2026-09-14変更、
-      // 以前はdefaultRoomIdを直接参照していた）。
-      const existingOldestRoom = dmDoc.exists
-        ? await dmRef.collection("rooms").orderBy("createdAt").limit(1).get()
-        : null;
-      if (existingOldestRoom && !existingOldestRoom.empty) {
-        roomId = existingOldestRoom.docs[0].id;
-      } else {
-        const newRoomRef = dmRef.collection("rooms").doc();
-        roomId = newRoomRef.id;
-        await writer.set(dmRef, {
-          participants: [OFFICIAL_ACCOUNT_UID, userId],
-          participantRhingSeeds: {
-            [OFFICIAL_ACCOUNT_UID]: OFFICIAL_ACCOUNT_RHING_SEED,
-            [userId]: rhingSeed ?? userId,
-          },
-          lastMessageAt: FieldValue.serverTimestamp(),
-          severanceRequestedBy: null,
-          readReceiptsEnabled: true,
-          readReceiptsProposalBy: null,
-          accountDeletedUserId: null,
-          roomsEnabled: false,
-        });
-        await writer.set(newRoomRef, {
-          dmId,
-          name: "メイン",
-          participants: [OFFICIAL_ACCOUNT_UID, userId],
-          lastMessageAt: FieldValue.serverTimestamp(),
-          createdAt: FieldValue.serverTimestamp(),
-          deletionRequestedBy: null,
-        });
+      const tokens: FcmTokenEntry[] = userDoc.data().fcmTokens ?? [];
+      for (const entry of tokens) {
+        if (entry.platform === "android") androidTokens.push(entry.token);
+        else if (entry.platform === "web") webTokens.push(entry.token);
       }
-
-      const roomRef = dmRef.collection("rooms").doc(roomId);
-      const messageRef = roomRef.collection("messages").doc();
-      await writer.set(messageRef, {
-        conversationId: roomId,
-        conversationType: "dm",
-        senderId: OFFICIAL_ACCOUNT_UID,
-        senderRhingSeed: OFFICIAL_ACCOUNT_RHING_SEED,
-        content: message,
-        contentType: "text",
-        sentAt: FieldValue.serverTimestamp(),
-        hiddenFor: [],
-        readBy: [],
-        isSpam: false,
-        silent: false,
-        replyToMessageId: null,
-        replyToSenderId: null,
-        replyToSenderRhingSeed: null,
-        replyToSnippet: null,
-        editedAt: null,
-        reactions: {},
-        callStartedAt: null,
-        callDurationSeconds: null,
-        callIsVideo: null,
-        accountDeletionResponse: null,
-      });
-      if (dmDoc.exists) {
-        await writer.update(roomRef, {
-          lastMessageAt: FieldValue.serverTimestamp(),
-        });
-        await writer.update(dmRef, {
-          lastMessageAt: FieldValue.serverTimestamp(),
-        });
-      }
-      count += 1;
     }
-    await writer.commit();
-    logger.info(`お知らせを${count}件の一対に配信しました`);
-    return { count };
+
+    const body = message.length > 100 ? `${message.slice(0, 100)}…` : message;
+    const messaging = getMessaging();
+    // sendEachForMulticastは1回500トークンまで。
+    for (let i = 0; i < androidTokens.length; i += 500) {
+      await messaging.sendEachForMulticast({
+        tokens: androidTokens.slice(i, i + 500),
+        data: {
+          title,
+          body,
+          iconUrl: iconUrl ?? "",
+          previewUrl: "",
+          isDm: "true",
+          conversationId: "",
+          roomId: "",
+        },
+        android: { priority: "high" },
+      });
+    }
+    for (let i = 0; i < webTokens.length; i += 500) {
+      await messaging.sendEachForMulticast({
+        tokens: webTokens.slice(i, i + 500),
+        webpush: {
+          notification: { title, body, icon: iconUrl ?? undefined },
+          data: { isDm: "true", conversationId: "", roomId: "" },
+          fcmOptions: { link: "/" },
+        },
+      });
+    }
+    logger.info(`お便りを配信しました（対象${usersSnapshot.size}人）`);
+    return { count: usersSnapshot.size };
+  },
+);
+
+/**
+ * 一度きりの移行処理（2026-10-10追加）: お便りを「住人」から「そこにある物」へ
+ * 変更したことに伴い、旧データ（固定UID`official-tayori`の住人ドキュメント・
+ * 招待プレビュー・アイコンのStorage、各住人との一対`directMessages/
+ * official-tayori_*`とその寄合・メッセージ、住人側の会話設定）を削除し、
+ * `system/official`を既定値で作成する。過去の配信は破棄する（ユーザー了承済み）。
+ * 何度実行しても安全（べき等）。実行・確認後は、`grantFirstAdminOnce`等と同様
+ * にソースから削除し、`firebase functions:delete removeOfficialAccountOnce
+ * --region asia-northeast1 --force`で関数も消す。
+ */
+export const removeOfficialAccountOnce = onCall(
+  { region: "asia-northeast1", timeoutSeconds: 540 },
+  async (request) => {
+    if (request.auth?.token.admin !== true) {
+      throw new HttpsError("permission-denied", "管理者のみ実行できます");
+    }
+    const legacyUid = "official-tayori";
+    const result = {
+      deletedConversations: 0,
+      deletedConversationPrefs: 0,
+      deletedUser: 0,
+      deletedInvite: 0,
+      createdSystemDoc: 0,
+    };
+
+    const dms = await db
+      .collection("directMessages")
+      .where("participants", "array-contains", legacyUid)
+      .get();
+    for (const dm of dms.docs) {
+      const participants: string[] = dm.data().participants ?? [];
+      for (const uid of participants) {
+        if (uid === legacyUid) continue;
+        const prefRef = db.doc(`users/${uid}/conversationPrefs/${dm.id}`);
+        if ((await prefRef.get()).exists) {
+          await prefRef.delete();
+          result.deletedConversationPrefs += 1;
+        }
+      }
+      await db.recursiveDelete(dm.ref);
+      result.deletedConversations += 1;
+    }
+
+    const userRef = db.collection("users").doc(legacyUid);
+    if ((await userRef.get()).exists) {
+      await db.recursiveDelete(userRef);
+      result.deletedUser = 1;
+    }
+    const inviteRef = db.collection("userInvites").doc("tayori");
+    const invite = await inviteRef.get();
+    if (invite.exists && invite.data()?.userId === legacyUid) {
+      await inviteRef.delete();
+      result.deletedInvite = 1;
+    }
+    await getStorage()
+      .bucket()
+      .deleteFiles({ prefix: `profileMaterials/${legacyUid}/` })
+      .catch((error) => {
+        logger.warn("旧お便りのアイコン削除に失敗しました", error);
+      });
+
+    const systemRef = db.doc("system/official");
+    if (!(await systemRef.get()).exists) {
+      await systemRef.set({
+        name: OFFICIAL_DEFAULT_NAME,
+        iconUrl: null,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      result.createdSystemDoc = 1;
+    }
+    logger.info(`旧お便りの移行: ${JSON.stringify(result)}`);
+    return result;
   },
 );
 

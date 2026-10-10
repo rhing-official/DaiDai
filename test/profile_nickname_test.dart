@@ -159,19 +159,20 @@ class _FakeUserRepository implements UserRepository {
   Future<void> setAccountSuspended(String userId, bool suspended) async {}
 
   @override
-  Future<void> broadcastAnnouncement(String message) async {}
+  Future<BulkSuspendResult> setAccountsSuspended(
+    List<String> userIds,
+    bool suspended,
+  ) async => const BulkSuspendResult(changed: [], skipped: []);
+
+  @override
+  Future<void> logAdminProfileView(
+    String userId, {
+    required String reason,
+    String note = '',
+  }) async {}
 
   @override
   Future<bool> bootstrapFirstAdmin() async => false;
-
-  @override
-  Future<Map<String, int>> backfillAccountStatusOnce() async => {
-    'scanned': 0,
-    'backfilled': 0,
-  };
-
-  @override
-  Future<Map<String, int>> migrateRhingSeedOnce() async => {};
 
   @override
   Future<void> setGoogleCalendarSyncEnabled(

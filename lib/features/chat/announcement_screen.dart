@@ -1,4 +1,3 @@
-import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -6,11 +5,9 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../l10n/strings.dart';
 import '../../models/app_ui_style.dart';
 import '../../models/app_user.dart';
-import '../../models/direct_message.dart';
-import '../../models/dm_room.dart';
+import '../../models/message.dart';
 import '../../providers/app_ui_style_provider.dart';
 import '../../providers/repository_providers.dart';
-import '../../utils/official_account.dart';
 import '../../widgets/gekiga/gekiga_panel_box.dart';
 import 'chat_screen.dart';
 
@@ -22,73 +19,37 @@ Future<void> _openContactForm() async {
   await launchUrl(uri, mode: LaunchMode.externalApplication);
 }
 
-/// 運営からのお知らせ（便り）を表示する読み取り専用画面（2026-08-12追加）。
-/// 設定＞運営から開く。通常の一対と同じ[ChatScreen]の見た目を使うが、
-/// [ChatScreen.onSend]をnullにして入力欄自体を出さない。
-class AnnouncementScreen extends ConsumerWidget {
+/// 運営からのお便りを表示する読み取り専用画面（2026-08-12追加、2026-10-10に
+/// データ源を`announcements`へ変更）。設定＞運営から開く。通常の一対と同じ
+/// [ChatScreen]の見た目を使うが、[ChatScreen.onSend]をnullにして入力欄自体を
+/// 出さない。お便りは住人ではなく`announcements`・`system/official`という
+/// 「そこにある物」のため、各住人との一対は使わない。
+class AnnouncementScreen extends ConsumerStatefulWidget {
   const AnnouncementScreen({required this.currentUser, super.key});
 
   final AppUser currentUser;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final dmRepository = ref.watch(directMessageRepositoryProvider);
-    final dmId = DirectMessage.idFor(currentUser.userId, officialAccountUid);
+  ConsumerState<AnnouncementScreen> createState() => _AnnouncementScreenState();
+}
 
-    return StreamBuilder<List<DirectMessage>>(
-      stream: dmRepository.watchDirectMessages(currentUser.userId),
-      builder: (context, snapshot) {
-        final dm = (snapshot.data ?? const []).firstWhereOrNull(
-          (d) => d.dmId == dmId,
-        );
-        // まだ一度も配信を受け取っていない場合は便りとの一対自体が
-        // 存在しないため、空の会話として表示する（通常の一対と同じ挙動）。
-        if (dm == null) {
-          return ChatScreen(
-            key: const ValueKey('announcements-none'),
-            title: '',
-            currentUserId: currentUser.userId,
-            isDm: true,
-            forceShowSenderInfo: true,
-            conversationId: null,
-            messagesStream: const Stream.empty(),
-            banner: const _ContactFormBanner(),
-          );
-        }
-        // この一対で最も古い（`createdAt`が最小の）寄合に投稿・表示する
-        // （2026-09-14変更、以前は`defaultRoomId`を直接参照していた）。
-        return StreamBuilder<List<DmRoom>>(
-          stream: dmRepository.watchRooms(
-            dmId: dm.dmId,
-            userId: currentUser.userId,
-          ),
-          builder: (context, roomsSnapshot) {
-            final rooms = roomsSnapshot.data ?? const <DmRoom>[];
-            final roomId = rooms.isNotEmpty ? rooms.first.roomId : null;
-            return ChatScreen(
-              key: ValueKey('announcements-${roomId ?? 'none'}'),
-              title: '',
-              currentUserId: currentUser.userId,
-              isDm: true,
-              forceShowSenderInfo: true,
-              conversationId: dm.dmId,
-              messagesStream: roomId == null
-                  ? const Stream.empty()
-                  : dmRepository
-                        .watchMessages(dm.dmId, roomId)
-                        .map(
-                          (messages) => messages
-                              .where(
-                                (m) =>
-                                    !m.hiddenFor.contains(currentUser.userId),
-                              )
-                              .toList(),
-                        ),
-              banner: const _ContactFormBanner(),
-            );
-          },
-        );
-      },
+class _AnnouncementScreenState extends ConsumerState<AnnouncementScreen> {
+  // ChatScreenが同じストリームを購読し続けられるよう、1度だけ作る。
+  late final Stream<List<Message>> _messages = ref
+      .read(announcementRepositoryProvider)
+      .watchAnnouncementMessages();
+
+  @override
+  Widget build(BuildContext context) {
+    return ChatScreen(
+      key: const ValueKey('announcements'),
+      title: '',
+      currentUserId: widget.currentUser.userId,
+      isDm: true,
+      forceShowSenderInfo: true,
+      conversationId: null,
+      messagesStream: _messages,
+      banner: const _ContactFormBanner(),
     );
   }
 }

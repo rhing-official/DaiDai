@@ -18,7 +18,6 @@ import '../../providers/conversation_prefs_providers.dart';
 import '../../providers/repository_providers.dart';
 import '../../providers/user_providers.dart';
 import '../../router/app_router.dart';
-import '../../utils/official_account.dart';
 import 'talks_search.dart';
 import 'talks_tab.dart' show DirectMessageTile, GroupTile, dmSearchLabel;
 
@@ -251,13 +250,7 @@ class _TalksSearchScreenState extends ConsumerState<TalksSearchScreen> {
       body: StreamBuilder<List<DirectMessage>>(
         stream: directMessagesStream,
         builder: (context, dmSnapshot) {
-          final directMessages = (dmSnapshot.data ?? [])
-              .where(
-                (dm) =>
-                    dm.otherUserId(widget.currentUser.userId) !=
-                    officialAccountUid,
-              )
-              .toList();
+          final directMessages = dmSnapshot.data ?? [];
           return StreamBuilder<List<Group>>(
             stream: groupsStream,
             builder: (context, groupSnapshot) {

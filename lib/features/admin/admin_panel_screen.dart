@@ -1,25 +1,25 @@
 import 'dart:async';
 
-import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
-import '../../models/app_ui_style.dart';
 import '../../models/app_user.dart';
-import '../../models/direct_message.dart';
-import '../../models/dm_room.dart';
 import '../../models/message.dart';
-import '../../models/profile_material.dart';
-import '../../providers/app_ui_style_provider.dart';
+import '../../models/official_profile.dart';
 import '../../providers/repository_providers.dart';
 import '../../utils/auto_dismiss_banner.dart';
-import '../../utils/official_account.dart';
-import '../../widgets/glass/glass_dialog.dart';
+import '../../router/back_stack.dart';
+import '../../widgets/nav_chip.dart';
 import '../chat/chat_screen.dart';
+import '../settings/settings_tab.dart';
+import 'admin_user_list.dart';
 
-/// 運営向け管理画面本体（2026-08-12新設）。住人一覧・アカウント停止/解除・
-/// お知らせ・便りの身だしなみの3セクションを左サイドバーで切り替える。
+/// 運営向け管理画面本体（2026-08-12新設）。住人一覧・お便り・お便りの
+/// 身だしなみ・設定の4タブを、利用者画面のホームと同じ丸いナビチップで
+/// 切り替える（2026-10-10、以前は`AppBar`と`NavigationRail`の独自UI・
+/// モノクロ固定テーマだったが、利用者画面と同じ見た目・操作感に揃えた。
+/// 見た目はユーザー設定のUIスタイル・アクセントカラー・フォントに従う）。
 /// [AdminGate]経由でのみ到達する（管理者クレームを確認済み）。
 class AdminPanelScreen extends ConsumerStatefulWidget {
   const AdminPanelScreen({required this.currentUser, super.key});
@@ -32,365 +32,112 @@ class AdminPanelScreen extends ConsumerStatefulWidget {
 
 class _AdminPanelScreenState extends ConsumerState<AdminPanelScreen> {
   int _selectedIndex = 0;
-  bool _backfilling = false;
-  bool _migratingRhingSeed = false;
-  Timer? _bannerTimer;
 
-  @override
-  void dispose() {
-    _bannerTimer?.cancel();
-    super.dispose();
-  }
+  static const _icons = [
+    Icons.people_outline,
+    Icons.campaign_outlined,
+    Icons.face_outlined,
+    Icons.settings_outlined,
+  ];
 
-  /// 一度きりの`accountStatus`バックフィル（`lib/repositories/user_repository.dart`
-  /// の`backfillAccountStatusOnce`参照）。運営本人が実行・べき等性確認
-  /// （2回目に`backfilled: 0`になること）を終えたら、このボタン・
-  /// repositoryメソッド・Cloud Function自体をまとめて削除する想定の
-  /// 一時的なUI（`AdminGate`の初回管理者登録ボタンと同じ「使い捨て」の
-  /// 扱い）。
-  Future<void> _runBackfill() async {
-    setState(() => _backfilling = true);
-    try {
-      final result = await ref
-          .read(userRepositoryProvider)
-          .backfillAccountStatusOnce();
-      if (!mounted) return;
-      _bannerTimer = showAutoDismissBanner(
-        context,
-        message:
-            'accountStatus一括補修: ${result['scanned']}件中${result['backfilled']}件を補修しました',
-        previousTimer: _bannerTimer,
-      );
-    } catch (e) {
-      if (!mounted) return;
-      _bannerTimer = showAutoDismissBanner(
-        context,
-        message: '補修に失敗しました: $e',
-        previousTimer: _bannerTimer,
-      );
-    } finally {
-      if (mounted) setState(() => _backfilling = false);
-    }
-  }
+  /// [_icons]の各グリフの見た目の密度差を補正する表示サイズ
+  /// （ホーム画面の`_iconSizes`と同じ考え方）。
+  static const _iconSizes = [24.0, 24.0, 28.0, 28.0];
 
-  /// 一度きりの「Rhing ID」→「Rhing Seed」フィールド名移行
-  /// （`lib/repositories/user_repository.dart`の`migrateRhingSeedOnce`参照）。
-  /// `_runBackfill`と同じ「使い捨て」の扱い。運営本人が実行・べき等性確認
-  /// （2回目に全カテゴリ`0`になること）を終えたら、このボタン・
-  /// repositoryメソッド・Cloud Function自体をまとめて削除する想定
-  /// （2026-09-23追加）。
-  Future<void> _runRhingSeedMigration() async {
-    setState(() => _migratingRhingSeed = true);
-    try {
-      final result = await ref
-          .read(userRepositoryProvider)
-          .migrateRhingSeedOnce();
-      if (!mounted) return;
-      _bannerTimer = showAutoDismissBanner(
-        context,
-        message: 'rhingSeed移行: $result',
-        previousTimer: _bannerTimer,
-      );
-    } catch (e) {
-      if (!mounted) return;
-      _bannerTimer = showAutoDismissBanner(
-        context,
-        message: 'rhingSeed移行に失敗しました: $e',
-        previousTimer: _bannerTimer,
-      );
-    } finally {
-      if (mounted) setState(() => _migratingRhingSeed = false);
-    }
-  }
+  static const _labels = ['住人一覧', 'お便り', '身だしなみ', '設定'];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('管理画面'),
-        actions: [
-          IconButton(
-            icon: _backfilling
-                ? const SizedBox.shrink()
-                : const Icon(Icons.build_outlined),
-            onPressed: _backfilling ? null : _runBackfill,
-          ),
-          IconButton(
-            icon: _migratingRhingSeed
-                ? const SizedBox.shrink()
-                : const Icon(Icons.grass_outlined),
-            tooltip: 'Rhing Seed移行',
-            onPressed: _migratingRhingSeed ? null : _runRhingSeedMigration,
-          ),
-        ],
-      ),
-      body: Row(
-        children: [
-          NavigationRail(
-            selectedIndex: _selectedIndex,
-            onDestinationSelected: (i) => setState(() => _selectedIndex = i),
-            labelType: NavigationRailLabelType.none,
-            destinations: const [
-              NavigationRailDestination(
-                icon: Icon(Icons.people_outline),
-                label: Text('住人一覧'),
-              ),
-              NavigationRailDestination(
-                icon: Icon(Icons.campaign_outlined),
-                label: Text('お知らせ'),
-              ),
-              NavigationRailDestination(
-                icon: Icon(Icons.face_outlined),
-                label: Text('身だしなみ'),
-              ),
+      body: SafeArea(
+        child: ChipNavShell(
+          icons: _icons,
+          iconSizes: _iconSizes,
+          labels: _labels,
+          selectedIndex: _selectedIndex,
+          onSelected: (i) => setState(() => _selectedIndex = i),
+          isSwipeBlocked: () =>
+              ref.read(backStackControllerProvider).hasOpenOverlay,
+          child: IndexedStack(
+            index: _selectedIndex,
+            children: [
+              AdminUserListSection(currentUserId: widget.currentUser.userId),
+              _AnnouncementSection(currentUser: widget.currentUser),
+              const _OfficialProfileSection(),
+              const ApplicationSettingsView(),
             ],
           ),
-          const VerticalDivider(width: 1),
-          Expanded(
-            child: IndexedStack(
-              index: _selectedIndex,
-              children: [
-                const _UserListSection(),
-                _AnnouncementSection(currentUser: widget.currentUser),
-                const _OfficialAccountProfileSection(),
-              ],
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
 }
 
-class _UserListSection extends ConsumerWidget {
-  const _UserListSection();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final usersAsync = ref.watch(_allUsersProvider);
-    return usersAsync.when(
-      loading: () => const SizedBox.shrink(),
-      error: (error, _) => Center(child: Text('エラー: $error')),
-      data: (users) {
-        final sorted = [...users]
-          ..sort((a, b) {
-            final aTime = a.createdAt?.toDate();
-            final bTime = b.createdAt?.toDate();
-            if (aTime == null && bTime == null) return 0;
-            if (aTime == null) return 1;
-            if (bTime == null) return -1;
-            return bTime.compareTo(aTime);
-          });
-        if (sorted.isEmpty) {
-          return const Center(child: Text('住人がいません'));
-        }
-        return ListView.separated(
-          itemCount: sorted.length,
-          separatorBuilder: (_, _) => const Divider(height: 1),
-          itemBuilder: (context, index) => _UserListTile(user: sorted[index]),
-        );
-      },
-    );
-  }
-}
-
-final _allUsersProvider = StreamProvider.autoDispose<List<AppUser>>((ref) {
-  return ref.watch(userRepositoryProvider).watchAllUsersForAdmin();
-});
-
-class _UserListTile extends ConsumerWidget {
-  const _UserListTile({required this.user});
-
-  final AppUser user;
-
-  String _formatTimestamp(DateTime? time) {
-    if (time == null) return '不明';
-    final y = time.year.toString().padLeft(4, '0');
-    final m = time.month.toString().padLeft(2, '0');
-    final d = time.day.toString().padLeft(2, '0');
-    final hh = time.hour.toString().padLeft(2, '0');
-    final mm = time.minute.toString().padLeft(2, '0');
-    return '$y/$m/$d $hh:$mm';
-  }
-
-  String _statusLabel(AccountStatus status) {
-    switch (status) {
-      case AccountStatus.active:
-        return '通常';
-      case AccountStatus.pendingDeletion:
-        return '削除申請中';
-      case AccountStatus.suspended:
-        return '停止中';
-    }
-  }
-
-  Future<void> _confirmToggleSuspend(
-    BuildContext context,
-    WidgetRef ref,
-  ) async {
-    final suspend = user.accountStatus != AccountStatus.suspended;
-    final isGlass = ref.read(appUiStyleProvider) == AppUiStyle.glass;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) {
-        final title = Text(suspend ? 'このアカウントを停止しますか？' : 'このアカウントの停止を解除しますか？');
-        final content = Text('@${user.rhingSeed}');
-        final actions = [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('やめる'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: Text(suspend ? '停止する' : '解除する'),
-          ),
-        ];
-        return isGlass
-            ? GlassAlertDialog(title: title, content: content, actions: actions)
-            : AlertDialog(title: title, content: content, actions: actions);
-      },
-    );
-    if (confirmed != true) return;
-    await ref
-        .read(userRepositoryProvider)
-        .setAccountSuspended(user.userId, suspend);
-  }
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final isSuspended = user.accountStatus == AccountStatus.suspended;
-    return ListTile(
-      title: Text('@${user.rhingSeed}'),
-      subtitle: Text(
-        '作成: ${_formatTimestamp(user.createdAt?.toDate())}\n'
-        '最終ログイン: ${_formatTimestamp(user.lastLoginAt?.toDate())}\n'
-        '状態: ${_statusLabel(user.accountStatus)}',
-      ),
-      isThreeLine: true,
-      trailing: user.accountStatus == AccountStatus.pendingDeletion
-          ? null
-          : OutlinedButton(
-              onPressed: () => _confirmToggleSuspend(context, ref),
-              child: Text(isSuspended ? '解除' : '停止'),
-            ),
-    );
-  }
-}
-
-/// お知らせセクション本体。管理者自身も稼働中の住人として便りからの配信を
-/// 受け取るため、管理者⇔便りの一対をそのまま通常の語らいのメッセージ画面
-/// （[ChatScreen]）で表示し、送信だけ`broadcastAnnouncement`（全住人への
-/// 一斉配信）に差し替える（2026-08-12更新、旧: 単純なテキスト欄+送信
-/// ボタンのみのUIだった）。これにより住人側も同じ[ChatScreen]で普通の
-/// 一対として配信内容を読める。
-class _AnnouncementSection extends ConsumerWidget {
+/// お便りセクション本体。配信済みのお便りを、住人が見るのと同じ[ChatScreen]
+/// （発信元の名前・アイコン付き）で一覧し、入力欄から送ると
+/// `broadcastAnnouncement`で全住人へ配信する（2026-08-12追加、2026-10-10に
+/// 一対ではなく`announcements`をデータ源に変更。お便りは住人ではないため、
+/// 管理者自身との一対は無い）。
+class _AnnouncementSection extends ConsumerStatefulWidget {
   const _AnnouncementSection({required this.currentUser});
 
   final AppUser currentUser;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final dmRepository = ref.watch(directMessageRepositoryProvider);
-    final dmId = DirectMessage.idFor(currentUser.userId, officialAccountUid);
+  ConsumerState<_AnnouncementSection> createState() =>
+      _AnnouncementSectionState();
+}
 
-    Future<void> send(
-      String content, {
-      bool silent = false,
-      Message? replyTo,
-    }) => ref.read(userRepositoryProvider).broadcastAnnouncement(content);
+class _AnnouncementSectionState extends ConsumerState<_AnnouncementSection> {
+  late final Stream<List<Message>> _messages = ref
+      .read(announcementRepositoryProvider)
+      .watchAnnouncementMessages();
 
-    return StreamBuilder<List<DirectMessage>>(
-      stream: dmRepository.watchDirectMessages(currentUser.userId),
-      builder: (context, snapshot) {
-        final dm = (snapshot.data ?? const []).firstWhereOrNull(
-          (d) => d.dmId == dmId,
-        );
-        // まだ一度も配信していない場合は便りとの一対自体が存在しないため、
-        // 履歴は空のまま表示する（初回の配信で`broadcastAnnouncement`が
-        // 一対・寄合を自動作成する）。
-        if (dm == null) {
-          return ChatScreen(
-            key: const ValueKey('admin-broadcast-none'),
-            title: '',
-            currentUserId: currentUser.userId,
-            isDm: true,
-            conversationId: null,
-            messagesStream: const Stream.empty(),
-            onSend: send,
-          );
-        }
-        // この一対で最も古い（`createdAt`が最小の）寄合に投稿・表示する
-        // （2026-09-14変更、以前は`defaultRoomId`を直接参照していた）。
-        return StreamBuilder<List<DmRoom>>(
-          stream: dmRepository.watchRooms(
-            dmId: dm.dmId,
-            userId: currentUser.userId,
-          ),
-          builder: (context, roomsSnapshot) {
-            final rooms = roomsSnapshot.data ?? const <DmRoom>[];
-            final roomId = rooms.isNotEmpty ? rooms.first.roomId : null;
-            return ChatScreen(
-              key: ValueKey('admin-broadcast-${roomId ?? 'none'}'),
-              title: '',
-              currentUserId: currentUser.userId,
-              isDm: true,
-              conversationId: dm.dmId,
-              messagesStream: roomId == null
-                  ? const Stream.empty()
-                  : dmRepository
-                        .watchMessages(dm.dmId, roomId)
-                        .map(
-                          (messages) => messages
-                              .where(
-                                (m) =>
-                                    !m.hiddenFor.contains(currentUser.userId),
-                              )
-                              .toList(),
-                        ),
-              onSend: send,
-            );
-          },
-        );
-      },
+  Future<void> _send(String content, {bool silent = false, Message? replyTo}) =>
+      ref.read(announcementRepositoryProvider).broadcast(content);
+
+  @override
+  Widget build(BuildContext context) {
+    return ChatScreen(
+      key: const ValueKey('admin-broadcast'),
+      title: '',
+      currentUserId: widget.currentUser.userId,
+      isDm: true,
+      forceShowSenderInfo: true,
+      conversationId: null,
+      messagesStream: _messages,
+      onSend: _send,
     );
   }
 }
 
-/// 便り（公式アカウント）の身だしなみ（アイコン・呼び名）セクション
-/// （2026-08-12追加）。便りはFirebase Authに対応する実アカウントを持たない
-/// ため、通常の身だしなみタブ（`lib/features/profile/profile_tab.dart`の
-/// 蔵・工房）は使えず、管理者がここから直接編集する。firestore.rules・
-/// storage.rulesに、`officialAccountUid`宛の書き込みに限定した管理者
-/// クレーム経由の例外を追加している。蔵の複数枠管理はせず、常に最新の
-/// 1件だけを残す（アップロード・保存のたびに古い素材を置き換える）簡易版。
-class _OfficialAccountProfileSection extends ConsumerStatefulWidget {
-  const _OfficialAccountProfileSection();
+/// お便り（運営の発信元）の身だしなみ（名前・アイコン）セクション
+/// （2026-08-12追加、2026-10-10に`system/official`の編集へ変更）。お便りは
+/// 住人（`users`）ではないため、蔵・工房は使わず、名前とアイコン1枚だけを
+/// 管理者が直接編集する。書き込みはfirestore.rules・storage.rulesの
+/// 管理者限定の許可（`system/official`・`officialAssets/**`）による。
+class _OfficialProfileSection extends ConsumerStatefulWidget {
+  const _OfficialProfileSection();
 
   @override
-  ConsumerState<_OfficialAccountProfileSection> createState() =>
-      _OfficialAccountProfileSectionState();
+  ConsumerState<_OfficialProfileSection> createState() =>
+      _OfficialProfileSectionState();
 }
 
-class _OfficialAccountProfileSectionState
-    extends ConsumerState<_OfficialAccountProfileSection> {
-  late final Stream<AppUser?> _userStream;
-  final _nicknameController = TextEditingController();
-  bool _nicknameInitialized = false;
+class _OfficialProfileSectionState
+    extends ConsumerState<_OfficialProfileSection> {
+  late final Stream<OfficialProfile> _profileStream = ref
+      .read(announcementRepositoryProvider)
+      .watchOfficialProfile();
+  final _nameController = TextEditingController();
+  bool _nameInitialized = false;
   bool _uploadingIcon = false;
-  bool _savingNickname = false;
+  bool _savingName = false;
   Timer? _bannerTimer;
 
   @override
-  void initState() {
-    super.initState();
-    _userStream = ref
-        .read(userRepositoryProvider)
-        .watchUser(officialAccountUid);
-  }
-
-  @override
   void dispose() {
-    _nicknameController.dispose();
+    _nameController.dispose();
     _bannerTimer?.cancel();
     super.dispose();
   }
@@ -404,34 +151,13 @@ class _OfficialAccountProfileSectionState
     );
   }
 
-  /// アイコンを新しく1枚アップロードし、既存のアイコンは全て置き換える
-  /// （便りは複数枠を使い分ける必要が無いため、常に最新の1枚のみ残す）。
-  Future<void> _pickAndUploadIcon(AppUser user) async {
+  Future<void> _pickAndUploadIcon() async {
     final picked = await ImagePicker().pickImage(source: ImageSource.gallery);
     if (picked == null) return;
     setState(() => _uploadingIcon = true);
     try {
-      final repo = ref.read(userRepositoryProvider);
       final bytes = await picked.readAsBytes();
-      final material = await repo.uploadIcon(officialAccountUid, bytes);
-      await repo.addToProfileList(
-        officialAccountUid,
-        'icons',
-        material.toJson(),
-      );
-      await repo.setProfileField(
-        officialAccountUid,
-        'activeIconId',
-        material.id,
-      );
-      for (final old in user.icons) {
-        await repo.removeFromProfileList(
-          officialAccountUid,
-          'icons',
-          old.toJson(),
-        );
-        await repo.deleteProfileMaterial(old);
-      }
+      await ref.read(announcementRepositoryProvider).updateOfficialIcon(bytes);
     } catch (e) {
       _showBanner('アイコンの更新に失敗しました: $e');
     } finally {
@@ -439,67 +165,32 @@ class _OfficialAccountProfileSectionState
     }
   }
 
-  /// 呼び名を保存する。既存の登録は全て置き換え、常に1件だけ残す。
-  Future<void> _saveNickname(AppUser user) async {
-    final text = _nicknameController.text.trim();
-    if (text.isEmpty) return;
-    if (user.nicknames.length == 1 && user.nicknames.first.text == text) {
-      return;
-    }
-    setState(() => _savingNickname = true);
+  Future<void> _saveName(OfficialProfile profile) async {
+    final text = _nameController.text.trim();
+    if (text.isEmpty || text == profile.name) return;
+    setState(() => _savingName = true);
     try {
-      final repo = ref.read(userRepositoryProvider);
-      for (final old in user.nicknames) {
-        await repo.removeFromProfileList(
-          officialAccountUid,
-          'nicknames',
-          old.toJson(),
-        );
-      }
-      final updated = Nickname(id: 'official', text: text);
-      await repo.addToProfileList(
-        officialAccountUid,
-        'nicknames',
-        updated.toJson(),
-      );
-      await repo.setProfileField(
-        officialAccountUid,
-        'activeNicknameId',
-        'official',
-      );
+      await ref.read(announcementRepositoryProvider).updateOfficialName(text);
     } catch (e) {
-      _showBanner('呼び名の更新に失敗しました: $e');
+      _showBanner('名前の更新に失敗しました: $e');
     } finally {
-      if (mounted) setState(() => _savingNickname = false);
+      if (mounted) setState(() => _savingName = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<AppUser?>(
-      stream: _userStream,
+    return StreamBuilder<OfficialProfile>(
+      stream: _profileStream,
       builder: (context, snapshot) {
-        if (!snapshot.hasData && !snapshot.hasError) {
-          return const SizedBox.shrink();
+        final profile = snapshot.data;
+        if (profile == null) return const SizedBox.shrink();
+        if (!_nameInitialized) {
+          _nameInitialized = true;
+          _nameController.text = profile.name;
         }
-        final user = snapshot.data;
-        if (user == null) {
-          return const Padding(
-            padding: EdgeInsets.all(24),
-            child: Text(
-              'まだお知らせを一度も配信していないため、便りのプロフィールが'
-              'まだ作成されていません。先に「お知らせ」タブから一度配信すると、'
-              '自動的に作成されます。',
-            ),
-          );
-        }
-        if (!_nicknameInitialized) {
-          _nicknameInitialized = true;
-          _nicknameController.text = user.effectiveNickname?.text ?? '';
-        }
-        final icon = user.effectiveIcon;
         return Padding(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.fromLTRB(24, 56, 24, 24),
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 480),
             child: Column(
@@ -508,16 +199,16 @@ class _OfficialAccountProfileSectionState
                 Text('アイコン', style: Theme.of(context).textTheme.titleSmall),
                 const SizedBox(height: 8),
                 _OfficialIconButton(
-                  icon: icon,
+                  iconUrl: profile.iconUrl,
                   uploading: _uploadingIcon,
-                  onTap: () => _pickAndUploadIcon(user),
+                  onTap: _pickAndUploadIcon,
                 ),
                 const SizedBox(height: 24),
                 TextField(
-                  controller: _nicknameController,
-                  enabled: !_savingNickname,
-                  decoration: const InputDecoration(labelText: '呼び名'),
-                  onSubmitted: (_) => _saveNickname(user),
+                  controller: _nameController,
+                  enabled: !_savingName,
+                  decoration: const InputDecoration(labelText: '名前'),
+                  onSubmitted: (_) => _saveName(profile),
                 ),
               ],
             ),
@@ -529,20 +220,16 @@ class _OfficialAccountProfileSectionState
 }
 
 /// 蔵（身だしなみ）のアイコン登録UIと同じ「丸に+」の見た目を再現する
-/// アイコン変更ボタン（2026-08-26追加）。`profile_tab.dart`の
-/// `_AddThumbButton`/`_CircleMaterialThumb`はどちらも同ファイル内の
-/// private実装で工房の用語スタイル切替・削除バッジ等と結びついているため、
-/// 使い回すのではなく見た目だけをこの画面用に再現する。未登録時は
-/// `Icons.add`、登録済みならアイコン画像を丸の中に表示し、タップで
-/// [onTap]（既存の`_pickAndUploadIcon`）を呼ぶ。
+/// アイコン変更ボタン（2026-08-26追加）。未登録時は`Icons.add`、登録済みなら
+/// アイコン画像を丸の中に表示し、タップで[onTap]を呼ぶ。
 class _OfficialIconButton extends StatelessWidget {
   const _OfficialIconButton({
-    required this.icon,
+    required this.iconUrl,
     required this.uploading,
     required this.onTap,
   });
 
-  final ProfileMaterial? icon;
+  final String? iconUrl;
   final bool uploading;
   final VoidCallback onTap;
 
@@ -562,10 +249,10 @@ class _OfficialIconButton extends StatelessWidget {
           child: Center(
             child: uploading
                 ? const SizedBox.shrink()
-                : icon == null
+                : iconUrl == null
                 ? Icon(Icons.add, color: colorScheme.onSurfaceVariant, size: 28)
                 : Image.network(
-                    icon!.url,
+                    iconUrl!,
                     width: 72,
                     height: 72,
                     fit: BoxFit.cover,

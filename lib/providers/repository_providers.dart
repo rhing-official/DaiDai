@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../repositories/announcement_repository.dart';
 import '../repositories/album_repository.dart';
 import '../repositories/auth_repository.dart';
 import '../repositories/block_repository.dart';
@@ -111,6 +112,11 @@ final scheduleCoordinationRepositoryProvider =
 
 final pollRepositoryProvider = Provider<PollRepository>((ref) {
   return FirestorePollRepository();
+});
+
+/// お便り（運営から全住人への配信、2026-10-10追加）。
+final announcementRepositoryProvider = Provider<AnnouncementRepository>((ref) {
+  return FirestoreAnnouncementRepository();
 });
 
 /// 受信Webhook（bot・API段階1、2026-10-10追加）。
