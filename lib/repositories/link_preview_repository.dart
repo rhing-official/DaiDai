@@ -12,7 +12,7 @@ abstract class LinkPreviewRepository {
   Future<LinkPreview?> fetchPreview(String url);
 }
 
-/// `api/url-preview.js`（Vercel Function）経由でOGPメタデータを取得する実装。
+/// `cloudflare/worker.js`の`/api/url-preview`（Cloudflare Pages Worker）経由でOGPメタデータを取得する実装。
 /// このAPIはFlutter Web開発サーバー（`flutter run -d web-server`）には
 /// 存在しないため、常に本番デプロイ先（[kProductionWebOrigin]）を呼ぶ。
 class HttpLinkPreviewRepository implements LinkPreviewRepository {
