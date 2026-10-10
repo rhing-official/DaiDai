@@ -47,6 +47,7 @@ import {
   verifyWebhookToken,
   webhookSenderId,
 } from "./webhook";
+import { renderOgImage } from "./ogImage";
 
 if (ffmpegPath) ffmpeg.setFfmpegPath(ffmpegPath);
 
@@ -3517,5 +3518,36 @@ export const reactivateExpiredSuspensions = onSchedule(
     }
     await writer.commit();
     logger.info(`期限付き自動停止を解除: ${snapshot.size}件`);
+  },
+);
+
+/**
+ * 招待リンク（`/invite/:rhingSeed`・`/join/:groupId`）のOGP画像を生成して返す
+ * （2026-10-10、Vercelの`api/og-image`から移植）。Cloudflare Pages側のWorkerが
+ * `/api/og-image`をここへ中継する。誰でも呼べる公開エンドポイントで、
+ * 読むのは公開プレビュー（`userInvites`/`groupInvites`）のみ。
+ */
+export const ogImage = onRequest(
+  { region: "asia-northeast1", memory: "1GiB", timeoutSeconds: 60, cors: true },
+  async (req, res) => {
+    if (req.method !== "GET") {
+      res.status(405).send("GET only");
+      return;
+    }
+    const type = typeof req.query.type === "string" ? req.query.type : null;
+    const id = typeof req.query.id === "string" ? req.query.id : null;
+    if ((type !== "user" && type !== "group") || !id || !/^[\w.\-]{1,128}$/.test(id)) {
+      res.status(400).send("invalid parameters");
+      return;
+    }
+    try {
+      const png = await renderOgImage(type, id);
+      res.set("Content-Type", "image/png");
+      res.set("Cache-Control", "public, max-age=300");
+      res.status(200).send(png);
+    } catch (err) {
+      logger.error("OGP画像の生成に失敗しました:", err);
+      res.status(500).send("failed to render");
+    }
   },
 );
