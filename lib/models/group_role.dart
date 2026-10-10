@@ -20,12 +20,17 @@ class GroupPermission {
   /// 招待リンクの作成。
   static const createInvite = 'createInvite';
 
+  /// botとWebhookの管理（受信Webhookの発行・削除。将来のbotアカウントの追加も
+  /// この権限にする、2026-10-10追加）。
+  static const manageBots = 'manageBots';
+
   static const all = {
     manageRooms,
     manageRoles,
     manageReadReceipts,
     manageJoinRequests,
     createInvite,
+    manageBots,
   };
 }
 

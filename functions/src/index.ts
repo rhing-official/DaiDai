@@ -34,6 +34,20 @@ import ffmpeg from "fluent-ffmpeg";
 import ffmpegPath from "ffmpeg-static";
 import Stripe from "stripe";
 
+import {
+  WEBHOOK_BODY_MAX_BYTES,
+  WEBHOOK_MAX_PER_GROUP,
+  canManageBots,
+  generateWebhookToken,
+  hashWebhookToken,
+  nextRateState,
+  normalizeWebhookName,
+  parseWebhookPath,
+  parseWebhookPayload,
+  verifyWebhookToken,
+  webhookSenderId,
+} from "./webhook";
+
 if (ffmpegPath) ffmpeg.setFfmpegPath(ffmpegPath);
 
 initializeApp();
@@ -2558,9 +2572,17 @@ async function sendMessageNotification(params: {
   }
 
   const senderId: string = message.senderId;
-  const senderDoc = await db.doc(`users/${senderId}`).get();
-  if (!senderDoc.exists) return;
-  const sender = senderDoc.data()!;
+  // Webhook由来の投稿（`botName`あり）は送信者の`users`ドキュメントを持たない
+  // ため、送信者の取得を飛ばし、タイトルを広場名、本文に`{BOT名}: `を付ける
+  // （2026-10-10追加）。
+  const botName: string | null =
+    typeof message.botName === "string" ? message.botName : null;
+  let sender: FirebaseFirestore.DocumentData = {};
+  if (botName === null) {
+    const senderDoc = await db.doc(`users/${senderId}`).get();
+    if (!senderDoc.exists) return;
+    sender = senderDoc.data()!;
+  }
 
   let recipientIds: string[];
   let title: string;
@@ -2585,7 +2607,9 @@ async function sendMessageNotification(params: {
   }
   if (recipientIds.length === 0) return;
 
-  const { body, previewUrl } = buildMessagePreview(message);
+  const preview = buildMessagePreview(message);
+  const body = botName === null ? preview.body : `${botName}: ${preview.body}`;
+  const previewUrl = preview.previewUrl;
 
   const androidTokens: string[] = [];
   const webTokens: string[] = [];
@@ -2719,6 +2743,212 @@ export const onDmMessageCreated = onDocumentCreated(
         message,
       }),
     ]);
+  },
+);
+
+// ---------------------------------------------------------------------------
+// 受信Webhook（寄合へ外部から投稿できる、bot・API段階1、2026-10-10追加）
+//
+// `groups/{groupId}/webhooks/{webhookId}`に投稿先の寄合・トークンのハッシュ等を
+// 保存する。クライアントは`manageBots`権限者のみ読み取りでき、書き込みは常に
+// この関数群（Admin SDK）経由。純粋なロジックは`webhook.ts`（単体テスト済み）。
+// ---------------------------------------------------------------------------
+
+/** Webhookを作成する。トークン入りのURLは**この応答でしか返さない**。 */
+export const createWebhook = onCall(
+  { region: "asia-northeast1" },
+  async (request) => {
+    const uid = request.auth?.uid;
+    if (!uid) throw new HttpsError("unauthenticated", "ログインが必要です");
+    const { groupId, roomId, name } = (request.data ?? {}) as Record<
+      string,
+      unknown
+    >;
+    if (typeof groupId !== "string" || typeof roomId !== "string") {
+      throw new HttpsError("invalid-argument", "groupIdとroomIdが必要です");
+    }
+    const webhookName = normalizeWebhookName(name);
+    if (webhookName === null) {
+      throw new HttpsError("invalid-argument", "名前が正しくありません");
+    }
+
+    const groupRef = db.doc(`groups/${groupId}`);
+    const groupDoc = await groupRef.get();
+    const group = groupDoc.data();
+    if (
+      !groupDoc.exists ||
+      !(group?.memberIds as string[] | undefined)?.includes(uid) ||
+      !canManageBots(group, uid)
+    ) {
+      throw new HttpsError("permission-denied", "権限がありません");
+    }
+    const roomDoc = await groupRef.collection("rooms").doc(roomId).get();
+    if (!roomDoc.exists) {
+      throw new HttpsError("not-found", "寄合が見つかりません");
+    }
+    const existing = await groupRef.collection("webhooks").count().get();
+    if (existing.data().count >= WEBHOOK_MAX_PER_GROUP) {
+      throw new HttpsError(
+        "failed-precondition",
+        `Webhookは1つの広場に${WEBHOOK_MAX_PER_GROUP}件までです`,
+      );
+    }
+
+    const token = generateWebhookToken();
+    const webhookRef = groupRef.collection("webhooks").doc();
+    await webhookRef.set({
+      name: webhookName,
+      roomId,
+      createdBy: uid,
+      createdAt: FieldValue.serverTimestamp(),
+      tokenHash: hashWebhookToken(token),
+      lastUsedAt: null,
+      rateWindowStartMs: null,
+      rateCount: 0,
+    });
+    const projectId = process.env.GCLOUD_PROJECT ?? "daidai-rhing";
+    return {
+      webhookId: webhookRef.id,
+      url: `https://asia-northeast1-${projectId}.cloudfunctions.net/postWebhookMessage/${groupId}/${webhookRef.id}/${token}`,
+    };
+  },
+);
+
+/** Webhookを削除する（URLは即座に無効になる）。 */
+export const deleteWebhook = onCall(
+  { region: "asia-northeast1" },
+  async (request) => {
+    const uid = request.auth?.uid;
+    if (!uid) throw new HttpsError("unauthenticated", "ログインが必要です");
+    const { groupId, webhookId } = (request.data ?? {}) as Record<
+      string,
+      unknown
+    >;
+    if (typeof groupId !== "string" || typeof webhookId !== "string") {
+      throw new HttpsError("invalid-argument", "groupIdとwebhookIdが必要です");
+    }
+    const groupDoc = await db.doc(`groups/${groupId}`).get();
+    const group = groupDoc.data();
+    if (
+      !groupDoc.exists ||
+      !(group?.memberIds as string[] | undefined)?.includes(uid) ||
+      !canManageBots(group, uid)
+    ) {
+      throw new HttpsError("permission-denied", "権限がありません");
+    }
+    await db.doc(`groups/${groupId}/webhooks/${webhookId}`).delete();
+    return { ok: true };
+  },
+);
+
+/**
+ * Webhook URLへのPOSTで、寄合にメッセージを投稿する。
+ * `POST …/postWebhookMessage/{groupId}/{webhookId}/{token}`、本文
+ * `{ "content": string, "silent"?: boolean }`。トークン不一致・Webhook不在・
+ * 寄合不在はすべて同じ404（存在を悟らせない）。
+ */
+export const postWebhookMessage = onRequest(
+  { region: "asia-northeast1" },
+  async (req, res) => {
+    const notFound = () => {
+      res.status(404).json({ error: "not_found" });
+    };
+    if (req.method !== "POST") {
+      res.set("Allow", "POST");
+      res.status(405).json({ error: "method_not_allowed" });
+      return;
+    }
+    const parsed = parseWebhookPath(req.path);
+    if (!parsed) return notFound();
+    const { groupId, webhookId, token } = parsed;
+
+    const webhookRef = db.doc(`groups/${groupId}/webhooks/${webhookId}`);
+    const webhookSnap = await webhookRef.get();
+    const webhook = webhookSnap.data();
+    if (!webhook || !verifyWebhookToken(token, webhook.tokenHash)) {
+      return notFound();
+    }
+
+    const contentLength = Number(req.headers["content-length"] ?? 0);
+    if (contentLength > WEBHOOK_BODY_MAX_BYTES) {
+      res.status(413).json({ error: "payload_too_large" });
+      return;
+    }
+    if (!req.is("application/json")) {
+      res.status(415).json({ error: "unsupported_media_type" });
+      return;
+    }
+    const payload = parseWebhookPayload(req.body);
+    if (!payload.ok) {
+      res.status(400).json({ error: "invalid_payload", message: payload.reason });
+      return;
+    }
+
+    const roomRef = db.doc(`groups/${groupId}/rooms/${webhook.roomId}`);
+    const roomSnap = await roomRef.get();
+    if (!roomSnap.exists) return notFound();
+
+    // レート制限（1 Webhookあたり固定窓。トランザクションで窓カウントを更新）。
+    const allowed = await db.runTransaction(async (tx) => {
+      const fresh = (await tx.get(webhookRef)).data();
+      if (!fresh) return false;
+      const decision = nextRateState(
+        {
+          windowStartMs: (fresh.rateWindowStartMs as number | null) ?? null,
+          count: (fresh.rateCount as number | undefined) ?? 0,
+        },
+        Date.now(),
+      );
+      if (decision.allowed) {
+        tx.update(webhookRef, {
+          rateWindowStartMs: decision.windowStartMs,
+          rateCount: decision.count,
+          lastUsedAt: FieldValue.serverTimestamp(),
+        });
+      }
+      return decision.allowed;
+    });
+    if (!allowed) {
+      res.set("Retry-After", "60");
+      res.status(429).json({ error: "rate_limited" });
+      return;
+    }
+
+    const messageRef = roomRef.collection("messages").doc();
+    const content = payload.content;
+    const singleLine = content.replace(/\n/g, " ");
+    const preview =
+      singleLine.length <= 80 ? singleLine : `${singleLine.slice(0, 80)}…`;
+    const batch = db.batch();
+    batch.set(messageRef, {
+      conversationId: roomRef.id,
+      conversationType: "room",
+      senderId: webhookSenderId(webhookId),
+      senderRhingSeed: null,
+      botName: webhook.name as string,
+      content,
+      contentType: "text",
+      sentAt: FieldValue.serverTimestamp(),
+      hiddenFor: [],
+      readBy: [],
+      isSpam: false,
+      silent: payload.silent,
+      replyToMessageId: null,
+      replyToSenderId: null,
+      replyToSenderRhingSeed: null,
+      replyToSnippet: null,
+      editedAt: null,
+      reactions: {},
+    });
+    batch.update(roomRef, { lastMessageAt: FieldValue.serverTimestamp() });
+    batch.update(db.doc(`groups/${groupId}`), {
+      lastMessageAt: FieldValue.serverTimestamp(),
+      lastMessageSenderId: webhookSenderId(webhookId),
+      lastMessageContentType: "text",
+      lastMessagePreview: preview,
+    });
+    await batch.commit();
+    res.status(200).json({ ok: true, messageId: messageRef.id });
   },
 );
 

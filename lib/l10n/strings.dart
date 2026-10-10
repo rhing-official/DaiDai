@@ -427,6 +427,25 @@ class Strings {
     required this.groupSettingsHistoryVisibleHint,
     required this.groupRoomHistoryVisibleShow,
     required this.groupRoomHistoryVisibleHide,
+    required this.webhookMenuLabel,
+    required this.webhookTitle,
+    required this.webhookDescription,
+    required this.webhookEmpty,
+    required this.webhookCreateButton,
+    required this.webhookNameLabel,
+    required this.webhookRoomLabel,
+    required this.webhookCreateConfirm,
+    required this.webhookCreatedTitle,
+    required this.webhookUrlOnceWarning,
+    required this.webhookCopyUrl,
+    required this.webhookCopied,
+    required this.webhookCurlLabel,
+    required this.webhookDeleteTitle,
+    required this.webhookDeleteBody,
+    required this.webhookDeleteConfirm,
+    required this.webhookLastUsed,
+    required this.webhookNeverUsed,
+    required this.webhookCreateFailed,
     required this.groupRoomCustomSettingsLabel,
     required this.groupRoomCustomSettingsHint,
     required this.dmMenuOpenSettings,
@@ -1242,6 +1261,27 @@ class Strings {
   /// 有効値と反対の操作を文言にする。
   final String groupRoomHistoryVisibleShow;
   final String groupRoomHistoryVisibleHide;
+
+  /// 受信Webhook（bot・API段階1、2026-10-10追加）の管理画面の文言。
+  final String webhookMenuLabel;
+  final String webhookTitle;
+  final String webhookDescription;
+  final String webhookEmpty;
+  final String webhookCreateButton;
+  final String webhookNameLabel;
+  final String webhookRoomLabel;
+  final String webhookCreateConfirm;
+  final String webhookCreatedTitle;
+  final String webhookUrlOnceWarning;
+  final String webhookCopyUrl;
+  final String webhookCopied;
+  final String webhookCurlLabel;
+  final String webhookDeleteTitle;
+  final String webhookDeleteBody;
+  final String webhookDeleteConfirm;
+  final String Function(String when) webhookLastUsed;
+  final String webhookNeverUsed;
+  final String webhookCreateFailed;
 
   /// 寄合ハンバーガーメニュー最下部の「この寄合独自の設定」トグル。ONの間、
   /// 通知・既読・ロールの優先順位を広場全体の設定より優先してこの寄合だけ
@@ -2105,6 +2145,7 @@ class Strings {
       'manageReadReceipts' => '既読機能のオン/オフ',
       'manageJoinRequests' => '参加リクエストの承認・却下',
       'createInvite' => '招待リンクの作成',
+      'manageBots' => 'botとWebhookの管理',
       _ => permission,
     },
     groupRoleEveryoneNote: 'このロールは全員に自動で適用されます。削除・名前の変更はできません',
@@ -2129,6 +2170,26 @@ class Strings {
         'オフの間、新しく加入した人は加入後のメッセージだけが見えます（添付ファイルを含む。アルバム・ノート・カレンダー・投票は対象外）。寄合ごとに「この寄合独自の設定」をオンにすると個別に上書きできます',
     groupRoomHistoryVisibleShow: '加入前のメッセージを新規メンバーに見せる',
     groupRoomHistoryVisibleHide: '加入前のメッセージを新規メンバーに見せない',
+    webhookMenuLabel: 'Webhook（外部から投稿）',
+    webhookTitle: 'Webhook',
+    webhookDescription:
+        'URLにPOSTすると、選んだ寄合にBOTとして投稿されます。URLを知っている人は誰でも投稿できるため、他の人に共有しないでください。',
+    webhookEmpty: 'Webhookはまだありません',
+    webhookCreateButton: 'Webhookを作成',
+    webhookNameLabel: '名前（BOT名として表示されます）',
+    webhookRoomLabel: '投稿先の寄合',
+    webhookCreateConfirm: '作成',
+    webhookCreatedTitle: 'Webhookを作成しました',
+    webhookUrlOnceWarning: 'このURLは今しか表示されません。必ず今コピーして保管してください。',
+    webhookCopyUrl: 'URLをコピー',
+    webhookCopied: 'コピーしました',
+    webhookCurlLabel: '使い方の例（curl）',
+    webhookDeleteTitle: 'このWebhookを削除しますか？',
+    webhookDeleteBody: '削除すると、このURLからは投稿できなくなります。',
+    webhookDeleteConfirm: '削除する',
+    webhookLastUsed: (when) => '最終使用: $when',
+    webhookNeverUsed: '未使用',
+    webhookCreateFailed: 'Webhookを作成できませんでした',
     groupRoomCustomSettingsLabel: 'この寄合独自の設定',
     groupRoomCustomSettingsHint:
         'オンにすると、通知・既読・ロールの優先順位・加入前メッセージの公開を広場全体の設定より優先してこの寄合だけ個別に設定できます',
@@ -2908,6 +2969,7 @@ class Strings {
       'manageReadReceipts' => 'Toggle read receipts',
       'manageJoinRequests' => 'Approve/decline join requests',
       'createInvite' => 'Create invite links',
+      'manageBots' => 'Manage bots and webhooks',
       _ => permission,
     },
     groupRoleEveryoneNote:
@@ -2936,6 +2998,27 @@ class Strings {
         'While off, people who newly join only see messages sent after they joined (attachments included; albums, notes, calendar and polls are not affected). Rooms can override this individually with "This room\'s own settings"',
     groupRoomHistoryVisibleShow: 'Show earlier messages to new members',
     groupRoomHistoryVisibleHide: 'Hide earlier messages from new members',
+    webhookMenuLabel: 'Webhooks (post from outside)',
+    webhookTitle: 'Webhooks',
+    webhookDescription:
+        'POST to the URL to post into the chosen room as a BOT. Anyone with the URL can post, so do not share it.',
+    webhookEmpty: 'No webhooks yet',
+    webhookCreateButton: 'Create webhook',
+    webhookNameLabel: 'Name (shown as the BOT name)',
+    webhookRoomLabel: 'Room to post into',
+    webhookCreateConfirm: 'Create',
+    webhookCreatedTitle: 'Webhook created',
+    webhookUrlOnceWarning:
+        'This URL is shown only once. Copy and store it now.',
+    webhookCopyUrl: 'Copy URL',
+    webhookCopied: 'Copied',
+    webhookCurlLabel: 'Example (curl)',
+    webhookDeleteTitle: 'Delete this webhook?',
+    webhookDeleteBody: 'Once deleted, nothing can be posted through this URL.',
+    webhookDeleteConfirm: 'Delete',
+    webhookLastUsed: (when) => 'Last used: $when',
+    webhookNeverUsed: 'Never used',
+    webhookCreateFailed: 'Could not create the webhook',
     groupRoomCustomSettingsLabel: "This room's own settings",
     groupRoomCustomSettingsHint:
         'When on, this room\'s notification, read receipts, role priority and earlier-message visibility settings take priority over the plaza defaults',

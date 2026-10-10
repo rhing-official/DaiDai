@@ -21,6 +21,7 @@ import '../repositories/schedule_coordination_repository.dart';
 import '../repositories/spam_config_repository.dart';
 import '../repositories/sticker_repository.dart';
 import '../repositories/user_repository.dart';
+import '../repositories/webhook_repository.dart';
 
 final authRepositoryProvider = Provider<AuthRepository>((ref) {
   return FirebaseAuthRepository();
@@ -110,6 +111,11 @@ final scheduleCoordinationRepositoryProvider =
 
 final pollRepositoryProvider = Provider<PollRepository>((ref) {
   return FirestorePollRepository();
+});
+
+/// 受信Webhook（bot・API段階1、2026-10-10追加）。
+final webhookRepositoryProvider = Provider<WebhookRepository>((ref) {
+  return FirestoreWebhookRepository();
 });
 
 final noteRepositoryProvider = Provider<NoteRepository>((ref) {

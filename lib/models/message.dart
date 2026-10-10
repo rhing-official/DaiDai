@@ -112,6 +112,7 @@ class Message {
     required this.conversationType,
     required this.senderId,
     this.senderRhingSeed,
+    this.botName,
     required this.content,
     required this.contentType,
     this.sentAt,
@@ -143,6 +144,12 @@ class Message {
 
   /// 送信者のRhing Seed（グループ会話でアイコン・名前を表示するための非正規化）。
   final String? senderRhingSeed;
+
+  /// 受信Webhook由来の投稿（bot・API段階1、2026-10-10追加）のBOT名。
+  /// 人間のメッセージでは常にnull。非nullなら[senderId]は`webhook:{id}`で
+  /// `users`ドキュメントを持たず、UIは名前と「BOT」バッジで表示する。
+  /// Cloud Functions（Admin SDK）だけが書き込める（firestore.rules参照）。
+  final String? botName;
   final String content;
   // text | image | file | sticker | video | call | accountDeleted
   // | calendarEventCreated | scheduleCoordinationCreated | pollCreated
@@ -251,6 +258,7 @@ class Message {
       senderRhingSeed:
           json['senderRhingSeed'] as String? ??
           json['senderRhingId'] as String?,
+      botName: json['botName'] as String?,
       content: json['content'] as String,
       contentType: json['contentType'] as String,
       sentAt: json['sentAt'] as Timestamp?,
@@ -308,6 +316,8 @@ class Message {
       'conversationType': conversationType,
       'senderId': senderId,
       'senderRhingSeed': senderRhingSeed,
+      // クライアントからは書かない（firestore.rulesが禁止）。Webhook由来のみ。
+      if (botName != null) 'botName': botName,
       'content': content,
       'contentType': contentType,
       'sentAt': sentAt ?? FieldValue.serverTimestamp(),

@@ -23,6 +23,7 @@ import 'group_leave_dialog.dart';
 import 'group_member_list_screen.dart';
 import 'group_profile_card_screen.dart';
 import 'group_role_list_popup.dart';
+import 'webhook_management_popup.dart';
 
 /// [GroupSettingsPopup]をガラスUI対応のダイアログでラップして開く
 /// （2026-09-02、サイドバーの歯車アイコン（`talks_tab.dart`）に加え、狭い
@@ -181,6 +182,11 @@ class GroupSettingsPopup extends ConsumerWidget {
       userId: userId,
       permission: GroupPermission.manageRooms,
     );
+    final canManageBots = hasGroupPermission(
+      group: liveGroup,
+      userId: userId,
+      permission: GroupPermission.manageBots,
+    );
     final prefs =
         ref.watch(conversationPrefsProvider(userId)).value ??
         const <String, ConversationPrefs>{};
@@ -257,6 +263,21 @@ class GroupSettingsPopup extends ConsumerWidget {
                   );
                 },
               ),
+              // 受信Webhook（寄合へ外部から投稿できる、bot・API段階1）。
+              // `manageBots`権限者のみに表示する（2026-10-10追加）。
+              if (canManageBots)
+                ListTile(
+                  leading: const Icon(Icons.webhook_outlined),
+                  title: Text(strings.webhookMenuLabel),
+                  onTap: () => _openSubDialog(
+                    context,
+                    WebhookManagementPopup(
+                      currentUser: currentUser,
+                      group: liveGroup,
+                    ),
+                    isGlass: isGlass,
+                  ),
+                ),
               ListTile(
                 leading: const Icon(Icons.link),
                 title: Text(strings.groupMenuCreateInvite),

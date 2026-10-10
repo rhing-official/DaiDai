@@ -964,6 +964,18 @@ service cloud.firestore {
       allow delete: if request.auth != null
         && request.auth.uid == resource.data.ownerId;
 
+      // webhooks/{webhookId}: 受信Webhook（寄合へ外部から投稿できる、bot・API
+      // 段階1、2026-10-10追加）。`manageBots`権限者だけが一覧を読める。書き込みは
+      // 常にCloud Functions（createWebhook/deleteWebhook/postWebhookMessage、
+      // Admin SDK）経由で、クライアントからは不可（トークンのハッシュを含むため、
+      // 作成・削除も関数側で権限を確認する）。
+      match /webhooks/{webhookId} {
+        allow read: if request.auth != null
+          && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.memberIds
+          && hasGroupPermission(groupId, 'manageBots');
+        allow write: if false;
+      }
+
       // joinRequests/{requesterId}: 招待リンクからの参加リクエスト。
       // ドキュメントidは申請者本人のuserId（1人につき常に1件）。
       match /joinRequests/{requesterId} {
@@ -1066,6 +1078,10 @@ service cloud.firestore {
             && canReadRoomMessage(groupId, roomId, resource.data.sentAt);
           allow create: if request.auth != null
             && request.auth.uid == request.resource.data.senderId
+            // Webhook由来の投稿（`botName`あり）はCloud Functions（Admin SDK）
+            // だけが作れる。人間がBOT表示になりすませないよう、クライアントからの
+            // 作成では`botName`を禁止する（2026-10-10追加）。
+            && request.resource.data.get('botName', null) == null
             && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)/rooms/$(roomId)).data.memberIds;
           // 既読機能: メンバー本人がreadByフィールドのみを更新できる。
           // 範囲選択削除（2026-07-27追加）: メンバー本人がhiddenForに

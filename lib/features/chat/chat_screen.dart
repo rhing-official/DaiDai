@@ -3597,7 +3597,7 @@ class _PinnedMessageCard extends StatelessWidget {
         children: [
           _SenderAvatar(
             userId: message.senderId,
-            rhingSeed: message.senderRhingSeed,
+            rhingSeed: message.senderRhingSeed ?? message.botName,
             conversationId: conversationId,
             uiStyle: uiStyle,
             size: 32,
@@ -3613,6 +3613,7 @@ class _PinnedMessageCard extends StatelessWidget {
                       child: _SenderName(
                         userId: message.senderId,
                         rhingSeed: message.senderRhingSeed,
+                        botName: message.botName,
                         conversationId: conversationId,
                         color: foreground,
                       ),
@@ -4728,13 +4729,14 @@ class _MessageRow extends ConsumerWidget {
       final canTapSender = !isMe && onSenderTap != null;
       Widget senderAvatar = _SenderAvatar(
         userId: message.senderId,
-        rhingSeed: message.senderRhingSeed,
+        rhingSeed: message.senderRhingSeed ?? message.botName,
         conversationId: conversationId,
         uiStyle: uiStyle,
       );
       Widget senderName = _SenderName(
         userId: message.senderId,
         rhingSeed: message.senderRhingSeed,
+        botName: message.botName,
         conversationId: conversationId,
         color: senderNameColorResolver?.call(message.senderId),
       );
@@ -6598,12 +6600,18 @@ class _SenderName extends ConsumerWidget {
   const _SenderName({
     required this.userId,
     required this.rhingSeed,
+    this.botName,
     this.conversationId,
     this.color,
   });
 
   final String userId;
   final String? rhingSeed;
+
+  /// 受信Webhook由来の投稿のBOT名（`Message.botName`、2026-10-10追加）。
+  /// 非null、または[userId]が`webhook:`で始まる場合は、`users`を引かず
+  /// 名前と「BOT」バッジで表示する。
+  final String? botName;
 
   /// この送信者が使っている会話ごとのプロフィールカード（2026-07-29追加）を
   /// 反映するための会話id（一対のdmId・広場のgroupId）。nullなら標準の
@@ -6616,6 +6624,28 @@ class _SenderName extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    if (botName != null || userId.startsWith(kWebhookSenderPrefix)) {
+      final style = TextStyle(
+        fontSize: 12,
+        fontWeight: FontWeight.w600,
+        color: color ?? Theme.of(context).colorScheme.onSurfaceVariant,
+      );
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Flexible(
+            child: Text(
+              botName ?? 'BOT',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: style,
+            ),
+          ),
+          const SizedBox(width: 4),
+          _BotBadge(color: style.color!),
+        ],
+      );
+    }
     final nickname = ref
         .watch(watchedUserProvider(userId))
         .value
@@ -6632,6 +6662,36 @@ class _SenderName extends ConsumerWidget {
         fontSize: 12,
         fontWeight: FontWeight.w600,
         color: color ?? Theme.of(context).colorScheme.onSurfaceVariant,
+      ),
+    );
+  }
+}
+
+/// 受信Webhook由来の投稿の`senderId`の接頭辞（`webhook:{webhookId}`、
+/// `functions/src/webhook.ts`の`webhookSenderId`と同じ、2026-10-10追加）。
+const kWebhookSenderPrefix = 'webhook:';
+
+/// 送信者名の横に出す小さな「BOT」バッジ。
+class _BotBadge extends StatelessWidget {
+  const _BotBadge({required this.color});
+
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+      decoration: BoxDecoration(
+        border: Border.all(color: color.withValues(alpha: 0.7)),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        'BOT',
+        style: TextStyle(
+          fontSize: 9,
+          fontWeight: FontWeight.w700,
+          color: color,
+        ),
       ),
     );
   }
@@ -6672,9 +6732,11 @@ class _SenderAvatar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final user = ref.watch(watchedUserProvider(userId)).value;
+    final user = userId.startsWith(kWebhookSenderPrefix)
+        ? null
+        : ref.watch(watchedUserProvider(userId)).value;
     final iconUrl = user?.effectiveIconFor(conversationId)?.url;
-    final id = rhingSeed ?? '?';
+    final id = (rhingSeed == null || rhingSeed!.isEmpty) ? '?' : rhingSeed!;
     final color = _palette[id.hashCode.abs() % _palette.length];
     final fontSize = size / 48 * 13;
     if (uiStyle == AppUiStyle.gekiga) {
