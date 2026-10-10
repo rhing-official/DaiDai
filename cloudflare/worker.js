@@ -81,9 +81,11 @@ async function linkPreview(request, url, env) {
     // Firestore取得に失敗しても既定のOGタグでページ自体は返す。
   }
 
+  // `/index.html`はPagesが`/`へ308リダイレクトするため、最初から`/`を取る。
   let html;
   try {
-    const indexRes = await env.ASSETS.fetch(new Request(new URL('/index.html', url), request));
+    const indexRes = await env.ASSETS.fetch(new Request(new URL('/', url), request));
+    if (!indexRes.ok) throw new Error(`index status ${indexRes.status}`);
     html = await indexRes.text();
   } catch (e) {
     return new Response('index.html not available', { status: 502 });
