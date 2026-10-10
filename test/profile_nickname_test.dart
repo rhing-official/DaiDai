@@ -172,9 +172,6 @@ class _FakeUserRepository implements UserRepository {
   }) async {}
 
   @override
-  Future<bool> bootstrapFirstAdmin() async => false;
-
-  @override
   Future<void> setGoogleCalendarSyncEnabled(
     String userId,
     bool enabled, {

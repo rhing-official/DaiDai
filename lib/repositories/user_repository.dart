@@ -181,10 +181,6 @@ abstract class UserRepository {
     String note = '',
   });
 
-  /// 初回管理者登録（一時的な機能、Cloud Functions `grantFirstAdminOnce`
-  /// 経由。既に管理者が存在する場合は失敗する、2026-08-12追加）。
-  Future<bool> bootstrapFirstAdmin();
-
   /// Googleカレンダー連携の許可状態を更新する（2026-09-01追加）。
   /// `enabled`がnullなのは初回未確認の状態のみを表し、この呼び出しからは
   /// 使わない（true=許可、false=拒否のどちらかを明示的に書き込む）。
@@ -630,12 +626,6 @@ class FirestoreUserRepository implements UserRepository {
       'reason': reason,
       'note': note,
     });
-  }
-
-  @override
-  Future<bool> bootstrapFirstAdmin() async {
-    final result = await _functions.httpsCallable('grantFirstAdminOnce').call();
-    return result.data['granted'] == true;
   }
 
   @override
