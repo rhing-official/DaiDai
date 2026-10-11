@@ -12,6 +12,7 @@ import '../../models/group_profile_card.dart';
 import '../../providers/app_ui_style_provider.dart';
 import '../../utils/web_link.dart';
 import '../../widgets/glass/glass_dialog.dart';
+import '../../widgets/dialog_keyboard_shortcuts.dart';
 
 /// 広場への招待リンク・QRコードを表示するダイアログ。縁結び（個人の招待リンク）
 /// と同じ考え方で、リンクをコピーできるほか、外部SNSにリンクを貼ってもカードが
@@ -122,6 +123,6 @@ class GroupInviteDialog extends ConsumerWidget {
     );
     return isGlass
         ? GlassAlertDialog(title: title, content: content)
-        : AlertDialog(title: title, content: content);
+        : KeyboardAlertDialog(title: title, content: content);
   }
 }

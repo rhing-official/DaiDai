@@ -15,6 +15,7 @@ import '../../utils/auto_dismiss_banner.dart';
 import '../../widgets/glass/glass_dialog.dart';
 import '../calendar/calendar_chip.dart';
 import 'poll_option_media_picker.dart';
+import '../../widgets/dialog_keyboard_shortcuts.dart';
 
 /// 投票の作成モード（2026-09-06追加）。「選択肢」は自由記述の選択肢
 /// （画像添付・複数選択可・選択肢の追加を許可に対応）、「二択」は選択肢入力を
@@ -414,6 +415,6 @@ class _PollFormDialogState extends ConsumerState<_PollFormDialog> {
 
     return isGlass
         ? GlassAlertDialog(title: title, content: content, actions: actions)
-        : AlertDialog(title: title, content: content, actions: actions);
+        : KeyboardAlertDialog(title: title, content: content, actions: actions);
   }
 }

@@ -11,6 +11,7 @@ import '../../providers/app_ui_style_provider.dart';
 import '../../providers/repository_providers.dart';
 import '../../utils/auto_dismiss_banner.dart';
 import '../../widgets/glass/glass_dialog.dart';
+import '../../widgets/dialog_keyboard_shortcuts.dart';
 
 /// 予定の作成・編集ダイアログ（2026-09-01追加）。作成後の内容編集は出欠
 /// 回答済みの住人との齟齬を避けるため2026-09-02に一旦廃止したが、回答者が
@@ -510,7 +511,7 @@ class _CalendarEventFormDialogState
 
     return isGlass
         ? GlassAlertDialog(title: title, content: content, actions: actions)
-        : AlertDialog(title: title, content: content, actions: actions);
+        : KeyboardAlertDialog(title: title, content: content, actions: actions);
   }
 }
 

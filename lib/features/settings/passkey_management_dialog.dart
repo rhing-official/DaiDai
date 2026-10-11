@@ -12,6 +12,7 @@ import '../../providers/repository_providers.dart';
 import '../../repositories/auth_repository.dart';
 import '../../widgets/glass/glass_dialog.dart';
 import 'secret_questions_setup_dialog.dart';
+import '../../widgets/dialog_keyboard_shortcuts.dart';
 
 /// パスキーの名前の最大文字数。サーバー側（`normalizePasskeyName`、
 /// `functions/src/index.ts`）の`PASSKEY_NAME_MAX_LENGTH`と揃える
@@ -318,7 +319,7 @@ class _PasskeyManagementDialogState
 
     return isGlass
         ? GlassAlertDialog(title: title, content: content, actions: actions)
-        : AlertDialog(title: title, content: content, actions: actions);
+        : KeyboardAlertDialog(title: title, content: content, actions: actions);
   }
 }
 
@@ -384,7 +385,7 @@ class _PasskeyNameDialogState extends ConsumerState<_PasskeyNameDialog> {
     ];
     return isGlass
         ? GlassAlertDialog(title: title, content: content, actions: actions)
-        : AlertDialog(title: title, content: content, actions: actions);
+        : KeyboardAlertDialog(title: title, content: content, actions: actions);
   }
 }
 
@@ -434,7 +435,11 @@ Future<bool> _confirmDeletePasskey(
       ];
       return isGlass
           ? GlassAlertDialog(title: title, content: content, actions: actions)
-          : AlertDialog(title: title, content: content, actions: actions);
+          : KeyboardAlertDialog(
+              title: title,
+              content: content,
+              actions: actions,
+            );
     },
   );
   return confirmed ?? false;

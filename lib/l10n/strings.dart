@@ -319,6 +319,18 @@ class Strings {
     required this.chatInputHint,
     required this.announcementContactFormLabel,
     required this.chatReplyingToLabel,
+    required this.workshopDeleteCardButton,
+    required this.workshopDeleteCardTitle,
+    required this.workshopDeleteCardBody,
+    required this.workshopReorderTooltip,
+    required this.workshopFocalHint,
+    required this.workshopFocalDone,
+    required this.workshopFocalReset,
+    required this.workshopFocalCancel,
+    required this.mentionSectionMembers,
+    required this.mentionSectionRoles,
+    required this.mentionEveryoneDescription,
+    required this.mentionRoleDescription,
     required this.chatEditingLabel,
     required this.chatUnsendConfirmTitle,
     required this.chatUnsendConfirmMessage,
@@ -1105,6 +1117,28 @@ class Strings {
   final String chatInputHint;
   final String announcementContactFormLabel;
   final String Function(String senderLabel) chatReplyingToLabel;
+
+  /// 工房のカードのゴミ箱ボタンで出す削除確認（2026-10-11追加）。引数はカード名。
+  final String Function(String cardName) workshopDeleteCardTitle;
+  final String workshopDeleteCardBody;
+  final String workshopDeleteCardButton;
+
+  /// 工房のカードの並べ替えハンドルのツールチップ（2026-10-11追加）。
+  final String workshopReorderTooltip;
+
+  /// カードの画像の位置調整（長押しで開く編集モード、2026-10-11追加）。
+  final String workshopFocalHint;
+  final String workshopFocalDone;
+  final String workshopFocalReset;
+  final String workshopFocalCancel;
+
+  /// `@`メンションのサジェストの区分見出し・説明（2026-10-11追加）。
+  final String mentionSectionMembers;
+  final String mentionSectionRoles;
+
+  /// 引数は広場の呼称（`Vocabulary.plaza`）。
+  final String Function(String plaza) mentionEveryoneDescription;
+  final String Function(String plaza) mentionRoleDescription;
   final String chatEditingLabel;
   final String chatUnsendConfirmTitle;
   final String chatUnsendConfirmMessage;
@@ -2061,6 +2095,19 @@ class Strings {
     chatInputHint: 'メッセージを入力...',
     announcementContactFormLabel: '質問・要望',
     chatReplyingToLabel: (senderLabel) => '$senderLabelへの返信',
+    workshopDeleteCardTitle: (cardName) =>
+        cardName.isEmpty ? 'このカードを削除しますか？' : '「$cardName」を削除しますか？',
+    workshopDeleteCardBody: '削除したカードは元に戻せません。',
+    workshopDeleteCardButton: 'このカードを削除',
+    workshopReorderTooltip: 'ドラッグして並べ替え',
+    workshopFocalHint: 'ドラッグで位置、ピンチ（ホイール）で拡大を調整',
+    workshopFocalDone: '完了',
+    workshopFocalReset: 'リセット',
+    workshopFocalCancel: 'キャンセル',
+    mentionSectionMembers: 'メンバー',
+    mentionSectionRoles: 'ロール',
+    mentionEveryoneDescription: (plaza) => 'この$plazaの全員へ通知します。',
+    mentionRoleDescription: (plaza) => 'この$plazaでそのロールを持つ人へ通知します。',
     chatEditingLabel: 'メッセージを編集中',
     chatUnsendConfirmTitle: '送信を取り消しますか？',
     chatUnsendConfirmMessage:
@@ -2142,7 +2189,7 @@ class Strings {
     groupMenuManageRoles: 'ロール管理',
     groupMenuManagePermissions: '権限管理',
     groupPermissionMatrixHint:
-        '「全員」の列は、全メンバーに最初から付いている権限です。ほかのロールはそこへ追加で付与されます。長は常にすべての権限を持ちます。',
+        '「全員」の列は、全メンバーに最初から付いている権限です。ほかのロールはそこへ追加で付与されます。長は常にすべての権限を持ちます。権限を変更できるのは「権限の管理」を持つメンバーだけです。',
     groupPermissionColumnOwner: '長',
     groupPermissionColumnEveryone: '全員',
     groupMenuOpenSettings: '広場の設定',
@@ -2161,6 +2208,8 @@ class Strings {
       'manageJoinRequests' => '参加リクエストの承認・却下',
       'createInvite' => '招待リンクの作成',
       'manageBots' => 'botとWebhookの管理',
+      'managePermissions' => '権限の管理（ロールの権限の編集）',
+      'mentionEveryone' => '全員・ロール宛のメンション（@everyone / @ロール）',
       _ => permission,
     },
     groupRoleEveryoneNote: 'このロールは全員に自動で適用されます。削除・名前の変更はできません',
@@ -2185,7 +2234,7 @@ class Strings {
         'オフの間、新しく加入した人は加入後のメッセージだけが見えます（添付ファイルを含む。アルバム・ノート・カレンダー・投票は対象外）。寄合ごとに「この寄合独自の設定」をオンにすると個別に上書きできます',
     groupRoomHistoryVisibleShow: '加入前のメッセージを新規メンバーに見せる',
     groupRoomHistoryVisibleHide: '加入前のメッセージを新規メンバーに見せない',
-    webhookMenuLabel: 'Webhook（外部から投稿）',
+    webhookMenuLabel: 'Webhook',
     webhookTitle: 'Webhook',
     webhookDescription:
         'URLにPOSTすると、選んだ寄合にBOTとして投稿されます。URLを知っている人は誰でも投稿できるため、他の人に共有しないでください。',
@@ -2884,6 +2933,20 @@ class Strings {
     chatInputHint: 'Type a message...',
     announcementContactFormLabel: 'Questions & Feedback',
     chatReplyingToLabel: (senderLabel) => 'Replying to $senderLabel',
+    workshopDeleteCardTitle: (cardName) =>
+        cardName.isEmpty ? 'Delete this card?' : 'Delete "$cardName"?',
+    workshopDeleteCardBody: 'A deleted card cannot be restored.',
+    workshopDeleteCardButton: 'Delete this card',
+    workshopReorderTooltip: 'Drag to reorder',
+    workshopFocalHint: 'Drag to move, pinch (or scroll) to zoom',
+    workshopFocalDone: 'Done',
+    workshopFocalReset: 'Reset',
+    workshopFocalCancel: 'Cancel',
+    mentionSectionMembers: 'Members',
+    mentionSectionRoles: 'Roles',
+    mentionEveryoneDescription: (plaza) => 'Notifies everyone in this $plaza.',
+    mentionRoleDescription: (plaza) =>
+        'Notifies everyone with this role in this $plaza.',
     chatEditingLabel: 'Editing message',
     chatUnsendConfirmTitle: 'Unsend this message?',
     chatUnsendConfirmMessage:
@@ -2971,7 +3034,7 @@ class Strings {
     groupMenuManageRoles: 'Manage roles',
     groupMenuManagePermissions: 'Manage permissions',
     groupPermissionMatrixHint:
-        'The "Everyone" column lists the permissions every member has by default. Other roles add to it. The owner always has every permission.',
+        'The "Everyone" column lists the permissions every member has by default. Other roles add to it. The owner always has every permission. Only members with "Manage permissions" can change them.',
     groupPermissionColumnOwner: 'Owner',
     groupPermissionColumnEveryone: 'Everyone',
     groupMenuOpenSettings: 'Plaza settings',
@@ -2990,6 +3053,8 @@ class Strings {
       'manageJoinRequests' => 'Approve/decline join requests',
       'createInvite' => 'Create invite links',
       'manageBots' => 'Manage bots and webhooks',
+      'managePermissions' => 'Manage permissions (edit role permissions)',
+      'mentionEveryone' => 'Mention everyone and roles (@everyone / @role)',
       _ => permission,
     },
     groupRoleEveryoneNote:

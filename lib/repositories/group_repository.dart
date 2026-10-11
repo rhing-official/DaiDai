@@ -263,6 +263,7 @@ abstract class GroupRepository {
     required String content,
     bool silent = false,
     Message? replyTo,
+    MessageMentions mentions = MessageMentions.none,
   });
 
   /// ファイル・画像・動画を添付したメッセージを送信する（技術仕様書5.2参照、
@@ -908,6 +909,7 @@ class FirestoreGroupRepository implements GroupRepository {
     required String content,
     bool silent = false,
     Message? replyTo,
+    MessageMentions mentions = MessageMentions.none,
   }) async {
     final roomRef = _roomRef(groupId, roomId);
     final messageRef = roomRef.collection('messages').doc();
@@ -921,6 +923,10 @@ class FirestoreGroupRepository implements GroupRepository {
       content: content,
       contentType: 'text',
       silent: silent,
+      mentionedUserIds: mentions.userIds,
+      mentionedRoleIds: mentions.roleIds,
+      mentionEveryone: mentions.everyone,
+      mentionLabels: mentions.labels,
       replyToMessageId: replyTo?.messageId,
       replyToSenderId: replyTo?.senderId,
       replyToSenderRhingSeed: replyTo?.senderRhingSeed,

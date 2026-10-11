@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/direct_message.dart';
+import '../features/chat/talks_search.dart' show MessageSearchHit;
 import '../models/group.dart';
 
 /// プロフィールカードダイアログ等、`TalksTab`の外側（別のWidgetツリー）から
@@ -142,3 +143,21 @@ final roomSelectionRequestProvider =
       RoomSelectionRequestNotifier,
       (ViewedConversation, String, int)?
     >(RoomSelectionRequestNotifier.new);
+
+/// 語らい検索のメッセージ内容一致を「語らいタブで開いてほしい」と伝える
+/// 橋渡し（2026-10-11追加、[pendingDmSelectionProvider]と同じ消費パターン）。
+/// アイコン＋寄合一覧モード専用の検索フルページ（`TalksSearchScreen`）が、
+/// `/chat/*`へ直接pushせず語らいタブへ戻って設定どおりの見え方で開くために使う。
+class PendingMessageSearchHitNotifier extends Notifier<MessageSearchHit?> {
+  @override
+  MessageSearchHit? build() => null;
+
+  void set(MessageSearchHit hit) => state = hit;
+
+  void clear() => state = null;
+}
+
+final pendingMessageSearchHitProvider =
+    NotifierProvider<PendingMessageSearchHitNotifier, MessageSearchHit?>(
+      PendingMessageSearchHitNotifier.new,
+    );

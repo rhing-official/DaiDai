@@ -10,6 +10,7 @@ import '../../theme/popup_surface_colors.dart';
 import '../../widgets/glass/glass_dialog.dart';
 import '../../widgets/glass/glass_surface.dart';
 import '../chat/button_anchored_menu.dart';
+import '../../widgets/dialog_keyboard_shortcuts.dart';
 
 /// アルバムボタンの真下にアルバム一覧をポップアップ表示する（2026-08-30、
 /// `chat_screen.dart`のピン留めポップアップ（`_openPinnedMessagesPopup`/
@@ -101,7 +102,11 @@ class _AlbumPopupContentState extends ConsumerState<_AlbumPopupContent> {
         ];
         return isGlass
             ? GlassAlertDialog(title: title, content: content, actions: actions)
-            : AlertDialog(title: title, content: content, actions: actions);
+            : KeyboardAlertDialog(
+                title: title,
+                content: content,
+                actions: actions,
+              );
       },
     );
     if (name == null || name.isEmpty) return;
@@ -142,7 +147,11 @@ class _AlbumPopupContentState extends ConsumerState<_AlbumPopupContent> {
         ];
         return isGlass
             ? GlassAlertDialog(title: title, content: content, actions: actions)
-            : AlertDialog(title: title, content: content, actions: actions);
+            : KeyboardAlertDialog(
+                title: title,
+                content: content,
+                actions: actions,
+              );
       },
     );
     if (confirmed != true) return;

@@ -6,6 +6,7 @@ import '../../models/app_ui_style.dart';
 import '../../providers/app_ui_style_provider.dart';
 import '../../providers/repository_providers.dart';
 import '../../widgets/glass/glass_dialog.dart';
+import '../../widgets/dialog_keyboard_shortcuts.dart';
 
 /// 絶縁（双方合意による友達関係の解消・会話履歴の完全削除）の確認ダイアログ。
 /// 提案する側（[SeveranceDialogMode.propose]）・同意する側
@@ -135,6 +136,6 @@ class _SeveranceDialogState extends ConsumerState<SeveranceDialog> {
 
     return isGlass
         ? GlassAlertDialog(title: title, content: content, actions: actions)
-        : AlertDialog(title: title, content: content, actions: actions);
+        : KeyboardAlertDialog(title: title, content: content, actions: actions);
   }
 }

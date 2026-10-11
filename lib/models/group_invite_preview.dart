@@ -20,7 +20,9 @@ class GroupInvitePreview {
 
   factory GroupInvitePreview.fromJson(Map<String, dynamic> json) {
     return GroupInvitePreview(
-      name: json['name'] as String,
+      // `name`の無い古い招待プレビューでも読める（2026-10-11）。空なら表示側で
+      // 既定の呼称にフォールバックする。
+      name: json['name'] as String? ?? '',
       description: json['description'] as String? ?? '',
       iconUrl: json['iconUrl'] as String?,
       backgroundImageUrl: json['backgroundImageUrl'] as String?,

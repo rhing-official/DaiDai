@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/strings.dart';
@@ -9,6 +8,7 @@ import '../../providers/repository_providers.dart';
 import '../../providers/user_providers.dart';
 import '../../widgets/glass/glass_dialog.dart';
 import '../../widgets/profile_card_picker.dart';
+import '../../widgets/dialog_keyboard_shortcuts.dart';
 
 /// 一対・広場ごとに自分が使うプロフィールカードを選ぶダイアログ
 /// （`AppUser.conversationProfileCardId`、2026-07-30追加）。設定タブ＞語らい
@@ -70,16 +70,8 @@ class ConversationProfileCardDialog extends ConsumerWidget {
     ];
     final dialog = isGlass
         ? GlassAlertDialog(title: title, content: content, actions: actions)
-        : AlertDialog(title: title, content: content, actions: actions);
+        : KeyboardAlertDialog(title: title, content: content, actions: actions);
 
-    return CallbackShortcuts(
-      // Enterキーで「完了」を実行できるようにする（2026-08-11追加、
-      // `chat_screen.dart`の`_confirmScreenshotSelected`と同じパターン）。
-      bindings: {
-        const SingleActivator(LogicalKeyboardKey.enter): () =>
-            Navigator.of(context).pop(),
-      },
-      child: Focus(autofocus: true, child: dialog),
-    );
+    return dialog;
   }
 }

@@ -9,8 +9,10 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'firebase_options.dart';
+import 'models/message_time_format.dart';
 import 'models/sound_preset.dart';
 import 'router/app_router.dart' show globalRouter;
+import 'utils/message_time.dart';
 
 /// プッシュ通知（FCM）のAndroid側ローカル表示・バックグラウンドハンドラを
 /// まとめたトップレベルの仕組み（2026-08-31追加）。今回の実装範囲は
@@ -118,7 +120,24 @@ Future<void> showRemoteMessageNotification(RemoteMessage message) async {
   if (kIsWeb) return;
   final data = message.data;
   final title = data['title'] as String? ?? '';
-  final body = data['body'] as String? ?? '';
+  final rawBody = data['body'] as String? ?? '';
+  // 本文の先頭に送信時刻を付ける（2026-10-11追加）。表示時点の端末の現在時刻と
+  // 比べて、日を跨いだら日付、年を跨いだら西暦4桁の年も付ける。OS標準の時刻
+  // 表示との二重表示を避けるため`showWhen: false`にしている。
+  final sentAtMs = int.tryParse(data['sentAt'] as String? ?? '');
+  var body = rawBody;
+  if (sentAtMs != null) {
+    final prefs = await SharedPreferences.getInstance();
+    final timeFormat = MessageTimeFormat.fromName(
+      prefs.getString('messageTimeFormat'),
+    );
+    final label = formatNotificationTime(
+      DateTime.fromMillisecondsSinceEpoch(sentAtMs),
+      DateTime.now(),
+      timeFormat,
+    );
+    body = '$label｜$rawBody';
+  }
   final largeIconBytes = await _downloadBytes(data['iconUrl'] as String?);
   final previewBytes = await _downloadBytes(data['previewUrl'] as String?);
 
@@ -148,6 +167,7 @@ Future<void> showRemoteMessageNotification(RemoteMessage message) async {
         priority: Priority.high,
         largeIcon: largeIcon,
         styleInformation: styleInformation,
+        showWhen: false,
       ),
     ),
     // タップ時に該当の語らいまで開くためのディープリンク情報

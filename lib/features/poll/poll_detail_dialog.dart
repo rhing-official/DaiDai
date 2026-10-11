@@ -21,6 +21,7 @@ import '../../widgets/media_viewer_screen.dart';
 import '../../widgets/video_thumbnail.dart';
 import '../calendar/calendar_chip.dart';
 import 'poll_option_media_picker.dart';
+import '../../widgets/dialog_keyboard_shortcuts.dart';
 
 /// 投票の詳細・投票ダイアログ（2026-09-06追加）。投票開始通知メッセージの
 /// タップ時、タスクバナーのタップ時いずれからも開く唯一の導線。
@@ -267,7 +268,11 @@ class _PollDetailDialogState extends ConsumerState<_PollDetailDialog> {
         ];
         return isGlass
             ? GlassAlertDialog(title: title, content: content, actions: actions)
-            : AlertDialog(title: title, content: content, actions: actions);
+            : KeyboardAlertDialog(
+                title: title,
+                content: content,
+                actions: actions,
+              );
       },
     );
     if (confirmed != true || !mounted) return;
@@ -428,7 +433,11 @@ class _PollDetailDialogState extends ConsumerState<_PollDetailDialog> {
 
         final dialog = isGlass
             ? GlassAlertDialog(title: title, content: content, actions: actions)
-            : AlertDialog(title: title, content: content, actions: actions);
+            : KeyboardAlertDialog(
+                title: title,
+                content: content,
+                actions: actions,
+              );
         // 選択肢が複数並ぶため、既定の確認ダイアログ幅(maxWidth: 400)より
         // 広げる（schedule_coordination_detail_dialog.dartと同じ理由）。
         final ambientTheme = Theme.of(context);

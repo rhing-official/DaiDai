@@ -8,6 +8,7 @@ import '../../providers/app_ui_style_provider.dart';
 import '../../providers/repository_providers.dart';
 import '../../repositories/auth_repository.dart';
 import '../../widgets/glass/glass_dialog.dart';
+import '../../widgets/dialog_keyboard_shortcuts.dart';
 
 /// Rhing Seed＋パスキー（WebAuthn）でのログイン（2026-09-16追加）。
 /// `qr_login_dialog.dart`と同系統の見た目。Rhing Seedを入力して確定すると
@@ -162,6 +163,6 @@ class _PasskeySignInDialogState extends ConsumerState<PasskeySignInDialog> {
 
     return isGlass
         ? GlassAlertDialog(title: title, content: content, actions: actions)
-        : AlertDialog(title: title, content: content, actions: actions);
+        : KeyboardAlertDialog(title: title, content: content, actions: actions);
   }
 }

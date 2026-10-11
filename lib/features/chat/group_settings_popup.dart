@@ -176,6 +176,11 @@ class GroupSettingsPopup extends ConsumerWidget {
       userId: userId,
       permission: GroupPermission.manageRoles,
     );
+    final canManagePermissions = hasGroupPermission(
+      group: liveGroup,
+      userId: userId,
+      permission: GroupPermission.managePermissions,
+    );
     final canCreateInvite = hasGroupPermission(
       group: liveGroup,
       userId: userId,
@@ -273,20 +278,24 @@ class GroupSettingsPopup extends ConsumerWidget {
                 },
               ),
               // 受信Webhook（寄合へ外部から投稿できる、bot・API段階1）。
-              // `manageBots`権限者のみに表示する（2026-10-10追加）。
-              if (canManageBots)
-                ListTile(
-                  leading: const Icon(Icons.webhook_outlined),
-                  title: Text(strings.webhookMenuLabel),
-                  onTap: () => _openSubDialog(
-                    context,
-                    WebhookManagementPopup(
-                      currentUser: currentUser,
-                      group: liveGroup,
-                    ),
-                    isGlass: isGlass,
-                  ),
-                ),
+              // 他の管理項目（ロール管理等）と同じく常に表示し、`manageBots`
+              // 権限が無い場合は無効化する（2026-10-10、以前は権限者のみに
+              // 表示していたが、項目が見つからないとの指摘を受け統一した）。
+              ListTile(
+                leading: const Icon(Icons.webhook_outlined),
+                title: Text(strings.webhookMenuLabel),
+                enabled: canManageBots,
+                onTap: !canManageBots
+                    ? null
+                    : () => _openSubDialog(
+                        context,
+                        WebhookManagementPopup(
+                          currentUser: currentUser,
+                          group: liveGroup,
+                        ),
+                        isGlass: isGlass,
+                      ),
+              ),
               ListTile(
                 leading: const Icon(Icons.link),
                 title: Text(strings.groupMenuCreateInvite),
@@ -317,12 +326,15 @@ class GroupSettingsPopup extends ConsumerWidget {
               ListTile(
                 leading: const Icon(Icons.rule_outlined),
                 title: Text(strings.groupMenuManagePermissions),
-                enabled: canManageRoles,
-                onTap: !canManageRoles
+                enabled: canManagePermissions,
+                onTap: !canManagePermissions
                     ? null
                     : () => _openSubDialog(
                         context,
-                        GroupPermissionManagePopup(group: liveGroup),
+                        GroupPermissionManagePopup(
+                          group: liveGroup,
+                          currentUserId: userId,
+                        ),
                         isGlass: isGlass,
                         maxWidth: 2000,
                       ),
@@ -425,7 +437,10 @@ class GroupSettingsPopup extends ConsumerWidget {
               ),
               const Divider(),
               ListTile(
-                title: DestructiveLabel(strings.groupDeleteMenuLabel),
+                title: DestructiveLabel(
+                  strings.groupDeleteMenuLabel,
+                  alignTextWithSiblings: true,
+                ),
                 enabled: liveGroup.ownerId == userId,
                 onTap: () => GroupDeleteDialog.show(
                   context,

@@ -7,6 +7,7 @@ import '../../models/app_ui_style.dart';
 import '../../providers/app_ui_style_provider.dart';
 import '../../providers/repository_providers.dart';
 import '../../widgets/glass/glass_dialog.dart';
+import '../../widgets/dialog_keyboard_shortcuts.dart';
 
 /// 広場からの退会確認ダイアログ。確認後、退会してホームへ戻る。
 class GroupLeaveDialog extends ConsumerStatefulWidget {
@@ -96,6 +97,6 @@ class _GroupLeaveDialogState extends ConsumerState<GroupLeaveDialog> {
 
     return isGlass
         ? GlassAlertDialog(title: title, content: content, actions: actions)
-        : AlertDialog(title: title, content: content, actions: actions);
+        : KeyboardAlertDialog(title: title, content: content, actions: actions);
   }
 }

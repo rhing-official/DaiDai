@@ -60,3 +60,18 @@ String formatConversationListTime(
   final day = time.day.toString().padLeft(2, '0');
   return '$month/$day';
 }
+
+/// プッシュ通知の本文先頭に付ける送信時刻（2026-10-11追加）。[now]（通知を
+/// 表示する時点）と比べ、同じ日なら時刻のみ、日を跨いだら`月/日 時刻`、年を
+/// 跨いだら`西暦4桁/月/日 時刻`にする（端末がオフライン等で通知の表示が
+/// 遅れた場合に、いつ送られたものか分かるようにするため）。
+String formatNotificationTime(
+  DateTime sent,
+  DateTime now,
+  MessageTimeFormat format,
+) {
+  final time = formatMessageTime(sent, format);
+  if (isSameDay(sent, now)) return time;
+  if (sent.year == now.year) return '${sent.month}/${sent.day} $time';
+  return '${sent.year}/${sent.month}/${sent.day} $time';
+}

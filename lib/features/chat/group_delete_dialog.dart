@@ -7,6 +7,7 @@ import '../../models/app_ui_style.dart';
 import '../../providers/app_ui_style_provider.dart';
 import '../../providers/repository_providers.dart';
 import '../../widgets/glass/glass_dialog.dart';
+import '../../widgets/dialog_keyboard_shortcuts.dart';
 
 /// 広場を丸ごと削除する確認ダイアログ（長のみ、2026-08-02追加）。
 /// `GroupLeaveDialog`と同じ構成。確認後、削除してホームへ戻る。
@@ -110,7 +111,7 @@ class _GroupDeleteDialogState extends ConsumerState<GroupDeleteDialog> {
               actions: actions,
             ),
           )
-        : AlertDialog(
+        : KeyboardAlertDialog(
             constraints: const BoxConstraints(maxWidth: 400),
             title: title,
             content: content,

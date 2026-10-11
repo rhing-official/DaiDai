@@ -57,6 +57,26 @@ Message announcementToMessage(
   );
 }
 
+/// [announcements]（`createdAt`の古い順）を、[ChatScreen]が期待する「新しい順
+/// （先頭が最新）」の[Message]列に直す。`ChatScreen`は`reverse:true`の一覧に
+/// 新しい順で渡す前提のため、古い順のまま渡すと最新のお便りが上に表示される
+/// （2026-10-11修正）。
+List<Message> announcementMessagesNewestFirst(
+  List<Announcement> announcements,
+  OfficialProfile profile,
+) {
+  final sorted = [...announcements]
+    ..sort((a, b) {
+      final at = a.createdAt, bt = b.createdAt;
+      if (at == null && bt == null) return 0;
+      // 送信直後でサーバー時刻が未確定（null）のものは最新扱いにする。
+      if (at == null) return -1;
+      if (bt == null) return 1;
+      return bt.compareTo(at);
+    });
+  return [for (final item in sorted) announcementToMessage(item, profile)];
+}
+
 class FirestoreAnnouncementRepository implements AnnouncementRepository {
   FirestoreAnnouncementRepository({
     FirebaseFirestore? firestore,
@@ -108,7 +128,7 @@ class FirestoreAnnouncementRepository implements AnnouncementRepository {
       final a = announcements;
       final p = profile;
       if (a == null || p == null || controller.isClosed) return;
-      controller.add([for (final item in a) announcementToMessage(item, p)]);
+      controller.add(announcementMessagesNewestFirst(a, p));
     }
 
     controller = StreamController<List<Message>>(

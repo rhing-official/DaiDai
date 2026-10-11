@@ -195,6 +195,37 @@ class _TalksTabState extends ConsumerState<TalksTab>
       _iconSplitCollapse.value =
           (1 - controller.progress.value / controller.maxDrag).clamp(0.0, 1.0);
     });
+    // 起動直後の招待リンク・通知タップ（cold start）では、`pending…`の値が
+    // このWidgetのbuildより先にセットされ、`build()`内の`ref.listen`は
+    // 「購読開始後の変化」しか受け取れず取りこぼす。初回フレームの後に、既に
+    // 値が入っていればここで消費する（2026-10-11追加）。
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _consumePendingSelections();
+    });
+  }
+
+  /// [pendingGroupSelectionProvider]/[pendingDmSelectionProvider]に既に
+  /// 入っている値を、`build()`の`ref.listen`と同じ処理で開く。
+  void _consumePendingSelections() {
+    final group = ref.read(pendingGroupSelectionProvider);
+    if (group != null) {
+      ref.read(pendingGroupSelectionProvider.notifier).clear();
+      setState(() => _category = _TalksCategory.group);
+      _openGroup(group);
+      return;
+    }
+    final dm = ref.read(pendingDmSelectionProvider);
+    if (dm != null) {
+      ref.read(pendingDmSelectionProvider.notifier).clear();
+      setState(() => _category = _TalksCategory.dm);
+      _openDirectMessage(dm);
+      return;
+    }
+    final hit = ref.read(pendingMessageSearchHitProvider);
+    if (hit != null) {
+      ref.read(pendingMessageSearchHitProvider.notifier).clear();
+      _openMessageSearchHit(hit);
+    }
   }
 
   /// [_iconSplitCollapse]を明示的に変更する箇所（ドラッグ中の直接計算・
@@ -959,6 +990,16 @@ class _TalksTabState extends ConsumerState<TalksTab>
       ref.read(pendingGroupSelectionProvider.notifier).clear();
       setState(() => _category = _TalksCategory.group);
       _openGroup(next);
+    });
+    // 語らい検索フルページ（`TalksSearchScreen`）からのメッセージ内容一致
+    // （2026-10-11追加）。
+    ref.listen<MessageSearchHit?>(pendingMessageSearchHitProvider, (
+      previous,
+      next,
+    ) {
+      if (next == null) return;
+      ref.read(pendingMessageSearchHitProvider.notifier).clear();
+      _openMessageSearchHit(next);
     });
 
     final vocab = ref.watch(vocabularyProvider);
@@ -2483,7 +2524,13 @@ class _FriendRequestTile extends ConsumerWidget {
               currentUserId: currentUserId,
               isDm: true,
               messagesStream: Stream.value(const <Message>[]),
-              onSend: (_, {silent = false, replyTo}) async {},
+              onSend:
+                  (
+                    _, {
+                    silent = false,
+                    replyTo,
+                    mentions = MessageMentions.none,
+                  }) async {},
               disabled: true,
               banner: _PendingApprovalBanner(
                 message: strings.friendRequestOutgoingSubtitle,
@@ -2606,7 +2653,13 @@ class _PendingGroupJoinRequestTile extends ConsumerWidget {
             currentUserId: request.requesterId,
             isDm: false,
             messagesStream: Stream.value(const <Message>[]),
-            onSend: (_, {silent = false, replyTo}) async {},
+            onSend:
+                (
+                  _, {
+                  silent = false,
+                  replyTo,
+                  mentions = MessageMentions.none,
+                }) async {},
             disabled: true,
             banner: _PendingApprovalBanner(message: strings.groupJoinPending),
           );

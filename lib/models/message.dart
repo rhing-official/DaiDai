@@ -105,6 +105,29 @@ String messageSnippetOf(String content) {
   return '${singleLine.substring(0, maxLength)}…';
 }
 
+List<String> _stringList(Object? v) =>
+    v is List ? v.whereType<String>().toList() : const [];
+
+/// 送信時に渡す`@`メンションの宛先（2026-10-11追加、[Message]のmention系
+/// フィールドと対応）。
+class MessageMentions {
+  const MessageMentions({
+    this.userIds = const [],
+    this.roleIds = const [],
+    this.everyone = false,
+    this.labels = const [],
+  });
+
+  static const none = MessageMentions();
+
+  final List<String> userIds;
+  final List<String> roleIds;
+  final bool everyone;
+  final List<String> labels;
+
+  bool get isEmpty => userIds.isEmpty && roleIds.isEmpty && !everyone;
+}
+
 class Message {
   const Message({
     required this.messageId,
@@ -119,6 +142,10 @@ class Message {
     this.sentAt,
     this.hiddenFor = const [],
     this.silent = false,
+    this.mentionedUserIds = const [],
+    this.mentionedRoleIds = const [],
+    this.mentionEveryone = false,
+    this.mentionLabels = const [],
     this.readBy = const [],
     this.replyToMessageId,
     this.replyToSenderId,
@@ -176,6 +203,26 @@ class Message {
   /// FCMのプッシュ通知基盤が実装された際、このフラグが立っているメッセージは
   /// 通知を送らないようにする想定（実装内容.md参照）。
   final bool silent;
+
+  /// `@`メンション（2026-10-11追加）。本文は`@表示名`のプレーン文字列のままで、
+  /// 宛先は本文とは別にIDで持つ（表示名が後から変わっても通知先がずれない）。
+  /// 個人宛（広場・一対とも）。
+  final List<String> mentionedUserIds;
+
+  /// ロール宛（広場のみ、`GroupPermission.mentionEveryone`が必要）。
+  final List<String> mentionedRoleIds;
+
+  /// `@everyone`（広場のみ、`GroupPermission.mentionEveryone`が必要）。
+  final bool mentionEveryone;
+
+  /// 本文中でメンションとして色付けする文字列（`@`込み、例: `@新`）。
+  /// 本文はプレーンなので、どの`@…`が宛先指定なのかを区別するために持つ。
+  final List<String> mentionLabels;
+
+  bool get hasMentions =>
+      mentionEveryone ||
+      mentionedUserIds.isNotEmpty ||
+      mentionedRoleIds.isNotEmpty;
 
   /// このメッセージを読んだユーザーの一覧（送信者本人は含まない想定）。
   final List<MessageReadReceipt> readBy;
@@ -273,6 +320,10 @@ class Message {
           .map((e) => e as String)
           .toList(),
       silent: json['silent'] as bool? ?? false,
+      mentionedUserIds: _stringList(json['mentionedUserIds']),
+      mentionedRoleIds: _stringList(json['mentionedRoleIds']),
+      mentionEveryone: json['mentionEveryone'] as bool? ?? false,
+      mentionLabels: _stringList(json['mentionLabels']),
       readBy: (json['readBy'] as List<dynamic>? ?? [])
           .map((e) => MessageReadReceipt.fromJson(e as Map<String, dynamic>))
           .toList(),
@@ -332,6 +383,10 @@ class Message {
       'readBy': <Map<String, dynamic>>[],
       'isSpam': false,
       'silent': silent,
+      'mentionedUserIds': mentionedUserIds,
+      'mentionedRoleIds': mentionedRoleIds,
+      'mentionEveryone': mentionEveryone,
+      'mentionLabels': mentionLabels,
       'replyToMessageId': replyToMessageId,
       'replyToSenderId': replyToSenderId,
       'replyToSenderRhingSeed': replyToSenderRhingSeed,

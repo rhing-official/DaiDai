@@ -15,6 +15,7 @@ import '../../utils/group_permissions.dart';
 import '../../widgets/glass/glass_avatar.dart';
 import '../../widgets/glass/glass_dialog.dart';
 import 'user_profile_card_dialog.dart';
+import '../../widgets/dialog_keyboard_shortcuts.dart';
 
 /// 広場のメンバー一覧（ポップアップの中身）。manageJoinRequests権限を持つ
 /// メンバーには、招待リンクからの参加リクエストの承認・却下UIもあわせて
@@ -106,7 +107,11 @@ class GroupMemberListPopup extends ConsumerWidget {
                   content: content,
                   actions: actions,
                 )
-              : AlertDialog(title: title, content: content, actions: actions);
+              : KeyboardAlertDialog(
+                  title: title,
+                  content: content,
+                  actions: actions,
+                );
         },
       ),
     );
@@ -136,7 +141,11 @@ class GroupMemberListPopup extends ConsumerWidget {
         ];
         return isGlass
             ? GlassAlertDialog(title: title, content: content, actions: actions)
-            : AlertDialog(title: title, content: content, actions: actions);
+            : KeyboardAlertDialog(
+                title: title,
+                content: content,
+                actions: actions,
+              );
       },
     );
     if (confirmed == true) {

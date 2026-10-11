@@ -10,6 +10,7 @@ import '../../providers/passcode_lock_provider.dart';
 import '../../providers/repository_providers.dart';
 import '../../utils/fullwidth_digits_formatter.dart';
 import '../../widgets/glass/glass_dialog.dart';
+import '../../widgets/dialog_keyboard_shortcuts.dart';
 
 /// アプリ起動時のパスコードロック画面（2026-09-11追加）。`PasscodeLockGate`
 /// からのみ表示される。`sign_in_screen.dart`と同じ、UIスタイル（フラット/
@@ -138,7 +139,11 @@ class _PasscodeLockScreenState extends ConsumerState<PasscodeLockScreen> {
         ];
         return isGlass
             ? GlassAlertDialog(title: title, content: content, actions: actions)
-            : AlertDialog(title: title, content: content, actions: actions);
+            : KeyboardAlertDialog(
+                title: title,
+                content: content,
+                actions: actions,
+              );
       },
     );
     if (confirmed != true || !mounted) return;

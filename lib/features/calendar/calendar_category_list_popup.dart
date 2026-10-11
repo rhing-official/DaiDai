@@ -12,6 +12,7 @@ import '../../providers/repository_providers.dart';
 import '../../theme/popup_surface_colors.dart';
 import '../../utils/color_hex.dart';
 import '../../widgets/glass/glass_dialog.dart';
+import '../../widgets/dialog_keyboard_shortcuts.dart';
 
 /// 予定・日程調整の種類（カテゴリ）の管理ポップアップ（2026-09-11追加、
 /// 同日改修: 独立した中央寄せDialogから、設定の歯車ボタン直下に浮かべる
@@ -139,7 +140,11 @@ class CalendarCategoryListPopup extends ConsumerWidget {
                   content: content,
                   actions: actions,
                 )
-              : AlertDialog(title: title, content: content, actions: actions);
+              : KeyboardAlertDialog(
+                  title: title,
+                  content: content,
+                  actions: actions,
+                );
         },
       ),
     );
@@ -194,7 +199,7 @@ class CalendarCategoryListPopup extends ConsumerWidget {
       context: context,
       builder: (context) => isGlass
           ? GlassAlertDialog(title: title, actions: actions)
-          : AlertDialog(title: title, actions: actions),
+          : KeyboardAlertDialog(title: title, actions: actions),
     );
     if (confirmed == true) {
       await ref

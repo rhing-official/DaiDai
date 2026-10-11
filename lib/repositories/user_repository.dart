@@ -93,6 +93,10 @@ abstract class UserRepository {
   /// ため、ローカルの状態が古くても重複や消し忘れが起きない。
   Future<void> saveProfileCard(String userId, ProfileCard card);
 
+  /// 工房のカードの並び順を[orderedIds]の順に変更する（2026-10-11追加）。
+  /// [orderedIds]に無いカードは末尾に残し、存在しないidは無視する。
+  Future<void> reorderProfileCards(String userId, List<String> orderedIds);
+
   /// プロフィールカードを1件、原子的に削除する。削除対象が現在の
   /// activeProfileCardIdと一致する場合は、サーバー上の最新の値で判定した上で
   /// それもあわせてクリアする（ローカルの認識が古い場合の取りこぼし防止）。
@@ -373,6 +377,24 @@ class FirestoreUserRepository implements UserRepository {
       });
     });
     await syncInvitePreview(userId);
+  }
+
+  @override
+  Future<void> reorderProfileCards(
+    String userId,
+    List<String> orderedIds,
+  ) async {
+    await _firestore.runTransaction((transaction) async {
+      final ref = _users.doc(userId);
+      final snapshot = await transaction.get(ref);
+      final data = snapshot.data();
+      if (data == null) return;
+      final cards = AppUser.fromJson(data).profileCards;
+      final reordered = reorderProfileCardsById(cards, orderedIds);
+      transaction.update(ref, {
+        'profileCards': reordered.map((c) => c.toJson()).toList(),
+      });
+    });
   }
 
   @override

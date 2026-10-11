@@ -21,6 +21,7 @@ import '../../widgets/glass/glass_surface.dart';
 import '../calendar/calendar_event_detail_dialog.dart';
 import '../calendar/schedule_coordination_detail_dialog.dart';
 import '../poll/poll_detail_dialog.dart';
+import '../../widgets/dialog_keyboard_shortcuts.dart';
 
 /// 語らい上部に常時表示するタスクバナー（2026-09-04追加、2026-09-05に
 /// 日程調整の未回答も統合表示するよう拡張）。「予定への参加確認が未回答」
@@ -399,7 +400,7 @@ class _ChatTaskBannerState extends ConsumerState<ChatTaskBanner> {
     final strings = ref.read(appStringsProvider);
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
+      builder: (dialogContext) => KeyboardAlertDialog(
         title: Text(strings.taskBannerHideConfirmTitle),
         content: Text(strings.taskBannerHideConfirmMessage),
         actions: [

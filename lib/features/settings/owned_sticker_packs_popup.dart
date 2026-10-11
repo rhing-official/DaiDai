@@ -9,6 +9,7 @@ import '../../providers/repository_providers.dart';
 import '../../theme/popup_surface_colors.dart';
 import '../../utils/auto_dismiss_banner.dart';
 import '../../widgets/glass/glass_dialog.dart';
+import '../../widgets/dialog_keyboard_shortcuts.dart';
 
 /// 所持しているぺったんパック一覧・アンインストールのポップアップ（設定＞
 /// アカウントから開く、2026-08-11追加。当初はページ遷移だったが、
@@ -194,7 +195,11 @@ Future<bool> _confirmUninstall(
       ];
       return isGlass
           ? GlassAlertDialog(title: title, content: content, actions: actions)
-          : AlertDialog(title: title, content: content, actions: actions);
+          : KeyboardAlertDialog(
+              title: title,
+              content: content,
+              actions: actions,
+            );
     },
   );
   return confirmed ?? false;

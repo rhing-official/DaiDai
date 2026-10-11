@@ -904,6 +904,7 @@ service cloud.firestore {
           || (
             (request.auth.uid == resource.data.ownerId
               || 'manageRoles' in resource.data.memberPermissions[request.auth.uid]
+              || 'managePermissions' in resource.data.memberPermissions[request.auth.uid]
               || 'manageJoinRequests' in resource.data.memberPermissions[request.auth.uid])
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberPermissions'])
           )
@@ -1021,14 +1022,29 @@ service cloud.firestore {
         allow create: if request.auth != null
           && request.resource.data.groupId == groupId
           && (
-            (hasGroupPermission(groupId, 'manageRoles') && request.resource.data.isEveryone == false)
+            // ロールの作成: manageRolesは権限なしのロールのみ。権限を持たせて
+            // 作るにはmanagePermissionsが必要（2026-10-11）。
+            (request.resource.data.isEveryone == false
+              && (hasGroupPermission(groupId, 'managePermissions')
+                || (hasGroupPermission(groupId, 'manageRoles')
+                  && request.resource.data.permissions.size() == 0)))
             || (
               request.auth.uid == get(/databases/$(database)/documents/groups/$(groupId)).data.ownerId
               && request.resource.data.isEveryone == true
             )
           );
+        // 更新: managePermissionsを持つメンバーは権限セットを含めて変更可。
+        // manageRolesのみのメンバーは、権限セットが変わらない更新（名前・色）
+        // だけ可（リストの順序が違っても同じ集合なら不変とみなす、2026-10-11）。
         allow update: if request.auth != null
-          && hasGroupPermission(groupId, 'manageRoles');
+          && (
+            hasGroupPermission(groupId, 'managePermissions')
+            || (
+              hasGroupPermission(groupId, 'manageRoles')
+              && request.resource.data.permissions.hasAll(resource.data.permissions)
+              && resource.data.permissions.hasAll(request.resource.data.permissions)
+            )
+          );
         allow delete: if request.auth != null
           && hasGroupPermission(groupId, 'manageRoles');
       }

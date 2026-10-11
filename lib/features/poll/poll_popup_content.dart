@@ -13,6 +13,7 @@ import '../../widgets/glass/glass_dialog.dart';
 import '../../widgets/glass/glass_surface.dart';
 import '../chat/button_anchored_menu.dart';
 import 'poll_form_dialog.dart';
+import '../../widgets/dialog_keyboard_shortcuts.dart';
 
 /// 投票ボタンの真下に投票一覧をポップアップ表示する（2026-09-06追加、
 /// `album_popup_content.dart`の`showAlbumPopup`と同じ構成）。位置計算済みの
@@ -115,7 +116,11 @@ class _PollPopupContent extends ConsumerWidget {
         ];
         return isGlass
             ? GlassAlertDialog(title: title, content: content, actions: actions)
-            : AlertDialog(title: title, content: content, actions: actions);
+            : KeyboardAlertDialog(
+                title: title,
+                content: content,
+                actions: actions,
+              );
       },
     );
     if (confirmed != true) return;

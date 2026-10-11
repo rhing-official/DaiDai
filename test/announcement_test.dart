@@ -68,6 +68,22 @@ void main() {
     expect(message.content, 'こんにちは');
   });
 
+  test('announcementMessagesNewestFirst: 新しい順（先頭が最新）に並べる', () {
+    Announcement a(String id, int day) => Announcement(
+      id: id,
+      content: id,
+      createdAt: Timestamp.fromDate(DateTime(2026, 10, day)),
+    );
+    final messages = announcementMessagesNewestFirst([
+      a('old', 1),
+      a('mid', 5),
+      a('new', 9),
+      const Announcement(id: 'pending', content: 'p'),
+    ], const OfficialProfile(name: 'お便り'));
+    // サーバー時刻が未確定の送信直後のお便りは最新扱いで先頭。
+    expect(messages.map((m) => m.messageId), ['pending', 'new', 'mid', 'old']);
+  });
+
   test('OfficialProfile: 未作成なら既定の名前、空の名前も既定に戻す', () {
     expect(OfficialProfile.fromJson(null).name, OfficialProfile.defaultName);
     expect(

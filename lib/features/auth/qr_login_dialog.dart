@@ -9,6 +9,7 @@ import '../../models/app_ui_style.dart';
 import '../../providers/app_ui_style_provider.dart';
 import '../../providers/repository_providers.dart';
 import '../../widgets/glass/glass_dialog.dart';
+import '../../widgets/dialog_keyboard_shortcuts.dart';
 
 /// QRコードログイン（未ログイン端末側、2026-08-09追加）。開くとすぐに
 /// `qrLoginSessions`にpendingなセッションを作成してQRコードを表示し、
@@ -125,7 +126,7 @@ class _QrLoginDialogState extends ConsumerState<QrLoginDialog> {
 
     return isGlass
         ? GlassAlertDialog(title: title, content: content, actions: actions)
-        : AlertDialog(title: title, content: content, actions: actions);
+        : KeyboardAlertDialog(title: title, content: content, actions: actions);
   }
 
   Widget _buildBody(BuildContext context, Strings strings, String? sessionId) {

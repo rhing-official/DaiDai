@@ -4,14 +4,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../l10n/strings.dart';
 import '../../models/app_user.dart';
 import '../../models/friend_request.dart';
-import '../../providers/chat_navigation_providers.dart';
 import '../../providers/repository_providers.dart';
-import '../../router/app_router.dart';
+import '../../utils/open_conversation.dart';
 import '../../utils/friend_request_error.dart';
 import '../../widgets/profile_card_composer.dart';
 import '../../widgets/profile_card_view.dart';
 import '../../widgets/sns_link_list.dart';
-import 'talks_tab.dart' show kTalksSplitBreakpoint;
 
 /// 広場（グループ）・一対（DM）どちらのメッセージ画面・メンバー一覧からも、
 /// 相手のプロフィールカード（適用中の工房カード）を見られるダイアログ。
@@ -157,36 +155,12 @@ class _UserProfileCardDialogState extends ConsumerState<UserProfileCardDialog> {
       widget.user,
     );
     if (!mounted) return;
-    final isSplit = MediaQuery.sizeOf(context).width >= kTalksSplitBreakpoint;
-    if (isSplit) {
-      Navigator.of(context).pop();
-      // 左右分割表示ではTalksTabが一覧＋チャットを自前のStateで表示している
-      // ため、ここでルートをpushすると全画面ルートがサイドバーごと覆って
-      // しまい、一覧から開いた時と見え方が変わってしまう（2026-07-29修正）。
-      // TalksTab側にこの一対を選ばせ、home（'/'）に戻るだけにする。
-      ref.read(goRouterProvider).go('/');
-      ref.read(pendingDmSelectionProvider.notifier).set(dm);
-      return;
-    }
-    // この一対で最も古い（`createdAt`が最小の）寄合を開く（2026-09-14変更、
-    // 以前は`defaultRoomId`を直接参照していた。`talks_tab.dart`の
-    // `_openDirectMessage`と同じ考え方）。
-    final rooms = await dmRepository
-        .watchRooms(dmId: dm.dmId, userId: widget.currentUser.userId)
-        .first;
-    if (!mounted || rooms.isEmpty) return;
     Navigator.of(context).pop();
-    ref
-        .read(goRouterProvider)
-        .push(
-          '/chat/dm',
-          extra: DmChatArgs(
-            currentUser: widget.currentUser,
-            dm: dm,
-            roomId: rooms.first.roomId,
-            roomName: rooms.first.name,
-          ),
-        );
+    // 左右分割表示ではTalksTabが一覧＋チャットを自前のStateで表示しているため、
+    // ここでルートをpushすると全画面ルートがサイドバーごと覆ってしまう
+    // （2026-07-29修正）。狭い画面でも設定した語らいレイアウトどおりに開くよう、
+    // どちらもTalksTabへ選択を渡す（2026-10-11変更）。
+    await openDmInTalks(ref, dm);
   }
 
   @override
@@ -252,6 +226,12 @@ class _UserProfileCardDialogState extends ConsumerState<UserProfileCardDialog> {
                       height: cardHeight,
                       icon: icon,
                       background: background,
+                      backgroundFocal: user
+                          .profileCardFor(widget.conversationId)
+                          ?.backgroundFocal,
+                      iconFocal: user
+                          .profileCardFor(widget.conversationId)
+                          ?.iconFocal,
                       nickname: name,
                       statusMessage: statusMessage,
                       // SNSリンクはカード内の非タップ可能テキストとしては

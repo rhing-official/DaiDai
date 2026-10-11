@@ -9,6 +9,7 @@ import '../../providers/app_ui_style_provider.dart';
 import '../../providers/repository_providers.dart';
 import '../../utils/fullwidth_digits_formatter.dart';
 import '../../widgets/glass/glass_dialog.dart';
+import '../../widgets/dialog_keyboard_shortcuts.dart';
 
 /// 2段階認証（TOTP）の登録ダイアログ。QRコード（`GroupInviteDialog`と同じ
 /// `qr_flutter`）＋手入力用シークレットキーを表示し、認証アプリに表示された
@@ -223,6 +224,6 @@ class _TwoFactorSetupDialogState extends ConsumerState<TwoFactorSetupDialog> {
 
     return isGlass
         ? GlassAlertDialog(title: title, content: content, actions: actions)
-        : AlertDialog(title: title, content: content, actions: actions);
+        : KeyboardAlertDialog(title: title, content: content, actions: actions);
   }
 }

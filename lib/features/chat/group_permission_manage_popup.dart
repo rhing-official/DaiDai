@@ -7,6 +7,7 @@ import '../../models/group.dart';
 import '../../models/group_role.dart';
 import '../../providers/group_providers.dart';
 import '../../providers/repository_providers.dart';
+import '../../utils/group_permissions.dart';
 
 const _kRowHeight = 48.0;
 const _kHeaderHeight = 56.0;
@@ -24,11 +25,19 @@ const _kDialogInset = 80.0;
 /// デフォルト権限）が何を許可しているかをひと目で分かるようにする。
 /// 左側に権限名・長（常に全権限）・全員の列を固定し、カスタムロールの列だけを
 /// 横スクロールにする。セルの切り替えは即時に保存する
-/// （`GroupPermission.manageRoles`を持つメンバーのみ開ける）。
+/// （`GroupPermission.managePermissions`を持つメンバーのみ編集できる）。
 class GroupPermissionManagePopup extends ConsumerWidget {
-  const GroupPermissionManagePopup({required this.group, super.key});
+  const GroupPermissionManagePopup({
+    required this.group,
+    required this.currentUserId,
+    super.key,
+  });
 
   final Group group;
+
+  /// 操作しているメンバー。`managePermissions`を持つ場合だけセルを編集できる
+  /// （持たなければ閲覧のみ、2026-10-11）。
+  final String currentUserId;
 
   Future<void> _toggle(
     WidgetRef ref,
@@ -59,6 +68,11 @@ class GroupPermissionManagePopup extends ConsumerWidget {
     final liveGroup =
         ref.watch(watchedGroupProvider(group.groupId)).value ?? group;
     final colorScheme = Theme.of(context).colorScheme;
+    final canEdit = hasGroupPermission(
+      group: liveGroup,
+      userId: currentUserId,
+      permission: GroupPermission.managePermissions,
+    );
 
     return StreamBuilder<List<GroupRole>>(
       stream: ref.watch(groupRepositoryProvider).watchRoles(group.groupId),
@@ -146,8 +160,14 @@ class GroupPermissionManagePopup extends ConsumerWidget {
                     Widget roleCheckbox(GroupRole role, String permission) =>
                         Checkbox(
                           value: role.permissions.contains(permission),
-                          onChanged: (checked) =>
-                              _toggle(ref, role, permission, checked ?? false),
+                          onChanged: canEdit
+                              ? (checked) => _toggle(
+                                  ref,
+                                  role,
+                                  permission,
+                                  checked ?? false,
+                                )
+                              : null,
                         );
 
                     final everyoneBackground = colorScheme.onSurface.withValues(

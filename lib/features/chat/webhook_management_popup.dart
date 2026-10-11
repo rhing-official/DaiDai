@@ -12,6 +12,7 @@ import '../../providers/app_ui_style_provider.dart';
 import '../../providers/repository_providers.dart';
 import '../../utils/auto_dismiss_banner.dart';
 import '../../widgets/glass/glass_dialog.dart';
+import '../../widgets/dialog_keyboard_shortcuts.dart';
 
 /// 受信Webhook（寄合へ外部から投稿できる、bot・API段階1、2026-10-10追加）の
 /// 管理画面（広場の設定からのポップアップの中身）。`manageBots`権限を持つ
@@ -40,7 +41,11 @@ class WebhookManagementPopup extends ConsumerWidget {
       context: context,
       builder: (_) => isGlass
           ? GlassAlertDialog(title: title, content: content, actions: actions)
-          : AlertDialog(title: title, content: content, actions: actions),
+          : KeyboardAlertDialog(
+              title: title,
+              content: content,
+              actions: actions,
+            ),
     );
   }
 
@@ -166,7 +171,11 @@ class WebhookManagementPopup extends ConsumerWidget {
         ];
         return isGlass
             ? GlassAlertDialog(title: title, content: content, actions: actions)
-            : AlertDialog(title: title, content: content, actions: actions);
+            : KeyboardAlertDialog(
+                title: title,
+                content: content,
+                actions: actions,
+              );
       },
     );
     if (confirmed != true) return;
@@ -347,6 +356,6 @@ class _CreateWebhookDialogState extends State<_CreateWebhookDialog> {
     ];
     return widget.isGlass
         ? GlassAlertDialog(title: title, content: content, actions: actions)
-        : AlertDialog(title: title, content: content, actions: actions);
+        : KeyboardAlertDialog(title: title, content: content, actions: actions);
   }
 }

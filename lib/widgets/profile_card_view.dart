@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../models/profile_card.dart';
 import '../models/profile_material.dart';
+import 'focal_image.dart';
 
 /// カード内のアイコン・余白・文字サイズは、カード自体の横幅（モバイルは
 /// 狭い・PCは広い）に関わらず常にこの固定値を使う（2026-09-26変更）。
@@ -39,6 +41,8 @@ class ProfileCardView extends StatelessWidget {
     this.snsLinks = const [],
     this.borderRadius = const BorderRadius.all(Radius.circular(16)),
     this.fontFamily,
+    this.backgroundFocal,
+    this.iconFocal,
     super.key,
   });
 
@@ -66,6 +70,10 @@ class ProfileCardView extends StatelessWidget {
   /// `AppUser.effectiveFontDesignFor(conversationId)?.fontFamily`等から解決する。
   final String? fontFamily;
 
+  /// 背景画像・アイコンの中心指定（2026-10-11追加）。nullなら従来どおり中央。
+  final ImageFocal? backgroundFocal;
+  final ImageFocal? iconFocal;
+
   @override
   Widget build(BuildContext context) {
     const avatarRadius = kProfileCardAvatarRadius;
@@ -87,7 +95,7 @@ class ProfileCardView extends StatelessWidget {
           fit: StackFit.expand,
           children: [
             if (background != null)
-              Image.network(background!.url, fit: BoxFit.cover),
+              FocalImage(url: background!.url, focal: backgroundFocal),
             if (background != null)
               const DecoratedBox(
                 decoration: BoxDecoration(
@@ -111,16 +119,10 @@ class ProfileCardView extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
-                    CircleAvatar(
+                    ProfileCardAvatar(
+                      icon: icon,
+                      focal: iconFocal,
                       radius: avatarRadius,
-                      backgroundImage: icon != null
-                          ? NetworkImage(icon!.url)
-                          : null,
-                      backgroundColor: Colors.transparent,
-                      foregroundColor: Theme.of(
-                        context,
-                      ).colorScheme.onSurfaceVariant,
-                      child: icon == null ? const Icon(Icons.person) : null,
                     ),
                     SizedBox(height: padding * 0.6),
                     Text(
@@ -263,4 +265,39 @@ String displaySnsLinkUrl(String url) {
     );
   }
   return host.replaceFirst(RegExp(r'^www\.', caseSensitive: false), '');
+}
+
+/// カード内の円形アイコン。[focal]で円の中のどこを中心に見せるかを指定できる
+/// （2026-10-11追加）。アイコンが無ければ人型のプレースホルダー。
+class ProfileCardAvatar extends StatelessWidget {
+  const ProfileCardAvatar({
+    required this.icon,
+    required this.radius,
+    this.focal,
+    super.key,
+  });
+
+  final ProfileMaterial? icon;
+  final double radius;
+  final ImageFocal? focal;
+
+  @override
+  Widget build(BuildContext context) {
+    final icon = this.icon;
+    if (icon == null) {
+      return CircleAvatar(
+        radius: radius,
+        backgroundColor: Colors.transparent,
+        foregroundColor: Theme.of(context).colorScheme.onSurfaceVariant,
+        child: const Icon(Icons.person),
+      );
+    }
+    return SizedBox(
+      width: radius * 2,
+      height: radius * 2,
+      child: ClipOval(
+        child: FocalImage(url: icon.url, focal: focal),
+      ),
+    );
+  }
 }

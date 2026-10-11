@@ -20,6 +20,7 @@ import '../../widgets/destructive_label.dart';
 import '../../widgets/glass/glass_dialog.dart';
 import 'calendar_chip.dart';
 import 'calendar_event_form_dialog.dart';
+import '../../widgets/dialog_keyboard_shortcuts.dart';
 
 /// 予定の詳細・出欠回答ダイアログ（2026-09-02追加）。予定タップ時の唯一の
 /// 導線（`calendar_pane_view.dart`の`_DayEventCard.onTap`）。予定の内容編集
@@ -257,7 +258,11 @@ class _CalendarEventDetailDialogState
         ];
         return isGlass
             ? GlassAlertDialog(title: title, content: content, actions: actions)
-            : AlertDialog(title: title, content: content, actions: actions);
+            : KeyboardAlertDialog(
+                title: title,
+                content: content,
+                actions: actions,
+              );
       },
     );
     if (confirmed != true || !mounted) return;
@@ -549,7 +554,7 @@ class _CalendarEventDetailDialogState
 
     final dialog = isGlass
         ? GlassAlertDialog(title: title, content: content, actions: actions)
-        : AlertDialog(title: title, content: content, actions: actions);
+        : KeyboardAlertDialog(title: title, content: content, actions: actions);
     // アプリ全体のdialogTheme.constraints（確認ダイアログの横長対策、
     // maxWidth: 400）だと1日あたり4つの出欠チップが1行に収まらないため、
     // このダイアログだけ広げる。ガラススタイル用のbackgroundColor/elevation/

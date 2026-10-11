@@ -136,6 +136,11 @@ class _FakeUserRepository implements UserRepository {
   }
 
   @override
+  Future<void> reorderProfileCards(String userId, List<String> orderedIds) {
+    throw UnimplementedError();
+  }
+
+  @override
   Future<void> deleteProfileCard(String userId, String cardId) {
     throw UnimplementedError();
   }

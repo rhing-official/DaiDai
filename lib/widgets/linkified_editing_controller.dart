@@ -18,6 +18,9 @@ import 'linkified_text.dart';
 class LinkifiedEditingController extends TextEditingController {
   Color linkColor = Colors.blue;
 
+  /// 本文中でメンションとして太字にする文字列（2026-10-11追加）。
+  List<String> mentionLabels = const [];
+
   final _recognizers = <TapGestureRecognizer>[];
 
   void _disposeRecognizers() {
@@ -48,6 +51,7 @@ class LinkifiedEditingController extends TextEditingController {
         linkColor: linkColor,
         recognizerSink: _recognizers,
         onTapUrl: _openLink,
+        mentionLabels: mentionLabels,
       ),
     );
   }

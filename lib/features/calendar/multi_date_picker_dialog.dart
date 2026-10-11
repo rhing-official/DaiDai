@@ -8,6 +8,7 @@ import '../../providers/app_locale_provider.dart';
 import '../../providers/app_ui_style_provider.dart';
 import '../../providers/calendar_week_start_provider.dart';
 import '../../widgets/glass/glass_dialog.dart';
+import '../../widgets/dialog_keyboard_shortcuts.dart';
 
 /// 複数の日付をカレンダー上でトグル選択するダイアログ（2026-09-07追加、
 /// 日程調整の候補日選択用）。`initialSelectedDates`を初期状態として開き、
@@ -131,7 +132,7 @@ class _MultiDatePickerDialogState
 
     return isGlass
         ? GlassAlertDialog(title: title, content: content, actions: actions)
-        : AlertDialog(title: title, content: content, actions: actions);
+        : KeyboardAlertDialog(title: title, content: content, actions: actions);
   }
 }
 

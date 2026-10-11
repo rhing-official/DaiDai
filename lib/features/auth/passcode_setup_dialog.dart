@@ -7,6 +7,7 @@ import '../../providers/app_ui_style_provider.dart';
 import '../../providers/repository_providers.dart';
 import '../../utils/fullwidth_digits_formatter.dart';
 import '../../widgets/glass/glass_dialog.dart';
+import '../../widgets/dialog_keyboard_shortcuts.dart';
 
 /// 新しい6桁パスコードを2回入力させ、一致すればその値を返すダイアログ
 /// （2026-09-11追加）。設定＞アプリケーションの「パスコードロック」有効化・
@@ -123,7 +124,7 @@ class _PasscodeSetupDialogState extends ConsumerState<PasscodeSetupDialog> {
     ];
     return isGlass
         ? GlassAlertDialog(title: title, content: content, actions: actions)
-        : AlertDialog(title: title, content: content, actions: actions);
+        : KeyboardAlertDialog(title: title, content: content, actions: actions);
   }
 }
 
@@ -210,6 +211,6 @@ class _PasscodeVerifyDialogState extends ConsumerState<PasscodeVerifyDialog> {
     ];
     return isGlass
         ? GlassAlertDialog(title: title, content: content, actions: actions)
-        : AlertDialog(title: title, content: content, actions: actions);
+        : KeyboardAlertDialog(title: title, content: content, actions: actions);
   }
 }

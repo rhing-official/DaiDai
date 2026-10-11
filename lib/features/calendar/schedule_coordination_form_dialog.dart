@@ -11,6 +11,7 @@ import '../../providers/repository_providers.dart';
 import '../../utils/auto_dismiss_banner.dart';
 import '../../widgets/glass/glass_dialog.dart';
 import 'multi_date_picker_dialog.dart';
+import '../../widgets/dialog_keyboard_shortcuts.dart';
 
 /// 日程調整の作成ダイアログ（2026-09-05追加）。`calendar_event_form_dialog.dart`
 /// と同じ`showDialog`パターン。保存されたら`true`、キャンセルされたら
@@ -342,6 +343,6 @@ class _ScheduleCoordinationFormDialogState
 
     return isGlass
         ? GlassAlertDialog(title: title, content: content, actions: actions)
-        : AlertDialog(title: title, content: content, actions: actions);
+        : KeyboardAlertDialog(title: title, content: content, actions: actions);
   }
 }

@@ -86,6 +86,10 @@ import '../../widgets/linkified_editing_controller.dart';
 import '../../widgets/linkified_text.dart';
 import '../../widgets/media_viewer_screen.dart';
 import '../../widgets/video_thumbnail.dart';
+import '../../widgets/dialog_keyboard_shortcuts.dart';
+import '../../theme/glass/glass_theme_extras.dart';
+import '../../utils/mention_suggestion.dart';
+import 'mention_suggestion_list.dart';
 
 /// 劇画UIの吹き出し・入力欄の枠取りの太さ（[MonochromeBoxPainter]の
 /// thicknessBase）。以前は`size.shortestSide`（箱の短辺）に比例させて
@@ -125,6 +129,8 @@ class ChatScreen extends ConsumerStatefulWidget {
     this.banner,
     this.onSenderTap,
     this.senderNameColorResolver,
+    this.mentionCandidates = const [],
+    this.mentionRoleColors = const {},
     this.onHideMessages,
     this.onEditMessage,
     this.onUnsendMessage,
@@ -171,8 +177,24 @@ class ChatScreen extends ConsumerStatefulWidget {
 
   /// nullなら入力欄（コンポーザー）自体を表示しない（お知らせ等の
   /// 読み取り専用画面向け、2026-08-12追加）。
-  final Future<void> Function(String content, {bool silent, Message? replyTo})?
+  final Future<void> Function(
+    String content, {
+    bool silent,
+    Message? replyTo,
+    MessageMentions mentions,
+  })?
   onSend;
+
+  /// `@`入力時に候補として出すメンバー（@everyoneを含む）・ロール
+  /// （2026-10-11追加）。空なら`@`を打ってもサジェストは出ない。
+  /// `@everyone`・ロールは`GroupPermission.mentionEveryone`を持つ場合だけ
+  /// 呼び出し側が含める。
+  final List<MentionCandidate> mentionCandidates;
+
+  /// ロール宛メンションの表示用。キーは本文中の`@ロール名`（`@`込み）、値は
+  /// そのロールの色（色が無いロールはnull）。ここに含まれる`@…`はハイライトを
+  /// 入れず、ロールの色を文字色にするだけにする（2026-10-11）。
+  final Map<String, Color?> mentionRoleColors;
 
   /// ファイル・画像・動画を添付したメッセージを送信する（技術仕様書5.6参照、
   /// 2026-08-10追加）。nullなら＋ボタン自体を表示しない（承認待ちの一対・
@@ -399,6 +421,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// 一切購読しない。
   List<StickerRole> _stickerRoles = const [];
   List<Sticker> _ownedStickers = const [];
+
+  /// `@`メンションのサジェスト（2026-10-11追加）。[_mentionQuery]がnullなら
+  /// 非表示。[_selectedMentions]は本文へ挿入済みの宛先で、送信時に本文と
+  /// 突き合わせて（[mentionsStillInText]）消された分を落とす。
+  MentionQuery? _mentionQuery;
+  List<MentionCandidate> _mentionMatches = const [];
+  int _mentionIndex = 0;
+  final List<MentionCandidate> _selectedMentions = [];
+
   List<Sticker> _stickerSuggestions = const [];
   StreamSubscription<List<StickerRole>>? _stickerRolesSub;
   StreamSubscription<List<StickerPack>>? _ownedStickerPacksSub;
@@ -639,6 +670,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   void _onComposerTextChanged() {
+    _updateMentionSuggestions();
     _updateStickerSuggestions();
     if (_suppressDraftSync || _editingMessage != null) return;
     if (!_draftSyncActive) return;
@@ -654,6 +686,98 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             draft: text,
           );
     });
+  }
+
+  /// カーソル直前の半角`@クエリ`から、メンション候補を再計算する
+  /// （2026-10-11追加）。タイプに即座に追従させるためデバウンスしない。
+  void _updateMentionSuggestions() {
+    if (widget.mentionCandidates.isEmpty || _editingMessage != null) {
+      if (_mentionQuery != null) _closeMentionSuggestions();
+      return;
+    }
+    final selection = _textController.selection;
+    final cursor = selection.isValid && selection.isCollapsed
+        ? selection.baseOffset
+        : -1;
+    final query = cursor < 0
+        ? null
+        : detectMentionQuery(_textController.text, cursor);
+    if (query == null) {
+      if (_mentionQuery != null) _closeMentionSuggestions();
+      return;
+    }
+    final matches = filterMentionCandidates(
+      widget.mentionCandidates,
+      query.query,
+    );
+    if (matches.isEmpty) {
+      if (_mentionQuery != null) _closeMentionSuggestions();
+      return;
+    }
+    setState(() {
+      _mentionQuery = query;
+      _mentionMatches = matches;
+      _mentionIndex = _mentionIndex.clamp(0, matches.length - 1);
+    });
+  }
+
+  void _closeMentionSuggestions() {
+    setState(() {
+      _mentionQuery = null;
+      _mentionMatches = const [];
+      _mentionIndex = 0;
+    });
+  }
+
+  /// 候補を選び、入力中の`@クエリ`を`@表示名 `へ置き換える。
+  void _pickMention(MentionCandidate candidate) {
+    final query = _mentionQuery;
+    if (query == null) return;
+    final text = _textController.text;
+    final end = query.start + 1 + query.query.length;
+    final insert = '${candidate.insertText} ';
+    _selectedMentions.add(candidate);
+    _textController.value = TextEditingValue(
+      text: text.replaceRange(query.start, end, insert),
+      selection: TextSelection.collapsed(offset: query.start + insert.length),
+    );
+    _composerFocusNode.requestFocus();
+    _closeMentionSuggestions();
+  }
+
+  /// サジェスト表示中のキー操作（↑↓で移動、Enter/Tabで確定、Escで閉じる）。
+  /// 送信より優先する（Ctrl+Enterの通知なし送信だけは従来どおり送信に回す）。
+  KeyEventResult _handleMentionKey(KeyEvent event) {
+    final key = event.logicalKey;
+    if (key == LogicalKeyboardKey.arrowDown) {
+      setState(
+        () => _mentionIndex = (_mentionIndex + 1) % _mentionMatches.length,
+      );
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.arrowUp) {
+      setState(
+        () => _mentionIndex =
+            (_mentionIndex - 1 + _mentionMatches.length) %
+            _mentionMatches.length,
+      );
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.escape) {
+      _closeMentionSuggestions();
+      return KeyEventResult.handled;
+    }
+    final isEnter =
+        key == LogicalKeyboardKey.enter ||
+        key == LogicalKeyboardKey.numpadEnter;
+    final ctrl =
+        HardwareKeyboard.instance.isControlPressed ||
+        HardwareKeyboard.instance.isMetaPressed;
+    if (key == LogicalKeyboardKey.tab || (isEnter && !ctrl)) {
+      _pickMention(_mentionMatches[_mentionIndex]);
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
   }
 
   /// メッセージ内容に応じたぺったん提案の再計算（2026-09-05追加）。
@@ -1416,7 +1540,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   actions: actions,
                 ),
               )
-            : AlertDialog(
+            : KeyboardAlertDialog(
                 constraints: const BoxConstraints(maxWidth: 400),
                 title: title,
                 content: content,
@@ -1466,16 +1590,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   content: content,
                   actions: actions,
                 )
-              : AlertDialog(title: title, content: content, actions: actions);
+              : KeyboardAlertDialog(
+                  title: title,
+                  content: content,
+                  actions: actions,
+                );
 
-          return CallbackShortcuts(
-            // Enterキーで「撮影する」を実行できるようにする（2026-08-09追加）。
-            bindings: {
-              const SingleActivator(LogicalKeyboardKey.enter): () =>
-                  Navigator.of(context).pop(true),
-            },
-            child: Focus(autofocus: true, child: dialog),
-          );
+          return dialog;
         },
       ),
     );
@@ -1606,6 +1727,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           conversationId: widget.conversationId,
           roomId: widget.roomId,
           senderNameColorResolver: widget.senderNameColorResolver,
+          mentionRoleColors: widget.mentionRoleColors,
           blurSenderInfo: blurSenderInfo,
           messagesById: messagesById,
           timeFormat: timeFormat,
@@ -1919,7 +2041,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final strings = ref.read(appStringsProvider);
     final sendAnyway = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
+      builder: (dialogContext) => KeyboardAlertDialog(
         title: Text(strings.chatSpamWarningTitle),
         content: Text(strings.chatSpamWarningMessage),
         actions: [
@@ -1949,6 +2071,24 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     return false;
   }
 
+  /// 本文に残っている挿入済みメンションから、送信用の宛先を組み立てる。
+  MessageMentions _buildMentions(String content) {
+    final alive = mentionsStillInText(content, _selectedMentions);
+    if (alive.isEmpty) return MessageMentions.none;
+    return MessageMentions(
+      userIds: [
+        for (final c in alive)
+          if (c.kind == MentionKind.user) c.id,
+      ],
+      roleIds: [
+        for (final c in alive)
+          if (c.kind == MentionKind.role) c.id,
+      ],
+      everyone: alive.any((c) => c.kind == MentionKind.everyone),
+      labels: [for (final c in alive) c.insertText],
+    );
+  }
+
   Future<void> _send({bool silent = false}) async {
     if (widget.onSend == null || widget.disabled) return;
     final content = _textController.text.trim();
@@ -1971,6 +2111,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     }
 
     final replyTo = _replyingTo;
+    final mentions = _buildMentions(content);
+    _selectedMentions.clear();
     _textController.clear();
     // 送信済みなのでこの寄合の下書きは残さない（デバウンス待ちを挟まず
     // 即座に消す、2026-08-13追加）。
@@ -1981,7 +2123,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     // と合わせて対処）。
     _composerFocusNode.requestFocus();
     setState(() => _replyingTo = null);
-    await widget.onSend!(content, silent: silent, replyTo: replyTo);
+    await widget.onSend!(
+      content,
+      silent: silent,
+      replyTo: replyTo,
+      mentions: mentions,
+    );
     _scrollToLatestMessage();
   }
 
@@ -2147,6 +2294,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// - Ctrl+Enterで送信モード: Enter=改行 / Ctrl+Enter=送信 / Ctrl+Shift+Enter=通知せず送信
   KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
+    if (_mentionQuery != null && _mentionMatches.isNotEmpty) {
+      final result = _handleMentionKey(event);
+      if (result == KeyEventResult.handled) return result;
+    }
     if (event.logicalKey != LogicalKeyboardKey.enter &&
         event.logicalKey != LogicalKeyboardKey.numpadEnter) {
       return KeyEventResult.ignored;
@@ -2687,6 +2838,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                               : widget.onSenderTap,
                           senderNameColorResolver:
                               widget.senderNameColorResolver,
+                          mentionRoleColors: widget.mentionRoleColors,
                           selecting: _selecting || _screenshotSelecting,
                           selected: _selecting
                               ? _selectedMessageIds.contains(message.messageId)
@@ -2809,6 +2961,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                               strings: strings,
                               onCancel: _cancelComposerContext,
                               vocabulary: vocabulary,
+                            ),
+                          if (_mentionQuery != null &&
+                              _mentionMatches.isNotEmpty)
+                            MentionSuggestionList(
+                              candidates: _mentionMatches,
+                              selectedIndex: _mentionIndex,
+                              onPick: _pickMention,
+                              strings: strings,
+                              plazaLabel:
+                                  (vocabulary ?? Vocabulary.japanese).plaza,
+                              isGlass: isGlass,
+                              isGekiga: isGekiga,
                             ),
                           if (_stickerSuggestions.isNotEmpty)
                             StickerSuggestionStrip(
@@ -3721,6 +3885,7 @@ class _MessageRow extends ConsumerWidget {
     this.roomId,
     this.onSenderTap,
     this.senderNameColorResolver,
+    this.mentionRoleColors = const {},
     this.blurSenderInfo = false,
     this.selecting = false,
     this.selected = false,
@@ -3785,6 +3950,7 @@ class _MessageRow extends ConsumerWidget {
 
   final void Function(String userId)? onSenderTap;
   final Color? Function(String userId)? senderNameColorResolver;
+  final Map<String, Color?> mentionRoleColors;
 
   /// trueなら送信者のアイコン・呼び名をぼかして表示する（2026-08-09追加）。
   /// スクリーンショット機能でオフスクリーンに組み立てる複製行専用のオプション
@@ -4204,6 +4370,55 @@ class _MessageRow extends ConsumerWidget {
       AppUiStyle.flat => _readableTextColorOn(bubbleFill, colorScheme.surface),
       AppUiStyle.glass => _readableTextColorOn(bubbleFill, colorScheme.surface),
     };
+    // `@`メンション先の強調（2026-10-11）。個人宛・`@everyone`は全て同じ
+    // 見た目にする（誰宛かで濃さを変えない）。フラット/ガラスはアクセント
+    // カラーを背景の塗りに使い、文字色は背景の明るさから[_readableTextColorOn]
+    // で決める（アクセントカラーを文字色には使わない方針）。劇画はモノクロの
+    // 濃淡のみ。ロール宛（[mentionRoleColors]に含まれる`@…`）はハイライトを
+    // 入れず、ロール自身の色を文字色にするだけ。
+    Color? mentionBackground;
+    Color? mentionColor;
+    if (message.mentionLabels.isNotEmpty) {
+      if (isGekiga) {
+        mentionColor = isMe ? Colors.black : Colors.white;
+        mentionBackground = mentionColor.withValues(alpha: 0.25);
+      } else {
+        // 語らい一覧の選択ブロック・通知カード（`talks_tab.dart`のガラス分岐）と
+        // 同じ見た目にする。あれらはアクセントの不透明度45%を、ガラスの面
+        // （`colorScheme.surface`をcardTintAlphaで画面背景に重ねたもの）の
+        // 上に重ねて見えている。吹き出しの灰色の塗りに同じ半透明を直接
+        // 重ねると下地が違って灰茶色に濁るので、一覧と同じ下地を見積もって
+        // 先に合成した色を、メンション部分だけに塗る（1件あたり色の合成が
+        // 2回だけで、描画の負担にはならない）。
+        final pageBackground = Theme.of(context).scaffoldBackgroundColor;
+        final tintAlpha = _isGlassStyle
+            ? (Theme.of(context).extension<GlassThemeExtras>()?.cardTintAlpha ??
+                  0.6)
+            : 1.0;
+        final listBase = _isGlassStyle
+            ? Color.alphaBlend(
+                colorScheme.surface.withValues(alpha: tintAlpha),
+                pageBackground,
+              )
+            : pageBackground;
+        // ガラスの一覧ブロックはアクセントの不透明度45%、フラットの一覧
+        // ブロックはアクセント本来の色（`primary`そのまま、既定は約80%の
+        // 半透明）を塗っているので、それぞれに合わせる（2026-10-11、フラット
+        // にもガラスの45%を使っていて暗く見えた誤りを修正）。
+        mentionBackground = Color.alphaBlend(
+          _isGlassStyle
+              ? colorScheme.primary.withValues(alpha: 0.45)
+              : colorScheme.primary,
+          listBase,
+        );
+        mentionColor = _readableTextColorOn(mentionBackground, listBase);
+      }
+    }
+    final mentionLabelColors = {
+      for (final label in message.mentionLabels)
+        if (mentionRoleColors.containsKey(label))
+          label: mentionRoleColors[label],
+    };
 
     // 返信元の引用プレビュー。ロード済み（最新50件）の範囲に返信元の実物が
     // あればそちらを優先して表示し（編集済みなら最新内容を反映できる）、
@@ -4390,7 +4605,8 @@ class _MessageRow extends ConsumerWidget {
                                 controller: partialCopyController
                                   ?..linkColor = isGekiga
                                       ? (isMe ? Colors.black : Colors.white)
-                                      : onBubbleColor,
+                                      : onBubbleColor
+                                  ..mentionLabels = message.mentionLabels,
                                 readOnly: true,
                                 showCursor: false,
                                 maxLines: null,
@@ -4435,6 +4651,10 @@ class _MessageRow extends ConsumerWidget {
                         linkColor: isGekiga
                             ? (isMe ? Colors.black : Colors.white)
                             : onBubbleColor,
+                        mentionLabels: message.mentionLabels,
+                        mentionColor: mentionColor,
+                        mentionBackground: mentionBackground,
+                        mentionLabelColors: mentionLabelColors,
                       ),
               ),
               if (message.silent) ...[
@@ -4899,6 +5119,28 @@ class _MessageRow extends ConsumerWidget {
   /// （白枠→黒枠→地色→中身、`isMe`で白黒反転）を使い、通常の吹き出しの
   /// 歪んだ平行四辺形枠ではなく完全な直角の矩形にする（2026-09-04、ユーザー
   /// 指摘により修正）。
+  bool get _isGlassStyle => uiStyle == AppUiStyle.glass;
+
+  /// 投票・予定・日程調整・ノートの通知カードの配色（2026-10-11、ガラスUI
+  /// のみ）。フラットはアクセントカラーのベタ塗りのヘッダー帯・ボタンだが、
+  /// ガラスでは語らい一覧の選択中ブロック（`talks_tab.dart`のガラス分岐、
+  /// `Material(color: primary.withValues(alpha: 0.45))`＋文字は
+  /// `onSurfaceVariant`のまま）と全く同じ塗り・文字色にする。アクセントの
+  /// 色味を保ったまま背景が透け、ベタ塗りより目に優しい。
+  Color _noticeHeaderColor(ColorScheme colorScheme) => _isGlassStyle
+      ? colorScheme.primary.withValues(alpha: 0.45)
+      : colorScheme.primary;
+
+  Color _noticeHeaderIconColor(ColorScheme colorScheme) =>
+      _isGlassStyle ? colorScheme.onSurfaceVariant : colorScheme.onPrimary;
+
+  ButtonStyle? _noticeButtonStyle(ColorScheme colorScheme) => _isGlassStyle
+      ? FilledButton.styleFrom(
+          backgroundColor: colorScheme.primary.withValues(alpha: 0.45),
+          foregroundColor: colorScheme.onSurfaceVariant,
+        )
+      : null;
+
   Widget _calendarEventNoticeContent(
     BuildContext context,
     Strings strings,
@@ -4958,12 +5200,12 @@ class _MessageRow extends ConsumerWidget {
               Container(
                 width: double.infinity,
                 height: 88,
-                color: colorScheme.primary,
+                color: _noticeHeaderColor(colorScheme),
                 alignment: Alignment.center,
                 child: Icon(
                   Icons.event_outlined,
                   size: 36,
-                  color: colorScheme.onPrimary,
+                  color: _noticeHeaderIconColor(colorScheme),
                 ),
               ),
               Padding(
@@ -4995,6 +5237,7 @@ class _MessageRow extends ConsumerWidget {
                       width: double.infinity,
                       child: FilledButton(
                         onPressed: onTap,
+                        style: _noticeButtonStyle(colorScheme),
                         child: Text(confirmLabel),
                       ),
                     ),
@@ -5103,12 +5346,12 @@ class _MessageRow extends ConsumerWidget {
               Container(
                 width: double.infinity,
                 height: 88,
-                color: colorScheme.primary,
+                color: _noticeHeaderColor(colorScheme),
                 alignment: Alignment.center,
                 child: Icon(
                   Icons.event_available_outlined,
                   size: 36,
-                  color: colorScheme.onPrimary,
+                  color: _noticeHeaderIconColor(colorScheme),
                 ),
               ),
               Padding(
@@ -5140,6 +5383,7 @@ class _MessageRow extends ConsumerWidget {
                       width: double.infinity,
                       child: FilledButton(
                         onPressed: onTap,
+                        style: _noticeButtonStyle(colorScheme),
                         child: Text(confirmLabel),
                       ),
                     ),
@@ -5244,12 +5488,12 @@ class _MessageRow extends ConsumerWidget {
               Container(
                 width: double.infinity,
                 height: 88,
-                color: colorScheme.primary,
+                color: _noticeHeaderColor(colorScheme),
                 alignment: Alignment.center,
                 child: Icon(
                   Icons.how_to_vote_outlined,
                   size: 36,
-                  color: colorScheme.onPrimary,
+                  color: _noticeHeaderIconColor(colorScheme),
                 ),
               ),
               Padding(
@@ -5281,6 +5525,7 @@ class _MessageRow extends ConsumerWidget {
                       width: double.infinity,
                       child: FilledButton(
                         onPressed: onTap,
+                        style: _noticeButtonStyle(colorScheme),
                         child: Text(confirmLabel),
                       ),
                     ),
@@ -5426,12 +5671,12 @@ class _MessageRow extends ConsumerWidget {
               Container(
                 width: double.infinity,
                 height: 88,
-                color: colorScheme.primary,
+                color: _noticeHeaderColor(colorScheme),
                 alignment: Alignment.center,
                 child: Icon(
                   Icons.note_alt_outlined,
                   size: 36,
-                  color: colorScheme.onPrimary,
+                  color: _noticeHeaderIconColor(colorScheme),
                 ),
               ),
               Padding(
@@ -5463,6 +5708,7 @@ class _MessageRow extends ConsumerWidget {
                       width: double.infinity,
                       child: FilledButton(
                         onPressed: onTap,
+                        style: _noticeButtonStyle(colorScheme),
                         child: Text(confirmLabel),
                       ),
                     ),
@@ -5850,7 +6096,7 @@ class _MessageRow extends ConsumerWidget {
         ];
         return isGlass
             ? GlassAlertDialog(title: title, actions: actions)
-            : AlertDialog(title: title, actions: actions);
+            : KeyboardAlertDialog(title: title, actions: actions);
       },
     );
     if (confirmed == true) await onDeleteAfterAccountDeletion?.call();
@@ -6013,7 +6259,7 @@ class _MessageRow extends ConsumerWidget {
                   actions: actions,
                 ),
               )
-            : AlertDialog(
+            : KeyboardAlertDialog(
                 constraints: const BoxConstraints(maxWidth: 400),
                 title: title,
                 content: content,

@@ -13,6 +13,7 @@ import '../../widgets/gekiga/gekiga_text_field.dart';
 import '../../widgets/glass/glass_dialog.dart';
 import '../../widgets/glass/glass_surface.dart';
 import '../../widgets/unread_badge.dart';
+import '../../widgets/dialog_keyboard_shortcuts.dart';
 
 /// 寄合（テキストチャンネル）1件分の一覧表示用の軽量データ。
 /// 広場の`Room`・一対の`DmRoom`どちらもこの形にマッピングして渡す。
@@ -454,7 +455,7 @@ Future<String?> promptForRoomName(
     // Color`がColors.transparentのため、実際の塗り・ぼかしを描く
     // `GlassSurface`でラップしていないと背景が透明のまま素通しになる
     // （2026-09-11発覚・修正、`group_delete_dialog.dart`等と同じ
-    // `isGlass ? Dialog(child: GlassAlertDialog(...)) : AlertDialog(...)`
+    // `isGlass ? Dialog(child: GlassAlertDialog(...)) : KeyboardAlertDialog(...)`
     // 分岐に揃えた）。
     builder: (context) => isGlass
         ? ConstrainedBox(
@@ -465,7 +466,7 @@ Future<String?> promptForRoomName(
               actions: actions,
             ),
           )
-        : AlertDialog(
+        : KeyboardAlertDialog(
             constraints: const BoxConstraints(maxWidth: 400),
             title: title,
             content: content,

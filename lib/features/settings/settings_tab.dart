@@ -72,6 +72,7 @@ import '../chat/group_member_list_screen.dart';
 import 'owned_sticker_packs_popup.dart';
 import 'passkey_management_dialog.dart';
 import 'settings_accordion_section.dart';
+import '../../widgets/dialog_keyboard_shortcuts.dart';
 
 /// 画面幅がこれ以上あれば、左にカテゴリ一覧（サイドバー）、右にそのカテゴリの
 /// 内容を1ページにまとめて表示するDiscord設定風の2ペイン表示にする。
@@ -1038,7 +1039,11 @@ Future<bool> _confirmStartScan(BuildContext context, Strings strings) async {
       ];
       return isGlass
           ? GlassAlertDialog(title: title, content: content, actions: actions)
-          : AlertDialog(title: title, content: content, actions: actions);
+          : KeyboardAlertDialog(
+              title: title,
+              content: content,
+              actions: actions,
+            );
     },
   );
   return confirmed ?? false;
@@ -1072,7 +1077,7 @@ Future<bool> _confirmDeletePresetColor(
       ];
       return isGlass
           ? GlassAlertDialog(title: title, actions: actions)
-          : AlertDialog(title: title, actions: actions);
+          : KeyboardAlertDialog(title: title, actions: actions);
     },
   );
   return confirmed ?? false;
@@ -1102,7 +1107,11 @@ Future<bool> _confirmApproveQrLogin(
       ];
       return isGlass
           ? GlassAlertDialog(title: title, content: content, actions: actions)
-          : AlertDialog(title: title, content: content, actions: actions);
+          : KeyboardAlertDialog(
+              title: title,
+              content: content,
+              actions: actions,
+            );
     },
   );
   return confirmed ?? false;
@@ -1136,7 +1145,11 @@ Future<bool> _confirmDisableTwoFactor(
       ];
       return isGlass
           ? GlassAlertDialog(title: title, content: content, actions: actions)
-          : AlertDialog(title: title, content: content, actions: actions);
+          : KeyboardAlertDialog(
+              title: title,
+              content: content,
+              actions: actions,
+            );
     },
   );
   return confirmed ?? false;
@@ -1290,7 +1303,11 @@ Future<bool> _confirmDisconnectGoogleCalendarSync(
       ];
       return isGlass
           ? GlassAlertDialog(title: title, content: content, actions: actions)
-          : AlertDialog(title: title, content: content, actions: actions);
+          : KeyboardAlertDialog(
+              title: title,
+              content: content,
+              actions: actions,
+            );
     },
   );
   return confirmed ?? false;
@@ -1718,7 +1735,7 @@ class _OwnerGroupsGuardDialog extends ConsumerWidget {
 
     return isGlass
         ? GlassAlertDialog(title: title, content: content, actions: actions)
-        : AlertDialog(title: title, content: content, actions: actions);
+        : KeyboardAlertDialog(title: title, content: content, actions: actions);
   }
 }
 

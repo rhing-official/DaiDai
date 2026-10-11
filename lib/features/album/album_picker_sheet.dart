@@ -8,6 +8,7 @@ import '../../models/message.dart';
 import '../../providers/app_ui_style_provider.dart';
 import '../../providers/repository_providers.dart';
 import '../../widgets/glass/glass_dialog.dart';
+import '../../widgets/dialog_keyboard_shortcuts.dart';
 
 /// メッセージ長押しメニューの「アルバムに登録」から開くボトムシート
 /// （2026-08-30追加）。その寄合の既存アルバム一覧から選ぶか、その場で
@@ -120,7 +121,11 @@ class _AlbumPickerSheetState extends ConsumerState<_AlbumPickerSheet> {
         ];
         return isGlass
             ? GlassAlertDialog(title: title, content: content, actions: actions)
-            : AlertDialog(title: title, content: content, actions: actions);
+            : KeyboardAlertDialog(
+                title: title,
+                content: content,
+                actions: actions,
+              );
       },
     );
     if (name == null || name.isEmpty) return;

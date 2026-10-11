@@ -12,6 +12,7 @@ import '../../providers/app_ui_style_provider.dart';
 import '../../providers/repository_providers.dart';
 import '../../utils/auto_dismiss_banner.dart';
 import '../../widgets/glass/glass_dialog.dart';
+import '../../widgets/dialog_keyboard_shortcuts.dart';
 
 /// 広場のプロフィールカード（1枚のみ）を作成・編集するポップアップの中身。
 /// メンバー全員が編集できる（個人の工房カードと異なり、蔵の素材を参照せず
@@ -169,7 +170,7 @@ class _GroupProfileCardPopupState extends ConsumerState<GroupProfileCardPopup> {
         );
         return isGlass
             ? GlassAlertDialog(title: title, content: content)
-            : AlertDialog(title: title, content: content);
+            : KeyboardAlertDialog(title: title, content: content);
       },
     );
     final newValue = _editController.text.trim();

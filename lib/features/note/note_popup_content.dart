@@ -13,6 +13,7 @@ import '../../utils/note_title.dart';
 import '../../widgets/glass/glass_dialog.dart';
 import '../../widgets/glass/glass_surface.dart';
 import '../chat/button_anchored_menu.dart';
+import '../../widgets/dialog_keyboard_shortcuts.dart';
 
 /// ノートボタンの真下にノート一覧をポップアップ表示する（2026-09-06追加、
 /// `poll_popup_content.dart`の`showPollPopup`と同じ構成）。位置計算済みの
@@ -167,7 +168,11 @@ class _NotePopupContentState extends ConsumerState<_NotePopupContent> {
         ];
         return isGlass
             ? GlassAlertDialog(title: title, content: content, actions: actions)
-            : AlertDialog(title: title, content: content, actions: actions);
+            : KeyboardAlertDialog(
+                title: title,
+                content: content,
+                actions: actions,
+              );
       },
     );
     if (confirmed != true || !mounted) return;

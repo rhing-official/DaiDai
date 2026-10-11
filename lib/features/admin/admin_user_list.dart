@@ -11,6 +11,7 @@ import '../../utils/auto_dismiss_banner.dart';
 import '../../widgets/generated_avatar.dart';
 import '../../widgets/glass/glass_dialog.dart';
 import '../../widgets/profile_card_view.dart';
+import '../../widgets/dialog_keyboard_shortcuts.dart';
 
 /// 管理画面の住人一覧の取得元（`limit(500)`、並べ替えはUI側）。テストで
 /// 差し替えられるよう公開している。
@@ -116,7 +117,7 @@ Widget _adminDialog(
 }) {
   return ref.read(appUiStyleProvider) == AppUiStyle.glass
       ? GlassAlertDialog(title: title, content: content, actions: actions)
-      : AlertDialog(title: title, content: content, actions: actions);
+      : KeyboardAlertDialog(title: title, content: content, actions: actions);
 }
 
 /// 後戻りしにくい確定ボタンの固定の濃い赤（CLAUDE.mdのボタン配色規約）。
@@ -690,6 +691,8 @@ class _UserDetailDialogState extends ConsumerState<_UserDetailDialog> {
                     height: kAdminProfileCardHeight,
                     icon: user.effectiveIcon,
                     background: user.effectiveBackgroundImage,
+                    backgroundFocal: user.activeProfileCard?.backgroundFocal,
+                    iconFocal: user.activeProfileCard?.iconFocal,
                     nickname: (user.effectiveNickname?.text.isNotEmpty ?? false)
                         ? user.effectiveNickname!.text
                         : '@${user.rhingSeed}',

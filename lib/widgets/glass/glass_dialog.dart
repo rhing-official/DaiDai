@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../dialog_keyboard_shortcuts.dart';
 import 'glass_surface.dart';
 
 /// [AlertDialog]と同じ形（title/content/actions）を持つガラスUI版ダイアログ。
@@ -48,30 +49,33 @@ class GlassAlertDialog extends StatelessWidget {
       body = SingleChildScrollView(child: body);
     }
 
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      elevation: 0,
-      child: GlassSurface(
-        variant: GlassVariant.floating,
-        borderRadius: BorderRadius.circular(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Flexible(child: body),
-            if (actions != null && actions!.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    for (var i = 0; i < actions!.length; i++) ...[
-                      if (i > 0) const SizedBox(width: 8),
-                      actions![i],
+    return DialogKeyboardShortcuts(
+      actions: actions,
+      child: Dialog(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        child: GlassSurface(
+          variant: GlassVariant.floating,
+          borderRadius: BorderRadius.circular(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Flexible(child: body),
+              if (actions != null && actions!.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      for (var i = 0; i < actions!.length; i++) ...[
+                        if (i > 0) const SizedBox(width: 8),
+                        actions![i],
+                      ],
                     ],
-                  ],
+                  ),
                 ),
-              ),
-          ],
+            ],
+          ),
         ),
       ),
     );

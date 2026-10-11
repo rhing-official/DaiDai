@@ -93,8 +93,12 @@ class _AnnouncementSectionState extends ConsumerState<_AnnouncementSection> {
       .read(announcementRepositoryProvider)
       .watchAnnouncementMessages();
 
-  Future<void> _send(String content, {bool silent = false, Message? replyTo}) =>
-      ref.read(announcementRepositoryProvider).broadcast(content);
+  Future<void> _send(
+    String content, {
+    bool silent = false,
+    Message? replyTo,
+    MessageMentions mentions = MessageMentions.none,
+  }) => ref.read(announcementRepositoryProvider).broadcast(content);
 
   @override
   Widget build(BuildContext context) {

@@ -50,8 +50,13 @@ Future<void> _pumpChatScreen(
           currentUserId: 'u1',
           isDm: true,
           messagesStream: Stream.value(<Message>[]),
-          onSend: (content, {silent = false, replyTo}) async =>
-              sentMessages.add(_Sent(content, silent)),
+          onSend:
+              (
+                content, {
+                silent = false,
+                replyTo,
+                mentions = MessageMentions.none,
+              }) async => sentMessages.add(_Sent(content, silent)),
         ),
       ),
     ),

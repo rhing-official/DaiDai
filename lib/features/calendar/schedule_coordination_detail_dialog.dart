@@ -16,6 +16,7 @@ import '../../widgets/glass/glass_dialog.dart';
 import 'calendar_chip.dart';
 import 'calendar_event_detail_dialog.dart';
 import 'calendar_event_form_dialog.dart';
+import '../../widgets/dialog_keyboard_shortcuts.dart';
 
 /// 日程調整の詳細・投票ダイアログ（2026-09-05追加）。日程調整開始通知
 /// メッセージのタップ時、カレンダー月表示のカードタップ時、タスクバナーの
@@ -159,7 +160,11 @@ class _ScheduleCoordinationDetailDialogState
         ];
         return isGlass
             ? GlassAlertDialog(title: title, content: content, actions: actions)
-            : AlertDialog(title: title, content: content, actions: actions);
+            : KeyboardAlertDialog(
+                title: title,
+                content: content,
+                actions: actions,
+              );
       },
     );
     if (confirmed != true || !mounted) return;
@@ -243,7 +248,11 @@ class _ScheduleCoordinationDetailDialogState
         ];
         return isGlass
             ? GlassAlertDialog(title: title, content: content, actions: actions)
-            : AlertDialog(title: title, content: content, actions: actions);
+            : KeyboardAlertDialog(
+                title: title,
+                content: content,
+                actions: actions,
+              );
       },
     );
     if (confirmed != true || !mounted) return;
@@ -423,7 +432,7 @@ class _ScheduleCoordinationDetailDialogState
 
     final dialog = isGlass
         ? GlassAlertDialog(title: title, content: content, actions: actions)
-        : AlertDialog(title: title, content: content, actions: actions);
+        : KeyboardAlertDialog(title: title, content: content, actions: actions);
     // 候補が複数並ぶため、既定の確認ダイアログ幅(maxWidth: 400)より広げる
     // （calendar_event_detail_dialog.dartと同じ理由・同じ実装）。
     final ambientTheme = Theme.of(context);

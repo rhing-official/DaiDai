@@ -31,6 +31,7 @@ import 'calendar_event_form_dialog.dart';
 import 'calendar_month_layout.dart';
 import 'schedule_coordination_detail_dialog.dart';
 import 'schedule_coordination_form_dialog.dart';
+import '../../widgets/dialog_keyboard_shortcuts.dart';
 
 DateTime _dateOnly(DateTime date) => DateTime(date.year, date.month, date.day);
 
@@ -1197,7 +1198,7 @@ class _CalendarSearchDialogState extends State<_CalendarSearchDialog> {
         matchingEvents.isNotEmpty || matchingCoordinations.isNotEmpty;
     final dateFormat = DateFormat.yMMMEd(widget.localeCode);
 
-    return AlertDialog(
+    return KeyboardAlertDialog(
       title: TextField(
         controller: _controller,
         autofocus: true,

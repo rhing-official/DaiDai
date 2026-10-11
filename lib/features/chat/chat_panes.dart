@@ -30,6 +30,7 @@ import '../../services/google_calendar_auth_service.dart';
 import '../../services/google_calendar_link_coordinator.dart';
 import '../../theme/popup_surface_colors.dart';
 import '../../utils/auto_dismiss_banner.dart';
+import '../../utils/group_mentions.dart';
 import '../../utils/group_permissions.dart';
 import '../../utils/platform_info.dart';
 import '../../widgets/destructive_label.dart';
@@ -57,6 +58,7 @@ import 'room_tab_bar.dart';
 import 'severance_dialog.dart';
 import 'task_banner.dart';
 import 'user_profile_card_dialog.dart';
+import '../../widgets/dialog_keyboard_shortcuts.dart';
 
 enum _GroupMenuAction {
   openGroupSettings,
@@ -106,7 +108,11 @@ Future<bool> confirmDisableReadReceipts(
       ];
       return isGlass
           ? GlassAlertDialog(title: title, content: content, actions: actions)
-          : AlertDialog(title: title, content: content, actions: actions);
+          : KeyboardAlertDialog(
+              title: title,
+              content: content,
+              actions: actions,
+            );
     },
   );
   return confirmed ?? false;
@@ -124,7 +130,7 @@ Future<String?> _showRenameRoomDialog(
   final controller = TextEditingController(text: currentName);
   final name = await showDialog<String>(
     context: context,
-    builder: (context) => AlertDialog(
+    builder: (context) => KeyboardAlertDialog(
       title: Text(strings.roomRenameLabel(vocab.textChannel)),
       content: TextField(
         controller: controller,
@@ -157,7 +163,7 @@ Future<bool> _confirmDeleteRoom(
 ) async {
   final confirmed = await showDialog<bool>(
     context: context,
-    builder: (context) => AlertDialog(
+    builder: (context) => KeyboardAlertDialog(
       title: Text(strings.roomListDeleteConfirmTitle(vocab.textChannel)),
       actions: [
         TextButton(
@@ -539,6 +545,11 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
     final roomId = _currentRoomId;
     final roomName = _currentRoomName;
     final otherUserId = dm.otherUserId(currentUser.userId);
+    // `@`メンションの候補（一対は相手のみ、2026-10-11追加）。
+    final mentionCandidates = buildDmMentionCandidates(
+      otherUser: ref.watch(watchedUserProvider(otherUserId)).value,
+      conversationId: dm.dmId,
+    );
     // 横スクロールタブバーは、単一モード・広い画面のサイドバー使用中は
     // 表示しない（`rooms`自体はピン留め機能のため常に購読しているが、タブ
     // バーの表示可否とは独立に判定する）。
@@ -612,6 +623,7 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
       isDm: true,
       conversationId: dm.dmId,
       roomId: roomId,
+      mentionCandidates: mentionCandidates,
       onSenderTap: (userId) => _openProfileCard(context, userId),
       onOpenNote: (noteId) => setState(() => _openNoteId = noteId),
       initialScrollAnchor: _cacheEntry.lastScrollAnchor,
@@ -622,24 +634,31 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
       onLoadOlderMessages: _loadOlderMessages,
       isLoadingOlderMessages: _cacheEntry.isLoadingOlder,
       hasMoreHistory: _cacheEntry.hasMoreHistory,
-      onSend: (content, {silent = false, replyTo}) async {
-        if (isBlocked) {
-          showAutoDismissBanner(
-            context,
-            message: strings.conversationBlockedCannotSend,
-          );
-          return;
-        }
-        await dmRepository.sendTextMessage(
-          dmId: dm.dmId,
-          roomId: roomId,
-          senderId: currentUser.userId,
-          senderRhingSeed: currentUser.rhingSeed,
-          content: content,
-          silent: silent,
-          replyTo: replyTo,
-        );
-      },
+      onSend:
+          (
+            content, {
+            silent = false,
+            replyTo,
+            mentions = MessageMentions.none,
+          }) async {
+            if (isBlocked) {
+              showAutoDismissBanner(
+                context,
+                message: strings.conversationBlockedCannotSend,
+              );
+              return;
+            }
+            await dmRepository.sendTextMessage(
+              dmId: dm.dmId,
+              roomId: roomId,
+              senderId: currentUser.userId,
+              senderRhingSeed: currentUser.rhingSeed,
+              content: content,
+              silent: silent,
+              replyTo: replyTo,
+              mentions: mentions,
+            );
+          },
       onSendAttachment: (attachment, {onProgress}) async {
         if (isBlocked) {
           showAutoDismissBanner(
@@ -837,6 +856,7 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
           otherUserId: otherUserId,
           roomId: roomId,
           roomName: roomName,
+          showRoomTabBar: widget.showRoomTabBar,
           menuAnchorKey: _menuAnchorKey,
         ),
       ],
@@ -1272,7 +1292,11 @@ class _CalendarButtonState extends ConsumerState<_CalendarButton> {
         ];
         return isGlass
             ? GlassAlertDialog(title: title, content: content, actions: actions)
-            : AlertDialog(title: title, content: content, actions: actions);
+            : KeyboardAlertDialog(
+                title: title,
+                content: content,
+                actions: actions,
+              );
       },
     );
     if (!mounted) return;
@@ -1713,12 +1737,18 @@ class _DmMenuButton extends ConsumerStatefulWidget {
     required this.otherUserId,
     required this.roomId,
     required this.roomName,
+    required this.showRoomTabBar,
     required this.menuAnchorKey,
   });
 
   final AppUser currentUser;
   final DirectMessage dm;
   final String otherUserId;
+
+  /// この画面が寄合タブバーを表示しているか。寄合の削除後に先頭の寄合を
+  /// 開き直す際、元の画面と同じ表示（アイコン＋寄合一覧モードから来た
+  /// 場合はタブバー無し）にするために引き継ぐ（2026-10-11追加）。
+  final bool showRoomTabBar;
 
   /// 現在表示中の寄合（名前変更の対象）。
   final String roomId;
@@ -1897,6 +1927,7 @@ class _DmMenuButtonState extends ConsumerState<_DmMenuButton> {
                     dm: dm,
                     roomId: topRoom.roomId,
                     roomName: topRoom.name,
+                    showRoomTabBar: widget.showRoomTabBar,
                   ),
                 );
           } else {
@@ -2489,6 +2520,7 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
                   )
                 : null,
           );
+    final sortedMemberIds = ([...group.memberIds]..sort()).join(',');
     final chatScreen = ChatScreen(
       key: ValueKey('group-${group.groupId}-$roomId'),
       title: roomName,
@@ -2497,6 +2529,20 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
       conversationId: group.groupId,
       roomId: roomId,
       senderNameColorResolver: senderNameColorFor,
+      mentionCandidates: buildGroupMentionCandidates(
+        group: group,
+        currentUserId: currentUser.userId,
+        members:
+            ref.watch(usersByIdsProvider(sortedMemberIds)).value ?? const [],
+        roles: roles,
+      ),
+      mentionRoleColors: {
+        for (final role in roles)
+          if (!role.isEveryone)
+            '@${role.name}': role.color == null
+                ? null
+                : Color(0xFF000000 | role.color!),
+      },
       onOpenNote: (noteId) => setState(() => _openNoteId = noteId),
       initialScrollAnchor: _cacheEntry.lastScrollAnchor,
       // 旧寄合のChatScreenのdispose時に新寄合のentryへ書き込まないよう、
@@ -2512,8 +2558,13 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
       onLoadOlderMessages: _loadOlderMessages,
       isLoadingOlderMessages: _cacheEntry.isLoadingOlder,
       hasMoreHistory: _cacheEntry.hasMoreHistory,
-      onSend: (content, {silent = false, replyTo}) =>
-          groupRepository.sendRoomMessage(
+      onSend:
+          (
+            content, {
+            silent = false,
+            replyTo,
+            mentions = MessageMentions.none,
+          }) => groupRepository.sendRoomMessage(
             groupId: group.groupId,
             roomId: roomId,
             senderId: currentUser.userId,
@@ -2521,6 +2572,7 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
             content: content,
             silent: silent,
             replyTo: replyTo,
+            mentions: mentions,
           ),
       onSendAttachment: (attachment, {onProgress}) =>
           groupRepository.sendAttachmentMessage(
@@ -2693,6 +2745,7 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
           roomName: roomName,
           currentRoom: currentRoom,
           roles: roles,
+          showRoomTabBar: widget.showRoomTabBar,
           menuAnchorKey: _menuAnchorKey,
         ),
       ],
@@ -2732,6 +2785,7 @@ class _GroupMenuButton extends ConsumerStatefulWidget {
     required this.roomName,
     required this.currentRoom,
     required this.roles,
+    required this.showRoomTabBar,
     required this.menuAnchorKey,
   });
 
@@ -2748,6 +2802,9 @@ class _GroupMenuButton extends ConsumerStatefulWidget {
 
   /// この広場のカスタムロール一覧（優先順位並べ替えダイアログに渡す）。
   final List<GroupRole> roles;
+
+  /// [_DmMenuButton.showRoomTabBar]と同じ理由（2026-10-11追加）。
+  final bool showRoomTabBar;
 
   /// このボタン自身の位置（2026-09-12追加）。狭い画面ではAppBarの他の
   /// ポップアップボタン（ピン留め・アルバム・ノート・投票）がこのキーを
@@ -2923,6 +2980,7 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
                       group: widget.group,
                       roomId: topRoom.roomId,
                       roomName: topRoom.name,
+                      showRoomTabBar: widget.showRoomTabBar,
                     ),
                   );
             } else {

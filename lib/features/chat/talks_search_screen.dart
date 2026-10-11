@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -17,7 +16,7 @@ import '../../providers/chat_room_message_cache.dart';
 import '../../providers/conversation_prefs_providers.dart';
 import '../../providers/repository_providers.dart';
 import '../../providers/user_providers.dart';
-import '../../router/app_router.dart';
+import '../../utils/open_conversation.dart';
 import 'talks_search.dart';
 import 'talks_tab.dart' show DirectMessageTile, GroupTile, dmSearchLabel;
 
@@ -105,115 +104,17 @@ class _TalksSearchScreenState extends ConsumerState<TalksSearchScreen> {
     });
   }
 
-  Future<void> _openDm(DirectMessage dm) async {
-    final rooms = await ref
-        .read(directMessageRepositoryProvider)
-        .watchRooms(dmId: dm.dmId, userId: widget.currentUser.userId)
-        .first;
-    // 健全な一対は常に1件以上の寄合を持つ（`talks_tab.dart`の
-    // `_openDirectMessage`と同じ理由）。
-    if (rooms.isEmpty) return;
-    final topRoomId = rooms.first.roomId;
-    final roomName =
-        rooms.firstWhereOrNull((r) => r.roomId == topRoomId)?.name ?? 'メイン';
-    if (!mounted) return;
-    ref
-        .read(goRouterProvider)
-        .push(
-          '/chat/dm',
-          extra: DmChatArgs(
-            currentUser: widget.currentUser,
-            dm: dm,
-            roomId: topRoomId,
-            roomName: roomName,
-            enterFromRight: true,
-          ),
-        );
-  }
+  // 一対・広場・メッセージ内容一致のタップは、`/chat/*`へ直接pushせず語らい
+  // タブへ戻して設定どおりの見え方（アイコン＋寄合一覧）で開く（2026-10-11変更、
+  // 以前は常にフルスクリーン＋寄合タブバーで開いていた）。
+  Future<void> _openDm(DirectMessage dm) => openDmInTalks(ref, dm);
 
-  Future<void> _openGroup(Group group) async {
-    final rooms = await ref
-        .read(groupRepositoryProvider)
-        .watchRooms(groupId: group.groupId, userId: widget.currentUser.userId)
-        .first;
-    // [_openDm]と同じ理由。
-    if (rooms.isEmpty) return;
-    final topRoomId = rooms.first.roomId;
-    final roomName =
-        rooms.firstWhereOrNull((r) => r.roomId == topRoomId)?.name ?? 'メイン';
-    if (!mounted) return;
-    ref
-        .read(goRouterProvider)
-        .push(
-          '/chat/group',
-          extra: GroupChatArgs(
-            currentUser: widget.currentUser,
-            group: group,
-            roomId: topRoomId,
-            roomName: roomName,
-            enterFromRight: true,
-          ),
-        );
-  }
+  Future<void> _openGroup(Group group) => openGroupInTalks(ref, group);
 
-  /// メッセージ内容一致のタップ（2026-09-12追加）。メッセージ内容検索は
-  /// 会話が持つ全寄合が対象（2026-09-14変更）なため、`topRoomId`解決を
-  /// 経由せず必ず[hit.roomId]（＝実際にヒットした寄合）を直接開く
-  /// （`talks_tab.dart`の`_openMessageSearchHit`と同じ理由）。該当メッセージ
-  /// までのジャンプ＆ハイライトは[pendingMessageJumpProvider]経由で
-  /// `ChatScreen`側に伝える。
-  Future<void> _openMessageHit(MessageSearchHit hit) async {
-    final conversation = hit.isDm
-        ? ViewedDm(hit.dm!.dmId)
-        : ViewedGroup(hit.group!.groupId);
-    ref
-        .read(pendingMessageJumpProvider.notifier)
-        .set(conversation, hit.message.messageId, hit.roomId);
-
-    if (hit.isDm) {
-      final dm = hit.dm!;
-      final rooms = await ref
-          .read(directMessageRepositoryProvider)
-          .watchRooms(dmId: dm.dmId, userId: widget.currentUser.userId)
-          .first;
-      final roomName =
-          rooms.firstWhereOrNull((r) => r.roomId == hit.roomId)?.name ?? 'メイン';
-      if (!mounted) return;
-      ref
-          .read(goRouterProvider)
-          .push(
-            '/chat/dm',
-            extra: DmChatArgs(
-              currentUser: widget.currentUser,
-              dm: dm,
-              roomId: hit.roomId,
-              roomName: roomName,
-              enterFromRight: true,
-            ),
-          );
-    } else {
-      final group = hit.group!;
-      final rooms = await ref
-          .read(groupRepositoryProvider)
-          .watchRooms(groupId: group.groupId, userId: widget.currentUser.userId)
-          .first;
-      final roomName =
-          rooms.firstWhereOrNull((r) => r.roomId == hit.roomId)?.name ?? 'メイン';
-      if (!mounted) return;
-      ref
-          .read(goRouterProvider)
-          .push(
-            '/chat/group',
-            extra: GroupChatArgs(
-              currentUser: widget.currentUser,
-              group: group,
-              roomId: hit.roomId,
-              roomName: roomName,
-              enterFromRight: true,
-            ),
-          );
-    }
-  }
+  /// メッセージ内容一致のタップ。該当メッセージまでのジャンプ＆ハイライトは
+  /// `TalksTab._openMessageSearchHit`が[pendingMessageJumpProvider]経由で処理する。
+  Future<void> _openMessageHit(MessageSearchHit hit) async =>
+      openMessageHitInTalks(ref, hit);
 
   @override
   Widget build(BuildContext context) {

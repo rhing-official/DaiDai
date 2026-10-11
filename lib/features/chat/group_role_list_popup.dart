@@ -12,9 +12,11 @@ import '../../providers/app_ui_style_provider.dart';
 import '../../providers/group_providers.dart';
 import '../../providers/repository_providers.dart';
 import '../../utils/color_hex.dart';
+import '../../utils/group_permissions.dart';
 import '../../widgets/glass/glass_avatar.dart';
 import '../../widgets/glass/glass_dialog.dart';
 import 'group_role_priority_dialog.dart';
+import '../../widgets/dialog_keyboard_shortcuts.dart';
 
 /// 広場のカスタムロール一覧（ポップアップの中身）。`manageRoles`権限を持つ
 /// メンバーのみが開ける（`_GroupMenuButton`側でメニュー項目自体を無効化する）。
@@ -50,6 +52,11 @@ class GroupRoleListPopup extends ConsumerWidget {
     var hasColor = existing?.color != null;
     final permissions = {...?existing?.permissions};
     final isEveryone = existing?.isEveryone ?? false;
+    final canEditPermissions = hasGroupPermission(
+      group: group,
+      userId: currentUser.userId,
+      permission: GroupPermission.managePermissions,
+    );
     final isGlass = ref.read(appUiStyleProvider) == AppUiStyle.glass;
     String? errorText;
 
@@ -177,13 +184,17 @@ class GroupRoleListPopup extends ConsumerWidget {
                     controlAffinity: ListTileControlAffinity.leading,
                     value: permissions.contains(permission),
                     title: Text(strings.groupPermissionLabel(permission)),
-                    onChanged: (checked) => setState(() {
-                      if (checked ?? false) {
-                        permissions.add(permission);
-                      } else {
-                        permissions.remove(permission);
-                      }
-                    }),
+                    // 権限の編集は`managePermissions`が必要（無ければ閲覧のみ、
+                    // 2026-10-11）。
+                    onChanged: !canEditPermissions
+                        ? null
+                        : (checked) => setState(() {
+                            if (checked ?? false) {
+                              permissions.add(permission);
+                            } else {
+                              permissions.remove(permission);
+                            }
+                          }),
                   ),
                 if (!isEveryone) ...[
                   const SizedBox(height: 8),
@@ -270,7 +281,11 @@ class GroupRoleListPopup extends ConsumerWidget {
                   content: content,
                   actions: actions,
                 )
-              : AlertDialog(title: title, content: content, actions: actions);
+              : KeyboardAlertDialog(
+                  title: title,
+                  content: content,
+                  actions: actions,
+                );
         },
       ),
     );
@@ -347,7 +362,7 @@ class GroupRoleListPopup extends ConsumerWidget {
       context: context,
       builder: (context) => isGlass
           ? GlassAlertDialog(title: title, actions: actions)
-          : AlertDialog(title: title, actions: actions),
+          : KeyboardAlertDialog(title: title, actions: actions),
     );
     if (confirmed == true) {
       await ref

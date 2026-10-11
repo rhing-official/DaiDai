@@ -34,6 +34,7 @@ import 'block_move_drag.dart';
 import 'draw_canvas_view.dart';
 import 'note_table_delete.dart';
 import 'blocks/table_of_contents_block.dart';
+import '../../widgets/dialog_keyboard_shortcuts.dart';
 
 /// Obsidianの既定テーマに寄せた固定パレット（2026-09-26追加、ユーザー指示。
 /// アクセントカラーに依存しない固定値という点で劇画UIの`GekigaColors`と
@@ -890,7 +891,11 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
         ];
         return isGlass
             ? GlassAlertDialog(title: title, content: content, actions: actions)
-            : AlertDialog(title: title, content: content, actions: actions);
+            : KeyboardAlertDialog(
+                title: title,
+                content: content,
+                actions: actions,
+              );
       },
     );
     if (url == null || url.trim().isEmpty || !mounted) return;
@@ -915,7 +920,7 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
         );
         return isGlass
             ? GlassAlertDialog(content: content)
-            : AlertDialog(content: content);
+            : KeyboardAlertDialog(content: content);
       },
     );
     if (size == null || !mounted) return;

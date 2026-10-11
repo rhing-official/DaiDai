@@ -18,6 +18,7 @@ import '../../widgets/glass/glass_surface.dart';
 import 'chat_panes.dart' show confirmDisableReadReceipts;
 import 'conversation_profile_card_dialog.dart';
 import 'severance_dialog.dart';
+import '../../widgets/dialog_keyboard_shortcuts.dart';
 
 /// [DmSettingsPopup]をガラスUI対応のダイアログでラップして開く
 /// （`showGroupSettingsDialog`と同じ構成、2026-09-13追加）。
@@ -106,7 +107,7 @@ class DmSettingsPopup extends ConsumerWidget {
   ) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (context) => KeyboardAlertDialog(
         title: Text(strings.chatAccountDeletedConfirmTitle),
         actions: [
           TextButton(

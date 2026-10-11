@@ -8,7 +8,7 @@ import '../../models/app_user.dart';
 import '../../models/direct_message.dart';
 import '../../providers/app_ui_style_provider.dart';
 import '../../providers/repository_providers.dart';
-import '../../router/app_router.dart';
+import '../../utils/open_conversation.dart';
 import '../../utils/friend_request_error.dart';
 import '../../utils/web_link.dart';
 import '../../widgets/gekiga/gekiga_panel_box.dart';
@@ -106,17 +106,8 @@ class _AddChatDialogContentState extends ConsumerState<AddChatDialogContent> {
             .first;
         if (!mounted || rooms.isEmpty) return;
         widget.onCompleted();
-        ref
-            .read(goRouterProvider)
-            .push(
-              '/chat/dm',
-              extra: DmChatArgs(
-                currentUser: widget.currentUser,
-                dm: dm,
-                roomId: rooms.first.roomId,
-                roomName: rooms.first.name,
-              ),
-            );
+        // 設定した語らいレイアウトどおりに開く（2026-10-11変更）。
+        await openDmInTalks(ref, dm, roomId: rooms.first.roomId);
         return;
       }
 

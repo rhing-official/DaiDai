@@ -17,6 +17,7 @@ import '../../widgets/swipe_gestures.dart';
 import '../../widgets/video_thumbnail.dart';
 import 'album_media_viewer_screen.dart';
 import 'album_message_picker_screen.dart';
+import '../../widgets/dialog_keyboard_shortcuts.dart';
 
 /// 寄合単位の共有アルバムの中身を寄合の表示領域内で開く（2026-09-07、
 /// `NotePaneView`/`CalendarPaneView`と同じ「ローカルなbool/オブジェクト
@@ -98,7 +99,11 @@ class _AlbumPaneViewState extends ConsumerState<AlbumPaneView> {
         ];
         return isGlass
             ? GlassAlertDialog(title: title, content: content, actions: actions)
-            : AlertDialog(title: title, content: content, actions: actions);
+            : KeyboardAlertDialog(
+                title: title,
+                content: content,
+                actions: actions,
+              );
       },
     );
     if (confirmed != true) return;

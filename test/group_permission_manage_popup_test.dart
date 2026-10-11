@@ -76,6 +76,8 @@ void main() {
     WidgetTester tester, {
     int extraRoles = 0,
     double screenWidth = 900,
+    String userId = 'u1',
+    Group group = _group,
   }) async {
     groups = _FakeGroups(extraRoles: extraRoles);
     tester.view.physicalSize = Size(screenWidth, 900);
@@ -86,13 +88,18 @@ void main() {
       ProviderScope(
         overrides: [
           groupRepositoryProvider.overrideWithValue(groups),
-          watchedGroupProvider.overrideWith((ref, id) => Stream.value(_group)),
+          watchedGroupProvider.overrideWith((ref, id) => Stream.value(group)),
           initialAppLocaleProvider.overrideWithValue(AppLocale.japanese),
           initialAppUiStyleProvider.overrideWithValue(AppUiStyle.flat),
         ],
-        child: const MaterialApp(
+        child: MaterialApp(
           home: Scaffold(
-            body: Center(child: GroupPermissionManagePopup(group: _group)),
+            body: Center(
+              child: GroupPermissionManagePopup(
+                group: group,
+                currentUserId: userId,
+              ),
+            ),
           ),
         ),
       ),
@@ -108,14 +115,14 @@ void main() {
     expect(find.text('全員'), findsOneWidget);
     expect(find.text('運営係'), findsOneWidget);
     expect(find.text('招待リンクの作成'), findsOneWidget);
-    expect(find.byType(Checkbox), findsNWidgets(6 * 3));
+    expect(find.byType(Checkbox), findsNWidgets(8 * 3));
 
     // 全員の列（基準ロール）は招待リンクの作成だけ許可。長は全て許可で固定。
     final checked = tester
         .widgetList<Checkbox>(find.byType(Checkbox))
         .where((c) => c.value == true)
         .length;
-    expect(checked, 6 + 1 + 1); // 長6 + 全員1 + 運営係1
+    expect(checked, 8 + 1 + 1); // 長8 + 全員1 + 運営係1
   });
 
   testWidgets('セルを切り替えると、そのロールの権限集合でupdateRoleが呼ばれる', (tester) async {
@@ -165,5 +172,44 @@ void main() {
     expect(tester.getTopLeft(lastHeader).dx, lessThan(before));
     // 左の固定部（権限名）は動かない。
     expect(tester.getTopLeft(find.text('招待リンクの作成')).dx, label);
+  });
+
+  testWidgets('権限の管理を持たないメンバーには閲覧のみで、タップしても保存されない', (tester) async {
+    // 長ではなく、メンバーとしても権限の管理を持たない。
+    const member = Group(
+      groupId: 'g1',
+      name: 'g',
+      ownerId: 'u1',
+      memberIds: ['u1', 'u2'],
+      memberRoles: {'u1': 'owner'},
+      memberPermissions: {
+        'u2': [GroupPermission.manageRoles],
+      },
+    );
+    await pump(tester, userId: 'u2', group: member);
+
+    final boxes = tester.widgetList<Checkbox>(find.byType(Checkbox));
+    expect(boxes.every((c) => c.onChanged == null), isTrue);
+    await tester.tap(find.byType(Checkbox).at(1), warnIfMissed: false);
+    await tester.pumpAndSettle();
+    expect(groups.updates, isEmpty);
+  });
+
+  testWidgets('権限の管理を持つメンバーは、長でなくても編集できる', (tester) async {
+    const member = Group(
+      groupId: 'g1',
+      name: 'g',
+      ownerId: 'u1',
+      memberIds: ['u1', 'u2'],
+      memberRoles: {'u1': 'owner'},
+      memberPermissions: {
+        'u2': [GroupPermission.managePermissions],
+      },
+    );
+    await pump(tester, userId: 'u2', group: member);
+
+    await tester.tap(find.byType(Checkbox).at(1));
+    await tester.pumpAndSettle();
+    expect(groups.updates, hasLength(1));
   });
 }

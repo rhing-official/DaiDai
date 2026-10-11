@@ -12,6 +12,7 @@ import '../../models/note_stroke.dart';
 import '../../providers/repository_providers.dart';
 import '../../utils/color_hex.dart';
 import '../../utils/note_export.dart';
+import '../../widgets/dialog_keyboard_shortcuts.dart';
 
 enum _DrawTool { pen, eraser, pan }
 
@@ -416,7 +417,7 @@ class _DrawCanvasViewState extends ConsumerState<DrawCanvasView> {
   Future<void> _clearAll(Strings strings) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (context) => KeyboardAlertDialog(
         content: Text(strings.noteDrawClearConfirm),
         actions: [
           TextButton(
@@ -448,7 +449,7 @@ class _DrawCanvasViewState extends ConsumerState<DrawCanvasView> {
     final controller = TextEditingController(text: Color(_color).toHexString());
     final picked = await showDialog<int>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (context) => KeyboardAlertDialog(
         content: SizedBox(
           width: 280,
           child: Column(

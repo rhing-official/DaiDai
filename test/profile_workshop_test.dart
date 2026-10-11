@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:daidai/features/profile/focal_edit_overlay.dart';
 import 'package:daidai/features/profile/profile_tab.dart';
 import 'package:daidai/l10n/app_locale.dart';
 import 'package:daidai/models/app_user.dart';
@@ -150,6 +151,17 @@ class _FakeUserRepository implements UserRepository {
       cards[index] = card;
     }
     saved = base.copyWith(profileCards: cards);
+  }
+
+  @override
+  Future<void> reorderProfileCards(
+    String userId,
+    List<String> orderedIds,
+  ) async {
+    final base = saved ?? AppUser(userId: userId, rhingSeed: '');
+    saved = base.copyWith(
+      profileCards: reorderProfileCardsById(base.profileCards, orderedIds),
+    );
   }
 
   @override
@@ -478,6 +490,162 @@ void main() {
     tester.takeException();
 
     // 背景選択メニューが実際に開くことを確認する。
+    expect(find.byType(PopupMenuItem<String>), findsWidgets);
+  });
+
+  testWidgets('背景の長押しで画像の位置調整モードに入り、キャンセルで閉じる（短いタップは素材メニューのまま）', (
+    tester,
+  ) async {
+    const bg1 = ProfileMaterial(
+      id: 'bg1',
+      url: 'https://example.com/bg1.png',
+      storagePath: 'p1',
+    );
+    const card = ProfileCard(id: 'c1', name: '既存カード', backgroundImageId: 'bg1');
+    const user = AppUser(
+      userId: 'u1',
+      rhingSeed: 'taro',
+      backgroundImages: [bg1],
+      profileCards: [card],
+    );
+    final repo = _FakeUserRepository();
+    await _pumpProfileTab(tester, user, repo);
+
+    await tester.tap(find.text('工房'));
+    await tester.pumpAndSettle();
+    await tester.tapAt(tester.getCenter(find.byType(Hero).first));
+    await tester.pumpAndSettle();
+    tester.takeException();
+
+    final cardMaterial = find.byWidgetPredicate(
+      (w) => w is Material && w.borderRadius == BorderRadius.circular(24),
+    );
+    final bgDetector = find.descendant(
+      of: cardMaterial,
+      matching: find.byWidgetPredicate(
+        (w) => w is GestureDetector && w.behavior == HitTestBehavior.opaque,
+      ),
+    );
+    expect(find.byType(FocalEditOverlay), findsNothing);
+    await tester.longPress(bgDetector);
+    await tester.pumpAndSettle();
+    tester.takeException();
+    // 長押しでは素材メニューではなく位置調整のオーバーレイが開く。
+    expect(find.byType(FocalEditOverlay), findsOneWidget);
+    expect(find.byType(PopupMenuItem<String>), findsNothing);
+
+    await tester.tap(find.text('キャンセル'));
+    await tester.pumpAndSettle();
+    tester.takeException();
+    expect(find.byType(FocalEditOverlay), findsNothing);
+  });
+
+  testWidgets('カードが2枚以上ならハンドルでドラッグして並べ替えられ、保存される', (tester) async {
+    const a = ProfileCard(id: 'a', name: 'カードA');
+    const b = ProfileCard(id: 'b', name: 'カードB');
+    const user = AppUser(userId: 'u1', rhingSeed: 'taro', profileCards: [a, b]);
+    final repo = _FakeUserRepository()..saved = user;
+    await _pumpProfileTab(tester, user, repo);
+    await tester.tap(find.text('工房'));
+    await tester.pumpAndSettle();
+
+    expect(find.byIcon(Icons.drag_indicator), findsNWidgets(2));
+    // 先頭カードのハンドルをつかみ、2枚目の位置まで少しずつ動かして離す。
+    final handles = find.byIcon(Icons.drag_indicator);
+    final from = tester.getCenter(handles.at(0));
+    final to = tester.getCenter(handles.at(1));
+    final gesture = await tester.startGesture(from);
+    await tester.pump(const Duration(milliseconds: 100));
+    final step = (to - from) / 10;
+    for (var i = 0; i < 12; i++) {
+      await gesture.moveBy(step);
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+    await gesture.up();
+    await tester.pumpAndSettle();
+
+    expect(repo.saved?.profileCards.map((c) => c.id), ['b', 'a']);
+  });
+
+  testWidgets('カードが1枚だけならドラッグハンドルは出ない', (tester) async {
+    const a = ProfileCard(id: 'a', name: 'カードA');
+    const user = AppUser(userId: 'u1', rhingSeed: 'taro', profileCards: [a]);
+    final repo = _FakeUserRepository()..saved = user;
+    await _pumpProfileTab(tester, user, repo);
+    await tester.tap(find.text('工房'));
+    await tester.pumpAndSettle();
+
+    expect(find.byIcon(Icons.drag_indicator), findsNothing);
+  });
+
+  test('reorderProfileCardsById: 並べ替え・未知id無視・指定外のカードは末尾に残す', () {
+    const a = ProfileCard(id: 'a', name: 'A');
+    const b = ProfileCard(id: 'b', name: 'B');
+    const c = ProfileCard(id: 'c', name: 'C');
+    expect(
+      reorderProfileCardsById([a, b, c], ['c', 'a', 'b']).map((e) => e.id),
+      ['c', 'a', 'b'],
+    );
+    expect(reorderProfileCardsById([a, b, c], ['c', 'zzz']).map((e) => e.id), [
+      'c',
+      'a',
+      'b',
+    ]);
+  });
+
+  testWidgets('ゴミ箱ボタンは確認ダイアログを挟み、キャンセルなら削除されず、削除で消える', (tester) async {
+    const card = ProfileCard(id: 'c1', name: '既存カード');
+    const user = AppUser(userId: 'u1', rhingSeed: 'taro', profileCards: [card]);
+    final repo = _FakeUserRepository()..saved = user;
+    await _pumpProfileTab(tester, user, repo);
+    await tester.tap(find.text('工房'));
+    await tester.pumpAndSettle();
+    await tester.tapAt(tester.getCenter(find.byType(Hero).first));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byIcon(Icons.delete_outline));
+    await tester.pumpAndSettle();
+    expect(find.text('「既存カード」を削除しますか？'), findsOneWidget);
+    expect(repo.saved?.profileCards, hasLength(1));
+
+    // キャンセルでは削除されない。
+    await tester.tap(find.text('キャンセル'));
+    await tester.pumpAndSettle();
+    expect(find.text('「既存カード」を削除しますか？'), findsNothing);
+    expect(repo.saved?.profileCards, hasLength(1));
+
+    // 削除を確定すると消える。
+    await tester.tap(find.byIcon(Icons.delete_outline));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, '削除'));
+    await tester.pumpAndSettle();
+    expect(repo.saved?.profileCards, isEmpty);
+  });
+
+  testWidgets('フォントはカード内の行をタップして変更し、削除はカード下の独立した行にある', (tester) async {
+    const card = ProfileCard(id: 'c1', name: '既存カード');
+    const user = AppUser(userId: 'u1', rhingSeed: 'taro', profileCards: [card]);
+    final repo = _FakeUserRepository()..saved = user;
+    await _pumpProfileTab(tester, user, repo);
+    await tester.tap(find.text('工房'));
+    await tester.pumpAndSettle();
+    await tester.tapAt(tester.getCenter(find.byType(Hero).first));
+    await tester.pumpAndSettle();
+
+    // カードの角にはみ出した丸ボタン（旧: 削除・フォント）は無い。
+    expect(
+      find.byType(Positioned).evaluate().where((e) {
+        final p = e.widget as Positioned;
+        return p.left == -12 || p.right == -12;
+      }),
+      isEmpty,
+    );
+    // フォント行（カード内）と、削除の独立した行。
+    expect(find.text('システムと同じ'), findsOneWidget);
+    expect(find.text('このカードを削除'), findsOneWidget);
+
+    await tester.tap(find.text('システムと同じ'));
+    await tester.pumpAndSettle();
     expect(find.byType(PopupMenuItem<String>), findsWidgets);
   });
 

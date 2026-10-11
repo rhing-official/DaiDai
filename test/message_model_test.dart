@@ -4,6 +4,38 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('Message.fromJson/toJson', () {
+    test('メンション情報のラウンドトリップと、欠落時の後方互換', () {
+      final original = Message(
+        messageId: 'm1',
+        conversationId: 'g1',
+        conversationType: 'room',
+        senderId: 'u1',
+        content: '@新 @everyone こんにちは',
+        contentType: 'text',
+        sentAt: Timestamp.fromMillisecondsSinceEpoch(1000),
+        mentionedUserIds: ['u2'],
+        mentionedRoleIds: ['r1'],
+        mentionEveryone: true,
+        mentionLabels: ['@新', '@everyone'],
+      );
+      final restored = Message.fromJson('m1', original.toJson());
+      expect(restored.mentionedUserIds, ['u2']);
+      expect(restored.mentionedRoleIds, ['r1']);
+      expect(restored.mentionEveryone, isTrue);
+      expect(restored.mentionLabels, ['@新', '@everyone']);
+      expect(restored.hasMentions, isTrue);
+
+      final legacy = Message.fromJson('m2', {
+        'conversationId': 'g1',
+        'conversationType': 'room',
+        'senderId': 'u1',
+        'content': 'x',
+        'contentType': 'text',
+      });
+      expect(legacy.hasMentions, isFalse);
+      expect(legacy.mentionLabels, isEmpty);
+    });
+
     test('返信・編集・リアクションを含むラウンドトリップ', () {
       final original = Message(
         messageId: 'm1',

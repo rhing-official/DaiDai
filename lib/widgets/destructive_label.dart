@@ -19,6 +19,7 @@ class DestructiveLabel extends ConsumerWidget {
     this.label, {
     this.style,
     this.centered = false,
+    this.alignTextWithSiblings = false,
     super.key,
   });
 
@@ -28,22 +29,38 @@ class DestructiveLabel extends ConsumerWidget {
   /// trueなら赤ピルを行全体の中央に置く（既定は他の項目と揃う左寄せ）。
   final bool centered;
 
+  /// trueなら、ピルを左へそのパディング分ずらし、**文字の左端**を隣の項目の
+  /// 文字と揃える（2026-10-10追加）。既定ではピルの左端が揃うため、文字は
+  /// パディング分右にずれて見える。[centered]がfalseの時のみ有効。
+  final bool alignTextWithSiblings;
+
+  static const _horizontalPadding = 10.0;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
+    final pill = Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: _horizontalPadding,
+        vertical: 4,
+      ),
+      decoration: BoxDecoration(
+        color: isGekiga ? Colors.black : Colors.red.shade700,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: (style ?? const TextStyle()).copyWith(color: Colors.white),
+      ),
+    );
     return Align(
       alignment: centered ? Alignment.center : Alignment.centerLeft,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-        decoration: BoxDecoration(
-          color: isGekiga ? Colors.black : Colors.red.shade700,
-          borderRadius: BorderRadius.circular(999),
-        ),
-        child: Text(
-          label,
-          style: (style ?? const TextStyle()).copyWith(color: Colors.white),
-        ),
-      ),
+      child: alignTextWithSiblings && !centered
+          ? Transform.translate(
+              offset: const Offset(-_horizontalPadding, 0),
+              child: pill,
+            )
+          : pill,
     );
   }
 }

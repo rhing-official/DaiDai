@@ -54,6 +54,11 @@ import {
   parseProfileViewRequest,
 } from "./adminUsers";
 import { renderOgImage } from "./ogImage";
+import { resolveMentionRecipients } from "./mentions";
+import {
+  withSenderName,
+  withSentTime,
+} from "./notificationFormat";
 
 if (ffmpegPath) ffmpeg.setFfmpegPath(ffmpegPath);
 
@@ -2303,6 +2308,7 @@ export const broadcastAnnouncement = onCall(
     }
 
     const body = message.length > 100 ? `${message.slice(0, 100)}…` : message;
+    const sentAtMs = Date.now();
     const messaging = getMessaging();
     // sendEachForMulticastは1回500トークンまで。
     for (let i = 0; i < androidTokens.length; i += 500) {
@@ -2316,6 +2322,7 @@ export const broadcastAnnouncement = onCall(
           isDm: "true",
           conversationId: "",
           roomId: "",
+          sentAt: String(sentAtMs),
         },
         android: { priority: "high" },
       });
@@ -2324,7 +2331,11 @@ export const broadcastAnnouncement = onCall(
       await messaging.sendEachForMulticast({
         tokens: webTokens.slice(i, i + 500),
         webpush: {
-          notification: { title, body, icon: iconUrl ?? undefined },
+          notification: {
+            title,
+            body: withSentTime(body, sentAtMs),
+            icon: iconUrl ?? undefined,
+          },
           data: { isDm: "true", conversationId: "", roomId: "" },
           fcmOptions: { link: "/" },
         },
@@ -2455,10 +2466,21 @@ async function sendMessageNotification(params: {
   let recipientIds: string[];
   let title: string;
   let iconUrl: string | null;
+  // `@`メンション（2026-10-11追加）。有効なメンションがあれば、通知先を
+  // メンションされた人だけに絞り、ミュート設定も無視する。
+  let mentionRecipients: string[] | null = null;
+  let senderNamePrefix = "";
   if (isDm) {
     const dmDoc = await db.doc(`directMessages/${conversationId}`).get();
     const participants: string[] = dmDoc.data()?.participants ?? [];
     recipientIds = participants.filter((id) => id !== senderId);
+    if (botName === null) {
+      mentionRecipients = resolveMentionRecipients(message, {
+        senderId,
+        isDm: true,
+        memberIds: participants,
+      });
+    }
     const identity = resolveSenderIdentity(sender, conversationId);
     title = identity.name;
     iconUrl = identity.iconUrl;
@@ -2466,23 +2488,59 @@ async function sendMessageNotification(params: {
     const groupDoc = await db.doc(`groups/${conversationId}`).get();
     const memberIds: string[] = groupDoc.data()?.memberIds ?? [];
     recipientIds = memberIds.filter((id) => id !== senderId);
+    if (botName === null) {
+      const groupData = groupDoc.data() ?? {};
+      mentionRecipients = resolveMentionRecipients(message, {
+        senderId,
+        isDm: false,
+        memberIds,
+        ownerId: groupData.ownerId as string | undefined,
+        roleAssignments: groupData.roleAssignments,
+        memberPermissions: groupData.memberPermissions,
+      });
+    }
     const inviteDoc = await db.doc(`groupInvites/${conversationId}`).get();
     title =
       (inviteDoc.data()?.name as string) ??
       (groupDoc.data()?.name as string) ??
       "";
-    iconUrl = (inviteDoc.data()?.iconUrl as string) ?? null;
+    // アイコンは送信者の会話用カードのもの（一対と同じ解決、2026-10-11変更）。
+    // 送信者が未設定、またはWebhook（BOT）由来なら広場のカードのアイコン。
+    // 誰が送ったか分かるよう、本文の先頭に送信者名を付ける。
+    const groupIcon = (inviteDoc.data()?.iconUrl as string) ?? null;
+    if (botName === null) {
+      const identity = resolveSenderIdentity(sender, conversationId);
+      iconUrl = identity.iconUrl ?? groupIcon;
+      senderNamePrefix = identity.name;
+    } else {
+      iconUrl = groupIcon;
+    }
   }
+  const isMention = mentionRecipients !== null;
+  if (mentionRecipients !== null) recipientIds = mentionRecipients;
   if (recipientIds.length === 0) return;
 
   const preview = buildMessagePreview(message);
-  const body = botName === null ? preview.body : `${botName}: ${preview.body}`;
+  const body =
+    botName !== null
+      ? `${botName}: ${preview.body}`
+      : withSenderName(preview.body, senderNamePrefix);
+  // 送信時刻（epoch ms）。Androidは端末側で表示時点の日時と比べて整形する
+  // （日付・年の出し分け）。Webは自動表示のためここで日本時間の時刻を付ける。
+  const sentAtMs: number =
+    typeof message.sentAt?.toMillis === "function"
+      ? message.sentAt.toMillis()
+      : Date.now();
   const previewUrl = preview.previewUrl;
 
   const androidTokens: string[] = [];
   const webTokens: string[] = [];
   for (const recipientId of recipientIds) {
-    if (await isConversationMuted(recipientId, conversationId, roomId)) {
+    // メンションされた人は、会話をミュートしていても通知する。
+    if (
+      !isMention &&
+      (await isConversationMuted(recipientId, conversationId, roomId))
+    ) {
       continue;
     }
     const recipientDoc = await db.doc(`users/${recipientId}`).get();
@@ -2511,6 +2569,8 @@ async function sendMessageNotification(params: {
         isDm: String(isDm),
         conversationId,
         roomId,
+        isMention: String(isMention),
+        sentAt: String(sentAtMs),
       },
       android: { priority: "high" },
     });
@@ -2521,7 +2581,7 @@ async function sendMessageNotification(params: {
       webpush: {
         notification: {
           title,
-          body,
+          body: withSentTime(body, sentAtMs),
           icon: iconUrl ?? undefined,
           image: previewUrl ?? undefined,
         },
@@ -2533,6 +2593,7 @@ async function sendMessageNotification(params: {
           isDm: String(isDm),
           conversationId,
           roomId,
+          isMention: String(isMention),
         },
         fcmOptions: { link: "/" },
       },

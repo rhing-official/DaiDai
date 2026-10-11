@@ -1,16 +1,16 @@
-import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../l10n/strings.dart';
+import '../../l10n/vocabulary.dart';
 import '../../models/app_ui_style.dart';
 import '../../models/app_user.dart';
 import '../../models/group_invite_preview.dart';
 import '../../models/group_join_request.dart';
 import '../../providers/app_ui_style_provider.dart';
 import '../../providers/repository_providers.dart';
-import '../../router/app_router.dart';
+import '../../utils/open_conversation.dart';
 import '../../widgets/glass/glass_avatar.dart';
 import '../../widgets/profile_card_picker.dart';
 import '../auth/auth_gate.dart';
@@ -108,7 +108,9 @@ class _JoinGroupViewState extends ConsumerState<_JoinGroupView> {
         _preview = preview;
         _status = _JoinStatus.ready;
       });
-    } catch (e) {
+    } catch (e, stackTrace) {
+      // 原因（どのドキュメントのどのフィールドか）を特定しやすいよう残す。
+      debugPrint('広場参加画面の読み込みに失敗: $e\n$stackTrace');
       if (!mounted) return;
       setState(() {
         _errorMessage = 'エラーが発生しました: $e';
@@ -151,33 +153,14 @@ class _JoinGroupViewState extends ConsumerState<_JoinGroupView> {
   }
 
   Future<void> _openGroup() async {
-    final groupRepository = ref.read(groupRepositoryProvider);
-    final group = await groupRepository.getGroup(widget.groupId);
+    final group = await ref
+        .read(groupRepositoryProvider)
+        .getGroup(widget.groupId);
     if (!mounted || group == null) return;
-    // 複数モードでも寄合一覧のドリルダウン画面を経由せず、常に一番上（最古）の
-    // 寄合でチャット画面へ直接開く。寄合の切り替えはチャット画面上部の
-    // 横スクロールタブバーから行う（2026-08-03変更、以前は複数モードのみ
-    // `/chat/group-rooms`を経由していた。2026-08-09変更、一番上の寄合を
-    // 開くように変更、talks_tab.dartの`_openGroup`と同じ理由）。
-    final rooms = await groupRepository
-        .watchRooms(groupId: group.groupId, userId: widget.currentUser.userId)
-        .first;
-    if (!mounted || rooms.isEmpty) return;
-    final topRoomId = rooms.first.roomId;
-    final roomName =
-        rooms.firstWhereOrNull((r) => r.roomId == topRoomId)?.name ?? 'メイン';
-    if (!mounted) return;
-    ref
-        .read(goRouterProvider)
-        .pushReplacement(
-          '/chat/group',
-          extra: GroupChatArgs(
-            currentUser: widget.currentUser,
-            group: group,
-            roomId: topRoomId,
-            roomName: roomName,
-          ),
-        );
+    // 設定した語らいレイアウト（アイコンのみ／アイコン＋寄合一覧／左右分割）
+    // どおりに開くため、`/chat/group`へ直接pushせず語らいタブへ選択を渡す
+    // （2026-10-11変更、以前は常にフルスクリーン＋寄合タブバーで開いていた）。
+    await openGroupInTalks(ref, group);
   }
 
   @override
@@ -227,6 +210,9 @@ class _JoinGroupViewState extends ConsumerState<_JoinGroupView> {
         return _Message(text: strings.groupJoinRequestSent, strings: strings);
       case _JoinStatus.ready:
         final preview = _preview!;
+        final previewName = preview.name.isEmpty
+            ? ref.watch(vocabularyProvider).plaza
+            : preview.name;
         final isGlass = ref.watch(appUiStyleProvider) == AppUiStyle.glass;
         return Column(
           mainAxisSize: MainAxisSize.min,
@@ -259,7 +245,7 @@ class _JoinGroupViewState extends ConsumerState<_JoinGroupView> {
               ),
             const SizedBox(height: 16),
             Text(
-              preview.name,
+              previewName,
               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
               textAlign: TextAlign.center,
             ),
@@ -269,7 +255,7 @@ class _JoinGroupViewState extends ConsumerState<_JoinGroupView> {
             ],
             const SizedBox(height: 16),
             Text(
-              strings.groupJoinDescriptionTemplate(preview.name),
+              strings.groupJoinDescriptionTemplate(previewName),
               textAlign: TextAlign.center,
             ),
             if (_errorMessage != null) ...[
