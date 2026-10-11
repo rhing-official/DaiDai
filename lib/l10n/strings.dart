@@ -486,6 +486,7 @@ class Strings {
     required this.groupProfileCardDescriptionLabel,
     required this.groupMemberListTitle,
     required this.groupMemberListPendingSection,
+    required this.joinRequestBannerLabel,
     required this.groupMemberListMembersSection,
     required this.groupInviteDialogTitle,
     required this.groupInviteDialogDescription,
@@ -503,6 +504,9 @@ class Strings {
     required this.groupJoinPending,
     required this.groupJoinDescriptionTemplate,
     required this.groupJoinRequestButton,
+    required this.groupJoinNowButton,
+    required this.groupSettingsRequiresApprovalLabel,
+    required this.groupSettingsRequiresApprovalHint,
     required this.groupJoinRequestSent,
     required this.groupJoinOpenGroup,
     required this.groupJoinRetry,
@@ -1408,6 +1412,9 @@ class Strings {
 
   final String groupMemberListTitle;
   final String groupMemberListPendingSection;
+
+  /// 承認できる人に出す、参加リクエスト件数のバナー文言（2026-10-11追加）。
+  final String Function(int count) joinRequestBannerLabel;
   final String groupMemberListMembersSection;
 
   final String groupInviteDialogTitle;
@@ -1434,6 +1441,13 @@ class Strings {
   /// 参加確認画面の説明文。広場名を差し込む。
   final String Function(String groupName) groupJoinDescriptionTemplate;
   final String groupJoinRequestButton;
+
+  /// 承認不要の広場で、すぐ参加するボタン（2026-10-11追加）。
+  final String groupJoinNowButton;
+
+  /// 広場の設定: 参加に長の承認が必要か（2026-10-11追加）。
+  final String groupSettingsRequiresApprovalLabel;
+  final String groupSettingsRequiresApprovalHint;
   final String groupJoinRequestSent;
   final String groupJoinOpenGroup;
   final String groupJoinRetry;
@@ -2280,6 +2294,7 @@ class Strings {
     groupProfileCardDescriptionLabel: '一言',
     groupMemberListTitle: 'メンバー一覧',
     groupMemberListPendingSection: '参加リクエスト',
+    joinRequestBannerLabel: (count) => '参加リクエストが$count件あります',
     groupMemberListMembersSection: 'メンバー',
     groupInviteDialogTitle: '招待リンク',
     groupInviteDialogDescription: 'このリンクを知っている人が開くと、長の承認を経てこの広場に参加できます。',
@@ -2300,6 +2315,9 @@ class Strings {
     groupJoinDescriptionTemplate: (groupName) =>
         '「$groupName」への参加をリクエストしますか？長が承認すると参加できます。',
     groupJoinRequestButton: '参加をリクエストする',
+    groupJoinNowButton: '参加する',
+    groupSettingsRequiresApprovalLabel: '参加に承認が必要',
+    groupSettingsRequiresApprovalHint: 'オフにすると、招待リンクを知っている人は誰でもすぐ参加できます',
     groupJoinRequestSent: '参加リクエストを送信しました。長の承認をお待ちください',
     groupJoinOpenGroup: '広場を開く',
     groupJoinRetry: '再読み込み',
@@ -3134,6 +3152,9 @@ class Strings {
     groupProfileCardDescriptionLabel: 'Status',
     groupMemberListTitle: 'Members',
     groupMemberListPendingSection: 'Join requests',
+    joinRequestBannerLabel: (count) => count == 1
+        ? '1 join request is waiting'
+        : '$count join requests are waiting',
     groupMemberListMembersSection: 'Members',
     groupInviteDialogTitle: 'Invite link',
     groupInviteDialogDescription:
@@ -3159,6 +3180,10 @@ class Strings {
         'Request to join "$groupName"? '
         'You can join once the owner approves.',
     groupJoinRequestButton: 'Request to join',
+    groupJoinNowButton: 'Join',
+    groupSettingsRequiresApprovalLabel: 'Require approval to join',
+    groupSettingsRequiresApprovalHint:
+        'When off, anyone with the invite link can join right away',
     groupJoinRequestSent: 'Join request sent. Waiting for approval.',
     groupJoinOpenGroup: 'Open plaza',
     groupJoinRetry: 'Retry',

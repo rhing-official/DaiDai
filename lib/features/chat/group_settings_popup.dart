@@ -196,6 +196,11 @@ class GroupSettingsPopup extends ConsumerWidget {
       userId: userId,
       permission: GroupPermission.manageRooms,
     );
+    final canManageJoinRequests = hasGroupPermission(
+      group: liveGroup,
+      userId: userId,
+      permission: GroupPermission.manageJoinRequests,
+    );
     final canManageBots = hasGroupPermission(
       group: liveGroup,
       userId: userId,
@@ -370,6 +375,19 @@ class GroupSettingsPopup extends ConsumerWidget {
                 },
               ),
               const Divider(),
+              SwitchListTile(
+                value: liveGroup.requiresApproval,
+                title: Text(strings.groupSettingsRequiresApprovalLabel),
+                subtitle: Text(strings.groupSettingsRequiresApprovalHint),
+                onChanged: !canManageJoinRequests
+                    ? null
+                    : (value) => ref
+                          .read(groupRepositoryProvider)
+                          .setRequiresApproval(
+                            groupId: liveGroup.groupId,
+                            requiresApproval: value,
+                          ),
+              ),
               SwitchListTile(
                 value: muted,
                 title: Text(strings.groupSettingsDefaultMuteLabel),

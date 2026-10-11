@@ -56,6 +56,7 @@ import 'group_role_priority_dialog.dart';
 import 'group_settings_popup.dart';
 import 'room_tab_bar.dart';
 import 'severance_dialog.dart';
+import 'join_request_banner.dart';
 import 'task_banner.dart';
 import 'user_profile_card_dialog.dart';
 import '../../widgets/dialog_keyboard_shortcuts.dart';
@@ -2548,11 +2549,17 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
       // 旧寄合のChatScreenのdispose時に新寄合のentryへ書き込まないよう、
       // 作成時点のentryを束縛しておく。
       onDisposeScrollAnchor: _scrollAnchorSaver(_cacheEntry),
-      banner: ChatTaskBanner(
-        isDm: false,
-        conversationId: group.groupId,
-        roomId: roomId,
-        currentUserId: currentUser.userId,
+      banner: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          JoinRequestBanner(group: group, currentUser: currentUser),
+          ChatTaskBanner(
+            isDm: false,
+            conversationId: group.groupId,
+            roomId: roomId,
+            currentUserId: currentUser.userId,
+          ),
+        ],
       ),
       messagesStream: _messagesController.stream,
       onLoadOlderMessages: _loadOlderMessages,

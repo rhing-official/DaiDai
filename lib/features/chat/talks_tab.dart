@@ -40,6 +40,7 @@ import '../../theme/motion.dart';
 import '../../theme/text_prominence_colors.dart';
 import '../../utils/drag_menu_geometry.dart';
 import '../../utils/group_permissions.dart';
+import '../../utils/pending_join_requests.dart';
 import '../../utils/kana_sort.dart';
 import '../../utils/message_time.dart';
 import '../../utils/platform_info.dart';
@@ -1655,11 +1656,15 @@ class _TalksTabState extends ConsumerState<TalksTab>
           (g) => g.groupId,
         );
         tiles.addAll([
-          for (final request in pendingGroupRequests)
+          for (final request in visiblePendingGroupRequests(
+            pendingGroupRequests,
+            groups,
+          ))
             _PendingGroupJoinRequestTile(
               request: request,
               isSplit: false,
               onSelectPending: _selectPendingScreen,
+              compact: true,
             ),
           for (final group in sortedGroups)
             _GroupIconTile(
@@ -1926,8 +1931,13 @@ class _TalksTabState extends ConsumerState<TalksTab>
     AsyncSnapshot<List<Group>> snapshot,
     List<Group> groups,
     Map<String, ConversationPrefs> prefsById,
-    List<GroupJoinRequest> pendingRequests,
+    List<GroupJoinRequest> allPendingRequests,
   ) {
+    // 承認済み（既にメンバー）の広場の承認待ちは出さない。
+    final pendingRequests = visiblePendingGroupRequests(
+      allPendingRequests,
+      groups,
+    );
     if (snapshot.connectionState == ConnectionState.waiting &&
         pendingRequests.isEmpty) {
       return const SizedBox.shrink();
@@ -2604,6 +2614,7 @@ class _PendingGroupJoinRequestTile extends ConsumerWidget {
     required this.request,
     required this.isSplit,
     required this.onSelectPending,
+    this.compact = false,
   });
 
   final GroupJoinRequest request;
@@ -2611,6 +2622,11 @@ class _PendingGroupJoinRequestTile extends ConsumerWidget {
   /// [_FriendRequestTile.isSplit]と同じ（2026-08-05追加）。
   final bool isSplit;
   final ValueChanged<Widget> onSelectPending;
+
+  /// アイコンレール（「アイコン＋寄合一覧」、幅が狭い）用。承認済みの広場と
+  /// 同じコンパクトなアイコンタイル（[_ConversationIconTile]）で描く
+  /// （2026-10-11追加、以前は通常の`ListTile`が狭い幅で名前が折り返して崩れた）。
+  final bool compact;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -2674,6 +2690,21 @@ class _PendingGroupJoinRequestTile extends ConsumerWidget {
               context,
             ).push(slideBackRoute<void>(builder: (context) => screen));
           }
+        }
+
+        if (compact) {
+          return _ConversationIconTile(
+            conversationId: request.groupId,
+            userId: request.requesterId,
+            avatar: leadingWidget,
+            label: titleText,
+            unreadCount: 0,
+            pinned: false,
+            muted: false,
+            selected: false,
+            onTap: onTap,
+            gesturesEnabled: false,
+          );
         }
 
         if (isGekiga) {
@@ -2873,6 +2904,37 @@ class DirectMessageTile extends ConsumerWidget {
   }
 }
 
+/// 承認待ちの参加リクエスト件数バッジ（2026-10-11追加）。未読バッジ
+/// （[UnreadBadge]）とは別物と分かるよう、人追加アイコン付きにしている。
+class _JoinRequestBadge extends StatelessWidget {
+  const _JoinRequestBadge({required this.count});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: colorScheme.primary,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.person_add_alt_1, size: 12, color: colorScheme.onPrimary),
+          const SizedBox(width: 2),
+          Text(
+            count > 99 ? '99+' : '$count',
+            style: TextStyle(fontSize: 11, color: colorScheme.onPrimary),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class GroupTile extends ConsumerWidget {
   const GroupTile({
     required this.currentUserId,
@@ -2925,12 +2987,36 @@ class GroupTile extends ConsumerWidget {
     final subtitleWidget = previewLabel == null
         ? null
         : Text(previewLabel, maxLines: 1, overflow: TextOverflow.ellipsis);
-    final trailingWidget = _ConversationTrailing(
+    // 承認できる広場にだけ、承認待ちの参加リクエスト件数を出す（2026-10-11追加）。
+    // 権限の無い人が購読するとpermission-deniedになるため権限を先に確認する。
+    final canManageJoinRequests = hasGroupPermission(
+      group: group,
+      userId: currentUserId,
+      permission: GroupPermission.manageJoinRequests,
+    );
+    final joinRequestCount = canManageJoinRequests
+        ? (ref
+                  .watch(pendingJoinRequestsProvider(group.groupId))
+                  .value
+                  ?.length ??
+              0)
+        : 0;
+    final trailingBase = _ConversationTrailing(
       pinned: pinned,
       muted: muted,
       lastMessageAt: group.lastMessageAt?.toDate(),
       unreadCount: unreadCount,
     );
+    final trailingWidget = joinRequestCount == 0
+        ? trailingBase
+        : Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _JoinRequestBadge(count: joinRequestCount),
+              const SizedBox(width: 8),
+              trailingBase,
+            ],
+          );
 
     if (isGekiga) {
       return _ConversationGestures(
@@ -3134,8 +3220,12 @@ class _ConversationIconTile extends StatelessWidget {
     required this.muted,
     required this.selected,
     required this.onTap,
+    this.gesturesEnabled = true,
   });
 
+  /// falseなら長押しのピン留め・ミュートメニューを付けない（承認待ちの広場は
+  /// まだメンバーではなく`conversationPrefs`へ書けないため、2026-10-11追加）。
+  final bool gesturesEnabled;
   final String conversationId;
   final String userId;
   final Widget avatar;
@@ -3149,79 +3239,79 @@ class _ConversationIconTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final tile = InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+        decoration: BoxDecoration(
+          color: selected ? colorScheme.primary.withValues(alpha: 0.18) : null,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                avatar,
+                if (unreadCount > 0)
+                  Positioned(
+                    right: -4,
+                    top: -4,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 5,
+                        vertical: 1,
+                      ),
+                      constraints: const BoxConstraints(
+                        minWidth: 16,
+                        minHeight: 16,
+                      ),
+                      decoration: BoxDecoration(
+                        // CLAUDE.mdの配色方針に合わせ、`colorScheme.error`
+                        // ではなく実際にコントラストが確保できる固定の濃い赤
+                        // を使う。
+                        color: Colors.red.shade700,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        unreadCount > 99 ? '99+' : '$unreadCount',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          height: 1.2,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+                color: colorScheme.onSurface,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (!gesturesEnabled) return tile;
     return _ConversationGestures(
       conversationId: conversationId,
       userId: userId,
       pinned: pinned,
       muted: muted,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: onTap,
-        child: Container(
-          margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-          decoration: BoxDecoration(
-            color: selected
-                ? colorScheme.primary.withValues(alpha: 0.18)
-                : null,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  avatar,
-                  if (unreadCount > 0)
-                    Positioned(
-                      right: -4,
-                      top: -4,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 5,
-                          vertical: 1,
-                        ),
-                        constraints: const BoxConstraints(
-                          minWidth: 16,
-                          minHeight: 16,
-                        ),
-                        decoration: BoxDecoration(
-                          // CLAUDE.mdの配色方針に合わせ、`colorScheme.error`
-                          // ではなく実際にコントラストが確保できる固定の濃い赤
-                          // を使う。
-                          color: Colors.red.shade700,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Text(
-                          unreadCount > 99 ? '99+' : '$unreadCount',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 10,
-                            height: 1.2,
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-              const SizedBox(height: 4),
-              Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: selected ? FontWeight.bold : FontWeight.normal,
-                  color: colorScheme.onSurface,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+      child: tile,
     );
   }
 }

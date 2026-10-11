@@ -8,6 +8,7 @@ class GroupInvitePreview {
     this.description = '',
     this.iconUrl,
     this.backgroundImageUrl,
+    this.requiresApproval = true,
   });
 
   final String name;
@@ -18,6 +19,11 @@ class GroupInvitePreview {
   /// （`api/og-image.js`が参照する）。
   final String? backgroundImageUrl;
 
+  /// 参加に承認が必要か（2026-10-11追加、`Group.requiresApproval`の公開コピー）。
+  /// 参加画面が「申請する」か「参加する」かの出し分けに使う。実際の可否は
+  /// サーバー（`joinGroup`）が`groups`側の値で判定する。欠落は承認必須。
+  final bool requiresApproval;
+
   factory GroupInvitePreview.fromJson(Map<String, dynamic> json) {
     return GroupInvitePreview(
       // `name`の無い古い招待プレビューでも読める（2026-10-11）。空なら表示側で
@@ -26,6 +32,7 @@ class GroupInvitePreview {
       description: json['description'] as String? ?? '',
       iconUrl: json['iconUrl'] as String?,
       backgroundImageUrl: json['backgroundImageUrl'] as String?,
+      requiresApproval: json['requiresApproval'] as bool? ?? true,
     );
   }
 
@@ -35,6 +42,7 @@ class GroupInvitePreview {
       'description': description,
       'iconUrl': iconUrl,
       'backgroundImageUrl': backgroundImageUrl,
+      'requiresApproval': requiresApproval,
     };
   }
 }

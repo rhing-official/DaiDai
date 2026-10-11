@@ -126,10 +126,16 @@ class _JoinGroupViewState extends ConsumerState<_JoinGroupView> {
     });
     try {
       final groupRepository = ref.read(groupRepositoryProvider);
-      await groupRepository.requestToJoin(
-        groupId: widget.groupId,
-        requester: widget.currentUser,
-      );
+      // 承認不要の広場（2026-10-11）は申請ではなく、その場で参加する。
+      final joinNow = _preview?.requiresApproval == false;
+      if (joinNow) {
+        await groupRepository.joinGroupWithoutApproval(widget.groupId);
+      } else {
+        await groupRepository.requestToJoin(
+          groupId: widget.groupId,
+          requester: widget.currentUser,
+        );
+      }
       final selectedProfileCardId = _selectedProfileCardId;
       if (selectedProfileCardId != null) {
         await ref
@@ -141,6 +147,10 @@ class _JoinGroupViewState extends ConsumerState<_JoinGroupView> {
             );
       }
       if (!mounted) return;
+      if (joinNow) {
+        await _openGroup();
+        return;
+      }
       setState(() => _status = _JoinStatus.sent);
     } catch (e) {
       if (!mounted) return;
@@ -285,7 +295,11 @@ class _JoinGroupViewState extends ConsumerState<_JoinGroupView> {
               onPressed: _isSending ? null : _requestToJoin,
               child: _isSending
                   ? const SizedBox.shrink()
-                  : Text(strings.groupJoinRequestButton),
+                  : Text(
+                      preview.requiresApproval
+                          ? strings.groupJoinRequestButton
+                          : strings.groupJoinNowButton,
+                    ),
             ),
           ],
         );

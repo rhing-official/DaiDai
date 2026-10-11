@@ -2,6 +2,7 @@ import 'dart:io' show Platform;
 import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:collection/collection.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart' show ValueChanged, kIsWeb;
@@ -468,6 +469,20 @@ abstract class GroupRepository {
     required AppUser requester,
   });
 
+  /// 参加に承認が必要かを切り替える（2026-10-11追加、長・`manageJoinRequests`
+  /// 権限者のみ。firestore.rulesで強制）。`groups`と、参加画面が読む公開
+  /// プレビュー`groupInvites`を同時に更新する。
+  Future<void> setRequiresApproval({
+    required String groupId,
+    required bool requiresApproval,
+  });
+
+  /// 承認不要の広場に、承認を待たずに参加する（2026-10-11追加）。追加は
+  /// Cloud Functionsの`joinGroup`が行う（非メンバーが自分でメンバーに
+  /// なれる書き込みをルールで許さないため）。承認必須の広場では
+  /// `failed-precondition`で失敗する。
+  Future<void> joinGroupWithoutApproval(String groupId);
+
   /// 自分が送った参加リクエストの状態を取得する（未送信ならnull）。
   Future<GroupJoinRequest?> getJoinRequest({
     required String groupId,
@@ -499,11 +514,16 @@ class FirestoreGroupRepository implements GroupRepository {
   FirestoreGroupRepository({
     FirebaseFirestore? firestore,
     FirebaseStorage? storage,
+    FirebaseFunctions? functions,
   }) : _firestore = firestore ?? FirebaseFirestore.instance,
-       _storage = storage ?? FirebaseStorage.instance;
+       _storage = storage ?? FirebaseStorage.instance,
+       _functions =
+           functions ??
+           FirebaseFunctions.instanceFor(region: 'asia-northeast1');
 
   final FirebaseFirestore _firestore;
   final FirebaseStorage _storage;
+  final FirebaseFunctions _functions;
 
   CollectionReference<Map<String, dynamic>> get _groups =>
       _firestore.collection('groups');
@@ -1443,7 +1463,12 @@ class FirestoreGroupRepository implements GroupRepository {
       'profileCard': card.toJson(),
       'name': card.name,
     });
-    batch.set(_groupInvites.doc(groupId), preview.toJson());
+    // 承認要否（requiresApproval）は別の設定なので上書きしない（merge）。
+    batch.set(
+      _groupInvites.doc(groupId),
+      preview.toJson()..remove('requiresApproval'),
+      SetOptions(merge: true),
+    );
     await batch.commit();
   }
 
@@ -1573,6 +1598,24 @@ class FirestoreGroupRepository implements GroupRepository {
       status: GroupJoinRequestStatus.pending,
     );
     await _joinRequestsOf(groupId).doc(requester.userId).set(request.toJson());
+  }
+
+  @override
+  Future<void> setRequiresApproval({
+    required String groupId,
+    required bool requiresApproval,
+  }) async {
+    final batch = _firestore.batch();
+    batch.update(_groups.doc(groupId), {'requiresApproval': requiresApproval});
+    batch.update(_groupInvites.doc(groupId), {
+      'requiresApproval': requiresApproval,
+    });
+    await batch.commit();
+  }
+
+  @override
+  Future<void> joinGroupWithoutApproval(String groupId) async {
+    await _functions.httpsCallable('joinGroup').call({'groupId': groupId});
   }
 
   @override

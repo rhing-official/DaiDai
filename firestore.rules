@@ -908,6 +908,15 @@ service cloud.firestore {
               || 'manageJoinRequests' in resource.data.memberPermissions[request.auth.uid])
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberPermissions'])
           )
+          // 参加に承認が必要かの切り替え（長、またはmanageJoinRequests権限を
+          // 持つロールの付与者のみ、2026-10-11追加）。falseの広場への参加は
+          // Cloud Functionsの`joinGroup`（Admin SDK）だけが行い、非メンバーが
+          // 自分でmemberIdsに足す書き込みは引き続きこのルールでは許さない。
+          || (
+            (request.auth.uid == resource.data.ownerId
+              || 'manageJoinRequests' in resource.data.memberPermissions[request.auth.uid])
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['requiresApproval'])
+          )
           // 長の譲渡（現オーナーのみ、新オーナーは既存メンバーであること、2026-07-28追加）。
           || (
             request.auth.uid == resource.data.ownerId

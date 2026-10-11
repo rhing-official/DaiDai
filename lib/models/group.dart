@@ -24,6 +24,7 @@ class Group {
     this.roomOrder = const [],
     this.historyVisibleToNewMembers = false,
     this.memberJoinedAt = const {},
+    this.requiresApproval = true,
   });
 
   final String groupId;
@@ -125,6 +126,11 @@ class Group {
   /// 読み取り可否（`sentAt >= 加入時刻`）の根拠にする。
   final Map<String, Timestamp> memberJoinedAt;
 
+  /// 参加に長（`manageJoinRequests`権限者）の承認が必要か（2026-10-11追加、
+  /// 既定true）。falseなら招待リンクから誰でもすぐ参加できる（Cloud Functionsの
+  /// `joinGroup`経由）。欠落した既存文書は承認必須として読む。
+  final bool requiresApproval;
+
   factory Group.fromJson(String groupId, Map<String, dynamic> json) {
     final profileCardJson = json['profileCard'] as Map<String, dynamic>?;
     return Group(
@@ -160,6 +166,7 @@ class Group {
           if (entry.value is Timestamp)
             entry.key as String: entry.value as Timestamp,
       },
+      requiresApproval: json['requiresApproval'] as bool? ?? true,
     );
   }
 
@@ -183,6 +190,7 @@ class Group {
       'roomOrder': roomOrder,
       'historyVisibleToNewMembers': historyVisibleToNewMembers,
       'memberJoinedAt': memberJoinedAt,
+      'requiresApproval': requiresApproval,
     };
   }
 }

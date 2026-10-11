@@ -11,3 +11,11 @@ final myPendingGroupJoinRequestsProvider =
           .watch(groupRepositoryProvider)
           .watchMyPendingJoinRequests(userId);
     });
+
+/// 広場の承認待ちの参加リクエスト一覧（2026-10-11追加）。読み取りは長・
+/// `manageJoinRequests`権限者のみ許可されている（firestore.rules）ため、
+/// 権限を確認した広場でだけ購読すること。バナー・語らい一覧のバッジが共有する。
+final pendingJoinRequestsProvider =
+    StreamProvider.family<List<GroupJoinRequest>, String>((ref, groupId) {
+      return ref.watch(groupRepositoryProvider).watchJoinRequests(groupId);
+    });

@@ -55,6 +55,11 @@ import {
 } from "./adminUsers";
 import { renderOgImage } from "./ogImage";
 import { resolveMentionRecipients } from "./mentions";
+import { decideJoin, newMemberPermissions } from "./joinGroup";
+import {
+  isNewPendingRequest,
+  resolveJoinRequestRecipients,
+} from "./joinRequestNotify";
 import {
   withSenderName,
   withSentTime,
@@ -2600,6 +2605,161 @@ async function sendMessageNotification(params: {
     });
   }
 }
+
+/**
+ * 承認不要（`requiresApproval == false`）の広場へ、承認を待たずに参加する
+ * （2026-10-11追加）。非メンバーが自分を`memberIds`に足す書き込みは
+ * firestore.rulesで許さないため、追加はAdmin SDKのここでだけ行う。
+ * 承認フロー（`respondToJoinRequest`）と同じ内容を反映する: メンバー・全寄合の
+ * `memberIds`、`memberRoles`、加入時刻（加入前の履歴を見せない設定の根拠）、
+ * 実効権限キャッシュ（基準ロールの権限）。保留中の参加リクエストがあれば
+ * 承認済みにして整合させる。
+ */
+export const joinGroup = onCall(
+  { region: "asia-northeast1" },
+  async (request) => {
+    const uid = request.auth?.uid;
+    if (!uid) throw new HttpsError("unauthenticated", "ログインが必要です");
+    const groupId = request.data?.groupId;
+    if (typeof groupId !== "string" || groupId.length === 0) {
+      throw new HttpsError("invalid-argument", "groupIdが必要です");
+    }
+    const userDoc = await db.doc(`users/${uid}`).get();
+    if (!userDoc.exists || userDoc.data()?.accountStatus !== "active") {
+      throw new HttpsError("permission-denied", "参加できません");
+    }
+
+    const groupRef = db.doc(`groups/${groupId}`);
+    const groupDoc = await groupRef.get();
+    if (!groupDoc.exists) throw new HttpsError("not-found", "広場が見つかりません");
+    const decision = decideJoin(groupDoc.data()!, uid);
+    if (decision === "denied") {
+      throw new HttpsError(
+        "failed-precondition",
+        "この広場は参加に承認が必要です",
+      );
+    }
+    if (decision === "already-member") return { joined: false };
+
+    const [roomsSnapshot, rolesSnapshot] = await Promise.all([
+      groupRef.collection("rooms").get(),
+      groupRef.collection("roles").get(),
+    ]);
+    const permissions = newMemberPermissions(
+      rolesSnapshot.docs.map((d) => d.data()),
+    );
+
+    const batch = db.batch();
+    batch.update(groupRef, {
+      memberIds: FieldValue.arrayUnion(uid),
+      [`memberRoles.${uid}`]: "member",
+      [`memberJoinedAt.${uid}`]: FieldValue.serverTimestamp(),
+      [`memberPermissions.${uid}`]: permissions,
+    });
+    for (const room of roomsSnapshot.docs) {
+      batch.update(room.ref, { memberIds: FieldValue.arrayUnion(uid) });
+    }
+    const requestRef = groupRef.collection("joinRequests").doc(uid);
+    const requestDoc = await requestRef.get();
+    if (requestDoc.exists && requestDoc.data()?.status === "pending") {
+      batch.update(requestRef, {
+        status: "accepted",
+        respondedAt: FieldValue.serverTimestamp(),
+      });
+    }
+    await batch.commit();
+    return { joined: true };
+  },
+);
+
+/**
+ * 広場への参加リクエスト（新規・却下後の再申請）を、承認できる人（長と
+ * `manageJoinRequests`権限者）にだけプッシュで知らせる（2026-10-11追加）。
+ * メッセージは作らないため、寄合の全メンバーには見えない。承認作業の
+ * 通知なので、広場をミュートしていても送る（メンション通知と同じ扱い）。
+ */
+export const onJoinRequestWritten = onDocumentWritten(
+  {
+    document: "groups/{groupId}/joinRequests/{requesterId}",
+    region: "asia-northeast1",
+  },
+  async (event) => {
+    const before = event.data?.before?.data();
+    const after = event.data?.after?.data();
+    if (!isNewPendingRequest(before, after)) return;
+
+    const { groupId, requesterId } = event.params;
+    const groupDoc = await db.doc(`groups/${groupId}`).get();
+    if (!groupDoc.exists) return;
+    const group = groupDoc.data()!;
+    const recipientIds = resolveJoinRequestRecipients(group, requesterId);
+    if (recipientIds.length === 0) return;
+
+    const inviteDoc = await db.doc(`groupInvites/${groupId}`).get();
+    const title =
+      (inviteDoc.data()?.name as string) ?? (group.name as string) ?? "";
+    const iconUrl = (inviteDoc.data()?.iconUrl as string) ?? null;
+    // 旧名`requesterRhingId`のままの文書も読む（2026-09-23の改名前に作成）。
+    const seed =
+      (after?.requesterRhingSeed as string | undefined) ??
+      (after?.requesterRhingId as string | undefined) ??
+      "";
+    const body = seed
+      ? `@${seed} が参加をリクエストしました`
+      : "参加リクエストが届きました";
+
+    const androidTokens: string[] = [];
+    const webTokens: string[] = [];
+    for (const recipientId of recipientIds) {
+      const recipientDoc = await db.doc(`users/${recipientId}`).get();
+      const tokens: FcmTokenEntry[] = recipientDoc.data()?.fcmTokens ?? [];
+      for (const entry of tokens) {
+        if (entry.platform === "android") androidTokens.push(entry.token);
+        else if (entry.platform === "web") webTokens.push(entry.token);
+      }
+    }
+    if (androidTokens.length === 0 && webTokens.length === 0) return;
+
+    const sentAtMs = Date.now();
+    const messaging = getMessaging();
+    if (androidTokens.length > 0) {
+      await messaging.sendEachForMulticast({
+        tokens: androidTokens,
+        data: {
+          title,
+          body,
+          iconUrl: iconUrl ?? "",
+          previewUrl: "",
+          isDm: "false",
+          conversationId: groupId,
+          roomId: "",
+          isMention: "false",
+          sentAt: String(sentAtMs),
+        },
+        android: { priority: "high" },
+      });
+    }
+    if (webTokens.length > 0) {
+      await messaging.sendEachForMulticast({
+        tokens: webTokens,
+        webpush: {
+          notification: {
+            title,
+            body: withSentTime(body, sentAtMs),
+            icon: iconUrl ?? undefined,
+          },
+          data: {
+            isDm: "false",
+            conversationId: groupId,
+            roomId: "",
+            isMention: "false",
+          },
+          fcmOptions: { link: "/" },
+        },
+      });
+    }
+  },
+);
 
 /**
  * 語らい一覧（TalksTab）の未読件数バッジ用に、送信者以外の参加者/メンバー
