@@ -1,4 +1,3 @@
-import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -432,7 +431,6 @@ class GroupRoleListPopup extends ConsumerWidget {
                   ),
                 );
               }
-              final everyone = allRoles.firstWhereOrNull((r) => r.isEveryone);
               final regularUnsorted = allRoles
                   .where((r) => !r.isEveryone)
                   .toList();
@@ -502,28 +500,6 @@ class GroupRoleListPopup extends ConsumerWidget {
                         ),
                       ),
                     ),
-                  if (everyone != null) ...[
-                    const Divider(height: 16),
-                    ListTile(
-                      leading: CircleAvatar(
-                        radius: 12,
-                        backgroundColor: everyone.color != null
-                            ? Color(0xFF000000 | everyone.color!)
-                            : Colors.transparent,
-                        child: everyone.color == null
-                            ? const Icon(Icons.circle_outlined, size: 16)
-                            : null,
-                      ),
-                      title: Text(everyone.name),
-                      onTap: () => _showRoleDialog(
-                        context,
-                        ref,
-                        strings,
-                        liveGroup,
-                        existing: everyone,
-                      ),
-                    ),
-                  ],
                 ],
               );
             },

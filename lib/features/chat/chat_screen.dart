@@ -187,8 +187,7 @@ class ChatScreen extends ConsumerStatefulWidget {
 
   /// `@`入力時に候補として出すメンバー（@everyoneを含む）・ロール
   /// （2026-10-11追加）。空なら`@`を打ってもサジェストは出ない。
-  /// `@everyone`・ロールは`GroupPermission.mentionEveryone`を持つ場合だけ
-  /// 呼び出し側が含める。
+  /// `@everyone`・ロールも広場なら誰でも含める（権限は不要）。
   final List<MentionCandidate> mentionCandidates;
 
   /// ロール宛メンションの表示用。キーは本文中の`@ロール名`（`@`込み）、値は

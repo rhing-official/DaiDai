@@ -28,30 +28,12 @@ test("メンションが無い・全て無効ならnull（通常通知に戻す�
   );
 });
 
-test("権限が無い送信者の@everyone・ロール宛は無視する", () => {
-  const r = resolveMentionRecipients(
-    { mentionEveryone: true, mentionedRoleIds: ["r1"], mentionedUserIds: ["c"] },
-    group,
-  );
-  assert.deepEqual(r, ["c"]);
-  assert.equal(
-    resolveMentionRecipients(
-      { mentionEveryone: true, mentionedRoleIds: ["r1"] },
-      group,
-    ),
-    null,
-  );
-});
-
-test("mentionEveryone権限があれば@everyone（送信者以外の全員）に展開する", () => {
-  const r = resolveMentionRecipients(
-    { mentionEveryone: true },
-    { ...group, memberPermissions: { me: ["mentionEveryone"] } },
-  );
+test("権限が無くても、広場なら@everyone（送信者以外の全員）に展開する", () => {
+  const r = resolveMentionRecipients({ mentionEveryone: true }, group);
   assert.deepEqual(r?.sort(), ["a", "b", "c", "owner"]);
 });
 
-test("ロール宛はそのロールを持つメンバーに展開する（長は権限なしで可）", () => {
+test("ロール宛はそのロールを持つメンバーに展開する（権限は不要）", () => {
   const r = resolveMentionRecipients(
     { mentionedRoleIds: ["r1"] },
     { ...group, senderId: "owner" },

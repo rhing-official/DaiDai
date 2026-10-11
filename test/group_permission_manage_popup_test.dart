@@ -115,14 +115,14 @@ void main() {
     expect(find.text('全員'), findsOneWidget);
     expect(find.text('運営係'), findsOneWidget);
     expect(find.text('招待リンクの作成'), findsOneWidget);
-    expect(find.byType(Checkbox), findsNWidgets(8 * 3));
+    expect(find.byType(Checkbox), findsNWidgets(7 * 3));
 
     // 全員の列（基準ロール）は招待リンクの作成だけ許可。長は全て許可で固定。
     final checked = tester
         .widgetList<Checkbox>(find.byType(Checkbox))
         .where((c) => c.value == true)
         .length;
-    expect(checked, 8 + 1 + 1); // 長8 + 全員1 + 運営係1
+    expect(checked, 7 + 1 + 1); // 長7 + 全員1 + 運営係1
   });
 
   testWidgets('セルを切り替えると、そのロールの権限集合でupdateRoleが呼ばれる', (tester) async {

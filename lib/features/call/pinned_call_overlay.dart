@@ -2,6 +2,7 @@ import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
+import 'package:pointer_interceptor/pointer_interceptor.dart';
 
 import '../../models/app_user.dart';
 import '../../models/app_ui_style.dart';
@@ -42,13 +43,13 @@ class PinnedCallOverlay extends ConsumerWidget {
     final session = ref.watch(activeCallSessionProvider);
     if (session == null) return const SizedBox.shrink();
 
-    final viewedConversation = ref.watch(activeConversationProvider);
-    final onTalksTab = ref.watch(homeSelectedTabProvider) == kTalksTabIndex;
-    final embeddedElsewhere =
+    // PC・Webでは、その会話の通話UI（`EmbeddedCallPane`）が実際に表示されて
+    // いる間だけ隠す（2026-10-11変更、以前は「その会話を見ているか」で判定して
+    // いたため、通話UIが出ていないのに隠れたり、出ているのに残ったりした）。
+    final embeddedShown =
         !isMobileCallPlatform &&
-        onTalksTab &&
-        viewedConversation == session.conversation;
-    if (embeddedElsewhere) return const SizedBox.shrink();
+        ref.watch(embeddedCallShownProvider) == session.conversation;
+    if (embeddedShown) return const SizedBox.shrink();
 
     if (isMobileCallPlatform && !session.minimized) {
       return const SizedBox.shrink(); // まだ全画面表示中
@@ -66,7 +67,9 @@ class PinnedCallOverlay extends ConsumerWidget {
         return Positioned(
           top: 8,
           right: 8,
-          child: _PinnedCallBubble(session: session),
+          // Webでは映像（プラットフォームビュー）がクリックを奪うため、
+          // 上に重ねたこのミニ表示が受け取れるようにする（2026-10-11追加）。
+          child: PointerInterceptor(child: _PinnedCallBubble(session: session)),
         );
       },
     );
@@ -396,6 +399,9 @@ class _PinnedCallBubble extends ConsumerWidget {
     // 開く。開けば`EmbeddedCallPane`が自動的に埋め込み表示へ差し替える
     // （2026-08-19追加）。
     ref.read(homeSelectedTabProvider.notifier).set(kTalksTabIndex);
+    // 既にその会話を開いていて通話UIがメッセージ表示に切り替わっている場合も、
+    // 通話UIへ戻す（2026-10-11追加）。
+    ref.read(callPaneRequestProvider.notifier).request(session.conversation);
     switch (session) {
       case OneToOneCallSession(:final call):
         final caller = AppUser(

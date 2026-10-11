@@ -1,8 +1,5 @@
 /** `@`メンションの通知先の決定（2026-10-11追加）。Firestore非依存の純関数。 */
 
-/** `@everyone`・ロール宛メンションに必要な権限（`GroupPermission.mentionEveryone`と同名）。 */
-export const MENTION_EVERYONE_PERMISSION = "mentionEveryone";
-
 export interface MentionInput {
   /** メッセージの`mentionedUserIds`/`mentionedRoleIds`/`mentionEveryone`。 */
   mentionedUserIds?: unknown;
@@ -32,8 +29,7 @@ function stringList(value: unknown): string[] {
  * 残らなければnull（通常どおり全員へ通知する）。クライアントが付けた値は
  * そのまま信用せず、ここで再検証する:
  * - 個人宛: その会話のメンバー（送信者自身を除く）のみ有効
- * - `@everyone`・ロール宛: 広場で、送信者が長または`mentionEveryone`権限を
- *   持つ場合のみ有効（一対では常に無効）
+ * - `@everyone`・ロール宛: 広場でのみ有効（権限は不要、一対では常に無効）
  */
 export function resolveMentionRecipients(
   input: MentionInput,
@@ -46,12 +42,7 @@ export function resolveMentionRecipients(
     if (pool.has(id)) result.add(id);
   }
 
-  const canMentionAll =
-    !ctx.isDm &&
-    (ctx.ownerId === ctx.senderId ||
-      (ctx.memberPermissions?.[ctx.senderId] ?? []).includes(
-        MENTION_EVERYONE_PERMISSION,
-      ));
+  const canMentionAll = !ctx.isDm;
   if (canMentionAll) {
     if (input.mentionEveryone === true) {
       for (const id of pool) result.add(id);

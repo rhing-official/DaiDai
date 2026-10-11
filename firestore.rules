@@ -335,6 +335,13 @@ service cloud.firestore {
           || request.resource.data.severanceRequestedBy == request.auth.uid
           || request.resource.data.severanceRequestedBy == null
         )
+        // 絶縁の拒否の記録（severanceDeclinedBy、2026-10-11追加）も、自分のuid
+        // （拒否した）か null（確認して閉じた・再提案でクリア）のみ。
+        && (
+          !('severanceDeclinedBy' in request.resource.data.diff(resource.data).affectedKeys())
+          || request.resource.data.severanceDeclinedBy == request.auth.uid
+          || request.resource.data.severanceDeclinedBy == null
+        )
         && (
           !(request.resource.data.diff(resource.data).affectedKeys()
               .hasAny(['readReceiptsProposalBy', 'readReceiptsEnabled']))

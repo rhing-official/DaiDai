@@ -30,10 +30,10 @@ void main() {
   });
 
   test('同じ広場の重複は1件にまとめる', () {
-    final result = visiblePendingGroupRequests(
-      [_request('g1', 'a'), _request('g1', 'b')],
-      const [],
-    );
+    final result = visiblePendingGroupRequests([
+      _request('g1', 'a'),
+      _request('g1', 'b'),
+    ], const []);
     expect(result, hasLength(1));
   });
 

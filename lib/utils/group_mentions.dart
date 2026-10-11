@@ -1,7 +1,6 @@
 import '../models/app_user.dart';
 import '../models/group.dart';
 import '../models/group_role.dart';
-import 'group_permissions.dart';
 import 'mention_suggestion.dart';
 
 /// 呼び名（無ければRhing Seed）。`@`サジェストの表示名・本文へ挿入する名前に使う。
@@ -28,8 +27,8 @@ List<MentionCandidate> buildDmMentionCandidates({
   return [_userCandidate(otherUser, conversationId)];
 }
 
-/// 広場の候補（2026-10-11追加）。メンバーは自分以外全員。`@everyone`・ロールは
-/// `GroupPermission.mentionEveryone`を持つ場合のみ出す（長は常に可）。
+/// 広場の候補（2026-10-11追加）。メンバーは自分以外全員。`@everyone`・ロールも
+/// 権限は不要で誰でも出す（2026-10-11、専用の権限`mentionEveryone`は廃止）。
 /// 基準ロール（`isEveryone`）は`@everyone`と同じ意味なのでロール候補から除く。
 List<MentionCandidate> buildGroupMentionCandidates({
   required Group group,
@@ -41,30 +40,23 @@ List<MentionCandidate> buildGroupMentionCandidates({
     for (final m in members)
       if (m.userId != currentUserId) _userCandidate(m, group.groupId),
   ];
-  final canMentionAll = hasGroupPermission(
-    group: group,
-    userId: currentUserId,
-    permission: GroupPermission.mentionEveryone,
+  candidates.add(
+    const MentionCandidate(
+      kind: MentionKind.everyone,
+      id: '',
+      label: 'everyone',
+    ),
   );
-  if (canMentionAll) {
+  for (final role in roles) {
+    if (role.isEveryone) continue;
     candidates.add(
-      const MentionCandidate(
-        kind: MentionKind.everyone,
-        id: '',
-        label: 'everyone',
+      MentionCandidate(
+        kind: MentionKind.role,
+        id: role.roleId,
+        label: role.name,
+        color: role.color,
       ),
     );
-    for (final role in roles) {
-      if (role.isEveryone) continue;
-      candidates.add(
-        MentionCandidate(
-          kind: MentionKind.role,
-          id: role.roleId,
-          label: role.name,
-          color: role.color,
-        ),
-      );
-    }
   }
   return candidates;
 }

@@ -21,7 +21,6 @@ class FocalEditOverlay extends StatefulWidget {
     required this.imageUrl,
     required this.circle,
     required this.focal,
-    required this.hint,
     required this.onChanged,
     super.key,
   });
@@ -29,7 +28,6 @@ class FocalEditOverlay extends StatefulWidget {
   final String imageUrl;
   final bool circle;
   final ImageFocal focal;
-  final String hint;
   final void Function(ImageFocal focal) onChanged;
 
   @override
@@ -113,22 +111,6 @@ class _FocalEditOverlayState extends State<FocalEditOverlay> {
                     _apply(box, delta: details.focalPointDelta, scale: factor);
                   },
                   child: const SizedBox.expand(),
-                ),
-              ),
-            ),
-            Positioned(
-              left: 12,
-              right: 12,
-              bottom: 12,
-              child: IgnorePointer(
-                child: Text(
-                  widget.hint,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 13,
-                    shadows: [Shadow(blurRadius: 4)],
-                  ),
                 ),
               ),
             ),

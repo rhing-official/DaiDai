@@ -56,6 +56,9 @@ dependencies:
   provider: ^6.0.5
   shared_preferences: ^2.5.5
   flutter_webrtc: ^1.5.2
+  # Webで、映像（RTCVideoView＝プラットフォームビュー）の上に重ねたFlutterの
+  # ウィジェットがクリックを受け取れるようにする（通話のミニ表示、2026-10-11追加）。
+  pointer_interceptor: ^0.10.1
   firebase_storage: ^13.4.5
   image_picker: ^1.2.3
   go_router: ^18.0.0

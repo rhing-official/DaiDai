@@ -3603,7 +3603,6 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
                                     '',
                                 circle: _focalEditing == 'icon',
                                 focal: _focalDraft,
-                                hint: strings.workshopFocalHint,
                                 onChanged: (f) =>
                                     setState(() => _focalDraft = f),
                               ),

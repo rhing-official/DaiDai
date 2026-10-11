@@ -109,38 +109,21 @@ void main() {
       appUser('x', 'x'),
     ];
 
-    test('権限が無ければメンバー（自分以外）のみ', () {
+    test('権限が無くても、メンバー（自分以外）に加えて@everyoneとロール（基準ロール除く）が出る', () {
       final c = buildGroupMentionCandidates(
         group: group(),
         currentUserId: 'me',
         members: members,
         roles: roles,
       );
-      expect(c.map((e) => e.kind).toSet(), {MentionKind.user});
-      expect(c.map((e) => e.id), ['owner', 'x']);
-    });
-
-    test('mentionEveryone権限があれば@everyoneとロール（基準ロール除く）も出る', () {
-      final c = buildGroupMentionCandidates(
-        group: group(perms: [GroupPermission.mentionEveryone]),
-        currentUserId: 'me',
-        members: members,
-        roles: roles,
-      );
+      expect(c.where((e) => e.kind == MentionKind.user).map((e) => e.id), [
+        'owner',
+        'x',
+      ]);
       expect(c.where((e) => e.kind == MentionKind.everyone), hasLength(1));
       expect(c.where((e) => e.kind == MentionKind.role).map((e) => e.id), [
         'r1',
       ]);
-    });
-
-    test('長は権限が無くても使える', () {
-      final c = buildGroupMentionCandidates(
-        group: group(),
-        currentUserId: 'owner',
-        members: members,
-        roles: roles,
-      );
-      expect(c.any((e) => e.kind == MentionKind.everyone), isTrue);
     });
   });
 }

@@ -186,6 +186,19 @@ class _CallScreenState extends ConsumerState<CallScreen> {
           : _audioBody(colorScheme),
     );
     if (dockEnabled) {
+      // 外付けキーボードのEscでも、下スワイプと同じくドックする（2026-10-11追加）。
+      body = Focus(
+        autofocus: true,
+        onKeyEvent: (node, event) {
+          if (event is KeyDownEvent &&
+              event.logicalKey == LogicalKeyboardKey.escape) {
+            _dockCall();
+            return KeyEventResult.handled;
+          }
+          return KeyEventResult.ignored;
+        },
+        child: body,
+      );
       body = GestureDetector(
         behavior: HitTestBehavior.translucent,
         onVerticalDragEnd: (details) {
@@ -286,18 +299,23 @@ class _CallScreenState extends ConsumerState<CallScreen> {
                       ),
                     ),
                   )
-                : RTCVideoView(
-                    // Web版のRTCVideoViewはStatefulWidgetで、実描画に使う
-                    // videoElementをinitState時にしか取得しない。keyが無いと
-                    // メイン/コーナーを入れ替えてもFlutterが同じStateを使い
-                    // 回してしまい、映像が入れ替わらずミラー表示だけが
-                    // 切り替わって見える不具合になっていた。レンダラーの
-                    // 実体が変わったら必ず作り直されるよう、レンダラー自体を
-                    // キーにする。
-                    key: ObjectKey(mainRenderer),
-                    mainRenderer,
-                    mirror: !_mainViewIsRemote && _controller.isFrontCamera,
-                    objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+                : ColoredBox(
+                    color: placeholderColor,
+                    child: RTCVideoView(
+                      // Web版のRTCVideoViewはStatefulWidgetで、実描画に使う
+                      // videoElementをinitState時にしか取得しない。keyが無いと
+                      // メイン/コーナーを入れ替えてもFlutterが同じStateを使い
+                      // 回してしまい、映像が入れ替わらずミラー表示だけが
+                      // 切り替わって見える不具合になっていた。レンダラーの
+                      // 実体が変わったら必ず作り直されるよう、レンダラー自体を
+                      // キーにする。
+                      key: ObjectKey(mainRenderer),
+                      mainRenderer,
+                      mirror: !_mainViewIsRemote && _controller.isFrontCamera,
+                      // 映像全体を見せる（余白は背景の灰色、2026-10-11変更）。
+                      objectFit:
+                          RTCVideoViewObjectFit.RTCVideoViewObjectFitContain,
+                    ),
                   ),
           ),
         ),

@@ -287,6 +287,8 @@ class Strings {
     required this.severanceBannerCancelButton,
     required this.severanceBannerProposedByOther,
     required this.severanceBannerDeclineButton,
+    required this.severanceBannerDeclinedByOther,
+    required this.severanceBannerDeclinedOkButton,
     required this.severanceBannerAcceptButton,
     required this.readReceiptPopupTitle,
     required this.reactionListPopupTitle,
@@ -324,7 +326,6 @@ class Strings {
     required this.workshopDeleteCardTitle,
     required this.workshopDeleteCardBody,
     required this.workshopReorderTooltip,
-    required this.workshopFocalHint,
     required this.workshopFocalDone,
     required this.workshopFocalReset,
     required this.workshopFocalCancel,
@@ -1092,6 +1093,10 @@ class Strings {
   final String severanceBannerCancelButton;
   final String severanceBannerProposedByOther;
   final String severanceBannerDeclineButton;
+
+  /// 提案を拒否された提案者に出すバナーの文言とボタン（2026-10-11追加）。
+  final String severanceBannerDeclinedByOther;
+  final String severanceBannerDeclinedOkButton;
   final String severanceBannerAcceptButton;
   final String readReceiptPopupTitle;
   final String reactionListPopupTitle;
@@ -1134,8 +1139,6 @@ class Strings {
   /// 工房のカードの並べ替えハンドルのツールチップ（2026-10-11追加）。
   final String workshopReorderTooltip;
 
-  /// カードの画像の位置調整（長押しで開く編集モード、2026-10-11追加）。
-  final String workshopFocalHint;
   final String workshopFocalDone;
   final String workshopFocalReset;
   final String workshopFocalCancel;
@@ -2077,6 +2080,8 @@ class Strings {
     severanceBannerCancelButton: '取り消す',
     severanceBannerProposedByOther: '相手が絶縁を提案しています',
     severanceBannerDeclineButton: '今は同意しない',
+    severanceBannerDeclinedByOther: '相手が絶縁を拒否しました',
+    severanceBannerDeclinedOkButton: 'OK',
     severanceBannerAcceptButton: '同意する',
     readReceiptPopupTitle: '既読',
     reactionListPopupTitle: 'リアクション',
@@ -2119,7 +2124,6 @@ class Strings {
     workshopDeleteCardBody: '削除したカードは元に戻せません。',
     workshopDeleteCardButton: 'このカードを削除',
     workshopReorderTooltip: 'ドラッグして並べ替え',
-    workshopFocalHint: 'ドラッグで位置、ピンチ（ホイール）で拡大を調整',
     workshopFocalDone: '完了',
     workshopFocalReset: 'リセット',
     workshopFocalCancel: 'キャンセル',
@@ -2221,14 +2225,13 @@ class Strings {
     groupRoleColorNone: '色を設定しない',
     groupRolePermissionsLabel: '権限',
     groupPermissionLabel: (permission) => switch (permission) {
-      'manageRooms' => '寄合の管理（作成・削除）',
-      'manageRoles' => 'ロールの管理（作成・編集・削除・付与）',
+      'manageRooms' => '寄合の管理',
+      'manageRoles' => 'ロールの管理',
       'manageReadReceipts' => '既読機能のオン/オフ',
       'manageJoinRequests' => '参加リクエストの承認・却下',
       'createInvite' => '招待リンクの作成',
       'manageBots' => 'botとWebhookの管理',
-      'managePermissions' => '権限の管理（ロールの権限の編集）',
-      'mentionEveryone' => '全員・ロール宛のメンション（@everyone / @ロール）',
+      'managePermissions' => '権限の管理',
       _ => permission,
     },
     groupRoleEveryoneNote: 'このロールは全員に自動で適用されます。削除・名前の変更はできません',
@@ -2917,6 +2920,8 @@ class Strings {
     severanceBannerCancelButton: 'Cancel',
     severanceBannerProposedByOther: 'The other person proposed severance',
     severanceBannerDeclineButton: 'Not now',
+    severanceBannerDeclinedByOther: 'The other person declined severance',
+    severanceBannerDeclinedOkButton: 'OK',
     severanceBannerAcceptButton: 'Agree',
     readReceiptPopupTitle: 'Read by',
     reactionListPopupTitle: 'Reactions',
@@ -2963,7 +2968,6 @@ class Strings {
     workshopDeleteCardBody: 'A deleted card cannot be restored.',
     workshopDeleteCardButton: 'Delete this card',
     workshopReorderTooltip: 'Drag to reorder',
-    workshopFocalHint: 'Drag to move, pinch (or scroll) to zoom',
     workshopFocalDone: 'Done',
     workshopFocalReset: 'Reset',
     workshopFocalCancel: 'Cancel',
@@ -3079,7 +3083,6 @@ class Strings {
       'createInvite' => 'Create invite links',
       'manageBots' => 'Manage bots and webhooks',
       'managePermissions' => 'Manage permissions (edit role permissions)',
-      'mentionEveryone' => 'Mention everyone and roles (@everyone / @role)',
       _ => permission,
     },
     groupRoleEveryoneNote:

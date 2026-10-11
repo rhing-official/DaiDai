@@ -161,3 +161,42 @@ final pendingMessageSearchHitProvider =
     NotifierProvider<PendingMessageSearchHitNotifier, MessageSearchHit?>(
       PendingMessageSearchHitNotifier.new,
     );
+
+/// 通話UIを**実際に表示している**会話（2026-10-11追加、PC・Web）。
+/// `EmbeddedCallPane`が通話UIを出している間だけ自分の会話をセットし、
+/// メッセージ表示へ切り替えた時・アンマウント時にクリアする
+/// （[activeConversationProvider]の「その会話を見ているか」より正確）。
+/// 右上のミニ表示（`PinnedCallOverlay`）は、これが通話の会話と一致する間だけ
+/// 隠す。
+class EmbeddedCallShownNotifier extends Notifier<ViewedConversation?> {
+  @override
+  ViewedConversation? build() => null;
+
+  void set(ViewedConversation conversation) => state = conversation;
+
+  void clearIfCurrent(ViewedConversation conversation) {
+    if (state == conversation) state = null;
+  }
+}
+
+final embeddedCallShownProvider =
+    NotifierProvider<EmbeddedCallShownNotifier, ViewedConversation?>(
+      EmbeddedCallShownNotifier.new,
+    );
+
+/// 「この会話の通話UIへ戻って」の要求（2026-10-11追加、PC・Web）。ミニ表示の
+/// クリックが、既にその会話を開いていてメッセージ表示に切り替えてあっても
+/// 通話UIへ戻れるようにする橋渡し（[roomSelectionRequestProvider]と同じ形式、
+/// `nonce`は同じ会話への続けての要求も変化として通知させる連番）。
+class CallPaneRequestNotifier extends Notifier<(ViewedConversation, int)?> {
+  @override
+  (ViewedConversation, int)? build() => null;
+
+  void request(ViewedConversation conversation) =>
+      state = (conversation, (state?.$2 ?? 0) + 1);
+}
+
+final callPaneRequestProvider =
+    NotifierProvider<CallPaneRequestNotifier, (ViewedConversation, int)?>(
+      CallPaneRequestNotifier.new,
+    );

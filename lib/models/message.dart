@@ -209,10 +209,10 @@ class Message {
   /// 個人宛（広場・一対とも）。
   final List<String> mentionedUserIds;
 
-  /// ロール宛（広場のみ、`GroupPermission.mentionEveryone`が必要）。
+  /// ロール宛（広場のみ、権限は不要）。
   final List<String> mentionedRoleIds;
 
-  /// `@everyone`（広場のみ、`GroupPermission.mentionEveryone`が必要）。
+  /// `@everyone`（広場のみ、権限は不要）。
   final bool mentionEveryone;
 
   /// 本文中でメンションとして色付けする文字列（`@`込み、例: `@新`）。

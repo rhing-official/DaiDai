@@ -865,6 +865,9 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
       banner: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          if (dm.severanceDeclinedBy != null &&
+              dm.severanceDeclinedBy != currentUser.userId)
+            _SeveranceDeclinedBanner(dmId: dm.dmId),
           if (dm.severanceRequestedBy != null)
             _SeveranceBanner(
               currentUserId: currentUser.userId,
@@ -955,7 +958,7 @@ class _SeveranceBanner extends ConsumerWidget {
             TextButton(
               onPressed: () => ref
                   .read(directMessageRepositoryProvider)
-                  .cancelSeverance(dm.dmId),
+                  .declineSeverance(dmId: dm.dmId, userId: currentUserId),
               child: Text(strings.severanceBannerDeclineButton),
             ),
             FilledButton(
@@ -970,6 +973,38 @@ class _SeveranceBanner extends ConsumerWidget {
               child: Text(strings.severanceBannerAcceptButton),
             ),
           ],
+        ],
+      ),
+    );
+  }
+}
+
+/// 絶縁の提案を相手に拒否された提案者に出すバナー（2026-10-11追加）。
+/// 「OK」で確認済みにして閉じる（[DirectMessage.severanceDeclinedBy]をクリア）。
+/// 表示するかどうか（拒否したのが自分でない時だけ）は呼び出し側で判定する。
+class _SeveranceDeclinedBanner extends ConsumerWidget {
+  const _SeveranceDeclinedBanner({required this.dmId});
+
+  final String dmId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final strings = ref.watch(appStringsProvider);
+    final colorScheme = Theme.of(context).colorScheme;
+    return Material(
+      color: colorScheme.errorContainer,
+      child: ProposalBannerLayout(
+        message: Text(
+          strings.severanceBannerDeclinedByOther,
+          style: TextStyle(color: colorScheme.onErrorContainer),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => ref
+                .read(directMessageRepositoryProvider)
+                .dismissSeveranceDeclined(dmId),
+            child: Text(strings.severanceBannerDeclinedOkButton),
+          ),
         ],
       ),
     );

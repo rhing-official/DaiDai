@@ -296,9 +296,16 @@ abstract class DirectMessageRepository {
   /// 絶縁（友達関係の解消・会話履歴の完全削除）を提案し、相手の同意待ちにする。
   Future<void> proposeSeverance({required String dmId, required String userId});
 
-  /// 絶縁の提案を取り消す（自分が提案した場合）、または辞退する（相手からの
-  /// 提案に同意しない場合）。どちらも同じくフラグをクリアするだけ。
+  /// 自分が出した絶縁の提案を取り消す。
   Future<void> cancelSeverance(String dmId);
+
+  /// 相手からの絶縁の提案を拒否（辞退）する（2026-10-11追加）。提案を
+  /// クリアし、提案者に「拒否された」と伝えるため[userId]を拒否者として
+  /// 記録する（[DirectMessage.severanceDeclinedBy]）。
+  Future<void> declineSeverance({required String dmId, required String userId});
+
+  /// 提案者が「相手が絶縁を拒否しました」バナーを確認して閉じる（2026-10-11）。
+  Future<void> dismissSeveranceDeclined(String dmId);
 
   /// 相手からの絶縁の提案に同意し、実際に絶縁を実行する。全寄合・全メッセージ・
   /// 双方のfriends関係・friendRequests・この一対自体を物理削除する
@@ -1234,12 +1241,32 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
     required String dmId,
     required String userId,
   }) async {
-    await _directMessages.doc(dmId).update({'severanceRequestedBy': userId});
+    // 再提案では、前回の「拒否された」表示を残さない。
+    await _directMessages.doc(dmId).update({
+      'severanceRequestedBy': userId,
+      'severanceDeclinedBy': null,
+    });
   }
 
   @override
   Future<void> cancelSeverance(String dmId) async {
     await _directMessages.doc(dmId).update({'severanceRequestedBy': null});
+  }
+
+  @override
+  Future<void> declineSeverance({
+    required String dmId,
+    required String userId,
+  }) async {
+    await _directMessages.doc(dmId).update({
+      'severanceRequestedBy': null,
+      'severanceDeclinedBy': userId,
+    });
+  }
+
+  @override
+  Future<void> dismissSeveranceDeclined(String dmId) async {
+    await _directMessages.doc(dmId).update({'severanceDeclinedBy': null});
   }
 
   @override

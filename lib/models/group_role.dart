@@ -30,11 +30,6 @@ class GroupPermission {
   /// 長が信頼するロールにだけ付与する想定。
   static const managePermissions = 'managePermissions';
 
-  /// `@everyone`・ロール宛メンションの使用（2026-10-11追加）。個人宛のメンション
-  /// は誰でも使える。基準ロールには含めず、長が信頼するロールにだけ付与する想定
-  /// （全員への通知の乱用防止）。
-  static const mentionEveryone = 'mentionEveryone';
-
   static const all = {
     manageRooms,
     manageRoles,
@@ -43,7 +38,6 @@ class GroupPermission {
     createInvite,
     manageBots,
     managePermissions,
-    mentionEveryone,
   };
 }
 

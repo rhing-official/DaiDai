@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 
@@ -66,21 +67,50 @@ class _EmbeddedCallPaneState extends ConsumerState<EmbeddedCallPane> {
     ref.read(activeConversationProvider.notifier).set(widget.conversation);
   }
 
+  /// 通話UIを実際に表示している間だけ、その会話を`embeddedCallShownProvider`
+  /// へ報告する（右上のミニ表示を隠す判定に使う、2026-10-11）。ビルド中に
+  /// プロバイダーを書き換えないよう、フレーム後に反映する。
+  void _syncShown(bool shown) {
+    final conversation = widget.conversation;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final notifier = ref.read(embeddedCallShownProvider.notifier);
+      if (shown) {
+        notifier.set(conversation);
+      } else {
+        notifier.clearIfCurrent(conversation);
+      }
+    });
+  }
+
   @override
   void dispose() {
     ref
         .read(activeConversationProvider.notifier)
+        .clearIfCurrent(widget.conversation);
+    ref
+        .read(embeddedCallShownProvider.notifier)
         .clearIfCurrent(widget.conversation);
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    // ミニ表示のクリック等で「この会話の通話UIへ戻って」と要求されたら、
+    // メッセージ表示に切り替えていても通話UIへ戻す（2026-10-11追加）。
+    ref.listen(callPaneRequestProvider, (previous, next) {
+      if (next != null && next.$1 == widget.conversation && !_showingCall) {
+        setState(() => _showingCall = true);
+      }
+    });
+
     final session = ref.watch(activeCallSessionProvider);
     final isMatch =
         !isMobileCallPlatform &&
         session != null &&
         session.conversation == widget.conversation;
+
+    _syncShown(isMatch && _showingCall);
 
     if (!isMatch) return widget.child;
 
@@ -189,33 +219,46 @@ class _EmbeddedCallViewState extends State<_EmbeddedCallView> {
         // スクロール（マウスホイール/トラックパッド）・下スワイプ
         // （タッチ・マウスドラッグ）どちらからでも行えるようにする
         // （2026-08-30追加）。
-        return Listener(
-          onPointerSignal: (event) {
-            if (event is PointerScrollEvent && event.scrollDelta.dy < -2.0) {
-              _scrollBackTimer?.cancel();
-              _scrollBackTimer = Timer(const Duration(milliseconds: 150), () {
-                if (mounted) widget.onBackToMessages();
-              });
+        return Focus(
+          // Escでも「メッセージに戻る」（2026-10-11追加）。通話UI表示中は入力欄が
+          // 無いため、キーを受けるだけのフォーカスを取る。
+          autofocus: true,
+          onKeyEvent: (node, event) {
+            if (event is KeyDownEvent &&
+                event.logicalKey == LogicalKeyboardKey.escape) {
+              widget.onBackToMessages();
+              return KeyEventResult.handled;
             }
+            return KeyEventResult.ignored;
           },
-          child: SwipeDownToDismiss(
-            onDismiss: widget.onBackToMessages,
-            child: ColoredBox(
-              color: colorScheme.surface,
-              child: Column(
-                children: [
-                  _Header(onBackToMessages: widget.onBackToMessages),
-                  Expanded(
-                    child: switch (widget.session) {
-                      OneToOneCallSession s => _OneToOneStage(session: s),
-                      GroupCallSession s => _GroupStage(session: s),
-                    },
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    child: _EmbeddedControls(session: widget.session),
-                  ),
-                ],
+          child: Listener(
+            onPointerSignal: (event) {
+              if (event is PointerScrollEvent && event.scrollDelta.dy < -2.0) {
+                _scrollBackTimer?.cancel();
+                _scrollBackTimer = Timer(const Duration(milliseconds: 150), () {
+                  if (mounted) widget.onBackToMessages();
+                });
+              }
+            },
+            child: SwipeDownToDismiss(
+              onDismiss: widget.onBackToMessages,
+              child: ColoredBox(
+                color: colorScheme.surface,
+                child: Column(
+                  children: [
+                    _Header(onBackToMessages: widget.onBackToMessages),
+                    Expanded(
+                      child: switch (widget.session) {
+                        OneToOneCallSession s => _OneToOneStage(session: s),
+                        GroupCallSession s => _GroupStage(session: s),
+                      },
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      child: _EmbeddedControls(session: widget.session),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -272,14 +315,20 @@ class _OneToOneStage extends StatelessWidget {
     }
     return Stack(
       children: [
+        // 相手の映像は切り抜かず全体を見せる（Contain、余白は灰色。2026-10-11
+        // 変更、以前はCoverで相手が撮影している縦横比と違って見えた）。
         Positioned.fill(
-          child: controller.remoteIsVideo
-              ? RTCVideoView(
-                  key: ObjectKey(controller.remoteRenderer),
-                  controller.remoteRenderer,
-                  objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
-                )
-              : ColoredBox(color: Colors.grey.shade900),
+          child: ColoredBox(
+            color: Colors.grey.shade900,
+            child: controller.remoteIsVideo
+                ? RTCVideoView(
+                    key: ObjectKey(controller.remoteRenderer),
+                    controller.remoteRenderer,
+                    objectFit:
+                        RTCVideoViewObjectFit.RTCVideoViewObjectFitContain,
+                  )
+                : null,
+          ),
         ),
         if (controller.isVideo)
           Positioned(

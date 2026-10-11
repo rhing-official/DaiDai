@@ -11,6 +11,7 @@ class DirectMessage {
     this.lastMessageContentType,
     this.lastMessagePreview,
     this.severanceRequestedBy,
+    this.severanceDeclinedBy,
     this.readReceiptsEnabled = true,
     this.readReceiptsProposalBy,
     this.accountDeletedUserId,
@@ -45,6 +46,12 @@ class DirectMessage {
   /// [DirectMessageRepository.acceptSeverance]がこのフラグを根拠に
   /// メッセージ・friends・friendRequests・この一対自体を物理削除する。
   final String? severanceRequestedBy;
+
+  /// 絶縁の提案を拒否（辞退）した人のuserId（2026-10-11追加）。提案者に
+  /// 「相手が絶縁を拒否しました」を知らせるための印で、提案者がバナーの
+  /// 「OK」で確認するか、再提案するとnullに戻る。提案者本人の取り消しでは
+  /// 立たない。
+  final String? severanceDeclinedBy;
 
   /// 既読機能のオン/オフ（一対共有の1つの設定。個人ごとの非公開設定では
   /// ない）。変更にはどちら向きも相手の承認が必要（[readReceiptsProposalBy]
@@ -107,6 +114,7 @@ class DirectMessage {
       lastMessageContentType: json['lastMessageContentType'] as String?,
       lastMessagePreview: json['lastMessagePreview'] as String?,
       severanceRequestedBy: json['severanceRequestedBy'] as String?,
+      severanceDeclinedBy: json['severanceDeclinedBy'] as String?,
       readReceiptsEnabled: json['readReceiptsEnabled'] as bool? ?? true,
       readReceiptsProposalBy: json['readReceiptsProposalBy'] as String?,
       accountDeletedUserId: json['accountDeletedUserId'] as String?,
@@ -124,6 +132,7 @@ class DirectMessage {
       'lastMessageContentType': lastMessageContentType,
       'lastMessagePreview': lastMessagePreview,
       'severanceRequestedBy': severanceRequestedBy,
+      'severanceDeclinedBy': severanceDeclinedBy,
       'readReceiptsEnabled': readReceiptsEnabled,
       'readReceiptsProposalBy': readReceiptsProposalBy,
       'accountDeletedUserId': accountDeletedUserId,
