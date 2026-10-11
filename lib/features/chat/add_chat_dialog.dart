@@ -8,6 +8,7 @@ import '../../models/app_user.dart';
 import '../../models/direct_message.dart';
 import '../../providers/app_ui_style_provider.dart';
 import '../../providers/repository_providers.dart';
+import '../../providers/user_providers.dart';
 import '../../utils/open_conversation.dart';
 import '../../utils/friend_request_error.dart';
 import '../../utils/web_link.dart';
@@ -48,6 +49,13 @@ class AddChatDialogContent extends ConsumerStatefulWidget {
 }
 
 class _AddChatDialogContentState extends ConsumerState<AddChatDialogContent> {
+  /// 標準のカードの切り替えなどを即座に反映するため、ログイン時に一度だけ
+  /// 取得した`widget.currentUser`ではなく購読中の最新のユーザーを使う
+  /// （2026-10-11）。
+  AppUser get _liveUser =>
+      ref.watch(watchedUserProvider(widget.currentUser.userId)).value ??
+      widget.currentUser;
+
   final _controller = TextEditingController();
   bool _isSearching = false;
   String? _errorMessage;
@@ -377,9 +385,9 @@ class _AddChatDialogContentState extends ConsumerState<AddChatDialogContent> {
       const SizedBox(height: 8),
       ProfileCardPicker(
         strings: strings,
-        cards: widget.currentUser.profileCards,
+        cards: _liveUser.profileCards,
         selectedCardId: _selectedProfileCardId,
-        activeCardName: widget.currentUser.activeProfileCard?.name,
+        activeCard: _liveUser.activeProfileCard,
         onSelected: (id) => setState(() => _selectedProfileCardId = id),
       ),
       const SizedBox(height: 16),

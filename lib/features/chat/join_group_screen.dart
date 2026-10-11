@@ -10,6 +10,7 @@ import '../../models/group_invite_preview.dart';
 import '../../models/group_join_request.dart';
 import '../../providers/app_ui_style_provider.dart';
 import '../../providers/repository_providers.dart';
+import '../../providers/user_providers.dart';
 import '../../utils/open_conversation.dart';
 import '../../widgets/glass/glass_avatar.dart';
 import '../../widgets/profile_card_picker.dart';
@@ -53,6 +54,13 @@ class _JoinGroupView extends ConsumerStatefulWidget {
 }
 
 class _JoinGroupViewState extends ConsumerState<_JoinGroupView> {
+  /// 標準のカードの切り替えなどを即座に反映するため、ログイン時に一度だけ
+  /// 取得した`widget.currentUser`ではなく購読中の最新のユーザーを使う
+  /// （2026-10-11）。
+  AppUser get _liveUser =>
+      ref.watch(watchedUserProvider(widget.currentUser.userId)).value ??
+      widget.currentUser;
+
   _JoinStatus _status = _JoinStatus.loading;
   GroupInvitePreview? _preview;
   bool _isSending = false;
@@ -285,9 +293,9 @@ class _JoinGroupViewState extends ConsumerState<_JoinGroupView> {
             const SizedBox(height: 8),
             ProfileCardPicker(
               strings: strings,
-              cards: widget.currentUser.profileCards,
+              cards: _liveUser.profileCards,
               selectedCardId: _selectedProfileCardId,
-              activeCardName: widget.currentUser.activeProfileCard?.name,
+              activeCard: _liveUser.activeProfileCard,
               onSelected: (id) => setState(() => _selectedProfileCardId = id),
             ),
             const SizedBox(height: 16),

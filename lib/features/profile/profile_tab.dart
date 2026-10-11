@@ -1336,7 +1336,7 @@ class _WorkshopConversationCardSection extends ConsumerWidget {
           strings: strings,
           cards: user.profileCards,
           selectedCardId: null,
-          activeCardName: user.activeProfileCard?.name,
+          activeCard: user.activeProfileCard,
           onSelected: (id) => Navigator.of(context).pop(id),
         );
         return isGlass
@@ -1357,17 +1357,21 @@ class _WorkshopConversationCardSection extends ConsumerWidget {
       return const SizedBox.shrink();
     }
 
-    final assignedDms = dms
-        .where((dm) => user.conversationProfileCardId[dm.dmId] != null)
-        .toList();
+    // 固定先が標準カードと同じ会話は、標準に追従しているのと同じに見える
+    // ため「個別のカード」としては扱わない（2026-10-11、ピッカーで標準と
+    // 同じカードを別の行に出さなくしたのに合わせる）。
+    bool isAssigned(String conversationId) {
+      final id = user.conversationProfileCardId[conversationId];
+      return id != null && id != user.activeProfileCardId;
+    }
+
+    final assignedDms = dms.where((dm) => isAssigned(dm.dmId)).toList();
     final assignedGroups = groups
-        .where((group) => user.conversationProfileCardId[group.groupId] != null)
+        .where((group) => isAssigned(group.groupId))
         .toList();
-    final unassignedDms = dms
-        .where((dm) => user.conversationProfileCardId[dm.dmId] == null)
-        .toList();
+    final unassignedDms = dms.where((dm) => !isAssigned(dm.dmId)).toList();
     final unassignedGroups = groups
-        .where((group) => user.conversationProfileCardId[group.groupId] == null)
+        .where((group) => !isAssigned(group.groupId))
         .toList();
 
     return Column(
@@ -1399,7 +1403,7 @@ class _WorkshopConversationCardSection extends ConsumerWidget {
               title: '@${dm.otherRhingSeed(user.userId)}',
               cards: user.profileCards,
               selectedCardId: user.conversationProfileCardId[dm.dmId],
-              activeCardName: user.activeProfileCard?.name,
+              activeCard: user.activeProfileCard,
               onSelected: (id) => _select(ref, dm.dmId, id),
             ),
           for (final group in assignedGroups)
@@ -1408,7 +1412,7 @@ class _WorkshopConversationCardSection extends ConsumerWidget {
               title: group.name,
               cards: user.profileCards,
               selectedCardId: user.conversationProfileCardId[group.groupId],
-              activeCardName: user.activeProfileCard?.name,
+              activeCard: user.activeProfileCard,
               onSelected: (id) => _select(ref, group.groupId, id),
             ),
         ],
@@ -1676,7 +1680,7 @@ class _ProfileCardAssignmentRow extends StatelessWidget {
     required this.title,
     required this.cards,
     required this.selectedCardId,
-    required this.activeCardName,
+    required this.activeCard,
     required this.onSelected,
   });
 
@@ -1684,7 +1688,7 @@ class _ProfileCardAssignmentRow extends StatelessWidget {
   final String title;
   final List<ProfileCard> cards;
   final String? selectedCardId;
-  final String? activeCardName;
+  final ProfileCard? activeCard;
   final ValueChanged<String?> onSelected;
 
   @override
@@ -1705,7 +1709,7 @@ class _ProfileCardAssignmentRow extends StatelessWidget {
             strings: strings,
             cards: cards,
             selectedCardId: selectedCardId,
-            activeCardName: activeCardName,
+            activeCard: activeCard,
             onSelected: onSelected,
           ),
         ],

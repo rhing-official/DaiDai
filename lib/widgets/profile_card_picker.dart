@@ -21,7 +21,7 @@ class ProfileCardPicker extends ConsumerWidget {
     required this.cards,
     required this.selectedCardId,
     required this.onSelected,
-    this.activeCardName,
+    this.activeCard,
     super.key,
   });
 
@@ -34,40 +34,44 @@ class ProfileCardPicker extends ConsumerWidget {
   /// nullを渡すと「標準」が選ばれたことを表す。
   final ValueChanged<String?> onSelected;
 
-  /// 現在「標準」が指している実際のカード名（[AppUser.activeProfileCard]の
-  /// `name`）。指定すると「標準」チップの表示を「標準（$activeCardName）」に
-  /// する（2026-08-05追加）。「標準」チップと、たまたま同名のカードチップが
-  /// 並んで見え、重複しているように見えるという指摘への対応。「標準」＝
-  /// 今後デフォルトを変更すれば自動追従、名前付きカードを選ぶ＝そのカードに
-  /// 固定、という意味の違い自体は変えていない。nullなら（アクティブなカード
-  /// が無い等）元の表示のまま。
-  final String? activeCardName;
+  /// 現在「標準」に設定されているカード（[AppUser.activeProfileCard]）。
+  /// 指定すると、そのカードは「$name（標準）」の1行にまとめ、他のカードの
+  /// 並びからは除く（2026-10-11変更。以前は「標準（新）」と「新」が別の行で
+  /// 並び、同じ物が別物に見えた）。標準の行を選ぶ＝標準に追従（null）で、
+  /// 標準と同じカードを個別に固定する選択肢は出さない。nullなら（標準が
+  /// 未設定）「標準」の行＋全カード。
+  final ProfileCard? activeCard;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
-    final name = activeCardName;
-    final standardLabel = name != null
-        ? strings.profileCardPickerStandardOptionWithName(name)
+    final active = activeCard;
+    final standardLabel = active != null
+        ? strings.profileCardPickerStandardOptionWithName(active.name)
         : strings.profileCardPickerStandardOption;
 
     final options = <({String? id, String label})>[
       (id: null, label: standardLabel),
-      for (final card in cards) (id: card.id, label: card.name),
+      for (final card in cards)
+        if (card.id != active?.id) (id: card.id, label: card.name),
     ];
+    // 標準と同じカードを固定していた過去の設定も、標準の行の選択として見せる。
+    final effectiveSelectedId = selectedCardId == active?.id
+        ? null
+        : selectedCardId;
 
     if (isGekiga) {
       return GekigaJointedTileList(
         seeds: [for (final option in options) option.label.hashCode],
         selectedFlags: [
-          for (final option in options) option.id == selectedCardId,
+          for (final option in options) option.id == effectiveSelectedId,
         ],
         children: [
           for (final option in options)
             GekigaTileContent(
-              selected: option.id == selectedCardId,
+              selected: option.id == effectiveSelectedId,
               leading: Icon(
-                option.id == selectedCardId
+                option.id == effectiveSelectedId
                     ? Icons.radio_button_checked
                     : Icons.radio_button_unchecked,
               ),
@@ -79,7 +83,7 @@ class ProfileCardPicker extends ConsumerWidget {
     }
 
     return RadioGroup<String?>(
-      groupValue: selectedCardId,
+      groupValue: effectiveSelectedId,
       onChanged: onSelected,
       child: Column(
         children: [

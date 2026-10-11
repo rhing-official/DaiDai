@@ -2281,7 +2281,7 @@ class Strings {
     roomModeToggleLockedHint: '寄合が複数あるため、1つにまとめてからオフにできます',
     profileCardPickerLabel: '使うプロフィールカード',
     profileCardPickerStandardOption: '標準',
-    profileCardPickerStandardOptionWithName: (name) => '標準（$name）',
+    profileCardPickerStandardOptionWithName: (name) => '$name（標準）',
     settingsProfileCardAssignmentTitle: '会話ごとのプロフィールカード',
     settingsProfileCardAssignmentHint:
         '標準カード以外を使っている語らいだけがここに表示されます。＋から新しく設定できます。',
@@ -3138,7 +3138,7 @@ class Strings {
         'You can turn this off once only one room remains',
     profileCardPickerLabel: 'Profile card to use',
     profileCardPickerStandardOption: 'Standard',
-    profileCardPickerStandardOptionWithName: (name) => 'Standard ($name)',
+    profileCardPickerStandardOptionWithName: (name) => '$name (Standard)',
     settingsProfileCardAssignmentTitle: 'Profile card per conversation',
     settingsProfileCardAssignmentHint:
         'Only conversations using a non-standard card are shown here. Tap + to set one up.',

@@ -6,6 +6,7 @@ import '../../l10n/strings.dart';
 import '../../models/app_user.dart';
 import '../../models/direct_message.dart';
 import '../../providers/repository_providers.dart';
+import '../../providers/user_providers.dart';
 import '../../utils/friend_request_error.dart';
 import '../../widgets/profile_card_picker.dart';
 import '../auth/auth_gate.dart';
@@ -45,6 +46,13 @@ class _InviteConfirmView extends ConsumerStatefulWidget {
 }
 
 class _InviteConfirmViewState extends ConsumerState<_InviteConfirmView> {
+  /// 標準のカードの切り替えなどを即座に反映するため、ログイン時に一度だけ
+  /// 取得した`widget.currentUser`ではなく購読中の最新のユーザーを使う
+  /// （2026-10-11）。
+  AppUser get _liveUser =>
+      ref.watch(watchedUserProvider(widget.currentUser.userId)).value ??
+      widget.currentUser;
+
   _InviteStatus _status = _InviteStatus.loading;
   AppUser? _inviter;
   bool _isSending = false;
@@ -211,9 +219,9 @@ class _InviteConfirmViewState extends ConsumerState<_InviteConfirmView> {
             const SizedBox(height: 8),
             ProfileCardPicker(
               strings: strings,
-              cards: widget.currentUser.profileCards,
+              cards: _liveUser.profileCards,
               selectedCardId: _selectedProfileCardId,
-              activeCardName: widget.currentUser.activeProfileCard?.name,
+              activeCard: _liveUser.activeProfileCard,
               onSelected: (id) => setState(() => _selectedProfileCardId = id),
             ),
             const SizedBox(height: 16),
