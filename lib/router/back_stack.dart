@@ -466,6 +466,44 @@ class _BackEntryState extends ConsumerState<BackEntry> {
   Widget build(BuildContext context) => widget.child;
 }
 
+/// 「畳んだ（全画面表示にした）状態」を、戻る操作で元（3ブロック表示）へ
+/// 戻せるようにする[BackEntry]（2026-10-12追加）。[progress]（0=開いている、
+/// 1=畳み切り）が[threshold]を超えている間だけ有効なエントリになり、戻る要求
+/// （ブラウザの戻る・端からの右スワイプ等）で[onBack]を呼ぶ。語らいタブの
+/// アイコン＋寄合一覧レイアウト（タブレット）の全画面表示が、会話・寄合の
+/// 履歴（[NavHistoryBackEntry]）に含まれず、戻ってもリロード様の再描画だけで
+/// 戻れなかった不具合の対応。
+class CollapsedBackEntry extends StatelessWidget {
+  const CollapsedBackEntry({
+    required this.progress,
+    required this.onBack,
+    required this.child,
+    this.scope,
+    this.threshold = 0.5,
+    super.key,
+  });
+
+  final ValueListenable<double> progress;
+  final VoidCallback onBack;
+  final Widget child;
+  final BackScope? scope;
+  final double threshold;
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<double>(
+      valueListenable: progress,
+      child: child,
+      builder: (context, value, child) => BackEntry(
+        scope: scope,
+        active: value > threshold,
+        onBack: onBack,
+        child: child!,
+      ),
+    );
+  }
+}
+
 /// 画面の「現在位置」（[location]）の移り変わりを自動で履歴（[NavHistory]）に
 /// 記録し、戻る・進む要求で過去の位置へ[onRestore]する（2026-10-06追加）。
 /// 位置が変わった経路（一覧タップ・タブ内の移動・検索ジャンプ等）を問わず、

@@ -20,8 +20,9 @@ import '../../utils/open_conversation.dart';
 import 'talks_search.dart';
 import 'talks_tab.dart' show DirectMessageTile, GroupTile, dmSearchLabel;
 
-/// モバイル実機＋アイコン＋寄合一覧レイアウト（`TalksListLayoutStyle
-/// .iconSplit`）専用の語らい検索フルページ（2026-09-12追加）。112px幅の
+/// モバイル（スマホ・タブレット）＋アイコン＋寄合一覧レイアウト
+/// （`TalksListLayoutStyle.iconSplit`）専用の語らい検索フルページ
+/// （2026-09-12追加、2026-10-12にタブレットも対象へ拡大）。112px幅の
 /// アイコン列内ではインラインの検索結果表示が窮屈なため、検索アイコンの
 /// タップでこの画面へ遷移する（`talks_tab.dart`の`_buildIconRail`参照）。
 /// それ以外（標準レイアウト・コンピューター全般）は`talks_tab.dart`の

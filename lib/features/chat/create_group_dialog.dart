@@ -4,12 +4,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/app_ui_style.dart';
 import '../../models/app_user.dart';
 import '../../providers/app_ui_style_provider.dart';
+import '../../l10n/strings.dart';
 import '../../providers/repository_providers.dart';
+import '../../providers/user_providers.dart';
 import '../../utils/open_conversation.dart';
 import '../../theme/gekiga/gekiga_colors.dart';
 import '../../theme/text_prominence_colors.dart';
 import '../../widgets/gekiga/gekiga_text_field.dart';
 import '../../widgets/glass/glass_avatar.dart';
+import '../../widgets/profile_card_picker.dart';
 
 /// 友達一覧をプルダウン選択できるよう、Rhing Seedではなく呼び名（未設定ならRhing Seed）で表示する。
 String _displayName(AppUser user) {
@@ -82,6 +85,9 @@ class _CreateGroupDialogContentState
   /// （逆方向は不可、`Group.roomsEnabled`参照）。
   bool _roomsEnabled = true;
 
+  /// この広場で使うプロフィールカード（nullは標準に追従、2026-10-11追加）。
+  String? _selectedProfileCardId;
+
   void _goToStep2() {
     if (_nameController.text.trim().isEmpty) {
       setState(() => _errorMessage = '広場の名前を入力してください');
@@ -122,6 +128,21 @@ class _CreateGroupDialogContentState
         members: _members,
         roomsEnabled: _roomsEnabled,
       );
+      final selectedProfileCardId = _selectedProfileCardId;
+      if (selectedProfileCardId != null) {
+        try {
+          await ref
+              .read(userRepositoryProvider)
+              .setConversationProfileCard(
+                userId: widget.currentUser.userId,
+                conversationId: group.groupId,
+                profileCardId: selectedProfileCardId,
+              );
+        } catch (e) {
+          // 広場自体は作成済みのため巻き戻さず、カードは後から広場の設定で選べる。
+          debugPrint('広場作成時のプロフィールカード保存に失敗: $e');
+        }
+      }
       // 作成直後の広場は常に「メイン」という名前の寄合が1つだけ存在する
       // （GroupRepository.createGroup参照）。
       final rooms = await groupRepository
@@ -192,6 +213,10 @@ class _CreateGroupDialogContentState
 
   List<Widget> _buildStep1() {
     final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
+    final strings = ref.watch(appStringsProvider);
+    final liveUser =
+        ref.watch(watchedUserProvider(widget.currentUser.userId)).value ??
+        widget.currentUser;
     return [
       isGekiga
           ? GekigaTextField(
@@ -219,6 +244,19 @@ class _CreateGroupDialogContentState
           '設定は全てハンバーガーメニューから行えます（後から複数に切り替え可能）',
         ),
         onChanged: (value) => setState(() => _roomsEnabled = value),
+      ),
+      const SizedBox(height: 8),
+      Text(
+        strings.profileCardPickerLabel,
+        style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+      ),
+      const SizedBox(height: 8),
+      ProfileCardPicker(
+        strings: strings,
+        cards: liveUser.profileCards,
+        selectedCardId: _selectedProfileCardId,
+        activeCard: liveUser.activeProfileCard,
+        onSelected: (id) => setState(() => _selectedProfileCardId = id),
       ),
       if (_errorMessage != null) ...[
         const SizedBox(height: 8),

@@ -264,6 +264,11 @@ class AppUser {
     return card != null ? _findMaterial(icons, card.iconId) : activeIcon;
   }
 
+  /// [effectiveIconFor]のアイコンに適用する表示領域（焦点、工房で編集した
+  /// 中心・拡大率）。解決するカードが無ければnull（中央・等倍）。
+  ImageFocal? effectiveIconFocalFor(String? conversationId) =>
+      profileCardFor(conversationId)?.iconFocal;
+
   /// [effectiveNickname]の会話対応版。
   Nickname? effectiveNicknameFor(String? conversationId) {
     final card = profileCardFor(conversationId);

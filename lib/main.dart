@@ -11,6 +11,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_web_plugins/url_strategy.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import 'features/call/pinned_call_overlay.dart';
+import 'features/call/pip_controller.dart';
 import 'firebase_options.dart';
 import 'push_notifications.dart';
 import 'l10n/app_locale.dart';
@@ -250,8 +252,21 @@ class DaiDaiApp extends ConsumerWidget {
       ],
       // デスクトップのマウスの戻る・進むボタン対応（2026-10-06、Webでは
       // ブラウザが履歴を操作するため何もしない）。
-      builder: (context, child) =>
-          MouseBackForwardListener(child: child ?? const SizedBox.shrink()),
+      // 通話ミニ表示（`PinnedCallOverlay`）を全ルートの上に重ねる（2026-10-12、
+      // 以前は`HomeScreen`内にあり、寄合を開く`/chat/*`ルートの下に隠れて
+      // いた）。`PipHost`はAndroidのPiP（アプリを離れた時の小窓）用。
+      builder: (context, child) => PipHost(
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: MouseBackForwardListener(
+                child: child ?? const SizedBox.shrink(),
+              ),
+            ),
+            const PinnedCallOverlay(),
+          ],
+        ),
+      ),
       routerConfig: ref.watch(goRouterProvider),
     );
   }

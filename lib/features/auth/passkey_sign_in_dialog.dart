@@ -1,6 +1,8 @@
 import 'package:cloud_functions/cloud_functions.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:passkeys/types.dart';
 
 import '../../l10n/strings.dart';
 import '../../models/app_ui_style.dart';
@@ -16,13 +18,13 @@ import '../../widgets/dialog_keyboard_shortcuts.dart';
 /// 要求する。成功すればダイアログを閉じ、以降は`AuthGate`が認証状態の変化を
 /// 検知して自動的に画面遷移する。
 ///
-/// Web版かつブラウザがConditional Mediation（パスワードマネージャーの
-/// 自動候補表示）に対応していれば、ダイアログを開いた時点で裏側で
-/// `AuthRepository.trySignInWithConditionalPasskey`も並行して開始する
-/// （2026-09-16追加）。Rhing Seedを一切入力せずブラウザ側の候補をタップする
-/// だけでログインできるようにするための導線で、対応していない環境では
-/// 何も起こらず、これまで通りRhing Seedを入力して「ログイン」ボタンを押す
-/// 流れになる。
+/// Web版では、ダイアログを開いた時点で自動的にパスキー選択ポップアップ
+/// （ブラウザ/パスワードマネージャーのモーダル）を出す（2026-10-11追加）。
+/// Rhing Seedを入力せずそのまま候補を選べば、ログインできる。ポップアップを
+/// 閉じた場合はダイアログに留まり、続けてConditional Mediation（Rhing Seed
+/// 入力欄に出るオートフィル候補）の待機に切り替える。Seedを入力して
+/// 「ログイン」を押す従来の流れもそのまま使える。モーダルとConditionalは
+/// 同時に走らせられないため直列にしている。
 class PasskeySignInDialog extends ConsumerStatefulWidget {
   const PasskeySignInDialog({super.key});
 
@@ -48,13 +50,35 @@ class _PasskeySignInDialogState extends ConsumerState<PasskeySignInDialog> {
   @override
   void initState() {
     super.initState();
-    _tryConditionalSignIn();
+    _tryAutoPrompt();
+  }
+
+  Future<void> _tryAutoPrompt() async {
+    if (!kIsWeb) return;
+    _conditionalAttemptStarted = true;
+    try {
+      await _authRepository.signInWithDiscoverablePasskey();
+      if (!mounted) return;
+      Navigator.of(context).pop(true);
+      return;
+    } on PasskeyAuthCancelledException {
+      // ポップアップを閉じた・Seed入力などで中断された場合。ダイアログに留まる。
+    } on NoCredentialsAvailableException {
+      // この端末に使えるパスキーが無い場合も、Seed入力へ進める。
+    } catch (e) {
+      if (!mounted) return;
+      setState(
+        () => _errorMessage = _errorMessageFor(e, ref.read(appStringsProvider)),
+      );
+    }
+    // 「ログイン」ボタンによる中断だった場合は、そちらの処理を優先する。
+    if (!mounted || _isSigningIn) return;
+    await _tryConditionalSignIn();
   }
 
   Future<void> _tryConditionalSignIn() async {
     if (!await _authRepository.isConditionalPasskeyAvailable()) return;
     if (!mounted) return;
-    _conditionalAttemptStarted = true;
     try {
       final user = await _authRepository.trySignInWithConditionalPasskey();
       if (!mounted || user == null) return;
@@ -84,12 +108,12 @@ class _PasskeySignInDialogState extends ConsumerState<PasskeySignInDialog> {
       _errorMessage = null;
     });
     try {
+      // 裏で待機中のモーダル/Conditional試行と競合しないよう先に中断する。
+      if (_conditionalAttemptStarted) {
+        await _authRepository.cancelConditionalPasskeyAttempt();
+      }
       if (rhingSeed.isEmpty) {
         // Seed空欄: パスキー選択モーダルから選ぶ方式（2026-10-04追加）。
-        // 裏で待機中のConditional試行とモーダルが競合しないよう先に中断する。
-        if (_conditionalAttemptStarted) {
-          await _authRepository.cancelConditionalPasskeyAttempt();
-        }
         await _authRepository.signInWithDiscoverablePasskey();
       } else {
         await _authRepository.signInWithPasskey(rhingSeed);

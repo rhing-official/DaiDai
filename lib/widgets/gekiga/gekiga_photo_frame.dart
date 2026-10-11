@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../../theme/gekiga/gekiga_shapes.dart';
+import '../../models/profile_card.dart';
 import '../always_animated_image.dart';
+import '../focal_image.dart';
 import 'monochrome_box.dart';
 
 /// メッセージ画面の送信者アイコンを、劇画UI専用のモノクロボックス
@@ -15,12 +17,17 @@ class GekigaPhotoFrame extends StatelessWidget {
     this.image,
     this.fallback,
     this.size = 32,
+    this.focal,
     super.key,
   });
 
   final ImageProvider? image;
   final Widget? fallback;
   final double size;
+
+  /// アイコンの表示領域（工房の焦点）。[image]が`NetworkImage`で、かつ既定
+  /// （中央・等倍）でない場合のみ反映する。
+  final ImageFocal? focal;
 
   @override
   Widget build(BuildContext context) {
@@ -61,7 +68,10 @@ class GekigaPhotoFrame extends StatelessWidget {
                   vertices: vertices,
                   inset: size * 0.15,
                 ),
-                child: image != null
+                child:
+                    image is NetworkImage && focal != null && !focal!.isDefault
+                    ? FocalImage(url: (image as NetworkImage).url, focal: focal)
+                    : image != null
                     ? AlwaysAnimatedImage(
                         child: Image(image: image!, fit: BoxFit.cover),
                       )

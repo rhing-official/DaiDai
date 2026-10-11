@@ -7,7 +7,6 @@ import '../../router/back_stack.dart';
 import '../../models/app_user.dart';
 import '../../providers/home_shell_providers.dart';
 import '../../widgets/nav_chip.dart';
-import '../call/pinned_call_overlay.dart';
 import '../chat/talks_tab.dart';
 import '../profile/profile_tab.dart';
 import '../settings/settings_tab.dart';
@@ -273,11 +272,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               // テーマの`scaffoldBackgroundColor`（`GekigaColors.background`）
               // による単色の塗り潰しのみにする。
               content,
-              // 通話中、その会話の画面を見ていない間だけ右上に固定表示する
-              // ミニ表示（2026-08-19追加）。タブ切り替えの`IndexedStack`より
-              // 外側（このStack自体）に置くことで、身だしなみ・設定タブへ
-              // 移動しても消えない。
-              const PinnedCallOverlay(),
               if (isWide)
                 Positioned(
                   left: _chipMargin,

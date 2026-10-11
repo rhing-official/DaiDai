@@ -65,6 +65,14 @@ DeviceClass classifyDevice(BuildContext context) {
       : DeviceClass.tablet;
 }
 
+/// 語らいのアイコン列の検索ボタンで、専用の検索画面（`/talks/search`）へ遷移
+/// するか（2026-10-12）。スマホ・タブレット（モバイル全般）は縦横どちらの
+/// 向きでも遷移し、コンピューターだけが従来どおりアイコン列内のインライン
+/// 検索を使う。以前はスマホのみだったが、タブレットでは小さな検索ボックスが
+/// 開くだけで検索画面に行けなかった。
+bool opensTalksSearchPage(DeviceClass deviceClass) =>
+    deviceClass != DeviceClass.computer;
+
 /// `local_auth`パッケージが生体認証（Face ID/Touch ID/指紋、Android
 /// BiometricPrompt）を実質サポートするプラットフォームかどうか
 /// （2026-09-11追加）。Web・Windows・Linuxは対象外（`local_auth`が

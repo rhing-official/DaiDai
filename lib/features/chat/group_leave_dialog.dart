@@ -87,7 +87,10 @@ class _GroupLeaveDialogState extends ConsumerState<GroupLeaveDialog> {
       FilledButton(
         onPressed: _leaving ? null : _leave,
         style: FilledButton.styleFrom(
-          backgroundColor: Theme.of(context).colorScheme.error,
+          // `colorScheme.error`はダークテーマで明るいサーモンピンクになるため、
+          // 他の確認ダイアログ（広場の削除等）と同じ固定の濃い赤にする。
+          backgroundColor: Colors.red.shade700,
+          foregroundColor: Colors.white,
         ),
         child: _leaving
             ? const SizedBox.shrink()

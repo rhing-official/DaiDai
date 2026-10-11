@@ -10,6 +10,7 @@ import '../../models/group_role.dart';
 import '../../providers/app_ui_style_provider.dart';
 import '../../providers/group_providers.dart';
 import '../../providers/repository_providers.dart';
+import '../../providers/user_providers.dart';
 import '../../utils/auto_dismiss_banner.dart';
 import '../../utils/group_permissions.dart';
 import '../../widgets/glass/glass_avatar.dart';
@@ -337,9 +338,35 @@ class _JoinRequestTile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // 申請者が参加画面で選んだプロフィールカード（未選択なら標準カード）の
+    // 呼び名・アイコンを表示する（2026-10-11）。読み込み前・未設定時は
+    // 従来どおり@rhingSeedと汎用アイコン。
+    final requester = ref.watch(watchedUserProvider(request.requesterId)).value;
+    final iconUrl = requester?.effectiveIconFor(request.groupId)?.url;
+    final nickname = requester?.effectiveNicknameFor(request.groupId)?.text;
+    final label = (nickname?.isNotEmpty ?? false)
+        ? nickname!
+        : '@${request.requesterRhingSeed}';
+    final isGlass = ref.watch(appUiStyleProvider) == AppUiStyle.glass;
+    final onSurfaceVariant = Theme.of(context).colorScheme.onSurfaceVariant;
+    final placeholder = Icon(
+      Icons.person_add_alt_1_outlined,
+      color: onSurfaceVariant,
+    );
     return ListTile(
-      leading: const Icon(Icons.person_add_alt_1_outlined),
-      title: Text('@${request.requesterRhingSeed}'),
+      leading: isGlass
+          ? GlassAvatar(
+              size: 40,
+              image: iconUrl != null ? NetworkImage(iconUrl) : null,
+              fallback: iconUrl != null ? null : placeholder,
+            )
+          : CircleAvatar(
+              backgroundImage: iconUrl != null ? NetworkImage(iconUrl) : null,
+              backgroundColor: Colors.transparent,
+              foregroundColor: onSurfaceVariant,
+              child: iconUrl == null ? placeholder : null,
+            ),
+      title: Text(label),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [

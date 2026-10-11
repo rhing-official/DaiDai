@@ -338,8 +338,9 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         },
       ),
       GoRoute(
-        // モバイル実機＋アイコン＋寄合一覧レイアウト（`TalksListLayoutStyle
-        // .iconSplit`）専用の語らい検索フルページ（2026-09-12追加）。112px幅の
+        // モバイル（スマホ・タブレット）＋アイコン＋寄合一覧レイアウト
+        // （`TalksListLayoutStyle.iconSplit`）専用の語らい検索フルページ
+        // （2026-09-12追加、2026-10-12にタブレットも対象へ拡大）。112px幅の
         // アイコン列内ではインラインの検索結果表示が窮屈なための別ページ化。
         // それ以外（標準レイアウト・コンピューター全般）は`talks_tab.dart`の
         // インライン検索のまま（`TalksSearchScreen`のdocコメント参照）。

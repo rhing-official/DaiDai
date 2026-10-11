@@ -67,19 +67,26 @@ class _EmbeddedCallPaneState extends ConsumerState<EmbeddedCallPane> {
     ref.read(activeConversationProvider.notifier).set(widget.conversation);
   }
 
-  /// 通話UIを実際に表示している間だけ、その会話を`embeddedCallShownProvider`
-  /// へ報告する（右上のミニ表示を隠す判定に使う、2026-10-11）。ビルド中に
-  /// プロバイダーを書き換えないよう、フレーム後に反映する。
+  /// 直近に`embeddedCallShownProvider`へ報告した会話。会話の切り替えでこの
+  /// `State`が再利用される（`didUpdateWidget`）場合に、**旧会話の報告を確実に
+  /// 解除する**ために覚えておく（以前は新しい会話に対して解除しており、旧会話の
+  /// 報告が残ってミニ表示が出なくなっていた、2026-10-11修正）。
+  ViewedConversation? _reported;
+
+  /// 通話UIを**実際に画面に表示している**間だけ、その会話を
+  /// `embeddedCallShownProvider`へ報告する（右上のミニ表示を隠す判定に使う、
+  /// 2026-10-11）。ビルド中にプロバイダーを書き換えないよう、フレーム後に反映する。
   void _syncShown(bool shown) {
-    final conversation = widget.conversation;
+    final target = shown ? widget.conversation : null;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final notifier = ref.read(embeddedCallShownProvider.notifier);
-      if (shown) {
-        notifier.set(conversation);
-      } else {
-        notifier.clearIfCurrent(conversation);
+      final previous = _reported;
+      if (previous != null && previous != target) {
+        notifier.clearIfCurrent(previous);
       }
+      if (target != null) notifier.set(target);
+      _reported = target;
     });
   }
 
@@ -88,9 +95,10 @@ class _EmbeddedCallPaneState extends ConsumerState<EmbeddedCallPane> {
     ref
         .read(activeConversationProvider.notifier)
         .clearIfCurrent(widget.conversation);
-    ref
-        .read(embeddedCallShownProvider.notifier)
-        .clearIfCurrent(widget.conversation);
+    final notifier = ref.read(embeddedCallShownProvider.notifier);
+    notifier.clearIfCurrent(widget.conversation);
+    final reported = _reported;
+    if (reported != null) notifier.clearIfCurrent(reported);
     super.dispose();
   }
 
@@ -110,7 +118,9 @@ class _EmbeddedCallPaneState extends ConsumerState<EmbeddedCallPane> {
         session != null &&
         session.conversation == widget.conversation;
 
-    _syncShown(isMatch && _showingCall);
+    // タブ切り替え（`IndexedStack`）で見えなくなっているペインは「表示中」と
+    // 報告しない（非選択のタブは`TickerMode`が無効になる、2026-10-11）。
+    _syncShown(isMatch && _showingCall && TickerMode.of(context));
 
     if (!isMatch) return widget.child;
 

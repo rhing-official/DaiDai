@@ -458,6 +458,7 @@ class GroupSettingsPopup extends ConsumerWidget {
                 title: DestructiveLabel(
                   strings.groupDeleteMenuLabel,
                   centered: true,
+                  enabled: liveGroup.ownerId == userId,
                 ),
                 enabled: liveGroup.ownerId == userId,
                 onTap: () => GroupDeleteDialog.show(

@@ -351,6 +351,15 @@ class WebrtcCallController extends ChangeNotifier {
     _callSub = _callRepository.watchCall(call.callId).listen((updated) {
       if (updated == null || _isTerminal(updated.status)) {
         _finish();
+        return;
+      }
+      // 同じアカウントの別端末が先に応答した場合（statusがactiveになる）、
+      // この端末の着信音を止めて着信UIを閉じる（2026-10-11追加）。この端末は
+      // まだ応答していない（accept()で購読を解除する）ため、ここに届くactiveは
+      // 必ず別端末の応答。通話自体は別端末で続くので、Firestoreには何も
+      // 書き込まず、この端末のセッションだけ終える。
+      if (updated.status == CallStatus.active && !_accepting) {
+        _finish();
       }
     });
   }

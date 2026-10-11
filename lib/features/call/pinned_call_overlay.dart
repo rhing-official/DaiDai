@@ -22,6 +22,7 @@ import '../../widgets/glass/glass_surface.dart';
 import 'active_call_session.dart';
 import 'call_avatar.dart';
 import 'camera_availability.dart';
+import 'pinned_call_position.dart';
 import 'webrtc_call_controller.dart';
 
 /// 通話中、その会話の画面を見ていない間だけ表示する右上固定のミニ表示
@@ -41,7 +42,15 @@ class PinnedCallOverlay extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final session = ref.watch(activeCallSessionProvider);
-    if (session == null) return const SizedBox.shrink();
+    if (session == null) {
+      // 通話が終わったら、ドラッグで動かした位置を既定に戻す。
+      if (ref.read(pinnedCallOffsetProvider) != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          ref.read(pinnedCallOffsetProvider.notifier).set(null);
+        });
+      }
+      return const SizedBox.shrink();
+    }
 
     // PC・Webでは、その会話の通話UI（`EmbeddedCallPane`）が実際に表示されて
     // いる間だけ隠す（2026-10-11変更、以前は「その会話を見ているか」で判定して
@@ -61,15 +70,39 @@ class PinnedCallOverlay extends ConsumerWidget {
     // ありだけ画面下端まで伸ばす仕様にしたが、140幅の極端な縦長比率に
     // 横長のWebカメラ映像を詰め込むと不自然に間延びして見えるとの指摘を
     // 受け、2026-08-30に音声通話と同じ固定サイズへ戻した）。
+    final screen = MediaQuery.sizeOf(context);
+    final topInset = MediaQuery.paddingOf(context).top;
+    final position = clampPinnedCallOffset(
+      offset: ref.watch(pinnedCallOffsetProvider),
+      screen: screen,
+      topInset: topInset,
+    );
     return ListenableBuilder(
       listenable: session.controllerListenable,
       builder: (context, _) {
         return Positioned(
-          top: 8,
-          right: 8,
+          left: position.dx,
+          top: position.dy,
           // Webでは映像（プラットフォームビュー）がクリックを奪うため、
           // 上に重ねたこのミニ表示が受け取れるようにする（2026-10-11追加）。
-          child: PointerInterceptor(child: _PinnedCallBubble(session: session)),
+          // ドラッグ用のボタンは設けず、ミニ表示そのものを掴んで動かせる
+          // （2026-10-11追加）。タップ・内部ボタンは従来どおり動く。
+          child: PointerInterceptor(
+            child: GestureDetector(
+              onPanUpdate: (details) {
+                ref
+                    .read(pinnedCallOffsetProvider.notifier)
+                    .set(
+                      clampPinnedCallOffset(
+                        offset: position + details.delta,
+                        screen: screen,
+                        topInset: topInset,
+                      ),
+                    );
+              },
+              child: _PinnedCallBubble(session: session),
+            ),
+          ),
         );
       },
     );
@@ -93,42 +126,42 @@ RTCVideoRenderer? pickCallRenderer(ActiveCallSession session) {
   }
 }
 
+/// 映像が無い間（音声のみの通話、またはビデオ通話でも相手・自分どちらも
+/// 映像を出していない間）に中央へ表示するアバター情報（userId・rhingSeed・
+/// 会話id）。通話画面の音声通話時（`CallScreen._audioBody`/
+/// `GroupCallScreen._audioBody`）と同じ[CallParticipantAvatar]を、
+/// 代表1人分だけ小さく表示する（2026-08-19追加、音声通話でもミニ表示を
+/// 出すようにした際に追加）。
+({String userId, String rhingSeed, String? conversationId}) callPlaceholderInfo(
+  ActiveCallSession session,
+) {
+  switch (session) {
+    case OneToOneCallSession(:final call, :final currentUserId):
+      return (
+        userId: call.otherUserId(currentUserId),
+        rhingSeed: call.otherRhingSeed(currentUserId),
+        conversationId: call.dmId,
+      );
+    case GroupCallSession(:final controller, :final groupId):
+      final remoteRepresentative = controller.remoteParticipants.firstOrNull;
+      return (
+        userId: remoteRepresentative?.userId ?? controller.currentUser.userId,
+        rhingSeed:
+            remoteRepresentative?.rhingSeed ?? controller.currentUser.rhingSeed,
+        conversationId: groupId,
+      );
+  }
+}
+
 class _PinnedCallBubble extends ConsumerWidget {
   const _PinnedCallBubble({required this.session});
 
   final ActiveCallSession session;
 
-  /// 映像が無い間（音声のみの通話、またはビデオ通話でも相手・自分どちらも
-  /// 映像を出していない間）に中央へ表示するアバター情報（userId・rhingSeed・
-  /// 会話id）。通話画面の音声通話時（`CallScreen._audioBody`/
-  /// `GroupCallScreen._audioBody`）と同じ[CallParticipantAvatar]を、
-  /// 代表1人分だけ小さく表示する（2026-08-19追加、音声通話でもミニ表示を
-  /// 出すようにした際に追加）。
-  ({String userId, String rhingSeed, String? conversationId})
-  _placeholderInfo() {
-    switch (session) {
-      case OneToOneCallSession(:final call, :final currentUserId):
-        return (
-          userId: call.otherUserId(currentUserId),
-          rhingSeed: call.otherRhingSeed(currentUserId),
-          conversationId: call.dmId,
-        );
-      case GroupCallSession(:final controller, :final groupId):
-        final remoteRepresentative = controller.remoteParticipants.firstOrNull;
-        return (
-          userId: remoteRepresentative?.userId ?? controller.currentUser.userId,
-          rhingSeed:
-              remoteRepresentative?.rhingSeed ??
-              controller.currentUser.rhingSeed,
-          conversationId: groupId,
-        );
-    }
-  }
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final renderer = pickCallRenderer(session);
-    final placeholder = _placeholderInfo();
+    final placeholder = callPlaceholderInfo(session);
     final muted = switch (session) {
       OneToOneCallSession(:final controller) => controller.muted,
       GroupCallSession(:final controller) => controller.muted,

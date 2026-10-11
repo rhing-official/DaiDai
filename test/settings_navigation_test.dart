@@ -18,6 +18,7 @@ import 'package:daidai/models/send_key_mode.dart';
 import 'package:daidai/models/sticker_send_mode.dart';
 import 'package:daidai/providers/message_time_format_provider.dart';
 import 'package:daidai/providers/removed_default_color_presets_provider.dart';
+import 'package:daidai/providers/notification_sound_provider.dart';
 import 'package:daidai/providers/ringtone_sound_provider.dart';
 import 'package:daidai/providers/send_key_mode_provider.dart';
 import 'package:daidai/models/talks_list_layout_style.dart';
@@ -79,6 +80,11 @@ Future<void> _pumpSettingsTab(WidgetTester tester) async {
         initialFontDesignProvider.overrideWithValue(FontDesign.hannariMincho),
         initialRingtoneSoundProvider.overrideWithValue(null),
         initialCallingSoundProvider.overrideWithValue(null),
+        // 通知ページ（音設定）が参照する、端末に保存されたカスタム音源・通知音。
+        initialRingtoneCustomSoundProvider.overrideWithValue(null),
+        initialCallingCustomSoundProvider.overrideWithValue(null),
+        initialNotificationSoundProvider.overrideWithValue(null),
+        initialNotificationCustomSoundProvider.overrideWithValue(null),
       ],
       child: const MaterialApp(
         home: Scaffold(
@@ -130,6 +136,11 @@ Future<void> _pumpSettingsTabNarrow(WidgetTester tester) async {
         initialFontDesignProvider.overrideWithValue(FontDesign.hannariMincho),
         initialRingtoneSoundProvider.overrideWithValue(null),
         initialCallingSoundProvider.overrideWithValue(null),
+        // 通知ページ（音設定）が参照する、端末に保存されたカスタム音源・通知音。
+        initialRingtoneCustomSoundProvider.overrideWithValue(null),
+        initialCallingCustomSoundProvider.overrideWithValue(null),
+        initialNotificationSoundProvider.overrideWithValue(null),
+        initialNotificationCustomSoundProvider.overrideWithValue(null),
       ],
       child: const MaterialApp(
         home: Scaffold(
@@ -259,18 +270,17 @@ void main() {
     // 旧実装ではセキュリティ配下（パスワード等）を見るには「セキュリティ」を
     // タップしてさらに列を開く必要があったが、現在は最初から1ページに
     // まとまっているため、クリックなしですべて同時に見える。
-    expect(find.text('パスワード'), findsOneWidget);
+    // （パスワード認証はDaiDaiに存在しない方針のため、項目自体が無い。）
     expect(find.text('2段階認証'), findsOneWidget);
     expect(find.text('パスキー'), findsOneWidget);
     expect(find.text('QRコードによるログイン'), findsOneWidget);
     expect(find.text('ログアウト'), findsOneWidget);
     expect(find.text('アカウントを削除'), findsOneWidget);
-    expect(find.text('準備中'), findsWidgets);
 
     // 別のカテゴリ（アプリケーション）に切り替えると、アカウントの内容は消える。
     await tester.tap(find.text('アプリケーション'));
     await tester.pumpAndSettle();
-    expect(find.text('パスワード'), findsNothing);
+    expect(find.text('2段階認証'), findsNothing);
   });
 
   testWidgets('アプリケーションページには色・UI・文字・言語セクションが一度に表示される（内側ListViewがクラッシュしない）', (
@@ -302,18 +312,22 @@ void main() {
     // で直接特定する（サイドバー・右ページの順で2つあるうちの2つ目）方が
     // スクロール距離に依存せず安定する。
     final applicationScrollable = find.byType(Scrollable).at(1);
+    // 2026-10時点のアプリケーションページは、外観・UI・アクセントカラー・
+    // フォントカラー・フォントデザイン・言語・時刻の表示方法・パスコードロックの
+    // 順（旧「文字」「表示言語」の見出しは、フォントカラー／フォントデザイン／
+    // 言語に分かれた）。下の方の見出しは遅延構築のため、スクロールして探す。
     await tester.scrollUntilVisible(
-      find.text('文字'),
+      find.text('フォントデザイン'),
       300,
       scrollable: applicationScrollable,
     );
-    expect(find.text('文字'), findsOneWidget);
+    expect(find.text('フォントデザイン'), findsOneWidget);
     await tester.scrollUntilVisible(
-      find.text('表示言語'),
+      find.text('言語'),
       300,
       scrollable: applicationScrollable,
     );
-    expect(find.text('表示言語'), findsOneWidget);
+    expect(find.text('言語'), findsOneWidget);
   });
 
   testWidgets('狭い画面のドリルダウン中に左スワイプで次のカテゴリへ切り替え、右スワイプで一覧へ戻る（回帰テスト）', (
@@ -346,7 +360,9 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.text('ブロックしたユーザー'), findsNothing);
-    expect(find.text('準備中'), findsWidgets);
+    // 通知ページ（旧「準備中」の表示は、プッシュ通知・サウンドの設定が入って
+    // 無くなった）。
+    expect(find.text('プッシュ通知'), findsOneWidget);
 
     // 右スワイプすると、隣接カテゴリではなく常にカテゴリ一覧へ戻る。
     await tester.fling(

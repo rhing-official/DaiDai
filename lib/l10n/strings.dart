@@ -412,6 +412,7 @@ class Strings {
     required this.groupMenuManageRoles,
     required this.groupMenuManagePermissions,
     required this.groupPermissionMatrixHint,
+    required this.groupPermissionMatrixHintWide,
     required this.groupPermissionColumnOwner,
     required this.groupPermissionColumnEveryone,
     required this.groupMenuOpenSettings,
@@ -1248,6 +1249,9 @@ class Strings {
   /// 広場の設定の「権限の管理」項目名・ダイアログ見出し（2026-10-10追加）。
   final String groupMenuManagePermissions;
   final String groupPermissionMatrixHint;
+
+  /// コンピューター版（左にロール、右に権限の2ペイン）用のヒント文。
+  final String groupPermissionMatrixHintWide;
   final String groupPermissionColumnOwner;
   final String groupPermissionColumnEveryone;
   final String groupMenuOpenSettings;
@@ -2212,7 +2216,9 @@ class Strings {
     groupMenuManageRoles: 'ロール管理',
     groupMenuManagePermissions: '権限管理',
     groupPermissionMatrixHint:
-        '「全員」の列は、全メンバーに最初から付いている権限です。ほかのロールはそこへ追加で付与されます。長は常にすべての権限を持ちます。権限を変更できるのは「権限の管理」を持つメンバーだけです。',
+        '上のロールを選ぶと、そのロールの権限を切り替えられます。「全員」は、全メンバーに最初から付いている権限です。ほかのロールはそこへ追加で付与されます。長は常にすべての権限を持ちます。権限を変更できるのは「権限の管理」を持つメンバーだけです。',
+    groupPermissionMatrixHintWide:
+        '左のロールを選ぶと、そのロールの権限を切り替えられます。「全員」は、全メンバーに最初から付いている権限です。ほかのロールはそこへ追加で付与されます。長は常にすべての権限を持ちます。権限を変更できるのは「権限の管理」を持つメンバーだけです。',
     groupPermissionColumnOwner: '長',
     groupPermissionColumnEveryone: '全員',
     groupMenuOpenSettings: '広場の設定',
@@ -3063,7 +3069,9 @@ class Strings {
     groupMenuManageRoles: 'Manage roles',
     groupMenuManagePermissions: 'Manage permissions',
     groupPermissionMatrixHint:
-        'The "Everyone" column lists the permissions every member has by default. Other roles add to it. The owner always has every permission. Only members with "Manage permissions" can change them.',
+        'Pick a role above to switch its permissions. "Everyone" lists the permissions every member has by default. Other roles add to it. The owner always has every permission. Only members with "Manage permissions" can change them.',
+    groupPermissionMatrixHintWide:
+        'Pick a role on the left to switch its permissions. "Everyone" lists the permissions every member has by default. Other roles add to it. The owner always has every permission. Only members with "Manage permissions" can change them.',
     groupPermissionColumnOwner: 'Owner',
     groupPermissionColumnEveryone: 'Everyone',
     groupMenuOpenSettings: 'Plaza settings',

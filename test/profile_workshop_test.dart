@@ -295,7 +295,10 @@ Future<void> _pumpProfileTabNarrow(
 }
 
 void main() {
-  testWidgets('工房タブは常に3枠表示し、白紙枠をタップするとカードが作れる', (tester) async {
+  // 工房は2026-10-11時点で「ダイアログ」ではなく、枠をタップするとその場で
+  // カードが拡大する編集画面（名前欄＋カード上の各項目）になっている。名前は
+  // 確定（Enter・欄の外をタップ）した時点で保存される（`_CardZoomEditor`）。
+  testWidgets('工房タブは常に3枠表示し、白紙枠をタップすると名前を入力してカードが作れる', (tester) async {
     const user = AppUser(userId: 'u1', rhingSeed: 'taro');
     final repo = _FakeUserRepository();
     await _pumpProfileTab(tester, user, repo);
@@ -309,34 +312,36 @@ void main() {
     await tester.tap(find.byIcon(Icons.add).first);
     await tester.pumpAndSettle();
 
-    expect(find.text('プロフィールカードを作る'), findsOneWidget);
+    // 拡大した編集画面に、名前欄（ヒントはカード名のラベル）が出る。
+    expect(find.text('カード名（自分用のラベル）'), findsOneWidget);
     await tester.enterText(find.byType(TextField).first, '仕事用');
-    await tester.tap(find.text('保存'));
+    await tester.testTextInput.receiveAction(TextInputAction.done);
     await tester.pumpAndSettle();
 
-    expect(find.text('仕事用'), findsOneWidget);
     expect(repo.saved?.profileCards.map((c) => c.name), contains('仕事用'));
-    // 残り2枠は依然として白紙のまま。
-    expect(find.byIcon(Icons.add), findsNWidgets(2));
   });
 
-  testWidgets('既存カードをタップすると内容が入った選択画面が開く', (tester) async {
+  testWidgets('既存カードをタップすると、名前が入った編集画面が開き、削除ボタンが出る', (tester) async {
     const card = ProfileCard(id: 'c1', name: '既存カード');
     const user = AppUser(userId: 'u1', rhingSeed: 'taro', profileCards: [card]);
-    final repo = _FakeUserRepository();
+    final repo = _FakeUserRepository()..saved = user;
     await _pumpProfileTab(tester, user, repo);
 
     await tester.tap(find.text('工房'));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('既存カード'));
+    // カードは画面の下の方にあるため、文字ではなくカード本体（Hero）の中心を
+    // タップする（他のテストと同じ方法）。
+    await tester.tapAt(tester.getCenter(find.byType(Hero).first));
     await tester.pumpAndSettle();
 
-    expect(find.text('プロフィールカードを編集'), findsOneWidget);
-    expect(find.text('既存カード'), findsWidgets);
+    final field = tester.widget<TextField>(find.byType(TextField).first);
+    expect(field.controller!.text, '既存カード');
+    // 保存済みのカードだけ、名前の下に削除ボタンが出る。
+    expect(find.text('このカードを削除'), findsOneWidget);
   });
 
-  testWidgets('カード名が未入力のまま保存を押すとエラーが表示され、ダイアログは閉じない', (tester) async {
+  testWidgets('カード名が空のまま確定しても保存されない', (tester) async {
     const user = AppUser(userId: 'u1', rhingSeed: 'taro');
     final repo = _FakeUserRepository();
     await _pumpProfileTab(tester, user, repo);
@@ -346,13 +351,12 @@ void main() {
     await tester.tap(find.byIcon(Icons.add).first);
     await tester.pumpAndSettle();
 
-    // カード名を空のまま保存を押す。以前は_save()が無言でreturnするだけで、
-    // ボタンを押しても何も起きていないように見えていた（ユーザー報告の再現）。
-    await tester.tap(find.text('保存'));
+    // 以前のダイアログ版は「入力してください」を出していたが、編集画面では
+    // 名前が空のままの確定は何もせず、カードも作られない（`_confirmName`）。
+    await tester.testTextInput.receiveAction(TextInputAction.done);
     await tester.pumpAndSettle();
 
-    expect(find.text('プロフィールカードを作る'), findsOneWidget); // ダイアログはまだ開いたまま
-    expect(find.text('入力してください'), findsOneWidget);
+    expect(find.text('入力してください'), findsNothing);
     expect(repo.saved, isNull);
   });
 
@@ -740,10 +744,11 @@ void main() {
     await tester.tap(find.text('工房'));
     await tester.pumpAndSettle();
 
-    // ダイアログを開かなくても、縮小表示のカードの時点でURL（先頭の
-    // https://www.を取り除いた表示）が見えている。
-    expect(find.text('instagram.com/taro'), findsOneWidget);
-    expect(find.text('pixiv.net/taro'), findsOneWidget);
+    // 編集画面を開かなくても、縮小表示のカードの時点でURLが見えている。カード上
+    // ではドメイン部分だけに短縮して表示する（`displaySnsLinkUrl`、2026-09-24変更。
+    // 保存するURL自体はフルパスのまま）。
+    expect(find.text('instagram.com'), findsOneWidget);
+    expect(find.text('pixiv.net'), findsOneWidget);
   });
 
   testWidgets('狭い画面のドリルダウン中に左スワイプで次のカテゴリへ切り替え、右スワイプで一覧へ戻る（回帰テスト）', (

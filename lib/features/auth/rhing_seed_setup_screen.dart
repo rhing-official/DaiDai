@@ -20,7 +20,7 @@ class RhingSeedSetupScreen extends ConsumerStatefulWidget {
 
 class _RhingSeedSetupScreenState extends ConsumerState<RhingSeedSetupScreen> {
   final _controller = TextEditingController();
-  static final _validPattern = RegExp(r'^[a-zA-Z0-9._-]{3,20}$');
+  static final _validPattern = RegExp(r'^[a-zA-Z0-9._-]{1,20}$');
 
   bool _isSubmitting = false;
   String? _errorMessage;
@@ -29,7 +29,7 @@ class _RhingSeedSetupScreenState extends ConsumerState<RhingSeedSetupScreen> {
     final rhingSeed = _controller.text.trim();
     if (!_validPattern.hasMatch(rhingSeed)) {
       setState(() {
-        _errorMessage = '英数字・.・-・_のみ、3〜20文字で入力してください';
+        _errorMessage = '英数字・.・-・_のみ、1〜20文字で入力してください';
       });
       return;
     }

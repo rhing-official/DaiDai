@@ -11,6 +11,7 @@ import '../../utils/auto_dismiss_banner.dart';
 import '../../widgets/generated_avatar.dart';
 import '../../widgets/glass/glass_dialog.dart';
 import '../../widgets/profile_card_view.dart';
+import '../../widgets/style_choice_chip.dart';
 import '../../widgets/dialog_keyboard_shortcuts.dart';
 
 /// 管理画面の住人一覧の取得元（`limit(500)`、並べ替えはUI側）。テストで
@@ -266,7 +267,7 @@ class _AdminUserListSectionState extends ConsumerState<AdminUserListSection> {
                         controller: _searchController,
                         decoration: const InputDecoration(
                           prefixIcon: Icon(Icons.search),
-                          hintText: '@rhingSeedで検索',
+                          hintText: 'RhingSeedで検索',
                         ),
                         onChanged: (_) => setState(() {}),
                       ),
@@ -278,11 +279,14 @@ class _AdminUserListSectionState extends ConsumerState<AdminUserListSection> {
                               spacing: 8,
                               children: [
                                 for (final f in AdminUserFilter.values)
-                                  ChoiceChip(
-                                    label: Text(f.label),
+                                  StyleChoiceChip(
+                                    uiStyle: ref.watch(appUiStyleProvider),
                                     selected: _filter == f,
-                                    onSelected: (_) =>
-                                        setState(() => _filter = f),
+                                    onTap: () => setState(() => _filter = f),
+                                    labelBuilder: (fg) => Text(
+                                      f.label,
+                                      style: TextStyle(color: fg),
+                                    ),
                                   ),
                               ],
                             ),

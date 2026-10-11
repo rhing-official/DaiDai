@@ -77,6 +77,7 @@ import '../../widgets/gekiga/gekiga_icon_badge.dart';
 import '../../widgets/gekiga/gekiga_photo_frame.dart';
 import '../../widgets/glass/glass_app_bar.dart';
 import '../../widgets/glass/glass_avatar.dart';
+import '../../widgets/focal_image.dart';
 import '../../widgets/glass/glass_dialog.dart';
 import '../../widgets/glass/glass_icon_badge.dart';
 import '../../widgets/glass/glass_surface.dart';
@@ -7000,12 +7001,17 @@ class _SenderAvatar extends ConsumerWidget {
         ? null
         : ref.watch(watchedUserProvider(userId)).value;
     final iconUrl = botIconUrl ?? user?.effectiveIconFor(conversationId)?.url;
+    // BOT・Webhook由来のアイコンには焦点が無い（住人のカードの構図のみ反映）。
+    final iconFocal = botIconUrl != null
+        ? null
+        : user?.effectiveIconFocalFor(conversationId);
     final id = (rhingSeed == null || rhingSeed!.isEmpty) ? '?' : rhingSeed!;
     final color = _palette[id.hashCode.abs() % _palette.length];
     final fontSize = size / 48 * 13;
     if (uiStyle == AppUiStyle.gekiga) {
       return GekigaPhotoFrame(
         size: size,
+        focal: iconFocal,
         image: iconUrl != null ? NetworkImage(iconUrl) : null,
         fallback: iconUrl != null
             ? null
@@ -7027,6 +7033,7 @@ class _SenderAvatar extends ConsumerWidget {
       // `GlassAvatar`の上に乗せる（2026-09-16追加）。
       return GlassAvatar(
         size: size,
+        focal: iconFocal,
         image: iconUrl != null ? NetworkImage(iconUrl) : null,
         fallback: iconUrl != null
             ? null
@@ -7049,7 +7056,9 @@ class _SenderAvatar extends ConsumerWidget {
         border: Border.all(color: Theme.of(context).colorScheme.outline),
       ),
       child: ClipOval(
-        child: iconUrl != null
+        child: iconUrl != null && iconFocal != null && !iconFocal.isDefault
+            ? FocalImage(url: iconUrl, focal: iconFocal)
+            : iconUrl != null
             ? AlwaysAnimatedImage(
                 child: Image(image: NetworkImage(iconUrl), fit: BoxFit.cover),
               )

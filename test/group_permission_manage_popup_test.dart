@@ -107,7 +107,13 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('権限×ロールの一覧に、全権限の行と長・全員・各ロールの列が出る', (tester) async {
+  // 2026-10-11に「権限×ロールの表」から「ロールを選ぶチップ＋選んだロールの
+  // 権限チェックボックス一覧」へ画面を変えたため、それに合わせたテスト。
+  // テスト環境の端末はAndroid扱いのため、チップ＋縦リスト表示（最大幅420）になる。
+  List<Checkbox> boxes(WidgetTester tester) =>
+      tester.widgetList<Checkbox>(find.byType(Checkbox)).toList();
+
+  testWidgets('ロールのチップ（長・全員・各ロール）と、全権限のチェックボックスが出る', (tester) async {
     await pump(tester);
 
     expect(find.text('権限管理'), findsOneWidget);
@@ -115,23 +121,41 @@ void main() {
     expect(find.text('全員'), findsOneWidget);
     expect(find.text('運営係'), findsOneWidget);
     expect(find.text('招待リンクの作成'), findsOneWidget);
-    expect(find.byType(Checkbox), findsNWidgets(7 * 3));
-
-    // 全員の列（基準ロール）は招待リンクの作成だけ許可。長は全て許可で固定。
-    final checked = tester
-        .widgetList<Checkbox>(find.byType(Checkbox))
-        .where((c) => c.value == true)
-        .length;
-    expect(checked, 7 + 1 + 1); // 長7 + 全員1 + 運営係1
+    // 選択中のロール1つ分（全権限7件）だけが縦に並ぶ。
+    expect(find.byType(Checkbox), findsNWidgets(7));
+    expect(tester.getSize(find.byType(GroupPermissionManagePopup)).width, 420);
   });
 
-  testWidgets('セルを切り替えると、そのロールの権限集合でupdateRoleが呼ばれる', (tester) async {
+  testWidgets('最初は「全員」（基準ロール）が選ばれ、招待リンクの作成だけ許可', (tester) async {
     await pump(tester);
 
-    // 6行 × 3列の最初の「全員」列（行0=manageRooms）をオンにする。
-    final checkboxes = find.byType(Checkbox);
-    // 並びは固定部（長・全員を行ごと）→ロール部の順。全員列は2番目ごと。
-    await tester.tap(checkboxes.at(1));
+    final checked = boxes(tester).where((c) => c.value == true).length;
+    expect(checked, 1);
+  });
+
+  testWidgets('ロールのチップを選ぶと、そのロールの権限に切り替わる', (tester) async {
+    await pump(tester);
+
+    await tester.tap(find.text('運営係'));
+    await tester.pumpAndSettle();
+    // 運営係はmanageRoomsだけ許可（権限の並びの先頭）。
+    final list = boxes(tester);
+    expect(list.where((c) => c.value == true).length, 1);
+    expect(list.first.value, isTrue);
+
+    await tester.tap(find.text('長'));
+    await tester.pumpAndSettle();
+    // 長は常に全権限で、変更できない。
+    final owner = boxes(tester);
+    expect(owner.every((c) => c.value == true), isTrue);
+    expect(owner.every((c) => c.onChanged == null), isTrue);
+  });
+
+  testWidgets('チェックを切り替えると、そのロールの権限集合でupdateRoleが呼ばれる', (tester) async {
+    await pump(tester);
+
+    // 「全員」の先頭の権限（manageRooms）をオンにする。
+    await tester.tap(find.byType(Checkbox).first);
     await tester.pumpAndSettle();
 
     expect(groups.updates, hasLength(1));
@@ -142,35 +166,22 @@ void main() {
     });
   });
 
-  testWidgets('ロールが増えるとポップアップの幅が広がり、画面幅を超えない', (tester) async {
-    await pump(tester);
-    // 固定部334 + ロール1件96。
-    expect(tester.getSize(find.byType(GroupPermissionManagePopup)).width, 430);
-
-    await pump(tester, extraRoles: 3);
-    expect(tester.getSize(find.byType(GroupPermissionManagePopup)).width, 718);
-
-    // 画面幅900 - 余白80 = 820で頭打ち。
-    await pump(tester, extraRoles: 10);
-    expect(tester.getSize(find.byType(GroupPermissionManagePopup)).width, 820);
-  });
-
-  testWidgets('幅が足りない時は、ロール列だけ横にスクロールできる', (tester) async {
+  testWidgets('ロールが増えても幅は一定で、チップの列だけ横にスクロールできる', (tester) async {
     await pump(tester, extraRoles: 8, screenWidth: 500);
     expect(tester.getSize(find.byType(GroupPermissionManagePopup)).width, 420);
 
-    final lastHeader = find.text('ロール7');
-    final before = tester.getTopLeft(lastHeader).dx;
+    final lastChip = find.text('ロール7');
+    final before = tester.getTopLeft(lastChip).dx;
     final label = tester.getTopLeft(find.text('招待リンクの作成')).dx;
 
     await tester.drag(
-      find.byType(SingleChildScrollView).last,
+      find.byType(SingleChildScrollView).first,
       const Offset(-300, 0),
     );
     await tester.pumpAndSettle();
 
-    expect(tester.getTopLeft(lastHeader).dx, lessThan(before));
-    // 左の固定部（権限名）は動かない。
+    expect(tester.getTopLeft(lastChip).dx, lessThan(before));
+    // 下の権限の一覧は動かない。
     expect(tester.getTopLeft(find.text('招待リンクの作成')).dx, label);
   });
 
@@ -188,9 +199,8 @@ void main() {
     );
     await pump(tester, userId: 'u2', group: member);
 
-    final boxes = tester.widgetList<Checkbox>(find.byType(Checkbox));
-    expect(boxes.every((c) => c.onChanged == null), isTrue);
-    await tester.tap(find.byType(Checkbox).at(1), warnIfMissed: false);
+    expect(boxes(tester).every((c) => c.onChanged == null), isTrue);
+    await tester.tap(find.byType(Checkbox).first, warnIfMissed: false);
     await tester.pumpAndSettle();
     expect(groups.updates, isEmpty);
   });
@@ -208,7 +218,7 @@ void main() {
     );
     await pump(tester, userId: 'u2', group: member);
 
-    await tester.tap(find.byType(Checkbox).at(1));
+    await tester.tap(find.byType(Checkbox).first);
     await tester.pumpAndSettle();
     expect(groups.updates, hasLength(1));
   });

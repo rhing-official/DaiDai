@@ -48,6 +48,7 @@ import '../../widgets/gekiga/gekiga_icon_badge.dart';
 import '../../widgets/gekiga/gekiga_panel_box.dart';
 import '../../widgets/gekiga/gekiga_text_field.dart';
 import '../../widgets/glass/glass_avatar.dart';
+import '../../widgets/focal_circle_avatar.dart';
 import '../../widgets/glass/glass_icon_badge.dart';
 import '../../widgets/glass/glass_surface.dart';
 import '../../widgets/unread_badge.dart';
@@ -1057,259 +1058,268 @@ class _TalksTabState extends ConsumerState<TalksTab>
     // 戻る・進むは会話・寄合・カテゴリの履歴を辿る（2026-10-06変更、以前は
     // 広い画面で選択中の会話を解除するだけの1ビットのエントリだった。
     // `BackStackController`参照）。
-    return NavHistoryBackEntry<_TalksLocation>(
+    return CollapsedBackEntry(
+      // タブレットの3ブロック表示で全画面にしている間は、戻る操作（ブラウザの
+      // 戻る・端からの右スワイプ）でまず3ブロック表示へ戻す（2026-10-12）。
+      progress: _iconSplitCollapse,
       scope: BackScope.talks,
-      location: _currentLocation(ref.watch(lastOpenedRoomProvider)),
-      onRestore: _applyLocation,
-      child: Scaffold(
-        // 劇画スタイル時にホーム画面の背景装飾（ハーフトーン柄）を透過させる
-        // 変更を一度試したが、リスト項目の隙間からドット柄が中途半端に透けて
-        // しまい「赤一色の塗りつぶし」に見えないとの指摘を受け撤回した
-        // （2026-08-04）。既定（`backgroundColor`未指定）のまま、テーマの
-        // `scaffoldBackgroundColor`＝`GekigaColors.background`で不透明に塗る。
-        body: StreamBuilder<List<DirectMessage>>(
-          stream: directMessagesStream,
-          builder: (context, dmSnapshot) {
-            final directMessages = dmSnapshot.data ?? [];
-            return StreamBuilder<List<Group>>(
-              stream: groupsStream,
-              builder: (context, groupSnapshot) {
-                final groups = groupSnapshot.data ?? [];
-                // `_onSearchTextChanged`のデバウンスコールバック（build()の外）
-                // から参照するためのスナップショット（2026-09-12追加）。
-                _lastDirectMessages = directMessages;
-                _lastGroups = groups;
-                _lastBlockedIds = blockedIds;
+      onBack: () => _animateIconSplitCollapse(0.0),
+      child: NavHistoryBackEntry<_TalksLocation>(
+        scope: BackScope.talks,
+        location: _currentLocation(ref.watch(lastOpenedRoomProvider)),
+        onRestore: _applyLocation,
+        child: Scaffold(
+          // 劇画スタイル時にホーム画面の背景装飾（ハーフトーン柄）を透過させる
+          // 変更を一度試したが、リスト項目の隙間からドット柄が中途半端に透けて
+          // しまい「赤一色の塗りつぶし」に見えないとの指摘を受け撤回した
+          // （2026-08-04）。既定（`backgroundColor`未指定）のまま、テーマの
+          // `scaffoldBackgroundColor`＝`GekigaColors.background`で不透明に塗る。
+          body: StreamBuilder<List<DirectMessage>>(
+            stream: directMessagesStream,
+            builder: (context, dmSnapshot) {
+              final directMessages = dmSnapshot.data ?? [];
+              return StreamBuilder<List<Group>>(
+                stream: groupsStream,
+                builder: (context, groupSnapshot) {
+                  final groups = groupSnapshot.data ?? [];
+                  // `_onSearchTextChanged`のデバウンスコールバック（build()の外）
+                  // から参照するためのスナップショット（2026-09-12追加）。
+                  _lastDirectMessages = directMessages;
+                  _lastGroups = groups;
+                  _lastBlockedIds = blockedIds;
 
-                final listPane = Column(
-                  // 既定値（center）のままだと、一覧の中身（`GekigaJointedTileList`）
-                  // が自身の内容に応じた幅だけを主張し、その幅ぶん中央寄せされて
-                  // しまう。一対一覧と広場一覧では中身の最大幅が異なるため、
-                  // 中央寄せの基準がズレて左端の位置が一致しない不具合があった
-                  // （2026-08-04発覚・修正。`room_list_pane.dart`は元々`start`
-                  // 指定済みだったため同じ問題は起きていなかった）。
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                      child: Row(
-                        children: [
-                          // 言語によってはラベルが長くなる（例: 英語の
-                          // "Private"/"Plaza"は日本語の「一対」「広場」より幅を
-                          // 取る）。以前は幅が収まらない場合`Wrap`で折り返す形に
-                          // していたが、英語表示時に2つのチップの合計幅が
-                          // 入りきらず縦並びに見えてしまう不具合があった。横
-                          // スクロールで逃がす方式も試したが、常に横並びで
-                          // スクロール無しに収めたいとのユーザー要望のため
-                          // 採用せず、代わりに`CategoryTab`側のパディング・
-                          // フォントサイズを詰めて260px幅のサイドバーに折り返し・
-                          // スクロールいずれも無しで収まるようにした
-                          // （2026-08-27発覚・修正）。
-                          Expanded(
-                            child:
-                                ref.watch(appUiStyleProvider) ==
-                                    AppUiStyle.gekiga
-                                ? SingleChildScrollView(
-                                    scrollDirection: Axis.horizontal,
-                                    child: GekigaJointedPair(
-                                      leftSeed: vocab.dm.hashCode,
-                                      leftSelected:
-                                          _category == _TalksCategory.dm,
-                                      left: CategoryTab(
-                                        label: vocab.dm,
-                                        count: directMessages.length,
-                                        selected:
+                  final listPane = Column(
+                    // 既定値（center）のままだと、一覧の中身（`GekigaJointedTileList`）
+                    // が自身の内容に応じた幅だけを主張し、その幅ぶん中央寄せされて
+                    // しまう。一対一覧と広場一覧では中身の最大幅が異なるため、
+                    // 中央寄せの基準がズレて左端の位置が一致しない不具合があった
+                    // （2026-08-04発覚・修正。`room_list_pane.dart`は元々`start`
+                    // 指定済みだったため同じ問題は起きていなかった）。
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                        child: Row(
+                          children: [
+                            // 言語によってはラベルが長くなる（例: 英語の
+                            // "Private"/"Plaza"は日本語の「一対」「広場」より幅を
+                            // 取る）。以前は幅が収まらない場合`Wrap`で折り返す形に
+                            // していたが、英語表示時に2つのチップの合計幅が
+                            // 入りきらず縦並びに見えてしまう不具合があった。横
+                            // スクロールで逃がす方式も試したが、常に横並びで
+                            // スクロール無しに収めたいとのユーザー要望のため
+                            // 採用せず、代わりに`CategoryTab`側のパディング・
+                            // フォントサイズを詰めて260px幅のサイドバーに折り返し・
+                            // スクロールいずれも無しで収まるようにした
+                            // （2026-08-27発覚・修正）。
+                            Expanded(
+                              child:
+                                  ref.watch(appUiStyleProvider) ==
+                                      AppUiStyle.gekiga
+                                  ? SingleChildScrollView(
+                                      scrollDirection: Axis.horizontal,
+                                      child: GekigaJointedPair(
+                                        leftSeed: vocab.dm.hashCode,
+                                        leftSelected:
                                             _category == _TalksCategory.dm,
-                                        onTap: () =>
-                                            _setCategory(_TalksCategory.dm),
-                                      ),
-                                      rightSeed: vocab.plaza.hashCode,
-                                      rightSelected:
-                                          _category == _TalksCategory.group,
-                                      right: CategoryTab(
-                                        label: vocab.plaza,
-                                        count: groups.length,
-                                        selected:
+                                        left: CategoryTab(
+                                          label: vocab.dm,
+                                          count: directMessages.length,
+                                          selected:
+                                              _category == _TalksCategory.dm,
+                                          onTap: () =>
+                                              _setCategory(_TalksCategory.dm),
+                                        ),
+                                        rightSeed: vocab.plaza.hashCode,
+                                        rightSelected:
                                             _category == _TalksCategory.group,
-                                        onTap: () =>
-                                            _setCategory(_TalksCategory.group),
+                                        right: CategoryTab(
+                                          label: vocab.plaza,
+                                          count: groups.length,
+                                          selected:
+                                              _category == _TalksCategory.group,
+                                          onTap: () => _setCategory(
+                                            _TalksCategory.group,
+                                          ),
+                                        ),
                                       ),
+                                    )
+                                  : Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        CategoryTab(
+                                          label: vocab.dm,
+                                          count: directMessages.length,
+                                          selected:
+                                              _category == _TalksCategory.dm,
+                                          onTap: () =>
+                                              _setCategory(_TalksCategory.dm),
+                                        ),
+                                        const SizedBox(width: 6),
+                                        CategoryTab(
+                                          label: vocab.plaza,
+                                          count: groups.length,
+                                          selected:
+                                              _category == _TalksCategory.group,
+                                          onTap: () => _setCategory(
+                                            _TalksCategory.group,
+                                          ),
+                                        ),
+                                      ],
                                     ),
-                                  )
-                                : Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      CategoryTab(
-                                        label: vocab.dm,
-                                        count: directMessages.length,
-                                        selected:
-                                            _category == _TalksCategory.dm,
-                                        onTap: () =>
-                                            _setCategory(_TalksCategory.dm),
-                                      ),
-                                      const SizedBox(width: 6),
-                                      CategoryTab(
-                                        label: vocab.plaza,
-                                        count: groups.length,
-                                        selected:
-                                            _category == _TalksCategory.group,
-                                        onTap: () =>
-                                            _setCategory(_TalksCategory.group),
-                                      ),
-                                    ],
-                                  ),
-                          ),
-                          const SizedBox(width: 8),
-                          switch (ref.watch(appUiStyleProvider)) {
-                            AppUiStyle.gekiga => GekigaIconButton(
-                              icon: Icons.add,
-                              size: 32,
-                              onPressed: _showAddMenu,
                             ),
-                            AppUiStyle.glass => GlassIconButton(
-                              icon: Icons.add,
-                              size: 32,
-                              onPressed: _showAddMenu,
-                            ),
-                            AppUiStyle.flat => IconButton.filled(
-                              icon: const Icon(Icons.add, size: 20),
-                              onPressed: _showAddMenu,
-                              style: IconButton.styleFrom(
-                                minimumSize: const Size(32, 32),
-                                padding: EdgeInsets.zero,
+                            const SizedBox(width: 8),
+                            switch (ref.watch(appUiStyleProvider)) {
+                              AppUiStyle.gekiga => GekigaIconButton(
+                                icon: Icons.add,
+                                size: 32,
+                                onPressed: _showAddMenu,
                               ),
-                            ),
-                          },
-                        ],
-                      ),
-                    ),
-                    // 一対/広場切り替えタブの真下に検索欄を置く（2026-08-30
-                    // 追加）。検索中は下のExpandedの中身がカテゴリ別スワイプ
-                    // 表示から検索結果一覧に切り替わる。並べ替えボタンは
-                    // 検索欄の右隣に置く（2026-09-02追加）。
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                      child: Row(
-                        children: [
-                          Expanded(child: _buildSearchField(strings)),
-                          const SizedBox(width: 8),
-                          _buildSortButton(strings),
-                        ],
-                      ),
-                    ),
-                    // ヘッダー（一対/広場切り替えタブ）と一覧の間に隙間を空ける
-                    // （2026-08-04追加、劇画スタイルのみ→2026-08-12全スタイル
-                    // 共通に変更）。劇画スタイルはジグザグ枠の箱が隙間無く
-                    // ヘッダーのタブに接してしまい被って見える不具合、フラット
-                    // スタイルは選択中チップの塗り潰しと一覧の先頭行が隙間無く
-                    // 接して重なって見える不具合が、それぞれあった。
-                    const SizedBox(height: 12),
-                    Expanded(
-                      child: searchQuery.isEmpty
-                          ? PageView(
-                              // 横スワイプで一対⇄広場を切り替える。速度しきい値
-                              // 判定の自前ジェスチャー（`SwipeBackDetector`）だと
-                              // 片方向だけジェスチャーアリーナで負けて反応しない
-                              // ことがあったため、双方向のページ送りが実績豊富な
-                              // `PageView`に置き換えた（2026-08-09変更、
-                              // 2026-08-06時点では速度しきい値の条件式自体を
-                              // 両方向常時有効にする修正をしていたが、それでも
-                              // 一対→広場方向が反応しない場合が残っていた）。
-                              controller: _categoryPageController,
-                              onPageChanged: _handleCategoryPageChanged,
-                              children: [
-                                _buildDirectMessages(
-                                  dmSnapshot,
-                                  directMessages,
-                                  incomingRequests,
-                                  outgoingRequests,
-                                  prefsById,
-                                  blockedIds,
+                              AppUiStyle.glass => GlassIconButton(
+                                icon: Icons.add,
+                                size: 32,
+                                onPressed: _showAddMenu,
+                              ),
+                              AppUiStyle.flat => IconButton.filled(
+                                icon: const Icon(Icons.add, size: 20),
+                                onPressed: _showAddMenu,
+                                style: IconButton.styleFrom(
+                                  minimumSize: const Size(32, 32),
+                                  padding: EdgeInsets.zero,
                                 ),
-                                _buildGroups(
-                                  groupSnapshot,
-                                  groups,
-                                  prefsById,
-                                  pendingGroupRequests,
-                                ),
-                              ],
-                            )
-                          : _buildSearchResults(
-                              searchQuery,
-                              directMessages,
-                              groups,
-                              prefsById,
-                              blockedIds,
-                              strings,
-                            ),
-                    ),
-                  ],
-                );
-
-                // アイコン+寄合一覧レイアウト（[TalksListLayoutStyle.iconSplit]）を
-                // 選んでいる場合、[ignoreIconSplitOnComputer]（PCの広い横画面）
-                // でない限り[_buildIconSplitPane]を使う（2026-09-24修正、当初の
-                // 2026-09-11時点の仕様に復元。2026-09-14に画面幅のみで判定する
-                // 下の[isSplit]分岐を常に優先する実装に一旦変更していたが、
-                // それだとPCでも常にiconSplitが強制される回帰になっていた）。
-                // タブレットを横にした場合はこの設定が引き続き適用され、
-                // タップで全画面化・右スワイプで3ブロック表示に戻る挙動になる
-                // （[ignoreIconSplitOnComputer]の判定理由は定義箇所参照）。
-                // `_buildIconSplitPane`自身が画面が狭い場合のフォールバック
-                // （寄合一覧のみ表示しタップでフルスクリーン遷移）も内包して
-                // いるため、狭い画面側の向き判定は不要。
-                if (talksListLayoutStyle == TalksListLayoutStyle.iconSplit &&
-                    !ignoreIconSplitOnComputer) {
-                  return _buildIconSplitPane(
-                    directMessages,
-                    groups,
-                    prefsById,
-                    incomingRequests,
-                    outgoingRequests,
-                    pendingGroupRequests,
-                    blockedIds,
+                              ),
+                            },
+                          ],
+                        ),
+                      ),
+                      // 一対/広場切り替えタブの真下に検索欄を置く（2026-08-30
+                      // 追加）。検索中は下のExpandedの中身がカテゴリ別スワイプ
+                      // 表示から検索結果一覧に切り替わる。並べ替えボタンは
+                      // 検索欄の右隣に置く（2026-09-02追加）。
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                        child: Row(
+                          children: [
+                            Expanded(child: _buildSearchField(strings)),
+                            const SizedBox(width: 8),
+                            _buildSortButton(strings),
+                          ],
+                        ),
+                      ),
+                      // ヘッダー（一対/広場切り替えタブ）と一覧の間に隙間を空ける
+                      // （2026-08-04追加、劇画スタイルのみ→2026-08-12全スタイル
+                      // 共通に変更）。劇画スタイルはジグザグ枠の箱が隙間無く
+                      // ヘッダーのタブに接してしまい被って見える不具合、フラット
+                      // スタイルは選択中チップの塗り潰しと一覧の先頭行が隙間無く
+                      // 接して重なって見える不具合が、それぞれあった。
+                      const SizedBox(height: 12),
+                      Expanded(
+                        child: searchQuery.isEmpty
+                            ? PageView(
+                                // 横スワイプで一対⇄広場を切り替える。速度しきい値
+                                // 判定の自前ジェスチャー（`SwipeBackDetector`）だと
+                                // 片方向だけジェスチャーアリーナで負けて反応しない
+                                // ことがあったため、双方向のページ送りが実績豊富な
+                                // `PageView`に置き換えた（2026-08-09変更、
+                                // 2026-08-06時点では速度しきい値の条件式自体を
+                                // 両方向常時有効にする修正をしていたが、それでも
+                                // 一対→広場方向が反応しない場合が残っていた）。
+                                controller: _categoryPageController,
+                                onPageChanged: _handleCategoryPageChanged,
+                                children: [
+                                  _buildDirectMessages(
+                                    dmSnapshot,
+                                    directMessages,
+                                    incomingRequests,
+                                    outgoingRequests,
+                                    prefsById,
+                                    blockedIds,
+                                  ),
+                                  _buildGroups(
+                                    groupSnapshot,
+                                    groups,
+                                    prefsById,
+                                    pendingGroupRequests,
+                                  ),
+                                ],
+                              )
+                            : _buildSearchResults(
+                                searchQuery,
+                                directMessages,
+                                groups,
+                                prefsById,
+                                blockedIds,
+                                strings,
+                              ),
+                      ),
+                    ],
                   );
-                }
 
-                if (!isSplit) {
-                  return listPane;
-                }
+                  // アイコン+寄合一覧レイアウト（[TalksListLayoutStyle.iconSplit]）を
+                  // 選んでいる場合、[ignoreIconSplitOnComputer]（PCの広い横画面）
+                  // でない限り[_buildIconSplitPane]を使う（2026-09-24修正、当初の
+                  // 2026-09-11時点の仕様に復元。2026-09-14に画面幅のみで判定する
+                  // 下の[isSplit]分岐を常に優先する実装に一旦変更していたが、
+                  // それだとPCでも常にiconSplitが強制される回帰になっていた）。
+                  // タブレットを横にした場合はこの設定が引き続き適用され、
+                  // タップで全画面化・右スワイプで3ブロック表示に戻る挙動になる
+                  // （[ignoreIconSplitOnComputer]の判定理由は定義箇所参照）。
+                  // `_buildIconSplitPane`自身が画面が狭い場合のフォールバック
+                  // （寄合一覧のみ表示しタップでフルスクリーン遷移）も内包して
+                  // いるため、狭い画面側の向き判定は不要。
+                  if (talksListLayoutStyle == TalksListLayoutStyle.iconSplit &&
+                      !ignoreIconSplitOnComputer) {
+                    return _buildIconSplitPane(
+                      directMessages,
+                      groups,
+                      prefsById,
+                      incomingRequests,
+                      outgoingRequests,
+                      pendingGroupRequests,
+                      blockedIds,
+                    );
+                  }
 
-                // 会話ペインでの横スワイプで一覧の表示/非表示を切り替える
-                // （一覧側のスワイプは既に一対⇄広場の切り替えに使っているため、
-                // ここは会話ペインのみに閉じたジェスチャーにする）。
-                // 左スワイプ＝広げる、右スワイプ＝戻す、という他画面と同じ
-                // 「進む/戻る」の向きに合わせている。
-                final detailPane = SwipeBackDetector(
-                  onBack: () => setState(() => _chatExpanded = false),
-                  onNext: () => setState(() => _chatExpanded = true),
-                  child: _buildDetailPane(directMessages, groups),
-                );
+                  if (!isSplit) {
+                    return listPane;
+                  }
 
-                if (_chatExpanded) return detailPane;
+                  // 会話ペインでの横スワイプで一覧の表示/非表示を切り替える
+                  // （一覧側のスワイプは既に一対⇄広場の切り替えに使っているため、
+                  // ここは会話ペインのみに閉じたジェスチャーにする）。
+                  // 左スワイプ＝広げる、右スワイプ＝戻す、という他画面と同じ
+                  // 「進む/戻る」の向きに合わせている。
+                  final detailPane = SwipeBackDetector(
+                    onBack: () => setState(() => _chatExpanded = false),
+                    onNext: () => setState(() => _chatExpanded = true),
+                    child: _buildDetailPane(directMessages, groups),
+                  );
 
-                return Row(
-                  children: [
-                    // 260px: 語らい一覧のブロック（アイコン＋名前＋ピン/ミュート
-                    // アイコン）が重ならない範囲でできるだけ狭め、メッセージ画面
-                    // 側に幅を譲っている（2026-08-05再変更、360→300→240。2026-08-13に
-                    // 一旦300へ戻したのは、240だとEnglish表示時の一対/広場切り替え
-                    // タブ（"Private N"/"Plaza N"）＋追加ボタンが収まりきらなかった
-                    // ため。2026-08-14、区切り線の位置を設定サイドバー
-                    // （`_kSettingsSidebarWidth`）・身だしなみサイドバー
-                    // （`_kProfileSidebarWidth`）と揃える目的で一旦240へ戻したところ、
-                    // 劇画UIで一対/広場タブ（`GekigaJointedPair`、横スクロール式で
-                    // 折り返せない）が「+」ボタン手前でクリップされ欠けて見える
-                    // 不具合が発生したため260へ広げ（250へ微調整後、再度260へ
-                    // 戻した）、3画面とも同じ値で揃える。
-                    SizedBox(width: 260, child: listPane),
-                    const VerticalDivider(width: 1),
-                    Expanded(child: detailPane),
-                  ],
-                );
-              },
-            );
-          },
+                  if (_chatExpanded) return detailPane;
+
+                  return Row(
+                    children: [
+                      // 260px: 語らい一覧のブロック（アイコン＋名前＋ピン/ミュート
+                      // アイコン）が重ならない範囲でできるだけ狭め、メッセージ画面
+                      // 側に幅を譲っている（2026-08-05再変更、360→300→240。2026-08-13に
+                      // 一旦300へ戻したのは、240だとEnglish表示時の一対/広場切り替え
+                      // タブ（"Private N"/"Plaza N"）＋追加ボタンが収まりきらなかった
+                      // ため。2026-08-14、区切り線の位置を設定サイドバー
+                      // （`_kSettingsSidebarWidth`）・身だしなみサイドバー
+                      // （`_kProfileSidebarWidth`）と揃える目的で一旦240へ戻したところ、
+                      // 劇画UIで一対/広場タブ（`GekigaJointedPair`、横スクロール式で
+                      // 折り返せない）が「+」ボタン手前でクリップされ欠けて見える
+                      // 不具合が発生したため260へ広げ（250へ微調整後、再度260へ
+                      // 戻した）、3画面とも同じ値で揃える。
+                      SizedBox(width: 260, child: listPane),
+                      const VerticalDivider(width: 1),
+                      Expanded(child: detailPane),
+                    ],
+                  );
+                },
+              );
+            },
+          ),
         ),
       ),
     );
@@ -1709,18 +1719,17 @@ class _TalksTabState extends ConsumerState<TalksTab>
               IconButton(
                 icon: Icon(_iconRailSearchOpen ? Icons.close : Icons.search),
                 tooltip: '',
-                // モバイル実機では112px幅のインライン検索結果は窮屈なため、
-                // 専用のフルページ検索（`/talks/search`）へ遷移する
-                // （2026-09-12追加、requirement 1）。それ以外
-                // （コンピューター・タブレット全般）は従来通りこの列内で
-                // トグルする。判定はレイアウト起因の問題（幅の狭さ）なので
-                // OS（`isMobileCallPlatform`はWeb版が常にfalseで不適）
+                // モバイル（スマホ・タブレット）では、112px幅のインライン検索
+                // 結果は窮屈なため、専用のフルページ検索（`/talks/search`）へ
+                // 遷移する（2026-09-12追加、2026-10-12にタブレットも対象へ拡大。
+                // 以前はスマホのみで、タブレットは小さな検索ボックスが開くだけ
+                // だった）。コンピューターだけは従来通りこの列内でトグルする。
+                // 判定はOS（`isMobileCallPlatform`はWeb版が常にfalseで不適）
                 // ではなく、画面サイズ＋アスペクト比でコンピューター／
                 // タブレット／スマホを判定する`classifyDevice`を使う
-                // （2026-09-13修正、タブレットの誤判定防止のため
-                // OSファミリーのみの判定から変更）。
+                // （縦横どちらの向きでも同じ結果になる）。
                 onPressed: () {
-                  if (classifyDevice(context) == DeviceClass.phone) {
+                  if (opensTalksSearchPage(classifyDevice(context))) {
                     ref
                         .read(goRouterProvider)
                         .push('/talks/search', extra: widget.currentUser);
@@ -2483,6 +2492,7 @@ class _FriendRequestTile extends ConsumerWidget {
     // プロフィールカードがあればそれを反映して表示する（2026-07-29追加）。
     final dmId = DirectMessage.idFor(currentUserId, _otherUserId);
     final iconUrl = otherUser?.effectiveIconFor(dmId)?.url;
+    final iconFocal = otherUser?.effectiveIconFocalFor(dmId);
     final uiStyle = ref.watch(appUiStyleProvider);
     final isGekiga = uiStyle == AppUiStyle.gekiga;
 
@@ -2490,6 +2500,7 @@ class _FriendRequestTile extends ConsumerWidget {
         ? GlassAvatar(
             size: 40,
             image: iconUrl != null ? NetworkImage(iconUrl) : null,
+            focal: iconFocal,
             fallback: iconUrl != null
                 ? null
                 : Icon(
@@ -2497,11 +2508,11 @@ class _FriendRequestTile extends ConsumerWidget {
                     color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
           )
-        : CircleAvatar(
-            backgroundImage: iconUrl != null ? NetworkImage(iconUrl) : null,
-            backgroundColor: Colors.transparent,
+        : FocalCircleAvatar(
+            url: iconUrl,
+            focal: iconFocal,
             foregroundColor: Theme.of(context).colorScheme.onSurfaceVariant,
-            child: iconUrl == null ? const Icon(Icons.person_outline) : null,
+            fallback: const Icon(Icons.person_outline),
           );
     final titleText = '@${request.otherRhingSeed(currentUserId)}';
     // outgoing（自分が送った申請）は「相手の承認を待っています」という
@@ -2801,6 +2812,7 @@ class DirectMessageTile extends ConsumerWidget {
     final otherUser = ref.watch(watchedUserProvider(otherUserId)).value;
     final label = dmSearchLabel(otherUser, dm, currentUser.userId);
     final iconUrl = otherUser?.effectiveIconFor(dm.dmId)?.url;
+    final iconFocal = otherUser?.effectiveIconFocalFor(dm.dmId);
     final uiStyle = ref.watch(appUiStyleProvider);
     final isGekiga = uiStyle == AppUiStyle.gekiga;
     final isGlass = uiStyle == AppUiStyle.glass;
@@ -2816,15 +2828,16 @@ class DirectMessageTile extends ConsumerWidget {
         ? GlassAvatar(
             size: 40,
             image: iconUrl != null ? NetworkImage(iconUrl) : null,
+            focal: iconFocal,
             fallback: iconUrl != null
                 ? null
                 : Icon(Icons.person, color: colorScheme.onSurfaceVariant),
           )
-        : CircleAvatar(
-            backgroundImage: iconUrl != null ? NetworkImage(iconUrl) : null,
-            backgroundColor: Colors.transparent,
+        : FocalCircleAvatar(
+            url: iconUrl,
+            focal: iconFocal,
             foregroundColor: colorScheme.onSurfaceVariant,
-            child: iconUrl == null ? const Icon(Icons.person) : null,
+            fallback: const Icon(Icons.person),
           );
     final subtitleWidget = previewLabel == null
         ? null
@@ -3128,6 +3141,7 @@ class _DirectMessageIconTile extends ConsumerWidget {
     final otherUser = ref.watch(watchedUserProvider(otherUserId)).value;
     final label = dmSearchLabel(otherUser, dm, currentUser.userId);
     final iconUrl = otherUser?.effectiveIconFor(dm.dmId)?.url;
+    final iconFocal = otherUser?.effectiveIconFocalFor(dm.dmId);
     final isGlass = ref.watch(appUiStyleProvider) == AppUiStyle.glass;
     final colorScheme = Theme.of(context).colorScheme;
     return _ConversationIconTile(
@@ -3137,15 +3151,16 @@ class _DirectMessageIconTile extends ConsumerWidget {
           ? GlassAvatar(
               size: 40,
               image: iconUrl != null ? NetworkImage(iconUrl) : null,
+              focal: iconFocal,
               fallback: iconUrl != null
                   ? null
                   : Icon(Icons.person, color: colorScheme.onSurfaceVariant),
             )
-          : CircleAvatar(
-              backgroundImage: iconUrl != null ? NetworkImage(iconUrl) : null,
-              backgroundColor: Colors.transparent,
+          : FocalCircleAvatar(
+              url: iconUrl,
+              focal: iconFocal,
               foregroundColor: colorScheme.onSurfaceVariant,
-              child: iconUrl == null ? const Icon(Icons.person) : null,
+              fallback: const Icon(Icons.person),
             ),
       label: label,
       unreadCount: unreadCount,
