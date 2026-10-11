@@ -25,6 +25,7 @@ import { logger } from "firebase-functions";
 import { defineSecret, defineString } from "firebase-functions/params";
 import {
   onDocumentCreated,
+  onDocumentUpdated,
   onDocumentWritten,
 } from "firebase-functions/v2/firestore";
 import { HttpsError, onCall, onRequest } from "firebase-functions/v2/https";
@@ -56,6 +57,7 @@ import {
 import { renderOgImage } from "./ogImage";
 import { resolveMentionRecipients } from "./mentions";
 import { excludeBlockers } from "./block";
+import { severanceNotifyTarget } from "./severanceNotify";
 import { decideJoin, newMemberPermissions } from "./joinGroup";
 import {
   isNewPendingRequest,
@@ -2684,6 +2686,119 @@ export const joinGroup = onCall(
     }
     await batch.commit();
     return { joined: true };
+  },
+);
+
+/**
+ * 指定ユーザーのAndroid/Webの全端末へ、同じ内容のプッシュ通知を1件送る
+ * （2026-10-11追加）。`sendMessageNotification`と同じ形式（Androidはdata-only、
+ * Webはwebpush）。ミュート等の判定は呼び出し側で済ませておく。
+ */
+async function sendPushToUsers(params: {
+  recipientIds: string[];
+  title: string;
+  body: string;
+  iconUrl: string | null;
+  isDm: boolean;
+  conversationId: string;
+  roomId: string;
+}): Promise<void> {
+  const { recipientIds, title, body, iconUrl, isDm, conversationId, roomId } =
+    params;
+  const androidTokens: string[] = [];
+  const webTokens: string[] = [];
+  for (const recipientId of recipientIds) {
+    const recipientDoc = await db.doc(`users/${recipientId}`).get();
+    const tokens: FcmTokenEntry[] = recipientDoc.data()?.fcmTokens ?? [];
+    for (const entry of tokens) {
+      if (entry.platform === "android") androidTokens.push(entry.token);
+      else if (entry.platform === "web") webTokens.push(entry.token);
+    }
+  }
+  if (androidTokens.length === 0 && webTokens.length === 0) return;
+  const sentAtMs = Date.now();
+  const messaging = getMessaging();
+  if (androidTokens.length > 0) {
+    await messaging.sendEachForMulticast({
+      tokens: androidTokens,
+      data: {
+        title,
+        body,
+        iconUrl: iconUrl ?? "",
+        previewUrl: "",
+        isDm: String(isDm),
+        conversationId,
+        roomId,
+        isMention: "false",
+        sentAt: String(sentAtMs),
+      },
+      android: { priority: "high" },
+    });
+  }
+  if (webTokens.length > 0) {
+    await messaging.sendEachForMulticast({
+      tokens: webTokens,
+      webpush: {
+        notification: {
+          title,
+          body: withSentTime(body, sentAtMs),
+          icon: iconUrl ?? undefined,
+        },
+        data: { isDm: String(isDm), conversationId, roomId, isMention: "false" },
+        fcmOptions: { link: "/" },
+      },
+    });
+  }
+}
+
+/**
+ * 絶縁の提案（`severanceRequestedBy`が相手のuserIdに変わった時）を、相手へ
+ * プッシュ通知で1件知らせる（2026-10-11追加）。大事な同意依頼のため、相手が
+ * 一対をミュートしていても送る。提案者をブロックしている相手には送らない。
+ * 提案→取り消しの連打で通知を連発させないよう、直近1時間以内に通知済みなら
+ * 送らない（`severanceNotifiedAt`はこの関数だけが書くサーバー専用の項目）。
+ */
+export const onSeveranceProposed = onDocumentUpdated(
+  { document: "directMessages/{dmId}", region: "asia-northeast1" },
+  async (event) => {
+    const before = event.data?.before?.data();
+    const after = event.data?.after?.data();
+    if (!after) return;
+    const notifiedAt = after.severanceNotifiedAt as
+      | FirebaseFirestore.Timestamp
+      | undefined;
+    const target = severanceNotifyTarget(
+      before,
+      after,
+      notifiedAt?.toMillis?.() ?? null,
+      Date.now(),
+    );
+    if (!target) return;
+
+    const { dmId } = event.params;
+    const recipients = await excludeBlockers(
+      [target.recipientId],
+      target.proposerId,
+      isBlockedBy,
+    );
+    if (recipients.length === 0) return;
+
+    const proposerDoc = await db.doc(`users/${target.proposerId}`).get();
+    if (!proposerDoc.exists) return;
+    const identity = resolveSenderIdentity(proposerDoc.data()!, dmId);
+
+    await event.data!.after.ref.update({
+      severanceNotifiedAt: FieldValue.serverTimestamp(),
+    });
+    await sendPushToUsers({
+      recipientIds: recipients,
+      title: identity.name,
+      body: "絶縁を提案しました。承認または辞退してください",
+      iconUrl: identity.iconUrl,
+      isDm: true,
+      conversationId: dmId,
+      roomId: "",
+    });
   },
 );
 

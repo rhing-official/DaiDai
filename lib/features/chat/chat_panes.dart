@@ -57,6 +57,7 @@ import 'group_settings_popup.dart';
 import 'room_tab_bar.dart';
 import 'severance_dialog.dart';
 import 'join_request_banner.dart';
+import 'proposal_banner.dart';
 import 'task_banner.dart';
 import 'user_profile_card_dialog.dart';
 import '../../widgets/dialog_keyboard_shortcuts.dart';
@@ -935,48 +936,41 @@ class _SeveranceBanner extends ConsumerWidget {
 
     return Material(
       color: colorScheme.errorContainer,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: Row(
-          children: [
-            Expanded(
-              child: Text(
-                isProposedByMe
-                    ? strings.severanceBannerWaitingForOther
-                    : strings.severanceBannerProposedByOther,
-                style: TextStyle(color: colorScheme.onErrorContainer),
-              ),
-            ),
-            if (isProposedByMe)
-              TextButton(
-                onPressed: () => ref
-                    .read(directMessageRepositoryProvider)
-                    .cancelSeverance(dm.dmId),
-                child: Text(strings.severanceBannerCancelButton),
-              )
-            else ...[
-              TextButton(
-                onPressed: () => ref
-                    .read(directMessageRepositoryProvider)
-                    .cancelSeverance(dm.dmId),
-                child: Text(strings.severanceBannerDeclineButton),
-              ),
-              FilledButton(
-                style: FilledButton.styleFrom(
-                  backgroundColor: colorScheme.error,
-                ),
-                onPressed: () => SeveranceDialog.show(
-                  context,
-                  mode: SeveranceDialogMode.accept,
-                  dmId: dm.dmId,
-                  currentUserId: currentUserId,
-                  otherUserId: otherUserId,
-                ),
-                child: Text(strings.severanceBannerAcceptButton),
-              ),
-            ],
-          ],
+      child: ProposalBannerLayout(
+        message: Text(
+          isProposedByMe
+              ? strings.severanceBannerWaitingForOther
+              : strings.severanceBannerProposedByOther,
+          style: TextStyle(color: colorScheme.onErrorContainer),
         ),
+        actions: [
+          if (isProposedByMe)
+            TextButton(
+              onPressed: () => ref
+                  .read(directMessageRepositoryProvider)
+                  .cancelSeverance(dm.dmId),
+              child: Text(strings.severanceBannerCancelButton),
+            )
+          else ...[
+            TextButton(
+              onPressed: () => ref
+                  .read(directMessageRepositoryProvider)
+                  .cancelSeverance(dm.dmId),
+              child: Text(strings.severanceBannerDeclineButton),
+            ),
+            FilledButton(
+              style: proposalAcceptButtonStyle(),
+              onPressed: () => SeveranceDialog.show(
+                context,
+                mode: SeveranceDialogMode.accept,
+                dmId: dm.dmId,
+                currentUserId: currentUserId,
+                otherUserId: otherUserId,
+              ),
+              child: Text(strings.severanceBannerAcceptButton),
+            ),
+          ],
+        ],
       ),
     );
   }
@@ -1021,52 +1015,43 @@ class _ReadReceiptsProposalBanner extends ConsumerWidget {
 
     return Material(
       color: colorScheme.errorContainer,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: Row(
-          children: [
-            Expanded(
-              child: Text(
-                isProposedByMe
-                    ? (turningOn
-                          ? strings.conversationReadReceiptsBannerWaitingOn
-                          : strings.conversationReadReceiptsBannerWaitingOff)
-                    : (turningOn
-                          ? strings.conversationReadReceiptsBannerProposedOn(
-                              otherLabel,
-                            )
-                          : strings.conversationReadReceiptsBannerProposedOff(
-                              otherLabel,
-                            )),
-                style: TextStyle(color: colorScheme.onErrorContainer),
-              ),
-            ),
-            if (isProposedByMe)
-              TextButton(
-                onPressed: () => ref
-                    .read(directMessageRepositoryProvider)
-                    .cancelReadReceiptsToggleProposal(dm.dmId),
-                child: Text(strings.conversationReadReceiptsBannerCancelButton),
-              )
-            else ...[
-              TextButton(
-                onPressed: () => ref
-                    .read(directMessageRepositoryProvider)
-                    .cancelReadReceiptsToggleProposal(dm.dmId),
-                child: Text(
-                  strings.conversationReadReceiptsBannerDeclineButton,
-                ),
-              ),
-              FilledButton(
-                style: FilledButton.styleFrom(
-                  backgroundColor: colorScheme.error,
-                ),
-                onPressed: () => _accept(context, ref, strings, turningOn),
-                child: Text(strings.conversationReadReceiptsBannerAcceptButton),
-              ),
-            ],
-          ],
+      child: ProposalBannerLayout(
+        message: Text(
+          isProposedByMe
+              ? (turningOn
+                    ? strings.conversationReadReceiptsBannerWaitingOn
+                    : strings.conversationReadReceiptsBannerWaitingOff)
+              : (turningOn
+                    ? strings.conversationReadReceiptsBannerProposedOn(
+                        otherLabel,
+                      )
+                    : strings.conversationReadReceiptsBannerProposedOff(
+                        otherLabel,
+                      )),
+          style: TextStyle(color: colorScheme.onErrorContainer),
         ),
+        actions: [
+          if (isProposedByMe)
+            TextButton(
+              onPressed: () => ref
+                  .read(directMessageRepositoryProvider)
+                  .cancelReadReceiptsToggleProposal(dm.dmId),
+              child: Text(strings.conversationReadReceiptsBannerCancelButton),
+            )
+          else ...[
+            TextButton(
+              onPressed: () => ref
+                  .read(directMessageRepositoryProvider)
+                  .cancelReadReceiptsToggleProposal(dm.dmId),
+              child: Text(strings.conversationReadReceiptsBannerDeclineButton),
+            ),
+            FilledButton(
+              style: proposalAcceptButtonStyle(),
+              onPressed: () => _accept(context, ref, strings, turningOn),
+              child: Text(strings.conversationReadReceiptsBannerAcceptButton),
+            ),
+          ],
+        ],
       ),
     );
   }

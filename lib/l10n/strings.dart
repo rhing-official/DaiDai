@@ -2073,7 +2073,7 @@ class Strings {
     severanceAcceptDialogMessage:
         '同意すると、これまでの会話履歴が完全に削除され、友達関係も解消されます。この操作は取り消せません。',
     severanceAcceptButton: '同意して削除する',
-    severanceBannerWaitingForOther: '絶縁を提案しました。相手の同意をお待ちください',
+    severanceBannerWaitingForOther: '絶縁を提案しました。相手の承認を待ってください。',
     severanceBannerCancelButton: '取り消す',
     severanceBannerProposedByOther: '相手が絶縁を提案しています',
     severanceBannerDeclineButton: '今は同意しない',
@@ -2913,7 +2913,7 @@ class Strings {
         "end your friendship. This can't be undone.",
     severanceAcceptButton: 'Agree and delete',
     severanceBannerWaitingForOther:
-        'Severance proposed. Waiting for the other person to agree.',
+        'Severance proposed. Waiting for the other person to approve.',
     severanceBannerCancelButton: 'Cancel',
     severanceBannerProposedByOther: 'The other person proposed severance',
     severanceBannerDeclineButton: 'Not now',
