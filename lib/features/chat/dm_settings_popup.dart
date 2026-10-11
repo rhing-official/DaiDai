@@ -241,6 +241,7 @@ class DmSettingsPopup extends ConsumerWidget {
                       ? strings.conversationUnblock
                       : strings.conversationBlock,
                 ),
+                subtitle: Text(strings.conversationBlockHint),
                 onChanged: (value) {
                   final repository = ref.read(blockRepositoryProvider);
                   if (value) {

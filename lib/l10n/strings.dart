@@ -253,6 +253,7 @@ class Strings {
     required this.conversationMute,
     required this.conversationUnmute,
     required this.conversationBlock,
+    required this.conversationBlockHint,
     required this.conversationUnblock,
     required this.conversationSortRecent,
     required this.conversationSortKana,
@@ -1050,6 +1051,9 @@ class Strings {
   final String conversationMute;
   final String conversationUnmute;
   final String conversationBlock;
+
+  /// ブロックのスイッチの説明（2026-10-11追加）。
+  final String conversationBlockHint;
   final String conversationUnblock;
   final String conversationSortRecent;
   final String conversationSortKana;
@@ -2035,6 +2039,7 @@ class Strings {
     conversationMute: '通知オフ',
     conversationUnmute: '通知オン',
     conversationBlock: 'ブロック',
+    conversationBlockHint: 'この相手のメッセージ・通知・着信・友達申請を受け取りません。相手には分かりません',
     conversationUnblock: 'ブロック解除',
     conversationSortRecent: '最近会話した順',
     conversationSortKana: '五十音順',
@@ -2866,6 +2871,8 @@ class Strings {
     conversationMute: 'Mute notifications',
     conversationUnmute: 'Unmute notifications',
     conversationBlock: 'Block',
+    conversationBlockHint:
+        "You won't receive their messages, notifications, calls or friend requests, and they won't know",
     conversationUnblock: 'Unblock',
     conversationSortRecent: 'Most recent',
     conversationSortKana: 'Alphabetical',

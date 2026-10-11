@@ -445,7 +445,7 @@ class GroupSettingsPopup extends ConsumerWidget {
               // 「退会」は多寄合モードのハンバーガーメニューにのみ残る
               // 項目のため、単一モードでも退会できるようここに追加する。
               ListTile(
-                title: Text(strings.groupMenuLeave),
+                title: Center(child: Text(strings.groupMenuLeave)),
                 enabled: liveGroup.ownerId != userId,
                 onTap: () => GroupLeaveDialog.show(
                   context,
@@ -457,7 +457,7 @@ class GroupSettingsPopup extends ConsumerWidget {
               ListTile(
                 title: DestructiveLabel(
                   strings.groupDeleteMenuLabel,
-                  alignTextWithSiblings: true,
+                  centered: true,
                 ),
                 enabled: liveGroup.ownerId == userId,
                 onTap: () => GroupDeleteDialog.show(

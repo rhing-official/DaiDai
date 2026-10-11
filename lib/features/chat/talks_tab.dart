@@ -1012,11 +1012,11 @@ class _TalksTabState extends ConsumerState<TalksTab>
     final directMessagesStream = ref
         .watch(directMessageRepositoryProvider)
         .watchDirectMessages(widget.currentUser.userId);
-    final incomingRequests =
+    final allIncomingRequests =
         ref
             .watch(incomingFriendRequestsProvider(widget.currentUser.userId))
             .value ??
-        const [];
+        const <FriendRequest>[];
     final outgoingRequests =
         ref
             .watch(outgoingFriendRequestsProvider(widget.currentUser.userId))
@@ -1028,6 +1028,11 @@ class _TalksTabState extends ConsumerState<TalksTab>
     final blockedIds =
         ref.watch(blockedUserIdsProvider(widget.currentUser.userId)).value ??
         const {};
+    // ブロック中の相手からの友達申請は出さない（2026-10-11）。
+    final incomingRequests = [
+      for (final request in allIncomingRequests)
+        if (!blockedIds.contains(request.fromUserId)) request,
+    ];
     final pendingGroupRequests =
         ref
             .watch(

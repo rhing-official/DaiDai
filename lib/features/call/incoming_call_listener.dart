@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../providers/block_providers.dart';
 import '../../providers/repository_providers.dart';
 import '../../router/app_router.dart';
 import '../../utils/platform_info.dart';
@@ -37,6 +38,12 @@ class _IncomingCallListenerState extends ConsumerState<IncomingCallListener> {
     ref.listen(_incomingCallProvider(widget.currentUserId), (previous, next) {
       final call = next.asData?.value;
       if (call == null) return;
+      // ブロック中の相手からの着信は無視する（2026-10-11）。拒否は書き込まず、
+      // 発信側にはブロックが分からないまま呼び出し中として終わる。
+      final blocked =
+          ref.read(blockedUserIdsProvider(widget.currentUserId)).value ??
+          const <String>{};
+      if (blocked.contains(call.callerId)) return;
       if (!isMobileCallPlatform) {
         // PC/Web: フルスクリーンを経由せず直接セッションを開始する。
         // startOneToOne自体が同じ通話への重複アタッチを防ぐため

@@ -55,6 +55,7 @@ import {
 } from "./adminUsers";
 import { renderOgImage } from "./ogImage";
 import { resolveMentionRecipients } from "./mentions";
+import { excludeBlockers } from "./block";
 import { decideJoin, newMemberPermissions } from "./joinGroup";
 import {
   isNewPendingRequest,
@@ -2443,6 +2444,15 @@ async function isConversationMuted(
   return data.notificationsMuted === true;
 }
 
+/** [recipientId]が[senderId]を一対でブロックしているか（2026-10-11）。 */
+async function isBlockedBy(
+  recipientId: string,
+  senderId: string,
+): Promise<boolean> {
+  const doc = await db.doc(`users/${recipientId}/blockedUsers/${senderId}`).get();
+  return doc.exists;
+}
+
 async function sendMessageNotification(params: {
   isDm: boolean;
   conversationId: string;
@@ -2478,7 +2488,12 @@ async function sendMessageNotification(params: {
   if (isDm) {
     const dmDoc = await db.doc(`directMessages/${conversationId}`).get();
     const participants: string[] = dmDoc.data()?.participants ?? [];
-    recipientIds = participants.filter((id) => id !== senderId);
+    // 送信者をブロックしている相手には通知しない（2026-10-11）。
+    recipientIds = await excludeBlockers(
+      participants.filter((id) => id !== senderId),
+      senderId,
+      isBlockedBy,
+    );
     if (botName === null) {
       mentionRecipients = resolveMentionRecipients(message, {
         senderId,
@@ -2783,7 +2798,12 @@ async function incrementUnreadCounts(params: {
   if (isDm) {
     const dmDoc = await db.doc(`directMessages/${conversationId}`).get();
     const participants: string[] = dmDoc.data()?.participants ?? [];
-    recipientIds = participants.filter((id) => id !== senderId);
+    // ブロック中の送信者の分は未読にしない（2026-10-11）。
+    recipientIds = await excludeBlockers(
+      participants.filter((id) => id !== senderId),
+      senderId,
+      isBlockedBy,
+    );
   } else {
     const groupDoc = await db.doc(`groups/${conversationId}`).get();
     const memberIds: string[] = groupDoc.data()?.memberIds ?? [];
@@ -3449,6 +3469,10 @@ export const sendFriendRequest = onCall(
       });
       await batch.commit();
     };
+
+    // 宛先が送信者をブロックしている場合は、何も作らず成功と同じ応答で終える
+    // （相手にブロックを悟らせない、2026-10-11）。試行はレート制限に数え済み。
+    if (await isBlockedBy(toUserId, fromUserId)) return;
 
     const requestId = pairId(fromUserId, toUserId);
     const ref = db.collection("friendRequests").doc(requestId);
