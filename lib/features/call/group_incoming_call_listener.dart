@@ -20,6 +20,8 @@ import '../../widgets/glass/glass_surface.dart';
 import '../../widgets/nav_chip.dart';
 import 'active_call_session.dart';
 import 'call_sound_player.dart';
+import '../../l10n/strings.dart';
+import '../../l10n/vocabulary.dart';
 
 /// アプリ全体で、自分がメンバーになっている広場の新規通話開始を監視し、
 /// バナー表示＋着信音（3コールのみ）で知らせる。1対1の[IncomingCallListener]と
@@ -115,7 +117,10 @@ class _GroupIncomingCallListenerState
     ref
         .read(groupCallBannersProvider.notifier)
         .add(
-          PendingGroupCallBanner(call: call, groupName: group?.name ?? '広場'),
+          PendingGroupCallBanner(
+            call: call,
+            groupName: group?.name ?? ref.read(vocabularyProvider).plaza,
+          ),
         );
     final ringtoneSource = SoundCategory.ringtone.resolveSource(
       ref.read(ringtoneSoundProvider),
@@ -137,7 +142,9 @@ class _GroupIncomingCallListenerState
       if (mounted) {
         _errorBannerTimer = showAutoDismissBanner(
           context,
-          message: 'この通話は満員です（上限${call.maxParticipants}人）',
+          message: ref
+              .read(appStringsProvider)
+              .callFullMessageTemplate(call.maxParticipants),
           previousTimer: _errorBannerTimer,
         );
       }
@@ -307,7 +314,9 @@ class _GroupCallBanner extends ConsumerWidget {
             const SizedBox(width: 12),
             Expanded(
               child: Text(
-                '$groupNameで通話が始まりました。\nタップして参加',
+                ref
+                    .watch(appStringsProvider)
+                    .groupCallStartedBannerTemplate(groupName),
                 style: TextStyle(color: foreground),
               ),
             ),

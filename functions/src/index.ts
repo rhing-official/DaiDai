@@ -64,6 +64,10 @@ import {
   resolveJoinRequestRecipients,
 } from "./joinRequestNotify";
 import {
+  friendRequestBody,
+  resolveFriendRequestRecipient,
+} from "./friendRequestNotify";
+import {
   withSenderName,
   withSentTime,
 } from "./notificationFormat";
@@ -2888,6 +2892,46 @@ export const onJoinRequestWritten = onDocumentWritten(
         },
       });
     }
+  },
+);
+
+/**
+ * 友達申請（新規・却下後の再申請）を、申請を受ける側へプッシュで知らせる
+ * （2026-10-13追加、Android・Web）。通知の見た目は一対のメッセージ通知と同じ
+ * （title=送信者が相手に見せる呼び名、アイコン=その会話用カードのアイコン。
+ * 友達申請の会話ID＝`friendRequests`の文書ID＝`pairId`）。タップはアプリを開くだけ
+ * （`conversationId`を空にする）。送信者をブロックしている相手には送らない。
+ */
+export const onFriendRequestWritten = onDocumentWritten(
+  { document: "friendRequests/{requestId}", region: "asia-northeast1" },
+  async (event) => {
+    const before = event.data?.before?.data();
+    const after = event.data?.after?.data();
+    const target = resolveFriendRequestRecipient(before, after);
+    if (!target) return;
+
+    const recipients = await excludeBlockers(
+      [target.recipientId],
+      target.senderId,
+      isBlockedBy,
+    );
+    if (recipients.length === 0) return;
+
+    const senderDoc = await db.doc(`users/${target.senderId}`).get();
+    if (!senderDoc.exists) return;
+    const identity = resolveSenderIdentity(
+      senderDoc.data()!,
+      event.params.requestId,
+    );
+    await sendPushToUsers({
+      recipientIds: recipients,
+      title: identity.name,
+      body: friendRequestBody(after?.message),
+      iconUrl: identity.iconUrl,
+      isDm: true,
+      conversationId: "",
+      roomId: "",
+    });
   },
 );
 

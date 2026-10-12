@@ -122,7 +122,11 @@ class _AddChatDialogContentState extends ConsumerState<AddChatDialogContent> {
       // まだ友達でない場合は即送信せず、カード選択を含む確認UIへ切り替える。
       setState(() => _pendingTarget = other);
     } catch (e) {
-      setState(() => _errorMessage = 'エラーが発生しました: $e');
+      setState(
+        () => _errorMessage = ref
+            .read(appStringsProvider)
+            .genericErrorTemplate(e),
+      );
     } finally {
       if (mounted) {
         setState(() => _isSearching = false);

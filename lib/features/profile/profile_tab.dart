@@ -1133,9 +1133,7 @@ class _WorkshopView extends StatelessWidget {
       children: [
         if (user.profileCards.isNotEmpty) ...[
           Text(
-            '右上の丸いボタンで選んだカードが標準になります。'
-            '友達申請や広場参加など、指定していない場面では'
-            '標準のカードが使われます',
+            strings.workshopStandardCardHint,
             style: TextStyle(
               fontSize: 13,
               color: Theme.of(context).colorScheme.onSurfaceVariant,

@@ -90,7 +90,11 @@ class _CreateGroupDialogContentState
 
   void _goToStep2() {
     if (_nameController.text.trim().isEmpty) {
-      setState(() => _errorMessage = '広場の名前を入力してください');
+      setState(
+        () => _errorMessage = ref
+            .read(appStringsProvider)
+            .createGroupNameRequiredError,
+      );
       return;
     }
     setState(() {
@@ -109,8 +113,9 @@ class _CreateGroupDialogContentState
   Future<void> _createGroup() async {
     if (_members.length < 2) {
       setState(
-        () => _errorMessage =
-            '広場は3人以上（自分含む）で作成できます。あと${2 - _members.length}人選んでください',
+        () => _errorMessage = ref
+            .read(appStringsProvider)
+            .createGroupMinMembersError(2 - _members.length),
       );
       return;
     }
@@ -154,7 +159,11 @@ class _CreateGroupDialogContentState
       // 設定した語らいレイアウトどおりに開く（2026-10-11変更）。
       await openGroupInTalks(ref, group, roomId: rooms.first.roomId);
     } catch (e) {
-      setState(() => _errorMessage = 'エラーが発生しました: $e');
+      setState(
+        () => _errorMessage = ref
+            .read(appStringsProvider)
+            .genericErrorTemplate(e),
+      );
     } finally {
       if (mounted) {
         setState(() => _isCreating = false);
@@ -179,10 +188,13 @@ class _CreateGroupDialogContentState
           padding: const EdgeInsets.fromLTRB(16, 12, 4, 4),
           child: Row(
             children: [
-              const Expanded(
+              Expanded(
                 child: Text(
-                  '広場を作る',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  ref.watch(appStringsProvider).createGroupTitle,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
                 ),
               ),
               IconButton(
@@ -222,15 +234,15 @@ class _CreateGroupDialogContentState
           ? GekigaTextField(
               controller: _nameController,
               autofocus: true,
-              labelText: '広場の名前',
+              labelText: strings.createGroupNameLabel,
               onSubmitted: (_) => _goToStep2(),
             )
           : TextField(
               controller: _nameController,
               autofocus: true,
-              decoration: const InputDecoration(
-                labelText: '広場の名前',
-                border: OutlineInputBorder(),
+              decoration: InputDecoration(
+                labelText: strings.createGroupNameLabel,
+                border: const OutlineInputBorder(),
               ),
               onSubmitted: (_) => _goToStep2(),
             ),
@@ -238,11 +250,8 @@ class _CreateGroupDialogContentState
       SwitchListTile(
         contentPadding: EdgeInsets.zero,
         value: _roomsEnabled,
-        title: const Text('寄合を複数作成する'),
-        subtitle: const Text(
-          'オフの場合、寄合は1つだけになりサイドバーは出ません。'
-          '設定は全てハンバーガーメニューから行えます（後から複数に切り替え可能）',
-        ),
+        title: Text(strings.createGroupMultiRoomTitle),
+        subtitle: Text(strings.createGroupMultiRoomSubtitle),
         onChanged: (value) => setState(() => _roomsEnabled = value),
       ),
       const SizedBox(height: 8),
@@ -265,13 +274,17 @@ class _CreateGroupDialogContentState
       const SizedBox(height: 16),
       SizedBox(
         width: double.infinity,
-        child: ElevatedButton(onPressed: _goToStep2, child: const Text('次へ')),
+        child: ElevatedButton(
+          onPressed: _goToStep2,
+          child: Text(strings.createGroupNextButton),
+        ),
       ),
     ];
   }
 
   List<Widget> _buildStep2() {
     final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
+    final strings = ref.watch(appStringsProvider);
     return [
       Row(
         children: [
@@ -280,23 +293,23 @@ class _CreateGroupDialogContentState
             onPressed: _isCreating ? null : _goBackToStep1,
           ),
           const SizedBox(width: 4),
-          const Expanded(child: Text('メンバーを友達から選ぶ（自分＋2人以上が必要）')),
+          Expanded(child: Text(strings.createGroupMemberStepTitle)),
         ],
       ),
       const SizedBox(height: 8),
       isGekiga
           ? GekigaTextField(
               controller: _searchController,
-              labelText: '名前で検索',
+              labelText: strings.createGroupSearchLabel,
               prefixIcon: const Icon(Icons.search, color: GekigaColors.onPanel),
               onChanged: (_) => setState(() {}),
             )
           : TextField(
               controller: _searchController,
-              decoration: const InputDecoration(
-                labelText: '名前で検索',
-                prefixIcon: Icon(Icons.search),
-                border: OutlineInputBorder(),
+              decoration: InputDecoration(
+                labelText: strings.createGroupSearchLabel,
+                prefixIcon: const Icon(Icons.search),
+                border: const OutlineInputBorder(),
               ),
               onChanged: (_) => setState(() {}),
             ),
@@ -314,7 +327,7 @@ class _CreateGroupDialogContentState
             data: (friends) {
               if (friends.isEmpty) {
                 return Text(
-                  '友達がいません。先に縁結びで友達を追加してください',
+                  strings.createGroupNoFriends,
                   style: TextStyle(color: emptyStateColor),
                 );
               }
@@ -330,7 +343,7 @@ class _CreateGroupDialogContentState
                         .toList();
               if (filtered.isEmpty) {
                 return Text(
-                  '該当する友達が見つかりません',
+                  strings.createGroupNoMatch,
                   style: TextStyle(color: emptyStateColor),
                 );
               }
@@ -394,7 +407,7 @@ class _CreateGroupDialogContentState
             },
             loading: () => const SizedBox.shrink(),
             error: (e, _) => Text(
-              '友達一覧の取得に失敗しました: $e',
+              strings.createGroupFriendsLoadError(e),
               style: const TextStyle(color: Colors.red),
             ),
           );
@@ -402,7 +415,7 @@ class _CreateGroupDialogContentState
       ),
       const SizedBox(height: 8),
       Text(
-        '${_members.length}人選択中（自分を含めて計${_members.length + 1}人）',
+        strings.createGroupSelectedCount(_members.length),
         style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
       ),
       if (_errorMessage != null) ...[
@@ -414,7 +427,9 @@ class _CreateGroupDialogContentState
         width: double.infinity,
         child: ElevatedButton(
           onPressed: _isCreating ? null : _createGroup,
-          child: _isCreating ? const SizedBox.shrink() : const Text('作成'),
+          child: _isCreating
+              ? const SizedBox.shrink()
+              : Text(strings.commonCreate),
         ),
       ),
     ];

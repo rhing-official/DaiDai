@@ -16,9 +16,13 @@ class AccountSuspendedScreen extends ConsumerWidget {
   final Timestamp? autoSuspendedUntil;
 
   /// 「約12時間」「約7日」のような目安表示に丸める。
-  String _formatRemaining(Duration remaining) {
-    if (remaining.inDays >= 1) return '約${remaining.inDays}日';
-    return '約${remaining.inHours.clamp(1, 23)}時間';
+  String _formatRemaining(Strings strings, Duration remaining) {
+    if (remaining.inDays >= 1) {
+      return strings.accountSuspendedRemainingDaysTemplate(remaining.inDays);
+    }
+    return strings.accountSuspendedRemainingHoursTemplate(
+      remaining.inHours.clamp(1, 23),
+    );
   }
 
   @override
@@ -47,7 +51,7 @@ class AccountSuspendedScreen extends ConsumerWidget {
                   const SizedBox(height: 8),
                   Text(
                     strings.accountSuspendedAutoUntilTemplate(
-                      _formatRemaining(remaining),
+                      _formatRemaining(strings, remaining),
                     ),
                     textAlign: TextAlign.center,
                   ),

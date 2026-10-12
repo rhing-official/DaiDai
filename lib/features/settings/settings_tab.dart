@@ -2082,7 +2082,7 @@ class _AccentColorFolderState extends ConsumerState<_AccentColorFolder> {
   void _applyHexInput() {
     final color = tryParseHexColor(_hexController.text);
     if (color == null) {
-      setState(() => _errorText = '「#RRGGBB」の形式で入力してください');
+      setState(() => _errorText = widget.strings.settingsHexColorFormatError);
       return;
     }
     setState(() => _errorText = null);
@@ -2426,7 +2426,11 @@ class _TextColorFolderState extends ConsumerState<_TextColorFolder> {
   void _applyLight() {
     final color = tryParseHexColor(_lightController.text);
     if (color == null) {
-      setState(() => _lightErrorText = '「#RRGGBB」の形式で入力してください');
+      setState(
+        () => _lightErrorText = ref
+            .read(appStringsProvider)
+            .settingsHexColorFormatError,
+      );
       return;
     }
     setState(() => _lightErrorText = null);
@@ -2436,7 +2440,11 @@ class _TextColorFolderState extends ConsumerState<_TextColorFolder> {
   void _applyDark() {
     final color = tryParseHexColor(_darkController.text);
     if (color == null) {
-      setState(() => _darkErrorText = '「#RRGGBB」の形式で入力してください');
+      setState(
+        () => _darkErrorText = ref
+            .read(appStringsProvider)
+            .settingsHexColorFormatError,
+      );
       return;
     }
     setState(() => _darkErrorText = null);
@@ -3363,7 +3371,10 @@ class _BlockedUsersFolderState extends ConsumerState<_BlockedUsersFolder> {
           );
     } catch (e) {
       if (!context.mounted) return;
-      showAutoDismissBanner(context, message: 'エラーが発生しました: $e');
+      showAutoDismissBanner(
+        context,
+        message: widget.strings.genericErrorTemplate(e),
+      );
     }
   }
 
@@ -3378,7 +3389,7 @@ class _BlockedUsersFolderState extends ConsumerState<_BlockedUsersFolder> {
       loading: () => const SizedBox.shrink(),
       error: (e, _) => Padding(
         padding: const EdgeInsets.all(16),
-        child: Text('エラーが発生しました: $e'),
+        child: Text(strings.genericErrorTemplate(e)),
       ),
       data: (blockedIds) {
         if (blockedIds.isEmpty) {

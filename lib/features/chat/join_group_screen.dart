@@ -121,7 +121,7 @@ class _JoinGroupViewState extends ConsumerState<_JoinGroupView> {
       debugPrint('広場参加画面の読み込みに失敗: $e\n$stackTrace');
       if (!mounted) return;
       setState(() {
-        _errorMessage = 'エラーが発生しました: $e';
+        _errorMessage = ref.read(appStringsProvider).genericErrorTemplate(e);
         _status = _JoinStatus.error;
       });
     }
@@ -162,7 +162,11 @@ class _JoinGroupViewState extends ConsumerState<_JoinGroupView> {
       setState(() => _status = _JoinStatus.sent);
     } catch (e) {
       if (!mounted) return;
-      setState(() => _errorMessage = 'エラーが発生しました: $e');
+      setState(
+        () => _errorMessage = ref
+            .read(appStringsProvider)
+            .genericErrorTemplate(e),
+      );
     } finally {
       if (mounted) {
         setState(() => _isSending = false);
@@ -219,7 +223,7 @@ class _JoinGroupViewState extends ConsumerState<_JoinGroupView> {
         return _Message(text: strings.groupJoinPending, strings: strings);
       case _JoinStatus.error:
         return _Message(
-          text: _errorMessage ?? 'エラーが発生しました',
+          text: _errorMessage ?? strings.genericErrorMessage,
           strings: strings,
           actionLabel: strings.groupJoinRetry,
           onAction: _resolve,

@@ -1131,7 +1131,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// 全員がその後削除し物理削除済みのメッセージへの返信等で恒久的に起こり
   /// うるため、無反応のままにせず理由を伝える（2026-08-14追加）。
   void _showJumpNotFoundBanner() {
-    showAutoDismissBanner(context, message: '元のメッセージが見つかりません');
+    showAutoDismissBanner(
+      context,
+      message: ref.read(appStringsProvider).chatJumpNotFoundMessage,
+    );
   }
 
   /// AppBarのピンアイコンをタップした時、ボタンの真下にピン留め済み
@@ -2641,14 +2644,24 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     if (snapshot.hasError) {
                       return Padding(
                         padding: EdgeInsets.only(bottom: _composerAreaHeight),
-                        child: Center(child: Text('エラー: ${snapshot.error}')),
+                        child: Center(
+                          child: Text(
+                            ref
+                                .read(appStringsProvider)
+                                .genericErrorTemplate(snapshot.error ?? ''),
+                          ),
+                        ),
                       );
                     }
                     final messages = snapshot.data ?? [];
                     if (messages.isEmpty) {
                       return Padding(
                         padding: EdgeInsets.only(bottom: _composerAreaHeight),
-                        child: const Center(child: Text('まだメッセージはありません')),
+                        child: Center(
+                          child: Text(
+                            ref.read(appStringsProvider).chatNoMessagesYet,
+                          ),
+                        ),
                       );
                     }
                     _markUnreadMessages(messages);
@@ -4523,7 +4536,7 @@ class _MessageRow extends ConsumerWidget {
       children: [
         ?replyPreview,
         if (isCallSummary)
-          _callSummaryContent(onBubbleColor)
+          _callSummaryContent(onBubbleColor, strings)
         else if (isAccountDeletedNotice)
           _accountDeletedContent(context, ref, strings, onBubbleColor, isGekiga)
         else if (isCalendarEventNotice)
@@ -5071,7 +5084,7 @@ class _MessageRow extends ConsumerWidget {
 
   /// 通話履歴メッセージ（contentType='call'）の表示。「通話が終了しました」
   /// の下に、開始時刻と通話時間を添える（例: 「14:32から5分32秒」）。
-  Widget _callSummaryContent(Color onBubbleColor) {
+  Widget _callSummaryContent(Color onBubbleColor, Strings strings) {
     final startedAt = message.callStartedAt?.toDate();
     final durationSeconds = message.callDurationSeconds;
     final isVideoCall = message.callIsVideo ?? false;
@@ -5092,8 +5105,10 @@ class _MessageRow extends ConsumerWidget {
             Text(message.content, style: TextStyle(color: onBubbleColor)),
             if (startedAt != null && durationSeconds != null)
               Text(
-                '${formatMessageTime(startedAt, timeFormat)}から'
-                '${_formatCallDuration(durationSeconds)}',
+                strings.callSummaryStartedAtTemplate(
+                  formatMessageTime(startedAt, timeFormat),
+                  _formatCallDuration(strings, durationSeconds),
+                ),
                 style: TextStyle(
                   fontSize: 12,
                   color: onBubbleColor.withValues(alpha: 0.7),
@@ -6102,17 +6117,21 @@ class _MessageRow extends ConsumerWidget {
     if (confirmed == true) await onDeleteAfterAccountDeletion?.call();
   }
 
-  static String _formatCallDuration(int totalSeconds) {
+  static String _formatCallDuration(Strings strings, int totalSeconds) {
     final hours = totalSeconds ~/ 3600;
     final minutes = (totalSeconds % 3600) ~/ 60;
     final seconds = totalSeconds % 60;
     if (hours > 0) {
-      return minutes > 0 ? '$hours時間$minutes分' : '$hours時間';
+      return minutes > 0
+          ? strings.callDurationHoursMinutesTemplate(hours, minutes)
+          : strings.callDurationHoursTemplate(hours);
     }
     if (minutes > 0) {
-      return seconds > 0 ? '$minutes分$seconds秒' : '$minutes分';
+      return seconds > 0
+          ? strings.callDurationMinutesSecondsTemplate(minutes, seconds)
+          : strings.callDurationMinutesTemplate(minutes);
     }
-    return '$seconds秒';
+    return strings.callDurationSecondsTemplate(seconds);
   }
 
   /// 自分のこのメッセージへのリアクションを、[emoji]について付け外しする

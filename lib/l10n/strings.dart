@@ -1,3 +1,4 @@
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/font_design.dart';
@@ -759,6 +760,77 @@ class Strings {
     required this.passcodeForgotDialogTitle,
     required this.passcodeForgotDialogMessage,
     required this.passcodeForgotDialogConfirmButton,
+    required this.createGroupTitle,
+    required this.createGroupNameLabel,
+    required this.createGroupNameRequiredError,
+    required this.createGroupMinMembersError,
+    required this.createGroupMultiRoomTitle,
+    required this.createGroupMultiRoomSubtitle,
+    required this.createGroupNextButton,
+    required this.createGroupMemberStepTitle,
+    required this.createGroupSearchLabel,
+    required this.createGroupNoFriends,
+    required this.createGroupNoMatch,
+    required this.createGroupFriendsLoadError,
+    required this.createGroupSelectedCount,
+    required this.genericErrorMessage,
+    required this.genericErrorTemplate,
+    required this.notFoundSubtitle,
+    required this.notFoundBody,
+    required this.notFoundBackToTop,
+    required this.notFoundContact,
+    required this.signInFailedTemplate,
+    required this.signInTagline,
+    required this.signInWithGoogleButton,
+    required this.authGateErrorTemplate,
+    required this.rhingSeedSetupAppBarTitle,
+    required this.rhingSeedSetupIntro,
+    required this.rhingSeedSetupRules,
+    required this.rhingSeedSetupInvalidError,
+    required this.rhingSeedSetupTakenError,
+    required this.rhingSeedSetupAlreadyRegisteredError,
+    required this.rhingSeedSetupFailedTemplate,
+    required this.rhingSeedSetupSubmitButton,
+    required this.termsConsentAppBarTitle,
+    required this.termsConsentIntro,
+    required this.termsConsentTermsLink,
+    required this.termsConsentPrivacyLink,
+    required this.termsConsentDisclaimerLink,
+    required this.termsConsentCheckbox,
+    required this.termsConsentContinueButton,
+    required this.accountSuspendedRemainingDaysTemplate,
+    required this.accountSuspendedRemainingHoursTemplate,
+    required this.chatJumpNotFoundMessage,
+    required this.chatNoMessagesYet,
+    required this.callSummaryStartedAtTemplate,
+    required this.callDurationHoursMinutesTemplate,
+    required this.callDurationHoursTemplate,
+    required this.callDurationMinutesSecondsTemplate,
+    required this.callDurationMinutesTemplate,
+    required this.callDurationSecondsTemplate,
+    required this.roomDefaultName,
+    required this.talksEmptyDmTemplate,
+    required this.talksEmptyGroupTemplate,
+    required this.settingsHexColorFormatError,
+    required this.cameraNotFoundError,
+    required this.cameraStartFailedTemplate,
+    required this.cameraSwitchFailedTemplate,
+    required this.cameraRetakeButton,
+    required this.cameraSendButton,
+    required this.callStatusCalling,
+    required this.callStatusConnecting,
+    required this.callStatusActive,
+    required this.callStatusEnded,
+    required this.callConnectionUnstableEllipsis,
+    required this.callConnectionUnstable,
+    required this.callFullMessageTemplate,
+    required this.groupCallParticipantCountTemplate,
+    required this.groupCallWaitingForOthers,
+    required this.callReturnChip,
+    required this.workshopStandardCardHint,
+    required this.mediaSkipForwardLabel,
+    required this.mediaSkipBackwardLabel,
+    required this.groupCallStartedBannerTemplate,
   });
 
   final String navTalk;
@@ -1804,6 +1876,80 @@ class Strings {
   final String passcodeForgotDialogTitle;
   final String passcodeForgotDialogMessage;
   final String passcodeForgotDialogConfirmButton;
+  final String createGroupTitle;
+  final String createGroupNameLabel;
+  final String createGroupNameRequiredError;
+  final String Function(int remaining) createGroupMinMembersError;
+  final String createGroupMultiRoomTitle;
+  final String createGroupMultiRoomSubtitle;
+  final String createGroupNextButton;
+  final String createGroupMemberStepTitle;
+  final String createGroupSearchLabel;
+  final String createGroupNoFriends;
+  final String createGroupNoMatch;
+  final String Function(Object error) createGroupFriendsLoadError;
+  final String Function(int count) createGroupSelectedCount;
+  final String genericErrorMessage;
+  final String Function(Object error) genericErrorTemplate;
+  final String notFoundSubtitle;
+  final String notFoundBody;
+  final String notFoundBackToTop;
+  final String notFoundContact;
+  final String Function(Object error) signInFailedTemplate;
+  final String signInTagline;
+  final String signInWithGoogleButton;
+  final String Function(Object error) authGateErrorTemplate;
+  final String rhingSeedSetupAppBarTitle;
+  final String rhingSeedSetupIntro;
+  final String rhingSeedSetupRules;
+  final String rhingSeedSetupInvalidError;
+  final String rhingSeedSetupTakenError;
+  final String rhingSeedSetupAlreadyRegisteredError;
+  final String Function(Object error) rhingSeedSetupFailedTemplate;
+  final String rhingSeedSetupSubmitButton;
+  final String termsConsentAppBarTitle;
+  final String termsConsentIntro;
+  final String termsConsentTermsLink;
+  final String termsConsentPrivacyLink;
+  final String termsConsentDisclaimerLink;
+  final String termsConsentCheckbox;
+  final String termsConsentContinueButton;
+  final String Function(int days) accountSuspendedRemainingDaysTemplate;
+  final String Function(int hours) accountSuspendedRemainingHoursTemplate;
+  final String chatJumpNotFoundMessage;
+  final String chatNoMessagesYet;
+  final String Function(String time, String duration)
+  callSummaryStartedAtTemplate;
+  final String Function(int hours, int minutes)
+  callDurationHoursMinutesTemplate;
+  final String Function(int hours) callDurationHoursTemplate;
+  final String Function(int minutes, int seconds)
+  callDurationMinutesSecondsTemplate;
+  final String Function(int minutes) callDurationMinutesTemplate;
+  final String Function(int seconds) callDurationSecondsTemplate;
+  final String roomDefaultName;
+  final String Function(String dmTerm) talksEmptyDmTemplate;
+  final String Function(String plazaTerm) talksEmptyGroupTemplate;
+  final String settingsHexColorFormatError;
+  final String cameraNotFoundError;
+  final String Function(Object error) cameraStartFailedTemplate;
+  final String Function(Object error) cameraSwitchFailedTemplate;
+  final String cameraRetakeButton;
+  final String cameraSendButton;
+  final String callStatusCalling;
+  final String callStatusConnecting;
+  final String callStatusActive;
+  final String callStatusEnded;
+  final String callConnectionUnstableEllipsis;
+  final String callConnectionUnstable;
+  final String Function(int max) callFullMessageTemplate;
+  final String Function(int count) groupCallParticipantCountTemplate;
+  final String groupCallWaitingForOthers;
+  final String callReturnChip;
+  final String workshopStandardCardHint;
+  final String mediaSkipForwardLabel;
+  final String mediaSkipBackwardLabel;
+  final String Function(String groupName) groupCallStartedBannerTemplate;
 
   static final ja = Strings._(
     navTalk: '語らい',
@@ -2609,6 +2755,86 @@ class Strings {
     passcodeForgotDialogMessage:
         'サインアウトすると、この端末のパスコードは解除されます。再度ログインすると、また設定し直せます。',
     passcodeForgotDialogConfirmButton: 'サインアウトしてリセット',
+    createGroupTitle: '広場を作る',
+    createGroupNameLabel: '広場の名前',
+    createGroupNameRequiredError: '広場の名前を入力してください',
+    createGroupMinMembersError: (remaining) =>
+        '広場は3人以上（自分含む）で作成できます。あと$remaining人選んでください',
+    createGroupMultiRoomTitle: '寄合を複数作成する',
+    createGroupMultiRoomSubtitle:
+        'オフの場合、寄合は1つだけになりサイドバーは出ません。設定は全てハンバーガーメニューから行えます（後から複数に切り替え可能）',
+    createGroupNextButton: '次へ',
+    createGroupMemberStepTitle: 'メンバーを友達から選ぶ（自分＋2人以上が必要）',
+    createGroupSearchLabel: '名前で検索',
+    createGroupNoFriends: '友達がいません。先に縁結びで友達を追加してください',
+    createGroupNoMatch: '該当する友達が見つかりません',
+    createGroupFriendsLoadError: (error) => '友達一覧の取得に失敗しました: $error',
+    createGroupSelectedCount: (count) => '$count人選択中（自分を含めて計${count + 1}人）',
+    genericErrorMessage: 'エラーが発生しました',
+    genericErrorTemplate: (error) => 'エラーが発生しました: $error',
+    notFoundSubtitle: 'お探しのページは見つかりませんでした',
+    notFoundBody:
+        '本日は存在しないページ特別展を開催しております。\n'
+        'お探しのページは見当たりませんでした。\n'
+        'URLをご確認のうえ、常設展示からお探しください。',
+    notFoundBackToTop: 'トップページへ戻る',
+    notFoundContact: 'お問い合わせ',
+    signInFailedTemplate: (error) => 'ログインに失敗しました: $error',
+    signInTagline: '整う、守る、私に馴染む。',
+    signInWithGoogleButton: 'Googleでログイン',
+    authGateErrorTemplate: (error) => 'エラー: $error',
+    rhingSeedSetupAppBarTitle: 'Rhing Seedを設定',
+    rhingSeedSetupIntro: 'あなただけのRhing Seedを決めてください。',
+    rhingSeedSetupRules: '英数字・.・-・_のみ使用できます（大文字小文字は区別されません）。',
+    rhingSeedSetupInvalidError: '英数字・.・-・_のみ、1〜20文字で入力してください',
+    rhingSeedSetupTakenError: 'このRhing Seedはすでに使われています',
+    rhingSeedSetupAlreadyRegisteredError:
+        'このアカウントには既に住人情報が登録されています。一度サインアウトしてから、もう一度ログインし直してください。',
+    rhingSeedSetupFailedTemplate: (error) => '登録に失敗しました: $error',
+    rhingSeedSetupSubmitButton: '決定',
+    termsConsentAppBarTitle: '利用規約・プライバシーポリシーへの同意',
+    termsConsentIntro: 'ご利用にあたり、以下の内容をご確認のうえ同意してください。',
+    termsConsentTermsLink: '利用規約',
+    termsConsentPrivacyLink: 'プライバシーポリシー',
+    termsConsentDisclaimerLink: '免責事項',
+    termsConsentCheckbox: '上記に同意します',
+    termsConsentContinueButton: '同意して続ける',
+    accountSuspendedRemainingDaysTemplate: (days) => '約$days日',
+    accountSuspendedRemainingHoursTemplate: (hours) => '約$hours時間',
+    chatJumpNotFoundMessage: '元のメッセージが見つかりません',
+    chatNoMessagesYet: 'まだメッセージはありません',
+    callSummaryStartedAtTemplate: (time, duration) => '$timeから$duration',
+    callDurationHoursMinutesTemplate: (hours, minutes) => '$hours時間$minutes分',
+    callDurationHoursTemplate: (hours) => '$hours時間',
+    callDurationMinutesSecondsTemplate: (minutes, seconds) =>
+        '$minutes分$seconds秒',
+    callDurationMinutesTemplate: (minutes) => '$minutes分',
+    callDurationSecondsTemplate: (seconds) => '$seconds秒',
+    roomDefaultName: 'メイン',
+    talksEmptyDmTemplate: (dmTerm) => 'まだ$dmTermがありません。上の＋から相手を追加してください。',
+    talksEmptyGroupTemplate: (plazaTerm) => 'まだ$plazaTermがありません。上の＋から作成してください。',
+    settingsHexColorFormatError: '「#RRGGBB」の形式で入力してください',
+    cameraNotFoundError: 'カメラが見つかりませんでした',
+    cameraStartFailedTemplate: (error) => 'カメラを起動できませんでした: $error',
+    cameraSwitchFailedTemplate: (error) => 'カメラを切り替えられませんでした: $error',
+    cameraRetakeButton: '撮り直す',
+    cameraSendButton: '送信',
+    callStatusCalling: '発信中…',
+    callStatusConnecting: '接続中…',
+    callStatusActive: '通話中',
+    callStatusEnded: '通話終了',
+    callConnectionUnstableEllipsis: '接続が不安定です…',
+    callConnectionUnstable: '接続が不安定です',
+    callFullMessageTemplate: (max) => 'この通話は満員です（上限$max人）',
+    groupCallParticipantCountTemplate: (count) => '参加者$count人',
+    groupCallWaitingForOthers: '他の参加者を待っています…',
+    callReturnChip: '通話中 - タップして戻る',
+    workshopStandardCardHint:
+        '右上の丸いボタンで選んだカードが標準になります。友達申請や広場参加など、指定していない場面では標準のカードが使われます',
+    mediaSkipForwardLabel: '+10秒',
+    mediaSkipBackwardLabel: '−10秒',
+    groupCallStartedBannerTemplate: (groupName) =>
+        '$groupNameで通話が始まりました。\nタップして参加',
   );
 
   static final enGB = Strings._(
@@ -3503,6 +3729,104 @@ class Strings {
     passcodeForgotDialogMessage:
         'Signing out will remove the passcode from this device. You can set a new one after signing in again.',
     passcodeForgotDialogConfirmButton: 'Sign out and reset',
+    createGroupTitle: 'Create a plaza',
+    createGroupNameLabel: 'Plaza name',
+    createGroupNameRequiredError: 'Enter a plaza name',
+    createGroupMinMembersError: (remaining) =>
+        'A plaza needs at least 3 people (including you). Pick $remaining more.',
+    createGroupMultiRoomTitle: 'Create multiple text channels',
+    createGroupMultiRoomSubtitle:
+        'When off, the plaza has just one text channel and no sidebar. All settings are in the hamburger menu (you can switch to multiple later).',
+    createGroupNextButton: 'Next',
+    createGroupMemberStepTitle:
+        'Choose members from your friends (you plus at least 2 others)',
+    createGroupSearchLabel: 'Search by name',
+    createGroupNoFriends:
+        'You have no friends yet. Add friends with Add Friend first.',
+    createGroupNoMatch: 'No matching friends found',
+    createGroupFriendsLoadError: (error) =>
+        'Could not load your friends: $error',
+    createGroupSelectedCount: (count) =>
+        '$count selected (${count + 1} including you)',
+    genericErrorMessage: 'An error occurred',
+    genericErrorTemplate: (error) => 'An error occurred: $error',
+    notFoundSubtitle: 'The page you are looking for could not be found',
+    notFoundBody:
+        'Today we are holding a special exhibition of pages that do not exist.\n'
+        'The page you were looking for could not be found.\n'
+        'Please check the URL, or look through our permanent collection.',
+    notFoundBackToTop: 'Back to the top page',
+    notFoundContact: 'Contact us',
+    signInFailedTemplate: (error) => 'Sign-in failed: $error',
+    signInTagline: 'Tidy up. Stay safe. Make it yours.',
+    signInWithGoogleButton: 'Sign in with Google',
+    authGateErrorTemplate: (error) => 'Error: $error',
+    rhingSeedSetupAppBarTitle: 'Set your Rhing Seed',
+    rhingSeedSetupIntro: 'Choose your own Rhing Seed.',
+    rhingSeedSetupRules:
+        'Only letters, digits, ".", "-" and "_" are allowed (case-insensitive).',
+    rhingSeedSetupInvalidError:
+        'Use 1–20 characters: letters, digits, ".", "-" and "_" only',
+    rhingSeedSetupTakenError: 'This Rhing Seed is already taken',
+    rhingSeedSetupAlreadyRegisteredError:
+        'This account is already registered. Please sign out and sign in again.',
+    rhingSeedSetupFailedTemplate: (error) => 'Registration failed: $error',
+    rhingSeedSetupSubmitButton: 'Confirm',
+    termsConsentAppBarTitle: 'Agree to the Terms and Privacy Policy',
+    termsConsentIntro: 'Please review the following and agree to continue.',
+    termsConsentTermsLink: 'Terms of Service',
+    termsConsentPrivacyLink: 'Privacy Policy',
+    termsConsentDisclaimerLink: 'Disclaimer',
+    termsConsentCheckbox: 'I agree to the above',
+    termsConsentContinueButton: 'Agree and continue',
+    accountSuspendedRemainingDaysTemplate: (days) =>
+        'about $days day${days == 1 ? '' : 's'}',
+    accountSuspendedRemainingHoursTemplate: (hours) =>
+        'about $hours hour${hours == 1 ? '' : 's'}',
+    chatJumpNotFoundMessage: 'The original message could not be found',
+    chatNoMessagesYet: 'No messages yet',
+    callSummaryStartedAtTemplate: (time, duration) => '$time · $duration',
+    callDurationHoursMinutesTemplate: (hours, minutes) =>
+        '${hours}h ${minutes}m',
+    callDurationHoursTemplate: (hours) => '${hours}h',
+    callDurationMinutesSecondsTemplate: (minutes, seconds) =>
+        '${minutes}m ${seconds}s',
+    callDurationMinutesTemplate: (minutes) => '${minutes}m',
+    callDurationSecondsTemplate: (seconds) => '${seconds}s',
+    roomDefaultName: 'Main',
+    talksEmptyDmTemplate: (dmTerm) =>
+        'No $dmTerm conversations yet. Tap + above to add someone.',
+    talksEmptyGroupTemplate: (plazaTerm) =>
+        'No $plazaTerm yet. Tap + above to create one.',
+    settingsHexColorFormatError: 'Enter a colour in "#RRGGBB" format',
+    cameraNotFoundError: 'No camera was found',
+    cameraStartFailedTemplate: (error) => 'Could not start the camera: $error',
+    cameraSwitchFailedTemplate: (error) => 'Could not switch cameras: $error',
+    cameraRetakeButton: 'Retake',
+    cameraSendButton: 'Send',
+    callStatusCalling: 'Calling…',
+    callStatusConnecting: 'Connecting…',
+    callStatusActive: 'In call',
+    callStatusEnded: 'Call ended',
+    callConnectionUnstableEllipsis: 'Connection is unstable…',
+    callConnectionUnstable: 'Connection is unstable',
+    callFullMessageTemplate: (max) => 'This call is full (limit: $max)',
+    groupCallParticipantCountTemplate: (count) =>
+        '$count participant${count == 1 ? '' : 's'}',
+    groupCallWaitingForOthers: 'Waiting for others to join…',
+    callReturnChip: 'In call – tap to return',
+    workshopStandardCardHint:
+        'The card selected with the round button at the top right becomes your standard card. It is used wherever no card is specified, such as friend requests and joining plazas.',
+    mediaSkipForwardLabel: '+10s',
+    mediaSkipBackwardLabel: '−10s',
+    groupCallStartedBannerTemplate: (groupName) =>
+        'A call has started in $groupName.\nTap to join',
+  );
+
+  /// `MaterialApp.locale`（[Localizations]）から対訳セットを引く。Riverpodを
+  /// 使えない/使いたくない画面（単体で出る404ページ等）向け（2026-10-13）。
+  static Strings ofContext(BuildContext context) => of(
+    AppLocale.fromLanguageCode(Localizations.localeOf(context).languageCode),
   );
 
   static Strings of(AppLocale locale) => switch (locale) {

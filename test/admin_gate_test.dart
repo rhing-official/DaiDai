@@ -2,6 +2,7 @@ import 'package:daidai/features/admin/admin_gate.dart';
 import 'package:daidai/models/app_user.dart';
 import 'package:daidai/providers/repository_providers.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -9,6 +10,9 @@ Widget _app({required bool isAdmin}) {
   return ProviderScope(
     overrides: [isAdminProvider.overrideWith((ref) async => isAdmin)],
     child: MaterialApp(
+      locale: const Locale('ja'),
+      supportedLocales: const [Locale('ja'), Locale('en')],
+      localizationsDelegates: GlobalMaterialLocalizations.delegates,
       home: AdminGate(
         currentUser: AppUser(userId: 'u1', rhingSeed: 'seed'),
       ),

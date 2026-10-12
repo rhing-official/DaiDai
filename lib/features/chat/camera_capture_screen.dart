@@ -5,7 +5,9 @@ import 'dart:typed_data';
 import 'package:camera/camera.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:video_player/video_player.dart';
+import '../../l10n/strings.dart';
 
 /// [CameraCaptureScreen]が[Navigator.pop]で返す撮影結果。
 class CapturedMedia {
@@ -51,14 +53,15 @@ VideoPlayerController _createLocalVideoController(String path) {
 /// いた挙動をやめ、撮った写真/動画をこの画面内でプレビューし、「送信」を
 /// 明示的に押すまでは呼び出し元（メッセージ送信パイプライン）へ渡さない
 /// （「撮り直す」で破棄してライブカメラに戻れる、2026-09-15追加）。
-class CameraCaptureScreen extends StatefulWidget {
+class CameraCaptureScreen extends ConsumerStatefulWidget {
   const CameraCaptureScreen({super.key});
 
   @override
-  State<CameraCaptureScreen> createState() => _CameraCaptureScreenState();
+  ConsumerState<CameraCaptureScreen> createState() =>
+      _CameraCaptureScreenState();
 }
 
-class _CameraCaptureScreenState extends State<CameraCaptureScreen>
+class _CameraCaptureScreenState extends ConsumerState<CameraCaptureScreen>
     with SingleTickerProviderStateMixin {
   CameraController? _controller;
   _CaptureMode _mode = _CaptureMode.photo;
@@ -90,7 +93,10 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
     try {
       final cameras = await availableCameras();
       if (cameras.isEmpty) {
-        setState(() => _errorMessage = 'カメラが見つかりませんでした');
+        setState(
+          () =>
+              _errorMessage = ref.read(appStringsProvider).cameraNotFoundError,
+        );
         return;
       }
       _cameras = cameras;
@@ -103,7 +109,11 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
       await _startController(cameras[_selectedCameraIndex]);
     } catch (e) {
       if (mounted) {
-        setState(() => _errorMessage = 'カメラを起動できませんでした: $e');
+        setState(
+          () => _errorMessage = ref
+              .read(appStringsProvider)
+              .cameraStartFailedTemplate(e),
+        );
       }
     }
   }
@@ -135,7 +145,11 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
       await _startController(_cameras[_selectedCameraIndex]);
     } catch (e) {
       if (mounted) {
-        setState(() => _errorMessage = 'カメラを切り替えられませんでした: $e');
+        setState(
+          () => _errorMessage = ref
+              .read(appStringsProvider)
+              .cameraSwitchFailedTemplate(e),
+        );
       }
     }
   }
@@ -497,7 +511,7 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
                     vertical: 12,
                   ),
                 ),
-                child: const Text('撮り直す'),
+                child: Text(ref.read(appStringsProvider).cameraRetakeButton),
               ),
               FilledButton(
                 onPressed: () => Navigator.of(context).pop(preview),
@@ -509,7 +523,7 @@ class _CameraCaptureScreenState extends State<CameraCaptureScreen>
                     vertical: 12,
                   ),
                 ),
-                child: const Text('送信'),
+                child: Text(ref.read(appStringsProvider).cameraSendButton),
               ),
             ],
           ),

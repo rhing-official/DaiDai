@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
+import 'package:pointer_interceptor/pointer_interceptor.dart';
 
 import '../../models/app_ui_style.dart';
 import '../../providers/app_ui_style_provider.dart';
@@ -22,6 +23,7 @@ import 'camera_availability.dart';
 import 'webrtc_call_controller.dart';
 import 'webrtc_group_call_controller.dart';
 import '../../router/back_stack.dart';
+import '../../l10n/strings.dart';
 
 /// PC/Web限定: 通話中の会話画面で、メッセージ一覧の代わりに通話UIを
 /// 埋め込み表示する（2026-08-19追加、通話UIの再設計に伴う）。
@@ -57,6 +59,9 @@ class _EmbeddedCallPaneState extends ConsumerState<EmbeddedCallPane> {
   @override
   void initState() {
     super.initState();
+    // `late final`の遅延初期化を、`dispose()`より前（マウント中）に確定させる。
+    _activeConversation;
+    _embeddedCallShown;
     WidgetsBinding.instance.addPostFrameCallback((_) => _report());
   }
 
@@ -98,15 +103,27 @@ class _EmbeddedCallPaneState extends ConsumerState<EmbeddedCallPane> {
     });
   }
 
+  // `dispose()`では`ref`を使えない（Riverpod 3系は`context.mounted`が偽のため
+  // `StateError`を投げる。破棄のたびに例外が出て、後続の破棄・再構築を巻き込んで
+  // いた、2026-10-13修正）。後始末に使う通知先を先にフィールドへ保存しておく。
+  late final _activeConversation = ref.read(
+    activeConversationProvider.notifier,
+  );
+  late final _embeddedCallShown = ref.read(embeddedCallShownProvider.notifier);
+
   @override
   void dispose() {
-    ref
-        .read(activeConversationProvider.notifier)
-        .clearIfCurrent(widget.conversation);
-    final notifier = ref.read(embeddedCallShownProvider.notifier);
-    notifier.clearIfCurrent(widget.conversation);
+    // `dispose()`中はプロバイダーを書き換えられない（ツリーの構築中扱いで
+    // `FlutterError`になる）ため、直後のマイクロタスクで解除する。
+    final conversation = widget.conversation;
     final reported = _reported;
-    if (reported != null) notifier.clearIfCurrent(reported);
+    final activeConversation = _activeConversation;
+    final embeddedCallShown = _embeddedCallShown;
+    Future<void>.microtask(() {
+      activeConversation.clearIfCurrent(conversation);
+      embeddedCallShown.clearIfCurrent(conversation);
+      if (reported != null) embeddedCallShown.clearIfCurrent(reported);
+    });
     super.dispose();
   }
 
@@ -185,26 +202,29 @@ class _EmbeddedCallPaneState extends ConsumerState<EmbeddedCallPane> {
 
 /// メッセージ表示に切り替えた後も、通話中であることと戻る導線を示す
 /// 小さなチップ。
-class _ReturnToCallChip extends StatelessWidget {
+class _ReturnToCallChip extends ConsumerWidget {
   const _ReturnToCallChip({required this.onTap});
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Material(
       color: Colors.black87,
       borderRadius: BorderRadius.circular(20),
       child: InkWell(
         borderRadius: BorderRadius.circular(20),
         onTap: onTap,
-        child: const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.call, color: Colors.white, size: 16),
-              SizedBox(width: 8),
-              Text('通話中 - タップして戻る', style: TextStyle(color: Colors.white)),
+              const Icon(Icons.call, color: Colors.white, size: 16),
+              const SizedBox(width: 8),
+              Text(
+                ref.watch(appStringsProvider).callReturnChip,
+                style: const TextStyle(color: Colors.white),
+              ),
             ],
           ),
         ),
@@ -330,12 +350,46 @@ class _Header extends StatelessWidget {
   }
 }
 
-class _OneToOneStage extends StatelessWidget {
+class _OneToOneStage extends StatefulWidget {
   const _OneToOneStage({required this.session});
   final OneToOneCallSession session;
 
   @override
+  State<_OneToOneStage> createState() => _OneToOneStageState();
+}
+
+class _OneToOneStageState extends State<_OneToOneStage> {
+  /// 大きく表示している（メインの）映像が相手か自分か（2026-10-13追加）。
+  /// 右下の小さい映像（コーナー）をクリックすると入れ替わり、入れ替えた後に
+  /// メインをクリックすれば元に戻る（`call_screen.dart`の`_mainViewIsRemote`と
+  /// 同じ規則）。
+  bool _mainIsRemote = true;
+
+  void _swap() => setState(() => _mainIsRemote = !_mainIsRemote);
+
+  /// 映像の描画。メインは切り抜かず全体を見せ（Contain、余白は灰色。2026-10-11
+  /// 変更）、コーナーは枠いっぱいに切り抜く（Cover）。自分の映像は前面カメラの
+  /// 時だけ左右反転する（どちらの位置でも同じ）。
+  Widget _video({required bool remote, required bool main}) {
+    final controller = widget.session.controller;
+    final renderer = remote
+        ? controller.remoteRenderer
+        : controller.localRenderer;
+    return RTCVideoView(
+      // Web版の`RTCVideoView`はinitState時にしか描画要素を取らないため、
+      // レンダラー自体をキーにして入れ替え時に確実に作り直す。
+      key: ObjectKey(renderer),
+      renderer,
+      mirror: !remote && controller.isFrontCamera,
+      objectFit: main
+          ? RTCVideoViewObjectFit.RTCVideoViewObjectFitContain
+          : RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final session = widget.session;
     final controller = session.controller;
     if (!controller.remoteIsVideo && !controller.isVideo) {
       return ColoredBox(
@@ -351,37 +405,47 @@ class _OneToOneStage extends StatelessWidget {
         ),
       );
     }
+    final mainHasVideo = _mainIsRemote
+        ? controller.remoteIsVideo
+        : controller.isVideo;
+    final cornerHasVideo = _mainIsRemote
+        ? controller.isVideo
+        : controller.remoteIsVideo;
     return Stack(
       children: [
-        // 相手の映像は切り抜かず全体を見せる（Contain、余白は灰色。2026-10-11
-        // 変更、以前はCoverで相手が撮影している縦横比と違って見えた）。
         Positioned.fill(
           child: ColoredBox(
             color: Colors.grey.shade900,
-            child: controller.remoteIsVideo
-                ? RTCVideoView(
-                    key: ObjectKey(controller.remoteRenderer),
-                    controller.remoteRenderer,
-                    objectFit:
-                        RTCVideoViewObjectFit.RTCVideoViewObjectFitContain,
-                  )
+            child: mainHasVideo
+                ? _video(remote: _mainIsRemote, main: true)
                 : null,
           ),
         ),
-        if (controller.isVideo)
+        // メインの画面をクリックしても入れ替わる。Webでは映像（プラット
+        // フォームビュー）がクリックを奪うため`PointerInterceptor`で受ける。
+        Positioned.fill(
+          child: PointerInterceptor(
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: _swap,
+              child: const SizedBox.expand(),
+            ),
+          ),
+        ),
+        if (cornerHasVideo)
           Positioned(
             right: 12,
             bottom: 12,
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: SizedBox(
-                width: 80,
-                height: 110,
-                child: RTCVideoView(
-                  key: ObjectKey(controller.localRenderer),
-                  controller.localRenderer,
-                  mirror: controller.isFrontCamera,
-                  objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+            child: PointerInterceptor(
+              child: GestureDetector(
+                onTap: _swap,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: SizedBox(
+                    width: 80,
+                    height: 110,
+                    child: _video(remote: !_mainIsRemote, main: false),
+                  ),
                 ),
               ),
             ),

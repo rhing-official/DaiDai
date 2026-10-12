@@ -1,5 +1,7 @@
 import 'package:daidai/features/call/group_incoming_call_listener.dart';
+import 'package:daidai/l10n/app_locale.dart';
 import 'package:daidai/models/app_ui_style.dart';
+import 'package:daidai/providers/app_locale_provider.dart';
 import 'package:daidai/models/group_call.dart';
 import 'package:daidai/providers/accent_color_provider.dart';
 import 'package:daidai/providers/app_ui_style_provider.dart';
@@ -22,6 +24,7 @@ ProviderContainer _container([AppUiStyle style = AppUiStyle.flat]) =>
       overrides: [
         initialAppUiStyleProvider.overrideWithValue(style),
         initialAccentColorProvider.overrideWithValue(Colors.orange),
+        initialAppLocaleProvider.overrideWithValue(AppLocale.japanese),
       ],
     );
 

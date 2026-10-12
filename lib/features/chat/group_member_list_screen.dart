@@ -332,7 +332,10 @@ class _JoinRequestTile extends ConsumerWidget {
           );
     } catch (e) {
       if (!context.mounted) return;
-      showAutoDismissBanner(context, message: 'エラーが発生しました: $e');
+      showAutoDismissBanner(
+        context,
+        message: ref.read(appStringsProvider).genericErrorTemplate(e),
+      );
     }
   }
 

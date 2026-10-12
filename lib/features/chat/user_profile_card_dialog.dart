@@ -8,7 +8,7 @@ import '../../providers/repository_providers.dart';
 import '../../utils/open_conversation.dart';
 import '../../utils/friend_request_error.dart';
 import '../../widgets/profile_card_composer.dart';
-import '../../widgets/profile_card_view.dart';
+import '../../widgets/user_profile_card_view.dart';
 import '../../widgets/sns_link_list.dart';
 
 /// 広場（グループ）・一対（DM）どちらのメッセージ画面・メンバー一覧からも、
@@ -168,19 +168,7 @@ class _UserProfileCardDialogState extends ConsumerState<UserProfileCardDialog> {
     final strings = ref.watch(appStringsProvider);
     final colorScheme = Theme.of(context).colorScheme;
     final user = widget.user;
-    final nickname = user.effectiveNicknameFor(widget.conversationId);
-    final name = (nickname?.text.isNotEmpty ?? false)
-        ? nickname!.text
-        : '@${user.rhingSeed}';
-    final icon = user.effectiveIconFor(widget.conversationId);
-    final background = user.effectiveBackgroundImageFor(widget.conversationId);
-    final statusMessage = user
-        .effectiveStatusMessageFor(widget.conversationId)
-        ?.text;
     final snsLinks = user.effectiveSnsLinksFor(widget.conversationId);
-    final fontFamily = user
-        .effectiveFontDesignFor(widget.conversationId)
-        ?.fontFamily;
 
     // 身だしなみ・工房で作るカード（ProfileCardView）と全く同じ比率
     // （height = width * 1.25）で表示する。以前は固定height:360を使っており
@@ -221,30 +209,15 @@ class _UserProfileCardDialogState extends ConsumerState<UserProfileCardDialog> {
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
-                    ProfileCardView(
+                    // SNSリンクはカード内の非タップ可能テキストとしては
+                    // 表示しない。カードの下にタップ可能な別要素
+                    // （SnsLinkList）として表示する（2026-09-24変更）。
+                    UserProfileCardView(
+                      user: user,
+                      conversationId: widget.conversationId,
                       width: cardWidth,
                       height: cardHeight,
-                      icon: icon,
-                      background: background,
-                      backgroundFocal: user
-                          .profileCardFor(widget.conversationId)
-                          ?.backgroundFocal,
-                      iconFocal: user
-                          .profileCardFor(widget.conversationId)
-                          ?.iconFocal,
-                      layoutPreset: user
-                          .profileCardFor(widget.conversationId)
-                          ?.layoutPreset,
-                      textAlign: user
-                          .profileCardFor(widget.conversationId)
-                          ?.textAlign,
-                      nickname: name,
-                      statusMessage: statusMessage,
-                      // SNSリンクはカード内の非タップ可能テキストとしては
-                      // 表示しない。カードの下にタップ可能な別要素
-                      // （SnsLinkList）として表示する（2026-09-24変更）。
-                      snsLinks: const [],
-                      fontFamily: fontFamily,
+                      showSnsLinks: false,
                     ),
                     if (!_isSelf)
                       Positioned(

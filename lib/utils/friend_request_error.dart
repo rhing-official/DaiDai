@@ -12,5 +12,5 @@ String friendRequestErrorMessage(Object error, Strings strings) {
       error.code == 'resource-exhausted') {
     return strings.friendRequestRateLimited;
   }
-  return 'エラーが発生しました: $error';
+  return strings.genericErrorTemplate(error);
 }

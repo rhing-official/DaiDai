@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../l10n/strings.dart';
 import '../../widgets/fixed_font_theme.dart';
 
 const _termsUrl = 'https://rhing.jp/legal/terms';
@@ -16,23 +18,24 @@ Future<void> _openExternalUrl(String url) async {
 /// 新規アカウント作成時、[RhingSeedSetupScreen]より前段に挟む同意画面。
 /// 利用規約・プライバシーポリシー・免責事項への同意を必須にする
 /// （技術仕様書のオンボーディング計画の前倒し実装、2026-09-14追加）。
-class TermsConsentScreen extends StatefulWidget {
+class TermsConsentScreen extends ConsumerStatefulWidget {
   const TermsConsentScreen({required this.onAgree, super.key});
 
   final VoidCallback onAgree;
 
   @override
-  State<TermsConsentScreen> createState() => _TermsConsentScreenState();
+  ConsumerState<TermsConsentScreen> createState() => _TermsConsentScreenState();
 }
 
-class _TermsConsentScreenState extends State<TermsConsentScreen> {
+class _TermsConsentScreenState extends ConsumerState<TermsConsentScreen> {
   bool _checked = false;
 
   @override
   Widget build(BuildContext context) {
+    final strings = ref.watch(appStringsProvider);
     return FixedFontTheme(
       child: Scaffold(
-        appBar: AppBar(title: const Text('利用規約・プライバシーポリシーへの同意')),
+        appBar: AppBar(title: Text(strings.termsConsentAppBarTitle)),
         body: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 400),
@@ -42,18 +45,18 @@ class _TermsConsentScreenState extends State<TermsConsentScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text('ご利用にあたり、以下の内容をご確認のうえ同意してください。'),
+                  Text(strings.termsConsentIntro),
                   const SizedBox(height: 16),
                   _LinkRow(
-                    label: '利用規約',
+                    label: strings.termsConsentTermsLink,
                     onTap: () => _openExternalUrl(_termsUrl),
                   ),
                   _LinkRow(
-                    label: 'プライバシーポリシー',
+                    label: strings.termsConsentPrivacyLink,
                     onTap: () => _openExternalUrl(_privacyPolicyUrl),
                   ),
                   _LinkRow(
-                    label: '免責事項',
+                    label: strings.termsConsentDisclaimerLink,
                     onTap: () => _openExternalUrl(_disclaimerUrl),
                   ),
                   const SizedBox(height: 16),
@@ -63,12 +66,12 @@ class _TermsConsentScreenState extends State<TermsConsentScreen> {
                         setState(() => _checked = value ?? false),
                     controlAffinity: ListTileControlAffinity.leading,
                     contentPadding: EdgeInsets.zero,
-                    title: const Text('上記に同意します'),
+                    title: Text(strings.termsConsentCheckbox),
                   ),
                   const SizedBox(height: 8),
                   ElevatedButton(
                     onPressed: _checked ? widget.onAgree : null,
-                    child: const Text('同意して続ける'),
+                    child: Text(strings.termsConsentContinueButton),
                   ),
                 ],
               ),

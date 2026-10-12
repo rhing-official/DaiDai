@@ -2,7 +2,8 @@ import 'dart:async';
 import 'dart:collection';
 
 import 'package:collection/collection.dart';
-import 'package:flutter/foundation.dart' show ValueListenable;
+import 'package:flutter/foundation.dart'
+    show ValueListenable, visibleForTesting;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -51,6 +52,7 @@ import '../../widgets/glass/glass_avatar.dart';
 import '../../widgets/focal_circle_avatar.dart';
 import '../../widgets/glass/glass_icon_badge.dart';
 import '../../widgets/glass/glass_surface.dart';
+import '../../widgets/hover_profile_card.dart';
 import '../../widgets/pane_visibility.dart';
 import '../../widgets/unread_badge.dart';
 import '../../widgets/interactive_swipe_back.dart';
@@ -653,7 +655,8 @@ class _TalksTabState extends ConsumerState<TalksTab>
         ? lastRoomId
         : rooms.first.roomId;
     final roomName =
-        rooms.firstWhereOrNull((r) => r.roomId == targetRoomId)?.name ?? 'メイン';
+        rooms.firstWhereOrNull((r) => r.roomId == targetRoomId)?.name ??
+        ref.read(appStringsProvider).roomDefaultName;
     ref
         .read(goRouterProvider)
         .push(
@@ -722,7 +725,8 @@ class _TalksTabState extends ConsumerState<TalksTab>
         ? lastRoomId
         : rooms.first.roomId;
     final roomName =
-        rooms.firstWhereOrNull((r) => r.roomId == targetRoomId)?.name ?? 'メイン';
+        rooms.firstWhereOrNull((r) => r.roomId == targetRoomId)?.name ??
+        ref.read(appStringsProvider).roomDefaultName;
     ref
         .read(goRouterProvider)
         .push(
@@ -788,7 +792,8 @@ class _TalksTabState extends ConsumerState<TalksTab>
           .watchRooms(dmId: dm.dmId, userId: widget.currentUser.userId)
           .first;
       final roomName =
-          rooms.firstWhereOrNull((r) => r.roomId == hit.roomId)?.name ?? 'メイン';
+          rooms.firstWhereOrNull((r) => r.roomId == hit.roomId)?.name ??
+          ref.read(appStringsProvider).roomDefaultName;
       ref
           .read(goRouterProvider)
           .push(
@@ -808,7 +813,8 @@ class _TalksTabState extends ConsumerState<TalksTab>
           .watchRooms(groupId: group.groupId, userId: widget.currentUser.userId)
           .first;
       final roomName =
-          rooms.firstWhereOrNull((r) => r.roomId == hit.roomId)?.name ?? 'メイン';
+          rooms.firstWhereOrNull((r) => r.roomId == hit.roomId)?.name ??
+          ref.read(appStringsProvider).roomDefaultName;
       ref
           .read(goRouterProvider)
           .push(
@@ -1865,7 +1871,9 @@ class _TalksTabState extends ConsumerState<TalksTab>
         incomingRequests.isEmpty &&
         outgoingRequests.isEmpty) {
       final dmTerm = ref.read(vocabularyProvider).dm;
-      return Center(child: Text('まだ$dmTermがありません。上の＋から相手を追加してください。'));
+      return Center(
+        child: Text(ref.read(appStringsProvider).talksEmptyDmTemplate(dmTerm)),
+      );
     }
 
     final sortOrder = ref.watch(conversationSortOrderProvider);
@@ -1976,7 +1984,11 @@ class _TalksTabState extends ConsumerState<TalksTab>
     }
     if (groups.isEmpty && pendingRequests.isEmpty) {
       final plazaTerm = ref.read(vocabularyProvider).plaza;
-      return Center(child: Text('まだ$plazaTermがありません。上の＋から作成してください。'));
+      return Center(
+        child: Text(
+          ref.read(appStringsProvider).talksEmptyGroupTemplate(plazaTerm),
+        ),
+      );
     }
     final sortOrder = ref.watch(conversationSortOrderProvider);
     final orderedGroups = _applyGroupSortOrder(groups, sortOrder, prefsById);
@@ -2593,8 +2605,12 @@ class _FriendRequestTile extends ConsumerWidget {
                       width: 220,
                       child: RoomListPane(
                         conversationName: titleText,
-                        rooms: const [
-                          (roomId: 'pending-main', name: 'メイン', unreadCount: 0),
+                        rooms: [
+                          (
+                            roomId: 'pending-main',
+                            name: ref.read(appStringsProvider).roomDefaultName,
+                            unreadCount: 0,
+                          ),
                         ],
                         selectedRoomId: 'pending-main',
                         onSelectRoom: (_) {},
@@ -2826,6 +2842,19 @@ class DirectMessageTile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // コンピューターでは、2秒以上ホバーすると相手のプロフィールカードを右上に
+    // 出す（2026-10-13、`HoverProfileCard`）。
+    final otherUser = ref
+        .watch(watchedUserProvider(dm.otherUserId(currentUser.userId)))
+        .value;
+    return HoverProfileCard(
+      user: otherUser,
+      conversationId: dm.dmId,
+      child: _buildTile(context, ref),
+    );
+  }
+
+  Widget _buildTile(BuildContext context, WidgetRef ref) {
     final otherUserId = dm.otherUserId(currentUser.userId);
     final otherUser = ref.watch(watchedUserProvider(otherUserId)).value;
     final label = dmSearchLabel(otherUser, dm, currentUser.userId);
@@ -3155,6 +3184,19 @@ class _DirectMessageIconTile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // コンピューターでは、2秒以上ホバーすると相手のプロフィールカードを右上に
+    // 出す（2026-10-13、`HoverProfileCard`）。
+    final otherUser = ref
+        .watch(watchedUserProvider(dm.otherUserId(currentUser.userId)))
+        .value;
+    return HoverProfileCard(
+      user: otherUser,
+      conversationId: dm.dmId,
+      child: _buildTile(context, ref),
+    );
+  }
+
+  Widget _buildTile(BuildContext context, WidgetRef ref) {
     final otherUserId = dm.otherUserId(currentUser.userId);
     final otherUser = ref.watch(watchedUserProvider(otherUserId)).value;
     final label = dmSearchLabel(otherUser, dm, currentUser.userId);
@@ -3973,7 +4015,8 @@ class _CollapsibleDivider extends StatelessWidget {
 /// 操作できるようにする。[chatPane]は`ValueListenableBuilder.child`として
 /// 毎フレーム同一インスタンスを渡すため、オーバーレイの有無が切り替わっても
 /// チャット本体（Firestore購読を抱えた`State`）は再構築されない。
-Widget _buildExpandableChatPane({
+@visibleForTesting
+Widget buildExpandableChatPane({
   required ValueListenable<double>? collapseProgress,
   required VoidCallback? onExpandTap,
   required Widget chatPane,
@@ -3983,10 +4026,16 @@ Widget _buildExpandableChatPane({
     valueListenable: collapseProgress,
     child: chatPane,
     builder: (context, progress, child) {
-      if (progress >= 1) return child!;
+      // 畳み切った時もラッパーを外さず、`onTap`をnullにするだけにする
+      // （2026-10-13修正）。以前は`progress >= 1`で`child`をそのまま返し、
+      // 1未満で`GestureDetector`に包んでいたため、全画面から右スワイプで戻し始め
+      // た瞬間（progressが1を下回る）にチャット本体のElementが作り直され、ドラッグ
+      // 中のメッセージ行（`_MessageInteractions`）ごと破棄されて、ドラッグが
+      // 打ち切られ（中継も`cancelExternalDrag`で元へ戻る）3ブロックへ戻れなかった。
+      // `onTap`がnullの`GestureDetector`は認識器を持たず素通しになる。
       return GestureDetector(
         behavior: HitTestBehavior.translucent,
-        onTap: onExpandTap,
+        onTap: progress >= 1 ? null : onExpandTap,
         child: child,
       );
     },
@@ -4227,7 +4276,7 @@ class _DmDetailWithRoomsState extends ConsumerState<_DmDetailWithRooms> {
               orElse: () => DmRoom(
                 roomId: roomId,
                 dmId: dm.dmId,
-                name: 'メイン',
+                name: ref.read(appStringsProvider).roomDefaultName,
                 participants: dm.participants,
               ),
             )
@@ -4352,7 +4401,7 @@ class _DmDetailWithRoomsState extends ConsumerState<_DmDetailWithRooms> {
                 _CollapsibleDivider(progress: collapseProgress),
             ],
             Expanded(
-              child: _buildExpandableChatPane(
+              child: buildExpandableChatPane(
                 collapseProgress: collapseProgress,
                 onExpandTap: widget.onExpandTap,
                 chatPane: DmChatPane(
@@ -4519,7 +4568,7 @@ class _GroupDetailWithRoomsState extends ConsumerState<_GroupDetailWithRooms> {
               orElse: () => Room(
                 roomId: roomId,
                 groupId: group.groupId,
-                name: 'メイン',
+                name: ref.read(appStringsProvider).roomDefaultName,
                 memberIds: group.memberIds,
               ),
             )
@@ -4647,7 +4696,7 @@ class _GroupDetailWithRoomsState extends ConsumerState<_GroupDetailWithRooms> {
                 _CollapsibleDivider(progress: collapseProgress),
             ],
             Expanded(
-              child: _buildExpandableChatPane(
+              child: buildExpandableChatPane(
                 collapseProgress: collapseProgress,
                 onExpandTap: widget.onExpandTap,
                 chatPane: GroupChatPane(

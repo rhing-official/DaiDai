@@ -5,6 +5,7 @@ import '../../models/app_user.dart';
 import '../../providers/repository_providers.dart';
 import '../../widgets/fixed_font_theme.dart';
 import '../home/home_screen.dart';
+import '../../l10n/strings.dart';
 
 /// Rhing Seedの最小設定画面。
 /// 本実装（秘密の質問・2段階認証など）はフェーズ1の後続タスクで追加する。
@@ -29,7 +30,7 @@ class _RhingSeedSetupScreenState extends ConsumerState<RhingSeedSetupScreen> {
     final rhingSeed = _controller.text.trim();
     if (!_validPattern.hasMatch(rhingSeed)) {
       setState(() {
-        _errorMessage = '英数字・.・-・_のみ、1〜20文字で入力してください';
+        _errorMessage = ref.read(appStringsProvider).rhingSeedSetupInvalidError;
       });
       return;
     }
@@ -44,7 +45,7 @@ class _RhingSeedSetupScreenState extends ConsumerState<RhingSeedSetupScreen> {
       final available = await userRepository.isRhingSeedAvailable(rhingSeed);
       if (!available) {
         setState(() {
-          _errorMessage = 'このRhing Seedはすでに使われています';
+          _errorMessage = ref.read(appStringsProvider).rhingSeedSetupTakenError;
         });
         return;
       }
@@ -65,13 +66,15 @@ class _RhingSeedSetupScreenState extends ConsumerState<RhingSeedSetupScreen> {
       // 到達した時点で何らかの誤判定（AuthGateの取得失敗等）が起きている。
       // 詳細は日記.md参照。
       setState(() {
-        _errorMessage =
-            'このアカウントには既に住人情報が登録されています。'
-            '一度サインアウトしてから、もう一度ログインし直してください。';
+        _errorMessage = ref
+            .read(appStringsProvider)
+            .rhingSeedSetupAlreadyRegisteredError;
       });
     } catch (e) {
       setState(() {
-        _errorMessage = '登録に失敗しました: $e';
+        _errorMessage = ref
+            .read(appStringsProvider)
+            .rhingSeedSetupFailedTemplate(e);
       });
     } finally {
       if (mounted) {
@@ -90,9 +93,10 @@ class _RhingSeedSetupScreenState extends ConsumerState<RhingSeedSetupScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final strings = ref.watch(appStringsProvider);
     return FixedFontTheme(
       child: Scaffold(
-        appBar: AppBar(title: const Text('Rhing Seedを設定')),
+        appBar: AppBar(title: Text(strings.rhingSeedSetupAppBarTitle)),
         body: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 400),
@@ -102,8 +106,8 @@ class _RhingSeedSetupScreenState extends ConsumerState<RhingSeedSetupScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text('あなただけのRhing Seedを決めてください。'),
-                  const Text('英数字・.・-・_のみ使用できます（大文字小文字は区別されません）。'),
+                  Text(strings.rhingSeedSetupIntro),
+                  Text(strings.rhingSeedSetupRules),
                   const SizedBox(height: 16),
                   TextField(
                     controller: _controller,
@@ -125,7 +129,7 @@ class _RhingSeedSetupScreenState extends ConsumerState<RhingSeedSetupScreen> {
                     onPressed: _isSubmitting ? null : _submit,
                     child: _isSubmitting
                         ? const SizedBox.shrink()
-                        : const Text('決定'),
+                        : Text(strings.rhingSeedSetupSubmitButton),
                   ),
                 ],
               ),

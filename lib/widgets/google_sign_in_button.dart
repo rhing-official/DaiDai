@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../l10n/strings.dart';
 import 'branded_block_button.dart';
 
 /// Googleの「Sign in with Google」ブランドガイドライン
@@ -18,7 +20,7 @@ import 'branded_block_button.dart';
 /// 配色ロジック本体は[BrandedBlockButton]に集約されており（2026-09-23、
 /// QRコード・パスキーログインボタンにも同じ見た目を流用するため）、この
 /// クラスはGoogleロゴ・文言を渡す薄いラッパー。
-class GoogleSignInButton extends StatelessWidget {
+class GoogleSignInButton extends ConsumerWidget {
   const GoogleSignInButton({
     required this.onPressed,
     this.loading = false,
@@ -29,7 +31,7 @@ class GoogleSignInButton extends StatelessWidget {
   final bool loading;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return BrandedBlockButton(
       onPressed: onPressed,
       loading: loading,
@@ -38,7 +40,7 @@ class GoogleSignInButton extends StatelessWidget {
         width: 18,
         height: 18,
       ),
-      label: 'Googleでログイン',
+      label: ref.watch(appStringsProvider).signInWithGoogleButton,
     );
   }
 }

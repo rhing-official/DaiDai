@@ -27,7 +27,13 @@ class AuthGate extends ConsumerWidget {
 
     return authState.when(
       loading: () => const Scaffold(body: SizedBox.shrink()),
-      error: (error, _) => Scaffold(body: Center(child: Text('エラー: $error'))),
+      error: (error, _) => Scaffold(
+        body: Center(
+          child: Text(
+            ref.read(appStringsProvider).authGateErrorTemplate(error),
+          ),
+        ),
+      ),
       data: (user) {
         if (user == null) {
           return const SignInScreen();

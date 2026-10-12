@@ -6,17 +6,27 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../l10n/strings.dart';
+
 /// 404ページで展示する作品1点分（2026-10-10追加）。
 class MuseumExhibit {
   const MuseumExhibit({
     required this.asset,
     required this.title,
+    required this.titleEn,
     required this.caption,
+    required this.captionEn,
   });
 
   final String asset;
   final String title;
+  final String titleEn;
   final String caption;
+  final String captionEn;
+
+  /// 表示言語に合わせた作品名・解説（2026-10-13、表示言語対応）。
+  String titleFor(bool english) => english ? titleEn : title;
+  String captionFor(bool english) => english ? captionEn : caption;
 }
 
 /// HomePage-Rhingの`not-found.tsx`と同じ6点。
@@ -24,36 +34,56 @@ const museumExhibits = [
   MuseumExhibit(
     asset: 'assets/museum/night-alley.jpg',
     title: '《夜の回廊》',
+    titleEn: '"Corridor of Night"',
     caption: '灯りの続く夜の路地',
+    captionEn: 'A lamplit alley at night',
   ),
   MuseumExhibit(
     asset: 'assets/museum/vintage-chairs.jpg',
     title: '《色彩の椅子》',
+    titleEn: '"Chairs of Colour"',
     caption: '庭先に並ぶ五つの椅子',
+    captionEn: 'Five chairs lined up in a garden',
   ),
   MuseumExhibit(
     asset: 'assets/museum/rose-and-monument.jpg',
     title: '《薔薇と記念碑》',
+    titleEn: '"Roses and a Monument"',
     caption: '曇天の広場にて',
+    captionEn: 'In a plaza under a cloudy sky',
   ),
   MuseumExhibit(
     asset: 'assets/museum/snow-town.jpg',
     title: '《雪の町、山影》',
+    titleEn: '"Snowy Town, Mountain Shadow"',
     caption: '夕陽に染まる町並み',
+    captionEn: 'Rooftops glowing in the setting sun',
   ),
   MuseumExhibit(
     asset: 'assets/museum/berries-in-shade.jpg',
     title: '《木陰の実り》',
+    titleEn: '"Fruit in the Shade"',
     caption: '葉隠れの青い実',
+    captionEn: 'Blue berries hidden among leaves',
   ),
   MuseumExhibit(
     asset: 'assets/museum/leaves-in-dark.jpg',
     title: '《葉陰の彩り》',
+    titleEn: '"Colours of the Leaves"',
     caption: '闇に浮かぶ葉の群れ',
+    captionEn: 'A cluster of leaves floating in the dark',
   ),
 ];
 
 const _contactUrl = 'https://rhing.jp/contact';
+
+/// 現在のロケール（`MaterialApp.locale`）に合わせた文言。404ページは
+/// `go_router`のエラービルダーから単独で出るためRiverpodに依存せず、
+/// [Localizations]から引く（2026-10-13）。
+Strings _stringsOf(BuildContext context) => Strings.ofContext(context);
+
+bool _isEnglish(BuildContext context) =>
+    Localizations.localeOf(context).languageCode == 'en';
 
 const _background = Color(0xFFFCFBF7);
 const _gray900 = Color(0xFF111827);
@@ -137,6 +167,7 @@ class _NotFoundScreenState extends State<NotFoundScreen>
 
   @override
   Widget build(BuildContext context) {
+    final strings = _stringsOf(context);
     final baseText =
         Theme.of(context).textTheme.bodyMedium ?? const TextStyle();
     final width = MediaQuery.sizeOf(context).width;
@@ -178,7 +209,7 @@ class _NotFoundScreenState extends State<NotFoundScreen>
                             ),
                             const SizedBox(height: 16),
                             Text(
-                              'お探しのページは見つかりませんでした',
+                              strings.notFoundSubtitle,
                               textAlign: TextAlign.center,
                               style: baseText.copyWith(
                                 fontSize: 14,
@@ -199,9 +230,7 @@ class _NotFoundScreenState extends State<NotFoundScreen>
                         child: SizedBox(
                           width: double.infinity,
                           child: Text(
-                            '本日は存在しないページ特別展を開催しております。\n'
-                            'お探しのページは見当たりませんでした。\n'
-                            'URLをご確認のうえ、常設展示からお探しください。',
+                            strings.notFoundBody,
                             textAlign: TextAlign.center,
                             style: baseText.copyWith(
                               fontSize: 16,
@@ -242,13 +271,13 @@ class _NotFoundScreenState extends State<NotFoundScreen>
                         runSpacing: 16,
                         children: [
                           _PillButton(
-                            label: 'トップページへ戻る',
+                            label: strings.notFoundBackToTop,
                             filled: true,
                             baseText: baseText,
                             onPressed: () => context.go('/'),
                           ),
                           _PillButton(
-                            label: 'お問い合わせ',
+                            label: strings.notFoundContact,
                             filled: false,
                             baseText: baseText,
                             onPressed: () => launchUrl(
@@ -329,6 +358,7 @@ class _ExhibitFrame extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final english = _isEnglish(context);
     final exhibit = this.exhibit;
     return TweenAnimationBuilder<double>(
       tween: Tween(begin: 0, end: exhibit == null ? 0 : 1),
@@ -365,7 +395,7 @@ class _ExhibitFrame extends StatelessWidget {
                         child: Image.asset(
                           exhibit.asset,
                           fit: BoxFit.cover,
-                          semanticLabel: exhibit.title,
+                          semanticLabel: exhibit.titleFor(english),
                           errorBuilder: (_, _, _) =>
                               const ColoredBox(color: _gray200),
                         ),
@@ -373,7 +403,7 @@ class _ExhibitFrame extends StatelessWidget {
                     ),
                     const SizedBox(height: 16),
                     Text(
-                      exhibit.title,
+                      exhibit.titleFor(english),
                       textAlign: TextAlign.center,
                       style: baseText.copyWith(
                         fontSize: 14,
@@ -384,7 +414,7 @@ class _ExhibitFrame extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      exhibit.caption,
+                      exhibit.captionFor(english),
                       textAlign: TextAlign.center,
                       style: baseText.copyWith(
                         fontSize: 12,

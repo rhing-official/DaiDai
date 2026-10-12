@@ -50,7 +50,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
       });
     } catch (e) {
       setState(() {
-        _errorMessage = 'ログインに失敗しました: $e';
+        _errorMessage = ref.read(appStringsProvider).signInFailedTemplate(e);
       });
     } finally {
       if (mounted) {
@@ -78,7 +78,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
       setState(() {
         _errorMessage = e.code == 'invalid-verification-code'
             ? strings.twoFactorInvalidCodeError
-            : 'ログインに失敗しました: ${e.message}';
+            : strings.signInFailedTemplate(e.message ?? e.code);
       });
     } finally {
       if (mounted) {
@@ -163,7 +163,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
         ),
       ),
       const SizedBox(height: 8),
-      const Text('整う、守る、私に馴染む。'),
+      Text(strings.signInTagline),
       const SizedBox(height: 32),
       if (_errorMessage != null) ...[
         Text(_errorMessage!, style: const TextStyle(color: Colors.red)),

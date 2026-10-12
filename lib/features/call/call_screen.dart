@@ -16,6 +16,7 @@ import 'call_control_bar.dart';
 import 'call_controls.dart';
 import 'camera_availability.dart';
 import 'webrtc_call_controller.dart';
+import '../../l10n/strings.dart';
 
 /// 音声・ビデオ通話のモバイル向け全画面表示（発信中・着信中・通話中を
 /// 1画面でまとめて扱う）。一対（1対1）限定。開始時点の種別は
@@ -142,13 +143,16 @@ class _CallScreenState extends ConsumerState<CallScreen> {
 
   String get _statusLabel {
     if (_controller.error != null) return _controller.error!;
+    final strings = ref.read(appStringsProvider);
     switch (_controller.state) {
       case CallConnectionState.connecting:
-        return widget.isCaller ? '発信中…' : '接続中…';
+        return widget.isCaller
+            ? strings.callStatusCalling
+            : strings.callStatusConnecting;
       case CallConnectionState.active:
-        return '通話中';
+        return strings.callStatusActive;
       case CallConnectionState.ended:
-        return '通話終了';
+        return strings.callStatusEnded;
     }
   }
 
@@ -362,9 +366,9 @@ class _CallScreenState extends ConsumerState<CallScreen> {
                     color: Colors.black54,
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: const Text(
-                    '接続が不安定です…',
-                    style: TextStyle(color: Colors.white70, fontSize: 12),
+                  child: Text(
+                    ref.read(appStringsProvider).callConnectionUnstableEllipsis,
+                    style: const TextStyle(color: Colors.white70, fontSize: 12),
                   ),
                 ),
               ),

@@ -1,5 +1,6 @@
 import 'package:daidai/features/not_found/not_found_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 
@@ -19,7 +20,14 @@ Future<void> _pump(WidgetTester tester, GoRouter router, {Size? size}) async {
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);
-  await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+  await tester.pumpWidget(
+    MaterialApp.router(
+      routerConfig: router,
+      locale: const Locale('ja'),
+      supportedLocales: const [Locale('ja'), Locale('en')],
+      localizationsDelegates: GlobalMaterialLocalizations.delegates,
+    ),
+  );
   await tester.pumpAndSettle();
 }
 

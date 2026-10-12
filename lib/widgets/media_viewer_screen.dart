@@ -10,6 +10,7 @@ import 'package:video_player/video_player.dart';
 import '../utils/fullscreen/fullscreen.dart';
 import 'swipe_gestures.dart' show PinchPriorityPageView;
 import 'video_thumbnail.dart';
+import '../l10n/strings.dart';
 
 /// [MediaViewerScreen]で表示する画像・動画1件分（2026-09-07追加、
 /// `chat_screen.dart`の`_MediaViewerScreen`から`Message`依存を取り除いて
@@ -447,7 +448,12 @@ class _VideoViewerPageState extends State<_VideoViewerPage> {
   /// 「+10秒」「−10秒」を一瞬フラッシュ表示する（2026-08-18追加）。
   void _showSkipFlash({required bool forward}) {
     _skipFlashTimer?.cancel();
-    setState(() => _skipFlashLabel = forward ? '+10秒' : '−10秒');
+    final strings = Strings.ofContext(context);
+    setState(
+      () => _skipFlashLabel = forward
+          ? strings.mediaSkipForwardLabel
+          : strings.mediaSkipBackwardLabel,
+    );
     _skipFlashTimer = Timer(const Duration(milliseconds: 600), () {
       if (mounted) setState(() => _skipFlashLabel = null);
     });

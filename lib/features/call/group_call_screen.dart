@@ -16,6 +16,7 @@ import 'call_control_bar.dart';
 import 'call_tile_layout.dart';
 import 'camera_availability.dart';
 import 'webrtc_group_call_controller.dart';
+import '../../l10n/strings.dart';
 
 /// 広場（グループ）通話のモバイル向け全画面表示。メッシュ型P2Pのため、
 /// 参加者ごとに独立した`RTCVideoRenderer`をグリッド表示する。1対1の
@@ -187,7 +188,9 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
           ),
           const SizedBox(height: 24),
           Text(
-            '参加者${tiles.length}人',
+            ref
+                .read(appStringsProvider)
+                .groupCallParticipantCountTemplate(tiles.length),
             style: const TextStyle(color: Colors.white70),
           ),
           const Spacer(),
@@ -259,7 +262,7 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
                 right: 0,
                 child: Center(
                   child: Text(
-                    '他の参加者を待っています…',
+                    ref.read(appStringsProvider).groupCallWaitingForOthers,
                     style: const TextStyle(
                       color: Colors.white70,
                       shadows: [Shadow(blurRadius: 6)],
@@ -452,9 +455,9 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
                   color: Colors.black54,
                   borderRadius: BorderRadius.circular(6),
                 ),
-                child: const Text(
-                  '接続が不安定です',
-                  style: TextStyle(color: Colors.white70, fontSize: 10),
+                child: Text(
+                  ref.read(appStringsProvider).callConnectionUnstable,
+                  style: const TextStyle(color: Colors.white70, fontSize: 10),
                 ),
               ),
             ),

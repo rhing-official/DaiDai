@@ -2297,7 +2297,9 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
       if (context.mounted) {
         showAutoDismissBanner(
           context,
-          message: 'この通話は満員です（上限${call.maxParticipants}人）',
+          message: ref
+              .read(appStringsProvider)
+              .callFullMessageTemplate(call.maxParticipants),
         );
       }
       return;
