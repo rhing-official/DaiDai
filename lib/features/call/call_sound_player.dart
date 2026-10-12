@@ -40,8 +40,12 @@ class CallSoundPlayer {
   /// 通話終了時に呼ぶ。発信者/着信者どちらの終了時も一律で呼ばれるため
   /// （`ActiveCallSessionNotifier._teardown`参照）、着信音・呼出音の両方の
   /// ループをまとめて止める。
-  Future<void> stopRingtone() =>
-      Future.wait([_ringtonePlayer.stop(), _callingPlayer.stop()]);
+  Future<void> stopRingtone() async {
+    // `playRingtoneTimes`の回数カウント用の購読も止める（停止後に残さない）。
+    await _ringtoneTimesSub?.cancel();
+    _ringtoneTimesSub = null;
+    await Future.wait([_ringtonePlayer.stop(), _callingPlayer.stop()]);
+  }
 
   StreamSubscription<void>? _ringtoneTimesSub;
 

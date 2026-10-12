@@ -7,6 +7,7 @@ import '../../router/back_stack.dart';
 import '../../models/app_user.dart';
 import '../../providers/home_shell_providers.dart';
 import '../../widgets/nav_chip.dart';
+import '../../widgets/pane_visibility.dart';
 import '../chat/talks_tab.dart';
 import '../profile/profile_tab.dart';
 import '../settings/settings_tab.dart';
@@ -215,7 +216,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       // 戻る・進むはタブごとの履歴で、タブをまたいで戻らない（2026-10-06変更、
       // 以前は語らい以外のタブで戻ると語らいタブへ戻る`BackEntry`だった）。
       // 現在のタブを`BackStackController.activeScope`へ伝える。
-      child: IndexedStack(index: _selectedIndex, children: tabs),
+      // 非選択のタブもマウントされたままのため、見えているタブだけを
+      // `PaneVisibility`で「表示中」と伝える（通話ミニ表示の出し分け用）。
+      child: IndexedStack(
+        index: _selectedIndex,
+        children: [
+          for (var i = 0; i < tabs.length; i++)
+            PaneVisibility(visible: i == _selectedIndex, child: tabs[i]),
+        ],
+      ),
     );
 
     Widget wrapWithSwipe(Widget child, {required bool vertical}) {

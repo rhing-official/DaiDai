@@ -51,6 +51,7 @@ import '../../widgets/glass/glass_avatar.dart';
 import '../../widgets/focal_circle_avatar.dart';
 import '../../widgets/glass/glass_icon_badge.dart';
 import '../../widgets/glass/glass_surface.dart';
+import '../../widgets/pane_visibility.dart';
 import '../../widgets/unread_badge.dart';
 import '../../widgets/interactive_swipe_back.dart';
 import '../../widgets/swipe_gestures.dart';
@@ -212,14 +213,14 @@ class _TalksTabState extends ConsumerState<TalksTab>
     final group = ref.read(pendingGroupSelectionProvider);
     if (group != null) {
       ref.read(pendingGroupSelectionProvider.notifier).clear();
-      setState(() => _category = _TalksCategory.group);
+      _selectCategory(_TalksCategory.group);
       _openGroup(group);
       return;
     }
     final dm = ref.read(pendingDmSelectionProvider);
     if (dm != null) {
       ref.read(pendingDmSelectionProvider.notifier).clear();
-      setState(() => _category = _TalksCategory.dm);
+      _selectCategory(_TalksCategory.dm);
       _openDirectMessage(dm);
       return;
     }
@@ -248,9 +249,35 @@ class _TalksTabState extends ConsumerState<TalksTab>
   /// 速度しきい値判定から`PageView`へ変更。手描きの速度判定だと片方向だけ
   /// ジェスチャーアリーナで負けて反応しないことがあったため、この用途では
   /// 双方向のスワイプ切り替えが実績豊富な`PageView`に任せる）。
-  late final PageController _categoryPageController = PageController(
+  late PageController _categoryPageController = PageController(
     initialPage: _category.index,
   );
+
+  /// [_categoryPageController]を[category]のページに合わせる。`PageView`が
+  /// 表示中（`hasClients`）ならアニメーションで追従する。検索中などで
+  /// `PageView`がツリーから外れている間は、後で再マウントされた時に古い
+  /// `initialPage`で開いてトグルと一覧がズレるため、コントローラを
+  /// `initialPage`付きで作り直す（2026-10-12追加）。
+  void _syncCategoryPage(_TalksCategory category) {
+    if (_categoryPageController.hasClients) {
+      if (_categoryPageController.page?.round() != category.index) {
+        _categoryPageController.animateToPage(
+          category.index,
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOut,
+        );
+      }
+      return;
+    }
+    _categoryPageController.dispose();
+    _categoryPageController = PageController(initialPage: category.index);
+  }
+
+  /// `_category`を直接切り替え、[_categoryPageController]も合わせる。
+  void _selectCategory(_TalksCategory category) {
+    setState(() => _category = category);
+    _syncCategoryPage(category);
+  }
 
   /// 一対・広場を横断して検索するための入力欄（2026-08-30追加）。
   final _searchController = TextEditingController();
@@ -496,14 +523,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
           ? null
           : _lastGroups.firstWhereOrNull((g) => g.groupId == location.groupId);
     });
-    if (_categoryPageController.hasClients &&
-        _categoryPageController.page?.round() != location.category.index) {
-      _categoryPageController.animateToPage(
-        location.category.index,
-        duration: const Duration(milliseconds: 250),
-        curve: Curves.easeOut,
-      );
-    }
+    _syncCategoryPage(location.category);
     final roomId = location.roomId;
     final ViewedConversation? conversation = location.dmId != null
         ? ViewedDm(location.dmId!)
@@ -530,14 +550,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
       _category = category;
       _selectedPendingScreen = null;
     });
-    if (_categoryPageController.hasClients &&
-        _categoryPageController.page?.round() != category.index) {
-      _categoryPageController.animateToPage(
-        category.index,
-        duration: const Duration(milliseconds: 250),
-        curve: Curves.easeOut,
-      );
-    }
+    _syncCategoryPage(category);
   }
 
   /// `_categoryPageController`のスワイプでページが確定した時に呼ばれる
@@ -982,7 +995,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
       // 広場を見ている最中に相手の一対へジャンプした場合でも一対タブに
       // 切り替える（_categoryが広場のままだと_buildDetailPaneが広場側を
       // 表示し続けてしまうため）。
-      setState(() => _category = _TalksCategory.dm);
+      _selectCategory(_TalksCategory.dm);
       _openDirectMessage(next);
     });
     // 通話ミニ表示（PinnedCallOverlay）タップでの復帰用（2026-08-19追加）。
@@ -990,7 +1003,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
     ref.listen<Group?>(pendingGroupSelectionProvider, (previous, next) {
       if (next == null) return;
       ref.read(pendingGroupSelectionProvider.notifier).clear();
-      setState(() => _category = _TalksCategory.group);
+      _selectCategory(_TalksCategory.group);
       _openGroup(next);
     });
     // 語らい検索フルページ（`TalksSearchScreen`）からのメッセージ内容一致
@@ -1390,22 +1403,27 @@ class _TalksTabState extends ConsumerState<TalksTab>
     final children = <Widget>[
       const _EmptyDetailPlaceholder(),
       for (final key in visitedList)
-        if (key.startsWith('dm-'))
-          _DmDetailWithRooms(
-            key: ValueKey(key),
-            currentUser: widget.currentUser,
-            dm: directMessages.firstWhere(
-              (d) => d.dmId == key.substring('dm-'.length),
-            ),
-          )
-        else
-          _GroupDetailWithRooms(
-            key: ValueKey(key),
-            currentUser: widget.currentUser,
-            group: groups.firstWhere(
-              (g) => g.groupId == key.substring('group-'.length),
-            ),
-          ),
+        // 非選択の会話もマウントされたままのため、見えている会話だけを
+        // `PaneVisibility`で「表示中」と伝える（通話ミニ表示の出し分け用）。
+        PaneVisibility(
+          key: ValueKey('visibility-$key'),
+          visible: key == activeKey,
+          child: key.startsWith('dm-')
+              ? _DmDetailWithRooms(
+                  key: ValueKey(key),
+                  currentUser: widget.currentUser,
+                  dm: directMessages.firstWhere(
+                    (d) => d.dmId == key.substring('dm-'.length),
+                  ),
+                )
+              : _GroupDetailWithRooms(
+                  key: ValueKey(key),
+                  currentUser: widget.currentUser,
+                  group: groups.firstWhere(
+                    (g) => g.groupId == key.substring('group-'.length),
+                  ),
+                ),
+        ),
     ];
     final activeIndex = activeKey == null
         ? 0
@@ -2185,7 +2203,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
           // に`_category`を合わせてから開く（合わせないと`_buildDetailPane`
           // が表示中タブ側の選択状態しか見ず、分割表示のペインが
           // 切り替わらない、2026-08-30発覚・修正）。
-          setState(() => _category = _TalksCategory.dm);
+          _selectCategory(_TalksCategory.dm);
           _openDirectMessage(dm);
         },
       ),
@@ -2197,7 +2215,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
         unreadCount: prefsById[group.groupId]?.unreadCount ?? 0,
         selected: _isSplit && _selectedGroup?.groupId == group.groupId,
         onTap: () {
-          setState(() => _category = _TalksCategory.group);
+          _selectCategory(_TalksCategory.group);
           _openGroup(group);
         },
       ),

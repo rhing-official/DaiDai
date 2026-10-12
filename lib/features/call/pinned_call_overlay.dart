@@ -1,4 +1,5 @@
 import 'package:collection/collection.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
@@ -10,6 +11,7 @@ import '../../providers/app_ui_style_provider.dart';
 import '../../providers/camera_availability_provider.dart';
 import '../../providers/chat_navigation_providers.dart';
 import '../../providers/home_shell_providers.dart';
+import '../../providers/last_opened_room_provider.dart';
 import '../../providers/repository_providers.dart';
 import '../../router/app_router.dart';
 import '../../theme/gekiga/gekiga_colors.dart';
@@ -88,13 +90,19 @@ class PinnedCallOverlay extends ConsumerWidget {
           // ドラッグ用のボタンは設けず、ミニ表示そのものを掴んで動かせる
           // （2026-10-11追加）。タップ・内部ボタンは従来どおり動く。
           child: PointerInterceptor(
-            child: GestureDetector(
-              onPanUpdate: (details) {
+            child: _PinnedCallDragSurface(
+              currentOffset: () => clampPinnedCallOffset(
+                offset: ref.read(pinnedCallOffsetProvider),
+                screen: screen,
+                topInset: topInset,
+              ),
+              onPointerMoved: (grab, pointer) {
                 ref
                     .read(pinnedCallOffsetProvider.notifier)
                     .set(
-                      clampPinnedCallOffset(
-                        offset: position + details.delta,
+                      pinnedCallOffsetForPointer(
+                        pointer: pointer,
+                        grab: grab,
                         screen: screen,
                         topInset: topInset,
                       ),
@@ -105,6 +113,49 @@ class PinnedCallOverlay extends ConsumerWidget {
           ),
         );
       },
+    );
+  }
+}
+
+/// ミニ表示を掴んで動かすための面（2026-10-13）。相対移動（`delta`）の積算では
+/// なく、掴んだ位置を保持して常にポインターの絶対位置から位置を求める。
+/// `delta`方式は、再描画前に届いた複数のイベントが同じ古い位置に足されて
+/// 移動量を失い、また開始閾値（スロップ）分も取りこぼして指に遅れて見えた。
+/// `dragStartBehavior.down`で押した瞬間の位置から追従する。
+class _PinnedCallDragSurface extends StatefulWidget {
+  const _PinnedCallDragSurface({
+    required this.currentOffset,
+    required this.onPointerMoved,
+    required this.child,
+  });
+
+  /// 押した時点のミニ表示の左上（画面内に補正済み）。
+  final Offset Function() currentOffset;
+
+  /// ドラッグ中、掴んだ位置[grab]（ポインター − 左上）と現在のポインター位置[pointer]。
+  final void Function(Offset grab, Offset pointer) onPointerMoved;
+  final Widget child;
+
+  @override
+  State<_PinnedCallDragSurface> createState() => _PinnedCallDragSurfaceState();
+}
+
+class _PinnedCallDragSurfaceState extends State<_PinnedCallDragSurface> {
+  Offset? _grab;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      dragStartBehavior: DragStartBehavior.down,
+      onPanDown: (details) =>
+          _grab = details.globalPosition - widget.currentOffset(),
+      onPanUpdate: (details) {
+        final grab = _grab;
+        if (grab != null) widget.onPointerMoved(grab, details.globalPosition);
+      },
+      onPanEnd: (_) => _grab = null,
+      onPanCancel: () => _grab = null,
+      child: widget.child,
     );
   }
 }
@@ -376,7 +427,12 @@ class _PinnedCallBubble extends ConsumerWidget {
       return GlassSurface(
         variant: GlassVariant.floating,
         borderRadius: BorderRadius.circular(16),
-        child: InkWell(onTap: () => _reopen(context, ref), child: bubbleSize),
+        // `InkWell`には`Material`祖先が要る。ミニ表示は`main.dart`のbuilder
+        // （`Scaffold`の外）に置いているため自前で持つ（2026-10-13修正）。
+        child: Material(
+          type: MaterialType.transparency,
+          child: InkWell(onTap: () => _reopen(context, ref), child: bubbleSize),
+        ),
       );
     }
 
@@ -428,13 +484,38 @@ class _PinnedCallBubble extends ConsumerWidget {
       return;
     }
 
-    // PCでは全画面ルートへは戻らず、語らいタブへ切り替えた上でその会話を
-    // 開く。開けば`EmbeddedCallPane`が自動的に埋め込み表示へ差し替える
-    // （2026-08-19追加）。
+    // PCでは全画面ルートへは戻らず、語らいタブへ切り替えた上でその会話の
+    // 通話中の寄合を開く。開けば`EmbeddedCallPane`が自動的に埋め込み表示へ
+    // 差し替える（2026-08-19追加、2026-10-13に寄合への移動を追加）。
     ref.read(homeSelectedTabProvider.notifier).set(kTalksTabIndex);
     // 既にその会話を開いていて通話UIがメッセージ表示に切り替わっている場合も、
     // 通話UIへ戻す（2026-10-11追加）。
     ref.read(callPaneRequestProvider.notifier).request(session.conversation);
+    // 通話中の寄合（まだ決まっていなければ移動しない）。先に「最後に開いた寄合」へ
+    // 設定しておけば、まだ開かれていない詳細ペインも最初からその寄合で開く。
+    // 既に開いている詳細ペインには、選択後に寄合の切り替えを要求する。
+    final callRoomId = ref.read(callRoomIdProvider);
+    final conversation = session.conversation;
+    // 既にその寄合を最後に開いている（＝詳細ペインも同じ寄合）なら切り替えは
+    // 不要（要求するとチャット本体が作り直されスクロール位置等を失う）。
+    final alreadyThere =
+        ref.read(lastOpenedRoomProvider.notifier).lastRoomFor(conversation) ==
+        callRoomId;
+    if (callRoomId != null) {
+      ref
+          .read(lastOpenedRoomProvider.notifier)
+          .setLastRoom(conversation, callRoomId);
+    }
+    void requestRoom() {
+      if (callRoomId == null || alreadyThere) return;
+      // 次のフレームで要求する（会話の選択で詳細ペインが作られ・切り替わった後）。
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ref
+            .read(roomSelectionRequestProvider.notifier)
+            .request(conversation, callRoomId);
+      });
+    }
+
     switch (session) {
       case OneToOneCallSession(:final call):
         final caller = AppUser(
@@ -450,11 +531,13 @@ class _PinnedCallBubble extends ConsumerWidget {
             .getOrCreateDirectMessage(caller, callee)
             .then((dm) {
               ref.read(pendingDmSelectionProvider.notifier).set(dm);
+              requestRoom();
             });
       case GroupCallSession(:final groupId):
         ref.read(groupRepositoryProvider).getGroup(groupId).then((group) {
           if (group != null) {
             ref.read(pendingGroupSelectionProvider.notifier).set(group);
+            requestRoom();
           }
         });
     }

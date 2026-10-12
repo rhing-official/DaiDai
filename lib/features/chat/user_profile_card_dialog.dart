@@ -232,6 +232,12 @@ class _UserProfileCardDialogState extends ConsumerState<UserProfileCardDialog> {
                       iconFocal: user
                           .profileCardFor(widget.conversationId)
                           ?.iconFocal,
+                      layoutPreset: user
+                          .profileCardFor(widget.conversationId)
+                          ?.layoutPreset,
+                      textAlign: user
+                          .profileCardFor(widget.conversationId)
+                          ?.textAlign,
                       nickname: name,
                       statusMessage: statusMessage,
                       // SNSリンクはカード内の非タップ可能テキストとしては

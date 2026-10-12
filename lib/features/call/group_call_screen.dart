@@ -1,5 +1,3 @@
-import 'dart:math';
-
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -15,6 +13,7 @@ import '../../widgets/swipe_gestures.dart' show kSwipeGestureVelocityThreshold;
 import 'active_call_session.dart';
 import 'call_avatar.dart';
 import 'call_control_bar.dart';
+import 'call_tile_layout.dart';
 import 'camera_availability.dart';
 import 'webrtc_group_call_controller.dart';
 
@@ -357,47 +356,21 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
       );
     }
 
-    final crossAxisCount = sqrt(tileCount).ceil();
-
     return _dockable(
       SafeArea(
         child: Column(
           children: [
             Expanded(
-              // `GridView.count`は`childAspectRatio`未指定だと既定で正方形
-              // タイルになる。横長の画面（PCのウィンドウ幅を狭めた場合等）
-              // では正方形タイルが縦の表示可能領域を超え、グリッド自体が
-              // スクロールを要求してしまう（2026-08-31修正、
-              // `embedded_call_pane.dart`の`_GroupStage`と同じ原因・同じ
-              // 修正）。実際の`LayoutBuilder`の制約から`childAspectRatio`を
-              // 逆算し、タイル数に関わらず常にスクロール無しで収まるように
-              // する。
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  const spacing = 4.0;
-                  final rowCount = (entries.length / crossAxisCount).ceil();
-                  final tileWidth =
-                      (constraints.maxWidth - spacing * (crossAxisCount + 1)) /
-                      crossAxisCount;
-                  final tileHeight =
-                      (constraints.maxHeight - spacing * (rowCount + 1)) /
-                      rowCount;
-                  return GridView.count(
-                    crossAxisCount: crossAxisCount,
-                    childAspectRatio: tileWidth / tileHeight,
-                    padding: const EdgeInsets.all(spacing),
-                    mainAxisSpacing: spacing,
-                    crossAxisSpacing: spacing,
-                    children: [
-                      for (final entry in entries)
-                        GestureDetector(
-                          onTap: () =>
-                              setState(() => _focusedTileKey = entry.key),
-                          child: entry.tile,
-                        ),
-                    ],
-                  );
-                },
+              // 領域が縦長なら縦に積み、横長なら従来のグリッド（`CallTileGrid`、
+              // 2026-10-13。スクロール無しで常に収まる設計は従来どおり）。
+              child: CallTileGrid(
+                tiles: [
+                  for (final entry in entries)
+                    GestureDetector(
+                      onTap: () => setState(() => _focusedTileKey = entry.key),
+                      child: entry.tile,
+                    ),
+                ],
               ),
             ),
             Padding(

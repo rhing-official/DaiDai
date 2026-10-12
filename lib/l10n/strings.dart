@@ -329,6 +329,16 @@ class Strings {
     required this.workshopFocalDone,
     required this.workshopFocalReset,
     required this.workshopFocalCancel,
+    required this.workshopLayoutLabel,
+    required this.workshopLayoutBottomLeft,
+    required this.workshopLayoutBottomCenter,
+    required this.workshopLayoutTopLeft,
+    required this.workshopLayoutCenter,
+    required this.workshopLayoutBottomRight,
+    required this.workshopAlignLabel,
+    required this.workshopAlignStart,
+    required this.workshopAlignCenter,
+    required this.workshopAlignEnd,
     required this.mentionSectionMembers,
     required this.mentionSectionRoles,
     required this.mentionEveryoneDescription,
@@ -1143,6 +1153,16 @@ class Strings {
   final String workshopFocalDone;
   final String workshopFocalReset;
   final String workshopFocalCancel;
+  final String workshopLayoutLabel;
+  final String workshopLayoutBottomLeft;
+  final String workshopLayoutBottomCenter;
+  final String workshopLayoutTopLeft;
+  final String workshopLayoutCenter;
+  final String workshopLayoutBottomRight;
+  final String workshopAlignLabel;
+  final String workshopAlignStart;
+  final String workshopAlignCenter;
+  final String workshopAlignEnd;
 
   /// `@`メンションのサジェストの区分見出し・説明（2026-10-11追加）。
   final String mentionSectionMembers;
@@ -2131,6 +2151,16 @@ class Strings {
     workshopFocalDone: '完了',
     workshopFocalReset: 'リセット',
     workshopFocalCancel: 'キャンセル',
+    workshopLayoutLabel: '配置',
+    workshopLayoutBottomLeft: '左下',
+    workshopLayoutBottomCenter: '中央下',
+    workshopLayoutTopLeft: '左上',
+    workshopLayoutCenter: '中央',
+    workshopLayoutBottomRight: '右下',
+    workshopAlignLabel: '揃え',
+    workshopAlignStart: '左',
+    workshopAlignCenter: '中央',
+    workshopAlignEnd: '右',
     mentionSectionMembers: 'メンバー',
     mentionSectionRoles: 'ロール',
     mentionEveryoneDescription: (plaza) => 'この$plazaの全員へ通知します。',
@@ -2977,6 +3007,16 @@ class Strings {
     workshopFocalDone: 'Done',
     workshopFocalReset: 'Reset',
     workshopFocalCancel: 'Cancel',
+    workshopLayoutLabel: 'Layout',
+    workshopLayoutBottomLeft: 'Bottom left',
+    workshopLayoutBottomCenter: 'Bottom center',
+    workshopLayoutTopLeft: 'Top left',
+    workshopLayoutCenter: 'Center',
+    workshopLayoutBottomRight: 'Bottom right',
+    workshopAlignLabel: 'Align',
+    workshopAlignStart: 'Left',
+    workshopAlignCenter: 'Center',
+    workshopAlignEnd: 'Right',
     mentionSectionMembers: 'Members',
     mentionSectionRoles: 'Roles',
     mentionEveryoneDescription: (plaza) => 'Notifies everyone in this $plaza.',

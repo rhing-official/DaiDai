@@ -544,6 +544,35 @@ void main() {
     expect(find.byType(FocalEditOverlay), findsNothing);
   });
 
+  testWidgets('配置と文字の揃えをチップで選ぶと保存され、既定へ戻すとキーが消える', (tester) async {
+    const card = ProfileCard(id: 'c1', name: '既存カード');
+    const user = AppUser(userId: 'u1', rhingSeed: 'taro', profileCards: [card]);
+    final repo = _FakeUserRepository()..saved = user;
+    await _pumpProfileTab(tester, user, repo);
+    await tester.tap(find.text('工房'));
+    await tester.pumpAndSettle();
+    await tester.tapAt(tester.getCenter(find.byType(Hero).first));
+    await tester.pumpAndSettle();
+
+    expect(find.text('配置'), findsOneWidget);
+    await tester.tap(find.text('中央下'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('右'));
+    await tester.pumpAndSettle();
+
+    final saved = repo.saved!.profileCards.single;
+    expect(saved.layoutPreset, CardLayoutPreset.bottomCenter);
+    expect(saved.textAlign, CardTextAlign.end);
+
+    await tester.tap(find.text('左下'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('左'));
+    await tester.pumpAndSettle();
+    final reset = repo.saved!.profileCards.single;
+    expect(reset.layoutPreset, isNull);
+    expect(reset.textAlign, isNull);
+  });
+
   testWidgets('カードが2枚以上ならハンドルでドラッグして並べ替えられ、保存される', (tester) async {
     const a = ProfileCard(id: 'a', name: 'カードA');
     const b = ProfileCard(id: 'b', name: 'カードB');

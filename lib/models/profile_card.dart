@@ -1,3 +1,5 @@
+import 'package:flutter/widgets.dart';
+
 /// 和合で作成できるプロフィールカードの上限数。
 const kMaxProfileCards = 3;
 
@@ -56,6 +58,63 @@ class ImageFocal {
 /// 画像の拡大率の上限。
 const kMaxImageFocalScale = 3.0;
 
+/// カード内のアイコン＋文字ブロック全体の配置（2026-10-12追加）。
+/// 未指定（null）は[bottomLeft]（従来の左下寄せ）と同じ。
+enum CardLayoutPreset {
+  bottomLeft,
+  bottomCenter,
+  topLeft,
+  center,
+  bottomRight;
+
+  /// 保存値の[name]から復元する。欠損・不明な値はnull（＝既定）。
+  static CardLayoutPreset? tryParse(Object? value) {
+    for (final preset in values) {
+      if (preset.name == value) return preset;
+    }
+    return null;
+  }
+
+  /// ブロックをカード内のどこに置くか。
+  Alignment get alignment => switch (this) {
+    bottomLeft => Alignment.bottomLeft,
+    bottomCenter => Alignment.bottomCenter,
+    topLeft => Alignment.topLeft,
+    center => Alignment.center,
+    bottomRight => Alignment.bottomRight,
+  };
+
+  bool get isTop => this == topLeft;
+  bool get isCenter => this == center;
+}
+
+/// カード内の文字（アイコン含む縦積みブロック）の揃え（2026-10-12追加）。
+/// 配置プリセットとは独立して選ぶ。未指定（null）は[start]（左揃え）。
+enum CardTextAlign {
+  start,
+  center,
+  end;
+
+  static CardTextAlign? tryParse(Object? value) {
+    for (final align in values) {
+      if (align.name == value) return align;
+    }
+    return null;
+  }
+
+  CrossAxisAlignment get crossAxisAlignment => switch (this) {
+    start => CrossAxisAlignment.start,
+    center => CrossAxisAlignment.center,
+    end => CrossAxisAlignment.end,
+  };
+
+  TextAlign get textAlign => switch (this) {
+    start => TextAlign.start,
+    center => TextAlign.center,
+    end => TextAlign.end,
+  };
+}
+
 /// 和合（プロフィールカード）。蔵に登録済みの素材（アイコン・背景画像・
 /// ニックネーム・ステメ）を組み合わせて作る「見せ方のセット」。
 /// 用途は多岐（友達へのURL共有時の表示、友達バーのホバーポップアップなど）を
@@ -73,6 +132,8 @@ class ProfileCard {
     this.fontDesignId,
     this.backgroundFocal,
     this.iconFocal,
+    this.layoutPreset,
+    this.textAlign,
   });
 
   final String id;
@@ -96,6 +157,11 @@ class ProfileCard {
   final ImageFocal? backgroundFocal;
   final ImageFocal? iconFocal;
 
+  /// アイコン＋文字ブロックの配置と文字の揃え（2026-10-12追加）。nullなら
+  /// 従来どおり左下・左揃え。
+  final CardLayoutPreset? layoutPreset;
+  final CardTextAlign? textAlign;
+
   ProfileCard copyWith({
     String? name,
     String? iconId,
@@ -113,6 +179,10 @@ class ProfileCard {
     bool clearBackgroundFocal = false,
     ImageFocal? iconFocal,
     bool clearIconFocal = false,
+    CardLayoutPreset? layoutPreset,
+    bool clearLayoutPreset = false,
+    CardTextAlign? textAlign,
+    bool clearTextAlign = false,
   }) {
     return ProfileCard(
       id: id,
@@ -133,6 +203,10 @@ class ProfileCard {
           ? null
           : (backgroundFocal ?? this.backgroundFocal),
       iconFocal: clearIconFocal ? null : (iconFocal ?? this.iconFocal),
+      layoutPreset: clearLayoutPreset
+          ? null
+          : (layoutPreset ?? this.layoutPreset),
+      textAlign: clearTextAlign ? null : (textAlign ?? this.textAlign),
     );
   }
 
@@ -148,6 +222,8 @@ class ProfileCard {
       fontDesignId: json['fontDesignId'] as String?,
       backgroundFocal: ImageFocal.fromJson(json['backgroundFocal']),
       iconFocal: ImageFocal.fromJson(json['iconFocal']),
+      layoutPreset: CardLayoutPreset.tryParse(json['layoutPreset']),
+      textAlign: CardTextAlign.tryParse(json['textAlign']),
     );
   }
 
@@ -163,6 +239,8 @@ class ProfileCard {
       'fontDesignId': fontDesignId,
       if (backgroundFocal != null) 'backgroundFocal': backgroundFocal!.toJson(),
       if (iconFocal != null) 'iconFocal': iconFocal!.toJson(),
+      if (layoutPreset != null) 'layoutPreset': layoutPreset!.name,
+      if (textAlign != null) 'textAlign': textAlign!.name,
     };
   }
 }

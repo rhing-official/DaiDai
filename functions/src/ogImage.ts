@@ -7,6 +7,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import sharp from "sharp";
 
+import { resolveOgLayout } from "./ogLayout";
+
 // @vercel/ogはESM専用。Node 24のrequire(esm)で同期的に読み込む。
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { ImageResponse } = require("@vercel/og");
@@ -76,6 +78,7 @@ async function render(type: string | null, id: string | null): Promise<Buffer> {
       : null,
     loadNotoSansJpCached(fontText).catch(() => null),
   ]);
+  const layout = resolveOgLayout(doc?.layoutPreset, doc?.textAlign);
   const hasBackground = Boolean(backgroundDataUri);
   const textColor = hasBackground ? '#FFFFFF' : '#2E2A24';
   const subTextColor = hasBackground ? 'rgba(255,255,255,0.75)' : '#6B6459';
@@ -104,6 +107,7 @@ async function render(type: string | null, id: string | null): Promise<Buffer> {
         fontWeight: 700,
         color: textColor,
         lineHeight: 1.2,
+        textAlign: layout.textAlign,
       },
       [name],
     ),
@@ -113,7 +117,12 @@ async function render(type: string | null, id: string | null): Promise<Buffer> {
     contentChildren.push(
       el(
         'div',
-        { display: 'flex', fontSize: DESCRIPTION_FONT_SIZE, color: subTextColor },
+        {
+          display: 'flex',
+          fontSize: DESCRIPTION_FONT_SIZE,
+          color: subTextColor,
+          textAlign: layout.textAlign,
+        },
         [description],
       ),
     );
@@ -151,25 +160,36 @@ async function render(type: string | null, id: string | null): Promise<Buffer> {
         position: 'absolute',
         inset: 0,
         display: 'flex',
-        backgroundImage:
-          'linear-gradient(to bottom, rgba(0,0,0,0) 40%, rgba(0,0,0,0.54) 100%)',
+        backgroundImage: layout.scrim,
       }, []),
     );
   }
+  // 全面の絶対配置コンテナの中で、ブロックを縦はjustifyContent・横は
+  // alignItemsで置く（配置プリセット、`ogLayout.ts`）。ブロック内の各行の
+  // 揃えは内側のコンテナのalignItemsで指定する。
   layers.push(
     el(
       'div',
       {
         position: 'absolute',
-        left: 0,
-        right: 0,
-        bottom: 0,
+        inset: 0,
         display: 'flex',
         flexDirection: 'column',
-        alignItems: 'flex-start',
+        justifyContent: layout.justifyContent,
+        alignItems: layout.alignSelfX,
         padding: CONTENT_PADDING,
       },
-      contentChildren,
+      [
+        el(
+          'div',
+          {
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: layout.itemsAlign,
+          },
+          contentChildren,
+        ),
+      ],
     ),
   );
 

@@ -442,6 +442,8 @@ class FirestoreUserRepository implements UserRepository {
       statusMessage: user.effectiveStatusMessage?.text,
       backgroundImageUrl: user.effectiveBackgroundImage?.url,
       snsLinkUrls: [for (final link in user.effectiveSnsLinks) link.url],
+      layoutPreset: user.activeProfileCard?.layoutPreset?.name,
+      textAlign: user.activeProfileCard?.textAlign?.name,
     );
     await _firestore
         .collection('userInvites')

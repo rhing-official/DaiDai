@@ -43,6 +43,8 @@ class ProfileCardView extends StatelessWidget {
     this.fontFamily,
     this.backgroundFocal,
     this.iconFocal,
+    this.layoutPreset,
+    this.textAlign,
     super.key,
   });
 
@@ -74,6 +76,11 @@ class ProfileCardView extends StatelessWidget {
   final ImageFocal? backgroundFocal;
   final ImageFocal? iconFocal;
 
+  /// アイコン＋文字ブロックの配置と文字の揃え（2026-10-12追加）。nullなら従来どおり
+  /// 左下・左揃え。
+  final CardLayoutPreset? layoutPreset;
+  final CardTextAlign? textAlign;
+
   @override
   Widget build(BuildContext context) {
     const avatarRadius = kProfileCardAvatarRadius;
@@ -97,71 +104,112 @@ class ProfileCardView extends StatelessWidget {
             if (background != null)
               FocalImage(url: background!.url, focal: backgroundFocal),
             if (background != null)
-              const DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [Colors.transparent, Colors.black54],
+              DecoratedBox(
+                decoration: profileCardScrimDecoration(layoutPreset),
+              ),
+            ProfileCardContent(
+              layoutPreset: layoutPreset,
+              textAlign: textAlign,
+              children: [
+                ProfileCardAvatar(
+                  icon: icon,
+                  focal: iconFocal,
+                  radius: avatarRadius,
+                ),
+                SizedBox(height: padding * 0.6),
+                Text(
+                  nickname,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: (textAlign ?? CardTextAlign.start).textAlign,
+                  style: TextStyle(
+                    fontSize: nicknameFontSize,
+                    fontWeight: FontWeight.bold,
+                    color: background != null ? Colors.white : null,
+                    fontFamily: fontFamily,
                   ),
                 ),
-              ),
-            Padding(
-              padding: EdgeInsets.all(padding),
-              // アイコン・呼び名・一言・URLのサイズを固定値にしたことで、
-              // 想定より極端に狭いカード幅（呼び出し側のclamp下限等）では
-              // 収まりきらない可能性があるため、その場合だけ自動的に
-              // 縮小してオーバーフローを防ぐ（拡大はしない）。
-              child: FittedBox(
-                fit: BoxFit.scaleDown,
-                alignment: Alignment.bottomLeft,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    ProfileCardAvatar(
-                      icon: icon,
-                      focal: iconFocal,
-                      radius: avatarRadius,
+                if (statusMessage != null && statusMessage!.isNotEmpty)
+                  Text(
+                    statusMessage!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: (textAlign ?? CardTextAlign.start).textAlign,
+                    style: TextStyle(
+                      fontSize: statusFontSize,
+                      color: subtitleColor,
+                      fontFamily: fontFamily,
                     ),
-                    SizedBox(height: padding * 0.6),
-                    Text(
-                      nickname,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: nicknameFontSize,
-                        fontWeight: FontWeight.bold,
-                        color: background != null ? Colors.white : null,
-                        fontFamily: fontFamily,
-                      ),
-                    ),
-                    if (statusMessage != null && statusMessage!.isNotEmpty)
-                      Text(
-                        statusMessage!,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: statusFontSize,
-                          color: subtitleColor,
-                          fontFamily: fontFamily,
-                        ),
-                      ),
-                    if (snsLinks.isNotEmpty) ...[
-                      SizedBox(height: padding * 0.3),
-                      SnsLinksInline(
-                        links: snsLinks,
-                        iconSize: statusFontSize,
-                        fontSize: statusFontSize * 0.9,
-                        color: subtitleColor,
-                        fontFamily: fontFamily,
-                      ),
-                    ],
-                  ],
-                ),
-              ),
+                  ),
+                if (snsLinks.isNotEmpty) ...[
+                  SizedBox(height: padding * 0.3),
+                  SnsLinksInline(
+                    links: snsLinks,
+                    iconSize: statusFontSize,
+                    fontSize: statusFontSize * 0.9,
+                    color: subtitleColor,
+                    fontFamily: fontFamily,
+                    crossAxisAlignment:
+                        (textAlign ?? CardTextAlign.start).crossAxisAlignment,
+                  ),
+                ],
+              ],
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 背景画像の上に重ねる暗幕。文字の置かれる側が濃くなるよう配置に追従する
+/// （2026-10-12）。下寄せ=下が濃い（従来）／左上=上が濃い／中央=全体に薄く。
+BoxDecoration profileCardScrimDecoration(CardLayoutPreset? preset) {
+  if (preset == CardLayoutPreset.center) {
+    return const BoxDecoration(color: Colors.black38);
+  }
+  final top = preset?.isTop ?? false;
+  return BoxDecoration(
+    gradient: LinearGradient(
+      begin: top ? Alignment.bottomCenter : Alignment.topCenter,
+      end: top ? Alignment.topCenter : Alignment.bottomCenter,
+      colors: const [Colors.transparent, Colors.black54],
+    ),
+  );
+}
+
+/// カード内のアイコン・呼び名・一言・SNSの縦積みブロックを、配置プリセットと
+/// 文字の揃えに従って置く共通の骨格（2026-10-12）。`ProfileCardView`と工房の
+/// ズーム編集（`_CardZoomEditor`）の両方が使い、レイアウトの重複を避ける。
+/// 内容が収まりきらない場合は自動的に縮小する（拡大はしない）。
+class ProfileCardContent extends StatelessWidget {
+  const ProfileCardContent({
+    required this.children,
+    this.layoutPreset,
+    this.textAlign,
+    super.key,
+  });
+
+  final List<Widget> children;
+  final CardLayoutPreset? layoutPreset;
+  final CardTextAlign? textAlign;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(kProfileCardPadding),
+      // アイコン・呼び名・一言・URLのサイズを固定値にしたことで、想定より極端に
+      // 狭いカード幅では収まりきらない可能性があるため、その場合だけ自動的に
+      // 縮小してオーバーフローを防ぐ。Hero飛行中（工房のズーム）も矩形が一瞬
+      // 小さくなるが、FittedBoxならオーバーフロー警告そのものが起きない。
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        alignment: (layoutPreset ?? CardLayoutPreset.bottomLeft).alignment,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment:
+              (textAlign ?? CardTextAlign.start).crossAxisAlignment,
+          children: children,
         ),
       ),
     );
@@ -180,6 +228,7 @@ class SnsLinksInline extends StatelessWidget {
     this.placeholder,
     this.onTap,
     this.fontFamily,
+    this.crossAxisAlignment = CrossAxisAlignment.start,
     super.key,
   });
 
@@ -194,6 +243,9 @@ class SnsLinksInline extends StatelessWidget {
 
   /// [ProfileCardView.fontFamily]参照。nullなら周囲の`Theme`を継承する。
   final String? fontFamily;
+
+  /// 複数行のURLを互いにどちら側へ揃えるか（カードの文字の揃えに合わせる）。
+  final CrossAxisAlignment crossAxisAlignment;
 
   @override
   Widget build(BuildContext context) {
@@ -217,7 +269,7 @@ class SnsLinksInline extends StatelessWidget {
             ],
           )
         : Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: crossAxisAlignment,
             mainAxisSize: MainAxisSize.min,
             children: [
               for (final link in links)

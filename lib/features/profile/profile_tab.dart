@@ -1883,6 +1883,8 @@ class _WorkshopCardSlot extends StatelessWidget {
                         background: background,
                         backgroundFocal: card.backgroundFocal,
                         iconFocal: card.iconFocal,
+                        layoutPreset: card.layoutPreset,
+                        textAlign: card.textAlign,
                         nickname: nickname ?? vocab.nickname,
                         statusMessage: statusMessage ?? vocab.statusMessage,
                         snsLinks: selectedSnsLinks,
@@ -3460,137 +3462,110 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
                             // 以降タップしても何も起きない不具合になっていた
                             // （ウィジェットテストで再現・特定）。IgnorePointerで
                             // ヒットテストの対象から明示的に外す。
-                            const IgnorePointer(
+                            IgnorePointer(
                               child: DecoratedBox(
-                                decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                    begin: Alignment.topCenter,
-                                    end: Alignment.bottomCenter,
-                                    colors: [
-                                      Colors.transparent,
-                                      Colors.black54,
-                                    ],
-                                  ),
+                                decoration: profileCardScrimDecoration(
+                                  card.layoutPreset,
                                 ),
                               ),
                             ),
-                          Padding(
-                            padding: const EdgeInsets.all(kProfileCardPadding),
-                            // アイコン・ニックネーム・ステメ・URLの4行を常に
-                            // 収めるため、内容をFittedBoxで包み必要なら縮小する。
-                            // Hero飛行中は矩形が対角2頂点それぞれ独立の円弧で
-                            // 補間されるため、一瞬だけ両端点より小さいサイズを
-                            // 取ることがあり、固定サイズのColumnのままだと
-                            // その瞬間だけ収まりきらずオーバーフロー警告が出ていた
-                            // （4行目のURL行追加でこの問題が顕在化した）。
-                            child: FittedBox(
-                              fit: BoxFit.scaleDown,
-                              alignment: Alignment.bottomLeft,
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  GestureDetector(
-                                    onTapDown: (details) => _lastTapPosition =
-                                        details.globalPosition,
-                                    onTap: () => _pickMaterial('icon'),
-                                    onLongPress: icon == null
-                                        ? null
-                                        : () => _startFocalEdit('icon'),
-                                    child: ProfileCardAvatar(
-                                      icon: icon,
-                                      radius: kProfileCardAvatarRadius,
-                                      focal: card.iconFocal,
+                          ProfileCardContent(
+                            layoutPreset: card.layoutPreset,
+                            textAlign: card.textAlign,
+                            children: [
+                              GestureDetector(
+                                onTapDown: (details) =>
+                                    _lastTapPosition = details.globalPosition,
+                                onTap: () => _pickMaterial('icon'),
+                                onLongPress: icon == null
+                                    ? null
+                                    : () => _startFocalEdit('icon'),
+                                child: ProfileCardAvatar(
+                                  icon: icon,
+                                  radius: kProfileCardAvatarRadius,
+                                  focal: card.iconFocal,
+                                ),
+                              ),
+                              const SizedBox(height: kProfileCardPadding * 0.6),
+                              // カード内はニックネームを主役として表示し、
+                              // その下にステメを補足として表示する。
+                              GestureDetector(
+                                onTapDown: (details) =>
+                                    _lastTapPosition = details.globalPosition,
+                                onTap: () => _pickMaterial('nickname'),
+                                child: Text(
+                                  nickname?.text ?? vocab.nickname,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: kProfileCardNicknameFontSize,
+                                    fontWeight: FontWeight.bold,
+                                    color: nicknameColor,
+                                    fontFamily: fontFamily,
+                                  ),
+                                ),
+                              ),
+                              GestureDetector(
+                                onTapDown: (details) =>
+                                    _lastTapPosition = details.globalPosition,
+                                onTap: () => _pickMaterial('statusMessage'),
+                                child: Text(
+                                  statusMessage?.text ?? vocab.statusMessage,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: kProfileCardStatusFontSize,
+                                    color: statusColor,
+                                    fontFamily: fontFamily,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: kProfileCardPadding * 0.3),
+                              SnsLinksInline(
+                                links: selectedSnsLinks,
+                                iconSize: kProfileCardStatusFontSize,
+                                fontSize: kProfileCardStatusFontSize * 0.9,
+                                color: statusColor,
+                                placeholder: strings.workshopSnsLinkFieldLabel,
+                                onTap: _pickSnsLinks,
+                                fontFamily: fontFamily,
+                                crossAxisAlignment:
+                                    (card.textAlign ?? CardTextAlign.start)
+                                        .crossAxisAlignment,
+                              ),
+                              const SizedBox(height: kProfileCardPadding * 0.3),
+                              // フォントデザインも呼び名・一言と同じく「カードの
+                              // デザインを決める要素」なので、枠外のボタンではなく
+                              // カード内の1行をタップして変更する（編集画面のみ
+                              // 表示。実際のカード表示には出さない）。
+                              GestureDetector(
+                                onTapDown: (details) =>
+                                    _lastTapPosition = details.globalPosition,
+                                onTap: () => _pickMaterial('fontDesign'),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.font_download_outlined,
+                                      size: kProfileCardStatusFontSize,
+                                      color: statusColor,
                                     ),
-                                  ),
-                                  const SizedBox(
-                                    height: kProfileCardPadding * 0.6,
-                                  ),
-                                  // カード内はニックネームを主役として表示し、
-                                  // その下にステメを補足として表示する。
-                                  GestureDetector(
-                                    onTapDown: (details) => _lastTapPosition =
-                                        details.globalPosition,
-                                    onTap: () => _pickMaterial('nickname'),
-                                    child: Text(
-                                      nickname?.text ?? vocab.nickname,
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      _fontLabel(card, strings),
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                       style: TextStyle(
-                                        fontSize: kProfileCardNicknameFontSize,
-                                        fontWeight: FontWeight.bold,
-                                        color: nicknameColor,
-                                        fontFamily: fontFamily,
-                                      ),
-                                    ),
-                                  ),
-                                  GestureDetector(
-                                    onTapDown: (details) => _lastTapPosition =
-                                        details.globalPosition,
-                                    onTap: () => _pickMaterial('statusMessage'),
-                                    child: Text(
-                                      statusMessage?.text ??
-                                          vocab.statusMessage,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: TextStyle(
-                                        fontSize: kProfileCardStatusFontSize,
+                                        fontSize:
+                                            kProfileCardStatusFontSize * 0.9,
                                         color: statusColor,
                                         fontFamily: fontFamily,
                                       ),
                                     ),
-                                  ),
-                                  const SizedBox(
-                                    height: kProfileCardPadding * 0.3,
-                                  ),
-                                  SnsLinksInline(
-                                    links: selectedSnsLinks,
-                                    iconSize: kProfileCardStatusFontSize,
-                                    fontSize: kProfileCardStatusFontSize * 0.9,
-                                    color: statusColor,
-                                    placeholder:
-                                        strings.workshopSnsLinkFieldLabel,
-                                    onTap: _pickSnsLinks,
-                                    fontFamily: fontFamily,
-                                  ),
-                                  const SizedBox(
-                                    height: kProfileCardPadding * 0.3,
-                                  ),
-                                  // フォントデザインも呼び名・一言と同じく「カードの
-                                  // デザインを決める要素」なので、枠外のボタンではなく
-                                  // カード内の1行をタップして変更する（編集画面のみ
-                                  // 表示。実際のカード表示には出さない）。
-                                  GestureDetector(
-                                    onTapDown: (details) => _lastTapPosition =
-                                        details.globalPosition,
-                                    onTap: () => _pickMaterial('fontDesign'),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Icon(
-                                          Icons.font_download_outlined,
-                                          size: kProfileCardStatusFontSize,
-                                          color: statusColor,
-                                        ),
-                                        const SizedBox(width: 6),
-                                        Text(
-                                          _fontLabel(card, strings),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: TextStyle(
-                                            fontSize:
-                                                kProfileCardStatusFontSize *
-                                                0.9,
-                                            color: statusColor,
-                                            fontFamily: fontFamily,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
-                            ),
+                            ],
                           ),
                           if (_focalEditing != null)
                             Positioned.fill(
@@ -3611,6 +3586,32 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
                       ),
                     ),
                   ),
+                  if (_focalEditing == null) ...[
+                    const SizedBox(height: 8),
+                    _CardLayoutPicker(
+                      width: width,
+                      layoutPreset:
+                          card.layoutPreset ?? CardLayoutPreset.bottomLeft,
+                      textAlign: card.textAlign ?? CardTextAlign.start,
+                      strings: strings,
+                      onLayoutChanged: (preset) {
+                        setState(() {
+                          _card = preset == CardLayoutPreset.bottomLeft
+                              ? _card.copyWith(clearLayoutPreset: true)
+                              : _card.copyWith(layoutPreset: preset);
+                        });
+                        _persist();
+                      },
+                      onAlignChanged: (align) {
+                        setState(() {
+                          _card = align == CardTextAlign.start
+                              ? _card.copyWith(clearTextAlign: true)
+                              : _card.copyWith(textAlign: align);
+                        });
+                        _persist();
+                      },
+                    ),
+                  ],
                   const SizedBox(height: 12),
                   // カード名はカードの直下、半透明の暗転バリアの上に表示する。
                   // 以前は白系→黒系と切り替えたが、バリアの不透明度が低いままだと
@@ -3846,6 +3847,101 @@ class _MaterialMenuRow extends StatelessWidget {
         ],
         if (label.isNotEmpty) Text(label),
       ],
+    );
+  }
+}
+
+/// 工房のズーム編集で、カード内のアイコン＋文字ブロックの配置と文字の揃えを
+/// 選ぶ行（2026-10-12）。暗転したバリアの上に置くため、文字は白、選択中は
+/// 白地に黒文字の中立色（アクセントカラーは文字に使わない）。
+class _CardLayoutPicker extends StatelessWidget {
+  const _CardLayoutPicker({
+    required this.width,
+    required this.layoutPreset,
+    required this.textAlign,
+    required this.strings,
+    required this.onLayoutChanged,
+    required this.onAlignChanged,
+  });
+
+  final double width;
+  final CardLayoutPreset layoutPreset;
+  final CardTextAlign textAlign;
+  final Strings strings;
+  final ValueChanged<CardLayoutPreset> onLayoutChanged;
+  final ValueChanged<CardTextAlign> onAlignChanged;
+
+  String _layoutLabel(CardLayoutPreset preset) => switch (preset) {
+    CardLayoutPreset.bottomLeft => strings.workshopLayoutBottomLeft,
+    CardLayoutPreset.bottomCenter => strings.workshopLayoutBottomCenter,
+    CardLayoutPreset.topLeft => strings.workshopLayoutTopLeft,
+    CardLayoutPreset.center => strings.workshopLayoutCenter,
+    CardLayoutPreset.bottomRight => strings.workshopLayoutBottomRight,
+  };
+
+  String _alignLabel(CardTextAlign align) => switch (align) {
+    CardTextAlign.start => strings.workshopAlignStart,
+    CardTextAlign.center => strings.workshopAlignCenter,
+    CardTextAlign.end => strings.workshopAlignEnd,
+  };
+
+  Widget _chip(String label, bool selected, VoidCallback onTap) {
+    return ChoiceChip(
+      label: Text(label),
+      selected: selected,
+      showCheckmark: false,
+      onSelected: (_) => onTap(),
+      backgroundColor: Colors.transparent,
+      selectedColor: Colors.white,
+      side: const BorderSide(color: Colors.white54),
+      labelStyle: TextStyle(
+        color: selected ? Colors.black : Colors.white,
+        fontSize: 12,
+      ),
+      visualDensity: VisualDensity.compact,
+    );
+  }
+
+  Widget _row(String title, List<Widget> chips) {
+    return Row(
+      children: [
+        SizedBox(
+          width: 40,
+          child: Text(
+            title,
+            style: const TextStyle(color: Colors.white70, fontSize: 12),
+          ),
+        ),
+        Expanded(child: Wrap(spacing: 6, runSpacing: 0, children: chips)),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: width,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _row(strings.workshopLayoutLabel, [
+            for (final preset in CardLayoutPreset.values)
+              _chip(
+                _layoutLabel(preset),
+                preset == layoutPreset,
+                () => onLayoutChanged(preset),
+              ),
+          ]),
+          _row(strings.workshopAlignLabel, [
+            for (final align in CardTextAlign.values)
+              _chip(
+                _alignLabel(align),
+                align == textAlign,
+                () => onAlignChanged(align),
+              ),
+          ]),
+        ],
+      ),
     );
   }
 }

@@ -509,6 +509,7 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
     // 参照）。
     final chatBody = EmbeddedCallPane(
       conversation: ViewedDm(widget.dm.dmId),
+      roomId: _currentRoomId,
       child: Builder(
         builder: (context) {
           // 横スクロールタブバー表示の有無に関わらず、ピン留め済みメッセージ
@@ -2410,6 +2411,7 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
     // 参照）。
     final chatBody = EmbeddedCallPane(
       conversation: ViewedGroup(group.groupId),
+      roomId: _currentRoomId,
       child: Builder(
         builder: (context) {
           // カスタムロール（見た目専用の呼び名フォントカラー）は広場全体の

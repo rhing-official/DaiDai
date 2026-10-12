@@ -75,7 +75,9 @@ class WebrtcCallController extends ChangeNotifier {
   /// 自分が現在ビデオ通話として動作しているか（[call.isVideo]は開始時点の
   /// 値のままなので、通話中の切替を反映する可変の状態として別に持つ）。
   /// 音声⇔ビデオの切替は自分側にのみ適用され、相手には影響しない。
-  late bool _isVideo = call.isVideo;
+  // 着信側は応答するまで自分のカメラ・マイクを開かない（[accept]で取得する）ため、
+  // 応答前は音声扱い（`false`）から始める（2026-10-13）。
+  late bool _isVideo = isCaller ? call.isVideo : false;
   bool get isVideo => _isVideo;
 
   /// 相手が現在ビデオ通話として動作しているか。自分の映像トラックの
@@ -143,23 +145,13 @@ class WebrtcCallController extends ChangeNotifier {
         _localRendererInitialized = true;
       }
 
-      // 音声制約はプラットフォームごとの既知の問題を踏まえて
-      // webrtc_media_constraints.dartに集約している（本格的なRNNoise統合は
-      // フェーズ3の別プロジェクト。詳細は会話参照）。
-      _localStream = await navigator.mediaDevices.getUserMedia({
-        'audio': buildAudioConstraints(),
-        'video': call.isVideo ? buildVideoConstraints() : false,
-      });
-
-      if (call.isVideo) {
-        localRenderer.srcObject = _localStream;
-        unawaited(_refreshCameraCount());
-      }
+      // 発信側は通話を始める操作の中で自分のカメラ・マイクを取得する。着信側は
+      // 応答するまで開かない（応答前のカメラ要求はスマホのブラウザで拒否され、
+      // 着信UIごと消えて応答できなくなっていた。[accept]で取得する、2026-10-13）。
+      if (isCaller) await _acquireLocalStream(allowVideoFallback: false);
 
       _peerConnection = await createPeerConnection(buildRtcConfiguration());
-      for (final track in _localStream!.getTracks()) {
-        await _peerConnection!.addTrack(track, _localStream!);
-      }
+      if (isCaller) await _attachLocalStream();
 
       _peerConnection!.onTrack = (event) {
         if (event.streams.isNotEmpty) {
@@ -209,6 +201,50 @@ class WebrtcCallController extends ChangeNotifier {
       _error = '通話を開始できませんでした（マイクの利用を許可してください）: $e';
       _state = CallConnectionState.ended;
       notifyListeners();
+    }
+  }
+
+  /// 自分のカメラ・マイクを取得して[_localStream]に入れる。音声制約は
+  /// プラットフォームごとの既知の問題を踏まえてwebrtc_media_constraints.dartに
+  /// 集約している（本格的なRNNoise統合はフェーズ3の別プロジェクト）。
+  /// [allowVideoFallback]がtrueなら、映像（カメラ）の取得に失敗しても音声のみで
+  /// 続行する（応答はできるようにし、映像は後からオンにできる）。
+  Future<void> _acquireLocalStream({required bool allowVideoFallback}) async {
+    var video = call.isVideo;
+    try {
+      _localStream = await navigator.mediaDevices.getUserMedia({
+        'audio': buildAudioConstraints(),
+        'video': video ? buildVideoConstraints() : false,
+      });
+    } catch (_) {
+      if (!video || !allowVideoFallback) rethrow;
+      video = false;
+      _localStream = await navigator.mediaDevices.getUserMedia({
+        'audio': buildAudioConstraints(),
+        'video': false,
+      });
+      // 相手には自分が音声のみであることを伝える。
+      unawaited(
+        _callRepository
+            .updateIsVideo(call.callId, isCaller: isCaller, isVideo: false)
+            .catchError((_) {}),
+      );
+    }
+    _isVideo = video;
+    if (video) {
+      if (!_localRendererInitialized) {
+        await localRenderer.initialize();
+        _localRendererInitialized = true;
+      }
+      localRenderer.srcObject = _localStream;
+      unawaited(_refreshCameraCount());
+    }
+  }
+
+  /// [_localStream]のトラックをPeerConnectionへ追加する。
+  Future<void> _attachLocalStream() async {
+    for (final track in _localStream!.getTracks()) {
+      await _peerConnection!.addTrack(track, _localStream!);
     }
   }
 
@@ -372,6 +408,22 @@ class WebrtcCallController extends ChangeNotifier {
     _accepting = true;
     notifyListeners();
     await _callSub?.cancel();
+    try {
+      // 応答操作（ユーザー操作）の中で自分のカメラ・マイクを取得する。カメラが
+      // 使えなければ音声のみで応答する。
+      await _acquireLocalStream(allowVideoFallback: true);
+      await _attachLocalStream();
+    } catch (e) {
+      _error = '通話を開始できませんでした（マイクの利用を許可してください）: $e';
+      unawaited(
+        _callRepository
+            .updateStatus(call.callId, CallStatus.declined)
+            .catchError((_) {}),
+      );
+      _finish();
+      return;
+    }
+    notifyListeners();
     await _startAsCallee();
   }
 

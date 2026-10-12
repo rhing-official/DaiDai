@@ -697,6 +697,8 @@ class _UserDetailDialogState extends ConsumerState<_UserDetailDialog> {
                     background: user.effectiveBackgroundImage,
                     backgroundFocal: user.activeProfileCard?.backgroundFocal,
                     iconFocal: user.activeProfileCard?.iconFocal,
+                    layoutPreset: user.activeProfileCard?.layoutPreset,
+                    textAlign: user.activeProfileCard?.textAlign,
                     nickname: (user.effectiveNickname?.text.isNotEmpty ?? false)
                         ? user.effectiveNickname!.text
                         : '@${user.rhingSeed}',

@@ -43,3 +43,22 @@ Offset clampPinnedCallOffset({
       );
   return Offset(base.dx.clamp(minX, maxX), base.dy.clamp(minY, maxY));
 }
+
+/// ポインター位置に完全に追従させる、ドラッグ中のミニ表示の左上の位置
+/// （2026-10-13）。[grab]はドラッグ開始時の「ポインター位置 − ミニ表示の左上」。
+/// 前回位置への加算（相対移動）ではなく毎回ポインターの絶対位置から求めるため、
+/// 再描画前に複数のイベントが届いても移動量を取りこぼさない。
+Offset pinnedCallOffsetForPointer({
+  required Offset pointer,
+  required Offset grab,
+  required Size screen,
+  required double topInset,
+  Size bubble = kPinnedCallSize,
+}) {
+  return clampPinnedCallOffset(
+    offset: pointer - grab,
+    screen: screen,
+    topInset: topInset,
+    bubble: bubble,
+  );
+}

@@ -12,6 +12,7 @@ import 'package:flutter_web_plugins/url_strategy.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'features/call/pinned_call_overlay.dart';
+import 'features/call/group_incoming_call_listener.dart';
 import 'features/call/pip_controller.dart';
 import 'firebase_options.dart';
 import 'push_notifications.dart';
@@ -264,6 +265,8 @@ class DaiDaiApp extends ConsumerWidget {
               ),
             ),
             const PinnedCallOverlay(),
+            // 広場の通話開始バナーは全ルート・ボタン・ミニ表示より最前面に出す。
+            const GroupCallBannerOverlay(),
           ],
         ),
       ),

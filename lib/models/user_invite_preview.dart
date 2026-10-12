@@ -10,6 +10,8 @@ class UserInvitePreview {
     this.statusMessage,
     this.backgroundImageUrl,
     this.snsLinkUrls = const [],
+    this.layoutPreset,
+    this.textAlign,
   });
 
   final String userId;
@@ -23,6 +25,11 @@ class UserInvitePreview {
   final String? backgroundImageUrl;
   final List<String> snsLinkUrls;
 
+  /// アクティブな工房カードの配置プリセットと文字の揃え（`CardLayoutPreset.name`
+  /// /`CardTextAlign.name`、2026-10-12追加）。nullなら従来の左下・左揃え。
+  final String? layoutPreset;
+  final String? textAlign;
+
   factory UserInvitePreview.fromJson(Map<String, dynamic> json) {
     return UserInvitePreview(
       userId: json['userId'] as String,
@@ -31,6 +38,8 @@ class UserInvitePreview {
       statusMessage: json['statusMessage'] as String?,
       backgroundImageUrl: json['backgroundImageUrl'] as String?,
       snsLinkUrls: (json['snsLinkUrls'] as List?)?.cast<String>() ?? const [],
+      layoutPreset: json['layoutPreset'] as String?,
+      textAlign: json['textAlign'] as String?,
     );
   }
 
@@ -42,6 +51,8 @@ class UserInvitePreview {
       'statusMessage': statusMessage,
       'backgroundImageUrl': backgroundImageUrl,
       'snsLinkUrls': snsLinkUrls,
+      if (layoutPreset != null) 'layoutPreset': layoutPreset,
+      if (textAlign != null) 'textAlign': textAlign,
     };
   }
 }

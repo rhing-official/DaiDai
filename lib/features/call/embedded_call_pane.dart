@@ -11,10 +11,12 @@ import '../../providers/app_ui_style_provider.dart';
 import '../../providers/camera_availability_provider.dart';
 import '../../providers/chat_navigation_providers.dart';
 import '../../utils/platform_info.dart';
+import '../../widgets/pane_visibility.dart';
 import '../../widgets/swipe_gestures.dart';
 import 'active_call_session.dart';
 import 'call_avatar.dart';
 import 'call_control_bar.dart';
+import 'call_tile_layout.dart';
 import 'call_controls.dart';
 import 'camera_availability.dart';
 import 'webrtc_call_controller.dart';
@@ -31,11 +33,16 @@ import '../../router/back_stack.dart';
 class EmbeddedCallPane extends ConsumerStatefulWidget {
   const EmbeddedCallPane({
     required this.conversation,
+    required this.roomId,
     required this.child,
     super.key,
   });
 
   final ViewedConversation conversation;
+
+  /// このペインが今表示している寄合。通話画面は通話の寄合（[callRoomIdProvider]）
+  /// を表示している間だけ出し、他の寄合ではメッセージ表示にする（2026-10-13）。
+  final String roomId;
   final Widget child;
 
   @override
@@ -56,7 +63,8 @@ class _EmbeddedCallPaneState extends ConsumerState<EmbeddedCallPane> {
   @override
   void didUpdateWidget(covariant EmbeddedCallPane oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.conversation != widget.conversation) {
+    if (oldWidget.conversation != widget.conversation ||
+        oldWidget.roomId != widget.roomId) {
       _showingCall = true;
       WidgetsBinding.instance.addPostFrameCallback((_) => _report());
     }
@@ -113,14 +121,32 @@ class _EmbeddedCallPaneState extends ConsumerState<EmbeddedCallPane> {
     });
 
     final session = ref.watch(activeCallSessionProvider);
+    final callRoomId = ref.watch(callRoomIdProvider);
+    // 実際に画面に見えているか。`IndexedStack`は非選択の子もマウントしたまま
+    // `TickerMode`も無効にしないため、`PaneVisibility`（語らいタブの詳細ペイン・
+    // ホームのタブ）と、ルートに覆われた場合の`TickerMode`の両方で判定する
+    // （2026-10-13、以前は`TickerMode`のみで、別の語らい・タブへ移っても旧ペインが
+    // 「表示中」と報告し続けプレビューが出なかった）。
+    final visible = TickerMode.of(context) && PaneVisibility.of(context);
     final isMatch =
         !isMobileCallPlatform &&
         session != null &&
-        session.conversation == widget.conversation;
+        session.conversation == widget.conversation &&
+        // 通話の寄合（最初に通話画面が表示された寄合）だけに通話画面を出す。
+        // まだ決まっていなければ（null）この寄合が候補。
+        (callRoomId == null || callRoomId == widget.roomId);
 
-    // タブ切り替え（`IndexedStack`）で見えなくなっているペインは「表示中」と
-    // 報告しない（非選択のタブは`TickerMode`が無効になる、2026-10-11）。
-    _syncShown(isMatch && _showingCall && TickerMode.of(context));
+    // 通話画面が初めて実際に見えた寄合を、通話の寄合として記録する。
+    if (isMatch && callRoomId == null && visible && _showingCall) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        if (ref.read(callRoomIdProvider) == null) {
+          ref.read(callRoomIdProvider.notifier).set(widget.roomId);
+        }
+      });
+    }
+
+    _syncShown(isMatch && _showingCall && visible);
 
     if (!isMatch) return widget.child;
 
@@ -252,7 +278,9 @@ class _EmbeddedCallViewState extends State<_EmbeddedCallView> {
             },
             child: SwipeDownToDismiss(
               onDismiss: widget.onBackToMessages,
-              child: ColoredBox(
+              // `Material`祖先が無いと`Text`が`DefaultTextStyle`を得られず、
+              // 48px・白・黄色の二重下線のフォールバック表示になる（2026-10-13修正）。
+              child: Material(
                 color: colorScheme.surface,
                 child: Column(
                   children: [
@@ -389,34 +417,9 @@ class _GroupStage extends StatelessWidget {
           micMuted: p.micMuted,
         ),
     ];
-    final crossAxisCount = tiles.length > 2 ? 2 : tiles.length.clamp(1, 2);
-    const spacing = 4.0;
-    // `GridView.count`は`childAspectRatio`を指定しないと既定で正方形タイルに
-    // なる。PCの埋め込みパネルは横幅に対して縦の表示領域が狭いことが多く、
-    // 参加者が少ない間は正方形タイルが表示可能高さを超えてグリッド自体が
-    // スクロールを要求してしまっていた（2026-08-31修正、「画面いっぱいに
-    // 拡大する」のではなく「与えられた領域に収まるように計算する」という
-    // 設計に転換する）。実際の`LayoutBuilder`の制約から逆算した
-    // `childAspectRatio`を渡すことで、タイル数に関わらず常にスクロール無しで
-    // 収まるようにする。
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final rowCount = (tiles.length / crossAxisCount).ceil();
-        final tileWidth =
-            (constraints.maxWidth - spacing * (crossAxisCount + 1)) /
-            crossAxisCount;
-        final tileHeight =
-            (constraints.maxHeight - spacing * (rowCount + 1)) / rowCount;
-        return GridView.count(
-          crossAxisCount: crossAxisCount,
-          childAspectRatio: tileWidth / tileHeight,
-          padding: const EdgeInsets.all(spacing),
-          mainAxisSpacing: spacing,
-          crossAxisSpacing: spacing,
-          children: tiles,
-        );
-      },
-    );
+    // 領域が縦長（スマホ等）なら縦に積み、横長なら従来のグリッド
+    // （`CallTileGrid`、2026-10-13）。
+    return CallTileGrid(tiles: tiles);
   }
 
   Widget _tile({

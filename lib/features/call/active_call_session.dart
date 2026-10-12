@@ -235,3 +235,21 @@ final activeCallSessionProvider =
     NotifierProvider<ActiveCallSessionNotifier, ActiveCallSession?>(
       ActiveCallSessionNotifier.new,
     );
+
+/// 通話画面（PC・Webの埋め込み表示）を出している寄合のid（2026-10-13追加）。
+/// 通話自体は会話（一対/広場）単位だが、通話画面は「最初に実際に表示された
+/// 寄合」だけに出し、他の寄合・語らい・メニューへ移った時点でミニ表示に切り
+/// 替える。通話が終わる・別の通話に変わると`null`へ戻る。
+class CallRoomIdNotifier extends Notifier<String?> {
+  @override
+  String? build() {
+    ref.watch(activeCallSessionProvider.select((s) => s?.controllerListenable));
+    return null;
+  }
+
+  void set(String roomId) => state = roomId;
+}
+
+final callRoomIdProvider = NotifierProvider<CallRoomIdNotifier, String?>(
+  CallRoomIdNotifier.new,
+);
