@@ -151,7 +151,8 @@ async function render(type: string | null, id: string | null): Promise<Buffer> {
     layers.push(
       img(backgroundDataUri, {
         position: 'absolute',
-        inset: 0,
+        top: 0,
+        left: 0,
         width: '100%',
         height: '100%',
         objectFit: 'cover',
@@ -160,7 +161,10 @@ async function render(type: string | null, id: string | null): Promise<Buffer> {
     layers.push(
       el('div', {
         position: 'absolute',
-        inset: 0,
+        top: 0,
+        left: 0,
+        width: '100%',
+        height: '100%',
         display: 'flex',
         backgroundImage: layout.scrim,
       }, []),
@@ -173,8 +177,13 @@ async function render(type: string | null, id: string | null): Promise<Buffer> {
     el(
       'div',
       {
+        // Satoriは`inset`の省略記法に対応しておらず、効かないと全面に広がらず
+        // ブロックが左上に寄る（2026-10-13に実画像で発覚）ため、top/left/幅/高さで指定する。
         position: 'absolute',
-        inset: 0,
+        top: 0,
+        left: 0,
+        width: '100%',
+        height: '100%',
         display: 'flex',
         flexDirection: 'column',
         justifyContent: layout.justifyContent,

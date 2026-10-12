@@ -6,6 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
+import 'widgets/always_animated_image.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_web_plugins/url_strategy.dart';
@@ -256,18 +257,20 @@ class DaiDaiApp extends ConsumerWidget {
       // 通話ミニ表示（`PinnedCallOverlay`）を全ルートの上に重ねる（2026-10-12、
       // 以前は`HomeScreen`内にあり、寄合を開く`/chat/*`ルートの下に隠れて
       // いた）。`PipHost`はAndroidのPiP（アプリを離れた時の小窓）用。
-      builder: (context, child) => PipHost(
-        child: Stack(
-          children: [
-            Positioned.fill(
-              child: MouseBackForwardListener(
-                child: child ?? const SizedBox.shrink(),
+      builder: (context, child) => AlwaysAnimations(
+        child: PipHost(
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: MouseBackForwardListener(
+                  child: child ?? const SizedBox.shrink(),
+                ),
               ),
-            ),
-            const PinnedCallOverlay(),
-            // 広場の通話開始バナーは全ルート・ボタン・ミニ表示より最前面に出す。
-            const GroupCallBannerOverlay(),
-          ],
+              const PinnedCallOverlay(),
+              // 広場の通話開始バナーは全ルート・ボタン・ミニ表示より最前面に出す。
+              const GroupCallBannerOverlay(),
+            ],
+          ),
         ),
       ),
       routerConfig: ref.watch(goRouterProvider),
