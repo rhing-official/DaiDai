@@ -203,10 +203,9 @@ void main() {
       expect(repo.profileViewCalls.single.userId, 'alice');
       expect(repo.profileViewCalls.single.reason, 'report');
       expect(find.byType(ProfileCardView), findsOneWidget);
-      // 住人側と同じ基準サイズで描く（縮小は外側のFittedBoxが担う）。
+      // ダイアログの幅に合わせた4:5の表示サイズ（中身の縮小は`ProfileCardView`が担う）。
       final card = tester.widget<ProfileCardView>(find.byType(ProfileCardView));
-      expect(card.width, 480);
-      expect(card.height, 600);
+      expect(card.height, card.width * 1.25);
       // SNSのURLは住人が作ったカードと同じくカードの中に出し、外には出さない。
       expect(card.snsLinks.map((l) => l.url), ['https://note.com/alice']);
       expect(find.byType(SnsLinkList), findsNothing);

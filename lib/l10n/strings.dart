@@ -831,6 +831,7 @@ class Strings {
     required this.mediaSkipForwardLabel,
     required this.mediaSkipBackwardLabel,
     required this.groupCallStartedBannerTemplate,
+    required this.workshopFontLabel,
   });
 
   final String navTalk;
@@ -1950,6 +1951,7 @@ class Strings {
   final String mediaSkipForwardLabel;
   final String mediaSkipBackwardLabel;
   final String Function(String groupName) groupCallStartedBannerTemplate;
+  final String workshopFontLabel;
 
   static final ja = Strings._(
     navTalk: '語らい',
@@ -2835,6 +2837,7 @@ class Strings {
     mediaSkipBackwardLabel: '−10秒',
     groupCallStartedBannerTemplate: (groupName) =>
         '$groupNameで通話が始まりました。\nタップして参加',
+    workshopFontLabel: 'フォント',
   );
 
   static final enGB = Strings._(
@@ -3821,6 +3824,7 @@ class Strings {
     mediaSkipBackwardLabel: '−10s',
     groupCallStartedBannerTemplate: (groupName) =>
         'A call has started in $groupName.\nTap to join',
+    workshopFontLabel: 'Font',
   );
 
   /// `MaterialApp.locale`（[Localizations]）から対訳セットを引く。Riverpodを

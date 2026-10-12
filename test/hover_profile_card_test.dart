@@ -1,5 +1,7 @@
 import 'dart:ui';
 
+import 'package:daidai/models/group_profile_card.dart';
+import 'package:daidai/widgets/group_profile_card_view.dart';
 import 'package:daidai/models/app_user.dart';
 import 'package:daidai/widgets/hover_profile_card.dart';
 import 'package:daidai/widgets/user_profile_card_view.dart';
@@ -71,26 +73,26 @@ void main() {
       return gesture;
     }
 
-    Widget app() => const MaterialApp(
+    Widget app() => MaterialApp(
       home: Scaffold(
         body: Center(
           child: HoverProfileCard(
             user: user,
             conversationId: 'dm1',
-            child: SizedBox(width: 200, height: 60),
+            child: const SizedBox(width: 200, height: 60),
           ),
         ),
       ),
     );
 
-    testWidgets('コンピューターで2秒ホバーするとカードが出て、外れると消える', (tester) async {
+    testWidgets('コンピューターで0.5秒ホバーするとカードが出て、外れると消える', (tester) async {
       await withPlatform(TargetPlatform.linux, () async {
         await tester.pumpWidget(app());
         final gesture = await hoverOn(tester);
-        await tester.pump(const Duration(seconds: 1));
+        await tester.pump(const Duration(milliseconds: 300));
         expect(find.byType(UserProfileCardView), findsNothing);
 
-        await tester.pump(const Duration(milliseconds: 1100));
+        await tester.pump(const Duration(milliseconds: 300));
         expect(find.byType(UserProfileCardView), findsOneWidget);
 
         await gesture.moveTo(const Offset(5, 5));
@@ -99,14 +101,39 @@ void main() {
       });
     });
 
-    testWidgets('2秒未満で外れたら出ない', (tester) async {
+    testWidgets('0.5秒未満で外れたら出ない', (tester) async {
       await withPlatform(TargetPlatform.linux, () async {
         await tester.pumpWidget(app());
         final gesture = await hoverOn(tester);
-        await tester.pump(const Duration(seconds: 1));
+        await tester.pump(const Duration(milliseconds: 300));
         await gesture.moveTo(const Offset(5, 5));
         await tester.pump(const Duration(seconds: 3));
         expect(find.byType(UserProfileCardView), findsNothing);
+      });
+    });
+
+    testWidgets('広場はカードが設定されている時だけ出る', (tester) async {
+      await withPlatform(TargetPlatform.linux, () async {
+        Widget groupApp(GroupProfileCard? card) => MaterialApp(
+          home: Scaffold(
+            body: Center(
+              child: HoverProfileCard.group(
+                card: card,
+                child: const SizedBox(width: 200, height: 60),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpWidget(groupApp(null));
+        var gesture = await hoverOn(tester);
+        await tester.pump(const Duration(milliseconds: 600));
+        expect(find.byType(GroupProfileCardView), findsNothing);
+        await gesture.removePointer();
+
+        await tester.pumpWidget(groupApp(const GroupProfileCard(name: '広場')));
+        gesture = await hoverOn(tester);
+        await tester.pump(const Duration(milliseconds: 600));
+        expect(find.byType(GroupProfileCardView), findsOneWidget);
       });
     });
 

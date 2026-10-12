@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math';
+import 'dart:ui' show lerpDouble;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -94,6 +95,10 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
   /// 再入をブロックして防ぐ。
   bool _cardZoomOpening = false;
 
+  /// 編集画面を開いている枠の番号。その間、一覧側のその枠のカードは隠す
+  /// （編集画面のカードとして飛んでいったため）。閉じ終えたらnullに戻す。
+  final _openingCardIndex = ValueNotifier<int?>(null);
+
   /// 起動時（ログイン時）に一度だけ取得したスナップショットのまま
   /// `_user`を保持し続けていたため、他端末・他セッションでの変更が
   /// 画面に反映されず、しかもローカルが把握している「削除すべき古い値」が
@@ -114,6 +119,7 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
 
   @override
   void dispose() {
+    _openingCardIndex.dispose();
     _userSub?.cancel();
     _errorBannerTimer?.cancel();
     super.dispose();
@@ -612,50 +618,72 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
   /// Heroタグはカードの中身ではなく枠の位置（[index]）に紐づけている。
   /// 空き枠→作成後は同じ枠が実カードに置き換わるだけで、開いている最中の
   /// このルート自体は同一タグのHeroを使い続けるため問題ない。
-  Future<void> _openCardZoom(int index, ProfileCard? existing) async {
+  Future<void> _openCardZoom(
+    int index,
+    ProfileCard? existing,
+    Rect origin,
+  ) async {
     if (_cardZoomOpening) return;
     _cardZoomOpening = true;
     final strings = ref.read(appStringsProvider);
     final vocab = ref.read(vocabularyProvider);
+    _openingCardIndex.value = index;
+    final editorKey = GlobalKey<_CardZoomEditorState>();
     try {
-      await Navigator.of(context).push(
-        PageRouteBuilder<void>(
-          opaque: false,
-          barrierDismissible: true,
-          // カード名入力欄は常にこのバリアの上に表示される（下記
-          // _CardZoomEditorのTextField参照）。バリアの不透明度が低いと、下に
-          // 見えているページの背景色（ライト/ダークモードで大きく変わる）が
-          // 透けて背景の明るさが安定せず、固定色の文字が片方のモードで見えなく
-          // なっていた（2026-07-29修正）。不透明度を上げて背景を常に暗く保つ
-          // ことで、白文字をライト/ダーク両方で安定して読める状態にした。
-          barrierColor: Colors.black87,
-          transitionDuration: const Duration(milliseconds: 300),
-          transitionsBuilder: (_, animation, secondaryAnimation, child) =>
-              FadeTransition(opacity: animation, child: child),
-          pageBuilder: (_, animation, secondaryAnimation) => Center(
-            // このルートは`opaque: false`のポップアップ的な表示のため、下の
-            // ページのScaffoldが提供するMaterial祖先を引き継がない。カード名の
-            // `TextField`は開いた瞬間から常に表示されるため、Material祖先が無いと
-            // "No Material widget found"で即座にクラッシュしていた。
-            // MaterialType.transparencyで見た目（半透明の背景）を変えずに
-            // Material祖先だけを補う。
-            child: Material(
-              type: MaterialType.transparency,
-              child: _CardZoomEditor(
-                heroTag: 'profile-card-slot-$index',
-                user: _user,
-                strings: strings,
-                vocab: vocab,
-                initialCard: existing,
-                onCreate: (card) => _saveCard(card, isNew: true),
-                onUpdate: (card) => _saveCard(card, isNew: false),
-                onDelete: _deleteCard,
+      final route = PageRouteBuilder<void>(
+        opaque: false,
+        barrierDismissible: true,
+        // カード名入力欄は常にこのバリアの上に表示される（下記
+        // _CardZoomEditorのTextField参照）。バリアの不透明度が低いと、下に
+        // 見えているページの背景色（ライト/ダークモードで大きく変わる）が
+        // 透けて背景の明るさが安定せず、固定色の文字が片方のモードで見えなく
+        // なっていた（2026-07-29修正）。不透明度を上げて背景を常に暗く保つ
+        // ことで、白文字をライト/ダーク両方で安定して読める状態にした。
+        barrierColor: Colors.black87,
+        // 一覧のカードが編集画面のカードの位置へ飛んでいく（[_CardZoomEditor]
+        // の`originRect`）。ページ全体はフェードさせず（カードが最初から見える
+        // ように）、バリアの暗転はルート標準、カード以外はエディタ側で後から出す。
+        transitionDuration: const Duration(milliseconds: 450),
+        reverseTransitionDuration: const Duration(milliseconds: 350),
+        transitionsBuilder: (_, animation, secondaryAnimation, child) => child,
+        pageBuilder: (routeContext, animation, secondaryAnimation) =>
+            _SwipeDownToDismiss(
+              // 位置調整中は画像のドラッグ操作と区別できないため効かせない。
+              enabled: () => editorKey.currentState?.canSwipeDismiss ?? false,
+              onDismiss: () {
+                editorKey.currentState?.confirmNameBeforeClose();
+                Navigator.of(routeContext).maybePop();
+              },
+              child: Center(
+                // このルートは`opaque: false`のポップアップ的な表示のため、下の
+                // ページのScaffoldが提供するMaterial祖先を引き継がない。カード名の
+                // `TextField`は開いた瞬間から常に表示されるため、Material祖先が無いと
+                // "No Material widget found"で即座にクラッシュしていた。
+                // MaterialType.transparencyで見た目（半透明の背景）を変えずに
+                // Material祖先だけを補う。
+                child: Material(
+                  type: MaterialType.transparency,
+                  child: _CardZoomEditor(
+                    key: editorKey,
+                    originRect: origin,
+                    user: _user,
+                    strings: strings,
+                    vocab: vocab,
+                    initialCard: existing,
+                    onCreate: (card) => _saveCard(card, isNew: true),
+                    onUpdate: (card) => _saveCard(card, isNew: false),
+                    onDelete: _deleteCard,
+                  ),
+                ),
               ),
             ),
-          ),
-        ),
       );
+      await Navigator.of(context).push(route);
+      // pushのFutureは閉じた瞬間（pop）に完了し、戻る動きはまだ続いている。
+      // 一覧側のカードは、戻りきってから出す。
+      await route.completed;
     } finally {
+      if (mounted) _openingCardIndex.value = null;
       _cardZoomOpening = false;
     }
   }
@@ -712,6 +740,7 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
           onTapSlot: _openCardZoom,
           onSetActive: _setActiveCard,
           onReorder: _reorderCards,
+          openingIndex: _openingCardIndex,
         );
       case _ProfileSection.enmusubi:
         return EnmusubiPage(currentUser: _user);
@@ -1111,6 +1140,7 @@ class _WorkshopView extends StatelessWidget {
     required this.onTapSlot,
     required this.onSetActive,
     required this.onReorder,
+    required this.openingIndex,
   });
 
   final AppUser user;
@@ -1120,8 +1150,12 @@ class _WorkshopView extends StatelessWidget {
   /// ドラッグで並べ替えたカードのid順（2026-10-11追加）。
   final void Function(List<String> orderedIds) onReorder;
 
-  /// 枠番号（Heroタグ用）とその枠の現在のカード（未作成ならnull）を渡す。
-  final void Function(int index, ProfileCard? card) onTapSlot;
+  /// 枠番号とその枠の現在のカード（未作成ならnull）、カードの画面上の矩形
+  /// （編集画面へ飛ぶ出発点）を渡す。
+  final void Function(int index, ProfileCard? card, Rect origin) onTapSlot;
+
+  /// 編集画面を開いている枠の番号（一覧側のその枠のカードを隠す）。
+  final ValueNotifier<int?> openingIndex;
 
   /// 縁結びの招待リンク等に適用するカードとして選択する（ラジオボタン）。
   final void Function(String cardId) onSetActive;
@@ -1185,7 +1219,8 @@ class _WorkshopView extends StatelessWidget {
                   width: cardWidth,
                   height: cardHeight,
                   isActive: user.activeProfileCardId == cards[i].id,
-                  onTap: () => onTapSlot(i, cards[i]),
+                  onTap: (origin) => onTapSlot(i, cards[i], origin),
+                  openingIndex: openingIndex,
                   onSetActive: () => onSetActive(cards[i].id),
                   reorderIndex: canReorder ? i : null,
                 );
@@ -1194,7 +1229,8 @@ class _WorkshopView extends StatelessWidget {
                 index: i,
                 width: cardWidth,
                 height: cardHeight,
-                onTap: () => onTapSlot(i, null),
+                onTap: (origin) => onTapSlot(i, null, origin),
+                openingIndex: openingIndex,
               );
             }
 
@@ -1722,12 +1758,14 @@ class _WorkshopBlankSlot extends ConsumerWidget {
     required this.width,
     required this.height,
     required this.onTap,
+    required this.openingIndex,
   });
 
   final int index;
   final double width;
   final double height;
-  final VoidCallback onTap;
+  final void Function(Rect origin) onTap;
+  final ValueNotifier<int?> openingIndex;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -1750,7 +1788,7 @@ class _WorkshopBlankSlot extends ConsumerWidget {
             child: Material(
               color: Colors.transparent,
               child: InkWell(
-                onTap: onTap,
+                onTap: () => onTap(_originRectOf(context)),
                 borderRadius: BorderRadius.circular(16),
                 child: Center(child: icon),
               ),
@@ -1760,7 +1798,7 @@ class _WorkshopBlankSlot extends ConsumerWidget {
             color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
             borderRadius: BorderRadius.circular(16),
             child: InkWell(
-              onTap: onTap,
+              onTap: () => onTap(_originRectOf(context)),
               borderRadius: BorderRadius.circular(16),
               child: DecoratedBox(
                 decoration: BoxDecoration(
@@ -1776,10 +1814,10 @@ class _WorkshopBlankSlot extends ConsumerWidget {
             ),
           );
 
-    return SizedBox(
-      width: width,
-      height: height,
-      child: Hero(tag: 'profile-card-slot-$index', child: content),
+    return _HideWhileOpening(
+      notifier: openingIndex,
+      index: index,
+      child: SizedBox(width: width, height: height, child: content),
     );
   }
 }
@@ -1796,6 +1834,7 @@ class _WorkshopCardSlot extends StatelessWidget {
     required this.isActive,
     required this.onTap,
     required this.onSetActive,
+    required this.openingIndex,
     this.reorderIndex,
   });
 
@@ -1812,8 +1851,13 @@ class _WorkshopCardSlot extends StatelessWidget {
 
   /// このカードが縁結びの招待リンク等に適用中かどうか。
   final bool isActive;
-  final VoidCallback onTap;
+
+  /// タップ時に、このカードの画面上の矩形（編集画面へ飛ぶ出発点）を渡す。
+  final void Function(Rect origin) onTap;
   final VoidCallback onSetActive;
+
+  /// 編集画面を開いている枠の番号（その枠のカードは一覧側で隠す）。
+  final ValueNotifier<int?> openingIndex;
 
   @override
   Widget build(BuildContext context) {
@@ -1839,8 +1883,8 @@ class _WorkshopCardSlot extends StatelessWidget {
     // カード名がズーム時に取り残されて見えないよう、カード本体とカード名を
     // まとめて1つのHeroにし、一緒に移動・拡大するモーションにする
     // （削除ボタンだけはズーム編集画面側の[Stack]で外側に置き、Heroには含めない）。
-    return Hero(
-      tag: 'profile-card-slot-$index',
+    return KeyedSubtree(
+      key: ValueKey('profile-card-slot-$index'),
       // Hero飛行中はこのchild（FittedBox以下）がOverlay直下へ一時的に
       // 付け替えられ、外側のScaffold等が持つMaterial祖先から切り離される。
       // 中の`InkWell`がMaterial祖先を必要とするため、飛行中も自前で
@@ -1865,52 +1909,58 @@ class _WorkshopCardSlot extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              SizedBox(
-                width: width,
-                height: height,
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    InkWell(
-                      borderRadius: BorderRadius.circular(16),
-                      onTap: onTap,
-                      child: ProfileCardView(
-                        width: width,
-                        height: height,
-                        icon: icon,
-                        background: background,
-                        backgroundFocal: card.backgroundFocal,
-                        iconFocal: card.iconFocal,
-                        layoutPreset: card.layoutPreset,
-                        textAlign: card.textAlign,
-                        nickname: nickname ?? vocab.nickname,
-                        statusMessage: statusMessage ?? vocab.statusMessage,
-                        snsLinks: selectedSnsLinks,
-                        borderRadius: BorderRadius.circular(16),
-                        fontFamily: fontFamily,
-                      ),
-                    ),
-                    if (reorderIndex != null)
-                      Positioned(
-                        top: padding * 0.4,
-                        left: padding * 0.4,
-                        child: ReorderableDragStartListener(
-                          index: reorderIndex!,
-                          child: Tooltip(
-                            message: strings.workshopReorderTooltip,
-                            child: const _DragHandleBadge(),
+              _HideWhileOpening(
+                notifier: openingIndex,
+                index: index,
+                child: Builder(
+                  builder: (cardContext) => SizedBox(
+                    width: width,
+                    height: height,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        InkWell(
+                          borderRadius: BorderRadius.circular(16),
+                          onTap: () => onTap(_originRectOf(cardContext)),
+                          child: ProfileCardView(
+                            width: width,
+                            height: height,
+                            icon: icon,
+                            background: background,
+                            backgroundFocal: card.backgroundFocal,
+                            iconFocal: card.iconFocal,
+                            layoutPreset: card.layoutPreset,
+                            textAlign: card.textAlign,
+                            nickname: nickname ?? vocab.nickname,
+                            statusMessage: statusMessage,
+                            snsLinks: selectedSnsLinks,
+                            borderRadius: BorderRadius.circular(16),
+                            fontFamily: fontFamily,
                           ),
                         ),
-                      ),
-                    Positioned(
-                      top: padding * 0.4,
-                      right: padding * 0.4,
-                      child: _ActiveCardBadge(
-                        isActive: isActive,
-                        onTap: onSetActive,
-                      ),
+                        if (reorderIndex != null)
+                          Positioned(
+                            top: padding * 0.4,
+                            left: padding * 0.4,
+                            child: ReorderableDragStartListener(
+                              index: reorderIndex!,
+                              child: Tooltip(
+                                message: strings.workshopReorderTooltip,
+                                child: const _DragHandleBadge(),
+                              ),
+                            ),
+                          ),
+                        Positioned(
+                          top: padding * 0.4,
+                          right: padding * 0.4,
+                          child: _ActiveCardBadge(
+                            isActive: isActive,
+                            onTap: onSetActive,
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
               ),
               const SizedBox(height: 6),
@@ -1938,6 +1988,108 @@ class _WorkshopCardSlot extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// 子の上でどこを下にスワイプしても[onDismiss]を呼ぶ（編集画面を閉じる用）。
+/// 生のポインタイベント（[Listener]）で見るので、子のボタン・カード・文字欄の
+/// 操作とは競合しない。縦方向に[_kSwipeDismissDistance]以上、かつ横より縦の動きが
+/// 大きい時だけ反応し、1回のドラッグで1度だけ呼ぶ。
+class _SwipeDownToDismiss extends StatefulWidget {
+  const _SwipeDownToDismiss({
+    required this.child,
+    required this.onDismiss,
+    required this.enabled,
+  });
+
+  final Widget child;
+  final VoidCallback onDismiss;
+  final bool Function() enabled;
+
+  @override
+  State<_SwipeDownToDismiss> createState() => _SwipeDownToDismissState();
+}
+
+const _kSwipeDismissDistance = 72.0;
+
+class _SwipeDownToDismissState extends State<_SwipeDownToDismiss> {
+  int? _pointer;
+  Offset _delta = Offset.zero;
+  bool _fired = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Listener(
+      behavior: HitTestBehavior.translucent,
+      onPointerDown: (e) {
+        // 最初に触れた指だけを見る。
+        if (_pointer != null) return;
+        _pointer = e.pointer;
+        _delta = Offset.zero;
+        _fired = false;
+      },
+      onPointerMove: (e) {
+        if (e.pointer != _pointer || _fired) return;
+        _delta += e.delta;
+        if (_delta.dy >= _kSwipeDismissDistance &&
+            _delta.dy > _delta.dx.abs() * 2 &&
+            widget.enabled()) {
+          _fired = true;
+          widget.onDismiss();
+        }
+      },
+      onPointerUp: (e) {
+        if (e.pointer == _pointer) _pointer = null;
+      },
+      onPointerCancel: (e) {
+        if (e.pointer == _pointer) _pointer = null;
+      },
+      child: widget.child,
+    );
+  }
+}
+
+/// [context]の描画領域の画面上の矩形（拡大縮小を含む実際の見た目の位置）。
+Rect _originRectOf(BuildContext context) {
+  final box = context.findRenderObject() as RenderBox;
+  return Rect.fromPoints(
+    box.localToGlobal(Offset.zero),
+    box.localToGlobal(box.size.bottomRight(Offset.zero)),
+  );
+}
+
+/// 工房の一覧のカードが編集画面のカードへ飛ぶ時の、編集画面側のカードに掛ける
+/// 変換（中心基準）。[t]=0で一覧の位置・大きさ（[origin]）、1で最終位置（[target]）。
+@visibleForTesting
+Matrix4 cardFlyTransform(Rect origin, Rect target, double t) {
+  final shift = Offset.lerp(origin.center - target.center, Offset.zero, t)!;
+  final scale = lerpDouble(origin.width / target.width, 1, t)!;
+  return Matrix4.identity()
+    ..translateByDouble(shift.dx, shift.dy, 0, 1)
+    ..scaleByDouble(scale, scale, 1, 1);
+}
+
+/// 編集画面を開いている間（[notifier]が[index]の間）、一覧側の枠を見えなくする。
+/// 領域は残す（レイアウトを動かさない）。
+class _HideWhileOpening extends StatelessWidget {
+  const _HideWhileOpening({
+    required this.notifier,
+    required this.index,
+    required this.child,
+  });
+
+  final ValueNotifier<int?> notifier;
+  final int index;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<int?>(
+      valueListenable: notifier,
+      builder: (context, opening, child) =>
+          Opacity(opacity: opening == index ? 0 : 1, child: child),
+      child: child,
     );
   }
 }
@@ -2998,7 +3150,7 @@ class _SnsLinkDialogState extends ConsumerState<_SnsLinkDialog> {
 /// カード名だけは自由入力のためポップの対象外（編集アイコンから編集する）。
 class _CardZoomEditor extends StatefulWidget {
   const _CardZoomEditor({
-    required this.heroTag,
+    this.originRect,
     required this.user,
     required this.strings,
     required this.vocab,
@@ -3006,9 +3158,12 @@ class _CardZoomEditor extends StatefulWidget {
     required this.onCreate,
     required this.onUpdate,
     required this.onDelete,
+    super.key,
   });
 
-  final String heroTag;
+  /// 一覧のカードの画面上の矩形。ここから編集画面のカードの位置へ飛ぶ動きを
+  /// 付ける（nullなら動き無し）。
+  final Rect? originRect;
   final AppUser user;
   final Strings strings;
   final Vocabulary vocab;
@@ -3037,6 +3192,13 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
   // 変更したタイミングまで遅らせる（[_persisted]で管理）。
   late ProfileCard _card;
   bool _persisted = false;
+
+  // 一覧のカードが編集画面のカードの位置へ飛ぶ動き（[widget.originRect]）。
+  // 最終位置は最初のフレームの後に計測する（計測前はカードを見せない）。
+  final _cardKey = GlobalKey();
+  Rect? _flyTarget;
+  Animation<double>? _fly;
+  Animation<double> _restFade = const AlwaysStoppedAnimation(1);
 
   // 更新の保存（[widget.onUpdate]）は「古い値をarrayRemoveで消す→新しい値を
   // arrayUnionで足す」という2手順で、この2手順セット自体はFirestore側で
@@ -3086,8 +3248,49 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final route = ModalRoute.of(context);
+    if (_fly == null && widget.originRect != null && route != null) {
+      _fly = CurvedAnimation(
+        parent: route.animation!,
+        curve: Curves.easeInOutCubic,
+      );
+      _restFade = CurvedAnimation(
+        parent: route.animation!,
+        curve: const Interval(0.55, 1, curve: Curves.easeOut),
+      );
+    }
+  }
+
+  /// 編集画面のカード[card]を、一覧のカードの位置から飛んでくる動きで包む。
+  Widget _flyFromList(Widget card) {
+    final origin = widget.originRect;
+    final fly = _fly;
+    if (origin == null || fly == null) return card;
+    final target = _flyTarget;
+    if (target == null) return Opacity(opacity: 0, child: card);
+    return AnimatedBuilder(
+      animation: fly,
+      child: card,
+      builder: (context, child) => Transform(
+        alignment: Alignment.center,
+        transform: cardFlyTransform(origin, target, fly.value),
+        child: child,
+      ),
+    );
+  }
+
+  @override
   void initState() {
     super.initState();
+    if (widget.originRect != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final ctx = _cardKey.currentContext;
+        if (!mounted || ctx == null) return;
+        setState(() => _flyTarget = _originRectOf(ctx));
+      });
+    }
     final existing = widget.initialCard;
     _card = existing ?? ProfileCard(id: _newLocalId(), name: '');
     _persisted = existing != null;
@@ -3116,6 +3319,16 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
     });
     _pendingPersist = next;
     return next;
+  }
+
+  /// 下スワイプで閉じてよいか（位置調整中は画像のドラッグと区別できないため不可）。
+  bool get canSwipeDismiss => _focalEditing == null;
+
+  /// 閉じる直前に、入力途中のカード名を確定する（外側タップで閉じる時の
+  /// `onTapOutside`と同じ扱い）。
+  void confirmNameBeforeClose() {
+    FocusManager.instance.primaryFocus?.unfocus();
+    _confirmName();
   }
 
   Future<void> _confirmName() async {
@@ -3189,6 +3402,10 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
           ],
           card.fontDesignId,
           strings,
+          fontFamilies: {
+            for (final m in widget.user.fontDesignMaterials)
+              m.id: m.design?.fontFamily,
+          },
         );
     }
     if (result == null || !mounted) return;
@@ -3395,8 +3612,8 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
     return Stack(
       clipBehavior: Clip.none,
       children: [
-        Hero(
-          tag: widget.heroTag,
+        KeyedSubtree(
+          key: const ValueKey('card-zoom-editor'),
           // Hero飛行中はこのchild（Column以下）がOverlay直下へ一時的に
           // 付け替えられ、外側の`_openCardZoom`で用意したMaterial祖先から
           // 切り離される。中のTextFieldがMaterial祖先を必要とするため、
@@ -3420,319 +3637,345 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Material(
-                    clipBehavior: Clip.antiAlias,
-                    borderRadius: BorderRadius.circular(24),
-                    color: colorScheme.surfaceContainerHighest,
-                    child: SizedBox(
-                      width: width,
-                      height: height,
-                      child: Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          GestureDetector(
-                            // 背景レイヤーはStack(fit: expand)でカード全面を覆っており、
-                            // アイコン・ニックネーム・ステメの各タップ領域以外（＝
-                            // カードの何も無い箇所）はすべてここに落ちてくる。
-                            // behavior: opaqueで、子（ColoredBox等）の描画内容に
-                            // 関わらず領域全体を確実にタップ可能にする。
-                            behavior: HitTestBehavior.opaque,
-                            onTapDown: (details) =>
-                                _lastTapPosition = details.globalPosition,
-                            onTap: () => _pickMaterial('background'),
-                            // 長押しで画像の位置調整（短いタップは素材の変更）。
-                            onLongPress: background == null
-                                ? null
-                                : () => _startFocalEdit('background'),
-                            child: background != null
-                                ? FocalImage(
-                                    url: background.url,
-                                    focal: card.backgroundFocal,
-                                  )
-                                : ColoredBox(
-                                    color: colorScheme.surfaceContainerHighest,
+                  SizedBox(
+                    key: _cardKey,
+                    width: width,
+                    height: height,
+                    child: _flyFromList(
+                      Material(
+                        clipBehavior: Clip.antiAlias,
+                        borderRadius: BorderRadius.circular(24),
+                        color: colorScheme.surfaceContainerHighest,
+                        // カードは基準サイズ（400×500）で組み、表示幅へ縮小する
+                        // （一覧・ホバー等と同じ比率にそろえる）。
+                        child: SizedBox(
+                          width: width,
+                          height: height,
+                          child: FittedBox(
+                            fit: BoxFit.contain,
+                            child: SizedBox(
+                              width: kProfileCardDesignWidth,
+                              height: kProfileCardDesignHeight,
+                              child: Stack(
+                                fit: StackFit.expand,
+                                children: [
+                                  GestureDetector(
+                                    // 背景レイヤーはStack(fit: expand)でカード全面を覆っており、
+                                    // アイコン・ニックネーム・ステメの各タップ領域以外（＝
+                                    // カードの何も無い箇所）はすべてここに落ちてくる。
+                                    // behavior: opaqueで、子（ColoredBox等）の描画内容に
+                                    // 関わらず領域全体を確実にタップ可能にする。
+                                    behavior: HitTestBehavior.opaque,
+                                    onTapDown: (details) => _lastTapPosition =
+                                        details.globalPosition,
+                                    onTap: () => _pickMaterial('background'),
+                                    // 長押しで画像の位置調整（短いタップは素材の変更）。
+                                    onLongPress: background == null
+                                        ? null
+                                        : () => _startFocalEdit('background'),
+                                    child: background != null
+                                        ? FocalImage(
+                                            url: background.url,
+                                            focal: card.backgroundFocal,
+                                          )
+                                        : ColoredBox(
+                                            color: colorScheme
+                                                .surfaceContainerHighest,
+                                          ),
                                   ),
-                          ),
-                          if (background != null)
-                            // 単なる装飾のグラデーションのはずが、子を持たない
-                            // DecoratedBoxが背景タップより上のStack層で
-                            // ヒットテストを奪ってしまい、背景を一度設定すると
-                            // 以降タップしても何も起きない不具合になっていた
-                            // （ウィジェットテストで再現・特定）。IgnorePointerで
-                            // ヒットテストの対象から明示的に外す。
-                            IgnorePointer(
-                              child: DecoratedBox(
-                                decoration: profileCardScrimDecoration(
-                                  card.layoutPreset,
-                                ),
-                              ),
-                            ),
-                          ProfileCardContent(
-                            layoutPreset: card.layoutPreset,
-                            textAlign: card.textAlign,
-                            children: [
-                              GestureDetector(
-                                onTapDown: (details) =>
-                                    _lastTapPosition = details.globalPosition,
-                                onTap: () => _pickMaterial('icon'),
-                                onLongPress: icon == null
-                                    ? null
-                                    : () => _startFocalEdit('icon'),
-                                child: ProfileCardAvatar(
-                                  icon: icon,
-                                  radius: kProfileCardAvatarRadius,
-                                  focal: card.iconFocal,
-                                ),
-                              ),
-                              const SizedBox(height: kProfileCardPadding * 0.6),
-                              // カード内はニックネームを主役として表示し、
-                              // その下にステメを補足として表示する。
-                              GestureDetector(
-                                onTapDown: (details) =>
-                                    _lastTapPosition = details.globalPosition,
-                                onTap: () => _pickMaterial('nickname'),
-                                child: Text(
-                                  nickname?.text ?? vocab.nickname,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    fontSize: kProfileCardNicknameFontSize,
-                                    fontWeight: FontWeight.bold,
-                                    color: nicknameColor,
-                                    fontFamily: fontFamily,
-                                  ),
-                                ),
-                              ),
-                              GestureDetector(
-                                onTapDown: (details) =>
-                                    _lastTapPosition = details.globalPosition,
-                                onTap: () => _pickMaterial('statusMessage'),
-                                child: Text(
-                                  statusMessage?.text ?? vocab.statusMessage,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    fontSize: kProfileCardStatusFontSize,
-                                    color: statusColor,
-                                    fontFamily: fontFamily,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: kProfileCardPadding * 0.3),
-                              SnsLinksInline(
-                                links: selectedSnsLinks,
-                                iconSize: kProfileCardStatusFontSize,
-                                fontSize: kProfileCardStatusFontSize * 0.9,
-                                color: statusColor,
-                                placeholder: strings.workshopSnsLinkFieldLabel,
-                                onTap: _pickSnsLinks,
-                                fontFamily: fontFamily,
-                                crossAxisAlignment:
-                                    (card.textAlign ?? CardTextAlign.start)
-                                        .crossAxisAlignment,
-                              ),
-                              const SizedBox(height: kProfileCardPadding * 0.3),
-                              // フォントデザインも呼び名・一言と同じく「カードの
-                              // デザインを決める要素」なので、枠外のボタンではなく
-                              // カード内の1行をタップして変更する（編集画面のみ
-                              // 表示。実際のカード表示には出さない）。
-                              GestureDetector(
-                                onTapDown: (details) =>
-                                    _lastTapPosition = details.globalPosition,
-                                onTap: () => _pickMaterial('fontDesign'),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(
-                                      Icons.font_download_outlined,
-                                      size: kProfileCardStatusFontSize,
-                                      color: statusColor,
+                                  if (background != null)
+                                    // 単なる装飾のグラデーションのはずが、子を持たない
+                                    // DecoratedBoxが背景タップより上のStack層で
+                                    // ヒットテストを奪ってしまい、背景を一度設定すると
+                                    // 以降タップしても何も起きない不具合になっていた
+                                    // （ウィジェットテストで再現・特定）。IgnorePointerで
+                                    // ヒットテストの対象から明示的に外す。
+                                    IgnorePointer(
+                                      child: DecoratedBox(
+                                        decoration: profileCardScrimDecoration(
+                                          card.layoutPreset,
+                                        ),
+                                      ),
                                     ),
-                                    const SizedBox(width: 6),
-                                    Text(
-                                      _fontLabel(card, strings),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: TextStyle(
+                                  ProfileCardContent(
+                                    layoutPreset: card.layoutPreset,
+                                    textAlign: card.textAlign,
+                                    children: [
+                                      GestureDetector(
+                                        onTapDown: (details) =>
+                                            _lastTapPosition =
+                                                details.globalPosition,
+                                        onTap: () => _pickMaterial('icon'),
+                                        onLongPress: icon == null
+                                            ? null
+                                            : () => _startFocalEdit('icon'),
+                                        child: ProfileCardAvatar(
+                                          icon: icon,
+                                          radius: kProfileCardAvatarRadius,
+                                          focal: card.iconFocal,
+                                        ),
+                                      ),
+                                      const SizedBox(
+                                        height: kProfileCardPadding * 0.6,
+                                      ),
+                                      // カード内はニックネームを主役として表示し、
+                                      // その下にステメを補足として表示する。
+                                      GestureDetector(
+                                        onTapDown: (details) =>
+                                            _lastTapPosition =
+                                                details.globalPosition,
+                                        onTap: () => _pickMaterial('nickname'),
+                                        child: Text(
+                                          nickname?.text ?? vocab.nickname,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            fontSize:
+                                                kProfileCardNicknameFontSize,
+                                            fontWeight: FontWeight.bold,
+                                            color: nicknameColor,
+                                            fontFamily: fontFamily,
+                                          ),
+                                        ),
+                                      ),
+                                      GestureDetector(
+                                        onTapDown: (details) =>
+                                            _lastTapPosition =
+                                                details.globalPosition,
+                                        onTap: () =>
+                                            _pickMaterial('statusMessage'),
+                                        child: Text(
+                                          statusMessage?.text ??
+                                              vocab.statusMessage,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            fontSize:
+                                                kProfileCardStatusFontSize,
+                                            color: statusColor,
+                                            fontFamily: fontFamily,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(
+                                        height: kProfileCardPadding * 0.3,
+                                      ),
+                                      SnsLinksInline(
+                                        links: selectedSnsLinks,
+                                        iconSize: kProfileCardStatusFontSize,
                                         fontSize:
                                             kProfileCardStatusFontSize * 0.9,
                                         color: statusColor,
+                                        placeholder:
+                                            strings.workshopSnsLinkFieldLabel,
+                                        onTap: _pickSnsLinks,
                                         fontFamily: fontFamily,
+                                        crossAxisAlignment:
+                                            (card.textAlign ??
+                                                    CardTextAlign.start)
+                                                .crossAxisAlignment,
+                                      ),
+                                    ],
+                                  ),
+                                  if (_focalEditing != null)
+                                    Positioned.fill(
+                                      child: FocalEditOverlay(
+                                        key: ValueKey(_focalEditing),
+                                        imageUrl:
+                                            (_focalEditing == 'background'
+                                                ? background?.url
+                                                : icon?.url) ??
+                                            '',
+                                        circle: _focalEditing == 'icon',
+                                        focal: _focalDraft,
+                                        onChanged: (f) =>
+                                            setState(() => _focalDraft = f),
                                       ),
                                     ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                          if (_focalEditing != null)
-                            Positioned.fill(
-                              child: FocalEditOverlay(
-                                key: ValueKey(_focalEditing),
-                                imageUrl:
-                                    (_focalEditing == 'background'
-                                        ? background?.url
-                                        : icon?.url) ??
-                                    '',
-                                circle: _focalEditing == 'icon',
-                                focal: _focalDraft,
-                                onChanged: (f) =>
-                                    setState(() => _focalDraft = f),
+                                ],
                               ),
                             ),
-                        ],
+                          ),
+                        ),
                       ),
                     ),
                   ),
-                  if (_focalEditing == null) ...[
-                    const SizedBox(height: 8),
-                    _CardLayoutPicker(
-                      width: width,
-                      layoutPreset:
-                          card.layoutPreset ?? CardLayoutPreset.bottomLeft,
-                      textAlign: card.textAlign ?? CardTextAlign.start,
-                      strings: strings,
-                      onLayoutChanged: (preset) {
-                        setState(() {
-                          _card = preset == CardLayoutPreset.bottomLeft
-                              ? _card.copyWith(clearLayoutPreset: true)
-                              : _card.copyWith(layoutPreset: preset);
-                        });
-                        _persist();
-                      },
-                      onAlignChanged: (align) {
-                        setState(() {
-                          _card = align == CardTextAlign.start
-                              ? _card.copyWith(clearTextAlign: true)
-                              : _card.copyWith(textAlign: align);
-                        });
-                        _persist();
-                      },
-                    ),
-                  ],
-                  const SizedBox(height: 12),
-                  // カード名はカードの直下、半透明の暗転バリアの上に表示する。
-                  // 以前は白系→黒系と切り替えたが、バリアの不透明度が低いままだと
-                  // 下に見えるページの背景色（ライト/ダークモードで大きく異なる）が
-                  // 透けるため、どちらの固定色でも片方のモードで読みづらくなって
-                  // いた（2026-07-29修正）。バリア自体を常に暗く保つ
-                  // （barrierColor: Colors.black87、上記_openCardZoom参照）ことで
-                  // 背景の明るさをモードに依存させず安定させ、白系の文字色に
-                  // 統一した。編集ボタンは置かず、最初から常にTextFieldを表示する
-                  // （新規カードは自動でフォーカスする）。
-                  if (_focalEditing != null)
-                    // 位置調整中は、カード名の欄の代わりに操作ボタンをカードの
-                    // 下に独立して並べる（カード上のバッジと重ならないように）。
-                    SizedBox(
-                      width: width,
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: OutlinedButton(
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: Colors.white,
-                                side: const BorderSide(color: Colors.white70),
+                  // カード以外は、カードが飛んでいる間は隠して後から現れる。
+                  FadeTransition(
+                    opacity: _restFade,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (_focalEditing == null) ...[
+                          const SizedBox(height: 8),
+                          _CardLayoutPicker(
+                            width: width,
+                            layoutPreset:
+                                card.layoutPreset ??
+                                CardLayoutPreset.bottomLeft,
+                            textAlign: card.textAlign ?? CardTextAlign.start,
+                            strings: strings,
+                            onLayoutChanged: (preset) {
+                              setState(() {
+                                _card = preset == CardLayoutPreset.bottomLeft
+                                    ? _card.copyWith(clearLayoutPreset: true)
+                                    : _card.copyWith(layoutPreset: preset);
+                              });
+                              _persist();
+                            },
+                            onAlignChanged: (align) {
+                              setState(() {
+                                _card = align == CardTextAlign.start
+                                    ? _card.copyWith(clearTextAlign: true)
+                                    : _card.copyWith(textAlign: align);
+                              });
+                              _persist();
+                            },
+                          ),
+                          // フォントデザインはカードの見た目そのものではなく編集用の
+                          // 操作なので、配置・揃えと同じくカードの外で変更する。
+                          _CardFontRow(
+                            width: width,
+                            label: strings.workshopFontLabel,
+                            fontName: _fontLabel(card, strings),
+                            fontFamily: fontFamily,
+                            onTapDown: (position) =>
+                                _lastTapPosition = position,
+                            onTap: () => _pickMaterial('fontDesign'),
+                          ),
+                        ],
+                        const SizedBox(height: 12),
+                        // カード名はカードの直下、半透明の暗転バリアの上に表示する。
+                        // 以前は白系→黒系と切り替えたが、バリアの不透明度が低いままだと
+                        // 下に見えるページの背景色（ライト/ダークモードで大きく異なる）が
+                        // 透けるため、どちらの固定色でも片方のモードで読みづらくなって
+                        // いた（2026-07-29修正）。バリア自体を常に暗く保つ
+                        // （barrierColor: Colors.black87、上記_openCardZoom参照）ことで
+                        // 背景の明るさをモードに依存させず安定させ、白系の文字色に
+                        // 統一した。編集ボタンは置かず、最初から常にTextFieldを表示する
+                        // （新規カードは自動でフォーカスする）。
+                        if (_focalEditing != null)
+                          // 位置調整中は、カード名の欄の代わりに操作ボタンをカードの
+                          // 下に独立して並べる（カード上のバッジと重ならないように）。
+                          SizedBox(
+                            width: width,
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: OutlinedButton(
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: Colors.white,
+                                      side: const BorderSide(
+                                        color: Colors.white70,
+                                      ),
+                                    ),
+                                    onPressed: () =>
+                                        _finishFocalEdit(apply: false),
+                                    child: Text(strings.workshopFocalCancel),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: OutlinedButton(
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: Colors.white,
+                                      side: const BorderSide(
+                                        color: Colors.white70,
+                                      ),
+                                    ),
+                                    onPressed: () => setState(
+                                      () => _focalDraft = ImageFocal.center,
+                                    ),
+                                    child: Text(strings.workshopFocalReset),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: FilledButton(
+                                    onPressed: () =>
+                                        _finishFocalEdit(apply: true),
+                                    child: Text(strings.workshopFocalDone),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )
+                        else
+                          SizedBox(
+                            width: width,
+                            child: TextField(
+                              controller: _nameController,
+                              autofocus: _isNewCard,
+                              maxLength: kMaxWorkshopCardNameLength,
+                              textAlign: TextAlign.center,
+                              // 指定しないとWeb版でブラウザが「名前欄」と誤認識し、
+                              // 独自のオートフィル黄色ハイライトを重ねてくることが
+                              // あったため、明示的に空にしてブラウザ側の自動補完
+                              // 候補付けそのものを無効化する。
+                              autofillHints: const [],
+                              style: TextStyle(
+                                color: nameFieldFg,
+                                fontWeight: FontWeight.bold,
+                                fontSize: nameFontSize,
                               ),
-                              onPressed: () => _finishFocalEdit(apply: false),
-                              child: Text(strings.workshopFocalCancel),
+                              decoration: InputDecoration(
+                                // 劇画は黒のボックスだと視認性が悪いため、ダークモードと
+                                // 同じ灰色に統一する（2026-10-11）。
+                                filled: nameFieldGekiga ? true : null,
+                                fillColor: nameFieldGekiga
+                                    ? AppTheme.darkSurface
+                                    : null,
+                                counterText: '',
+                                contentPadding: const EdgeInsets.symmetric(
+                                  vertical: 12,
+                                ),
+                                hintText: strings.workshopCardNameLabel,
+                                hintStyle: TextStyle(
+                                  color: nameFieldLight
+                                      ? Colors.black54
+                                      : Colors.white70,
+                                  fontSize: nameFontSize,
+                                ),
+                                enabledBorder: UnderlineInputBorder(
+                                  borderSide: BorderSide(
+                                    color: nameFieldLight
+                                        ? Colors.black45
+                                        : Colors.white54,
+                                    width: 1.5,
+                                  ),
+                                ),
+                                focusedBorder: UnderlineInputBorder(
+                                  borderSide: BorderSide(
+                                    color: nameFieldLight
+                                        ? Colors.black87
+                                        : Colors.white,
+                                    width: 2,
+                                  ),
+                                ),
+                              ),
+                              onSubmitted: (_) => _confirmName(),
+                              onTapOutside: (_) => _confirmName(),
                             ),
                           ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: OutlinedButton(
+                        // 削除はカード名の下に独立した行として置く（位置調整中は出さない）。
+                        if (_persisted && _focalEditing == null) ...[
+                          const SizedBox(height: 8),
+                          SizedBox(
+                            width: width,
+                            child: OutlinedButton.icon(
                               style: OutlinedButton.styleFrom(
-                                foregroundColor: Colors.white,
-                                side: const BorderSide(color: Colors.white70),
+                                foregroundColor: Colors.red.shade300,
+                                side: BorderSide(color: Colors.red.shade300),
                               ),
-                              onPressed: () => setState(
-                                () => _focalDraft = ImageFocal.center,
-                              ),
-                              child: Text(strings.workshopFocalReset),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: FilledButton(
-                              onPressed: () => _finishFocalEdit(apply: true),
-                              child: Text(strings.workshopFocalDone),
+                              onPressed: _handleDelete,
+                              icon: const Icon(Icons.delete_outline, size: 18),
+                              label: Text(strings.workshopDeleteCardButton),
                             ),
                           ),
                         ],
-                      ),
-                    )
-                  else
-                    SizedBox(
-                      width: width,
-                      child: TextField(
-                        controller: _nameController,
-                        autofocus: _isNewCard,
-                        maxLength: kMaxWorkshopCardNameLength,
-                        textAlign: TextAlign.center,
-                        // 指定しないとWeb版でブラウザが「名前欄」と誤認識し、
-                        // 独自のオートフィル黄色ハイライトを重ねてくることが
-                        // あったため、明示的に空にしてブラウザ側の自動補完
-                        // 候補付けそのものを無効化する。
-                        autofillHints: const [],
-                        style: TextStyle(
-                          color: nameFieldFg,
-                          fontWeight: FontWeight.bold,
-                          fontSize: nameFontSize,
-                        ),
-                        decoration: InputDecoration(
-                          // 劇画は黒のボックスだと視認性が悪いため、ダークモードと
-                          // 同じ灰色に統一する（2026-10-11）。
-                          filled: nameFieldGekiga ? true : null,
-                          fillColor: nameFieldGekiga
-                              ? AppTheme.darkSurface
-                              : null,
-                          counterText: '',
-                          contentPadding: const EdgeInsets.symmetric(
-                            vertical: 12,
-                          ),
-                          hintText: strings.workshopCardNameLabel,
-                          hintStyle: TextStyle(
-                            color: nameFieldLight
-                                ? Colors.black54
-                                : Colors.white70,
-                            fontSize: nameFontSize,
-                          ),
-                          enabledBorder: UnderlineInputBorder(
-                            borderSide: BorderSide(
-                              color: nameFieldLight
-                                  ? Colors.black45
-                                  : Colors.white54,
-                              width: 1.5,
-                            ),
-                          ),
-                          focusedBorder: UnderlineInputBorder(
-                            borderSide: BorderSide(
-                              color: nameFieldLight
-                                  ? Colors.black87
-                                  : Colors.white,
-                              width: 2,
-                            ),
-                          ),
-                        ),
-                        onSubmitted: (_) => _confirmName(),
-                        onTapOutside: (_) => _confirmName(),
-                      ),
+                      ],
                     ),
-                  // 削除はカード名の下に独立した行として置く（位置調整中は出さない）。
-                  if (_persisted && _focalEditing == null) ...[
-                    const SizedBox(height: 8),
-                    SizedBox(
-                      width: width,
-                      child: OutlinedButton.icon(
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.red.shade300,
-                          side: BorderSide(color: Colors.red.shade300),
-                        ),
-                        onPressed: _handleDelete,
-                        icon: const Icon(Icons.delete_outline, size: 18),
-                        label: Text(strings.workshopDeleteCardButton),
-                      ),
-                    ),
-                  ],
+                  ),
                 ],
               ),
             ),
@@ -3792,8 +4035,10 @@ Future<String?> _showTextMaterialMenu(
   RelativeRect position,
   List<(String, String)> items,
   String? selectedId,
-  Strings strings,
-) {
+  Strings strings, {
+  // 項目ごとの表示フォント（フォントデザイン選択で、各項目をそのフォントで見せる）。
+  Map<String, String?> fontFamilies = const {},
+}) {
   return showMenu<String>(
     context: context,
     position: position,
@@ -3813,7 +4058,11 @@ Future<String?> _showTextMaterialMenu(
       for (final (id, text) in items)
         PopupMenuItem<String>(
           value: id,
-          child: _MaterialMenuRow(selected: selectedId == id, label: text),
+          child: _MaterialMenuRow(
+            selected: selectedId == id,
+            label: text,
+            fontFamily: fontFamilies[id],
+          ),
         ),
     ],
   );
@@ -3824,10 +4073,12 @@ class _MaterialMenuRow extends StatelessWidget {
     required this.selected,
     required this.label,
     this.thumbnail,
+    this.fontFamily,
   });
 
   final bool selected;
   final String label;
+  final String? fontFamily;
   final Widget? thumbnail;
 
   @override
@@ -3843,8 +4094,82 @@ class _MaterialMenuRow extends StatelessWidget {
           SizedBox(width: 28, height: 28, child: ClipOval(child: thumbnail)),
           const SizedBox(width: 8),
         ],
-        if (label.isNotEmpty) Text(label),
+        if (label.isNotEmpty)
+          Text(label, style: TextStyle(fontFamily: fontFamily)),
       ],
+    );
+  }
+}
+
+/// カード編集画面で、カードの外に置くフォントデザインの変更行
+/// （[_CardLayoutPicker]と同じ見た目）。タップで蔵のフォントデザイン素材の
+/// メニューを開く。
+class _CardFontRow extends StatelessWidget {
+  const _CardFontRow({
+    required this.width,
+    required this.label,
+    required this.fontName,
+    required this.fontFamily,
+    required this.onTapDown,
+    required this.onTap,
+  });
+
+  final double width;
+  final String label;
+  final String fontName;
+  final String? fontFamily;
+  final ValueChanged<Offset> onTapDown;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: width,
+      child: Row(
+        children: [
+          SizedBox(
+            width: 52,
+            child: Text(
+              label,
+              style: const TextStyle(color: Colors.white70, fontSize: 12),
+            ),
+          ),
+          Flexible(
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTapDown: (d) => onTapDown(d.globalPosition),
+              onTap: onTap,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.white54),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Flexible(
+                      child: Text(
+                        fontName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontFamily: fontFamily,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -3904,7 +4229,7 @@ class _CardLayoutPicker extends StatelessWidget {
     return Row(
       children: [
         SizedBox(
-          width: 40,
+          width: 52,
           child: Text(
             title,
             style: const TextStyle(color: Colors.white70, fontSize: 12),

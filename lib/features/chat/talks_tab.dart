@@ -3022,6 +3022,15 @@ class GroupTile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // コンピューターでは、広場のプロフィールカードが設定されていればホバーで
+    // 右上に出す（2026-10-13、`HoverProfileCard.group`）。
+    return HoverProfileCard.group(
+      card: group.profileCard,
+      child: _buildTile(context, ref),
+    );
+  }
+
+  Widget _buildTile(BuildContext context, WidgetRef ref) {
     final iconUrl = group.profileCard?.iconUrl;
     final uiStyle = ref.watch(appUiStyleProvider);
     final isGekiga = uiStyle == AppUiStyle.gekiga;
@@ -3255,6 +3264,15 @@ class _GroupIconTile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // コンピューターでは、広場のプロフィールカードが設定されていればホバーで
+    // 右上に出す（2026-10-13、`HoverProfileCard.group`）。
+    return HoverProfileCard.group(
+      card: group.profileCard,
+      child: _buildTile(context, ref),
+    );
+  }
+
+  Widget _buildTile(BuildContext context, WidgetRef ref) {
     final iconUrl = group.profileCard?.iconUrl;
     final isGlass = ref.watch(appUiStyleProvider) == AppUiStyle.glass;
     final colorScheme = Theme.of(context).colorScheme;

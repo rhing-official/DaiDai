@@ -5,13 +5,19 @@ import 'package:flutter/material.dart';
 
 import '../models/app_user.dart';
 import '../utils/platform_info.dart';
+import '../models/group_profile_card.dart';
+import 'group_profile_card_view.dart';
 import 'user_profile_card_view.dart';
 
 /// ホバーカードを出すまでの待ち時間。
-const kHoverProfileCardDelay = Duration(seconds: 2);
+const kHoverProfileCardDelay = Duration(milliseconds: 500);
 
 /// ホバーカードの大きさ（身だしなみカードと同じ4:5）。
 const kHoverProfileCardSize = Size(260, 325);
+
+/// カードを描く基準サイズ。`ProfileCardView`のアバター・余白・文字は固定pxのため、
+/// 工房で作った見た目と同じ比率になるよう、この大きさで描いてから縮小表示する。
+const _kHoverProfileCardDesignSize = Size(260, 325);
 
 /// カード（[card]）をタイルの**右上**に出す位置（左上座標）を求める（2026-10-13）。
 /// 基本はタイル[tile]の右端の外側に、上端を揃えて置く。右に収まらなければタイルの
@@ -35,23 +41,44 @@ Offset hoverProfileCardOffset({
   return Offset(left, top);
 }
 
-/// 語らい一覧の一対のブロックに、マウスを[kHoverProfileCardDelay]（2秒）以上
+/// 語らい一覧の一対のブロックに、マウスを[kHoverProfileCardDelay]（0.5秒）以上
 /// 乗せ続けると、相手のプロフィールカード（会話用に選んだ工房カード）をブロックの
 /// 右上に出す（2026-10-13、工房カードの実利用箇所）。コンピューター
 /// （`classifyDevice`が`computer`）だけで有効、タッチ端末では何もしない。
 /// マウスが外れる・クリック・スクロール・ウィジェットの破棄で閉じる。ポップアップは
 /// `IgnorePointer`で、一覧のタップ・右クリック・ドラッグ操作を妨げない。
 class HoverProfileCard extends StatefulWidget {
-  const HoverProfileCard({
-    required this.user,
-    required this.conversationId,
+  /// 一対: 相手の（会話用に選んだ）工房カード。[user]が未読込（null）の間は出さない。
+  HoverProfileCard({
+    required AppUser? user,
+    required String conversationId,
     required this.child,
     super.key,
-  });
+  }) : designSize = _kHoverProfileCardDesignSize,
+       cardBuilder = user == null
+           ? null
+           : ((_) => UserProfileCardView(
+               user: user,
+               conversationId: conversationId,
+               width: _kHoverProfileCardDesignSize.width,
+               height: _kHoverProfileCardDesignSize.height,
+             ));
 
-  /// 相手。まだ読み込めていない（null）間は出さない。
-  final AppUser? user;
-  final String conversationId;
+  /// 広場: 広場のプロフィールカード。未設定（null）なら出さない。
+  HoverProfileCard.group({
+    required GroupProfileCard? card,
+    required this.child,
+    super.key,
+  }) : designSize = GroupProfileCardView.size,
+       cardBuilder = card == null
+           ? null
+           : ((_) => GroupProfileCardView(card: card));
+
+  /// カード本体。nullなら何も出さない。
+  final WidgetBuilder? cardBuilder;
+
+  /// [cardBuilder]のカードを描く基準サイズ（これを[kHoverProfileCardSize]へ縮小する）。
+  final Size designSize;
   final Widget child;
 
   @override
@@ -70,15 +97,17 @@ class _HoverProfileCardState extends State<HoverProfileCard> {
   }
 
   void _show() {
-    final user = widget.user;
+    final builder = widget.cardBuilder;
     final box = context.findRenderObject();
-    if (!mounted || user == null || box is! RenderBox || !box.attached) return;
+    if (!mounted || builder == null || box is! RenderBox || !box.attached) {
+      return;
+    }
     final overlay = Overlay.maybeOf(context);
     if (overlay == null) return;
     final tile = box.localToGlobal(Offset.zero) & box.size;
     final screen = MediaQuery.sizeOf(context);
     final offset = hoverProfileCardOffset(tile: tile, screen: screen);
-    final conversationId = widget.conversationId;
+    final designSize = widget.designSize;
     _entry = OverlayEntry(
       builder: (context) => Positioned(
         left: offset.dx,
@@ -86,11 +115,13 @@ class _HoverProfileCardState extends State<HoverProfileCard> {
         width: kHoverProfileCardSize.width,
         height: kHoverProfileCardSize.height,
         child: IgnorePointer(
-          child: UserProfileCardView(
-            user: user,
-            conversationId: conversationId,
-            width: kHoverProfileCardSize.width,
-            height: kHoverProfileCardSize.height,
+          child: FittedBox(
+            fit: BoxFit.contain,
+            child: SizedBox(
+              width: designSize.width,
+              height: designSize.height,
+              child: builder(context),
+            ),
           ),
         ),
       ),

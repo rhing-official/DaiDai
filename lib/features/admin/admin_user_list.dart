@@ -681,18 +681,14 @@ class _UserDetailDialogState extends ConsumerState<_UserDetailDialog> {
             ],
             if (_revealed) ...[
               const SizedBox(height: 16),
-              // 住人が作ったカードと同じ基準サイズ
-              // （幅480・高さ600）で描き、ダイアログの幅に合わせて縮小する。
-              // `ProfileCardView`の中身（アイコン・文字・余白）は固定サイズの
-              // ため、小さい幅でそのまま描くとアイコンと文字だけが大きく見え、
-              // 住人が作ったカードと比率が変わってしまう（2026-10-10）。
+              // ダイアログの幅いっぱいに表示する。`ProfileCardView`が基準サイズ
+              // （400×500）で描いて縮小するので、住人が作ったカードと比率が揃う。
               AspectRatio(
                 aspectRatio: kAdminProfileCardWidth / kAdminProfileCardHeight,
-                child: FittedBox(
-                  fit: BoxFit.contain,
-                  child: ProfileCardView(
-                    width: kAdminProfileCardWidth,
-                    height: kAdminProfileCardHeight,
+                child: LayoutBuilder(
+                  builder: (context, constraints) => ProfileCardView(
+                    width: constraints.maxWidth,
+                    height: constraints.maxWidth * 1.25,
                     icon: user.effectiveIcon,
                     background: user.effectiveBackgroundImage,
                     backgroundFocal: user.activeProfileCard?.backgroundFocal,

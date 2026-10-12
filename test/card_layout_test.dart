@@ -121,4 +121,33 @@ void main() {
       expect(centered.center.dy, closeTo(left.center.dy, 1));
     });
   });
+
+  testWidgets('表示幅が違っても文字の比率は基準サイズ（640幅）と同じ', (tester) async {
+    tester.view.physicalSize = const Size(1000, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    Future<double> nameHeight(double w) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Align(
+              alignment: Alignment.topLeft,
+              child: ProfileCardView(
+                width: w,
+                height: w * 1.25,
+                nickname: 'ニック',
+              ),
+            ),
+          ),
+        ),
+      );
+      final f = find.text('ニック');
+      // getSizeは変換前の大きさなので、縮小後の見た目の高さを頂点の座標から求める。
+      return (tester.getBottomLeft(f).dy - tester.getTopLeft(f).dy) / w;
+    }
+
+    final at640 = await nameHeight(640);
+    expect(await nameHeight(260), closeTo(at640, 0.001));
+    expect(await nameHeight(420), closeTo(at640, 0.001));
+  });
 }

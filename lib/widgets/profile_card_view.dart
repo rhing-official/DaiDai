@@ -20,6 +20,12 @@ const double kProfileCardPadding = 32.0;
 const double kProfileCardNicknameFontSize = 28.0;
 const double kProfileCardStatusFontSize = 18.0;
 
+/// 上の固定値を前提にカードを描く基準サイズ（4:5）。元々モバイルで使っていた
+/// カード幅（約400）の見た目を全表示の基準にする。表示幅がこれと違う場所（工房の編集画面・モバイル・語らいのホバー・招待ダイアログ・管理画面）は、
+/// この大きさで描いてから表示幅へ縮小して比率を揃える（2026-10-13）。
+const double kProfileCardDesignWidth = 400.0;
+const double kProfileCardDesignHeight = 500.0;
+
 /// 身だしなみ・工房で作るプロフィールカードの見た目そのもの
 /// （背景画像＋アイコン・呼び名・ステメ・SNSリンクを左下にまとめた構成）を、
 /// 工房のカード一覧（`_WorkshopCardSlot`）とプロフィールカードダイアログ
@@ -83,6 +89,19 @@ class ProfileCardView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // [width]×[height]は表示サイズ。中身は基準サイズで描いて縮小する。
+    // 角丸は縮小後の大きさで効くよう外側で切り抜く。
+    return ClipRRect(
+      borderRadius: borderRadius,
+      child: SizedBox(
+        width: width,
+        height: height,
+        child: FittedBox(fit: BoxFit.contain, child: _buildBody(context)),
+      ),
+    );
+  }
+
+  Widget _buildBody(BuildContext context) {
     const avatarRadius = kProfileCardAvatarRadius;
     const padding = kProfileCardPadding;
     const nicknameFontSize = kProfileCardNicknameFontSize;
@@ -92,12 +111,10 @@ class ProfileCardView extends StatelessWidget {
         : Theme.of(context).colorScheme.onSurfaceVariant;
 
     return Material(
-      clipBehavior: Clip.antiAlias,
-      borderRadius: borderRadius,
       color: Theme.of(context).colorScheme.surfaceContainerHighest,
       child: SizedBox(
-        width: width,
-        height: height,
+        width: kProfileCardDesignWidth,
+        height: kProfileCardDesignHeight,
         child: Stack(
           fit: StackFit.expand,
           children: [

@@ -13,6 +13,7 @@ import 'package:daidai/providers/app_ui_style_provider.dart';
 import 'package:daidai/providers/repository_providers.dart';
 import 'package:daidai/repositories/user_repository.dart';
 import 'package:daidai/widgets/interactive_swipe_back.dart';
+import 'package:daidai/widgets/profile_card_view.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -332,7 +333,7 @@ void main() {
 
     // カードは画面の下の方にあるため、文字ではなくカード本体（Hero）の中心を
     // タップする（他のテストと同じ方法）。
-    await tester.tapAt(tester.getCenter(find.byType(Hero).first));
+    await tester.tapAt(tester.getCenter(find.byType(ProfileCardView).first));
     await tester.pumpAndSettle();
 
     final field = tester.widget<TextField>(find.byType(TextField).first);
@@ -468,7 +469,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // 名前ラベル（カード下のText）はタップ不可のため、カード本体（Hero）をタップする。
-    await tester.tapAt(tester.getCenter(find.byType(Hero).first));
+    await tester.tapAt(tester.getCenter(find.byType(ProfileCardView).first));
     await tester.pumpAndSettle();
     // テスト環境ではbackgroundImageのURLへの実際のHTTP取得は失敗する
     // （テストバインディングが常にstatusCode 400を返す仕様）。この
@@ -517,7 +518,7 @@ void main() {
 
     await tester.tap(find.text('工房'));
     await tester.pumpAndSettle();
-    await tester.tapAt(tester.getCenter(find.byType(Hero).first));
+    await tester.tapAt(tester.getCenter(find.byType(ProfileCardView).first));
     await tester.pumpAndSettle();
     tester.takeException();
 
@@ -551,7 +552,7 @@ void main() {
     await _pumpProfileTab(tester, user, repo);
     await tester.tap(find.text('工房'));
     await tester.pumpAndSettle();
-    await tester.tapAt(tester.getCenter(find.byType(Hero).first));
+    await tester.tapAt(tester.getCenter(find.byType(ProfileCardView).first));
     await tester.pumpAndSettle();
 
     expect(find.text('配置'), findsOneWidget);
@@ -633,7 +634,7 @@ void main() {
     await _pumpProfileTab(tester, user, repo);
     await tester.tap(find.text('工房'));
     await tester.pumpAndSettle();
-    await tester.tapAt(tester.getCenter(find.byType(Hero).first));
+    await tester.tapAt(tester.getCenter(find.byType(ProfileCardView).first));
     await tester.pumpAndSettle();
 
     await tester.tap(find.byIcon(Icons.delete_outline));
@@ -662,7 +663,7 @@ void main() {
     await _pumpProfileTab(tester, user, repo);
     await tester.tap(find.text('工房'));
     await tester.pumpAndSettle();
-    await tester.tapAt(tester.getCenter(find.byType(Hero).first));
+    await tester.tapAt(tester.getCenter(find.byType(ProfileCardView).first));
     await tester.pumpAndSettle();
 
     // カードの角にはみ出した丸ボタン（旧: 削除・フォント）は無い。
@@ -711,7 +712,7 @@ void main() {
     await tester.tap(find.text('工房'));
     await tester.pumpAndSettle();
 
-    await tester.tapAt(tester.getCenter(find.byType(Hero).first));
+    await tester.tapAt(tester.getCenter(find.byType(ProfileCardView).first));
     await tester.pumpAndSettle();
 
     await tester.tap(find.byIcon(Icons.link));
@@ -728,6 +729,24 @@ void main() {
       repo.saved?.profileCards.single.snsLinkIds,
       containsAll(['l1', 'l2']),
     );
+  });
+
+  testWidgets('編集画面はどこを下にスワイプしても閉じて一覧に戻る', (tester) async {
+    const card = ProfileCard(id: 'c1', name: '既存カード');
+    const user = AppUser(userId: 'u1', rhingSeed: 'taro', profileCards: [card]);
+    final repo = _FakeUserRepository()..saved = user;
+    await _pumpProfileTab(tester, user, repo);
+
+    await tester.tap(find.text('工房'));
+    await tester.pumpAndSettle();
+    await tester.tapAt(tester.getCenter(find.byType(ProfileCardView).first));
+    await tester.pumpAndSettle();
+    expect(find.byType(TextField), findsWidgets);
+
+    // 配置のボタン（カードの外の操作部品）の上から下へドラッグする。
+    await tester.drag(find.text('中央').first, const Offset(0, 150));
+    await tester.pumpAndSettle();
+    expect(find.byType(TextField), findsNothing);
   });
 
   testWidgets('空き枠を連続タップしてもカード編集画面は1つしか開かず、重複作成されない（回帰テスト）', (tester) async {
@@ -787,11 +806,9 @@ void main() {
     final repo = _FakeUserRepository();
     await _pumpProfileTabNarrow(tester, user, repo);
 
-    // 工房のカードスロット(Hero: profile-card-slot-*)を目印に、現在
-    // どのセクションが表示されているかを判定する。
-    Finder cardSlotHeroes() => find.byWidgetPredicate(
-      (w) => w is Hero && (w.tag as String).startsWith('profile-card-slot-'),
-    );
+    // 工房のカード一覧（並べ替えリスト）を目印に、現在どのセクションが
+    // 表示されているかを判定する。
+    Finder cardSlotHeroes() => find.byType(ReorderableListView);
 
     // カテゴリ一覧から「工房」（蔵→工房→縁結びの2番目）へドリルダウンする。
     await tester.tap(find.text('工房'));
@@ -840,10 +857,7 @@ void main() {
     await tester.tap(find.text('工房'));
     await tester.pumpAndSettle();
 
-    final cardSlotHeroes = find.byWidgetPredicate(
-      (w) => w is Hero && (w.tag as String).startsWith('profile-card-slot-'),
-    );
-    expect(cardSlotHeroes, findsNWidgets(4));
+    expect(find.byType(ProfileCardView), findsNWidgets(4));
     // 新規作成用の白紙枠は上限(3枠)以上には増えない。
     expect(find.byIcon(Icons.add), findsNothing);
   });
