@@ -21,9 +21,11 @@ const FIRESTORE_PROJECT_ID = 'daidai-rhing';
 const CARD_WIDTH = 1200;
 const CARD_HEIGHT = 1500;
 
-// `ProfileCardView`の固定値（想定カード幅480pxに対するもの）をCARD_WIDTHへ
-// スケールする倍率。
-const SCALE = CARD_WIDTH / 480;
+// `ProfileCardView`の固定値（基準カード幅400px、アプリの
+// `kProfileCardDesignWidth`と同じ。2026-10-13に480から変更）をCARD_WIDTHへ
+// スケールする倍率。アプリの全表示は400×500基準で描いて縮小/拡大するため、
+// ここも同じ基準にそろえてアイコン・文字の比率を一致させる。
+const SCALE = CARD_WIDTH / 400;
 const ICON_SIZE = 64 * 2 * SCALE; // kProfileCardAvatarRadius×2（直径）
 const CONTENT_PADDING = 32 * SCALE; // kProfileCardPadding
 const NAME_FONT_SIZE = 28 * SCALE; // kProfileCardNicknameFontSize

@@ -52,6 +52,8 @@ import '../../widgets/glass/glass_avatar.dart';
 import '../../widgets/focal_circle_avatar.dart';
 import '../../widgets/glass/glass_icon_badge.dart';
 import '../../widgets/glass/glass_surface.dart';
+import '../../widgets/dialog_keyboard_shortcuts.dart';
+import '../../widgets/glass/glass_dialog.dart';
 import '../../widgets/hover_profile_card.dart';
 import '../../widgets/pane_visibility.dart';
 import '../../widgets/unread_badge.dart';
@@ -192,9 +194,33 @@ class _TalksTabState extends ConsumerState<TalksTab>
         notifyNavigator: false,
       )..maxDrag = kIconSplitCollapseWidth;
 
+  // 一覧の購読。`build()`のたびに`watchGroups`/`watchDirectMessages`を呼ぶと
+  // 毎回別のStreamになり、`StreamBuilder`が再購読して一覧が点滅していた
+  // （2026-10-12に点滅の根本原因として発見）。ユーザーが変わらない限り同じ
+  // Streamを使い回す。
+  late Stream<List<Group>> _groupsStream;
+  late Stream<List<DirectMessage>> _directMessagesStream;
+
+  void _resubscribeLists() {
+    final userId = widget.currentUser.userId;
+    _groupsStream = ref.read(groupRepositoryProvider).watchGroups(userId);
+    _directMessagesStream = ref
+        .read(directMessageRepositoryProvider)
+        .watchDirectMessages(userId);
+  }
+
+  @override
+  void didUpdateWidget(TalksTab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.currentUser.userId != widget.currentUser.userId) {
+      _resubscribeLists();
+    }
+  }
+
   @override
   void initState() {
     super.initState();
+    _resubscribeLists();
     _iconSplitSwipeBackController.progress.addListener(() {
       final controller = _iconSplitSwipeBackController;
       _iconSplitCollapse.value =
@@ -1026,12 +1052,8 @@ class _TalksTabState extends ConsumerState<TalksTab>
     final vocab = ref.watch(vocabularyProvider);
     final strings = ref.watch(appStringsProvider);
     final searchQuery = _searchController.text.trim().toLowerCase();
-    final groupsStream = ref
-        .watch(groupRepositoryProvider)
-        .watchGroups(widget.currentUser.userId);
-    final directMessagesStream = ref
-        .watch(directMessageRepositoryProvider)
-        .watchDirectMessages(widget.currentUser.userId);
+    final groupsStream = _groupsStream;
+    final directMessagesStream = _directMessagesStream;
     final allIncomingRequests =
         ref
             .watch(incomingFriendRequestsProvider(widget.currentUser.userId))
@@ -1664,6 +1686,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
               request: request,
               isSplit: false,
               onSelectPending: _selectPendingScreen,
+              compact: true,
             ),
           for (final request in outgoingRequests)
             _FriendRequestTile(
@@ -1671,6 +1694,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
               request: request,
               isSplit: false,
               onSelectPending: _selectPendingScreen,
+              compact: true,
             ),
           for (final dm in sortedDms)
             _DirectMessageIconTile(
@@ -2497,10 +2521,18 @@ class _FriendRequestTile extends ConsumerWidget {
     required this.request,
     required this.isSplit,
     required this.onSelectPending,
+    this.compact = false,
   });
 
   final String currentUserId;
   final FriendRequest request;
+
+  /// アイコンレール（「アイコン＋寄合一覧」、幅が狭い）用。承認済みの一対と
+  /// 同じコンパクトなアイコンタイル（[_ConversationIconTile]）で描く
+  /// （広場の[_PendingGroupJoinRequestTile.compact]と同じ。以前は通常の
+  /// `ListTile`＋承認/却下ボタンが狭い幅で崩れた）。届いた申請は、タップで
+  /// 承認/却下のダイアログを開く。
+  final bool compact;
 
   /// 分割表示中かどうか。trueなら承認待ちタップ時に[onSelectPending]で
   /// 右側のペインへその場で表示し、falseなら別ページを開く（2026-08-05追加）。
@@ -2634,6 +2666,58 @@ class _FriendRequestTile extends ConsumerWidget {
               ).push(slideBackRoute<void>(builder: (context) => screen));
             }
           };
+
+    if (compact) {
+      return _ConversationIconTile(
+        conversationId: dmId,
+        userId: currentUserId,
+        avatar: leadingWidget,
+        label: titleText,
+        unreadCount: 0,
+        pinned: false,
+        muted: false,
+        selected: false,
+        onTap:
+            onTap ??
+            () {
+              final repository = ref.read(friendRepositoryProvider);
+              final isGlass = uiStyle == AppUiStyle.glass;
+              final title = Text(titleText);
+              final content = Text(strings.friendRequestIncomingSubtitle);
+              final actions = [
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    repository.respond(request: request, accept: false);
+                  },
+                  child: Text(strings.friendRequestDecline),
+                ),
+                FilledButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    repository.respond(request: request, accept: true);
+                  },
+                  child: Text(strings.friendRequestAccept),
+                ),
+              ];
+              showDialog<void>(
+                context: context,
+                builder: (_) => isGlass
+                    ? GlassAlertDialog(
+                        title: title,
+                        content: content,
+                        actions: actions,
+                      )
+                    : KeyboardAlertDialog(
+                        title: title,
+                        content: content,
+                        actions: actions,
+                      ),
+              );
+            },
+        gesturesEnabled: false,
+      );
+    }
 
     if (isGekiga) {
       return GekigaTileContent(
