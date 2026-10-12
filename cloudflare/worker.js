@@ -21,7 +21,7 @@ export default {
     const path = url.pathname;
     if (path === '/api/url-preview') return urlPreview(url);
     if (path === '/api/og-image') return ogImage(url, env);
-    if (/^\/invite\/[^/]+\/?$/.test(path) || /^\/join\/[^/]+(?:\/[^/]+)?\/?$/.test(path)) {
+    if (/^\/invite\/[^/]+(?:\/[^/]+)?\/?$/.test(path) || /^\/join\/[^/]+(?:\/[^/]+)?\/?$/.test(path)) {
       return linkPreview(request, url, env);
     }
     return env.ASSETS.fetch(request);
