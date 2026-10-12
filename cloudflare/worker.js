@@ -47,7 +47,7 @@ async function ogImage(url, env) {
 
 async function linkPreview(request, url, env) {
   const host = url.host;
-  const inviteMatch = url.pathname.match(/^\/invite\/([^/]+)\/?$/);
+  const inviteMatch = url.pathname.match(/^\/invite\/([^/]+)(?:\/([^/]+))?\/?$/);
   const joinMatch = url.pathname.match(/^\/join\/([^/]+)(?:\/([^/]+))?\/?$/);
 
   let title = 'DaiDai';
@@ -57,12 +57,15 @@ async function linkPreview(request, url, env) {
   try {
     if (inviteMatch) {
       const rhingSeed = decodeURIComponent(inviteMatch[1]);
+      // 末尾の版識別子（アプリの招待リンクがカードの内容から付ける）をOG画像のURLにも
+      // 付け、カードを変えたら外部アプリ（Discord・LINE等）が別の画像として取り直す。
+      const inviteBust = inviteMatch[2] ? `&v=${encodeURIComponent(inviteMatch[2])}` : '';
       const doc = await fetchFirestoreDoc(`userInvites/${rhingSeed}`);
       if (doc) {
         title = doc.nickname ? `${doc.nickname}（@${rhingSeed}）` : `@${rhingSeed}`;
         description = 'DaiDaiで仲間になりましょう';
         image = doc.iconUrl
-          ? `https://${host}/api/og-image?type=user&id=${encodeURIComponent(rhingSeed)}`
+          ? `https://${host}/api/og-image?type=user&id=${encodeURIComponent(rhingSeed)}${inviteBust}`
           : null;
       }
     } else if (joinMatch) {

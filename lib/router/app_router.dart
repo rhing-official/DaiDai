@@ -358,6 +358,15 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         ),
       ),
       GoRoute(
+        // 外部アプリのプレビューのキャッシュ回避用に、末尾へカードの版識別子を
+        // 付けたURL（enmusubi_page.dart参照）。ルーティングとしては`:rhingSeed`のみ使う。
+        path: '/invite/:rhingSeed/:version',
+        pageBuilder: (context, state) => slideDetailPage(
+          state,
+          InviteScreen(rhingSeed: state.pathParameters['rhingSeed']!),
+        ),
+      ),
+      GoRoute(
         path: '/join/:groupId',
         pageBuilder: (context, state) => slideDetailPage(
           state,

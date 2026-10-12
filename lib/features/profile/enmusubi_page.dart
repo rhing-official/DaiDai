@@ -6,6 +6,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 
 import '../../l10n/strings.dart';
 import '../../models/app_user.dart';
+import '../../models/user_invite_preview.dart';
 import '../../models/app_ui_style.dart';
 import '../../providers/app_ui_style_provider.dart';
 import '../../providers/repository_providers.dart';
@@ -17,7 +18,11 @@ import '../../widgets/gekiga/gekiga_section_header.dart';
 import '../../widgets/interactive_swipe_back.dart';
 import '../../widgets/qr_scan_screen.dart';
 
-String _inviteLinkFor(String rhingSeed) => buildWebLink('/invite/$rhingSeed');
+/// 招待リンク。末尾の版識別子（[UserInvitePreview.version]）はカードを変えると
+/// 変わり、DiscordやLINEの古いプレビューのキャッシュを避ける（2026-10-13）。
+String _inviteLinkFor(AppUser user) => buildWebLink(
+  '/invite/${user.rhingSeed}/${UserInvitePreview.fromUser(user).version}',
+);
 
 /// QRコードや招待リンクとして共有された文字列から、招待元のRhing Seedを
 /// 取り出す。`https://.../invite/<rhingSeed>`の形式であれば platform/host を
@@ -73,7 +78,7 @@ class _EnmusubiPageState extends ConsumerState<EnmusubiPage> {
   @override
   Widget build(BuildContext context) {
     final strings = ref.watch(appStringsProvider);
-    final link = _inviteLinkFor(currentUser.rhingSeed);
+    final link = _inviteLinkFor(currentUser);
     final colorScheme = Theme.of(context).colorScheme;
     final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
 

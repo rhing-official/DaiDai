@@ -1,4 +1,5 @@
 import 'package:daidai/models/app_user.dart';
+import 'package:daidai/models/user_invite_preview.dart';
 import 'package:daidai/providers/repository_providers.dart';
 import 'package:daidai/repositories/user_repository.dart';
 import 'package:daidai/widgets/link_preview_card.dart';
@@ -55,5 +56,26 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.byType(UserProfileCardView), findsOneWidget);
+  });
+
+  test('招待リンクの版識別子は内容が同じなら同じ、変わると別の値になる', () {
+    const a = UserInvitePreview(userId: 'u1', nickname: '新', iconUrl: 'x');
+    const same = UserInvitePreview(userId: 'u1', nickname: '新', iconUrl: 'x');
+    const changed = UserInvitePreview(
+      userId: 'u1',
+      nickname: '新',
+      iconUrl: 'x',
+      layoutPreset: 'center',
+    );
+    expect(a.version, same.version);
+    expect(a.version, isNot(changed.version));
+    expect(a.version, matches(RegExp(r'^[0-9a-f]{8}$')));
+    // バージョン付きの招待リンクもDaiDaiの招待として判定できる。
+    expect(
+      parseInternalInviteLink(
+        'https://daidai.rhing.jp/invite/aaa/${a.version}',
+      )?.rhingSeed,
+      'aaa',
+    );
   });
 }

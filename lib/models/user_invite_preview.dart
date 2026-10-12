@@ -1,3 +1,7 @@
+import 'dart:convert';
+
+import 'app_user.dart';
+
 /// `userInvites/{rhingSeed}`に保存する、個人の縁結び招待リンクの公開プレビュー。
 /// 外部SNSのリンク展開（OGP）に見せるための最小限の情報のみを持つ
 /// （友達一覧・語らいの内容などは一切含まない）。蔵のアイコン・呼び名・
@@ -29,6 +33,36 @@ class UserInvitePreview {
   /// /`CardTextAlign.name`、2026-10-12追加）。nullなら従来の左下・左揃え。
   final String? layoutPreset;
   final String? textAlign;
+
+  /// [user]の現在のアクティブなカード等から作る公開プレビュー
+  /// （`UserRepository.syncInvitePreview`の書き込み内容と、招待リンクの
+  /// [version]の算出で共通に使う）。
+  factory UserInvitePreview.fromUser(AppUser user) {
+    return UserInvitePreview(
+      userId: user.userId,
+      nickname: user.effectiveNickname?.text,
+      iconUrl: user.effectiveIcon?.url,
+      statusMessage: user.effectiveStatusMessage?.text,
+      backgroundImageUrl: user.effectiveBackgroundImage?.url,
+      snsLinkUrls: [for (final link in user.effectiveSnsLinks) link.url],
+      layoutPreset: user.activeProfileCard?.layoutPreset?.name,
+      textAlign: user.activeProfileCard?.textAlign?.name,
+    );
+  }
+
+  /// 内容から決まる短い版識別子（FNV-1aの32bitを16進で）。招待リンクの末尾
+  /// （`/invite/{seed}/{version}`）とOGP画像のURLに付け、カードを変えるとURLが
+  /// 変わるようにする。DiscordやLINEなど外部アプリはリンク・画像のURL単位で
+  /// プレビューを長時間キャッシュするため、URLが固定だと古いカードが出続ける
+  /// （2026-10-13）。端末によらず同じ値になるよう、文字列のUTF-8バイトから自前で算出する。
+  String get version {
+    var hash = 0x811c9dc5;
+    for (final byte in utf8.encode(jsonEncode(toJson()))) {
+      hash ^= byte;
+      hash = (hash * 0x01000193) & 0xffffffff;
+    }
+    return hash.toRadixString(16).padLeft(8, '0');
+  }
 
   factory UserInvitePreview.fromJson(Map<String, dynamic> json) {
     return UserInvitePreview(

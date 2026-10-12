@@ -435,16 +435,7 @@ class FirestoreUserRepository implements UserRepository {
   Future<void> syncInvitePreview(String userId) async {
     final user = await getUser(userId);
     if (user == null) return;
-    final preview = UserInvitePreview(
-      userId: user.userId,
-      nickname: user.effectiveNickname?.text,
-      iconUrl: user.effectiveIcon?.url,
-      statusMessage: user.effectiveStatusMessage?.text,
-      backgroundImageUrl: user.effectiveBackgroundImage?.url,
-      snsLinkUrls: [for (final link in user.effectiveSnsLinks) link.url],
-      layoutPreset: user.activeProfileCard?.layoutPreset?.name,
-      textAlign: user.activeProfileCard?.textAlign?.name,
-    );
+    final preview = UserInvitePreview.fromUser(user);
     await _firestore
         .collection('userInvites')
         .doc(user.rhingSeed)
