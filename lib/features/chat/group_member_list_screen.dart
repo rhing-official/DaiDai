@@ -289,6 +289,55 @@ class GroupMemberListPopup extends ConsumerWidget {
   }
 }
 
+/// 広場の承認待ち（参加リクエスト）だけを出すポップアップの中身
+/// （2026-10-13）。語らい上部の参加リクエストのバナー
+/// （`join_request_banner.dart`）から開く。メンバー一覧は出さず、申請者の
+/// カード由来の呼び名・アイコンと承認/却下だけを並べる（[_JoinRequestTile]を再利用）。
+class GroupJoinRequestsPopup extends ConsumerWidget {
+  const GroupJoinRequestsPopup({
+    required this.currentUser,
+    required this.group,
+    super.key,
+  });
+
+  final AppUser currentUser;
+  final Group group;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final strings = ref.watch(appStringsProvider);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _SectionHeader(strings.groupMemberListPendingSection),
+        Flexible(
+          child: StreamBuilder<List<GroupJoinRequest>>(
+            stream: ref
+                .read(groupRepositoryProvider)
+                .watchJoinRequests(group.groupId),
+            builder: (context, snapshot) {
+              final requests = snapshot.data ?? const <GroupJoinRequest>[];
+              return ListView(
+                shrinkWrap: true,
+                padding: const EdgeInsets.only(bottom: 8),
+                children: [
+                  for (final request in requests)
+                    _JoinRequestTile(
+                      request: request,
+                      strings: strings,
+                      respondedBy: currentUser.userId,
+                    ),
+                ],
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _SectionHeader extends StatelessWidget {
   const _SectionHeader(this.title);
 

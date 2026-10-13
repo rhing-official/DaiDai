@@ -78,6 +78,10 @@ class WebrtcCallController extends ChangeNotifier {
   // 着信側は応答するまで自分のカメラ・マイクを開かない（[accept]で取得する）ため、
   // 応答前は音声扱い（`false`）から始める（2026-10-13）。
   late bool _isVideo = isCaller ? call.isVideo : false;
+
+  /// 発信側が、オファー時に確保した映像のトランシーバー（応答後にカメラの
+  /// トラックを差し込む）。映像通話の発信側のみ。
+  RTCRtpTransceiver? _videoTransceiver;
   bool get isVideo => _isVideo;
 
   /// 相手が現在ビデオ通話として動作しているか。自分の映像トラックの
@@ -148,10 +152,26 @@ class WebrtcCallController extends ChangeNotifier {
       // 発信側は通話を始める操作の中で自分のカメラ・マイクを取得する。着信側は
       // 応答するまで開かない（応答前のカメラ要求はスマホのブラウザで拒否され、
       // 着信UIごと消えて応答できなくなっていた。[accept]で取得する、2026-10-13）。
-      if (isCaller) await _acquireLocalStream(allowVideoFallback: false);
+      // 発信側も、映像通話のカメラは相手が応答するまで起動しない（呼び出し中に
+      // カメラが点くのを避ける、2026-10-13）。ここでは音声だけを取得し、映像は
+      // オファーに枠（トランシーバー）だけ確保して、応答後に[_startCallerCamera]で
+      // トラックを差し込む（再ネゴシエーション不要）。
+      if (isCaller) {
+        await _acquireLocalStream(allowVideoFallback: false, videoNow: false);
+      }
 
       _peerConnection = await createPeerConnection(buildRtcConfiguration());
-      if (isCaller) await _attachLocalStream();
+      if (isCaller) {
+        await _attachLocalStream();
+        if (call.isVideo) {
+          _videoTransceiver = await _peerConnection!.addTransceiver(
+            kind: RTCRtpMediaType.RTCRtpMediaTypeVideo,
+            init: RTCRtpTransceiverInit(
+              direction: TransceiverDirection.SendRecv,
+            ),
+          );
+        }
+      }
 
       _peerConnection!.onTrack = (event) {
         if (event.streams.isNotEmpty) {
@@ -209,8 +229,15 @@ class WebrtcCallController extends ChangeNotifier {
   /// 集約している（本格的なRNNoise統合はフェーズ3の別プロジェクト）。
   /// [allowVideoFallback]がtrueなら、映像（カメラ）の取得に失敗しても音声のみで
   /// 続行する（応答はできるようにし、映像は後からオンにできる）。
-  Future<void> _acquireLocalStream({required bool allowVideoFallback}) async {
-    var video = call.isVideo;
+  ///
+  /// [videoNow]がfalseなら映像（カメラ）は取得せず、音声だけにする（発信側が
+  /// 応答前にカメラを点けないため）。この場合[_isVideo]（映像通話のUI構成）は
+  /// 変えない。
+  Future<void> _acquireLocalStream({
+    required bool allowVideoFallback,
+    bool videoNow = true,
+  }) async {
+    var video = call.isVideo && videoNow;
     try {
       _localStream = await navigator.mediaDevices.getUserMedia({
         'audio': buildAudioConstraints(),
@@ -230,7 +257,7 @@ class WebrtcCallController extends ChangeNotifier {
             .catchError((_) {}),
       );
     }
-    _isVideo = video;
+    if (videoNow) _isVideo = video;
     if (video) {
       if (!_localRendererInitialized) {
         await localRenderer.initialize();
@@ -238,6 +265,39 @@ class WebrtcCallController extends ChangeNotifier {
       }
       localRenderer.srcObject = _localStream;
       unawaited(_refreshCameraCount());
+    }
+  }
+
+  /// 発信側が、相手の応答後にカメラを取得して、オファー時に確保した映像の
+  /// トランシーバーへ差し込む。取得できなければ音声のみで通話を続け、相手へ
+  /// 映像が無いことを伝える（着信側の[accept]と同じ扱い）。
+  Future<void> _startCallerCamera() async {
+    final transceiver = _videoTransceiver;
+    if (transceiver == null) return;
+    try {
+      final stream = await navigator.mediaDevices.getUserMedia({
+        'audio': false,
+        'video': buildVideoConstraints(),
+      });
+      final track = stream.getVideoTracks().first;
+      _localStream?.addTrack(track);
+      if (!_localRendererInitialized) {
+        await localRenderer.initialize();
+        _localRendererInitialized = true;
+      }
+      localRenderer.srcObject = _localStream;
+      await transceiver.sender.replaceTrack(track);
+      _isVideo = true;
+      notifyListeners();
+      unawaited(_refreshCameraCount());
+    } catch (_) {
+      _isVideo = false;
+      notifyListeners();
+      unawaited(
+        _callRepository
+            .updateIsVideo(call.callId, isCaller: isCaller, isVideo: false)
+            .catchError((_) {}),
+      );
     }
   }
 
@@ -345,6 +405,8 @@ class WebrtcCallController extends ChangeNotifier {
           // 呼出音をここで止める（2026-09-12追加、以前は通話終了まで
           // 止める箇所が無かった）。
           soundPlayer.stopRingtone();
+          // 映像通話は、応答されてからカメラを起動する。
+          if (isCaller && call.isVideo) unawaited(_startCallerCamera());
         }
         _switchingCallType = false;
         notifyListeners();

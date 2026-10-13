@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/strings.dart';
+import '../../models/app_ui_style.dart';
 import '../../models/group_role.dart';
+import '../../providers/app_ui_style_provider.dart';
+import '../../widgets/glass/glass_dialog.dart';
 
 /// ロールの優先順位（呼び名の色を決める順序、先頭が最優先）をドラッグ＆ドロップで
 /// 並べ替えるダイアログ。広場全体の優先順位（`GroupRepository.setRolePriority`）と、
@@ -67,7 +70,8 @@ class _GroupRolePriorityDialogState extends State<GroupRolePriorityDialog> {
     return Consumer(
       builder: (context, ref, _) {
         final strings = ref.watch(appStringsProvider);
-        return Dialog(
+        return glassAwareDialog(
+          isGlass: ref.watch(appUiStyleProvider) == AppUiStyle.glass,
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 400, maxHeight: 560),
             child: Column(

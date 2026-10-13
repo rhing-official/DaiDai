@@ -516,7 +516,11 @@ class Strings {
     required this.groupJoinInvalid,
     required this.groupJoinAlreadyMember,
     required this.groupJoinPending,
+    required this.groupJoinDeclined,
+    required this.groupJoinDeclinedSubtitle,
+    required this.groupJoinDismissButton,
     required this.groupJoinDescriptionTemplate,
+    required this.groupJoinNoApprovalDescriptionTemplate,
     required this.groupJoinRequestButton,
     required this.groupJoinNowButton,
     required this.groupSettingsRequiresApprovalLabel,
@@ -1542,8 +1546,17 @@ class Strings {
   final String groupJoinAlreadyMember;
   final String groupJoinPending;
 
+  /// 参加リクエストが却下された時の、広場の画面上部のバナーと一覧の補足、削除ボタン。
+  final String groupJoinDeclined;
+  final String groupJoinDeclinedSubtitle;
+  final String groupJoinDismissButton;
+
   /// 参加確認画面の説明文。広場名を差し込む。
   final String Function(String groupName) groupJoinDescriptionTemplate;
+
+  /// 承認が不要な広場（`GroupInvitePreview.requiresApproval == false`）用の説明文。
+  final String Function(String groupName)
+  groupJoinNoApprovalDescriptionTemplate;
   final String groupJoinRequestButton;
 
   /// 承認不要の広場で、すぐ参加するボタン（2026-10-11追加）。
@@ -2504,8 +2517,13 @@ class Strings {
     groupJoinInvalid: 'この招待リンクは無効です',
     groupJoinAlreadyMember: '既にこの広場のメンバーです',
     groupJoinPending: '参加リクエストを送信済みです。長の承認をお待ちください',
+    groupJoinDeclined: '参加リクエストは承認されませんでした。この語らいは削除できます',
+    groupJoinDeclinedSubtitle: '承認されませんでした',
+    groupJoinDismissButton: '削除する',
     groupJoinDescriptionTemplate: (groupName) =>
         '「$groupName」への参加をリクエストしますか？長が承認すると参加できます。',
+    groupJoinNoApprovalDescriptionTemplate: (groupName) =>
+        '「$groupName」に参加しますか？承認は不要で、すぐに参加できます。',
     groupJoinRequestButton: '参加をリクエストする',
     groupJoinNowButton: '参加する',
     groupSettingsRequiresApprovalLabel: '参加に承認が必要',
@@ -3463,9 +3481,15 @@ class Strings {
     groupJoinInvalid: 'This invite link is invalid',
     groupJoinAlreadyMember: "You're already a member of this plaza",
     groupJoinPending: "You've already requested to join. Waiting for approval.",
+    groupJoinDeclined:
+        'Your request to join was not approved. You can delete this chat.',
+    groupJoinDeclinedSubtitle: 'Not approved',
+    groupJoinDismissButton: 'Delete',
     groupJoinDescriptionTemplate: (groupName) =>
         'Request to join "$groupName"? '
         'You can join once the owner approves.',
+    groupJoinNoApprovalDescriptionTemplate: (groupName) =>
+        'Join "$groupName"? No approval is needed — you can join right away.',
     groupJoinRequestButton: 'Request to join',
     groupJoinNowButton: 'Join',
     groupSettingsRequiresApprovalLabel: 'Require approval to join',

@@ -1665,7 +1665,8 @@ class _OwnerGroupsGuardDialog extends ConsumerWidget {
   Future<void> _openTransfer(BuildContext context, WidgetRef ref, Group group) {
     return showDialog<void>(
       context: context,
-      builder: (_) => Dialog(
+      builder: (_) => glassAwareDialog(
+        isGlass: ref.read(appUiStyleProvider) == AppUiStyle.glass,
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 340, maxHeight: 640),
           child: StreamBuilder<List<GroupRole>>(
@@ -1753,7 +1754,13 @@ Future<_DeleteAccountChoice?> _showDeleteAccountDialog(
 ) {
   return showDialog<_DeleteAccountChoice>(
     context: context,
-    builder: (context) => Dialog(
+    builder: (context) => glassAwareDialog(
+      isGlass:
+          ProviderScope.containerOf(
+            context,
+            listen: false,
+          ).read(appUiStyleProvider) ==
+          AppUiStyle.glass,
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 400),
         child: Padding(

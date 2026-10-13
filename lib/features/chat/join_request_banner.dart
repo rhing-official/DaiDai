@@ -8,9 +8,9 @@ import '../../models/group.dart';
 import '../../models/group_role.dart';
 import '../../providers/app_ui_style_provider.dart';
 import '../../providers/group_join_request_providers.dart';
-import '../../providers/repository_providers.dart';
 import '../../theme/gekiga/gekiga_colors.dart';
 import '../../utils/group_permissions.dart';
+import '../../widgets/glass/glass_dialog.dart';
 import '../../widgets/glass/glass_surface.dart';
 import 'group_member_list_screen.dart';
 
@@ -18,7 +18,7 @@ import 'group_member_list_screen.dart';
 /// 追加）。承認できる人（長・`manageJoinRequests`権限者）にだけ表示し、
 /// メッセージは作らないため寄合の全メンバーには見えない。0件・権限なしなら
 /// `SizedBox.shrink()`を返すので、呼び出し側は常時組み込んでよい。タップで
-/// メンバー一覧（承認欄）をポップアップで開く。見た目は[ChatTaskBanner]と同じ。
+/// 申請者だけのポップアップ（`GroupJoinRequestsPopup`）を開く。見た目は[ChatTaskBanner]と同じ。
 class JoinRequestBanner extends ConsumerWidget {
   const JoinRequestBanner({
     super.key,
@@ -51,7 +51,7 @@ class JoinRequestBanner extends ConsumerWidget {
     final foreground = isGekiga ? GekigaColors.onPanel : colorScheme.onPrimary;
 
     final content = InkWell(
-      onTap: () => _openMembers(context, ref),
+      onTap: () => _openRequests(context, ref),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         child: Row(
@@ -92,20 +92,15 @@ class JoinRequestBanner extends ConsumerWidget {
     );
   }
 
-  void _openMembers(BuildContext context, WidgetRef ref) {
+  void _openRequests(BuildContext context, WidgetRef ref) {
+    final isGlass = ref.read(appUiStyleProvider) == AppUiStyle.glass;
     showDialog<void>(
       context: context,
-      builder: (_) => Dialog(
+      builder: (_) => glassAwareDialog(
+        isGlass: isGlass,
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 340, maxHeight: 640),
-          child: StreamBuilder<List<GroupRole>>(
-            stream: ref.read(groupRepositoryProvider).watchRoles(group.groupId),
-            builder: (context, snapshot) => GroupMemberListPopup(
-              currentUser: currentUser,
-              group: group,
-              roles: snapshot.data ?? const <GroupRole>[],
-            ),
-          ),
+          child: GroupJoinRequestsPopup(currentUser: currentUser, group: group),
         ),
       ),
     );

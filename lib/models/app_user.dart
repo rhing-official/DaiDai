@@ -47,6 +47,7 @@ class AppUser {
     this.deletionRequestedAt,
     this.createdAt,
     this.lastLoginAt,
+    this.inviteLinkSalt,
     this.termsAgreedAt,
     this.googleCalendarSyncEnabled,
     this.googleCalendarId,
@@ -140,6 +141,13 @@ class AppUser {
   /// フィールド（理由は[createdAt]と同様、`updateUser`経由での事故を
   /// 避けるため）。
   final Timestamp? lastLoginAt;
+
+  /// 招待リンクの版識別子（`UserInvitePreview.version`）に混ぜる値（現在時刻の
+  /// ミリ秒、2026-10-13追加）。画像の中心・拡大率の編集で「完了」を押した時に
+  /// `UserRepository.refreshInviteLink`が更新し、プレビュー内容が変わらなくても
+  /// リンク（とOGP画像のURL）を書き換えて、DiscordやLINEの古いプレビューの
+  /// キャッシュを避ける。未設定（null）は書き換え無し。
+  final int? inviteLinkSalt;
 
   /// 利用規約・プライバシーポリシー・免責事項に同意した日時（2026-09-14
   /// 追加）。新規アカウント作成フローの`TermsConsentScreen`で同意した
@@ -405,6 +413,7 @@ class AppUser {
       conversationProfileCardId:
           conversationProfileCardId ?? this.conversationProfileCardId,
       preferences: preferences,
+      inviteLinkSalt: inviteLinkSalt,
     );
   }
 
@@ -450,6 +459,7 @@ class AppUser {
       deletionRequestedAt: json['deletionRequestedAt'] as Timestamp?,
       createdAt: json['createdAt'] as Timestamp?,
       lastLoginAt: json['lastLoginAt'] as Timestamp?,
+      inviteLinkSalt: (json['inviteLinkSalt'] as num?)?.toInt(),
       termsAgreedAt: json['termsAgreedAt'] as Timestamp?,
       googleCalendarSyncEnabled: json['googleCalendarSyncEnabled'] as bool?,
       googleCalendarId: json['googleCalendarId'] as String?,
@@ -485,6 +495,7 @@ class AppUser {
       'deletionRequestedAt': deletionRequestedAt,
       'createdAt': createdAt,
       'lastLoginAt': lastLoginAt,
+      'inviteLinkSalt': inviteLinkSalt,
       'termsAgreedAt': termsAgreedAt,
       'googleCalendarSyncEnabled': googleCalendarSyncEnabled,
       'googleCalendarId': googleCalendarId,

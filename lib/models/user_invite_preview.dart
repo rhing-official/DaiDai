@@ -16,6 +16,7 @@ class UserInvitePreview {
     this.snsLinkUrls = const [],
     this.layoutPreset,
     this.textAlign,
+    this.linkSalt,
   });
 
   final String userId;
@@ -34,6 +35,10 @@ class UserInvitePreview {
   final String? layoutPreset;
   final String? textAlign;
 
+  /// 招待リンクの版識別子にだけ混ぜる値（Firestoreには保存しない）。
+  /// `AppUser.inviteLinkSalt`。
+  final int? linkSalt;
+
   /// [user]の現在のアクティブなカード等から作る公開プレビュー
   /// （`UserRepository.syncInvitePreview`の書き込み内容と、招待リンクの
   /// [version]の算出で共通に使う）。
@@ -47,6 +52,7 @@ class UserInvitePreview {
       snsLinkUrls: [for (final link in user.effectiveSnsLinks) link.url],
       layoutPreset: user.activeProfileCard?.layoutPreset?.name,
       textAlign: user.activeProfileCard?.textAlign?.name,
+      linkSalt: user.inviteLinkSalt,
     );
   }
 
@@ -57,7 +63,7 @@ class UserInvitePreview {
   /// （2026-10-13）。端末によらず同じ値になるよう、文字列のUTF-8バイトから自前で算出する。
   String get version {
     var hash = 0x811c9dc5;
-    for (final byte in utf8.encode(jsonEncode(toJson()))) {
+    for (final byte in utf8.encode(jsonEncode([toJson(), linkSalt]))) {
       hash ^= byte;
       hash = (hash * 0x01000193) & 0xffffffff;
     }

@@ -215,6 +215,9 @@ class _FakeUserRepository implements UserRepository {
   Future<void> deleteAccountImmediately() async {}
 
   @override
+  Future<void> refreshInviteLink(String userId) async {}
+
+  @override
   Future<void> touchLastLogin(String userId) async {}
 
   @override

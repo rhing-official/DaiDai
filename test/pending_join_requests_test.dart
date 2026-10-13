@@ -40,4 +40,52 @@ void main() {
   test('空なら空', () {
     expect(visiblePendingGroupRequests(const [], [_group('g1')]), isEmpty);
   });
+
+  test('却下された申請も出す（結果を伝え、本人が削除できるように）', () {
+    const declined = GroupJoinRequest(
+      requestId: 'u',
+      groupId: 'g3',
+      requesterId: 'u',
+      requesterRhingSeed: 'u',
+      status: GroupJoinRequestStatus.declined,
+    );
+    final result = visiblePendingGroupRequests([declined], const []);
+    expect(result.single.status, GroupJoinRequestStatus.declined);
+    // 後から承認されて既にメンバーなら、却下済みの古い申請も出さない。
+    expect(visiblePendingGroupRequests([declined], [_group('g3')]), isEmpty);
+  });
+
+  group('joinRequestOutcome', () {
+    GroupJoinRequest req(String groupId, GroupJoinRequestStatus status) =>
+        GroupJoinRequest(
+          requestId: 'u',
+          groupId: groupId,
+          requesterId: 'u',
+          requesterRhingSeed: 'u',
+          status: status,
+        );
+
+    test('読み込み前はloading（画面を閉じない）', () {
+      expect(joinRequestOutcome(null, 'g1'), JoinRequestOutcome.loading);
+    });
+
+    test('承認待ち・却下はそのまま返す', () {
+      expect(
+        joinRequestOutcome([req('g1', GroupJoinRequestStatus.pending)], 'g1'),
+        JoinRequestOutcome.pending,
+      );
+      expect(
+        joinRequestOutcome([req('g1', GroupJoinRequestStatus.declined)], 'g1'),
+        JoinRequestOutcome.declined,
+      );
+    });
+
+    test('該当広場の申請が無ければgone（承認されて対象から外れた）', () {
+      expect(joinRequestOutcome(const [], 'g1'), JoinRequestOutcome.gone);
+      expect(
+        joinRequestOutcome([req('g2', GroupJoinRequestStatus.pending)], 'g1'),
+        JoinRequestOutcome.gone,
+      );
+    });
+  });
 }

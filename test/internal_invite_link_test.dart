@@ -78,4 +78,22 @@ void main() {
       'aaa',
     );
   });
+
+  test('リンク更新用の値（linkSalt）が変わると、内容が同じでも版識別子が変わる', () {
+    const base = UserInvitePreview(userId: 'u1', nickname: '新');
+    const refreshed = UserInvitePreview(
+      userId: 'u1',
+      nickname: '新',
+      linkSalt: 1700000000000,
+    );
+    const refreshedAgain = UserInvitePreview(
+      userId: 'u1',
+      nickname: '新',
+      linkSalt: 1700000000001,
+    );
+    expect(base.version, isNot(refreshed.version));
+    expect(refreshed.version, isNot(refreshedAgain.version));
+    // Firestoreに保存する内容（toJson）にはsaltを含めない。
+    expect(refreshed.toJson().containsKey('linkSalt'), isFalse);
+  });
 }

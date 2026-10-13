@@ -16,6 +16,7 @@ import '../../models/dm_room.dart';
 import '../../models/group.dart';
 import '../../models/group_role.dart';
 import '../../models/message.dart';
+import '../../providers/direct_message_providers.dart';
 import '../../providers/app_ui_style_provider.dart';
 import '../../providers/block_providers.dart';
 import '../../providers/chat_navigation_providers.dart';
@@ -543,7 +544,11 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
   Widget _buildChatScreen(BuildContext context, List<DmRoom>? rooms) {
     final strings = ref.watch(appStringsProvider);
     final dmRepository = ref.watch(directMessageRepositoryProvider);
-    final dm = widget.dm;
+    // 親から渡される`widget.dm`は一時点のスナップショットで、絶縁・既読の提案
+    // バナー（`severanceRequestedBy`等）が再読込まで出なかった。ライブの値を
+    // 直接watchして、提案・拒否・取り消しの瞬間に反映する（2026-10-13、
+    // `DmSettingsPopup`と同じ`watchedDmProvider`）。
+    final dm = ref.watch(watchedDmProvider(widget.dm.dmId)).value ?? widget.dm;
     final currentUser = widget.currentUser;
     final roomId = _currentRoomId;
     final roomName = _currentRoomName;

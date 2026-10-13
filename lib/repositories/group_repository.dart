@@ -492,9 +492,15 @@ abstract class GroupRepository {
   /// 承認待ちの参加リクエスト一覧（長・モデレーターが見る）。
   Stream<List<GroupJoinRequest>> watchJoinRequests(String groupId);
 
-  /// 自分が送った、承認待ちの参加リクエスト一覧（広場をまたいだcollection
-  /// group検索）。語らいタブの広場一覧に「申請中」として表示するために使う。
-  Stream<List<GroupJoinRequest>> watchMyPendingJoinRequests(String userId);
+  /// 自分が送った、承認待ち・却下済みの参加リクエスト一覧（広場をまたいだ
+  /// collection group検索）。語らいタブの広場一覧に「申請中」「承認されませんでした」
+  /// として表示するために使う（却下された側にも結果を伝え、自分で削除できるよう
+  /// 却下済みも含める、2026-10-13）。
+  Stream<List<GroupJoinRequest>> watchMyJoinRequests(String userId);
+
+  /// 却下された自分の参加リクエストを削除する（語らい一覧から消す）。
+  /// 却下済み（declined）のものだけ、申請者本人が削除できる（firestore.rules）。
+  Future<void> dismissJoinRequest(GroupJoinRequest request);
 
   /// 参加リクエストに応答する。承認の場合はメンバーとして追加する。
   /// [respondedBy]は応答する本人（長・manageJoinRequests権限保持者）の
@@ -1641,11 +1647,22 @@ class FirestoreGroupRepository implements GroupRepository {
   }
 
   @override
-  Stream<List<GroupJoinRequest>> watchMyPendingJoinRequests(String userId) {
+  Future<void> dismissJoinRequest(GroupJoinRequest request) async {
+    await _joinRequestsOf(request.groupId).doc(request.requestId).delete();
+  }
+
+  @override
+  Stream<List<GroupJoinRequest>> watchMyJoinRequests(String userId) {
     return _firestore
         .collectionGroup('joinRequests')
         .where('requesterId', isEqualTo: userId)
-        .where('status', isEqualTo: GroupJoinRequestStatus.pending.name)
+        .where(
+          'status',
+          whereIn: [
+            GroupJoinRequestStatus.pending.name,
+            GroupJoinRequestStatus.declined.name,
+          ],
+        )
         .snapshots()
         .map(
           (snapshot) => snapshot.docs

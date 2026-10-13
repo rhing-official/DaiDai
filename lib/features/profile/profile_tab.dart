@@ -673,6 +673,8 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
                     onCreate: (card) => _saveCard(card, isNew: true),
                     onUpdate: (card) => _saveCard(card, isNew: false),
                     onDelete: _deleteCard,
+                    onFocalConfirmed: () =>
+                        _repository.refreshInviteLink(_user.userId),
                   ),
                 ),
               ),
@@ -3158,6 +3160,7 @@ class _CardZoomEditor extends StatefulWidget {
     required this.onCreate,
     required this.onUpdate,
     required this.onDelete,
+    required this.onFocalConfirmed,
     super.key,
   });
 
@@ -3178,6 +3181,10 @@ class _CardZoomEditor extends StatefulWidget {
   /// 既存カードのフィールドを1つ変更するたびに呼ばれる。
   final Future<void> Function(ProfileCard card) onUpdate;
   final Future<void> Function(ProfileCard card) onDelete;
+
+  /// 画像の中心・拡大率の編集で「完了」を押した時（変更の有無に関わらず）に
+  /// 呼ぶ。招待リンクを書き換える（取り消し・他の操作での離脱では呼ばない）。
+  final VoidCallback onFocalConfirmed;
 
   @override
   State<_CardZoomEditor> createState() => _CardZoomEditorState();
@@ -3235,6 +3242,7 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
     final field = _focalEditing;
     setState(() => _focalEditing = null);
     if (!apply || field == null) return;
+    widget.onFocalConfirmed();
     final focal = _focalDraft.isDefault ? null : _focalDraft;
     setState(() {
       _card = field == 'background'

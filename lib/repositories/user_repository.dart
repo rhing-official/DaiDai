@@ -134,6 +134,10 @@ abstract class UserRepository {
   /// 走っていないため、縁結びページを開いた際にも呼び直してバックフィルする。
   Future<void> syncInvitePreview(String userId);
 
+  /// 招待リンクの版識別子を書き換える（`AppUser.inviteLinkSalt`を現在時刻にする）。
+  /// 画像の中心・拡大率の編集で「完了」を押した時に呼ぶ（2026-10-13）。
+  Future<void> refreshInviteLink(String userId);
+
   /// アカウント削除を申請する。30日間は[restoreAccount]で復元できる。
   /// 何も操作が無いまま31日経過すると、Cloud Functionsの定期処理が
   /// サーバーから全情報を完全削除する。
@@ -583,6 +587,13 @@ class FirestoreUserRepository implements UserRepository {
   @override
   Future<void> deleteAccountImmediately() async {
     await _functions.httpsCallable('deleteAccountImmediately').call();
+  }
+
+  @override
+  Future<void> refreshInviteLink(String userId) async {
+    await _users.doc(userId).update({
+      'inviteLinkSalt': DateTime.now().millisecondsSinceEpoch,
+    });
   }
 
   @override

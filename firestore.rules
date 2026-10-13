@@ -1017,7 +1017,11 @@ service cloud.firestore {
               && request.resource.data.status == 'pending'
             )
           );
-        allow delete: if false;
+        // 却下された本人だけが、自分のリクエストを削除して語らい一覧から消せる
+        // （2026-10-13。承認待ち・承認済みは消せない）。
+        allow delete: if request.auth != null
+          && request.auth.uid == requesterId
+          && resource.data.status == 'declined';
       }
 
       // roles/{roleId}: カスタムロール（名前・色・権限を持つ、2026-07-28更新）。

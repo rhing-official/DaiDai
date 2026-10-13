@@ -4,15 +4,14 @@ import 'package:go_router/go_router.dart';
 
 import '../../l10n/strings.dart';
 import '../../l10n/vocabulary.dart';
-import '../../models/app_ui_style.dart';
 import '../../models/app_user.dart';
 import '../../models/group_invite_preview.dart';
 import '../../models/group_join_request.dart';
-import '../../providers/app_ui_style_provider.dart';
+import '../../models/group_profile_card.dart';
 import '../../providers/repository_providers.dart';
 import '../../providers/user_providers.dart';
 import '../../utils/open_conversation.dart';
-import '../../widgets/glass/glass_avatar.dart';
+import '../../widgets/group_profile_card_view.dart';
 import '../../widgets/profile_card_picker.dart';
 import '../auth/auth_gate.dart';
 
@@ -235,49 +234,33 @@ class _JoinGroupViewState extends ConsumerState<_JoinGroupView> {
         final previewName = preview.name.isEmpty
             ? ref.watch(vocabularyProvider).plaza
             : preview.name;
-        final isGlass = ref.watch(appUiStyleProvider) == AppUiStyle.glass;
         return Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (isGlass)
-              GlassAvatar(
-                size: 80,
-                image: preview.iconUrl != null
-                    ? NetworkImage(preview.iconUrl!)
-                    : null,
-                fallback: preview.iconUrl != null
-                    ? null
-                    : Icon(
-                        Icons.groups_outlined,
-                        size: 36,
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
-              )
-            else
-              CircleAvatar(
-                radius: 40,
-                backgroundImage: preview.iconUrl != null
-                    ? NetworkImage(preview.iconUrl!)
-                    : null,
-                backgroundColor: Colors.transparent,
-                foregroundColor: Theme.of(context).colorScheme.onSurfaceVariant,
-                child: preview.iconUrl == null
-                    ? const Icon(Icons.groups_outlined, size: 36)
-                    : null,
+            // 広場のプロフィールカード（背景・アイコン・広場名・説明）をそのまま
+            // 見せる（2026-10-13）。招待リンクのプレビューと同じ描画。
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 300),
+              child: AspectRatio(
+                aspectRatio: 0.8,
+                child: FittedBox(
+                  fit: BoxFit.contain,
+                  child: GroupProfileCardView(
+                    card: GroupProfileCard(
+                      name: previewName,
+                      description: preview.description,
+                      iconUrl: preview.iconUrl,
+                      backgroundImageUrl: preview.backgroundImageUrl,
+                    ),
+                  ),
+                ),
               ),
-            const SizedBox(height: 16),
-            Text(
-              previewName,
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
-              textAlign: TextAlign.center,
             ),
-            if (preview.description.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Text(preview.description, textAlign: TextAlign.center),
-            ],
             const SizedBox(height: 16),
             Text(
-              strings.groupJoinDescriptionTemplate(previewName),
+              preview.requiresApproval
+                  ? strings.groupJoinDescriptionTemplate(previewName)
+                  : strings.groupJoinNoApprovalDescriptionTemplate(previewName),
               textAlign: TextAlign.center,
             ),
             if (_errorMessage != null) ...[

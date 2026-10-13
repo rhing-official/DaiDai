@@ -39,6 +39,7 @@ import '../../router/app_router.dart';
 import '../../theme/gekiga/gekiga_colors.dart';
 import '../../theme/motion.dart';
 import '../../theme/text_prominence_colors.dart';
+import '../../utils/auto_dismiss_banner.dart';
 import '../../utils/drag_menu_geometry.dart';
 import '../../utils/group_permissions.dart';
 import '../../utils/pending_join_requests.dart';
@@ -594,10 +595,15 @@ class _TalksTabState extends ConsumerState<TalksTab>
   /// 承認待ちの一対・広場のタイルをタップした時、分割表示なら一覧を
   /// 表示したまま右側のペインにその場で表示する（2026-08-05追加。
   /// 別ページを開く従来挙動は、分割表示ではない狭い画面でのみ使う）。
-  void _selectPendingScreen(Widget screen) {
+  ///
+  /// [screen]がnullなら、表示中の承認待ちの画面を閉じる（承認された・却下を
+  /// 削除した時、2026-10-13）。選択中の会話には触れない。
+  void _selectPendingScreen(Widget? screen) {
     setState(() {
-      _selectedDm = null;
-      _selectedGroup = null;
+      if (screen != null) {
+        _selectedDm = null;
+        _selectedGroup = null;
+      }
       _selectedPendingScreen = screen;
     });
   }
@@ -1077,9 +1083,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
     ];
     final pendingGroupRequests =
         ref
-            .watch(
-              myPendingGroupJoinRequestsProvider(widget.currentUser.userId),
-            )
+            .watch(myGroupJoinRequestsProvider(widget.currentUser.userId))
             .value ??
         const [];
 
@@ -2537,7 +2541,7 @@ class _FriendRequestTile extends ConsumerWidget {
   /// 分割表示中かどうか。trueなら承認待ちタップ時に[onSelectPending]で
   /// 右側のペインへその場で表示し、falseなら別ページを開く（2026-08-05追加）。
   final bool isSplit;
-  final ValueChanged<Widget> onSelectPending;
+  final ValueChanged<Widget?> onSelectPending;
 
   bool get _isIncoming => request.toUserId == currentUserId;
 
@@ -2755,7 +2759,7 @@ class _PendingGroupJoinRequestTile extends ConsumerWidget {
 
   /// [_FriendRequestTile.isSplit]と同じ（2026-08-05追加）。
   final bool isSplit;
-  final ValueChanged<Widget> onSelectPending;
+  final ValueChanged<Widget?> onSelectPending;
 
   /// アイコンレール（「アイコン＋寄合一覧」、幅が狭い）用。承認済みの広場と
   /// 同じコンパクトなアイコンタイル（[_ConversationIconTile]）で描く
@@ -2773,6 +2777,10 @@ class _PendingGroupJoinRequestTile extends ConsumerWidget {
           .getInvitePreview(request.groupId),
       builder: (context, snapshot) {
         final preview = snapshot.data;
+        final declined = request.status == GroupJoinRequestStatus.declined;
+        final statusIcon = declined
+            ? Icons.cancel_outlined
+            : Icons.hourglass_top_outlined;
         final leadingWidget = uiStyle == AppUiStyle.glass
             ? GlassAvatar(
                 size: 40,
@@ -2781,7 +2789,7 @@ class _PendingGroupJoinRequestTile extends ConsumerWidget {
                     : null,
                 fallback: preview?.iconUrl == null
                     ? Icon(
-                        Icons.hourglass_top_outlined,
+                        statusIcon,
                         color: Theme.of(context).colorScheme.onSurfaceVariant,
                       )
                     : null,
@@ -2792,9 +2800,7 @@ class _PendingGroupJoinRequestTile extends ConsumerWidget {
                     : null,
                 backgroundColor: Colors.transparent,
                 foregroundColor: Theme.of(context).colorScheme.onSurfaceVariant,
-                child: preview?.iconUrl == null
-                    ? const Icon(Icons.hourglass_top_outlined)
-                    : null,
+                child: preview?.iconUrl == null ? Icon(statusIcon) : null,
               );
         final titleText = preview?.name ?? '...';
         void onTap() {
@@ -2811,7 +2817,20 @@ class _PendingGroupJoinRequestTile extends ConsumerWidget {
                   mentions = MessageMentions.none,
                 }) async {},
             disabled: true,
-            banner: _PendingApprovalBanner(message: strings.groupJoinPending),
+            // 承認待ち→却下に変わった時に、開いたままの画面も追従する
+            // （バナーが申請の状態を購読し、却下なら結果と削除ボタンを出す）。
+            banner: _GroupJoinStatusBanner(
+              groupId: request.groupId,
+              userId: request.requesterId,
+              // 削除した・承認されて不要になった時は、この画面を閉じる。
+              onClose: () {
+                if (isSplit) {
+                  onSelectPending(null);
+                } else {
+                  Navigator.of(context).maybePop();
+                }
+              },
+            ),
           );
           if (isSplit) {
             onSelectPending(screen);
@@ -2845,6 +2864,7 @@ class _PendingGroupJoinRequestTile extends ConsumerWidget {
           return GekigaTileContent(
             leading: leadingWidget,
             title: Text(titleText),
+            subtitle: declined ? Text(strings.groupJoinDeclinedSubtitle) : null,
             onTap: onTap,
           );
         }
@@ -2852,9 +2872,96 @@ class _PendingGroupJoinRequestTile extends ConsumerWidget {
         return ListTile(
           leading: leadingWidget,
           title: Text(titleText),
+          subtitle: declined ? Text(strings.groupJoinDeclinedSubtitle) : null,
           onTap: onTap,
         );
       },
+    );
+  }
+}
+
+/// 自分が送った広場の参加リクエストの状態を、開いた画面の上部に出すバナー
+/// （2026-10-13）。承認待ちは従来の「長の承認をお待ちください」、**却下された**
+/// 時は結果と「削除する」ボタン（押すと自分の却下済みリクエストを削除して
+/// 一覧から消し、画面を閉じる）。申請の状態を購読するので、開いたままの画面も
+/// 却下された瞬間に切り替わる。
+class _GroupJoinStatusBanner extends ConsumerStatefulWidget {
+  const _GroupJoinStatusBanner({
+    required this.groupId,
+    required this.userId,
+    required this.onClose,
+  });
+
+  final String groupId;
+  final String userId;
+  final VoidCallback onClose;
+
+  @override
+  ConsumerState<_GroupJoinStatusBanner> createState() =>
+      _GroupJoinStatusBannerState();
+}
+
+class _GroupJoinStatusBannerState
+    extends ConsumerState<_GroupJoinStatusBanner> {
+  bool _closed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final strings = ref.watch(appStringsProvider);
+    final requests = ref.watch(myGroupJoinRequestsProvider(widget.userId));
+    final outcome = joinRequestOutcome(requests.value, widget.groupId);
+
+    // 承認されて申請が対象から外れた（既にメンバー）なら、承認待ちの画面は
+    // もう不要。閉じておかないと、退会した時にこの古い画面へ戻ってしまう。
+    if (outcome == JoinRequestOutcome.gone && !_closed) {
+      _closed = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) widget.onClose();
+      });
+    }
+    if (outcome != JoinRequestOutcome.declined) {
+      return _PendingApprovalBanner(message: strings.groupJoinPending);
+    }
+
+    GroupJoinRequest? declined;
+    for (final r in requests.value ?? const <GroupJoinRequest>[]) {
+      if (r.groupId == widget.groupId) declined = r;
+    }
+    return Material(
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                strings.groupJoinDeclined,
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+            ),
+            TextButton(
+              onPressed: declined == null
+                  ? null
+                  : () async {
+                      try {
+                        await ref
+                            .read(groupRepositoryProvider)
+                            .dismissJoinRequest(declined!);
+                        _closed = true;
+                        widget.onClose();
+                      } catch (e) {
+                        if (!context.mounted) return;
+                        showAutoDismissBanner(
+                          context,
+                          message: strings.genericErrorTemplate(e),
+                        );
+                      }
+                    },
+              child: Text(strings.groupJoinDismissButton),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

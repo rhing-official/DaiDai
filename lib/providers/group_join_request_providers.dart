@@ -3,13 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/group_join_request.dart';
 import 'repository_providers.dart';
 
-/// 自分が送った、承認待ちの広場参加リクエスト一覧（語らいタブの広場一覧に
-/// 「申請中」として表示するために使う）。
-final myPendingGroupJoinRequestsProvider =
+/// 自分が送った、承認待ち・却下済みの広場参加リクエスト一覧（語らいタブの
+/// 広場一覧に「申請中」「承認されませんでした」として表示するために使う）。
+final myGroupJoinRequestsProvider =
     StreamProvider.family<List<GroupJoinRequest>, String>((ref, userId) {
-      return ref
-          .watch(groupRepositoryProvider)
-          .watchMyPendingJoinRequests(userId);
+      return ref.watch(groupRepositoryProvider).watchMyJoinRequests(userId);
     });
 
 /// 広場の承認待ちの参加リクエスト一覧（2026-10-11追加）。読み取りは長・
