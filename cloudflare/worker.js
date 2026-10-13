@@ -232,8 +232,7 @@ export function parsePixivUrl(parsed) {
 
 // Referer無しだと403になる画像ホスト。中継を許すのはここだけ（SSRF対策）。
 export function isProxyableImageHost(hostname) {
-  const host = hostname.toLowerCase();
-  return host === 'i.pximg.net' || host === 'embed.pixiv.net';
+  return hostname.toLowerCase() === 'i.pximg.net';
 }
 
 function proxiedImageUrl(origin, imageUrl) {
@@ -248,9 +247,14 @@ export function pixivPreviewFromAjax(kind, id, body, origin) {
         ? [body.title, body.userName, 'pixiv'].filter(Boolean).join(' - ')
         : 'pixiv',
       description: body.description ? stripTags(body.description) : null,
-      // 公式のOGP画像だが、CORSヘッダーが無くFlutter Webの画像読み込みが失敗する
-      // ため、このWorkerの中継（CORS付き）経由にする。
-      image: proxiedImageUrl(origin, `https://embed.pixiv.net/artwork.php?illust_id=${id}`),
+      // 画像は投稿の本体画像（`urls.regular`、i.pximg.net）をこのWorkerの中継
+      // （Referer付き・CORS付き）経由で出す。公式のOGP画像（embed.pixiv.net）は
+      // CORSヘッダーが無くFlutter Webで読めず、Cloudflareからの取得も弾かれる。
+      image: (() => {
+        const urls = body.urls || {};
+        const picture = urls.regular || urls.small || urls.thumb || null;
+        return picture ? proxiedImageUrl(origin, picture) : null;
+      })(),
     };
   }
   const bg = body.background && body.background.url;
@@ -402,12 +406,9 @@ async function fetchSiteOEmbed(parsed) {
 function siteFallback(parsed, origin) {
   const host = parsed.hostname.toLowerCase().replace(/^www\./, '');
   if (host === 'pixiv.net') {
-    const m = parsed.pathname.match(/\/artworks\/(\d+)/);
     return {
       title: 'pixiv',
-      image: m
-        ? proxiedImageUrl(origin, `https://embed.pixiv.net/artwork.php?illust_id=${m[1]}`)
-        : null,
+      image: null,
     };
   }
   return null;

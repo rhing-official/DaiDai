@@ -36,19 +36,29 @@ test('pixivアカウントは背景が無ければアイコン', () => {
   assert.match(r.image, /icon\.jpg/);
 });
 
-test('pixiv作品は公式のOGP画像', () => {
-  const r = pixivPreviewFromAjax('artwork', '138266964', { title: '心臓とモクレン', userName: 'チェリ子' }, 'https://o');
+test('pixiv作品は本体画像（i.pximg.net）を中継URLで出す', () => {
+  const r = pixivPreviewFromAjax(
+    'artwork',
+    '138266964',
+    {
+      title: '心臓とモクレン',
+      userName: 'チェリ子',
+      urls: { regular: 'https://i.pximg.net/img-master/a_master1200.jpg' },
+    },
+    'https://o',
+  );
   assert.equal(r.title, '心臓とモクレン - チェリ子 - pixiv');
   assert.equal(
     r.image,
     'https://o/api/url-preview-image?u=' +
-      encodeURIComponent('https://embed.pixiv.net/artwork.php?illust_id=138266964'),
+      encodeURIComponent('https://i.pximg.net/img-master/a_master1200.jpg'),
   );
+  assert.equal(pixivPreviewFromAjax('artwork', '1', { title: 'x' }, 'https://o').image, null);
 });
 
 test('画像の中継はi.pximg.netだけ許可', () => {
   assert.equal(isProxyableImageHost('i.pximg.net'), true);
-  assert.equal(isProxyableImageHost('embed.pixiv.net'), true);
+  assert.equal(isProxyableImageHost('embed.pixiv.net'), false);
   assert.equal(isProxyableImageHost('evil.example.com'), false);
   assert.equal(isProxyableImageHost('i.pximg.net.evil.com'), false);
 });
