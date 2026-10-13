@@ -190,7 +190,7 @@ async function urlPreview(url, env) {
   }
 
   // 取れなかったサイト別の補完（HTMLを取らずに作れるもの）。
-  const fallback = siteFallback(parsed);
+  const fallback = siteFallback(parsed, url.origin);
   if (fallback) {
     meta = { ...meta, title: meta.title || fallback.title };
     image = image || fallback.image;
@@ -232,7 +232,8 @@ export function parsePixivUrl(parsed) {
 
 // Referer無しだと403になる画像ホスト。中継を許すのはここだけ（SSRF対策）。
 export function isProxyableImageHost(hostname) {
-  return hostname.toLowerCase() === 'i.pximg.net';
+  const host = hostname.toLowerCase();
+  return host === 'i.pximg.net' || host === 'embed.pixiv.net';
 }
 
 function proxiedImageUrl(origin, imageUrl) {
@@ -247,7 +248,9 @@ export function pixivPreviewFromAjax(kind, id, body, origin) {
         ? [body.title, body.userName, 'pixiv'].filter(Boolean).join(' - ')
         : 'pixiv',
       description: body.description ? stripTags(body.description) : null,
-      image: `https://embed.pixiv.net/artwork.php?illust_id=${id}`,
+      // 公式のOGP画像だが、CORSヘッダーが無くFlutter Webの画像読み込みが失敗する
+      // ため、このWorkerの中継（CORS付き）経由にする。
+      image: proxiedImageUrl(origin, `https://embed.pixiv.net/artwork.php?illust_id=${id}`),
     };
   }
   const bg = body.background && body.background.url;
@@ -396,13 +399,15 @@ async function fetchSiteOEmbed(parsed) {
 }
 
 // HTMLが取れなかった時の補完。pixiv作品はOGPと同じ形式の画像URLを組み立てられる。
-function siteFallback(parsed) {
+function siteFallback(parsed, origin) {
   const host = parsed.hostname.toLowerCase().replace(/^www\./, '');
   if (host === 'pixiv.net') {
     const m = parsed.pathname.match(/\/artworks\/(\d+)/);
     return {
       title: 'pixiv',
-      image: m ? `https://embed.pixiv.net/artwork.php?illust_id=${m[1]}` : null,
+      image: m
+        ? proxiedImageUrl(origin, `https://embed.pixiv.net/artwork.php?illust_id=${m[1]}`)
+        : null,
     };
   }
   return null;

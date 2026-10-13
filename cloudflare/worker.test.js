@@ -39,11 +39,16 @@ test('pixivアカウントは背景が無ければアイコン', () => {
 test('pixiv作品は公式のOGP画像', () => {
   const r = pixivPreviewFromAjax('artwork', '138266964', { title: '心臓とモクレン', userName: 'チェリ子' }, 'https://o');
   assert.equal(r.title, '心臓とモクレン - チェリ子 - pixiv');
-  assert.equal(r.image, 'https://embed.pixiv.net/artwork.php?illust_id=138266964');
+  assert.equal(
+    r.image,
+    'https://o/api/url-preview-image?u=' +
+      encodeURIComponent('https://embed.pixiv.net/artwork.php?illust_id=138266964'),
+  );
 });
 
 test('画像の中継はi.pximg.netだけ許可', () => {
   assert.equal(isProxyableImageHost('i.pximg.net'), true);
+  assert.equal(isProxyableImageHost('embed.pixiv.net'), true);
   assert.equal(isProxyableImageHost('evil.example.com'), false);
   assert.equal(isProxyableImageHost('i.pximg.net.evil.com'), false);
 });
