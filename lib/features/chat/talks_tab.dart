@@ -2804,6 +2804,10 @@ class _PendingGroupJoinRequestTile extends ConsumerWidget {
               );
         final titleText = preview?.name ?? '...';
         void onTap() {
+          // 画面を閉じる時（承認・削除）にはこのタイルが既に破棄されていることが
+          // あるため、`Navigator`はここで先に取得しておく（破棄後の`context`では
+          // `Navigator.of`が失敗して、削除が成功しても画面が閉じなかった）。
+          final navigator = isSplit ? null : Navigator.of(context);
           final screen = ChatScreen(
             title: titleText,
             currentUserId: request.requesterId,
@@ -2827,7 +2831,7 @@ class _PendingGroupJoinRequestTile extends ConsumerWidget {
                 if (isSplit) {
                   onSelectPending(null);
                 } else {
-                  Navigator.of(context).maybePop();
+                  navigator?.maybePop();
                 }
               },
             ),
@@ -2919,6 +2923,9 @@ class _GroupJoinStatusBannerState
         if (mounted) widget.onClose();
       });
     }
+    // 承認された・削除された直後は、画面が閉じるまでの間「承認待ち」に戻って
+    // 見えないよう、何も出さない。
+    if (outcome == JoinRequestOutcome.gone) return const SizedBox.shrink();
     if (outcome != JoinRequestOutcome.declined) {
       return _PendingApprovalBanner(message: strings.groupJoinPending);
     }
@@ -2943,10 +2950,13 @@ class _GroupJoinStatusBannerState
               onPressed: declined == null
                   ? null
                   : () async {
+                      // 二重に押されても、削除と画面を閉じる処理は1回だけ。
+                      if (_closed) return;
                       try {
                         await ref
                             .read(groupRepositoryProvider)
                             .dismissJoinRequest(declined!);
+                        if (_closed) return;
                         _closed = true;
                         widget.onClose();
                       } catch (e) {

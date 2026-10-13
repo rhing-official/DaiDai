@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart' show FirebaseException;
 import 'package:daidai/models/group.dart';
 import 'package:daidai/models/group_join_request.dart';
 import 'package:daidai/utils/pending_join_requests.dart';
@@ -87,5 +88,28 @@ void main() {
         JoinRequestOutcome.gone,
       );
     });
+  });
+
+  test('既に消えている削除の失敗（permission-denied/not-found）は成功扱い', () {
+    expect(
+      isAlreadyGoneError(
+        FirebaseException(plugin: 'cloud_firestore', code: 'permission-denied'),
+      ),
+      isTrue,
+    );
+    expect(
+      isAlreadyGoneError(
+        FirebaseException(plugin: 'cloud_firestore', code: 'not-found'),
+      ),
+      isTrue,
+    );
+    // ネットワーク等は握らない。
+    expect(
+      isAlreadyGoneError(
+        FirebaseException(plugin: 'cloud_firestore', code: 'unavailable'),
+      ),
+      isFalse,
+    );
+    expect(isAlreadyGoneError(StateError('x')), isFalse);
   });
 }

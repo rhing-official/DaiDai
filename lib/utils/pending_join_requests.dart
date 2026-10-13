@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart' show FirebaseException;
+
 import '../models/group.dart';
 import '../models/group_join_request.dart';
 
@@ -7,6 +9,14 @@ import '../models/group_join_request.dart';
 /// 承認されて自分が既にメンバーになった広場（[groups]に同じ`groupId`がある）の
 /// リクエストは、承認前のブロックが広場本体と並んで残らないよう除く。同じ広場の
 /// 重複も1件にまとめる。
+/// 却下済みの参加リクエストの削除が失敗した原因が「既に消えている」ことか。
+/// 存在しないドキュメントのdeleteは、ルールが`resource.data`を評価できず
+/// `permission-denied`になる（`not-found`も同様に扱う）。この場合は目的（一覧から
+/// 消す）が既に達成されているので、エラーにせず成功扱いにする（2026-10-13）。
+bool isAlreadyGoneError(Object error) =>
+    error is FirebaseException &&
+    (error.code == 'permission-denied' || error.code == 'not-found');
+
 /// 自分が送った参加リクエストが、開いている承認待ちの画面から見てどの状態か。
 enum JoinRequestOutcome {
   /// 購読がまだ読み込み中（何もしない）。

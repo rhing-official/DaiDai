@@ -8,6 +8,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart' show ValueChanged, kIsWeb;
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 
+import '../utils/pending_join_requests.dart';
 import '../models/app_user.dart';
 import '../models/group.dart';
 import '../models/group_invite_preview.dart';
@@ -1648,7 +1649,12 @@ class FirestoreGroupRepository implements GroupRepository {
 
   @override
   Future<void> dismissJoinRequest(GroupJoinRequest request) async {
-    await _joinRequestsOf(request.groupId).doc(request.requestId).delete();
+    try {
+      await _joinRequestsOf(request.groupId).doc(request.requestId).delete();
+    } catch (e) {
+      // 既に削除済み（二重操作・別端末での削除）なら目的は達成済み。
+      if (!isAlreadyGoneError(e)) rethrow;
+    }
   }
 
   @override
