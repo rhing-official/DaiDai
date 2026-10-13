@@ -3190,6 +3190,12 @@ class _CardZoomEditor extends StatefulWidget {
   State<_CardZoomEditor> createState() => _CardZoomEditorState();
 }
 
+/// 狭い幅でも折り返さず1行に収めるボタン文言（収まらない時だけ縮む）。
+Widget _oneLine(String text) => FittedBox(
+  fit: BoxFit.scaleDown,
+  child: Text(text, maxLines: 1, softWrap: false),
+);
+
 class _CardZoomEditorState extends State<_CardZoomEditor> {
   // 名前を確定するまで素材（アイコン・背景・ニックネーム・ステメ）を
   // 選べないと、初めて使う人が「まず名前を決めないと何も触れない」と
@@ -3229,7 +3235,31 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
   String? _focalEditing;
   ImageFocal _focalDraft = ImageFocal.center;
 
+  /// 位置調整中だけ、戻る操作を「位置調整をやめてカード編集へ戻る」に割り当てる
+  /// （編集画面ごと閉じない。2026-10-14）。
+  int? _focalBackKey;
+  BackStackController? _backController;
+
+  void _releaseFocalBack() {
+    final key = _focalBackKey;
+    _focalBackKey = null;
+    if (key != null) _backController?.releaseDialog(key);
+  }
+
   void _startFocalEdit(String field) {
+    _releaseFocalBack();
+    final controller = ProviderScope.containerOf(
+      context,
+      listen: false,
+    ).read(backStackControllerProvider);
+    _backController = controller;
+    _focalBackKey = controller.addDialog(() {
+      // 戻る要求でコントローラからは既に外されている。
+      _focalBackKey = null;
+      if (mounted && _focalEditing != null) {
+        _finishFocalEdit(apply: false);
+      }
+    });
     setState(() {
       _focalEditing = field;
       _focalDraft =
@@ -3239,6 +3269,7 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
   }
 
   void _finishFocalEdit({required bool apply}) {
+    _releaseFocalBack();
     final field = _focalEditing;
     setState(() => _focalEditing = null);
     if (!apply || field == null) return;
@@ -3308,6 +3339,7 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
 
   @override
   void dispose() {
+    _releaseFocalBack();
     _nameController.dispose();
     super.dispose();
   }
@@ -3873,13 +3905,18 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
                                   child: OutlinedButton(
                                     style: OutlinedButton.styleFrom(
                                       foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 4,
+                                      ),
                                       side: const BorderSide(
                                         color: Colors.white70,
                                       ),
                                     ),
                                     onPressed: () =>
                                         _finishFocalEdit(apply: false),
-                                    child: Text(strings.workshopFocalCancel),
+                                    child: _oneLine(
+                                      strings.workshopFocalCancel,
+                                    ),
                                   ),
                                 ),
                                 const SizedBox(width: 8),
@@ -3887,6 +3924,9 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
                                   child: OutlinedButton(
                                     style: OutlinedButton.styleFrom(
                                       foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 4,
+                                      ),
                                       side: const BorderSide(
                                         color: Colors.white70,
                                       ),
@@ -3894,15 +3934,20 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
                                     onPressed: () => setState(
                                       () => _focalDraft = ImageFocal.center,
                                     ),
-                                    child: Text(strings.workshopFocalReset),
+                                    child: _oneLine(strings.workshopFocalReset),
                                   ),
                                 ),
                                 const SizedBox(width: 8),
                                 Expanded(
                                   child: FilledButton(
+                                    style: FilledButton.styleFrom(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 4,
+                                      ),
+                                    ),
                                     onPressed: () =>
                                         _finishFocalEdit(apply: true),
-                                    child: Text(strings.workshopFocalDone),
+                                    child: _oneLine(strings.workshopFocalDone),
                                   ),
                                 ),
                               ],

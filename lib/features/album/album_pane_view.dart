@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import '../../widgets/pane_key_focus.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
@@ -254,8 +256,7 @@ class _AlbumPaneViewState extends ConsumerState<AlbumPaneView> {
               actions: [addAction],
             )
           : AppBar(leading: leadingButton, title: title, actions: [addAction]),
-      body: Focus(
-        autofocus: true,
+      body: PaneKeyFocus(
         onKeyEvent: (node, event) {
           if (event is! KeyDownEvent) return KeyEventResult.ignored;
           if (event.logicalKey == LogicalKeyboardKey.escape) {

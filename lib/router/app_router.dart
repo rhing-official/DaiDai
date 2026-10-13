@@ -254,6 +254,9 @@ final goRouterProvider = Provider<GoRouter>((ref) {
     routes: [
       GoRoute(
         path: '/_b/:id',
+        // 戻る操作でこのページが消える前に、重なっているダイアログ・ビューア・層を
+        // 1階層だけ閉じ、閉じたら消失を中止する（`BackStackController.interceptTokenExit`）。
+        onExit: (context, state) => !backStack.interceptTokenExit(),
         pageBuilder: (context, state) => BackPage(
           id: int.parse(state.pathParameters['id']!),
           key: state.pageKey,

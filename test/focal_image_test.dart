@@ -4,6 +4,7 @@ import 'package:flutter/painting.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  focalAnchorTests();
   group('ImageFocal', () {
     test('JSONの往復と、範囲外・不正値のクランプ/フォールバック', () {
       const focal = ImageFocal(dx: 0.5, dy: -0.25, scale: 2);
@@ -115,6 +116,32 @@ void main() {
         scaleFactor: 0.0001,
       );
       expect(shrunk.scale, 1);
+    });
+  });
+}
+
+void focalAnchorTests() {
+  group('focalAfterGesture anchor', () {
+    const box = Size(400, 500);
+    const image = Size(1000, 800);
+
+    test('ピンチ中心の下の画像上の点が拡大しても動かない', () {
+      const anchor = Offset(80, -60);
+      const start = ImageFocal(scale: 1.5, dx: 0.2, dy: -0.1);
+      final before = focalImageRect(box: box, image: image, focal: start);
+      final p = Offset(box.width / 2, box.height / 2) + anchor;
+      final u = (p.dx - before.left) / before.width;
+      final v = (p.dy - before.top) / before.height;
+      final next = focalAfterGesture(
+        focal: start,
+        box: box,
+        image: image,
+        scaleFactor: 1.4,
+        anchor: anchor,
+      );
+      final after = focalImageRect(box: box, image: image, focal: next);
+      expect(after.left + u * after.width, closeTo(p.dx, 0.01));
+      expect(after.top + v * after.height, closeTo(p.dy, 0.01));
     });
   });
 }

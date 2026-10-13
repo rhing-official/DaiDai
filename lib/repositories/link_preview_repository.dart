@@ -6,9 +6,10 @@ import '../models/link_preview.dart';
 import '../utils/web_link.dart';
 
 abstract class LinkPreviewRepository {
-  /// [url]先のOGPメタデータを取得する。取得自体に失敗した場合はnullを返す
-  /// （メッセージ本文の表示自体はプレビューが無くても成立するため、
-  /// 例外を投げてチャット画面全体を壊さないようにする）。
+  /// [url]先のOGPメタデータを取得する。取得に失敗した・何も取れなかった場合も
+  /// URLだけのプレビューを返し、カードは必ず出す（2026-10-13、pixiv等が
+  /// サーバーからのアクセスを弾いて空になりプレビューが付かなかったため）。
+  /// 例外は投げない（チャット画面全体を壊さないため）。
   Future<LinkPreview?> fetchPreview(String url);
 }
 
@@ -24,13 +25,12 @@ class HttpLinkPreviewRepository implements LinkPreviewRepository {
     try {
       final response = await http
           .get(endpoint)
-          .timeout(const Duration(seconds: 6));
-      if (response.statusCode != 200) return null;
+          .timeout(const Duration(seconds: 15));
+      if (response.statusCode != 200) return LinkPreview(url: url);
       final json = jsonDecode(response.body) as Map<String, dynamic>;
-      final preview = LinkPreview.fromJson(json);
-      return preview.hasContent ? preview : null;
+      return LinkPreview.fromJson(json);
     } catch (e) {
-      return null;
+      return LinkPreview(url: url);
     }
   }
 }

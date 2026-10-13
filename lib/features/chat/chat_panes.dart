@@ -453,22 +453,22 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
   }
 
   Widget _buildBody(BuildContext context) {
-    if (_showingCalendar) {
-      return BackEntry(
-        key: const ValueKey('back-calendar'),
-        scope: BackScope.talks,
-        layer: true,
-        active: true,
-        onBack: () => setState(() => _showingCalendar = false),
-        child: CalendarPaneView(
-          isDm: true,
-          conversationId: widget.dm.dmId,
-          roomId: _currentRoomId,
-          currentUser: widget.currentUser,
-          onClose: () => setState(() => _showingCalendar = false),
-        ),
-      );
-    }
+    final calendarDetail = !_showingCalendar
+        ? null
+        : BackEntry(
+            key: const ValueKey('back-calendar'),
+            scope: BackScope.talks,
+            layer: true,
+            active: true,
+            onBack: () => setState(() => _showingCalendar = false),
+            child: CalendarPaneView(
+              isDm: true,
+              conversationId: widget.dm.dmId,
+              roomId: _currentRoomId,
+              currentUser: widget.currentUser,
+              onClose: () => setState(() => _showingCalendar = false),
+            ),
+          );
     final openNoteId = _openNoteId;
     final noteDetail = openNoteId == null
         ? null
@@ -488,23 +488,23 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
             ),
           );
     final openAlbum = _openAlbum;
-    if (openAlbum != null) {
-      return BackEntry(
-        key: const ValueKey('back-album'),
-        scope: BackScope.talks,
-        layer: true,
-        active: true,
-        onBack: () => setState(() => _openAlbum = null),
-        child: AlbumPaneView(
-          isDm: true,
-          conversationId: widget.dm.dmId,
-          roomId: _currentRoomId,
-          album: openAlbum,
-          currentUserId: widget.currentUser.userId,
-          onClose: () => setState(() => _openAlbum = null),
-        ),
-      );
-    }
+    final albumDetail = openAlbum == null
+        ? null
+        : BackEntry(
+            key: const ValueKey('back-album'),
+            scope: BackScope.talks,
+            layer: true,
+            active: true,
+            onBack: () => setState(() => _openAlbum = null),
+            child: AlbumPaneView(
+              isDm: true,
+              conversationId: widget.dm.dmId,
+              roomId: _currentRoomId,
+              album: openAlbum,
+              currentUserId: widget.currentUser.userId,
+              onClose: () => setState(() => _openAlbum = null),
+            ),
+          );
     // 通話中、PC/Webではこの会話を表示している間だけメッセージ一覧の
     // 代わりに通話UIを埋め込み表示する（2026-08-19追加、EmbeddedCallPane
     // 参照）。
@@ -534,10 +534,22 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
     // （2026-10-07、ユーザー指示）。右スワイプで戻る時に指追従で流れた後ろへ
     // メッセージ画面が見えるようにするため。メッセージ画面は`SlideDrilldown`の
     // masterとして常に同じ位置にマウントし続ける（ノートの開閉で作り直さない）。
+    // カレンダー・アルバムもノートと同じく重ねて表示する（2026-10-13、置き換えると
+    // 戻るたびにメッセージ画面が作り直され、スクロール位置の復元で一覧が一度上に
+    // 上がって落ちる動きが出ていた）。
+    void closeOverlay() => setState(() {
+      _showingCalendar = false;
+      _openAlbum = null;
+    });
     return SlideDrilldown(
       master: chatBody,
-      detail: noteDetail,
-      detailKey: openNoteId,
+      detail: calendarDetail ?? noteDetail ?? albumDetail,
+      detailKey: _showingCalendar
+          ? 'calendar'
+          : (openNoteId ?? (openAlbum != null ? 'album' : null)),
+      onBack: openNoteId == null && (_showingCalendar || openAlbum != null)
+          ? closeOverlay
+          : null,
     );
   }
 
@@ -2361,22 +2373,22 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
     final currentUser = widget.currentUser;
     final roomId = _currentRoomId;
     final groupRepository = ref.watch(groupRepositoryProvider);
-    if (_showingCalendar) {
-      return BackEntry(
-        key: const ValueKey('back-calendar'),
-        scope: BackScope.talks,
-        layer: true,
-        active: true,
-        onBack: () => setState(() => _showingCalendar = false),
-        child: CalendarPaneView(
-          isDm: false,
-          conversationId: group.groupId,
-          roomId: roomId,
-          currentUser: currentUser,
-          onClose: () => setState(() => _showingCalendar = false),
-        ),
-      );
-    }
+    final calendarDetail = !_showingCalendar
+        ? null
+        : BackEntry(
+            key: const ValueKey('back-calendar'),
+            scope: BackScope.talks,
+            layer: true,
+            active: true,
+            onBack: () => setState(() => _showingCalendar = false),
+            child: CalendarPaneView(
+              isDm: false,
+              conversationId: group.groupId,
+              roomId: roomId,
+              currentUser: currentUser,
+              onClose: () => setState(() => _showingCalendar = false),
+            ),
+          );
     final openNoteId = _openNoteId;
     final noteDetail = openNoteId == null
         ? null
@@ -2396,23 +2408,23 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
             ),
           );
     final openAlbum = _openAlbum;
-    if (openAlbum != null) {
-      return BackEntry(
-        key: const ValueKey('back-album'),
-        scope: BackScope.talks,
-        layer: true,
-        active: true,
-        onBack: () => setState(() => _openAlbum = null),
-        child: AlbumPaneView(
-          isDm: false,
-          conversationId: group.groupId,
-          roomId: roomId,
-          album: openAlbum,
-          currentUserId: currentUser.userId,
-          onClose: () => setState(() => _openAlbum = null),
-        ),
-      );
-    }
+    final albumDetail = openAlbum == null
+        ? null
+        : BackEntry(
+            key: const ValueKey('back-album'),
+            scope: BackScope.talks,
+            layer: true,
+            active: true,
+            onBack: () => setState(() => _openAlbum = null),
+            child: AlbumPaneView(
+              isDm: false,
+              conversationId: group.groupId,
+              roomId: roomId,
+              album: openAlbum,
+              currentUserId: currentUser.userId,
+              onClose: () => setState(() => _openAlbum = null),
+            ),
+          );
     // 通話中、PC/Webではこの会話を表示している間だけメッセージ一覧の
     // 代わりに通話UIを埋め込み表示する（2026-08-19追加、EmbeddedCallPane
     // 参照）。
@@ -2467,10 +2479,22 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
     // （2026-10-07、ユーザー指示）。右スワイプで戻る時に指追従で流れた後ろへ
     // メッセージ画面が見えるようにするため。メッセージ画面は`SlideDrilldown`の
     // masterとして常に同じ位置にマウントし続ける（ノートの開閉で作り直さない）。
+    // カレンダー・アルバムもノートと同じく重ねて表示する（2026-10-13、置き換えると
+    // 戻るたびにメッセージ画面が作り直され、スクロール位置の復元で一覧が一度上に
+    // 上がって落ちる動きが出ていた）。
+    void closeOverlay() => setState(() {
+      _showingCalendar = false;
+      _openAlbum = null;
+    });
     return SlideDrilldown(
       master: chatBody,
-      detail: noteDetail,
-      detailKey: openNoteId,
+      detail: calendarDetail ?? noteDetail ?? albumDetail,
+      detailKey: _showingCalendar
+          ? 'calendar'
+          : (openNoteId ?? (openAlbum != null ? 'album' : null)),
+      onBack: openNoteId == null && (_showingCalendar || openAlbum != null)
+          ? closeOverlay
+          : null,
     );
   }
 

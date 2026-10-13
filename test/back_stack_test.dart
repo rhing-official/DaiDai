@@ -1,4 +1,5 @@
 import 'package:daidai/router/back_stack.dart';
+import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -261,6 +262,88 @@ void main() {
         h.push(i);
       }
       expect(h.length, kMaxBackHistory);
+    });
+
+    test('層より後に登録された履歴エントリがあっても、層を先に閉じる（登録順の逆転）', () {
+      final c = BackStackController();
+      final calls = <String>[];
+      c.add(() => calls.add('calendar'), scope: BackScope.talks, layer: true);
+      // 層を開いた後に、一覧選択の履歴が登録し直された状態。
+      c.add(() => calls.add('history'), scope: BackScope.talks);
+
+      expect(c.closeTopLayer(), isTrue);
+      expect(calls, ['calendar']);
+      // 層が無ければ、フルスクリーンのチャットでは履歴に触れない。
+      expect(c.closeTopLayer(), isFalse);
+      expect(calls, ['calendar']);
+    });
+
+    test('requestBackも、履歴エントリより前面の層を先に閉じ、1回で1つだけ', () {
+      final c = BackStackController();
+      final calls = <String>[];
+      c.add(() => calls.add('note'), scope: BackScope.talks, layer: true);
+      c.add(() => calls.add('history'), scope: BackScope.talks);
+
+      expect(c.requestBack(), isTrue);
+      expect(calls, ['note']);
+      expect(c.requestBack(), isTrue);
+      expect(calls, ['note', 'history']);
+      expect(c.requestBack(), isFalse);
+    });
+
+    test('ダイアログが入れ子でも、1回の戻るで最新の1つだけ閉じる', () {
+      final c = BackStackController();
+      final calls = <String>[];
+      c.addDialog(() => calls.add('outer'));
+      c.addDialog(() => calls.add('inner'));
+
+      expect(c.requestBack(), isTrue);
+      expect(calls, ['inner']);
+      expect(c.requestBack(), isTrue);
+      expect(calls, ['inner', 'outer']);
+    });
+
+    test('1回の戻るで複数のトークンがまとめて消えても、戻る要求は1回だけ処理する', () {
+      fakeAsync((async) {
+        final c = BackStackController(tokenCount: 4);
+        c.attach(push: (_) {});
+        c.ensureBase();
+        final calls = <String>[];
+        c.add(() => calls.add('calendar'), scope: BackScope.talks, layer: true);
+        c.add(() => calls.add('history'), scope: BackScope.talks);
+
+        // 同じ瞬間に3つのトークンが消えた（リダイレクト等でスタックが入れ替わった）。
+        c.onRouteGone(0);
+        c.onRouteGone(1);
+        c.onRouteGone(2);
+        expect(calls, ['calendar']);
+
+        // 少し間を置いた次の戻る操作は、別の操作として処理される。
+        async.elapse(const Duration(milliseconds: 200));
+        c.onRouteGone(3);
+        expect(calls, ['calendar', 'history']);
+      });
+    });
+
+    test('画面内の状態（位置調整中）のダイアログ登録は、編集画面より先に1つだけ閉じ、外せる', () {
+      final c = BackStackController();
+      final calls = <String>[];
+      c.addDialog(() => calls.add('editor'));
+      c.addDialog(() => calls.add('focal'));
+
+      expect(c.requestBack(), isTrue);
+      expect(calls, ['focal']);
+      expect(c.requestBack(), isTrue);
+      expect(calls, ['focal', 'editor']);
+
+      // 自分で終えた場合は、登録を外すだけで編集画面は閉じない。
+      final c2 = BackStackController();
+      final calls2 = <String>[];
+      c2.addDialog(() => calls2.add('editor'));
+      final focal2 = c2.addDialog(() => calls2.add('focal'));
+      c2.releaseDialog(focal2);
+      expect(c2.requestBack(), isTrue);
+      expect(calls2, ['editor']);
     });
   });
 }

@@ -6,6 +6,7 @@
 // ルーティング（`_routes.json`でこのWorkerを通すパスを限定している）:
 //   /invite/:rhingSeed, /join/:groupId[/:cacheBust] → OGPタグを差し込んだindex.html
 //   /api/url-preview?url=...                         → 外部URLのリンクプレビュー
+//   /api/url-preview-image?u=...                     → pixivの画像（Referer必須）の中継
 //   /api/og-image?type=&id=                          → OG画像（`OG_IMAGE_ORIGIN`のバックエンドへ中継）
 // それ以外は静的アセット（Pagesが未知のパスにindex.htmlを返すSPAフォールバック込み）。
 
@@ -20,6 +21,7 @@ export default {
     const url = new URL(request.url);
     const path = url.pathname;
     if (path === '/api/url-preview') return urlPreview(url);
+    if (path === '/api/url-preview-image') return previewImage(url);
     if (path === '/api/og-image') return ogImage(url, env);
     if (/^\/invite\/[^/]+(?:\/[^/]+)?\/?$/.test(path) || /^\/join\/[^/]+(?:\/[^/]+)?\/?$/.test(path)) {
       return linkPreview(request, url, env);
@@ -142,31 +144,205 @@ async function urlPreview(url) {
     return json({ error: 'host not allowed' }, 400);
   }
 
-  const youtubePreview = isYouTubeHost(parsed.hostname)
+  const debug = url.searchParams.get('debug') === '1';
+  const oembed = isYouTubeHost(parsed.hostname)
     ? await fetchYouTubeOEmbed(parsed.toString())
-    : null;
+    : (await fetchPixivPreview(parsed, url.origin)) ??
+      (await fetchSiteOEmbed(parsed));
 
   let meta;
   let image;
-  if (youtubePreview) {
-    meta = youtubePreview;
-    image = youtubePreview.image;
+  const trace = [];
+  if (oembed) {
+    meta = oembed;
+    image = oembed.image;
   } else {
-    let html;
-    try {
-      html = await fetchTextWithLimit(parsed.toString());
-    } catch (e) {
-      return json({ url: parsed.toString(), title: null, description: null, image: null });
+    meta = { title: null, description: null, image: null };
+    // pixiv等はデータセンターからのアクセスや一般的なUAを弾くことがあるため、
+    // 取れなかった時はリンク展開bot向けのUAで順に取り直す。
+    for (const ua of userAgentsFor(parsed.hostname)) {
+      let result;
+      try {
+        result = await fetchTextWithLimit(parsed.toString(), ua);
+      } catch (e) {
+        trace.push(`${ua.split('/')[0]}:error`);
+        continue;
+      }
+      trace.push(`${ua.split('/')[0]}:${result.status}`);
+      const found = parseOgTags(result.text);
+      if (found.title || found.description || found.image) {
+        meta = found;
+        break;
+      }
     }
-    meta = parseOgTags(html);
     image = meta.image ? resolveUrl(meta.image, parsed) : null;
   }
 
-  return json(
-    { url: parsed.toString(), title: meta.title, description: meta.description, image },
-    200,
-    { 'Cache-Control': 'public, max-age=300' },
-  );
+  // 取れなかったサイト別の補完（HTMLを取らずに作れるもの）。
+  const fallback = siteFallback(parsed);
+  if (fallback) {
+    meta = { ...meta, title: meta.title || fallback.title };
+    image = image || fallback.image;
+  }
+
+  const empty = !meta.title && !meta.description && !image;
+  const body = { url: parsed.toString(), title: meta.title, description: meta.description, image };
+  if (debug) body.debug = trace;
+  return json(body, 200, {
+    // 取れなかった時は短くして、復旧が早く反映されるようにする。
+    'Cache-Control': empty ? 'public, max-age=60' : 'public, max-age=300',
+  });
+}
+
+// Instagramはリンク展開bot（facebookexternalhit）にだけOGPを返すため最優先にする。
+export function userAgentsFor(hostname) {
+  const host = hostname.toLowerCase().replace(/^www\./, '');
+  if (host === 'instagram.com') return [USER_AGENTS[2], USER_AGENTS[1], USER_AGENTS[3], USER_AGENTS[0]];
+  return USER_AGENTS;
+}
+
+const USER_AGENTS = [
+  'Mozilla/5.0 (compatible; DaiDaiLinkPreview/1.0; +https://daidai.rhing.jp)',
+  'Twitterbot/1.0',
+  'facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)',
+  'Discordbot/2.0',
+];
+
+// pixivのURLを解析する。作品（/artworks/{id}）かアカウント（/users/{id}）。
+export function parsePixivUrl(parsed) {
+  const host = parsed.hostname.toLowerCase().replace(/^www\./, '');
+  if (host !== 'pixiv.net') return null;
+  const art = parsed.pathname.match(/^\/(?:[a-z]{2}\/)?artworks\/(\d+)/);
+  if (art) return { kind: 'artwork', id: art[1] };
+  const user = parsed.pathname.match(/^\/(?:[a-z]{2}\/)?users\/(\d+)/);
+  if (user) return { kind: 'user', id: user[1] };
+  return null;
+}
+
+// Referer無しだと403になる画像ホスト。中継を許すのはここだけ（SSRF対策）。
+export function isProxyableImageHost(hostname) {
+  return hostname.toLowerCase() === 'i.pximg.net';
+}
+
+function proxiedImageUrl(origin, imageUrl) {
+  return `${origin}/api/url-preview-image?u=${encodeURIComponent(imageUrl)}`;
+}
+
+// pixivのajaxの結果から (title, description, image) を作る。
+export function pixivPreviewFromAjax(kind, id, body, origin) {
+  if (kind === 'artwork') {
+    return {
+      title: body.title
+        ? [body.title, body.userName, 'pixiv'].filter(Boolean).join(' - ')
+        : 'pixiv',
+      description: body.description ? stripTags(body.description) : null,
+      image: `https://embed.pixiv.net/artwork.php?illust_id=${id}`,
+    };
+  }
+  const bg = body.background && body.background.url;
+  const picture = bg || body.imageBig || null;
+  return {
+    title: body.name ? `${body.name} - pixiv` : 'pixiv',
+    description: body.comment ? stripTags(body.comment) : null,
+    image: picture ? proxiedImageUrl(origin, picture) : null,
+  };
+}
+
+function stripTags(html) {
+  return decodeHtmlEntities(String(html).replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '')).trim();
+}
+
+async function fetchPixivPreview(parsed, origin) {
+  const target = parsePixivUrl(parsed);
+  if (!target) return null;
+  const endpoint =
+    target.kind === 'artwork'
+      ? `https://www.pixiv.net/ajax/illust/${target.id}`
+      : `https://www.pixiv.net/ajax/user/${target.id}?full=1`;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  try {
+    const response = await fetch(endpoint, {
+      signal: controller.signal,
+      headers: { 'User-Agent': USER_AGENTS[0], Referer: 'https://www.pixiv.net/' },
+    });
+    if (!response.ok) return null;
+    const data = await response.json();
+    if (data.error || !data.body) return null;
+    return pixivPreviewFromAjax(target.kind, target.id, data.body, origin);
+  } catch (e) {
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+// pixivの画像（Referer必須）を、Refererを付けて取得して返す。
+async function previewImage(url) {
+  const target = url.searchParams.get('u');
+  let parsed;
+  try {
+    parsed = new URL(target ?? '');
+  } catch (e) {
+    return new Response('bad request', { status: 400 });
+  }
+  if (parsed.protocol !== 'https:' || !isProxyableImageHost(parsed.hostname)) {
+    return new Response('host not allowed', { status: 400 });
+  }
+  const res = await fetch(parsed.toString(), {
+    headers: { Referer: 'https://www.pixiv.net/', 'User-Agent': USER_AGENTS[0] },
+  });
+  if (!res.ok) return new Response('upstream error', { status: 502 });
+  return new Response(res.body, {
+    status: 200,
+    headers: {
+      'Content-Type': res.headers.get('Content-Type') ?? 'image/jpeg',
+      'Cache-Control': 'public, max-age=86400',
+      'Access-Control-Allow-Origin': '*',
+    },
+  });
+}
+
+// 公開oEmbedがあるサイト（HTML取得を弾かれても確実に取れる）。
+async function fetchSiteOEmbed(parsed) {
+  const host = parsed.hostname.toLowerCase().replace(/^www\./, '');
+  let endpoint = null;
+  if (host === 'tiktok.com') endpoint = 'https://www.tiktok.com/oembed?url=';
+  else if (host === 'reddit.com') endpoint = 'https://www.reddit.com/oembed?url=';
+  if (!endpoint) return null;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  try {
+    const response = await fetch(endpoint + encodeURIComponent(parsed.toString()), {
+      signal: controller.signal,
+      headers: { 'User-Agent': USER_AGENTS[0] },
+    });
+    if (!response.ok) return null;
+    const data = await response.json();
+    if (!data.title && !data.thumbnail_url) return null;
+    return {
+      title: data.title ?? null,
+      description: data.author_name ? `投稿者: ${data.author_name}` : null,
+      image: data.thumbnail_url ?? null,
+    };
+  } catch (e) {
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+// HTMLが取れなかった時の補完。pixiv作品はOGPと同じ形式の画像URLを組み立てられる。
+function siteFallback(parsed) {
+  const host = parsed.hostname.toLowerCase().replace(/^www\./, '');
+  if (host === 'pixiv.net') {
+    const m = parsed.pathname.match(/\/artworks\/(\d+)/);
+    return {
+      title: 'pixiv',
+      image: m ? `https://embed.pixiv.net/artwork.php?illust_id=${m[1]}` : null,
+    };
+  }
+  return null;
 }
 
 async function fetchFirestoreDoc(path) {
@@ -249,7 +425,7 @@ async function fetchYouTubeOEmbed(url) {
   }
 }
 
-async function fetchTextWithLimit(url) {
+async function fetchTextWithLimit(url, userAgent) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
@@ -259,14 +435,13 @@ async function fetchTextWithLimit(url) {
       headers: {
         // 一部サイトはUser-Agent無しのリクエストを弾くため、一般的な
         // クローラーに偽装せず、素直にブラウザ風のUAを名乗る。
-        'User-Agent':
-          'Mozilla/5.0 (compatible; DaiDaiLinkPreview/1.0; +https://daidai.rhing.jp)',
+        'User-Agent': userAgent,
         // Googleのサービス（YouTube含む）はリージョンによってGDPR同意の
         // 中間ページを返すことがあるため、同意済みのCookieを付けて回避する。
         Cookie: 'CONSENT=YES+',
       },
     });
-    if (!response.ok || !response.body) return '';
+    if (!response.ok || !response.body) return { status: response.status, text: '' };
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let received = 0;
@@ -278,20 +453,21 @@ async function fetchTextWithLimit(url) {
       text += decoder.decode(value, { stream: true });
     }
     await reader.cancel().catch(() => {});
-    return text;
+    return { status: response.status, text };
   } finally {
     clearTimeout(timeout);
   }
 }
 
-function parseOgTags(html) {
+export function parseOgTags(html) {
   const getMeta = (prop) => {
     const re = new RegExp(
-      `<meta[^>]+(?:property|name)=["']${prop}["'][^>]+content=["']([^"']*)["']`,
+      `<meta[^>]+(?:property|name)=["']${prop}["'][^>]+content=(?:"([^"]*)"|'([^']*)')`,
       'i',
     );
     const match = html.match(re);
-    return match ? decodeHtmlEntities(match[1]) : null;
+    const value = match ? (match[1] ?? match[2]) : null;
+    return value == null ? null : decodeHtmlEntities(value);
   };
   const titleTagMatch = html.match(/<title[^>]*>([^<]*)<\/title>/i);
 
@@ -310,11 +486,21 @@ function resolveUrl(maybeRelative, baseUrl) {
   }
 }
 
-function decodeHtmlEntities(str) {
+export function decodeHtmlEntities(str) {
   return str
-    .replace(/&amp;/g, '&')
+    .replace(/&#x([0-9a-f]+);/gi, (_, h) => safeCodePoint(parseInt(h, 16)))
+    .replace(/&#(\d+);/g, (_, d) => safeCodePoint(parseInt(d, 10)))
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'");
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, '&');
+}
+
+function safeCodePoint(n) {
+  try {
+    return String.fromCodePoint(n);
+  } catch (e) {
+    return '';
+  }
 }

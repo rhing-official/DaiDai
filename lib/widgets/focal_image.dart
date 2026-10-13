@@ -37,9 +37,30 @@ ImageFocal focalAfterGesture({
   required Size image,
   Offset delta = Offset.zero,
   double scaleFactor = 1,
+  Offset? anchor,
 }) {
-  final next = focal.copyWith(scale: focal.scale * scaleFactor);
-  final rect = focalImageRect(box: box, image: image, focal: next);
+  final before = focalImageRect(box: box, image: image, focal: focal);
+  var next = focal.copyWith(scale: focal.scale * scaleFactor);
+  var rect = focalImageRect(box: box, image: image, focal: next);
+  // ピンチの中心[anchor]（[box]の中心からの相対位置）の下にある画像上の点が、
+  // 拡大・縮小しても同じ場所に留まるように位置を補正する（2026-10-13）。
+  if (anchor != null && scaleFactor != 1) {
+    final px = box.width / 2 + anchor.dx;
+    final py = box.height / 2 + anchor.dy;
+    final u = (px - before.left) / before.width;
+    final v = (py - before.top) / before.height;
+    final extraW = rect.width - box.width;
+    final extraH = rect.height - box.height;
+    next = next.copyWith(
+      dx: extraW > 0.5
+          ? (-2 * (px - u * rect.width) / extraW - 1).clamp(-1.0, 1.0)
+          : next.dx,
+      dy: extraH > 0.5
+          ? (-2 * (py - v * rect.height) / extraH - 1).clamp(-1.0, 1.0)
+          : next.dy,
+    );
+    rect = focalImageRect(box: box, image: image, focal: next);
+  }
   final extraW = rect.width - box.width;
   final extraH = rect.height - box.height;
   return next.copyWith(

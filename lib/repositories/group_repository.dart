@@ -8,7 +8,6 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart' show ValueChanged, kIsWeb;
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 
-import '../utils/pending_join_requests.dart';
 import '../models/app_user.dart';
 import '../models/group.dart';
 import '../models/group_invite_preview.dart';
@@ -1649,12 +1648,15 @@ class FirestoreGroupRepository implements GroupRepository {
 
   @override
   Future<void> dismissJoinRequest(GroupJoinRequest request) async {
-    try {
-      await _joinRequestsOf(request.groupId).doc(request.requestId).delete();
-    } catch (e) {
-      // 既に削除済み（二重操作・別端末での削除）なら目的は達成済み。
-      if (!isAlreadyGoneError(e)) rethrow;
-    }
+    final ref = _joinRequestsOf(request.groupId).doc(request.requestId);
+    // 既に削除済み（二重操作・別端末での削除）なら目的は達成済み。存在しない
+    // ドキュメントのdeleteはルールの評価エラー（permission-denied）になるため、
+    // 先に存在を確認する。本当に権限が無い場合のエラーは握りつぶさず、画面に出す
+    // （以前は`permission-denied`を一律で握っていて、削除に失敗したのに何も
+    // 表示されず一覧にも残り続けた、2026-10-13）。
+    final snapshot = await ref.get();
+    if (!snapshot.exists) return;
+    await ref.delete();
   }
 
   @override

@@ -3,6 +3,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+
+import '../../widgets/pane_key_focus.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -389,8 +391,7 @@ class _CalendarPaneViewState extends ConsumerState<CalendarPaneView> {
       // Esc・上スクロール（PC）・下スワイプ（モバイル）でメッセージ画面に戻る。
       // `_MediaViewerScreen`と同じ3系統の仕組みをここでも組み合わせる。左右
       // 矢印キー・横スワイプでの月送りもここに追加する（2026-09-01）。
-      body: Focus(
-        autofocus: true,
+      body: PaneKeyFocus(
         onKeyEvent: (node, event) {
           if (event is! KeyDownEvent) return KeyEventResult.ignored;
           if (event.logicalKey == LogicalKeyboardKey.escape) {

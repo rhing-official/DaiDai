@@ -60,9 +60,9 @@ final _inviteGroupProvider = FutureProvider.autoDispose
     );
 
 /// メッセージ本文に含まれるURLの下に表示する、タイトル・説明文・
-/// サムネイル画像のプレビューカード。取得中は何も表示せず、取得に失敗
-/// した場合やタイトル等が何も取れなかった場合もカード自体を出さない
-/// （メッセージ本文の表示はプレビューの有無に関わらず成立するため）。
+/// サムネイル画像のプレビューカード。取得中は何も表示しないが、取得に失敗
+/// した場合やタイトル等が何も取れなかった場合もURLだけのカードを出す
+/// （2026-10-13、全てのURLにプレビューを付ける）。
 ///
 /// Discordの埋め込みカード（サイト名→タイトル→説明文→画像、動画には
 /// 再生アイコン）を参考にした構成に統一しつつ、外枠・配色はUIスタイルごとに
@@ -95,6 +95,14 @@ class LinkPreviewCard extends ConsumerWidget {
     final host = Uri.tryParse(url)?.host;
     if (host == null || host.isEmpty) return null;
     return host.startsWith('www.') ? host.substring(4) : host;
+  }
+
+  /// タイトルが取れなかった時に代わりに見せるURL（スキームと末尾の`/`を除く）。
+  String _plainUrl() {
+    final stripped = url.replaceFirst(RegExp(r'^https?://'), '');
+    return stripped.endsWith('/')
+        ? stripped.substring(0, stripped.length - 1)
+        : stripped;
   }
 
   bool _looksLikeVideo() {
@@ -165,12 +173,20 @@ class LinkPreviewCard extends ConsumerWidget {
       loading: () => const SizedBox.shrink(),
       error: (_, _) => const SizedBox.shrink(),
       data: (data) {
-        if (data == null) return const SizedBox.shrink();
+        // 何も取れなかったURLもカードは出す（タイトルはURLで代用）。
+        final shown = data == null || data.title != null
+            ? (data ?? LinkPreview(url: url))
+            : LinkPreview(
+                url: data.url,
+                title: _plainUrl(),
+                description: data.description,
+                image: data.image,
+              );
         return Padding(
           padding: const EdgeInsets.only(top: 8),
           child: isGekiga
-              ? _buildGekigaCard(context, data)
-              : _buildFlatCard(context, data),
+              ? _buildGekigaCard(context, shown)
+              : _buildFlatCard(context, shown),
         );
       },
     );

@@ -37,6 +37,7 @@ class FocalEditOverlay extends StatefulWidget {
 class _FocalEditOverlayState extends State<FocalEditOverlay> {
   Size? _imageSize;
   double _lastScale = 1;
+  Offset _lastFocalPoint = Offset.zero;
 
   @override
   void initState() {
@@ -46,7 +47,12 @@ class _FocalEditOverlayState extends State<FocalEditOverlay> {
     });
   }
 
-  void _apply(Size box, {Offset delta = Offset.zero, double scale = 1}) {
+  void _apply(
+    Size box, {
+    Offset delta = Offset.zero,
+    double scale = 1,
+    Offset? anchor,
+  }) {
     final image = _imageSize;
     if (image == null) return;
     widget.onChanged(
@@ -56,9 +62,15 @@ class _FocalEditOverlayState extends State<FocalEditOverlay> {
         image: image,
         delta: delta,
         scaleFactor: scale,
+        anchor: anchor,
       ),
     );
   }
+
+  /// ピンチ中心（カード内のローカル座標）を、画像を描く枠の中心からの相対位置へ。
+  /// 円形（アイコン）は枠がカード中央にあるので、カード中心基準のままでよい。
+  Offset _anchorFor(Offset local, Size cardSize) =>
+      local - Offset(cardSize.width / 2, cardSize.height / 2);
 
   @override
   Widget build(BuildContext context) {
@@ -104,11 +116,24 @@ class _FocalEditOverlayState extends State<FocalEditOverlay> {
                 },
                 child: GestureDetector(
                   behavior: HitTestBehavior.opaque,
-                  onScaleStart: (_) => _lastScale = 1,
+                  onScaleStart: (details) {
+                    _lastScale = 1;
+                    _lastFocalPoint = details.localFocalPoint;
+                  },
                   onScaleUpdate: (details) {
                     final factor = details.scale / _lastScale;
                     _lastScale = details.scale;
-                    _apply(box, delta: details.focalPointDelta, scale: factor);
+                    // 移動量はローカル座標（カードを縮小表示している`FittedBox`の
+                    // 変換込み）で求める。画面上のpx（focalPointDelta）だと、縮小
+                    // 表示のモバイルで指より画像が遅れて動いていた（2026-10-13）。
+                    final delta = details.localFocalPoint - _lastFocalPoint;
+                    _lastFocalPoint = details.localFocalPoint;
+                    _apply(
+                      box,
+                      delta: delta,
+                      scale: factor,
+                      anchor: _anchorFor(details.localFocalPoint, cardSize),
+                    );
                   },
                   child: const SizedBox.expand(),
                 ),

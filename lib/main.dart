@@ -6,6 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
+import 'widgets/back_debug_overlay.dart';
 import 'widgets/always_animated_image.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -42,13 +43,14 @@ import 'providers/text_color_provider.dart';
 import 'providers/theme_mode_provider.dart';
 import 'router/app_router.dart';
 import 'router/back_stack.dart';
+import 'utils/always_animate_binding.dart';
 import 'utils/android_notification_sound_sync.dart';
 import 'theme/app_theme.dart';
 import 'theme/gekiga/gekiga_theme.dart';
 import 'theme/glass/glass_theme.dart';
 
 Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
+  AlwaysAnimateBinding.ensureInitialized();
   // 劇画UIスタイルの見出しフォント（Anton）はGoogle CDNから実行時取得せず、
   // アプリに同梱したファイルのみを使う（プライバシーファースト方針に
   // 合わせ、外部通信を発生させないため）。
@@ -269,6 +271,7 @@ class DaiDaiApp extends ConsumerWidget {
               const PinnedCallOverlay(),
               // 広場の通話開始バナーは全ルート・ボタン・ミニ表示より最前面に出す。
               const GroupCallBannerOverlay(),
+              const BackDebugOverlay(),
             ],
           ),
         ),

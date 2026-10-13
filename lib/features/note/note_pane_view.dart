@@ -165,6 +165,9 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
   EditorScrollController? _scrollController;
   final _titleController = TextEditingController();
   final _titleFocusNode = FocusNode();
+
+  /// ページ全体のフォーカス（Escで閉じるキー処理の受け口）。
+  final _pageFocusNode = FocusNode(debugLabel: 'NotePage');
   // PC専用のカーソル行追従「+」ボタン（2026-09-27追加）の位置計算に使う、
   // エディタを包む`Stack`のキー。`_CursorLineAddButton`参照。
   final _editorStackKey = GlobalKey();
@@ -198,6 +201,11 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    // 重ねて開いた直後に、ページがEscを受け取れるようフォーカスを取る
+    // （`autofocus`は他にフォーカスがあると効かない）。
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && !_pageFocusNode.hasFocus) _pageFocusNode.requestFocus();
+    });
     _titleFocusNode.addListener(
       () => _debugCaret('title focus=${_titleFocusNode.hasFocus}'),
     );
@@ -509,6 +517,7 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
             authorId: widget.currentUser.userId,
           );
     }
+    _pageFocusNode.dispose();
     WidgetsBinding.instance.removeObserver(this);
     _editorState?.selectionNotifier.removeListener(_onSelectionChanged);
     _caretVisible.dispose();
@@ -1085,6 +1094,7 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
     // 包んでもタイトル欄フォーカス中はこのハンドラの祖先チェーンに入らない、
     // 2026-09-07変更）。
     final page = Focus(
+      focusNode: _pageFocusNode,
       autofocus: true,
       onKeyEvent: (node, event) {
         if (event is! KeyDownEvent) return KeyEventResult.ignored;
@@ -1154,7 +1164,17 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
       // ドローノートは、メッセージ画面のルート全体の右スワイプ戻る等の外側の
       // 水平スワイプも受けないよう、水平ドラッグを吸収する（2026-10-10、
       // `HorizontalDragAbsorber`参照）。閉じる手段は左上の矢印とEscのみ。
-      child: _isDraw ? HorizontalDragAbsorber(child: page) : page,
+      // 空白・キャンバスのタップでフォーカスがどこにも無くなっても、Escで戻れるよう
+      // タップ後にページのフォーカスを取り直す（入力欄等が取った場合は奪わない）。
+      child: Listener(
+        behavior: HitTestBehavior.translucent,
+        onPointerDown: (_) => WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && !_pageFocusNode.hasFocus) {
+            _pageFocusNode.requestFocus();
+          }
+        }),
+        child: _isDraw ? HorizontalDragAbsorber(child: page) : page,
+      ),
     );
   }
 

@@ -47,6 +47,29 @@
       background: transparent !important;
     }
   </style>
+
+  <!-- モバイルブラウザで、メッセージ送信後に戻るボタンでキーボードを閉じると
+       アプリの高さが縮んだまま戻らず下に白い帯が出る不具合の補正（2026-10-13追加）。
+       キーボードが閉じた可能性のあるタイミング（visualViewportのresize・入力要素の
+       focusout）の少し後に`resize`を発火し、Flutterにビューポートを再測定させる。
+       寸法が変わっていなければFlutter側は何もしないため、デスクトップでも無害。 -->
+  <script>
+    (function () {
+      var timers = [];
+      function remeasure() {
+        timers.forEach(clearTimeout);
+        timers = [100, 400].map(function (ms) {
+          return setTimeout(function () {
+            window.dispatchEvent(new Event('resize'));
+          }, ms);
+        });
+      }
+      if (window.visualViewport) {
+        window.visualViewport.addEventListener('resize', remeasure);
+      }
+      document.addEventListener('focusout', remeasure, true);
+    })();
+  </script>
 </head>
 <body>
   <!--

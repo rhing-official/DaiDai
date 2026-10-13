@@ -19,7 +19,4 @@ class LinkPreview {
   final String? title;
   final String? description;
   final String? image;
-
-  /// タイトルすら取れなかった場合は表示するものが無いため、カード自体を出さない。
-  bool get hasContent => title != null || description != null || image != null;
 }

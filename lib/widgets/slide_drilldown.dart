@@ -35,7 +35,9 @@ class SlideDrilldown extends StatelessWidget {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          master,
+          // 詳細を重ねている間は、裏の画面にフォーカス・キー入力を渡さない
+          // （裏がフォーカスを持ったままだと、Escが前面のペインに届かない）。
+          ExcludeFocus(excluding: detail != null, child: master),
           if (detail != null)
             Positioned.fill(
               child: _SlideInDetail(

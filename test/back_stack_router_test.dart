@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 
 void main() {
   _chatRouteTests();
+  _massTokenRemovalTests();
   testWidgets('ブラウザの戻る（ベースルートのpop）でダイアログ→ペインの順に閉じ、アプリの外へは出ない', (tester) async {
     final container = ProviderContainer();
     addTearDown(container.dispose);
@@ -24,6 +25,7 @@ void main() {
       routes: [
         GoRoute(
           path: '/_b/:id',
+          onExit: (context, state) => !backStack.interceptTokenExit(),
           pageBuilder: (context, state) => BackPage(
             id: int.parse(state.pathParameters['id']!),
             key: state.pageKey,
@@ -56,7 +58,7 @@ void main() {
     expect(find.text('pane'), findsNothing);
     expect(
       router.routerDelegate.currentConfiguration.last.matchedLocation,
-      '/_b/1',
+      '/_b/0',
     );
 
     // ダイアログを開いて戻る操作 → ダイアログだけが閉じる（ペインは残る）。
@@ -70,18 +72,20 @@ void main() {
     expect(find.text('dialog-body'), findsNothing);
     expect(find.text('pane'), findsOneWidget);
 
-    // 続けて戻るとペインが閉じる。
+    // 続けて戻るとペインが閉じる（人の操作の間隔を空ける）。
+    await tester.pump(const Duration(milliseconds: 300));
     router.pop();
     await tester.pumpAndSettle();
     expect(find.text('pane'), findsNothing);
 
     // 何も開いていない状態で戻っても、アプリの外へ出ずホームのまま。
+    await tester.pump(const Duration(milliseconds: 300));
     router.pop();
     await tester.pumpAndSettle();
     expect(find.text('open'), findsOneWidget);
     expect(
       router.routerDelegate.currentConfiguration.last.matchedLocation,
-      '/_b/3',
+      '/_b/1',
     );
   });
 }
@@ -290,4 +294,116 @@ class _HomeState extends State<_Home> {
       ),
     );
   }
+}
+
+/// ブラウザの履歴の復元などで、1回の戻るに対し履歴トークンが複数まとめて消える
+/// 状況（2026-10-14、実ブラウザのログで確認）を再現し、どの階層でも「戻る1回＝
+/// 1階層だけ」になることを確かめる。
+void _massTokenRemovalTests() {
+  Future<GoRouter> pumpHome(
+    WidgetTester tester,
+    ProviderContainer container,
+  ) async {
+    final backStack = container.read(backStackControllerProvider);
+    final router = GoRouter(
+      observers: [BackStackObserver(backStack)],
+      redirect: (context, state) {
+        final path = state.uri.path;
+        if (path.startsWith('/_b/')) {
+          final id = int.tryParse(path.substring(4));
+          if (id == null || !backStack.isLive(id)) return '/';
+        }
+        return null;
+      },
+      routes: [
+        GoRoute(
+          path: '/_b/:id',
+          onExit: (context, state) => !backStack.interceptTokenExit(),
+          pageBuilder: (context, state) => BackPage(
+            id: int.parse(state.pathParameters['id']!),
+            key: state.pageKey,
+          ),
+        ),
+        GoRoute(path: '/', builder: (context, state) => const _Home()),
+      ],
+    );
+    backStack.attach(push: (id) => router.push('/_b/$id'));
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp.router(routerConfig: router),
+      ),
+    );
+    await tester.pumpAndSettle();
+    return router;
+  }
+
+  ProviderContainer makeContainer() {
+    final controller = BackStackController(tokenCount: 6);
+    addTearDown(controller.dispose);
+    final container = ProviderContainer(
+      overrides: [backStackControllerProvider.overrideWithValue(controller)],
+    );
+    addTearDown(container.dispose);
+    return container;
+  }
+
+  testWidgets('トークンが全部まとめて消えても、ダイアログ→ペインの順に1つずつだけ閉じる', (tester) async {
+    final container = makeContainer();
+    final router = await pumpHome(tester, container);
+
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('dialog'));
+    await tester.pumpAndSettle();
+    expect(find.text('dialog-body'), findsOneWidget);
+
+    // 1回の戻るで、積んだトークン6個が同時に消える（スタックがホームだけに戻る）。
+    router.go('/');
+    await tester.pumpAndSettle();
+    expect(find.text('dialog-body'), findsNothing);
+    expect(find.text('pane'), findsOneWidget, reason: 'ペインまで閉じてはいけない');
+
+    // 積み直されたトークンで、次の戻るがペインを1つ閉じる。
+    expect(router.canPop(), isTrue);
+    await tester.pump(const Duration(milliseconds: 300));
+    router.go('/');
+    await tester.pumpAndSettle();
+    expect(find.text('pane'), findsNothing);
+    expect(find.text('open'), findsOneWidget);
+    await tester.pump(const Duration(milliseconds: 300));
+  });
+
+  testWidgets('ポップアップ内ポップアップは、戻る1回で最新の1つだけ閉じる（Navigatorに一括で消されない）', (
+    tester,
+  ) async {
+    final container = makeContainer();
+    final router = await pumpHome(tester, container);
+
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('dialog'));
+    await tester.pumpAndSettle();
+    showDialog<void>(
+      context: tester.element(find.text('dialog-body')),
+      builder: (_) => const AlertDialog(content: Text('inner-body')),
+    );
+    await tester.pumpAndSettle();
+
+    // ブラウザの戻る相当（ページ一覧がホームだけに入れ替わる）。
+    Future<void> back() async {
+      router.go('/');
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 300));
+    }
+
+    await back();
+    expect(find.text('inner-body'), findsNothing);
+    expect(find.text('dialog-body'), findsOneWidget, reason: '手前のポップアップは残る');
+    await back();
+    expect(find.text('dialog-body'), findsNothing);
+    expect(find.text('pane'), findsOneWidget);
+    await back();
+    expect(find.text('pane'), findsNothing);
+  });
 }

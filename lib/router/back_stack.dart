@@ -56,6 +56,13 @@ class BackStackController extends ChangeNotifier {
   int _nextId = 1;
   int _nextDialogKey = 1;
 
+  @override
+  void dispose() {
+    _backBatchTimer?.cancel();
+    _externalOverlayTimer?.cancel();
+    super.dispose();
+  }
+
   /// ルーターへの実際のpushを結びつける（`goRouterProvider`が呼ぶ）。
   void attach({required void Function(int id) push}) {
     _push = push;
@@ -128,7 +135,23 @@ class BackStackController extends ChangeNotifier {
     return key;
   }
 
-  void removeDialog(int key) => _dialogs.remove(key);
+  /// 画面内の状態（位置調整中など）が自分で閉じた時に、その登録を外す。
+  /// [removeDialog]と違い、ルートごと閉じられたわけではないので時刻は覚えない。
+  void releaseDialog(int key) => _dialogs.remove(key);
+
+  /// 登録済みのダイアログを外す。登録されていたら、自分の`closeTopOverlay`以外
+  /// （ルートごとNavigatorに消された・ユーザーが閉じた）で閉じたことになるため、
+  /// その時刻を覚える（[onRouteGone]が、同じ戻る操作で二重に戻らないために使う）。
+  void removeDialog(int key) {
+    if (_dialogs.remove(key) == null) return;
+    _externalOverlayTimer?.cancel();
+    _externalOverlayTimer = Timer(
+      _backBatchWindow,
+      () => _externalOverlayTimer = null,
+    );
+  }
+
+  Timer? _externalOverlayTimer;
 
   /// 透明ルート`/_b/{id}`が消えた（戻る操作・ルーターのリセット等）時に
   /// 呼ぶ。[NavigatorObserver]から届く。ブラウザ/Androidの戻るはここへ来て、
@@ -137,9 +160,51 @@ class BackStackController extends ChangeNotifier {
     if (!_tokens.remove(id)) return;
     // 戻るで消えたトークンはブラウザの「進む」で復元されうる。
     _forwardIds.add(id);
-    requestBack();
+    // 1回の戻る操作で複数のトークンが同時に消えること（履歴の復元・リダイレクトで
+    // ルートがまとめて入れ替わる等）がある。その全てで戻る要求を処理すると、
+    // 1回の操作で何階層も戻ってしまう（2026-10-14、診断ログで1回の戻るに対し
+    // 戻る要求が10回以上走っていたのを確認）。短い間に続けて消えた分は、
+    // 履歴の帳尻合わせだけにして、戻る要求は最初の1回だけ処理する。
+    if (_backBatchTimer == null) {
+      _backBatchTimer = Timer(_backBatchWindow, () => _backBatchTimer = null);
+      if (_externalOverlayTimer != null) {
+        // 履歴トークンの下のページが消えた時、その上に重なっていたダイアログ・
+        // ビューア（命令的ルート）もNavigatorが一緒に閉じる。それが今回の戻るで
+        // 閉じる1階層なので、さらに戻る要求を処理しない（二重に戻るのを防ぐ）。
+        _externalOverlayTimer?.cancel();
+        _externalOverlayTimer = null;
+        _log('back: overlay closed together with the route');
+      } else {
+        requestBack();
+      }
+    } else {
+      _log('back: coalesced (token $id gone in the same batch)');
+    }
     if (_tokens.isEmpty) notifyListeners();
   }
+
+  /// 履歴トークンのページが戻る操作で消される直前に呼ぶ（`GoRoute.onExit`）。
+  /// トークンのページが消えると、その上に重なっているダイアログ・ビューア・
+  /// 工房のカード編集など（命令的ルート）もNavigatorがまとめて閉じてしまい、
+  /// 戻る1回で何階層も戻っていた（2026-10-14）。ここで先に戻る要求を処理して
+  /// 1階層だけ閉じ、閉じられたら`true`を返してページの消失を中止させる。
+  /// 閉じるものが無ければ`false`（通常どおりトークンを消す）。同じ戻る操作の
+  /// 間（[_backBatchWindow]内）の2回目以降は、何もせず中止（`true`）する。
+  bool interceptTokenExit() {
+    if (_backBatchTimer != null) {
+      _log('back: coalesced (token exit in the same batch)');
+      return true;
+    }
+    final handled = requestBack();
+    if (handled) {
+      _backBatchTimer = Timer(_backBatchWindow, () => _backBatchTimer = null);
+    }
+    return handled;
+  }
+
+  /// 同じ戻る操作とみなす、トークンの消失の間隔。
+  static const _backBatchWindow = Duration(milliseconds: 150);
+  Timer? _backBatchTimer;
 
   /// ブラウザの「進む」で履歴トークン`/_b/{id}`が復元された時に呼ぶ
   /// （[BackStackObserver]から届く）。直前の戻るをやり直す。
@@ -172,31 +237,26 @@ class BackStackController extends ChangeNotifier {
   /// しまうのを避ける）。閉じたらtrue＝ルートの遷移（一覧へ戻る）を中止する。
   bool closeTopLayer() {
     if (closeTopOverlay()) return true;
-    for (var i = _stack.length - 1; i >= 0; i--) {
-      final entry = _stack[i];
-      if (entry.scope != null && entry.scope != activeScope) continue;
-      if (!entry.layer) {
-        _log('closeTopLayer: top entry id=${entry.id} is not a layer');
-        return false;
-      }
-      _stack.removeAt(i);
-      _log('closeTopLayer: id=${entry.id} depth=${_stack.length}');
-      entry.onBack();
-      return true;
+    final index = _targetIndex(layersOnly: true);
+    if (index < 0) {
+      _log('closeTopLayer: no layer (overlays=${_dialogs.length})');
+      return false;
     }
-    _log('closeTopLayer: nothing open (overlays=${_dialogs.length})');
-    return false;
+    final entry = _stack.removeAt(index);
+    _log('closeTopLayer: id=${entry.id} depth=${_stack.length}');
+    entry.onBack();
+    return true;
   }
 
   /// 戻る要求。何かを戻した（閉じた）ならtrue。
   bool requestBack() {
     if (closeTopOverlay()) return true;
-    for (var i = _stack.length - 1; i >= 0; i--) {
-      final entry = _stack[i];
-      if (entry.scope != null && entry.scope != activeScope) continue;
-      _stack.removeAt(i);
+    final index = _targetIndex(layersOnly: false);
+    if (index >= 0) {
+      final entry = _stack.removeAt(index);
       _log(
-        'back: scope=${activeScope.name} id=${entry.id} depth=${_stack.length}',
+        'back: scope=${activeScope.name} id=${entry.id} layer=${entry.layer} '
+        'depth=${_stack.length}',
       );
       final forward = entry.onForward;
       if (forward != null) {
@@ -226,8 +286,34 @@ class BackStackController extends ChangeNotifier {
   /// 新しい操作が記録された時にやり直し分を破棄する（履歴の所有者が呼ぶ）。
   void clearRedo(BackScope scope) => _redo[scope]?.clear();
 
+  /// 直近の戻る操作のログ（診断用、2026-10-13）。URLに`?backdebug=1`を付けた時だけ
+  /// 画面に出す（`BackDebugOverlay`）。
+  final ValueNotifier<List<String>> debugLines = ValueNotifier(const []);
+
   void _log(String message) {
+    final lines = [...debugLines.value, message];
+    if (lines.length > 16) lines.removeRange(0, lines.length - 16);
+    debugLines.value = lines;
     if (kDebugMode) debugPrint('[BACK] $message');
+  }
+
+  /// 診断用: 観測したルートの出入りなど、外部（[BackStackObserver]）からのログ。
+  void log(String message) => _log(message);
+
+  /// 戻る要求が閉じる対象のエントリの位置。画面の見た目上、層（カレンダー・ノート・
+  /// アルバム・通話・寄合の履歴）は常にタブ内の一覧選択等の履歴より前面にあるため、
+  /// 登録順に関わらず、有効な層のうち最後のものを優先する。層が無ければ最後の
+  /// 有効なエントリ（2026-10-13、層より後に登録し直された履歴エントリに
+  /// 先に反応して、層が閉じず一覧まで戻ってしまうのを防ぐ）。
+  int _targetIndex({required bool layersOnly}) {
+    var lastAny = -1;
+    for (var i = _stack.length - 1; i >= 0; i--) {
+      final entry = _stack[i];
+      if (entry.scope != null && entry.scope != activeScope) continue;
+      if (entry.layer) return i;
+      if (lastAny < 0) lastAny = i;
+    }
+    return layersOnly ? -1 : lastAny;
   }
 }
 
@@ -285,9 +371,11 @@ class NavHistory<T> {
   }
 }
 
-final backStackControllerProvider = Provider<BackStackController>(
-  (ref) => BackStackController(),
-);
+final backStackControllerProvider = Provider<BackStackController>((ref) {
+  final controller = BackStackController();
+  ref.onDispose(controller.dispose);
+  return controller;
+});
 
 /// `/_b/{id}`の透明なルート（ブラウザ履歴1件分の置き場）。見た目は何も無く、
 /// 背後の画面はそのまま表示され続ける。フォーカスも奪わない（背後の
@@ -332,6 +420,7 @@ class BackStackObserver extends NavigatorObserver {
   }
 
   void _gone(Route<dynamic> route) {
+    controller.log('route gone: ${route.settings.name ?? route.runtimeType}');
     final id = backIdOf(route);
     if (id != null) {
       // Navigatorの更新中に状態を触らないよう、次のマイクロタスクで処理する。
@@ -349,6 +438,10 @@ class BackStackObserver extends NavigatorObserver {
     // これだけを閉じる（2026-10-06追加）。
     final imperative = route.settings is! Page<dynamic>;
     final backId = backIdOf(route);
+    controller.log(
+      'route push: ${route.settings.name ?? route.runtimeType}'
+      '${imperative ? ' (imperative)' : ''}',
+    );
     if (backId != null) {
       // 自前で積んだトークンは対象外（コントローラが`_forwardIds`にあるidだけ
       // 進む操作として扱う）。
@@ -626,6 +719,14 @@ class _BackBaseGuardState extends ConsumerState<BackBaseGuard> {
     backStackControllerProvider,
   );
 
+  /// Webでは、履歴トークンを「ユーザー操作（クリック・タップ）の中」で積む。
+  /// Chromeは、ユーザー操作を伴わずに積まれた履歴エントリを「戻る」で飛ばす
+  /// （戻るボタン乗っ取り対策）。起動直後に31個のトークンを自動で積むと、1回の
+  /// 戻るで全てがまとめて飛ばされ、トークンが一度に消えて何階層も戻ってしまう
+  /// ほか、履歴の最初のエントリより前（＝サイトの外）へ出ることがあった
+  /// （2026-10-14）。操作の中で積めば、トークンごとに普通のエントリになる。
+  bool _waitingForGesture = false;
+
   @override
   void initState() {
     super.initState();
@@ -637,8 +738,19 @@ class _BackBaseGuardState extends ConsumerState<BackBaseGuard> {
     if (!mounted) return;
     // 通知はNavigatorの更新中に届くことがあるため、フレーム後に積み直す。
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && !_controller.hasBase) _controller.ensureBase();
+      if (!mounted || _controller.hasBase) return;
+      if (kIsWeb) {
+        _waitingForGesture = true;
+      } else {
+        _controller.ensureBase();
+      }
     });
+  }
+
+  void _onGesture() {
+    if (!_waitingForGesture || _controller.hasBase) return;
+    _waitingForGesture = false;
+    _controller.ensureBase();
   }
 
   @override
@@ -648,7 +760,15 @@ class _BackBaseGuardState extends ConsumerState<BackBaseGuard> {
   }
 
   @override
-  Widget build(BuildContext context) => widget.child;
+  Widget build(BuildContext context) {
+    if (!kIsWeb) return widget.child;
+    return Listener(
+      behavior: HitTestBehavior.translucent,
+      onPointerDown: (_) => _onGesture(),
+      onPointerUp: (_) => _onGesture(),
+      child: widget.child,
+    );
+  }
 }
 
 /// マウスの「戻る」「進む」ボタン（サイドボタン）を[BackStackController]へ

@@ -8,6 +8,7 @@ import '../../models/call.dart';
 import '../../repositories/call_repository.dart';
 import '../../repositories/direct_message_repository.dart';
 import 'call_sound_player.dart';
+import 'disconnect_grace.dart';
 import 'rtc_config.dart';
 import 'webrtc_media_constraints.dart';
 
@@ -59,6 +60,15 @@ class WebrtcCallController extends ChangeNotifier {
   bool _remoteDescriptionSet = false;
   final List<Map<String, dynamic>> _pendingRemoteCandidates = [];
   final Set<String> _appliedCandidateKeys = {};
+
+  /// 「終了」を相手へWebRTC経由で即時に伝えるデータチャネル（2026-10-13）。
+  /// Firestoreの購読は回線切替等で配信が数十秒遅れることがあり、それとは別の
+  /// 経路で切断を確実に伝える（Firestoreの`ended`書き込みも従来どおり行う）。
+  RTCDataChannel? _controlChannel;
+  static const _byeMessage = 'bye';
+  late final DisconnectGrace _disconnectGrace = DisconnectGrace(
+    onExpired: _endFromConnectionLoss,
+  );
 
   bool _connectionIssue = false;
   bool get connectionIssue => _connectionIssue;
@@ -173,6 +183,17 @@ class WebrtcCallController extends ChangeNotifier {
         }
       }
 
+      // 発信側がオファー前に作る（オファーに含まれ、再ネゴシエーション不要）。
+      if (isCaller) {
+        _attachControlChannel(
+          await _peerConnection!.createDataChannel(
+            'control',
+            RTCDataChannelInit()..ordered = true,
+          ),
+        );
+      }
+      _peerConnection!.onDataChannel = _attachControlChannel;
+
       _peerConnection!.onTrack = (event) {
         if (event.streams.isNotEmpty) {
           remoteRenderer.srcObject = event.streams.first;
@@ -186,6 +207,17 @@ class WebrtcCallController extends ChangeNotifier {
         if (issue != _connectionIssue) {
           _connectionIssue = issue;
           notifyListeners();
+        }
+        // 通話確立後の接続断は、相手が落ちた・回線が切れたとみなして終了する
+        // （失敗・クローズは即、切断は猶予後）。呼び出し中は対象外。
+        if (_state != CallConnectionState.active) return;
+        if (iceState == RTCIceConnectionState.RTCIceConnectionStateFailed ||
+            iceState == RTCIceConnectionState.RTCIceConnectionStateClosed) {
+          _endFromConnectionLoss();
+        } else {
+          _disconnectGrace.update(
+            iceState == RTCIceConnectionState.RTCIceConnectionStateDisconnected,
+          );
         }
       };
 
@@ -551,8 +583,48 @@ class WebrtcCallController extends ChangeNotifier {
   }
 
   Future<void> hangUp() async {
-    await _callRepository.updateStatus(call.callId, CallStatus.ended);
+    // 先に相手へWebRTCで終了を伝え、自分も即座に閉じる。Firestoreの書き込み
+    // （遅い・失敗することがある）は閉じた後に行い、本人の画面を待たせない。
+    _sendBye();
     _finish();
+    await _writeEndedWithRetry();
+  }
+
+  void _attachControlChannel(RTCDataChannel channel) {
+    _controlChannel = channel;
+    channel.onMessage = (message) {
+      if (!message.isBinary && message.text == _byeMessage) _finish();
+    };
+  }
+
+  void _sendBye() {
+    final channel = _controlChannel;
+    if (channel == null ||
+        channel.state != RTCDataChannelState.RTCDataChannelOpen) {
+      return;
+    }
+    try {
+      channel.send(RTCDataChannelMessage(_byeMessage));
+    } catch (_) {
+      // 送れなくてもFirestore経由で終了は伝わる。
+    }
+  }
+
+  Future<void> _writeEndedWithRetry() async {
+    for (var attempt = 0; attempt < 3; attempt++) {
+      try {
+        await _callRepository.updateStatus(call.callId, CallStatus.ended);
+        return;
+      } catch (_) {
+        await Future<void>.delayed(const Duration(seconds: 2));
+      }
+    }
+  }
+
+  void _endFromConnectionLoss() {
+    if (_state == CallConnectionState.ended) return;
+    _finish();
+    unawaited(_writeEndedWithRetry());
   }
 
   void toggleMute() {
@@ -728,6 +800,7 @@ class WebrtcCallController extends ChangeNotifier {
 
   @override
   void dispose() {
+    _disconnectGrace.cancel();
     _callSub?.cancel();
     _candidatesSub?.cancel();
     soundPlayer.dispose();
