@@ -7,6 +7,8 @@ import {
   userAgentsFor,
   decodeHtmlEntities,
   parseOgTags,
+  isRelayHost,
+  dropLoginWall,
 } from './worker.js';
 
 test('pixivのURL解析', () => {
@@ -57,4 +59,18 @@ test('数値文字参照・アポストロフィ入りのOGPを読める', () =>
   const og = parseOgTags(html);
   assert.equal(og.title, 'It\'s "ok"');
   assert.equal(og.image, 'https://x/y.jpg');
+});
+
+test('取得中継を使うのはpixiv・Instagramだけ', () => {
+  assert.equal(isRelayHost('www.pixiv.net'), true);
+  assert.equal(isRelayHost('pixiv.net'), true);
+  assert.equal(isRelayHost('www.instagram.com'), true);
+  assert.equal(isRelayHost('example.com'), false);
+  assert.equal(isRelayHost('pixiv.net.evil.com'), false);
+});
+
+test('Instagramのログイン壁はプレビューとして使わない', () => {
+  assert.equal(dropLoginWall({ title: 'ログイン • Instagram', description: null, image: null }).title, null);
+  assert.equal(dropLoginWall({ title: 'Login • Instagram', description: 'x', image: 'y' }).image, null);
+  assert.equal(dropLoginWall({ title: 'Måneskin (@maneskinofficial) • Instagram', description: null, image: null }).title, 'Måneskin (@maneskinofficial) • Instagram');
 });

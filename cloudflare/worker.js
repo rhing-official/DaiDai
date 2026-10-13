@@ -20,7 +20,7 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     const path = url.pathname;
-    if (path === '/api/url-preview') return urlPreview(url);
+    if (path === '/api/url-preview') return urlPreview(url, env);
     if (path === '/api/url-preview-image') return previewImage(url);
     if (path === '/api/og-image') return ogImage(url, env);
     if (/^\/invite\/[^/]+(?:\/[^/]+)?\/?$/.test(path) || /^\/join\/[^/]+(?:\/[^/]+)?\/?$/.test(path)) {
@@ -127,7 +127,7 @@ function json(body, status = 200, extra = {}) {
   });
 }
 
-async function urlPreview(url) {
+async function urlPreview(url, env) {
   const target = url.searchParams.get('url');
   if (!target) return json({ error: 'url is required' }, 400);
 
@@ -147,7 +147,7 @@ async function urlPreview(url) {
   const debug = url.searchParams.get('debug') === '1';
   const oembed = isYouTubeHost(parsed.hostname)
     ? await fetchYouTubeOEmbed(parsed.toString())
-    : (await fetchPixivPreview(parsed, url.origin)) ??
+    : (await fetchPixivPreview(parsed, url.origin, env)) ??
       (await fetchSiteOEmbed(parsed));
 
   let meta;
@@ -160,6 +160,7 @@ async function urlPreview(url) {
     meta = { title: null, description: null, image: null };
     // pixiv等はデータセンターからのアクセスや一般的なUAを弾くことがあるため、
     // 取れなかった時はリンク展開bot向けのUAで順に取り直す。
+    let relayTried = false;
     for (const ua of userAgentsFor(parsed.hostname)) {
       let result;
       try {
@@ -169,7 +170,17 @@ async function urlPreview(url) {
         continue;
       }
       trace.push(`${ua.split('/')[0]}:${result.status}`);
-      const found = parseOgTags(result.text);
+      let found = dropLoginWall(parseOgTags(result.text));
+      if (!(found.title || found.description || found.image)) {
+        // 直接の取得が弾かれた（403/429等）pixiv・Instagramは、Google Cloudの
+        // 取得中継（`urlFetchRelay`）から取り直す。
+        const relayed = relayTried ? null : await relayFetch(env, parsed.toString(), ua);
+        relayTried = relayTried || relayed !== null;
+        if (relayed) {
+          trace.push(`relay-${ua.split('/')[0]}:${relayed.status}`);
+          found = dropLoginWall(parseOgTags(relayed.text));
+        }
+      }
       if (found.title || found.description || found.image) {
         meta = found;
         break;
@@ -252,13 +263,30 @@ function stripTags(html) {
   return decodeHtmlEntities(String(html).replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '')).trim();
 }
 
-async function fetchPixivPreview(parsed, origin) {
+async function fetchPixivPreview(parsed, origin, env) {
   const target = parsePixivUrl(parsed);
   if (!target) return null;
   const endpoint =
     target.kind === 'artwork'
       ? `https://www.pixiv.net/ajax/illust/${target.id}`
       : `https://www.pixiv.net/ajax/user/${target.id}?full=1`;
+  let data = await fetchJsonDirect(endpoint);
+  if (!data || data.error || !data.body) {
+    // CloudflareのIPからは403になるため、取得中継（Google CloudのIP）から取り直す。
+    const relayed = await relayFetch(env, endpoint, USER_AGENTS[0], 'https://www.pixiv.net/');
+    if (relayed && relayed.status === 200) {
+      try {
+        data = JSON.parse(relayed.text);
+      } catch (e) {
+        data = null;
+      }
+    }
+  }
+  if (!data || data.error || !data.body) return null;
+  return pixivPreviewFromAjax(target.kind, target.id, data.body, origin);
+}
+
+async function fetchJsonDirect(endpoint) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
@@ -267,9 +295,44 @@ async function fetchPixivPreview(parsed, origin) {
       headers: { 'User-Agent': USER_AGENTS[0], Referer: 'https://www.pixiv.net/' },
     });
     if (!response.ok) return null;
+    return await response.json();
+  } catch (e) {
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+// Google Cloudの取得中継（Cloud Functions `urlFetchRelay`）。`URL_FETCH_RELAY_ORIGIN`
+// （Pagesの環境変数、未設定なら既定のURL）で上書きできる。取得先が中継の許可ホスト以外なら使わない。
+export function isRelayHost(hostname) {
+  const host = hostname.toLowerCase().replace(/^www\./, '');
+  return host === 'pixiv.net' || host === 'instagram.com';
+}
+
+// 既定の中継先（公開の関数URL。許可ホストしか取得できない）。環境変数で上書きできる。
+const DEFAULT_RELAY_ORIGIN = 'https://asia-northeast1-daidai-rhing.cloudfunctions.net/urlFetchRelay';
+
+async function relayFetch(env, target, userAgent, referer) {
+  const origin = (env && env.URL_FETCH_RELAY_ORIGIN) || DEFAULT_RELAY_ORIGIN;
+  let parsed;
+  try {
+    parsed = new URL(target);
+  } catch (e) {
+    return null;
+  }
+  if (!isRelayHost(parsed.hostname)) return null;
+  const relayUrl = new URL(origin);
+  relayUrl.searchParams.set('url', target);
+  relayUrl.searchParams.set('ua', userAgent.split('/')[0].split(' ')[0]);
+  if (referer) relayUrl.searchParams.set('referer', referer);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10000);
+  try {
+    const response = await fetch(relayUrl.toString(), { signal: controller.signal });
+    if (!response.ok) return null;
     const data = await response.json();
-    if (data.error || !data.body) return null;
-    return pixivPreviewFromAjax(target.kind, target.id, data.body, origin);
+    return { status: Number(data.status) || 0, text: typeof data.text === 'string' ? data.text : '' };
   } catch (e) {
     return null;
   } finally {
@@ -457,6 +520,16 @@ async function fetchTextWithLimit(url, userAgent) {
   } finally {
     clearTimeout(timeout);
   }
+}
+
+// ログインを求める壁（Instagramのアカウントページを非ログインで取ると返る）は、
+// プレビューとして無意味なので取得失敗として扱う。
+export function dropLoginWall(meta) {
+  const title = (meta.title || '').trim();
+  if (/^(ログイン|log ?in)(\s|•|$).*instagram/i.test(title)) {
+    return { title: null, description: null, image: null };
+  }
+  return meta;
 }
 
 export function parseOgTags(html) {

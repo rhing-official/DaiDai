@@ -55,6 +55,7 @@ import {
   parseProfileViewRequest,
 } from "./adminUsers";
 import { renderOgImage } from "./ogImage";
+import { parseAllowedUrl, resolveReferer, resolveUserAgent } from "./urlFetchRelay";
 import { resolveMentionRecipients } from "./mentions";
 import { excludeBlockers } from "./block";
 import { severanceNotifyTarget } from "./severanceNotify";
@@ -3819,6 +3820,62 @@ export const ogImage = onRequest(
     } catch (err) {
       logger.error("OGP画像の生成に失敗しました:", err);
       res.status(500).send("failed to render");
+    }
+  },
+);
+
+/**
+ * リンクプレビュー用の取得中継（2026-10-14）。Cloudflare WorkerからはpixivとInstagram
+ * （一部）がIPで弾かれるため、Worker側がこの関数（Google CloudのIP）経由で取り直す。
+ * 誰でも呼べる公開エンドポイントのため、取得先は許可ホスト（pixiv・Instagram）に
+ * 限定し、リダイレクトも許可ホスト内だけ追従する。応答は`{ status, text }`で、
+ * 解析（OGP・pixivのajax）はWorker側が行う。
+ */
+export const urlFetchRelay = onRequest(
+  { region: "asia-northeast1", memory: "256MiB", timeoutSeconds: 15, cors: true },
+  async (req, res) => {
+    if (req.method !== "GET") {
+      res.status(405).send("GET only");
+      return;
+    }
+    const target = parseAllowedUrl(req.query.url);
+    if (!target) {
+      res.status(400).json({ error: "url not allowed" });
+      return;
+    }
+    const headers: Record<string, string> = {
+      "User-Agent": resolveUserAgent(req.query.ua),
+      "Accept-Language": "ja,en;q=0.8",
+    };
+    const referer = resolveReferer(req.query.referer);
+    if (referer) headers.Referer = referer;
+    try {
+      let current = target;
+      let response: Response | null = null;
+      for (let hop = 0; hop < 3; hop++) {
+        response = await fetch(current, {
+          headers,
+          redirect: "manual",
+          signal: AbortSignal.timeout(8000),
+        });
+        const location = response.headers.get("location");
+        if (response.status >= 300 && response.status < 400 && location) {
+          const next = parseAllowedUrl(new URL(location, current).toString());
+          if (!next) break;
+          current = next;
+          continue;
+        }
+        break;
+      }
+      const body = response ? await response.text() : "";
+      res.set("Cache-Control", "no-store");
+      res.status(200).json({
+        status: response?.status ?? 0,
+        text: body.slice(0, 2 * 1024 * 1024),
+      });
+    } catch (err) {
+      logger.warn("取得中継に失敗しました:", String(err));
+      res.status(200).json({ status: 0, text: "" });
     }
   },
 );
