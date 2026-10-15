@@ -28,10 +28,17 @@ class InteractiveSwipeBackController {
   InteractiveSwipeBackController({
     required TickerProvider vsync,
     required this.onCommit,
+    this.consumeBack,
     this.notifyNavigator = true,
   }) : _animationController = AnimationController(vsync: vsync);
 
   final VoidCallback onCommit;
+
+  /// 戻るを確定する時（指を離した時）に先に呼ばれ、内側の階層を1つ閉じたら`true`を
+  /// 返す（2026-10-15）。`true`なら外側の戻る（[onCommit]）はせず、画面は元の位置へ
+  /// 戻る。ローカルNavigatorを持つ画面（ライセンス一覧の中の項目など）で、1階層だけ
+  /// 戻るために使う。
+  final bool Function()? consumeBack;
 
   /// ドラッグ中、`Navigator.didStartUserGesture`／`didStopUserGesture`で
   /// Navigatorへ通知するか（2026-10-07追加）。Flutterの`ModalRoute`は通知中
@@ -93,8 +100,10 @@ class InteractiveSwipeBackController {
     if (navigator != null && navigator.mounted) navigator.didStopUserGesture();
   }
 
-  void _finish(bool commit) {
+  void _finish(bool wantCommit) {
     isGestureActive = false;
+    // 内側の階層を閉じた場合は、外側へ戻らず元の位置へ戻す。
+    final commit = wantCommit && !(consumeBack?.call() ?? false);
 
     final start = progress.value;
     final target = commit ? maxDrag : 0.0;
@@ -182,12 +191,17 @@ class InteractiveSwipeBackTransition extends StatefulWidget {
     required this.onBack,
     required this.child,
     this.onNext,
+    this.consumeBack,
     this.enabled = true,
     super.key,
   });
 
   final VoidCallback onBack;
   final VoidCallback? onNext;
+
+  /// 戻るを確定する直前に呼ばれ、内側の階層を1つ閉じたら`true`を返す
+  /// （[InteractiveSwipeBackController.consumeBack]参照）。
+  final bool Function()? consumeBack;
   final Widget child;
 
   /// falseの間は右スワイプ・右スクロールの「戻る」を受け付けない
@@ -206,7 +220,11 @@ class _InteractiveSwipeBackTransitionState
     extends State<InteractiveSwipeBackTransition>
     with SingleTickerProviderStateMixin {
   late final InteractiveSwipeBackController _controller =
-      InteractiveSwipeBackController(vsync: this, onCommit: widget.onBack);
+      InteractiveSwipeBackController(
+        vsync: this,
+        onCommit: widget.onBack,
+        consumeBack: () => widget.consumeBack?.call() ?? false,
+      );
 
   double _cumulativeDx = 0;
 
@@ -241,7 +259,9 @@ class _InteractiveSwipeBackTransitionState
     if (dx <= kSwipeBackScrollThreshold || dx.abs() <= dy.abs()) return;
     _scrollBackTimer?.cancel();
     _scrollBackTimer = Timer(const Duration(milliseconds: 150), () {
-      if (mounted) widget.onBack();
+      if (!mounted) return;
+      if (widget.consumeBack?.call() ?? false) return;
+      widget.onBack();
     });
   }
 

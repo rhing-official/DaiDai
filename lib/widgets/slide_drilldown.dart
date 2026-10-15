@@ -16,6 +16,7 @@ class SlideDrilldown extends StatelessWidget {
     required this.detailKey,
     this.onBack,
     this.onNext,
+    this.consumeBack,
     super.key,
   });
 
@@ -28,6 +29,10 @@ class SlideDrilldown extends StatelessWidget {
   /// `InteractiveSwipeBackTransition`（`enabled`切替付き）を持つ場合に使う）。
   final VoidCallback? onBack;
   final VoidCallback? onNext;
+
+  /// 右スワイプで戻る確定の直前に呼ばれ、内側の階層を1つ閉じたら`true`を返す
+  /// （外側へは戻らない、2026-10-15、設定のライセンス一覧の項目用）。
+  final bool Function()? consumeBack;
 
   @override
   Widget build(BuildContext context) {
@@ -44,6 +49,7 @@ class SlideDrilldown extends StatelessWidget {
                 key: ValueKey(detailKey),
                 onBack: onBack,
                 onNext: onNext,
+                consumeBack: consumeBack,
                 child: detail!,
               ),
             ),
@@ -58,11 +64,13 @@ class _SlideInDetail extends StatefulWidget {
     super.key,
     this.onBack,
     this.onNext,
+    this.consumeBack,
     required this.child,
   });
 
   final VoidCallback? onBack;
   final VoidCallback? onNext;
+  final bool Function()? consumeBack;
   final Widget child;
 
   @override
@@ -93,6 +101,7 @@ class _SlideInDetailState extends State<_SlideInDetail>
       InteractiveSwipeBackTransition(
         onBack: onBack,
         onNext: widget.onNext,
+        consumeBack: widget.consumeBack,
         // masterへのヒットテスト透過・見た目上の欠けを防ぐため、detail全体を
         // 不透明な背景で裏打ちする（2026-09-12追加）。`ColoredBox`だと
         // detail内のListTile等がここより上にあるMaterial祖先の

@@ -101,3 +101,8 @@ bool get isPasskeyCapablePlatform =>
     Platform.isIOS ||
     Platform.isMacOS ||
     Platform.isWindows;
+
+/// カメラでQRコードを読み取れるプラットフォームか（2026-10-15）。`mobile_scanner`が
+/// Web・Android・iOS・macOSに対応し、Windows・Linuxには無い。
+bool get isQrScanCapablePlatform =>
+    kIsWeb || Platform.isAndroid || Platform.isIOS || Platform.isMacOS;

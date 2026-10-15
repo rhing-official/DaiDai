@@ -13,6 +13,7 @@ import '../../widgets/google_sign_in_button.dart';
 import 'passkey_recovery_dialog.dart';
 import 'passkey_sign_in_dialog.dart';
 import 'qr_login_dialog.dart';
+import 'scan_qr_login_dialog.dart';
 
 class SignInScreen extends ConsumerStatefulWidget {
   const SignInScreen({super.key});
@@ -183,6 +184,16 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
         icon: const Icon(Icons.qr_code_scanner),
         label: strings.qrLoginDialogTitle,
       ),
+      // ログイン済み端末が表示したQRを、この端末で読み取ってログインする経路
+      // （2026-10-15追加）。カメラが使えないプラットフォームでは出さない。
+      if (isQrScanCapablePlatform) ...[
+        const SizedBox(height: 12),
+        BrandedBlockButton(
+          onPressed: () => startScanQrLogin(context, strings),
+          icon: const Icon(Icons.qr_code_2),
+          label: strings.qrScanLoginButton,
+        ),
+      ],
       // Rhing Seed＋パスキー（WebAuthn）でのログイン・新規アカウント作成
       // （2026-09-16追加）。Linuxはパスキー非対応のため導線ごと出さない
       // （`isPasskeyCapablePlatform`参照、当面Google/Appleログインのみ）。

@@ -22,6 +22,9 @@ import '../../providers/repository_providers.dart';
 import '../../utils/attachment_upload.dart';
 import '../../utils/auto_dismiss_banner.dart';
 import '../../utils/note_export.dart';
+import '../../utils/note_copy.dart';
+import '../../utils/note_markdown_parsers.dart';
+import '../../utils/note_paste.dart';
 import '../../utils/note_transaction_codec.dart';
 import '../../utils/platform_info.dart';
 import '../../widgets/glass/glass_app_bar.dart';
@@ -212,7 +215,17 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
     _load();
   }
 
+  /// 直前のカーソルの位置。目次ブロックにカーソルが乗ったとき、移動方向
+  /// （↑↓）を判定して隣の行へ逃がすのに使う。
+  Path? _lastSelectionPath;
+
   void _onSelectionChanged() {
+    final editorState = _editorState;
+    final selection = editorState?.selection;
+    if (editorState != null && selection != null) {
+      moveCaretOffTableOfContents(editorState, _lastSelectionPath);
+    }
+    _lastSelectionPath = editorState?.selection?.end.path;
     final visible = _editorState?.selection != null;
     if (_caretVisible.value != visible) _caretVisible.value = visible;
     _debugCaret(
@@ -671,8 +684,8 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       textAction(strings.noteSelectionCut, cutCommand),
-                      textAction(strings.noteSelectionCopy, copyCommand),
-                      textAction(strings.noteSelectionPaste, pasteCommand),
+                      textAction(strings.noteSelectionCopy, noteCopyCommand),
+                      textAction(strings.noteSelectionPaste, notePasteCommand),
                       for (final item in formatItems)
                         if (item.builder != null)
                           item.builder!(
@@ -749,7 +762,21 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
         keywords: const ['quote'],
         handler: (editorState, _, _) => insertQuoteAfterSelection(editorState),
       ),
-      dividerMenuItem,
+      // 区切り線: ライブラリ標準の`dividerMenuItem`は表示名が英語固定
+      // （`AppFlowyEditorL10n`）のため、挿入処理は同じまま`strings`で名前を
+      // 出す専用の項目にした。
+      SelectionMenuItem(
+        getName: () => strings.noteMenuDivider,
+        icon: (editorState, isSelected, style) => Icon(
+          Icons.horizontal_rule,
+          size: 18.0,
+          color: isSelected
+              ? style.selectionMenuItemSelectedIconColor
+              : style.selectionMenuItemIconColor,
+        ),
+        keywords: const ['horizontal rule', 'divider'],
+        handler: (editorState, _, _) => _insertDivider(editorState),
+      ),
       // 表・目次（2026-09-27追加、ユーザー指示）。表はベンダリング済みAppFlowy
       // Editorに既に実装があり（`blockComponentBuilders`はデフォルトの
       // `standardBlockComponentBuilderMap`を継承しているため編集自体は
@@ -778,7 +805,7 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
         ),
         keywords: const ['table of contents', 'toc', 'outline'],
         handler: (editorState, _, _) =>
-            insertNodeAfterSelection(editorState, tableOfContentsNode()),
+            insertTableOfContentsAfterSelection(editorState),
       ),
       // 添付ファイルは以前「画像/動画/ファイル」の3択ポップアップ1項目
       // だったが、参考画像の構成に合わせて画像/音声/ファイルを独立した項目に
@@ -942,6 +969,22 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
     );
   }
 
+  /// 区切り線を挿入し、直後の空の段落へカーソルを置く（`dividerMenuItem`と
+  /// 同じ処理。空の段落の上で実行したときはその段落を置き換える）。
+  void _insertDivider(EditorState editorState) {
+    final selection = editorState.selection;
+    if (selection == null || !selection.isCollapsed) return;
+    final path = selection.end.path;
+    final delta = editorState.getNodeAtPath(path)?.delta;
+    if (delta == null) return;
+    final insertedPath = delta.isEmpty ? path : path.next;
+    final transaction = editorState.transaction
+      ..insertNode(insertedPath, dividerNode())
+      ..insertNode(insertedPath, paragraphNode())
+      ..afterSelection = Selection.collapsed(Position(path: insertedPath.next));
+    editorState.apply(transaction);
+  }
+
   String get _storagePathPrefix =>
       'noteAttachments/${widget.isDm ? 'dm' : 'group'}/${widget.conversationId}';
 
@@ -1019,7 +1062,10 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
       } else {
         final editorState = _editorState;
         if (editorState == null) return;
-        final markdown = documentToMarkdown(editorState.document);
+        final markdown = documentToMarkdown(
+          editorState.document,
+          customParsers: noteMarkdownCustomParsers,
+        );
         await saveNoteFile(
           fileName: '$baseName.md',
           bytes: Uint8List.fromList(utf8.encode(markdown)),
@@ -1268,7 +1314,12 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
       commandShortcutEvents: [
         wholeTableBackspaceCommand,
         wholeTableDeleteCommand,
-        ...standardCommandShortcutEvents.where((e) => e != exitEditingCommand),
+        ...standardCommandShortcutEvents.where(
+          (e) =>
+              e != exitEditingCommand && e != pasteCommand && e != copyCommand,
+        ),
+        noteCopyCommand,
+        notePasteCommand,
       ],
       blockComponentBuilders: blockComponentBuilders,
     );

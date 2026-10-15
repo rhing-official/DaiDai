@@ -64,6 +64,7 @@ import '../../widgets/glass/glass_dialog.dart';
 import '../../widgets/glass/glass_surface.dart';
 import '../../widgets/interactive_swipe_back.dart';
 import '../../widgets/qr_scan_screen.dart';
+import 'issue_qr_login_dialog.dart';
 import '../../widgets/slide_drilldown.dart';
 import '../auth/passcode_setup_dialog.dart';
 import '../auth/two_factor_setup_dialog.dart';
@@ -350,6 +351,7 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
                   detail: wideDetail,
                   detailKey: wideDetailKey,
                   onBack: wideOnBack!,
+                  consumeBack: _showLicenses ? _popLicenseDetail : null,
                 ),
         );
       }
@@ -462,6 +464,7 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
             detailKey: detailKey,
             onBack: onBack,
             onNext: onNext,
+            consumeBack: _showLicenses ? _popLicenseDetail : null,
           ),
         ),
       ),
@@ -1007,9 +1010,19 @@ class _QrLoginRow extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return _ActionRow(
-      label: strings.settingsQrLogin,
-      onTap: () => _scan(context, ref),
+    return Column(
+      children: [
+        _ActionRow(
+          label: strings.settingsQrLogin,
+          onTap: () => _scan(context, ref),
+        ),
+        // ログイン済み端末がQRを表示し、ログインしたい端末に読み取ってもらう
+        // 経路（2026-10-15追加、読み取り後に許可を挟む）。
+        _ActionRow(
+          label: strings.qrIssueMenuLabel,
+          onTap: () => IssueQrLoginDialog.show(context),
+        ),
+      ],
     );
   }
 }

@@ -182,6 +182,22 @@ class Strings {
     required this.qrLoginApproveError,
     required this.qrLoginScanInstructionMessage,
     required this.qrLoginScanInstructionButton,
+    required this.qrIssueMenuLabel,
+    required this.qrIssueDialogTitle,
+    required this.qrIssueDialogDescription,
+    required this.qrIssueExpiresHint,
+    required this.qrIssueRequestTitle,
+    required this.qrIssueRequestMessage,
+    required this.qrIssueAllow,
+    required this.qrIssueDeny,
+    required this.qrIssueApproved,
+    required this.qrIssueError,
+    required this.qrScanLoginButton,
+    required this.qrScanLoginInstructionMessage,
+    required this.qrScanLoginWaitingTitle,
+    required this.qrScanLoginWaitingMessage,
+    required this.qrScanLoginDenied,
+    required this.qrScanLoginRequestError,
     required this.settingsPasskey,
     required this.passkeyManagementListTitle,
     required this.passkeyManagementEmptyMessage,
@@ -736,6 +752,7 @@ class Strings {
     required this.noteMenuFile,
     required this.noteMenuEmbed,
     required this.noteMenuTable,
+    required this.noteMenuDivider,
     required this.noteMenuTableOfContents,
     required this.noteSelectionCut,
     required this.noteSelectionCopy,
@@ -1039,6 +1056,22 @@ class Strings {
   final String qrLoginApproveError;
   final String qrLoginScanInstructionMessage;
   final String qrLoginScanInstructionButton;
+  final String qrIssueMenuLabel;
+  final String qrIssueDialogTitle;
+  final String qrIssueDialogDescription;
+  final String qrIssueExpiresHint;
+  final String qrIssueRequestTitle;
+  final String qrIssueRequestMessage;
+  final String qrIssueAllow;
+  final String qrIssueDeny;
+  final String qrIssueApproved;
+  final String qrIssueError;
+  final String qrScanLoginButton;
+  final String qrScanLoginInstructionMessage;
+  final String qrScanLoginWaitingTitle;
+  final String qrScanLoginWaitingMessage;
+  final String qrScanLoginDenied;
+  final String qrScanLoginRequestError;
   final String settingsPasskey;
   final String passkeyManagementListTitle;
   final String passkeyManagementEmptyMessage;
@@ -1862,6 +1895,7 @@ class Strings {
   final String noteMenuFile;
   final String noteMenuEmbed;
   final String noteMenuTable;
+  final String noteMenuDivider;
   final String noteMenuTableOfContents;
   final String noteSelectionCut;
   final String noteSelectionCopy;
@@ -2154,6 +2188,24 @@ class Strings {
     qrLoginScanInstructionMessage:
         '別の端末のサインイン画面で「QRコードでログイン」を開き、表示されたQRコードをこの端末で読み取ります。',
     qrLoginScanInstructionButton: 'スキャンを開始する',
+    qrIssueMenuLabel: 'QRコードを表示してログインさせる',
+    qrIssueDialogTitle: 'QRコードを表示してログイン',
+    qrIssueDialogDescription:
+        'ログインしたい端末でDaiDaiのログイン画面を開き、「QRコードを読み取ってログイン」からこのQRコードを読み取ってもらってください。',
+    qrIssueExpiresHint: 'このQRコードは2分間有効で、1回だけ使えます。',
+    qrIssueRequestTitle: 'ログインを許可しますか？',
+    qrIssueRequestMessage: '別の端末がこのアカウントでログインしようとしています。心当たりがなければ拒否してください。',
+    qrIssueAllow: '許可する',
+    qrIssueDeny: '拒否する',
+    qrIssueApproved: 'ログインを許可しました',
+    qrIssueError: 'QRコードを作成できませんでした',
+    qrScanLoginButton: 'QRコードを読み取ってログイン',
+    qrScanLoginInstructionMessage:
+        'ログイン済みの端末でDaiDaiを開き、設定＞アカウント＞セキュリティ＞「QRコードを表示してログインさせる」でQRコードを表示してから、この端末で読み取ってください。',
+    qrScanLoginWaitingTitle: 'ログインの許可を待っています',
+    qrScanLoginWaitingMessage: 'ログイン済みの端末で「許可する」を押してください。',
+    qrScanLoginDenied: 'ログインが許可されませんでした',
+    qrScanLoginRequestError: 'このQRコードではログインできません（期限切れ・使用済みの可能性があります）',
     settingsPasskey: 'パスキー',
     passkeyManagementListTitle: '登録済みのパスキー',
     passkeyManagementEmptyMessage: '登録済みのパスキーはありません。',
@@ -2745,6 +2797,7 @@ class Strings {
     noteMenuFile: 'ファイル',
     noteMenuEmbed: 'URL',
     noteMenuTable: '表',
+    noteMenuDivider: '区切り線',
     noteMenuTableOfContents: '目次',
     noteSelectionCut: '切り取り',
     noteSelectionCopy: 'コピー',
@@ -3067,6 +3120,27 @@ class Strings {
         'On another device, open the sign-in screen and tap "Sign in with a '
         'QR code", then scan the code it shows with this device.',
     qrLoginScanInstructionButton: 'Start scanning',
+    qrIssueMenuLabel: 'Show a QR code to sign in another device',
+    qrIssueDialogTitle: 'Sign in another device with a QR code',
+    qrIssueDialogDescription:
+        'On the device you want to sign in, open the DaiDai sign-in screen, choose "Scan a QR code to sign in", and scan this code.',
+    qrIssueExpiresHint:
+        'This QR code is valid for 2 minutes and can be used once.',
+    qrIssueRequestTitle: 'Allow this sign-in?',
+    qrIssueRequestMessage:
+        'Another device is trying to sign in to this account. If you do not recognize it, deny.',
+    qrIssueAllow: 'Allow',
+    qrIssueDeny: 'Deny',
+    qrIssueApproved: 'Sign-in allowed',
+    qrIssueError: 'Could not create the QR code',
+    qrScanLoginButton: 'Scan a QR code to sign in',
+    qrScanLoginInstructionMessage:
+        'On a device that is already signed in, open Settings > Account > Security > "Show a QR code to sign in another device", then scan the code with this device.',
+    qrScanLoginWaitingTitle: 'Waiting for permission',
+    qrScanLoginWaitingMessage: 'Tap "Allow" on the signed-in device.',
+    qrScanLoginDenied: 'Sign-in was not allowed',
+    qrScanLoginRequestError:
+        'This QR code cannot be used (it may have expired or been used already)',
     settingsPasskey: 'Passkey',
     passkeyManagementListTitle: 'Registered passkeys',
     passkeyManagementEmptyMessage: 'No passkeys are registered yet.',
@@ -3725,6 +3799,7 @@ class Strings {
     noteMenuFile: 'File',
     noteMenuEmbed: 'URL',
     noteMenuTable: 'Table',
+    noteMenuDivider: 'Divider',
     noteMenuTableOfContents: 'Table of contents',
     noteSelectionCut: 'Cut',
     noteSelectionCopy: 'Copy',

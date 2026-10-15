@@ -55,6 +55,7 @@ import {
   parseProfileViewRequest,
 } from "./adminUsers";
 import { renderOgImage } from "./ogImage";
+import { checkRequest, checkRespond, ISSUED_QR_TTL_MS } from "./qrLoginIssued";
 import { parseAllowedUrl, resolveReferer, resolveUserAgent } from "./urlFetchRelay";
 import { resolveMentionRecipients } from "./mentions";
 import { excludeBlockers } from "./block";
@@ -498,6 +499,109 @@ export const claimQrLoginSession = onCall(
       return getAuth().createCustomToken(data.approvedUid as string);
     });
     return { customToken };
+  },
+);
+
+/**
+ * ログイン済み端末がQRを表示し、ログインしたい端末が読み取る方式（2026-10-15）。
+ * 流れ: createIssuedQrLoginSession（本人、QR表示）→ requestIssuedQrLogin（読み取った
+ * 未ログイン端末）→ respondIssuedQrLogin（本人が許可/拒否）→ claimQrLoginSession
+ * （既存、許可されたらカスタムトークンを受け取る）。許可を必須にして、QRを撮影・画面
+ * 共有された第三者がそのままログインできないようにする。状態遷移の判定は
+ * `qrLoginIssued.ts`。
+ */
+export const createIssuedQrLoginSession = onCall(
+  { region: "asia-northeast1" },
+  async (request) => {
+    const uid = request.auth?.uid;
+    if (!uid) {
+      throw new HttpsError("unauthenticated", "ログインが必要です");
+    }
+    // 同時に有効なQRは1人1つ。古いissuedセッションは無効化（削除）する。
+    const old = await db
+      .collection("qrLoginSessions")
+      .where("ownerUid", "==", uid)
+      .get();
+    await Promise.all(old.docs.map((doc) => doc.ref.delete()));
+    const ref = await db.collection("qrLoginSessions").add({
+      mode: "issued",
+      ownerUid: uid,
+      status: "pending",
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    return { sessionId: ref.id, ttlSeconds: ISSUED_QR_TTL_MS / 1000 };
+  },
+);
+
+/** 未ログインの端末が、読み取ったQRのセッションにログインを要求する。 */
+export const requestIssuedQrLogin = onCall(
+  { region: "asia-northeast1" },
+  async (request) => {
+    const sessionId = request.data?.sessionId;
+    if (typeof sessionId !== "string" || !sessionId) {
+      throw new HttpsError("invalid-argument", "sessionIdが必要です");
+    }
+    const ref = db.collection("qrLoginSessions").doc(sessionId);
+    await db.runTransaction(async (tx) => {
+      const doc = await tx.get(ref);
+      if (!doc.exists) {
+        throw new HttpsError("not-found", "セッションが見つかりません");
+      }
+      const data = doc.data()!;
+      const check = checkRequest(
+        {
+          mode: data.mode,
+          status: data.status,
+          createdAtMs: (data.createdAt as Timestamp | undefined)?.toMillis(),
+        },
+        Date.now(),
+      );
+      if (!check.ok) {
+        throw new HttpsError(check.code as "failed-precondition", check.message);
+      }
+      tx.update(ref, { status: "requested", requestedAt: FieldValue.serverTimestamp() });
+    });
+  },
+);
+
+/** QRを表示したログイン済みの本人が、要求に許可/拒否を返す。 */
+export const respondIssuedQrLogin = onCall(
+  { region: "asia-northeast1" },
+  async (request) => {
+    const uid = request.auth?.uid;
+    if (!uid) {
+      throw new HttpsError("unauthenticated", "ログインが必要です");
+    }
+    const sessionId = request.data?.sessionId;
+    const approve = request.data?.approve === true;
+    if (typeof sessionId !== "string" || !sessionId) {
+      throw new HttpsError("invalid-argument", "sessionIdが必要です");
+    }
+    const ref = db.collection("qrLoginSessions").doc(sessionId);
+    await db.runTransaction(async (tx) => {
+      const doc = await tx.get(ref);
+      if (!doc.exists) {
+        throw new HttpsError("not-found", "セッションが見つかりません");
+      }
+      const data = doc.data()!;
+      const check = checkRespond(
+        {
+          mode: data.mode,
+          status: data.status,
+          ownerUid: data.ownerUid,
+          createdAtMs: (data.createdAt as Timestamp | undefined)?.toMillis(),
+        },
+        uid,
+        Date.now(),
+      );
+      if (!check.ok) {
+        throw new HttpsError(check.code as "failed-precondition", check.message);
+      }
+      tx.update(
+        ref,
+        approve ? { status: "approved", approvedUid: uid } : { status: "denied" },
+      );
+    });
   },
 );
 

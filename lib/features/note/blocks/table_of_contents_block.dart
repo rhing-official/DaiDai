@@ -21,6 +21,89 @@ Node tableOfContentsNode() {
   return Node(type: TableOfContentsBlockKeys.type);
 }
 
+/// 選択位置に目次を挿入し、直後に空の段落を作ってカーソルをそこへ置く。
+/// 目次は選択・キャレットを受け付けない不可分ブロックのため、
+/// `insertNodeAfterSelection`（挿入したブロック自身へカーソルを置く）だと
+/// その下に書き始められなくなる。区切り線の`dividerMenuItem`と同じ構造にした。
+bool insertTableOfContentsAfterSelection(EditorState editorState) {
+  final selection = editorState.selection;
+  if (selection == null || !selection.isCollapsed) return false;
+  final current = editorState.getNodeAtPath(selection.end.path);
+  if (current == null) return false;
+
+  final transaction = editorState.transaction;
+  final replacesEmpty = current.delta?.isEmpty ?? false;
+  final insertedPath = replacesEmpty
+      ? selection.end.path
+      : selection.end.path.next;
+  transaction.insertNodes(insertedPath, [
+    tableOfContentsNode(),
+    paragraphNode(),
+  ]);
+  // 空の段落の上で呼ばれたときは、その段落を目次で置き換える。
+  if (replacesEmpty) transaction.deleteNode(current);
+  transaction.afterSelection = Selection.collapsed(
+    Position(path: insertedPath.next),
+  );
+  editorState.apply(transaction);
+  return true;
+}
+
+/// 目次ブロック自身にカーソルが乗らないよう、隣の行へ移す。
+/// 目次はキャレットを受け付けないブロックだが、キーボードの↑↓は目次を
+/// 1つの位置として選択してしまい、そこから先へ進めなくなる。進行方向
+/// （[previousPath]より後ろなら下）の最寄りのテキスト行へ移し、下に行が
+/// 無ければ空の段落を足してそこへ置く。目次に乗っていなければ何もしない。
+void moveCaretOffTableOfContents(EditorState editorState, Path? previousPath) {
+  final selection = editorState.selection;
+  if (selection == null || !selection.isCollapsed) return;
+  final path = selection.end.path;
+  final node = editorState.getNodeAtPath(path);
+  if (node == null || node.type != TableOfContentsBlockKeys.type) return;
+
+  final movingUp =
+      previousPath != null &&
+      previousPath.length == path.length &&
+      _comparePaths(previousPath, path) > 0;
+
+  Selection? target;
+  if (movingUp) {
+    for (var n = node.previous; n != null; n = n.previous) {
+      final delta = n.delta;
+      if (delta != null) {
+        target = Selection.collapsed(
+          Position(path: n.path, offset: delta.length),
+        );
+        break;
+      }
+    }
+  }
+  if (target == null) {
+    Node? next = node.next;
+    while (next != null && next.delta == null) {
+      next = next.next;
+    }
+    if (next != null) {
+      target = Selection.collapsed(Position(path: next.path));
+    } else {
+      final insertedPath = node.path.next;
+      final transaction = editorState.transaction
+        ..insertNode(insertedPath, paragraphNode())
+        ..afterSelection = Selection.collapsed(Position(path: insertedPath));
+      editorState.apply(transaction);
+      return;
+    }
+  }
+  editorState.selection = target;
+}
+
+int _comparePaths(Path a, Path b) {
+  for (var i = 0; i < a.length && i < b.length; i++) {
+    if (a[i] != b[i]) return a[i].compareTo(b[i]);
+  }
+  return a.length.compareTo(b.length);
+}
+
 /// 見出しレベルの列を、最小レベルを第0階層とする相対階層（最大3）へ変換する
 /// （例: [2,3,3,2] → [0,1,1,0]、[1,2,3,4,5] → [0,1,2,3,3]）。見出しの
 /// 使い方（H1から使う/H2から使う等）に依らず、目次の字下げが揃うようにする。

@@ -105,6 +105,17 @@ abstract class AuthRepository {
   /// サインインできるようにする（Cloud Functions経由）。
   Future<void> approveQrLoginSession(String sessionId);
 
+  /// ログイン済み端末がQRを表示する方式（2026-10-15）。`daidai:qrissue:$sessionId`を
+  /// QRに埋め込み、ログインしたい端末が読み取って[requestIssuedQrLogin]、本人が
+  /// [respondIssuedQrLogin]で許可すると、その端末が[claimQrLoginSession]でログインする。
+  Future<String> createIssuedQrLoginSession();
+
+  /// 読み取った（未ログインの）端末が、QRのセッションにログインを要求する。
+  Future<void> requestIssuedQrLogin(String sessionId);
+
+  /// QRを表示した本人が、要求に許可（[approve]=true）または拒否を返す。
+  Future<void> respondIssuedQrLogin(String sessionId, {required bool approve});
+
   /// 未ログイン端末側が、承認済み（approved）になったセッションを検知したら
   /// 呼ぶ。Cloud Functionsから受け取ったカスタムトークンでサインインまで行う。
   Future<User> claimQrLoginSession(String sessionId);
@@ -368,6 +379,32 @@ class FirebaseAuthRepository implements AuthRepository {
   Future<void> approveQrLoginSession(String sessionId) async {
     await _functions.httpsCallable('approveQrLoginSession').call({
       'sessionId': sessionId,
+    });
+  }
+
+  @override
+  Future<String> createIssuedQrLoginSession() async {
+    final result = await _functions
+        .httpsCallable('createIssuedQrLoginSession')
+        .call();
+    return (result.data as Map)['sessionId'] as String;
+  }
+
+  @override
+  Future<void> requestIssuedQrLogin(String sessionId) async {
+    await _functions.httpsCallable('requestIssuedQrLogin').call({
+      'sessionId': sessionId,
+    });
+  }
+
+  @override
+  Future<void> respondIssuedQrLogin(
+    String sessionId, {
+    required bool approve,
+  }) async {
+    await _functions.httpsCallable('respondIssuedQrLogin').call({
+      'sessionId': sessionId,
+      'approve': approve,
     });
   }
 
