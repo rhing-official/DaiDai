@@ -12,6 +12,20 @@ import 'package:video_player/video_player.dart';
 bool get videoPlaybackSupported =>
     kIsWeb || !(Platform.isWindows || Platform.isLinux);
 
+/// サムネイルとして表示する動画内の位置（2026-10-16追加）。基本は1秒、
+/// 1.5秒に満たない短い動画は先頭付近（0.3秒か、それより短ければ半分）。
+/// 長さが不明（0）なら先頭。サーバー側のサムネイル生成（`functions/src/index.ts`
+/// の`generateVideoThumbnail`）と見え方をそろえるための共通ルール。
+Duration previewPositionFor(Duration duration) {
+  const preferred = Duration(seconds: 1);
+  const shortLimit = Duration(milliseconds: 1500);
+  if (duration >= shortLimit) return preferred;
+  if (duration <= Duration.zero) return Duration.zero;
+  const near = Duration(milliseconds: 300);
+  final half = duration ~/ 2;
+  return half < near ? half : near;
+}
+
 /// 動画のインラインサムネイル。実際の最初のコマを表示する（当初は暗い
 /// プレースホルダーのみだったが、ユーザー要望により変更）。実現には別途
 /// サムネイル生成パッケージ（`video_thumbnail`等、Android/iOSのみ対応）を
@@ -31,6 +45,7 @@ class VideoThumbnail extends StatefulWidget {
     required this.url,
     required this.canLoad,
     this.size,
+    this.showPlayIcon = true,
   });
 
   final String url;
@@ -41,6 +56,12 @@ class VideoThumbnail extends StatefulWidget {
   /// 固定＋アスペクト比維持のレターボックス表示（メッセージ本文の添付
   /// 表示用）。
   final double? size;
+
+  /// 正方形モード（[size]指定時）で再生アイコンを描くか。拡大縮小される
+  /// 親（`FittedBox`等）の中に置く時はfalseにし、アイコンだけ別に重ねる
+  /// （アイコンが一緒に拡大されて単一動画より大きく見えるのを防ぐ、
+  /// 2026-10-16、複数添付グリッド用）。
+  final bool showPlayIcon;
 
   @override
   State<VideoThumbnail> createState() => _VideoThumbnailState();
@@ -58,7 +79,13 @@ class _VideoThumbnailState extends State<VideoThumbnail> {
     _controller = controller;
     controller
         .initialize()
-        .then((_) {
+        .then((_) async {
+          // 先頭（0秒）は暗転・フェードインで黒くなりやすいため、サーバー側の
+          // サムネイル生成（Cloud Functions、1秒位置）と同じ位置のコマを出す
+          // （2026-10-16）。短い動画は長さに収まる位置にする。
+          await controller.seekTo(
+            previewPositionFor(controller.value.duration),
+          );
           if (mounted) setState(() => _ready = true);
         })
         .catchError((_) {});
@@ -70,15 +97,7 @@ class _VideoThumbnailState extends State<VideoThumbnail> {
     super.dispose();
   }
 
-  static const _playIcon = Center(
-    child: DecoratedBox(
-      decoration: BoxDecoration(color: Colors.black45, shape: BoxShape.circle),
-      child: Padding(
-        padding: EdgeInsets.all(8),
-        child: Icon(Icons.play_arrow, color: Colors.white, size: 28),
-      ),
-    ),
-  );
+  static const _playIcon = VideoPlayBadge();
 
   @override
   Widget build(BuildContext context) {
@@ -116,7 +135,12 @@ class _VideoThumbnailState extends State<VideoThumbnail> {
             fit: StackFit.expand,
             children: [
               content,
-              Icon(Icons.play_arrow, color: Colors.white, size: squareSize / 2),
+              if (widget.showPlayIcon)
+                Icon(
+                  Icons.play_arrow,
+                  color: Colors.white,
+                  size: squareSize / 2,
+                ),
             ],
           ),
         ),
@@ -143,6 +167,28 @@ class _VideoThumbnailState extends State<VideoThumbnail> {
           Container(color: Colors.black87),
           _playIcon,
         ],
+      ),
+    );
+  }
+}
+
+/// 動画の再生アイコン（半透明の黒い丸＋白い再生マーク）。単一の動画メッセージと
+/// 複数添付グリッドで同じ大きさ・見た目にそろえるため共通化した（2026-10-16）。
+class VideoPlayBadge extends StatelessWidget {
+  const VideoPlayBadge({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const Center(
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: Colors.black45,
+          shape: BoxShape.circle,
+        ),
+        child: Padding(
+          padding: EdgeInsets.all(8),
+          child: Icon(Icons.play_arrow, color: Colors.white, size: 28),
+        ),
       ),
     );
   }

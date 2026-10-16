@@ -275,7 +275,7 @@ class FirestoreAlbumRepository implements AlbumRepository {
     return _roomsCollection(isDm, conversationId)
         .doc(roomId)
         .collection('messages')
-        .where('contentType', whereIn: ['image', 'video'])
+        .where('contentType', whereIn: ['image', 'video', 'multi'])
         .orderBy('sentAt', descending: true)
         .limit(200)
         .snapshots()
@@ -295,6 +295,31 @@ class FirestoreAlbumRepository implements AlbumRepository {
     required Message message,
     required String addedBy,
   }) async {
+    // 複数添付（`multi`）は、画像・動画を全て追加し、先頭の項目を返す
+    // （2026-10-16）。単一添付は従来どおり1件。
+    if (message.contentType == 'multi') {
+      final media = message.attachments.where((a) => a.isMedia).toList();
+      if (media.isEmpty) {
+        throw ArgumentError(
+          'message ${message.messageId} has no image/video attachment',
+        );
+      }
+      AlbumItem? first;
+      for (final attachment in media) {
+        final item = await _addMediaToAlbum(
+          isDm: isDm,
+          conversationId: conversationId,
+          roomId: roomId,
+          albumId: albumId,
+          message: message,
+          fileMetadata: attachment,
+          contentType: attachment.isVideo ? 'video' : 'image',
+          addedBy: addedBy,
+        );
+        first ??= item;
+      }
+      return first!;
+    }
     final fileMetadata = message.fileMetadata;
     if (fileMetadata == null ||
         (message.contentType != 'image' && message.contentType != 'video')) {
@@ -302,7 +327,28 @@ class FirestoreAlbumRepository implements AlbumRepository {
         'message ${message.messageId} is not an image/video attachment',
       );
     }
+    return _addMediaToAlbum(
+      isDm: isDm,
+      conversationId: conversationId,
+      roomId: roomId,
+      albumId: albumId,
+      message: message,
+      fileMetadata: fileMetadata,
+      contentType: message.contentType,
+      addedBy: addedBy,
+    );
+  }
 
+  Future<AlbumItem> _addMediaToAlbum({
+    required bool isDm,
+    required String conversationId,
+    required String roomId,
+    required String albumId,
+    required Message message,
+    required MessageFileMetadata fileMetadata,
+    required String contentType,
+    required String addedBy,
+  }) async {
     final itemRef = _itemsCollection(
       isDm: isDm,
       conversationId: conversationId,
@@ -326,7 +372,7 @@ class FirestoreAlbumRepository implements AlbumRepository {
 
     final item = AlbumItem(
       itemId: itemRef.id,
-      contentType: message.contentType,
+      contentType: contentType,
       storagePath: destPath,
       url: copiedUrl,
       mimeType: fileMetadata.mimeType,

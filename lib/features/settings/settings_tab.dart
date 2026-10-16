@@ -65,6 +65,7 @@ import '../../widgets/glass/glass_surface.dart';
 import '../../widgets/interactive_swipe_back.dart';
 import '../../widgets/qr_scan_screen.dart';
 import 'issue_qr_login_dialog.dart';
+import '../../widgets/slide_back_page_transitions.dart';
 import '../../widgets/slide_drilldown.dart';
 import '../auth/passcode_setup_dialog.dart';
 import '../auth/two_factor_setup_dialog.dart';
@@ -230,48 +231,33 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
       // スワイプで戻る手段が無かった（スマホ幅だけスワイプできる食い違い
       // があった）。サイドバー・区切り線はこの分岐の外にあるため、
       // 下位階層表示中も常に見えたままになる点は変わらない。
-      Widget? wideMaster;
-      Widget? wideDetail;
-      Object? wideDetailKey;
-      VoidCallback? wideOnBack;
-      if (_showLicenses) {
-        wideMaster = _AboutPageContent(
-          strings: strings,
-          onOpenLicenses: () => setState(() => _showLicenses = true),
-        );
-        wideDetail = _buildLicensePage();
-        wideDetailKey = 'licenses';
-        wideOnBack = _backFromLicenses;
-      } else if (_showAbout) {
-        wideMaster = Builder(
-          builder: (context) => _SupportPage(
-            strings: strings,
-            currentUser: widget.currentUser,
-            onOpenAbout: () => setState(() => _showAbout = true),
-            onOpenAnnouncements: () =>
-                setState(() => _showAnnouncements = true),
+      // 階層は`SlideDrilldownStack`のレイヤーとして重ねる（2026-10-16）。
+      // 以前は階層ごとに`master`/`detail`を差し替えていたため、戻ると1段上の
+      // 画面が新しい`detail`として作り直され、右から再度スライドインしていた。
+      final wideLayers = <DrilldownLayer>[
+        if (_showAbout || _showLicenses)
+          DrilldownLayer(
+            key: 'about',
+            child: _AboutPageContent(
+              strings: strings,
+              onOpenLicenses: () => setState(() => _showLicenses = true),
+            ),
+            onBack: () => setState(() => _showAbout = false),
           ),
-        );
-        wideDetail = _AboutPageContent(
-          strings: strings,
-          onOpenLicenses: () => setState(() => _showLicenses = true),
-        );
-        wideDetailKey = 'about';
-        wideOnBack = () => setState(() => _showAbout = false);
-      } else if (_showAnnouncements) {
-        wideMaster = Builder(
-          builder: (context) => _SupportPage(
-            strings: strings,
-            currentUser: widget.currentUser,
-            onOpenAbout: () => setState(() => _showAbout = true),
-            onOpenAnnouncements: () =>
-                setState(() => _showAnnouncements = true),
+        if (_showAnnouncements)
+          DrilldownLayer(
+            key: 'announcements',
+            child: AnnouncementScreen(currentUser: widget.currentUser),
+            onBack: () => setState(() => _showAnnouncements = false),
           ),
-        );
-        wideDetail = AnnouncementScreen(currentUser: widget.currentUser);
-        wideDetailKey = 'announcements';
-        wideOnBack = () => setState(() => _showAnnouncements = false);
-      }
+        if (_showLicenses)
+          DrilldownLayer(
+            key: 'licenses',
+            child: _buildLicensePage(),
+            onBack: _backFromLicenses,
+            consumeBack: _popLicenseDetail,
+          ),
+      ];
 
       // コンピューターでは、運営の下位階層（お便り／アプリについて）を
       // 運営の一覧の上に重ねず、右隣に並べて表示する（2026-10-10追加）。
@@ -344,15 +330,10 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
           // （パッケージ一覧⇄ライセンス本文）が働く余地を残す
           // （2026-09-18追加、詳細は`_LicensePageContent`参照）。
           maxWidth: _showLicenses ? double.infinity : 640,
-          child: wideMaster == null
-              ? Builder(builder: selected.pageBuilder)
-              : SlideDrilldown(
-                  master: wideMaster,
-                  detail: wideDetail,
-                  detailKey: wideDetailKey,
-                  onBack: wideOnBack!,
-                  consumeBack: _showLicenses ? _popLicenseDetail : null,
-                ),
+          child: SlideDrilldownStack(
+            base: Builder(builder: selected.pageBuilder),
+            layers: wideLayers,
+          ),
         );
       }
 
@@ -385,72 +366,46 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
         ? categories[selectedIndex + 1]
         : null;
 
-    final Widget master;
-    final Widget? detail;
-    final Object? detailKey;
-    final VoidCallback onBack;
-    final VoidCallback? onNext;
-    if (_showLicenses) {
-      // 「オープンソースライセンス」からスワイプで戻ると、「アプリに
-      // ついて」自身が現れるようにする（2026-09-15追加）。
-      master = _AboutPageContent(
-        strings: strings,
-        onOpenLicenses: () => setState(() => _showLicenses = true),
-      );
-      detail = _buildLicensePage();
-      detailKey = 'licenses';
-      onBack = _backFromLicenses;
-      onNext = null;
-    } else if (_showAbout) {
-      // 「アプリについて」からスワイプで戻ると、トップのカテゴリ一覧
-      // ではなく運営自身の一覧が現れるようにする（2026-09-15追加）。
-      master = Builder(
-        builder: (context) => _SupportPage(
-          strings: strings,
-          currentUser: widget.currentUser,
-          onOpenAbout: () => setState(() => _showAbout = true),
-          onOpenAnnouncements: () => setState(() => _showAnnouncements = true),
+    // 階層は`SlideDrilldownStack`のレイヤーとして重ねる（2026-10-16、理由は
+    // 広い画面側の`wideLayers`参照）。下位階層の表示中は`_selectedId`が
+    // 無くても、運営カテゴリの中身をその下に置く。
+    final hasSubLayer = _showAbout || _showLicenses || _showAnnouncements;
+    final layerCategory =
+        selected ??
+        (hasSubLayer ? _findCategoryById(categories, 'support') : null);
+    final layers = <DrilldownLayer>[
+      if (layerCategory != null)
+        DrilldownLayer(
+          key: 'cat-${layerCategory.id}',
+          child: _NarrowSettingsPage(category: layerCategory),
+          onBack: () => setState(() => _selectedId = null),
+          onNext: nextCategory == null
+              ? null
+              : () => setState(() => _selectedId = nextCategory.id),
         ),
-      );
-      detail = _AboutPageContent(
-        strings: strings,
-        onOpenLicenses: () => setState(() => _showLicenses = true),
-      );
-      detailKey = 'about';
-      onBack = () => setState(() => _showAbout = false);
-      onNext = null;
-    } else if (_showAnnouncements) {
-      // 「お知らせ」からスワイプで戻ると、運営自身の一覧が現れるように
-      // する（2026-09-15追加。以前はgo_routerの別ルートに積んでいた）。
-      master = Builder(
-        builder: (context) => _SupportPage(
-          strings: strings,
-          currentUser: widget.currentUser,
-          onOpenAbout: () => setState(() => _showAbout = true),
-          onOpenAnnouncements: () => setState(() => _showAnnouncements = true),
+      if (_showAbout || _showLicenses)
+        DrilldownLayer(
+          key: 'about',
+          child: _AboutPageContent(
+            strings: strings,
+            onOpenLicenses: () => setState(() => _showLicenses = true),
+          ),
+          onBack: () => setState(() => _showAbout = false),
         ),
-      );
-      detail = AnnouncementScreen(currentUser: widget.currentUser);
-      detailKey = 'announcements';
-      onBack = () => setState(() => _showAnnouncements = false);
-      onNext = null;
-    } else {
-      master = _CategoryList(
-        key: const ValueKey('settings-categories'),
-        categories: categories,
-        selectedId: null,
-        onSelect: _onCategorySelected,
-        large: true,
-      );
-      detail = selected == null
-          ? null
-          : _NarrowSettingsPage(category: selected);
-      detailKey = selected?.id;
-      onBack = () => setState(() => _selectedId = null);
-      onNext = nextCategory == null
-          ? null
-          : () => setState(() => _selectedId = nextCategory.id);
-    }
+      if (_showAnnouncements)
+        DrilldownLayer(
+          key: 'announcements',
+          child: AnnouncementScreen(currentUser: widget.currentUser),
+          onBack: () => setState(() => _showAnnouncements = false),
+        ),
+      if (_showLicenses)
+        DrilldownLayer(
+          key: 'licenses',
+          child: _buildLicensePage(),
+          onBack: _backFromLicenses,
+          consumeBack: _popLicenseDetail,
+        ),
+    ];
 
     return Align(
       alignment: Alignment.topCenter,
@@ -458,13 +413,15 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
         constraints: const BoxConstraints(maxWidth: 480),
         child: Padding(
           padding: const EdgeInsets.only(top: 56),
-          child: SlideDrilldown(
-            master: master,
-            detail: detail,
-            detailKey: detailKey,
-            onBack: onBack,
-            onNext: onNext,
-            consumeBack: _showLicenses ? _popLicenseDetail : null,
+          child: SlideDrilldownStack(
+            base: _CategoryList(
+              key: const ValueKey('settings-categories'),
+              categories: categories,
+              selectedId: null,
+              onSelect: _onCategorySelected,
+              large: true,
+            ),
+            layers: layers,
           ),
         ),
       ),
@@ -1519,12 +1476,21 @@ class _LicensePageContentState extends State<_LicensePageContent> {
         if (info == null) {
           return const SizedBox.shrink();
         }
-        return Navigator(
-          key: widget.navigatorKey,
-          onGenerateRoute: (settings) => MaterialPageRoute<void>(
-            builder: (context) => LicensePage(
-              applicationName: 'DaiDai',
-              applicationVersion: info.version,
+        // パッケージ詳細は右からスライドして入り、右スワイプで下の一覧を
+        // 見せながら右へ消える（`SlideBackPageTransitionsBuilder`、
+        // 2026-10-16）。`LicensePage`がpushするルートは差し替えられないため
+        // `Theme`経由で適用する。
+        return Theme(
+          data: Theme.of(context).copyWith(
+            pageTransitionsTheme: SlideBackPageTransitionsBuilder.theme,
+          ),
+          child: Navigator(
+            key: widget.navigatorKey,
+            onGenerateRoute: (settings) => MaterialPageRoute<void>(
+              builder: (context) => LicensePage(
+                applicationName: 'DaiDai',
+                applicationVersion: info.version,
+              ),
             ),
           ),
         );

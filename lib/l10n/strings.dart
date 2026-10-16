@@ -277,6 +277,7 @@ class Strings {
     required this.conversationSortUnreadFirst,
     required this.conversationBlockedCannotSend,
     required this.talksListPreviewImage,
+    required this.talksListPreviewMulti,
     required this.talksListPreviewVideo,
     required this.talksListPreviewFile,
     required this.conversationReadReceiptsDisable,
@@ -380,10 +381,14 @@ class Strings {
     required this.uninstallStickerConfirmMessage,
     required this.uninstallStickerConfirmButton,
     required this.chatAttachmentTooLargeMessage,
+    required this.chatAttachmentTooManyMessage,
     required this.chatAttachmentBlockedExtensionMessage,
     required this.chatAttachmentSendFailedMessage,
     required this.chatResendAction,
     required this.chatAttachmentUploadingLabel,
+    required this.downloadConfirmTitle,
+    required this.downloadConfirmMessage,
+    required this.downloadConfirmButton,
     required this.cancel,
     required this.add,
     required this.save,
@@ -1185,6 +1190,9 @@ class Strings {
   /// 語らい一覧の最新メッセージプレビューで、画像/動画/ファイル添付
   /// メッセージを表す簡易ラベル（2026-09-02追加）。
   final String talksListPreviewImage;
+
+  /// 複数添付（2026-10-16）。
+  final String talksListPreviewMulti;
   final String talksListPreviewVideo;
   final String talksListPreviewFile;
   final String conversationReadReceiptsDisable;
@@ -1301,12 +1309,20 @@ class Strings {
   final String uninstallStickerConfirmMessage;
   final String uninstallStickerConfirmButton;
   final String chatAttachmentTooLargeMessage;
+
+  /// 1回に選べる添付の上限を超えた時の通知（2026-10-16）。
+  final String Function(int max) chatAttachmentTooManyMessage;
   final String chatAttachmentBlockedExtensionMessage;
   final String chatAttachmentSendFailedMessage;
   final String chatResendAction;
 
   /// 画像・動画添付の送信中の進捗表示（2026-09-04追加）。
   final String Function(int percent) chatAttachmentUploadingLabel;
+
+  /// ダウンロードボタンを押した時の確認ダイアログ（2026-10-16）。
+  final String downloadConfirmTitle;
+  final String Function(String fileName) downloadConfirmMessage;
+  final String downloadConfirmButton;
 
   final String cancel;
   final String add;
@@ -2286,6 +2302,7 @@ class Strings {
     conversationSortUnreadFirst: '未読優先',
     conversationBlockedCannotSend: 'ブロック中のため送信できません',
     talksListPreviewImage: '[画像]',
+    talksListPreviewMulti: '[複数の添付]',
     talksListPreviewVideo: '[動画]',
     talksListPreviewFile: '[ファイル]',
     conversationReadReceiptsDisable: '既読オフ',
@@ -2399,10 +2416,14 @@ class Strings {
     uninstallStickerConfirmMessage: 'アンインストールすると、このぺったんは送信できなくなります。',
     uninstallStickerConfirmButton: 'アンインストールする',
     chatAttachmentTooLargeMessage: '2GBを超えるファイルは送信できません',
+    chatAttachmentTooManyMessage: (max) => '一度に送れるのは$max件までです。先頭の$max件を送ります',
     chatAttachmentBlockedExtensionMessage: 'この拡張子のファイルは送信できません',
     chatAttachmentSendFailedMessage: '送信に失敗しました',
     chatResendAction: '再送',
     chatAttachmentUploadingLabel: (percent) => 'アップロード中… $percent%',
+    downloadConfirmTitle: 'ダウンロードしますか？',
+    downloadConfirmMessage: (fileName) => '「$fileName」をダウンロードします。',
+    downloadConfirmButton: 'ダウンロード',
     cancel: 'キャンセル',
     add: '追加',
     save: '保存',
@@ -3239,6 +3260,7 @@ class Strings {
     conversationSortUnreadFirst: 'Unread first',
     conversationBlockedCannotSend: "You can't send messages while blocked",
     talksListPreviewImage: '[Photo]',
+    talksListPreviewMulti: '[Attachments]',
     talksListPreviewVideo: '[Video]',
     talksListPreviewFile: '[File]',
     conversationReadReceiptsDisable: 'Turn off read receipts',
@@ -3367,10 +3389,15 @@ class Strings {
         "You won't be able to send these stickers after uninstalling.",
     uninstallStickerConfirmButton: 'Uninstall',
     chatAttachmentTooLargeMessage: "Files over 2GB can't be sent.",
+    chatAttachmentTooManyMessage: (max) =>
+        'You can send up to $max at a time. Sending the first $max.',
     chatAttachmentBlockedExtensionMessage: "This file type can't be sent.",
     chatAttachmentSendFailedMessage: 'Failed to send.',
     chatResendAction: 'Resend',
     chatAttachmentUploadingLabel: (percent) => 'Uploading… $percent%',
+    downloadConfirmTitle: 'Download this file?',
+    downloadConfirmMessage: (fileName) => 'Download "$fileName".',
+    downloadConfirmButton: 'Download',
     cancel: 'Cancel',
     add: 'Add',
     save: 'Save',

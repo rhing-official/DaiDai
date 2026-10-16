@@ -16,6 +16,7 @@ import '../../models/dm_room.dart';
 import '../../models/group.dart';
 import '../../models/group_role.dart';
 import '../../models/message.dart';
+import '../../utils/attachment_upload.dart';
 import '../../providers/direct_message_providers.dart';
 import '../../providers/app_ui_style_provider.dart';
 import '../../providers/block_providers.dart';
@@ -695,6 +696,30 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
           bytes: attachment.bytes,
           fileName: attachment.fileName,
           contentType: attachment.contentType,
+          onProgress: onProgress,
+        );
+      },
+      onSendMultiAttachment: (attachments, {onProgress}) async {
+        if (isBlocked) {
+          showAutoDismissBanner(
+            context,
+            message: strings.conversationBlockedCannotSend,
+          );
+          return;
+        }
+        await dmRepository.sendMultiAttachmentMessage(
+          dmId: dm.dmId,
+          roomId: roomId,
+          senderId: currentUser.userId,
+          senderRhingSeed: currentUser.rhingSeed,
+          items: [
+            for (final a in attachments)
+              AttachmentUploadInput(
+                bytes: a.bytes,
+                fileName: a.fileName,
+                contentType: a.contentType,
+              ),
+          ],
           onProgress: onProgress,
         );
       },
@@ -2643,6 +2668,22 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
             bytes: attachment.bytes,
             fileName: attachment.fileName,
             contentType: attachment.contentType,
+            onProgress: onProgress,
+          ),
+      onSendMultiAttachment: (attachments, {onProgress}) =>
+          groupRepository.sendMultiAttachmentMessage(
+            groupId: group.groupId,
+            roomId: roomId,
+            senderId: currentUser.userId,
+            senderRhingSeed: currentUser.rhingSeed,
+            items: [
+              for (final a in attachments)
+                AttachmentUploadInput(
+                  bytes: a.bytes,
+                  fileName: a.fileName,
+                  contentType: a.contentType,
+                ),
+            ],
             onProgress: onProgress,
           ),
       onSendSticker: (sticker) => groupRepository.sendStickerMessage(

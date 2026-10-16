@@ -285,6 +285,20 @@ abstract class GroupRepository {
     ValueChanged<double>? onProgress,
   });
 
+  /// 複数の添付（画像・動画・ファイル、最大[kMaxMultiAttachments]件）を1つの
+  /// メッセージ（`contentType: 'multi'`）にまとめて送る（2026-10-16追加）。
+  /// 1件でも失敗したら何も送らず、アップロード済み分も削除して例外を投げる。
+  Future<void> sendMultiAttachmentMessage({
+    required String groupId,
+    required String roomId,
+    required String senderId,
+    required String senderRhingSeed,
+    required List<AttachmentUploadInput> items,
+    bool silent = false,
+    Message? replyTo,
+    ValueChanged<double>? onProgress,
+  });
+
   /// ぺったん（スタンプ）を送る。既にStorageにアップロード済みの画像を
   /// 参照するだけなので、[sendAttachmentMessage]と異なりバイトデータの
   /// アップロードを伴わない（技術仕様書7.4参照、2026-08-11追加）。
@@ -1035,6 +1049,62 @@ class FirestoreGroupRepository implements GroupRepository {
   }
 
   @override
+  Future<void> sendMultiAttachmentMessage({
+    required String groupId,
+    required String roomId,
+    required String senderId,
+    required String senderRhingSeed,
+    required List<AttachmentUploadInput> items,
+    bool silent = false,
+    Message? replyTo,
+    ValueChanged<double>? onProgress,
+  }) async {
+    if (items.isEmpty || items.length > kMaxMultiAttachments) {
+      throw ArgumentError.value(items.length, 'items');
+    }
+    final roomRef = _roomRef(groupId, roomId);
+    final messageRef = roomRef.collection('messages').doc();
+
+    final attachments = await uploadMultiMessageAttachments(
+      storage: _storage,
+      storagePathPrefix: 'groupFiles/$groupId',
+      messageId: messageRef.id,
+      items: items,
+      onProgress: onProgress,
+    );
+
+    final message = Message(
+      messageId: messageRef.id,
+      conversationId: roomId,
+      conversationType: 'room',
+      senderId: senderId,
+      senderRhingSeed: senderRhingSeed,
+      content: multiAttachmentContent(attachments),
+      contentType: 'multi',
+      silent: silent,
+      replyToMessageId: replyTo?.messageId,
+      replyToSenderId: replyTo?.senderId,
+      replyToSenderRhingSeed: replyTo?.senderRhingSeed,
+      replyToSnippet: replyTo == null
+          ? null
+          : messageSnippetOf(replyTo.content),
+      fileMetadata: attachments.first,
+      attachments: attachments,
+    );
+
+    final batch = _firestore.batch();
+    batch.set(messageRef, message.toJson());
+    batch.update(roomRef, {'lastMessageAt': FieldValue.serverTimestamp()});
+    batch.update(_groups.doc(groupId), {
+      'lastMessageAt': FieldValue.serverTimestamp(),
+      'lastMessageSenderId': senderId,
+      'lastMessageContentType': 'multi',
+      'lastMessagePreview': null,
+    });
+    await batch.commit();
+  }
+
+  @override
   Future<void> sendStickerMessage({
     required String groupId,
     required String roomId,
@@ -1368,10 +1438,9 @@ class FirestoreGroupRepository implements GroupRepository {
         if (memberIds.every(hiddenFor.contains)) {
           batch.delete(doc.reference);
           deletedMessageIds.add(doc.id);
-          final fileUrl =
-              (doc.data()?['fileMetadata'] as Map<String, dynamic>?)?['url']
-                  as String?;
-          if (fileUrl != null) attachmentUrlsToDelete.add(fileUrl);
+          attachmentUrlsToDelete.addAll(
+            attachmentUrlsOfMessageData(doc.data()),
+          );
         } else {
           batch.update(doc.reference, {
             'hiddenFor': FieldValue.arrayUnion([userId]),

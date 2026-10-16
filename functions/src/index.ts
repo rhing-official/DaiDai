@@ -2533,6 +2533,29 @@ function buildMessagePreview(
         body: (message.fileMetadata?.fileName as string) ?? "[ファイル]",
         previewUrl: null,
       };
+    case "multi": {
+      // 複数添付（2026-10-16）。画像・動画・ファイルの件数を並べ、
+      // プレビュー画像は先頭の動画サムネイルまたは画像。
+      const items = (message.attachments ?? []) as Array<{
+        mimeType?: string;
+        url?: string;
+        thumbnailUrl?: string;
+      }>;
+      const images = items.filter((a) => a.mimeType?.startsWith("image/"));
+      const videos = items.filter((a) => a.mimeType?.startsWith("video/"));
+      const files = items.length - images.length - videos.length;
+      const parts: string[] = [];
+      if (images.length > 0) parts.push(`画像${images.length}枚`);
+      if (videos.length > 0) parts.push(`動画${videos.length}本`);
+      if (files > 0) parts.push(`ファイル${files}件`);
+      const first = items.find((a) => a.mimeType?.startsWith("image/") || a.thumbnailUrl);
+      return {
+        body: `[${parts.join("・") || "添付"}]`,
+        previewUrl: first?.mimeType?.startsWith("image/")
+          ? (first.url ?? null)
+          : (first?.thumbnailUrl ?? null),
+      };
+    }
     default:
       return { body: "", previewUrl: null };
   }
@@ -3453,7 +3476,9 @@ async function findMessageRef(
  * 生成し、Storageへ保存した上でメッセージの`fileMetadata.thumbnailUrl`に
  * 記録する（プッシュ通知のプレビュー画像用、2026-08-31追加）。
  * `lib/utils/attachment_upload.dart`が保存する`dmFiles/{dmId}/{messageId}.ext`・
- * `groupFiles/{groupId}/{messageId}.ext`という規約に依存している。
+ * `groupFiles/{groupId}/{messageId}.ext`という規約に依存している。複数添付
+ * （`contentType: 'multi'`、2026-10-16）は`.../{messageId}/{index}.ext`の
+ * 4階層で保存され、`attachments[index].thumbnailUrl`へ記録する。
  */
 export const generateVideoThumbnail = onObjectFinalized(
   { region: "asia-northeast1", memory: "1GiB", timeoutSeconds: 120 },
@@ -3467,32 +3492,57 @@ export const generateVideoThumbnail = onObjectFinalized(
     if (filePath.includes("_thumb.")) return; // 生成物自身の再帰防止
 
     const segments = filePath.split("/");
-    if (segments.length !== 3) return;
-    const [prefix, parentId, fileName] = segments;
-    const messageId = fileName.replace(/\.[^.]+$/, "");
+    if (segments.length !== 3 && segments.length !== 4) return;
+    const prefix = segments[0];
+    const parentId = segments[1];
+    const fileName = segments[segments.length - 1];
+    // 4階層は複数添付: {prefix}/{parentId}/{messageId}/{index}.ext
+    const isMulti = segments.length === 4;
+    const messageId = isMulti
+      ? segments[2]
+      : fileName.replace(/\.[^.]+$/, "");
+    const attachmentIndex = isMulti
+      ? Number(fileName.replace(/\.[^.]+$/, ""))
+      : -1;
+    if (isMulti && !Number.isInteger(attachmentIndex)) return;
 
     const bucket = getStorage().bucket(event.data.bucket);
     const tmpVideoPath = path.join(
       os.tmpdir(),
-      `${messageId}-src${path.extname(fileName)}`,
+      `${messageId}-${attachmentIndex}-src${path.extname(fileName)}`,
     );
-    const tmpThumbFileName = `${messageId}-thumb.jpg`;
+    const tmpThumbFileName = `${messageId}-${attachmentIndex}-thumb.jpg`;
     const tmpThumbPath = path.join(os.tmpdir(), tmpThumbFileName);
 
     await bucket.file(filePath).download({ destination: tmpVideoPath });
-    await new Promise<void>((resolve, reject) => {
-      ffmpeg(tmpVideoPath)
-        .on("end", () => resolve())
-        .on("error", (err: Error) => reject(err))
-        .screenshots({
-          count: 1,
-          timestamps: ["1"],
-          filename: tmpThumbFileName,
-          folder: os.tmpdir(),
-        });
-    });
+    // サムネイルは動画の1秒付近の1コマ（冒頭は暗転・フェードインで黒くなりやすい
+    // ため、アプリ側`VideoThumbnail`の表示位置と同じ1秒にそろえている）。
+    // 1秒に満たない短い動画ではコマが出力されない（エラーにもならない）ので、
+    // 出力が無ければ先頭付近（0.1秒）で撮り直す。
+    const takeScreenshot = (timestamp: string) =>
+      new Promise<void>((resolve, reject) => {
+        ffmpeg(tmpVideoPath)
+          .on("end", () => resolve())
+          .on("error", (err: Error) => reject(err))
+          .screenshots({
+            count: 1,
+            timestamps: [timestamp],
+            filename: tmpThumbFileName,
+            folder: os.tmpdir(),
+          });
+      });
+    try {
+      await takeScreenshot("1");
+    } catch (err) {
+      logger.warn(`動画サムネイル: 1秒位置で失敗、先頭付近で再試行 (${filePath})`, err);
+    }
+    if (!fs.existsSync(tmpThumbPath)) {
+      await takeScreenshot("0.1");
+    }
 
-    const thumbStoragePath = `${prefix}/${parentId}/${messageId}_thumb.jpg`;
+    const thumbStoragePath = isMulti
+      ? `${prefix}/${parentId}/${messageId}/${attachmentIndex}_thumb.jpg`
+      : `${prefix}/${parentId}/${messageId}_thumb.jpg`;
     const downloadToken = randomUUID();
     await bucket.upload(tmpThumbPath, {
       destination: thumbStoragePath,
@@ -3514,12 +3564,38 @@ export const generateVideoThumbnail = onObjectFinalized(
       `${encodedPath}?alt=media&token=${downloadToken}`;
 
     const topCollection = prefix === "dmFiles" ? "directMessages" : "groups";
-    const messageRef = await findMessageRef(topCollection, parentId, messageId);
+    // 複数添付はファイルを全て上げ終えてからメッセージを書くため、サムネイル
+    // 生成の方が早く終わることがある。見つかるまで少し待つ。
+    let messageRef = await findMessageRef(topCollection, parentId, messageId);
+    for (let i = 0; i < 5 && !messageRef && isMulti; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+      messageRef = await findMessageRef(topCollection, parentId, messageId);
+    }
     if (!messageRef) {
       logger.warn(`動画サムネイル生成: メッセージが見つかりません (${filePath})`);
       return;
     }
-    await messageRef.update({ "fileMetadata.thumbnailUrl": thumbnailUrl });
+    if (!isMulti) {
+      await messageRef.update({ "fileMetadata.thumbnailUrl": thumbnailUrl });
+      return;
+    }
+    // 配列の要素は点記法で更新できないため、トランザクションで差し替える。
+    await db.runTransaction(async (tx) => {
+      const snap = await tx.get(messageRef!);
+      const attachments = (snap.get("attachments") ?? []) as Array<
+        Record<string, unknown>
+      >;
+      if (!attachments[attachmentIndex]) return;
+      attachments[attachmentIndex] = {
+        ...attachments[attachmentIndex],
+        thumbnailUrl,
+      };
+      const update: Record<string, unknown> = { attachments };
+      if (attachmentIndex === 0) {
+        update["fileMetadata.thumbnailUrl"] = thumbnailUrl;
+      }
+      tx.update(messageRef!, update);
+    });
   },
 );
 

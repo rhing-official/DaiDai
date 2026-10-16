@@ -160,15 +160,27 @@ class _AlbumMessagePickerScreenState
                     itemCount: messages.length,
                     itemBuilder: (context, index) {
                       final message = messages[index];
-                      final url = message.fileMetadata?.url;
-                      if (url == null) return const SizedBox.shrink();
+                      // 複数添付は先頭のメディアをタイルにし、選ぶと全て追加される
+                      // （2026-10-16）。メディアを含まなければ出さない。
+                      final tile = message.contentType == 'multi'
+                          ? message.attachments
+                                .where((a) => a.isMedia)
+                                .firstOrNull
+                          : message.fileMetadata;
+                      final url = tile?.url;
+                      if (tile == null || url == null) {
+                        return const SizedBox.shrink();
+                      }
+                      final isVideo = message.contentType == 'multi'
+                          ? tile.isVideo
+                          : message.contentType == 'video';
                       final selected = _selected.contains(message.messageId);
                       return GestureDetector(
                         onTap: () => _toggle(message),
                         child: Stack(
                           fit: StackFit.expand,
                           children: [
-                            message.contentType == 'video'
+                            isVideo
                                 ? VideoThumbnail(
                                     url: url,
                                     canLoad: videoPlaybackSupported,

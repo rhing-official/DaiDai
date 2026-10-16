@@ -3014,6 +3014,8 @@ String? _conversationPreviewLabel(
       return strings.talksListPreviewVideo;
     case 'file':
       return strings.talksListPreviewFile;
+    case 'multi':
+      return strings.talksListPreviewMulti;
     case 'sticker':
       return '[${vocabulary.sticker}]';
     default:

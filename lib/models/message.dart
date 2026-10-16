@@ -65,6 +65,13 @@ class MessageFileMetadata {
     );
   }
 
+  /// 種別（画像・動画・その他）は`mimeType`から決める。`contentType='multi'`の
+  /// メッセージが画像・動画・ファイルを混在して持つ際の振り分けに使う
+  /// （2026-10-16追加）。
+  bool get isImage => mimeType.startsWith('image/');
+  bool get isVideo => mimeType.startsWith('video/');
+  bool get isMedia => isImage || isVideo;
+
   Map<String, dynamic> toJson() => {
     'url': url,
     'fileName': fileName,
@@ -96,6 +103,10 @@ class MessageStickerData {
     'stickerUrl': stickerUrl,
   };
 }
+
+/// 1つのメッセージにまとめて送れる添付の最大件数（2026-10-16追加、
+/// `firestore.rules`の`attachments.size() <= 10`と必ず一致させること）。
+const kMaxMultiAttachments = 10;
 
 /// 返信の引用プレビュー用にcontentを切り詰める。
 String messageSnippetOf(String content) {
@@ -158,6 +169,7 @@ class Message {
     this.callIsVideo,
     this.accountDeletionResponse,
     this.fileMetadata,
+    this.attachments = const [],
     this.stickerData,
     this.calendarEventId,
     this.scheduleCoordinationId,
@@ -275,6 +287,12 @@ class Message {
   /// contentTypeでは常にnull。
   final MessageFileMetadata? fileMetadata;
 
+  /// contentType='multi'（複数添付を1つにまとめたメッセージ、2026-10-16追加、
+  /// 最大[kMaxMultiAttachments]件）専用。画像・動画・ファイルが混在しうる。
+  /// [fileMetadata]には先頭要素も入れる（単一前提のコード・通知の保険）。
+  /// それ以外のcontentTypeでは常に空。
+  final List<MessageFileMetadata> attachments;
+
   /// contentType='sticker'専用のメタデータ。それ以外のcontentTypeでは常にnull。
   final MessageStickerData? stickerData;
 
@@ -356,6 +374,10 @@ class Message {
           : MessageFileMetadata.fromJson(
               json['fileMetadata'] as Map<String, dynamic>,
             ),
+      attachments: [
+        for (final a in (json['attachments'] as List<dynamic>? ?? const []))
+          MessageFileMetadata.fromJson(Map<String, dynamic>.from(a as Map)),
+      ],
       stickerData: json['stickerData'] == null
           ? null
           : MessageStickerData.fromJson(
@@ -398,6 +420,8 @@ class Message {
       'callIsVideo': callIsVideo,
       'accountDeletionResponse': accountDeletionResponse,
       'fileMetadata': fileMetadata?.toJson(),
+      if (attachments.isNotEmpty)
+        'attachments': [for (final a in attachments) a.toJson()],
       'stickerData': stickerData?.toJson(),
       'calendarEventId': calendarEventId,
       'scheduleCoordinationId': scheduleCoordinationId,

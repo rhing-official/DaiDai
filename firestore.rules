@@ -412,6 +412,9 @@ service cloud.firestore {
             && request.auth.uid in get(/databases/$(database)/documents/directMessages/$(dmId)/rooms/$(roomId)).data.participants;
           allow create: if request.auth != null
             && request.auth.uid == request.resource.data.senderId
+            // 複数添付（contentType='multi'）は最大10件（2026-10-16追加、
+            // lib/models/message.dartのkMaxMultiAttachmentsと一致させる）。
+            && request.resource.data.get('attachments', []).size() <= 10
             && request.auth.uid in get(/databases/$(database)/documents/directMessages/$(dmId)/rooms/$(roomId)).data.participants;
           // 既読機能: 参加者本人がreadByフィールドのみを更新できる
           // （既読を付けるのに送信者である必要はない）。範囲選択削除
@@ -1127,6 +1130,8 @@ service cloud.firestore {
             // だけが作れる。人間がBOT表示になりすませないよう、クライアントからの
             // 作成では`botName`を禁止する（2026-10-10追加）。
             && request.resource.data.get('botName', null) == null
+            // 複数添付（contentType='multi'）は最大10件（2026-10-16追加）。
+            && request.resource.data.get('attachments', []).size() <= 10
             && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)/rooms/$(roomId)).data.memberIds;
           // 既読機能: メンバー本人がreadByフィールドのみを更新できる。
           // 範囲選択削除（2026-07-27追加）: メンバー本人がhiddenForに

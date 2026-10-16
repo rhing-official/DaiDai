@@ -130,6 +130,50 @@ void main() {
     });
   });
 
+  group('複数添付（contentType=multi）', () {
+    MessageFileMetadata meta(String name, String mime) => MessageFileMetadata(
+      url: 'https://example.com/$name',
+      fileName: name,
+      extension: name.split('.').last,
+      sizeBytes: 10,
+      mimeType: mime,
+    );
+
+    test('種別はmimeTypeから決まる', () {
+      expect(meta('a.webp', 'image/webp').isImage, isTrue);
+      expect(meta('a.mp4', 'video/mp4').isVideo, isTrue);
+      expect(meta('a.pdf', 'application/pdf').isMedia, isFalse);
+    });
+
+    test('attachmentsはJSONで往復し、空なら出力しない', () {
+      final message = Message(
+        messageId: 'm1',
+        conversationId: 'c',
+        conversationType: 'room',
+        senderId: 'u1',
+        content: 'a.webp / b.mp4',
+        contentType: 'multi',
+        sentAt: Timestamp.fromMillisecondsSinceEpoch(0),
+        attachments: [meta('a.webp', 'image/webp'), meta('b.mp4', 'video/mp4')],
+      );
+      final json = message.toJson();
+      final restored = Message.fromJson('m1', json);
+      expect(restored.attachments.map((a) => a.fileName), ['a.webp', 'b.mp4']);
+
+      final single = Message(
+        messageId: 'm2',
+        conversationId: 'c',
+        conversationType: 'room',
+        senderId: 'u1',
+        content: 'x',
+        contentType: 'text',
+        sentAt: Timestamp.fromMillisecondsSinceEpoch(0),
+      );
+      expect(single.toJson().containsKey('attachments'), isFalse);
+      expect(Message.fromJson('m2', single.toJson()).attachments, isEmpty);
+    });
+  });
+
   group('messageSnippetOf', () {
     test('80文字以内はそのまま返す', () {
       expect(messageSnippetOf('こんにちは'), 'こんにちは');

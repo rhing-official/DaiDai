@@ -231,7 +231,7 @@ void main() {
       expect(find.text('お便り'), findsOneWidget);
       expect(find.text('アプリについて'), findsOneWidget);
       expect(find.text('オープンソースライセンス'), findsOneWidget);
-      expect(find.byType(SlideDrilldown), findsNothing);
+      expect(find.byType(SlideDrilldownStack), findsNothing);
       expect(
         tester.getTopLeft(find.text('オープンソースライセンス')).dx,
         greaterThan(tester.getTopRight(find.text('お便り')).dx),
@@ -248,7 +248,7 @@ void main() {
     await tester.tap(find.text('アプリについて'));
     await tester.pumpAndSettle();
 
-    expect(find.byType(SlideDrilldown), findsOneWidget);
+    expect(find.byType(SlideDrilldownStack), findsOneWidget);
   });
 
   testWidgets('既定でアカウントページが選択され、Rhing Seedの値が表示される', (tester) async {
@@ -393,7 +393,7 @@ void main() {
     // 安定した目印としてPositionedを経由して絞り込む。
     final talkPageScrollable = find.descendant(
       of: find.descendant(
-        of: find.byType(SlideDrilldown),
+        of: find.byType(SlideDrilldownStack),
         matching: find.byType(Positioned),
       ),
       matching: find.byType(Scrollable),

@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../l10n/strings.dart';
+import '../../models/message.dart';
+import '../../utils/attachment_upload.dart';
 import '../../utils/drag_menu_geometry.dart';
 import '../../widgets/gekiga/gekiga_icon_badge.dart';
 import 'camera_capture_screen.dart';
@@ -56,7 +58,9 @@ class AttachmentPopupButton extends StatefulWidget {
   /// 自体の見た目はスタイル分岐しない。
   final bool isGekiga;
 
-  final void Function(PickedAttachment attachment) onPicked;
+  /// 選ばれた添付（複数選択に対応、1件のこともある、2026-10-16変更）。
+  /// 上限（[kMaxMultiAttachments]）の切り詰めは呼び出し側が行う。
+  final void Function(List<PickedAttachment> attachments) onPicked;
 
   @override
   State<AttachmentPopupButton> createState() => _AttachmentPopupButtonState();
@@ -108,38 +112,56 @@ class _AttachmentPopupButtonState extends State<AttachmentPopupButton> {
   }
 
   Future<void> _pickFile() async {
-    final file = await FilePicker.pickFile();
-    if (file == null) return;
-    final bytes = await file.readAsBytes();
-    widget.onPicked(
-      PickedAttachment(bytes: bytes, fileName: file.name, contentType: 'file'),
-    );
+    final files = await FilePicker.pickFiles();
+    if (files.isEmpty) return;
+    widget.onPicked([
+      for (final file in files)
+        PickedAttachment(
+          bytes: await file.readAsBytes(),
+          fileName: file.name,
+          contentType: 'file',
+        ),
+    ]);
   }
 
   Future<void> _pickImage() async {
-    final picked = await ImagePicker().pickImage(source: ImageSource.gallery);
-    if (picked == null) return;
-    final bytes = await picked.readAsBytes();
-    widget.onPicked(
-      PickedAttachment(
-        bytes: bytes,
-        fileName: picked.name,
-        contentType: 'image',
-      ),
+    final picked = await ImagePicker().pickMultiImage(
+      limit: kMaxMultiAttachments,
     );
+    if (picked.isEmpty) return;
+    widget.onPicked([
+      for (final file in picked)
+        PickedAttachment(
+          bytes: await file.readAsBytes(),
+          fileName: file.name,
+          contentType: 'image',
+        ),
+    ]);
   }
 
+  /// 動画の複数選択。`image_picker`には動画だけを複数選べるAPIが無いため
+  /// `pickMultipleMedia`を使い、画像が混ざった場合も拡張子・MIMEで種別を
+  /// 判定してそのまま送る（2026-10-16）。
   Future<void> _pickVideo() async {
-    final picked = await ImagePicker().pickVideo(source: ImageSource.gallery);
-    if (picked == null) return;
-    final bytes = await picked.readAsBytes();
-    widget.onPicked(
-      PickedAttachment(
-        bytes: bytes,
-        fileName: picked.name,
-        contentType: 'video',
-      ),
+    final picked = await ImagePicker().pickMultipleMedia(
+      limit: kMaxMultiAttachments,
     );
+    if (picked.isEmpty) return;
+    final attachments = <PickedAttachment>[];
+    for (final file in picked) {
+      final bytes = await file.readAsBytes();
+      final isVideo =
+          isVideoFileName(file.name, mimeType: file.mimeType) ||
+          looksLikeVideoBytes(bytes);
+      attachments.add(
+        PickedAttachment(
+          bytes: bytes,
+          fileName: file.name,
+          contentType: isVideo ? 'video' : 'image',
+        ),
+      );
+    }
+    widget.onPicked(attachments);
   }
 
   Future<void> _openCamera() async {
@@ -148,13 +170,13 @@ class _AttachmentPopupButtonState extends State<AttachmentPopupButton> {
       MaterialPageRoute(builder: (_) => const CameraCaptureScreen()),
     );
     if (captured == null) return;
-    widget.onPicked(
+    widget.onPicked([
       PickedAttachment(
         bytes: captured.bytes,
         fileName: captured.fileName,
         contentType: captured.isVideo ? 'video' : 'image',
       ),
-    );
+    ]);
   }
 
   void _onPointerDown(PointerDownEvent event) {

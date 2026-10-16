@@ -59,6 +59,7 @@ import '../poll/poll_detail_dialog.dart';
 import 'attachment_popup_button.dart';
 import 'button_anchored_menu.dart';
 import '../../utils/attachment_upload.dart';
+import '../../utils/multi_attachment_layout.dart';
 import '../../utils/auto_dismiss_banner.dart';
 import '../../utils/drag_menu_geometry.dart';
 import '../../utils/link_detection.dart';
@@ -87,6 +88,7 @@ import '../../widgets/linkified_editing_controller.dart';
 import '../../widgets/linkified_text.dart';
 import '../../widgets/media_viewer_screen.dart';
 import '../../widgets/video_thumbnail.dart';
+import '../../widgets/confirm_download_dialog.dart';
 import '../../widgets/dialog_keyboard_shortcuts.dart';
 import '../../theme/glass/glass_theme_extras.dart';
 import '../../utils/mention_suggestion.dart';
@@ -120,6 +122,7 @@ class ChatScreen extends ConsumerStatefulWidget {
     required this.messagesStream,
     this.onSend,
     this.onSendAttachment,
+    this.onSendMultiAttachment,
     this.onSendSticker,
     this.onCallPressed,
     this.onVideoCallPressed,
@@ -207,6 +210,15 @@ class ChatScreen extends ConsumerStatefulWidget {
     ValueChanged<double>? onProgress,
   })?
   onSendAttachment;
+
+  /// 複数の添付を1つのメッセージにまとめて送る（2026-10-16追加、最大
+  /// [kMaxMultiAttachments]件）。nullなら複数選択でも[onSendAttachment]で
+  /// 1件ずつ送る。
+  final Future<void> Function(
+    List<PickedAttachment> attachments, {
+    ValueChanged<double>? onProgress,
+  })?
+  onSendMultiAttachment;
 
   /// ぺったん（スタンプ）を送信する（技術仕様書7.4参照、2026-08-11追加）。
   /// nullなら＋ボタンのメニューに「ぺったん」項目自体を出さない。
@@ -890,6 +902,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   final _composerAreaKey = GlobalKey();
   double _composerAreaHeight = 72;
 
+  /// 入力欄の高さが安定したか。安定するまでは一覧を透明にし、高さの変化も
+  /// アニメーションさせない（開いた直後にメッセージが動いて「上から降りてくる」
+  /// ように見えるため）。
+  bool _composerAreaMeasured = false;
+
   /// メッセージ入力欄右端の専用ぺったん送信アイコン（2026-08-11追加）の
   /// アンカー位置計算用。デスクトップ幅ではこのキーを基準に
   /// [showStickerPickerPopup]でアイコン付近にポップアップを浮かせる。
@@ -904,10 +921,24 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     if (!mounted) return;
     final box =
         _composerAreaKey.currentContext?.findRenderObject() as RenderBox?;
-    if (box == null || !box.hasSize) return;
+    if (box == null || !box.hasSize) {
+      // 入力欄の無い画面（読み取り専用）や選択モード中は計測対象が無い。
+      // 一覧を透明のままにしないよう、安定済み扱いにする。
+      if ((widget.onSend == null || _selecting || _screenshotSelecting) &&
+          !_composerAreaMeasured) {
+        setState(() => _composerAreaMeasured = true);
+      }
+      return;
+    }
     final height = box.size.height;
     if ((height - _composerAreaHeight).abs() > 0.5) {
       setState(() => _composerAreaHeight = height);
+    } else {
+      // 高さが安定した（変化なしで計測できた）時点から通常のアニメーションに
+      // 戻す。最初の数フレームは入力欄の高さが過渡的に大きく計測される
+      // （実測で初回192→次フレーム72）ため、その縮みをアニメーションすると
+      // メッセージ全体が上から降りてくる。
+      if (!_composerAreaMeasured) setState(() => _composerAreaMeasured = true);
     }
   }
 
@@ -2159,20 +2190,36 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// `MaterialBanner`はSnackBarと違いキューイングされず常に最新の1件だけが
   /// 表示される）。自動リトライ・レジュームは行わず、再送はバナーの
   /// 「再送」アクションから同じ添付を渡してもう一度呼び直す形にする。
-  Future<void> _handleAttachmentPicked(PickedAttachment attachment) async {
+  Future<void> _handleAttachmentsPicked(List<PickedAttachment> picked) async {
     final onSendAttachment = widget.onSendAttachment;
-    if (onSendAttachment == null) return;
+    if (onSendAttachment == null || picked.isEmpty) return;
+    final strings = ref.read(appStringsProvider);
+    var attachments = picked;
+    if (attachments.length > kMaxMultiAttachments) {
+      attachments = attachments.sublist(0, kMaxMultiAttachments);
+      _bannerTimer = showAutoDismissBanner(
+        context,
+        message: strings.chatAttachmentTooManyMessage(kMaxMultiAttachments),
+        previousTimer: _bannerTimer,
+      );
+    }
+    final onSendMulti = widget.onSendMultiAttachment;
     setState(() => _uploadProgress = 0);
     try {
-      await onSendAttachment(
-        attachment,
-        onProgress: (progress) {
-          if (mounted) setState(() => _uploadProgress = progress);
-        },
-      );
+      void onProgress(double progress) {
+        if (mounted) setState(() => _uploadProgress = progress);
+      }
+
+      if (attachments.length > 1 && onSendMulti != null) {
+        // 複数は1つのメッセージにまとめる。1件でも失敗したら何も送られない。
+        await onSendMulti(attachments, onProgress: onProgress);
+      } else {
+        for (final attachment in attachments) {
+          await onSendAttachment(attachment, onProgress: onProgress);
+        }
+      }
     } catch (e) {
       if (!mounted) return;
-      final strings = ref.read(appStringsProvider);
       final message = switch (e) {
         AttachmentTooLargeException() => strings.chatAttachmentTooLargeMessage,
         AttachmentExtensionBlockedException() =>
@@ -2191,7 +2238,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             TextButton(
               onPressed: () {
                 dismissAutoDismissBanner();
-                _handleAttachmentPicked(attachment);
+                _handleAttachmentsPicked(attachments);
               },
               child: Text(strings.chatResendAction),
             )
@@ -2709,7 +2756,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                         .where(
                           (m) =>
                               m.contentType == 'image' ||
-                              m.contentType == 'video',
+                              m.contentType == 'video' ||
+                              (m.contentType == 'multi' &&
+                                  m.attachments.any((a) => a.isMedia)),
                         )
                         .toList()
                         .reversed
@@ -2930,27 +2979,41 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                             ? 0
                             : _composerAreaHeight,
                       ),
-                      duration: const Duration(milliseconds: 180),
+                      // 滑らかに動かすのは、入力中（フォーカス中）の伸び縮みと
+                      // 返信/編集バーの開閉だけ。開いた直後などフォーカスの無い
+                      // 高さの変化（フォント読み込み・下書き復元等）をアニメー
+                      // ションすると、メッセージ全体が下がって見える。
+                      duration:
+                          _composerAreaMeasured &&
+                              (_composerFocusNode.hasFocus ||
+                                  _replyingTo != null ||
+                                  _editingMessage != null)
+                          ? const Duration(milliseconds: 180)
+                          : Duration.zero,
                       curve: Curves.easeOut,
-                      builder: (context, bottomInset, _) =>
-                          ScrollablePositionedList.builder(
-                            itemScrollController: _itemScrollController,
-                            itemPositionsListener: _itemPositionsListener,
-                            reverse: true,
-                            itemCount: reversedEntries.length,
-                            itemBuilder: (context, index) =>
-                                buildEntry(reversedEntries[index]),
-                            initialScrollIndex: initialScrollIndex,
-                            initialAlignment: anchoredIndex == null
-                                ? 0
-                                : initialAnchor!.leadingEdge,
-                            padding: EdgeInsets.fromLTRB(
-                              12,
-                              12,
-                              12,
-                              12 + bottomInset,
-                            ),
+                      builder: (context, bottomInset, _) => Opacity(
+                        // 入力欄の高さが安定するまでは一覧を見せない（過渡的な
+                        // 高さで一瞬配置され、安定時に一気にずれて見えるため）。
+                        opacity: _composerAreaMeasured ? 1 : 0,
+                        child: ScrollablePositionedList.builder(
+                          itemScrollController: _itemScrollController,
+                          itemPositionsListener: _itemPositionsListener,
+                          reverse: true,
+                          itemCount: reversedEntries.length,
+                          itemBuilder: (context, index) =>
+                              buildEntry(reversedEntries[index]),
+                          initialScrollIndex: initialScrollIndex,
+                          initialAlignment: anchoredIndex == null
+                              ? 0
+                              : initialAnchor!.leadingEdge,
+                          padding: EdgeInsets.fromLTRB(
+                            12,
+                            12,
+                            12,
+                            12 + bottomInset,
                           ),
+                        ),
+                      ),
                     );
                   },
                 ),
@@ -3015,7 +3078,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                     AttachmentPopupButton(
                                       strings: strings,
                                       isGekiga: isGekiga,
-                                      onPicked: _handleAttachmentPicked,
+                                      onPicked: _handleAttachmentsPicked,
                                     ),
                                   Expanded(
                                     child: Focus(
@@ -3614,6 +3677,22 @@ Widget? _replyPreviewThumbnail(Message target) {
         url: url,
         canLoad: supportsInAppPlayback,
         size: size,
+      );
+    case 'multi':
+      // 複数添付は先頭のメディアをサムネイルにする（2026-10-16）。
+      final first = target.attachments.where((a) => a.isMedia).firstOrNull;
+      if (first == null) return null;
+      final thumbUrl = first.isVideo ? first.thumbnailUrl : first.url;
+      if (thumbUrl == null) return null;
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(4),
+        child: Image.network(
+          thumbUrl,
+          width: size,
+          height: size,
+          fit: BoxFit.cover,
+          errorBuilder: (_, _, _) => const SizedBox.shrink(),
+        ),
       );
     default:
       return null;
@@ -4521,7 +4600,8 @@ class _MessageRow extends ConsumerWidget {
     final isAttachment =
         message.contentType == 'file' ||
         message.contentType == 'image' ||
-        message.contentType == 'video';
+        message.contentType == 'video' ||
+        message.contentType == 'multi';
     // マークダウンプレビューカード（`_FileAttachmentBlock`）は自前の枠
     // （`GekigaStraightMonochromeBox`）を持つため、`_GekigaBubble`側の枠は
     // 二重表示になる（2026-08-10、ユーザー指摘により画像と同じ扱いにした）。
@@ -4529,6 +4609,13 @@ class _MessageRow extends ConsumerWidget {
         message.contentType == 'file' &&
         message.fileMetadata != null &&
         _FileAttachmentBlock.isPreviewableMarkdown(message.fileMetadata!);
+
+    // 複数添付で全てが画像・動画なら、単一の画像と同じく吹き出しの枠を付けず
+    // グリッド自身の枠だけにする（ファイルが混ざる場合は吹き出しに入れる）。
+    final isMultiMediaOnly =
+        message.contentType == 'multi' &&
+        message.attachments.isNotEmpty &&
+        message.attachments.every((a) => a.isMedia);
 
     final bubbleContent = Column(
       mainAxisSize: MainAxisSize.min,
@@ -4704,6 +4791,7 @@ class _MessageRow extends ConsumerWidget {
     final skipBubbleFrame =
         message.contentType == 'image' ||
         message.contentType == 'video' ||
+        isMultiMediaOnly ||
         isMarkdownPreview ||
         isSticker ||
         isCalendarEventNotice ||
@@ -4881,7 +4969,8 @@ class _MessageRow extends ConsumerWidget {
                       onAddToAlbum:
                           (onAddToAlbum != null &&
                               (message.contentType == 'image' ||
-                                  message.contentType == 'video'))
+                                  message.contentType == 'video' ||
+                                  message.attachments.any((a) => a.isMedia)))
                           ? () => onAddToAlbum!(message)
                           : null,
                       child: bubble,
@@ -5893,11 +5982,146 @@ class _MessageRow extends ConsumerWidget {
     );
   }
 
+  /// 複数添付（`contentType: 'multi'`）の表示（2026-10-16追加）。画像・動画は
+  /// 1つの枠にグリッドで並べ、タップで会話全体のメディアを巡るビューアを開く。
+  /// ファイルはその下に1件ずつの行（[_FileAttachmentBlock]）で並べる。
+  Widget _multiAttachmentContent(
+    BuildContext context,
+    Color onBubbleColor,
+    bool isGekiga,
+  ) {
+    const gridWidth = 280.0;
+    final media = [
+      for (var i = 0; i < message.attachments.length; i++)
+        if (message.attachments[i].isMedia) i,
+    ];
+    final files = [
+      for (var i = 0; i < message.attachments.length; i++)
+        if (!message.attachments[i].isMedia) i,
+    ];
+    // 枚数に応じて、全体が整った正方形・長方形になる配置にする（1枚目を全幅に
+    // 拡大する構成を含む、`multiAttachmentLayout`参照）。
+    final layout = multiAttachmentLayout(media.length, gridWidth);
+
+    Widget mediaCell(int index, Rect tile) {
+      final item = message.attachments[index];
+      Widget content;
+      if (item.isVideo) {
+        // サムネイル画像（Cloud Functionsが後から生成）があればそれを、無ければ
+        // 先頭フレームを`VideoThumbnail`で表示する。長方形のタイルいっぱいに
+        // 収まるよう、正方形の`VideoThumbnail`を`cover`で拡大して切り抜く。
+        final thumb = item.thumbnailUrl;
+        final side = math.max(tile.width, tile.height);
+        content = Stack(
+          fit: StackFit.expand,
+          children: [
+            if (thumb != null)
+              Image.network(
+                thumb,
+                fit: BoxFit.cover,
+                errorBuilder: (_, _, _) =>
+                    const ColoredBox(color: Colors.black87),
+              )
+            else
+              FittedBox(
+                fit: BoxFit.cover,
+                clipBehavior: Clip.hardEdge,
+                child: SizedBox(
+                  width: side,
+                  height: side,
+                  child: VideoThumbnail(
+                    url: item.url,
+                    canLoad: videoPlaybackSupported,
+                    size: side,
+                    showPlayIcon: false,
+                  ),
+                ),
+              ),
+            // 単一の動画メッセージと同じ大きさの再生アイコン（拡大されない）。
+            const VideoPlayBadge(),
+          ],
+        );
+      } else {
+        content = Image.network(
+          item.url,
+          fit: BoxFit.cover,
+          errorBuilder: (_, _, _) => ColoredBox(
+            color: Colors.black26,
+            child: Icon(Icons.broken_image_outlined, color: onBubbleColor),
+          ),
+        );
+      }
+      return GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () {
+          final items = mediaViewerItemsOf(mediaMessages);
+          openMediaViewer(
+            context,
+            items: items,
+            initialIndex: items.indexWhere(
+              (it) => it.id == '${message.messageId}#$index',
+            ),
+          );
+        },
+        // 1枚ずつ角丸にする（劇画は外側の枠＋タイルの角丸）。
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(mediaPreviewContentRadius),
+          child: content,
+        ),
+      );
+    }
+
+    final children = <Widget>[];
+    if (media.isNotEmpty) {
+      final grid = SizedBox(
+        width: gridWidth,
+        height: layout.height,
+        child: Stack(
+          children: [
+            for (var k = 0; k < media.length; k++)
+              Positioned.fromRect(
+                rect: layout.tiles[k],
+                child: mediaCell(media[k], layout.tiles[k]),
+              ),
+          ],
+        ),
+      );
+      // フラット・ガラスは全体の枠を付けず、1枚ずつの角丸だけにする。劇画は
+      // 白黒の枠が意匠の一部のため、従来どおり全体を囲む。
+      children.add(
+        isGekiga
+            ? mediaPreviewFrame(isGekiga: true, isMe: isMe, child: grid)
+            : grid,
+      );
+    }
+    for (final index in files) {
+      if (children.isNotEmpty) children.add(const SizedBox(height: 6));
+      children.add(
+        _FileAttachmentBlock(
+          metadata: message.attachments[index],
+          messageId: '${message.messageId}#$index',
+          onBubbleColor: onBubbleColor,
+          isGekiga: isGekiga,
+          isGlass: uiStyle == AppUiStyle.glass,
+          isMe: isMe,
+        ),
+      );
+    }
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: children,
+    );
+  }
+
   Widget _attachmentContent(
     BuildContext context,
     Color onBubbleColor,
     bool isGekiga,
   ) {
+    if (message.contentType == 'multi') {
+      return _multiAttachmentContent(context, onBubbleColor, isGekiga);
+    }
     final metadata = message.fileMetadata;
     if (metadata == null) {
       return Text(message.content, style: TextStyle(color: onBubbleColor));
@@ -5917,18 +6141,10 @@ class _MessageRow extends ConsumerWidget {
         GestureDetector(
           onTap: () => openMediaViewer(
             context,
-            items: mediaMessages
-                .map(
-                  (m) => MediaViewerItem(
-                    id: m.messageId,
-                    url: m.fileMetadata?.url ?? '',
-                    contentType: m.contentType,
-                  ),
-                )
-                .toList(),
-            initialIndex: mediaMessages.indexWhere(
-              (m) => m.messageId == message.messageId,
-            ),
+            items: mediaViewerItemsOf(mediaMessages),
+            initialIndex: mediaViewerItemsOf(
+              mediaMessages,
+            ).indexWhere((item) => item.id == message.messageId),
           ),
           child: mediaPreviewFrame(
             isGekiga: isGekiga,
@@ -5970,18 +6186,10 @@ class _MessageRow extends ConsumerWidget {
                   behavior: HitTestBehavior.opaque,
                   onTap: () => openMediaViewer(
                     context,
-                    items: mediaMessages
-                        .map(
-                          (m) => MediaViewerItem(
-                            id: m.messageId,
-                            url: m.fileMetadata?.url ?? '',
-                            contentType: m.contentType,
-                          ),
-                        )
-                        .toList(),
-                    initialIndex: mediaMessages.indexWhere(
-                      (m) => m.messageId == message.messageId,
-                    ),
+                    items: mediaViewerItemsOf(mediaMessages),
+                    initialIndex: mediaViewerItemsOf(
+                      mediaMessages,
+                    ).indexWhere((item) => item.id == message.messageId),
                   ),
                 ),
               ),
@@ -7288,6 +7496,13 @@ class _FileAttachmentBlockState extends ConsumerState<_FileAttachmentBlock>
   }
 
   Future<void> _download() async {
+    if (!await confirmDownload(
+      context,
+      ref,
+      fileName: widget.metadata.fileName,
+    )) {
+      return;
+    }
     await launchUrl(
       Uri.parse(widget.metadata.url),
       mode: LaunchMode.externalApplication,
@@ -7316,14 +7531,12 @@ class _FileAttachmentBlockState extends ConsumerState<_FileAttachmentBlock>
   /// 同期させる構造のため要動作確認）。
   void _toggleExpanded() {
     final delta = _expanded ? -_expandDelta : _expandDelta;
+    // 高さの変更と位置補正を同じフレームのレイアウトに入れる（2026-10-16）。
+    // 以前は補正を次フレームのpostFrameCallbackで行っていたため、補正前の
+    // 位置で1フレーム描かれてから跳び、一覧全体がチラついて見えた。
+    final position = Scrollable.maybeOf(context)?.position;
     setState(() => _expanded = !_expanded);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      final scrollable = Scrollable.maybeOf(context);
-      if (scrollable == null) return;
-      final position = scrollable.position;
-      position.jumpTo(position.pixels + delta);
-    });
+    position?.jumpTo(position.pixels + delta);
   }
 
   /// ホバー/常時表示のダウンロードボタン。半透明の黒地＋白アイコンという
@@ -7536,7 +7749,12 @@ class _FileAttachmentBlockState extends ConsumerState<_FileAttachmentBlock>
     // 完全には適用されないため。実際に画面へ描画されているアプリ本体の
     // `Theme.of(context)`は必ずフォントサイズ込みで解決済みなので、これを
     // ベースにして劇画UI用の文字色だけ上書きする。
-    final baseStyleSheet = MarkdownStyleSheet.fromTheme(Theme.of(context));
+    // インラインコードの背景は塗らない（2026-10-16）。背景の高さが全角と
+    // 半角で変わり、混在すると不格好に見えたため。等幅・文字色は維持する。
+    final themeStyleSheet = MarkdownStyleSheet.fromTheme(Theme.of(context));
+    final baseStyleSheet = themeStyleSheet.copyWith(
+      code: themeStyleSheet.code?.copyWith(backgroundColor: Colors.transparent),
+    );
     final markdownStyleSheet = widget.isGekiga
         ? baseStyleSheet.copyWith(
             // 本文の文字色は`gekigaFg`（isMe対応、上記参照）を使う。固定で
@@ -7546,10 +7764,7 @@ class _FileAttachmentBlockState extends ConsumerState<_FileAttachmentBlock>
             // （2026-09-16修正）。
             a: baseStyleSheet.a?.copyWith(color: gekigaFg),
             p: baseStyleSheet.p?.copyWith(color: gekigaFg),
-            code: baseStyleSheet.code?.copyWith(
-              color: gekigaFg,
-              backgroundColor: Colors.black.withValues(alpha: 0.35),
-            ),
+            code: baseStyleSheet.code?.copyWith(color: gekigaFg),
             h1: baseStyleSheet.h1?.copyWith(color: gekigaFg),
             h2: baseStyleSheet.h2?.copyWith(color: gekigaFg),
             h3: baseStyleSheet.h3?.copyWith(color: gekigaFg),
@@ -7561,6 +7776,22 @@ class _FileAttachmentBlockState extends ConsumerState<_FileAttachmentBlock>
             del: baseStyleSheet.del?.copyWith(color: gekigaFg),
             blockquote: baseStyleSheet.blockquote?.copyWith(
               color: gekigaFg.withValues(alpha: 0.85),
+            ),
+            // 引用・コードブロックの背景は既定だと`surfaceContainerHighest`
+            // （劇画テーマでは黒）になり、暗い文字色のカード（自分が送った
+            // 白地のもの）で黒地に黒文字となって中身が見えなかった
+            // （2026-10-16修正）。背景は塗らず、縦線・枠線で区切る。
+            blockquoteDecoration: BoxDecoration(
+              border: Border(
+                left: BorderSide(
+                  color: gekigaFg.withValues(alpha: 0.6),
+                  width: 3,
+                ),
+              ),
+            ),
+            codeblockDecoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(4),
+              border: Border.all(color: gekigaFg.withValues(alpha: 0.4)),
             ),
             listBullet: baseStyleSheet.listBullet?.copyWith(color: gekigaFg),
             tableHead: baseStyleSheet.tableHead?.copyWith(color: gekigaFg),
@@ -7694,7 +7925,11 @@ class _FileAttachmentBlockState extends ConsumerState<_FileAttachmentBlock>
             child: Material(color: Colors.transparent, child: content),
           );
     return ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 340),
+      // 劇画スタイルと同じ幅にそろえる（2026-10-16。以前は340で、劇画の480より
+      // 狭く本文が短く折り返されて読みにくかった）。
+      constraints: const BoxConstraints(
+        maxWidth: _FileAttachmentBlock._markdownCardMaxWidth,
+      ),
       child: card,
     );
   }
@@ -7906,3 +8141,24 @@ class _JumpToLatestButton extends StatelessWidget {
     }
   }
 }
+
+/// 会話内のメディア付きメッセージを、ビューアで巡る1枚ずつの一覧に展開する
+/// （2026-10-16追加）。複数添付（`contentType: 'multi'`）は画像・動画の各要素を
+/// `'$messageId#$index'`のidで1枚ずつ並べ、単一添付は従来どおり`messageId`。
+List<MediaViewerItem> mediaViewerItemsOf(List<Message> mediaMessages) => [
+  for (final m in mediaMessages)
+    if (m.contentType == 'multi') ...[
+      for (var i = 0; i < m.attachments.length; i++)
+        if (m.attachments[i].isMedia)
+          MediaViewerItem(
+            id: '${m.messageId}#$i',
+            url: m.attachments[i].url,
+            contentType: m.attachments[i].isVideo ? 'video' : 'image',
+          ),
+    ] else
+      MediaViewerItem(
+        id: m.messageId,
+        url: m.fileMetadata?.url ?? '',
+        contentType: m.contentType,
+      ),
+];

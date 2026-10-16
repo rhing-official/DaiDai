@@ -37,6 +37,7 @@ import 'block_move_drag.dart';
 import 'draw_canvas_view.dart';
 import 'note_table_delete.dart';
 import 'blocks/table_of_contents_block.dart';
+import '../../widgets/confirm_download_dialog.dart';
 import '../../widgets/dialog_keyboard_shortcuts.dart';
 
 /// Obsidianの既定テーマに寄せた固定パレット（2026-09-26追加、ユーザー指示。
@@ -1034,6 +1035,14 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
       _titleController.text,
       strings.noteDownloadDefaultName,
     );
+    if (!await confirmDownload(
+      context,
+      ref,
+      fileName: '$baseName.${_isDraw ? 'png' : 'md'}',
+    )) {
+      return;
+    }
+    if (!mounted) return;
     try {
       if (_isDraw) {
         final strokes = await ref
