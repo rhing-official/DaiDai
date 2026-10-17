@@ -3677,6 +3677,7 @@ Widget? _replyPreviewThumbnail(Message target) {
         url: url,
         canLoad: supportsInAppPlayback,
         size: size,
+        thumbnailUrl: target.fileMetadata?.thumbnailUrl,
       );
     case 'multi':
       // 複数添付は先頭のメディアをサムネイルにする（2026-10-16）。
@@ -6180,6 +6181,7 @@ class _MessageRow extends ConsumerWidget {
               VideoThumbnail(
                 url: metadata.url,
                 canLoad: videoPlaybackSupported,
+                thumbnailUrl: metadata.thumbnailUrl,
               ),
               Positioned.fill(
                 child: GestureDetector(

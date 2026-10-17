@@ -115,10 +115,33 @@ class Vocabulary {
     sticker: 'Sticker',
   );
 
+  /// フランス語（2026-10-17追加）。一対＝Duo（二人組）、広場＝Place（広場・公共の場）、
+  /// 寄合＝Salon（Discordのフランス語版でもチャンネルをこう呼ぶ）、蔵＝Réserve、
+  /// 工房＝Atelier。AIによる初稿のため、公開前にネイティブの確認を推奨。
+  static const french = Vocabulary._(
+    dm: 'Duo',
+    plaza: 'Place',
+    publicPlaza: 'Place publique',
+    privatePlaza: 'Place privée',
+    profileStorage: 'Réserve',
+    profileCreator: 'Atelier',
+    textChannel: 'Salon',
+    privateChannel: 'Salon privé',
+    category: 'Catégorie',
+    privateCategory: 'Catégorie privée',
+    projectBoard: 'Tableau de projet',
+    nickname: 'Surnom',
+    statusMessage: 'Statut',
+    friendConnect: 'Ajouter un ami',
+    owner: 'Propriétaire',
+    sticker: 'Sticker',
+  );
+
   static Vocabulary of(AppLocale locale) {
     return switch (locale) {
       AppLocale.japanese => japanese,
       AppLocale.britishEnglish => english,
+      AppLocale.french => french,
     };
   }
 }

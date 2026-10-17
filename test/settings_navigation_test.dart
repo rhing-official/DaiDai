@@ -430,4 +430,22 @@ void main() {
     expect(find.text('メッセージの表示'), findsNothing);
     expect(find.text('メッセージの送信キー'), findsNothing);
   });
+
+  testWidgets('運営の「使い方ガイド」の一覧は、右スワイプで運営へ戻る（詳細ページは無い）', (tester) async {
+    await _pumpSettingsTabNarrow(tester);
+    await tester.tap(find.text('運営'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('使い方ガイド'));
+    await tester.pumpAndSettle();
+    expect(find.text('知りたい機能を選んでください。'), findsOneWidget);
+
+    await tester.fling(
+      find.byType(InteractiveSwipeBackTransition).last,
+      const Offset(300, 0),
+      1000,
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('知りたい機能を選んでください。'), findsNothing);
+    expect(find.text('使い方ガイド'), findsOneWidget);
+  });
 }

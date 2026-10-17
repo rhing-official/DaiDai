@@ -29,6 +29,7 @@ class AppUserPreferences {
     this.textColorLightArgb,
     this.textColorDarkArgb,
     this.calendarWeekStart,
+    this.guideSeen,
   });
 
   static const empty = AppUserPreferences();
@@ -85,6 +86,12 @@ class AppUserPreferences {
   /// カレンダーの週の始まり（`CalendarWeekStart`のname、2026-10-04追加）。
   final String? calendarWeekStart;
 
+  /// 初回の使い方ガイドの視聴状況（2026-10-17追加）。表示設定ではなく通過儀礼の
+  /// 記録で、アカウントごとに持つ（別の端末でも再表示しない）。**null＝既存住人
+  /// （この機能の追加前に登録済みで、初回ガイドは出さない）／false＝新規登録で
+  /// 未視聴／true＝視聴済みまたはスキップ済み**。新規作成時に`false`で保存する。
+  final bool? guideSeen;
+
   factory AppUserPreferences.fromJson(Map<String, dynamic>? json) {
     if (json == null) return empty;
     return AppUserPreferences(
@@ -114,6 +121,7 @@ class AppUserPreferences {
       textColorLightArgb: json['textColorLightArgb'] as int?,
       textColorDarkArgb: json['textColorDarkArgb'] as int?,
       calendarWeekStart: json['calendarWeekStart'] as String?,
+      guideSeen: json['guideSeen'] as bool?,
     );
   }
 
@@ -145,6 +153,7 @@ class AppUserPreferences {
       if (textColorLightArgb != null) 'textColorLightArgb': textColorLightArgb,
       if (textColorDarkArgb != null) 'textColorDarkArgb': textColorDarkArgb,
       if (calendarWeekStart != null) 'calendarWeekStart': calendarWeekStart,
+      if (guideSeen != null) 'guideSeen': guideSeen,
     };
   }
 }

@@ -46,9 +46,17 @@ class VideoThumbnail extends StatefulWidget {
     required this.canLoad,
     this.size,
     this.showPlayIcon = true,
+    this.thumbnailUrl,
   });
 
   final String url;
+
+  /// サーバー側（Cloud Functions）が動画の1秒位置から生成したサムネイル画像
+  /// （`MessageFileMetadata.thumbnailUrl`、2026-10-16追加）。あれば動画自体は
+  /// 読み込まず、この画像を表示する。Webの一部ブラウザ（Firefox系）では
+  /// `VideoPlayerController.initialize`が完了せず先頭フレームを取れないため、
+  /// 画像を優先する。未生成（null）の間だけ動画から先頭付近のコマを取る。
+  final String? thumbnailUrl;
   final bool canLoad;
 
   /// 指定時は`size`×`size`の正方形（`BoxFit.cover`でクロップ）で表示する
@@ -72,9 +80,20 @@ class _VideoThumbnailState extends State<VideoThumbnail> {
   bool _ready = false;
 
   @override
+  void didUpdateWidget(covariant VideoThumbnail oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // サムネイル画像が後から生成された場合、動画の読み込みは不要になる。
+    if (oldWidget.thumbnailUrl == null && widget.thumbnailUrl != null) {
+      _controller?.dispose();
+      _controller = null;
+      _ready = false;
+    }
+  }
+
+  @override
   void initState() {
     super.initState();
-    if (!widget.canLoad) return;
+    if (!widget.canLoad || widget.thumbnailUrl != null) return;
     final controller = VideoPlayerController.networkUrl(Uri.parse(widget.url));
     _controller = controller;
     controller
@@ -99,8 +118,51 @@ class _VideoThumbnailState extends State<VideoThumbnail> {
 
   static const _playIcon = VideoPlayBadge();
 
+  Widget _serverThumbnail(String thumbUrl) {
+    final squareSize = widget.size;
+    Widget image(double? width) => Image.network(
+      thumbUrl,
+      width: width,
+      height: squareSize,
+      fit: BoxFit.cover,
+      errorBuilder: (_, _, _) => Container(color: Colors.black87),
+    );
+    if (squareSize != null) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(4),
+        child: SizedBox(
+          width: squareSize,
+          height: squareSize,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              image(squareSize),
+              if (widget.showPlayIcon)
+                Icon(
+                  Icons.play_arrow,
+                  color: Colors.white,
+                  size: squareSize / 2,
+                ),
+            ],
+          ),
+        ),
+      );
+    }
+    return SizedBox(
+      width: 280,
+      child: Stack(
+        children: [
+          image(280),
+          const Positioned.fill(child: _playIcon),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final thumbUrl = widget.thumbnailUrl;
+    if (thumbUrl != null) return _serverThumbnail(thumbUrl);
     final controller = _controller;
     final squareSize = widget.size;
     // ダイアログ・メニュー等が上に被さっている間（自分の乗っているルートが

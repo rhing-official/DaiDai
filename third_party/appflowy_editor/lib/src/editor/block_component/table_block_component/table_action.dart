@@ -81,6 +81,61 @@ class TableActions {
     );
   }
 
+  /// セル(rowA, colA)とセル(rowB, colB)を対角とする矩形範囲の選択を作る
+  /// （DaiDai patch、2026-10-17。タッチ端末でセルを長押ししてドラッグした
+  /// 範囲の選択に使う）。選択は、左上のセルの先頭の段落の先頭から、右下のセル
+  /// の末尾の段落の末尾まで。範囲を囲む枠は`table_block_component.dart`が
+  /// 両端のセルの位置から矩形として描く。同じセルなら、そのセルの全文選択。
+  /// 該当するセルが無ければ`null`。
+  static Selection? rangeSelection(
+    Node node,
+    int rowA,
+    int colA,
+    int rowB,
+    int colB,
+  ) {
+    final topLeft = getCellNode(
+      node,
+      colA < colB ? colA : colB,
+      rowA < rowB ? rowA : rowB,
+    );
+    final bottomRight = getCellNode(
+      node,
+      colA < colB ? colB : colA,
+      rowA < rowB ? rowB : rowA,
+    );
+    if (topLeft == null || bottomRight == null) {
+      return null;
+    }
+    Node? firstLeaf(Node n) {
+      if (n.delta != null) return n;
+      for (final child in n.children) {
+        final leaf = firstLeaf(child);
+        if (leaf != null) return leaf;
+      }
+      return null;
+    }
+
+    Node? lastLeaf(Node n) {
+      if (n.delta != null) return n;
+      for (final child in n.children.toList().reversed) {
+        final leaf = lastLeaf(child);
+        if (leaf != null) return leaf;
+      }
+      return null;
+    }
+
+    final first = firstLeaf(topLeft);
+    final last = lastLeaf(bottomRight);
+    if (first == null || last == null) {
+      return null;
+    }
+    return Selection(
+      start: Position(path: first.path),
+      end: Position(path: last.path, offset: last.delta?.length ?? 0),
+    );
+  }
+
   static void duplicate(
     Node node,
     int position,

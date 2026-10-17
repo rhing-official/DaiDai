@@ -258,6 +258,11 @@ async function deleteAccount(
     db.collection("users").doc(userId).collection("blockedUsers"),
     writer,
   );
+  // 居住地（自己申告、本人のみ読めるサブコレクション）も削除する。
+  await deleteSubcollection(
+    db.collection("users").doc(userId).collection("private"),
+    writer,
+  );
   await writer.delete(db.collection("users").doc(userId));
   await writer.commit();
 
@@ -3564,11 +3569,13 @@ export const generateVideoThumbnail = onObjectFinalized(
       `${encodedPath}?alt=media&token=${downloadToken}`;
 
     const topCollection = prefix === "dmFiles" ? "directMessages" : "groups";
-    // 複数添付はファイルを全て上げ終えてからメッセージを書くため、サムネイル
-    // 生成の方が早く終わることがある。見つかるまで少し待つ。
+    // メッセージはアップロード完了の後に書かれる（複数添付は全ファイルを上げ終えて
+    // から）ため、サムネイル生成の方が早く終わることがある。単一動画でも同じで、
+    // 見つからずにサムネイルが付かない事例があった（2026-10-16）。見つかるまで
+    // 最大約20秒待つ。
     let messageRef = await findMessageRef(topCollection, parentId, messageId);
-    for (let i = 0; i < 5 && !messageRef && isMulti; i++) {
-      await new Promise((resolve) => setTimeout(resolve, 3000));
+    for (let i = 0; i < 10 && !messageRef; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 2000));
       messageRef = await findMessageRef(topCollection, parentId, messageId);
     }
     if (!messageRef) {
@@ -3577,6 +3584,7 @@ export const generateVideoThumbnail = onObjectFinalized(
     }
     if (!isMulti) {
       await messageRef.update({ "fileMetadata.thumbnailUrl": thumbnailUrl });
+      logger.info(`動画サムネイル記録: ${messageRef.path}`);
       return;
     }
     // 配列の要素は点記法で更新できないため、トランザクションで差し替える。
@@ -3585,7 +3593,12 @@ export const generateVideoThumbnail = onObjectFinalized(
       const attachments = (snap.get("attachments") ?? []) as Array<
         Record<string, unknown>
       >;
-      if (!attachments[attachmentIndex]) return;
+      if (!attachments[attachmentIndex]) {
+        logger.warn(
+          `動画サムネイル: attachments[${attachmentIndex}]が無い (${messageRef!.path}, 件数${attachments.length})`,
+        );
+        return;
+      }
       attachments[attachmentIndex] = {
         ...attachments[attachmentIndex],
         thumbnailUrl,
@@ -3596,6 +3609,7 @@ export const generateVideoThumbnail = onObjectFinalized(
       }
       tx.update(messageRef!, update);
     });
+    logger.info(`動画サムネイル記録: ${messageRef.path} [${attachmentIndex}]`);
   },
 );
 

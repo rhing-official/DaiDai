@@ -57,6 +57,9 @@ import '../../utils/color_hex.dart';
 import '../../utils/platform_info.dart';
 import '../../utils/sound_upload.dart';
 import '../../widgets/destructive_label.dart';
+import '../auth/residence_survey_screen.dart';
+import '../guide/first_guide_screen.dart';
+import '../guide/guide_pages.dart';
 import '../../widgets/gekiga/gekiga_panel_box.dart';
 import '../../widgets/gekiga/gekiga_section_header.dart';
 import '../../widgets/gekiga/gekiga_text_field.dart';
@@ -169,6 +172,30 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
   /// サイドバーが消える点は`_showAbout`と同じ問題を抱えていた）。
   bool _showAnnouncements = false;
 
+  /// 運営カテゴリの中の「使い方ガイド」の一覧を表示中か（2026-10-17追加）。
+  /// 項目を押すとその場でガイドが始まるため、詳細ページは無い。
+  bool _showGuide = false;
+
+  /// 使い方ガイドの階層（一覧・詳細）。広い画面・狭い画面とも同じレイヤーを使う。
+  List<DrilldownLayer> _guideLayers() => [
+    if (_showGuide)
+      DrilldownLayer(
+        key: 'guide',
+        child: _buildGuideList(),
+        onBack: () => setState(() => _showGuide = false),
+      ),
+  ];
+
+  Widget _buildGuideList() => GuideTopicListPage(
+    onReplayFirst: () => Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (routeContext) => FirstGuideScreen(
+          onCompleted: () => Navigator.of(routeContext).pop(),
+        ),
+      ),
+    ),
+  );
+
   /// カテゴリタップの共通ハンドラ。広い画面はサイドバーが常設のため、
   /// 「アプリについて」表示中でも別カテゴリをクリックできてしまう——
   /// その場合は`_showAbout`等も一緒にリセットする（2026-09-15追加）。
@@ -178,6 +205,7 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
       _showAbout = false;
       _showLicenses = false;
       _showAnnouncements = false;
+      _showGuide = false;
     });
   }
 
@@ -185,7 +213,7 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
   /// （2026-10-06追加）。設定タブ内のカテゴリ移動と下位階層の表示状態。
   @override
   Widget build(BuildContext context) {
-    return NavHistoryBackEntry<(String?, bool, bool, bool, bool)>(
+    return NavHistoryBackEntry<(String?, bool, bool, bool, bool, bool)>(
       scope: BackScope.settings,
       location: (
         _selectedId,
@@ -193,12 +221,14 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
         _showLicenses,
         _showAnnouncements,
         _showLicenses && _licenseDetailOpen,
+        _showGuide,
       ),
       onRestore: (location) => setState(() {
         _selectedId = location.$1;
         _showAbout = location.$2;
         _showLicenses = location.$3;
         _showAnnouncements = location.$4;
+        _showGuide = location.$6;
         // 履歴上の位置がライセンス一覧（詳細を開いていない）なら、開いている
         // パッケージ詳細を閉じる。
         if (!location.$5) _popLicenseDetail();
@@ -215,6 +245,7 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
       widget.currentUser,
       () => setState(() => _showAbout = true),
       () => setState(() => _showAnnouncements = true),
+      () => setState(() => _showGuide = true),
     );
     final isWide =
         MediaQuery.sizeOf(context).width >= _kSettingsSplitBreakpoint;
@@ -257,16 +288,17 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
             onBack: _backFromLicenses,
             consumeBack: _popLicenseDetail,
           ),
+        ..._guideLayers(),
       ];
 
-      // コンピューターでは、運営の下位階層（お便り／アプリについて）を
+      // コンピューターでは、運営の下位階層（お便り／アプリについて／使い方ガイド）を
       // 運営の一覧の上に重ねず、右隣に並べて表示する（2026-10-10追加）。
       // 幅だけの判定（`isWide`）はタブレット横向きも含むため、
       // `classifyDevice`でコンピューターに限定する。タブレット・スマホは
       // 従来どおり`SlideDrilldown`による重ね表示のまま。
       final sideBySide =
           classifyDevice(context) == DeviceClass.computer &&
-          (_showAbout || _showAnnouncements || _showLicenses);
+          (_showAbout || _showAnnouncements || _showLicenses || _showGuide);
       final Widget contentColumns;
       if (sideBySide) {
         // ライセンスは「アプリについて」の右隣にさらに並べて表示する
@@ -277,8 +309,10 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
             strings: strings,
             onOpenLicenses: () => setState(() => _showLicenses = true),
           );
-        } else {
+        } else if (_showAnnouncements) {
           detailPane = AnnouncementScreen(currentUser: widget.currentUser);
+        } else {
+          detailPane = _buildGuideList();
         }
         contentColumns = Row(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -294,11 +328,19 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
                     _showAbout = true;
                     _showLicenses = false;
                     _showAnnouncements = false;
+                    _showGuide = false;
                   }),
                   onOpenAnnouncements: () => setState(() {
                     _showAnnouncements = true;
                     _showAbout = false;
                     _showLicenses = false;
+                    _showGuide = false;
+                  }),
+                  onOpenGuide: () => setState(() {
+                    _showGuide = true;
+                    _showAbout = false;
+                    _showLicenses = false;
+                    _showAnnouncements = false;
                   }),
                 ),
               ),
@@ -369,7 +411,8 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
     // 階層は`SlideDrilldownStack`のレイヤーとして重ねる（2026-10-16、理由は
     // 広い画面側の`wideLayers`参照）。下位階層の表示中は`_selectedId`が
     // 無くても、運営カテゴリの中身をその下に置く。
-    final hasSubLayer = _showAbout || _showLicenses || _showAnnouncements;
+    final hasSubLayer =
+        _showAbout || _showLicenses || _showAnnouncements || _showGuide;
     final layerCategory =
         selected ??
         (hasSubLayer ? _findCategoryById(categories, 'support') : null);
@@ -405,6 +448,7 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
           onBack: _backFromLicenses,
           consumeBack: _popLicenseDetail,
         ),
+      ..._guideLayers(),
     ];
 
     return Align(
@@ -462,6 +506,7 @@ List<_SettingsCategory> _categories(
   AppUser currentUser,
   VoidCallback onOpenAbout,
   VoidCallback onOpenAnnouncements,
+  VoidCallback onOpenGuide,
 ) {
   return [
     _SettingsCategory(
@@ -500,6 +545,7 @@ List<_SettingsCategory> _categories(
         currentUser: currentUser,
         onOpenAbout: onOpenAbout,
         onOpenAnnouncements: onOpenAnnouncements,
+        onOpenGuide: onOpenGuide,
       ),
     ),
   ];
@@ -1293,10 +1339,15 @@ class _SupportPage extends ConsumerWidget {
     required this.currentUser,
     required this.onOpenAbout,
     required this.onOpenAnnouncements,
+    required this.onOpenGuide,
   });
 
   final Strings strings;
   final AppUser currentUser;
+
+  /// 「使い方ガイド」タップ時の処理（2026-10-17追加）。`onOpenAbout`と同じく
+  /// `_SettingsTabState`側の状態（`_showGuide`）を切り替えるだけにする。
+  final VoidCallback onOpenGuide;
 
   /// 「アプリについて」タップ時の処理（2026-09-15追加）。以前はここで
   /// `Navigator.push`していたが、サイドバー・区切り線を覆い隠しスワイプ
@@ -1322,6 +1373,7 @@ class _SupportPage extends ConsumerWidget {
           label: strings.settingsAnnouncements,
           onTap: onOpenAnnouncements,
         ),
+        _ActionRow(label: strings.settingsUsageGuide, onTap: onOpenGuide),
         _ActionRow(label: strings.settingsAboutApp, onTap: onOpenAbout),
       ],
     );
@@ -1508,6 +1560,24 @@ class _AccountPage extends ConsumerWidget {
   final Strings strings;
   final AppUser currentUser;
 
+  Future<void> _editResidence(BuildContext context, WidgetRef ref) async {
+    final navigator = Navigator.of(context);
+    final current = await ref
+        .read(residenceRepositoryProvider)
+        .getResidence(currentUser.userId);
+    if (!context.mounted) return;
+    await navigator.push<void>(
+      MaterialPageRoute(
+        builder: (_) => ResidenceSurveyScreen(
+          userId: currentUser.userId,
+          initial: current,
+          isEditing: true,
+          onCompleted: navigator.pop,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return ListView(
@@ -1517,6 +1587,11 @@ class _AccountPage extends ConsumerWidget {
         _InfoRow(
           label: strings.settingsRhingSeedLabel,
           value: '@${currentUser.rhingSeed}',
+        ),
+        // 居住地（伝書鳩・安否確認用の自己申告、2026-10-16追加）。
+        _ActionRow(
+          label: strings.settingsResidence,
+          onTap: () => _editResidence(context, ref),
         ),
         const Divider(height: 24),
         _SectionHeader(strings.settingsSecurity),
@@ -2821,7 +2896,11 @@ class _FontDesignFolderState extends ConsumerState<_FontDesignFolder> {
   @override
   Widget build(BuildContext context) {
     final strings = widget.strings;
-    final design = ref.watch(fontDesignProvider);
+    final locale = ref.watch(appLocaleProvider);
+    // 選択中のフォントがこの表示言語で使えない場合は、実際に適用される
+    // フォント（既定）を選択中として見せる。
+    final design = ref.watch(fontDesignProvider).resolvedFor(locale);
+    final available = FontDesign.availableFor(locale);
     final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
 
     void select(FontDesign value) =>
@@ -2832,11 +2911,11 @@ class _FontDesignFolderState extends ConsumerState<_FontDesignFolder> {
     // 一本化した（以前はここに25分岐のswitchを直書きしていた）。
     String labelFor(FontDesign value) => strings.fontDesignLabel(value);
 
-    final hasMore = FontDesign.values.length > kFontDesignPreviewCount;
+    final hasMore = available.length > kFontDesignPreviewCount;
     final visibleDesigns = _expanded
-        ? FontDesign.values
-        : FontDesign.values.take(kFontDesignPreviewCount);
-    final remaining = FontDesign.values.length - visibleDesigns.length;
+        ? available
+        : available.take(kFontDesignPreviewCount);
+    final remaining = available.length - visibleDesigns.length;
 
     if (isGekiga) {
       return GekigaJointedTileList(

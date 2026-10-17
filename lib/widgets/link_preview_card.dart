@@ -1,19 +1,11 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../models/app_user.dart';
-import '../models/group_invite_preview.dart';
-import '../models/group_profile_card.dart';
 import '../models/link_preview.dart';
 import '../providers/link_preview_provider.dart';
-import '../providers/repository_providers.dart';
-import '../providers/user_providers.dart';
 import '../utils/web_link.dart';
-import 'group_profile_card_view.dart';
-import 'user_profile_card_view.dart';
 import '../theme/gekiga/gekiga_colors.dart';
 import 'media_preview_frame.dart';
 
@@ -21,43 +13,13 @@ import 'media_preview_frame.dart';
 /// OGPからは`og:type`等を取得していないため、簡易的にホスト名で判定する。
 const _videoHosts = ['youtube.com', 'youtu.be', 'vimeo.com'];
 
-/// DaiDai自身の招待リンク（`/invite/{Rhing Seed}`・`/join/{groupId}[/…]`）の
-/// 判定結果。ホストはDaiDaiのもの（本番・Pagesの既定ドメイン・Webの現在の
-/// オリジン）に限る（2026-10-13）。
-typedef InternalInviteLink = ({String? rhingSeed, String? groupId});
-
-InternalInviteLink? parseInternalInviteLink(String url) {
-  final uri = Uri.tryParse(url);
-  if (uri == null || uri.host.isEmpty) return null;
-  final hosts = {
-    Uri.parse(kProductionWebOrigin).host,
-    'daidai-7sp.pages.dev',
-    if (kIsWeb) Uri.base.host,
-  };
-  if (!hosts.contains(uri.host)) return null;
-  final segments = uri.pathSegments;
-  if (segments.length >= 2 &&
-      segments[0] == 'invite' &&
-      segments[1].isNotEmpty) {
-    return (rhingSeed: segments[1], groupId: null);
-  }
-  if (segments.length >= 2 && segments[0] == 'join' && segments[1].isNotEmpty) {
-    return (rhingSeed: null, groupId: segments[1]);
-  }
-  return null;
-}
-
-/// Rhing Seedから招待元の住人を引く（見つからなければnull）。
-final _inviteUserProvider = FutureProvider.autoDispose.family<AppUser?, String>(
-  (ref, rhingSeed) =>
-      ref.watch(userRepositoryProvider).findByRhingSeed(rhingSeed),
-);
-
-final _inviteGroupProvider = FutureProvider.autoDispose
-    .family<GroupInvitePreview?, String>(
-      (ref, groupId) =>
-          ref.watch(groupRepositoryProvider).getInvitePreview(groupId),
-    );
+/// DaiDai自身のホスト名（本番・Pagesの既定ドメイン・Webの現在のオリジン）。
+/// 汎用プレビューのドメイン表記を省くために使う。
+Set<String> _ownHosts() => {
+  Uri.parse(kProductionWebOrigin).host,
+  'daidai-7sp.pages.dev',
+  if (kIsWeb) Uri.base.host,
+};
 
 /// メッセージ本文に含まれるURLの下に表示する、タイトル・説明文・
 /// サムネイル画像のプレビューカード。取得中は何も表示しないが、取得に失敗
@@ -94,6 +56,8 @@ class LinkPreviewCard extends ConsumerWidget {
   String? _hostLabel() {
     final host = Uri.tryParse(url)?.host;
     if (host == null || host.isEmpty) return null;
+    // DaiDai自身のドメインは表記しない（2026-10-17、招待リンクの汎用プレビュー等）。
+    if (_ownHosts().contains(host)) return null;
     return host.startsWith('www.') ? host.substring(4) : host;
   }
 
@@ -110,63 +74,8 @@ class LinkPreviewCard extends ConsumerWidget {
     return _videoHosts.any(host.contains);
   }
 
-  /// DaiDai自身の招待リンクは、OGP画像ではなくアプリ内のカード描画で出す
-  /// （工房・招待ダイアログと同じ見た目、相手の変更にも追従、2026-10-13）。
-  /// 取得できない・見つからない時はnull（従来のOGPプレビューへ）。
-  Widget? _nativeInviteCard(BuildContext context, WidgetRef ref) {
-    final link = parseInternalInviteLink(url);
-    if (link == null) return null;
-    const maxWidth = 320.0;
-    Widget framed(Widget card, String route) => Padding(
-      padding: const EdgeInsets.only(top: 8),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: maxWidth),
-        child: AspectRatio(
-          aspectRatio: 0.8,
-          child: GestureDetector(onTap: () => context.push(route), child: card),
-        ),
-      ),
-    );
-    final seed = link.rhingSeed;
-    if (seed != null) {
-      final found = ref.watch(_inviteUserProvider(seed)).value;
-      if (found == null) return null;
-      // 本人の最新のカードに追従する。
-      final user = ref.watch(watchedUserProvider(found.userId)).value ?? found;
-      return framed(
-        LayoutBuilder(
-          builder: (context, c) => UserProfileCardView(
-            user: user,
-            width: c.maxWidth,
-            height: c.maxHeight,
-          ),
-        ),
-        '/invite/$seed',
-      );
-    }
-    final groupId = link.groupId!;
-    final preview = ref.watch(_inviteGroupProvider(groupId)).value;
-    if (preview == null) return null;
-    return framed(
-      FittedBox(
-        fit: BoxFit.contain,
-        child: GroupProfileCardView(
-          card: GroupProfileCard(
-            name: preview.name,
-            description: preview.description,
-            iconUrl: preview.iconUrl,
-            backgroundImageUrl: preview.backgroundImageUrl,
-          ),
-        ),
-      ),
-      '/join/$groupId',
-    );
-  }
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final native = _nativeInviteCard(context, ref);
-    if (native != null) return native;
     final preview = ref.watch(linkPreviewProvider(url));
 
     return preview.when(

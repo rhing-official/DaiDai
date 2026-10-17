@@ -138,6 +138,19 @@ service cloud.firestore {
         allow read, write: if request.auth != null && request.auth.uid == userId;
       }
 
+      // users/{userId}/private/residence: 居住地の自己申告（国・都道府県・
+      // タイムゾーン、2026-10-16追加）。伝書鳩の距離計算・安否確認・国単位の
+      // 利用地域把握に使う。`users/{userId}`本体は全ログイン者が読めるため、
+      // 他の住人から居住地を読めないよう本人のみ読み書き可能なサブコレクション
+      // に置く。countryCodeはISO 3166-1 alpha-2の2文字。
+      match /private/{docId} {
+        allow read: if request.auth != null && request.auth.uid == userId;
+        allow write: if request.auth != null && request.auth.uid == userId
+          && docId == 'residence'
+          && request.resource.data.countryCode is string
+          && request.resource.data.countryCode.size() == 2;
+      }
+
       // users/{userId}/ownedStickerPacks/{packId}: 所有しているペタピタ
       // パッケージ（技術仕様書7.4・7.5参照、2026-08-11追加）。付与はdaidai横丁
       // での購入完了時にCloud Function（Admin SDK、rulesを経由しない）が

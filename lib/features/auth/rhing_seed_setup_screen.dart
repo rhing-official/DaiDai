@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../models/app_user.dart';
+import '../../models/app_user_preferences.dart';
 import '../../providers/repository_providers.dart';
 import '../../widgets/fixed_font_theme.dart';
+import '../guide/first_guide_screen.dart';
 import '../home/home_screen.dart';
+import 'residence_survey_screen.dart';
 import '../../l10n/strings.dart';
 
 /// Rhing Seedの最小設定画面。
@@ -52,12 +55,36 @@ class _RhingSeedSetupScreenState extends ConsumerState<RhingSeedSetupScreen> {
       final appUser = AppUser(
         userId: widget.userId,
         rhingSeed: rhingSeed.toLowerCase(),
+        // 新規登録者には初回の使い方ガイドを出す（2026-10-17追加）。既存住人は
+        // この値がnullのため出ない。
+        preferences: const AppUserPreferences(guideSeen: false),
       );
       await userRepository.createUser(appUser);
 
       if (!mounted) return;
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => HomeScreen(currentUser: appUser)),
+      // 続けて居住地アンケートを挟む（2026-10-16追加）。ここで離脱しても、
+      // 次回起動時に[AuthGate]が未回答として再度出す。
+      final navigator = Navigator.of(context);
+      navigator.pushReplacement(
+        MaterialPageRoute(
+          builder: (_) => ResidenceSurveyScreen(
+            userId: appUser.userId,
+            // この画面は置き換えで破棄されるため、先に取ったNavigatorを使う。
+            onCompleted: () => navigator.pushReplacement(
+              MaterialPageRoute(
+                // 居住地アンケートの次に、初回の使い方ガイド（2026-10-17追加）。
+                builder: (_) => FirstGuideScreen(
+                  userId: appUser.userId,
+                  onCompleted: () => navigator.pushReplacement(
+                    MaterialPageRoute(
+                      builder: (_) => HomeScreen(currentUser: appUser),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
       );
       return;
     } on StateError catch (_) {

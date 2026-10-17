@@ -16,6 +16,7 @@ import '../../models/font_design.dart';
 import '../../models/group.dart';
 import '../../models/profile_card.dart';
 import '../../models/profile_material.dart';
+import '../../providers/app_locale_provider.dart';
 import '../../providers/app_ui_style_provider.dart';
 import '../../providers/repository_providers.dart';
 import '../../providers/user_providers.dart';
@@ -39,6 +40,8 @@ import '../../widgets/profile_card_view.dart';
 import '../../widgets/slide_drilldown.dart';
 import '../chat/conversation_profile_card_dialog.dart';
 import '../chat/talks_tab.dart' show CategoryTab;
+import '../../l10n/tutorial_content.dart';
+import '../guide/tutorial/tutorial_target.dart';
 import 'enmusubi_page.dart';
 import '../../widgets/dialog_keyboard_shortcuts.dart';
 
@@ -869,6 +872,12 @@ _ProfileCategory? _findCategory(
 
 /// カテゴリ一覧（サイドバー、または狭い画面での一覧画面）。設定タブの
 /// `_CategoryList`/`_FolderTile`と同じ見た目にしている。
+/// ガイドで案内するカテゴリの目印id（縁結びのみ）。
+String? _tutorialIdOf(_ProfileCategory category) =>
+    category.section == _ProfileSection.enmusubi
+    ? TutorialTargetIds.profileEnmusubi
+    : null;
+
 class _ProfileCategoryList extends ConsumerWidget {
   const _ProfileCategoryList({
     required this.categories,
@@ -906,6 +915,7 @@ class _ProfileCategoryList extends ConsumerWidget {
                 title: category.title,
                 selected: category.section == selectedSection,
                 large: large,
+                tutorialTargetId: _tutorialIdOf(category),
                 onTap: () => onSelect(category),
               ),
           ],
@@ -920,6 +930,7 @@ class _ProfileCategoryList extends ConsumerWidget {
             icon: category.icon,
             title: category.title,
             selected: category.section == selectedSection,
+            tutorialTargetId: _tutorialIdOf(category),
             onTap: () => onSelect(category),
           ),
       ],
@@ -934,6 +945,7 @@ class _ProfileCategoryTile extends ConsumerWidget {
     required this.onTap,
     this.selected = false,
     this.large = false,
+    this.tutorialTargetId,
   });
 
   final IconData icon;
@@ -941,12 +953,21 @@ class _ProfileCategoryTile extends ConsumerWidget {
   final bool selected;
   final VoidCallback onTap;
 
+  /// ガイドの目印のid（2026-10-17追加）。指定があれば行全体を目印として登録する。
+  final String? tutorialTargetId;
+
   /// 狭い画面でこの一覧が画面全体を占めるときに行を大きくするか
   /// （2026-08-27追加、劇画UIのみ対象。[_ProfileCategoryList.large]参照）。
   final bool large;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final tile = _buildTile(context, ref);
+    final id = tutorialTargetId;
+    return id == null ? tile : TutorialTarget(id: id, child: tile);
+  }
+
+  Widget _buildTile(BuildContext context, WidgetRef ref) {
     final colorScheme = Theme.of(context).colorScheme;
     final uiStyle = ref.watch(appUiStyleProvider);
     final isGekiga = uiStyle == AppUiStyle.gekiga;
@@ -2908,11 +2929,17 @@ class _FontDesignMaterialDialogState
       optionList = GekigaJointedTileList(
         seeds: [
           'fontDesignSameAsSystem'.hashCode,
-          for (final value in FontDesign.values) value.hashCode,
+          for (final value in FontDesign.availableFor(
+            ref.watch(appLocaleProvider),
+          ))
+            value.hashCode,
         ],
         selectedFlags: [
           _selected == null,
-          for (final value in FontDesign.values) _selected == value,
+          for (final value in FontDesign.availableFor(
+            ref.watch(appLocaleProvider),
+          ))
+            _selected == value,
         ],
         children: [
           GekigaTileContent(
@@ -2925,7 +2952,9 @@ class _FontDesignMaterialDialogState
             title: Text(strings.fontDesignSameAsSystemLabel),
             onTap: () => setState(() => _selected = null),
           ),
-          for (final value in FontDesign.values)
+          for (final value in FontDesign.availableFor(
+            ref.watch(appLocaleProvider),
+          ))
             GekigaTileContent(
               selected: _selected == value,
               leading: Icon(
@@ -2955,7 +2984,9 @@ class _FontDesignMaterialDialogState
               value: null,
               title: Text(strings.fontDesignSameAsSystemLabel),
             ),
-            for (final value in FontDesign.values)
+            for (final value in FontDesign.availableFor(
+              ref.watch(appLocaleProvider),
+            ))
               RadioListTile<FontDesign?>(
                 value: value,
                 title: Text(

@@ -2,7 +2,9 @@ import 'dart:math';
 
 import 'package:appflowy_editor/appflowy_editor.dart';
 import 'package:appflowy_editor/src/editor/block_component/base_component/selection/block_selection_area.dart';
+import 'package:appflowy_editor/src/editor/block_component/table_block_component/util.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import 'table_view.dart';
@@ -230,6 +232,10 @@ class _TableBlockComponentWidgetState extends State<TableBlockComponentWidget>
   // 従来通りの通常のテキストハイライトに任せる。
   Rect? _rangeSelectionRect;
 
+  // タッチ端末でセルを長押ししてドラッグした時の、範囲の始点セル
+  // （DaiDai patch、2026-10-17）。
+  ({int row, int col})? _longPressAnchor;
+
   @override
   void initState() {
     super.initState();
@@ -255,6 +261,42 @@ class _TableBlockComponentWidgetState extends State<TableBlockComponentWidget>
         : null;
     if (rect != _rangeSelectionRect) {
       setState(() => _rangeSelectionRect = rect);
+    }
+  }
+
+  /// グローバル座標[globalPosition]にあるセルの(行, 列)。表の外・罫線上は`null`。
+  ({int row, int col})? _cellAt(Offset globalPosition) {
+    final tableNode = widget.tableNode;
+    for (var c = 0; c < tableNode.colsLen; c++) {
+      for (var r = 0; r < tableNode.rowsLen; r++) {
+        final box =
+            tableNode.getCell(c, r).key.currentContext?.findRenderObject();
+        if (box is! RenderBox || !box.attached) {
+          continue;
+        }
+        final rect = box.localToGlobal(Offset.zero) & box.size;
+        if (rect.contains(globalPosition)) {
+          return (row: r, col: c);
+        }
+      }
+    }
+    return null;
+  }
+
+  void _selectCellRange(({int row, int col}) anchor, Offset globalPosition) {
+    final current = _cellAt(globalPosition);
+    if (current == null) {
+      return;
+    }
+    final selection = TableActions.rangeSelection(
+      widget.node,
+      anchor.row,
+      anchor.col,
+      current.row,
+      current.col,
+    );
+    if (selection != null && selection != editorState.selection) {
+      editorState.selection = selection;
     }
   }
 
@@ -336,11 +378,34 @@ class _TableBlockComponentWidgetState extends State<TableBlockComponentWidget>
     // 表領域上の横ドラッグを祖先（ノート画面の右スワイプで戻る検出）へ
     // 伝えない。表がスクロール不要な幅でも、表の上の横操作で画面が
     // 戻らないようにする（2026-10-06追加、ユーザー指示）。
+    // タッチ端末では、セルを長押ししてそのままドラッグした先までの矩形を
+    // 選択する（DaiDai patch、2026-10-17）。長押しの開始セルが始点。
+    final touch = isTableTouchPlatform && editorState.editable;
     child = GestureDetector(
       behavior: HitTestBehavior.translucent,
       onHorizontalDragStart: (_) {},
       onHorizontalDragUpdate: (_) {},
       onHorizontalDragEnd: (_) {},
+      onLongPressStart: touch
+          ? (details) {
+              final anchor = _cellAt(details.globalPosition);
+              _longPressAnchor = anchor;
+              if (anchor != null) {
+                HapticFeedback.selectionClick();
+                _selectCellRange(anchor, details.globalPosition);
+              }
+            }
+          : null,
+      onLongPressMoveUpdate: touch
+          ? (details) {
+              final anchor = _longPressAnchor;
+              if (anchor != null) {
+                _selectCellRange(anchor, details.globalPosition);
+              }
+            }
+          : null,
+      onLongPressEnd: touch ? (_) => _longPressAnchor = null : null,
+      onLongPressCancel: touch ? () => _longPressAnchor = null : null,
       child: child,
     );
 

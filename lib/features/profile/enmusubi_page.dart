@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
+import '../../l10n/tutorial_content.dart';
+import '../guide/tutorial/tutorial_target.dart';
 import '../../l10n/strings.dart';
 import '../../models/app_user.dart';
 import '../../models/user_invite_preview.dart';
@@ -114,9 +116,12 @@ class _EnmusubiPageState extends ConsumerState<EnmusubiPage> {
                                 ),
                               ),
                             ),
-                            GekigaIconButton(
-                              icon: Icons.copy_outlined,
-                              onPressed: () => _copyLink(link),
+                            TutorialTarget(
+                              id: TutorialTargetIds.enmusubiCopy,
+                              child: GekigaIconButton(
+                                icon: Icons.copy_outlined,
+                                onPressed: () => _copyLink(link),
+                              ),
                             ),
                           ],
                         ),
@@ -135,9 +140,12 @@ class _EnmusubiPageState extends ConsumerState<EnmusubiPage> {
                     child: Row(
                       children: [
                         Expanded(child: SelectableText(link, maxLines: 1)),
-                        IconButton(
-                          icon: const Icon(Icons.copy_outlined),
-                          onPressed: () => _copyLink(link),
+                        TutorialTarget(
+                          id: TutorialTargetIds.enmusubiCopy,
+                          child: IconButton(
+                            icon: const Icon(Icons.copy_outlined),
+                            onPressed: () => _copyLink(link),
+                          ),
                         ),
                       ],
                     ),
@@ -154,47 +162,53 @@ class _EnmusubiPageState extends ConsumerState<EnmusubiPage> {
             // 見えていた）。
             Align(
               alignment: Alignment.centerLeft,
-              child: isGekiga
-                  ? GekigaJointedTileList(
-                      seeds: [link.hashCode + 1],
-                      selectedFlags: const [true],
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: QrImageView(data: link, size: 200),
+              child: TutorialTarget(
+                id: TutorialTargetIds.enmusubiQr,
+                child: isGekiga
+                    ? GekigaJointedTileList(
+                        seeds: [link.hashCode + 1],
+                        selectedFlags: const [true],
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: QrImageView(data: link, size: 200),
+                          ),
+                        ],
+                      )
+                    : Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: colorScheme.outlineVariant),
                         ),
-                      ],
-                    )
-                  : Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: colorScheme.outlineVariant),
+                        child: QrImageView(data: link, size: 200),
                       ),
-                      child: QrImageView(data: link, size: 200),
-                    ),
+              ),
             ),
             const SizedBox(height: 16),
             Align(
               alignment: Alignment.centerLeft,
-              child: isGekiga
-                  ? GekigaJointedTileList(
-                      seeds: [strings.enmusubiScanButton.hashCode],
-                      selectedFlags: const [true],
-                      children: [
-                        GekigaButton(
-                          label: strings.enmusubiScanButton,
-                          icon: Icons.qr_code_scanner,
-                          onPressed: () => _openScanner(context),
-                        ),
-                      ],
-                    )
-                  : OutlinedButton.icon(
-                      icon: const Icon(Icons.qr_code_scanner),
-                      label: Text(strings.enmusubiScanButton),
-                      onPressed: () => _openScanner(context),
-                    ),
+              child: TutorialTarget(
+                id: TutorialTargetIds.enmusubiScan,
+                child: isGekiga
+                    ? GekigaJointedTileList(
+                        seeds: [strings.enmusubiScanButton.hashCode],
+                        selectedFlags: const [true],
+                        children: [
+                          GekigaButton(
+                            label: strings.enmusubiScanButton,
+                            icon: Icons.qr_code_scanner,
+                            onPressed: () => _openScanner(context),
+                          ),
+                        ],
+                      )
+                    : OutlinedButton.icon(
+                        icon: const Icon(Icons.qr_code_scanner),
+                        label: Text(strings.enmusubiScanButton),
+                        onPressed: () => _openScanner(context),
+                      ),
+              ),
             ),
           ],
         ),

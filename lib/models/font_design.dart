@@ -1,3 +1,5 @@
+import '../l10n/app_locale.dart';
+
 /// フォントデザインの選択UI（設定タブの`_FontDesignFolder`、蔵の
 /// `_FontDesignMaterialDialog`）が展開前に表示する件数（2026-09-15追加）。
 /// これを超える場合は「もっと見る」タイルを出し、タップで全件表示に切り替える。
@@ -188,6 +190,27 @@ enum FontDesign {
     FontDesign.kurobaraCinderella => false,
     FontDesign.keifont => false,
   };
+
+  /// この表示言語の文字を（アクセント付きのラテン文字を含めて）全て収録しているか
+  /// （2026-10-17追加）。神楽坂ドットだけは英字のA-Z/a-zしか持たず、フランス語等の
+  /// アクセント付き文字（é・ü・ñ など）が欠けるため、日本語・英語以外の表示では
+  /// 使えないものとして扱う。他の24種は収録済みを確認している。
+  bool supportsLocale(AppLocale locale) {
+    if (this != FontDesign.kagurazaka) return true;
+    return locale == AppLocale.japanese || locale == AppLocale.britishEnglish;
+  }
+
+  /// 設定画面などの選択肢に出す、その表示言語で使えるフォント。
+  static List<FontDesign> availableFor(AppLocale locale) => [
+    for (final design in values)
+      if (design.supportsLocale(locale)) design,
+  ];
+
+  /// 実際に適用するフォント。選択中のフォントがその表示言語で使えない場合は
+  /// 既定（[notoSansJp]）にする。保存された選択は書き換えないため、日本語・英語へ
+  /// 戻せば元のフォントに戻る。
+  FontDesign resolvedFor(AppLocale locale) =>
+      supportsLocale(locale) ? this : FontDesign.notoSansJp;
 
   static FontDesign fromName(String? name) {
     return FontDesign.values.firstWhere(

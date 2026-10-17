@@ -105,6 +105,8 @@ class _TableViewState extends State<TableView> {
                   padding: const EdgeInsets.only(left: 0),
                   icon: widget.tableStyle.addIcon,
                   borderColor: widget.tableStyle.borderColor,
+                  table: widget.tableNode.node,
+                  editorState: widget.editorState,
                   width: 28,
                   height: widget.tableNode.colsHeight,
                   onPressed: () {
@@ -123,6 +125,8 @@ class _TableViewState extends State<TableView> {
               padding: const EdgeInsets.only(top: 1, right: 30),
               icon: widget.tableStyle.addIcon,
               borderColor: widget.tableStyle.borderColor,
+              table: widget.tableNode.node,
+              editorState: widget.editorState,
               height: 28,
               width: widget.tableNode.tableWidth,
               onPressed: () {

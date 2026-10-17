@@ -3,11 +3,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/strings.dart';
 import '../../models/app_user.dart';
+import '../../models/residence.dart';
 import '../../providers/repository_providers.dart';
 import '../../providers/user_preferences_sync.dart';
 import 'account_restore_screen.dart';
+import '../guide/first_guide_screen.dart';
 import 'account_suspended_screen.dart';
 import 'passcode_lock_gate.dart';
+import 'residence_survey_screen.dart';
 import 'rhing_seed_setup_screen.dart';
 import 'sign_in_screen.dart';
 import 'terms_consent_screen.dart';
@@ -57,11 +60,16 @@ class _AuthenticatedUserGate extends ConsumerStatefulWidget {
 
 class _AuthenticatedUserGateState
     extends ConsumerState<_AuthenticatedUserGate> {
-  late Future<AppUser?> _future;
+  late Future<({AppUser? user, Residence? residence})> _future;
 
   /// 新規アカウント作成時、[RhingSeedSetupScreen]の前に[TermsConsentScreen]で
   /// 同意したかどうか（このセッション内のみの一時的な状態、2026-09-14追加）。
   bool _termsAgreed = false;
+
+  /// 初回の使い方ガイドを（スキップ含め）終えたか（このセッション内のみ、
+  /// 2026-10-17追加）。視聴記録の書き込みに失敗してもガイドが出続けないよう、
+  /// Firestore側の値とは別に持つ。
+  bool _guideDone = false;
 
   @override
   void initState() {
@@ -73,22 +81,26 @@ class _AuthenticatedUserGateState
   // ログイン直後に一度だけFirestoreの値で上書きする（[applyRemoteUserPreferences]）。
   // アカウント復元後にユーザーを再取得する際も同じ処理でよいため、
   // [AccountRestoreScreen.onRestored]からも呼び直す。
-  Future<AppUser?> _fetchUser() {
-    return ref.read(userRepositoryProvider).getUser(widget.userId).then((user) {
-      if (user != null) {
-        applyRemoteUserPreferences(ref, user.preferences);
-        // 最終ログイン日時（管理画面向け）。自動ログインでの再開時も含めて
-        // 認証済みセッションを確認するたびに更新する。結果を待つ必要は
-        // 無いためawaitしない。
-        ref.read(userRepositoryProvider).touchLastLogin(user.userId);
-      }
-      return user;
-    });
+  Future<({AppUser? user, Residence? residence})> _fetchUser() async {
+    final user = await ref.read(userRepositoryProvider).getUser(widget.userId);
+    if (user == null) return (user: null, residence: null);
+    applyRemoteUserPreferences(ref, user.preferences);
+    // 最終ログイン日時（管理画面向け）。自動ログインでの再開時も含めて
+    // 認証済みセッションを確認するたびに更新する。結果を待つ必要は
+    // 無いためawaitしない。
+    ref.read(userRepositoryProvider).touchLastLogin(user.userId);
+    // 居住地アンケートの回答有無（2026-10-16追加）。取得に失敗した場合は
+    // 「未回答」と誤判定して回答済みの住人にアンケートを出し直さないよう、
+    // 例外のまま呼び出し元（再試行可能なエラー画面）へ伝える。
+    final residence = await ref
+        .read(residenceRepositoryProvider)
+        .getResidence(user.userId);
+    return (user: user, residence: residence);
   }
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<AppUser?>(
+    return FutureBuilder<({AppUser? user, Residence? residence})>(
       future: _future,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
@@ -104,10 +116,14 @@ class _AuthenticatedUserGateState
         // 参照）。
         if (snapshot.hasError) {
           return _AuthLoadErrorScreen(
-            onRetry: () => setState(() => _future = _fetchUser()),
+            onRetry: () => setState(() {
+              // 代入式を返すと`Future`を返すことになり、`setState`の検査で例外になる
+              // （2026-10-17修正、居住地の保存直後に発生）ため、ブロック本体にする。
+              _future = _fetchUser();
+            }),
           );
         }
-        final appUser = snapshot.data;
+        final appUser = snapshot.data!.user;
         if (appUser == null) {
           if (!_termsAgreed) {
             return TermsConsentScreen(
@@ -119,12 +135,33 @@ class _AuthenticatedUserGateState
         if (appUser.accountStatus == AccountStatus.pendingDeletion) {
           return AccountRestoreScreen(
             appUser: appUser,
-            onRestored: () => setState(() => _future = _fetchUser()),
+            onRestored: () => setState(() {
+              _future = _fetchUser();
+            }),
           );
         }
         if (appUser.accountStatus == AccountStatus.suspended) {
           return AccountSuspendedScreen(
             autoSuspendedUntil: appUser.autoSuspendedUntil,
+          );
+        }
+        // 居住地アンケート未回答（新規登録直後に離脱した人・既存住人・daidai横丁で
+        // 先にアカウントだけ作った人の初回ログイン後）は、国を答えるまで先へ
+        // 進めない（2026-10-16追加）。
+        if (snapshot.data!.residence == null) {
+          return ResidenceSurveyScreen(
+            userId: appUser.userId,
+            onCompleted: () => setState(() {
+              _future = _fetchUser();
+            }),
+          );
+        }
+        // 新規登録で居住地アンケートの後に離脱した人に、初回の使い方ガイドを
+        // 出す（2026-10-17追加）。`guideSeen`がnull＝既存住人には出さない。
+        if (appUser.preferences.guideSeen == false && !_guideDone) {
+          return FirstGuideScreen(
+            userId: appUser.userId,
+            onCompleted: () => setState(() => _guideDone = true),
           );
         }
         return PasscodeLockGate(child: widget.builder(context, appUser));

@@ -1,0 +1,77 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+
+import 'tutorial_controller.dart';
+
+/// 操作を促すガイドを実行する専用の全画面（2026-10-17追加）。ユーザーの今の画面の
+/// 上に開き、[child]に**練習用の画面**（`PracticeHome`＝本物の画面＋偽のデータ）を
+/// 置く。今の画面は下に残るため、作業の途中でも状態に左右されず、ガイドを終えると
+/// 元の画面にそのまま戻れる。
+///
+/// ガイドの状態と連動して閉じる: やめる・Esc・戻る・完了カードの「閉じる」でガイドが
+/// 終わったらこの画面も閉じる。逆に、ユーザーがこの画面を閉じたらガイドも中断する。
+/// ガイドが実行されていないのに開かれた場合（URLの直接指定など）は、ホームへ戻す。
+class TutorialStageScreen extends ConsumerStatefulWidget {
+  const TutorialStageScreen({required this.child, super.key});
+
+  final Widget child;
+
+  @override
+  ConsumerState<TutorialStageScreen> createState() =>
+      _TutorialStageScreenState();
+}
+
+class _TutorialStageScreenState extends ConsumerState<TutorialStageScreen> {
+  /// `dispose`でガイドを終えるために、先に保持しておく（`dispose`の中で祖先を引くと
+  /// 不安定なため）。
+  late final ProviderContainer _container;
+  bool _closing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _container = ProviderScope.containerOf(context, listen: false);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (ref.read(tutorialControllerProvider) == null) {
+        _close(toHome: true);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    // この画面が閉じられたら（戻る操作など）ガイドも終える。
+    final container = _container;
+    Future.microtask(() {
+      try {
+        if (container.read(tutorialControllerProvider) != null) {
+          container.read(tutorialControllerProvider.notifier).cancel();
+        }
+      } on StateError {
+        // アプリ全体が破棄された後（テストの片付け等）は何もしない。
+      }
+    });
+    super.dispose();
+  }
+
+  void _close({bool toHome = false}) {
+    if (_closing || !mounted) return;
+    _closing = true;
+    final router = GoRouter.of(context);
+    if (toHome || !router.canPop()) {
+      router.go('/');
+    } else {
+      router.pop();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    ref.listen<TutorialState?>(tutorialControllerProvider, (previous, next) {
+      if (previous != null && next == null) _close();
+    });
+    return Scaffold(body: SafeArea(child: widget.child));
+  }
+}

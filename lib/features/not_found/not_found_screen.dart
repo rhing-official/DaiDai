@@ -6,7 +6,9 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../l10n/app_locale.dart';
 import '../../l10n/strings.dart';
+import 'museum_texts.dart';
 
 /// 404ページで展示する作品1点分（2026-10-10追加）。
 class MuseumExhibit {
@@ -24,9 +26,29 @@ class MuseumExhibit {
   final String caption;
   final String captionEn;
 
-  /// 表示言語に合わせた作品名・解説（2026-10-13、表示言語対応）。
-  String titleFor(bool english) => english ? titleEn : title;
-  String captionFor(bool english) => english ? captionEn : caption;
+  /// 表示言語に合わせた作品名・解説（2026-10-13、表示言語対応）。日本語・英語は
+  /// 自身のフィールド、それ以外は[museumTextsOf]の訳（無ければ英語）。
+  String titleFor(AppLocale locale) {
+    if (locale == AppLocale.japanese) return title;
+    if (locale == AppLocale.britishEnglish) return titleEn;
+    return museumTextsOf(locale)?[asset]?.title ?? titleEn;
+  }
+
+  String captionFor(AppLocale locale) {
+    if (locale == AppLocale.japanese) return caption;
+    if (locale == AppLocale.britishEnglish) return captionEn;
+    return museumTextsOf(locale)?[asset]?.caption ?? captionEn;
+  }
+}
+
+/// 日本語・英語以外の表示言語の展示文（作品の`asset`→訳）。言語ごとに
+/// `museum_texts_xx.dart`へ置き、このswitch式（網羅性エラー）から返す。
+Map<String, MuseumText>? museumTextsOf(AppLocale locale) {
+  return switch (locale) {
+    AppLocale.japanese => null,
+    AppLocale.britishEnglish => null,
+    AppLocale.french => museumTextsFr,
+  };
 }
 
 /// HomePage-Rhingの`not-found.tsx`と同じ6点。
@@ -82,8 +104,8 @@ const _contactUrl = 'https://rhing.jp/contact';
 /// [Localizations]から引く（2026-10-13）。
 Strings _stringsOf(BuildContext context) => Strings.ofContext(context);
 
-bool _isEnglish(BuildContext context) =>
-    Localizations.localeOf(context).languageCode == 'en';
+AppLocale _appLocaleOf(BuildContext context) =>
+    AppLocale.fromLanguageCode(Localizations.localeOf(context).languageCode);
 
 const _background = Color(0xFFFCFBF7);
 const _gray900 = Color(0xFF111827);
@@ -358,7 +380,7 @@ class _ExhibitFrame extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final english = _isEnglish(context);
+    final locale = _appLocaleOf(context);
     final exhibit = this.exhibit;
     return TweenAnimationBuilder<double>(
       tween: Tween(begin: 0, end: exhibit == null ? 0 : 1),
@@ -395,7 +417,7 @@ class _ExhibitFrame extends StatelessWidget {
                         child: Image.asset(
                           exhibit.asset,
                           fit: BoxFit.cover,
-                          semanticLabel: exhibit.titleFor(english),
+                          semanticLabel: exhibit.titleFor(locale),
                           errorBuilder: (_, _, _) =>
                               const ColoredBox(color: _gray200),
                         ),
@@ -403,7 +425,7 @@ class _ExhibitFrame extends StatelessWidget {
                     ),
                     const SizedBox(height: 16),
                     Text(
-                      exhibit.titleFor(english),
+                      exhibit.titleFor(locale),
                       textAlign: TextAlign.center,
                       style: baseText.copyWith(
                         fontSize: 14,
@@ -414,7 +436,7 @@ class _ExhibitFrame extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      exhibit.captionFor(english),
+                      exhibit.captionFor(locale),
                       textAlign: TextAlign.center,
                       style: baseText.copyWith(
                         fontSize: 12,

@@ -5,6 +5,8 @@ import '../models/font_design.dart';
 import '../providers/app_locale_provider.dart';
 import 'app_locale.dart';
 
+part 'strings_fr.dart';
+
 /// 表示文言の対訳表。現状は主要なナビゲーション・設定画面のみ対応し、
 /// 残りは日本語のハードコードのまま（実装内容.mdの未実装項目を参照）。
 class Strings {
@@ -817,6 +819,33 @@ class Strings {
     required this.rhingSeedSetupAlreadyRegisteredError,
     required this.rhingSeedSetupFailedTemplate,
     required this.rhingSeedSetupSubmitButton,
+    required this.residenceSurveyAppBarTitle,
+    required this.residenceSurveyIntro,
+    required this.residenceSurveyPrivacyNote,
+    required this.residenceSurveyCountryLabel,
+    required this.residenceSurveyLanguageLabel,
+    required this.residenceSurveyCountryPlaceholder,
+    required this.residenceSurveySearchHint,
+    required this.residenceSurveyNoResults,
+    required this.residenceSurveyPrefectureLabel,
+    required this.residenceSurveyTimeZoneLabel,
+    required this.residenceSurveyNotSelected,
+    required this.residenceSurveySubmitButton,
+    required this.residenceSurveyCountryRequiredError,
+    required this.residenceSurveySaveFailedTemplate,
+    required this.settingsUsageGuide,
+    required this.guideListIntro,
+    required this.guideReplayFirst,
+    required this.guideFirstSkip,
+    required this.guideFirstNext,
+    required this.guideFirstStart,
+    required this.tutorialStop,
+    required this.tutorialNext,
+    required this.tutorialDoneTitle,
+    required this.tutorialDoneClose,
+    required this.tutorialWaitingHint,
+    required this.tutorialStepCounterTemplate,
+    required this.settingsResidence,
     required this.termsConsentAppBarTitle,
     required this.termsConsentIntro,
     required this.termsConsentTermsLink,
@@ -1971,6 +2000,33 @@ class Strings {
   final String rhingSeedSetupAlreadyRegisteredError;
   final String Function(Object error) rhingSeedSetupFailedTemplate;
   final String rhingSeedSetupSubmitButton;
+  final String residenceSurveyAppBarTitle;
+  final String residenceSurveyIntro;
+  final String residenceSurveyPrivacyNote;
+  final String residenceSurveyCountryLabel;
+  final String residenceSurveyLanguageLabel;
+  final String residenceSurveyCountryPlaceholder;
+  final String residenceSurveySearchHint;
+  final String residenceSurveyNoResults;
+  final String residenceSurveyPrefectureLabel;
+  final String residenceSurveyTimeZoneLabel;
+  final String residenceSurveyNotSelected;
+  final String residenceSurveySubmitButton;
+  final String residenceSurveyCountryRequiredError;
+  final String Function(Object error) residenceSurveySaveFailedTemplate;
+  final String settingsUsageGuide;
+  final String guideListIntro;
+  final String guideReplayFirst;
+  final String guideFirstSkip;
+  final String guideFirstNext;
+  final String guideFirstStart;
+  final String tutorialStop;
+  final String tutorialNext;
+  final String tutorialDoneTitle;
+  final String tutorialDoneClose;
+  final String tutorialWaitingHint;
+  final String Function(int step, int total) tutorialStepCounterTemplate;
+  final String settingsResidence;
   final String termsConsentAppBarTitle;
   final String termsConsentIntro;
   final String termsConsentTermsLink;
@@ -2886,6 +2942,34 @@ class Strings {
         'このアカウントには既に住人情報が登録されています。一度サインアウトしてから、もう一度ログインし直してください。',
     rhingSeedSetupFailedTemplate: (error) => '登録に失敗しました: $error',
     rhingSeedSetupSubmitButton: '決定',
+    residenceSurveyAppBarTitle: 'お住まいの地域',
+    residenceSurveyIntro: 'お住まいの国を教えてください。遠くの人との連絡や、地域ごとの利用状況の把握、今後の安否確認に使います。',
+    residenceSurveyPrivacyNote:
+        '現在地は取得しません。入力した内容は自分だけが見られ、相手には国名も表示されません。設定からいつでも変更できます。',
+    residenceSurveyCountryLabel: '国（必須）',
+    residenceSurveyLanguageLabel: '表示言語',
+    residenceSurveyCountryPlaceholder: '国を選ぶ',
+    residenceSurveySearchHint: '国名で検索',
+    residenceSurveyNoResults: '該当する国がありません',
+    residenceSurveyPrefectureLabel: '都道府県（任意）',
+    residenceSurveyTimeZoneLabel: 'タイムゾーン（任意）',
+    residenceSurveyNotSelected: '選択しない',
+    residenceSurveySubmitButton: '決定',
+    residenceSurveyCountryRequiredError: '国を選んでください',
+    residenceSurveySaveFailedTemplate: (error) => '保存に失敗しました: $error',
+    settingsUsageGuide: '使い方ガイド',
+    guideListIntro: '知りたい機能を選んでください。',
+    guideReplayFirst: '最初の説明をもう一度見る',
+    guideFirstSkip: 'スキップ',
+    guideFirstNext: '次へ',
+    guideFirstStart: 'はじめる',
+    tutorialStop: 'やめる',
+    tutorialNext: '次へ',
+    tutorialDoneTitle: 'できました！',
+    tutorialDoneClose: '閉じる',
+    tutorialWaitingHint: '画面が切り替わるのを待っています。進まないときは「やめる」を押してください。',
+    tutorialStepCounterTemplate: (step, total) => '$step / $total',
+    settingsResidence: '居住地',
     termsConsentAppBarTitle: '利用規約・プライバシーポリシーへの同意',
     termsConsentIntro: 'ご利用にあたり、以下の内容をご確認のうえ同意してください。',
     termsConsentTermsLink: '利用規約',
@@ -3901,6 +3985,36 @@ class Strings {
         'This account is already registered. Please sign out and sign in again.',
     rhingSeedSetupFailedTemplate: (error) => 'Registration failed: $error',
     rhingSeedSetupSubmitButton: 'Confirm',
+    residenceSurveyAppBarTitle: 'Where you live',
+    residenceSurveyIntro:
+        'Tell us which country you live in. It is used for messages to faraway people, understanding usage by region, and future safety checks.',
+    residenceSurveyPrivacyNote:
+        'Your current location is never collected. Only you can see what you enter — not even the country is shown to others. You can change it anytime in Settings.',
+    residenceSurveyCountryLabel: 'Country (required)',
+    residenceSurveyLanguageLabel: 'Language',
+    residenceSurveyCountryPlaceholder: 'Select a country',
+    residenceSurveySearchHint: 'Search by country name',
+    residenceSurveyNoResults: 'No matching country',
+    residenceSurveyPrefectureLabel: 'Prefecture (optional)',
+    residenceSurveyTimeZoneLabel: 'Time zone (optional)',
+    residenceSurveyNotSelected: 'Not specified',
+    residenceSurveySubmitButton: 'Confirm',
+    residenceSurveyCountryRequiredError: 'Please select a country',
+    residenceSurveySaveFailedTemplate: (error) => 'Failed to save: $error',
+    settingsUsageGuide: 'User guide',
+    guideListIntro: 'Choose a feature to read about.',
+    guideReplayFirst: 'Watch the introduction again',
+    guideFirstSkip: 'Skip',
+    guideFirstNext: 'Next',
+    guideFirstStart: 'Get started',
+    tutorialStop: 'Stop',
+    tutorialNext: 'Next',
+    tutorialDoneTitle: 'All done!',
+    tutorialDoneClose: 'Close',
+    tutorialWaitingHint:
+        'Waiting for the screen to change. If nothing happens, tap "Stop".',
+    tutorialStepCounterTemplate: (step, total) => '$step / $total',
+    settingsResidence: 'Residence',
     termsConsentAppBarTitle: 'Agree to the Terms and Privacy Policy',
     termsConsentIntro: 'Please review the following and agree to continue.',
     termsConsentTermsLink: 'Terms of Service',
@@ -3962,6 +4076,7 @@ class Strings {
   static Strings of(AppLocale locale) => switch (locale) {
     AppLocale.japanese => ja,
     AppLocale.britishEnglish => enGB,
+    AppLocale.french => _stringsFr,
   };
 
   /// [FontDesign]値ごとの表示ラベル。設定タブのフォントデザイン選択

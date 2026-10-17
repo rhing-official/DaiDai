@@ -13,6 +13,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_web_plugins/url_strategy.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import 'features/guide/tutorial/tutorial_overlay.dart';
 import 'features/call/pinned_call_overlay.dart';
 import 'features/call/group_incoming_call_listener.dart';
 import 'features/call/pip_controller.dart';
@@ -200,7 +201,10 @@ class DaiDaiApp extends ConsumerWidget {
     final uiStyle = ref.watch(appUiStyleProvider);
     // 設定タブの「フォントデザイン」（2026-09-06追加、2026-09-07に劇画も
     // 対象化）。
-    final fontFamily = ref.watch(fontDesignProvider).fontFamily;
+    final fontFamily = ref
+        .watch(fontDesignProvider)
+        .resolvedFor(appLocale)
+        .fontFamily;
     // 劇画スタイルはライト/ダークどちらのthemeModeでも同じ見た目にするため、
     // theme/darkThemeの両方に同一のThemeDataを渡す（chat_screen.dartの
     // 既存方針をアプリ全体に拡張したもの）。switch式にしているのは、新しい
@@ -271,6 +275,9 @@ class DaiDaiApp extends ConsumerWidget {
               const PinnedCallOverlay(),
               // 広場の通話開始バナーは全ルート・ボタン・ミニ表示より最前面に出す。
               const GroupCallBannerOverlay(),
+              // 操作を促すガイドの案内の層（2026-10-17追加）。実行中だけ全ルートの
+              // 前面に出る。
+              const TutorialOverlay(),
               const BackDebugOverlay(),
             ],
           ),

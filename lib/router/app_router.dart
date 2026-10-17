@@ -13,6 +13,8 @@ import '../features/chat/chat_panes.dart';
 import '../features/chat/join_group_screen.dart';
 import '../features/chat/notification_chat_opener.dart';
 import '../features/chat/talks_search_screen.dart';
+import '../features/guide/tutorial/practice_home.dart';
+import '../features/guide/tutorial/tutorial_stage_screen.dart';
 import '../features/profile/invite_screen.dart';
 import '../models/app_user.dart';
 import '../models/call.dart';
@@ -147,9 +149,12 @@ final goRouterProvider = Provider<GoRouter>((ref) {
     Widget child, {
     Widget Function(Animation<double>, Widget) transition =
         buildSlideInFromRightTransition,
+    Duration transitionDuration = const Duration(milliseconds: 300),
   }) => CustomTransitionPage<void>(
     key: state.pageKey,
     opaque: false,
+    transitionDuration: transitionDuration,
+    reverseTransitionDuration: transitionDuration,
     transitionsBuilder: (context, animation, secondaryAnimation, child) =>
         transition(animation, child),
     child: child,
@@ -351,6 +356,28 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) => slideDetailPage(
           state,
           TalksSearchScreen(currentUser: state.extra! as AppUser),
+        ),
+      ),
+      GoRoute(
+        // 操作を促す使い方ガイド（縁結び）の専用ルート（2026-10-17追加）。ユーザーの
+        // 今の画面の上に練習用のホーム（本物の画面＋偽のデータ）を全画面で開き、ガイドを終えると閉じて
+        // 元の画面に戻る（`TutorialStageScreen`参照）。
+        path: '/guide/enmusubi',
+        // 練習用の画面はスライドではなく、じわじわと浮かび上がらせる。
+        pageBuilder: (context, state) => opaqueFalsePage(
+          state,
+          AuthGate(
+            builder: (context, currentUser) =>
+                const TutorialStageScreen(child: PracticeHome()),
+          ),
+          transition: (animation, child) => FadeTransition(
+            opacity: CurvedAnimation(
+              parent: animation,
+              curve: Curves.easeInOut,
+            ),
+            child: child,
+          ),
+          transitionDuration: const Duration(milliseconds: 700),
         ),
       ),
       GoRoute(

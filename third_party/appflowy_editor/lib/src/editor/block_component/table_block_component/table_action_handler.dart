@@ -2,7 +2,9 @@ import 'dart:math' as math;
 
 import 'package:appflowy_editor/appflowy_editor.dart';
 import 'package:appflowy_editor/src/editor/block_component/table_block_component/table_action_menu.dart';
+import 'package:appflowy_editor/src/editor/block_component/table_block_component/util.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 class TableActionHandler extends StatefulWidget {
   const TableActionHandler({
@@ -62,12 +64,26 @@ class _TableActionHandlerState extends State<TableActionHandler> {
 
   @override
   Widget build(BuildContext context) {
+    return TableTouchActiveBuilder(
+      table: widget.node,
+      editorState: widget.editorState,
+      builder: (context, touchActive) => _buildBody(context, touchActive),
+    );
+  }
+
+  Widget _buildBody(BuildContext context, bool touchActive) {
     return Container(
       alignment: widget.alignment,
       transform: widget.transform,
       height: widget.height,
       child: Visibility(
-        visible: (widget.visible || _visible || _menuShown || _dragging) &&
+        // DaiDai patch（2026-10-17）: タッチ主体の端末では、表の中に選択が
+        // ある間はホバーに関係なく常に表示する。
+        visible: (widget.visible ||
+                _visible ||
+                _menuShown ||
+                _dragging ||
+                touchActive) &&
             widget.editorState.editable,
         child: MouseRegion(
           onEnter: (_) => setState(() => _visible = true),
@@ -128,6 +144,35 @@ Widget defaultMenuBuilder(
         )
       : TableDefaults.handlerIcon;
 
+  void onTap() {
+    // メニューを開く前に、この行/列を複数セル選択の状態にする
+    // （2026-10-04追加、ユーザー指示。メニューを閉じた後にBackspace/
+    // Deleteで行/列を削除できる）。
+    TableActions.select(node, position, editorState, dir);
+    showActionMenu(
+      context,
+      node,
+      editorState,
+      position,
+      dir,
+    );
+  }
+
+  // DaiDai patch（2026-10-17）: タッチ主体の端末では並び替えを長押し後の
+  // ドラッグで起動する（即時ドラッグだと表の横スクロールと区別できないため）。
+  // 既存のドラッグ用コールバック（ドロップ位置表示・moveRow/moveCol）へ橋渡しする。
+  if (isTableTouchPlatform) {
+    return _TouchHandleGesture(
+      dir: dir,
+      onTap: onTap,
+      onDragStart: onHandleDragStart,
+      onDragUpdate: onHandleDragUpdate,
+      onDragEnd: onHandleDragEnd,
+      onDragCancel: onHandleDragCancel,
+      child: SizedBox.expand(child: Center(child: icon)),
+    );
+  }
+
   return MouseRegion(
     cursor: SystemMouseCursors.click,
     child: GestureDetector(
@@ -138,19 +183,7 @@ Widget defaultMenuBuilder(
       // （table_view.dartの_buildResizeStrips）が既に`opaque`かつ実際の
       // 範囲全体をヒットテスト対象にしている、実証済みのパターンに揃えた）。
       behavior: HitTestBehavior.opaque,
-      onTap: () {
-        // メニューを開く前に、この行/列を複数セル選択の状態にする
-        // （2026-10-04追加、ユーザー指示。メニューを閉じた後にBackspace/
-        // Deleteで行/列を削除できる）。
-        TableActions.select(node, position, editorState, dir);
-        showActionMenu(
-          context,
-          node,
-          editorState,
-          position,
-          dir,
-        );
-      },
+      onTap: onTap,
       // Tap系とHorizontal/Vertical Drag系はFlutterが標準で1つの
       // GestureDetectorに併記できる（Pan/Scale系との組み合わせのみ非対応）。
       // 列は横方向、行は縦方向のドラッグとして並び替えを行う
@@ -171,4 +204,75 @@ Widget defaultMenuBuilder(
       child: SizedBox.expand(child: Center(child: icon)),
     ),
   );
+}
+
+/// タッチ用のハンドル操作。タップでメニュー、長押し後のドラッグで並び替え。
+/// 長押しのドラッグ量を、既存のドラッグ用コールバックが受け取る
+/// `DragUpdateDetails`（増分）へ変換する（DaiDai patch、2026-10-17）。
+class _TouchHandleGesture extends StatefulWidget {
+  const _TouchHandleGesture({
+    required this.dir,
+    required this.onTap,
+    required this.child,
+    this.onDragStart,
+    this.onDragUpdate,
+    this.onDragEnd,
+    this.onDragCancel,
+  });
+
+  final TableDirection dir;
+  final VoidCallback onTap;
+  final Widget child;
+  final GestureDragStartCallback? onDragStart;
+  final GestureDragUpdateCallback? onDragUpdate;
+  final GestureDragEndCallback? onDragEnd;
+  final GestureDragCancelCallback? onDragCancel;
+
+  @override
+  State<_TouchHandleGesture> createState() => _TouchHandleGestureState();
+}
+
+class _TouchHandleGestureState extends State<_TouchHandleGesture> {
+  Offset _last = Offset.zero;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: widget.onTap,
+      onLongPressStart: (details) {
+        _last = Offset.zero;
+        HapticFeedback.selectionClick();
+        widget.onDragStart?.call(
+          DragStartDetails(
+            globalPosition: details.globalPosition,
+            localPosition: details.localPosition,
+          ),
+        );
+      },
+      onLongPressMoveUpdate: (details) {
+        final delta = details.offsetFromOrigin - _last;
+        _last = details.offsetFromOrigin;
+        widget.onDragUpdate?.call(
+          DragUpdateDetails(
+            globalPosition: details.globalPosition,
+            localPosition: details.localPosition,
+            delta: delta,
+            primaryDelta:
+                widget.dir == TableDirection.col ? delta.dx : delta.dy,
+          ),
+        );
+      },
+      onLongPressEnd: (details) {
+        widget.onDragEnd?.call(
+          DragEndDetails(
+            globalPosition: details.globalPosition,
+            localPosition: details.localPosition,
+          ),
+        );
+      },
+      onLongPressCancel: () => widget.onDragCancel?.call(),
+      child: widget.child,
+    );
+  }
 }

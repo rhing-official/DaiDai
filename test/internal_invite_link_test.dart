@@ -1,61 +1,63 @@
-import 'package:daidai/models/app_user.dart';
+import 'package:daidai/l10n/app_locale.dart';
+import 'package:daidai/models/link_preview.dart';
 import 'package:daidai/models/user_invite_preview.dart';
-import 'package:daidai/providers/repository_providers.dart';
-import 'package:daidai/repositories/user_repository.dart';
+import 'package:daidai/providers/app_locale_provider.dart';
+import 'package:daidai/providers/link_preview_provider.dart';
 import 'package:daidai/widgets/link_preview_card.dart';
-import 'package:daidai/widgets/user_profile_card_view.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-class _FakeUserRepository implements UserRepository {
-  _FakeUserRepository(this.user);
-  final AppUser user;
+// 招待リンクも汎用のリンクプレビュー（題・説明・画像）で出す（2026-10-17、
+// 専用のアプリ内カードと呼びかけ文は廃止）。DaiDai自身のドメインは表記しない。
 
-  @override
-  Future<AppUser?> findByRhingSeed(String rhingSeed) async =>
-      rhingSeed == user.rhingSeed ? user : null;
-
-  @override
-  Stream<AppUser?> watchUser(String userId) => Stream.value(user);
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+Future<void> _pumpCard(
+  WidgetTester tester,
+  String url, {
+  bool isGekiga = false,
+}) async {
+  await tester.pumpWidget(
+    ProviderScope(
+      overrides: [
+        initialAppLocaleProvider.overrideWithValue(AppLocale.japanese),
+        linkPreviewProvider.overrideWith(
+          (ref, url) async => LinkPreview(
+            url: url,
+            title: '新（@aaa）',
+            description: 'DaiDaiで仲間になりましょう',
+          ),
+        ),
+      ],
+      child: MaterialApp(
+        home: Scaffold(
+          body: LinkPreviewCard(url: url, isGekiga: isGekiga, isMe: false),
+        ),
+      ),
+    ),
+  );
+  await tester.pumpAndSettle();
 }
 
 void main() {
-  test('DaiDaiの招待リンクだけを判定する', () {
-    final user = parseInternalInviteLink('https://daidai.rhing.jp/invite/aaa');
-    expect(user?.rhingSeed, 'aaa');
-    expect(user?.groupId, isNull);
-    final group = parseInternalInviteLink(
-      'https://daidai.rhing.jp/join/g1/1700000000',
-    );
-    expect(group?.groupId, 'g1');
-    expect(parseInternalInviteLink('https://example.com/invite/aaa'), isNull);
-    expect(parseInternalInviteLink('https://daidai.rhing.jp/other'), isNull);
-  });
+  for (final isGekiga in [false, true]) {
+    for (final path in ['invite/aaa/00d9b92b', 'join/g1/00d9b92b']) {
+      testWidgets('DaiDai自身の招待リンクのプレビューは題と説明を出し、ドメインは表記しない'
+          '（$path、劇画=$isGekiga）', (tester) async {
+        await _pumpCard(
+          tester,
+          'https://daidai.rhing.jp/$path',
+          isGekiga: isGekiga,
+        );
+        expect(find.text('新（@aaa）'), findsOneWidget);
+        expect(find.text('DaiDaiで仲間になりましょう'), findsOneWidget);
+        expect(find.text('daidai.rhing.jp'), findsNothing);
+      });
+    }
+  }
 
-  testWidgets('招待リンクは相手のカードをアプリ内の描画で出す', (tester) async {
-    const user = AppUser(userId: 'u1', rhingSeed: 'aaa');
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          userRepositoryProvider.overrideWithValue(_FakeUserRepository(user)),
-        ],
-        child: const MaterialApp(
-          home: Scaffold(
-            body: LinkPreviewCard(
-              url: 'https://daidai.rhing.jp/invite/aaa',
-              isGekiga: false,
-              isMe: false,
-            ),
-          ),
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
-    expect(find.byType(UserProfileCardView), findsOneWidget);
+  testWidgets('外部サイトのリンクにはドメインを表記する', (tester) async {
+    await _pumpCard(tester, 'https://example.com/page');
+    expect(find.text('example.com'), findsOneWidget);
   });
 
   test('招待リンクの版識別子は内容が同じなら同じ、変わると別の値になる', () {
@@ -70,13 +72,6 @@ void main() {
     expect(a.version, same.version);
     expect(a.version, isNot(changed.version));
     expect(a.version, matches(RegExp(r'^[0-9a-f]{8}$')));
-    // バージョン付きの招待リンクもDaiDaiの招待として判定できる。
-    expect(
-      parseInternalInviteLink(
-        'https://daidai.rhing.jp/invite/aaa/${a.version}',
-      )?.rhingSeed,
-      'aaa',
-    );
   });
 
   test('リンク更新用の値（linkSalt）が変わると、内容が同じでも版識別子が変わる', () {

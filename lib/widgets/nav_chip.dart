@@ -168,6 +168,7 @@ class ChipNavShell extends StatefulWidget {
     required this.onSelected,
     required this.child,
     this.isSwipeBlocked,
+    this.chipWrapper,
     super.key,
   });
 
@@ -183,6 +184,9 @@ class ChipNavShell extends StatefulWidget {
   /// trueを返す間はなぞりによるタブ切り替えを無効にする（ポップアップが
   /// 開いている間に背後でタブが切り替わらないようにするため）。
   final bool Function()? isSwipeBlocked;
+
+  /// 各チップを包む（ガイドの目印を巻く等、2026-10-17追加）。`null`なら包まない。
+  final Widget Function(int index, Widget chip)? chipWrapper;
 
   @override
   State<ChipNavShell> createState() => _ChipNavShellState();
@@ -283,18 +287,22 @@ class _ChipNavShellState extends State<ChipNavShell> {
   @override
   Widget build(BuildContext context) {
     final isWide = MediaQuery.sizeOf(context).width >= kNavChipWideBreakpoint;
+    final wrap = widget.chipWrapper;
     final chips = [
       for (var i = 0; i < widget.icons.length; i++)
-        NavChip(
-          key: _chipKeys[i],
-          icon: widget.icons[i],
-          iconSize: widget.iconSizes[i],
-          label: widget.labels[i],
-          selected: widget.selectedIndex == i,
-          popped: _isDragging && _poppedIndexes.contains(i),
-          vertical: isWide,
-          onTap: () => widget.onSelected(i),
-        ),
+        () {
+          final chip = NavChip(
+            key: _chipKeys[i],
+            icon: widget.icons[i],
+            iconSize: widget.iconSizes[i],
+            label: widget.labels[i],
+            selected: widget.selectedIndex == i,
+            popped: _isDragging && _poppedIndexes.contains(i),
+            vertical: isWide,
+            onTap: () => widget.onSelected(i),
+          );
+          return wrap == null ? chip : wrap(i, chip);
+        }(),
     ];
 
     final content = Padding(

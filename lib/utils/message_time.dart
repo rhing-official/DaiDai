@@ -2,8 +2,18 @@ import '../l10n/app_locale.dart';
 import '../models/message_time_format.dart';
 
 /// 曜日の略称（DateTime.weekdayの1=月曜〜7=日曜に対応）。日本語は1文字、
-/// 英語は3文字略称で、どちらも略称表記に統一する。
+/// 英語は3文字略称で、どちらも略称表記に統一する。言語を足したときに
+/// 抜けないよう、[_weekdayAbbreviationsOf]のswitch式（網羅性エラー）で引く。
 const _weekdayAbbreviationsJa = ['月', '火', '水', '木', '金', '土', '日'];
+const _weekdayAbbreviationsFr = [
+  'lun.',
+  'mar.',
+  'mer.',
+  'jeu.',
+  'ven.',
+  'sam.',
+  'dim.',
+];
 const _weekdayAbbreviationsEn = [
   'Mon',
   'Tue',
@@ -13,6 +23,14 @@ const _weekdayAbbreviationsEn = [
   'Sat',
   'Sun',
 ];
+
+List<String> _weekdayAbbreviationsOf(AppLocale locale) {
+  return switch (locale) {
+    AppLocale.japanese => _weekdayAbbreviationsJa,
+    AppLocale.britishEnglish => _weekdayAbbreviationsEn,
+    AppLocale.french => _weekdayAbbreviationsFr,
+  };
+}
 
 /// メッセージの送信時刻を、設定された表示形式で整形する。
 /// 24時間表記は「00:00」、12時間表記は「12:00 p.m.」の形式。
@@ -33,9 +51,7 @@ String formatMessageTime(DateTime time, MessageTimeFormat format) {
 String formatMessageDate(DateTime date, AppLocale locale) {
   final month = date.month.toString().padLeft(2, '0');
   final day = date.day.toString().padLeft(2, '0');
-  final abbreviations = locale == AppLocale.japanese
-      ? _weekdayAbbreviationsJa
-      : _weekdayAbbreviationsEn;
+  final abbreviations = _weekdayAbbreviationsOf(locale);
   final weekday = abbreviations[date.weekday - 1];
   return '${date.year}/$month/$day ($weekday)';
 }
