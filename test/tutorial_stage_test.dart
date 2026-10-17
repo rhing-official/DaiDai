@@ -6,6 +6,18 @@ import 'package:daidai/features/profile/enmusubi_page.dart';
 import 'package:daidai/l10n/app_locale.dart';
 import 'package:daidai/l10n/tutorial_content.dart';
 import 'package:daidai/models/app_ui_style.dart';
+import 'package:daidai/models/chat_layout_style.dart';
+import 'package:daidai/models/conversation_sort_order.dart';
+import 'package:daidai/models/message_time_format.dart';
+import 'package:daidai/models/send_key_mode.dart';
+import 'package:daidai/models/talks_list_layout_style.dart';
+import 'package:daidai/providers/chat_layout_style_provider.dart';
+import 'package:daidai/providers/conversation_sort_order_provider.dart';
+import 'package:daidai/providers/draft_sync_enabled_provider.dart';
+import 'package:daidai/providers/last_opened_room_provider.dart';
+import 'package:daidai/providers/message_time_format_provider.dart';
+import 'package:daidai/providers/send_key_mode_provider.dart';
+import 'package:daidai/providers/talks_list_layout_style_provider.dart';
 import 'package:daidai/providers/app_locale_provider.dart';
 import 'package:daidai/providers/app_ui_style_provider.dart';
 import 'package:flutter/material.dart';
@@ -54,7 +66,7 @@ Future<ProviderContainer> _pump(
         ),
       ),
       GoRoute(
-        path: '/guide/enmusubi',
+        path: '/guide/practice',
         builder: (context, _) =>
             const TutorialStageScreen(child: PracticeHome()),
       ),
@@ -65,6 +77,21 @@ Future<ProviderContainer> _pump(
       overrides: [
         initialAppLocaleProvider.overrideWithValue(AppLocale.japanese),
         initialAppUiStyleProvider.overrideWithValue(AppUiStyle.flat),
+        initialSendKeyModeProvider.overrideWithValue(SendKeyMode.enterToSend),
+        initialMessageTimeFormatProvider.overrideWithValue(
+          MessageTimeFormat.h24,
+        ),
+        initialChatLayoutStyleProvider.overrideWithValue(
+          ChatLayoutStyle.sideBySide,
+        ),
+        initialTalksListLayoutStyleProvider.overrideWithValue(
+          TalksListLayoutStyle.standard,
+        ),
+        initialConversationSortOrderProvider.overrideWithValue(
+          ConversationSortOrder.recent,
+        ),
+        initialLastOpenedRoomsProvider.overrideWithValue(const {}),
+        initialDraftSyncEnabledProvider.overrideWithValue(false),
       ],
       child: MaterialApp.router(
         routerConfig: _router,
@@ -185,7 +212,7 @@ void main() {
   });
 
   testWidgets('ガイドが実行されていないのにステージ画面のURLが開かれたら、ホームへ戻る', (tester) async {
-    await _pump(tester, initialLocation: '/guide/enmusubi');
+    await _pump(tester, initialLocation: '/guide/practice');
     await _settle(tester);
     await _settle(tester);
     expect(find.byType(PracticeHome), findsNothing);

@@ -4,28 +4,6 @@ import 'guide_content.dart';
 /// 確認を推奨）。用語は`Vocabulary.french`（Duo・Place・Salon・Réserve・Atelier）に
 /// 合わせる。手順の段落数は原文（`guide_content.dart`）と同じにする。
 const guideTranslationFr = GuideTranslation(
-  pages: {
-    'welcome': GuidePageText(
-      title: 'Bienvenue sur DaiDai',
-      body:
-          'DaiDai ne collecte jamais votre adresse e-mail, votre numéro de téléphone ni votre position actuelle, et ne contient aucune publicité. Votre compte Google ou Apple suffit.',
-    ),
-    'talks': GuidePageText(
-      title: 'Discutez dans les discussions',
-      body:
-          'Discutez en tête-à-tête dans un « Duo », ou réunissez trois personnes ou plus dans une « Place ». À l’intérieur, séparez les sujets avec des « Salons ». Messages et appels commencent ici.',
-    ),
-    'profile': GuidePageText(
-      title: 'Votre profil et vos amis',
-      body:
-          'Soignez votre profil dans « Profil ». Partagez votre lien d’invitation ou votre code QR depuis « Ajouter un ami » pour vous connecter avec quelqu’un.',
-    ),
-    'help': GuidePageText(
-      title: 'Besoin d’aide ?',
-      body:
-          'Les guides détaillés sont toujours disponibles dans Réglages > Assistance > Guide d’utilisation. Vous pouvez aussi y revoir cette introduction.',
-    ),
-  },
   topics: {
     'friends': GuideTopicText(
       title: 'Ajouter un ami',
@@ -58,7 +36,7 @@ const guideTranslationFr = GuideTranslation(
       summary: 'Texte, photos, fichiers, stickers et mentions',
       steps: [
         'Outre le texte, vous pouvez envoyer jusqu’à 10 photos, vidéos ou fichiers dans un même message.',
-        'Les « stickers » sont les autocollants de DaiDai. Pendant que vous écrivez, des stickers suggérés peuvent apparaître au-dessus du champ de saisie.',
+        'Pendant que vous écrivez, des stickers suggérés peuvent apparaître au-dessus du champ de saisie.',
         'Tapez « @ » pour mentionner quelqu’un, ou « @everyone » pour notifier tout le groupe.',
         'Vous pouvez répondre à des messages, les épingler, ou en sélectionner plusieurs pour les supprimer. La suppression ne les masque que pour vous ; ils sont supprimés du serveur lorsque tout le monde les a supprimés.',
       ],
@@ -98,10 +76,10 @@ const guideTranslationFr = GuideTranslation(
     ),
     'profile': GuideTopicText(
       title: 'Profil',
-      summary: 'Soignez vos cartes dans la Réserve et l’Atelier',
+      summary: 'Soignez vos cartes dans la Réserve et la Couture',
       steps: [
         'La Réserve conserve vos icônes, images d’arrière-plan, surnoms et statuts.',
-        'Dans l’Atelier, vous combinez des éléments en cartes de profil. Vous pouvez en créer jusqu’à trois et utiliser des cartes différentes selon la conversation.',
+        'Dans la Couture, vous combinez des éléments en cartes de profil. Vous pouvez en créer jusqu’à trois et utiliser des cartes différentes selon la conversation.',
       ],
     ),
     'safety': GuideTopicText(
@@ -119,8 +97,8 @@ const guideTranslationFr = GuideTranslation(
       title: 'Kiwami',
       summary: 'Un forfait payant qui débloque des fonctions supplémentaires',
       steps: [
-        '« Kiwami » regroupe des extras comme le masquage des accusés de lecture, les appels vidéo en 1080p et des couleurs et polices exclusives.',
-        'Il est actuellement gratuit pour tous, à titre d’offre de lancement et pour une durée limitée. Il pourrait devenir payant à l’avenir.',
+        '« Kiwami » est un forfait payant qui regroupe des extras comme le masquage des accusés de lecture et des polices exclusives. Le masquage des accusés de lecture ne s’applique que tant qu’une personne de la conversation a Kiwami.',
+        'La façon de s’abonner arrive bientôt. Sans Kiwami, les polices exclusives s’affichent dans la police standard.',
       ],
     ),
   },

@@ -26,6 +26,9 @@ import 'package:daidai/providers/sticker_send_mode_provider.dart';
 import 'package:daidai/providers/talks_list_layout_style_provider.dart';
 import 'package:daidai/providers/text_color_provider.dart';
 import 'package:daidai/providers/theme_mode_provider.dart';
+import 'package:daidai/models/residence.dart';
+import 'package:daidai/providers/repository_providers.dart';
+import 'package:daidai/repositories/residence_repository.dart';
 import 'package:daidai/widgets/interactive_swipe_back.dart';
 import 'package:daidai/widgets/slide_drilldown.dart';
 import 'package:flutter/foundation.dart';
@@ -44,6 +47,14 @@ import 'package:shared_preferences/shared_preferences.dart';
 // 2ペイン表示は十分な横幅を必要とするため、デフォルトのテストサーフェス
 // （800x600）だと2ペイン表示のしきい値を満たさない。実際の想定利用シーン
 // （広いデスクトップ画面）に合わせ、十分広いサーフェスサイズを明示的に指定する。
+class _FakeResidenceRepository implements ResidenceRepository {
+  @override
+  Future<Residence?> getResidence(String userId) async => null;
+
+  @override
+  Future<void> saveResidence(String userId, Residence residence) async {}
+}
+
 Future<void> _pumpSettingsTab(WidgetTester tester) async {
   SharedPreferences.setMockInitialValues({});
   tester.view.physicalSize = const Size(1400, 900);
@@ -85,6 +96,9 @@ Future<void> _pumpSettingsTab(WidgetTester tester) async {
         initialCallingCustomSoundProvider.overrideWithValue(null),
         initialNotificationSoundProvider.overrideWithValue(null),
         initialNotificationCustomSoundProvider.overrideWithValue(null),
+        residenceRepositoryProvider.overrideWithValue(
+          _FakeResidenceRepository(),
+        ),
       ],
       child: const MaterialApp(
         home: Scaffold(
@@ -141,6 +155,9 @@ Future<void> _pumpSettingsTabNarrow(WidgetTester tester) async {
         initialCallingCustomSoundProvider.overrideWithValue(null),
         initialNotificationSoundProvider.overrideWithValue(null),
         initialNotificationCustomSoundProvider.overrideWithValue(null),
+        residenceRepositoryProvider.overrideWithValue(
+          _FakeResidenceRepository(),
+        ),
       ],
       child: const MaterialApp(
         home: Scaffold(
@@ -275,7 +292,12 @@ void main() {
     expect(find.text('パスキー'), findsOneWidget);
     expect(find.text('QRコードによるログイン'), findsOneWidget);
     expect(find.text('ログアウト'), findsOneWidget);
-    expect(find.text('アカウントを削除'), findsOneWidget);
+    // 極みの行を足してページが長くなり、最下部は表示領域の外になりうるため
+    // 画面外の要素も探す。
+    expect(
+      find.text('アカウントを削除', skipOffstage: false),
+      findsOneWidget,
+    );
 
     // 別のカテゴリ（アプリケーション）に切り替えると、アカウントの内容は消える。
     await tester.tap(find.text('アプリケーション'));
@@ -447,5 +469,39 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('知りたい機能を選んでください。'), findsNothing);
     expect(find.text('使い方ガイド'), findsOneWidget);
+  });
+
+  testWidgets('コンピューターでは設定の「居住地」が一覧の右隣に並んで開き、別画面へは移らない', (tester) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+    try {
+      await _pumpSettingsTab(tester);
+      await tester.tap(find.text('居住地'));
+      await tester.pumpAndSettle();
+      // 一覧（アカウント）を残したまま、右に居住地の入力欄が出る。
+      expect(find.text('居住地'), findsWidgets);
+      expect(find.byKey(const ValueKey('residence-language')), findsOneWidget);
+      expect(find.textContaining('Rhing Seed'), findsWidgets);
+      expect(find.byType(AppBar), findsNothing);
+    } finally {
+      debugDefaultTargetPlatformOverride = null;
+    }
+  });
+
+  testWidgets('モバイルでは設定の「居住地」を重ねて開き、右スワイプでアカウントへ戻る', (tester) async {
+    await _pumpSettingsTabNarrow(tester);
+    await tester.tap(find.text('アカウント'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('居住地'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('residence-language')), findsOneWidget);
+
+    await tester.fling(
+      find.byType(InteractiveSwipeBackTransition).last,
+      const Offset(300, 0),
+      1000,
+    );
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('residence-language')), findsNothing);
+    expect(find.text('居住地'), findsOneWidget);
   });
 }

@@ -167,6 +167,12 @@ class _FakeUserRepository implements UserRepository {
   Future<void> setAccountSuspended(String userId, bool suspended) async {}
 
   @override
+  Future<void> setKiwamiPlan(String userId, bool kiwami) async {}
+
+  @override
+  Future<Uri> createKiwamiPortalUrl() async => Uri.parse('https://example.com');
+
+  @override
   Future<BulkSuspendResult> setAccountsSuspended(
     List<String> userIds,
     bool suspended,

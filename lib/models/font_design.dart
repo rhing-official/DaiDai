@@ -156,38 +156,37 @@ enum FontDesign {
     FontDesign.keifont => 'Keifont',
   };
 
-  /// 企画書6章「有料プラン『極み』」の「追加フォント10種」に該当するか
-  /// （2026-09-06追加）。現時点では極みプラン自体の課金判定ロジックが
-  /// 未実装のため、この値は表示上の目印（設定画面のバッジ等）にのみ使い、
-  /// 選択自体は誰でも行える。極みプラン本体を実装する際に、ここを見て
-  /// 選択を制限する形に変更する想定。2026-09-14に追加した10種は、企画書の
-  /// 「追加フォント10種」の対象かどうか未確定のため、ひとまず無料枠のまま
-  /// （false）にしている。
+  /// 有料プラン「極み」限定のフォントか（企画書6章の「追加フォント10種」、
+  /// 2026-10-17に10種を確定: キウイ丸・しっぽり明朝・はんなり明朝・Zen Old Mincho・
+  /// Klee One・Yomogi・Kaisei Decol・黒薔薇シンデレラ・ピグモ01・ポプらむ☆キュート。
+  /// 個性・手書き・デザイン系を極み限定、本文向けの定番と標準（Noto Sans JP）は無料）。
+  /// 極みでない住人の画面では、保存された選択が極み限定でも表示は標準に戻し
+  /// （[resolvedFor]）、選ぶ操作は極みの人だけにする。
   bool get isKiwamiExclusive => switch (this) {
     FontDesign.notoSansJp => false,
     FontDesign.notoSerifJp => false,
     FontDesign.zenKakuGothicNew => false,
     FontDesign.zenMaruGothic => false,
-    FontDesign.zenOldMincho => false,
+    FontDesign.zenOldMincho => true,
     FontDesign.bizUdGothic => false,
     FontDesign.bizUdpMincho => false,
     FontDesign.genShinGothic => false,
     FontDesign.genJyuuGothic => false,
     FontDesign.roundedMPlus => false,
-    FontDesign.kleeOne => false,
-    FontDesign.yomogi => false,
-    FontDesign.kaiseiDecol => false,
+    FontDesign.kleeOne => true,
+    FontDesign.yomogi => true,
+    FontDesign.kaiseiDecol => true,
     FontDesign.kiwiMaru => true,
     FontDesign.shipporiMincho => true,
     FontDesign.kagurazaka => false,
-    FontDesign.hannariMincho => false,
+    FontDesign.hannariMincho => true,
     FontDesign.gochikakutto851 => false,
     FontDesign.chikaraDzuyoku851 => false,
     FontDesign.chikaraYowaku851 => false,
     FontDesign.makinas4Flat => false,
-    FontDesign.pigmo01 => false,
-    FontDesign.popRumCute => false,
-    FontDesign.kurobaraCinderella => false,
+    FontDesign.pigmo01 => true,
+    FontDesign.popRumCute => true,
+    FontDesign.kurobaraCinderella => true,
     FontDesign.keifont => false,
   };
 
@@ -209,8 +208,13 @@ enum FontDesign {
   /// 実際に適用するフォント。選択中のフォントがその表示言語で使えない場合は
   /// 既定（[notoSansJp]）にする。保存された選択は書き換えないため、日本語・英語へ
   /// 戻せば元のフォントに戻る。
-  FontDesign resolvedFor(AppLocale locale) =>
-      supportsLocale(locale) ? this : FontDesign.notoSansJp;
+  ///
+  /// [kiwami]が`false`（極みでない）で、このフォントが極み限定
+  /// （[isKiwamiExclusive]）なら、同じく既定にする（保存値は書き換えない）。
+  FontDesign resolvedFor(AppLocale locale, {bool kiwami = true}) =>
+      supportsLocale(locale) && (kiwami || !isKiwamiExclusive)
+      ? this
+      : FontDesign.notoSansJp;
 
   static FontDesign fromName(String? name) {
     return FontDesign.values.firstWhere(

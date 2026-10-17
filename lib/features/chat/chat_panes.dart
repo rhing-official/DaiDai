@@ -1,3 +1,7 @@
+import '../../widgets/kiwami_only_dialog.dart';
+import '../../providers/kiwami_providers.dart';
+import '../guide/tutorial/tutorial_target.dart';
+import '../../l10n/tutorial_content.dart';
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart' show Timestamp;
@@ -298,12 +302,13 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
   /// スナップショットのまま表示して問題ない。
   Album? _openAlbum;
 
+  /// `dispose`で`ref`を使うのは安全でないため、先に取っておく（2026-10-17）。
+  late final _cacheManager = ref.read(chatRoomMessageCacheManagerProvider);
+
   @override
   void initState() {
     super.initState();
-    _cacheEntry = ref
-        .read(chatRoomMessageCacheManagerProvider)
-        .attach(_cacheKey);
+    _cacheEntry = _cacheManager.attach(_cacheKey);
     _cacheEntry.addListener(_onCacheEntryChanged);
     _cacheEntry.ensureSubscribed(
       () => ref
@@ -417,9 +422,7 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
   @override
   void dispose() {
     _cacheEntry.removeListener(_onCacheEntryChanged);
-    ref
-        .read(chatRoomMessageCacheManagerProvider)
-        .detach(_cacheKey, _cacheEntry);
+    _cacheManager.detach(_cacheKey, _cacheEntry);
     _messagesController.close();
     super.dispose();
   }
@@ -743,7 +746,14 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
       },
       onCallPressed: widget.onCallPressed,
       onVideoCallPressed: widget.onVideoCallPressed,
-      readReceiptsEnabled: dm.readReceiptsEnabled,
+      // 既読の無効化は、会話に極みの人がいる間だけ効く（2026-10-17）。
+      readReceiptsEnabled:
+          dm.readReceiptsEnabled ||
+          !ref.watch(
+            conversationHasKiwamiProvider(
+              ([...dm.participants]..sort()).join(','),
+            ),
+          ),
       onMarkRead: (messageIds) => _afterMutation(
         () async {
           await Future.wait([
@@ -865,21 +875,27 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
       ),
       menuAnchorKey: _menuAnchorKey,
       extraActions: [
-        _AlbumButton(
-          isDm: true,
-          conversationId: dm.dmId,
-          roomId: roomId,
-          currentUserId: currentUser.userId,
-          onOpenAlbum: (album) => setState(() => _openAlbum = album),
-          menuAnchorKey: _menuAnchorKey,
+        TutorialTarget(
+          id: TutorialTargetIds.chatAlbumButton,
+          child: _AlbumButton(
+            isDm: true,
+            conversationId: dm.dmId,
+            roomId: roomId,
+            currentUserId: currentUser.userId,
+            onOpenAlbum: (album) => setState(() => _openAlbum = album),
+            menuAnchorKey: _menuAnchorKey,
+          ),
         ),
-        _NoteButton(
-          isDm: true,
-          conversationId: dm.dmId,
-          roomId: roomId,
-          currentUser: currentUser,
-          onNoteSelected: (noteId) => setState(() => _openNoteId = noteId),
-          menuAnchorKey: _menuAnchorKey,
+        TutorialTarget(
+          id: TutorialTargetIds.chatNoteButton,
+          child: _NoteButton(
+            isDm: true,
+            conversationId: dm.dmId,
+            roomId: roomId,
+            currentUser: currentUser,
+            onNoteSelected: (noteId) => setState(() => _openNoteId = noteId),
+            menuAnchorKey: _menuAnchorKey,
+          ),
         ),
         _PollButton(
           isDm: true,
@@ -888,12 +904,15 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
           currentUser: currentUser,
           menuAnchorKey: _menuAnchorKey,
         ),
-        _CalendarButton(
-          isDm: true,
-          conversationId: dm.dmId,
-          roomId: roomId,
-          currentUser: currentUser,
-          onOpenCalendar: () => setState(() => _showingCalendar = true),
+        TutorialTarget(
+          id: TutorialTargetIds.chatCalendarButton,
+          child: _CalendarButton(
+            isDm: true,
+            conversationId: dm.dmId,
+            roomId: roomId,
+            currentUser: currentUser,
+            onOpenCalendar: () => setState(() => _showingCalendar = true),
+          ),
         ),
         _DmMenuButton(
           currentUser: currentUser,
@@ -2120,12 +2139,13 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
   /// スナップショットのまま表示して問題ない。
   Album? _openAlbum;
 
+  /// `dispose`で`ref`を使うのは安全でないため、先に取っておく（2026-10-17）。
+  late final _cacheManager = ref.read(chatRoomMessageCacheManagerProvider);
+
   @override
   void initState() {
     super.initState();
-    _cacheEntry = ref
-        .read(chatRoomMessageCacheManagerProvider)
-        .attach(_cacheKey);
+    _cacheEntry = _cacheManager.attach(_cacheKey);
     _cacheEntry.addListener(_onCacheEntryChanged);
     _cacheEntry.ensureSubscribed(
       () => ref
@@ -2289,9 +2309,7 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
   @override
   void dispose() {
     _cacheEntry.removeListener(_onCacheEntryChanged);
-    ref
-        .read(chatRoomMessageCacheManagerProvider)
-        .detach(_cacheKey, _cacheEntry);
+    _cacheManager.detach(_cacheKey, _cacheEntry);
     _messagesController.close();
     super.dispose();
   }
@@ -2697,10 +2715,14 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
       ),
       onCallPressed: () => _handleCallPressed(context, isVideo: false),
       onVideoCallPressed: () => _handleCallPressed(context, isVideo: true),
-      readReceiptsEnabled: effectiveReadReceiptsEnabled(
-        group: group,
-        room: currentRoom,
-      ),
+      // 既読の無効化は、広場に極みの人がいる間だけ効く（2026-10-17）。
+      readReceiptsEnabled:
+          effectiveReadReceiptsEnabled(group: group, room: currentRoom) ||
+          !ref.watch(
+            conversationHasKiwamiProvider(
+              ([...group.memberIds]..sort()).join(','),
+            ),
+          ),
       onMarkRead: (messageIds) => _afterMutation(
         () async {
           await Future.wait([
@@ -2809,21 +2831,27 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
       ),
       menuAnchorKey: _menuAnchorKey,
       extraActions: [
-        _AlbumButton(
-          isDm: false,
-          conversationId: group.groupId,
-          roomId: roomId,
-          currentUserId: currentUser.userId,
-          onOpenAlbum: (album) => setState(() => _openAlbum = album),
-          menuAnchorKey: _menuAnchorKey,
+        TutorialTarget(
+          id: TutorialTargetIds.chatAlbumButton,
+          child: _AlbumButton(
+            isDm: false,
+            conversationId: group.groupId,
+            roomId: roomId,
+            currentUserId: currentUser.userId,
+            onOpenAlbum: (album) => setState(() => _openAlbum = album),
+            menuAnchorKey: _menuAnchorKey,
+          ),
         ),
-        _NoteButton(
-          isDm: false,
-          conversationId: group.groupId,
-          roomId: roomId,
-          currentUser: currentUser,
-          onNoteSelected: (noteId) => setState(() => _openNoteId = noteId),
-          menuAnchorKey: _menuAnchorKey,
+        TutorialTarget(
+          id: TutorialTargetIds.chatNoteButton,
+          child: _NoteButton(
+            isDm: false,
+            conversationId: group.groupId,
+            roomId: roomId,
+            currentUser: currentUser,
+            onNoteSelected: (noteId) => setState(() => _openNoteId = noteId),
+            menuAnchorKey: _menuAnchorKey,
+          ),
         ),
         _PollButton(
           isDm: false,
@@ -2832,12 +2860,15 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
           currentUser: currentUser,
           menuAnchorKey: _menuAnchorKey,
         ),
-        _CalendarButton(
-          isDm: false,
-          conversationId: group.groupId,
-          roomId: roomId,
-          currentUser: currentUser,
-          onOpenCalendar: () => setState(() => _showingCalendar = true),
+        TutorialTarget(
+          id: TutorialTargetIds.chatCalendarButton,
+          child: _CalendarButton(
+            isDm: false,
+            conversationId: group.groupId,
+            roomId: roomId,
+            currentUser: currentUser,
+            onOpenCalendar: () => setState(() => _showingCalendar = true),
+          ),
         ),
         _GroupMenuButton(
           currentUser: currentUser,
@@ -3147,6 +3178,15 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
           // 2026-07-29変更）。
           if (!canManageReadReceipts) return;
           if (roomReadReceiptsEnabled) {
+            // 既読を隠す（オフにする）のは極みの人だけ（2026-10-17）。
+            if (!ref.read(isKiwamiProvider(widget.currentUser.userId))) {
+              showKiwamiOnlyDialog(
+                context,
+                strings,
+                body: strings.kiwamiOnlyReadReceiptsBody,
+              );
+              return;
+            }
             final confirmed = await confirmDisableReadReceipts(
               context,
               strings,

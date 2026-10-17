@@ -227,6 +227,12 @@ class _FakeUserRepository implements UserRepository {
   Future<void> setAccountSuspended(String userId, bool suspended) async {}
 
   @override
+  Future<void> setKiwamiPlan(String userId, bool kiwami) async {}
+
+  @override
+  Future<Uri> createKiwamiPortalUrl() async => Uri.parse('https://example.com');
+
+  @override
   Future<BulkSuspendResult> setAccountsSuspended(
     List<String> userIds,
     bool suspended,
@@ -307,7 +313,7 @@ void main() {
     final repo = _FakeUserRepository();
     await _pumpProfileTab(tester, user, repo);
 
-    await tester.tap(find.text('工房'));
+    await tester.tap(find.text('仕立て'));
     await tester.pumpAndSettle();
 
     // 3枠すべてが「+」の白紙カードとして表示される。
@@ -331,7 +337,7 @@ void main() {
     final repo = _FakeUserRepository()..saved = user;
     await _pumpProfileTab(tester, user, repo);
 
-    await tester.tap(find.text('工房'));
+    await tester.tap(find.text('仕立て'));
     await tester.pumpAndSettle();
 
     // カードは画面の下の方にあるため、文字ではなくカード本体（Hero）の中心を
@@ -350,7 +356,7 @@ void main() {
     final repo = _FakeUserRepository();
     await _pumpProfileTab(tester, user, repo);
 
-    await tester.tap(find.text('工房'));
+    await tester.tap(find.text('仕立て'));
     await tester.pumpAndSettle();
     await tester.tap(find.byIcon(Icons.add).first);
     await tester.pumpAndSettle();
@@ -468,7 +474,7 @@ void main() {
     final repo = _FakeUserRepository();
     await _pumpProfileTab(tester, user, repo);
 
-    await tester.tap(find.text('工房'));
+    await tester.tap(find.text('仕立て'));
     await tester.pumpAndSettle();
 
     // 名前ラベル（カード下のText）はタップ不可のため、カード本体（Hero）をタップする。
@@ -519,7 +525,7 @@ void main() {
     final repo = _FakeUserRepository();
     await _pumpProfileTab(tester, user, repo);
 
-    await tester.tap(find.text('工房'));
+    await tester.tap(find.text('仕立て'));
     await tester.pumpAndSettle();
     await tester.tapAt(tester.getCenter(find.byType(ProfileCardView).first));
     await tester.pumpAndSettle();
@@ -553,7 +559,7 @@ void main() {
     const user = AppUser(userId: 'u1', rhingSeed: 'taro', profileCards: [card]);
     final repo = _FakeUserRepository()..saved = user;
     await _pumpProfileTab(tester, user, repo);
-    await tester.tap(find.text('工房'));
+    await tester.tap(find.text('仕立て'));
     await tester.pumpAndSettle();
     await tester.tapAt(tester.getCenter(find.byType(ProfileCardView).first));
     await tester.pumpAndSettle();
@@ -583,7 +589,7 @@ void main() {
     const user = AppUser(userId: 'u1', rhingSeed: 'taro', profileCards: [a, b]);
     final repo = _FakeUserRepository()..saved = user;
     await _pumpProfileTab(tester, user, repo);
-    await tester.tap(find.text('工房'));
+    await tester.tap(find.text('仕立て'));
     await tester.pumpAndSettle();
 
     expect(find.byIcon(Icons.drag_indicator), findsNWidgets(2));
@@ -609,7 +615,7 @@ void main() {
     const user = AppUser(userId: 'u1', rhingSeed: 'taro', profileCards: [a]);
     final repo = _FakeUserRepository()..saved = user;
     await _pumpProfileTab(tester, user, repo);
-    await tester.tap(find.text('工房'));
+    await tester.tap(find.text('仕立て'));
     await tester.pumpAndSettle();
 
     expect(find.byIcon(Icons.drag_indicator), findsNothing);
@@ -635,7 +641,7 @@ void main() {
     const user = AppUser(userId: 'u1', rhingSeed: 'taro', profileCards: [card]);
     final repo = _FakeUserRepository()..saved = user;
     await _pumpProfileTab(tester, user, repo);
-    await tester.tap(find.text('工房'));
+    await tester.tap(find.text('仕立て'));
     await tester.pumpAndSettle();
     await tester.tapAt(tester.getCenter(find.byType(ProfileCardView).first));
     await tester.pumpAndSettle();
@@ -664,7 +670,7 @@ void main() {
     const user = AppUser(userId: 'u1', rhingSeed: 'taro', profileCards: [card]);
     final repo = _FakeUserRepository()..saved = user;
     await _pumpProfileTab(tester, user, repo);
-    await tester.tap(find.text('工房'));
+    await tester.tap(find.text('仕立て'));
     await tester.pumpAndSettle();
     await tester.tapAt(tester.getCenter(find.byType(ProfileCardView).first));
     await tester.pumpAndSettle();
@@ -712,7 +718,7 @@ void main() {
     final repo = _FakeUserRepository()..saved = user;
     await _pumpProfileTab(tester, user, repo);
 
-    await tester.tap(find.text('工房'));
+    await tester.tap(find.text('仕立て'));
     await tester.pumpAndSettle();
 
     await tester.tapAt(tester.getCenter(find.byType(ProfileCardView).first));
@@ -740,7 +746,7 @@ void main() {
     final repo = _FakeUserRepository()..saved = user;
     await _pumpProfileTab(tester, user, repo);
 
-    await tester.tap(find.text('工房'));
+    await tester.tap(find.text('仕立て'));
     await tester.pumpAndSettle();
     await tester.tapAt(tester.getCenter(find.byType(ProfileCardView).first));
     await tester.pumpAndSettle();
@@ -761,7 +767,7 @@ void main() {
     final repo = _FakeUserRepository();
     await _pumpProfileTab(tester, user, repo);
 
-    await tester.tap(find.text('工房'));
+    await tester.tap(find.text('仕立て'));
     await tester.pumpAndSettle();
 
     // pumpAndSettleを挟まず素早く2回タップする（連打相当）。
@@ -792,7 +798,7 @@ void main() {
     final repo = _FakeUserRepository();
     await _pumpProfileTab(tester, user, repo);
 
-    await tester.tap(find.text('工房'));
+    await tester.tap(find.text('仕立て'));
     await tester.pumpAndSettle();
 
     // 編集画面を開かなくても、縮小表示のカードの時点でURLが見えている。カード上
@@ -814,7 +820,7 @@ void main() {
     Finder cardSlotHeroes() => find.byType(ReorderableListView);
 
     // カテゴリ一覧から「工房」（蔵→工房→縁結びの2番目）へドリルダウンする。
-    await tester.tap(find.text('工房'));
+    await tester.tap(find.text('仕立て'));
     await tester.pumpAndSettle();
     expect(cardSlotHeroes(), findsWidgets);
 
@@ -836,7 +842,7 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.byType(InteractiveSwipeBackTransition), findsNothing);
-    expect(find.text('工房'), findsOneWidget); // 一覧のカテゴリ名として表示される
+    expect(find.text('仕立て'), findsOneWidget); // 一覧のカテゴリ名として表示される
   });
 
   testWidgets('過去の重複バグ等でprofileCardsが上限(kMaxProfileCards)を超えていても、'
@@ -857,7 +863,7 @@ void main() {
     final repo = _FakeUserRepository()..saved = user;
     await _pumpProfileTab(tester, user, repo);
 
-    await tester.tap(find.text('工房'));
+    await tester.tap(find.text('仕立て'));
     await tester.pumpAndSettle();
 
     expect(find.byType(ProfileCardView), findsNWidgets(4));

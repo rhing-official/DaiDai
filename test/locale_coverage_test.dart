@@ -69,11 +69,7 @@ void main() {
         }
       });
 
-      test('使い方ガイドが全ての初回ガイド・機能別ガイドで引ける', () {
-        for (final page in firstGuidePages) {
-          expect(page.titleOf(locale).trim(), isNotEmpty);
-          expect(page.bodyOf(locale).trim(), isNotEmpty);
-        }
+      test('使い方ガイドが全ての機能別ガイドで引ける', () {
         for (final topic in guideTopics) {
           expect(topic.titleOf(locale).trim(), isNotEmpty);
           expect(topic.summaryOf(locale).trim(), isNotEmpty);
@@ -82,9 +78,6 @@ void main() {
         if (_isTranslation(locale)) {
           final translation = guideTranslationOf(locale);
           expect(translation, isNotNull, reason: 'ガイドの訳が無い');
-          for (final page in firstGuidePages) {
-            expect(translation!.pages[page.id], isNotNull, reason: page.id);
-          }
           for (final topic in guideTopics) {
             final text = translation!.topics[topic.id];
             expect(text, isNotNull, reason: topic.id);

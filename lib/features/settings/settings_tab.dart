@@ -12,6 +12,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../providers/kiwami_providers.dart';
+import '../../utils/kiwami.dart';
+import '../../widgets/kiwami_only_dialog.dart';
 import '../../router/back_stack.dart';
 import '../../l10n/app_locale.dart';
 import '../../l10n/strings.dart';
@@ -58,7 +61,7 @@ import '../../utils/platform_info.dart';
 import '../../utils/sound_upload.dart';
 import '../../widgets/destructive_label.dart';
 import '../auth/residence_survey_screen.dart';
-import '../guide/first_guide_screen.dart';
+import '../../models/residence.dart';
 import '../guide/guide_pages.dart';
 import '../../widgets/gekiga/gekiga_panel_box.dart';
 import '../../widgets/gekiga/gekiga_section_header.dart';
@@ -95,6 +98,9 @@ const _kSupportListWidth = 280.0;
 
 /// 同じく、ライセンスを右隣に並べる時の「アプリについて」の幅（2026-10-10追加）。
 const _kAboutPaneWidth = 380.0;
+
+/// 居住地を右隣に並べる時の、右の入力欄の最小幅。
+const _kResidencePaneMinWidth = 420.0;
 
 /// 設定タブ。サイドバーの階層は最上位カテゴリ（アカウント／アプリケーション／
 /// 入力／通知）の1段だけに留め、それぞれの中身（旧: サブフォルダだった項目）は
@@ -186,14 +192,25 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
       ),
   ];
 
-  Widget _buildGuideList() => GuideTopicListPage(
-    onReplayFirst: () => Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (routeContext) => FirstGuideScreen(
-          onCompleted: () => Navigator.of(routeContext).pop(),
-        ),
+  Widget _buildGuideList() => const GuideTopicListPage();
+
+  /// アカウントカテゴリの「居住地」を開いているか（2026-10-17追加）。以前は別の
+  /// 全画面ルートへ`push`していたが、コンピューターでは右隣に並べ、それ以外では
+  /// 他の下位階層と同じく重ねて右スワイプで戻れるようにした。
+  bool _showResidence = false;
+
+  List<DrilldownLayer> _residenceLayers() => [
+    if (_showResidence)
+      DrilldownLayer(
+        key: 'residence',
+        child: _buildResidenceEditor(),
+        onBack: () => setState(() => _showResidence = false),
       ),
-    ),
+  ];
+
+  Widget _buildResidenceEditor() => _ResidenceEditor(
+    userId: widget.currentUser.userId,
+    onCompleted: () => setState(() => _showResidence = false),
   );
 
   /// カテゴリタップの共通ハンドラ。広い画面はサイドバーが常設のため、
@@ -206,6 +223,7 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
       _showLicenses = false;
       _showAnnouncements = false;
       _showGuide = false;
+      _showResidence = false;
     });
   }
 
@@ -213,7 +231,7 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
   /// （2026-10-06追加）。設定タブ内のカテゴリ移動と下位階層の表示状態。
   @override
   Widget build(BuildContext context) {
-    return NavHistoryBackEntry<(String?, bool, bool, bool, bool, bool)>(
+    return NavHistoryBackEntry<(String?, bool, bool, bool, bool, bool, bool)>(
       scope: BackScope.settings,
       location: (
         _selectedId,
@@ -222,6 +240,7 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
         _showAnnouncements,
         _showLicenses && _licenseDetailOpen,
         _showGuide,
+        _showResidence,
       ),
       onRestore: (location) => setState(() {
         _selectedId = location.$1;
@@ -229,6 +248,7 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
         _showLicenses = location.$3;
         _showAnnouncements = location.$4;
         _showGuide = location.$6;
+        _showResidence = location.$7;
         // 履歴上の位置がライセンス一覧（詳細を開いていない）なら、開いている
         // パッケージ詳細を閉じる。
         if (!location.$5) _popLicenseDetail();
@@ -246,6 +266,7 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
       () => setState(() => _showAbout = true),
       () => setState(() => _showAnnouncements = true),
       () => setState(() => _showGuide = true),
+      () => setState(() => _showResidence = true),
     );
     final isWide =
         MediaQuery.sizeOf(context).width >= _kSettingsSplitBreakpoint;
@@ -289,6 +310,7 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
             consumeBack: _popLicenseDetail,
           ),
         ..._guideLayers(),
+        ..._residenceLayers(),
       ];
 
       // コンピューターでは、運営の下位階層（お便り／アプリについて／使い方ガイド）を
@@ -298,13 +320,19 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
       // 従来どおり`SlideDrilldown`による重ね表示のまま。
       final sideBySide =
           classifyDevice(context) == DeviceClass.computer &&
-          (_showAbout || _showAnnouncements || _showLicenses || _showGuide);
+          (_showAbout ||
+              _showAnnouncements ||
+              _showLicenses ||
+              _showGuide ||
+              _showResidence);
       final Widget contentColumns;
       if (sideBySide) {
         // ライセンスは「アプリについて」の右隣にさらに並べて表示する
         // （一覧 | アプリについて | ライセンス）。
         final Widget detailPane;
-        if (_showAbout || _showLicenses) {
+        if (_showResidence) {
+          detailPane = _buildResidenceEditor();
+        } else if (_showAbout || _showLicenses) {
           detailPane = _AboutPageContent(
             strings: strings,
             onOpenLicenses: () => setState(() => _showLicenses = true),
@@ -314,56 +342,74 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
         } else {
           detailPane = _buildGuideList();
         }
-        contentColumns = Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            SizedBox(
-              width: _kSupportListWidth,
-              child: _SettingsPage(
-                maxWidth: _kSupportListWidth,
-                child: _SupportPage(
-                  strings: strings,
-                  currentUser: widget.currentUser,
-                  onOpenAbout: () => setState(() {
-                    _showAbout = true;
-                    _showLicenses = false;
-                    _showAnnouncements = false;
-                    _showGuide = false;
-                  }),
-                  onOpenAnnouncements: () => setState(() {
-                    _showAnnouncements = true;
-                    _showAbout = false;
-                    _showLicenses = false;
-                    _showGuide = false;
-                  }),
-                  onOpenGuide: () => setState(() {
-                    _showGuide = true;
-                    _showAbout = false;
-                    _showLicenses = false;
-                    _showAnnouncements = false;
-                  }),
-                ),
-              ),
-            ),
-            const VerticalDivider(width: 1),
-            if (_showLicenses) ...[
+        contentColumns = LayoutBuilder(
+          builder: (context, constraints) => Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
               SizedBox(
-                width: _kAboutPaneWidth,
+                // 居住地を開いている間の左の欄は、アカウントの一覧を普段と同じ幅
+                // （640）のまま見せる（運営用の狭い幅に詰めない）。右の入力欄が
+                // 窮屈にならないよう、幅が足りない時だけ縮める。
+                width: _showResidence
+                    ? (constraints.maxWidth - 1 - _kResidencePaneMinWidth)
+                          .clamp(_kSupportListWidth, 640.0)
+                    : _kSupportListWidth,
                 child: _SettingsPage(
-                  maxWidth: _kAboutPaneWidth,
-                  child: detailPane,
+                  maxWidth: _showResidence ? 640 : _kSupportListWidth,
+                  // 居住地を開いている間は、左の欄はアカウントの一覧にする。
+                  child: _showResidence
+                      ? _AccountPage(
+                          strings: strings,
+                          currentUser: widget.currentUser,
+                          onOpenResidence: () =>
+                              setState(() => _showResidence = true),
+                        )
+                      : _SupportPage(
+                          strings: strings,
+                          currentUser: widget.currentUser,
+                          onOpenAbout: () => setState(() {
+                            _showAbout = true;
+                            _showLicenses = false;
+                            _showAnnouncements = false;
+                            _showGuide = false;
+                          }),
+                          onOpenAnnouncements: () => setState(() {
+                            _showAnnouncements = true;
+                            _showAbout = false;
+                            _showLicenses = false;
+                            _showGuide = false;
+                          }),
+                          onOpenGuide: () => setState(() {
+                            _showGuide = true;
+                            _showAbout = false;
+                            _showLicenses = false;
+                            _showAnnouncements = false;
+                          }),
+                        ),
                 ),
               ),
               const VerticalDivider(width: 1),
-              Expanded(
-                child: _SettingsPage(
-                  maxWidth: double.infinity,
-                  child: _buildLicensePage(),
+              if (_showLicenses) ...[
+                SizedBox(
+                  width: _kAboutPaneWidth,
+                  child: _SettingsPage(
+                    maxWidth: _kAboutPaneWidth,
+                    child: detailPane,
+                  ),
                 ),
-              ),
-            ] else
-              Expanded(child: _SettingsPage(maxWidth: 640, child: detailPane)),
-          ],
+                const VerticalDivider(width: 1),
+                Expanded(
+                  child: _SettingsPage(
+                    maxWidth: double.infinity,
+                    child: _buildLicensePage(),
+                  ),
+                ),
+              ] else
+                Expanded(
+                  child: _SettingsPage(maxWidth: 640, child: detailPane),
+                ),
+            ],
+          ),
         );
       } else {
         contentColumns = _SettingsPage(
@@ -449,6 +495,7 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
           consumeBack: _popLicenseDetail,
         ),
       ..._guideLayers(),
+      ..._residenceLayers(),
     ];
 
     return Align(
@@ -507,14 +554,18 @@ List<_SettingsCategory> _categories(
   VoidCallback onOpenAbout,
   VoidCallback onOpenAnnouncements,
   VoidCallback onOpenGuide,
+  VoidCallback onOpenResidence,
 ) {
   return [
     _SettingsCategory(
       id: 'account',
       icon: Icons.person_outline,
       title: strings.settingsFolderAccount,
-      pageBuilder: (context) =>
-          _AccountPage(strings: strings, currentUser: currentUser),
+      pageBuilder: (context) => _AccountPage(
+        strings: strings,
+        currentUser: currentUser,
+        onOpenResidence: onOpenResidence,
+      ),
     ),
     _SettingsCategory(
       id: 'application',
@@ -1555,28 +1606,17 @@ class _LicensePageContentState extends State<_LicensePageContent> {
 /// QRコードログイン／ログアウト／アカウント削除の各サブフォルダを、
 /// 見出し付きセクションとして1ページにまとめた。
 class _AccountPage extends ConsumerWidget {
-  const _AccountPage({required this.strings, required this.currentUser});
+  const _AccountPage({
+    required this.strings,
+    required this.currentUser,
+    required this.onOpenResidence,
+  });
 
   final Strings strings;
   final AppUser currentUser;
 
-  Future<void> _editResidence(BuildContext context, WidgetRef ref) async {
-    final navigator = Navigator.of(context);
-    final current = await ref
-        .read(residenceRepositoryProvider)
-        .getResidence(currentUser.userId);
-    if (!context.mounted) return;
-    await navigator.push<void>(
-      MaterialPageRoute(
-        builder: (_) => ResidenceSurveyScreen(
-          userId: currentUser.userId,
-          initial: current,
-          isEditing: true,
-          onCompleted: navigator.pop,
-        ),
-      ),
-    );
-  }
+  /// 居住地の変更を開く。`_SettingsTabState`の`_showResidence`を切り替えるだけ。
+  final VoidCallback onOpenResidence;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -1589,10 +1629,7 @@ class _AccountPage extends ConsumerWidget {
           value: '@${currentUser.rhingSeed}',
         ),
         // 居住地（伝書鳩・安否確認用の自己申告、2026-10-16追加）。
-        _ActionRow(
-          label: strings.settingsResidence,
-          onTap: () => _editResidence(context, ref),
-        ),
+        _ActionRow(label: strings.settingsResidence, onTap: onOpenResidence),
         const Divider(height: 24),
         _SectionHeader(strings.settingsSecurity),
         _TwoFactorRow(strings: strings, rhingSeed: currentUser.rhingSeed),
@@ -1604,6 +1641,9 @@ class _AccountPage extends ConsumerWidget {
         const Divider(height: 24),
         _SectionHeader(strings.settingsGoogleCalendarSyncSectionTitle),
         _GoogleCalendarSyncRow(strings: strings, currentUser: currentUser),
+        const Divider(height: 24),
+        _SectionHeader(strings.kiwamiSectionTitle),
+        _KiwamiRow(strings: strings, currentUser: currentUser),
         const Divider(height: 24),
         _SectionHeader(strings.settingsStickersSection),
         _ActionRow(
@@ -1702,6 +1742,42 @@ final _groupListProvider = StreamProvider.family<List<Group>, String>(
 /// プロフィールカードの「長を譲渡」ボタン、既存の譲渡導線と同じ）を開く。
 /// 一覧はライブ購読のため、譲渡が完了すると自動的にその広場が消え、
 /// 全て消えると「続ける」が押せるようになる。
+/// 極みの購入／契約の管理の1行（2026-10-18追加）。極みでなければStripeの決済リンクを
+/// 購入者のuid付きで開き、極みなら解約・カード変更用のカスタマーポータルを開く。
+class _KiwamiRow extends ConsumerWidget {
+  const _KiwamiRow({required this.strings, required this.currentUser});
+
+  final Strings strings;
+  final AppUser currentUser;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final kiwami = isKiwami(currentUser);
+    return _ActionRow(
+      label: kiwami ? strings.kiwamiManage : strings.kiwamiPurchase,
+      onTap: () async {
+        final messenger = ScaffoldMessenger.of(context);
+        final Uri uri;
+        if (kiwami) {
+          try {
+            uri = await ref
+                .read(userRepositoryProvider)
+                .createKiwamiPortalUrl();
+          } catch (_) {
+            messenger.showSnackBar(
+              SnackBar(content: Text(strings.kiwamiManageFailed)),
+            );
+            return;
+          }
+        } else {
+          uri = kiwamiPurchaseUri(currentUser.userId);
+        }
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      },
+    );
+  }
+}
+
 class _OwnerGroupsGuardDialog extends ConsumerWidget {
   const _OwnerGroupsGuardDialog({required this.currentUser});
 
@@ -2899,12 +2975,28 @@ class _FontDesignFolderState extends ConsumerState<_FontDesignFolder> {
     final locale = ref.watch(appLocaleProvider);
     // 選択中のフォントがこの表示言語で使えない場合は、実際に適用される
     // フォント（既定）を選択中として見せる。
-    final design = ref.watch(fontDesignProvider).resolvedFor(locale);
+    // 極みでない人は、極み限定フォントを保存していても標準を選択中として見せる
+    // （2026-10-17）。
+    final userId = ref.watch(authStateProvider).value?.uid;
+    final kiwami = userId != null && ref.watch(isKiwamiProvider(userId));
+    final design = ref
+        .watch(fontDesignProvider)
+        .resolvedFor(locale, kiwami: kiwami);
     final available = FontDesign.availableFor(locale);
     final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
 
-    void select(FontDesign value) =>
-        ref.read(fontDesignProvider.notifier).setDesign(value);
+    void select(FontDesign value) {
+      // 極み限定のフォントは、極みの人だけが選べる。
+      if (value.isKiwamiExclusive && !kiwami) {
+        showKiwamiOnlyDialog(
+          context,
+          strings,
+          body: strings.kiwamiOnlyFontBody,
+        );
+        return;
+      }
+      ref.read(fontDesignProvider.notifier).setDesign(value);
+    }
 
     // 2026-09-26: 蔵のフォントデザイン素材選択（`_FontDesignMaterialDialog`）
     // でも同じラベル一覧が必要になったため、`Strings.fontDesignLabel`に
@@ -4169,4 +4261,41 @@ NavigatorState? _findLicenseDetailNavigator(GlobalKey<NavigatorState> key) {
 
   (root as Element).visitChildren(visit);
   return found;
+}
+
+/// 設定の中に埋め込む居住地の変更（2026-10-17追加）。現在の回答を読み込んでから
+/// 居住地アンケートの入力欄（[ResidenceSurveyScreen]の埋め込み表示）を出す。
+class _ResidenceEditor extends ConsumerStatefulWidget {
+  const _ResidenceEditor({required this.userId, required this.onCompleted});
+
+  final String userId;
+  final VoidCallback onCompleted;
+
+  @override
+  ConsumerState<_ResidenceEditor> createState() => _ResidenceEditorState();
+}
+
+class _ResidenceEditorState extends ConsumerState<_ResidenceEditor> {
+  late final Future<Residence?> _future = ref
+      .read(residenceRepositoryProvider)
+      .getResidence(widget.userId);
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<Residence?>(
+      future: _future,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const SizedBox.shrink();
+        }
+        return ResidenceSurveyScreen(
+          userId: widget.userId,
+          initial: snapshot.data,
+          isEditing: true,
+          embedded: true,
+          onCompleted: widget.onCompleted,
+        );
+      },
+    );
+  }
 }

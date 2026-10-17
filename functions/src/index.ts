@@ -2175,7 +2175,55 @@ export const stripeWebhook = onRequest(
       return;
     }
 
-    if (event.type === "checkout.session.completed") {
+    if (
+      event.type === "checkout.session.completed" &&
+      (event.data.object as Stripe.Checkout.Session).mode === "subscription"
+    ) {
+      // 極みの購入（決済リンク。client_reference_idに購入者のuidが入る、2026-10-17）
+      const session = event.data.object as Stripe.Checkout.Session;
+      const uid = session.client_reference_id;
+      const customerId =
+        typeof session.customer === "string" ? session.customer : session.customer?.id;
+      const subscriptionId =
+        typeof session.subscription === "string"
+          ? session.subscription
+          : session.subscription?.id;
+      const userRef = uid ? db.collection("users").doc(uid) : null;
+      if (!uid || !userRef || !customerId || !(await userRef.get()).exists) {
+        logger.error("Webhook: 極みの購入に紐づく住人が見つかりません", {
+          uid,
+          sessionId: session.id,
+        });
+      } else {
+        await db
+          .collection("kiwamiSubscriptions")
+          .doc(uid)
+          .set({ customerId, subscriptionId: subscriptionId ?? null, updatedAt: FieldValue.serverTimestamp() });
+        await userRef.update({ subscriptionPlan: "kiwami" });
+        logger.info(`極みを付与（購入）: ${uid}`);
+      }
+    } else if (
+      event.type === "customer.subscription.deleted" ||
+      (event.type === "customer.subscription.updated" &&
+        ["canceled", "unpaid", "incomplete_expired"].includes(
+          (event.data.object as Stripe.Subscription).status,
+        ))
+    ) {
+      // 契約の終了（解約の期間満了・支払い失敗の打ち切り）で極みを解除する
+      const subscription = event.data.object as Stripe.Subscription;
+      const customerId =
+        typeof subscription.customer === "string"
+          ? subscription.customer
+          : subscription.customer.id;
+      const found = await db
+        .collection("kiwamiSubscriptions")
+        .where("customerId", "==", customerId)
+        .get();
+      for (const doc of found.docs) {
+        await db.collection("users").doc(doc.id).update({ subscriptionPlan: "free" });
+        logger.info(`極みを解除（契約終了）: ${doc.id}`);
+      }
+    } else if (event.type === "checkout.session.completed") {
       const session = event.data.object as Stripe.Checkout.Session;
       const uid = session.metadata?.uid;
       const packId = session.metadata?.packId;
@@ -2246,6 +2294,65 @@ export const suspendUserAccount = onCall(
 );
 
 /**
+ * 住人に極み（有料プラン）を付与/解除する（管理者のみ、2026-10-17追加）。
+ * 購入の導線（Stripe Checkout・Webhook）ができるまでの手動の付与用。契約状態
+ * `subscriptionPlan`はクライアントから書けず（firestore.rules）、ここ（Admin SDK）
+ * だけが書く。操作は監査ログ`adminAuditLogs`に残す。
+ */
+export const setKiwamiPlan = onCall(
+  { region: "asia-northeast1" },
+  async (request) => {
+    if (request.auth?.token.admin !== true) {
+      throw new HttpsError("permission-denied", "管理者のみ実行できます");
+    }
+    const targetUserId = request.data?.targetUserId;
+    if (typeof targetUserId !== "string" || !targetUserId) {
+      throw new HttpsError("invalid-argument", "targetUserIdが必要です");
+    }
+    const kiwami = request.data?.kiwami;
+    if (typeof kiwami !== "boolean") {
+      throw new HttpsError("invalid-argument", "kiwamiが必要です");
+    }
+    const ref = db.collection("users").doc(targetUserId);
+    const snapshot = await ref.get();
+    if (!snapshot.exists) {
+      throw new HttpsError("not-found", "住人が見つかりません");
+    }
+    await ref.update({ subscriptionPlan: kiwami ? "kiwami" : "free" });
+    await writeAdminAuditLog({
+      adminUid: request.auth.uid,
+      action: kiwami ? "grantKiwami" : "revokeKiwami",
+      targetUserIds: [targetUserId],
+    });
+    logger.info(`極みを${kiwami ? "付与" : "解除"}: ${targetUserId}`);
+  },
+);
+
+/**
+ * 極みの契約管理（解約・カード変更）用のStripeカスタマーポータルのURLを返す
+ * （2026-10-17追加）。購入済み（`kiwamiSubscriptions/{uid}`がある）住人のみ。
+ */
+export const createKiwamiPortalSession = onCall(
+  { region: "asia-northeast1", secrets: [stripeSecretKey] },
+  async (request) => {
+    const uid = request.auth?.uid;
+    if (!uid) {
+      throw new HttpsError("unauthenticated", "ログインが必要です");
+    }
+    const doc = await db.collection("kiwamiSubscriptions").doc(uid).get();
+    const customerId = doc.data()?.customerId;
+    if (typeof customerId !== "string") {
+      throw new HttpsError("not-found", "契約が見つかりません");
+    }
+    const session = await getStripeClient().billingPortal.sessions.create({
+      customer: customerId,
+      return_url: "https://daidai.rhing.jp",
+    });
+    return { url: session.url };
+  },
+);
+
+/**
  * 管理者の操作の監査ログ（`adminAuditLogs`、2026-10-10追加）。誰が・いつ・
  * 誰に何をしたかを残す。Admin SDKのみが書き、クライアントからは読み書き
  * できない（firestore.rulesに該当コレクションの許可が無く既定で拒否される）。
@@ -2254,7 +2361,12 @@ export const suspendUserAccount = onCall(
  */
 async function writeAdminAuditLog(entry: {
   adminUid: string;
-  action: "suspend" | "unsuspend" | "viewProfile";
+  action:
+    | "suspend"
+    | "unsuspend"
+    | "viewProfile"
+    | "grantKiwami"
+    | "revokeKiwami";
   targetUserIds: string[];
   reason?: string;
   note?: string;

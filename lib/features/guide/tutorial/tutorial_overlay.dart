@@ -44,6 +44,7 @@ class _TutorialOverlayState extends ConsumerState<TutorialOverlay>
   /// ティッカーの経過時間で数える（フレームに連動するため、テストでも進められる）。
   final ValueNotifier<bool> _showWaitingHint = ValueNotifier(false);
   Duration? _waitStart;
+  bool _usingFallback = false;
   Duration _now = Duration.zero;
 
   @override
@@ -83,7 +84,25 @@ class _TutorialOverlayState extends ConsumerState<TutorialOverlay>
       _rect.value = null;
       return;
     }
-    final rect = ref.read(tutorialTargetRegistryProvider).rectOf(step.targetId);
+    final registry = ref.read(tutorialTargetRegistryProvider);
+    // 次の目印が現れたら進む手順（入力欄に文字が入ると送信ボタンが現れる、等）。
+    final until = step.advanceWhenVisible;
+    if (until != null && registry.rectOf(until) != null) {
+      ref
+          .read(tutorialControllerProvider.notifier)
+          .advance(fromIndex: ref.read(tutorialControllerProvider)?.index);
+      return;
+    }
+    var rect = registry.rectOf(step.targetId);
+    // 目印がまだ無い間、代わりに明るく抜いておく場所（送信ボタンは文字を入れるまで
+    // 現れないため、その間も入力欄を使えるようにする）。丸は描かず、待機の案内も出さない。
+    final fallbackId = step.fallbackTargetId;
+    final fallback = rect == null && fallbackId != null
+        ? registry.rectOf(fallbackId)
+        : null;
+    final wasFallback = _usingFallback;
+    _usingFallback = fallback != null;
+    if (fallback != null) rect = fallback;
     if (rect == null) {
       _waitStart ??= elapsed;
       if (!_showWaitingHint.value &&
@@ -95,13 +114,19 @@ class _TutorialOverlayState extends ConsumerState<TutorialOverlay>
       if (_showWaitingHint.value) _showWaitingHint.value = false;
     }
     if (rect == _rect.value) return;
-    // 目印が見つかった瞬間から丸を描き始める。
-    if (_rect.value == null && rect != null) _draw.forward(from: 0);
+    // 目印が見つかった瞬間（代わりの場所から本来の目印へ切り替わった瞬間も）から
+    // 丸を描き始める。
+    if (!_usingFallback &&
+        (_rect.value == null || wasFallback) &&
+        rect != null) {
+      _draw.forward(from: 0);
+    }
     _rect.value = rect;
   }
 
   void _resetForStep() {
     _rect.value = null;
+    _usingFallback = false;
     _draw.reset();
     _waitStart = _now;
     _showWaitingHint.value = false;
@@ -165,7 +190,10 @@ class _TutorialOverlayState extends ConsumerState<TutorialOverlay>
                         // 押さない手順（情報の手順）は、穴の上も含めて画面全体を吸収する。
                         (step != null && !step.requiresTap) ? null : hole,
                       ),
-                      if (hole != null && step != null)
+                      if (hole != null &&
+                          step != null &&
+                          step.showCircle &&
+                          !_usingFallback)
                         IgnorePointer(
                           child: AnimatedBuilder(
                             animation: _draw,

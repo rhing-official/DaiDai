@@ -7,7 +7,7 @@ import '../../models/residence.dart';
 import '../../providers/repository_providers.dart';
 import '../../providers/user_preferences_sync.dart';
 import 'account_restore_screen.dart';
-import '../guide/first_guide_screen.dart';
+import '../guide/first_run_tutorial_screen.dart';
 import 'account_suspended_screen.dart';
 import 'passcode_lock_gate.dart';
 import 'residence_survey_screen.dart';
@@ -159,7 +159,7 @@ class _AuthenticatedUserGateState
         // 新規登録で居住地アンケートの後に離脱した人に、初回の使い方ガイドを
         // 出す（2026-10-17追加）。`guideSeen`がnull＝既存住人には出さない。
         if (appUser.preferences.guideSeen == false && !_guideDone) {
-          return FirstGuideScreen(
+          return FirstRunTutorialScreen(
             userId: appUser.userId,
             onCompleted: () => setState(() => _guideDone = true),
           );

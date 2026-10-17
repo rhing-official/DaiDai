@@ -25,6 +25,9 @@ class TutorialController extends Notifier<TutorialState?> {
   @override
   TutorialState? build() => null;
 
+  /// 今の状態。`ref`が使えない場面（目印が画面から消えた後の通知）で読むために公開する。
+  TutorialState? get current => state;
+
   void start(TutorialScript script) {
     state = TutorialState(script: script);
   }

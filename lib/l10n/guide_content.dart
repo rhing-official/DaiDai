@@ -23,20 +23,10 @@ class GuideText {
 /// 言語ごとに`guide_content_xx.dart`へ置き、[guideTranslationOf]のswitch式
 /// （網羅性エラー）から返す。訳が無い項目は英語にフォールバックする。
 class GuideTranslation {
-  const GuideTranslation({required this.pages, required this.topics});
-
-  /// 初回ガイドの訳（[GuidePage.id]→題・本文）。
-  final Map<String, GuidePageText> pages;
+  const GuideTranslation({required this.topics});
 
   /// 機能別ガイドの訳（[GuideTopic.id]→題・概要・手順）。
   final Map<String, GuideTopicText> topics;
-}
-
-class GuidePageText {
-  const GuidePageText({required this.title, required this.body});
-
-  final String title;
-  final String body;
 }
 
 class GuideTopicText {
@@ -58,27 +48,6 @@ GuideTranslation? guideTranslationOf(AppLocale locale) {
     AppLocale.britishEnglish => null,
     AppLocale.french => guideTranslationFr,
   };
-}
-
-/// 初回ガイドの1枚。
-class GuidePage {
-  const GuidePage({
-    required this.id,
-    required this.icon,
-    required this.title,
-    required this.body,
-  });
-
-  final String id;
-  final IconData icon;
-  final GuideText title;
-  final GuideText body;
-
-  String titleOf(AppLocale locale) =>
-      _pick(locale, title, guideTranslationOf(locale)?.pages[id]?.title);
-
-  String bodyOf(AppLocale locale) =>
-      _pick(locale, body, guideTranslationOf(locale)?.pages[id]?.body);
 }
 
 /// 機能別ガイドの1項目。[steps]は詳細画面に段落として並べる。
@@ -120,46 +89,6 @@ String _pick(AppLocale locale, GuideText text, String? translated) {
   if (locale == AppLocale.britishEnglish) return text.en;
   return translated ?? text.en;
 }
-
-/// 新規登録直後に見せる簡単な説明（スワイプで進む）。
-const firstGuidePages = <GuidePage>[
-  GuidePage(
-    id: 'welcome',
-    icon: Icons.shield_outlined,
-    title: GuideText('DaiDaiへようこそ', 'Welcome to DaiDai'),
-    body: GuideText(
-      'メールアドレス・電話番号・現在地は集めません。広告もありません。Google・Appleのアカウントだけで、安心して使えるメッセージアプリです。',
-      'DaiDai never collects your email address, phone number or current location, and has no ads. Just your Google or Apple account is enough.',
-    ),
-  ),
-  GuidePage(
-    id: 'talks',
-    icon: Icons.chat_bubble_outline,
-    title: GuideText('語らいで話す', 'Talk in conversations'),
-    body: GuideText(
-      '1対1の「一対」と、3人以上で集まる「広場」があります。広場の中には、話題ごとに「寄合」を分けられます。メッセージも通話も、ここから始まります。',
-      'Chat one-to-one in a "Direct", or gather three or more people in a "Plaza". Split topics inside with separate text channels. Messages and calls all start here.',
-    ),
-  ),
-  GuidePage(
-    id: 'profile',
-    icon: Icons.person_add_alt_1_outlined,
-    title: GuideText('身だしなみと縁結び', 'Your profile and adding friends'),
-    body: GuideText(
-      '「身だしなみ」で、自分のプロフィールを整えられます。「縁結び」の招待リンクやQRコードを相手に渡すと、友達になれます。',
-      'Set up your profile in "Profile". Share your invite link or QR code from "Add Friend" to connect with someone.',
-    ),
-  ),
-  GuidePage(
-    id: 'help',
-    icon: Icons.menu_book_outlined,
-    title: GuideText('困ったときは', 'When you need help'),
-    body: GuideText(
-      'くわしい使い方は、「設定」の「運営」にある「使い方ガイド」でいつでも読めます。この説明も、そこからもう一度見られます。',
-      'Detailed guides are always available in Settings > Support > User guide. You can also replay this introduction from there.',
-    ),
-  ),
-];
 
 /// 機能別ガイド（設定＞運営＞使い方ガイドの一覧）。
 const guideTopics = <GuideTopic>[
@@ -242,8 +171,8 @@ const guideTopics = <GuideTopic>[
         'Besides text, you can send up to 10 photos, videos or files in one message.',
       ),
       GuideText(
-        '「ぺったん」はスタンプです。入力中の文字に合わせて、おすすめのぺったんが入力欄の上に出ることがあります。',
-        '"Stickers" are DaiDai\'s stamps. While you type, suggested stickers may appear above the input field.',
+        '入力中の文字に合わせて、おすすめの「ぺったん」が入力欄の上に出ることがあります。',
+        'While you type, suggested stickers may appear above the input field.',
       ),
       GuideText(
         '「@」を打つと、相手や「@everyone」を指定して通知できます。',
@@ -331,8 +260,8 @@ const guideTopics = <GuideTopic>[
     icon: Icons.badge_outlined,
     title: GuideText('身だしなみ（プロフィール）', 'Profile'),
     summary: GuideText(
-      '蔵と工房で、自分のカードを整えます',
-      'Shape your cards in the Material Box and Profile Creator',
+      '蔵と仕立てで、自分のカードを整えます',
+      'Shape your cards in the Material Box and Tailoring',
     ),
     steps: [
       GuideText(
@@ -340,8 +269,8 @@ const guideTopics = <GuideTopic>[
         'The Material Box stores your icons, backgrounds, nicknames and status messages.',
       ),
       GuideText(
-        '「工房」では、蔵の素材を組み合わせてプロフィールカードを作ります。カードは最大3枚まで作れ、友達や会話ごとに使い分けられます。',
-        'In the Profile Creator you combine materials into profile cards. You can make up to three and use different ones per conversation.',
+        '「仕立て」では、蔵の素材を組み合わせてプロフィールカードを作ります。カードは最大3枚まで作れ、友達や会話ごとに使い分けられます。',
+        'In Tailoring you combine materials into profile cards. You can make up to three and use different ones per conversation.',
       ),
     ],
   ),
@@ -382,12 +311,12 @@ const guideTopics = <GuideTopic>[
     ),
     steps: [
       GuideText(
-        '「極み」は、既読の表示を隠せる・ビデオ通話が高画質（1080p）になる・限定の色やフォントが使える、といった機能をまとめたプランです。',
-        '"Kiwami" bundles extras such as hiding read receipts, 1080p video calls and exclusive colours and fonts.',
+        '「極み」は、既読の表示を隠せる、限定のフォントが使える、といった機能をまとめた有料プランです。既読を隠す設定は、会話に極みの人がいる間だけ効きます。',
+        '"Kiwami" is a paid plan that bundles extras such as hiding read receipts and exclusive fonts. Hiding read receipts only takes effect while someone in the conversation has Kiwami.',
       ),
       GuideText(
-        '現在はローンチ記念として、期間限定で全員に無料で開放しています。今後、有料になる可能性があります。',
-        'It is currently free for everyone as a launch special, for a limited time. It may become a paid plan in the future.',
+        '購入の方法は準備中です。限定のフォントは、極みでない間は標準のフォントで表示されます。',
+        'How to subscribe is coming soon. Until you have Kiwami, exclusive fonts are shown in the standard font.',
       ),
     ],
   ),

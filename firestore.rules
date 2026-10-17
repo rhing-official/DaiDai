@@ -78,6 +78,7 @@ service cloud.firestore {
       allow create: if request.auth != null
         && request.auth.uid == userId
         && request.resource.data.userId == userId
+        && !('subscriptionPlan' in request.resource.data)
         && !(request.resource.data.get('rhingSeed', '').lower()
             in ['tayori', 'official', 'daidai', 'admin']);
       // 蔵（icons/backgroundImages/statusMessages/nicknames）の保管上限を
@@ -88,8 +89,11 @@ service cloud.firestore {
       // kMaxIcons(5)/kMaxBackgroundImages(3)/kMaxStatusMessages(10)/
       // kMaxNicknames(10)/kMaxSnsLinks(5)/kMaxFontDesigns(5)/kMaxProfileCards(3)、
       // fcm_token_entry.dartのkMaxFcmTokens(10)と一致させること。
+      // 契約状態（subscriptionPlan、極み）は、クライアントから書き換えられない
+      // （付与・解除はCloud Functions `setKiwamiPlan`＝Admin SDKだけ、2026-10-17）。
       allow update: if request.auth != null
         && request.auth.uid == userId
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['subscriptionPlan'])
         && (!('icons' in request.resource.data) || request.resource.data.icons.size() <= 5)
         && (!('backgroundImages' in request.resource.data) || request.resource.data.backgroundImages.size() <= 3)
         && (!('statusMessages' in request.resource.data) || request.resource.data.statusMessages.size() <= 10)

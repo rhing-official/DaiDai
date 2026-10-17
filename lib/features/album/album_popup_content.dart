@@ -38,11 +38,16 @@ Future<Album?> showAlbumPopup(
       PopupMenuItem<Album>(
         enabled: false,
         padding: EdgeInsets.zero,
-        child: _AlbumPopupContent(
-          isDm: isDm,
-          conversationId: conversationId,
-          roomId: roomId,
-          currentUserId: currentUserId,
+        // メニューは呼び出し元の外のルートに描かれるため、呼び出し元と同じ
+        // プロバイダーの範囲（使い方ガイドの練習用の画面など）を引き継ぐ。
+        child: UncontrolledProviderScope(
+          container: ProviderScope.containerOf(context),
+          child: _AlbumPopupContent(
+            isDm: isDm,
+            conversationId: conversationId,
+            roomId: roomId,
+            currentUserId: currentUserId,
+          ),
         ),
       ),
     ],

@@ -1,3 +1,5 @@
+import '../../providers/kiwami_providers.dart';
+import '../../widgets/kiwami_only_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -408,6 +410,15 @@ class GroupSettingsPopup extends ConsumerWidget {
                     ? null
                     : (value) async {
                         if (!value) {
+                          // 既読を隠す（オフにする）のは極みの人だけ（2026-10-17）。
+                          if (!ref.read(isKiwamiProvider(userId))) {
+                            showKiwamiOnlyDialog(
+                              context,
+                              strings,
+                              body: strings.kiwamiOnlyReadReceiptsBody,
+                            );
+                            return;
+                          }
                           final confirmed = await confirmDisableReadReceipts(
                             context,
                             strings,

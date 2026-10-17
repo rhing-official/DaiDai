@@ -6,6 +6,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../providers/kiwami_providers.dart';
+import '../../widgets/kiwami_only_dialog.dart';
 import '../../router/back_stack.dart';
 import '../../l10n/strings.dart';
 import '../../l10n/vocabulary.dart';
@@ -41,6 +43,7 @@ import '../../widgets/slide_drilldown.dart';
 import '../chat/conversation_profile_card_dialog.dart';
 import '../chat/talks_tab.dart' show CategoryTab;
 import '../../l10n/tutorial_content.dart';
+import '../guide/tutorial/tutorial_controller.dart';
 import '../guide/tutorial/tutorial_target.dart';
 import 'enmusubi_page.dart';
 import '../../widgets/dialog_keyboard_shortcuts.dart';
@@ -701,7 +704,7 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
     ),
     _ProfileCategory(
       section: _ProfileSection.koubou,
-      icon: Icons.gavel,
+      icon: Icons.checkroom_outlined,
       title: vocab.profileCreator,
     ),
     _ProfileCategory(
@@ -765,6 +768,16 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
     );
   }
 
+  /// 使い方ガイドの今の手順が蔵・仕立ての説明なら、対応するセクション。
+  _ProfileSection? _tutorialSection() {
+    final step = ref.watch(tutorialControllerProvider)?.step;
+    return switch (step?.targetId) {
+      TutorialTargetIds.profileKura => _ProfileSection.kura,
+      TutorialTargetIds.profileKoubou => _ProfileSection.koubou,
+      _ => null,
+    };
+  }
+
   Widget _buildTabBody(BuildContext context) {
     final strings = ref.watch(appStringsProvider);
     final vocab = ref.watch(vocabularyProvider);
@@ -772,8 +785,11 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
     final isWide = MediaQuery.sizeOf(context).width >= _kProfileSplitBreakpoint;
 
     if (isWide) {
+      // 使い方ガイドが蔵・仕立てを説明している間は、その項目を自動で選び、右側に
+      // 中身が見えるようにする（2026-10-17追加）。
       final selected =
-          _findCategory(categories, _selectedSection) ?? categories.first;
+          _findCategory(categories, _tutorialSection() ?? _selectedSection) ??
+          categories.first;
       return Padding(
         padding: const EdgeInsets.only(top: 24),
         child: Row(
@@ -872,11 +888,12 @@ _ProfileCategory? _findCategory(
 
 /// カテゴリ一覧（サイドバー、または狭い画面での一覧画面）。設定タブの
 /// `_CategoryList`/`_FolderTile`と同じ見た目にしている。
-/// ガイドで案内するカテゴリの目印id（縁結びのみ）。
-String? _tutorialIdOf(_ProfileCategory category) =>
-    category.section == _ProfileSection.enmusubi
-    ? TutorialTargetIds.profileEnmusubi
-    : null;
+/// ガイドで案内するカテゴリの目印id。
+String? _tutorialIdOf(_ProfileCategory category) => switch (category.section) {
+  _ProfileSection.kura => TutorialTargetIds.profileKura,
+  _ProfileSection.koubou => TutorialTargetIds.profileKoubou,
+  _ProfileSection.enmusubi => TutorialTargetIds.profileEnmusubi,
+};
 
 class _ProfileCategoryList extends ConsumerWidget {
   const _ProfileCategoryList({
@@ -2911,6 +2928,21 @@ class _FontDesignMaterialDialogState
     Navigator.of(context).pop(_FontDesignEditResult.save(_selected));
   }
 
+  /// フォントを選ぶ。極み限定のフォントは、極みの人だけが選べる（2026-10-17）。
+  void _choose(FontDesign? value) {
+    final userId = ref.read(authStateProvider).value?.uid;
+    final kiwami = userId != null && ref.read(isKiwamiProvider(userId));
+    if (value != null && value.isKiwamiExclusive && !kiwami) {
+      showKiwamiOnlyDialog(
+        context,
+        ref.read(appStringsProvider),
+        body: ref.read(appStringsProvider).kiwamiOnlyFontBody,
+      );
+      return;
+    }
+    setState(() => _selected = value);
+  }
+
   @override
   Widget build(BuildContext context) {
     final strings = ref.watch(appStringsProvider);
@@ -2969,14 +3001,14 @@ class _FontDesignMaterialDialogState
               subtitle: value.isKiwamiExclusive
                   ? Text(strings.fontDesignKiwamiExclusiveNotice)
                   : null,
-              onTap: () => setState(() => _selected = value),
+              onTap: () => _choose(value),
             ),
         ],
       );
     } else {
       optionList = RadioGroup<FontDesign?>(
         groupValue: _selected,
-        onChanged: (value) => setState(() => _selected = value),
+        onChanged: _choose,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [

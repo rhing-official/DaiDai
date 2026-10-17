@@ -1,3 +1,4 @@
+import 'subscription_plan.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'app_user_preferences.dart';
@@ -43,6 +44,7 @@ class AppUser {
     this.conversationProfileCardId = const {},
     this.preferences = AppUserPreferences.empty,
     this.accountStatus = AccountStatus.active,
+    this.subscriptionPlan = SubscriptionPlan.free,
     this.autoSuspendedUntil,
     this.deletionRequestedAt,
     this.createdAt,
@@ -114,6 +116,11 @@ class AppUser {
   /// サーバーから全情報を完全削除する（`UserRepository.requestAccountDeletion`/
   /// `restoreAccount`参照）。
   final AccountStatus accountStatus;
+
+  /// 契約プラン（2026-10-17追加）。付与はサーバーだけ。`toJson()`には含めない
+  /// （`updateUser`の全体上書きでこの値が消える／書き戻される事故を避けるため）。
+  /// 極みかどうかの判定は[isKiwami]（`lib/utils/kiwami.dart`）を使う。
+  final SubscriptionPlan subscriptionPlan;
 
   /// 技術仕様書8.4の期限付き自動停止（スパム違反の累計に応じた段階的停止、
   /// `functions/src/index.ts`の`onSpamViolationCreated`が設定）が解除される
@@ -413,6 +420,7 @@ class AppUser {
       conversationProfileCardId:
           conversationProfileCardId ?? this.conversationProfileCardId,
       preferences: preferences,
+      subscriptionPlan: subscriptionPlan,
       inviteLinkSalt: inviteLinkSalt,
     );
   }
@@ -454,6 +462,9 @@ class AppUser {
       ),
       accountStatus: AccountStatus.fromName(
         json['accountStatus'] as String? ?? AccountStatus.active.name,
+      ),
+      subscriptionPlan: SubscriptionPlan.fromName(
+        json['subscriptionPlan'] as String?,
       ),
       autoSuspendedUntil: json['autoSuspendedUntil'] as Timestamp?,
       deletionRequestedAt: json['deletionRequestedAt'] as Timestamp?,

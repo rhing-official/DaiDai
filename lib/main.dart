@@ -21,6 +21,8 @@ import 'firebase_options.dart';
 import 'push_notifications.dart';
 import 'l10n/app_locale.dart';
 import 'models/app_ui_style.dart';
+import 'providers/repository_providers.dart';
+import 'providers/kiwami_providers.dart';
 import 'providers/accent_color_provider.dart';
 import 'providers/app_locale_provider.dart';
 import 'providers/app_ui_style_provider.dart';
@@ -201,9 +203,14 @@ class DaiDaiApp extends ConsumerWidget {
     final uiStyle = ref.watch(appUiStyleProvider);
     // 設定タブの「フォントデザイン」（2026-09-06追加、2026-09-07に劇画も
     // 対象化）。
+    // 極みでない住人は、極み限定フォントを選んでいても表示は標準に戻す
+    // （2026-10-17、選択の保存値は残る）。
+    final signedInUserId = ref.watch(authStateProvider).value?.uid;
+    final isKiwamiUser =
+        signedInUserId != null && ref.watch(isKiwamiProvider(signedInUserId));
     final fontFamily = ref
         .watch(fontDesignProvider)
-        .resolvedFor(appLocale)
+        .resolvedFor(appLocale, kiwami: isKiwamiUser)
         .fontFamily;
     // 劇画スタイルはライト/ダークどちらのthemeModeでも同じ見た目にするため、
     // theme/darkThemeの両方に同一のThemeDataを渡す（chat_screen.dartの

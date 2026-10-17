@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/app_locale_provider.dart';
 import 'app_locale.dart';
 
-/// DaiDai独自の世界観用語（蔵・工房・一対・広場…）の対訳。
+/// DaiDai独自の世界観用語（蔵・仕立て・一対・広場…）の対訳。
 /// 以前は[AppLocale]（日本語／English）に加え、利便性重視の言い換え
 /// スタイルとの2軸（4通り）を持っていたが、「言語・用語設定によって
 /// ブロックの大きさが変わり、全画面での対応が困難になった」ため
@@ -44,7 +44,7 @@ class Vocabulary {
   /// プロフィールの保存庫（蔵／Material Box）。
   final String profileStorage;
 
-  /// 複数プロフィールの作成画面（工房／Profile Creator）。
+  /// 複数プロフィールの作成画面（仕立て／Tailoring。2026-10-17に旧称「工房」から改名）。
   final String profileCreator;
 
   /// 通常のチャット（寄合／Text Channel）。
@@ -83,7 +83,7 @@ class Vocabulary {
     publicPlaza: '表広場',
     privatePlaza: '裏広場',
     profileStorage: '蔵',
-    profileCreator: '工房',
+    profileCreator: '仕立て',
     textChannel: '寄合',
     privateChannel: '密談',
     category: '表組',
@@ -102,7 +102,7 @@ class Vocabulary {
     publicPlaza: 'Public Plaza',
     privatePlaza: 'Private Plaza',
     profileStorage: 'Material Box',
-    profileCreator: 'Profile Creator',
+    profileCreator: 'Tailoring',
     textChannel: 'Text Channel',
     privateChannel: 'Private Channel',
     category: 'Category',
@@ -117,14 +117,14 @@ class Vocabulary {
 
   /// フランス語（2026-10-17追加）。一対＝Duo（二人組）、広場＝Place（広場・公共の場）、
   /// 寄合＝Salon（Discordのフランス語版でもチャンネルをこう呼ぶ）、蔵＝Réserve、
-  /// 工房＝Atelier。AIによる初稿のため、公開前にネイティブの確認を推奨。
+  /// 仕立て＝Couture（旧称「工房」はAtelier）。AIによる初稿のため、公開前にネイティブの確認を推奨。
   static const french = Vocabulary._(
     dm: 'Duo',
     plaza: 'Place',
     publicPlaza: 'Place publique',
     privatePlaza: 'Place privée',
     profileStorage: 'Réserve',
-    profileCreator: 'Atelier',
+    profileCreator: 'Couture',
     textChannel: 'Salon',
     privateChannel: 'Salon privé',
     category: 'Catégorie',

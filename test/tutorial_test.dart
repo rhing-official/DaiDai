@@ -370,7 +370,7 @@ void main() {
         false,
         false,
       ]);
-      expect(friendsTutorial.stageRoute, '/guide/enmusubi');
+      expect(friendsTutorial.stageRoute, '/guide/practice');
       expect(tutorialScriptOf('friends'), friendsTutorial);
       expect(tutorialScriptOf('no-such'), isNull);
     });
@@ -388,11 +388,10 @@ void main() {
       routes: [
         GoRoute(
           path: '/',
-          builder: (_, _) =>
-              Scaffold(body: GuideTopicListPage(onReplayFirst: () {})),
+          builder: (_, _) => Scaffold(body: const GuideTopicListPage()),
         ),
         GoRoute(
-          path: '/guide/enmusubi',
+          path: '/guide/practice',
           builder: (_, _) => const Scaffold(body: Text('STAGE')),
         ),
       ],
@@ -422,16 +421,14 @@ void main() {
         overrides: [
           initialAppLocaleProvider.overrideWithValue(AppLocale.japanese),
         ],
-        child: MaterialApp(
-          home: Scaffold(body: GuideTopicListPage(onReplayFirst: () {})),
-        ),
+        child: MaterialApp(home: Scaffold(body: const GuideTopicListPage())),
       ),
     );
     final container = ProviderScope.containerOf(
       tester.element(find.byType(GuideTopicListPage)),
     );
-    await tester.ensureVisible(find.byKey(const ValueKey('guide-topic-notes')));
-    await tester.tap(find.byKey(const ValueKey('guide-topic-notes')));
+    await tester.ensureVisible(find.byKey(const ValueKey('guide-topic-rooms')));
+    await tester.tap(find.byKey(const ValueKey('guide-topic-rooms')));
     await tester.pump();
     expect(find.text('このガイドは準備中です'), findsOneWidget);
     expect(container.read(tutorialControllerProvider), isNull);

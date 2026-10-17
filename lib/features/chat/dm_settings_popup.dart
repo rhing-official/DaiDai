@@ -1,3 +1,5 @@
+import '../../providers/kiwami_providers.dart';
+import '../../widgets/kiwami_only_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -266,6 +268,15 @@ class DmSettingsPopup extends ConsumerWidget {
                   // 相手の承認が必要（提案は常に現在値の反転を意味する）。
                   // オフにする提案の場合のみ、提案前に警告を出す。
                   if (liveDm.readReceiptsEnabled) {
+                    // 既読を隠す（オフにする）のは極みの人だけ（2026-10-17）。
+                    if (!ref.read(isKiwamiProvider(userId))) {
+                      showKiwamiOnlyDialog(
+                        context,
+                        strings,
+                        body: strings.kiwamiOnlyReadReceiptsBody,
+                      );
+                      return;
+                    }
                     final confirmed = await confirmDisableReadReceipts(
                       context,
                       strings,

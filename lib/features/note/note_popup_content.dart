@@ -43,11 +43,16 @@ Future<Note?> showNotePopup(
       PopupMenuItem<Note>(
         enabled: false,
         padding: EdgeInsets.zero,
-        child: _NotePopupContent(
-          isDm: isDm,
-          conversationId: conversationId,
-          roomId: roomId,
-          currentUser: currentUser,
+        // メニューは呼び出し元の外のルートに描かれるため、呼び出し元と同じ
+        // プロバイダーの範囲（使い方ガイドの練習用の画面など）を引き継ぐ。
+        child: UncontrolledProviderScope(
+          container: ProviderScope.containerOf(context),
+          child: _NotePopupContent(
+            isDm: isDm,
+            conversationId: conversationId,
+            roomId: roomId,
+            currentUser: currentUser,
+          ),
         ),
       ),
     ],

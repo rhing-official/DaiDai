@@ -1,3 +1,4 @@
+import '../../models/subscription_plan.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -604,6 +605,42 @@ class _UserDetailDialogState extends ConsumerState<_UserDetailDialog> {
     }
   }
 
+  Future<void> _toggleKiwami(AppUser user) async {
+    final grant = user.subscriptionPlan != SubscriptionPlan.kiwami;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => _adminDialog(
+        ref,
+        title: Text(grant ? 'このアカウントに極みを付与しますか？' : 'このアカウントの極みを解除しますか？'),
+        content: Text('@${user.rhingSeed}'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('やめる'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(grant ? '付与する' : '解除する'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      await ref.read(userRepositoryProvider).setKiwamiPlan(user.userId, grant);
+    } catch (e) {
+      if (mounted) {
+        setState(() => _error = '極みの${grant ? '付与' : '解除'}に失敗しました: $e');
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   Future<void> _reveal(AppUser user) async {
     final result = await showDialog<({_ProfileViewReason reason, String note})>(
       context: context,
@@ -646,6 +683,7 @@ class _UserDetailDialogState extends ConsumerState<_UserDetailDialog> {
       ('userId', user.userId),
       ('作成', _formatTimestamp(user.createdAt?.toDate())),
       ('最終ログイン', _formatTimestamp(user.lastLoginAt?.toDate())),
+      ('プラン', user.subscriptionPlan == SubscriptionPlan.kiwami ? '極み' : '無料'),
       if (user.autoSuspendedUntil != null)
         ('自動停止の期限', _formatTimestamp(user.autoSuspendedUntil!.toDate())),
     ];
@@ -716,6 +754,12 @@ class _UserDetailDialogState extends ConsumerState<_UserDetailDialog> {
           onPressed: _busy ? null : () => _reveal(user),
           child: const Text('プロフィールを確認'),
         ),
+      OutlinedButton(
+        onPressed: _busy ? null : () => _toggleKiwami(user),
+        child: Text(
+          user.subscriptionPlan == SubscriptionPlan.kiwami ? '極みを解除' : '極みを付与',
+        ),
+      ),
       if (user.accountStatus != AccountStatus.pendingDeletion)
         OutlinedButton(
           onPressed: _busy ? null : () => _toggleSuspend(user),

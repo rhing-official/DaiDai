@@ -120,9 +120,14 @@ class _EmbeddedCallPaneState extends ConsumerState<EmbeddedCallPane> {
     final activeConversation = _activeConversation;
     final embeddedCallShown = _embeddedCallShown;
     Future<void>.microtask(() {
-      activeConversation.clearIfCurrent(conversation);
-      embeddedCallShown.clearIfCurrent(conversation);
-      if (reported != null) embeddedCallShown.clearIfCurrent(reported);
+      try {
+        activeConversation.clearIfCurrent(conversation);
+        embeddedCallShown.clearIfCurrent(conversation);
+        if (reported != null) embeddedCallShown.clearIfCurrent(reported);
+      } catch (_) {
+        // アプリ全体のプロバイダーが既に破棄された後（テストの片付け等。Riverpodの
+        // 破棄済みの例外は型が公開されていないため、全て受ける）は何もしない。
+      }
     });
     super.dispose();
   }

@@ -5,7 +5,7 @@ import '../../models/app_user.dart';
 import '../../models/app_user_preferences.dart';
 import '../../providers/repository_providers.dart';
 import '../../widgets/fixed_font_theme.dart';
-import '../guide/first_guide_screen.dart';
+import '../guide/first_run_tutorial_screen.dart';
 import '../home/home_screen.dart';
 import 'residence_survey_screen.dart';
 import '../../l10n/strings.dart';
@@ -73,7 +73,7 @@ class _RhingSeedSetupScreenState extends ConsumerState<RhingSeedSetupScreen> {
             onCompleted: () => navigator.pushReplacement(
               MaterialPageRoute(
                 // 居住地アンケートの次に、初回の使い方ガイド（2026-10-17追加）。
-                builder: (_) => FirstGuideScreen(
+                builder: (_) => FirstRunTutorialScreen(
                   userId: appUser.userId,
                   onCompleted: () => navigator.pushReplacement(
                     MaterialPageRoute(

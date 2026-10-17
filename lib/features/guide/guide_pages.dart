@@ -8,14 +8,11 @@ import '../../l10n/tutorial_content.dart';
 import '../../providers/app_locale_provider.dart';
 import 'tutorial/tutorial_controller.dart';
 
-/// 設定＞運営＞使い方ガイドの一覧（2026-10-17追加）。機能ごとの項目を並べ、
-/// 末尾に初回の説明をもう一度見る行を置く。項目を押すと、説明のページは挟まず
+/// 設定＞運営＞使い方ガイドの一覧（2026-10-17追加）。機能ごとの項目を並べる。項目を押すと、説明のページは挟まず
 /// その場でガイド（実際に操作して覚える）が始まる。台本がまだ無い項目は
 /// 「準備中」と伝えるだけ（ハリボテ、台本ができ次第順次追加する）。
 class GuideTopicListPage extends ConsumerWidget {
-  const GuideTopicListPage({required this.onReplayFirst, super.key});
-
-  final VoidCallback onReplayFirst;
+  const GuideTopicListPage({super.key});
 
   void _open(BuildContext context, WidgetRef ref, GuideTopic topic) {
     final script = tutorialScriptOf(topic.id);
@@ -52,14 +49,6 @@ class GuideTopicListPage extends ConsumerWidget {
             subtitle: Text(topic.summaryOf(locale)),
             onTap: () => _open(context, ref, topic),
           ),
-        const Divider(height: 24),
-        ListTile(
-          key: const ValueKey('guide-replay-first'),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16),
-          leading: const Icon(Icons.replay),
-          title: Text(strings.guideReplayFirst),
-          onTap: onReplayFirst,
-        ),
       ],
     );
   }

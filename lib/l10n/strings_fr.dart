@@ -114,8 +114,18 @@ final Strings _stringsFr = Strings._(
   fontDesignBizUdGothicLabel: 'BIZ UDGothic',
   fontDesignChikaraDzuyoku851Label: '851 Chikara-dzuyoku',
   fontDesignChikaraYowaku851Label: '851 Chikara-yowaku',
-  fontDesignKiwamiExclusiveNotice:
-      'Prévue comme exclusivité du forfait Kiwami (sélection gratuite pour le moment)',
+  fontDesignKiwamiExclusiveNotice: 'Kiwami uniquement',
+  kiwamiOnlyTitle: 'Fonction réservée à Kiwami',
+  kiwamiOnlyFontBody:
+      'Cette police est disponible avec le forfait payant Kiwami. La façon de s’abonner arrive bientôt.',
+  kiwamiOnlyReadReceiptsBody:
+      'Masquer les accusés de lecture est disponible avec le forfait payant Kiwami. La façon de s’abonner arrive bientôt.',
+  kiwamiOnlyClose: 'Fermer',
+  kiwamiPurchase: 'Obtenir Kiwami',
+  kiwamiSectionTitle: 'Kiwami',
+  kiwamiManage: "Gérer l'abonnement (résilier, changer de carte)",
+  kiwamiManageFailed:
+      "Aucun abonnement trouvé. Si vous n'avez pas acheté Kiwami ou s'il a été accordé par l'équipe, il ne peut pas être géré ici.",
   fontDesignShowMoreTemplate: (remaining) =>
       'Afficher plus ($remaining de plus)',
   fontDesignSameAsSystemLabel: 'Identique au système',
@@ -996,10 +1006,6 @@ final Strings _stringsFr = Strings._(
       'Échec de l’enregistrement : $error',
   settingsUsageGuide: 'Guide d’utilisation',
   guideListIntro: 'Choisissez une fonctionnalité à découvrir.',
-  guideReplayFirst: 'Revoir l’introduction',
-  guideFirstSkip: 'Passer',
-  guideFirstNext: 'Suivant',
-  guideFirstStart: 'Commencer',
   tutorialStop: 'Arrêter',
   tutorialNext: 'Suivant',
   tutorialDoneTitle: 'Terminé !',

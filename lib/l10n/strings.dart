@@ -110,6 +110,14 @@ class Strings {
     required this.fontDesignChikaraDzuyoku851Label,
     required this.fontDesignChikaraYowaku851Label,
     required this.fontDesignKiwamiExclusiveNotice,
+    required this.kiwamiOnlyTitle,
+    required this.kiwamiOnlyFontBody,
+    required this.kiwamiOnlyReadReceiptsBody,
+    required this.kiwamiOnlyClose,
+    required this.kiwamiPurchase,
+    required this.kiwamiSectionTitle,
+    required this.kiwamiManage,
+    required this.kiwamiManageFailed,
     required this.fontDesignShowMoreTemplate,
     required this.fontDesignSameAsSystemLabel,
     required this.profileFontDesignSectionTitle,
@@ -835,10 +843,6 @@ class Strings {
     required this.residenceSurveySaveFailedTemplate,
     required this.settingsUsageGuide,
     required this.guideListIntro,
-    required this.guideReplayFirst,
-    required this.guideFirstSkip,
-    required this.guideFirstNext,
-    required this.guideFirstStart,
     required this.tutorialStop,
     required this.tutorialNext,
     required this.tutorialDoneTitle,
@@ -1013,6 +1017,16 @@ class Strings {
   final String fontDesignChikaraDzuyoku851Label;
   final String fontDesignChikaraYowaku851Label;
   final String fontDesignKiwamiExclusiveNotice;
+
+  /// 極み限定の機能を、極みでない人が使おうとした時の案内（2026-10-17追加）。
+  final String kiwamiOnlyTitle;
+  final String kiwamiOnlyFontBody;
+  final String kiwamiOnlyReadReceiptsBody;
+  final String kiwamiOnlyClose;
+  final String kiwamiPurchase;
+  final String kiwamiSectionTitle;
+  final String kiwamiManage;
+  final String kiwamiManageFailed;
   final String Function(int remaining) fontDesignShowMoreTemplate;
 
   /// 蔵のフォントデザイン素材・工房のカード割り当てで選べる「システムと同じ」
@@ -2016,10 +2030,6 @@ class Strings {
   final String Function(Object error) residenceSurveySaveFailedTemplate;
   final String settingsUsageGuide;
   final String guideListIntro;
-  final String guideReplayFirst;
-  final String guideFirstSkip;
-  final String guideFirstNext;
-  final String guideFirstStart;
   final String tutorialStop;
   final String tutorialNext;
   final String tutorialDoneTitle;
@@ -2179,7 +2189,15 @@ class Strings {
     fontDesignBizUdGothicLabel: 'BIZ UDGothic',
     fontDesignChikaraDzuyoku851Label: '851チカラヅヨク',
     fontDesignChikaraYowaku851Label: '851チカラヨワク',
-    fontDesignKiwamiExclusiveNotice: '極みプラン限定機能として追加予定（現在は無料で選択できます）',
+    fontDesignKiwamiExclusiveNotice: '極み限定',
+    kiwamiOnlyTitle: '極み限定の機能です',
+    kiwamiOnlyFontBody: 'このフォントは、有料プラン「極み」で使えます。購入の方法は準備中です。',
+    kiwamiOnlyReadReceiptsBody: '既読を隠す機能は、有料プラン「極み」で使えます。購入の方法は準備中です。',
+    kiwamiOnlyClose: '閉じる',
+    kiwamiPurchase: '極みを購入する',
+    kiwamiSectionTitle: '極み',
+    kiwamiManage: '契約の管理（解約・カードの変更）',
+    kiwamiManageFailed: '契約が見つかりませんでした。購入していない場合や、運営が付与した場合は、ここからは管理できません。',
     fontDesignShowMoreTemplate: (remaining) => 'もっと見る（あと$remaining件）',
     fontDesignSameAsSystemLabel: 'システムと同じ',
     profileFontDesignSectionTitle: 'フォントデザイン',
@@ -2959,10 +2977,6 @@ class Strings {
     residenceSurveySaveFailedTemplate: (error) => '保存に失敗しました: $error',
     settingsUsageGuide: '使い方ガイド',
     guideListIntro: '知りたい機能を選んでください。',
-    guideReplayFirst: '最初の説明をもう一度見る',
-    guideFirstSkip: 'スキップ',
-    guideFirstNext: '次へ',
-    guideFirstStart: 'はじめる',
     tutorialStop: 'やめる',
     tutorialNext: '次へ',
     tutorialDoneTitle: 'できました！',
@@ -3131,8 +3145,18 @@ class Strings {
     fontDesignBizUdGothicLabel: 'BIZ UDGothic',
     fontDesignChikaraDzuyoku851Label: '851 Chikara-dzuyoku',
     fontDesignChikaraYowaku851Label: '851 Chikara-yowaku',
-    fontDesignKiwamiExclusiveNotice:
-        'Planned as a Kiwami plan exclusive (free to select for now)',
+    fontDesignKiwamiExclusiveNotice: 'Kiwami only',
+    kiwamiOnlyTitle: 'This is a Kiwami feature',
+    kiwamiOnlyFontBody:
+        'This font is available with the paid Kiwami plan. How to subscribe is coming soon.',
+    kiwamiOnlyReadReceiptsBody:
+        'Hiding read receipts is available with the paid Kiwami plan. How to subscribe is coming soon.',
+    kiwamiOnlyClose: 'Close',
+    kiwamiPurchase: 'Get Kiwami',
+    kiwamiSectionTitle: 'Kiwami',
+    kiwamiManage: 'Manage subscription (cancel, change card)',
+    kiwamiManageFailed:
+        'No subscription was found. If you have not purchased it or it was granted by the operator, it cannot be managed here.',
     fontDesignShowMoreTemplate: (remaining) => 'Show more ($remaining more)',
     fontDesignSameAsSystemLabel: 'Same as system',
     profileFontDesignSectionTitle: 'Font design',
@@ -4003,10 +4027,6 @@ class Strings {
     residenceSurveySaveFailedTemplate: (error) => 'Failed to save: $error',
     settingsUsageGuide: 'User guide',
     guideListIntro: 'Choose a feature to read about.',
-    guideReplayFirst: 'Watch the introduction again',
-    guideFirstSkip: 'Skip',
-    guideFirstNext: 'Next',
-    guideFirstStart: 'Get started',
     tutorialStop: 'Stop',
     tutorialNext: 'Next',
     tutorialDoneTitle: 'All done!',

@@ -362,7 +362,7 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         // 操作を促す使い方ガイド（縁結び）の専用ルート（2026-10-17追加）。ユーザーの
         // 今の画面の上に練習用のホーム（本物の画面＋偽のデータ）を全画面で開き、ガイドを終えると閉じて
         // 元の画面に戻る（`TutorialStageScreen`参照）。
-        path: '/guide/enmusubi',
+        path: '/guide/practice',
         // 練習用の画面はスライドではなく、じわじわと浮かび上がらせる。
         pageBuilder: (context, state) => opaqueFalsePage(
           state,

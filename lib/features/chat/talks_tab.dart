@@ -1,3 +1,6 @@
+import '../../l10n/tutorial_content.dart';
+import '../guide/tutorial/practice_repositories.dart' show practiceDmIdPrefix;
+import '../guide/tutorial/tutorial_target.dart';
 import 'dart:async';
 import 'dart:collection';
 
@@ -128,9 +131,19 @@ const kIconSplitCollapseWidth = 112.0 + 1.0 + 220.0;
 /// 一対タブの最上部には、届いている／送った友達申請が会話より先に表示される
 /// （承認されて実際に会話が始まると、通常の一対リストの方へ下がっていく）。
 class TalksTab extends ConsumerStatefulWidget {
-  const TalksTab({required this.currentUser, super.key});
+  const TalksTab({
+    required this.currentUser,
+    this.onOpenDmFullscreen,
+    super.key,
+  });
 
   final AppUser currentUser;
+
+  /// 狭い画面で一対のチャットを開く処理の差し替え（2026-10-17追加）。通常は
+  /// `/chat/dm`ルートへ遷移するが、使い方ガイドの練習用の画面ではルートの外
+  /// （本物のデータ）へ出ないよう、練習用の画面の中で開く処理を渡す。
+  final void Function(DirectMessage dm, String roomId, String roomName)?
+  onOpenDmFullscreen;
 
   @override
   ConsumerState<TalksTab> createState() => _TalksTabState();
@@ -689,6 +702,11 @@ class _TalksTabState extends ConsumerState<TalksTab>
     final roomName =
         rooms.firstWhereOrNull((r) => r.roomId == targetRoomId)?.name ??
         ref.read(appStringsProvider).roomDefaultName;
+    final override = widget.onOpenDmFullscreen;
+    if (override != null) {
+      override(dm, targetRoomId, roomName);
+      return;
+    }
     ref
         .read(goRouterProvider)
         .push(
@@ -1168,6 +1186,8 @@ class _TalksTabState extends ConsumerState<TalksTab>
                                         leftSelected:
                                             _category == _TalksCategory.dm,
                                         left: CategoryTab(
+                                          tutorialTargetId:
+                                              TutorialTargetIds.talkCategoryDm,
                                           label: vocab.dm,
                                           count: directMessages.length,
                                           selected:
@@ -1179,6 +1199,8 @@ class _TalksTabState extends ConsumerState<TalksTab>
                                         rightSelected:
                                             _category == _TalksCategory.group,
                                         right: CategoryTab(
+                                          tutorialTargetId: TutorialTargetIds
+                                              .talkCategoryGroup,
                                           label: vocab.plaza,
                                           count: groups.length,
                                           selected:
@@ -1193,6 +1215,8 @@ class _TalksTabState extends ConsumerState<TalksTab>
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
                                         CategoryTab(
+                                          tutorialTargetId:
+                                              TutorialTargetIds.talkCategoryDm,
                                           label: vocab.dm,
                                           count: directMessages.length,
                                           selected:
@@ -1202,6 +1226,8 @@ class _TalksTabState extends ConsumerState<TalksTab>
                                         ),
                                         const SizedBox(width: 6),
                                         CategoryTab(
+                                          tutorialTargetId: TutorialTargetIds
+                                              .talkCategoryGroup,
                                           label: vocab.plaza,
                                           count: groups.length,
                                           selected:
@@ -1214,26 +1240,29 @@ class _TalksTabState extends ConsumerState<TalksTab>
                                     ),
                             ),
                             const SizedBox(width: 8),
-                            switch (ref.watch(appUiStyleProvider)) {
-                              AppUiStyle.gekiga => GekigaIconButton(
-                                icon: Icons.add,
-                                size: 32,
-                                onPressed: _showAddMenu,
-                              ),
-                              AppUiStyle.glass => GlassIconButton(
-                                icon: Icons.add,
-                                size: 32,
-                                onPressed: _showAddMenu,
-                              ),
-                              AppUiStyle.flat => IconButton.filled(
-                                icon: const Icon(Icons.add, size: 20),
-                                onPressed: _showAddMenu,
-                                style: IconButton.styleFrom(
-                                  minimumSize: const Size(32, 32),
-                                  padding: EdgeInsets.zero,
+                            TutorialTarget(
+                              id: TutorialTargetIds.talkAdd,
+                              child: switch (ref.watch(appUiStyleProvider)) {
+                                AppUiStyle.gekiga => GekigaIconButton(
+                                  icon: Icons.add,
+                                  size: 32,
+                                  onPressed: _showAddMenu,
                                 ),
-                              ),
-                            },
+                                AppUiStyle.glass => GlassIconButton(
+                                  icon: Icons.add,
+                                  size: 32,
+                                  onPressed: _showAddMenu,
+                                ),
+                                AppUiStyle.flat => IconButton.filled(
+                                  icon: const Icon(Icons.add, size: 20),
+                                  onPressed: _showAddMenu,
+                                  style: IconButton.styleFrom(
+                                    minimumSize: const Size(32, 32),
+                                    padding: EdgeInsets.zero,
+                                  ),
+                                ),
+                              },
+                            ),
                           ],
                         ),
                       ),
@@ -1644,12 +1673,14 @@ class _TalksTabState extends ConsumerState<TalksTab>
     final showSearchResults = searchQuery.isNotEmpty;
 
     final dmTab = CategoryTab(
+      tutorialTargetId: TutorialTargetIds.talkCategoryDm,
       label: vocab.dm,
       count: directMessages.length,
       selected: _category == _TalksCategory.dm,
       onTap: () => _setCategory(_TalksCategory.dm),
     );
     final groupTab = CategoryTab(
+      tutorialTargetId: TutorialTargetIds.talkCategoryGroup,
       label: vocab.plaza,
       count: groups.length,
       selected: _category == _TalksCategory.group,
@@ -1799,7 +1830,13 @@ class _TalksTabState extends ConsumerState<TalksTab>
                 },
               ),
               _buildSortButton(strings),
-              IconButton(icon: const Icon(Icons.add), onPressed: _showAddMenu),
+              TutorialTarget(
+                id: TutorialTargetIds.talkAdd,
+                child: IconButton(
+                  icon: const Icon(Icons.add),
+                  onPressed: _showAddMenu,
+                ),
+              ),
             ],
           ),
           const Divider(height: 1),
@@ -2395,7 +2432,11 @@ class CategoryTab extends ConsumerWidget {
     required this.count,
     required this.selected,
     required this.onTap,
+    this.tutorialTargetId,
   });
+
+  /// 使い方ガイドの目印のid（2026-10-17追加）。指定があれば、このタブを目印として登録する。
+  final String? tutorialTargetId;
 
   final String label;
   final int count;
@@ -2404,6 +2445,12 @@ class CategoryTab extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final tab = _buildTab(context, ref);
+    final id = tutorialTargetId;
+    return id == null ? tab : TutorialTarget(id: id, child: tab);
+  }
+
+  Widget _buildTab(BuildContext context, WidgetRef ref) {
     final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
     if (isGekiga) {
       // 外枠（モノクロボックス）は呼び出し側の`GekigaJointedPair`が
@@ -3023,6 +3070,13 @@ String? _conversationPreviewLabel(
   }
 }
 
+/// 使い方ガイドの練習用の一対（練習相手）の行だけ、ガイドの目印として登録する
+/// （2026-10-17追加）。通常の一対は何も巻かない。
+Widget tutorialTargetForDm(DirectMessage dm, Widget tile) =>
+    dm.dmId.startsWith(practiceDmIdPrefix)
+    ? TutorialTarget(id: TutorialTargetIds.practiceFriend, child: tile)
+    : tile;
+
 class DirectMessageTile extends ConsumerWidget {
   const DirectMessageTile({
     required this.currentUser,
@@ -3053,7 +3107,7 @@ class DirectMessageTile extends ConsumerWidget {
     return HoverProfileCard(
       user: otherUser,
       conversationId: dm.dmId,
-      child: _buildTile(context, ref),
+      child: tutorialTargetForDm(dm, _buildTile(context, ref)),
     );
   }
 
@@ -3404,7 +3458,7 @@ class _DirectMessageIconTile extends ConsumerWidget {
     return HoverProfileCard(
       user: otherUser,
       conversationId: dm.dmId,
-      child: _buildTile(context, ref),
+      child: tutorialTargetForDm(dm, _buildTile(context, ref)),
     );
   }
 

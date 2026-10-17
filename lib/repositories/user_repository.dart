@@ -170,6 +170,15 @@ abstract class UserRepository {
   /// `suspendUserAccount`経由、2026-08-12追加）。
   Future<void> setAccountSuspended(String userId, bool suspended);
 
+  /// 指定ユーザーに極み（有料プラン）を付与/解除する（管理者のみ、Cloud Functions
+  /// `setKiwamiPlan`経由、2026-10-17追加）。購入の導線ができるまでの手動の付与用。
+  Future<void> setKiwamiPlan(String userId, bool kiwami);
+
+  /// 極みの契約管理（解約・カード変更）用のStripeカスタマーポータルのURLを返す
+  /// （Cloud Functions `createKiwamiPortalSession`経由、2026-10-18追加）。購入による
+  /// 契約が無い住人（手動付与など）は`not-found`で失敗する。
+  Future<Uri> createKiwamiPortalUrl();
+
   /// 複数のアカウントをまとめて停止/解除する（管理者のみ、Cloud Functions
   /// `suspendUserAccounts`経由、2026-10-10追加）。1回100件まで。自分自身・
   /// 便り・不在・削除申請中、停止時は他の管理者が対象外になり、対象外にした分は
@@ -612,6 +621,22 @@ class FirestoreUserRepository implements UserRepository {
           (snap) =>
               snap.docs.map((doc) => AppUser.fromJson(doc.data())).toList(),
         );
+  }
+
+  @override
+  Future<Uri> createKiwamiPortalUrl() async {
+    final result = await _functions
+        .httpsCallable('createKiwamiPortalSession')
+        .call();
+    return Uri.parse((result.data as Map)['url'] as String);
+  }
+
+  @override
+  Future<void> setKiwamiPlan(String userId, bool kiwami) async {
+    await _functions.httpsCallable('setKiwamiPlan').call({
+      'targetUserId': userId,
+      'kiwami': kiwami,
+    });
   }
 
   @override

@@ -93,6 +93,9 @@ import '../../widgets/dialog_keyboard_shortcuts.dart';
 import '../../theme/glass/glass_theme_extras.dart';
 import '../../utils/mention_suggestion.dart';
 import 'mention_suggestion_list.dart';
+import '../../l10n/tutorial_content.dart';
+import '../../providers/avatar_palette_provider.dart';
+import '../guide/tutorial/tutorial_target.dart';
 
 /// 劇画UIの吹き出し・入力欄の枠取りの太さ（[MonochromeBoxPainter]の
 /// thicknessBase）。以前は`size.shortestSide`（箱の短辺）に比例させて
@@ -2549,48 +2552,54 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                         // `IconButton`既定のpadding込みでどのスタイルも48×48に
                         // 収束する）。
                         if (widget.onCallPressed case final onCall?)
-                          IconButton(
-                            key: _callButtonKey,
-                            tooltip: '',
-                            icon: switch (uiStyle) {
-                              AppUiStyle.gekiga => const GekigaIconBadge(
-                                icon: Icons.call_outlined,
-                                size: 32,
-                                seed: gekigaToolbarIconSeed,
-                              ),
-                              AppUiStyle.glass => const GlassIconBadge(
-                                icon: Icons.call_outlined,
-                                size: 32,
-                                opaque: true,
-                              ),
-                              AppUiStyle.flat => const Icon(
-                                Icons.call_outlined,
-                              ),
-                            },
-                            onPressed: onCall,
-                          ),
-                        if (widget.onVideoCallPressed case final onVideoCall?)
-                          if (cameraAvailability !=
-                              CameraAvailability.unavailable)
-                            IconButton(
-                              key: _videoCallButtonKey,
+                          TutorialTarget(
+                            id: TutorialTargetIds.chatCallButton,
+                            child: IconButton(
+                              key: _callButtonKey,
                               tooltip: '',
                               icon: switch (uiStyle) {
                                 AppUiStyle.gekiga => const GekigaIconBadge(
-                                  icon: Icons.videocam_outlined,
+                                  icon: Icons.call_outlined,
                                   size: 32,
                                   seed: gekigaToolbarIconSeed,
                                 ),
                                 AppUiStyle.glass => const GlassIconBadge(
-                                  icon: Icons.videocam_outlined,
+                                  icon: Icons.call_outlined,
                                   size: 32,
                                   opaque: true,
                                 ),
                                 AppUiStyle.flat => const Icon(
-                                  Icons.videocam_outlined,
+                                  Icons.call_outlined,
                                 ),
                               },
-                              onPressed: onVideoCall,
+                              onPressed: onCall,
+                            ),
+                          ),
+                        if (widget.onVideoCallPressed case final onVideoCall?)
+                          if (cameraAvailability !=
+                              CameraAvailability.unavailable)
+                            TutorialTarget(
+                              id: TutorialTargetIds.chatVideoButton,
+                              child: IconButton(
+                                key: _videoCallButtonKey,
+                                tooltip: '',
+                                icon: switch (uiStyle) {
+                                  AppUiStyle.gekiga => const GekigaIconBadge(
+                                    icon: Icons.videocam_outlined,
+                                    size: 32,
+                                    seed: gekigaToolbarIconSeed,
+                                  ),
+                                  AppUiStyle.glass => const GlassIconBadge(
+                                    icon: Icons.videocam_outlined,
+                                    size: 32,
+                                    opaque: true,
+                                  ),
+                                  AppUiStyle.flat => const Icon(
+                                    Icons.videocam_outlined,
+                                  ),
+                                },
+                                onPressed: onVideoCall,
+                              ),
                             ),
                         if (widget.onFetchMessage != null)
                           IconButton(
@@ -3081,248 +3090,255 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                       onPicked: _handleAttachmentsPicked,
                                     ),
                                   Expanded(
-                                    child: Focus(
-                                      onKeyEvent: _handleKeyEvent,
-                                      child: isGekiga
-                                          ? _GekigaComposerField(
-                                              // ぺったんアイコンを固定位置に
-                                              // 保つため、Stack+Positioned
-                                              // （確定後サイズを基準に位置
-                                              // 決めする間接的な仕組み）は
-                                              // 狙った通りに動かなかったため
-                                              // 撤回し、Row+
-                                              // CrossAxisAlignment.endに
-                                              // 変更した（2026-08-12修正、
-                                              // 当初.startとしていたのは
-                                              // 誤りだったため再修正）。
-                                              // 入力欄コンテナ自体は画面下端
-                                              // にPositioned(bottom: 0)で
-                                              // 固定されており、行数が増える
-                                              // とボックスは上方向にしか
-                                              // 伸びない。そのため固定48×48
-                                              // のアイコンをRowの下端に揃え
-                                              // れば、アイコンの絶対位置は
-                                              // 行数によらず常に変化しない
-                                              // （逆に上揃えだと、行が増える
-                                              // たびにアイコンが上へ動いて
-                                              // しまっていた）。
-                                              child: Row(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.end,
-                                                children: [
-                                                  Expanded(
-                                                    // Rowが.end（下揃え）の
-                                                    // ため、1行だけの場合
-                                                    // TextField自身の高さが
-                                                    // 48×48のアイコンより
-                                                    // 低いと、その差分だけ
-                                                    // TextFieldの上に空白が
-                                                    // でき、textAlignVertical
-                                                    // .centerで中央寄せして
-                                                    // いても見た目上は下寄り
-                                                    // に見えていた
-                                                    // （2026-08-12修正）。
-                                                    // 最小高さをアイコンと
-                                                    // 揃えることで、1行の
-                                                    // 時もアイコンと同じ
-                                                    // 48px基準で縦中央に
-                                                    // なるようにする。
-                                                    child: ConstrainedBox(
-                                                      constraints:
-                                                          const BoxConstraints(
-                                                            minHeight: 48,
+                                    child: TutorialTarget(
+                                      id: TutorialTargetIds.chatInput,
+                                      child: Focus(
+                                        onKeyEvent: _handleKeyEvent,
+                                        child: isGekiga
+                                            ? _GekigaComposerField(
+                                                // ぺったんアイコンを固定位置に
+                                                // 保つため、Stack+Positioned
+                                                // （確定後サイズを基準に位置
+                                                // 決めする間接的な仕組み）は
+                                                // 狙った通りに動かなかったため
+                                                // 撤回し、Row+
+                                                // CrossAxisAlignment.endに
+                                                // 変更した（2026-08-12修正、
+                                                // 当初.startとしていたのは
+                                                // 誤りだったため再修正）。
+                                                // 入力欄コンテナ自体は画面下端
+                                                // にPositioned(bottom: 0)で
+                                                // 固定されており、行数が増える
+                                                // とボックスは上方向にしか
+                                                // 伸びない。そのため固定48×48
+                                                // のアイコンをRowの下端に揃え
+                                                // れば、アイコンの絶対位置は
+                                                // 行数によらず常に変化しない
+                                                // （逆に上揃えだと、行が増える
+                                                // たびにアイコンが上へ動いて
+                                                // しまっていた）。
+                                                child: Row(
+                                                  crossAxisAlignment:
+                                                      CrossAxisAlignment.end,
+                                                  children: [
+                                                    Expanded(
+                                                      // Rowが.end（下揃え）の
+                                                      // ため、1行だけの場合
+                                                      // TextField自身の高さが
+                                                      // 48×48のアイコンより
+                                                      // 低いと、その差分だけ
+                                                      // TextFieldの上に空白が
+                                                      // でき、textAlignVertical
+                                                      // .centerで中央寄せして
+                                                      // いても見た目上は下寄り
+                                                      // に見えていた
+                                                      // （2026-08-12修正）。
+                                                      // 最小高さをアイコンと
+                                                      // 揃えることで、1行の
+                                                      // 時もアイコンと同じ
+                                                      // 48px基準で縦中央に
+                                                      // なるようにする。
+                                                      child: ConstrainedBox(
+                                                        constraints:
+                                                            const BoxConstraints(
+                                                              minHeight: 48,
+                                                            ),
+                                                        // 劇画テーマ全体の
+                                                        // 選択ハイライトは白
+                                                        // 基準だが、この入力欄
+                                                        // だけ白背景・黒文字
+                                                        // 固定（fillColor:
+                                                        // Colors.white、
+                                                        // _GekigaComposerField
+                                                        // Painter参照）のため、
+                                                        // 選択色も黒系にローカル
+                                                        // 上書きしないと白地に
+                                                        // 白ハイライトで見えなく
+                                                        // なる（2026-09-14）。
+                                                        child: TextSelectionTheme(
+                                                          data: const TextSelectionThemeData(
+                                                            cursorColor:
+                                                                Colors.black,
+                                                            selectionColor:
+                                                                Color.fromRGBO(
+                                                                  0,
+                                                                  0,
+                                                                  0,
+                                                                  0.25,
+                                                                ),
+                                                            selectionHandleColor:
+                                                                Colors.black,
                                                           ),
-                                                      // 劇画テーマ全体の
-                                                      // 選択ハイライトは白
-                                                      // 基準だが、この入力欄
-                                                      // だけ白背景・黒文字
-                                                      // 固定（fillColor:
-                                                      // Colors.white、
-                                                      // _GekigaComposerField
-                                                      // Painter参照）のため、
-                                                      // 選択色も黒系にローカル
-                                                      // 上書きしないと白地に
-                                                      // 白ハイライトで見えなく
-                                                      // なる（2026-09-14）。
-                                                      child: TextSelectionTheme(
-                                                        data: const TextSelectionThemeData(
-                                                          cursorColor:
-                                                              Colors.black,
-                                                          selectionColor:
-                                                              Color.fromRGBO(
-                                                                0,
-                                                                0,
-                                                                0,
-                                                                0.25,
-                                                              ),
-                                                          selectionHandleColor:
-                                                              Colors.black,
-                                                        ),
-                                                        child: TextField(
-                                                          controller:
-                                                              _textController,
-                                                          focusNode:
-                                                              _composerFocusNode,
-                                                          enabled:
-                                                              !widget.disabled,
-                                                          minLines: 1,
-                                                          maxLines: 6,
-                                                          textAlignVertical:
-                                                              TextAlignVertical
-                                                                  .center,
-                                                          textInputAction:
-                                                              TextInputAction
-                                                                  .newline,
-                                                          keyboardType:
-                                                              TextInputType
-                                                                  .multiline,
-                                                          style:
-                                                              const TextStyle(
+                                                          child: TextField(
+                                                            controller:
+                                                                _textController,
+                                                            focusNode:
+                                                                _composerFocusNode,
+                                                            enabled: !widget
+                                                                .disabled,
+                                                            minLines: 1,
+                                                            maxLines: 6,
+                                                            textAlignVertical:
+                                                                TextAlignVertical
+                                                                    .center,
+                                                            textInputAction:
+                                                                TextInputAction
+                                                                    .newline,
+                                                            keyboardType:
+                                                                TextInputType
+                                                                    .multiline,
+                                                            style:
+                                                                const TextStyle(
+                                                                  color: Colors
+                                                                      .black,
+                                                                ),
+                                                            decoration: InputDecoration(
+                                                              hintText: strings
+                                                                  .chatInputHint,
+                                                              hintStyle: TextStyle(
                                                                 color: Colors
-                                                                    .black,
+                                                                    .black
+                                                                    .withValues(
+                                                                      alpha:
+                                                                          0.4,
+                                                                    ),
                                                               ),
-                                                          decoration: InputDecoration(
-                                                            hintText: strings
-                                                                .chatInputHint,
-                                                            hintStyle: TextStyle(
-                                                              color: Colors
-                                                                  .black
-                                                                  .withValues(
-                                                                    alpha: 0.4,
+                                                              filled: false,
+                                                              border:
+                                                                  InputBorder
+                                                                      .none,
+                                                              enabledBorder:
+                                                                  InputBorder
+                                                                      .none,
+                                                              focusedBorder:
+                                                                  InputBorder
+                                                                      .none,
+                                                              // 内容量に応じて
+                                                              // 箱の高さがぴったり
+                                                              // 詰まるため、上下に
+                                                              // 8pxの余白を確保
+                                                              // して文字が上端に
+                                                              // 張り付いて見え
+                                                              // ないようにする。
+                                                              // 水平方向も明示
+                                                              // しないと0pxに
+                                                              // なり左端に文字が
+                                                              // 寄って見えていた
+                                                              // ため、4pxを確保
+                                                              // する
+                                                              // （2026-08-12修正）。
+                                                              contentPadding:
+                                                                  const EdgeInsets.symmetric(
+                                                                    horizontal:
+                                                                        4,
+                                                                    vertical: 8,
                                                                   ),
                                                             ),
-                                                            filled: false,
-                                                            border: InputBorder
-                                                                .none,
-                                                            enabledBorder:
-                                                                InputBorder
-                                                                    .none,
-                                                            focusedBorder:
-                                                                InputBorder
-                                                                    .none,
-                                                            // 内容量に応じて
-                                                            // 箱の高さがぴったり
-                                                            // 詰まるため、上下に
-                                                            // 8pxの余白を確保
-                                                            // して文字が上端に
-                                                            // 張り付いて見え
-                                                            // ないようにする。
-                                                            // 水平方向も明示
-                                                            // しないと0pxに
-                                                            // なり左端に文字が
-                                                            // 寄って見えていた
-                                                            // ため、4pxを確保
-                                                            // する
-                                                            // （2026-08-12修正）。
-                                                            contentPadding:
-                                                                const EdgeInsets.symmetric(
-                                                                  horizontal: 4,
-                                                                  vertical: 8,
-                                                                ),
                                                           ),
                                                         ),
                                                       ),
+                                                    ),
+                                                    if (widget.onSendSticker !=
+                                                            null &&
+                                                        !widget.disabled)
+                                                      SizedBox(
+                                                        width: 48,
+                                                        height: 48,
+                                                        child:
+                                                            _stickerComposerButton(
+                                                              isGekiga: true,
+                                                            ),
+                                                      ),
+                                                  ],
+                                                ),
+                                              )
+                                            : Stack(
+                                                children: [
+                                                  TextField(
+                                                    controller: _textController,
+                                                    focusNode:
+                                                        _composerFocusNode,
+                                                    enabled: !widget.disabled,
+                                                    minLines: 1,
+                                                    maxLines: 6,
+                                                    textAlignVertical:
+                                                        const TextAlignVertical(
+                                                          y: 0.4,
+                                                        ),
+                                                    textInputAction:
+                                                        TextInputAction.newline,
+                                                    keyboardType:
+                                                        TextInputType.multiline,
+                                                    decoration: InputDecoration(
+                                                      hintText:
+                                                          strings.chatInputHint,
+                                                      filled: isGlass
+                                                          ? false
+                                                          : widget.disabled,
+                                                      fillColor: isGlass
+                                                          ? null
+                                                          : Theme.of(context)
+                                                                .disabledColor
+                                                                .withValues(
+                                                                  alpha: 0.08,
+                                                                ),
+                                                      // ガラスUIでは、既に入力欄
+                                                      // コンテナ自体がすりガラス
+                                                      // （GlassSurface）のため、
+                                                      // ここでさらに別スタイルの
+                                                      // 縁取りされた箱を重ねない
+                                                      // （二重の箱に見えて
+                                                      // フラットUIっぽく見えて
+                                                      // しまう不具合の修正、
+                                                      // 2026-08-29）。
+                                                      border: isGlass
+                                                          ? InputBorder.none
+                                                          : OutlineInputBorder(
+                                                              borderRadius:
+                                                                  BorderRadius.circular(
+                                                                    20,
+                                                                  ),
+                                                            ),
+                                                      enabledBorder: isGlass
+                                                          ? InputBorder.none
+                                                          : null,
+                                                      focusedBorder: isGlass
+                                                          ? InputBorder.none
+                                                          : null,
+                                                      // suffixIconは既定で常に
+                                                      // 縦中央揃えになり、複数
+                                                      // 行になるほど絶対位置が
+                                                      // 動いてしまう。実アイコン
+                                                      // はStack最前面のPositioned
+                                                      // （下揃え固定）で描くため、
+                                                      // ここでは同じ横幅48pxだけ
+                                                      // を確保するダミーにする
+                                                      // （2026-08-12修正）。
+                                                      suffixIcon:
+                                                          widget.onSendSticker !=
+                                                                  null &&
+                                                              !widget.disabled
+                                                          ? const SizedBox(
+                                                              width: 48,
+                                                            )
+                                                          : null,
                                                     ),
                                                   ),
                                                   if (widget.onSendSticker !=
                                                           null &&
                                                       !widget.disabled)
-                                                    SizedBox(
-                                                      width: 48,
+                                                    Positioned(
+                                                      bottom: 0,
+                                                      right: 4,
                                                       height: 48,
                                                       child:
                                                           _stickerComposerButton(
-                                                            isGekiga: true,
-                                                          ),
+                                                            isGekiga: false,
+                                                          )!,
                                                     ),
                                                 ],
                                               ),
-                                            )
-                                          : Stack(
-                                              children: [
-                                                TextField(
-                                                  controller: _textController,
-                                                  focusNode: _composerFocusNode,
-                                                  enabled: !widget.disabled,
-                                                  minLines: 1,
-                                                  maxLines: 6,
-                                                  textAlignVertical:
-                                                      const TextAlignVertical(
-                                                        y: 0.4,
-                                                      ),
-                                                  textInputAction:
-                                                      TextInputAction.newline,
-                                                  keyboardType:
-                                                      TextInputType.multiline,
-                                                  decoration: InputDecoration(
-                                                    hintText:
-                                                        strings.chatInputHint,
-                                                    filled: isGlass
-                                                        ? false
-                                                        : widget.disabled,
-                                                    fillColor: isGlass
-                                                        ? null
-                                                        : Theme.of(context)
-                                                              .disabledColor
-                                                              .withValues(
-                                                                alpha: 0.08,
-                                                              ),
-                                                    // ガラスUIでは、既に入力欄
-                                                    // コンテナ自体がすりガラス
-                                                    // （GlassSurface）のため、
-                                                    // ここでさらに別スタイルの
-                                                    // 縁取りされた箱を重ねない
-                                                    // （二重の箱に見えて
-                                                    // フラットUIっぽく見えて
-                                                    // しまう不具合の修正、
-                                                    // 2026-08-29）。
-                                                    border: isGlass
-                                                        ? InputBorder.none
-                                                        : OutlineInputBorder(
-                                                            borderRadius:
-                                                                BorderRadius.circular(
-                                                                  20,
-                                                                ),
-                                                          ),
-                                                    enabledBorder: isGlass
-                                                        ? InputBorder.none
-                                                        : null,
-                                                    focusedBorder: isGlass
-                                                        ? InputBorder.none
-                                                        : null,
-                                                    // suffixIconは既定で常に
-                                                    // 縦中央揃えになり、複数
-                                                    // 行になるほど絶対位置が
-                                                    // 動いてしまう。実アイコン
-                                                    // はStack最前面のPositioned
-                                                    // （下揃え固定）で描くため、
-                                                    // ここでは同じ横幅48pxだけ
-                                                    // を確保するダミーにする
-                                                    // （2026-08-12修正）。
-                                                    suffixIcon:
-                                                        widget.onSendSticker !=
-                                                                null &&
-                                                            !widget.disabled
-                                                        ? const SizedBox(
-                                                            width: 48,
-                                                          )
-                                                        : null,
-                                                  ),
-                                                ),
-                                                if (widget.onSendSticker !=
-                                                        null &&
-                                                    !widget.disabled)
-                                                  Positioned(
-                                                    bottom: 0,
-                                                    right: 4,
-                                                    height: 48,
-                                                    child:
-                                                        _stickerComposerButton(
-                                                          isGekiga: false,
-                                                        )!,
-                                                  ),
-                                              ],
-                                            ),
+                                      ),
                                     ),
                                   ),
                                   // 物理キーボード接続の判定に関わらず、何か入力されている間は
@@ -3336,26 +3352,32 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                         if (value.text.isEmpty) {
                                           return const SizedBox.shrink();
                                         }
-                                        return Material(
-                                          color: Colors.transparent,
-                                          shape: const CircleBorder(),
-                                          child: InkWell(
-                                            customBorder: const CircleBorder(),
-                                            // タップでこのボタン自身が
-                                            // フォーカスを奪うと、テキスト欄が
-                                            // フォーカスを失いモバイルで
-                                            // ソフトウェアキーボードが閉じて
-                                            // しまうため、フォーカス移動を
-                                            // 抑制する（2026-08-12）。
-                                            canRequestFocus: false,
-                                            onTap: _send,
-                                            onLongPress: () =>
-                                                _send(silent: true),
-                                            child: Padding(
-                                              padding: const EdgeInsets.all(12),
-                                              child: Icon(
-                                                Icons.send,
-                                                color: colorScheme.primary,
+                                        return TutorialTarget(
+                                          id: TutorialTargetIds.chatSend,
+                                          child: Material(
+                                            color: Colors.transparent,
+                                            shape: const CircleBorder(),
+                                            child: InkWell(
+                                              customBorder:
+                                                  const CircleBorder(),
+                                              // タップでこのボタン自身が
+                                              // フォーカスを奪うと、テキスト欄が
+                                              // フォーカスを失いモバイルで
+                                              // ソフトウェアキーボードが閉じて
+                                              // しまうため、フォーカス移動を
+                                              // 抑制する（2026-08-12）。
+                                              canRequestFocus: false,
+                                              onTap: _send,
+                                              onLongPress: () =>
+                                                  _send(silent: true),
+                                              child: Padding(
+                                                padding: const EdgeInsets.all(
+                                                  12,
+                                                ),
+                                                child: Icon(
+                                                  Icons.send,
+                                                  color: colorScheme.primary,
+                                                ),
                                               ),
                                             ),
                                           ),
@@ -7213,15 +7235,6 @@ class _SenderAvatar extends ConsumerWidget {
   /// 小さいサイズを指定できるよう追加）。
   final double size;
 
-  static const _palette = [
-    Color(0xFFEE7800),
-    Color(0xFF6D4C41),
-    Color(0xFF00897B),
-    Color(0xFF5E35B1),
-    Color(0xFF1E88E5),
-    Color(0xFFD81B60),
-  ];
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final user =
@@ -7235,7 +7248,8 @@ class _SenderAvatar extends ConsumerWidget {
         ? null
         : user?.effectiveIconFocalFor(conversationId);
     final id = (rhingSeed == null || rhingSeed!.isEmpty) ? '?' : rhingSeed!;
-    final color = _palette[id.hashCode.abs() % _palette.length];
+    final palette = ref.watch(avatarPaletteProvider);
+    final color = palette[id.hashCode.abs() % palette.length];
     final fontSize = size / 48 * 13;
     if (uiStyle == AppUiStyle.gekiga) {
       return GekigaPhotoFrame(

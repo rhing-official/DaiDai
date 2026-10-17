@@ -28,6 +28,14 @@ class _TutorialTargetState extends ConsumerState<TutorialTarget> {
   late final TutorialTargetRegistry _registry = ref.read(
     tutorialTargetRegistryProvider,
   );
+
+  /// 押した結果この目印自身が画面から消える場合（相手を選ぶと会話が開く、送信で
+  /// 入力欄が空になりボタンが消える等）でも、`onPointerUp`はその後に届くことがある。
+  /// そのとき`ref`は使えないため、先に取っておく。
+  late final TutorialController _controller = ref.read(
+    tutorialControllerProvider.notifier,
+  );
+
   bool _registered = false;
 
   /// このウィジェットが今、実際に画面に見えているか。`IndexedStack`で保持される
@@ -37,13 +45,20 @@ class _TutorialTargetState extends ConsumerState<TutorialTarget> {
       TickerMode.valuesOf(context).enabled && PaneVisibility.of(context);
 
   @override
+  void initState() {
+    super.initState();
+    // 破棄後に`ref`を触らないよう、ここで取り込んでおく。
+    _controller;
+  }
+
+  @override
   void dispose() {
     if (_registered) _registry.unregister(widget.id, _key);
     super.dispose();
   }
 
   void _onPointerUp(PointerUpEvent event) {
-    final state = ref.read(tutorialControllerProvider);
+    final state = _controller.current;
     final step = state?.step;
     // 押さない手順（情報の手順）では、目印が押されても進めない（「次へ」で進める）。
     if (step == null || !step.requiresTap || step.targetId != widget.id) return;
@@ -54,9 +69,10 @@ class _TutorialTargetState extends ConsumerState<TutorialTarget> {
     }
     // ボタン自身の処理（画面遷移・コピーなど）が先に実行されてから進める。
     final index = state!.index;
+    // 押した結果この目印自身が画面から消える場合（相手を選ぶと会話が開く等）でも
+    // 進められるよう、先にコントローラーを取っておき、`mounted`には依存しない。
     Timer(const Duration(milliseconds: 150), () {
-      if (!mounted) return;
-      ref.read(tutorialControllerProvider.notifier).advance(fromIndex: index);
+      _controller.advance(fromIndex: index);
     });
   }
 

@@ -25,6 +25,7 @@ class ResidenceSurveyScreen extends ConsumerStatefulWidget {
     required this.onCompleted,
     this.initial,
     this.isEditing = false,
+    this.embedded = false,
     super.key,
   });
 
@@ -38,6 +39,11 @@ class ResidenceSurveyScreen extends ConsumerStatefulWidget {
 
   /// 設定からの変更時は戻る矢印を出す（初回は回答するまで先へ進めない）。
   final bool isEditing;
+
+  /// 設定タブの中（横に並べた欄・重ねた階層）へ埋め込んで表示する（2026-10-17追加）。
+  /// `Scaffold`・`AppBar`・専用のフォントを付けず、見出しも出さない（戻るのは
+  /// 設定側の階層の戻る操作＝右スワイプ・戻るボタンに任せる）。
+  final bool embedded;
 
   @override
   ConsumerState<ResidenceSurveyScreen> createState() =>
@@ -123,121 +129,117 @@ class _ResidenceSurveyScreenState extends ConsumerState<ResidenceSurveyScreen> {
     final strings = ref.watch(appStringsProvider);
     final locale = ref.watch(appLocaleProvider);
     final country = _country;
+    final body = Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 400),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // 国と一緒に表示言語も選べる（2026-10-17追加）。選ぶとこの画面から
+              // 即座にその言語へ切り替わる（以降の画面・設定にも引き継がれる）。
+              // 言語は今後増える予定のため、並べる形式ではなくプルダウンにする。
+              AppDropdown<AppLocale>(
+                key: const ValueKey('residence-language'),
+                label: strings.residenceSurveyLanguageLabel,
+                value: locale,
+                enabled: !_isSubmitting,
+                items: [
+                  for (final l in AppLocale.values)
+                    AppDropdownItem(value: l, label: l.label),
+                ],
+                onChanged: (value) =>
+                    ref.read(appLocaleProvider.notifier).setLocale(value),
+              ),
+              const SizedBox(height: 16),
+              Text(strings.residenceSurveyIntro),
+              const SizedBox(height: 8),
+              Text(
+                strings.residenceSurveyPrivacyNote,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              const SizedBox(height: 16),
+              InkWell(
+                onTap: _isSubmitting ? null : () => _pickCountry(locale),
+                child: InputDecorator(
+                  decoration: InputDecoration(
+                    labelText: strings.residenceSurveyCountryLabel,
+                    border: const OutlineInputBorder(),
+                    suffixIcon: const Icon(Icons.arrow_drop_down),
+                  ),
+                  child: Text(
+                    country?.nameOf(locale) ??
+                        strings.residenceSurveyCountryPlaceholder,
+                  ),
+                ),
+              ),
+              if (country != null && country.code == 'JP') ...[
+                const SizedBox(height: 16),
+                AppDropdown<String?>(
+                  key: const ValueKey('residence-prefecture'),
+                  label: strings.residenceSurveyPrefectureLabel,
+                  placeholder: strings.residenceSurveyNotSelected,
+                  value: _prefectureCode,
+                  enabled: !_isSubmitting,
+                  items: [
+                    AppDropdownItem(
+                      value: null,
+                      label: strings.residenceSurveyNotSelected,
+                    ),
+                    for (final p in prefectures)
+                      AppDropdownItem(
+                        value: p.isoCode,
+                        label: p.nameOf(locale),
+                      ),
+                  ],
+                  onChanged: (value) => setState(() => _prefectureCode = value),
+                ),
+              ],
+              if (country != null && country.hasMultipleTimeZones) ...[
+                const SizedBox(height: 16),
+                AppDropdown<String?>(
+                  key: ValueKey('residence-timezone-${country.code}'),
+                  label: strings.residenceSurveyTimeZoneLabel,
+                  placeholder: strings.residenceSurveyNotSelected,
+                  value: _timeZone,
+                  enabled: !_isSubmitting,
+                  items: [
+                    AppDropdownItem(
+                      value: null,
+                      label: strings.residenceSurveyNotSelected,
+                    ),
+                    for (final tz in country.timeZones)
+                      AppDropdownItem(value: tz, label: tz),
+                  ],
+                  onChanged: (value) => setState(() => _timeZone = value),
+                ),
+              ],
+              if (_errorMessage != null) ...[
+                const SizedBox(height: 8),
+                Text(_errorMessage!, style: const TextStyle(color: Colors.red)),
+              ],
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: _isSubmitting || country == null ? null : _submit,
+                child: _isSubmitting
+                    ? const SizedBox.shrink()
+                    : Text(strings.residenceSurveySubmitButton),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (widget.embedded) return body;
     return FixedFontTheme(
       child: Scaffold(
         appBar: AppBar(
           title: Text(strings.residenceSurveyAppBarTitle),
           automaticallyImplyLeading: widget.isEditing,
         ),
-        body: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 400),
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // 国と一緒に表示言語も選べる（2026-10-17追加）。選ぶとこの画面から
-                  // 即座にその言語へ切り替わる（以降の画面・設定にも引き継がれる）。
-                  // 言語は今後増える予定のため、並べる形式ではなくプルダウンにする。
-                  AppDropdown<AppLocale>(
-                    key: const ValueKey('residence-language'),
-                    label: strings.residenceSurveyLanguageLabel,
-                    value: locale,
-                    enabled: !_isSubmitting,
-                    items: [
-                      for (final l in AppLocale.values)
-                        AppDropdownItem(value: l, label: l.label),
-                    ],
-                    onChanged: (value) =>
-                        ref.read(appLocaleProvider.notifier).setLocale(value),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(strings.residenceSurveyIntro),
-                  const SizedBox(height: 8),
-                  Text(
-                    strings.residenceSurveyPrivacyNote,
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                  const SizedBox(height: 16),
-                  InkWell(
-                    onTap: _isSubmitting ? null : () => _pickCountry(locale),
-                    child: InputDecorator(
-                      decoration: InputDecoration(
-                        labelText: strings.residenceSurveyCountryLabel,
-                        border: const OutlineInputBorder(),
-                        suffixIcon: const Icon(Icons.arrow_drop_down),
-                      ),
-                      child: Text(
-                        country?.nameOf(locale) ??
-                            strings.residenceSurveyCountryPlaceholder,
-                      ),
-                    ),
-                  ),
-                  if (country != null && country.code == 'JP') ...[
-                    const SizedBox(height: 16),
-                    AppDropdown<String?>(
-                      key: const ValueKey('residence-prefecture'),
-                      label: strings.residenceSurveyPrefectureLabel,
-                      placeholder: strings.residenceSurveyNotSelected,
-                      value: _prefectureCode,
-                      enabled: !_isSubmitting,
-                      items: [
-                        AppDropdownItem(
-                          value: null,
-                          label: strings.residenceSurveyNotSelected,
-                        ),
-                        for (final p in prefectures)
-                          AppDropdownItem(
-                            value: p.isoCode,
-                            label: p.nameOf(locale),
-                          ),
-                      ],
-                      onChanged: (value) =>
-                          setState(() => _prefectureCode = value),
-                    ),
-                  ],
-                  if (country != null && country.hasMultipleTimeZones) ...[
-                    const SizedBox(height: 16),
-                    AppDropdown<String?>(
-                      key: ValueKey('residence-timezone-${country.code}'),
-                      label: strings.residenceSurveyTimeZoneLabel,
-                      placeholder: strings.residenceSurveyNotSelected,
-                      value: _timeZone,
-                      enabled: !_isSubmitting,
-                      items: [
-                        AppDropdownItem(
-                          value: null,
-                          label: strings.residenceSurveyNotSelected,
-                        ),
-                        for (final tz in country.timeZones)
-                          AppDropdownItem(value: tz, label: tz),
-                      ],
-                      onChanged: (value) => setState(() => _timeZone = value),
-                    ),
-                  ],
-                  if (_errorMessage != null) ...[
-                    const SizedBox(height: 8),
-                    Text(
-                      _errorMessage!,
-                      style: const TextStyle(color: Colors.red),
-                    ),
-                  ],
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: _isSubmitting || country == null
-                        ? null
-                        : _submit,
-                    child: _isSubmitting
-                        ? const SizedBox.shrink()
-                        : Text(strings.residenceSurveySubmitButton),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
+        body: body,
       ),
     );
   }
