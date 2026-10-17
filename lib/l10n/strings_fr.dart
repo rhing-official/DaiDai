@@ -126,6 +126,8 @@ final Strings _stringsFr = Strings._(
   kiwamiManage: "Gérer l'abonnement (résilier, changer de carte)",
   kiwamiManageFailed:
       "Aucun abonnement trouvé. Si vous n'avez pas acheté Kiwami ou s'il a été accordé par l'équipe, il ne peut pas être géré ici.",
+  kiwamiManageUnavailable:
+      "Impossible d'ouvrir la gestion de l'abonnement. Réessayez plus tard.",
   fontDesignShowMoreTemplate: (remaining) =>
       'Afficher plus ($remaining de plus)',
   fontDesignSameAsSystemLabel: 'Identique au système',

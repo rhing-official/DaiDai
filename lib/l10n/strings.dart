@@ -118,6 +118,7 @@ class Strings {
     required this.kiwamiSectionTitle,
     required this.kiwamiManage,
     required this.kiwamiManageFailed,
+    required this.kiwamiManageUnavailable,
     required this.fontDesignShowMoreTemplate,
     required this.fontDesignSameAsSystemLabel,
     required this.profileFontDesignSectionTitle,
@@ -1027,6 +1028,7 @@ class Strings {
   final String kiwamiSectionTitle;
   final String kiwamiManage;
   final String kiwamiManageFailed;
+  final String kiwamiManageUnavailable;
   final String Function(int remaining) fontDesignShowMoreTemplate;
 
   /// 蔵のフォントデザイン素材・工房のカード割り当てで選べる「システムと同じ」
@@ -2198,6 +2200,7 @@ class Strings {
     kiwamiSectionTitle: '極み',
     kiwamiManage: '契約の管理（解約・カードの変更）',
     kiwamiManageFailed: '契約が見つかりませんでした。購入していない場合や、運営が付与した場合は、ここからは管理できません。',
+    kiwamiManageUnavailable: '契約の管理を開けませんでした。しばらくしてからもう一度お試しください。',
     fontDesignShowMoreTemplate: (remaining) => 'もっと見る（あと$remaining件）',
     fontDesignSameAsSystemLabel: 'システムと同じ',
     profileFontDesignSectionTitle: 'フォントデザイン',
@@ -3157,6 +3160,8 @@ class Strings {
     kiwamiManage: 'Manage subscription (cancel, change card)',
     kiwamiManageFailed:
         'No subscription was found. If you have not purchased it or it was granted by the operator, it cannot be managed here.',
+    kiwamiManageUnavailable:
+        'Could not open subscription management. Please try again later.',
     fontDesignShowMoreTemplate: (remaining) => 'Show more ($remaining more)',
     fontDesignSameAsSystemLabel: 'Same as system',
     profileFontDesignSectionTitle: 'Font design',

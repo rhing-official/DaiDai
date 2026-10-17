@@ -8,6 +8,7 @@ import 'package:firebase_auth/firebase_auth.dart'
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -1763,9 +1764,20 @@ class _KiwamiRow extends ConsumerWidget {
             uri = await ref
                 .read(userRepositoryProvider)
                 .createKiwamiPortalUrl();
-          } catch (_) {
+          } catch (error) {
+            // 契約が無い（手動付与など）時だけ「見つからない」と案内し、
+            // それ以外（Stripe側の設定・鍵の不備等）は別の文言にする。
+            final notFound =
+                error is FirebaseFunctionsException &&
+                error.code == 'not-found';
             messenger.showSnackBar(
-              SnackBar(content: Text(strings.kiwamiManageFailed)),
+              SnackBar(
+                content: Text(
+                  notFound
+                      ? strings.kiwamiManageFailed
+                      : strings.kiwamiManageUnavailable,
+                ),
+              ),
             );
             return;
           }

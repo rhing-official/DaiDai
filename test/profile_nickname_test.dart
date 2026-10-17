@@ -2,6 +2,7 @@ import 'package:daidai/features/profile/profile_tab.dart';
 import 'package:daidai/l10n/app_locale.dart';
 import 'package:daidai/models/app_ui_style.dart';
 import 'package:daidai/models/app_user.dart';
+import 'package:daidai/models/kiwami_subscription_status.dart';
 import 'package:daidai/models/profile_card.dart';
 import 'package:daidai/models/profile_material.dart';
 import 'package:daidai/models/sound_preset.dart';
@@ -168,6 +169,11 @@ class _FakeUserRepository implements UserRepository {
 
   @override
   Future<void> setKiwamiPlan(String userId, bool kiwami) async {}
+
+  @override
+  Future<KiwamiSubscriptionStatus> getKiwamiSubscriptionStatus(
+    String userId,
+  ) async => const KiwamiSubscriptionStatus(KiwamiSubscriptionState.none);
 
   @override
   Future<Uri> createKiwamiPortalUrl() async => Uri.parse('https://example.com');

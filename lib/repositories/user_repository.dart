@@ -8,6 +8,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 
 import '../models/app_user.dart';
+import '../models/kiwami_subscription_status.dart';
 import '../models/profile_card.dart';
 import '../models/profile_material.dart';
 import '../models/sound_preset.dart';
@@ -178,6 +179,10 @@ abstract class UserRepository {
   /// （Cloud Functions `createKiwamiPortalSession`経由、2026-10-18追加）。購入による
   /// 契約が無い住人（手動付与など）は`not-found`で失敗する。
   Future<Uri> createKiwamiPortalUrl();
+
+  /// 住人の極みの契約状態をStripeから取得する（管理者のみ、Cloud Functions
+  /// `getKiwamiSubscriptionStatus`経由、2026-10-18追加）。
+  Future<KiwamiSubscriptionStatus> getKiwamiSubscriptionStatus(String userId);
 
   /// 複数のアカウントをまとめて停止/解除する（管理者のみ、Cloud Functions
   /// `suspendUserAccounts`経由、2026-10-10追加）。1回100件まで。自分自身・
@@ -621,6 +626,18 @@ class FirestoreUserRepository implements UserRepository {
           (snap) =>
               snap.docs.map((doc) => AppUser.fromJson(doc.data())).toList(),
         );
+  }
+
+  @override
+  Future<KiwamiSubscriptionStatus> getKiwamiSubscriptionStatus(
+    String userId,
+  ) async {
+    final result = await _functions
+        .httpsCallable('getKiwamiSubscriptionStatus')
+        .call({'targetUserId': userId});
+    return KiwamiSubscriptionStatus.fromJson(
+      Map<String, dynamic>.from(result.data as Map),
+    );
   }
 
   @override

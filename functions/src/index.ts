@@ -2329,6 +2329,50 @@ export const setKiwamiPlan = onCall(
 );
 
 /**
+ * 住人の極みの契約状態をStripeから取得して返す（管理者のみ、2026-10-18追加）。
+ * ポータルでキャンセルしても期間満了までは`subscriptionPlan`が`kiwami`のままなので、
+ * 運営が「継続中」と「解約予定」を見分けるために使う。取得のみで何も変更しない。
+ * state: none（Stripeの契約なし＝手動付与・無料）/ active（継続中）/
+ * cancelScheduled（期間満了で終了予定）/ pastDue（支払い遅延）/ ended（終了済み）。
+ */
+export const getKiwamiSubscriptionStatus = onCall(
+  { region: "asia-northeast1", secrets: [stripeSecretKey] },
+  async (request) => {
+    if (request.auth?.token.admin !== true) {
+      throw new HttpsError("permission-denied", "管理者のみ実行できます");
+    }
+    const targetUserId = request.data?.targetUserId;
+    if (typeof targetUserId !== "string" || !targetUserId) {
+      throw new HttpsError("invalid-argument", "targetUserIdが必要です");
+    }
+    const doc = await db.collection("kiwamiSubscriptions").doc(targetUserId).get();
+    const subscriptionId = doc.data()?.subscriptionId;
+    if (typeof subscriptionId !== "string") {
+      return { state: "none", periodEnd: null };
+    }
+    const subscription = await getStripeClient().subscriptions.retrieve(subscriptionId);
+    const itemPeriodEnd = subscription.items.data[0]?.current_period_end ?? null;
+    const cancelScheduled =
+      subscription.cancel_at_period_end || subscription.cancel_at !== null;
+    let state: string;
+    if (subscription.status === "canceled" || subscription.status === "incomplete_expired") {
+      state = "ended";
+    } else if (subscription.status === "past_due" || subscription.status === "unpaid") {
+      state = "pastDue";
+    } else if (cancelScheduled) {
+      state = "cancelScheduled";
+    } else {
+      state = "active";
+    }
+    const endSeconds = subscription.cancel_at ?? itemPeriodEnd;
+    return {
+      state,
+      periodEnd: endSeconds === null ? null : new Date(endSeconds * 1000).toISOString(),
+    };
+  },
+);
+
+/**
  * 極みの契約管理（解約・カード変更）用のStripeカスタマーポータルのURLを返す
  * （2026-10-17追加）。購入済み（`kiwamiSubscriptions/{uid}`がある）住人のみ。
  */

@@ -294,10 +294,7 @@ void main() {
     expect(find.text('ログアウト'), findsOneWidget);
     // 極みの行を足してページが長くなり、最下部は表示領域の外になりうるため
     // 画面外の要素も探す。
-    expect(
-      find.text('アカウントを削除', skipOffstage: false),
-      findsOneWidget,
-    );
+    expect(find.text('アカウントを削除', skipOffstage: false), findsOneWidget);
 
     // 別のカテゴリ（アプリケーション）に切り替えると、アカウントの内容は消える。
     await tester.tap(find.text('アプリケーション'));

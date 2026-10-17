@@ -60,7 +60,7 @@ class _AuthenticatedUserGate extends ConsumerStatefulWidget {
 
 class _AuthenticatedUserGateState
     extends ConsumerState<_AuthenticatedUserGate> {
-  late Future<({AppUser? user, Residence? residence})> _future;
+  late Future<({AppUser? user, Residence? residence, bool isAdmin})> _future;
 
   /// 新規アカウント作成時、[RhingSeedSetupScreen]の前に[TermsConsentScreen]で
   /// 同意したかどうか（このセッション内のみの一時的な状態、2026-09-14追加）。
@@ -81,9 +81,10 @@ class _AuthenticatedUserGateState
   // ログイン直後に一度だけFirestoreの値で上書きする（[applyRemoteUserPreferences]）。
   // アカウント復元後にユーザーを再取得する際も同じ処理でよいため、
   // [AccountRestoreScreen.onRestored]からも呼び直す。
-  Future<({AppUser? user, Residence? residence})> _fetchUser() async {
+  Future<({AppUser? user, Residence? residence, bool isAdmin})>
+  _fetchUser() async {
     final user = await ref.read(userRepositoryProvider).getUser(widget.userId);
-    if (user == null) return (user: null, residence: null);
+    if (user == null) return (user: null, residence: null, isAdmin: false);
     applyRemoteUserPreferences(ref, user.preferences);
     // 最終ログイン日時（管理画面向け）。自動ログインでの再開時も含めて
     // 認証済みセッションを確認するたびに更新する。結果を待つ必要は
@@ -95,12 +96,14 @@ class _AuthenticatedUserGateState
     final residence = await ref
         .read(residenceRepositoryProvider)
         .getResidence(user.userId);
-    return (user: user, residence: residence);
+    // 管理者（運営者）のアカウントからは居住地を集めない（2026-10-18追加）。
+    final isAdmin = await ref.read(authRepositoryProvider).isAdmin();
+    return (user: user, residence: residence, isAdmin: isAdmin);
   }
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<({AppUser? user, Residence? residence})>(
+    return FutureBuilder<({AppUser? user, Residence? residence, bool isAdmin})>(
       future: _future,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
@@ -147,8 +150,8 @@ class _AuthenticatedUserGateState
         }
         // 居住地アンケート未回答（新規登録直後に離脱した人・既存住人・daidai横丁で
         // 先にアカウントだけ作った人の初回ログイン後）は、国を答えるまで先へ
-        // 進めない（2026-10-16追加）。
-        if (snapshot.data!.residence == null) {
+        // 進めない（2026-10-16追加）。管理者は対象外（2026-10-18追加）。
+        if (snapshot.data!.residence == null && !snapshot.data!.isAdmin) {
           return ResidenceSurveyScreen(
             userId: appUser.userId,
             onCompleted: () => setState(() {

@@ -1,3 +1,4 @@
+import '../../models/kiwami_subscription_status.dart';
 import '../../models/subscription_plan.dart';
 import 'dart:async';
 
@@ -561,6 +562,45 @@ class _UserDetailDialogState extends ConsumerState<_UserDetailDialog> {
   bool _revealed = false;
   bool _busy = false;
 
+  /// 極みの契約状態（Stripeから取得、2026-10-18追加）。極みの住人の詳細を開いた時だけ
+  /// 取得する。取得中はnull、失敗は[_kiwamiStatusFailed]。
+  KiwamiSubscriptionStatus? _kiwamiStatus;
+  bool _kiwamiStatusFailed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.initial.subscriptionPlan == SubscriptionPlan.kiwami) {
+      _loadKiwamiStatus();
+    }
+  }
+
+  Future<void> _loadKiwamiStatus() async {
+    try {
+      final status = await ref
+          .read(userRepositoryProvider)
+          .getKiwamiSubscriptionStatus(widget.userId);
+      if (mounted) setState(() => _kiwamiStatus = status);
+    } catch (_) {
+      if (mounted) setState(() => _kiwamiStatusFailed = true);
+    }
+  }
+
+  String _kiwamiStatusLabel() {
+    if (_kiwamiStatusFailed) return '取得できませんでした';
+    final status = _kiwamiStatus;
+    if (status == null) return '確認中';
+    final end = status.periodEnd;
+    final date = end == null ? '' : '${end.year}/${end.month}/${end.day}';
+    return switch (status.state) {
+      KiwamiSubscriptionState.none => '手動付与（Stripeの契約なし）',
+      KiwamiSubscriptionState.active => '継続中（次回更新 $date）',
+      KiwamiSubscriptionState.cancelScheduled => '解約済み（$dateまで極み、以降は無料）',
+      KiwamiSubscriptionState.pastDue => '支払い遅延',
+      KiwamiSubscriptionState.ended => '終了済み',
+    };
+  }
+
   /// 直近の操作の失敗理由。3秒で消えるバナーだと見落とすため（関数が
   /// 未デプロイ・通信失敗の時に「元に戻っただけ」に見えた、2026-10-10）、
   /// 次の操作までダイアログ内に残す。
@@ -632,6 +672,14 @@ class _UserDetailDialogState extends ConsumerState<_UserDetailDialog> {
     });
     try {
       await ref.read(userRepositoryProvider).setKiwamiPlan(user.userId, grant);
+      // 付与・解除に合わせて契約状態を取り直す（解除後は行ごと消える）。
+      if (mounted) {
+        setState(() {
+          _kiwamiStatus = null;
+          _kiwamiStatusFailed = false;
+        });
+        if (grant) _loadKiwamiStatus();
+      }
     } catch (e) {
       if (mounted) {
         setState(() => _error = '極みの${grant ? '付与' : '解除'}に失敗しました: $e');
@@ -684,6 +732,8 @@ class _UserDetailDialogState extends ConsumerState<_UserDetailDialog> {
       ('作成', _formatTimestamp(user.createdAt?.toDate())),
       ('最終ログイン', _formatTimestamp(user.lastLoginAt?.toDate())),
       ('プラン', user.subscriptionPlan == SubscriptionPlan.kiwami ? '極み' : '無料'),
+      if (user.subscriptionPlan == SubscriptionPlan.kiwami)
+        ('契約', _kiwamiStatusLabel()),
       if (user.autoSuspendedUntil != null)
         ('自動停止の期限', _formatTimestamp(user.autoSuspendedUntil!.toDate())),
     ];
