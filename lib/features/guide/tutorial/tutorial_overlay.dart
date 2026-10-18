@@ -174,22 +174,31 @@ class _TutorialOverlayState extends ConsumerState<TutorialOverlay>
               return ValueListenableBuilder<Rect?>(
                 valueListenable: _rect,
                 builder: (context, rect, _) {
-                  final hole = (rect == null || state.done)
+                  // 自由に触る手順（freeform）は、暗くも止めもしないため穴を持たない。
+                  final freeform = state.step?.freeform ?? false;
+                  final hole = (rect == null || state.done || freeform)
                       ? null
                       : rect.inflate(_holePadding);
                   return Stack(
                     fit: StackFit.expand,
                     children: [
-                      IgnorePointer(
-                        child: CustomPaint(
-                          painter: TutorialScrimPainter(hole: hole),
+                      if (!freeform || state.done) ...[
+                        IgnorePointer(
+                          child: CustomPaint(
+                            painter: TutorialScrimPainter(hole: hole),
+                          ),
                         ),
-                      ),
-                      ..._barriers(
-                        screen,
-                        // 押さない手順（情報の手順）は、穴の上も含めて画面全体を吸収する。
-                        (step != null && !step.requiresTap) ? null : hole,
-                      ),
+                        ..._barriers(
+                          screen,
+                          // 押さない手順（情報の手順）は、穴の上も含めて画面全体を吸収する。
+                          // 出来事で進む手順（advanceOnEvent）は、穴の中を操作できる。
+                          (step != null &&
+                                  !step.requiresTap &&
+                                  step.advanceOnEvent == null)
+                              ? null
+                              : hole,
+                        ),
+                      ],
                       if (hole != null &&
                           step != null &&
                           step.showCircle &&
@@ -224,24 +233,29 @@ class _TutorialOverlayState extends ConsumerState<TutorialOverlay>
                               // 目印がまだ見つからない間（練習用の画面が現れる途中など）は
                               // 吹き出しを出さない。画面の隅に仮の位置で一瞬出るのを防ぐ。
                               // 3秒たっても見つからない時だけ、待機の案内つきで出す。
-                              (hole == null && !showHint)
+                              (hole == null && !showHint && !freeform)
                               ? const SizedBox.shrink()
                               : _Caption(
                                   screen: screen,
                                   hole: hole,
+                                  freeform: freeform,
+                                  atTop: step.captionAtTop,
                                   text: step.caption.of(locale),
                                   counter: strings.tutorialStepCounterTemplate(
                                     state.index + 1,
                                     state.script.steps.length,
                                   ),
-                                  waitingHint: hole == null && showHint
-                                      ? strings.tutorialWaitingHint
-                                      : null,
                                   // 押さない手順は「次へ」で進める。
-                                  nextLabel: step.requiresTap
+                                  nextLabel:
+                                      (step.requiresTap &&
+                                          step.advanceOnEvent == null &&
+                                          !freeform)
                                       ? null
                                       : strings.tutorialNext,
-                                  onNext: step.requiresTap
+                                  onNext:
+                                      (step.requiresTap &&
+                                          step.advanceOnEvent == null &&
+                                          !freeform)
                                       ? null
                                       : () => ref
                                             .read(
@@ -339,7 +353,8 @@ class _Caption extends StatelessWidget {
     required this.hole,
     required this.text,
     required this.counter,
-    this.waitingHint,
+    this.freeform = false,
+    this.atTop = false,
     this.nextLabel,
     this.onNext,
   });
@@ -348,7 +363,11 @@ class _Caption extends StatelessWidget {
   final Rect? hole;
   final String text;
   final String counter;
-  final String? waitingHint;
+
+  /// 自由に触る手順のカード。目印には寄せず、画面の下（[atTop]なら上）に固定し、
+  /// 下に置くときはキーボードの上に持ち上げる。
+  final bool freeform;
+  final bool atTop;
 
   /// 押さない手順（情報の手順）の「次へ」ボタン。押させる手順では出さない。
   final String? nextLabel;
@@ -384,10 +403,6 @@ class _Caption extends StatelessWidget {
                 color: theme.colorScheme.onSurface,
               ),
             ),
-            if (waitingHint != null) ...[
-              const SizedBox(height: 8),
-              Text(waitingHint!, style: theme.textTheme.bodySmall),
-            ],
             if (onNext != null && nextLabel != null) ...[
               const SizedBox(height: 12),
               Align(
@@ -403,6 +418,22 @@ class _Caption extends StatelessWidget {
         ),
       ),
     );
+    if (freeform) {
+      final insets = MediaQuery.of(context);
+      return atTop
+          ? Positioned(
+              left: 0,
+              right: 0,
+              top: insets.padding.top + 56,
+              child: Center(child: card),
+            )
+          : Positioned(
+              left: 0,
+              right: 0,
+              bottom: insets.viewInsets.bottom + 16,
+              child: Center(child: card),
+            );
+    }
     final hole = this.hole;
     if (hole == null) {
       return Positioned(

@@ -36,6 +36,10 @@ abstract final class TutorialTargetIds {
   static const chatNoteButton = 'chat-note';
   static const chatCalendarButton = 'chat-calendar';
 
+  /// ノートの一覧の1件（練習用の見本のノート）と、ノートの編集欄全体。
+  static const noteListItem = 'note-list-item';
+  static const noteEditor = 'note-editor';
+
   /// 会話のメッセージ入力欄。
   static const chatInput = 'chat-input';
 
@@ -67,6 +71,9 @@ class TutorialStep {
     this.advanceWhenVisible,
     this.showCircle = true,
     this.fallbackTargetId,
+    this.advanceOnEvent,
+    this.freeform = false,
+    this.captionAtTop = false,
   });
 
   final String targetId;
@@ -81,6 +88,19 @@ class TutorialStep {
   /// [targetId]の目印がまだ現れていない間に、代わりに明るく抜いて操作できるようにする
   /// 目印（丸は描かない）。
   final String? fallbackTargetId;
+
+  /// この名前の出来事が起きたら次へ進む（[TutorialController.notify]）。押す以外の
+  /// 操作（エディタに文字を打つ、メニューを開く等）で進む手順に使う。目印を押しても
+  /// 進まない。
+  final String? advanceOnEvent;
+
+  /// 画面を暗くせず、どこも止めずに、説明のカードだけを出す。エディタへの入力や、
+  /// 位置が決まらないメニューの操作など、ユーザーが自由に触る手順に使う。
+  /// [targetId]は使わない。
+  final bool freeform;
+
+  /// [freeform]のカードを画面の上に出す（既定は下。下に開くメニューを隠さないため）。
+  final bool captionAtTop;
 }
 
 /// 1本の台本。最後の手順を終えると[doneMessage]を出して終わる。
@@ -288,7 +308,8 @@ const albumTutorial = TutorialScript(
   ),
 );
 
-/// ノート。会話の上部のボタンから開く。
+/// ノート。会話の上部のボタンからノートを開き、実際に書きながら使い方を覚える。
+/// 練習用のノートは空で、見出し・リスト・太字・「+」の挿入を自分で試す。
 const notesTutorial = TutorialScript(
   id: 'notes',
   stageRoute: practiceStageRoute,
@@ -301,10 +322,81 @@ const notesTutorial = TutorialScript(
         'Tap this button to open the notes of this conversation',
       ),
     ),
+    TutorialStep(
+      targetId: TutorialTargetIds.noteListItem,
+      caption: GuideText(
+        '一覧からノートを選びます。ここでは、練習用のノートを開きます',
+        'Choose a note from the list. Let\'s open the practice note',
+      ),
+    ),
+    TutorialStep(
+      targetId: TutorialTargetIds.noteEditor,
+      requiresTap: false,
+      showCircle: false,
+      caption: GuideText(
+        'ノートは、会話のみんなで一緒に書ける共有のメモです。書いた内容は、すぐ全員に反映されます。空の練習用ノートで、実際に書いてみましょう',
+        'A note is a shared memo that everyone in the conversation can write together, and changes show up for everyone right away. Let\'s try writing in this empty practice note',
+      ),
+    ),
+    TutorialStep(
+      targetId: TutorialTargetIds.noteEditor,
+      freeform: true,
+      advanceOnEvent: 'note-heading',
+      caption: GuideText(
+        '1行目に「# 」（#と半角スペース）を打ってみましょう。続けて文字を打つと、大きな見出しになります',
+        'Type "# " (a # and a space) on the first line, then some text. It becomes a large heading',
+      ),
+    ),
+    TutorialStep(
+      targetId: TutorialTargetIds.noteEditor,
+      freeform: true,
+      advanceOnEvent: 'note-bulleted',
+      caption: GuideText(
+        'Enterで次の行へ進み、「- 」（ハイフンと半角スペース）を打ってみましょう。箇条書きになります',
+        'Press Enter for a new line, then type "- " (a hyphen and a space). It becomes a bulleted list',
+      ),
+    ),
+    TutorialStep(
+      targetId: TutorialTargetIds.noteEditor,
+      freeform: true,
+      advanceOnEvent: 'note-numbered',
+      caption: GuideText(
+        '箇条書きを終えるには、空の項目でEnterを押します。そのあと「1. 」と打つと、番号つきのリストになります',
+        'To end a bulleted list, press Enter on an empty item. Then type "1. " to start a numbered list',
+      ),
+    ),
+    TutorialStep(
+      targetId: TutorialTargetIds.noteEditor,
+      freeform: true,
+      advanceOnEvent: 'note-bold',
+      caption: GuideText(
+        '書いた文字を選ぶと、書式のメニューが出ます。太字にしてみましょう（「**太字**」のように記号で囲んで書いても同じです）',
+        'Select some text you wrote to show the formatting menu, and make it bold. (Wrapping it like "**bold**" works too)',
+      ),
+    ),
+    TutorialStep(
+      targetId: TutorialTargetIds.noteEditor,
+      freeform: true,
+      advanceOnEvent: 'note-insert-menu',
+      caption: GuideText(
+        '「+」を押してみましょう。スマホでは画面上の「+」、パソコンではカーソルのある行の右に出る「+」です',
+        'Tap "+". On phones it is at the top of the screen; on a computer it appears at the right of the line the cursor is on',
+      ),
+    ),
+    TutorialStep(
+      targetId: TutorialTargetIds.noteEditor,
+      freeform: true,
+      captionAtTop: true,
+      advanceOnEvent: 'note-inserted',
+      caption: GuideText(
+        'ここから、見出し・リスト・引用・区切り線・表・目次・画像・音声・ファイル・リンクの埋め込みを入れられます。「区切り線」か「表」を選んでみましょう（パソコンでは、「/」を打っても同じメニューが開きます）',
+        'From here you can add headings, lists, quotes, dividers, tables, a table of contents, images, audio, files and link embeds. Try a divider or a table. (On a computer, typing "/" opens the same menu)',
+      ),
+    ),
   ],
   doneMessage: GuideText(
-    'ノートには、文章・見出し・リスト・表などを書きためられます。',
-    'In notes you can write text, headings, lists and tables.',
+    'これで、ノートの基本は以上です。書いた内容は、Markdownファイルとして書き出すこともできます。',
+    'That covers the basics of notes. You can also export what you write as a Markdown file.',
   ),
 );
 
@@ -378,6 +470,9 @@ const practiceGreeting = GuideText(
   'はじめまして！ メッセージを送ってみてください',
   'Nice to meet you! Try sending me a message',
 );
+
+/// 練習用のノートの題名（中身は空で、ガイドの中で書く）。
+const practiceNoteTitle = GuideText('旅行の持ち物', 'Packing list');
 
 /// 台本がまだ無い機能ガイドを押したときの案内。
 const guideComingSoon = GuideText('このガイドは準備中です', 'This guide is coming soon');

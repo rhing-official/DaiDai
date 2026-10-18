@@ -1008,12 +1008,13 @@ final Strings _stringsFr = Strings._(
       'Échec de l’enregistrement : $error',
   settingsUsageGuide: 'Guide d’utilisation',
   guideListIntro: 'Choisissez une fonctionnalité à découvrir.',
+  guideListDebugNotice:
+      'Le débogage n’est pas terminé : ne vous fiez pas encore aux guides.',
+  guideArticleOpen: 'Lire l’article',
   tutorialStop: 'Arrêter',
   tutorialNext: 'Suivant',
   tutorialDoneTitle: 'Terminé !',
   tutorialDoneClose: 'Fermer',
-  tutorialWaitingHint:
-      'En attente du changement d’écran. Si rien ne se passe, touchez « Arrêter ».',
   tutorialStepCounterTemplate: (step, total) => '$step / $total',
   settingsResidence: 'Lieu de résidence',
   termsConsentAppBarTitle:

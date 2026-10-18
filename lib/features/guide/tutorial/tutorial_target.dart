@@ -61,7 +61,12 @@ class _TutorialTargetState extends ConsumerState<TutorialTarget> {
     final state = _controller.current;
     final step = state?.step;
     // 押さない手順（情報の手順）では、目印が押されても進めない（「次へ」で進める）。
-    if (step == null || !step.requiresTap || step.targetId != widget.id) return;
+    if (step == null ||
+        !step.requiresTap ||
+        step.advanceOnEvent != null ||
+        step.targetId != widget.id) {
+      return;
+    }
     final box = _key.currentContext?.findRenderObject();
     if (box is! RenderBox || !box.attached) return;
     if (!(Offset.zero & box.size).contains(box.globalToLocal(event.position))) {

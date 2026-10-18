@@ -99,6 +99,7 @@ Future<void> _settle(WidgetTester tester) async {
 }
 
 void main() {
+  _eventTests();
   testWidgets('ガイドを実行していない間は、何も吸収せずボタンが普通に押せる', (tester) async {
     final counts = _Counts();
     await _pump(tester, counts);
@@ -211,11 +212,10 @@ void main() {
     expect(counts.other, 0);
     // 目印が見つかるまでは、吹き出しを仮の位置に出さない。
     expect(find.text('見えないボタン'), findsNothing);
-    // 3秒待つと、進まない時の案内つきで吹き出しが出る。
+    // 3秒待っても見つからなければ、吹き出しだけを出す（案内の文は出さない）。
     await tester.pump(const Duration(seconds: 3));
     await tester.pump(const Duration(milliseconds: 100));
     expect(find.text('見えないボタン'), findsOneWidget);
-    expect(find.textContaining('「やめる」'), findsOneWidget);
     await tester.tap(find.text('やめる'));
     await tester.pump();
     expect(container.read(tutorialControllerProvider), isNull);
@@ -432,5 +432,42 @@ void main() {
     await tester.pump();
     expect(find.text('このガイドは準備中です'), findsOneWidget);
     expect(container.read(tutorialControllerProvider), isNull);
+  });
+}
+
+void _eventTests() {
+  const script = TutorialScript(
+    id: 'event',
+    stageRoute: practiceStageRoute,
+    steps: [
+      TutorialStep(
+        targetId: 'x',
+        freeform: true,
+        advanceOnEvent: 'a',
+        caption: GuideText('a', 'a'),
+      ),
+      TutorialStep(
+        targetId: 'x',
+        freeform: true,
+        advanceOnEvent: 'b',
+        caption: GuideText('b', 'b'),
+      ),
+    ],
+    doneMessage: GuideText('d', 'd'),
+  );
+
+  test('出来事で進む手順は、その出来事だけで進み、他の出来事・実行外では何も起きない', () {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    final controller = container.read(tutorialControllerProvider.notifier);
+    controller.notify('a'); // 実行していない間は無視される。
+    expect(container.read(tutorialControllerProvider), isNull);
+    controller.start(script);
+    controller.notify('b'); // 今の手順が待っているのは'a'。
+    expect(container.read(tutorialControllerProvider)?.index, 0);
+    controller.notify('a');
+    expect(container.read(tutorialControllerProvider)?.index, 1);
+    controller.notify('b');
+    expect(container.read(tutorialControllerProvider)?.done, isTrue);
   });
 }

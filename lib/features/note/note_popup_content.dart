@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/strings.dart';
+import '../../l10n/tutorial_content.dart';
+import '../guide/tutorial/tutorial_target.dart';
 import '../../models/app_ui_style.dart';
 import '../../models/app_user.dart';
 import '../../models/note.dart';
@@ -285,14 +287,18 @@ class _NotePopupContentState extends ConsumerState<_NotePopupContent> {
                     for (final note in sorted)
                       Padding(
                         padding: const EdgeInsets.only(bottom: 8),
-                        child: _NotePopupCard(
-                          note: note,
-                          uiStyle: uiStyle,
-                          strings: strings,
-                          onTap: () => Navigator.of(context).pop(note),
-                          onDelete: note.createdBy == widget.currentUser.userId
-                              ? () => _deleteNote(note)
-                              : null,
+                        child: TutorialTarget(
+                          id: TutorialTargetIds.noteListItem,
+                          child: _NotePopupCard(
+                            note: note,
+                            uiStyle: uiStyle,
+                            strings: strings,
+                            onTap: () => Navigator.of(context).pop(note),
+                            onDelete:
+                                note.createdBy == widget.currentUser.userId
+                                ? () => _deleteNote(note)
+                                : null,
+                          ),
                         ),
                       ),
                   ],

@@ -275,9 +275,39 @@ void main() {
       expect(_calls, isEmpty, reason: _calls.toSet().join('\n'));
     });
 
+    testWidgets('notesのガイドは、見本のノートを開いて書き方を説明し、閉じると元に戻れる（$size）', (
+      tester,
+    ) async {
+      await _pumpPractice(tester, size, notesTutorial);
+      await _openChat(tester);
+      expect(_state(tester)?.index, 2);
+      await tester.tap(find.byIcon(Icons.note_alt_outlined).first);
+      await _settle(tester);
+      expect(_state(tester)?.index, 3);
+      // 一覧に、見本のノートだけが出る。
+      expect(find.textContaining('旅行の持ち物'), findsWidgets);
+      await tester.tap(find.textContaining('旅行の持ち物').first);
+      await _settle(tester);
+      await _settle(tester);
+      expect(_state(tester)?.index, 4);
+      // 書き方の説明（情報の手順）を「次へ」で最後まで進める。
+      while (_state(tester)?.done != true) {
+        final before = (_state(tester)?.index, _state(tester)?.done);
+        await tester.tap(find.byKey(const ValueKey('tutorial-next')));
+        await _settle(tester);
+        expect(
+          (_state(tester)?.index, _state(tester)?.done) == before,
+          isFalse,
+        );
+      }
+      expect(_calls, isEmpty, reason: _calls.toSet().join('\n'));
+      await tester.tap(find.widgetWithText(ElevatedButton, '閉じる'));
+      await _settle(tester);
+      expect(find.byWidgetPredicate((w) => w is PopupMenuItem), findsNothing);
+    });
+
     for (final (script, IconData icon) in [
       (albumTutorial, Icons.photo_library_outlined),
-      (notesTutorial, Icons.note_alt_outlined),
       (calendarTutorial, Icons.event_outlined),
     ]) {
       testWidgets('${script.id}のガイドは、ボタンを押して開いて完了する（$size）', (tester) async {
@@ -293,6 +323,11 @@ void main() {
         await _settle(tester);
         expect(_state(tester)?.done, isTrue);
         expect(_calls, isEmpty, reason: _calls.toSet().join('\n'));
+        // 完了を押してガイドを終えたら、開いていたメニュー（ノート・アルバムの一覧）も
+        // 閉じる（残ると、練習用の画面に取り残されて戻れなくなる）。
+        await tester.tap(find.widgetWithText(ElevatedButton, '閉じる'));
+        await _settle(tester);
+        expect(find.byWidgetPredicate((w) => w is PopupMenuItem), findsNothing);
       });
     }
   }

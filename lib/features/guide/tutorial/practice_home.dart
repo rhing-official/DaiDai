@@ -50,6 +50,9 @@ class _PracticeHomeState extends ConsumerState<PracticeHome> {
   late final _dmRepository = PracticeDirectMessageRepository(
     greeting: practiceGreeting.of(ref.read(appLocaleProvider)),
   );
+  late final _noteRepository = PracticeNoteRepository(
+    title: practiceNoteTitle.of(ref.read(appLocaleProvider)),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -74,7 +77,7 @@ class _PracticeHomeState extends ConsumerState<PracticeHome> {
           PracticeScheduleCoordinationRepository(),
         ),
         pollRepositoryProvider.overrideWithValue(PracticePollRepository()),
-        noteRepositoryProvider.overrideWithValue(PracticeNoteRepository()),
+        noteRepositoryProvider.overrideWithValue(_noteRepository),
         callRepositoryProvider.overrideWithValue(PracticeCallRepository()),
         groupCallRepositoryProvider.overrideWithValue(
           PracticeGroupCallRepository(),

@@ -77,6 +77,13 @@ class _TutorialStageScreenState extends ConsumerState<TutorialStageScreen> {
   void _close({bool toHome = false}) {
     if (_closing || !mounted) return;
     _closing = true;
+    // ノート・アルバムのボタンはメニュー（別のルート）を開くため、ガイドがその状態で
+    // 終わると、下の戻る操作がステージではなくメニューを閉じてしまい、練習用の画面に
+    // 取り残される。先に、ステージの上にある メニュー・ダイアログ等を閉じておく。
+    Navigator.of(
+      context,
+      rootNavigator: true,
+    ).popUntil((route) => route is! PopupRoute);
     final onClosed = widget.onClosed;
     if (onClosed != null) {
       onClosed();

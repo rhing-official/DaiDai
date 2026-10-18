@@ -11,6 +11,7 @@ import '../../../models/friend_request.dart';
 import '../../../models/group.dart';
 import '../../../models/group_join_request.dart';
 import '../../../models/message.dart';
+import '../../../models/note.dart';
 import '../../../repositories/album_repository.dart';
 import '../../../repositories/block_repository.dart';
 import '../../../repositories/calendar_category_repository.dart';
@@ -384,7 +385,37 @@ class PracticeScheduleCoordinationRepository
 
 class PracticePollRepository with EmptyRepository implements PollRepository {}
 
-class PracticeNoteRepository with EmptyRepository implements NoteRepository {}
+/// 練習用のノート。一覧にも本体にもこの1件だけが入る。中身は空で、ガイドの中で
+/// 実際に書いて覚える。保存・同期は何もしない。
+class PracticeNoteRepository with EmptyRepository implements NoteRepository {
+  PracticeNoteRepository({required this.title});
+
+  final String title;
+
+  Note get _note => Note(
+    noteId: 'practice-note',
+    roomId: 'practice-room',
+    title: title,
+    content: const {},
+    createdBy: 'practice-friend',
+    updatedAt: Timestamp.now(),
+  );
+
+  @override
+  Stream<List<Note>> watchNotes({
+    required bool isDm,
+    required String conversationId,
+    required String roomId,
+  }) => Stream.value([_note]);
+
+  @override
+  Future<Note?> getNote({
+    required bool isDm,
+    required String conversationId,
+    required String roomId,
+    required String noteId,
+  }) async => _note;
+}
 
 class PracticeCallRepository with InertRepository implements CallRepository {}
 

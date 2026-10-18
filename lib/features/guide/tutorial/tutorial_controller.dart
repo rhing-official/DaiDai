@@ -48,6 +48,15 @@ class TutorialController extends Notifier<TutorialState?> {
     }
   }
 
+  /// [event]が起きた。今の手順が[TutorialStep.advanceOnEvent]でそれを待っていれば進める。
+  /// ガイドの実行中でなければ何もしない（普段の画面から呼んでも害が無い）。
+  void notify(String event) {
+    final current = state;
+    if (current == null || current.done) return;
+    if (current.step?.advanceOnEvent != event) return;
+    advance(fromIndex: current.index);
+  }
+
   /// やめる／完了後に閉じる。
   void cancel() {
     state = null;

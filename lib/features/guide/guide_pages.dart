@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../l10n/guide_content.dart';
 import '../../l10n/strings.dart';
@@ -40,6 +41,13 @@ class GuideTopicListPage extends ConsumerWidget {
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
           child: Text(strings.guideListIntro),
         ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+          child: Text(
+            strings.guideListDebugNotice,
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ),
         for (final topic in guideTopics)
           ListTile(
             key: ValueKey('guide-topic-${topic.id}'),
@@ -47,6 +55,17 @@ class GuideTopicListPage extends ConsumerWidget {
             leading: Icon(topic.icon),
             title: Text(topic.titleOf(locale)),
             subtitle: Text(topic.summaryOf(locale)),
+            trailing: topic.articleUrl == null
+                ? null
+                : IconButton(
+                    key: ValueKey('guide-article-${topic.id}'),
+                    tooltip: strings.guideArticleOpen,
+                    icon: const Icon(Icons.open_in_new),
+                    onPressed: () => launchUrl(
+                      Uri.parse(topic.articleUrl!),
+                      mode: LaunchMode.externalApplication,
+                    ),
+                  ),
             onTap: () => _open(context, ref, topic),
           ),
       ],

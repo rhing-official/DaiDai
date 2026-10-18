@@ -58,6 +58,7 @@ class GuideTopic {
     required this.title,
     required this.summary,
     required this.steps,
+    this.articleUrl,
   });
 
   final String id;
@@ -65,6 +66,10 @@ class GuideTopic {
   final GuideText title;
   final GuideText summary;
   final List<GuideText> steps;
+
+  /// この機能の解説記事（noteなど）のURL。設定すると、使い方ガイドの一覧の項目に
+  /// 「記事を読む」ボタンが出る。記事がまだ無い間は`null`（ボタンは出ない）。
+  final String? articleUrl;
 
   String titleOf(AppLocale locale) =>
       _pick(locale, title, guideTranslationOf(locale)?.topics[id]?.title);

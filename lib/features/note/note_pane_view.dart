@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' show Random;
 
 import 'package:appflowy_editor/appflowy_editor.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -12,6 +13,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../l10n/strings.dart';
+import '../../l10n/tutorial_content.dart';
+import '../guide/tutorial/tutorial_controller.dart';
+import '../guide/tutorial/tutorial_target.dart';
 import '../../models/app_ui_style.dart';
 import '../../models/app_user.dart';
 import '../../models/note.dart';
@@ -264,10 +268,11 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
   }
 
   Future<void> _load() async {
-    // ネットワークアクセス無しでランダムIDを生成するトリック（自動採番される
-    // ドキュメントIDをローカルで確定させるだけで、実際には書き込まない）。
-    // このノートを開いている間、操作ログのエコー判定に使う。
-    _sessionId = FirebaseFirestore.instance.collection('_').doc().id;
+    // このノートを開いている間、操作ログのエコー判定に使うランダムなID。
+    // 以前はFirestoreの自動採番IDをローカルで作っていたが、Firebaseに依存しない
+    // 乱数にした（練習用の画面・テストでFirebaseを初期化せずに開けるように）。
+    _sessionId =
+        '${DateTime.now().microsecondsSinceEpoch}-${Random().nextInt(1 << 32)}';
     final noteRepository = ref.read(noteRepositoryProvider);
     final note = await noteRepository.getNote(
       isDm: widget.isDm,
@@ -328,9 +333,49 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
     );
   }
 
+  /// 使い方ガイドの実行中だけ、書かれた内容に応じて「出来事」を知らせる（見出し・リスト・
+  /// 太字・表などができたら次の手順へ進める）。普段（ガイドなし）は何もしない。
+  void _notifyTutorialOfDocument() {
+    if (!mounted || ref.read(tutorialControllerProvider) == null) return;
+    final editorState = _editorState;
+    if (editorState == null) return;
+    final found = <String>{};
+    void visit(Node node) {
+      switch (node.type) {
+        case HeadingBlockKeys.type:
+          found.add('note-heading');
+        case BulletedListBlockKeys.type:
+          found.add('note-bulleted');
+        case NumberedListBlockKeys.type:
+          found.add('note-numbered');
+        case TableBlockKeys.type ||
+            DividerBlockKeys.type ||
+            ImageBlockKeys.type ||
+            TableOfContentsBlockKeys.type ||
+            LinkEmbedBlockKeys.type:
+          found.add('note-inserted');
+      }
+      final delta = node.delta;
+      if (delta != null &&
+          delta.any(
+            (op) => op is TextInsert && op.attributes?['bold'] == true,
+          )) {
+        found.add('note-bold');
+      }
+      node.children.forEach(visit);
+    }
+
+    visit(editorState.document.root);
+    final controller = ref.read(tutorialControllerProvider.notifier);
+    for (final event in found) {
+      controller.notify(event);
+    }
+  }
+
   void _handleLocalTransaction(EditorTransactionValue event) {
     final (time, transaction, _) = event;
     if (time != TransactionTime.after) return;
+    _notifyTutorialOfDocument();
     _pendingOutgoingTransactions.add(encodeTransaction(transaction));
     _sendDebounce?.cancel();
     _sendDebounce = Timer(_sendDebounceDuration, _flushOutgoing);
@@ -578,6 +623,7 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
   Future<void> _openInsertBottomSheet() async {
     final editorState = _editorState;
     if (editorState == null) return;
+    ref.read(tutorialControllerProvider.notifier).notify('note-insert-menu');
     final isGlass = ref.read(appUiStyleProvider) == AppUiStyle.glass;
     final strings = ref.read(appStringsProvider);
     // 「/」入力の後始末（直前の文字を消す処理）は挿入メニューを開いた
@@ -1197,7 +1243,10 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
                   foreground: noteColors.text,
                   background: noteColors.background,
                 )
-              : _buildEditorBody(strings, noteColors, isMobile),
+              : TutorialTarget(
+                  id: TutorialTargetIds.noteEditor,
+                  child: _buildEditorBody(strings, noteColors, isMobile),
+                ),
         ),
       ),
     );
@@ -1374,12 +1423,17 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
           editorScrollController: scrollController,
           stackKey: _editorStackKey,
           iconColor: noteColors.text,
-          onPressed: () => SelectionMenu(
-            context: context,
-            editorState: editorState,
-            selectionMenuItems: _buildSelectionMenuItems(strings),
-            deleteSlashByDefault: false,
-          ).show(),
+          onPressed: () {
+            ref
+                .read(tutorialControllerProvider.notifier)
+                .notify('note-insert-menu');
+            SelectionMenu(
+              context: context,
+              editorState: editorState,
+              selectionMenuItems: _buildSelectionMenuItems(strings),
+              deleteSlashByDefault: false,
+            ).show();
+          },
         ),
       ],
     );

@@ -844,11 +844,12 @@ class Strings {
     required this.residenceSurveySaveFailedTemplate,
     required this.settingsUsageGuide,
     required this.guideListIntro,
+    required this.guideListDebugNotice,
+    required this.guideArticleOpen,
     required this.tutorialStop,
     required this.tutorialNext,
     required this.tutorialDoneTitle,
     required this.tutorialDoneClose,
-    required this.tutorialWaitingHint,
     required this.tutorialStepCounterTemplate,
     required this.settingsResidence,
     required this.termsConsentAppBarTitle,
@@ -2032,11 +2033,12 @@ class Strings {
   final String Function(Object error) residenceSurveySaveFailedTemplate;
   final String settingsUsageGuide;
   final String guideListIntro;
+  final String guideListDebugNotice;
+  final String guideArticleOpen;
   final String tutorialStop;
   final String tutorialNext;
   final String tutorialDoneTitle;
   final String tutorialDoneClose;
-  final String tutorialWaitingHint;
   final String Function(int step, int total) tutorialStepCounterTemplate;
   final String settingsResidence;
   final String termsConsentAppBarTitle;
@@ -2980,11 +2982,12 @@ class Strings {
     residenceSurveySaveFailedTemplate: (error) => '保存に失敗しました: $error',
     settingsUsageGuide: '使い方ガイド',
     guideListIntro: '知りたい機能を選んでください。',
+    guideListDebugNotice: 'まだデバッグが終わっていないので、ガイドは当てになりません。',
+    guideArticleOpen: '記事を読む',
     tutorialStop: 'やめる',
     tutorialNext: '次へ',
     tutorialDoneTitle: 'できました！',
     tutorialDoneClose: '閉じる',
-    tutorialWaitingHint: '画面が切り替わるのを待っています。進まないときは「やめる」を押してください。',
     tutorialStepCounterTemplate: (step, total) => '$step / $total',
     settingsResidence: '居住地',
     termsConsentAppBarTitle: '利用規約・プライバシーポリシーへの同意',
@@ -4032,12 +4035,13 @@ class Strings {
     residenceSurveySaveFailedTemplate: (error) => 'Failed to save: $error',
     settingsUsageGuide: 'User guide',
     guideListIntro: 'Choose a feature to read about.',
+    guideListDebugNotice:
+        'Debugging is not finished yet, so the guides cannot be relied on.',
+    guideArticleOpen: 'Read the article',
     tutorialStop: 'Stop',
     tutorialNext: 'Next',
     tutorialDoneTitle: 'All done!',
     tutorialDoneClose: 'Close',
-    tutorialWaitingHint:
-        'Waiting for the screen to change. If nothing happens, tap "Stop".',
     tutorialStepCounterTemplate: (step, total) => '$step / $total',
     settingsResidence: 'Residence',
     termsConsentAppBarTitle: 'Agree to the Terms and Privacy Policy',
