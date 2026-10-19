@@ -94,6 +94,12 @@ service cloud.firestore {
       allow update: if request.auth != null
         && request.auth.uid == userId
         && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['subscriptionPlan'])
+        // 停止（accountStatus: suspended）は管理者（Cloud Functions）だけが付け外しできる。
+        // 本人が自分の停止を解除したり、自分を停止にしたりはできない。通常⇄削除申請中の
+        // 切り替え（アカウント削除・復元）は従来どおり本人ができる（2026-10-19）。
+        && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['accountStatus', 'autoSuspendedUntil'])
+            || (resource.data.get('accountStatus', 'active') != 'suspended'
+                && request.resource.data.get('accountStatus', 'active') != 'suspended'))
         && (!('icons' in request.resource.data) || request.resource.data.icons.size() <= 5)
         && (!('backgroundImages' in request.resource.data) || request.resource.data.backgroundImages.size() <= 3)
         && (!('statusMessages' in request.resource.data) || request.resource.data.statusMessages.size() <= 10)

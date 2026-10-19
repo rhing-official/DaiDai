@@ -1426,6 +1426,10 @@ class _SupportPage extends ConsumerWidget {
           onTap: onOpenAnnouncements,
         ),
         _ActionRow(label: strings.settingsUsageGuide, onTap: onOpenGuide),
+        _ActionRow(
+          label: strings.settingsContact,
+          onTap: () => _openExternalUrl(_contactUrl),
+        ),
         _ActionRow(label: strings.settingsAboutApp, onTap: onOpenAbout),
       ],
     );
@@ -1435,6 +1439,7 @@ class _SupportPage extends ConsumerWidget {
 const _termsUrl = 'https://rhing.jp/legal/terms';
 const _privacyPolicyUrl = 'https://rhing.jp/legal/privacy';
 const _disclaimerUrl = 'https://rhing.jp/legal/disclaimer';
+const _contactUrl = 'https://rhing.jp/contact';
 
 Future<void> _openExternalUrl(String url) async {
   final uri = Uri.tryParse(url);

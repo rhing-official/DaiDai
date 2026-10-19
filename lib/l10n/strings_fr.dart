@@ -1009,7 +1009,8 @@ final Strings _stringsFr = Strings._(
   settingsUsageGuide: 'Guide d’utilisation',
   guideListIntro: 'Choisissez une fonctionnalité à découvrir.',
   guideListDebugNotice:
-      'Le débogage n’est pas terminé : ne vous fiez pas encore aux guides.',
+      'Le débogage n’est pas terminé : ne vous fiez pas encore aux guides. Pour un bug ou une question, utilisez « Nous contacter ».',
+  settingsContact: 'Nous contacter',
   guideArticleOpen: 'Lire l’article',
   tutorialStop: 'Arrêter',
   tutorialNext: 'Suivant',

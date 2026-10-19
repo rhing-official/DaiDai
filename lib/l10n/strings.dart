@@ -845,6 +845,7 @@ class Strings {
     required this.settingsUsageGuide,
     required this.guideListIntro,
     required this.guideListDebugNotice,
+    required this.settingsContact,
     required this.guideArticleOpen,
     required this.tutorialStop,
     required this.tutorialNext,
@@ -2034,6 +2035,7 @@ class Strings {
   final String settingsUsageGuide;
   final String guideListIntro;
   final String guideListDebugNotice;
+  final String settingsContact;
   final String guideArticleOpen;
   final String tutorialStop;
   final String tutorialNext;
@@ -2982,7 +2984,9 @@ class Strings {
     residenceSurveySaveFailedTemplate: (error) => '保存に失敗しました: $error',
     settingsUsageGuide: '使い方ガイド',
     guideListIntro: '知りたい機能を選んでください。',
-    guideListDebugNotice: 'まだデバッグが終わっていないので、ガイドは当てになりません。',
+    guideListDebugNotice:
+        'まだデバッグが終わっていないので、ガイドは当てになりません。不具合や分からない点は、「お問い合わせ」からご連絡ください。',
+    settingsContact: 'お問い合わせ',
     guideArticleOpen: '記事を読む',
     tutorialStop: 'やめる',
     tutorialNext: '次へ',
@@ -4036,7 +4040,8 @@ class Strings {
     settingsUsageGuide: 'User guide',
     guideListIntro: 'Choose a feature to read about.',
     guideListDebugNotice:
-        'Debugging is not finished yet, so the guides cannot be relied on.',
+        'Debugging is not finished yet, so the guides cannot be relied on. For bugs or questions, please use "Contact us".',
+    settingsContact: 'Contact us',
     guideArticleOpen: 'Read the article',
     tutorialStop: 'Stop',
     tutorialNext: 'Next',
