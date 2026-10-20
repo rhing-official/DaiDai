@@ -21,13 +21,20 @@ enum KiwamiSubscriptionState {
 }
 
 class KiwamiSubscriptionStatus {
-  const KiwamiSubscriptionStatus(this.state, {this.periodEnd});
+  const KiwamiSubscriptionStatus(
+    this.state, {
+    this.periodEnd,
+    this.channel,
+    this.monthlyAmount,
+  });
 
   factory KiwamiSubscriptionStatus.fromJson(Map<String, dynamic> json) {
     final end = json['periodEnd'];
     return KiwamiSubscriptionStatus(
       KiwamiSubscriptionState.fromName(json['state'] as String?),
       periodEnd: end is String ? DateTime.tryParse(end)?.toLocal() : null,
+      channel: json['channel'] as String?,
+      monthlyAmount: (json['monthlyAmount'] as num?)?.toInt(),
     );
   }
 
@@ -35,4 +42,10 @@ class KiwamiSubscriptionStatus {
 
   /// 継続中は次回の更新日、解約予定は終了日。
   final DateTime? periodEnd;
+
+  /// 購入経路（`standard`／`appStore`／`googlePlay`）。購入の記録が無い・古い契約は`null`。
+  final String? channel;
+
+  /// 月額（円）。Stripeの契約の価格。取得できなければ`null`。
+  final int? monthlyAmount;
 }

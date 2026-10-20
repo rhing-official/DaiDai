@@ -1,11 +1,13 @@
 import 'package:daidai/l10n/app_locale.dart';
 import 'package:daidai/models/app_user.dart';
 import 'package:daidai/models/font_design.dart';
+import 'package:daidai/models/kiwami_subscription_status.dart';
 import 'package:daidai/models/subscription_plan.dart';
 import 'package:daidai/providers/kiwami_providers.dart';
 import 'package:daidai/providers/repository_providers.dart';
 import 'package:daidai/repositories/user_repository.dart';
 import 'package:daidai/utils/kiwami.dart';
+import 'package:flutter/foundation.dart' show TargetPlatform;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -37,6 +39,7 @@ Future<ProviderContainer> _container(Map<String, AppUser> users) async {
 }
 
 void main() {
+  _channelTests();
   group('契約状態', () {
     test('名前から引け、不明・未設定は無料', () {
       expect(SubscriptionPlan.fromName('kiwami'), SubscriptionPlan.kiwami);
@@ -129,6 +132,79 @@ void main() {
         ),
         FontDesign.zenKakuGothicNew,
       );
+    });
+  });
+}
+
+void _channelTests() {
+  group('購入経路による金額の出し分け', () {
+    test('ストア版のモバイルだけが専用の経路になり、他は標準', () {
+      PurchaseChannel of(String d, TargetPlatform p, {bool web = false}) =>
+          purchaseChannelFor(distribution: d, platform: p, isWeb: web);
+      expect(of('', TargetPlatform.android), PurchaseChannel.standard);
+      expect(of('app_store', TargetPlatform.iOS), PurchaseChannel.appStore);
+      expect(
+        of('google_play', TargetPlatform.android),
+        PurchaseChannel.googlePlay,
+      );
+      // 定義とプラットフォームが合わない・Web・デスクトップは標準。
+      expect(of('app_store', TargetPlatform.android), PurchaseChannel.standard);
+      expect(of('google_play', TargetPlatform.iOS), PurchaseChannel.standard);
+      expect(
+        of('app_store', TargetPlatform.iOS, web: true),
+        PurchaseChannel.standard,
+      );
+      expect(of('app_store', TargetPlatform.macOS), PurchaseChannel.standard);
+      expect(
+        of('google_play', TargetPlatform.windows),
+        PurchaseChannel.standard,
+      );
+    });
+
+    test('割増用のリンクが未設定の間は、全経路が標準のリンクを使う', () {
+      final standard = kiwamiPaymentLinkFor(PurchaseChannel.standard);
+      expect(kiwamiPaymentLinkFor(PurchaseChannel.appStore), standard);
+      expect(kiwamiPaymentLinkFor(PurchaseChannel.googlePlay), standard);
+    });
+
+    test('購入ページのURLに、uidと経路が付く', () {
+      final uri = kiwamiPurchaseUri(
+        'abc123',
+        channel: PurchaseChannel.appStore,
+      );
+      expect(uri.queryParameters['client_reference_id'], 'abc123__appStore');
+      expect(
+        kiwamiPurchaseUri(
+          'abc123',
+          channel: PurchaseChannel.standard,
+        ).queryParameters['client_reference_id'],
+        'abc123__standard',
+      );
+      // 既定（このテストの実行環境）は標準。
+      expect(
+        kiwamiPurchaseUri('abc123').queryParameters['client_reference_id'],
+        'abc123__standard',
+      );
+    });
+
+    test('割増後の金額は、手取りを保つ切り上げ（手数料15%で353円、10%で334円）', () {
+      expect(surchargedPrice(kKiwamiBasePrice, 0.15), 353);
+      expect(surchargedPrice(kKiwamiBasePrice, 0.10), 334);
+      expect(surchargedPrice(kKiwamiBasePrice, 0), kKiwamiBasePrice);
+    });
+
+    test('契約状態に、購入経路と月額が載る（無ければnull）', () {
+      final status = KiwamiSubscriptionStatus.fromJson({
+        'state': 'active',
+        'periodEnd': null,
+        'channel': 'appStore',
+        'monthlyAmount': 353,
+      });
+      expect(status.channel, 'appStore');
+      expect(status.monthlyAmount, 353);
+      final old = KiwamiSubscriptionStatus.fromJson({'state': 'none'});
+      expect(old.channel, isNull);
+      expect(old.monthlyAmount, isNull);
     });
   });
 }

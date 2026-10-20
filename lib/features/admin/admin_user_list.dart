@@ -601,6 +601,22 @@ class _UserDetailDialogState extends ConsumerState<_UserDetailDialog> {
     };
   }
 
+  /// 購入経路と月額（Stripeから取得した契約の記録）。取得中・取得失敗・記録が無い時は
+  /// 出さない（`null`）。ストアの手数料の集計の根拠になる（2026-10-20）。
+  String? _kiwamiChannelLabel() {
+    final status = _kiwamiStatus;
+    if (status == null) return null;
+    final channel = switch (status.channel) {
+      'standard' => '公式サイト・デスクトップ（割増なし）',
+      'appStore' => 'App Store版アプリ（Apple手数料の割増）',
+      'googlePlay' => 'Google Play版アプリ（Google手数料の割増）',
+      _ => null,
+    };
+    final amount = status.monthlyAmount;
+    if (channel == null && amount == null) return null;
+    return [?channel, if (amount != null) '月額¥$amount'].join('／');
+  }
+
   /// 直近の操作の失敗理由。3秒で消えるバナーだと見落とすため（関数が
   /// 未デプロイ・通信失敗の時に「元に戻っただけ」に見えた、2026-10-10）、
   /// 次の操作までダイアログ内に残す。
@@ -734,6 +750,9 @@ class _UserDetailDialogState extends ConsumerState<_UserDetailDialog> {
       ('プラン', user.subscriptionPlan == SubscriptionPlan.kiwami ? '極み' : '無料'),
       if (user.subscriptionPlan == SubscriptionPlan.kiwami)
         ('契約', _kiwamiStatusLabel()),
+      if (user.subscriptionPlan == SubscriptionPlan.kiwami &&
+          _kiwamiChannelLabel() != null)
+        ('購入経路', _kiwamiChannelLabel()!),
       if (user.autoSuspendedUntil != null)
         ('自動停止の期限', _formatTimestamp(user.autoSuspendedUntil!.toDate())),
     ];

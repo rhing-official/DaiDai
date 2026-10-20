@@ -34,6 +34,7 @@ import { onObjectFinalized } from "firebase-functions/v2/storage";
 import ffmpeg from "fluent-ffmpeg";
 import ffmpegPath from "ffmpeg-static";
 import Stripe from "stripe";
+import { parseKiwamiReference } from "./kiwamiReference";
 
 import {
   WEBHOOK_BODY_MAX_BYTES,
@@ -2181,7 +2182,9 @@ export const stripeWebhook = onRequest(
     ) {
       // 極みの購入（決済リンク。client_reference_idに購入者のuidが入る、2026-10-17）
       const session = event.data.object as Stripe.Checkout.Session;
-      const uid = session.client_reference_id;
+      // `{uid}__{経路}`（経路が無い従来の購入は`{uid}`だけ）。経路は記録用で、払う金額は
+      // 決済リンク自体が決める（2026-10-20）。
+      const { uid, channel } = parseKiwamiReference(session.client_reference_id);
       const customerId =
         typeof session.customer === "string" ? session.customer : session.customer?.id;
       const subscriptionId =
@@ -2198,7 +2201,17 @@ export const stripeWebhook = onRequest(
         await db
           .collection("kiwamiSubscriptions")
           .doc(uid)
-          .set({ customerId, subscriptionId: subscriptionId ?? null, updatedAt: FieldValue.serverTimestamp() });
+          .set({
+            customerId,
+            subscriptionId: subscriptionId ?? null,
+            channel,
+            amountTotal: session.amount_total ?? null,
+            paymentLinkId:
+              typeof session.payment_link === "string"
+                ? session.payment_link
+                : session.payment_link?.id ?? null,
+            updatedAt: FieldValue.serverTimestamp(),
+          });
         await userRef.update({ subscriptionPlan: "kiwami" });
         logger.info(`極みを付与（購入）: ${uid}`);
       }
@@ -2347,8 +2360,9 @@ export const getKiwamiSubscriptionStatus = onCall(
     }
     const doc = await db.collection("kiwamiSubscriptions").doc(targetUserId).get();
     const subscriptionId = doc.data()?.subscriptionId;
+    const channel = typeof doc.data()?.channel === "string" ? doc.data()?.channel : null;
     if (typeof subscriptionId !== "string") {
-      return { state: "none", periodEnd: null };
+      return { state: "none", periodEnd: null, channel, monthlyAmount: null };
     }
     const subscription = await getStripeClient().subscriptions.retrieve(subscriptionId);
     const itemPeriodEnd = subscription.items.data[0]?.current_period_end ?? null;
@@ -2368,6 +2382,8 @@ export const getKiwamiSubscriptionStatus = onCall(
     return {
       state,
       periodEnd: endSeconds === null ? null : new Date(endSeconds * 1000).toISOString(),
+      channel,
+      monthlyAmount: subscription.items.data[0]?.price.unit_amount ?? null,
     };
   },
 );
