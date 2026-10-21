@@ -8,6 +8,7 @@ import '../../models/app_ui_style.dart';
 import '../../providers/app_ui_style_provider.dart';
 import '../../providers/repository_providers.dart';
 import '../../utils/fullwidth_digits_formatter.dart';
+import '../../utils/totp_clipboard_autofill.dart';
 import '../../widgets/glass/glass_dialog.dart';
 import '../../widgets/dialog_keyboard_shortcuts.dart';
 
@@ -34,12 +35,27 @@ class TwoFactorSetupDialog extends ConsumerStatefulWidget {
       _TwoFactorSetupDialogState();
 }
 
-class _TwoFactorSetupDialogState extends ConsumerState<TwoFactorSetupDialog> {
+class _TwoFactorSetupDialogState extends ConsumerState<TwoFactorSetupDialog>
+    with TotpClipboardAutofill<TwoFactorSetupDialog> {
   final _codeController = TextEditingController();
   late Future<({TotpSecret secret, String qrCodeUrl})> _setupFuture;
   bool _isConfirming = false;
   bool _isReauthenticating = false;
   String? _errorMessage;
+
+  /// 取得済みのシークレット（入力欄が出ている間だけ非null）。コードの自動
+  /// 貼り付けで確定する時に使う。
+  TotpSecret? _secret;
+
+  @override
+  TextEditingController get totpCodeController => _codeController;
+
+  @override
+  bool get totpAutofillActive => _secret != null && !_isConfirming;
+
+  @override
+  void onTotpAutofilled(String code) =>
+      _confirm(_secret!, ref.read(appStringsProvider));
 
   @override
   void initState() {
@@ -53,6 +69,9 @@ class _TwoFactorSetupDialogState extends ConsumerState<TwoFactorSetupDialog> {
       accountName: widget.rhingSeed,
       issuer: 'Rhing',
     );
+    _secret = secret;
+    // 入力欄が描画された後に、クリップボードの6桁を確認する。
+    WidgetsBinding.instance.addPostFrameCallback((_) => checkTotpClipboard());
     return (secret: secret, qrCodeUrl: qrCodeUrl);
   }
 
@@ -75,7 +94,10 @@ class _TwoFactorSetupDialogState extends ConsumerState<TwoFactorSetupDialog> {
   }
 
   Future<void> _reauthenticateAndRetry() async {
-    setState(() => _isReauthenticating = true);
+    setState(() {
+      _isReauthenticating = true;
+      _secret = null;
+    });
     try {
       await ref.read(authRepositoryProvider).reauthenticate();
       if (!mounted) return;

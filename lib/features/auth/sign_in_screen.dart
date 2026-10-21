@@ -6,6 +6,7 @@ import '../../l10n/strings.dart';
 import '../../providers/repository_providers.dart';
 import '../../repositories/auth_repository.dart';
 import '../../utils/fullwidth_digits_formatter.dart';
+import '../../utils/totp_clipboard_autofill.dart';
 import '../../utils/platform_info.dart';
 import '../../widgets/branded_block_button.dart';
 import '../../widgets/fixed_font_theme.dart';
@@ -22,7 +23,8 @@ class SignInScreen extends ConsumerStatefulWidget {
   ConsumerState<SignInScreen> createState() => _SignInScreenState();
 }
 
-class _SignInScreenState extends ConsumerState<SignInScreen> {
+class _SignInScreenState extends ConsumerState<SignInScreen>
+    with TotpClipboardAutofill<SignInScreen> {
   bool _isSigningIn = false;
   String? _errorMessage;
 
@@ -31,6 +33,16 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
   /// コード入力画面を表示する。
   MultiFactorResolver? _resolver;
   final _codeController = TextEditingController();
+
+  @override
+  TextEditingController get totpCodeController => _codeController;
+
+  @override
+  bool get totpAutofillActive => _resolver != null && !_isSigningIn;
+
+  @override
+  void onTotpAutofilled(String code) =>
+      _confirmTwoFactorCode(ref.read(appStringsProvider));
 
   @override
   void dispose() {
@@ -58,6 +70,8 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
         setState(() {
           _isSigningIn = false;
         });
+        // 2段階認証の入力欄が出た直後に、クリップボードの6桁を確認する。
+        if (_resolver != null) checkTotpClipboard();
       }
     }
   }
