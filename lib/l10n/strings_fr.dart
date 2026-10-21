@@ -70,16 +70,17 @@ final Strings _stringsFr = Strings._(
   settingsUiStyleFlatLabel: 'Flat',
   settingsUiStyleFlatDescription: 'Le style standard actuel',
   settingsUiStyleGekigaLabel: 'Gekiga',
-  settingsUiStyleGekigaDescription: 'Un style de fond original',
+  settingsUiStyleGekigaDescription:
+      'Traits noirs épais et cases dramatiques, façon manga',
   settingsUiStyleGlassLabel: 'Verre',
   settingsUiStyleGlassDescription: 'Style verre dépoli aux bords lumineux',
   settingsChatLayoutTitle: 'Affichage des messages',
   settingsChatLayoutSideBySide: 'Vous à droite, les autres à gauche',
   settingsChatLayoutSideBySideDescription:
-      'Masque votre propre avatar. Dans un duo, masque aussi l’avatar et le surnom de l’autre personne (toujours affichés dans les groupes). Cela ne change que votre écran, pas ce que voient les autres.',
+      'Masque votre propre avatar. Dans un duo, masque aussi l’avatar et le pseudo de l’autre personne (toujours affichés dans les groupes). Cela ne change que votre écran, pas ce que voient les autres.',
   settingsChatLayoutAllLeft: 'Tout le monde à gauche',
   settingsChatLayoutAllLeftDescription:
-      'Affiche toujours votre avatar et celui de l’autre personne, ainsi que les surnoms. Cela ne change que votre écran, pas ce que voient les autres.',
+      'Affiche toujours votre avatar et celui de l’autre personne, ainsi que les pseudos. Cela ne change que votre écran, pas ce que voient les autres.',
   settingsTalksListLayoutTitle:
       'Disposition de la liste des discussions (portrait)',
   settingsTalksListLayoutStandard: 'Icônes seulement',
@@ -114,18 +115,18 @@ final Strings _stringsFr = Strings._(
   fontDesignBizUdGothicLabel: 'BIZ UDGothic',
   fontDesignChikaraDzuyoku851Label: '851 Chikara-dzuyoku',
   fontDesignChikaraYowaku851Label: '851 Chikara-yowaku',
-  fontDesignKiwamiExclusiveNotice: 'Kiwami uniquement',
-  kiwamiOnlyTitle: 'Fonction réservée à Kiwami',
+  fontDesignKiwamiExclusiveNotice: 'Premium uniquement',
+  kiwamiOnlyTitle: 'Fonction réservée à Premium',
   kiwamiOnlyFontBody:
-      'Cette police est disponible avec le forfait payant Kiwami. La façon de s’abonner arrive bientôt.',
+      'Cette police est disponible avec le forfait payant Premium. La façon de s’abonner arrive bientôt.',
   kiwamiOnlyReadReceiptsBody:
-      'Masquer les accusés de lecture est disponible avec le forfait payant Kiwami. La façon de s’abonner arrive bientôt.',
+      'Masquer les accusés de lecture est disponible avec le forfait payant Premium. La façon de s’abonner arrive bientôt.',
   kiwamiOnlyClose: 'Fermer',
-  kiwamiPurchase: 'Obtenir Kiwami',
-  kiwamiSectionTitle: 'Kiwami',
+  kiwamiPurchase: 'Obtenir Premium',
+  kiwamiSectionTitle: 'Premium',
   kiwamiManage: "Gérer l'abonnement (résilier, changer de carte)",
   kiwamiManageFailed:
-      "Aucun abonnement trouvé. Si vous n'avez pas acheté Kiwami ou s'il a été accordé par l'équipe, il ne peut pas être géré ici.",
+      "Aucun abonnement trouvé. Si vous n'avez pas acheté Premium ou s'il a été accordé par l'équipe, il ne peut pas être géré ici.",
   kiwamiManageUnavailable:
       "Impossible d'ouvrir la gestion de l'abonnement. Réessayez plus tard.",
   fontDesignShowMoreTemplate: (remaining) =>
@@ -295,13 +296,13 @@ final Strings _stringsFr = Strings._(
   settingsDraftSyncSubtitle:
       'Restaure le texte en cours de saisie lorsque vous ouvrez la même conversation sur un autre appareil',
   back: 'Retour',
-  friendSearchTitle: 'Ajouter un ami',
+  friendSearchTitle: 'Ajouter des amis',
   friendSearchHint:
       'Saisissez le Rhing Seed de l’autre personne pour lui envoyer une demande d’ami. Une fois acceptée, vous pourrez discuter.',
   friendSearchLabel: 'Son Rhing Seed',
   friendSearchButton: 'Envoyer la demande',
   friendSearchSearchButton: 'Rechercher',
-  friendSearchNotFound: 'Aucun habitant trouvé avec ce Rhing Seed',
+  friendSearchNotFound: 'Aucun membre trouvé avec ce Rhing Seed',
   friendSearchSelf: 'Vous ne pouvez pas vous envoyer une demande à vous-même',
   friendRequestSent: 'Demande d’ami envoyée',
   friendRequestAlreadySent: 'Demande déjà en attente',
@@ -490,11 +491,11 @@ final Strings _stringsFr = Strings._(
   profileIconSection: 'Icônes',
   profileBackgroundSection: 'Images d’arrière-plan',
   profileNicknameHint: (_) =>
-      'Vos amis voient le surnom que vous avez sélectionné ici à la place de votre Rhing Seed.',
-  profileAddNickname: (_) => 'Ajouter un surnom',
+      'Vos amis voient le pseudo que vous avez sélectionné ici à la place de votre Rhing Seed.',
+  profileAddNickname: (_) => 'Ajouter un pseudo',
   profileAddStatusMessage: (_) => 'Ajouter un statut',
-  profileNicknameDialogTitle: (_) => 'Ajouter un surnom',
-  profileNicknameDialogEditTitle: (_) => 'Modifier le surnom',
+  profileNicknameDialogTitle: (_) => 'Ajouter un pseudo',
+  profileNicknameDialogEditTitle: (_) => 'Modifier le pseudo',
   profileNicknameDialogHint: (_) => 'Saisissez le nom affiché à vos amis',
   profileStatusMessageDialogTitle: (_) => 'Ajouter un statut',
   profileStatusMessageDialogEditTitle: (_) => 'Modifier le statut',
@@ -518,7 +519,8 @@ final Strings _stringsFr = Strings._(
   workshopChoiceNone: 'Aucune',
   workshopChoiceSelected: 'Sélectionnée',
   workshopChoiceSelect: 'Sélectionner',
-  workshopEmptyMaterialHint: 'Rien n’est encore enregistré dans votre réserve',
+  workshopEmptyMaterialHint:
+      'Rien n’est encore enregistré dans votre bibliothèque de profils',
   fieldRequiredError: 'Veuillez saisir une valeur',
   enmusubiInviteLinkTitle: 'Lien d’invitation',
   enmusubiInviteLinkDescription:
@@ -959,7 +961,7 @@ final Strings _stringsFr = Strings._(
       'Choisissez des membres parmi vos amis (vous plus au moins 2 autres)',
   createGroupSearchLabel: 'Rechercher par nom',
   createGroupNoFriends:
-      'Vous n’avez pas encore d’amis. Ajoutez d’abord des amis avec « Ajouter un ami ».',
+      'Vous n’avez pas encore d’amis. Ajoutez d’abord des amis avec « Ajouter des amis ».',
   createGroupNoMatch: 'Aucun ami correspondant',
   createGroupFriendsLoadError: (error) =>
       'Impossible de charger vos amis : $error',

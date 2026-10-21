@@ -138,7 +138,7 @@ const _profileSteps = <TutorialStep>[
     requiresTap: false,
     caption: GuideText(
       '「蔵」は、アイコンや背景画像、呼び名などの素材をしまっておく場所です',
-      'The "Material Box" is where you keep your icons, background images, nicknames and other materials',
+      'The "Profile library" is where you keep your icons, background images, nicknames and other materials',
     ),
   ),
   TutorialStep(
@@ -146,7 +146,7 @@ const _profileSteps = <TutorialStep>[
     requiresTap: false,
     caption: GuideText(
       '「仕立て」では、蔵の素材を組み合わせて、プロフィールカードを仕立てます',
-      'In "Tailoring", combine your materials to make profile cards',
+      'In the "Profile editor", combine your materials to make profile cards',
     ),
   ),
 ];
@@ -157,7 +157,7 @@ const _friendsSteps = <TutorialStep>[
     targetId: TutorialTargetIds.profileEnmusubi,
     caption: GuideText(
       '「縁結び」を押します。友達を追加する画面です',
-      'Tap "Add Friend" to open the screen for adding friends',
+      'Tap "Add friends" to open the screen for adding friends',
     ),
   ),
   TutorialStep(
@@ -449,7 +449,7 @@ const profileTutorial = TutorialScript(
   steps: _profileSteps,
   doneMessage: GuideText(
     '身だしなみで、自分のプロフィールを整えられます。蔵に素材を登録して、仕立てでカードを作ってみましょう。',
-    'Use Profile to set up how you appear. Add materials to the Material Box, then make a card in Tailoring.',
+    'Use Profile to set up how you appear. Add materials to the Profile library, then make a card in the Profile editor.',
   ),
 );
 

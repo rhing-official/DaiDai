@@ -1,15 +1,15 @@
 import 'guide_content.dart';
 
 /// 使い方ガイドのフランス語訳（2026-10-17追加、AIによる初稿。公開前にネイティブの
-/// 確認を推奨）。用語は`Vocabulary.french`（Duo・Place・Salon・Réserve・Atelier）に
+/// 確認を推奨）。用語は`Vocabulary.french`（Duo・Place・Salon・Bibliothèque de profils・Éditeur de profil）に
 /// 合わせる。手順の段落数は原文（`guide_content.dart`）と同じにする。
 const guideTranslationFr = GuideTranslation(
   topics: {
     'friends': GuideTopicText(
-      title: 'Ajouter un ami',
+      title: 'Ajouter des amis',
       summary: 'Devenez amis avec un lien d’invitation ou un code QR',
       steps: [
-        'Ouvrez « Ajouter un ami » dans l’onglet Profil pour voir votre lien d’invitation et votre code QR. Envoyez-le à quelqu’un, ou laissez la personne le scanner.',
+        'Ouvrez « Ajouter des amis » dans l’onglet Profil pour voir votre lien d’invitation et votre code QR. Envoyez-le à quelqu’un, ou laissez la personne le scanner.',
         'Ouvrez le lien d’invitation d’une autre personne ou scannez son code QR pour envoyer une demande d’ami. Dès qu’elle accepte, votre Duo commence.',
         'Si vous collez un lien d’invitation dans un message DaiDai, il s’affiche sous forme de carte de profil.',
       ],
@@ -76,10 +76,11 @@ const guideTranslationFr = GuideTranslation(
     ),
     'profile': GuideTopicText(
       title: 'Profil',
-      summary: 'Soignez vos cartes dans la Réserve et la Couture',
+      summary:
+          'Soignez vos cartes dans la Bibliothèque de profils et l’Éditeur de profil',
       steps: [
-        'La Réserve conserve vos icônes, images d’arrière-plan, surnoms et statuts.',
-        'Dans la Couture, vous combinez des éléments en cartes de profil. Vous pouvez en créer jusqu’à trois et utiliser des cartes différentes selon la conversation.',
+        'La Bibliothèque de profils conserve vos icônes, images d’arrière-plan, pseudos et statuts.',
+        'Dans l’Éditeur de profil, vous combinez des éléments en cartes de profil. Vous pouvez en créer jusqu’à trois et utiliser des cartes différentes selon la conversation.',
       ],
     ),
     'safety': GuideTopicText(
@@ -94,11 +95,11 @@ const guideTranslationFr = GuideTranslation(
       ],
     ),
     'kiwami': GuideTopicText(
-      title: 'Kiwami',
+      title: 'Premium',
       summary: 'Un forfait payant qui débloque des fonctions supplémentaires',
       steps: [
-        '« Kiwami » est un forfait payant qui regroupe des extras comme le masquage des accusés de lecture et des polices exclusives. Le masquage des accusés de lecture ne s’applique que tant qu’une personne de la conversation a Kiwami.',
-        'La façon de s’abonner arrive bientôt. Sans Kiwami, les polices exclusives s’affichent dans la police standard.',
+        '« Premium » est un forfait payant qui regroupe des extras comme le masquage des accusés de lecture et des polices exclusives. Le masquage des accusés de lecture ne s’applique que tant qu’une personne de la conversation a Premium.',
+        'La façon de s’abonner arrive bientôt. Sans Premium, les polices exclusives s’affichent dans la police standard.',
       ],
     ),
   },

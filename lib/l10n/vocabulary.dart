@@ -68,7 +68,7 @@ class Vocabulary {
   /// ひとことのステータス表示（一言／ステータスメッセージ、Englishは共通）。
   final String statusMessage;
 
-  /// 招待リンク・QRコードで友達を追加する画面（縁結び／Add Friend）。
+  /// 招待リンク・QRコードで友達を追加する画面（縁結び／Add friends）。
   final String friendConnect;
 
   /// 広場の管理者（長／Owner）。
@@ -101,38 +101,38 @@ class Vocabulary {
     plaza: 'Plaza',
     publicPlaza: 'Public Plaza',
     privatePlaza: 'Private Plaza',
-    profileStorage: 'Material Box',
-    profileCreator: 'Tailoring',
-    textChannel: 'Text Channel',
-    privateChannel: 'Private Channel',
+    profileStorage: 'Profile library',
+    profileCreator: 'Profile editor',
+    textChannel: 'Room',
+    privateChannel: 'Private Room',
     category: 'Category',
     privateCategory: 'Private Category',
     projectBoard: 'Project Board',
     nickname: 'Nickname',
-    statusMessage: 'Status message',
-    friendConnect: 'Add Friend',
+    statusMessage: 'Status',
+    friendConnect: 'Add friends',
     owner: 'Owner',
     sticker: 'Sticker',
   );
 
   /// フランス語（2026-10-17追加）。一対＝Duo（二人組）、広場＝Place（広場・公共の場）、
-  /// 寄合＝Salon（Discordのフランス語版でもチャンネルをこう呼ぶ）、蔵＝Réserve、
-  /// 仕立て＝Couture（旧称「工房」はAtelier）。AIによる初稿のため、公開前にネイティブの確認を推奨。
+  /// 寄合＝Salon（Discordのフランス語版でもチャンネルをこう呼ぶ）、蔵＝Bibliothèque de profils、
+  /// 仕立て＝Éditeur de profil。AIによる初稿のため、公開前にネイティブの確認を推奨。
   static const french = Vocabulary._(
     dm: 'Duo',
     plaza: 'Place',
     publicPlaza: 'Place publique',
     privatePlaza: 'Place privée',
-    profileStorage: 'Réserve',
-    profileCreator: 'Couture',
+    profileStorage: 'Bibliothèque de profils',
+    profileCreator: 'Éditeur de profil',
     textChannel: 'Salon',
     privateChannel: 'Salon privé',
     category: 'Catégorie',
     privateCategory: 'Catégorie privée',
     projectBoard: 'Tableau de projet',
-    nickname: 'Surnom',
+    nickname: 'Pseudo',
     statusMessage: 'Statut',
-    friendConnect: 'Ajouter un ami',
+    friendConnect: 'Ajouter des amis',
     owner: 'Propriétaire',
     sticker: 'Sticker',
   );

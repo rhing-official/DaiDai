@@ -3121,6 +3121,12 @@ class DirectMessageTile extends ConsumerWidget {
     final isGekiga = uiStyle == AppUiStyle.gekiga;
     final isGlass = uiStyle == AppUiStyle.glass;
     final colorScheme = Theme.of(context).colorScheme;
+    // 劇画では選択中のタイルが白地黒字に反転するため、アイコン未設定時の
+    // 代替アイコンも同じく反転させる（2026-10-21、そのままだと白地に白で
+    // 見えなくなる）。他のスタイルは従来どおり。
+    final gekigaAwareIconColor = isGekiga
+        ? (selected ? GekigaColors.panel : GekigaColors.onPanel)
+        : colorScheme.onSurfaceVariant;
     final previewLabel = _conversationPreviewLabel(
       ref.watch(appStringsProvider),
       ref.watch(vocabularyProvider),
@@ -3140,7 +3146,7 @@ class DirectMessageTile extends ConsumerWidget {
         : FocalCircleAvatar(
             url: iconUrl,
             focal: iconFocal,
-            foregroundColor: colorScheme.onSurfaceVariant,
+            foregroundColor: gekigaAwareIconColor,
             fallback: const Icon(Icons.person),
           );
     final subtitleWidget = previewLabel == null
@@ -3294,6 +3300,12 @@ class GroupTile extends ConsumerWidget {
     final isGlass = uiStyle == AppUiStyle.glass;
     final colorScheme = Theme.of(context).colorScheme;
     final displayName = group.name;
+    // 劇画では選択中のタイルが白地黒字に反転するため、アイコン未設定時の
+    // 代替アイコンも同じく反転させる（2026-10-21、そのままだと白地に白で
+    // 見えなくなる）。他のスタイルは従来どおり。
+    final gekigaAwareIconColor = isGekiga
+        ? (selected ? GekigaColors.panel : GekigaColors.onPanel)
+        : colorScheme.onSurfaceVariant;
     final previewLabel = _conversationPreviewLabel(
       ref.watch(appStringsProvider),
       ref.watch(vocabularyProvider),
@@ -3312,7 +3324,7 @@ class GroupTile extends ConsumerWidget {
         : CircleAvatar(
             backgroundImage: iconUrl != null ? NetworkImage(iconUrl) : null,
             backgroundColor: Colors.transparent,
-            foregroundColor: colorScheme.onSurfaceVariant,
+            foregroundColor: gekigaAwareIconColor,
             child: iconUrl == null ? const Icon(Icons.groups) : null,
           );
     final subtitleWidget = previewLabel == null

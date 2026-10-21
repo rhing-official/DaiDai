@@ -100,7 +100,7 @@ const guideTopics = <GuideTopic>[
   GuideTopic(
     id: 'friends',
     icon: Icons.person_add_alt_1_outlined,
-    title: GuideText('縁結び（友達を追加する）', 'Add Friend'),
+    title: GuideText('縁結び（友達を追加する）', 'Add friends'),
     summary: GuideText(
       '招待リンクやQRコードで友達になります',
       'Connect using an invite link or QR code',
@@ -108,7 +108,7 @@ const guideTopics = <GuideTopic>[
     steps: [
       GuideText(
         '「身だしなみ」の「縁結び」を開くと、自分の招待リンクとQRコードが表示されます。これを相手に送るか、相手に読み取ってもらいます。',
-        'Open "Add Friend" in the Profile tab to see your invite link and QR code. Send it to someone, or let them scan it.',
+        'Open "Add friends" in the Profile tab to see your invite link and QR code. Send it to someone, or let them scan it.',
       ),
       GuideText(
         '相手の招待リンクを開く、またはQRコードを読み取ると、友達申請を送れます。相手が承認すると、一対の語らいが始まります。',
@@ -266,16 +266,16 @@ const guideTopics = <GuideTopic>[
     title: GuideText('身だしなみ（プロフィール）', 'Profile'),
     summary: GuideText(
       '蔵と仕立てで、自分のカードを整えます',
-      'Shape your cards in the Material Box and Tailoring',
+      'Shape your cards in the Profile library and Profile editor',
     ),
     steps: [
       GuideText(
         '「蔵」には、アイコン・背景画像・呼び名・一言などの素材をしまっておけます。',
-        'The Material Box stores your icons, backgrounds, nicknames and status messages.',
+        'The Profile library stores your icons, backgrounds, nicknames and status messages.',
       ),
       GuideText(
         '「仕立て」では、蔵の素材を組み合わせてプロフィールカードを作ります。カードは最大3枚まで作れ、友達や会話ごとに使い分けられます。',
-        'In Tailoring you combine materials into profile cards. You can make up to three and use different ones per conversation.',
+        'In the Profile editor you combine materials into profile cards. You can make up to three and use different ones per conversation.',
       ),
     ],
   ),
@@ -309,7 +309,7 @@ const guideTopics = <GuideTopic>[
   GuideTopic(
     id: 'kiwami',
     icon: Icons.workspace_premium_outlined,
-    title: GuideText('極み', 'Kiwami'),
+    title: GuideText('極み', 'Premium'),
     summary: GuideText(
       '一部の機能が広がる有料プラン',
       'A paid plan that unlocks extra features',
@@ -317,11 +317,11 @@ const guideTopics = <GuideTopic>[
     steps: [
       GuideText(
         '「極み」は、既読の表示を隠せる、限定のフォントが使える、といった機能をまとめた有料プランです。既読を隠す設定は、会話に極みの人がいる間だけ効きます。',
-        '"Kiwami" is a paid plan that bundles extras such as hiding read receipts and exclusive fonts. Hiding read receipts only takes effect while someone in the conversation has Kiwami.',
+        '"Premium" is a paid plan that bundles extras such as hiding read receipts and exclusive fonts. Hiding read receipts only takes effect while someone in the conversation has Premium.',
       ),
       GuideText(
         '購入の方法は準備中です。限定のフォントは、極みでない間は標準のフォントで表示されます。',
-        'How to subscribe is coming soon. Until you have Kiwami, exclusive fonts are shown in the standard font.',
+        'How to subscribe is coming soon. Until you have Premium, exclusive fonts are shown in the standard font.',
       ),
     ],
   ),

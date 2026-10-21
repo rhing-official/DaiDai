@@ -71,7 +71,13 @@ extension SoundCategoryPresets on SoundCategory {
     SoundCategory.notification => _notificationPresets,
   };
 
-  SoundPreset get defaultPreset => presets.first;
+  /// 未設定時の標準の音。着信音・呼出音はマリンバ（2026-10-21、ユーザー指示）、
+  /// 通知音は一覧の先頭。保存値が既にある人の設定は変わらない。
+  SoundPreset get defaultPreset => switch (this) {
+    SoundCategory.ringtone || SoundCategory.calling =>
+      _callTonePresets.firstWhere((p) => p.id == 'marimba_ring'),
+    SoundCategory.notification => presets.first,
+  };
 
   /// 保存値（プリセットIDまたは`http`で始まるカスタムアップロード音源の
   /// ダウンロードURL）を、実際に再生できるソース文字列に解決する。
