@@ -61,6 +61,7 @@ import { parseAllowedUrl, resolveReferer, resolveUserAgent } from "./urlFetchRel
 import { resolveMentionRecipients } from "./mentions";
 import { excludeBlockers } from "./block";
 import { severanceNotifyTarget } from "./severanceNotify";
+import { filterTurnIceServers } from "./turnCredentials";
 import { decideJoin, newMemberPermissions } from "./joinGroup";
 import {
   isNewPendingRequest,
@@ -86,6 +87,11 @@ const db = getFirestore();
 // コード上には値を持たない）。
 const stripeSecretKey = defineSecret("STRIPE_SECRET_KEY");
 const stripeWebhookSecret = defineSecret("STRIPE_WEBHOOK_SECRET");
+// 通話のTURN（中継サーバー、Cloudflare Realtime TURN）のキー。通話で別回線同士が
+// 直接つながらない時の中継に使う（2026-10-21）。どちらも
+// `firebase functions:secrets:set TURN_KEY_ID` / `TURN_KEY_API_TOKEN`で個別に設定する。
+const turnKeyId = defineSecret("TURN_KEY_ID");
+const turnKeyApiToken = defineSecret("TURN_KEY_API_TOKEN");
 
 let stripeClient: Stripe | null = null;
 function getStripeClient(): Stripe {
@@ -2409,6 +2415,38 @@ export const createKiwamiPortalSession = onCall(
       return_url: "https://daidai.rhing.jp",
     });
     return { url: session.url };
+  },
+);
+
+/**
+ * 通話の中継（TURN）の認証情報を返す（2026-10-21追加）。Cloudflare Realtime TURNの
+ * APIで、短時間だけ有効な認証情報を発行する。キー・トークンはこの関数の中だけに置き、
+ * クライアントには発行済みの`iceServers`だけを返す。ログイン済みの人だけ呼べる。
+ * 有効期間は通話の長さに足りる程度（4時間）。クライアントは通話の開始時に1回呼ぶ。
+ */
+export const getTurnCredentials = onCall(
+  { region: "asia-northeast1", secrets: [turnKeyId, turnKeyApiToken] },
+  async (request) => {
+    if (!request.auth?.uid) {
+      throw new HttpsError("unauthenticated", "ログインが必要です");
+    }
+    const response = await fetch(
+      `https://rtc.live.cloudflare.com/v1/turn/keys/${turnKeyId.value()}/credentials/generate-ice-servers`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${turnKeyApiToken.value()}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ ttl: 4 * 60 * 60 }),
+      },
+    );
+    if (!response.ok) {
+      logger.error("TURN認証情報の発行に失敗しました", response.status);
+      throw new HttpsError("internal", "中継サーバーの認証情報を取得できません");
+    }
+    const body = (await response.json()) as { iceServers?: unknown };
+    return { iceServers: filterTurnIceServers(body.iceServers) };
   },
 );
 

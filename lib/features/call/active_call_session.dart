@@ -6,6 +6,7 @@ import '../../models/call.dart';
 import '../../models/sound_preset.dart';
 import '../../providers/calling_sound_provider.dart';
 import '../../providers/chat_navigation_providers.dart';
+import '../../providers/repository_providers.dart';
 import '../../providers/ringtone_sound_provider.dart';
 import '../../repositories/call_repository.dart';
 import '../../repositories/direct_message_repository.dart';
@@ -141,6 +142,9 @@ class ActiveCallSessionNotifier extends Notifier<ActiveCallSession?> {
       isCaller: isCaller,
       callRepository: callRepository,
       directMessageRepository: directMessageRepository,
+      iceServersLoader: ref
+          .read(turnCredentialsRepositoryProvider)
+          .fetchIceServers,
     );
     final session = OneToOneCallSession(
       controller: controller,
@@ -181,6 +185,9 @@ class ActiveCallSessionNotifier extends Notifier<ActiveCallSession?> {
       currentUser: currentUser,
       isVideo: isVideo,
       groupCallRepository: groupCallRepository,
+      iceServersLoader: ref
+          .read(turnCredentialsRepositoryProvider)
+          .fetchIceServers,
     );
     final session = GroupCallSession(
       controller: controller,

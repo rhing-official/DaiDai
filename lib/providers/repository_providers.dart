@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../repositories/announcement_repository.dart';
+import '../repositories/turn_credentials_repository.dart';
 import '../repositories/album_repository.dart';
 import '../repositories/auth_repository.dart';
 import '../repositories/block_repository.dart';
@@ -120,6 +121,12 @@ final pollRepositoryProvider = Provider<PollRepository>((ref) {
 });
 
 /// お便り（運営から全住人への配信、2026-10-10追加）。
+final turnCredentialsRepositoryProvider = Provider<TurnCredentialsRepository>((
+  ref,
+) {
+  return FirebaseTurnCredentialsRepository();
+});
+
 final announcementRepositoryProvider = Provider<AnnouncementRepository>((ref) {
   return FirestoreAnnouncementRepository();
 });

@@ -22,13 +22,18 @@ class WebrtcCallController extends ChangeNotifier {
     required this.isCaller,
     required CallRepository callRepository,
     required DirectMessageRepository directMessageRepository,
+    IceServersLoader? iceServersLoader,
   }) : _callRepository = callRepository,
-       _directMessageRepository = directMessageRepository;
+       _directMessageRepository = directMessageRepository,
+       _iceServersLoader = iceServersLoader;
 
   final Call call;
   final bool isCaller;
   final CallRepository _callRepository;
   final DirectMessageRepository _directMessageRepository;
+
+  /// 中継（TURN）の認証情報の取得（nullならSTUNのみ、2026-10-21）。
+  final IceServersLoader? _iceServersLoader;
 
   final RTCVideoRenderer remoteRenderer = RTCVideoRenderer();
 
@@ -170,7 +175,9 @@ class WebrtcCallController extends ChangeNotifier {
         await _acquireLocalStream(allowVideoFallback: false, videoNow: false);
       }
 
-      _peerConnection = await createPeerConnection(buildRtcConfiguration());
+      _peerConnection = await createPeerConnection(
+        await loadRtcConfiguration(_iceServersLoader),
+      );
       if (isCaller) {
         await _attachLocalStream();
         if (call.isVideo) {

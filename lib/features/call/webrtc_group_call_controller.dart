@@ -34,12 +34,17 @@ class WebrtcGroupCallController extends ChangeNotifier {
     required this.currentUser,
     required bool isVideo,
     required GroupCallRepository groupCallRepository,
+    IceServersLoader? iceServersLoader,
   }) : _isVideo = isVideo,
-       _repository = groupCallRepository;
+       _repository = groupCallRepository,
+       _iceServersLoader = iceServersLoader;
 
   final String groupCallId;
   final AppUser currentUser;
   final GroupCallRepository _repository;
+
+  /// 中継（TURN）の認証情報の取得（nullならSTUNのみ、2026-10-21）。
+  final IceServersLoader? _iceServersLoader;
 
   /// 現在ビデオ通話として動作しているか（通話中の音声⇔ビデオ切替を
   /// 反映する可変の状態。コンストラクタの`isVideo`は開始時点の初期値）。
@@ -257,7 +262,9 @@ class WebrtcGroupCallController extends ChangeNotifier {
     await renderer.initialize();
     remoteRenderers[otherUserId] = renderer;
 
-    final peerConnection = await createPeerConnection(buildRtcConfiguration());
+    final peerConnection = await createPeerConnection(
+      await loadRtcConfiguration(_iceServersLoader),
+    );
     _peerConnections[otherUserId] = peerConnection;
     _remoteDescriptionSet[otherUserId] = false;
     _pendingRemoteCandidates[otherUserId] = [];
