@@ -1071,5 +1071,9 @@ final Strings _stringsFr = Strings._(
   mediaSkipBackwardLabel: '−10 s',
   groupCallStartedBannerTemplate: (groupName) =>
       'Un appel a commencé dans $groupName.\nTouchez pour rejoindre',
+  groupCallInProgressBannerLabel: (isVideo) => isVideo
+      ? 'Un appel vidéo est en cours. Touchez pour rejoindre'
+      : 'Un appel est en cours. Touchez pour rejoindre',
+  groupCallBackToGridTooltip: 'Retour à la grille',
   workshopFontLabel: 'Police',
 );

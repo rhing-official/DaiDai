@@ -222,6 +222,20 @@ class _CallScreenState extends ConsumerState<CallScreen> {
     );
   }
 
+  /// 映像が無い側の枠に出す、その人のプロフィールアイコン（2026-10-21変更、
+  /// 以前はカメラオフのアイコンで、誰がオフか分かってもアイコンが出なかった）。
+  /// [remote]が相手、falseなら自分。
+  Widget _placeholderAvatar({required bool remote, required double radius}) {
+    final me = widget.currentUserId;
+    return CallParticipantAvatar(
+      userId: remote ? _otherUserId : me,
+      rhingSeed: remote ? _otherRhingSeed : widget.call.myRhingSeed(me),
+      conversationId: widget.call.dmId,
+      radius: radius,
+      fontSize: radius * 0.7,
+    );
+  }
+
   Widget _audioBody(ColorScheme colorScheme) {
     return SafeArea(
       child: Column(
@@ -295,11 +309,10 @@ class _CallScreenState extends ConsumerState<CallScreen> {
             child: mainShowsPlaceholder
                 ? Container(
                     color: placeholderColor,
-                    child: const Center(
-                      child: Icon(
-                        Icons.videocam_off,
-                        color: Colors.white54,
-                        size: 48,
+                    child: Center(
+                      child: _placeholderAvatar(
+                        remote: _mainViewIsRemote,
+                        radius: 56,
                       ),
                     ),
                   )
@@ -416,9 +429,11 @@ class _CallScreenState extends ConsumerState<CallScreen> {
                           height: 130,
                           color: placeholderColor,
                           child: pipShowsPlaceholder
-                              ? const Icon(
-                                  Icons.videocam_off,
-                                  color: Colors.white54,
+                              ? Center(
+                                  child: _placeholderAvatar(
+                                    remote: !_mainViewIsRemote,
+                                    radius: 28,
+                                  ),
                                 )
                               : RTCVideoView(
                                   key: ObjectKey(pipRenderer),

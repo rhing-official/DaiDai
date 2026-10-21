@@ -15,6 +15,7 @@ import '../../utils/platform_info.dart';
 import '../../widgets/pane_visibility.dart';
 import '../../widgets/swipe_gestures.dart';
 import 'active_call_session.dart';
+import 'call_audio_sinks.dart';
 import 'call_avatar.dart';
 import 'call_control_bar.dart';
 import 'call_tile_layout.dart';
@@ -372,6 +373,22 @@ class _OneToOneStageState extends State<_OneToOneStage> {
 
   void _swap() => setState(() => _mainIsRemote = !_mainIsRemote);
 
+  /// 映像が無い側の枠に出す、その人のプロフィールアイコン（2026-10-21追加）。
+  /// 片方だけ映像をオンにすると、オフの側の枠が空白になり誰か分からなく
+  /// なっていた。[remote]が相手、falseなら自分。
+  Widget _avatar({required bool remote, required double radius}) {
+    final session = widget.session;
+    final call = session.call;
+    final me = session.currentUserId;
+    return CallParticipantAvatar(
+      userId: remote ? call.otherUserId(me) : me,
+      rhingSeed: remote ? call.otherRhingSeed(me) : call.myRhingSeed(me),
+      conversationId: call.dmId,
+      radius: radius,
+      fontSize: radius * 0.7,
+    );
+  }
+
   /// 映像の描画。メインは切り抜かず全体を見せ（Contain、余白は灰色。2026-10-11
   /// 変更）、コーナーは枠いっぱいに切り抜く（Cover）。自分の映像は前面カメラの
   /// 時だけ左右反転する（どちらの位置でも同じ）。
@@ -423,7 +440,7 @@ class _OneToOneStageState extends State<_OneToOneStage> {
             color: Colors.grey.shade900,
             child: mainHasVideo
                 ? _video(remote: _mainIsRemote, main: true)
-                : null,
+                : Center(child: _avatar(remote: _mainIsRemote, radius: 56)),
           ),
         ),
         // メインの画面をクリックしても入れ替わる。Webでは映像（プラット
@@ -437,58 +454,203 @@ class _OneToOneStageState extends State<_OneToOneStage> {
             ),
           ),
         ),
-        if (cornerHasVideo)
-          Positioned(
-            right: 12,
-            bottom: 12,
-            child: PointerInterceptor(
-              child: GestureDetector(
-                onTap: _swap,
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: SizedBox(
-                    width: 80,
-                    height: 110,
-                    child: _video(remote: !_mainIsRemote, main: false),
-                  ),
+        // 映像が無い側も小窓を出し、その人のアイコンを入れる（2026-10-21変更、
+        // 以前は映像がある時だけ出していたため、オフの側が消えていた）。
+        Positioned(
+          right: 12,
+          bottom: 12,
+          child: PointerInterceptor(
+            child: GestureDetector(
+              onTap: _swap,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: SizedBox(
+                  width: 80,
+                  height: 110,
+                  child: cornerHasVideo
+                      ? _video(remote: !_mainIsRemote, main: false)
+                      : ColoredBox(
+                          color: Colors.grey.shade800,
+                          child: Center(
+                            child: _avatar(remote: !_mainIsRemote, radius: 28),
+                          ),
+                        ),
                 ),
               ),
             ),
           ),
+        ),
       ],
     );
   }
 }
 
-class _GroupStage extends StatelessWidget {
+class _GroupStage extends ConsumerStatefulWidget {
   const _GroupStage({required this.session});
   final GroupCallSession session;
 
   @override
+  ConsumerState<_GroupStage> createState() => _GroupStageState();
+}
+
+class _GroupStageState extends ConsumerState<_GroupStage> {
+  /// 通話エリアいっぱいに拡大している参加者（自分も可、nullならグリッド、
+  /// 2026-10-21追加）。タイルのクリックで拡大し、もう一度クリック・戻るボタン・
+  /// Escでグリッドへ戻る。モバイルの全画面通話画面（`group_call_screen.dart`の
+  /// `_focusedTileKey`）と同じ考え方。
+  String? _focusedUserId;
+
+  GroupCallSession get session => widget.session;
+
+  @override
   Widget build(BuildContext context) {
     final controller = session.controller;
-    final tiles = [
-      _tile(
-        userId: controller.currentUser.userId,
-        rhingSeed: controller.currentUser.rhingSeed,
-        renderer: controller.isVideo ? controller.localRenderer : null,
-        mirror: controller.isFrontCamera,
-        videoEnabled: controller.isVideo,
-        micMuted: controller.muted,
+    final selfId = controller.currentUser.userId;
+    final remotes = controller.remoteParticipants;
+    // 拡大中の参加者が退出したら、グリッドへ戻る。
+    final focusedId =
+        _focusedUserId != null &&
+            (_focusedUserId == selfId ||
+                remotes.any((p) => p.userId == _focusedUserId))
+        ? _focusedUserId
+        : null;
+
+    Widget tileFor({
+      required String userId,
+      required String rhingSeed,
+      required RTCVideoRenderer? renderer,
+      required bool mirror,
+      required bool videoEnabled,
+      required bool micMuted,
+      required bool focused,
+    }) {
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          _tile(
+            userId: userId,
+            rhingSeed: rhingSeed,
+            renderer: renderer,
+            mirror: mirror,
+            videoEnabled: videoEnabled,
+            micMuted: micMuted,
+            focused: focused,
+          ),
+          // Webでは映像（プラットフォームビュー）がクリックを奪うため、
+          // `PointerInterceptor`で受けて、拡大・拡大の解除を切り替える。
+          Positioned.fill(
+            child: PointerInterceptor(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () =>
+                    setState(() => _focusedUserId = focused ? null : userId),
+                child: const SizedBox.expand(),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    final entries = <({String userId, Widget Function(bool focused) build})>[
+      (
+        userId: selfId,
+        build: (focused) => tileFor(
+          userId: selfId,
+          rhingSeed: controller.currentUser.rhingSeed,
+          renderer: controller.isVideo ? controller.localRenderer : null,
+          mirror: controller.isFrontCamera,
+          videoEnabled: controller.isVideo,
+          micMuted: controller.muted,
+          focused: focused,
+        ),
       ),
-      for (final p in controller.remoteParticipants)
-        _tile(
+      for (final p in remotes)
+        (
           userId: p.userId,
-          rhingSeed: p.rhingSeed,
-          renderer: controller.remoteRenderers[p.userId],
-          mirror: false,
-          videoEnabled: p.isVideo,
-          micMuted: p.micMuted,
+          build: (focused) => tileFor(
+            userId: p.userId,
+            rhingSeed: p.rhingSeed,
+            renderer: controller.remoteRenderers[p.userId],
+            mirror: false,
+            videoEnabled: p.isVideo,
+            micMuted: p.micMuted,
+            focused: focused,
+          ),
         ),
     ];
-    // 領域が縦長（スマホ等）なら縦に積み、横長なら従来のグリッド
-    // （`CallTileGrid`、2026-10-13）。
-    return CallTileGrid(tiles: tiles);
+
+    // 映像のタイルを画面に出していない参加者の音声を鳴らす、見えない動画要素
+    // （2026-10-21追加、映像オフの参加者の音声がWebで聞こえなかった。拡大中は
+    // 拡大している1人以外のタイルが無いため、他の映像の参加者の音声も鳴らす）。
+    final audioIds = groupAudioOnlyUserIds(
+      remoteIds: [for (final p in remotes) p.userId],
+      videoOnIds: {
+        for (final p in remotes)
+          if (p.isVideo) p.userId,
+      },
+      focusedUserId: focusedId,
+    );
+    final audioOnly = [
+      for (final id in audioIds)
+        if (controller.remoteRenderers[id] != null)
+          controller.remoteRenderers[id]!,
+    ];
+
+    final Widget stage;
+    if (focusedId != null) {
+      final focusedEntry = entries.firstWhere((e) => e.userId == focusedId);
+      final strings = ref.watch(appStringsProvider);
+      stage = Focus(
+        // Escで、通話エリアの拡大だけを解除する（親の「メッセージに戻る」より先に
+        // 受ける）。
+        autofocus: true,
+        onKeyEvent: (node, event) {
+          if (event is KeyDownEvent &&
+              event.logicalKey == LogicalKeyboardKey.escape) {
+            setState(() => _focusedUserId = null);
+            return KeyEventResult.handled;
+          }
+          return KeyEventResult.ignored;
+        },
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            focusedEntry.build(true),
+            Positioned(
+              top: 8,
+              right: 8,
+              child: PointerInterceptor(
+                child: IconButton(
+                  tooltip: strings.groupCallBackToGridTooltip,
+                  icon: const Icon(
+                    Icons.close_fullscreen,
+                    color: Colors.white,
+                    shadows: [Shadow(blurRadius: 6)],
+                  ),
+                  onPressed: () => setState(() => _focusedUserId = null),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    } else {
+      // 領域が縦長（スマホ等）なら縦に積み、横長なら従来のグリッド
+      // （`CallTileGrid`、2026-10-13）。
+      stage = CallTileGrid(tiles: [for (final e in entries) e.build(false)]);
+    }
+
+    return Stack(
+      children: [
+        Positioned.fill(child: stage),
+        Positioned(
+          left: 0,
+          top: 0,
+          child: CallAudioSinks(renderers: audioOnly),
+        ),
+      ],
+    );
   }
 
   Widget _tile({
@@ -498,6 +660,7 @@ class _GroupStage extends StatelessWidget {
     required bool mirror,
     required bool videoEnabled,
     required bool micMuted,
+    required bool focused,
   }) {
     return Container(
       color: Colors.grey.shade900,
@@ -509,14 +672,18 @@ class _GroupStage extends StatelessWidget {
                   key: ObjectKey(renderer),
                   renderer,
                   mirror: mirror,
-                  objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+                  // 拡大中は映像全体を見せる（余白は灰色）、グリッドは枠いっぱい。
+                  objectFit: focused
+                      ? RTCVideoViewObjectFit.RTCVideoViewObjectFitContain
+                      : RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
                 )
               : Center(
                   child: CallParticipantAvatar(
                     userId: userId,
                     rhingSeed: rhingSeed,
                     conversationId: session.groupId,
-                    radius: 28,
+                    radius: focused ? 56 : 28,
+                    fontSize: focused ? 40 : null,
                   ),
                 ),
           // 表示領域の左下に呼び名、ミュート中はその右隣にミュートアイコンを

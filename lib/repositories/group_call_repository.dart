@@ -47,16 +47,22 @@ abstract class GroupCallRepository {
   /// 進行中の通話に参加する（参加者ドキュメントを作成する）。[isVideo]は
   /// 参加する時点で自分がビデオ通話として参加するかどうか（参加者ごとに
   /// 独立しており、以後[updateParticipantState]で自分だけ切り替えられる）。
+  /// [sessionId]はこの参加（端末）を区別する値（`CallParticipant.sessionId`）。
   Future<void> joinGroupCall({
     required String groupCallId,
     required AppUser user,
     required bool isVideo,
+    String? sessionId,
   });
 
   /// 通話から退出する。退出後に参加者が0人になった場合は通話自体も終了扱いにする。
+  /// [sessionId]を渡した時は、参加者ドキュメントの`sessionId`が一致する（または
+  /// 無い）時だけ削除する（別の端末が同じ通話に入り直した後に、元の端末の退出が
+  /// 新しい端末の参加を消さないようにする、2026-10-21）。
   Future<void> leaveGroupCall({
     required String groupCallId,
     required String userId,
+    String? sessionId,
   });
 
   Stream<List<CallParticipant>> watchParticipants(String groupCallId);
@@ -241,11 +247,13 @@ class FirestoreGroupCallRepository implements GroupCallRepository {
     required String groupCallId,
     required AppUser user,
     required bool isVideo,
+    String? sessionId,
   }) async {
     final participant = CallParticipant(
       userId: user.userId,
       rhingSeed: user.rhingSeed,
       isVideo: isVideo,
+      sessionId: sessionId,
     );
     await _participantsOf(
       groupCallId,
@@ -256,8 +264,15 @@ class FirestoreGroupCallRepository implements GroupCallRepository {
   Future<void> leaveGroupCall({
     required String groupCallId,
     required String userId,
+    String? sessionId,
   }) async {
-    await _participantsOf(groupCallId).doc(userId).delete();
+    final participantRef = _participantsOf(groupCallId).doc(userId);
+    if (sessionId != null) {
+      final current = (await participantRef.get()).data()?['sessionId'];
+      // 別の端末が入り直した後なら、その参加を消さず、通話も終わらせない。
+      if (current is String && current != sessionId) return;
+    }
+    await participantRef.delete();
 
     final remaining = await _participantsOf(groupCallId).limit(1).get();
     if (remaining.docs.isEmpty) {

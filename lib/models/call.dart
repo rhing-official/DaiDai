@@ -68,6 +68,11 @@ class Call {
     return currentUserId == callerId ? calleeRhingSeed : callerRhingSeed;
   }
 
+  /// 自分側のRhing Seed（[otherRhingSeed]の逆、通話画面で自分のアバターを出す時に使う）。
+  String myRhingSeed(String currentUserId) {
+    return currentUserId == callerId ? callerRhingSeed : calleeRhingSeed;
+  }
+
   String otherUserId(String currentUserId) {
     return currentUserId == callerId ? calleeId : callerId;
   }

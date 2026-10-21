@@ -11,6 +11,7 @@ import '../../providers/repository_providers.dart';
 import '../../utils/platform_info.dart';
 import '../../widgets/swipe_gestures.dart' show kSwipeGestureVelocityThreshold;
 import 'active_call_session.dart';
+import 'call_audio_sinks.dart';
 import 'call_avatar.dart';
 import 'call_control_bar.dart';
 import 'call_tile_layout.dart';
@@ -140,7 +141,20 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
       },
       child: Scaffold(
         backgroundColor: _anyVideo ? colorScheme.surface : displayAreaGrey,
-        body: _anyVideo ? _videoBody(displayAreaGrey) : _dockable(_audioBody()),
+        body: _anyVideo
+            ? Stack(
+                children: [
+                  Positioned.fill(child: _videoBody(displayAreaGrey)),
+                  Positioned(
+                    left: 0,
+                    top: 0,
+                    child: CallAudioSinks(
+                      renderers: _undisplayedRemoteRenderers(),
+                    ),
+                  ),
+                ],
+              )
+            : _dockable(_audioBody()),
       ),
     );
   }
@@ -165,6 +179,26 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
     );
   }
 
+  /// 映像を画面に出していない参加者のレンダラー（音声だけ鳴らす）。映像のある
+  /// 参加者でも、1人をフォーカス表示している間は他の参加者のタイルが無いため
+  /// 含める（2026-10-21、映像オフの参加者の音声が聞こえなかった不具合の修正）。
+  List<RTCVideoRenderer> _undisplayedRemoteRenderers() {
+    final remotes = _controller.remoteParticipants;
+    final ids = groupAudioOnlyUserIds(
+      remoteIds: [for (final p in remotes) p.userId],
+      videoOnIds: {
+        for (final p in remotes)
+          if (p.isVideo) p.userId,
+      },
+      focusedUserId: _focusedTileKey,
+    );
+    return [
+      for (final id in ids)
+        if (_controller.remoteRenderers[id] != null)
+          _controller.remoteRenderers[id]!,
+    ];
+  }
+
   Widget _audioBody() {
     final remoteParticipants = _controller.remoteParticipants;
     final tiles = <(String userId, String rhingSeed)>[
@@ -175,16 +209,11 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
     return SafeArea(
       child: Column(
         children: [
-          // 音声のみの通話でもリモートの音声を再生するためにレンダラーを紐づける。
-          SizedBox(
-            width: 0,
-            height: 0,
-            child: Stack(
-              children: [
-                for (final renderer in _controller.remoteRenderers.values)
-                  RTCVideoView(renderer),
-              ],
-            ),
+          // 音声のみの通話でもリモートの音声を再生するためにレンダラーを紐づける
+          // （0×0だとモバイルのブラウザが再生しないことがあるため、1×1・ほぼ
+          // 透明の[CallAudioSinks]にした、2026-10-21）。
+          CallAudioSinks(
+            renderers: _controller.remoteRenderers.values.toList(),
           ),
           const SizedBox(height: 24),
           Text(

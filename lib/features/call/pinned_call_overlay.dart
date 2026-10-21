@@ -22,6 +22,7 @@ import '../../widgets/gekiga/gekiga_badge.dart';
 import '../../widgets/gekiga/monochrome_box.dart';
 import '../../widgets/glass/glass_surface.dart';
 import 'active_call_session.dart';
+import 'call_audio_sinks.dart';
 import 'call_avatar.dart';
 import 'camera_availability.dart';
 import 'pinned_call_position.dart';
@@ -255,9 +256,24 @@ class _PinnedCallBubble extends ConsumerWidget {
         !incomingSession.controller.isCaller &&
         incomingSession.controller.state == CallConnectionState.connecting;
 
+    // 広場通話は、映像を出している1人以外の参加者の音声も鳴らす（2026-10-21、
+    // ミニ表示中は1人分の映像しか載らず、他の参加者の音声が聞こえなかった）。
+    final audioOnly = switch (session) {
+      GroupCallSession(:final controller) => [
+        for (final r in controller.remoteRenderers.values)
+          if (r != renderer) r,
+      ],
+      _ => <RTCVideoRenderer>[],
+    };
+
     final content = Stack(
       fit: StackFit.expand,
       children: [
+        Positioned(
+          left: 0,
+          top: 0,
+          child: CallAudioSinks(renderers: audioOnly),
+        ),
         if (renderer != null)
           RTCVideoView(
             key: ObjectKey(renderer),

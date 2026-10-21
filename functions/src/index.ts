@@ -62,6 +62,10 @@ import { resolveMentionRecipients } from "./mentions";
 import { excludeBlockers } from "./block";
 import { severanceNotifyTarget } from "./severanceNotify";
 import { filterTurnIceServers } from "./turnCredentials";
+import {
+  groupCallNotificationBody,
+  groupCallRecipients,
+} from "./groupCallNotify";
 import { decideJoin, newMemberPermissions } from "./joinGroup";
 import {
   isNewPendingRequest,
@@ -3585,6 +3589,98 @@ export const onGroupMessageCreated = onDocumentCreated(
         message,
       }),
     ]);
+  },
+);
+
+/**
+ * 広場通話が始まった時に、広場のメンバー（開始者以外）へプッシュ通知を送る
+ * （2026-10-21追加）。着信音は鳴らさず、通知だけを送る。ミュート中の広場には
+ * 送らない。通知のタップで、その広場の語らいを開く（`conversationId`、
+ * `lib/push_notifications.dart`）。iOSのプッシュは未実装のためAndroid・Webのみ。
+ * アプリを開いている間は、アプリ内のバナー（`GroupIncomingCallListener`）もある。
+ */
+export const onGroupCallCreated = onDocumentCreated(
+  { document: "groupCalls/{groupCallId}", region: "asia-northeast1" },
+  async (event) => {
+    const call = event.data?.data();
+    if (!call || call.status !== "active") return;
+    const groupId = call.groupId as string | undefined;
+    const initiatorId = call.initiatorId as string | undefined;
+    if (!groupId || !initiatorId) return;
+
+    const recipientIds = groupCallRecipients(call.memberIds, initiatorId);
+    if (recipientIds.length === 0) return;
+
+    const [groupDoc, inviteDoc, initiatorDoc] = await Promise.all([
+      db.doc(`groups/${groupId}`).get(),
+      db.doc(`groupInvites/${groupId}`).get(),
+      db.doc(`users/${initiatorId}`).get(),
+    ]);
+    const title =
+      (inviteDoc.data()?.name as string) ??
+      (groupDoc.data()?.name as string) ??
+      "";
+    const groupIcon = (inviteDoc.data()?.iconUrl as string) ?? null;
+    const identity = initiatorDoc.exists
+      ? resolveSenderIdentity(initiatorDoc.data()!, groupId)
+      : { name: "", iconUrl: null };
+    const iconUrl = identity.iconUrl ?? groupIcon;
+    const body = groupCallNotificationBody(
+      identity.name,
+      call.isVideo === true,
+    );
+    const sentAtMs = Date.now();
+
+    const androidTokens: string[] = [];
+    const webTokens: string[] = [];
+    for (const recipientId of recipientIds) {
+      if (await isConversationMuted(recipientId, groupId, "")) continue;
+      const recipientDoc = await db.doc(`users/${recipientId}`).get();
+      const tokens: FcmTokenEntry[] = recipientDoc.data()?.fcmTokens ?? [];
+      for (const entry of tokens) {
+        if (entry.platform === "android") androidTokens.push(entry.token);
+        else if (entry.platform === "web") webTokens.push(entry.token);
+      }
+    }
+    if (androidTokens.length === 0 && webTokens.length === 0) return;
+
+    const messaging = getMessaging();
+    if (androidTokens.length > 0) {
+      await messaging.sendEachForMulticast({
+        tokens: androidTokens,
+        data: {
+          title,
+          body,
+          iconUrl: iconUrl ?? "",
+          previewUrl: "",
+          isDm: "false",
+          conversationId: groupId,
+          roomId: "",
+          isMention: "false",
+          sentAt: String(sentAtMs),
+        },
+        android: { priority: "high" },
+      });
+    }
+    if (webTokens.length > 0) {
+      await messaging.sendEachForMulticast({
+        tokens: webTokens,
+        webpush: {
+          notification: {
+            title,
+            body: withSentTime(body, sentAtMs),
+            icon: iconUrl ?? undefined,
+          },
+          data: {
+            isDm: "false",
+            conversationId: groupId,
+            roomId: "",
+            isMention: "false",
+          },
+          fcmOptions: { link: "/" },
+        },
+      });
+    }
   },
 );
 

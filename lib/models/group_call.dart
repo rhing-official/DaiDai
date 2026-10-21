@@ -86,11 +86,19 @@ class CallParticipant {
     this.isVideo = false,
     this.joinedAt,
     this.lastSeenAt,
+    this.sessionId,
   });
 
   final String userId;
   final String rhingSeed;
   final bool micMuted;
+
+  /// この参加（端末1台ぶん）を区別するランダムな文字列（2026-10-21追加）。
+  /// 参加者ドキュメントのIDはuserIdで端末の区別が無いため、同じ人が別の端末から
+  /// 入ると上書きされるだけになる。この値が自分のものでなくなった端末は、別の
+  /// 端末に乗っ取られたと判断して通話から抜ける（[isSessionTakenOver]）。
+  /// 古いクライアントが書いたドキュメントはnull。
+  final String? sessionId;
 
   /// この参加者が現在ビデオ通話として参加しているか（音声⇔ビデオ切替は
   /// 参加者ごとに独立しており、他の参加者に強制されない）。
@@ -110,6 +118,7 @@ class CallParticipant {
       isVideo: json['isVideo'] as bool? ?? false,
       joinedAt: json['joinedAt'] as Timestamp?,
       lastSeenAt: json['lastSeenAt'] as Timestamp?,
+      sessionId: json['sessionId'] as String?,
     );
   }
 
@@ -120,8 +129,20 @@ class CallParticipant {
       'isVideo': isVideo,
       'joinedAt': joinedAt ?? FieldValue.serverTimestamp(),
       'lastSeenAt': lastSeenAt ?? FieldValue.serverTimestamp(),
+      if (sessionId != null) 'sessionId': sessionId,
     };
   }
+}
+
+/// 自分の参加者ドキュメントの`sessionId`（[participantSessionId]）が、自分の
+/// ものでなくなったか（＝同じアカウントの別の端末が、同じ通話に入り直したか）。
+/// ドキュメントがまだ無い・古いクライアントでsessionIdが無い場合は、乗っ取りと
+/// みなさない（2026-10-21追加）。
+bool isSessionTakenOver({
+  required String mySessionId,
+  required String? participantSessionId,
+}) {
+  return participantSessionId != null && participantSessionId != mySessionId;
 }
 
 /// 参加者2人ぶんのペア単位のシグナリング（`groupCalls/{id}/peerLinks/{pairId}`）。
@@ -177,4 +198,17 @@ class CallPeerLink {
       'updatedAt': FieldValue.serverTimestamp(),
     };
   }
+}
+
+/// 在室確認のハートビートがこの時間途絶えた参加者は、離脱扱いにする
+/// （`WebrtcGroupCallController`と、通話中の人数表示で共通、2026-10-21）。
+const kGroupCallPresenceStaleAfter = Duration(seconds: 45);
+
+/// 離脱扱いでない（ハートビートが途絶えていない）参加者の人数。
+int liveParticipantCount(List<CallParticipant> participants, DateTime now) {
+  return participants.where((p) {
+    final lastSeenAt = p.lastSeenAt;
+    if (lastSeenAt == null) return true;
+    return now.difference(lastSeenAt.toDate()) <= kGroupCallPresenceStaleAfter;
+  }).length;
 }

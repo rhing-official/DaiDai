@@ -22,3 +22,17 @@ final activeGroupCallsForUserProvider =
           .watch(groupCallRepositoryProvider)
           .watchActiveGroupCallsForMember(userId);
     });
+
+/// 進行中の広場通話の、いまの参加人数（離脱扱いの人を除く）。通話ボタンの
+/// バッジ表示に使う（2026-10-21）。
+final groupCallParticipantCountProvider = StreamProvider.family<int, String>((
+  ref,
+  groupCallId,
+) {
+  return ref
+      .watch(groupCallRepositoryProvider)
+      .watchParticipants(groupCallId)
+      .map(
+        (participants) => liveParticipantCount(participants, DateTime.now()),
+      );
+});

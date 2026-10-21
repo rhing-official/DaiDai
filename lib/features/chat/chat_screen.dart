@@ -129,6 +129,7 @@ class ChatScreen extends ConsumerStatefulWidget {
     this.onSendSticker,
     this.onCallPressed,
     this.onVideoCallPressed,
+    this.callParticipantCount,
     this.extraActions,
     this.menuAnchorKey,
     this.readReceiptsEnabled = true,
@@ -255,6 +256,11 @@ class ChatScreen extends ConsumerStatefulWidget {
 
   /// ビデオ通話の発信ボタン。一対（1対1）のみで渡す（グループ通話は未対応）。
   final VoidCallback? onVideoCallPressed;
+
+  /// 通話ボタンに出す、進行中の通話の参加人数（広場、2026-10-21）。nullまたは0なら
+  /// 出さない。進行中の通話は種別（音声・ビデオ）に関わらず1つなので、ボタンを
+  /// 「参加」の1つにまとめてここに人数を出す（`onVideoCallPressed`はnullにする）。
+  final int? callParticipantCount;
 
   /// 呼び出し側固有のAppBarアクション（例: 広場の詳細を開くボタン）。
   final List<Widget>? extraActions;
@@ -406,6 +412,20 @@ class _ChatMessageEntry extends _ChatListEntry {
 }
 
 class _ChatScreenState extends ConsumerState<ChatScreen> {
+  /// 通話ボタンのアイコンに、進行中の通話の参加人数のバッジを重ねる（広場、
+  /// 2026-10-21）。人数が無い（null・0）時は、そのまま返す。色は大事な数字なので
+  /// 固定の濃い緑・白文字（薄い地色に白文字を乗せない、CLAUDE.mdの配色方針）。
+  Widget _withCallCountBadge(Widget icon) {
+    final count = widget.callParticipantCount;
+    if (count == null || count <= 0) return icon;
+    return Badge(
+      label: Text('$count'),
+      backgroundColor: Colors.green.shade800,
+      textColor: Colors.white,
+      child: icon,
+    );
+  }
+
   final _textController = TextEditingController();
 
   /// 入力欄の下書き複数端末同期用（2026-08-13追加）。デバウンス書き込みの
@@ -2557,7 +2577,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                             child: IconButton(
                               key: _callButtonKey,
                               tooltip: '',
-                              icon: switch (uiStyle) {
+                              icon: _withCallCountBadge(switch (uiStyle) {
                                 AppUiStyle.gekiga => const GekigaIconBadge(
                                   icon: Icons.call_outlined,
                                   size: 32,
@@ -2571,7 +2591,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                 AppUiStyle.flat => const Icon(
                                   Icons.call_outlined,
                                 ),
-                              },
+                              }),
                               onPressed: onCall,
                             ),
                           ),

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart';
@@ -17,7 +18,7 @@ enum GroupCallConnectionState { connecting, active, ended }
 const _presenceHeartbeatInterval = Duration(seconds: 15);
 
 /// これより長くハートビートが途絶えた参加者は離脱扱いにする。
-const _presenceStaleAfter = Duration(seconds: 45);
+const _presenceStaleAfter = kGroupCallPresenceStaleAfter;
 
 /// 広場（グループ）通話のWebRTCシグナリング・複数`RTCPeerConnection`の
 /// ライフサイクルを管理する。メッシュ型P2Pのため、参加者が増減するたびに
@@ -90,6 +91,22 @@ class WebrtcGroupCallController extends ChangeNotifier {
   /// UI側はこれを見て、シグナリングは完了しているのに実際には映像/音声が
   /// 流れていない参加者のタイルに控えめな表示を重ねる。
   final Map<String, bool> peerConnectionIssues = {};
+
+  /// この参加（端末1台ぶん）を区別する値（2026-10-21追加）。参加者ドキュメントの
+  /// `sessionId`に書き、他の値になったら別の端末に乗っ取られたとして通話から抜ける。
+  final String _sessionId = _newSessionId();
+
+  /// 相手ごとの、つながっている相手の`sessionId`。変わったら（相手が別の端末で
+  /// 入り直したら）古い接続を切ってつなぎ直す。
+  final Map<String, String?> _peerSessionIds = {};
+
+  static String _newSessionId() {
+    final random = Random.secure();
+    return List.generate(
+      16,
+      (_) => random.nextInt(256).toRadixString(16).padLeft(2, '0'),
+    ).join();
+  }
 
   MediaStream? _localStream;
   StreamSubscription<List<CallParticipant>>? _participantsSub;
@@ -186,6 +203,7 @@ class WebrtcGroupCallController extends ChangeNotifier {
         groupCallId: groupCallId,
         user: currentUser,
         isVideo: _isVideo,
+        sessionId: _sessionId,
       );
 
       _state = GroupCallConnectionState.active;
@@ -216,6 +234,25 @@ class WebrtcGroupCallController extends ChangeNotifier {
   }
 
   void _onParticipants(List<CallParticipant> participants) {
+    if (_state == GroupCallConnectionState.ended) return;
+
+    // 同じアカウントの別の端末が、同じ通話に入り直した（自分の参加者ドキュメントの
+    // sessionIdが自分のものでなくなった）。参加者ドキュメントは新しい端末のものなので
+    // 消さず、この端末だけ通話から抜ける（2026-10-21追加）。
+    final mine = participants.firstWhereOrNull(
+      (p) => p.userId == currentUser.userId,
+    );
+    if (isSessionTakenOver(
+      mySessionId: _sessionId,
+      participantSessionId: mine?.sessionId,
+    )) {
+      _presenceTimer?.cancel();
+      _participantsSub?.cancel();
+      _state = GroupCallConnectionState.ended;
+      notifyListeners();
+      return;
+    }
+
     _participants = participants;
 
     final liveOtherIds = participants
@@ -240,6 +277,19 @@ class WebrtcGroupCallController extends ChangeNotifier {
       _previousLiveOtherIds = liveOtherIds;
     }
 
+    // 相手が別の端末で入り直した（sessionIdが変わった）ら、古い端末との接続を
+    // 切って、つなぎ直す。
+    for (final p in participants) {
+      if (!liveOtherIds.contains(p.userId)) continue;
+      final known = _peerSessionIds[p.userId];
+      if (_peerConnections.containsKey(p.userId) &&
+          p.sessionId != null &&
+          known != null &&
+          known != p.sessionId) {
+        _disconnectFromPeer(p.userId);
+      }
+      _peerSessionIds[p.userId] = p.sessionId;
+    }
     for (final userId in liveOtherIds) {
       if (!_peerConnections.containsKey(userId)) {
         _connectToPeer(userId);
@@ -458,6 +508,7 @@ class WebrtcGroupCallController extends ChangeNotifier {
     await _repository.leaveGroupCall(
       groupCallId: groupCallId,
       userId: currentUser.userId,
+      sessionId: _sessionId,
     );
     _state = GroupCallConnectionState.ended;
     notifyListeners();

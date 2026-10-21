@@ -62,6 +62,8 @@ import 'group_role_priority_dialog.dart';
 import 'group_settings_popup.dart';
 import 'room_tab_bar.dart';
 import 'severance_dialog.dart';
+import '../../providers/group_call_providers.dart';
+import 'group_call_join_banner.dart';
 import 'join_request_banner.dart';
 import 'proposal_banner.dart';
 import 'task_banner.dart';
@@ -2617,6 +2619,9 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
                   )
                 : null,
           );
+    final activeGroupCall = ref
+        .watch(activeGroupCallProvider(group.groupId))
+        .value;
     final sortedMemberIds = ([...group.memberIds]..sort()).join(',');
     final chatScreen = ChatScreen(
       key: ValueKey('group-${group.groupId}-$roomId'),
@@ -2648,6 +2653,10 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
       banner: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          GroupCallJoinBanner(
+            groupId: group.groupId,
+            onJoin: (isVideo) => _handleCallPressed(context, isVideo: isVideo),
+          ),
           JoinRequestBanner(group: group, currentUser: currentUser),
           ChatTaskBanner(
             isDm: false,
@@ -2713,8 +2722,26 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
         stickerName: sticker.name,
         stickerUrl: sticker.imageUrl,
       ),
-      onCallPressed: () => _handleCallPressed(context, isVideo: false),
-      onVideoCallPressed: () => _handleCallPressed(context, isVideo: true),
+      // 進行中の通話がある間は、音声・ビデオの2つのボタンを「参加」の1つにまとめ、
+      // 参加人数を出す（2026-10-21）。映像のオン・オフは参加者ごとに独立で、通話の
+      // 種別を選ぶ意味が無く、人数をどちらに出すか迷うため。通話が無い時は、
+      // 従来どおり2つ（映像で始める人の手間を増やさない）。
+      onCallPressed: () => _handleCallPressed(
+        context,
+        isVideo: activeGroupCall?.isVideo ?? false,
+      ),
+      onVideoCallPressed: activeGroupCall != null
+          ? null
+          : () => _handleCallPressed(context, isVideo: true),
+      callParticipantCount: activeGroupCall == null
+          ? null
+          : ref
+                .watch(
+                  groupCallParticipantCountProvider(
+                    activeGroupCall.groupCallId,
+                  ),
+                )
+                .value,
       // 既読の無効化は、広場に極みの人がいる間だけ効く（2026-10-17）。
       readReceiptsEnabled:
           effectiveReadReceiptsEnabled(group: group, room: currentRoom) ||

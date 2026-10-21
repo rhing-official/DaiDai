@@ -893,6 +893,8 @@ class Strings {
     required this.mediaSkipForwardLabel,
     required this.mediaSkipBackwardLabel,
     required this.groupCallStartedBannerTemplate,
+    required this.groupCallInProgressBannerLabel,
+    required this.groupCallBackToGridTooltip,
     required this.workshopFontLabel,
   });
 
@@ -2086,6 +2088,12 @@ class Strings {
   final String mediaSkipForwardLabel;
   final String mediaSkipBackwardLabel;
   final String Function(String groupName) groupCallStartedBannerTemplate;
+
+  /// 通話中の広場の語らいを開いた時に出す、参加を促すバナー（2026-10-21）。
+  final String Function(bool isVideo) groupCallInProgressBannerLabel;
+
+  /// 広場通話で1人を拡大表示している間の、一覧（グリッド）に戻るボタンの説明（2026-10-21）。
+  final String groupCallBackToGridTooltip;
   final String workshopFontLabel;
 
   static final ja = Strings._(
@@ -3037,6 +3045,9 @@ class Strings {
     mediaSkipBackwardLabel: '−10秒',
     groupCallStartedBannerTemplate: (groupName) =>
         '$groupNameで通話が始まりました。\nタップして参加',
+    groupCallInProgressBannerLabel: (isVideo) =>
+        isVideo ? 'ビデオ通話中です。タップして参加' : '通話中です。タップして参加',
+    groupCallBackToGridTooltip: 'グリッドに戻る',
     workshopFontLabel: 'フォント',
   );
 
@@ -4099,6 +4110,10 @@ class Strings {
     mediaSkipBackwardLabel: '−10s',
     groupCallStartedBannerTemplate: (groupName) =>
         'A call has started in $groupName.\nTap to join',
+    groupCallInProgressBannerLabel: (isVideo) => isVideo
+        ? 'A video call is in progress. Tap to join'
+        : 'A call is in progress. Tap to join',
+    groupCallBackToGridTooltip: 'Back to grid',
     workshopFontLabel: 'Font',
   );
 
