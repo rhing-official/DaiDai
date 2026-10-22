@@ -36,6 +36,7 @@ import '../../widgets/glass/glass_avatar.dart';
 import '../../widgets/glass/glass_dialog.dart';
 import '../../widgets/glass/glass_surface.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/focal_circle_avatar.dart';
 import '../../widgets/focal_image.dart';
 import '../../widgets/profile_card_picker.dart';
 import '../../widgets/profile_card_view.dart';
@@ -1730,6 +1731,7 @@ class _AddConversationCardDialogState
           ? GlassAvatar(
               size: 40,
               image: iconUrl != null ? NetworkImage(iconUrl) : null,
+              focal: group.profileCard?.iconFocal,
               fallback: iconUrl != null
                   ? null
                   : Icon(
@@ -1737,11 +1739,11 @@ class _AddConversationCardDialogState
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
             )
-          : CircleAvatar(
-              backgroundImage: iconUrl != null ? NetworkImage(iconUrl) : null,
-              backgroundColor: Colors.transparent,
+          : FocalCircleAvatar(
+              url: iconUrl,
+              focal: group.profileCard?.iconFocal,
               foregroundColor: Theme.of(context).colorScheme.onSurfaceVariant,
-              child: iconUrl == null ? const Icon(Icons.groups) : null,
+              fallback: const Icon(Icons.groups),
             ),
       title: group.name,
     );

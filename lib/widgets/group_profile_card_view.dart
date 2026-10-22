@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../models/group_profile_card.dart';
+import 'focal_circle_avatar.dart';
+import 'focal_image.dart';
 
 /// 広場のプロフィールカード（[GroupProfileCard]）を読み取り専用で描く。
 /// `GroupProfileCardPopup`（編集画面）と同じレイアウト（背景画像＋暗転、左下に
@@ -31,7 +33,8 @@ class GroupProfileCardView extends StatelessWidget {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            if (hasBackground) Image.network(background, fit: BoxFit.cover),
+            if (hasBackground)
+              FocalImage(url: background, focal: card.backgroundFocal),
             if (hasBackground)
               const DecoratedBox(
                 decoration: BoxDecoration(
@@ -53,16 +56,12 @@ class GroupProfileCardView extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  CircleAvatar(
+                  FocalCircleAvatar(
                     radius: 32,
-                    backgroundImage: card.iconUrl != null
-                        ? NetworkImage(card.iconUrl!)
-                        : null,
-                    backgroundColor: Colors.transparent,
+                    url: card.iconUrl,
+                    focal: card.iconFocal,
                     foregroundColor: colorScheme.onSurfaceVariant,
-                    child: card.iconUrl == null
-                        ? const Icon(Icons.groups_outlined)
-                        : null,
+                    fallback: const Icon(Icons.groups_outlined),
                   ),
                   const SizedBox(height: padding * 0.6),
                   Text(

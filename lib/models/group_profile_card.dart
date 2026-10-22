@@ -1,3 +1,5 @@
+import 'profile_card.dart' show ImageFocal;
+
 /// 広場のプロフィールカード名の最大文字数。
 const kMaxGroupProfileCardNameLength = 30;
 
@@ -17,6 +19,8 @@ class GroupProfileCard {
     this.iconStoragePath,
     this.backgroundImageUrl,
     this.backgroundImageStoragePath,
+    this.iconFocal,
+    this.backgroundFocal,
   });
 
   final String name;
@@ -26,6 +30,12 @@ class GroupProfileCard {
   final String? backgroundImageUrl;
   final String? backgroundImageStoragePath;
 
+  /// アイコン・背景画像のどこを中心に、どれだけ拡大して見せるか（個人の工房
+  /// カードの`ProfileCard.iconFocal`/`backgroundFocal`と同じ。2026-10-22）。
+  /// 未指定は中央・等倍。画像を差し替えると構図もやり直す。
+  final ImageFocal? iconFocal;
+  final ImageFocal? backgroundFocal;
+
   GroupProfileCard copyWith({
     String? name,
     String? description,
@@ -33,6 +43,10 @@ class GroupProfileCard {
     String? iconStoragePath,
     String? backgroundImageUrl,
     String? backgroundImageStoragePath,
+    ImageFocal? iconFocal,
+    bool clearIconFocal = false,
+    ImageFocal? backgroundFocal,
+    bool clearBackgroundFocal = false,
   }) {
     return GroupProfileCard(
       name: name ?? this.name,
@@ -42,6 +56,10 @@ class GroupProfileCard {
       backgroundImageUrl: backgroundImageUrl ?? this.backgroundImageUrl,
       backgroundImageStoragePath:
           backgroundImageStoragePath ?? this.backgroundImageStoragePath,
+      iconFocal: clearIconFocal ? null : iconFocal ?? this.iconFocal,
+      backgroundFocal: clearBackgroundFocal
+          ? null
+          : backgroundFocal ?? this.backgroundFocal,
     );
   }
 
@@ -53,6 +71,8 @@ class GroupProfileCard {
       iconStoragePath: json['iconStoragePath'] as String?,
       backgroundImageUrl: json['backgroundImageUrl'] as String?,
       backgroundImageStoragePath: json['backgroundImageStoragePath'] as String?,
+      iconFocal: ImageFocal.fromJson(json['iconFocal']),
+      backgroundFocal: ImageFocal.fromJson(json['backgroundFocal']),
     );
   }
 
@@ -64,6 +84,8 @@ class GroupProfileCard {
       'iconStoragePath': iconStoragePath,
       'backgroundImageUrl': backgroundImageUrl,
       'backgroundImageStoragePath': backgroundImageStoragePath,
+      if (iconFocal != null) 'iconFocal': iconFocal!.toJson(),
+      if (backgroundFocal != null) 'backgroundFocal': backgroundFocal!.toJson(),
     };
   }
 }

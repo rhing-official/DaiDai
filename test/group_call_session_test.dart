@@ -63,4 +63,49 @@ void main() {
       expect(liveParticipantCount(const [], now), 0);
     });
   });
+
+  group('isGroupCallAbandoned', () {
+    final now = DateTime(2026, 10, 22, 12);
+    Timestamp ago(int sec) =>
+        Timestamp.fromDate(now.subtract(Duration(seconds: sec)));
+    CallParticipant seen(int sec) =>
+        CallParticipant(userId: 'u', rhingSeed: 's', lastSeenAt: ago(sec));
+
+    test('作成から60秒以内、または作成時刻が未確定なら放棄とみなさない', () {
+      expect(
+        isGroupCallAbandoned(participants: [], createdAt: ago(30), now: now),
+        isFalse,
+      );
+      expect(
+        isGroupCallAbandoned(participants: [], createdAt: null, now: now),
+        isFalse,
+      );
+    });
+
+    test('猶予後に参加者が0人、または全員ハートビート切れなら放棄', () {
+      expect(
+        isGroupCallAbandoned(participants: [], createdAt: ago(120), now: now),
+        isTrue,
+      );
+      expect(
+        isGroupCallAbandoned(
+          participants: [seen(100), seen(60)],
+          createdAt: ago(600),
+          now: now,
+        ),
+        isTrue,
+      );
+    });
+
+    test('生きている参加者が1人でもいれば放棄ではない', () {
+      expect(
+        isGroupCallAbandoned(
+          participants: [seen(100), seen(5)],
+          createdAt: ago(600),
+          now: now,
+        ),
+        isFalse,
+      );
+    });
+  });
 }

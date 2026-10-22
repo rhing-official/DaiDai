@@ -1528,6 +1528,8 @@ class FirestoreGroupRepository implements GroupRepository {
       description: card.description,
       iconUrl: card.iconUrl,
       backgroundImageUrl: card.backgroundImageUrl,
+      iconFocal: card.iconFocal,
+      backgroundFocal: card.backgroundFocal,
     );
     final batch = _firestore.batch();
     // カード名は広場の実際の名前（Group.name）と同一の値として扱う。
@@ -1541,7 +1543,11 @@ class FirestoreGroupRepository implements GroupRepository {
     // 承認要否（requiresApproval）は別の設定なので上書きしない（merge）。
     batch.set(
       _groupInvites.doc(groupId),
-      preview.toJson()..remove('requiresApproval'),
+      preview.toJson()
+        ..remove('requiresApproval')
+        // mergeでは省いたキーが前の値のまま残るため、未設定はnullで明示する。
+        ..['iconFocal'] = card.iconFocal?.toJson()
+        ..['backgroundFocal'] = card.backgroundFocal?.toJson(),
       SetOptions(merge: true),
     );
     await batch.commit();
@@ -1589,7 +1595,11 @@ class FirestoreGroupRepository implements GroupRepository {
       }
     }
 
-    return card.copyWith(iconUrl: url, iconStoragePath: path);
+    return card.copyWith(
+      iconUrl: url,
+      iconStoragePath: path,
+      clearIconFocal: true,
+    );
   }
 
   @override
@@ -1635,6 +1645,7 @@ class FirestoreGroupRepository implements GroupRepository {
     return card.copyWith(
       backgroundImageUrl: url,
       backgroundImageStoragePath: path,
+      clearBackgroundFocal: true,
     );
   }
 

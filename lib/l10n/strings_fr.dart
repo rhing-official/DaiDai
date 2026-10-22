@@ -1075,5 +1075,6 @@ final Strings _stringsFr = Strings._(
       ? 'Un appel vidéo est en cours. Touchez pour rejoindre'
       : 'Un appel est en cours. Touchez pour rejoindre',
   groupCallBackToGridTooltip: 'Retour à la grille',
+  groupProfileCardChangeImage: "Changer l'image",
   workshopFontLabel: 'Police',
 );

@@ -1,3 +1,5 @@
+import 'profile_card.dart' show ImageFocal;
+
 /// `groupInvites/{groupId}`に保存する、広場の公開プレビュー情報。
 /// 招待リンクを開いた（まだメンバーではない）相手や、外部SNSのリンク展開
 /// （OGP）に見せるための最小限の情報のみを持つ（メンバー一覧・メッセージ等は
@@ -9,6 +11,8 @@ class GroupInvitePreview {
     this.iconUrl,
     this.backgroundImageUrl,
     this.requiresApproval = true,
+    this.iconFocal,
+    this.backgroundFocal,
   });
 
   final String name;
@@ -24,6 +28,10 @@ class GroupInvitePreview {
   /// サーバー（`joinGroup`）が`groups`側の値で判定する。欠落は承認必須。
   final bool requiresApproval;
 
+  /// カードの画像の見せ方（`GroupProfileCard`の同名フィールドの公開コピー）。
+  final ImageFocal? iconFocal;
+  final ImageFocal? backgroundFocal;
+
   factory GroupInvitePreview.fromJson(Map<String, dynamic> json) {
     return GroupInvitePreview(
       // `name`の無い古い招待プレビューでも読める（2026-10-11）。空なら表示側で
@@ -33,6 +41,8 @@ class GroupInvitePreview {
       iconUrl: json['iconUrl'] as String?,
       backgroundImageUrl: json['backgroundImageUrl'] as String?,
       requiresApproval: json['requiresApproval'] as bool? ?? true,
+      iconFocal: ImageFocal.fromJson(json['iconFocal']),
+      backgroundFocal: ImageFocal.fromJson(json['backgroundFocal']),
     );
   }
 
@@ -43,6 +53,8 @@ class GroupInvitePreview {
       'iconUrl': iconUrl,
       'backgroundImageUrl': backgroundImageUrl,
       'requiresApproval': requiresApproval,
+      if (iconFocal != null) 'iconFocal': iconFocal!.toJson(),
+      if (backgroundFocal != null) 'backgroundFocal': backgroundFocal!.toJson(),
     };
   }
 }

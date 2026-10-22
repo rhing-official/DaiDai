@@ -3317,15 +3317,16 @@ class GroupTile extends ConsumerWidget {
         ? GlassAvatar(
             size: 40,
             image: iconUrl != null ? NetworkImage(iconUrl) : null,
+            focal: group.profileCard?.iconFocal,
             fallback: iconUrl != null
                 ? null
                 : Icon(Icons.groups, color: colorScheme.onSurfaceVariant),
           )
-        : CircleAvatar(
-            backgroundImage: iconUrl != null ? NetworkImage(iconUrl) : null,
-            backgroundColor: Colors.transparent,
+        : FocalCircleAvatar(
+            url: iconUrl,
+            focal: group.profileCard?.iconFocal,
             foregroundColor: gekigaAwareIconColor,
-            child: iconUrl == null ? const Icon(Icons.groups) : null,
+            fallback: const Icon(Icons.groups),
           );
     final subtitleWidget = previewLabel == null
         ? null
@@ -3552,15 +3553,16 @@ class _GroupIconTile extends ConsumerWidget {
           ? GlassAvatar(
               size: 40,
               image: iconUrl != null ? NetworkImage(iconUrl) : null,
+              focal: group.profileCard?.iconFocal,
               fallback: iconUrl != null
                   ? null
                   : Icon(Icons.groups, color: colorScheme.onSurfaceVariant),
             )
-          : CircleAvatar(
-              backgroundImage: iconUrl != null ? NetworkImage(iconUrl) : null,
-              backgroundColor: Colors.transparent,
+          : FocalCircleAvatar(
+              url: iconUrl,
+              focal: group.profileCard?.iconFocal,
               foregroundColor: colorScheme.onSurfaceVariant,
-              child: iconUrl == null ? const Icon(Icons.groups) : null,
+              fallback: const Icon(Icons.groups),
             ),
       label: group.name,
       unreadCount: unreadCount,

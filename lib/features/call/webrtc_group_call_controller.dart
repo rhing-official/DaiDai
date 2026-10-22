@@ -9,6 +9,7 @@ import '../../models/app_user.dart';
 import '../../models/group_call.dart';
 import '../../repositories/group_call_repository.dart';
 import 'call_sound_player.dart';
+import 'camera_orientation_restart.dart';
 import 'rtc_config.dart';
 import 'webrtc_media_constraints.dart';
 
@@ -207,6 +208,7 @@ class WebrtcGroupCallController extends ChangeNotifier {
       );
 
       _state = GroupCallConnectionState.active;
+      _watchOrientation();
       notifyListeners();
       unawaited(_applySpeakerphoneWithRetry());
 
@@ -634,6 +636,50 @@ class WebrtcGroupCallController extends ChangeNotifier {
     notifyListeners();
   }
 
+  CameraOrientationRestart? _orientationRestart;
+
+  /// 通話に入ったら、端末の向き変更でカメラを取り直す監視を始める（Webのみ）。
+  void _watchOrientation() {
+    if (!kIsWeb || _orientationRestart != null) return;
+    _orientationRestart = CameraOrientationRestart(
+      onRestart: () => unawaited(_restartCameraForOrientation()),
+    );
+  }
+
+  /// 向きが変わった後にカメラを取り直し、全ての相手への映像トラックを差し替える
+  /// （iPadのブラウザで、回すと映像の送信が止まる・上下反転して届く対処）。
+  Future<void> _restartCameraForOrientation() async {
+    if (_switchingCamera || _state != GroupCallConnectionState.active) return;
+    final old = [...?_localStream?.getVideoTracks()];
+    if (old.isEmpty) return;
+    _switchingCamera = true;
+    notifyListeners();
+    try {
+      for (final track in old) {
+        _localStream?.removeTrack(track);
+        await track.stop();
+      }
+      final stream = await navigator.mediaDevices.getUserMedia({
+        'audio': false,
+        'video': buildVideoConstraints(frontCamera: _isFrontCamera),
+      });
+      final newTrack = stream.getVideoTracks().first;
+      _localStream?.addTrack(newTrack);
+      localRenderer.srcObject = _localStream;
+      for (final pc in _peerConnections.values) {
+        final sender = (await pc.getSenders())
+            .where((s) => s.track?.kind == 'video')
+            .firstOrNull;
+        await sender?.replaceTrack(newTrack);
+      }
+    } catch (_) {
+      // 取り直せなければ現状維持（映像は止まったままになりうる）。
+    } finally {
+      _switchingCamera = false;
+      notifyListeners();
+    }
+  }
+
   Future<void> switchCamera() async {
     // 連打による多重実行を防ぐ（実機で「重くなる」報告の一因だった）。
     if (_switchingCamera) return;
@@ -684,6 +730,7 @@ class WebrtcGroupCallController extends ChangeNotifier {
 
   @override
   void dispose() {
+    _orientationRestart?.dispose();
     _presenceTimer?.cancel();
     _participantsSub?.cancel();
     _soundPlayer.dispose();

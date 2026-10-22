@@ -251,6 +251,8 @@ class _JoinGroupViewState extends ConsumerState<_JoinGroupView> {
                       description: preview.description,
                       iconUrl: preview.iconUrl,
                       backgroundImageUrl: preview.backgroundImageUrl,
+                      iconFocal: preview.iconFocal,
+                      backgroundFocal: preview.backgroundFocal,
                     ),
                   ),
                 ),

@@ -8,11 +8,15 @@ import '../../l10n/strings.dart';
 import '../../models/app_ui_style.dart';
 import '../../models/group.dart';
 import '../../models/group_profile_card.dart';
+import '../../models/profile_card.dart' show ImageFocal;
 import '../../providers/app_ui_style_provider.dart';
 import '../../providers/repository_providers.dart';
 import '../../utils/auto_dismiss_banner.dart';
 import '../../widgets/glass/glass_dialog.dart';
 import '../../widgets/dialog_keyboard_shortcuts.dart';
+import '../../widgets/focal_circle_avatar.dart';
+import '../../widgets/focal_image.dart';
+import '../profile/focal_edit_overlay.dart';
 
 /// 広場のプロフィールカード（1枚のみ）を作成・編集するポップアップの中身。
 /// メンバー全員が編集できる（個人の工房カードと異なり、蔵の素材を参照せず
@@ -39,6 +43,47 @@ class _GroupProfileCardPopupState extends ConsumerState<GroupProfileCardPopup> {
   bool _uploadingBackground = false;
   final _editController = TextEditingController();
   Timer? _errorBannerTimer;
+
+  /// 画像の見せ方（中心・拡大率）を調整中の対象（'background' / 'icon'）。
+  /// 個人の工房カードの位置調整（`_focalEditing`）と同じ流れ。
+  String? _focalEditing;
+  ImageFocal _focalDraft = ImageFocal.center;
+
+  void _startFocalEdit(String field) {
+    setState(() {
+      _focalEditing = field;
+      _focalDraft =
+          (field == 'background' ? _card.backgroundFocal : _card.iconFocal) ??
+          ImageFocal.center;
+    });
+  }
+
+  void _finishFocalEdit({required bool apply}) {
+    final field = _focalEditing;
+    setState(() => _focalEditing = null);
+    if (!apply || field == null) return;
+    final focal = _focalDraft.isDefault ? null : _focalDraft;
+    setState(() {
+      _card = field == 'background'
+          ? _card.copyWith(
+              backgroundFocal: focal,
+              clearBackgroundFocal: focal == null,
+            )
+          : _card.copyWith(iconFocal: focal, clearIconFocal: focal == null);
+    });
+    _persist();
+  }
+
+  /// 位置調整中の画像を差し替える（差し替えると構図はやり直し）。
+  Future<void> _replaceFocalImage() async {
+    final field = _focalEditing;
+    setState(() => _focalEditing = null);
+    if (field == 'background') {
+      await _pickBackground();
+    } else if (field == 'icon') {
+      await _pickIcon();
+    }
+  }
 
   // 個人の工房カード編集画面（`_CardZoomEditorState._pendingPersist`）と同じ
   // 理由で、保存呼び出しをFutureチェーンで直列化する。自動保存は短い間隔で
@@ -192,126 +237,215 @@ class _GroupProfileCardPopupState extends ConsumerState<GroupProfileCardPopup> {
     const nameFontSize = 20.0;
     const descriptionFontSize = 14.0;
 
-    return Padding(
-      padding: const EdgeInsets.all(24),
-      child: SizedBox(
-        width: width,
-        height: height,
-        child: Material(
-          clipBehavior: Clip.antiAlias,
-          borderRadius: BorderRadius.circular(16),
-          color: colorScheme.surfaceContainerHighest,
-          // 個人の工房カード（_WorkshopCardSlot）と同じ構成: 背景画像レイヤー
-          // （タップで変更）→ 暗転グラデーション（装飾のみ、IgnorePointerで
-          // ヒットテスト対象から外す）→ アイコン・名前・一言のレイヤー。
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: _uploadingBackground ? null : _pickBackground,
-                child: background != null
-                    ? Image.network(background, fit: BoxFit.cover)
-                    : ColoredBox(color: colorScheme.surfaceContainerHighest),
-              ),
-              if (hasBackground)
-                const IgnorePointer(
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [Colors.transparent, Colors.black54],
-                      ),
-                    ),
-                  ),
-                ),
-              // 下端が詰まって見えないよう、他の3辺より下側の余白を広めに取る。
-              Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  padding,
-                  padding,
-                  padding,
-                  padding * 1.8,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.end,
+    final focalButtons = _focalEditing == null
+        ? null
+        : SizedBox(
+            width: width,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
                   children: [
-                    GestureDetector(
-                      onTap: _uploadingIcon ? null : _pickIcon,
-                      child: CircleAvatar(
-                        radius: avatarRadius,
-                        backgroundImage: _card.iconUrl != null
-                            ? NetworkImage(_card.iconUrl!)
-                            : null,
-                        backgroundColor: Colors.transparent,
-                        foregroundColor: Theme.of(
-                          context,
-                        ).colorScheme.onSurfaceVariant,
-                        child: _uploadingIcon
-                            ? const SizedBox.shrink()
-                            : _card.iconUrl == null
-                            ? const Icon(Icons.groups_outlined)
-                            : null,
-                      ),
-                    ),
-                    const SizedBox(height: padding * 0.6),
-                    GestureDetector(
-                      onTap: () => _editField(
-                        label: strings.groupProfileCardNameLabel,
-                        currentValue: _card.name,
-                        maxLength: kMaxGroupProfileCardNameLength,
-                        onChanged: (value) {
-                          if (value.isEmpty) return;
-                          setState(() => _card = _card.copyWith(name: value));
-                        },
-                      ),
-                      child: Text(
-                        _card.name.isEmpty
-                            ? strings.groupProfileCardNameLabel
-                            : _card.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: nameFontSize,
-                          fontWeight: FontWeight.bold,
-                          color: hasBackground ? Colors.white : null,
+                    Expanded(
+                      child: OutlinedButton(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                          side: const BorderSide(color: Colors.white70),
+                        ),
+                        onPressed: () => _finishFocalEdit(apply: false),
+                        child: Text(
+                          strings.workshopFocalCancel,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                     ),
-                    GestureDetector(
-                      onTap: () => _editField(
-                        label: strings.groupProfileCardDescriptionLabel,
-                        currentValue: _card.description,
-                        maxLength: kMaxGroupProfileCardDescriptionLength,
-                        onChanged: (value) {
-                          setState(
-                            () => _card = _card.copyWith(description: value),
-                          );
-                        },
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: OutlinedButton(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                          side: const BorderSide(color: Colors.white70),
+                        ),
+                        onPressed: () =>
+                            setState(() => _focalDraft = ImageFocal.center),
+                        child: Text(
+                          strings.workshopFocalReset,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
-                      child: Text(
-                        _card.description.isEmpty
-                            ? strings.groupProfileCardDescriptionLabel
-                            : _card.description,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: descriptionFontSize,
-                          color: hasBackground
-                              ? Colors.white70
-                              : colorScheme.onSurfaceVariant,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: FilledButton(
+                        style: FilledButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                        ),
+                        onPressed: () => _finishFocalEdit(apply: true),
+                        child: Text(
+                          strings.workshopFocalDone,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                     ),
                   ],
                 ),
+                const SizedBox(height: 4),
+                TextButton(
+                  style: TextButton.styleFrom(foregroundColor: Colors.white),
+                  onPressed: _replaceFocalImage,
+                  child: Text(strings.groupProfileCardChangeImage),
+                ),
+              ],
+            ),
+          );
+    final card = SizedBox(
+      width: width,
+      height: height,
+      child: Material(
+        clipBehavior: Clip.antiAlias,
+        borderRadius: BorderRadius.circular(16),
+        color: colorScheme.surfaceContainerHighest,
+        // 個人の工房カード（_WorkshopCardSlot）と同じ構成: 背景画像レイヤー
+        // （タップで変更）→ 暗転グラデーション（装飾のみ、IgnorePointerで
+        // ヒットテスト対象から外す）→ アイコン・名前・一言のレイヤー。
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              // 画像があればタップで位置調整、無ければ画像を選ぶ。
+              onTap: _uploadingBackground || _focalEditing != null
+                  ? null
+                  : background != null
+                  ? () => _startFocalEdit('background')
+                  : _pickBackground,
+              child: background != null
+                  ? FocalImage(url: background, focal: _card.backgroundFocal)
+                  : ColoredBox(color: colorScheme.surfaceContainerHighest),
+            ),
+            if (hasBackground)
+              const IgnorePointer(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [Colors.transparent, Colors.black54],
+                    ),
+                  ),
+                ),
               ),
-              if (_uploadingBackground) const SizedBox.shrink(),
-            ],
-          ),
+            // 下端が詰まって見えないよう、他の3辺より下側の余白を広めに取る。
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                padding,
+                padding,
+                padding,
+                padding * 1.8,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  GestureDetector(
+                    onTap: _uploadingIcon || _focalEditing != null
+                        ? null
+                        : _card.iconUrl != null
+                        ? () => _startFocalEdit('icon')
+                        : _pickIcon,
+                    child: FocalCircleAvatar(
+                      radius: avatarRadius,
+                      url: _card.iconUrl,
+                      focal: _card.iconFocal,
+                      foregroundColor: Theme.of(
+                        context,
+                      ).colorScheme.onSurfaceVariant,
+                      fallback: _uploadingIcon
+                          ? const SizedBox.shrink()
+                          : const Icon(Icons.groups_outlined),
+                    ),
+                  ),
+                  const SizedBox(height: padding * 0.6),
+                  GestureDetector(
+                    onTap: () => _editField(
+                      label: strings.groupProfileCardNameLabel,
+                      currentValue: _card.name,
+                      maxLength: kMaxGroupProfileCardNameLength,
+                      onChanged: (value) {
+                        if (value.isEmpty) return;
+                        setState(() => _card = _card.copyWith(name: value));
+                      },
+                    ),
+                    child: Text(
+                      _card.name.isEmpty
+                          ? strings.groupProfileCardNameLabel
+                          : _card.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: nameFontSize,
+                        fontWeight: FontWeight.bold,
+                        color: hasBackground ? Colors.white : null,
+                      ),
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: () => _editField(
+                      label: strings.groupProfileCardDescriptionLabel,
+                      currentValue: _card.description,
+                      maxLength: kMaxGroupProfileCardDescriptionLength,
+                      onChanged: (value) {
+                        setState(
+                          () => _card = _card.copyWith(description: value),
+                        );
+                      },
+                    ),
+                    child: Text(
+                      _card.description.isEmpty
+                          ? strings.groupProfileCardDescriptionLabel
+                          : _card.description,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: descriptionFontSize,
+                        color: hasBackground
+                            ? Colors.white70
+                            : colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (_focalEditing != null)
+              FocalEditOverlay(
+                imageUrl: _focalEditing == 'background'
+                    ? _card.backgroundImageUrl!
+                    : _card.iconUrl!,
+                circle: _focalEditing == 'icon',
+                focal: _focalDraft,
+                onChanged: (focal) => setState(() => _focalDraft = focal),
+              ),
+          ],
         ),
+      ),
+    );
+    return Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          card,
+          if (focalButtons != null) ...[
+            const SizedBox(height: 12),
+            focalButtons,
+          ],
+        ],
       ),
     );
   }

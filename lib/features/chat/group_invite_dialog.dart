@@ -51,7 +51,7 @@ class GroupInviteDialog extends ConsumerWidget {
   static String _cacheBustFor(GroupProfileCard? card) {
     if (card == null) return 'none';
     final source =
-        '${card.name}|${card.description}|${card.iconUrl}|${card.backgroundImageUrl}';
+        '${card.name}|${card.description}|${card.iconUrl}|${card.backgroundImageUrl}|${card.iconFocal?.toJson()}|${card.backgroundFocal?.toJson()}';
     // URLのパスセグメントに使うため、短い16進数のダイジェストにする
     // （衝突しても実害は「編集していないのに新しいURLになる」程度で、
     // キャッシュ効率が多少落ちるだけなので短縮して問題ない）。

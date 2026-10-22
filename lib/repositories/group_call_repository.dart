@@ -65,6 +65,10 @@ abstract class GroupCallRepository {
     String? sessionId,
   });
 
+  /// 誰も生きて残っていない通話（[isGroupCallAbandoned]）を終了扱いにする
+  /// （冪等）。退出処理が走らずに`active`のまま残った通話の後始末。
+  Future<void> endGroupCallIfAbandoned(String groupCallId);
+
   Stream<List<CallParticipant>> watchParticipants(String groupCallId);
 
   /// 在室確認のハートビート。Firestoreに切断検知の仕組みがないため、
@@ -274,28 +278,54 @@ class FirestoreGroupCallRepository implements GroupCallRepository {
     }
     await participantRef.delete();
 
-    final remaining = await _participantsOf(groupCallId).limit(1).get();
-    if (remaining.docs.isEmpty) {
-      final call = await getGroupCall(groupCallId);
-      await _groupCalls.doc(groupCallId).update({
-        'status': GroupCallStatus.ended.name,
-        'endedAt': FieldValue.serverTimestamp(),
+    // 残っているのがハートビート切れの残骸だけなら、通話も終了扱いにする。
+    final remaining = await _participantsOf(groupCallId).get();
+    final live = liveParticipantCount(
+      remaining.docs
+          .map((doc) => CallParticipant.fromJson(doc.id, doc.data()))
+          .toList(),
+      DateTime.now(),
+    );
+    if (live == 0) await _endCall(groupCallId);
+  }
+
+  @override
+  Future<void> endGroupCallIfAbandoned(String groupCallId) async {
+    final call = await getGroupCall(groupCallId);
+    if (call == null || call.status != GroupCallStatus.active) return;
+    final snapshot = await _participantsOf(groupCallId).get();
+    final participants = snapshot.docs
+        .map((doc) => CallParticipant.fromJson(doc.id, doc.data()))
+        .toList();
+    if (!isGroupCallAbandoned(
+      participants: participants,
+      createdAt: call.createdAt,
+      now: DateTime.now(),
+    )) {
+      return;
+    }
+    await _endCall(groupCallId);
+  }
+
+  Future<void> _endCall(String groupCallId) async {
+    final call = await getGroupCall(groupCallId);
+    await _groupCalls.doc(groupCallId).update({
+      'status': GroupCallStatus.ended.name,
+      'endedAt': FieldValue.serverTimestamp(),
+    });
+    // 通話終了時、ポインタ（groupActiveCallPointers）がまだこの通話を
+    // 指していれば解除する。次に誰かが通話を開始した時、既に終了した
+    // この通話を「進行中」として誤って掴んでしまわないようにするため。
+    // ポインタが既に別の新しい通話idを指している場合は触らない
+    // （トランザクション内で現在指している値を確認してから解除する）。
+    if (call != null) {
+      final pointerRef = _activeCallPointer(call.groupId);
+      await _firestore.runTransaction((transaction) async {
+        final pointerSnap = await transaction.get(pointerRef);
+        if (pointerSnap.data()?['activeCallId'] == groupCallId) {
+          transaction.update(pointerRef, {'activeCallId': null});
+        }
       });
-      // 通話終了時、ポインタ（groupActiveCallPointers）がまだこの通話を
-      // 指していれば解除する。次に誰かが通話を開始した時、既に終了した
-      // この通話を「進行中」として誤って掴んでしまわないようにするため。
-      // ポインタが既に別の新しい通話idを指している場合は触らない
-      // （その新しい通話に影響を与えないよう、現在指している値を
-      // トランザクション内で確認してから解除する）。
-      if (call != null) {
-        final pointerRef = _activeCallPointer(call.groupId);
-        await _firestore.runTransaction((transaction) async {
-          final pointerSnap = await transaction.get(pointerRef);
-          if (pointerSnap.data()?['activeCallId'] == groupCallId) {
-            transaction.update(pointerRef, {'activeCallId': null});
-          }
-        });
-      }
     }
   }
 

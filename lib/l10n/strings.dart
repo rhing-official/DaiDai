@@ -895,6 +895,7 @@ class Strings {
     required this.groupCallStartedBannerTemplate,
     required this.groupCallInProgressBannerLabel,
     required this.groupCallBackToGridTooltip,
+    required this.groupProfileCardChangeImage,
     required this.workshopFontLabel,
   });
 
@@ -2094,6 +2095,7 @@ class Strings {
 
   /// 広場通話で1人を拡大表示している間の、一覧（グリッド）に戻るボタンの説明（2026-10-21）。
   final String groupCallBackToGridTooltip;
+  final String groupProfileCardChangeImage;
   final String workshopFontLabel;
 
   static final ja = Strings._(
@@ -3048,6 +3050,7 @@ class Strings {
     groupCallInProgressBannerLabel: (isVideo) =>
         isVideo ? 'ビデオ通話中です。タップして参加' : '通話中です。タップして参加',
     groupCallBackToGridTooltip: 'グリッドに戻る',
+    groupProfileCardChangeImage: '画像を変更',
     workshopFontLabel: 'フォント',
   );
 
@@ -4114,6 +4117,7 @@ class Strings {
         ? 'A video call is in progress. Tap to join'
         : 'A call is in progress. Tap to join',
     groupCallBackToGridTooltip: 'Back to grid',
+    groupProfileCardChangeImage: 'Change image',
     workshopFontLabel: 'Font',
   );
 

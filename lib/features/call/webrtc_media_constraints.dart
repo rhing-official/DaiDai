@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
 
+import '../../utils/screen_orientation/screen_orientation.dart';
+
 /// getUserMedia用の音声制約。
 ///
 /// Android実機では、入れ子になった詳細な音声制約マップ（echoCancellation等の
@@ -30,8 +32,14 @@ dynamic buildAudioConstraints() {
   };
 }
 
-Map<String, dynamic> buildVideoConstraints() => {
-  'facingMode': 'user',
-  'width': {'ideal': 1280},
-  'height': {'ideal': 720},
-};
+/// カメラの映像制約。ブラウザで画面が縦向きの時は、解像度の縦横を入れ替える
+/// （横長固定で要求すると、縦向きのiPad等で映像が送られなくなる不具合の対処、
+/// 2026-10-22）。[frontCamera]がfalseなら背面カメラ。
+Map<String, dynamic> buildVideoConstraints({bool frontCamera = true}) {
+  final portrait = kIsWeb && isPortraitScreen;
+  return {
+    'facingMode': frontCamera ? 'user' : 'environment',
+    'width': {'ideal': portrait ? 720 : 1280},
+    'height': {'ideal': portrait ? 1280 : 720},
+  };
+}

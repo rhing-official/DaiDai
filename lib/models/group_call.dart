@@ -212,3 +212,23 @@ int liveParticipantCount(List<CallParticipant> participants, DateTime now) {
     return now.difference(lastSeenAt.toDate()) <= kGroupCallPresenceStaleAfter;
   }).length;
 }
+
+/// 通話の作成直後、まだ誰も参加していない間（発起人が参加するまで）は放棄扱いに
+/// しない猶予（2026-10-22）。
+const kGroupCallAbandonedGrace = Duration(seconds: 60);
+
+/// 誰も生きて残っていない（全員がハートビート切れ、または参加者0）通話か。
+/// タブを閉じる・圏外などで退出処理が走らなかった通話が、`active`のまま残って
+/// バナーが消えない不具合の判定に使う。作成から[kGroupCallAbandonedGrace]以内
+/// （`createdAt`が未確定の書き込み直後を含む）は、まだ放棄とみなさない。
+bool isGroupCallAbandoned({
+  required List<CallParticipant> participants,
+  required Timestamp? createdAt,
+  required DateTime now,
+}) {
+  if (createdAt == null ||
+      now.difference(createdAt.toDate()) < kGroupCallAbandonedGrace) {
+    return false;
+  }
+  return liveParticipantCount(participants, now) == 0;
+}

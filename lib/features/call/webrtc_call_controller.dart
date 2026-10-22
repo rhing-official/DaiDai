@@ -8,6 +8,7 @@ import '../../models/call.dart';
 import '../../repositories/call_repository.dart';
 import '../../repositories/direct_message_repository.dart';
 import 'call_sound_player.dart';
+import 'camera_orientation_restart.dart';
 import 'disconnect_grace.dart';
 import 'rtc_config.dart';
 import 'webrtc_media_constraints.dart';
@@ -183,8 +184,12 @@ class WebrtcCallController extends ChangeNotifier {
         if (call.isVideo) {
           _videoTransceiver = await _peerConnection!.addTransceiver(
             kind: RTCRtpMediaType.RTCRtpMediaTypeVideo,
+            // ストリームに紐づけておく（紐づけないと相手の`onTrack`の
+            // `streams`が空になり、後からreplaceTrackした映像が相手の画面に
+            // 出なかった、2026-10-22）。
             init: RTCRtpTransceiverInit(
               direction: TransceiverDirection.SendRecv,
+              streams: [_localStream!],
             ),
           );
         }
@@ -204,6 +209,14 @@ class WebrtcCallController extends ChangeNotifier {
       _peerConnection!.onTrack = (event) {
         if (event.streams.isNotEmpty) {
           remoteRenderer.srcObject = event.streams.first;
+        } else {
+          // ストリームに紐づかないトラック（相手が旧版など）は、既存の
+          // 受信ストリームへ足して映像・音声を表示できるようにする。
+          final existing = remoteRenderer.srcObject;
+          if (existing != null) {
+            existing.addTrack(event.track);
+            remoteRenderer.srcObject = existing;
+          }
         }
       };
 
@@ -438,6 +451,7 @@ class WebrtcCallController extends ChangeNotifier {
         _flushPendingCandidates();
         if (_state != CallConnectionState.active) {
           _state = CallConnectionState.active;
+          _watchOrientation();
           _connectedAt ??= DateTime.now();
           unawaited(_applySpeakerphoneWithRetry());
           // 相手（着信側）が応答したことで届いたanswer。発信側が聞いていた
@@ -472,6 +486,7 @@ class WebrtcCallController extends ChangeNotifier {
     });
     if (_state != CallConnectionState.active) {
       _state = CallConnectionState.active;
+      _watchOrientation();
       _connectedAt ??= DateTime.now();
       unawaited(_applySpeakerphoneWithRetry());
       // 着信側が応答したことでこのアンサーを送った瞬間。着信音をここで
@@ -752,6 +767,48 @@ class WebrtcCallController extends ChangeNotifier {
     notifyListeners();
   }
 
+  CameraOrientationRestart? _orientationRestart;
+
+  /// 通話が確立したら、端末の向き変更でカメラを取り直す監視を始める（Webのみ）。
+  void _watchOrientation() {
+    if (!kIsWeb || _orientationRestart != null) return;
+    _orientationRestart = CameraOrientationRestart(
+      onRestart: () => unawaited(_restartCameraForOrientation()),
+    );
+  }
+
+  /// 向きが変わった後にカメラを取り直し、送信中の映像トラックを差し替える
+  /// （iPadのブラウザで、回すと映像の送信が止まる・上下反転して届く対処）。
+  Future<void> _restartCameraForOrientation() async {
+    if (_switchingCamera || _state != CallConnectionState.active) return;
+    final old = [...?_localStream?.getVideoTracks()];
+    if (old.isEmpty) return;
+    _switchingCamera = true;
+    notifyListeners();
+    try {
+      for (final track in old) {
+        _localStream?.removeTrack(track);
+        await track.stop();
+      }
+      final stream = await navigator.mediaDevices.getUserMedia({
+        'audio': false,
+        'video': buildVideoConstraints(frontCamera: _isFrontCamera),
+      });
+      final newTrack = stream.getVideoTracks().first;
+      _localStream?.addTrack(newTrack);
+      localRenderer.srcObject = _localStream;
+      final sender = (await _peerConnection?.getSenders() ?? [])
+          .where((s) => s.track?.kind == 'video')
+          .firstOrNull;
+      await sender?.replaceTrack(newTrack);
+    } catch (_) {
+      // 取り直せなければ現状維持（映像は止まったままになりうる）。
+    } finally {
+      _switchingCamera = false;
+      notifyListeners();
+    }
+  }
+
   Future<void> switchCamera() async {
     // 連打による多重実行を防ぐ（実機で「重くなる」報告の一因だった。
     // 前のgetUserMedia/switchCameraが終わらないうちに次を呼ぶと処理が
@@ -807,6 +864,7 @@ class WebrtcCallController extends ChangeNotifier {
 
   @override
   void dispose() {
+    _orientationRestart?.dispose();
     _disconnectGrace.cancel();
     _callSub?.cancel();
     _candidatesSub?.cancel();
