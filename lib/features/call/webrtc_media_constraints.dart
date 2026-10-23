@@ -35,11 +35,24 @@ dynamic buildAudioConstraints() {
 /// カメラの映像制約。ブラウザで画面が縦向きの時は、解像度の縦横を入れ替える
 /// （横長固定で要求すると、縦向きのiPad等で映像が送られなくなる不具合の対処、
 /// 2026-10-22）。[frontCamera]がfalseなら背面カメラ。
-Map<String, dynamic> buildVideoConstraints({bool frontCamera = true}) {
-  final portrait = kIsWeb && isPortraitScreen;
-  return {
-    'facingMode': frontCamera ? 'user' : 'environment',
-    'width': {'ideal': portrait ? 720 : 1280},
-    'height': {'ideal': portrait ? 1280 : 720},
-  };
-}
+Map<String, dynamic> buildVideoConstraints({bool frontCamera = true}) =>
+    videoConstraintsFor(
+      portrait: kIsWeb && isPortraitScreen,
+      frontCamera: frontCamera,
+      withAspectRatio: kIsWeb,
+    );
+
+/// [buildVideoConstraints]の中身（向きを引数にした純粋な関数、テスト用）。
+/// [withAspectRatio]がtrueなら、縦横の比率（縦向き9:16・横向き16:9）も要求する。
+/// スマホのブラウザは`width/height`の`ideal`だけではカメラの横長モードを選び、
+/// 縦向きでも横長の映像を返すことがあるため、比率で切り抜かせる（2026-10-23）。
+Map<String, dynamic> videoConstraintsFor({
+  required bool portrait,
+  bool frontCamera = true,
+  bool withAspectRatio = false,
+}) => {
+  'facingMode': frontCamera ? 'user' : 'environment',
+  'width': {'ideal': portrait ? 720 : 1280},
+  'height': {'ideal': portrait ? 1280 : 720},
+  if (withAspectRatio) 'aspectRatio': {'ideal': portrait ? 9 / 16 : 16 / 9},
+};

@@ -5,14 +5,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:pointer_interceptor/pointer_interceptor.dart';
 
-import '../../models/app_user.dart';
 import '../../models/app_ui_style.dart';
 import '../../providers/app_ui_style_provider.dart';
 import '../../providers/camera_availability_provider.dart';
-import '../../providers/chat_navigation_providers.dart';
-import '../../providers/home_shell_providers.dart';
-import '../../providers/last_opened_room_provider.dart';
-import '../../providers/repository_providers.dart';
 import '../../router/app_router.dart';
 import '../../theme/gekiga/gekiga_colors.dart';
 import '../../theme/gekiga/gekiga_shapes.dart';
@@ -28,13 +23,12 @@ import 'camera_availability.dart';
 import 'pinned_call_position.dart';
 import 'webrtc_call_controller.dart';
 
-/// 通話中、その会話の画面を見ていない間だけ表示する右上固定のミニ表示
+/// 通話中、通話画面を閉じている間だけ表示する右上固定のミニ表示
 /// （2026-08-19追加）。`HomeScreen`の外側`Stack`（ナビチップと同じ階層）に
 /// 常時マウントしておくことで、身だしなみ・設定タブへ移動しても消えない
-/// （語らいタブでその会話自体を表示中の場合は`EmbeddedCallPane`が
-/// 埋め込み表示を出すため、ここでは重複を避けて非表示にする）。
+/// （PC・Webで通話画面`CallOverlay`を開いている間は、重複を避けて非表示にする）。
 ///
-/// 表示条件: PCではその会話を見ていない間、モバイルでは全画面から下
+/// 表示条件: PCでは通話画面を閉じている間、モバイルでは全画面から下
 /// スワイプでドックした間だけ表示する。音声のみの通話も（当初は完全非表示
 /// だったが）ビデオ通話と同様に表示する（2026-08-19変更）。映像が無い間は
 /// 通話画面の音声通話時と同じ、呼び名の頭文字を乗せた丸いアバターを中央に
@@ -55,13 +49,11 @@ class PinnedCallOverlay extends ConsumerWidget {
       return const SizedBox.shrink();
     }
 
-    // PC・Webでは、その会話の通話UI（`EmbeddedCallPane`）が実際に表示されて
-    // いる間だけ隠す（2026-10-11変更、以前は「その会話を見ているか」で判定して
-    // いたため、通話UIが出ていないのに隠れたり、出ているのに残ったりした）。
-    final embeddedShown =
-        !isMobileCallPlatform &&
-        ref.watch(embeddedCallShownProvider) == session.conversation;
-    if (embeddedShown) return const SizedBox.shrink();
+    // PC・Webでは、通話画面（`CallOverlay`、今の画面の上に重ねる層）が開いて
+    // いる間だけ隠す（2026-10-23、以前は語らいへの埋め込み表示の有無で判定）。
+    if (!isMobileCallPlatform && ref.watch(callOverlayOpenProvider)) {
+      return const SizedBox.shrink();
+    }
 
     if (isMobileCallPlatform && !session.minimized) {
       return const SizedBox.shrink(); // まだ全画面表示中
@@ -317,7 +309,11 @@ class _PinnedCallBubble extends ConsumerWidget {
                       isGekiga: isGekiga,
                       isGlass: isGlass,
                       enabled: !incomingSession.controller.accepting,
-                      onTap: incomingSession.controller.accept,
+                      // 応答したら通話画面を重ねて開く（PC・Web）。
+                      onTap: () {
+                        incomingSession.controller.accept();
+                        ref.read(callOverlayOpenProvider.notifier).open();
+                      },
                     ),
                   ]
                 : [
@@ -500,63 +496,9 @@ class _PinnedCallBubble extends ConsumerWidget {
       return;
     }
 
-    // PCでは全画面ルートへは戻らず、語らいタブへ切り替えた上でその会話の
-    // 通話中の寄合を開く。開けば`EmbeddedCallPane`が自動的に埋め込み表示へ
-    // 差し替える（2026-08-19追加、2026-10-13に寄合への移動を追加）。
-    ref.read(homeSelectedTabProvider.notifier).set(kTalksTabIndex);
-    // 既にその会話を開いていて通話UIがメッセージ表示に切り替わっている場合も、
-    // 通話UIへ戻す（2026-10-11追加）。
-    ref.read(callPaneRequestProvider.notifier).request(session.conversation);
-    // 通話中の寄合（まだ決まっていなければ移動しない）。先に「最後に開いた寄合」へ
-    // 設定しておけば、まだ開かれていない詳細ペインも最初からその寄合で開く。
-    // 既に開いている詳細ペインには、選択後に寄合の切り替えを要求する。
-    final callRoomId = ref.read(callRoomIdProvider);
-    final conversation = session.conversation;
-    // 既にその寄合を最後に開いている（＝詳細ペインも同じ寄合）なら切り替えは
-    // 不要（要求するとチャット本体が作り直されスクロール位置等を失う）。
-    final alreadyThere =
-        ref.read(lastOpenedRoomProvider.notifier).lastRoomFor(conversation) ==
-        callRoomId;
-    if (callRoomId != null) {
-      ref
-          .read(lastOpenedRoomProvider.notifier)
-          .setLastRoom(conversation, callRoomId);
-    }
-    void requestRoom() {
-      if (callRoomId == null || alreadyThere) return;
-      // 次のフレームで要求する（会話の選択で詳細ペインが作られ・切り替わった後）。
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        ref
-            .read(roomSelectionRequestProvider.notifier)
-            .request(conversation, callRoomId);
-      });
-    }
-
-    switch (session) {
-      case OneToOneCallSession(:final call):
-        final caller = AppUser(
-          userId: call.callerId,
-          rhingSeed: call.callerRhingSeed,
-        );
-        final callee = AppUser(
-          userId: call.calleeId,
-          rhingSeed: call.calleeRhingSeed,
-        );
-        ref
-            .read(directMessageRepositoryProvider)
-            .getOrCreateDirectMessage(caller, callee)
-            .then((dm) {
-              ref.read(pendingDmSelectionProvider.notifier).set(dm);
-              requestRoom();
-            });
-      case GroupCallSession(:final groupId):
-        ref.read(groupRepositoryProvider).getGroup(groupId).then((group) {
-          if (group != null) {
-            ref.read(pendingGroupSelectionProvider.notifier).set(group);
-            requestRoom();
-          }
-        });
-    }
+    // PC・Webでは画面を移動せず、今の画面の上に通話画面を重ねて開く
+    // （2026-10-23、以前は語らいタブへ移動して通話中の寄合を開いていた）。
+    ref.read(callOverlayOpenProvider.notifier).open();
   }
 }
 

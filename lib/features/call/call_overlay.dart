@@ -10,9 +10,7 @@ import 'package:pointer_interceptor/pointer_interceptor.dart';
 import '../../models/app_ui_style.dart';
 import '../../providers/app_ui_style_provider.dart';
 import '../../providers/camera_availability_provider.dart';
-import '../../providers/chat_navigation_providers.dart';
 import '../../utils/platform_info.dart';
-import '../../widgets/pane_visibility.dart';
 import '../../widgets/swipe_gestures.dart';
 import 'active_call_session.dart';
 import 'call_audio_sinks.dart';
@@ -26,233 +24,70 @@ import 'webrtc_group_call_controller.dart';
 import '../../router/back_stack.dart';
 import '../../l10n/strings.dart';
 
-/// PC/Web限定: 通話中の会話画面で、メッセージ一覧の代わりに通話UIを
-/// 埋め込み表示する（2026-08-19追加、通話UIの再設計に伴う）。
-/// `DmChatPane`/`GroupChatPane`が[child]（通常のチャット画面）をこれで
-/// 包み、[conversation]に一致する通話セッションが存在しPC/Webである間だけ
-/// 通話UIへ差し替える。マウント中は`activeConversationProvider`へ自分の
-/// 会話を報告し（`PinnedCallOverlay`が「今その会話を見ているか」を
-/// 判定するのに使う）、アンマウント時にクリアする。
-class EmbeddedCallPane extends ConsumerStatefulWidget {
-  const EmbeddedCallPane({
-    required this.conversation,
-    required this.roomId,
-    required this.child,
-    super.key,
-  });
-
-  final ViewedConversation conversation;
-
-  /// このペインが今表示している寄合。通話画面は通話の寄合（[callRoomIdProvider]）
-  /// を表示している間だけ出し、他の寄合ではメッセージ表示にする（2026-10-13）。
-  final String roomId;
-  final Widget child;
-
-  @override
-  ConsumerState<EmbeddedCallPane> createState() => _EmbeddedCallPaneState();
-}
-
-class _EmbeddedCallPaneState extends ConsumerState<EmbeddedCallPane> {
-  /// 通話UIとメッセージ一覧、どちらを表示中か（通話中のみ意味を持つ
-  /// トグル、`_Header`の「メッセージに戻る」ボタンで切り替える）。
-  bool _showingCall = true;
-
-  @override
-  void initState() {
-    super.initState();
-    // `late final`の遅延初期化を、`dispose()`より前（マウント中）に確定させる。
-    _activeConversation;
-    _embeddedCallShown;
-    WidgetsBinding.instance.addPostFrameCallback((_) => _report());
-  }
-
-  @override
-  void didUpdateWidget(covariant EmbeddedCallPane oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.conversation != widget.conversation ||
-        oldWidget.roomId != widget.roomId) {
-      _showingCall = true;
-      WidgetsBinding.instance.addPostFrameCallback((_) => _report());
-    }
-  }
-
-  void _report() {
-    if (!mounted) return;
-    ref.read(activeConversationProvider.notifier).set(widget.conversation);
-  }
-
-  /// 直近に`embeddedCallShownProvider`へ報告した会話。会話の切り替えでこの
-  /// `State`が再利用される（`didUpdateWidget`）場合に、**旧会話の報告を確実に
-  /// 解除する**ために覚えておく（以前は新しい会話に対して解除しており、旧会話の
-  /// 報告が残ってミニ表示が出なくなっていた、2026-10-11修正）。
-  ViewedConversation? _reported;
-
-  /// 通話UIを**実際に画面に表示している**間だけ、その会話を
-  /// `embeddedCallShownProvider`へ報告する（右上のミニ表示を隠す判定に使う、
-  /// 2026-10-11）。ビルド中にプロバイダーを書き換えないよう、フレーム後に反映する。
-  void _syncShown(bool shown) {
-    final target = shown ? widget.conversation : null;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      final notifier = ref.read(embeddedCallShownProvider.notifier);
-      final previous = _reported;
-      if (previous != null && previous != target) {
-        notifier.clearIfCurrent(previous);
-      }
-      if (target != null) notifier.set(target);
-      _reported = target;
-    });
-  }
-
-  // `dispose()`では`ref`を使えない（Riverpod 3系は`context.mounted`が偽のため
-  // `StateError`を投げる。破棄のたびに例外が出て、後続の破棄・再構築を巻き込んで
-  // いた、2026-10-13修正）。後始末に使う通知先を先にフィールドへ保存しておく。
-  late final _activeConversation = ref.read(
-    activeConversationProvider.notifier,
-  );
-  late final _embeddedCallShown = ref.read(embeddedCallShownProvider.notifier);
-
-  @override
-  void dispose() {
-    // `dispose()`中はプロバイダーを書き換えられない（ツリーの構築中扱いで
-    // `FlutterError`になる）ため、直後のマイクロタスクで解除する。
-    final conversation = widget.conversation;
-    final reported = _reported;
-    final activeConversation = _activeConversation;
-    final embeddedCallShown = _embeddedCallShown;
-    Future<void>.microtask(() {
-      try {
-        activeConversation.clearIfCurrent(conversation);
-        embeddedCallShown.clearIfCurrent(conversation);
-        if (reported != null) embeddedCallShown.clearIfCurrent(reported);
-      } catch (_) {
-        // アプリ全体のプロバイダーが既に破棄された後（テストの片付け等。Riverpodの
-        // 破棄済みの例外は型が公開されていないため、全て受ける）は何もしない。
-      }
-    });
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    // ミニ表示のクリック等で「この会話の通話UIへ戻って」と要求されたら、
-    // メッセージ表示に切り替えていても通話UIへ戻す（2026-10-11追加）。
-    ref.listen(callPaneRequestProvider, (previous, next) {
-      if (next != null && next.$1 == widget.conversation && !_showingCall) {
-        setState(() => _showingCall = true);
-      }
-    });
-
-    final session = ref.watch(activeCallSessionProvider);
-    final callRoomId = ref.watch(callRoomIdProvider);
-    // 実際に画面に見えているか。`IndexedStack`は非選択の子もマウントしたまま
-    // `TickerMode`も無効にしないため、`PaneVisibility`（語らいタブの詳細ペイン・
-    // ホームのタブ）と、ルートに覆われた場合の`TickerMode`の両方で判定する
-    // （2026-10-13、以前は`TickerMode`のみで、別の語らい・タブへ移っても旧ペインが
-    // 「表示中」と報告し続けプレビューが出なかった）。
-    final visible = TickerMode.of(context) && PaneVisibility.of(context);
-    final isMatch =
-        !isMobileCallPlatform &&
-        session != null &&
-        session.conversation == widget.conversation &&
-        // 通話の寄合（最初に通話画面が表示された寄合）だけに通話画面を出す。
-        // まだ決まっていなければ（null）この寄合が候補。
-        (callRoomId == null || callRoomId == widget.roomId);
-
-    // 通話画面が初めて実際に見えた寄合を、通話の寄合として記録する。
-    if (isMatch && callRoomId == null && visible && _showingCall) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        if (ref.read(callRoomIdProvider) == null) {
-          ref.read(callRoomIdProvider.notifier).set(widget.roomId);
-        }
-      });
-    }
-
-    _syncShown(isMatch && _showingCall && visible);
-
-    if (!isMatch) return widget.child;
-
-    if (!_showingCall) {
-      return Stack(
-        children: [
-          widget.child,
-          Positioned(
-            top: 8,
-            left: 0,
-            right: 0,
-            child: Center(
-              child: _ReturnToCallChip(
-                onTap: () => setState(() => _showingCall = true),
-              ),
-            ),
-          ),
-        ],
-      );
-    }
-
-    // 通話UIを埋め込み表示している間は、ブラウザの戻るでメッセージ表示へ
-    // 戻れる（2026-10-04追加、`BackStackController`参照）。
-    return BackEntry(
-      scope: BackScope.talks,
-      active: true,
-      layer: true,
-      onBack: () => setState(() => _showingCall = false),
-      child: _EmbeddedCallView(
-        session: session,
-        onBackToMessages: () => setState(() => _showingCall = false),
-      ),
-    );
-  }
-}
-
-/// メッセージ表示に切り替えた後も、通話中であることと戻る導線を示す
-/// 小さなチップ。
-class _ReturnToCallChip extends ConsumerWidget {
-  const _ReturnToCallChip({required this.onTap});
-  final VoidCallback onTap;
+/// PC・Web: 通話画面を、今見ている画面の**上に重ねて**表示する層（2026-10-23、
+/// 以前は通話中の語らいを開いてメッセージ表示を通話UIに差し替える
+/// `EmbeddedCallPane`だった）。`main.dart`の`builder`で全ルートの上に常時
+/// マウントし、通話セッションがあり[callOverlayOpenProvider]が`true`の間だけ
+/// 画面いっぱいに出す。閉じると右上のミニ表示（`PinnedCallOverlay`）に戻り、
+/// 重ねる前の画面（スクロール位置・入力途中の内容を含む）がそのまま見える。
+/// スマホアプリは全画面ルート（`/call`・`/group-call`）を重ねる従来の方式で、
+/// この層は出さない。
+class CallOverlay extends ConsumerWidget {
+  const CallOverlay({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return Material(
-      color: Colors.black87,
-      borderRadius: BorderRadius.circular(20),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(20),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.call, color: Colors.white, size: 16),
-              const SizedBox(width: 8),
-              Text(
-                ref.watch(appStringsProvider).callReturnChip,
-                style: const TextStyle(color: Colors.white),
-              ),
-            ],
-          ),
-        ),
+    final session = ref.watch(activeCallSessionProvider);
+    final open = ref.watch(callOverlayOpenProvider);
+    if (isMobileCallPlatform || session == null || !open) {
+      return const SizedBox.shrink();
+    }
+    // `MaterialApp.builder`の位置にはNavigator・Overlayが無く、`Tooltip`等が
+    // 使えないため、専用の`Overlay`を持つ。
+    return Positioned.fill(
+      child: Overlay(
+        initialEntries: [
+          OverlayEntry(builder: (context) => const _CallOverlayBody()),
+        ],
       ),
     );
   }
 }
 
-class _EmbeddedCallView extends StatefulWidget {
-  const _EmbeddedCallView({
-    required this.session,
-    required this.onBackToMessages,
-  });
-
-  final ActiveCallSession session;
-  final VoidCallback onBackToMessages;
+class _CallOverlayBody extends ConsumerWidget {
+  const _CallOverlayBody();
 
   @override
-  State<_EmbeddedCallView> createState() => _EmbeddedCallViewState();
+  Widget build(BuildContext context, WidgetRef ref) {
+    final session = ref.watch(activeCallSessionProvider);
+    if (session == null) return const SizedBox.shrink();
+    void close() => ref.read(callOverlayOpenProvider.notifier).close();
+    // Webでは映像（プラットフォームビュー）がクリックを奪うため、重ねた面が
+    // 受け取れるようにする。ブラウザの戻る・Escで閉じられる。
+    return PointerInterceptor(
+      child: BackEntry(
+        scope: null,
+        active: true,
+        layer: true,
+        onBack: close,
+        child: CallOverlayView(session: session, onClose: close),
+      ),
+    );
+  }
 }
 
-class _EmbeddedCallViewState extends State<_EmbeddedCallView> {
+/// 通話UI本体（ヘッダー・ステージ・コントロール）。
+class CallOverlayView extends StatefulWidget {
+  const CallOverlayView({required this.session, required this.onClose});
+
+  final ActiveCallSession session;
+  final VoidCallback onClose;
+
+  @override
+  State<CallOverlayView> createState() => _CallOverlayViewState();
+}
+
+class _CallOverlayViewState extends State<CallOverlayView> {
   /// マウスホイール/トラックパッドでの上スクロール終了のデバウンス用
   /// タイマー（2026-08-30追加、`chat_screen.dart`のメディアビューアと同じ
   /// パターン。1回のトラックパッド操作で多数の`PointerScrollEvent`が連続
@@ -288,7 +123,7 @@ class _EmbeddedCallViewState extends State<_EmbeddedCallView> {
           onKeyEvent: (node, event) {
             if (event is KeyDownEvent &&
                 event.logicalKey == LogicalKeyboardKey.escape) {
-              widget.onBackToMessages();
+              widget.onClose();
               return KeyEventResult.handled;
             }
             return KeyEventResult.ignored;
@@ -298,19 +133,19 @@ class _EmbeddedCallViewState extends State<_EmbeddedCallView> {
               if (event is PointerScrollEvent && event.scrollDelta.dy < -2.0) {
                 _scrollBackTimer?.cancel();
                 _scrollBackTimer = Timer(const Duration(milliseconds: 150), () {
-                  if (mounted) widget.onBackToMessages();
+                  if (mounted) widget.onClose();
                 });
               }
             },
             child: SwipeDownToDismiss(
-              onDismiss: widget.onBackToMessages,
+              onDismiss: widget.onClose,
               // `Material`祖先が無いと`Text`が`DefaultTextStyle`を得られず、
               // 48px・白・黄色の二重下線のフォールバック表示になる（2026-10-13修正）。
               child: Material(
                 color: colorScheme.surface,
                 child: Column(
                   children: [
-                    _Header(onBackToMessages: widget.onBackToMessages),
+                    _Header(onClose: widget.onClose),
                     Expanded(
                       child: switch (widget.session) {
                         OneToOneCallSession s => _OneToOneStage(session: s),
@@ -333,8 +168,8 @@ class _EmbeddedCallViewState extends State<_EmbeddedCallView> {
 }
 
 class _Header extends StatelessWidget {
-  const _Header({required this.onBackToMessages});
-  final VoidCallback onBackToMessages;
+  const _Header({required this.onClose});
+  final VoidCallback onClose;
 
   @override
   Widget build(BuildContext context) {
@@ -347,7 +182,7 @@ class _Header extends StatelessWidget {
             IconButton(
               icon: const Icon(Icons.expand_more, color: Colors.white),
               tooltip: '',
-              onPressed: onBackToMessages,
+              onPressed: onClose,
             ),
           ],
         ),

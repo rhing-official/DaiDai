@@ -243,20 +243,24 @@ final activeCallSessionProvider =
       ActiveCallSessionNotifier.new,
     );
 
-/// 通話画面（PC・Webの埋め込み表示）を出している寄合のid（2026-10-13追加）。
-/// 通話自体は会話（一対/広場）単位だが、通話画面は「最初に実際に表示された
-/// 寄合」だけに出し、他の寄合・語らい・メニューへ移った時点でミニ表示に切り
-/// 替える。通話が終わる・別の通話に変わると`null`へ戻る。
-class CallRoomIdNotifier extends Notifier<String?> {
+/// PC・Webで通話画面（`CallOverlay`、今の画面の上に重ねる層）を開いているか
+/// （2026-10-23）。発信・広場への参加では通話の開始と同時に開き、1対1の着信は
+/// 応答前はミニ表示の拒否/応答のままにして、応答した時に開く。閉じても通話は
+/// 続き、右上のミニ表示になる。通話が終わる・別の通話に変わると初期値へ戻る。
+class CallOverlayOpenNotifier extends Notifier<bool> {
   @override
-  String? build() {
+  bool build() {
+    // 通話が入れ替わった時だけ作り直す（ドック状態の変更では閉じ直さない）。
     ref.watch(activeCallSessionProvider.select((s) => s?.controllerListenable));
-    return null;
+    final session = ref.read(activeCallSessionProvider);
+    final incoming = session is OneToOneCallSession && !session.isCaller;
+    return session != null && !incoming;
   }
 
-  void set(String roomId) => state = roomId;
+  void open() => state = true;
+  void close() => state = false;
 }
 
-final callRoomIdProvider = NotifierProvider<CallRoomIdNotifier, String?>(
-  CallRoomIdNotifier.new,
+final callOverlayOpenProvider = NotifierProvider<CallOverlayOpenNotifier, bool>(
+  CallOverlayOpenNotifier.new,
 );

@@ -48,7 +48,6 @@ import '../album/album_pane_view.dart';
 import '../album/album_popup_content.dart';
 import '../calendar/calendar_pane_view.dart';
 import '../call/active_call_session.dart';
-import '../call/embedded_call_pane.dart';
 import '../note/note_pane_view.dart';
 import '../note/note_popup_content.dart';
 import '../poll/poll_detail_dialog.dart';
@@ -511,30 +510,25 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
               onClose: () => setState(() => _openAlbum = null),
             ),
           );
-    // 通話中、PC/Webではこの会話を表示している間だけメッセージ一覧の
-    // 代わりに通話UIを埋め込み表示する（2026-08-19追加、EmbeddedCallPane
-    // 参照）。
-    final chatBody = EmbeddedCallPane(
-      conversation: ViewedDm(widget.dm.dmId),
-      roomId: _currentRoomId,
-      child: Builder(
-        builder: (context) {
-          // 横スクロールタブバー表示の有無に関わらず、ピン留め済みメッセージ
-          // （`DmRoom.pinnedMessageIds`）を取得するため常に寄合一覧を購読する
-          // （2026-08-30変更、以前は横スクロールタブバーが必要な場合のみ
-          // 購読していた）。
-          return StreamBuilder<List<DmRoom>>(
-            stream: ref
-                .read(directMessageRepositoryProvider)
-                .watchRooms(
-                  dmId: widget.dm.dmId,
-                  userId: widget.currentUser.userId,
-                ),
-            builder: (context, snapshot) =>
-                _buildChatScreen(context, snapshot.data),
-          );
-        },
-      ),
+    // 通話画面はメッセージ表示を差し替えず、画面の上に重ねる（2026-10-23、
+    // `CallOverlay`参照）。
+    final chatBody = Builder(
+      builder: (context) {
+        // 横スクロールタブバー表示の有無に関わらず、ピン留め済みメッセージ
+        // （`DmRoom.pinnedMessageIds`）を取得するため常に寄合一覧を購読する
+        // （2026-08-30変更、以前は横スクロールタブバーが必要な場合のみ
+        // 購読していた）。
+        return StreamBuilder<List<DmRoom>>(
+          stream: ref
+              .read(directMessageRepositoryProvider)
+              .watchRooms(
+                dmId: widget.dm.dmId,
+                userId: widget.currentUser.userId,
+              ),
+          builder: (context, snapshot) =>
+              _buildChatScreen(context, snapshot.data),
+        );
+      },
     );
     // ノートはメッセージ画面を置き換えず、その上に右からスライドインで重ねる
     // （2026-10-07、ユーザー指示）。右スワイプで戻る時に指追従で流れた後ろへ
@@ -2371,7 +2365,7 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
     // モバイルのみ全画面の/group-callへpushする。PCでは全画面ルートを
     // 使わず、通話セッションを直接開始するだけにする（2026-08-19変更）。
     // 発信者は既にこの広場のメッセージ画面を見ているため、以後は
-    // `EmbeddedCallPane`がそのメッセージ画面内に埋め込み表示として引き継ぐ。
+    // 以後は`CallOverlay`が今の画面の上に通話画面を重ねて表示する。
     if (isMobileCallPlatform) {
       ref
           .read(goRouterProvider)
@@ -2470,55 +2464,49 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
               onClose: () => setState(() => _openAlbum = null),
             ),
           );
-    // 通話中、PC/Webではこの会話を表示している間だけメッセージ一覧の
-    // 代わりに通話UIを埋め込み表示する（2026-08-19追加、EmbeddedCallPane
-    // 参照）。
-    final chatBody = EmbeddedCallPane(
-      conversation: ViewedGroup(group.groupId),
-      roomId: _currentRoomId,
-      child: Builder(
-        builder: (context) {
-          // カスタムロール（見た目専用の呼び名フォントカラー）は広場全体の
-          // 優先順位・寄合ごとの上書きを両方見る必要があるため、ロール
-          // 一覧・寄合一覧をここでwatchして呼び名の色を解決する
-          // （`resolveSenderColor`/`_SenderName`参照）。更新頻度が低いため
-          // ネストしたStreamBuilderのコストは無視できる。
-          return StreamBuilder<List<GroupRole>>(
-            stream: groupRepository.watchRoles(group.groupId),
-            builder: (context, rolesSnapshot) {
-              final roles = rolesSnapshot.data ?? const <GroupRole>[];
-              return StreamBuilder<List<Room>>(
-                stream: groupRepository.watchRooms(
-                  groupId: group.groupId,
-                  userId: currentUser.userId,
-                ),
-                builder: (context, roomsSnapshot) {
-                  final rooms = roomsSnapshot.data ?? const <Room>[];
-                  final currentRoom = rooms.firstWhereOrNull(
-                    (r) => r.roomId == roomId,
-                  );
-                  Color? senderNameColorFor(String userId) =>
-                      resolveSenderColor(
-                        group: group,
-                        currentRoom: currentRoom,
-                        roles: roles,
-                        userId: userId,
-                      );
+    // 通話画面はメッセージ表示を差し替えず、画面の上に重ねる（2026-10-23、
+    // `CallOverlay`参照）。
+    final chatBody = Builder(
+      builder: (context) {
+        // カスタムロール（見た目専用の呼び名フォントカラー）は広場全体の
+        // 優先順位・寄合ごとの上書きを両方見る必要があるため、ロール
+        // 一覧・寄合一覧をここでwatchして呼び名の色を解決する
+        // （`resolveSenderColor`/`_SenderName`参照）。更新頻度が低いため
+        // ネストしたStreamBuilderのコストは無視できる。
+        return StreamBuilder<List<GroupRole>>(
+          stream: groupRepository.watchRoles(group.groupId),
+          builder: (context, rolesSnapshot) {
+            final roles = rolesSnapshot.data ?? const <GroupRole>[];
+            return StreamBuilder<List<Room>>(
+              stream: groupRepository.watchRooms(
+                groupId: group.groupId,
+                userId: currentUser.userId,
+              ),
+              builder: (context, roomsSnapshot) {
+                final rooms = roomsSnapshot.data ?? const <Room>[];
+                final currentRoom = rooms.firstWhereOrNull(
+                  (r) => r.roomId == roomId,
+                );
+                Color? senderNameColorFor(String userId) => resolveSenderColor(
+                  group: group,
+                  currentRoom: currentRoom,
+                  roles: roles,
+                  userId: userId,
+                );
 
-                  return _buildChatScreen(
-                    context,
-                    groupRepository,
-                    rooms,
-                    currentRoom,
-                    roles,
-                    senderNameColorFor,
-                  );
-                },
-              );
-            },
-          );
-        },
-      ),
+                return _buildChatScreen(
+                  context,
+                  groupRepository,
+                  rooms,
+                  currentRoom,
+                  roles,
+                  senderNameColorFor,
+                );
+              },
+            );
+          },
+        );
+      },
     );
     // ノートはメッセージ画面を置き換えず、その上に右からスライドインで重ねる
     // （2026-10-07、ユーザー指示）。右スワイプで戻る時に指追従で流れた後ろへ

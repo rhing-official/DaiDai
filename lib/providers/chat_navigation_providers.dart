@@ -44,13 +44,8 @@ final pendingGroupSelectionProvider =
       PendingGroupSelectionNotifier.new,
     );
 
-/// 現在画面に表示中の会話（一対/広場）。通話のPC埋め込み表示・ピン留め
-/// ミニ表示（`lib/features/call/`配下）が「今その会話を見ているか」を
-/// 判定するために使う（2026-08-19追加）。`DmChatPane`/`GroupChatPane`
-/// （`EmbeddedCallPane`経由）が自身のマウント中にセットし、アンマウント時に
-/// クリアする。`TalksTab`の左右分割表示・`/chat/dm`・`/chat/group`の
-/// フルスクリーン遷移のどちらも同じ`DmChatPane`/`GroupChatPane`を経由する
-/// ため、ここ1箇所で両方カバーできる。
+/// 会話（一対/広場）の識別子。通話セッションがどの会話のものかを表す
+/// （`ActiveCallSession.conversation`）。
 sealed class ViewedConversation {
   const ViewedConversation();
 }
@@ -77,24 +72,6 @@ class ViewedGroup extends ViewedConversation {
   @override
   int get hashCode => Object.hash(ViewedGroup, groupId);
 }
-
-class ActiveConversationNotifier extends Notifier<ViewedConversation?> {
-  @override
-  ViewedConversation? build() => null;
-
-  void set(ViewedConversation conversation) => state = conversation;
-
-  /// 表示中がまさに[conversation]の場合だけクリアする（アンマウント時に
-  /// 呼ばれるが、その間に別の会話へ切り替わっていた場合は上書きしない）。
-  void clearIfCurrent(ViewedConversation conversation) {
-    if (state == conversation) state = null;
-  }
-}
-
-final activeConversationProvider =
-    NotifierProvider<ActiveConversationNotifier, ViewedConversation?>(
-      ActiveConversationNotifier.new,
-    );
 
 /// 語らい検索（`talks_search.dart`）のメッセージ内容検索結果をタップした時、
 /// 該当メッセージまでジャンプ＆ハイライトするよう`ChatScreen`へ伝える一時的な
@@ -160,43 +137,4 @@ class PendingMessageSearchHitNotifier extends Notifier<MessageSearchHit?> {
 final pendingMessageSearchHitProvider =
     NotifierProvider<PendingMessageSearchHitNotifier, MessageSearchHit?>(
       PendingMessageSearchHitNotifier.new,
-    );
-
-/// 通話UIを**実際に表示している**会話（2026-10-11追加、PC・Web）。
-/// `EmbeddedCallPane`が通話UIを出している間だけ自分の会話をセットし、
-/// メッセージ表示へ切り替えた時・アンマウント時にクリアする
-/// （[activeConversationProvider]の「その会話を見ているか」より正確）。
-/// 右上のミニ表示（`PinnedCallOverlay`）は、これが通話の会話と一致する間だけ
-/// 隠す。
-class EmbeddedCallShownNotifier extends Notifier<ViewedConversation?> {
-  @override
-  ViewedConversation? build() => null;
-
-  void set(ViewedConversation conversation) => state = conversation;
-
-  void clearIfCurrent(ViewedConversation conversation) {
-    if (state == conversation) state = null;
-  }
-}
-
-final embeddedCallShownProvider =
-    NotifierProvider<EmbeddedCallShownNotifier, ViewedConversation?>(
-      EmbeddedCallShownNotifier.new,
-    );
-
-/// 「この会話の通話UIへ戻って」の要求（2026-10-11追加、PC・Web）。ミニ表示の
-/// クリックが、既にその会話を開いていてメッセージ表示に切り替えてあっても
-/// 通話UIへ戻れるようにする橋渡し（[roomSelectionRequestProvider]と同じ形式、
-/// `nonce`は同じ会話への続けての要求も変化として通知させる連番）。
-class CallPaneRequestNotifier extends Notifier<(ViewedConversation, int)?> {
-  @override
-  (ViewedConversation, int)? build() => null;
-
-  void request(ViewedConversation conversation) =>
-      state = (conversation, (state?.$2 ?? 0) + 1);
-}
-
-final callPaneRequestProvider =
-    NotifierProvider<CallPaneRequestNotifier, (ViewedConversation, int)?>(
-      CallPaneRequestNotifier.new,
     );

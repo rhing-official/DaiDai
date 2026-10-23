@@ -4418,9 +4418,8 @@ class _DmDetailWithRoomsState extends ConsumerState<_DmDetailWithRooms> {
   }
 
   // モバイルのみ全画面の/callへpushする。PCでは全画面ルートを使わず、
-  // 通話セッションを直接開始するだけにする（2026-08-19変更）。発信者は
-  // 既に分割表示でこの一対を見ているため、以後は`EmbeddedCallPane`が
-  // その表示エリア内に埋め込み表示として引き継ぐ。
+  // 通話セッションを直接開始するだけにする（2026-08-19変更）。以後は
+  // `CallOverlay`が今の画面の上に通話画面を重ねて表示する（2026-10-23）。
   Future<void> _startCall(DirectMessage dm, {bool isVideo = false}) async {
     final callRepository = ref.read(callRepositoryProvider);
     final currentUser = widget.currentUser;

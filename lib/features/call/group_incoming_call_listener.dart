@@ -154,9 +154,8 @@ class _GroupIncomingCallListenerState
     if (!mounted) return;
     // モバイルのみ全画面の/group-callへpushする。PCでは全画面ルートを
     // 使わず、通話セッションを直接開始するだけにする（2026-08-19変更）。
-    // その広場のメッセージ画面を開けば`EmbeddedCallPane`が埋め込み表示を
-    // 出し、開いていない間は音声のみなら非表示・映像ありなら右上ピン留め
-    // ミニ表示（`PinnedCallOverlay`）になる。
+    // 参加と同時に`CallOverlay`が今の画面の上に通話画面を重ねて表示し、
+    // 閉じると右上のミニ表示（`PinnedCallOverlay`）になる（2026-10-23）。
     if (isMobileCallPlatform) {
       ref
           .read(goRouterProvider)

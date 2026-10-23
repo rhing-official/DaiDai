@@ -186,7 +186,7 @@ final goRouterProvider = Provider<GoRouter>((ref) {
   // 発信側は、モバイルのみ全画面の/callへpushする。PCでは全画面ルートを
   // 使わず、通話セッションを直接開始するだけにする（2026-08-19変更）。
   // 発信者は既にその会話のメッセージ画面を見ているため、以後は
-  // `EmbeddedCallPane`がそのメッセージ画面内に埋め込み表示として引き継ぐ。
+  // 以後は`CallOverlay`が今の画面の上に通話画面を重ねて表示する。
   Future<void> startCall(
     AppUser currentUser,
     DirectMessage dm, {

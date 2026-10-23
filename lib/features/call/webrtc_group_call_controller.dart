@@ -10,6 +10,7 @@ import '../../models/group_call.dart';
 import '../../repositories/group_call_repository.dart';
 import 'call_sound_player.dart';
 import 'camera_orientation_restart.dart';
+import 'peer_connect_guard.dart';
 import 'rtc_config.dart';
 import 'webrtc_media_constraints.dart';
 
@@ -293,7 +294,8 @@ class WebrtcGroupCallController extends ChangeNotifier {
       _peerSessionIds[p.userId] = p.sessionId;
     }
     for (final userId in liveOtherIds) {
-      if (!_peerConnections.containsKey(userId)) {
+      if (!_peerConnections.containsKey(userId) &&
+          !_connectGuard.isConnecting(userId)) {
         _connectToPeer(userId);
       }
     }
@@ -306,17 +308,34 @@ class WebrtcGroupCallController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// 同じ相手への接続処理の重複を防ぐ（[PeerConnectGuard]参照）。
+  final _connectGuard = PeerConnectGuard();
+
   Future<void> _connectToPeer(String otherUserId) async {
+    if (!_connectGuard.tryBegin(otherUserId)) return;
+    try {
+      await _connectToPeerOnce(otherUserId);
+    } finally {
+      _connectGuard.end(otherUserId);
+    }
+  }
+
+  Future<void> _connectToPeerOnce(String otherUserId) async {
     final isUserA = currentUser.userId.compareTo(otherUserId) < 0;
     final pairId = CallPeerLink.idFor(currentUser.userId, otherUserId);
 
     final renderer = RTCVideoRenderer();
     await renderer.initialize();
+    final configuration = await loadRtcConfiguration(_iceServersLoader);
+    final peerConnection = await createPeerConnection(configuration);
+    // 待っている間に相手が退室した・通話を抜けた場合は、作ったものを閉じて中断する。
+    if (_connectGuard.isCancelled(otherUserId) ||
+        _state == GroupCallConnectionState.ended) {
+      await peerConnection.close();
+      await renderer.dispose();
+      return;
+    }
     remoteRenderers[otherUserId] = renderer;
-
-    final peerConnection = await createPeerConnection(
-      await loadRtcConfiguration(_iceServersLoader),
-    );
     _peerConnections[otherUserId] = peerConnection;
     _remoteDescriptionSet[otherUserId] = false;
     _pendingRemoteCandidates[otherUserId] = [];
@@ -491,6 +510,7 @@ class WebrtcGroupCallController extends ChangeNotifier {
   }
 
   void _disconnectFromPeer(String otherUserId) {
+    _connectGuard.cancel(otherUserId);
     _peerLinkSubs.remove(otherUserId)?.cancel();
     _peerCandidateSubs.remove(otherUserId)?.cancel();
     _peerConnections.remove(otherUserId)?.close();
@@ -731,6 +751,7 @@ class WebrtcGroupCallController extends ChangeNotifier {
   @override
   void dispose() {
     _orientationRestart?.dispose();
+    _connectGuard.cancelAll();
     _presenceTimer?.cancel();
     _participantsSub?.cancel();
     _soundPlayer.dispose();

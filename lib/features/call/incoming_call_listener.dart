@@ -10,8 +10,8 @@ import 'active_call_session.dart';
 /// アプリ全体で、自分宛の着信（呼び出し中の通話）を監視する。
 /// モバイル実機では検知したら自動でCallScreenを開く。PC/Webでは
 /// フルスクリーン画面を経由せず`activeCallSessionProvider`を直接開始し、
-/// `EmbeddedCallPane`（該当の会話を見ている間）・`PinnedCallOverlay`
-/// （見ていない間、右上ミニ表示）に着信中の表示・応答/拒否操作を委ねる
+/// `PinnedCallOverlay`（右上ミニ表示）に着信中の表示・応答/拒否操作を委ね、
+/// 応答すると`CallOverlay`が今の画面の上に通話画面を重ねる（2026-10-23）
 /// （2026-09-12変更、発信側のPC分岐＝`talks_tab.dart`の`_startCall`と対称に
 /// した。以前はPCでも着信は必ずフルスクリーンだった）。
 /// HomeScreenの上位でラップして使う。
