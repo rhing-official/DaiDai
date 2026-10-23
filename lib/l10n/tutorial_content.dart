@@ -137,7 +137,7 @@ const _profileSteps = <TutorialStep>[
     targetId: TutorialTargetIds.profileKura,
     requiresTap: false,
     caption: GuideText(
-      '「蔵」は、アイコンや背景画像、呼び名などの素材をしまっておく場所です',
+      '「蔵」は、アイコンや背景、呼び名などの素材をしまっておく場所です',
       'The "Profile library" is where you keep your icons, background images, nicknames and other materials',
     ),
   ),

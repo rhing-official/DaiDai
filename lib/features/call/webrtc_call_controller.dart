@@ -7,8 +7,8 @@ import 'package:flutter_webrtc/flutter_webrtc.dart';
 import '../../models/call.dart';
 import '../../repositories/call_repository.dart';
 import '../../repositories/direct_message_repository.dart';
+import 'call_ring_timeout.dart';
 import 'call_sound_player.dart';
-import 'camera_orientation_restart.dart';
 import 'disconnect_grace.dart';
 import 'rtc_config.dart';
 import 'webrtc_media_constraints.dart';
@@ -157,7 +157,34 @@ class WebrtcCallController extends ChangeNotifier {
   String? _error;
   String? get error => _error;
 
+  /// 応答が無いまま[kCallRingTimeout]が経ったら不在着信として終える
+  /// （2026-10-23、以前は応答するまで着信音・呼出音が鳴り続けた）。発信側・着信側
+  /// どちらも持ち、先に切れた側が`missed`を書く（書き込みは重複してもよい）。
+  Timer? _ringTimeout;
+
+  void _startRingTimeout() {
+    _ringTimeout?.cancel();
+    _ringTimeout = Timer(kCallRingTimeout, _onRingTimeout);
+  }
+
+  void _cancelRingTimeout() {
+    _ringTimeout?.cancel();
+    _ringTimeout = null;
+  }
+
+  void _onRingTimeout() {
+    _ringTimeout = null;
+    if (_state != CallConnectionState.connecting) return;
+    unawaited(
+      _callRepository
+          .updateStatus(call.callId, CallStatus.missed)
+          .catchError((_) {}),
+    );
+    _finish();
+  }
+
   Future<void> initialize() async {
+    _startRingTimeout();
     try {
       await remoteRenderer.initialize();
       if (call.isVideo) {
@@ -451,7 +478,7 @@ class WebrtcCallController extends ChangeNotifier {
         _flushPendingCandidates();
         if (_state != CallConnectionState.active) {
           _state = CallConnectionState.active;
-          _watchOrientation();
+          _cancelRingTimeout();
           _connectedAt ??= DateTime.now();
           unawaited(_applySpeakerphoneWithRetry());
           // 相手（着信側）が応答したことで届いたanswer。発信側が聞いていた
@@ -486,7 +513,7 @@ class WebrtcCallController extends ChangeNotifier {
     });
     if (_state != CallConnectionState.active) {
       _state = CallConnectionState.active;
-      _watchOrientation();
+      _cancelRingTimeout();
       _connectedAt ??= DateTime.now();
       unawaited(_applySpeakerphoneWithRetry());
       // 着信側が応答したことでこのアンサーを送った瞬間。着信音をここで
@@ -522,6 +549,7 @@ class WebrtcCallController extends ChangeNotifier {
   Future<void> accept() async {
     if (_accepting || _state != CallConnectionState.connecting) return;
     _accepting = true;
+    _cancelRingTimeout();
     notifyListeners();
     await _callSub?.cancel();
     try {
@@ -564,6 +592,7 @@ class WebrtcCallController extends ChangeNotifier {
   }
 
   void _finish() {
+    _cancelRingTimeout();
     if (_state == CallConnectionState.ended) return;
     _state = CallConnectionState.ended;
     // 終了を検知した瞬間、その場で自分の音を止める（2026-09-12追加）。
@@ -767,48 +796,6 @@ class WebrtcCallController extends ChangeNotifier {
     notifyListeners();
   }
 
-  CameraOrientationRestart? _orientationRestart;
-
-  /// 通話が確立したら、端末の向き変更でカメラを取り直す監視を始める（Webのみ）。
-  void _watchOrientation() {
-    if (!kIsWeb || _orientationRestart != null) return;
-    _orientationRestart = CameraOrientationRestart(
-      onRestart: () => unawaited(_restartCameraForOrientation()),
-    );
-  }
-
-  /// 向きが変わった後にカメラを取り直し、送信中の映像トラックを差し替える
-  /// （iPadのブラウザで、回すと映像の送信が止まる・上下反転して届く対処）。
-  Future<void> _restartCameraForOrientation() async {
-    if (_switchingCamera || _state != CallConnectionState.active) return;
-    final old = [...?_localStream?.getVideoTracks()];
-    if (old.isEmpty) return;
-    _switchingCamera = true;
-    notifyListeners();
-    try {
-      for (final track in old) {
-        _localStream?.removeTrack(track);
-        await track.stop();
-      }
-      final stream = await navigator.mediaDevices.getUserMedia({
-        'audio': false,
-        'video': buildVideoConstraints(frontCamera: _isFrontCamera),
-      });
-      final newTrack = stream.getVideoTracks().first;
-      _localStream?.addTrack(newTrack);
-      localRenderer.srcObject = _localStream;
-      final sender = (await _peerConnection?.getSenders() ?? [])
-          .where((s) => s.track?.kind == 'video')
-          .firstOrNull;
-      await sender?.replaceTrack(newTrack);
-    } catch (_) {
-      // 取り直せなければ現状維持（映像は止まったままになりうる）。
-    } finally {
-      _switchingCamera = false;
-      notifyListeners();
-    }
-  }
-
   Future<void> switchCamera() async {
     // 連打による多重実行を防ぐ（実機で「重くなる」報告の一因だった。
     // 前のgetUserMedia/switchCameraが終わらないうちに次を呼ぶと処理が
@@ -864,7 +851,7 @@ class WebrtcCallController extends ChangeNotifier {
 
   @override
   void dispose() {
-    _orientationRestart?.dispose();
+    _cancelRingTimeout();
     _disconnectGrace.cancel();
     _callSub?.cancel();
     _candidatesSub?.cancel();

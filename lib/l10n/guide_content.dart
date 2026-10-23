@@ -270,7 +270,7 @@ const guideTopics = <GuideTopic>[
     ),
     steps: [
       GuideText(
-        '「蔵」には、アイコン・背景画像・呼び名・一言などの素材をしまっておけます。',
+        '「蔵」には、アイコン・背景・呼び名・一言などの素材をしまっておけます。',
         'The Profile library stores your icons, backgrounds, nicknames and status messages.',
       ),
       GuideText(

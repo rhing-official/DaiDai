@@ -73,6 +73,12 @@ class _FakeUserRepository implements UserRepository {
   }
 
   @override
+  Future<void> setBirthday(
+    String userId,
+    Map<String, dynamic>? birthday,
+  ) async {}
+
+  @override
   Future<void> setProfileField(
     String userId,
     String field,

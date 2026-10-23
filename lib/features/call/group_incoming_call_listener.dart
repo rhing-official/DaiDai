@@ -4,21 +4,21 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pointer_interceptor/pointer_interceptor.dart';
 
-import '../../models/app_ui_style.dart';
 import '../../models/app_user.dart';
 import '../../models/group_call.dart';
 import '../../models/sound_preset.dart';
-import '../../providers/app_ui_style_provider.dart';
 import '../../providers/group_call_providers.dart';
 import '../../providers/repository_providers.dart';
 import '../../providers/ringtone_sound_provider.dart';
 import '../../router/app_router.dart';
 import '../../utils/auto_dismiss_banner.dart';
-import '../../theme/gekiga/gekiga_colors.dart';
 import '../../utils/platform_info.dart';
-import '../../widgets/glass/glass_surface.dart';
+import '../../models/profile_card.dart' show ImageFocal;
+import '../../widgets/focal_circle_avatar.dart';
 import '../../widgets/nav_chip.dart';
 import 'active_call_session.dart';
+import 'call_banner_card.dart';
+import 'call_ring_timeout.dart';
 import 'call_sound_player.dart';
 import '../../l10n/strings.dart';
 import '../../l10n/vocabulary.dart';
@@ -51,6 +51,9 @@ class _GroupIncomingCallListenerState
   bool _seeded = false;
   Timer? _errorBannerTimer;
 
+  /// バナーごとの「応答が無ければ自動で閉じる」タイマー（[kCallRingTimeout]）。
+  final Map<String, Timer> _ringTimers = {};
+
   @override
   void initState() {
     super.initState();
@@ -66,6 +69,10 @@ class _GroupIncomingCallListenerState
 
   @override
   void dispose() {
+    for (final timer in _ringTimers.values) {
+      timer.cancel();
+    }
+    _ringTimers.clear();
     _soundPlayer.dispose();
     _errorBannerTimer?.cancel();
     super.dispose();
@@ -120,12 +127,35 @@ class _GroupIncomingCallListenerState
           PendingGroupCallBanner(
             call: call,
             groupName: group?.name ?? ref.read(vocabularyProvider).plaza,
+            iconUrl: group?.profileCard?.iconUrl,
+            iconFocal: group?.profileCard?.iconFocal,
           ),
         );
+    _ringTimers[call.groupCallId]?.cancel();
+    _ringTimers[call.groupCallId] = Timer(
+      kCallRingTimeout,
+      () => _expireBanner(call.groupCallId),
+    );
     final ringtoneSource = SoundCategory.ringtone.resolveSource(
       ref.read(ringtoneSoundProvider),
     );
     unawaited(_soundPlayer.playRingtoneTimes(3, ringtoneSource));
+  }
+
+  /// 応答が無いまま[kCallRingTimeout]が経ったバナーを閉じ、他に出ているバナーが
+  /// 無ければ着信音も止める。
+  void _expireBanner(String groupCallId) {
+    _ringTimers.remove(groupCallId);
+    if (!mounted) return;
+    final notifier = ref.read(groupCallBannersProvider.notifier);
+    final wasShown = ref
+        .read(groupCallBannersProvider)
+        .any((b) => b.call.groupCallId == groupCallId);
+    if (!wasShown) return;
+    notifier.remove(groupCallId);
+    if (ref.read(groupCallBannersProvider).isEmpty) {
+      unawaited(_soundPlayer.stopRingtone());
+    }
   }
 
   Future<void> _joinCall(GroupCall call) async {
@@ -184,9 +214,18 @@ class _GroupIncomingCallListenerState
 
 /// 参加を促すバナー1件（広場の通話の開始通知）。
 class PendingGroupCallBanner {
-  const PendingGroupCallBanner({required this.call, required this.groupName});
+  const PendingGroupCallBanner({
+    required this.call,
+    required this.groupName,
+    this.iconUrl,
+    this.iconFocal,
+  });
   final GroupCall call;
   final String groupName;
+
+  /// 広場のプロフィールカードのアイコン（未設定ならnull、2026-10-23）。
+  final String? iconUrl;
+  final ImageFocal? iconFocal;
 }
 
 /// 表示中の広場通話バナー（2026-10-13）。描画は`main.dart`の最前面
@@ -259,6 +298,8 @@ class GroupCallBannerOverlay extends ConsumerWidget {
                   child: _GroupCallBanner(
                     groupName: banner.groupName,
                     isVideo: banner.call.isVideo,
+                    iconUrl: banner.iconUrl,
+                    iconFocal: banner.iconFocal,
                     onTap: () => notifier.onJoin?.call(banner.call),
                     onDismiss: () {
                       notifier.remove(banner.call.groupCallId);
@@ -274,78 +315,44 @@ class GroupCallBannerOverlay extends ConsumerWidget {
   }
 }
 
-/// 広場通話の参加バナーの見た目（3つのUIスタイル対応、2026-10-13）。
-/// 色は`ChatTaskBanner`（`task_banner.dart`）と同じ規則: 劇画は固定の白黒
-/// （有彩色なし）、フラット・ガラスはアクセントカラー（`colorScheme.primary`は
-/// テーマ側で`accentColor`そのものに上書き済み）を地色にし、文字は`onPrimary`。
-/// ガラスはその上にぼかし・半透明・縁の光彩だけを重ねる。影は使わない。
+/// 広場通話の参加バナー。見た目は一対の着信バナーと共通の[CallBannerCard]
+/// （2026-10-23統一）。本体のタップで参加、×で閉じる。
 class _GroupCallBanner extends ConsumerWidget {
   const _GroupCallBanner({
     required this.groupName,
     required this.isVideo,
     required this.onTap,
     required this.onDismiss,
+    this.iconUrl,
+    this.iconFocal,
   });
 
   final String groupName;
   final bool isVideo;
+  final String? iconUrl;
+  final ImageFocal? iconFocal;
   final VoidCallback onTap;
   final VoidCallback onDismiss;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final uiStyle = ref.watch(appUiStyleProvider);
-    final isGekiga = uiStyle == AppUiStyle.gekiga;
-    final isGlass = uiStyle == AppUiStyle.glass;
-    final background = isGekiga ? GekigaColors.panel : colorScheme.primary;
-    final foreground = isGekiga ? GekigaColors.onPanel : colorScheme.onPrimary;
-    final radius = isGekiga ? BorderRadius.zero : BorderRadius.circular(12);
-
-    final content = InkWell(
-      borderRadius: radius,
+    return CallBannerCard(
+      isVideo: isVideo,
       onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Row(
-          children: [
-            Icon(isVideo ? Icons.videocam : Icons.call, color: foreground),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                ref
-                    .watch(appStringsProvider)
-                    .groupCallStartedBannerTemplate(groupName),
-                style: TextStyle(color: foreground),
-              ),
-            ),
-            IconButton(
-              icon: Icon(Icons.close, color: foreground),
-              onPressed: onDismiss,
-            ),
-          ],
-        ),
+      onClose: onDismiss,
+      avatarBuilder: (foreground) => FocalCircleAvatar(
+        url: iconUrl,
+        focal: iconFocal,
+        radius: 20,
+        foregroundColor: foreground,
+        fallback: const Icon(Icons.groups),
+      ),
+      titleBuilder: (style) => Text(
+        groupName,
+        style: style,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
       ),
     );
-
-    if (isGlass) {
-      // 塗りはフラットと同じアクセントカラー。ぼかし・半透明・縁の光彩は
-      // `GlassSurface`が与える（他のガラスの浮遊カードと同じ光沢）。
-      return GlassSurface(
-        variant: GlassVariant.floating,
-        borderRadius: radius,
-        fillColorOverride: background,
-        child: Material(type: MaterialType.transparency, child: content),
-      );
-    }
-    // `Material`は`borderRadius`と`shape`を同時に指定できない。
-    if (isGekiga) {
-      return Material(
-        color: background,
-        shape: Border.all(color: GekigaColors.onPanel, width: 3),
-        child: content,
-      );
-    }
-    return Material(color: background, borderRadius: radius, child: content);
   }
 }

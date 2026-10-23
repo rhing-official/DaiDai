@@ -15,6 +15,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import 'features/guide/tutorial/tutorial_overlay.dart';
 import 'features/call/call_overlay.dart';
+import 'features/call/incoming_call_banner.dart';
 import 'features/call/pinned_call_overlay.dart';
 import 'features/call/group_incoming_call_listener.dart';
 import 'features/call/pip_controller.dart';
@@ -283,6 +284,8 @@ class DaiDaiApp extends ConsumerWidget {
               const PinnedCallOverlay(),
               // PC・Webの通話画面は、今の画面の上に重ねる（2026-10-23）。
               const CallOverlay(),
+              // 一対の着信（PC・Web）はバナーで知らせる（2026-10-23）。
+              const IncomingCallBannerOverlay(),
               // 広場の通話開始バナーは全ルート・ボタン・ミニ表示より最前面に出す。
               const GroupCallBannerOverlay(),
               // 操作を促すガイドの案内の層（2026-10-17追加）。実行中だけ全ルートの

@@ -31,6 +31,12 @@ const _allowlist = <String, List<String>>{
   ],
   // 曜日の略称は表示言語ごとの対訳表そのもの（英語は別の定数）。
   'lib/utils/message_time.dart': ['_weekdayAbbreviationsJa'],
+  // 誕生日の表記は表示言語ごとの並び・単位の対訳表そのもの（英語・フランス語は別の
+  // 月名の表）。見る人の言語で整形するため`Strings`の固定文言では表せない。
+  'lib/utils/birthday_format.dart': [
+    'AppLocale.japanese =>',
+    '月\${birthday.day}日',
+  ],
 };
 
 bool _isAllowed(String path, String line) {

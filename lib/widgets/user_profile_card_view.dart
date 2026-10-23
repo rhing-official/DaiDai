@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../l10n/app_locale.dart';
 import '../models/app_user.dart';
+import '../utils/birthday_format.dart';
 import 'profile_card_view.dart';
 
 /// [user]が[conversationId]（一対のdmId・広場のgroupId）で見せるプロフィールカード
@@ -26,6 +28,16 @@ class UserProfileCardView extends StatelessWidget {
   /// 出すためfalse、操作できないホバーカードはtrue。
   final bool showSnsLinks;
 
+  /// 誕生日は、カードを見る人の言語の並びで整形する（2026-10-23）。
+  String? _birthdayLabel(BuildContext context) {
+    final birthday = user.effectiveBirthdayFor(conversationId);
+    if (birthday == null) return null;
+    final locale = AppLocale.fromLanguageCode(
+      Localizations.localeOf(context).languageCode,
+    );
+    return formatBirthday(birthday, locale);
+  }
+
   @override
   Widget build(BuildContext context) {
     final card = user.profileCardFor(conversationId);
@@ -44,6 +56,7 @@ class UserProfileCardView extends StatelessWidget {
       textAlign: card?.textAlign,
       nickname: name,
       statusMessage: user.effectiveStatusMessageFor(conversationId)?.text,
+      birthdayLabel: _birthdayLabel(context),
       snsLinks: showSnsLinks
           ? user.effectiveSnsLinksFor(conversationId)
           : const [],

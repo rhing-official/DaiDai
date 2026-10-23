@@ -134,6 +134,7 @@ class ProfileCard {
     this.iconFocal,
     this.layoutPreset,
     this.textAlign,
+    this.showBirthday = false,
   });
 
   final String id;
@@ -162,6 +163,9 @@ class ProfileCard {
   final CardLayoutPreset? layoutPreset;
   final CardTextAlign? textAlign;
 
+  /// 蔵の誕生日（[AppUser.birthday]）をこのカードに載せるか（2026-10-23追加、既定は載せない）。
+  final bool showBirthday;
+
   ProfileCard copyWith({
     String? name,
     String? iconId,
@@ -183,6 +187,7 @@ class ProfileCard {
     bool clearLayoutPreset = false,
     CardTextAlign? textAlign,
     bool clearTextAlign = false,
+    bool? showBirthday,
   }) {
     return ProfileCard(
       id: id,
@@ -207,6 +212,7 @@ class ProfileCard {
           ? null
           : (layoutPreset ?? this.layoutPreset),
       textAlign: clearTextAlign ? null : (textAlign ?? this.textAlign),
+      showBirthday: showBirthday ?? this.showBirthday,
     );
   }
 
@@ -224,6 +230,7 @@ class ProfileCard {
       iconFocal: ImageFocal.fromJson(json['iconFocal']),
       layoutPreset: CardLayoutPreset.tryParse(json['layoutPreset']),
       textAlign: CardTextAlign.tryParse(json['textAlign']),
+      showBirthday: json['showBirthday'] == true,
     );
   }
 
@@ -241,6 +248,7 @@ class ProfileCard {
       if (iconFocal != null) 'iconFocal': iconFocal!.toJson(),
       if (layoutPreset != null) 'layoutPreset': layoutPreset!.name,
       if (textAlign != null) 'textAlign': textAlign!.name,
+      if (showBirthday) 'showBirthday': true,
     };
   }
 }

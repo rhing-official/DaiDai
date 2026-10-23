@@ -1,13 +1,14 @@
-/// 端末（ブラウザ）の画面の向きの変化を知るためのファサード（Web限定、
-/// 2026-10-22追加）。通話中に端末を回した時、iPadのブラウザ等でカメラ映像の
-/// 送信が止まる・上下が反転する不具合へ、カメラの取り直しで対処するために使う。
-/// `dart:js_interop`はWeb以外ではコンパイルできないため、条件付きexportで
-/// Web版/何もしないstub版を切り替える。
+/// 端末（ブラウザ）の画面が縦向きかを知るためのファサード（Web限定、2026-10-22追加）。
+/// 通話の映像制約（`buildVideoConstraints`）が、縦向きの時に縦長の解像度・比率を
+/// 要求するために使う。`dart:js_interop`はWeb以外ではコンパイルできないため、
+/// 条件付きexportでWeb版/何もしないstub版を切り替える。
 ///
 /// 提供するAPI:
 /// - `bool get isPortraitScreen`（Webで縦向きか。Web以外は常にfalse）
-/// - `Stream<void> screenOrientationChanges()`（向きが変わるたびに流れる。
-///   Web以外は何も流れない）
+///
+/// 以前あった向きの変化の通知（`screenOrientationChanges`）は、向きが変わった後に
+/// カメラを取り直す処理のためのものだったが、取り直すと映像が横長に戻る不具合に
+/// なったため、その処理ごと廃止した（2026-10-23）。
 library;
 
 export 'screen_orientation_stub.dart'

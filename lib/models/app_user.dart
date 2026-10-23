@@ -32,6 +32,7 @@ class AppUser {
     this.statusMessages = const [],
     this.nicknames = const [],
     this.snsLinks = const [],
+    this.birthday,
     this.fontDesignMaterials = const [],
     this.profileCards = const [],
     this.fcmTokens = const [],
@@ -75,6 +76,10 @@ class AppUser {
 
   /// 蔵に保管している他のSNSのURL（最大[kMaxSnsLinks]件）。
   final List<SnsLink> snsLinks;
+
+  /// 蔵に登録している誕生日（1件だけ、2026-10-23追加）。プロフィールカードに載せるかは
+  /// カードごとに選ぶ（[ProfileCard.showBirthday]）。
+  final Birthday? birthday;
 
   /// 蔵に保管しているフォントデザイン（最大[kMaxFontDesigns]件、2026-09-26追加）。
   /// 工房のプロフィールカードに割り当てると、見る側の設定に関わらずそのカードの
@@ -319,6 +324,15 @@ class AppUser {
         : activeFontDesignMaterial?.design;
   }
 
+  /// 適用中のプロフィールカードが誕生日を載せる設定（[ProfileCard.showBirthday]）の
+  /// 時だけ、蔵の誕生日を返す（カード未適用・設定オフ・未登録はnull、2026-10-23追加）。
+  Birthday? get effectiveBirthday =>
+      (activeProfileCard?.showBirthday ?? false) ? birthday : null;
+
+  /// [effectiveBirthday]の会話対応版。
+  Birthday? effectiveBirthdayFor(String? conversationId) =>
+      (profileCardFor(conversationId)?.showBirthday ?? false) ? birthday : null;
+
   /// [effectiveSnsLinks]の会話対応版。
   List<SnsLink> effectiveSnsLinksFor(String? conversationId) {
     final card = profileCardFor(conversationId);
@@ -384,6 +398,8 @@ class AppUser {
     List<StatusMessage>? statusMessages,
     List<Nickname>? nicknames,
     List<SnsLink>? snsLinks,
+    Birthday? birthday,
+    bool clearBirthday = false,
     List<FontDesignMaterial>? fontDesignMaterials,
     List<ProfileCard>? profileCards,
     String? activeIconId,
@@ -404,6 +420,7 @@ class AppUser {
       statusMessages: statusMessages ?? this.statusMessages,
       nicknames: nicknames ?? this.nicknames,
       snsLinks: snsLinks ?? this.snsLinks,
+      birthday: clearBirthday ? null : (birthday ?? this.birthday),
       fontDesignMaterials: fontDesignMaterials ?? this.fontDesignMaterials,
       profileCards: profileCards ?? this.profileCards,
       activeIconId: activeIconId ?? this.activeIconId,
@@ -443,6 +460,7 @@ class AppUser {
       statusMessages: _statusListFromJson(json['statusMessages']),
       nicknames: _nicknameListFromJson(json['nicknames']),
       snsLinks: _snsLinkListFromJson(json['snsLinks']),
+      birthday: Birthday.fromJson(json['birthday']),
       fontDesignMaterials: _fontDesignMaterialListFromJson(
         json['fontDesignMaterials'],
       ),
@@ -488,6 +506,7 @@ class AppUser {
       'statusMessages': statusMessages.map((m) => m.toJson()).toList(),
       'nicknames': nicknames.map((n) => n.toJson()).toList(),
       'snsLinks': snsLinks.map((s) => s.toJson()).toList(),
+      if (birthday != null) 'birthday': birthday!.toJson(),
       'fontDesignMaterials': fontDesignMaterials
           .map((f) => f.toJson())
           .toList(),

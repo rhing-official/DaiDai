@@ -1069,12 +1069,20 @@ final Strings _stringsFr = Strings._(
       'La carte sélectionnée avec le bouton rond en haut à droite devient votre carte standard. Elle est utilisée partout où aucune carte n’est précisée, par exemple pour les demandes d’ami et l’adhésion aux places.',
   mediaSkipForwardLabel: '+10 s',
   mediaSkipBackwardLabel: '−10 s',
-  groupCallStartedBannerTemplate: (groupName) =>
-      'Un appel a commencé dans $groupName.\nTouchez pour rejoindre',
   groupCallInProgressBannerLabel: (isVideo) => isVideo
       ? 'Un appel vidéo est en cours. Touchez pour rejoindre'
       : 'Un appel est en cours. Touchez pour rejoindre',
   groupCallBackToGridTooltip: 'Retour à la grille',
   groupProfileCardChangeImage: "Changer l'image",
+  profileBirthdaySectionTitle: 'Date de naissance',
+  profileAddBirthday: 'Ajouter la date de naissance',
+  birthdayYearLabel: 'Année (facultatif)',
+  birthdayMonthLabel: 'Mois',
+  birthdayDayLabel: 'Jour',
+  birthdayYearUnset: 'Non précisée',
+  birthdayInvalidError: "Cette date n'existe pas",
+  workshopBirthdayFieldLabel: 'Date de naissance',
+  workshopBirthdayNotRegisteredHint:
+      "Ajoutez d'abord votre date de naissance dans la Bibliothèque de profils",
   workshopFontLabel: 'Police',
 );

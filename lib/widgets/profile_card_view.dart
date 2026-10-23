@@ -45,6 +45,7 @@ class ProfileCardView extends StatelessWidget {
     required this.nickname,
     this.statusMessage,
     this.snsLinks = const [],
+    this.birthdayLabel,
     this.borderRadius = const BorderRadius.all(Radius.circular(16)),
     this.fontFamily,
     this.backgroundFocal,
@@ -69,6 +70,9 @@ class ProfileCardView extends StatelessWidget {
   final String? statusMessage;
 
   final List<SnsLink> snsLinks;
+
+  /// 誕生日の表示文字列（見る人の言語で整形済み、2026-10-23追加）。nullなら出さない。
+  final String? birthdayLabel;
   final BorderRadius borderRadius;
 
   /// カード作者が蔵で明示的に選んだフォントデザイン（2026-09-26追加）。
@@ -162,8 +166,18 @@ class ProfileCardView extends StatelessWidget {
                   SizedBox(height: padding * 0.3),
                   SnsLinksInline(
                     links: snsLinks,
-                    iconSize: statusFontSize,
                     fontSize: statusFontSize * 0.9,
+                    color: subtitleColor,
+                    fontFamily: fontFamily,
+                    crossAxisAlignment:
+                        (textAlign ?? CardTextAlign.start).crossAxisAlignment,
+                  ),
+                ],
+                if (birthdayLabel != null && birthdayLabel!.isNotEmpty) ...[
+                  SizedBox(height: padding * 0.3),
+                  ProfileCardBirthdayLine(
+                    label: birthdayLabel!,
+                    fontSize: statusFontSize,
                     color: subtitleColor,
                     fontFamily: fontFamily,
                     crossAxisAlignment:
@@ -233,13 +247,71 @@ class ProfileCardContent extends StatelessWidget {
   }
 }
 
+/// カード内の誕生日の行（日付だけ、2026-10-23追加。SNSの下に置く）。工房の編集画面では
+/// [onTap]で表示のオン/オフを切り替え、[dimmed]で「表示しない」状態を薄く示す。
+class ProfileCardBirthdayLine extends StatelessWidget {
+  const ProfileCardBirthdayLine({
+    required this.label,
+    required this.fontSize,
+    required this.color,
+    this.onTap,
+    this.dimmed = false,
+    this.fontFamily,
+    this.crossAxisAlignment = CrossAxisAlignment.start,
+    super.key,
+  });
+
+  final String label;
+  final double fontSize;
+  final Color? color;
+  final VoidCallback? onTap;
+  final bool dimmed;
+  final String? fontFamily;
+  final CrossAxisAlignment crossAxisAlignment;
+
+  @override
+  Widget build(BuildContext context) {
+    final line = Opacity(
+      opacity: dimmed ? 0.5 : 1,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: fontSize,
+                color: color,
+                fontFamily: fontFamily,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    final aligned = Align(
+      alignment: switch (crossAxisAlignment) {
+        CrossAxisAlignment.center => Alignment.center,
+        CrossAxisAlignment.end => Alignment.centerRight,
+        _ => Alignment.centerLeft,
+      },
+      widthFactor: 1,
+      child: line,
+    );
+    return onTap == null
+        ? aligned
+        : GestureDetector(onTap: onTap, child: aligned);
+  }
+}
+
 /// カードに掲載するSNSのURL一覧の表示。1件ずつ縦に並べる（長いURLが混ざると
 /// 1行" / "区切りでは後半が読めなくなるため）。[onTap]を渡すと編集画面
 /// （工房のズーム編集）向けにタップでSNSリンクの選択ポップアップを開ける。
 class SnsLinksInline extends StatelessWidget {
   const SnsLinksInline({
     required this.links,
-    required this.iconSize,
     required this.fontSize,
     required this.color,
     this.placeholder,
@@ -250,7 +322,6 @@ class SnsLinksInline extends StatelessWidget {
   });
 
   final List<SnsLink> links;
-  final double iconSize;
   final double fontSize;
   final Color? color;
 
@@ -273,8 +344,6 @@ class SnsLinksInline extends StatelessWidget {
         ? Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.link, size: iconSize, color: color),
-              const SizedBox(width: 4),
               Text(
                 placeholder!,
                 style: TextStyle(
@@ -295,8 +364,6 @@ class SnsLinksInline extends StatelessWidget {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.link, size: iconSize, color: color),
-                      const SizedBox(width: 4),
                       Flexible(
                         child: Text(
                           displaySnsLinkUrl(link.url),

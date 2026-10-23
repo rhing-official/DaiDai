@@ -892,10 +892,18 @@ class Strings {
     required this.workshopStandardCardHint,
     required this.mediaSkipForwardLabel,
     required this.mediaSkipBackwardLabel,
-    required this.groupCallStartedBannerTemplate,
     required this.groupCallInProgressBannerLabel,
     required this.groupCallBackToGridTooltip,
     required this.groupProfileCardChangeImage,
+    required this.profileBirthdaySectionTitle,
+    required this.profileAddBirthday,
+    required this.birthdayYearLabel,
+    required this.birthdayMonthLabel,
+    required this.birthdayDayLabel,
+    required this.birthdayYearUnset,
+    required this.birthdayInvalidError,
+    required this.workshopBirthdayFieldLabel,
+    required this.workshopBirthdayNotRegisteredHint,
     required this.workshopFontLabel,
   });
 
@@ -2088,7 +2096,6 @@ class Strings {
   final String workshopStandardCardHint;
   final String mediaSkipForwardLabel;
   final String mediaSkipBackwardLabel;
-  final String Function(String groupName) groupCallStartedBannerTemplate;
 
   /// 通話中の広場の語らいを開いた時に出す、参加を促すバナー（2026-10-21）。
   final String Function(bool isVideo) groupCallInProgressBannerLabel;
@@ -2096,6 +2103,18 @@ class Strings {
   /// 広場通話で1人を拡大表示している間の、一覧（グリッド）に戻るボタンの説明（2026-10-21）。
   final String groupCallBackToGridTooltip;
   final String groupProfileCardChangeImage;
+
+  /// 誕生日（蔵で登録、仕立てでカードごとに表示を選ぶ、2026-10-23追加）。
+  final String profileBirthdaySectionTitle;
+  final String profileAddBirthday;
+  final String birthdayYearLabel;
+  final String birthdayMonthLabel;
+  final String birthdayDayLabel;
+  final String birthdayYearUnset;
+  final String birthdayInvalidError;
+  final String workshopBirthdayFieldLabel;
+  final String workshopBirthdayNotRegisteredHint;
+
   final String workshopFontLabel;
 
   static final ja = Strings._(
@@ -2522,7 +2541,7 @@ class Strings {
     delete: '削除',
     showLess: '折りたたむ',
     profileIconSection: 'アイコン',
-    profileBackgroundSection: '背景画像',
+    profileBackgroundSection: '背景',
     profileNicknameHint: (term) => '友達には、Rhing Seedの代わりにここで選んだ$termが表示されます。',
     profileAddNickname: (term) => '$termを追加',
     profileAddStatusMessage: (term) => '$termを追加',
@@ -2541,12 +2560,12 @@ class Strings {
     workshopSnsLinkFieldLabel: 'URL',
     profileSaveError: '保存に失敗しました',
     profileIconUploadError: 'アイコンのアップロードに失敗しました',
-    profileBackgroundUploadError: '背景画像のアップロードに失敗しました',
+    profileBackgroundUploadError: '背景のアップロードに失敗しました',
     workshopCardNameLabel: 'カード名（自分用のラベル）',
     workshopCardDialogTitleNew: 'プロフィールカードを作る',
     workshopCardDialogTitleEdit: 'プロフィールカードを編集',
     workshopFieldIcon: 'アイコン',
-    workshopFieldBackground: '背景画像',
+    workshopFieldBackground: '背景',
     workshopChoiceNone: 'なし',
     workshopChoiceSelected: '選択中',
     workshopChoiceSelect: '選ぶ',
@@ -3045,12 +3064,19 @@ class Strings {
         '右上の丸いボタンで選んだカードが標準になります。友達申請や広場参加など、指定していない場面では標準のカードが使われます',
     mediaSkipForwardLabel: '+10秒',
     mediaSkipBackwardLabel: '−10秒',
-    groupCallStartedBannerTemplate: (groupName) =>
-        '$groupNameで通話が始まりました。\nタップして参加',
     groupCallInProgressBannerLabel: (isVideo) =>
         isVideo ? 'ビデオ通話中です。タップして参加' : '通話中です。タップして参加',
     groupCallBackToGridTooltip: 'グリッドに戻る',
     groupProfileCardChangeImage: '画像を変更',
+    profileBirthdaySectionTitle: '誕生日',
+    profileAddBirthday: '誕生日を登録',
+    birthdayYearLabel: '年（任意）',
+    birthdayMonthLabel: '月',
+    birthdayDayLabel: '日',
+    birthdayYearUnset: '指定しない',
+    birthdayInvalidError: '存在しない日付です',
+    workshopBirthdayFieldLabel: '誕生日',
+    workshopBirthdayNotRegisteredHint: '蔵で誕生日を登録してください',
     workshopFontLabel: 'フォント',
   );
 
@@ -4111,13 +4137,21 @@ class Strings {
         'The card selected with the round button at the top right becomes your standard card. It is used wherever no card is specified, such as friend requests and joining plazas.',
     mediaSkipForwardLabel: '+10s',
     mediaSkipBackwardLabel: '−10s',
-    groupCallStartedBannerTemplate: (groupName) =>
-        'A call has started in $groupName.\nTap to join',
     groupCallInProgressBannerLabel: (isVideo) => isVideo
         ? 'A video call is in progress. Tap to join'
         : 'A call is in progress. Tap to join',
     groupCallBackToGridTooltip: 'Back to grid',
     groupProfileCardChangeImage: 'Change image',
+    profileBirthdaySectionTitle: 'Birthday',
+    profileAddBirthday: 'Add birthday',
+    birthdayYearLabel: 'Year (optional)',
+    birthdayMonthLabel: 'Month',
+    birthdayDayLabel: 'Day',
+    birthdayYearUnset: 'Not set',
+    birthdayInvalidError: 'This date does not exist',
+    workshopBirthdayFieldLabel: 'Birthday',
+    workshopBirthdayNotRegisteredHint:
+        'Add your birthday in the Profile library first',
     workshopFontLabel: 'Font',
   );
 

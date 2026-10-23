@@ -17,7 +17,9 @@ import '../../models/direct_message.dart';
 import '../../models/font_design.dart';
 import '../../models/group.dart';
 import '../../models/profile_card.dart';
+import '../../l10n/app_locale.dart';
 import '../../models/profile_material.dart';
+import '../../utils/birthday_format.dart';
 import '../../providers/app_locale_provider.dart';
 import '../../providers/app_ui_style_provider.dart';
 import '../../providers/repository_providers.dart';
@@ -553,6 +555,40 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
     }
   }
 
+  /// 蔵の誕生日を登録・変更・削除する（2026-10-23追加、1件だけ）。削除した時は、
+  /// 全カードの「誕生日を載せる」設定も外す。
+  Future<void> _editBirthday() async {
+    final result = await showDialog<_BirthdayEdit>(
+      context: context,
+      builder: (context) => _BirthdayDialog(initial: _user.birthday),
+    );
+    if (result == null) return;
+    try {
+      if (result.birthday == null) {
+        setState(() => _user = _user.copyWith(clearBirthday: true));
+        await _repository.setBirthday(_user.userId, null);
+        for (final card in _user.profileCards) {
+          if (!card.showBirthday) continue;
+          final updatedCard = card.copyWith(showBirthday: false);
+          setState(() {
+            _user = _user.copyWith(
+              profileCards: [
+                for (final c in _user.profileCards)
+                  if (c.id == card.id) updatedCard else c,
+              ],
+            );
+          });
+          await _saveCardToServer(updatedCard);
+        }
+      } else {
+        setState(() => _user = _user.copyWith(birthday: result.birthday));
+        await _repository.setBirthday(_user.userId, result.birthday!.toJson());
+      }
+    } catch (e) {
+      _showError('${ref.read(appStringsProvider).profileSaveError}: $e');
+    }
+  }
+
   Future<void> _saveCard(ProfileCard card, {required bool isNew}) async {
     if (isNew) {
       setState(() {
@@ -738,6 +774,7 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
           onEditStatusMessage: _editStatusMessage,
           onAddSnsLink: _addSnsLink,
           onEditSnsLink: _editSnsLink,
+          onEditBirthday: _editBirthday,
           onAddFontDesign: _addFontDesignMaterial,
           onEditFontDesign: _editFontDesignMaterial,
         );
@@ -1076,6 +1113,7 @@ class _KuraView extends StatelessWidget {
     required this.onEditStatusMessage,
     required this.onAddSnsLink,
     required this.onEditSnsLink,
+    required this.onEditBirthday,
     required this.onAddFontDesign,
     required this.onEditFontDesign,
   });
@@ -1095,6 +1133,7 @@ class _KuraView extends StatelessWidget {
   final ValueChanged<StatusMessage> onEditStatusMessage;
   final VoidCallback onAddSnsLink;
   final ValueChanged<SnsLink> onEditSnsLink;
+  final VoidCallback onEditBirthday;
   final VoidCallback onAddFontDesign;
   final ValueChanged<FontDesignMaterial> onEditFontDesign;
 
@@ -1154,6 +1193,12 @@ class _KuraView extends StatelessWidget {
           links: user.snsLinks,
           onAdd: onAddSnsLink,
           onEdit: onEditSnsLink,
+        ),
+        const SizedBox(height: 24),
+        _BirthdaySection(
+          strings: strings,
+          birthday: user.birthday,
+          onEdit: onEditBirthday,
         ),
         const SizedBox(height: 24),
         _FontDesignMaterialSection(
@@ -1976,6 +2021,11 @@ class _WorkshopCardSlot extends StatelessWidget {
                             nickname: nickname ?? vocab.nickname,
                             statusMessage: statusMessage,
                             snsLinks: selectedSnsLinks,
+                            birthdayLabel: _birthdayLabelFor(
+                              context,
+                              user,
+                              card,
+                            ),
                             borderRadius: BorderRadius.circular(16),
                             fontFamily: fontFamily,
                           ),
@@ -2755,6 +2805,205 @@ class _RegisteredItemRow extends ConsumerWidget {
 /// ニックネーム／ステメ編集ポップアップの結果。テキストの確定（[save]）と
 /// 削除（[delete]）の両方を、ポップアップの中の完了・削除ボタンだけで
 /// 完結させるため、単なる`String?`ではなくどちらの操作だったかを区別する。
+/// カードに誕生日を載せる設定の時だけ、見ている人の言語で整形した誕生日を返す
+/// （蔵に未登録・設定オフならnull、2026-10-23追加）。
+String? _birthdayLabelFor(
+  BuildContext context,
+  AppUser user,
+  ProfileCard card,
+) {
+  final birthday = user.birthday;
+  if (birthday == null || !card.showBirthday) return null;
+  return formatBirthday(
+    birthday,
+    AppLocale.fromLanguageCode(Localizations.localeOf(context).languageCode),
+  );
+}
+
+/// 蔵に登録する誕生日（1件だけ、2026-10-23追加）。登録・変更・削除は
+/// [_BirthdayDialog]で行い、カードに載せるかは工房のカード編集で選ぶ。
+class _BirthdaySection extends ConsumerWidget {
+  const _BirthdaySection({
+    required this.strings,
+    required this.birthday,
+    required this.onEdit,
+  });
+
+  final Strings strings;
+  final Birthday? birthday;
+  final VoidCallback onEdit;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final locale = ref.watch(appLocaleProvider);
+    final current = birthday;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        GekigaSectionHeader(strings.profileBirthdaySectionTitle),
+        const SizedBox(height: 4),
+        _registeredItemsSection<Birthday>(
+          ref: ref,
+          items: current == null ? const [] : [current],
+          idOf: (_) => 'birthday',
+          textOf: (b) => formatBirthday(b, locale),
+          onEdit: (_) => onEdit(),
+          canAdd: current == null,
+          onAdd: onEdit,
+          addLabel: strings.profileAddBirthday,
+        ),
+      ],
+    );
+  }
+}
+
+/// [_BirthdayDialog]の結果。[birthday]がnullなら削除。
+class _BirthdayEdit {
+  const _BirthdayEdit(this.birthday);
+  final Birthday? birthday;
+}
+
+/// 誕生日の入力。年（任意）・月・日のドロップダウンを、表示言語の並び
+/// （日本語は年月日、英語・フランス語は日月年）で出す。
+class _BirthdayDialog extends ConsumerStatefulWidget {
+  const _BirthdayDialog({this.initial});
+
+  final Birthday? initial;
+
+  @override
+  ConsumerState<_BirthdayDialog> createState() => _BirthdayDialogState();
+}
+
+class _BirthdayDialogState extends ConsumerState<_BirthdayDialog> {
+  late int? _year = widget.initial?.year;
+  late int? _month = widget.initial?.month;
+  late int? _day = widget.initial?.day;
+  String? _errorText;
+
+  bool get _isEdit => widget.initial != null;
+
+  void _submit() {
+    final strings = ref.read(appStringsProvider);
+    final month = _month;
+    final day = _day;
+    if (month == null || day == null) {
+      setState(() => _errorText = strings.fieldRequiredError);
+      return;
+    }
+    final birthday = Birthday(year: _year, month: month, day: day);
+    if (!birthday.isValid()) {
+      setState(() => _errorText = strings.birthdayInvalidError);
+      return;
+    }
+    Navigator.of(context).pop(_BirthdayEdit(birthday));
+  }
+
+  Widget _dropdown<T>({
+    required String label,
+    required T? value,
+    required List<DropdownMenuItem<T?>> items,
+    required ValueChanged<T?> onChanged,
+  }) {
+    return Expanded(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        child: DropdownButtonFormField<T?>(
+          initialValue: value,
+          isExpanded: true,
+          decoration: InputDecoration(labelText: label),
+          items: items,
+          onChanged: onChanged,
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final strings = ref.watch(appStringsProvider);
+    final locale = ref.watch(appLocaleProvider);
+    final isGlass = ref.watch(appUiStyleProvider) == AppUiStyle.glass;
+    final thisYear = DateTime.now().year;
+    final maxDay = Birthday.daysInMonth(_month ?? 1, _year);
+    if (_day != null && _day! > maxDay) _day = null;
+
+    Widget field(BirthdayField f) => switch (f) {
+      BirthdayField.year => _dropdown<int>(
+        label: strings.birthdayYearLabel,
+        value: _year,
+        items: [
+          DropdownMenuItem<int?>(
+            value: null,
+            child: Text(strings.birthdayYearUnset),
+          ),
+          for (var y = thisYear; y >= kMinBirthdayYear; y--)
+            DropdownMenuItem<int?>(value: y, child: Text('$y')),
+        ],
+        onChanged: (v) => setState(() {
+          _year = v;
+          _errorText = null;
+        }),
+      ),
+      BirthdayField.month => _dropdown<int>(
+        label: strings.birthdayMonthLabel,
+        value: _month,
+        items: [
+          for (var m = 1; m <= 12; m++)
+            DropdownMenuItem<int?>(
+              value: m,
+              child: Text(birthdayMonthLabel(m, locale)),
+            ),
+        ],
+        onChanged: (v) => setState(() {
+          _month = v;
+          _errorText = null;
+        }),
+      ),
+      BirthdayField.day => _dropdown<int>(
+        label: strings.birthdayDayLabel,
+        value: _day,
+        items: [
+          for (var d = 1; d <= maxDay; d++)
+            DropdownMenuItem<int?>(value: d, child: Text('$d')),
+        ],
+        onChanged: (v) => setState(() {
+          _day = v;
+          _errorText = null;
+        }),
+      ),
+    };
+
+    final title = Text(strings.profileBirthdaySectionTitle);
+    final content = Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [for (final f in birthdayFieldOrder(locale)) field(f)],
+        ),
+        if (_errorText != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(
+              _errorText!,
+              style: TextStyle(color: Colors.red.shade700),
+            ),
+          ),
+        _DialogActionRow(
+          showDelete: _isEdit,
+          onDelete: () => Navigator.of(context).pop(const _BirthdayEdit(null)),
+          onSubmit: _submit,
+          submitLabel: _isEdit ? strings.done : strings.add,
+          deleteLabel: strings.delete,
+        ),
+      ],
+    );
+    return isGlass
+        ? GlassAlertDialog(title: title, content: content)
+        : KeyboardAlertDialog(title: title, content: content);
+  }
+}
+
 class _EditResult {
   const _EditResult._({this.text, required this.isDelete});
   const _EditResult.save(String text) : this._(text: text, isDelete: false);
@@ -3446,6 +3695,30 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
     await _persist();
   }
 
+  /// 蔵の誕生日をこのカードに載せるかを切り替える（2026-10-23）。蔵に未登録の時は
+  /// 切り替えず、登録を促す。
+  Future<void> _toggleBirthday() async {
+    if (widget.user.birthday == null) {
+      await showDialog<void>(
+        context: context,
+        builder: (context) => AlertDialog(
+          content: Text(widget.strings.workshopBirthdayNotRegisteredHint),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text(widget.strings.done),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+    setState(() {
+      _card = _card.copyWith(showBirthday: !_card.showBirthday);
+    });
+    await _persist();
+  }
+
   Future<void> _pickMaterial(String field) async {
     final card = _card;
 
@@ -3867,13 +4140,46 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
                                       ),
                                       SnsLinksInline(
                                         links: selectedSnsLinks,
-                                        iconSize: kProfileCardStatusFontSize,
+
                                         fontSize:
                                             kProfileCardStatusFontSize * 0.9,
                                         color: statusColor,
                                         placeholder:
                                             strings.workshopSnsLinkFieldLabel,
                                         onTap: _pickSnsLinks,
+                                        fontFamily: fontFamily,
+                                        crossAxisAlignment:
+                                            (card.textAlign ??
+                                                    CardTextAlign.start)
+                                                .crossAxisAlignment,
+                                      ),
+                                      const SizedBox(
+                                        height: kProfileCardPadding * 0.3,
+                                      ),
+                                      // 誕生日（蔵に登録したものを、このカードに載せるか
+                                      // タップで切り替える、2026-10-23）。
+                                      ProfileCardBirthdayLine(
+                                        label:
+                                            card.showBirthday &&
+                                                widget.user.birthday != null
+                                            ? formatBirthday(
+                                                widget.user.birthday!,
+                                                AppLocale.fromLanguageCode(
+                                                  Localizations.localeOf(
+                                                    context,
+                                                  ).languageCode,
+                                                ),
+                                              )
+                                            : strings
+                                                  .workshopBirthdayFieldLabel,
+                                        dimmed:
+                                            !card.showBirthday ||
+                                            widget.user.birthday == null,
+
+                                        fontSize:
+                                            kProfileCardStatusFontSize * 0.9,
+                                        color: statusColor,
+                                        onTap: _toggleBirthday,
                                         fontFamily: fontFamily,
                                         crossAxisAlignment:
                                             (card.textAlign ??

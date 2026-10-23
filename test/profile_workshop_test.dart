@@ -113,6 +113,12 @@ class _FakeUserRepository implements UserRepository {
   }
 
   @override
+  Future<void> setBirthday(
+    String userId,
+    Map<String, dynamic>? birthday,
+  ) async {}
+
+  @override
   Future<void> setProfileField(
     String userId,
     String field,
@@ -730,7 +736,7 @@ void main() {
     await tester.tapAt(tester.getCenter(find.byType(ProfileCardView).first));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byIcon(Icons.link));
+    await tester.tap(find.text('URL'));
     await tester.pumpAndSettle();
 
     expect(find.byType(CheckboxListTile), findsNWidgets(2));

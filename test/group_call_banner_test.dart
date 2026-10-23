@@ -50,7 +50,7 @@ Future<ProviderContainer> _pump(WidgetTester tester) async {
 }
 
 void main() {
-  testWidgets('バナーは改行して表示され、上スワイプで消えて着信音停止の通知が飛ぶ', (tester) async {
+  testWidgets('バナーは広場名だけで表示され、上スワイプで消えて着信音停止の通知が飛ぶ', (tester) async {
     final container = await _pump(tester);
     var stopped = 0;
     final notifier = container.read(groupCallBannersProvider.notifier);
@@ -58,7 +58,8 @@ void main() {
     notifier.add(PendingGroupCallBanner(call: _call('c1'), groupName: '広場A'));
     await tester.pump();
 
-    expect(find.text('広場Aで通話が始まりました。\nタップして参加'), findsOneWidget);
+    expect(find.text('広場A'), findsOneWidget);
+    expect(find.textContaining('タップして'), findsNothing);
 
     await tester.drag(find.byType(Dismissible), const Offset(0, -200));
     await tester.pumpAndSettle();
@@ -76,7 +77,7 @@ void main() {
     notifier.add(PendingGroupCallBanner(call: _call('c1'), groupName: '広場A'));
     await tester.pump();
 
-    await tester.tap(find.textContaining('タップして参加'));
+    await tester.tap(find.text('広場A'));
     expect(joined, 1);
 
     await tester.tap(find.byIcon(Icons.close));

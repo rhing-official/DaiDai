@@ -55,6 +55,15 @@ class PinnedCallOverlay extends ConsumerWidget {
       return const SizedBox.shrink();
     }
 
+    // 一対の着信（応答前）は、ミニ表示ではなく着信バナー
+    // （`IncomingCallBannerOverlay`）で知らせる（2026-10-23）。
+    if (!isMobileCallPlatform &&
+        session is OneToOneCallSession &&
+        !session.controller.isCaller &&
+        session.controller.state == CallConnectionState.connecting) {
+      return const SizedBox.shrink();
+    }
+
     if (isMobileCallPlatform && !session.minimized) {
       return const SizedBox.shrink(); // まだ全画面表示中
     }
@@ -239,15 +248,6 @@ class _PinnedCallBubble extends ConsumerWidget {
     final isGekiga = uiStyle == AppUiStyle.gekiga;
     final isGlass = uiStyle == AppUiStyle.glass;
 
-    // 着信中（応答前）かどうか。PCでは着信もフルスクリーンを経由しなく
-    // なったため（2026-09-12変更）、会話を開いていない間のミニ表示からも
-    // 拒否・応答できるようにする必要がある。
-    final incomingSession = session;
-    final isIncomingRinging =
-        incomingSession is OneToOneCallSession &&
-        !incomingSession.controller.isCaller &&
-        incomingSession.controller.state == CallConnectionState.connecting;
-
     // 広場通話は、映像を出している1人以外の参加者の音声も鳴らす（2026-10-21、
     // ミニ表示中は1人分の映像しか載らず、他の参加者の音声が聞こえなかった）。
     final audioOnly = switch (session) {
@@ -293,74 +293,46 @@ class _PinnedCallBubble extends ConsumerWidget {
           bottom: 8,
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: isIncomingRinging
-                ? [
-                    // 着信中（応答前）: 拒否・応答の2択（2026-09-12追加）。
-                    _MiniIconButton(
-                      icon: Icons.call_end,
-                      color: Colors.red,
-                      isGekiga: isGekiga,
-                      isGlass: isGlass,
-                      onTap: incomingSession.controller.decline,
-                    ),
-                    _MiniIconButton(
-                      icon: Icons.call,
-                      color: Colors.green,
-                      isGekiga: isGekiga,
-                      isGlass: isGlass,
-                      enabled: !incomingSession.controller.accepting,
-                      // 応答したら通話画面を重ねて開く（PC・Web）。
-                      onTap: () {
-                        incomingSession.controller.accept();
-                        ref.read(callOverlayOpenProvider.notifier).open();
-                      },
-                    ),
-                  ]
-                : [
-                    _MiniIconButton(
-                      icon: muted ? Icons.mic_off : Icons.mic,
-                      color: isGekiga || isGlass
-                          ? Colors.grey[700]!
-                          : Colors.black54,
-                      isGekiga: isGekiga,
-                      isGlass: isGlass,
-                      onTap: () {
-                        switch (session) {
-                          case OneToOneCallSession(:final controller):
-                            controller.toggleMute();
-                          case GroupCallSession(:final controller):
-                            controller.toggleMute();
-                        }
-                      },
-                    ),
-                    _MiniIconButton(
-                      icon: isVideo ? Icons.videocam : Icons.videocam_off,
-                      color: isGekiga || isGlass
-                          ? Colors.grey[700]!
-                          : Colors.black54,
-                      isGekiga: isGekiga,
-                      isGlass: isGlass,
-                      enabled: !switchingCallType,
-                      visible: videoToggleVisible,
-                      onTap: () {
-                        switch (session) {
-                          case OneToOneCallSession(:final controller):
-                            controller.setVideoEnabled(!controller.isVideo);
-                          case GroupCallSession(:final controller):
-                            controller.setVideoEnabled(!controller.isVideo);
-                        }
-                      },
-                    ),
-                    _MiniIconButton(
-                      icon: Icons.call_end,
-                      color: Colors.red,
-                      isGekiga: isGekiga,
-                      isGlass: isGlass,
-                      onTap: () => ref
-                          .read(activeCallSessionProvider.notifier)
-                          .endCall(),
-                    ),
-                  ],
+            children: [
+              _MiniIconButton(
+                icon: muted ? Icons.mic_off : Icons.mic,
+                color: isGekiga || isGlass ? Colors.grey[700]! : Colors.black54,
+                isGekiga: isGekiga,
+                isGlass: isGlass,
+                onTap: () {
+                  switch (session) {
+                    case OneToOneCallSession(:final controller):
+                      controller.toggleMute();
+                    case GroupCallSession(:final controller):
+                      controller.toggleMute();
+                  }
+                },
+              ),
+              _MiniIconButton(
+                icon: isVideo ? Icons.videocam : Icons.videocam_off,
+                color: isGekiga || isGlass ? Colors.grey[700]! : Colors.black54,
+                isGekiga: isGekiga,
+                isGlass: isGlass,
+                enabled: !switchingCallType,
+                visible: videoToggleVisible,
+                onTap: () {
+                  switch (session) {
+                    case OneToOneCallSession(:final controller):
+                      controller.setVideoEnabled(!controller.isVideo);
+                    case GroupCallSession(:final controller):
+                      controller.setVideoEnabled(!controller.isVideo);
+                  }
+                },
+              ),
+              _MiniIconButton(
+                icon: Icons.call_end,
+                color: Colors.red,
+                isGekiga: isGekiga,
+                isGlass: isGlass,
+                onTap: () =>
+                    ref.read(activeCallSessionProvider.notifier).endCall(),
+              ),
+            ],
           ),
         ),
       ],

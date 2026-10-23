@@ -66,6 +66,9 @@ abstract class UserRepository {
   /// activeIconId等、単一の値を持つフィールドを原子的に更新する。
   Future<void> setProfileField(String userId, String field, String? value);
 
+  /// 蔵の誕生日を保存する。[birthday]がnullなら削除する（2026-10-23追加）。
+  Future<void> setBirthday(String userId, Map<String, dynamic>? birthday);
+
   /// 端末をまたいで同期する表示設定（[AppUserPreferences]）を1項目だけ
   /// ドット記法（`preferences.$field`）で部分更新する。他のフィールドや
   /// 未変更の設定項目には影響しない。
@@ -335,6 +338,16 @@ class FirestoreUserRepository implements UserRepository {
     if (_invitePreviewFields.contains(field)) {
       await syncInvitePreview(userId);
     }
+  }
+
+  @override
+  Future<void> setBirthday(
+    String userId,
+    Map<String, dynamic>? birthday,
+  ) async {
+    await _users.doc(userId).update({
+      'birthday': birthday ?? FieldValue.delete(),
+    });
   }
 
   @override
