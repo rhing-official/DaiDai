@@ -517,6 +517,7 @@ final Strings _stringsFr = Strings._(
   workshopFieldIcon: 'Icône',
   workshopFieldBackground: 'Image d’arrière-plan',
   workshopChoiceNone: 'Aucune',
+  workshopFontChoiceSystem: 'Système',
   workshopChoiceSelected: 'Sélectionnée',
   workshopChoiceSelect: 'Sélectionner',
   workshopEmptyMaterialHint:

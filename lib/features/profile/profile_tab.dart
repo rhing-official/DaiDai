@@ -3784,6 +3784,8 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
             for (final m in widget.user.fontDesignMaterials)
               m.id: m.design?.fontFamily,
           },
+          // フォントは「なし」ではなく「システム」（見る側の端末の設定を継承）。
+          noneLabel: strings.workshopFontChoiceSystem,
         );
     }
     if (result == null || !mounted) return;
@@ -4462,6 +4464,8 @@ Future<String?> _showTextMaterialMenu(
   Strings strings, {
   // 項目ごとの表示フォント（フォントデザイン選択で、各項目をそのフォントで見せる）。
   Map<String, String?> fontFamilies = const {},
+  // 「選ばない」選択肢の表示名（未指定は「なし」）。
+  String? noneLabel,
 }) {
   return showMenu<String>(
     context: context,
@@ -4471,7 +4475,7 @@ Future<String?> _showTextMaterialMenu(
         value: '',
         child: _MaterialMenuRow(
           selected: selectedId == null,
-          label: strings.workshopChoiceNone,
+          label: noneLabel ?? strings.workshopChoiceNone,
         ),
       ),
       if (items.isEmpty)

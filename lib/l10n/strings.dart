@@ -433,6 +433,7 @@ class Strings {
     required this.workshopFieldIcon,
     required this.workshopFieldBackground,
     required this.workshopChoiceNone,
+    required this.workshopFontChoiceSystem,
     required this.workshopChoiceSelected,
     required this.workshopChoiceSelect,
     required this.workshopEmptyMaterialHint,
@@ -1424,6 +1425,9 @@ class Strings {
   final String workshopFieldIcon;
   final String workshopFieldBackground;
   final String workshopChoiceNone;
+
+  /// カードのフォントデザイン選択で、「なし」の代わりに出す選択肢（2026-10-29）。
+  final String workshopFontChoiceSystem;
   final String workshopChoiceSelected;
   final String workshopChoiceSelect;
   final String workshopEmptyMaterialHint;
@@ -2567,6 +2571,7 @@ class Strings {
     workshopFieldIcon: 'アイコン',
     workshopFieldBackground: '背景',
     workshopChoiceNone: 'なし',
+    workshopFontChoiceSystem: 'システム',
     workshopChoiceSelected: '選択中',
     workshopChoiceSelect: '選ぶ',
     workshopEmptyMaterialHint: '蔵に素材が登録されていません',
@@ -3593,6 +3598,7 @@ class Strings {
     workshopFieldIcon: 'Icon',
     workshopFieldBackground: 'Background image',
     workshopChoiceNone: 'None',
+    workshopFontChoiceSystem: 'System',
     workshopChoiceSelected: 'Selected',
     workshopChoiceSelect: 'Select',
     workshopEmptyMaterialHint: 'Nothing registered in your storehouse yet',
