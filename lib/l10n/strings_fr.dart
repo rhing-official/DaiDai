@@ -462,6 +462,7 @@ final Strings _stringsFr = Strings._(
   chatNoStickersMessage: 'Vous n’avez pas encore de stickers.',
   stickerPackNotFoundMessage: 'Ce sticker est introuvable.',
   stickerSearchHint: 'Rechercher des stickers',
+  stickerRecentTab: 'Stickers récents',
   settingsStickersSection: 'Stickers',
   settingsManageOwnedStickers: 'Gérer les stickers possédés',
   ownedStickersScreenTitle: 'Stickers possédés',

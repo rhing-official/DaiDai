@@ -102,4 +102,102 @@ void main() {
     );
     expect(result, isEmpty);
   });
+
+  group('略語・打ちかけの一致（3文字以上のキーワードは先頭2文字）', () {
+    const congratsRole = StickerRole(
+      roleId: 'congrats',
+      name: 'お祝い',
+      keywords: ['おめでとう', '祝'],
+    );
+    const congratsSticker = Sticker(
+      stickerId: 's-congrats',
+      name: 'お祝い顔',
+      imageUrl: 'https://example.com/congrats.webp',
+      roles: ['congrats'],
+    );
+    final congratsCandidates = [congratsSticker];
+
+    List<Sticker> suggest(String text, List<StickerRole> rs) => suggestStickers(
+          messageText: text,
+          roles: rs,
+          candidates: congratsCandidates,
+        );
+
+    test('「おめ」だけでも「おめでとう」の候補が出る', () {
+      expect(suggest('おめ', [congratsRole]), [congratsSticker]);
+      expect(suggest('おめー！', [congratsRole]), [congratsSticker]);
+    });
+
+    test('カタカナの「オメ」でも出る', () {
+      expect(suggest('オメ', [congratsRole]), [congratsSticker]);
+    });
+
+    test('先頭以外の2文字（「とう」）では出ない', () {
+      const thanks = StickerRole(
+        roleId: 'thanks',
+        name: '感謝',
+        keywords: ['ありがとう'],
+      );
+      // 「ありがとう」の「とう」が、「おめでとう」に一致しないこと
+      expect(suggest('ありがとう', [congratsRole, thanks]), isEmpty);
+    });
+
+    test('1文字だけでは、略語の一致にならない', () {
+      expect(suggest('お', [congratsRole]), isEmpty);
+    });
+
+    test('1〜2文字のキーワードは、まるごと一致のみ', () {
+      const shortRole = StickerRole(
+        roleId: 'ok',
+        name: '了解',
+        keywords: ['りょ'],
+      );
+      const okSticker = Sticker(
+        stickerId: 's-ok',
+        name: 'OK顔',
+        imageUrl: 'https://example.com/ok.webp',
+        roles: ['ok'],
+      );
+      expect(
+        suggestStickers(
+          messageText: 'り',
+          roles: [shortRole],
+          candidates: [okSticker],
+        ),
+        isEmpty,
+      );
+      expect(
+        suggestStickers(
+          messageText: 'りょ',
+          roles: [shortRole],
+          candidates: [okSticker],
+        ),
+        [okSticker],
+      );
+    });
+
+    test('3文字目以降が食い違う別の言葉（「おめん」「おめでたい」）では出ない', () {
+      expect(suggest('おめん', [congratsRole]), isEmpty);
+      expect(suggest('おめでたい', [congratsRole]), isEmpty);
+      expect(suggest('今日はおめんをかぶった', [congratsRole]), isEmpty);
+    });
+
+    test('途中まで打った状態・伸ばし棒・記号つきなら出る', () {
+      expect(suggest('おめで', [congratsRole]), [congratsSticker]);
+      expect(suggest('おめでと', [congratsRole]), [congratsSticker]);
+      expect(suggest('おめでとー', [congratsRole]), [congratsSticker]);
+      expect(suggest('おめ！', [congratsRole]), [congratsSticker]);
+      expect(suggest('おめ ありがとう', [congratsRole]), [congratsSticker]);
+      expect(suggest('今日はおめ', [congratsRole]), [congratsSticker]);
+    });
+
+    test('keywordMatchesは、まるごと一致・先頭2文字の一致を判定する', () {
+      expect(keywordMatches('おめでとう', 'おめでとう'), isTrue);
+      expect(keywordMatches('おめ', 'おめでとう'), isTrue);
+      expect(keywordMatches('めでたい', 'おめでとう'), isFalse);
+      expect(keywordMatches('おめん', 'おめでとう'), isFalse);
+      expect(keywordMatches('おめー', 'おめでとう'), isTrue);
+      expect(keywordMatches('', 'おめでとう'), isFalse);
+    });
+  });
 }

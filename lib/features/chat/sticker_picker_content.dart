@@ -1,9 +1,14 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/strings.dart';
+import '../../models/app_ui_style.dart';
 import '../../models/sticker.dart';
+import '../../providers/app_ui_style_provider.dart';
 import '../../models/sticker_send_mode.dart';
+import '../../providers/recent_stickers_provider.dart';
 import '../../providers/repository_providers.dart';
 import '../../providers/sticker_send_mode_provider.dart';
 
@@ -12,6 +17,9 @@ import '../../providers/sticker_send_mode_provider.dart';
 /// アンカーポップアップ（`sticker_picker_popup.dart`）の両方から共有される。
 /// [railAxis]で、パック切り替えレールを左サイド（`Axis.vertical`）に
 /// 出すか下部（`Axis.horizontal`）に出すかを切り替える。
+/// 「最近使った」タブを表す[StickerPickerContent]内部のタブid。
+const _kRecentTab = '__recent__';
+
 class StickerPickerContent extends ConsumerStatefulWidget {
   const StickerPickerContent({
     required this.railAxis,
@@ -34,8 +42,23 @@ class StickerPickerContent extends ConsumerStatefulWidget {
 
 class _StickerPickerContentState extends ConsumerState<StickerPickerContent> {
   String _query = '';
-  // nullは「すべて」タブを表す。
-  late String? _selectedPackId = widget.initialPackId;
+  // nullは「すべて」タブを表す。[_kRecentTab]は「最近使った」タブ。
+  String? _chosenPackId;
+  // 利用者がタブを選んだか。選ぶまでは[_selectedPackId]が既定（指定パック、
+  // 無ければ最近があれば「最近」、無ければ「すべて」）を返す。最近の読み込みは
+  // 非同期のため、初期化時ではなく都度判定する（2026-10-29）。
+  bool _tabChosen = false;
+
+  String? get _selectedPackId {
+    if (_tabChosen) return _chosenPackId;
+    if (widget.initialPackId != null) return widget.initialPackId;
+    return ref.read(recentStickersProvider).isNotEmpty ? _kRecentTab : null;
+  }
+
+  void _selectTab(String? packId) => setState(() {
+    _tabChosen = true;
+    _chosenPackId = packId;
+  });
 
   // LINE型送信方式の拡大プレビュー用（2026-08-13追加）。
   Sticker? _pendingPreviewSticker;
@@ -89,16 +112,34 @@ class _StickerPickerContentState extends ConsumerState<StickerPickerContent> {
     final overlayBox =
         Overlay.of(context).context.findRenderObject()! as RenderBox;
     final screenSize = overlayBox.size;
-    const previewSize = 180.0;
     const screenPad = 8.0;
-    final left = (anchor.dx - previewSize / 2).clamp(
+    // ピッカー本体（ポップアップ・ボトムシート）の矩形。プレビューはこの真上に
+    // 出し、選んでいるぺったん一覧を隠さない（2026-10-29）。上に十分な余白が
+    // 無い時だけ、従来どおりタップ位置の近くに重ねる。
+    final pickerBox = context.findRenderObject() as RenderBox?;
+    final pickerRect = (pickerBox != null && pickerBox.hasSize)
+        ? pickerBox.localToGlobal(Offset.zero) & pickerBox.size
+        : null;
+    final roomAbove = pickerRect == null
+        ? 0.0
+        : pickerRect.top - screenPad * 2 - 8;
+    final above = roomAbove >= 160;
+    final previewSize = above ? math.min(320.0, roomAbove) : 240.0;
+    final maxLeft = math.max(
       screenPad,
       screenSize.width - previewSize - screenPad,
     );
-    final top = (anchor.dy - previewSize - 24).clamp(
+    final maxTop = math.max(
       screenPad,
       screenSize.height - previewSize - screenPad,
     );
+    final left = ((above ? pickerRect!.center.dx : anchor.dx) - previewSize / 2)
+        .clamp(screenPad, maxLeft);
+    final top =
+        (above
+                ? pickerRect!.top - previewSize - 8
+                : anchor.dy - previewSize - 24)
+            .clamp(screenPad, maxTop);
 
     return Positioned(
       left: left,
@@ -109,7 +150,10 @@ class _StickerPickerContentState extends ConsumerState<StickerPickerContent> {
         // 拡大プレビュー自体をタップ＝「同じぺったんをもう一度タップ」と同義。
         onTap: () => _handleStickerTap(sticker, StickerSendMode.line),
         child: Material(
-          color: Theme.of(context).colorScheme.surfaceContainerHigh,
+          // 劇画UIでは、黒ではなく劇画の背景色（アクセント）にする（2026-10-29）。
+          color: ref.watch(appUiStyleProvider) == AppUiStyle.gekiga
+              ? Theme.of(context).colorScheme.surface
+              : Theme.of(context).colorScheme.surfaceContainerHigh,
           elevation: 8,
           shadowColor: Theme.of(context).colorScheme.shadow,
           borderRadius: BorderRadius.circular(16),
@@ -133,6 +177,8 @@ class _StickerPickerContentState extends ConsumerState<StickerPickerContent> {
     final strings = ref.watch(appStringsProvider);
     final currentUserId = ref.watch(authStateProvider).value?.uid;
     final sendMode = ref.watch(stickerSendModeProvider);
+    // 最近の読み込み完了で、既定のタブを見直すため購読する。
+    ref.watch(recentStickersProvider);
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -196,12 +242,20 @@ class _StickerPickerContentState extends ConsumerState<StickerPickerContent> {
           (packId: pack.packId, imageUrl: pack.stickers.first.imageUrl),
     ];
     final railChildren = [
+      _RailIcon(
+        imageUrl: '',
+        selected: _selectedPackId == _kRecentTab,
+        isAllTab: false,
+        icon: Icons.history,
+        tooltip: ref.read(appStringsProvider).stickerRecentTab,
+        onTap: () => _selectTab(_kRecentTab),
+      ),
       for (final item in items)
         _RailIcon(
           imageUrl: item.imageUrl,
           selected: _selectedPackId == item.packId,
           isAllTab: item.packId == null,
-          onTap: () => setState(() => _selectedPackId = item.packId),
+          onTap: () => _selectTab(item.packId),
         ),
     ];
     if (widget.railAxis == Axis.vertical) {
@@ -230,11 +284,27 @@ class _StickerPickerContentState extends ConsumerState<StickerPickerContent> {
   ) {
     final selectedPackId = _selectedPackId;
     final query = _query.trim().toLowerCase();
-    final stickers = packs
-        .where(
-          (pack) => selectedPackId == null || pack.packId == selectedPackId,
-        )
-        .expand((pack) => pack.stickers)
+    final List<Sticker> source;
+    if (selectedPackId == _kRecentTab) {
+      // 所持パック内のぺったんを、最近使った順に並べる（所持していない・削除
+      // 済みのものは出さない）。
+      final byId = {
+        for (final pack in packs)
+          for (final sticker in pack.stickers) sticker.stickerId: sticker,
+      };
+      source = [
+        for (final id in ref.watch(recentStickersProvider))
+          if (byId[id] != null) byId[id]!,
+      ];
+    } else {
+      source = packs
+          .where(
+            (pack) => selectedPackId == null || pack.packId == selectedPackId,
+          )
+          .expand((pack) => pack.stickers)
+          .toList();
+    }
+    final stickers = source
         .where(
           (sticker) =>
               query.isEmpty || sticker.name.toLowerCase().contains(query),
@@ -283,7 +353,13 @@ class _RailIcon extends StatelessWidget {
     required this.selected,
     required this.isAllTab,
     required this.onTap,
+    this.icon,
+    this.tooltip,
   });
+
+  /// 指定時は画像の代わりにこのアイコンを出す（「最近使った」タブ）。
+  final IconData? icon;
+  final String? tooltip;
 
   final String imageUrl;
   final bool selected;
@@ -293,7 +369,7 @@ class _RailIcon extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    return Padding(
+    final item = Padding(
       padding: const EdgeInsets.all(4),
       child: InkWell(
         onTap: onTap,
@@ -310,9 +386,9 @@ class _RailIcon extends StatelessWidget {
           ),
           padding: const EdgeInsets.all(4),
           child: ClipOval(
-            child: isAllTab
+            child: (isAllTab || icon != null)
                 ? Icon(
-                    Icons.apps,
+                    icon ?? Icons.apps,
                     size: 20,
                     color: colorScheme.onSurfaceVariant,
                   )
@@ -326,5 +402,6 @@ class _RailIcon extends StatelessWidget {
         ),
       ),
     );
+    return tooltip == null ? item : Tooltip(message: tooltip!, child: item);
   }
 }

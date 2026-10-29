@@ -1,8 +1,11 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../models/app_ui_style.dart';
 import '../../models/sticker.dart';
+import '../../providers/app_ui_style_provider.dart';
 import 'sticker_picker_content.dart';
 
 /// デスクトップ幅（`kTalksSplitBreakpoint`以上）でのぺったん送信アイコン
@@ -25,11 +28,20 @@ Future<Sticker?> showStickerPickerPopup(
       Overlay.of(context).context.findRenderObject()! as RenderBox;
   final screenSize = overlayBox.size;
   final colorScheme = Theme.of(context).colorScheme;
+  // 劇画UIでは、黒いパネルではなく劇画の背景色（アクセント）で表示する（2026-10-29）。
+  final isGekiga =
+      ProviderScope.containerOf(
+        context,
+        listen: false,
+      ).read(appUiStyleProvider) ==
+      AppUiStyle.gekiga;
 
   const panelWidth = 360.0;
   const panelHeight = 420.0;
   const screenPad = 8.0;
-  final left = (anchorRect.right - panelWidth).clamp(
+  // 右下の「最新へジャンプ」ボタンに重ならないよう、右端をその分だけ左へずらす。
+  const jumpButtonClearance = 64.0;
+  final left = (anchorRect.right - panelWidth - jumpButtonClearance).clamp(
     screenPad,
     screenSize.width - panelWidth - screenPad,
   );
@@ -52,9 +64,13 @@ Future<Sticker?> showStickerPickerPopup(
       children: [
         Positioned.fill(
           child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
+            // translucent: 背面のメッセージ一覧のスクロール（ホイール・ドラッグ）を
+            // ポップアップ表示中も通す。外側のタップは従来どおりこちらが受けて
+            // 閉じる（背面のタップにはならない、2026-10-29）。
+            behavior: HitTestBehavior.translucent,
             onTap: () => close(null),
-            child: const ColoredBox(color: Colors.transparent),
+            // ColoredBoxは常に当たり判定を持ち背面を塞ぐため使わない。
+            child: const SizedBox.expand(),
           ),
         ),
         Positioned(
@@ -63,7 +79,9 @@ Future<Sticker?> showStickerPickerPopup(
           width: panelWidth,
           height: panelHeight,
           child: Material(
-            color: colorScheme.surfaceContainer,
+            color: isGekiga
+                ? colorScheme.surface
+                : colorScheme.surfaceContainer,
             elevation: 8,
             shadowColor: colorScheme.shadow,
             borderRadius: const BorderRadius.all(Radius.circular(12)),

@@ -1732,6 +1732,15 @@ export const createStickerPack = onCall(
       ? request.data.tags.filter((t: unknown): t is string => typeof t === "string")
       : [];
 
+    // パックの「代表」にするぺったん（任意）。stickersに含まれるIDのときだけ保存する
+    // （未設定・不正なときは保存せず、表示側は先頭のぺったんを代表にする）。
+    const requestedCover = request.data?.coverStickerId;
+    const coverStickerId =
+      typeof requestedCover === "string" &&
+      stickers.some((st) => st.stickerId === requestedCover)
+        ? requestedCover
+        : null;
+
     const ref = db.collection("stickerPacks").doc();
     await ref.set({
       creatorId: uid,
@@ -1740,6 +1749,7 @@ export const createStickerPack = onCall(
       stickers,
       category,
       tags,
+      ...(coverStickerId ? { coverStickerId } : {}),
       salesCount: 0,
       // 現在このパックを所有しているユーザー数（購入付与Cloud Functionで+1、
       // アンインストール時のownedStickerPacks削除に連動して-1する想定の
@@ -1763,8 +1773,9 @@ export const createStickerPack = onCall(
 );
 
 /**
- * 出品済みパックのname・priceのみを変更する。画像（stickers）はここでは
- * 変更できない（追加専用の方針、addStickersToStickerPack参照）。
+ * 出品済みパックのname・price・coverStickerId（パックの「代表」にするぺったん）を
+ * 変更する。画像（stickers）はここでは変更できない（追加専用の方針、
+ * addStickersToStickerPack参照）。
  */
 export const updateStickerPackMeta = onCall(
   { region: "asia-northeast1" },
@@ -1786,7 +1797,12 @@ export const updateStickerPackMeta = onCall(
       throw new HttpsError("permission-denied", "自分が出品したパックのみ編集できます");
     }
 
-    const update: { name?: string; price?: number; updatedAt?: FirebaseFirestore.FieldValue } = {};
+    const update: {
+      name?: string;
+      price?: number;
+      coverStickerId?: string;
+      updatedAt?: FirebaseFirestore.FieldValue;
+    } = {};
     if (request.data?.name !== undefined) {
       if (typeof request.data.name !== "string" || !request.data.name.trim()) {
         throw new HttpsError("invalid-argument", "nameが不正です");
@@ -1803,8 +1819,24 @@ export const updateStickerPackMeta = onCall(
       }
       update.price = newPrice;
     }
+    if (request.data?.coverStickerId !== undefined) {
+      const coverStickerId = request.data.coverStickerId;
+      const existing = Array.isArray(doc.data()?.stickers)
+        ? (doc.data()!.stickers as { stickerId?: string }[])
+        : [];
+      if (
+        typeof coverStickerId !== "string" ||
+        !existing.some((st) => st.stickerId === coverStickerId)
+      ) {
+        throw new HttpsError(
+          "invalid-argument",
+          "coverStickerIdはこのパックのぺったんのIDである必要があります",
+        );
+      }
+      update.coverStickerId = coverStickerId;
+    }
     if (Object.keys(update).length === 0) {
-      throw new HttpsError("invalid-argument", "name・priceのいずれかが必要です");
+      throw new HttpsError("invalid-argument", "name・price・coverStickerIdのいずれかが必要です");
     }
     update.updatedAt = FieldValue.serverTimestamp();
     await ref.update(update);
@@ -1958,6 +1990,38 @@ function storagePathFromDownloadUrl(url: string): string | null {
 }
 
 /**
+ * 販売ページの閲覧を1回数える（出品者にだけ見せる閲覧回数、2026-10-29追加）。
+ * 回数は`packStats/{packId}`に持つ（`stickerPacks`は公開読み取りのため、
+ * そこには置かない）。誰が見たかは保存せず、回数だけを足す。出品者本人の閲覧は
+ * 数えない。未ログインの閲覧も数える（認証不要）。同じ訪問での重複は、
+ * クライアント側（sessionStorage）で防ぐ。
+ */
+export const recordStickerPackView = onCall(
+  { region: "asia-northeast1" },
+  async (request) => {
+    const packId = request.data?.packId;
+    if (typeof packId !== "string" || !packId) {
+      throw new HttpsError("invalid-argument", "packIdが必要です");
+    }
+    const packDoc = await db.collection("stickerPacks").doc(packId).get();
+    if (!packDoc.exists) {
+      throw new HttpsError("not-found", "パックが見つかりません");
+    }
+    if (request.auth?.uid && packDoc.data()?.creatorId === request.auth.uid) {
+      return { counted: false };
+    }
+    await db
+      .collection("packStats")
+      .doc(packId)
+      .set(
+        { viewCount: FieldValue.increment(1), updatedAt: FieldValue.serverTimestamp() },
+        { merge: true },
+      );
+    return { counted: true };
+  },
+);
+
+/**
  * 出品者が自分のパックを削除する。誰か1人でも現在所有していれば
  * （ownerCount > 0）削除できない（購入済みユーザーの手持ちスタンプを
  * 消さないため）。ストレージ上の画像も併せてベストエフォートで削除する。
@@ -1991,6 +2055,8 @@ export const deleteStickerPack = onCall(
     }
 
     await ref.delete();
+    // 出品者向けの閲覧回数も、孤児にならないよう一緒に消す
+    await db.collection("packStats").doc(packId).delete();
 
     const stickers = (data.stickers as { imageUrl: string }[] | undefined) ?? [];
     const bucket = getStorage().bucket();

@@ -384,6 +384,7 @@ class Strings {
     required this.chatNoStickersMessage,
     required this.stickerPackNotFoundMessage,
     required this.stickerSearchHint,
+    required this.stickerRecentTab,
     required this.settingsStickersSection,
     required this.settingsManageOwnedStickers,
     required this.ownedStickersScreenTitle,
@@ -1360,6 +1361,9 @@ class Strings {
   final String chatNoStickersMessage;
   final String stickerPackNotFoundMessage;
   final String stickerSearchHint;
+
+  /// ぺったんピッカーの「最近使った」タブの読み上げ・ツールチップ名。
+  final String stickerRecentTab;
   final String settingsStickersSection;
   final String settingsManageOwnedStickers;
   final String ownedStickersScreenTitle;
@@ -2522,6 +2526,7 @@ class Strings {
     chatNoStickersMessage: 'まだぺったんがありません',
     stickerPackNotFoundMessage: 'このぺったんは見つかりませんでした',
     stickerSearchHint: 'ぺったんを検索',
+    stickerRecentTab: '最近使ったぺったん',
     settingsStickersSection: 'ぺったん',
     settingsManageOwnedStickers: '所持しているぺったんを管理',
     ownedStickersScreenTitle: '所持しているぺったん',
@@ -3546,6 +3551,7 @@ class Strings {
     chatNoStickersMessage: "You don't have any stickers yet.",
     stickerPackNotFoundMessage: "This sticker couldn't be found.",
     stickerSearchHint: 'Search stickers',
+    stickerRecentTab: 'Recently used stickers',
     settingsStickersSection: 'Stickers',
     settingsManageOwnedStickers: 'Manage owned stickers',
     ownedStickersScreenTitle: 'Owned stickers',

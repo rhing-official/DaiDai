@@ -218,6 +218,37 @@ service cloud.firestore {
         allow create: if request.auth != null && request.auth.uid == userId
           && !isOwnStickerPack(packId, userId);
       }
+
+      // users/{userId}/cartPacks/{packId}: daidai横丁のカート（存在＝カートに
+      // 入っている、2026-10-29追加）。favoritePacksと同様、本人のみ直接読み書き
+      // 可能。価格・名前は保存せず、表示のたびにstickerPacksから取得する。
+      // 入手（付与）はこれまでどおりCloud Functions（createCheckoutSession）が行う。
+      match /cartPacks/{packId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // users/{userId}/packDrafts/{draftId}: daidai横丁のパックの下書き（作成の
+      // 途中保存、2026-10-29追加）。本人だけが読み書きできる（公開される
+      // stickerPacksとは別の場所）。画像はStorageのstickerPackAssets/{uid}に
+      // 置き、そのURLを持つ。サイズは、ぺったん50件・名前100文字までに制限する。
+      match /packDrafts/{draftId} {
+        allow read, delete: if request.auth != null && request.auth.uid == userId;
+        allow create, update: if request.auth != null && request.auth.uid == userId
+          && request.resource.data.stickers.size() <= 50
+          && request.resource.data.name.size() <= 100;
+      }
+
+      // users/{userId}/packEditDrafts/{packId}: 公開中のパックの編集内容の下書き
+      // （公開は取り消さず、編集内容だけを一時保存する、2026-10-29追加）。ドキュメントIDは
+      // 公開中のパックのID（1パックにつき1つ）。変更点（名前・価格・代表・追加する画像）
+      // だけを持ち、公開版には触れない。本人だけが読み書きできる。反映は、
+      // 既存のCloud Functions（updateStickerPackMeta・addStickersToStickerPack）が行う。
+      match /packEditDrafts/{packId} {
+        allow read, delete: if request.auth != null && request.auth.uid == userId;
+        allow create, update: if request.auth != null && request.auth.uid == userId
+          && request.resource.data.addedStickers.size() <= 50
+          && request.resource.data.name.size() <= 100;
+      }
     }
 
     // stickerPacks/{packId}: 頒布されているペタピタパッケージのカタログ
@@ -228,6 +259,15 @@ service cloud.firestore {
     // クライアントからの書き込みは禁止する。
     match /stickerPacks/{packId} {
       allow read: if true;
+      allow write: if false;
+    }
+
+    // packStats/{packId}: パックの閲覧回数（出品者にだけ見せる、2026-10-29追加）。
+    // stickerPacksは公開読み取りのため、別ドキュメントにして、出品者本人だけが
+    // 読めるようにする。書き込みはCloud Functions（recordStickerPackView）のみ。
+    match /packStats/{packId} {
+      allow read: if request.auth != null
+        && get(/databases/$(database)/documents/stickerPacks/$(packId)).data.creatorId == request.auth.uid;
       allow write: if false;
     }
 
