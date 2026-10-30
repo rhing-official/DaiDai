@@ -8,6 +8,9 @@ import '../../models/sticker.dart';
 import '../../providers/app_ui_style_provider.dart';
 import 'sticker_picker_content.dart';
 
+/// 中身を組む最小の高さ（検索欄・レール・バーが収まる高さ）。
+const _kContentMinHeight = 240.0;
+
 /// ぺったんドックの段階（閉／半分／拡大）。
 enum StickerDockStage { closed, half, expanded }
 
@@ -23,6 +26,7 @@ class StickerPickerDock extends ConsumerStatefulWidget {
     required this.onStageChanged,
     required this.onStickerSelected,
     this.initialPackId,
+    this.conversationKey,
     super.key,
   });
 
@@ -30,6 +34,9 @@ class StickerPickerDock extends ConsumerStatefulWidget {
   final void Function(StickerDockStage stage) onStageChanged;
   final void Function(Sticker sticker) onStickerSelected;
   final String? initialPackId;
+
+  /// 語らいごとに直前のタブを記憶するキー（[StickerPickerContent]参照）。
+  final String? conversationKey;
 
   /// 半分の高さ（画面高の約40%、260〜420）。
   static double halfHeight(double screenHeight) =>
@@ -74,6 +81,31 @@ class _StickerPickerDockState extends ConsumerState<StickerPickerDock> {
   // ドラッグ中の高さ（nullなら段の高さに従う）。
   double? _dragHeight;
 
+  // build()で更新する、ドラッグ処理用の直近の寸法。
+  double _screenHeight = 0;
+  double _bottomInset = 0;
+  double _height = 0;
+
+  /// バー・一覧の縦ドラッグ共通: 指に合わせて高さを追従させる。
+  void _onDragUpdate(double dy) {
+    final max = StickerPickerDock.expandedHeight(_screenHeight) + _bottomInset;
+    setState(
+      () => _dragHeight = ((_dragHeight ?? _height) - dy).clamp(0.0, max),
+    );
+  }
+
+  /// 指を離した時、最寄りの段（閉／半分／拡大）へスナップする。
+  void _onDragEnd(double velocity) {
+    final dragged = (_dragHeight ?? _height) - _bottomInset;
+    final stage = StickerPickerDock.snap(
+      height: math.max(0, dragged),
+      velocity: velocity,
+      screenHeight: _screenHeight,
+    );
+    setState(() => _dragHeight = null);
+    widget.onStageChanged(stage);
+  }
+
   double _stageHeight(double screenHeight) => switch (widget.stage) {
     StickerDockStage.closed => 0,
     StickerDockStage.half => StickerPickerDock.halfHeight(screenHeight),
@@ -90,6 +122,9 @@ class _StickerPickerDockState extends ConsumerState<StickerPickerDock> {
     final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
     final bottomInset = MediaQuery.paddingOf(context).bottom;
     final height = _dragHeight ?? (_stageHeight(screenHeight) + bottomInset);
+    _screenHeight = screenHeight;
+    _bottomInset = bottomInset;
+    _height = height;
 
     return AnimatedContainer(
       duration: _dragHeight == null
@@ -101,58 +136,64 @@ class _StickerPickerDockState extends ConsumerState<StickerPickerDock> {
         color: isGekiga ? colorScheme.surface : colorScheme.surfaceContainer,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
         clipBehavior: Clip.antiAlias,
-        child: Column(
-          children: [
-            GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onVerticalDragUpdate: (details) {
-                final max =
-                    StickerPickerDock.expandedHeight(screenHeight) +
-                    bottomInset;
-                setState(
-                  () =>
-                      _dragHeight = (height - details.delta.dy).clamp(0.0, max),
-                );
-              },
-              onVerticalDragEnd: (details) {
-                final dragged = (_dragHeight ?? height) - bottomInset;
-                final stage = StickerPickerDock.snap(
-                  height: math.max(0, dragged),
-                  velocity: details.primaryVelocity ?? 0,
-                  screenHeight: screenHeight,
-                );
-                setState(() => _dragHeight = null);
-                widget.onStageChanged(stage);
-              },
-              child: SizedBox(
-                height: 28,
-                width: double.infinity,
-                child: Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: colorScheme.onSurfaceVariant.withValues(
-                        alpha: 0.5,
+        // 閉じる・縮める途中で高さが中身の最小高さを下回ると下端が溢れる
+        // （ピクセルエラー）ため、中身は常に一定以上の高さで組み、はみ出した
+        // 分はMaterialのクリップで隠す。
+        child: OverflowBox(
+          alignment: Alignment.topCenter,
+          minHeight: 0,
+          maxHeight: math.max(height, _kContentMinHeight),
+          child: Column(
+            children: [
+              GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onVerticalDragUpdate: (details) =>
+                    _onDragUpdate(details.delta.dy),
+                onVerticalDragEnd: (details) =>
+                    _onDragEnd(details.primaryVelocity ?? 0),
+                child: SizedBox(
+                  // つまみは小さいまま、縦ドラッグを受ける当たり判定だけ広げる。
+                  height: 44,
+                  width: double.infinity,
+                  child: Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: colorScheme.onSurfaceVariant.withValues(
+                          alpha: 0.5,
+                        ),
+                        borderRadius: BorderRadius.circular(2),
                       ),
-                      borderRadius: BorderRadius.circular(2),
                     ),
                   ),
                 ),
               ),
-            ),
-            Expanded(
-              child: Padding(
-                padding: EdgeInsets.only(bottom: bottomInset),
-                child: StickerPickerContent(
-                  key: ValueKey(widget.initialPackId),
-                  railAxis: Axis.horizontal,
-                  initialPackId: widget.initialPackId,
-                  onStickerSelected: widget.onStickerSelected,
+              Expanded(
+                child: Padding(
+                  padding: EdgeInsets.only(bottom: bottomInset),
+                  child: StickerPickerContent(
+                    key: ValueKey(widget.initialPackId),
+                    railAxis: Axis.horizontal,
+                    initialPackId: widget.initialPackId,
+                    conversationKey: widget.conversationKey,
+                    onStickerSelected: widget.onStickerSelected,
+                    // 半分の間は一覧のスクロールを止め、一覧の縦ドラッグでも
+                    // バーと同じく展開・縮小する。拡大中は普通にスクロールし、
+                    // 先頭からさらに下へ引くと半分へ戻る。
+                    scrollLocked: widget.stage == StickerDockStage.half,
+                    onGridVerticalDragUpdate: _onDragUpdate,
+                    onGridVerticalDragEnd: _onDragEnd,
+                    onGridOverscrollTop: () {
+                      if (widget.stage == StickerDockStage.expanded) {
+                        widget.onStageChanged(StickerDockStage.half);
+                      }
+                    },
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

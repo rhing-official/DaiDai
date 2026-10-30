@@ -40,6 +40,7 @@ import '../../providers/chat_navigation_providers.dart';
 import '../../providers/conversation_prefs_providers.dart';
 import '../../providers/draft_sync_enabled_provider.dart';
 import '../../providers/message_time_format_provider.dart';
+import '../../providers/last_sticker_tab_provider.dart';
 import '../../providers/recent_stickers_provider.dart';
 import '../../providers/repository_providers.dart';
 import '../../providers/send_key_mode_provider.dart';
@@ -945,6 +946,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   /// モバイルのぺったんドック（入力欄の下、[StickerPickerDock]）の段階と、
   /// 開く時に絞り込むパック（メッセージ上のぺったんタップ時）。
+  /// ぺったん一覧で直前のタブを語らいごとに記憶するキー（寄合単位）。
+  String? get _stickerTabKey => stickerTabKey(
+    conversationId: widget.conversationId,
+    roomId: widget.roomId,
+  );
+
   StickerDockStage _stickerDockStage = StickerDockStage.closed;
   String? _stickerDockPackId;
 
@@ -2363,6 +2370,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             anchorRect: _anchorRectFromContext(
               _stickerButtonKey.currentContext!,
             ),
+            conversationKey: _stickerTabKey,
           )
         : null;
     if (!isWide) {
@@ -3513,6 +3521,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             key: const ValueKey('stickerDock'),
             stage: _stickerDockStage,
             initialPackId: _stickerDockPackId,
+            conversationKey: _stickerTabKey,
             onStageChanged: _setStickerDockStage,
             // 送信後も開いたまま（続けて送れる）。
             onStickerSelected: _handleStickerPicked,

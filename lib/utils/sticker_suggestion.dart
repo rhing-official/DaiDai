@@ -37,7 +37,8 @@ bool keywordMatches(String normalizedText, String keyword) {
   for (var i = 0; i + _abbreviationPrefixLength <= textRunes.length; i++) {
     // キーワードの先頭2文字が、ここから始まっているか
     var k = 0;
-    while (k < _abbreviationPrefixLength && textRunes[i + k] == keywordRunes[k]) {
+    while (k < _abbreviationPrefixLength &&
+        textRunes[i + k] == keywordRunes[k]) {
       k++;
     }
     if (k < _abbreviationPrefixLength) continue;

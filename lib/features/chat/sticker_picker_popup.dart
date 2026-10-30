@@ -23,6 +23,7 @@ Future<Sticker?> showStickerPickerPopup(
   BuildContext context, {
   required Rect anchorRect,
   String? initialPackId,
+  String? conversationKey,
 }) {
   final overlayBox =
       Overlay.of(context).context.findRenderObject()! as RenderBox;
@@ -89,6 +90,7 @@ Future<Sticker?> showStickerPickerPopup(
             child: StickerPickerContent(
               railAxis: Axis.vertical,
               initialPackId: initialPackId,
+              conversationKey: conversationKey,
               onStickerSelected: close,
             ),
           ),

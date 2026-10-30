@@ -8,6 +8,7 @@ import '../../models/app_ui_style.dart';
 import '../../models/sticker.dart';
 import '../../providers/app_ui_style_provider.dart';
 import '../../models/sticker_send_mode.dart';
+import '../../providers/last_sticker_tab_provider.dart';
 import '../../providers/recent_stickers_provider.dart';
 import '../../providers/repository_providers.dart';
 import '../../providers/sticker_send_mode_provider.dart';
@@ -18,17 +19,40 @@ import '../../providers/sticker_send_mode_provider.dart';
 /// [railAxis]で、パック切り替えレールを左サイド（`Axis.vertical`）に
 /// 出すか下部（`Axis.horizontal`）に出すかを切り替える。
 /// 「最近使った」タブを表す[StickerPickerContent]内部のタブid。
-const _kRecentTab = '__recent__';
+const _kRecentTab = kStickerTabRecent;
 
 class StickerPickerContent extends ConsumerStatefulWidget {
   const StickerPickerContent({
     required this.railAxis,
     required this.onStickerSelected,
     this.initialPackId,
+    this.conversationKey,
+    this.scrollLocked = false,
+    this.onGridVerticalDragUpdate,
+    this.onGridVerticalDragEnd,
+    this.onGridOverscrollTop,
     super.key,
   });
 
   final Axis railAxis;
+
+  /// 語らい（寄合）ごとに、直前に開いたタブを記憶・復元するキー
+  /// （`stickerTabKey`）。nullなら記憶しない（2026-10-30）。
+  final String? conversationKey;
+
+  /// trueの間は、グリッドの縦スクロールを止める（モバイルのドックが半分の状態）。
+  /// 代わりにグリッド領域の縦ドラッグを[onGridVerticalDragUpdate]・
+  /// [onGridVerticalDragEnd]（ドックの高さの変更）へ回す（2026-10-30）。
+  final bool scrollLocked;
+  final void Function(double dy)? onGridVerticalDragUpdate;
+  final void Function(double velocity)? onGridVerticalDragEnd;
+
+  /// グリッドが先頭にいる状態でさらに下へ引かれ、一定量たまった時（ドックが
+  /// 拡大から半分へ縮む合図）。
+  final VoidCallback? onGridOverscrollTop;
+
+  /// モバイル（レールが下）かどうか。横スワイプでタブを移動できる。
+  bool get _swipeTabs => railAxis == Axis.horizontal;
   final void Function(Sticker sticker) onStickerSelected;
 
   /// 指定時は「すべて」タブではなく、このパックに絞り込んだ状態で開く
@@ -49,16 +73,93 @@ class _StickerPickerContentState extends ConsumerState<StickerPickerContent> {
   // 非同期のため、初期化時ではなく都度判定する（2026-10-29）。
   bool _tabChosen = false;
 
+  // 所持パックのid（取得できた後）。記憶したパックが今も有効かの判定に使う。
+  Set<String>? _ownedPackIds;
+
+  /// 開いた時の最初のタブ: 指定パック → この語らいで直前に開いたタブ（パックは
+  /// 今も所持している時だけ）→ 最近があれば最近 → すべて。
   String? get _selectedPackId {
     if (_tabChosen) return _chosenPackId;
     if (widget.initialPackId != null) return widget.initialPackId;
+    final key = widget.conversationKey;
+    final remembered = key == null
+        ? null
+        : ref.read(lastStickerTabProvider)[key];
+    if (remembered == kStickerTabAll) return null;
+    if (remembered == kStickerTabRecent) return _kRecentTab;
+    if (remembered != null && (_ownedPackIds?.contains(remembered) ?? false)) {
+      return remembered;
+    }
     return ref.read(recentStickersProvider).isNotEmpty ? _kRecentTab : null;
   }
 
-  void _selectTab(String? packId) => setState(() {
-    _tabChosen = true;
-    _chosenPackId = packId;
-  });
+  void _selectTab(String? packId) {
+    setState(() {
+      _tabChosen = true;
+      _chosenPackId = packId;
+    });
+    // 利用者が選んだタブだけを、この語らいの「直前に開いたタブ」として記憶する。
+    final key = widget.conversationKey;
+    if (key != null) {
+      ref
+          .read(lastStickerTabProvider.notifier)
+          .remember(key, packId ?? kStickerTabAll);
+    }
+  }
+
+  // 横スワイプでタブを移動する（モバイル）ためのページ制御。コントローラーは
+  // 初期ページが決まってから作る（所持パックの取得後）。
+  PageController? _pageController;
+  final _railController = ScrollController();
+  bool _pageAnimating = false;
+  double _overscrollAccum = 0;
+
+  /// タブの並び（レールと同じ: 最近、すべて(null)、所持パック）。
+  List<String?> _tabIds(List<StickerPack> packs) => [
+    _kRecentTab,
+    null,
+    for (final pack in packs)
+      if (pack.stickers.isNotEmpty) pack.packId,
+  ];
+
+  int _tabIndex(List<String?> tabs) {
+    final i = tabs.indexOf(_selectedPackId);
+    return i < 0 ? 1 : i;
+  }
+
+  /// 選択中のタブが横レールの見える範囲に入るようスクロールする。
+  void _scrollRailTo(int index) {
+    if (!_railController.hasClients) return;
+    final position = _railController.position;
+    final target = (index * 48.0 + 8 + 24 - position.viewportDimension / 2)
+        .clamp(0.0, position.maxScrollExtent);
+    _railController.animateTo(
+      target,
+      duration: const Duration(milliseconds: 200),
+      curve: Curves.easeOut,
+    );
+  }
+
+  Future<void> _goToTab(List<String?> tabs, int index) async {
+    _selectTab(tabs[index]);
+    _scrollRailTo(index);
+    final controller = _pageController;
+    if (controller == null || !controller.hasClients) return;
+    _pageAnimating = true;
+    await controller.animateToPage(
+      index,
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeOut,
+    );
+    _pageAnimating = false;
+  }
+
+  void _onPageChanged(List<String?> tabs, int index) {
+    if (_pageAnimating || index >= tabs.length) return;
+    if (tabs[index] == _selectedPackId) return;
+    _selectTab(tabs[index]);
+    _scrollRailTo(index);
+  }
 
   // LINE型送信方式の拡大プレビュー用（2026-08-13追加）。
   Sticker? _pendingPreviewSticker;
@@ -72,6 +173,8 @@ class _StickerPickerContentState extends ConsumerState<StickerPickerContent> {
     // タップ等）際に、挿入済みのOverlayEntryがルートOverlayに残り続ける
     // リークを防ぐ。
     _previewEntry?.remove();
+    _pageController?.dispose();
+    _railController.dispose();
     super.dispose();
   }
 
@@ -179,23 +282,26 @@ class _StickerPickerContentState extends ConsumerState<StickerPickerContent> {
     final sendMode = ref.watch(stickerSendModeProvider);
     // 最近の読み込み完了で、既定のタブを見直すため購読する。
     ref.watch(recentStickersProvider);
+    ref.watch(lastStickerTabProvider);
 
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
-          child: TextField(
-            decoration: InputDecoration(
-              isDense: true,
-              prefixIcon: const Icon(Icons.search, size: 20),
-              hintText: strings.stickerSearchHint,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(20),
+        _withDockDragAlways(
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+            child: TextField(
+              decoration: InputDecoration(
+                isDense: true,
+                prefixIcon: const Icon(Icons.search, size: 20),
+                hintText: strings.stickerSearchHint,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
               ),
+              onChanged: (value) => setState(() => _query = value),
             ),
-            onChanged: (value) => setState(() => _query = value),
           ),
         ),
         Expanded(
@@ -207,8 +313,21 @@ class _StickerPickerContentState extends ConsumerState<StickerPickerContent> {
                       .watchOwnedPacks(currentUserId),
                   builder: (context, snapshot) {
                     final packs = snapshot.data ?? const <StickerPack>[];
-                    final content = _buildGrid(strings, packs, sendMode);
-                    if (packs.isEmpty) return content;
+                    _ownedPackIds = {for (final pack in packs) pack.packId};
+                    if (packs.isEmpty) {
+                      return _buildGrid(strings, packs, sendMode, null);
+                    }
+                    final Widget content;
+                    if (widget._swipeTabs) {
+                      content = _buildPager(strings, packs, sendMode);
+                    } else {
+                      content = _buildGrid(
+                        strings,
+                        packs,
+                        sendMode,
+                        _selectedPackId,
+                      );
+                    }
                     final rail = _buildRail(packs);
                     return widget.railAxis == Axis.vertical
                         ? Row(
@@ -241,6 +360,7 @@ class _StickerPickerContentState extends ConsumerState<StickerPickerContent> {
         if (pack.stickers.isNotEmpty)
           (packId: pack.packId, imageUrl: pack.stickers.first.imageUrl),
     ];
+    final tabs = _tabIds(packs);
     final railChildren = [
       _RailIcon(
         imageUrl: '',
@@ -248,14 +368,16 @@ class _StickerPickerContentState extends ConsumerState<StickerPickerContent> {
         isAllTab: false,
         icon: Icons.history,
         tooltip: ref.read(appStringsProvider).stickerRecentTab,
-        onTap: () => _selectTab(_kRecentTab),
+        onTap: () => _goToTab(tabs, 0),
       ),
       for (final item in items)
         _RailIcon(
           imageUrl: item.imageUrl,
           selected: _selectedPackId == item.packId,
           isAllTab: item.packId == null,
-          onTap: () => _selectTab(item.packId),
+          onTap: () => widget._swipeTabs
+              ? _goToTab(tabs, tabs.indexOf(item.packId))
+              : _selectTab(item.packId),
         ),
     ];
     if (widget.railAxis == Axis.vertical) {
@@ -267,13 +389,93 @@ class _StickerPickerContentState extends ConsumerState<StickerPickerContent> {
         ),
       );
     }
-    return SizedBox(
-      height: 56,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 8),
-        children: railChildren,
+    return _withDockDragAlways(
+      SizedBox(
+        height: 56,
+        child: ListView(
+          controller: _railController,
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          children: railChildren,
+        ),
       ),
+    );
+  }
+
+  /// 横スワイプでタブを移動するグリッド群（モバイル）。
+  Widget _buildPager(
+    Strings strings,
+    List<StickerPack> packs,
+    StickerSendMode mode,
+  ) {
+    final tabs = _tabIds(packs);
+    final index = _tabIndex(tabs);
+    final controller = _pageController ??= PageController(initialPage: index);
+    // 利用者がまだ選んでいない間に既定のタブが変わった（最近の読み込み完了等）
+    // 場合だけ、ページを合わせる。選んだ後は、スワイプ・レールで常に一致している。
+    if (!_tabChosen && controller.hasClients) {
+      final page = controller.page?.round();
+      if (page != null && page != index) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && controller.hasClients) controller.jumpToPage(index);
+        });
+      }
+    }
+    return NotificationListener<ScrollNotification>(
+      onNotification: (notification) {
+        if (notification.metrics.axis != Axis.vertical) return false;
+        if (notification is OverscrollNotification &&
+            notification.overscroll < 0) {
+          // 先頭でさらに下へ引かれた分をためて、一定量で縮小を通知する。
+          _overscrollAccum += -notification.overscroll;
+          if (_overscrollAccum > 40) {
+            _overscrollAccum = 0;
+            widget.onGridOverscrollTop?.call();
+          }
+        } else if (notification is ScrollEndNotification) {
+          _overscrollAccum = 0;
+        }
+        return false;
+      },
+      child: PageView.builder(
+        controller: controller,
+        itemCount: tabs.length,
+        onPageChanged: (i) => _onPageChanged(tabs, i),
+        itemBuilder: (context, i) => _buildGrid(strings, packs, mode, tabs[i]),
+      ),
+    );
+  }
+
+  /// 検索欄・下のレールの領域でも、縦ドラッグをドックの高さの変更（展開・縮小・
+  /// 閉じる）として受ける。バーと同じ操作の判定範囲を広げるためで、一覧と違い
+  /// 段に関わらず常に有効（拡大中も、ここを下に引けば半分・閉じるへ進める）。
+  /// 横の動き（レールのスクロール・検索欄の文字選択）はそのまま。ドックから
+  /// 渡されない（PCポップアップ）時は何もしない。
+  Widget _withDockDragAlways(Widget child) {
+    if (widget.onGridVerticalDragUpdate == null) return child;
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onVerticalDragUpdate: (details) =>
+          widget.onGridVerticalDragUpdate?.call(details.delta.dy),
+      onVerticalDragEnd: (details) =>
+          widget.onGridVerticalDragEnd?.call(details.primaryVelocity ?? 0),
+      child: child,
+    );
+  }
+
+  /// スクロールを止めている間（ドックが半分）、縦ドラッグをドックの高さの変更へ
+  /// 回すためにグリッド領域を包む。そうでなければそのまま返す。
+  Widget _withDockDrag(Widget child) {
+    if (!widget.scrollLocked || widget.onGridVerticalDragUpdate == null) {
+      return child;
+    }
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onVerticalDragUpdate: (details) =>
+          widget.onGridVerticalDragUpdate?.call(details.delta.dy),
+      onVerticalDragEnd: (details) =>
+          widget.onGridVerticalDragEnd?.call(details.primaryVelocity ?? 0),
+      child: child,
     );
   }
 
@@ -281,8 +483,8 @@ class _StickerPickerContentState extends ConsumerState<StickerPickerContent> {
     Strings strings,
     List<StickerPack> packs,
     StickerSendMode mode,
+    String? selectedPackId,
   ) {
-    final selectedPackId = _selectedPackId;
     final query = _query.trim().toLowerCase();
     final List<Sticker> source;
     if (selectedPackId == _kRecentTab) {
@@ -311,18 +513,27 @@ class _StickerPickerContentState extends ConsumerState<StickerPickerContent> {
         )
         .toList();
     if (stickers.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Text(
-            strings.chatNoStickersMessage,
-            style: Theme.of(context).textTheme.bodyMedium,
-            textAlign: TextAlign.center,
+      return _withDockDrag(
+        Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Text(
+              strings.chatNoStickersMessage,
+              style: Theme.of(context).textTheme.bodyMedium,
+              textAlign: TextAlign.center,
+            ),
           ),
         ),
       );
     }
-    return GridView.builder(
+    final grid = GridView.builder(
+      // ドックから縦ドラッグの処理を渡された時（モバイル）だけ、半分の間は
+      // スクロールを止め、端でのクランプにそろえる。
+      physics: widget.onGridVerticalDragUpdate == null
+          ? null
+          : widget.scrollLocked
+          ? const NeverScrollableScrollPhysics()
+          : const ClampingScrollPhysics(),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 4,
@@ -344,6 +555,7 @@ class _StickerPickerContentState extends ConsumerState<StickerPickerContent> {
         );
       },
     );
+    return _withDockDrag(grid);
   }
 }
 
