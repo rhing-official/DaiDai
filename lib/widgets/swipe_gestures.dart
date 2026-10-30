@@ -191,10 +191,15 @@ class PinchPriorityPageView extends StatefulWidget {
     required this.itemBuilder,
     this.onPageChanged,
     this.onDismiss,
+    this.allowImplicitScrolling = false,
     super.key,
   });
 
   final PageController controller;
+
+  /// trueなら隣のページも先に作っておく（めくる前に描画を始められる。PDFのように
+  /// ページの描画が重いビューア向け）。
+  final bool allowImplicitScrolling;
   final int itemCount;
   final IndexedWidgetBuilder itemBuilder;
   final ValueChanged<int>? onPageChanged;
@@ -224,6 +229,7 @@ class _PinchPriorityPageViewState extends State<PinchPriorityPageView> {
     final isMultiTouch = _pointerCount >= 2;
     final pageView = PageView.builder(
       controller: widget.controller,
+      allowImplicitScrolling: widget.allowImplicitScrolling,
       physics: isMultiTouch
           ? const NeverScrollableScrollPhysics()
           : const _EasySwipePageScrollPhysics(),

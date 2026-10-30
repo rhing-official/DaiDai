@@ -14,6 +14,7 @@ import 'active_call_session.dart';
 import 'call_avatar.dart';
 import 'call_control_bar.dart';
 import 'call_controls.dart';
+import 'call_tile_layout.dart' show callVideoFitFor;
 import 'camera_availability.dart';
 import 'webrtc_call_controller.dart';
 import '../../l10n/strings.dart';
@@ -318,20 +319,26 @@ class _CallScreenState extends ConsumerState<CallScreen> {
                   )
                 : ColoredBox(
                     color: placeholderColor,
-                    child: RTCVideoView(
-                      // Web版のRTCVideoViewはStatefulWidgetで、実描画に使う
-                      // videoElementをinitState時にしか取得しない。keyが無いと
-                      // メイン/コーナーを入れ替えてもFlutterが同じStateを使い
-                      // 回してしまい、映像が入れ替わらずミラー表示だけが
-                      // 切り替わって見える不具合になっていた。レンダラーの
-                      // 実体が変わったら必ず作り直されるよう、レンダラー自体を
-                      // キーにする。
-                      key: ObjectKey(mainRenderer),
-                      mainRenderer,
-                      mirror: !_mainViewIsRemote && _controller.isFrontCamera,
-                      // 映像全体を見せる（余白は背景の灰色、2026-10-11変更）。
-                      objectFit:
-                          RTCVideoViewObjectFit.RTCVideoViewObjectFitContain,
+                    child: LayoutBuilder(
+                      builder: (context, constraints) => RTCVideoView(
+                        // Web版のRTCVideoViewはStatefulWidgetで、実描画に使う
+                        // videoElementをinitState時にしか取得しない。keyが無いと
+                        // メイン/コーナーを入れ替えてもFlutterが同じStateを使い
+                        // 回してしまい、映像が入れ替わらずミラー表示だけが
+                        // 切り替わって見える不具合になっていた。レンダラーの
+                        // 実体が変わったら必ず作り直されるよう、レンダラー自体を
+                        // キーにする。
+                        key: ObjectKey(mainRenderer),
+                        mainRenderer,
+                        mirror: !_mainViewIsRemote && _controller.isFrontCamera,
+                        // 横長の領域は映像全体を見せる（余白は背景の灰色、2026-10-11
+                        // 変更）。縦長の領域は画面いっぱいに切り抜く（2026-10-30）。
+                        objectFit: callVideoFitFor(
+                          portraitArea:
+                              constraints.maxHeight > constraints.maxWidth,
+                          main: true,
+                        ),
+                      ),
                     ),
                   ),
           ),

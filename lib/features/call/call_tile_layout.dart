@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter_webrtc/flutter_webrtc.dart' show RTCVideoViewObjectFit;
 
 /// 通話の参加者タイルの1行あたりの人数（上の行から）。縦長の領域では1行最大2人で、
 /// 2人=縦に2段、3人=上1・下2、4人=上下2人ずつ、奇数は先頭（上）の行を1人にする
@@ -74,3 +75,14 @@ class CallTileGrid extends StatelessWidget {
     );
   }
 }
+
+/// 1対1の映像の収め方（2026-10-30）。メイン映像は、領域が縦長（高さ>幅）なら
+/// 画面いっぱいに切り抜いて（Cover）埋め、横長なら全体を見せる（Contain、余白は
+/// 灰色）。縦長の画面に、相手のPCカメラのような横長の映像をContainで入れると、
+/// 中央に横長の帯だけが映り上下が空くため。コーナーの小窓は常にCover。
+RTCVideoViewObjectFit callVideoFitFor({
+  required bool portraitArea,
+  required bool main,
+}) => (main && !portraitArea)
+    ? RTCVideoViewObjectFit.RTCVideoViewObjectFitContain
+    : RTCVideoViewObjectFit.RTCVideoViewObjectFitCover;

@@ -23,7 +23,6 @@ import '../../providers/app_ui_style_provider.dart';
 import '../../providers/calendar_week_start_provider.dart';
 import '../../providers/repository_providers.dart';
 import '../../theme/popup_surface_colors.dart';
-import '../../widgets/glass/glass_app_bar.dart';
 import '../../widgets/glass/glass_surface.dart';
 import '../../widgets/swipe_gestures.dart';
 import 'calendar_add_choice_dialog.dart';
@@ -370,24 +369,15 @@ class _CalendarPaneViewState extends ConsumerState<CalendarPaneView> {
     final strings = ref.watch(appStringsProvider);
     final localeCode = ref.watch(appLocaleProvider).languageCode;
     final uiStyle = ref.watch(appUiStyleProvider);
-    final isGlass = uiStyle == AppUiStyle.glass;
     final isGekiga = uiStyle == AppUiStyle.gekiga;
     final accent = ref.watch(accentColorProvider);
     final colorScheme = Theme.of(context).colorScheme;
     final isMobile =
         MediaQuery.sizeOf(context).width < _kCalendarMobileBreakpoint;
 
-    final leadingButton = IconButton(
-      icon: const Icon(Icons.arrow_back),
-      tooltip: '',
-      onPressed: widget.onClose,
-    );
-    final title = Text(strings.calendarFullScreenTitle);
-
+    // 上部の「カレンダー」と戻る矢印の行は出さない（2026-10-31）。閉じるのは
+    // Esc・上スクロール・下スワイプ・ポップアップ外のタップ。
     return Scaffold(
-      appBar: isGlass
-          ? GlassAppBar(leading: leadingButton, title: title)
-          : AppBar(leading: leadingButton, title: title),
       // Esc・上スクロール（PC）・下スワイプ（モバイル）でメッセージ画面に戻る。
       // `_MediaViewerScreen`と同じ3系統の仕組みをここでも組み合わせる。左右
       // 矢印キー・横スワイプでの月送りもここに追加する（2026-09-01）。
@@ -1589,3 +1579,51 @@ final _syncStateProvider = StreamProvider.family((ref, _SyncStateKey key) {
       )
       .handleError((Object e) => debugPrint('CalendarSync: syncState購読失敗 $e'));
 });
+
+/// 月表示のカレンダーを、メッセージ画面の上に重ねるポップアップで開く
+/// （2026-10-30変更。以前は語らいの表示領域を月表示に入れ替えていた）。閉じる
+/// （戻る・Esc・下スワイプ・上スクロール）と、そのままメッセージ画面に戻る。
+/// 中身（[CalendarPaneView]）の色・配置は従来のまま。影は使わない。
+Future<void> showCalendarMonthDialog(
+  BuildContext context, {
+  required bool isDm,
+  required String conversationId,
+  required String roomId,
+  required AppUser currentUser,
+}) {
+  // ダイアログは呼び出し元の外のルートに描かれるため、呼び出し元と同じ
+  // プロバイダーの範囲（使い方ガイドの練習用の画面など）を引き継ぐ。
+  final container = ProviderScope.containerOf(context);
+  return showDialog<void>(
+    context: context,
+    builder: (dialogContext) {
+      final size = MediaQuery.sizeOf(dialogContext);
+      final narrow = size.width < _kCalendarMobileBreakpoint;
+      return UncontrolledProviderScope(
+        container: container,
+        child: Dialog(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          shadowColor: Colors.transparent,
+          insetPadding: narrow
+              ? const EdgeInsets.symmetric(horizontal: 8, vertical: 24)
+              : const EdgeInsets.all(24),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: SizedBox(
+              width: narrow ? size.width - 16 : math.min(size.width - 48, 1600),
+              height: size.height * 0.9,
+              child: CalendarPaneView(
+                isDm: isDm,
+                conversationId: conversationId,
+                roomId: roomId,
+                currentUser: currentUser,
+                onClose: () => Navigator.of(dialogContext).pop(),
+              ),
+            ),
+          ),
+        ),
+      );
+    },
+  );
+}

@@ -401,6 +401,11 @@ class Strings {
     required this.downloadConfirmTitle,
     required this.downloadConfirmMessage,
     required this.downloadConfirmButton,
+    required this.pdfOpenFailed,
+    required this.mediaForwardTooltip,
+    required this.mediaShareTooltip,
+    required this.pdfPageCount,
+    required this.pdfDownloadAction,
     required this.cancel,
     required this.add,
     required this.save,
@@ -624,6 +629,8 @@ class Strings {
     required this.albumMessagePickerEmptyMessage,
     required this.commonCreate,
     required this.calendarFullScreenTitle,
+    required this.calendarPopupEmptyMessage,
+    required this.calendarOpenMonthTooltip,
     required this.calendarTodayButton,
     required this.calendarCreateDialogTitle,
     required this.calendarEditDialogTitle,
@@ -1387,6 +1394,18 @@ class Strings {
   final String Function(String fileName) downloadConfirmMessage;
   final String downloadConfirmButton;
 
+  /// PDFビューア（`pdf_viewer_screen.dart`）: 開けなかった時の案内と、
+  /// ダウンロードへの導線の文言。
+  final String pdfOpenFailed;
+
+  /// 画像・動画ビューアの右上のアイコンのツールチップ（転送・共有は今はアイコンのみ）。
+  final String mediaForwardTooltip;
+  final String mediaShareTooltip;
+
+  /// PDFのプレビューに添える総ページ数（例「12ページ」）。
+  final String Function(int count) pdfPageCount;
+  final String pdfDownloadAction;
+
   final String cancel;
   final String add;
   final String save;
@@ -1809,6 +1828,10 @@ class Strings {
 
   // 寄合単位の共有カレンダー機能（2026-09-01追加）。
   final String calendarFullScreenTitle;
+
+  /// カレンダーボタンのドロップダウン（今後の予定の一覧）の空表示と、月表示を開くボタン。
+  final String calendarPopupEmptyMessage;
+  final String calendarOpenMonthTooltip;
   final String calendarTodayButton;
   final String calendarCreateDialogTitle;
   final String calendarEditDialogTitle;
@@ -2543,6 +2566,11 @@ class Strings {
     downloadConfirmTitle: 'ダウンロードしますか？',
     downloadConfirmMessage: (fileName) => '「$fileName」をダウンロードします。',
     downloadConfirmButton: 'ダウンロード',
+    pdfOpenFailed: 'PDFを開けませんでした',
+    mediaForwardTooltip: '転送',
+    mediaShareTooltip: '共有',
+    pdfPageCount: (count) => '$countページ',
+    pdfDownloadAction: 'ダウンロードして開く',
     cancel: 'キャンセル',
     add: '追加',
     save: '保存',
@@ -2789,6 +2817,8 @@ class Strings {
     albumMessagePickerEmptyMessage: 'まだ画像・動画のメッセージがありません',
     commonCreate: '作成',
     calendarFullScreenTitle: 'カレンダー',
+    calendarPopupEmptyMessage: '今後の予定はありません',
+    calendarOpenMonthTooltip: '月表示を開く',
     calendarTodayButton: '今日',
     calendarCreateDialogTitle: '予定を作成',
     calendarEditDialogTitle: '予定を編集',
@@ -3570,6 +3600,11 @@ class Strings {
     downloadConfirmTitle: 'Download this file?',
     downloadConfirmMessage: (fileName) => 'Download "$fileName".',
     downloadConfirmButton: 'Download',
+    pdfOpenFailed: 'Could not open this PDF',
+    mediaForwardTooltip: 'Forward',
+    mediaShareTooltip: 'Share',
+    pdfPageCount: (count) => count == 1 ? '1 page' : '$count pages',
+    pdfDownloadAction: 'Download to open',
     cancel: 'Cancel',
     add: 'Add',
     save: 'Save',
@@ -3843,6 +3878,8 @@ class Strings {
     albumMessagePickerEmptyMessage: 'No image or video messages yet',
     commonCreate: 'Create',
     calendarFullScreenTitle: 'Calendar',
+    calendarPopupEmptyMessage: 'No upcoming events',
+    calendarOpenMonthTooltip: 'Open month view',
     calendarTodayButton: 'Today',
     calendarCreateDialogTitle: 'Create event',
     calendarEditDialogTitle: 'Edit event',

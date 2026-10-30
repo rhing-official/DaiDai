@@ -47,6 +47,8 @@ import '../../widgets/glass/glass_icon_badge.dart';
 import '../album/album_pane_view.dart';
 import '../album/album_popup_content.dart';
 import '../calendar/calendar_pane_view.dart';
+import '../calendar/calendar_event_detail_dialog.dart';
+import '../calendar/calendar_popup_content.dart';
 import '../call/active_call_session.dart';
 import '../note/note_pane_view.dart';
 import '../note/note_popup_content.dart';
@@ -287,11 +289,7 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
   );
   late ChatRoomMessageCacheEntry _cacheEntry;
 
-  /// カレンダーをこの語らいの表示領域内に表示中か（2026-09-01追加、
-  /// `EmbeddedCallPane`の`_showingCall`と同じローカル切り替え方式）。
-  bool _showingCalendar = false;
-
-  /// 全画面表示中の共有ノートのid（2026-09-06追加、`_showingCalendar`と
+  /// 全画面表示中の共有ノートのid（2026-09-06追加、
   /// 同じ切り替え方式だが、ノートは複数存在しうるためbool一つではなく
   /// String?で対象を持つ）。
   String? _openNoteId;
@@ -376,7 +374,6 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
       _currentRoomName = roomName;
       _cacheKey = newKey;
       _cacheEntry = newEntry;
-      _showingCalendar = false;
       _openNoteId = null;
       _openAlbum = null;
     });
@@ -458,22 +455,6 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
   }
 
   Widget _buildBody(BuildContext context) {
-    final calendarDetail = !_showingCalendar
-        ? null
-        : BackEntry(
-            key: const ValueKey('back-calendar'),
-            scope: BackScope.talks,
-            layer: true,
-            active: true,
-            onBack: () => setState(() => _showingCalendar = false),
-            child: CalendarPaneView(
-              isDm: true,
-              conversationId: widget.dm.dmId,
-              roomId: _currentRoomId,
-              currentUser: widget.currentUser,
-              onClose: () => setState(() => _showingCalendar = false),
-            ),
-          );
     final openNoteId = _openNoteId;
     final noteDetail = openNoteId == null
         ? null
@@ -538,18 +519,13 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
     // 戻るたびにメッセージ画面が作り直され、スクロール位置の復元で一覧が一度上に
     // 上がって落ちる動きが出ていた）。
     void closeOverlay() => setState(() {
-      _showingCalendar = false;
       _openAlbum = null;
     });
     return SlideDrilldown(
       master: chatBody,
-      detail: calendarDetail ?? noteDetail ?? albumDetail,
-      detailKey: _showingCalendar
-          ? 'calendar'
-          : (openNoteId ?? (openAlbum != null ? 'album' : null)),
-      onBack: openNoteId == null && (_showingCalendar || openAlbum != null)
-          ? closeOverlay
-          : null,
+      detail: noteDetail ?? albumDetail,
+      detailKey: openNoteId ?? (openAlbum != null ? 'album' : null),
+      onBack: openNoteId == null && openAlbum != null ? closeOverlay : null,
     );
   }
 
@@ -907,7 +883,7 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
             conversationId: dm.dmId,
             roomId: roomId,
             currentUser: currentUser,
-            onOpenCalendar: () => setState(() => _showingCalendar = true),
+            menuAnchorKey: _menuAnchorKey,
           ),
         ),
         _DmMenuButton(
@@ -1265,7 +1241,7 @@ class _CalendarButton extends ConsumerStatefulWidget {
     required this.conversationId,
     required this.roomId,
     required this.currentUser,
-    required this.onOpenCalendar,
+    this.menuAnchorKey,
   });
 
   final bool isDm;
@@ -1273,12 +1249,8 @@ class _CalendarButton extends ConsumerStatefulWidget {
   final String roomId;
   final AppUser currentUser;
 
-  /// カレンダーをこの語らいの表示領域内に開く（2026-09-01追加。当初は
-  /// `Navigator.push`で全画面ルートとして開いていたが、ワイド画面で
-  /// フレンド/寄合一覧のサイドバーまで覆ってしまう不具合が発覚し、
-  /// `DmChatPane`/`GroupChatPane`自身の表示領域内で`EmbeddedCallPane`と
-  /// 同じ「ローカルなbool切り替えで中身を差し替える」方式に変更した）。
-  final VoidCallback onOpenCalendar;
+  /// 狭い画面でポップアップの位置をそろえる基準のキー（[_AlbumButton]と同じ）。
+  final GlobalKey? menuAnchorKey;
 
   @override
   ConsumerState<_CalendarButton> createState() => _CalendarButtonState();
@@ -1298,7 +1270,7 @@ class _CalendarButtonState extends ConsumerState<_CalendarButton> {
     _unregisterTrigger = registerHeaderMenuTrigger(
       context,
       _buttonKey,
-      _openCalendarFullScreen,
+      _openCalendarPopup,
     );
   }
 
@@ -1428,10 +1400,48 @@ class _CalendarButtonState extends ConsumerState<_CalendarButton> {
     }
   }
 
-  Future<void> _openCalendarFullScreen() async {
+  /// カレンダーボタン: 真下のドロップダウンに今後の予定を一覧し（アルバム・投票・
+  /// ノートと同じ形式、2026-10-30変更）、予定を選ぶと詳細ダイアログ、月表示ボタンで
+  /// 月表示のポップアップを開く。初めて開く時だけ、Googleカレンダー同期の確認を挟む。
+  Future<void> _openCalendarPopup() async {
     await _maybeShowSyncOptInDialog();
     if (!mounted) return;
-    widget.onOpenCalendar();
+    final position = computeButtonAnchoredMenuPosition(
+      context,
+      buttonKey: _buttonKey,
+      narrowAnchorKey: widget.menuAnchorKey,
+    );
+    if (position == null) return;
+
+    final result = await showCalendarPopup(
+      context,
+      position: position,
+      anchorKey: _buttonKey,
+      isDm: widget.isDm,
+      conversationId: widget.conversationId,
+      roomId: widget.roomId,
+      currentUser: widget.currentUser,
+    );
+    if (result == null || !mounted) return;
+    switch (result) {
+      case CalendarPopupEvent(:final event):
+        await showCalendarEventDetailDialog(
+          context,
+          isDm: widget.isDm,
+          conversationId: widget.conversationId,
+          roomId: widget.roomId,
+          event: event,
+          currentUser: widget.currentUser,
+        );
+      case CalendarPopupOpenMonth():
+        await showCalendarMonthDialog(
+          context,
+          isDm: widget.isDm,
+          conversationId: widget.conversationId,
+          roomId: widget.roomId,
+          currentUser: widget.currentUser,
+        );
+    }
   }
 
   @override
@@ -1456,7 +1466,7 @@ class _CalendarButtonState extends ConsumerState<_CalendarButton> {
         ),
         AppUiStyle.flat => const Icon(Icons.event_outlined),
       },
-      onPressed: _openCalendarFullScreen,
+      onPressed: _openCalendarPopup,
     );
   }
 }
@@ -2119,11 +2129,7 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
   );
   late ChatRoomMessageCacheEntry _cacheEntry;
 
-  /// カレンダーをこの語らいの表示領域内に表示中か（2026-09-01追加、
-  /// `EmbeddedCallPane`の`_showingCall`と同じローカル切り替え方式）。
-  bool _showingCalendar = false;
-
-  /// 全画面表示中の共有ノートのid（2026-09-06追加、`_showingCalendar`と
+  /// 全画面表示中の共有ノートのid（2026-09-06追加、
   /// 同じ切り替え方式だが、ノートは複数存在しうるためbool一つではなく
   /// String?で対象を持つ）。
   String? _openNoteId;
@@ -2259,7 +2265,6 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
       _currentRoomName = roomName;
       _cacheKey = newKey;
       _cacheEntry = newEntry;
-      _showingCalendar = false;
       _openNoteId = null;
       _openAlbum = null;
     });
@@ -2412,22 +2417,6 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
     final currentUser = widget.currentUser;
     final roomId = _currentRoomId;
     final groupRepository = ref.watch(groupRepositoryProvider);
-    final calendarDetail = !_showingCalendar
-        ? null
-        : BackEntry(
-            key: const ValueKey('back-calendar'),
-            scope: BackScope.talks,
-            layer: true,
-            active: true,
-            onBack: () => setState(() => _showingCalendar = false),
-            child: CalendarPaneView(
-              isDm: false,
-              conversationId: group.groupId,
-              roomId: roomId,
-              currentUser: currentUser,
-              onClose: () => setState(() => _showingCalendar = false),
-            ),
-          );
     final openNoteId = _openNoteId;
     final noteDetail = openNoteId == null
         ? null
@@ -2516,18 +2505,13 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
     // 戻るたびにメッセージ画面が作り直され、スクロール位置の復元で一覧が一度上に
     // 上がって落ちる動きが出ていた）。
     void closeOverlay() => setState(() {
-      _showingCalendar = false;
       _openAlbum = null;
     });
     return SlideDrilldown(
       master: chatBody,
-      detail: calendarDetail ?? noteDetail ?? albumDetail,
-      detailKey: _showingCalendar
-          ? 'calendar'
-          : (openNoteId ?? (openAlbum != null ? 'album' : null)),
-      onBack: openNoteId == null && (_showingCalendar || openAlbum != null)
-          ? closeOverlay
-          : null,
+      detail: noteDetail ?? albumDetail,
+      detailKey: openNoteId ?? (openAlbum != null ? 'album' : null),
+      onBack: openNoteId == null && openAlbum != null ? closeOverlay : null,
     );
   }
 
@@ -2882,7 +2866,7 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
             conversationId: group.groupId,
             roomId: roomId,
             currentUser: currentUser,
-            onOpenCalendar: () => setState(() => _showingCalendar = true),
+            menuAnchorKey: _menuAnchorKey,
           ),
         ),
         _GroupMenuButton(

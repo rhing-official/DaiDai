@@ -232,15 +232,19 @@ class _OneToOneStageState extends State<_OneToOneStage> {
     final renderer = remote
         ? controller.remoteRenderer
         : controller.localRenderer;
-    return RTCVideoView(
-      // Web版の`RTCVideoView`はinitState時にしか描画要素を取らないため、
-      // レンダラー自体をキーにして入れ替え時に確実に作り直す。
-      key: ObjectKey(renderer),
-      renderer,
-      mirror: !remote && controller.isFrontCamera,
-      objectFit: main
-          ? RTCVideoViewObjectFit.RTCVideoViewObjectFitContain
-          : RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+    // 領域が縦長ならメインも画面いっぱいに切り抜く（[callVideoFitFor]）。
+    return LayoutBuilder(
+      builder: (context, constraints) => RTCVideoView(
+        // Web版の`RTCVideoView`はinitState時にしか描画要素を取らないため、
+        // レンダラー自体をキーにして入れ替え時に確実に作り直す。
+        key: ObjectKey(renderer),
+        renderer,
+        mirror: !remote && controller.isFrontCamera,
+        objectFit: callVideoFitFor(
+          portraitArea: constraints.maxHeight > constraints.maxWidth,
+          main: main,
+        ),
+      ),
     );
   }
 

@@ -72,6 +72,8 @@ import '../../utils/sound_upload.dart' show kAllowedSoundExtensions;
 import '../../utils/spam_check.dart';
 import '../../utils/sticker_suggestion.dart';
 import 'sticker_picker_popup.dart';
+import '../../widgets/pdf_preview_card.dart';
+import '../../widgets/pdf_viewer_screen.dart';
 import 'sticker_picker_dock.dart';
 import 'sticker_suggestion_strip.dart';
 import 'talks_tab.dart' show kTalksSplitBreakpoint;
@@ -4759,6 +4761,15 @@ class _MessageRow extends ConsumerWidget {
         message.fileMetadata != null &&
         _FileAttachmentBlock.isPreviewableMarkdown(message.fileMetadata!);
 
+    // プレビュー付きのPDFは、ファイル名の行とプレビューをそれぞれ独立した枠で
+    // 囲む（`_FileAttachmentBlock._buildPdfBlock`）ため、吹き出しの枠は付けない
+    // （2026-10-30、ユーザー指示）。
+    final isPdfPreview =
+        message.contentType == 'file' &&
+        message.fileMetadata != null &&
+        isPreviewablePdf(message.fileMetadata!) &&
+        message.fileMetadata!.sizeBytes <= kMaxPdfThumbnailBytes;
+
     // 複数添付で全てが画像・動画なら、単一の画像と同じく吹き出しの枠を付けず
     // グリッド自身の枠だけにする（ファイルが混ざる場合は吹き出しに入れる）。
     final isMultiMediaOnly =
@@ -4942,6 +4953,7 @@ class _MessageRow extends ConsumerWidget {
         message.contentType == 'video' ||
         isMultiMediaOnly ||
         isMarkdownPreview ||
+        isPdfPreview ||
         isSticker ||
         isCalendarEventNotice ||
         isScheduleCoordinationNotice ||
@@ -7522,8 +7534,14 @@ class _FileAttachmentBlockState extends ConsumerState<_FileAttachmentBlock>
 
   bool get _isAudio => _FileAttachmentBlock.isPlayableAudio(widget.metadata);
 
+  bool get _isPdf => isPreviewablePdf(widget.metadata);
+
   @override
-  bool get wantKeepAlive => _isMarkdown;
+  // プレビュー付きPDFも、スクロールで画面外に出ても作り直さない（描画済みの
+  // ページを捨てて白くならないように）。
+  bool get wantKeepAlive =>
+      _isMarkdown ||
+      (_isPdf && widget.metadata.sizeBytes <= kMaxPdfThumbnailBytes);
 
   // --- 音声プレビュー再生（2026-09-12追加） ---
 
@@ -7729,7 +7747,102 @@ class _FileAttachmentBlockState extends ConsumerState<_FileAttachmentBlock>
     );
   }
 
+  /// プレビュー付きPDF（2026-10-30）。ファイル名の行とプレビューを、それぞれ
+  /// 独立した枠で囲って縦に並べる（以前は1つの吹き出しの中に両方が入っていた）。
+  /// 枠の見た目はマークダウンのカードと同じ規則（劇画=白黒ボックス、ガラス=
+  /// ガラス面、フラット=塗り＋アクセント色の細い枠）。
+  Widget _buildPdfBlock(BuildContext context) {
+    final showIcon = _hovering || _alwaysShowDownload;
+    final colorScheme = Theme.of(context).colorScheme;
+    final gekigaFg = widget.isMe ? GekigaColors.panel : GekigaColors.onPanel;
+    final fg = widget.isGekiga ? gekigaFg : colorScheme.onSurface;
+    final subFg = widget.isGekiga
+        ? gekigaFg.withValues(alpha: 0.75)
+        : colorScheme.onSurfaceVariant;
+    final row = _pdfTappable(
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.picture_as_pdf_outlined, color: fg),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    widget.metadata.fileName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: fg),
+                  ),
+                  Text(
+                    _MessageRow._formatFileSize(widget.metadata.sizeBytes),
+                    style: TextStyle(fontSize: 11, color: subFg),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+    final radius = BorderRadius.circular(8);
+    final Widget framedRow;
+    if (widget.isGekiga) {
+      framedRow = GekigaStraightMonochromeBox(isMe: widget.isMe, child: row);
+    } else if (widget.isGlass) {
+      framedRow = GlassSurface(
+        borderRadius: radius,
+        child: Material(type: MaterialType.transparency, child: row),
+      );
+    } else {
+      framedRow = Container(
+        decoration: BoxDecoration(
+          color: colorScheme.surfaceContainerHighest,
+          border: Border.all(color: colorScheme.primary),
+          borderRadius: radius,
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Material(color: Colors.transparent, child: row),
+      );
+    }
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovering = true),
+      onExit: (_) => setState(() => _hovering = false),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              framedRow,
+              if (showIcon)
+                Positioned(
+                  top: -6,
+                  right: -6,
+                  child: _downloadButton(small: true),
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          PdfPreviewCard(
+            url: widget.metadata.url,
+            fileName: widget.metadata.fileName,
+            isMe: widget.isMe,
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildPlainRow() {
+    if (_isPdf && widget.metadata.sizeBytes <= kMaxPdfThumbnailBytes) {
+      return _buildPdfBlock(context);
+    }
     final showIcon = _hovering || _alwaysShowDownload;
     return MouseRegion(
       onEnter: (_) => setState(() => _hovering = true),
@@ -7737,43 +7850,75 @@ class _FileAttachmentBlockState extends ConsumerState<_FileAttachmentBlock>
       child: Stack(
         clipBehavior: Clip.none,
         children: [
-          Padding(
-            padding: const EdgeInsets.only(top: 4, right: 4),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.insert_drive_file_outlined,
-                  color: widget.onBubbleColor,
-                ),
-                const SizedBox(width: 8),
-                Flexible(
-                  child: Column(
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _pdfTappable(
+                Padding(
+                  padding: const EdgeInsets.only(top: 4, right: 4),
+                  child: Row(
                     mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        widget.metadata.fileName,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(color: widget.onBubbleColor),
+                      Icon(
+                        _isPdf
+                            ? Icons.picture_as_pdf_outlined
+                            : Icons.insert_drive_file_outlined,
+                        color: widget.onBubbleColor,
                       ),
-                      Text(
-                        _MessageRow._formatFileSize(widget.metadata.sizeBytes),
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: widget.onBubbleColor.withValues(alpha: 0.7),
+                      const SizedBox(width: 8),
+                      Flexible(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              widget.metadata.fileName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(color: widget.onBubbleColor),
+                            ),
+                            Text(
+                              _MessageRow._formatFileSize(
+                                widget.metadata.sizeBytes,
+                              ),
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: widget.onBubbleColor.withValues(
+                                  alpha: 0.7,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
           if (showIcon)
             Positioned(top: -6, right: -6, child: _downloadButton(small: true)),
         ],
+      ),
+    );
+  }
+
+  /// PDFの行は、本体のタップでアプリ内ビューアを開く（ダウンロードは右上の
+  /// ボタンのまま）。PDF以外はそのまま返す。
+  Widget _pdfTappable(Widget child) {
+    if (!_isPdf) return child;
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => openPdfViewer(
+          context,
+          url: widget.metadata.url,
+          fileName: widget.metadata.fileName,
+        ),
+        child: child,
       ),
     );
   }
@@ -8294,11 +8439,13 @@ List<MediaViewerItem> mediaViewerItemsOf(List<Message> mediaMessages) => [
             id: '${m.messageId}#$i',
             url: m.attachments[i].url,
             contentType: m.attachments[i].isVideo ? 'video' : 'image',
+            fileName: m.attachments[i].fileName,
           ),
     ] else
       MediaViewerItem(
         id: m.messageId,
         url: m.fileMetadata?.url ?? '',
         contentType: m.contentType,
+        fileName: m.fileMetadata?.fileName,
       ),
 ];

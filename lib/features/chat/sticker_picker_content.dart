@@ -9,6 +9,7 @@ import '../../models/sticker.dart';
 import '../../providers/app_ui_style_provider.dart';
 import '../../models/sticker_send_mode.dart';
 import '../../providers/last_sticker_tab_provider.dart';
+import '../../providers/owned_sticker_packs_provider.dart';
 import '../../providers/recent_stickers_provider.dart';
 import '../../providers/repository_providers.dart';
 import '../../providers/sticker_send_mode_provider.dart';
@@ -112,7 +113,9 @@ class _StickerPickerContentState extends ConsumerState<StickerPickerContent> {
   PageController? _pageController;
   final _railController = ScrollController();
   bool _pageAnimating = false;
-  double _overscrollAccum = 0;
+  // 拡大中の下引きで縮小する判定用（[_buildPager]参照）。
+  Offset? _collapseStart;
+  bool _gridAtTop = true;
 
   /// タブの並び（レールと同じ: 最近、すべて(null)、所持パック）。
   List<String?> _tabIds(List<StickerPack> packs) => [
@@ -307,12 +310,14 @@ class _StickerPickerContentState extends ConsumerState<StickerPickerContent> {
         Expanded(
           child: currentUserId == null
               ? const SizedBox.shrink()
-              : StreamBuilder<List<StickerPack>>(
-                  stream: ref
-                      .watch(stickerRepositoryProvider)
-                      .watchOwnedPacks(currentUserId),
-                  builder: (context, snapshot) {
-                    final packs = snapshot.data ?? const <StickerPack>[];
+              : Builder(
+                  builder: (context) {
+                    // 所持パックは共有の1本の購読から読む（再ビルドで取り直さない）。
+                    final packs =
+                        ref
+                            .watch(ownedStickerPacksProvider(currentUserId))
+                            .value ??
+                        const <StickerPack>[];
                     _ownedPackIds = {for (final pack in packs) pack.packId};
                     if (packs.isEmpty) {
                       return _buildGrid(strings, packs, sendMode, null);
@@ -421,27 +426,40 @@ class _StickerPickerContentState extends ConsumerState<StickerPickerContent> {
         });
       }
     }
-    return NotificationListener<ScrollNotification>(
-      onNotification: (notification) {
-        if (notification.metrics.axis != Axis.vertical) return false;
-        if (notification is OverscrollNotification &&
-            notification.overscroll < 0) {
-          // 先頭でさらに下へ引かれた分をためて、一定量で縮小を通知する。
-          _overscrollAccum += -notification.overscroll;
-          if (_overscrollAccum > 40) {
-            _overscrollAccum = 0;
-            widget.onGridOverscrollTop?.call();
-          }
-        } else if (notification is ScrollEndNotification) {
-          _overscrollAccum = 0;
+    // 拡大中の「先頭から下へ引くと半分へ縮む」は、ジェスチャーの競り合い
+    // （横のPageView／縦のGridView）やオーバースクロール通知に頼らず、ポインターの
+    // 動きを直接見て判定する（実機でオーバースクロールが発火しなかったため）。
+    return Listener(
+      onPointerDown: (event) =>
+          _collapseStart = _gridAtTop ? event.position : null,
+      onPointerMove: (event) {
+        final start = _collapseStart;
+        if (start == null || widget.scrollLocked) return;
+        final delta = event.position - start;
+        // 縦優先（斜めでも）で下へ約40px動いたら縮小を通知する。
+        if (delta.dy > 40 && delta.dy > delta.dx.abs() * 1.5) {
+          _collapseStart = null;
+          widget.onGridOverscrollTop?.call();
         }
-        return false;
       },
-      child: PageView.builder(
-        controller: controller,
-        itemCount: tabs.length,
-        onPageChanged: (i) => _onPageChanged(tabs, i),
-        itemBuilder: (context, i) => _buildGrid(strings, packs, mode, tabs[i]),
+      onPointerUp: (_) => _collapseStart = null,
+      onPointerCancel: (_) => _collapseStart = null,
+      child: NotificationListener<ScrollNotification>(
+        onNotification: (notification) {
+          if (notification.metrics.axis == Axis.vertical) {
+            _gridAtTop =
+                notification.metrics.pixels <=
+                notification.metrics.minScrollExtent + 0.5;
+          }
+          return false;
+        },
+        child: PageView.builder(
+          controller: controller,
+          itemCount: tabs.length,
+          onPageChanged: (i) => _onPageChanged(tabs, i),
+          itemBuilder: (context, i) =>
+              _buildGrid(strings, packs, mode, tabs[i]),
+        ),
       ),
     );
   }
@@ -549,6 +567,8 @@ class _StickerPickerContentState extends ConsumerState<StickerPickerContent> {
           onTap: () => _handleStickerTap(sticker, mode),
           child: Image.network(
             sticker.imageUrl,
+            // 原寸のままデコードすると、多数並ぶ一覧で重いため縮小して読む。
+            cacheWidth: 256,
             fit: BoxFit.contain,
             errorBuilder: (_, _, _) => const Icon(Icons.broken_image_outlined),
           ),
@@ -606,6 +626,7 @@ class _RailIcon extends StatelessWidget {
                   )
                 : Image.network(
                     imageUrl,
+                    cacheWidth: 96,
                     fit: BoxFit.contain,
                     errorBuilder: (_, _, _) =>
                         const Icon(Icons.broken_image_outlined, size: 20),

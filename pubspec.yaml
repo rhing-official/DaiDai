@@ -101,6 +101,7 @@ dependencies:
   # 直接触れるため、passkeysが依存する推移的パッケージを明示的にも依存させる。
   passkeys_platform_interface: ^2.10.0
   flutter_svg: ^2.3.0
+  pdfrx: ^2.4.8
 
 dev_dependencies:
   flutter_test:
