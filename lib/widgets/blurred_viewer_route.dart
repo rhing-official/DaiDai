@@ -28,3 +28,26 @@ Route<T> blurredViewerRoute<T>(WidgetBuilder builder) {
     ),
   );
 }
+
+/// ビューアの上部バー。ボタン（ダウンロード等）以外の余白をタップすると
+/// [onClose]を呼ぶ（2026-10-31）。ボタンは内側のため先にタップを受ける。
+class TapToCloseAppBar extends StatelessWidget implements PreferredSizeWidget {
+  const TapToCloseAppBar({
+    required this.appBar,
+    required this.onClose,
+    super.key,
+  });
+
+  final AppBar appBar;
+  final VoidCallback onClose;
+
+  @override
+  Size get preferredSize => appBar.preferredSize;
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+    behavior: HitTestBehavior.opaque,
+    onTap: onClose,
+    child: appBar,
+  );
+}

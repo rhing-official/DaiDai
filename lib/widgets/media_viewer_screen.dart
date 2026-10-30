@@ -185,32 +185,35 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen> {
       backgroundColor: Colors.transparent,
       // AppBarの裏まで本体を広げ、書面・画像を画面の縦中央に置く（2026-10-31）。
       extendBodyBehindAppBar: true,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        // 戻る矢印は出さない（Esc・下スワイプ・外側タップ・戻る操作で閉じる、
-        // 2026-10-30）。
-        automaticallyImplyLeading: false,
-        // 右上のツールバー（2026-10-30追加）。転送・共有は、後日機能を付けるため
-        // アイコンだけ先に並べている（今は押しても何も起きない）。
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.forward),
-            tooltip: strings.mediaForwardTooltip,
-            onPressed: () {},
-          ),
-          IconButton(
-            icon: const Icon(Icons.share),
-            tooltip: strings.mediaShareTooltip,
-            onPressed: () {},
-          ),
-          IconButton(
-            icon: const Icon(Icons.download),
-            tooltip: strings.downloadConfirmButton,
-            onPressed: _downloadCurrent,
-          ),
-        ],
+      appBar: TapToCloseAppBar(
+        onClose: () => Navigator.of(context).pop(),
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          foregroundColor: Colors.white,
+          elevation: 0,
+          // 戻る矢印は出さない（Esc・下スワイプ・外側タップ・戻る操作で閉じる、
+          // 2026-10-30）。
+          automaticallyImplyLeading: false,
+          // 右上のツールバー（2026-10-30追加）。転送・共有は、後日機能を付けるため
+          // アイコンだけ先に並べている（今は押しても何も起きない）。
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.forward),
+              tooltip: strings.mediaForwardTooltip,
+              onPressed: () {},
+            ),
+            IconButton(
+              icon: const Icon(Icons.share),
+              tooltip: strings.mediaShareTooltip,
+              onPressed: () {},
+            ),
+            IconButton(
+              icon: const Icon(Icons.download),
+              tooltip: strings.downloadConfirmButton,
+              onPressed: _downloadCurrent,
+            ),
+          ],
+        ),
       ),
       // Escキー・矢印キー（コンピューター向け前後ナビゲーション、
       // 2026-08-14追加）・スペースキー（現在表示中の動画の再生/一時停止、
@@ -562,7 +565,11 @@ class _VideoViewerPageState extends State<_VideoViewerPage> {
             children: [
               Text(
                 _formatDuration(value.position),
-                style: const TextStyle(color: Colors.white, fontSize: 12),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
               Expanded(
                 // 現在の再生位置に丸（つまみ）を表示し、ドラッグでの
@@ -573,18 +580,44 @@ class _VideoViewerPageState extends State<_VideoViewerPage> {
                 // 操作だけを担わせる構成。両者はそれぞれ独自にトラック幅を
                 // 計算するため水平方向のピクセル完全一致までは追求しない。
                 child: SizedBox(
-                  height: 24,
+                  height: 32,
                   child: Stack(
                     alignment: Alignment.center,
                     children: [
-                      VideoProgressIndicator(
-                        _controller,
-                        allowScrubbing: false,
-                        padding: const EdgeInsets.symmetric(horizontal: 8),
-                        colors: const VideoProgressColors(
-                          playedColor: Colors.white,
-                          bufferedColor: Colors.white24,
-                          backgroundColor: Colors.white10,
+                      // 再生済み・バッファ済みの色分けのバー（太さ8px、2026-10-31に
+                      // 細くて見づらいため太くした）。操作は上の`Slider`が担う。
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(4),
+                          child: Stack(
+                            children: [
+                              LinearProgressIndicator(
+                                value: durationMs <= 0
+                                    ? 0
+                                    : ((value.buffered.isEmpty
+                                                  ? 0
+                                                  : value
+                                                        .buffered
+                                                        .last
+                                                        .end
+                                                        .inMilliseconds) /
+                                              durationMs)
+                                          .clamp(0.0, 1.0),
+                                minHeight: 8,
+                                color: Colors.white38,
+                                backgroundColor: Colors.white24,
+                              ),
+                              LinearProgressIndicator(
+                                value: durationMs <= 0
+                                    ? 0
+                                    : (sliderValue / sliderMax),
+                                minHeight: 8,
+                                color: Colors.white,
+                                backgroundColor: Colors.transparent,
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                       SliderTheme(
@@ -594,10 +627,10 @@ class _VideoViewerPageState extends State<_VideoViewerPage> {
                           inactiveTrackColor: Colors.transparent,
                           thumbColor: Colors.white,
                           thumbShape: const RoundSliderThumbShape(
-                            enabledThumbRadius: 6,
+                            enabledThumbRadius: 9,
                           ),
                           overlayShape: const RoundSliderOverlayShape(
-                            overlayRadius: 16,
+                            overlayRadius: 22,
                           ),
                           overlayColor: Colors.white24,
                         ),
@@ -623,7 +656,11 @@ class _VideoViewerPageState extends State<_VideoViewerPage> {
               ),
               Text(
                 _formatDuration(value.duration),
-                style: const TextStyle(color: Colors.white, fontSize: 12),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
             ],
           ),

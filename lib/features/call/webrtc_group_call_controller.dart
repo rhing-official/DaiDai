@@ -161,6 +161,55 @@ class WebrtcGroupCallController extends ChangeNotifier {
   bool _muted = false;
   bool get muted => _muted;
 
+  /// いま発声している参加者（自分を含む、2026-10-31追加）。通話タイルを緑の枠で
+  /// 囲むのに使う。flutter_webrtcに音声レベルのイベントは無いため、
+  /// [_speakingPollInterval]ごとに`getStats()`の`audioLevel`を見て判定する。
+  Set<String> _speakingUserIds = const {};
+  Set<String> get speakingUserIds => _speakingUserIds;
+  Timer? _speakingTimer;
+  bool _pollingSpeaking = false;
+
+  static const _speakingPollInterval = Duration(milliseconds: 300);
+
+  /// 0〜1の音声レベルがこれを超えたら発声中とみなす。
+  static const _speakingThreshold = 0.02;
+
+  Future<void> _pollSpeaking() async {
+    if (_pollingSpeaking || _state != GroupCallConnectionState.active) return;
+    _pollingSpeaking = true;
+    try {
+      final speaking = <String>{};
+      for (final entry in [..._peerConnections.entries]) {
+        List<StatsReport> reports;
+        try {
+          reports = await entry.value.getStats();
+        } catch (_) {
+          continue;
+        }
+        for (final report in reports) {
+          final level = double.tryParse('${report.values['audioLevel']}');
+          if (level == null || level <= _speakingThreshold) continue;
+          final kind = report.values['kind'] ?? report.values['mediaType'];
+          if (kind != null && kind != 'audio') continue;
+          if (report.type == 'inbound-rtp') {
+            speaking.add(entry.key);
+          } else if ((report.type == 'media-source' ||
+                  report.type == 'outbound-rtp') &&
+              !_muted) {
+            speaking.add(currentUser.userId);
+          }
+        }
+      }
+      if (_state != GroupCallConnectionState.active) return;
+      if (!setEquals(speaking, _speakingUserIds)) {
+        _speakingUserIds = speaking;
+        notifyListeners();
+      }
+    } finally {
+      _pollingSpeaking = false;
+    }
+  }
+
   /// 前後（イン/アウト）カメラ切替ボタンの表示可否に使う、映像入力
   /// デバイスの台数（2026-08-19追加）。`getUserMedia`成功後（＝端末の
   /// カメラ利用許可が下りた後）にだけ正確に取得できるため、映像取得の
@@ -196,11 +245,13 @@ class WebrtcGroupCallController extends ChangeNotifier {
       );
       _localStream = acquired.stream;
       _isVideo = acquired.usedVideo;
+      unawaited(ensureEchoCancellation(_localStream));
 
       if (_isVideo) {
         await localRenderer.initialize();
         _localRendererInitialized = true;
         localRenderer.srcObject = _localStream;
+        muteLocalPlayback(localRenderer);
         unawaited(_refreshCameraCount());
       }
 
@@ -214,6 +265,11 @@ class WebrtcGroupCallController extends ChangeNotifier {
       _state = GroupCallConnectionState.active;
       notifyListeners();
       unawaited(_applySpeakerphoneWithRetry());
+
+      _speakingTimer = Timer.periodic(
+        _speakingPollInterval,
+        (_) => unawaited(_pollSpeaking()),
+      );
 
       _presenceTimer = Timer.periodic(_presenceHeartbeatInterval, (_) {
         _repository.touchPresence(
@@ -607,6 +663,7 @@ class WebrtcGroupCallController extends ChangeNotifier {
       _localRendererInitialized = true;
     }
     localRenderer.srcObject = _localStream;
+    muteLocalPlayback(localRenderer);
     final track = _localStream!.getVideoTracks().first;
     for (final pc in _peerConnections.values) {
       await pc.addTrack(track, _localStream!);
@@ -691,6 +748,7 @@ class WebrtcGroupCallController extends ChangeNotifier {
       final newTrack = _localStream?.getVideoTracks().firstOrNull;
       if (newTrack != null) {
         localRenderer.srcObject = _localStream;
+        muteLocalPlayback(localRenderer);
         for (final pc in _peerConnections.values) {
           final sender = (await pc.getSenders())
               .where((s) => s.track?.kind == 'video')
@@ -710,6 +768,7 @@ class WebrtcGroupCallController extends ChangeNotifier {
   void dispose() {
     _connectGuard.cancelAll();
     _presenceTimer?.cancel();
+    _speakingTimer?.cancel();
     _participantsSub?.cancel();
     _soundPlayer.dispose();
     for (final userId in [..._peerConnections.keys]) {

@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter_webrtc/flutter_webrtc.dart';
 
 import '../../utils/screen_orientation/screen_orientation.dart';
 
@@ -56,3 +57,36 @@ Map<String, dynamic> videoConstraintsFor({
   'height': {'ideal': portrait ? 1280 : 720},
   if (withAspectRatio) 'aspectRatio': {'ideal': portrait ? 9 / 16 : 16 / 9},
 };
+
+/// 自分のレンダラーを、念のため明示的に無音にする（自分の声を自分の端末で
+/// 再生しない、2026-10-31）。Webの`<audio>`にだけ効かせる（ネイティブの`muted`は
+/// 音声トラック自体を止めてしまい、相手に声が届かなくなるため呼ばない）。
+void muteLocalPlayback(RTCVideoRenderer renderer) {
+  if (!kIsWeb) return;
+  try {
+    renderer.muted = true;
+  } catch (_) {
+    // 音声トラックが無い（映像のみ）等。無視してよい。
+  }
+}
+
+/// マイク取得後に、エコー除去が実際に有効か確認し、無効なら再要求する
+/// （2026-10-31）。要求しても効かない端末（ブラウザ・OS依存）では、相手の
+/// スピーカーの音を相手のマイクが拾って、自分の声が遅れて返ってくる。
+/// 結果は`debugPrint`に出す。失敗しても通話は続ける。
+Future<void> ensureEchoCancellation(MediaStream? stream) async {
+  if (stream == null) return;
+  for (final track in stream.getAudioTracks()) {
+    try {
+      final enabled = track.getSettings()['echoCancellation'];
+      debugPrint('Call: マイクのechoCancellation=$enabled');
+      if (enabled == false) {
+        await track.applyConstraints({'echoCancellation': true});
+        final after = track.getSettings()['echoCancellation'];
+        debugPrint('Call: echoCancellation re-requested, now $after');
+      }
+    } catch (e) {
+      debugPrint('Call: echoCancellationの確認に失敗 $e');
+    }
+  }
+}

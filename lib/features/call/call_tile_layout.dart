@@ -86,3 +86,40 @@ RTCVideoViewObjectFit callVideoFitFor({
 }) => (main && !portraitArea)
     ? RTCVideoViewObjectFit.RTCVideoViewObjectFitContain
     : RTCVideoViewObjectFit.RTCVideoViewObjectFitCover;
+
+/// 発声中の参加者のタイルを囲む緑の枠（2026-10-31）。タップは下のタイルへ通す。
+const kCallTileRadius = 12.0;
+
+class SpeakingFrame extends StatelessWidget {
+  const SpeakingFrame({super.key});
+
+  @override
+  Widget build(BuildContext context) => IgnorePointer(
+    child: DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(kCallTileRadius),
+        border: Border.all(color: const Color(0xFF2ECC71), width: 4),
+      ),
+    ),
+  );
+}
+
+/// 名前・ミュートなどのラベルの下に敷く黒の半透明のシート（2026-10-31、映像の上でも
+/// 読めるようにする）。影は使わない。
+class CallLabelSheet extends StatelessWidget {
+  const CallLabelSheet({required this.child, super.key});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => DecoratedBox(
+    decoration: BoxDecoration(
+      color: Colors.black.withValues(alpha: 0.55),
+      borderRadius: BorderRadius.circular(8),
+    ),
+    child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      child: child,
+    ),
+  );
+}

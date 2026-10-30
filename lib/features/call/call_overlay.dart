@@ -501,56 +501,63 @@ class _GroupStageState extends ConsumerState<_GroupStage> {
     required bool micMuted,
     required bool focused,
   }) {
-    return Container(
-      color: Colors.grey.shade900,
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          videoEnabled && renderer != null
-              ? RTCVideoView(
-                  key: ObjectKey(renderer),
-                  renderer,
-                  mirror: mirror,
-                  // 拡大中は映像全体を見せる（余白は灰色）、グリッドは枠いっぱい。
-                  objectFit: focused
-                      ? RTCVideoViewObjectFit.RTCVideoViewObjectFitContain
-                      : RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
-                )
-              : Center(
-                  child: CallParticipantAvatar(
-                    userId: userId,
-                    rhingSeed: rhingSeed,
-                    conversationId: session.groupId,
-                    radius: focused ? 56 : 28,
-                    fontSize: focused ? 40 : null,
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(kCallTileRadius),
+      child: Container(
+        color: Colors.grey.shade900,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            videoEnabled && renderer != null
+                ? RTCVideoView(
+                    key: ObjectKey(renderer),
+                    renderer,
+                    mirror: mirror,
+                    // 拡大中は映像全体を見せる（余白は灰色）、グリッドは枠いっぱい。
+                    objectFit: focused
+                        ? RTCVideoViewObjectFit.RTCVideoViewObjectFitContain
+                        : RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+                  )
+                : Center(
+                    child: CallParticipantAvatar(
+                      userId: userId,
+                      rhingSeed: rhingSeed,
+                      conversationId: session.groupId,
+                      radius: focused ? 56 : 28,
+                      fontSize: focused ? 40 : null,
+                    ),
                   ),
+            // 表示領域の左下に呼び名、ミュート中はその右隣にミュートアイコンを
+            // 表示する（2026-08-31追加、`group_call_screen.dart`の
+            // `_videoTile`と同じ並び順・見た目に揃える）。
+            Positioned(
+              left: 8,
+              bottom: 8,
+              child: CallLabelSheet(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CallParticipantNameLabel(
+                      userId: userId,
+                      rhingSeed: rhingSeed,
+                      conversationId: session.groupId,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        shadows: [Shadow(blurRadius: 6)],
+                      ),
+                    ),
+                    if (micMuted) ...[
+                      const SizedBox(width: 4),
+                      const Icon(Icons.mic_off, size: 14, color: Colors.white),
+                    ],
+                  ],
                 ),
-          // 表示領域の左下に呼び名、ミュート中はその右隣にミュートアイコンを
-          // 表示する（2026-08-31追加、`group_call_screen.dart`の
-          // `_videoTile`と同じ並び順・見た目に揃える）。
-          Positioned(
-            left: 8,
-            bottom: 8,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                CallParticipantNameLabel(
-                  userId: userId,
-                  rhingSeed: rhingSeed,
-                  conversationId: session.groupId,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    shadows: [Shadow(blurRadius: 6)],
-                  ),
-                ),
-                if (micMuted) ...[
-                  const SizedBox(width: 4),
-                  const Icon(Icons.mic_off, size: 14, color: Colors.white),
-                ],
-              ],
+              ),
             ),
-          ),
-        ],
+            if (session.controller.speakingUserIds.contains(userId))
+              const Positioned.fill(child: SpeakingFrame()),
+          ],
+        ),
       ),
     );
   }

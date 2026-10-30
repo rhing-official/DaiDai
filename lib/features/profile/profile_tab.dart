@@ -2903,14 +2903,24 @@ class _BirthdayDialogState extends ConsumerState<_BirthdayDialog> {
     required T? value,
     required List<DropdownMenuItem<T?>> items,
     required ValueChanged<T?> onChanged,
+    int flex = 1,
   }) {
+    // 狭い画面（モバイル）で選択中の値（日の「23」等）が切れないよう、項目ごとに
+    // 幅の比率を変え、内側の余白も詰める（2026-10-31）。
     return Expanded(
+      flex: flex,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 3),
         child: DropdownButtonFormField<T?>(
           initialValue: value,
           isExpanded: true,
-          decoration: InputDecoration(labelText: label),
+          decoration: InputDecoration(
+            labelText: label,
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 10,
+              vertical: 12,
+            ),
+          ),
           items: items,
           onChanged: onChanged,
         ),
@@ -2929,6 +2939,7 @@ class _BirthdayDialogState extends ConsumerState<_BirthdayDialog> {
 
     Widget field(BirthdayField f) => switch (f) {
       BirthdayField.year => _dropdown<int>(
+        flex: 5,
         label: strings.birthdayYearLabel,
         value: _year,
         items: [
@@ -2945,6 +2956,7 @@ class _BirthdayDialogState extends ConsumerState<_BirthdayDialog> {
         }),
       ),
       BirthdayField.month => _dropdown<int>(
+        flex: 5,
         label: strings.birthdayMonthLabel,
         value: _month,
         items: [
@@ -2960,6 +2972,7 @@ class _BirthdayDialogState extends ConsumerState<_BirthdayDialog> {
         }),
       ),
       BirthdayField.day => _dropdown<int>(
+        flex: 4,
         label: strings.birthdayDayLabel,
         value: _day,
         items: [

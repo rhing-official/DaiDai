@@ -336,6 +336,7 @@ class WebrtcCallController extends ChangeNotifier {
             .catchError((_) {}),
       );
     }
+    unawaited(ensureEchoCancellation(_localStream));
     if (videoNow) _isVideo = video;
     if (video) {
       if (!_localRendererInitialized) {
@@ -343,6 +344,7 @@ class WebrtcCallController extends ChangeNotifier {
         _localRendererInitialized = true;
       }
       localRenderer.srcObject = _localStream;
+      muteLocalPlayback(localRenderer);
       unawaited(_refreshCameraCount());
     }
   }
@@ -365,6 +367,7 @@ class WebrtcCallController extends ChangeNotifier {
         _localRendererInitialized = true;
       }
       localRenderer.srcObject = _localStream;
+      muteLocalPlayback(localRenderer);
       await transceiver.sender.replaceTrack(track);
       _isVideo = true;
       notifyListeners();
@@ -751,6 +754,7 @@ class WebrtcCallController extends ChangeNotifier {
       _localRendererInitialized = true;
     }
     localRenderer.srcObject = _localStream;
+    muteLocalPlayback(localRenderer);
     await _peerConnection?.addTrack(videoTrack, _localStream!);
     unawaited(_refreshCameraCount());
   }
@@ -836,6 +840,7 @@ class WebrtcCallController extends ChangeNotifier {
       final newTrack = _localStream?.getVideoTracks().firstOrNull;
       if (newTrack != null) {
         localRenderer.srcObject = _localStream;
+        muteLocalPlayback(localRenderer);
         final sender = (await _peerConnection?.getSenders() ?? [])
             .where((s) => s.track?.kind == 'video')
             .firstOrNull;

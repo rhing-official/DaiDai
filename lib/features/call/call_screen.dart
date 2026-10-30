@@ -14,7 +14,7 @@ import 'active_call_session.dart';
 import 'call_avatar.dart';
 import 'call_control_bar.dart';
 import 'call_controls.dart';
-import 'call_tile_layout.dart' show callVideoFitFor;
+import 'call_tile_layout.dart' show CallLabelSheet, callVideoFitFor;
 import 'camera_availability.dart';
 import 'webrtc_call_controller.dart';
 import '../../l10n/strings.dart';
@@ -402,29 +402,31 @@ class _CallScreenState extends ConsumerState<CallScreen> {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          CallParticipantNameLabel(
-                            userId: _otherUserId,
-                            rhingSeed: _otherRhingSeed,
-                            conversationId: widget.call.dmId,
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                              shadows: [Shadow(blurRadius: 6)],
+                    Flexible(
+                      child: CallLabelSheet(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            CallParticipantNameLabel(
+                              userId: _otherUserId,
+                              rhingSeed: _otherRhingSeed,
+                              conversationId: widget.call.dmId,
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                                shadows: [Shadow(blurRadius: 6)],
+                              ),
                             ),
-                          ),
-                          Text(
-                            _statusLabel,
-                            style: const TextStyle(
-                              color: Colors.white70,
-                              shadows: [Shadow(blurRadius: 6)],
+                            Text(
+                              _statusLabel,
+                              style: const TextStyle(
+                                color: Colors.white70,
+                                shadows: [Shadow(blurRadius: 6)],
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                     GestureDetector(

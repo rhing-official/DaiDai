@@ -425,72 +425,82 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
     required bool connectionIssue,
     required Color placeholderColor,
   }) {
-    return Container(
-      color: placeholderColor,
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          if (videoEnabled && renderer != null)
-            RTCVideoView(
-              // Web版のRTCVideoViewはStatefulWidgetで、実描画に使う
-              // videoElementをinitState時にしか取得しない。2人通話の
-              // メイン/コーナー入れ替え時、keyが無いとFlutterが同じ
-              // Stateを使い回してしまい映像が入れ替わらない不具合になって
-              // いた。レンダラーの実体が変わったら必ず作り直されるよう、
-              // レンダラー自体をキーにする。
-              key: ObjectKey(renderer),
-              renderer,
-              mirror: mirror,
-              objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
-            )
-          else
-            Center(
-              child: CallParticipantAvatar(
-                userId: userId,
-                rhingSeed: rhingSeed,
-                conversationId: widget.groupId,
-                radius: 32,
-              ),
-            ),
-          Positioned(
-            left: 8,
-            bottom: 8,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                CallParticipantNameLabel(
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(kCallTileRadius),
+      child: Container(
+        color: placeholderColor,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            if (videoEnabled && renderer != null)
+              RTCVideoView(
+                // Web版のRTCVideoViewはStatefulWidgetで、実描画に使う
+                // videoElementをinitState時にしか取得しない。2人通話の
+                // メイン/コーナー入れ替え時、keyが無いとFlutterが同じ
+                // Stateを使い回してしまい映像が入れ替わらない不具合になって
+                // いた。レンダラーの実体が変わったら必ず作り直されるよう、
+                // レンダラー自体をキーにする。
+                key: ObjectKey(renderer),
+                renderer,
+                mirror: mirror,
+                objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+              )
+            else
+              Center(
+                child: CallParticipantAvatar(
                   userId: userId,
                   rhingSeed: rhingSeed,
                   conversationId: widget.groupId,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    shadows: [Shadow(blurRadius: 6)],
-                  ),
+                  radius: 32,
                 ),
-                if (micMuted) ...[
-                  const SizedBox(width: 4),
-                  const Icon(Icons.mic_off, size: 14, color: Colors.white),
-                ],
-              ],
-            ),
-          ),
-          if (connectionIssue)
+              ),
             Positioned(
-              top: 8,
-              right: 8,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                decoration: BoxDecoration(
-                  color: Colors.black54,
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text(
-                  ref.read(appStringsProvider).callConnectionUnstable,
-                  style: const TextStyle(color: Colors.white70, fontSize: 10),
+              left: 8,
+              bottom: 8,
+              child: CallLabelSheet(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CallParticipantNameLabel(
+                      userId: userId,
+                      rhingSeed: rhingSeed,
+                      conversationId: widget.groupId,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        shadows: [Shadow(blurRadius: 6)],
+                      ),
+                    ),
+                    if (micMuted) ...[
+                      const SizedBox(width: 4),
+                      const Icon(Icons.mic_off, size: 14, color: Colors.white),
+                    ],
+                  ],
                 ),
               ),
             ),
-        ],
+            if (_controller.speakingUserIds.contains(userId))
+              const Positioned.fill(child: SpeakingFrame()),
+            if (connectionIssue)
+              Positioned(
+                top: 8,
+                right: 8,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.black54,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    ref.read(appStringsProvider).callConnectionUnstable,
+                    style: const TextStyle(color: Colors.white70, fontSize: 10),
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }

@@ -119,11 +119,14 @@ class _PdfViewerScreenState extends ConsumerState<PdfViewerScreen> {
         backgroundColor: Colors.transparent,
         // AppBarの裏まで本体を広げ、書面・画像を画面の縦中央に置く（2026-10-31）。
         extendBodyBehindAppBar: true,
-        appBar: AppBar(
-          backgroundColor: Colors.transparent,
-          foregroundColor: Colors.white,
-          automaticallyImplyLeading: false,
-          title: Text(widget.fileName),
+        appBar: TapToCloseAppBar(
+          onClose: () => Navigator.of(context).maybePop(),
+          appBar: AppBar(
+            backgroundColor: Colors.transparent,
+            foregroundColor: Colors.white,
+            automaticallyImplyLeading: false,
+            title: Text(widget.fileName),
+          ),
         ),
         body: const Center(child: CircularProgressIndicator()),
       ),
@@ -131,11 +134,14 @@ class _PdfViewerScreenState extends ConsumerState<PdfViewerScreen> {
         backgroundColor: Colors.transparent,
         // AppBarの裏まで本体を広げ、書面・画像を画面の縦中央に置く（2026-10-31）。
         extendBodyBehindAppBar: true,
-        appBar: AppBar(
-          backgroundColor: Colors.transparent,
-          foregroundColor: Colors.white,
-          automaticallyImplyLeading: false,
-          title: Text(widget.fileName),
+        appBar: TapToCloseAppBar(
+          onClose: () => Navigator.of(context).maybePop(),
+          appBar: AppBar(
+            backgroundColor: Colors.transparent,
+            foregroundColor: Colors.white,
+            automaticallyImplyLeading: false,
+            title: Text(widget.fileName),
+          ),
         ),
         body: _failure(strings, colorScheme),
       ),
@@ -145,11 +151,14 @@ class _PdfViewerScreenState extends ConsumerState<PdfViewerScreen> {
             backgroundColor: Colors.transparent,
             // AppBarの裏まで本体を広げ、書面・画像を画面の縦中央に置く（2026-10-31）。
             extendBodyBehindAppBar: true,
-            appBar: AppBar(
-              backgroundColor: Colors.transparent,
-              foregroundColor: Colors.white,
-              automaticallyImplyLeading: false,
-              title: Text(widget.fileName),
+            appBar: TapToCloseAppBar(
+              onClose: () => Navigator.of(context).maybePop(),
+              appBar: AppBar(
+                backgroundColor: Colors.transparent,
+                foregroundColor: Colors.white,
+                automaticallyImplyLeading: false,
+                title: Text(widget.fileName),
+              ),
             ),
             body: _failure(strings, colorScheme),
           );
@@ -175,25 +184,28 @@ class _PdfViewerScreenState extends ConsumerState<PdfViewerScreen> {
               backgroundColor: Colors.transparent,
               // AppBarの裏まで本体を広げ、書面・画像を画面の縦中央に置く（2026-10-31）。
               extendBodyBehindAppBar: true,
-              appBar: AppBar(
-                backgroundColor: Colors.transparent,
-                foregroundColor: Colors.white,
-                elevation: 0,
-                // 戻る矢印は出さない（Esc・下スワイプ・戻る操作で閉じる）。
-                automaticallyImplyLeading: false,
-                actions: [
-                  Center(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                      child: Text('${_page + 1} / $count'),
+              appBar: TapToCloseAppBar(
+                onClose: () => Navigator.of(context).maybePop(),
+                appBar: AppBar(
+                  backgroundColor: Colors.transparent,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  // 戻る矢印は出さない（Esc・下スワイプ・戻る操作で閉じる）。
+                  automaticallyImplyLeading: false,
+                  actions: [
+                    Center(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        child: Text('${_page + 1} / $count'),
+                      ),
                     ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.download),
-                    tooltip: strings.downloadConfirmButton,
-                    onPressed: _download,
-                  ),
-                ],
+                    IconButton(
+                      icon: const Icon(Icons.download),
+                      tooltip: strings.downloadConfirmButton,
+                      onPressed: _download,
+                    ),
+                  ],
+                ),
               ),
               body: Stack(
                 children: [
