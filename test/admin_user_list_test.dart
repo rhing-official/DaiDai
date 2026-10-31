@@ -19,6 +19,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// 想定（呼ばれたら`noSuchMethod`で失敗する）。
 class _RecordingUserRepository implements UserRepository {
   final suspendCalls = <({List<String> ids, bool suspend})>[];
+  final kiwamiCalls = <({List<String> ids, bool kiwami})>[];
   final profileViewCalls = <({String userId, String reason, String note})>[];
 
   @override
@@ -27,6 +28,15 @@ class _RecordingUserRepository implements UserRepository {
     bool suspended,
   ) async {
     suspendCalls.add((ids: userIds, suspend: suspended));
+    return BulkSuspendResult(changed: userIds, skipped: const []);
+  }
+
+  @override
+  Future<BulkSuspendResult> setKiwamiPlans(
+    List<String> userIds,
+    bool kiwami,
+  ) async {
+    kiwamiCalls.add((ids: userIds, kiwami: kiwami));
     return BulkSuspendResult(changed: userIds, skipped: const []);
   }
 
@@ -180,6 +190,23 @@ void main() {
       expect(repo.suspendCalls, hasLength(1));
       expect(repo.suspendCalls.single.suspend, isTrue);
       expect(repo.suspendCalls.single.ids.toSet(), {'alice', 'bob'});
+    });
+
+    testWidgets('複数選択して極みを一括付与する', (tester) async {
+      await pump(tester);
+      await tester.tap(find.byType(Checkbox).at(1));
+      await tester.tap(find.byType(Checkbox).at(2));
+      await tester.pump();
+
+      await tester.tap(find.widgetWithText(OutlinedButton, '極みを付与'));
+      await tester.pumpAndSettle();
+      expect(find.text('2件に極みを付与しますか？'), findsOneWidget);
+      await tester.tap(find.widgetWithText(FilledButton, '付与する'));
+      await tester.pumpAndSettle();
+
+      expect(repo.kiwamiCalls, hasLength(1));
+      expect(repo.kiwamiCalls.single.kiwami, isTrue);
+      expect(repo.kiwamiCalls.single.ids.toSet(), {'alice', 'bob'});
     });
 
     testWidgets('プロフィールは理由を選んで記録するまで表示されない', (tester) async {

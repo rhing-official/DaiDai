@@ -222,6 +222,58 @@ class _AdminUserListSectionState extends ConsumerState<AdminUserListSection> {
     }
   }
 
+  /// 選択した住人にまとめて極みを付与/剥奪する（確認ダイアログ付き）。
+  Future<void> _bulkKiwami(List<AppUser> selectedUsers, bool grant) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        final seeds = selectedUsers.map((u) => '@${u.rhingSeed}').join('\n');
+        return _adminDialog(
+          ref,
+          title: Text(
+            grant
+                ? '${selectedUsers.length}件に極みを付与しますか？'
+                : '${selectedUsers.length}件の極みを剥奪しますか？',
+          ),
+          content: SizedBox(
+            width: 320,
+            child: SingleChildScrollView(child: Text(seeds)),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('やめる'),
+            ),
+            FilledButton(
+              style: grant ? null : _destructiveStyle,
+              onPressed: () => Navigator.of(context).pop(true),
+              child: Text(grant ? '付与する' : '剥奪する'),
+            ),
+          ],
+        );
+      },
+    );
+    if (confirmed != true) return;
+    setState(() => _busy = true);
+    try {
+      final result = await ref.read(userRepositoryProvider).setKiwamiPlans([
+        for (final u in selectedUsers) u.userId,
+      ], grant);
+      if (!mounted) return;
+      setState(() => _selected.removeAll(result.changed));
+      final skippedNote = result.skipped.isEmpty
+          ? ''
+          : '（${result.skipped.length}件は対象外）';
+      _showBanner(
+        '${result.changed.length}件の極みを${grant ? '付与' : '剥奪'}しました$skippedNote',
+      );
+    } catch (e) {
+      _showBanner('極みの一括${grant ? '付与' : '剥奪'}に失敗しました: $e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final usersAsync = ref.watch(allUsersForAdminProvider);
@@ -325,6 +377,8 @@ class _AdminUserListSectionState extends ConsumerState<AdminUserListSection> {
                   }),
                   onSuspend: () => _bulkSuspend(selectedUsers, true),
                   onUnsuspend: () => _bulkSuspend(selectedUsers, false),
+                  onGrantKiwami: () => _bulkKiwami(selectedUsers, true),
+                  onRevokeKiwami: () => _bulkKiwami(selectedUsers, false),
                   onClear: () => setState(_selected.clear),
                 ),
                 Expanded(
@@ -380,6 +434,8 @@ class _SelectionBar extends StatelessWidget {
     required this.onToggleAll,
     required this.onSuspend,
     required this.onUnsuspend,
+    required this.onGrantKiwami,
+    required this.onRevokeKiwami,
     required this.onClear,
   });
 
@@ -391,6 +447,8 @@ class _SelectionBar extends StatelessWidget {
   final ValueChanged<bool?> onToggleAll;
   final VoidCallback onSuspend;
   final VoidCallback onUnsuspend;
+  final VoidCallback onGrantKiwami;
+  final VoidCallback onRevokeKiwami;
   final VoidCallback onClear;
 
   @override
@@ -413,23 +471,38 @@ class _SelectionBar extends StatelessWidget {
                   : '表示中をすべて選択',
             ),
           ),
-          if (hasSelection) ...[
-            TextButton(
-              onPressed: busy ? null : onClear,
-              child: const Text('選択解除'),
+          if (hasSelection)
+            Flexible(
+              child: Wrap(
+                alignment: WrapAlignment.end,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 8,
+                runSpacing: 4,
+                children: [
+                  TextButton(
+                    onPressed: busy ? null : onClear,
+                    child: const Text('選択解除'),
+                  ),
+                  OutlinedButton(
+                    onPressed: busy || overLimit ? null : onGrantKiwami,
+                    child: const Text('極みを付与'),
+                  ),
+                  OutlinedButton(
+                    onPressed: busy || overLimit ? null : onRevokeKiwami,
+                    child: const Text('極みを剥奪'),
+                  ),
+                  OutlinedButton(
+                    onPressed: busy || overLimit ? null : onUnsuspend,
+                    child: const Text('解除'),
+                  ),
+                  FilledButton(
+                    style: _destructiveStyle,
+                    onPressed: busy || overLimit ? null : onSuspend,
+                    child: const Text('停止'),
+                  ),
+                ],
+              ),
             ),
-            const SizedBox(width: 4),
-            OutlinedButton(
-              onPressed: busy || overLimit ? null : onUnsuspend,
-              child: const Text('解除'),
-            ),
-            const SizedBox(width: 8),
-            FilledButton(
-              style: _destructiveStyle,
-              onPressed: busy || overLimit ? null : onSuspend,
-              child: const Text('停止'),
-            ),
-          ],
         ],
       ),
     );

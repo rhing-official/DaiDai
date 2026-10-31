@@ -255,7 +255,9 @@ class _PinnedCallBubble extends ConsumerWidget {
         for (final r in controller.remoteRenderers.values)
           if (r != renderer) r,
       ],
-      _ => <RTCVideoRenderer>[],
+      OneToOneCallSession(:final controller) => [
+        if (renderer != controller.remoteRenderer) controller.remoteRenderer,
+      ],
     };
 
     final content = Stack(

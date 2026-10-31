@@ -194,6 +194,12 @@ class _FakeUserRepository implements UserRepository {
   ) async => const BulkSuspendResult(changed: [], skipped: []);
 
   @override
+  Future<BulkSuspendResult> setKiwamiPlans(
+    List<String> userIds,
+    bool kiwami,
+  ) async => const BulkSuspendResult(changed: [], skipped: []);
+
+  @override
   Future<void> logAdminProfileView(
     String userId, {
     required String reason,

@@ -199,6 +199,11 @@ abstract class UserRepository {
     bool suspended,
   );
 
+  /// 複数の住人にまとめて極みを付与/剥奪する（管理者のみ、Cloud Functions
+  /// `setKiwamiPlans`経由）。1回100件まで。自分自身・不在・削除申請中などは
+  /// [BulkSuspendResult.skipped]に理由つきで入る。
+  Future<BulkSuspendResult> setKiwamiPlans(List<String> userIds, bool kiwami);
+
   /// 管理者が住人のプロフィール（カード）を確認する操作をサーバーに記録する
   /// （Cloud Functions `logAdminProfileView`経由、2026-10-10追加）。
   /// [reason]は`report`/`investigation`/`other`。記録に成功した時だけ
@@ -689,11 +694,20 @@ class FirestoreUserRepository implements UserRepository {
   Future<BulkSuspendResult> setAccountsSuspended(
     List<String> userIds,
     bool suspended,
+  ) => _callBulk('suspendUserAccounts', {
+    'targetUserIds': userIds,
+    'suspend': suspended,
+  });
+
+  @override
+  Future<BulkSuspendResult> setKiwamiPlans(List<String> userIds, bool kiwami) =>
+      _callBulk('setKiwamiPlans', {'targetUserIds': userIds, 'kiwami': kiwami});
+
+  Future<BulkSuspendResult> _callBulk(
+    String name,
+    Map<String, dynamic> params,
   ) async {
-    final result = await _functions.httpsCallable('suspendUserAccounts').call({
-      'targetUserIds': userIds,
-      'suspend': suspended,
-    });
+    final result = await _functions.httpsCallable(name).call(params);
     final data = Map<String, dynamic>.from(result.data as Map);
     return BulkSuspendResult(
       changed: List<String>.from(data['changed'] as List),

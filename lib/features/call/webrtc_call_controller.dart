@@ -72,6 +72,8 @@ class WebrtcCallController extends ChangeNotifier {
   /// 経路で切断を確実に伝える（Firestoreの`ended`書き込みも従来どおり行う）。
   RTCDataChannel? _controlChannel;
   static const _byeMessage = 'bye';
+  static const _muteOnMessage = 'mute:1';
+  static const _muteOffMessage = 'mute:0';
   late final DisconnectGrace _disconnectGrace = DisconnectGrace(
     onExpired: _endFromConnectionLoss,
   );
@@ -87,6 +89,12 @@ class WebrtcCallController extends ChangeNotifier {
 
   bool _muted = false;
   bool get muted => _muted;
+
+  /// 相手がミュートしているか（2026-10-31追加）。一対にはミュート状態を運ぶ
+  /// 経路が無かったため、コントロールのデータチャネルで送り合う（Firestoreへの
+  /// 書き込みを増やさない）。
+  bool _remoteMuted = false;
+  bool get remoteMuted => _remoteMuted;
 
   /// 自分が現在ビデオ通話として動作しているか（[call.isVideo]は開始時点の
   /// 値のままなので、通話中の切替を反映する可変の状態として別に持つ）。
@@ -121,7 +129,9 @@ class WebrtcCallController extends ChangeNotifier {
   bool _speakerOn = true;
   bool get speakerOn => _speakerOn;
 
-  int _cameraIndex = 0;
+  /// 直前に使っていたカメラの`deviceId`。映像をオフ→オンした時に同じカメラで
+  /// 取り直す（2026-10-31追加）。
+  String? _cameraDeviceId;
 
   bool _switchingCamera = false;
   bool get switchingCamera => _switchingCamera;
@@ -320,7 +330,12 @@ class WebrtcCallController extends ChangeNotifier {
     try {
       _localStream = await navigator.mediaDevices.getUserMedia({
         'audio': buildAudioConstraints(),
-        'video': video ? buildVideoConstraints() : false,
+        'video': video
+            ? buildVideoConstraints(
+                frontCamera: _isFrontCamera,
+                deviceId: _cameraDeviceId,
+              )
+            : false,
       });
     } catch (_) {
       if (!video || !allowVideoFallback) rethrow;
@@ -345,6 +360,7 @@ class WebrtcCallController extends ChangeNotifier {
       }
       localRenderer.srcObject = _localStream;
       muteLocalPlayback(localRenderer);
+      _syncCameraFromStream();
       unawaited(_refreshCameraCount());
     }
   }
@@ -358,7 +374,10 @@ class WebrtcCallController extends ChangeNotifier {
     try {
       final stream = await navigator.mediaDevices.getUserMedia({
         'audio': false,
-        'video': buildVideoConstraints(),
+        'video': buildVideoConstraints(
+          frontCamera: _isFrontCamera,
+          deviceId: _cameraDeviceId,
+        ),
       });
       final track = stream.getVideoTracks().first;
       _localStream?.addTrack(track);
@@ -371,6 +390,7 @@ class WebrtcCallController extends ChangeNotifier {
       await transceiver.sender.replaceTrack(track);
       _isVideo = true;
       notifyListeners();
+      _syncCameraFromStream();
       unawaited(_refreshCameraCount());
     } catch (_) {
       _isVideo = false;
@@ -647,8 +667,37 @@ class WebrtcCallController extends ChangeNotifier {
   void _attachControlChannel(RTCDataChannel channel) {
     _controlChannel = channel;
     channel.onMessage = (message) {
-      if (!message.isBinary && message.text == _byeMessage) _finish();
+      if (message.isBinary) return;
+      final text = message.text;
+      if (text == _byeMessage) {
+        _finish();
+      } else if (text == _muteOnMessage || text == _muteOffMessage) {
+        _remoteMuted = text == _muteOnMessage;
+        notifyListeners();
+      }
     };
+    // つながった時点で、自分のミュート状態を相手へ伝える（先にミュートして
+    // いた場合に備える）。
+    channel.onDataChannelState = (state) {
+      if (state == RTCDataChannelState.RTCDataChannelOpen && _muted) {
+        _sendMuteState();
+      }
+    };
+  }
+
+  void _sendMuteState() {
+    final channel = _controlChannel;
+    if (channel == null ||
+        channel.state != RTCDataChannelState.RTCDataChannelOpen) {
+      return;
+    }
+    try {
+      channel.send(
+        RTCDataChannelMessage(_muted ? _muteOnMessage : _muteOffMessage),
+      );
+    } catch (_) {
+      // 送れなくても通話は続ける（表示が古いままになるだけ）。
+    }
   }
 
   void _sendBye() {
@@ -687,6 +736,7 @@ class WebrtcCallController extends ChangeNotifier {
         in _localStream?.getAudioTracks() ?? <MediaStreamTrack>[]) {
       track.enabled = !_muted;
     }
+    _sendMuteState();
     notifyListeners();
   }
 
@@ -745,7 +795,10 @@ class WebrtcCallController extends ChangeNotifier {
   Future<void> _enableLocalVideoTrack() async {
     final videoStream = await navigator.mediaDevices.getUserMedia({
       'audio': false,
-      'video': buildVideoConstraints(),
+      'video': buildVideoConstraints(
+        frontCamera: _isFrontCamera,
+        deviceId: _cameraDeviceId,
+      ),
     });
     final videoTrack = videoStream.getVideoTracks().first;
     _localStream?.addTrack(videoTrack);
@@ -756,6 +809,7 @@ class WebrtcCallController extends ChangeNotifier {
     localRenderer.srcObject = _localStream;
     muteLocalPlayback(localRenderer);
     await _peerConnection?.addTrack(videoTrack, _localStream!);
+    _syncCameraFromStream();
     unawaited(_refreshCameraCount());
   }
 
@@ -800,6 +854,16 @@ class WebrtcCallController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// 取得した映像トラックの実際のカメラ（前面か、`deviceId`）を状態へ反映する
+  /// （2026-10-31追加）。以前は前面カメラ固定で仮定しており、端末が別のカメラを
+  /// 返すと自分のプレビューの左右反転が送信映像と食い違い、切替の順序もずれた。
+  void _syncCameraFromStream() {
+    final track = _localStream?.getVideoTracks().firstOrNull;
+    if (track == null) return;
+    _isFrontCamera = trackIsFrontFacing(track) ?? _isFrontCamera;
+    _cameraDeviceId = trackDeviceId(track) ?? _cameraDeviceId;
+  }
+
   Future<void> switchCamera() async {
     // 連打による多重実行を防ぐ（実機で「重くなる」報告の一因だった。
     // 前のgetUserMedia/switchCameraが終わらないうちに次を呼ぶと処理が
@@ -814,16 +878,22 @@ class WebrtcCallController extends ChangeNotifier {
       if (kIsWeb) {
         final cameras = await Helper.cameras;
         if (cameras.length < 2) return;
-        _cameraIndex = (_cameraIndex + 1) % cameras.length;
-        await Helper.switchCamera(
-          track,
-          cameras[_cameraIndex].deviceId,
-          _localStream,
-        );
+        // 現在のカメラを実際の`deviceId`から特定して次へ進める（以前は先頭を
+        // 現在地と仮定していたため、初回の切替で同じカメラのままになった）。
+        final currentId = trackDeviceId(track) ?? _cameraDeviceId;
+        final currentIndex = cameras.indexWhere((c) => c.deviceId == currentId);
+        final next = cameras[(currentIndex + 1) % cameras.length];
+        await Helper.switchCamera(track, next.deviceId, _localStream);
       } else {
         await Helper.switchCamera(track);
       }
-      _isFrontCamera = !_isFrontCamera;
+      final switched = _localStream?.getVideoTracks().firstOrNull;
+      _isFrontCamera =
+          (switched == null ? null : trackIsFrontFacing(switched)) ??
+          !_isFrontCamera;
+      if (switched != null) {
+        _cameraDeviceId = trackDeviceId(switched) ?? _cameraDeviceId;
+      }
       // Web版のHelper.switchCameraは古いトラックをstop()して_localStreamから
       // 取り除き、新しいトラックを同じ_localStreamに追加するという副作用を
       // 持つが、それだけでは以下の2つが反映されず「切替後に画面が真っ黒に

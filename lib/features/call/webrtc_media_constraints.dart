@@ -36,12 +36,18 @@ dynamic buildAudioConstraints() {
 /// カメラの映像制約。ブラウザで画面が縦向きの時は、解像度の縦横を入れ替える
 /// （横長固定で要求すると、縦向きのiPad等で映像が送られなくなる不具合の対処、
 /// 2026-10-22）。[frontCamera]がfalseなら背面カメラ。
-Map<String, dynamic> buildVideoConstraints({bool frontCamera = true}) =>
-    videoConstraintsFor(
-      portrait: kIsWeb && isPortraitScreen,
-      frontCamera: frontCamera,
-      withAspectRatio: kIsWeb,
-    );
+///
+/// [deviceId]があれば、そのカメラを優先する（映像をオフ→オンした時に直前と同じ
+/// カメラ・同じ画角で取り直すため、2026-10-31）。
+Map<String, dynamic> buildVideoConstraints({
+  bool frontCamera = true,
+  String? deviceId,
+}) => videoConstraintsFor(
+  portrait: kIsWeb && isPortraitScreen,
+  frontCamera: frontCamera,
+  withAspectRatio: kIsWeb,
+  deviceId: deviceId,
+);
 
 /// [buildVideoConstraints]の中身（向きを引数にした純粋な関数、テスト用）。
 /// [withAspectRatio]がtrueなら、縦横の比率（縦向き9:16・横向き16:9）も要求する。
@@ -51,8 +57,12 @@ Map<String, dynamic> videoConstraintsFor({
   required bool portrait,
   bool frontCamera = true,
   bool withAspectRatio = false,
+  String? deviceId,
 }) => {
   'facingMode': frontCamera ? 'user' : 'environment',
+  if (deviceId != null && deviceId.isNotEmpty) 'deviceId': {'ideal': deviceId},
+  // 電池消費と発熱を抑えるため、フレームレートを抑える（2026-10-31）。
+  'frameRate': {'ideal': 24, 'max': 30},
   'width': {'ideal': portrait ? 720 : 1280},
   'height': {'ideal': portrait ? 1280 : 720},
   if (withAspectRatio) 'aspectRatio': {'ideal': portrait ? 9 / 16 : 16 / 9},
@@ -89,4 +99,24 @@ Future<void> ensureEchoCancellation(MediaStream? stream) async {
       debugPrint('Call: echoCancellationの確認に失敗 $e');
     }
   }
+}
+
+/// 映像トラックが前面（インカメラ）かどうか。端末が`facingMode`を報告しない場合は
+/// null（2026-10-31追加）。自分のプレビューを左右反転するかの判定に使う。
+bool? trackIsFrontFacing(MediaStreamTrack track) {
+  try {
+    final facing = track.getSettings()['facingMode'];
+    if (facing == 'user') return true;
+    if (facing == 'environment') return false;
+  } catch (_) {}
+  return null;
+}
+
+/// 映像トラックを出しているカメラの`deviceId`。取れなければnull。
+String? trackDeviceId(MediaStreamTrack track) {
+  try {
+    final id = track.getSettings()['deviceId'];
+    if (id is String && id.isNotEmpty) return id;
+  } catch (_) {}
+  return null;
 }

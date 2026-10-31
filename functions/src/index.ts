@@ -2621,6 +2621,58 @@ export const suspendUserAccounts = onCall(
 );
 
 /**
+ * 複数の住人にまとめて極みを付与/剥奪する（管理者のみ）。1回100件まで。
+ * 自分自身・重複・不在・削除申請中は対象外で、理由つきで返す（自分への操作は
+ * 住人詳細から`setKiwamiPlan`で行う）。操作は監査ログに1件でまとめて残す。
+ */
+export const setKiwamiPlans = onCall(
+  { region: "asia-northeast1" },
+  async (request) => {
+    if (request.auth?.token.admin !== true) {
+      throw new HttpsError("permission-denied", "管理者のみ実行できます");
+    }
+    const kiwami = request.data?.kiwami;
+    if (typeof kiwami !== "boolean") {
+      throw new HttpsError("invalid-argument", "kiwamiが必要です");
+    }
+    const normalized = normalizeBulkTargets(
+      request.data?.targetUserIds,
+      request.auth.uid,
+    );
+    if (!normalized.ok) {
+      throw new HttpsError("invalid-argument", normalized.reason);
+    }
+    const skipped: SkippedTarget[] = [...normalized.skipped];
+    const changed: string[] = [];
+    const writer = new ChunkedWriter();
+    for (const id of normalized.ids) {
+      const snapshot = await db.collection("users").doc(id).get();
+      const reason = classifyTarget(snapshot.data(), false, false);
+      if (reason) {
+        skipped.push({ id, reason });
+        continue;
+      }
+      await writer.update(snapshot.ref, {
+        subscriptionPlan: kiwami ? "kiwami" : "free",
+      });
+      changed.push(id);
+    }
+    await writer.commit();
+    if (changed.length > 0) {
+      await writeAdminAuditLog({
+        adminUid: request.auth.uid,
+        action: kiwami ? "grantKiwami" : "revokeKiwami",
+        targetUserIds: changed,
+      });
+    }
+    logger.info(
+      `極み一括${kiwami ? "付与" : "剥奪"}: ${changed.length}件（対象外${skipped.length}件）`,
+    );
+    return { changed, skipped };
+  },
+);
+
+/**
  * 管理者が住人のプロフィール（カード）を確認する操作を記録する（2026-10-10
  * 追加）。理由（通報対応/不正利用の調査/その他）を必須とし、記録に成功した
  * 時だけクライアントがカードを表示する。カードの実データ自体は`users`の

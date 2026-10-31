@@ -28,6 +28,7 @@ class MediaViewerItem {
     required this.url,
     required this.contentType,
     this.fileName,
+    this.bytes,
   });
 
   final String id;
@@ -37,6 +38,10 @@ class MediaViewerItem {
   /// 送信時のファイル名（ダウンロードの確認ダイアログに出す）。分からなければ
   /// null（[mediaDownloadFileName]がURL等から補う）。
   final String? fileName;
+
+  /// 送信前の画像のバイト列（送信前のトレイの拡大表示用、2026-10-31）。あれば[url]ではなく
+  /// これを表示する。サーバーにまだ無いため、ダウンロード・共有は何もしない。
+  final Uint8List? bytes;
 }
 
 /// ダウンロード確認に出すファイル名。[MediaViewerItem.fileName]があればそれ、
@@ -168,6 +173,7 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen> {
   /// `launchUrl`、2026-10-30追加）。
   Future<void> _downloadCurrent() async {
     final item = widget.items[_currentIndex];
+    if (item.bytes != null) return;
     if (!await confirmDownload(
       context,
       ref,
@@ -178,8 +184,9 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen> {
     await launchUrl(Uri.parse(item.url), mode: LaunchMode.externalApplication);
   }
 
-  Future<void> _shareCurrent() {
+  Future<void> _shareCurrent() async {
     final item = widget.items[_currentIndex];
+    if (item.bytes != null) return;
     return shareFiles([
       (url: item.url, name: mediaDownloadFileName(item), mimeType: null),
     ]);
@@ -300,7 +307,7 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen> {
                       autoPlay: index == _safeInitialIndex,
                     );
                   }
-                  return _ImageViewerPage(url: item.url);
+                  return _ImageViewerPage(url: item.url, bytes: item.bytes);
                 },
               ),
               // 縦の中央・左右の端の前後矢印（先頭は左、末尾は右を隠す）。
@@ -345,9 +352,10 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen> {
 /// いない時だけ画面のどこをタップしても閉じる、ズーム中はタップで閉じない
 /// （パン操作の邪魔をしない）方式にした。
 class _ImageViewerPage extends StatefulWidget {
-  const _ImageViewerPage({required this.url});
+  const _ImageViewerPage({required this.url, this.bytes});
 
   final String url;
+  final Uint8List? bytes;
 
   @override
   State<_ImageViewerPage> createState() => _ImageViewerPageState();
@@ -372,7 +380,7 @@ class _ImageViewerPageState extends State<_ImageViewerPage> {
       }
     }, onError: (_, _) {});
     _listener = listener;
-    _stream = NetworkImage(widget.url).resolve(ImageConfiguration.empty)
+    _stream = _provider.resolve(ImageConfiguration.empty)
       ..addListener(listener);
   }
 
@@ -383,6 +391,14 @@ class _ImageViewerPageState extends State<_ImageViewerPage> {
     super.dispose();
   }
 
+  ImageProvider get _provider => widget.bytes != null
+      ? MemoryImage(widget.bytes!)
+      : NetworkImage(widget.url);
+
+  Widget _buildImage(BoxFit fit) => widget.bytes != null
+      ? Image.memory(widget.bytes!, fit: fit)
+      : Image.network(widget.url, fit: fit);
+
   /// 余白（画像の外側）のタップで閉じる。拡大中でも閉じる（パン・ピンチは
   /// タップとは別のジェスチャーのため邪魔にならない）。
   void _handleTap() => Navigator.of(context).pop();
@@ -391,7 +407,7 @@ class _ImageViewerPageState extends State<_ImageViewerPage> {
   Widget build(BuildContext context) {
     final ratio = _aspectRatio;
     final Widget image = ratio == null
-        ? Image.network(widget.url, fit: BoxFit.contain)
+        ? _buildImage(BoxFit.contain)
         : Center(
             child: AspectRatio(
               aspectRatio: ratio,
@@ -399,7 +415,7 @@ class _ImageViewerPageState extends State<_ImageViewerPage> {
               child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
                 onTap: () {},
-                child: Image.network(widget.url, fit: BoxFit.fill),
+                child: _buildImage(BoxFit.fill),
               ),
             ),
           );

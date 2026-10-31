@@ -477,6 +477,9 @@ final Strings _stringsFr = Strings._(
       'Les fichiers de plus de 2 Go ne peuvent pas être envoyés.',
   chatAttachmentTooManyMessage: (max) =>
       'Vous pouvez en envoyer $max à la fois. Envoi des $max premiers.',
+  chatPendingTrayLimitMessage: (max) =>
+      'Vous pouvez joindre $max éléments à la fois.',
+  chatPendingTrayRemoveTooltip: 'Retirer',
   chatAttachmentBlockedExtensionMessage:
       'Ce type de fichier ne peut pas être envoyé.',
   chatAttachmentSendFailedMessage: 'Échec de l’envoi.',
@@ -488,6 +491,38 @@ final Strings _stringsFr = Strings._(
   pdfOpenFailed: 'Impossible d’ouvrir ce PDF',
   mediaForwardTooltip: 'Transférer',
   mediaShareTooltip: 'Partager',
+  setupBack: 'Retour',
+  setupNext: 'Suivant',
+  setupDone: 'Terminer',
+  setupSkip: 'Plus tard',
+  setupProgress: (c, t) => '$c / $t',
+  setupPresetTitle: 'Partir d’une suggestion',
+  setupPresetDescription:
+      'Choisissez celle qui vous plaît : tout est réglé d’un coup. Vous pourrez affiner chaque réglage ensuite.',
+  setupPresetStandardName: 'Standard',
+  setupPresetStandardDescription: 'Un aspect verre dépoli, dans un lilas doux.',
+  setupPresetCrispName: 'Net',
+  setupPresetCrispDescription: 'Plat, lisible et simple, en bleu.',
+  setupPresetPlayfulName: 'Ludique',
+  setupPresetPlayfulDescription:
+      'Un Gekiga dessiné à la main, en noir et blanc, plein de caractère.',
+  setupAppearanceTitle: 'Aspect général',
+  setupAppearanceDescription:
+      'L’écran derrière change aussitôt. Vous pourrez le modifier à tout moment dans les réglages.',
+  setupAccentTitle: 'Couleur',
+  setupAccentDescription:
+      'Choisissez la couleur des boutons et des accents. En Gekiga, c’est la couleur du fond.',
+  setupFontTitle: 'Police de caractères',
+  setupFontDescription:
+      'Choisissez la police utilisée dans toute l’application.',
+  setupMessageTitle: 'Aspect des messages',
+  setupMessageDescription:
+      'Choisissez la disposition des bulles et l’affichage de l’heure.',
+  setupTalksListTitle: 'Aspect de la liste des conversations',
+  setupTalksListDescription:
+      'Choisissez la façon dont vos conversations sont listées.',
+  setupSendKeyTitle: 'Envoi des messages',
+  setupSendKeyDescription: 'Choisissez l’action de la touche Entrée.',
   pdfPageCount: (count) => count == 1 ? '1 page' : '$count pages',
   pdfDownloadAction: 'Télécharger pour l’ouvrir',
   cancel: 'Annuler',
@@ -1070,6 +1105,7 @@ final Strings _stringsFr = Strings._(
   callStatusActive: 'En communication',
   callStatusEnded: 'Appel terminé',
   callConnectionUnstableEllipsis: 'La connexion est instable…',
+  callAudioOutputTitle: 'Sortie audio',
   callConnectionUnstable: 'La connexion est instable',
   callFullMessageTemplate: (max) => 'Cet appel est complet (limite : $max)',
   groupCallParticipantCountTemplate: (count) =>

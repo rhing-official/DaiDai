@@ -11,6 +11,7 @@ import '../../providers/repository_providers.dart';
 import '../../utils/platform_info.dart';
 import '../../widgets/swipe_gestures.dart' show kSwipeGestureVelocityThreshold;
 import 'active_call_session.dart';
+import 'call_audio_sinks.dart';
 import 'call_avatar.dart';
 import 'call_control_bar.dart';
 import 'call_controls.dart';
@@ -241,12 +242,10 @@ class _CallScreenState extends ConsumerState<CallScreen> {
     return SafeArea(
       child: Column(
         children: [
-          // 音声のみの通話でもリモートの音声を再生するためにレンダラーを紐づける。
-          SizedBox(
-            width: 0,
-            height: 0,
-            child: RTCVideoView(_controller.remoteRenderer),
-          ),
+          // 音声のみの通話でもリモートの音声を再生するためにレンダラーを紐づける
+          // （0×0だとモバイルのブラウザが再生しないことがあるため、1×1の
+          // `CallAudioSinks`にした。2026-10-31変更）。
+          CallAudioSinks(renderers: [_controller.remoteRenderer]),
           const Spacer(),
           CallParticipantAvatar(
             userId: _otherUserId,
@@ -256,15 +255,26 @@ class _CallScreenState extends ConsumerState<CallScreen> {
             fontSize: 40,
           ),
           const SizedBox(height: 24),
-          CallParticipantNameLabel(
-            userId: _otherUserId,
-            rhingSeed: _otherRhingSeed,
-            conversationId: widget.call.dmId,
-            style: const TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-            ),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CallParticipantNameLabel(
+                userId: _otherUserId,
+                rhingSeed: _otherRhingSeed,
+                conversationId: widget.call.dmId,
+                style: const TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+              // 相手のミュート表示（2026-10-31追加）。
+              if (_controller.remoteMuted)
+                const Padding(
+                  padding: EdgeInsets.only(left: 8),
+                  child: Icon(Icons.mic_off, color: Colors.white),
+                ),
+            ],
           ),
           const SizedBox(height: 8),
           Text(_statusLabel, style: const TextStyle(color: Colors.white70)),
@@ -304,6 +314,13 @@ class _CallScreenState extends ConsumerState<CallScreen> {
 
     return Stack(
       children: [
+        // 相手の映像を出していない間も、相手の音声を鳴らす（2026-10-31追加）。
+        if (!_remoteIsVideo)
+          Positioned(
+            left: 0,
+            top: 0,
+            child: CallAudioSinks(renderers: [_controller.remoteRenderer]),
+          ),
         Positioned.fill(
           child: GestureDetector(
             onTap: swapViews,
@@ -407,16 +424,31 @@ class _CallScreenState extends ConsumerState<CallScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            CallParticipantNameLabel(
-                              userId: _otherUserId,
-                              rhingSeed: _otherRhingSeed,
-                              conversationId: widget.call.dmId,
-                              style: const TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                                shadows: [Shadow(blurRadius: 6)],
-                              ),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                CallParticipantNameLabel(
+                                  userId: _otherUserId,
+                                  rhingSeed: _otherRhingSeed,
+                                  conversationId: widget.call.dmId,
+                                  style: const TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                    shadows: [Shadow(blurRadius: 6)],
+                                  ),
+                                ),
+                                // 相手のミュート表示（2026-10-31追加）。
+                                if (_controller.remoteMuted)
+                                  const Padding(
+                                    padding: EdgeInsets.only(left: 6),
+                                    child: Icon(
+                                      Icons.mic_off,
+                                      size: 16,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                              ],
                             ),
                             Text(
                               _statusLabel,

@@ -59,6 +59,7 @@ import '../calendar/calendar_event_detail_dialog.dart';
 import '../calendar/schedule_coordination_detail_dialog.dart';
 import '../poll/poll_detail_dialog.dart';
 import 'attachment_popup_button.dart';
+import 'pending_attachment_tray.dart';
 import 'button_anchored_menu.dart';
 import '../../utils/attachment_upload.dart';
 import '../../utils/multi_attachment_layout.dart';
@@ -2231,6 +2232,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   Future<void> _send({bool silent = false}) async {
     if (widget.onSend == null || widget.disabled) return;
     final content = _textController.text.trim();
+    // 送信前のトレイがあれば、入力欄の文字より先に送る（別メッセージ、2026-10-31）。
+    // 文字が空ならトレイだけを送る。編集中は対象外。
+    if (_editingMessage == null && _pendingAttachments.isNotEmpty) {
+      await _sendPendingAttachments();
+      if (content.isEmpty) return;
+    }
     if (content.isEmpty) return;
 
     final conversationId = widget.conversationId;
@@ -2523,6 +2530,61 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// （2026-09-04追加、送信中に何も変化が無く「固まっている」ように見える
   /// 体感の悪さを改善するため）。
   double? _uploadProgress;
+
+  /// 送信前のトレイに載せている画像・動画（2026-10-31）。送信ボタンでまとめて送る。
+  final List<PickedAttachment> _pendingAttachments = [];
+
+  /// ＋ボタンで選んだ添付の受け口。画像・動画（撮影を含む）は送信前のトレイへ入れ、
+  /// ファイルは従来どおり選んだ直後に送る。
+  void _onAttachmentsChosen(List<PickedAttachment> picked) {
+    if (picked.isEmpty) return;
+    final staged = [
+      for (final a in picked)
+        if (a.contentType == 'image' || a.contentType == 'video') a,
+    ];
+    final immediate = [
+      for (final a in picked)
+        if (a.contentType != 'image' && a.contentType != 'video') a,
+    ];
+    if (immediate.isNotEmpty) _handleAttachmentsPicked(immediate);
+    if (staged.isEmpty) return;
+    final room = kMaxMultiAttachments - _pendingAttachments.length;
+    setState(() => _pendingAttachments.addAll(staged.take(room)));
+    if (staged.length > room) {
+      _bannerTimer = showAutoDismissBanner(
+        context,
+        message: ref
+            .read(appStringsProvider)
+            .chatPendingTrayLimitMessage(kMaxMultiAttachments),
+        previousTimer: _bannerTimer,
+      );
+    }
+  }
+
+  /// トレイの内容を送る。トレイは先に空にし、失敗時の再送は既存のバナー
+  /// （[_handleAttachmentsPicked]）が保持する添付で行う。
+  Future<void> _sendPendingAttachments() async {
+    if (_pendingAttachments.isEmpty) return;
+    final toSend = List<PickedAttachment>.of(_pendingAttachments);
+    setState(_pendingAttachments.clear);
+    await _handleAttachmentsPicked(toSend);
+  }
+
+  /// 入力欄の上のトレイ。劇画は入力欄と同じ手描き風の白い箱で包む。
+  Widget _pendingTray(Strings strings, {required bool isGekiga}) {
+    final tray = PendingAttachmentTray(
+      attachments: _pendingAttachments,
+      strings: strings,
+      enabled: _uploadProgress == null,
+      isGekiga: isGekiga,
+      onRemove: (index) => setState(() => _pendingAttachments.removeAt(index)),
+    );
+    if (!isGekiga) return tray;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+      child: _GekigaComposerField(child: tray),
+    );
+  }
 
   @override
   void dispose() {
@@ -3182,6 +3244,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                               isGlass: isGlass,
                               isGekiga: isGekiga,
                             ),
+                          if (_pendingAttachments.isNotEmpty)
+                            _pendingTray(strings, isGekiga: isGekiga),
                           SafeArea(
                             top: false,
                             // ぺったんドックが下に出ている間は、ドック側が下端の
@@ -3209,7 +3273,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                     AttachmentPopupButton(
                                       strings: strings,
                                       isGekiga: isGekiga,
-                                      onPicked: _handleAttachmentsPicked,
+                                      onPicked: _onAttachmentsChosen,
                                     ),
                                   Expanded(
                                     child: TutorialTarget(
@@ -3471,7 +3535,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                     ValueListenableBuilder<TextEditingValue>(
                                       valueListenable: _textController,
                                       builder: (context, value, _) {
-                                        if (value.text.isEmpty) {
+                                        if (value.text.isEmpty &&
+                                            _pendingAttachments.isEmpty) {
                                           return const SizedBox.shrink();
                                         }
                                         return TutorialTarget(

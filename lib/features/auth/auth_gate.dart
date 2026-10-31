@@ -8,6 +8,7 @@ import '../../providers/repository_providers.dart';
 import '../../providers/user_preferences_sync.dart';
 import 'account_restore_screen.dart';
 import '../guide/first_run_tutorial_screen.dart';
+import '../setup/initial_setup_screen.dart';
 import 'account_suspended_screen.dart';
 import 'passcode_lock_gate.dart';
 import 'residence_survey_screen.dart';
@@ -70,6 +71,9 @@ class _AuthenticatedUserGateState
   /// 2026-10-17追加）。視聴記録の書き込みに失敗してもガイドが出続けないよう、
   /// Firestore側の値とは別に持つ。
   bool _guideDone = false;
+
+  /// 初期設定（[InitialSetupScreen]）を終えたか。
+  bool _setupDone = false;
 
   @override
   void initState() {
@@ -162,6 +166,12 @@ class _AuthenticatedUserGateState
         // 新規登録で居住地アンケートの後に離脱した人に、初回の使い方ガイドを
         // 出す（2026-10-17追加）。`guideSeen`がnull＝既存住人には出さない。
         if (appUser.preferences.guideSeen == false && !_guideDone) {
+          // 使い方ガイドの前に、見た目を試しながら決める初期設定を出す（2026-10-31追加）。
+          if (!_setupDone) {
+            return InitialSetupScreen(
+              onCompleted: () => setState(() => _setupDone = true),
+            );
+          }
           return FirstRunTutorialScreen(
             userId: appUser.userId,
             onCompleted: () => setState(() => _guideDone = true),

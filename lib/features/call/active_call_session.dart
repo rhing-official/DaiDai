@@ -9,6 +9,7 @@ import '../../providers/chat_navigation_providers.dart';
 import '../../providers/repository_providers.dart';
 import '../../providers/ringtone_sound_provider.dart';
 import '../../repositories/call_repository.dart';
+import 'rtc_config.dart';
 import '../../repositories/direct_message_repository.dart';
 import '../../repositories/group_call_repository.dart';
 import 'webrtc_call_controller.dart';
@@ -122,6 +123,13 @@ class GroupCallSession extends ActiveCallSession {
 }
 
 class ActiveCallSessionNotifier extends Notifier<ActiveCallSession?> {
+  CachedIceServersLoader? _iceServersLoader;
+
+  /// TURNの認証情報を使い回す取得元（[CachedIceServersLoader]）。
+  IceServersLoader get _loader => (_iceServersLoader ??= CachedIceServersLoader(
+    ref.read(turnCredentialsRepositoryProvider).fetchIceServers,
+  )).call;
+
   @override
   ActiveCallSession? build() => null;
 
@@ -142,9 +150,7 @@ class ActiveCallSessionNotifier extends Notifier<ActiveCallSession?> {
       isCaller: isCaller,
       callRepository: callRepository,
       directMessageRepository: directMessageRepository,
-      iceServersLoader: ref
-          .read(turnCredentialsRepositoryProvider)
-          .fetchIceServers,
+      iceServersLoader: _loader,
     );
     final session = OneToOneCallSession(
       controller: controller,
@@ -185,9 +191,7 @@ class ActiveCallSessionNotifier extends Notifier<ActiveCallSession?> {
       currentUser: currentUser,
       isVideo: isVideo,
       groupCallRepository: groupCallRepository,
-      iceServersLoader: ref
-          .read(turnCredentialsRepositoryProvider)
-          .fetchIceServers,
+      iceServersLoader: _loader,
     );
     final session = GroupCallSession(
       controller: controller,

@@ -1,6 +1,9 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import 'call_audio_output_sheet.dart';
 import 'call_controls.dart';
 
 /// 通話中のコントロールボタン列（マイク・スピーカー・音声⇔ビデオ切替・
@@ -10,7 +13,7 @@ import 'call_controls.dart';
 /// あった）。1対1・広場のコントローラー（`WebrtcCallController`/
 /// `WebrtcGroupCallController`）に共通の基底クラスは無いため、コントローラー
 /// を直接受け取らず、必要な値・コールバックだけをまとめて渡す。
-class CallControlBar extends StatelessWidget {
+class CallControlBar extends ConsumerWidget {
   const CallControlBar({
     required this.isGekiga,
     required this.isGlass,
@@ -39,8 +42,9 @@ class CallControlBar extends StatelessWidget {
   final bool muted;
   final VoidCallback onToggleMute;
 
-  /// スピーカー切替はWeb版では実質何も起きない（no-op）ため、ボタン自体を
-  /// 表示しない（[kIsWeb]、下記build参照）。
+  /// スピーカーのボタンは、音声の出力先を選ぶシートを開く（2026-10-31変更、
+  /// [showCallAudioOutputPicker]）。選べる出力先が無いネイティブ端末では従来の
+  /// スピーカーのオン/オフ（[onToggleSpeaker]）になる。
   final bool speakerOn;
   final VoidCallback onToggleSpeaker;
 
@@ -61,7 +65,7 @@ class CallControlBar extends StatelessWidget {
   final VoidCallback onHangUp;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     // ボタンの数が変わると`spaceEvenly`が全ボタンの位置を再配分してしまい、
     // 音声⇔ビデオ切替のたびに他のボタン（マイク・通話終了等）の座標まで
     // ずれて見える不具合があった（2026-08-19判明）。表示しないボタンも
@@ -84,13 +88,20 @@ class CallControlBar extends StatelessWidget {
               onPressed: enabled ? onToggleMute : null,
             ),
             _maybeHidden(
-              visible: !kIsWeb,
+              visible: true,
               child: CallRoundButton(
                 icon: speakerOn ? Icons.volume_up : Icons.phone_in_talk,
                 color: Colors.grey[700]!,
                 isGekiga: isGekiga,
                 isGlass: isGlass,
-                onPressed: enabled ? onToggleSpeaker : null,
+                onPressed: enabled
+                    ? () => showCallAudioOutputPicker(
+                        context,
+                        ref,
+                        // Webには切り替える手段が無いので何もしない。
+                        onFallbackToggle: kIsWeb ? () {} : onToggleSpeaker,
+                      )
+                    : null,
               ),
             ),
             _maybeHidden(

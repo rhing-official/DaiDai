@@ -124,6 +124,9 @@ class PracticeDirectMessageRepository implements DirectMessageRepository {
   final _dmController = StreamController<DirectMessage?>.broadcast();
   int _nextId = 1;
 
+  /// 練習用の会話（初期設定のプレビューで、会話を開いた状態にするため公開）。
+  DirectMessage get directMessage => _dm;
+
   DirectMessage get _dm {
     final last = _messages.first;
     return DirectMessage(

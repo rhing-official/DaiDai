@@ -30,12 +30,51 @@ Map<String, dynamic> buildRtcConfiguration({
   ],
 };
 
+/// TURNの認証情報を取得して一定時間使い回す[IceServersLoader]（2026-10-31追加）。
+/// 通話の開始ごとに取得すると、Cloud Functionsのコールドスタートで待ち時間を超え、
+/// STUNだけで始まって別回線同士がつながらないことがあった。認証情報は4時間有効
+/// （`getTurnCredentials`）なので、[ttl]の間は取得済みの結果を返す。取得中に
+/// 別の呼び出しが来たら同じ取得を待つ。失敗した結果は覚えない。
+class CachedIceServersLoader {
+  CachedIceServersLoader(
+    this._base, {
+    this.ttl = const Duration(hours: 1),
+    DateTime Function()? now,
+  }) : _now = now ?? DateTime.now;
+
+  final IceServersLoader _base;
+  final Duration ttl;
+  final DateTime Function() _now;
+
+  List<Map<String, dynamic>>? _cached;
+  DateTime? _fetchedAt;
+  Future<List<Map<String, dynamic>>>? _inFlight;
+
+  Future<List<Map<String, dynamic>>> call() {
+    final cached = _cached;
+    final at = _fetchedAt;
+    if (cached != null && at != null && _now().difference(at) < ttl) {
+      return Future.value(cached);
+    }
+    return _inFlight ??= _base()
+        .then((servers) {
+          _cached = servers;
+          _fetchedAt = _now();
+          return servers;
+        })
+        .whenComplete(() => _inFlight = null);
+  }
+
+  /// 通話の前に取得を始めておく。失敗は無視する（通話の開始時に再び試す）。
+  void prefetch() => call().ignore();
+}
+
 /// [loader]でTURNの認証情報を取得して設定を組み立てる。[loader]がnull、または
 /// 取得に失敗・時間切れ（[timeout]）の場合は、STUNだけの設定を返す
 /// （通話の開始を、中継サーバーの取得で長く待たせない）。
 Future<Map<String, dynamic>> loadRtcConfiguration(
   IceServersLoader? loader, {
-  Duration timeout = const Duration(seconds: 4),
+  Duration timeout = const Duration(seconds: 8),
 }) async {
   if (loader == null) return buildRtcConfiguration();
   try {

@@ -31,10 +31,27 @@ import 'tutorial_target.dart';
 /// 以外は押せないため、ユーザーは道順を実際に押して覚えられる。
 /// 戻る・進む履歴も専用のものに差し替え、本物の履歴を汚さない。
 class PracticeHome extends ConsumerStatefulWidget {
-  const PracticeHome({super.key});
+  const PracticeHome({this.focus, this.topPadding = 48, super.key});
+
+  /// 初期設定のプレビューで、どの画面を見せるか（2026-10-31追加）。nullなら
+  /// ガイド用の従来の動き（台本の最初の手順で決まる）。
+  final PracticeFocus? focus;
+
+  /// 上の余白。ガイドの「やめる」ボタン（右上）が重ならないよう既定は48、
+  /// 案内の層が無い初期設定のプレビューでは0にする。
+  final double topPadding;
 
   @override
   ConsumerState<PracticeHome> createState() => _PracticeHomeState();
+}
+
+/// 初期設定のプレビューで見せる画面（[PracticeHome.focus]）。
+enum PracticeFocus {
+  /// 語らいの一覧。
+  talksList,
+
+  /// 練習用の会話を開いた状態。
+  chat,
 }
 
 /// 練習用の画面で使うアイコン色の候補（`GeneratedAvatar.palette`から青緑を除いたもの）。
@@ -123,13 +140,25 @@ class _PracticeHomeState extends ConsumerState<PracticeHome> {
           return controller;
         }),
       ],
-      child: const _PracticeHomeBody(),
+      child: _PracticeHomeBody(
+        focus: widget.focus,
+        topPadding: widget.topPadding,
+        directMessage: _dmRepository.directMessage,
+      ),
     );
   }
 }
 
 class _PracticeHomeBody extends ConsumerStatefulWidget {
-  const _PracticeHomeBody();
+  const _PracticeHomeBody({
+    required this.focus,
+    required this.topPadding,
+    required this.directMessage,
+  });
+
+  final PracticeFocus? focus;
+  final double topPadding;
+  final DirectMessage directMessage;
 
   @override
   ConsumerState<_PracticeHomeBody> createState() => _PracticeHomeBodyState();
@@ -144,6 +173,36 @@ class _PracticeHomeBodyState extends ConsumerState<_PracticeHomeBody> {
 
   /// 「語らいを押す」手順から始まるガイドは、最初に別のタブ（身だしなみ）を開いて
   /// おく（最初から語らいが開いていると、押す意味が無いため）。
+  @override
+  void initState() {
+    super.initState();
+    _applyFocus(widget.focus);
+  }
+
+  @override
+  void didUpdateWidget(_PracticeHomeBody oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.focus != widget.focus) _applyFocus(widget.focus);
+  }
+
+  /// 初期設定のプレビュー用に、見せる画面へ切り替える（nullなら何もしない）。
+  void _applyFocus(PracticeFocus? focus) {
+    switch (focus) {
+      case null:
+        return;
+      case PracticeFocus.talksList:
+        _selectedIndex = 0;
+        _openChat = null;
+      case PracticeFocus.chat:
+        _selectedIndex = 0;
+        _openChat = (
+          dm: widget.directMessage,
+          roomId: practiceRoomId,
+          roomName: '',
+        );
+    }
+  }
+
   int _initialIndex() {
     final first = ref.read(tutorialControllerProvider)?.script.steps.first;
     return first?.targetId == TutorialTargetIds.navTalk ? 1 : 0;
@@ -162,7 +221,7 @@ class _PracticeHomeBodyState extends ConsumerState<_PracticeHomeBody> {
     // 案内の層の「やめる」ボタン（右上）が、会話上部の右端のボタン（カレンダー等）に
     // 重ならないよう、上に余白を空ける。
     return Padding(
-      padding: const EdgeInsets.only(top: 48),
+      padding: EdgeInsets.only(top: widget.topPadding),
       child: ChipNavShell(
         icons: _icons,
         iconSizes: _iconSizes,

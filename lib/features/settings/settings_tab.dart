@@ -2141,7 +2141,7 @@ class _ApplicationPage extends ConsumerWidget {
         // 劇画UI選択中は、外観（ライト/ダーク）が見た目に効かないため、項目ごと
         // 表示しない（2026-10-31、以前はグレーアウトして案内を出していた）。
         if (!isGekiga) ...[
-          _AppearanceFolder(strings: strings),
+          AppearanceFolder(strings: strings),
           const Divider(height: 24),
         ],
         _SectionHeader(strings.settingsSubUI),
@@ -2152,17 +2152,17 @@ class _ApplicationPage extends ConsumerWidget {
             style: Theme.of(context).textTheme.bodyMedium,
           ),
         ),
-        _UiStyleFolder(strings: strings),
+        UiStyleFolder(strings: strings),
         const Divider(height: 24),
-        _AccentColorFolder(strings: strings),
+        AccentColorFolder(strings: strings),
         const Divider(height: 24),
         if (!isGekiga) ...[const _TextColorFolder(), const Divider(height: 24)],
         _SectionHeader(strings.settingsFontDesign),
-        _FontDesignFolder(strings: strings),
+        FontDesignFolder(strings: strings),
         const Divider(height: 24),
         _LanguageFolder(strings: strings),
         const Divider(height: 24),
-        _TimeFormatFolder(strings: strings),
+        TimeFormatFolder(strings: strings),
         if (showPasscode) ...[
           const Divider(height: 24),
           _PasscodeLockFolder(strings: strings),
@@ -2196,9 +2196,9 @@ class ApplicationSettingsView extends ConsumerWidget {
 /// 外観（ライト/ダーク/端末に合わせる）の選択（2026-09-15、`_DesignFolder`
 /// から分離。以前はアクセントカラーと同じウィジェット内にまとめていたが、
 /// 設定画面の項目順を「外観→UI→アクセントカラー→…」に揃えるため、
-/// UIスタイル選択（`_UiStyleFolder`）を挟んで別ウィジェットにした）。
-class _AppearanceFolder extends ConsumerWidget {
-  const _AppearanceFolder({required this.strings});
+/// UIスタイル選択（`UiStyleFolder`）を挟んで別ウィジェットにした）。
+class AppearanceFolder extends ConsumerWidget {
+  const AppearanceFolder({required this.strings});
 
   final Strings strings;
 
@@ -2296,14 +2296,14 @@ class _AppearanceFolder extends ConsumerWidget {
 }
 
 /// アクセントカラー（フラットUI/ガラスUI）・劇画UIの背景色の選択
-/// （2026-09-15、`_DesignFolder`から分離。上記[_AppearanceFolder]参照）。
-class _AccentColorFolder extends ConsumerStatefulWidget {
-  const _AccentColorFolder({required this.strings});
+/// （2026-09-15、`_DesignFolder`から分離。上記[AppearanceFolder]参照）。
+class AccentColorFolder extends ConsumerStatefulWidget {
+  const AccentColorFolder({required this.strings});
 
   final Strings strings;
 
   @override
-  ConsumerState<_AccentColorFolder> createState() => _AccentColorFolderState();
+  ConsumerState<AccentColorFolder> createState() => _AccentColorFolderState();
 }
 
 /// アクセントカラーのプリセット（8桁hex＝RRGGBBAA）。フラット/ガラス/劇画の
@@ -2315,7 +2315,7 @@ class _AccentColorFolder extends ConsumerStatefulWidget {
 /// 要素は`removedDefaultColorPresetsProvider`側の集合で管理し、この
 /// リスト自体からは取り除かない（削除は表示フィルタで実現し、復活手段は
 /// 設けない）。固定プリセットの一覧は`kDefaultColorPresets`（`lib/utils/color_presets.dart`）。
-class _AccentColorFolderState extends ConsumerState<_AccentColorFolder> {
+class _AccentColorFolderState extends ConsumerState<AccentColorFolder> {
   late final TextEditingController _hexController;
   String? _errorText;
 
@@ -2418,7 +2418,7 @@ class _AccentColorFolderState extends ConsumerState<_AccentColorFolder> {
   Widget build(BuildContext context) {
     // 同じ入力欄・プリセット一覧をフラットUIの`accentColorProvider`と
     // 劇画UIの`gekigaBackgroundColorProvider`で使い回しているため、
-    // `_UiStyleFolder`（同じ`_ApplicationPage`内の兄弟）でスタイルを
+    // `UiStyleFolder`（同じ`_ApplicationPage`内の兄弟）でスタイルを
     // 切り替えた瞬間に、表示中の値を新しく有効になった側のプロバイダの
     // 現在値へリセットする。build中に`_hexController`を直接書き換えると
     // GekigaTextField/TextFieldという別ウィジェット間の切り替え時に
@@ -2981,8 +2981,8 @@ class _LanguageFolder extends ConsumerWidget {
 /// （[ChatLayoutStyle]のコメント参照）。
 /// UIスタイル（見た目）の切り替え（2026-07-29追加）。現時点では
 /// メッセージ画面（`ChatScreen`）のみがこの値を見て見た目を変える。
-class _UiStyleFolder extends ConsumerWidget {
-  const _UiStyleFolder({required this.strings});
+class UiStyleFolder extends ConsumerWidget {
+  const UiStyleFolder({required this.strings});
 
   final Strings strings;
 
@@ -3079,16 +3079,16 @@ class _UiStyleFolder extends ConsumerWidget {
 /// 2026-09-15に「もっと見る」展開式に変更）。他の選択項目
 /// （`_LanguageFolder`等）と同じく、劇画スタイル選択中はこの選択肢一覧
 /// 自体も劇画の見た目に揃える（選択は即座に反映される）。
-class _FontDesignFolder extends ConsumerStatefulWidget {
-  const _FontDesignFolder({required this.strings});
+class FontDesignFolder extends ConsumerStatefulWidget {
+  const FontDesignFolder({required this.strings});
 
   final Strings strings;
 
   @override
-  ConsumerState<_FontDesignFolder> createState() => _FontDesignFolderState();
+  ConsumerState<FontDesignFolder> createState() => _FontDesignFolderState();
 }
 
-class _FontDesignFolderState extends ConsumerState<_FontDesignFolder> {
+class _FontDesignFolderState extends ConsumerState<FontDesignFolder> {
   bool _expanded = false;
 
   @override
@@ -3208,8 +3208,8 @@ class _FontDesignFolderState extends ConsumerState<_FontDesignFolder> {
   }
 }
 
-class _ChatLayoutFolder extends ConsumerWidget {
-  const _ChatLayoutFolder({required this.strings});
+class ChatLayoutFolder extends ConsumerWidget {
+  const ChatLayoutFolder({required this.strings});
 
   final Strings strings;
 
@@ -3294,8 +3294,8 @@ class _ChatLayoutFolder extends ConsumerWidget {
 /// `DeviceClass.computer`）で`talks_tab.dart`の`kTalksSplitBreakpoint`以上
 /// かつ横長の広い画面（`_isSplit`）の場合はこの設定を無視し、常に固定の
 /// 左右分割表示になる（タブレットを横向きにした場合はこの設定が適用される）。
-class _TalksListLayoutFolder extends ConsumerWidget {
-  const _TalksListLayoutFolder({required this.strings});
+class TalksListLayoutFolder extends ConsumerWidget {
+  const TalksListLayoutFolder({required this.strings});
 
   final Strings strings;
 
@@ -3376,8 +3376,8 @@ class _TalksListLayoutFolder extends ConsumerWidget {
 }
 
 /// メッセージの送信時刻表示形式（24時間表記／12時間表記）の切り替え。
-class _TimeFormatFolder extends ConsumerWidget {
-  const _TimeFormatFolder({required this.strings});
+class TimeFormatFolder extends ConsumerWidget {
+  const TimeFormatFolder({required this.strings});
 
   final Strings strings;
 
@@ -3597,14 +3597,14 @@ class _TalkPage extends StatelessWidget {
         _SectionHeader(strings.settingsBlockedUsersTitle),
         _BlockedUsersFolder(strings: strings, currentUser: currentUser),
         const Divider(height: 24),
-        _ChatLayoutFolder(strings: strings),
+        ChatLayoutFolder(strings: strings),
         const Divider(height: 24),
-        _TalksListLayoutFolder(strings: strings),
+        TalksListLayoutFolder(strings: strings),
         const Divider(height: 24),
         SettingsAccordionSection(
           title: strings.settingsAdvancedSectionTitle,
           children: [
-            _SendKeyFolder(strings: strings),
+            SendKeyFolder(strings: strings),
             const Divider(height: 24),
             _StickerSendModeFolder(strings: strings),
             const Divider(height: 24),
@@ -3744,8 +3744,8 @@ class _BlockedUsersFolderState extends ConsumerState<_BlockedUsersFolder> {
   }
 }
 
-class _SendKeyFolder extends ConsumerWidget {
-  const _SendKeyFolder({required this.strings});
+class SendKeyFolder extends ConsumerWidget {
+  const SendKeyFolder({required this.strings});
 
   final Strings strings;
 
@@ -3824,7 +3824,7 @@ class _SendKeyFolder extends ConsumerWidget {
 }
 
 /// ぺったん（スタンプ）の送信方式（LINE型2タップ確認／Discord型1タップ即送信）
-/// の選択。`_SendKeyFolder`と同じ2択ラジオ構成を踏襲する（2026-08-13追加）。
+/// の選択。`SendKeyFolder`と同じ2択ラジオ構成を踏襲する（2026-08-13追加）。
 class _StickerSendModeFolder extends ConsumerWidget {
   const _StickerSendModeFolder({required this.strings});
 

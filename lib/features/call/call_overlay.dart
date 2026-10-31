@@ -252,17 +252,55 @@ class _OneToOneStageState extends State<_OneToOneStage> {
   Widget build(BuildContext context) {
     final session = widget.session;
     final controller = session.controller;
+    // 相手の映像を画面に出していない間は、相手の音声を鳴らす`RTCVideoView`が
+    // 無くなり音が出ない（Web）。見えない動画要素で補う（2026-10-31追加）。
+    final audioSink = controller.remoteIsVideo
+        ? const SizedBox.shrink()
+        : CallAudioSinks(renderers: [controller.remoteRenderer]);
     if (!controller.remoteIsVideo && !controller.isVideo) {
       return ColoredBox(
         color: Colors.grey.shade900,
-        child: Center(
-          child: CallParticipantAvatar(
-            userId: session.call.otherUserId(session.currentUserId),
-            rhingSeed: session.call.otherRhingSeed(session.currentUserId),
-            conversationId: session.call.dmId,
-            radius: 56,
-            fontSize: 40,
-          ),
+        child: Stack(
+          children: [
+            Center(
+              child: CallParticipantAvatar(
+                userId: session.call.otherUserId(session.currentUserId),
+                rhingSeed: session.call.otherRhingSeed(session.currentUserId),
+                conversationId: session.call.dmId,
+                radius: 56,
+                fontSize: 40,
+              ),
+            ),
+            audioSink,
+            Positioned(
+              left: 12,
+              bottom: 12,
+              child: CallLabelSheet(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CallParticipantNameLabel(
+                      userId: session.call.otherUserId(session.currentUserId),
+                      rhingSeed: session.call.otherRhingSeed(
+                        session.currentUserId,
+                      ),
+                      conversationId: session.call.dmId,
+                      style: const TextStyle(color: Colors.white, fontSize: 13),
+                    ),
+                    if (controller.remoteMuted)
+                      const Padding(
+                        padding: EdgeInsets.only(left: 6),
+                        child: Icon(
+                          Icons.mic_off,
+                          size: 14,
+                          color: Colors.white,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ),
       );
     }
@@ -274,6 +312,7 @@ class _OneToOneStageState extends State<_OneToOneStage> {
         : controller.remoteIsVideo;
     return Stack(
       children: [
+        audioSink,
         Positioned.fill(
           child: ColoredBox(
             color: Colors.grey.shade900,
@@ -290,6 +329,36 @@ class _OneToOneStageState extends State<_OneToOneStage> {
               behavior: HitTestBehavior.opaque,
               onTap: _swap,
               child: const SizedBox.expand(),
+            ),
+          ),
+        ),
+        // 大きく映っている側の呼び名とミュート表示（広場のタイルと同じ、
+        // 2026-10-31追加）。クリックは下の入れ替え操作へ通す。
+        Positioned(
+          left: 12,
+          bottom: 12,
+          child: IgnorePointer(
+            child: CallLabelSheet(
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CallParticipantNameLabel(
+                    userId: _mainIsRemote
+                        ? session.call.otherUserId(session.currentUserId)
+                        : session.currentUserId,
+                    rhingSeed: _mainIsRemote
+                        ? session.call.otherRhingSeed(session.currentUserId)
+                        : session.call.myRhingSeed(session.currentUserId),
+                    conversationId: session.call.dmId,
+                    style: const TextStyle(color: Colors.white, fontSize: 13),
+                  ),
+                  if (_mainIsRemote ? controller.remoteMuted : controller.muted)
+                    const Padding(
+                      padding: EdgeInsets.only(left: 6),
+                      child: Icon(Icons.mic_off, size: 14, color: Colors.white),
+                    ),
+                ],
+              ),
             ),
           ),
         ),

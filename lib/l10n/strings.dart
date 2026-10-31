@@ -397,6 +397,8 @@ class Strings {
     required this.uninstallStickerConfirmButton,
     required this.chatAttachmentTooLargeMessage,
     required this.chatAttachmentTooManyMessage,
+    required this.chatPendingTrayLimitMessage,
+    required this.chatPendingTrayRemoveTooltip,
     required this.chatAttachmentBlockedExtensionMessage,
     required this.chatAttachmentSendFailedMessage,
     required this.chatResendAction,
@@ -407,6 +409,31 @@ class Strings {
     required this.pdfOpenFailed,
     required this.mediaForwardTooltip,
     required this.mediaShareTooltip,
+    required this.setupBack,
+    required this.setupNext,
+    required this.setupDone,
+    required this.setupSkip,
+    required this.setupProgress,
+    required this.setupPresetTitle,
+    required this.setupPresetDescription,
+    required this.setupPresetStandardName,
+    required this.setupPresetStandardDescription,
+    required this.setupPresetCrispName,
+    required this.setupPresetCrispDescription,
+    required this.setupPresetPlayfulName,
+    required this.setupPresetPlayfulDescription,
+    required this.setupAppearanceTitle,
+    required this.setupAppearanceDescription,
+    required this.setupAccentTitle,
+    required this.setupAccentDescription,
+    required this.setupFontTitle,
+    required this.setupFontDescription,
+    required this.setupMessageTitle,
+    required this.setupMessageDescription,
+    required this.setupTalksListTitle,
+    required this.setupTalksListDescription,
+    required this.setupSendKeyTitle,
+    required this.setupSendKeyDescription,
     required this.pdfPageCount,
     required this.pdfDownloadAction,
     required this.cancel,
@@ -896,6 +923,7 @@ class Strings {
     required this.callStatusActive,
     required this.callStatusEnded,
     required this.callConnectionUnstableEllipsis,
+    required this.callAudioOutputTitle,
     required this.callConnectionUnstable,
     required this.callFullMessageTemplate,
     required this.groupCallParticipantCountTemplate,
@@ -1397,6 +1425,8 @@ class Strings {
 
   /// 1回に選べる添付の上限を超えた時の通知（2026-10-16）。
   final String Function(int max) chatAttachmentTooManyMessage;
+  final String Function(int max) chatPendingTrayLimitMessage;
+  final String chatPendingTrayRemoveTooltip;
   final String chatAttachmentBlockedExtensionMessage;
   final String chatAttachmentSendFailedMessage;
   final String chatResendAction;
@@ -1416,6 +1446,31 @@ class Strings {
   /// 画像・動画ビューアの右上のアイコンのツールチップ（転送・共有は今はアイコンのみ）。
   final String mediaForwardTooltip;
   final String mediaShareTooltip;
+  final String setupBack;
+  final String setupNext;
+  final String setupDone;
+  final String setupSkip;
+  final String Function(int current, int total) setupProgress;
+  final String setupPresetTitle;
+  final String setupPresetDescription;
+  final String setupPresetStandardName;
+  final String setupPresetStandardDescription;
+  final String setupPresetCrispName;
+  final String setupPresetCrispDescription;
+  final String setupPresetPlayfulName;
+  final String setupPresetPlayfulDescription;
+  final String setupAppearanceTitle;
+  final String setupAppearanceDescription;
+  final String setupAccentTitle;
+  final String setupAccentDescription;
+  final String setupFontTitle;
+  final String setupFontDescription;
+  final String setupMessageTitle;
+  final String setupMessageDescription;
+  final String setupTalksListTitle;
+  final String setupTalksListDescription;
+  final String setupSendKeyTitle;
+  final String setupSendKeyDescription;
 
   /// PDFのプレビューに添える総ページ数（例「12ページ」）。
   final String Function(int count) pdfPageCount;
@@ -2134,6 +2189,9 @@ class Strings {
   final String callStatusActive;
   final String callStatusEnded;
   final String callConnectionUnstableEllipsis;
+
+  /// 通話中の音声の出力先を選ぶシートの見出し（2026-10-31）。
+  final String callAudioOutputTitle;
   final String callConnectionUnstable;
   final String Function(int max) callFullMessageTemplate;
   final String Function(int count) groupCallParticipantCountTemplate;
@@ -2589,6 +2647,8 @@ class Strings {
     uninstallStickerConfirmButton: 'アンインストールする',
     chatAttachmentTooLargeMessage: '2GBを超えるファイルは送信できません',
     chatAttachmentTooManyMessage: (max) => '一度に送れるのは$max件までです。先頭の$max件を送ります',
+    chatPendingTrayLimitMessage: (max) => '一度に添付できるのは$max件までです',
+    chatPendingTrayRemoveTooltip: '外す',
     chatAttachmentBlockedExtensionMessage: 'この拡張子のファイルは送信できません',
     chatAttachmentSendFailedMessage: '送信に失敗しました',
     chatResendAction: '再送',
@@ -2599,6 +2659,31 @@ class Strings {
     pdfOpenFailed: 'PDFを開けませんでした',
     mediaForwardTooltip: '転送',
     mediaShareTooltip: '共有',
+    setupBack: '戻る',
+    setupNext: '次へ',
+    setupDone: '完了',
+    setupSkip: 'あとで',
+    setupProgress: (c, t) => '$c / $t',
+    setupPresetTitle: 'おすすめから選ぶ',
+    setupPresetDescription: '気に入ったものを選ぶと、まとめて設定されます。次の画面から、細かく変えられます。',
+    setupPresetStandardName: '標準',
+    setupPresetStandardDescription: 'ガラスのような質感と、やわらかい薄紫。',
+    setupPresetCrispName: 'くっきり',
+    setupPresetCrispDescription: 'フラットで見やすい、青のシンプルな見た目。',
+    setupPresetPlayfulName: '遊び心',
+    setupPresetPlayfulDescription: '手描き風の劇画。白黒で、インパクトのある見た目。',
+    setupAppearanceTitle: '見た目の雰囲気',
+    setupAppearanceDescription: '選ぶとすぐ、後ろの画面が変わります。あとで設定から、いつでも変えられます。',
+    setupAccentTitle: '色',
+    setupAccentDescription: 'ボタンや強調に使う色を選びます。劇画では背景の色になります。',
+    setupFontTitle: '文字のかたち',
+    setupFontDescription: '画面全体の文字のデザインを選びます。',
+    setupMessageTitle: 'メッセージの見え方',
+    setupMessageDescription: '自分と相手の吹き出しの並べ方と、時刻の表示を選びます。',
+    setupTalksListTitle: '語らい一覧の見え方',
+    setupTalksListDescription: '語らいの一覧の並べ方を選びます。',
+    setupSendKeyTitle: '送信のしかた',
+    setupSendKeyDescription: 'Enterキーを押したときの動きを選びます。',
     pdfPageCount: (count) => '$countページ',
     pdfDownloadAction: 'ダウンロードして開く',
     cancel: 'キャンセル',
@@ -3125,6 +3210,7 @@ class Strings {
     callStatusActive: '通話中',
     callStatusEnded: '通話終了',
     callConnectionUnstableEllipsis: '接続が不安定です…',
+    callAudioOutputTitle: '音声の出力先',
     callConnectionUnstable: '接続が不安定です',
     callFullMessageTemplate: (max) => 'この通話は満員です（上限$max人）',
     groupCallParticipantCountTemplate: (count) => '参加者$count人',
@@ -3633,6 +3719,9 @@ class Strings {
     chatAttachmentTooLargeMessage: "Files over 2GB can't be sent.",
     chatAttachmentTooManyMessage: (max) =>
         'You can send up to $max at a time. Sending the first $max.',
+    chatPendingTrayLimitMessage: (max) =>
+        'You can attach up to $max at a time.',
+    chatPendingTrayRemoveTooltip: 'Remove',
     chatAttachmentBlockedExtensionMessage: "This file type can't be sent.",
     chatAttachmentSendFailedMessage: 'Failed to send.',
     chatResendAction: 'Resend',
@@ -3643,6 +3732,36 @@ class Strings {
     pdfOpenFailed: 'Could not open this PDF',
     mediaForwardTooltip: 'Forward',
     mediaShareTooltip: 'Share',
+    setupBack: 'Back',
+    setupNext: 'Next',
+    setupDone: 'Done',
+    setupSkip: 'Later',
+    setupProgress: (c, t) => '$c / $t',
+    setupPresetTitle: 'Start from a suggestion',
+    setupPresetDescription:
+        'Pick one you like and everything is set at once. You can fine-tune each part on the next screens.',
+    setupPresetStandardName: 'Standard',
+    setupPresetStandardDescription: 'A glassy finish in a soft lilac.',
+    setupPresetCrispName: 'Crisp',
+    setupPresetCrispDescription: 'Flat, clear and simple, in blue.',
+    setupPresetPlayfulName: 'Playful',
+    setupPresetPlayfulDescription:
+        'Hand-drawn Gekiga in black and white, with plenty of punch.',
+    setupAppearanceTitle: 'Overall look',
+    setupAppearanceDescription:
+        'The screen behind updates straight away. You can change this any time in Settings.',
+    setupAccentTitle: 'Colour',
+    setupAccentDescription:
+        'Choose the colour used for buttons and highlights. In Gekiga it becomes the background colour.',
+    setupFontTitle: 'Typeface',
+    setupFontDescription: 'Choose the typeface used across the app.',
+    setupMessageTitle: 'How messages look',
+    setupMessageDescription:
+        'Choose how your bubbles and theirs are laid out, and how times are shown.',
+    setupTalksListTitle: 'How the conversation list looks',
+    setupTalksListDescription: 'Choose how your conversations are listed.',
+    setupSendKeyTitle: 'Sending messages',
+    setupSendKeyDescription: 'Choose what the Enter key does.',
     pdfPageCount: (count) => count == 1 ? '1 page' : '$count pages',
     pdfDownloadAction: 'Download to open',
     cancel: 'Cancel',
@@ -4216,6 +4335,7 @@ class Strings {
     callStatusActive: 'In call',
     callStatusEnded: 'Call ended',
     callConnectionUnstableEllipsis: 'Connection is unstable…',
+    callAudioOutputTitle: 'Audio output',
     callConnectionUnstable: 'Connection is unstable',
     callFullMessageTemplate: (max) => 'This call is full (limit: $max)',
     groupCallParticipantCountTemplate: (count) =>

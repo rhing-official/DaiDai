@@ -74,9 +74,14 @@ abstract class GroupCallRepository {
   /// 在室確認のハートビート。Firestoreに切断検知の仕組みがないため、
   /// 在室中はクライアントが定期的に呼び続け、他の参加者はこれが一定時間
   /// 途絶えた相手を離脱扱いにする。
+  ///
+  /// [sessionId]を渡した時は、参加者ドキュメントの`sessionId`が別の端末のもの
+  /// なら何もしない（別の端末が入り直した後も、元の端末が新しい端末の在室を
+  /// 更新し続けてしまわないように、2026-10-31）。
   Future<void> touchPresence({
     required String groupCallId,
     required String userId,
+    String? sessionId,
   });
 
   Future<void> updateParticipantState({
@@ -342,10 +347,14 @@ class FirestoreGroupCallRepository implements GroupCallRepository {
   Future<void> touchPresence({
     required String groupCallId,
     required String userId,
+    String? sessionId,
   }) async {
-    await _participantsOf(
-      groupCallId,
-    ).doc(userId).update({'lastSeenAt': FieldValue.serverTimestamp()});
+    final ref = _participantsOf(groupCallId).doc(userId);
+    if (sessionId != null) {
+      final current = (await ref.get()).data()?['sessionId'];
+      if (current is String && current != sessionId) return;
+    }
+    await ref.update({'lastSeenAt': FieldValue.serverTimestamp()});
   }
 
   @override

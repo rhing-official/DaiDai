@@ -12,6 +12,7 @@ import 'call_sound_player.dart';
 import 'acquire_with_video_fallback.dart';
 import 'peer_connect_guard.dart';
 import 'rtc_config.dart';
+import '../../utils/page_exit/page_exit.dart';
 import 'webrtc_media_constraints.dart';
 
 enum GroupCallConnectionState { connecting, active, ended }
@@ -125,7 +126,11 @@ class WebrtcGroupCallController extends ChangeNotifier {
   bool _speakerOn = true;
   bool get speakerOn => _speakerOn;
 
-  int _cameraIndex = 0;
+  /// 直前に使っていたカメラの`deviceId`。映像をオフ→オンした時に同じカメラで
+  /// 取り直す（2026-10-31追加）。
+  String? _cameraDeviceId;
+
+  void Function()? _removePageExitListener;
 
   bool _switchingCamera = false;
   bool get switchingCamera => _switchingCamera;
@@ -169,7 +174,7 @@ class WebrtcGroupCallController extends ChangeNotifier {
   Timer? _speakingTimer;
   bool _pollingSpeaking = false;
 
-  static const _speakingPollInterval = Duration(milliseconds: 300);
+  static const _speakingPollInterval = Duration(milliseconds: 500);
 
   /// 0〜1の音声レベルがこれを超えたら発声中とみなす。
   static const _speakingThreshold = 0.02;
@@ -240,7 +245,12 @@ class WebrtcGroupCallController extends ChangeNotifier {
         wantVideo: _isVideo,
         acquire: (video) => navigator.mediaDevices.getUserMedia({
           'audio': buildAudioConstraints(),
-          'video': video ? buildVideoConstraints() : false,
+          'video': video
+              ? buildVideoConstraints(
+                  frontCamera: _isFrontCamera,
+                  deviceId: _cameraDeviceId,
+                )
+              : false,
         }),
       );
       _localStream = acquired.stream;
@@ -252,6 +262,7 @@ class WebrtcGroupCallController extends ChangeNotifier {
         _localRendererInitialized = true;
         localRenderer.srcObject = _localStream;
         muteLocalPlayback(localRenderer);
+        _syncCameraFromStream();
         unawaited(_refreshCameraCount());
       }
 
@@ -271,10 +282,14 @@ class WebrtcGroupCallController extends ChangeNotifier {
         (_) => unawaited(_pollSpeaking()),
       );
 
+      // タブを閉じた時も参加者として残らないよう、退出を試みる（Webのみ）。
+      _removePageExitListener = onPageExit(() => unawaited(leave()));
+
       _presenceTimer = Timer.periodic(_presenceHeartbeatInterval, (_) {
         _repository.touchPresence(
           groupCallId: groupCallId,
           userId: currentUser.userId,
+          sessionId: _sessionId,
         );
         // ハートビート失効による離脱反映は新しいFirestoreスナップショットが
         // 来ないと再評価されないため、定期的にUIへ再描画を促す。
@@ -654,7 +669,10 @@ class WebrtcGroupCallController extends ChangeNotifier {
     if (_localStream?.getVideoTracks().isEmpty ?? true) {
       final videoStream = await navigator.mediaDevices.getUserMedia({
         'audio': false,
-        'video': buildVideoConstraints(),
+        'video': buildVideoConstraints(
+          frontCamera: _isFrontCamera,
+          deviceId: _cameraDeviceId,
+        ),
       });
       _localStream?.addTrack(videoStream.getVideoTracks().first);
     }
@@ -668,6 +686,7 @@ class WebrtcGroupCallController extends ChangeNotifier {
     for (final pc in _peerConnections.values) {
       await pc.addTrack(track, _localStream!);
     }
+    _syncCameraFromStream();
     unawaited(_refreshCameraCount());
   }
 
@@ -715,6 +734,16 @@ class WebrtcGroupCallController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// 取得した映像トラックの実際のカメラ（前面か、`deviceId`）を状態へ反映する
+  /// （2026-10-31追加）。以前は前面カメラ固定で仮定しており、端末が別のカメラを
+  /// 返すと自分のプレビューの左右反転が送信映像と食い違い、切替の順序もずれた。
+  void _syncCameraFromStream() {
+    final track = _localStream?.getVideoTracks().firstOrNull;
+    if (track == null) return;
+    _isFrontCamera = trackIsFrontFacing(track) ?? _isFrontCamera;
+    _cameraDeviceId = trackDeviceId(track) ?? _cameraDeviceId;
+  }
+
   Future<void> switchCamera() async {
     // 連打による多重実行を防ぐ（実機で「重くなる」報告の一因だった）。
     if (_switchingCamera) return;
@@ -727,16 +756,22 @@ class WebrtcGroupCallController extends ChangeNotifier {
       if (kIsWeb) {
         final cameras = await Helper.cameras;
         if (cameras.length < 2) return;
-        _cameraIndex = (_cameraIndex + 1) % cameras.length;
-        await Helper.switchCamera(
-          track,
-          cameras[_cameraIndex].deviceId,
-          _localStream,
-        );
+        // 現在のカメラを実際の`deviceId`から特定して次へ進める（以前は先頭を
+        // 現在地と仮定していたため、初回の切替で同じカメラのままになった）。
+        final currentId = trackDeviceId(track) ?? _cameraDeviceId;
+        final currentIndex = cameras.indexWhere((c) => c.deviceId == currentId);
+        final next = cameras[(currentIndex + 1) % cameras.length];
+        await Helper.switchCamera(track, next.deviceId, _localStream);
       } else {
         await Helper.switchCamera(track);
       }
-      _isFrontCamera = !_isFrontCamera;
+      final switched = _localStream?.getVideoTracks().firstOrNull;
+      _isFrontCamera =
+          (switched == null ? null : trackIsFrontFacing(switched)) ??
+          !_isFrontCamera;
+      if (switched != null) {
+        _cameraDeviceId = trackDeviceId(switched) ?? _cameraDeviceId;
+      }
       // Web版のHelper.switchCameraは古いトラックをstop()して_localStreamから
       // 取り除き、新しいトラックを同じ_localStreamに追加する副作用を持つが、
       // それだけではRTCVideoRenderer（Web実装、代入時点でトラックを
@@ -766,6 +801,7 @@ class WebrtcGroupCallController extends ChangeNotifier {
 
   @override
   void dispose() {
+    _removePageExitListener?.call();
     _connectGuard.cancelAll();
     _presenceTimer?.cancel();
     _speakingTimer?.cancel();
