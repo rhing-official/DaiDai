@@ -9,7 +9,8 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:video_player/video_player.dart';
 
 import '../utils/fullscreen/fullscreen.dart';
-import 'swipe_gestures.dart' show PinchPriorityPageView;
+import '../utils/share_attachment.dart';
+import 'swipe_gestures.dart' show PinchPriorityPageView, ZoomReporter;
 import 'video_thumbnail.dart';
 import '../l10n/strings.dart';
 import 'blurred_viewer_route.dart';
@@ -177,6 +178,13 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen> {
     await launchUrl(Uri.parse(item.url), mode: LaunchMode.externalApplication);
   }
 
+  Future<void> _shareCurrent() {
+    final item = widget.items[_currentIndex];
+    return shareFiles([
+      (url: item.url, name: mediaDownloadFileName(item), mimeType: null),
+    ]);
+  }
+
   @override
   Widget build(BuildContext context) {
     final strings = ref.watch(appStringsProvider);
@@ -205,7 +213,7 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen> {
             IconButton(
               icon: const Icon(Icons.share),
               tooltip: strings.mediaShareTooltip,
-              onPressed: () {},
+              onPressed: _shareCurrent,
             ),
             IconButton(
               icon: const Icon(Icons.download),
@@ -348,29 +356,66 @@ class _ImageViewerPage extends StatefulWidget {
 class _ImageViewerPageState extends State<_ImageViewerPage> {
   final _transformationController = TransformationController();
 
+  /// 画像の縦横比（読み込み後）。画像の実際の表示範囲だけをタップで閉じない
+  /// 領域にするために使う（余白のタップだけで閉じる、2026-10-31）。
+  double? _aspectRatio;
+  ImageStream? _stream;
+  ImageStreamListener? _listener;
+
+  @override
+  void initState() {
+    super.initState();
+    final listener = ImageStreamListener((info, _) {
+      final image = info.image;
+      if (mounted && image.height > 0) {
+        setState(() => _aspectRatio = image.width / image.height);
+      }
+    }, onError: (_, _) {});
+    _listener = listener;
+    _stream = NetworkImage(widget.url).resolve(ImageConfiguration.empty)
+      ..addListener(listener);
+  }
+
   @override
   void dispose() {
+    _stream?.removeListener(_listener!);
     _transformationController.dispose();
     super.dispose();
   }
 
-  void _handleTap() {
-    final scale = _transformationController.value.getMaxScaleOnAxis();
-    if (scale <= 1.01) Navigator.of(context).pop();
-  }
+  /// 余白（画像の外側）のタップで閉じる。拡大中でも閉じる（パン・ピンチは
+  /// タップとは別のジェスチャーのため邪魔にならない）。
+  void _handleTap() => Navigator.of(context).pop();
 
   @override
   Widget build(BuildContext context) {
+    final ratio = _aspectRatio;
+    final Widget image = ratio == null
+        ? Image.network(widget.url, fit: BoxFit.contain)
+        : Center(
+            child: AspectRatio(
+              aspectRatio: ratio,
+              // 画像自身のタップは何もしない（外側＝余白のタップだけが閉じる）。
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () {},
+                child: Image.network(widget.url, fit: BoxFit.fill),
+              ),
+            ),
+          );
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: _handleTap,
       child: SizedBox.expand(
-        child: InteractiveViewer(
-          transformationController: _transformationController,
-          // 上下はバー（約56px）の分も含め、端にぴったり付かない余白を取る。
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 64, horizontal: 24),
-            child: Image.network(widget.url, fit: BoxFit.contain),
+        child: ZoomReporter(
+          controller: _transformationController,
+          child: InteractiveViewer(
+            transformationController: _transformationController,
+            // 上下はバー（約56px）の分も含め、端にぴったり付かない余白を取る。
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 64, horizontal: 24),
+              child: image,
+            ),
           ),
         ),
       ),

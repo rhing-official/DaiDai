@@ -915,6 +915,10 @@ class Strings {
     required this.birthdayYearUnset,
     required this.birthdayInvalidError,
     required this.workshopBirthdayFieldLabel,
+    required this.workshopRhingSeedFieldLabel,
+    required this.workshopRhingSeedFieldShortLabel,
+    required this.settingsSeedSearchableTitle,
+    required this.settingsSeedSearchableDescription,
     required this.workshopBirthdayNotRegisteredHint,
     required this.workshopFontLabel,
     required this.workshopFontShortLabel,
@@ -2155,6 +2159,10 @@ class Strings {
   final String birthdayYearUnset;
   final String birthdayInvalidError;
   final String workshopBirthdayFieldLabel;
+  final String workshopRhingSeedFieldLabel;
+  final String workshopRhingSeedFieldShortLabel;
+  final String settingsSeedSearchableTitle;
+  final String settingsSeedSearchableDescription;
   final String workshopBirthdayNotRegisteredHint;
 
   final String workshopFontLabel;
@@ -3138,6 +3146,11 @@ class Strings {
     birthdayYearUnset: '指定しない',
     birthdayInvalidError: '存在しない日付です',
     workshopBirthdayFieldLabel: '誕生日',
+    workshopRhingSeedFieldLabel: 'Rhing Seed',
+    workshopRhingSeedFieldShortLabel: 'Seed',
+    settingsSeedSearchableTitle: 'Rhing Seedで検索に表示する',
+    settingsSeedSearchableDescription:
+        'オフにすると、他の住人がRhing Seedを入力しても見つかりません。招待リンクとQRコードからは、これまでどおり友達申請できます。',
     workshopBirthdayNotRegisteredHint: '蔵で誕生日を登録してください',
     workshopFontLabel: 'フォントデザイン',
     workshopFontShortLabel: 'デザイン',
@@ -4226,6 +4239,11 @@ class Strings {
     birthdayYearUnset: 'Not set',
     birthdayInvalidError: 'This date does not exist',
     workshopBirthdayFieldLabel: 'Birthday',
+    workshopRhingSeedFieldLabel: 'Rhing Seed',
+    workshopRhingSeedFieldShortLabel: 'Seed',
+    settingsSeedSearchableTitle: 'Appear in Rhing Seed searches',
+    settingsSeedSearchableDescription:
+        'When off, other residents can\'t find you by typing your Rhing Seed. Friend requests from your invite link and QR code still work.',
     workshopBirthdayNotRegisteredHint:
         'Add your birthday in the Profile library first',
     workshopFontLabel: 'Font design',

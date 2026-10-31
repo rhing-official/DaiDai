@@ -68,7 +68,9 @@ import '../../utils/link_detection.dart';
 import '../../utils/note_title.dart';
 import '../../utils/platform_info.dart';
 import '../../utils/screenshot_save_directory.dart';
-import '../../utils/sound_upload.dart' show kAllowedSoundExtensions;
+import '../../utils/share_attachment.dart';
+import '../../utils/sound_upload.dart' show kPlayableAudioExtensions;
+import '../../widgets/swipe_gestures.dart' show WheelScrollAbsorber;
 import '../../utils/spam_check.dart';
 import '../../utils/sticker_suggestion.dart';
 import 'sticker_picker_popup.dart';
@@ -3496,7 +3498,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                                 ),
                                                 child: Icon(
                                                   Icons.send,
-                                                  color: colorScheme.primary,
+                                                  // フラット・ガラスは文字色に合わせる
+                                                  // （劇画は従来のまま）。
+                                                  color: isGekiga
+                                                      ? colorScheme.primary
+                                                      : colorScheme.onSurface,
                                                 ),
                                               ),
                                             ),
@@ -5164,6 +5170,11 @@ class _MessageRow extends ConsumerWidget {
                                   message.attachments.any((a) => a.isMedia)))
                           ? () => onAddToAlbum!(message)
                           : null,
+                      onShare:
+                          (message.fileMetadata != null ||
+                              message.attachments.isNotEmpty)
+                          ? () => shareMessageAttachments(message)
+                          : null,
                       child: bubble,
                     ),
             ),
@@ -6701,6 +6712,7 @@ enum _MessageMenuAction {
   select,
   screenshot,
   addToAlbum,
+  share,
 }
 
 /// 長押し/右クリック位置に開く各種メニューの位置決め（[_MessageBubbleTapArea]・
@@ -6834,6 +6846,7 @@ class _MessageBubbleTapArea extends StatefulWidget {
     this.onSelect,
     this.onScreenshotSelect,
     this.onAddToAlbum,
+    this.onShare,
   });
 
   final Widget child;
@@ -6873,6 +6886,9 @@ class _MessageBubbleTapArea extends StatefulWidget {
   /// contentTypeではnullのままメニュー項目自体を出さない。
   final VoidCallback? onAddToAlbum;
 
+  /// 添付付きのメッセージだけ渡される、添付の共有（2026-10-31追加）。
+  final VoidCallback? onShare;
+
   @override
   State<_MessageBubbleTapArea> createState() => _MessageBubbleTapAreaState();
 }
@@ -6881,7 +6897,8 @@ class _MessageBubbleTapAreaState extends State<_MessageBubbleTapArea> {
   final _highlightIndex = ValueNotifier<int>(-1);
   OverlayEntry? _overlayEntry;
   DragMenuGeometry? _dragMenuGeometry;
-  List<({_MessageMenuAction action, String label})> _dragMenuItems = const [];
+  List<({_MessageMenuAction action, String label, IconData icon})>
+  _dragMenuItems = const [];
 
   @override
   void dispose() {
@@ -6899,39 +6916,74 @@ class _MessageBubbleTapAreaState extends State<_MessageBubbleTapArea> {
   /// メニュー項目の並び（`onReact`/`onEdit`/`onUnsend`のnull有無・
   /// [_MessageBubbleTapArea.canSelect]によるガードを含む）。右クリックの
   /// `showMenu`・長押しのドラッグメニュー両方で共有する（2026-08-09切り出し）。
-  List<({_MessageMenuAction action, String label})> _buildMenuItems() {
+  List<({_MessageMenuAction action, String label, IconData icon})>
+  _buildMenuItems() {
     final strings = widget.strings;
     return [
-      (action: _MessageMenuAction.reply, label: strings.chatReplyAction),
+      (
+        action: _MessageMenuAction.reply,
+        label: strings.chatReplyAction,
+        icon: Icons.reply_outlined,
+      ),
       if (widget.onReact != null)
-        (action: _MessageMenuAction.react, label: strings.chatReactAction),
+        (
+          action: _MessageMenuAction.react,
+          label: strings.chatReactAction,
+          icon: Icons.add_reaction_outlined,
+        ),
       if (widget.onEdit != null)
-        (action: _MessageMenuAction.edit, label: strings.chatEditAction),
+        (
+          action: _MessageMenuAction.edit,
+          label: strings.chatEditAction,
+          icon: Icons.edit_outlined,
+        ),
       if (widget.onUnsend != null)
-        (action: _MessageMenuAction.unsend, label: strings.chatUnsendAction),
+        (
+          action: _MessageMenuAction.unsend,
+          label: strings.chatUnsendAction,
+          icon: Icons.undo,
+        ),
       if (widget.onTogglePin != null)
         (
           action: _MessageMenuAction.pin,
           label: widget.isPinned
               ? strings.chatUnpinAction
               : strings.chatPinAction,
+          icon: Icons.push_pin_outlined,
         ),
-      (action: _MessageMenuAction.copy, label: strings.chatCopyAction),
+      (
+        action: _MessageMenuAction.copy,
+        label: strings.chatCopyAction,
+        icon: Icons.copy_outlined,
+      ),
       (
         action: _MessageMenuAction.partialCopy,
         label: strings.chatPartialCopyAction,
+        icon: Icons.highlight_alt_outlined,
       ),
       if (widget.canSelect) ...[
-        (action: _MessageMenuAction.select, label: strings.chatSelectAction),
+        (
+          action: _MessageMenuAction.select,
+          label: strings.chatSelectAction,
+          icon: Icons.checklist,
+        ),
         (
           action: _MessageMenuAction.screenshot,
           label: strings.chatScreenshotAction,
+          icon: Icons.screenshot_outlined,
         ),
       ],
       if (widget.onAddToAlbum != null)
         (
           action: _MessageMenuAction.addToAlbum,
           label: strings.chatAddToAlbumAction,
+          icon: Icons.photo_album_outlined,
+        ),
+      if (widget.onShare != null)
+        (
+          action: _MessageMenuAction.share,
+          label: strings.mediaShareTooltip,
+          icon: Icons.share_outlined,
         ),
     ];
   }
@@ -6966,6 +7018,8 @@ class _MessageBubbleTapAreaState extends State<_MessageBubbleTapArea> {
         widget.onScreenshotSelect?.call();
       case _MessageMenuAction.addToAlbum:
         widget.onAddToAlbum?.call();
+      case _MessageMenuAction.share:
+        widget.onShare?.call();
       case null:
         break;
     }
@@ -6979,7 +7033,16 @@ class _MessageBubbleTapAreaState extends State<_MessageBubbleTapArea> {
       position: _menuPosition(context, globalPosition),
       items: [
         for (final item in items)
-          PopupMenuItem(value: item.action, child: Text(item.label)),
+          PopupMenuItem(
+            value: item.action,
+            child: Row(
+              children: [
+                Icon(item.icon, size: 20),
+                const SizedBox(width: 12),
+                Flexible(child: Text(item.label)),
+              ],
+            ),
+          ),
       ],
     );
     if (!context.mounted) return;
@@ -7006,7 +7069,8 @@ class _MessageBubbleTapAreaState extends State<_MessageBubbleTapArea> {
       )..layout();
       if (painter.width > maxLabelWidth) maxLabelWidth = painter.width;
     }
-    final menuWidth = (maxLabelWidth + hPad * 2).clamp(140.0, 280.0);
+    // アイコン（20）と間隔（12）の分を足す。
+    final menuWidth = (maxLabelWidth + hPad * 2 + 32).clamp(140.0, 280.0);
     final menuHeight = kDragMenuItemHeight * items.length;
 
     // 長押し座標そのものにメニューの左上を合わせると指がメニューに重なって
@@ -7064,15 +7128,29 @@ class _MessageBubbleTapAreaState extends State<_MessageBubbleTapArea> {
                         color: i == highlighted
                             ? colorScheme.primary.withValues(alpha: 0.12)
                             : Colors.transparent,
-                        child: Text(
-                          items[i].label,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: textStyle.copyWith(
-                            color: i == highlighted
-                                ? colorScheme.primary
-                                : null,
-                          ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              items[i].icon,
+                              size: 20,
+                              color: i == highlighted
+                                  ? colorScheme.primary
+                                  : colorScheme.onSurface,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                items[i].label,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: textStyle.copyWith(
+                                  color: i == highlighted
+                                      ? colorScheme.primary
+                                      : null,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                   ],
@@ -7536,7 +7614,8 @@ class _FileAttachmentBlock extends ConsumerStatefulWidget {
   /// 定義された拡張子集合だが、機能に閉じたものではない汎用の値のため
   /// そのまま流用する。
   static bool isPlayableAudio(MessageFileMetadata metadata) =>
-      kAllowedSoundExtensions.contains(metadata.extension);
+      kPlayableAudioExtensions.contains(metadata.extension) ||
+      metadata.mimeType.startsWith('audio/');
 
   @override
   ConsumerState<_FileAttachmentBlock> createState() =>
@@ -8145,11 +8224,15 @@ class _FileAttachmentBlockState extends ConsumerState<_FileAttachmentBlock>
         padding: const EdgeInsets.fromLTRB(10, 10, 10, 0),
         child: SizedBox(
           height: _expanded ? 360 : 140,
-          child: SingleChildScrollView(
-            physics: _expanded
-                ? const ClampingScrollPhysics()
-                : const NeverScrollableScrollPhysics(),
-            child: markdownBody,
+          // 拡大中は、端に達したホイールのスクロールを一覧へ渡さない。
+          child: WheelScrollAbsorber(
+            enabled: _expanded,
+            child: SingleChildScrollView(
+              physics: _expanded
+                  ? const ClampingScrollPhysics()
+                  : const NeverScrollableScrollPhysics(),
+              child: markdownBody,
+            ),
           ),
         ),
       ),

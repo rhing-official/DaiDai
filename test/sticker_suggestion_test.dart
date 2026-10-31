@@ -118,10 +118,10 @@ void main() {
     final congratsCandidates = [congratsSticker];
 
     List<Sticker> suggest(String text, List<StickerRole> rs) => suggestStickers(
-          messageText: text,
-          roles: rs,
-          candidates: congratsCandidates,
-        );
+      messageText: text,
+      roles: rs,
+      candidates: congratsCandidates,
+    );
 
     test('「おめ」だけでも「おめでとう」の候補が出る', () {
       expect(suggest('おめ', [congratsRole]), [congratsSticker]);
@@ -147,11 +147,7 @@ void main() {
     });
 
     test('1〜2文字のキーワードは、まるごと一致のみ', () {
-      const shortRole = StickerRole(
-        roleId: 'ok',
-        name: '了解',
-        keywords: ['りょ'],
-      );
+      const shortRole = StickerRole(roleId: 'ok', name: '了解', keywords: ['りょ']);
       const okSticker = Sticker(
         stickerId: 's-ok',
         name: 'OK顔',

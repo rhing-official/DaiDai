@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../l10n/app_locale.dart';
+import '../l10n/strings.dart';
 import '../models/app_user.dart';
 import '../models/profile_material.dart';
 import '../utils/birthday_format.dart';
@@ -17,6 +18,7 @@ class UserProfileCardView extends StatelessWidget {
     required this.height,
     this.conversationId,
     this.showSnsLinks = true,
+    this.copyRhingSeed = false,
     this.onOpenSnsLink,
     super.key,
   });
@@ -32,6 +34,10 @@ class UserProfileCardView extends StatelessWidget {
 
   /// 渡すと、カード内のURLをタップして開ける。
   final ValueChanged<SnsLink>? onOpenSnsLink;
+
+  /// Rhing Seedの行をタップしてコピーできるようにするか（相手のカードを見るダイアログ用、
+  /// 2026-10-31）。ホバーカードのように操作できない場所ではfalse。
+  final bool copyRhingSeed;
 
   /// 誕生日は、カードを見る人の言語の並びで整形する（2026-10-23）。
   String? _birthdayLabel(BuildContext context) {
@@ -50,6 +56,11 @@ class UserProfileCardView extends StatelessWidget {
     final name = (nickname?.text.isNotEmpty ?? false)
         ? nickname!.text
         : '@${user.rhingSeed}';
+    // 呼び名が未設定で既に`@rhingSeed`を見出しに出している時は、重ねて出さない。
+    final showSeedLine =
+        user.effectiveShowRhingSeedFor(conversationId) &&
+        user.rhingSeed.isNotEmpty &&
+        (nickname?.text.isNotEmpty ?? false);
     return ProfileCardView(
       width: width,
       height: height,
@@ -63,6 +74,11 @@ class UserProfileCardView extends StatelessWidget {
       nickname: name,
       statusMessage: user.effectiveStatusMessageFor(conversationId)?.text,
       birthdayLabel: _birthdayLabel(context),
+      rhingSeedLabel: showSeedLine ? '@${user.rhingSeed}' : null,
+      rhingSeedCopyText: showSeedLine && copyRhingSeed
+          ? '@${user.rhingSeed}'
+          : null,
+      rhingSeedCopiedLabel: Strings.ofContext(context).webhookCopied,
       onOpenSnsLink: onOpenSnsLink,
       snsLinks: showSnsLinks
           ? user.effectiveSnsLinksFor(conversationId)

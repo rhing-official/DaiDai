@@ -229,7 +229,7 @@ enum FontDesign {
   static FontDesign fromName(String? name) {
     return FontDesign.values.firstWhere(
       (design) => design.name == name,
-      orElse: () => FontDesign.notoSansJp,
+      orElse: () => FontDesign.zenMaruGothic,
     );
   }
 }

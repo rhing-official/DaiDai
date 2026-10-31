@@ -13,7 +13,7 @@ enum ChatLayoutStyle {
   static ChatLayoutStyle fromName(String? name) {
     return ChatLayoutStyle.values.firstWhere(
       (style) => style.name == name,
-      orElse: () => ChatLayoutStyle.sideBySide,
+      orElse: () => ChatLayoutStyle.allLeft,
     );
   }
 }

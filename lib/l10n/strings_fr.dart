@@ -1093,6 +1093,11 @@ final Strings _stringsFr = Strings._(
   birthdayYearUnset: 'Non précisée',
   birthdayInvalidError: "Cette date n'existe pas",
   workshopBirthdayFieldLabel: 'Date de naissance',
+  workshopRhingSeedFieldLabel: "Rhing Seed",
+  workshopRhingSeedFieldShortLabel: "Seed",
+  settingsSeedSearchableTitle: "Apparaître dans la recherche par Rhing Seed",
+  settingsSeedSearchableDescription:
+      "Désactivé, les autres résidents ne peuvent pas vous trouver en saisissant votre Rhing Seed. Les demandes via votre lien d'invitation et votre QR code fonctionnent toujours.",
   workshopBirthdayNotRegisteredHint:
       "Ajoutez d'abord votre date de naissance dans la Bibliothèque de profils",
   workshopFontLabel: 'Design de police',

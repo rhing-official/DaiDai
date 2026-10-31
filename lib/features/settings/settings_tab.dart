@@ -859,6 +859,107 @@ class _InfoRow extends StatelessWidget {
   }
 }
 
+/// タップで値をコピーできる情報行（自分のRhing Seed、2026-10-31）。コピー直後は1.5秒だけ
+/// 値の代わりに[copiedLabel]を出す。
+class _CopyableInfoRow extends StatefulWidget {
+  const _CopyableInfoRow({
+    required this.label,
+    required this.value,
+    required this.copiedLabel,
+  });
+
+  final String label;
+  final String value;
+  final String copiedLabel;
+
+  @override
+  State<_CopyableInfoRow> createState() => _CopyableInfoRowState();
+}
+
+class _CopyableInfoRowState extends State<_CopyableInfoRow> {
+  bool _copied = false;
+  Timer? _resetTimer;
+
+  @override
+  void dispose() {
+    _resetTimer?.cancel();
+    super.dispose();
+  }
+
+  void _copy() {
+    Clipboard.setData(ClipboardData(text: widget.value));
+    setState(() => _copied = true);
+    _resetTimer?.cancel();
+    _resetTimer = Timer(const Duration(milliseconds: 1500), () {
+      if (mounted) setState(() => _copied = false);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return InkWell(
+      onTap: _copy,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        child: Row(
+          children: [
+            Expanded(child: Text(widget.label)),
+            Text(
+              _copied ? widget.copiedLabel : widget.value,
+              style: TextStyle(color: colorScheme.onSurfaceVariant),
+            ),
+            const SizedBox(width: 8),
+            Icon(
+              _copied ? Icons.check : Icons.copy_outlined,
+              size: 18,
+              color: colorScheme.onSurfaceVariant,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 他の住人が友達申請でRhing Seedを入力して自分を検索できるかの切り替え（2026-10-31）。
+/// 招待リンク・QRコードからの申請には影響しない。
+class _SeedSearchableRow extends ConsumerStatefulWidget {
+  const _SeedSearchableRow({required this.strings, required this.currentUser});
+
+  final Strings strings;
+  final AppUser currentUser;
+
+  @override
+  ConsumerState<_SeedSearchableRow> createState() => _SeedSearchableRowState();
+}
+
+class _SeedSearchableRowState extends ConsumerState<_SeedSearchableRow> {
+  late bool _value = widget.currentUser.isSeedSearchable;
+
+  Future<void> _change(bool next) async {
+    setState(() => _value = next);
+    try {
+      await ref
+          .read(userRepositoryProvider)
+          .setSeedSearchable(widget.currentUser.userId, next);
+    } catch (_) {
+      if (mounted) setState(() => _value = !next);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SwitchListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+      title: Text(widget.strings.settingsSeedSearchableTitle),
+      subtitle: Text(widget.strings.settingsSeedSearchableDescription),
+      value: _value,
+      onChanged: _change,
+    );
+  }
+}
+
 /// タップするとその場でアクションを実行する行（例: ログアウト）。
 class _ActionRow extends StatelessWidget {
   const _ActionRow({
@@ -1631,10 +1732,12 @@ class _AccountPage extends ConsumerWidget {
       padding: const EdgeInsets.only(bottom: 24),
       children: [
         _SectionHeader(strings.settingsAccountInfoSection),
-        _InfoRow(
+        _CopyableInfoRow(
           label: strings.settingsRhingSeedLabel,
           value: '@${currentUser.rhingSeed}',
+          copiedLabel: strings.webhookCopied,
         ),
+        _SeedSearchableRow(strings: strings, currentUser: currentUser),
         // 居住地（伝書鳩・安否確認用の自己申告、2026-10-16追加）。
         _ActionRow(label: strings.settingsResidence, onTap: onOpenResidence),
         const Divider(height: 24),

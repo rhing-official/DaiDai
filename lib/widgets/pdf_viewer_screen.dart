@@ -11,7 +11,7 @@ import '../models/message.dart';
 import 'blurred_viewer_route.dart';
 import 'confirm_download_dialog.dart';
 import 'viewer_nav_arrows.dart';
-import 'swipe_gestures.dart' show PinchPriorityPageView;
+import 'swipe_gestures.dart' show PinchPriorityPageView, ZoomReporter;
 
 /// アプリ内で開くPDFの上限サイズ。超える大きさは取得が重いので従来どおり
 /// ダウンロードのみ。
@@ -269,13 +269,9 @@ class _PdfPageState extends State<_PdfPage> {
     super.dispose();
   }
 
-  /// 書面の外側のタップで閉じる。ズーム中はパンの邪魔になるため閉じない
-  /// （`MediaViewerScreen`の画像と同じ規則）。
-  void _handleOutsideTap() {
-    if (_transformationController.value.getMaxScaleOnAxis() <= 1.01) {
-      widget.onDismiss();
-    }
-  }
+  /// 書面の外側のタップで閉じる。拡大中でも閉じる（パン・ピンチはタップとは
+  /// 別のジェスチャーのため邪魔にならない、2026-10-31変更）。
+  void _handleOutsideTap() => widget.onDismiss();
 
   @override
   Widget build(BuildContext context) {
@@ -292,30 +288,35 @@ class _PdfPageState extends State<_PdfPage> {
         return GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTap: _handleOutsideTap,
-          child: InteractiveViewer(
-            transformationController: _transformationController,
-            maxScale: 5,
-            child: SizedBox.expand(
-              child: Center(
-                // 書面自身のタップは何もしない（外側のタップだけが閉じる）。
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: () {},
-                  child: SizedBox(
-                    width: width,
-                    height: height,
-                    child: FittedBox(
-                      child: SizedBox(
-                        width: width * 2,
-                        height: height * 2,
-                        child: PdfPageView(
-                          document: widget.document,
-                          pageNumber: widget.index + 1,
-                          // 描画が重くならないよう、解像度の上限を下げる
-                          // （既定300dpi→144dpi。A4で約1200px幅）。
-                          maximumDpi: 144,
-                          // 既定のドロップシャドウは使わない（影は不使用の方針）。
-                          decoration: const BoxDecoration(color: Colors.white),
+          child: ZoomReporter(
+            controller: _transformationController,
+            child: InteractiveViewer(
+              transformationController: _transformationController,
+              maxScale: 5,
+              child: SizedBox.expand(
+                child: Center(
+                  // 書面自身のタップは何もしない（外側のタップだけが閉じる）。
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () {},
+                    child: SizedBox(
+                      width: width,
+                      height: height,
+                      child: FittedBox(
+                        child: SizedBox(
+                          width: width * 2,
+                          height: height * 2,
+                          child: PdfPageView(
+                            document: widget.document,
+                            pageNumber: widget.index + 1,
+                            // 描画が重くならないよう、解像度の上限を下げる
+                            // （既定300dpi→144dpi。A4で約1200px幅）。
+                            maximumDpi: 144,
+                            // 既定のドロップシャドウは使わない（影は不使用の方針）。
+                            decoration: const BoxDecoration(
+                              color: Colors.white,
+                            ),
+                          ),
                         ),
                       ),
                     ),

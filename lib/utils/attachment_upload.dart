@@ -8,7 +8,9 @@ import 'package:flutter_image_compress/flutter_image_compress.dart';
 
 import '../models/message.dart';
 import 'file_extension_policy.dart';
+import 'audio_only_mp4.dart';
 import 'image_format.dart';
+import 'sound_upload.dart' show soundMimeTypeFor;
 
 /// 容量上限（[kMaxAttachmentSizeBytes]）超過。呼び出し元（UIの
 /// `_handleAttachmentPicked`）が`Strings.chatAttachmentTooLargeMessage`を
@@ -62,6 +64,13 @@ Future<MessageFileMetadata> uploadMessageAttachment({
   var uploadBytes = bytes;
   var extension = _extensionOf(fileName);
   var mimeType = _guessMimeType(extension, kind);
+  // 音声だけのmp4等は、再生側が音声と分かるようMIMEを音声にする。
+  if (kind == 'file' && isAudioOnlyIsoBmff(bytes)) {
+    mimeType = 'audio/mp4';
+  } else if (kind == 'file' && mimeType == 'application/octet-stream') {
+    final audioMime = soundMimeTypeFor(extension);
+    if (audioMime != 'application/octet-stream') mimeType = audioMime;
+  }
   String? compressionType;
 
   if (kind == 'image') {

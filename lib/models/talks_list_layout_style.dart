@@ -15,7 +15,7 @@ enum TalksListLayoutStyle {
   static TalksListLayoutStyle fromName(String? name) {
     return TalksListLayoutStyle.values.firstWhere(
       (style) => style.name == name,
-      orElse: () => TalksListLayoutStyle.standard,
+      orElse: () => TalksListLayoutStyle.iconSplit,
     );
   }
 }

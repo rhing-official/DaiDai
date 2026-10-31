@@ -69,6 +69,9 @@ abstract class UserRepository {
   /// 蔵の誕生日を保存する。[birthday]がnullなら削除する（2026-10-23追加）。
   Future<void> setBirthday(String userId, Map<String, dynamic>? birthday);
 
+  /// Rhing Seedの入力検索に出るかを保存する（2026-10-31追加、[AppUser.seedSearchable]）。
+  Future<void> setSeedSearchable(String userId, bool searchable);
+
   /// 端末をまたいで同期する表示設定（[AppUserPreferences]）を1項目だけ
   /// ドット記法（`preferences.$field`）で部分更新する。他のフィールドや
   /// 未変更の設定項目には影響しない。
@@ -348,6 +351,11 @@ class FirestoreUserRepository implements UserRepository {
     await _users.doc(userId).update({
       'birthday': birthday ?? FieldValue.delete(),
     });
+  }
+
+  @override
+  Future<void> setSeedSearchable(String userId, bool searchable) async {
+    await _users.doc(userId).update({'seedSearchable': searchable});
   }
 
   @override

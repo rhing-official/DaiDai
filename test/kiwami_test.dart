@@ -111,7 +111,7 @@ void main() {
         FontDesign.popRumCute,
       });
       expect(FontDesign.notoSansJp.isKiwamiExclusive, isFalse);
-      expect(FontDesign.fromName(null), FontDesign.notoSansJp);
+      expect(FontDesign.fromName(null), FontDesign.zenMaruGothic);
     });
 
     test('極みでない人は、極み限定の選択でも表示は標準に戻る（保存値は変えない）', () {

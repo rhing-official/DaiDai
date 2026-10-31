@@ -214,6 +214,12 @@ class PinchPriorityPageView extends StatefulWidget {
 
 class _PinchPriorityPageViewState extends State<PinchPriorityPageView> {
   int _pointerCount = 0;
+  bool _zoomed = false;
+
+  void _reportZoomed(bool zoomed) {
+    if (_zoomed == zoomed) return;
+    setState(() => _zoomed = zoomed);
+  }
 
   void _incrementPointer(PointerDownEvent _) {
     setState(() => _pointerCount++);
@@ -233,22 +239,124 @@ class _PinchPriorityPageViewState extends State<PinchPriorityPageView> {
       physics: isMultiTouch
           ? const NeverScrollableScrollPhysics()
           : const _EasySwipePageScrollPhysics(),
-      onPageChanged: widget.onPageChanged,
+      onPageChanged: (index) {
+        // 切り替え先は等倍から始まる。
+        if (_zoomed) setState(() => _zoomed = false);
+        widget.onPageChanged?.call(index);
+      },
       itemCount: widget.itemCount,
       itemBuilder: widget.itemBuilder,
     );
+    return ViewerZoomScope(
+      report: _reportZoomed,
+      child: Listener(
+        behavior: HitTestBehavior.translucent,
+        onPointerDown: _incrementPointer,
+        onPointerUp: _decrementPointer,
+        onPointerCancel: _decrementPointer,
+        child: widget.onDismiss == null
+            ? pageView
+            : SwipeDownToDismiss(
+                onDismiss: widget.onDismiss!,
+                // 拡大中は下スワイプで閉じず、拡大した内容を動かせるようにする。
+                enabled: !isMultiTouch && !_zoomed,
+                child: pageView,
+              ),
+      ),
+    );
+  }
+}
+
+/// 拡大表示中のページが、拡大中かどうかを[PinchPriorityPageView]へ伝えるための
+/// 窓口（2026-10-31追加）。拡大中は下スワイプで閉じる操作を止める。
+class ViewerZoomScope extends InheritedWidget {
+  const ViewerZoomScope({
+    required this.report,
+    required super.child,
+    super.key,
+  });
+
+  final ValueChanged<bool> report;
+
+  static ValueChanged<bool>? maybeReportOf(BuildContext context) =>
+      context.getInheritedWidgetOfExactType<ViewerZoomScope>()?.report;
+
+  @override
+  bool updateShouldNotify(ViewerZoomScope oldWidget) => false;
+}
+
+/// [controller]（`InteractiveViewer`の`TransformationController`）の拡大率を
+/// 見て、拡大中かどうかを[ViewerZoomScope]へ報告する。拡大中の判定は、
+/// タップで閉じる判定と同じ1.01倍超。
+class ZoomReporter extends StatefulWidget {
+  const ZoomReporter({
+    required this.controller,
+    required this.child,
+    super.key,
+  });
+
+  final TransformationController controller;
+  final Widget child;
+
+  @override
+  State<ZoomReporter> createState() => _ZoomReporterState();
+}
+
+class _ZoomReporterState extends State<ZoomReporter> {
+  @override
+  void initState() {
+    super.initState();
+    widget.controller.addListener(_onChanged);
+  }
+
+  @override
+  void didUpdateWidget(ZoomReporter oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller != widget.controller) {
+      oldWidget.controller.removeListener(_onChanged);
+      widget.controller.addListener(_onChanged);
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_onChanged);
+    super.dispose();
+  }
+
+  void _onChanged() {
+    final zoomed = widget.controller.value.getMaxScaleOnAxis() > 1.01;
+    ViewerZoomScope.maybeReportOf(context)?.call(zoomed);
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
+}
+
+/// マウスホイールのスクロールを、子孫のスクロール領域が端に達した後も外側
+/// （メッセージ一覧等）へ渡さないようにする（2026-10-31追加）。内側が
+/// スクロールできる間は内側が先に処理し、端で内側が受け取らなくなった時だけ
+/// ここで消費する。[enabled]がfalseなら何もしない（従来どおり外側へ渡る）。
+class WheelScrollAbsorber extends StatelessWidget {
+  const WheelScrollAbsorber({
+    required this.child,
+    this.enabled = true,
+    super.key,
+  });
+
+  final Widget child;
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!enabled) return child;
     return Listener(
-      behavior: HitTestBehavior.translucent,
-      onPointerDown: _incrementPointer,
-      onPointerUp: _decrementPointer,
-      onPointerCancel: _decrementPointer,
-      child: widget.onDismiss == null
-          ? pageView
-          : SwipeDownToDismiss(
-              onDismiss: widget.onDismiss!,
-              enabled: !isMultiTouch,
-              child: pageView,
-            ),
+      onPointerSignal: (event) {
+        if (event is PointerScrollEvent) {
+          GestureBinding.instance.pointerSignalResolver.register(event, (_) {});
+        }
+      },
+      child: child,
     );
   }
 }

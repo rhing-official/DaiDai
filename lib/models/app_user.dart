@@ -55,6 +55,7 @@ class AppUser {
     this.googleCalendarSyncEnabled,
     this.googleCalendarId,
     this.pushNotificationsEnabled,
+    this.seedSearchable,
   });
 
   final String userId;
@@ -197,6 +198,15 @@ class AppUser {
   /// あくまで「この端末にDaiDaiが通知を送るかどうか」を表す。
   final bool? pushNotificationsEnabled;
 
+  /// 他の住人が「＋」の友達申請でRhing Seedを入力して自分を検索できるか（2026-10-31追加）。
+  /// null=未設定（検索できる、従来どおり）、false=検索に出ない。招待リンク・QRコードからの
+  /// 申請には影響しない。`users`は全住人が読めるため、これはアプリ上の振る舞いを変えるだけで
+  /// データの秘匿ではない。
+  final bool? seedSearchable;
+
+  /// [seedSearchable]の解決済み（未設定は検索できる）。
+  bool get isSeedSearchable => seedSearchable != false;
+
   ProfileMaterial? get activeIcon => _findMaterial(icons, activeIconId);
   ProfileMaterial? get activeBackgroundImage =>
       _findMaterial(backgroundImages, activeBackgroundImageId);
@@ -333,6 +343,10 @@ class AppUser {
   Birthday? effectiveBirthdayFor(String? conversationId) =>
       (profileCardFor(conversationId)?.showBirthday ?? false) ? birthday : null;
 
+  /// [conversationId]で見せるカードが、Rhing Seedを載せる設定（[ProfileCard.showRhingSeed]）か。
+  bool effectiveShowRhingSeedFor(String? conversationId) =>
+      profileCardFor(conversationId)?.showRhingSeed ?? false;
+
   /// [effectiveSnsLinks]の会話対応版。
   List<SnsLink> effectiveSnsLinksFor(String? conversationId) {
     final card = profileCardFor(conversationId);
@@ -439,6 +453,7 @@ class AppUser {
       preferences: preferences,
       subscriptionPlan: subscriptionPlan,
       inviteLinkSalt: inviteLinkSalt,
+      seedSearchable: seedSearchable,
     );
   }
 
@@ -493,6 +508,7 @@ class AppUser {
       googleCalendarSyncEnabled: json['googleCalendarSyncEnabled'] as bool?,
       googleCalendarId: json['googleCalendarId'] as String?,
       pushNotificationsEnabled: json['pushNotificationsEnabled'] as bool?,
+      seedSearchable: json['seedSearchable'] as bool?,
     );
   }
 
@@ -530,6 +546,7 @@ class AppUser {
       'googleCalendarSyncEnabled': googleCalendarSyncEnabled,
       'googleCalendarId': googleCalendarId,
       'pushNotificationsEnabled': pushNotificationsEnabled,
+      'seedSearchable': seedSearchable,
     };
   }
 

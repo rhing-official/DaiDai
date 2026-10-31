@@ -8,6 +8,14 @@ const int kMaxSoundUploadSizeBytes = 3 * 1024 * 1024;
 
 const Set<String> kAllowedSoundExtensions = {'mp3', 'wav', 'm4a', 'ogg', 'aac'};
 
+/// チャット添付で音声としてインライン再生する拡張子（2026-10-31追加）。
+/// 着信音の許可集合（[kAllowedSoundExtensions]、3MB上限）とは分け、
+/// 可逆圧縮のflacは添付の再生だけに足す。
+const Set<String> kPlayableAudioExtensions = {
+  ...kAllowedSoundExtensions,
+  'flac',
+};
+
 /// [kMaxSoundUploadSizeBytes]超過。呼び出し元のUIがエラーメッセージを
 /// 出し分けるための専用型（`attachment_upload.dart`の
 /// `AttachmentTooLargeException`と同じ考え方）。
@@ -43,5 +51,6 @@ String soundMimeTypeFor(String extension) => switch (extension) {
   'm4a' => 'audio/mp4',
   'ogg' => 'audio/ogg',
   'aac' => 'audio/aac',
+  'flac' => 'audio/flac',
   _ => 'application/octet-stream',
 };

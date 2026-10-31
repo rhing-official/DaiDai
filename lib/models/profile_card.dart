@@ -138,6 +138,7 @@ class ProfileCard {
     this.textAlign,
     this.fontColorArgb,
     this.showBirthday = false,
+    this.showRhingSeed = false,
   });
 
   final String id;
@@ -176,6 +177,10 @@ class ProfileCard {
   /// 蔵の誕生日（[AppUser.birthday]）をこのカードに載せるか（2026-10-23追加、既定は載せない）。
   final bool showBirthday;
 
+  /// 自分のRhing Seed（`@seed`）をこのカードに載せるか（2026-10-31追加、既定は載せない）。
+  /// 見た人が同名の友達を区別したり、紹介・通報で相手を特定したりできるようにする。
+  final bool showRhingSeed;
+
   ProfileCard copyWith({
     String? name,
     String? iconId,
@@ -200,6 +205,7 @@ class ProfileCard {
     int? fontColorArgb,
     bool clearFontColor = false,
     bool? showBirthday,
+    bool? showRhingSeed,
   }) {
     return ProfileCard(
       id: id,
@@ -228,6 +234,7 @@ class ProfileCard {
           ? null
           : (fontColorArgb ?? this.fontColorArgb),
       showBirthday: showBirthday ?? this.showBirthday,
+      showRhingSeed: showRhingSeed ?? this.showRhingSeed,
     );
   }
 
@@ -247,6 +254,7 @@ class ProfileCard {
       textAlign: CardTextAlign.tryParse(json['textAlign']),
       fontColorArgb: json['fontColor'] as int?,
       showBirthday: json['showBirthday'] == true,
+      showRhingSeed: json['showRhingSeed'] == true,
     );
   }
 
@@ -266,6 +274,7 @@ class ProfileCard {
       if (textAlign != null) 'textAlign': textAlign!.name,
       if (fontColorArgb != null) 'fontColor': fontColorArgb,
       if (showBirthday) 'showBirthday': true,
+      if (showRhingSeed) 'showRhingSeed': true,
     };
   }
 }

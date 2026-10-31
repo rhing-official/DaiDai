@@ -1,12 +1,16 @@
 import 'dart:typed_data';
 
+import 'package:camera/camera.dart' show availableCameras;
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../l10n/strings.dart';
 import '../../models/message.dart';
 import '../../utils/attachment_upload.dart';
+import '../../utils/camera_presence/camera_presence.dart';
+import '../../utils/audio_only_mp4.dart';
 import '../../utils/drag_menu_geometry.dart';
 import '../../widgets/gekiga/gekiga_icon_badge.dart';
 import 'camera_capture_screen.dart';
@@ -70,8 +74,32 @@ class _AttachmentPopupButtonState extends State<AttachmentPopupButton> {
   final _highlightIndex = ValueNotifier<int>(-1);
   OverlayEntry? _overlayEntry;
   DragMenuGeometry? _geometry;
-  List<({_AttachmentMenuItem item, String label})> _items = const [];
+  List<({_AttachmentMenuItem item, String label, IconData icon})> _items =
+      const [];
   Offset? _pointerDownPosition;
+
+  /// 端末にカメラがあるか（2026-10-31追加）。無ければメニューから撮影を外す。
+  /// 確認できるまで・確認に失敗した時は、従来どおり表示する。
+  static Future<bool>? _hasCameraFuture;
+  bool _hasCamera = true;
+
+  static Future<bool> _detectCamera() async {
+    if (kIsWeb) return await webHasCamera() ?? true;
+    try {
+      return (await availableCameras()).isNotEmpty;
+    } catch (_) {
+      return true;
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _hasCameraFuture ??= _detectCamera();
+    _hasCameraFuture!.then((has) {
+      if (mounted) _hasCamera = has;
+    });
+  }
 
   @override
   void dispose() {
@@ -86,14 +114,31 @@ class _AttachmentPopupButtonState extends State<AttachmentPopupButton> {
     _geometry = null;
   }
 
-  List<({_AttachmentMenuItem item, String label})> _buildItems(
+  List<({_AttachmentMenuItem item, String label, IconData icon})> _buildItems(
     Strings strings,
   ) {
     return [
-      (item: _AttachmentMenuItem.file, label: strings.chatAttachFile),
-      (item: _AttachmentMenuItem.image, label: strings.chatAttachImage),
-      (item: _AttachmentMenuItem.video, label: strings.chatAttachVideo),
-      (item: _AttachmentMenuItem.capture, label: strings.chatAttachCapture),
+      (
+        item: _AttachmentMenuItem.file,
+        label: strings.chatAttachFile,
+        icon: Icons.attach_file,
+      ),
+      (
+        item: _AttachmentMenuItem.image,
+        label: strings.chatAttachImage,
+        icon: Icons.image_outlined,
+      ),
+      (
+        item: _AttachmentMenuItem.video,
+        label: strings.chatAttachVideo,
+        icon: Icons.videocam_outlined,
+      ),
+      if (_hasCamera)
+        (
+          item: _AttachmentMenuItem.capture,
+          label: strings.chatAttachCapture,
+          icon: Icons.photo_camera_outlined,
+        ),
     ];
   }
 
@@ -153,11 +198,13 @@ class _AttachmentPopupButtonState extends State<AttachmentPopupButton> {
       final isVideo =
           isVideoFileName(file.name, mimeType: file.mimeType) ||
           looksLikeVideoBytes(bytes);
+      // 音声だけのmp4は動画ではなく、音声ファイルとして送る。
+      final isAudio = isVideo && isAudioOnlyIsoBmff(bytes);
       attachments.add(
         PickedAttachment(
           bytes: bytes,
           fileName: file.name,
-          contentType: isVideo ? 'video' : 'image',
+          contentType: isAudio ? 'file' : (isVideo ? 'video' : 'image'),
         ),
       );
     }
@@ -206,7 +253,8 @@ class _AttachmentPopupButtonState extends State<AttachmentPopupButton> {
       )..layout();
       if (painter.width > maxLabelWidth) maxLabelWidth = painter.width;
     }
-    final menuWidth = (maxLabelWidth + hPad * 2).clamp(140.0, 280.0);
+    // アイコン（20）と間隔（12）の分を足す。
+    final menuWidth = (maxLabelWidth + hPad * 2 + 32).clamp(140.0, 280.0);
     final menuHeight = kDragMenuItemHeight * items.length;
 
     // ポップアップは＋ボタンのすぐ上に開く（技術仕様書5.6参照）。
@@ -270,15 +318,29 @@ class _AttachmentPopupButtonState extends State<AttachmentPopupButton> {
                           color: i == highlighted
                               ? colorScheme.primary.withValues(alpha: 0.12)
                               : Colors.transparent,
-                          child: Text(
-                            items[i].label,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: textStyle.copyWith(
-                              color: i == highlighted
-                                  ? colorScheme.primary
-                                  : null,
-                            ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                items[i].icon,
+                                size: 20,
+                                color: i == highlighted
+                                    ? colorScheme.primary
+                                    : colorScheme.onSurface,
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  items[i].label,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: textStyle.copyWith(
+                                    color: i == highlighted
+                                        ? colorScheme.primary
+                                        : null,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ),
@@ -335,10 +397,13 @@ class _AttachmentPopupButtonState extends State<AttachmentPopupButton> {
               child: GekigaIconBadge(icon: Icons.add, size: 32),
             )
           : Padding(
-              padding: const EdgeInsets.all(12),
+              // 周りの丸は付けず、大きい＋だけにする（2026-10-31）。タップ領域の
+              // 大きさは送信ボタンと同じ（32+8*2=48）。
+              padding: const EdgeInsets.all(8),
               child: Icon(
-                Icons.add_circle_outline,
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                Icons.add,
+                size: 32,
+                color: Theme.of(context).colorScheme.onSurface,
               ),
             ),
     );

@@ -291,8 +291,8 @@ void main() {
     expect(find.text('2段階認証'), findsOneWidget);
     expect(find.text('パスキー'), findsOneWidget);
     expect(find.text('QRコードによるログイン'), findsOneWidget);
-    expect(find.text('ログアウト'), findsOneWidget);
-    // 極みの行を足してページが長くなり、最下部は表示領域の外になりうるため
+    expect(find.text('ログアウト', skipOffstage: false), findsOneWidget);
+    // 行を足してページが長くなり、下の方は表示領域の外になりうるため
     // 画面外の要素も探す。
     expect(find.text('アカウントを削除', skipOffstage: false), findsOneWidget);
 

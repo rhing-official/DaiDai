@@ -69,7 +69,9 @@ class _AddChatDialogContentState extends ConsumerState<AddChatDialogContent> {
   /// 申請に添える任意メッセージ（技術仕様書8.3レイヤー2、2026-09-07追加）。
   final _messageController = TextEditingController();
 
-  Future<void> _search() async {
+  /// [viaInvite]は招待リンク・QRコードから来た検索。Rhing Seedの入力検索に出ない設定
+  /// （[AppUser.seedSearchable]がfalse）の相手も、こちらからは申請できる。
+  Future<void> _search({bool viaInvite = false}) async {
     final strings = ref.read(appStringsProvider);
     final rhingSeed = _controller.text.trim().toLowerCase().replaceFirst(
       RegExp(r'^@+'),
@@ -86,7 +88,10 @@ class _AddChatDialogContentState extends ConsumerState<AddChatDialogContent> {
     try {
       final userRepository = ref.read(userRepositoryProvider);
       final other = await userRepository.findByRhingSeed(rhingSeed);
-      if (other == null) {
+      if (other == null ||
+          (!viaInvite &&
+              !other.isSeedSearchable &&
+              other.userId != widget.currentUser.userId)) {
         setState(() => _errorMessage = strings.friendSearchNotFound);
         return;
       }
@@ -155,7 +160,7 @@ class _AddChatDialogContentState extends ConsumerState<AddChatDialogContent> {
       return;
     }
     _controller.text = '@$rhingSeed';
-    await _search();
+    await _search(viaInvite: true);
   }
 
   void _cancelPending() {

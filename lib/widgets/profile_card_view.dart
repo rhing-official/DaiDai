@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 import '../models/profile_card.dart';
@@ -49,6 +52,9 @@ class ProfileCardView extends StatelessWidget {
     this.snsLinks = const [],
     this.onOpenSnsLink,
     this.birthdayLabel,
+    this.rhingSeedLabel,
+    this.rhingSeedCopyText,
+    this.rhingSeedCopiedLabel,
     this.borderRadius = const BorderRadius.all(Radius.circular(16)),
     this.fontFamily,
     this.backgroundFocal,
@@ -80,6 +86,14 @@ class ProfileCardView extends StatelessWidget {
 
   /// 誕生日の表示文字列（見る人の言語で整形済み、2026-10-23追加）。nullなら出さない。
   final String? birthdayLabel;
+
+  /// Rhing Seedの表示文字列（`@seed`、2026-10-31追加）。nullなら出さない。
+  final String? rhingSeedLabel;
+
+  /// 渡すと、Rhing Seedの行をタップしてこの文字列をコピーできる（相手のカードを見る
+  /// ダイアログ用）。コピー直後は[rhingSeedCopiedLabel]に1.5秒だけ置き換わる。
+  final String? rhingSeedCopyText;
+  final String? rhingSeedCopiedLabel;
   final BorderRadius borderRadius;
 
   /// カード作者が蔵で明示的に選んだフォントデザイン（2026-09-26追加）。
@@ -191,6 +205,19 @@ class ProfileCardView extends StatelessWidget {
                   SizedBox(height: padding * 0.3),
                   ProfileCardBirthdayLine(
                     label: birthdayLabel!,
+                    fontSize: statusFontSize,
+                    color: subtitleColor,
+                    fontFamily: fontFamily,
+                    crossAxisAlignment:
+                        (textAlign ?? CardTextAlign.start).crossAxisAlignment,
+                  ),
+                ],
+                if (rhingSeedLabel != null && rhingSeedLabel!.isNotEmpty) ...[
+                  SizedBox(height: padding * 0.3),
+                  ProfileCardRhingSeedLine(
+                    label: rhingSeedLabel!,
+                    copyText: rhingSeedCopyText,
+                    copiedLabel: rhingSeedCopiedLabel,
                     fontSize: statusFontSize,
                     color: subtitleColor,
                     fontFamily: fontFamily,
@@ -317,6 +344,71 @@ class ProfileCardBirthdayLine extends StatelessWidget {
     return onTap == null
         ? aligned
         : GestureDetector(onTap: onTap, child: aligned);
+  }
+}
+
+/// カード内のRhing Seedの行（`@seed`、2026-10-31追加。誕生日の下に置く）。工房の編集画面では
+/// [onTap]で表示のオン/オフを切り替え、[dimmed]で「表示しない」状態を薄く示す。相手のカードを
+/// 見る画面では[copyText]を渡すと、タップでコピーして[copiedLabel]を1.5秒だけ出す。
+class ProfileCardRhingSeedLine extends StatefulWidget {
+  const ProfileCardRhingSeedLine({
+    required this.label,
+    required this.fontSize,
+    required this.color,
+    this.onTap,
+    this.copyText,
+    this.copiedLabel,
+    this.dimmed = false,
+    this.fontFamily,
+    this.crossAxisAlignment = CrossAxisAlignment.start,
+    super.key,
+  });
+
+  final String label;
+  final double fontSize;
+  final Color? color;
+  final VoidCallback? onTap;
+  final String? copyText;
+  final String? copiedLabel;
+  final bool dimmed;
+  final String? fontFamily;
+  final CrossAxisAlignment crossAxisAlignment;
+
+  @override
+  State<ProfileCardRhingSeedLine> createState() =>
+      _ProfileCardRhingSeedLineState();
+}
+
+class _ProfileCardRhingSeedLineState extends State<ProfileCardRhingSeedLine> {
+  bool _copied = false;
+  Timer? _resetTimer;
+
+  @override
+  void dispose() {
+    _resetTimer?.cancel();
+    super.dispose();
+  }
+
+  void _copy() {
+    Clipboard.setData(ClipboardData(text: widget.copyText!));
+    setState(() => _copied = true);
+    _resetTimer?.cancel();
+    _resetTimer = Timer(const Duration(milliseconds: 1500), () {
+      if (mounted) setState(() => _copied = false);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ProfileCardBirthdayLine(
+      label: _copied ? (widget.copiedLabel ?? widget.label) : widget.label,
+      fontSize: widget.fontSize,
+      color: widget.color,
+      dimmed: widget.dimmed,
+      fontFamily: widget.fontFamily,
+      crossAxisAlignment: widget.crossAxisAlignment,
+      onTap: widget.onTap ?? (widget.copyText == null ? null : _copy),
+    );
   }
 }
 

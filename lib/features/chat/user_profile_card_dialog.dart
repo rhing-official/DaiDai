@@ -248,6 +248,7 @@ class _UserProfileCardDialogState extends ConsumerState<UserProfileCardDialog> {
                           height: box.maxHeight,
                           // URLはカード内にアイコン付きで出し、タップで開く（2026-10-31）。
                           onOpenSnsLink: (link) => openSnsLink(link.url),
+                          copyRhingSeed: true,
                         ),
                       ),
                       // 自分のカードには、他のユーザーの「一対へ」の飛行機の代わりに、

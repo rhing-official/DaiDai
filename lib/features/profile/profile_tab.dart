@@ -2040,6 +2040,9 @@ class _WorkshopCardSlot extends StatelessWidget {
                               user,
                               card,
                             ),
+                            rhingSeedLabel: card.showRhingSeed
+                                ? '@${user.rhingSeed}'
+                                : null,
                             borderRadius: BorderRadius.circular(16),
                             fontFamily: fontFamily,
                           ),
@@ -3746,6 +3749,15 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
     await _persist();
   }
 
+  /// 自分のRhing Seedをこのカードに載せるかを切り替える（2026-10-31）。誕生日と違い
+  /// 蔵への登録は要らない（常に持っている）。
+  Future<void> _toggleRhingSeed() async {
+    setState(() {
+      _card = _card.copyWith(showRhingSeed: !_card.showRhingSeed);
+    });
+    await _persist();
+  }
+
   /// 文字色をカラーコード・プリセットで選ぶ（2026-10-31）。決定ボタンは無く、
   /// 6桁・8桁を入力し終えた時やプリセットを選んだ時に、その場で反映する。
   Future<void> _pickFontColor() async {
@@ -4242,6 +4254,24 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
                                                     CardTextAlign.start)
                                                 .crossAxisAlignment,
                                       ),
+                                      // Rhing Seed（下のスイッチがオンの時だけ、誕生日の下に
+                                      // プレビューとして出す、2026-10-31）。
+                                      if (card.showRhingSeed) ...[
+                                        const SizedBox(
+                                          height: kProfileCardPadding * 0.3,
+                                        ),
+                                        ProfileCardRhingSeedLine(
+                                          label: '@${widget.user.rhingSeed}',
+                                          fontSize:
+                                              kProfileCardStatusFontSize * 0.9,
+                                          color: statusColor,
+                                          fontFamily: fontFamily,
+                                          crossAxisAlignment:
+                                              (card.textAlign ??
+                                                      CardTextAlign.start)
+                                                  .crossAxisAlignment,
+                                        ),
+                                      ],
                                     ],
                                   ),
                                   if (_focalEditing != null)
@@ -4277,6 +4307,8 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
                           const SizedBox(height: 8),
                           _CardLayoutPicker(
                             width: width,
+                            showRhingSeed: card.showRhingSeed,
+                            onShowRhingSeedChanged: (_) => _toggleRhingSeed(),
                             layoutPreset:
                                 card.layoutPreset ??
                                 CardLayoutPreset.bottomLeft,
@@ -4631,7 +4663,7 @@ class _CardFontRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: width,
+      width: _cardEditRowWidth(width),
       child: Row(
         children: [
           SizedBox(
@@ -4692,9 +4724,15 @@ class _CardLayoutPicker extends StatelessWidget {
     required this.strings,
     required this.onLayoutChanged,
     required this.onAlignChanged,
+    required this.showRhingSeed,
+    required this.onShowRhingSeedChanged,
   });
 
   final double width;
+
+  /// このカードにRhing Seedを載せるか（配置の上のトグル、2026-10-31）。
+  final bool showRhingSeed;
+  final ValueChanged<bool> onShowRhingSeedChanged;
   final CardLayoutPreset layoutPreset;
   final CardTextAlign textAlign;
   final Strings strings;
@@ -4785,11 +4823,31 @@ class _CardLayoutPicker extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: width,
+      width: _cardEditRowWidth(width),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Row(
+            children: [
+              SizedBox(
+                width: _cardEditLabelWidth(width),
+                child: Text(
+                  _cardEditLabel(
+                    width,
+                    strings.workshopRhingSeedFieldLabel,
+                    strings.workshopRhingSeedFieldShortLabel,
+                  ),
+                  style: const TextStyle(color: Colors.white70, fontSize: 12),
+                ),
+              ),
+              Switch(
+                value: showRhingSeed,
+                onChanged: onShowRhingSeedChanged,
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+            ],
+          ),
           _dropdownRow<CardLayoutPreset>(
             title: strings.workshopLayoutLabel,
             value: layoutPreset,
@@ -4822,7 +4880,12 @@ class _CardLayoutPicker extends StatelessWidget {
 /// カード編集の下の各行（配置・揃え・フォントデザイン・フォントカラー）のラベル欄の幅
 /// （カードの幅[cardWidth]から決める、2026-10-31）。カードが狭くて正式名称が入り切らない
 /// 時は狭い欄にし、フォントの2行は略称（[_cardEditLabel]）にする。全行で幅を揃える。
-double _cardEditLabelWidth(double cardWidth) => cardWidth >= 320 ? 96 : 52;
+double _cardEditLabelWidth(double cardWidth) => cardWidth >= 320 ? 112 : 56;
+
+/// カード編集の下の各行（ラベル＋プルダウン・スイッチ）全体の幅。カードの幅いっぱいには
+/// 広げず、ラベル欄＋操作欄の幅にして、親の中央に寄せる（2026-10-31）。全行で揃える。
+double _cardEditRowWidth(double cardWidth) =>
+    (_cardEditLabelWidth(cardWidth) + 168).clamp(0.0, cardWidth);
 
 /// ラベル欄に入り切るなら正式名称、入り切らなければ略称。
 String _cardEditLabel(double cardWidth, String full, String short) =>
@@ -4847,7 +4910,7 @@ class _CardFontColorRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: width,
+      width: _cardEditRowWidth(width),
       child: Row(
         children: [
           SizedBox(
