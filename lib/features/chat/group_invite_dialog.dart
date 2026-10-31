@@ -2,7 +2,6 @@ import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
@@ -11,6 +10,7 @@ import '../../models/app_ui_style.dart';
 import '../../models/group_profile_card.dart';
 import '../../providers/app_ui_style_provider.dart';
 import '../../utils/web_link.dart';
+import '../../widgets/copy_link_row.dart';
 import '../../widgets/glass/glass_dialog.dart';
 import '../../widgets/dialog_keyboard_shortcuts.dart';
 
@@ -94,17 +94,7 @@ class GroupInviteDialog extends ConsumerWidget {
               border: Border.all(color: colorScheme.outlineVariant),
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Row(
-              children: [
-                Expanded(child: SelectableText(link, maxLines: 1)),
-                IconButton(
-                  icon: const Icon(Icons.copy_outlined),
-                  onPressed: () {
-                    Clipboard.setData(ClipboardData(text: link));
-                  },
-                ),
-              ],
-            ),
+            child: CopyLinkRow(link: link),
           ),
           const SizedBox(height: 16),
           Center(

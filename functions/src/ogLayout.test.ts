@@ -22,6 +22,10 @@ test("プリセットごとの縦横位置と暗幕", () => {
   const top = resolveOgLayout("topLeft", undefined);
   assert.equal(top.justifyContent, "flex-start");
   assert.ok(top.scrim.includes("to top"));
+  const topRight = resolveOgLayout("topRight", undefined);
+  assert.equal(topRight.justifyContent, "flex-start");
+  assert.equal(topRight.alignSelfX, "flex-end");
+  assert.ok(topRight.scrim.includes("to top"));
   const center = resolveOgLayout("center", undefined);
   assert.equal(center.justifyContent, "center");
   assert.equal(center.alignSelfX, "center");

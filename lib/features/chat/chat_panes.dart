@@ -257,6 +257,36 @@ class DmChatPane extends ConsumerStatefulWidget {
 }
 
 class _DmChatPaneState extends ConsumerState<DmChatPane> {
+  /// 開いている寄合の未読数が0より大きくなったら、すぐ0に戻す（2026-10-31）。
+  /// 未読数はサーバー（Cloud Functions）が、メッセージが作られた後に加算するため、
+  /// 画面がメッセージを受け取って既読にした（0へ戻した）直後に、遅れて+1されることが
+  /// あり、開いたままでも数字が残っていた。未読数の変化を見て、開いている間は戻し直す。
+  bool _unreadResetPending = false;
+
+  void _resetUnreadWhileViewing(
+    String conversationId,
+    String roomId,
+    int count,
+  ) {
+    if (count <= 0 || _unreadResetPending) return;
+    _unreadResetPending = true;
+    Future.microtask(() async {
+      try {
+        await ref
+            .read(conversationPrefsRepositoryProvider)
+            .setLastRead(
+              userId: widget.currentUser.userId,
+              conversationId: conversationId,
+              roomId: roomId,
+            );
+      } catch (_) {
+        // 失敗しても次の未読数の変化・再構築で、もう一度試す。
+      } finally {
+        _unreadResetPending = false;
+      }
+    });
+  }
+
   /// ハンバーガーメニューボタンの位置を、AppBarの他のポップアップボタン
   /// （ピン留め・アルバム・ノート・投票）が狭い画面でのポップアップ位置の
   /// 基準にするための共有キー（2026-09-12追加、`button_anchored_menu.dart`
@@ -589,6 +619,7 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
             .value?[dm.dmId]
             ?.unreadByRoom ??
         const <String, int>{};
+    _resetUnreadWhileViewing(dm.dmId, roomId, unreadByRoom[roomId] ?? 0);
     final roomTabBarWidget = (!showRoomTabBar || rooms == null)
         ? null
         : RoomTabBar(
@@ -725,6 +756,13 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
             conversationHasKiwamiProvider(
               ([...dm.participants]..sort()).join(','),
             ),
+          ),
+      onViewed: () => ref
+          .read(conversationPrefsRepositoryProvider)
+          .setLastRead(
+            userId: currentUser.userId,
+            conversationId: dm.dmId,
+            roomId: roomId,
           ),
       onMarkRead: (messageIds) => _afterMutation(
         () async {
@@ -2090,6 +2128,36 @@ class GroupChatPane extends ConsumerStatefulWidget {
 }
 
 class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
+  /// 開いている寄合の未読数が0より大きくなったら、すぐ0に戻す（2026-10-31）。
+  /// 未読数はサーバー（Cloud Functions）が、メッセージが作られた後に加算するため、
+  /// 画面がメッセージを受け取って既読にした（0へ戻した）直後に、遅れて+1されることが
+  /// あり、開いたままでも数字が残っていた。未読数の変化を見て、開いている間は戻し直す。
+  bool _unreadResetPending = false;
+
+  void _resetUnreadWhileViewing(
+    String conversationId,
+    String roomId,
+    int count,
+  ) {
+    if (count <= 0 || _unreadResetPending) return;
+    _unreadResetPending = true;
+    Future.microtask(() async {
+      try {
+        await ref
+            .read(conversationPrefsRepositoryProvider)
+            .setLastRead(
+              userId: widget.currentUser.userId,
+              conversationId: conversationId,
+              roomId: roomId,
+            );
+      } catch (_) {
+        // 失敗しても次の未読数の変化・再構築で、もう一度試す。
+      } finally {
+        _unreadResetPending = false;
+      }
+    });
+  }
+
   /// ハンバーガーメニューボタンの位置を、AppBarの他のポップアップボタン
   /// （ピン留め・アルバム・ノート・投票）が狭い画面でのポップアップ位置の
   /// 基準にするための共有キー（2026-09-12追加、`button_anchored_menu.dart`
@@ -2564,6 +2632,7 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
             .value?[group.groupId]
             ?.unreadByRoom ??
         const <String, int>{};
+    _resetUnreadWhileViewing(group.groupId, roomId, unreadByRoom[roomId] ?? 0);
     final roomTabBarWidget = !widget.showRoomTabBar || !group.roomsEnabled
         ? null
         : RoomTabBar(
@@ -2721,6 +2790,13 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
             conversationHasKiwamiProvider(
               ([...group.memberIds]..sort()).join(','),
             ),
+          ),
+      onViewed: () => ref
+          .read(conversationPrefsRepositoryProvider)
+          .setLastRead(
+            userId: currentUser.userId,
+            conversationId: group.groupId,
+            roomId: roomId,
           ),
       onMarkRead: (messageIds) => _afterMutation(
         () async {

@@ -64,6 +64,7 @@ enum CardLayoutPreset {
   bottomLeft,
   bottomCenter,
   topLeft,
+  topRight,
   center,
   bottomRight;
 
@@ -80,11 +81,12 @@ enum CardLayoutPreset {
     bottomLeft => Alignment.bottomLeft,
     bottomCenter => Alignment.bottomCenter,
     topLeft => Alignment.topLeft,
+    topRight => Alignment.topRight,
     center => Alignment.center,
     bottomRight => Alignment.bottomRight,
   };
 
-  bool get isTop => this == topLeft;
+  bool get isTop => this == topLeft || this == topRight;
   bool get isCenter => this == center;
 }
 
@@ -134,6 +136,7 @@ class ProfileCard {
     this.iconFocal,
     this.layoutPreset,
     this.textAlign,
+    this.fontColorArgb,
     this.showBirthday = false,
   });
 
@@ -163,6 +166,13 @@ class ProfileCard {
   final CardLayoutPreset? layoutPreset;
   final CardTextAlign? textAlign;
 
+  /// カード内の文字の色（ARGB、2026-10-31追加）。nullなら従来どおり（背景画像が
+  /// あれば白、無ければテーマの色）。
+  final int? fontColorArgb;
+
+  /// [fontColorArgb]を[Color]にしたもの。
+  Color? get fontColor => fontColorArgb == null ? null : Color(fontColorArgb!);
+
   /// 蔵の誕生日（[AppUser.birthday]）をこのカードに載せるか（2026-10-23追加、既定は載せない）。
   final bool showBirthday;
 
@@ -187,6 +197,8 @@ class ProfileCard {
     bool clearLayoutPreset = false,
     CardTextAlign? textAlign,
     bool clearTextAlign = false,
+    int? fontColorArgb,
+    bool clearFontColor = false,
     bool? showBirthday,
   }) {
     return ProfileCard(
@@ -212,6 +224,9 @@ class ProfileCard {
           ? null
           : (layoutPreset ?? this.layoutPreset),
       textAlign: clearTextAlign ? null : (textAlign ?? this.textAlign),
+      fontColorArgb: clearFontColor
+          ? null
+          : (fontColorArgb ?? this.fontColorArgb),
       showBirthday: showBirthday ?? this.showBirthday,
     );
   }
@@ -230,6 +245,7 @@ class ProfileCard {
       iconFocal: ImageFocal.fromJson(json['iconFocal']),
       layoutPreset: CardLayoutPreset.tryParse(json['layoutPreset']),
       textAlign: CardTextAlign.tryParse(json['textAlign']),
+      fontColorArgb: json['fontColor'] as int?,
       showBirthday: json['showBirthday'] == true,
     );
   }
@@ -248,6 +264,7 @@ class ProfileCard {
       if (iconFocal != null) 'iconFocal': iconFocal!.toJson(),
       if (layoutPreset != null) 'layoutPreset': layoutPreset!.name,
       if (textAlign != null) 'textAlign': textAlign!.name,
+      if (fontColorArgb != null) 'fontColor': fontColorArgb,
       if (showBirthday) 'showBirthday': true,
     };
   }

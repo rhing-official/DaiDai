@@ -57,6 +57,7 @@ import '../../services/google_calendar_link_coordinator.dart';
 import '../../theme/gekiga/gekiga_colors.dart';
 import '../../theme/glass/glass_colors.dart';
 import '../../utils/auto_dismiss_banner.dart';
+import '../../utils/color_presets.dart';
 import '../../utils/color_hex.dart';
 import '../../utils/platform_info.dart';
 import '../../utils/sound_upload.dart';
@@ -1122,7 +1123,7 @@ Future<bool> _confirmStartScan(BuildContext context, Strings strings) async {
 /// 2026-09-15、固定プリセット・ユーザー登録色の両方を統合した「プリセット」
 /// 1セクションの削除確認に使うよう拡張し`_confirmDeleteCustomColor`から
 /// 改名）。
-Future<bool> _confirmDeletePresetColor(
+Future<bool> confirmDeletePresetColor(
   BuildContext context,
   Strings strings,
 ) async {
@@ -2034,8 +2035,12 @@ class _ApplicationPage extends ConsumerWidget {
     return ListView(
       padding: const EdgeInsets.only(bottom: 24),
       children: [
-        _AppearanceFolder(strings: strings),
-        const Divider(height: 24),
+        // 劇画UI選択中は、外観（ライト/ダーク）が見た目に効かないため、項目ごと
+        // 表示しない（2026-10-31、以前はグレーアウトして案内を出していた）。
+        if (!isGekiga) ...[
+          _AppearanceFolder(strings: strings),
+          const Divider(height: 24),
+        ],
         _SectionHeader(strings.settingsSubUI),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
@@ -2206,15 +2211,7 @@ class _AccentColorFolder extends ConsumerStatefulWidget {
 /// 末尾のアルファは劇画側では単に無視される。ユーザーが長押しで削除した
 /// 要素は`removedDefaultColorPresetsProvider`側の集合で管理し、この
 /// リスト自体からは取り除かない（削除は表示フィルタで実現し、復活手段は
-/// 設けない）。
-const _kDefaultColorPresets = [
-  'F08300CC',
-  '3D2EE0CC',
-  '88B04BCC',
-  'C1272DCC',
-  'F08567CC',
-];
-
+/// 設けない）。固定プリセットの一覧は`kDefaultColorPresets`（`lib/utils/color_presets.dart`）。
 class _AccentColorFolderState extends ConsumerState<_AccentColorFolder> {
   late final TextEditingController _hexController;
   String? _errorText;
@@ -2231,6 +2228,16 @@ class _AccentColorFolderState extends ConsumerState<_AccentColorFolder> {
   void dispose() {
     _hexController.dispose();
     super.dispose();
+  }
+
+  /// 6桁・8桁を入力し終えたら、決定ボタンを押さずに即時反映する（2026-10-31）。
+  void _applyHexIfComplete(String text) {
+    final length = text.replaceFirst('#', '').length;
+    if (length != 6 && length != 8) {
+      if (_errorText != null) setState(() => _errorText = null);
+      return;
+    }
+    _applyHexInput();
   }
 
   void _applyHexInput() {
@@ -2279,7 +2286,7 @@ class _AccentColorFolderState extends ConsumerState<_AccentColorFolder> {
     final customColors = ref.read(customAccentColorsProvider);
     final removedDefaultHex = ref.read(removedDefaultColorPresetsProvider);
     final defaultColors = [
-      for (final hex in _kDefaultColorPresets)
+      for (final hex in kDefaultColorPresets)
         if (!removedDefaultHex.contains(hex)) tryParseHexColor(hex)!,
     ];
     // 劇画UIは背景色を常に不透明として扱うため、アルファ差だけの重複は
@@ -2345,7 +2352,7 @@ class _AccentColorFolderState extends ConsumerState<_AccentColorFolder> {
     // いた）。出自を`isDefault`で区別し、長押し削除時にどちらのプロバイダを
     // 更新するか振り分ける。
     final presetEntries = [
-      for (final hex in _kDefaultColorPresets)
+      for (final hex in kDefaultColorPresets)
         if (!removedDefaultHex.contains(hex))
           (hex: hex, isDefault: true, color: tryParseHexColor(hex)!),
       for (final color in customColors)
@@ -2371,16 +2378,13 @@ class _AccentColorFolderState extends ConsumerState<_AccentColorFolder> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 IconButton(
-                  icon: const Icon(Icons.check, color: GekigaColors.onPanel),
-                  onPressed: _applyHexInput,
-                ),
-                IconButton(
                   icon: const Icon(Icons.add, color: GekigaColors.onPanel),
                   tooltip: '',
                   onPressed: () => _registerCustomColor(context),
                 ),
               ],
             ),
+            onChanged: _applyHexIfComplete,
             onSubmitted: (_) => _applyHexInput(),
           )
         : TextField(
@@ -2419,10 +2423,6 @@ class _AccentColorFolderState extends ConsumerState<_AccentColorFolder> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   IconButton(
-                    icon: const Icon(Icons.check),
-                    onPressed: _applyHexInput,
-                  ),
-                  IconButton(
                     icon: const Icon(Icons.add),
                     tooltip: '',
                     onPressed: () => _registerCustomColor(context),
@@ -2430,6 +2430,7 @@ class _AccentColorFolderState extends ConsumerState<_AccentColorFolder> {
                 ],
               ),
             ),
+            onChanged: _applyHexIfComplete,
             onSubmitted: (_) => _applyHexInput(),
           );
 
@@ -2500,12 +2501,12 @@ class _AccentColorFolderState extends ConsumerState<_AccentColorFolder> {
                     runSpacing: 12,
                     children: [
                       for (final entry in presetEntries)
-                        _PresetColorSwatch(
+                        PresetColorSwatch(
                           hex: entry.hex,
                           selected: sameColor(entry.color, activeColor),
                           onTap: () => _applyPreset(entry.hex),
                           onLongPress: () async {
-                            final confirmed = await _confirmDeletePresetColor(
+                            final confirmed = await confirmDeletePresetColor(
                               context,
                               widget.strings,
                             );
@@ -2662,7 +2663,7 @@ class _TextColorFolderState extends ConsumerState<_TextColorFolder> {
               decoration: InputDecoration(
                 labelText: label,
                 prefixText: '#',
-                hintText: '1C1C1E',
+                hintText: '1C1C1C',
                 errorText: errorText,
                 counterText: '',
                 // アクセントカラーの入力欄と同じ、ガラスUI風の見た目に揃える
@@ -2684,10 +2685,6 @@ class _TextColorFolderState extends ConsumerState<_TextColorFolder> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     IconButton(
-                      icon: const Icon(Icons.check),
-                      onPressed: onApply,
-                    ),
-                    IconButton(
                       icon: const Icon(Icons.refresh),
                       tooltip: '',
                       onPressed: onReset,
@@ -2695,6 +2692,11 @@ class _TextColorFolderState extends ConsumerState<_TextColorFolder> {
                   ],
                 ),
               ),
+              // 6桁・8桁を入力し終えたら、決定ボタン無しで即時反映する（2026-10-31）。
+              onChanged: (text) {
+                final length = text.replaceFirst('#', '').length;
+                if (length == 6 || length == 8) onApply();
+              },
               onSubmitted: (_) => onApply(),
             ),
           ),
@@ -2749,8 +2751,8 @@ class _TextColorFolderState extends ConsumerState<_TextColorFolder> {
 }
 
 /// アクセントカラーのプリセット1つ分の円形スウォッチ。タップで即適用する。
-class _PresetColorSwatch extends StatelessWidget {
-  const _PresetColorSwatch({
+class PresetColorSwatch extends StatelessWidget {
+  const PresetColorSwatch({
     required this.hex,
     required this.selected,
     required this.onTap,
@@ -2762,7 +2764,7 @@ class _PresetColorSwatch extends StatelessWidget {
   final VoidCallback onTap;
 
   /// 削除導線用のコールバック。固定プリセット・ユーザー登録色のどちらも
-  /// この`_PresetColorSwatch`を共通で使うため、呼び出し元
+  /// この`PresetColorSwatch`を共通で使うため、呼び出し元
   /// （[_AccentColorFolderState]）が出自に応じて
   /// `removedDefaultColorPresetsProvider`か`customAccentColorsProvider`の
   /// どちらを更新するか振り分ける（2026-09-15、以前は固定プリセットに対して

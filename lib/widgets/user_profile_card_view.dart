@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../l10n/app_locale.dart';
 import '../models/app_user.dart';
+import '../models/profile_material.dart';
 import '../utils/birthday_format.dart';
 import 'profile_card_view.dart';
 
@@ -16,6 +17,7 @@ class UserProfileCardView extends StatelessWidget {
     required this.height,
     this.conversationId,
     this.showSnsLinks = true,
+    this.onOpenSnsLink,
     super.key,
   });
 
@@ -27,6 +29,9 @@ class UserProfileCardView extends StatelessWidget {
   /// カード内にSNSのURLを出すか。ダイアログはカードの下にタップできる別要素で
   /// 出すためfalse、操作できないホバーカードはtrue。
   final bool showSnsLinks;
+
+  /// 渡すと、カード内のURLをタップして開ける。
+  final ValueChanged<SnsLink>? onOpenSnsLink;
 
   /// 誕生日は、カードを見る人の言語の並びで整形する（2026-10-23）。
   String? _birthdayLabel(BuildContext context) {
@@ -54,9 +59,11 @@ class UserProfileCardView extends StatelessWidget {
       iconFocal: card?.iconFocal,
       layoutPreset: card?.layoutPreset,
       textAlign: card?.textAlign,
+      fontColor: card?.fontColor,
       nickname: name,
       statusMessage: user.effectiveStatusMessageFor(conversationId)?.text,
       birthdayLabel: _birthdayLabel(context),
+      onOpenSnsLink: onOpenSnsLink,
       snsLinks: showSnsLinks
           ? user.effectiveSnsLinksFor(conversationId)
           : const [],

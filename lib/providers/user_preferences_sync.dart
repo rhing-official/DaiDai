@@ -21,6 +21,7 @@ import 'calling_sound_provider.dart';
 import 'chat_layout_style_provider.dart';
 import 'conversation_sort_order_provider.dart';
 import 'custom_accent_colors_provider.dart';
+import 'custom_font_colors_provider.dart';
 import 'draft_sync_enabled_provider.dart';
 import 'font_design_provider.dart';
 import 'gekiga_background_color_provider.dart';
@@ -50,6 +51,13 @@ void applyRemoteUserPreferences(WidgetRef ref, AppUserPreferences preferences) {
         .read(customAccentColorsProvider.notifier)
         .syncFromRemote(
           preferences.customAccentColorsArgb!.map(Color.new).toList(),
+        );
+  }
+  if (preferences.customFontColorsArgb != null) {
+    ref
+        .read(customFontColorsProvider.notifier)
+        .syncFromRemote(
+          preferences.customFontColorsArgb!.map(Color.new).toList(),
         );
   }
   if (preferences.removedDefaultColorPresetsHex != null) {

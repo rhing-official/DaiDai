@@ -3,6 +3,7 @@ import 'dart:math';
 import 'dart:ui' show lerpDouble;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -20,8 +21,12 @@ import '../../models/profile_card.dart';
 import '../../l10n/app_locale.dart';
 import '../../models/profile_material.dart';
 import '../../utils/birthday_format.dart';
+import '../../utils/color_presets.dart';
+import '../../utils/color_hex.dart';
 import '../../providers/app_locale_provider.dart';
 import '../../providers/app_ui_style_provider.dart';
+import '../../providers/custom_font_colors_provider.dart';
+import '../../providers/home_shell_providers.dart';
 import '../../providers/repository_providers.dart';
 import '../../providers/user_providers.dart';
 import '../../repositories/user_repository.dart';
@@ -35,6 +40,8 @@ import '../../widgets/gekiga/gekiga_icon_badge.dart';
 import '../../widgets/gekiga/gekiga_panel_box.dart';
 import '../../widgets/gekiga/gekiga_section_header.dart';
 import '../../widgets/glass/glass_avatar.dart';
+import '../settings/settings_tab.dart'
+    show PresetColorSwatch, confirmDeletePresetColor;
 import '../../widgets/glass/glass_dialog.dart';
 import '../../widgets/glass/glass_surface.dart';
 import '../../theme/app_theme.dart';
@@ -798,6 +805,12 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
   /// `null`（一覧）も有効な位置のため、1要素のレコードで包む。
   @override
   Widget build(BuildContext context) {
+    // メッセージ画面の自分のプロフィールカードから、仕立てを開く依頼（2026-10-31）。
+    ref.listen<int>(openWorkshopRequestProvider, (previous, next) {
+      if (next != previous) {
+        setState(() => _selectedSection = _ProfileSection.koubou);
+      }
+    });
     return NavHistoryBackEntry<(_ProfileSection?,)>(
       scope: BackScope.profile,
       location: (_selectedSection,),
@@ -2018,6 +2031,7 @@ class _WorkshopCardSlot extends StatelessWidget {
                             iconFocal: card.iconFocal,
                             layoutPreset: card.layoutPreset,
                             textAlign: card.textAlign,
+                            fontColor: card.fontColor,
                             nickname: nickname ?? vocab.nickname,
                             statusMessage: statusMessage,
                             snsLinks: selectedSnsLinks,
@@ -3732,6 +3746,33 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
     await _persist();
   }
 
+  /// 文字色をカラーコード・プリセットで選ぶ（2026-10-31）。決定ボタンは無く、
+  /// 6桁・8桁を入力し終えた時やプリセットを選んだ時に、その場で反映する。
+  Future<void> _pickFontColor() async {
+    await showDialog<void>(
+      context: context,
+      builder: (_) => _FontColorDialog(
+        initial: _card.fontColor ?? Colors.white,
+        strings: widget.strings,
+        onApply: _applyFontColor,
+      ),
+    );
+  }
+
+  /// 文字色をカードへ反映して保存する。標準（不透明の#FFFFFF）は値を持たず
+  /// `null`に戻す（保存データ・招待プレビューを増やさない）。
+  void _applyFontColor(Color color) {
+    if (!mounted) return;
+    final argb = color.toARGB32();
+    if (argb == (_card.fontColorArgb ?? 0xFFFFFFFF)) return;
+    setState(() {
+      _card = argb == 0xFFFFFFFF
+          ? _card.copyWith(clearFontColor: true)
+          : _card.copyWith(fontColorArgb: argb);
+    });
+    _persist();
+  }
+
   Future<void> _pickMaterial(String field) async {
     final card = _card;
 
@@ -3761,6 +3802,7 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
           widget.user.backgroundImages,
           card.backgroundImageId,
           strings,
+          roundedSquareThumbnail: true,
         );
       case 'nickname':
         result = await _showTextMaterialMenu(
@@ -3973,10 +4015,9 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
     // ニックネーム・ステメはカード内（背景画像や暗いオーバーレイの上）に
     // 表示するため、背景の有無で見やすい色を切り替える。カード名はカードの
     // 外（下、暗転した背景の上）に表示するため常に白系の固定色にする。
-    final nicknameColor = background != null ? Colors.white : null;
-    final statusColor = background != null
-        ? Colors.white70
-        : colorScheme.onSurfaceVariant;
+    final cardFontColor = card.fontColor ?? Colors.white;
+    final nicknameColor = cardFontColor;
+    final statusColor = cardFontColor.withValues(alpha: cardFontColor.a * 0.75);
     // カード内のニックネーム（[kProfileCardNicknameFontSize]）に近い比率で、
     // カードの主見出しとして十分読める大きさにする（以前の「既定サイズの8割」
     // だと逆に小さすぎた）。カード名自体はカード内要素ではなくカードの外
@@ -4263,11 +4304,20 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
                           _CardFontRow(
                             width: width,
                             label: strings.workshopFontLabel,
+                            shortLabel: strings.workshopFontShortLabel,
                             fontName: _fontLabel(card, strings),
                             fontFamily: fontFamily,
                             onTapDown: (position) =>
                                 _lastTapPosition = position,
                             onTap: () => _pickMaterial('fontDesign'),
+                          ),
+                          // 文字色（カード内の文字すべて）。
+                          _CardFontColorRow(
+                            width: width,
+                            label: strings.workshopFontColorLabel,
+                            shortLabel: strings.workshopFontColorShortLabel,
+                            color: card.fontColor ?? Colors.white,
+                            onTap: _pickFontColor,
                           ),
                         ],
                         const SizedBox(height: 12),
@@ -4436,8 +4486,10 @@ Future<String?> _showImageMaterialMenu(
   RelativeRect position,
   List<ProfileMaterial> materials,
   String? selectedId,
-  Strings strings,
-) {
+  Strings strings, {
+  // 背景はアイコン（円）と見分けがつくよう、角丸の正方形で見せる（2026-10-31）。
+  bool roundedSquareThumbnail = false,
+}) {
   return showMenu<String>(
     context: context,
     position: position,
@@ -4461,6 +4513,7 @@ Future<String?> _showImageMaterialMenu(
             selected: selectedId == material.id,
             label: '',
             thumbnail: _NetworkThumbImage(url: material.url),
+            roundedSquareThumbnail: roundedSquareThumbnail,
           ),
         ),
     ],
@@ -4515,8 +4568,10 @@ class _MaterialMenuRow extends StatelessWidget {
     required this.label,
     this.thumbnail,
     this.fontFamily,
+    this.roundedSquareThumbnail = false,
   });
 
+  final bool roundedSquareThumbnail;
   final bool selected;
   final String label;
   final String? fontFamily;
@@ -4532,7 +4587,16 @@ class _MaterialMenuRow extends StatelessWidget {
           child: selected ? const Icon(Icons.check, size: 18) : null,
         ),
         if (thumbnail != null) ...[
-          SizedBox(width: 28, height: 28, child: ClipOval(child: thumbnail)),
+          SizedBox(
+            width: 28,
+            height: 28,
+            child: roundedSquareThumbnail
+                ? ClipRRect(
+                    borderRadius: BorderRadius.circular(6),
+                    child: thumbnail,
+                  )
+                : ClipOval(child: thumbnail),
+          ),
           const SizedBox(width: 8),
         ],
         if (label.isNotEmpty)
@@ -4549,6 +4613,7 @@ class _CardFontRow extends StatelessWidget {
   const _CardFontRow({
     required this.width,
     required this.label,
+    required this.shortLabel,
     required this.fontName,
     required this.fontFamily,
     required this.onTapDown,
@@ -4557,6 +4622,7 @@ class _CardFontRow extends StatelessWidget {
 
   final double width;
   final String label;
+  final String shortLabel;
   final String fontName;
   final String? fontFamily;
   final ValueChanged<Offset> onTapDown;
@@ -4569,9 +4635,9 @@ class _CardFontRow extends StatelessWidget {
       child: Row(
         children: [
           SizedBox(
-            width: 52,
+            width: _cardEditLabelWidth(width),
             child: Text(
-              label,
+              _cardEditLabel(width, label, shortLabel),
               style: const TextStyle(color: Colors.white70, fontSize: 12),
             ),
           ),
@@ -4639,6 +4705,7 @@ class _CardLayoutPicker extends StatelessWidget {
     CardLayoutPreset.bottomLeft => strings.workshopLayoutBottomLeft,
     CardLayoutPreset.bottomCenter => strings.workshopLayoutBottomCenter,
     CardLayoutPreset.topLeft => strings.workshopLayoutTopLeft,
+    CardLayoutPreset.topRight => strings.workshopLayoutTopRight,
     CardLayoutPreset.center => strings.workshopLayoutCenter,
     CardLayoutPreset.bottomRight => strings.workshopLayoutBottomRight,
   };
@@ -4649,34 +4716,68 @@ class _CardLayoutPicker extends StatelessWidget {
     CardTextAlign.end => strings.workshopAlignEnd,
   };
 
-  Widget _chip(String label, bool selected, VoidCallback onTap) {
-    return ChoiceChip(
-      label: Text(label),
-      selected: selected,
-      showCheckmark: false,
-      onSelected: (_) => onTap(),
-      backgroundColor: Colors.transparent,
-      selectedColor: Colors.white,
-      side: const BorderSide(color: Colors.white54),
-      labelStyle: TextStyle(
-        color: selected ? Colors.black : Colors.white,
-        fontSize: 12,
-      ),
-      visualDensity: VisualDensity.compact,
-    );
-  }
-
-  Widget _row(String title, List<Widget> chips) {
+  /// ラベル＋現在の値のボタン。タップで選択肢のポップアップ（プルダウン）が開き、選ぶと
+  /// その場で反映される（2026-10-31、以前はチップを横に並べていた）。フォントデザイン・
+  /// フォントカラーの行と同じ見た目。
+  Widget _dropdownRow<T>({
+    required String title,
+    required T value,
+    required List<T> options,
+    required String Function(T) labelOf,
+    required ValueChanged<T> onSelected,
+  }) {
     return Row(
       children: [
         SizedBox(
-          width: 52,
+          width: _cardEditLabelWidth(width),
           child: Text(
             title,
             style: const TextStyle(color: Colors.white70, fontSize: 12),
           ),
         ),
-        Expanded(child: Wrap(spacing: 6, runSpacing: 0, children: chips)),
+        Flexible(
+          child: PopupMenuButton<T>(
+            tooltip: '',
+            initialValue: value,
+            onSelected: onSelected,
+            itemBuilder: (context) => [
+              for (final option in options)
+                PopupMenuItem<T>(
+                  value: option,
+                  child: _MaterialMenuRow(
+                    selected: option == value,
+                    label: labelOf(option),
+                  ),
+                ),
+            ],
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.white54),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Flexible(
+                    child: Text(
+                      labelOf(value),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(color: Colors.white, fontSize: 12),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  const Icon(
+                    Icons.arrow_drop_down,
+                    color: Colors.white70,
+                    size: 18,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
       ],
     );
   }
@@ -4687,25 +4788,274 @@ class _CardLayoutPicker extends StatelessWidget {
       width: width,
       child: Column(
         mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _row(strings.workshopLayoutLabel, [
-            for (final preset in CardLayoutPreset.values)
-              _chip(
-                _layoutLabel(preset),
-                preset == layoutPreset,
-                () => onLayoutChanged(preset),
-              ),
-          ]),
-          _row(strings.workshopAlignLabel, [
-            for (final align in CardTextAlign.values)
-              _chip(
-                _alignLabel(align),
-                align == textAlign,
-                () => onAlignChanged(align),
-              ),
-          ]),
+          _dropdownRow<CardLayoutPreset>(
+            title: strings.workshopLayoutLabel,
+            value: layoutPreset,
+            // 並び: 左下・中央下・右下・中央・左上・右上（2026-10-31）。
+            options: const [
+              CardLayoutPreset.bottomLeft,
+              CardLayoutPreset.bottomCenter,
+              CardLayoutPreset.bottomRight,
+              CardLayoutPreset.center,
+              CardLayoutPreset.topLeft,
+              CardLayoutPreset.topRight,
+            ],
+            labelOf: _layoutLabel,
+            onSelected: onLayoutChanged,
+          ),
+          const SizedBox(height: 4),
+          _dropdownRow<CardTextAlign>(
+            title: strings.workshopAlignLabel,
+            value: textAlign,
+            options: CardTextAlign.values,
+            labelOf: _alignLabel,
+            onSelected: onAlignChanged,
+          ),
         ],
       ),
     );
+  }
+}
+
+/// カード編集の下の各行（配置・揃え・フォントデザイン・フォントカラー）のラベル欄の幅
+/// （カードの幅[cardWidth]から決める、2026-10-31）。カードが狭くて正式名称が入り切らない
+/// 時は狭い欄にし、フォントの2行は略称（[_cardEditLabel]）にする。全行で幅を揃える。
+double _cardEditLabelWidth(double cardWidth) => cardWidth >= 320 ? 96 : 52;
+
+/// ラベル欄に入り切るなら正式名称、入り切らなければ略称。
+String _cardEditLabel(double cardWidth, String full, String short) =>
+    cardWidth >= 320 ? full : short;
+
+/// カード編集で、文字色の行（色の見本＋カラーコード、タップで[_FontColorDialog]）。
+class _CardFontColorRow extends StatelessWidget {
+  const _CardFontColorRow({
+    required this.width,
+    required this.label,
+    required this.shortLabel,
+    required this.color,
+    required this.onTap,
+  });
+
+  final double width;
+  final String label;
+  final String shortLabel;
+  final Color color;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: width,
+      child: Row(
+        children: [
+          SizedBox(
+            width: _cardEditLabelWidth(width),
+            child: Text(
+              _cardEditLabel(width, label, shortLabel),
+              style: const TextStyle(color: Colors.white70, fontSize: 12),
+            ),
+          ),
+          Flexible(
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: onTap,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.white54),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 14,
+                      height: 14,
+                      decoration: BoxDecoration(
+                        color: color,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white54),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      color.toHexString(),
+                      style: const TextStyle(color: Colors.white, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 文字色をカラーコード（`#RRGGBB`／末尾2桁が透明度の`#RRGGBBAA`）かプリセットで
+/// 選ぶダイアログ（アクセントカラーと同じ操作）。ボタンは無く、6桁・8桁を入力し終えた
+/// 時とプリセットを選んだ時に、その場で[onApply]が呼ばれる。コード欄の右端の「＋」で、
+/// 今の色を文字色のプリセットへ登録でき、登録色は長押しで削除できる。
+class _FontColorDialog extends ConsumerStatefulWidget {
+  const _FontColorDialog({
+    required this.initial,
+    required this.strings,
+    required this.onApply,
+  });
+
+  final Color initial;
+  final Strings strings;
+  final ValueChanged<Color> onApply;
+
+  @override
+  ConsumerState<_FontColorDialog> createState() => _FontColorDialogState();
+}
+
+class _FontColorDialogState extends ConsumerState<_FontColorDialog> {
+  late final TextEditingController _controller = TextEditingController(
+    text: widget.initial.toHexString().replaceFirst('#', ''),
+  );
+  late Color _current = widget.initial;
+  String? _errorText;
+  Timer? _bannerTimer;
+
+  @override
+  void dispose() {
+    _bannerTimer?.cancel();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _onChanged(String text) {
+    final length = text.replaceFirst('#', '').length;
+    if (length != 6 && length != 8) {
+      if (_errorText != null) setState(() => _errorText = null);
+      return;
+    }
+    final color = tryParseHexColor(text);
+    if (color == null) {
+      setState(() => _errorText = widget.strings.settingsHexColorFormatError);
+      return;
+    }
+    setState(() {
+      _errorText = null;
+      _current = color;
+    });
+    widget.onApply(color);
+  }
+
+  void _selectPreset(Color color, String hex) {
+    setState(() {
+      _controller.text = hex;
+      _errorText = null;
+      _current = color;
+    });
+    widget.onApply(color);
+  }
+
+  /// 今の色を、文字色のプリセット（登録色）へ加える。
+  Future<void> _register() async {
+    final fixed = [for (final hex in kFontColorPresets) tryParseHexColor(hex)!];
+    if (fixed.contains(_current)) return;
+    final added = await ref
+        .read(customFontColorsProvider.notifier)
+        .addColor(_current);
+    if (!added && mounted) {
+      _bannerTimer = showAutoDismissBanner(
+        context,
+        message: widget.strings.settingsCustomColorLimitReachedTemplate(
+          kMaxCustomFontColors,
+        ),
+        previousTimer: _bannerTimer,
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final strings = widget.strings;
+    final isGlass = ref.watch(appUiStyleProvider) == AppUiStyle.glass;
+    final custom = ref.watch(customFontColorsProvider);
+    final presets = [
+      for (final hex in kFontColorPresets)
+        (hex: hex, color: tryParseHexColor(hex)!, isCustom: false),
+      for (final color in custom)
+        (
+          hex: color.toHexString().replaceFirst('#', ''),
+          color: color,
+          isCustom: true,
+        ),
+    ];
+    final title = Text(strings.workshopFontColorLabel);
+    final content = SizedBox(
+      width: 360,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          TextField(
+            controller: _controller,
+            autofocus: true,
+            textCapitalization: TextCapitalization.characters,
+            inputFormatters: [
+              FilteringTextInputFormatter.allow(RegExp('[0-9a-fA-F]')),
+              LengthLimitingTextInputFormatter(8),
+            ],
+            decoration: InputDecoration(
+              labelText: strings.settingsColorCode,
+              prefixText: '#',
+              hintText: 'FFFFFF',
+              errorText: _errorText,
+              counterText: '',
+              suffixIcon: IconButton(
+                icon: const Icon(Icons.add),
+                tooltip: '',
+                onPressed: _register,
+              ),
+            ),
+            onChanged: _onChanged,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            strings.settingsColorPresets,
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: [
+              for (final entry in presets)
+                PresetColorSwatch(
+                  hex: entry.hex,
+                  selected: entry.color == _current,
+                  onTap: () => _selectPreset(entry.color, entry.hex),
+                  onLongPress: entry.isCustom
+                      ? () async {
+                          final confirmed = await confirmDeletePresetColor(
+                            context,
+                            strings,
+                          );
+                          if (!confirmed) return;
+                          await ref
+                              .read(customFontColorsProvider.notifier)
+                              .removeColor(entry.color);
+                        }
+                      : null,
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+    return isGlass
+        ? GlassAlertDialog(title: title, content: content)
+        : KeyboardAlertDialog(title: title, content: content);
   }
 }

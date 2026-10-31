@@ -26,6 +26,7 @@ class ProfileCardComposer extends ConsumerWidget {
     required this.sending,
     required this.onSend,
     this.maxLength = 100,
+    this.notes = const [],
     super.key,
   });
 
@@ -33,6 +34,9 @@ class ProfileCardComposer extends ConsumerWidget {
   final bool enabled;
   final String hintText;
   final bool sending;
+
+  /// 入力欄の枠の中、入力の下に箇条書きで出す注記（「任意」「100文字以内」等、2026-10-31）。
+  final List<String> notes;
 
   /// nullなら送信不可（ロック中、または送信処理中）。
   final VoidCallback? onSend;
@@ -52,6 +56,7 @@ class ProfileCardComposer extends ConsumerWidget {
         sending: sending,
         onSend: onSend,
         maxLength: maxLength,
+        notes: notes,
       );
     }
 
@@ -66,17 +71,13 @@ class ProfileCardComposer extends ConsumerWidget {
       onSubmitted: onSend == null ? null : (_) => onSend!(),
       decoration: InputDecoration(
         hintText: hintText,
-        filled: isGlass ? false : true,
-        fillColor: isGlass
-            ? null
-            : (enabled
-                  ? colorScheme.surfaceContainerHighest
-                  : Theme.of(context).disabledColor.withValues(alpha: 0.08)),
-        border: isGlass
-            ? InputBorder.none
-            : OutlineInputBorder(borderRadius: BorderRadius.circular(20)),
-        enabledBorder: isGlass ? InputBorder.none : null,
-        focusedBorder: isGlass ? InputBorder.none : null,
+        // 枠（角丸）は外側のコンテナが持つ。文字が枠に触れないよう内側に余白を取る。
+        contentPadding: const EdgeInsets.fromLTRB(16, 12, 4, 12),
+        filled: false,
+        border: InputBorder.none,
+        enabledBorder: InputBorder.none,
+        disabledBorder: InputBorder.none,
+        focusedBorder: InputBorder.none,
         suffixIcon: _SendButton(
           onSend: onSend,
           sending: sending,
@@ -84,12 +85,59 @@ class ProfileCardComposer extends ConsumerWidget {
         ),
       ),
     );
+    final inner = Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        field,
+        _NotesList(notes: notes, color: colorScheme.onSurfaceVariant),
+      ],
+    );
 
-    if (!isGlass) return field;
-    return GlassSurface(
-      variant: GlassVariant.floating,
-      borderRadius: BorderRadius.circular(20),
-      child: field,
+    if (isGlass) {
+      return GlassSurface(
+        variant: GlassVariant.floating,
+        borderRadius: BorderRadius.circular(20),
+        child: inner,
+      );
+    }
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: enabled
+            ? colorScheme.surfaceContainerHighest
+            : Theme.of(context).disabledColor.withValues(alpha: 0.08),
+        border: Border.all(color: colorScheme.outline),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: inner,
+    );
+  }
+}
+
+/// 入力欄の枠の中に出す、箇条書きの注記。
+class _NotesList extends StatelessWidget {
+  const _NotesList({required this.notes, required this.color});
+
+  final List<String> notes;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    if (notes.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (final note in notes)
+            Text(
+              '・$note',
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(fontSize: 16, color: color),
+            ),
+        ],
+      ),
     );
   }
 }
@@ -138,6 +186,7 @@ class _GekigaComposer extends StatelessWidget {
     required this.sending,
     required this.onSend,
     required this.maxLength,
+    required this.notes,
   });
 
   final TextEditingController controller;
@@ -146,6 +195,7 @@ class _GekigaComposer extends StatelessWidget {
   final bool sending;
   final VoidCallback? onSend;
   final int maxLength;
+  final List<String> notes;
 
   @override
   Widget build(BuildContext context) {
@@ -153,28 +203,41 @@ class _GekigaComposer extends StatelessWidget {
     return GekigaStraightMonochromeBox(
       isMe: true,
       padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: TextField(
-        controller: controller,
-        enabled: enabled,
-        minLines: 1,
-        maxLines: 3,
-        maxLength: maxLength,
-        textInputAction: TextInputAction.done,
-        onSubmitted: onSend == null ? null : (_) => onSend!(),
-        style: TextStyle(color: textColor),
-        cursorColor: Colors.black,
-        decoration: InputDecoration(
-          hintText: hintText,
-          hintStyle: TextStyle(color: textColor.withValues(alpha: 0.6)),
-          filled: false,
-          border: InputBorder.none,
-          counterStyle: TextStyle(color: textColor.withValues(alpha: 0.6)),
-          suffixIcon: _SendButton(
-            onSend: onSend,
-            sending: sending,
-            color: enabled ? Colors.black : Colors.black26,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          TextField(
+            controller: controller,
+            enabled: enabled,
+            minLines: 1,
+            maxLines: 3,
+            maxLength: maxLength,
+            textInputAction: TextInputAction.done,
+            onSubmitted: onSend == null ? null : (_) => onSend!(),
+            style: TextStyle(color: textColor),
+            cursorColor: Colors.black,
+            decoration: InputDecoration(
+              hintText: hintText,
+              hintStyle: TextStyle(color: textColor.withValues(alpha: 0.6)),
+              filled: false,
+              border: InputBorder.none,
+              counterStyle: TextStyle(color: textColor.withValues(alpha: 0.6)),
+              suffixIcon: _SendButton(
+                onSend: onSend,
+                sending: sending,
+                color: enabled ? Colors.black : Colors.black26,
+              ),
+            ),
           ),
-        ),
+          Padding(
+            padding: const EdgeInsets.only(left: 4, bottom: 8),
+            child: _NotesList(
+              notes: notes,
+              color: textColor.withValues(alpha: 0.7),
+            ),
+          ),
+        ],
       ),
     );
   }

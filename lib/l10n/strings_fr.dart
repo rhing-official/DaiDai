@@ -312,8 +312,9 @@ final Strings _stringsFr = Strings._(
   userProfileCardSendRequest: 'Envoyer une demande d’ami',
   userProfileCardAcceptRequest: 'Accepter la demande d’ami',
   userProfileCardRequestPending: 'Demande envoyée. En attente d’approbation.',
-  userProfileCardComposerHint:
-      'Ajoutez un message à votre demande (facultatif, 100 caractères maximum)',
+  userProfileCardComposerHint: 'Ajoutez un message à votre demande',
+  userProfileCardComposerOptionalNote: 'Facultatif',
+  userProfileCardComposerLimitNote: '100 caractères maximum',
   userProfileCardComposerLockedHint:
       'Vous avez déjà envoyé une demande d’ami. Vous ne pouvez pas en envoyer une autre tant qu’elle n’est pas acceptée.',
   userProfileCardAcceptNotice:
@@ -437,6 +438,7 @@ final Strings _stringsFr = Strings._(
   workshopLayoutBottomLeft: 'En bas à gauche',
   workshopLayoutBottomCenter: 'En bas au centre',
   workshopLayoutTopLeft: 'En haut à gauche',
+  workshopLayoutTopRight: 'En haut à droite',
   workshopLayoutCenter: 'Au centre',
   workshopLayoutBottomRight: 'En bas à droite',
   workshopAlignLabel: 'Alignement',
@@ -1093,5 +1095,8 @@ final Strings _stringsFr = Strings._(
   workshopBirthdayFieldLabel: 'Date de naissance',
   workshopBirthdayNotRegisteredHint:
       "Ajoutez d'abord votre date de naissance dans la Bibliothèque de profils",
-  workshopFontLabel: 'Police',
+  workshopFontLabel: 'Design de police',
+  workshopFontShortLabel: 'Design',
+  workshopFontColorLabel: 'Couleur de police',
+  workshopFontColorShortLabel: 'Couleur',
 );

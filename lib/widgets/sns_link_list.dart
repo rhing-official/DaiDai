@@ -4,6 +4,13 @@ import 'package:url_launcher/url_launcher.dart';
 import '../models/profile_material.dart';
 import 'profile_card_view.dart' show displaySnsLinkUrl;
 
+/// SNSのURLを外部のブラウザ・アプリで開く（2026-10-31、カード内のURLのタップからも使う）。
+Future<void> openSnsLink(String url) async {
+  final uri = Uri.tryParse(url);
+  if (uri == null) return;
+  await launchUrl(uri, mode: LaunchMode.externalApplication);
+}
+
 /// 他人のプロフィールカードダイアログで、カードの下に独立して表示する
 /// タップ可能なSNSリンク一覧（2026-09-24追加）。カード内の
 /// [ProfileCardView]が使う`SnsLinksInline`はタップ＝編集ポップアップを
@@ -16,12 +23,6 @@ class SnsLinkList extends StatelessWidget {
 
   final List<SnsLink> links;
 
-  Future<void> _open(String url) async {
-    final uri = Uri.tryParse(url);
-    if (uri == null) return;
-    await launchUrl(uri, mode: LaunchMode.externalApplication);
-  }
-
   @override
   Widget build(BuildContext context) {
     if (links.isEmpty) return const SizedBox.shrink();
@@ -32,7 +33,7 @@ class SnsLinkList extends StatelessWidget {
       children: [
         for (final link in links)
           InkWell(
-            onTap: () => _open(link.url),
+            onTap: () => openSnsLink(link.url),
             borderRadius: BorderRadius.circular(8),
             child: Padding(
               padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 import '../models/profile_card.dart';
 import '../models/profile_material.dart';
+import '../utils/sns_icon.dart';
 import 'focal_image.dart';
 
 /// カード内のアイコン・余白・文字サイズは、カード自体の横幅（モバイルは
@@ -45,6 +47,7 @@ class ProfileCardView extends StatelessWidget {
     required this.nickname,
     this.statusMessage,
     this.snsLinks = const [],
+    this.onOpenSnsLink,
     this.birthdayLabel,
     this.borderRadius = const BorderRadius.all(Radius.circular(16)),
     this.fontFamily,
@@ -52,6 +55,7 @@ class ProfileCardView extends StatelessWidget {
     this.iconFocal,
     this.layoutPreset,
     this.textAlign,
+    this.fontColor,
     super.key,
   });
 
@@ -70,6 +74,9 @@ class ProfileCardView extends StatelessWidget {
   final String? statusMessage;
 
   final List<SnsLink> snsLinks;
+
+  /// 渡すと、カード内のURLをタップして開ける（相手のカードを見るダイアログ用、2026-10-31）。
+  final ValueChanged<SnsLink>? onOpenSnsLink;
 
   /// 誕生日の表示文字列（見る人の言語で整形済み、2026-10-23追加）。nullなら出さない。
   final String? birthdayLabel;
@@ -91,6 +98,10 @@ class ProfileCardView extends StatelessWidget {
   final CardLayoutPreset? layoutPreset;
   final CardTextAlign? textAlign;
 
+  /// カード内の文字の色（作者が選んだ色）。nullなら標準の白（#FFFFFF）。一言・URL・
+  /// 誕生日は、この色を薄めた色で出す。
+  final Color? fontColor;
+
   @override
   Widget build(BuildContext context) {
     // [width]×[height]は表示サイズ。中身は基準サイズで描いて縮小する。
@@ -110,9 +121,11 @@ class ProfileCardView extends StatelessWidget {
     const padding = kProfileCardPadding;
     const nicknameFontSize = kProfileCardNicknameFontSize;
     const statusFontSize = kProfileCardStatusFontSize;
-    final subtitleColor = background != null
-        ? Colors.white70
-        : Theme.of(context).colorScheme.onSurfaceVariant;
+    // 文字色の標準は白（2026-10-31）。作者が選んだ色があればその色。一言・URL・
+    // 誕生日は、その色の75%の濃さ。
+    final baseColor = fontColor ?? Colors.white;
+    final subtitleColor = baseColor.withValues(alpha: baseColor.a * 0.75);
+    final nicknameColor = baseColor;
 
     return Material(
       color: Theme.of(context).colorScheme.surfaceContainerHighest,
@@ -146,7 +159,7 @@ class ProfileCardView extends StatelessWidget {
                   style: TextStyle(
                     fontSize: nicknameFontSize,
                     fontWeight: FontWeight.bold,
-                    color: background != null ? Colors.white : null,
+                    color: nicknameColor,
                     fontFamily: fontFamily,
                   ),
                 ),
@@ -166,6 +179,7 @@ class ProfileCardView extends StatelessWidget {
                   SizedBox(height: padding * 0.3),
                   SnsLinksInline(
                     links: snsLinks,
+                    onOpenLink: onOpenSnsLink,
                     fontSize: statusFontSize * 0.9,
                     color: subtitleColor,
                     fontFamily: fontFamily,
@@ -316,10 +330,14 @@ class SnsLinksInline extends StatelessWidget {
     required this.color,
     this.placeholder,
     this.onTap,
+    this.onOpenLink,
     this.fontFamily,
     this.crossAxisAlignment = CrossAxisAlignment.start,
     super.key,
   });
+
+  /// URLの行をタップした時（nullなら行はタップできない）。
+  final ValueChanged<SnsLink>? onOpenLink;
 
   final List<SnsLink> links;
   final double fontSize;
@@ -358,27 +376,64 @@ class SnsLinksInline extends StatelessWidget {
             crossAxisAlignment: crossAxisAlignment,
             mainAxisSize: MainAxisSize.min,
             children: [
-              for (final link in links)
+              // 主要サービスはアイコンだけ（ドメインの文字は出さない）を横に並べ、
+              // 一覧に無いサイトはドメインの文字を縦に並べる（2026-10-31）。
+              if (links.any((l) => snsIconAssetFor(l.url) != null))
                 Padding(
                   padding: const EdgeInsets.only(top: 2),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
+                  child: Wrap(
+                    spacing: 14,
+                    runSpacing: 6,
+                    alignment: switch (crossAxisAlignment) {
+                      CrossAxisAlignment.center => WrapAlignment.center,
+                      CrossAxisAlignment.end => WrapAlignment.end,
+                      _ => WrapAlignment.start,
+                    },
                     children: [
-                      Flexible(
-                        child: Text(
-                          displaySnsLinkUrl(link.url),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: fontSize,
-                            color: color,
-                            fontFamily: fontFamily,
+                      for (final link in links)
+                        if (snsIconAssetFor(link.url) case final asset?)
+                          _TappableLinkRow(
+                            onTap: onOpenLink == null
+                                ? null
+                                : () => onOpenLink!(link),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                vertical: 4,
+                                horizontal: 2,
+                              ),
+                              child: SvgPicture.asset(
+                                asset,
+                                width: fontSize * 1.5,
+                                height: fontSize * 1.5,
+                                colorFilter: color == null
+                                    ? null
+                                    : ColorFilter.mode(color!, BlendMode.srcIn),
+                              ),
+                            ),
                           ),
-                        ),
-                      ),
                     ],
                   ),
                 ),
+              for (final link in links)
+                if (snsIconAssetFor(link.url) == null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: _TappableLinkRow(
+                      onTap: onOpenLink == null
+                          ? null
+                          : () => onOpenLink!(link),
+                      child: Text(
+                        displaySnsLinkUrl(link.url),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: fontSize,
+                          color: color,
+                          fontFamily: fontFamily,
+                        ),
+                      ),
+                    ),
+                  ),
             ],
           );
     return onTap == null
@@ -433,6 +488,27 @@ class ProfileCardAvatar extends StatelessWidget {
       height: radius * 2,
       child: ClipOval(
         child: FocalImage(url: icon.url, focal: focal),
+      ),
+    );
+  }
+}
+
+/// URLの1行。[onTap]があれば、タップで開ける（マウスではクリックできるカーソル）。
+class _TappableLinkRow extends StatelessWidget {
+  const _TappableLinkRow({required this.child, this.onTap});
+
+  final Widget child;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    if (onTap == null) return child;
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: child,
       ),
     );
   }

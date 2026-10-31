@@ -24,7 +24,8 @@ enum AppUiStyle {
   static AppUiStyle fromName(String? name) {
     return AppUiStyle.values.firstWhere(
       (style) => style.name == name,
-      orElse: () => AppUiStyle.flat,
+      // 未設定（新規・保存値なし）の既定はガラス（2026-10-31）。保存済みの設定は変えない。
+      orElse: () => AppUiStyle.glass,
     );
   }
 }

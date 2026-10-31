@@ -138,6 +138,7 @@ class ChatScreen extends ConsumerStatefulWidget {
     this.menuAnchorKey,
     this.readReceiptsEnabled = true,
     this.onMarkRead,
+    this.onViewed,
     this.banner,
     this.onSenderTap,
     this.senderNameColorResolver,
@@ -254,6 +255,12 @@ class ChatScreen extends ConsumerStatefulWidget {
   /// 表示中の未読メッセージ（自分が送信者ではないもの）を既読にする処理。
   /// [readReceiptsEnabled]がtrueのときのみ呼ばれる。
   final Future<void> Function(List<String> messageIds)? onMarkRead;
+
+  /// この語らい（寄合）を開いて、他の人のメッセージを見た時に呼ばれる（開いた時と、開いている
+  /// 間に新しいメッセージが届いた時、2026-10-31追加）。語らい・寄合の未読数を0に戻すために使う。
+  /// 既読機能（[readReceiptsEnabled]）がオフでも呼ばれる（以前は未読数のリセットが
+  /// [onMarkRead]の中にあり、既読がオフの語らいでは未読数が消えなかった）。
+  final Future<void> Function()? onViewed;
 
   /// 音声通話の発信ボタン。一対（1対1）のみで渡す（グループ通話は未対応）。
   final VoidCallback? onCallPressed;
@@ -1110,6 +1117,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// 既に既読リクエストを送った（または送信中の）メッセージIDの集合。
   /// Firestoreからの再送信のたびに同じメッセージへ既読を送り直さないための重複防止。
   final _markedReadIds = <String>{};
+
+  /// [ChatScreen.onViewed]用。最初の表示で一度呼び、以降は新しく届いた他の人の
+  /// メッセージがある時だけ呼ぶ。
+  final _viewedIds = <String>{};
+  bool _viewedInitial = false;
 
   /// メッセージの削除用・範囲選択モード。1件を長押しして「メッセージを削除」
   /// を選ぶと入り、以降はタップで選択のオン/オフを切り替える（連続していない
@@ -2097,6 +2109,21 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// 書き込みが失敗した場合（通信不安定・画面を閉じるタイミング等）は
   /// [_markedReadIds]から外し、次回のスナップショット受信時に再試行できる
   /// ようにする（投げっぱなしで失敗を握りつぶすと、二度と既読が付かなくなる）。
+  void _notifyViewed(List<Message> messages) {
+    final onViewed = widget.onViewed;
+    if (onViewed == null) return;
+    var changed = !_viewedInitial;
+    _viewedInitial = true;
+    for (final m in messages) {
+      if (m.senderId != widget.currentUserId && _viewedIds.add(m.messageId)) {
+        changed = true;
+      }
+    }
+    if (changed) {
+      onViewed().catchError((Object e) => debugPrint('未読数のリセットに失敗: $e'));
+    }
+  }
+
   Future<void> _markUnreadMessages(List<Message> messages) async {
     if (!widget.readReceiptsEnabled || widget.onMarkRead == null) return;
     final toMark = messages
@@ -2122,6 +2149,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     // ユーザーが変わったら重複防止セットをリセットする。
     if (oldWidget.currentUserId != widget.currentUserId) {
       _markedReadIds.clear();
+      _viewedIds.clear();
+      _viewedInitial = false;
     }
   }
 
@@ -2793,6 +2822,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       );
                     }
                     final messages = snapshot.data ?? [];
+                    _notifyViewed(messages);
                     if (messages.isEmpty) {
                       return Padding(
                         padding: EdgeInsets.only(bottom: _composerAreaHeight),
@@ -5210,7 +5240,9 @@ class _MessageRow extends ConsumerWidget {
         ),
       );
     } else {
-      final canTapSender = !isMe && onSenderTap != null;
+      // 自分のアイコン・呼び名も、相手と同じようにタップでプロフィールカードを開く
+      // （2026-10-31）。
+      final canTapSender = onSenderTap != null;
       Widget senderAvatar = _SenderAvatar(
         userId: message.senderId,
         rhingSeed: message.senderRhingSeed ?? message.botName,

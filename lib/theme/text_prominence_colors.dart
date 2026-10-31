@@ -22,11 +22,11 @@ import 'glass/glass_theme_extras.dart';
 class TextProminence {
   TextProminence._();
 
-  static const darkPrimary = Color(0xFFF2F2F7);
+  static const darkPrimary = Color(0xFFF2F2F2);
   static const darkSecondary = Color(0xFFC2C2C8);
   static const darkTertiary = Color(0xFF87878F);
 
-  static const lightPrimary = Color(0xFF1C1C1E);
+  static const lightPrimary = Color(0xFF1C1C1C);
   static const lightSecondary = Color(0xFF54545B);
   static const lightTertiary = Color(0xFF8B8B93);
 }

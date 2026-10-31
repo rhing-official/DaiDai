@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../l10n/strings.dart';
 import '../../models/app_user.dart';
 import '../../models/friend_request.dart';
+import '../../providers/home_shell_providers.dart';
 import '../../providers/repository_providers.dart';
 import '../../utils/open_conversation.dart';
 import '../../utils/friend_request_error.dart';
@@ -76,6 +77,11 @@ class _UserProfileCardDialogState extends ConsumerState<UserProfileCardDialog> {
   late Future<({bool isFriend, FriendRequest? request})> _statusFuture;
   bool _sending = false;
 
+  /// 相手が友達だと判明しているか（読み込み前はfalse）。URLの無い友達のカードを
+  /// 「カードだけ」の枠なし表示にするために使う（2026-10-31）。
+  bool _isFriendKnown = false;
+  bool _statusKnown = false;
+
   /// 申請に添える任意メッセージ（技術仕様書8.3レイヤー2、2026-09-07追加）。
   /// 2026-09-24、見た目をチャット画面のコンポーザーに寄せる形に変更
   /// （`ProfileCardComposer`）。「使うプロフィールカード」選択欄は
@@ -96,6 +102,17 @@ class _UserProfileCardDialogState extends ConsumerState<UserProfileCardDialog> {
   void initState() {
     super.initState();
     _statusFuture = _fetchStatus();
+    _watchFriendStatus();
+  }
+
+  void _watchFriendStatus() {
+    _statusFuture.then((status) {
+      if (!mounted) return;
+      setState(() {
+        _isFriendKnown = status.isFriend;
+        _statusKnown = true;
+      });
+    });
   }
 
   /// 「友達か」は[FriendRequest.status]ではなく[FriendRepository.isFriend]
@@ -135,6 +152,7 @@ class _UserProfileCardDialogState extends ConsumerState<UserProfileCardDialog> {
           );
       if (!mounted) return;
       setState(() => _statusFuture = _fetchStatus());
+      _watchFriendStatus();
     } catch (e) {
       if (!mounted) return;
       setState(
@@ -163,12 +181,18 @@ class _UserProfileCardDialogState extends ConsumerState<UserProfileCardDialog> {
     await openDmInTalks(ref, dm);
   }
 
+  /// 自分のカードの右上のボタン。身だしなみタブの仕立てへ移動する（2026-10-31）。
+  void _jumpToWorkshop() {
+    Navigator.of(context).pop();
+    ref.read(homeSelectedTabProvider.notifier).set(kProfileTabIndex);
+    ref.read(openWorkshopRequestProvider.notifier).request();
+  }
+
   @override
   Widget build(BuildContext context) {
     final strings = ref.watch(appStringsProvider);
     final colorScheme = Theme.of(context).colorScheme;
     final user = widget.user;
-    final snsLinks = user.effectiveSnsLinksFor(widget.conversationId);
 
     // 身だしなみ・工房で作るカード（ProfileCardView）と全く同じ比率
     // （height = width * 1.25）で表示する。以前は固定height:360を使っており
@@ -176,20 +200,21 @@ class _UserProfileCardDialogState extends ConsumerState<UserProfileCardDialog> {
     // 画面の幅・高さ両方から動的に幅を決め、どちらの制約でも
     // ビューポートをはみ出さないようにする（縦横比は常に1.25を維持）。
     final screenSize = MediaQuery.sizeOf(context);
+    // カードの周りには余白を作らない（2026-10-31、URLの有無に関わらず）。ダイアログ
+    // 自体は透明にして、カードを角丸のまま見せる。URL・友達申請の入力欄は、カードの
+    // 下に別の角丸のパネルとして続ける（出す内容がある時だけ）。
+    final hasBelow = !_isSelf && _statusKnown && !_isFriendKnown;
+    // カードは、実際に渡った幅に対して必ず4:5にする。
     final maxHeightBudget = screenSize.height * 0.6;
     final cardWidth = (screenSize.width - 80)
         .clamp(240.0, 480.0)
         .clamp(0.0, maxHeightBudget / 1.25);
-    final cardHeight = cardWidth * 1.25;
 
     return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-      // 以前はカード＋フッター全体を1つの連続したClipRRect(circular(30))で
-      // クリップしており、写真カード（4:5固定）とその下のピッカー・
-      // メッセージ欄・ボタンが隙間なく同居して「1つの巨大な縦長カード」に
-      // 見えてしまっていた（2026-09-24修正）。カード自体（ProfileCardView）
-      // に独立した角丸を持たせ、SNSリンク・フッターとは視覚的に区切る。
-      // ダイアログの背景色自体はこのDialog標準の色をそのまま使う。
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      shadowColor: Colors.transparent,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: ConstrainedBox(
         constraints: BoxConstraints(
           maxWidth: cardWidth,
@@ -198,89 +223,109 @@ class _UserProfileCardDialogState extends ConsumerState<UserProfileCardDialog> {
         // カード下の要素が長くなる場合でも画面外に切れず、その場で
         // スクロールできるようにする（ビューポート溢れの保険）。
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              SizedBox(
-                width: cardWidth,
-                height: cardHeight,
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    // SNSリンクはカード内の非タップ可能テキストとしては
-                    // 表示しない。カードの下にタップ可能な別要素
-                    // （SnsLinkList）として表示する（2026-09-24変更）。
-                    UserProfileCardView(
-                      user: user,
-                      conversationId: widget.conversationId,
-                      width: cardWidth,
-                      height: cardHeight,
-                      showSnsLinks: false,
-                    ),
-                    if (!_isSelf)
-                      Positioned(
-                        top: 12,
-                        right: 12,
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            FutureBuilder<
-                              ({bool isFriend, FriendRequest? request})
-                            >(
-                              future: _statusFuture,
-                              builder: (context, snapshot) {
-                                if (snapshot.data?.isFriend != true) {
-                                  return const SizedBox.shrink();
-                                }
-                                return Material(
-                                  color: Colors.black.withValues(alpha: 0.35),
-                                  shape: const CircleBorder(),
-                                  child: IconButton(
-                                    icon: const Icon(
-                                      Icons.send_outlined,
-                                      color: Colors.white,
-                                    ),
-                                    iconSize: 30,
-                                    onPressed: _jumpToDm,
-                                  ),
-                                );
-                              },
-                            ),
-                            // 長の譲渡はメンバー一覧から開いた場合のみ表示する
-                            // （2026-07-29、一対へのジャンプボタンの右横に配置。
-                            // プライマリーカラーで目立たせる）。
-                            if (widget.canTransferOwnership) ...[
-                              const SizedBox(width: 8),
-                              Material(
-                                color: colorScheme.primary,
-                                shape: const CircleBorder(),
-                                child: IconButton(
-                                  icon: Icon(
-                                    Icons.workspace_premium_outlined,
-                                    color: colorScheme.onPrimary,
-                                  ),
-                                  iconSize: 30,
-                                  onPressed: widget.onTransferOwnership,
-                                ),
-                              ),
-                            ],
-                          ],
+              // カードの領域は、実際に渡った幅に対して常に4:5にし、四隅を角丸で
+              // 切る（2026-10-31）。固定の幅・高さを渡すと、実際の制約とずれた時に
+              // 中身が縮んで四隅が直角に見える。
+              ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: AspectRatio(
+                  aspectRatio: 0.8,
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      // SNSリンクはカード内の非タップ可能テキストとしては
+                      // 表示しない。カードの下にタップ可能な別要素
+                      // （SnsLinkList）として表示する（2026-09-24変更）。
+                      LayoutBuilder(
+                        builder: (context, box) => UserProfileCardView(
+                          user: user,
+                          conversationId: widget.conversationId,
+                          width: box.maxWidth,
+                          height: box.maxHeight,
+                          // URLはカード内にアイコン付きで出し、タップで開く（2026-10-31）。
+                          onOpenSnsLink: (link) => openSnsLink(link.url),
                         ),
                       ),
-                  ],
+                      // 自分のカードには、他のユーザーの「一対へ」の飛行機の代わりに、
+                      // 身だしなみのアイコン（仕立てへジャンプ）を出す。
+                      if (_isSelf)
+                        Positioned(
+                          top: 12,
+                          right: 12,
+                          child: Material(
+                            color: Colors.black.withValues(alpha: 0.35),
+                            shape: const CircleBorder(),
+                            child: IconButton(
+                              icon: const Icon(
+                                Icons.face_outlined,
+                                color: Colors.white,
+                              ),
+                              iconSize: 30,
+                              onPressed: _jumpToWorkshop,
+                            ),
+                          ),
+                        ),
+                      if (!_isSelf)
+                        Positioned(
+                          top: 12,
+                          right: 12,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              FutureBuilder<
+                                ({bool isFriend, FriendRequest? request})
+                              >(
+                                future: _statusFuture,
+                                builder: (context, snapshot) {
+                                  if (snapshot.data?.isFriend != true) {
+                                    return const SizedBox.shrink();
+                                  }
+                                  return Material(
+                                    color: Colors.black.withValues(alpha: 0.35),
+                                    shape: const CircleBorder(),
+                                    child: IconButton(
+                                      icon: const Icon(
+                                        Icons.send_outlined,
+                                        color: Colors.white,
+                                      ),
+                                      iconSize: 30,
+                                      onPressed: _jumpToDm,
+                                    ),
+                                  );
+                                },
+                              ),
+                              // 長の譲渡はメンバー一覧から開いた場合のみ表示する
+                              // （2026-07-29、一対へのジャンプボタンの右横に配置。
+                              // プライマリーカラーで目立たせる）。
+                              if (widget.canTransferOwnership) ...[
+                                const SizedBox(width: 8),
+                                Material(
+                                  color: colorScheme.primary,
+                                  shape: const CircleBorder(),
+                                  child: IconButton(
+                                    icon: Icon(
+                                      Icons.workspace_premium_outlined,
+                                      color: colorScheme.onPrimary,
+                                    ),
+                                    iconSize: 30,
+                                    onPressed: widget.onTransferOwnership,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
               ),
-              if (snsLinks.isNotEmpty) ...[
-                const SizedBox(height: 12),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  child: SnsLinkList(links: snsLinks),
-                ),
-              ],
-              if (!_isSelf) ...[
-                const SizedBox(height: 4),
+              if (hasBelow) ...[
+                const SizedBox(height: 8),
+                // 友達申請の入力欄は、周りに枠・パネルを付けず、カードの下に直接出す。
                 _friendFooter(strings),
               ],
             ],
@@ -339,6 +384,13 @@ class _UserProfileCardDialogState extends ConsumerState<UserProfileCardDialog> {
                     : strings.userProfileCardComposerHint,
                 sending: _sending,
                 onSend: isPendingFromMe ? null : _sendRequest,
+                // 「任意」「100文字以内」は箇条書きで、入力欄の枠の中に出す。
+                notes: isPendingFromMe
+                    ? const []
+                    : [
+                        strings.userProfileCardComposerOptionalNote,
+                        strings.userProfileCardComposerLimitNote,
+                      ],
               ),
               if (_errorMessage != null) ...[
                 const SizedBox(height: 4),

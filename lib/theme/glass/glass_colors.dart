@@ -14,8 +14,8 @@ class GlassColors {
   /// ガラスUIの文字・アイコン色。`ColorScheme.fromSeed`任せにすると
   /// アクセントカラーの色相が乗って視認性が落ちるため、ライト/ダーク
   /// それぞれ1色に固定する（2026-08-29追記）。
-  static const lightForeground = Color(0xFF1C1C1E);
-  static const darkForeground = Color(0xFFF2F2F7);
+  static const lightForeground = Color(0xFF1C1C1C);
+  static const darkForeground = Color(0xFFF2F2F2);
 
   /// ガラスUIの通話ボタン等、アイコン単体の文字色として使う場面向けに、
   /// 渡された色をテーマの明暗ごとに視認性の高い色へ調整する

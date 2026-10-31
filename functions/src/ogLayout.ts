@@ -36,6 +36,11 @@ export function resolveOgLayout(preset: unknown, align: unknown): OgLayout {
       justifyContent = "flex-start";
       scrim = SCRIM_TOP;
       break;
+    case "topRight":
+      justifyContent = "flex-start";
+      alignSelfX = "flex-end";
+      scrim = SCRIM_TOP;
+      break;
     case "center":
       justifyContent = "center";
       alignSelfX = "center";

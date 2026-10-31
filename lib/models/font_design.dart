@@ -200,10 +200,20 @@ enum FontDesign {
   }
 
   /// 設定画面などの選択肢に出す、その表示言語で使えるフォント。
-  static List<FontDesign> availableFor(AppLocale locale) => [
-    for (final design in values)
-      if (design.supportsLocale(locale)) design,
-  ];
+  /// 極み限定のフォントは、無料のものの後ろ（下）に詰めて並べる（2026-10-31）。
+  /// それぞれの中の順序は定義順のまま。
+  static List<FontDesign> availableFor(AppLocale locale) {
+    final usable = [
+      for (final design in values)
+        if (design.supportsLocale(locale)) design,
+    ];
+    return [
+      for (final design in usable)
+        if (!design.isKiwamiExclusive) design,
+      for (final design in usable)
+        if (design.isKiwamiExclusive) design,
+    ];
+  }
 
   /// 実際に適用するフォント。選択中のフォントがその表示言語で使えない場合は
   /// 既定（[notoSansJp]）にする。保存された選択は書き換えないため、日本語・英語へ

@@ -16,6 +16,7 @@ class UserInvitePreview {
     this.snsLinkUrls = const [],
     this.layoutPreset,
     this.textAlign,
+    this.fontColorArgb,
     this.linkSalt,
   });
 
@@ -35,6 +36,9 @@ class UserInvitePreview {
   final String? layoutPreset;
   final String? textAlign;
 
+  /// アクティブな工房カードの文字色（ARGB、2026-10-31追加）。nullなら従来どおり。
+  final int? fontColorArgb;
+
   /// 招待リンクの版識別子にだけ混ぜる値（Firestoreには保存しない）。
   /// `AppUser.inviteLinkSalt`。
   final int? linkSalt;
@@ -52,6 +56,7 @@ class UserInvitePreview {
       snsLinkUrls: [for (final link in user.effectiveSnsLinks) link.url],
       layoutPreset: user.activeProfileCard?.layoutPreset?.name,
       textAlign: user.activeProfileCard?.textAlign?.name,
+      fontColorArgb: user.activeProfileCard?.fontColorArgb,
       linkSalt: user.inviteLinkSalt,
     );
   }
@@ -80,6 +85,7 @@ class UserInvitePreview {
       snsLinkUrls: (json['snsLinkUrls'] as List?)?.cast<String>() ?? const [],
       layoutPreset: json['layoutPreset'] as String?,
       textAlign: json['textAlign'] as String?,
+      fontColorArgb: json['fontColor'] as int?,
     );
   }
 
@@ -93,6 +99,7 @@ class UserInvitePreview {
       'snsLinkUrls': snsLinkUrls,
       if (layoutPreset != null) 'layoutPreset': layoutPreset,
       if (textAlign != null) 'textAlign': textAlign,
+      if (fontColorArgb != null) 'fontColor': fontColorArgb,
     };
   }
 }

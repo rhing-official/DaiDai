@@ -17,6 +17,7 @@ import 'package:daidai/widgets/interactive_swipe_back.dart';
 import 'package:daidai/widgets/profile_card_view.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -566,7 +567,7 @@ void main() {
     expect(find.byType(FocalEditOverlay), findsNothing);
   });
 
-  testWidgets('配置と文字の揃えをチップで選ぶと保存され、既定へ戻すとキーが消える', (tester) async {
+  testWidgets('配置と文字の揃えをプルダウンで選ぶと保存され、既定へ戻すとキーが消える', (tester) async {
     const card = ProfileCard(id: 'c1', name: '既存カード');
     const user = AppUser(userId: 'u1', rhingSeed: 'taro', profileCards: [card]);
     final repo = _FakeUserRepository()..saved = user;
@@ -576,8 +577,13 @@ void main() {
     await tester.tapAt(tester.getCenter(find.byType(ProfileCardView).first));
     await tester.pumpAndSettle();
 
+    // 配置・揃えはプルダウン（現在の値のボタンをタップ→選択肢のポップアップ）。
     expect(find.text('配置'), findsOneWidget);
+    await tester.tap(find.text('左下'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('中央下'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('左'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('右'));
     await tester.pumpAndSettle();
@@ -586,7 +592,11 @@ void main() {
     expect(saved.layoutPreset, CardLayoutPreset.bottomCenter);
     expect(saved.textAlign, CardTextAlign.end);
 
+    await tester.tap(find.text('中央下'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('左下'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('右'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('左'));
     await tester.pumpAndSettle();
@@ -765,7 +775,7 @@ void main() {
     expect(find.byType(TextField), findsWidgets);
 
     // 配置のボタン（カードの外の操作部品）の上から下へドラッグする。
-    await tester.drag(find.text('中央').first, const Offset(0, 150));
+    await tester.drag(find.text('配置'), const Offset(0, 150));
     await tester.pumpAndSettle();
     expect(find.byType(TextField), findsNothing);
   });
@@ -816,8 +826,11 @@ void main() {
     // 編集画面を開かなくても、縮小表示のカードの時点でURLが見えている。カード上
     // ではドメイン部分だけに短縮して表示する（`displaySnsLinkUrl`、2026-09-24変更。
     // 保存するURL自体はフルパスのまま）。
-    expect(find.text('instagram.com'), findsOneWidget);
-    expect(find.text('pixiv.net'), findsOneWidget);
+    // 主要サービス（Instagram・Pixiv）は、ドメインの文字ではなくアイコンだけが出る
+    // （2026-10-31）。
+    expect(find.byType(SvgPicture), findsNWidgets(2));
+    expect(find.text('instagram.com'), findsNothing);
+    expect(find.text('pixiv.net'), findsNothing);
   });
 
   testWidgets('狭い画面のドリルダウン中に左スワイプで次のカテゴリへ切り替え、右スワイプで一覧へ戻る（回帰テスト）', (

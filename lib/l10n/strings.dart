@@ -265,6 +265,8 @@ class Strings {
     required this.userProfileCardAcceptRequest,
     required this.userProfileCardRequestPending,
     required this.userProfileCardComposerHint,
+    required this.userProfileCardComposerOptionalNote,
+    required this.userProfileCardComposerLimitNote,
     required this.userProfileCardComposerLockedHint,
     required this.userProfileCardAcceptNotice,
     required this.friendRequestIncomingSubtitle,
@@ -362,6 +364,7 @@ class Strings {
     required this.workshopLayoutBottomLeft,
     required this.workshopLayoutBottomCenter,
     required this.workshopLayoutTopLeft,
+    required this.workshopLayoutTopRight,
     required this.workshopLayoutCenter,
     required this.workshopLayoutBottomRight,
     required this.workshopAlignLabel,
@@ -914,6 +917,9 @@ class Strings {
     required this.workshopBirthdayFieldLabel,
     required this.workshopBirthdayNotRegisteredHint,
     required this.workshopFontLabel,
+    required this.workshopFontShortLabel,
+    required this.workshopFontColorLabel,
+    required this.workshopFontColorShortLabel,
   });
 
   final String navTalk;
@@ -1209,6 +1215,10 @@ class Strings {
   /// [ProfileCardComposer]の未送信時のヒントテキスト（2026-09-24追加）。
   final String userProfileCardComposerHint;
 
+  /// 友達申請のメッセージ欄の下に、箇条書きで出す注記（2026-10-31）。
+  final String userProfileCardComposerOptionalNote;
+  final String userProfileCardComposerLimitNote;
+
   /// [ProfileCardComposer]の、自分から送信済み・返答待ちの間のヒント
   /// テキスト（欄自体は消さずグレーアウトして表示する、2026-09-24追加）。
   final String userProfileCardComposerLockedHint;
@@ -1342,6 +1352,7 @@ class Strings {
   final String workshopLayoutBottomLeft;
   final String workshopLayoutBottomCenter;
   final String workshopLayoutTopLeft;
+  final String workshopLayoutTopRight;
   final String workshopLayoutCenter;
   final String workshopLayoutBottomRight;
   final String workshopAlignLabel;
@@ -2148,6 +2159,14 @@ class Strings {
 
   final String workshopFontLabel;
 
+  /// ラベルの欄に入り切らない時に使う略称（2026-10-31）。
+  final String workshopFontShortLabel;
+
+  /// カード内の文字の色の編集（2026-10-31）。「自動」は色を指定しない状態
+  /// （背景画像があれば白、無ければテーマの色）。
+  final String workshopFontColorLabel;
+  final String workshopFontColorShortLabel;
+
   static final ja = Strings._(
     navTalk: '語らい',
     navProfile: '身だしなみ',
@@ -2419,7 +2438,9 @@ class Strings {
     userProfileCardSendRequest: '友達申請を送る',
     userProfileCardAcceptRequest: '友達申請を承認する',
     userProfileCardRequestPending: '申請中です。相手の承認をお待ちください',
-    userProfileCardComposerHint: 'メッセージを添えて友達申請（任意、100文字まで）',
+    userProfileCardComposerHint: 'メッセージを添えて友達申請',
+    userProfileCardComposerOptionalNote: '任意',
+    userProfileCardComposerLimitNote: '100文字以内',
     userProfileCardComposerLockedHint: '友達申請を送信済みです。相手が承認するまで送れません',
     userProfileCardAcceptNotice: '送信すると友達申請を承認したことになります',
     friendRequestIncomingSubtitle: '相手から申請が届いています',
@@ -2526,6 +2547,7 @@ class Strings {
     workshopLayoutBottomLeft: '左下',
     workshopLayoutBottomCenter: '中央下',
     workshopLayoutTopLeft: '左上',
+    workshopLayoutTopRight: '右上',
     workshopLayoutCenter: '中央',
     workshopLayoutBottomRight: '右下',
     workshopAlignLabel: '揃え',
@@ -3117,7 +3139,10 @@ class Strings {
     birthdayInvalidError: '存在しない日付です',
     workshopBirthdayFieldLabel: '誕生日',
     workshopBirthdayNotRegisteredHint: '蔵で誕生日を登録してください',
-    workshopFontLabel: 'フォント',
+    workshopFontLabel: 'フォントデザイン',
+    workshopFontShortLabel: 'デザイン',
+    workshopFontColorLabel: 'フォントカラー',
+    workshopFontColorShortLabel: 'カラー',
   );
 
   static final enGB = Strings._(
@@ -3430,8 +3455,9 @@ class Strings {
     userProfileCardSendRequest: 'Send friend request',
     userProfileCardAcceptRequest: 'Accept friend request',
     userProfileCardRequestPending: 'Request sent. Waiting for approval.',
-    userProfileCardComposerHint:
-        'Add a message with your request (optional, up to 100 characters)',
+    userProfileCardComposerHint: 'Add a message with your request',
+    userProfileCardComposerOptionalNote: 'Optional',
+    userProfileCardComposerLimitNote: 'Up to 100 characters',
     userProfileCardComposerLockedHint:
         "You've already sent a friend request. You can't send another until they accept.",
     userProfileCardAcceptNotice:
@@ -3555,6 +3581,7 @@ class Strings {
     workshopLayoutBottomLeft: 'Bottom left',
     workshopLayoutBottomCenter: 'Bottom centre',
     workshopLayoutTopLeft: 'Top left',
+    workshopLayoutTopRight: 'Top right',
     workshopLayoutCenter: 'Centre',
     workshopLayoutBottomRight: 'Bottom right',
     workshopAlignLabel: 'Align',
@@ -4201,7 +4228,10 @@ class Strings {
     workshopBirthdayFieldLabel: 'Birthday',
     workshopBirthdayNotRegisteredHint:
         'Add your birthday in the Profile library first',
-    workshopFontLabel: 'Font',
+    workshopFontLabel: 'Font design',
+    workshopFontShortLabel: 'Design',
+    workshopFontColorLabel: 'Font colour',
+    workshopFontColorShortLabel: 'Colour',
   );
 
   /// `MaterialApp.locale`（[Localizations]）から対訳セットを引く。Riverpodを

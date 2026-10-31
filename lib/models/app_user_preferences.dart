@@ -20,6 +20,7 @@ class AppUserPreferences {
     this.messageTimeFormat,
     this.appUiStyle,
     this.customAccentColorsArgb,
+    this.customFontColorsArgb,
     this.removedDefaultColorPresetsHex,
     this.conversationSortOrder,
     this.fontDesign,
@@ -53,6 +54,9 @@ class AppUserPreferences {
   /// ユーザーが自分で登録したアクセントカラーの一覧（`accentColorArgb`
   /// とは別に、繰り返し使うために保存した色。2026-08-29追加）。
   final List<int>? customAccentColorsArgb;
+
+  /// カードの文字色の登録色（2026-10-31追加、[customAccentColorsArgb]と同じ形式）。
+  final List<int>? customFontColorsArgb;
 
   /// ユーザーが長押しで削除した固定プリセットのhex文字列一覧
   /// （設定タブ`_kDefaultColorPresets`の要素のうち非表示化されたもの。
@@ -109,6 +113,9 @@ class AppUserPreferences {
       customAccentColorsArgb: (json['customAccentColorsArgb'] as List<dynamic>?)
           ?.map((e) => e as int)
           .toList(),
+      customFontColorsArgb: (json['customFontColorsArgb'] as List<dynamic>?)
+          ?.map((e) => e as int)
+          .toList(),
       removedDefaultColorPresetsHex:
           (json['removedDefaultColorPresetsHex'] as List<dynamic>?)
               ?.map((e) => e as String)
@@ -142,6 +149,8 @@ class AppUserPreferences {
       if (appUiStyle != null) 'appUiStyle': appUiStyle,
       if (customAccentColorsArgb != null)
         'customAccentColorsArgb': customAccentColorsArgb,
+      if (customFontColorsArgb != null)
+        'customFontColorsArgb': customFontColorsArgb,
       if (removedDefaultColorPresetsHex != null)
         'removedDefaultColorPresetsHex': removedDefaultColorPresetsHex,
       if (conversationSortOrder != null)

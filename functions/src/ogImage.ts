@@ -6,8 +6,8 @@
 // 移植元のコメント（git履歴の`api/og-image.mjs`）を参照。
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import sharp from "sharp";
-
 import { resolveOgLayout } from "./ogLayout";
+import { snsIconDataUri, snsIconNameFor } from "./snsIcons";
 
 // @vercel/ogはESM専用。Node 24のrequire(esm)で同期的に読み込む。
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -63,9 +63,10 @@ async function render(type: string | null, id: string | null): Promise<Buffer> {
   const description = doc
     ? (isUser ? doc.statusMessage : doc.description) || ''
     : '';
-  const snsLinks = isUser
-    ? parseSnsLinkUrls(doc?.snsLinkUrls).slice(0, 2).map(displaySnsLinkUrl)
+  const snsLinkUrls = isUser
+    ? parseSnsLinkUrls(doc?.snsLinkUrls).slice(0, 2)
     : [];
+  const snsLinks = snsLinkUrls.map(displaySnsLinkUrl);
 
   // WebP画像をそのままSatoriに渡すと描画に失敗するため、事前にPNGへ変換する。
   // 変換自体が失敗しても（画像取得失敗等）画像抜きでカードは生成できるよう、
@@ -81,9 +82,11 @@ async function render(type: string | null, id: string | null): Promise<Buffer> {
     loadNotoSansJpCached(fontText).catch(() => null),
   ]);
   const layout = resolveOgLayout(doc?.layoutPreset, doc?.textAlign);
-  const hasBackground = Boolean(backgroundDataUri);
-  const textColor = hasBackground ? '#FFFFFF' : '#2E2A24';
-  const subTextColor = hasBackground ? 'rgba(255,255,255,0.75)' : '#6B6459';
+  // 作者が選んだ文字色（ARGB、`fontColor`）。無ければ標準の白。一言・URLは
+  // その色を75%の濃さにした色（アプリ側の`ProfileCardView`と同じ）。
+  const custom = parseArgbColor(doc?.fontColor) ?? parseArgbColor(0xffffffff);
+  const textColor = custom!.css(1);
+  const subTextColor = custom!.css(0.75);
 
   const contentChildren = [
     el(
@@ -131,6 +134,8 @@ async function render(type: string | null, id: string | null): Promise<Buffer> {
   }
 
   for (const [index, link] of snsLinks.entries()) {
+    const iconName = snsIconNameFor(snsLinkUrls[index]);
+    const iconUri = iconName ? snsIconDataUri(iconName, subTextColor) : null;
     contentChildren.push(
       el(
         'div',
@@ -141,7 +146,16 @@ async function render(type: string | null, id: string | null): Promise<Buffer> {
           fontSize: SNS_FONT_SIZE,
           color: subTextColor,
         },
-        [`🔗 ${link}`],
+        // 主要サービスは単色のアイコンだけ（ドメインの文字は出さない）、それ以外は従来どおり🔗（アプリ側の
+        // `SnsLinksInline`と同じ対応表、`snsIcons.ts`）。
+        iconUri
+          ? [
+              img(iconUri, {
+                width: SNS_FONT_SIZE * 1.5,
+                height: SNS_FONT_SIZE * 1.5,
+              }),
+            ]
+          : [`🔗 ${link}`],
       ),
     );
   }
@@ -294,6 +308,19 @@ function parseFirestoreFields(fields: any) {
     }
   }
   return result;
+}
+
+/** Firestoreに保存されたARGBの整数を、CSSの色にする。不正ならnull。 */
+function parseArgbColor(value: any) {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return null;
+  const v = value >>> 0;
+  const a = ((v >>> 24) & 0xff) / 255;
+  const r = (v >>> 16) & 0xff;
+  const g = (v >>> 8) & 0xff;
+  const b = v & 0xff;
+  return {
+    css: (scale: number) => `rgba(${r},${g},${b},${(a * scale).toFixed(3)})`,
+  };
 }
 
 function parseSnsLinkUrls(value: any): string[] {

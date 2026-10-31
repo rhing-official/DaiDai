@@ -159,6 +159,9 @@ flutter:
     # （2026-10-10追加、HomePage-Rhingのnot-found.tsxと同じ素材）。
     - assets/museum/
     - assets/illustrations/
+    # カード内のURLの左に出す、主要サービスの単色アイコン（Simple Icons、CC0、
+    # 2026-10-31追加、`lib/utils/sns_icon.dart`）。
+    - assets/sns_icons/
     # Googleの「Sign in with Google」ブランドガイドライン
     # （https://developers.google.com/identity/branding-guidelines）配布の
     # 公式アセットZipから抽出した「G」ロゴ単体（2026-09-11追加、

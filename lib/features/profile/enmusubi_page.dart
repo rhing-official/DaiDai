@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:qr_flutter/qr_flutter.dart';
@@ -14,7 +13,7 @@ import '../../providers/app_ui_style_provider.dart';
 import '../../providers/repository_providers.dart';
 import '../../theme/gekiga/gekiga_colors.dart';
 import '../../utils/web_link.dart';
-import '../../widgets/gekiga/gekiga_icon_badge.dart';
+import '../../widgets/copy_link_row.dart';
 import '../../widgets/gekiga/gekiga_panel_box.dart';
 import '../../widgets/gekiga/gekiga_section_header.dart';
 import '../../widgets/interactive_swipe_back.dart';
@@ -62,10 +61,6 @@ class _EnmusubiPageState extends ConsumerState<EnmusubiPage> {
     ref.read(userRepositoryProvider).syncInvitePreview(currentUser.userId);
   }
 
-  void _copyLink(String link) {
-    Clipboard.setData(ClipboardData(text: link));
-  }
-
   Future<void> _openScanner(BuildContext context) async {
     final title = ref.read(appStringsProvider).enmusubiScanScreenTitle;
     final scanned = await Navigator.of(context).push<String>(
@@ -105,25 +100,14 @@ class _EnmusubiPageState extends ConsumerState<EnmusubiPage> {
                           horizontal: 12,
                           vertical: 8,
                         ),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: SelectableText(
-                                link,
-                                maxLines: 1,
-                                style: const TextStyle(
-                                  color: GekigaColors.panel,
-                                ),
-                              ),
-                            ),
-                            TutorialTarget(
-                              id: TutorialTargetIds.enmusubiCopy,
-                              child: GekigaIconButton(
-                                icon: Icons.copy_outlined,
-                                onPressed: () => _copyLink(link),
-                              ),
-                            ),
-                          ],
+                        child: CopyLinkRow(
+                          link: link,
+                          gekiga: true,
+                          textStyle: const TextStyle(color: GekigaColors.panel),
+                          wrapButton: (button) => TutorialTarget(
+                            id: TutorialTargetIds.enmusubiCopy,
+                            child: button,
+                          ),
                         ),
                       ),
                     ],
@@ -137,17 +121,12 @@ class _EnmusubiPageState extends ConsumerState<EnmusubiPage> {
                       border: Border.all(color: colorScheme.outlineVariant),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: Row(
-                      children: [
-                        Expanded(child: SelectableText(link, maxLines: 1)),
-                        TutorialTarget(
-                          id: TutorialTargetIds.enmusubiCopy,
-                          child: IconButton(
-                            icon: const Icon(Icons.copy_outlined),
-                            onPressed: () => _copyLink(link),
-                          ),
-                        ),
-                      ],
+                    child: CopyLinkRow(
+                      link: link,
+                      wrapButton: (button) => TutorialTarget(
+                        id: TutorialTargetIds.enmusubiCopy,
+                        child: button,
+                      ),
                     ),
                   ),
             const SizedBox(height: 32),
