@@ -36,6 +36,7 @@ import 'providers/custom_font_colors_provider.dart';
 import 'providers/removed_default_color_presets_provider.dart';
 import 'providers/draft_sync_enabled_provider.dart';
 import 'providers/join_video_camera_on_provider.dart';
+import 'providers/nav_chip_layout_provider.dart';
 import 'providers/font_design_provider.dart';
 import 'providers/gekiga_background_color_provider.dart';
 import 'providers/last_opened_room_provider.dart';
@@ -98,6 +99,7 @@ Future<void> main() async {
   final initialStickerSendMode = await loadInitialStickerSendMode();
   final initialDraftSyncEnabled = await loadInitialDraftSyncEnabled();
   final initialJoinVideoCameraOn = await loadInitialJoinVideoCameraOn();
+  final initialNavChipLayout = await loadInitialNavChipLayout();
   final initialMessageTimeFormat = await loadInitialMessageTimeFormat();
   final initialCalendarWeekStart = await loadInitialCalendarWeekStart();
   final initialChatLayoutStyle = await loadInitialChatLayoutStyle();
@@ -151,6 +153,7 @@ Future<void> main() async {
         initialJoinVideoCameraOnProvider.overrideWithValue(
           initialJoinVideoCameraOn,
         ),
+        initialNavChipLayoutProvider.overrideWithValue(initialNavChipLayout),
         initialMessageTimeFormatProvider.overrideWithValue(
           initialMessageTimeFormat,
         ),

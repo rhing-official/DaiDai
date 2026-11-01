@@ -31,7 +31,15 @@ class Strings {
     required this.settingsNotificationsEnableSubtitle,
     required this.settingsNotificationsPermissionDeniedError,
     required this.settingsFolderTalk,
-    required this.settingsFolderCall,
+    required this.settingsNavChipsTitle,
+    required this.settingsNavChipsDescription,
+    required this.settingsNavChipsAlignmentTitle,
+    required this.settingsNavChipsAlignStart,
+    required this.settingsNavChipsAlignCenter,
+    required this.settingsNavChipsAlignEnd,
+    required this.settingsNavChipsAlignTop,
+    required this.settingsNavChipsAlignBottom,
+    required this.settingsNavChipsOrderTitle,
     required this.settingsCallJoinCameraTitle,
     required this.settingsCallJoinCameraSubtitle,
     required this.settingsFolderSupport,
@@ -82,6 +90,7 @@ class Strings {
     required this.settingsChatLayoutAllLeft,
     required this.settingsChatLayoutAllLeftDescription,
     required this.settingsTalksListLayoutTitle,
+    required this.settingsTalksListLayoutNote,
     required this.settingsTalksListLayoutStandard,
     required this.settingsTalksListLayoutStandardDescription,
     required this.settingsTalksListLayoutIconSplit,
@@ -988,7 +997,15 @@ class Strings {
   final String settingsNotificationsEnableSubtitle;
   final String settingsNotificationsPermissionDeniedError;
   final String settingsFolderTalk;
-  final String settingsFolderCall;
+  final String settingsNavChipsTitle;
+  final String settingsNavChipsDescription;
+  final String settingsNavChipsAlignmentTitle;
+  final String settingsNavChipsAlignStart;
+  final String settingsNavChipsAlignCenter;
+  final String settingsNavChipsAlignEnd;
+  final String settingsNavChipsAlignTop;
+  final String settingsNavChipsAlignBottom;
+  final String settingsNavChipsOrderTitle;
   final String settingsCallJoinCameraTitle;
   final String settingsCallJoinCameraSubtitle;
   final String settingsFolderSupport;
@@ -1052,6 +1069,7 @@ class Strings {
 
   /// 縦表示での語らい一覧レイアウト（2026-09-11追加、設定＞語らい）。
   final String settingsTalksListLayoutTitle;
+  final String settingsTalksListLayoutNote;
   final String settingsTalksListLayoutStandard;
   final String settingsTalksListLayoutStandardDescription;
   final String settingsTalksListLayoutIconSplit;
@@ -2258,7 +2276,16 @@ class Strings {
     settingsNotificationsPermissionDeniedError:
         '通知の許可が得られませんでした。ブラウザ/OSの設定をご確認ください。',
     settingsFolderTalk: '語らい',
-    settingsFolderCall: '通話',
+    settingsNavChipsTitle: 'メニューチップ',
+    settingsNavChipsDescription:
+        'メニューの並びと位置（揃え）を変えられます。縦表示は下部で左・中央・右、横表示は左端で上・中央・下に揃います。',
+    settingsNavChipsAlignmentTitle: '揃え',
+    settingsNavChipsAlignStart: '左揃え',
+    settingsNavChipsAlignCenter: '中央揃え',
+    settingsNavChipsAlignEnd: '右揃え',
+    settingsNavChipsAlignTop: '上揃え',
+    settingsNavChipsAlignBottom: '下揃え',
+    settingsNavChipsOrderTitle: '並び',
     settingsCallJoinCameraTitle: 'ビデオ通話に参加するときカメラをオンにする',
     settingsCallJoinCameraSubtitle:
         'オフにすると、ビデオ通話に応答・参加したときはカメラを切った状態（音声のみ）で入ります。通話中にいつでもオンにできます。自分から発信する1対1のビデオ通話には影響しません。',
@@ -2315,6 +2342,8 @@ class Strings {
         '自分・相手ともにアイコンと呼び名を表示します。'
         'この設定は自分の画面にのみ反映され、相手の語らいの表示には影響しません。',
     settingsTalksListLayoutTitle: '語らい一覧のレイアウト',
+    settingsTalksListLayoutNote:
+        '縦画面で適用されます。横画面（幅の広い画面）のコンピューターでは、この設定にかかわらず左右分割で表示されます。',
     settingsTalksListLayoutStandard: 'アイコンのみ',
     settingsTalksListLayoutStandardDescription: '一対・広場をアイコンで縦一列に表示します。',
     settingsTalksListLayoutIconSplit: 'アイコン＋寄合一覧',
@@ -3272,7 +3301,16 @@ class Strings {
     settingsNotificationsPermissionDeniedError:
         "Notification permission wasn't granted. Please check your browser/OS settings.",
     settingsFolderTalk: 'Talk',
-    settingsFolderCall: 'Calls',
+    settingsNavChipsTitle: 'Menu chips',
+    settingsNavChipsDescription:
+        'Change the order and alignment of the menu: left, centre or right along the bottom on narrow screens, top, centre or bottom along the left edge on wide screens.',
+    settingsNavChipsAlignmentTitle: 'Alignment',
+    settingsNavChipsAlignStart: 'Left',
+    settingsNavChipsAlignCenter: 'Centre',
+    settingsNavChipsAlignEnd: 'Right',
+    settingsNavChipsAlignTop: 'Top',
+    settingsNavChipsAlignBottom: 'Bottom',
+    settingsNavChipsOrderTitle: 'Order (drag to rearrange)',
     settingsCallJoinCameraTitle: 'Turn the camera on when joining a video call',
     settingsCallJoinCameraSubtitle:
         'When off, you join video calls you answer or join with your camera off (audio only). You can turn it on at any time during the call. This doesn\'t affect one-to-one video calls you start yourself.',
@@ -3336,6 +3374,8 @@ class Strings {
         'nickname. This only changes your own screen, not how others see '
         'the chat.',
     settingsTalksListLayoutTitle: 'Talks list layout (portrait)',
+    settingsTalksListLayoutNote:
+        'Applies in portrait orientation. On a computer with a wide, landscape window, the list is always shown in a split view regardless of this setting.',
     settingsTalksListLayoutStandard: 'Icon only',
     settingsTalksListLayoutStandardDescription:
         'Shows direct messages and plazas as a single vertical list.',

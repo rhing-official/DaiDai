@@ -7,6 +7,7 @@ import 'dart:collection';
 import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart'
     show ValueListenable, visibleForTesting;
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -2139,28 +2140,12 @@ class _TalksTabState extends ConsumerState<TalksTab>
   /// ピン留め内・ピン留め外それぞれの並び順のみを決める。
   Widget _buildSortButton(Strings strings) {
     final current = ref.watch(conversationSortOrderProvider);
-    return PopupMenuButton<ConversationSortOrder>(
-      icon: const Icon(Icons.sort),
-      tooltip: '',
+    return _HoldSelectSortButton(
+      current: current,
+      isGekiga: ref.watch(appUiStyleProvider) == AppUiStyle.gekiga,
+      labelOf: (order) => _sortOrderLabel(strings, order),
       onSelected: (order) =>
           ref.read(conversationSortOrderProvider.notifier).setOrder(order),
-      itemBuilder: (context) => [
-        for (final order in ConversationSortOrder.values)
-          PopupMenuItem(
-            value: order,
-            child: Row(
-              children: [
-                Icon(
-                  Icons.check,
-                  size: 18,
-                  color: order == current ? null : Colors.transparent,
-                ),
-                const SizedBox(width: 8),
-                Text(_sortOrderLabel(strings, order)),
-              ],
-            ),
-          ),
-      ],
     );
   }
 
@@ -5012,4 +4997,162 @@ class _GroupDetailWithRoomsState extends ConsumerState<_GroupDetailWithRooms> {
       },
     );
   }
+}
+
+/// 語らい一覧の並べ替えボタン。通常のクリック（押して離す）でメニューを開いて選ぶ
+/// ほか、ボタンを押したまま項目の上までドラッグして離すと、その項目を選べる
+/// （2026-11-01）。ポインターのイベントは最初に押したボタンへ届き続けるため、
+/// ボタン側の`Listener`で押下中の位置を追い、項目の矩形と照合する。
+class _HoldSelectSortButton extends StatefulWidget {
+  const _HoldSelectSortButton({
+    required this.current,
+    required this.isGekiga,
+    required this.labelOf,
+    required this.onSelected,
+  });
+
+  final ConversationSortOrder current;
+
+  /// 劇画UIでは、ボタンをモノクロの箱のバッジにし、メニューも黒地・白文字にする。
+  final bool isGekiga;
+  final String Function(ConversationSortOrder order) labelOf;
+  final ValueChanged<ConversationSortOrder> onSelected;
+
+  @override
+  State<_HoldSelectSortButton> createState() => _HoldSelectSortButtonState();
+}
+
+class _HoldSelectSortButtonState extends State<_HoldSelectSortButton> {
+  final _itemKeys = {
+    for (final order in ConversationSortOrder.values) order: GlobalKey(),
+  };
+  final _hovered = ValueNotifier<ConversationSortOrder?>(null);
+  bool _menuOpen = false;
+
+  @override
+  void dispose() {
+    _hovered.dispose();
+    super.dispose();
+  }
+
+  ConversationSortOrder? _orderAt(Offset globalPosition) {
+    for (final entry in _itemKeys.entries) {
+      final box = entry.value.currentContext?.findRenderObject();
+      if (box is! RenderBox || !box.attached) continue;
+      if ((box.localToGlobal(Offset.zero) & box.size).contains(
+        globalPosition,
+      )) {
+        return entry.key;
+      }
+    }
+    return null;
+  }
+
+  Future<void> _openMenu() async {
+    final button = context.findRenderObject()! as RenderBox;
+    final navigator = Navigator.of(context);
+    final overlay = navigator.overlay!.context.findRenderObject()! as RenderBox;
+    final position = RelativeRect.fromRect(
+      Rect.fromPoints(
+        button.localToGlobal(Offset(0, button.size.height), ancestor: overlay),
+        button.localToGlobal(
+          button.size.bottomRight(Offset.zero),
+          ancestor: overlay,
+        ),
+      ),
+      Offset.zero & overlay.size,
+    );
+    _menuOpen = true;
+    _hovered.value = null;
+    final selected = await showMenu<ConversationSortOrder>(
+      context: context,
+      position: position,
+      color: widget.isGekiga ? GekigaColors.panel : null,
+      shape: widget.isGekiga ? const RoundedRectangleBorder() : null,
+      items: [
+        for (final order in ConversationSortOrder.values)
+          PopupMenuItem(
+            value: order,
+            padding: EdgeInsets.zero,
+            child: ValueListenableBuilder<ConversationSortOrder?>(
+              valueListenable: _hovered,
+              builder: (context, hovered, _) => Container(
+                key: _itemKeys[order],
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                alignment: Alignment.centerLeft,
+                constraints: const BoxConstraints(minHeight: 48),
+                color: hovered == order
+                    ? (widget.isGekiga
+                              ? GekigaColors.onPanel
+                              : Theme.of(context).colorScheme.onSurface)
+                          .withValues(alpha: 0.12)
+                    : null,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.check,
+                      size: 18,
+                      color: order == widget.current
+                          ? (widget.isGekiga ? GekigaColors.onPanel : null)
+                          : Colors.transparent,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      widget.labelOf(order),
+                      style: widget.isGekiga
+                          ? const TextStyle(color: GekigaColors.onPanel)
+                          : null,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+    _menuOpen = false;
+    _hovered.value = null;
+    if (selected != null) widget.onSelected(selected);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Listener(
+      onPointerDown: (event) {
+        if (event.kind == PointerDeviceKind.mouse &&
+            event.buttons != kPrimaryMouseButton) {
+          return;
+        }
+        if (!_menuOpen) _openMenu();
+      },
+      onPointerMove: (event) {
+        if (_menuOpen) _hovered.value = _orderAt(event.position);
+      },
+      onPointerUp: (event) {
+        if (!_menuOpen) return;
+        final order = _orderAt(event.position);
+        // 項目の上で離した時だけ、その項目を選んでメニューを閉じる。ボタンの上で
+        // 離した（通常のクリック）時はメニューを開いたままにする。
+        if (order != null) Navigator.of(context).pop(order);
+      },
+      // クリックしたときの半透明の円（スプラッシュ・ハイライト・ホバー）は出さない。
+      child: widget.isGekiga
+          ? const Padding(
+              padding: EdgeInsets.all(4),
+              child: GekigaIconBadge(icon: Icons.sort, size: 40),
+            )
+          : IconButton(
+              icon: const Icon(Icons.sort),
+              onPressed: _noop,
+              style: IconButton.styleFrom(
+                splashFactory: NoSplash.splashFactory,
+                overlayColor: Colors.transparent,
+              ),
+            ),
+    );
+  }
+
+  static void _noop() {}
 }

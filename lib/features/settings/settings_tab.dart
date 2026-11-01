@@ -41,7 +41,9 @@ import '../../providers/block_providers.dart';
 import '../../providers/chat_layout_style_provider.dart';
 import '../../providers/talks_list_layout_style_provider.dart';
 import '../../providers/draft_sync_enabled_provider.dart';
+import '../../models/nav_chip_layout.dart';
 import '../../providers/join_video_camera_on_provider.dart';
+import '../../providers/nav_chip_layout_provider.dart';
 import '../../providers/gekiga_background_color_provider.dart';
 import '../../providers/message_time_format_provider.dart';
 import '../../providers/removed_default_color_presets_provider.dart';
@@ -66,6 +68,7 @@ import '../../widgets/destructive_label.dart';
 import '../auth/residence_survey_screen.dart';
 import '../../models/residence.dart';
 import '../guide/guide_pages.dart';
+import '../../widgets/media_preview_frame.dart';
 import '../../widgets/gekiga/gekiga_panel_box.dart';
 import '../../widgets/gekiga/gekiga_section_header.dart';
 import '../../widgets/gekiga/gekiga_text_field.dart';
@@ -582,12 +585,6 @@ List<_SettingsCategory> _categories(
       title: strings.settingsFolderTalk,
       pageBuilder: (context) =>
           _TalkPage(strings: strings, currentUser: currentUser),
-    ),
-    _SettingsCategory(
-      id: 'call',
-      icon: Icons.call_outlined,
-      title: strings.settingsFolderCall,
-      pageBuilder: (context) => _CallPage(strings: strings),
     ),
     _SettingsCategory(
       id: 'notifications',
@@ -2126,7 +2123,11 @@ class _DeleteAccountOptionCard extends StatelessWidget {
 /// アプリケーションカテゴリの中身。旧: 色／UI／文字／言語の各サブフォルダを
 /// 1ページにまとめた。
 class _ApplicationPage extends ConsumerWidget {
-  const _ApplicationPage({required this.strings, this.showPasscode = true});
+  const _ApplicationPage({
+    required this.strings,
+    this.showPasscode = true,
+    this.showNavChips = true,
+  });
 
   final Strings strings;
 
@@ -2134,6 +2135,10 @@ class _ApplicationPage extends ConsumerWidget {
   /// 生体認証に依存するため、管理画面（[ApplicationSettingsView]）では出さない
   /// （2026-10-10追加）。
   final bool showPasscode;
+
+  /// 下部メニューチップの揃え・並びの設定を出すか。管理画面（[ApplicationSettingsView]）は
+  /// 別のナビ（`ChipNavShell`）で、この設定の対象外のため出さない（2026-11-01）。
+  final bool showNavChips;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -2167,6 +2172,11 @@ class _ApplicationPage extends ConsumerWidget {
         _SectionHeader(strings.settingsFontDesign),
         FontDesignFolder(strings: strings),
         const Divider(height: 24),
+        if (showNavChips) ...[
+          _SectionHeader(strings.settingsNavChipsTitle),
+          NavChipLayoutFolder(strings: strings),
+          const Divider(height: 24),
+        ],
         _LanguageFolder(strings: strings),
         const Divider(height: 24),
         TimeFormatFolder(strings: strings),
@@ -2194,7 +2204,11 @@ class ApplicationSettingsView extends ConsumerWidget {
     return Padding(
       padding: const EdgeInsets.only(top: 56),
       child: _SettingsPage(
-        child: _ApplicationPage(strings: strings, showPasscode: false),
+        child: _ApplicationPage(
+          strings: strings,
+          showPasscode: false,
+          showNavChips: false,
+        ),
       ),
     );
   }
@@ -2578,18 +2592,24 @@ class _AccentColorFolderState extends ConsumerState<AccentColorFolder> {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    width: 48,
-                    height: 48,
-                    margin: const EdgeInsets.only(top: 4),
-                    decoration: BoxDecoration(
-                      color: activeColor,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.black12),
+                  // 色見本の丸は劇画UIでは出さず、その分入力欄を左に詰める（2026-11-01、
+                  // 劇画の背景色は画面自体がそのプレビューになるため）。
+                  if (!isGekiga) ...[
+                    Container(
+                      width: 48,
+                      height: 48,
+                      margin: const EdgeInsets.only(top: 4),
+                      decoration: BoxDecoration(
+                        color: activeColor,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.black12),
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(child: accentColorField),
+                    const SizedBox(width: 16),
+                  ],
+                  // 8桁のカラーコードと「＋」が収まる幅に絞る（2026-11-01、以前は行いっぱいに
+                  // 広がっていた）。
+                  SizedBox(width: 200, child: accentColorField),
                 ],
               ),
             ),
@@ -3376,9 +3396,260 @@ class TalksListLayoutFolder extends ConsumerWidget {
             style: const TextStyle(fontWeight: FontWeight.bold),
           ),
         ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+          child: Text(
+            strings.settingsTalksListLayoutNote,
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+        ),
         control,
       ],
     );
+  }
+}
+
+/// 縦表示（狭い画面）の下部メニューチップの揃え（左・中央・右）と並びの設定
+/// （2026-11-01）。並びは`ReorderableListView`のドラッグで入れ替える。ホーム画面は
+/// 各タブの論理インデックスを変えず、表示の並びだけを入れ替える（`home_screen.dart`）。
+class NavChipLayoutFolder extends ConsumerWidget {
+  const NavChipLayoutFolder({super.key, required this.strings});
+
+  final Strings strings;
+
+  static const _icons = {
+    HomeTabId.talk: Icons.forum_outlined,
+    HomeTabId.profile: Icons.face_outlined,
+    HomeTabId.settings: Icons.settings_outlined,
+  };
+
+  String _tabLabel(HomeTabId tab) => switch (tab) {
+    HomeTabId.talk => strings.navTalk,
+    HomeTabId.profile => strings.navProfile,
+    HomeTabId.settings => strings.navSettings,
+  };
+
+  /// 広い画面（幅600px以上、`home_screen.dart`の縦並びサイドバー）では上・下、
+  /// 狭い画面では左・右の表記にする。
+  String _alignLabel(NavChipAlignment alignment, {required bool wide}) =>
+      switch (alignment) {
+        NavChipAlignment.start =>
+          wide
+              ? strings.settingsNavChipsAlignTop
+              : strings.settingsNavChipsAlignStart,
+        NavChipAlignment.center => strings.settingsNavChipsAlignCenter,
+        NavChipAlignment.end =>
+          wide
+              ? strings.settingsNavChipsAlignBottom
+              : strings.settingsNavChipsAlignEnd,
+      };
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final layout = ref.watch(navChipLayoutProvider);
+    final notifier = ref.read(navChipLayoutProvider.notifier);
+    final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
+    final colorScheme = Theme.of(context).colorScheme;
+    final wide = MediaQuery.sizeOf(context).width >= 600;
+
+    void selectAlignment(NavChipAlignment value) =>
+        notifier.setAlignment(value);
+
+    final alignmentControl = isGekiga
+        ? GekigaJointedTileList(
+            seeds: [for (final a in NavChipAlignment.values) a.hashCode],
+            selectedFlags: [
+              for (final a in NavChipAlignment.values) layout.alignment == a,
+            ],
+            children: [
+              for (final a in NavChipAlignment.values)
+                GekigaTileContent(
+                  selected: layout.alignment == a,
+                  leading: Icon(
+                    layout.alignment == a
+                        ? Icons.radio_button_checked
+                        : Icons.radio_button_unchecked,
+                  ),
+                  title: Text(_alignLabel(a, wide: wide)),
+                  onTap: () => selectAlignment(a),
+                ),
+            ],
+          )
+        : RadioGroup<NavChipAlignment>(
+            groupValue: layout.alignment,
+            onChanged: (value) {
+              if (value != null) selectAlignment(value);
+            },
+            child: Column(
+              children: [
+                for (final a in NavChipAlignment.values)
+                  RadioListTile<NavChipAlignment>(
+                    value: a,
+                    title: Text(_alignLabel(a, wide: wide)),
+                  ),
+              ],
+            ),
+          );
+
+    final orderControl = Align(
+      alignment: Alignment.centerLeft,
+      child: SizedBox(
+        width: 220,
+        child: _NavChipOrderList(
+          order: layout.order,
+          onReorder: notifier.setOrder,
+          tileBuilder: (tab, handle) {
+            final tile = ListTile(
+              dense: true,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+              leading: Icon(
+                _icons[tab],
+                color: isGekiga ? GekigaColors.onPanel : null,
+              ),
+              title: Text(
+                _tabLabel(tab),
+                style: isGekiga
+                    ? const TextStyle(color: GekigaColors.onPanel)
+                    : null,
+              ),
+              trailing: Icon(
+                Icons.drag_handle,
+                color: isGekiga
+                    ? GekigaColors.onPanel
+                    : colorScheme.onSurfaceVariant,
+              ),
+            );
+            if (!isGekiga) return tile;
+            // 劇画は単色の黒ベタにせず、他の箱と同じ「黒外枠→白の細い線→黒地」の
+            // 直角モノクロボックスで描く。項目同士は縦に少し間を空ける。
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 3),
+              child: GekigaStraightMonochromeBox(isMe: false, child: tile),
+            );
+          },
+        ),
+      ),
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+          child: Text(
+            strings.settingsNavChipsDescription,
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+          child: Text(
+            strings.settingsNavChipsAlignmentTitle,
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+        ),
+        alignmentControl,
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          child: Text(
+            strings.settingsNavChipsOrderTitle,
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+        ),
+        orderControl,
+      ],
+    );
+  }
+}
+
+/// メニューチップの並び替えリスト。3項目の枠の中だけをドラッグでき、枠の外へは
+/// 出ない（`ReorderableListView`は軸・範囲を制限できないため自前。2026-11-01）。
+/// 項目は背景ごと（劇画の黒いラベルも含めて）一緒に動く。
+class _NavChipOrderList extends StatefulWidget {
+  const _NavChipOrderList({
+    required this.order,
+    required this.onReorder,
+    required this.tileBuilder,
+  });
+
+  final List<HomeTabId> order;
+  final ValueChanged<List<HomeTabId>> onReorder;
+  final Widget Function(HomeTabId tab, Widget handle) tileBuilder;
+
+  @override
+  State<_NavChipOrderList> createState() => _NavChipOrderListState();
+}
+
+class _NavChipOrderListState extends State<_NavChipOrderList> {
+  static const _itemHeight = 56.0;
+
+  HomeTabId? _dragging;
+  double _dragTop = 0;
+
+  int get _provisionalIndex {
+    final max = widget.order.length - 1;
+    return (_dragTop / _itemHeight).round().clamp(0, max);
+  }
+
+  List<HomeTabId> get _displayOrder {
+    final dragging = _dragging;
+    if (dragging == null) return widget.order;
+    final list = [...widget.order]..remove(dragging);
+    list.insert(_provisionalIndex, dragging);
+    return list;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final display = _displayOrder;
+    final maxTop = (widget.order.length - 1) * _itemHeight;
+    final tabs = [
+      for (final t in display)
+        if (t != _dragging) t,
+      if (_dragging != null) _dragging!,
+    ];
+    return SizedBox(
+      height: widget.order.length * _itemHeight,
+      child: Stack(
+        children: [
+          for (final tab in tabs)
+            AnimatedPositioned(
+              key: ValueKey(tab),
+              duration: tab == _dragging
+                  ? Duration.zero
+                  : const Duration(milliseconds: 150),
+              curve: Curves.easeOut,
+              left: 0,
+              right: 0,
+              height: _itemHeight,
+              top: tab == _dragging
+                  ? _dragTop.clamp(0.0, maxTop)
+                  : display.indexOf(tab) * _itemHeight,
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onVerticalDragStart: (_) => setState(() {
+                  _dragging = tab;
+                  _dragTop = widget.order.indexOf(tab) * _itemHeight;
+                }),
+                onVerticalDragUpdate: (details) => setState(() {
+                  _dragTop = (_dragTop + details.delta.dy).clamp(0.0, maxTop);
+                }),
+                onVerticalDragEnd: (_) => _finish(),
+                onVerticalDragCancel: _finish,
+                child: widget.tileBuilder(tab, const SizedBox.shrink()),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  void _finish() {
+    if (_dragging == null) return;
+    final result = _displayOrder;
+    setState(() => _dragging = null);
+    widget.onReorder(result);
   }
 }
 
@@ -3616,6 +3887,8 @@ class _TalkPage extends StatelessWidget {
             _StickerSendModeFolder(strings: strings),
             const Divider(height: 24),
             _DraftSyncFolder(strings: strings),
+            const Divider(height: 24),
+            _JoinVideoCameraFolder(strings: strings),
           ],
         ),
       ],
@@ -3907,22 +4180,6 @@ class _StickerSendModeFolder extends ConsumerWidget {
         ),
         control,
       ],
-    );
-  }
-}
-
-/// 通話カテゴリの中身（2026-11-01追加）。ビデオ通話に参加するときのカメラの既定。
-/// 着信音・呼出音は従来どおり通知カテゴリにある。
-class _CallPage extends StatelessWidget {
-  const _CallPage({required this.strings});
-
-  final Strings strings;
-
-  @override
-  Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.only(bottom: 24),
-      children: [_JoinVideoCameraFolder(strings: strings)],
     );
   }
 }

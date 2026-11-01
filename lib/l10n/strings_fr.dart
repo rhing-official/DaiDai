@@ -26,7 +26,16 @@ final Strings _stringsFr = Strings._(
   settingsNotificationsPermissionDeniedError:
       'L’autorisation de notification n’a pas été accordée. Vérifiez les réglages de votre navigateur ou de votre système.',
   settingsFolderTalk: 'Discussion',
-  settingsFolderCall: "Appels",
+  settingsNavChipsTitle: "Puces de menu",
+  settingsNavChipsDescription:
+      "Modifiez l’ordre et l’alignement du menu : à gauche, au centre ou à droite en bas des écrans étroits ; en haut, au centre ou en bas sur le bord gauche des écrans larges.",
+  settingsNavChipsAlignmentTitle: "Alignement",
+  settingsNavChipsAlignStart: "À gauche",
+  settingsNavChipsAlignCenter: "Au centre",
+  settingsNavChipsAlignEnd: "À droite",
+  settingsNavChipsAlignTop: "En haut",
+  settingsNavChipsAlignBottom: "En bas",
+  settingsNavChipsOrderTitle: "Ordre (glisser pour réorganiser)",
   settingsCallJoinCameraTitle: "Activer la caméra en rejoignant un appel vidéo",
   settingsCallJoinCameraSubtitle:
       "Désactivé, vous rejoignez les appels vidéo que vous acceptez ou rejoignez avec la caméra coupée (audio seul). Vous pouvez l’activer à tout moment pendant l’appel. Cela n’affecte pas les appels vidéo en tête-à-tête que vous lancez.",
@@ -85,6 +94,8 @@ final Strings _stringsFr = Strings._(
   settingsChatLayoutAllLeft: 'Tout le monde à gauche',
   settingsChatLayoutAllLeftDescription:
       'Affiche toujours votre avatar et celui de l’autre personne, ainsi que les pseudos. Cela ne change que votre écran, pas ce que voient les autres.',
+  settingsTalksListLayoutNote:
+      'S’applique en orientation portrait. Sur un ordinateur avec une fenêtre large en paysage, la liste s’affiche toujours en vue partagée, quel que soit ce réglage.',
   settingsTalksListLayoutTitle:
       'Disposition de la liste des discussions (portrait)',
   settingsTalksListLayoutStandard: 'Icônes seulement',

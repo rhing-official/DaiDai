@@ -24,6 +24,7 @@ import 'custom_accent_colors_provider.dart';
 import 'custom_font_colors_provider.dart';
 import 'draft_sync_enabled_provider.dart';
 import 'join_video_camera_on_provider.dart';
+import 'nav_chip_layout_provider.dart';
 import 'font_design_provider.dart';
 import 'gekiga_background_color_provider.dart';
 import 'notification_sound_provider.dart';
@@ -139,6 +140,15 @@ void applyRemoteUserPreferences(WidgetRef ref, AppUserPreferences preferences) {
     ref
         .read(draftSyncEnabledProvider.notifier)
         .syncFromRemote(preferences.draftSyncEnabled!);
+  }
+  if (preferences.navChipAlignment != null ||
+      preferences.navChipOrder != null) {
+    ref
+        .read(navChipLayoutProvider.notifier)
+        .syncFromRemote(
+          alignmentName: preferences.navChipAlignment,
+          orderNames: preferences.navChipOrder,
+        );
   }
   if (preferences.joinVideoCameraOn != null) {
     ref

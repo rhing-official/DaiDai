@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../l10n/strings.dart';
 import '../../router/back_stack.dart';
 import '../../models/app_user.dart';
+import '../../models/nav_chip_layout.dart';
+import '../../providers/nav_chip_layout_provider.dart';
 import '../../providers/home_shell_providers.dart';
 import '../../widgets/nav_chip.dart';
 import '../../widgets/pane_visibility.dart';
@@ -64,12 +66,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   /// チップの隙間の上にある場合はnull＝選択は変えない）と、飛び出させる
   /// べきチップのindex集合（`popped`。指がチップ真上なら1件、隙間の上なら
   /// 前後2件）を求める。
+  ///
+  /// [order]は画面に並んでいる順の論理インデックス（縦表示のカスタム並び替え、
+  /// 2026-11-01）。「隣同士」はこの表示順で判定し、結果は論理インデックスで返す。
   ({int? hovered, Set<int> popped}) _hitTestChips(
     Offset globalPosition,
     bool vertical,
+    List<int> order,
   ) {
     final rects = _chipGlobalRects();
-    for (var i = 0; i < rects.length; i++) {
+    for (final i in order) {
       final rect = rects[i];
       if (rect != null && rect.contains(globalPosition)) {
         return (hovered: i, popped: {i});
@@ -77,9 +83,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     }
     // どのチップの上でもない＝隙間。隙間を挟む前後2つのチップを両方
     // 飛び出させる（選択自体は変えない）。
-    for (var i = 0; i < rects.length - 1; i++) {
-      final a = rects[i];
-      final b = rects[i + 1];
+    for (var k = 0; k < order.length - 1; k++) {
+      final i = order[k];
+      final a = rects[order[k]];
+      final b = rects[order[k + 1]];
       if (a == null || b == null) continue;
       final pastA = vertical
           ? globalPosition.dy >= a.bottom
@@ -88,7 +95,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ? globalPosition.dy <= b.top
           : globalPosition.dx <= b.left;
       if (pastA && beforeB) {
-        return (hovered: null, popped: {i, i + 1});
+        return (hovered: null, popped: {i, order[k + 1]});
       }
     }
     return (hovered: null, popped: const {});
@@ -108,7 +115,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     // なぞり遷移が一切効かなくなっていた（2026-10-10修正）。透明ルートを
     // 数えない`hasOpenOverlay`で判定する。
     if (ref.read(backStackControllerProvider).hasOpenOverlay) return;
-    final hit = _hitTestChips(globalPosition, vertical);
+    final order = [
+      for (final tab in ref.read(navChipLayoutProvider).order) tab.index,
+    ];
+    final hit = _hitTestChips(globalPosition, vertical, order);
     final selectionChanged =
         hit.hovered != null && hit.hovered != _selectedIndex;
     final poppedChanged = !setEquals(hit.popped, _poppedIndexes);
@@ -187,8 +197,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     final isWide = MediaQuery.sizeOf(context).width >= _kWideLayoutBreakpoint;
 
+    // 並びは狭い画面（下部）・広い画面（サイドバー）とも設定に従う。揃えは狭い画面
+    // だけ（2026-11-01）。各チップは論理インデックス`i`のまま、並ぶ順だけが変わる。
+    final chipLayout = ref.watch(navChipLayoutProvider);
+    final displayOrder = [for (final tab in chipLayout.order) tab.index];
     final chips = [
-      for (var i = 0; i < titles.length; i++)
+      for (final i in displayOrder)
         NavChip(
           key: _chipKeys[i],
           icon: _icons[i],
@@ -293,15 +307,25 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   // 反応しなかった。
                   child: wrapWithSwipe(
                     vertical: true,
-                    Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          for (var i = 0; i < chips.length; i++) ...[
-                            if (i > 0) const SizedBox(height: _chipGap),
-                            chips[i],
+                    Align(
+                      alignment: switch (chipLayout.alignment) {
+                        NavChipAlignment.start => Alignment.topCenter,
+                        NavChipAlignment.center => Alignment.center,
+                        NavChipAlignment.end => Alignment.bottomCenter,
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          vertical: _chipMargin,
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            for (var i = 0; i < chips.length; i++) ...[
+                              if (i > 0) const SizedBox(height: _chipGap),
+                              chips[i],
+                            ],
                           ],
-                        ],
+                        ),
                       ),
                     ),
                   ),
@@ -313,15 +337,25 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   bottom: _chipMargin,
                   child: wrapWithSwipe(
                     vertical: false,
-                    Center(
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          for (var i = 0; i < chips.length; i++) ...[
-                            if (i > 0) const SizedBox(width: _chipGap),
-                            chips[i],
+                    Align(
+                      alignment: switch (chipLayout.alignment) {
+                        NavChipAlignment.start => Alignment.centerLeft,
+                        NavChipAlignment.center => Alignment.center,
+                        NavChipAlignment.end => Alignment.centerRight,
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: _chipMargin,
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            for (var i = 0; i < chips.length; i++) ...[
+                              if (i > 0) const SizedBox(width: _chipGap),
+                              chips[i],
+                            ],
                           ],
-                        ],
+                        ),
                       ),
                     ),
                   ),
