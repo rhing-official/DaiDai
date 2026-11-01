@@ -17,6 +17,7 @@ class UserInvitePreview {
     this.layoutPreset,
     this.textAlign,
     this.fontColorArgb,
+    this.showRhingSeed = false,
     this.linkSalt,
   });
 
@@ -39,6 +40,10 @@ class UserInvitePreview {
   /// アクティブな工房カードの文字色（ARGB、2026-10-31追加）。nullなら従来どおり。
   final int? fontColorArgb;
 
+  /// アクティブな工房カードが「Rhing Seedを載せる」設定か（2026-11-01追加）。trueなら
+  /// OGP画像にも`@seed`の行を出す（seedは招待リンクのIDと同じ値で、新たに公開する情報は無い）。
+  final bool showRhingSeed;
+
   /// 招待リンクの版識別子にだけ混ぜる値（Firestoreには保存しない）。
   /// `AppUser.inviteLinkSalt`。
   final int? linkSalt;
@@ -57,6 +62,7 @@ class UserInvitePreview {
       layoutPreset: user.activeProfileCard?.layoutPreset?.name,
       textAlign: user.activeProfileCard?.textAlign?.name,
       fontColorArgb: user.activeProfileCard?.fontColorArgb,
+      showRhingSeed: user.activeProfileCard?.showRhingSeed ?? false,
       linkSalt: user.inviteLinkSalt,
     );
   }
@@ -86,6 +92,7 @@ class UserInvitePreview {
       layoutPreset: json['layoutPreset'] as String?,
       textAlign: json['textAlign'] as String?,
       fontColorArgb: json['fontColor'] as int?,
+      showRhingSeed: json['showRhingSeed'] as bool? ?? false,
     );
   }
 
@@ -100,6 +107,7 @@ class UserInvitePreview {
       if (layoutPreset != null) 'layoutPreset': layoutPreset,
       if (textAlign != null) 'textAlign': textAlign,
       if (fontColorArgb != null) 'fontColor': fontColorArgb,
+      if (showRhingSeed) 'showRhingSeed': true,
     };
   }
 }

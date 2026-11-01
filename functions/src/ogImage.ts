@@ -33,6 +33,7 @@ const DESCRIPTION_FONT_SIZE = 18 * SCALE; // kProfileCardStatusFontSize
 const SNS_FONT_SIZE = DESCRIPTION_FONT_SIZE * 0.9;
 const ICON_NAME_GAP = CONTENT_PADDING * 0.6;
 const SNS_LINKS_GAP = CONTENT_PADDING * 0.3;
+const SNS_ICON_GAP = 14 * SCALE; // アプリの`Wrap(spacing: 14)`
 
 function el(type: string, style: any, children: any) {
   return { type, props: { style, children } };
@@ -73,7 +74,7 @@ async function render(type: string | null, id: string | null): Promise<Buffer> {
   // 個別にcatchしてnullにフォールバックする。
   // フォント取得（Google Fontsへの2回の往復）は画像変換と依存関係が無いため、
   // 直列にせず同じPromise.allで並列に走らせて待ち時間を短縮する。
-  const fontText = `${name}${description}${snsLinks.join('')}DaiDai`;
+  const fontText = `${name}${description}${snsLinks.join('')}@${id ?? ''}DaiDai`;
   const [iconDataUri, backgroundDataUri, fontData] = await Promise.all([
     doc?.iconUrl ? toPngDataUri(doc.iconUrl).catch(() => null) : null,
     doc?.backgroundImageUrl
@@ -133,29 +134,65 @@ async function render(type: string | null, id: string | null): Promise<Buffer> {
     );
   }
 
+  // SNS：主要サービスは単色のアイコンだけを横に並べ（アプリ側の`SnsLinksInline`の
+  // `Wrap`と同じ、2026-11-01）、一覧に無いサイトは🔗＋ドメインを縦に並べる。
+  const iconRow: any[] = [];
+  const textRows: any[] = [];
   for (const [index, link] of snsLinks.entries()) {
     const iconName = snsIconNameFor(snsLinkUrls[index]);
     const iconUri = iconName ? snsIconDataUri(iconName, subTextColor) : null;
+    if (iconUri) {
+      iconRow.push(
+        img(iconUri, {
+          width: SNS_FONT_SIZE * 1.5,
+          height: SNS_FONT_SIZE * 1.5,
+          marginRight: SNS_ICON_GAP,
+        }),
+      );
+    } else {
+      textRows.push(
+        el(
+          'div',
+          {
+            display: 'flex',
+            marginTop: SNS_LINKS_GAP * 0.15,
+            fontSize: SNS_FONT_SIZE,
+            color: subTextColor,
+          },
+          [`🔗 ${link}`],
+        ),
+      );
+    }
+  }
+  if (iconRow.length > 0) {
     contentChildren.push(
       el(
         'div',
         {
           display: 'flex',
-          alignItems: 'center',
-          marginTop: index === 0 ? SNS_LINKS_GAP : SNS_LINKS_GAP * 0.15,
-          fontSize: SNS_FONT_SIZE,
+          flexDirection: 'row',
+          marginTop: SNS_LINKS_GAP,
+          marginRight: -SNS_ICON_GAP,
+        },
+        iconRow,
+      ),
+    );
+  }
+  contentChildren.push(...textRows);
+
+  // Rhing Seedの行（カードで「Rhing Seedを載せる」をオンにした時だけ、2026-11-01）。
+  // 誕生日は公開プレビューに含めない方針のため出さない。
+  if (isUser && doc?.showRhingSeed === true && id && doc?.nickname) {
+    contentChildren.push(
+      el(
+        'div',
+        {
+          display: 'flex',
+          marginTop: SNS_LINKS_GAP,
+          fontSize: DESCRIPTION_FONT_SIZE,
           color: subTextColor,
         },
-        // 主要サービスは単色のアイコンだけ（ドメインの文字は出さない）、それ以外は従来どおり🔗（アプリ側の
-        // `SnsLinksInline`と同じ対応表、`snsIcons.ts`）。
-        iconUri
-          ? [
-              img(iconUri, {
-                width: SNS_FONT_SIZE * 1.5,
-                height: SNS_FONT_SIZE * 1.5,
-              }),
-            ]
-          : [`🔗 ${link}`],
+        [`@${id}`],
       ),
     );
   }
@@ -303,6 +340,7 @@ function parseFirestoreFields(fields: any) {
   for (const [key, value] of Object.entries(fields) as [string, any][]) {
     if ('stringValue' in value) result[key] = value.stringValue;
     else if ('nullValue' in value) result[key] = null;
+    else if ('booleanValue' in value) result[key] = value.booleanValue;
     else if ('arrayValue' in value) {
       result[key] = (value.arrayValue.values || []).map((v: any) => v.stringValue);
     }

@@ -43,6 +43,10 @@ async function ogImage(url, env) {
     headers: {
       'Content-Type': res.headers.get('Content-Type') ?? 'image/png',
       'Cache-Control': 'public, max-age=300',
+      // Flutter Web（CanvasKit）は別オリジンの画像をCORSヘッダー無しでは読めない。
+      // ローカル開発サーバー（localhost:8765）のチャットで招待リンクのプレビュー画像が
+      // 出なかったため付ける（2026-11-01。公開画像のみで認証・Cookieは使わない）。
+      'Access-Control-Allow-Origin': '*',
     },
   });
 }
