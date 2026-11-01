@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import '../l10n/app_locale.dart';
+import '../utils/birthday_format.dart';
 import 'app_user.dart';
 
 /// `userInvites/{rhingSeed}`に保存する、個人の縁結び招待リンクの公開プレビュー。
@@ -18,6 +20,7 @@ class UserInvitePreview {
     this.textAlign,
     this.fontColorArgb,
     this.showRhingSeed = false,
+    this.birthdayLabel,
     this.linkSalt,
   });
 
@@ -44,6 +47,11 @@ class UserInvitePreview {
   /// OGP画像にも`@seed`の行を出す（seedは招待リンクのIDと同じ値で、新たに公開する情報は無い）。
   final bool showRhingSeed;
 
+  /// カードが誕生日を載せる設定（[ProfileCard.showBirthday]）の時の、日本語の年月日表記
+  /// （例: `2007年6月16日`、2026-11-01）。公開プレビューに出す方針に変更した（ユーザー判断）。
+  /// 画像を作る側で整形するため、見る人の言語には追従せず日本語の並びで固定。
+  final String? birthdayLabel;
+
   /// 招待リンクの版識別子にだけ混ぜる値（Firestoreには保存しない）。
   /// `AppUser.inviteLinkSalt`。
   final int? linkSalt;
@@ -63,6 +71,9 @@ class UserInvitePreview {
       textAlign: user.activeProfileCard?.textAlign?.name,
       fontColorArgb: user.activeProfileCard?.fontColorArgb,
       showRhingSeed: user.activeProfileCard?.showRhingSeed ?? false,
+      birthdayLabel: user.effectiveBirthday == null
+          ? null
+          : formatBirthday(user.effectiveBirthday!, AppLocale.japanese),
       linkSalt: user.inviteLinkSalt,
     );
   }
@@ -93,6 +104,7 @@ class UserInvitePreview {
       textAlign: json['textAlign'] as String?,
       fontColorArgb: json['fontColor'] as int?,
       showRhingSeed: json['showRhingSeed'] as bool? ?? false,
+      birthdayLabel: json['birthdayLabel'] as String?,
     );
   }
 
@@ -108,6 +120,7 @@ class UserInvitePreview {
       if (textAlign != null) 'textAlign': textAlign,
       if (fontColorArgb != null) 'fontColor': fontColorArgb,
       if (showRhingSeed) 'showRhingSeed': true,
+      if (birthdayLabel != null) 'birthdayLabel': birthdayLabel,
     };
   }
 }

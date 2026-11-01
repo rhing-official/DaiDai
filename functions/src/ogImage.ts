@@ -74,7 +74,7 @@ async function render(type: string | null, id: string | null): Promise<Buffer> {
   // 個別にcatchしてnullにフォールバックする。
   // フォント取得（Google Fontsへの2回の往復）は画像変換と依存関係が無いため、
   // 直列にせず同じPromise.allで並列に走らせて待ち時間を短縮する。
-  const fontText = `${name}${description}${snsLinks.join('')}@${id ?? ''}DaiDai`;
+  const fontText = `${name}${description}${snsLinks.join('')}${doc?.birthdayLabel ?? ''}@${id ?? ''}DaiDai`;
   const [iconDataUri, backgroundDataUri, fontData] = await Promise.all([
     doc?.iconUrl ? toPngDataUri(doc.iconUrl).catch(() => null) : null,
     doc?.backgroundImageUrl
@@ -180,8 +180,24 @@ async function render(type: string | null, id: string | null): Promise<Buffer> {
   }
   contentChildren.push(...textRows);
 
+  // 誕生日の行（カードで「誕生日を載せる」をオンにした時だけ、2026-11-01。日本語の
+  // 年月日で固定。アプリ側の並びはSNS→誕生日→Rhing Seed）。
+  if (isUser && typeof doc?.birthdayLabel === 'string' && doc.birthdayLabel) {
+    contentChildren.push(
+      el(
+        'div',
+        {
+          display: 'flex',
+          marginTop: SNS_LINKS_GAP,
+          fontSize: DESCRIPTION_FONT_SIZE,
+          color: subTextColor,
+        },
+        [doc.birthdayLabel],
+      ),
+    );
+  }
+
   // Rhing Seedの行（カードで「Rhing Seedを載せる」をオンにした時だけ、2026-11-01）。
-  // 誕生日は公開プレビューに含めない方針のため出さない。
   if (isUser && doc?.showRhingSeed === true && id && doc?.nickname) {
     contentChildren.push(
       el(

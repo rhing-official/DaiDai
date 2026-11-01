@@ -4224,36 +4224,29 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
                                       const SizedBox(
                                         height: kProfileCardPadding * 0.3,
                                       ),
-                                      // 誕生日（蔵に登録したものを、このカードに載せるか
-                                      // タップで切り替える、2026-10-23）。
-                                      ProfileCardBirthdayLine(
-                                        label:
-                                            card.showBirthday &&
-                                                widget.user.birthday != null
-                                            ? formatBirthday(
-                                                widget.user.birthday!,
-                                                AppLocale.fromLanguageCode(
-                                                  Localizations.localeOf(
-                                                    context,
-                                                  ).languageCode,
-                                                ),
-                                              )
-                                            : strings
-                                                  .workshopBirthdayFieldLabel,
-                                        dimmed:
-                                            !card.showBirthday ||
-                                            widget.user.birthday == null,
-
-                                        fontSize:
-                                            kProfileCardStatusFontSize * 0.9,
-                                        color: statusColor,
-                                        onTap: _toggleBirthday,
-                                        fontFamily: fontFamily,
-                                        crossAxisAlignment:
-                                            (card.textAlign ??
-                                                    CardTextAlign.start)
-                                                .crossAxisAlignment,
-                                      ),
+                                      // 誕生日（下のスイッチがオンで、蔵に登録済みの時だけ
+                                      // プレビューとして出す。カード上のタップでは切り替えない、
+                                      // 2026-11-01）。
+                                      if (card.showBirthday &&
+                                          widget.user.birthday != null)
+                                        ProfileCardBirthdayLine(
+                                          label: formatBirthday(
+                                            widget.user.birthday!,
+                                            AppLocale.fromLanguageCode(
+                                              Localizations.localeOf(
+                                                context,
+                                              ).languageCode,
+                                            ),
+                                          ),
+                                          fontSize:
+                                              kProfileCardStatusFontSize * 0.9,
+                                          color: statusColor,
+                                          fontFamily: fontFamily,
+                                          crossAxisAlignment:
+                                              (card.textAlign ??
+                                                      CardTextAlign.start)
+                                                  .crossAxisAlignment,
+                                        ),
                                       // Rhing Seed（下のスイッチがオンの時だけ、誕生日の下に
                                       // プレビューとして出す、2026-10-31）。
                                       if (card.showRhingSeed) ...[
@@ -4307,6 +4300,8 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
                           const SizedBox(height: 8),
                           _CardLayoutPicker(
                             width: width,
+                            showBirthday: card.showBirthday,
+                            onShowBirthdayChanged: (_) => _toggleBirthday(),
                             showRhingSeed: card.showRhingSeed,
                             onShowRhingSeedChanged: (_) => _toggleRhingSeed(),
                             layoutPreset:
@@ -4724,11 +4719,17 @@ class _CardLayoutPicker extends StatelessWidget {
     required this.strings,
     required this.onLayoutChanged,
     required this.onAlignChanged,
+    required this.showBirthday,
+    required this.onShowBirthdayChanged,
     required this.showRhingSeed,
     required this.onShowRhingSeedChanged,
   });
 
   final double width;
+
+  /// このカードに誕生日を載せるか（Rhing Seedの上のトグル、2026-11-01）。
+  final bool showBirthday;
+  final ValueChanged<bool> onShowBirthdayChanged;
 
   /// このカードにRhing Seedを載せるか（配置の上のトグル、2026-10-31）。
   final bool showRhingSeed;
@@ -4828,6 +4829,22 @@ class _CardLayoutPicker extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Row(
+            children: [
+              SizedBox(
+                width: _cardEditLabelWidth(width),
+                child: Text(
+                  strings.workshopBirthdayFieldLabel,
+                  style: const TextStyle(color: Colors.white70, fontSize: 12),
+                ),
+              ),
+              Switch(
+                value: showBirthday,
+                onChanged: onShowBirthdayChanged,
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+            ],
+          ),
           Row(
             children: [
               SizedBox(
