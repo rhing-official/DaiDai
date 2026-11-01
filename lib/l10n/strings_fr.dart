@@ -94,6 +94,9 @@ final Strings _stringsFr = Strings._(
   settingsChatLayoutAllLeft: 'Tout le monde à gauche',
   settingsChatLayoutAllLeftDescription:
       'Affiche toujours votre avatar et celui de l’autre personne, ainsi que les pseudos. Cela ne change que votre écran, pas ce que voient les autres.',
+  settingsTalksListMirrorTitle: "Inverser gauche et droite",
+  settingsTalksListMirrorSubtitle:
+      "Avec « Icônes + liste des salons », place la colonne d’icônes à droite et les messages à gauche.",
   settingsTalksListLayoutNote:
       'S’applique en orientation portrait. Sur un ordinateur avec une fenêtre large en paysage, la liste s’affiche toujours en vue partagée, quel que soit ce réglage.',
   settingsTalksListLayoutTitle:

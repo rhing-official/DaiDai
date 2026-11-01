@@ -16,6 +16,7 @@ class AppUserPreferences {
     this.stickerSendMode,
     this.draftSyncEnabled,
     this.joinVideoCameraOn,
+    this.iconSplitMirrored,
     this.navChipAlignment,
     this.navChipOrder,
     this.chatLayoutStyle,
@@ -48,6 +49,9 @@ class AppUserPreferences {
 
   /// ビデオ通話に応答・参加した時にカメラをオンで入るか（2026-11-01追加、null=標準のオン）。
   final bool? joinVideoCameraOn;
+
+  /// 「アイコン＋寄合一覧」を左右反転するか（2026-11-01、nullは標準のオフ）。
+  final bool? iconSplitMirrored;
 
   /// 縦表示（狭い画面）の下部メニューチップの揃え（`NavChipAlignment`のname）と、並び
   /// （`HomeTabId`のnameのリスト）。2026-11-01追加、nullなら標準（中央・語らい/身だしなみ/設定）。
@@ -118,6 +122,7 @@ class AppUserPreferences {
       stickerSendMode: json['stickerSendMode'] as String?,
       draftSyncEnabled: json['draftSyncEnabled'] as bool?,
       joinVideoCameraOn: json['joinVideoCameraOn'] as bool?,
+      iconSplitMirrored: json['iconSplitMirrored'] as bool?,
       navChipAlignment: json['navChipAlignment'] as String?,
       navChipOrder: (json['navChipOrder'] as List<dynamic>?)
           ?.map((e) => e as String)
@@ -159,6 +164,7 @@ class AppUserPreferences {
       if (stickerSendMode != null) 'stickerSendMode': stickerSendMode,
       if (draftSyncEnabled != null) 'draftSyncEnabled': draftSyncEnabled,
       if (joinVideoCameraOn != null) 'joinVideoCameraOn': joinVideoCameraOn,
+      if (iconSplitMirrored != null) 'iconSplitMirrored': iconSplitMirrored,
       if (navChipAlignment != null) 'navChipAlignment': navChipAlignment,
       if (navChipOrder != null) 'navChipOrder': navChipOrder,
       if (chatLayoutStyle != null) 'chatLayoutStyle': chatLayoutStyle,

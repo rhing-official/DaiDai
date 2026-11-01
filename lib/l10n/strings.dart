@@ -91,6 +91,8 @@ class Strings {
     required this.settingsChatLayoutAllLeftDescription,
     required this.settingsTalksListLayoutTitle,
     required this.settingsTalksListLayoutNote,
+    required this.settingsTalksListMirrorTitle,
+    required this.settingsTalksListMirrorSubtitle,
     required this.settingsTalksListLayoutStandard,
     required this.settingsTalksListLayoutStandardDescription,
     required this.settingsTalksListLayoutIconSplit,
@@ -1070,6 +1072,8 @@ class Strings {
   /// 縦表示での語らい一覧レイアウト（2026-09-11追加、設定＞語らい）。
   final String settingsTalksListLayoutTitle;
   final String settingsTalksListLayoutNote;
+  final String settingsTalksListMirrorTitle;
+  final String settingsTalksListMirrorSubtitle;
   final String settingsTalksListLayoutStandard;
   final String settingsTalksListLayoutStandardDescription;
   final String settingsTalksListLayoutIconSplit;
@@ -2344,6 +2348,8 @@ class Strings {
     settingsTalksListLayoutTitle: '語らい一覧のレイアウト',
     settingsTalksListLayoutNote:
         '縦画面で適用されます。横画面（幅の広い画面）のコンピューターでは、この設定にかかわらず左右分割で表示されます。',
+    settingsTalksListMirrorTitle: '左右を反転する',
+    settingsTalksListMirrorSubtitle: '「アイコン＋寄合一覧」のとき、アイコン列を右端に、メッセージ画面を左にします。',
     settingsTalksListLayoutStandard: 'アイコンのみ',
     settingsTalksListLayoutStandardDescription: '一対・広場をアイコンで縦一列に表示します。',
     settingsTalksListLayoutIconSplit: 'アイコン＋寄合一覧',
@@ -3376,6 +3382,9 @@ class Strings {
     settingsTalksListLayoutTitle: 'Talks list layout (portrait)',
     settingsTalksListLayoutNote:
         'Applies in portrait orientation. On a computer with a wide, landscape window, the list is always shown in a split view regardless of this setting.',
+    settingsTalksListMirrorTitle: 'Flip left and right',
+    settingsTalksListMirrorSubtitle:
+        'With "Icon + room list", puts the icon column on the right and the messages on the left.',
     settingsTalksListLayoutStandard: 'Icon only',
     settingsTalksListLayoutStandardDescription:
         'Shows direct messages and plazas as a single vertical list.',

@@ -32,6 +32,7 @@ import '../../models/send_key_mode.dart';
 import '../../models/sticker.dart';
 import '../../models/sticker_role.dart';
 import '../../providers/app_locale_provider.dart';
+import '../../router/back_stack.dart';
 import '../../providers/app_ui_style_provider.dart';
 import '../../providers/camera_availability_provider.dart';
 import '../../providers/chat_audio_playback_provider.dart';
@@ -964,6 +965,21 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// ように見えるため）。
   bool _composerAreaMeasured = false;
 
+  /// 開いてから少し経ち、入力欄の高さ変化を滑らかに動かしてよい状態か（2026-11-01）。
+  /// 開いた直後に入力欄へカーソルが自動で合うようになり、フォーカス中の180msの
+  /// アニメーション条件に開いた直後の高さの揺れが入って、メッセージが上から降りて
+  /// 見えたため、[_composerAreaMeasured]になってからも少しの間はアニメーションしない。
+  bool _composerAnimationReady = false;
+  Timer? _composerAnimationTimer;
+
+  void _markComposerAreaMeasured() {
+    if (_composerAreaMeasured) return;
+    setState(() => _composerAreaMeasured = true);
+    _composerAnimationTimer = Timer(const Duration(milliseconds: 600), () {
+      if (mounted) setState(() => _composerAnimationReady = true);
+    });
+  }
+
   /// メッセージ入力欄右端の専用ぺったん送信アイコン（2026-08-11追加）の
   /// アンカー位置計算用。デスクトップ幅ではこのキーを基準に
   /// [showStickerPickerPopup]でアイコン付近にポップアップを浮かせる。
@@ -1023,7 +1039,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       // 一覧を透明のままにしないよう、安定済み扱いにする。
       if ((widget.onSend == null || _selecting || _screenshotSelecting) &&
           !_composerAreaMeasured) {
-        setState(() => _composerAreaMeasured = true);
+        _markComposerAreaMeasured();
       }
       return;
     }
@@ -1035,7 +1051,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       // 戻す。最初の数フレームは入力欄の高さが過渡的に大きく計測される
       // （実測で初回192→次フレーム72）ため、その縮みをアニメーションすると
       // メッセージ全体が上から降りてくる。
-      if (!_composerAreaMeasured) setState(() => _composerAreaMeasured = true);
+      _markComposerAreaMeasured();
     }
   }
 
@@ -2621,7 +2637,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     }
     if (!PaneVisibility.of(context) || !TickerMode.of(context)) return;
     final route = ModalRoute.of(context);
-    if (route != null && !route.isCurrent) return;
+    // ダイアログ・拡大ビューア等が開いている間は奪わない。`route.isCurrent`では判定
+    // できない（ホームの上には常に透明ルート`/_b/*`が積まれていて常にfalseになり、
+    // 入力欄へ一度もカーソルが合わなかった、2026-11-01修正）ため、透明ルートを
+    // 数えない`hasOpenOverlay`を使う。
+    if (ref.read(backStackControllerProvider).hasOpenOverlay) return;
     final primary = FocusManager.instance.primaryFocus;
     // [force]（語らい・寄合を開いた時）は、検索欄など同じ画面の別の入力欄からも
     // 入力欄へ移す。ダイアログなど別の画面（ルート）のフォーカスは奪わない。
@@ -2722,6 +2742,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   @override
   void dispose() {
+    _composerAnimationTimer?.cancel();
     _lifecycleListener.dispose();
     _draftSaveTimer?.cancel();
     _draftSub?.close();
@@ -3313,6 +3334,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       // ションすると、メッセージ全体が下がって見える。
                       duration:
                           _composerAreaMeasured &&
+                              _composerAnimationReady &&
                               (_composerFocusNode.hasFocus ||
                                   _replyingTo != null ||
                                   _editingMessage != null)

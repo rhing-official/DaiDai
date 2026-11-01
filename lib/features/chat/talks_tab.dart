@@ -32,6 +32,7 @@ import '../../providers/chat_navigation_providers.dart';
 import '../../providers/chat_room_message_cache.dart';
 import '../../providers/conversation_prefs_providers.dart';
 import '../../providers/conversation_sort_order_provider.dart';
+import '../../providers/icon_split_mirrored_provider.dart';
 import '../../providers/friend_providers.dart';
 import '../../providers/group_join_request_providers.dart';
 import '../../providers/last_opened_room_provider.dart';
@@ -413,7 +414,10 @@ class _TalksTabState extends ConsumerState<TalksTab>
     if (!_iconSplitDragEnabled) return;
     // 左ドラッグ（dx負）で畳む＝progress増加、右ドラッグ（dx正）で開く＝
     // progress減少という向きにするため、dxを引く。
-    _iconSplitCollapseDragCumulative -= details.delta.dx;
+    // 左右反転中は逆向き（右ドラッグで畳む）。
+    _iconSplitCollapseDragCumulative -= ref.read(iconSplitMirroredProvider)
+        ? -details.delta.dx
+        : details.delta.dx;
     _setIconSplitCollapse(
       _iconSplitCollapseDragCumulative / kIconSplitCollapseWidth,
     );
@@ -421,7 +425,9 @@ class _TalksTabState extends ConsumerState<TalksTab>
 
   void _handleIconSplitDragEnd(DragEndDetails details) {
     if (!_iconSplitDragEnabled) return;
-    final velocity = details.primaryVelocity ?? 0;
+    final velocity =
+        (details.primaryVelocity ?? 0) *
+        (ref.read(iconSplitMirroredProvider) ? -1 : 1);
     final bool collapse;
     if (velocity <= -kSwipeGestureVelocityThreshold) {
       collapse = true;
@@ -1536,6 +1542,8 @@ class _TalksTabState extends ConsumerState<TalksTab>
     );
 
     final showPeek = _showIconSplitPeek;
+    final mirrored = ref.watch(iconSplitMirroredProvider);
+    final rowDirection = mirrored ? TextDirection.rtl : TextDirection.ltr;
 
     final Widget detail;
     if (_category == _TalksCategory.dm) {
@@ -1554,6 +1562,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
               // チャット本体を直接インライン表示する（2026-09-15追加）。
               roomListOnly: !showPeek && dm.roomsEnabled,
               collapseProgress: showPeek ? _iconSplitCollapse : null,
+              mirrored: mirrored,
               onExpandTap: showPeek && _showIconSplitExpandOnTap
                   ? () => _animateIconSplitCollapse(1.0)
                   : null,
@@ -1572,6 +1581,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
               // [_DmDetailWithRooms]と同じ理由（2026-09-15追加）。
               roomListOnly: !showPeek && group.roomsEnabled,
               collapseProgress: showPeek ? _iconSplitCollapse : null,
+              mirrored: mirrored,
               onExpandTap: showPeek && _showIconSplitExpandOnTap
                   ? () => _animateIconSplitCollapse(1.0)
                   : null,
@@ -1580,6 +1590,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
 
     if (!showPeek) {
       return Row(
+        textDirection: rowDirection,
         children: [
           SizedBox(width: 112, child: iconRail),
           const VerticalDivider(width: 1),
@@ -1598,10 +1609,12 @@ class _TalksTabState extends ConsumerState<TalksTab>
       onHorizontalDragCancel: () =>
           _handleIconSplitDragEnd(DragEndDetails(primaryVelocity: 0)),
       child: Row(
+        textDirection: rowDirection,
         children: [
           _CollapsibleWidthPanel(
             progress: _iconSplitCollapse,
             width: 112,
+            mirrored: mirrored,
             child: iconRail,
           ),
           _CollapsibleDivider(progress: _iconSplitCollapse),
@@ -1780,6 +1793,22 @@ class _TalksTabState extends ConsumerState<TalksTab>
       return ListView(padding: EdgeInsets.zero, children: tiles);
     }
 
+    // 縦に並ぶ検索・＋のボタン。劇画UIでは並べ替えボタンと同じモノクロの箱のバッジ
+    // （40px）にする（2026-11-01）。
+    final isGekigaRail = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
+    Widget railButton({
+      required IconData icon,
+      required VoidCallback onPressed,
+    }) {
+      if (isGekigaRail) {
+        return Padding(
+          padding: const EdgeInsets.all(4),
+          child: GekigaIconButton(icon: icon, size: 40, onPressed: onPressed),
+        );
+      }
+      return IconButton(icon: Icon(icon), tooltip: '', onPressed: onPressed);
+    }
+
     return Material(
       color: Theme.of(context).colorScheme.surface,
       child: Column(
@@ -1800,9 +1829,8 @@ class _TalksTabState extends ConsumerState<TalksTab>
           // 切り替える）。
           Column(
             children: [
-              IconButton(
-                icon: Icon(_iconRailSearchOpen ? Icons.close : Icons.search),
-                tooltip: '',
+              railButton(
+                icon: _iconRailSearchOpen ? Icons.close : Icons.search,
                 // モバイル（スマホ・タブレット）では、112px幅のインライン検索
                 // 結果は窮屈なため、専用のフルページ検索（`/talks/search`）へ
                 // 遷移する（2026-09-12追加、2026-10-12にタブレットも対象へ拡大。
@@ -1833,10 +1861,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
               _buildSortButton(strings),
               TutorialTarget(
                 id: TutorialTargetIds.talkAdd,
-                child: IconButton(
-                  icon: const Icon(Icons.add),
-                  onPressed: _showAddMenu,
-                ),
+                child: railButton(icon: Icons.add, onPressed: _showAddMenu),
               ),
             ],
           ),
@@ -4108,6 +4133,53 @@ class _SwipeToOpenRoomPreviewState extends State<_SwipeToOpenRoomPreview>
     // いずれも、最終的に`progress`が0へ着地した時点でのみ`_warm`を
     // 倒す（`_maybeCoolDown`のdocコメント参照）。
     _controller.progress.addListener(_maybeCoolDown);
+    _warm.addListener(_syncOverlay);
+  }
+
+  /// [widget.preview]を載せる、画面全体のオーバーレイ（2026-11-01）。以前はこの
+  /// ウィジェット内の`Stack`に重ねていたため、アイコン列の分だけ幅が狭く、下端も
+  /// ナビチップの上までしか届かなかった（開き切って全画面のチャットに切り替わる
+  /// 瞬間に幅・高さが変わりカクついた）。ルートのオーバーレイに画面全体で重ね、
+  /// ナビチップやアイコン列の上を覆ってスライドさせる。操作は受けず（`IgnorePointer`）、
+  /// ドラッグは下の寄合一覧が持ち続ける。
+  OverlayEntry? _overlayEntry;
+
+  void _syncOverlay() {
+    if (_warm.value && _overlayEntry == null) {
+      final entry = OverlayEntry(
+        builder: (context) => Positioned.fill(
+          child: IgnorePointer(
+            child: ValueListenableBuilder<double>(
+              valueListenable: _controller.progress,
+              // warmだが進捗0（タッチダウン直後、まだ水平ドラッグと判定される前）の間は、
+              // maxDrag分右にオフセットして画面外に置き、初回マウントのコストを先に消化する。
+              builder: (context, value, child) => Transform.translate(
+                offset: Offset(_controller.maxDrag - value, 0),
+                child: RepaintBoundary(child: child),
+              ),
+              child: widget.preview,
+            ),
+          ),
+        ),
+      );
+      _overlayEntry = entry;
+      Overlay.of(context, rootOverlay: true).insert(entry);
+    } else if (!_warm.value && _overlayEntry != null) {
+      _removeOverlay();
+    }
+  }
+
+  void _removeOverlay() {
+    final entry = _overlayEntry;
+    _overlayEntry = null;
+    entry?.remove();
+    entry?.dispose();
+  }
+
+  @override
+  void didUpdateWidget(covariant _SwipeToOpenRoomPreview oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _overlayEntry?.markNeedsBuild();
   }
 
   void _maybeCoolDown() {
@@ -4138,6 +4210,8 @@ class _SwipeToOpenRoomPreviewState extends State<_SwipeToOpenRoomPreview>
   @override
   void dispose() {
     _controller.progress.removeListener(_maybeCoolDown);
+    _warm.removeListener(_syncOverlay);
+    _removeOverlay();
     _controller.dispose();
     _warm.dispose();
     super.dispose();
@@ -4193,33 +4267,7 @@ class _SwipeToOpenRoomPreviewState extends State<_SwipeToOpenRoomPreview>
           velocity == null ? null : -velocity,
         );
       },
-      child: Stack(
-        children: [
-          widget.roomList,
-          ValueListenableBuilder<bool>(
-            valueListenable: _warm,
-            builder: (context, warm, child) {
-              if (!warm) return const SizedBox.shrink();
-              return ValueListenableBuilder<double>(
-                valueListenable: _controller.progress,
-                builder: (context, value, child) {
-                  // warmだが進捗0（タッチダウン直後、まだ水平ドラッグと
-                  // 判定される前）の間は、maxDrag分右にオフセットして
-                  // 画面外に配置する（Stack既定の`Clip.hardEdge`により
-                  // 非表示になる）。この間に[widget.preview]の初回
-                  // マウントコストを消化させるのが本ウィジェットの狙い。
-                  return Transform.translate(
-                    offset: Offset(_controller.maxDrag - value, 0),
-                    child: RepaintBoundary(child: child),
-                  );
-                },
-                child: child,
-              );
-            },
-            child: widget.preview,
-          ),
-        ],
-      ),
+      child: widget.roomList,
     );
   }
 }
@@ -4238,11 +4286,15 @@ class _CollapsibleWidthPanel extends StatelessWidget {
     required this.progress,
     required this.width,
     required this.child,
+    this.mirrored = false,
   });
 
   final ValueListenable<double> progress;
   final double width;
   final Widget child;
+
+  /// 左右反転（右端に置く）の時は、右へ畳む（2026-11-01）。
+  final bool mirrored;
 
   @override
   Widget build(BuildContext context) {
@@ -4251,7 +4303,7 @@ class _CollapsibleWidthPanel extends StatelessWidget {
       child: child,
       builder: (context, value, child) => ClipRect(
         child: Align(
-          alignment: Alignment.centerLeft,
+          alignment: mirrored ? Alignment.centerRight : Alignment.centerLeft,
           widthFactor: (1 - value).clamp(0.0, 1.0),
           child: SizedBox(width: width, child: child),
         ),
@@ -4360,6 +4412,7 @@ class _DmDetailWithRooms extends ConsumerStatefulWidget {
     required this.dm,
     this.roomListOnly = false,
     this.collapseProgress,
+    this.mirrored = false,
     this.onExpandTap,
     super.key,
   });
@@ -4381,6 +4434,10 @@ class _DmDetailWithRooms extends ConsumerStatefulWidget {
   /// （`_isSplit`）側からは渡さず、既定のnullのままにする（あちらは寄合一覧が
   /// 常設サイドバーのため、畳んで全画面化するという概念自体が無い）。
   final ValueListenable<double>? collapseProgress;
+
+  /// 「アイコン＋寄合一覧」の左右反転中か（2026-11-01）。アイコン列と並べる時だけ渡す
+  /// （コンピューターの固定の左右分割では常にfalse）。
+  final bool mirrored;
 
   /// [collapseProgress]が非nullの間、まだ畳み切っていない（プレビュー中の）
   /// メッセージ画面をクリックした時に呼ぶ（2026-09-12追加）。寄合一覧を
@@ -4667,10 +4724,14 @@ class _DmDetailWithRoomsState extends ConsumerState<_DmDetailWithRooms> {
             : _CollapsibleWidthPanel(
                 progress: collapseProgress,
                 width: 220,
+                mirrored: widget.mirrored,
                 child: roomListPane,
               );
 
         return Row(
+          textDirection: widget.mirrored
+              ? TextDirection.rtl
+              : TextDirection.ltr,
           children: [
             // 単一モードではサイドバーを出さない（2026-07-29追加、
             // `DirectMessage.roomsEnabled`参照）。寄合を増やす操作は
@@ -4715,6 +4776,7 @@ class _GroupDetailWithRooms extends ConsumerStatefulWidget {
     required this.group,
     this.roomListOnly = false,
     this.collapseProgress,
+    this.mirrored = false,
     this.onExpandTap,
     super.key,
   });
@@ -4727,6 +4789,10 @@ class _GroupDetailWithRooms extends ConsumerStatefulWidget {
 
   /// [_DmDetailWithRooms.collapseProgress]と同じ（2026-09-12追加）。
   final ValueListenable<double>? collapseProgress;
+
+  /// 「アイコン＋寄合一覧」の左右反転中か（2026-11-01）。アイコン列と並べる時だけ渡す
+  /// （コンピューターの固定の左右分割では常にfalse）。
+  final bool mirrored;
 
   /// [_DmDetailWithRooms.onExpandTap]と同じ（2026-09-12追加）。
   final VoidCallback? onExpandTap;
@@ -4962,10 +5028,14 @@ class _GroupDetailWithRoomsState extends ConsumerState<_GroupDetailWithRooms> {
             : _CollapsibleWidthPanel(
                 progress: collapseProgress,
                 width: 220,
+                mirrored: widget.mirrored,
                 child: roomListPane,
               );
 
         return Row(
+          textDirection: widget.mirrored
+              ? TextDirection.rtl
+              : TextDirection.ltr,
           children: [
             // 単一モードではサイドバーを出さない（2026-07-29追加、
             // `Group.roomsEnabled`参照）。「広場自体の設定」・寄合を増やす

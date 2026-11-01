@@ -42,6 +42,7 @@ import '../../providers/chat_layout_style_provider.dart';
 import '../../providers/talks_list_layout_style_provider.dart';
 import '../../providers/draft_sync_enabled_provider.dart';
 import '../../models/nav_chip_layout.dart';
+import '../../providers/icon_split_mirrored_provider.dart';
 import '../../providers/join_video_camera_on_provider.dart';
 import '../../providers/nav_chip_layout_provider.dart';
 import '../../providers/gekiga_background_color_provider.dart';
@@ -3404,6 +3405,8 @@ class TalksListLayoutFolder extends ConsumerWidget {
           ),
         ),
         control,
+        if (style == TalksListLayoutStyle.iconSplit)
+          _MirrorSwitch(strings: strings),
       ],
     );
   }
@@ -4744,6 +4747,55 @@ class _ResidenceEditorState extends ConsumerState<_ResidenceEditor> {
           onCompleted: widget.onCompleted,
         );
       },
+    );
+  }
+}
+
+/// 「アイコン＋寄合一覧」を左右反転するスイッチ（2026-11-01、標準オフ）。
+/// レイアウトが「アイコン＋寄合一覧」の時だけ表示する（呼び出し側で出し分け）。
+class _MirrorSwitch extends ConsumerWidget {
+  const _MirrorSwitch({required this.strings});
+
+  final Strings strings;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final mirrored = ref.watch(iconSplitMirroredProvider);
+    final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
+    void setMirrored(bool value) =>
+        ref.read(iconSplitMirroredProvider.notifier).setMirrored(value);
+
+    if (isGekiga) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 8),
+        child: GekigaJointedTileList(
+          seeds: const [1],
+          selectedFlags: const [false],
+          children: [
+            GekigaTileContent(
+              selected: false,
+              title: Text(strings.settingsTalksListMirrorTitle),
+              subtitle: Text(strings.settingsTalksListMirrorSubtitle),
+              trailing: Switch(
+                value: mirrored,
+                onChanged: setMirrored,
+                activeThumbColor: GekigaColors.panel,
+                activeTrackColor: GekigaColors.onPanel,
+                inactiveThumbColor: GekigaColors.onPanel,
+                inactiveTrackColor: GekigaColors.panel,
+                trackOutlineColor: WidgetStatePropertyAll(GekigaColors.onPanel),
+              ),
+              onTap: () => setMirrored(!mirrored),
+            ),
+          ],
+        ),
+      );
+    }
+    return SwitchListTile(
+      value: mirrored,
+      title: Text(strings.settingsTalksListMirrorTitle),
+      subtitle: Text(strings.settingsTalksListMirrorSubtitle),
+      onChanged: setMirrored,
     );
   }
 }

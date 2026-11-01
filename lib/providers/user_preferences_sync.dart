@@ -23,6 +23,7 @@ import 'conversation_sort_order_provider.dart';
 import 'custom_accent_colors_provider.dart';
 import 'custom_font_colors_provider.dart';
 import 'draft_sync_enabled_provider.dart';
+import 'icon_split_mirrored_provider.dart';
 import 'join_video_camera_on_provider.dart';
 import 'nav_chip_layout_provider.dart';
 import 'font_design_provider.dart';
@@ -149,6 +150,11 @@ void applyRemoteUserPreferences(WidgetRef ref, AppUserPreferences preferences) {
           alignmentName: preferences.navChipAlignment,
           orderNames: preferences.navChipOrder,
         );
+  }
+  if (preferences.iconSplitMirrored != null) {
+    ref
+        .read(iconSplitMirroredProvider.notifier)
+        .syncFromRemote(preferences.iconSplitMirrored!);
   }
   if (preferences.joinVideoCameraOn != null) {
     ref
