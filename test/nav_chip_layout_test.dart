@@ -2,7 +2,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'package:daidai/models/app_user_preferences.dart';
 import 'package:daidai/models/nav_chip_layout.dart';
 import 'package:daidai/providers/nav_chip_layout_provider.dart';
 
@@ -46,30 +45,5 @@ void main() {
       HomeTabId.talk,
       HomeTabId.profile,
     ]);
-  });
-
-  test('アカウント同期の復元は、渡した項目だけを更新する', () async {
-    SharedPreferences.setMockInitialValues({});
-    final container = ProviderContainer();
-    addTearDown(container.dispose);
-    final notifier = container.read(navChipLayoutProvider.notifier);
-    await notifier.syncFromRemote(orderNames: ['profile', 'settings', 'talk']);
-    final layout = container.read(navChipLayoutProvider);
-    expect(layout.alignment, NavChipAlignment.center);
-    expect(layout.order.first, HomeTabId.profile);
-  });
-
-  test('preferencesの往復（未設定はnull）', () {
-    expect(
-      const AppUserPreferences().toJson().containsKey('navChipOrder'),
-      isFalse,
-    );
-    final json = const AppUserPreferences(
-      navChipAlignment: 'start',
-      navChipOrder: ['settings', 'talk', 'profile'],
-    ).toJson();
-    final back = AppUserPreferences.fromJson(json);
-    expect(back.navChipAlignment, 'start');
-    expect(back.navChipOrder, ['settings', 'talk', 'profile']);
   });
 }

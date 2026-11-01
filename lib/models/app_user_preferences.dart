@@ -17,10 +17,7 @@ class AppUserPreferences {
     this.draftSyncEnabled,
     this.joinVideoCameraOn,
     this.iconSplitMirrored,
-    this.navChipAlignment,
-    this.navChipOrder,
     this.chatLayoutStyle,
-    this.talksListLayoutStyle,
     this.messageTimeFormat,
     this.appUiStyle,
     this.customAccentColorsArgb,
@@ -53,16 +50,8 @@ class AppUserPreferences {
   /// 「アイコン＋寄合一覧」を左右反転するか（2026-11-01、nullは標準のオフ）。
   final bool? iconSplitMirrored;
 
-  /// 縦表示（狭い画面）の下部メニューチップの揃え（`NavChipAlignment`のname）と、並び
-  /// （`HomeTabId`のnameのリスト）。2026-11-01追加、nullなら標準（中央・語らい/身だしなみ/設定）。
-  final String? navChipAlignment;
-  final List<String>? navChipOrder;
   final String? chatLayoutStyle;
 
-  /// 語らい一覧レイアウト（`TalksListLayoutStyle`のname、2026-09-11追加）。
-  /// コンピューターの広い横画面では無視される
-  /// （`talks_tab.dart`の`_TalksTabState.build`参照）。
-  final String? talksListLayoutStyle;
   final String? messageTimeFormat;
   final String? appUiStyle;
 
@@ -123,12 +112,7 @@ class AppUserPreferences {
       draftSyncEnabled: json['draftSyncEnabled'] as bool?,
       joinVideoCameraOn: json['joinVideoCameraOn'] as bool?,
       iconSplitMirrored: json['iconSplitMirrored'] as bool?,
-      navChipAlignment: json['navChipAlignment'] as String?,
-      navChipOrder: (json['navChipOrder'] as List<dynamic>?)
-          ?.map((e) => e as String)
-          .toList(),
       chatLayoutStyle: json['chatLayoutStyle'] as String?,
-      talksListLayoutStyle: json['talksListLayoutStyle'] as String?,
       messageTimeFormat: json['messageTimeFormat'] as String?,
       appUiStyle: json['appUiStyle'] as String?,
       customAccentColorsArgb: (json['customAccentColorsArgb'] as List<dynamic>?)
@@ -165,11 +149,7 @@ class AppUserPreferences {
       if (draftSyncEnabled != null) 'draftSyncEnabled': draftSyncEnabled,
       if (joinVideoCameraOn != null) 'joinVideoCameraOn': joinVideoCameraOn,
       if (iconSplitMirrored != null) 'iconSplitMirrored': iconSplitMirrored,
-      if (navChipAlignment != null) 'navChipAlignment': navChipAlignment,
-      if (navChipOrder != null) 'navChipOrder': navChipOrder,
       if (chatLayoutStyle != null) 'chatLayoutStyle': chatLayoutStyle,
-      if (talksListLayoutStyle != null)
-        'talksListLayoutStyle': talksListLayoutStyle,
       if (messageTimeFormat != null) 'messageTimeFormat': messageTimeFormat,
       if (appUiStyle != null) 'appUiStyle': appUiStyle,
       if (customAccentColorsArgb != null)

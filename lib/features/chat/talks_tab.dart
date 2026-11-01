@@ -414,10 +414,9 @@ class _TalksTabState extends ConsumerState<TalksTab>
     if (!_iconSplitDragEnabled) return;
     // 左ドラッグ（dx負）で畳む＝progress増加、右ドラッグ（dx正）で開く＝
     // progress減少という向きにするため、dxを引く。
-    // 左右反転中は逆向き（右ドラッグで畳む）。
-    _iconSplitCollapseDragCumulative -= ref.read(iconSplitMirroredProvider)
-        ? -details.delta.dx
-        : details.delta.dx;
+    // 左右反転中も向きは変えない（吹き出し上の左スワイプ＝返信・右スワイプ＝戻る、と
+    // 衝突しないため、2026-11-01）。
+    _iconSplitCollapseDragCumulative -= details.delta.dx;
     _setIconSplitCollapse(
       _iconSplitCollapseDragCumulative / kIconSplitCollapseWidth,
     );
@@ -425,9 +424,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
 
   void _handleIconSplitDragEnd(DragEndDetails details) {
     if (!_iconSplitDragEnabled) return;
-    final velocity =
-        (details.primaryVelocity ?? 0) *
-        (ref.read(iconSplitMirroredProvider) ? -1 : 1);
+    final velocity = details.primaryVelocity ?? 0;
     final bool collapse;
     if (velocity <= -kSwipeGestureVelocityThreshold) {
       collapse = true;

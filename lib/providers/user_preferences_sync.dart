@@ -12,7 +12,6 @@ import '../models/font_design.dart';
 import '../models/message_time_format.dart';
 import '../models/send_key_mode.dart';
 import '../models/sticker_send_mode.dart';
-import '../models/talks_list_layout_style.dart';
 import 'accent_color_provider.dart';
 import 'app_locale_provider.dart';
 import 'app_ui_style_provider.dart';
@@ -25,7 +24,6 @@ import 'custom_font_colors_provider.dart';
 import 'draft_sync_enabled_provider.dart';
 import 'icon_split_mirrored_provider.dart';
 import 'join_video_camera_on_provider.dart';
-import 'nav_chip_layout_provider.dart';
 import 'font_design_provider.dart';
 import 'gekiga_background_color_provider.dart';
 import 'notification_sound_provider.dart';
@@ -34,7 +32,6 @@ import 'ringtone_sound_provider.dart';
 import 'message_time_format_provider.dart';
 import 'send_key_mode_provider.dart';
 import 'sticker_send_mode_provider.dart';
-import 'talks_list_layout_style_provider.dart';
 import 'text_color_provider.dart';
 import 'theme_mode_provider.dart';
 
@@ -106,13 +103,6 @@ void applyRemoteUserPreferences(WidgetRef ref, AppUserPreferences preferences) {
         .read(chatLayoutStyleProvider.notifier)
         .syncFromRemote(ChatLayoutStyle.fromName(preferences.chatLayoutStyle));
   }
-  if (preferences.talksListLayoutStyle != null) {
-    ref
-        .read(talksListLayoutStyleProvider.notifier)
-        .syncFromRemote(
-          TalksListLayoutStyle.fromName(preferences.talksListLayoutStyle),
-        );
-  }
   if (preferences.calendarWeekStart != null) {
     ref
         .read(calendarWeekStartProvider.notifier)
@@ -141,15 +131,6 @@ void applyRemoteUserPreferences(WidgetRef ref, AppUserPreferences preferences) {
     ref
         .read(draftSyncEnabledProvider.notifier)
         .syncFromRemote(preferences.draftSyncEnabled!);
-  }
-  if (preferences.navChipAlignment != null ||
-      preferences.navChipOrder != null) {
-    ref
-        .read(navChipLayoutProvider.notifier)
-        .syncFromRemote(
-          alignmentName: preferences.navChipAlignment,
-          orderNames: preferences.navChipOrder,
-        );
   }
   if (preferences.iconSplitMirrored != null) {
     ref
