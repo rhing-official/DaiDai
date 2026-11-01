@@ -23,6 +23,7 @@ import 'conversation_sort_order_provider.dart';
 import 'custom_accent_colors_provider.dart';
 import 'custom_font_colors_provider.dart';
 import 'draft_sync_enabled_provider.dart';
+import 'join_video_camera_on_provider.dart';
 import 'font_design_provider.dart';
 import 'gekiga_background_color_provider.dart';
 import 'notification_sound_provider.dart';
@@ -138,6 +139,11 @@ void applyRemoteUserPreferences(WidgetRef ref, AppUserPreferences preferences) {
     ref
         .read(draftSyncEnabledProvider.notifier)
         .syncFromRemote(preferences.draftSyncEnabled!);
+  }
+  if (preferences.joinVideoCameraOn != null) {
+    ref
+        .read(joinVideoCameraOnProvider.notifier)
+        .syncFromRemote(preferences.joinVideoCameraOn!);
   }
   if (preferences.conversationSortOrder != null) {
     ref

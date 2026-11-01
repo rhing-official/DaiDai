@@ -13,6 +13,7 @@ import 'acquire_with_video_fallback.dart';
 import 'peer_connect_guard.dart';
 import 'rtc_config.dart';
 import '../../utils/page_exit/page_exit.dart';
+import 'audio_route.dart';
 import 'webrtc_media_constraints.dart';
 
 enum GroupCallConnectionState { connecting, active, ended }
@@ -123,8 +124,34 @@ class WebrtcGroupCallController extends ChangeNotifier {
   GroupCallConnectionState _state = GroupCallConnectionState.connecting;
   GroupCallConnectionState get state => _state;
 
-  bool _speakerOn = true;
+  /// スピーカーで鳴らしているか。LINEと同じく、音声通話は受話口、映像通話は
+  /// スピーカーから始める（2026-11-01変更、以前はどちらもスピーカー）。
+  late bool _speakerOn = _isVideo;
   bool get speakerOn => _speakerOn;
+
+  /// Bluetooth・有線ヘッドセットなど外部のオーディオに接続中か（2026-11-01追加）。
+  /// 接続中は出力先をOSに任せ、スピーカー/受話口の切替ボタンも出さない。
+  bool _externalAudio = false;
+  bool get showSpeakerToggle =>
+      isSpeakerToggleCapablePlatform && !_externalAudio;
+  bool _watchingAudioDevices = false;
+
+  Future<void> _refreshExternalAudio() async {
+    final external = await hasExternalAudioOutput();
+    if (_state == GroupCallConnectionState.ended || external == _externalAudio)
+      return;
+    _externalAudio = external;
+    await _applySpeakerphone(_speakerOn);
+    notifyListeners();
+  }
+
+  void _watchAudioDevices() {
+    if (_watchingAudioDevices || !isSpeakerToggleCapablePlatform) return;
+    _watchingAudioDevices = true;
+    navigator.mediaDevices.ondevicechange = (_) =>
+        unawaited(_refreshExternalAudio());
+    unawaited(_refreshExternalAudio());
+  }
 
   /// 直前に使っていたカメラの`deviceId`。映像をオフ→オンした時に同じカメラで
   /// 取り直す（2026-10-31追加）。
@@ -147,15 +174,26 @@ class WebrtcGroupCallController extends ChangeNotifier {
       .where((p) => p.userId != currentUser.userId && !_isStale(p))
       .toList();
 
-  /// ピン留めミニ表示・PC埋め込み表示で「代表1人」として映す相手
-  /// （2026-08-19追加）。本物の音声レベル検出（今しゃべっている人）は
-  /// flutter_webrtcにAPIが無く、getStats()の未サポートポーリングが必要に
-  /// なり割に合わないため見送り、軽量な代理指標にする: 「映像onかつ
-  /// ミュートしていない最初の相手」を優先し、いなければ「映像onの最初の
-  /// 相手」、それも無ければ`null`（＝映像を出している相手がいない）。
-  CallParticipant? get pinnedParticipant =>
-      remoteParticipants.firstWhereOrNull((p) => p.isVideo && !p.micMuted) ??
-      remoteParticipants.firstWhereOrNull((p) => p.isVideo);
+  /// ピン留めミニ表示・PC埋め込み表示で「代表1人」として映す相手。
+  /// 直近に発声した相手（[_lastRemoteSpeakerId]、発声が止んでも次に誰かが話す
+  /// まで保つ。2026-11-01変更、以前は常に「映像onで最初の相手」で固定されていた）。
+  /// まだ誰も話していない間は従来の代理指標（映像onかつミュートしていない最初の
+  /// 相手 → 映像onの最初の相手）を使い、それも無ければ`null`。
+  CallParticipant? get pinnedParticipant {
+    final lastSpeakerId = _lastRemoteSpeakerId;
+    if (lastSpeakerId != null) {
+      final speaker = remoteParticipants.firstWhereOrNull(
+        (p) => p.userId == lastSpeakerId,
+      );
+      if (speaker != null) return speaker;
+    }
+    return remoteParticipants.firstWhereOrNull(
+          (p) => p.isVideo && !p.micMuted,
+        ) ??
+        remoteParticipants.firstWhereOrNull((p) => p.isVideo);
+  }
+
+  String? _lastRemoteSpeakerId;
 
   bool _isStale(CallParticipant participant) {
     final lastSeenAt = participant.lastSeenAt;
@@ -206,7 +244,14 @@ class WebrtcGroupCallController extends ChangeNotifier {
         }
       }
       if (_state != GroupCallConnectionState.active) return;
-      if (!setEquals(speaking, _speakingUserIds)) {
+      // 直近に話した相手を覚える。今の話者が話し続けている間は切り替えない。
+      final remoteSpeakers = speaking.where((id) => id != currentUser.userId);
+      final lastBefore = _lastRemoteSpeakerId;
+      if (remoteSpeakers.isNotEmpty && !remoteSpeakers.contains(lastBefore)) {
+        _lastRemoteSpeakerId = remoteSpeakers.first;
+      }
+      if (!setEquals(speaking, _speakingUserIds) ||
+          lastBefore != _lastRemoteSpeakerId) {
         _speakingUserIds = speaking;
         notifyListeners();
       }
@@ -710,7 +755,8 @@ class WebrtcGroupCallController extends ChangeNotifier {
   Future<void> _applySpeakerphone(bool enable) async {
     if (kIsWeb) return; // Webはブラウザの既定オーディオ出力に依存し対象外。
     try {
-      await Helper.setSpeakerphoneOn(enable);
+      // 外部のオーディオに接続中は、スピーカーを強制せずOSの選択に任せる。
+      await Helper.setSpeakerphoneOn(enable && !_externalAudio);
     } catch (_) {
       // 一部プラットフォームで未対応/失敗する既知の問題（iOS: flutter-webrtc
       // issue #1290, #1098, #1032, #1427）。失敗しても通話自体は継続させる。
@@ -721,6 +767,7 @@ class WebrtcGroupCallController extends ChangeNotifier {
   /// 勝手に戻ることがある既知の競合状態があるため、接続完了直後に一度適用し、
   /// 少し間を空けてもう一度適用する。
   Future<void> _applySpeakerphoneWithRetry() async {
+    _watchAudioDevices();
     await _applySpeakerphone(_speakerOn);
     await Future.delayed(const Duration(seconds: 2));
     if (_state == GroupCallConnectionState.active) {
@@ -801,6 +848,7 @@ class WebrtcGroupCallController extends ChangeNotifier {
 
   @override
   void dispose() {
+    if (_watchingAudioDevices) navigator.mediaDevices.ondevicechange = null;
     _removePageExitListener?.call();
     _connectGuard.cancelAll();
     _presenceTimer?.cancel();

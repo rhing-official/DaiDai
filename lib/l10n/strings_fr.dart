@@ -26,6 +26,10 @@ final Strings _stringsFr = Strings._(
   settingsNotificationsPermissionDeniedError:
       'L’autorisation de notification n’a pas été accordée. Vérifiez les réglages de votre navigateur ou de votre système.',
   settingsFolderTalk: 'Discussion',
+  settingsFolderCall: "Appels",
+  settingsCallJoinCameraTitle: "Activer la caméra en rejoignant un appel vidéo",
+  settingsCallJoinCameraSubtitle:
+      "Désactivé, vous rejoignez les appels vidéo que vous acceptez ou rejoignez avec la caméra coupée (audio seul). Vous pouvez l’activer à tout moment pendant l’appel. Cela n’affecte pas les appels vidéo en tête-à-tête que vous lancez.",
   settingsFolderSupport: 'Assistance',
   settingsAnnouncements: 'Annonces',
   settingsAboutApp: 'À propos de l’application',
@@ -1105,7 +1109,6 @@ final Strings _stringsFr = Strings._(
   callStatusActive: 'En communication',
   callStatusEnded: 'Appel terminé',
   callConnectionUnstableEllipsis: 'La connexion est instable…',
-  callAudioOutputTitle: 'Sortie audio',
   callConnectionUnstable: 'La connexion est instable',
   callFullMessageTemplate: (max) => 'Cet appel est complet (limite : $max)',
   groupCallParticipantCountTemplate: (count) =>

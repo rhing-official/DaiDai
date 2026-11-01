@@ -45,13 +45,13 @@ void main() {
     ),
   );
 
-  testWidgets('サムネイルとファイル名を並べ、×で外せる', (tester) async {
+  testWidgets('サムネイルを並べ（ファイル名は出さない）、×で外せる', (tester) async {
     int? removed;
     await tester.pumpWidget(
       host(list: attachments, onRemove: (i) => removed = i),
     );
-    expect(find.text('a.png'), findsOneWidget);
-    expect(find.text('b.mp4'), findsOneWidget);
+    expect(find.text('a.png'), findsNothing);
+    expect(find.text('b.mp4'), findsNothing);
     expect(find.byIcon(Icons.close), findsNWidgets(2));
     expect(find.byIcon(Icons.play_circle_outline), findsOneWidget);
 

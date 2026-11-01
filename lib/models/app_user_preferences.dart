@@ -15,6 +15,7 @@ class AppUserPreferences {
     this.sendKeyMode,
     this.stickerSendMode,
     this.draftSyncEnabled,
+    this.joinVideoCameraOn,
     this.chatLayoutStyle,
     this.talksListLayoutStyle,
     this.messageTimeFormat,
@@ -42,6 +43,9 @@ class AppUserPreferences {
   final String? sendKeyMode;
   final String? stickerSendMode;
   final bool? draftSyncEnabled;
+
+  /// ビデオ通話に応答・参加した時にカメラをオンで入るか（2026-11-01追加、null=標準のオン）。
+  final bool? joinVideoCameraOn;
   final String? chatLayoutStyle;
 
   /// 語らい一覧レイアウト（`TalksListLayoutStyle`のname、2026-09-11追加）。
@@ -106,6 +110,7 @@ class AppUserPreferences {
       sendKeyMode: json['sendKeyMode'] as String?,
       stickerSendMode: json['stickerSendMode'] as String?,
       draftSyncEnabled: json['draftSyncEnabled'] as bool?,
+      joinVideoCameraOn: json['joinVideoCameraOn'] as bool?,
       chatLayoutStyle: json['chatLayoutStyle'] as String?,
       talksListLayoutStyle: json['talksListLayoutStyle'] as String?,
       messageTimeFormat: json['messageTimeFormat'] as String?,
@@ -142,6 +147,7 @@ class AppUserPreferences {
       if (sendKeyMode != null) 'sendKeyMode': sendKeyMode,
       if (stickerSendMode != null) 'stickerSendMode': stickerSendMode,
       if (draftSyncEnabled != null) 'draftSyncEnabled': draftSyncEnabled,
+      if (joinVideoCameraOn != null) 'joinVideoCameraOn': joinVideoCameraOn,
       if (chatLayoutStyle != null) 'chatLayoutStyle': chatLayoutStyle,
       if (talksListLayoutStyle != null)
         'talksListLayoutStyle': talksListLayoutStyle,

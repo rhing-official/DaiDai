@@ -31,6 +31,9 @@ class Strings {
     required this.settingsNotificationsEnableSubtitle,
     required this.settingsNotificationsPermissionDeniedError,
     required this.settingsFolderTalk,
+    required this.settingsFolderCall,
+    required this.settingsCallJoinCameraTitle,
+    required this.settingsCallJoinCameraSubtitle,
     required this.settingsFolderSupport,
     required this.settingsAnnouncements,
     required this.settingsAboutApp,
@@ -923,7 +926,6 @@ class Strings {
     required this.callStatusActive,
     required this.callStatusEnded,
     required this.callConnectionUnstableEllipsis,
-    required this.callAudioOutputTitle,
     required this.callConnectionUnstable,
     required this.callFullMessageTemplate,
     required this.groupCallParticipantCountTemplate,
@@ -986,6 +988,9 @@ class Strings {
   final String settingsNotificationsEnableSubtitle;
   final String settingsNotificationsPermissionDeniedError;
   final String settingsFolderTalk;
+  final String settingsFolderCall;
+  final String settingsCallJoinCameraTitle;
+  final String settingsCallJoinCameraSubtitle;
   final String settingsFolderSupport;
   final String settingsAnnouncements;
   final String settingsAboutApp;
@@ -2189,9 +2194,6 @@ class Strings {
   final String callStatusActive;
   final String callStatusEnded;
   final String callConnectionUnstableEllipsis;
-
-  /// 通話中の音声の出力先を選ぶシートの見出し（2026-10-31）。
-  final String callAudioOutputTitle;
   final String callConnectionUnstable;
   final String Function(int max) callFullMessageTemplate;
   final String Function(int count) groupCallParticipantCountTemplate;
@@ -2256,6 +2258,10 @@ class Strings {
     settingsNotificationsPermissionDeniedError:
         '通知の許可が得られませんでした。ブラウザ/OSの設定をご確認ください。',
     settingsFolderTalk: '語らい',
+    settingsFolderCall: '通話',
+    settingsCallJoinCameraTitle: 'ビデオ通話に参加するときカメラをオンにする',
+    settingsCallJoinCameraSubtitle:
+        'オフにすると、ビデオ通話に応答・参加したときはカメラを切った状態（音声のみ）で入ります。通話中にいつでもオンにできます。自分から発信する1対1のビデオ通話には影響しません。',
     settingsFolderSupport: '運営',
     settingsAnnouncements: 'お便り',
     settingsAboutApp: 'アプリについて',
@@ -3210,7 +3216,6 @@ class Strings {
     callStatusActive: '通話中',
     callStatusEnded: '通話終了',
     callConnectionUnstableEllipsis: '接続が不安定です…',
-    callAudioOutputTitle: '音声の出力先',
     callConnectionUnstable: '接続が不安定です',
     callFullMessageTemplate: (max) => 'この通話は満員です（上限$max人）',
     groupCallParticipantCountTemplate: (count) => '参加者$count人',
@@ -3267,6 +3272,10 @@ class Strings {
     settingsNotificationsPermissionDeniedError:
         "Notification permission wasn't granted. Please check your browser/OS settings.",
     settingsFolderTalk: 'Talk',
+    settingsFolderCall: 'Calls',
+    settingsCallJoinCameraTitle: 'Turn the camera on when joining a video call',
+    settingsCallJoinCameraSubtitle:
+        'When off, you join video calls you answer or join with your camera off (audio only). You can turn it on at any time during the call. This doesn\'t affect one-to-one video calls you start yourself.',
     settingsFolderSupport: 'Support',
     settingsAnnouncements: 'Announcements',
     settingsAboutApp: 'About this app',
@@ -4335,7 +4344,6 @@ class Strings {
     callStatusActive: 'In call',
     callStatusEnded: 'Call ended',
     callConnectionUnstableEllipsis: 'Connection is unstable…',
-    callAudioOutputTitle: 'Audio output',
     callConnectionUnstable: 'Connection is unstable',
     callFullMessageTemplate: (max) => 'This call is full (limit: $max)',
     groupCallParticipantCountTemplate: (count) =>

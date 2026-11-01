@@ -62,7 +62,8 @@ Map<String, dynamic> videoConstraintsFor({
   'facingMode': frontCamera ? 'user' : 'environment',
   if (deviceId != null && deviceId.isNotEmpty) 'deviceId': {'ideal': deviceId},
   // 電池消費と発熱を抑えるため、フレームレートを抑える（2026-10-31）。
-  'frameRate': {'ideal': 24, 'max': 30},
+  // 数値で渡す（Androidはマップ形式のideal/maxを読まず既定値になるため）。
+  'frameRate': 24,
   'width': {'ideal': portrait ? 720 : 1280},
   'height': {'ideal': portrait ? 1280 : 720},
   if (withAspectRatio) 'aspectRatio': {'ideal': portrait ? 9 / 16 : 16 / 9},

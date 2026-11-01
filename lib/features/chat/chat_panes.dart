@@ -686,7 +686,7 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
               mentions: mentions,
             );
           },
-      onSendAttachment: (attachment, {onProgress}) async {
+      onSendAttachment: (attachment, {onProgress, caption, replyTo}) async {
         if (isBlocked) {
           showAutoDismissBanner(
             context,
@@ -703,32 +703,37 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
           fileName: attachment.fileName,
           contentType: attachment.contentType,
           onProgress: onProgress,
+          caption: caption,
+          replyTo: replyTo,
         );
       },
-      onSendMultiAttachment: (attachments, {onProgress}) async {
-        if (isBlocked) {
-          showAutoDismissBanner(
-            context,
-            message: strings.conversationBlockedCannotSend,
-          );
-          return;
-        }
-        await dmRepository.sendMultiAttachmentMessage(
-          dmId: dm.dmId,
-          roomId: roomId,
-          senderId: currentUser.userId,
-          senderRhingSeed: currentUser.rhingSeed,
-          items: [
-            for (final a in attachments)
-              AttachmentUploadInput(
-                bytes: a.bytes,
-                fileName: a.fileName,
-                contentType: a.contentType,
-              ),
-          ],
-          onProgress: onProgress,
-        );
-      },
+      onSendMultiAttachment:
+          (attachments, {onProgress, caption, replyTo}) async {
+            if (isBlocked) {
+              showAutoDismissBanner(
+                context,
+                message: strings.conversationBlockedCannotSend,
+              );
+              return;
+            }
+            await dmRepository.sendMultiAttachmentMessage(
+              dmId: dm.dmId,
+              roomId: roomId,
+              senderId: currentUser.userId,
+              senderRhingSeed: currentUser.rhingSeed,
+              items: [
+                for (final a in attachments)
+                  AttachmentUploadInput(
+                    bytes: a.bytes,
+                    fileName: a.fileName,
+                    contentType: a.contentType,
+                  ),
+              ],
+              onProgress: onProgress,
+              caption: caption,
+              replyTo: replyTo,
+            );
+          },
       onSendSticker: (sticker) async {
         if (isBlocked) {
           showAutoDismissBanner(
@@ -2727,7 +2732,7 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
             replyTo: replyTo,
             mentions: mentions,
           ),
-      onSendAttachment: (attachment, {onProgress}) =>
+      onSendAttachment: (attachment, {onProgress, caption, replyTo}) =>
           groupRepository.sendAttachmentMessage(
             groupId: group.groupId,
             roomId: roomId,
@@ -2737,8 +2742,10 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
             fileName: attachment.fileName,
             contentType: attachment.contentType,
             onProgress: onProgress,
+            caption: caption,
+            replyTo: replyTo,
           ),
-      onSendMultiAttachment: (attachments, {onProgress}) =>
+      onSendMultiAttachment: (attachments, {onProgress, caption, replyTo}) =>
           groupRepository.sendMultiAttachmentMessage(
             groupId: group.groupId,
             roomId: roomId,
@@ -2753,6 +2760,8 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
                 ),
             ],
             onProgress: onProgress,
+            caption: caption,
+            replyTo: replyTo,
           ),
       onSendSticker: (sticker) => groupRepository.sendStickerMessage(
         groupId: group.groupId,

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/app_user.dart';
 import '../../models/call.dart';
 import '../../models/sound_preset.dart';
+import '../../providers/join_video_camera_on_provider.dart';
 import '../../providers/calling_sound_provider.dart';
 import '../../providers/chat_navigation_providers.dart';
 import '../../providers/repository_providers.dart';
@@ -151,6 +152,7 @@ class ActiveCallSessionNotifier extends Notifier<ActiveCallSession?> {
       callRepository: callRepository,
       directMessageRepository: directMessageRepository,
       iceServersLoader: _loader,
+      joinWithCamera: ref.read(joinVideoCameraOnProvider),
     );
     final session = OneToOneCallSession(
       controller: controller,
@@ -189,7 +191,8 @@ class ActiveCallSessionNotifier extends Notifier<ActiveCallSession?> {
     final controller = WebrtcGroupCallController(
       groupCallId: groupCallId,
       currentUser: currentUser,
-      isVideo: isVideo,
+      // 設定でカメラをオフにして入る場合は、音声のみで入る（通話中にオンにできる）。
+      isVideo: isVideo && ref.read(joinVideoCameraOnProvider),
       groupCallRepository: groupCallRepository,
       iceServersLoader: _loader,
     );

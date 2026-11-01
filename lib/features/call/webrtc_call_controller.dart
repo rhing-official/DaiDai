@@ -11,6 +11,7 @@ import 'call_ring_timeout.dart';
 import 'call_sound_player.dart';
 import 'disconnect_grace.dart';
 import 'rtc_config.dart';
+import 'audio_route.dart';
 import 'webrtc_media_constraints.dart';
 
 enum CallConnectionState { connecting, active, ended }
@@ -24,12 +25,17 @@ class WebrtcCallController extends ChangeNotifier {
     required CallRepository callRepository,
     required DirectMessageRepository directMessageRepository,
     IceServersLoader? iceServersLoader,
+    this.joinWithCamera = true,
   }) : _callRepository = callRepository,
        _directMessageRepository = directMessageRepository,
        _iceServersLoader = iceServersLoader;
 
   final Call call;
   final bool isCaller;
+
+  /// 応答時にカメラをオンで入るか（設定「ビデオ通話に参加するときカメラをオンにする」、
+  /// 2026-11-01）。着信側の応答にだけ効き、発信側には影響しない。
+  final bool joinWithCamera;
   final CallRepository _callRepository;
   final DirectMessageRepository _directMessageRepository;
 
@@ -126,8 +132,34 @@ class WebrtcCallController extends ChangeNotifier {
   bool _accepting = false;
   bool get accepting => _accepting;
 
-  bool _speakerOn = true;
+  /// スピーカーで鳴らしているか。LINEと同じく、音声通話は受話口、映像通話は
+  /// スピーカーから始める（2026-11-01変更、以前はどちらもスピーカー）。
+  late bool _speakerOn = call.isVideo;
   bool get speakerOn => _speakerOn;
+
+  /// Bluetooth・有線ヘッドセットなど外部のオーディオに接続中か（2026-11-01追加）。
+  /// 接続中は出力先をOSに任せ、スピーカー/受話口の切替ボタンも出さない。
+  bool _externalAudio = false;
+  bool get showSpeakerToggle =>
+      isSpeakerToggleCapablePlatform && !_externalAudio;
+  bool _watchingAudioDevices = false;
+
+  Future<void> _refreshExternalAudio() async {
+    final external = await hasExternalAudioOutput();
+    if (_state == CallConnectionState.ended || external == _externalAudio)
+      return;
+    _externalAudio = external;
+    await _applySpeakerphone(_speakerOn);
+    notifyListeners();
+  }
+
+  void _watchAudioDevices() {
+    if (_watchingAudioDevices || !isSpeakerToggleCapablePlatform) return;
+    _watchingAudioDevices = true;
+    navigator.mediaDevices.ondevicechange = (_) =>
+        unawaited(_refreshExternalAudio());
+    unawaited(_refreshExternalAudio());
+  }
 
   /// 直前に使っていたカメラの`deviceId`。映像をオフ→オンした時に同じカメラで
   /// 取り直す（2026-10-31追加）。
@@ -325,8 +357,9 @@ class WebrtcCallController extends ChangeNotifier {
   Future<void> _acquireLocalStream({
     required bool allowVideoFallback,
     bool videoNow = true,
+    bool cameraOn = true,
   }) async {
-    var video = call.isVideo && videoNow;
+    var video = call.isVideo && videoNow && cameraOn;
     try {
       _localStream = await navigator.mediaDevices.getUserMedia({
         'audio': buildAudioConstraints(),
@@ -352,6 +385,15 @@ class WebrtcCallController extends ChangeNotifier {
       );
     }
     unawaited(ensureEchoCancellation(_localStream));
+    // 設定（ビデオ通話に参加するときのカメラ）でオフにして入った時は、カメラの失敗時と
+    // 同じく、相手には自分が音声のみであることを伝える（通話中にオンにできる）。
+    if (call.isVideo && videoNow && !cameraOn) {
+      unawaited(
+        _callRepository
+            .updateIsVideo(call.callId, isCaller: isCaller, isVideo: false)
+            .catchError((_) {}),
+      );
+    }
     if (videoNow) _isVideo = video;
     if (video) {
       if (!_localRendererInitialized) {
@@ -578,7 +620,10 @@ class WebrtcCallController extends ChangeNotifier {
     try {
       // 応答操作（ユーザー操作）の中で自分のカメラ・マイクを取得する。カメラが
       // 使えなければ音声のみで応答する。
-      await _acquireLocalStream(allowVideoFallback: true);
+      await _acquireLocalStream(
+        allowVideoFallback: true,
+        cameraOn: joinWithCamera,
+      );
       await _attachLocalStream();
     } catch (e) {
       _error = '通話を開始できませんでした（マイクの利用を許可してください）: $e';
@@ -830,7 +875,8 @@ class WebrtcCallController extends ChangeNotifier {
   Future<void> _applySpeakerphone(bool enable) async {
     if (kIsWeb) return; // Webはブラウザの既定オーディオ出力に依存し対象外。
     try {
-      await Helper.setSpeakerphoneOn(enable);
+      // 外部のオーディオに接続中は、スピーカーを強制せずOSの選択に任せる。
+      await Helper.setSpeakerphoneOn(enable && !_externalAudio);
     } catch (_) {
       // 一部プラットフォームで未対応/失敗する既知の問題（iOS: flutter-webrtc
       // issue #1290, #1098, #1032, #1427）。失敗しても通話自体は継続させる。
@@ -841,6 +887,7 @@ class WebrtcCallController extends ChangeNotifier {
   /// 勝手に戻ることがある既知の競合状態があるため、接続完了直後に一度適用し、
   /// 少し間を空けてもう一度適用する。
   Future<void> _applySpeakerphoneWithRetry() async {
+    _watchAudioDevices();
     await _applySpeakerphone(_speakerOn);
     await Future.delayed(const Duration(seconds: 2));
     if (_state == CallConnectionState.active) {
@@ -926,6 +973,7 @@ class WebrtcCallController extends ChangeNotifier {
 
   @override
   void dispose() {
+    if (_watchingAudioDevices) navigator.mediaDevices.ondevicechange = null;
     _cancelRingTimeout();
     _disconnectGrace.cancel();
     _callSub?.cancel();

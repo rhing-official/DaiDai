@@ -315,13 +315,18 @@ class _CallScreenState extends ConsumerState<CallScreen> {
     return Stack(
       children: [
         // 相手の映像を出していない間も、相手の音声を鳴らす（2026-10-31追加）。
-        if (!_remoteIsVideo)
-          Positioned(
-            left: 0,
-            top: 0,
-            child: CallAudioSinks(renderers: [_controller.remoteRenderer]),
+        // 出し入れで後ろの子の位置がずれ、自分の映像が作り直されて空になるため、
+        // 常に同じ位置に置く（空なら何も描かない）。
+        Positioned(
+          key: const ValueKey('audio-sink'),
+          left: 0,
+          top: 0,
+          child: CallAudioSinks(
+            renderers: _remoteIsVideo ? [] : [_controller.remoteRenderer],
           ),
+        ),
         Positioned.fill(
+          key: const ValueKey('main-view'),
           child: GestureDetector(
             onTap: swapViews,
             child: mainShowsPlaceholder
@@ -362,6 +367,7 @@ class _CallScreenState extends ConsumerState<CallScreen> {
         ),
         if (!isConnected)
           Center(
+            key: const ValueKey('connecting'),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -388,6 +394,7 @@ class _CallScreenState extends ConsumerState<CallScreen> {
           ),
         if (isConnected && _controller.connectionIssue)
           Positioned(
+            key: const ValueKey('connection-issue'),
             top: 0,
             left: 0,
             right: 0,
@@ -412,6 +419,7 @@ class _CallScreenState extends ConsumerState<CallScreen> {
             ),
           ),
         SafeArea(
+          key: const ValueKey('overlay-controls'),
           child: Column(
             children: [
               Padding(
@@ -549,6 +557,7 @@ class _CallScreenState extends ConsumerState<CallScreen> {
       onToggleMute: _controller.toggleMute,
       speakerOn: _controller.speakerOn,
       onToggleSpeaker: _controller.toggleSpeaker,
+      showSpeakerToggle: _controller.showSpeakerToggle,
       switchingCallType: _controller.switchingCallType,
       onToggleVideoType: cameraAvailability == CameraAvailability.unavailable
           ? null

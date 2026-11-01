@@ -679,6 +679,7 @@ class _EmbeddedControls extends ConsumerWidget {
         onToggleMute: controller.toggleMute,
         speakerOn: controller.speakerOn,
         onToggleSpeaker: controller.toggleSpeaker,
+        showSpeakerToggle: controller.showSpeakerToggle,
         switchingCallType: controller.switchingCallType,
         onToggleVideoType: cameraAvailability == CameraAvailability.unavailable
             ? null
@@ -697,6 +698,7 @@ class _EmbeddedControls extends ConsumerWidget {
         onToggleMute: controller.toggleMute,
         speakerOn: controller.speakerOn,
         onToggleSpeaker: controller.toggleSpeaker,
+        showSpeakerToggle: controller.showSpeakerToggle,
         switchingCallType: controller.switchingCallType,
         onToggleVideoType: cameraAvailability == CameraAvailability.unavailable
             ? null

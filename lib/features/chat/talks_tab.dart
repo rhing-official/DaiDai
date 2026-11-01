@@ -2219,15 +2219,24 @@ class _TalksTabState extends ConsumerState<TalksTab>
           ),
         );
       case AppUiStyle.flat:
-        return TextField(
-          controller: _searchController,
-          decoration: InputDecoration(
-            hintText: strings.talksSearchHint,
-            prefixIcon: const Icon(Icons.search),
-            suffixIcon: clearButton(null),
-            border: const OutlineInputBorder(),
+        // ガラスと同じ形（角丸24・枠線なし）で、半透明にはせず不透明の面で塗る
+        // （2026-11-01）。
+        return DecoratedBox(
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surfaceContainerHigh,
+            borderRadius: BorderRadius.circular(24),
           ),
-          onChanged: (_) => _onSearchTextChanged(),
+          child: TextField(
+            controller: _searchController,
+            decoration: InputDecoration(
+              filled: false,
+              border: InputBorder.none,
+              hintText: strings.talksSearchHint,
+              prefixIcon: const Icon(Icons.search),
+              suffixIcon: clearButton(null),
+            ),
+            onChanged: (_) => _onSearchTextChanged(),
+          ),
         );
     }
   }

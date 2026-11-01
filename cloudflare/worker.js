@@ -392,7 +392,7 @@ async function fetchSiteOEmbed(parsed) {
     if (!data.title && !data.thumbnail_url) return null;
     return {
       title: data.title ?? null,
-      description: data.author_name ? `投稿者: ${data.author_name}` : null,
+      description: data.author_name ? `${data.author_name}` : null,
       image: data.thumbnail_url ?? null,
     };
   } catch (e) {
@@ -484,7 +484,7 @@ async function fetchYouTubeOEmbed(url) {
     const json = await response.json();
     return {
       title: json.title ?? null,
-      description: json.author_name ? `投稿者: ${json.author_name}` : null,
+      description: json.author_name ? `${json.author_name}` : null,
       image: json.thumbnail_url ?? null,
     };
   } catch (e) {

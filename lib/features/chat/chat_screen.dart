@@ -58,6 +58,7 @@ import '../album/album_picker_sheet.dart';
 import '../calendar/calendar_event_detail_dialog.dart';
 import '../calendar/schedule_coordination_detail_dialog.dart';
 import '../poll/poll_detail_dialog.dart';
+import '../../widgets/pane_visibility.dart';
 import 'attachment_popup_button.dart';
 import 'pending_attachment_tray.dart';
 import 'button_anchored_menu.dart';
@@ -102,6 +103,7 @@ import '../../utils/mention_suggestion.dart';
 import 'mention_suggestion_list.dart';
 import '../../l10n/tutorial_content.dart';
 import '../../providers/avatar_palette_provider.dart';
+import '../guide/tutorial/tutorial_controller.dart';
 import '../guide/tutorial/tutorial_target.dart';
 
 /// 劇画UIの吹き出し・入力欄の枠取りの太さ（[MonochromeBoxPainter]の
@@ -220,6 +222,8 @@ class ChatScreen extends ConsumerStatefulWidget {
   final Future<void> Function(
     PickedAttachment attachment, {
     ValueChanged<double>? onProgress,
+    String? caption,
+    Message? replyTo,
   })?
   onSendAttachment;
 
@@ -229,6 +233,8 @@ class ChatScreen extends ConsumerStatefulWidget {
   final Future<void> Function(
     List<PickedAttachment> attachments, {
     ValueChanged<double>? onProgress,
+    String? caption,
+    Message? replyTo,
   })?
   onSendMultiAttachment;
 
@@ -503,6 +509,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   @override
   void initState() {
     super.initState();
+    // 別のアプリ・ウィンドウから戻った時に、入力欄へカーソルを戻す（2026-11-01、
+    // Discordと同じ。コンピューターのみ、[_restoreComposerFocus]参照）。
+    _lifecycleListener = AppLifecycleListener(onResume: _restoreComposerFocus);
+    // 語らい・寄合を開いた時に、入力欄へカーソルを合わせる（2026-11-01）。
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _restoreComposerFocus(force: true);
+    });
     // ドロップダウンを開いたまま、通話・動画通話・ピン留めのボタンを押して
     // 直接切り替えられるように登録する（2026-10-10追加、他のヘッダーのボタン
     // は`chat_panes.dart`の各ボタンが自分で登録する。ボタンが表示されて
@@ -2150,6 +2163,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     // おり、currentUserId自体はKeyに含まれない。万一同一Widgetインスタンスが
     // 別ユーザーに使い回された場合に既読の取りこぼしが起きないよう、
     // ユーザーが変わったら重複防止セットをリセットする。
+    // 同じ会話の別の寄合へ切り替えた時も、入力欄へカーソルを合わせる。
+    if (oldWidget.roomId != widget.roomId ||
+        oldWidget.conversationId != widget.conversationId) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _restoreComposerFocus(force: true);
+      });
+    }
     if (oldWidget.currentUserId != widget.currentUserId) {
       _markedReadIds.clear();
       _viewedIds.clear();
@@ -2232,18 +2252,31 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   Future<void> _send({bool silent = false}) async {
     if (widget.onSend == null || widget.disabled) return;
     final content = _textController.text.trim();
-    // 送信前のトレイがあれば、入力欄の文字より先に送る（別メッセージ、2026-10-31）。
-    // 文字が空ならトレイだけを送る。編集中は対象外。
-    if (_editingMessage == null && _pendingAttachments.isNotEmpty) {
-      await _sendPendingAttachments();
-      if (content.isEmpty) return;
-    }
-    if (content.isEmpty) return;
+    // 送信前のトレイがあれば、入力欄の文字（空ならなし）を添えた1つのメッセージとして
+    // 送る（2026-11-01、以前は添付と文字を別メッセージで送っていた）。編集中は対象外。
+    final sendingTray =
+        _editingMessage == null && _pendingAttachments.isNotEmpty;
+    if (content.isEmpty && !sendingTray) return;
 
     final conversationId = widget.conversationId;
-    if (conversationId != null) {
+    if (conversationId != null && content.isNotEmpty) {
       final proceed = await _checkSpamBeforeSend(conversationId, content);
       if (!proceed) return;
+    }
+
+    if (sendingTray) {
+      final replyTo = _replyingTo;
+      _selectedMentions.clear();
+      _textController.clear();
+      _clearDraftNow();
+      _composerFocusNode.requestFocus();
+      setState(() => _replyingTo = null);
+      await _sendPendingAttachments(
+        caption: content.isEmpty ? null : content,
+        replyTo: replyTo,
+      );
+      _scrollToLatestMessage();
+      return;
     }
 
     if (_editingMessage != null) {
@@ -2302,7 +2335,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// `MaterialBanner`はSnackBarと違いキューイングされず常に最新の1件だけが
   /// 表示される）。自動リトライ・レジュームは行わず、再送はバナーの
   /// 「再送」アクションから同じ添付を渡してもう一度呼び直す形にする。
-  Future<void> _handleAttachmentsPicked(List<PickedAttachment> picked) async {
+  Future<void> _handleAttachmentsPicked(
+    List<PickedAttachment> picked, {
+    String? caption,
+    Message? replyTo,
+  }) async {
     final onSendAttachment = widget.onSendAttachment;
     if (onSendAttachment == null || picked.isEmpty) return;
     final strings = ref.read(appStringsProvider);
@@ -2324,10 +2361,20 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
       if (attachments.length > 1 && onSendMulti != null) {
         // 複数は1つのメッセージにまとめる。1件でも失敗したら何も送られない。
-        await onSendMulti(attachments, onProgress: onProgress);
+        await onSendMulti(
+          attachments,
+          onProgress: onProgress,
+          caption: caption,
+          replyTo: replyTo,
+        );
       } else {
         for (final attachment in attachments) {
-          await onSendAttachment(attachment, onProgress: onProgress);
+          await onSendAttachment(
+            attachment,
+            onProgress: onProgress,
+            caption: caption,
+            replyTo: replyTo,
+          );
         }
       }
     } catch (e) {
@@ -2350,7 +2397,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             TextButton(
               onPressed: () {
                 dismissAutoDismissBanner();
-                _handleAttachmentsPicked(attachments);
+                _handleAttachmentsPicked(
+                  attachments,
+                  caption: caption,
+                  replyTo: replyTo,
+                );
               },
               child: Text(strings.chatResendAction),
             )
@@ -2534,6 +2585,60 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// 送信前のトレイに載せている画像・動画（2026-10-31）。送信ボタンでまとめて送る。
   final List<PickedAttachment> _pendingAttachments = [];
 
+  late final AppLifecycleListener _lifecycleListener;
+
+  /// 直前に、この画面が見えていた（ホームの別タブに隠れていなかった）か。
+  bool _wasPaneVisible = true;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // 設定など別のタブから語らいタブへ戻った時に、入力欄へカーソルを戻す（2026-11-01）。
+    final visible = PaneVisibility.of(context) && TickerMode.of(context);
+    if (visible && !_wasPaneVisible) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _restoreComposerFocus();
+      });
+    }
+    _wasPaneVisible = visible;
+  }
+
+  /// 入力欄にカーソルを戻す（コンピューター・タブレットなど物理キーボード環境のみ。
+  /// モバイルはソフトウェアキーボードが勝手に開くため行わない）。別の入力欄（検索欄・
+  /// ダイアログの入力など）に既にフォーカスがある時、別の画面（ダイアログ・拡大ビューア）が
+  /// 上に出ている時、画面が隠れている時、選択モード中は奪わない。
+  void _restoreComposerFocus({bool force = false}) {
+    final platform = defaultTargetPlatform;
+    if (platform == TargetPlatform.android || platform == TargetPlatform.iOS) {
+      return;
+    }
+    if (!mounted ||
+        widget.disabled ||
+        widget.onSend == null ||
+        _selecting ||
+        _screenshotSelecting) {
+      return;
+    }
+    if (!PaneVisibility.of(context) || !TickerMode.of(context)) return;
+    final route = ModalRoute.of(context);
+    if (route != null && !route.isCurrent) return;
+    final primary = FocusManager.instance.primaryFocus;
+    // [force]（語らい・寄合を開いた時）は、検索欄など同じ画面の別の入力欄からも
+    // 入力欄へ移す。ダイアログなど別の画面（ルート）のフォーカスは奪わない。
+    if (primary != null && primary != _composerFocusNode) {
+      final primaryContext = primary.context;
+      if (primaryContext != null) {
+        if (ModalRoute.of(primaryContext) != route) return;
+        if (!force &&
+            primaryContext.findAncestorWidgetOfExactType<EditableText>() !=
+                null) {
+          return;
+        }
+      }
+    }
+    _composerFocusNode.requestFocus();
+  }
+
   /// ＋ボタンで選んだ添付の受け口。画像・動画（撮影を含む）は送信前のトレイへ入れ、
   /// ファイルは従来どおり選んだ直後に送る。
   void _onAttachmentsChosen(List<PickedAttachment> picked) {
@@ -2550,6 +2655,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     if (staged.isEmpty) return;
     final room = kMaxMultiAttachments - _pendingAttachments.length;
     setState(() => _pendingAttachments.addAll(staged.take(room)));
+    _refocusComposerForTray();
     if (staged.length > room) {
       _bannerTimer = showAutoDismissBanner(
         context,
@@ -2563,21 +2669,49 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   /// トレイの内容を送る。トレイは先に空にし、失敗時の再送は既存のバナー
   /// （[_handleAttachmentsPicked]）が保持する添付で行う。
-  Future<void> _sendPendingAttachments() async {
+  Future<void> _sendPendingAttachments({
+    String? caption,
+    Message? replyTo,
+  }) async {
     if (_pendingAttachments.isEmpty) return;
     final toSend = List<PickedAttachment>.of(_pendingAttachments);
     setState(_pendingAttachments.clear);
-    await _handleAttachmentsPicked(toSend);
+    await _handleAttachmentsPicked(toSend, caption: caption, replyTo: replyTo);
+  }
+
+  /// トレイに画像・動画を足した後・外した後・拡大を閉じた後に、入力欄へフォーカスを戻す
+  /// （2026-11-01）。＋メニューやOSのファイル選択を経由するとフォーカスが外れ、Enterで
+  /// 送れなくなるため。モバイルはソフトウェアキーボードが勝手に開くので行わない
+  /// （モバイルはEnterが改行で、送信ボタンで送る）。
+  void _refocusComposerForTray() {
+    final platform = defaultTargetPlatform;
+    if (platform == TargetPlatform.android || platform == TargetPlatform.iOS) {
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _pendingAttachments.isNotEmpty) {
+        _composerFocusNode.requestFocus();
+      }
+    });
   }
 
   /// 入力欄の上のトレイ。劇画は入力欄と同じ手描き風の白い箱で包む。
-  Widget _pendingTray(Strings strings, {required bool isGekiga}) {
+  Widget _pendingTray(
+    Strings strings, {
+    required bool isGekiga,
+    required bool isGlass,
+  }) {
     final tray = PendingAttachmentTray(
       attachments: _pendingAttachments,
       strings: strings,
       enabled: _uploadProgress == null,
       isGekiga: isGekiga,
-      onRemove: (index) => setState(() => _pendingAttachments.removeAt(index)),
+      isGlass: isGlass,
+      onRemove: (index) {
+        setState(() => _pendingAttachments.removeAt(index));
+        _refocusComposerForTray();
+      },
+      onViewerClosed: _refocusComposerForTray,
     );
     if (!isGekiga) return tray;
     return Padding(
@@ -2588,6 +2722,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   @override
   void dispose() {
+    _lifecycleListener.dispose();
     _draftSaveTimer?.cancel();
     _draftSub?.close();
     _pendingJumpSub?.close();
@@ -3245,7 +3380,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                               isGekiga: isGekiga,
                             ),
                           if (_pendingAttachments.isNotEmpty)
-                            _pendingTray(strings, isGekiga: isGekiga),
+                            _pendingTray(
+                              strings,
+                              isGekiga: isGekiga,
+                              isGlass: isGlass,
+                            ),
                           SafeArea(
                             top: false,
                             // ぺったんドックが下に出ている間は、ドック側が下端の
@@ -3458,16 +3597,23 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                                     decoration: InputDecoration(
                                                       hintText:
                                                           strings.chatInputHint,
-                                                      filled: isGlass
-                                                          ? false
-                                                          : widget.disabled,
+                                                      // フラットは、入力欄の面（塗り）を持たない（2026-11-01、ユーザー指示）。
+                                                      // 入力欄エリアの背景にそのまま文字を置く。無効時だけ薄く塗る。
+                                                      filled:
+                                                          !isGlass &&
+                                                          widget.disabled,
                                                       fillColor: isGlass
                                                           ? null
-                                                          : Theme.of(context)
-                                                                .disabledColor
-                                                                .withValues(
-                                                                  alpha: 0.08,
-                                                                ),
+                                                          : Color.alphaBlend(
+                                                              Theme.of(context)
+                                                                  .disabledColor
+                                                                  .withValues(
+                                                                    alpha: 0.08,
+                                                                  ),
+                                                              Theme.of(
+                                                                context,
+                                                              ).scaffoldBackgroundColor,
+                                                            ),
                                                       // ガラスUIでは、既に入力欄
                                                       // コンテナ自体がすりガラス
                                                       // （GlassSurface）のため、
@@ -3482,8 +3628,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                                           : OutlineInputBorder(
                                                               borderRadius:
                                                                   BorderRadius.circular(
-                                                                    20,
+                                                                    24,
                                                                   ),
+                                                              borderSide:
+                                                                  BorderSide
+                                                                      .none,
                                                             ),
                                                       enabledBorder: isGlass
                                                           ? InputBorder.none
@@ -3537,6 +3686,19 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                       builder: (context, value, _) {
                                         if (value.text.isEmpty &&
                                             _pendingAttachments.isEmpty) {
+                                          return const SizedBox.shrink();
+                                        }
+                                        // コンピューター（必ずキーボードがあり、Enter等の送信キーで送れる）
+                                        // では送信ボタンを隠す（2026-11-01）。モバイル・タブレットは、
+                                        // 物理キーボードの接続を確実に判定できず（誤判定で送れなくなった
+                                        // 経緯がある）、モバイルはEnterが改行のため常に表示する。
+                                        // 使い方ガイドの実行中は、手順が送信ボタンを指すため出す。
+                                        if (classifyDevice(context) ==
+                                                DeviceClass.computer &&
+                                            ref.watch(
+                                                  tutorialControllerProvider,
+                                                ) ==
+                                                null) {
                                           return const SizedBox.shrink();
                                         }
                                         return TutorialTarget(
@@ -4896,7 +5058,64 @@ class _MessageRow extends ConsumerWidget {
         else if (isNoteNotice)
           _noteCreatedNoticeContent(context, ref, strings, isGekiga)
         else if (isAttachment)
-          _attachmentContent(context, onBubbleColor, isGekiga)
+          _attachmentWithCaption(
+            context,
+            message,
+            body: _attachmentContent(context, onBubbleColor, isGekiga),
+            alignRight: alignRight,
+            preview: (message.caption?.isNotEmpty ?? false)
+                ? _captionPreview(message, isGekiga: isGekiga, isMe: isMe)
+                : null,
+            // 画像・動画・メディアだけの複数は吹き出しの枠が無いため、文字だけを
+            // 吹き出しで包む。ファイルを含むものは全体が吹き出しの中なので文字だけ
+            // （2026-11-01）。
+            captionBuilder: (caption) {
+              // URLはリンクとして出す（通常のテキストメッセージと同じ、2026-11-01）。
+              final text = LinkifiedText(
+                caption,
+                style: TextStyle(
+                  color: onBubbleColor,
+                  fontWeight: isGekiga ? FontWeight.w600 : null,
+                ),
+                linkColor: isGekiga
+                    ? (isMe ? Colors.black : Colors.white)
+                    : onBubbleColor,
+              );
+              final mediaOnly =
+                  message.contentType == 'image' ||
+                  message.contentType == 'video' ||
+                  isMultiMediaOnly;
+              if (!mediaOnly) return text;
+              return switch (uiStyle) {
+                AppUiStyle.gekiga => _GekigaBubble(
+                  seed: message.messageId.hashCode,
+                  isMe: isMe,
+                  alignRight: alignRight,
+                  child: text,
+                ),
+                AppUiStyle.flat => Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: bubbleFill,
+                    border: Border.all(color: bubbleAccentBorderColor),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: text,
+                ),
+                AppUiStyle.glass => GlassSurface(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 10,
+                  ),
+                  fillColorOverride: bubbleFill,
+                  child: text,
+                ),
+              };
+            },
+          )
         else if (isSticker)
           _stickerContent(context, ref, onBubbleColor)
         else
@@ -5290,7 +5509,13 @@ class _MessageRow extends ConsumerWidget {
             ),
           );
 
-    final previewUrl = firstUrlIn(message.content);
+    // 添付と一緒に送った文字（キャプション）のURLのプレビューは、文字の直下（添付の上）に
+    // 出す（`_attachmentWithCaption`）ため、ここ（吹き出しの下）には出さない（2026-11-01）。
+    final hasAttachmentCaption =
+        isAttachment && (message.caption?.isNotEmpty ?? false);
+    final previewUrls = hasAttachmentCaption
+        ? const <String>[]
+        : urlsIn(message.content);
 
     final Widget content;
     if (alignRight) {
@@ -5305,12 +5530,8 @@ class _MessageRow extends ConsumerWidget {
               ?timeText,
               const SizedBox(height: 2),
               bubbleWithReadMark,
-              if (previewUrl != null)
-                LinkPreviewCard(
-                  url: previewUrl,
-                  isGekiga: isGekiga,
-                  isMe: isMe,
-                ),
+              for (final url in previewUrls)
+                LinkPreviewCard(url: url, isGekiga: isGekiga, isMe: isMe),
             ],
           ),
         ),
@@ -5388,12 +5609,8 @@ class _MessageRow extends ConsumerWidget {
                       ?timeText,
                     const SizedBox(height: 2),
                     bubbleWithReadMark,
-                    if (previewUrl != null)
-                      LinkPreviewCard(
-                        url: previewUrl,
-                        isGekiga: isGekiga,
-                        isMe: isMe,
-                      ),
+                    for (final url in previewUrls)
+                      LinkPreviewCard(url: url, isGekiga: isGekiga, isMe: isMe),
                   ],
                 ),
               ),
@@ -6378,6 +6595,55 @@ class _MessageRow extends ConsumerWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: children,
+    );
+  }
+
+  /// 添付の文字（[Message.caption]）のURLのリンクプレビュー（最大[kMaxLinkPreviews]件）。
+  /// URLが無ければnull。
+  Widget? _captionPreview(
+    Message message, {
+    required bool isGekiga,
+    required bool isMe,
+  }) {
+    final urls = urlsIn(message.caption ?? '');
+    if (urls.isEmpty) return null;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (final url in urls)
+          LinkPreviewCard(url: url, isGekiga: isGekiga, isMe: isMe),
+      ],
+    );
+  }
+
+  /// 添付メッセージの文字（[Message.caption]）を、添付の上に出す（2026-11-01）。
+  /// 文字が無ければ添付だけ。
+  Widget _attachmentWithCaption(
+    BuildContext context,
+    Message message, {
+    required Widget body,
+    required Widget Function(String caption) captionBuilder,
+    required bool alignRight,
+    Widget? preview,
+  }) {
+    final caption = message.caption;
+    if (caption == null || caption.isEmpty) return body;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: alignRight
+          ? CrossAxisAlignment.end
+          : CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(bottom: 6),
+          child: captionBuilder(caption),
+        ),
+        // 文字のURLのプレビューは、文字の直下（画像の上）に出す（2026-11-01）。
+        if (preview != null)
+          Padding(padding: const EdgeInsets.only(bottom: 6), child: preview),
+        body,
+      ],
     );
   }
 

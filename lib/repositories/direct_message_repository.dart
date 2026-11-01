@@ -151,6 +151,7 @@ abstract class DirectMessageRepository {
     bool silent = false,
     Message? replyTo,
     ValueChanged<double>? onProgress,
+    String? caption,
   });
 
   /// 複数の添付（画像・動画・ファイル、最大[kMaxMultiAttachments]件）を1つの
@@ -165,6 +166,7 @@ abstract class DirectMessageRepository {
     bool silent = false,
     Message? replyTo,
     ValueChanged<double>? onProgress,
+    String? caption,
   });
 
   /// ぺったん（スタンプ）を送る。既にStorageにアップロード済みの画像を
@@ -794,6 +796,7 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
     bool silent = false,
     Message? replyTo,
     ValueChanged<double>? onProgress,
+    String? caption,
   }) async {
     final roomRef = _dmRoomRef(dmId, roomId);
     final messageRef = roomRef.collection('messages').doc();
@@ -824,6 +827,7 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
           ? null
           : messageSnippetOf(replyTo.content),
       fileMetadata: fileMetadata,
+      caption: caption,
     );
 
     final batch = _firestore.batch();
@@ -848,6 +852,7 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
     bool silent = false,
     Message? replyTo,
     ValueChanged<double>? onProgress,
+    String? caption,
   }) async {
     if (items.isEmpty || items.length > kMaxMultiAttachments) {
       throw ArgumentError.value(items.length, 'items');
@@ -880,6 +885,7 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
           : messageSnippetOf(replyTo.content),
       fileMetadata: attachments.first,
       attachments: attachments,
+      caption: caption,
     );
 
     final batch = _firestore.batch();

@@ -1,9 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-
-import 'call_audio_output_sheet.dart';
 import 'call_controls.dart';
 
 /// 通話中のコントロールボタン列（マイク・スピーカー・音声⇔ビデオ切替・
@@ -13,7 +10,7 @@ import 'call_controls.dart';
 /// あった）。1対1・広場のコントローラー（`WebrtcCallController`/
 /// `WebrtcGroupCallController`）に共通の基底クラスは無いため、コントローラー
 /// を直接受け取らず、必要な値・コールバックだけをまとめて渡す。
-class CallControlBar extends ConsumerWidget {
+class CallControlBar extends StatelessWidget {
   const CallControlBar({
     required this.isGekiga,
     required this.isGlass,
@@ -22,6 +19,7 @@ class CallControlBar extends ConsumerWidget {
     required this.onToggleMute,
     required this.speakerOn,
     required this.onToggleSpeaker,
+    required this.showSpeakerToggle,
     required this.switchingCallType,
     required this.onToggleVideoType,
     required this.isVideo,
@@ -42,11 +40,12 @@ class CallControlBar extends ConsumerWidget {
   final bool muted;
   final VoidCallback onToggleMute;
 
-  /// スピーカーのボタンは、音声の出力先を選ぶシートを開く（2026-10-31変更、
-  /// [showCallAudioOutputPicker]）。選べる出力先が無いネイティブ端末では従来の
-  /// スピーカーのオン/オフ（[onToggleSpeaker]）になる。
+  /// スピーカー（受話口との切替）のボタンは、モバイルで、Bluetoothや有線の
+  /// ヘッドセットに接続していない時だけ出す（[showSpeakerToggle]、2026-11-01。
+  /// 接続中は端末のOSが出力先を自動で切り替える）。
   final bool speakerOn;
   final VoidCallback onToggleSpeaker;
+  final bool showSpeakerToggle;
 
   final bool switchingCallType;
 
@@ -65,7 +64,7 @@ class CallControlBar extends ConsumerWidget {
   final VoidCallback onHangUp;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     // ボタンの数が変わると`spaceEvenly`が全ボタンの位置を再配分してしまい、
     // 音声⇔ビデオ切替のたびに他のボタン（マイク・通話終了等）の座標まで
     // ずれて見える不具合があった（2026-08-19判明）。表示しないボタンも
@@ -88,20 +87,13 @@ class CallControlBar extends ConsumerWidget {
               onPressed: enabled ? onToggleMute : null,
             ),
             _maybeHidden(
-              visible: true,
+              visible: showSpeakerToggle,
               child: CallRoundButton(
                 icon: speakerOn ? Icons.volume_up : Icons.phone_in_talk,
                 color: Colors.grey[700]!,
                 isGekiga: isGekiga,
                 isGlass: isGlass,
-                onPressed: enabled
-                    ? () => showCallAudioOutputPicker(
-                        context,
-                        ref,
-                        // Webには切り替える手段が無いので何もしない。
-                        onFallbackToggle: kIsWeb ? () {} : onToggleSpeaker,
-                      )
-                    : null,
+                onPressed: enabled ? onToggleSpeaker : null,
               ),
             ),
             _maybeHidden(

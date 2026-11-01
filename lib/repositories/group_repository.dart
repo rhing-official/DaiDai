@@ -283,6 +283,7 @@ abstract class GroupRepository {
     bool silent = false,
     Message? replyTo,
     ValueChanged<double>? onProgress,
+    String? caption,
   });
 
   /// 複数の添付（画像・動画・ファイル、最大[kMaxMultiAttachments]件）を1つの
@@ -297,6 +298,7 @@ abstract class GroupRepository {
     bool silent = false,
     Message? replyTo,
     ValueChanged<double>? onProgress,
+    String? caption,
   });
 
   /// ぺったん（スタンプ）を送る。既にStorageにアップロード済みの画像を
@@ -1004,6 +1006,7 @@ class FirestoreGroupRepository implements GroupRepository {
     bool silent = false,
     Message? replyTo,
     ValueChanged<double>? onProgress,
+    String? caption,
   }) async {
     final roomRef = _roomRef(groupId, roomId);
     final messageRef = roomRef.collection('messages').doc();
@@ -1034,6 +1037,7 @@ class FirestoreGroupRepository implements GroupRepository {
           ? null
           : messageSnippetOf(replyTo.content),
       fileMetadata: fileMetadata,
+      caption: caption,
     );
 
     final batch = _firestore.batch();
@@ -1058,6 +1062,7 @@ class FirestoreGroupRepository implements GroupRepository {
     bool silent = false,
     Message? replyTo,
     ValueChanged<double>? onProgress,
+    String? caption,
   }) async {
     if (items.isEmpty || items.length > kMaxMultiAttachments) {
       throw ArgumentError.value(items.length, 'items');
@@ -1090,6 +1095,7 @@ class FirestoreGroupRepository implements GroupRepository {
           : messageSnippetOf(replyTo.content),
       fileMetadata: attachments.first,
       attachments: attachments,
+      caption: caption,
     );
 
     final batch = _firestore.batch();

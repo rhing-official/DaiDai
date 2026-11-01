@@ -41,6 +41,7 @@ import '../../providers/block_providers.dart';
 import '../../providers/chat_layout_style_provider.dart';
 import '../../providers/talks_list_layout_style_provider.dart';
 import '../../providers/draft_sync_enabled_provider.dart';
+import '../../providers/join_video_camera_on_provider.dart';
 import '../../providers/gekiga_background_color_provider.dart';
 import '../../providers/message_time_format_provider.dart';
 import '../../providers/removed_default_color_presets_provider.dart';
@@ -581,6 +582,12 @@ List<_SettingsCategory> _categories(
       title: strings.settingsFolderTalk,
       pageBuilder: (context) =>
           _TalkPage(strings: strings, currentUser: currentUser),
+    ),
+    _SettingsCategory(
+      id: 'call',
+      icon: Icons.call_outlined,
+      title: strings.settingsFolderCall,
+      pageBuilder: (context) => _CallPage(strings: strings),
     ),
     _SettingsCategory(
       id: 'notifications',
@@ -3900,6 +3907,68 @@ class _StickerSendModeFolder extends ConsumerWidget {
         ),
         control,
       ],
+    );
+  }
+}
+
+/// 通話カテゴリの中身（2026-11-01追加）。ビデオ通話に参加するときのカメラの既定。
+/// 着信音・呼出音は従来どおり通知カテゴリにある。
+class _CallPage extends StatelessWidget {
+  const _CallPage({required this.strings});
+
+  final Strings strings;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.only(bottom: 24),
+      children: [_JoinVideoCameraFolder(strings: strings)],
+    );
+  }
+}
+
+/// ビデオ通話に応答・参加したとき、カメラをオンで入るかのオン/オフ（標準オン）。
+class _JoinVideoCameraFolder extends ConsumerWidget {
+  const _JoinVideoCameraFolder({required this.strings});
+
+  final Strings strings;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final enabled = ref.watch(joinVideoCameraOnProvider);
+    final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
+
+    void setEnabled(bool value) =>
+        ref.read(joinVideoCameraOnProvider.notifier).setEnabled(value);
+
+    if (isGekiga) {
+      return GekigaJointedTileList(
+        seeds: const [0],
+        selectedFlags: const [false],
+        children: [
+          GekigaTileContent(
+            selected: false,
+            title: Text(strings.settingsCallJoinCameraTitle),
+            subtitle: Text(strings.settingsCallJoinCameraSubtitle),
+            trailing: Switch(
+              value: enabled,
+              onChanged: setEnabled,
+              activeThumbColor: GekigaColors.panel,
+              activeTrackColor: GekigaColors.onPanel,
+              inactiveThumbColor: GekigaColors.onPanel,
+              inactiveTrackColor: GekigaColors.panel,
+              trackOutlineColor: WidgetStatePropertyAll(GekigaColors.onPanel),
+            ),
+            onTap: () => setEnabled(!enabled),
+          ),
+        ],
+      );
+    }
+    return SwitchListTile(
+      value: enabled,
+      title: Text(strings.settingsCallJoinCameraTitle),
+      subtitle: Text(strings.settingsCallJoinCameraSubtitle),
+      onChanged: setEnabled,
     );
   }
 }

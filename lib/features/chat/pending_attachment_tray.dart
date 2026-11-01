@@ -6,7 +6,7 @@ import '../../widgets/media_viewer_screen.dart';
 import 'attachment_popup_button.dart';
 
 /// 送信前の添付のトレイ（2026-10-31追加）。画像・動画・撮影で選んだものは、すぐ送らず
-/// 入力欄の上の吹き出しにサムネイル＋ファイル名で並べ、×で外す・タップで拡大（画像のみ）
+/// 入力欄の上の吹き出しにサムネイルで並べ、×で外す・タップで拡大（画像のみ）
 /// ができる。送るのは入力欄の送信ボタン・送信キー（Enter等）で、トレイが先、入力欄の文字が
 /// 後の別メッセージになる。
 class PendingAttachmentTray extends StatelessWidget {
@@ -16,6 +16,8 @@ class PendingAttachmentTray extends StatelessWidget {
     required this.onRemove,
     this.enabled = true,
     this.isGekiga = false,
+    this.isGlass = false,
+    this.onViewerClosed,
     super.key,
   });
 
@@ -30,15 +32,20 @@ class PendingAttachmentTray extends StatelessWidget {
   /// 面を描かず、文字を黒にする。
   final bool isGekiga;
 
+  /// ガラススタイルは、トレイ自身の面を持たずサムネイルだけを並べる。
+  final bool isGlass;
+
+  /// 拡大ビューアを閉じた時（入力欄へフォーカスを戻すため）。
+  final VoidCallback? onViewerClosed;
+
   static const double _thumbSize = 96;
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final borderColor = isGekiga ? Colors.black : colorScheme.outlineVariant;
-    final textColor = isGekiga ? Colors.black : colorScheme.onSurface;
     final list = SizedBox(
-      height: _thumbSize + 8 + 20,
+      height: _thumbSize + 8,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: attachments.length,
@@ -47,7 +54,6 @@ class PendingAttachmentTray extends StatelessWidget {
           attachment: attachments[index],
           size: _thumbSize,
           borderColor: borderColor,
-          textColor: textColor,
           removeTooltip: strings.chatPendingTrayRemoveTooltip,
           onRemove: enabled ? () => onRemove(index) : null,
           onOpen: attachments[index].contentType == 'image'
@@ -57,15 +63,10 @@ class PendingAttachmentTray extends StatelessWidget {
       ),
     );
     if (isGekiga) return list;
-    // 入力欄と同じ丸み（20）の吹き出しにして、背景（ガラスの透け等）に溶けないようにする。
-    return Container(
-      margin: const EdgeInsets.fromLTRB(8, 8, 8, 0),
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
-      decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerHigh,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: borderColor),
-      ),
+    // フラット・ガラスは、トレイ自身の面を持たずサムネイルだけを並べる（入力欄エリアの
+    // 背景がそのまま背景になる。ガラスは不透明な面を重ねると透け感が消える、2026-11-01）。
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
       child: list,
     );
   }
@@ -78,23 +79,25 @@ class PendingAttachmentTray extends StatelessWidget {
     ];
     final initial = images.indexOf(attachments[index]);
     // メッセージ画面から開いた時と同じビューア（[MediaViewerScreen]）を使う。
-    Navigator.of(context).push(
-      blurredViewerRoute(
-        (_) => MediaViewerScreen(
-          items: [
-            for (var i = 0; i < images.length; i++)
-              MediaViewerItem(
-                id: 'pending-$i',
-                url: '',
-                contentType: 'image',
-                fileName: images[i].fileName,
-                bytes: images[i].bytes,
-              ),
-          ],
-          initialIndex: initial < 0 ? 0 : initial,
-        ),
-      ),
-    );
+    Navigator.of(context)
+        .push(
+          blurredViewerRoute(
+            (_) => MediaViewerScreen(
+              items: [
+                for (var i = 0; i < images.length; i++)
+                  MediaViewerItem(
+                    id: 'pending-$i',
+                    url: '',
+                    contentType: 'image',
+                    fileName: images[i].fileName,
+                    bytes: images[i].bytes,
+                  ),
+              ],
+              initialIndex: initial < 0 ? 0 : initial,
+            ),
+          ),
+        )
+        .then((_) => onViewerClosed?.call());
   }
 }
 
@@ -103,7 +106,6 @@ class _Thumb extends StatelessWidget {
     required this.attachment,
     required this.size,
     required this.borderColor,
-    required this.textColor,
     required this.removeTooltip,
     required this.onRemove,
     required this.onOpen,
@@ -112,7 +114,6 @@ class _Thumb extends StatelessWidget {
   final PickedAttachment attachment;
   final double size;
   final Color borderColor;
-  final Color textColor;
   final String removeTooltip;
   final VoidCallback? onRemove;
   final VoidCallback? onOpen;
@@ -123,13 +124,13 @@ class _Thumb extends StatelessWidget {
     final isImage = attachment.contentType == 'image';
     return SizedBox(
       width: size + 8,
-      height: size + 8 + 20,
+      height: size + 8,
       child: Stack(
         clipBehavior: Clip.none,
         children: [
           Positioned(
             left: 0,
-            bottom: 20,
+            bottom: 0,
             width: size,
             height: size,
             child: GestureDetector(
@@ -152,18 +153,6 @@ class _Thumb extends StatelessWidget {
                       : _placeholder(colorScheme, video: true),
                 ),
               ),
-            ),
-          ),
-          Positioned(
-            left: 0,
-            bottom: 0,
-            width: size,
-            height: 18,
-            child: Text(
-              attachment.fileName,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(color: textColor, fontSize: 11),
             ),
           ),
           Positioned(

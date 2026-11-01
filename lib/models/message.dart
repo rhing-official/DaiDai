@@ -170,6 +170,7 @@ class Message {
     this.accountDeletionResponse,
     this.fileMetadata,
     this.attachments = const [],
+    this.caption,
     this.stickerData,
     this.calendarEventId,
     this.scheduleCoordinationId,
@@ -293,6 +294,11 @@ class Message {
   /// それ以外のcontentTypeでは常に空。
   final List<MessageFileMetadata> attachments;
 
+  /// 添付（画像・動画・ファイル・複数）と一緒に送った文字（2026-11-01追加）。送信前のトレイに
+  /// 添付を並べて文字を打って送ると、同じメッセージの添付の上に表示される。添付と一緒でない
+  /// メッセージでは常にnull。[content]はファイル名のまま（検索・既存表示との互換のため）。
+  final String? caption;
+
   /// contentType='sticker'専用のメタデータ。それ以外のcontentTypeでは常にnull。
   final MessageStickerData? stickerData;
 
@@ -378,6 +384,7 @@ class Message {
         for (final a in (json['attachments'] as List<dynamic>? ?? const []))
           MessageFileMetadata.fromJson(Map<String, dynamic>.from(a as Map)),
       ],
+      caption: json['caption'] as String?,
       stickerData: json['stickerData'] == null
           ? null
           : MessageStickerData.fromJson(
@@ -422,6 +429,7 @@ class Message {
       'fileMetadata': fileMetadata?.toJson(),
       if (attachments.isNotEmpty)
         'attachments': [for (final a in attachments) a.toJson()],
+      if (caption != null) 'caption': caption,
       'stickerData': stickerData?.toJson(),
       'calendarEventId': calendarEventId,
       'scheduleCoordinationId': scheduleCoordinationId,

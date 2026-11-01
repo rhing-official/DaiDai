@@ -521,6 +521,7 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
       onToggleMute: _controller.toggleMute,
       speakerOn: _controller.speakerOn,
       onToggleSpeaker: _controller.toggleSpeaker,
+      showSpeakerToggle: _controller.showSpeakerToggle,
       switchingCallType: _controller.switchingCallType,
       onToggleVideoType: cameraAvailability == CameraAvailability.unavailable
           ? null

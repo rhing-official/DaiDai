@@ -173,7 +173,12 @@ RTCVideoRenderer? pickCallRenderer(ActiveCallSession session) {
       return null;
     case GroupCallSession(:final controller):
       final pinned = controller.pinnedParticipant;
-      if (pinned != null) return controller.remoteRenderers[pinned.userId];
+      // 話している相手が映像オフなら、その人のアイコンを出す（nullを返す）。
+      if (pinned != null) {
+        return pinned.isVideo
+            ? controller.remoteRenderers[pinned.userId]
+            : null;
+      }
       if (controller.isVideo) return controller.localRenderer;
       return null;
   }
@@ -196,7 +201,9 @@ RTCVideoRenderer? pickCallRenderer(ActiveCallSession session) {
         conversationId: call.dmId,
       );
     case GroupCallSession(:final controller, :final groupId):
-      final remoteRepresentative = controller.remoteParticipants.firstOrNull;
+      final remoteRepresentative =
+          controller.pinnedParticipant ??
+          controller.remoteParticipants.firstOrNull;
       return (
         userId: remoteRepresentative?.userId ?? controller.currentUser.userId,
         rhingSeed:

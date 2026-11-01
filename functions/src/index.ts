@@ -2850,6 +2850,17 @@ function resolveSenderIdentity(
 function buildMessagePreview(
   message: FirebaseFirestore.DocumentData,
 ): { body: string; previewUrl: string | null } {
+  const base = buildBaseMessagePreview(message);
+  // 添付と一緒に送った文字（`caption`、2026-11-01）があれば、通知本文の先頭に付ける。
+  const caption =
+    typeof message.caption === "string" ? message.caption.trim() : "";
+  if (caption === "" || base.body === "") return base;
+  return { ...base, body: `${caption.slice(0, 60)} ${base.body}` };
+}
+
+function buildBaseMessagePreview(
+  message: FirebaseFirestore.DocumentData,
+): { body: string; previewUrl: string | null } {
   switch (message.contentType) {
     case "text":
       return { body: String(message.content ?? "").slice(0, 80), previewUrl: null };

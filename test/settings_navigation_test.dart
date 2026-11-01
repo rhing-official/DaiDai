@@ -355,7 +355,7 @@ void main() {
     await _pumpSettingsTabNarrow(tester);
 
     // カテゴリ一覧から「アプリケーション」（アカウント→アプリケーション→
-    // 語らい→通知の2番目）へドリルダウンする（2026-07-30、入力カテゴリを
+    // 語らい→通話→通知の2番目）へドリルダウンする（2026-07-30、入力カテゴリを
     // 廃止して語らいへ統合したため、以前あった「入力」の段は無くなった）。
     await tester.tap(find.text('アプリケーション'));
     await tester.pumpAndSettle();
@@ -371,7 +371,7 @@ void main() {
     expect(find.text('アクセントカラー'), findsNothing);
     expect(find.text('ブロックしたユーザー'), findsOneWidget);
 
-    // さらに左スワイプで次のカテゴリ（通知）へ。
+    // さらに左スワイプで次のカテゴリ（通話、2026-11-01追加）へ。
     await tester.fling(
       find.byType(InteractiveSwipeBackTransition),
       const Offset(-300, 0),
@@ -379,6 +379,16 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.text('ブロックしたユーザー'), findsNothing);
+    expect(find.text('ビデオ通話に参加するときカメラをオンにする'), findsOneWidget);
+
+    // さらに左スワイプで次のカテゴリ（通知）へ。
+    await tester.fling(
+      find.byType(InteractiveSwipeBackTransition),
+      const Offset(-300, 0),
+      1000,
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('ビデオ通話に参加するときカメラをオンにする'), findsNothing);
     // 通知ページ（旧「準備中」の表示は、プッシュ通知・サウンドの設定が入って
     // 無くなった）。
     expect(find.text('プッシュ通知'), findsOneWidget);
