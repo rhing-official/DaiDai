@@ -73,6 +73,7 @@ import '../auth/residence_survey_screen.dart';
 import '../../models/residence.dart';
 import '../guide/guide_pages.dart';
 import '../../widgets/media_preview_frame.dart';
+import '../../widgets/copy_link_row.dart';
 import '../../widgets/gekiga/gekiga_panel_box.dart';
 import '../../widgets/gekiga/gekiga_section_header.dart';
 import '../../widgets/gekiga/gekiga_text_field.dart';
@@ -901,64 +902,49 @@ class _InfoRow extends StatelessWidget {
   }
 }
 
-/// タップで値をコピーできる情報行（自分のRhing Seed、2026-10-31）。コピー直後は1.5秒だけ
-/// 値の代わりに[copiedLabel]を出す。
-class _CopyableInfoRow extends StatefulWidget {
-  const _CopyableInfoRow({
-    required this.label,
-    required this.value,
-    required this.copiedLabel,
-  });
+/// 値をコピーできる情報行（自分のRhing Seed、2026-10-31）。身だしなみ>縁結びの招待リンクと
+/// 同じボックス（[CopyLinkRow]）で、ラベルの下に値とコピーボタンを出す（2026-11-03）。
+class _CopyableInfoRow extends ConsumerWidget {
+  const _CopyableInfoRow({required this.label, required this.value});
 
   final String label;
   final String value;
-  final String copiedLabel;
 
   @override
-  State<_CopyableInfoRow> createState() => _CopyableInfoRowState();
-}
-
-class _CopyableInfoRowState extends State<_CopyableInfoRow> {
-  bool _copied = false;
-  Timer? _resetTimer;
-
-  @override
-  void dispose() {
-    _resetTimer?.cancel();
-    super.dispose();
-  }
-
-  void _copy() {
-    Clipboard.setData(ClipboardData(text: widget.value));
-    setState(() => _copied = true);
-    _resetTimer?.cancel();
-    _resetTimer = Timer(const Duration(milliseconds: 1500), () {
-      if (mounted) setState(() => _copied = false);
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colorScheme = Theme.of(context).colorScheme;
-    return InkWell(
-      onTap: _copy,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        child: Row(
-          children: [
-            Expanded(child: Text(widget.label)),
-            Text(
-              _copied ? widget.copiedLabel : widget.value,
-              style: TextStyle(color: colorScheme.onSurfaceVariant),
+    final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
+    final box = isGekiga
+        ? GekigaJointedTileList(
+            seeds: [value.hashCode],
+            selectedFlags: const [true],
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                child: CopyLinkRow(
+                  link: value,
+                  gekiga: true,
+                  textStyle: const TextStyle(color: GekigaColors.panel),
+                ),
+              ),
+            ],
+          )
+        : Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              border: Border.all(color: colorScheme.outlineVariant),
+              borderRadius: BorderRadius.circular(8),
             ),
-            const SizedBox(width: 8),
-            Icon(
-              _copied ? Icons.check : Icons.copy_outlined,
-              size: 18,
-              color: colorScheme.onSurfaceVariant,
-            ),
-          ],
-        ),
+            child: CopyLinkRow(link: value),
+          );
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [Text(label), const SizedBox(height: 8), box],
       ),
     );
   }
@@ -1777,7 +1763,6 @@ class _AccountPage extends ConsumerWidget {
         _CopyableInfoRow(
           label: strings.settingsRhingSeedLabel,
           value: '@${currentUser.rhingSeed}',
-          copiedLabel: strings.webhookCopied,
         ),
         _SeedSearchableRow(strings: strings, currentUser: currentUser),
         // 居住地（伝書鳩・安否確認用の自己申告、2026-10-16追加）。

@@ -58,33 +58,37 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     for (final tab in ref.read(navChipLayoutProvider).order) tab.index,
   ];
 
-  int? _dragNeighbour() {
-    if (_drag == 0) return null;
-    final order = _displayOrderNow();
-    final pos = order.indexOf(_selectedIndex) + (_drag < 0 ? 1 : -1);
-    return pos < 0 || pos >= order.length ? null : order[pos];
-  }
-
+  /// ドラッグの単位はタブ数（画面幅1つ分＝1タブ）。画面幅を超えて引けば2つ以上先へ進める。
   void _onDragDelta(double dx) {
     if (ref.read(backStackControllerProvider).hasOpenOverlay) return;
     _settle.stop();
     final width = MediaQuery.sizeOf(context).width;
     final order = _displayOrderNow();
     final pos = order.indexOf(_selectedIndex);
-    var next = _drag + dx / width;
-    if (pos <= 0) next = next.clamp(-1.0, 0.0);
-    if (pos >= order.length - 1) next = next.clamp(0.0, 1.0);
-    setState(() => _drag = next.clamp(-1.0, 1.0));
+    final next = (_drag + dx / width).clamp(
+      -(order.length - 1 - pos).toDouble(),
+      pos.toDouble(),
+    );
+    setState(() => _drag = next);
   }
 
   void _onDragEnd(double velocity) {
     if (_drag == 0) return;
-    final neighbour = _dragNeighbour();
+    final order = _displayOrderNow();
+    final pos = order.indexOf(_selectedIndex);
     final towards = _drag < 0 ? -1.0 : 1.0;
     final flung = velocity * towards > 600;
-    final commit = neighbour != null && (_drag.abs() > 0.35 || flung);
+    // 引いた距離で何タブ進むか。1タブの35%を超えたら次のタブへ、はじいた時は最低1タブ。
+    final distance = _drag.abs();
+    var steps = distance.floor() + (distance - distance.floor() > 0.35 ? 1 : 0);
+    if (flung && steps == 0) steps = 1;
+    final targetPos = (pos - towards.toInt() * steps).clamp(
+      0,
+      order.length - 1,
+    );
+    final commit = targetPos != pos;
     final from = _drag;
-    final target = commit ? towards : 0.0;
+    final target = commit ? -(targetPos - pos).toDouble() : 0.0;
     _settle.duration = popSlideDuration * (target - from).abs().clamp(0.2, 1.0);
     final tween = Tween<double>(begin: from, end: target);
     void tick() => setState(() => _drag = tween.evaluate(_settle));
@@ -95,7 +99,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       _settle.removeListener(tick);
       if (!mounted) return;
       setState(() {
-        if (commit) _setSelectedIndex(neighbour);
+        if (commit) _setSelectedIndex(order[targetPos]);
         _drag = 0;
       });
     });
@@ -346,7 +350,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           final from = _slideFrom;
           final t = Curves.easeOutCubic.transform(_slide.value);
           double posOf(int i) => displayOrder.indexOf(i).toDouble();
-          final neighbour = _dragNeighbour();
           final current =
               (from == null
                   ? posOf(_selectedIndex)
@@ -359,7 +362,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 for (var i = 0; i < tabs.length; i++)
                   Visibility(
                     key: ValueKey('home-tab-$i'),
-                    visible: i == _selectedIndex || i == from || i == neighbour,
+                    visible:
+                        i == _selectedIndex ||
+                        i == from ||
+                        (posOf(i) - current).abs() < 1,
                     maintainState: true,
                     child: FractionalTranslation(
                       translation: Offset(posOf(i) - current, 0),

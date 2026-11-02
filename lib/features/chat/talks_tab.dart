@@ -66,6 +66,8 @@ import '../../widgets/glass/glass_dialog.dart';
 import '../../widgets/hover_profile_card.dart';
 import '../../widgets/pane_visibility.dart';
 import '../../widgets/unread_badge.dart';
+import '../../providers/home_shell_providers.dart';
+import '../../widgets/home_tab_swipe.dart';
 import '../../widgets/interactive_swipe_back.dart';
 import '../../widgets/swipe_gestures.dart';
 import '../call/active_call_session.dart';
@@ -1571,7 +1573,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
           ? null
           : directMessages.firstWhereOrNull((d) => d.dmId == selected.dmId);
       detail = dm == null
-          ? const _EmptyDetailPlaceholder()
+          ? const HomeTabSwipe(child: SizedBox.expand())
           : _DmDetailWithRooms(
               key: ValueKey('icon-split-dm-${dm.dmId}'),
               currentUser: widget.currentUser,
@@ -1592,7 +1594,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
           ? null
           : groups.firstWhereOrNull((g) => g.groupId == selected.groupId);
       detail = group == null
-          ? const _EmptyDetailPlaceholder()
+          ? const HomeTabSwipe(child: SizedBox.expand())
           : _GroupDetailWithRooms(
               key: ValueKey('icon-split-group-${group.groupId}'),
               currentUser: widget.currentUser,
@@ -4117,7 +4119,7 @@ class _EmptyDetailPlaceholder extends StatelessWidget {
 /// 実際のpushを行う（この時点で既に同じ絵が見えているため、pushの入場
 /// アニメーションは呼び出し側で無効化しておく必要がある。
 /// `talks_tab.dart`の`openRoomFullscreen`・`DmChatArgs.instant`参照）。
-class _SwipeToOpenRoomPreview extends StatefulWidget {
+class _SwipeToOpenRoomPreview extends ConsumerStatefulWidget {
   const _SwipeToOpenRoomPreview({
     required this.roomList,
     required this.preview,
@@ -4129,11 +4131,12 @@ class _SwipeToOpenRoomPreview extends StatefulWidget {
   final VoidCallback onOpen;
 
   @override
-  State<_SwipeToOpenRoomPreview> createState() =>
+  ConsumerState<_SwipeToOpenRoomPreview> createState() =>
       _SwipeToOpenRoomPreviewState();
 }
 
-class _SwipeToOpenRoomPreviewState extends State<_SwipeToOpenRoomPreview>
+class _SwipeToOpenRoomPreviewState
+    extends ConsumerState<_SwipeToOpenRoomPreview>
     with SingleTickerProviderStateMixin {
   late final InteractiveSwipeBackController _controller =
       InteractiveSwipeBackController(
@@ -4144,6 +4147,10 @@ class _SwipeToOpenRoomPreviewState extends State<_SwipeToOpenRoomPreview>
       );
 
   double _cumulativeDx = 0;
+
+  /// このドラッグを、メニューチップの隣のタブへの切り替えとして使っている（2026-11-03）。
+  /// 左へ引けば寄合を開き、先に右へ引いた時は離すまでタブの切り替えになる。
+  bool _tabDragging = false;
 
   /// 指がタッチダウンした瞬間（実際に水平ドラッグと判定される前）に
   /// [widget.preview]を画面外へ先行マウントしておくためのフラグ
@@ -4268,6 +4275,10 @@ class _SwipeToOpenRoomPreviewState extends State<_SwipeToOpenRoomPreview>
         _warm.value = true;
       },
       onHorizontalDragCancel: () {
+        if (_tabDragging) {
+          _tabDragging = false;
+          ref.read(homeTabDragControllerProvider).onEnd?.call(0);
+        }
         // ドラッグ中にキャンセルされた（ブラウザ/OSがタッチを奪った等）場合は
         // コミットせず元へ戻す（2026-10-07、以前は`isGestureActive`が残った）。
         _controller.cancelExternalDrag();
@@ -4281,6 +4292,18 @@ class _SwipeToOpenRoomPreviewState extends State<_SwipeToOpenRoomPreview>
         _cumulativeDx = _controller.progress.value;
       },
       onHorizontalDragUpdate: (details) {
+        // 開く向き（左）へ動く前に右へ引いたら、隣のタブへの切り替えにする。
+        if (_tabDragging ||
+            (!_controller.isGestureActive &&
+                _cumulativeDx <= 0 &&
+                details.delta.dx > 0)) {
+          _tabDragging = true;
+          ref
+              .read(homeTabDragControllerProvider)
+              .onDelta
+              ?.call(details.delta.dx);
+          return;
+        }
         // 左方向への移動量を進捗として扱う（`InteractiveSwipeBackController`
         // は「右方向＝正の進捗」前提のため、符号を反転して累積する）。
         _cumulativeDx -= details.delta.dx;
@@ -4292,6 +4315,15 @@ class _SwipeToOpenRoomPreviewState extends State<_SwipeToOpenRoomPreview>
         }
       },
       onHorizontalDragEnd: (details) {
+        if (_tabDragging) {
+          _tabDragging = false;
+          _warm.value = false;
+          ref
+              .read(homeTabDragControllerProvider)
+              .onEnd
+              ?.call(details.primaryVelocity ?? 0);
+          return;
+        }
         if (!_controller.isGestureActive) {
           // `onHorizontalDragStart`は発火したが、終始右方向にしか
           // 動かさなかった等で`syncFromExternalDrag`が一度も呼ばれず
