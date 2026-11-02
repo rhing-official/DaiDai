@@ -848,6 +848,7 @@ final Strings _stringsFr = Strings._(
   calendarRsvpSaveButton: 'Enregistrer la réponse',
   calendarEventCreatedMessageLabel: 'Nouvel événement ajouté',
   calendarEventCreatedMessageConfirmAction: 'Voir',
+  noticeTargetDeletedLabel: 'Supprimé',
   calendarTaskBannerLabel: (title) => 'Réponse attendue pour « $title »',
   calendarRsvpEnabledLabel: 'Demander une confirmation de participation',
   calendarRsvpPerDayLabel: 'Confirmer la participation jour par jour',

@@ -39,6 +39,7 @@ import '../../providers/chat_audio_playback_provider.dart';
 import '../../providers/chat_layout_style_provider.dart';
 import '../../providers/chat_navigation_providers.dart';
 import '../../providers/conversation_prefs_providers.dart';
+import '../../providers/notice_target_provider.dart';
 import '../../providers/draft_sync_enabled_provider.dart';
 import '../../providers/message_time_format_provider.dart';
 import '../../providers/last_sticker_tab_provider.dart';
@@ -5078,13 +5079,50 @@ class _MessageRow extends ConsumerWidget {
         else if (isAccountDeletedNotice)
           _accountDeletedContent(context, ref, strings, onBubbleColor, isGekiga)
         else if (isCalendarEventNotice)
-          _calendarEventNoticeContent(context, strings, isGekiga)
+          _withNoticeTarget(
+            NoticeTargetKind.calendarEvent,
+            message.calendarEventId,
+            (deleted) => _calendarEventNoticeContent(
+              context,
+              strings,
+              isGekiga,
+              deleted: deleted,
+            ),
+          )
         else if (isScheduleCoordinationNotice)
-          _scheduleCoordinationNoticeContent(context, strings, isGekiga)
+          _withNoticeTarget(
+            NoticeTargetKind.scheduleCoordination,
+            message.scheduleCoordinationId,
+            (deleted) => _scheduleCoordinationNoticeContent(
+              context,
+              strings,
+              isGekiga,
+              deleted: deleted,
+            ),
+          )
         else if (isPollNotice)
-          _pollCreatedNoticeContent(context, strings, isGekiga)
+          _withNoticeTarget(
+            NoticeTargetKind.poll,
+            message.pollId,
+            (deleted) => _pollCreatedNoticeContent(
+              context,
+              strings,
+              isGekiga,
+              deleted: deleted,
+            ),
+          )
         else if (isNoteNotice)
-          _noteCreatedNoticeContent(context, ref, strings, isGekiga)
+          _withNoticeTarget(
+            NoticeTargetKind.note,
+            message.noteId,
+            (deleted) => _noteCreatedNoticeContent(
+              context,
+              ref,
+              strings,
+              isGekiga,
+              deleted: deleted,
+            ),
+          )
         else if (isAttachment)
           _attachmentWithCaption(
             context,
@@ -5739,6 +5777,31 @@ class _MessageRow extends ConsumerWidget {
   /// 指摘により修正）。
   bool get _isGlassStyle => uiStyle == AppUiStyle.glass;
 
+  /// 通知カードの対象が削除済みかを購読して[builder]へ渡す（2026-11-02）。id・会話・寄合が
+  /// 分からない時、データを読み込むまでの間は、削除済みとは扱わない。
+  Widget _withNoticeTarget(
+    NoticeTargetKind kind,
+    String? targetId,
+    Widget Function(bool deleted) builder,
+  ) {
+    final conversation = conversationId;
+    final room = roomId;
+    if (targetId == null || conversation == null || room == null) {
+      return builder(false);
+    }
+    return Consumer(
+      builder: (context, ref, _) {
+        final ids = ref
+            .watch(noticeTargetIdsProvider((kind, isDm, conversation, room)))
+            .value;
+        return builder(ids != null && !ids.contains(targetId));
+      },
+    );
+  }
+
+  String _noticeLabel(Strings strings, String label, bool deleted) =>
+      deleted ? '$label · ${strings.noticeTargetDeletedLabel}' : label;
+
   /// 投票・予定・日程調整・ノートの通知カードの配色（2026-10-11、ガラスUI
   /// のみ）。フラットはアクセントカラーのベタ塗りのヘッダー帯・ボタンだが、
   /// ガラスでは語らい一覧の選択中ブロック（`talks_tab.dart`のガラス分岐、
@@ -5762,13 +5825,20 @@ class _MessageRow extends ConsumerWidget {
   Widget _calendarEventNoticeContent(
     BuildContext context,
     Strings strings,
-    bool isGekiga,
-  ) {
+    bool isGekiga, {
+    bool deleted = false,
+  }) {
     final colorScheme = Theme.of(context).colorScheme;
-    final label = strings.calendarEventCreatedMessageLabel;
+    final label = _noticeLabel(
+      strings,
+      strings.calendarEventCreatedMessageLabel,
+      deleted,
+    );
     final title = message.content;
     final confirmLabel = strings.calendarEventCreatedMessageConfirmAction;
-    void onTap() => onOpenCalendarEvent?.call(message);
+    final VoidCallback? onTap = deleted
+        ? null
+        : () => onOpenCalendarEvent?.call(message);
 
     final gekigaFg = isMe ? GekigaColors.panel : GekigaColors.onPanel;
 
@@ -5907,14 +5977,21 @@ class _MessageRow extends ConsumerWidget {
   Widget _scheduleCoordinationNoticeContent(
     BuildContext context,
     Strings strings,
-    bool isGekiga,
-  ) {
+    bool isGekiga, {
+    bool deleted = false,
+  }) {
     final colorScheme = Theme.of(context).colorScheme;
-    final label = strings.scheduleCoordinationCreatedMessageLabel;
+    final label = _noticeLabel(
+      strings,
+      strings.scheduleCoordinationCreatedMessageLabel,
+      deleted,
+    );
     final title = message.content;
     final confirmLabel =
         strings.scheduleCoordinationCreatedMessageConfirmAction;
-    void onTap() => onOpenScheduleCoordination?.call(message);
+    final VoidCallback? onTap = deleted
+        ? null
+        : () => onOpenScheduleCoordination?.call(message);
 
     final gekigaFg = isMe ? GekigaColors.panel : GekigaColors.onPanel;
 
@@ -6050,13 +6127,20 @@ class _MessageRow extends ConsumerWidget {
   Widget _pollCreatedNoticeContent(
     BuildContext context,
     Strings strings,
-    bool isGekiga,
-  ) {
+    bool isGekiga, {
+    bool deleted = false,
+  }) {
     final colorScheme = Theme.of(context).colorScheme;
-    final label = strings.pollCreatedMessageLabel;
+    final label = _noticeLabel(
+      strings,
+      strings.pollCreatedMessageLabel,
+      deleted,
+    );
     final title = message.content;
     final confirmLabel = strings.pollCreatedMessageConfirmAction;
-    void onTap() => onOpenPoll?.call(message);
+    final VoidCallback? onTap = deleted
+        ? null
+        : () => onOpenPoll?.call(message);
 
     final gekigaFg = isMe ? GekigaColors.panel : GekigaColors.onPanel;
 
@@ -6199,8 +6283,9 @@ class _MessageRow extends ConsumerWidget {
     BuildContext context,
     WidgetRef ref,
     Strings strings,
-    bool isGekiga,
-  ) {
+    bool isGekiga, {
+    bool deleted = false,
+  }) {
     final noteId = message.noteId;
     final noteConversationId = conversationId;
     final noteRoomId = roomId;
@@ -6225,7 +6310,13 @@ class _MessageRow extends ConsumerWidget {
             : (message.content.isEmpty
                   ? strings.noteUntitledLabel
                   : message.content);
-        return _noteCreatedNoticeCard(context, strings, isGekiga, title);
+        return _noteCreatedNoticeCard(
+          context,
+          strings,
+          isGekiga,
+          title,
+          deleted: deleted,
+        );
       },
     );
   }
@@ -6234,12 +6325,19 @@ class _MessageRow extends ConsumerWidget {
     BuildContext context,
     Strings strings,
     bool isGekiga,
-    String title,
-  ) {
+    String title, {
+    bool deleted = false,
+  }) {
     final colorScheme = Theme.of(context).colorScheme;
-    final label = strings.noteCreatedMessageLabel;
+    final label = _noticeLabel(
+      strings,
+      strings.noteCreatedMessageLabel,
+      deleted,
+    );
     final confirmLabel = strings.noteCreatedMessageOpenAction;
-    void onTap() => onOpenNote?.call(message);
+    final VoidCallback? onTap = deleted
+        ? null
+        : () => onOpenNote?.call(message);
 
     final gekigaFg = isMe ? GekigaColors.panel : GekigaColors.onPanel;
 

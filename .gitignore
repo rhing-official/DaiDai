@@ -72,3 +72,6 @@ CLAUDE.md
 !文書/OSの制約.md
 !文書/実装内容チェックリスト.md
 !文書/課題.md
+
+# Firestoreのエクスポート（機微な値を含むためGit管理外、functions/scripts/export-firestore.cjs）
+functions/backups/

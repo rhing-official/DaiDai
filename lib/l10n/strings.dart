@@ -700,6 +700,7 @@ class Strings {
     required this.calendarRsvpSaveButton,
     required this.calendarEventCreatedMessageLabel,
     required this.calendarEventCreatedMessageConfirmAction,
+    required this.noticeTargetDeletedLabel,
     required this.calendarTaskBannerLabel,
     required this.calendarRsvpEnabledLabel,
     required this.calendarRsvpPerDayLabel,
@@ -1962,6 +1963,9 @@ class Strings {
   /// （`Message.content`）に別途表示される。
   final String calendarEventCreatedMessageLabel;
   final String calendarEventCreatedMessageConfirmAction;
+
+  /// 通知カードの対象（予定・日程調整・投票・ノート）が削除済みの時に添える言葉。
+  final String noticeTargetDeletedLabel;
   final String Function(String eventTitle) calendarTaskBannerLabel;
 
   /// 予定作成ポップアップの参加確認トグル（2026-09-02追加）。
@@ -3005,6 +3009,7 @@ class Strings {
     calendarRsvpSaveButton: '回答を保存',
     calendarEventCreatedMessageLabel: '予定が追加されました',
     calendarEventCreatedMessageConfirmAction: '確認する',
+    noticeTargetDeletedLabel: '削除済み',
     calendarTaskBannerLabel: (title) => '予定「$title」の参加確認が未回答です',
     calendarRsvpEnabledLabel: '参加確認をする',
     calendarRsvpPerDayLabel: '1日ごとに参加確認する',
@@ -4131,6 +4136,7 @@ class Strings {
     calendarRsvpSaveButton: 'Save response',
     calendarEventCreatedMessageLabel: 'New event added',
     calendarEventCreatedMessageConfirmAction: 'View',
+    noticeTargetDeletedLabel: 'Deleted',
     calendarTaskBannerLabel: (title) => 'RSVP needed for "$title"',
     calendarRsvpEnabledLabel: 'Ask for attendance confirmation',
     calendarRsvpPerDayLabel: 'Confirm attendance per day',
