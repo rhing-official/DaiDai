@@ -11,7 +11,6 @@ import 'package:flutter/rendering.dart' show RenderRepaintBoundary;
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:audioplayers/audioplayers.dart';
 import 'package:gal/gal.dart';
 import 'package:http/http.dart' as http;
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
@@ -35,9 +34,9 @@ import '../../providers/app_locale_provider.dart';
 import '../../router/back_stack.dart';
 import '../../providers/app_ui_style_provider.dart';
 import '../../providers/camera_availability_provider.dart';
-import '../../providers/chat_audio_playback_provider.dart';
 import '../../providers/chat_layout_style_provider.dart';
 import '../../providers/chat_navigation_providers.dart';
+import '../../providers/audio_playback_provider.dart';
 import '../../providers/conversation_prefs_providers.dart';
 import '../../providers/notice_target_provider.dart';
 import '../../providers/draft_sync_enabled_provider.dart';
@@ -8113,14 +8112,14 @@ class _FileAttachmentBlockState extends ConsumerState<_FileAttachmentBlock>
 
   // --- 音声プレビュー再生（2026-09-12追加） ---
 
-  AudioPlayer? _audioPlayer;
-  PlayerState _playerState = PlayerState.stopped;
-  Duration _position = Duration.zero;
-  Duration? _duration;
-  StreamSubscription<PlayerState>? _playerStateSub;
-  StreamSubscription<Duration>? _positionSub;
-  StreamSubscription<Duration>? _durationSub;
-  ProviderSubscription<String?>? _playingAudioSub;
+  /// 再生はアプリ全体で1つ（`audioPlaybackProvider`）が持つ。この行が破棄されても
+  /// 再生は止まらない。自分のメッセージが再生中の時だけ、その状態を表示する。
+  AudioPlaybackState get _playback {
+    final current = ref.watch(audioPlaybackProvider);
+    return current.messageId == widget.messageId
+        ? current
+        : AudioPlaybackState.idle;
+  }
 
   /// ホバーの概念が無いモバイルでは、ダウンロードボタンを常時表示する
   /// （Web版もモバイルブラウザなら`defaultTargetPlatform`がこの判定になる）。
@@ -8137,67 +8136,18 @@ class _FileAttachmentBlockState extends ConsumerState<_FileAttachmentBlock>
         _fetchMarkdown,
       );
     }
-    if (_isAudio) {
-      // 他の音声添付が再生を始めたら、自分が再生中の場合のみ一時停止する
-      // （`playingAudioMessageIdProvider`参照）。
-      _playingAudioSub = ref.listenManual<String?>(
-        playingAudioMessageIdProvider,
-        (previous, next) {
-          if (next != widget.messageId) _audioPlayer?.pause();
-        },
+  }
+
+  Future<void> _toggleAudioPlayback() => ref
+      .read(audioPlaybackProvider.notifier)
+      .toggle(
+        messageId: widget.messageId,
+        url: widget.metadata.url,
+        title: widget.metadata.fileName,
       );
-    }
-  }
 
-  @override
-  void dispose() {
-    _playerStateSub?.cancel();
-    _positionSub?.cancel();
-    _durationSub?.cancel();
-    _playingAudioSub?.close();
-    _audioPlayer?.dispose();
-    super.dispose();
-  }
-
-  Future<void> _toggleAudioPlayback() async {
-    try {
-      final player = _audioPlayer ??= AudioPlayer();
-      if (_audioPlayer == player && _playerStateSub == null) {
-        _playerStateSub = player.onPlayerStateChanged.listen((state) {
-          if (mounted) setState(() => _playerState = state);
-        });
-        _positionSub = player.onPositionChanged.listen((position) {
-          if (mounted) setState(() => _position = position);
-        });
-        _durationSub = player.onDurationChanged.listen((duration) {
-          if (mounted) setState(() => _duration = duration);
-        });
-      }
-      if (_playerState == PlayerState.playing) {
-        await player.pause();
-        return;
-      }
-      // 再生開始前に、他の再生中インスタンスへ一時停止を伝える。
-      ref
-          .read(playingAudioMessageIdProvider.notifier)
-          .setPlaying(widget.messageId);
-      if (_playerState == PlayerState.paused) {
-        await player.resume();
-      } else {
-        await player.play(UrlSource(widget.metadata.url));
-      }
-    } catch (_) {
-      // 再生できない環境でもファイル自体のダウンロードは引き続き行える。
-    }
-  }
-
-  Future<void> _seekAudio(Duration position) async {
-    try {
-      await _audioPlayer?.seek(position);
-    } catch (_) {
-      // シークに失敗しても致命的ではないため無視する。
-    }
-  }
+  Future<void> _seekAudio(Duration position) =>
+      ref.read(audioPlaybackProvider.notifier).seek(position);
 
   static String _formatAudioDuration(Duration d) {
     final minutes = d.inMinutes;
@@ -8497,12 +8447,13 @@ class _FileAttachmentBlockState extends ConsumerState<_FileAttachmentBlock>
   /// バー＋再生時間を表示する。波形表示は行わず単純な`Slider`のみに留める。
   Widget _buildAudioRow() {
     final showIcon = _hovering || _alwaysShowDownload;
-    final duration = _duration;
+    final playback = _playback;
+    final duration = playback.duration;
     final durationMs = duration?.inMilliseconds.toDouble();
     final sliderMax = (durationMs == null || durationMs <= 0)
         ? 1.0
         : durationMs;
-    final sliderValue = _position.inMilliseconds.toDouble().clamp(
+    final sliderValue = playback.position.inMilliseconds.toDouble().clamp(
       0.0,
       sliderMax,
     );
@@ -8519,7 +8470,7 @@ class _FileAttachmentBlockState extends ConsumerState<_FileAttachmentBlock>
               children: [
                 IconButton(
                   icon: Icon(
-                    _playerState == PlayerState.playing
+                    playback.playing
                         ? Icons.pause_circle_filled
                         : Icons.play_circle_fill,
                     color: widget.onBubbleColor,
@@ -8568,7 +8519,7 @@ class _FileAttachmentBlockState extends ConsumerState<_FileAttachmentBlock>
                         ),
                       ),
                       Text(
-                        '${_formatAudioDuration(_position)} / '
+                        '${_formatAudioDuration(playback.position)} / '
                         '${duration == null ? '--:--' : _formatAudioDuration(duration)}',
                         style: TextStyle(
                           fontSize: 11,

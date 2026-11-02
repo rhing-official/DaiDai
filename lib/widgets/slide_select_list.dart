@@ -41,6 +41,9 @@ class _SlideSelectListState extends State<SlideSelectList> {
   final List<GlobalKey> _keys = [];
   Offset? _down;
   bool _sliding = false;
+
+  /// このタッチは横ドラッグ（タブの切り替えなど）と判断した。離すまで、なぞりも選択もしない。
+  bool _horizontal = false;
   int? _index;
 
   GlobalKey _keyFor(int index) {
@@ -73,6 +76,7 @@ class _SlideSelectListState extends State<SlideSelectList> {
     final wasSliding = _sliding;
     _down = null;
     _sliding = false;
+    _horizontal = false;
     _index = null;
     if (wasSliding && mounted) setState(() {});
   }
@@ -80,10 +84,24 @@ class _SlideSelectListState extends State<SlideSelectList> {
   void _onMove(PointerMoveEvent event) {
     final down = _down;
     if (down == null) return;
+    if (_horizontal) return;
+    final delta = event.position - down;
     if (!_sliding) {
-      final delta = event.position - down;
+      // 先に閾値を超えた軸で向きを決める。横が先なら、離すまでこのタッチでは何もしない
+      // （横ドラッグの出だしの縦のぶれで、離した時に項目が開いてしまわないように）。
+      if (delta.dx.abs() >= _slop && delta.dx.abs() > delta.dy.abs()) {
+        _horizontal = true;
+        return;
+      }
       if (delta.dy.abs() < _slop || delta.dy.abs() < delta.dx.abs()) return;
       _sliding = true;
+    } else if (delta.dx.abs() >= _slop * 2 && delta.dx.abs() > delta.dy.abs()) {
+      // なぞり中に、横の動きが縦を上回った。横ドラッグへの切り替えとみなして取り消す。
+      _horizontal = true;
+      _sliding = false;
+      _index = null;
+      setState(() {});
+      return;
     }
     final index = _indexAt(event.position);
     if (index == null || index == _index) return;
@@ -93,7 +111,7 @@ class _SlideSelectListState extends State<SlideSelectList> {
 
   void _onUp() {
     final index = _index;
-    final wasSliding = _sliding;
+    final wasSliding = _sliding && !_horizontal;
     _reset();
     if (wasSliding && index != null) widget.onSlideEnd?.call(index);
   }
@@ -105,6 +123,7 @@ class _SlideSelectListState extends State<SlideSelectList> {
       onPointerDown: (event) {
         _down = event.position;
         _sliding = false;
+        _horizontal = false;
         _index = null;
       },
       onPointerMove: _onMove,

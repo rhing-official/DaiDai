@@ -68,6 +68,7 @@ import '../../providers/group_call_providers.dart';
 import 'group_call_join_banner.dart';
 import 'join_request_banner.dart';
 import 'proposal_banner.dart';
+import 'audio_playback_banner.dart';
 import 'task_banner.dart';
 import 'user_profile_card_dialog.dart';
 import '../../widgets/dialog_keyboard_shortcuts.dart';
@@ -979,6 +980,8 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
             roomId: roomId,
             currentUserId: currentUser.userId,
           ),
+          // 音声を再生している間だけ出る（予定などのバナーのさらに下）。
+          const AudioPlaybackBanner(),
         ],
       ),
     );
@@ -2743,6 +2746,8 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
             roomId: roomId,
             currentUserId: currentUser.userId,
           ),
+          // 音声を再生している間だけ出る（予定などのバナーのさらに下）。
+          const AudioPlaybackBanner(),
         ],
       ),
       messagesStream: _messagesController.stream,
