@@ -25,6 +25,9 @@ import '../../models/group_invite_preview.dart';
 import '../../models/group_join_request.dart';
 import '../../models/group_role.dart';
 import '../../models/message.dart';
+import '../../models/nav_chip_layout.dart';
+import '../../providers/nav_chip_layout_provider.dart';
+import '../../widgets/nav_chip.dart';
 import '../../models/talks_list_layout_style.dart';
 import '../../providers/app_ui_style_provider.dart';
 import '../../providers/block_providers.dart';
@@ -121,6 +124,25 @@ const kTalksSplitBreakpoint = 760.0;
 /// これ未満の端末（スマホ相当）では、画面が狭くメッセージ画面を同時に収められ
 /// ないため、従来通り寄合をタップした時点でフルスクリーンチャットへ遷移する。
 const kIconSplitPeekBreakpoint = 600.0;
+
+/// スマホ（短辺が[kIconSplitPeekBreakpoint]未満）のアイコン+寄合一覧で、アイコン列を
+/// 画面の下限まで伸ばすか（2026-11-02）。下部のメニューチップが、アイコン列の側とは
+/// 反対の側（または中央）に寄っている時だけ伸ばす: アイコン列が左（通常）ならチップが
+/// 中央・右揃えの時、アイコン列が右（反転）ならチップが中央・左揃えの時。
+bool iconRailExtendsToBottom(
+  BuildContext context, {
+  required TalksListLayoutStyle style,
+  required bool mirrored,
+  required NavChipAlignment chipAlignment,
+}) {
+  if (style != TalksListLayoutStyle.iconSplit) return false;
+  if (MediaQuery.sizeOf(context).shortestSide >= kIconSplitPeekBreakpoint) {
+    return false;
+  }
+  return mirrored
+      ? chipAlignment != NavChipAlignment.end
+      : chipAlignment != NavChipAlignment.start;
+}
 
 /// [kIconSplitPeekBreakpoint]以上の端末で寄合一覧＋メッセージ画面を同時
 /// 表示する時の、アイコン列＋寄合一覧（畳める部分）の合計幅（2026-09-12追加）。
@@ -1586,12 +1608,28 @@ class _TalksTabState extends ConsumerState<TalksTab>
     }
 
     if (!showPeek) {
+      // アイコン列を画面の下限まで伸ばす場合、ホーム側が語らいタブの下余白を外すため、
+      // 寄合一覧側だけメニューチップの分の余白を自分で取る（[iconRailExtendsToBottom]）。
+      final extend = iconRailExtendsToBottom(
+        context,
+        style: TalksListLayoutStyle.iconSplit,
+        mirrored: mirrored,
+        chipAlignment: ref.watch(navChipLayoutProvider).alignment,
+      );
       return Row(
         textDirection: rowDirection,
         children: [
           SizedBox(width: 112, child: iconRail),
           const VerticalDivider(width: 1),
-          Expanded(child: detail),
+          // 余白の有無で子の木の形が変わらないよう、常に`Padding`で包む。
+          Expanded(
+            child: Padding(
+              padding: EdgeInsets.only(
+                bottom: extend ? kNavChipSize + kNavChipMargin * 2 : 0,
+              ),
+              child: detail,
+            ),
+          ),
         ],
       );
     }
@@ -4140,6 +4178,7 @@ class _SwipeToOpenRoomPreviewState extends State<_SwipeToOpenRoomPreview>
   /// ナビチップやアイコン列の上を覆ってスライドさせる。操作は受けず（`IgnorePointer`）、
   /// ドラッグは下の寄合一覧が持ち続ける。
   OverlayEntry? _overlayEntry;
+  final PageStorageBucket _pageStorageBucket = PageStorageBucket();
 
   void _syncOverlay() {
     if (_warm.value && _overlayEntry == null) {
@@ -4154,7 +4193,13 @@ class _SwipeToOpenRoomPreviewState extends State<_SwipeToOpenRoomPreview>
                 offset: Offset(_controller.maxDrag - value, 0),
                 child: RepaintBoundary(child: child),
               ),
-              child: widget.preview,
+              // ルートのオーバーレイにはルート（`ModalRoute`）由来の`PageStorage`が
+              // 無く、プレビューのチャットの`ScrollablePositionedList`が
+              // 「PageStorage.of() ... no PageStorage」で落ちるため、自前で与える。
+              child: PageStorage(
+                bucket: _pageStorageBucket,
+                child: widget.preview,
+              ),
             ),
           ),
         ),

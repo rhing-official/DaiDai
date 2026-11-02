@@ -13,6 +13,7 @@ import '../../l10n/strings.dart';
 import '../../l10n/vocabulary.dart';
 import '../../models/album.dart';
 import '../../models/app_ui_style.dart';
+import '../../widgets/pane_modal_popup.dart';
 import '../../models/app_user.dart';
 import '../../models/conversation_prefs.dart';
 import '../../models/direct_message.dart';
@@ -551,11 +552,18 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
     void closeOverlay() => setState(() {
       _openAlbum = null;
     });
-    return SlideDrilldown(
-      master: chatBody,
-      detail: noteDetail ?? albumDetail,
-      detailKey: openNoteId ?? (openAlbum != null ? 'album' : null),
-      onBack: openNoteId == null && openAlbum != null ? closeOverlay : null,
+    // アルバムはメッセージ画面より小さいポップアップで、ペイン内に重ねる（2026-11-02）。
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        SlideDrilldown(
+          master: chatBody,
+          detail: noteDetail,
+          detailKey: openNoteId,
+        ),
+        if (albumDetail != null)
+          PaneModalPopup(onClose: closeOverlay, child: albumDetail),
+      ],
     );
   }
 
@@ -613,13 +621,22 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
     // 部屋切替のたびに作り直されるのに対し、この`_buildChatScreen`自体は
     // 生き続ける）に配置する（2026-09-14変更、詳細は下の`return`直前の
     // コメント参照）。
-    final unreadByRoom =
-        ref
-            .watch(conversationPrefsProvider(currentUser.userId))
-            .value?[dm.dmId]
-            ?.unreadByRoom ??
-        const <String, int>{};
-    _resetUnreadWhileViewing(dm.dmId, roomId, unreadByRoom[roomId] ?? 0);
+    final convPrefs = ref
+        .watch(conversationPrefsProvider(currentUser.userId))
+        .value?[dm.dmId];
+    final unreadByRoom = convPrefs?.unreadByRoom ?? const <String, int>{};
+    // 開いている寄合の未読に加え、一覧に出る会話全体の未読数（`unreadCount`）も、
+    // 他の寄合に未読が残っていなければ戻す。寄合ごとの数と会話全体の数がずれて
+    // 全体の数だけ残ると、別の語らいへ移るまで消えなかった（2026-11-02）。
+    final otherRoomsUnread = unreadByRoom.entries
+        .where((e) => e.key != roomId)
+        .fold<int>(0, (sum, e) => sum + e.value);
+    final totalUnread = convPrefs?.unreadCount ?? 0;
+    _resetUnreadWhileViewing(
+      dm.dmId,
+      roomId,
+      (unreadByRoom[roomId] ?? 0) + (otherRoomsUnread == 0 ? totalUnread : 0),
+    );
     final roomTabBarWidget = (!showRoomTabBar || rooms == null)
         ? null
         : RoomTabBar(
@@ -2580,11 +2597,18 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
     void closeOverlay() => setState(() {
       _openAlbum = null;
     });
-    return SlideDrilldown(
-      master: chatBody,
-      detail: noteDetail ?? albumDetail,
-      detailKey: openNoteId ?? (openAlbum != null ? 'album' : null),
-      onBack: openNoteId == null && openAlbum != null ? closeOverlay : null,
+    // アルバムはメッセージ画面より小さいポップアップで、ペイン内に重ねる（2026-11-02）。
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        SlideDrilldown(
+          master: chatBody,
+          detail: noteDetail,
+          detailKey: openNoteId,
+        ),
+        if (albumDetail != null)
+          PaneModalPopup(onClose: closeOverlay, child: albumDetail),
+      ],
     );
   }
 
@@ -2631,13 +2655,22 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
     _messagesController.add(filteredMessages);
     // 寄合タブバーは`ChatScreen`の外へ配置する（DM側の`_buildChatScreen`と
     // 同じ理由、2026-09-14変更。詳細は下の`return`直前のコメント参照）。
-    final unreadByRoom =
-        ref
-            .watch(conversationPrefsProvider(currentUser.userId))
-            .value?[group.groupId]
-            ?.unreadByRoom ??
-        const <String, int>{};
-    _resetUnreadWhileViewing(group.groupId, roomId, unreadByRoom[roomId] ?? 0);
+    final convPrefs = ref
+        .watch(conversationPrefsProvider(currentUser.userId))
+        .value?[group.groupId];
+    final unreadByRoom = convPrefs?.unreadByRoom ?? const <String, int>{};
+    // 開いている寄合の未読に加え、一覧に出る会話全体の未読数（`unreadCount`）も、
+    // 他の寄合に未読が残っていなければ戻す。寄合ごとの数と会話全体の数がずれて
+    // 全体の数だけ残ると、別の語らいへ移るまで消えなかった（2026-11-02）。
+    final otherRoomsUnread = unreadByRoom.entries
+        .where((e) => e.key != roomId)
+        .fold<int>(0, (sum, e) => sum + e.value);
+    final totalUnread = convPrefs?.unreadCount ?? 0;
+    _resetUnreadWhileViewing(
+      group.groupId,
+      roomId,
+      (unreadByRoom[roomId] ?? 0) + (otherRoomsUnread == 0 ? totalUnread : 0),
+    );
     final roomTabBarWidget = !widget.showRoomTabBar || !group.roomsEnabled
         ? null
         : RoomTabBar(

@@ -210,10 +210,12 @@ class _GekigaJointedList extends MultiChildRenderObjectWidget {
     required this.axis,
     required this.seeds,
     required this.selectedFlags,
+    required this.alignEnd,
     required super.children,
   });
 
   final Axis axis;
+  final bool alignEnd;
   final List<int> seeds;
   final List<bool> selectedFlags;
 
@@ -223,6 +225,7 @@ class _GekigaJointedList extends MultiChildRenderObjectWidget {
       axis: axis,
       seeds: seeds,
       selectedFlags: selectedFlags,
+      alignEnd: alignEnd,
     );
   }
 
@@ -234,7 +237,8 @@ class _GekigaJointedList extends MultiChildRenderObjectWidget {
     renderObject
       ..axis = axis
       ..seeds = seeds
-      ..selectedFlags = selectedFlags;
+      ..selectedFlags = selectedFlags
+      ..alignEnd = alignEnd;
   }
 }
 
@@ -247,8 +251,13 @@ class GekigaJointedTileList extends StatelessWidget {
     required this.selectedFlags,
     required this.children,
     this.axis = Axis.vertical,
+    this.alignEnd = false,
     super.key,
   });
+
+  /// 縦積みのとき、各箱の右端を一覧の右端へ揃える（2026-11-02、項目一覧の右揃え用）。
+  /// 一覧は利用可能な幅いっぱいに広がる。
+  final bool alignEnd;
 
   final List<int> seeds;
   final List<bool> selectedFlags;
@@ -273,6 +282,7 @@ class GekigaJointedTileList extends StatelessWidget {
       axis: axis,
       seeds: seeds,
       selectedFlags: selectedFlags,
+      alignEnd: alignEnd,
       children: children,
     );
   }
@@ -303,6 +313,7 @@ class GekigaJointedPair extends StatelessWidget {
       axis: Axis.horizontal,
       seeds: [leftSeed, rightSeed],
       selectedFlags: [leftSelected, rightSelected],
+      alignEnd: false,
       children: [left, right],
     );
   }
@@ -318,9 +329,11 @@ class _RenderGekigaJointedList extends RenderBox
     required Axis axis,
     required List<int> seeds,
     required List<bool> selectedFlags,
+    required bool alignEnd,
   }) : _axis = axis,
        _seeds = seeds,
-       _selectedFlags = selectedFlags;
+       _selectedFlags = selectedFlags,
+       _alignEnd = alignEnd;
 
   // 上記コンストラクタは`this._axis`等の初期化フォームにできない
   // （引数名`axis`とpublicなsetter`axis`が衝突するため）。lintの
@@ -343,6 +356,13 @@ class _RenderGekigaJointedList extends RenderBox
   set axis(Axis value) {
     if (_axis == value) return;
     _axis = value;
+    markNeedsLayout();
+  }
+
+  bool _alignEnd;
+  set alignEnd(bool value) {
+    if (_alignEnd == value) return;
+    _alignEnd = value;
     markNeedsLayout();
   }
 
@@ -399,9 +419,20 @@ class _RenderGekigaJointedList extends RenderBox
       if (childCross > cross) cross = childCross;
       child = childParentData.nextSibling;
     }
+    if (vertical && _alignEnd && constraints.maxWidth.isFinite) {
+      cross = constraints.maxWidth;
+    }
     size = constraints.constrain(
       vertical ? Size(cross, main) : Size(main, cross),
     );
+    if (vertical && _alignEnd) {
+      var c = firstChild;
+      while (c != null) {
+        final data = c.parentData! as _JointedParentData;
+        data.offset = Offset(size.width - c.size.width, data.offset.dy);
+        c = data.nextSibling;
+      }
+    }
   }
 
   @override

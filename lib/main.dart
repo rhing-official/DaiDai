@@ -35,6 +35,7 @@ import 'providers/custom_accent_colors_provider.dart';
 import 'providers/custom_font_colors_provider.dart';
 import 'providers/removed_default_color_presets_provider.dart';
 import 'providers/draft_sync_enabled_provider.dart';
+import 'providers/category_list_alignment_provider.dart';
 import 'providers/icon_split_mirrored_provider.dart';
 import 'providers/join_video_camera_on_provider.dart';
 import 'providers/nav_chip_layout_provider.dart';
@@ -101,6 +102,7 @@ Future<void> main() async {
   final initialDraftSyncEnabled = await loadInitialDraftSyncEnabled();
   final initialJoinVideoCameraOn = await loadInitialJoinVideoCameraOn();
   final initialIconSplitMirrored = await loadInitialIconSplitMirrored();
+  final initialCategoryListAlignment = await loadInitialCategoryListAlignment();
   final initialNavChipLayout = await loadInitialNavChipLayout();
   final initialMessageTimeFormat = await loadInitialMessageTimeFormat();
   final initialCalendarWeekStart = await loadInitialCalendarWeekStart();
@@ -157,6 +159,9 @@ Future<void> main() async {
         ),
         initialIconSplitMirroredProvider.overrideWithValue(
           initialIconSplitMirrored,
+        ),
+        initialCategoryListAlignmentProvider.overrideWithValue(
+          initialCategoryListAlignment,
         ),
         initialNavChipLayoutProvider.overrideWithValue(initialNavChipLayout),
         initialMessageTimeFormatProvider.overrideWithValue(

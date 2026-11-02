@@ -73,7 +73,8 @@ class CalendarPaneView extends ConsumerStatefulWidget {
   ConsumerState<CalendarPaneView> createState() => _CalendarPaneViewState();
 }
 
-class _CalendarPaneViewState extends ConsumerState<CalendarPaneView> {
+class _CalendarPaneViewState extends ConsumerState<CalendarPaneView>
+    with SingleTickerProviderStateMixin {
   late final Stream<List<CalendarEvent>> _eventsStream = ref
       .read(calendarEventRepositoryProvider)
       .watchEvents(
@@ -103,8 +104,70 @@ class _CalendarPaneViewState extends ConsumerState<CalendarPaneView> {
 
   static DateTime _monthOf(DateTime date) => DateTime(date.year, date.month);
 
+  // 横ドラッグ中、指に追従して月を動かすためのスライド量（2026-11-02）。画面幅に対する
+  // 割合で、負なら翌月が右から寄ってくる。離した後は[_settle]で0か±1へ寄せる。
+  double _drag = 0;
+  bool _dragging = false;
+  double _viewportWidth = 0;
+  late final AnimationController _settle = AnimationController(vsync: this);
+
+  void _onDragUpdate(double dx) {
+    if (_viewportWidth <= 0) return;
+    _settle.stop();
+    setState(() {
+      _dragging = true;
+      _drag = (_drag + dx / _viewportWidth).clamp(-1.0, 1.0);
+    });
+  }
+
+  void _onDragEnd(double velocity) {
+    if (!_dragging || _drag == 0) {
+      if (_dragging) setState(() => _dragging = false);
+      return;
+    }
+    final towards = _drag < 0 ? -1.0 : 1.0;
+    final commit =
+        _drag.abs() > 0.3 ||
+        velocity * towards > kSwipeGestureVelocityThreshold;
+    final from = _drag;
+    final target = commit ? towards : 0.0;
+    _settle.duration =
+        const Duration(milliseconds: 260) *
+        (target - from).abs().clamp(0.25, 1.0);
+    final tween = Tween<double>(
+      begin: from,
+      end: target,
+    ).chain(CurveTween(curve: Curves.easeOutCubic));
+    void tick() => setState(() => _drag = tween.evaluate(_settle));
+    _settle.addListener(tick);
+    _settle.forward(from: 0).whenComplete(() {
+      _settle.removeListener(tick);
+      if (!mounted) return;
+      setState(() {
+        if (commit) {
+          // 動き終えた月をそのまま採用する（切り替えのスライドはもう済んでいる）。
+          final step = towards < 0 ? 1 : -1;
+          _focusedMonth = DateTime(
+            _focusedMonth.year,
+            _focusedMonth.month + step,
+          );
+        }
+        _drag = 0;
+        _dragging = false;
+      });
+    });
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    // 遅延初期化のままだと`dispose`で初めて作られ、破棄中の要素を参照して失敗する。
+    _settle.duration = const Duration(milliseconds: 260);
+  }
+
   @override
   void dispose() {
+    _settle.dispose();
     _scrollDismissTimer?.cancel();
     super.dispose();
   }
@@ -119,6 +182,35 @@ class _CalendarPaneViewState extends ConsumerState<CalendarPaneView> {
     final cmp = month.compareTo(_focusedMonth);
     if (cmp != 0) _slideDirection = cmp > 0 ? 1 : -1;
     _focusedMonth = month;
+  }
+
+  /// ドラッグ中の月表示。今の月と、動かしている向きの隣の月を横に並べ、指の動きの分だけ
+  /// ずらす（動かすほど薄く、入ってくるほど濃く）。
+  Widget _buildDraggedMonths(Widget Function(DateTime month) gridFor) {
+    final step = _drag < 0 ? 1 : -1;
+    final neighbour = DateTime(_focusedMonth.year, _focusedMonth.month + step);
+    final progress = _drag.abs();
+    return ClipRect(
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          FractionalTranslation(
+            translation: Offset(_drag, 0),
+            child: Opacity(
+              opacity: 1 - progress * 0.6,
+              child: gridFor(_focusedMonth),
+            ),
+          ),
+          FractionalTranslation(
+            translation: Offset(_drag + (_drag < 0 ? 1 : -1), 0),
+            child: Opacity(
+              opacity: 0.4 + progress * 0.6,
+              child: gridFor(neighbour),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   void _goToPreviousMonth() => setState(
@@ -415,14 +507,11 @@ class _CalendarPaneViewState extends ConsumerState<CalendarPaneView> {
           // （SwipeDownToDismiss、縦方向）とは別のGestureDetectorを重ねて
           // 横スワイプ＝月送りを処理する。
           child: GestureDetector(
-            onHorizontalDragEnd: (details) {
-              final velocity = details.primaryVelocity ?? 0;
-              if (velocity >= kSwipeGestureVelocityThreshold) {
-                _goToPreviousMonth();
-              } else if (velocity <= -kSwipeGestureVelocityThreshold) {
-                _goToNextMonth();
-              }
-            },
+            onHorizontalDragUpdate: (details) =>
+                _onDragUpdate(details.delta.dx),
+            onHorizontalDragEnd: (details) =>
+                _onDragEnd(details.primaryVelocity ?? 0),
+            onHorizontalDragCancel: () => _onDragEnd(0),
             child: SwipeDownToDismiss(
               onDismiss: widget.onClose,
               // 月全体をスクロール無しで1画面に収める（2026-10-07、ユーザー指示。
@@ -433,6 +522,7 @@ class _CalendarPaneViewState extends ConsumerState<CalendarPaneView> {
               // 横いっぱいに広げる（水平パディング0）。
               child: LayoutBuilder(
                 builder: (context, viewport) {
+                  _viewportWidth = viewport.maxWidth;
                   final padding = isMobile
                       ? const EdgeInsets.symmetric(vertical: 8)
                       : const EdgeInsets.all(16);
@@ -498,6 +588,23 @@ class _CalendarPaneViewState extends ConsumerState<CalendarPaneView> {
                                     coordinations,
                                     categoriesById,
                                   );
+                                  Widget gridFor(DateTime month) => _MonthGrid(
+                                    key: ValueKey(month),
+                                    focusedMonth: month,
+                                    monthItems: monthItems,
+                                    isGekiga: isGekiga,
+                                    isMobile: isMobile,
+                                    accentColor: accent,
+                                    colorScheme: colorScheme,
+                                    strings: strings,
+                                    onDayTap: (cellContext, day) => _onDayTap(
+                                      cellContext,
+                                      day,
+                                      eventsByDate[day] ?? const [],
+                                      coordinationsByDate[day] ?? const [],
+                                    ),
+                                    onItemTap: _openItemDetail,
+                                  );
                                   return Column(
                                     children: [
                                       _MonthHeader(
@@ -524,32 +631,13 @@ class _CalendarPaneViewState extends ConsumerState<CalendarPaneView> {
                                         gridLineColor: colorScheme.outline,
                                       ),
                                       Expanded(
-                                        // 月送りは、新しい月が移動方向から
-                                        // スライドして入り、前の月が反対側へ
-                                        // 出ていく（2026-10-10追加）。
-                                        child: _MonthSlideSwitcher(
-                                          month: _focusedMonth,
-                                          direction: _slideDirection,
-                                          child: _MonthGrid(
-                                            key: ValueKey(_focusedMonth),
-                                            focusedMonth: _focusedMonth,
-                                            monthItems: monthItems,
-                                            isGekiga: isGekiga,
-                                            isMobile: isMobile,
-                                            accentColor: accent,
-                                            colorScheme: colorScheme,
-                                            strings: strings,
-                                            onDayTap: (cellContext, day) =>
-                                                _onDayTap(
-                                                  cellContext,
-                                                  day,
-                                                  eventsByDate[day] ?? const [],
-                                                  coordinationsByDate[day] ??
-                                                      const [],
-                                                ),
-                                            onItemTap: _openItemDetail,
-                                          ),
-                                        ),
+                                        child: _dragging
+                                            ? _buildDraggedMonths(gridFor)
+                                            : _MonthSlideSwitcher(
+                                                month: _focusedMonth,
+                                                direction: _slideDirection,
+                                                child: gridFor(_focusedMonth),
+                                              ),
                                       ),
                                     ],
                                   );
@@ -743,12 +831,16 @@ class _MonthSlideSwitcher extends StatelessWidget {
             entering ? direction.toDouble() : -direction.toDouble(),
             0,
           );
-          return SlideTransition(
-            position: Tween<Offset>(
-              begin: begin,
-              end: Offset.zero,
-            ).animate(animation),
-            child: child,
+          // スライドと同時に、入る側は薄→濃、出る側は濃→薄へ変える（2026-11-02）。
+          return FadeTransition(
+            opacity: animation,
+            child: SlideTransition(
+              position: Tween<Offset>(
+                begin: begin,
+                end: Offset.zero,
+              ).animate(animation),
+              child: child,
+            ),
           );
         },
         child: child,
@@ -1601,24 +1693,35 @@ Future<void> showCalendarMonthDialog(
       final narrow = size.width < _kCalendarMobileBreakpoint;
       return UncontrolledProviderScope(
         container: container,
-        child: Dialog(
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          shadowColor: Colors.transparent,
-          insetPadding: narrow
-              ? const EdgeInsets.symmetric(horizontal: 8, vertical: 24)
-              : const EdgeInsets.all(24),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(16),
-            child: SizedBox(
-              width: narrow ? size.width - 16 : math.min(size.width - 48, 1600),
-              height: size.height * 0.9,
-              child: CalendarPaneView(
-                isDm: isDm,
-                conversationId: conversationId,
-                roomId: roomId,
-                currentUser: currentUser,
-                onClose: () => Navigator.of(dialogContext).pop(),
+        // テーマのダイアログは最大幅400に絞られており、月表示が細長くなっていた
+        // （2026-11-02）。このダイアログだけ幅の上限を外す。
+        child: Theme(
+          data: Theme.of(dialogContext).copyWith(
+            dialogTheme: Theme.of(
+              dialogContext,
+            ).dialogTheme.copyWith(constraints: const BoxConstraints()),
+          ),
+          child: Dialog(
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+            shadowColor: Colors.transparent,
+            insetPadding: narrow
+                ? const EdgeInsets.symmetric(horizontal: 8, vertical: 24)
+                : const EdgeInsets.all(24),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: SizedBox(
+                width: narrow
+                    ? size.width - 16
+                    : math.min(size.width - 48, 1600),
+                height: size.height * 0.9,
+                child: CalendarPaneView(
+                  isDm: isDm,
+                  conversationId: conversationId,
+                  roomId: roomId,
+                  currentUser: currentUser,
+                  onClose: () => Navigator.of(dialogContext).pop(),
+                ),
               ),
             ),
           ),

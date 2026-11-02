@@ -236,7 +236,9 @@ class _PinchPriorityPageViewState extends State<PinchPriorityPageView> {
     final pageView = PageView.builder(
       controller: widget.controller,
       allowImplicitScrolling: widget.allowImplicitScrolling,
-      physics: isMultiTouch
+      // 拡大中も横スワイプでのページ送りは止める（拡大した内容を動かす操作と
+      // 取り違えないため、2026-11-02。矢印か、縮小してからのスワイプで送る）。
+      physics: isMultiTouch || _zoomed
           ? const NeverScrollableScrollPhysics()
           : const _EasySwipePageScrollPhysics(),
       onPageChanged: (index) {

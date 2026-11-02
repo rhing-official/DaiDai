@@ -38,6 +38,8 @@ class Strings {
     required this.settingsNavChipsAlignCenter,
     required this.settingsNavChipsAlignEnd,
     required this.settingsNavChipsAlignTop,
+    required this.settingsCategoryListAlignTitle,
+    required this.settingsCategoryListAlignNote,
     required this.settingsNavChipsAlignBottom,
     required this.settingsNavChipsOrderTitle,
     required this.settingsCallJoinCameraTitle,
@@ -1006,6 +1008,8 @@ class Strings {
   final String settingsNavChipsAlignCenter;
   final String settingsNavChipsAlignEnd;
   final String settingsNavChipsAlignTop;
+  final String settingsCategoryListAlignTitle;
+  final String settingsCategoryListAlignNote;
   final String settingsNavChipsAlignBottom;
   final String settingsNavChipsOrderTitle;
   final String settingsCallJoinCameraTitle;
@@ -2288,6 +2292,9 @@ class Strings {
     settingsNavChipsAlignCenter: '中央揃え',
     settingsNavChipsAlignEnd: '右揃え',
     settingsNavChipsAlignTop: '上揃え',
+    settingsCategoryListAlignTitle: '設定・身だしなみの項目の位置',
+    settingsCategoryListAlignNote:
+        'スマホでのみ適用されます。この設定は端末ごとに保存され、アカウントや他の端末には引き継がれません。',
     settingsNavChipsAlignBottom: '下揃え',
     settingsNavChipsOrderTitle: '並び',
     settingsCallJoinCameraTitle: 'ビデオ通話に参加するときカメラをオンにする',
@@ -3315,6 +3322,10 @@ class Strings {
     settingsNavChipsAlignCenter: 'Centre',
     settingsNavChipsAlignEnd: 'Right',
     settingsNavChipsAlignTop: 'Top',
+    settingsCategoryListAlignNote:
+        'Applies only on phones (narrow screens). Saved on this device only; it is not carried over to your account or other devices.',
+    settingsCategoryListAlignTitle:
+        'Position of the Settings and Profile lists (phone)',
     settingsNavChipsAlignBottom: 'Bottom',
     settingsNavChipsOrderTitle: 'Order (drag to rearrange)',
     settingsCallJoinCameraTitle: 'Turn the camera on when joining a video call',

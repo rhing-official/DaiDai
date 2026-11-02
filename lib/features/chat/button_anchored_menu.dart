@@ -50,12 +50,17 @@ class ChatScrollGuardScope extends InheritedWidget {
     required this.beginPopup,
     required this.endPopup,
     required this.menuSwitcher,
+    required this.scrollBy,
     required super.child,
     super.key,
   });
 
   final VoidCallback beginPopup;
   final VoidCallback endPopup;
+
+  /// ポップアップを開いたままメッセージ一覧をスクロールする（2026-11-02）。引数は
+  /// スクロール位置への加算量（px、正が古いメッセージ側＝画面の下へ内容が動く向き）。
+  final void Function(double delta) scrollBy;
 
   /// ヘッダーのボタン同士で、ドロップダウンを開いたまま別のボタンへ直接切り
   /// 替えるための登録先（2026-10-10追加、[HeaderMenuSwitcher]参照）。
@@ -151,12 +156,20 @@ Future<T?> showAnchoredMenu<T>({
   Offset? lastDown;
   void trackPointer(PointerEvent event) {
     if (event is PointerDownEvent) lastDown = event.position;
+    // メニューを開いたまま、背後のメッセージ一覧をスクロールできるようにする
+    // （2026-11-02）。モーダルバリアは一覧へのスクロールを吸収するため、ポインタを
+    // 直接拾って一覧へ流す。マウスはホイール、タッチ・ペンはドラッグ。タップはバリアが
+    // 閉じる操作のまま（動かさなければ何も流れない）。
+    if (event is PointerScrollEvent) {
+      guard?.scrollBy(-event.scrollDelta.dy);
+    } else if (event is PointerMoveEvent &&
+        event.kind != PointerDeviceKind.mouse) {
+      guard?.scrollBy(event.delta.dy);
+    }
   }
 
   guard?.beginPopup();
-  if (switcher != null) {
-    GestureBinding.instance.pointerRouter.addGlobalRoute(trackPointer);
-  }
+  GestureBinding.instance.pointerRouter.addGlobalRoute(trackPointer);
   T? result;
   try {
     result = await showMenu<T>(
@@ -168,9 +181,7 @@ Future<T?> showAnchoredMenu<T>({
       elevation: elevation,
     );
   } finally {
-    if (switcher != null) {
-      GestureBinding.instance.pointerRouter.removeGlobalRoute(trackPointer);
-    }
+    GestureBinding.instance.pointerRouter.removeGlobalRoute(trackPointer);
     guard?.endPopup();
   }
   final downAt = lastDown;

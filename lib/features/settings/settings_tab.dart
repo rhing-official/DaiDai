@@ -42,6 +42,9 @@ import '../../providers/chat_layout_style_provider.dart';
 import '../../providers/talks_list_layout_style_provider.dart';
 import '../../providers/draft_sync_enabled_provider.dart';
 import '../../models/nav_chip_layout.dart';
+import '../../providers/category_list_alignment_provider.dart';
+import '../../widgets/home_tab_swipe.dart';
+import '../../widgets/slide_select_list.dart';
 import '../../providers/icon_split_mirrored_provider.dart';
 import '../../providers/join_video_camera_on_provider.dart';
 import '../../providers/nav_chip_layout_provider.dart';
@@ -512,12 +515,14 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
         child: Padding(
           padding: const EdgeInsets.only(top: 56),
           child: SlideDrilldownStack(
-            base: _CategoryList(
-              key: const ValueKey('settings-categories'),
-              categories: categories,
-              selectedId: null,
-              onSelect: _onCategorySelected,
-              large: true,
+            base: HomeTabSwipe(
+              child: _CategoryList(
+                key: const ValueKey('settings-categories'),
+                categories: categories,
+                selectedId: null,
+                onSelect: _onCategorySelected,
+                large: true,
+              ),
             ),
             layers: layers,
           ),
@@ -630,40 +635,72 @@ class _CategoryList extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    if (ref.watch(appUiStyleProvider) == AppUiStyle.gekiga) {
-      return SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 8),
-        child: GekigaJointedTileList(
-          seeds: [for (final category in categories) category.title.hashCode],
-          selectedFlags: [
-            for (final category in categories) category.id == selectedId,
-          ],
-          children: [
-            for (final category in categories)
-              _FolderTile(
-                icon: category.icon,
-                title: category.title,
-                selected: category.id == selectedId,
-                trailingChevron: false,
-                large: large,
-                onTap: () => onSelect(category),
+    final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
+    // 一覧の上を縦になぞって選べる（メニューチップと同じ操作、2026-11-02）。広い画面の
+    // サイドバーはなぞった先をその場で選び、狭い画面（[large]）はなぞっている間だけ
+    // 強調して、指を離した項目を開く。
+    final narrow = large;
+    final alignment = narrow && isGekiga
+        ? ref.watch(categoryListAlignmentProvider)
+        : null;
+    return SlideSelectList(
+      itemCount: categories.length,
+      onSlide: narrow ? null : (i) => onSelect(categories[i]),
+      onSlideEnd: narrow ? (i) => onSelect(categories[i]) : null,
+      builder: (context, keyFor, slidingIndex) {
+        bool isSelected(int i) =>
+            narrow ? i == slidingIndex : categories[i].id == selectedId;
+        if (isGekiga) {
+          return alignCategoryList(
+            alignment,
+            SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: GekigaJointedTileList(
+                alignEnd: alignment == NavChipAlignment.end,
+                seeds: [
+                  for (final category in categories) category.title.hashCode,
+                ],
+                selectedFlags: [
+                  for (var i = 0; i < categories.length; i++) isSelected(i),
+                ],
+                children: [
+                  for (var i = 0; i < categories.length; i++)
+                    KeyedSubtree(
+                      key: keyFor(i),
+                      child: _FolderTile(
+                        icon: categories[i].icon,
+                        title: categories[i].title,
+                        selected: isSelected(i),
+                        trailingChevron: false,
+                        large: large,
+                        onTap: () => onSelect(categories[i]),
+                      ),
+                    ),
+                ],
               ),
-          ],
-        ),
-      );
-    }
-    return ListView(
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      children: [
-        for (final category in categories)
-          _FolderTile(
-            icon: category.icon,
-            title: category.title,
-            selected: category.id == selectedId,
-            trailingChevron: false,
-            onTap: () => onSelect(category),
+            ),
+          );
+        }
+        return alignCategoryList(
+          alignment,
+          ListView(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            children: [
+              for (var i = 0; i < categories.length; i++)
+                KeyedSubtree(
+                  key: keyFor(i),
+                  child: _FolderTile(
+                    icon: categories[i].icon,
+                    title: categories[i].title,
+                    selected: isSelected(i),
+                    trailingChevron: false,
+                    onTap: () => onSelect(categories[i]),
+                  ),
+                ),
+            ],
           ),
-      ],
+        );
+      },
     );
   }
 }
@@ -3457,6 +3494,9 @@ class NavChipLayoutFolder extends ConsumerWidget {
 
     void selectAlignment(NavChipAlignment value) =>
         notifier.setAlignment(value);
+    final listAlignment = ref.watch(categoryListAlignmentProvider);
+    void selectListAlignment(NavChipAlignment value) =>
+        ref.read(categoryListAlignmentProvider.notifier).setAlignment(value);
 
     final alignmentControl = isGekiga
         ? GekigaJointedTileList(
@@ -3494,6 +3534,42 @@ class NavChipLayoutFolder extends ConsumerWidget {
             ),
           );
 
+    final listAlignmentControl = isGekiga
+        ? GekigaJointedTileList(
+            seeds: [for (final a in NavChipAlignment.values) a.hashCode],
+            selectedFlags: [
+              for (final a in NavChipAlignment.values) listAlignment == a,
+            ],
+            children: [
+              for (final a in NavChipAlignment.values)
+                GekigaTileContent(
+                  selected: listAlignment == a,
+                  leading: Icon(
+                    listAlignment == a
+                        ? Icons.radio_button_checked
+                        : Icons.radio_button_unchecked,
+                  ),
+                  title: Text(_alignLabel(a, wide: false)),
+                  onTap: () => selectListAlignment(a),
+                ),
+            ],
+          )
+        : RadioGroup<NavChipAlignment>(
+            groupValue: listAlignment,
+            onChanged: (value) {
+              if (value != null) selectListAlignment(value);
+            },
+            child: Column(
+              children: [
+                for (final a in NavChipAlignment.values)
+                  RadioListTile<NavChipAlignment>(
+                    value: a,
+                    title: Text(_alignLabel(a, wide: false)),
+                  ),
+              ],
+            ),
+          );
+
     final orderControl = Align(
       alignment: Alignment.centerLeft,
       child: SizedBox(
@@ -3502,25 +3578,43 @@ class NavChipLayoutFolder extends ConsumerWidget {
           order: layout.order,
           onReorder: notifier.setOrder,
           tileBuilder: (tab, handle) {
-            final tile = ListTile(
-              dense: true,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 8),
-              leading: Icon(
-                _icons[tab],
-                color: isGekiga ? GekigaColors.onPanel : null,
-              ),
-              title: Text(
-                _tabLabel(tab),
-                style: isGekiga
-                    ? const TextStyle(color: GekigaColors.onPanel)
-                    : null,
-              ),
-              trailing: Icon(
-                Icons.drag_handle,
-                color: isGekiga
-                    ? GekigaColors.onPanel
-                    : colorScheme.onSurfaceVariant,
-              ),
+            // `ListTile`は枠の高さが足りない（劇画の箱の内側など）と中身が下へはみ出し、
+            // 文字が縦に中央からずれるため、`Row`で縦中央に揃えて自前で組む。
+            final contentColor = isGekiga
+                ? GekigaColors.onPanel
+                : colorScheme.onSurface;
+            final content = Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                const SizedBox(width: 12),
+                Icon(_icons[tab], color: contentColor),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    _tabLabel(tab),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                      color: contentColor,
+                      height: 1.0,
+                    ),
+                  ),
+                ),
+                Icon(
+                  Icons.drag_handle,
+                  color: isGekiga
+                      ? GekigaColors.onPanel
+                      : colorScheme.onSurfaceVariant,
+                ),
+                const SizedBox(width: 12),
+              ],
+            );
+            // 箱の外枠（劇画は上下の余白3＋枠の黒3＋白線3の左右上下）の分を引いた高さ。
+            final tile = SizedBox(
+              height: isGekiga
+                  ? _NavChipOrderListState.itemHeight - 6 - 12
+                  : _NavChipOrderListState.itemHeight,
+              child: content,
             );
             if (!isGekiga) return tile;
             // 劇画は単色の黒ベタにせず、他の箱と同じ「黒外枠→白の細い線→黒地」の
@@ -3561,6 +3655,24 @@ class NavChipLayoutFolder extends ConsumerWidget {
           ),
         ),
         orderControl,
+        // 項目一覧の揃えは劇画UIでのみ表示・適用する（2026-11-02）。
+        if (isGekiga) ...[
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            child: Text(
+              strings.settingsCategoryListAlignTitle,
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: Text(
+              strings.settingsCategoryListAlignNote,
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+          ),
+          listAlignmentControl,
+        ],
       ],
     );
   }
@@ -3585,14 +3697,14 @@ class _NavChipOrderList extends StatefulWidget {
 }
 
 class _NavChipOrderListState extends State<_NavChipOrderList> {
-  static const _itemHeight = 56.0;
+  static const itemHeight = 56.0;
 
   HomeTabId? _dragging;
   double _dragTop = 0;
 
   int get _provisionalIndex {
     final max = widget.order.length - 1;
-    return (_dragTop / _itemHeight).round().clamp(0, max);
+    return (_dragTop / itemHeight).round().clamp(0, max);
   }
 
   List<HomeTabId> get _displayOrder {
@@ -3606,14 +3718,14 @@ class _NavChipOrderListState extends State<_NavChipOrderList> {
   @override
   Widget build(BuildContext context) {
     final display = _displayOrder;
-    final maxTop = (widget.order.length - 1) * _itemHeight;
+    final maxTop = (widget.order.length - 1) * itemHeight;
     final tabs = [
       for (final t in display)
         if (t != _dragging) t,
       if (_dragging != null) _dragging!,
     ];
     return SizedBox(
-      height: widget.order.length * _itemHeight,
+      height: widget.order.length * itemHeight,
       child: Stack(
         children: [
           for (final tab in tabs)
@@ -3625,15 +3737,15 @@ class _NavChipOrderListState extends State<_NavChipOrderList> {
               curve: Curves.easeOut,
               left: 0,
               right: 0,
-              height: _itemHeight,
+              height: itemHeight,
               top: tab == _dragging
                   ? _dragTop.clamp(0.0, maxTop)
-                  : display.indexOf(tab) * _itemHeight,
+                  : display.indexOf(tab) * itemHeight,
               child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
                 onVerticalDragStart: (_) => setState(() {
                   _dragging = tab;
-                  _dragTop = widget.order.indexOf(tab) * _itemHeight;
+                  _dragTop = widget.order.indexOf(tab) * itemHeight;
                 }),
                 onVerticalDragUpdate: (details) => setState(() {
                   _dragTop = (_dragTop + details.delta.dy).clamp(0.0, maxTop);

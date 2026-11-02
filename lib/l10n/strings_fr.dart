@@ -34,6 +34,10 @@ final Strings _stringsFr = Strings._(
   settingsNavChipsAlignCenter: "Au centre",
   settingsNavChipsAlignEnd: "À droite",
   settingsNavChipsAlignTop: "En haut",
+  settingsCategoryListAlignNote:
+      'S’applique uniquement sur téléphone (écran étroit). Enregistré sur cet appareil uniquement ; il n’est pas repris sur votre compte ni sur d’autres appareils.',
+  settingsCategoryListAlignTitle:
+      "Position des listes Réglages et Profil (téléphone)",
   settingsNavChipsAlignBottom: "En bas",
   settingsNavChipsOrderTitle: "Ordre (glisser pour réorganiser)",
   settingsCallJoinCameraTitle: "Activer la caméra en rejoignant un appel vidéo",

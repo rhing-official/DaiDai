@@ -17,7 +17,7 @@ import '../../widgets/glass/glass_app_bar.dart';
 import '../../widgets/glass/glass_dialog.dart';
 import '../../widgets/swipe_gestures.dart';
 import '../../widgets/video_thumbnail.dart';
-import 'album_media_viewer_screen.dart';
+import '../../widgets/media_viewer_screen.dart';
 import 'album_message_picker_screen.dart';
 import '../../widgets/dialog_keyboard_shortcuts.dart';
 
@@ -233,12 +233,10 @@ class _AlbumPaneViewState extends ConsumerState<AlbumPaneView> {
     final uiStyle = ref.watch(appUiStyleProvider);
     final isGlass = uiStyle == AppUiStyle.glass;
 
-    final leadingButton = IconButton(
-      icon: const Icon(Icons.arrow_back),
-      tooltip: '',
-      onPressed: widget.onClose,
+    final title = Text(
+      widget.album.name,
+      style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
     );
-    final title = Text(widget.album.name);
     final addAction = IconButton(
       key: _addButtonKey,
       icon: _uploading
@@ -251,11 +249,15 @@ class _AlbumPaneViewState extends ConsumerState<AlbumPaneView> {
     return Scaffold(
       appBar: isGlass
           ? GlassAppBar(
-              leading: leadingButton,
+              automaticallyImplyLeading: false,
               title: title,
               actions: [addAction],
             )
-          : AppBar(leading: leadingButton, title: title, actions: [addAction]),
+          : AppBar(
+              automaticallyImplyLeading: false,
+              title: title,
+              actions: [addAction],
+            ),
       body: PaneKeyFocus(
         onKeyEvent: (node, event) {
           if (event is! KeyDownEvent) return KeyEventResult.ignored;
@@ -276,8 +278,9 @@ class _AlbumPaneViewState extends ConsumerState<AlbumPaneView> {
               }
               return GridView.builder(
                 padding: const EdgeInsets.all(4),
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 3,
+                // ポップアップ内に収まるよう、1枚を小さめ（最大約110px）にして並べる。
+                gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                  maxCrossAxisExtent: 110,
                   mainAxisSpacing: 4,
                   crossAxisSpacing: 4,
                 ),
@@ -285,20 +288,26 @@ class _AlbumPaneViewState extends ConsumerState<AlbumPaneView> {
                 itemBuilder: (context, index) {
                   final item = items[index];
                   return GestureDetector(
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => AlbumMediaViewerScreen(
-                          items: items,
-                          initialIndex: index,
-                        ),
-                      ),
+                    // メッセージ画面と同じビューア（矢印・ダウンロード・共有・動画
+                    // コントロール等）で開く（2026-11-02）。
+                    onTap: () => openMediaViewer(
+                      context,
+                      items: [
+                        for (final i in items)
+                          MediaViewerItem(
+                            id: i.itemId,
+                            url: i.url,
+                            contentType: i.contentType,
+                          ),
+                      ],
+                      initialIndex: index,
                     ),
                     onLongPress: () => _removeItem(item),
                     child: item.contentType == 'video'
                         ? VideoThumbnail(
                             url: item.url,
                             canLoad: videoPlaybackSupported,
-                            size: 120,
+                            size: 110,
                           )
                         : Image.network(
                             item.url,

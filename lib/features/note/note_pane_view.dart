@@ -272,7 +272,7 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
     // 以前はFirestoreの自動採番IDをローカルで作っていたが、Firebaseに依存しない
     // 乱数にした（練習用の画面・テストでFirebaseを初期化せずに開けるように）。
     _sessionId =
-        '${DateTime.now().microsecondsSinceEpoch}-${Random().nextInt(1 << 32)}';
+        '${DateTime.now().microsecondsSinceEpoch}-${Random().nextInt(0xFFFFFFFF)}';
     final noteRepository = ref.read(noteRepositoryProvider);
     final note = await noteRepository.getNote(
       isDm: widget.isDm,

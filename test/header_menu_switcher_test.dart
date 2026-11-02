@@ -103,6 +103,7 @@ Future<void> _pump(WidgetTester tester, List<String> log) async {
       home: ChatScrollGuardScope(
         beginPopup: () {},
         endPopup: () {},
+        scrollBy: (_) {},
         menuSwitcher: HeaderMenuSwitcher(),
         child: _Header(log: log),
       ),

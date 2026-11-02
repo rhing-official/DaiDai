@@ -12,6 +12,7 @@ import '../../widgets/kiwami_only_dialog.dart';
 import '../../router/back_stack.dart';
 import '../../l10n/strings.dart';
 import '../../l10n/vocabulary.dart';
+import '../../models/nav_chip_layout.dart';
 import '../../models/app_ui_style.dart';
 import '../../models/app_user.dart';
 import '../../models/direct_message.dart';
@@ -25,6 +26,7 @@ import '../../utils/color_presets.dart';
 import '../../utils/color_hex.dart';
 import '../../providers/app_locale_provider.dart';
 import '../../providers/app_ui_style_provider.dart';
+import '../../providers/category_list_alignment_provider.dart';
 import '../../providers/custom_font_colors_provider.dart';
 import '../../providers/home_shell_providers.dart';
 import '../../providers/repository_providers.dart';
@@ -37,6 +39,8 @@ import '../../utils/text_truncate.dart';
 import 'focal_edit_overlay.dart';
 import '../../widgets/always_animated_image.dart';
 import '../../widgets/gekiga/gekiga_icon_badge.dart';
+import '../../widgets/home_tab_swipe.dart';
+import '../../widgets/slide_select_list.dart';
 import '../../widgets/gekiga/gekiga_panel_box.dart';
 import '../../widgets/gekiga/gekiga_section_header.dart';
 import '../../widgets/glass/glass_avatar.dart';
@@ -883,13 +887,15 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
         child: Padding(
           padding: const EdgeInsets.only(top: 56),
           child: SlideDrilldown(
-            master: _ProfileCategoryList(
-              key: const ValueKey('profile-categories'),
-              categories: categories,
-              selectedSection: null,
-              onSelect: (category) =>
-                  setState(() => _selectedSection = category.section),
-              large: true,
+            master: HomeTabSwipe(
+              child: _ProfileCategoryList(
+                key: const ValueKey('profile-categories'),
+                categories: categories,
+                selectedSection: null,
+                onSelect: (category) =>
+                    setState(() => _selectedSection = category.section),
+                large: true,
+              ),
             ),
             detail: selected == null
                 ? null
@@ -967,41 +973,71 @@ class _ProfileCategoryList extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    if (ref.watch(appUiStyleProvider) == AppUiStyle.gekiga) {
-      return SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 8),
-        child: GekigaJointedTileList(
-          seeds: [for (final category in categories) category.title.hashCode],
-          selectedFlags: [
-            for (final category in categories)
-              category.section == selectedSection,
-          ],
-          children: [
-            for (final category in categories)
-              _ProfileCategoryTile(
-                icon: category.icon,
-                title: category.title,
-                selected: category.section == selectedSection,
-                large: large,
-                tutorialTargetId: _tutorialIdOf(category),
-                onTap: () => onSelect(category),
+    final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
+    // 設定タブの`_CategoryList`と同じく、縦になぞって選べる（2026-11-02）。
+    final narrow = large;
+    final alignment = narrow && isGekiga
+        ? ref.watch(categoryListAlignmentProvider)
+        : null;
+    return SlideSelectList(
+      itemCount: categories.length,
+      onSlide: narrow ? null : (i) => onSelect(categories[i]),
+      onSlideEnd: narrow ? (i) => onSelect(categories[i]) : null,
+      builder: (context, keyFor, slidingIndex) {
+        bool isSelected(int i) => narrow
+            ? i == slidingIndex
+            : categories[i].section == selectedSection;
+        if (isGekiga) {
+          return alignCategoryList(
+            alignment,
+            SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: GekigaJointedTileList(
+                alignEnd: alignment == NavChipAlignment.end,
+                seeds: [
+                  for (final category in categories) category.title.hashCode,
+                ],
+                selectedFlags: [
+                  for (var i = 0; i < categories.length; i++) isSelected(i),
+                ],
+                children: [
+                  for (var i = 0; i < categories.length; i++)
+                    KeyedSubtree(
+                      key: keyFor(i),
+                      child: _ProfileCategoryTile(
+                        icon: categories[i].icon,
+                        title: categories[i].title,
+                        selected: isSelected(i),
+                        large: large,
+                        tutorialTargetId: _tutorialIdOf(categories[i]),
+                        onTap: () => onSelect(categories[i]),
+                      ),
+                    ),
+                ],
               ),
-          ],
-        ),
-      );
-    }
-    return ListView(
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      children: [
-        for (final category in categories)
-          _ProfileCategoryTile(
-            icon: category.icon,
-            title: category.title,
-            selected: category.section == selectedSection,
-            tutorialTargetId: _tutorialIdOf(category),
-            onTap: () => onSelect(category),
+            ),
+          );
+        }
+        return alignCategoryList(
+          alignment,
+          ListView(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            children: [
+              for (var i = 0; i < categories.length; i++)
+                KeyedSubtree(
+                  key: keyFor(i),
+                  child: _ProfileCategoryTile(
+                    icon: categories[i].icon,
+                    title: categories[i].title,
+                    selected: isSelected(i),
+                    tutorialTargetId: _tutorialIdOf(categories[i]),
+                    onTap: () => onSelect(categories[i]),
+                  ),
+                ),
+            ],
           ),
-      ],
+        );
+      },
     );
   }
 }

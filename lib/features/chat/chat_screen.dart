@@ -651,6 +651,20 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// を一時的に無効化する。ポップアップが短時間しか開かない上、開いている
   /// 間はメッセージ一覧を操作できないため、この間だけリスナーを止めても
   /// 履歴読み込みの取りこぼしにはならない（閉じれば直ちに復帰する）。
+  /// ポップアップを開いたまま一覧をスクロールした場合は、閉じた時に開いた時点の位置へ
+  /// 戻さない（[_endPopupGuard]）。
+  bool _popupScrolled = false;
+  final _scrollOffsetController = ScrollOffsetController();
+
+  void _scrollByWhilePopup(double delta) {
+    if (delta == 0 || !_itemScrollController.isAttached) return;
+    _popupScrolled = true;
+    _scrollOffsetController.animateScroll(
+      offset: delta,
+      duration: const Duration(milliseconds: 16),
+    );
+  }
+
   void _beginPopupGuard() {
     if (_popupGuardDepth == 0) {
       final pending = _popupGuardPendingRestore;
@@ -664,6 +678,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       } else {
         _popupGuardSavedPosition = _currentItemPosition();
       }
+      _popupScrolled = false;
       _itemPositionsListener.itemPositions.removeListener(
         _maybeLoadOlderMessages,
       );
@@ -682,7 +697,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     _itemPositionsListener.itemPositions.addListener(_maybeLoadOlderMessages);
     final saved = _popupGuardSavedPosition;
     _popupGuardSavedPosition = null;
-    if (saved == null) return;
+    if (saved == null || _popupScrolled) return;
     _popupGuardPendingRestore = saved;
     final token = ++_scrollIntentToken;
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -3347,6 +3362,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                         opacity: _composerAreaMeasured ? 1 : 0,
                         child: ScrollablePositionedList.builder(
                           itemScrollController: _itemScrollController,
+                          scrollOffsetController: _scrollOffsetController,
                           itemPositionsListener: _itemPositionsListener,
                           reverse: true,
                           itemCount: reversedEntries.length,
@@ -3827,6 +3843,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       beginPopup: _beginPopupGuard,
       endPopup: _endPopupGuard,
       menuSwitcher: _menuSwitcher,
+      scrollBy: _scrollByWhilePopup,
       child: CallbackShortcuts(
         bindings: {
           const SingleActivator(LogicalKeyboardKey.escape): _handleEscapeKey,
@@ -4656,11 +4673,7 @@ class _MessageRow extends ConsumerWidget {
               left: left,
               top: top,
               bottom: bottom,
-              child: Material(
-                color: colorScheme.surface,
-                elevation: 8,
-                borderRadius: BorderRadius.circular(16),
-                clipBehavior: Clip.antiAlias,
+              child: _FloatingPopupSurface(
                 child: ConstrainedBox(
                   constraints: BoxConstraints(
                     maxWidth: width,
@@ -4670,17 +4683,10 @@ class _MessageRow extends ConsumerWidget {
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-                        child: Text(
-                          strings.readReceiptPopupTitle,
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                      ),
                       Flexible(
                         child: ListView.builder(
                           shrinkWrap: true,
-                          padding: const EdgeInsets.only(bottom: 8),
+                          padding: const EdgeInsets.symmetric(vertical: 8),
                           itemCount: readers.length,
                           itemBuilder: (context, index) {
                             final reader = readers[index];
@@ -8917,3 +8923,43 @@ List<MediaViewerItem> mediaViewerItemsOf(List<Message> mediaMessages) => [
         fileName: m.fileMetadata?.fileName,
       ),
 ];
+
+/// 既読ポップアップ等の小さな浮遊パネルの面（2026-11-02）。UIスタイルに合わせる:
+/// フラットは影無しの面、ガラスは`floating`のすりガラス、劇画は黒地に白枠の箱。
+class _FloatingPopupSurface extends ConsumerWidget {
+  const _FloatingPopupSurface({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final uiStyle = ref.watch(appUiStyleProvider);
+    final colorScheme = Theme.of(context).colorScheme;
+    return switch (uiStyle) {
+      AppUiStyle.gekiga => GekigaStraightMonochromeBox(
+        isMe: false,
+        child: Material(
+          type: MaterialType.transparency,
+          child: DefaultTextStyle.merge(
+            style: const TextStyle(color: Colors.white),
+            child: IconTheme.merge(
+              data: const IconThemeData(color: Colors.white),
+              child: child,
+            ),
+          ),
+        ),
+      ),
+      AppUiStyle.glass => GlassSurface(
+        variant: GlassVariant.floating,
+        borderRadius: BorderRadius.circular(16),
+        child: Material(type: MaterialType.transparency, child: child),
+      ),
+      _ => Material(
+        color: colorScheme.surfaceContainerHigh,
+        borderRadius: BorderRadius.circular(16),
+        clipBehavior: Clip.antiAlias,
+        child: child,
+      ),
+    };
+  }
+}

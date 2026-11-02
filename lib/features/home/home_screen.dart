@@ -1,3 +1,4 @@
+import '../../theme/motion.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,6 +9,8 @@ import '../../models/app_user.dart';
 import '../../models/nav_chip_layout.dart';
 import '../../providers/nav_chip_layout_provider.dart';
 import '../../providers/home_shell_providers.dart';
+import '../../providers/icon_split_mirrored_provider.dart';
+import '../../providers/talks_list_layout_style_provider.dart';
 import '../../widgets/nav_chip.dart';
 import '../../widgets/pane_visibility.dart';
 import '../chat/talks_tab.dart';
@@ -30,8 +33,94 @@ class HomeScreen extends ConsumerStatefulWidget {
   ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends ConsumerState<HomeScreen> {
+class _HomeScreenState extends ConsumerState<HomeScreen>
+    with TickerProviderStateMixin {
   int _selectedIndex = 0;
+
+  // 設定・身だしなみのトップの横スワイプなど、外部からタブが切り替わった時の
+  // 横スライド（2026-11-02）。`_slideFrom`は滑り出す前のタブ、`_slide`が0→1で進む。
+  int? _slideFrom;
+  late final AnimationController _slide =
+      AnimationController(vsync: this, duration: popSlideDuration)
+        ..addStatusListener((status) {
+          if (status == AnimationStatus.completed && _slideFrom != null) {
+            setState(() => _slideFrom = null);
+          }
+        });
+
+  // 横ドラッグ（設定・身だしなみのトップ）に追従するスライド量。画面幅に対する割合で、
+  // 右が正（負なら表示順の右隣が左から寄ってくる）。離した後は`_settle`で0か±1へ寄せる。
+  double _drag = 0;
+  late final AnimationController _settle = AnimationController(vsync: this);
+  late final HomeTabDragController _dragController;
+
+  List<int> _displayOrderNow() => [
+    for (final tab in ref.read(navChipLayoutProvider).order) tab.index,
+  ];
+
+  int? _dragNeighbour() {
+    if (_drag == 0) return null;
+    final order = _displayOrderNow();
+    final pos = order.indexOf(_selectedIndex) + (_drag < 0 ? 1 : -1);
+    return pos < 0 || pos >= order.length ? null : order[pos];
+  }
+
+  void _onDragDelta(double dx) {
+    if (ref.read(backStackControllerProvider).hasOpenOverlay) return;
+    _settle.stop();
+    final width = MediaQuery.sizeOf(context).width;
+    final order = _displayOrderNow();
+    final pos = order.indexOf(_selectedIndex);
+    var next = _drag + dx / width;
+    if (pos <= 0) next = next.clamp(-1.0, 0.0);
+    if (pos >= order.length - 1) next = next.clamp(0.0, 1.0);
+    setState(() => _drag = next.clamp(-1.0, 1.0));
+  }
+
+  void _onDragEnd(double velocity) {
+    if (_drag == 0) return;
+    final neighbour = _dragNeighbour();
+    final towards = _drag < 0 ? -1.0 : 1.0;
+    final flung = velocity * towards > 600;
+    final commit = neighbour != null && (_drag.abs() > 0.35 || flung);
+    final from = _drag;
+    final target = commit ? towards : 0.0;
+    _settle.duration = popSlideDuration * (target - from).abs().clamp(0.2, 1.0);
+    final tween = Tween<double>(begin: from, end: target);
+    void tick() => setState(() => _drag = tween.evaluate(_settle));
+    _settle
+      ..removeListener(tick)
+      ..addListener(tick);
+    _settle.forward(from: 0).whenComplete(() {
+      _settle.removeListener(tick);
+      if (!mounted) return;
+      setState(() {
+        if (commit) _setSelectedIndex(neighbour);
+        _drag = 0;
+      });
+    });
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _dragController = ref.read(homeTabDragControllerProvider)
+      ..onDelta = _onDragDelta
+      ..onEnd = _onDragEnd;
+  }
+
+  @override
+  void dispose() {
+    // 作り直しで新しいStateが先にinitStateされている場合は、そちらのコールバックを消さない。
+    if (_dragController.onDelta == _onDragDelta) {
+      _dragController
+        ..onDelta = null
+        ..onEnd = null;
+    }
+    _settle.dispose();
+    _slide.dispose();
+    super.dispose();
+  }
 
   AppUser? _cachedTabsUser;
   List<Widget>? _cachedTabs;
@@ -138,6 +227,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   /// 行われるようにするため）。
   void _setSelectedIndex(int index) {
     _selectedIndex = index;
+    _slideFrom = null;
+    _slide.stop();
     _syncBackScope();
     ref.read(homeSelectedTabProvider.notifier).set(index);
   }
@@ -174,7 +265,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     // （ここでの再代入によるループは発生しない）。
     ref.listen<int>(homeSelectedTabProvider, (previous, next) {
       if (next != _selectedIndex) {
-        setState(() => _selectedIndex = next);
+        setState(() {
+          _slideFrom = _selectedIndex;
+          _selectedIndex = next;
+        });
+        _slide.forward(from: 0);
         _syncBackScope();
       }
     });
@@ -223,21 +318,70 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     // 判定する（_handleSwipeUpdate参照、2026-07-29変更。以前はEndイベントの
     // 速度で隣へ1段階だけ移動する実装だった）。チップが横並び（モバイル）
     // なら横方向、縦並び（広い画面のサイドバー）なら縦方向のドラッグで反応する。
+    // スマホのアイコン+寄合一覧では、条件を満たす時アイコン列が画面の下限まで伸びる
+    // （語らいタブだけ下余白を外す。寄合一覧側の余白は語らいタブが自分で取る）。
+    final extendTalksToBottom =
+        !isWide &&
+        iconRailExtendsToBottom(
+          context,
+          style: ref.watch(talksListLayoutStyleProvider),
+          mirrored: ref.watch(iconSplitMirroredProvider),
+          chipAlignment: chipLayout.alignment,
+        );
+    const bottomInset = _chipSize + _chipMargin * 2;
     final content = Padding(
       padding: isWide
           ? const EdgeInsets.only(left: _chipSize + _chipMargin * 2)
-          : const EdgeInsets.only(bottom: _chipSize + _chipMargin * 2),
+          : EdgeInsets.zero,
       // 戻る・進むはタブごとの履歴で、タブをまたいで戻らない（2026-10-06変更、
       // 以前は語らい以外のタブで戻ると語らいタブへ戻る`BackEntry`だった）。
       // 現在のタブを`BackStackController.activeScope`へ伝える。
       // 非選択のタブもマウントされたままのため、見えているタブだけを
       // `PaneVisibility`で「表示中」と伝える（通話ミニ表示の出し分け用）。
-      child: IndexedStack(
-        index: _selectedIndex,
-        children: [
-          for (var i = 0; i < tabs.length; i++)
-            PaneVisibility(visible: i == _selectedIndex, child: tabs[i]),
-        ],
+      // 非選択のタブもマウントしたまま（`maintainState`）、スライド中だけ前後2枚を
+      // チップの表示順に沿って横に並べて動かす。
+      child: AnimatedBuilder(
+        animation: _slide,
+        builder: (context, _) {
+          final from = _slideFrom;
+          final t = Curves.easeOutCubic.transform(_slide.value);
+          double posOf(int i) => displayOrder.indexOf(i).toDouble();
+          final neighbour = _dragNeighbour();
+          final current =
+              (from == null
+                  ? posOf(_selectedIndex)
+                  : posOf(from) + (posOf(_selectedIndex) - posOf(from)) * t) -
+              _drag;
+          return ClipRect(
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                for (var i = 0; i < tabs.length; i++)
+                  Visibility(
+                    key: ValueKey('home-tab-$i'),
+                    visible: i == _selectedIndex || i == from || i == neighbour,
+                    maintainState: true,
+                    child: FractionalTranslation(
+                      translation: Offset(posOf(i) - current, 0),
+                      child: Padding(
+                        padding: EdgeInsets.only(
+                          bottom:
+                              isWide ||
+                                  (i == kTalksTabIndex && extendTalksToBottom)
+                              ? 0
+                              : bottomInset,
+                        ),
+                        child: PaneVisibility(
+                          visible: i == _selectedIndex,
+                          child: tabs[i],
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          );
+        },
       ),
     );
 

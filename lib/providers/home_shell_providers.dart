@@ -36,3 +36,18 @@ final openWorkshopRequestProvider =
     NotifierProvider<OpenWorkshopRequestNotifier, int>(
       OpenWorkshopRequestNotifier.new,
     );
+
+/// 設定・身だしなみのトップの横ドラッグ（`HomeTabSwipe`）を、`HomeScreen`のタブ
+/// スライドへ指に追従して伝える橋渡し（2026-11-02）。`HomeScreen`が表示中だけ
+/// コールバックを差す。
+class HomeTabDragController {
+  /// 指の横移動量（px、右が正）。
+  void Function(double dx)? onDelta;
+
+  /// 指を離した時の横方向の速さ（px/秒、右が正）。キャンセルは0。
+  void Function(double velocity)? onEnd;
+}
+
+final homeTabDragControllerProvider = Provider<HomeTabDragController>(
+  (ref) => HomeTabDragController(),
+);
