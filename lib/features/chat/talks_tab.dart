@@ -28,6 +28,7 @@ import '../../models/message.dart';
 import '../../models/nav_chip_layout.dart';
 import '../../providers/nav_chip_layout_provider.dart';
 import '../../widgets/nav_chip.dart';
+import '../../widgets/pick_zone.dart';
 import '../../models/talks_list_layout_style.dart';
 import '../../providers/app_ui_style_provider.dart';
 import '../../providers/block_providers.dart';
@@ -1270,26 +1271,29 @@ class _TalksTabState extends ConsumerState<TalksTab>
                             const SizedBox(width: 8),
                             TutorialTarget(
                               id: TutorialTargetIds.talkAdd,
-                              child: switch (ref.watch(appUiStyleProvider)) {
-                                AppUiStyle.gekiga => GekigaIconButton(
-                                  icon: Icons.add,
-                                  size: 32,
-                                  onPressed: _showAddMenu,
-                                ),
-                                AppUiStyle.glass => GlassIconButton(
-                                  icon: Icons.add,
-                                  size: 32,
-                                  onPressed: _showAddMenu,
-                                ),
-                                AppUiStyle.flat => IconButton.filled(
-                                  icon: const Icon(Icons.add, size: 20),
-                                  onPressed: _showAddMenu,
-                                  style: IconButton.styleFrom(
-                                    minimumSize: const Size(32, 32),
-                                    padding: EdgeInsets.zero,
+                              child: PickZone(
+                                onCommit: _showAddMenu,
+                                child: switch (ref.watch(appUiStyleProvider)) {
+                                  AppUiStyle.gekiga => GekigaIconButton(
+                                    icon: Icons.add,
+                                    size: 32,
+                                    onPressed: _showAddMenu,
                                   ),
-                                ),
-                              },
+                                  AppUiStyle.glass => GlassIconButton(
+                                    icon: Icons.add,
+                                    size: 32,
+                                    onPressed: _showAddMenu,
+                                  ),
+                                  AppUiStyle.flat => IconButton.filled(
+                                    icon: const Icon(Icons.add, size: 20),
+                                    onPressed: _showAddMenu,
+                                    style: IconButton.styleFrom(
+                                      minimumSize: const Size(32, 32),
+                                      padding: EdgeInsets.zero,
+                                    ),
+                                  ),
+                                },
+                              ),
                             ),
                           ],
                         ),
@@ -1670,6 +1674,30 @@ class _TalksTabState extends ConsumerState<TalksTab>
     );
   }
 
+  /// アイコン列の検索ボタンの処理。コンピューターはこの列内の検索欄の開閉、
+  /// スマホ・タブレットは専用のフルページ検索（`/talks/search`）へ遷移する
+  /// （2026-09-12追加、2026-10-12にタブレットも対象へ拡大。判定は画面サイズ＋
+  /// アスペクト比の`classifyDevice`）。メニューチップから滑らせてきた指を
+  /// 離した時（`PickZone`）にも同じ処理を呼ぶため、メソッドに切り出した
+  /// （2026-11-03）。
+  void _onIconRailSearchPressed() {
+    if (opensTalksSearchPage(classifyDevice(context))) {
+      ref
+          .read(goRouterProvider)
+          .push('/talks/search', extra: widget.currentUser);
+      return;
+    }
+    setState(() {
+      _iconRailSearchOpen = !_iconRailSearchOpen;
+      if (!_iconRailSearchOpen) {
+        _searchController.clear();
+        _messageSearchDebounce?.cancel();
+        _messageSearchSession.clear();
+        _messageMatches = const [];
+      }
+    });
+  }
+
   /// [_buildIconSplitPane]の左側ペイン。一対/広場の切り替えは[CategoryTab]を
   /// そのまま使い、本体は[_buildDirectMessages]/[_buildGroups]と同じソート・
   /// ピン留めロジック（[_applyDmSortOrder]/[_applyGroupSortOrder]/
@@ -1866,39 +1894,20 @@ class _TalksTabState extends ConsumerState<TalksTab>
           // 切り替える）。
           Column(
             children: [
-              railButton(
-                icon: _iconRailSearchOpen ? Icons.close : Icons.search,
-                // モバイル（スマホ・タブレット）では、112px幅のインライン検索
-                // 結果は窮屈なため、専用のフルページ検索（`/talks/search`）へ
-                // 遷移する（2026-09-12追加、2026-10-12にタブレットも対象へ拡大。
-                // 以前はスマホのみで、タブレットは小さな検索ボックスが開くだけ
-                // だった）。コンピューターだけは従来通りこの列内でトグルする。
-                // 判定はOS（`isMobileCallPlatform`はWeb版が常にfalseで不適）
-                // ではなく、画面サイズ＋アスペクト比でコンピューター／
-                // タブレット／スマホを判定する`classifyDevice`を使う
-                // （縦横どちらの向きでも同じ結果になる）。
-                onPressed: () {
-                  if (opensTalksSearchPage(classifyDevice(context))) {
-                    ref
-                        .read(goRouterProvider)
-                        .push('/talks/search', extra: widget.currentUser);
-                    return;
-                  }
-                  setState(() {
-                    _iconRailSearchOpen = !_iconRailSearchOpen;
-                    if (!_iconRailSearchOpen) {
-                      _searchController.clear();
-                      _messageSearchDebounce?.cancel();
-                      _messageSearchSession.clear();
-                      _messageMatches = const [];
-                    }
-                  });
-                },
+              PickZone(
+                onCommit: _onIconRailSearchPressed,
+                child: railButton(
+                  icon: _iconRailSearchOpen ? Icons.close : Icons.search,
+                  onPressed: _onIconRailSearchPressed,
+                ),
               ),
               _buildSortButton(strings),
               TutorialTarget(
                 id: TutorialTargetIds.talkAdd,
-                child: railButton(icon: Icons.add, onPressed: _showAddMenu),
+                child: PickZone(
+                  onCommit: _showAddMenu,
+                  child: railButton(icon: Icons.add, onPressed: _showAddMenu),
+                ),
               ),
             ],
           ),
@@ -2202,14 +2211,23 @@ class _TalksTabState extends ConsumerState<TalksTab>
   /// ピン留め内・ピン留め外それぞれの並び順のみを決める。
   Widget _buildSortButton(Strings strings) {
     final current = ref.watch(conversationSortOrderProvider);
-    return _HoldSelectSortButton(
-      current: current,
-      isGekiga: ref.watch(appUiStyleProvider) == AppUiStyle.gekiga,
-      labelOf: (order) => _sortOrderLabel(strings, order),
-      onSelected: (order) =>
-          ref.read(conversationSortOrderProvider.notifier).setOrder(order),
+    // メニューチップから滑らせてきた指を離した時は、並べ替えメニューを開く
+    // （2026-11-03、`PickZone`）。
+    return PickZone(
+      slideFrom: false,
+      onCommit: () => _sortButtonKey.currentState?._openMenu(),
+      child: _HoldSelectSortButton(
+        key: _sortButtonKey,
+        current: current,
+        isGekiga: ref.watch(appUiStyleProvider) == AppUiStyle.gekiga,
+        labelOf: (order) => _sortOrderLabel(strings, order),
+        onSelected: (order) =>
+            ref.read(conversationSortOrderProvider.notifier).setOrder(order),
+      ),
     );
   }
+
+  final GlobalKey<_HoldSelectSortButtonState> _sortButtonKey = GlobalKey();
 
   String _sortOrderLabel(Strings strings, ConversationSortOrder order) {
     switch (order) {
@@ -2489,7 +2507,12 @@ class CategoryTab extends ConsumerWidget {
     required this.selected,
     required this.onTap,
     this.tutorialTargetId,
+    this.slidable = true,
   });
+
+  /// メニューチップから滑らせてきた指が乗ったら、その場で選ぶか（2026-11-03、
+  /// `PickZone`）。語らいの一対/広場のタブだけ有効にする。
+  final bool slidable;
 
   /// 使い方ガイドの目印のid（2026-10-17追加）。指定があれば、このタブを目印として登録する。
   final String? tutorialTargetId;
@@ -2501,7 +2524,10 @@ class CategoryTab extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final tab = _buildTab(context, ref);
+    final built = _buildTab(context, ref);
+    final tab = slidable
+        ? PickZone(onEnter: selected ? null : onTap, child: built)
+        : built;
     final id = tutorialTargetId;
     return id == null ? tab : TutorialTarget(id: id, child: tab);
   }
@@ -5183,6 +5209,7 @@ class _GroupDetailWithRoomsState extends ConsumerState<_GroupDetailWithRooms> {
 /// ボタン側の`Listener`で押下中の位置を追い、項目の矩形と照合する。
 class _HoldSelectSortButton extends StatefulWidget {
   const _HoldSelectSortButton({
+    super.key,
     required this.current,
     required this.isGekiga,
     required this.labelOf,

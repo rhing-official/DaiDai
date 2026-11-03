@@ -1658,12 +1658,14 @@ class _AddConversationCardDialogState
     final isGekiga = uiStyle == AppUiStyle.gekiga;
     final vocab = ref.watch(vocabularyProvider);
     final dmTab = CategoryTab(
+      slidable: false,
       label: vocab.dm,
       count: filteredDms.length,
       selected: !_showGroups,
       onTap: () => setState(() => _showGroups = false),
     );
     final groupTab = CategoryTab(
+      slidable: false,
       label: vocab.plaza,
       count: filteredGroups.length,
       selected: _showGroups,

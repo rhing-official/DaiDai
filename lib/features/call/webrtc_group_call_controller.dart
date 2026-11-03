@@ -9,6 +9,7 @@ import '../../models/app_user.dart';
 import '../../models/group_call.dart';
 import '../../repositories/group_call_repository.dart';
 import 'call_log.dart';
+import 'ice_diagnostics.dart';
 import 'call_sound_player.dart';
 import 'acquire_with_video_fallback.dart';
 import 'peer_connect_guard.dart';
@@ -527,6 +528,10 @@ class WebrtcGroupCallController extends ChangeNotifier {
       'group: $otherUserId TURN fetched ${turnWatch.elapsedMilliseconds}ms '
       '(iceServers=${(configuration['iceServers'] as List?)?.length})',
     );
+    callLog(
+      'group: $otherUserId iceServers='
+      '${summarizeIceServers(configuration['iceServers'])}',
+    );
     final peerConnection = await createPeerConnection(configuration);
     final connectWatch = Stopwatch()..start();
     // 待っている間に相手が退室した・通話を抜けた場合は、作ったものを閉じて中断する。
@@ -581,6 +586,11 @@ class WebrtcGroupCallController extends ChangeNotifier {
         'group: $otherUserId ice=$iceState '
         '(${connectWatch.elapsedMilliseconds}ms)',
       );
+      if (iceState == RTCIceConnectionState.RTCIceConnectionStateFailed ||
+          iceState == RTCIceConnectionState.RTCIceConnectionStateConnected ||
+          iceState == RTCIceConnectionState.RTCIceConnectionStateCompleted) {
+        unawaited(logIceStats(peerConnection, 'group: $otherUserId'));
+      }
       final issue =
           iceState == RTCIceConnectionState.RTCIceConnectionStateFailed ||
           iceState == RTCIceConnectionState.RTCIceConnectionStateDisconnected;
@@ -592,6 +602,10 @@ class WebrtcGroupCallController extends ChangeNotifier {
 
     peerConnection.onIceCandidate = (candidate) {
       if (candidate.candidate == null) return;
+      callLog(
+        'group: $otherUserId local candidate '
+        '${summarizeIceCandidate(candidate.candidate)}',
+      );
       _repository.addPeerCandidate(
         groupCallId: groupCallId,
         pairId: pairId,
@@ -880,7 +894,9 @@ class WebrtcGroupCallController extends ChangeNotifier {
           deviceId: _cameraDeviceId,
         ),
       });
-      _localStream?.addTrack(videoStream.getVideoTracks().first);
+      final firstTrack = videoStream.getVideoTracks().first;
+      logVideoTrackSettings(firstTrack, 'group');
+      _localStream?.addTrack(firstTrack);
     }
     if (!_localRendererInitialized) {
       await localRenderer.initialize();

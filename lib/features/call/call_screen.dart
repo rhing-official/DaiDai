@@ -15,7 +15,6 @@ import 'call_audio_sinks.dart';
 import 'call_avatar.dart';
 import 'bgm/call_bgm_bindings.dart';
 import 'call_control_bar.dart';
-import 'call_controls.dart';
 import 'call_tile_layout.dart' show CallLabelSheet, callVideoFitFor;
 import 'camera_availability.dart';
 import 'webrtc_call_controller.dart';
@@ -516,35 +515,6 @@ class _CallScreenState extends ConsumerState<CallScreen> {
     final uiStyle = ref.watch(appUiStyleProvider);
     final isGekiga = uiStyle == AppUiStyle.gekiga;
     final isGlass = uiStyle == AppUiStyle.glass;
-    final isRinging = _controller.state == CallConnectionState.connecting;
-
-    if (isRinging && !widget.isCaller) {
-      // 着信中: 拒否・応答の2択。
-      return Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          CallRoundButton(
-            icon: Icons.call_end,
-            color: Colors.red,
-            isGekiga: isGekiga,
-            isGlass: isGlass,
-            onPressed: _controller.decline,
-          ),
-          CallRoundButton(
-            icon: Icons.call,
-            color: Colors.green,
-            isGekiga: isGekiga,
-            isGlass: isGlass,
-            onPressed: !_controller.accepting
-                ? () {
-                    HapticFeedback.vibrate();
-                    _controller.accept();
-                  }
-                : null,
-          ),
-        ],
-      );
-    }
 
     final isActive = _controller.state == CallConnectionState.active;
     final cameraAvailability =

@@ -139,6 +139,66 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   // ため、隙間で両方飛び出していても色が付くのは元々選択されていた方のみ。
   Set<int> _poppedIndexes = {};
 
+  // チップ列で始めたタッチを、そのまま項目一覧（設定・身だしなみのトップ）へ滑らせて
+  // 選べるようにする状態（2026-11-03、`ItemPickBridge`）。
+  final GlobalKey _stripKey = GlobalKey();
+  bool _stripTouch = false;
+  ItemPickTarget? _pickTarget;
+  int? _pickedIndex;
+
+  void _onStripPointerDown(Offset position, bool vertical) {
+    if (ref.read(backStackControllerProvider).hasOpenOverlay) return;
+    _stripTouch = true;
+    // 指が項目へ滑っていくとチップのタップが成立しなくなるため、押した時点で選ぶ。
+    final order = _displayOrderNow();
+    final hit = _hitTestChips(position, vertical, order);
+    final hovered = hit.hovered;
+    if (hovered != null && hovered != _selectedIndex) {
+      setState(() => _setSelectedIndex(hovered));
+    }
+  }
+
+  void _onStripPointerMove(Offset position) {
+    if (!_stripTouch) return;
+    final box = _stripKey.currentContext?.findRenderObject();
+    final inStrip =
+        box is RenderBox &&
+        box.attached &&
+        (box.localToGlobal(Offset.zero) & box.size).contains(position);
+    final bridge = ref.read(itemPickBridgeProvider);
+    final target = inStrip ? null : bridge.targetAt(position);
+    final index = target?.indexAt(position);
+    if (target == null || index == null) {
+      _clearPick();
+      return;
+    }
+    if (_pickTarget != target) {
+      _pickTarget?.pick(null, commit: false);
+      _pickedIndex = null;
+    }
+    _pickTarget = target;
+    if (_pickedIndex != index) {
+      _pickedIndex = index;
+      target.pick(index, commit: false);
+    }
+  }
+
+  void _clearPick() {
+    if (_pickedIndex != null) _pickTarget?.pick(null, commit: false);
+    _pickedIndex = null;
+    _pickTarget = null;
+  }
+
+  void _onStripPointerEnd({required bool commit}) {
+    final target = _pickTarget;
+    final index = _pickedIndex;
+    _stripTouch = false;
+    _pickTarget = null;
+    _pickedIndex = null;
+    if (target == null || index == null) return;
+    target.pick(commit ? index : null, commit: commit);
+  }
+
   // チップの帯を指でなぞっている間、今指が乗っているチップの実際の描画位置を
   // 判定するために使う（2026-07-29変更、以前はフリック時の速度だけで隣へ
   // 1段階移動する実装だった。指を離すまで連続的に、語らいから設定まで
@@ -410,25 +470,33 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         }
       }
 
-      return GestureDetector(
+      return Listener(
+        key: _stripKey,
         behavior: HitTestBehavior.translucent,
-        onHorizontalDragStart: vertical
-            ? null
-            : (details) => onStart(details.globalPosition),
-        onHorizontalDragUpdate: vertical
-            ? null
-            : (details) => onUpdate(details.globalPosition),
-        onHorizontalDragEnd: vertical ? null : (_) => onEnd(),
-        onHorizontalDragCancel: vertical ? null : onEnd,
-        onVerticalDragStart: !vertical
-            ? null
-            : (details) => onStart(details.globalPosition),
-        onVerticalDragUpdate: !vertical
-            ? null
-            : (details) => onUpdate(details.globalPosition),
-        onVerticalDragEnd: !vertical ? null : (_) => onEnd(),
-        onVerticalDragCancel: !vertical ? null : onEnd,
-        child: child,
+        onPointerDown: (e) => _onStripPointerDown(e.position, vertical),
+        onPointerMove: (e) => _onStripPointerMove(e.position),
+        onPointerUp: (_) => _onStripPointerEnd(commit: true),
+        onPointerCancel: (_) => _onStripPointerEnd(commit: false),
+        child: GestureDetector(
+          behavior: HitTestBehavior.translucent,
+          onHorizontalDragStart: vertical
+              ? null
+              : (details) => onStart(details.globalPosition),
+          onHorizontalDragUpdate: vertical
+              ? null
+              : (details) => onUpdate(details.globalPosition),
+          onHorizontalDragEnd: vertical ? null : (_) => onEnd(),
+          onHorizontalDragCancel: vertical ? null : onEnd,
+          onVerticalDragStart: !vertical
+              ? null
+              : (details) => onStart(details.globalPosition),
+          onVerticalDragUpdate: !vertical
+              ? null
+              : (details) => onUpdate(details.globalPosition),
+          onVerticalDragEnd: !vertical ? null : (_) => onEnd(),
+          onVerticalDragCancel: !vertical ? null : onEnd,
+          child: child,
+        ),
       );
     }
 

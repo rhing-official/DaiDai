@@ -3,8 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../providers/block_providers.dart';
 import '../../providers/repository_providers.dart';
-import '../../router/app_router.dart';
-import '../../utils/platform_info.dart';
 import '../../models/call.dart';
 import 'active_call_session.dart';
 import 'call_ring_timeout.dart';
@@ -33,8 +31,6 @@ class IncomingCallListener extends ConsumerStatefulWidget {
 }
 
 class _IncomingCallListenerState extends ConsumerState<IncomingCallListener> {
-  String? _openCallId;
-
   @override
   Widget build(BuildContext context) {
     ref.listen(_incomingCallProvider(widget.currentUserId), (previous, next) {
@@ -55,37 +51,18 @@ class _IncomingCallListenerState extends ConsumerState<IncomingCallListener> {
             .catchError((_) {});
         return;
       }
-      if (!isMobileCallPlatform) {
-        // PC/Web: フルスクリーンを経由せず直接セッションを開始する。
-        // startOneToOne自体が同じ通話への重複アタッチを防ぐため
-        // （active_call_session.dart参照）、_openCallIdでの重複防止は不要。
-        ref
-            .read(activeCallSessionProvider.notifier)
-            .startOneToOne(
-              call: call,
-              isCaller: false,
-              callRepository: ref.read(callRepositoryProvider),
-              directMessageRepository: ref.read(
-                directMessageRepositoryProvider,
-              ),
-            );
-        return;
-      }
-      if (call.callId == _openCallId) return;
-      _openCallId = call.callId;
+      // フルスクリーンを経由せず直接セッションを開始する（PC・Web・アプリ共通）。
+      // 応答・拒否は`IncomingCallBannerOverlay`のバナーだけで行う（2026-11-03、
+      // アプリも統一）。startOneToOne自体が同じ通話への重複アタッチを防ぐ
+      // （active_call_session.dart参照）。
       ref
-          .read(goRouterProvider)
-          .push(
-            '/call',
-            extra: CallArgs(
-              call: call,
-              isCaller: false,
-              currentUserId: widget.currentUserId,
-            ),
-          )
-          .then((_) {
-            _openCallId = null;
-          });
+          .read(activeCallSessionProvider.notifier)
+          .startOneToOne(
+            call: call,
+            isCaller: false,
+            callRepository: ref.read(callRepositoryProvider),
+            directMessageRepository: ref.read(directMessageRepositoryProvider),
+          );
     });
 
     return widget.child;

@@ -1,6 +1,10 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/nav_chip_layout.dart';
+import '../providers/home_shell_providers.dart';
+import 'pane_visibility.dart';
 
 /// 項目一覧（設定・身だしなみのカテゴリ一覧）の上を、指やマウスで縦になぞって選べるように
 /// する（2026-11-02、メニューチップの「なぞって切り替え」と同じ操作。チップのように項目を
@@ -10,7 +14,7 @@ import '../models/nav_chip_layout.dart';
 /// [_slop]以上動いた時だけ「なぞり」とみなす。なぞっている間、指の下の項目が変わるたびに
 /// [onSlide]を呼ぶ。指を離した時は、なぞっていた場合だけ最後にいた項目を[onSlideEnd]へ渡す。
 /// [builder]は、各項目を`KeyedSubtree(key: keyFor(i))`で包んで返す（指の位置の判定に使う）。
-class SlideSelectList extends StatefulWidget {
+class SlideSelectList extends ConsumerStatefulWidget {
   const SlideSelectList({
     required this.itemCount,
     required this.builder,
@@ -32,10 +36,11 @@ class SlideSelectList extends StatefulWidget {
   builder;
 
   @override
-  State<SlideSelectList> createState() => _SlideSelectListState();
+  ConsumerState<SlideSelectList> createState() => _SlideSelectListState();
 }
 
-class _SlideSelectListState extends State<SlideSelectList> {
+class _SlideSelectListState extends ConsumerState<SlideSelectList>
+    implements ItemPickTarget {
   static const _slop = 12.0;
 
   final List<GlobalKey> _keys = [];
@@ -45,6 +50,73 @@ class _SlideSelectListState extends State<SlideSelectList> {
   /// このタッチは横ドラッグ（タブの切り替えなど）と判断した。離すまで、なぞりも選択もしない。
   bool _horizontal = false;
   int? _index;
+
+  late final ItemPickBridge _bridge;
+  bool _visible = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _bridge = ref.read(itemPickBridgeProvider)..register(this);
+  }
+
+  @override
+  void dispose() {
+    _bridge.unregister(this);
+    super.dispose();
+  }
+
+  RenderBox? get _box {
+    final box = context.findRenderObject();
+    return box is RenderBox && box.attached && box.hasSize ? box : null;
+  }
+
+  /// 指の位置に、この一覧が（他の層に覆われず）当たるか。
+  @override
+  bool isActiveAt(Offset globalPosition) {
+    if (!mounted || !_visible) return false;
+    final box = _box;
+    if (box == null) return false;
+    final result = HitTestResult();
+    WidgetsBinding.instance.hitTestInView(
+      result,
+      globalPosition,
+      View.of(context).viewId,
+    );
+    return result.path.any((entry) => entry.target == box);
+  }
+
+  @override
+  int? indexAt(Offset globalPosition) =>
+      isActiveAt(globalPosition) ? _indexAt(globalPosition) : null;
+
+  @override
+  void pick(int? index, {required bool commit}) {
+    if (!mounted) return;
+    if (index == null) {
+      if (_sliding || _index != null) {
+        setState(() {
+          _sliding = false;
+          _index = null;
+        });
+      }
+      return;
+    }
+    if (commit) {
+      setState(() {
+        _sliding = false;
+        _index = null;
+      });
+      widget.onSlideEnd?.call(index);
+      return;
+    }
+    if (_sliding && _index == index) return;
+    setState(() {
+      _sliding = true;
+      _index = index;
+    });
+    widget.onSlide?.call(index);
+  }
 
   GlobalKey _keyFor(int index) {
     while (_keys.length <= index) {
@@ -118,6 +190,7 @@ class _SlideSelectListState extends State<SlideSelectList> {
 
   @override
   Widget build(BuildContext context) {
+    _visible = PaneVisibility.of(context);
     return Listener(
       behavior: HitTestBehavior.translucent,
       onPointerDown: (event) {

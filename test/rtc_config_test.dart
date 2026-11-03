@@ -25,7 +25,6 @@ void main() {
       ],
     );
     expect(_servers(config), [
-      {'urls': 'stun:stun.l.google.com:19302'},
       {
         'urls': ['turn:turn.example.com:3478'],
         'username': 'u',

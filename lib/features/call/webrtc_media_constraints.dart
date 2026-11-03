@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 
 import '../../utils/screen_orientation/screen_orientation.dart';
+import 'call_log.dart';
 
 /// getUserMedia用の音声制約。
 ///
@@ -43,31 +44,63 @@ Map<String, dynamic> buildVideoConstraints({
   bool frontCamera = true,
   String? deviceId,
 }) => videoConstraintsFor(
-  portrait: kIsWeb && isPortraitScreen,
+  portrait: shouldRequestPortraitVideo(
+    isWeb: kIsWeb,
+    isMobileOs:
+        defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS,
+    isPortraitScreen: isPortraitScreen,
+  ),
   frontCamera: frontCamera,
-  withAspectRatio: kIsWeb,
+  fourThree: kIsWeb,
   deviceId: deviceId,
 );
 
+/// 縦長の映像を要求するか。端末の向きがあるスマホ・タブレット（モバイルOS）のブラウザ
+/// の縦向きだけ。コンピューターは、ウィンドウが縦長（縦向きのモニター・開発者ツールを
+/// 横に開いた状態など）でも、ウェブカメラの映像は横長のまま送る（2026-11-03、
+/// コンピューターで縦表示の映像が送られた不具合）。
+bool shouldRequestPortraitVideo({
+  required bool isWeb,
+  required bool isMobileOs,
+  required bool isPortraitScreen,
+}) => isWeb && isMobileOs && isPortraitScreen;
+
 /// [buildVideoConstraints]の中身（向きを引数にした純粋な関数、テスト用）。
-/// [withAspectRatio]がtrueなら、縦横の比率（縦向き9:16・横向き16:9）も要求する。
-/// スマホのブラウザは`width/height`の`ideal`だけではカメラの横長モードを選び、
-/// 縦向きでも横長の映像を返すことがあるため、比率で切り抜かせる（2026-10-23）。
+/// [fourThree]がtrueなら、センサー全体を使う4:3（縦向き720x960・横向き960x720）を
+/// 要求する。以前は9:16の比率（`aspectRatio`）を要求していたが、スマホのセンサーは
+/// 4:3が基本のため一部を切り抜かれ、最初の画角がとても近くなっていた（カメラを
+/// 切り替えると制約が付かず広角になった）。比率は指定せず、解像度だけで4:3にする
+/// （2026-11-03）。
 Map<String, dynamic> videoConstraintsFor({
   required bool portrait,
   bool frontCamera = true,
-  bool withAspectRatio = false,
+  bool fourThree = false,
   String? deviceId,
-}) => {
-  'facingMode': frontCamera ? 'user' : 'environment',
-  if (deviceId != null && deviceId.isNotEmpty) 'deviceId': {'ideal': deviceId},
-  // 電池消費と発熱を抑えるため、フレームレートを抑える（2026-10-31）。
-  // 数値で渡す（Androidはマップ形式のideal/maxを読まず既定値になるため）。
-  'frameRate': 24,
-  'width': {'ideal': portrait ? 720 : 1280},
-  'height': {'ideal': portrait ? 1280 : 720},
-  if (withAspectRatio) 'aspectRatio': {'ideal': portrait ? 9 / 16 : 16 / 9},
-};
+}) {
+  final long = fourThree ? 960 : 1280;
+  return {
+    'facingMode': frontCamera ? 'user' : 'environment',
+    if (deviceId != null && deviceId.isNotEmpty)
+      'deviceId': {'ideal': deviceId},
+    // 電池消費と発熱を抑えるため、フレームレートを抑える（2026-10-31）。
+    // 数値で渡す（Androidはマップ形式のideal/maxを読まず既定値になるため）。
+    'frameRate': 24,
+    'width': {'ideal': portrait ? 720 : long},
+    'height': {'ideal': portrait ? long : 720},
+  };
+}
+
+/// 取得した映像トラックの実際の大きさ・向きを診断ログに出す（画角の確認用）。
+void logVideoTrackSettings(MediaStreamTrack track, String label) {
+  try {
+    final s = track.getSettings();
+    callLog(
+      '$label video ${s['width']}x${s['height']} '
+      'aspect=${s['aspectRatio']} facing=${s['facingMode']}',
+    );
+  } catch (_) {}
+}
 
 /// 自分のレンダラーを、念のため明示的に無音にする（自分の声を自分の端末で
 /// 再生しない、2026-10-31）。Webの`<audio>`にだけ効かせる（ネイティブの`muted`は

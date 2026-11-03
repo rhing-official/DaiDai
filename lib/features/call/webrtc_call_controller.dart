@@ -8,6 +8,7 @@ import '../../models/call.dart';
 import '../../repositories/call_repository.dart';
 import '../../repositories/direct_message_repository.dart';
 import 'call_log.dart';
+import 'ice_diagnostics.dart';
 import 'call_ring_timeout.dart';
 import 'call_sound_player.dart';
 import 'disconnect_grace.dart';
@@ -325,6 +326,9 @@ class WebrtcCallController extends ChangeNotifier {
         '1:1 TURN fetched ${turnWatch.elapsedMilliseconds}ms '
         '(iceServers=${(rtcConfiguration['iceServers'] as List?)?.length})',
       );
+      callLog(
+        '1:1 iceServers=${summarizeIceServers(rtcConfiguration['iceServers'])}',
+      );
       _peerConnection = await createPeerConnection(rtcConfiguration);
       _iceWatch.start();
       if (isCaller) {
@@ -388,6 +392,13 @@ class WebrtcCallController extends ChangeNotifier {
 
       _peerConnection!.onIceConnectionState = (iceState) {
         callLog('1:1 ice=$iceState (${_iceWatch.elapsedMilliseconds}ms)');
+        if (iceState == RTCIceConnectionState.RTCIceConnectionStateFailed) {
+          unawaited(logIceStats(_peerConnection, '1:1'));
+        } else if (iceState ==
+                RTCIceConnectionState.RTCIceConnectionStateConnected ||
+            iceState == RTCIceConnectionState.RTCIceConnectionStateCompleted) {
+          unawaited(logIceStats(_peerConnection, '1:1'));
+        }
         final issue =
             iceState == RTCIceConnectionState.RTCIceConnectionStateFailed ||
             iceState == RTCIceConnectionState.RTCIceConnectionStateDisconnected;
@@ -410,6 +421,9 @@ class WebrtcCallController extends ChangeNotifier {
 
       _peerConnection!.onIceCandidate = (candidate) {
         if (candidate.candidate == null) return;
+        callLog(
+          '1:1 local candidate ${summarizeIceCandidate(candidate.candidate)}',
+        );
         _callRepository.addCandidate(
           callId: call.callId,
           isCaller: isCaller,
@@ -520,6 +534,7 @@ class WebrtcCallController extends ChangeNotifier {
         ),
       });
       final track = stream.getVideoTracks().first;
+      logVideoTrackSettings(track, '1:1');
       _localStream?.addTrack(track);
       if (!_localRendererInitialized) {
         await localRenderer.initialize();
@@ -652,6 +667,13 @@ class WebrtcCallController extends ChangeNotifier {
           '1:1 answer applying sdp=${answerSdp.length} '
           'signaling=${_peerConnection?.signalingState}',
         );
+        // 自分のofferを出していない（安定状態）時のanswerは適用できない（offerの
+        // 衝突や重複）。例外にせず読み飛ばす。
+        if (_peerConnection?.signalingState ==
+            RTCSignalingState.RTCSignalingStateStable) {
+          callLog('1:1 answer skipped: no local offer pending');
+          return;
+        }
         try {
           await _peerConnection?.setRemoteDescription(
             RTCSessionDescription(answerSdp, updated.answer!['type'] as String),
@@ -1006,6 +1028,7 @@ class WebrtcCallController extends ChangeNotifier {
       ),
     });
     final videoTrack = videoStream.getVideoTracks().first;
+    logVideoTrackSettings(videoTrack, '1:1');
     _localStream?.addTrack(videoTrack);
     if (!_localRendererInitialized) {
       await localRenderer.initialize();

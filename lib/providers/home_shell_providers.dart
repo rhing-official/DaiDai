@@ -1,3 +1,5 @@
+import 'dart:ui' show Offset;
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// `HomeScreen`の語らい/身だしなみ/設定タブのうち、どれが選択中かの
@@ -50,4 +52,39 @@ class HomeTabDragController {
 
 final homeTabDragControllerProvider = Provider<HomeTabDragController>(
   (ref) => HomeTabDragController(),
+);
+
+/// メニューチップから始めたタッチを、そのまま項目一覧（設定・身だしなみのトップ）へ
+/// 滑らせて選べるようにする橋渡し（2026-11-03）。項目一覧（`SlideSelectList`）が表示中
+/// だけ自分を登録し、`HomeScreen`のチップ列は、指がチップ列の外へ出たら[active]の
+/// 項目へ選択を渡す。
+abstract class ItemPickTarget {
+  /// 今、項目一覧が見えていて、他の層に覆われていないか。
+  bool isActiveAt(Offset globalPosition);
+
+  /// [globalPosition]の下にある項目の番号。項目一覧の外ならnull。
+  int? indexAt(Offset globalPosition);
+
+  /// 項目を選ぶ。[commit]がfalseの間は選択中の強調（広い画面ではその場の選択）、
+  /// trueは指を離した確定（狭い画面では項目を開く）。[index]がnullなら強調を消す。
+  void pick(int? index, {required bool commit});
+}
+
+class ItemPickBridge {
+  final List<ItemPickTarget> _targets = [];
+
+  void register(ItemPickTarget target) => _targets.add(target);
+  void unregister(ItemPickTarget target) => _targets.remove(target);
+
+  /// [globalPosition]に項目一覧がある登録先（無ければnull）。
+  ItemPickTarget? targetAt(Offset globalPosition) {
+    for (final target in _targets) {
+      if (target.isActiveAt(globalPosition)) return target;
+    }
+    return null;
+  }
+}
+
+final itemPickBridgeProvider = Provider<ItemPickBridge>(
+  (ref) => ItemPickBridge(),
 );

@@ -19,7 +19,9 @@ Map<String, dynamic> buildRtcConfiguration({
   List<Map<String, dynamic>> extraIceServers = const [],
 }) => {
   'iceServers': [
-    {'urls': 'stun:stun.l.google.com:19302'},
+    // 中継（TURN）を取得できた時は、Cloudflareのstunがあるので外す。STUN/TURNの
+    // URLが5つ以上あるとFirefoxが探索が遅くなると警告するため（2026-11-03）。
+    if (extraIceServers.isEmpty) {'urls': 'stun:stun.l.google.com:19302'},
     if (_turnUrl.isNotEmpty)
       {
         'urls': _turnUrl,

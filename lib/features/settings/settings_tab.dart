@@ -3068,7 +3068,6 @@ class UiStyleFolder extends ConsumerWidget {
                   : Icons.radio_button_unchecked,
             ),
             title: Text(strings.settingsUiStyleFlatLabel),
-            subtitle: Text(strings.settingsUiStyleFlatDescription),
             onTap: () => select(AppUiStyle.flat),
           ),
           GekigaTileContent(
@@ -3079,7 +3078,6 @@ class UiStyleFolder extends ConsumerWidget {
                   : Icons.radio_button_unchecked,
             ),
             title: Text(strings.settingsUiStyleGlassLabel),
-            subtitle: Text(strings.settingsUiStyleGlassDescription),
             onTap: () => select(AppUiStyle.glass),
           ),
           GekigaTileContent(
@@ -3090,7 +3088,6 @@ class UiStyleFolder extends ConsumerWidget {
                   : Icons.radio_button_unchecked,
             ),
             title: Text(strings.settingsUiStyleGekigaLabel),
-            subtitle: Text(strings.settingsUiStyleGekigaDescription),
             onTap: () => select(AppUiStyle.gekiga),
           ),
         ],
@@ -3107,17 +3104,14 @@ class UiStyleFolder extends ConsumerWidget {
           RadioListTile<AppUiStyle>(
             value: AppUiStyle.flat,
             title: Text(strings.settingsUiStyleFlatLabel),
-            subtitle: Text(strings.settingsUiStyleFlatDescription),
           ),
           RadioListTile<AppUiStyle>(
             value: AppUiStyle.glass,
             title: Text(strings.settingsUiStyleGlassLabel),
-            subtitle: Text(strings.settingsUiStyleGlassDescription),
           ),
           RadioListTile<AppUiStyle>(
             value: AppUiStyle.gekiga,
             title: Text(strings.settingsUiStyleGekigaLabel),
-            subtitle: Text(strings.settingsUiStyleGekigaDescription),
           ),
         ],
       ),

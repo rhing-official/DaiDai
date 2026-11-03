@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pointer_interceptor/pointer_interceptor.dart';
 
+import '../../router/app_router.dart';
 import '../../utils/platform_info.dart';
 import '../../widgets/nav_chip.dart';
 import 'active_call_session.dart';
@@ -9,19 +11,20 @@ import 'call_avatar.dart';
 import 'call_banner_card.dart';
 import 'webrtc_call_controller.dart';
 
-/// PC・Webで、一対の着信（応答前）を出すバナー（2026-10-23、以前は右上の縦長
+/// 一対の着信（応答前）を出すバナー（2026-10-23、以前は右上の縦長
 /// ミニ表示に拒否・応答ボタンを出していた）。広場の通話開始バナー
 /// （`GroupCallBannerOverlay`）と同じ位置・幅・配色の規則にそろえた。応答すると
 /// 通話画面（`CallOverlay`）が今の画面の上に重なる。応答が無ければ
 /// `WebrtcCallController`が[kCallRingTimeout]で不在着信として終える。
-/// スマホアプリは全画面の`/call`で着信するため、このバナーは出さない。
+/// スマホアプリも同じバナーで着信を受け、応答すると全画面の`/call`へ進む
+/// （2026-11-03、以前は着信と同時に全画面の2択画面を開いていた）。
 class IncomingCallBannerOverlay extends ConsumerWidget {
   const IncomingCallBannerOverlay({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final session = ref.watch(activeCallSessionProvider);
-    if (isMobileCallPlatform || session is! OneToOneCallSession) {
+    if (session is! OneToOneCallSession) {
       return const SizedBox.shrink();
     }
     return ListenableBuilder(
@@ -46,7 +49,21 @@ class IncomingCallBannerOverlay extends ConsumerWidget {
               onDecline: controller.decline,
               onAccept: () {
                 controller.accept();
-                ref.read(callOverlayOpenProvider.notifier).open();
+                if (isMobileCallPlatform) {
+                  HapticFeedback.vibrate();
+                  ref
+                      .read(goRouterProvider)
+                      .push(
+                        '/call',
+                        extra: CallArgs(
+                          call: session.call,
+                          isCaller: false,
+                          currentUserId: session.currentUserId,
+                        ),
+                      );
+                } else {
+                  ref.read(callOverlayOpenProvider.notifier).open();
+                }
               },
               accepting: controller.accepting,
             ),
