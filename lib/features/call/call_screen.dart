@@ -15,6 +15,7 @@ import 'call_audio_sinks.dart';
 import 'call_avatar.dart';
 import 'bgm/call_bgm_bindings.dart';
 import 'call_control_bar.dart';
+import 'call_video_viewer.dart';
 import 'call_tile_layout.dart' show CallLabelSheet, callVideoFitFor;
 import 'camera_availability.dart';
 import 'webrtc_call_controller.dart';
@@ -58,6 +59,9 @@ class _CallScreenState extends ConsumerState<CallScreen> {
   /// ビデオ通話でフルスクリーン側に相手（true）/自分（false）どちらを
   /// 表示するか。タップで入れ替える。
   bool _mainViewIsRemote = true;
+
+  /// 拡大表示を閉じるたびに増やし、映像の部品を作り直す（`call_overlay.dart`と同じ）。
+  int _viewerGeneration = 0;
 
   /// このウィジェット自身の意図したpop（下スワイプでのドック・通話終了後の
   /// 自動クローズ・PCでの応答後の自動クローズ）かどうか。[PopScope]は
@@ -328,7 +332,17 @@ class _CallScreenState extends ConsumerState<CallScreen> {
         Positioned.fill(
           key: const ValueKey('main-view'),
           child: GestureDetector(
-            onTap: swapViews,
+            // 大きい映像のタップで拡大表示（入れ替えは小窓、2026-11-03変更）。
+            onTap: mainShowsPlaceholder
+                ? null
+                : () => showCallVideoViewer(
+                    context,
+                    renderer: mainRenderer,
+                    mirror: !_mainViewIsRemote && _controller.isFrontCamera,
+                    onClosed: () {
+                      if (mounted) setState(() => _viewerGeneration++);
+                    },
+                  ),
             child: mainShowsPlaceholder
                 ? Container(
                     color: placeholderColor,
@@ -350,7 +364,7 @@ class _CallScreenState extends ConsumerState<CallScreen> {
                         // 切り替わって見える不具合になっていた。レンダラーの
                         // 実体が変わったら必ず作り直されるよう、レンダラー自体を
                         // キーにする。
-                        key: ObjectKey(mainRenderer),
+                        key: ValueKey((mainRenderer, _viewerGeneration)),
                         mainRenderer,
                         mirror: !_mainViewIsRemote && _controller.isFrontCamera,
                         // 横長の領域は映像全体を見せる（余白は背景の灰色、2026-10-11

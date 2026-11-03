@@ -1,7 +1,5 @@
-import 'dart:async';
 import 'dart:ui' show ImageFilter;
 
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -19,6 +17,7 @@ import 'call_avatar.dart';
 import '../../providers/call_bgm_provider.dart';
 import 'bgm/call_bgm_bindings.dart';
 import 'call_control_bar.dart';
+import 'call_video_viewer.dart';
 import 'call_tile_layout.dart';
 import 'camera_availability.dart';
 import 'webrtc_call_controller.dart';
@@ -136,13 +135,6 @@ class CallOverlayView extends StatefulWidget {
 }
 
 class _CallOverlayViewState extends State<CallOverlayView> {
-  /// マウスホイール/トラックパッドでの上スクロール終了のデバウンス用
-  /// タイマー（2026-08-30追加、`chat_screen.dart`のメディアビューアと同じ
-  /// パターン。1回のトラックパッド操作で多数の`PointerScrollEvent`が連続
-  /// して届くため、即座に[VoidCallback]を呼ぶと残りのイベントが遷移後の
-  /// メッセージ一覧側へ漏れて意図せずスクロールしてしまう不具合を避ける）。
-  Timer? _scrollBackTimer;
-
   /// 通話画面のキー入力（Esc）を受けるフォーカス。開いた直後に、下のメッセージ画面の
   /// 入力欄から奪う（2026-11-03）。Webは入力欄にフォーカスがあると、ブラウザの入力要素が
   /// キャンバスの上に出て、そのプレースホルダー（「メッセージを入力...」）が、ぼかしや暗幕を
@@ -159,7 +151,6 @@ class _CallOverlayViewState extends State<CallOverlayView> {
 
   @override
   void dispose() {
-    _scrollBackTimer?.cancel();
     _focusNode.dispose();
     super.dispose();
   }
@@ -189,41 +180,33 @@ class _CallOverlayViewState extends State<CallOverlayView> {
             }
             return KeyEventResult.ignored;
           },
-          child: Listener(
-            onPointerSignal: (event) {
-              if (event is PointerScrollEvent && event.scrollDelta.dy < -2.0) {
-                _scrollBackTimer?.cancel();
-                _scrollBackTimer = Timer(const Duration(milliseconds: 150), () {
-                  if (mounted) widget.onClose();
-                });
-              }
-            },
-            child: SwipeDownToDismiss(
-              onDismiss: widget.onClose,
-              // `Material`祖先が無いと`Text`が`DefaultTextStyle`を得られず、
-              // 48px・白・黄色の二重下線のフォールバック表示になる（2026-10-13修正）。
-              child: Material(
-                // 面の色は付けない（2026-11-03）。映像・アイコンの領域（角丸）だけが
-                // 通話画面で、その下のボタン列は周りの余白（ぼかし）の上に直接置く。
-                // ボタン以外の部分は余白として扱い、クリックするとミニ表示になる。
-                type: MaterialType.transparency,
-                child: Column(
-                  children: [
-                    Expanded(
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(16),
-                        child: switch (widget.session) {
-                          OneToOneCallSession s => _OneToOneStage(session: s),
-                          GroupCallSession s => _GroupStage(session: s),
-                        },
-                      ),
+          // 上スクロールでミニ表示にする操作は廃止した（2026-11-03、ユーザー指示。映像の
+          // 拡大表示がホイール操作で閉じてしまうため）。
+          child: SwipeDownToDismiss(
+            onDismiss: widget.onClose,
+            // `Material`祖先が無いと`Text`が`DefaultTextStyle`を得られず、
+            // 48px・白・黄色の二重下線のフォールバック表示になる（2026-10-13修正）。
+            child: Material(
+              // 面の色は付けない（2026-11-03）。映像・アイコンの領域（角丸）だけが
+              // 通話画面で、その下のボタン列は周りの余白（ぼかし）の上に直接置く。
+              // ボタン以外の部分は余白として扱い、クリックするとミニ表示になる。
+              type: MaterialType.transparency,
+              child: Column(
+                children: [
+                  Expanded(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: switch (widget.session) {
+                        OneToOneCallSession s => _OneToOneStage(session: s),
+                        GroupCallSession s => _GroupStage(session: s),
+                      },
                     ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      child: _EmbeddedControls(session: widget.session),
-                    ),
-                  ],
-                ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    child: _EmbeddedControls(session: widget.session),
+                  ),
+                ],
               ),
             ),
           ),
@@ -247,6 +230,24 @@ class _OneToOneStageState extends State<_OneToOneStage> {
   /// メインをクリックすれば元に戻る（`call_screen.dart`の`_mainViewIsRemote`と
   /// 同じ規則）。
   bool _mainIsRemote = true;
+
+  /// 拡大表示（画像・動画・PDFと同じぼかしの拡大、2026-11-03）を閉じるたびに増やし、
+  /// 映像の部品を作り直す（Webの描画要素は拡大側へ移るため、元の映像が空になる）。
+  int _viewerGeneration = 0;
+
+  /// 大きい映像のクリックで、その映像を拡大表示する（入れ替えは右下の小窓）。
+  void _openViewer() {
+    final controller = widget.session.controller;
+    final remote = _mainIsRemote;
+    showCallVideoViewer(
+      context,
+      renderer: remote ? controller.remoteRenderer : controller.localRenderer,
+      mirror: !remote && controller.isFrontCamera,
+      onClosed: () {
+        if (mounted) setState(() => _viewerGeneration++);
+      },
+    );
+  }
 
   void _swap() => setState(() => _mainIsRemote = !_mainIsRemote);
 
@@ -279,7 +280,7 @@ class _OneToOneStageState extends State<_OneToOneStage> {
       builder: (context, constraints) => RTCVideoView(
         // Web版の`RTCVideoView`はinitState時にしか描画要素を取らないため、
         // レンダラー自体をキーにして入れ替え時に確実に作り直す。
-        key: ObjectKey(renderer),
+        key: ValueKey((renderer, _viewerGeneration)),
         renderer,
         mirror: !remote && controller.isFrontCamera,
         objectFit: callVideoFitFor(
@@ -367,19 +368,20 @@ class _OneToOneStageState extends State<_OneToOneStage> {
                 : Center(child: _avatar(remote: _mainIsRemote, radius: 56)),
           ),
         ),
-        // メインの画面をクリックしても入れ替わる。Webでは映像（プラット
-        // フォームビュー）がクリックを奪うため`PointerInterceptor`で受ける。
+        // メインの画面のクリックで拡大表示（入れ替えは右下の小窓、2026-11-03変更）。
+        // Webでは映像（プラットフォームビュー）がクリックを奪うため
+        // `PointerInterceptor`で受ける。映像が無い（アイコン表示）時は拡大しない。
         Positioned.fill(
           child: PointerInterceptor(
             child: GestureDetector(
               behavior: HitTestBehavior.opaque,
-              onTap: _swap,
+              onTap: mainHasVideo ? _openViewer : null,
               child: const SizedBox.expand(),
             ),
           ),
         ),
         // 大きく映っている側の呼び名とミュート表示（広場のタイルと同じ、
-        // 2026-10-31追加）。クリックは下の入れ替え操作へ通す。
+        // 2026-10-31追加）。クリックは下の拡大操作へ通す。
         Positioned(
           left: 12,
           bottom: 12,

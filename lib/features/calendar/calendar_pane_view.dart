@@ -48,7 +48,7 @@ const _kCalendarMobileBreakpoint = 600.0;
 /// 不具合が発覚し、`DmChatPane`/`GroupChatPane`自身の表示領域（＝メッセージ
 /// 画面の範囲）内に収まる差し替え表示に変更した（`EmbeddedCallPane`と同じ
 /// 「ローカルなbool切り替えで中身を差し替える」方式、[onClose]呼び出し元が
-/// その切り替えを担う）。Esc・上スクロール・下スワイプ・明示的な戻るボタンで
+/// その切り替えを担う）。Esc・下スワイプ・明示的な戻るボタンで
 /// 閉じられる構成は、既存の添付ファイルフルスクリーンビューア
 /// （`chat_screen.dart`の`_MediaViewerScreen`）と同じジェスチャー一式を
 /// このファイル内で複製したもの（既存の動作済み機能を触らずに済ませるため、
@@ -100,7 +100,6 @@ class _CalendarPaneViewState extends ConsumerState<CalendarPaneView>
       );
 
   late DateTime _focusedMonth = _monthOf(DateTime.now());
-  Timer? _scrollDismissTimer;
 
   static DateTime _monthOf(DateTime date) => DateTime(date.year, date.month);
 
@@ -168,7 +167,6 @@ class _CalendarPaneViewState extends ConsumerState<CalendarPaneView>
   @override
   void dispose() {
     _settle.dispose();
-    _scrollDismissTimer?.cancel();
     super.dispose();
   }
 
@@ -468,9 +466,9 @@ class _CalendarPaneViewState extends ConsumerState<CalendarPaneView>
         MediaQuery.sizeOf(context).width < _kCalendarMobileBreakpoint;
 
     // 上部の「カレンダー」と戻る矢印の行は出さない（2026-10-31）。閉じるのは
-    // Esc・上スクロール・下スワイプ・ポップアップ外のタップ。
+    // Esc・下スワイプ・ポップアップ外のタップ。
     return Scaffold(
-      // Esc・上スクロール（PC）・下スワイプ（モバイル）でメッセージ画面に戻る。
+      // Esc・下スワイプ（モバイル）でメッセージ画面に戻る（上スクロールで戻る操作は2026-11-03に廃止）。
       // `_MediaViewerScreen`と同じ3系統の仕組みをここでも組み合わせる。左右
       // 矢印キー・横スワイプでの月送りもここに追加する（2026-09-01）。
       body: PaneKeyFocus(
@@ -490,167 +488,152 @@ class _CalendarPaneViewState extends ConsumerState<CalendarPaneView>
           }
           return KeyEventResult.ignored;
         },
-        child: Listener(
-          onPointerSignal: (event) {
-            if (event is PointerScrollEvent && event.scrollDelta.dy < -2.0) {
-              _scrollDismissTimer?.cancel();
-              _scrollDismissTimer = Timer(
-                const Duration(milliseconds: 150),
-                () {
-                  if (mounted) widget.onClose();
-                },
-              );
-            }
-          },
-          // 1つのGestureDetectorにonHorizontalDragXxxとonVerticalDragXxxを
-          // 同時に設定するとFlutterが例外を投げるため、下スワイプ＝閉じる
-          // （SwipeDownToDismiss、縦方向）とは別のGestureDetectorを重ねて
-          // 横スワイプ＝月送りを処理する。
-          child: GestureDetector(
-            onHorizontalDragUpdate: (details) =>
-                _onDragUpdate(details.delta.dx),
-            onHorizontalDragEnd: (details) =>
-                _onDragEnd(details.primaryVelocity ?? 0),
-            onHorizontalDragCancel: () => _onDragEnd(0),
-            child: SwipeDownToDismiss(
-              onDismiss: widget.onClose,
-              // 月全体をスクロール無しで1画面に収める（2026-10-07、ユーザー指示。
-              // Googleカレンダー同様）。週の高さは利用可能な高さから決まり
-              // （`_MonthGrid`）、収まっている間は縦スクロールが発生しないため
-              // 下スワイプ（`SwipeDownToDismiss`）が効く。極端に低い画面だけは
-              // 最小行高を保つためスクロールにフォールバックする。モバイルは
-              // 横いっぱいに広げる（水平パディング0）。
-              child: LayoutBuilder(
-                builder: (context, viewport) {
-                  _viewportWidth = viewport.maxWidth;
-                  final padding = isMobile
-                      ? const EdgeInsets.symmetric(vertical: 8)
-                      : const EdgeInsets.all(16);
-                  final weekCount = _weekCountOf(
-                    _focusedMonth,
-                    ref.watch(calendarWeekStartProvider),
-                  );
-                  final contentHeight = math.max(
-                    viewport.maxHeight - padding.vertical,
-                    _kMonthChromeHeight + weekCount * _rowHeightFor(1),
-                  );
-                  return SingleChildScrollView(
-                    padding: padding,
-                    child: SizedBox(
-                      height: contentHeight,
-                      child: StreamBuilder<List<CalendarEvent>>(
-                        stream: _eventsStream,
-                        builder: (context, eventsSnapshot) {
-                          final events =
-                              eventsSnapshot.data ?? const <CalendarEvent>[];
-                          final eventsByDate =
-                              <DateTime, List<CalendarEvent>>{};
-                          for (final event in events) {
-                            // 複数日にまたがる予定は、対象日全てにマークを付ける
-                            // （2026-09-04修正、以前は開始日にしか登録していなかった）。
-                            for (final day in calendarEventDates(event)) {
-                              (eventsByDate[day] ??= []).add(event);
-                            }
+        // 1つのGestureDetectorにonHorizontalDragXxxとonVerticalDragXxxを
+        // 同時に設定するとFlutterが例外を投げるため、下スワイプ＝閉じる
+        // （SwipeDownToDismiss、縦方向）とは別のGestureDetectorを重ねて
+        // 横スワイプ＝月送りを処理する。
+        child: GestureDetector(
+          onHorizontalDragUpdate: (details) => _onDragUpdate(details.delta.dx),
+          onHorizontalDragEnd: (details) =>
+              _onDragEnd(details.primaryVelocity ?? 0),
+          onHorizontalDragCancel: () => _onDragEnd(0),
+          child: SwipeDownToDismiss(
+            onDismiss: widget.onClose,
+            // 月全体をスクロール無しで1画面に収める（2026-10-07、ユーザー指示。
+            // Googleカレンダー同様）。週の高さは利用可能な高さから決まり
+            // （`_MonthGrid`）、収まっている間は縦スクロールが発生しないため
+            // 下スワイプ（`SwipeDownToDismiss`）が効く。極端に低い画面だけは
+            // 最小行高を保つためスクロールにフォールバックする。モバイルは
+            // 横いっぱいに広げる（水平パディング0）。
+            child: LayoutBuilder(
+              builder: (context, viewport) {
+                _viewportWidth = viewport.maxWidth;
+                final padding = isMobile
+                    ? const EdgeInsets.symmetric(vertical: 8)
+                    : const EdgeInsets.all(16);
+                final weekCount = _weekCountOf(
+                  _focusedMonth,
+                  ref.watch(calendarWeekStartProvider),
+                );
+                final contentHeight = math.max(
+                  viewport.maxHeight - padding.vertical,
+                  _kMonthChromeHeight + weekCount * _rowHeightFor(1),
+                );
+                return SingleChildScrollView(
+                  padding: padding,
+                  child: SizedBox(
+                    height: contentHeight,
+                    child: StreamBuilder<List<CalendarEvent>>(
+                      stream: _eventsStream,
+                      builder: (context, eventsSnapshot) {
+                        final events =
+                            eventsSnapshot.data ?? const <CalendarEvent>[];
+                        final eventsByDate = <DateTime, List<CalendarEvent>>{};
+                        for (final event in events) {
+                          // 複数日にまたがる予定は、対象日全てにマークを付ける
+                          // （2026-09-04修正、以前は開始日にしか登録していなかった）。
+                          for (final day in calendarEventDates(event)) {
+                            (eventsByDate[day] ??= []).add(event);
                           }
-                          return StreamBuilder<List<ScheduleCoordination>>(
-                            stream: _coordinationsStream,
-                            builder: (context, coordinationsSnapshot) {
-                              // 月表示に印を付けるのは未確定のものだけ（確定済みは
-                              // 実際の予定として既にeventsByDateに現れる、
-                              // 2026-09-05追加）。
-                              final coordinations =
-                                  (coordinationsSnapshot.data ??
-                                          const <ScheduleCoordination>[])
-                                      .where((c) => !c.isFinalized)
-                                      .toList();
-                              final coordinationsByDate =
-                                  <DateTime, List<ScheduleCoordination>>{};
-                              for (final coordination in coordinations) {
-                                for (final ts in coordination.candidateDates) {
-                                  final day = _dateOnly(ts.toDate());
-                                  (coordinationsByDate[day] ??= []).add(
-                                    coordination,
-                                  );
-                                }
+                        }
+                        return StreamBuilder<List<ScheduleCoordination>>(
+                          stream: _coordinationsStream,
+                          builder: (context, coordinationsSnapshot) {
+                            // 月表示に印を付けるのは未確定のものだけ（確定済みは
+                            // 実際の予定として既にeventsByDateに現れる、
+                            // 2026-09-05追加）。
+                            final coordinations =
+                                (coordinationsSnapshot.data ??
+                                        const <ScheduleCoordination>[])
+                                    .where((c) => !c.isFinalized)
+                                    .toList();
+                            final coordinationsByDate =
+                                <DateTime, List<ScheduleCoordination>>{};
+                            for (final coordination in coordinations) {
+                              for (final ts in coordination.candidateDates) {
+                                final day = _dateOnly(ts.toDate());
+                                (coordinationsByDate[day] ??= []).add(
+                                  coordination,
+                                );
                               }
-                              return StreamBuilder<List<CalendarCategory>>(
-                                stream: _categoriesStream,
-                                builder: (context, categoriesSnapshot) {
-                                  final categories =
-                                      categoriesSnapshot.data ??
-                                      const <CalendarCategory>[];
-                                  final categoriesById = {
-                                    for (final category in categories)
-                                      category.categoryId: category,
-                                  };
-                                  final monthItems = buildMonthItems(
-                                    events,
-                                    coordinations,
-                                    categoriesById,
-                                  );
-                                  Widget gridFor(DateTime month) => _MonthGrid(
-                                    key: ValueKey(month),
-                                    focusedMonth: month,
-                                    monthItems: monthItems,
-                                    isGekiga: isGekiga,
-                                    isMobile: isMobile,
-                                    accentColor: accent,
-                                    colorScheme: colorScheme,
-                                    strings: strings,
-                                    onDayTap: (cellContext, day) => _onDayTap(
-                                      cellContext,
-                                      day,
-                                      eventsByDate[day] ?? const [],
-                                      coordinationsByDate[day] ?? const [],
+                            }
+                            return StreamBuilder<List<CalendarCategory>>(
+                              stream: _categoriesStream,
+                              builder: (context, categoriesSnapshot) {
+                                final categories =
+                                    categoriesSnapshot.data ??
+                                    const <CalendarCategory>[];
+                                final categoriesById = {
+                                  for (final category in categories)
+                                    category.categoryId: category,
+                                };
+                                final monthItems = buildMonthItems(
+                                  events,
+                                  coordinations,
+                                  categoriesById,
+                                );
+                                Widget gridFor(DateTime month) => _MonthGrid(
+                                  key: ValueKey(month),
+                                  focusedMonth: month,
+                                  monthItems: monthItems,
+                                  isGekiga: isGekiga,
+                                  isMobile: isMobile,
+                                  accentColor: accent,
+                                  colorScheme: colorScheme,
+                                  strings: strings,
+                                  onDayTap: (cellContext, day) => _onDayTap(
+                                    cellContext,
+                                    day,
+                                    eventsByDate[day] ?? const [],
+                                    coordinationsByDate[day] ?? const [],
+                                  ),
+                                  onItemTap: _openItemDetail,
+                                );
+                                return Column(
+                                  children: [
+                                    _MonthHeader(
+                                      month: _focusedMonth,
+                                      localeCode: localeCode,
+                                      todayLabel: strings.calendarTodayButton,
+                                      searchTooltip:
+                                          strings.calendarSearchTooltip,
+                                      categorySettingsTooltip: strings
+                                          .calendarCategorySettingsTooltip,
+                                      onPrevious: _goToPreviousMonth,
+                                      onNext: _goToNextMonth,
+                                      onToday: _goToToday,
+                                      onSearch: () => _openCalendarSearch(
+                                        events,
+                                        coordinations,
+                                      ),
+                                      onManageCategories:
+                                          _openCategoryManagement,
                                     ),
-                                    onItemTap: _openItemDetail,
-                                  );
-                                  return Column(
-                                    children: [
-                                      _MonthHeader(
-                                        month: _focusedMonth,
-                                        localeCode: localeCode,
-                                        todayLabel: strings.calendarTodayButton,
-                                        searchTooltip:
-                                            strings.calendarSearchTooltip,
-                                        categorySettingsTooltip: strings
-                                            .calendarCategorySettingsTooltip,
-                                        onPrevious: _goToPreviousMonth,
-                                        onNext: _goToNextMonth,
-                                        onToday: _goToToday,
-                                        onSearch: () => _openCalendarSearch(
-                                          events,
-                                          coordinations,
-                                        ),
-                                        onManageCategories:
-                                            _openCategoryManagement,
-                                      ),
-                                      const SizedBox(height: 8),
-                                      _WeekdayHeaderRow(
-                                        localeCode: localeCode,
-                                        gridLineColor: colorScheme.outline,
-                                      ),
-                                      Expanded(
-                                        child: _dragging
-                                            ? _buildDraggedMonths(gridFor)
-                                            : _MonthSlideSwitcher(
-                                                month: _focusedMonth,
-                                                direction: _slideDirection,
-                                                child: gridFor(_focusedMonth),
-                                              ),
-                                      ),
-                                    ],
-                                  );
-                                },
-                              );
-                            },
-                          );
-                        },
-                      ),
+                                    const SizedBox(height: 8),
+                                    _WeekdayHeaderRow(
+                                      localeCode: localeCode,
+                                      gridLineColor: colorScheme.outline,
+                                    ),
+                                    Expanded(
+                                      child: _dragging
+                                          ? _buildDraggedMonths(gridFor)
+                                          : _MonthSlideSwitcher(
+                                              month: _focusedMonth,
+                                              direction: _slideDirection,
+                                              child: gridFor(_focusedMonth),
+                                            ),
+                                    ),
+                                  ],
+                                );
+                              },
+                            );
+                          },
+                        );
+                      },
                     ),
-                  );
-                },
-              ),
+                  ),
+                );
+              },
             ),
           ),
         ),
@@ -1674,7 +1657,7 @@ final _syncStateProvider = StreamProvider.family((ref, _SyncStateKey key) {
 
 /// 月表示のカレンダーを、メッセージ画面の上に重ねるポップアップで開く
 /// （2026-10-30変更。以前は語らいの表示領域を月表示に入れ替えていた）。閉じる
-/// （戻る・Esc・下スワイプ・上スクロール）と、そのままメッセージ画面に戻る。
+/// （戻る・Esc・下スワイプ）と、そのままメッセージ画面に戻る。
 /// 中身（[CalendarPaneView]）の色・配置は従来のまま。影は使わない。
 Future<void> showCalendarMonthDialog(
   BuildContext context, {
