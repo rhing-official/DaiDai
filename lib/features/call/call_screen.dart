@@ -13,6 +13,7 @@ import '../../widgets/swipe_gestures.dart' show kSwipeGestureVelocityThreshold;
 import 'active_call_session.dart';
 import 'call_audio_sinks.dart';
 import 'call_avatar.dart';
+import 'bgm/call_bgm_bindings.dart';
 import 'call_control_bar.dart';
 import 'call_controls.dart';
 import 'call_tile_layout.dart' show CallLabelSheet, callVideoFitFor;
@@ -164,7 +165,7 @@ class _CallScreenState extends ConsumerState<CallScreen> {
   /// 相手が現在ビデオ通話として動作しているか。切替は互いに独立している
   /// ため、片方だけがビデオという状態もありうる（その場合、映像が無い側は
   /// プレースホルダー表示になる。_videoBody参照）。
-  bool get _remoteIsVideo => _controller.remoteIsVideo;
+  bool get _remoteIsVideo => _controller.remoteVideoShown;
 
   @override
   Widget build(BuildContext context) {
@@ -567,6 +568,8 @@ class _CallScreenState extends ConsumerState<CallScreen> {
       switchingCamera: _controller.switchingCamera,
       onSwitchCamera: _controller.switchCamera,
       onHangUp: _controller.hangUp,
+      bgmBinding: oneToOneBgmBinding(_controller),
+      videoFailed: _controller.videoFailed,
     );
   }
 }

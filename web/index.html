@@ -46,6 +46,13 @@
     input::selection, textarea::selection, ::selection {
       background: transparent !important;
     }
+    /* 入力欄にフォーカスがあるとFlutterがブラウザの入力要素にヒント（「メッセージを入力...」）
+       をプレースホルダーとして渡し、アプリが描いた同じ文字と二重に（ぼやけて）見える
+       不具合の対策（2026-11-03追加、コンピューター）。アプリ自身のヒントはcanvas描画。 */
+    input::placeholder, textarea::placeholder {
+      color: transparent !important;
+      opacity: 0 !important;
+    }
   </style>
 
   <!-- モバイルブラウザで、メッセージ送信後に戻るボタンでキーボードを閉じると

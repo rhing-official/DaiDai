@@ -78,6 +78,8 @@ dependencies:
   flutter_markdown_plus: ^1.0.12
   video_player: ^2.13.0
   web: ^1.1.0
+  # 通話のBGMで、混合したJSのトラックを`flutter_webrtc`のトラックに包むために使う（既存の間接依存）。
+  dart_webrtc: 1.8.1
   scrollable_positioned_list: ^0.3.8
   firebase_messaging: ^16.6.0
   flutter_local_notifications: ^22.3.0

@@ -619,7 +619,10 @@ class FirestoreGroupRepository implements GroupRepository {
         groupId: groupRef.id,
         name: '全員',
         color: null,
-        permissions: const {GroupPermission.createInvite},
+        permissions: const {
+          GroupPermission.createInvite,
+          GroupPermission.playBgm,
+        },
         isEveryone: true,
       ).toJson(),
     );

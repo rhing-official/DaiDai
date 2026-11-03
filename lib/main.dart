@@ -301,7 +301,9 @@ class DaiDaiApp extends ConsumerWidget {
             children: [
               Positioned.fill(
                 child: MouseBackForwardListener(
-                  child: child ?? const SizedBox.shrink(),
+                  child: CallOverlayFocusGuard(
+                    child: child ?? const SizedBox.shrink(),
+                  ),
                 ),
               ),
               const PinnedCallOverlay(),

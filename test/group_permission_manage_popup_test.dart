@@ -121,8 +121,8 @@ void main() {
     expect(find.text('全員'), findsOneWidget);
     expect(find.text('運営係'), findsOneWidget);
     expect(find.text('招待リンクの作成'), findsOneWidget);
-    // 選択中のロール1つ分（全権限7件）だけが縦に並ぶ。
-    expect(find.byType(Checkbox), findsNWidgets(7));
+    // 選択中のロール1つ分（全権限）だけが縦に並ぶ。
+    expect(find.byType(Checkbox), findsNWidgets(GroupPermission.all.length));
     expect(tester.getSize(find.byType(GroupPermissionManagePopup)).width, 420);
   });
 

@@ -522,6 +522,15 @@ class Strings {
     required this.groupRolePermissionsLabel,
     required this.groupPermissionLabel,
     required this.groupRoleEveryoneNote,
+    required this.callVideoFailed,
+    required this.callBgmTitle,
+    required this.callBgmAdd,
+    required this.callBgmEmpty,
+    required this.callBgmOtherPlaying,
+    required this.callBgmVolume,
+    required this.callBgmStop,
+    required this.callBgmRemove,
+    required this.callBgmAddFailed,
     required this.groupRoleDeleteConfirmTitle,
     required this.groupRoleDeleteConfirmButton,
     required this.groupRoleNoneLabel,
@@ -1607,6 +1616,19 @@ class Strings {
 
   /// 基準ロール（全員に自動適用、削除・名前変更不可）の編集ダイアログに出す注記。
   final String groupRoleEveryoneNote;
+
+  /// 通話中に映像をオンにできなかった時の注意書き（2026-11-03）。
+  final String callVideoFailed;
+
+  /// 通話のBGM（2026-11-03、Webのみ）。曲はこの端末内に登録し、サーバーには送らない。
+  final String callBgmTitle;
+  final String callBgmAdd;
+  final String callBgmEmpty;
+  final String Function(String title) callBgmOtherPlaying;
+  final String callBgmVolume;
+  final String callBgmStop;
+  final String callBgmRemove;
+  final String callBgmAddFailed;
   final String groupRoleDeleteConfirmTitle;
   final String groupRoleDeleteConfirmButton;
   final String groupRoleNoneLabel;
@@ -2817,9 +2839,19 @@ class Strings {
       'createInvite' => '招待リンクの作成',
       'manageBots' => 'botとWebhookの管理',
       'managePermissions' => '権限の管理',
+      'playBgm' => '通話にBGMを流す',
       _ => permission,
     },
     groupRoleEveryoneNote: 'このロールは全員に自動で適用されます。削除・名前の変更はできません',
+    callVideoFailed: '映像をオンにできませんでした。カメラが他のアプリで使われていないか、許可されているか確認してください',
+    callBgmTitle: 'BGM',
+    callBgmAdd: '曲を追加',
+    callBgmEmpty: '曲がありません。「曲を追加」でこの端末に登録できます（サーバーには送られません）',
+    callBgmOtherPlaying: (title) => '$titleを再生中です。あなたが再生すると入れ替わります',
+    callBgmVolume: '音量',
+    callBgmStop: '止める',
+    callBgmRemove: '削除',
+    callBgmAddFailed: '曲を追加できませんでした',
     groupRoleDeleteConfirmTitle: 'このロールを削除しますか？',
     groupRoleDeleteConfirmButton: '削除する',
     groupRoleNoneLabel: 'ロール未設定',
@@ -3920,10 +3952,23 @@ class Strings {
       'createInvite' => 'Create invite links',
       'manageBots' => 'Manage bots and webhooks',
       'managePermissions' => 'Manage permissions (edit role permissions)',
+      'playBgm' => 'Play background music in calls',
       _ => permission,
     },
     groupRoleEveryoneNote:
         'This role applies to everyone automatically. It cannot be deleted or renamed',
+    callVideoFailed:
+        'Could not turn the video on. Check that the camera is not in use by another app and that it is allowed',
+    callBgmTitle: 'Background music',
+    callBgmAdd: 'Add a track',
+    callBgmEmpty:
+        'No tracks yet. Use “Add a track” to save one on this device (it is never sent to a server)',
+    callBgmOtherPlaying: (title) =>
+        '“$title” is playing. Playing yours will replace it',
+    callBgmVolume: 'Volume',
+    callBgmStop: 'Stop',
+    callBgmRemove: 'Remove',
+    callBgmAddFailed: 'Could not add the track',
     groupRoleDeleteConfirmTitle: 'Delete this role?',
     groupRoleDeleteConfirmButton: 'Delete',
     groupRoleNoneLabel: 'No role',

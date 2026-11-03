@@ -127,12 +127,30 @@ class ActiveCallSessionNotifier extends Notifier<ActiveCallSession?> {
   CachedIceServersLoader? _iceServersLoader;
 
   /// TURNの認証情報を使い回す取得元（[CachedIceServersLoader]）。
-  IceServersLoader get _loader => (_iceServersLoader ??= CachedIceServersLoader(
-    ref.read(turnCredentialsRepositoryProvider).fetchIceServers,
-  )).call;
+  CachedIceServersLoader get _cachedLoader =>
+      _iceServersLoader ??= CachedIceServersLoader(
+        ref.read(turnCredentialsRepositoryProvider).fetchIceServers,
+      );
+
+  IceServersLoader get _loader => _cachedLoader.call;
+
+  /// 通話の前にTURNの認証情報を取得しておく（2026-11-03）。以前は通話の開始時に初めて
+  /// 取得していたため、Cloud Functionsの起動待ちの分だけ接続が遅れた。1時間は使い回す。
+  /// 失敗は無視する（通話の開始時に改めて試し、取得できなければSTUNだけで続ける）。
+  void _prefetchIceServers() {
+    try {
+      _cachedLoader.prefetch();
+    } catch (_) {
+      // 未ログイン等。通話の開始時に改めて試す。
+    }
+  }
 
   @override
-  ActiveCallSession? build() => null;
+  ActiveCallSession? build() {
+    // 起動直後に呼ばれるのはここだけ（通話画面は後から`startOneToOne`/`startGroup`）。
+    Future.microtask(_prefetchIceServers);
+    return null;
+  }
 
   /// 1対1通話を開始/参加する。既に同じ通話にアタッチ済みならそのまま返す
   /// （冪等）。
@@ -142,6 +160,7 @@ class ActiveCallSessionNotifier extends Notifier<ActiveCallSession?> {
     required CallRepository callRepository,
     required DirectMessageRepository directMessageRepository,
   }) {
+    _prefetchIceServers();
     final current = state;
     if (current is OneToOneCallSession && current.call.callId == call.callId) {
       return current;
@@ -184,6 +203,7 @@ class ActiveCallSessionNotifier extends Notifier<ActiveCallSession?> {
     required bool isVideo,
     required GroupCallRepository groupCallRepository,
   }) {
+    _prefetchIceServers();
     final current = state;
     if (current is GroupCallSession && current.groupCallId == groupCallId) {
       return current;

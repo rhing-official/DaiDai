@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -15,6 +16,8 @@ import '../../widgets/swipe_gestures.dart';
 import 'active_call_session.dart';
 import 'call_audio_sinks.dart';
 import 'call_avatar.dart';
+import '../../providers/call_bgm_provider.dart';
+import 'bgm/call_bgm_bindings.dart';
 import 'call_control_bar.dart';
 import 'call_tile_layout.dart';
 import 'call_controls.dart';
@@ -54,6 +57,27 @@ class CallOverlay extends ConsumerWidget {
   }
 }
 
+/// 通話画面（[CallOverlay]）が開いている間、その下の画面のフォーカスを全て外し、
+/// フォーカスを受けられないようにする（2026-11-03）。Webは入力欄にフォーカスがあると、
+/// ブラウザの入力要素がキャンバスの上に出て、そのプレースホルダー（「メッセージを入力...」）
+/// が、ぼかしや暗幕を貫通して、Flutter側の文字と二重に見えてしまうため。
+/// 通話画面の`MaterialApp.builder`の子（アプリ本体）を包む。
+class CallOverlayFocusGuard extends ConsumerWidget {
+  const CallOverlayFocusGuard({required this.child, super.key});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final open =
+        !isMobileCallPlatform &&
+        ref.watch(activeCallSessionProvider) != null &&
+        ref.watch(callOverlayOpenProvider);
+    // 開閉で木の形が変わらないよう、常に包む（`excluding`だけを切り替える）。
+    return ExcludeFocus(excluding: open, child: child);
+  }
+}
+
 class _CallOverlayBody extends ConsumerWidget {
   const _CallOverlayBody();
 
@@ -64,13 +88,38 @@ class _CallOverlayBody extends ConsumerWidget {
     void close() => ref.read(callOverlayOpenProvider.notifier).close();
     // Webでは映像（プラットフォームビュー）がクリックを奪うため、重ねた面が
     // 受け取れるようにする。ブラウザの戻る・Escで閉じられる。
+    // 通話画面は、少し狭い角丸のポップアップにする（2026-11-03）。周りの余白は、画像の
+    // 拡大表示（`blurredViewerRoute`）と同じぼかし＋暗幕で半透明にし、クリックすると
+    // ミニ表示になる（通話は続く）。影は使わない。
     return PointerInterceptor(
       child: BackEntry(
         scope: null,
         active: true,
         layer: true,
         onBack: close,
-        child: CallOverlayView(session: session, onClose: close),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: close,
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+                child: ColoredBox(color: Colors.black.withValues(alpha: 0.45)),
+              ),
+            ),
+            Center(
+              child: FractionallySizedBox(
+                widthFactor: 0.88,
+                heightFactor: 0.94,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 960),
+                  child: CallOverlayView(session: session, onClose: close),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -95,19 +144,31 @@ class _CallOverlayViewState extends State<CallOverlayView> {
   /// メッセージ一覧側へ漏れて意図せずスクロールしてしまう不具合を避ける）。
   Timer? _scrollBackTimer;
 
+  /// 通話画面のキー入力（Esc）を受けるフォーカス。開いた直後に、下のメッセージ画面の
+  /// 入力欄から奪う（2026-11-03）。Webは入力欄にフォーカスがあると、ブラウザの入力要素が
+  /// キャンバスの上に出て、そのプレースホルダー（「メッセージを入力...」）が、ぼかしや暗幕を
+  /// 貫通して見えてしまうため。
+  final FocusNode _focusNode = FocusNode(debugLabel: 'call-overlay');
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _focusNode.requestFocus();
+    });
+  }
+
   @override
   void dispose() {
     _scrollBackTimer?.cancel();
+    _focusNode.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    // 表示領域以外（ヘッダー・コントロール周りを含むこのパネル全体の背景）は
-    // 常にテーマの背景色にする（2026-08-30更新、以前はガラスUIのみだったが
-    // 3スタイル共通にした）。表示領域自体（映像 or その代役の
-    // プレースホルダー）は各Stageが常に固定グレーを使う。
-    final colorScheme = Theme.of(context).colorScheme;
+    // 映像（またはその代役のプレースホルダー）の領域は各Stageが固定グレーで塗る。
+    // その外側（ボタン列の周り）は面を塗らず、周りの余白と同じ見た目にする（2026-11-03）。
     return ListenableBuilder(
       listenable: widget.session.controllerListenable,
       builder: (context, _) {
@@ -120,6 +181,7 @@ class _CallOverlayViewState extends State<CallOverlayView> {
           // Escでも「メッセージに戻る」（2026-10-11追加）。通話UI表示中は入力欄が
           // 無いため、キーを受けるだけのフォーカスを取る。
           autofocus: true,
+          focusNode: _focusNode,
           onKeyEvent: (node, event) {
             if (event is KeyDownEvent &&
                 event.logicalKey == LogicalKeyboardKey.escape) {
@@ -142,15 +204,20 @@ class _CallOverlayViewState extends State<CallOverlayView> {
               // `Material`祖先が無いと`Text`が`DefaultTextStyle`を得られず、
               // 48px・白・黄色の二重下線のフォールバック表示になる（2026-10-13修正）。
               child: Material(
-                color: colorScheme.surface,
+                // 面の色は付けない（2026-11-03）。映像・アイコンの領域（角丸）だけが
+                // 通話画面で、その下のボタン列は周りの余白（ぼかし）の上に直接置く。
+                // ボタン以外の部分は余白として扱い、クリックするとミニ表示になる。
+                type: MaterialType.transparency,
                 child: Column(
                   children: [
-                    _Header(onClose: widget.onClose),
                     Expanded(
-                      child: switch (widget.session) {
-                        OneToOneCallSession s => _OneToOneStage(session: s),
-                        GroupCallSession s => _GroupStage(session: s),
-                      },
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(16),
+                        child: switch (widget.session) {
+                          OneToOneCallSession s => _OneToOneStage(session: s),
+                          GroupCallSession s => _GroupStage(session: s),
+                        },
+                      ),
                     ),
                     Padding(
                       padding: const EdgeInsets.symmetric(vertical: 16),
@@ -163,30 +230,6 @@ class _CallOverlayViewState extends State<CallOverlayView> {
           ),
         );
       },
-    );
-  }
-}
-
-class _Header extends StatelessWidget {
-  const _Header({required this.onClose});
-  final VoidCallback onClose;
-
-  @override
-  Widget build(BuildContext context) {
-    return SafeArea(
-      bottom: false,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        child: Row(
-          children: [
-            IconButton(
-              icon: const Icon(Icons.expand_more, color: Colors.white),
-              tooltip: '',
-              onPressed: onClose,
-            ),
-          ],
-        ),
-      ),
     );
   }
 }
@@ -254,10 +297,10 @@ class _OneToOneStageState extends State<_OneToOneStage> {
     final controller = session.controller;
     // 相手の映像を画面に出していない間は、相手の音声を鳴らす`RTCVideoView`が
     // 無くなり音が出ない（Web）。見えない動画要素で補う（2026-10-31追加）。
-    final audioSink = controller.remoteIsVideo
+    final audioSink = controller.remoteVideoShown
         ? const SizedBox.shrink()
         : CallAudioSinks(renderers: [controller.remoteRenderer]);
-    if (!controller.remoteIsVideo && !controller.isVideo) {
+    if (!controller.remoteVideoShown && !controller.isVideo) {
       return ColoredBox(
         color: Colors.grey.shade900,
         child: Stack(
@@ -305,11 +348,11 @@ class _OneToOneStageState extends State<_OneToOneStage> {
       );
     }
     final mainHasVideo = _mainIsRemote
-        ? controller.remoteIsVideo
+        ? controller.remoteVideoShown
         : controller.isVideo;
     final cornerHasVideo = _mainIsRemote
         ? controller.isVideo
-        : controller.remoteIsVideo;
+        : controller.remoteVideoShown;
     return Stack(
       children: [
         audioSink,
@@ -481,7 +524,7 @@ class _GroupStageState extends ConsumerState<_GroupStage> {
             rhingSeed: p.rhingSeed,
             renderer: controller.remoteRenderers[p.userId],
             mirror: false,
-            videoEnabled: p.isVideo,
+            videoEnabled: controller.remoteVideoShown(p),
             micMuted: p.micMuted,
             focused: focused,
           ),
@@ -495,7 +538,7 @@ class _GroupStageState extends ConsumerState<_GroupStage> {
       remoteIds: [for (final p in remotes) p.userId],
       videoOnIds: {
         for (final p in remotes)
-          if (p.isVideo) p.userId,
+          if (controller.remoteVideoShown(p)) p.userId,
       },
       focusedUserId: focusedId,
     );
@@ -689,8 +732,10 @@ class _EmbeddedControls extends ConsumerWidget {
         switchingCamera: controller.switchingCamera,
         onSwitchCamera: controller.switchCamera,
         onHangUp: controller.hangUp,
+        bgmBinding: oneToOneBgmBinding(controller),
+        videoFailed: controller.videoFailed,
       ),
-      GroupCallSession(:final controller) => CallControlBar(
+      GroupCallSession(:final controller, :final groupId) => CallControlBar(
         isGekiga: isGekiga,
         isGlass: isGlass,
         enabled: controller.state == GroupCallConnectionState.active,
@@ -708,6 +753,16 @@ class _EmbeddedControls extends ConsumerWidget {
         switchingCamera: controller.switchingCamera,
         onSwitchCamera: controller.switchCamera,
         onHangUp: () => controller.leave(),
+        videoFailed: controller.videoFailed,
+        bgmBinding: groupBgmBinding(
+          controller,
+          allowed: ref.watch(
+            canPlayCallBgmProvider((
+              groupId: groupId,
+              userId: controller.currentUser.userId,
+            )),
+          ),
+        ),
       ),
     };
   }

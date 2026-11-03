@@ -13,6 +13,8 @@ import '../../widgets/swipe_gestures.dart' show kSwipeGestureVelocityThreshold;
 import 'active_call_session.dart';
 import 'call_audio_sinks.dart';
 import 'call_avatar.dart';
+import '../../providers/call_bgm_provider.dart';
+import 'bgm/call_bgm_bindings.dart';
 import 'call_control_bar.dart';
 import 'call_tile_layout.dart';
 import 'camera_availability.dart';
@@ -188,7 +190,7 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
       remoteIds: [for (final p in remotes) p.userId],
       videoOnIds: {
         for (final p in remotes)
-          if (p.isVideo) p.userId,
+          if (_controller.remoteVideoShown(p)) p.userId,
       },
       focusedUserId: _focusedTileKey,
     );
@@ -337,7 +339,7 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
             renderer: _controller.remoteRenderers[participant.userId],
             mirror: false,
             micMuted: participant.micMuted,
-            videoEnabled: participant.isVideo,
+            videoEnabled: _controller.remoteVideoShown(participant),
             connectionIssue:
                 _controller.peerConnectionIssues[participant.userId] ?? false,
             placeholderColor: placeholderColor,
@@ -531,6 +533,16 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
       switchingCamera: _controller.switchingCamera,
       onSwitchCamera: _controller.switchCamera,
       onHangUp: () => _controller.leave(),
+      videoFailed: _controller.videoFailed,
+      bgmBinding: groupBgmBinding(
+        _controller,
+        allowed: ref.watch(
+          canPlayCallBgmProvider((
+            groupId: widget.groupId,
+            userId: _controller.currentUser.userId,
+          )),
+        ),
+      ),
     );
   }
 }

@@ -7,11 +7,14 @@ import 'package:flutter_webrtc/flutter_webrtc.dart';
 import '../../models/call.dart';
 import '../../repositories/call_repository.dart';
 import '../../repositories/direct_message_repository.dart';
+import 'call_log.dart';
 import 'call_ring_timeout.dart';
 import 'call_sound_player.dart';
 import 'disconnect_grace.dart';
 import 'rtc_config.dart';
 import 'audio_route.dart';
+import 'bgm/bgm_storage.dart';
+import 'bgm/call_bgm.dart';
 import 'webrtc_media_constraints.dart';
 
 enum CallConnectionState { connecting, active, ended }
@@ -102,6 +105,61 @@ class WebrtcCallController extends ChangeNotifier {
   bool _remoteMuted = false;
   bool get remoteMuted => _remoteMuted;
 
+  /// 映像をオンにできなかった（カメラが他で使用中・許可が無い等、2026-11-03）。
+  /// 数秒後、または次に切り替えた時に消える。画面が注意書きを出す。
+  bool _videoFailed = false;
+  bool get videoFailed => _videoFailed;
+  Timer? _videoFailedTimer;
+
+  void _setVideoFailed(bool value) {
+    _videoFailedTimer?.cancel();
+    _videoFailed = value;
+    if (value) {
+      _videoFailedTimer = Timer(const Duration(seconds: 8), () {
+        _videoFailed = false;
+        notifyListeners();
+      });
+    }
+  }
+
+  /// 通話のBGM（2026-11-03、Webのみ）。流している間は、マイクと曲を混ぜたトラックを送る。
+  late final CallBgm bgm = CallBgm(
+    storage: createBgmStorage(),
+    micTrack: () => _localStream?.getAudioTracks().firstOrNull,
+    replaceOutgoingAudio: _replaceOutgoingAudio,
+    onPlayingChanged: _sendBgmState,
+  )..addListener(notifyListeners);
+
+  /// 相手がBGMを流している時の曲名（流していなければnull）。
+  String? _remoteBgmTitle;
+  String? get remoteBgmTitle => _remoteBgmTitle;
+
+  Future<void> _replaceOutgoingAudio(MediaStreamTrack track) async {
+    for (final sender in await _peerConnection?.getSenders() ?? []) {
+      if (sender.track?.kind == 'audio') await sender.replaceTrack(track);
+    }
+  }
+
+  static const _bgmOnPrefix = 'bgm:on:';
+  static const _bgmOffMessage = 'bgm:off';
+
+  void _sendBgmState(String? title) {
+    final channel = _controlChannel;
+    if (channel == null ||
+        channel.state != RTCDataChannelState.RTCDataChannelOpen) {
+      return;
+    }
+    try {
+      channel.send(
+        RTCDataChannelMessage(
+          title == null ? _bgmOffMessage : '$_bgmOnPrefix$title',
+        ),
+      );
+    } catch (_) {
+      // 送れなくても通話は続ける（相手の表示が古いままになるだけ）。
+    }
+  }
+
   /// 自分が現在ビデオ通話として動作しているか（[call.isVideo]は開始時点の
   /// 値のままなので、通話中の切替を反映する可変の状態として別に持つ）。
   /// 音声⇔ビデオの切替は自分側にのみ適用され、相手には影響しない。
@@ -119,6 +177,19 @@ class WebrtcCallController extends ChangeNotifier {
   /// 切替に使うだけの表示用フラグ。
   late bool _remoteIsVideo = isCaller ? call.calleeIsVideo : call.callerIsVideo;
   bool get remoteIsVideo => _remoteIsVideo;
+
+  /// 相手の映像トラックが実際に届いて流れているか（2026-11-03）。[remoteIsVideo]は相手が
+  /// 申告した「映像オン」のフラグで、トラックが届く前や届かない場合でも真になる。その間に
+  /// 映像の枠だけを出すと、中身の無い透明な画面になり、相手が誰かも分からなくなるため、
+  /// 画面は両方が真の時だけ映像を出し、それ以外は相手のアイコンを出す。
+  bool _remoteVideoReady = false;
+  bool get remoteVideoShown => _remoteIsVideo && _remoteVideoReady;
+
+  void _setRemoteVideoReady(bool value) {
+    if (value == _remoteVideoReady) return;
+    _remoteVideoReady = value;
+    notifyListeners();
+  }
 
   bool _localRendererInitialized = false;
 
@@ -199,6 +270,9 @@ class WebrtcCallController extends ChangeNotifier {
   String? _error;
   String? get error => _error;
 
+  /// ICE成立までの経過時間の計測（診断ログ用）。
+  final Stopwatch _iceWatch = Stopwatch();
+
   /// 応答が無いまま[kCallRingTimeout]が経ったら不在着信として終える
   /// （2026-10-23、以前は応答するまで着信音・呼出音が鳴り続けた）。発信側・着信側
   /// どちらも持ち、先に切れた側が`missed`を書く（書き込みは重複してもよい）。
@@ -245,9 +319,14 @@ class WebrtcCallController extends ChangeNotifier {
         await _acquireLocalStream(allowVideoFallback: false, videoNow: false);
       }
 
-      _peerConnection = await createPeerConnection(
-        await loadRtcConfiguration(_iceServersLoader),
+      final turnWatch = Stopwatch()..start();
+      final rtcConfiguration = await loadRtcConfiguration(_iceServersLoader);
+      callLog(
+        '1:1 TURN fetched ${turnWatch.elapsedMilliseconds}ms '
+        '(iceServers=${(rtcConfiguration['iceServers'] as List?)?.length})',
       );
+      _peerConnection = await createPeerConnection(rtcConfiguration);
+      _iceWatch.start();
       if (isCaller) {
         await _attachLocalStream();
         if (call.isVideo) {
@@ -275,7 +354,25 @@ class WebrtcCallController extends ChangeNotifier {
       }
       _peerConnection!.onDataChannel = _attachControlChannel;
 
+      _peerConnection!.onSignalingState = (state) =>
+          callLog('1:1 signaling=$state');
+      _peerConnection!.onConnectionState = (state) =>
+          callLog('1:1 connection=$state');
+      _peerConnection!.onIceGatheringState = (state) => callLog(
+        '1:1 iceGathering=$state (${_iceWatch.elapsedMilliseconds}ms)',
+      );
       _peerConnection!.onTrack = (event) {
+        callLog(
+          '1:1 onTrack kind=${event.track.kind} '
+          'streams=${event.streams.length} muted=${event.track.muted}',
+        );
+        if (event.track.kind == 'video') {
+          final track = event.track;
+          _setRemoteVideoReady(track.muted != true);
+          track.onUnMute = () => _setRemoteVideoReady(true);
+          track.onMute = () => _setRemoteVideoReady(false);
+          track.onEnded = () => _setRemoteVideoReady(false);
+        }
         if (event.streams.isNotEmpty) {
           remoteRenderer.srcObject = event.streams.first;
         } else {
@@ -290,6 +387,7 @@ class WebrtcCallController extends ChangeNotifier {
       };
 
       _peerConnection!.onIceConnectionState = (iceState) {
+        callLog('1:1 ice=$iceState (${_iceWatch.elapsedMilliseconds}ms)');
         final issue =
             iceState == RTCIceConnectionState.RTCIceConnectionStateFailed ||
             iceState == RTCIceConnectionState.RTCIceConnectionStateDisconnected;
@@ -434,8 +532,10 @@ class WebrtcCallController extends ChangeNotifier {
       notifyListeners();
       _syncCameraFromStream();
       unawaited(_refreshCameraCount());
-    } catch (_) {
+    } catch (e) {
+      callLog('1:1 caller camera start failed: $e');
       _isVideo = false;
+      _setVideoFailed(true);
       notifyListeners();
       unawaited(
         _callRepository
@@ -529,7 +629,18 @@ class WebrtcCallController extends ChangeNotifier {
           offerSdp != _pendingLocalOfferSdp &&
           offerSdp != _lastAppliedOfferSdp) {
         _lastAppliedOfferSdp = offerSdp;
-        await _applyRemoteOfferAndAnswer(updated.offer!);
+        callLog(
+          '1:1 offer received sdp=${offerSdp.length} '
+          'signaling=${_peerConnection?.signalingState}',
+        );
+        try {
+          await _applyRemoteOfferAndAnswer(updated.offer!);
+        } catch (e) {
+          // 握りつぶすと映像の切替ボタンが無効のまま戻らなくなる。
+          callLog('1:1 offer apply failed: $e');
+          _switchingCallType = false;
+          notifyListeners();
+        }
       }
 
       final answerSdp = updated.answer?['sdp'] as String?;
@@ -537,9 +648,20 @@ class WebrtcCallController extends ChangeNotifier {
           answerSdp != _pendingLocalAnswerSdp &&
           answerSdp != _lastAppliedAnswerSdp) {
         _lastAppliedAnswerSdp = answerSdp;
-        await _peerConnection?.setRemoteDescription(
-          RTCSessionDescription(answerSdp, updated.answer!['type'] as String),
+        callLog(
+          '1:1 answer applying sdp=${answerSdp.length} '
+          'signaling=${_peerConnection?.signalingState}',
         );
+        try {
+          await _peerConnection?.setRemoteDescription(
+            RTCSessionDescription(answerSdp, updated.answer!['type'] as String),
+          );
+        } catch (e) {
+          callLog('1:1 answer apply failed: $e');
+          _switchingCallType = false;
+          notifyListeners();
+          return;
+        }
         _flushPendingCandidates();
         if (_state != CallConnectionState.active) {
           _state = CallConnectionState.active;
@@ -719,13 +841,23 @@ class WebrtcCallController extends ChangeNotifier {
       } else if (text == _muteOnMessage || text == _muteOffMessage) {
         _remoteMuted = text == _muteOnMessage;
         notifyListeners();
+      } else if (text.startsWith(_bgmOnPrefix)) {
+        // 同時に流せるのは1人。後から始めた相手を優先し、自分のは止める。
+        _remoteBgmTitle = text.substring(_bgmOnPrefix.length);
+        if (bgm.playing) unawaited(bgm.stop());
+        notifyListeners();
+      } else if (text == _bgmOffMessage) {
+        _remoteBgmTitle = null;
+        notifyListeners();
       }
     };
     // つながった時点で、自分のミュート状態を相手へ伝える（先にミュートして
     // いた場合に備える）。
     channel.onDataChannelState = (state) {
-      if (state == RTCDataChannelState.RTCDataChannelOpen && _muted) {
-        _sendMuteState();
+      if (state == RTCDataChannelState.RTCDataChannelOpen) {
+        if (_muted) _sendMuteState();
+        final playing = bgm.current;
+        if (playing != null) _sendBgmState(playing.name);
       }
     };
   }
@@ -802,7 +934,9 @@ class WebrtcCallController extends ChangeNotifier {
       return;
     }
     _switchingCallType = true;
+    _setVideoFailed(false);
     notifyListeners();
+    callLog('1:1 setVideoEnabled($enabled) start');
     try {
       await _reconcileLocalVideoTo(enabled);
       notifyListeners();
@@ -813,16 +947,42 @@ class WebrtcCallController extends ChangeNotifier {
       );
       final offer = await _peerConnection!.createOffer();
       await _peerConnection!.setLocalDescription(offer);
+      callLog(
+        '1:1 offer sent sdp=${offer.sdp?.length} '
+        'signaling=${_peerConnection?.signalingState}',
+      );
       _pendingLocalOfferSdp = offer.sdp;
       await _callRepository.setOffer(call.callId, {
         'sdp': offer.sdp,
         'type': offer.type,
       });
-    } catch (_) {
-      // ネットワーク瞬断等。ボタンを再度有効にし、ユーザーに再試行させる。
+    } catch (e) {
+      // ネットワーク瞬断・カメラが他で使用中・許可が無い等。ボタンを再度有効にし、
+      // 失敗したことを画面に出して、ユーザーに再試行させる。
+      callLog('1:1 setVideoEnabled($enabled) failed: $e');
+      if (enabled) {
+        await _rollbackLocalVideo();
+        _setVideoFailed(true);
+      }
       _switchingCallType = false;
       notifyListeners();
     }
+  }
+
+  /// 映像のオンに失敗した時、途中まで進んだ状態（取得済みのカメラ等）を片付けて映像オフへ
+  /// 戻し、相手へも映像オフを知らせ直す。
+  Future<void> _rollbackLocalVideo() async {
+    try {
+      await _disableLocalVideoTrack();
+    } catch (e) {
+      callLog('1:1 video rollback failed: $e');
+    }
+    _isVideo = false;
+    unawaited(
+      _callRepository
+          .updateIsVideo(call.callId, isCaller: isCaller, isVideo: false)
+          .catchError((_) {}),
+    );
   }
 
   /// 自分の映像トラックの有無を[targetIsVideo]に合わせる。[setVideoEnabled]
@@ -978,7 +1138,9 @@ class WebrtcCallController extends ChangeNotifier {
     _disconnectGrace.cancel();
     _callSub?.cancel();
     _candidatesSub?.cancel();
+    _videoFailedTimer?.cancel();
     soundPlayer.dispose();
+    bgm.dispose();
     for (final track in _localStream?.getTracks() ?? <MediaStreamTrack>[]) {
       track.stop();
     }

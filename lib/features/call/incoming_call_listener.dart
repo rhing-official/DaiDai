@@ -5,7 +5,9 @@ import '../../providers/block_providers.dart';
 import '../../providers/repository_providers.dart';
 import '../../router/app_router.dart';
 import '../../utils/platform_info.dart';
+import '../../models/call.dart';
 import 'active_call_session.dart';
+import 'call_ring_timeout.dart';
 
 /// アプリ全体で、自分宛の着信（呼び出し中の通話）を監視する。
 /// モバイル実機では検知したら自動でCallScreenを開く。PC/Webでは
@@ -44,6 +46,15 @@ class _IncomingCallListenerState extends ConsumerState<IncomingCallListener> {
           ref.read(blockedUserIdsProvider(widget.currentUserId)).value ??
           const <String>{};
       if (blocked.contains(call.callerId)) return;
+      // 終了が書かれずに`ringing`のまま残った古い通話は鳴らさず、不在着信として片付ける
+      // （2026-11-03、URLを開くと終わった通話の着信音が鳴る不具合）。
+      if (!isCallRingFresh(createdAt: call.createdAt, now: DateTime.now())) {
+        ref
+            .read(callRepositoryProvider)
+            .updateStatus(call.callId, CallStatus.missed)
+            .catchError((_) {});
+        return;
+      }
       if (!isMobileCallPlatform) {
         // PC/Web: フルスクリーンを経由せず直接セッションを開始する。
         // startOneToOne自体が同じ通話への重複アタッチを防ぐため

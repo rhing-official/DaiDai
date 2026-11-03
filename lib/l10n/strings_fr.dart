@@ -632,10 +632,23 @@ final Strings _stringsFr = Strings._(
     'manageBots' => 'Gérer les bots et les webhooks',
     'managePermissions' =>
       'Gérer les autorisations (modifier les autorisations des rôles)',
+    'playBgm' => 'Diffuser de la musique de fond dans les appels',
     _ => permission,
   },
   groupRoleEveryoneNote:
       'Ce rôle s’applique automatiquement à tout le monde. Il ne peut être ni supprimé ni renommé',
+  callVideoFailed:
+      'Impossible d’activer la vidéo. Vérifiez que la caméra n’est pas utilisée par une autre application et qu’elle est autorisée',
+  callBgmTitle: 'Musique de fond',
+  callBgmAdd: 'Ajouter un morceau',
+  callBgmEmpty:
+      'Aucun morceau. « Ajouter un morceau » l’enregistre sur cet appareil (il n’est jamais envoyé à un serveur)',
+  callBgmOtherPlaying: (title) =>
+      '« $title » est en cours. Lancer le vôtre le remplacera',
+  callBgmVolume: 'Volume',
+  callBgmStop: 'Arrêter',
+  callBgmRemove: 'Supprimer',
+  callBgmAddFailed: 'Impossible d’ajouter le morceau',
   groupRoleDeleteConfirmTitle: 'Supprimer ce rôle ?',
   groupRoleDeleteConfirmButton: 'Supprimer',
   groupRoleNoneLabel: 'Aucun rôle',

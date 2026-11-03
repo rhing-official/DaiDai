@@ -168,7 +168,7 @@ class _PinnedCallDragSurfaceState extends State<_PinnedCallDragSurface> {
 RTCVideoRenderer? pickCallRenderer(ActiveCallSession session) {
   switch (session) {
     case OneToOneCallSession(:final controller):
-      if (controller.remoteIsVideo) return controller.remoteRenderer;
+      if (controller.remoteVideoShown) return controller.remoteRenderer;
       if (controller.isVideo) return controller.localRenderer;
       return null;
     case GroupCallSession(:final controller):

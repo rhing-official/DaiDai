@@ -87,11 +87,16 @@ class CallParticipant {
     this.joinedAt,
     this.lastSeenAt,
     this.sessionId,
+    this.bgmTitle,
   });
 
   final String userId;
   final String rhingSeed;
   final bool micMuted;
+
+  /// この参加者が今流しているBGMの曲名（流していなければnull、2026-11-03追加）。
+  /// 曲そのものは再生者の端末内にあり、音は再生者の送信音声に混ざって届く。
+  final String? bgmTitle;
 
   /// この参加（端末1台ぶん）を区別するランダムな文字列（2026-10-21追加）。
   /// 参加者ドキュメントのIDはuserIdで端末の区別が無いため、同じ人が別の端末から
@@ -119,6 +124,7 @@ class CallParticipant {
       joinedAt: json['joinedAt'] as Timestamp?,
       lastSeenAt: json['lastSeenAt'] as Timestamp?,
       sessionId: json['sessionId'] as String?,
+      bgmTitle: json['bgmTitle'] as String?,
     );
   }
 
@@ -130,6 +136,7 @@ class CallParticipant {
       'joinedAt': joinedAt ?? FieldValue.serverTimestamp(),
       'lastSeenAt': lastSeenAt ?? FieldValue.serverTimestamp(),
       if (sessionId != null) 'sessionId': sessionId,
+      if (bgmTitle != null) 'bgmTitle': bgmTitle,
     };
   }
 }

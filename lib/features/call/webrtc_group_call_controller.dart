@@ -8,12 +8,15 @@ import 'package:flutter_webrtc/flutter_webrtc.dart';
 import '../../models/app_user.dart';
 import '../../models/group_call.dart';
 import '../../repositories/group_call_repository.dart';
+import 'call_log.dart';
 import 'call_sound_player.dart';
 import 'acquire_with_video_fallback.dart';
 import 'peer_connect_guard.dart';
 import 'rtc_config.dart';
 import '../../utils/page_exit/page_exit.dart';
 import 'audio_route.dart';
+import 'bgm/bgm_storage.dart';
+import 'bgm/call_bgm.dart';
 import 'webrtc_media_constraints.dart';
 
 enum GroupCallConnectionState { connecting, active, ended }
@@ -59,6 +62,23 @@ class WebrtcGroupCallController extends ChangeNotifier {
 
   bool _switchingCallType = false;
   bool get switchingCallType => _switchingCallType;
+
+  /// 映像をオンにできなかった（カメラが他で使用中・許可が無い等、2026-11-03）。
+  /// 数秒後、または次に切り替えた時に消える。画面が注意書きを出す。
+  bool _videoFailed = false;
+  bool get videoFailed => _videoFailed;
+  Timer? _videoFailedTimer;
+
+  void _setVideoFailed(bool value) {
+    _videoFailedTimer?.cancel();
+    _videoFailed = value;
+    if (value) {
+      _videoFailedTimer = Timer(const Duration(seconds: 8), () {
+        _videoFailed = false;
+        notifyListeners();
+      });
+    }
+  }
 
   /// ビデオ通話時の自分のカメラプレビュー用。音声のみの通話では使わない。
   final RTCVideoRenderer localRenderer = RTCVideoRenderer();
@@ -168,6 +188,49 @@ class WebrtcGroupCallController extends ChangeNotifier {
   bool get isFrontCamera => _isFrontCamera;
 
   List<CallParticipant> _participants = [];
+
+  /// 通話のBGM（2026-11-03、Webのみ）。流している間は、マイクと曲を混ぜたトラックを
+  /// 全ての相手へ送る。
+  late final CallBgm bgm = CallBgm(
+    storage: createBgmStorage(),
+    micTrack: () => _localStream?.getAudioTracks().firstOrNull,
+    replaceOutgoingAudio: _replaceOutgoingAudio,
+    onPlayingChanged: (title) => _repository
+        .updateParticipantState(
+          groupCallId: groupCallId,
+          userId: currentUser.userId,
+          bgmTitle: title,
+          clearBgm: title == null,
+        )
+        .catchError((_) {}),
+  )..addListener(notifyListeners);
+
+  Future<void> _replaceOutgoingAudio(MediaStreamTrack track) async {
+    for (final pc in _peerConnections.values) {
+      for (final sender in await pc.getSenders()) {
+        if (sender.track?.kind == 'audio') await sender.replaceTrack(track);
+      }
+    }
+  }
+
+  /// 映像トラックが実際に届いて流れている相手（2026-11-03）。相手が申告した
+  /// `isVideo`だけで映像の枠を出すと、トラックが届かない間は中身の無い透明な画面になる。
+  final Set<String> _remoteVideoReady = {};
+
+  /// [p]の映像を画面に出してよいか（相手が映像オンと申告し、トラックも届いている）。
+  bool remoteVideoShown(CallParticipant p) =>
+      p.isVideo && _remoteVideoReady.contains(p.userId);
+
+  void _setRemoteVideoReady(String userId, bool ready) {
+    final changed = ready
+        ? _remoteVideoReady.add(userId)
+        : _remoteVideoReady.remove(userId);
+    if (changed) notifyListeners();
+  }
+
+  /// 今BGMを流している他の参加者（いなければnull）。
+  CallParticipant? get bgmPlayer =>
+      remoteParticipants.firstWhereOrNull((p) => p.bgmTitle != null);
 
   /// 自分以外の参加者（ハートビートが途絶えている＝離脱扱いの相手は除く）。
   List<CallParticipant> get remoteParticipants => _participants
@@ -374,6 +437,16 @@ class WebrtcGroupCallController extends ChangeNotifier {
       return;
     }
 
+    // 同時に流せるのは1人。他の参加者が流し始めたら、自分のは止める。
+    if (bgm.playing &&
+        participants.any(
+          (p) => p.userId != currentUser.userId && p.bgmTitle != null,
+        ) &&
+        !_participants.any(
+          (p) => p.userId != currentUser.userId && p.bgmTitle != null,
+        )) {
+      unawaited(bgm.stop());
+    }
     _participants = participants;
 
     final liveOtherIds = participants
@@ -433,6 +506,10 @@ class WebrtcGroupCallController extends ChangeNotifier {
     if (!_connectGuard.tryBegin(otherUserId)) return;
     try {
       await _connectToPeerOnce(otherUserId);
+    } catch (e) {
+      // 途中で失敗した接続を残さない（残ると「接続済み」と見なされ、再試行されない）。
+      callLog('group: $otherUserId connect failed: $e');
+      _disconnectFromPeer(otherUserId);
     } finally {
       _connectGuard.end(otherUserId);
     }
@@ -444,8 +521,14 @@ class WebrtcGroupCallController extends ChangeNotifier {
 
     final renderer = RTCVideoRenderer();
     await renderer.initialize();
+    final turnWatch = Stopwatch()..start();
     final configuration = await loadRtcConfiguration(_iceServersLoader);
+    callLog(
+      'group: $otherUserId TURN fetched ${turnWatch.elapsedMilliseconds}ms '
+      '(iceServers=${(configuration['iceServers'] as List?)?.length})',
+    );
     final peerConnection = await createPeerConnection(configuration);
+    final connectWatch = Stopwatch()..start();
     // 待っている間に相手が退室した・通話を抜けた場合は、作ったものを閉じて中断する。
     if (_connectGuard.isCancelled(otherUserId) ||
         _state == GroupCallConnectionState.ended) {
@@ -460,16 +543,44 @@ class WebrtcGroupCallController extends ChangeNotifier {
     _appliedCandidateKeys[otherUserId] = {};
 
     for (final track in _localStream!.getTracks()) {
-      await peerConnection.addTrack(track, _localStream!);
+      // BGMを流している間に入ってきた相手には、マイクの代わりに混合トラックを送る。
+      final mixed = bgm.mixedTrack;
+      await peerConnection.addTrack(
+        track.kind == 'audio' && mixed != null ? mixed : track,
+        _localStream!,
+      );
     }
 
     peerConnection.onTrack = (event) {
+      callLog(
+        'group: $otherUserId onTrack kind=${event.track.kind} '
+        'streams=${event.streams.length} muted=${event.track.muted}',
+      );
+      if (event.track.kind == 'video') {
+        final track = event.track;
+        _setRemoteVideoReady(otherUserId, track.muted != true);
+        track.onUnMute = () => _setRemoteVideoReady(otherUserId, true);
+        track.onMute = () => _setRemoteVideoReady(otherUserId, false);
+        track.onEnded = () => _setRemoteVideoReady(otherUserId, false);
+      }
       if (event.streams.isNotEmpty) {
         renderer.srcObject = event.streams.first;
       }
     };
+    peerConnection.onSignalingState = (state) =>
+        callLog('group: $otherUserId signaling=$state');
+    peerConnection.onConnectionState = (state) =>
+        callLog('group: $otherUserId connection=$state');
+    peerConnection.onIceGatheringState = (state) => callLog(
+      'group: $otherUserId iceGathering=$state '
+      '(${connectWatch.elapsedMilliseconds}ms)',
+    );
 
     peerConnection.onIceConnectionState = (iceState) {
+      callLog(
+        'group: $otherUserId ice=$iceState '
+        '(${connectWatch.elapsedMilliseconds}ms)',
+      );
       final issue =
           iceState == RTCIceConnectionState.RTCIceConnectionStateFailed ||
           iceState == RTCIceConnectionState.RTCIceConnectionStateDisconnected;
@@ -528,11 +639,19 @@ class WebrtcGroupCallController extends ChangeNotifier {
               offerSdp != _pendingLocalOfferSdp[otherUserId] &&
               offerSdp != _lastAppliedOfferSdp[otherUserId]) {
             _lastAppliedOfferSdp[otherUserId] = offerSdp;
-            await _applyRemotePeerOffer(
-              otherUserId,
-              peerConnection,
-              link.offer!,
+            callLog(
+              'group: $otherUserId offer received sdp=${offerSdp.length} '
+              'signaling=${peerConnection.signalingState}',
             );
+            try {
+              await _applyRemotePeerOffer(
+                otherUserId,
+                peerConnection,
+                link.offer!,
+              );
+            } catch (e) {
+              callLog('group: $otherUserId offer apply failed: $e');
+            }
           }
 
           final answerSdp = link.answer?['sdp'] as String?;
@@ -540,9 +659,21 @@ class WebrtcGroupCallController extends ChangeNotifier {
               answerSdp != _pendingLocalAnswerSdp[otherUserId] &&
               answerSdp != _lastAppliedAnswerSdp[otherUserId]) {
             _lastAppliedAnswerSdp[otherUserId] = answerSdp;
-            await peerConnection.setRemoteDescription(
-              RTCSessionDescription(answerSdp, link.answer!['type'] as String),
+            callLog(
+              'group: $otherUserId answer applying sdp=${answerSdp.length} '
+              'signaling=${peerConnection.signalingState}',
             );
+            try {
+              await peerConnection.setRemoteDescription(
+                RTCSessionDescription(
+                  answerSdp,
+                  link.answer!['type'] as String,
+                ),
+              );
+            } catch (e) {
+              callLog('group: $otherUserId answer apply failed: $e');
+              return;
+            }
             _flushPendingCandidates(otherUserId, peerConnection);
           }
         });
@@ -580,6 +711,10 @@ class WebrtcGroupCallController extends ChangeNotifier {
   ) async {
     final offer = await peerConnection.createOffer();
     await peerConnection.setLocalDescription(offer);
+    callLog(
+      'group: $otherUserId offer sent sdp=${offer.sdp?.length} '
+      'signaling=${peerConnection.signalingState}',
+    );
     _pendingLocalOfferSdp[otherUserId] = offer.sdp;
     await _repository.setPeerOffer(
       groupCallId: groupCallId,
@@ -641,6 +776,7 @@ class WebrtcGroupCallController extends ChangeNotifier {
     _lastAppliedOfferSdp.remove(otherUserId);
     _lastAppliedAnswerSdp.remove(otherUserId);
     peerConnectionIssues.remove(otherUserId);
+    _remoteVideoReady.remove(otherUserId);
   }
 
   Future<void> leave() async {
@@ -677,20 +813,40 @@ class WebrtcGroupCallController extends ChangeNotifier {
   Future<void> setVideoEnabled(bool enabled) async {
     if (enabled == _isVideo || _switchingCallType) return;
     _switchingCallType = true;
+    _setVideoFailed(false);
     notifyListeners();
+    callLog('group: setVideoEnabled($enabled) start');
     try {
+      // カメラの取得・トラックの追加に成功してから、他の参加者へ`isVideo`を知らせる
+      // （以前は先に書いていたため、取得に失敗しても他の人には「映像オン」に見えた）。
+      await _reconcileGroupVideoTo(enabled);
       await _repository.updateParticipantState(
         groupCallId: groupCallId,
         userId: currentUser.userId,
         isVideo: enabled,
       );
-      await _reconcileGroupVideoTo(enabled);
-    } catch (_) {
-      // ネットワーク瞬断等。ボタンを再度有効にし、ユーザーに再試行させる。
+      callLog('group: setVideoEnabled($enabled) done');
+    } catch (e) {
+      callLog('group: setVideoEnabled($enabled) failed: $e');
+      if (enabled) {
+        await _rollbackLocalVideo();
+        _setVideoFailed(true);
+      }
     } finally {
       _switchingCallType = false;
       notifyListeners();
     }
+  }
+
+  /// 映像のオンに失敗した時、途中まで進んだ状態（取得済みのカメラ・追加済みのトラック）を
+  /// 片付け、映像オフの状態へ戻す。
+  Future<void> _rollbackLocalVideo() async {
+    try {
+      await _disableLocalVideoTrackForAllPeers();
+    } catch (e) {
+      callLog('group: video rollback failed: $e');
+    }
+    _isVideo = false;
   }
 
   /// 自分の映像トラックの有無を[target]に合わせ、現在つながっている
@@ -705,8 +861,13 @@ class WebrtcGroupCallController extends ChangeNotifier {
     }
     _isVideo = target;
     notifyListeners();
-    for (final entry in _peerConnections.entries) {
-      await _createAndSendPeerOffer(entry.key, entry.value);
+    // 1人との再ネゴシエーションに失敗しても、他の相手へは送り続ける。
+    for (final entry in [..._peerConnections.entries]) {
+      try {
+        await _createAndSendPeerOffer(entry.key, entry.value);
+      } catch (e) {
+        callLog('group: ${entry.key} re-offer failed: $e');
+      }
     }
   }
 
@@ -728,8 +889,16 @@ class WebrtcGroupCallController extends ChangeNotifier {
     localRenderer.srcObject = _localStream;
     muteLocalPlayback(localRenderer);
     final track = _localStream!.getVideoTracks().first;
-    for (final pc in _peerConnections.values) {
-      await pc.addTrack(track, _localStream!);
+    for (final entry in [..._peerConnections.entries]) {
+      try {
+        // 前回の途中失敗で既に追加済みの相手へは、二重に追加しない（例外になり、
+        // 以後の再試行も毎回失敗していた）。
+        final senders = await entry.value.getSenders();
+        if (senders.any((s) => s.track?.id == track.id)) continue;
+        await entry.value.addTrack(track, _localStream!);
+      } catch (e) {
+        callLog('group: ${entry.key} addTrack(video) failed: $e');
+      }
     }
     _syncCameraFromStream();
     unawaited(_refreshCameraCount());
@@ -854,7 +1023,9 @@ class WebrtcGroupCallController extends ChangeNotifier {
     _presenceTimer?.cancel();
     _speakingTimer?.cancel();
     _participantsSub?.cancel();
+    _videoFailedTimer?.cancel();
     _soundPlayer.dispose();
+    bgm.dispose();
     for (final userId in [..._peerConnections.keys]) {
       _disconnectFromPeer(userId);
     }

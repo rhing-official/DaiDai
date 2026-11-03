@@ -30,6 +30,10 @@ class GroupPermission {
   /// 長が信頼するロールにだけ付与する想定。
   static const managePermissions = 'managePermissions';
 
+  /// 通話にBGMを流す（2026-11-03追加）。曲は再生する人の端末内にあり、サーバーには
+  /// 上げない。基準ロール（全員）に初期で含める（既存の広場は一度きりの移行で追加する）。
+  static const playBgm = 'playBgm';
+
   static const all = {
     manageRooms,
     manageRoles,
@@ -38,6 +42,7 @@ class GroupPermission {
     createInvite,
     manageBots,
     managePermissions,
+    playBgm,
   };
 }
 

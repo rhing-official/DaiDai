@@ -265,6 +265,20 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
   /// あり、開いたままでも数字が残っていた。未読数の変化を見て、開いている間は戻し直す。
   bool _unreadResetPending = false;
 
+  /// 寄合へ切り替えたら、その寄合の未読数をすぐ0に戻す（2026-11-03）。構築のたびの
+  /// [_resetUnreadWhileViewing]が間に合わず、切り替え先のバッジが残ることがあったため、
+  /// 切り替えた時点でも直接書く。
+  void _markRoomRead(String roomId) {
+    ref
+        .read(conversationPrefsRepositoryProvider)
+        .setLastRead(
+          userId: widget.currentUser.userId,
+          conversationId: widget.dm.dmId,
+          roomId: roomId,
+        )
+        .catchError((_) {});
+  }
+
   void _resetUnreadWhileViewing(
     String conversationId,
     String roomId,
@@ -385,6 +399,7 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
   /// 変わらない。
   void _switchRoom(String roomId, String roomName) {
     if (roomId == _currentRoomId) return;
+    _markRoomRead(roomId);
     final oldKey = _cacheKey;
     final oldEntry = _cacheEntry;
     final newKey = ChatRoomCacheKey(
@@ -2159,6 +2174,20 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
   /// あり、開いたままでも数字が残っていた。未読数の変化を見て、開いている間は戻し直す。
   bool _unreadResetPending = false;
 
+  /// 寄合へ切り替えたら、その寄合の未読数をすぐ0に戻す（2026-11-03）。構築のたびの
+  /// [_resetUnreadWhileViewing]が間に合わず、切り替え先のバッジが残ることがあったため、
+  /// 切り替えた時点でも直接書く。
+  void _markRoomRead(String roomId) {
+    ref
+        .read(conversationPrefsRepositoryProvider)
+        .setLastRead(
+          userId: widget.currentUser.userId,
+          conversationId: widget.group.groupId,
+          roomId: roomId,
+        )
+        .catchError((_) {});
+  }
+
   void _resetUnreadWhileViewing(
     String conversationId,
     String roomId,
@@ -2324,6 +2353,7 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
   /// `_DmChatPaneState._switchRoom`と同じ設計）。
   void _switchRoom(String roomId, String roomName) {
     if (roomId == _currentRoomId) return;
+    _markRoomRead(roomId);
     final oldKey = _cacheKey;
     final oldEntry = _cacheEntry;
     // 切り替え先の寄合ごとの上書きは、その寄合の一覧が届くまで分からない

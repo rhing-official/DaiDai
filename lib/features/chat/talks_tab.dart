@@ -4702,11 +4702,27 @@ class _DmDetailWithRoomsState extends ConsumerState<_DmDetailWithRooms> {
         // このレイアウトの寄合一覧では既に寄合を選んで来ているため、遷移先
         // チャット画面の寄合タブバーは重複表示になる→非表示にする
         // （`showRoomTabBar: false`、下の左スワイプでの遷移と共通化）。
+        // 寄合を開いたら、その寄合の未読数をすぐ0に戻す（2026-11-03）。メッセージ画面側の
+        // 既読処理（構築のたびの`_resetUnreadWhileViewing`）が、画面の作り直し・購読の
+        // 到着順で間に合わず、2段目以降の寄合のバッジが一覧に残ることがあったため、
+        // タップした時点でも直接書く。
+        void markRoomRead(String openedRoomId) {
+          ref
+              .read(conversationPrefsRepositoryProvider)
+              .setLastRead(
+                userId: currentUser.userId,
+                conversationId: dm.dmId,
+                roomId: openedRoomId,
+              )
+              .catchError((_) {});
+        }
+
         void openRoomFullscreen(
           String targetRoomId,
           String targetRoomName, {
           bool instant = false,
         }) {
+          markRoomRead(targetRoomId);
           ref
               .read(goRouterProvider)
               .push(
@@ -4747,6 +4763,7 @@ class _DmDetailWithRoomsState extends ConsumerState<_DmDetailWithRooms> {
                     widget.onExpandTap?.call();
                     return;
                   }
+                  markRoomRead(room.roomId);
                   setState(() {
                     _selectedRoomId = room.roomId;
                     _paneGeneration++;
@@ -4997,11 +5014,27 @@ class _GroupDetailWithRoomsState extends ConsumerState<_GroupDetailWithRooms> {
             .name;
 
         // [_DmDetailWithRooms]と同じ理由（2026-09-11追加）。
+        // 寄合を開いたら、その寄合の未読数をすぐ0に戻す（2026-11-03）。メッセージ画面側の
+        // 既読処理（構築のたびの`_resetUnreadWhileViewing`）が、画面の作り直し・購読の
+        // 到着順で間に合わず、2段目以降の寄合のバッジが一覧に残ることがあったため、
+        // タップした時点でも直接書く。
+        void markRoomRead(String openedRoomId) {
+          ref
+              .read(conversationPrefsRepositoryProvider)
+              .setLastRead(
+                userId: currentUser.userId,
+                conversationId: group.groupId,
+                roomId: openedRoomId,
+              )
+              .catchError((_) {});
+        }
+
         void openRoomFullscreen(
           String targetRoomId,
           String targetRoomName, {
           bool instant = false,
         }) {
+          markRoomRead(targetRoomId);
           ref
               .read(goRouterProvider)
               .push(
@@ -5046,6 +5079,7 @@ class _GroupDetailWithRoomsState extends ConsumerState<_GroupDetailWithRooms> {
                     widget.onExpandTap?.call();
                     return;
                   }
+                  markRoomRead(room.roomId);
                   setState(() {
                     _selectedRoomId = room.roomId;
                     _paneGeneration++;

@@ -89,6 +89,10 @@ abstract class GroupCallRepository {
     required String userId,
     bool? micMuted,
     bool? isVideo,
+
+    /// 流しているBGMの曲名。[clearBgm]がtrueなら消す（流していない状態）。
+    String? bgmTitle,
+    bool clearBgm = false,
   });
 
   /// 2人ぶんのペアリンクを作成する（offer/answerのやり取りを始める前に、
@@ -363,10 +367,14 @@ class FirestoreGroupCallRepository implements GroupCallRepository {
     required String userId,
     bool? micMuted,
     bool? isVideo,
+    String? bgmTitle,
+    bool clearBgm = false,
   }) async {
     final data = <String, dynamic>{};
     if (micMuted != null) data['micMuted'] = micMuted;
     if (isVideo != null) data['isVideo'] = isVideo;
+    if (bgmTitle != null) data['bgmTitle'] = bgmTitle;
+    if (clearBgm) data['bgmTitle'] = FieldValue.delete();
     if (data.isEmpty) return;
     await _participantsOf(groupCallId).doc(userId).update(data);
   }

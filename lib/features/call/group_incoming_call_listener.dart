@@ -84,7 +84,12 @@ class _GroupIncomingCallListenerState
       previous,
       next,
     ) {
-      final calls = next.asData?.value ?? const <GroupCall>[];
+      // 読み込み中・エラーの間は何もしない。空の一覧を「初回」としてシードしてしまうと、
+      // 実データが届いた時に、既に進行中の通話が全て「新しく始まった」扱いになり、
+      // バナーと着信音が出た（2026-11-03）。
+      final data = next.asData;
+      if (data == null) return;
+      final calls = data.value;
       final currentIds = calls.map((c) => c.groupCallId).toSet();
 
       // 初回スナップショットは、既に進行中だった通話を「新規開始」と
@@ -109,6 +114,10 @@ class _GroupIncomingCallListenerState
       for (final call in calls) {
         if (!newIds.contains(call.groupCallId)) continue;
         if (call.initiatorId == widget.currentUser.userId) continue;
+        // 始まってから時間が経った通話（放棄されて`active`のまま残ったもの等）は鳴らさない。
+        if (!isCallRingFresh(createdAt: call.createdAt, now: DateTime.now())) {
+          continue;
+        }
         _handleNewCall(call);
       }
     });
