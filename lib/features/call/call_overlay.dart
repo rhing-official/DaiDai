@@ -353,9 +353,13 @@ class _OneToOneStageState extends State<_OneToOneStage> {
     final cornerHasVideo = _mainIsRemote
         ? controller.isVideo
         : controller.remoteVideoShown;
+    // 領域いっぱいに広げる（2026-11-03）。以前は、位置を指定しない子が`audioSink`
+    // （大きさ0）だけで、Stack自体が幅0・高さ0に縮み、映像の枠が細い縦線になって
+    // 映像が見えなかった（一対の映像通話）。
     return Stack(
+      fit: StackFit.expand,
       children: [
-        audioSink,
+        Positioned(left: 0, top: 0, child: audioSink),
         Positioned.fill(
           child: ColoredBox(
             color: Colors.grey.shade900,
