@@ -23,6 +23,7 @@ import '../../models/app_ui_style.dart';
 import '../../models/font_design.dart';
 import '../../models/app_user.dart';
 import '../../models/chat_layout_style.dart';
+import '../../models/slide_transition_style.dart';
 import '../../models/custom_sound_upload.dart';
 import '../../models/talks_list_layout_style.dart';
 import '../../models/group.dart';
@@ -39,6 +40,7 @@ import '../../providers/app_ui_style_provider.dart';
 import '../../providers/font_design_provider.dart';
 import '../../providers/block_providers.dart';
 import '../../providers/chat_layout_style_provider.dart';
+import '../../providers/slide_transition_style_provider.dart';
 import '../../providers/talks_list_layout_style_provider.dart';
 import '../../providers/draft_sync_enabled_provider.dart';
 import '../../models/nav_chip_layout.dart';
@@ -2191,6 +2193,8 @@ class _ApplicationPage extends ConsumerWidget {
         const Divider(height: 24),
         AccentColorFolder(strings: strings),
         const Divider(height: 24),
+        SlideTransitionFolder(strings: strings),
+        const Divider(height: 24),
         if (!isGekiga) ...[const _TextColorFolder(), const Divider(height: 24)],
         _SectionHeader(strings.settingsFontDesign),
         FontDesignFolder(strings: strings),
@@ -3324,6 +3328,88 @@ class ChatLayoutFolder extends ConsumerWidget {
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
           child: Text(
             strings.settingsChatLayoutTitle,
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+        ),
+        control,
+      ],
+    );
+  }
+}
+
+/// 画面遷移の動きの種類の選択（2026-11-04追加、端末ごとの個人設定）。
+class SlideTransitionFolder extends ConsumerWidget {
+  const SlideTransitionFolder({required this.strings});
+
+  final Strings strings;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final style = ref.watch(slideTransitionStyleProvider);
+    final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
+
+    void select(SlideTransitionStyle value) =>
+        ref.read(slideTransitionStyleProvider.notifier).setStyle(value);
+
+    final options = [
+      (
+        value: SlideTransitionStyle.slideBlur,
+        title: strings.settingsSlideTransitionSlideBlur,
+      ),
+      (
+        value: SlideTransitionStyle.slide,
+        title: strings.settingsSlideTransitionSlide,
+      ),
+      (
+        value: SlideTransitionStyle.suck,
+        title: strings.settingsSlideTransitionSuck,
+      ),
+    ];
+
+    final control = isGekiga
+        ? GekigaJointedTileList(
+            seeds: [for (final option in options) option.value.hashCode],
+            selectedFlags: [
+              for (final option in options) style == option.value,
+            ],
+            children: [
+              for (final option in options)
+                GekigaTileContent(
+                  selected: style == option.value,
+                  leading: Icon(
+                    style == option.value
+                        ? Icons.radio_button_checked
+                        : Icons.radio_button_unchecked,
+                  ),
+                  title: Text(option.title),
+                  onTap: () => select(option.value),
+                ),
+            ],
+          )
+        : RadioGroup<SlideTransitionStyle>(
+            groupValue: style,
+            onChanged: (value) {
+              if (value != null) select(value);
+            },
+            child: Column(
+              children: [
+                for (final option in options)
+                  RadioListTile<SlideTransitionStyle>(
+                    value: option.value,
+                    title: Text(option.title),
+                  ),
+              ],
+            ),
+          );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+          child: Text(
+            strings.settingsSlideTransitionTitle,
             style: const TextStyle(fontWeight: FontWeight.bold),
           ),
         ),

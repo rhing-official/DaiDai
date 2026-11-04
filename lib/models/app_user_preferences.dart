@@ -18,6 +18,7 @@ class AppUserPreferences {
     this.joinVideoCameraOn,
     this.iconSplitMirrored,
     this.chatLayoutStyle,
+    this.slideTransitionStyle,
     this.messageTimeFormat,
     this.appUiStyle,
     this.customAccentColorsArgb,
@@ -51,6 +52,9 @@ class AppUserPreferences {
   final bool? iconSplitMirrored;
 
   final String? chatLayoutStyle;
+
+  /// 画面遷移の動きの種類（2026-11-04追加、null=標準の「スライド＋滲み」）。
+  final String? slideTransitionStyle;
 
   final String? messageTimeFormat;
   final String? appUiStyle;
@@ -113,6 +117,7 @@ class AppUserPreferences {
       joinVideoCameraOn: json['joinVideoCameraOn'] as bool?,
       iconSplitMirrored: json['iconSplitMirrored'] as bool?,
       chatLayoutStyle: json['chatLayoutStyle'] as String?,
+      slideTransitionStyle: json['slideTransitionStyle'] as String?,
       messageTimeFormat: json['messageTimeFormat'] as String?,
       appUiStyle: json['appUiStyle'] as String?,
       customAccentColorsArgb: (json['customAccentColorsArgb'] as List<dynamic>?)
@@ -150,6 +155,8 @@ class AppUserPreferences {
       if (joinVideoCameraOn != null) 'joinVideoCameraOn': joinVideoCameraOn,
       if (iconSplitMirrored != null) 'iconSplitMirrored': iconSplitMirrored,
       if (chatLayoutStyle != null) 'chatLayoutStyle': chatLayoutStyle,
+      if (slideTransitionStyle != null)
+        'slideTransitionStyle': slideTransitionStyle,
       if (messageTimeFormat != null) 'messageTimeFormat': messageTimeFormat,
       if (appUiStyle != null) 'appUiStyle': appUiStyle,
       if (customAccentColorsArgb != null)

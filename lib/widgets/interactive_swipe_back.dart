@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
+import '../models/slide_transition_style.dart';
+import 'liquify_effect.dart';
 import '../theme/motion.dart';
 import 'swipe_gestures.dart';
 
@@ -338,21 +340,41 @@ class _InteractiveSwipeBackTransitionState
             valueListenable: _controller.progress,
             child: RepaintBoundary(child: widget.child),
             builder: (context, value, child) {
-              final moved = Transform.translate(
-                offset: Offset(value, 0),
-                child: child,
+              // 平行移動と右下基点の縮小を1つの`Transform`で表す（種類で木の形を
+              // 変えない）。吸い込みは平行移動せず、右下の角へ縮む。
+              final isSuck =
+                  activeSlideTransitionStyle == SlideTransitionStyle.suck;
+              final dragProgress = (_controller.maxDrag <= 0 || value <= 0)
+                  ? 0.0
+                  : (value / _controller.maxDrag).clamp(0.0, 1.0);
+              final scale = isSuck
+                  ? 1 - (1 - suckMinScale) * dragProgress
+                  : 1.0;
+              final moved = Transform(
+                alignment: Alignment.bottomRight,
+                transform: Matrix4.identity()
+                  ..translateByDouble(isSuck ? 0.0 : value, 0.0, 0.0, 1.0)
+                  ..scaleByDouble(scale, scale, 1.0, 1.0),
+                child: LiquifyEffect(
+                  progress: dragProgress,
+                  enabled: isSuck,
+                  child: child!,
+                ),
               );
               // 右へ動かすほど薄くなり、入場（薄→濃）と対称にする（2026-11-04）。
               // 静止時も常にOpacityを挟む（有無で木の形が変わると、子の画面全体が
               // アンマウント→再マウントされ、ドラッグ中に画面が作り直されて閉じられ
               // なくなる。不透明度1のOpacityは追加のレイヤーを作らない）。
               final max = _controller.maxDrag;
-              final opacity = (max <= 0 || value <= 0)
-                  ? 1.0
-                  : 1 - (value / max).clamp(0.0, 1.0);
+              // 薄くするのは種類が許す時だけ（`Opacity`自体は挟み続ける）。
+              final fades = activeSlideTransitionStyle.usesFade;
+              final progressed = (max <= 0 || value <= 0)
+                  ? 0.0
+                  : (value / max).clamp(0.0, 1.0);
+              final opacity = fades ? 1 - progressed : 1.0;
               return Opacity(
                 opacity: opacity,
-                child: buildTransitionBlur(1 - opacity, moved),
+                child: buildTransitionBlur(progressed, moved),
               );
             },
           ),

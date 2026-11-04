@@ -4222,9 +4222,14 @@ class _SwipeToOpenRoomPreviewState
               valueListenable: _controller.progress,
               // warmだが進捗0（タッチダウン直後、まだ水平ドラッグと判定される前）の間は、
               // maxDrag分右にオフセットして画面外に置き、初回マウントのコストを先に消化する。
-              builder: (context, value, child) => Transform.translate(
-                offset: Offset(_controller.maxDrag - value, 0),
-                child: RepaintBoundary(child: child),
+              // 画面遷移の種類（スライド＋滲み・スライド・吸い込み）に従って現れる
+              // （2026-11-04、以前は常に右からの平行移動だけだった）。
+              builder: (context, value, child) => buildAwayTransition(
+                away: _controller.maxDrag <= 0
+                    ? 1.0
+                    : 1 - value / _controller.maxDrag,
+                maxDrag: _controller.maxDrag,
+                child: RepaintBoundary(child: child!),
               ),
               // ルートのオーバーレイにはルート（`ModalRoute`）由来の`PageStorage`が
               // 無く、プレビューのチャットの`ScrollablePositionedList`が

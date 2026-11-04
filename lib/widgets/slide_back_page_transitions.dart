@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../models/slide_transition_style.dart';
+import 'liquify_effect.dart';
 import '../theme/motion.dart';
 import 'interactive_swipe_back.dart';
 import 'swipe_gestures.dart';
@@ -44,14 +46,25 @@ class SlideBackPageTransitionsBuilder extends PageTransitionsBuilder {
         final t = route.popGestureInProgress
             ? animation.value
             : popSlideCurve.transform(animation.value);
+        final style = activeSlideTransitionStyle;
+        // 吸い込みはスライドせず、右下の角へ縮む（木の形は種類で変えない）。
+        final isSuck = style == SlideTransitionStyle.suck;
         final moved = FractionalTranslation(
-          translation: Offset(1 - t, 0),
-          child: child,
+          translation: Offset(style.usesSlide ? 1 - t : 0, 0),
+          child: Transform.scale(
+            alignment: Alignment.bottomRight,
+            scale: isSuck ? suckMinScale + (1 - suckMinScale) * t : 1.0,
+            child: LiquifyEffect(
+              progress: 1 - t,
+              enabled: isSuck,
+              child: child!,
+            ),
+          ),
         );
         // スライドに合わせて薄→濃（2026-11-04）。
         // 有無で木の形が変わると画面が再マウントされるため常に挟む。
         return Opacity(
-          opacity: t.clamp(0.0, 1.0),
+          opacity: style.usesFade ? t.clamp(0.0, 1.0) : 1.0,
           child: buildTransitionBlur(1 - t, moved),
         );
       },

@@ -91,6 +91,10 @@ class Strings {
     required this.settingsChatLayoutSideBySideDescription,
     required this.settingsChatLayoutAllLeft,
     required this.settingsChatLayoutAllLeftDescription,
+    required this.settingsSlideTransitionTitle,
+    required this.settingsSlideTransitionSlideBlur,
+    required this.settingsSlideTransitionSlide,
+    required this.settingsSlideTransitionSuck,
     required this.settingsTalksListLayoutTitle,
     required this.settingsTalksListLayoutNote,
     required this.settingsTalksListMirrorTitle,
@@ -1082,6 +1086,10 @@ class Strings {
   final String settingsChatLayoutSideBySideDescription;
   final String settingsChatLayoutAllLeft;
   final String settingsChatLayoutAllLeftDescription;
+  final String settingsSlideTransitionTitle;
+  final String settingsSlideTransitionSlideBlur;
+  final String settingsSlideTransitionSlide;
+  final String settingsSlideTransitionSuck;
 
   /// 縦表示での語らい一覧レイアウト（2026-09-11追加、設定＞語らい）。
   final String settingsTalksListLayoutTitle;
@@ -2378,6 +2386,10 @@ class Strings {
     settingsChatLayoutAllLeftDescription:
         '自分・相手ともにアイコンと呼び名を表示します。'
         'この設定は自分の画面にのみ反映され、相手の語らいの表示には影響しません。',
+    settingsSlideTransitionTitle: '画面遷移',
+    settingsSlideTransitionSlideBlur: 'スライド＋滲み',
+    settingsSlideTransitionSlide: 'スライド',
+    settingsSlideTransitionSuck: '吸い込み',
     settingsTalksListLayoutTitle: '語らい一覧のレイアウト',
     settingsTalksListLayoutNote:
         '縦画面で適用されます。横画面（幅の広い画面）のコンピューターでは、この設定にかかわらず左右分割で表示されます。',
@@ -3427,6 +3439,10 @@ class Strings {
         'Always shows both your own and the other person\'s avatar and '
         'nickname. This only changes your own screen, not how others see '
         'the chat.',
+    settingsSlideTransitionTitle: 'Screen transitions',
+    settingsSlideTransitionSlideBlur: 'Slide and blur',
+    settingsSlideTransitionSlide: 'Slide',
+    settingsSlideTransitionSuck: 'Suck in',
     settingsTalksListLayoutTitle: 'Talks list layout (portrait)',
     settingsTalksListLayoutNote:
         'Applies in portrait orientation. On a computer with a wide, landscape window, the list is always shown in a split view regardless of this setting.',

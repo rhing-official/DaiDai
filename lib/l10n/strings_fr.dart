@@ -98,6 +98,10 @@ final Strings _stringsFr = Strings._(
   settingsChatLayoutAllLeft: 'Tout le monde à gauche',
   settingsChatLayoutAllLeftDescription:
       'Affiche toujours votre avatar et celui de l’autre personne, ainsi que les pseudos. Cela ne change que votre écran, pas ce que voient les autres.',
+  settingsSlideTransitionTitle: 'Transitions d’écran',
+  settingsSlideTransitionSlideBlur: 'Glissement et flou',
+  settingsSlideTransitionSlide: 'Glissement',
+  settingsSlideTransitionSuck: 'Aspiration',
   settingsTalksListMirrorTitle: "Inverser gauche et droite",
   settingsTalksListMirrorSubtitle:
       "Avec « Icônes + liste des salons », place la colonne d’icônes à droite et les messages à gauche.",

@@ -30,6 +30,7 @@ import 'providers/app_locale_provider.dart';
 import 'providers/app_ui_style_provider.dart';
 import 'providers/calling_sound_provider.dart';
 import 'providers/chat_layout_style_provider.dart';
+import 'providers/slide_transition_style_provider.dart';
 import 'providers/conversation_sort_order_provider.dart';
 import 'providers/custom_accent_colors_provider.dart';
 import 'providers/custom_font_colors_provider.dart';
@@ -107,6 +108,7 @@ Future<void> main() async {
   final initialMessageTimeFormat = await loadInitialMessageTimeFormat();
   final initialCalendarWeekStart = await loadInitialCalendarWeekStart();
   final initialChatLayoutStyle = await loadInitialChatLayoutStyle();
+  final initialSlideTransitionStyle = await loadInitialSlideTransitionStyle();
   final initialTalksListLayoutStyle = await loadInitialTalksListLayoutStyle();
   final initialLastOpenedRooms = await loadInitialLastOpenedRooms();
   final initialAppThemeMode = await loadInitialAppThemeMode();
@@ -169,6 +171,9 @@ Future<void> main() async {
         ),
         initialCalendarWeekStartProvider.overrideWithValue(
           initialCalendarWeekStart,
+        ),
+        initialSlideTransitionStyleProvider.overrideWithValue(
+          initialSlideTransitionStyle,
         ),
         initialChatLayoutStyleProvider.overrideWithValue(
           initialChatLayoutStyle,

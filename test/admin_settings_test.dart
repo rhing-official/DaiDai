@@ -9,7 +9,9 @@ import 'package:daidai/providers/accent_color_provider.dart';
 import 'package:daidai/providers/app_locale_provider.dart';
 import 'package:daidai/providers/app_ui_style_provider.dart';
 import 'package:daidai/providers/calling_sound_provider.dart';
+import 'package:daidai/models/slide_transition_style.dart';
 import 'package:daidai/providers/chat_layout_style_provider.dart';
+import 'package:daidai/providers/slide_transition_style_provider.dart';
 import 'package:daidai/providers/custom_accent_colors_provider.dart';
 import 'package:daidai/providers/draft_sync_enabled_provider.dart';
 import 'package:daidai/providers/font_design_provider.dart';
@@ -61,6 +63,9 @@ void main() {
           initialDraftSyncEnabledProvider.overrideWithValue(true),
           initialMessageTimeFormatProvider.overrideWithValue(
             MessageTimeFormat.h24,
+          ),
+          initialSlideTransitionStyleProvider.overrideWithValue(
+            SlideTransitionStyle.slideBlur,
           ),
           initialChatLayoutStyleProvider.overrideWithValue(
             ChatLayoutStyle.sideBySide,
