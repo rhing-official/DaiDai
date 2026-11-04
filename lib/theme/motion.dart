@@ -1,3 +1,5 @@
+import 'dart:ui' show ImageFilter;
+
 import 'package:flutter/widgets.dart';
 
 /// アプリ全体で使う「ポップ」演出（フェード＋下からのわずかなスライド＋
@@ -49,7 +51,33 @@ Widget buildSlideInFromRightTransition(
         begin: const Offset(1, 0),
         end: Offset.zero,
       ).animate(curved),
-      child: child,
+      // 離れているほど滲ませる（2026-11-04）。
+      child: AnimatedBuilder(
+        animation: curved,
+        child: child,
+        builder: (context, child) =>
+            buildTransitionBlur(1 - curved.value, child!),
+      ),
     ),
+  );
+}
+
+/// 画面遷移で、重なるページが離れるほど（[amount]が1に近いほど）滲むぼかしの
+/// 最大の強さ（sigma、2026-11-04）。
+const slideBlurMaxSigma = 10.0;
+
+/// 遷移中の滲むエフェクト。[amount]は0（くっきり）〜1（最大のぼかし）。
+/// 0の間は`enabled: false`にするだけで、木の形（ウィジェットの種類）を変えない。
+/// 有無で形が変わると子の画面が再マウントされるため、常にこのウィジェットを挟む。
+Widget buildTransitionBlur(double amount, Widget child) {
+  final sigma = (amount.clamp(0.0, 1.0)) * slideBlurMaxSigma;
+  return ImageFiltered(
+    enabled: sigma > 0.05,
+    imageFilter: ImageFilter.blur(
+      sigmaX: sigma,
+      sigmaY: sigma,
+      tileMode: TileMode.decal,
+    ),
+    child: child,
   );
 }

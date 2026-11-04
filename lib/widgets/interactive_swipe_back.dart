@@ -60,6 +60,7 @@ class InteractiveSwipeBackController {
   double maxDrag = 1;
 
   bool isGestureActive = false;
+  bool _disposed = false;
 
   void syncFromExternalDrag(BuildContext context, double absoluteOffsetPx) {
     if (!isGestureActive) {
@@ -92,6 +93,26 @@ class InteractiveSwipeBackController {
   void cancelExternalDrag() {
     if (!isGestureActive) return;
     _finish(false);
+  }
+
+  /// ドラッグ中のウィジェットがツリーの破棄中（`dispose`）に消える場合の中断
+  /// （2026-11-04）。[cancelExternalDrag]は`didStopUserGesture`を同期的に呼ぶため、
+  /// ツリーのロック中に各ルートのリスナーが再構築を要求して例外になり、復帰の
+  /// アニメーションも始まらず画面がずれたまま・操作不能になっていた。ここでは
+  /// アニメーションを使わず位置を戻し、Navigatorへの通知は次のマイクロタスクで返す。
+  void abandonExternalDrag() {
+    if (!isGestureActive) return;
+    isGestureActive = false;
+    final navigator = _navigator;
+    _navigator = null;
+    if (navigator != null) {
+      scheduleMicrotask(() {
+        if (navigator.mounted) navigator.didStopUserGesture();
+      });
+    }
+    scheduleMicrotask(() {
+      if (!_disposed && !isGestureActive) progress.value = 0;
+    });
   }
 
   void _stopNavigatorGesture() {
@@ -133,6 +154,7 @@ class InteractiveSwipeBackController {
   }
 
   void dispose() {
+    _disposed = true;
     isGestureActive = false;
     // ツリーの破棄中にNavigatorのリスナー（各ルートのIgnorePointer）を
     // 再構築させないよう、解除は次のマイクロタスクで行う。
@@ -316,9 +338,21 @@ class _InteractiveSwipeBackTransitionState
             valueListenable: _controller.progress,
             child: RepaintBoundary(child: widget.child),
             builder: (context, value, child) {
-              return Transform.translate(
+              final moved = Transform.translate(
                 offset: Offset(value, 0),
                 child: child,
+              );
+              // 右へ動かすほど薄くなり、入場（薄→濃）と対称にする（2026-11-04）。
+              // 静止時も常にOpacityを挟む（有無で木の形が変わると、子の画面全体が
+              // アンマウント→再マウントされ、ドラッグ中に画面が作り直されて閉じられ
+              // なくなる。不透明度1のOpacityは追加のレイヤーを作らない）。
+              final max = _controller.maxDrag;
+              final opacity = (max <= 0 || value <= 0)
+                  ? 1.0
+                  : 1 - (value / max).clamp(0.0, 1.0);
+              return Opacity(
+                opacity: opacity,
+                child: buildTransitionBlur(1 - opacity, moved),
               );
             },
           ),

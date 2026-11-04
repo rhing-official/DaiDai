@@ -44,9 +44,15 @@ class SlideBackPageTransitionsBuilder extends PageTransitionsBuilder {
         final t = route.popGestureInProgress
             ? animation.value
             : popSlideCurve.transform(animation.value);
-        return FractionalTranslation(
+        final moved = FractionalTranslation(
           translation: Offset(1 - t, 0),
           child: child,
+        );
+        // スライドに合わせて薄→濃（2026-11-04）。
+        // 有無で木の形が変わると画面が再マウントされるため常に挟む。
+        return Opacity(
+          opacity: t.clamp(0.0, 1.0),
+          child: buildTransitionBlur(1 - t, moved),
         );
       },
     );

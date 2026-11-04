@@ -4254,7 +4254,15 @@ class _SwipeToOpenRoomPreviewState
   @override
   void didUpdateWidget(covariant _SwipeToOpenRoomPreview oldWidget) {
     super.didUpdateWidget(oldWidget);
-    _overlayEntry?.markNeedsBuild();
+    final entry = _overlayEntry;
+    if (entry == null) return;
+    // 親のビルド中（StreamBuilder等の再構築中）に呼ばれるため、そのまま
+    // markNeedsBuildするとオーバーレイが「ビルド中に再構築要求」の例外になる
+    // （2026-11-04）。フレームの後で反映する。
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && identical(_overlayEntry, entry)) entry.markNeedsBuild();
+    });
+    WidgetsBinding.instance.ensureVisualUpdate();
   }
 
   void _maybeCoolDown() {

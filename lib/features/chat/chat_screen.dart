@@ -7695,7 +7695,7 @@ class _MessageInteractionsState extends State<_MessageInteractions> {
 
   @override
   void dispose() {
-    _relaying?.cancelExternalDrag();
+    _relaying?.abandonExternalDrag();
     _relaying = null;
     super.dispose();
   }
