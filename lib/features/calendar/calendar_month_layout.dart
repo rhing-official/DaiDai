@@ -1,3 +1,4 @@
+import '../../l10n/holiday_data.dart';
 import '../../models/calendar_category.dart';
 import '../../models/calendar_event.dart';
 import '../../models/schedule_coordination.dart';
@@ -17,7 +18,14 @@ class CalendarMonthItem {
     required this.endDate,
     required this.event,
     required this.coordination,
+    this.holidayKind,
   });
+
+  /// 祝日・祭日・宗教上の祝日の帯ならその種類（[event]・[coordination]は共にnull。
+  /// タップしても何も開かない）。予定・日程調整ならnull。
+  final HolidayKind? holidayKind;
+
+  bool get isHoliday => holidayKind != null;
 
   final String title;
 

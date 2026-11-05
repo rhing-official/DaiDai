@@ -15,16 +15,20 @@ import '../../models/app_user.dart';
 import '../../models/calendar_category.dart';
 import '../../models/calendar_event.dart';
 import '../../models/calendar_event_sync.dart';
+import '../../models/calendar_system.dart';
 import '../../models/calendar_week_start.dart';
 import '../../models/schedule_coordination.dart';
 import '../../providers/accent_color_provider.dart';
 import '../../providers/app_locale_provider.dart';
 import '../../providers/app_ui_style_provider.dart';
-import '../../providers/calendar_week_start_provider.dart';
+import '../../providers/calendar_system_provider.dart';
+import '../../providers/holiday_settings_provider.dart';
+import '../../l10n/holiday_data.dart';
 import '../../providers/repository_providers.dart';
 import '../../theme/popup_surface_colors.dart';
 import '../../widgets/glass/glass_surface.dart';
 import '../../widgets/swipe_gestures.dart';
+import '../chat/button_anchored_menu.dart';
 import 'calendar_add_choice_dialog.dart';
 import 'calendar_category_list_popup.dart';
 import 'calendar_event_detail_dialog.dart';
@@ -272,6 +276,9 @@ class _CalendarPaneViewState extends ConsumerState<CalendarPaneView>
   ) async {
     final strings = ref.read(appStringsProvider);
     final localeCode = ref.read(appLocaleProvider).languageCode;
+    final calendarSystem = ref.read(
+      effectiveCalendarSystemProvider(widget.conversationId),
+    );
     final result = await showAppDialog<_CalendarSearchSelection>(
       context: context,
       builder: (_) => _CalendarSearchDialog(
@@ -279,6 +286,7 @@ class _CalendarPaneViewState extends ConsumerState<CalendarPaneView>
         coordinations: coordinations,
         strings: strings,
         localeCode: localeCode,
+        calendarSystem: calendarSystem,
       ),
     );
     if (result == null || !mounted) return;
@@ -333,6 +341,14 @@ class _CalendarPaneViewState extends ConsumerState<CalendarPaneView>
     final strings = ref.read(appStringsProvider);
     final localeCode = ref.read(appLocaleProvider).languageCode;
     final uiStyle = ref.read(appUiStyleProvider);
+    final calendarSystem = ref.read(
+      effectiveCalendarSystemProvider(widget.conversationId),
+    );
+    final holidays = holidaysFor(
+      day,
+      ref.read(effectiveHolidaySettingsProvider(widget.conversationId)),
+      ref.read(holidayCountryProvider).value ?? 'JP',
+    );
 
     final box = cellContext.findRenderObject()! as RenderBox;
     final topLeft = box.localToGlobal(Offset.zero);
@@ -365,6 +381,8 @@ class _CalendarPaneViewState extends ConsumerState<CalendarPaneView>
             uiStyle: uiStyle,
             strings: strings,
             localeCode: localeCode,
+            calendarSystem: calendarSystem,
+            holidays: holidays,
             onAdd: () {
               Navigator.of(context).pop();
               _addOn(day);
@@ -435,7 +453,10 @@ class _CalendarPaneViewState extends ConsumerState<CalendarPaneView>
       Offset.zero & overlay.size,
     );
 
-    await showMenu<void>(
+    // 画面遷移の種類（吸い込みなど）に従って開閉するため、素の`showMenu`ではなく
+    // `showAnchoredMenu`で出す（2026-11-05）。ポップアップは外のルートに描かれるので、
+    // 呼び出し元と同じプロバイダーの範囲を引き継ぐ。
+    await showAnchoredMenu<void>(
       context: context,
       position: position,
       color: Colors.transparent,
@@ -445,10 +466,13 @@ class _CalendarPaneViewState extends ConsumerState<CalendarPaneView>
         PopupMenuItem<void>(
           enabled: false,
           padding: EdgeInsets.zero,
-          child: CalendarCategoryListPopup(
-            isDm: widget.isDm,
-            conversationId: widget.conversationId,
-            roomId: widget.roomId,
+          child: UncontrolledProviderScope(
+            container: ProviderScope.containerOf(context),
+            child: CalendarCategoryListPopup(
+              isDm: widget.isDm,
+              conversationId: widget.conversationId,
+              roomId: widget.roomId,
+            ),
           ),
         ),
       ],
@@ -462,6 +486,16 @@ class _CalendarPaneViewState extends ConsumerState<CalendarPaneView>
     final uiStyle = ref.watch(appUiStyleProvider);
     final isGekiga = uiStyle == AppUiStyle.gekiga;
     final accent = ref.watch(accentColorProvider);
+    final calendarSystem = ref.watch(
+      effectiveCalendarSystemProvider(widget.conversationId),
+    );
+    final holidayCountry = ref.watch(holidayCountryProvider).value ?? 'JP';
+    final holidaySettings = ref.watch(
+      effectiveHolidaySettingsProvider(widget.conversationId),
+    );
+    final weekStart = ref.watch(
+      effectiveWeekStartProvider(widget.conversationId),
+    );
     final colorScheme = Theme.of(context).colorScheme;
     final isMobile =
         MediaQuery.sizeOf(context).width < _kCalendarMobileBreakpoint;
@@ -512,10 +546,7 @@ class _CalendarPaneViewState extends ConsumerState<CalendarPaneView>
                 final padding = isMobile
                     ? const EdgeInsets.symmetric(vertical: 8)
                     : const EdgeInsets.all(16);
-                final weekCount = _weekCountOf(
-                  _focusedMonth,
-                  ref.watch(calendarWeekStartProvider),
-                );
+                final weekCount = _weekCountOf(_focusedMonth, weekStart);
                 final contentHeight = math.max(
                   viewport.maxHeight - padding.vertical,
                   _kMonthChromeHeight + weekCount * _rowHeightFor(1),
@@ -575,6 +606,7 @@ class _CalendarPaneViewState extends ConsumerState<CalendarPaneView>
                                 );
                                 Widget gridFor(DateTime month) => _MonthGrid(
                                   key: ValueKey(month),
+                                  weekStart: weekStart,
                                   focusedMonth: month,
                                   monthItems: monthItems,
                                   isGekiga: isGekiga,
@@ -582,6 +614,12 @@ class _CalendarPaneViewState extends ConsumerState<CalendarPaneView>
                                   accentColor: accent,
                                   colorScheme: colorScheme,
                                   strings: strings,
+                                  holidaysOf: (day) => holidaysFor(
+                                    day,
+                                    holidaySettings,
+                                    holidayCountry,
+                                  ),
+                                  localeCode: localeCode,
                                   onDayTap: (cellContext, day) => _onDayTap(
                                     cellContext,
                                     day,
@@ -594,7 +632,11 @@ class _CalendarPaneViewState extends ConsumerState<CalendarPaneView>
                                   children: [
                                     _MonthHeader(
                                       month: _focusedMonth,
-                                      localeCode: localeCode,
+                                      title: formatMonthTitle(
+                                        calendarSystem,
+                                        _focusedMonth,
+                                        localeCode,
+                                      ),
                                       todayLabel: strings.calendarTodayButton,
                                       searchTooltip:
                                           strings.calendarSearchTooltip,
@@ -614,6 +656,7 @@ class _CalendarPaneViewState extends ConsumerState<CalendarPaneView>
                                     _WeekdayHeaderRow(
                                       localeCode: localeCode,
                                       gridLineColor: colorScheme.outline,
+                                      weekStart: weekStart,
                                     ),
                                     Expanded(
                                       child: _dragging
@@ -646,7 +689,7 @@ class _CalendarPaneViewState extends ConsumerState<CalendarPaneView>
 class _MonthHeader extends StatelessWidget {
   const _MonthHeader({
     required this.month,
-    required this.localeCode,
+    required this.title,
     required this.todayLabel,
     required this.searchTooltip,
     required this.categorySettingsTooltip,
@@ -658,7 +701,7 @@ class _MonthHeader extends StatelessWidget {
   });
 
   final DateTime month;
-  final String localeCode;
+  final String title;
   final String todayLabel;
   final String searchTooltip;
   final String categorySettingsTooltip;
@@ -679,7 +722,7 @@ class _MonthHeader extends StatelessWidget {
         ),
         Expanded(
           child: Text(
-            DateFormat.yMMMM(localeCode).format(month),
+            title,
             textAlign: TextAlign.center,
             style: Theme.of(
               context,
@@ -719,15 +762,17 @@ class _WeekdayHeaderRow extends ConsumerWidget {
   const _WeekdayHeaderRow({
     required this.localeCode,
     required this.gridLineColor,
+    required this.weekStart,
   });
 
   final String localeCode;
   final Color gridLineColor;
+  final CalendarWeekStart weekStart;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     // 週の先頭の曜日（日曜/月曜、設定）から7日分の曜日ラベル（最短表記）を作る。
-    final anchor = ref.watch(calendarWeekStartProvider).weekdayLabelAnchor;
+    final anchor = weekStart.weekdayLabelAnchor;
     final labelStyle = Theme.of(context).textTheme.bodySmall?.copyWith(
       color: Theme.of(context).colorScheme.onSurfaceVariant,
     );
@@ -836,6 +881,7 @@ class _MonthSlideSwitcher extends StatelessWidget {
 class _MonthGrid extends ConsumerWidget {
   const _MonthGrid({
     super.key,
+    required this.weekStart,
     required this.focusedMonth,
     required this.monthItems,
     required this.isGekiga,
@@ -843,10 +889,15 @@ class _MonthGrid extends ConsumerWidget {
     required this.accentColor,
     required this.colorScheme,
     required this.strings,
+    required this.holidaysOf,
+    required this.localeCode,
     required this.onDayTap,
     required this.onItemTap,
   });
 
+  final List<HolidayEntry> Function(DateTime day) holidaysOf;
+  final String localeCode;
+  final CalendarWeekStart weekStart;
   final DateTime focusedMonth;
   final List<CalendarMonthItem> monthItems;
   final bool isGekiga;
@@ -864,9 +915,7 @@ class _MonthGrid extends ConsumerWidget {
     final firstOfMonth = DateTime(year, month);
     final daysInMonth = DateTime(year, month + 1, 0).day;
     // 週の始まり（日曜/月曜、設定）に応じた先頭余白マス数。
-    final leadingBlanks = ref
-        .watch(calendarWeekStartProvider)
-        .leadingBlanks(firstOfMonth);
+    final leadingBlanks = weekStart.leadingBlanks(firstOfMonth);
     final totalCells = leadingBlanks + daysInMonth;
     final trailingBlanks = (7 - totalCells % 7) % 7;
 
@@ -911,6 +960,8 @@ class _MonthGrid extends ConsumerWidget {
                 accentColor: accentColor,
                 colorScheme: colorScheme,
                 strings: strings,
+                holidaysOf: holidaysOf,
+                localeCode: localeCode,
                 onDayTap: onDayTap,
                 onItemTap: onItemTap,
               ),
@@ -937,10 +988,14 @@ class _WeekRow extends StatelessWidget {
     required this.accentColor,
     required this.colorScheme,
     required this.strings,
+    required this.holidaysOf,
+    required this.localeCode,
     required this.onDayTap,
     required this.onItemTap,
   });
 
+  final List<HolidayEntry> Function(DateTime day) holidaysOf;
+  final String localeCode;
   final List<DateTime> weekDays;
   final int month;
   final DateTime today;
@@ -956,7 +1011,25 @@ class _WeekRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final layout = computeWeekLaneLayout(weekDays, monthItems, maxLanes);
+    // 祝日は祝日名の帯として、予定と同じレーンに並べる。
+    final holidayItems = <CalendarMonthItem>[
+      for (final day in weekDays)
+        for (final entry in holidaysOf(day))
+          CalendarMonthItem(
+            title: entry.nameFor(localeCode),
+            categoryColor: null,
+            isCoordination: false,
+            startDate: day,
+            endDate: day,
+            event: null,
+            coordination: null,
+            holidayKind: entry.kind,
+          ),
+    ];
+    final layout = computeWeekLaneLayout(weekDays, [
+      ...holidayItems,
+      ...monthItems,
+    ], maxLanes);
 
     return SizedBox(
       height: rowHeight,
@@ -975,6 +1048,9 @@ class _WeekRow extends StatelessWidget {
                     accentColor: accentColor,
                     colorScheme: colorScheme,
                     strings: strings,
+                    isPublicHoliday: holidaysOf(
+                      day,
+                    ).any((e) => e.kind == HolidayKind.public),
                     onTap: day.month == month
                         ? (cellContext) => onDayTap(cellContext, day)
                         : null,
@@ -1032,9 +1108,12 @@ class _DayCellBackground extends StatelessWidget {
     required this.accentColor,
     required this.colorScheme,
     required this.strings,
+    required this.isPublicHoliday,
     required this.onTap,
   });
 
+  /// 地域の祝日（休み）か。祝日は日番号を赤で示す。
+  final bool isPublicHoliday;
   final DateTime day;
   final bool isCurrentMonth;
   final bool isToday;
@@ -1050,6 +1129,15 @@ class _DayCellBackground extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 土曜は青、日曜と祝日は赤。濃淡は明暗に合わせて文字として読める色にする
+    // （劇画も同じ色分け）。
+    final isDark = colorScheme.brightness == Brightness.dark;
+    final isRed = day.weekday == DateTime.sunday || isPublicHoliday;
+    final numberColor = isRed
+        ? (isDark ? Colors.red.shade300 : Colors.red.shade700)
+        : day.weekday == DateTime.saturday
+        ? (isDark ? Colors.blue.shade300 : Colors.blue.shade700)
+        : colorScheme.onSurface;
     final dayNumber = isToday
         ? Container(
             width: 22,
@@ -1066,7 +1154,7 @@ class _DayCellBackground extends StatelessWidget {
             ),
             child: Text(
               '${day.day}',
-              style: TextStyle(fontSize: 14, color: colorScheme.onSurface),
+              style: TextStyle(fontSize: 14, color: numberColor),
               // フォントの行送り（アセント/ディセント）を打ち消し、丸の
               // 幾何中心と数字の見た目の中心を一致させる（2026-09-12）。
               strutStyle: const StrutStyle(
@@ -1082,7 +1170,7 @@ class _DayCellBackground extends StatelessWidget {
           )
         : Text(
             '${day.day}',
-            style: TextStyle(fontSize: 14, color: colorScheme.onSurface),
+            style: TextStyle(fontSize: 14, color: numberColor),
           );
 
     return Opacity(
@@ -1158,6 +1246,12 @@ class _SpanBar extends StatelessWidget {
     // 以前付けていた実線の縁取りも撤回）。
     final fillColor = isGekiga
         ? Colors.black
+        : item.holidayKind != null
+        ? switch (item.holidayKind!) {
+            HolidayKind.public => Colors.red.shade700,
+            HolidayKind.observance => Colors.green.shade700,
+            HolidayKind.religious => Colors.purple.shade700,
+          }
         : Color(
             0xFF000000 |
                 (item.categoryColor ?? (accentColor.toARGB32() & 0xFFFFFF)),
@@ -1165,7 +1259,9 @@ class _SpanBar extends StatelessWidget {
     // フォント色は塗り色に対する明度コントラストで黒/白を選ぶ（2026-09-11、
     // 「種類設定時はアクセントカラー」の指示を撤回し、外観の色と反対の色に
     // 統一）。劇画は白固定。
-    final textColor = isGekiga ? Colors.white : _onColorFor(fillColor);
+    final textColor = isGekiga || item.isHoliday
+        ? Colors.white
+        : _onColorFor(fillColor);
 
     final title = Padding(
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
@@ -1223,12 +1319,14 @@ class _CalendarSearchDialog extends StatefulWidget {
     required this.coordinations,
     required this.strings,
     required this.localeCode,
+    required this.calendarSystem,
   });
 
   final List<CalendarEvent> events;
   final List<ScheduleCoordination> coordinations;
   final Strings strings;
   final String localeCode;
+  final CalendarSystem calendarSystem;
 
   @override
   State<_CalendarSearchDialog> createState() => _CalendarSearchDialogState();
@@ -1263,7 +1361,8 @@ class _CalendarSearchDialogState extends State<_CalendarSearchDialog> {
         : const <ScheduleCoordination>[];
     final hasResults =
         matchingEvents.isNotEmpty || matchingCoordinations.isNotEmpty;
-    final dateFormat = DateFormat.yMMMEd(widget.localeCode);
+    String formatDate(DateTime d) =>
+        formatDayTitle(widget.calendarSystem, d, widget.localeCode);
 
     return KeyboardAlertDialog(
       title: TextField(
@@ -1292,9 +1391,7 @@ class _CalendarSearchDialogState extends State<_CalendarSearchDialog> {
                     for (final event in matchingEvents)
                       ListTile(
                         title: Text(event.title),
-                        subtitle: Text(
-                          dateFormat.format(event.startAt.toDate()),
-                        ),
+                        subtitle: Text(formatDate(event.startAt.toDate())),
                         onTap: () => Navigator.of(
                           context,
                         ).pop(_CalendarSearchEventSelection(event)),
@@ -1303,7 +1400,7 @@ class _CalendarSearchDialogState extends State<_CalendarSearchDialog> {
                       ListTile(
                         title: Text(coordination.title),
                         subtitle: Text(
-                          dateFormat.format(
+                          formatDate(
                             coordination.candidateDates.first.toDate(),
                           ),
                         ),
@@ -1341,6 +1438,8 @@ class _DayEventsPopupContent extends StatelessWidget {
     required this.uiStyle,
     required this.strings,
     required this.localeCode,
+    required this.calendarSystem,
+    required this.holidays,
     required this.onAdd,
     required this.onOpenDetail,
     required this.onOpenCoordinationDetail,
@@ -1356,6 +1455,8 @@ class _DayEventsPopupContent extends StatelessWidget {
   final AppUiStyle uiStyle;
   final Strings strings;
   final String localeCode;
+  final CalendarSystem calendarSystem;
+  final List<HolidayEntry> holidays;
   final VoidCallback onAdd;
   final void Function(CalendarEvent event) onOpenDetail;
   final void Function(ScheduleCoordination coordination)
@@ -1374,12 +1475,26 @@ class _DayEventsPopupContent extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: Text(
-                  DateFormat.yMMMEd(localeCode).format(day),
-                  style: TextStyle(
-                    color: onInverse,
-                    fontWeight: FontWeight.bold,
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      formatDayTitle(calendarSystem, day, localeCode),
+                      style: TextStyle(
+                        color: onInverse,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    for (final holiday in holidays)
+                      Text(
+                        '${holiday.nameFor(localeCode)}（${switch (holiday.kind) {
+                          HolidayKind.public => strings.holidayKindPublic,
+                          HolidayKind.observance => strings.holidayKindObservance,
+                          HolidayKind.religious => strings.holidayKindReligious,
+                        }}）',
+                        style: TextStyle(color: onInverse, fontSize: 12),
+                      ),
+                  ],
                 ),
               ),
               IconButton(

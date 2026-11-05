@@ -99,6 +99,7 @@ class _ScheduleCoordinationFormDialogState
     final result = await showMultiDatePickerDialog(
       context,
       initialSelectedDates: _candidates.toSet(),
+      conversationId: widget.conversationId,
     );
     if (result == null || !mounted) return;
     setState(() {

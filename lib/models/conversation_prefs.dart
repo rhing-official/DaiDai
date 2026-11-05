@@ -11,6 +11,9 @@ class ConversationPrefs {
     this.lastReadAt,
     this.unreadCount = 0,
     this.unreadByRoom = const {},
+    this.calendarSystem,
+    this.calendarWeekStart,
+    this.holidayOverride,
   });
 
   final bool pinned;
@@ -44,6 +47,19 @@ class ConversationPrefs {
   /// 時に読み込み・デバウンス保存する（2026-08-13追加）。
   final Map<String, String> draftByRoom;
 
+  /// この語らいのカレンダーに使う暦（`CalendarSystem.name`、2026-11-05追加）。
+  /// nullなら全体の暦に従う。自分の表示にだけ効き、相手や予定のデータには影響しない。
+  final String? calendarSystem;
+
+  /// この語らいのカレンダーの週の始まり（`CalendarWeekStart.name`、2026-11-05追加）。
+  /// nullなら標準（設定>語らい>カレンダー）に従う。
+  final String? calendarWeekStart;
+
+  /// この語らいの祝日・祭日・宗教上の祝日の選択（2026-11-05追加）。
+  /// nullなら標準に従う。キーは`regions`（国コードの配列、省略可）・`observances`
+  /// （bool）・`religions`（配列）。
+  final Map<String, dynamic>? holidayOverride;
+
   static const none = ConversationPrefs();
 
   ConversationPrefs copyWith({
@@ -54,6 +70,9 @@ class ConversationPrefs {
     Timestamp? lastReadAt,
     int? unreadCount,
     Map<String, int>? unreadByRoom,
+    String? calendarSystem,
+    String? calendarWeekStart,
+    Map<String, dynamic>? holidayOverride,
   }) {
     return ConversationPrefs(
       pinned: pinned ?? this.pinned,
@@ -64,6 +83,9 @@ class ConversationPrefs {
       lastReadAt: lastReadAt ?? this.lastReadAt,
       unreadCount: unreadCount ?? this.unreadCount,
       unreadByRoom: unreadByRoom ?? this.unreadByRoom,
+      calendarSystem: calendarSystem ?? this.calendarSystem,
+      calendarWeekStart: calendarWeekStart ?? this.calendarWeekStart,
+      holidayOverride: holidayOverride ?? this.holidayOverride,
     );
   }
 
@@ -83,6 +105,10 @@ class ConversationPrefs {
       unreadByRoom: (json['unreadByRoom'] as Map? ?? const {}).map(
         (key, value) => MapEntry(key as String, (value as num).toInt()),
       ),
+      calendarSystem: json['calendarSystem'] as String?,
+      calendarWeekStart: json['calendarWeekStart'] as String?,
+      holidayOverride: (json['holidayOverride'] as Map?)
+          ?.cast<String, dynamic>(),
     );
   }
 
@@ -95,6 +121,9 @@ class ConversationPrefs {
       'lastReadAt': lastReadAt,
       'unreadCount': unreadCount,
       'unreadByRoom': unreadByRoom,
+      'calendarSystem': calendarSystem,
+      'calendarWeekStart': calendarWeekStart,
+      'holidayOverride': holidayOverride,
     };
   }
 }

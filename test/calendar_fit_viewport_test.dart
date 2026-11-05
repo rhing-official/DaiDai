@@ -6,6 +6,9 @@ import 'package:daidai/models/calendar_category.dart';
 import 'package:daidai/models/calendar_event.dart';
 import 'package:daidai/models/calendar_week_start.dart';
 import 'package:daidai/providers/accent_color_provider.dart';
+import 'package:daidai/models/calendar_system.dart';
+import 'package:daidai/providers/calendar_system_provider.dart';
+import 'package:daidai/providers/holiday_settings_provider.dart';
 import 'package:daidai/providers/calendar_week_start_provider.dart';
 import 'package:daidai/models/schedule_coordination.dart';
 import 'package:daidai/providers/app_locale_provider.dart';
@@ -73,6 +76,12 @@ Future<int> _pump(WidgetTester tester, Size size, VoidCallback onClose) async {
         initialAccentColorProvider.overrideWithValue(kDefaultAccentColor),
         initialCalendarWeekStartProvider.overrideWithValue(
           CalendarWeekStart.sunday,
+        ),
+        initialCalendarSystemProvider.overrideWithValue(
+          CalendarSystem.gregorian,
+        ),
+        initialHolidaySettingsProvider.overrideWithValue(
+          const HolidaySettings(),
         ),
       ],
       child: MaterialApp(

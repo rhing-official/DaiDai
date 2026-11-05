@@ -1,3 +1,8 @@
+import 'package:daidai/models/calendar_system.dart';
+import 'package:daidai/models/calendar_week_start.dart';
+import 'package:daidai/providers/calendar_system_provider.dart';
+import 'package:daidai/providers/calendar_week_start_provider.dart';
+import 'package:daidai/providers/holiday_settings_provider.dart';
 import 'package:daidai/features/chat/announcement_screen.dart';
 import 'package:daidai/models/announcement.dart';
 import 'package:daidai/models/app_user.dart';
@@ -142,6 +147,15 @@ void main() {
             TalksListLayoutStyle.standard,
           ),
           initialAppThemeModeProvider.overrideWithValue(ThemeMode.system),
+          initialCalendarWeekStartProvider.overrideWithValue(
+            CalendarWeekStart.sunday,
+          ),
+          initialCalendarSystemProvider.overrideWithValue(
+            CalendarSystem.gregorian,
+          ),
+          initialHolidaySettingsProvider.overrideWithValue(
+            const HolidaySettings(),
+          ),
           initialAppUiStyleProvider.overrideWithValue(AppUiStyle.flat),
           initialFontDesignProvider.overrideWithValue(FontDesign.hannariMincho),
           initialRingtoneSoundProvider.overrideWithValue(null),

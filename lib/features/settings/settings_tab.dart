@@ -10,6 +10,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../providers/holiday_settings_provider.dart';
+import '../../providers/calendar_week_start_provider.dart';
+import '../../providers/calendar_system_provider.dart';
+import '../../models/calendar_week_start.dart';
+import '../../models/calendar_system.dart';
+import '../calendar/calendar_settings_widgets.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -4147,6 +4153,8 @@ class _TalkPage extends StatelessWidget {
         const Divider(height: 24),
         TalksListLayoutFolder(strings: strings),
         const Divider(height: 24),
+        _CalendarSettingsFolder(strings: strings),
+        const Divider(height: 24),
         SettingsAccordionSection(
           title: strings.settingsAdvancedSectionTitle,
           children: [
@@ -4158,6 +4166,98 @@ class _TalkPage extends StatelessWidget {
             const Divider(height: 24),
             _JoinVideoCameraFolder(strings: strings),
           ],
+        ),
+      ],
+    );
+  }
+}
+
+/// 設定>語らい>カレンダー（2026-11-05）。自分のカレンダーの標準を決める。ここで決めた
+/// 設定がすべてのカレンダーに適用され、語らいごとのカレンダーの歯車から変えられる。
+/// 週の始まり・暦・祝日/祭日/宗教上の祝日の選択を、端末とアカウントの両方に保存する。
+class _CalendarSettingsFolder extends ConsumerWidget {
+  const _CalendarSettingsFolder({required this.strings});
+
+  final Strings strings;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final foreground = colorScheme.onSurface;
+    final background = colorScheme.surface;
+    final weekStart = ref.watch(calendarWeekStartProvider);
+    final system = ref.watch(calendarSystemProvider);
+    final holidays = ref.watch(holidaySettingsProvider);
+    final residence = ref.watch(holidayCountryProvider).value ?? 'JP';
+    final holidayNotifier = ref.read(holidaySettingsProvider.notifier);
+
+    Widget label(String text) => Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+      child: Text(
+        text,
+        style: TextStyle(fontWeight: FontWeight.bold, color: foreground),
+      ),
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _SectionHeader(strings.calendarSettingsFolderTitle),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Text(
+            strings.calendarSettingsDefaultNote,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ),
+        label(strings.calendarWeekStartLabel),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: CalendarChoiceRow<CalendarWeekStart>(
+            options: weekStartOptions(strings),
+            selected: weekStart,
+            onSelected: (value) {
+              if (value != null) {
+                ref
+                    .read(calendarWeekStartProvider.notifier)
+                    .setWeekStart(value);
+              }
+            },
+            foreground: foreground,
+            background: background,
+          ),
+        ),
+        label(strings.calendarSystemLabel),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: CalendarChoiceRow<CalendarSystem>(
+            options: calendarSystemOptions(strings),
+            selected: system,
+            onSelected: (value) {
+              if (value != null) {
+                ref.read(calendarSystemProvider.notifier).setSystem(value);
+              }
+            },
+            foreground: foreground,
+            background: background,
+          ),
+        ),
+        label(strings.holidaySettingsTitle),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: HolidayCheckboxes(
+            strings: strings,
+            settings: holidays,
+            residenceCountry: residence,
+            onRegion: (country, enabled) =>
+                holidayNotifier.setRegion(country, enabled, residence),
+            onObservances: holidayNotifier.setObservances,
+            onReligion: holidayNotifier.setReligion,
+            foreground: foreground,
+            background: background,
+          ),
         ),
       ],
     );

@@ -39,6 +39,29 @@ abstract class ConversationPrefsRepository {
     required bool muted,
   });
 
+  /// この語らいで使う暦を設定する（2026-11-05追加）。[calendarSystem]がnullなら
+  /// 上書きを消して全体の暦に戻す。自分のconversationPrefsにだけ書く。
+  Future<void> setCalendarSystem({
+    required String userId,
+    required String conversationId,
+    required String? calendarSystem,
+  });
+
+  /// この語らいのカレンダーの週の始まりを設定する（2026-11-05追加）。nullで標準に戻す。
+  Future<void> setCalendarWeekStart({
+    required String userId,
+    required String conversationId,
+    required String? weekStart,
+  });
+
+  /// この語らいの祝日・祭日・宗教上の祝日の選択を設定する（2026-11-05追加）。
+  /// [override]がnullなら上書きを消して標準に戻す。
+  Future<void> setHolidayOverride({
+    required String userId,
+    required String conversationId,
+    required Map<String, dynamic>? override,
+  });
+
   /// 寄合単位のメッセージ入力欄の下書きを保存する（複数端末同期、
   /// 2026-08-13追加）。[draft]が空文字列ならそのキー自体を削除する
   /// （下書きが空になったら残さない）。
@@ -124,6 +147,41 @@ class FirestoreConversationPrefsRepository
   }) async {
     await _prefsOf(userId).doc(conversationId).set({
       'roomNotificationOverrides': {roomId: muted},
+    }, SetOptions(merge: true));
+  }
+
+  @override
+  Future<void> setCalendarSystem({
+    required String userId,
+    required String conversationId,
+    required String? calendarSystem,
+  }) async {
+    await _prefsOf(userId).doc(conversationId).set({
+      'calendarSystem': calendarSystem ?? FieldValue.delete(),
+    }, SetOptions(merge: true));
+  }
+
+  @override
+  Future<void> setCalendarWeekStart({
+    required String userId,
+    required String conversationId,
+    required String? weekStart,
+  }) async {
+    await _prefsOf(userId).doc(conversationId).set({
+      'calendarWeekStart': weekStart ?? FieldValue.delete(),
+    }, SetOptions(merge: true));
+  }
+
+  @override
+  Future<void> setHolidayOverride({
+    required String userId,
+    required String conversationId,
+    required Map<String, dynamic>? override,
+  }) async {
+    // 上書きするときは regions・observances・religions の3つを必ず全て書く
+    // （mergeは入れ子のMapも統合するため、一部だけ書くと古いキーが残る）。
+    await _prefsOf(userId).doc(conversationId).set({
+      'holidayOverride': override ?? FieldValue.delete(),
     }, SetOptions(merge: true));
   }
 

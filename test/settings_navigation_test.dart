@@ -1,3 +1,8 @@
+import 'package:daidai/models/calendar_system.dart';
+import 'package:daidai/models/calendar_week_start.dart';
+import 'package:daidai/providers/calendar_system_provider.dart';
+import 'package:daidai/providers/calendar_week_start_provider.dart';
+import 'package:daidai/providers/holiday_settings_provider.dart';
 import 'package:daidai/features/settings/settings_tab.dart';
 import 'package:daidai/l10n/app_locale.dart';
 import 'package:daidai/models/app_ui_style.dart';
@@ -92,6 +97,15 @@ Future<void> _pumpSettingsTab(WidgetTester tester) async {
           TalksListLayoutStyle.standard,
         ),
         initialAppThemeModeProvider.overrideWithValue(ThemeMode.system),
+        initialCalendarWeekStartProvider.overrideWithValue(
+          CalendarWeekStart.sunday,
+        ),
+        initialCalendarSystemProvider.overrideWithValue(
+          CalendarSystem.gregorian,
+        ),
+        initialHolidaySettingsProvider.overrideWithValue(
+          const HolidaySettings(),
+        ),
         initialAppUiStyleProvider.overrideWithValue(AppUiStyle.flat),
         initialFontDesignProvider.overrideWithValue(FontDesign.hannariMincho),
         initialRingtoneSoundProvider.overrideWithValue(null),
@@ -154,6 +168,15 @@ Future<void> _pumpSettingsTabNarrow(WidgetTester tester) async {
           TalksListLayoutStyle.standard,
         ),
         initialAppThemeModeProvider.overrideWithValue(ThemeMode.system),
+        initialCalendarWeekStartProvider.overrideWithValue(
+          CalendarWeekStart.sunday,
+        ),
+        initialCalendarSystemProvider.overrideWithValue(
+          CalendarSystem.gregorian,
+        ),
+        initialHolidaySettingsProvider.overrideWithValue(
+          const HolidaySettings(),
+        ),
         initialAppUiStyleProvider.overrideWithValue(AppUiStyle.flat),
         initialFontDesignProvider.overrideWithValue(FontDesign.hannariMincho),
         initialRingtoneSoundProvider.overrideWithValue(null),

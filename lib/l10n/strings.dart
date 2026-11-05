@@ -762,6 +762,23 @@ class Strings {
     required this.calendarEndBeforeStartError,
     required this.calendarWeekStartSunday,
     required this.calendarWeekStartMonday,
+    required this.calendarSystemLabel,
+    required this.calendarSystemFollowGlobal,
+    required this.calendarSystemGregorian,
+    required this.calendarSystemJapanese,
+    required this.calendarSystemNote,
+    required this.holidayKindPublic,
+    required this.holidayKindObservance,
+    required this.holidayKindReligious,
+    required this.holidaySettingsTitle,
+    required this.holidayRegionJapan,
+    required this.holidayObservancesLabel,
+    required this.holidayReligionChristian,
+    required this.holidayReligionBuddhist,
+    required this.calendarSettingsFolderTitle,
+    required this.calendarSettingsDefaultNote,
+    required this.calendarSettingsThisChatTitle,
+    required this.calendarSettingsOverrideHolidays,
     required this.calendarCategoryListEmpty,
     required this.calendarCategoryCreateDialogTitle,
     required this.calendarCategoryEditDialogTitle,
@@ -2068,6 +2085,23 @@ class Strings {
   final String calendarEndBeforeStartError;
   final String calendarWeekStartSunday;
   final String calendarWeekStartMonday;
+  final String calendarSystemLabel;
+  final String calendarSystemFollowGlobal;
+  final String calendarSystemGregorian;
+  final String calendarSystemJapanese;
+  final String calendarSystemNote;
+  final String holidayKindPublic;
+  final String holidayKindObservance;
+  final String holidayKindReligious;
+  final String holidaySettingsTitle;
+  final String holidayRegionJapan;
+  final String holidayObservancesLabel;
+  final String holidayReligionChristian;
+  final String holidayReligionBuddhist;
+  final String calendarSettingsFolderTitle;
+  final String calendarSettingsDefaultNote;
+  final String calendarSettingsThisChatTitle;
+  final String calendarSettingsOverrideHolidays;
   final String calendarCategoryListEmpty;
   final String calendarCategoryCreateDialogTitle;
   final String calendarCategoryEditDialogTitle;
@@ -3140,6 +3174,24 @@ class Strings {
     calendarEndBeforeStartError: '終了日時は開始日時より後にしてください',
     calendarWeekStartSunday: '日曜日',
     calendarWeekStartMonday: '月曜日',
+    calendarSystemLabel: '暦',
+    calendarSystemFollowGlobal: '標準に合わせる',
+    calendarSystemGregorian: '西暦',
+    calendarSystemJapanese: '和暦',
+    calendarSystemNote: '暦は自分の画面の表示だけに使います。ほかの人の画面や予定の日時は変わりません。',
+    holidayKindPublic: '祝日',
+    holidayKindObservance: '祭日',
+    holidayKindReligious: '宗教上の祝日',
+    holidaySettingsTitle: '表示する祝日・祭日',
+    holidayRegionJapan: '日本の祝日',
+    holidayObservancesLabel: '祭日(世界共通の行事)',
+    holidayReligionChristian: 'キリスト教の祝日',
+    holidayReligionBuddhist: '仏教の祝日',
+    calendarSettingsFolderTitle: 'カレンダー',
+    calendarSettingsDefaultNote:
+        'ここで決めた設定が、すべてのカレンダーの標準になります。語らいごとに変えることもできます。',
+    calendarSettingsThisChatTitle: 'この語らいの設定',
+    calendarSettingsOverrideHolidays: 'この語らいだけ変える',
     calendarCategoryListEmpty: 'まだ種類がありません',
     calendarCategoryCreateDialogTitle: '種類を追加',
     calendarCategoryEditDialogTitle: '種類を編集',
@@ -3399,7 +3451,7 @@ class Strings {
     addMenuDmSubtitle: 'Add someone to talk to one-on-one',
     addMenuGroupTitleTemplate: (plazaTerm) => 'Create a $plazaTerm',
     addMenuGroupSubtitle: 'Make a group with three or more people',
-    talksSearchHint: 'Search talks',
+    talksSearchHint: 'Search',
     talksSearchNoResults: 'No matches found',
     talksSearchSectionMessages: 'Messages',
     talksSearchScreenTitle: 'Search',
@@ -3432,7 +3484,7 @@ class Strings {
     settingsCallJoinCameraSubtitle:
         'When off, you join video calls you answer or join with your camera off (audio only). You can turn it on at any time during the call. This doesn\'t affect one-to-one video calls you start yourself.',
     settingsFolderSupport: 'Support',
-    settingsAnnouncements: 'Announcements',
+    settingsAnnouncements: 'Letters',
     settingsAboutApp: 'About this app',
     settingsAppVersion: 'Version',
     settingsTermsOfService: 'Terms of Service',
@@ -3466,8 +3518,8 @@ class Strings {
     settingsCustomColorDeleteConfirmTitle: 'Delete this colour?',
     settingsCustomColorDeleteConfirmButton: 'Delete',
     settingsLogout: 'Log out',
-    settingsDisplayLanguage: 'Display language',
-    settingsTimeFormat: 'Message time display',
+    settingsDisplayLanguage: 'Language',
+    settingsTimeFormat: 'Time display',
     settingsTimeFormat24h: '24-hour',
     settingsTimeFormat12h: '12-hour',
     settingsSubUI: 'UI',
@@ -3494,7 +3546,7 @@ class Strings {
     settingsSlideTransitionSlideBlur: 'Slide and blur',
     settingsSlideTransitionSlide: 'Slide',
     settingsSlideTransitionSuck: 'Suck in',
-    settingsTalksListLayoutTitle: 'Talks list layout (portrait)',
+    settingsTalksListLayoutTitle: 'Talks list layout',
     settingsTalksListLayoutNote:
         'Applies in portrait orientation. On a computer with a wide, landscape window, the list is always shown in a split view regardless of this setting.',
     settingsTextSizeTitle: 'Text size',
@@ -3514,8 +3566,8 @@ class Strings {
         'With "Icon + room list", puts the icon column on the right and the messages on the left.',
     settingsTalksListLayoutStandard: 'Icon only',
     settingsTalksListLayoutStandardDescription:
-        'Shows direct messages and plazas as a single vertical list.',
-    settingsTalksListLayoutIconSplit: 'Icon + room list UI',
+        'Shows each Direct and Plaza as an icon in a single vertical list.',
+    settingsTalksListLayoutIconSplit: 'Icons + room list',
     settingsTalksListLayoutIconSplitDescription:
         'Shows an icon list on the left and the selected chat\'s room list '
         'on the right.',
@@ -3590,7 +3642,7 @@ class Strings {
     twoFactorSetupDescription:
         'Scan the QR code with an authenticator app (e.g. Google Authenticator), or enter the secret key manually, then enter the 6-digit code shown.',
     twoFactorSecretKeyLabel: 'Secret key',
-    twoFactorCodeLabel: '6-digit code',
+    twoFactorCodeLabel: 'Code',
     twoFactorEnrollButton: 'Enable',
     twoFactorInvalidCodeError: 'That code is not correct',
     twoFactorDisableConfirmTitle: 'Disable two-factor authentication?',
@@ -3601,8 +3653,7 @@ class Strings {
         'Please sign in again to confirm, then try again.',
     twoFactorReauthenticateButton: 'Sign in again',
     twoFactorChallengeTitle: 'Enter authenticator code',
-    twoFactorChallengeDescription:
-        'Enter the 6-digit code shown in your authenticator app.',
+    twoFactorChallengeDescription: 'Enter the code shown in your app.',
     twoFactorChallengeConfirmButton: 'Confirm',
     qrLoginDialogTitle: 'Sign in with a QR code',
     qrLoginDialogDescription:
@@ -3712,10 +3763,10 @@ class Strings {
         'Ctrl+Shift+Enter to send without notifying the recipient',
     settingsAdvancedSectionTitle: 'Advanced settings',
     settingsStickerSendModeTitle: 'Sticker sending method',
-    settingsStickerSendModeLine: 'Tap twice to send (LINE-style)',
+    settingsStickerSendModeLine: 'Tap twice to send',
     settingsStickerSendModeLineSubtitle:
         'The first tap shows an enlarged preview; tap the same sticker again to send it',
-    settingsStickerSendModeDiscord: 'Tap once to send (Discord-style)',
+    settingsStickerSendModeDiscord: 'Tap once to send',
     settingsStickerSendModeDiscordSubtitle:
         'Tapping a sticker sends it immediately',
     settingsDraftSyncTitle: 'Sync drafts across devices',
@@ -3889,7 +3940,7 @@ class Strings {
     chatAttachVideo: 'Video',
     chatAttachCapture: 'Capture',
     chatAttachPoll: 'Poll',
-    chatNoStickersMessage: "You don't have any stickers yet.",
+    chatNoStickersMessage: 'No stickers yet',
     stickerPackNotFoundMessage: "This sticker couldn't be found.",
     stickerSearchHint: 'Search stickers',
     stickerRecentTab: 'Recently used stickers',
@@ -3963,7 +4014,7 @@ class Strings {
     delete: 'Delete',
     showLess: 'Show less',
     profileIconSection: 'Icons',
-    profileBackgroundSection: 'Background images',
+    profileBackgroundSection: 'Background',
     profileNicknameHint: (_) =>
         "Friends see the nickname you've selected here instead of your Rhing Seed.",
     profileAddNickname: (_) => 'Add a nickname',
@@ -3983,12 +4034,12 @@ class Strings {
     workshopSnsLinkFieldLabel: 'URL',
     profileSaveError: 'Failed to save',
     profileIconUploadError: 'Failed to upload icon',
-    profileBackgroundUploadError: 'Failed to upload background image',
+    profileBackgroundUploadError: 'Failed to upload the background',
     workshopCardNameLabel: 'Card name (private label for you)',
     workshopCardDialogTitleNew: 'Create a profile card',
     workshopCardDialogTitleEdit: 'Edit profile card',
     workshopFieldIcon: 'Icon',
-    workshopFieldBackground: 'Background image',
+    workshopFieldBackground: 'Background',
     workshopChoiceNone: 'None',
     workshopFontChoiceSystem: 'System',
     workshopChoiceSelected: 'Selected',
@@ -4066,7 +4117,7 @@ class Strings {
         'Roles higher up take priority for the display name colour',
     groupRoomRolePriorityMenuItem: 'Set this room\'s colour priority',
     groupRoomRolePriorityResetButton: 'Reset to plaza default',
-    groupMenuEnableMultipleRooms: 'Enable multiple rooms',
+    groupMenuEnableMultipleRooms: 'Turn on rooms',
     dmMenuEnableMultipleRooms: 'Enable multiple rooms',
     groupSettingsDefaultMuteLabel: 'Mute',
     groupSettingsDefaultMuteHint:
@@ -4079,7 +4130,7 @@ class Strings {
         'While off, people who newly join only see messages sent after they joined (attachments included; albums, notes, calendar and polls are not affected). Rooms can override this individually with "This room\'s own settings"',
     groupRoomHistoryVisibleShow: 'Show earlier messages to new members',
     groupRoomHistoryVisibleHide: 'Hide earlier messages from new members',
-    webhookMenuLabel: 'Webhooks (post from outside)',
+    webhookMenuLabel: 'Webhook',
     webhookTitle: 'Webhooks',
     webhookDescription:
         'POST to the URL to post into the chosen room as a BOT. Anyone with the URL can post, so do not share it.',
@@ -4153,7 +4204,8 @@ class Strings {
     groupJoinScreenTitle: 'Join plaza',
     groupJoinInvalid: 'This invite link is invalid',
     groupJoinAlreadyMember: "You're already a member of this plaza",
-    groupJoinPending: "You've already requested to join. Waiting for approval.",
+    groupJoinPending:
+        'Join request already sent. Waiting for the owner’s approval.',
     groupJoinDeclined:
         'Your request to join was not approved. You can delete this chat.',
     groupJoinDeclinedSubtitle: 'Not approved',
@@ -4168,7 +4220,8 @@ class Strings {
     groupSettingsRequiresApprovalLabel: 'Require approval to join',
     groupSettingsRequiresApprovalHint:
         'When off, anyone with the invite link can join right away',
-    groupJoinRequestSent: 'Join request sent. Waiting for approval.',
+    groupJoinRequestSent:
+        'Join request sent. Waiting for the owner’s approval.',
     groupJoinOpenGroup: 'Open plaza',
     groupJoinRetry: 'Retry',
     settingsDeleteAccountConfirmTitle: 'Delete your account?',
@@ -4305,6 +4358,25 @@ class Strings {
     calendarEndBeforeStartError: 'The end must not be before the start',
     calendarWeekStartSunday: 'Sunday',
     calendarWeekStartMonday: 'Monday',
+    calendarSystemLabel: 'Calendar',
+    calendarSystemFollowGlobal: 'Use default',
+    calendarSystemGregorian: 'Gregorian',
+    calendarSystemJapanese: 'Japanese era',
+    calendarSystemNote:
+        'The calendar only changes how dates look on your screen. Other people’s screens and event dates are not affected.',
+    holidayKindPublic: 'Public holiday',
+    holidayKindObservance: 'Observance',
+    holidayKindReligious: 'Religious holiday',
+    holidaySettingsTitle: 'Holidays and observances',
+    holidayRegionJapan: 'Holidays in Japan',
+    holidayObservancesLabel: 'Observances (worldwide events)',
+    holidayReligionChristian: 'Christian holidays',
+    holidayReligionBuddhist: 'Buddhist holidays',
+    calendarSettingsFolderTitle: 'Calendar',
+    calendarSettingsDefaultNote:
+        'These settings are the default for every calendar. You can also change them for each chat.',
+    calendarSettingsThisChatTitle: 'Settings for this chat',
+    calendarSettingsOverrideHolidays: 'Change for this chat only',
     calendarCategoryListEmpty: 'No categories yet',
     calendarCategoryCreateDialogTitle: 'Add category',
     calendarCategoryEditDialogTitle: 'Edit category',
@@ -4317,7 +4389,7 @@ class Strings {
     calendarAddChoiceDialogTitle: 'How would you like to add this?',
     calendarAddChoiceEventOption: 'Add event',
     calendarAddChoiceEventSubtitle: 'Add an event with a fixed date and time',
-    calendarAddChoiceCoordinationOption: 'Start scheduling poll',
+    calendarAddChoiceCoordinationOption: 'Coordinate schedules',
     calendarAddChoiceCoordinationSubtitle:
         'Propose dates and collect availability',
     scheduleCoordinationCreateDialogTitle: 'Create scheduling poll',
@@ -4459,7 +4531,7 @@ class Strings {
         'Today we are holding a special exhibition of pages that do not exist.\n'
         'The page you were looking for could not be found.\n'
         'Please check the URL, or look through our permanent collection.',
-    notFoundBackToTop: 'Back to the top page',
+    notFoundBackToTop: 'Back to DaiDai',
     notFoundContact: 'Contact us',
     signInFailedTemplate: (error) => 'Sign-in failed: $error',
     signInTagline: 'Tidy up. Stay safe. Make it yours.',

@@ -11,7 +11,7 @@ final Strings _stringsFr = Strings._(
   addMenuDmSubtitle: 'Ajouter quelqu’un pour discuter en tête-à-tête',
   addMenuGroupTitleTemplate: (plazaTerm) => 'Créer une $plazaTerm',
   addMenuGroupSubtitle: 'Créer un groupe de trois personnes ou plus',
-  talksSearchHint: 'Rechercher dans les discussions',
+  talksSearchHint: 'Rechercher',
   talksSearchNoResults: 'Aucun résultat',
   talksSearchSectionMessages: 'Messages',
   talksSearchScreenTitle: 'Recherche',
@@ -44,7 +44,7 @@ final Strings _stringsFr = Strings._(
   settingsCallJoinCameraSubtitle:
       "Désactivé, vous rejoignez les appels vidéo que vous acceptez ou rejoignez avec la caméra coupée (audio seul). Vous pouvez l’activer à tout moment pendant l’appel. Cela n’affecte pas les appels vidéo en tête-à-tête que vous lancez.",
   settingsFolderSupport: 'Assistance',
-  settingsAnnouncements: 'Annonces',
+  settingsAnnouncements: 'Courrier',
   settingsAboutApp: 'À propos de l’application',
   settingsAppVersion: 'Version',
   settingsTermsOfService: 'Conditions d’utilisation',
@@ -78,8 +78,8 @@ final Strings _stringsFr = Strings._(
   settingsCustomColorDeleteConfirmTitle: 'Supprimer cette couleur ?',
   settingsCustomColorDeleteConfirmButton: 'Supprimer',
   settingsLogout: 'Se déconnecter',
-  settingsDisplayLanguage: 'Langue d’affichage',
-  settingsTimeFormat: 'Affichage de l’heure des messages',
+  settingsDisplayLanguage: 'Langue',
+  settingsTimeFormat: 'Affichage de l’heure',
   settingsTimeFormat24h: '24 heures',
   settingsTimeFormat12h: '12 heures',
   settingsSubUI: 'Interface',
@@ -119,11 +119,10 @@ final Strings _stringsFr = Strings._(
       "Avec « Icônes + liste des salons », place la colonne d’icônes à droite et les messages à gauche.",
   settingsTalksListLayoutNote:
       'S’applique en orientation portrait. Sur un ordinateur avec une fenêtre large en paysage, la liste s’affiche toujours en vue partagée, quel que soit ce réglage.',
-  settingsTalksListLayoutTitle:
-      'Disposition de la liste des discussions (portrait)',
+  settingsTalksListLayoutTitle: 'Disposition de la liste des discussions',
   settingsTalksListLayoutStandard: 'Icônes seulement',
   settingsTalksListLayoutStandardDescription:
-      'Affiche les duos et les places dans une seule liste verticale.',
+      'Affiche chaque duo et chaque place sous forme d’icône dans une seule liste verticale.',
   settingsTalksListLayoutIconSplit: 'Icônes + liste des salons',
   settingsTalksListLayoutIconSplitDescription:
       'Affiche une liste d’icônes à gauche et la liste des salons de la discussion sélectionnée à droite.',
@@ -199,7 +198,7 @@ final Strings _stringsFr = Strings._(
   twoFactorSetupDescription:
       'Scannez le code QR avec une application d’authentification (par ex. Google Authenticator), ou saisissez la clé secrète manuellement, puis entrez le code à 6 chiffres affiché.',
   twoFactorSecretKeyLabel: 'Clé secrète',
-  twoFactorCodeLabel: 'Code à 6 chiffres',
+  twoFactorCodeLabel: 'Code',
   twoFactorEnrollButton: 'Activer',
   twoFactorInvalidCodeError: 'Ce code n’est pas correct',
   twoFactorDisableConfirmTitle:
@@ -212,7 +211,7 @@ final Strings _stringsFr = Strings._(
   twoFactorReauthenticateButton: 'Se reconnecter',
   twoFactorChallengeTitle: 'Saisir le code de l’application d’authentification',
   twoFactorChallengeDescription:
-      'Saisissez le code à 6 chiffres affiché dans votre application d’authentification.',
+      'Saisissez le code affiché dans l’application.',
   twoFactorChallengeConfirmButton: 'Confirmer',
   qrLoginDialogTitle: 'Se connecter avec un code QR',
   qrLoginDialogDescription:
@@ -323,11 +322,10 @@ final Strings _stringsFr = Strings._(
       'Ctrl+Maj+Entrée pour envoyer sans notifier le destinataire',
   settingsAdvancedSectionTitle: 'Réglages avancés',
   settingsStickerSendModeTitle: 'Méthode d’envoi des stickers',
-  settingsStickerSendModeLine: 'Toucher deux fois pour envoyer (style LINE)',
+  settingsStickerSendModeLine: 'Toucher deux fois pour envoyer',
   settingsStickerSendModeLineSubtitle:
       'Le premier toucher affiche un aperçu agrandi ; touchez de nouveau le même sticker pour l’envoyer',
-  settingsStickerSendModeDiscord:
-      'Toucher une fois pour envoyer (style Discord)',
+  settingsStickerSendModeDiscord: 'Toucher une fois pour envoyer',
   settingsStickerSendModeDiscordSubtitle:
       'Toucher un sticker l’envoie immédiatement',
   settingsDraftSyncTitle: 'Synchroniser les brouillons entre appareils',
@@ -499,7 +497,7 @@ final Strings _stringsFr = Strings._(
   chatAttachVideo: 'Vidéo',
   chatAttachCapture: 'Capture',
   chatAttachPoll: 'Sondage',
-  chatNoStickersMessage: 'Vous n’avez pas encore de stickers.',
+  chatNoStickersMessage: 'Aucun sticker pour le moment',
   stickerPackNotFoundMessage: 'Ce sticker est introuvable.',
   stickerSearchHint: 'Rechercher des stickers',
   stickerRecentTab: 'Stickers récents',
@@ -577,7 +575,7 @@ final Strings _stringsFr = Strings._(
   delete: 'Supprimer',
   showLess: 'Afficher moins',
   profileIconSection: 'Icônes',
-  profileBackgroundSection: 'Images d’arrière-plan',
+  profileBackgroundSection: 'Arrière-plan',
   profileNicknameHint: (_) =>
       'Vos amis voient le pseudo que vous avez sélectionné ici à la place de votre Rhing Seed.',
   profileAddNickname: (_) => 'Ajouter un pseudo',
@@ -597,13 +595,13 @@ final Strings _stringsFr = Strings._(
   workshopSnsLinkFieldLabel: 'URL',
   profileSaveError: 'Échec de l’enregistrement',
   profileIconUploadError: 'Échec de l’envoi de l’icône',
-  profileBackgroundUploadError: 'Échec de l’envoi de l’image d’arrière-plan',
+  profileBackgroundUploadError: 'Échec de l’envoi de l’arrière-plan',
   workshopCardNameLabel:
       'Nom de la carte (étiquette privée, visible par vous seul)',
   workshopCardDialogTitleNew: 'Créer une carte de profil',
   workshopCardDialogTitleEdit: 'Modifier la carte de profil',
   workshopFieldIcon: 'Icône',
-  workshopFieldBackground: 'Image d’arrière-plan',
+  workshopFieldBackground: 'Arrière-plan',
   workshopChoiceNone: 'Aucune',
   workshopFontChoiceSystem: 'Système',
   workshopChoiceSelected: 'Sélectionnée',
@@ -683,7 +681,7 @@ final Strings _stringsFr = Strings._(
       'Les rôles placés plus haut ont la priorité pour la couleur du nom affiché',
   groupRoomRolePriorityMenuItem: 'Définir la priorité des couleurs de ce salon',
   groupRoomRolePriorityResetButton: 'Rétablir la valeur par défaut de la place',
-  groupMenuEnableMultipleRooms: 'Activer plusieurs salons',
+  groupMenuEnableMultipleRooms: 'Activer les salons',
   dmMenuEnableMultipleRooms: 'Activer plusieurs salons',
   groupSettingsDefaultMuteLabel: 'Sourdine',
   groupSettingsDefaultMuteHint:
@@ -699,7 +697,7 @@ final Strings _stringsFr = Strings._(
       'Montrer les anciens messages aux nouveaux membres',
   groupRoomHistoryVisibleHide:
       'Masquer les anciens messages aux nouveaux membres',
-  webhookMenuLabel: 'Webhooks (publication depuis l’extérieur)',
+  webhookMenuLabel: 'Webhook',
   webhookTitle: 'Webhooks',
   webhookDescription:
       'Envoyez une requête POST à l’URL pour publier dans le salon choisi en tant que BOT. Toute personne possédant l’URL peut publier : ne la partagez pas.',
@@ -772,7 +770,7 @@ final Strings _stringsFr = Strings._(
   groupJoinInvalid: 'Ce lien d’invitation n’est pas valide',
   groupJoinAlreadyMember: 'Vous êtes déjà membre de cette place',
   groupJoinPending:
-      'Vous avez déjà demandé à rejoindre cette place. En attente d’approbation.',
+      'Demande d’adhésion déjà envoyée. En attente de l’approbation du propriétaire.',
   groupJoinDeclined:
       'Votre demande d’adhésion n’a pas été approuvée. Vous pouvez supprimer cette discussion.',
   groupJoinDeclinedSubtitle: 'Non approuvée',
@@ -786,7 +784,8 @@ final Strings _stringsFr = Strings._(
   groupSettingsRequiresApprovalLabel: 'Exiger une approbation pour rejoindre',
   groupSettingsRequiresApprovalHint:
       'Lorsque cette option est désactivée, toute personne possédant le lien d’invitation peut rejoindre la place tout de suite',
-  groupJoinRequestSent: 'Demande d’adhésion envoyée. En attente d’approbation.',
+  groupJoinRequestSent:
+      'Demande d’adhésion envoyée. En attente de l’approbation du propriétaire.',
   groupJoinOpenGroup: 'Ouvrir la place',
   groupJoinRetry: 'Réessayer',
   settingsDeleteAccountConfirmTitle: 'Supprimer votre compte ?',
@@ -923,6 +922,25 @@ final Strings _stringsFr = Strings._(
   calendarEndBeforeStartError: 'La fin ne peut pas précéder le début',
   calendarWeekStartSunday: 'Dimanche',
   calendarWeekStartMonday: 'Lundi',
+  calendarSystemLabel: 'Calendrier',
+  calendarSystemFollowGlobal: 'Comme la valeur par défaut',
+  calendarSystemGregorian: 'Grégorien',
+  calendarSystemJapanese: 'Ère japonaise',
+  calendarSystemNote:
+      'Le calendrier ne modifie que l’affichage sur votre écran. Les écrans des autres et les dates des événements ne changent pas.',
+  holidayKindPublic: 'Jour férié',
+  holidayKindObservance: 'Fête',
+  holidayKindReligious: 'Fête religieuse',
+  holidaySettingsTitle: 'Jours fériés et fêtes',
+  holidayRegionJapan: 'Jours fériés au Japon',
+  holidayObservancesLabel: 'Fêtes (événements mondiaux)',
+  holidayReligionChristian: 'Fêtes chrétiennes',
+  holidayReligionBuddhist: 'Fêtes bouddhistes',
+  calendarSettingsFolderTitle: 'Calendrier',
+  calendarSettingsDefaultNote:
+      'Ces réglages servent de valeurs par défaut à tous les calendriers. Vous pouvez aussi les modifier pour chaque discussion.',
+  calendarSettingsThisChatTitle: 'Réglages de cette discussion',
+  calendarSettingsOverrideHolidays: 'Modifier pour cette discussion uniquement',
   calendarCategoryListEmpty: 'Aucune catégorie pour le moment',
   calendarCategoryCreateDialogTitle: 'Ajouter une catégorie',
   calendarCategoryEditDialogTitle: 'Modifier la catégorie',
@@ -935,7 +953,7 @@ final Strings _stringsFr = Strings._(
   calendarAddChoiceDialogTitle: 'Comment souhaitez-vous l’ajouter ?',
   calendarAddChoiceEventOption: 'Ajouter un événement',
   calendarAddChoiceEventSubtitle: 'Ajouter un événement à date et heure fixes',
-  calendarAddChoiceCoordinationOption: 'Lancer un sondage de dates',
+  calendarAddChoiceCoordinationOption: 'Coordonner les dates',
   calendarAddChoiceCoordinationSubtitle:
       'Proposer des dates et recueillir les disponibilités',
   scheduleCoordinationCreateDialogTitle: 'Créer un sondage de dates',
@@ -1079,7 +1097,7 @@ final Strings _stringsFr = Strings._(
       'Aujourd’hui, nous présentons une exposition spéciale de pages qui n’existent pas.\n'
       'La page que vous cherchiez est introuvable.\n'
       'Veuillez vérifier l’URL ou parcourir notre collection permanente.',
-  notFoundBackToTop: 'Retour à la page d’accueil',
+  notFoundBackToTop: 'Retour à DaiDai',
   notFoundContact: 'Nous contacter',
   signInFailedTemplate: (error) => 'Échec de la connexion : $error',
   signInTagline: 'Mettre de l’ordre. Rester en sécurité. S’approprier.',

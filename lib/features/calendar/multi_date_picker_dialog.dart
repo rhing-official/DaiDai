@@ -6,7 +6,8 @@ import '../../l10n/strings.dart';
 import '../../models/app_ui_style.dart';
 import '../../providers/app_locale_provider.dart';
 import '../../providers/app_ui_style_provider.dart';
-import '../../providers/calendar_week_start_provider.dart';
+import '../../models/calendar_week_start.dart';
+import '../../providers/calendar_system_provider.dart';
 import '../../widgets/glass/glass_dialog.dart';
 import '../../widgets/dialog_keyboard_shortcuts.dart';
 import '../../widgets/app_dialog.dart';
@@ -17,20 +18,29 @@ import '../../widgets/app_dialog.dart';
 Future<Set<DateTime>?> showMultiDatePickerDialog(
   BuildContext context, {
   required Set<DateTime> initialSelectedDates,
+  required String conversationId,
 }) {
   return showAppDialog<Set<DateTime>>(
     context: context,
-    builder: (_) =>
-        _MultiDatePickerDialog(initialSelectedDates: initialSelectedDates),
+    builder: (_) => _MultiDatePickerDialog(
+      initialSelectedDates: initialSelectedDates,
+      conversationId: conversationId,
+    ),
   );
 }
 
 DateTime _dateOnly(DateTime date) => DateTime(date.year, date.month, date.day);
 
 class _MultiDatePickerDialog extends ConsumerStatefulWidget {
-  const _MultiDatePickerDialog({required this.initialSelectedDates});
+  const _MultiDatePickerDialog({
+    required this.initialSelectedDates,
+    required this.conversationId,
+  });
 
   final Set<DateTime> initialSelectedDates;
+
+  /// 週の始まりを、この語らいのカレンダーの設定に合わせるために使う。
+  final String conversationId;
 
   @override
   ConsumerState<_MultiDatePickerDialog> createState() =>
@@ -76,6 +86,9 @@ class _MultiDatePickerDialogState
     final localeCode = ref.watch(appLocaleProvider).languageCode;
     final isGlass = ref.watch(appUiStyleProvider) == AppUiStyle.glass;
     final colorScheme = Theme.of(context).colorScheme;
+    final weekStart = ref.watch(
+      effectiveWeekStartProvider(widget.conversationId),
+    );
 
     final title = Text(strings.scheduleCoordinationCandidatePickerTitle);
     final content = SizedBox(
@@ -106,8 +119,9 @@ class _MultiDatePickerDialogState
               ),
             ],
           ),
-          _WeekdayHeaderRow(localeCode: localeCode),
+          _WeekdayHeaderRow(localeCode: localeCode, weekStart: weekStart),
           _SelectableMonthGrid(
+            weekStart: weekStart,
             visibleMonth: _visibleMonth,
             selected: _selected,
             firstDate: _firstDate,
@@ -138,15 +152,16 @@ class _MultiDatePickerDialogState
 }
 
 class _WeekdayHeaderRow extends ConsumerWidget {
-  const _WeekdayHeaderRow({required this.localeCode});
+  const _WeekdayHeaderRow({required this.localeCode, required this.weekStart});
 
   final String localeCode;
+  final CalendarWeekStart weekStart;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     // 週の先頭の曜日（日曜/月曜、設定）から7日分の曜日ラベル（最短表記）を
     // 作る（calendar_pane_view.dartの`_WeekdayHeaderRow`と同じ計算）。
-    final anchor = ref.watch(calendarWeekStartProvider).weekdayLabelAnchor;
+    final anchor = weekStart.weekdayLabelAnchor;
     final labelStyle = Theme.of(context).textTheme.bodySmall?.copyWith(
       color: Theme.of(context).colorScheme.onSurfaceVariant,
     );
@@ -170,6 +185,7 @@ class _WeekdayHeaderRow extends ConsumerWidget {
 
 class _SelectableMonthGrid extends ConsumerWidget {
   const _SelectableMonthGrid({
+    required this.weekStart,
     required this.visibleMonth,
     required this.selected,
     required this.firstDate,
@@ -178,6 +194,7 @@ class _SelectableMonthGrid extends ConsumerWidget {
     required this.onToggle,
   });
 
+  final CalendarWeekStart weekStart;
   final DateTime visibleMonth;
   final Set<DateTime> selected;
   final DateTime firstDate;
@@ -193,9 +210,7 @@ class _SelectableMonthGrid extends ConsumerWidget {
     final daysInMonth = DateTime(year, month + 1, 0).day;
     // 週の始まり（日曜/月曜、設定）に応じた先頭余白マス数
     // （calendar_pane_view.dartの`_MonthGrid`と同じ）。
-    final leadingBlanks = ref
-        .watch(calendarWeekStartProvider)
-        .leadingBlanks(firstOfMonth);
+    final leadingBlanks = weekStart.leadingBlanks(firstOfMonth);
     final totalCells = leadingBlanks + daysInMonth;
     final trailingBlanks = (7 - totalCells % 7) % 7;
 

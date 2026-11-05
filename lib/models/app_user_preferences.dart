@@ -33,6 +33,10 @@ class AppUserPreferences {
     this.textColorLightArgb,
     this.textColorDarkArgb,
     this.calendarWeekStart,
+    this.calendarSystem,
+    this.holidayRegions,
+    this.holidayObservances,
+    this.holidayReligions,
     this.guideSeen,
   });
 
@@ -102,6 +106,15 @@ class AppUserPreferences {
   /// カレンダーの週の始まり（`CalendarWeekStart`のname、2026-10-04追加）。
   final String? calendarWeekStart;
 
+  /// カレンダーの全体の暦（`CalendarSystem`のname、2026-11-05追加）。
+  final String? calendarSystem;
+
+  /// カレンダーに出す祝日・祭日・宗教上の祝日の選択（2026-11-05追加）。
+  /// regionsがnullなら居住国に従う。
+  final List<String>? holidayRegions;
+  final bool? holidayObservances;
+  final List<String>? holidayReligions;
+
   /// 初回の使い方ガイドの視聴状況（2026-10-17追加）。表示設定ではなく通過儀礼の
   /// 記録で、アカウントごとに持つ（別の端末でも再表示しない）。**null＝既存住人
   /// （この機能の追加前に登録済みで、初回ガイドは出さない）／false＝新規登録で
@@ -143,6 +156,10 @@ class AppUserPreferences {
       textColorLightArgb: json['textColorLightArgb'] as int?,
       textColorDarkArgb: json['textColorDarkArgb'] as int?,
       calendarWeekStart: json['calendarWeekStart'] as String?,
+      calendarSystem: json['calendarSystem'] as String?,
+      holidayRegions: (json['holidayRegions'] as List?)?.cast<String>(),
+      holidayObservances: json['holidayObservances'] as bool?,
+      holidayReligions: (json['holidayReligions'] as List?)?.cast<String>(),
       guideSeen: json['guideSeen'] as bool?,
     );
   }
@@ -180,6 +197,10 @@ class AppUserPreferences {
       if (textColorLightArgb != null) 'textColorLightArgb': textColorLightArgb,
       if (textColorDarkArgb != null) 'textColorDarkArgb': textColorDarkArgb,
       if (calendarWeekStart != null) 'calendarWeekStart': calendarWeekStart,
+      if (calendarSystem != null) 'calendarSystem': calendarSystem,
+      if (holidayRegions != null) 'holidayRegions': holidayRegions,
+      if (holidayObservances != null) 'holidayObservances': holidayObservances,
+      if (holidayReligions != null) 'holidayReligions': holidayReligions,
       if (guideSeen != null) 'guideSeen': guideSeen,
     };
   }

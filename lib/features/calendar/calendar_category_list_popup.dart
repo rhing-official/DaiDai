@@ -5,8 +5,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../l10n/strings.dart';
 import '../../models/app_ui_style.dart';
 import '../../models/calendar_category.dart';
+import '../../models/calendar_system.dart';
 import '../../models/calendar_week_start.dart';
-import '../../providers/calendar_week_start_provider.dart';
+import '../../providers/calendar_system_provider.dart';
+import '../../providers/holiday_settings_provider.dart';
+import 'calendar_settings_widgets.dart';
 import '../../providers/app_ui_style_provider.dart';
 import '../../providers/repository_providers.dart';
 import '../../theme/popup_surface_colors.dart';
@@ -231,11 +234,9 @@ class CalendarCategoryListPopup extends ConsumerWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 週の始まり（日曜／月曜、2026-10-04追加、ユーザー指示）。
-          _WeekStartSelector(
-            label: strings.calendarWeekStartLabel,
-            sundayLabel: strings.calendarWeekStartSunday,
-            mondayLabel: strings.calendarWeekStartMonday,
+          _ConversationCalendarSettings(
+            conversationId: conversationId,
+            strings: strings,
             foreground: foreground,
             background: background,
           ),
@@ -336,51 +337,50 @@ class CalendarCategoryListPopup extends ConsumerWidget {
   }
 }
 
-/// カレンダーの週の始まり（日曜／月曜）を選ぶ2択のチップ行。ポップアップは
-/// 反転配色（[foreground]が文字色、背景はその反対色）のため、選択中は
-/// 文字色と同じ色で塗り、文字は背景色側にする（アクセントカラーは文字に
-/// 使わない）。
-class _WeekStartSelector extends ConsumerWidget {
-  const _WeekStartSelector({
-    required this.label,
-    required this.sundayLabel,
-    required this.mondayLabel,
+/// この語らいのカレンダーの設定（2026-11-05）。週の始まり・暦・祝日/祭日/宗教を、
+/// 標準（設定>語らい>カレンダー）から変えられる。「標準に合わせる」を選ぶと上書きを消す。
+/// どれも自分の画面の表示にだけ効き、ほかの人や予定の日時には影響しない。
+class _ConversationCalendarSettings extends ConsumerWidget {
+  const _ConversationCalendarSettings({
+    required this.conversationId,
+    required this.strings,
     required this.foreground,
     required this.background,
   });
 
-  final String label;
-  final String sundayLabel;
-  final String mondayLabel;
+  final String conversationId;
+  final Strings strings;
   final Color foreground;
   final Color background;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final current = ref.watch(calendarWeekStartProvider);
-    Widget chip(CalendarWeekStart value, String text) {
-      final selected = current == value;
-      return Expanded(
-        child: GestureDetector(
-          onTap: () =>
-              ref.read(calendarWeekStartProvider.notifier).setWeekStart(value),
-          child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: selected ? foreground : Colors.transparent,
-              border: Border.all(color: foreground.withValues(alpha: 0.6)),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Text(
-              text,
-              style: TextStyle(
-                color: selected ? background : foreground,
-                fontWeight: selected ? FontWeight.bold : FontWeight.normal,
-              ),
-            ),
-          ),
-        ),
+    final userId = ref.watch(authStateProvider).value?.uid;
+    final repository = ref.read(conversationPrefsRepositoryProvider);
+    final weekOverride = ref.watch(
+      conversationWeekStartProvider(conversationId),
+    );
+    final systemOverride = ref.watch(
+      conversationCalendarSystemProvider(conversationId),
+    );
+    final holidayOverride = ref.watch(
+      conversationHolidayOverrideProvider(conversationId),
+    );
+    final defaultHolidays = ref.watch(holidaySettingsProvider);
+    final residence = ref.watch(holidayCountryProvider).value ?? 'JP';
+    final followLabel = strings.calendarSystemFollowGlobal;
+
+    Widget title(String text) => Text(
+      text,
+      style: TextStyle(fontWeight: FontWeight.bold, color: foreground),
+    );
+
+    void saveHolidays(HolidaySettings value) {
+      if (userId == null) return;
+      repository.setHolidayOverride(
+        userId: userId,
+        conversationId: conversationId,
+        override: value.toOverrideJson(),
       );
     }
 
@@ -388,16 +388,108 @@ class _WeekStartSelector extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          label,
-          style: TextStyle(fontWeight: FontWeight.bold, color: foreground),
+          strings.calendarSettingsThisChatTitle,
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 16,
+            color: foreground,
+          ),
         ),
+        const SizedBox(height: 12),
+        title(strings.calendarWeekStartLabel),
         const SizedBox(height: 8),
-        Row(
-          children: [
-            chip(CalendarWeekStart.sunday, sundayLabel),
-            const SizedBox(width: 8),
-            chip(CalendarWeekStart.monday, mondayLabel),
+        CalendarChoiceRow<CalendarWeekStart>(
+          options: weekStartOptions(
+            strings,
+            withDefault: true,
+            defaultLabel: followLabel,
+          ),
+          selected: weekOverride,
+          onSelected: (value) {
+            if (userId == null) return;
+            repository.setCalendarWeekStart(
+              userId: userId,
+              conversationId: conversationId,
+              weekStart: value?.name,
+            );
+          },
+          foreground: foreground,
+          background: background,
+        ),
+        const SizedBox(height: 12),
+        title(strings.calendarSystemLabel),
+        const SizedBox(height: 8),
+        CalendarChoiceRow<CalendarSystem>(
+          options: calendarSystemOptions(
+            strings,
+            withDefault: true,
+            defaultLabel: followLabel,
+          ),
+          selected: systemOverride,
+          onSelected: (value) {
+            if (userId == null) return;
+            repository.setCalendarSystem(
+              userId: userId,
+              conversationId: conversationId,
+              calendarSystem: value?.name,
+            );
+          },
+          foreground: foreground,
+          background: background,
+        ),
+        const SizedBox(height: 12),
+        title(strings.holidaySettingsTitle),
+        const SizedBox(height: 4),
+        CalendarChoiceRow<bool>(
+          options: [
+            (value: false, label: followLabel),
+            (value: true, label: strings.calendarSettingsOverrideHolidays),
           ],
+          selected: holidayOverride != null,
+          onSelected: (overridden) {
+            if (userId == null) return;
+            if (overridden == true) {
+              saveHolidays(holidayOverride ?? defaultHolidays);
+            } else {
+              repository.setHolidayOverride(
+                userId: userId,
+                conversationId: conversationId,
+                override: null,
+              );
+            }
+          },
+          foreground: foreground,
+          background: background,
+        ),
+        if (holidayOverride != null) ...[
+          const SizedBox(height: 4),
+          HolidayCheckboxes(
+            strings: strings,
+            settings: holidayOverride,
+            residenceCountry: residence,
+            onRegion: (country, enabled) {
+              final regions = {...holidayOverride.effectiveRegions(residence)};
+              enabled ? regions.add(country) : regions.remove(country);
+              saveHolidays(holidayOverride.copyWith(regions: regions));
+            },
+            onObservances: (enabled) =>
+                saveHolidays(holidayOverride.copyWith(observances: enabled)),
+            onReligion: (religion, enabled) {
+              final religions = {...holidayOverride.religions};
+              enabled ? religions.add(religion) : religions.remove(religion);
+              saveHolidays(holidayOverride.copyWith(religions: religions));
+            },
+            foreground: foreground,
+            background: background,
+          ),
+        ],
+        const SizedBox(height: 8),
+        Text(
+          strings.calendarSystemNote,
+          style: TextStyle(
+            fontSize: 11,
+            color: foreground.withValues(alpha: 0.7),
+          ),
         ),
       ],
     );

@@ -46,7 +46,9 @@ import 'providers/nav_chip_layout_provider.dart';
 import 'providers/font_design_provider.dart';
 import 'providers/gekiga_background_color_provider.dart';
 import 'providers/last_opened_room_provider.dart';
+import 'providers/calendar_system_provider.dart';
 import 'providers/calendar_week_start_provider.dart';
+import 'providers/holiday_settings_provider.dart';
 import 'providers/message_time_format_provider.dart';
 import 'providers/notification_sound_provider.dart';
 import 'providers/ringtone_sound_provider.dart';
@@ -113,6 +115,8 @@ Future<void> main() async {
   final initialNavChipLayout = await loadInitialNavChipLayout();
   final initialMessageTimeFormat = await loadInitialMessageTimeFormat();
   final initialCalendarWeekStart = await loadInitialCalendarWeekStart();
+  final initialCalendarSystem = await loadInitialCalendarSystem();
+  final initialHolidaySettings = await loadInitialHolidaySettings();
   final initialChatLayoutStyle = await loadInitialChatLayoutStyle();
   final initialSlideTransitionStyle = await loadInitialSlideTransitionStyle();
   final initialTalksListLayoutStyle = await loadInitialTalksListLayoutStyle();
@@ -184,6 +188,10 @@ Future<void> main() async {
         ),
         initialCalendarWeekStartProvider.overrideWithValue(
           initialCalendarWeekStart,
+        ),
+        initialCalendarSystemProvider.overrideWithValue(initialCalendarSystem),
+        initialHolidaySettingsProvider.overrideWithValue(
+          initialHolidaySettings,
         ),
         initialSlideTransitionStyleProvider.overrideWithValue(
           initialSlideTransitionStyle,

@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../l10n/app_locale.dart';
 import '../models/app_ui_style.dart';
 import '../models/app_user_preferences.dart';
+import '../models/calendar_system.dart';
 import '../models/calendar_week_start.dart';
 import '../models/chat_layout_style.dart';
 import '../models/conversation_sort_order.dart';
@@ -16,7 +17,9 @@ import '../models/sticker_send_mode.dart';
 import 'accent_color_provider.dart';
 import 'app_locale_provider.dart';
 import 'app_ui_style_provider.dart';
+import 'calendar_system_provider.dart';
 import 'calendar_week_start_provider.dart';
+import 'holiday_settings_provider.dart';
 import 'calling_sound_provider.dart';
 import 'chat_layout_style_provider.dart';
 import 'slide_pick_enabled_provider.dart';
@@ -118,6 +121,22 @@ void applyRemoteUserPreferences(WidgetRef ref, AppUserPreferences preferences) {
         .read(calendarWeekStartProvider.notifier)
         .syncFromRemote(
           CalendarWeekStart.fromName(preferences.calendarWeekStart),
+        );
+  }
+  if (preferences.calendarSystem != null) {
+    ref
+        .read(calendarSystemProvider.notifier)
+        .syncFromRemote(CalendarSystem.fromName(preferences.calendarSystem));
+  }
+  if (preferences.holidayRegions != null ||
+      preferences.holidayObservances != null ||
+      preferences.holidayReligions != null) {
+    ref
+        .read(holidaySettingsProvider.notifier)
+        .syncFromRemote(
+          regions: preferences.holidayRegions?.toSet(),
+          observances: preferences.holidayObservances,
+          religions: preferences.holidayReligions?.toSet(),
         );
   }
   if (preferences.messageTimeFormat != null) {
