@@ -271,6 +271,20 @@ class _SignInScreenState extends ConsumerState<SignInScreen>
       // 秘密鍵の設定が済むまで実際には使えないため、その設定を行うまでUIから
       // 非表示にしている。AuthRepository.signInWithApple()自体は実装済みなので、
       // 設定が完了したらボタンを復活させるだけでよい。
+      // Rhing Seed＋パスキー（WebAuthn）でのログイン・新規アカウント作成
+      // （2026-09-16追加）。Linuxはパスキー非対応のため導線ごと出さない
+      // （`isPasskeyCapablePlatform`参照、当面Google/Appleログインのみ）。
+      // パスキーのボタンはGoogleのすぐ下に置く（2026-11-06）。
+      if (isPasskeyCapablePlatform) ...[
+        const SizedBox(height: 12),
+        BrandedBlockButton(
+          onPressed: _isSigningIn
+              ? null
+              : () => PasskeySignInDialog.show(context),
+          icon: const Icon(Icons.key),
+          label: strings.passkeySignInButton,
+        ),
+      ],
       if (showQrButton) ...[
         const SizedBox(height: 12),
         BrandedBlockButton(
@@ -289,33 +303,23 @@ class _SignInScreenState extends ConsumerState<SignInScreen>
           label: strings.qrScanLoginButton,
         ),
       ],
-      // Rhing Seed＋パスキー（WebAuthn）でのログイン・新規アカウント作成
-      // （2026-09-16追加）。Linuxはパスキー非対応のため導線ごと出さない
-      // （`isPasskeyCapablePlatform`参照、当面Google/Appleログインのみ）。
       if (isPasskeyCapablePlatform) ...[
-        const SizedBox(height: 12),
-        BrandedBlockButton(
-          onPressed: _isSigningIn
-              ? null
-              : () => PasskeySignInDialog.show(context),
-          icon: const Icon(Icons.key),
-          label: strings.passkeySignInButton,
-        ),
         const SizedBox(height: 20),
         const Divider(),
         const SizedBox(height: 8),
-        TextButton(
-          onPressed: _isSigningIn
-              ? null
-              : () => _signIn((repo) => repo.registerWithPasskey()),
-          child: Text(strings.passkeyCreateAccountButton),
-        ),
-        const SizedBox(height: 4),
+        // 「パスキーが使えない場合」を先に、アカウント作成を後に置く（2026-11-06）。
         TextButton(
           onPressed: _isSigningIn
               ? null
               : () => PasskeyRecoveryDialog.show(context),
           child: Text(strings.passkeyRecoveryLinkLabel),
+        ),
+        const SizedBox(height: 4),
+        TextButton(
+          onPressed: _isSigningIn
+              ? null
+              : () => _signIn((repo) => repo.registerWithPasskey()),
+          child: Text(strings.passkeyCreateAccountButton),
         ),
       ],
     ];

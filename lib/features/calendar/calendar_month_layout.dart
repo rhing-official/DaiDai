@@ -19,11 +19,15 @@ class CalendarMonthItem {
     required this.event,
     required this.coordination,
     this.holidayKind,
+    this.holiday,
   });
 
   /// 祝日・祭日・宗教上の祝日の帯ならその種類（[event]・[coordination]は共にnull。
-  /// タップしても何も開かない）。予定・日程調整ならnull。
+  /// タップすると[holiday]のポップアップを開く）。予定・日程調整ならnull。
   final HolidayKind? holidayKind;
+
+  /// 祝日・祭日の帯なら、その1件（タップでポップアップを開く）。
+  final HolidayEntry? holiday;
 
   bool get isHoliday => holidayKind != null;
 

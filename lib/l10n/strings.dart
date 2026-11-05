@@ -963,6 +963,7 @@ class Strings {
     required this.accountSuspendedRemainingDaysTemplate,
     required this.accountSuspendedRemainingHoursTemplate,
     required this.chatJumpNotFoundMessage,
+    required this.chatReturnToOriginalMessage,
     required this.chatNoMessagesYet,
     required this.callSummaryStartedAtTemplate,
     required this.callDurationHoursMinutesTemplate,
@@ -2292,6 +2293,7 @@ class Strings {
   final String Function(int days) accountSuspendedRemainingDaysTemplate;
   final String Function(int hours) accountSuspendedRemainingHoursTemplate;
   final String chatJumpNotFoundMessage;
+  final String chatReturnToOriginalMessage;
   final String chatNoMessagesYet;
   final String Function(String time, String duration)
   callSummaryStartedAtTemplate;
@@ -3382,6 +3384,7 @@ class Strings {
     accountSuspendedRemainingDaysTemplate: (days) => '約$days日',
     accountSuspendedRemainingHoursTemplate: (hours) => '約$hours時間',
     chatJumpNotFoundMessage: '元のメッセージが見つかりません',
+    chatReturnToOriginalMessage: '元のメッセージに戻る',
     chatNoMessagesYet: 'まだメッセージはありません',
     callSummaryStartedAtTemplate: (time, duration) => '$timeから$duration',
     callDurationHoursMinutesTemplate: (hours, minutes) => '$hours時間$minutes分',
@@ -4579,6 +4582,7 @@ class Strings {
     accountSuspendedRemainingHoursTemplate: (hours) =>
         'about $hours hour${hours == 1 ? '' : 's'}',
     chatJumpNotFoundMessage: 'The original message could not be found',
+    chatReturnToOriginalMessage: 'Back to the original message',
     chatNoMessagesYet: 'No messages yet',
     callSummaryStartedAtTemplate: (time, duration) => '$time · $duration',
     callDurationHoursMinutesTemplate: (hours, minutes) =>

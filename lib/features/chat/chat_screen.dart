@@ -1212,6 +1212,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// 返信中・編集中のメッセージ（同時にはどちらか一方のみ）。入力欄上部に
   /// プレビューバーとして表示し、キャンセルボタンでnullに戻す。
   Message? _replyingTo;
+
+  /// 二重返信の2件目の返信先（2026-11-06）。返信中にもう一度「返信」を選ぶと入る。
+  /// 1件目（[_replyingTo]）が無い間は常にnull。
+  Message? _replyingTo2;
   Message? _editingMessage;
 
   /// 返信先ジャンプ機能用に、現在表示中の各メッセージ行の
@@ -1256,7 +1260,26 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// 対象行が事前にビルドされていなくても確定的にジャンプできるため、旧実装
   /// にあったGlobalKeyのビルド待ちリトライ・`Scrollable.ensureVisible`の
   /// 再試行は不要になった。
-  Future<void> _jumpToMessage(String messageId) async {
+  /// 引用のタップで返信先へ飛んだ後、元のメッセージ（引用していた側）へ戻るためのid
+  /// （2026-11-06）。nullなら「元のメッセージに戻る」ブロックを出さない。
+  String? _returnToMessageId;
+
+  /// 引用をタップした時。返信先へ飛び、飛べたら元のメッセージへ戻るブロックを出す。
+  Future<void> _jumpToReplyTarget(String targetId, String fromMessageId) async {
+    final jumped = await _jumpToMessage(targetId);
+    if (!mounted || !jumped) return;
+    setState(() => _returnToMessageId = fromMessageId);
+  }
+
+  /// 「元のメッセージに戻る」。ブロックは戻ったら消す。
+  Future<void> _returnToOriginalMessage() async {
+    final id = _returnToMessageId;
+    if (id == null) return;
+    setState(() => _returnToMessageId = null);
+    await _jumpToMessage(id);
+  }
+
+  Future<bool> _jumpToMessage(String messageId) async {
     // ポップアップを閉じた際の位置復元（[_endPopupGuard]参照）と競合しない
     // よう、意図的なジャンプが発生したことを世代トークンで記録しておく
     // （2026-09-15追加）。
@@ -1264,12 +1287,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     var index = _messageIndexById[messageId];
     if (index == null) {
       final fetched = await widget.onFetchMessagesAround?.call(messageId);
-      if (!mounted) return;
+      if (!mounted) return false;
       if (fetched == null || fetched.isEmpty) {
         // フェッチしても存在しない＝対象メッセージが本当に無い
         // （全員から削除され物理削除済み等）と確定できるケース。
         _showJumpNotFoundBanner();
-        return;
+        return false;
       }
       setState(() {
         for (final message in fetched) {
@@ -1278,12 +1301,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       });
       // フェッチ結果がbuild()に反映され_messageIndexByIdへ載るまで1フレーム待つ。
       await WidgetsBinding.instance.endOfFrame;
-      if (!mounted) return;
+      if (!mounted) return false;
       index = _messageIndexById[messageId];
     }
     if (index == null || !_itemScrollController.isAttached) {
       _showJumpNotFoundBanner();
-      return;
+      return false;
     }
 
     _itemScrollController.jumpTo(index: index, alignment: 0.5);
@@ -1293,6 +1316,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       if (!mounted) return;
       setState(() => _highlightedMessageId = null);
     });
+    return true;
   }
 
   /// [_jumpToMessage]で返信元メッセージが見つからなかった場合の通知。参加者
@@ -1360,12 +1384,30 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     if (action != null) _jumpToMessage(action);
   }
 
+  /// 「返信」を選んだ時。返信中にもう一度選ぶと2件目として追加する（二重返信、
+  /// 2026-11-06）。同じメッセージを選び直しても増えず、3件目は2件目を入れ替える。
   void _startReply(Message message) {
     setState(() {
-      _replyingTo = message;
       _editingMessage = null;
+      final first = _replyingTo;
+      if (first == null) {
+        _replyingTo = message;
+        _replyingTo2 = null;
+      } else if (first.messageId != message.messageId) {
+        _replyingTo2 = message;
+      }
     });
     _composerFocusNode.requestFocus();
+  }
+
+  /// 返信バーの×。1件目を外すと2件目が1件目に繰り上がる（[first]がfalseなら2件目を外す）。
+  void _removeReplyTarget({required bool first}) {
+    setState(() {
+      if (first) {
+        _replyingTo = _replyingTo2;
+      }
+      _replyingTo2 = null;
+    });
   }
 
   void _startEdit(Message message) {
@@ -1375,6 +1417,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     setState(() {
       _editingMessage = message;
       _replyingTo = null;
+      _replyingTo2 = null;
       _textController.text = message.content;
     });
     _composerFocusNode.requestFocus();
@@ -1384,6 +1427,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final wasEditing = _editingMessage != null;
     setState(() {
       _replyingTo = null;
+      _replyingTo2 = null;
       _editingMessage = null;
       if (wasEditing) _textController.clear();
     });
@@ -2301,11 +2345,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
     if (sendingTray) {
       final replyTo = _replyingTo;
+      if (replyTo != null) setSecondReply(replyTo, _replyingTo2);
       _selectedMentions.clear();
       _textController.clear();
       _clearDraftNow();
       _composerFocusNode.requestFocus();
-      setState(() => _replyingTo = null);
+      setState(() {
+        _replyingTo = null;
+        _replyingTo2 = null;
+      });
       await _sendPendingAttachments(
         caption: content.isEmpty ? null : content,
         replyTo: replyTo,
@@ -2325,6 +2373,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     }
 
     final replyTo = _replyingTo;
+    if (replyTo != null) setSecondReply(replyTo, _replyingTo2);
     final mentions = _buildMentions(content);
     _selectedMentions.clear();
     _textController.clear();
@@ -2336,7 +2385,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     // フォーカスを戻す（2026-08-12、送信ボタン側のcanRequestFocus:false
     // と合わせて対処）。
     _composerFocusNode.requestFocus();
-    setState(() => _replyingTo = null);
+    setState(() {
+      _replyingTo = null;
+      _replyingTo2 = null;
+    });
     await widget.onSend!(
       content,
       silent: silent,
@@ -3318,7 +3370,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                           pinnedMessageIds: widget.pinnedMessageIds,
                           onPinMessage: widget.onPinMessage,
                           onUnpinMessage: widget.onUnpinMessage,
-                          onJumpToReply: _jumpToMessage,
+                          onJumpToReply: _jumpToReplyTarget,
                           onSendSticker: widget.onSendSticker != null
                               ? _handleStickerPicked
                               : null,
@@ -3404,6 +3456,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                           if (_replyingTo != null || _editingMessage != null)
                             _ComposerContextBar(
                               replyingTo: _replyingTo,
+                              replyingTo2: _replyingTo2,
+                              onRemoveReply: _removeReplyTarget,
                               editing: _editingMessage != null,
                               strings: strings,
                               onCancel: _cancelComposerContext,
@@ -3804,6 +3858,25 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       onStickerTap: _handleSuggestionTap,
                     ),
                   ),
+                // 引用から返信先へ飛んだ後、元のメッセージへ戻るブロック（2026-11-06）。
+                if (!_selecting &&
+                    !_screenshotSelecting &&
+                    _returnToMessageId != null)
+                  Positioned(
+                    left: 12,
+                    right: 12,
+                    bottom:
+                        (widget.onSend != null ? _composerAreaHeight : 0) + 12,
+                    child: Center(
+                      child: _ReturnToMessageBlock(
+                        uiStyle: uiStyle,
+                        label: strings.chatReturnToOriginalMessage,
+                        onPressed: _returnToOriginalMessage,
+                        onClose: () =>
+                            setState(() => _returnToMessageId = null),
+                      ),
+                    ),
+                  ),
                 // 最新メッセージが画面外へスクロールされている間だけ、右下に
                 // 「最新へジャンプ」ボタンを出す（2026-10-04追加）。
                 if (!_selecting && !_screenshotSelecting)
@@ -3897,10 +3970,18 @@ class _ComposerContextBar extends StatelessWidget {
     required this.editing,
     required this.strings,
     required this.onCancel,
+    this.replyingTo2,
+    this.onRemoveReply,
     this.vocabulary,
   });
 
   final Message? replyingTo;
+
+  /// 二重返信の2件目（2026-11-06）。あれば返信先を2行で並べる。
+  final Message? replyingTo2;
+
+  /// 返信の行の×。1件目を外すと2件目が繰り上がる（`first: false`で2件目だけ外す）。
+  final void Function({required bool first})? onRemoveReply;
   final bool editing;
   final Strings strings;
   final VoidCallback onCancel;
@@ -3912,67 +3993,93 @@ class _ComposerContextBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final replying = replyingTo;
-    final thumbnail = replying != null
-        ? _replyPreviewThumbnail(replying)
-        : null;
+    final first = replyingTo;
+    final second = replyingTo2;
     return Container(
       color: colorScheme.surfaceContainerHighest,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      child: Row(
-        children: [
-          Icon(
-            editing ? Icons.edit : Icons.reply,
-            size: 18,
-            color: colorScheme.onSurfaceVariant,
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: editing
-                ? Text(
-                    strings.chatEditingLabel,
-                    style: TextStyle(color: colorScheme.onSurfaceVariant),
-                  )
-                : Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        strings.chatReplyingToLabel(
-                          replying?.senderRhingSeed != null
-                              ? '@${replying!.senderRhingSeed}'
-                              : '?',
-                        ),
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: colorScheme.onSurfaceVariant,
-                          fontSize: 12,
-                        ),
-                      ),
-                      Text(
-                        replying != null
-                            ? _replySnippetLabel(replying, vocabulary)
-                            : '',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: colorScheme.onSurfaceVariant,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
+      child: editing || first == null
+          ? _row(
+              colorScheme,
+              icon: editing ? Icons.edit : Icons.reply,
+              editingLabel: editing ? strings.chatEditingLabel : null,
+              target: null,
+              onClose: onCancel,
+            )
+          : Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _row(
+                  colorScheme,
+                  icon: Icons.reply,
+                  target: first,
+                  onClose: second == null
+                      ? onCancel
+                      : () => onRemoveReply?.call(first: true),
+                ),
+                if (second != null)
+                  _row(
+                    colorScheme,
+                    icon: Icons.reply,
+                    target: second,
+                    onClose: () => onRemoveReply?.call(first: false),
                   ),
-          ),
-          if (!editing && thumbnail != null) ...[
-            const SizedBox(width: 4),
-            thumbnail,
-          ],
-          IconButton(
-            icon: const Icon(Icons.close, size: 18),
-            onPressed: onCancel,
-          ),
-        ],
-      ),
+              ],
+            ),
+    );
+  }
+
+  Widget _row(
+    ColorScheme colorScheme, {
+    required IconData icon,
+    required VoidCallback onClose,
+    Message? target,
+    String? editingLabel,
+  }) {
+    final thumbnail = target != null ? _replyPreviewThumbnail(target) : null;
+    return Row(
+      children: [
+        Icon(icon, size: 18, color: colorScheme.onSurfaceVariant),
+        const SizedBox(width: 8),
+        Expanded(
+          child: editingLabel != null
+              ? Text(
+                  editingLabel,
+                  style: TextStyle(color: colorScheme.onSurfaceVariant),
+                )
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      strings.chatReplyingToLabel(
+                        target?.senderRhingSeed != null
+                            ? '@${target!.senderRhingSeed}'
+                            : '?',
+                      ),
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: colorScheme.onSurfaceVariant,
+                        fontSize: 12,
+                      ),
+                    ),
+                    Text(
+                      target != null
+                          ? _replySnippetLabel(target, vocabulary)
+                          : '',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: colorScheme.onSurfaceVariant,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+        ),
+        if (thumbnail != null) ...[const SizedBox(width: 4), thumbnail],
+        IconButton(icon: const Icon(Icons.close, size: 18), onPressed: onClose),
+      ],
     );
   }
 }
@@ -4606,7 +4713,7 @@ class _MessageRow extends ConsumerWidget {
   /// [messagesById]に返信先が無い（直近50件のロード範囲外）場合は、
   /// 呼び出し先（`_ChatScreenState._jumpToMessage`）が
   /// [ChatScreen.onFetchMessagesAround]で取得してからジャンプする。
-  final void Function(String messageId)? onJumpToReply;
+  final void Function(String targetId, String fromMessageId)? onJumpToReply;
 
   /// 他人が送信済みのぺったんをタップし、自分も所持しているパックだった
   /// 場合にそのパックから選び直して送信する導線で使う（[_stickerContent]
@@ -4973,76 +5080,103 @@ class _MessageRow extends ConsumerWidget {
     // （送信取り消しされた場合はunsendMessage/unsendRoomMessageがこれらの
     // フィールドをまとめてクリアするため、その場合は引用プレビュー自体が
     // 表示されなくなる）。
-    Widget? replyPreview;
-    if (message.replyToMessageId != null) {
-      final target = messagesById[message.replyToMessageId];
-      final replySenderId = target?.senderId ?? message.replyToSenderId;
-      final replySenderRhingSeed =
-          target?.senderRhingSeed ?? message.replyToSenderRhingSeed;
+    Widget? buildReplyQuote({
+      required String? targetId,
+      required String? storedSenderId,
+      required String? storedSeed,
+      required String? storedSnippet,
+    }) {
+      if (targetId == null) return null;
+      final target = messagesById[targetId];
+      final replySenderId = target?.senderId ?? storedSenderId;
+      final replySenderRhingSeed = target?.senderRhingSeed ?? storedSeed;
       final snippet = target != null
           ? _replySnippetLabel(target, vocabulary)
-          : (message.replyToSnippet ?? '');
+          : (storedSnippet ?? '');
       final thumbnail = target != null ? _replyPreviewThumbnail(target) : null;
-      if (replySenderId != null) {
-        final quoteBox = Container(
-          margin: const EdgeInsets.only(bottom: 6),
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-          decoration: BoxDecoration(
-            color: onBubbleColor.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          // mainAxisSize: MainAxisSize.min（既定のmaxのままだと、送信者名や
-          // スニペットが短くても親から渡された最大幅いっぱいに引き伸ばされ、
-          // サムネイル導入時に横幅が不必要に広く見える不具合があった、
-          // 2026-08-14対応）。テキスト列もExpandedではなくFlexibleにして、
-          // 短い内容ならボックス自体が縮むようにする（長い内容は既存の
-          // maxLines: 1 + ellipsisで従来通り省略表示される）。
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Flexible(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _SenderName(
-                      userId: replySenderId,
-                      rhingSeed: replySenderRhingSeed,
-                      conversationId: conversationId,
-                      color: onBubbleColor,
-                    ),
-                    Text(
-                      snippet,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(fontSize: 12, color: onBubbleColor),
-                    ),
-                  ],
-                ),
+      if (replySenderId == null) return null;
+      final quoteBox = Container(
+        margin: const EdgeInsets.only(bottom: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        decoration: BoxDecoration(
+          color: onBubbleColor.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        // mainAxisSize: MainAxisSize.min（既定のmaxのままだと、送信者名や
+        // スニペットが短くても親から渡された最大幅いっぱいに引き伸ばされ、
+        // サムネイル導入時に横幅が不必要に広く見える不具合があった、
+        // 2026-08-14対応）。テキスト列もExpandedではなくFlexibleにして、
+        // 短い内容ならボックス自体が縮むようにする（長い内容は既存の
+        // maxLines: 1 + ellipsisで従来通り省略表示される）。
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Flexible(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _SenderName(
+                    userId: replySenderId,
+                    rhingSeed: replySenderRhingSeed,
+                    conversationId: conversationId,
+                    color: onBubbleColor,
+                  ),
+                  Text(
+                    snippet,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 12, color: onBubbleColor),
+                  ),
+                ],
               ),
-              if (thumbnail != null) ...[const SizedBox(width: 4), thumbnail],
-            ],
-          ),
-        );
-        // 返信先へのジャンプは、この引用プレビュー自体にだけタップを
-        // 割り当てる（2026-08-12変更）。以前は吹き出し全体
-        // （_MessageBubbleTapArea）にタップを割り当てていたが、画像/動画
-        // 本体（タップでフルスクリーン表示）やURLリンク（LinkifiedTextの
-        // TapGestureRecognizer）と吹き出し内でジェスチャーの取り合いになり、
-        // 最も内側の認識者が優先されるFlutterの仕様上、ジャンプが発火しない
-        // ことがあった（タップ位置次第で結果が変わって見えていた不具合の
-        // 主因）。
-        final targetId = message.replyToMessageId;
-        replyPreview = (targetId != null && onJumpToReply != null)
-            ? InkWell(
-                onTap: () => onJumpToReply!(targetId),
-                borderRadius: BorderRadius.circular(8),
-                child: quoteBox,
-              )
-            : quoteBox;
-      }
+            ),
+            if (thumbnail != null) ...[const SizedBox(width: 4), thumbnail],
+          ],
+        ),
+      );
+      // 返信先へのジャンプは、この引用プレビュー自体にだけタップを
+      // 割り当てる（2026-08-12変更）。以前は吹き出し全体
+      // （_MessageBubbleTapArea）にタップを割り当てていたが、画像/動画
+      // 本体（タップでフルスクリーン表示）やURLリンク（LinkifiedTextの
+      // TapGestureRecognizer）と吹き出し内でジェスチャーの取り合いになり、
+      // 最も内側の認識者が優先されるFlutterの仕様上、ジャンプが発火しない
+      // ことがあった（タップ位置次第で結果が変わって見えていた不具合の
+      // 主因）。
+      return onJumpToReply != null
+          ? InkWell(
+              onTap: () => onJumpToReply!(targetId, message.messageId),
+              borderRadius: BorderRadius.circular(8),
+              child: quoteBox,
+            )
+          : quoteBox;
     }
+
+    // 二重返信（2026-11-06）は、1件目・2件目の順に同じ見た目で縦に並べる。
+    final replyQuotes = [
+      buildReplyQuote(
+        targetId: message.replyToMessageId,
+        storedSenderId: message.replyToSenderId,
+        storedSeed: message.replyToSenderRhingSeed,
+        storedSnippet: message.replyToSnippet,
+      ),
+      buildReplyQuote(
+        targetId: message.replyTo2MessageId,
+        storedSenderId: message.replyTo2SenderId,
+        storedSeed: message.replyTo2SenderRhingSeed,
+        storedSnippet: message.replyTo2Snippet,
+      ),
+    ].nonNulls.toList();
+    final Widget? replyPreview = replyQuotes.isEmpty
+        ? null
+        : replyQuotes.length == 1
+        ? replyQuotes.first
+        : Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: replyQuotes,
+          );
 
     final isCallSummary = message.contentType == 'call';
     final isAccountDeletedNotice = message.contentType == 'accountDeleted';
@@ -8977,6 +9111,77 @@ class _GekigaComposerFieldPainter extends CustomPainter {
 /// 「最新メッセージへジャンプ」の下矢印ボタン（2026-10-04追加）。UIスタイルごとに
 /// 見た目を変える（影は使わない）。フラット: アクセントカラー塗り＋反対色の
 /// アイコン、ガラス: 不透明のガラス丸ボタン、劇画: モノクロのパネルボタン。
+/// 「元のメッセージに戻る」ブロック（引用から返信先へ飛んだ後、画面の下に出す）。
+/// 押すと元のメッセージへ戻り、×で閉じる。UIスタイルごとに既存のボタンの配色へ揃える。
+class _ReturnToMessageBlock extends StatelessWidget {
+  const _ReturnToMessageBlock({
+    required this.uiStyle,
+    required this.label,
+    required this.onPressed,
+    required this.onClose,
+  });
+
+  final AppUiStyle uiStyle;
+  final String label;
+  final VoidCallback onPressed;
+  final VoidCallback onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final Color fill;
+    final Color fg;
+    ShapeBorder shape = const StadiumBorder();
+    switch (uiStyle) {
+      case AppUiStyle.gekiga:
+        fill = GekigaColors.panel;
+        fg = GekigaColors.onPanel;
+        shape = const RoundedRectangleBorder();
+      case AppUiStyle.glass:
+        fill = colorScheme.surfaceContainerHighest;
+        fg = colorScheme.onSurface;
+      default:
+        fill = colorScheme.primary;
+        fg = colorScheme.onPrimary;
+    }
+    return Material(
+      color: fill,
+      shape: shape,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          InkWell(
+            customBorder: shape,
+            onTap: onPressed,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 10, 8, 10),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.keyboard_arrow_down, size: 20, color: fg),
+                  const SizedBox(width: 4),
+                  Text(
+                    label,
+                    style: TextStyle(color: fg, fontWeight: FontWeight.w600),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          InkWell(
+            customBorder: const CircleBorder(),
+            onTap: onClose,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(4, 10, 12, 10),
+              child: Icon(Icons.close, size: 18, color: fg),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _JumpToLatestButton extends StatelessWidget {
   const _JumpToLatestButton({required this.uiStyle, required this.onPressed});
 

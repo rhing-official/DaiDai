@@ -117,9 +117,29 @@ class _IssueQrLoginDialogState extends ConsumerState<IssueQrLoginDialog> {
       requested ? strings.qrIssueRequestTitle : strings.settingsQrLogin,
     );
     // 低い画面でも収まるよう、中身はスクロールできるようにする。
+    // 許可の確認中・許可済みでなければ、QRコードの作成中から「QRコードを読み取る」を出す
+    // （QRコードが出てから後出しにならないよう、本文とは別に常に置く）。
+    final showScan = !requested && _status != 'approved';
     final content = SizedBox(
       width: 280,
-      child: SingleChildScrollView(child: _body(context, strings)),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _body(context, strings),
+            if (showScan) ...[
+              const SizedBox(height: 16),
+              // 逆向き: 別の端末が出したQRコードを、この端末で読み取る。
+              OutlinedButton.icon(
+                onPressed: () =>
+                    Navigator.of(context).pop(IssueQrLoginDialog.scanRequested),
+                icon: const Icon(Icons.qr_code_scanner),
+                label: Text(strings.qrLoginScanButton),
+              ),
+            ],
+          ],
+        ),
+      ),
     );
     final actions = requested
         ? [
@@ -148,7 +168,8 @@ class _IssueQrLoginDialogState extends ConsumerState<IssueQrLoginDialog> {
       return Text(strings.qrIssueError);
     }
     final id = _sessionId;
-    if (id == null) return const SizedBox(height: 200);
+    // 作成中も、QRコードが出た後と同じ高さを保ち、下のボタンが動かないようにする。
+    if (id == null) return const SizedBox(height: 320);
     if (_expired) {
       return Column(
         mainAxisSize: MainAxisSize.min,
@@ -188,14 +209,6 @@ class _IssueQrLoginDialogState extends ConsumerState<IssueQrLoginDialog> {
         Text(
           strings.qrIssueExpiresHint,
           style: Theme.of(context).textTheme.bodySmall,
-        ),
-        const SizedBox(height: 16),
-        // 逆向き: 別の端末が出したQRコードを、この端末で読み取る。
-        OutlinedButton.icon(
-          onPressed: () =>
-              Navigator.of(context).pop(IssueQrLoginDialog.scanRequested),
-          icon: const Icon(Icons.qr_code_scanner),
-          label: Text(strings.qrLoginScanButton),
         ),
       ],
     );

@@ -21,8 +21,12 @@ class _FakeAuth implements AuthRepository {
   final calls = <String>[];
   bool failRequest = false;
 
+  /// 指定すると、セッション作成がこれが完了するまで終わらない（作成中の表示を確かめる）。
+  Completer<String>? gate;
+
   @override
-  Future<String> createIssuedQrLoginSession() async => 'sess1';
+  Future<String> createIssuedQrLoginSession() async =>
+      gate != null ? gate!.future : 'sess1';
 
   @override
   Stream<String> watchQrLoginSessionStatus(String sessionId) => status.stream;
@@ -77,6 +81,29 @@ Future<void> _settle(WidgetTester tester) async {
 }
 
 void main() {
+  testWidgets('QRコードの作成中でも「QRコードを読み取る」が出る', (tester) async {
+    final auth = _FakeAuth()..gate = Completer<String>();
+    addTearDown(auth.status.close);
+    await _pump(tester, auth, const IssueQrLoginDialog());
+    expect(find.byType(QrImageView), findsNothing);
+    expect(find.text(_ja.qrLoginScanButton), findsOneWidget);
+
+    auth.gate!.complete('sess1');
+    await _settle(tester);
+    expect(find.byType(QrImageView), findsOneWidget);
+    expect(find.text(_ja.qrLoginScanButton), findsOneWidget);
+  });
+
+  testWidgets('許可の確認中は「QRコードを読み取る」を出さない', (tester) async {
+    final auth = _FakeAuth();
+    addTearDown(auth.status.close);
+    await _pump(tester, auth, const IssueQrLoginDialog());
+    await _settle(tester);
+    auth.status.add('requested');
+    await _settle(tester);
+    expect(find.text(_ja.qrLoginScanButton), findsNothing);
+  });
+
   testWidgets('QRを表示し、読み取り（requested）で許可を出し、許可でrespondを呼ぶ', (tester) async {
     final auth = _FakeAuth();
     addTearDown(auth.status.close);

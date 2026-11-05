@@ -764,6 +764,12 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
       replyToSnippet: replyTo == null
           ? null
           : messageSnippetOf(replyTo.content),
+      replyTo2MessageId: secondReplyOf(replyTo)?.messageId,
+      replyTo2SenderId: secondReplyOf(replyTo)?.senderId,
+      replyTo2SenderRhingSeed: secondReplyOf(replyTo)?.senderRhingSeed,
+      replyTo2Snippet: secondReplyOf(replyTo) == null
+          ? null
+          : messageSnippetOf(secondReplyOf(replyTo)!.content),
     );
 
     final batch = _firestore.batch();
@@ -826,6 +832,12 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
       replyToSnippet: replyTo == null
           ? null
           : messageSnippetOf(replyTo.content),
+      replyTo2MessageId: secondReplyOf(replyTo)?.messageId,
+      replyTo2SenderId: secondReplyOf(replyTo)?.senderId,
+      replyTo2SenderRhingSeed: secondReplyOf(replyTo)?.senderRhingSeed,
+      replyTo2Snippet: secondReplyOf(replyTo) == null
+          ? null
+          : messageSnippetOf(secondReplyOf(replyTo)!.content),
       fileMetadata: fileMetadata,
       caption: caption,
     );
@@ -883,6 +895,12 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
       replyToSnippet: replyTo == null
           ? null
           : messageSnippetOf(replyTo.content),
+      replyTo2MessageId: secondReplyOf(replyTo)?.messageId,
+      replyTo2SenderId: secondReplyOf(replyTo)?.senderId,
+      replyTo2SenderRhingSeed: secondReplyOf(replyTo)?.senderRhingSeed,
+      replyTo2Snippet: secondReplyOf(replyTo) == null
+          ? null
+          : messageSnippetOf(secondReplyOf(replyTo)!.content),
       fileMetadata: attachments.first,
       attachments: attachments,
       caption: caption,
@@ -930,6 +948,12 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
       replyToSnippet: replyTo == null
           ? null
           : messageSnippetOf(replyTo.content),
+      replyTo2MessageId: secondReplyOf(replyTo)?.messageId,
+      replyTo2SenderId: secondReplyOf(replyTo)?.senderId,
+      replyTo2SenderRhingSeed: secondReplyOf(replyTo)?.senderRhingSeed,
+      replyTo2Snippet: secondReplyOf(replyTo) == null
+          ? null
+          : messageSnippetOf(secondReplyOf(replyTo)!.content),
       stickerData: MessageStickerData(
         stickerId: stickerId,
         stickerUrl: stickerUrl,
@@ -1159,6 +1183,9 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
     final quoting = await messagesRef
         .where('replyToMessageId', isEqualTo: messageId)
         .get();
+    final quoting2 = await messagesRef
+        .where('replyTo2MessageId', isEqualTo: messageId)
+        .get();
 
     // 1件のメッセージへの引用返信が499件を超えることは現実的に想定しない
     // ため、500件のバッチ上限に収まる範囲でまとめて処理する
@@ -1171,6 +1198,15 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
         'replyToSenderId': FieldValue.delete(),
         'replyToSenderRhingSeed': FieldValue.delete(),
         'replyToSnippet': FieldValue.delete(),
+      });
+    }
+    // 二重返信の2件目として引用していたメッセージ側は、2件目だけをクリアする。
+    for (final doc in quoting2.docs.take(499)) {
+      batch.update(doc.reference, {
+        'replyTo2MessageId': FieldValue.delete(),
+        'replyTo2SenderId': FieldValue.delete(),
+        'replyTo2SenderRhingSeed': FieldValue.delete(),
+        'replyTo2Snippet': FieldValue.delete(),
       });
     }
     // ピン留めされていた場合、寄合側のpinnedMessageIdsからも取り除く

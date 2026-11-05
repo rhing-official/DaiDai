@@ -3,13 +3,19 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/strings.dart';
 import '../../l10n/vocabulary.dart';
+import '../../models/app_ui_style.dart';
 import '../../models/direct_message.dart';
 import '../../models/group.dart';
+import '../../providers/app_ui_style_provider.dart';
 import '../../providers/block_providers.dart';
 import '../../providers/repository_providers.dart';
 import '../../providers/user_providers.dart';
 import '../../utils/forward_message.dart';
 import '../../widgets/app_dialog.dart';
+import '../../widgets/focal_circle_avatar.dart';
+import '../../models/profile_card.dart' show ImageFocal;
+import '../../widgets/glass/glass_avatar.dart';
+import '../../widgets/style_choice_chip.dart';
 import 'talks_tab.dart' show dmSearchLabel;
 
 /// 転送先（自分が参加している一対か、広場の寄合）を選ぶポップアップ（2026-11-05）。
@@ -39,6 +45,10 @@ class _ForwardTargetDialogState extends ConsumerState<_ForwardTargetDialog> {
   late final Future<List<DirectMessage>> _dms;
   late final Future<List<Group>> _groups;
   String _query = '';
+
+  /// 一覧に出す種類（一対・広場）。初期は両方。両方オフにはならない。
+  bool _showDms = true;
+  bool _showGroups = true;
 
   /// 寄合を選ぶ段階の広場（nullなら会話の一覧）。
   Group? _pickingRoomOf;
@@ -111,6 +121,9 @@ class _ForwardTargetDialogState extends ConsumerState<_ForwardTargetDialog> {
         const <String>{};
     final query = _query.trim().toLowerCase();
     final picking = _pickingRoomOf;
+    final uiStyle = ref.watch(appUiStyleProvider);
+    final isGlass = uiStyle == AppUiStyle.glass;
+    final colorScheme = Theme.of(context).colorScheme;
 
     Widget list;
     if (picking != null) {
@@ -141,7 +154,7 @@ class _ForwardTargetDialogState extends ConsumerState<_ForwardTargetDialog> {
           final dms = snapshot.data![0] as List<DirectMessage>;
           final groups = snapshot.data![1] as List<Group>;
           final tiles = <Widget>[];
-          for (final dm in dms) {
+          for (final dm in _showDms ? dms : const <DirectMessage>[]) {
             final otherId = dm.otherUserId(widget.currentUserId);
             if (blocked.contains(otherId)) continue;
             final other = ref.watch(watchedUserProvider(otherId)).value;
@@ -151,20 +164,32 @@ class _ForwardTargetDialogState extends ConsumerState<_ForwardTargetDialog> {
             }
             tiles.add(
               ListTile(
-                leading: const Icon(Icons.person_outline),
+                leading: _avatar(
+                  isGlass,
+                  colorScheme,
+                  other?.effectiveIconFor(dm.dmId)?.url,
+                  other?.effectiveIconFocalFor(dm.dmId),
+                  Icons.person,
+                ),
                 title: Text(label),
                 subtitle: Text(vocab.dm),
                 onTap: () => _pickDm(dm),
               ),
             );
           }
-          for (final g in groups) {
+          for (final g in _showGroups ? groups : const <Group>[]) {
             if (query.isNotEmpty && !g.name.toLowerCase().contains(query)) {
               continue;
             }
             tiles.add(
               ListTile(
-                leading: const Icon(Icons.groups_outlined),
+                leading: _avatar(
+                  isGlass,
+                  colorScheme,
+                  g.profileCard?.iconUrl,
+                  g.profileCard?.iconFocal,
+                  Icons.groups,
+                ),
                 title: Text(g.name),
                 subtitle: Text(vocab.plaza),
                 onTap: () => _pickGroup(g),
@@ -193,6 +218,34 @@ class _ForwardTargetDialogState extends ConsumerState<_ForwardTargetDialog> {
               onChanged: (value) => setState(() => _query = value),
             ),
             const SizedBox(height: 8),
+            if (picking == null) ...[
+              Row(
+                children: [
+                  StyleChoiceChip(
+                    uiStyle: uiStyle,
+                    selected: _showDms,
+                    onTap: () => setState(() {
+                      _showDms = !_showDms;
+                      if (!_showDms && !_showGroups) _showGroups = true;
+                    }),
+                    labelBuilder: (fg) =>
+                        Text(vocab.dm, style: TextStyle(color: fg)),
+                  ),
+                  const SizedBox(width: 8),
+                  StyleChoiceChip(
+                    uiStyle: uiStyle,
+                    selected: _showGroups,
+                    onTap: () => setState(() {
+                      _showGroups = !_showGroups;
+                      if (!_showDms && !_showGroups) _showDms = true;
+                    }),
+                    labelBuilder: (fg) =>
+                        Text(vocab.plaza, style: TextStyle(color: fg)),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+            ],
             Expanded(child: list),
           ],
         ),
@@ -208,6 +261,30 @@ class _ForwardTargetDialogState extends ConsumerState<_ForwardTargetDialog> {
           ),
       ],
     );
+  }
+
+  Widget _avatar(
+    bool isGlass,
+    ColorScheme colorScheme,
+    String? url,
+    ImageFocal? focal,
+    IconData fallbackIcon,
+  ) {
+    return isGlass
+        ? GlassAvatar(
+            size: 40,
+            image: url != null ? NetworkImage(url) : null,
+            focal: focal,
+            fallback: url != null
+                ? null
+                : Icon(fallbackIcon, color: colorScheme.onSurfaceVariant),
+          )
+        : FocalCircleAvatar(
+            url: url,
+            focal: focal,
+            foregroundColor: colorScheme.onSurfaceVariant,
+            fallback: Icon(fallbackIcon),
+          );
   }
 
   Widget _list(List<Widget> tiles, String emptyLabel) {

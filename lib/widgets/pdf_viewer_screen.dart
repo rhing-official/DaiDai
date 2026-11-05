@@ -58,6 +58,11 @@ class _PdfViewerScreenState extends ConsumerState<PdfViewerScreen> {
   final _pageController = PageController();
   int _page = 0;
 
+  /// モバイルで書面を1回タップすると、右上のメニュー・前後の矢印を隠す（2026-11-06）。
+  bool _chromeHidden = false;
+
+  void _toggleChrome() => setState(() => _chromeHidden = !_chromeHidden);
+
   // 文書の参照は1度だけ作る（ページ送りの再ビルドで読み込み直さない）。
   late final PdfDocumentRef _documentRef = PdfDocumentRefUri(
     Uri.parse(widget.url),
@@ -193,16 +198,29 @@ class _PdfViewerScreenState extends ConsumerState<PdfViewerScreen> {
                   // 戻る矢印は出さない（Esc・下スワイプ・戻る操作で閉じる）。
                   automaticallyImplyLeading: false,
                   actions: [
-                    Center(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 8),
-                        child: Text('${_page + 1} / $count'),
+                    AnimatedOpacity(
+                      opacity: _chromeHidden ? 0 : 1,
+                      duration: kViewerChromeFade,
+                      child: IgnorePointer(
+                        ignoring: _chromeHidden,
+                        child: Row(
+                          children: [
+                            Center(
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                ),
+                                child: Text('${_page + 1} / $count'),
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.download),
+                              tooltip: strings.downloadConfirmButton,
+                              onPressed: _download,
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.download),
-                      tooltip: strings.downloadConfirmButton,
-                      onPressed: _download,
                     ),
                   ],
                 ),
@@ -221,10 +239,14 @@ class _PdfViewerScreenState extends ConsumerState<PdfViewerScreen> {
                       document: document,
                       index: i,
                       onDismiss: () => Navigator.of(context).maybePop(),
+                      onToggleChrome: isMobileViewer(context)
+                          ? _toggleChrome
+                          : null,
                     ),
                   ),
                   // 縦の中央・左右の端の前後矢印（先頭は左、末尾は右を隠す）。
                   ViewerNavArrows(
+                    visible: !_chromeHidden,
                     index: _page,
                     count: count,
                     onPrevious: () => _goTo(_page - 1, count),
@@ -248,10 +270,14 @@ class _PdfPage extends StatefulWidget {
     required this.document,
     required this.index,
     required this.onDismiss,
+    this.onToggleChrome,
   });
 
   final PdfDocument document;
   final int index;
+
+  /// モバイルで書面自身をタップした時（操作部品の表示/非表示の切り替え）。
+  final VoidCallback? onToggleChrome;
 
   /// 書面の外側（余白）をタップした時に閉じる。
   final VoidCallback onDismiss;
@@ -295,10 +321,11 @@ class _PdfPageState extends State<_PdfPage> {
               maxScale: 5,
               child: SizedBox.expand(
                 child: Center(
-                  // 書面自身のタップは何もしない（外側のタップだけが閉じる）。
+                  // 書面自身のタップでは閉じない（外側のタップだけが閉じる）。
+                  // モバイルでは操作部品の表示/非表示を切り替える。
                   child: GestureDetector(
                     behavior: HitTestBehavior.opaque,
-                    onTap: () {},
+                    onTap: widget.onToggleChrome ?? () {},
                     child: SizedBox(
                       width: width,
                       height: height,

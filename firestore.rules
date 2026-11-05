@@ -542,6 +542,15 @@ service cloud.firestore {
                 && !('replyToSenderRhingSeed' in request.resource.data)
                 && !('replyToSnippet' in request.resource.data)
               )
+              || (
+                // 二重返信の2件目のクリア（2026-11-06）。1件目と同じく「消す方向」にのみ変更できる。
+                request.resource.data.diff(resource.data).affectedKeys()
+                  .hasOnly(['replyTo2MessageId', 'replyTo2SenderId', 'replyTo2SenderRhingSeed', 'replyTo2Snippet'])
+                && !('replyTo2MessageId' in request.resource.data)
+                && !('replyTo2SenderId' in request.resource.data)
+                && !('replyTo2SenderRhingSeed' in request.resource.data)
+                && !('replyTo2Snippet' in request.resource.data)
+              )
               // アカウント削除通知への「いいえ」（2026-07-28追加）。以後
               // はい/いいえボタンを表示しないようにするだけの単純なフラグ。
               || (
@@ -1245,6 +1254,15 @@ service cloud.firestore {
                 && !('replyToSenderRhingId' in request.resource.data)
                 && !('replyToSenderRhingSeed' in request.resource.data)
                 && !('replyToSnippet' in request.resource.data)
+              )
+              || (
+                // 二重返信の2件目のクリア（2026-11-06）。1件目と同じく「消す方向」にのみ変更できる。
+                request.resource.data.diff(resource.data).affectedKeys()
+                  .hasOnly(['replyTo2MessageId', 'replyTo2SenderId', 'replyTo2SenderRhingSeed', 'replyTo2Snippet'])
+                && !('replyTo2MessageId' in request.resource.data)
+                && !('replyTo2SenderId' in request.resource.data)
+                && !('replyTo2SenderRhingSeed' in request.resource.data)
+                && !('replyTo2Snippet' in request.resource.data)
               )
             );
           // 範囲選択削除でメンバー全員がこのメッセージをhiddenForに含めた

@@ -1152,6 +1152,7 @@ final Strings _stringsFr = Strings._(
   accountSuspendedRemainingHoursTemplate: (hours) =>
       'environ $hours heure${hours == 1 ? '' : 's'}',
   chatJumpNotFoundMessage: 'Le message d’origine est introuvable',
+  chatReturnToOriginalMessage: 'Retour au message d’origine',
   chatNoMessagesYet: 'Aucun message pour le moment',
   callSummaryStartedAtTemplate: (time, duration) => '$time · $duration',
   callDurationHoursMinutesTemplate: (hours, minutes) => '$hours h $minutes min',

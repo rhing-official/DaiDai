@@ -131,6 +131,12 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen> {
   );
   late int _currentIndex = _safeInitialIndex;
 
+  /// モバイルで表示物を1回タップすると、右上のメニュー・前後の矢印・映像の中央ボタンを
+  /// 隠す（もう一度タップで戻る、2026-11-06）。
+  bool _chromeHidden = false;
+
+  void _toggleChrome() => setState(() => _chromeHidden = !_chromeHidden);
+
   // 動画ページの`GlobalKey`（アイテムid基準）。スペースキーで現在表示中の
   // 動画の再生/一時停止をトグルするために、`_VideoViewerPageState`へ
   // 直接アクセスする（2026-08-14追加）。`PageView.builder`のindexではなく
@@ -255,20 +261,31 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen> {
           automaticallyImplyLeading: false,
           // 右上のツールバー（2026-10-30追加）。転送・共有・ダウンロード。
           actions: [
-            IconButton(
-              icon: const Icon(Icons.forward),
-              tooltip: strings.mediaForwardTooltip,
-              onPressed: _forwardCurrent,
-            ),
-            IconButton(
-              icon: const Icon(Icons.share),
-              tooltip: strings.mediaShareTooltip,
-              onPressed: _shareCurrent,
-            ),
-            IconButton(
-              icon: const Icon(Icons.download),
-              tooltip: strings.downloadConfirmButton,
-              onPressed: _downloadCurrent,
+            AnimatedOpacity(
+              opacity: _chromeHidden ? 0 : 1,
+              duration: kViewerChromeFade,
+              child: IgnorePointer(
+                ignoring: _chromeHidden,
+                child: Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.forward),
+                      tooltip: strings.mediaForwardTooltip,
+                      onPressed: _forwardCurrent,
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.share),
+                      tooltip: strings.mediaShareTooltip,
+                      onPressed: _shareCurrent,
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.download),
+                      tooltip: strings.downloadConfirmButton,
+                      onPressed: _downloadCurrent,
+                    ),
+                  ],
+                ),
+              ),
             ),
           ],
         ),
@@ -349,13 +366,24 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen> {
                       url: item.url,
                       thumbnailUrl: item.thumbnailUrl,
                       autoPlay: index == _safeInitialIndex,
+                      chromeHidden: _chromeHidden,
+                      onToggleChrome: isMobileViewer(context)
+                          ? _toggleChrome
+                          : null,
                     );
                   }
-                  return _ImageViewerPage(url: item.url, bytes: item.bytes);
+                  return _ImageViewerPage(
+                    url: item.url,
+                    bytes: item.bytes,
+                    onToggleChrome: isMobileViewer(context)
+                        ? _toggleChrome
+                        : null,
+                  );
                 },
               ),
               // 縦の中央・左右の端の前後矢印（先頭は左、末尾は右を隠す）。
               ViewerNavArrows(
+                visible: !_chromeHidden,
                 index: _currentIndex,
                 count: widget.items.length,
                 onPrevious: () => _pageController.previousPage(
@@ -396,10 +424,13 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen> {
 /// いない時だけ画面のどこをタップしても閉じる、ズーム中はタップで閉じない
 /// （パン操作の邪魔をしない）方式にした。
 class _ImageViewerPage extends StatefulWidget {
-  const _ImageViewerPage({required this.url, this.bytes});
+  const _ImageViewerPage({required this.url, this.bytes, this.onToggleChrome});
 
   final String url;
   final Uint8List? bytes;
+
+  /// モバイルで画像自身をタップした時（操作部品の表示/非表示の切り替え）。
+  final VoidCallback? onToggleChrome;
 
   @override
   State<_ImageViewerPage> createState() => _ImageViewerPageState();
@@ -455,10 +486,11 @@ class _ImageViewerPageState extends State<_ImageViewerPage> {
         : Center(
             child: AspectRatio(
               aspectRatio: ratio,
-              // 画像自身のタップは何もしない（外側＝余白のタップだけが閉じる）。
+              // 画像自身のタップでは閉じない（外側＝余白のタップだけが閉じる）。
+              // モバイルでは操作部品の表示/非表示を切り替える。
               child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
-                onTap: () {},
+                onTap: widget.onToggleChrome ?? () {},
                 child: _buildImage(BoxFit.fill),
               ),
             ),
@@ -506,11 +538,19 @@ class _VideoViewerPage extends StatefulWidget {
     required this.url,
     required this.autoPlay,
     this.thumbnailUrl,
+    this.chromeHidden = false,
+    this.onToggleChrome,
   });
 
   final String url;
   final String? thumbnailUrl;
   final bool autoPlay;
+
+  /// trueの間は、中央の再生・10秒戻し・10秒送りボタンを出さない（モバイル）。
+  final bool chromeHidden;
+
+  /// モバイルで動画本体をタップした時（操作部品の表示/非表示の切り替え）。
+  final VoidCallback? onToggleChrome;
 
   @override
   State<_VideoViewerPage> createState() => _VideoViewerPageState();
@@ -911,9 +951,11 @@ class _VideoViewerPageState extends State<_VideoViewerPage> {
                           builder: (context, constraints) {
                             return GestureDetector(
                               behavior: HitTestBehavior.opaque,
-                              onTap: _isMobilePlatform
-                                  ? _resetControlsVisibility
-                                  : _togglePlayback,
+                              onTap:
+                                  widget.onToggleChrome ??
+                                  (_isMobilePlatform
+                                      ? _resetControlsVisibility
+                                      : _togglePlayback),
                               // モバイル以外では`onDoubleTapDown`自体を渡さない
                               // （`_isMobilePlatform`のdocコメント参照。常設すると
                               // 全プラットフォームでシングルタップの確定が
@@ -977,9 +1019,11 @@ class _VideoViewerPageState extends State<_VideoViewerPage> {
                                       builder: (context, videoConstraints) {
                                         return GestureDetector(
                                           behavior: HitTestBehavior.opaque,
-                                          onTap: _isMobilePlatform
-                                              ? null
-                                              : _togglePlayback,
+                                          onTap: widget.onToggleChrome != null
+                                              ? widget.onToggleChrome
+                                              : (_isMobilePlatform
+                                                    ? null
+                                                    : _togglePlayback),
                                           // ダブルタップ10秒送り/戻しはモバイル
                                           // 限定の機能で、モバイルでは外側の
                                           // `GestureDetector`だけが担う
@@ -998,8 +1042,9 @@ class _VideoViewerPageState extends State<_VideoViewerPage> {
                                   // ボタンは実際にタップを受け取るため、外側の
                                   // `onTap: _togglePlayback`（動画本体タップでの
                                   // トグル）とは独立して共存する。
-                                  if (!_controller.value.isPlaying ||
-                                      _controlsVisible)
+                                  if (!widget.chromeHidden &&
+                                      (!_controller.value.isPlaying ||
+                                          _controlsVisible))
                                     _CenterControls(
                                       isPlaying: _controller.value.isPlaying,
                                       onTogglePlayback: _togglePlayback,

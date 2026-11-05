@@ -38,6 +38,7 @@ import 'schedule_coordination_detail_dialog.dart';
 import 'schedule_coordination_form_dialog.dart';
 import '../../widgets/dialog_keyboard_shortcuts.dart';
 import '../../widgets/app_dialog.dart';
+import 'holiday_detail_dialog.dart';
 
 DateTime _dateOnly(DateTime date) => DateTime(date.year, date.month, date.day);
 
@@ -427,6 +428,26 @@ class _CalendarPaneViewState extends ConsumerState<CalendarPaneView>
   /// Calendar本家と同じくその場でイベント/日程調整の詳細を直接開く
   /// （2026-09-11追加、日別一覧ポップアップとは別の導線）。
   void _openItemDetail(CalendarMonthItem item) {
+    final holiday = item.holiday;
+    if (holiday != null) {
+      showHolidayDetailDialog(
+        context,
+        entry: holiday,
+        day: item.startDate,
+        calendarSystem: ref.read(
+          effectiveCalendarSystemProvider(widget.conversationId),
+        ),
+        localeCode: ref.read(appLocaleProvider).languageCode,
+        kindLabel: switch (holiday.kind) {
+          HolidayKind.public => ref.read(appStringsProvider).holidayKindPublic,
+          HolidayKind.observance =>
+            ref.read(appStringsProvider).holidayKindObservance,
+          HolidayKind.religious =>
+            ref.read(appStringsProvider).holidayKindReligious,
+        },
+      );
+      return;
+    }
     final event = item.event;
     if (event != null) {
       _openEventDetail(event);
@@ -1024,6 +1045,7 @@ class _WeekRow extends StatelessWidget {
             event: null,
             coordination: null,
             holidayKind: entry.kind,
+            holiday: entry,
           ),
     ];
     final layout = computeWeekLaneLayout(weekDays, [

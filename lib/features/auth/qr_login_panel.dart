@@ -161,8 +161,16 @@ class _QrLoginPanelState extends ConsumerState<QrLoginPanel> {
                 Container(
                   width: size,
                   height: size,
-                  color: Colors.white70,
-                  child: const SizedBox.shrink(),
+                  alignment: Alignment.center,
+                  color: Colors.white.withValues(alpha: 0.85),
+                  child: const SizedBox(
+                    width: 44,
+                    height: 44,
+                    child: CircularProgressIndicator(
+                      color: Colors.black87,
+                      strokeWidth: 4,
+                    ),
+                  ),
                 ),
             ],
           ),

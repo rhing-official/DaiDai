@@ -139,6 +139,20 @@ class MessageMentions {
   bool get isEmpty => userIds.isEmpty && roleIds.isEmpty && !everyone;
 }
 
+/// 二重返信の2件目の返信先を、送信処理まで運ぶための入れ物（2026-11-06）。
+/// 返信先は`Message? replyTo`として十数箇所の送信関数を通るため、引数の型を変えずに
+/// 1件目の`Message`に2件目を結び付ける。`Message`自体は不変のまま、表（Expando）で持つ。
+final Expando<Message> _secondReplyTargets = Expando<Message>('secondReply');
+
+/// [primary]の二重返信の2件目（無ければnull）。
+Message? secondReplyOf(Message? primary) =>
+    primary == null ? null : _secondReplyTargets[primary];
+
+/// [primary]に二重返信の2件目[second]を結び付ける（nullで解除）。
+void setSecondReply(Message primary, Message? second) {
+  _secondReplyTargets[primary] = second;
+}
+
 class Message {
   const Message({
     required this.messageId,
@@ -162,6 +176,10 @@ class Message {
     this.replyToSenderId,
     this.replyToSenderRhingSeed,
     this.replyToSnippet,
+    this.replyTo2MessageId,
+    this.replyTo2SenderId,
+    this.replyTo2SenderRhingSeed,
+    this.replyTo2Snippet,
     this.editedAt,
     this.reactions = const {},
     this.callStartedAt,
@@ -256,6 +274,14 @@ class Message {
   /// この引用メッセージ側のreplyTo系フィールドをまとめてクリアする
   /// （送信取り消しは相手側にも痕跡を残さない、という仕様のため）。
   final String? replyToSnippet;
+
+  /// 二重返信の2件目の返信先（2026-11-06）。1件目（`replyTo…`）と同じ形の非正規化
+  /// フィールドで、1件目が無くても単独で持ち得る（1件目だけ送信取り消しされた場合）。
+  /// 送信取り消しは、取り消されたメッセージを引用している側のこれらもクリアする。
+  final String? replyTo2MessageId;
+  final String? replyTo2SenderId;
+  final String? replyTo2SenderRhingSeed;
+  final String? replyTo2Snippet;
 
   /// 編集済みの場合の最終編集日時。nullなら未編集。
   final Timestamp? editedAt;
@@ -358,6 +384,10 @@ class Message {
           json['replyToSenderRhingSeed'] as String? ??
           json['replyToSenderRhingId'] as String?,
       replyToSnippet: json['replyToSnippet'] as String?,
+      replyTo2MessageId: json['replyTo2MessageId'] as String?,
+      replyTo2SenderId: json['replyTo2SenderId'] as String?,
+      replyTo2SenderRhingSeed: json['replyTo2SenderRhingSeed'] as String?,
+      replyTo2Snippet: json['replyTo2Snippet'] as String?,
       editedAt: json['editedAt'] as Timestamp?,
       // 旧形式（reactions.$userIdが単一の絵文字文字列）のドキュメントも
       // 引き続き読めるよう、Listでなければ1要素のListに包む
@@ -420,6 +450,13 @@ class Message {
       'replyToSenderId': replyToSenderId,
       'replyToSenderRhingSeed': replyToSenderRhingSeed,
       'replyToSnippet': replyToSnippet,
+      // 2件目は二重返信の時だけ書く（通常の返信・古いメッセージにはキー自体を持たせない）。
+      if (replyTo2MessageId != null) ...{
+        'replyTo2MessageId': replyTo2MessageId,
+        'replyTo2SenderId': replyTo2SenderId,
+        'replyTo2SenderRhingSeed': replyTo2SenderRhingSeed,
+        'replyTo2Snippet': replyTo2Snippet,
+      },
       'editedAt': editedAt,
       'reactions': reactions,
       'callStartedAt': callStartedAt,

@@ -1,5 +1,18 @@
+import 'package:flutter/foundation.dart'
+    show defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:pointer_interceptor/pointer_interceptor.dart';
+
+/// モバイルの拡大表示か。表示物を1回タップすると操作部品（矢印・右上のメニュー・映像の
+/// 中央ボタン）を隠す動きの対象（2026-11-06）。Android/iOS、またはPCでも幅が狭い
+/// （短辺600dp未満＝アプリの「モバイル幅」）時に対象にする。
+bool isMobileViewer(BuildContext context) =>
+    defaultTargetPlatform == TargetPlatform.android ||
+    defaultTargetPlatform == TargetPlatform.iOS ||
+    MediaQuery.sizeOf(context).shortestSide < 600;
+
+/// 隠す時のフェードの長さ。
+const kViewerChromeFade = Duration(milliseconds: 150);
 
 /// 画像・映像・PDFの拡大表示の、縦の中央・左右の端の前後矢印（2026-10-30追加）。
 /// 先頭（[index] == 0）では左を、末尾（[index] == [count] - 1）では右を出さない
@@ -10,6 +23,7 @@ class ViewerNavArrows extends StatelessWidget {
     required this.count,
     required this.onPrevious,
     required this.onNext,
+    this.visible = true,
     super.key,
   });
 
@@ -17,6 +31,9 @@ class ViewerNavArrows extends StatelessWidget {
   final int count;
   final VoidCallback onPrevious;
   final VoidCallback onNext;
+
+  /// falseの間は透明になり、押せない。
+  final bool visible;
 
   /// 左の矢印（前へ）を出すか。
   static bool showsPrevious(int index, int count) => count > 1 && index > 0;
@@ -26,6 +43,17 @@ class ViewerNavArrows extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return IgnorePointer(
+      ignoring: !visible,
+      child: AnimatedOpacity(
+        opacity: visible ? 1 : 0,
+        duration: kViewerChromeFade,
+        child: _buildArrows(),
+      ),
+    );
+  }
+
+  Widget _buildArrows() {
     return Stack(
       children: [
         if (showsPrevious(index, count))
