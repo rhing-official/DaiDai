@@ -441,48 +441,44 @@ class _ConversationCalendarSettings extends ConsumerWidget {
         title(strings.holidaySettingsTitle),
         const SizedBox(height: 4),
         CalendarChoiceRow<bool>(
-          options: [
-            (value: false, label: followLabel),
-            (value: true, label: strings.calendarSettingsOverrideHolidays),
-          ],
-          selected: holidayOverride != null,
-          onSelected: (overridden) {
+          options: [(value: true, label: followLabel)],
+          selected: holidayOverride == null ? true : null,
+          onSelected: (_) {
             if (userId == null) return;
-            if (overridden == true) {
-              saveHolidays(holidayOverride ?? defaultHolidays);
-            } else {
-              repository.setHolidayOverride(
-                userId: userId,
-                conversationId: conversationId,
-                override: null,
-              );
-            }
+            repository.setHolidayOverride(
+              userId: userId,
+              conversationId: conversationId,
+              override: null,
+            );
           },
           foreground: foreground,
           background: background,
         ),
-        if (holidayOverride != null) ...[
-          const SizedBox(height: 4),
-          HolidayCheckboxes(
-            strings: strings,
-            settings: holidayOverride,
-            residenceCountry: residence,
-            onRegion: (country, enabled) {
-              final regions = {...holidayOverride.effectiveRegions(residence)};
-              enabled ? regions.add(country) : regions.remove(country);
-              saveHolidays(holidayOverride.copyWith(regions: regions));
-            },
-            onObservances: (enabled) =>
-                saveHolidays(holidayOverride.copyWith(observances: enabled)),
-            onReligion: (religion, enabled) {
-              final religions = {...holidayOverride.religions};
-              enabled ? religions.add(religion) : religions.remove(religion);
-              saveHolidays(holidayOverride.copyWith(religions: religions));
-            },
-            foreground: foreground,
-            background: background,
+        const SizedBox(height: 8),
+        // チェックボックスは常に出す。操作すると、この語らいだけの値になる。
+        // 「標準に変更」で上書きを消して標準の値に戻す。
+        HolidayCheckboxes(
+          strings: strings,
+          settings: holidayOverride ?? defaultHolidays,
+          residenceCountry: residence,
+          onRegion: (country, enabled) {
+            final current = holidayOverride ?? defaultHolidays;
+            final regions = {...current.effectiveRegions(residence)};
+            enabled ? regions.add(country) : regions.remove(country);
+            saveHolidays(current.copyWith(regions: regions));
+          },
+          onObservances: (enabled) => saveHolidays(
+            (holidayOverride ?? defaultHolidays).copyWith(observances: enabled),
           ),
-        ],
+          onReligion: (religion, enabled) {
+            final current = holidayOverride ?? defaultHolidays;
+            final religions = {...current.religions};
+            enabled ? religions.add(religion) : religions.remove(religion);
+            saveHolidays(current.copyWith(religions: religions));
+          },
+          foreground: foreground,
+          background: background,
+        ),
         const SizedBox(height: 8),
         Text(
           strings.calendarSystemNote,

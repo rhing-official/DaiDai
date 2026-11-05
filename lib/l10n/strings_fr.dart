@@ -923,7 +923,7 @@ final Strings _stringsFr = Strings._(
   calendarWeekStartSunday: 'Dimanche',
   calendarWeekStartMonday: 'Lundi',
   calendarSystemLabel: 'Calendrier',
-  calendarSystemFollowGlobal: 'Comme la valeur par défaut',
+  calendarSystemFollowGlobal: 'Par défaut',
   calendarSystemGregorian: 'Grégorien',
   calendarSystemJapanese: 'Ère japonaise',
   calendarSystemNote:
@@ -940,7 +940,6 @@ final Strings _stringsFr = Strings._(
   calendarSettingsDefaultNote:
       'Ces réglages servent de valeurs par défaut à tous les calendriers. Vous pouvez aussi les modifier pour chaque discussion.',
   calendarSettingsThisChatTitle: 'Réglages de cette discussion',
-  calendarSettingsOverrideHolidays: 'Modifier pour cette discussion uniquement',
   calendarCategoryListEmpty: 'Aucune catégorie pour le moment',
   calendarCategoryCreateDialogTitle: 'Ajouter une catégorie',
   calendarCategoryEditDialogTitle: 'Modifier la catégorie',

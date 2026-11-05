@@ -778,7 +778,6 @@ class Strings {
     required this.calendarSettingsFolderTitle,
     required this.calendarSettingsDefaultNote,
     required this.calendarSettingsThisChatTitle,
-    required this.calendarSettingsOverrideHolidays,
     required this.calendarCategoryListEmpty,
     required this.calendarCategoryCreateDialogTitle,
     required this.calendarCategoryEditDialogTitle,
@@ -2101,7 +2100,6 @@ class Strings {
   final String calendarSettingsFolderTitle;
   final String calendarSettingsDefaultNote;
   final String calendarSettingsThisChatTitle;
-  final String calendarSettingsOverrideHolidays;
   final String calendarCategoryListEmpty;
   final String calendarCategoryCreateDialogTitle;
   final String calendarCategoryEditDialogTitle;
@@ -3175,7 +3173,7 @@ class Strings {
     calendarWeekStartSunday: '日曜日',
     calendarWeekStartMonday: '月曜日',
     calendarSystemLabel: '暦',
-    calendarSystemFollowGlobal: '標準に合わせる',
+    calendarSystemFollowGlobal: '標準',
     calendarSystemGregorian: '西暦',
     calendarSystemJapanese: '和暦',
     calendarSystemNote: '暦は自分の画面の表示だけに使います。ほかの人の画面や予定の日時は変わりません。',
@@ -3190,8 +3188,7 @@ class Strings {
     calendarSettingsFolderTitle: 'カレンダー',
     calendarSettingsDefaultNote:
         'ここで決めた設定が、すべてのカレンダーの標準になります。語らいごとに変えることもできます。',
-    calendarSettingsThisChatTitle: 'この語らいの設定',
-    calendarSettingsOverrideHolidays: 'この語らいだけ変える',
+    calendarSettingsThisChatTitle: 'この語らいでの設定',
     calendarCategoryListEmpty: 'まだ種類がありません',
     calendarCategoryCreateDialogTitle: '種類を追加',
     calendarCategoryEditDialogTitle: '種類を編集',
@@ -4359,7 +4356,7 @@ class Strings {
     calendarWeekStartSunday: 'Sunday',
     calendarWeekStartMonday: 'Monday',
     calendarSystemLabel: 'Calendar',
-    calendarSystemFollowGlobal: 'Use default',
+    calendarSystemFollowGlobal: 'Default',
     calendarSystemGregorian: 'Gregorian',
     calendarSystemJapanese: 'Japanese era',
     calendarSystemNote:
@@ -4376,7 +4373,6 @@ class Strings {
     calendarSettingsDefaultNote:
         'These settings are the default for every calendar. You can also change them for each chat.',
     calendarSettingsThisChatTitle: 'Settings for this chat',
-    calendarSettingsOverrideHolidays: 'Change for this chat only',
     calendarCategoryListEmpty: 'No categories yet',
     calendarCategoryCreateDialogTitle: 'Add category',
     calendarCategoryEditDialogTitle: 'Edit category',
