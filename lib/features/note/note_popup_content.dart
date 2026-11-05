@@ -16,6 +16,7 @@ import '../../widgets/glass/glass_dialog.dart';
 import '../../widgets/glass/glass_surface.dart';
 import '../chat/button_anchored_menu.dart';
 import '../../widgets/dialog_keyboard_shortcuts.dart';
+import '../../widgets/app_dialog.dart';
 
 /// ノートボタンの真下にノート一覧をポップアップ表示する（2026-09-06追加、
 /// `poll_popup_content.dart`の`showPollPopup`と同じ構成）。位置計算済みの
@@ -152,7 +153,7 @@ class _NotePopupContentState extends ConsumerState<_NotePopupContent> {
   Future<void> _deleteNote(Note note) async {
     final strings = ref.read(appStringsProvider);
     final isGlass = ref.read(appUiStyleProvider) == AppUiStyle.glass;
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAppDialog<bool>(
       context: context,
       builder: (_) {
         final title = Text(strings.noteDeleteConfirmTitle);

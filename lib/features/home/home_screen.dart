@@ -9,6 +9,7 @@ import '../../models/app_user.dart';
 import '../../models/nav_chip_layout.dart';
 import '../../providers/nav_chip_layout_provider.dart';
 import '../../providers/home_shell_providers.dart';
+import '../../providers/slide_pick_enabled_provider.dart';
 import '../../providers/icon_split_mirrored_provider.dart';
 import '../../providers/talks_list_layout_style_provider.dart';
 import '../../widgets/nav_chip.dart';
@@ -105,9 +106,34 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     });
   }
 
+  /// 滑らせた指が乗ったチップのタブへ切り替える（[_ChipStripPickTarget.pick]から）。
+  void _pickChip(int? index, {required bool commit}) {
+    if (!mounted) return;
+    if (index == null || commit) {
+      if (_isDragging || _poppedIndexes.isNotEmpty) {
+        setState(() {
+          _isDragging = false;
+          _poppedIndexes = {};
+        });
+      }
+      return;
+    }
+    setState(() {
+      _isDragging = true;
+      _poppedIndexes = {index};
+      if (index != _selectedIndex) _setSelectedIndex(index);
+    });
+  }
+
+  // 語らいの部品（一対・広場の切り替えなど）を押した指を、そのままチップ列へ滑らせて
+  // タブを切り替えられるようにする登録先（2026-11-05、`ItemPickBridge`）。
+  late final _ChipStripPickTarget _chipPickTarget = _ChipStripPickTarget(this);
+  bool _stripVertical = false;
+
   @override
   void initState() {
     super.initState();
+    ref.read(itemPickBridgeProvider).register(_chipPickTarget);
     _dragController = ref.read(homeTabDragControllerProvider)
       ..onDelta = _onDragDelta
       ..onEnd = _onDragEnd;
@@ -115,6 +141,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
   @override
   void dispose() {
+    ref.read(itemPickBridgeProvider).unregister(_chipPickTarget);
     // 作り直しで新しいStateが先にinitStateされている場合は、そちらのコールバックを消さない。
     if (_dragController.onDelta == _onDragDelta) {
       _dragController
@@ -166,7 +193,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         box.attached &&
         (box.localToGlobal(Offset.zero) & box.size).contains(position);
     final bridge = ref.read(itemPickBridgeProvider);
-    final target = inStrip ? null : bridge.targetAt(position);
+    // 「押したまま滑らせて選ぶ」をオフにしている時は項目へ渡さない（2026-11-05）。
+    final enabled = ref.read(slidePickEnabledProvider);
+    final target = (inStrip || !enabled) ? null : bridge.targetAt(position);
     final index = target?.indexAt(position);
     if (target == null || index == null) {
       _clearPick();
@@ -258,7 +287,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   /// 指が乗っているチップへその場でタブを切り替え、飛び出させるチップの
   /// 集合を更新する。
   void _handleSwipeUpdate(Offset globalPosition, int tabCount, bool vertical) {
-    // showDialog/showGeneralDialog/showMenu等のポップアップはNavigatorに
+    // showAppDialog/showGeneralDialog/showMenu等のポップアップはNavigatorに
     // ルートとして積まれる。ここで弾かないと、開いたポップアップの背後で
     // タブが切り替わってしまい、以前の実装が「一貫して動作しない」原因に
     // なっていた（ポップアップの種類によってバリアの有無・挙動が異なり、
@@ -452,6 +481,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     );
 
     Widget wrapWithSwipe(Widget child, {required bool vertical}) {
+      _stripVertical = vertical;
       void onStart(Offset globalPosition) {
         setState(() => _isDragging = true);
         _handleSwipeUpdate(globalPosition, tabs.length, vertical);
@@ -584,4 +614,41 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       ),
     );
   }
+}
+
+/// チップ列を[ItemPickBridge]の登録先にする（2026-11-05）。語らいの部品（一対・広場の
+/// 切り替えなど）を押したまま指をチップへ滑らせると、その場でタブが切り替わる。
+/// 項目一覧と違い「選ぶ＝タブを切り替える」ので、確定（指を離す）では何も足さない。
+class _ChipStripPickTarget implements ItemPickTarget {
+  _ChipStripPickTarget(this._state);
+
+  final _HomeScreenState _state;
+
+  Rect? _stripRect() {
+    final box = _state._stripKey.currentContext?.findRenderObject();
+    if (box is! RenderBox || !box.attached || !box.hasSize) return null;
+    return box.localToGlobal(Offset.zero) & box.size;
+  }
+
+  @override
+  bool isActiveAt(Offset globalPosition) {
+    if (!_state.mounted) return false;
+    if (_state.ref.read(backStackControllerProvider).hasOpenOverlay) {
+      return false;
+    }
+    return _stripRect()?.contains(globalPosition) ?? false;
+  }
+
+  @override
+  int? indexAt(Offset globalPosition) {
+    if (!isActiveAt(globalPosition)) return null;
+    final order = _state._displayOrderNow();
+    return _state
+        ._hitTestChips(globalPosition, _state._stripVertical, order)
+        .hovered;
+  }
+
+  @override
+  void pick(int? index, {required bool commit}) =>
+      _state._pickChip(index, commit: commit);
 }

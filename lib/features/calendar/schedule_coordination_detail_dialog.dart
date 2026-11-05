@@ -17,11 +17,12 @@ import 'calendar_chip.dart';
 import 'calendar_event_detail_dialog.dart';
 import 'calendar_event_form_dialog.dart';
 import '../../widgets/dialog_keyboard_shortcuts.dart';
+import '../../widgets/app_dialog.dart';
 
 /// 日程調整の詳細・投票ダイアログ（2026-09-05追加）。日程調整開始通知
 /// メッセージのタップ時、カレンダー月表示のカードタップ時、タスクバナーの
 /// タップ時いずれからも開く唯一の導線。`calendar_event_detail_dialog.dart`
-/// と同じ`showDialog`パターン。
+/// と同じ`showAppDialog`パターン。
 Future<void> showScheduleCoordinationDetailDialog(
   BuildContext context, {
   required bool isDm,
@@ -30,7 +31,7 @@ Future<void> showScheduleCoordinationDetailDialog(
   required ScheduleCoordination coordination,
   required AppUser currentUser,
 }) {
-  return showDialog<void>(
+  return showAppDialog<void>(
     context: context,
     builder: (_) => _ScheduleCoordinationDetailDialog(
       isDm: isDm,
@@ -141,7 +142,7 @@ class _ScheduleCoordinationDetailDialogState
   Future<void> _finalize(int index, DateTime candidateDate) async {
     final strings = ref.read(appStringsProvider);
     final isGlass = ref.read(appUiStyleProvider) == AppUiStyle.glass;
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAppDialog<bool>(
       context: context,
       builder: (context) {
         final title = Text(strings.scheduleCoordinationFinalizeConfirmTitle);
@@ -227,7 +228,7 @@ class _ScheduleCoordinationDetailDialogState
   Future<void> _delete() async {
     final strings = ref.read(appStringsProvider);
     final isGlass = ref.read(appUiStyleProvider) == AppUiStyle.glass;
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAppDialog<bool>(
       context: context,
       builder: (context) {
         final title = Text(strings.scheduleCoordinationDeleteConfirmTitle);

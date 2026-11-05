@@ -80,8 +80,9 @@ double _canvasWidth(WidgetTester tester) {
 
 void main() {
   group('純粋関数', () {
-    test('clampDrawZoom: 25%〜500%に収める', () {
-      expect(clampDrawZoom(0.1), kDrawMinZoom);
+    test('clampDrawZoom: 極小〜500%に収める', () {
+      expect(clampDrawZoom(0.0001), kDrawMinZoom);
+      expect(clampDrawZoom(0.1), 0.1);
       expect(clampDrawZoom(10), kDrawMaxZoom);
       expect(clampDrawZoom(2), 2);
     });
@@ -101,21 +102,23 @@ void main() {
 
   testWidgets('ツールバーの＋／−でキャンバスの幅が変わり、倍率表示をタップで100%へ戻る', (tester) async {
     await _pump(tester);
-    expect(_canvasWidth(tester), closeTo(400, 0.01));
+    // キャンバスは基準の領域（論理1000）の外側に余白（各1000）を足した3000幅
+    // （画面幅400＝論理1000に合わせた倍率0.4を掛けて1200）。
+    expect(_canvasWidth(tester), closeTo(1200, 0.01));
     expect(find.text('100%'), findsOneWidget);
 
     await tester.tap(find.byIcon(Icons.zoom_in));
     await tester.pumpAndSettle();
-    expect(_canvasWidth(tester), closeTo(400 * kDrawZoomStep, 0.01));
+    expect(_canvasWidth(tester), closeTo(1200 * kDrawZoomStep, 0.01));
 
     await tester.tap(find.byIcon(Icons.zoom_out));
     await tester.tap(find.byIcon(Icons.zoom_out));
     await tester.pumpAndSettle();
-    expect(_canvasWidth(tester), closeTo(400 / kDrawZoomStep, 0.01));
+    expect(_canvasWidth(tester), closeTo(1200 / kDrawZoomStep, 0.01));
 
     await tester.tap(find.text('${(100 / kDrawZoomStep).round()}%'));
     await tester.pumpAndSettle();
-    expect(_canvasWidth(tester), closeTo(400, 0.01));
+    expect(_canvasWidth(tester), closeTo(1200, 0.01));
   });
 
   testWidgets('拡大してもペンの座標は論理座標（保存値）に正しく変換される', (tester) async {
@@ -127,15 +130,23 @@ void main() {
     // 画面上の点を描き、キャンバス左上からの相対位置と実効倍率から期待値を計算する。
     Future<void> drawAndCheck(double zoom) async {
       final origin = tester.getTopLeft(canvasFinder());
-      final start = Offset(origin.dx < 0 ? 40 : origin.dx + 40, origin.dy + 40);
+      // 領域は原点が負の側まで広がっているため、画面内（ビューポートの中央付近）の点を描く。
+      final start = tester.getCenter(find.byType(DrawCanvasView));
       final gesture = await tester.startGesture(start);
       await gesture.moveBy(const Offset(20, 0));
       await gesture.up();
       await tester.pumpAndSettle();
       final stroke = notes.added.last;
       final scale = 0.4 * zoom; // 400px幅＝論理1000の画面幅フィットに倍率を掛ける
-      expect(stroke.points[0], closeTo((start.dx - origin.dx) / scale, 0.2));
-      expect(stroke.points[1], closeTo((start.dy - origin.dy) / scale, 0.2));
+      // 論理座標 = キャンバス内の位置 / 倍率 + 領域の左上（余白の分、-1000）。
+      expect(
+        stroke.points[0],
+        closeTo((start.dx - origin.dx) / scale - 1000, 0.2),
+      );
+      expect(
+        stroke.points[1],
+        closeTo((start.dy - origin.dy) / scale - 1000, 0.2),
+      );
       expect(stroke.points[2] - stroke.points[0], closeTo(20 / scale, 0.2));
     }
 

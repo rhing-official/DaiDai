@@ -11,6 +11,7 @@ import '../../utils/friend_request_error.dart';
 import '../../widgets/profile_card_composer.dart';
 import '../../widgets/user_profile_card_view.dart';
 import '../../widgets/sns_link_list.dart';
+import '../../widgets/app_dialog.dart';
 
 /// 広場（グループ）・一対（DM）どちらのメッセージ画面・メンバー一覧からも、
 /// 相手のプロフィールカード（適用中の工房カード）を見られるダイアログ。
@@ -56,7 +57,7 @@ class UserProfileCardDialog extends ConsumerStatefulWidget {
     bool canTransferOwnership = false,
     VoidCallback? onTransferOwnership,
   }) {
-    return showDialog<void>(
+    return showAppDialog<void>(
       context: context,
       builder: (_) => UserProfileCardDialog(
         currentUser: currentUser,

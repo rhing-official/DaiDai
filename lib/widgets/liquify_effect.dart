@@ -1,6 +1,7 @@
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_shaders/flutter_shaders.dart';
 
 /// 「吸い込み」遷移の液状化（波打ち＋右下への渦状のすぼまり、2026-11-04、初版）。
@@ -76,6 +77,117 @@ class _LiquifyEffectState extends State<LiquifyEffect> {
       // 読み込み前（shaderがnull）はサンプラーを無効にして子をそのまま描く。
       enabled: widget.enabled && shader != null && progress > 0,
       child: widget.child,
+    );
+  }
+}
+
+/// 子を、**画面の隅**（[corner]、画面全体に対する位置）を基点に拡大縮小する（2026-11-05）。
+/// ダイアログ・ポップアップが「アルバムの右下」ではなく「画面の右下」から現れ／へ吸い込まれる
+/// ようにするため。`Transform`の`alignment`は子の枠に対する位置のため、画面の隅（枠の外）を
+/// 基点にできない。描画時に子の画面上の位置から基点を求める。回転はしない前提。
+class ScreenCornerScale extends SingleChildRenderObjectWidget {
+  const ScreenCornerScale({
+    required this.scale,
+    this.corner = Alignment.bottomRight,
+    super.child,
+    super.key,
+  });
+
+  final double scale;
+  final Alignment corner;
+
+  /// 画面（ウィンドウ）全体の大きさ。`MediaQuery`はペインなどが上書きして小さくしている
+  /// ことがあり、基点が本物の画面の隅からずれるため、`View`から直接求める。
+  static Size _viewSize(BuildContext context) {
+    final view = View.of(context);
+    return view.physicalSize / view.devicePixelRatio;
+  }
+
+  @override
+  RenderObject createRenderObject(BuildContext context) =>
+      _RenderScreenCornerScale(scale, corner, _viewSize(context));
+
+  @override
+  void updateRenderObject(BuildContext context, RenderObject renderObject) {
+    (renderObject as _RenderScreenCornerScale)
+      ..scale = scale
+      ..corner = corner
+      ..screenSize = _viewSize(context);
+  }
+}
+
+class _RenderScreenCornerScale extends RenderProxyBox {
+  _RenderScreenCornerScale(this._scale, this._corner, this._screenSize);
+
+  double _scale;
+  Alignment _corner;
+  Size _screenSize;
+
+  set scale(double value) {
+    if (_scale == value) return;
+    _scale = value;
+    markNeedsPaint();
+  }
+
+  set corner(Alignment value) {
+    if (_corner == value) return;
+    _corner = value;
+    markNeedsPaint();
+  }
+
+  set screenSize(Size value) {
+    if (_screenSize == value) return;
+    _screenSize = value;
+    markNeedsPaint();
+  }
+
+  /// 基点（画面の隅）を、この子のローカル座標で表したもの。
+  Offset _originLocal() {
+    final global = Offset(
+      (_corner.x + 1) / 2 * _screenSize.width,
+      (_corner.y + 1) / 2 * _screenSize.height,
+    );
+    return global - localToGlobal(Offset.zero);
+  }
+
+  Matrix4 _matrix() {
+    final o = _originLocal();
+    return Matrix4.identity()
+      ..translateByDouble(o.dx, o.dy, 0.0, 1.0)
+      ..scaleByDouble(_scale, _scale, 1.0, 1.0)
+      ..translateByDouble(-o.dx, -o.dy, 0.0, 1.0);
+  }
+
+  @override
+  void paint(PaintingContext context, Offset offset) {
+    if (child == null) return;
+    if (_scale == 1.0) {
+      context.paintChild(child!, offset);
+      return;
+    }
+    final matrix = _matrix();
+    layer = context.pushTransform(
+      needsCompositing,
+      offset,
+      matrix,
+      super.paint,
+      oldLayer: layer is TransformLayer ? layer as TransformLayer? : null,
+    );
+  }
+
+  @override
+  void applyPaintTransform(RenderBox child, Matrix4 transform) {
+    if (_scale != 1.0) transform.multiply(_matrix());
+  }
+
+  @override
+  bool hitTestChildren(BoxHitTestResult result, {required Offset position}) {
+    if (_scale == 1.0) return super.hitTestChildren(result, position: position);
+    return result.addWithPaintTransform(
+      transform: _matrix(),
+      position: position,
+      hitTest: (result, position) =>
+          child?.hitTest(result, position: position) ?? false,
     );
   }
 }

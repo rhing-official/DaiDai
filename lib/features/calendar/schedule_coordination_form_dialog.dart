@@ -12,9 +12,10 @@ import '../../utils/auto_dismiss_banner.dart';
 import '../../widgets/glass/glass_dialog.dart';
 import 'multi_date_picker_dialog.dart';
 import '../../widgets/dialog_keyboard_shortcuts.dart';
+import '../../widgets/app_dialog.dart';
 
 /// 日程調整の作成ダイアログ（2026-09-05追加）。`calendar_event_form_dialog.dart`
-/// と同じ`showDialog`パターン。保存されたら`true`、キャンセルされたら
+/// と同じ`showAppDialog`パターン。保存されたら`true`、キャンセルされたら
 /// `false`を返す。
 Future<bool> showScheduleCoordinationFormDialog(
   BuildContext context, {
@@ -25,7 +26,7 @@ Future<bool> showScheduleCoordinationFormDialog(
   required String currentUserRhingSeed,
   required DateTime initialCandidateDate,
 }) async {
-  final saved = await showDialog<bool>(
+  final saved = await showAppDialog<bool>(
     context: context,
     builder: (_) => _ScheduleCoordinationFormDialog(
       isDm: isDm,

@@ -13,6 +13,7 @@ import '../../theme/popup_surface_colors.dart';
 import '../../utils/color_hex.dart';
 import '../../widgets/glass/glass_dialog.dart';
 import '../../widgets/dialog_keyboard_shortcuts.dart';
+import '../../widgets/app_dialog.dart';
 
 /// 予定・日程調整の種類（カテゴリ）の管理ポップアップ（2026-09-11追加、
 /// 同日改修: 独立した中央寄せDialogから、設定の歯車ボタン直下に浮かべる
@@ -51,7 +52,7 @@ class CalendarCategoryListPopup extends ConsumerWidget {
     String? errorText;
 
     if (!context.mounted) return;
-    final result = await showDialog<bool>(
+    final result = await showAppDialog<bool>(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setState) {
@@ -195,7 +196,7 @@ class CalendarCategoryListPopup extends ConsumerWidget {
         child: Text(strings.calendarCategoryDeleteConfirmButton),
       ),
     ];
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAppDialog<bool>(
       context: context,
       builder: (context) => isGlass
           ? GlassAlertDialog(title: title, actions: actions)

@@ -10,6 +10,7 @@ import '../../providers/app_ui_style_provider.dart';
 import '../../providers/repository_providers.dart';
 import '../../widgets/glass/glass_dialog.dart';
 import '../../widgets/dialog_keyboard_shortcuts.dart';
+import '../../widgets/app_dialog.dart';
 
 /// QRコードログイン（未ログイン端末側、2026-08-09追加）。開くとすぐに
 /// `qrLoginSessions`にpendingなセッションを作成してQRコードを表示し、
@@ -21,7 +22,7 @@ class QrLoginDialog extends ConsumerStatefulWidget {
   const QrLoginDialog({super.key});
 
   static Future<bool?> show(BuildContext context) {
-    return showDialog<bool>(
+    return showAppDialog<bool>(
       context: context,
       builder: (_) => const QrLoginDialog(),
     );

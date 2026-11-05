@@ -1,6 +1,7 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
+import '../../theme/motion.dart';
 import 'talks_tab.dart' show kTalksSplitBreakpoint;
 
 /// ボタン直下にポップアップを開くための位置を計算する（AppBarの
@@ -172,14 +173,38 @@ Future<T?> showAnchoredMenu<T>({
   GestureBinding.instance.pointerRouter.addGlobalRoute(trackPointer);
   T? result;
   try {
-    result = await showMenu<T>(
-      context: context,
-      position: position,
-      items: items,
-      color: color,
-      shadowColor: shadowColor,
-      elevation: elevation,
-    );
+    // 内容だけを透明な枠に載せるポップアップ（アルバム・ノート・カレンダー・投票）は、
+    // 素の`showMenu`ではなく、画面遷移の種類に従う開閉の動きで画面の右下から現れる自前の
+    // ルートで出す（2026-11-05。`showMenu`のルートは開閉の動きを差し替えられない）。
+    final first = items.length == 1 ? items.first : null;
+    final Widget? popupChild =
+        first is PopupMenuItem<T> &&
+            !first.enabled &&
+            color == Colors.transparent
+        ? first.child
+        : null;
+    if (popupChild != null) {
+      final navigator = Navigator.of(context, rootNavigator: true);
+      result = await navigator.push<T>(
+        _AnchoredPopupRoute<T>(
+          position: position,
+          themes: InheritedTheme.capture(from: context, to: navigator.context),
+          barrierLabel: MaterialLocalizations.of(
+            context,
+          ).modalBarrierDismissLabel,
+          child: popupChild,
+        ),
+      );
+    } else {
+      result = await showMenu<T>(
+        context: context,
+        position: position,
+        items: items,
+        color: color,
+        shadowColor: shadowColor,
+        elevation: elevation,
+      );
+    }
   } finally {
     GestureBinding.instance.pointerRouter.removeGlobalRoute(trackPointer);
     guard?.endPopup();
@@ -192,4 +217,125 @@ Future<T?> showAnchoredMenu<T>({
     }
   }
   return result;
+}
+
+/// 内容だけを載せるアンカー付きポップアップのルート（2026-11-05）。位置は`showMenu`と
+/// 同じ規則（[position]の左上、はみ出す側は反対側へ寄せ、画面の端から8px空ける）。
+/// 開閉は`buildDialogTransition`（画面遷移の種類に従う、吸い込みは画面の右下基点）。
+class _AnchoredPopupRoute<T> extends PopupRoute<T> {
+  _AnchoredPopupRoute({
+    required this.position,
+    required this.themes,
+    required this.child,
+    required this.barrierLabel,
+  });
+
+  final RelativeRect position;
+  final CapturedThemes themes;
+  final Widget child;
+
+  @override
+  final String barrierLabel;
+
+  @override
+  Color? get barrierColor => null;
+
+  @override
+  bool get barrierDismissible => true;
+
+  @override
+  Duration get transitionDuration => popSlideDuration;
+
+  @override
+  Duration get reverseTransitionDuration => popSlideDuration;
+
+  @override
+  Widget buildPage(
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+  ) {
+    final padding = MediaQuery.paddingOf(context);
+    return CustomSingleChildLayout(
+      delegate: _AnchoredPopupLayout(
+        position: position,
+        padding: padding,
+        textDirection: Directionality.of(context),
+      ),
+      child: themes.wrap(
+        Material(
+          type: MaterialType.transparency,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minWidth: 112, maxWidth: 280),
+            child: IntrinsicWidth(stepWidth: 56, child: child),
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget buildTransitions(
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) => buildDialogTransition(animation, child);
+}
+
+class _AnchoredPopupLayout extends SingleChildLayoutDelegate {
+  _AnchoredPopupLayout({
+    required this.position,
+    required this.padding,
+    required this.textDirection,
+  });
+
+  final RelativeRect position;
+  final EdgeInsets padding;
+  final TextDirection textDirection;
+
+  static const _screenPadding = 8.0;
+
+  @override
+  BoxConstraints getConstraintsForChild(BoxConstraints constraints) {
+    return BoxConstraints.loose(
+      constraints.biggest,
+    ).deflate(const EdgeInsets.all(_screenPadding) + padding);
+  }
+
+  @override
+  Offset getPositionForChild(Size size, Size childSize) {
+    final y = position.top;
+    final double x;
+    if (position.left > position.right) {
+      x = size.width - position.right - childSize.width;
+    } else if (position.left < position.right) {
+      x = position.left;
+    } else {
+      x = textDirection == TextDirection.rtl
+          ? size.width - position.right - childSize.width
+          : position.left;
+    }
+    return Offset(
+      _clamp(
+        x,
+        _screenPadding + padding.left,
+        size.width - childSize.width - _screenPadding - padding.right,
+      ),
+      _clamp(
+        y,
+        _screenPadding + padding.top,
+        size.height - childSize.height - _screenPadding - padding.bottom,
+      ),
+    );
+  }
+
+  static double _clamp(double value, double min, double max) =>
+      max < min ? min : value.clamp(min, max);
+
+  @override
+  bool shouldRelayout(_AnchoredPopupLayout oldDelegate) =>
+      position != oldDelegate.position ||
+      padding != oldDelegate.padding ||
+      textDirection != oldDelegate.textDirection;
 }

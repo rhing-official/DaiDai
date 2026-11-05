@@ -13,6 +13,7 @@ import '../../utils/web_link.dart';
 import '../../widgets/copy_link_row.dart';
 import '../../widgets/glass/glass_dialog.dart';
 import '../../widgets/dialog_keyboard_shortcuts.dart';
+import '../../widgets/app_dialog.dart';
 
 /// 広場への招待リンク・QRコードを表示するダイアログ。縁結び（個人の招待リンク）
 /// と同じ考え方で、リンクをコピーできるほか、外部SNSにリンクを貼ってもカードが
@@ -63,7 +64,7 @@ class GroupInviteDialog extends ConsumerWidget {
     String groupId,
     GroupProfileCard? profileCard,
   ) {
-    return showDialog<void>(
+    return showAppDialog<void>(
       context: context,
       builder: (_) => GroupInviteDialog(
         groupId: groupId,

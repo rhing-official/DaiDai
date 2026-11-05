@@ -11,6 +11,7 @@ import '../../utils/fullwidth_digits_formatter.dart';
 import '../../utils/totp_clipboard_autofill.dart';
 import '../../widgets/glass/glass_dialog.dart';
 import '../../widgets/dialog_keyboard_shortcuts.dart';
+import '../../widgets/app_dialog.dart';
 
 /// 2段階認証（TOTP）の登録ダイアログ。QRコード（`GroupInviteDialog`と同じ
 /// `qr_flutter`）＋手入力用シークレットキーを表示し、認証アプリに表示された
@@ -24,7 +25,7 @@ class TwoFactorSetupDialog extends ConsumerStatefulWidget {
   final String rhingSeed;
 
   static Future<bool?> show(BuildContext context, String rhingSeed) {
-    return showDialog<bool>(
+    return showAppDialog<bool>(
       context: context,
       builder: (_) => TwoFactorSetupDialog(rhingSeed: rhingSeed),
     );

@@ -41,7 +41,6 @@ import '../../utils/group_mentions.dart';
 import '../../utils/group_permissions.dart';
 import '../../utils/platform_info.dart';
 import '../../widgets/destructive_label.dart';
-import '../../widgets/slide_drilldown.dart';
 import '../../widgets/gekiga/gekiga_icon_badge.dart';
 import '../../widgets/glass/glass_dialog.dart';
 import '../../widgets/glass/glass_icon_badge.dart';
@@ -72,6 +71,7 @@ import 'audio_playback_banner.dart';
 import 'task_banner.dart';
 import 'user_profile_card_dialog.dart';
 import '../../widgets/dialog_keyboard_shortcuts.dart';
+import '../../widgets/app_dialog.dart';
 
 enum _GroupMenuAction {
   openGroupSettings,
@@ -96,7 +96,7 @@ Future<bool> confirmDisableReadReceipts(
   final isGlass =
       ProviderScope.containerOf(context).read(appUiStyleProvider) ==
       AppUiStyle.glass;
-  final confirmed = await showDialog<bool>(
+  final confirmed = await showAppDialog<bool>(
     context: context,
     builder: (context) {
       final title = Text(strings.conversationReadReceiptsDisableConfirmTitle);
@@ -141,7 +141,7 @@ Future<String?> _showRenameRoomDialog(
   String currentName,
 ) async {
   final controller = TextEditingController(text: currentName);
-  final name = await showDialog<String>(
+  final name = await showAppDialog<String>(
     context: context,
     builder: (context) => KeyboardAlertDialog(
       title: Text(strings.roomRenameLabel(vocab.textChannel)),
@@ -174,7 +174,7 @@ Future<bool> _confirmDeleteRoom(
   Strings strings,
   Vocabulary vocab,
 ) async {
-  final confirmed = await showDialog<bool>(
+  final confirmed = await showAppDialog<bool>(
     context: context,
     builder: (context) => KeyboardAlertDialog(
       title: Text(strings.roomListDeleteConfirmTitle(vocab.textChannel)),
@@ -335,18 +335,6 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
   );
   late ChatRoomMessageCacheEntry _cacheEntry;
 
-  /// 全画面表示中の共有ノートのid（2026-09-06追加、
-  /// 同じ切り替え方式だが、ノートは複数存在しうるためbool一つではなく
-  /// String?で対象を持つ）。
-  String? _openNoteId;
-
-  /// 全画面表示中の共有アルバム（2026-09-07追加、`_openNoteId`と同じ
-  /// 切り替え方式。以前は`Navigator.push`のフルスクリーン別ルートだった
-  /// `AlbumDetailScreen`を、ノート・カレンダーと同じペインスワップ方式の
-  /// `AlbumPaneView`に置き換えた）。アルバム名は改名機能が無いため
-  /// スナップショットのまま表示して問題ない。
-  Album? _openAlbum;
-
   /// `dispose`で`ref`を使うのは安全でないため、先に取っておく（2026-10-17）。
   late final _cacheManager = ref.read(chatRoomMessageCacheManagerProvider);
 
@@ -421,8 +409,6 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
       _currentRoomName = roomName;
       _cacheKey = newKey;
       _cacheEntry = newEntry;
-      _openNoteId = null;
-      _openAlbum = null;
     });
     oldEntry.removeListener(_onCacheEntryChanged);
     ref.read(chatRoomMessageCacheManagerProvider).detach(oldKey, oldEntry);
@@ -502,42 +488,6 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
   }
 
   Widget _buildBody(BuildContext context) {
-    final openNoteId = _openNoteId;
-    final noteDetail = openNoteId == null
-        ? null
-        : BackEntry(
-            key: const ValueKey('back-note'),
-            scope: BackScope.talks,
-            layer: true,
-            active: true,
-            onBack: () => setState(() => _openNoteId = null),
-            child: NotePaneView(
-              isDm: true,
-              conversationId: widget.dm.dmId,
-              roomId: _currentRoomId,
-              noteId: openNoteId,
-              currentUser: widget.currentUser,
-              onClose: () => setState(() => _openNoteId = null),
-            ),
-          );
-    final openAlbum = _openAlbum;
-    final albumDetail = openAlbum == null
-        ? null
-        : BackEntry(
-            key: const ValueKey('back-album'),
-            scope: BackScope.talks,
-            layer: true,
-            active: true,
-            onBack: () => setState(() => _openAlbum = null),
-            child: AlbumPaneView(
-              isDm: true,
-              conversationId: widget.dm.dmId,
-              roomId: _currentRoomId,
-              album: openAlbum,
-              currentUserId: widget.currentUser.userId,
-              onClose: () => setState(() => _openAlbum = null),
-            ),
-          );
     // 通話画面はメッセージ表示を差し替えず、画面の上に重ねる（2026-10-23、
     // `CallOverlay`参照）。
     final chatBody = Builder(
@@ -565,23 +515,39 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
     // カレンダー・アルバムもノートと同じく重ねて表示する（2026-10-13、置き換えると
     // 戻るたびにメッセージ画面が作り直され、スクロール位置の復元で一覧が一度上に
     // 上がって落ちる動きが出ていた）。
-    void closeOverlay() => setState(() {
-      _openAlbum = null;
-    });
-    // アルバムはメッセージ画面より小さいポップアップで、ペイン内に重ねる（2026-11-02）。
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        SlideDrilldown(
-          master: chatBody,
-          detail: noteDetail,
-          detailKey: openNoteId,
-        ),
-        if (albumDetail != null)
-          PaneModalPopup(onClose: closeOverlay, child: albumDetail),
-      ],
-    );
+    // ノート・アルバムは画面全体に重なるダイアログで出す（2026-11-05、
+    // `_showNoteDialog`・`_showAlbumDialog`）ので、ここはメッセージ画面だけ。
+    return chatBody;
   }
+
+  /// ノート（マークダウン・ドロー）を、画面全体に重なるダイアログで出す（2026-11-05、
+  /// アルバムと同じ`showAppDialog`。以前は右からスライドインでペインに重ねていた）。
+  Future<void> _showNoteDialog(String noteId) => showAlbumDetailPopup(
+    context,
+    wide: true,
+    builder: (dialogContext) => NotePaneView(
+      isDm: true,
+      conversationId: widget.dm.dmId,
+      roomId: _currentRoomId,
+      noteId: noteId,
+      currentUser: widget.currentUser,
+      onClose: () => Navigator.of(dialogContext).pop(),
+    ),
+  );
+
+  /// アルバムの詳細を、画面全体に重なるダイアログで出す（2026-11-05、カレンダーの月表示と
+  /// 同じ`showAppDialog`。以前はペイン内に重ねていたが、開閉の動きがうまく揃わなかった）。
+  Future<void> _showAlbumDialog(Album album) => showAlbumDetailPopup(
+    context,
+    builder: (dialogContext) => AlbumPaneView(
+      isDm: true,
+      conversationId: widget.dm.dmId,
+      roomId: _currentRoomId,
+      album: album,
+      currentUserId: widget.currentUser.userId,
+      onClose: () => Navigator.of(dialogContext).pop(),
+    ),
+  );
 
   Widget _buildChatScreen(BuildContext context, List<DmRoom>? rooms) {
     final strings = ref.watch(appStringsProvider);
@@ -685,7 +651,7 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
       roomId: roomId,
       mentionCandidates: mentionCandidates,
       onSenderTap: (userId) => _openProfileCard(context, userId),
-      onOpenNote: (noteId) => setState(() => _openNoteId = noteId),
+      onOpenNote: _showNoteDialog,
       initialScrollAnchor: _cacheEntry.lastScrollAnchor,
       // 旧寄合のChatScreenのdispose時に新寄合のentryへ書き込まないよう、
       // 作成時点のentryを束縛しておく。
@@ -930,7 +896,7 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
             conversationId: dm.dmId,
             roomId: roomId,
             currentUserId: currentUser.userId,
-            onOpenAlbum: (album) => setState(() => _openAlbum = album),
+            onOpenAlbum: _showAlbumDialog,
             menuAnchorKey: _menuAnchorKey,
           ),
         ),
@@ -941,7 +907,7 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
             conversationId: dm.dmId,
             roomId: roomId,
             currentUser: currentUser,
-            onNoteSelected: (noteId) => setState(() => _openNoteId = noteId),
+            onNoteSelected: _showNoteDialog,
             menuAnchorKey: _menuAnchorKey,
           ),
         ),
@@ -1404,7 +1370,7 @@ class _CalendarButtonState extends ConsumerState<_CalendarButton> {
     final isGlass =
         ProviderScope.containerOf(context).read(appUiStyleProvider) ==
         AppUiStyle.glass;
-    final accepted = await showDialog<bool>(
+    final accepted = await showAppDialog<bool>(
       context: context,
       builder: (context) {
         final title = Text(strings.calendarSyncOptInDialogTitle);
@@ -2251,18 +2217,6 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
   );
   late ChatRoomMessageCacheEntry _cacheEntry;
 
-  /// 全画面表示中の共有ノートのid（2026-09-06追加、
-  /// 同じ切り替え方式だが、ノートは複数存在しうるためbool一つではなく
-  /// String?で対象を持つ）。
-  String? _openNoteId;
-
-  /// 全画面表示中の共有アルバム（2026-09-07追加、`_openNoteId`と同じ
-  /// 切り替え方式。以前は`Navigator.push`のフルスクリーン別ルートだった
-  /// `AlbumDetailScreen`を、ノート・カレンダーと同じペインスワップ方式の
-  /// `AlbumPaneView`に置き換えた）。アルバム名は改名機能が無いため
-  /// スナップショットのまま表示して問題ない。
-  Album? _openAlbum;
-
   /// `dispose`で`ref`を使うのは安全でないため、先に取っておく（2026-10-17）。
   late final _cacheManager = ref.read(chatRoomMessageCacheManagerProvider);
 
@@ -2388,8 +2342,6 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
       _currentRoomName = roomName;
       _cacheKey = newKey;
       _cacheEntry = newEntry;
-      _openNoteId = null;
-      _openAlbum = null;
     });
     oldEntry.removeListener(_onCacheEntryChanged);
     ref.read(chatRoomMessageCacheManagerProvider).detach(oldKey, oldEntry);
@@ -2540,42 +2492,6 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
     final currentUser = widget.currentUser;
     final roomId = _currentRoomId;
     final groupRepository = ref.watch(groupRepositoryProvider);
-    final openNoteId = _openNoteId;
-    final noteDetail = openNoteId == null
-        ? null
-        : BackEntry(
-            key: const ValueKey('back-note'),
-            scope: BackScope.talks,
-            layer: true,
-            active: true,
-            onBack: () => setState(() => _openNoteId = null),
-            child: NotePaneView(
-              isDm: false,
-              conversationId: group.groupId,
-              roomId: roomId,
-              noteId: openNoteId,
-              currentUser: currentUser,
-              onClose: () => setState(() => _openNoteId = null),
-            ),
-          );
-    final openAlbum = _openAlbum;
-    final albumDetail = openAlbum == null
-        ? null
-        : BackEntry(
-            key: const ValueKey('back-album'),
-            scope: BackScope.talks,
-            layer: true,
-            active: true,
-            onBack: () => setState(() => _openAlbum = null),
-            child: AlbumPaneView(
-              isDm: false,
-              conversationId: group.groupId,
-              roomId: roomId,
-              album: openAlbum,
-              currentUserId: currentUser.userId,
-              onClose: () => setState(() => _openAlbum = null),
-            ),
-          );
     // 通話画面はメッセージ表示を差し替えず、画面の上に重ねる（2026-10-23、
     // `CallOverlay`参照）。
     final chatBody = Builder(
@@ -2627,23 +2543,39 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
     // カレンダー・アルバムもノートと同じく重ねて表示する（2026-10-13、置き換えると
     // 戻るたびにメッセージ画面が作り直され、スクロール位置の復元で一覧が一度上に
     // 上がって落ちる動きが出ていた）。
-    void closeOverlay() => setState(() {
-      _openAlbum = null;
-    });
-    // アルバムはメッセージ画面より小さいポップアップで、ペイン内に重ねる（2026-11-02）。
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        SlideDrilldown(
-          master: chatBody,
-          detail: noteDetail,
-          detailKey: openNoteId,
-        ),
-        if (albumDetail != null)
-          PaneModalPopup(onClose: closeOverlay, child: albumDetail),
-      ],
-    );
+    // ノート・アルバムは画面全体に重なるダイアログで出す（2026-11-05、
+    // `_showNoteDialog`・`_showAlbumDialog`）ので、ここはメッセージ画面だけ。
+    return chatBody;
   }
+
+  /// ノート（マークダウン・ドロー）を、画面全体に重なるダイアログで出す（2026-11-05、
+  /// アルバムと同じ`showAppDialog`。以前は右からスライドインでペインに重ねていた）。
+  Future<void> _showNoteDialog(String noteId) => showAlbumDetailPopup(
+    context,
+    wide: true,
+    builder: (dialogContext) => NotePaneView(
+      isDm: false,
+      conversationId: widget.group.groupId,
+      roomId: _currentRoomId,
+      noteId: noteId,
+      currentUser: widget.currentUser,
+      onClose: () => Navigator.of(dialogContext).pop(),
+    ),
+  );
+
+  /// アルバムの詳細を、画面全体に重なるダイアログで出す（2026-11-05、カレンダーの月表示と
+  /// 同じ`showAppDialog`。以前はペイン内に重ねていたが、開閉の動きがうまく揃わなかった）。
+  Future<void> _showAlbumDialog(Album album) => showAlbumDetailPopup(
+    context,
+    builder: (dialogContext) => AlbumPaneView(
+      isDm: false,
+      conversationId: widget.group.groupId,
+      roomId: _currentRoomId,
+      album: album,
+      currentUserId: widget.currentUser.userId,
+      onClose: () => Navigator.of(dialogContext).pop(),
+    ),
+  );
 
   Widget _buildChatScreen(
     BuildContext context,
@@ -2757,7 +2689,7 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
                 ? null
                 : Color(0xFF000000 | role.color!),
       },
-      onOpenNote: (noteId) => setState(() => _openNoteId = noteId),
+      onOpenNote: _showNoteDialog,
       initialScrollAnchor: _cacheEntry.lastScrollAnchor,
       // 旧寄合のChatScreenのdispose時に新寄合のentryへ書き込まないよう、
       // 作成時点のentryを束縛しておく。
@@ -2990,7 +2922,7 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
             conversationId: group.groupId,
             roomId: roomId,
             currentUserId: currentUser.userId,
-            onOpenAlbum: (album) => setState(() => _openAlbum = album),
+            onOpenAlbum: _showAlbumDialog,
             menuAnchorKey: _menuAnchorKey,
           ),
         ),
@@ -3001,7 +2933,7 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
             conversationId: group.groupId,
             roomId: roomId,
             currentUser: currentUser,
-            onNoteSelected: (noteId) => setState(() => _openNoteId = noteId),
+            onNoteSelected: _showNoteDialog,
             menuAnchorKey: _menuAnchorKey,
           ),
         ),

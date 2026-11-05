@@ -106,6 +106,7 @@ import '../../l10n/tutorial_content.dart';
 import '../../providers/avatar_palette_provider.dart';
 import '../guide/tutorial/tutorial_controller.dart';
 import '../guide/tutorial/tutorial_target.dart';
+import '../../widgets/app_dialog.dart';
 
 /// 劇画UIの吹き出し・入力欄の枠取りの太さ（[MonochromeBoxPainter]の
 /// thicknessBase）。以前は`size.shortestSide`（箱の短辺）に比例させて
@@ -1674,7 +1675,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   Future<void> _confirmDeleteSelected() async {
     final strings = ref.read(appStringsProvider);
     final isGlass = ref.read(appUiStyleProvider) == AppUiStyle.glass;
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAppDialog<bool>(
       context: context,
       builder: (context) {
         final title = Text(strings.chatDeleteConfirmTitle);
@@ -1729,7 +1730,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final strings = ref.read(appStringsProvider);
     final isGlass = ref.read(appUiStyleProvider) == AppUiStyle.glass;
     var blur = false;
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAppDialog<bool>(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) {
@@ -2230,7 +2231,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     }
 
     final strings = ref.read(appStringsProvider);
-    final sendAnyway = await showDialog<bool>(
+    final sendAnyway = await showAppDialog<bool>(
       context: context,
       builder: (dialogContext) => KeyboardAlertDialog(
         title: Text(strings.chatSpamWarningTitle),
@@ -6954,7 +6955,7 @@ class _MessageRow extends ConsumerWidget {
     Strings strings,
   ) async {
     final isGlass = ref.read(appUiStyleProvider) == AppUiStyle.glass;
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAppDialog<bool>(
       context: context,
       builder: (context) {
         final title = Text(strings.chatAccountDeletedConfirmTitle);
@@ -7112,7 +7113,7 @@ class _MessageRow extends ConsumerWidget {
     Strings strings,
   ) async {
     final isGlass = ref.read(appUiStyleProvider) == AppUiStyle.glass;
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAppDialog<bool>(
       context: context,
       builder: (context) {
         final title = Text(strings.chatUnsendConfirmTitle);
@@ -8621,7 +8622,7 @@ class _FileAttachmentBlockState extends ConsumerState<_FileAttachmentBlock>
     // 作り、その中に`SingleChildScrollView`で本来の自然な高さのまま描画
     // させてクリップする、という標準的な構成にする。
     //
-    // 全表示は一度ポップアップ（`showDialog`）で試したが、メッセージ画面の
+    // 全表示は一度ポップアップ（`showAppDialog`）で試したが、メッセージ画面の
     // ままで拡大表示してほしいとの指摘を受け撤回した（2026-08-12）。以前の
     // 「その場で無制限に縦へ伸びる」実装ではスクロールできず読みにくかった
     // ため、代わりに固定高さ（360px）へ拡大した上でスクロール可能にする

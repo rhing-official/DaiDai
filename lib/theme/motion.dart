@@ -90,6 +90,10 @@ Widget buildSlideInFromRightTransition(
   return FadeTransition(opacity: curved, child: slid);
 }
 
+/// 「吸い込み」のダイアログで、不透明度が1になる進行度（0〜1）。閉じる時は、進行度が
+/// これを下回ってから薄くなり始める（それまでは縮みながらはっきり見える）。
+const suckFadeEnd = 0.3;
+
 /// 「吸い込み」で、消え切った時の画面の拡大率（右下の角へ縮む先）。
 const suckMinScale = 0.1;
 
@@ -141,5 +145,46 @@ Widget buildAwayTransition({
   return Opacity(
     opacity: style.usesFade ? 1 - progress : 1.0,
     child: buildTransitionBlur(progress, moved),
+  );
+}
+
+/// ダイアログ・ポップアップ・拡大表示の開閉の動き（2026-11-05）。今の画面遷移の種類に従う。
+/// [animation]は0（無い）→1（全表示）。背景の暗幕は呼び出し側のルートが別にフェードさせる。
+/// - スライド＋滲み: 薄い・ぼやけた状態から現れる（スライドなし）。
+/// - スライド: 下からスライドして現れる。
+/// - 吸い込み: 右下の角から広がり、液状化しながら現れる（閉じる時は逆）。
+/// 木の形は種類によらず固定する（再マウント防止）。
+Widget buildDialogTransition(Animation<double> animation, Widget child) {
+  final curved = CurvedAnimation(parent: animation, curve: popSlideCurve);
+  final style = activeSlideTransitionStyle;
+  final isSuck = style == SlideTransitionStyle.suck;
+  final isSlide = style == SlideTransitionStyle.slide;
+  return AnimatedBuilder(
+    animation: curved,
+    child: child,
+    builder: (context, child) {
+      final away = 1 - curved.value;
+      final scale = isSuck
+          ? suckMinScale + (1 - suckMinScale) * curved.value
+          : 1.0;
+      // 基点は子の枠ではなく画面の右下（アルバムなど小さなポップアップでも、画面の隅から
+      // 現れ／へ吸い込まれる）。
+      final inner = ScreenCornerScale(
+        scale: scale,
+        child: LiquifyEffect(progress: away, enabled: isSuck, child: child!),
+      );
+      return FractionalTranslation(
+        translation: Offset(0, isSlide ? away * 0.4 : 0),
+        child: Opacity(
+          // 現れ始めは薄くする（どの種類でも、唐突に出ないように）。吸い込みは、縮みながら
+          // 右下へ消えていく様子が見えるよう、最後の少しだけ薄くする（以前は線形に
+          // 薄くしたため、縮み切る前に見えなくなっていた、2026-11-05）。
+          opacity: isSuck
+              ? (curved.value / suckFadeEnd).clamp(0.0, 1.0)
+              : curved.value.clamp(0.0, 1.0),
+          child: buildTransitionBlur(away, inner),
+        ),
+      );
+    },
   );
 }

@@ -97,6 +97,8 @@ class Strings {
     required this.settingsSlideTransitionSuck,
     required this.settingsTalksListLayoutTitle,
     required this.settingsTalksListLayoutNote,
+    required this.settingsSlidePickTitle,
+    required this.settingsSlidePickSubtitle,
     required this.settingsTalksListMirrorTitle,
     required this.settingsTalksListMirrorSubtitle,
     required this.settingsTalksListLayoutStandard,
@@ -1094,6 +1096,8 @@ class Strings {
   /// 縦表示での語らい一覧レイアウト（2026-09-11追加、設定＞語らい）。
   final String settingsTalksListLayoutTitle;
   final String settingsTalksListLayoutNote;
+  final String settingsSlidePickTitle;
+  final String settingsSlidePickSubtitle;
   final String settingsTalksListMirrorTitle;
   final String settingsTalksListMirrorSubtitle;
   final String settingsTalksListLayoutStandard;
@@ -2393,6 +2397,9 @@ class Strings {
     settingsTalksListLayoutTitle: '語らい一覧のレイアウト',
     settingsTalksListLayoutNote:
         '縦画面で適用されます。横画面（幅の広い画面）のコンピューターでは、この設定にかかわらず左右分割で表示されます。',
+    settingsSlidePickTitle: '押したまま滑らせて選ぶ',
+    settingsSlidePickSubtitle:
+        'メニューチップや語らいのボタンを押したまま指を滑らせ、離した所を選びます。オフにすると、1回ずつタップして操作します。',
     settingsTalksListMirrorTitle: '左右を反転する',
     settingsTalksListMirrorSubtitle: '「アイコン＋寄合一覧」のとき、アイコン列を右端に、メッセージ画面を左にします。',
     settingsTalksListLayoutStandard: 'アイコンのみ',
@@ -3446,6 +3453,9 @@ class Strings {
     settingsTalksListLayoutTitle: 'Talks list layout (portrait)',
     settingsTalksListLayoutNote:
         'Applies in portrait orientation. On a computer with a wide, landscape window, the list is always shown in a split view regardless of this setting.',
+    settingsSlidePickTitle: 'Press and slide to choose',
+    settingsSlidePickSubtitle:
+        'Press a menu chip or a talks button and slide your finger, then lift it over your choice. Turn this off to tap once at a time.',
     settingsTalksListMirrorTitle: 'Flip left and right',
     settingsTalksListMirrorSubtitle:
         'With "Icon + room list", puts the icon column on the right and the messages on the left.',

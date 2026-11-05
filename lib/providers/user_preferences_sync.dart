@@ -19,6 +19,7 @@ import 'app_ui_style_provider.dart';
 import 'calendar_week_start_provider.dart';
 import 'calling_sound_provider.dart';
 import 'chat_layout_style_provider.dart';
+import 'slide_pick_enabled_provider.dart';
 import 'slide_transition_style_provider.dart';
 import 'conversation_sort_order_provider.dart';
 import 'custom_accent_colors_provider.dart';
@@ -140,6 +141,11 @@ void applyRemoteUserPreferences(WidgetRef ref, AppUserPreferences preferences) {
     ref
         .read(draftSyncEnabledProvider.notifier)
         .syncFromRemote(preferences.draftSyncEnabled!);
+  }
+  if (preferences.slidePickEnabled != null) {
+    ref
+        .read(slidePickEnabledProvider.notifier)
+        .syncFromRemote(preferences.slidePickEnabled!);
   }
   if (preferences.iconSplitMirrored != null) {
     ref

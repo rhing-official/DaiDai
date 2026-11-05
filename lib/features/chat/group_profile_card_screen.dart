@@ -17,6 +17,7 @@ import '../../widgets/dialog_keyboard_shortcuts.dart';
 import '../../widgets/focal_circle_avatar.dart';
 import '../../widgets/focal_image.dart';
 import '../profile/focal_edit_overlay.dart';
+import '../../widgets/app_dialog.dart';
 
 /// 広場のプロフィールカード（1枚のみ）を作成・編集するポップアップの中身。
 /// メンバー全員が編集できる（個人の工房カードと異なり、蔵の素材を参照せず
@@ -203,7 +204,7 @@ class _GroupProfileCardPopupState extends ConsumerState<GroupProfileCardPopup> {
       extentOffset: currentValue.length,
     );
     final isGlass = ref.read(appUiStyleProvider) == AppUiStyle.glass;
-    await showDialog<void>(
+    await showAppDialog<void>(
       context: context,
       builder: (context) {
         final title = Text(label);

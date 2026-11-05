@@ -27,6 +27,7 @@ import 'group_profile_card_screen.dart';
 import 'group_permission_manage_popup.dart';
 import 'group_role_list_popup.dart';
 import 'webhook_management_popup.dart';
+import '../../widgets/app_dialog.dart';
 
 /// [GroupSettingsPopup]をガラスUI対応のダイアログでラップして開く
 /// （2026-09-02、サイドバーの歯車アイコン（`talks_tab.dart`）に加え、狭い
@@ -38,7 +39,7 @@ Future<void> showGroupSettingsDialog(
   required Group group,
   required bool isGlass,
 }) {
-  return showDialog<void>(
+  return showAppDialog<void>(
     context: context,
     // 「自分のプロフィールカード」の項目は蔵が複数ある時だけ増える
     // （GroupSettingsPopup参照）ため、固定の高さ1つでは項目がある時に
@@ -112,7 +113,7 @@ class GroupSettingsPopup extends ConsumerWidget {
     final dialogConstraints = maxWidth > 400
         ? BoxConstraints(maxWidth: maxWidth)
         : null;
-    return showDialog<void>(
+    return showAppDialog<void>(
       context: context,
       // ガラステーマはdialogThemeの背景を透明にしている（`GlassAlertDialog`
       // が自前でGlassSurfaceをラップする前提の設計）ため、素の`Dialog`の

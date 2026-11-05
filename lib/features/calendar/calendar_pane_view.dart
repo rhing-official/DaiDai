@@ -33,6 +33,7 @@ import 'calendar_month_layout.dart';
 import 'schedule_coordination_detail_dialog.dart';
 import 'schedule_coordination_form_dialog.dart';
 import '../../widgets/dialog_keyboard_shortcuts.dart';
+import '../../widgets/app_dialog.dart';
 
 DateTime _dateOnly(DateTime date) => DateTime(date.year, date.month, date.day);
 
@@ -271,7 +272,7 @@ class _CalendarPaneViewState extends ConsumerState<CalendarPaneView>
   ) async {
     final strings = ref.read(appStringsProvider);
     final localeCode = ref.read(appLocaleProvider).languageCode;
-    final result = await showDialog<_CalendarSearchSelection>(
+    final result = await showAppDialog<_CalendarSearchSelection>(
       context: context,
       builder: (_) => _CalendarSearchDialog(
         events: events,
@@ -1669,7 +1670,7 @@ Future<void> showCalendarMonthDialog(
   // ダイアログは呼び出し元の外のルートに描かれるため、呼び出し元と同じ
   // プロバイダーの範囲（使い方ガイドの練習用の画面など）を引き継ぐ。
   final container = ProviderScope.containerOf(context);
-  return showDialog<void>(
+  return showAppDialog<void>(
     context: context,
     builder: (dialogContext) {
       final size = MediaQuery.sizeOf(dialogContext);

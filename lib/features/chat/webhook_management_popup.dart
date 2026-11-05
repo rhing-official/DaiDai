@@ -13,6 +13,7 @@ import '../../providers/repository_providers.dart';
 import '../../utils/auto_dismiss_banner.dart';
 import '../../widgets/glass/glass_dialog.dart';
 import '../../widgets/dialog_keyboard_shortcuts.dart';
+import '../../widgets/app_dialog.dart';
 
 /// 受信Webhook（寄合へ外部から投稿できる、bot・API段階1、2026-10-10追加）の
 /// 管理画面（広場の設定からのポップアップの中身）。`manageBots`権限を持つ
@@ -37,7 +38,7 @@ class WebhookManagementPopup extends ConsumerWidget {
     required List<Widget> actions,
   }) {
     final isGlass = ref.read(appUiStyleProvider) == AppUiStyle.glass;
-    return showDialog<void>(
+    return showAppDialog<void>(
       context: context,
       builder: (_) => isGlass
           ? GlassAlertDialog(title: title, content: content, actions: actions)
@@ -59,7 +60,7 @@ class WebhookManagementPopup extends ConsumerWidget {
         .watchRooms(groupId: group.groupId, userId: currentUser.userId)
         .first;
     if (!context.mounted || rooms.isEmpty) return;
-    final result = await showDialog<({String name, String roomId})>(
+    final result = await showAppDialog<({String name, String roomId})>(
       context: context,
       builder: (_) => _CreateWebhookDialog(
         strings: strings,
@@ -149,7 +150,7 @@ class WebhookManagementPopup extends ConsumerWidget {
     Webhook webhook,
   ) async {
     final isGlass = ref.read(appUiStyleProvider) == AppUiStyle.glass;
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAppDialog<bool>(
       context: context,
       builder: (dialogContext) {
         final title = Text(strings.webhookDeleteTitle);

@@ -20,6 +20,7 @@ import '../../widgets/video_thumbnail.dart';
 import '../../widgets/media_viewer_screen.dart';
 import 'album_message_picker_screen.dart';
 import '../../widgets/dialog_keyboard_shortcuts.dart';
+import '../../widgets/app_dialog.dart';
 
 /// 寄合単位の共有アルバムの中身を寄合の表示領域内で開く（2026-09-07、
 /// `NotePaneView`/`CalendarPaneView`と同じ「ローカルなbool/オブジェクト
@@ -80,7 +81,7 @@ class _AlbumPaneViewState extends ConsumerState<AlbumPaneView> {
   Future<void> _removeItem(AlbumItem item) async {
     final strings = ref.read(appStringsProvider);
     final isGlass = ref.read(appUiStyleProvider) == AppUiStyle.glass;
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAppDialog<bool>(
       context: context,
       builder: (_) {
         final title = Text(strings.albumRemoveItemConfirmTitle);

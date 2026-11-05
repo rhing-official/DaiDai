@@ -452,7 +452,17 @@ class BackStackObserver extends NavigatorObserver {
         imperative &&
         (route is PopupRoute || route is PageRoute)) {
       _dialogKeys[route] = controller.addDialog(() {
-        if (route.isActive) route.navigator?.removeRoute(route);
+        if (!route.isActive) return;
+        final navigator = route.navigator;
+        if (navigator == null) return;
+        // 一番上のルートは`pop`で閉じ、閉じる動き（画面遷移の種類）を再生する
+        // （2026-11-05、マウスの戻るボタン・ブラウザの戻るでも動きが効くように。以前は
+        // `removeRoute`で即座に消えていた）。最前面でない時だけ`removeRoute`。
+        if (route.isCurrent) {
+          navigator.pop();
+        } else {
+          navigator.removeRoute(route);
+        }
       });
     }
   }

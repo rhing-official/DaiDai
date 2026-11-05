@@ -10,6 +10,7 @@ import '../../providers/app_locale_provider.dart';
 import '../../providers/repository_providers.dart';
 import '../../widgets/fixed_font_theme.dart';
 import '../../widgets/app_dropdown.dart';
+import '../../widgets/app_dialog.dart';
 
 /// 居住地アンケート画面（2026-10-16追加）。新規登録直後、およびまだ回答していない
 /// 住人（既存住人・daidai横丁で先にアカウントだけ作った人の初回ログイン後）に、
@@ -72,7 +73,7 @@ class _ResidenceSurveyScreenState extends ConsumerState<ResidenceSurveyScreen> {
   Country? get _country => countryByCode(_countryCode);
 
   Future<void> _pickCountry(AppLocale locale) async {
-    final picked = await showDialog<String>(
+    final picked = await showAppDialog<String>(
       context: context,
       builder: (_) => _CountryPickerDialog(locale: locale),
     );

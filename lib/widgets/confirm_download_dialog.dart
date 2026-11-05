@@ -6,6 +6,7 @@ import '../providers/app_ui_style_provider.dart';
 import '../l10n/strings.dart';
 import 'dialog_keyboard_shortcuts.dart';
 import 'glass/glass_dialog.dart';
+import 'app_dialog.dart';
 
 /// ダウンロードボタンを押した時の確認ダイアログ（2026-10-16追加）。
 /// メッセージの添付ファイルとノートのダウンロードで共通に使う。
@@ -17,7 +18,7 @@ Future<bool> confirmDownload(
 }) async {
   final strings = ref.read(appStringsProvider);
   final isGlass = ref.read(appUiStyleProvider) == AppUiStyle.glass;
-  final confirmed = await showDialog<bool>(
+  final confirmed = await showAppDialog<bool>(
     context: context,
     builder: (context) {
       final title = Text(strings.downloadConfirmTitle);

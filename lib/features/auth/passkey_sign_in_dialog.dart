@@ -11,6 +11,7 @@ import '../../providers/repository_providers.dart';
 import '../../repositories/auth_repository.dart';
 import '../../widgets/glass/glass_dialog.dart';
 import '../../widgets/dialog_keyboard_shortcuts.dart';
+import '../../widgets/app_dialog.dart';
 
 /// Rhing Seed＋パスキー（WebAuthn）でのログイン（2026-09-16追加）。
 /// `qr_login_dialog.dart`と同系統の見た目。Rhing Seedを入力して確定すると
@@ -29,7 +30,7 @@ class PasskeySignInDialog extends ConsumerStatefulWidget {
   const PasskeySignInDialog({super.key});
 
   static Future<bool?> show(BuildContext context) {
-    return showDialog<bool>(
+    return showAppDialog<bool>(
       context: context,
       builder: (_) => const PasskeySignInDialog(),
     );

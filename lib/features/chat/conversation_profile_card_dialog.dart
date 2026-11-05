@@ -9,6 +9,7 @@ import '../../providers/user_providers.dart';
 import '../../widgets/glass/glass_dialog.dart';
 import '../../widgets/profile_card_picker.dart';
 import '../../widgets/dialog_keyboard_shortcuts.dart';
+import '../../widgets/app_dialog.dart';
 
 /// 一対・広場ごとに自分が使うプロフィールカードを選ぶダイアログ
 /// （`AppUser.conversationProfileCardId`、2026-07-30追加）。設定タブ＞語らい
@@ -31,7 +32,7 @@ class ConversationProfileCardDialog extends ConsumerWidget {
     required String currentUserId,
     required String conversationId,
   }) {
-    return showDialog<void>(
+    return showAppDialog<void>(
       context: context,
       builder: (_) => ConversationProfileCardDialog(
         currentUserId: currentUserId,

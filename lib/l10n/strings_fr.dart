@@ -102,6 +102,9 @@ final Strings _stringsFr = Strings._(
   settingsSlideTransitionSlideBlur: 'Glissement et flou',
   settingsSlideTransitionSlide: 'Glissement',
   settingsSlideTransitionSuck: 'Aspiration',
+  settingsSlidePickTitle: 'Appuyer et glisser pour choisir',
+  settingsSlidePickSubtitle:
+      'Appuyez sur une pastille du menu ou un bouton des discussions, faites glisser le doigt, puis relâchez sur votre choix. Désactivez pour toucher une fois à la fois.',
   settingsTalksListMirrorTitle: "Inverser gauche et droite",
   settingsTalksListMirrorSubtitle:
       "Avec « Icônes + liste des salons », place la colonne d’icônes à droite et les messages à gauche.",

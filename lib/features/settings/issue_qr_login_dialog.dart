@@ -10,6 +10,7 @@ import '../../providers/app_ui_style_provider.dart';
 import '../../providers/repository_providers.dart';
 import '../../widgets/dialog_keyboard_shortcuts.dart';
 import '../../widgets/glass/glass_dialog.dart';
+import '../../widgets/app_dialog.dart';
 
 /// ログイン済み端末がQRコードを表示し、ログインしたい端末が読み取ってログインする
 /// 方式（2026-10-15）の表示側。開くと`createIssuedQrLoginSession`でセッションを作って
@@ -19,7 +20,7 @@ class IssueQrLoginDialog extends ConsumerStatefulWidget {
   const IssueQrLoginDialog({super.key});
 
   static Future<void> show(BuildContext context) {
-    return showDialog<void>(
+    return showAppDialog<void>(
       context: context,
       builder: (_) => const IssueQrLoginDialog(),
     );

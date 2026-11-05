@@ -11,6 +11,7 @@ import '../../providers/repository_providers.dart';
 import '../../utils/fullwidth_digits_formatter.dart';
 import '../../widgets/glass/glass_dialog.dart';
 import '../../widgets/dialog_keyboard_shortcuts.dart';
+import '../../widgets/app_dialog.dart';
 
 /// アプリ起動時のパスコードロック画面（2026-09-11追加）。`PasscodeLockGate`
 /// からのみ表示される。`sign_in_screen.dart`と同じ、UIスタイル（フラット/
@@ -122,7 +123,7 @@ class _PasscodeLockScreenState extends ConsumerState<PasscodeLockScreen> {
 
   Future<void> _confirmForgotPasscode(Strings strings) async {
     final isGlass = ref.read(appUiStyleProvider) == AppUiStyle.glass;
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAppDialog<bool>(
       context: context,
       builder: (context) {
         final title = Text(strings.passcodeForgotDialogTitle);

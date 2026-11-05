@@ -17,6 +17,7 @@ class AppUserPreferences {
     this.draftSyncEnabled,
     this.joinVideoCameraOn,
     this.iconSplitMirrored,
+    this.slidePickEnabled,
     this.chatLayoutStyle,
     this.slideTransitionStyle,
     this.messageTimeFormat,
@@ -50,6 +51,9 @@ class AppUserPreferences {
 
   /// 「アイコン＋寄合一覧」を左右反転するか（2026-11-01、nullは標準のオフ）。
   final bool? iconSplitMirrored;
+
+  /// 押したまま指を滑らせて選ぶ操作を使うか（2026-11-05追加、null=標準のオン）。
+  final bool? slidePickEnabled;
 
   final String? chatLayoutStyle;
 
@@ -116,6 +120,7 @@ class AppUserPreferences {
       draftSyncEnabled: json['draftSyncEnabled'] as bool?,
       joinVideoCameraOn: json['joinVideoCameraOn'] as bool?,
       iconSplitMirrored: json['iconSplitMirrored'] as bool?,
+      slidePickEnabled: json['slidePickEnabled'] as bool?,
       chatLayoutStyle: json['chatLayoutStyle'] as String?,
       slideTransitionStyle: json['slideTransitionStyle'] as String?,
       messageTimeFormat: json['messageTimeFormat'] as String?,
@@ -154,6 +159,7 @@ class AppUserPreferences {
       if (draftSyncEnabled != null) 'draftSyncEnabled': draftSyncEnabled,
       if (joinVideoCameraOn != null) 'joinVideoCameraOn': joinVideoCameraOn,
       if (iconSplitMirrored != null) 'iconSplitMirrored': iconSplitMirrored,
+      if (slidePickEnabled != null) 'slidePickEnabled': slidePickEnabled,
       if (chatLayoutStyle != null) 'chatLayoutStyle': chatLayoutStyle,
       if (slideTransitionStyle != null)
         'slideTransitionStyle': slideTransitionStyle,

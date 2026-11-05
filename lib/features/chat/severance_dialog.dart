@@ -7,6 +7,7 @@ import '../../providers/app_ui_style_provider.dart';
 import '../../providers/repository_providers.dart';
 import '../../widgets/glass/glass_dialog.dart';
 import '../../widgets/dialog_keyboard_shortcuts.dart';
+import '../../widgets/app_dialog.dart';
 
 /// 絶縁（双方合意による友達関係の解消・会話履歴の完全削除）の確認ダイアログ。
 /// 提案する側（[SeveranceDialogMode.propose]）・同意する側
@@ -35,7 +36,7 @@ class SeveranceDialog extends ConsumerStatefulWidget {
     required String currentUserId,
     required String otherUserId,
   }) {
-    return showDialog<void>(
+    return showAppDialog<void>(
       context: context,
       builder: (_) => SeveranceDialog(
         mode: mode,

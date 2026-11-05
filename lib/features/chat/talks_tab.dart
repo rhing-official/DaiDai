@@ -81,6 +81,7 @@ import '../../router/back_stack.dart';
 import 'group_settings_popup.dart';
 import 'room_list_pane.dart';
 import 'talks_search.dart';
+import '../../widgets/app_dialog.dart';
 
 enum _TalksCategory { dm, group }
 
@@ -2833,7 +2834,7 @@ class _FriendRequestTile extends ConsumerWidget {
                   child: Text(strings.friendRequestAccept),
                 ),
               ];
-              showDialog<void>(
+              showAppDialog<void>(
                 context: context,
                 builder: (_) => isGlass
                     ? GlassAlertDialog(

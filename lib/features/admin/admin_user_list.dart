@@ -15,6 +15,7 @@ import '../../widgets/glass/glass_dialog.dart';
 import '../../widgets/profile_card_view.dart';
 import '../../widgets/style_choice_chip.dart';
 import '../../widgets/dialog_keyboard_shortcuts.dart';
+import '../../widgets/app_dialog.dart';
 
 /// 管理画面の住人一覧の取得元（`limit(500)`、並べ替えはUI側）。テストで
 /// 差し替えられるよう公開している。
@@ -170,7 +171,7 @@ class _AdminUserListSectionState extends ConsumerState<AdminUserListSection> {
 
   /// 選択した住人をまとめて停止/解除する（確認ダイアログ付き）。
   Future<void> _bulkSuspend(List<AppUser> selectedUsers, bool suspend) async {
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAppDialog<bool>(
       context: context,
       builder: (context) {
         final seeds = selectedUsers.map((u) => '@${u.rhingSeed}').join('\n');
@@ -224,7 +225,7 @@ class _AdminUserListSectionState extends ConsumerState<AdminUserListSection> {
 
   /// 選択した住人にまとめて極みを付与/剥奪する（確認ダイアログ付き）。
   Future<void> _bulkKiwami(List<AppUser> selectedUsers, bool grant) async {
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAppDialog<bool>(
       context: context,
       builder: (context) {
         final seeds = selectedUsers.map((u) => '@${u.rhingSeed}').join('\n');
@@ -403,7 +404,7 @@ class _AdminUserListSectionState extends ConsumerState<AdminUserListSection> {
                                   _selected.remove(user.userId);
                                 }
                               }),
-                              onTap: () => showDialog<void>(
+                              onTap: () => showAppDialog<void>(
                                 context: context,
                                 builder: (_) => _UserDetailDialog(
                                   userId: user.userId,
@@ -697,7 +698,7 @@ class _UserDetailDialogState extends ConsumerState<_UserDetailDialog> {
 
   Future<void> _toggleSuspend(AppUser user) async {
     final suspend = user.accountStatus != AccountStatus.suspended;
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAppDialog<bool>(
       context: context,
       builder: (context) => _adminDialog(
         ref,
@@ -736,7 +737,7 @@ class _UserDetailDialogState extends ConsumerState<_UserDetailDialog> {
 
   Future<void> _toggleKiwami(AppUser user) async {
     final grant = user.subscriptionPlan != SubscriptionPlan.kiwami;
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAppDialog<bool>(
       context: context,
       builder: (context) => _adminDialog(
         ref,
@@ -779,10 +780,11 @@ class _UserDetailDialogState extends ConsumerState<_UserDetailDialog> {
   }
 
   Future<void> _reveal(AppUser user) async {
-    final result = await showDialog<({_ProfileViewReason reason, String note})>(
-      context: context,
-      builder: (context) => _ReasonDialog(seed: user.rhingSeed),
-    );
+    final result =
+        await showAppDialog<({_ProfileViewReason reason, String note})>(
+          context: context,
+          builder: (context) => _ReasonDialog(seed: user.rhingSeed),
+        );
     if (result == null) return;
     setState(() {
       _busy = true;

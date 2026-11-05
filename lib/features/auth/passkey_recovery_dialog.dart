@@ -9,6 +9,7 @@ import '../../providers/repository_providers.dart';
 import '../../repositories/auth_repository.dart';
 import '../../widgets/glass/glass_dialog.dart';
 import '../../widgets/dialog_keyboard_shortcuts.dart';
+import '../../widgets/app_dialog.dart';
 
 /// パスキー紛失時の復旧フロー（2026-09-16追加）。サインイン画面の
 /// 「パスキーが使えない場合」リンクから開く。Rhing Seedを入力→秘密の質問
@@ -21,7 +22,7 @@ class PasskeyRecoveryDialog extends ConsumerStatefulWidget {
   const PasskeyRecoveryDialog({super.key});
 
   static Future<bool?> show(BuildContext context) {
-    return showDialog<bool>(
+    return showAppDialog<bool>(
       context: context,
       builder: (_) => const PasskeyRecoveryDialog(),
     );
@@ -114,7 +115,7 @@ class _PasskeyRecoveryDialogState extends ConsumerState<PasskeyRecoveryDialog> {
 
   Future<void> _offerAddNewPasskey(Strings strings) async {
     final isGlass = ref.read(appUiStyleProvider) == AppUiStyle.glass;
-    final addNew = await showDialog<bool>(
+    final addNew = await showAppDialog<bool>(
       context: context,
       builder: (context) {
         final title = Text(strings.passkeyRecoveryAddNewPasskeyTitle);

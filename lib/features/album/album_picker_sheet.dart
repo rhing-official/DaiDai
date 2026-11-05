@@ -9,6 +9,7 @@ import '../../providers/app_ui_style_provider.dart';
 import '../../providers/repository_providers.dart';
 import '../../widgets/glass/glass_dialog.dart';
 import '../../widgets/dialog_keyboard_shortcuts.dart';
+import '../../widgets/app_dialog.dart';
 
 /// メッセージ長押しメニューの「アルバムに登録」から開くボトムシート
 /// （2026-08-30追加）。その寄合の既存アルバム一覧から選ぶか、その場で
@@ -98,7 +99,7 @@ class _AlbumPickerSheetState extends ConsumerState<_AlbumPickerSheet> {
     final strings = ref.read(appStringsProvider);
     final controller = TextEditingController();
     final isGlass = ref.read(appUiStyleProvider) == AppUiStyle.glass;
-    final name = await showDialog<String>(
+    final name = await showAppDialog<String>(
       context: context,
       builder: (dialogContext) {
         final title = Text(strings.albumCreateDialogTitle);

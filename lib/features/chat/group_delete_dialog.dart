@@ -8,6 +8,7 @@ import '../../providers/app_ui_style_provider.dart';
 import '../../providers/repository_providers.dart';
 import '../../widgets/glass/glass_dialog.dart';
 import '../../widgets/dialog_keyboard_shortcuts.dart';
+import '../../widgets/app_dialog.dart';
 
 /// 広場を丸ごと削除する確認ダイアログ（長のみ、2026-08-02追加）。
 /// `GroupLeaveDialog`と同じ構成。確認後、削除してホームへ戻る。
@@ -26,7 +27,7 @@ class GroupDeleteDialog extends ConsumerStatefulWidget {
     required String groupId,
     required String userId,
   }) {
-    return showDialog<void>(
+    return showAppDialog<void>(
       context: context,
       builder: (_) => GroupDeleteDialog(groupId: groupId, userId: userId),
     );

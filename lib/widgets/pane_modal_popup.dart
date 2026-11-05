@@ -3,19 +3,44 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/app_ui_style.dart';
 import '../providers/app_ui_style_provider.dart';
+import 'app_dialog.dart';
 import 'glass/glass_surface.dart';
 import 'media_preview_frame.dart';
 
-/// メッセージ画面などのペインの中に重ねて出す、少し小さめの中央ポップアップ
-/// （2026-11-02、アルバムを開く時に使う）。ペインの表示領域を超えない（広い画面の
-/// サイドバーを覆わない）よう、`Navigator`のダイアログではなくペイン内の`Stack`に
-/// 重ねる。背景の暗幕をタップすると[onClose]。大きさはペインの約7割（最大560×640）。
-/// 面はUIスタイルに合わせる（影は使わない）。
-class PaneModalPopup extends ConsumerWidget {
-  const PaneModalPopup({required this.child, required this.onClose, super.key});
+/// 少し小さめの中央ポップアップをダイアログで出す（2026-11-05、アルバムの詳細に使う）。
+/// カレンダーの月表示などと同じ[showAppDialog]なので、開閉の動き（画面遷移の種類）も
+/// 他のダイアログと同じになる。以前（2026-11-02〜）はペイン内の`Stack`に重ねる
+/// `PaneModalPopup`だったが、開閉の動きがうまく揃わず、ダイアログへ統一した
+/// （広い画面ではサイドバーも暗幕で覆われる）。
+///
+/// 背景の暗幕をタップすると閉じる。大きさは画面の約7割（最大560×640）。[wide]は約9割（最大960×800）。面はUIスタイルに
+/// 合わせる（影は使わない）。呼び出し元のプロバイダーの範囲（使い方ガイドの練習用の画面
+/// など）は[UncontrolledProviderScope]で引き継ぐ。
+Future<T?> showAlbumDetailPopup<T>(
+  BuildContext context, {
+  required WidgetBuilder builder,
+  bool wide = false,
+}) {
+  final container = ProviderScope.containerOf(context);
+  return showAppDialog<T>(
+    context: context,
+    builder: (dialogContext) => UncontrolledProviderScope(
+      container: container,
+      child: _PopupSurface(
+        wide: wide,
+        child: Builder(builder: builder),
+      ),
+    ),
+  );
+}
+
+class _PopupSurface extends ConsumerWidget {
+  const _PopupSurface({required this.child, required this.wide});
 
   final Widget child;
-  final VoidCallback onClose;
+
+  /// 広めの大きさ（ノートのように、編集や描画で広さが要る中身用）。
+  final bool wide;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -38,25 +63,17 @@ class PaneModalPopup extends ConsumerWidget {
         child: child,
       ),
     };
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: onClose,
-          child: const ColoredBox(color: Colors.black45),
+    return Center(
+      child: FractionallySizedBox(
+        widthFactor: wide ? 0.9 : 0.7,
+        heightFactor: wide ? 0.9 : 0.7,
+        child: ConstrainedBox(
+          constraints: wide
+              ? const BoxConstraints(maxWidth: 960, maxHeight: 800)
+              : const BoxConstraints(maxWidth: 560, maxHeight: 640),
+          child: surface,
         ),
-        Center(
-          child: FractionallySizedBox(
-            widthFactor: 0.7,
-            heightFactor: 0.7,
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 560, maxHeight: 640),
-              child: surface,
-            ),
-          ),
-        ),
-      ],
+      ),
     );
   }
 }

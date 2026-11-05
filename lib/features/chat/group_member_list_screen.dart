@@ -17,6 +17,7 @@ import '../../widgets/glass/glass_avatar.dart';
 import '../../widgets/glass/glass_dialog.dart';
 import 'user_profile_card_dialog.dart';
 import '../../widgets/dialog_keyboard_shortcuts.dart';
+import '../../widgets/app_dialog.dart';
 
 /// 広場のメンバー一覧（ポップアップの中身）。manageJoinRequests権限を持つ
 /// メンバーには、招待リンクからの参加リクエストの承認・却下UIもあわせて
@@ -48,7 +49,7 @@ class GroupMemberListPopup extends ConsumerWidget {
     final regularRoles = roles.where((r) => !r.isEveryone).toList();
     final groupRepository = ref.read(groupRepositoryProvider);
     final isGlass = ref.read(appUiStyleProvider) == AppUiStyle.glass;
-    await showDialog<void>(
+    await showAppDialog<void>(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setState) {
@@ -125,7 +126,7 @@ class GroupMemberListPopup extends ConsumerWidget {
     AppUser member,
   ) async {
     final isGlass = ref.read(appUiStyleProvider) == AppUiStyle.glass;
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAppDialog<bool>(
       context: context,
       builder: (context) {
         final title = Text(strings.groupTransferOwnershipConfirmTitle);

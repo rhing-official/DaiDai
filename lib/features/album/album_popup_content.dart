@@ -11,6 +11,7 @@ import '../../widgets/glass/glass_dialog.dart';
 import '../../widgets/glass/glass_surface.dart';
 import '../chat/button_anchored_menu.dart';
 import '../../widgets/dialog_keyboard_shortcuts.dart';
+import '../../widgets/app_dialog.dart';
 
 /// アルバムボタンの真下にアルバム一覧をポップアップ表示する（2026-08-30、
 /// `chat_screen.dart`のピン留めポップアップ（`_openPinnedMessagesPopup`/
@@ -84,7 +85,7 @@ class _AlbumPopupContentState extends ConsumerState<_AlbumPopupContent> {
     final strings = ref.read(appStringsProvider);
     final controller = TextEditingController();
     final isGlass = ref.read(appUiStyleProvider) == AppUiStyle.glass;
-    final name = await showDialog<String>(
+    final name = await showAppDialog<String>(
       context: context,
       builder: (dialogContext) {
         final title = Text(strings.albumCreateDialogTitle);
@@ -129,7 +130,7 @@ class _AlbumPopupContentState extends ConsumerState<_AlbumPopupContent> {
   Future<void> _deleteAlbum(Album album) async {
     final strings = ref.read(appStringsProvider);
     final isGlass = ref.read(appUiStyleProvider) == AppUiStyle.glass;
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAppDialog<bool>(
       context: context,
       builder: (_) {
         final title = Text(strings.albumDeleteConfirmTitle);

@@ -43,6 +43,7 @@ import 'note_table_delete.dart';
 import 'blocks/table_of_contents_block.dart';
 import '../../widgets/confirm_download_dialog.dart';
 import '../../widgets/dialog_keyboard_shortcuts.dart';
+import '../../widgets/app_dialog.dart';
 
 /// Obsidianの既定テーマに寄せた固定パレット（2026-09-26追加、ユーザー指示。
 /// アクセントカラーに依存しない固定値という点で劇画UIの`GekigaColors`と
@@ -950,7 +951,7 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
     if (editorState == null) return;
     final isGlass = ref.read(appUiStyleProvider) == AppUiStyle.glass;
     final controller = TextEditingController();
-    final url = await showDialog<String>(
+    final url = await showAppDialog<String>(
       context: context,
       builder: (dialogContext) {
         final title = Text(strings.noteEmbedUrlPromptTitle);
@@ -994,7 +995,7 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
     if (editorState == null) return;
     final noteColors = _noteColors;
     final isGlass = ref.read(appUiStyleProvider) == AppUiStyle.glass;
-    final size = await showDialog<(int, int)>(
+    final size = await showAppDialog<(int, int)>(
       context: context,
       builder: (dialogContext) {
         final content = _TableSizePicker(
@@ -1160,11 +1161,6 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
     final noteColors = _noteColors;
     final isMobile = _isMobilePlatform;
 
-    final leadingButton = IconButton(
-      icon: const Icon(Icons.arrow_back),
-      tooltip: '',
-      onPressed: _close,
-    );
     final titleField = TextField(
       controller: _titleController,
       focusNode: _titleFocusNode,
@@ -1209,7 +1205,9 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
         backgroundColor: noteColors.background,
         appBar: isGlass
             ? GlassAppBar(
-                leading: leadingButton,
+                // 戻る矢印は出さない（ダイアログで開くため。閉じるのはEsc・暗幕・戻る操作、
+                // 2026-11-05、ユーザー指示）。
+                automaticallyImplyLeading: false,
                 title: titleField,
                 actions: [
                   if (isMobile && !_isDraw) insertAction,
@@ -1219,7 +1217,7 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
             : AppBar(
                 backgroundColor: noteColors.background,
                 foregroundColor: noteColors.text,
-                leading: leadingButton,
+                automaticallyImplyLeading: false,
                 title: titleField,
                 actions: [
                   if (isMobile && !_isDraw) insertAction,
@@ -1230,7 +1228,7 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
         // `InteractiveSwipeBackTransition`で包む（下の`return`参照）。
         body: SwipeDownToDismiss(
           onDismiss: _close,
-          // ドローノートは矢印とEscでしか閉じない（2026-10-10、ユーザー指示。
+          // ドローノートはEscと暗幕・戻る操作でしか閉じない（2026-10-10、ユーザー指示。矢印は2026-11-05に削除。
           // ペンで下へなぞって誤って閉じるのを防ぐ）。
           enabled: !_isDraw,
           child: _isDraw

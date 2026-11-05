@@ -21,6 +21,7 @@ import 'chat_panes.dart' show confirmDisableReadReceipts;
 import 'conversation_profile_card_dialog.dart';
 import 'severance_dialog.dart';
 import '../../widgets/dialog_keyboard_shortcuts.dart';
+import '../../widgets/app_dialog.dart';
 
 /// [DmSettingsPopup]をガラスUI対応のダイアログでラップして開く
 /// （`showGroupSettingsDialog`と同じ構成、2026-09-13追加）。
@@ -31,7 +32,7 @@ Future<void> showDmSettingsDialog(
   required String otherUserId,
   required bool isGlass,
 }) {
-  return showDialog<void>(
+  return showAppDialog<void>(
     context: context,
     builder: (_) {
       final constrained = ConstrainedBox(
@@ -107,7 +108,7 @@ class DmSettingsPopup extends ConsumerWidget {
     BuildContext context,
     Strings strings,
   ) async {
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAppDialog<bool>(
       context: context,
       builder: (context) => KeyboardAlertDialog(
         title: Text(strings.chatAccountDeletedConfirmTitle),
@@ -137,7 +138,7 @@ class DmSettingsPopup extends ConsumerWidget {
     // ポップアップを開いたまま切り替えても見た目がすぐ反映されるよう、
     // 呼び出し元から渡された一度きりのスナップショットではなく、ここで
     // 直接プロバイダをwatchする（2026-09-14修正。以前はコンストラクタ引数
-    // `isBlocked`を使っていたが、`showDmSettingsDialog`の`showDialog`
+    // `isBlocked`を使っていたが、`showDmSettingsDialog`の`showAppDialog`
     // builderが呼ばれた時点の値に固定され、トグル操作でFirestoreへの
     // 書き込み自体は成功してもダイアログの表示だけ更新されなかった）。
     final isBlocked =

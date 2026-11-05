@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/nav_chip_layout.dart';
 import '../providers/home_shell_providers.dart';
+import '../providers/slide_pick_enabled_provider.dart';
 import 'pane_visibility.dart';
 
 /// 項目一覧（設定・身だしなみのカテゴリ一覧）の上を、指やマウスで縦になぞって選べるように
@@ -145,6 +146,7 @@ class _SlideSelectListState extends ConsumerState<SlideSelectList>
   }
 
   void _reset() {
+    _clearHandoff();
     final wasSliding = _sliding;
     _down = null;
     _sliding = false;
@@ -166,6 +168,9 @@ class _SlideSelectListState extends ConsumerState<SlideSelectList>
         return;
       }
       if (delta.dy.abs() < _slop || delta.dy.abs() < delta.dx.abs()) return;
+      // 「押したまま滑らせて選ぶ」をオフにしている時は、縦のなぞり選択も始めない
+      // （一覧のスクロールとタップはそのまま、2026-11-05）。
+      if (!ref.read(slidePickEnabledProvider)) return;
       _sliding = true;
     } else if (delta.dx.abs() >= _slop * 2 && delta.dx.abs() > delta.dy.abs()) {
       // なぞり中に、横の動きが縦を上回った。横ドラッグへの切り替えとみなして取り消す。
@@ -175,16 +180,59 @@ class _SlideSelectListState extends ConsumerState<SlideSelectList>
       setState(() {});
       return;
     }
+    // 指がこの一覧の外のチップ列などへ出たら、そちらへ選択を渡す（2026-11-05、
+    // 項目を押したままメニューチップへ滑らせてタブを切り替える）。
+    final other = _bridge.targetAt(event.position);
+    if (other != null && other != this) {
+      final otherIndex = other.indexAt(event.position);
+      if (_handoffTarget != other) {
+        _handoffTarget?.pick(null, commit: false);
+        _handoffIndex = null;
+      }
+      _handoffTarget = other;
+      if (otherIndex == null) {
+        if (_handoffIndex != null) other.pick(null, commit: false);
+        _handoffIndex = null;
+      } else if (_handoffIndex != otherIndex) {
+        _handoffIndex = otherIndex;
+        other.pick(otherIndex, commit: false);
+      }
+      // 一覧側の強調は消す。
+      if (_index != null) setState(() => _index = null);
+      return;
+    }
+    _clearHandoff();
+    // 別のタブへ切り替わって見えなくなった一覧では、選択を動かさない。
+    if (!_visible) return;
     final index = _indexAt(event.position);
     if (index == null || index == _index) return;
     setState(() => _index = index);
     widget.onSlide?.call(index);
   }
 
+  // なぞり中の指が一覧の外の登録先（チップ列）へ出ている時の渡し先。
+  ItemPickTarget? _handoffTarget;
+  int? _handoffIndex;
+
+  void _clearHandoff() {
+    if (_handoffIndex != null) _handoffTarget?.pick(null, commit: false);
+    _handoffTarget = null;
+    _handoffIndex = null;
+  }
+
   void _onUp() {
     final index = _index;
     final wasSliding = _sliding && !_horizontal;
+    final handoffTarget = _handoffTarget;
+    final handoffIndex = _handoffIndex;
+    _handoffTarget = null;
+    _handoffIndex = null;
     _reset();
+    // チップ列の上で離した時は、そのタブで確定する（項目は開かない）。
+    if (wasSliding && handoffTarget != null && handoffIndex != null) {
+      handoffTarget.pick(handoffIndex, commit: true);
+      return;
+    }
     if (wasSliding && index != null) widget.onSlideEnd?.call(index);
   }
 

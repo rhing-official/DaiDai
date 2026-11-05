@@ -13,6 +13,7 @@ import '../../utils/group_permissions.dart';
 import '../../widgets/glass/glass_dialog.dart';
 import '../../widgets/glass/glass_surface.dart';
 import 'group_member_list_screen.dart';
+import '../../widgets/app_dialog.dart';
 
 /// 広場の語らい上部に出す「参加リクエストが N 件あります」バナー（2026-10-11
 /// 追加）。承認できる人（長・`manageJoinRequests`権限者）にだけ表示し、
@@ -94,7 +95,7 @@ class JoinRequestBanner extends ConsumerWidget {
 
   void _openRequests(BuildContext context, WidgetRef ref) {
     final isGlass = ref.read(appUiStyleProvider) == AppUiStyle.glass;
-    showDialog<void>(
+    showAppDialog<void>(
       context: context,
       builder: (_) => glassAwareDialog(
         isGlass: isGlass,

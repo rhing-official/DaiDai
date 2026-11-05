@@ -8,6 +8,7 @@ import '../../providers/repository_providers.dart';
 import '../../utils/fullwidth_digits_formatter.dart';
 import '../../widgets/glass/glass_dialog.dart';
 import '../../widgets/dialog_keyboard_shortcuts.dart';
+import '../../widgets/app_dialog.dart';
 
 /// 新しい6桁パスコードを2回入力させ、一致すればその値を返すダイアログ
 /// （2026-09-11追加）。設定＞アプリケーションの「パスコードロック」有効化・
@@ -18,7 +19,7 @@ class PasscodeSetupDialog extends ConsumerStatefulWidget {
 
   /// キャンセルされた場合はnull、確定した場合は新しい6桁のパスコードを返す。
   static Future<String?> show(BuildContext context) {
-    return showDialog<String>(
+    return showAppDialog<String>(
       context: context,
       builder: (_) => const PasscodeSetupDialog(),
     );
@@ -134,7 +135,7 @@ class PasscodeVerifyDialog extends ConsumerStatefulWidget {
   const PasscodeVerifyDialog({super.key});
 
   static Future<bool> show(BuildContext context) async {
-    final result = await showDialog<bool>(
+    final result = await showAppDialog<bool>(
       context: context,
       builder: (_) => const PasscodeVerifyDialog(),
     );

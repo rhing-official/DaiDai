@@ -10,6 +10,7 @@ import '../../providers/repository_providers.dart';
 import '../../widgets/dialog_keyboard_shortcuts.dart';
 import '../../widgets/glass/glass_dialog.dart';
 import '../../widgets/qr_scan_screen.dart';
+import '../../widgets/app_dialog.dart';
 
 /// ログイン済み端末が表示したQRを、ログインしたい（未ログインの）端末が読み取って
 /// ログインする方式（2026-10-15）のログイン側。QRの文字列の接頭辞。
@@ -18,7 +19,7 @@ const kQrIssuePrefix = 'daidai:qrissue:';
 /// 読み取り開始の説明 → カメラ → [ScanQrLoginDialog]の一連の流れ。ログイン画面の
 /// 「QRコードを読み取ってログイン」ボタンから呼ぶ。
 Future<void> startScanQrLogin(BuildContext context, Strings strings) async {
-  final go = await showDialog<bool>(
+  final go = await showAppDialog<bool>(
     context: context,
     builder: (context) => _InstructionDialog(strings: strings),
   );
@@ -35,7 +36,7 @@ Future<void> startScanQrLogin(BuildContext context, Strings strings) async {
     ).showSnackBar(SnackBar(content: Text(strings.qrLoginInvalidQrError)));
     return;
   }
-  await showDialog<bool>(
+  await showAppDialog<bool>(
     context: context,
     barrierDismissible: false,
     builder: (_) =>

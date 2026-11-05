@@ -40,6 +40,7 @@ import '../../providers/app_ui_style_provider.dart';
 import '../../providers/font_design_provider.dart';
 import '../../providers/block_providers.dart';
 import '../../providers/chat_layout_style_provider.dart';
+import '../../providers/slide_pick_enabled_provider.dart';
 import '../../providers/slide_transition_style_provider.dart';
 import '../../providers/talks_list_layout_style_provider.dart';
 import '../../providers/draft_sync_enabled_provider.dart';
@@ -94,6 +95,7 @@ import 'owned_sticker_packs_popup.dart';
 import 'passkey_management_dialog.dart';
 import 'settings_accordion_section.dart';
 import '../../widgets/dialog_keyboard_shortcuts.dart';
+import '../../widgets/app_dialog.dart';
 
 /// 画面幅がこれ以上あれば、左にカテゴリ一覧（サイドバー）、右にそのカテゴリの
 /// 内容を1ページにまとめて表示するDiscord設定風の2ペイン表示にする。
@@ -1222,7 +1224,7 @@ Future<bool> _confirmStartScan(BuildContext context, Strings strings) async {
   final isGlass =
       ProviderScope.containerOf(context).read(appUiStyleProvider) ==
       AppUiStyle.glass;
-  final confirmed = await showDialog<bool>(
+  final confirmed = await showAppDialog<bool>(
     context: context,
     builder: (context) {
       final title = Text(strings.settingsQrLogin);
@@ -1261,7 +1263,7 @@ Future<bool> confirmDeletePresetColor(
   final isGlass =
       ProviderScope.containerOf(context).read(appUiStyleProvider) ==
       AppUiStyle.glass;
-  final confirmed = await showDialog<bool>(
+  final confirmed = await showAppDialog<bool>(
     context: context,
     builder: (context) {
       final title = Text(strings.settingsCustomColorDeleteConfirmTitle);
@@ -1290,7 +1292,7 @@ Future<bool> _confirmApproveQrLogin(
   final isGlass =
       ProviderScope.containerOf(context).read(appUiStyleProvider) ==
       AppUiStyle.glass;
-  final confirmed = await showDialog<bool>(
+  final confirmed = await showAppDialog<bool>(
     context: context,
     builder: (context) {
       final title = Text(strings.qrLoginScanConfirmTitle);
@@ -1325,7 +1327,7 @@ Future<bool> _confirmDisableTwoFactor(
   final isGlass =
       ProviderScope.containerOf(context).read(appUiStyleProvider) ==
       AppUiStyle.glass;
-  final confirmed = await showDialog<bool>(
+  final confirmed = await showAppDialog<bool>(
     context: context,
     builder: (context) {
       final title = Text(strings.twoFactorDisableConfirmTitle);
@@ -1478,7 +1480,7 @@ Future<bool> _confirmDisconnectGoogleCalendarSync(
   final isGlass =
       ProviderScope.containerOf(context).read(appUiStyleProvider) ==
       AppUiStyle.glass;
-  final confirmed = await showDialog<bool>(
+  final confirmed = await showAppDialog<bool>(
     context: context,
     builder: (context) {
       final title = Text(
@@ -1793,7 +1795,7 @@ class _AccountPage extends ConsumerWidget {
               constraints: const BoxConstraints(maxWidth: 400, maxHeight: 640),
               child: OwnedStickerPacksPopup(userId: currentUser.userId),
             );
-            showDialog<void>(
+            showAppDialog<void>(
               context: context,
               // ガラスUIでは素の`Dialog`だと背景・`Card`とも透明になり
               // ダイアログの輪郭自体が見えなくなっていた（2026-09-14修正、
@@ -1935,7 +1937,7 @@ class _OwnerGroupsGuardDialog extends ConsumerWidget {
 
   /// trueが返れば、削除操作の続き（確認ダイアログ）へ進んでよいという合図。
   static Future<bool> show(BuildContext context, AppUser currentUser) async {
-    final proceed = await showDialog<bool>(
+    final proceed = await showAppDialog<bool>(
       context: context,
       builder: (_) => _OwnerGroupsGuardDialog(currentUser: currentUser),
     );
@@ -1943,7 +1945,7 @@ class _OwnerGroupsGuardDialog extends ConsumerWidget {
   }
 
   Future<void> _openTransfer(BuildContext context, WidgetRef ref, Group group) {
-    return showDialog<void>(
+    return showAppDialog<void>(
       context: context,
       builder: (_) => glassAwareDialog(
         isGlass: ref.read(appUiStyleProvider) == AppUiStyle.glass,
@@ -2032,7 +2034,7 @@ Future<_DeleteAccountChoice?> _showDeleteAccountDialog(
   BuildContext context,
   Strings strings,
 ) {
-  return showDialog<_DeleteAccountChoice>(
+  return showAppDialog<_DeleteAccountChoice>(
     context: context,
     builder: (context) => glassAwareDialog(
       isGlass:
@@ -2202,6 +2204,8 @@ class _ApplicationPage extends ConsumerWidget {
         if (showNavChips) ...[
           _SectionHeader(strings.settingsNavChipsTitle),
           NavChipLayoutFolder(strings: strings),
+          const Divider(height: 24),
+          _SlidePickSwitch(strings: strings),
           const Divider(height: 24),
         ],
         _LanguageFolder(strings: strings),
@@ -4973,6 +4977,54 @@ class _MirrorSwitch extends ConsumerWidget {
       title: Text(strings.settingsTalksListMirrorTitle),
       subtitle: Text(strings.settingsTalksListMirrorSubtitle),
       onChanged: setMirrored,
+    );
+  }
+}
+
+/// 「押したまま指を滑らせて選ぶ」のオン/オフ（2026-11-05、標準オン）。
+class _SlidePickSwitch extends ConsumerWidget {
+  const _SlidePickSwitch({required this.strings});
+
+  final Strings strings;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final enabled = ref.watch(slidePickEnabledProvider);
+    final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
+    void setEnabled(bool value) =>
+        ref.read(slidePickEnabledProvider.notifier).setEnabled(value);
+
+    if (isGekiga) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 8),
+        child: GekigaJointedTileList(
+          seeds: const [1],
+          selectedFlags: const [false],
+          children: [
+            GekigaTileContent(
+              selected: false,
+              title: Text(strings.settingsSlidePickTitle),
+              subtitle: Text(strings.settingsSlidePickSubtitle),
+              trailing: Switch(
+                value: enabled,
+                onChanged: setEnabled,
+                activeThumbColor: GekigaColors.panel,
+                activeTrackColor: GekigaColors.onPanel,
+                inactiveThumbColor: GekigaColors.onPanel,
+                inactiveTrackColor: GekigaColors.panel,
+                trackOutlineColor: WidgetStatePropertyAll(GekigaColors.onPanel),
+              ),
+              onTap: () => setEnabled(!enabled),
+            ),
+          ],
+        ),
+      );
+    }
+    return SwitchListTile(
+      value: enabled,
+      title: Text(strings.settingsSlidePickTitle),
+      subtitle: Text(strings.settingsSlidePickSubtitle),
+      onChanged: setEnabled,
     );
   }
 }

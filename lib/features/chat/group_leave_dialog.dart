@@ -8,6 +8,7 @@ import '../../providers/app_ui_style_provider.dart';
 import '../../providers/repository_providers.dart';
 import '../../widgets/glass/glass_dialog.dart';
 import '../../widgets/dialog_keyboard_shortcuts.dart';
+import '../../widgets/app_dialog.dart';
 
 /// 広場からの退会確認ダイアログ。確認後、退会してホームへ戻る。
 class GroupLeaveDialog extends ConsumerStatefulWidget {
@@ -25,7 +26,7 @@ class GroupLeaveDialog extends ConsumerStatefulWidget {
     required String groupId,
     required String userId,
   }) {
-    return showDialog<void>(
+    return showAppDialog<void>(
       context: context,
       builder: (_) => GroupLeaveDialog(groupId: groupId, userId: userId),
     );

@@ -14,6 +14,7 @@ import '../../widgets/glass/glass_dialog.dart';
 import '../../widgets/glass/glass_surface.dart';
 import '../../widgets/unread_badge.dart';
 import '../../widgets/dialog_keyboard_shortcuts.dart';
+import '../../widgets/app_dialog.dart';
 
 /// 寄合（テキストチャンネル）1件分の一覧表示用の軽量データ。
 /// 広場の`Room`・一対の`DmRoom`どちらもこの形にマッピングして渡す。
@@ -449,7 +450,7 @@ Future<String?> promptForRoomName(
       child: Text(strings.roomListAddButton),
     ),
   ];
-  return showDialog<String>(
+  return showAppDialog<String>(
     context: context,
     // ガラスUIは素の`AlertDialog`だと`GlassTheme.dialogTheme.background
     // Color`がColors.transparentのため、実際の塗り・ぼかしを描く

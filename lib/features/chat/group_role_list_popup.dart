@@ -16,6 +16,7 @@ import '../../widgets/glass/glass_avatar.dart';
 import '../../widgets/glass/glass_dialog.dart';
 import 'group_role_priority_dialog.dart';
 import '../../widgets/dialog_keyboard_shortcuts.dart';
+import '../../widgets/app_dialog.dart';
 
 /// 広場のカスタムロール一覧（ポップアップの中身）。`manageRoles`権限を持つ
 /// メンバーのみが開ける（`_GroupMenuButton`側でメニュー項目自体を無効化する）。
@@ -77,7 +78,7 @@ class GroupRoleListPopup extends ConsumerWidget {
     final selectedMemberIds = {...initiallyAssignedIds};
 
     if (!context.mounted) return;
-    final result = await showDialog<bool>(
+    final result = await showAppDialog<bool>(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setState) {
@@ -357,7 +358,7 @@ class GroupRoleListPopup extends ConsumerWidget {
         child: Text(strings.groupRoleDeleteConfirmButton),
       ),
     ];
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAppDialog<bool>(
       context: context,
       builder: (context) => isGlass
           ? GlassAlertDialog(title: title, actions: actions)

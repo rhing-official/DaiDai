@@ -16,6 +16,7 @@ import '../../widgets/glass/glass_dialog.dart';
 import '../calendar/calendar_chip.dart';
 import 'poll_option_media_picker.dart';
 import '../../widgets/dialog_keyboard_shortcuts.dart';
+import '../../widgets/app_dialog.dart';
 
 /// 投票の作成モード（2026-09-06追加）。「選択肢」は自由記述の選択肢
 /// （画像添付・複数選択可・選択肢の追加を許可に対応）、「二択」は選択肢入力を
@@ -26,7 +27,7 @@ import '../../widgets/dialog_keyboard_shortcuts.dart';
 enum _PollCreateMode { options, maruBatsu }
 
 /// 投票の作成ダイアログ（2026-09-06追加）。`schedule_coordination_form_dialog.dart`
-/// と同じ`showDialog`パターン。保存されたら`true`、キャンセルされたら
+/// と同じ`showAppDialog`パターン。保存されたら`true`、キャンセルされたら
 /// `false`を返す。
 Future<bool> showPollFormDialog(
   BuildContext context, {
@@ -36,7 +37,7 @@ Future<bool> showPollFormDialog(
   required String currentUserId,
   required String currentUserRhingSeed,
 }) async {
-  final saved = await showDialog<bool>(
+  final saved = await showAppDialog<bool>(
     context: context,
     builder: (_) => _PollFormDialog(
       isDm: isDm,

@@ -13,11 +13,13 @@ import '../../providers/repository_providers.dart';
 import '../../utils/color_hex.dart';
 import '../../utils/note_export.dart';
 import '../../widgets/dialog_keyboard_shortcuts.dart';
+import '../../widgets/app_dialog.dart';
 
 enum _DrawTool { pen, eraser, pan }
 
-/// ズーム倍率の範囲（25%〜500%、2026-10-10追加）。
-const kDrawMinZoom = 0.25;
+/// ズーム倍率の範囲（2026-10-10追加。縮小側は2026-11-05に実質無制限へ変更）。
+/// 倍率が0や負になると描画が壊れるため、下限は極小の正の値にとどめる。
+const kDrawMinZoom = 0.001;
 const kDrawMaxZoom = 5.0;
 
 /// ツールバーの＋／−ボタン1回あたりの倍率。
@@ -71,8 +73,17 @@ class DrawCanvasView extends ConsumerStatefulWidget {
 }
 
 class _DrawCanvasViewState extends ConsumerState<DrawCanvasView> {
-  static const _minViewportHeight = 600.0;
-  static const _extraHeight = 800.0;
+  /// 線の外接矩形の外側に常に確保する余白（論理座標）。縦横とも、描いた範囲の外へさらに
+  /// この分だけ動ける（iOSのメモのように、描き進めるほど領域が広がる、2026-11-05）。
+  static const _pad = 1000.0;
+
+  /// 何も描いていない時の基準の領域（論理座標、左上が原点）。
+  static const _baseRect = Rect.fromLTWH(
+    0,
+    0,
+    NoteStroke.canvasWidth,
+    NoteStroke.canvasWidth,
+  );
   static const _maxPointsPerStroke = 4000;
   static const _presetColors = <int>[
     0xFF000000,
@@ -158,17 +169,49 @@ class _DrawCanvasViewState extends ConsumerState<DrawCanvasView> {
       if (!_erasedIds.contains(s.strokeId)) s,
   ];
 
-  double _logicalHeight(double viewportLogicalHeight) {
-    var maxY = 0.0;
+  /// スクロールできる全領域（論理座標）。基準の領域と全ての線の外接矩形を含み、外側に
+  /// [_pad]の余白を足したもの。左・上へ描き進むと左上（原点）が負の側へ広がる。
+  Rect _contentBounds() {
+    var rect = _baseRect;
     for (final s in _strokes) {
-      final b = s.bounds;
-      if (b.bottom > maxY) maxY = b.bottom;
+      if (s.pointCount > 0) rect = rect.expandToInclude(s.bounds);
     }
-    final needed = maxY + _extraHeight;
-    return needed > viewportLogicalHeight ? needed : viewportLogicalHeight;
+    return rect.inflate(_pad);
   }
 
-  Offset _toLogical(Offset local, double scale) => local / scale;
+  /// 前回のレイアウトでの領域の左上（論理座標）。変わったら、見ている位置が動かない
+  /// ようにスクロール量を補正する。nullなら初回（原点が画面の左上に来る位置へ送る）。
+  Offset? _lastOrigin;
+
+  void _syncScrollToOrigin(Offset origin, double scale) {
+    final last = _lastOrigin;
+    _lastOrigin = origin;
+    if (last == origin) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (last == null) {
+        // 初回: 論理座標の原点（0,0）が画面の左上に来る位置へ。
+        _jumpClamped(_hController, -origin.dx * scale);
+        _jumpClamped(_scrollController, -origin.dy * scale);
+        return;
+      }
+      if (_hController.hasClients) {
+        _jumpClamped(
+          _hController,
+          _hController.offset + (last.dx - origin.dx) * scale,
+        );
+      }
+      if (_scrollController.hasClients) {
+        _jumpClamped(
+          _scrollController,
+          _scrollController.offset + (last.dy - origin.dy) * scale,
+        );
+      }
+    });
+  }
+
+  Offset _toLogical(Offset local, double scale, Offset origin) =>
+      local / scale + origin;
 
   /// グローバル座標をビューポート内の座標へ変換する。
   Offset _toViewport(Offset global) {
@@ -251,9 +294,18 @@ class _DrawCanvasViewState extends ConsumerState<DrawCanvasView> {
     if (_pinching) {
       _updatePinch();
     } else if (_tool == _DrawTool.pan && _pointers.length == 1) {
-      // 横方向は自前で動かす（縦は`SingleChildScrollView`の慣性付きスクロール）。
+      // 縦横とも自前で動かす（2026-11-05）。標準のドラッグスクロールは、マウスでは
+      // 効かない（`ScrollBehavior.dragDevices`にマウスが含まれない）ため、縦も含めて
+      // ここで`jumpTo`する。そのため縦の`SingleChildScrollView`は常にユーザー操作を
+      // 受け付けない（タッチで二重に動かないように）。
       if (_hController.hasClients) {
         _jumpClamped(_hController, _hController.offset - event.delta.dx);
+      }
+      if (_scrollController.hasClients) {
+        _jumpClamped(
+          _scrollController,
+          _scrollController.offset - event.delta.dy,
+        );
       }
     }
   }
@@ -271,19 +323,20 @@ class _DrawCanvasViewState extends ConsumerState<DrawCanvasView> {
       _applyZoom(_zoom * signal.scale, focal);
     } else if (signal is PointerScrollEvent) {
       final keyboard = HardwareKeyboard.instance;
-      if (keyboard.isControlPressed || keyboard.isMetaPressed) {
-        _applyZoom(_zoom * math.exp(-signal.scrollDelta.dy / 200), focal);
+      // マウスホイールで拡大・縮小する（2026-11-05、ユーザー指示。以前はCtrl／Cmd＋
+      // ホイールだけが拡縮で、ホイールだけは縦スクロールだった）。ホイールの1目盛りで
+      // 約2割変わる。スクロールはShift＋ホイール（縦）に移した。
+      if (!keyboard.isShiftPressed) {
+        _applyZoom(_zoom * math.exp(-signal.scrollDelta.dy / 500), focal);
         return;
       }
-      // マウスホイールはペン/消しゴム中でもスクロールできるようにする。
+      // Shift＋ホイール: ペン/消しゴム中でもスクロールできる。ブラウザはShift＋ホイールを
+      // 横方向（dx）として渡すことがあるため、縦・横どちらの値でも縦スクロールに使う。
+      final dy = signal.scrollDelta.dy != 0
+          ? signal.scrollDelta.dy
+          : signal.scrollDelta.dx;
       if (_scrollController.hasClients) {
-        _jumpClamped(
-          _scrollController,
-          _scrollController.offset + signal.scrollDelta.dy,
-        );
-      }
-      if (signal.scrollDelta.dx != 0 && _hController.hasClients) {
-        _jumpClamped(_hController, _hController.offset + signal.scrollDelta.dx);
+        _jumpClamped(_scrollController, _scrollController.offset + dy);
       }
     }
   }
@@ -297,11 +350,11 @@ class _DrawCanvasViewState extends ConsumerState<DrawCanvasView> {
     _applyZoom(_panZoomStartZoom * event.scale, _toViewport(event.position));
   }
 
-  void _onPointerDown(PointerDownEvent event, double scale) {
+  void _onPointerDown(PointerDownEvent event, double scale, Offset origin) {
     if (_pinching || _pointers.length >= 2) return;
     if (_tool == _DrawTool.pan || _drawingPointer != null) return;
     _drawingPointer = event.pointer;
-    final point = _toLogical(event.localPosition, scale);
+    final point = _toLogical(event.localPosition, scale, origin);
     if (_tool == _DrawTool.pen) {
       _currentPoints.value = [point];
     } else {
@@ -309,9 +362,9 @@ class _DrawCanvasViewState extends ConsumerState<DrawCanvasView> {
     }
   }
 
-  void _onPointerMove(PointerMoveEvent event, double scale) {
+  void _onPointerMove(PointerMoveEvent event, double scale, Offset origin) {
     if (_pinching || event.pointer != _drawingPointer) return;
-    final point = _toLogical(event.localPosition, scale);
+    final point = _toLogical(event.localPosition, scale, origin);
     if (_tool == _DrawTool.pen) {
       final points = _currentPoints.value;
       if (points.isEmpty || points.length >= _maxPointsPerStroke) return;
@@ -415,7 +468,7 @@ class _DrawCanvasViewState extends ConsumerState<DrawCanvasView> {
   }
 
   Future<void> _clearAll(Strings strings) async {
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAppDialog<bool>(
       context: context,
       builder: (context) => KeyboardAlertDialog(
         content: Text(strings.noteDrawClearConfirm),
@@ -447,7 +500,7 @@ class _DrawCanvasViewState extends ConsumerState<DrawCanvasView> {
 
   Future<void> _pickColor(Strings strings) async {
     final controller = TextEditingController(text: Color(_color).toHexString());
-    final picked = await showDialog<int>(
+    final picked = await showAppDialog<int>(
       context: context,
       builder: (context) => KeyboardAlertDialog(
         content: SizedBox(
@@ -605,14 +658,11 @@ class _DrawCanvasViewState extends ConsumerState<DrawCanvasView> {
               // すべてこの実効倍率基準。
               final fitScale = constraints.maxWidth / NoteStroke.canvasWidth;
               final scale = fitScale * _zoom;
-              final viewportLogicalHeight = constraints.maxHeight / scale;
-              final logicalHeight = _logicalHeight(
-                viewportLogicalHeight < _minViewportHeight
-                    ? _minViewportHeight
-                    : viewportLogicalHeight,
-              );
+              final bounds = _contentBounds();
+              final origin = bounds.topLeft;
+              _syncScrollToOrigin(origin, scale);
               final visible = _visibleStrokes;
-              final canvasWidth = constraints.maxWidth * _zoom;
+              final canvasWidth = bounds.width * scale;
               final contentWidth = math.max(constraints.maxWidth, canvasWidth);
               return Listener(
                 key: _viewportKey,
@@ -625,47 +675,75 @@ class _DrawCanvasViewState extends ConsumerState<DrawCanvasView> {
                 onPointerPanZoomUpdate: _onPanZoomUpdate,
                 child: ColoredBox(
                   color: widget.background,
-                  child: SingleChildScrollView(
-                    controller: _hController,
-                    scrollDirection: Axis.horizontal,
-                    physics: const NeverScrollableScrollPhysics(),
-                    child: SizedBox(
-                      width: contentWidth,
-                      height: constraints.maxHeight,
-                      child: SingleChildScrollView(
-                        controller: _scrollController,
-                        physics: _tool == _DrawTool.pan && !_pinching
-                            ? const ClampingScrollPhysics()
-                            : const NeverScrollableScrollPhysics(),
-                        // 縮小で幅が画面幅に満たない時は、キャンバスを中央に置く。
-                        child: Center(
-                          child: Listener(
-                            onPointerDown: (e) => _onPointerDown(e, scale),
-                            onPointerMove: (e) => _onPointerMove(e, scale),
-                            onPointerUp: _onPointerEnd,
-                            onPointerCancel: _onPointerEnd,
-                            child: Container(
-                              width: canvasWidth,
-                              height: logicalHeight * scale,
-                              color: Colors.white,
-                              child: Stack(
-                                children: [
-                                  RepaintBoundary(
-                                    child: CustomPaint(
-                                      size: Size.infinite,
-                                      painter: _StrokesPainter(visible, scale),
+                  // スクロールバーは太く・常に表示して掴みやすくする（2026-11-05）。標準の
+                  // 自動のバー（細く、ホバーするまで見えにくい）は止め、ビューポートの縁に
+                  // 縦・横を自前で置く。縦のバーは内側の縦スクロールを`depth == 1`で拾う。
+                  child: ScrollConfiguration(
+                    behavior: ScrollConfiguration.of(
+                      context,
+                    ).copyWith(scrollbars: false),
+                    child: Scrollbar(
+                      controller: _scrollController,
+                      notificationPredicate: (n) => n.depth == 1,
+                      thumbVisibility: true,
+                      interactive: true,
+                      thickness: 16,
+                      radius: const Radius.circular(8),
+                      child: Scrollbar(
+                        controller: _hController,
+                        thumbVisibility: true,
+                        interactive: true,
+                        thickness: 16,
+                        radius: const Radius.circular(8),
+                        child: SingleChildScrollView(
+                          controller: _hController,
+                          scrollDirection: Axis.horizontal,
+                          physics: const NeverScrollableScrollPhysics(),
+                          child: SizedBox(
+                            width: contentWidth,
+                            height: constraints.maxHeight,
+                            child: SingleChildScrollView(
+                              controller: _scrollController,
+                              physics: const NeverScrollableScrollPhysics(),
+                              // 縮小で幅が画面幅に満たない時は、キャンバスを中央に置く。
+                              child: Center(
+                                child: Listener(
+                                  onPointerDown: (e) =>
+                                      _onPointerDown(e, scale, origin),
+                                  onPointerMove: (e) =>
+                                      _onPointerMove(e, scale, origin),
+                                  onPointerUp: _onPointerEnd,
+                                  onPointerCancel: _onPointerEnd,
+                                  child: Container(
+                                    width: canvasWidth,
+                                    height: bounds.height * scale,
+                                    color: Colors.white,
+                                    child: Stack(
+                                      children: [
+                                        RepaintBoundary(
+                                          child: CustomPaint(
+                                            size: Size.infinite,
+                                            painter: _StrokesPainter(
+                                              visible,
+                                              scale,
+                                              origin,
+                                            ),
+                                          ),
+                                        ),
+                                        CustomPaint(
+                                          size: Size.infinite,
+                                          painter: _CurrentStrokePainter(
+                                            _currentPoints,
+                                            Color(_color),
+                                            _width,
+                                            scale,
+                                            origin,
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ),
-                                  CustomPaint(
-                                    size: Size.infinite,
-                                    painter: _CurrentStrokePainter(
-                                      _currentPoints,
-                                      Color(_color),
-                                      _width,
-                                      scale,
-                                    ),
-                                  ),
-                                ],
+                                ),
                               ),
                             ),
                           ),
@@ -684,14 +762,18 @@ class _DrawCanvasViewState extends ConsumerState<DrawCanvasView> {
 }
 
 class _StrokesPainter extends CustomPainter {
-  _StrokesPainter(this.strokes, this.scale);
+  _StrokesPainter(this.strokes, this.scale, this.origin);
 
   final List<NoteStroke> strokes;
   final double scale;
 
+  /// 領域の左上の論理座標（負にもなる）。
+  final Offset origin;
+
   @override
   void paint(Canvas canvas, Size size) {
     canvas.scale(scale);
+    canvas.translate(-origin.dx, -origin.dy);
     for (final s in strokes) {
       paintNoteStroke(canvas, s);
     }
@@ -699,23 +781,32 @@ class _StrokesPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_StrokesPainter old) =>
-      old.scale != scale || !identical(old.strokes, strokes);
+      old.scale != scale ||
+      old.origin != origin ||
+      !identical(old.strokes, strokes);
 }
 
 class _CurrentStrokePainter extends CustomPainter {
-  _CurrentStrokePainter(this.points, this.color, this.width, this.scale)
-    : super(repaint: points);
+  _CurrentStrokePainter(
+    this.points,
+    this.color,
+    this.width,
+    this.scale,
+    this.origin,
+  ) : super(repaint: points);
 
   final ValueNotifier<List<Offset>> points;
   final Color color;
   final double width;
   final double scale;
+  final Offset origin;
 
   @override
   void paint(Canvas canvas, Size size) {
     final list = points.value;
     if (list.isEmpty) return;
     canvas.scale(scale);
+    canvas.translate(-origin.dx, -origin.dy);
     paintNoteStroke(
       canvas,
       NoteStroke(
@@ -732,5 +823,8 @@ class _CurrentStrokePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_CurrentStrokePainter old) =>
-      old.color != color || old.width != width || old.scale != scale;
+      old.color != color ||
+      old.width != width ||
+      old.scale != scale ||
+      old.origin != origin;
 }

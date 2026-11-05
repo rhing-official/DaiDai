@@ -21,6 +21,7 @@ import '../../widgets/glass/glass_dialog.dart';
 import 'calendar_chip.dart';
 import 'calendar_event_form_dialog.dart';
 import '../../widgets/dialog_keyboard_shortcuts.dart';
+import '../../widgets/app_dialog.dart';
 
 /// 予定の詳細・出欠回答ダイアログ（2026-09-02追加）。予定タップ時の唯一の
 /// 導線（`calendar_pane_view.dart`の`_DayEventCard.onTap`）。予定の内容編集
@@ -34,7 +35,7 @@ Future<void> showCalendarEventDetailDialog(
   required CalendarEvent event,
   required AppUser currentUser,
 }) {
-  return showDialog<void>(
+  return showAppDialog<void>(
     context: context,
     builder: (_) => _CalendarEventDetailDialog(
       isDm: isDm,
@@ -237,7 +238,7 @@ class _CalendarEventDetailDialogState
   Future<void> _delete() async {
     final strings = ref.read(appStringsProvider);
     final isGlass = ref.read(appUiStyleProvider) == AppUiStyle.glass;
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAppDialog<bool>(
       context: context,
       builder: (context) {
         final title = Text(strings.calendarDeleteConfirmTitle);

@@ -22,10 +22,11 @@ import '../../widgets/video_thumbnail.dart';
 import '../calendar/calendar_chip.dart';
 import 'poll_option_media_picker.dart';
 import '../../widgets/dialog_keyboard_shortcuts.dart';
+import '../../widgets/app_dialog.dart';
 
 /// 投票の詳細・投票ダイアログ（2026-09-06追加）。投票開始通知メッセージの
 /// タップ時、タスクバナーのタップ時いずれからも開く唯一の導線。
-/// `schedule_coordination_detail_dialog.dart`と同じ`showDialog`パターン。
+/// `schedule_coordination_detail_dialog.dart`と同じ`showAppDialog`パターン。
 Future<void> showPollDetailDialog(
   BuildContext context, {
   required bool isDm,
@@ -34,7 +35,7 @@ Future<void> showPollDetailDialog(
   required Poll poll,
   required AppUser currentUser,
 }) {
-  return showDialog<void>(
+  return showAppDialog<void>(
     context: context,
     builder: (_) => _PollDetailDialog(
       isDm: isDm,
@@ -247,7 +248,7 @@ class _PollDetailDialogState extends ConsumerState<_PollDetailDialog> {
   Future<void> _delete() async {
     final strings = ref.read(appStringsProvider);
     final isGlass = ref.read(appUiStyleProvider) == AppUiStyle.glass;
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAppDialog<bool>(
       context: context,
       builder: (context) {
         final title = Text(strings.pollDeleteConfirmTitle);

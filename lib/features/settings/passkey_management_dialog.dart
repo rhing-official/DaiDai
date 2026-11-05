@@ -13,6 +13,7 @@ import '../../repositories/auth_repository.dart';
 import '../../widgets/glass/glass_dialog.dart';
 import 'secret_questions_setup_dialog.dart';
 import '../../widgets/dialog_keyboard_shortcuts.dart';
+import '../../widgets/app_dialog.dart';
 
 /// パスキーの名前の最大文字数。サーバー側（`normalizePasskeyName`、
 /// `functions/src/index.ts`）の`PASSKEY_NAME_MAX_LENGTH`と揃える
@@ -26,7 +27,7 @@ class PasskeyManagementDialog extends ConsumerStatefulWidget {
   const PasskeyManagementDialog({super.key});
 
   static Future<void> show(BuildContext context) {
-    return showDialog<void>(
+    return showAppDialog<void>(
       context: context,
       builder: (_) => const PasskeyManagementDialog(),
     );
@@ -338,7 +339,7 @@ class _PasskeyNameDialog extends ConsumerStatefulWidget {
     required String title,
     String? initialName,
   }) {
-    return showDialog<String>(
+    return showAppDialog<String>(
       context: context,
       builder: (_) =>
           _PasskeyNameDialog(title: title, initialName: initialName),
@@ -399,7 +400,7 @@ Future<bool> _confirmDeletePasskey(
   final isGlass =
       ProviderScope.containerOf(context).read(appUiStyleProvider) ==
       AppUiStyle.glass;
-  final confirmed = await showDialog<bool>(
+  final confirmed = await showAppDialog<bool>(
     context: context,
     builder: (context) {
       final title = Text(strings.passkeyManagementDeleteConfirmTitle);

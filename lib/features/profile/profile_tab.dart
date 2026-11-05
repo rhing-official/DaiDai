@@ -61,6 +61,7 @@ import '../guide/tutorial/tutorial_controller.dart';
 import '../guide/tutorial/tutorial_target.dart';
 import 'enmusubi_page.dart';
 import '../../widgets/dialog_keyboard_shortcuts.dart';
+import '../../widgets/app_dialog.dart';
 
 enum _ProfileSection { kura, koubou, enmusubi }
 
@@ -293,7 +294,7 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
 
   Future<void> _addStatusMessage() async {
     if (_user.statusMessages.length >= kMaxStatusMessages) return;
-    final result = await showDialog<_EditResult>(
+    final result = await showAppDialog<_EditResult>(
       context: context,
       builder: (context) => const _StatusMessageDialog(),
     );
@@ -313,7 +314,7 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
   }
 
   Future<void> _editStatusMessage(StatusMessage message) async {
-    final result = await showDialog<_EditResult>(
+    final result = await showAppDialog<_EditResult>(
       context: context,
       builder: (context) => _StatusMessageDialog(initialText: message.text),
     );
@@ -361,7 +362,7 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
 
   Future<void> _addNickname() async {
     if (_user.nicknames.length >= kMaxNicknames) return;
-    final result = await showDialog<_EditResult>(
+    final result = await showAppDialog<_EditResult>(
       context: context,
       builder: (context) => const _NicknameDialog(),
     );
@@ -381,7 +382,7 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
   }
 
   Future<void> _editNickname(Nickname nickname) async {
-    final result = await showDialog<_EditResult>(
+    final result = await showAppDialog<_EditResult>(
       context: context,
       builder: (context) => _NicknameDialog(initialText: nickname.text),
     );
@@ -427,7 +428,7 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
 
   Future<void> _addFontDesignMaterial() async {
     if (_user.fontDesignMaterials.length >= kMaxFontDesigns) return;
-    final result = await showDialog<_FontDesignEditResult>(
+    final result = await showAppDialog<_FontDesignEditResult>(
       context: context,
       builder: (context) => const _FontDesignMaterialDialog(),
     );
@@ -452,7 +453,7 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
   }
 
   Future<void> _editFontDesignMaterial(FontDesignMaterial material) async {
-    final result = await showDialog<_FontDesignEditResult>(
+    final result = await showAppDialog<_FontDesignEditResult>(
       context: context,
       builder: (context) => _FontDesignMaterialDialog(
         initialDesign: material.design,
@@ -501,7 +502,7 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
 
   Future<void> _addSnsLink() async {
     if (_user.snsLinks.length >= kMaxSnsLinks) return;
-    final result = await showDialog<_EditResult>(
+    final result = await showAppDialog<_EditResult>(
       context: context,
       builder: (context) => const _SnsLinkDialog(),
     );
@@ -516,7 +517,7 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
   }
 
   Future<void> _editSnsLink(SnsLink link) async {
-    final result = await showDialog<_EditResult>(
+    final result = await showAppDialog<_EditResult>(
       context: context,
       builder: (context) => _SnsLinkDialog(initialText: link.url),
     );
@@ -569,7 +570,7 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
   /// 蔵の誕生日を登録・変更・削除する（2026-10-23追加、1件だけ）。削除した時は、
   /// 全カードの「誕生日を載せる」設定も外す。
   Future<void> _editBirthday() async {
-    final result = await showDialog<_BirthdayEdit>(
+    final result = await showAppDialog<_BirthdayEdit>(
       context: context,
       builder: (context) => _BirthdayDialog(initial: _user.birthday),
     );
@@ -1472,7 +1473,7 @@ class _WorkshopConversationCardSection extends ConsumerWidget {
       return;
     }
 
-    final selectedIds = await showDialog<Set<String>>(
+    final selectedIds = await showAppDialog<Set<String>>(
       context: context,
       builder: (context) => _AddConversationCardDialog(
         userId: user.userId,
@@ -1497,7 +1498,7 @@ class _WorkshopConversationCardSection extends ConsumerWidget {
     // できないため、ProfileCardPickerだけを載せた軽量ダイアログでカードを
     // 1つ選ばせ、選んだ全ての会話へ一括適用する（2026-08-05追加）。
     final isGlass = ref.read(appUiStyleProvider) == AppUiStyle.glass;
-    final cardId = await showDialog<String?>(
+    final cardId = await showAppDialog<String?>(
       context: context,
       builder: (context) {
         final title = Text(strings.conversationProfileCardMenuLabel);
@@ -3767,7 +3768,7 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
   /// 切り替えず、登録を促す。
   Future<void> _toggleBirthday() async {
     if (widget.user.birthday == null) {
-      await showDialog<void>(
+      await showAppDialog<void>(
         context: context,
         builder: (context) => AlertDialog(
           content: Text(widget.strings.workshopBirthdayNotRegisteredHint),
@@ -3799,7 +3800,7 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
   /// 文字色をカラーコード・プリセットで選ぶ（2026-10-31）。決定ボタンは無く、
   /// 6桁・8桁を入力し終えた時やプリセットを選んだ時に、その場で反映する。
   Future<void> _pickFontColor() async {
-    await showDialog<void>(
+    await showAppDialog<void>(
       context: context,
       builder: (_) => _FontColorDialog(
         initial: _card.fontColor ?? Colors.white,
@@ -4007,7 +4008,7 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
           listen: false,
         ).read(appUiStyleProvider) ==
         AppUiStyle.glass;
-    return showDialog<bool>(
+    return showAppDialog<bool>(
       context: context,
       builder: (dialogContext) {
         final title = Text(strings.workshopDeleteCardTitle(_card.name));

@@ -12,6 +12,7 @@ import '../../providers/repository_providers.dart';
 import '../../utils/auto_dismiss_banner.dart';
 import '../../widgets/glass/glass_dialog.dart';
 import '../../widgets/dialog_keyboard_shortcuts.dart';
+import '../../widgets/app_dialog.dart';
 
 /// 予定の作成・編集ダイアログ（2026-09-01追加）。作成後の内容編集は出欠
 /// 回答済みの住人との齟齬を避けるため2026-09-02に一旦廃止したが、回答者が
@@ -19,7 +20,7 @@ import '../../widgets/dialog_keyboard_shortcuts.dart';
 /// 2026-09-04に再度許可した（[existingEvent]非null時が編集モード、
 /// firestore.rules側でも同条件を強制）。詳細・出欠は
 /// `calendar_event_detail_dialog.dart`。`AlbumRepository`の作成ダイアログと
-/// 同じ`showDialog`パターン。保存された（作成/編集された）
+/// 同じ`showAppDialog`パターン。保存された（作成/編集された）
 /// [CalendarEvent]を返し、キャンセルされたら`null`を返す（2026-09-05変更、
 /// 日程調整の確定機能`schedule_coordination_detail_dialog.dart`が作成された
 /// イベントのidを必要とするため、以前の`Future<bool>`から変更した）。
@@ -33,7 +34,7 @@ Future<CalendarEvent?> showCalendarEventFormDialog(
   DateTime? initialDate,
   CalendarEvent? existingEvent,
 }) {
-  return showDialog<CalendarEvent>(
+  return showAppDialog<CalendarEvent>(
     context: context,
     builder: (_) => _CalendarEventFormDialog(
       isDm: isDm,

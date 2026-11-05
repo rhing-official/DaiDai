@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/home_shell_providers.dart';
+import '../providers/slide_pick_enabled_provider.dart';
 import 'pane_visibility.dart';
 
 /// メニューチップから始めたタッチを、そのまま滑らせて操作できる部品（ボタン・タブ）にする
@@ -51,7 +52,7 @@ class _PickZoneState extends ConsumerState<PickZone> implements ItemPickTarget {
   bool _left = false;
 
   void _onDown(PointerDownEvent event) {
-    if (!widget.slideFrom) return;
+    if (!widget.slideFrom || !ref.read(slidePickEnabledProvider)) return;
     if (event.kind == PointerDeviceKind.mouse &&
         event.buttons != kPrimaryMouseButton) {
       return;
