@@ -36,7 +36,12 @@ Future<void> showDmSettingsDialog(
     context: context,
     builder: (_) {
       final constrained = ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 420, maxHeight: 640),
+        // 高さの上限は設けない（画面に収まる限り全項目を見せる。収まらない時は`Dialog`が
+        // 画面の高さで頭打ちにし、一覧がスクロールする、2026-11-05）。
+        constraints: const BoxConstraints(
+          maxWidth: 420,
+          maxHeight: double.infinity,
+        ),
         child: DmSettingsPopup(
           currentUser: currentUser,
           dm: dm,

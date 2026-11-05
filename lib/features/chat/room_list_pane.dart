@@ -155,9 +155,7 @@ class _RoomListPaneState extends ConsumerState<RoomListPane> {
           final t = animation.value;
           Widget result = Transform.scale(scale: 1.0 + 0.04 * t, child: child);
 
-          if (isGekiga) {
-            result = Transform.rotate(angle: 0.02 * t, child: result);
-          } else {
+          if (!isGekiga) {
             result = DecoratedBox(
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(12),
@@ -169,8 +167,16 @@ class _RoomListPaneState extends ConsumerState<RoomListPane> {
               child: result,
             );
           }
+          // 持ち上げた時の傾きは、劇画・フラット・ガラスで共通（2026-11-05、フラット・
+          // ガラスにも追加）。縁取りごと傾ける。
+          result = Transform.rotate(angle: 0.02 * t, child: result);
 
-          return Opacity(opacity: 1.0 - 0.06 * t, child: result);
+          // 劇画の黒い箱（非選択）は塗りが濃く、わずかな不透明度低下では後ろが透けて
+          // 見えなかったため、劇画は大きく下げる（2026-11-05）。
+          return Opacity(
+            opacity: 1.0 - (isGekiga ? 0.05 : 0.06) * t,
+            child: result,
+          );
         },
         child: child,
       ),

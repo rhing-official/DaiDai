@@ -49,7 +49,9 @@ Future<void> showGroupSettingsDialog(
       final constrained = ConstrainedBox(
         constraints: BoxConstraints(
           maxWidth: 420,
-          maxHeight: currentUser.profileCards.length > 1 ? 696 : 640,
+          // 高さの上限は設けない（画面に収まる限り全項目を見せる。収まらない時は
+          // `Dialog`が画面の高さで頭打ちにし、一覧がスクロールする、2026-11-05）。
+          maxHeight: double.infinity,
         ),
         child: GroupSettingsPopup(currentUser: currentUser, group: group),
       );
@@ -101,6 +103,7 @@ class GroupSettingsPopup extends ConsumerWidget {
     required bool isGlass,
     double maxWidth = 400,
     double maxHeight = 640,
+    bool bare = false,
   }) {
     final constrained = ConstrainedBox(
       constraints: BoxConstraints(maxWidth: maxWidth, maxHeight: maxHeight),
@@ -113,6 +116,19 @@ class GroupSettingsPopup extends ConsumerWidget {
     final dialogConstraints = maxWidth > 400
         ? BoxConstraints(maxWidth: maxWidth)
         : null;
+    // 広場のプロフィールカードなど、カード自体が面を持つものは、周りに面・枠を付けず
+    // カードだけを浮かべる（2026-11-05、カードの周りの枠を削除）。
+    if (bare) {
+      return showAppDialog<void>(
+        context: context,
+        builder: (_) => Dialog(
+          backgroundColor: Colors.transparent,
+          surfaceTintColor: Colors.transparent,
+          elevation: 0,
+          child: constrained,
+        ),
+      );
+    }
     return showAppDialog<void>(
       context: context,
       // ガラステーマはdialogThemeの背景を透明にしている（`GlassAlertDialog`
@@ -251,6 +267,7 @@ class GroupSettingsPopup extends ConsumerWidget {
                   context,
                   GroupProfileCardPopup(group: liveGroup),
                   isGlass: isGlass,
+                  bare: true,
                 ),
               ),
               if (currentUser.profileCards.length > 1)

@@ -3239,8 +3239,8 @@ class Strings {
     notFoundBody:
         '本日は存在しないページ特別展を開催しております。\n'
         'お探しのページは見当たりませんでした。\n'
-        'URLをご確認のうえ、常設展示からお探しください。',
-    notFoundBackToTop: 'トップページへ戻る',
+        'URLをご確認の上、常設展示からお探しください。',
+    notFoundBackToTop: 'DaiDaiへ戻る',
     notFoundContact: 'お問い合わせ',
     signInFailedTemplate: (error) => 'ログインに失敗しました: $error',
     signInTagline: '整う、守る、私に馴染む。',

@@ -3848,6 +3848,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       child: CallbackShortcuts(
         bindings: {
           const SingleActivator(LogicalKeyboardKey.escape): _handleEscapeKey,
+          // 削除用に選択している間は、DeleteキーとBackspaceキーでも削除の確認へ進む
+          // （2026-11-05）。入力欄にフォーカスがある時は文字の削除が先に処理される
+          // （`EditableText`が先にキーを受けるため、ここまで届かない）。
+          if (_selecting && _selectedMessageIds.isNotEmpty) ...{
+            const SingleActivator(LogicalKeyboardKey.delete):
+                _confirmDeleteSelected,
+            const SingleActivator(LogicalKeyboardKey.backspace):
+                _confirmDeleteSelected,
+          },
         },
         child: PopScope(
           // 戻る操作は、ぺったんドックが開いていれば先にそれを閉じる。
@@ -5458,6 +5467,45 @@ class _MessageRow extends ConsumerWidget {
     // 吹き出し本体だけに絞る（2026-07-29変更）。以前は行全体（余白込み）が
     // 対象だったが、余白部分の長押しは自動スクロール（[_MessageInteractions]
     // 参照）に割り当てたため、両者が同じ操作を奪い合わないよう分離した。
+    // 長押し/右クリックのメニュー付きで包む。吹き出しと、その下のURLプレビューで同じ
+    // メニュー（返信・リアクション・コピー等）を出す（2026-11-05、プレビューの長押し対応）。
+    Widget withMessageMenu(Widget child) => _MessageBubbleTapArea(
+      canSelect: canSelect,
+      strings: strings,
+      onReply: () => onReply?.call(message),
+      onEdit: canEdit ? () => onEdit?.call(message) : null,
+      onUnsend: (isMe && onUnsend != null)
+          ? () => _confirmUnsend(context, ref, strings)
+          : null,
+      onReact: onSetReaction == null ? null : _toggleMyReaction,
+      isPinned: pinnedMessageIds.contains(message.messageId),
+      onTogglePin: (onPinMessage == null && onUnpinMessage == null)
+          ? null
+          : () => pinnedMessageIds.contains(message.messageId)
+                ? onUnpinMessage?.call(message.messageId)
+                : onPinMessage?.call(message.messageId),
+      onCopySelect: () => onCopyMessage?.call(message),
+      onPartialCopySelect: () =>
+          onEnterTextCopy?.call(message.messageId, message.content),
+      onSelect: canSelect
+          ? () => onEnterSelection?.call(message.messageId)
+          : null,
+      onScreenshotSelect: canSelect
+          ? () => onEnterScreenshotSelection?.call(message.messageId)
+          : null,
+      onAddToAlbum:
+          (onAddToAlbum != null &&
+              (message.contentType == 'image' ||
+                  message.contentType == 'video' ||
+                  message.attachments.any((a) => a.isMedia)))
+          ? () => onAddToAlbum!(message)
+          : null,
+      onShare: (message.fileMetadata != null || message.attachments.isNotEmpty)
+          ? () => shareMessageAttachments(message)
+          : null,
+      child: child,
+    );
+
     final bubbleWithReadMark = Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: alignRight
@@ -5482,51 +5530,7 @@ class _MessageRow extends ConsumerWidget {
               // （ジェスチャー競合回避、2026-08-09追加）。明示的な×ボタンは
               // 廃止し、コピー操作（Ctrl+C・選択ツールバーの「コピー」）や
               // Escキーを検知して自動でモードを終了する。
-              child: textCopySelecting
-                  ? bubble
-                  : _MessageBubbleTapArea(
-                      canSelect: canSelect,
-                      strings: strings,
-                      onReply: () => onReply?.call(message),
-                      onEdit: canEdit ? () => onEdit?.call(message) : null,
-                      onUnsend: (isMe && onUnsend != null)
-                          ? () => _confirmUnsend(context, ref, strings)
-                          : null,
-                      onReact: onSetReaction == null ? null : _toggleMyReaction,
-                      isPinned: pinnedMessageIds.contains(message.messageId),
-                      onTogglePin:
-                          (onPinMessage == null && onUnpinMessage == null)
-                          ? null
-                          : () => pinnedMessageIds.contains(message.messageId)
-                                ? onUnpinMessage?.call(message.messageId)
-                                : onPinMessage?.call(message.messageId),
-                      onCopySelect: () => onCopyMessage?.call(message),
-                      onPartialCopySelect: () => onEnterTextCopy?.call(
-                        message.messageId,
-                        message.content,
-                      ),
-                      onSelect: canSelect
-                          ? () => onEnterSelection?.call(message.messageId)
-                          : null,
-                      onScreenshotSelect: canSelect
-                          ? () => onEnterScreenshotSelection?.call(
-                              message.messageId,
-                            )
-                          : null,
-                      onAddToAlbum:
-                          (onAddToAlbum != null &&
-                              (message.contentType == 'image' ||
-                                  message.contentType == 'video' ||
-                                  message.attachments.any((a) => a.isMedia)))
-                          ? () => onAddToAlbum!(message)
-                          : null,
-                      onShare:
-                          (message.fileMetadata != null ||
-                              message.attachments.isNotEmpty)
-                          ? () => shareMessageAttachments(message)
-                          : null,
-                      child: bubble,
-                    ),
+              child: textCopySelecting ? bubble : withMessageMenu(bubble),
             ),
             if (!alignRight && readBadge != null) ...[
               const SizedBox(width: 6),
@@ -5597,7 +5601,15 @@ class _MessageRow extends ConsumerWidget {
               const SizedBox(height: 2),
               bubbleWithReadMark,
               for (final url in previewUrls)
-                LinkPreviewCard(url: url, isGekiga: isGekiga, isMe: isMe),
+                textCopySelecting
+                    ? LinkPreviewCard(url: url, isGekiga: isGekiga, isMe: isMe)
+                    : withMessageMenu(
+                        LinkPreviewCard(
+                          url: url,
+                          isGekiga: isGekiga,
+                          isMe: isMe,
+                        ),
+                      ),
             ],
           ),
         ),
@@ -5676,7 +5688,19 @@ class _MessageRow extends ConsumerWidget {
                     const SizedBox(height: 2),
                     bubbleWithReadMark,
                     for (final url in previewUrls)
-                      LinkPreviewCard(url: url, isGekiga: isGekiga, isMe: isMe),
+                      textCopySelecting
+                          ? LinkPreviewCard(
+                              url: url,
+                              isGekiga: isGekiga,
+                              isMe: isMe,
+                            )
+                          : withMessageMenu(
+                              LinkPreviewCard(
+                                url: url,
+                                isGekiga: isGekiga,
+                                isMe: isMe,
+                              ),
+                            ),
                   ],
                 ),
               ),
