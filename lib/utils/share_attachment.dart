@@ -15,10 +15,28 @@ Future<void> shareMessageAttachments(Message message) {
   final items = message.attachments.isNotEmpty
       ? message.attachments
       : [if (message.fileMetadata != null) message.fileMetadata!];
+  // 添付が無い本文だけのメッセージは、本文を共有シートへ渡す（2026-11-05）。
+  if (items.isEmpty) return shareText(message.content);
   return shareFiles([
     for (final item in items)
       (url: item.url, name: item.fileName, mimeType: item.mimeType),
   ]);
+}
+
+/// 共有できるメッセージか（添付がある、または本文だけの通常のメッセージ）。
+bool shareableMessage(Message message) =>
+    message.fileMetadata != null ||
+    message.attachments.isNotEmpty ||
+    (message.contentType == 'text' && message.content.trim().isNotEmpty);
+
+/// 本文を共有する。共有シートが使えない環境（Linux等）では何もしない。
+Future<void> shareText(String text) async {
+  if (text.trim().isEmpty) return;
+  try {
+    await SharePlus.instance.share(ShareParams(text: text));
+  } catch (e, st) {
+    debugPrint('Failed to share text: $e\n$st');
+  }
 }
 
 /// 共有するファイル1件（取得先URL・ファイル名・MIME）。

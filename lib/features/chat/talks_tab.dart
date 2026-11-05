@@ -29,7 +29,7 @@ import '../../models/message.dart';
 import '../../models/nav_chip_layout.dart';
 import '../../providers/nav_chip_layout_provider.dart';
 import '../../providers/icon_split_layout_provider.dart';
-import '../../providers/icon_split_scale_provider.dart';
+import '../../providers/text_size_provider.dart';
 import '../../widgets/nav_chip.dart';
 import '../../widgets/pick_zone.dart';
 import '../../models/talks_list_layout_style.dart';
@@ -339,21 +339,16 @@ class _LiveWidth extends ConsumerWidget {
   }
 }
 
-/// アイコン列・寄合一覧の文字とアイコンを[scale]倍にする（2026-11-05）。拡大率が1.0でも
-/// 常に包み、木の形を変えない（再マウント防止）。
+/// アイコン列・寄合一覧のアイコンを[scale]倍にする（2026-11-05）。文字は全体の文字サイズ
+/// （`main.dart`の`MediaQuery`）で既に拡大されているため、ここでは二重に拡大しない。
+/// 拡大率が1.0でも常に包み、木の形を変えない（再マウント防止）。
 Widget scaledSplitPane(double scale, Widget child) {
   return Builder(
     builder: (context) {
-      final media = MediaQuery.of(context);
       final iconTheme = IconTheme.of(context);
-      return MediaQuery(
-        data: media.copyWith(
-          textScaler: TextScaler.linear(media.textScaler.scale(1) * scale),
-        ),
-        child: IconTheme(
-          data: iconTheme.copyWith(size: (iconTheme.size ?? 24.0) * scale),
-          child: child,
-        ),
+      return IconTheme(
+        data: iconTheme.copyWith(size: (iconTheme.size ?? 24.0) * scale),
+        child: child,
       );
     },
   );
@@ -638,7 +633,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
   /// 畳む時に隠す幅（アイコン列＋区切り線＋寄合一覧、今の幅設定に応じる）。
   double _iconSplitCollapseWidthNow() {
     final widths = iconSplitWidths(
-      scale: ref.read(iconSplitScaleProvider),
+      scale: ref.read(appTextSizeProvider).scale,
       screenWidth: MediaQuery.sizeOf(context).width,
       layout: ref.read(iconSplitLayoutProvider),
       showPeek: true,
@@ -1622,6 +1617,22 @@ class _TalksTabState extends ConsumerState<TalksTab>
 
                   if (_chatExpanded) return detailPane;
 
+                  // 標準は260px。「幅を調整する」モードの間だけ区切り線で変えられる
+                  // （2026-11-05）。メッセージ画面側が狭くなりすぎない範囲に収める。
+                  final computerListWidth =
+                      (ref.watch(iconSplitLayoutProvider).computerListWidth ??
+                              260.0)
+                          .clamp(
+                            200.0,
+                            math.max(
+                              200.0,
+                              math.min(
+                                560.0,
+                                MediaQuery.sizeOf(context).width * 0.5,
+                              ),
+                            ),
+                          )
+                          .toDouble();
                   return Row(
                     children: [
                       // 260px: 語らい一覧のブロック（アイコン＋名前＋ピン/ミュート
@@ -1636,8 +1647,20 @@ class _TalksTabState extends ConsumerState<TalksTab>
                       // 折り返せない）が「+」ボタン手前でクリップされ欠けて見える
                       // 不具合が発生したため260へ広げ（250へ微調整後、再度260へ
                       // 戻した）、3画面とも同じ値で揃える。
-                      SizedBox(width: 260, child: listPane),
-                      const VerticalDivider(width: 1),
+                      SizedBox(width: computerListWidth, child: listPane),
+                      SplitDivider(
+                        width: computerListWidth,
+                        mirrored: false,
+                        onChanged: (w) => ref
+                            .read(iconSplitLayoutProvider.notifier)
+                            .setComputerList(w),
+                        onDragEnd: () => ref
+                            .read(iconSplitLayoutProvider.notifier)
+                            .persist(),
+                        onReset: () => ref
+                            .read(iconSplitLayoutProvider.notifier)
+                            .resetComputerList(),
+                      ),
                       Expanded(child: detailPane),
                     ],
                   );
@@ -1775,7 +1798,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
     List<GroupJoinRequest> pendingGroupRequests,
     Set<String> blockedIds,
   ) {
-    final splitScale = ref.watch(iconSplitScaleProvider);
+    final splitScale = ref.watch(appTextSizeProvider).scale;
     final splitLayout = ref.watch(iconSplitLayoutProvider);
     final screenWidth = MediaQuery.sizeOf(context).width;
     final splitWidths = iconSplitWidths(
@@ -1895,7 +1918,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
               padding: EdgeInsets.only(
                 bottom: extend ? kNavChipSize + kNavChipMargin * 2 : 0,
               ),
-              child: _FrozenWidthPane(mirrored: mirrored, child: detail),
+              child: detail,
             ),
           ),
         ],
@@ -1936,7 +1959,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
           Expanded(
             child: InteractiveSwipeBackScope(
               controller: _iconSplitSwipeBackController,
-              child: _FrozenWidthPane(mirrored: mirrored, child: detail),
+              child: detail,
             ),
           ),
         ],
@@ -4062,7 +4085,9 @@ class _ConversationIconTile extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               textAlign: sideLabel ? TextAlign.start : TextAlign.center,
               style: TextStyle(
-                fontSize: 11,
+                // 小さくて読みにくいため大きくした（2026-11-05）。アイコンの下は
+                // 幅が狭いので控えめ、横に出す時は余裕があるので大きめ。
+                fontSize: sideLabel ? 14 : 12,
                 fontWeight: selected ? FontWeight.bold : FontWeight.normal,
                 color: colorScheme.onSurface,
               ),
@@ -4956,7 +4981,7 @@ class _DmDetailWithRoomsState extends ConsumerState<_DmDetailWithRooms> {
 
   @override
   Widget build(BuildContext context) {
-    final splitScale = ref.watch(iconSplitScaleProvider);
+    final splitScale = ref.watch(appTextSizeProvider).scale;
     final splitLayout = ref.watch(iconSplitLayoutProvider);
     final splitScreenWidth = MediaQuery.sizeOf(context).width;
     final splitWidths = iconSplitWidths(
@@ -5334,7 +5359,7 @@ class _GroupDetailWithRoomsState extends ConsumerState<_GroupDetailWithRooms> {
 
   @override
   Widget build(BuildContext context) {
-    final splitScale = ref.watch(iconSplitScaleProvider);
+    final splitScale = ref.watch(appTextSizeProvider).scale;
     final splitLayout = ref.watch(iconSplitLayoutProvider);
     final splitScreenWidth = MediaQuery.sizeOf(context).width;
     final splitWidths = iconSplitWidths(

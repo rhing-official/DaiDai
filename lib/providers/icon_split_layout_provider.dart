@@ -5,11 +5,16 @@ import 'home_shell_providers.dart';
 
 const _railKey = 'iconSplitRailFraction';
 const _listKey = 'iconSplitListFraction';
+const _computerListKey = 'computerTalksListWidth';
 
 /// 「アイコン＋寄合一覧」の、区切り線をドラッグして決めた幅（画面の幅に対する割合、
 /// 2026-11-05）。nullは未設定＝標準の幅（「一覧の大きさ」に連動）。端末ごとの保存のみ。
 class IconSplitLayout {
-  const IconSplitLayout({this.railFraction, this.listFraction});
+  const IconSplitLayout({
+    this.railFraction,
+    this.listFraction,
+    this.computerListWidth,
+  });
 
   /// アイコン列の幅の割合。
   final double? railFraction;
@@ -17,14 +22,22 @@ class IconSplitLayout {
   /// 寄合一覧（メッセージ画面の隣に出す広い画面のみ）の幅の割合。
   final double? listFraction;
 
+  /// コンピューターの左右分割で、語らい一覧の幅（px、標準は260）。
+  final double? computerListWidth;
+
   IconSplitLayout copyWith({
     double? railFraction,
     double? listFraction,
     bool clearRail = false,
+    double? computerListWidth,
     bool clearList = false,
+    bool clearComputerList = false,
   }) => IconSplitLayout(
     railFraction: clearRail ? null : (railFraction ?? this.railFraction),
     listFraction: clearList ? null : (listFraction ?? this.listFraction),
+    computerListWidth: clearComputerList
+        ? null
+        : (computerListWidth ?? this.computerListWidth),
   );
 }
 
@@ -37,6 +50,7 @@ Future<IconSplitLayout> loadInitialIconSplitLayout() async {
   return IconSplitLayout(
     railFraction: prefs.getDouble(_railKey),
     listFraction: prefs.getDouble(_listKey),
+    computerListWidth: prefs.getDouble(_computerListKey),
   );
 }
 
@@ -49,6 +63,14 @@ class IconSplitLayoutNotifier extends Notifier<IconSplitLayout> {
       state = state.copyWith(railFraction: fraction);
   void setList(double fraction) =>
       state = state.copyWith(listFraction: fraction);
+
+  void setComputerList(double width) =>
+      state = state.copyWith(computerListWidth: width);
+
+  void resetComputerList() {
+    state = state.copyWith(clearComputerList: true);
+    persist();
+  }
 
   /// 標準の幅に戻す。
   void resetRail() {
@@ -74,6 +96,12 @@ class IconSplitLayoutNotifier extends Notifier<IconSplitLayout> {
       await prefs.remove(_listKey);
     } else {
       await prefs.setDouble(_listKey, list);
+    }
+    final computerList = state.computerListWidth;
+    if (computerList == null) {
+      await prefs.remove(_computerListKey);
+    } else {
+      await prefs.setDouble(_computerListKey, computerList);
     }
   }
 }

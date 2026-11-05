@@ -97,8 +97,12 @@ class Strings {
     required this.settingsSlideTransitionSuck,
     required this.settingsTalksListLayoutTitle,
     required this.settingsTalksListLayoutNote,
-    required this.settingsIconSplitScaleTitle,
-    required this.settingsIconSplitScaleSubtitle,
+    required this.settingsTextSizeTitle,
+    required this.settingsTextSizeSubtitle,
+    required this.settingsTextSizeSmall,
+    required this.settingsTextSizeMedium,
+    required this.settingsTextSizeLarge,
+    required this.settingsIconSplitAdjustNote,
     required this.settingsIconSplitAdjustButton,
     required this.settingsSlidePickTitle,
     required this.settingsSlidePickSubtitle,
@@ -434,6 +438,13 @@ class Strings {
     required this.pdfOpenFailed,
     required this.mediaForwardTooltip,
     required this.mediaShareTooltip,
+    required this.forwardDialogTitle,
+    required this.forwardSearchHint,
+    required this.forwardNoResults,
+    required this.forwardBack,
+    required this.forwardSending,
+    required this.forwardDone,
+    required this.forwardFailed,
     required this.setupBack,
     required this.setupNext,
     required this.setupDone,
@@ -1099,8 +1110,12 @@ class Strings {
   /// 縦表示での語らい一覧レイアウト（2026-09-11追加、設定＞語らい）。
   final String settingsTalksListLayoutTitle;
   final String settingsTalksListLayoutNote;
-  final String settingsIconSplitScaleTitle;
-  final String settingsIconSplitScaleSubtitle;
+  final String settingsTextSizeTitle;
+  final String settingsTextSizeSubtitle;
+  final String settingsTextSizeSmall;
+  final String settingsTextSizeMedium;
+  final String settingsTextSizeLarge;
+  final String settingsIconSplitAdjustNote;
   final String settingsIconSplitAdjustButton;
   final String settingsSlidePickTitle;
   final String settingsSlidePickSubtitle;
@@ -1505,6 +1520,13 @@ class Strings {
   /// 画像・動画ビューアの右上のアイコンのツールチップ（転送・共有は今はアイコンのみ）。
   final String mediaForwardTooltip;
   final String mediaShareTooltip;
+  final String forwardDialogTitle;
+  final String forwardSearchHint;
+  final String forwardNoResults;
+  final String forwardBack;
+  final String forwardSending;
+  final String forwardDone;
+  final String forwardFailed;
   final String setupBack;
   final String setupNext;
   final String setupDone;
@@ -2403,10 +2425,15 @@ class Strings {
     settingsTalksListLayoutTitle: '語らい一覧のレイアウト',
     settingsTalksListLayoutNote:
         '縦画面で適用されます。横画面（幅の広い画面）のコンピューターでは、この設定にかかわらず左右分割で表示されます。',
-    settingsIconSplitScaleTitle: '一覧の大きさ',
+    settingsTextSizeTitle: '文字サイズ',
+    settingsTextSizeSubtitle:
+        'アプリ全体の文字の大きさを変えます。「アイコン＋寄合一覧」の幅とアイコンも一緒に大きくなります。この端末だけに保存されます。',
+    settingsTextSizeSmall: '小',
+    settingsTextSizeMedium: '中',
+    settingsTextSizeLarge: '大',
     settingsIconSplitAdjustButton: '幅を調整する',
-    settingsIconSplitScaleSubtitle:
-        '「アイコン＋寄合一覧」の文字とアイコンの大きさを変えます。幅は、下の「幅を調整する」を押すと語らい一覧の区切り線をドラッグして変えられます（ダブルタップで元の幅、タップで終了）。この端末だけに保存されます。',
+    settingsIconSplitAdjustNote:
+        '語らい一覧の幅は、「幅を調整する」を押すと区切り線をドラッグして変えられます（ダブルタップで元の幅、タップで終了）。この端末だけに保存されます。',
     settingsSlidePickTitle: '押したまま滑らせて選ぶ',
     settingsSlidePickSubtitle:
         'メニューチップや語らいのボタンを押したまま指を滑らせ、離した所を選びます。オフにすると、1回ずつタップして操作します。',
@@ -2762,6 +2789,13 @@ class Strings {
     pdfOpenFailed: 'PDFを開けませんでした',
     mediaForwardTooltip: '転送',
     mediaShareTooltip: '共有',
+    forwardDialogTitle: '転送先を選ぶ',
+    forwardSearchHint: '名前で検索',
+    forwardNoResults: '該当する転送先がありません',
+    forwardBack: '戻る',
+    forwardSending: '転送しています…',
+    forwardDone: '転送しました',
+    forwardFailed: '転送できませんでした',
     setupBack: '戻る',
     setupNext: '次へ',
     setupDone: '完了',
@@ -3463,10 +3497,15 @@ class Strings {
     settingsTalksListLayoutTitle: 'Talks list layout (portrait)',
     settingsTalksListLayoutNote:
         'Applies in portrait orientation. On a computer with a wide, landscape window, the list is always shown in a split view regardless of this setting.',
-    settingsIconSplitScaleTitle: 'List size',
+    settingsTextSizeTitle: 'Text size',
+    settingsTextSizeSubtitle:
+        'Changes the size of the text throughout the app. The width and icons of the icon and room list grow with it. Saved on this device only.',
+    settingsTextSizeSmall: 'Small',
+    settingsTextSizeMedium: 'Medium',
+    settingsTextSizeLarge: 'Large',
     settingsIconSplitAdjustButton: 'Adjust widths',
-    settingsIconSplitScaleSubtitle:
-        'Changes the size of the text and icons in the icon and room list. Press “Adjust widths” below, then drag the divider lines in the talks list (double-tap to reset, tap to finish). Saved on this device only.',
+    settingsIconSplitAdjustNote:
+        'Press “Adjust widths”, then drag the divider lines in the talks list to change its width (double-tap to reset, tap to finish). Saved on this device only.',
     settingsSlidePickTitle: 'Press and slide to choose',
     settingsSlidePickSubtitle:
         'Press a menu chip or a talks button and slide your finger, then lift it over your choice. Turn this off to tap once at a time.',
@@ -3878,6 +3917,13 @@ class Strings {
     pdfOpenFailed: 'Could not open this PDF',
     mediaForwardTooltip: 'Forward',
     mediaShareTooltip: 'Share',
+    forwardDialogTitle: 'Choose where to forward',
+    forwardSearchHint: 'Search by name',
+    forwardNoResults: 'No matching destinations',
+    forwardBack: 'Back',
+    forwardSending: 'Forwarding…',
+    forwardDone: 'Forwarded',
+    forwardFailed: 'Could not forward',
     setupBack: 'Back',
     setupNext: 'Next',
     setupDone: 'Done',

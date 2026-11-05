@@ -102,10 +102,15 @@ final Strings _stringsFr = Strings._(
   settingsSlideTransitionSlideBlur: 'Glissement et flou',
   settingsSlideTransitionSlide: 'Glissement',
   settingsSlideTransitionSuck: 'Aspiration',
-  settingsIconSplitScaleTitle: 'Taille de la liste',
+  settingsTextSizeTitle: 'Taille du texte',
+  settingsTextSizeSubtitle:
+      'Modifie la taille du texte dans toute l’application. La largeur et les icônes de la liste d’icônes et de salons suivent. Enregistré sur cet appareil uniquement.',
+  settingsTextSizeSmall: 'Petite',
+  settingsTextSizeMedium: 'Moyenne',
+  settingsTextSizeLarge: 'Grande',
   settingsIconSplitAdjustButton: 'Ajuster les largeurs',
-  settingsIconSplitScaleSubtitle:
-      'Modifie la taille du texte et des icônes. Appuyez sur « Ajuster les largeurs » ci-dessous, puis faites glisser les lignes de séparation (double appui pour réinitialiser, appui simple pour terminer). Enregistré sur cet appareil uniquement.',
+  settingsIconSplitAdjustNote:
+      'Appuyez sur « Ajuster les largeurs », puis faites glisser les lignes de séparation pour changer la largeur (double appui pour réinitialiser, appui simple pour terminer). Enregistré sur cet appareil uniquement.',
   settingsSlidePickTitle: 'Appuyer et glisser pour choisir',
   settingsSlidePickSubtitle:
       'Appuyez sur une pastille du menu ou un bouton des discussions, faites glisser le doigt, puis relâchez sur votre choix. Désactivez pour toucher une fois à la fois.',
@@ -524,6 +529,13 @@ final Strings _stringsFr = Strings._(
   pdfOpenFailed: 'Impossible d’ouvrir ce PDF',
   mediaForwardTooltip: 'Transférer',
   mediaShareTooltip: 'Partager',
+  forwardDialogTitle: 'Choisir la destination',
+  forwardSearchHint: 'Rechercher par nom',
+  forwardNoResults: 'Aucune destination correspondante',
+  forwardBack: 'Retour',
+  forwardSending: 'Transfert en cours…',
+  forwardDone: 'Transféré',
+  forwardFailed: 'Transfert impossible',
   setupBack: 'Retour',
   setupNext: 'Suivant',
   setupDone: 'Terminer',

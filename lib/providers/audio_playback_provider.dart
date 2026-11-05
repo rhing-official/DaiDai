@@ -137,6 +137,15 @@ class AudioPlaybackNotifier extends Notifier<AudioPlaybackState> {
     } catch (_) {}
   }
 
+  /// 今の位置から[delta]だけ前後へ飛ぶ（負で戻る）。先頭と末尾の範囲に収める。
+  Future<void> skip(Duration delta) async {
+    final duration = state.duration;
+    var target = state.position + delta;
+    if (target < Duration.zero) target = Duration.zero;
+    if (duration != null && target > duration) target = duration;
+    await seek(target);
+  }
+
   Future<void> seek(Duration position) async {
     try {
       await _player?.seek(position);

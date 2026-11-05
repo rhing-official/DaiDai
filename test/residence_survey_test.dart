@@ -159,8 +159,8 @@ void main() {
       await _selectCountry(tester, '日本');
       await tester.tap(find.byKey(const ValueKey('residence-prefecture')));
       await tester.pumpAndSettle();
-      // メニューは長い一覧のため、東京都が見える位置までスクロールする。
-      await tester.ensureVisible(find.text('東京都'));
+      // 検索欄付きのポップアップ。入力で絞り込んで選ぶ。
+      await tester.enterText(find.byType(TextField), '東京');
       await tester.pumpAndSettle();
       await tester.tap(find.text('東京都'));
       await tester.pumpAndSettle();

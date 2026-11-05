@@ -71,7 +71,9 @@ import '../../utils/link_detection.dart';
 import '../../utils/note_title.dart';
 import '../../utils/platform_info.dart';
 import '../../utils/screenshot_save_directory.dart';
+import '../../utils/forward_message.dart';
 import '../../utils/share_attachment.dart';
+import 'forward_target_dialog.dart';
 import '../../utils/sound_upload.dart' show kPlayableAudioExtensions;
 import '../../widgets/swipe_gestures.dart' show WheelScrollAbsorber;
 import '../../utils/spam_check.dart';
@@ -5500,8 +5502,12 @@ class _MessageRow extends ConsumerWidget {
                   message.attachments.any((a) => a.isMedia)))
           ? () => onAddToAlbum!(message)
           : null,
-      onShare: (message.fileMetadata != null || message.attachments.isNotEmpty)
+      // 添付が無い本文だけのメッセージも共有できる（2026-11-05、本文を共有シートへ）。
+      onShare: shareableMessage(message)
           ? () => shareMessageAttachments(message)
+          : null,
+      onForward: canForwardMessage(message)
+          ? () => _forward(context, ref, strings)
           : null,
       child: child,
     );
@@ -7131,6 +7137,38 @@ class _MessageRow extends ConsumerWidget {
     );
   }
 
+  /// 転送先を選び、このメッセージを新しいメッセージとして送る（2026-11-05）。
+  Future<void> _forward(
+    BuildContext context,
+    WidgetRef ref,
+    Strings strings,
+  ) async {
+    final target = await showForwardTargetDialog(
+      context,
+      currentUserId: currentUserId,
+    );
+    if (target == null || !context.mounted) return;
+    showAutoDismissBanner(context, message: strings.forwardSending);
+    try {
+      final me = await ref.read(userRepositoryProvider).getUser(currentUserId);
+      await forwardMessage(
+        ref: ref,
+        message: message,
+        target: target,
+        senderId: currentUserId,
+        senderRhingSeed: me?.rhingSeed ?? '',
+      );
+      if (context.mounted) {
+        showAutoDismissBanner(context, message: strings.forwardDone);
+      }
+    } catch (e, st) {
+      debugPrint('転送に失敗: $e\n$st');
+      if (context.mounted) {
+        showAutoDismissBanner(context, message: strings.forwardFailed);
+      }
+    }
+  }
+
   Future<void> _confirmUnsend(
     BuildContext context,
     WidgetRef ref,
@@ -7194,6 +7232,7 @@ enum _MessageMenuAction {
   screenshot,
   addToAlbum,
   share,
+  forward,
 }
 
 /// 長押し/右クリック位置に開く各種メニューの位置決め（[_MessageBubbleTapArea]・
@@ -7328,6 +7367,7 @@ class _MessageBubbleTapArea extends StatefulWidget {
     this.onScreenshotSelect,
     this.onAddToAlbum,
     this.onShare,
+    this.onForward,
   });
 
   final Widget child;
@@ -7369,6 +7409,7 @@ class _MessageBubbleTapArea extends StatefulWidget {
 
   /// 添付付きのメッセージだけ渡される、添付の共有（2026-10-31追加）。
   final VoidCallback? onShare;
+  final VoidCallback? onForward;
 
   @override
   State<_MessageBubbleTapArea> createState() => _MessageBubbleTapAreaState();
@@ -7466,6 +7507,12 @@ class _MessageBubbleTapAreaState extends State<_MessageBubbleTapArea> {
           label: strings.mediaShareTooltip,
           icon: Icons.share_outlined,
         ),
+      if (widget.onForward != null)
+        (
+          action: _MessageMenuAction.forward,
+          label: strings.mediaForwardTooltip,
+          icon: Icons.forward_outlined,
+        ),
     ];
   }
 
@@ -7501,6 +7548,8 @@ class _MessageBubbleTapAreaState extends State<_MessageBubbleTapArea> {
         widget.onAddToAlbum?.call();
       case _MessageMenuAction.share:
         widget.onShare?.call();
+      case _MessageMenuAction.forward:
+        widget.onForward?.call();
       case null:
         break;
     }

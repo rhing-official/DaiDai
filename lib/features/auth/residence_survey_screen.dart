@@ -87,6 +87,16 @@ class _ResidenceSurveyScreenState extends ConsumerState<ResidenceSurveyScreen> {
     });
   }
 
+  Future<void> _pickPrefecture(AppLocale locale) async {
+    final picked = await showAppDialog<String>(
+      context: context,
+      builder: (_) => _PrefecturePickerDialog(locale: locale),
+    );
+    if (picked == null) return;
+    // 空文字は「未選択」に戻す選択。
+    setState(() => _prefectureCode = picked.isEmpty ? null : picked);
+  }
+
   Future<void> _submit() async {
     final strings = ref.read(appStringsProvider);
     final country = _country;
@@ -178,24 +188,24 @@ class _ResidenceSurveyScreenState extends ConsumerState<ResidenceSurveyScreen> {
               ),
               if (country != null && country.code == 'JP') ...[
                 const SizedBox(height: 16),
-                AppDropdown<String?>(
+                // 国と同じく、検索欄付きのポップアップで選ぶ。
+                InkWell(
                   key: const ValueKey('residence-prefecture'),
-                  label: strings.residenceSurveyPrefectureLabel,
-                  placeholder: strings.residenceSurveyNotSelected,
-                  value: _prefectureCode,
-                  enabled: !_isSubmitting,
-                  items: [
-                    AppDropdownItem(
-                      value: null,
-                      label: strings.residenceSurveyNotSelected,
+                  onTap: _isSubmitting ? null : () => _pickPrefecture(locale),
+                  child: InputDecorator(
+                    decoration: InputDecoration(
+                      labelText: strings.residenceSurveyPrefectureLabel,
+                      border: const OutlineInputBorder(),
+                      suffixIcon: const Icon(Icons.arrow_drop_down),
                     ),
-                    for (final p in prefectures)
-                      AppDropdownItem(
-                        value: p.isoCode,
-                        label: p.nameOf(locale),
-                      ),
-                  ],
-                  onChanged: (value) => setState(() => _prefectureCode = value),
+                    child: Text(
+                      prefectures
+                              .where((p) => p.isoCode == _prefectureCode)
+                              .map((p) => p.nameOf(locale))
+                              .firstOrNull ??
+                          strings.residenceSurveyNotSelected,
+                    ),
+                  ),
                 ),
               ],
               if (country != null && country.hasMultipleTimeZones) ...[
@@ -304,6 +314,81 @@ class _CountryPickerDialogState extends ConsumerState<_CountryPickerDialog> {
                         );
                       },
                     ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 都道府県名で絞り込める選択ダイアログ（国の選択と同じ作り）。選んだ都道府県のISOコード
+/// （`JP-13`形式）を返し、「未選択」に戻す時は空文字を返す。
+class _PrefecturePickerDialog extends ConsumerStatefulWidget {
+  const _PrefecturePickerDialog({required this.locale});
+
+  final AppLocale locale;
+
+  @override
+  ConsumerState<_PrefecturePickerDialog> createState() =>
+      _PrefecturePickerDialogState();
+}
+
+class _PrefecturePickerDialogState
+    extends ConsumerState<_PrefecturePickerDialog> {
+  String _query = '';
+
+  @override
+  Widget build(BuildContext context) {
+    final strings = ref.watch(appStringsProvider);
+    final query = _query.trim().toLowerCase();
+    // 日本語名・ローマ字のどちらでも絞り込める。
+    final filtered = [
+      for (final p in prefectures)
+        if (query.isEmpty ||
+            p.ja.contains(query) ||
+            p.en.toLowerCase().contains(query))
+          p,
+    ];
+    return AlertDialog(
+      title: Text(strings.residenceSurveyPrefectureLabel),
+      content: SizedBox(
+        width: 360,
+        height: 440,
+        child: Column(
+          children: [
+            TextField(
+              autofocus: true,
+              decoration: InputDecoration(
+                hintText: strings.residenceSurveySearchHint,
+                prefixIcon: const Icon(Icons.search),
+                border: const OutlineInputBorder(),
+              ),
+              onChanged: (value) => setState(() => _query = value),
+            ),
+            const SizedBox(height: 8),
+            Expanded(
+              child: ListView(
+                children: [
+                  if (query.isEmpty)
+                    ListTile(
+                      title: Text(strings.residenceSurveyNotSelected),
+                      onTap: () => Navigator.of(context).pop(''),
+                    ),
+                  for (final p in filtered)
+                    ListTile(
+                      title: Text(p.nameOf(widget.locale)),
+                      onTap: () => Navigator.of(context).pop(p.isoCode),
+                    ),
+                  if (filtered.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Center(
+                        child: Text(strings.residenceSurveyNoResults),
+                      ),
+                    ),
+                ],
+              ),
             ),
           ],
         ),

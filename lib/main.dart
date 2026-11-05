@@ -31,7 +31,7 @@ import 'providers/app_ui_style_provider.dart';
 import 'providers/calling_sound_provider.dart';
 import 'providers/chat_layout_style_provider.dart';
 import 'providers/icon_split_layout_provider.dart';
-import 'providers/icon_split_scale_provider.dart';
+import 'providers/text_size_provider.dart';
 import 'providers/slide_pick_enabled_provider.dart';
 import 'providers/slide_transition_style_provider.dart';
 import 'providers/conversation_sort_order_provider.dart';
@@ -107,7 +107,7 @@ Future<void> main() async {
   final initialJoinVideoCameraOn = await loadInitialJoinVideoCameraOn();
   final initialIconSplitMirrored = await loadInitialIconSplitMirrored();
   final initialSlidePickEnabled = await loadInitialSlidePickEnabled();
-  final initialIconSplitScale = await loadInitialIconSplitScale();
+  final initialAppTextSize = await loadInitialAppTextSize();
   final initialIconSplitLayout = await loadInitialIconSplitLayout();
   final initialCategoryListAlignment = await loadInitialCategoryListAlignment();
   final initialNavChipLayout = await loadInitialNavChipLayout();
@@ -168,7 +168,7 @@ Future<void> main() async {
         initialSlidePickEnabledProvider.overrideWithValue(
           initialSlidePickEnabled,
         ),
-        initialIconSplitScaleProvider.overrideWithValue(initialIconSplitScale),
+        initialAppTextSizeProvider.overrideWithValue(initialAppTextSize),
         initialIconSplitLayoutProvider.overrideWithValue(
           initialIconSplitLayout,
         ),
@@ -313,29 +313,39 @@ class DaiDaiApp extends ConsumerWidget {
       // 通話ミニ表示（`PinnedCallOverlay`）を全ルートの上に重ねる（2026-10-12、
       // 以前は`HomeScreen`内にあり、寄合を開く`/chat/*`ルートの下に隠れて
       // いた）。`PipHost`はAndroidのPiP（アプリを離れた時の小窓）用。
-      builder: (context, child) => AlwaysAnimations(
-        child: PipHost(
-          child: Stack(
-            children: [
-              Positioned.fill(
-                child: MouseBackForwardListener(
-                  child: CallOverlayFocusGuard(
-                    child: child ?? const SizedBox.shrink(),
+      // 文字サイズ（設定>アプリケーション）を、OS側の文字サイズ設定に掛けて全画面へ
+      // 適用する（2026-11-05）。小でも常に包み、木の形を変えない（再マウント防止）。
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(
+          textScaler: TextScaler.linear(
+            MediaQuery.textScalerOf(context).scale(1) *
+                ref.watch(appTextSizeProvider).scale,
+          ),
+        ),
+        child: AlwaysAnimations(
+          child: PipHost(
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: MouseBackForwardListener(
+                    child: CallOverlayFocusGuard(
+                      child: child ?? const SizedBox.shrink(),
+                    ),
                   ),
                 ),
-              ),
-              const PinnedCallOverlay(),
-              // PC・Webの通話画面は、今の画面の上に重ねる（2026-10-23）。
-              const CallOverlay(),
-              // 一対の着信（PC・Web）はバナーで知らせる（2026-10-23）。
-              const IncomingCallBannerOverlay(),
-              // 広場の通話開始バナーは全ルート・ボタン・ミニ表示より最前面に出す。
-              const GroupCallBannerOverlay(),
-              // 操作を促すガイドの案内の層（2026-10-17追加）。実行中だけ全ルートの
-              // 前面に出る。
-              const TutorialOverlay(),
-              const BackDebugOverlay(),
-            ],
+                const PinnedCallOverlay(),
+                // PC・Webの通話画面は、今の画面の上に重ねる（2026-10-23）。
+                const CallOverlay(),
+                // 一対の着信（PC・Web）はバナーで知らせる（2026-10-23）。
+                const IncomingCallBannerOverlay(),
+                // 広場の通話開始バナーは全ルート・ボタン・ミニ表示より最前面に出す。
+                const GroupCallBannerOverlay(),
+                // 操作を促すガイドの案内の層（2026-10-17追加）。実行中だけ全ルートの
+                // 前面に出る。
+                const TutorialOverlay(),
+                const BackDebugOverlay(),
+              ],
+            ),
           ),
         ),
       ),

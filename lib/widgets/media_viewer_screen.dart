@@ -11,6 +11,10 @@ import 'package:video_player/video_player.dart';
 import '../models/slide_transition_style.dart';
 import '../theme/motion.dart' show activeSlideTransitionStyle;
 import '../utils/fullscreen/fullscreen.dart';
+import '../features/chat/forward_target_dialog.dart';
+import '../providers/repository_providers.dart';
+import '../utils/auto_dismiss_banner.dart';
+import '../utils/forward_message.dart';
 import '../utils/share_attachment.dart';
 import 'swipe_gestures.dart' show PinchPriorityPageView, ZoomReporter;
 import 'video_thumbnail.dart';
@@ -191,6 +195,39 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen> {
     await launchUrl(Uri.parse(item.url), mode: LaunchMode.externalApplication);
   }
 
+  /// 表示中の1件を、選んだ一対・広場の寄合へ転送する（2026-11-05）。送信前のトレイの
+  /// 拡大（サーバーに無い）では何もしない。
+  Future<void> _forwardCurrent() async {
+    final item = widget.items[_currentIndex];
+    if (item.bytes != null) return;
+    final strings = ref.read(appStringsProvider);
+    final uid = ref.read(authStateProvider).value?.uid;
+    if (uid == null) return;
+    final target = await showForwardTargetDialog(context, currentUserId: uid);
+    if (target == null || !mounted) return;
+    showAutoDismissBanner(context, message: strings.forwardSending);
+    try {
+      final me = await ref.read(userRepositoryProvider).getUser(uid);
+      await forwardFile(
+        ref: ref,
+        url: item.url,
+        fileName: mediaDownloadFileName(item),
+        contentType: item.contentType,
+        target: target,
+        senderId: uid,
+        senderRhingSeed: me?.rhingSeed ?? '',
+      );
+      if (mounted) {
+        showAutoDismissBanner(context, message: strings.forwardDone);
+      }
+    } catch (e, st) {
+      debugPrint('転送に失敗: $e\n$st');
+      if (mounted) {
+        showAutoDismissBanner(context, message: strings.forwardFailed);
+      }
+    }
+  }
+
   Future<void> _shareCurrent() async {
     final item = widget.items[_currentIndex];
     if (item.bytes != null) return;
@@ -216,13 +253,12 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen> {
           // 戻る矢印は出さない（Esc・下スワイプ・外側タップ・戻る操作で閉じる、
           // 2026-10-30）。
           automaticallyImplyLeading: false,
-          // 右上のツールバー（2026-10-30追加）。転送・共有は、後日機能を付けるため
-          // アイコンだけ先に並べている（今は押しても何も起きない）。
+          // 右上のツールバー（2026-10-30追加）。転送・共有・ダウンロード。
           actions: [
             IconButton(
               icon: const Icon(Icons.forward),
               tooltip: strings.mediaForwardTooltip,
-              onPressed: () {},
+              onPressed: _forwardCurrent,
             ),
             IconButton(
               icon: const Icon(Icons.share),

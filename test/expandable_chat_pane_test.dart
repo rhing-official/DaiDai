@@ -1,5 +1,6 @@
 import 'package:daidai/features/chat/talks_tab.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 class _Probe extends StatefulWidget {
@@ -37,11 +38,13 @@ void main() {
     var disposes = 0;
     var taps = 0;
     await tester.pumpWidget(
-      MaterialApp(
-        home: buildExpandableChatPane(
-          collapseProgress: progress,
-          onExpandTap: () => taps++,
-          chatPane: _Probe(() => inits++, () => disposes++),
+      ProviderScope(
+        child: MaterialApp(
+          home: buildExpandableChatPane(
+            collapseProgress: progress,
+            onExpandTap: () => taps++,
+            chatPane: _Probe(() => inits++, () => disposes++),
+          ),
         ),
       ),
     );
