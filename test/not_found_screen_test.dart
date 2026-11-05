@@ -41,7 +41,7 @@ void main() {
     expect(find.text('404 MUSEUM'), findsOneWidget);
     expect(find.text('お探しのページは見つかりませんでした'), findsOneWidget);
     expect(find.textContaining('存在しないページ特別展'), findsOneWidget);
-    expect(find.text('トップページへ戻る'), findsOneWidget);
+    expect(find.text('DaiDaiへ戻る'), findsOneWidget);
     expect(find.text('お問い合わせ'), findsOneWidget);
 
     final shown = museumExhibits
@@ -52,7 +52,7 @@ void main() {
     expect(find.byType(Image), findsOneWidget);
   });
 
-  testWidgets('「トップページへ戻る」でホームへ戻る', (tester) async {
+  testWidgets('「DaiDaiへ戻る」でホームへ戻る', (tester) async {
     final router = _router();
     await _pump(tester, router);
     router.go('/zzz');
@@ -60,11 +60,11 @@ void main() {
     expect(find.text('404 MUSEUM'), findsOneWidget);
 
     await tester.scrollUntilVisible(
-      find.text('トップページへ戻る'),
+      find.text('DaiDaiへ戻る'),
       200,
       scrollable: find.byType(Scrollable).first,
     );
-    await tester.tap(find.text('トップページへ戻る'));
+    await tester.tap(find.text('DaiDaiへ戻る'));
     await tester.pumpAndSettle();
     expect(find.text('HOME'), findsOneWidget);
     expect(find.text('404 MUSEUM'), findsNothing);
