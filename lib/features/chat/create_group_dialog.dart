@@ -13,6 +13,8 @@ import '../../theme/text_prominence_colors.dart';
 import '../../widgets/gekiga/gekiga_text_field.dart';
 import '../../widgets/glass/glass_avatar.dart';
 import '../../widgets/profile_card_picker.dart';
+import '../../widgets/toggles/app_switch.dart';
+import '../../widgets/toggles/app_checkbox.dart';
 
 /// 友達一覧をプルダウン選択できるよう、Rhing Seedではなく呼び名（未設定ならRhing Seed）で表示する。
 String _displayName(AppUser user) {
@@ -247,7 +249,7 @@ class _CreateGroupDialogContentState
               onSubmitted: (_) => _goToStep2(),
             ),
       const SizedBox(height: 16),
-      SwitchListTile(
+      AppSwitchListTile(
         contentPadding: EdgeInsets.zero,
         value: _roomsEnabled,
         title: Text(strings.createGroupMultiRoomTitle),
@@ -358,7 +360,7 @@ class _CreateGroupDialogContentState
                       (m) => m.userId == friend.userId,
                     );
                     final icon = friend.activeIcon;
-                    return CheckboxListTile(
+                    return AppCheckboxListTile(
                       value: selected,
                       contentPadding: EdgeInsets.zero,
                       controlAffinity: ListTileControlAffinity.trailing,

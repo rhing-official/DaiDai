@@ -14,6 +14,7 @@ import '../../widgets/google_sign_in_button.dart';
 import 'passkey_recovery_dialog.dart';
 import 'passkey_sign_in_dialog.dart';
 import 'qr_login_dialog.dart';
+import 'qr_login_panel.dart';
 import 'scan_qr_login_dialog.dart';
 
 class SignInScreen extends ConsumerStatefulWidget {
@@ -110,18 +111,95 @@ class _SignInScreenState extends ConsumerState<SignInScreen>
     return FixedFontTheme(
       child: Scaffold(
         body: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 400),
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: resolver != null
-                    ? _buildTwoFactorChallenge(strings)
-                    : _buildSignInButtons(context, colorScheme),
-              ),
+          child: SingleChildScrollView(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                // コンピューターで幅が十分あれば、左に他のログイン方法を縦に並べ、
+                // 右にQRコードを表示する2列にする（2026-11-06）。
+                final twoColumn =
+                    resolver == null &&
+                    classifyDevice(context) == DeviceClass.computer &&
+                    constraints.maxWidth >= 760;
+                if (twoColumn) {
+                  return _buildComputerLayout(context, colorScheme, strings);
+                }
+                return ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 400),
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: resolver != null
+                          ? _buildTwoFactorChallenge(strings)
+                          : _buildSignInButtons(context, colorScheme),
+                    ),
+                  ),
+                );
+              },
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  /// コンピューター用の2列レイアウト。左: ロゴと他のログイン方法（縦並び）、右: QRコード。
+  Widget _buildComputerLayout(
+    BuildContext context,
+    ColorScheme colorScheme,
+    Strings strings,
+  ) {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 820),
+      child: Container(
+        margin: const EdgeInsets.all(24),
+        padding: const EdgeInsets.all(40),
+        decoration: BoxDecoration(
+          color: colorScheme.surface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: colorScheme.outlineVariant),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: _buildSignInButtons(
+                  context,
+                  colorScheme,
+                  showQrButton: false,
+                ),
+              ),
+            ),
+            const SizedBox(width: 24),
+            Container(width: 1, height: 360, color: colorScheme.outlineVariant),
+            const SizedBox(width: 24),
+            SizedBox(
+              width: 280,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const QrLoginPanel(autoRefresh: true, showDescription: false),
+                  const SizedBox(height: 20),
+                  Text(
+                    strings.qrLoginDialogTitle,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    strings.qrLoginDialogDescription,
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -165,8 +243,9 @@ class _SignInScreenState extends ConsumerState<SignInScreen>
 
   List<Widget> _buildSignInButtons(
     BuildContext context,
-    ColorScheme colorScheme,
-  ) {
+    ColorScheme colorScheme, {
+    bool showQrButton = true,
+  }) {
     final strings = ref.watch(appStringsProvider);
     return [
       Text(
@@ -192,12 +271,14 @@ class _SignInScreenState extends ConsumerState<SignInScreen>
       // 秘密鍵の設定が済むまで実際には使えないため、その設定を行うまでUIから
       // 非表示にしている。AuthRepository.signInWithApple()自体は実装済みなので、
       // 設定が完了したらボタンを復活させるだけでよい。
-      const SizedBox(height: 12),
-      BrandedBlockButton(
-        onPressed: () => QrLoginDialog.show(context),
-        icon: const Icon(Icons.qr_code_scanner),
-        label: strings.qrLoginDialogTitle,
-      ),
+      if (showQrButton) ...[
+        const SizedBox(height: 12),
+        BrandedBlockButton(
+          onPressed: () => QrLoginDialog.show(context),
+          icon: const Icon(Icons.qr_code_scanner),
+          label: strings.qrLoginDialogTitle,
+        ),
+      ],
       // ログイン済み端末が表示したQRを、この端末で読み取ってログインする経路
       // （2026-10-15追加）。カメラが使えないプラットフォームでは出さない。
       if (isQrScanCapablePlatform) ...[

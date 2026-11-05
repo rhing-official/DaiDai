@@ -194,3 +194,14 @@ Widget buildDialogTransition(Animation<double> animation, Widget child) {
     },
   );
 }
+
+/// トグル（スイッチ・チェックボックス・ラジオ）と押した時の手応えの共通パラメータ
+/// （2026-11-05）。弾むバネ＝`easeOutBack`で少し行き過ぎてから戻る。
+const springDuration = Duration(milliseconds: 280);
+const springCurve = Curves.easeOutBack;
+const pressDuration = Duration(milliseconds: 110);
+const pressScale = 0.96;
+
+/// 端末の「動きを減らす」設定が有効か。有効ならトグルは動かさずに即切り替える。
+bool reduceMotion(BuildContext context) =>
+    MediaQuery.maybeDisableAnimationsOf(context) ?? false;

@@ -62,6 +62,9 @@ import '../guide/tutorial/tutorial_target.dart';
 import 'enmusubi_page.dart';
 import '../../widgets/dialog_keyboard_shortcuts.dart';
 import '../../widgets/app_dialog.dart';
+import '../../widgets/toggles/app_switch.dart';
+import '../../widgets/toggles/app_checkbox.dart';
+import '../../widgets/toggles/app_radio.dart';
 
 enum _ProfileSection { kura, koubou, enmusubi }
 
@@ -1806,7 +1809,7 @@ class _AddConversationCardDialogState
           children: [
             // タップは行全体（InkWell）で受けるため、チェックボックス自体は表示専用。
             IgnorePointer(
-              child: Checkbox(value: selected, onChanged: (_) {}),
+              child: AppCheckbox(value: selected, onChanged: (_) {}),
             ),
             avatar,
             const SizedBox(width: 12),
@@ -2535,11 +2538,8 @@ class _ActiveCardBadge extends StatelessWidget {
         customBorder: const CircleBorder(),
         child: Padding(
           padding: const EdgeInsets.all(4),
-          child: Icon(
-            isActive
-                ? Icons.radio_button_checked
-                : Icons.radio_button_unchecked,
-            size: 18,
+          child: AppRadioMark(
+            selected: isActive,
             color: isActive
                 ? Theme.of(context).colorScheme.primary
                 : Colors.white,
@@ -3296,10 +3296,11 @@ class _FontDesignMaterialDialogState
         children: [
           GekigaTileContent(
             selected: _selected == null,
-            leading: Icon(
-              _selected == null
-                  ? Icons.radio_button_checked
-                  : Icons.radio_button_unchecked,
+            leading: AppRadioMark(
+              selected: _selected == null,
+              color: (_selected == null)
+                  ? GekigaColors.panel
+                  : GekigaColors.onPanel,
             ),
             title: Text(strings.fontDesignSameAsSystemLabel),
             onTap: () => setState(() => _selected = null),
@@ -3309,10 +3310,11 @@ class _FontDesignMaterialDialogState
           ))
             GekigaTileContent(
               selected: _selected == value,
-              leading: Icon(
-                _selected == value
-                    ? Icons.radio_button_checked
-                    : Icons.radio_button_unchecked,
+              leading: AppRadioMark(
+                selected: _selected == value,
+                color: (_selected == value)
+                    ? GekigaColors.panel
+                    : GekigaColors.onPanel,
               ),
               title: Text(
                 strings.fontDesignLabel(value),
@@ -3332,14 +3334,14 @@ class _FontDesignMaterialDialogState
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            RadioListTile<FontDesign?>(
+            AppRadioListTile<FontDesign?>(
               value: null,
               title: Text(strings.fontDesignSameAsSystemLabel),
             ),
             for (final value in FontDesign.availableFor(
               ref.watch(appLocaleProvider),
             ))
-              RadioListTile<FontDesign?>(
+              AppRadioListTile<FontDesign?>(
                 value: value,
                 title: Text(
                   strings.fontDesignLabel(value),
@@ -3947,7 +3949,7 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
         for (final link in widget.user.snsLinks)
           PopupMenuItem<void>(
             child: StatefulBuilder(
-              builder: (context, setMenuState) => CheckboxListTile(
+              builder: (context, setMenuState) => AppCheckboxListTile(
                 dense: true,
                 contentPadding: EdgeInsets.zero,
                 controlAffinity: ListTileControlAffinity.leading,
@@ -4877,11 +4879,7 @@ class _CardLayoutPicker extends StatelessWidget {
                   style: const TextStyle(color: Colors.white70, fontSize: 12),
                 ),
               ),
-              Switch(
-                value: showBirthday,
-                onChanged: onShowBirthdayChanged,
-                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ),
+              AppSwitch(value: showBirthday, onChanged: onShowBirthdayChanged),
             ],
           ),
           Row(
@@ -4897,10 +4895,9 @@ class _CardLayoutPicker extends StatelessWidget {
                   style: const TextStyle(color: Colors.white70, fontSize: 12),
                 ),
               ),
-              Switch(
+              AppSwitch(
                 value: showRhingSeed,
                 onChanged: onShowRhingSeedChanged,
-                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
             ],
           ),

@@ -17,6 +17,7 @@ import '../calendar/calendar_chip.dart';
 import 'poll_option_media_picker.dart';
 import '../../widgets/dialog_keyboard_shortcuts.dart';
 import '../../widgets/app_dialog.dart';
+import '../../widgets/toggles/app_checkbox.dart';
 
 /// 投票の作成モード（2026-09-06追加）。「選択肢」は自由記述の選択肢
 /// （画像添付・複数選択可・選択肢の追加を許可に対応）、「二択」は選択肢入力を
@@ -357,7 +358,7 @@ class _PollFormDialogState extends ConsumerState<_PollFormDialog> {
               ),
             ],
             const Divider(height: 24),
-            CheckboxListTile(
+            AppCheckboxListTile(
               contentPadding: EdgeInsets.zero,
               controlAffinity: ListTileControlAffinity.leading,
               title: Text(strings.pollSetDeadlineCheckboxLabel),
@@ -374,7 +375,7 @@ class _PollFormDialogState extends ConsumerState<_PollFormDialog> {
               },
             ),
             if (_mode == _PollCreateMode.options) ...[
-              CheckboxListTile(
+              AppCheckboxListTile(
                 contentPadding: EdgeInsets.zero,
                 controlAffinity: ListTileControlAffinity.leading,
                 title: Text(strings.pollAllowMultipleChoicesCheckboxLabel),
@@ -382,7 +383,7 @@ class _PollFormDialogState extends ConsumerState<_PollFormDialog> {
                 onChanged: (checked) =>
                     setState(() => _allowMultipleChoices = checked ?? false),
               ),
-              CheckboxListTile(
+              AppCheckboxListTile(
                 contentPadding: EdgeInsets.zero,
                 controlAffinity: ListTileControlAffinity.leading,
                 title: Text(strings.pollAllowAddingOptionsCheckboxLabel),
@@ -391,7 +392,7 @@ class _PollFormDialogState extends ConsumerState<_PollFormDialog> {
                     setState(() => _allowAddingOptions = checked ?? false),
               ),
             ],
-            CheckboxListTile(
+            AppCheckboxListTile(
               contentPadding: EdgeInsets.zero,
               controlAffinity: ListTileControlAffinity.leading,
               title: Text(strings.pollAnonymousCheckboxLabel),

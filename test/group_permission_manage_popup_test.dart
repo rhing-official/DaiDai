@@ -1,3 +1,4 @@
+import 'package:daidai/widgets/toggles/app_checkbox.dart';
 import 'package:daidai/features/chat/group_permission_manage_popup.dart';
 import 'package:daidai/l10n/app_locale.dart';
 import 'package:daidai/models/app_ui_style.dart';
@@ -110,8 +111,8 @@ void main() {
   // 2026-10-11に「権限×ロールの表」から「ロールを選ぶチップ＋選んだロールの
   // 権限チェックボックス一覧」へ画面を変えたため、それに合わせたテスト。
   // テスト環境の端末はAndroid扱いのため、チップ＋縦リスト表示（最大幅420）になる。
-  List<Checkbox> boxes(WidgetTester tester) =>
-      tester.widgetList<Checkbox>(find.byType(Checkbox)).toList();
+  List<AppCheckbox> boxes(WidgetTester tester) =>
+      tester.widgetList<AppCheckbox>(find.byType(AppCheckbox)).toList();
 
   testWidgets('ロールのチップ（長・全員・各ロール）と、全権限のチェックボックスが出る', (tester) async {
     await pump(tester);
@@ -122,7 +123,7 @@ void main() {
     expect(find.text('運営係'), findsOneWidget);
     expect(find.text('招待リンクの作成'), findsOneWidget);
     // 選択中のロール1つ分（全権限）だけが縦に並ぶ。
-    expect(find.byType(Checkbox), findsNWidgets(GroupPermission.all.length));
+    expect(find.byType(AppCheckbox), findsNWidgets(GroupPermission.all.length));
     expect(tester.getSize(find.byType(GroupPermissionManagePopup)).width, 420);
   });
 
@@ -155,7 +156,7 @@ void main() {
     await pump(tester);
 
     // 「全員」の先頭の権限（manageRooms）をオンにする。
-    await tester.tap(find.byType(Checkbox).first);
+    await tester.tap(find.byType(AppCheckbox).first);
     await tester.pumpAndSettle();
 
     expect(groups.updates, hasLength(1));
@@ -200,7 +201,7 @@ void main() {
     await pump(tester, userId: 'u2', group: member);
 
     expect(boxes(tester).every((c) => c.onChanged == null), isTrue);
-    await tester.tap(find.byType(Checkbox).first, warnIfMissed: false);
+    await tester.tap(find.byType(AppCheckbox).first, warnIfMissed: false);
     await tester.pumpAndSettle();
     expect(groups.updates, isEmpty);
   });
@@ -218,7 +219,7 @@ void main() {
     );
     await pump(tester, userId: 'u2', group: member);
 
-    await tester.tap(find.byType(Checkbox).first);
+    await tester.tap(find.byType(AppCheckbox).first);
     await tester.pumpAndSettle();
     expect(groups.updates, hasLength(1));
   });

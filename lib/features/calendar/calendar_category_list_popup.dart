@@ -369,6 +369,7 @@ class _ConversationCalendarSettings extends ConsumerWidget {
     final defaultHolidays = ref.watch(holidaySettingsProvider);
     final residence = ref.watch(holidayCountryProvider).value ?? 'JP';
     final followLabel = strings.calendarSystemFollowGlobal;
+    final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
 
     Widget title(String text) => Text(
       text,
@@ -399,6 +400,7 @@ class _ConversationCalendarSettings extends ConsumerWidget {
         title(strings.calendarWeekStartLabel),
         const SizedBox(height: 8),
         CalendarChoiceRow<CalendarWeekStart>(
+          gekigaBlocks: isGekiga,
           options: weekStartOptions(
             strings,
             withDefault: true,
@@ -420,6 +422,7 @@ class _ConversationCalendarSettings extends ConsumerWidget {
         title(strings.calendarSystemLabel),
         const SizedBox(height: 8),
         CalendarChoiceRow<CalendarSystem>(
+          gekigaBlocks: isGekiga,
           options: calendarSystemOptions(
             strings,
             withDefault: true,
@@ -441,6 +444,7 @@ class _ConversationCalendarSettings extends ConsumerWidget {
         title(strings.holidaySettingsTitle),
         const SizedBox(height: 4),
         CalendarChoiceRow<bool>(
+          gekigaBlocks: isGekiga,
           options: [(value: true, label: followLabel)],
           selected: holidayOverride == null ? true : null,
           onSelected: (_) {
@@ -458,6 +462,7 @@ class _ConversationCalendarSettings extends ConsumerWidget {
         // チェックボックスは常に出す。操作すると、この語らいだけの値になる。
         // 「標準に変更」で上書きを消して標準の値に戻す。
         HolidayCheckboxes(
+          gekigaBlocks: isGekiga,
           strings: strings,
           settings: holidayOverride ?? defaultHolidays,
           residenceCountry: residence,

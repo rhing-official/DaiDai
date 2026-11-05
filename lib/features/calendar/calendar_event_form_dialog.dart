@@ -13,6 +13,7 @@ import '../../utils/auto_dismiss_banner.dart';
 import '../../widgets/glass/glass_dialog.dart';
 import '../../widgets/dialog_keyboard_shortcuts.dart';
 import '../../widgets/app_dialog.dart';
+import '../../widgets/toggles/app_switch.dart';
 
 /// 予定の作成・編集ダイアログ（2026-09-01追加）。作成後の内容編集は出欠
 /// 回答済みの住人との齟齬を避けるため2026-09-02に一旦廃止したが、回答者が
@@ -429,7 +430,7 @@ class _CalendarEventFormDialogState
               },
             ),
             const SizedBox(height: 8),
-            SwitchListTile(
+            AppSwitchListTile(
               contentPadding: EdgeInsets.zero,
               title: Text(strings.calendarAllDayLabel),
               value: _isAllDay,
@@ -464,14 +465,14 @@ class _CalendarEventFormDialogState
               ),
             ),
             const Divider(height: 24),
-            SwitchListTile(
+            AppSwitchListTile(
               contentPadding: EdgeInsets.zero,
               title: Text(strings.calendarRsvpEnabledLabel),
               value: _rsvpEnabled,
               onChanged: (value) => setState(() => _rsvpEnabled = value),
             ),
             if (_rsvpEnabled && _isMultiDay)
-              SwitchListTile(
+              AppSwitchListTile(
                 contentPadding: EdgeInsets.zero,
                 title: Text(strings.calendarRsvpPerDayLabel),
                 value: _rsvpPerDay,

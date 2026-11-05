@@ -57,6 +57,8 @@ class DestructiveLabel extends ConsumerWidget {
     final pill = enabled ? pillBox : Opacity(opacity: 0.38, child: pillBox);
     return Align(
       alignment: centered ? Alignment.center : Alignment.centerLeft,
+      // 左寄せの時は文字の幅で止める（劇画の黒いブロックが行いっぱいに広がらないように）。
+      widthFactor: centered ? null : 1,
       child: alignTextWithSiblings && !centered
           ? Transform.translate(
               offset: const Offset(-_horizontalPadding, 0),

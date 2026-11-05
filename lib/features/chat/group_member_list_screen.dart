@@ -18,6 +18,7 @@ import '../../widgets/glass/glass_dialog.dart';
 import 'user_profile_card_dialog.dart';
 import '../../widgets/dialog_keyboard_shortcuts.dart';
 import '../../widgets/app_dialog.dart';
+import '../../widgets/toggles/app_checkbox.dart';
 
 /// 広場のメンバー一覧（ポップアップの中身）。manageJoinRequests権限を持つ
 /// メンバーには、招待リンクからの参加リクエストの承認・却下UIもあわせて
@@ -64,7 +65,7 @@ class GroupMemberListPopup extends ConsumerWidget {
                     child: Text(strings.groupRoleListEmpty),
                   ),
                 for (final role in regularRoles)
-                  CheckboxListTile(
+                  AppCheckboxListTile(
                     contentPadding: EdgeInsets.zero,
                     controlAffinity: ListTileControlAffinity.leading,
                     value: assignedRoleIds.contains(role.roleId),

@@ -22,6 +22,7 @@ import 'conversation_profile_card_dialog.dart';
 import 'severance_dialog.dart';
 import '../../widgets/dialog_keyboard_shortcuts.dart';
 import '../../widgets/app_dialog.dart';
+import '../../widgets/toggles/app_switch.dart';
 
 /// [DmSettingsPopup]をガラスUI対応のダイアログでラップして開く
 /// （`showGroupSettingsDialog`と同じ構成、2026-09-13追加）。
@@ -208,7 +209,7 @@ class DmSettingsPopup extends ConsumerWidget {
                   final rooms = snapshot.data ?? const <DmRoom>[];
                   final locked = liveDm.roomsEnabled && rooms.length > 1;
                   final colorScheme = Theme.of(context).colorScheme;
-                  return SwitchListTile(
+                  return AppSwitchListTile(
                     value: liveDm.roomsEnabled,
                     title: Text(
                       strings.dmMenuEnableMultipleRooms,
@@ -228,7 +229,7 @@ class DmSettingsPopup extends ConsumerWidget {
                   );
                 },
               ),
-              SwitchListTile(
+              AppSwitchListTile(
                 value: muted,
                 // 「通知オフ」の文言は常に固定（2026-09-16変更、以前はミュート
                 // 状態に応じて「通知オフ」⇔「通知オン」と入れ替わっていたが、
@@ -242,7 +243,7 @@ class DmSettingsPopup extends ConsumerWidget {
                       muted: value,
                     ),
               ),
-              SwitchListTile(
+              AppSwitchListTile(
                 value: isBlocked,
                 title: Text(
                   isBlocked

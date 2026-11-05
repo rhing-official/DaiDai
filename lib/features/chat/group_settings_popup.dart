@@ -28,6 +28,7 @@ import 'group_permission_manage_popup.dart';
 import 'group_role_list_popup.dart';
 import 'webhook_management_popup.dart';
 import '../../widgets/app_dialog.dart';
+import '../../widgets/toggles/app_switch.dart';
 
 /// [GroupSettingsPopup]をガラスUI対応のダイアログでラップして開く
 /// （2026-09-02、サイドバーの歯車アイコン（`talks_tab.dart`）に加え、狭い
@@ -373,7 +374,7 @@ class GroupSettingsPopup extends ConsumerWidget {
                   final rooms = snapshot.data ?? const <Room>[];
                   final locked = liveGroup.roomsEnabled && rooms.length > 1;
                   final colorScheme = Theme.of(context).colorScheme;
-                  return SwitchListTile(
+                  return AppSwitchListTile(
                     value: liveGroup.roomsEnabled,
                     title: Text(
                       strings.groupMenuEnableMultipleRooms,
@@ -395,7 +396,7 @@ class GroupSettingsPopup extends ConsumerWidget {
                 },
               ),
               const Divider(),
-              SwitchListTile(
+              AppSwitchListTile(
                 value: liveGroup.requiresApproval,
                 title: Text(strings.groupSettingsRequiresApprovalLabel),
                 subtitle: Text(strings.groupSettingsRequiresApprovalHint),
@@ -408,7 +409,7 @@ class GroupSettingsPopup extends ConsumerWidget {
                             requiresApproval: value,
                           ),
               ),
-              SwitchListTile(
+              AppSwitchListTile(
                 value: muted,
                 title: Text(strings.groupSettingsDefaultMuteLabel),
                 subtitle: Text(strings.groupSettingsDefaultMuteHint),
@@ -420,7 +421,7 @@ class GroupSettingsPopup extends ConsumerWidget {
                       muted: value,
                     ),
               ),
-              SwitchListTile(
+              AppSwitchListTile(
                 value: readReceiptsEnabled,
                 title: Text(strings.groupSettingsDefaultReadReceiptsLabel),
                 subtitle: Text(strings.groupSettingsDefaultReadReceiptsHint),
@@ -452,7 +453,7 @@ class GroupSettingsPopup extends ConsumerWidget {
                             );
                       },
               ),
-              SwitchListTile(
+              AppSwitchListTile(
                 value: liveGroup.historyVisibleToNewMembers,
                 title: Text(strings.groupSettingsHistoryVisibleLabel),
                 subtitle: Text(strings.groupSettingsHistoryVisibleHint),

@@ -109,6 +109,7 @@ import '../../providers/avatar_palette_provider.dart';
 import '../guide/tutorial/tutorial_controller.dart';
 import '../guide/tutorial/tutorial_target.dart';
 import '../../widgets/app_dialog.dart';
+import '../../widgets/toggles/app_checkbox.dart';
 
 /// 劇画UIの吹き出し・入力欄の枠取りの太さ（[MonochromeBoxPainter]の
 /// thicknessBase）。以前は`size.shortestSide`（箱の短辺）に比例させて
@@ -1737,7 +1738,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) {
           final title = Text(strings.chatScreenshotDialogTitle);
-          final content = CheckboxListTile(
+          final content = AppCheckboxListTile(
             contentPadding: EdgeInsets.zero,
             controlAffinity: ListTileControlAffinity.leading,
             value: blur,
@@ -5732,7 +5733,7 @@ class _MessageRow extends ConsumerWidget {
           color: selected ? colorScheme.primary.withValues(alpha: 0.12) : null,
           child: Row(
             children: [
-              Checkbox(
+              AppCheckbox(
                 value: selected,
                 onChanged: (_) => onToggleSelected?.call(message.messageId),
               ),

@@ -1,3 +1,4 @@
+import 'package:daidai/widgets/toggles/app_checkbox.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:daidai/features/admin/admin_user_list.dart';
 import 'package:daidai/models/app_ui_style.dart';
@@ -171,13 +172,13 @@ void main() {
     testWidgets('自分・削除申請中の行にはチェックボックスが出ない', (tester) async {
       await pump(tester);
       // 全選択（1つ）＋選べる住人（alice・bob）の2つ。
-      expect(find.byType(Checkbox), findsNWidgets(3));
+      expect(find.byType(AppCheckbox), findsNWidgets(3));
     });
 
     testWidgets('複数選択して確認し、一括停止を実行する', (tester) async {
       await pump(tester);
-      await tester.tap(find.byType(Checkbox).at(1));
-      await tester.tap(find.byType(Checkbox).at(2));
+      await tester.tap(find.byType(AppCheckbox).at(1));
+      await tester.tap(find.byType(AppCheckbox).at(2));
       await tester.pump();
       expect(find.text('2件選択中'), findsOneWidget);
 
@@ -194,8 +195,8 @@ void main() {
 
     testWidgets('複数選択して極みを一括付与する', (tester) async {
       await pump(tester);
-      await tester.tap(find.byType(Checkbox).at(1));
-      await tester.tap(find.byType(Checkbox).at(2));
+      await tester.tap(find.byType(AppCheckbox).at(1));
+      await tester.tap(find.byType(AppCheckbox).at(2));
       await tester.pump();
 
       await tester.tap(find.widgetWithText(OutlinedButton, '極みを付与'));

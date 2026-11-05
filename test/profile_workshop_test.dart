@@ -1,3 +1,4 @@
+import 'package:daidai/widgets/toggles/app_checkbox.dart';
 import 'dart:async';
 
 import 'package:daidai/features/profile/focal_edit_overlay.dart';
@@ -758,10 +759,10 @@ void main() {
     await tester.tap(find.text('URL'));
     await tester.pumpAndSettle();
 
-    expect(find.byType(CheckboxListTile), findsNWidgets(2));
+    expect(find.byType(AppCheckboxListTile), findsNWidgets(2));
 
-    await tester.tap(find.byType(CheckboxListTile).at(0));
-    await tester.tap(find.byType(CheckboxListTile).at(1));
+    await tester.tap(find.byType(AppCheckboxListTile).at(0));
+    await tester.tap(find.byType(AppCheckboxListTile).at(1));
     await tester.pumpAndSettle();
 
     expect(repo.saved?.profileCards.length, 1);

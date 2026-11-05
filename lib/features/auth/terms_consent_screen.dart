@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../l10n/strings.dart';
 import '../../widgets/fixed_font_theme.dart';
+import '../../widgets/toggles/app_checkbox.dart';
 
 const _termsUrl = 'https://rhing.jp/legal/terms';
 const _privacyPolicyUrl = 'https://rhing.jp/legal/privacy';
@@ -60,7 +61,7 @@ class _TermsConsentScreenState extends ConsumerState<TermsConsentScreen> {
                     onTap: () => _openExternalUrl(_disclaimerUrl),
                   ),
                   const SizedBox(height: 16),
-                  CheckboxListTile(
+                  AppCheckboxListTile(
                     value: _checked,
                     onChanged: (value) =>
                         setState(() => _checked = value ?? false),

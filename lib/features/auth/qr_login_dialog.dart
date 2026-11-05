@@ -1,16 +1,13 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:qr_flutter/qr_flutter.dart';
 
-import '../../l10n/strings.dart';
 import '../../models/app_ui_style.dart';
 import '../../providers/app_ui_style_provider.dart';
-import '../../providers/repository_providers.dart';
 import '../../widgets/glass/glass_dialog.dart';
 import '../../widgets/dialog_keyboard_shortcuts.dart';
 import '../../widgets/app_dialog.dart';
+import '../../l10n/strings.dart';
+import 'qr_login_panel.dart';
 
 /// QRコードログイン（未ログイン端末側、2026-08-09追加）。開くとすぐに
 /// `qrLoginSessions`にpendingなセッションを作成してQRコードを表示し、
@@ -18,7 +15,7 @@ import '../../widgets/app_dialog.dart';
 /// ログインからスキャン）が承認するのを待つ。承認を検知したら自動的に
 /// カスタムトークンでサインインし、ダイアログを閉じる（以降は`AuthGate`が
 /// 認証状態の変化を検知して自動的に画面遷移する）。
-class QrLoginDialog extends ConsumerStatefulWidget {
+class QrLoginDialog extends ConsumerWidget {
   const QrLoginDialog({super.key});
 
   static Future<bool?> show(BuildContext context) {
@@ -29,94 +26,17 @@ class QrLoginDialog extends ConsumerStatefulWidget {
   }
 
   @override
-  ConsumerState<QrLoginDialog> createState() => _QrLoginDialogState();
-}
-
-class _QrLoginDialogState extends ConsumerState<QrLoginDialog> {
-  static const _sessionTtl = Duration(minutes: 3);
-
-  String? _sessionId;
-  StreamSubscription<String>? _statusSubscription;
-  Timer? _expiryTimer;
-  bool _isExpired = false;
-  bool _isClaiming = false;
-  String? _errorMessage;
-
-  @override
-  void initState() {
-    super.initState();
-    _startSession();
-  }
-
-  @override
-  void dispose() {
-    _statusSubscription?.cancel();
-    _expiryTimer?.cancel();
-    super.dispose();
-  }
-
-  Future<void> _startSession() async {
-    setState(() {
-      _sessionId = null;
-      _isExpired = false;
-      _errorMessage = null;
-    });
-    final sessionId = await ref
-        .read(authRepositoryProvider)
-        .createQrLoginSession();
-    if (!mounted) return;
-    setState(() => _sessionId = sessionId);
-
-    _statusSubscription?.cancel();
-    _statusSubscription = ref
-        .read(authRepositoryProvider)
-        .watchQrLoginSessionStatus(sessionId)
-        .listen(_onStatusChange);
-
-    _expiryTimer?.cancel();
-    _expiryTimer = Timer(_sessionTtl, () {
-      if (!mounted) return;
-      _statusSubscription?.cancel();
-      setState(() => _isExpired = true);
-    });
-  }
-
-  void _onStatusChange(String status) {
-    if (status == 'approved' && !_isClaiming) {
-      _claim();
-    }
-  }
-
-  Future<void> _claim() async {
-    final sessionId = _sessionId;
-    if (sessionId == null) return;
-    setState(() {
-      _isClaiming = true;
-      _errorMessage = null;
-    });
-    try {
-      await ref.read(authRepositoryProvider).claimQrLoginSession(sessionId);
-      if (!mounted) return;
-      Navigator.of(context).pop(true);
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _isClaiming = false;
-        _errorMessage = ref.read(appStringsProvider).qrLoginSignInError;
-      });
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final strings = ref.watch(appStringsProvider);
-    final sessionId = _sessionId;
     final isGlass = ref.watch(appUiStyleProvider) == AppUiStyle.glass;
 
     final title = Text(strings.qrLoginDialogTitle);
+    // QRコードの表示と承認待ちは`QrLoginPanel`が担う。
     final content = SizedBox(
       width: 280,
-      child: _buildBody(context, strings, sessionId),
+      child: SingleChildScrollView(
+        child: QrLoginPanel(onClaimed: () => Navigator.of(context).pop(true)),
+      ),
     );
     final actions = [
       TextButton(
@@ -128,60 +48,5 @@ class _QrLoginDialogState extends ConsumerState<QrLoginDialog> {
     return isGlass
         ? GlassAlertDialog(title: title, content: content, actions: actions)
         : KeyboardAlertDialog(title: title, content: content, actions: actions);
-  }
-
-  Widget _buildBody(BuildContext context, Strings strings, String? sessionId) {
-    if (sessionId == null) {
-      return const SizedBox(height: 200);
-    }
-    if (_isExpired) {
-      return Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const SizedBox(height: 60),
-          Text(strings.qrLoginExpiredMessage),
-          const SizedBox(height: 16),
-          FilledButton(
-            onPressed: _startSession,
-            child: Text(strings.qrLoginRefreshButton),
-          ),
-          const SizedBox(height: 60),
-        ],
-      );
-    }
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(strings.qrLoginDialogDescription),
-        const SizedBox(height: 16),
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: Theme.of(context).colorScheme.outlineVariant,
-            ),
-          ),
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              QrImageView(data: 'daidai:qrlogin:$sessionId', size: 200),
-              if (_isClaiming)
-                Container(
-                  width: 200,
-                  height: 200,
-                  color: Colors.white70,
-                  child: const SizedBox.shrink(),
-                ),
-            ],
-          ),
-        ),
-        if (_errorMessage != null) ...[
-          const SizedBox(height: 12),
-          Text(_errorMessage!, style: const TextStyle(color: Colors.red)),
-        ],
-      ],
-    );
   }
 }

@@ -1,3 +1,4 @@
+import 'package:daidai/widgets/toggles/app_radio.dart';
 import 'package:daidai/l10n/app_locale.dart';
 import 'package:daidai/l10n/strings.dart';
 import 'package:daidai/models/app_ui_style.dart';
@@ -63,8 +64,8 @@ void main() {
 
   testWidgets('標準と同じカードを固定していた設定も標準の行が選択状態', (tester) async {
     await pump(tester, active: _a, selected: 'a');
-    final radios = tester.widgetList<RadioListTile<String?>>(
-      find.byType(RadioListTile<String?>),
+    final radios = tester.widgetList<AppRadioListTile<String?>>(
+      find.byType(AppRadioListTile<String?>),
     );
     final standard = radios.first;
     expect(standard.value, isNull);

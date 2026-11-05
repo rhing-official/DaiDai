@@ -5,6 +5,10 @@ import '../../l10n/strings.dart';
 import '../../models/calendar_system.dart';
 import '../../models/calendar_week_start.dart';
 import '../../providers/holiday_settings_provider.dart';
+import '../../theme/gekiga/gekiga_colors.dart';
+import '../../widgets/gekiga/gekiga_panel_box.dart';
+import '../../widgets/pressable_scale.dart';
+import '../../widgets/toggles/app_checkbox.dart';
 
 /// カレンダー設定の共通部品（2026-11-05）。設定>語らい>カレンダー（標準）と、
 /// カレンダーの歯車ポップアップ（この語らいだけの設定）の両方で使う。色は呼び出し側が
@@ -20,8 +24,11 @@ class CalendarChoiceRow<T> extends StatelessWidget {
     required this.onSelected,
     required this.foreground,
     required this.background,
+    this.gekigaBlocks = false,
   });
 
+  /// trueなら劇画の黒いブロックの並びで描く。
+  final bool gekigaBlocks;
   final List<({T? value, String label})> options;
   final T? selected;
   final ValueChanged<T?> onSelected;
@@ -30,6 +37,21 @@ class CalendarChoiceRow<T> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (gekigaBlocks) {
+      return GekigaJointedTileList(
+        axis: Axis.horizontal,
+        seeds: [for (final o in options) o.label.hashCode],
+        selectedFlags: [for (final o in options) o.value == selected],
+        children: [
+          for (final o in options)
+            GekigaTileContent(
+              selected: o.value == selected,
+              title: Text(o.label),
+              onTap: () => onSelected(o.value),
+            ),
+        ],
+      );
+    }
     return Row(
       children: [
         for (var i = 0; i < options.length; i++) ...[
@@ -66,23 +88,30 @@ class _Chip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 選択の色・文字の太さはなめらかに切り替わり、押すと少し沈んで弾んで戻る。
     return GestureDetector(
       onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: selected ? foreground : Colors.transparent,
-          border: Border.all(color: foreground.withValues(alpha: 0.6)),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Text(
-          text,
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontSize: 13,
-            color: selected ? background : foreground,
-            fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+      child: PressableScale(
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOutCubic,
+          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: selected ? foreground : Colors.transparent,
+            border: Border.all(color: foreground.withValues(alpha: 0.6)),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: AnimatedDefaultTextStyle(
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeOutCubic,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 13,
+              color: selected ? background : foreground,
+              fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+            ),
+            child: Text(text),
           ),
         ),
       ),
@@ -131,8 +160,11 @@ class HolidayCheckboxes extends StatelessWidget {
     required this.onReligion,
     required this.foreground,
     required this.background,
+    this.gekigaBlocks = false,
   });
 
+  /// trueなら劇画の黒いブロック（設定画面用）で描く。
+  final bool gekigaBlocks;
   final Strings strings;
   final HolidaySettings settings;
   final String residenceCountry;
@@ -143,6 +175,29 @@ class HolidayCheckboxes extends StatelessWidget {
   final Color background;
 
   Widget _row(String label, bool value, ValueChanged<bool> onChanged) {
+    if (gekigaBlocks) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 8),
+        child: GekigaJointedTileList(
+          seeds: [label.hashCode],
+          selectedFlags: [value],
+          children: [
+            GekigaTileContent(
+              selected: value,
+              leading: AppCheckbox(
+                value: value,
+                onChanged: (v) => onChanged(v ?? false),
+                // 選択中は白地・未選択は黒地のブロックなので、チェックの色を行に合わせる。
+                foreground: value ? GekigaColors.panel : GekigaColors.onPanel,
+                background: value ? GekigaColors.onPanel : GekigaColors.panel,
+              ),
+              title: Text(label),
+              onTap: () => onChanged(!value),
+            ),
+          ],
+        ),
+      );
+    }
     return InkWell(
       onTap: () => onChanged(!value),
       child: Row(
@@ -150,12 +205,11 @@ class HolidayCheckboxes extends StatelessWidget {
           SizedBox(
             width: 32,
             height: 32,
-            child: Checkbox(
+            child: AppCheckbox(
               value: value,
-              activeColor: foreground,
-              checkColor: background,
-              side: BorderSide(color: foreground.withValues(alpha: 0.7)),
               onChanged: (v) => onChanged(v ?? false),
+              foreground: foreground,
+              background: background,
             ),
           ),
           const SizedBox(width: 4),

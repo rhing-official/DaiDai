@@ -12,6 +12,7 @@ import '../../providers/repository_providers.dart';
 import '../../utils/group_permissions.dart';
 import '../../utils/platform_info.dart';
 import '../../widgets/style_choice_chip.dart';
+import '../../widgets/toggles/app_checkbox.dart';
 
 /// ポップアップの幅（ダイアログの左右余白を除いた画面幅に収まるよう制限する）。
 const _kMaxWidth = 420.0;
@@ -182,7 +183,7 @@ class _GroupPermissionManagePopupState
 
         final permissionTiles = [
           for (final permission in GroupPermission.all)
-            CheckboxListTile(
+            AppCheckboxListTile(
               dense: true,
               controlAffinity: ListTileControlAffinity.leading,
               title: Text(strings.groupPermissionLabel(permission)),

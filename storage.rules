@@ -104,10 +104,15 @@ service firebase.storage {
     // stickerPackAssets/{creatorId}/...: daidai横丁に出品するペタピタの
     // 画像素材（技術仕様書7.4・7.5参照、2026-08-11追加）。商品画像として
     // 未ログインの一般訪問者にも見せる必要があるため閲覧は誰でも可能。
-    // アップロードは本人（creatorId）のみ。
+    // アップロードは本人（creatorId）のみ。重い画像を防ぐため、1枚2MB以下・
+    // PNG/WebP/JPEG/GIFのみに制限（HomePageの作成画面でも同じ上限を検査している。
+    // ピクセル数はルールでは見られないため、画面側のみ）。削除は本人なら常に可能。
     match /stickerPackAssets/{creatorId}/{allPaths=**} {
       allow read: if true;
-      allow write: if request.auth != null && request.auth.uid == creatorId;
+      allow create, update: if request.auth != null && request.auth.uid == creatorId
+        && request.resource.size <= 2 * 1024 * 1024
+        && request.resource.contentType in ['image/png', 'image/webp', 'image/jpeg', 'image/gif'];
+      allow delete: if request.auth != null && request.auth.uid == creatorId;
     }
 
     // daidaiYokochoProfile/{userId}/...: daidai横丁専用のプロフィールアイコン

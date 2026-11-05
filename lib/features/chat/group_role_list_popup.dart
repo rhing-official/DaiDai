@@ -17,6 +17,7 @@ import '../../widgets/glass/glass_dialog.dart';
 import 'group_role_priority_dialog.dart';
 import '../../widgets/dialog_keyboard_shortcuts.dart';
 import '../../widgets/app_dialog.dart';
+import '../../widgets/toggles/app_checkbox.dart';
 
 /// 広場のカスタムロール一覧（ポップアップの中身）。`manageRoles`権限を持つ
 /// メンバーのみが開ける（`_GroupMenuButton`側でメニュー項目自体を無効化する）。
@@ -165,7 +166,7 @@ class GroupRoleListPopup extends ConsumerWidget {
                     ),
                   ],
                 ),
-                CheckboxListTile(
+                AppCheckboxListTile(
                   contentPadding: EdgeInsets.zero,
                   controlAffinity: ListTileControlAffinity.leading,
                   value: !hasColor,
@@ -179,7 +180,7 @@ class GroupRoleListPopup extends ConsumerWidget {
                   style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
                 for (final permission in GroupPermission.all)
-                  CheckboxListTile(
+                  AppCheckboxListTile(
                     contentPadding: EdgeInsets.zero,
                     controlAffinity: ListTileControlAffinity.leading,
                     value: permissions.contains(permission),
@@ -202,7 +203,7 @@ class GroupRoleListPopup extends ConsumerWidget {
                     strings.groupRoleMembersLabel,
                     style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
-                  CheckboxListTile(
+                  AppCheckboxListTile(
                     contentPadding: EdgeInsets.zero,
                     controlAffinity: ListTileControlAffinity.leading,
                     value:
@@ -222,7 +223,7 @@ class GroupRoleListPopup extends ConsumerWidget {
                           }),
                   ),
                   for (final member in members)
-                    CheckboxListTile(
+                    AppCheckboxListTile(
                       contentPadding: EdgeInsets.zero,
                       controlAffinity: ListTileControlAffinity.leading,
                       value: selectedMemberIds.contains(member.userId),

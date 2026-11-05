@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+
+import 'pressable_scale.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/app_ui_style.dart';
@@ -147,7 +149,8 @@ class NavChip extends ConsumerWidget {
         offset: offset,
         duration: const Duration(milliseconds: 150),
         curve: Curves.easeOut,
-        child: chip,
+        // 押した時に少し沈み、離すと弾んで戻る（2026-11-05）。
+        child: PressableScale(child: chip),
       ),
     );
   }

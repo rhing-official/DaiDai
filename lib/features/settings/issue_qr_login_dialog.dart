@@ -19,12 +19,17 @@ import '../../widgets/app_dialog.dart';
 class IssueQrLoginDialog extends ConsumerStatefulWidget {
   const IssueQrLoginDialog({super.key});
 
-  static Future<void> show(BuildContext context) {
-    return showAppDialog<void>(
+  /// 閉じた時の結果。[scanRequested]がtrueなら、下の「QRコードを読み取る」が押されて閉じた
+  /// （呼び出し側がカメラでの読み取りを始める）。
+  static Future<bool> show(BuildContext context) async {
+    final result = await showAppDialog<String>(
       context: context,
       builder: (_) => const IssueQrLoginDialog(),
     );
+    return result == scanRequested;
   }
+
+  static const scanRequested = 'scan';
 
   @override
   ConsumerState<IssueQrLoginDialog> createState() => _IssueQrLoginDialogState();
@@ -109,9 +114,13 @@ class _IssueQrLoginDialogState extends ConsumerState<IssueQrLoginDialog> {
     final isGlass = ref.watch(appUiStyleProvider) == AppUiStyle.glass;
     final requested = _status == 'requested' && !_expired;
     final title = Text(
-      requested ? strings.qrIssueRequestTitle : strings.qrIssueDialogTitle,
+      requested ? strings.qrIssueRequestTitle : strings.settingsQrLogin,
     );
-    final content = SizedBox(width: 280, child: _body(context, strings));
+    // 低い画面でも収まるよう、中身はスクロールできるようにする。
+    final content = SizedBox(
+      width: 280,
+      child: SingleChildScrollView(child: _body(context, strings)),
+    );
     final actions = requested
         ? [
             TextButton(
@@ -179,6 +188,14 @@ class _IssueQrLoginDialogState extends ConsumerState<IssueQrLoginDialog> {
         Text(
           strings.qrIssueExpiresHint,
           style: Theme.of(context).textTheme.bodySmall,
+        ),
+        const SizedBox(height: 16),
+        // 逆向き: 別の端末が出したQRコードを、この端末で読み取る。
+        OutlinedButton.icon(
+          onPressed: () =>
+              Navigator.of(context).pop(IssueQrLoginDialog.scanRequested),
+          icon: const Icon(Icons.qr_code_scanner),
+          label: Text(strings.qrLoginScanButton),
         ),
       ],
     );

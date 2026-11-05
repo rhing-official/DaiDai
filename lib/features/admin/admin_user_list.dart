@@ -16,6 +16,8 @@ import '../../widgets/profile_card_view.dart';
 import '../../widgets/style_choice_chip.dart';
 import '../../widgets/dialog_keyboard_shortcuts.dart';
 import '../../widgets/app_dialog.dart';
+import '../../widgets/toggles/app_checkbox.dart';
+import '../../widgets/toggles/app_radio.dart';
 
 /// 管理画面の住人一覧の取得元（`limit(500)`、並べ替えはUI側）。テストで
 /// 差し替えられるよう公開している。
@@ -459,7 +461,7 @@ class _SelectionBar extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
       child: Row(
         children: [
-          Checkbox(
+          AppCheckbox(
             value: allSelected,
             onChanged: anySelectable && !busy ? onToggleAll : null,
           ),
@@ -579,7 +581,7 @@ class _UserRow extends StatelessWidget {
               SizedBox(
                 width: 40,
                 child: selectable
-                    ? Checkbox(value: selected, onChanged: onSelected)
+                    ? AppCheckbox(value: selected, onChanged: onSelected)
                     : null,
               ),
               GeneratedAvatar(seed: user.userId, label: user.rhingSeed),
@@ -963,7 +965,7 @@ class _ReasonDialogState extends ConsumerState<_ReasonDialog> {
                 child: Column(
                   children: [
                     for (final r in _ProfileViewReason.values)
-                      RadioListTile<_ProfileViewReason>(
+                      AppRadioListTile<_ProfileViewReason>(
                         value: r,
                         title: Text(r.label),
                         contentPadding: EdgeInsets.zero,

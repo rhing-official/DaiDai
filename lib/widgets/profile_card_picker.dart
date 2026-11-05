@@ -6,6 +6,8 @@ import '../models/app_ui_style.dart';
 import '../models/profile_card.dart';
 import '../providers/app_ui_style_provider.dart';
 import 'gekiga/gekiga_panel_box.dart';
+import 'toggles/app_radio.dart';
+import '../theme/gekiga/gekiga_colors.dart';
 
 /// 会話（一対・広場）ごとに使うプロフィールカードを選ぶ単一選択ピッカー。
 /// 「標準」＋[cards]の各カード名を並べる。広場参加・友達申請3系統・
@@ -70,10 +72,11 @@ class ProfileCardPicker extends ConsumerWidget {
           for (final option in options)
             GekigaTileContent(
               selected: option.id == effectiveSelectedId,
-              leading: Icon(
-                option.id == effectiveSelectedId
-                    ? Icons.radio_button_checked
-                    : Icons.radio_button_unchecked,
+              leading: AppRadioMark(
+                selected: option.id == effectiveSelectedId,
+                color: (option.id == effectiveSelectedId)
+                    ? GekigaColors.panel
+                    : GekigaColors.onPanel,
               ),
               title: Text(option.label),
               onTap: () => onSelected(option.id),
@@ -88,7 +91,10 @@ class ProfileCardPicker extends ConsumerWidget {
       child: Column(
         children: [
           for (final option in options)
-            RadioListTile<String?>(value: option.id, title: Text(option.label)),
+            AppRadioListTile<String?>(
+              value: option.id,
+              title: Text(option.label),
+            ),
         ],
       ),
     );

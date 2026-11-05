@@ -261,12 +261,12 @@ final Strings _stringsFr = Strings._(
   qrLoginScanInstructionMessage:
       'Sur un autre appareil, ouvrez l’écran de connexion et touchez « Se connecter avec un code QR », puis scannez avec cet appareil le code affiché.',
   qrLoginScanInstructionButton: 'Commencer le scan',
-  qrIssueMenuLabel: 'Afficher un code QR pour connecter un autre appareil',
+  qrLoginScanButton: 'Scanner un code QR',
   qrIssueDialogTitle: 'Connecter un autre appareil avec un code QR',
   qrIssueDialogDescription:
       'Sur l’appareil à connecter, ouvrez l’écran de connexion de DaiDai, choisissez « Scanner un code QR pour se connecter » et scannez ce code.',
   qrIssueExpiresHint:
-      'Ce code QR est valable 2 minutes et ne peut être utilisé qu’une seule fois.',
+      'Ce code QR est valable 2 minutes et ne peut être utilisé qu’une seule fois. Ne le montrez à personne.',
   qrIssueRequestTitle: 'Autoriser cette connexion ?',
   qrIssueRequestMessage:
       'Un autre appareil tente de se connecter à ce compte. Si vous ne le reconnaissez pas, refusez.',
@@ -276,7 +276,7 @@ final Strings _stringsFr = Strings._(
   qrIssueError: 'Impossible de créer le code QR',
   qrScanLoginButton: 'Scanner un code QR pour se connecter',
   qrScanLoginInstructionMessage:
-      'Sur un appareil déjà connecté, ouvrez Réglages > Compte > Sécurité > « Afficher un code QR pour connecter un autre appareil », puis scannez le code avec cet appareil.',
+      'Sur un appareil déjà connecté, ouvrez Réglages > Compte > Sécurité > « Se connecter avec un code QR » pour afficher un code QR, puis scannez le code avec cet appareil.',
   qrScanLoginWaitingTitle: 'En attente d’autorisation',
   qrScanLoginWaitingMessage: 'Touchez « Autoriser » sur l’appareil connecté.',
   qrScanLoginDenied: 'La connexion n’a pas été autorisée',
@@ -902,10 +902,7 @@ final Strings _stringsFr = Strings._(
   calendarSyncOptInAcceptButton: 'Synchroniser',
   calendarSyncOptInDeclineButton: 'Pas maintenant',
   settingsGoogleCalendarSyncSectionTitle: 'Intégrations',
-  settingsGoogleCalendarSyncConnectedLabel:
-      'Synchronisation Google Agenda : connectée',
-  settingsGoogleCalendarSyncDisconnectedLabel:
-      'Synchronisation Google Agenda : non connectée',
+  settingsGoogleCalendarSyncLabel: 'Synchronisation Google Agenda',
   settingsGoogleCalendarSyncDisconnectAction: 'Déconnecter',
   settingsGoogleCalendarSyncDisconnectConfirmTitle: 'Déconnecter ?',
   settingsGoogleCalendarSyncDisconnectConfirmMessage:

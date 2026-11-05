@@ -88,6 +88,7 @@ import '../../widgets/media_preview_frame.dart';
 import '../../widgets/copy_link_row.dart';
 import '../../widgets/gekiga/gekiga_panel_box.dart';
 import '../../widgets/gekiga/gekiga_section_header.dart';
+import '../../widgets/gekiga/settings_tile.dart';
 import '../../widgets/gekiga/gekiga_text_field.dart';
 import '../../widgets/glass/glass_dialog.dart';
 import '../../widgets/glass/glass_surface.dart';
@@ -105,6 +106,8 @@ import 'passkey_management_dialog.dart';
 import 'settings_accordion_section.dart';
 import '../../widgets/dialog_keyboard_shortcuts.dart';
 import '../../widgets/app_dialog.dart';
+import '../../widgets/toggles/app_switch.dart';
+import '../../widgets/toggles/app_radio.dart';
 
 /// 画面幅がこれ以上あれば、左にカテゴリ一覧（サイドバー）、右にそのカテゴリの
 /// 内容を1ページにまとめて表示するDiscord設定風の2ペイン表示にする。
@@ -894,14 +897,17 @@ class _SectionHeader extends StatelessWidget {
 }
 
 /// ラベル＋値（読み取り専用、または「準備中」）の1行。
-class _InfoRow extends StatelessWidget {
+class _InfoRow extends ConsumerWidget {
   const _InfoRow({required this.label, required this.value});
 
   final String label;
   final String value;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (ref.watch(appUiStyleProvider) == AppUiStyle.gekiga) {
+      return SettingsTile(title: Text(label), trailing: Text(value));
+    }
     final colorScheme = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -991,7 +997,7 @@ class _SeedSearchableRowState extends ConsumerState<_SeedSearchableRow> {
 
   @override
   Widget build(BuildContext context) {
-    return SwitchListTile(
+    return AppSwitchListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 16),
       title: Text(widget.strings.settingsSeedSearchableTitle),
       subtitle: Text(widget.strings.settingsSeedSearchableDescription),
@@ -1015,7 +1021,7 @@ class _ActionRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
+    return SettingsTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 16),
       title: destructive ? DestructiveLabel(label) : Text(label),
       onTap: onTap,
@@ -1144,24 +1150,17 @@ class _TwoFactorRowState extends ConsumerState<_TwoFactorRow> {
   @override
   Widget build(BuildContext context) {
     final strings = widget.strings;
-    final colorScheme = Theme.of(context).colorScheme;
     return FutureBuilder<List<MultiFactorInfo>>(
       future: _factorsFuture,
       builder: (context, snapshot) {
         final factors = snapshot.data;
-        final statusText = factors == null
-            ? '…'
-            : (factors.isEmpty
-                  ? strings.twoFactorDisabledStatus
-                  : strings.twoFactorEnabledStatus);
-        return ListTile(
+        // 2段階認証のオン/オフはトグルで切り替える。オンにすると登録ダイアログ、
+        // オフにすると確認ダイアログを開き、完了・取消後は登録状態から値が決まる。
+        return AppSwitchListTile(
           contentPadding: const EdgeInsets.symmetric(horizontal: 16),
           title: Text(strings.settingsTwoFactor),
-          trailing: Text(
-            statusText,
-            style: TextStyle(color: colorScheme.onSurfaceVariant),
-          ),
-          onTap: factors == null ? null : () => _onTap(factors),
+          value: factors != null && factors.isNotEmpty,
+          onChanged: factors == null ? null : (_) => _onTap(factors),
         );
       },
     );
@@ -1178,9 +1177,6 @@ class _QrLoginRow extends ConsumerWidget {
   final Strings strings;
 
   Future<void> _scan(BuildContext context, WidgetRef ref) async {
-    final startScan = await _confirmStartScan(context, strings);
-    if (!startScan || !context.mounted) return;
-
     final scanned = await Navigator.of(context).push<String>(
       slideBackRoute<String>(
         builder: (context) => QrScanScreen(title: strings.settingsQrLogin),
@@ -1208,56 +1204,16 @@ class _QrLoginRow extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return Column(
-      children: [
-        _ActionRow(
-          label: strings.settingsQrLogin,
-          onTap: () => _scan(context, ref),
-        ),
-        // ログイン済み端末がQRを表示し、ログインしたい端末に読み取ってもらう
-        // 経路（2026-10-15追加、読み取り後に許可を挟む）。
-        _ActionRow(
-          label: strings.qrIssueMenuLabel,
-          onTap: () => IssueQrLoginDialog.show(context),
-        ),
-      ],
+    // 入口は1つ。開くとこの端末のQRコードが出て（別の端末に読み取ってもらう）、その下の
+    // 「QRコードを読み取る」で逆向き（別の端末のQRコードを読み取る）も行える。
+    return _ActionRow(
+      label: strings.settingsQrLogin,
+      onTap: () async {
+        final scan = await IssueQrLoginDialog.show(context);
+        if (scan && context.mounted) await _scan(context, ref);
+      },
     );
   }
-}
-
-/// カメラを開く前に「別の端末でQRコードが表示されている」という前提を
-/// 説明する（2026-08-10追加）。この説明無しにいきなりカメラが起動すると、
-/// 1台の端末だけで試したユーザーには「読み取るべきものが無いのにカメラだけ
-/// 起動する」ように見え分かりにくいとの指摘を受けた。
-Future<bool> _confirmStartScan(BuildContext context, Strings strings) async {
-  final isGlass =
-      ProviderScope.containerOf(context).read(appUiStyleProvider) ==
-      AppUiStyle.glass;
-  final confirmed = await showAppDialog<bool>(
-    context: context,
-    builder: (context) {
-      final title = Text(strings.settingsQrLogin);
-      final content = Text(strings.qrLoginScanInstructionMessage);
-      final actions = [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(false),
-          child: Text(strings.cancel),
-        ),
-        FilledButton(
-          onPressed: () => Navigator.of(context).pop(true),
-          child: Text(strings.qrLoginScanInstructionButton),
-        ),
-      ];
-      return isGlass
-          ? GlassAlertDialog(title: title, content: content, actions: actions)
-          : KeyboardAlertDialog(
-              title: title,
-              content: content,
-              actions: actions,
-            );
-    },
-  );
-  return confirmed ?? false;
 }
 
 /// アクセントカラーのプリセットを削除する前の確認ダイアログ
@@ -1441,11 +1397,8 @@ class _GoogleCalendarSyncRow extends ConsumerWidget {
     // なるようにする（2026-09-23追加）。
     final showConnected = enabled && calendarId != null;
     final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
-    final title = Text(
-      showConnected
-          ? strings.settingsGoogleCalendarSyncConnectedLabel
-          : strings.settingsGoogleCalendarSyncDisconnectedLabel,
-    );
+    // 連携の状態は文言ではなくトグルの位置で示す。
+    final title = Text(strings.settingsGoogleCalendarSyncLabel);
 
     void setEnabled(bool value) =>
         value ? _connect(context, ref) : _disconnect(context, ref, calendarId);
@@ -1458,21 +1411,17 @@ class _GoogleCalendarSyncRow extends ConsumerWidget {
           GekigaTileContent(
             selected: false,
             title: title,
-            trailing: Switch(
+            trailing: AppSwitch(
               value: showConnected,
               onChanged: setEnabled,
-              activeThumbColor: GekigaColors.panel,
-              activeTrackColor: GekigaColors.onPanel,
-              inactiveThumbColor: GekigaColors.onPanel,
-              inactiveTrackColor: GekigaColors.panel,
-              trackOutlineColor: WidgetStatePropertyAll(GekigaColors.onPanel),
+              onDarkSurface: true,
             ),
             onTap: () => setEnabled(!showConnected),
           ),
         ],
       );
     }
-    return SwitchListTile(
+    return AppSwitchListTile(
       value: showConnected,
       title: title,
       onChanged: setEnabled,
@@ -2282,10 +2231,11 @@ class TextSizeFolder extends ConsumerWidget {
               for (final o in options)
                 GekigaTileContent(
                   selected: current == o.size,
-                  leading: Icon(
-                    current == o.size
-                        ? Icons.radio_button_checked
-                        : Icons.radio_button_unchecked,
+                  leading: AppRadioMark(
+                    selected: current == o.size,
+                    color: (current == o.size)
+                        ? GekigaColors.panel
+                        : GekigaColors.onPanel,
                   ),
                   title: Text(o.label),
                   onTap: () => select(o.size),
@@ -2300,7 +2250,7 @@ class TextSizeFolder extends ConsumerWidget {
             child: Column(
               children: [
                 for (final o in options)
-                  RadioListTile<AppTextSize>(
+                  AppRadioListTile<AppTextSize>(
                     value: o.size,
                     title: Text(o.label),
                   ),
@@ -2313,10 +2263,7 @@ class TextSizeFolder extends ConsumerWidget {
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-          child: Text(
-            strings.settingsTextSizeTitle,
-            style: const TextStyle(fontWeight: FontWeight.bold),
-          ),
+          child: GekigaSectionHeader(strings.settingsTextSizeTitle),
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
@@ -2367,10 +2314,11 @@ class AppearanceFolder extends ConsumerWidget {
               for (final option in appearanceOptions)
                 GekigaTileContent(
                   selected: themeMode == option.mode,
-                  leading: Icon(
-                    themeMode == option.mode
-                        ? Icons.radio_button_checked
-                        : Icons.radio_button_unchecked,
+                  leading: AppRadioMark(
+                    selected: themeMode == option.mode,
+                    color: (themeMode == option.mode)
+                        ? GekigaColors.panel
+                        : GekigaColors.onPanel,
                   ),
                   title: Text(option.label),
                   onTap: () => selectThemeMode(option.mode),
@@ -2385,7 +2333,7 @@ class AppearanceFolder extends ConsumerWidget {
             child: Column(
               children: [
                 for (final option in appearanceOptions)
-                  RadioListTile<ThemeMode>(
+                  AppRadioListTile<ThemeMode>(
                     value: option.mode,
                     title: Text(option.label),
                   ),
@@ -2399,10 +2347,7 @@ class AppearanceFolder extends ConsumerWidget {
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-          child: Text(
-            strings.settingsAppearance,
-            style: const TextStyle(fontWeight: FontWeight.bold),
-          ),
+          child: GekigaSectionHeader(strings.settingsAppearance),
         ),
         // 劇画UI選択中は外観（ライト/ダーク/端末に合わせる）を変更不可にする
         // （グレーアウト＋操作無効化）。themeModeに関わらず常に同じ見た目を
@@ -2681,10 +2626,7 @@ class _AccentColorFolderState extends ConsumerState<AccentColorFolder> {
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
-          child: Text(
-            widget.strings.settingsAccentColor,
-            style: const TextStyle(fontWeight: FontWeight.bold),
-          ),
+          child: GekigaSectionHeader(widget.strings.settingsAccentColor),
         ),
         // 劇画UI選択中は「背景色」の意味で使う（フラットUIのようにColorScheme
         // 全体の種にはせず、背景のみを変更する。黒/白基調の他パーツは
@@ -2963,10 +2905,7 @@ class _TextColorFolderState extends ConsumerState<_TextColorFolder> {
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
-          child: Text(
-            strings.settingsTextColorTitle,
-            style: const TextStyle(fontWeight: FontWeight.bold),
-          ),
+          child: GekigaSectionHeader(strings.settingsTextColorTitle),
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
@@ -3074,10 +3013,11 @@ class _LanguageFolder extends ConsumerWidget {
               for (final locale in AppLocale.values)
                 GekigaTileContent(
                   selected: currentLocale == locale,
-                  leading: Icon(
-                    currentLocale == locale
-                        ? Icons.radio_button_checked
-                        : Icons.radio_button_unchecked,
+                  leading: AppRadioMark(
+                    selected: currentLocale == locale,
+                    color: (currentLocale == locale)
+                        ? GekigaColors.panel
+                        : GekigaColors.onPanel,
                   ),
                   title: Text(locale.label),
                   onTap: () => selectLocale(locale),
@@ -3092,7 +3032,7 @@ class _LanguageFolder extends ConsumerWidget {
             child: Column(
               children: [
                 for (final locale in AppLocale.values)
-                  RadioListTile<AppLocale>(
+                  AppRadioListTile<AppLocale>(
                     value: locale,
                     title: Text(locale.label),
                   ),
@@ -3106,10 +3046,7 @@ class _LanguageFolder extends ConsumerWidget {
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-          child: Text(
-            strings.settingsDisplayLanguage,
-            style: const TextStyle(fontWeight: FontWeight.bold),
-          ),
+          child: GekigaSectionHeader(strings.settingsDisplayLanguage),
         ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -3156,30 +3093,33 @@ class UiStyleFolder extends ConsumerWidget {
         children: [
           GekigaTileContent(
             selected: style == AppUiStyle.flat,
-            leading: Icon(
-              style == AppUiStyle.flat
-                  ? Icons.radio_button_checked
-                  : Icons.radio_button_unchecked,
+            leading: AppRadioMark(
+              selected: style == AppUiStyle.flat,
+              color: (style == AppUiStyle.flat)
+                  ? GekigaColors.panel
+                  : GekigaColors.onPanel,
             ),
             title: Text(strings.settingsUiStyleFlatLabel),
             onTap: () => select(AppUiStyle.flat),
           ),
           GekigaTileContent(
             selected: style == AppUiStyle.glass,
-            leading: Icon(
-              style == AppUiStyle.glass
-                  ? Icons.radio_button_checked
-                  : Icons.radio_button_unchecked,
+            leading: AppRadioMark(
+              selected: style == AppUiStyle.glass,
+              color: (style == AppUiStyle.glass)
+                  ? GekigaColors.panel
+                  : GekigaColors.onPanel,
             ),
             title: Text(strings.settingsUiStyleGlassLabel),
             onTap: () => select(AppUiStyle.glass),
           ),
           GekigaTileContent(
             selected: style == AppUiStyle.gekiga,
-            leading: Icon(
-              style == AppUiStyle.gekiga
-                  ? Icons.radio_button_checked
-                  : Icons.radio_button_unchecked,
+            leading: AppRadioMark(
+              selected: style == AppUiStyle.gekiga,
+              color: (style == AppUiStyle.gekiga)
+                  ? GekigaColors.panel
+                  : GekigaColors.onPanel,
             ),
             title: Text(strings.settingsUiStyleGekigaLabel),
             onTap: () => select(AppUiStyle.gekiga),
@@ -3195,15 +3135,15 @@ class UiStyleFolder extends ConsumerWidget {
       },
       child: Column(
         children: [
-          RadioListTile<AppUiStyle>(
+          AppRadioListTile<AppUiStyle>(
             value: AppUiStyle.flat,
             title: Text(strings.settingsUiStyleFlatLabel),
           ),
-          RadioListTile<AppUiStyle>(
+          AppRadioListTile<AppUiStyle>(
             value: AppUiStyle.glass,
             title: Text(strings.settingsUiStyleGlassLabel),
           ),
-          RadioListTile<AppUiStyle>(
+          AppRadioListTile<AppUiStyle>(
             value: AppUiStyle.gekiga,
             title: Text(strings.settingsUiStyleGekigaLabel),
           ),
@@ -3283,10 +3223,11 @@ class _FontDesignFolderState extends ConsumerState<FontDesignFolder> {
           for (final value in visibleDesigns)
             GekigaTileContent(
               selected: design == value,
-              leading: Icon(
-                design == value
-                    ? Icons.radio_button_checked
-                    : Icons.radio_button_unchecked,
+              leading: AppRadioMark(
+                selected: design == value,
+                color: (design == value)
+                    ? GekigaColors.panel
+                    : GekigaColors.onPanel,
               ),
               title: Text(
                 labelFor(value),
@@ -3319,7 +3260,7 @@ class _FontDesignFolderState extends ConsumerState<FontDesignFolder> {
       child: Column(
         children: [
           for (final value in visibleDesigns)
-            RadioListTile<FontDesign>(
+            AppRadioListTile<FontDesign>(
               value: value,
               title: Text(
                 labelFor(value),
@@ -3330,7 +3271,7 @@ class _FontDesignFolderState extends ConsumerState<FontDesignFolder> {
                   : null,
             ),
           if (hasMore)
-            ListTile(
+            SettingsTile(
               contentPadding: const EdgeInsets.symmetric(horizontal: 16),
               leading: Icon(_expanded ? Icons.expand_less : Icons.expand_more),
               title: Text(
@@ -3382,10 +3323,11 @@ class ChatLayoutFolder extends ConsumerWidget {
               for (final option in options)
                 GekigaTileContent(
                   selected: style == option.value,
-                  leading: Icon(
-                    style == option.value
-                        ? Icons.radio_button_checked
-                        : Icons.radio_button_unchecked,
+                  leading: AppRadioMark(
+                    selected: style == option.value,
+                    color: (style == option.value)
+                        ? GekigaColors.panel
+                        : GekigaColors.onPanel,
                   ),
                   title: Text(option.title),
                   subtitle: Text(option.subtitle),
@@ -3401,7 +3343,7 @@ class ChatLayoutFolder extends ConsumerWidget {
             child: Column(
               children: [
                 for (final option in options)
-                  RadioListTile<ChatLayoutStyle>(
+                  AppRadioListTile<ChatLayoutStyle>(
                     value: option.value,
                     title: Text(option.title),
                     subtitle: Text(option.subtitle),
@@ -3416,10 +3358,7 @@ class ChatLayoutFolder extends ConsumerWidget {
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-          child: Text(
-            strings.settingsChatLayoutTitle,
-            style: const TextStyle(fontWeight: FontWeight.bold),
-          ),
+          child: GekigaSectionHeader(strings.settingsChatLayoutTitle),
         ),
         control,
       ],
@@ -3466,10 +3405,11 @@ class SlideTransitionFolder extends ConsumerWidget {
               for (final option in options)
                 GekigaTileContent(
                   selected: style == option.value,
-                  leading: Icon(
-                    style == option.value
-                        ? Icons.radio_button_checked
-                        : Icons.radio_button_unchecked,
+                  leading: AppRadioMark(
+                    selected: style == option.value,
+                    color: (style == option.value)
+                        ? GekigaColors.panel
+                        : GekigaColors.onPanel,
                   ),
                   title: Text(option.title),
                   onTap: () => select(option.value),
@@ -3484,7 +3424,7 @@ class SlideTransitionFolder extends ConsumerWidget {
             child: Column(
               children: [
                 for (final option in options)
-                  RadioListTile<SlideTransitionStyle>(
+                  AppRadioListTile<SlideTransitionStyle>(
                     value: option.value,
                     title: Text(option.title),
                   ),
@@ -3498,10 +3438,7 @@ class SlideTransitionFolder extends ConsumerWidget {
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-          child: Text(
-            strings.settingsSlideTransitionTitle,
-            style: const TextStyle(fontWeight: FontWeight.bold),
-          ),
+          child: GekigaSectionHeader(strings.settingsSlideTransitionTitle),
         ),
         control,
       ],
@@ -3550,10 +3487,11 @@ class TalksListLayoutFolder extends ConsumerWidget {
               for (final option in options)
                 GekigaTileContent(
                   selected: style == option.value,
-                  leading: Icon(
-                    style == option.value
-                        ? Icons.radio_button_checked
-                        : Icons.radio_button_unchecked,
+                  leading: AppRadioMark(
+                    selected: style == option.value,
+                    color: (style == option.value)
+                        ? GekigaColors.panel
+                        : GekigaColors.onPanel,
                   ),
                   title: Text(option.title),
                   subtitle: Text(option.subtitle),
@@ -3569,7 +3507,7 @@ class TalksListLayoutFolder extends ConsumerWidget {
             child: Column(
               children: [
                 for (final option in options)
-                  RadioListTile<TalksListLayoutStyle>(
+                  AppRadioListTile<TalksListLayoutStyle>(
                     value: option.value,
                     title: Text(option.title),
                     subtitle: Text(option.subtitle),
@@ -3584,10 +3522,7 @@ class TalksListLayoutFolder extends ConsumerWidget {
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-          child: Text(
-            strings.settingsTalksListLayoutTitle,
-            style: const TextStyle(fontWeight: FontWeight.bold),
-          ),
+          child: GekigaSectionHeader(strings.settingsTalksListLayoutTitle),
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
@@ -3667,10 +3602,11 @@ class NavChipLayoutFolder extends ConsumerWidget {
               for (final a in NavChipAlignment.values)
                 GekigaTileContent(
                   selected: layout.alignment == a,
-                  leading: Icon(
-                    layout.alignment == a
-                        ? Icons.radio_button_checked
-                        : Icons.radio_button_unchecked,
+                  leading: AppRadioMark(
+                    selected: layout.alignment == a,
+                    color: (layout.alignment == a)
+                        ? GekigaColors.panel
+                        : GekigaColors.onPanel,
                   ),
                   title: Text(_alignLabel(a, wide: wide)),
                   onTap: () => selectAlignment(a),
@@ -3685,7 +3621,7 @@ class NavChipLayoutFolder extends ConsumerWidget {
             child: Column(
               children: [
                 for (final a in NavChipAlignment.values)
-                  RadioListTile<NavChipAlignment>(
+                  AppRadioListTile<NavChipAlignment>(
                     value: a,
                     title: Text(_alignLabel(a, wide: wide)),
                   ),
@@ -3703,10 +3639,11 @@ class NavChipLayoutFolder extends ConsumerWidget {
               for (final a in NavChipAlignment.values)
                 GekigaTileContent(
                   selected: listAlignment == a,
-                  leading: Icon(
-                    listAlignment == a
-                        ? Icons.radio_button_checked
-                        : Icons.radio_button_unchecked,
+                  leading: AppRadioMark(
+                    selected: listAlignment == a,
+                    color: (listAlignment == a)
+                        ? GekigaColors.panel
+                        : GekigaColors.onPanel,
                   ),
                   title: Text(_alignLabel(a, wide: false)),
                   onTap: () => selectListAlignment(a),
@@ -3721,7 +3658,7 @@ class NavChipLayoutFolder extends ConsumerWidget {
             child: Column(
               children: [
                 for (final a in NavChipAlignment.values)
-                  RadioListTile<NavChipAlignment>(
+                  AppRadioListTile<NavChipAlignment>(
                     value: a,
                     title: Text(_alignLabel(a, wide: false)),
                   ),
@@ -3800,28 +3737,19 @@ class NavChipLayoutFolder extends ConsumerWidget {
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-          child: Text(
-            strings.settingsNavChipsAlignmentTitle,
-            style: const TextStyle(fontWeight: FontWeight.bold),
-          ),
+          child: GekigaSectionHeader(strings.settingsNavChipsAlignmentTitle),
         ),
         alignmentControl,
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-          child: Text(
-            strings.settingsNavChipsOrderTitle,
-            style: const TextStyle(fontWeight: FontWeight.bold),
-          ),
+          child: GekigaSectionHeader(strings.settingsNavChipsOrderTitle),
         ),
         orderControl,
         // 項目一覧の揃えは劇画UIでのみ表示・適用する（2026-11-02）。
         if (isGekiga) ...[
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-            child: Text(
-              strings.settingsCategoryListAlignTitle,
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
+            child: GekigaSectionHeader(strings.settingsCategoryListAlignTitle),
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
@@ -3958,10 +3886,11 @@ class TimeFormatFolder extends ConsumerWidget {
               for (final format in MessageTimeFormat.values)
                 GekigaTileContent(
                   selected: currentFormat == format,
-                  leading: Icon(
-                    currentFormat == format
-                        ? Icons.radio_button_checked
-                        : Icons.radio_button_unchecked,
+                  leading: AppRadioMark(
+                    selected: currentFormat == format,
+                    color: (currentFormat == format)
+                        ? GekigaColors.panel
+                        : GekigaColors.onPanel,
                   ),
                   title: Text(label(format)),
                   onTap: () => select(format),
@@ -3976,7 +3905,7 @@ class TimeFormatFolder extends ConsumerWidget {
             child: Column(
               children: [
                 for (final format in MessageTimeFormat.values)
-                  RadioListTile<MessageTimeFormat>(
+                  AppRadioListTile<MessageTimeFormat>(
                     value: format,
                     title: Text(label(format)),
                   ),
@@ -3990,10 +3919,7 @@ class TimeFormatFolder extends ConsumerWidget {
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-          child: Text(
-            strings.settingsTimeFormat,
-            style: const TextStyle(fontWeight: FontWeight.bold),
-          ),
+          child: GekigaSectionHeader(strings.settingsTimeFormat),
         ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -4093,10 +4019,7 @@ class _PasscodeLockFolderState extends ConsumerState<_PasscodeLockFolder> {
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-          child: Text(
-            strings.settingsPasscodeLockToggleLabel,
-            style: const TextStyle(fontWeight: FontWeight.bold),
-          ),
+          child: GekigaSectionHeader(strings.settingsPasscodeLockToggleLabel),
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
@@ -4108,18 +4031,18 @@ class _PasscodeLockFolderState extends ConsumerState<_PasscodeLockFolder> {
         if (_loading)
           const SizedBox.shrink()
         else ...[
-          SwitchListTile(
+          AppSwitchListTile(
             title: Text(strings.settingsPasscodeLockToggleLabel),
             value: _passcodeEnabled,
             onChanged: _onPasscodeToggle,
           ),
           if (_passcodeEnabled) ...[
-            ListTile(
+            SettingsTile(
               title: Text(strings.settingsPasscodeChangeButton),
               onTap: _onChangePasscode,
             ),
             if (_canUseBiometrics)
-              SwitchListTile(
+              AppSwitchListTile(
                 title: Text(strings.settingsPasscodeBiometricToggleLabel),
                 value: _biometricEnabled,
                 onChanged: _onBiometricToggle,
@@ -4185,6 +4108,7 @@ class _CalendarSettingsFolder extends ConsumerWidget {
     final colorScheme = Theme.of(context).colorScheme;
     final foreground = colorScheme.onSurface;
     final background = colorScheme.surface;
+    final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
     final weekStart = ref.watch(calendarWeekStartProvider);
     final system = ref.watch(calendarSystemProvider);
     final holidays = ref.watch(holidaySettingsProvider);
@@ -4193,10 +4117,7 @@ class _CalendarSettingsFolder extends ConsumerWidget {
 
     Widget label(String text) => Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-      child: Text(
-        text,
-        style: TextStyle(fontWeight: FontWeight.bold, color: foreground),
-      ),
+      child: GekigaSectionHeader(text),
     );
 
     return Column(
@@ -4213,41 +4134,38 @@ class _CalendarSettingsFolder extends ConsumerWidget {
           ),
         ),
         label(strings.calendarWeekStartLabel),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: CalendarChoiceRow<CalendarWeekStart>(
-            options: weekStartOptions(strings),
-            selected: weekStart,
-            onSelected: (value) {
-              if (value != null) {
-                ref
-                    .read(calendarWeekStartProvider.notifier)
-                    .setWeekStart(value);
-              }
-            },
-            foreground: foreground,
-            background: background,
-          ),
+        _calendarRadioGroup<CalendarWeekStart>(
+          isGekiga: isGekiga,
+          current: weekStart,
+          options: [
+            (
+              value: CalendarWeekStart.sunday,
+              label: strings.calendarWeekStartSunday,
+            ),
+            (
+              value: CalendarWeekStart.monday,
+              label: strings.calendarWeekStartMonday,
+            ),
+          ],
+          onSelected: (value) =>
+              ref.read(calendarWeekStartProvider.notifier).setWeekStart(value),
         ),
         label(strings.calendarSystemLabel),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: CalendarChoiceRow<CalendarSystem>(
-            options: calendarSystemOptions(strings),
-            selected: system,
-            onSelected: (value) {
-              if (value != null) {
-                ref.read(calendarSystemProvider.notifier).setSystem(value);
-              }
-            },
-            foreground: foreground,
-            background: background,
-          ),
+        _calendarRadioGroup<CalendarSystem>(
+          isGekiga: isGekiga,
+          current: system,
+          options: [
+            for (final option in CalendarSystem.values)
+              (value: option, label: calendarSystemLabelOf(strings, option)),
+          ],
+          onSelected: (value) =>
+              ref.read(calendarSystemProvider.notifier).setSystem(value),
         ),
         label(strings.holidaySettingsTitle),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: HolidayCheckboxes(
+            gekigaBlocks: isGekiga,
             strings: strings,
             settings: holidays,
             residenceCountry: residence,
@@ -4262,6 +4180,48 @@ class _CalendarSettingsFolder extends ConsumerWidget {
       ],
     );
   }
+}
+
+/// 設定>語らい>カレンダーのラジオの並び。劇画は他の設定と同じ`GekigaJointedTileList`、
+/// フラット・ガラスは`RadioGroup`＋`AppRadioListTile`（ラジオは左端）。
+Widget _calendarRadioGroup<T>({
+  required bool isGekiga,
+  required T current,
+  required List<({T value, String label})> options,
+  required ValueChanged<T> onSelected,
+}) {
+  if (isGekiga) {
+    return GekigaJointedTileList(
+      seeds: [for (final o in options) o.value.hashCode],
+      selectedFlags: [for (final o in options) current == o.value],
+      children: [
+        for (final o in options)
+          GekigaTileContent(
+            selected: current == o.value,
+            leading: AppRadioMark(
+              selected: current == o.value,
+              color: current == o.value
+                  ? GekigaColors.panel
+                  : GekigaColors.onPanel,
+            ),
+            title: Text(o.label),
+            onTap: () => onSelected(o.value),
+          ),
+      ],
+    );
+  }
+  return RadioGroup<T>(
+    groupValue: current,
+    onChanged: (value) {
+      if (value != null) onSelected(value);
+    },
+    child: Column(
+      children: [
+        for (final o in options)
+          AppRadioListTile<T>(value: o.value, title: Text(o.label)),
+      ],
+    ),
+  );
 }
 
 /// [_BlockedUsersFolder]が展開前に表示する件数（2026-09-14追加）。これを
@@ -4346,9 +4306,10 @@ class _BlockedUsersFolderState extends ConsumerState<_BlockedUsersFolder> {
                 : blockedUsers.take(kBlockedUsersPreviewCount).toList();
             final remaining = blockedUsers.length - visibleUsers.length;
             return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 for (final user in visibleUsers)
-                  ListTile(
+                  SettingsTile(
                     contentPadding: const EdgeInsets.symmetric(horizontal: 16),
                     leading: CircleAvatar(
                       backgroundImage: user.effectiveIcon?.url != null
@@ -4369,7 +4330,7 @@ class _BlockedUsersFolderState extends ConsumerState<_BlockedUsersFolder> {
                     ),
                   ),
                 if (hasMore)
-                  ListTile(
+                  SettingsTile(
                     contentPadding: const EdgeInsets.symmetric(horizontal: 16),
                     leading: Icon(
                       _expanded ? Icons.expand_less : Icons.expand_more,
@@ -4426,10 +4387,11 @@ class SendKeyFolder extends ConsumerWidget {
               for (final option in options)
                 GekigaTileContent(
                   selected: mode == option.value,
-                  leading: Icon(
-                    mode == option.value
-                        ? Icons.radio_button_checked
-                        : Icons.radio_button_unchecked,
+                  leading: AppRadioMark(
+                    selected: mode == option.value,
+                    color: (mode == option.value)
+                        ? GekigaColors.panel
+                        : GekigaColors.onPanel,
                   ),
                   title: Text(option.title),
                   subtitle: Text(option.subtitle),
@@ -4445,7 +4407,7 @@ class SendKeyFolder extends ConsumerWidget {
             child: Column(
               children: [
                 for (final option in options)
-                  RadioListTile<SendKeyMode>(
+                  AppRadioListTile<SendKeyMode>(
                     value: option.value,
                     title: Text(option.title),
                     subtitle: Text(option.subtitle),
@@ -4460,10 +4422,7 @@ class SendKeyFolder extends ConsumerWidget {
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-          child: Text(
-            strings.settingsSendKeyTitle,
-            style: const TextStyle(fontWeight: FontWeight.bold),
-          ),
+          child: GekigaSectionHeader(strings.settingsSendKeyTitle),
         ),
         control,
       ],
@@ -4507,10 +4466,11 @@ class _StickerSendModeFolder extends ConsumerWidget {
               for (final option in options)
                 GekigaTileContent(
                   selected: mode == option.value,
-                  leading: Icon(
-                    mode == option.value
-                        ? Icons.radio_button_checked
-                        : Icons.radio_button_unchecked,
+                  leading: AppRadioMark(
+                    selected: mode == option.value,
+                    color: (mode == option.value)
+                        ? GekigaColors.panel
+                        : GekigaColors.onPanel,
                   ),
                   title: Text(option.title),
                   subtitle: Text(option.subtitle),
@@ -4526,7 +4486,7 @@ class _StickerSendModeFolder extends ConsumerWidget {
             child: Column(
               children: [
                 for (final option in options)
-                  RadioListTile<StickerSendMode>(
+                  AppRadioListTile<StickerSendMode>(
                     value: option.value,
                     title: Text(option.title),
                     subtitle: Text(option.subtitle),
@@ -4541,10 +4501,7 @@ class _StickerSendModeFolder extends ConsumerWidget {
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-          child: Text(
-            strings.settingsStickerSendModeTitle,
-            style: const TextStyle(fontWeight: FontWeight.bold),
-          ),
+          child: GekigaSectionHeader(strings.settingsStickerSendModeTitle),
         ),
         control,
       ],
@@ -4575,21 +4532,17 @@ class _JoinVideoCameraFolder extends ConsumerWidget {
             selected: false,
             title: Text(strings.settingsCallJoinCameraTitle),
             subtitle: Text(strings.settingsCallJoinCameraSubtitle),
-            trailing: Switch(
+            trailing: AppSwitch(
               value: enabled,
               onChanged: setEnabled,
-              activeThumbColor: GekigaColors.panel,
-              activeTrackColor: GekigaColors.onPanel,
-              inactiveThumbColor: GekigaColors.onPanel,
-              inactiveTrackColor: GekigaColors.panel,
-              trackOutlineColor: WidgetStatePropertyAll(GekigaColors.onPanel),
+              onDarkSurface: true,
             ),
             onTap: () => setEnabled(!enabled),
           ),
         ],
       );
     }
-    return SwitchListTile(
+    return AppSwitchListTile(
       value: enabled,
       title: Text(strings.settingsCallJoinCameraTitle),
       subtitle: Text(strings.settingsCallJoinCameraSubtitle),
@@ -4625,21 +4578,17 @@ class _DraftSyncFolder extends ConsumerWidget {
             selected: false,
             title: Text(strings.settingsDraftSyncTitle),
             subtitle: Text(strings.settingsDraftSyncSubtitle),
-            trailing: Switch(
+            trailing: AppSwitch(
               value: enabled,
               onChanged: setEnabled,
-              activeThumbColor: GekigaColors.panel,
-              activeTrackColor: GekigaColors.onPanel,
-              inactiveThumbColor: GekigaColors.onPanel,
-              inactiveTrackColor: GekigaColors.panel,
-              trackOutlineColor: WidgetStatePropertyAll(GekigaColors.onPanel),
+              onDarkSurface: true,
             ),
             onTap: () => setEnabled(!enabled),
           ),
         ],
       );
     }
-    return SwitchListTile(
+    return AppSwitchListTile(
       value: enabled,
       title: Text(strings.settingsDraftSyncTitle),
       subtitle: Text(strings.settingsDraftSyncSubtitle),
@@ -4709,23 +4658,17 @@ class _NotificationsPage extends ConsumerWidget {
                 selected: false,
                 title: title,
                 subtitle: subtitle,
-                trailing: Switch(
+                trailing: AppSwitch(
                   value: enabled,
                   onChanged: setEnabled,
-                  activeThumbColor: GekigaColors.panel,
-                  activeTrackColor: GekigaColors.onPanel,
-                  inactiveThumbColor: GekigaColors.onPanel,
-                  inactiveTrackColor: GekigaColors.panel,
-                  trackOutlineColor: WidgetStatePropertyAll(
-                    GekigaColors.onPanel,
-                  ),
+                  onDarkSurface: true,
                 ),
                 onTap: () => setEnabled(!enabled),
               ),
             ],
           )
         else
-          SwitchListTile(
+          AppSwitchListTile(
             contentPadding: EdgeInsets.zero,
             value: enabled,
             title: title,
@@ -5003,10 +4946,11 @@ class _SoundSettingsFolderState extends ConsumerState<_SoundSettingsFolder> {
           for (final preset in presets)
             GekigaTileContent(
               selected: selectedValue == preset.id,
-              leading: Icon(
-                selectedValue == preset.id
-                    ? Icons.radio_button_checked
-                    : Icons.radio_button_unchecked,
+              leading: AppRadioMark(
+                selected: selectedValue == preset.id,
+                color: (selectedValue == preset.id)
+                    ? GekigaColors.panel
+                    : GekigaColors.onPanel,
               ),
               title: Text(_labelFor(preset)),
               trailing: previewButton(preset.assetPath),
@@ -5015,10 +4959,9 @@ class _SoundSettingsFolderState extends ConsumerState<_SoundSettingsFolder> {
           if (canUpload)
             GekigaTileContent(
               selected: isCustom,
-              leading: Icon(
-                isCustom
-                    ? Icons.radio_button_checked
-                    : Icons.radio_button_unchecked,
+              leading: AppRadioMark(
+                selected: isCustom,
+                color: (isCustom) ? GekigaColors.panel : GekigaColors.onPanel,
               ),
               title: Text(customLabel),
               trailing: customSoundTrailing(),
@@ -5041,13 +4984,13 @@ class _SoundSettingsFolderState extends ConsumerState<_SoundSettingsFolder> {
       child: Column(
         children: [
           for (final preset in presets)
-            RadioListTile<String>(
+            AppRadioListTile<String>(
               value: preset.id,
               title: Text(_labelFor(preset)),
               secondary: previewButton(preset.assetPath),
             ),
           if (canUpload)
-            RadioListTile<String>(
+            AppRadioListTile<String>(
               value: _customSoundSentinel,
               title: Text(customLabel),
               secondary: customSoundTrailing(),
@@ -5192,14 +5135,10 @@ class _MirrorSwitch extends ConsumerWidget {
               selected: false,
               title: Text(strings.settingsTalksListMirrorTitle),
               subtitle: Text(strings.settingsTalksListMirrorSubtitle),
-              trailing: Switch(
+              trailing: AppSwitch(
                 value: mirrored,
                 onChanged: setMirrored,
-                activeThumbColor: GekigaColors.panel,
-                activeTrackColor: GekigaColors.onPanel,
-                inactiveThumbColor: GekigaColors.onPanel,
-                inactiveTrackColor: GekigaColors.panel,
-                trackOutlineColor: WidgetStatePropertyAll(GekigaColors.onPanel),
+                onDarkSurface: true,
               ),
               onTap: () => setMirrored(!mirrored),
             ),
@@ -5207,7 +5146,7 @@ class _MirrorSwitch extends ConsumerWidget {
         ),
       );
     }
-    return SwitchListTile(
+    return AppSwitchListTile(
       value: mirrored,
       title: Text(strings.settingsTalksListMirrorTitle),
       subtitle: Text(strings.settingsTalksListMirrorSubtitle),
@@ -5240,14 +5179,10 @@ class _SlidePickSwitch extends ConsumerWidget {
               selected: false,
               title: Text(strings.settingsSlidePickTitle),
               subtitle: Text(strings.settingsSlidePickSubtitle),
-              trailing: Switch(
+              trailing: AppSwitch(
                 value: enabled,
                 onChanged: setEnabled,
-                activeThumbColor: GekigaColors.panel,
-                activeTrackColor: GekigaColors.onPanel,
-                inactiveThumbColor: GekigaColors.onPanel,
-                inactiveTrackColor: GekigaColors.panel,
-                trackOutlineColor: WidgetStatePropertyAll(GekigaColors.onPanel),
+                onDarkSurface: true,
               ),
               onTap: () => setEnabled(!enabled),
             ),
@@ -5255,7 +5190,7 @@ class _SlidePickSwitch extends ConsumerWidget {
         ),
       );
     }
-    return SwitchListTile(
+    return AppSwitchListTile(
       value: enabled,
       title: Text(strings.settingsSlidePickTitle),
       subtitle: Text(strings.settingsSlidePickSubtitle),

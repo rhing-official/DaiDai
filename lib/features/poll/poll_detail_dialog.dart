@@ -23,6 +23,7 @@ import '../calendar/calendar_chip.dart';
 import 'poll_option_media_picker.dart';
 import '../../widgets/dialog_keyboard_shortcuts.dart';
 import '../../widgets/app_dialog.dart';
+import '../../widgets/toggles/app_checkbox.dart';
 
 /// 投票の詳細・投票ダイアログ（2026-09-06追加）。投票開始通知メッセージの
 /// タップ時、タスクバナーのタップ時いずれからも開く唯一の導線。
@@ -559,14 +560,11 @@ class _OptionsList extends StatelessWidget {
                               children: [
                                 IgnorePointer(
                                   child: poll.allowMultipleChoices
-                                      ? Checkbox(
+                                      ? AppCheckbox(
                                           value: selectedKeys.contains(key),
                                           onChanged: interactive
                                               ? (_) {}
                                               : null,
-                                          visualDensity: VisualDensity.compact,
-                                          materialTapTargetSize:
-                                              MaterialTapTargetSize.shrinkWrap,
                                         )
                                       : RadioGroup<String>(
                                           groupValue: selectedKeys.isEmpty

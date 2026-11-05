@@ -222,7 +222,7 @@ class Strings {
     required this.qrLoginApproveError,
     required this.qrLoginScanInstructionMessage,
     required this.qrLoginScanInstructionButton,
-    required this.qrIssueMenuLabel,
+    required this.qrLoginScanButton,
     required this.qrIssueDialogTitle,
     required this.qrIssueDialogDescription,
     required this.qrIssueExpiresHint,
@@ -746,8 +746,7 @@ class Strings {
     required this.calendarSyncOptInAcceptButton,
     required this.calendarSyncOptInDeclineButton,
     required this.settingsGoogleCalendarSyncSectionTitle,
-    required this.settingsGoogleCalendarSyncConnectedLabel,
-    required this.settingsGoogleCalendarSyncDisconnectedLabel,
+    required this.settingsGoogleCalendarSyncLabel,
     required this.settingsGoogleCalendarSyncDisconnectAction,
     required this.settingsGoogleCalendarSyncDisconnectConfirmTitle,
     required this.settingsGoogleCalendarSyncDisconnectConfirmMessage,
@@ -1256,7 +1255,7 @@ class Strings {
   final String qrLoginApproveError;
   final String qrLoginScanInstructionMessage;
   final String qrLoginScanInstructionButton;
-  final String qrIssueMenuLabel;
+  final String qrLoginScanButton;
   final String qrIssueDialogTitle;
   final String qrIssueDialogDescription;
   final String qrIssueExpiresHint;
@@ -2064,8 +2063,7 @@ class Strings {
   final String calendarSyncOptInAcceptButton;
   final String calendarSyncOptInDeclineButton;
   final String settingsGoogleCalendarSyncSectionTitle;
-  final String settingsGoogleCalendarSyncConnectedLabel;
-  final String settingsGoogleCalendarSyncDisconnectedLabel;
+  final String settingsGoogleCalendarSyncLabel;
   final String settingsGoogleCalendarSyncDisconnectAction;
   final String settingsGoogleCalendarSyncDisconnectConfirmTitle;
   final String settingsGoogleCalendarSyncDisconnectConfirmMessage;
@@ -2592,11 +2590,11 @@ class Strings {
     qrLoginScanInstructionMessage:
         '別の端末のサインイン画面で「QRコードでログイン」を開き、表示されたQRコードをこの端末で読み取ります。',
     qrLoginScanInstructionButton: 'スキャンを開始する',
-    qrIssueMenuLabel: 'QRコードを表示してログインさせる',
-    qrIssueDialogTitle: 'QRコードを表示してログイン',
+    qrLoginScanButton: 'QRコードを読み取る',
+    qrIssueDialogTitle: 'QRコードでログイン',
     qrIssueDialogDescription:
         'ログインしたい端末でDaiDaiのログイン画面を開き、「QRコードを読み取ってログイン」からこのQRコードを読み取ってもらってください。',
-    qrIssueExpiresHint: 'このQRコードは2分間有効で、1回だけ使えます。',
+    qrIssueExpiresHint: 'このQRコードは2分間有効で、1回だけ使えます。他の人には見せないでください。',
     qrIssueRequestTitle: 'ログインを許可しますか？',
     qrIssueRequestMessage: '別の端末がこのアカウントでログインしようとしています。心当たりがなければ拒否してください。',
     qrIssueAllow: '許可する',
@@ -2605,7 +2603,7 @@ class Strings {
     qrIssueError: 'QRコードを作成できませんでした',
     qrScanLoginButton: 'QRコードを読み取ってログイン',
     qrScanLoginInstructionMessage:
-        'ログイン済みの端末でDaiDaiを開き、設定＞アカウント＞セキュリティ＞「QRコードを表示してログインさせる」でQRコードを表示してから、この端末で読み取ってください。',
+        'ログイン済みの端末でDaiDaiを開き、設定＞アカウント＞セキュリティ＞「QRコードでログイン」を開いてQRコードを表示してから、この端末で読み取ってください。',
     qrScanLoginWaitingTitle: 'ログインの許可を待っています',
     qrScanLoginWaitingMessage: 'ログイン済みの端末で「許可する」を押してください。',
     qrScanLoginDenied: 'ログインが許可されませんでした',
@@ -2635,7 +2633,7 @@ class Strings {
     secretQuestionsSaveButton: '保存',
     secretQuestionsSavedMessage: '秘密の質問を保存しました。',
     secretQuestionsSaveError: '保存に失敗しました。',
-    settingsQrLogin: 'QRコードによるログイン',
+    settingsQrLogin: 'QRコードでログイン',
     settingsDeleteAccount: 'アカウントを削除',
     settingsSendKeyTitle: 'メッセージの送信キー',
     settingsSendKeyEnterToSend: 'Enterで送信、Shift+Enterで改行',
@@ -3154,8 +3152,7 @@ class Strings {
     calendarSyncOptInAcceptButton: '同期する',
     calendarSyncOptInDeclineButton: '今は同期しない',
     settingsGoogleCalendarSyncSectionTitle: '連携',
-    settingsGoogleCalendarSyncConnectedLabel: 'Googleカレンダー連携: 連携済み',
-    settingsGoogleCalendarSyncDisconnectedLabel: 'Googleカレンダー連携: 未連携',
+    settingsGoogleCalendarSyncLabel: 'Googleカレンダー連携',
     settingsGoogleCalendarSyncDisconnectAction: '連携を解除',
     settingsGoogleCalendarSyncDisconnectConfirmTitle: '連携を解除しますか？',
     settingsGoogleCalendarSyncDisconnectConfirmMessage:
@@ -3699,12 +3696,12 @@ class Strings {
         'On another device, open the sign-in screen and tap "Sign in with a '
         'QR code", then scan the code it shows with this device.',
     qrLoginScanInstructionButton: 'Start scanning',
-    qrIssueMenuLabel: 'Show a QR code to sign in another device',
+    qrLoginScanButton: 'Scan a QR code',
     qrIssueDialogTitle: 'Sign in another device with a QR code',
     qrIssueDialogDescription:
         'On the device you want to sign in, open the DaiDai sign-in screen, choose "Scan a QR code to sign in", and scan this code.',
     qrIssueExpiresHint:
-        'This QR code is valid for 2 minutes and can be used once.',
+        'This QR code is valid for 2 minutes and can be used once. Do not show it to anyone else.',
     qrIssueRequestTitle: 'Allow this sign-in?',
     qrIssueRequestMessage:
         'Another device is trying to sign in to this account. If you do not recognise it, deny.',
@@ -3714,7 +3711,7 @@ class Strings {
     qrIssueError: 'Could not create the QR code',
     qrScanLoginButton: 'Scan a QR code to sign in',
     qrScanLoginInstructionMessage:
-        'On a device that is already signed in, open Settings > Account > Security > "Show a QR code to sign in another device", then scan the code with this device.',
+        'On a device that is already signed in, open Settings > Account > Security > "Sign in with a QR code" to show a QR code, then scan the code with this device.',
     qrScanLoginWaitingTitle: 'Waiting for permission',
     qrScanLoginWaitingMessage: 'Tap "Allow" on the signed-in device.',
     qrScanLoginDenied: 'Sign-in was not allowed',
@@ -4336,9 +4333,7 @@ class Strings {
     calendarSyncOptInAcceptButton: 'Sync',
     calendarSyncOptInDeclineButton: 'Not now',
     settingsGoogleCalendarSyncSectionTitle: 'Integrations',
-    settingsGoogleCalendarSyncConnectedLabel: 'Google Calendar sync: Connected',
-    settingsGoogleCalendarSyncDisconnectedLabel:
-        'Google Calendar sync: Not connected',
+    settingsGoogleCalendarSyncLabel: 'Google Calendar sync',
     settingsGoogleCalendarSyncDisconnectAction: 'Disconnect',
     settingsGoogleCalendarSyncDisconnectConfirmTitle: 'Disconnect?',
     settingsGoogleCalendarSyncDisconnectConfirmMessage:

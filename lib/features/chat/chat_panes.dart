@@ -72,6 +72,7 @@ import 'task_banner.dart';
 import 'user_profile_card_dialog.dart';
 import '../../widgets/dialog_keyboard_shortcuts.dart';
 import '../../widgets/app_dialog.dart';
+import '../../widgets/toggles/app_switch.dart';
 
 enum _GroupMenuAction {
   openGroupSettings,
@@ -1816,7 +1817,7 @@ class _MenuSwitchTile extends StatelessWidget {
                 ],
               ),
             ),
-            Switch(value: value, onChanged: enabled ? onChanged : null),
+            AppSwitch(value: value, onChanged: enabled ? onChanged : null),
           ],
         ),
       ),
