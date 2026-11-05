@@ -97,6 +97,9 @@ class Strings {
     required this.settingsSlideTransitionSuck,
     required this.settingsTalksListLayoutTitle,
     required this.settingsTalksListLayoutNote,
+    required this.settingsIconSplitScaleTitle,
+    required this.settingsIconSplitScaleSubtitle,
+    required this.settingsIconSplitAdjustButton,
     required this.settingsSlidePickTitle,
     required this.settingsSlidePickSubtitle,
     required this.settingsTalksListMirrorTitle,
@@ -1096,6 +1099,9 @@ class Strings {
   /// 縦表示での語らい一覧レイアウト（2026-09-11追加、設定＞語らい）。
   final String settingsTalksListLayoutTitle;
   final String settingsTalksListLayoutNote;
+  final String settingsIconSplitScaleTitle;
+  final String settingsIconSplitScaleSubtitle;
+  final String settingsIconSplitAdjustButton;
   final String settingsSlidePickTitle;
   final String settingsSlidePickSubtitle;
   final String settingsTalksListMirrorTitle;
@@ -2397,6 +2403,10 @@ class Strings {
     settingsTalksListLayoutTitle: '語らい一覧のレイアウト',
     settingsTalksListLayoutNote:
         '縦画面で適用されます。横画面（幅の広い画面）のコンピューターでは、この設定にかかわらず左右分割で表示されます。',
+    settingsIconSplitScaleTitle: '一覧の大きさ',
+    settingsIconSplitAdjustButton: '幅を調整する',
+    settingsIconSplitScaleSubtitle:
+        '「アイコン＋寄合一覧」の文字とアイコンの大きさを変えます。幅は、下の「幅を調整する」を押すと語らい一覧の区切り線をドラッグして変えられます（ダブルタップで元の幅、タップで終了）。この端末だけに保存されます。',
     settingsSlidePickTitle: '押したまま滑らせて選ぶ',
     settingsSlidePickSubtitle:
         'メニューチップや語らいのボタンを押したまま指を滑らせ、離した所を選びます。オフにすると、1回ずつタップして操作します。',
@@ -3453,6 +3463,10 @@ class Strings {
     settingsTalksListLayoutTitle: 'Talks list layout (portrait)',
     settingsTalksListLayoutNote:
         'Applies in portrait orientation. On a computer with a wide, landscape window, the list is always shown in a split view regardless of this setting.',
+    settingsIconSplitScaleTitle: 'List size',
+    settingsIconSplitAdjustButton: 'Adjust widths',
+    settingsIconSplitScaleSubtitle:
+        'Changes the size of the text and icons in the icon and room list. Press “Adjust widths” below, then drag the divider lines in the talks list (double-tap to reset, tap to finish). Saved on this device only.',
     settingsSlidePickTitle: 'Press and slide to choose',
     settingsSlidePickSubtitle:
         'Press a menu chip or a talks button and slide your finger, then lift it over your choice. Turn this off to tap once at a time.',

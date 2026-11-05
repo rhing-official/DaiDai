@@ -48,8 +48,6 @@ class _SlideSelectListState extends ConsumerState<SlideSelectList>
   Offset? _down;
   bool _sliding = false;
 
-  /// このタッチは横ドラッグ（タブの切り替えなど）と判断した。離すまで、なぞりも選択もしない。
-  bool _horizontal = false;
   int? _index;
 
   late final ItemPickBridge _bridge;
@@ -150,34 +148,30 @@ class _SlideSelectListState extends ConsumerState<SlideSelectList>
     final wasSliding = _sliding;
     _down = null;
     _sliding = false;
-    _horizontal = false;
     _index = null;
     if (wasSliding && mounted) setState(() {});
   }
 
+  /// 押した位置からの移動が、はっきり横向き（タブの横ドラッグ）か。経路ではなく、今の位置
+  /// だけで毎回判定する（一度横と判断しても、縦へ戻れば縦として扱える）。
+  bool _isHorizontalNow(Offset delta) =>
+      delta.dx.abs() >= _slop * 2 && delta.dx.abs() > delta.dy.abs() * 1.5;
+
   void _onMove(PointerMoveEvent event) {
     final down = _down;
     if (down == null) return;
-    if (_horizontal) return;
     final delta = event.position - down;
+    // なぞりの開始は、メニューチップと同じく向きを問わない（押した位置から[_slop]以上
+    // 動けば始まる）。向きで始めるかを決めると、少しの横ぶれで効かなくなっていた
+    // （2026-11-05）。「押したまま滑らせて選ぶ」をオフの時は始めない。
     if (!_sliding) {
-      // 先に閾値を超えた軸で向きを決める。横が先なら、離すまでこのタッチでは何もしない
-      // （横ドラッグの出だしの縦のぶれで、離した時に項目が開いてしまわないように）。
-      if (delta.dx.abs() >= _slop && delta.dx.abs() > delta.dy.abs()) {
-        _horizontal = true;
-        return;
-      }
-      if (delta.dy.abs() < _slop || delta.dy.abs() < delta.dx.abs()) return;
-      // 「押したまま滑らせて選ぶ」をオフにしている時は、縦のなぞり選択も始めない
-      // （一覧のスクロールとタップはそのまま、2026-11-05）。
+      if (delta.distance < _slop) return;
       if (!ref.read(slidePickEnabledProvider)) return;
       _sliding = true;
-    } else if (delta.dx.abs() >= _slop * 2 && delta.dx.abs() > delta.dy.abs()) {
-      // なぞり中に、横の動きが縦を上回った。横ドラッグへの切り替えとみなして取り消す。
-      _horizontal = true;
-      _sliding = false;
-      _index = null;
-      setState(() {});
+    }
+    // はっきり横へ動いている間は、項目の強調・選択を動かさない（タブの横ドラッグ）。
+    if (_isHorizontalNow(delta)) {
+      if (_index != null) setState(() => _index = null);
       return;
     }
     // 指がこの一覧の外のチップ列などへ出たら、そちらへ選択を渡す（2026-11-05、
@@ -220,9 +214,12 @@ class _SlideSelectListState extends ConsumerState<SlideSelectList>
     _handoffIndex = null;
   }
 
-  void _onUp() {
+  void _onUp(Offset position) {
     final index = _index;
-    final wasSliding = _sliding && !_horizontal;
+    final down = _down;
+    // 離した時にはっきり横向きなら、タブの横ドラッグとして項目は開かない。
+    final horizontal = down != null && _isHorizontalNow(position - down);
+    final wasSliding = _sliding && !horizontal;
     final handoffTarget = _handoffTarget;
     final handoffIndex = _handoffIndex;
     _handoffTarget = null;
@@ -244,11 +241,10 @@ class _SlideSelectListState extends ConsumerState<SlideSelectList>
       onPointerDown: (event) {
         _down = event.position;
         _sliding = false;
-        _horizontal = false;
         _index = null;
       },
       onPointerMove: _onMove,
-      onPointerUp: (_) => _onUp(),
+      onPointerUp: (event) => _onUp(event.position),
       onPointerCancel: (_) => _reset(),
       child: widget.builder(context, _keyFor, _sliding ? _index : null),
     );

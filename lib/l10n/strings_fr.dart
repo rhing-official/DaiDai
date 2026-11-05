@@ -102,6 +102,10 @@ final Strings _stringsFr = Strings._(
   settingsSlideTransitionSlideBlur: 'Glissement et flou',
   settingsSlideTransitionSlide: 'Glissement',
   settingsSlideTransitionSuck: 'Aspiration',
+  settingsIconSplitScaleTitle: 'Taille de la liste',
+  settingsIconSplitAdjustButton: 'Ajuster les largeurs',
+  settingsIconSplitScaleSubtitle:
+      'Modifie la taille du texte et des icônes. Appuyez sur « Ajuster les largeurs » ci-dessous, puis faites glisser les lignes de séparation (double appui pour réinitialiser, appui simple pour terminer). Enregistré sur cet appareil uniquement.',
   settingsSlidePickTitle: 'Appuyer et glisser pour choisir',
   settingsSlidePickSubtitle:
       'Appuyez sur une pastille du menu ou un bouton des discussions, faites glisser le doigt, puis relâchez sur votre choix. Désactivez pour toucher une fois à la fois.',

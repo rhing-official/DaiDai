@@ -30,6 +30,8 @@ import 'providers/app_locale_provider.dart';
 import 'providers/app_ui_style_provider.dart';
 import 'providers/calling_sound_provider.dart';
 import 'providers/chat_layout_style_provider.dart';
+import 'providers/icon_split_layout_provider.dart';
+import 'providers/icon_split_scale_provider.dart';
 import 'providers/slide_pick_enabled_provider.dart';
 import 'providers/slide_transition_style_provider.dart';
 import 'providers/conversation_sort_order_provider.dart';
@@ -105,6 +107,8 @@ Future<void> main() async {
   final initialJoinVideoCameraOn = await loadInitialJoinVideoCameraOn();
   final initialIconSplitMirrored = await loadInitialIconSplitMirrored();
   final initialSlidePickEnabled = await loadInitialSlidePickEnabled();
+  final initialIconSplitScale = await loadInitialIconSplitScale();
+  final initialIconSplitLayout = await loadInitialIconSplitLayout();
   final initialCategoryListAlignment = await loadInitialCategoryListAlignment();
   final initialNavChipLayout = await loadInitialNavChipLayout();
   final initialMessageTimeFormat = await loadInitialMessageTimeFormat();
@@ -163,6 +167,10 @@ Future<void> main() async {
         ),
         initialSlidePickEnabledProvider.overrideWithValue(
           initialSlidePickEnabled,
+        ),
+        initialIconSplitScaleProvider.overrideWithValue(initialIconSplitScale),
+        initialIconSplitLayoutProvider.overrideWithValue(
+          initialIconSplitLayout,
         ),
         initialIconSplitMirroredProvider.overrideWithValue(
           initialIconSplitMirrored,

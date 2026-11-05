@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import '../../l10n/tutorial_content.dart';
 import '../guide/tutorial/practice_repositories.dart' show practiceDmIdPrefix;
 import '../guide/tutorial/tutorial_target.dart';
@@ -27,6 +28,8 @@ import '../../models/group_role.dart';
 import '../../models/message.dart';
 import '../../models/nav_chip_layout.dart';
 import '../../providers/nav_chip_layout_provider.dart';
+import '../../providers/icon_split_layout_provider.dart';
+import '../../providers/icon_split_scale_provider.dart';
 import '../../widgets/nav_chip.dart';
 import '../../widgets/pick_zone.dart';
 import '../../models/talks_list_layout_style.dart';
@@ -154,6 +157,208 @@ bool iconRailExtendsToBottom(
 /// 畳んだ時に実際に隠す幅の両方で使う。
 const kIconSplitCollapseWidth = 112.0 + 1.0 + 220.0;
 
+/// 区切り線のつかみ代を含めた幅（見える線は中央の1px。2026-11-05）。
+const kIconSplitHandleWidth = 14.0;
+
+/// アイコン列の名前をアイコンの横に出す、列の幅の下限。これ未満はアイコンの下に出す。
+const kIconSplitSideLabelMinWidth = 150.0;
+
+/// アイコン列の名前を出さない（アイコンだけにする）、列の幅の上限。
+const kIconSplitIconOnlyMaxWidth = 80.0;
+
+/// 「アイコン＋寄合一覧」の、アイコン列と寄合一覧の幅（2026-11-05）。区切り線のドラッグで
+/// 決めた割合があればそれを、無ければ標準（112px・220pxに「一覧の大きさ」の倍率を掛けた幅）を使い、
+/// 画面に収まる範囲に丸める。[showPeek]は、寄合一覧の隣にメッセージ画面も出す広い画面。
+({double rail, double list}) iconSplitWidths({
+  required double scale,
+  required double screenWidth,
+  required IconSplitLayout layout,
+  required bool showPeek,
+}) {
+  double clampRange(double v, double lo, double hi) =>
+      math.max(lo, math.min(hi, v));
+  final hasRail = layout.railFraction != null;
+  var rail = hasRail ? layout.railFraction! * screenWidth : 112.0 * scale;
+  if (!hasRail && !showPeek) rail = math.min(rail, screenWidth * 0.45);
+  final maxRail = showPeek
+      ? screenWidth - kIconSplitHandleWidth * 2 - 140 - 200
+      : math.min(screenWidth * 0.6, screenWidth - kIconSplitHandleWidth - 120);
+  rail = clampRange(rail, 64, math.max(64, maxRail));
+  var list = layout.listFraction != null
+      ? layout.listFraction! * screenWidth
+      : 220.0 * scale;
+  final maxList = screenWidth - rail - kIconSplitHandleWidth * 2 - 200;
+  list = clampRange(list, 140, math.max(140, maxList));
+  return (rail: rail, list: list);
+}
+
+/// 区切り線をドラッグして隣の幅を変える（2026-11-05）。見える線は中央の1pxで、左右の
+/// つかみ代を含めて[kIconSplitHandleWidth]の幅を取る。指が触れただけで動かないよう、
+/// 設定の「幅を調整する」（[iconSplitAdjustingProvider]）がオンの間だけ操作できる
+/// （ドラッグ・ダブルタップで標準の幅へ・タップで調整を終える）。PCも同じ。
+class SplitDivider extends ConsumerStatefulWidget {
+  const SplitDivider({
+    required this.width,
+    required this.mirrored,
+    required this.onChanged,
+    required this.onDragEnd,
+    required this.onReset,
+    super.key,
+  });
+
+  /// 隣の列の今の幅。ドラッグを始めた時の値を基準にする。
+  final double width;
+
+  /// 左右反転で、指の向きと幅の増減が逆になる時。
+  final bool mirrored;
+
+  /// 指の動きに合わせた、隣の列の新しい幅（画面の範囲への丸めは受け取り側）。
+  final ValueChanged<double> onChanged;
+  final VoidCallback onDragEnd;
+  final VoidCallback onReset;
+
+  @override
+  ConsumerState<SplitDivider> createState() => _SplitDividerState();
+}
+
+class _SplitDividerState extends ConsumerState<SplitDivider> {
+  // 再構築を待たずに指へ追従させるため、ドラッグ開始時の幅に移動量を足し込む
+  // （イベントごとに「描画済みの幅＋その差分」で上書きすると、再構築が追いつかない
+  // 間の動きが失われて指より遅れる）。
+  double _start = 0;
+  double _total = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    final adjusting = ref.watch(iconSplitAdjustingProvider);
+    final color = Theme.of(context).colorScheme.onSurface;
+    return MouseRegion(
+      cursor: adjusting ? SystemMouseCursors.resizeColumn : MouseCursor.defer,
+      child: GestureDetector(
+        behavior: adjusting
+            ? HitTestBehavior.opaque
+            : HitTestBehavior.deferToChild,
+        dragStartBehavior: DragStartBehavior.down,
+        onHorizontalDragStart: adjusting
+            ? (_) {
+                _start = widget.width;
+                _total = 0;
+              }
+            : null,
+        onHorizontalDragUpdate: adjusting
+            ? (d) {
+                _total += d.delta.dx;
+                widget.onChanged(_start + (widget.mirrored ? -_total : _total));
+              }
+            : null,
+        onHorizontalDragEnd: adjusting ? (_) => widget.onDragEnd() : null,
+        onHorizontalDragCancel: adjusting ? widget.onDragEnd : null,
+        onDoubleTap: adjusting ? widget.onReset : null,
+        onTap: adjusting
+            ? () => ref.read(iconSplitAdjustingProvider.notifier).set(false)
+            : null,
+        child: SizedBox(
+          width: kIconSplitHandleWidth,
+          child: Center(
+            child: adjusting
+                ? Container(
+                    width: 6,
+                    height: 56,
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.55),
+                      borderRadius: BorderRadius.circular(3),
+                    ),
+                  )
+                : const VerticalDivider(width: 1),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 区切り線のドラッグ中、チャット側を「ドラッグ前の幅」のままレイアウトし、境目で切り取って
+/// 見せる部品（2026-11-05）。幅が変わるたびに全メッセージの文字の折り返しを計算し直すと
+/// 指に追従できないため、ドラッグ中は中身の幅を固定する（指を離すと本来の幅で1回だけ
+/// 計算し直す）。ドラッグしていない時は何もしない（木の形は常に同じ）。
+class _FrozenWidthPane extends ConsumerStatefulWidget {
+  const _FrozenWidthPane({required this.mirrored, required this.child});
+
+  final bool mirrored;
+  final Widget child;
+
+  @override
+  ConsumerState<_FrozenWidthPane> createState() => _FrozenWidthPaneState();
+}
+
+class _FrozenWidthPaneState extends ConsumerState<_FrozenWidthPane> {
+  double? _lastWidth;
+
+  @override
+  Widget build(BuildContext context) {
+    final dragging = ref.watch(iconSplitDragProvider) != null;
+    return ClipRect(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          if (!dragging) _lastWidth = constraints.maxWidth;
+          final frozen = dragging ? _lastWidth : null;
+          return OverflowBox(
+            alignment: widget.mirrored
+                ? Alignment.centerLeft
+                : Alignment.centerRight,
+            minWidth: frozen,
+            maxWidth: frozen,
+            child: widget.child,
+          );
+        },
+      ),
+    );
+  }
+}
+
+/// ドラッグ中だけ[iconSplitDragProvider]の幅に差し替える、幅を決める部品。[child]は
+/// 作り直さず、幅だけを変える（語らいタブ全体の再構築を避けて指に追従させる）。
+class _LiveWidth extends ConsumerWidget {
+  const _LiveWidth({
+    required this.base,
+    required this.isRail,
+    required this.builder,
+    required this.child,
+  });
+
+  final double base;
+  final bool isRail;
+  final Widget Function(double width, Widget child) builder;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final drag = ref.watch(iconSplitDragProvider);
+    final width = drag == null ? base : (isRail ? drag.rail : drag.list);
+    return builder(width, child);
+  }
+}
+
+/// アイコン列・寄合一覧の文字とアイコンを[scale]倍にする（2026-11-05）。拡大率が1.0でも
+/// 常に包み、木の形を変えない（再マウント防止）。
+Widget scaledSplitPane(double scale, Widget child) {
+  return Builder(
+    builder: (context) {
+      final media = MediaQuery.of(context);
+      final iconTheme = IconTheme.of(context);
+      return MediaQuery(
+        data: media.copyWith(
+          textScaler: TextScaler.linear(media.textScaler.scale(1) * scale),
+        ),
+        child: IconTheme(
+          data: iconTheme.copyWith(size: (iconTheme.size ?? 24.0) * scale),
+          child: child,
+        ),
+      );
+    },
+  );
+}
+
 /// 語らいタブの中身。上部の「一対」「広場」を横並びで切り替えて一覧表示する。
 /// 相手の追加・広場の作成は、この画面内の＋ボタン（中央ポップアップ）から行う。
 /// 一対タブの最上部には、届いている／送った友達申請が会話より先に表示される
@@ -229,12 +434,14 @@ class _TalksTabState extends ConsumerState<TalksTab>
   /// （中継されたドラッグ・その後の収束アニメーション）を反映する）。
   late final InteractiveSwipeBackController _iconSplitSwipeBackController =
       InteractiveSwipeBackController(
-        vsync: this,
-        onCommit: () {},
-        // ルートをpopするジェスチャーではない。Navigatorへ通知すると、終了が
-        // 呼ばれなかった時に全画面がタッチ不能になる（2026-10-07）。
-        notifyNavigator: false,
-      )..maxDrag = kIconSplitCollapseWidth;
+          vsync: this,
+          onCommit: () {},
+          // ルートをpopするジェスチャーではない。Navigatorへ通知すると、終了が
+          // 呼ばれなかった時に全画面がタッチ不能になる（2026-10-07）。
+          notifyNavigator: false,
+        )
+        ..maxDrag =
+            kIconSplitCollapseWidth; // 拡大率に応じて[_buildIconSplitPane]で更新する。
 
   // 一覧の購読。`build()`のたびに`watchGroups`/`watchDirectMessages`を呼ぶと
   // 毎回別のStreamになり、`StreamBuilder`が再購読して一覧が点滅していた
@@ -428,12 +635,23 @@ class _TalksTabState extends ConsumerState<TalksTab>
   /// で収束させる。「畳む」操作自体はメッセージ画面のクリック専用
   /// （`onExpandTap`）にしたため、[_iconSplitDragEnabled]が立っている
   /// （＝既に畳まれている）時しか反応しない。
+  /// 畳む時に隠す幅（アイコン列＋区切り線＋寄合一覧、今の幅設定に応じる）。
+  double _iconSplitCollapseWidthNow() {
+    final widths = iconSplitWidths(
+      scale: ref.read(iconSplitScaleProvider),
+      screenWidth: MediaQuery.sizeOf(context).width,
+      layout: ref.read(iconSplitLayoutProvider),
+      showPeek: true,
+    );
+    return widths.rail + kIconSplitHandleWidth + widths.list;
+  }
+
   void _handleIconSplitDragStart(DragStartDetails details) {
     _iconSplitDragEnabled = _iconSplitCollapse.value > 0;
     if (!_iconSplitDragEnabled) return;
     _iconSplitCollapseAnimController.stop();
     _iconSplitCollapseDragCumulative =
-        _iconSplitCollapse.value * kIconSplitCollapseWidth;
+        _iconSplitCollapse.value * _iconSplitCollapseWidthNow();
   }
 
   void _handleIconSplitDragUpdate(DragUpdateDetails details) {
@@ -444,7 +662,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
     // 衝突しないため、2026-11-01）。
     _iconSplitCollapseDragCumulative -= details.delta.dx;
     _setIconSplitCollapse(
-      _iconSplitCollapseDragCumulative / kIconSplitCollapseWidth,
+      _iconSplitCollapseDragCumulative / _iconSplitCollapseWidthNow(),
     );
   }
 
@@ -1557,19 +1775,57 @@ class _TalksTabState extends ConsumerState<TalksTab>
     List<GroupJoinRequest> pendingGroupRequests,
     Set<String> blockedIds,
   ) {
-    final iconRail = _buildIconRail(
-      directMessages,
-      groups,
-      prefsById,
-      incomingRequests,
-      outgoingRequests,
-      pendingGroupRequests,
-      blockedIds,
+    final splitScale = ref.watch(iconSplitScaleProvider);
+    final splitLayout = ref.watch(iconSplitLayoutProvider);
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final splitWidths = iconSplitWidths(
+      scale: splitScale,
+      screenWidth: screenWidth,
+      layout: splitLayout,
+      showPeek: _showIconSplitPeek,
+    );
+    _iconSplitSwipeBackController.maxDrag =
+        splitWidths.rail + kIconSplitHandleWidth + splitWidths.list;
+    final iconRail = scaledSplitPane(
+      splitScale,
+      _buildIconRail(
+        directMessages,
+        groups,
+        prefsById,
+        incomingRequests,
+        outgoingRequests,
+        pendingGroupRequests,
+        blockedIds,
+      ),
     );
 
     final showPeek = _showIconSplitPeek;
     final mirrored = ref.watch(iconSplitMirroredProvider);
     final rowDirection = mirrored ? TextDirection.rtl : TextDirection.ltr;
+
+    // アイコン列と寄合一覧の間の区切り線（ドラッグでアイコン列の幅を変える）。
+    Widget railDivider(double currentRail) => SplitDivider(
+      width: currentRail,
+      mirrored: mirrored,
+      onChanged: (w) => ref
+          .read(iconSplitDragProvider.notifier)
+          .set(
+            iconSplitWidths(
+              scale: splitScale,
+              screenWidth: screenWidth,
+              layout: splitLayout.copyWith(railFraction: w / screenWidth),
+              showPeek: _showIconSplitPeek,
+            ),
+          ),
+      onDragEnd: () {
+        final drag = ref.read(iconSplitDragProvider);
+        final layoutNotifier = ref.read(iconSplitLayoutProvider.notifier);
+        if (drag != null) layoutNotifier.setRail(drag.rail / screenWidth);
+        ref.read(iconSplitDragProvider.notifier).clear();
+        layoutNotifier.persist();
+      },
+      onReset: () => ref.read(iconSplitLayoutProvider.notifier).resetRail(),
+    );
 
     final Widget detail;
     if (_category == _TalksCategory.dm) {
@@ -1626,15 +1882,20 @@ class _TalksTabState extends ConsumerState<TalksTab>
       return Row(
         textDirection: rowDirection,
         children: [
-          SizedBox(width: 112, child: iconRail),
-          const VerticalDivider(width: 1),
+          _LiveWidth(
+            base: splitWidths.rail,
+            isRail: true,
+            builder: (w, child) => SizedBox(width: w, child: child),
+            child: iconRail,
+          ),
+          railDivider(splitWidths.rail),
           // 余白の有無で子の木の形が変わらないよう、常に`Padding`で包む。
           Expanded(
             child: Padding(
               padding: EdgeInsets.only(
                 bottom: extend ? kNavChipSize + kNavChipMargin * 2 : 0,
               ),
-              child: detail,
+              child: _FrozenWidthPane(mirrored: mirrored, child: detail),
             ),
           ),
         ],
@@ -1653,13 +1914,21 @@ class _TalksTabState extends ConsumerState<TalksTab>
       child: Row(
         textDirection: rowDirection,
         children: [
-          _CollapsibleWidthPanel(
-            progress: _iconSplitCollapse,
-            width: 112,
-            mirrored: mirrored,
+          _LiveWidth(
+            base: splitWidths.rail,
+            isRail: true,
+            builder: (w, child) => _CollapsibleWidthPanel(
+              progress: _iconSplitCollapse,
+              width: w,
+              mirrored: mirrored,
+              child: child,
+            ),
             child: iconRail,
           ),
-          _CollapsibleDivider(progress: _iconSplitCollapse),
+          _CollapsibleDivider(
+            progress: _iconSplitCollapse,
+            dragHandle: railDivider(splitWidths.rail),
+          ),
           // メッセージ吹き出しの上の右スワイプでも全画面表示から3ブロック
           // 表示に戻れるよう、`chat_screen.dart`の`_MessageInteractions`が
           // 中継先を探す`InteractiveSwipeBackScope`を提供する（2026-09-14
@@ -1667,7 +1936,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
           Expanded(
             child: InteractiveSwipeBackScope(
               controller: _iconSplitSwipeBackController,
-              child: detail,
+              child: _FrozenWidthPane(mirrored: mirrored, child: detail),
             ),
           ),
         ],
@@ -3701,13 +3970,59 @@ class _ConversationIconTile extends StatelessWidget {
           color: selected ? colorScheme.primary.withValues(alpha: 0.18) : null,
           borderRadius: BorderRadius.circular(12),
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Stack(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            // アイコン列の幅が広い時（[kIconSplitSideLabelMinWidth]以上）は、名前をアイコンの
+            // 下ではなく横に出し、とても狭い時（[kIconSplitIconOnlyMaxWidth]以下）は名前を
+            // 出さずアイコンだけにする（2026-11-05）。列の幅は、タイルの余白（左右計20px）を
+            // 足し戻して求める。
+            final railWidth = constraints.maxWidth + 20;
+            final sideLabel = railWidth >= kIconSplitSideLabelMinWidth;
+            final iconOnly = railWidth <= kIconSplitIconOnlyMaxWidth;
+            final avatarStack = Stack(
               clipBehavior: Clip.none,
               children: [
-                avatar,
+                // アバターは固定の大きさ（40px）で作られているため、「一覧の大きさ」の拡大率
+                // （`scaledSplitPane`が`IconTheme`の大きさに載せている）に合わせて拡大する
+                // （2026-11-05）。
+                Builder(
+                  builder: (context) {
+                    final avatarScale =
+                        (IconTheme.of(context).size ?? 24.0) / 24.0;
+                    return SizedBox(
+                      width: 40.0 * avatarScale,
+                      height: 40.0 * avatarScale,
+                      child: FittedBox(
+                        child: SizedBox(width: 40, height: 40, child: avatar),
+                      ),
+                    );
+                  },
+                ),
+                // ピン留め中は、アバターの左上にピンを出す（2026-11-05、「アイコン＋寄合一覧」
+                // でもピン留めが分かるように。通常の一覧は右側のtrailingに出している）。
+                if (pinned)
+                  Positioned(
+                    left: -4,
+                    top: -4,
+                    child: Builder(
+                      builder: (context) {
+                        final pinScale =
+                            (IconTheme.of(context).size ?? 24.0) / 24.0;
+                        return Container(
+                          padding: EdgeInsets.all(2 * pinScale),
+                          decoration: BoxDecoration(
+                            color: colorScheme.surface,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            Icons.push_pin,
+                            size: 12 * pinScale,
+                            color: colorScheme.primary,
+                          ),
+                        );
+                      },
+                    ),
+                  ),
                 if (unreadCount > 0)
                   Positioned(
                     right: -4,
@@ -3740,20 +4055,33 @@ class _ConversationIconTile extends StatelessWidget {
                     ),
                   ),
               ],
-            ),
-            const SizedBox(height: 4),
-            Text(
+            );
+            final labelText = Text(
               label,
-              maxLines: 1,
+              maxLines: sideLabel ? 2 : 1,
               overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
+              textAlign: sideLabel ? TextAlign.start : TextAlign.center,
               style: TextStyle(
                 fontSize: 11,
                 fontWeight: selected ? FontWeight.bold : FontWeight.normal,
                 color: colorScheme.onSurface,
               ),
-            ),
-          ],
+            );
+            if (iconOnly) return Center(child: avatarStack);
+            if (sideLabel) {
+              return Row(
+                children: [
+                  avatarStack,
+                  const SizedBox(width: 8),
+                  Expanded(child: labelText),
+                ],
+              );
+            }
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [avatarStack, const SizedBox(height: 4), labelText],
+            );
+          },
         ),
       ),
     );
@@ -4430,9 +4758,12 @@ class _CollapsibleWidthPanel extends StatelessWidget {
 /// （[progress]が1の）時だけ、余分な1px線が残らないよう自身も消える
 /// （2026-09-12追加）。
 class _CollapsibleDivider extends StatelessWidget {
-  const _CollapsibleDivider({required this.progress});
+  const _CollapsibleDivider({required this.progress, this.dragHandle});
 
   final ValueListenable<double> progress;
+
+  /// 区切り線の代わりに出す、ドラッグできる区切り線（2026-11-05）。
+  final Widget? dragHandle;
 
   @override
   Widget build(BuildContext context) {
@@ -4440,7 +4771,7 @@ class _CollapsibleDivider extends StatelessWidget {
       valueListenable: progress,
       builder: (context, value, _) => value >= 1
           ? const SizedBox.shrink()
-          : const VerticalDivider(width: 1),
+          : (dragHandle ?? const VerticalDivider(width: 1)),
     );
   }
 }
@@ -4469,7 +4800,9 @@ Widget buildExpandableChatPane({
   required ValueListenable<double>? collapseProgress,
   required VoidCallback? onExpandTap,
   required Widget chatPane,
+  bool mirrored = false,
 }) {
+  chatPane = _FrozenWidthPane(mirrored: mirrored, child: chatPane);
   if (collapseProgress == null) return chatPane;
   return ValueListenableBuilder<double>(
     valueListenable: collapseProgress,
@@ -4623,6 +4956,15 @@ class _DmDetailWithRoomsState extends ConsumerState<_DmDetailWithRooms> {
 
   @override
   Widget build(BuildContext context) {
+    final splitScale = ref.watch(iconSplitScaleProvider);
+    final splitLayout = ref.watch(iconSplitLayoutProvider);
+    final splitScreenWidth = MediaQuery.sizeOf(context).width;
+    final splitWidths = iconSplitWidths(
+      scale: splitScale,
+      screenWidth: splitScreenWidth,
+      layout: splitLayout,
+      showPeek: true,
+    );
     final dm = widget.dm;
     // 語らい検索のメッセージ内容一致タップで別の寄合宛てのジャンプ要求が
     // 来た場合、選択中の寄合をそちらへ切り替える（2026-09-14追加）。
@@ -4779,7 +5121,7 @@ class _DmDetailWithRoomsState extends ConsumerState<_DmDetailWithRooms> {
               );
         }
 
-        final roomListPane = RoomListPane(
+        final rawRoomListPane = RoomListPane(
           conversationName: conversationName,
           rooms: [
             for (final r in _orderedRooms(rooms, dm.roomOrder, (r) => r.roomId))
@@ -4821,6 +5163,7 @@ class _DmDetailWithRoomsState extends ConsumerState<_DmDetailWithRooms> {
             isGlass: isGlass,
           ),
         );
+        final roomListPane = scaledSplitPane(splitScale, rawRoomListPane);
 
         if (widget.roomListOnly) {
           // 単一モードの会話はここに辿り着く前（アイコンタップ時点）で
@@ -4850,14 +5193,46 @@ class _DmDetailWithRoomsState extends ConsumerState<_DmDetailWithRooms> {
         // の進行度に合わせて寄合一覧を畳めるようにする（2026-09-12追加、
         // ドラッグ検知自体は`_TalksTabState._buildIconSplitPane`側で行う）。
         final collapseProgress = widget.collapseProgress;
-        final roomListBox = collapseProgress == null
-            ? SizedBox(width: 220, child: roomListPane)
-            : _CollapsibleWidthPanel(
-                progress: collapseProgress,
-                width: 220,
-                mirrored: widget.mirrored,
-                child: roomListPane,
-              );
+        final roomListBox = _LiveWidth(
+          base: splitWidths.list,
+          isRail: false,
+          builder: (w, child) => collapseProgress == null
+              ? SizedBox(width: w, child: child)
+              : _CollapsibleWidthPanel(
+                  progress: collapseProgress,
+                  width: w,
+                  mirrored: widget.mirrored,
+                  child: child,
+                ),
+          child: roomListPane,
+        );
+
+        // 寄合一覧とメッセージ画面の間の区切り線（ドラッグで寄合一覧の幅を変える）。
+        final listDivider = SplitDivider(
+          width: splitWidths.list,
+          mirrored: widget.mirrored,
+          onChanged: (w) => ref
+              .read(iconSplitDragProvider.notifier)
+              .set(
+                iconSplitWidths(
+                  scale: splitScale,
+                  screenWidth: splitScreenWidth,
+                  layout: splitLayout.copyWith(
+                    listFraction: w / splitScreenWidth,
+                  ),
+                  showPeek: true,
+                ),
+              ),
+          onDragEnd: () {
+            final drag = ref.read(iconSplitDragProvider);
+            final layoutNotifier = ref.read(iconSplitLayoutProvider.notifier);
+            if (drag != null)
+              layoutNotifier.setList(drag.list / splitScreenWidth);
+            ref.read(iconSplitDragProvider.notifier).clear();
+            layoutNotifier.persist();
+          },
+          onReset: () => ref.read(iconSplitLayoutProvider.notifier).resetList(),
+        );
 
         return Row(
           textDirection: widget.mirrored
@@ -4870,12 +5245,16 @@ class _DmDetailWithRoomsState extends ConsumerState<_DmDetailWithRooms> {
             if (dm.roomsEnabled) ...[
               roomListBox,
               if (collapseProgress == null)
-                const VerticalDivider(width: 1)
+                listDivider
               else
-                _CollapsibleDivider(progress: collapseProgress),
+                _CollapsibleDivider(
+                  progress: collapseProgress,
+                  dragHandle: listDivider,
+                ),
             ],
             Expanded(
               child: buildExpandableChatPane(
+                mirrored: widget.mirrored,
                 collapseProgress: collapseProgress,
                 onExpandTap: widget.onExpandTap,
                 chatPane: DmChatPane(
@@ -4955,6 +5334,15 @@ class _GroupDetailWithRoomsState extends ConsumerState<_GroupDetailWithRooms> {
 
   @override
   Widget build(BuildContext context) {
+    final splitScale = ref.watch(iconSplitScaleProvider);
+    final splitLayout = ref.watch(iconSplitLayoutProvider);
+    final splitScreenWidth = MediaQuery.sizeOf(context).width;
+    final splitWidths = iconSplitWidths(
+      scale: splitScale,
+      screenWidth: splitScreenWidth,
+      layout: splitLayout,
+      showPeek: true,
+    );
     final group = widget.group;
     // [_DmDetailWithRoomsState.build]と同じ理由（2026-09-14追加）。
     ref.listen(pendingMessageJumpProvider, (previous, next) {
@@ -5091,7 +5479,7 @@ class _GroupDetailWithRoomsState extends ConsumerState<_GroupDetailWithRooms> {
               );
         }
 
-        final roomListPane = RoomListPane(
+        final rawRoomListPane = RoomListPane(
           conversationName: group.name,
           rooms: [
             for (final r in _orderedRooms(
@@ -5147,6 +5535,7 @@ class _GroupDetailWithRoomsState extends ConsumerState<_GroupDetailWithRooms> {
             isGlass: isGlass,
           ),
         );
+        final roomListPane = scaledSplitPane(splitScale, rawRoomListPane);
 
         if (widget.roomListOnly) {
           // 単一モードの会話はここに辿り着く前（アイコンタップ時点）で
@@ -5171,14 +5560,46 @@ class _GroupDetailWithRoomsState extends ConsumerState<_GroupDetailWithRooms> {
 
         // [_DmDetailWithRoomsState]と同じ理由（2026-09-12追加）。
         final collapseProgress = widget.collapseProgress;
-        final roomListBox = collapseProgress == null
-            ? SizedBox(width: 220, child: roomListPane)
-            : _CollapsibleWidthPanel(
-                progress: collapseProgress,
-                width: 220,
-                mirrored: widget.mirrored,
-                child: roomListPane,
-              );
+        final roomListBox = _LiveWidth(
+          base: splitWidths.list,
+          isRail: false,
+          builder: (w, child) => collapseProgress == null
+              ? SizedBox(width: w, child: child)
+              : _CollapsibleWidthPanel(
+                  progress: collapseProgress,
+                  width: w,
+                  mirrored: widget.mirrored,
+                  child: child,
+                ),
+          child: roomListPane,
+        );
+
+        // 寄合一覧とメッセージ画面の間の区切り線（ドラッグで寄合一覧の幅を変える）。
+        final listDivider = SplitDivider(
+          width: splitWidths.list,
+          mirrored: widget.mirrored,
+          onChanged: (w) => ref
+              .read(iconSplitDragProvider.notifier)
+              .set(
+                iconSplitWidths(
+                  scale: splitScale,
+                  screenWidth: splitScreenWidth,
+                  layout: splitLayout.copyWith(
+                    listFraction: w / splitScreenWidth,
+                  ),
+                  showPeek: true,
+                ),
+              ),
+          onDragEnd: () {
+            final drag = ref.read(iconSplitDragProvider);
+            final layoutNotifier = ref.read(iconSplitLayoutProvider.notifier);
+            if (drag != null)
+              layoutNotifier.setList(drag.list / splitScreenWidth);
+            ref.read(iconSplitDragProvider.notifier).clear();
+            layoutNotifier.persist();
+          },
+          onReset: () => ref.read(iconSplitLayoutProvider.notifier).resetList(),
+        );
 
         return Row(
           textDirection: widget.mirrored
@@ -5191,12 +5612,16 @@ class _GroupDetailWithRoomsState extends ConsumerState<_GroupDetailWithRooms> {
             if (group.roomsEnabled) ...[
               roomListBox,
               if (collapseProgress == null)
-                const VerticalDivider(width: 1)
+                listDivider
               else
-                _CollapsibleDivider(progress: collapseProgress),
+                _CollapsibleDivider(
+                  progress: collapseProgress,
+                  dragHandle: listDivider,
+                ),
             ],
             Expanded(
               child: buildExpandableChatPane(
+                mirrored: widget.mirrored,
                 collapseProgress: collapseProgress,
                 onExpandTap: widget.onExpandTap,
                 chatPane: GroupChatPane(

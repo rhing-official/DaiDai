@@ -40,6 +40,9 @@ import '../../providers/app_ui_style_provider.dart';
 import '../../providers/font_design_provider.dart';
 import '../../providers/block_providers.dart';
 import '../../providers/chat_layout_style_provider.dart';
+import '../../providers/home_shell_providers.dart';
+import '../../providers/icon_split_layout_provider.dart';
+import '../../providers/icon_split_scale_provider.dart';
 import '../../providers/slide_pick_enabled_provider.dart';
 import '../../providers/slide_transition_style_provider.dart';
 import '../../providers/talks_list_layout_style_provider.dart';
@@ -3511,8 +3514,10 @@ class TalksListLayoutFolder extends ConsumerWidget {
           ),
         ),
         control,
-        if (style == TalksListLayoutStyle.iconSplit)
+        if (style == TalksListLayoutStyle.iconSplit) ...[
           _MirrorSwitch(strings: strings),
+          _IconSplitScaleSlider(strings: strings),
+        ],
       ],
     );
   }
@@ -4934,6 +4939,78 @@ class _ResidenceEditorState extends ConsumerState<_ResidenceEditor> {
 
 /// 「アイコン＋寄合一覧」を左右反転するスイッチ（2026-11-01、標準オフ）。
 /// レイアウトが「アイコン＋寄合一覧」の時だけ表示する（呼び出し側で出し分け）。
+/// 「アイコン＋寄合一覧」の大きさを段階で選ぶスライダー（2026-11-05）。幅と文字・アイコンの
+/// 大きさが一緒に変わる。端末ごとに保存（[iconSplitScaleProvider]）。
+class _IconSplitScaleSlider extends ConsumerWidget {
+  const _IconSplitScaleSlider({required this.strings});
+
+  final Strings strings;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final scale = ref.watch(iconSplitScaleProvider);
+    final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
+    void startAdjusting() {
+      ref.read(iconSplitAdjustingProvider.notifier).set(true);
+      ref.read(homeSelectedTabProvider.notifier).set(kTalksTabIndex);
+    }
+
+    final index = kIconSplitScaleSteps
+        .indexOf(scale)
+        .clamp(0, kIconSplitScaleSteps.length - 1);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            strings.settingsIconSplitScaleTitle,
+            style: Theme.of(context).textTheme.bodyLarge,
+          ),
+          const SizedBox(height: 2),
+          Text(
+            strings.settingsIconSplitScaleSubtitle,
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          Slider(
+            value: index.toDouble(),
+            min: 0,
+            max: (kIconSplitScaleSteps.length - 1).toDouble(),
+            divisions: kIconSplitScaleSteps.length - 1,
+            label: '${(kIconSplitScaleSteps[index] * 100).round()}%',
+            onChanged: (value) => ref
+                .read(iconSplitScaleProvider.notifier)
+                .setScale(kIconSplitScaleSteps[value.round()]),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: isGekiga
+                  ? GekigaJointedTileList(
+                      seeds: [strings.settingsIconSplitAdjustButton.hashCode],
+                      selectedFlags: const [true],
+                      children: [
+                        GekigaButton(
+                          label: strings.settingsIconSplitAdjustButton,
+                          icon: Icons.swap_horiz,
+                          onPressed: startAdjusting,
+                        ),
+                      ],
+                    )
+                  : FilledButton.tonalIcon(
+                      icon: const Icon(Icons.swap_horiz),
+                      label: Text(strings.settingsIconSplitAdjustButton),
+                      onPressed: startAdjusting,
+                    ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _MirrorSwitch extends ConsumerWidget {
   const _MirrorSwitch({required this.strings});
 
