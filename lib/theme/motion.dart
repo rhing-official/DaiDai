@@ -92,7 +92,7 @@ Widget buildSlideInFromRightTransition(
 
 /// 「吸い込み」のダイアログで、不透明度が1になる進行度（0〜1）。閉じる時は、進行度が
 /// これを下回ってから薄くなり始める（それまでは縮みながらはっきり見える）。
-const suckFadeEnd = 0.3;
+const suckFadeEnd = 0.08;
 
 /// 「吸い込み」で、消え切った時の画面の拡大率（右下の角へ縮む先）。
 const suckMinScale = 0.1;
@@ -155,9 +155,15 @@ Widget buildAwayTransition({
 /// - 吸い込み: 右下の角から広がり、液状化しながら現れる（閉じる時は逆）。
 /// 木の形は種類によらず固定する（再マウント防止）。
 Widget buildDialogTransition(Animation<double> animation, Widget child) {
-  final curved = CurvedAnimation(parent: animation, curve: popSlideCurve);
   final style = activeSlideTransitionStyle;
   final isSuck = style == SlideTransitionStyle.suck;
+  // 吸い込みで開く時は、先に急に大きくならず右下の角から広がる様子が見えるよう、
+  // 立ち上がりのゆるい曲線にする（閉じる時は従来の曲線のまま、2026-11-05）。
+  final curved = CurvedAnimation(
+    parent: animation,
+    curve: isSuck ? Curves.easeInOutCubic : popSlideCurve,
+    reverseCurve: popSlideCurve,
+  );
   final isSlide = style == SlideTransitionStyle.slide;
   return AnimatedBuilder(
     animation: curved,

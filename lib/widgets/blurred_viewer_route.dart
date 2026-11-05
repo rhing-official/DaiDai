@@ -12,8 +12,9 @@ Route<T> blurredViewerRoute<T>(WidgetBuilder builder) {
   return PageRouteBuilder<T>(
     opaque: false,
     barrierDismissible: false,
-    transitionDuration: const Duration(milliseconds: 180),
-    reverseTransitionDuration: const Duration(milliseconds: 150),
+    // 開く方は長めにして、1コマごとの動きを小さくする（2026-11-05、開く時のカクつき対策）。
+    transitionDuration: const Duration(milliseconds: 320),
+    reverseTransitionDuration: popSlideDuration,
     pageBuilder: (context, _, _) => builder(context),
     transitionsBuilder: (context, animation, _, child) => Stack(
       fit: StackFit.expand,

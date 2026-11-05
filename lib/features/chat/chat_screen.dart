@@ -8964,6 +8964,7 @@ List<MediaViewerItem> mediaViewerItemsOf(List<Message> mediaMessages) => [
             url: m.attachments[i].url,
             contentType: m.attachments[i].isVideo ? 'video' : 'image',
             fileName: m.attachments[i].fileName,
+            thumbnailUrl: m.attachments[i].thumbnailUrl,
           ),
     ] else
       MediaViewerItem(
@@ -8971,6 +8972,7 @@ List<MediaViewerItem> mediaViewerItemsOf(List<Message> mediaMessages) => [
         url: m.fileMetadata?.url ?? '',
         contentType: m.contentType,
         fileName: m.fileMetadata?.fileName,
+        thumbnailUrl: m.fileMetadata?.thumbnailUrl,
       ),
 ];
 

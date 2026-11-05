@@ -8,6 +8,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:video_player/video_player.dart';
 
+import '../models/slide_transition_style.dart';
+import '../theme/motion.dart' show activeSlideTransitionStyle;
 import '../utils/fullscreen/fullscreen.dart';
 import '../utils/share_attachment.dart';
 import 'swipe_gestures.dart' show PinchPriorityPageView, ZoomReporter;
@@ -29,6 +31,7 @@ class MediaViewerItem {
     required this.contentType,
     this.fileName,
     this.bytes,
+    this.thumbnailUrl,
   });
 
   final String id;
@@ -42,6 +45,10 @@ class MediaViewerItem {
   /// 送信前の画像のバイト列（送信前のトレイの拡大表示用、2026-10-31）。あれば[url]ではなく
   /// これを表示する。サーバーにまだ無いため、ダウンロード・共有は何もしない。
   final Uint8List? bytes;
+
+  /// 動画のサムネイル画像（あれば）。「吸い込み」の開閉中、実物の動画の代わりに
+  /// 縮む静止画として出す（2026-11-05）。
+  final String? thumbnailUrl;
 }
 
 /// ダウンロード確認に出すファイル名。[MediaViewerItem.fileName]があればそれ、
@@ -304,6 +311,7 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen> {
                         GlobalKey<_VideoViewerPageState>.new,
                       ),
                       url: item.url,
+                      thumbnailUrl: item.thumbnailUrl,
                       autoPlay: index == _safeInitialIndex,
                     );
                   }
@@ -461,9 +469,11 @@ class _VideoViewerPage extends StatefulWidget {
     super.key,
     required this.url,
     required this.autoPlay,
+    this.thumbnailUrl,
   });
 
   final String url;
+  final String? thumbnailUrl;
   final bool autoPlay;
 
   @override
@@ -472,7 +482,7 @@ class _VideoViewerPage extends StatefulWidget {
 
 class _VideoViewerPageState extends State<_VideoViewerPage> {
   late final VideoPlayerController _controller;
-  late final Future<void> _initializeFuture;
+  Future<void>? _initializeFuture;
 
   /// 中央の再生/一時停止＋10秒送り/戻しボタンの表示状態
   /// （2026-08-18追加）。一時停止中は常時`true`（`build`側で
@@ -513,6 +523,12 @@ class _VideoViewerPageState extends State<_VideoViewerPage> {
   void initState() {
     super.initState();
     _controller = VideoPlayerController.networkUrl(Uri.parse(widget.url));
+  }
+
+  /// 動画の初期化（読み込み・デコーダーの用意）を始める。「吸い込み」で開く間は、
+  /// 開き終わるまで待つ（重い処理がアニメーションと重なってカクつくため、2026-11-05）。
+  void _startInitializing() {
+    if (_initializeFuture != null) return;
     _initializeFuture = _controller.initialize().then((_) {
       if (widget.autoPlay) _controller.play();
       if (mounted) setState(() {});
@@ -520,8 +536,38 @@ class _VideoViewerPageState extends State<_VideoViewerPage> {
     });
   }
 
+  /// 開閉のアニメーション中は動画を隠す（2026-11-05）。Webの`<video>`は
+  /// プラットフォームビューで、縮小・ぼかし・フェード・液状化が掛からず、
+  /// 「吸い込み」の間だけ動画が元の大きさのまま残って見えるため。画面遷移が
+  /// 「吸い込み」の時だけ隠す（木の形は変えず`Visibility`で切り替える）。
+  Animation<double>? _routeAnimation;
+  bool _routeSettled = true;
+  bool get _hideVideo =>
+      !_routeSettled && activeSlideTransitionStyle == SlideTransitionStyle.suck;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final animation = ModalRoute.of(context)?.animation;
+    if (animation == _routeAnimation) return;
+    _routeAnimation?.removeStatusListener(_onRouteStatus);
+    _routeAnimation = animation;
+    animation?.addStatusListener(_onRouteStatus);
+    _routeSettled = animation == null || animation.isCompleted;
+    if (!_hideVideo) _startInitializing();
+  }
+
+  void _onRouteStatus(AnimationStatus status) {
+    final settled = status == AnimationStatus.completed;
+    if (settled != _routeSettled && mounted) {
+      setState(() => _routeSettled = settled);
+      if (settled) _startInitializing();
+    }
+  }
+
   @override
   void dispose() {
+    _routeAnimation?.removeStatusListener(_onRouteStatus);
     _hideTimer?.cancel();
     _skipFlashTimer?.cancel();
     _controller.dispose();
@@ -736,7 +782,34 @@ class _VideoViewerPageState extends State<_VideoViewerPage> {
       future: _initializeFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState != ConnectionState.done) {
-          return const SizedBox.shrink();
+          // 「吸い込み」で開く間は動画の読み込みがまだ終わっていないことが多い。
+          // 何も出さないと、読み込み後に動画が突然その場に現れるため、代役の静止画
+          // （サムネイル、無ければ黒い面）を出して一緒に広がらせる（2026-11-05）。
+          if (activeSlideTransitionStyle != SlideTransitionStyle.suck) {
+            return const SizedBox.shrink();
+          }
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 64, horizontal: 24),
+            child: Center(
+              child: widget.thumbnailUrl == null
+                  ? const AspectRatio(
+                      aspectRatio: 16 / 9,
+                      child: ColoredBox(color: Colors.black),
+                    )
+                  : Image.network(
+                      widget.thumbnailUrl!,
+                      // 画像の本来の大きさ（小さい）のままにならないよう、枠いっぱいに
+                      // 広げる（動画の表示サイズに近づけ、読み込み後の飛びを減らす）。
+                      width: double.infinity,
+                      height: double.infinity,
+                      fit: BoxFit.contain,
+                      errorBuilder: (_, _, _) => const AspectRatio(
+                        aspectRatio: 16 / 9,
+                        child: ColoredBox(color: Colors.black),
+                      ),
+                    ),
+            ),
+          );
         }
         if (snapshot.hasError) {
           return const Center(
@@ -818,7 +891,30 @@ class _VideoViewerPageState extends State<_VideoViewerPage> {
                               child: Stack(
                                 alignment: Alignment.center,
                                 children: [
-                                  VideoPlayer(_controller),
+                                  // 開閉中は木から外す（Webの`<video>`が確実に消える。
+                                  // コントローラーは別に保持しているので再生位置は保たれる）。
+                                  _hideVideo
+                                      ? const SizedBox.shrink()
+                                      : VideoPlayer(_controller),
+                                  // 動画を隠している間の代役（縮む・液状化する静止画。
+                                  // サムネイルが無ければ黒い面）。
+                                  Positioned.fill(
+                                    child: Visibility(
+                                      visible: _hideVideo,
+                                      child: widget.thumbnailUrl == null
+                                          ? const ColoredBox(
+                                              color: Colors.black,
+                                            )
+                                          : Image.network(
+                                              widget.thumbnailUrl!,
+                                              fit: BoxFit.contain,
+                                              errorBuilder: (_, _, _) =>
+                                                  const ColoredBox(
+                                                    color: Colors.black,
+                                                  ),
+                                            ),
+                                    ),
+                                  ),
                                   // Web（video_player_web）は<video>要素を直接
                                   // DOMへ描画するプラットフォームビューのため、
                                   // 動画のピクセル上のクリックがFlutterの
