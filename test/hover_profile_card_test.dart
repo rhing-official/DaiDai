@@ -8,6 +8,8 @@ import 'package:daidai/widgets/user_profile_card_view.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:daidai/providers/contact_alias_providers.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -73,13 +75,22 @@ void main() {
       return gesture;
     }
 
-    Widget app() => MaterialApp(
-      home: Scaffold(
-        body: Center(
-          child: HoverProfileCard(
-            user: user,
-            conversationId: 'dm1',
-            child: const SizedBox(width: 200, height: 60),
+    // カードは自分が指定した呼び名（`myContactAliasesProvider`）を見る為、ProviderScopeが要る。
+    // 認証（Firebase）に触れないよう空の指定で上書きする。
+    Widget app() => ProviderScope(
+      overrides: [
+        myContactAliasesProvider.overrideWith(
+          (ref) => Stream.value(const <String, String>{}),
+        ),
+      ],
+      child: MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: HoverProfileCard(
+              user: user,
+              conversationId: 'dm1',
+              child: const SizedBox(width: 200, height: 60),
+            ),
           ),
         ),
       ),

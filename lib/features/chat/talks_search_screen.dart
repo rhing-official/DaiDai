@@ -1,3 +1,4 @@
+import '../../providers/contact_alias_providers.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -184,6 +185,7 @@ class _TalksSearchScreenState extends ConsumerState<TalksSearchScreen> {
                     otherUser,
                     dm,
                     widget.currentUser.userId,
+                    aliases: ref.watch(myContactAliasesProvider).value,
                   );
                 },
                 messageMatches: _messageMatches,

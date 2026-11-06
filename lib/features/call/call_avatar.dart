@@ -1,3 +1,5 @@
+import '../../utils/contact_alias.dart';
+import '../../providers/contact_alias_providers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -97,9 +99,12 @@ class CallParticipantNameLabel extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(watchedUserProvider(userId)).value;
     final nickname = user?.effectiveNicknameFor(conversationId)?.text;
-    final label = (nickname != null && nickname.isNotEmpty)
-        ? nickname
-        : '@$rhingSeed';
+    // 自分が指定した呼び名があれば優先する（2026-11-06）。
+    final label = resolveDisplayName(
+      alias: aliasOf(ref.watch(myContactAliasesProvider).value, userId),
+      nickname: nickname,
+      rhingSeed: rhingSeed,
+    );
     return Text(label, style: style);
   }
 }

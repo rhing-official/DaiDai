@@ -334,26 +334,30 @@ class _RoomListPaneState extends ConsumerState<RoomListPane> {
                       )
                     : uiStyle == AppUiStyle.block
                     // 版画: 太枠と硬い影の箱に会話名を載せる（アクセントでは塗らない）。
-                    ? Padding(
-                        padding: const EdgeInsets.only(right: 6, bottom: 4),
-                        child: blockMaterialBox(
-                          context,
-                          color:
-                              Theme.of(context).brightness == Brightness.light
-                              ? Colors.white
-                              : colorScheme.surface,
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 10,
-                            ),
-                            child: Text(
-                              truncateName(widget.conversationName, 8),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: colorScheme.onSurface,
+                    // 箱は会話名の長さに合わせて可変にする（左寄せ、2026-11-06）。
+                    ? Align(
+                        alignment: Alignment.centerLeft,
+                        child: Padding(
+                          padding: const EdgeInsets.only(right: 6, bottom: 4),
+                          child: blockMaterialBox(
+                            context,
+                            color:
+                                Theme.of(context).brightness == Brightness.light
+                                ? Colors.white
+                                : colorScheme.surface,
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 10,
+                              ),
+                              child: Text(
+                                truncateName(widget.conversationName, 8),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: colorScheme.onSurface,
+                                ),
                               ),
                             ),
                           ),

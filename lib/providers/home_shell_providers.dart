@@ -39,6 +39,29 @@ final openWorkshopRequestProvider =
       OpenWorkshopRequestNotifier.new,
     );
 
+/// 次のタブ切り替えを、横スライドではなくダイアログと同じ「現れ方」（設定>画面遷移の
+/// 種類）で見せる依頼（2026-11-06）。プロフィールカードの「身だしなみへ」のように、
+/// ダイアログが閉じる流れで別のタブへ飛ぶ時に使う。`HomeScreen`が切り替えを受けた時に
+/// 読み取って降ろす（1回限り）。
+class HomeTabAppearRequestNotifier extends Notifier<bool> {
+  @override
+  bool build() => false;
+
+  void request() => state = true;
+
+  /// 立てられていたらtrueを返して降ろす。
+  bool consume() {
+    final requested = state;
+    if (requested) state = false;
+    return requested;
+  }
+}
+
+final homeTabAppearRequestProvider =
+    NotifierProvider<HomeTabAppearRequestNotifier, bool>(
+      HomeTabAppearRequestNotifier.new,
+    );
+
 /// 設定・身だしなみのトップの横ドラッグ（`HomeTabSwipe`）を、`HomeScreen`のタブ
 /// スライドへ指に追従して伝える橋渡し（2026-11-02）。`HomeScreen`が表示中だけ
 /// コールバックを差す。

@@ -1,17 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../l10n/app_locale.dart';
 import '../l10n/strings.dart';
 import '../models/app_user.dart';
 import '../models/profile_material.dart';
+import '../providers/contact_alias_providers.dart';
 import '../utils/birthday_format.dart';
+import '../utils/contact_alias.dart';
 import 'profile_card_view.dart';
 
 /// [user]が[conversationId]（一対のdmId・広場のgroupId）で見せるプロフィールカード
 /// （会話毎に選んだ工房カード、無ければ標準）を[ProfileCardView]で描く
 /// （2026-10-13、`UserProfileCardDialog`と語らい一覧のホバーカードで共通化）。
 /// 呼び名は未設定なら`@rhingSeed`にフォールバックする。
-class UserProfileCardView extends StatelessWidget {
+class UserProfileCardView extends ConsumerWidget {
   const UserProfileCardView({
     required this.user,
     required this.width,
@@ -50,12 +53,15 @@ class UserProfileCardView extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final card = user.profileCardFor(conversationId);
     final nickname = user.effectiveNicknameFor(conversationId);
-    final name = (nickname?.text.isNotEmpty ?? false)
-        ? nickname!.text
-        : '@${user.rhingSeed}';
+    // 自分が指定した呼び名があれば、相手の呼び名より優先する（2026-11-06）。
+    final name = resolveDisplayName(
+      alias: aliasOf(ref.watch(myContactAliasesProvider).value, user.userId),
+      nickname: nickname?.text,
+      rhingSeed: user.rhingSeed,
+    );
     // 呼び名が未設定で既に`@rhingSeed`を見出しに出している時は、重ねて出さない。
     final showSeedLine =
         user.effectiveShowRhingSeedFor(conversationId) &&

@@ -1,3 +1,7 @@
+import '../../utils/contact_alias.dart';
+import '../../providers/contact_alias_providers.dart';
+import '../../providers/talks_resume_provider.dart';
+import '../../utils/open_conversation.dart';
 import 'dart:math' as math;
 import '../../l10n/tutorial_content.dart';
 import '../guide/tutorial/practice_repositories.dart' show practiceDmIdPrefix;
@@ -1312,6 +1316,20 @@ class _TalksTabState extends ConsumerState<TalksTab>
     // 「この一対を開いてほしい」と伝えられた場合、一覧をクリックした時と
     // 全く同じ_openDirectMessageに渡す（サイドバー込みの表示を保つため、
     // 2026-07-29追加）。
+    // 身だしなみの仕立てへ移る時に閉じた会話（スマホの全画面のメッセージ画面）を、
+    // 語らいタブへ戻った時に開き直す（作業をすぐ再開できるように、2026-11-06）。
+    ref.listen<int>(homeSelectedTabProvider, (previous, next) {
+      if (next != kTalksTabIndex || previous == kTalksTabIndex) return;
+      final saved = ref.read(talksResumeProvider.notifier).consume();
+      if (saved == null) return;
+      final dm = saved.dm;
+      final group = saved.group;
+      if (dm != null) {
+        openDmInTalks(ref, dm, goHome: false);
+      } else if (group != null) {
+        openGroupInTalks(ref, group, goHome: false);
+      }
+    });
     ref.listen<DirectMessage?>(pendingDmSelectionProvider, (previous, next) {
       if (next == null) return;
       ref.read(pendingDmSelectionProvider.notifier).clear();
@@ -2298,6 +2316,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
                           otherUser,
                           dm,
                           widget.currentUser.userId,
+                          aliases: ref.watch(myContactAliasesProvider).value,
                         );
                       },
                       messageMatches: _messageMatches,
@@ -2724,7 +2743,12 @@ class _TalksTabState extends ConsumerState<TalksTab>
               watchedUserProvider(dm.otherUserId(widget.currentUser.userId)),
             )
             .value;
-        return dmSearchLabel(otherUser, dm, widget.currentUser.userId);
+        return dmSearchLabel(
+          otherUser,
+          dm,
+          widget.currentUser.userId,
+          aliases: ref.watch(myContactAliasesProvider).value,
+        );
       },
       messageMatches: _messageMatches,
     );
@@ -2802,6 +2826,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
                   .value,
               dm,
               widget.currentUser.userId,
+              aliases: ref.watch(myContactAliasesProvider).value,
             ),
         };
         return [...dms]..sort(
@@ -3528,12 +3553,15 @@ class _GroupJoinStatusBannerState
 String dmSearchLabel(
   AppUser? otherUser,
   DirectMessage dm,
-  String currentUserId,
-) {
-  final nickname = otherUser?.effectiveNicknameFor(dm.dmId)?.text;
-  return (nickname?.isNotEmpty ?? false)
-      ? nickname!
-      : '@${dm.otherRhingSeed(currentUserId)}';
+  String currentUserId, {
+  Map<String, String>? aliases,
+}) {
+  // 自分が指定した呼び名（[aliases]）があれば優先する（2026-11-06）。
+  return resolveDisplayName(
+    alias: aliasOf(aliases, dm.otherUserId(currentUserId)),
+    nickname: otherUser?.effectiveNicknameFor(dm.dmId)?.text,
+    rhingSeed: dm.otherRhingSeed(currentUserId),
+  );
 }
 
 /// 語らい一覧の最新メッセージプレビュー文字列。テキスト/通話サマリーは
@@ -3613,7 +3641,12 @@ class DirectMessageTile extends ConsumerWidget {
   Widget _buildTile(BuildContext context, WidgetRef ref) {
     final otherUserId = dm.otherUserId(currentUser.userId);
     final otherUser = ref.watch(watchedUserProvider(otherUserId)).value;
-    final label = dmSearchLabel(otherUser, dm, currentUser.userId);
+    final label = dmSearchLabel(
+      otherUser,
+      dm,
+      currentUser.userId,
+      aliases: ref.watch(myContactAliasesProvider).value,
+    );
     final iconUrl = otherUser?.effectiveIconFor(dm.dmId)?.url;
     final iconFocal = otherUser?.effectiveIconFocalFor(dm.dmId);
     final uiStyle = ref.watch(appUiStyleProvider);
@@ -3994,7 +4027,12 @@ class _DirectMessageIconTile extends ConsumerWidget {
   Widget _buildTile(BuildContext context, WidgetRef ref) {
     final otherUserId = dm.otherUserId(currentUser.userId);
     final otherUser = ref.watch(watchedUserProvider(otherUserId)).value;
-    final label = dmSearchLabel(otherUser, dm, currentUser.userId);
+    final label = dmSearchLabel(
+      otherUser,
+      dm,
+      currentUser.userId,
+      aliases: ref.watch(myContactAliasesProvider).value,
+    );
     final iconUrl = otherUser?.effectiveIconFor(dm.dmId)?.url;
     final iconFocal = otherUser?.effectiveIconFocalFor(dm.dmId);
     final isGlass = ref.watch(appUiStyleProvider) == AppUiStyle.glass;
@@ -5286,10 +5324,12 @@ class _DmDetailWithRoomsState extends ConsumerState<_DmDetailWithRooms> {
     final otherUserId = dm.otherUserId(currentUser.userId);
     final isGlass = ref.watch(appUiStyleProvider) == AppUiStyle.glass;
     final otherUser = ref.watch(watchedUserProvider(otherUserId)).value;
-    final otherNickname = otherUser?.effectiveNicknameFor(dm.dmId)?.text;
-    final conversationName = (otherNickname?.isNotEmpty ?? false)
-        ? otherNickname!
-        : '@${dm.otherRhingSeed(currentUser.userId)}';
+    final conversationName = dmSearchLabel(
+      otherUser,
+      dm,
+      currentUser.userId,
+      aliases: ref.watch(myContactAliasesProvider).value,
+    );
     final prefsById =
         ref.watch(conversationPrefsProvider(currentUser.userId)).value ??
         const <String, ConversationPrefs>{};

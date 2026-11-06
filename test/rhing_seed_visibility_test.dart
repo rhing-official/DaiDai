@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:daidai/providers/contact_alias_providers.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:daidai/models/app_user.dart';
@@ -50,13 +52,22 @@ void main() {
     expect(base.copyWith().isSeedSearchable, isTrue);
   });
 
-  Widget host(AppUser user, {bool copy = false}) => MaterialApp(
-    home: Scaffold(
-      body: UserProfileCardView(
-        user: user,
-        width: 300,
-        height: 375,
-        copyRhingSeed: copy,
+  // カードは自分が指定した呼び名（`myContactAliasesProvider`）を見る為、ProviderScopeが要る
+  // （認証に触れないよう空の指定で上書きする）。
+  Widget host(AppUser user, {bool copy = false}) => ProviderScope(
+    overrides: [
+      myContactAliasesProvider.overrideWith(
+        (ref) => Stream.value(const <String, String>{}),
+      ),
+    ],
+    child: MaterialApp(
+      home: Scaffold(
+        body: UserProfileCardView(
+          user: user,
+          width: 300,
+          height: 375,
+          copyRhingSeed: copy,
+        ),
       ),
     ),
   );

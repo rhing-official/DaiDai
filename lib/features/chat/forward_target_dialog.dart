@@ -1,3 +1,4 @@
+import '../../providers/contact_alias_providers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -278,7 +279,12 @@ class _ForwardTargetDialogState extends ConsumerState<_ForwardTargetDialog> {
           final otherId = dm.otherUserId(widget.currentUserId);
           if (blocked.contains(otherId)) continue;
           final other = ref.watch(watchedUserProvider(otherId)).value;
-          final label = dmSearchLabel(other, dm, widget.currentUserId);
+          final label = dmSearchLabel(
+            other,
+            dm,
+            widget.currentUserId,
+            aliases: ref.watch(myContactAliasesProvider).value,
+          );
           if (query.isNotEmpty && !label.toLowerCase().contains(query)) {
             continue;
           }

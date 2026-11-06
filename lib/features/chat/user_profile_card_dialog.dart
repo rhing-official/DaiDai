@@ -4,7 +4,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../l10n/strings.dart';
 import '../../models/app_user.dart';
 import '../../models/friend_request.dart';
+import '../../models/app_ui_style.dart';
+import '../../providers/app_ui_style_provider.dart';
+import '../../providers/contact_alias_providers.dart';
 import '../../providers/home_shell_providers.dart';
+import '../../providers/talks_resume_provider.dart';
+import '../../router/back_stack.dart' show backStackControllerProvider;
+import '../../router/app_router.dart' show goRouterProvider;
+import '../../utils/contact_alias.dart';
+import 'contact_alias_dialog.dart';
 import '../../providers/repository_providers.dart';
 import '../../utils/open_conversation.dart';
 import '../../utils/friend_request_error.dart';
@@ -92,6 +100,35 @@ class _UserProfileCardDialogState extends ConsumerState<UserProfileCardDialog> {
   String? _errorMessage;
 
   bool get _isSelf => widget.currentUser.userId == widget.user.userId;
+
+  /// 相手の呼び名を自分の画面だけで指定・取り消す（2026-11-06）。
+  Future<void> _editAlias() async {
+    final strings = ref.read(appStringsProvider);
+    final ui = ref.read(appUiStyleProvider);
+    final aliases = ref.read(myContactAliasesProvider).value;
+    final result = await promptContactAlias(
+      context,
+      strings,
+      current: aliasOf(aliases, widget.user.userId),
+      original: widget.user.effectiveNicknameFor(widget.conversationId)?.text,
+      isGekiga: ui == AppUiStyle.gekiga,
+      isGlass: ui == AppUiStyle.glass,
+    );
+    if (result == null) return;
+    final repository = ref.read(contactAliasRepositoryProvider);
+    if (result.isEmpty) {
+      await repository.clearAlias(
+        userId: widget.currentUser.userId,
+        targetUserId: widget.user.userId,
+      );
+    } else {
+      await repository.setAlias(
+        userId: widget.currentUser.userId,
+        targetUserId: widget.user.userId,
+        alias: result,
+      );
+    }
+  }
 
   @override
   void dispose() {
@@ -183,10 +220,46 @@ class _UserProfileCardDialogState extends ConsumerState<UserProfileCardDialog> {
   }
 
   /// 自分のカードの右上のボタン。身だしなみタブの仕立てへ移動する（2026-10-31）。
+  /// スマホではメッセージ画面が全画面のルートとして重なっている為、ホームへ戻してから
+  /// タブを切り替える（戻さないと、裏で身だしなみが開くだけで画面が変わらなかった、
+  /// 2026-11-06修正）。ダイアログを閉じた後は`ref`が使えなくなる可能性があるので、
+  /// 使うものは閉じる前に取っておく。タブの切り替えは、画面遷移の設定どおりの現れ方にする。
   void _jumpToWorkshop() {
-    Navigator.of(context).pop();
-    ref.read(homeSelectedTabProvider.notifier).set(kProfileTabIndex);
-    ref.read(openWorkshopRequestProvider.notifier).request();
+    final router = ref.read(goRouterProvider);
+    final backStack = ref.read(backStackControllerProvider);
+    final tab = ref.read(homeSelectedTabProvider.notifier);
+    final appear = ref.read(homeTabAppearRequestProvider.notifier);
+    final workshop = ref.read(openWorkshopRequestProvider.notifier);
+    final resume = ref.read(talksResumeProvider.notifier);
+    final openChat = ref.read(openChatProvider);
+    // スマホでは、メッセージ画面が全画面のルート（`/chat/*`）としてホームの上に重なっている。
+    // その下のホームで身だしなみへ切り替えても見えない為、そのルートだけを閉じる。閉じる前に
+    // 会話を覚えておき、語らいへ戻った時に開き直す（作業をすぐ再開できるように）。
+    // `go('/')`は使わない: 戻る操作用の透明ルートが消えて、履歴が巻き戻り、語らいの
+    // 選択（会話・寄合）が戻ってしまう（2026-11-06）。コンピューター・タブレットは、
+    // メッセージ画面が語らいのタブの中にある為、ルートは閉じず、タブを切り替えるだけ。
+    final isFullscreenChat = router.routerDelegate.currentConfiguration.uri.path
+        .startsWith('/chat/');
+    if (isFullscreenChat) {
+      if (openChat != null) resume.save(openChat);
+      // ダイアログは、閉じる登録を即座に外せる経路で閉じる（`Navigator.pop`だと登録が
+      // 残り、`/chat/*`の終了を「ダイアログを閉じた」扱いで中止してしまう）。
+      if (!backStack.closeTopOverlay()) Navigator.of(context).pop();
+      backStack.allowNextChatExit();
+      if (router.canPop()) {
+        router.pop();
+      } else {
+        backStack.cancelAllowChatExit();
+      }
+    } else {
+      Navigator.of(context).pop();
+    }
+    // ルートの組み直しが落ち着いてから切り替える（身だしなみタブが先に依頼を受け取れるように）。
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      appear.request();
+      tab.set(kProfileTabIndex);
+      workshop.request();
+    });
   }
 
   @override
@@ -278,6 +351,22 @@ class _UserProfileCardDialogState extends ConsumerState<UserProfileCardDialog> {
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
+                              Material(
+                                color: Colors.black.withValues(alpha: 0.35),
+                                shape: const CircleBorder(),
+                                child: IconButton(
+                                  tooltip: ref
+                                      .watch(appStringsProvider)
+                                      .contactAliasAction,
+                                  icon: const Icon(
+                                    Icons.badge_outlined,
+                                    color: Colors.white,
+                                  ),
+                                  iconSize: 30,
+                                  onPressed: _editAlias,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
                               FutureBuilder<
                                 ({bool isFriend, FriendRequest? request})
                               >(

@@ -319,6 +319,12 @@ class Strings {
     required this.conversationBlock,
     required this.conversationBlockHint,
     required this.conversationUnblock,
+    required this.contactAliasAction,
+    required this.contactAliasTitle,
+    required this.contactAliasHint,
+    required this.contactAliasDescription,
+    required this.contactAliasClear,
+    required this.contactAliasOriginalTemplate,
     required this.conversationSortRecent,
     required this.conversationSortKana,
     required this.conversationSortUnreadFirst,
@@ -610,6 +616,7 @@ class Strings {
     required this.settingsProfileCardAssignmentHint,
     required this.settingsProfileCardAssignmentEmpty,
     required this.conversationProfileCardMenuLabel,
+    required this.dmPartnerProfileCardMenuLabel,
     required this.workshopConversationCardAddDialogTitle,
     required this.workshopConversationCardAddEmpty,
     required this.workshopConversationCardSearchHint,
@@ -1398,6 +1405,14 @@ class Strings {
   /// ブロックのスイッチの説明（2026-10-11追加）。
   final String conversationBlockHint;
   final String conversationUnblock;
+
+  /// 相手の呼び名を自分の画面だけで指定する機能（2026-11-06）。
+  final String contactAliasAction;
+  final String contactAliasTitle;
+  final String contactAliasHint;
+  final String contactAliasDescription;
+  final String contactAliasClear;
+  final String Function(String name) contactAliasOriginalTemplate;
   final String conversationSortRecent;
   final String conversationSortKana;
   final String conversationSortUnreadFirst;
@@ -1828,6 +1843,7 @@ class Strings {
   /// その会話で自分が使うプロフィールカードを選ぶメニュー項目・ダイアログ
   /// タイトルの両方に使う（2026-07-30追加、`ConversationProfileCardDialog`）。
   final String conversationProfileCardMenuLabel;
+  final String dmPartnerProfileCardMenuLabel;
 
   /// 工房の会話毎のプロフィールカードセクションにある＋ボタンで開く、
   /// 対象の語らいを選ぶダイアログのタイトル。
@@ -2714,6 +2730,12 @@ class Strings {
     conversationBlock: 'ブロック',
     conversationBlockHint: 'この相手のメッセージ・通知・着信・友達申請を受け取りません。相手には分かりません',
     conversationUnblock: 'ブロック解除',
+    contactAliasAction: '呼び名を指定',
+    contactAliasTitle: '呼び名を指定',
+    contactAliasHint: '自分だけに見える呼び名',
+    contactAliasDescription: '相手には見えません。空にして保存するか、取り消すと、相手の呼び名に戻ります。',
+    contactAliasClear: '取り消す',
+    contactAliasOriginalTemplate: (name) => '元の呼び名: $name',
     conversationSortRecent: '最近会話した順',
     conversationSortKana: '五十音順',
     conversationSortUnreadFirst: '未読優先',
@@ -3032,6 +3054,7 @@ class Strings {
         '標準カード以外を使っている語らいだけがここに表示されます。\n＋から新しく設定出来ます。',
     settingsProfileCardAssignmentEmpty: '標準以外のカードを使っている語らいは有りません',
     conversationProfileCardMenuLabel: '自分のプロフィールカード',
+    dmPartnerProfileCardMenuLabel: '相手のプロフィールカード',
     workshopConversationCardAddDialogTitle: 'カードを個別に設定する語らいを選ぶ',
     workshopConversationCardAddEmpty: '設定出来る語らいが有りません',
     workshopConversationCardSearchHint: '名前で検索',
@@ -3300,8 +3323,8 @@ class Strings {
     noteDeleteConfirmTitle: 'ノートを削除しますか？',
     noteMenuHeading2: '見出し2',
     noteMenuHeading3: '見出し3',
-    noteMenuBulletedList: '箇条書きリスト',
-    noteMenuNumberedList: '番号付きリスト',
+    noteMenuBulletedList: '箇条書き',
+    noteMenuNumberedList: '番号リスト',
     noteMenuQuote: '引用',
     noteMenuAttachment: '添付ファイル',
     noteMenuImage: '画像',
@@ -3850,6 +3873,13 @@ class Strings {
     conversationBlockHint:
         "You won't receive their messages, notifications, calls or friend requests, and they won't know",
     conversationUnblock: 'Unblock',
+    contactAliasAction: 'Set a name',
+    contactAliasTitle: 'Set a name',
+    contactAliasHint: 'A name only you can see',
+    contactAliasDescription:
+        'They cannot see this. Save it empty, or remove it, to go back to their own name.',
+    contactAliasClear: 'Remove',
+    contactAliasOriginalTemplate: (name) => 'Their name: $name',
     conversationSortRecent: 'Most recent',
     conversationSortKana: 'Alphabetical',
     conversationSortUnreadFirst: 'Unread first',
@@ -4203,6 +4233,7 @@ class Strings {
     settingsProfileCardAssignmentEmpty:
         'No conversations are using a non-standard card yet',
     conversationProfileCardMenuLabel: 'My profile card',
+    dmPartnerProfileCardMenuLabel: 'Their profile card',
     workshopConversationCardAddDialogTitle:
         'Choose a conversation to set a card for',
     workshopConversationCardAddEmpty: 'No conversations available to set',

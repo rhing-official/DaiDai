@@ -9,6 +9,7 @@ import '../../models/app_ui_style.dart';
 import '../../providers/app_ui_style_provider.dart';
 import '../../providers/camera_availability_provider.dart';
 import '../../router/app_router.dart';
+import '../../theme/block/block_theme.dart';
 import '../../theme/gekiga/gekiga_colors.dart';
 import '../../theme/gekiga/gekiga_shapes.dart';
 import '../../theme/glass/glass_colors.dart';
@@ -516,7 +517,38 @@ class _MiniIconButton extends StatelessWidget {
     // ガラス分岐と同じ`GlassSurface`の円形パネルに切り替える（2026-08-30
     // 追加、新規追加時にどちらの対応スイープからも漏れていた）。
     final Widget button;
-    if (isGekiga) {
+    if (isBlockTheme(context)) {
+      // 版画は`CallRoundButton`と同じ黒の太枠＋硬い影の小さな箱（2026-11-06）。
+      final scheme = Theme.of(context).colorScheme;
+      final destructive = color == Colors.red;
+      button = Opacity(
+        opacity: enabled ? 1 : 0.4,
+        child: SizedBox(
+          width: 28,
+          height: 28,
+          child: blockMaterialBox(
+            context,
+            color: destructive
+                ? Colors.red.shade700
+                : (Theme.of(context).brightness == Brightness.light
+                      ? Colors.white
+                      : scheme.surface),
+            radius: 8,
+            shadowOffset: const Offset(2, 2),
+            child: InkWell(
+              onTap: enabled ? onTap : null,
+              child: Center(
+                child: Icon(
+                  icon,
+                  size: 14,
+                  color: destructive ? Colors.white : scheme.onSurface,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    } else if (isGekiga) {
       button = Opacity(
         opacity: enabled ? 1 : 0.4,
         child: SizedBox(

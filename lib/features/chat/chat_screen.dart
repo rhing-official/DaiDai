@@ -1,3 +1,5 @@
+import '../../utils/contact_alias.dart';
+import '../../providers/contact_alias_providers.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io' show File, Platform, Process;
@@ -1111,6 +1113,22 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       );
     } else if (isGekiga) {
       background = Container(child: content);
+    } else if (isBlockTheme(context)) {
+      // 版画は入力欄の上（返信・編集のラベルなども含めた領域とメッセージ一覧の境界）に
+      // 上部のヘッダーの下線と同じ太さ（[BlockTheme.borderWidth]）の線を引く（2026-11-06）。
+      final theme = Theme.of(context);
+      background = Container(
+        decoration: BoxDecoration(
+          color: theme.scaffoldBackgroundColor,
+          border: Border(
+            top: BorderSide(
+              color: BlockTheme.lineColor(theme.brightness),
+              width: BlockTheme.borderWidth,
+            ),
+          ),
+        ),
+        child: content,
+      );
     } else {
       background = Container(
         color: Theme.of(context).scaffoldBackgroundColor,
@@ -8136,9 +8154,12 @@ class _SenderName extends ConsumerWidget {
         .value
         ?.effectiveNicknameFor(conversationId)
         ?.text;
-    final label = (nickname != null && nickname.isNotEmpty)
-        ? nickname
-        : '@${rhingSeed ?? '?'}';
+    // 自分が指定した呼び名があれば優先する（2026-11-06）。
+    final label = resolveDisplayName(
+      alias: aliasOf(ref.watch(myContactAliasesProvider).value, userId),
+      nickname: nickname,
+      rhingSeed: rhingSeed ?? '?',
+    );
     return Text(
       label,
       maxLines: 1,

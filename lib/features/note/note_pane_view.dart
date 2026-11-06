@@ -7,9 +7,11 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart' show kDebugMode;
+import 'package:flutter/gestures.dart' show kPrimaryButton;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../l10n/strings.dart';
@@ -37,6 +39,12 @@ import '../../utils/platform_info.dart';
 import '../../widgets/glass/glass_app_bar.dart';
 import '../../widgets/glass/glass_bottom_sheet.dart';
 import '../../widgets/glass/glass_dialog.dart';
+import '../../theme/block/block_theme.dart';
+import '../../theme/gekiga/gekiga_colors.dart';
+import '../../widgets/gekiga/gekiga_badge.dart';
+import '../../widgets/glass/glass_surface.dart';
+import '../../widgets/media_preview_frame.dart'
+    show GekigaStraightMonochromeBox;
 import '../../widgets/interactive_swipe_back.dart';
 import '../../widgets/swipe_gestures.dart';
 import 'blocks/link_embed_block.dart';
@@ -104,9 +112,20 @@ const _kNoteDesktopSidePadding = 48.0;
 /// （2026-09-26変更、以前はダーク時のみ白へ上書きする`_kNoteDarkText
 /// StyleConfiguration`固定値だったが、ライトも含めてObsidian風パレットに
 /// 統一した）。
-TextStyleConfiguration _noteTextStyleConfiguration(_ObsidianNoteColors colors) {
+TextStyleConfiguration _noteTextStyleConfiguration(
+  _ObsidianNoteColors colors, {
+  String? fontFamily,
+  List<String>? fontFamilyFallback,
+}) {
   return TextStyleConfiguration(
-    text: TextStyle(fontSize: 16, color: colors.text),
+    // フォントは設定の「フォントデザイン」（アプリ全体のテーマ）に従う。エディタは文字の
+    // スタイルをテーマから継承しない為、ここで明示する（2026-11-06）。
+    text: TextStyle(
+      fontSize: 16,
+      color: colors.text,
+      fontFamily: fontFamily,
+      fontFamilyFallback: fontFamilyFallback,
+    ),
     href: TextStyle(color: colors.accent, decoration: TextDecoration.underline),
     code: TextStyle(
       color: colors.text,
@@ -141,6 +160,9 @@ TextStyleConfiguration _noteTextStyleConfiguration(_ObsidianNoteColors colors) {
 /// 操作ログが一定件数溜まった時・画面を開いて追いつき処理が終わった直後に
 /// 実行し、その時点までの操作ログを[NoteRepository.pruneNoteOpsUpTo]で
 /// 間引く。
+/// ノートの題名の最大文字数（見た目の1文字単位）。
+const kMaxNoteTitleLength = 100;
+
 class NotePaneView extends ConsumerStatefulWidget {
   const NotePaneView({
     required this.isDm,
@@ -190,8 +212,26 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
   /// 閲覧モード（読み取り専用）か。開いた時は編集モード（2026-11-06）。
   bool _readOnly = false;
 
+  /// 閲覧・編集の選択を端末に保存するキー（ノートごとではなく共通、2026-11-06）。
+  static const _readOnlyPrefsKey = 'noteReadOnly';
+
+  Future<void> _restoreReadOnly() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getBool(_readOnlyPrefsKey) ?? false;
+    if (!mounted || saved == _readOnly) return;
+    setState(() => _readOnly = saved);
+    final editorState = _editorState;
+    if (editorState != null) {
+      editorState.editable = !saved;
+      if (saved) editorState.selection = null;
+    }
+  }
+
   void _toggleReadOnly() {
     setState(() => _readOnly = !_readOnly);
+    SharedPreferences.getInstance().then(
+      (prefs) => prefs.setBool(_readOnlyPrefsKey, _readOnly),
+    );
     final editorState = _editorState;
     if (editorState != null) {
       editorState.editable = !_readOnly;
@@ -248,6 +288,7 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
       () => _debugCaret('title focus=${_titleFocusNode.hasFocus}'),
     );
     _load();
+    _restoreReadOnly();
   }
 
   /// 直前のカーソルの位置。目次ブロックにカーソルが乗った時、移動方向
@@ -760,18 +801,24 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
                   return Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      textAction(strings.noteSelectionCut, cutCommand),
+                      if (!_readOnly)
+                        textAction(strings.noteSelectionCut, cutCommand),
                       textAction(strings.noteSelectionCopy, noteCopyCommand),
-                      textAction(strings.noteSelectionPaste, notePasteCommand),
-                      for (final item in formatItems)
-                        if (item.builder != null)
-                          item.builder!(
-                            context,
-                            editorState,
-                            noteColors.accent,
-                            noteColors.text,
-                            null,
-                          ),
+                      if (!_readOnly)
+                        textAction(
+                          strings.noteSelectionPaste,
+                          notePasteCommand,
+                        ),
+                      if (!_readOnly)
+                        for (final item in formatItems)
+                          if (item.builder != null)
+                            item.builder!(
+                              context,
+                              editorState,
+                              noteColors.accent,
+                              noteColors.text,
+                              null,
+                            ),
                     ],
                   );
                 },
@@ -1268,11 +1315,24 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
       focusNode: _titleFocusNode,
       // 閲覧モードでは題名も読み取り専用。
       readOnly: _readOnly,
+      // 題名の文字数の上限（2026-11-06）。既に超えている題名は切らず、それ以上は足せない。
+      maxLength: kMaxNoteTitleLength,
+      maxLengthEnforcement: MaxLengthEnforcement.enforced,
       onChanged: _handleTitleChanged,
       style: Theme.of(context).textTheme.titleMedium,
       decoration: InputDecoration(
         hintText: strings.noteTitleFieldHint,
+        // 版画のテーマは入力欄に太枠（`enabledBorder`/`focusedBorder`）を付ける為、`border`だけでは
+        // 消えず、ポップアップの枠との間に隙間のある題名の枠が出ていた。全状態で枠・塗りを消し、
+        // 題名はポップアップの左端から始める（2026-11-06）。
         border: InputBorder.none,
+        enabledBorder: InputBorder.none,
+        focusedBorder: InputBorder.none,
+        disabledBorder: InputBorder.none,
+        filled: false,
+        counterText: '',
+        isCollapsed: true,
+        contentPadding: const EdgeInsets.symmetric(vertical: 12),
       ),
     );
     final downloadAction = IconButton(
@@ -1318,6 +1378,12 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
         if (event is! KeyDownEvent) return KeyEventResult.ignored;
         if (event.logicalKey == LogicalKeyboardKey.escape) {
           _close();
+          return KeyEventResult.handled;
+        }
+        // 閲覧モードのBackspaceは何もしない（2026-11-06）。入力欄にフォーカスが無いと、
+        // Flutterが処理しない（`handled`にしない）キーはブラウザへ渡り、ブラウザの
+        // 「戻る」になってポップアップが閉じていた。`handled`で止める。
+        if (_readOnly && event.logicalKey == LogicalKeyboardKey.backspace) {
           return KeyEventResult.handled;
         }
         return KeyEventResult.ignored;
@@ -1458,7 +1524,12 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
       customSlashCommand(_buildSelectionMenuItems(strings)),
       ...standardCharacterShortcutEvents.where((e) => e != slashCommand),
     ];
-    final textStyleConfiguration = _noteTextStyleConfiguration(noteColors);
+    final themeFont = Theme.of(context).textTheme.bodyLarge;
+    final textStyleConfiguration = _noteTextStyleConfiguration(
+      noteColors,
+      fontFamily: themeFont?.fontFamily,
+      fontFamilyFallback: themeFont?.fontFamilyFallback,
+    );
     // 区切り線のみObsidian風パレットに合わせて色を差し替える（2026-09-26
     // 追加）。他は`standardBlockComponentBuilderMap`のまま。
     final blockComponentBuilders = {
@@ -1501,16 +1572,20 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
     };
     // 題名と本文の間に余白を空ける（2026-11-06、ユーザー指示）。左右の余白は既定のまま、
     // 上だけ足す（「+」ボタン等の位置計算は`padding.left`だけを使うので影響しない）。
+    // 本文のカーソルはアプリのアクセントカラー（ノート独自の紫ではなく、2026-11-06）。
+    final cursorColor = Theme.of(context).colorScheme.primary;
+    // 範囲選択のハイライト（「ラベル」）もアクセントカラー。背景が暗くても見える濃さにする。
+    final selectionColor = cursorColor.withValues(alpha: 0.4);
     final editorStyle = isMobile
         ? EditorStyle.mobile(
             textStyleConfiguration: textStyleConfiguration,
-            cursorColor: noteColors.accent,
-            selectionColor: noteColors.selection,
+            cursorColor: cursorColor,
+            selectionColor: selectionColor,
           )
         : EditorStyle.desktop(
             textStyleConfiguration: textStyleConfiguration,
-            cursorColor: noteColors.accent,
-            selectionColor: noteColors.selection,
+            cursorColor: cursorColor,
+            selectionColor: selectionColor,
           );
     // 本文は半角77字の幅で折り返す（Obsidianの「読みやすい行の長さ」のように、本文の範囲を
     // 決める）。ポップアップの幅も、この範囲＋左右の余白に合わせる（`popupWidth`）。
@@ -1539,6 +1614,9 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
       // で閉じる操作（`SwipeBackDetector`）が負けていた（2026-10-07修正）。
       // モバイルのみ押下即時のドラッグ選択を切り、水平スワイプを先に勝たせる。
       enablePanImmediate: !isMobile,
+      // 閲覧モードでは編集不可（再構築のたびに`editorState.editable`が上書きされる為、
+      // ウィジェットの引数で渡す。2026-11-06）。
+      editable: !_readOnly,
       editorStyle: editorStyle.copyWith(
         padding: EdgeInsets.fromLTRB(
           sidePadding,
@@ -1559,16 +1637,21 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
       // 除外し、Escapeを外側へ伝播させる。
       // 表の全セルを覆う範囲選択でのBackspace/Deleteは表ごと消す
       // （`note_table_delete.dart`、標準のコマンドより前に置く）。
-      commandShortcutEvents: [
-        wholeTableBackspaceCommand,
-        wholeTableDeleteCommand,
-        ...standardCommandShortcutEvents.where(
-          (e) =>
-              e != exitEditingCommand && e != pasteCommand && e != copyCommand,
-        ),
-        noteCopyCommand,
-        notePasteCommand,
-      ],
+      // 閲覧モードはコピーと全選択だけ（切り取り・貼り付け・削除・改行などを無効にする）。
+      commandShortcutEvents: _readOnly
+          ? [noteCopyCommand, selectAllCommand]
+          : [
+              wholeTableBackspaceCommand,
+              wholeTableDeleteCommand,
+              ...standardCommandShortcutEvents.where(
+                (e) =>
+                    e != exitEditingCommand &&
+                    e != pasteCommand &&
+                    e != copyCommand,
+              ),
+              noteCopyCommand,
+              notePasteCommand,
+            ],
       blockComponentBuilders: blockComponentBuilders,
     );
     // モバイル: テキスト選択時にポップアップ（切り取り/コピー/貼り付け＋
@@ -1613,15 +1696,23 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
           editorScrollController: scrollController,
           stackKey: _editorStackKey,
           iconColor: noteColors.text,
-          onPressed: () {
+          // 押した時点でメニューを「+」の右下に開く（押したまま項目へなぞって離すと選べる、
+          // 2026-11-06）。
+          onPressed: (buttonRect) {
             ref
                 .read(tutorialControllerProvider.notifier)
                 .notify('note-insert-menu');
+            final ui = ref.read(appUiStyleProvider);
+            final menuTheme = Theme.of(context);
+            final menuStyle = _insertMenuStyle(menuTheme, ui);
             SelectionMenu(
               context: context,
               editorState: editorState,
               selectionMenuItems: _buildSelectionMenuItems(strings),
               deleteSlashByDefault: false,
+              anchorRect: buttonRect,
+              style: menuStyle,
+              surfaceBuilder: _insertMenuSurface(menuTheme, ui, menuStyle),
             ).show();
           },
         ),
@@ -1630,13 +1721,106 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
   }
 }
 
+/// 挿入メニュー（「+」・「/」）の色を、UIスタイルに合わせる（2026-11-06）。アイコン・文字・
+/// 選択中の項目の色。他の項目（リンク入力など）の色は標準のまま。
+SelectionMenuStyle _insertMenuStyle(ThemeData theme, AppUiStyle ui) {
+  final base = theme.brightness == Brightness.dark
+      ? SelectionMenuStyle.dark
+      : SelectionMenuStyle.light;
+  final scheme = theme.colorScheme;
+  final Color bg, text, selectedBg, selectedText;
+  switch (ui) {
+    case AppUiStyle.gekiga:
+      bg = GekigaColors.panel;
+      text = GekigaColors.onPanel;
+      selectedBg = GekigaColors.onPanel;
+      selectedText = GekigaColors.panel;
+    case AppUiStyle.glass:
+      bg = Colors.transparent;
+      text = scheme.onSurface;
+      selectedBg = scheme.primary.withValues(alpha: 0.45);
+      selectedText = scheme.onSurface;
+    case AppUiStyle.block:
+    case AppUiStyle.flat:
+      bg = theme.brightness == Brightness.light && ui == AppUiStyle.block
+          ? Colors.white
+          : scheme.surface;
+      text = scheme.onSurface;
+      selectedBg = scheme.primary;
+      selectedText = scheme.onPrimary;
+  }
+  return SelectionMenuStyle(
+    selectionMenuBackgroundColor: bg,
+    selectionMenuItemTextColor: text,
+    selectionMenuItemIconColor: text,
+    selectionMenuItemSelectedTextColor: selectedText,
+    selectionMenuItemSelectedIconColor: selectedText,
+    selectionMenuItemSelectedColor: selectedBg,
+    selectionMenuUnselectedLabelColor: text,
+    selectionMenuDividerColor: base.selectionMenuDividerColor,
+    selectionMenuLinkBorderColor: base.selectionMenuLinkBorderColor,
+    selectionMenuInvalidLinkColor: base.selectionMenuInvalidLinkColor,
+    selectionMenuButtonColor: base.selectionMenuButtonColor,
+    selectionMenuButtonTextColor: base.selectionMenuButtonTextColor,
+    selectionMenuButtonIconColor: base.selectionMenuButtonIconColor,
+    selectionMenuButtonBorderColor: base.selectionMenuButtonBorderColor,
+    selectionMenuTabIndicatorColor: base.selectionMenuTabIndicatorColor,
+  );
+}
+
+/// 挿入メニューの面（背景・枠）を、UIスタイルに合わせる（2026-11-06）。影は版画だけ
+/// （硬い影、CLAUDE.mdの例外）。
+Widget Function(Widget child) _insertMenuSurface(
+  ThemeData theme,
+  AppUiStyle ui,
+  SelectionMenuStyle style,
+) {
+  final radius = BorderRadius.circular(12);
+  return (child) {
+    switch (ui) {
+      case AppUiStyle.gekiga:
+        // 地色が黒（isMe: false）の箱。メニューの文字は白、選択中は白地に黒文字。
+        return GekigaStraightMonochromeBox(isMe: false, child: child);
+      case AppUiStyle.glass:
+        return GlassSurface(
+          variant: GlassVariant.floating,
+          borderRadius: radius,
+          child: ClipRRect(borderRadius: radius, child: child),
+        );
+      case AppUiStyle.block:
+        return Builder(
+          builder: (context) => Theme(
+            data: theme,
+            child: Builder(
+              builder: (context) => blockMaterialBox(
+                context,
+                color: style.selectionMenuBackgroundColor,
+                child: child,
+              ),
+            ),
+          ),
+        );
+      case AppUiStyle.flat:
+        return Material(
+          color: style.selectionMenuBackgroundColor,
+          clipBehavior: Clip.antiAlias,
+          shape: RoundedRectangleBorder(
+            borderRadius: radius,
+            side: BorderSide(color: theme.colorScheme.outlineVariant),
+          ),
+          child: child,
+        );
+    }
+  };
+}
+
 /// PC専用、カーソルが乗っている行の右端に追従する「+」ボタン
 /// （2026-09-27追加、ユーザー指示）。`editorState.selectionRects()`
 /// （`FloatingToolbar`が自身の位置決めに使うのと同じ公開API）でカーソルの
 /// 矩形（グローバル座標）を取得し、[stackKey]が指す`Stack`のローカル座標へ
 /// 変換して`Positioned`で重ねる。選択がcollapsed（カーソルのみ、ドラッグ
 /// 選択中でない）の間だけ表示する。
-class _CursorLineAddButton extends StatefulWidget {
+class _CursorLineAddButton extends ConsumerStatefulWidget {
   const _CursorLineAddButton({
     required this.editorState,
     required this.editorScrollController,
@@ -1649,14 +1833,16 @@ class _CursorLineAddButton extends StatefulWidget {
   final EditorScrollController editorScrollController;
   final GlobalKey stackKey;
   final Color iconColor;
-  final VoidCallback onPressed;
+  final void Function(Rect buttonRect) onPressed;
 
   @override
-  State<_CursorLineAddButton> createState() => _CursorLineAddButtonState();
+  ConsumerState<_CursorLineAddButton> createState() =>
+      _CursorLineAddButtonState();
 }
 
-class _CursorLineAddButtonState extends State<_CursorLineAddButton> {
+class _CursorLineAddButtonState extends ConsumerState<_CursorLineAddButton> {
   Rect? _cursorRect;
+  final _buttonKey = GlobalKey();
 
   @override
   void initState() {
@@ -1697,6 +1883,47 @@ class _CursorLineAddButtonState extends State<_CursorLineAddButton> {
     });
   }
 
+  /// 「+」の見た目をUIスタイルに合わせる（2026-11-06）。
+  Widget _plusFace(BuildContext context, double size) {
+    final ui = ref.watch(appUiStyleProvider);
+    final scheme = Theme.of(context).colorScheme;
+    switch (ui) {
+      case AppUiStyle.gekiga:
+        return GekigaBadgeShape(
+          color: GekigaColors.panel,
+          seed: 7,
+          child: const Icon(Icons.add, size: 18, color: GekigaColors.onPanel),
+        );
+      case AppUiStyle.glass:
+        return GlassSurface(
+          variant: GlassVariant.card,
+          opaque: true,
+          borderRadius: BorderRadius.circular(size / 2),
+          child: Center(
+            child: Icon(Icons.add, size: 18, color: scheme.onSurface),
+          ),
+        );
+      case AppUiStyle.block:
+        return blockMaterialBox(
+          context,
+          radius: size / 2,
+          shadowOffset: const Offset(2, 2),
+          color: Theme.of(context).brightness == Brightness.light
+              ? Colors.white
+              : scheme.surface,
+          child: Center(
+            child: Icon(Icons.add, size: 18, color: scheme.onSurface),
+          ),
+        );
+      case AppUiStyle.flat:
+        return Material(
+          color: scheme.primary,
+          shape: const CircleBorder(),
+          child: Icon(Icons.add, size: 18, color: scheme.onPrimary),
+        );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     // 閲覧モード（読み取り専用）では出さない。
@@ -1714,18 +1941,27 @@ class _CursorLineAddButtonState extends State<_CursorLineAddButton> {
     return Positioned(
       top: rect.top + (rect.height - buttonSize) / 2,
       left: left,
-      child: SizedBox(
-        width: buttonSize,
-        height: buttonSize,
-        child: Material(
-          color: Colors.transparent,
-          shape: CircleBorder(
-            side: BorderSide(color: widget.iconColor, width: 1.2),
-          ),
-          child: InkWell(
-            customBorder: const CircleBorder(),
-            onTap: widget.onPressed,
-            child: Icon(Icons.add, size: 18, color: widget.iconColor),
+      // 押した瞬間にメニューを開き、押したまま項目へなぞって離すとその項目を選ぶ
+      // （離した所が項目の外ならメニューは開いたまま。`SelectionMenuPointerTracker`参照）。
+      child: Listener(
+        onPointerDown: (event) {
+          if (event.buttons != kPrimaryButton) return;
+          final box = _buttonKey.currentContext?.findRenderObject();
+          if (box is! RenderBox || !box.attached) return;
+          widget.onPressed(box.localToGlobal(Offset.zero) & box.size);
+        },
+        onPointerMove: (event) =>
+            SelectionMenuPointerTracker.move(event.position),
+        onPointerUp: (event) =>
+            SelectionMenuPointerTracker.release(event.position),
+        onPointerCancel: (_) => SelectionMenuPointerTracker.cancel(),
+        child: SizedBox(
+          key: _buttonKey,
+          width: buttonSize,
+          height: buttonSize,
+          child: MouseRegion(
+            cursor: SystemMouseCursors.click,
+            child: _plusFace(context, buttonSize),
           ),
         ),
       ),

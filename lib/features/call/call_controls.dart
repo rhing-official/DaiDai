@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../theme/block/block_theme.dart';
 import '../../theme/gekiga/gekiga_colors.dart';
 import '../../theme/glass/glass_colors.dart';
 import '../../widgets/gekiga/gekiga_badge.dart';
@@ -8,7 +9,7 @@ import '../../widgets/glass/glass_surface.dart';
 /// 通話画面の丸いコントロールボタン（マイク・カメラ・切断など）。
 /// 1対1通話（[CallScreen]）とグループ通話（[GroupCallScreen]）の両方で使う
 /// （通話中のボタン列自体は[CallControlBar]が共通で組み立てる。これは
-/// 個々のボタン1つ分の見た目のみを担当する）。フラット/劇画/ガラスいずれの
+/// 個々のボタン1つ分の見た目のみを担当する）。フラット/劇画/ガラス/版画いずれの
 /// スタイルにも対応する（2026-08-19、通話画面の独自UI化に伴い追加。
 /// 2026-08-30にガラス分岐を追加）。
 class CallRoundButton extends StatelessWidget {
@@ -32,6 +33,38 @@ class CallRoundButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final enabled = onPressed != null;
+    if (isBlockTheme(context)) {
+      // 版画は黒の太枠と硬い影の角丸の箱（2026-11-06）。通話終了（赤）だけ濃い赤の面に
+      // 白いアイコン、他は淡い面に文字色のアイコン。アクセントは地色にも文字色にも使わない。
+      final scheme = Theme.of(context).colorScheme;
+      final destructive = color == Colors.red;
+      final fill = destructive
+          ? Colors.red.shade700
+          : (Theme.of(context).brightness == Brightness.light
+                ? Colors.white
+                : scheme.surface);
+      return Opacity(
+        opacity: enabled ? 1 : 0.4,
+        child: SizedBox(
+          width: _size,
+          height: _size,
+          child: blockMaterialBox(
+            context,
+            color: fill,
+            radius: 14,
+            child: InkWell(
+              onTap: onPressed,
+              child: Center(
+                child: Icon(
+                  icon,
+                  color: destructive ? Colors.white : scheme.onSurface,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
     if (isGlass) {
       // ガラスUIは背景を塗らず、`GlassIconButton`と同じ`GlassSurface`の
       // 円形パネル＋アイコン色そのもの（マイク等はグレー、通話終了は赤）で

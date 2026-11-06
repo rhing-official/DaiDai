@@ -225,29 +225,21 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('オープンソースライセンス'));
     await tester.pumpAndSettle();
-    expect(find.byType(LicensePage), findsOneWidget);
+    expect(find.text('test_package'), findsOneWidget);
 
     // パッケージ一覧の1件目を開く。
-    await tester.tap(
-      find
-          .descendant(
-            of: find.byType(LicensePage),
-            matching: find.byType(ListTile),
-          )
-          .first,
-    );
+    await tester.tap(find.text('test_package'));
     await tester.pumpAndSettle();
     await tester.pump(const Duration(milliseconds: 300));
-    expect(find.byType(LicensePage), findsOneWidget);
+    expect(find.text('test license text'), findsOneWidget);
 
-    // 1回目の右スワイプ: パッケージ詳細からライセンス一覧へ（アプリについてには戻らない）。
+    // 1回目の右スワイプ: 本文から一覧へ（アプリについてには戻らない）。
     await tester.fling(
       find.byType(InteractiveSwipeBackTransition).last,
       const Offset(300, 0),
       1000,
     );
     await tester.pumpAndSettle();
-    expect(find.byType(LicensePage), findsOneWidget);
     expect(find.text('test license text'), findsNothing);
     expect(find.text('test_package'), findsOneWidget);
 
@@ -258,7 +250,7 @@ void main() {
       1000,
     );
     await tester.pumpAndSettle();
-    expect(find.byType(LicensePage), findsNothing);
+    expect(find.text('test_package'), findsNothing);
     expect(find.text('オープンソースライセンス'), findsOneWidget);
   });
 

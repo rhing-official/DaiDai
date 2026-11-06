@@ -27,6 +27,7 @@ import '../../providers/direct_message_providers.dart';
 import '../../providers/app_ui_style_provider.dart';
 import '../../providers/block_providers.dart';
 import '../../providers/chat_navigation_providers.dart';
+import '../../providers/talks_resume_provider.dart';
 import '../../providers/chat_room_message_cache.dart';
 import '../../providers/conversation_prefs_providers.dart';
 import '../../providers/last_opened_room_provider.dart';
@@ -340,9 +341,14 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
   /// `dispose`で`ref`を使うのは安全でない為、先に取っておく（2026-10-17）。
   late final _cacheManager = ref.read(chatRoomMessageCacheManagerProvider);
 
+  /// 開いている会話の記録（[openChatProvider]）。`dispose`では`ref`を使えない為、先に取る。
+  late final _openChat = ref.read(openChatProvider.notifier);
+
   @override
   void initState() {
     super.initState();
+    // 構築中のプロバイダ変更を避ける為、次のマイクロタスクで記録する。
+    Future.microtask(() => _openChat.open(OpenChat.dm(widget.dm)));
     _cacheEntry = _cacheManager.attach(_cacheKey);
     _cacheEntry.addListener(_onCacheEntryChanged);
     _cacheEntry.ensureSubscribed(
@@ -454,6 +460,8 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
 
   @override
   void dispose() {
+    final dmId = widget.dm.dmId;
+    Future.microtask(() => _openChat.close(dmId));
     _cacheEntry.removeListener(_onCacheEntryChanged);
     _cacheManager.detach(_cacheKey, _cacheEntry);
     _messagesController.close();
@@ -2233,9 +2241,14 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
   /// `dispose`で`ref`を使うのは安全でない為、先に取っておく（2026-10-17）。
   late final _cacheManager = ref.read(chatRoomMessageCacheManagerProvider);
 
+  /// 開いている会話の記録（[openChatProvider]）。`dispose`では`ref`を使えない為、先に取る。
+  late final _openChat = ref.read(openChatProvider.notifier);
+
   @override
   void initState() {
     super.initState();
+    // 構築中のプロバイダ変更を避ける為、次のマイクロタスクで記録する。
+    Future.microtask(() => _openChat.open(OpenChat.group(widget.group)));
     _cacheEntry = _cacheManager.attach(_cacheKey);
     _cacheEntry.addListener(_onCacheEntryChanged);
     _cacheEntry.ensureSubscribed(
@@ -2397,6 +2410,8 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
 
   @override
   void dispose() {
+    final groupId = widget.group.groupId;
+    Future.microtask(() => _openChat.close(groupId));
     _cacheEntry.removeListener(_onCacheEntryChanged);
     _cacheManager.detach(_cacheKey, _cacheEntry);
     _messagesController.close();

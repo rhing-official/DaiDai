@@ -14,6 +14,7 @@ import '../../../models/message.dart';
 import '../../../models/note.dart';
 import '../../../repositories/album_repository.dart';
 import '../../../repositories/block_repository.dart';
+import '../../../repositories/contact_alias_repository.dart';
 import '../../../repositories/calendar_category_repository.dart';
 import '../../../repositories/calendar_event_repository.dart';
 import '../../../repositories/call_repository.dart';
@@ -290,6 +291,16 @@ class PracticeBlockRepository implements BlockRepository {
   @override
   Stream<Set<String>> watchBlockedUserIds(String userId) =>
       Stream.value(const <String>{});
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => _lenient(invocation);
+}
+
+/// 練習用の`ContactAliasRepository`。指定した呼び名は保存しない。
+class PracticeContactAliasRepository implements ContactAliasRepository {
+  @override
+  Stream<Map<String, String>> watchAliases(String userId) =>
+      Stream.value(const <String, String>{});
 
   @override
   dynamic noSuchMethod(Invocation invocation) => _lenient(invocation);

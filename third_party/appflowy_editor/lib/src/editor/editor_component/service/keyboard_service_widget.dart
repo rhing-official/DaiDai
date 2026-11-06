@@ -213,8 +213,15 @@ class KeyboardServiceWidgetState extends State<KeyboardServiceWidget>
     if (selection == null) {
       textInputService.close();
     } else {
-      // For the deletion, we should attach the text input service immediately.
-      _attachTextInputService(selection);
+      // 読み取り専用（`editable == false`）では入力サービスをつながない（2026-11-06）。
+      // つなぐとIME経由で文字を打ててしまう。選択・コピーはできる。
+      if (editorState.editable) {
+        // For the deletion, we should attach the text input service immediately.
+        _attachTextInputService(selection);
+      } else {
+        textInputService.close();
+        enableIMEShortcuts = true;
+      }
       _updateCaretPosition(selection);
 
       if (editorState.selectionUpdateReason == SelectionUpdateReason.uiEvent) {

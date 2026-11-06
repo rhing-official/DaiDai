@@ -6,6 +6,7 @@ import '../repositories/turn_credentials_repository.dart';
 import '../repositories/album_repository.dart';
 import '../repositories/auth_repository.dart';
 import '../repositories/block_repository.dart';
+import '../repositories/contact_alias_repository.dart';
 import '../repositories/residence_repository.dart';
 import '../repositories/calendar_category_repository.dart';
 import '../repositories/calendar_event_repository.dart';
@@ -81,6 +82,10 @@ final conversationPrefsRepositoryProvider =
 
 final blockRepositoryProvider = Provider<BlockRepository>((ref) {
   return FirestoreBlockRepository();
+});
+
+final contactAliasRepositoryProvider = Provider<ContactAliasRepository>((ref) {
+  return FirestoreContactAliasRepository();
 });
 
 final residenceRepositoryProvider = Provider<ResidenceRepository>((ref) {

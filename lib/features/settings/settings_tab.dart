@@ -6,7 +6,8 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart'
     show FirebaseAuthException, MultiFactorInfo;
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart'
+    show kIsWeb, LicenseEntry, LicenseParagraph, LicenseRegistry;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_functions/cloud_functions.dart';
@@ -454,6 +455,7 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
                   ),
                 ),
                 const VerticalDivider(width: 1),
+                // ライセンスは一覧の右にパッケージの本文を並べる（2026-11-06）。
                 Expanded(
                   child: _SettingsPage(
                     maxWidth: double.infinity,
@@ -469,10 +471,6 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
         );
       } else {
         contentColumns = _SettingsPage(
-          // オープンソースライセンス画面だけは頭打ちを外し、Flutter
-          // 標準の`LicensePage`が内蔵する840px以上での左右並列表示
-          // （パッケージ一覧⇄ライセンス本文）が働く余地を残す
-          // （2026-09-18追加、詳細は`_LicensePageContent`参照）。
           // アプリケーション・語らいは、項目を横に並べるため頭打ちを外す（2026-11-06）。
           maxWidth:
               _showLicenses ||
@@ -1018,8 +1016,10 @@ class _CopyableInfoRow extends ConsumerWidget {
           )
         : ref.watch(appUiStyleProvider) == AppUiStyle.block
         // 版画: 太枠と硬い影の箱（影の分の余白を含める）。
+        // 左右の余白は下の外側の余白に任せ、「検索に表示する」の行（[SettingsTile]）と
+        // 同じ左右の端に揃える（2026-11-06）。
         ? Padding(
-            padding: const EdgeInsets.only(right: 4, bottom: 4),
+            padding: const EdgeInsets.fromLTRB(2, 0, 6, 4),
             child: blockMaterialBox(
               context,
               color: Theme.of(context).brightness == Brightness.light
@@ -1042,11 +1042,24 @@ class _CopyableInfoRow extends ConsumerWidget {
             ),
             child: CopyLinkRow(link: value),
           );
+    // 劇画・版画は箱を左右いっぱいに広げ、「検索に表示する」の箱と幅を揃える。
+    final blockStyle =
+        isGekiga || ref.watch(appUiStyleProvider) == AppUiStyle.block;
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      padding: EdgeInsets.symmetric(
+        horizontal: blockStyle ? 0 : 16,
+        vertical: 10,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: [Text(label), const SizedBox(height: 8), box],
+        children: [
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: blockStyle ? 16 : 0),
+            child: Text(label),
+          ),
+          const SizedBox(height: 8),
+          if (blockStyle) SizedBox(width: double.infinity, child: box) else box,
+        ],
       ),
     );
   }
@@ -1697,9 +1710,9 @@ class _AboutPageContentState extends State<_AboutPageContent> {
 
 /// オープンソースライセンス一覧（2026-09-15変更）。以前は`showLicensePage`が
 /// アプリ全体のNavigatorへフルスクリーンでpushしていた為、サイドバー・
-/// 区切り線ごと覆い隠し、スワイプで戻る操作も効かなかった。`LicensePage`
-/// 自体はFlutter標準のものをそのまま使いつつ、専用のローカル`Navigator`で
-/// 包むことでパッケージ詳細へのpushをこのdetailスロット内に閉じ込め、
+/// 区切り線ごと覆い隠し、スワイプで戻る操作も効かなかった。専用のローカル
+/// `Navigator`で包むことで（2026-11-06から中身は標準の`LicensePage`ではなく
+/// 設定の他画面と同じ部品で組んだ自前の一覧）パッケージ詳細へのpushをこのdetailスロット内に閉じ込め、
 /// 外側（「アプリについて」への復帰）は`_SettingsTabState._showLicenses`の
 /// トグル＋既存の`SlideDrilldown`/`InteractiveSwipeBackTransition`に任せる。
 class _LicensePageContent extends StatefulWidget {
@@ -1724,10 +1737,7 @@ class _LicensePageContent extends StatefulWidget {
 }
 
 class _LicensePageContentState extends State<_LicensePageContent> {
-  late final Future<PackageInfo> _packageInfoFuture =
-      PackageInfo.fromPlatform();
-
-  // パッケージ詳細は`LicensePage`が内部に持つ`Navigator`へpushされ、外側から
+  // パッケージ詳細はローカル`Navigator`へpushされ、外側から
   // push/popを購読する手段が無い為、開閉を一定間隔で確認して親へ伝える。
   Timer? _pollTimer;
   bool _detailOpen = false;
@@ -1751,52 +1761,194 @@ class _LicensePageContentState extends State<_LicensePageContent> {
     super.dispose();
   }
 
-  /// ライセンス画面のテーマ。版画は、`LicensePage`のヘッダー（AppBar）の下の太線と
-  /// 詳細欄のカードの太枠・硬い影を外し、他のスタイルと同じ平らな構成にする。
-  ThemeData _licenseTheme(BuildContext context) {
-    final theme = Theme.of(
-      context,
-    ).copyWith(pageTransitionsTheme: SlideBackPageTransitionsBuilder.theme);
-    if (!isBlockTheme(context)) return theme;
-    return theme.copyWith(
-      appBarTheme: theme.appBarTheme.copyWith(
-        shape: const RoundedRectangleBorder(),
-      ),
-      cardTheme: CardThemeData(
-        elevation: 0,
-        color: theme.colorScheme.surface,
-        margin: EdgeInsets.zero,
-        shape: const RoundedRectangleBorder(),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<PackageInfo>(
-      future: _packageInfoFuture,
-      builder: (context, snapshot) {
-        final info = snapshot.data;
-        if (info == null) {
-          return const SizedBox.shrink();
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // 広い時は一覧の右に本文を並べ、狭い時は本文を右からスライドして重ねる
+        // （`SlideBackPageTransitionsBuilder`、2026-10-16）。
+        if (constraints.maxWidth >= _kLicenseSplitMinWidth) {
+          return const _LicenseSplitView();
         }
-        // パッケージ詳細は右からスライドして入り、右スワイプで下の一覧を
-        // 見せながら右へ消える（`SlideBackPageTransitionsBuilder`、
-        // 2026-10-16）。`LicensePage`がpushするルートは差し替えられないため
-        // `Theme`経由で適用する。
         return Theme(
-          data: _licenseTheme(context),
+          data: Theme.of(context).copyWith(
+            pageTransitionsTheme: SlideBackPageTransitionsBuilder.theme,
+          ),
           child: Navigator(
             key: widget.navigatorKey,
             onGenerateRoute: (settings) => MaterialPageRoute<void>(
-              builder: (context) => LicensePage(
-                applicationName: 'DaiDai',
-                applicationVersion: info.version,
+              builder: (context) => _LicenseListView(
+                onOpen: (package, entries) =>
+                    widget.navigatorKey.currentState?.push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => Scaffold(
+                          body: _LicenseDetailView(
+                            package: package,
+                            entries: entries,
+                          ),
+                        ),
+                      ),
+                    ),
               ),
             ),
           ),
         );
       },
+    );
+  }
+}
+
+/// 一覧と本文を左右に並べる最小の幅。
+const _kLicenseSplitMinWidth = 720.0;
+
+/// 一覧（左）と選んだパッケージの本文（右）を並べる（2026-11-06）。
+class _LicenseSplitView extends StatefulWidget {
+  const _LicenseSplitView();
+
+  @override
+  State<_LicenseSplitView> createState() => _LicenseSplitViewState();
+}
+
+class _LicenseSplitViewState extends State<_LicenseSplitView> {
+  String? _package;
+  List<LicenseEntry> _entries = const [];
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        SizedBox(
+          width: _kAboutPaneWidth,
+          child: _LicenseListView(
+            selected: _package,
+            onOpen: (package, entries) => setState(() {
+              _package = package;
+              _entries = entries;
+            }),
+          ),
+        ),
+        const VerticalDivider(width: 1),
+        Expanded(
+          child: _package == null
+              ? const SizedBox.shrink()
+              : _LicenseDetailView(
+                  key: ValueKey(_package),
+                  package: _package!,
+                  entries: _entries,
+                ),
+        ),
+      ],
+    );
+  }
+}
+
+/// パッケージ名ごとにまとめたライセンスを読み込む（2026-11-06）。
+Future<Map<String, List<LicenseEntry>>> _loadLicenses() async {
+  final byPackage = <String, List<LicenseEntry>>{};
+  await for (final entry in LicenseRegistry.licenses) {
+    for (final package in entry.packages) {
+      byPackage.putIfAbsent(package, () => []).add(entry);
+    }
+  }
+  return byPackage;
+}
+
+/// ライセンス一覧（2026-11-06）。標準の`LicensePage`をやめ、設定の他の画面と同じ
+/// [SettingsTile]・[GekigaSectionHeader]で組む。4つのUIスタイルの見た目は部品側が持つ。
+class _LicenseListView extends StatefulWidget {
+  const _LicenseListView({required this.onOpen, this.selected});
+
+  final void Function(String package, List<LicenseEntry> entries) onOpen;
+
+  /// 本文を開いているパッケージ（左右に並べる時の選択表示）。
+  final String? selected;
+
+  @override
+  State<_LicenseListView> createState() => _LicenseListViewState();
+}
+
+class _LicenseListViewState extends State<_LicenseListView> {
+  late final Future<Map<String, List<LicenseEntry>>> _future = _loadLicenses();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: FutureBuilder<Map<String, List<LicenseEntry>>>(
+        future: _future,
+        builder: (context, snapshot) {
+          final data = snapshot.data;
+          if (data == null) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          final names = data.keys.toList()
+            ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+          return ListView(
+            padding: const EdgeInsets.only(bottom: 24),
+            children: [
+              for (final name in names)
+                SettingsTile(
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                  title: Text(name),
+                  trailing: Text('${data[name]!.length}'),
+                  selected: name == widget.selected,
+                  onTap: () => widget.onOpen(name, data[name]!),
+                ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+/// パッケージ1件のライセンス本文（2026-11-06）。一覧の右に並べる（狭い時は重ねる）。
+/// ライセンス1件を1つの[SettingsTile]に入れ、UIスタイルに沿った見た目にする。
+class _LicenseDetailView extends StatelessWidget {
+  const _LicenseDetailView({
+    super.key,
+    required this.package,
+    required this.entries,
+  });
+
+  final String package;
+  final List<LicenseEntry> entries;
+
+  String _text(LicenseEntry entry) {
+    final buffer = StringBuffer();
+    for (final p in entry.paragraphs) {
+      if (p.indent == LicenseParagraph.centeredIndent) {
+        buffer.writeln(p.text);
+      } else {
+        buffer.writeln('${'    ' * p.indent}${p.text}');
+      }
+      buffer.writeln();
+    }
+    return buffer.toString().trim();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      type: MaterialType.transparency,
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+        children: [
+          GekigaSectionHeader(package),
+          for (final entry in entries)
+            SettingsTile(
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 8,
+              ),
+              // 文字色は指定しない（劇画の黒いブロックの白文字・版画の黒文字を壊さない）。
+              title: Text(
+                _text(entry),
+                textAlign: TextAlign.start,
+                style: const TextStyle(fontSize: 12, height: 1.3),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }
@@ -5451,26 +5603,11 @@ class _SoundSettingsFolderState extends ConsumerState<_SoundSettingsFolder> {
   }
 }
 
-/// ライセンス画面の内側にある、パッケージ詳細をpushする`Navigator`を探す
-/// （2026-10-10追加）。`LicensePage`（`MasterDetailFlow`）は狭い画面で自前の
-/// `Navigator`を持つため、外側のローカル`Navigator`（[key]）ではなく
-/// その子孫の`Navigator`に詳細が積まれる。見つからなければnull。
-NavigatorState? _findLicenseDetailNavigator(GlobalKey<NavigatorState> key) {
-  final root = key.currentContext;
-  if (root == null) return null;
-  NavigatorState? found;
-  void visit(Element element) {
-    if (found != null) return;
-    if (element is StatefulElement && element.state is NavigatorState) {
-      found = element.state as NavigatorState;
-      return;
-    }
-    element.visitChildren(visit);
-  }
-
-  (root as Element).visitChildren(visit);
-  return found;
-}
+/// ライセンス画面のローカル`Navigator`（パッケージ詳細をpushする）を返す。
+/// 2026-11-06に標準の`LicensePage`をやめ自前の画面にしたため、入れ子の`Navigator`は
+/// 無く、キーの`Navigator`自体が詳細の開閉を持つ。まだ無ければnull。
+NavigatorState? _findLicenseDetailNavigator(GlobalKey<NavigatorState> key) =>
+    key.currentState;
 
 /// 設定の中に埋め込む居住地の変更（2026-10-17追加）。現在の回答を読み込んでから
 /// 居住地アンケートの入力欄（[ResidenceSurveyScreen]の埋め込み表示）を出す。

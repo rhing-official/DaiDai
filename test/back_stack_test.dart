@@ -31,6 +31,31 @@ void main() {
       expect(calls, ['album', 'note']);
     });
 
+    test('allowNextChatExitは次の1回だけ、層があってもcloseTopLayerを素通しする', () {
+      final c = BackStackController();
+      final calls = <String>[];
+      c.add(() => calls.add('note'), scope: BackScope.talks, layer: true);
+      c.addDialog(() => calls.add('dialog'));
+
+      c.allowNextChatExit();
+      // 素通し（false＝ルートの遷移を中止しない）。層・ダイアログには触れない。
+      expect(c.closeTopLayer(), isFalse);
+      expect(calls, isEmpty);
+      // 1回で解除され、次からは通常どおり層を閉じる。
+      expect(c.closeTopLayer(), isTrue);
+      expect(calls, ['dialog']);
+    });
+
+    test('cancelAllowChatExitで素通しを取り消せる', () {
+      final c = BackStackController();
+      final calls = <String>[];
+      c.add(() => calls.add('note'), scope: BackScope.talks, layer: true);
+      c.allowNextChatExit();
+      c.cancelAllowChatExit();
+      expect(c.closeTopLayer(), isTrue);
+      expect(calls, ['note']);
+    });
+
     test('closeTopLayerはダイアログ（オーバーレイ）を層より先に閉じる', () {
       final c = BackStackController();
       final calls = <String>[];

@@ -41,11 +41,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   // 設定・身だしなみのトップの横スワイプなど、外部からタブが切り替わった時の
   // 横スライド（2026-11-02）。`_slideFrom`は滑り出す前のタブ、`_slide`が0→1で進む。
   int? _slideFrom;
+
+  /// 今の切り替えを、横スライドではなくダイアログと同じ現れ方（画面遷移の設定）で
+  /// 見せるか（`homeTabAppearRequestProvider`、2026-11-06）。
+  bool _appear = false;
   late final AnimationController _slide =
       AnimationController(vsync: this, duration: popSlideDuration)
         ..addStatusListener((status) {
           if (status == AnimationStatus.completed && _slideFrom != null) {
-            setState(() => _slideFrom = null);
+            setState(() {
+              _slideFrom = null;
+              _appear = false;
+            });
           }
         });
 
@@ -358,9 +365,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     // （ここでの再代入によるループは発生しない）。
     ref.listen<int>(homeSelectedTabProvider, (previous, next) {
       if (next != _selectedIndex) {
+        final appear = ref
+            .read(homeTabAppearRequestProvider.notifier)
+            .consume();
         setState(() {
           _slideFrom = _selectedIndex;
           _selectedIndex = next;
+          _appear = appear;
         });
         _slide.forward(from: 0);
         _syncBackScope();
@@ -444,20 +455,34 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                   ? posOf(_selectedIndex)
                   : posOf(from) + (posOf(_selectedIndex) - posOf(from)) * t) -
               _drag;
+          // 「現れ方」の切り替え（`_appear`）は、横に動かさず、切り替え先を今の画面の上に
+          // ダイアログと同じ動き（画面遷移の設定）で出す。木の形は常に同じ（各タブを
+          // `buildDialogTransition`で包み、普段は止まった1.0を渡す）にして、タブの状態が
+          // 作り直されないようにする。重なりは切り替え先が一番上になるよう並べ替える
+          // （キー付きなので状態は保たれる）。
+          final appearing = _appear && from != null;
+          final order = [for (var i = 0; i < tabs.length; i++) i];
+          if (appearing) {
+            order.remove(_selectedIndex);
+            order.add(_selectedIndex);
+          }
           return ClipRect(
             child: Stack(
               fit: StackFit.expand,
               children: [
-                for (var i = 0; i < tabs.length; i++)
+                for (final i in order)
                   Visibility(
                     key: ValueKey('home-tab-$i'),
-                    visible:
-                        i == _selectedIndex ||
-                        i == from ||
-                        (posOf(i) - current).abs() < 1,
+                    visible: appearing
+                        ? (i == _selectedIndex || i == from)
+                        : (i == _selectedIndex ||
+                              i == from ||
+                              (posOf(i) - current).abs() < 1),
                     maintainState: true,
                     child: FractionalTranslation(
-                      translation: Offset(posOf(i) - current, 0),
+                      translation: appearing
+                          ? Offset.zero
+                          : Offset(posOf(i) - current, 0),
                       child: Padding(
                         padding: EdgeInsets.only(
                           bottom:
@@ -466,9 +491,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                               ? 0
                               : bottomInset,
                         ),
-                        child: PaneVisibility(
-                          visible: i == _selectedIndex,
-                          child: tabs[i],
+                        child: buildDialogTransition(
+                          appearing && i == _selectedIndex
+                              ? _slide
+                              : const AlwaysStoppedAnimation<double>(1),
+                          PaneVisibility(
+                            visible: i == _selectedIndex,
+                            child: tabs[i],
+                          ),
                         ),
                       ),
                     ),

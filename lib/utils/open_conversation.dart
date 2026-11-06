@@ -18,6 +18,10 @@ import '../router/app_router.dart';
 /// 伝え、`TalksTab._openGroup`/`_openDirectMessage`（一覧をタップした時と全く
 /// 同じ処理）に分割表示・アイコン＋寄合一覧・フルスクリーンの振り分けを任せる。
 ///
+/// [goHome]をfalseにすると、ホームへ戻す処理（`go('/')`と語らいタブへの切り替え）を
+/// しない。既にホームの語らいタブにいて、ルートも重なっていない時用（`go('/')`は
+/// 戻る操作用の透明ルートを消して、履歴を巻き戻してしまう、2026-11-06）。
+///
 /// [roomId]を渡すと、その寄合を開く（`lastOpenedRoomProvider`へ先に記録し、
 /// どのレイアウトでも「最後に開いた寄合」として拾われる）。省略時は、最後に
 /// 開いた寄合（無ければ先頭）。
@@ -25,13 +29,14 @@ Future<void> openGroupInTalks(
   WidgetRef ref,
   Group group, {
   String? roomId,
+  bool goHome = true,
 }) async {
   if (roomId != null) {
     await ref
         .read(lastOpenedRoomProvider.notifier)
         .setLastRoom(ViewedGroup(group.groupId), roomId);
   }
-  _goToTalksTab(ref);
+  if (goHome) _goToTalksTab(ref);
   ref.read(pendingGroupSelectionProvider.notifier).set(group);
 }
 
@@ -40,13 +45,14 @@ Future<void> openDmInTalks(
   WidgetRef ref,
   DirectMessage dm, {
   String? roomId,
+  bool goHome = true,
 }) async {
   if (roomId != null) {
     await ref
         .read(lastOpenedRoomProvider.notifier)
         .setLastRoom(ViewedDm(dm.dmId), roomId);
   }
-  _goToTalksTab(ref);
+  if (goHome) _goToTalksTab(ref);
   ref.read(pendingDmSelectionProvider.notifier).set(dm);
 }
 

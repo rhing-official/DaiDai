@@ -236,6 +236,12 @@ class BackStackController extends ChangeNotifier {
   /// 触らない（フルスクリーンのチャットを表示中に背後の一覧の選択だけが戻って
   /// しまうのを避ける）。閉じたらtrue＝ルートの遷移（一覧へ戻る）を中止する。
   bool closeTopLayer() {
+    // 全画面のメッセージ画面を、層を閉じずに意図して抜ける時の1回だけ素通しする
+    // （[allowNextChatExit]、2026-11-06）。
+    if (_allowChatExit) {
+      _allowChatExit = false;
+      return false;
+    }
     if (closeTopOverlay()) return true;
     final index = _targetIndex(layersOnly: true);
     if (index < 0) {
@@ -247,6 +253,17 @@ class BackStackController extends ChangeNotifier {
     entry.onBack();
     return true;
   }
+
+  bool _allowChatExit = false;
+
+  /// 次に`/chat/*`ルートが閉じられる時、[closeTopLayer]が遷移を中止しないようにする
+  /// （1回だけ、2026-11-06）。プロフィールカードから身だしなみの仕立てへ飛ぶ時のように、
+  /// メッセージ画面の上の層（ノート・アルバム・通話）ごと、意図して全画面のメッセージ画面を
+  /// 閉じる時に使う。呼んだ直後に`router.pop()`すること。
+  void allowNextChatExit() => _allowChatExit = true;
+
+  /// 取り消す（`router.pop()`が行われなかった時の後始末）。
+  void cancelAllowChatExit() => _allowChatExit = false;
 
   /// 戻る要求。何かを戻した（閉じた）ならtrue。
   bool requestBack() {

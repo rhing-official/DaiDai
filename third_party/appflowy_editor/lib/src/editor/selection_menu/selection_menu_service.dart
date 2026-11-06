@@ -29,7 +29,17 @@ class SelectionMenu extends SelectionMenuService {
     this.singleColumn = false,
     this.menuHeight = 300,
     this.menuWidth = 300,
+    this.anchorRect,
+    this.surfaceBuilder,
   });
+
+  /// メニューの位置の基準にする矩形（グローバル座標、DaiDai側の追加）。指定すると、カーソルではなく
+  /// この矩形（例: 「+」ボタン）の右下にメニューを出す。
+  final Rect? anchorRect;
+
+  /// メニューの面（背景・枠・影）を差し替える（DaiDai側の追加）。指定すると標準の
+  /// 背景・影の代わりに、これが中身を包む。UIスタイルに合わせた面にする用。
+  final Widget Function(Widget child)? surfaceBuilder;
 
   final BuildContext context;
   final EditorState editorState;
@@ -85,11 +95,12 @@ class SelectionMenu extends SelectionMenuService {
 
     final selectionService = editorState.service.selectionService;
     final selectionRects = selectionService.selectionRects;
-    if (selectionRects.isEmpty) {
+    final anchor = anchorRect;
+    if (anchor == null && selectionRects.isEmpty) {
       return;
     }
 
-    calculateSelectionMenuOffset(selectionRects.first);
+    calculateSelectionMenuOffset(anchor ?? selectionRects.first);
     final (left, top, right, bottom) = getPosition();
 
     final editorHeight = editorState.renderBox!.size.height;
@@ -125,7 +136,7 @@ class SelectionMenu extends SelectionMenuService {
                             dismiss();
                           };
                         }),
-                      maxItemInRow: 5,
+                      maxItemInRow: 4,
                       editorState: editorState,
                       itemCountFilter: itemCountFilter,
                       menuService: this,
@@ -136,6 +147,7 @@ class SelectionMenu extends SelectionMenuService {
                         _selectionUpdateByInner = true;
                       },
                       deleteSlashByDefault: deleteSlashByDefault,
+                      surfaceBuilder: surfaceBuilder,
                     ),
                   ),
                 ),

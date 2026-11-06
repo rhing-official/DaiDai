@@ -1,3 +1,5 @@
+import '../../utils/contact_alias.dart';
+import '../../providers/contact_alias_providers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -398,9 +400,15 @@ class _JoinRequestTile extends ConsumerWidget {
     final requester = ref.watch(watchedUserProvider(request.requesterId)).value;
     final iconUrl = requester?.effectiveIconFor(request.groupId)?.url;
     final nickname = requester?.effectiveNicknameFor(request.groupId)?.text;
-    final label = (nickname?.isNotEmpty ?? false)
-        ? nickname!
-        : '@${request.requesterRhingSeed}';
+    // 自分が指定した呼び名があれば優先する（2026-11-06）。
+    final label = resolveDisplayName(
+      alias: aliasOf(
+        ref.watch(myContactAliasesProvider).value,
+        request.requesterId,
+      ),
+      nickname: nickname,
+      rhingSeed: request.requesterRhingSeed,
+    );
     final isGlass = ref.watch(appUiStyleProvider) == AppUiStyle.glass;
     final onSurfaceVariant = Theme.of(context).colorScheme.onSurfaceVariant;
     final placeholder = Icon(
@@ -438,7 +446,7 @@ class _JoinRequestTile extends ConsumerWidget {
   }
 }
 
-class _MemberTile extends StatelessWidget {
+class _MemberTile extends ConsumerWidget {
   const _MemberTile({
     required this.currentUser,
     required this.user,
@@ -486,12 +494,15 @@ class _MemberTile extends StatelessWidget {
   final VoidCallback onTransferOwnership;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final iconUrl = user.effectiveIconFor(groupId)?.url;
     final nickname = user.effectiveNicknameFor(groupId)?.text;
-    final label = (nickname?.isNotEmpty ?? false)
-        ? nickname!
-        : '@${user.rhingSeed}';
+    // 自分が指定した呼び名があれば優先する（2026-11-06）。
+    final label = resolveDisplayName(
+      alias: aliasOf(ref.watch(myContactAliasesProvider).value, user.userId),
+      nickname: nickname,
+      rhingSeed: user.rhingSeed,
+    );
     final assignedRoles = customRoles
         .where((r) => assignedRoleIds.contains(r.roleId))
         .toList();

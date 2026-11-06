@@ -274,7 +274,11 @@ class SelectionMenuWidget extends StatefulWidget {
     required this.deleteSlashByDefault,
     this.singleColumn = false,
     this.nameBuilder,
+    this.surfaceBuilder,
   });
+
+  /// 面の差し替え（[SelectionMenu.surfaceBuilder]）。
+  final Widget Function(Widget child)? surfaceBuilder;
 
   final List<SelectionMenuItem> items;
   final int itemCountFilter;
@@ -378,19 +382,8 @@ class _SelectionMenuWidgetState extends State<SelectionMenuWidget> {
     return Focus(
       focusNode: _focusNode,
       onKeyEvent: _onKeyEvent,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: widget.selectionMenuStyle.selectionMenuBackgroundColor,
-          boxShadow: [
-            BoxShadow(
-              blurRadius: 5,
-              spreadRadius: 1,
-              color: Colors.black.withValues(alpha: 0.1),
-            ),
-          ],
-          borderRadius: BorderRadius.circular(6.0),
-        ),
-        child: _showingItems.isEmpty
+      child: _wrapSurface(
+        _showingItems.isEmpty
             ? _buildNoResultsWidget(context)
             : _buildResultsWidget(
                 context,
@@ -399,6 +392,25 @@ class _SelectionMenuWidgetState extends State<SelectionMenuWidget> {
                 _hasNavigated ? _selectedIndex : -1,
               ),
       ),
+    );
+  }
+
+  Widget _wrapSurface(Widget content) {
+    final builder = widget.surfaceBuilder;
+    if (builder != null) return builder(content);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: widget.selectionMenuStyle.selectionMenuBackgroundColor,
+        boxShadow: [
+          BoxShadow(
+            blurRadius: 5,
+            spreadRadius: 1,
+            color: Colors.black.withValues(alpha: 0.1),
+          ),
+        ],
+        borderRadius: BorderRadius.circular(6.0),
+      ),
+      child: content,
     );
   }
 

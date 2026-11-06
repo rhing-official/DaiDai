@@ -380,6 +380,13 @@ final Strings _stringsFr = Strings._(
   conversationBlockHint:
       'Vous ne recevrez plus ses messages, notifications, appels ni demandes d’ami, et la personne ne le saura pas',
   conversationUnblock: 'Débloquer',
+  contactAliasAction: 'Définir un nom',
+  contactAliasTitle: 'Définir un nom',
+  contactAliasHint: 'Un nom visible par vous seul',
+  contactAliasDescription:
+      'Cette personne ne le voit pas. Enregistrez un champ vide, ou supprimez-le, pour revenir à son propre nom.',
+  contactAliasClear: 'Supprimer',
+  contactAliasOriginalTemplate: (name) => 'Son nom : $name',
   conversationSortRecent: 'Plus récents',
   conversationSortKana: 'Ordre alphabétique',
   conversationSortUnreadFirst: 'Non lus d’abord',
@@ -742,6 +749,7 @@ final Strings _stringsFr = Strings._(
   settingsProfileCardAssignmentEmpty:
       'Aucune conversation n’utilise encore de carte non standard',
   conversationProfileCardMenuLabel: 'Ma carte de profil',
+  dmPartnerProfileCardMenuLabel: 'Sa carte de profil',
   workshopConversationCardAddDialogTitle:
       'Choisissez une conversation pour laquelle définir une carte',
   workshopConversationCardAddEmpty: 'Aucune conversation à configurer',

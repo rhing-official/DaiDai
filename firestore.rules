@@ -148,6 +148,17 @@ service cloud.firestore {
         allow read, write: if request.auth != null && request.auth.uid == userId;
       }
 
+      // users/{userId}/contactAliases/{targetUserId}: 相手の呼び名を自分の画面だけで
+      // 上書きする指定（2026-11-06追加）。blockedUsersと同じ完全に個人的な設定で、
+      // 本人のみ読み書き可能（相手には一切公開しない）。呼び名は1〜20文字。
+      match /contactAliases/{targetUserId} {
+        allow read, delete: if request.auth != null && request.auth.uid == userId;
+        allow create, update: if request.auth != null && request.auth.uid == userId
+          && request.resource.data.alias is string
+          && request.resource.data.alias.size() >= 1
+          && request.resource.data.alias.size() <= 20;
+      }
+
       // users/{userId}/private/residence: 居住地の自己申告（国・都道府県・
       // タイムゾーン、2026-10-16追加）。伝書鳩の距離計算・安否確認・国単位の
       // 利用地域把握に使う。`users/{userId}`本体は全ログイン者が読めるため、

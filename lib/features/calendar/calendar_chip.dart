@@ -1,3 +1,5 @@
+import '../../providers/contact_alias_providers.dart';
+import '../../utils/contact_alias.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -100,9 +102,16 @@ class CalendarResponseGroup extends ConsumerWidget {
                                 : null,
                           );
                   }(),
+                  // 自分が指定した呼び名があれば優先する（2026-11-06）。
                   label: Text(
-                    user.effectiveNicknameFor(conversationId)?.text ??
-                        '@${user.rhingSeed}',
+                    resolveDisplayName(
+                      alias: aliasOf(
+                        ref.watch(myContactAliasesProvider).value,
+                        user.userId,
+                      ),
+                      nickname: user.effectiveNicknameFor(conversationId)?.text,
+                      rhingSeed: user.rhingSeed,
+                    ),
                   ),
                 ),
             ],

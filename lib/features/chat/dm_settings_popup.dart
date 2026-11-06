@@ -20,6 +20,7 @@ import '../../widgets/glass/glass_surface.dart';
 import 'chat_panes.dart' show confirmDisableReadReceipts;
 import 'conversation_profile_card_dialog.dart';
 import 'severance_dialog.dart';
+import 'user_profile_card_dialog.dart';
 import '../../widgets/dialog_keyboard_shortcuts.dart';
 import '../../widgets/app_dialog.dart';
 import '../../widgets/toggles/app_switch.dart';
@@ -201,6 +202,22 @@ class DmSettingsPopup extends ConsumerWidget {
                     conversationId: liveDm.dmId,
                   ),
                 ),
+              ListTile(
+                leading: const Icon(Icons.account_circle_outlined),
+                title: Text(strings.dmPartnerProfileCardMenuLabel),
+                onTap: () async {
+                  final other = await ref
+                      .read(userRepositoryProvider)
+                      .getUser(otherUserId);
+                  if (other == null || !context.mounted) return;
+                  await UserProfileCardDialog.show(
+                    context,
+                    currentUser: currentUser,
+                    user: other,
+                    conversationId: liveDm.dmId,
+                  );
+                },
+              ),
               StreamBuilder<List<DmRoom>>(
                 stream: ref
                     .read(directMessageRepositoryProvider)

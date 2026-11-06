@@ -1,3 +1,5 @@
+import '../../utils/contact_alias.dart';
+import '../../providers/contact_alias_providers.dart';
 import 'dart:async';
 import 'dart:math';
 import 'dart:ui' show lerpDouble;
@@ -1669,10 +1671,11 @@ class _AddConversationCardDialogState
   String _dmTitle(DirectMessage dm) {
     final otherUserId = dm.otherUserId(widget.userId);
     final otherUser = ref.watch(watchedUserProvider(otherUserId)).value;
-    final nickname = otherUser?.effectiveNicknameFor(dm.dmId)?.text;
-    return (nickname != null && nickname.isNotEmpty)
-        ? nickname
-        : '@${dm.otherRhingSeed(widget.userId)}';
+    return resolveDisplayName(
+      alias: aliasOf(ref.watch(myContactAliasesProvider).value, otherUserId),
+      nickname: otherUser?.effectiveNicknameFor(dm.dmId)?.text,
+      rhingSeed: dm.otherRhingSeed(widget.userId),
+    );
   }
 
   @override
