@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../models/app_ui_style.dart';
 import '../../providers/app_ui_style_provider.dart';
+import '../../theme/block/block_theme.dart';
 import '../../theme/gekiga/gekiga_colors.dart';
 
 /// トグル類（スイッチ・チェックボックス・ラジオ）の色。UIスタイルごとに決める
@@ -75,6 +76,21 @@ class ToggleColors {
           border: scheme.onSurface.withValues(alpha: 0.28),
           borderWidth: 1,
           check: accent,
+        );
+      case AppUiStyle.block:
+        final line = BlockTheme.lineColor(scheme.brightness);
+        // オン=アクセントの面（つまみは黒＋白いチェック）、オフ=白い面（つまみは黒）で、
+        // 背景の淡い色と見分けがつくようにする。チェックはつまみ（黒/明るい線）の上に
+        // 描くので反対色にする。チェックボックスのチェックは`onThumb`（面の上）を使う。
+        final isDark = scheme.brightness == Brightness.dark;
+        return ToggleColors(
+          onFill: accent,
+          offFill: isDark ? const Color(0xFF2A2A2A) : Colors.white,
+          onThumb: line,
+          offThumb: line,
+          border: line,
+          borderWidth: BlockTheme.borderWidth,
+          check: isDark ? const Color(0xFF121212) : Colors.white,
         );
       case AppUiStyle.flat:
         return ToggleColors(

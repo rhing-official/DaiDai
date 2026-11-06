@@ -645,6 +645,7 @@ class MessageSearchHitTile extends ConsumerWidget {
           ),
         );
       case AppUiStyle.flat:
+      case AppUiStyle.block:
         return ListTile(
           dense: compact,
           shape: RoundedRectangleBorder(

@@ -10,6 +10,7 @@ import 'package:flutter/foundation.dart'
     show ValueListenable, visibleForTesting;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import '../../theme/block/block_theme.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/strings.dart';
@@ -282,10 +283,18 @@ class _SplitDividerState extends ConsumerState<SplitDivider> {
 /// 指に追従できないため、ドラッグ中は中身の幅を固定する（指を離すと本来の幅で1回だけ
 /// 計算し直す）。ドラッグしていない時は何もしない（木の形は常に同じ）。
 class _FrozenWidthPane extends ConsumerStatefulWidget {
-  const _FrozenWidthPane({required this.mirrored, required this.child});
+  const _FrozenWidthPane({
+    required this.mirrored,
+    required this.child,
+    this.anchorOuter = false,
+  });
 
   final bool mirrored;
   final Widget child;
+
+  /// trueなら、中身を画面の外側の端（通常は左端、左右反転では右端）に寄せて固定する
+  /// （アイコン列・語らい一覧用）。falseは境目（区切り線）の側に寄せる（チャット側用）。
+  final bool anchorOuter;
 
   @override
   ConsumerState<_FrozenWidthPane> createState() => _FrozenWidthPaneState();
@@ -303,7 +312,7 @@ class _FrozenWidthPaneState extends ConsumerState<_FrozenWidthPane> {
           if (!dragging) _lastWidth = constraints.maxWidth;
           final frozen = dragging ? _lastWidth : null;
           return OverflowBox(
-            alignment: widget.mirrored
+            alignment: (widget.mirrored != widget.anchorOuter)
                 ? Alignment.centerLeft
                 : Alignment.centerRight,
             minWidth: frozen,
@@ -1159,16 +1168,9 @@ class _TalksTabState extends ConsumerState<TalksTab>
           ),
         );
       },
-      transitionBuilder: (context, animation, secondaryAnimation, child) {
-        final curved = CurvedAnimation(
-          parent: animation,
-          curve: Curves.easeOutBack,
-        );
-        return FadeTransition(
-          opacity: animation,
-          child: ScaleTransition(scale: curved, child: child),
-        );
-      },
+      // 設定の画面遷移の種類に従う（2026-11-06、以前は固定の弾む動き）。
+      transitionBuilder: (context, animation, secondaryAnimation, child) =>
+          buildDialogTransition(animation, child),
     );
   }
 
@@ -1268,17 +1270,9 @@ class _TalksTabState extends ConsumerState<TalksTab>
           ),
         );
       },
-      transitionBuilder: (context, animation, secondaryAnimation, child) {
-        // 少し行き過ぎてから戻る、弾むような「ポップ」演出。
-        final curved = CurvedAnimation(
-          parent: animation,
-          curve: Curves.easeOutBack,
-        );
-        return FadeTransition(
-          opacity: animation,
-          child: ScaleTransition(scale: curved, child: child),
-        );
-      },
+      // 設定の画面遷移の種類に従う（2026-11-06、以前は固定の弾む動き）。
+      transitionBuilder: (context, animation, secondaryAnimation, child) =>
+          buildDialogTransition(animation, child),
     );
   }
 
@@ -1496,6 +1490,16 @@ class _TalksTabState extends ConsumerState<TalksTab>
                                   AppUiStyle.glass => GlassIconButton(
                                     icon: Icons.add,
                                     size: 32,
+                                    // アクセントを抜き、縁の光彩を中立色にする。
+                                    accentColorOverride: Theme.of(
+                                      context,
+                                    ).colorScheme.onSurfaceVariant,
+                                    onPressed: _showAddMenu,
+                                  ),
+                                  AppUiStyle.block => blockIconButton(
+                                    context,
+                                    icon: Icons.add,
+                                    size: 32,
                                     onPressed: _showAddMenu,
                                   ),
                                   AppUiStyle.flat => IconButton.filled(
@@ -1504,6 +1508,13 @@ class _TalksTabState extends ConsumerState<TalksTab>
                                     style: IconButton.styleFrom(
                                       minimumSize: const Size(32, 32),
                                       padding: EdgeInsets.zero,
+                                      // アクセントで塗らず、中立の面にする。
+                                      backgroundColor: Theme.of(
+                                        context,
+                                      ).colorScheme.surfaceContainerHighest,
+                                      foregroundColor: Theme.of(
+                                        context,
+                                      ).colorScheme.onSurface,
                                     ),
                                   ),
                                 },
@@ -1809,16 +1820,24 @@ class _TalksTabState extends ConsumerState<TalksTab>
     );
     _iconSplitSwipeBackController.maxDrag =
         splitWidths.rail + kIconSplitHandleWidth + splitWidths.list;
-    final iconRail = scaledSplitPane(
-      splitScale,
-      _buildIconRail(
-        directMessages,
-        groups,
-        prefsById,
-        incomingRequests,
-        outgoingRequests,
-        pendingGroupRequests,
-        blockedIds,
+    // 語らい一覧（アイコン列）の幅をドラッグしている間は、中身を「ドラッグ前の幅」のまま
+    // 並べて境目で切り取る（幅が変わるたびに全タイルを並べ直すと、指に追従できない。
+    // チャット側の[_FrozenWidthPane]と同じ考え方、2026-11-06）。指を離すと本来の幅で
+    // 1回だけ並べ直す。
+    final iconRail = _FrozenWidthPane(
+      mirrored: ref.watch(iconSplitMirroredProvider),
+      anchorOuter: true,
+      child: scaledSplitPane(
+        splitScale,
+        _buildIconRail(
+          directMessages,
+          groups,
+          prefsById,
+          incomingRequests,
+          outgoingRequests,
+          pendingGroupRequests,
+          blockedIds,
+        ),
       ),
     );
 
@@ -2154,10 +2173,22 @@ class _TalksTabState extends ConsumerState<TalksTab>
     // 縦に並ぶ検索・＋のボタン。劇画UIでは並べ替えボタンと同じモノクロの箱のバッジ
     // （40px）にする（2026-11-01）。
     final isGekigaRail = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
+    final isBlockRail = ref.watch(appUiStyleProvider) == AppUiStyle.block;
     Widget railButton({
       required IconData icon,
       required VoidCallback onPressed,
     }) {
+      if (isBlockRail) {
+        return Padding(
+          padding: const EdgeInsets.all(2),
+          child: blockIconButton(
+            context,
+            icon: icon,
+            size: 40,
+            onPressed: onPressed,
+          ),
+        );
+      }
       if (isGekigaRail) {
         return Padding(
           padding: const EdgeInsets.all(4),
@@ -2576,6 +2607,30 @@ class _TalksTabState extends ConsumerState<TalksTab>
             onChanged: (_) => _onSearchTextChanged(),
           ),
         );
+      case AppUiStyle.block:
+        // 版画: 太枠と硬い影の箱の中に、枠・塗り無しの素のTextFieldを置く。
+        return Padding(
+          padding: const EdgeInsets.only(right: 4, bottom: 4),
+          child: blockMaterialBox(
+            context,
+            color: Theme.of(context).brightness == Brightness.light
+                ? Colors.white
+                : Theme.of(context).colorScheme.surface,
+            child: TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                filled: false,
+                border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
+                hintText: strings.talksSearchHint,
+                prefixIcon: const Icon(Icons.search),
+                suffixIcon: clearButton(null),
+              ),
+              onChanged: (_) => _onSearchTextChanged(),
+            ),
+          ),
+        );
       case AppUiStyle.flat:
         // ガラスと同じ形（角丸24・枠線なし）で、半透明にはせず不透明の面で塗る
         // （2026-11-01）。
@@ -2886,6 +2941,26 @@ class CategoryTab extends ConsumerWidget {
       ),
     );
 
+    if (ref.watch(appUiStyleProvider) == AppUiStyle.block) {
+      return blockMaterialBox(
+        context,
+        color: selected
+            ? colorScheme.primary
+            : (Theme.of(context).brightness == Brightness.light
+                  ? Colors.white
+                  : colorScheme.surface),
+        child: InkWell(
+          onTap: onTap,
+          child: DefaultTextStyle.merge(
+            style: TextStyle(
+              color: selected ? colorScheme.onPrimary : colorScheme.onSurface,
+            ),
+            child: content,
+          ),
+        ),
+      );
+    }
+
     if (isGlass) {
       return GlassSurface(
         variant: GlassVariant.card,
@@ -2997,6 +3072,7 @@ class _FriendRequestTile extends ConsumerWidget {
                   ),
           )
         : FocalCircleAvatar(
+            blockFrame: true,
             url: iconUrl,
             focal: iconFocal,
             foregroundColor: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -3519,20 +3595,25 @@ class DirectMessageTile extends ConsumerWidget {
                 : Icon(Icons.person, color: colorScheme.onSurfaceVariant),
           )
         : FocalCircleAvatar(
+            blockFrame: true,
             url: iconUrl,
             focal: iconFocal,
             foregroundColor: gekigaAwareIconColor,
             fallback: const Icon(Icons.person),
           );
-    final subtitleWidget = previewLabel == null
-        ? null
-        : Text(previewLabel, maxLines: 1, overflow: TextOverflow.ellipsis);
-    final trailingWidget = _ConversationTrailing(
-      pinned: pinned,
-      muted: muted,
+    // 時刻は副題の行の右端（＝行の下端）に置く。名前の行は右端までを使える
+    // ため、時刻の幅で名前が途切れない（2026-11-06）。
+    final subtitleWidget = _ConversationSubtitle(
+      preview: previewLabel,
       lastMessageAt: dm.lastMessageAt?.toDate(),
-      unreadCount: unreadCount,
     );
+    final trailingWidget = (pinned || muted || unreadCount > 0)
+        ? _ConversationTrailing(
+            pinned: pinned,
+            muted: muted,
+            unreadCount: unreadCount,
+          )
+        : null;
 
     if (isGekiga) {
       return _ConversationGestures(
@@ -3543,9 +3624,8 @@ class DirectMessageTile extends ConsumerWidget {
         child: GekigaTileContent(
           selected: selected,
           leading: leadingWidget,
-          title: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
+          title: _ConversationTitle(text: label, suffix: trailingWidget),
           subtitle: subtitleWidget,
-          trailing: trailingWidget,
           onTap: onTap,
         ),
       );
@@ -3572,13 +3652,8 @@ class DirectMessageTile extends ConsumerWidget {
                 iconColor: colorScheme.onSurfaceVariant,
                 textColor: colorScheme.onSurfaceVariant,
                 leading: leadingWidget,
-                title: Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
+                title: _ConversationTitle(text: label, suffix: trailingWidget),
                 subtitle: subtitleWidget,
-                trailing: trailingWidget,
                 onTap: onTap,
               ),
             ),
@@ -3592,16 +3667,20 @@ class DirectMessageTile extends ConsumerWidget {
       userId: currentUser.userId,
       pinned: pinned,
       muted: muted,
-      child: ListTile(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: _BlockTalkTileWrap(
         selected: selected,
-        selectedTileColor: colorScheme.primary,
-        selectedColor: colorScheme.onPrimary,
-        leading: leadingWidget,
-        title: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
-        subtitle: subtitleWidget,
-        trailing: trailingWidget,
-        onTap: onTap,
+        child: ListTile(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          selected: selected,
+          selectedTileColor: colorScheme.primary,
+          selectedColor: colorScheme.onPrimary,
+          leading: leadingWidget,
+          title: _ConversationTitle(text: label, suffix: trailingWidget),
+          subtitle: subtitleWidget,
+          onTap: onTap,
+        ),
       ),
     );
   }
@@ -3698,14 +3777,16 @@ class GroupTile extends ConsumerWidget {
                 : Icon(Icons.groups, color: colorScheme.onSurfaceVariant),
           )
         : FocalCircleAvatar(
+            blockFrame: true,
             url: iconUrl,
             focal: group.profileCard?.iconFocal,
             foregroundColor: gekigaAwareIconColor,
             fallback: const Icon(Icons.groups),
           );
-    final subtitleWidget = previewLabel == null
-        ? null
-        : Text(previewLabel, maxLines: 1, overflow: TextOverflow.ellipsis);
+    final subtitleWidget = _ConversationSubtitle(
+      preview: previewLabel,
+      lastMessageAt: group.lastMessageAt?.toDate(),
+    );
     // 承認できる広場にだけ、承認待ちの参加リクエスト件数を出す（2026-10-11追加）。
     // 権限の無い人が購読するとpermission-deniedになるため権限を先に確認する。
     final canManageJoinRequests = hasGroupPermission(
@@ -3720,20 +3801,23 @@ class GroupTile extends ConsumerWidget {
                   ?.length ??
               0)
         : 0;
-    final trailingBase = _ConversationTrailing(
-      pinned: pinned,
-      muted: muted,
-      lastMessageAt: group.lastMessageAt?.toDate(),
-      unreadCount: unreadCount,
-    );
+    final trailingBase = (pinned || muted || unreadCount > 0)
+        ? _ConversationTrailing(
+            pinned: pinned,
+            muted: muted,
+            unreadCount: unreadCount,
+          )
+        : null;
     final trailingWidget = joinRequestCount == 0
         ? trailingBase
         : Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               _JoinRequestBadge(count: joinRequestCount),
-              const SizedBox(width: 8),
-              trailingBase,
+              if (trailingBase != null) ...[
+                const SizedBox(width: 8),
+                trailingBase,
+              ],
             ],
           );
 
@@ -3746,13 +3830,8 @@ class GroupTile extends ConsumerWidget {
         child: GekigaTileContent(
           selected: selected,
           leading: leadingWidget,
-          title: Text(
-            displayName,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
+          title: _ConversationTitle(text: displayName, suffix: trailingWidget),
           subtitle: subtitleWidget,
-          trailing: trailingWidget,
           onTap: onTap,
         ),
       );
@@ -3779,13 +3858,11 @@ class GroupTile extends ConsumerWidget {
                 iconColor: colorScheme.onSurfaceVariant,
                 textColor: colorScheme.onSurfaceVariant,
                 leading: leadingWidget,
-                title: Text(
-                  displayName,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                title: _ConversationTitle(
+                  text: displayName,
+                  suffix: trailingWidget,
                 ),
                 subtitle: subtitleWidget,
-                trailing: trailingWidget,
                 onTap: onTap,
               ),
             ),
@@ -3799,16 +3876,20 @@ class GroupTile extends ConsumerWidget {
       userId: currentUserId,
       pinned: pinned,
       muted: muted,
-      child: ListTile(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: _BlockTalkTileWrap(
         selected: selected,
-        selectedTileColor: colorScheme.primary,
-        selectedColor: colorScheme.onPrimary,
-        leading: leadingWidget,
-        title: Text(displayName, maxLines: 1, overflow: TextOverflow.ellipsis),
-        subtitle: subtitleWidget,
-        trailing: trailingWidget,
-        onTap: onTap,
+        child: ListTile(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          selected: selected,
+          selectedTileColor: colorScheme.primary,
+          selectedColor: colorScheme.onPrimary,
+          leading: leadingWidget,
+          title: _ConversationTitle(text: displayName, suffix: trailingWidget),
+          subtitle: subtitleWidget,
+          onTap: onTap,
+        ),
       ),
     );
   }
@@ -3871,6 +3952,7 @@ class _DirectMessageIconTile extends ConsumerWidget {
                   : Icon(Icons.person, color: colorScheme.onSurfaceVariant),
             )
           : FocalCircleAvatar(
+              blockFrame: true,
               url: iconUrl,
               focal: iconFocal,
               foregroundColor: colorScheme.onSurfaceVariant,
@@ -3934,6 +4016,7 @@ class _GroupIconTile extends ConsumerWidget {
                   : Icon(Icons.groups, color: colorScheme.onSurfaceVariant),
             )
           : FocalCircleAvatar(
+              blockFrame: true,
               url: iconUrl,
               focal: group.profileCard?.iconFocal,
               foregroundColor: colorScheme.onSurfaceVariant,
@@ -4040,7 +4123,7 @@ class _ConversationIconTile extends StatelessWidget {
                           child: Icon(
                             Icons.push_pin,
                             size: 12 * pinScale,
-                            color: colorScheme.primary,
+                            color: colorScheme.onSurface,
                           ),
                         );
                       },
@@ -4110,13 +4193,37 @@ class _ConversationIconTile extends StatelessWidget {
         ),
       ),
     );
-    if (!gesturesEnabled) return tile;
+    // 版画は、太枠と硬い影の箱（選択中はアクセントの縁取りではなく塗り）。
+    final shown = isBlockTheme(context)
+        ? Padding(
+            padding: const EdgeInsets.fromLTRB(4, 2, 8, 6),
+            child: blockMaterialBox(
+              context,
+              color: selected
+                  ? colorScheme.primary
+                  : (Theme.of(context).brightness == Brightness.light
+                        ? Colors.white
+                        : colorScheme.surface),
+              child: InkWell(
+                onTap: onTap,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 8,
+                    horizontal: 4,
+                  ),
+                  child: (tile.child! as Container).child,
+                ),
+              ),
+            ),
+          )
+        : tile;
+    if (!gesturesEnabled) return shown;
     return _ConversationGestures(
       conversationId: conversationId,
       userId: userId,
       pinned: pinned,
       muted: muted,
-      child: tile,
+      child: shown,
     );
   }
 }
@@ -4128,13 +4235,11 @@ class _ConversationTrailing extends ConsumerWidget {
   const _ConversationTrailing({
     required this.pinned,
     required this.muted,
-    required this.lastMessageAt,
     required this.unreadCount,
   });
 
   final bool pinned;
   final bool muted;
-  final DateTime? lastMessageAt;
   final int unreadCount;
 
   @override
@@ -4142,49 +4247,97 @@ class _ConversationTrailing extends ConsumerWidget {
     final uiStyle = ref.watch(appUiStyleProvider);
     final isGekiga = uiStyle == AppUiStyle.gekiga;
     final isGlass = uiStyle == AppUiStyle.glass;
-    final timeFormat = ref.watch(messageTimeFormatProvider);
-    final lastMessageAt = this.lastMessageAt;
-    final timeLabel = lastMessageAt == null
-        ? null
-        : formatConversationListTime(lastMessageAt, DateTime.now(), timeFormat);
     final indicatorColor = isGekiga
         ? GekigaColors.onPanel.withValues(alpha: 0.75)
         : resolveTertiaryTextColor(context, isGlass: isGlass);
 
-    return Column(
+    return Row(
       mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.end,
       children: [
-        if (pinned || muted) ...[
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (muted)
-                Icon(
-                  Icons.notifications_off_outlined,
-                  size: 18,
-                  color: indicatorColor,
-                ),
-              if (pinned) ...[
-                if (muted) const SizedBox(width: 4),
-                Icon(
-                  Icons.push_pin,
-                  size: 18,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-              ],
-            ],
+        if (muted)
+          Icon(
+            Icons.notifications_off_outlined,
+            size: 18,
+            color: indicatorColor,
           ),
-          const SizedBox(height: 4),
+        if (pinned) ...[
+          if (muted) const SizedBox(width: 4),
+          Icon(
+            Icons.push_pin,
+            size: 18,
+            color: Theme.of(context).colorScheme.onSurface,
+          ),
         ],
-        if (timeLabel != null)
-          Text(
-            timeLabel,
-            style: TextStyle(fontSize: 12, color: indicatorColor),
-          ),
         if (unreadCount > 0) ...[
-          const SizedBox(height: 4),
+          if (pinned || muted) const SizedBox(width: 6),
           UnreadBadge(count: unreadCount),
+        ],
+      ],
+    );
+  }
+}
+
+/// 語らい一覧の行の名前。右端（名前と同じ上段の行）に、ピン留め・通知オフのアイコンと
+/// 未読バッジを並べる（2026-11-06）。これらを`ListTile`の`trailing`に置くと行の右側の
+/// 幅を取り、下段の時刻が左にずれるため、時刻の位置に影響しない名前の行の中に置く。
+class _ConversationTitle extends StatelessWidget {
+  const _ConversationTitle({required this.text, required this.suffix});
+
+  final String text;
+  final Widget? suffix;
+
+  @override
+  Widget build(BuildContext context) {
+    final name = Text(text, maxLines: 1, overflow: TextOverflow.ellipsis);
+    final suffix = this.suffix;
+    if (suffix == null) return name;
+    return Row(
+      children: [
+        Expanded(child: name),
+        const SizedBox(width: 8),
+        suffix,
+      ],
+    );
+  }
+}
+
+/// 語らい一覧の行の副題。左に最後のメッセージの内容、右端に最後のメッセージの時刻
+/// （2026-11-06、時刻を名前の行から外し、名前が時刻の幅で途切れないようにした）。
+class _ConversationSubtitle extends ConsumerWidget {
+  const _ConversationSubtitle({
+    required this.preview,
+    required this.lastMessageAt,
+  });
+
+  final String? preview;
+  final DateTime? lastMessageAt;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final uiStyle = ref.watch(appUiStyleProvider);
+    final isGekiga = uiStyle == AppUiStyle.gekiga;
+    final isGlass = uiStyle == AppUiStyle.glass;
+    final timeFormat = ref.watch(messageTimeFormatProvider);
+    final at = lastMessageAt;
+    final timeLabel = at == null
+        ? null
+        : formatConversationListTime(at, DateTime.now(), timeFormat);
+    final timeColor = isGekiga
+        ? GekigaColors.onPanel.withValues(alpha: 0.75)
+        : resolveTertiaryTextColor(context, isGlass: isGlass);
+    if (timeLabel == null && preview == null) return const SizedBox.shrink();
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            preview ?? '',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        if (timeLabel != null) ...[
+          const SizedBox(width: 8),
+          Text(timeLabel, style: TextStyle(fontSize: 12, color: timeColor)),
         ],
       ],
     );
@@ -5812,6 +5965,8 @@ class _HoldSelectSortButtonState extends State<_HoldSelectSortButton> {
               padding: EdgeInsets.all(4),
               child: GekigaIconBadge(icon: Icons.sort, size: 40),
             )
+          : isBlockTheme(context)
+          ? blockIconButton(context, icon: Icons.sort, size: 40)
           : IconButton(
               icon: const Icon(Icons.sort),
               onPressed: _noop,
@@ -5824,4 +5979,31 @@ class _HoldSelectSortButtonState extends State<_HoldSelectSortButton> {
   }
 
   static void _noop() {}
+}
+
+/// 語らい一覧の行を、版画だけ太枠と硬い影の箱で囲む（他のスタイルはそのまま）。
+/// 選択中はアクセントで塗る（中の`ListTile`の選択色と同じ）。
+class _BlockTalkTileWrap extends StatelessWidget {
+  const _BlockTalkTileWrap({required this.selected, required this.child});
+
+  final bool selected;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!isBlockTheme(context)) return child;
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(2, 3, 6, 7),
+      child: blockMaterialBox(
+        context,
+        color: selected
+            ? scheme.primary
+            : (Theme.of(context).brightness == Brightness.light
+                  ? Colors.white
+                  : scheme.surface),
+        child: child,
+      ),
+    );
+  }
 }

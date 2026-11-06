@@ -49,11 +49,18 @@ class SlideBackPageTransitionsBuilder extends PageTransitionsBuilder {
         final style = activeSlideTransitionStyle;
         // 吸い込みはスライドせず、右下の角へ縮む（木の形は種類で変えない）。
         final isSuck = style == SlideTransitionStyle.suck;
+        // ポップは中央から弾むように拡大する（指に追従する間は直線）。
+        final isPop = style.usesPopScale;
+        final popT = route.popGestureInProgress
+            ? animation.value
+            : popScaleCurve.transform(animation.value);
         final moved = FractionalTranslation(
           translation: Offset(style.usesSlide ? 1 - t : 0, 0),
           child: Transform.scale(
-            alignment: Alignment.bottomRight,
-            scale: isSuck ? suckMinScale + (1 - suckMinScale) * t : 1.0,
+            alignment: isPop ? Alignment.center : Alignment.bottomRight,
+            scale: isSuck
+                ? suckMinScale + (1 - suckMinScale) * t
+                : (isPop ? popMinScale + (1 - popMinScale) * popT : 1.0),
             child: LiquifyEffect(
               progress: 1 - t,
               enabled: isSuck,

@@ -10,6 +10,8 @@ const kDefaultColorPresets = [
   '114514CC',
   'A997C6CC',
   '114789CC',
+  '1AAAAACC',
+  'C199F7CC',
 ];
 
 /// カードの文字色の固定プリセット（6桁hex＝RRGGBB）。アクセントの固定プリセットを

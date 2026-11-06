@@ -229,11 +229,7 @@ class _PollPopupContent extends ConsumerWidget {
     return SizedBox(
       width: 300,
       child: Container(
-        decoration: BoxDecoration(
-          color: popupCardBackground(brightness, uiStyle),
-          border: Border.all(color: popupCardBorder(brightness, uiStyle)),
-          borderRadius: BorderRadius.circular(16),
-        ),
+        decoration: popupCardDecoration(context, brightness, uiStyle),
         child: padded,
       ),
     );

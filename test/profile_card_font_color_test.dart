@@ -79,10 +79,10 @@ void main() {
     );
   });
 
-  test('文字色の固定プリセットは、アクセントの8色（不透明）＋白の9種類', () {
-    expect(kDefaultColorPresets.length, 8);
+  test('文字色の固定プリセットは、アクセントの10色（不透明）＋白の11種類', () {
+    expect(kDefaultColorPresets.length, 10);
     expect(kDefaultColorPresets, contains('A997C6CC'));
-    expect(kFontColorPresets.length, 9);
+    expect(kFontColorPresets.length, 11);
     expect(kFontColorPresets.last, 'FFFFFF');
     expect(kFontColorPresets.every((h) => h.length == 6), isTrue);
     expect(kFontColorPresets.first, 'F08300');

@@ -20,6 +20,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../call/camera_availability.dart';
 import '../../l10n/app_locale.dart';
 import '../../l10n/strings.dart';
+import '../../theme/block/block_theme.dart';
 import '../../l10n/vocabulary.dart';
 import '../../models/app_ui_style.dart';
 import '../../models/chat_layout_style.dart';
@@ -2971,6 +2972,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                   size: 32,
                                   opaque: true,
                                 ),
+                                AppUiStyle.block => const BlockIconBadge(
+                                  icon: Icons.call_outlined,
+                                ),
                                 AppUiStyle.flat => const Icon(
                                   Icons.call_outlined,
                                 ),
@@ -2997,6 +3001,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                     size: 32,
                                     opaque: true,
                                   ),
+                                  AppUiStyle.block => const BlockIconBadge(
+                                    icon: Icons.videocam_outlined,
+                                  ),
                                   AppUiStyle.flat => const Icon(
                                     Icons.videocam_outlined,
                                   ),
@@ -3018,6 +3025,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                 icon: Icons.push_pin_outlined,
                                 size: 32,
                                 opaque: true,
+                              ),
+                              AppUiStyle.block => const BlockIconBadge(
+                                icon: Icons.push_pin_outlined,
                               ),
                               AppUiStyle.flat => const Icon(
                                 Icons.push_pin_outlined,
@@ -3673,101 +3683,124 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                                   ],
                                                 ),
                                               )
-                                            : Stack(
-                                                children: [
-                                                  TextField(
-                                                    controller: _textController,
-                                                    focusNode:
-                                                        _composerFocusNode,
-                                                    enabled: !widget.disabled,
-                                                    minLines: 1,
-                                                    maxLines: 6,
-                                                    textAlignVertical:
-                                                        const TextAlignVertical(
-                                                          y: 0.4,
-                                                        ),
-                                                    textInputAction:
-                                                        TextInputAction.newline,
-                                                    keyboardType:
-                                                        TextInputType.multiline,
-                                                    decoration: InputDecoration(
-                                                      hintText:
-                                                          strings.chatInputHint,
-                                                      // フラットは、入力欄の面（塗り）を持たない（2026-11-01、ユーザー指示）。
-                                                      // 入力欄エリアの背景にそのまま文字を置く。無効時だけ薄く塗る。
-                                                      filled:
-                                                          !isGlass &&
-                                                          widget.disabled,
-                                                      fillColor: isGlass
-                                                          ? null
-                                                          : Color.alphaBlend(
-                                                              Theme.of(context)
-                                                                  .disabledColor
-                                                                  .withValues(
-                                                                    alpha: 0.08,
-                                                                  ),
-                                                              Theme.of(
-                                                                context,
-                                                              ).scaffoldBackgroundColor,
-                                                            ),
-                                                      // ガラスUIでは、既に入力欄
-                                                      // コンテナ自体がすりガラス
-                                                      // （GlassSurface）のため、
-                                                      // ここでさらに別スタイルの
-                                                      // 縁取りされた箱を重ねない
-                                                      // （二重の箱に見えて
-                                                      // フラットUIっぽく見えて
-                                                      // しまう不具合の修正、
-                                                      // 2026-08-29）。
-                                                      border: isGlass
-                                                          ? InputBorder.none
-                                                          : OutlineInputBorder(
-                                                              borderRadius:
-                                                                  BorderRadius.circular(
-                                                                    24,
-                                                                  ),
-                                                              borderSide:
-                                                                  BorderSide
-                                                                      .none,
-                                                            ),
-                                                      enabledBorder: isGlass
-                                                          ? InputBorder.none
-                                                          : null,
-                                                      focusedBorder: isGlass
-                                                          ? InputBorder.none
-                                                          : null,
-                                                      // suffixIconは既定で常に
-                                                      // 縦中央揃えになり、複数
-                                                      // 行になるほど絶対位置が
-                                                      // 動いてしまう。実アイコン
-                                                      // はStack最前面のPositioned
-                                                      // （下揃え固定）で描くため、
-                                                      // ここでは同じ横幅48pxだけ
-                                                      // を確保するダミーにする
-                                                      // （2026-08-12修正）。
-                                                      suffixIcon:
-                                                          widget.onSendSticker !=
-                                                                  null &&
-                                                              !widget.disabled
-                                                          ? const SizedBox(
-                                                              width: 48,
-                                                            )
-                                                          : null,
+                                            : _ComposerBlockBox(
+                                                child: Stack(
+                                                  children: [
+                                                    TextField(
+                                                      controller:
+                                                          _textController,
+                                                      focusNode:
+                                                          _composerFocusNode,
+                                                      enabled: !widget.disabled,
+                                                      minLines: 1,
+                                                      maxLines: 6,
+                                                      textAlignVertical:
+                                                          const TextAlignVertical(
+                                                            y: 0.4,
+                                                          ),
+                                                      textInputAction:
+                                                          TextInputAction
+                                                              .newline,
+                                                      keyboardType:
+                                                          TextInputType
+                                                              .multiline,
+                                                      decoration: InputDecoration(
+                                                        hintText: strings
+                                                            .chatInputHint,
+                                                        // フラットは、入力欄の面（塗り）を持たない（2026-11-01、ユーザー指示）。
+                                                        // 入力欄エリアの背景にそのまま文字を置く。無効時だけ薄く塗る。
+                                                        filled:
+                                                            !isGlass &&
+                                                            !isBlockTheme(
+                                                              context,
+                                                            ) &&
+                                                            widget.disabled,
+                                                        fillColor: isGlass
+                                                            ? null
+                                                            : Color.alphaBlend(
+                                                                Theme.of(
+                                                                      context,
+                                                                    )
+                                                                    .disabledColor
+                                                                    .withValues(
+                                                                      alpha:
+                                                                          0.08,
+                                                                    ),
+                                                                Theme.of(
+                                                                  context,
+                                                                ).scaffoldBackgroundColor,
+                                                              ),
+                                                        // ガラスUIでは、既に入力欄
+                                                        // コンテナ自体がすりガラス
+                                                        // （GlassSurface）のため、
+                                                        // ここでさらに別スタイルの
+                                                        // 縁取りされた箱を重ねない
+                                                        // （二重の箱に見えて
+                                                        // フラットUIっぽく見えて
+                                                        // しまう不具合の修正、
+                                                        // 2026-08-29）。
+                                                        border:
+                                                            isGlass ||
+                                                                isBlockTheme(
+                                                                  context,
+                                                                )
+                                                            ? InputBorder.none
+                                                            : OutlineInputBorder(
+                                                                borderRadius:
+                                                                    BorderRadius.circular(
+                                                                      24,
+                                                                    ),
+                                                                borderSide:
+                                                                    BorderSide
+                                                                        .none,
+                                                              ),
+                                                        enabledBorder:
+                                                            isGlass ||
+                                                                isBlockTheme(
+                                                                  context,
+                                                                )
+                                                            ? InputBorder.none
+                                                            : null,
+                                                        focusedBorder:
+                                                            isGlass ||
+                                                                isBlockTheme(
+                                                                  context,
+                                                                )
+                                                            ? InputBorder.none
+                                                            : null,
+                                                        // suffixIconは既定で常に
+                                                        // 縦中央揃えになり、複数
+                                                        // 行になるほど絶対位置が
+                                                        // 動いてしまう。実アイコン
+                                                        // はStack最前面のPositioned
+                                                        // （下揃え固定）で描くため、
+                                                        // ここでは同じ横幅48pxだけ
+                                                        // を確保するダミーにする
+                                                        // （2026-08-12修正）。
+                                                        suffixIcon:
+                                                            widget.onSendSticker !=
+                                                                    null &&
+                                                                !widget.disabled
+                                                            ? const SizedBox(
+                                                                width: 48,
+                                                              )
+                                                            : null,
+                                                      ),
                                                     ),
-                                                  ),
-                                                  if (widget.onSendSticker !=
-                                                          null &&
-                                                      !widget.disabled)
-                                                    Positioned(
-                                                      bottom: 0,
-                                                      right: 4,
-                                                      height: 48,
-                                                      child:
-                                                          _stickerComposerButton(
-                                                            isGekiga: false,
-                                                          )!,
-                                                    ),
-                                                ],
+                                                    if (widget.onSendSticker !=
+                                                            null &&
+                                                        !widget.disabled)
+                                                      Positioned(
+                                                        bottom: 0,
+                                                        right: 4,
+                                                        height: 48,
+                                                        child:
+                                                            _stickerComposerButton(
+                                                              isGekiga: false,
+                                                            )!,
+                                                      ),
+                                                  ],
+                                                ),
                                               ),
                                       ),
                                     ),
@@ -4113,6 +4146,18 @@ class _DateSeparator extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
         child: text,
       ),
+      AppUiStyle.block => Padding(
+        padding: const EdgeInsets.only(right: 3, bottom: 3),
+        child: blockMaterialBox(
+          context,
+          radius: 999,
+          color: colorScheme.primary,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            child: text,
+          ),
+        ),
+      ),
       AppUiStyle.gekiga || AppUiStyle.flat => Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
         decoration: BoxDecoration(
@@ -4135,7 +4180,7 @@ class _DateSeparator extends StatelessWidget {
     AppUiStyle.gekiga => GekigaColors.onPanel,
     // 選択状態を持たないため常時同じ色にする（アクセントカラーは使わない）。
     AppUiStyle.glass => colorScheme.onSurfaceVariant,
-    AppUiStyle.flat => colorScheme.onPrimary,
+    AppUiStyle.flat || AppUiStyle.block => colorScheme.onPrimary,
   };
 }
 
@@ -5021,7 +5066,8 @@ class _MessageRow extends ConsumerWidget {
     final bubbleAccentBorderColor = colorScheme.primary;
     final onBubbleColor = switch (uiStyle) {
       AppUiStyle.gekiga => isMe ? Colors.black : Colors.white,
-      AppUiStyle.flat => _readableTextColorOn(bubbleFill, colorScheme.surface),
+      AppUiStyle.flat ||
+      AppUiStyle.block => _readableTextColorOn(bubbleFill, colorScheme.surface),
       AppUiStyle.glass => _readableTextColorOn(bubbleFill, colorScheme.surface),
     };
     // `@`メンション先の強調（2026-10-11）。個人宛・`@everyone`は全て同じ
@@ -5305,14 +5351,14 @@ class _MessageRow extends ConsumerWidget {
                   alignRight: alignRight,
                   child: text,
                 ),
-                AppUiStyle.flat => Container(
+                AppUiStyle.flat || AppUiStyle.block => Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 16,
                     vertical: 10,
                   ),
-                  decoration: BoxDecoration(
+                  decoration: framedCardDecoration(
+                    context,
                     color: bubbleFill,
-                    border: Border.all(color: bubbleAccentBorderColor),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: text,
@@ -5505,6 +5551,27 @@ class _MessageRow extends ConsumerWidget {
         skipFrame: skipBubbleFrame,
         child: bubbleContent,
       ),
+      AppUiStyle.block => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(
+          color: skipBubbleFrame ? null : bubbleFill,
+          // ブロック: 太い枠線とぼかしの無い硬い影（このスタイルだけの例外）。
+          border: skipBubbleFrame
+              ? null
+              : Border.all(
+                  color: BlockTheme.lineColor(Theme.of(context).brightness),
+                  width: BlockTheme.borderWidth,
+                ),
+          borderRadius: BorderRadius.circular(BlockTheme.radius + 4),
+          boxShadow: skipBubbleFrame
+              ? null
+              : BlockTheme.shadow(
+                  colorScheme.primary,
+                  Theme.of(context).brightness,
+                ),
+        ),
+        child: bubbleContent,
+      ),
       AppUiStyle.flat => Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
@@ -5547,7 +5614,7 @@ class _MessageRow extends ConsumerWidget {
     // 同じ赤になっており、そのままでは背景に溶け込んでほぼ見えなかった）。
     final readBadgeFg = switch (uiStyle) {
       AppUiStyle.gekiga => GekigaColors.onPanel,
-      AppUiStyle.flat => colorScheme.onSurface,
+      AppUiStyle.flat || AppUiStyle.block => colorScheme.onSurface,
       AppUiStyle.glass => colorScheme.onSurface,
     };
     final badgeContent = isSimpleDmReadMark
@@ -5572,7 +5639,7 @@ class _MessageRow extends ConsumerWidget {
       decoration: BoxDecoration(
         color: switch (uiStyle) {
           AppUiStyle.gekiga => GekigaColors.panel,
-          AppUiStyle.flat => colorScheme.surface,
+          AppUiStyle.flat || AppUiStyle.block => colorScheme.surface,
           AppUiStyle.glass => colorScheme.surface.withValues(alpha: 0.72),
         },
         borderRadius: BorderRadius.circular(999),
@@ -6125,9 +6192,9 @@ class _MessageRow extends ConsumerWidget {
           )
         : Container(
             width: 224,
-            decoration: BoxDecoration(
+            decoration: framedCardDecoration(
+              context,
               color: colorScheme.surface,
-              border: Border.all(color: colorScheme.primary),
               borderRadius: cardRadius,
             ),
             clipBehavior: Clip.antiAlias,
@@ -6275,9 +6342,9 @@ class _MessageRow extends ConsumerWidget {
           )
         : Container(
             width: 224,
-            decoration: BoxDecoration(
+            decoration: framedCardDecoration(
+              context,
               color: colorScheme.surface,
-              border: Border.all(color: colorScheme.primary),
               borderRadius: cardRadius,
             ),
             clipBehavior: Clip.antiAlias,
@@ -6424,9 +6491,9 @@ class _MessageRow extends ConsumerWidget {
           )
         : Container(
             width: 224,
-            decoration: BoxDecoration(
+            decoration: framedCardDecoration(
+              context,
               color: colorScheme.surface,
-              border: Border.all(color: colorScheme.primary),
               borderRadius: cardRadius,
             ),
             clipBehavior: Clip.antiAlias,
@@ -6621,9 +6688,9 @@ class _MessageRow extends ConsumerWidget {
           )
         : Container(
             width: 224,
-            decoration: BoxDecoration(
+            decoration: framedCardDecoration(
+              context,
               color: colorScheme.surface,
-              border: Border.all(color: colorScheme.primary),
               borderRadius: cardRadius,
             ),
             clipBehavior: Clip.antiAlias,
@@ -6748,10 +6815,7 @@ class _MessageRow extends ConsumerWidget {
       return GlassSurface(borderRadius: radius, child: frame);
     }
     return Container(
-      decoration: BoxDecoration(
-        border: Border.all(color: Theme.of(context).colorScheme.primary),
-        borderRadius: radius,
-      ),
+      decoration: framedCardDecoration(context, borderRadius: radius),
       clipBehavior: Clip.antiAlias,
       child: frame,
     );
@@ -8200,6 +8264,50 @@ class _SenderAvatar extends ConsumerWidget {
               ),
       );
     }
+    if (uiStyle == AppUiStyle.block) {
+      // 版画: 丸ではなく角丸の四角に、黒の太枠と硬い影（影は右・下へ少しはみ出す）。
+      final theme = Theme.of(context);
+      final radius = BorderRadius.circular(BlockTheme.radius);
+      final inner = BorderRadius.circular(
+        (BlockTheme.radius - BlockTheme.borderWidth).clamp(0.0, 100.0),
+      );
+      return Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          borderRadius: radius,
+          border: Border.all(
+            color: BlockTheme.lineColor(theme.brightness),
+            width: BlockTheme.borderWidth,
+          ),
+          boxShadow:
+              BlockTheme.shadow(theme.colorScheme.primary, theme.brightness)
+                  .map(
+                    (b) =>
+                        BoxShadow(color: b.color, offset: const Offset(3, 3)),
+                  )
+                  .toList(),
+        ),
+        child: ClipRRect(
+          borderRadius: inner,
+          child: iconUrl != null && iconFocal != null && !iconFocal.isDefault
+              ? FocalImage(url: iconUrl, focal: iconFocal)
+              : iconUrl != null
+              ? AlwaysAnimatedImage(
+                  child: Image(image: NetworkImage(iconUrl), fit: BoxFit.cover),
+                )
+              : ColoredBox(
+                  color: color,
+                  child: Center(
+                    child: Text(
+                      id[0].toUpperCase(),
+                      style: TextStyle(color: Colors.white, fontSize: fontSize),
+                    ),
+                  ),
+                ),
+        ),
+      );
+    }
     // フラットも紙に墨で書いたような細い枠付きの円にする（旧デッサン
     // スタイルの`DessinPhotoFrame`を統合、2026-08-27）。
     return Container(
@@ -8527,9 +8635,9 @@ class _FileAttachmentBlockState extends ConsumerState<_FileAttachmentBlock>
       );
     } else {
       framedRow = Container(
-        decoration: BoxDecoration(
+        decoration: framedCardDecoration(
+          context,
           color: colorScheme.surfaceContainerHighest,
-          border: Border.all(color: colorScheme.primary),
           borderRadius: radius,
         ),
         clipBehavior: Clip.antiAlias,
@@ -8933,9 +9041,9 @@ class _FileAttachmentBlockState extends ConsumerState<_FileAttachmentBlock>
             child: Material(type: MaterialType.transparency, child: content),
           )
         : Container(
-            decoration: BoxDecoration(
+            decoration: framedCardDecoration(
+              context,
               color: colorScheme.surfaceContainerHighest,
-              border: Border.all(color: colorScheme.primary),
               borderRadius: cardRadius,
             ),
             clipBehavior: Clip.antiAlias,
@@ -9144,41 +9252,50 @@ class _ReturnToMessageBlock extends StatelessWidget {
         fill = colorScheme.primary;
         fg = colorScheme.onPrimary;
     }
-    return Material(
-      color: fill,
-      shape: shape,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          InkWell(
-            customBorder: shape,
-            onTap: onPressed,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 10, 8, 10),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.keyboard_arrow_down, size: 20, color: fg),
-                  const SizedBox(width: 4),
-                  Text(
-                    label,
-                    style: TextStyle(color: fg, fontWeight: FontWeight.w600),
-                  ),
-                ],
-              ),
+    final isBlock = uiStyle == AppUiStyle.block;
+    if (isBlock)
+      shape = RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(BlockTheme.radius),
+      );
+    final body = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        InkWell(
+          customBorder: shape,
+          onTap: onPressed,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 10, 8, 10),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.keyboard_arrow_down, size: 20, color: fg),
+                const SizedBox(width: 4),
+                Text(
+                  label,
+                  style: TextStyle(color: fg, fontWeight: FontWeight.w600),
+                ),
+              ],
             ),
           ),
-          InkWell(
-            customBorder: const CircleBorder(),
-            onTap: onClose,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(4, 10, 12, 10),
-              child: Icon(Icons.close, size: 18, color: fg),
-            ),
+        ),
+        InkWell(
+          customBorder: const CircleBorder(),
+          onTap: onClose,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(4, 10, 12, 10),
+            child: Icon(Icons.close, size: 18, color: fg),
           ),
-        ],
-      ),
+        ),
+      ],
     );
+    // 版画は太枠と硬い影の箱（影の分だけ右・下に余白）。
+    if (isBlock) {
+      return Padding(
+        padding: const EdgeInsets.only(right: 3, bottom: 3),
+        child: blockMaterialBox(context, color: fill, child: body),
+      );
+    }
+    return Material(color: fill, shape: shape, child: body);
   }
 }
 
@@ -9205,6 +9322,14 @@ class _JumpToLatestButton extends StatelessWidget {
           onPressed: onPressed,
           size: _size,
           opaque: true,
+        );
+      case AppUiStyle.block:
+        return blockIconButton(
+          context,
+          icon: Icons.keyboard_arrow_down,
+          onPressed: onPressed,
+          size: _size,
+          filled: true,
         );
       default:
         final colorScheme = Theme.of(context).colorScheme;
@@ -9292,5 +9417,28 @@ class _FloatingPopupSurface extends ConsumerWidget {
         child: child,
       ),
     };
+  }
+}
+
+/// メッセージ入力欄を、版画だけ太枠と硬い影の箱で囲む（他のスタイルはそのまま）。
+class _ComposerBlockBox extends StatelessWidget {
+  const _ComposerBlockBox({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!isBlockTheme(context)) return child;
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(2, 2, 6, 6),
+      child: blockMaterialBox(
+        context,
+        color: Theme.of(context).brightness == Brightness.light
+            ? Colors.white
+            : scheme.surface,
+        child: child,
+      ),
+    );
   }
 }

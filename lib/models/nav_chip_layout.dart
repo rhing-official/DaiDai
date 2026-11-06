@@ -46,21 +46,29 @@ List<HomeTabId> normalizeNavChipOrder(Iterable<String>? names) {
 class NavChipLayout {
   const NavChipLayout({
     this.alignment = NavChipAlignment.center,
+    this.wideAlignment = NavChipAlignment.center,
     this.order = const [HomeTabId.talk, HomeTabId.profile, HomeTabId.settings],
   });
 
   static const standard = NavChipLayout();
 
+  /// 縦表示（狭い画面、下端の横並び）の揃え。左・中央・右。
   final NavChipAlignment alignment;
+
+  /// 横表示（広い画面、左端の縦並び）の揃え。上・中央・下（2026-11-06、以前は[alignment]と
+  /// 共通で「上揃え＝左揃え」として扱っていたのを、別々に保存するように分けた）。
+  final NavChipAlignment wideAlignment;
 
   /// チップを左から並べるタブの順。
   final List<HomeTabId> order;
 
   NavChipLayout copyWith({
     NavChipAlignment? alignment,
+    NavChipAlignment? wideAlignment,
     List<HomeTabId>? order,
   }) => NavChipLayout(
     alignment: alignment ?? this.alignment,
+    wideAlignment: wideAlignment ?? this.wideAlignment,
     order: order ?? this.order,
   );
 }

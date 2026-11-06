@@ -32,6 +32,7 @@ class AppUserPreferences {
     this.notificationSound,
     this.textColorLightArgb,
     this.textColorDarkArgb,
+    this.onAccentColorArgb,
     this.calendarWeekStart,
     this.calendarSystem,
     this.holidayRegions,
@@ -103,6 +104,9 @@ class AppUserPreferences {
   final int? textColorLightArgb;
   final int? textColorDarkArgb;
 
+  /// アクセント上の文字色（0は自動）。
+  final int? onAccentColorArgb;
+
   /// カレンダーの週の始まり（`CalendarWeekStart`のname、2026-10-04追加）。
   final String? calendarWeekStart;
 
@@ -155,6 +159,7 @@ class AppUserPreferences {
       notificationSound: json['notificationSound'] as String?,
       textColorLightArgb: json['textColorLightArgb'] as int?,
       textColorDarkArgb: json['textColorDarkArgb'] as int?,
+      onAccentColorArgb: json['onAccentColorArgb'] as int?,
       calendarWeekStart: json['calendarWeekStart'] as String?,
       calendarSystem: json['calendarSystem'] as String?,
       holidayRegions: (json['holidayRegions'] as List?)?.cast<String>(),
@@ -196,6 +201,7 @@ class AppUserPreferences {
       if (notificationSound != null) 'notificationSound': notificationSound,
       if (textColorLightArgb != null) 'textColorLightArgb': textColorLightArgb,
       if (textColorDarkArgb != null) 'textColorDarkArgb': textColorDarkArgb,
+      if (onAccentColorArgb != null) 'onAccentColorArgb': onAccentColorArgb,
       if (calendarWeekStart != null) 'calendarWeekStart': calendarWeekStart,
       if (calendarSystem != null) 'calendarSystem': calendarSystem,
       if (holidayRegions != null) 'holidayRegions': holidayRegions,

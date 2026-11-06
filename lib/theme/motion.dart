@@ -54,6 +54,19 @@ Widget buildSlideInFromRightTransition(
   final style = activeSlideTransitionStyle;
   final curved = CurvedAnimation(parent: animation, curve: popSlideCurve);
   // 離れているほど滲ませる（2026-11-04）。
+  // ポップ: 中央から弾むように拡大して現れる（2026-11-06）。
+  if (style == SlideTransitionStyle.pop) {
+    return FadeTransition(
+      opacity: curved,
+      child: ScaleTransition(
+        scale: Tween<double>(
+          begin: popMinScale,
+          end: 1,
+        ).animate(CurvedAnimation(parent: animation, curve: popScaleCurve)),
+        child: child,
+      ),
+    );
+  }
   final blurred = AnimatedBuilder(
     animation: curved,
     child: child,
@@ -89,6 +102,11 @@ Widget buildSlideInFromRightTransition(
   // スライドに合わせて薄い状態から濃くなる（戻る時は逆再生で薄くなる）、2026-11-02。
   return FadeTransition(opacity: curved, child: slid);
 }
+
+/// 「ポップ」で、現れ始めの画面の拡大率（中央から広がる）と、その動きの曲線
+/// （少し行き過ぎて弾む）。語らい一覧の「＋」で開くポップアップの動きと同じ。
+const popMinScale = 0.6;
+const popScaleCurve = Curves.easeOutBack;
 
 /// 「吸い込み」のダイアログで、不透明度が1になる進行度（0〜1）。閉じる時は、進行度が
 /// これを下回ってから薄くなり始める（それまでは縮みながらはっきり見える）。
@@ -134,9 +152,12 @@ Widget buildAwayTransition({
   final style = activeSlideTransitionStyle;
   final isSuck = style == SlideTransitionStyle.suck;
   final progress = away.clamp(0.0, 1.0);
-  final scale = isSuck ? 1 - (1 - suckMinScale) * progress : 1.0;
+  final isPop = style == SlideTransitionStyle.pop;
+  final scale = isSuck
+      ? 1 - (1 - suckMinScale) * progress
+      : (isPop ? 1 - (1 - popMinScale) * progress : 1.0);
   final moved = Transform(
-    alignment: Alignment.bottomRight,
+    alignment: isPop ? Alignment.center : Alignment.bottomRight,
     transform: Matrix4.identity()
       ..translateByDouble(isSuck ? 0.0 : progress * maxDrag, 0.0, 0.0, 1.0)
       ..scaleByDouble(scale, scale, 1.0, 1.0),
@@ -165,18 +186,26 @@ Widget buildDialogTransition(Animation<double> animation, Widget child) {
     reverseCurve: popSlideCurve,
   );
   final isSlide = style == SlideTransitionStyle.slide;
+  final isPop = style == SlideTransitionStyle.pop;
+  // ポップは、開く時に少し行き過ぎて弾む曲線（閉じる時は通常の曲線）。
+  final popCurved = CurvedAnimation(
+    parent: animation,
+    curve: popScaleCurve,
+    reverseCurve: popSlideCurve,
+  );
   return AnimatedBuilder(
-    animation: curved,
+    animation: Listenable.merge([curved, popCurved]),
     child: child,
     builder: (context, child) {
       final away = 1 - curved.value;
       final scale = isSuck
           ? suckMinScale + (1 - suckMinScale) * curved.value
-          : 1.0;
+          : (isPop ? popMinScale + (1 - popMinScale) * popCurved.value : 1.0);
       // 基点は子の枠ではなく画面の右下（アルバムなど小さなポップアップでも、画面の隅から
       // 現れ／へ吸い込まれる）。
       final inner = ScreenCornerScale(
         scale: scale,
+        corner: isPop ? Alignment.center : Alignment.bottomRight,
         child: LiquifyEffect(progress: away, enabled: isSuck, child: child!),
       );
       return FractionalTranslation(

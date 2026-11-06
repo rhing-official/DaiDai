@@ -1,3 +1,4 @@
+import '../../theme/block/block_theme.dart';
 import '../../widgets/kiwami_only_dialog.dart';
 import '../../providers/kiwami_providers.dart';
 import '../guide/tutorial/tutorial_target.dart';
@@ -1269,6 +1270,9 @@ class _AlbumButtonState extends ConsumerState<_AlbumButton> {
           size: 32,
           opaque: true,
         ),
+        AppUiStyle.block => const BlockIconBadge(
+          icon: Icons.photo_library_outlined,
+        ),
         AppUiStyle.flat => const Icon(Icons.photo_library_outlined),
       },
       onPressed: _openAlbumPopup,
@@ -1509,6 +1513,7 @@ class _CalendarButtonState extends ConsumerState<_CalendarButton> {
           size: 32,
           opaque: true,
         ),
+        AppUiStyle.block => const BlockIconBadge(icon: Icons.event_outlined),
         AppUiStyle.flat => const Icon(Icons.event_outlined),
       },
       onPressed: _openCalendarPopup,
@@ -1609,6 +1614,9 @@ class _PollButtonState extends ConsumerState<_PollButton> {
           size: 32,
           opaque: true,
         ),
+        AppUiStyle.block => const BlockIconBadge(
+          icon: Icons.how_to_vote_outlined,
+        ),
         AppUiStyle.flat => const Icon(Icons.how_to_vote_outlined),
       },
       onPressed: _openPollPopup,
@@ -1707,6 +1715,7 @@ class _NoteButtonState extends ConsumerState<_NoteButton> {
           size: 32,
           opaque: true,
         ),
+        AppUiStyle.block => const BlockIconBadge(icon: Icons.note_alt_outlined),
         AppUiStyle.flat => const Icon(Icons.note_alt_outlined),
       },
       onPressed: _openNotePopup,
@@ -1846,11 +1855,7 @@ class _MenuPanel extends ConsumerWidget {
     return SizedBox(
       width: 260,
       child: Container(
-        decoration: BoxDecoration(
-          color: popupCardBackground(brightness, uiStyle),
-          border: Border.all(color: popupCardBorder(brightness, uiStyle)),
-          borderRadius: BorderRadius.circular(16),
-        ),
+        decoration: popupCardDecoration(context, brightness, uiStyle),
         child: content,
       ),
     );
@@ -2091,6 +2096,7 @@ class _DmMenuButtonState extends ConsumerState<_DmMenuButton> {
           size: 32,
           opaque: true,
         ),
+        AppUiStyle.block => const BlockIconBadge(icon: Icons.menu),
         AppUiStyle.flat => const Icon(Icons.menu),
       },
       onPressed: _openMenu,
@@ -3457,6 +3463,7 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
           size: 32,
           opaque: true,
         ),
+        AppUiStyle.block => const BlockIconBadge(icon: Icons.menu),
         AppUiStyle.flat => const Icon(Icons.menu),
       },
       onPressed: _openMenu,

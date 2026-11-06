@@ -364,11 +364,7 @@ class _AlbumAddSourcePopupContent extends ConsumerWidget {
     return SizedBox(
       width: 220,
       child: Container(
-        decoration: BoxDecoration(
-          color: popupCardBackground(brightness, uiStyle),
-          border: Border.all(color: popupCardBorder(brightness, uiStyle)),
-          borderRadius: BorderRadius.circular(16),
-        ),
+        decoration: popupCardDecoration(context, brightness, uiStyle),
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         child: Column(
           mainAxisSize: MainAxisSize.min,

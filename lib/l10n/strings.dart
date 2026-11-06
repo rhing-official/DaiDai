@@ -34,6 +34,8 @@ class Strings {
     required this.settingsNavChipsTitle,
     required this.settingsNavChipsDescription,
     required this.settingsNavChipsAlignmentTitle,
+    required this.settingsNavChipsAlignmentNarrowTitle,
+    required this.settingsNavChipsAlignmentWideTitle,
     required this.settingsNavChipsAlignStart,
     required this.settingsNavChipsAlignCenter,
     required this.settingsNavChipsAlignEnd,
@@ -68,6 +70,8 @@ class Strings {
     required this.settingsTextColorTitle,
     required this.settingsTextColorDescription,
     required this.settingsTextColorLightLabel,
+    required this.settingsOnAccentColorLabel,
+    required this.settingsOnAccentColorAuto,
     required this.settingsTextColorDarkLabel,
     required this.settingsCustomColorRegister,
     required this.settingsCustomColorLimitReachedTemplate,
@@ -81,11 +85,9 @@ class Strings {
     required this.settingsSubUI,
     required this.settingsUIDescription,
     required this.settingsUiStyleFlatLabel,
-    required this.settingsUiStyleFlatDescription,
     required this.settingsUiStyleGekigaLabel,
-    required this.settingsUiStyleGekigaDescription,
     required this.settingsUiStyleGlassLabel,
-    required this.settingsUiStyleGlassDescription,
+    required this.settingsUiStyleBlockLabel,
     required this.settingsChatLayoutTitle,
     required this.settingsChatLayoutSideBySide,
     required this.settingsChatLayoutSideBySideDescription,
@@ -95,6 +97,7 @@ class Strings {
     required this.settingsSlideTransitionSlideBlur,
     required this.settingsSlideTransitionSlide,
     required this.settingsSlideTransitionSuck,
+    required this.settingsSlideTransitionPop,
     required this.settingsTalksListLayoutTitle,
     required this.settingsTalksListLayoutNote,
     required this.settingsTextSizeTitle,
@@ -1050,6 +1053,8 @@ class Strings {
   final String settingsNavChipsTitle;
   final String settingsNavChipsDescription;
   final String settingsNavChipsAlignmentTitle;
+  final String settingsNavChipsAlignmentNarrowTitle;
+  final String settingsNavChipsAlignmentWideTitle;
   final String settingsNavChipsAlignStart;
   final String settingsNavChipsAlignCenter;
   final String settingsNavChipsAlignEnd;
@@ -1087,6 +1092,10 @@ class Strings {
   final String settingsTextColorTitle;
   final String settingsTextColorDescription;
   final String settingsTextColorLightLabel;
+
+  /// アクセントで塗った面の上に乗る文字・アイコンの色（2026-11-06）。
+  final String settingsOnAccentColorLabel;
+  final String settingsOnAccentColorAuto;
   final String settingsTextColorDarkLabel;
   final String settingsCustomColorRegister;
   final String Function(int max) settingsCustomColorLimitReachedTemplate;
@@ -1105,11 +1114,9 @@ class Strings {
   /// 太い黒線・モノクロの吹き出しのメッセージ画面用スタイル
   /// （現時点ではメッセージ画面のみ対応）。
   final String settingsUiStyleFlatLabel;
-  final String settingsUiStyleFlatDescription;
   final String settingsUiStyleGekigaLabel;
-  final String settingsUiStyleGekigaDescription;
   final String settingsUiStyleGlassLabel;
-  final String settingsUiStyleGlassDescription;
+  final String settingsUiStyleBlockLabel;
 
   /// 「メッセージの表示」（2026-07-30改名、旧称: 語らいの表示）。旧「入力」
   /// カテゴリ廃止に伴い、語らいカテゴリへ移動した（settings_tab.dart参照）。
@@ -1122,6 +1129,7 @@ class Strings {
   final String settingsSlideTransitionSlideBlur;
   final String settingsSlideTransitionSlide;
   final String settingsSlideTransitionSuck;
+  final String settingsSlideTransitionPop;
 
   /// 縦表示での語らい一覧レイアウト（2026-09-11追加、設定＞語らい）。
   final String settingsTalksListLayoutTitle;
@@ -2386,6 +2394,8 @@ class Strings {
     settingsNavChipsDescription:
         'メニューの並びと位置（揃え）を変えられます。縦表示は下部で左・中央・右、横表示は左端で上・中央・下に揃います。',
     settingsNavChipsAlignmentTitle: '揃え',
+    settingsNavChipsAlignmentNarrowTitle: '縦表示の揃え',
+    settingsNavChipsAlignmentWideTitle: '横表示の揃え',
     settingsNavChipsAlignStart: '左揃え',
     settingsNavChipsAlignCenter: '中央揃え',
     settingsNavChipsAlignEnd: '右揃え',
@@ -2423,6 +2433,8 @@ class Strings {
     settingsTextColorDescription:
         'ライト・ダークそれぞれの文字色をカラーコードで指定できます。背景に近い色を選ぶと読みにくくなるため注意してください。',
     settingsTextColorLightLabel: 'ライト用',
+    settingsOnAccentColorLabel: 'アクセント上',
+    settingsOnAccentColorAuto: '自動',
     settingsTextColorDarkLabel: 'ダーク用',
     settingsCustomColorRegister: 'この色を登録',
     settingsCustomColorLimitReachedTemplate: (max) => '登録上限（$max色）に達しています',
@@ -2436,11 +2448,9 @@ class Strings {
     settingsSubUI: 'UI',
     settingsUIDescription: 'アプリ全体の見た目を選べます。',
     settingsUiStyleFlatLabel: 'フラット',
-    settingsUiStyleFlatDescription: 'デフォルトスタイル',
     settingsUiStyleGekigaLabel: '劇画',
-    settingsUiStyleGekigaDescription: '奇抜な背景スタイル',
     settingsUiStyleGlassLabel: 'ガラス',
-    settingsUiStyleGlassDescription: '半透明・縁が光るスタイル',
+    settingsUiStyleBlockLabel: '版画',
     settingsChatLayoutTitle: 'メッセージの表示',
     settingsChatLayoutSideBySide: '自分は右・相手は左',
     settingsChatLayoutSideBySideDescription:
@@ -2454,6 +2464,7 @@ class Strings {
     settingsSlideTransitionSlideBlur: 'スライド＋滲み',
     settingsSlideTransitionSlide: 'スライド',
     settingsSlideTransitionSuck: '吸い込み',
+    settingsSlideTransitionPop: 'ポップ',
     settingsTalksListLayoutTitle: '語らい一覧のレイアウト',
     settingsTalksListLayoutNote:
         '縦画面で適用されます。横画面（幅の広い画面）のコンピューターでは、この設定にかかわらず左右分割で表示されます。',
@@ -3467,6 +3478,8 @@ class Strings {
     settingsNavChipsDescription:
         'Change the order and alignment of the menu: left, centre or right along the bottom on narrow screens, top, centre or bottom along the left edge on wide screens.',
     settingsNavChipsAlignmentTitle: 'Alignment',
+    settingsNavChipsAlignmentNarrowTitle: 'Alignment (portrait)',
+    settingsNavChipsAlignmentWideTitle: 'Alignment (landscape)',
     settingsNavChipsAlignStart: 'Left',
     settingsNavChipsAlignCenter: 'Centre',
     settingsNavChipsAlignEnd: 'Right',
@@ -3508,6 +3521,8 @@ class Strings {
     settingsTextColorDescription:
         'Set the text colour separately for light and dark mode using a colour code. Choosing a colour too close to the background will make text hard to read.',
     settingsTextColorLightLabel: 'Light mode',
+    settingsOnAccentColorLabel: 'On accent',
+    settingsOnAccentColorAuto: 'Auto',
     settingsTextColorDarkLabel: 'Dark mode',
     settingsCustomColorRegister: 'Save this colour',
     settingsCustomColorLimitReachedTemplate: (max) =>
@@ -3522,12 +3537,9 @@ class Strings {
     settingsSubUI: 'UI',
     settingsUIDescription: 'Choose how the whole app looks.',
     settingsUiStyleFlatLabel: 'Flat',
-    settingsUiStyleFlatDescription: 'The current standard style',
     settingsUiStyleGekigaLabel: 'Gekiga',
-    settingsUiStyleGekigaDescription:
-        'Bold black lines and hand-drawn, dramatic panels',
     settingsUiStyleGlassLabel: 'Glass',
-    settingsUiStyleGlassDescription: 'Frosted, glowing-edge style',
+    settingsUiStyleBlockLabel: 'Woodcut',
     settingsChatLayoutTitle: 'Message display',
     settingsChatLayoutSideBySide: 'You on the right, others on the left',
     settingsChatLayoutSideBySideDescription:
@@ -3543,6 +3555,7 @@ class Strings {
     settingsSlideTransitionSlideBlur: 'Slide and blur',
     settingsSlideTransitionSlide: 'Slide',
     settingsSlideTransitionSuck: 'Suck in',
+    settingsSlideTransitionPop: 'Pop',
     settingsTalksListLayoutTitle: 'Talks list layout',
     settingsTalksListLayoutNote:
         'Applies in portrait orientation. On a computer with a wide, landscape window, the list is always shown in a split view regardless of this setting.',

@@ -55,6 +55,7 @@ import 'providers/ringtone_sound_provider.dart';
 import 'providers/send_key_mode_provider.dart';
 import 'providers/sticker_send_mode_provider.dart';
 import 'providers/talks_list_layout_style_provider.dart';
+import 'providers/on_accent_color_provider.dart';
 import 'providers/text_color_provider.dart';
 import 'providers/theme_mode_provider.dart';
 import 'router/app_router.dart';
@@ -62,6 +63,7 @@ import 'router/back_stack.dart';
 import 'utils/always_animate_binding.dart';
 import 'utils/android_notification_sound_sync.dart';
 import 'theme/app_theme.dart';
+import 'theme/block/block_theme.dart';
 import 'theme/gekiga/gekiga_theme.dart';
 import 'theme/glass/glass_theme.dart';
 
@@ -248,6 +250,7 @@ class DaiDaiApp extends ConsumerWidget {
     final accentColor = ref.watch(accentColorProvider);
     final textColorLight = ref.watch(textColorLightProvider);
     final textColorDark = ref.watch(textColorDarkProvider);
+    final onAccentColor = ref.watch(onAccentColorProvider);
     final gekigaBackgroundColor = ref.watch(gekigaBackgroundColorProvider);
     final appLocale = ref.watch(appLocaleProvider);
     final themeMode = ref.watch(appThemeModeProvider);
@@ -272,6 +275,7 @@ class DaiDaiApp extends ConsumerWidget {
       AppUiStyle.flat => AppTheme.light(
         accentColor,
         textColor: textColorLight,
+        onAccentColor: onAccentColor,
         fontFamily: fontFamily,
       ),
       AppUiStyle.gekiga => GekigaTheme.build(
@@ -281,6 +285,13 @@ class DaiDaiApp extends ConsumerWidget {
       AppUiStyle.glass => GlassTheme.light(
         accentColor,
         textColor: textColorLight,
+        onAccentColor: onAccentColor,
+        fontFamily: fontFamily,
+      ),
+      AppUiStyle.block => BlockTheme.light(
+        accentColor,
+        textColor: textColorLight,
+        onAccentColor: onAccentColor,
         fontFamily: fontFamily,
       ),
     };
@@ -288,6 +299,7 @@ class DaiDaiApp extends ConsumerWidget {
       AppUiStyle.flat => AppTheme.dark(
         accentColor,
         textColor: textColorDark,
+        onAccentColor: onAccentColor,
         fontFamily: fontFamily,
       ),
       AppUiStyle.gekiga => GekigaTheme.build(
@@ -297,6 +309,13 @@ class DaiDaiApp extends ConsumerWidget {
       AppUiStyle.glass => GlassTheme.dark(
         accentColor,
         textColor: textColorDark,
+        onAccentColor: onAccentColor,
+        fontFamily: fontFamily,
+      ),
+      AppUiStyle.block => BlockTheme.dark(
+        accentColor,
+        textColor: textColorDark,
+        onAccentColor: onAccentColor,
         fontFamily: fontFamily,
       ),
     };

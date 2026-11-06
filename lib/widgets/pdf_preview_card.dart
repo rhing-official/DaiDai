@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import '../theme/block/block_theme.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pdfrx/pdfrx.dart';
 
@@ -183,10 +185,7 @@ class _PdfPreviewCardState extends ConsumerState<PdfPreviewCard> {
       return GlassSurface(borderRadius: radius, child: framed);
     }
     return Container(
-      decoration: BoxDecoration(
-        border: Border.all(color: Theme.of(context).colorScheme.primary),
-        borderRadius: radius,
-      ),
+      decoration: framedCardDecoration(context, borderRadius: radius),
       clipBehavior: Clip.antiAlias,
       child: framed,
     );

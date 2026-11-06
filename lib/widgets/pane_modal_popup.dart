@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/app_ui_style.dart';
 import '../providers/app_ui_style_provider.dart';
+import '../theme/block/block_theme.dart';
 import 'app_dialog.dart';
 import 'glass/glass_surface.dart';
 import 'media_preview_frame.dart';
@@ -55,6 +56,27 @@ class _PopupSurface extends ConsumerWidget {
         variant: GlassVariant.floating,
         borderRadius: radius,
         child: ClipRRect(borderRadius: radius, child: child),
+      ),
+      AppUiStyle.block => DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(BlockTheme.radius),
+          boxShadow: BlockTheme.shadow(
+            Theme.of(context).colorScheme.primary,
+            Theme.of(context).brightness,
+          ),
+        ),
+        child: Material(
+          color: Theme.of(context).colorScheme.surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(BlockTheme.radius),
+            side: BorderSide(
+              color: BlockTheme.lineColor(Theme.of(context).brightness),
+              width: BlockTheme.borderWidth,
+            ),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: child,
+        ),
       ),
       _ => Material(
         color: Theme.of(context).colorScheme.surface,

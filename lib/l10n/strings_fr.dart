@@ -30,6 +30,8 @@ final Strings _stringsFr = Strings._(
   settingsNavChipsDescription:
       "Modifiez l’ordre et l’alignement du menu : à gauche, au centre ou à droite en bas des écrans étroits ; en haut, au centre ou en bas sur le bord gauche des écrans larges.",
   settingsNavChipsAlignmentTitle: "Alignement",
+  settingsNavChipsAlignmentNarrowTitle: "Alignement (portrait)",
+  settingsNavChipsAlignmentWideTitle: "Alignement (paysage)",
   settingsNavChipsAlignStart: "À gauche",
   settingsNavChipsAlignCenter: "Au centre",
   settingsNavChipsAlignEnd: "À droite",
@@ -71,6 +73,8 @@ final Strings _stringsFr = Strings._(
   settingsTextColorDescription:
       'Définissez la couleur du texte séparément pour les modes clair et sombre avec un code couleur. Une couleur trop proche du fond rendra le texte difficile à lire.',
   settingsTextColorLightLabel: 'Mode clair',
+  settingsOnAccentColorLabel: 'Sur l’accent',
+  settingsOnAccentColorAuto: 'Auto',
   settingsTextColorDarkLabel: 'Mode sombre',
   settingsCustomColorRegister: 'Enregistrer cette couleur',
   settingsCustomColorLimitReachedTemplate: (max) =>
@@ -85,12 +89,9 @@ final Strings _stringsFr = Strings._(
   settingsSubUI: 'Interface',
   settingsUIDescription: 'Choisissez l’apparence de toute l’application.',
   settingsUiStyleFlatLabel: 'Flat',
-  settingsUiStyleFlatDescription: 'Le style standard actuel',
   settingsUiStyleGekigaLabel: 'Gekiga',
-  settingsUiStyleGekigaDescription:
-      'Traits noirs épais et cases dramatiques, façon manga',
   settingsUiStyleGlassLabel: 'Verre',
-  settingsUiStyleGlassDescription: 'Style verre dépoli aux bords lumineux',
+  settingsUiStyleBlockLabel: 'Gravure',
   settingsChatLayoutTitle: 'Affichage des messages',
   settingsChatLayoutSideBySide: 'Vous à droite, les autres à gauche',
   settingsChatLayoutSideBySideDescription:
@@ -102,6 +103,7 @@ final Strings _stringsFr = Strings._(
   settingsSlideTransitionSlideBlur: 'Glissement et flou',
   settingsSlideTransitionSlide: 'Glissement',
   settingsSlideTransitionSuck: 'Aspiration',
+  settingsSlideTransitionPop: 'Jaillissement',
   settingsTextSizeTitle: 'Taille du texte',
   settingsTextSizeSubtitle:
       'Modifie la taille du texte dans toute l’application. La largeur et les icônes de la liste d’icônes et de salons suivent. Enregistré sur cet appareil uniquement.',

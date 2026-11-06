@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../l10n/strings.dart';
+import '../../theme/block/block_theme.dart';
 import '../../widgets/blurred_viewer_route.dart';
 import '../../widgets/media_viewer_screen.dart';
 import 'attachment_popup_button.dart';
@@ -45,7 +46,7 @@ class PendingAttachmentTray extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     final borderColor = isGekiga ? Colors.black : colorScheme.outlineVariant;
     final list = SizedBox(
-      height: _thumbSize + 8,
+      height: _thumbSize + (isBlockTheme(context) ? 14 : 8),
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: attachments.length,
@@ -122,35 +123,61 @@ class _Thumb extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final isImage = attachment.contentType == 'image';
+    // 版画は、サムネイルを太枠と硬い影の箱にする（影の分だけ下に余白を足す）。
+    final block = isBlockTheme(context);
+    final theme = Theme.of(context);
+    final line = BlockTheme.lineColor(theme.brightness);
     return SizedBox(
       width: size + 8,
-      height: size + 8,
+      height: size + (block ? 14 : 8),
       child: Stack(
         clipBehavior: Clip.none,
         children: [
           Positioned(
             left: 0,
-            bottom: 0,
+            bottom: block ? 6 : 0,
             width: size,
             height: size,
             child: GestureDetector(
               onTap: onOpen,
               child: DecoratedBox(
-                position: DecorationPosition.foreground,
+                position: DecorationPosition.background,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: borderColor),
+                  boxShadow: block
+                      ? BlockTheme.shadow(
+                              theme.colorScheme.primary,
+                              theme.brightness,
+                            )
+                            .map(
+                              (b) => BoxShadow(
+                                color: b.color,
+                                offset: const Offset(3, 3),
+                              ),
+                            )
+                            .toList()
+                      : null,
                 ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: isImage
-                      ? Image.memory(
-                          attachment.bytes,
-                          fit: BoxFit.cover,
-                          cacheWidth: (size * 2).round(),
-                          errorBuilder: (_, _, _) => _placeholder(colorScheme),
-                        )
-                      : _placeholder(colorScheme, video: true),
+                child: DecoratedBox(
+                  position: DecorationPosition.foreground,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(8),
+                    border: block
+                        ? Border.all(color: line, width: BlockTheme.borderWidth)
+                        : Border.all(color: borderColor),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: isImage
+                        ? Image.memory(
+                            attachment.bytes,
+                            fit: BoxFit.cover,
+                            cacheWidth: (size * 2).round(),
+                            errorBuilder: (_, _, _) =>
+                                _placeholder(colorScheme),
+                          )
+                        : _placeholder(colorScheme, video: true),
+                  ),
                 ),
               ),
             ),
@@ -167,11 +194,17 @@ class _Thumb extends StatelessWidget {
                 onTap: onRemove,
                 child: DecoratedBox(
                   decoration: BoxDecoration(
-                    color: Colors.black87,
+                    color: block ? theme.colorScheme.primary : Colors.black87,
                     shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white70),
+                    border: block
+                        ? Border.all(color: line, width: 2)
+                        : Border.all(color: Colors.white70),
                   ),
-                  child: const Icon(Icons.close, size: 14, color: Colors.white),
+                  child: Icon(
+                    Icons.close,
+                    size: 14,
+                    color: block ? theme.colorScheme.onPrimary : Colors.white,
+                  ),
                 ),
               ),
             ),

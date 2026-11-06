@@ -25,6 +25,7 @@ import '../../widgets/kiwami_only_dialog.dart';
 import '../../router/back_stack.dart';
 import '../../l10n/app_locale.dart';
 import '../../l10n/strings.dart';
+import '../../theme/block/block_theme.dart';
 import '../../models/app_ui_style.dart';
 import '../../models/font_design.dart';
 import '../../models/app_user.dart';
@@ -68,6 +69,7 @@ import '../../providers/notification_sound_provider.dart';
 import '../../providers/ringtone_sound_provider.dart';
 import '../../providers/send_key_mode_provider.dart';
 import '../../providers/sticker_send_mode_provider.dart';
+import '../../providers/on_accent_color_provider.dart';
 import '../../providers/text_color_provider.dart';
 import '../../providers/theme_mode_provider.dart';
 import '../../providers/user_providers.dart';
@@ -89,7 +91,7 @@ import '../../widgets/copy_link_row.dart';
 import '../../widgets/gekiga/gekiga_panel_box.dart';
 import '../../widgets/gekiga/gekiga_section_header.dart';
 import '../../widgets/gekiga/settings_tile.dart';
-import '../../widgets/gekiga/gekiga_text_field.dart';
+import '../../widgets/gekiga/gekiga_icon_badge.dart';
 import '../../widgets/glass/glass_dialog.dart';
 import '../../widgets/glass/glass_surface.dart';
 import '../../widgets/interactive_swipe_back.dart';
@@ -797,6 +799,34 @@ class _FolderTile extends ConsumerWidget {
             : null,
         titleFontSize: large ? 20 : null,
         onTap: onTap,
+      );
+    }
+
+    if (uiStyle == AppUiStyle.block) {
+      // 版画: 太枠と硬い影の箱（選択中はアクセントで塗る）。
+      final fg = selected ? colorScheme.onPrimary : colorScheme.onSurface;
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(2, 4, 6, 8),
+        child: blockMaterialBox(
+          context,
+          color: selected
+              ? colorScheme.primary
+              : (Theme.of(context).brightness == Brightness.light
+                    ? Colors.white
+                    : colorScheme.surface),
+          child: ListTile(
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 8,
+            ),
+            iconColor: fg,
+            textColor: fg,
+            leading: Icon(icon),
+            title: Text(title),
+            trailing: trailingWidget,
+            onTap: onTap,
+          ),
+        ),
       );
     }
 
@@ -2367,8 +2397,9 @@ class AppearanceFolder extends ConsumerWidget {
           opacity: appearanceLocked ? 0.4 : 1.0,
           child: IgnorePointer(
             ignoring: appearanceLocked,
+            // 左右の余白は付けない（他のラジオの一覧と同じ位置に揃える、2026-11-06）。
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              padding: const EdgeInsets.only(bottom: 16),
               child: appearanceControl,
             ),
           ),
@@ -2408,6 +2439,10 @@ class _AccentColorFolderState extends ConsumerState<AccentColorFolder> {
     _hexController = TextEditingController(
       text: ref.read(accentColorProvider).toHexString().replaceFirst('#', ''),
     );
+    final style = ref.read(appUiStyleProvider);
+    if (style == AppUiStyle.gekiga || style == AppUiStyle.block) {
+      _hexController.text = _fieldText(_hexController.text, true);
+    }
   }
 
   @override
@@ -2416,10 +2451,23 @@ class _AccentColorFolderState extends ConsumerState<AccentColorFolder> {
     super.dispose();
   }
 
+  /// 劇画・ブロックは透明度を使わない（6桁まで、プリセットの末尾のアルファも
+  /// 見せない、2026-11-06）。
+  bool get _opaqueOnly {
+    final style = ref.read(appUiStyleProvider);
+    return style == AppUiStyle.gekiga || style == AppUiStyle.block;
+  }
+
+  /// 入力欄に出す文字列（不透明のみのスタイルでは先頭6桁）。
+  String _fieldText(String hex, bool opaqueOnly) {
+    final h = hex.replaceFirst('#', '').toUpperCase();
+    return opaqueOnly && h.length > 6 ? h.substring(0, 6) : h;
+  }
+
   /// 6桁・8桁を入力し終えたら、決定ボタンを押さずに即時反映する（2026-10-31）。
   void _applyHexIfComplete(String text) {
     final length = text.replaceFirst('#', '').length;
-    if (length != 6 && length != 8) {
+    if (length != 6 && (length != 8 || _opaqueOnly)) {
       if (_errorText != null) setState(() => _errorText = null);
       return;
     }
@@ -2452,7 +2500,7 @@ class _AccentColorFolderState extends ConsumerState<AccentColorFolder> {
     if (color == null) return;
     setState(() {
       _errorText = null;
-      _hexController.text = hex.toUpperCase();
+      _hexController.text = _fieldText(hex, _opaqueOnly);
     });
     final isGekiga = ref.read(appUiStyleProvider) == AppUiStyle.gekiga;
     if (isGekiga) {
@@ -2479,7 +2527,7 @@ class _AccentColorFolderState extends ConsumerState<AccentColorFolder> {
     // 同一色とみなして弾く（同じ見た目の色が2つのスウォッチとして並ぶのを
     // 防ぐ）。フラット/ガラスは従来通りアルファ込みの完全一致で比較する。
     bool sameColor(Color a, Color b) =>
-        isGekiga ? a.withAlpha(0xFF) == b.withAlpha(0xFF) : a == b;
+        _opaqueOnly ? a.withAlpha(0xFF) == b.withAlpha(0xFF) : a == b;
     final alreadyShown =
         defaultColors.any((c) => sameColor(c, activeColor)) ||
         customColors.any((c) => sameColor(c, activeColor));
@@ -2514,14 +2562,19 @@ class _AccentColorFolderState extends ConsumerState<AccentColorFolder> {
           : ref.read(accentColorProvider);
       setState(() {
         _errorText = null;
-        _hexController.text = color.toHexString().replaceFirst('#', '');
+        _hexController.text = _fieldText(
+          color.toHexString(),
+          next == AppUiStyle.gekiga || next == AppUiStyle.block,
+        );
       });
     });
 
     final accentColor = ref.watch(accentColorProvider);
     final customColors = ref.watch(customAccentColorsProvider);
     final gekigaBackgroundColor = ref.watch(gekigaBackgroundColorProvider);
-    final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
+    final uiStyleNow = ref.watch(appUiStyleProvider);
+    final isGekiga = uiStyleNow == AppUiStyle.gekiga;
+    final opaqueOnly = isGekiga || uiStyleNow == AppUiStyle.block;
     final activeColor = isGekiga ? gekigaBackgroundColor : accentColor;
     final removedDefaultHex = ref.watch(removedDefaultColorPresetsProvider);
 
@@ -2530,7 +2583,7 @@ class _AccentColorFolderState extends ConsumerState<AccentColorFolder> {
     // プリセットが劇画側で永遠に「選択中」にならない）。フラット/ガラスは
     // 従来通りアルファ込みの完全一致で比較する。
     bool sameColor(Color a, Color b) =>
-        isGekiga ? a.withAlpha(0xFF) == b.withAlpha(0xFF) : a == b;
+        opaqueOnly ? a.withAlpha(0xFF) == b.withAlpha(0xFF) : a == b;
 
     // 固定プリセット（削除されていないもの）とユーザー登録色を1つの
     // 「プリセット」一覧にまとめる（2026-09-15、以前は「プリセット」
@@ -2550,74 +2603,118 @@ class _AccentColorFolderState extends ConsumerState<AccentColorFolder> {
     ];
 
     final accentColorField = isGekiga
-        ? GekigaTextField(
-            controller: _hexController,
-            textCapitalization: TextCapitalization.characters,
-            inputFormatters: [
-              FilteringTextInputFormatter.allow(RegExp('[0-9a-fA-F]')),
-              LengthLimitingTextInputFormatter(8),
-            ],
-            prefixText: '#',
-            hintText: 'F08300',
-            errorText: _errorText,
-            suffixIcon: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.add, color: GekigaColors.onPanel),
-                  tooltip: '',
-                  onPressed: () => _registerCustomColor(context),
+        // 劇画は、Rhing Seedの箱（`_CopyableInfoRow`）と同じ作り（ジョイント枠＋縦横の余白
+        // 12/8＋標準サイズ36のバッジのボタン）にして、縦幅・ボタンの大きさを揃える。
+        // 入力欄は枠・塗り無しの素の`TextField`を、黒い箱の中に置く（2026-11-06）。
+        ? GekigaJointedTileList(
+            seeds: [_hexController.hashCode],
+            selectedFlags: const [false],
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
                 ),
-              ],
-            ),
-            onChanged: _applyHexIfComplete,
-            onSubmitted: (_) => _applyHexInput(),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _hexController,
+                        textCapitalization: TextCapitalization.characters,
+                        inputFormatters: [
+                          FilteringTextInputFormatter.allow(
+                            RegExp('[0-9a-fA-F]'),
+                          ),
+                          LengthLimitingTextInputFormatter(opaqueOnly ? 6 : 8),
+                        ],
+                        style: const TextStyle(color: GekigaColors.onPanel),
+                        cursorColor: GekigaColors.onPanel,
+                        decoration: InputDecoration(
+                          prefixText: '#',
+                          prefixStyle: const TextStyle(
+                            color: GekigaColors.onPanel,
+                          ),
+                          hintText: 'F08300',
+                          hintStyle: TextStyle(
+                            color: GekigaColors.onPanel.withValues(alpha: 0.5),
+                          ),
+                          errorText: _errorText,
+                          isDense: true,
+                          filled: false,
+                          border: InputBorder.none,
+                          enabledBorder: InputBorder.none,
+                          focusedBorder: InputBorder.none,
+                          errorBorder: InputBorder.none,
+                          focusedErrorBorder: InputBorder.none,
+                        ),
+                        onChanged: _applyHexIfComplete,
+                        onSubmitted: (_) => _applyHexInput(),
+                      ),
+                    ),
+                    CopyIconButton(
+                      gekiga: true,
+                      textBuilder: () => _hexText(_hexController.text),
+                    ),
+                    GekigaIconButton(
+                      icon: Icons.add,
+                      onPressed: () => _registerCustomColor(context),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           )
-        : TextField(
-            controller: _hexController,
-            textCapitalization: TextCapitalization.characters,
-            inputFormatters: [
-              FilteringTextInputFormatter.allow(RegExp('[0-9a-fA-F]')),
-              LengthLimitingTextInputFormatter(8),
-            ],
-            decoration: InputDecoration(
-              labelText: widget.strings.settingsColorCode,
-              prefixText: '#',
-              hintText: 'F08300',
-              errorText: _errorText,
-              counterText: '',
-              // フラットUIでもこの欄だけガラスUIと同じ見た目
-              // （半透明の塗り＋アクセントカラーの縁取り）にする
-              // （2026-09-14変更、ユーザー要望）。塗り色は
-              // `colorScheme.surfaceContainerHighest`だとフラット/
-              // ガラスでアクセントカラーの色味有無が異なり見た目が
-              // ズレていたため、`GlassColors`の固定値を直接参照して
-              // UIスタイルに関係なく常に同じ色にする（2026-09-15修正）。
-              filled: true,
-              fillColor:
-                  (Theme.of(context).brightness == Brightness.dark
-                          ? GlassColors.darkSurfaceBase
-                          : GlassColors.lightSurfaceBase)
-                      .withValues(alpha: 0.65),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
-                borderSide: BorderSide(
-                  color: activeColor.withValues(alpha: 0.3),
+        : BlockFieldFrame(
+            child: TextField(
+              controller: _hexController,
+              textCapitalization: TextCapitalization.characters,
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp('[0-9a-fA-F]')),
+                LengthLimitingTextInputFormatter(opaqueOnly ? 6 : 8),
+              ],
+              decoration: InputDecoration(
+                prefixText: '#',
+                hintText: 'F08300',
+                errorText: _errorText,
+                counterText: '',
+                // フラットUIでもこの欄だけガラスUIと同じ見た目
+                // （半透明の塗り＋アクセントカラーの縁取り）にする
+                // （2026-09-14変更、ユーザー要望）。塗り色は
+                // `colorScheme.surfaceContainerHighest`だとフラット/
+                // ガラスでアクセントカラーの色味有無が異なり見た目が
+                // ズレていたため、`GlassColors`の固定値を直接参照して
+                // UIスタイルに関係なく常に同じ色にする（2026-09-15修正）。
+                filled: !isBlockTheme(context),
+                fillColor:
+                    (Theme.of(context).brightness == Brightness.dark
+                            ? GlassColors.darkSurfaceBase
+                            : GlassColors.lightSurfaceBase)
+                        .withValues(alpha: 0.65),
+                border: isBlockTheme(context)
+                    ? InputBorder.none
+                    : OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        borderSide: BorderSide(
+                          color: activeColor.withValues(alpha: 0.3),
+                        ),
+                      ),
+                suffixIcon: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CopyIconButton(
+                      textBuilder: () => _hexText(_hexController.text),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.add),
+                      tooltip: '',
+                      onPressed: () => _registerCustomColor(context),
+                    ),
+                  ],
                 ),
               ),
-              suffixIcon: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.add),
-                    tooltip: '',
-                    onPressed: () => _registerCustomColor(context),
-                  ),
-                ],
-              ),
+              onChanged: _applyHexIfComplete,
+              onSubmitted: (_) => _applyHexInput(),
             ),
-            onChanged: _applyHexIfComplete,
-            onSubmitted: (_) => _applyHexInput(),
           );
 
     return Column(
@@ -2668,7 +2765,7 @@ class _AccentColorFolderState extends ConsumerState<AccentColorFolder> {
                   ],
                   // 8桁のカラーコードと「＋」が収まる幅に絞る（2026-11-01、以前は行いっぱいに
                   // 広がっていた）。
-                  SizedBox(width: 200, child: accentColorField),
+                  SizedBox(width: 248, child: accentColorField),
                 ],
               ),
             ),
@@ -2691,7 +2788,7 @@ class _AccentColorFolderState extends ConsumerState<AccentColorFolder> {
                     children: [
                       for (final entry in presetEntries)
                         PresetColorSwatch(
-                          hex: entry.hex,
+                          hex: _fieldText(entry.hex, opaqueOnly),
                           selected: sameColor(entry.color, activeColor),
                           onTap: () => _applyPreset(entry.hex),
                           onLongPress: () async {
@@ -2842,51 +2939,61 @@ class _TextColorFolderState extends ConsumerState<_TextColorFolder> {
           ),
           const SizedBox(width: 16),
           Expanded(
-            child: TextField(
-              controller: controller,
-              textCapitalization: TextCapitalization.characters,
-              inputFormatters: [
-                FilteringTextInputFormatter.allow(RegExp('[0-9a-fA-F]')),
-                LengthLimitingTextInputFormatter(8),
-              ],
-              decoration: InputDecoration(
-                labelText: label,
-                prefixText: '#',
-                hintText: '1C1C1C',
-                errorText: errorText,
-                counterText: '',
-                // アクセントカラーの入力欄と同じ、ガラスUI風の見た目に揃える
-                // （2026-09-14変更、`_DesignFolderState`のアクセントカラー欄参照）。
-                // 塗り色は`GlassColors`の固定値を直接参照し、フラット/ガラスで
-                // 常に同じ色になるようにする（2026-09-15修正、理由は
-                // アクセントカラー欄側のコメント参照）。
-                filled: true,
-                fillColor:
-                    (Theme.of(context).brightness == Brightness.dark
-                            ? GlassColors.darkSurfaceBase
-                            : GlassColors.lightSurfaceBase)
-                        .withValues(alpha: 0.65),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  borderSide: BorderSide(color: color.withValues(alpha: 0.3)),
+            child: BlockFieldFrame(
+              label: label,
+              child: TextField(
+                controller: controller,
+                textCapitalization: TextCapitalization.characters,
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp('[0-9a-fA-F]')),
+                  LengthLimitingTextInputFormatter(8),
+                ],
+                decoration: InputDecoration(
+                  labelText: isBlockTheme(context) ? null : label,
+                  prefixText: '#',
+                  hintText: '1C1C1C',
+                  errorText: errorText,
+                  counterText: '',
+                  // アクセントカラーの入力欄と同じ、ガラスUI風の見た目に揃える
+                  // （2026-09-14変更、`_DesignFolderState`のアクセントカラー欄参照）。
+                  // 塗り色は`GlassColors`の固定値を直接参照し、フラット/ガラスで
+                  // 常に同じ色になるようにする（2026-09-15修正、理由は
+                  // アクセントカラー欄側のコメント参照）。
+                  filled: !isBlockTheme(context),
+                  fillColor:
+                      (Theme.of(context).brightness == Brightness.dark
+                              ? GlassColors.darkSurfaceBase
+                              : GlassColors.lightSurfaceBase)
+                          .withValues(alpha: 0.65),
+                  border: isBlockTheme(context)
+                      ? InputBorder.none
+                      : OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: BorderSide(
+                            color: color.withValues(alpha: 0.3),
+                          ),
+                        ),
+                  suffixIcon: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      CopyIconButton(
+                        textBuilder: () => _hexText(controller.text),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.refresh),
+                        tooltip: '',
+                        onPressed: onReset,
+                      ),
+                    ],
+                  ),
                 ),
-                suffixIcon: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.refresh),
-                      tooltip: '',
-                      onPressed: onReset,
-                    ),
-                  ],
-                ),
+                // 6桁・8桁を入力し終えたら、決定ボタン無しで即時反映する（2026-10-31）。
+                onChanged: (text) {
+                  final length = text.replaceFirst('#', '').length;
+                  if (length == 6 || length == 8) onApply();
+                },
+                onSubmitted: (_) => onApply(),
               ),
-              // 6桁・8桁を入力し終えたら、決定ボタン無しで即時反映する（2026-10-31）。
-              onChanged: (text) {
-                final length = text.replaceFirst('#', '').length;
-                if (length == 6 || length == 8) onApply();
-              },
-              onSubmitted: (_) => onApply(),
             ),
           ),
         ],
@@ -2915,25 +3022,41 @@ class _TextColorFolderState extends ConsumerState<_TextColorFolder> {
           ),
         ),
         const SizedBox(height: 8),
-        _colorRow(
-          color: textColorLight,
-          label: strings.settingsTextColorLightLabel,
-          controller: _lightController,
-          errorText: _lightErrorText,
-          onApply: _applyLight,
-          onReset: _resetLight,
-        ),
-        _colorRow(
-          color: textColorDark,
-          label: strings.settingsTextColorDarkLabel,
-          controller: _darkController,
-          errorText: _darkErrorText,
-          onApply: _applyDark,
-          onReset: _resetDark,
-        ),
+        // 今の外観（ライト/ダーク、「端末に合わせる」の場合は端末の設定）の
+        // 欄だけを表示する（2026-11-06）。もう一方の値は保持したまま。
+        if (Theme.of(context).brightness == Brightness.light)
+          _colorRow(
+            color: textColorLight,
+            label: strings.settingsTextColorLightLabel,
+            controller: _lightController,
+            errorText: _lightErrorText,
+            onApply: _applyLight,
+            onReset: _resetLight,
+          )
+        else
+          _colorRow(
+            color: textColorDark,
+            label: strings.settingsTextColorDarkLabel,
+            controller: _darkController,
+            errorText: _darkErrorText,
+            onApply: _applyDark,
+            onReset: _resetDark,
+          ),
+        // アクセントで塗った面の上に乗る文字色（劇画はアクセントを使わないため出さない）。
+        if (ref.watch(appUiStyleProvider) != AppUiStyle.gekiga)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: _OnAccentColorField(strings: strings),
+          ),
       ],
     );
   }
+}
+
+/// カラーコード欄の内容を、コピーする文字（`#RRGGBB`形式、空欄なら空文字）にする。
+String _hexText(String text) {
+  final hex = text.trim().replaceFirst('#', '');
+  return hex.isEmpty ? '' : '#${hex.toUpperCase()}';
 }
 
 /// アクセントカラーのプリセット1つ分の円形スウォッチ。タップで即適用する。
@@ -3084,11 +3207,13 @@ class UiStyleFolder extends ConsumerWidget {
           AppUiStyle.flat.hashCode,
           AppUiStyle.glass.hashCode,
           AppUiStyle.gekiga.hashCode,
+          AppUiStyle.block.hashCode,
         ],
         selectedFlags: [
           style == AppUiStyle.flat,
           style == AppUiStyle.glass,
           style == AppUiStyle.gekiga,
+          style == AppUiStyle.block,
         ],
         children: [
           GekigaTileContent(
@@ -3124,6 +3249,17 @@ class UiStyleFolder extends ConsumerWidget {
             title: Text(strings.settingsUiStyleGekigaLabel),
             onTap: () => select(AppUiStyle.gekiga),
           ),
+          GekigaTileContent(
+            selected: style == AppUiStyle.block,
+            leading: AppRadioMark(
+              selected: style == AppUiStyle.block,
+              color: (style == AppUiStyle.block)
+                  ? GekigaColors.panel
+                  : GekigaColors.onPanel,
+            ),
+            title: Text(strings.settingsUiStyleBlockLabel),
+            onTap: () => select(AppUiStyle.block),
+          ),
         ],
       );
     }
@@ -3146,6 +3282,10 @@ class UiStyleFolder extends ConsumerWidget {
           AppRadioListTile<AppUiStyle>(
             value: AppUiStyle.gekiga,
             title: Text(strings.settingsUiStyleGekigaLabel),
+          ),
+          AppRadioListTile<AppUiStyle>(
+            value: AppUiStyle.block,
+            title: Text(strings.settingsUiStyleBlockLabel),
           ),
         ],
       ),
@@ -3393,6 +3533,10 @@ class SlideTransitionFolder extends ConsumerWidget {
         value: SlideTransitionStyle.suck,
         title: strings.settingsSlideTransitionSuck,
       ),
+      (
+        value: SlideTransitionStyle.pop,
+        title: strings.settingsSlideTransitionPop,
+      ),
     ];
 
     final control = isGekiga
@@ -3584,50 +3728,63 @@ class NavChipLayoutFolder extends ConsumerWidget {
     final notifier = ref.read(navChipLayoutProvider.notifier);
     final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
     final colorScheme = Theme.of(context).colorScheme;
-    final wide = MediaQuery.sizeOf(context).width >= 600;
 
-    void selectAlignment(NavChipAlignment value) =>
-        notifier.setAlignment(value);
     final listAlignment = ref.watch(categoryListAlignmentProvider);
     void selectListAlignment(NavChipAlignment value) =>
         ref.read(categoryListAlignmentProvider.notifier).setAlignment(value);
 
-    final alignmentControl = isGekiga
+    // 縦表示（下端の横並び: 左・中央・右）と横表示（左端の縦並び: 上・中央・下）は、
+    // 別々に保存する（2026-11-06、以前は共通で「上揃え＝左揃え」だった）。
+    Widget alignmentControlFor({
+      required NavChipAlignment current,
+      required ValueChanged<NavChipAlignment> onSelect,
+      required bool forWide,
+    }) => isGekiga
         ? GekigaJointedTileList(
             seeds: [for (final a in NavChipAlignment.values) a.hashCode],
             selectedFlags: [
-              for (final a in NavChipAlignment.values) layout.alignment == a,
+              for (final a in NavChipAlignment.values) current == a,
             ],
             children: [
               for (final a in NavChipAlignment.values)
                 GekigaTileContent(
-                  selected: layout.alignment == a,
+                  selected: current == a,
                   leading: AppRadioMark(
-                    selected: layout.alignment == a,
-                    color: (layout.alignment == a)
+                    selected: current == a,
+                    color: (current == a)
                         ? GekigaColors.panel
                         : GekigaColors.onPanel,
                   ),
-                  title: Text(_alignLabel(a, wide: wide)),
-                  onTap: () => selectAlignment(a),
+                  title: Text(_alignLabel(a, wide: forWide)),
+                  onTap: () => onSelect(a),
                 ),
             ],
           )
         : RadioGroup<NavChipAlignment>(
-            groupValue: layout.alignment,
+            groupValue: current,
             onChanged: (value) {
-              if (value != null) selectAlignment(value);
+              if (value != null) onSelect(value);
             },
             child: Column(
               children: [
                 for (final a in NavChipAlignment.values)
                   AppRadioListTile<NavChipAlignment>(
                     value: a,
-                    title: Text(_alignLabel(a, wide: wide)),
+                    title: Text(_alignLabel(a, wide: forWide)),
                   ),
               ],
             ),
           );
+    final alignmentControl = alignmentControlFor(
+      current: layout.alignment,
+      onSelect: notifier.setAlignment,
+      forWide: false,
+    );
+    final wideAlignmentControl = alignmentControlFor(
+      current: layout.wideAlignment,
+      onSelect: notifier.setWideAlignment,
+      forWide: true,
+    );
 
     final listAlignmentControl = isGekiga
         ? GekigaJointedTileList(
@@ -3712,6 +3869,22 @@ class NavChipLayoutFolder extends ConsumerWidget {
                   : _NavChipOrderListState.itemHeight,
               child: content,
             );
+            if (ref.watch(appUiStyleProvider) == AppUiStyle.block) {
+              // 版画: 太枠と硬い影の箱（影の分の余白を含めて1行の高さに収める）。
+              return Padding(
+                padding: const EdgeInsets.fromLTRB(2, 4, 6, 8),
+                child: blockMaterialBox(
+                  context,
+                  color: Theme.of(context).brightness == Brightness.light
+                      ? Colors.white
+                      : colorScheme.surface,
+                  child: SizedBox(
+                    height: _NavChipOrderListState.itemHeight - 12,
+                    child: content,
+                  ),
+                ),
+              );
+            }
             if (!isGekiga) return tile;
             // 劇画は単色の黒ベタにせず、他の箱と同じ「黒外枠→白の細い線→黒地」の
             // 直角モノクロボックスで描く。項目同士は縦に少し間を空ける。
@@ -3737,9 +3910,18 @@ class NavChipLayoutFolder extends ConsumerWidget {
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-          child: GekigaSectionHeader(strings.settingsNavChipsAlignmentTitle),
+          child: GekigaSectionHeader(
+            strings.settingsNavChipsAlignmentNarrowTitle,
+          ),
         ),
         alignmentControl,
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          child: GekigaSectionHeader(
+            strings.settingsNavChipsAlignmentWideTitle,
+          ),
+        ),
+        wideAlignmentControl,
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
           child: GekigaSectionHeader(strings.settingsNavChipsOrderTitle),
@@ -5195,6 +5377,148 @@ class _SlidePickSwitch extends ConsumerWidget {
       title: Text(strings.settingsSlidePickTitle),
       subtitle: Text(strings.settingsSlidePickSubtitle),
       onChanged: setEnabled,
+    );
+  }
+}
+
+/// アクセントで塗った面（選択中のチップ・ボタンなど）の上に乗る文字・アイコンの色の入力欄
+/// （2026-11-06）。空欄なら自動（ライトは黒・ダークは白）。6桁のRRGGBBだけ受け付ける。
+class _OnAccentColorField extends ConsumerStatefulWidget {
+  const _OnAccentColorField({required this.strings});
+
+  final Strings strings;
+
+  @override
+  ConsumerState<_OnAccentColorField> createState() =>
+      _OnAccentColorFieldState();
+}
+
+class _OnAccentColorFieldState extends ConsumerState<_OnAccentColorField> {
+  late final TextEditingController _controller;
+
+  String _hexOf(Color? color) => color == null
+      ? ''
+      : color.toHexString().replaceFirst('#', '').substring(0, 6);
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(
+      text: _hexOf(ref.read(onAccentColorProvider)),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _apply(String text) {
+    final hex = text.replaceFirst('#', '');
+    if (hex.isEmpty) {
+      ref.read(onAccentColorProvider.notifier).setColor(null);
+      return;
+    }
+    if (hex.length != 6) return;
+    final color = tryParseHexColor(hex);
+    if (color != null) {
+      ref.read(onAccentColorProvider.notifier).setColor(color);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // 端末間の同期などで値が変わったら、入力欄にも反映する。
+    ref.listen<Color?>(onAccentColorProvider, (previous, next) {
+      final text = _hexOf(next);
+      if (_controller.text != text &&
+          tryParseHexColor(_controller.text) != next) {
+        _controller.text = text;
+      }
+    });
+    final accent = Theme.of(context).colorScheme.primary;
+    final current = ref.watch(onAccentColorProvider);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final effective = current ?? (isDark ? Colors.white : Colors.black);
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // アクセントの面に、今の文字色で「Aa」を載せた見本。
+        Container(
+          width: 48,
+          height: 48,
+          margin: const EdgeInsets.only(top: 4),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: accent,
+            shape: BoxShape.circle,
+            border: Border.all(color: Colors.black12),
+          ),
+          child: Text(
+            'Aa',
+            style: TextStyle(
+              color: effective,
+              fontWeight: FontWeight.bold,
+              fontSize: 16,
+            ),
+          ),
+        ),
+        const SizedBox(width: 16),
+        SizedBox(
+          width: 248,
+          child: BlockFieldFrame(
+            label: widget.strings.settingsOnAccentColorLabel,
+            child: TextField(
+              controller: _controller,
+              textCapitalization: TextCapitalization.characters,
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp('[0-9a-fA-F]')),
+                LengthLimitingTextInputFormatter(6),
+              ],
+              decoration: InputDecoration(
+                labelText: isBlockTheme(context)
+                    ? null
+                    : widget.strings.settingsOnAccentColorLabel,
+                prefixText: '#',
+                hintText: widget.strings.settingsOnAccentColorAuto,
+                counterText: '',
+                filled: !isBlockTheme(context),
+                fillColor:
+                    (Theme.of(context).brightness == Brightness.dark
+                            ? GlassColors.darkSurfaceBase
+                            : GlassColors.lightSurfaceBase)
+                        .withValues(alpha: 0.65),
+                border: isBlockTheme(context)
+                    ? InputBorder.none
+                    : OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        borderSide: BorderSide(
+                          color: accent.withValues(alpha: 0.3),
+                        ),
+                      ),
+                suffixIcon: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CopyIconButton(
+                      textBuilder: () => _hexText(_controller.text),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.refresh),
+                      tooltip: '',
+                      onPressed: () {
+                        _controller.clear();
+                        ref.read(onAccentColorProvider.notifier).setColor(null);
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              onChanged: _apply,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

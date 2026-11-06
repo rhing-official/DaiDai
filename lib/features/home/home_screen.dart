@@ -556,7 +556,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                   child: wrapWithSwipe(
                     vertical: true,
                     Align(
-                      alignment: switch (chipLayout.alignment) {
+                      alignment: switch (chipLayout.wideAlignment) {
                         NavChipAlignment.start => Alignment.topCenter,
                         NavChipAlignment.center => Alignment.center,
                         NavChipAlignment.end => Alignment.bottomCenter,

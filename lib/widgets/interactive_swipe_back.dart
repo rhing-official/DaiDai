@@ -347,13 +347,19 @@ class _InteractiveSwipeBackTransitionState
               final dragProgress = (_controller.maxDrag <= 0 || value <= 0)
                   ? 0.0
                   : (value / _controller.maxDrag).clamp(0.0, 1.0);
+              final isPop = activeSlideTransitionStyle.usesPopScale;
               final scale = isSuck
                   ? 1 - (1 - suckMinScale) * dragProgress
-                  : 1.0;
+                  : (isPop ? 1 - (1 - popMinScale) * dragProgress : 1.0);
               final moved = Transform(
-                alignment: Alignment.bottomRight,
+                alignment: isPop ? Alignment.center : Alignment.bottomRight,
                 transform: Matrix4.identity()
-                  ..translateByDouble(isSuck ? 0.0 : value, 0.0, 0.0, 1.0)
+                  ..translateByDouble(
+                    (isSuck || isPop) ? 0.0 : value,
+                    0.0,
+                    0.0,
+                    1.0,
+                  )
                   ..scaleByDouble(scale, scale, 1.0, 1.0),
                 child: LiquifyEffect(
                   progress: dragProgress,

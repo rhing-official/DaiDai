@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/app_ui_style.dart';
 import '../providers/app_ui_style_provider.dart';
+import '../theme/block/block_theme.dart';
 import '../theme/gekiga/gekiga_colors.dart';
 import 'gekiga/gekiga_badge.dart';
 import 'glass/glass_surface.dart';
@@ -58,6 +59,8 @@ class NavChip extends ConsumerWidget {
     final uiStyle = ref.watch(appUiStyleProvider);
     final isGekiga = uiStyle == AppUiStyle.gekiga;
     final isGlass = uiStyle == AppUiStyle.glass;
+    final isBlock = uiStyle == AppUiStyle.block;
+    final brightness = Theme.of(context).brightness;
     final background = selected ? colorScheme.primary : colorScheme.surface;
     final foreground = selected
         ? colorScheme.onPrimary
@@ -120,6 +123,38 @@ class NavChip extends ConsumerWidget {
                     size: iconSize,
                     color: colorScheme.onSurfaceVariant,
                   ),
+                ),
+              ),
+            ),
+          )
+        : isBlock
+        // ブロック: 太い枠線とぼかしの無い硬い影（このスタイルだけの例外）。
+        ? DecoratedBox(
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              boxShadow: BlockTheme.shadow(colorScheme.primary, brightness),
+            ),
+            child: Material(
+              // ライトは灰色を重ねず、選択中=アクセント・非選択=白にする。
+              color: selected
+                  ? colorScheme.primary
+                  : (brightness == Brightness.light
+                        ? Colors.white
+                        : colorScheme.surface),
+              surfaceTintColor: Colors.transparent,
+              shape: CircleBorder(
+                side: BorderSide(
+                  color: BlockTheme.lineColor(brightness),
+                  width: BlockTheme.borderWidth,
+                ),
+              ),
+              child: InkWell(
+                onTap: onTap,
+                customBorder: const CircleBorder(),
+                child: SizedBox(
+                  width: kNavChipSize,
+                  height: kNavChipSize,
+                  child: Icon(icon, size: iconSize, color: foreground),
                 ),
               ),
             ),

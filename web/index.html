@@ -46,6 +46,17 @@
     input::selection, textarea::selection, ::selection {
       background: transparent !important;
     }
+    /* 選択すると、ブラウザの入力要素の文字が既定の「選択中の文字色」（白）で現れ、
+       アプリが描いた文字の横にはみ出して見える不具合の対策（2026-11-06追加）。
+       入力要素の文字は常に透明のままにする（見える文字はアプリがcanvasに描く）。 */
+    input::selection, textarea::selection,
+    flt-text-editing-host *::selection {
+      color: transparent !important;
+      -webkit-text-fill-color: transparent !important;
+    }
+    input, textarea {
+      -webkit-text-fill-color: transparent !important;
+    }
     /* 入力欄にフォーカスがあるとFlutterがブラウザの入力要素にヒント（「メッセージを入力...」）
        をプレースホルダーとして渡し、アプリが描いた同じ文字と二重に（ぼやけて）見える
        不具合の対策（2026-11-03追加、コンピューター）。アプリ自身のヒントはcanvas描画。 */

@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/nav_chip_layout.dart';
 
 const _alignmentKey = 'navChipAlignment';
+const _wideAlignmentKey = 'navChipAlignmentWide';
 const _orderKey = 'navChipOrder';
 
 /// 端末に保存されている初期のメニューチップの揃え・並び（2026-11-01）。アカウントには保存せず、
@@ -15,8 +16,13 @@ final initialNavChipLayoutProvider = Provider<NavChipLayout>(
 
 Future<NavChipLayout> loadInitialNavChipLayout() async {
   final prefs = await SharedPreferences.getInstance();
+  final alignment = NavChipAlignment.fromName(prefs.getString(_alignmentKey));
   return NavChipLayout(
-    alignment: NavChipAlignment.fromName(prefs.getString(_alignmentKey)),
+    alignment: alignment,
+    // 横表示の揃えを別に保存する前の端末は、これまでの揃え（共通だった値）を引き継ぐ。
+    wideAlignment: prefs.containsKey(_wideAlignmentKey)
+        ? NavChipAlignment.fromName(prefs.getString(_wideAlignmentKey))
+        : alignment,
     order: normalizeNavChipOrder(prefs.getStringList(_orderKey)),
   );
 }
@@ -29,6 +35,12 @@ class NavChipLayoutNotifier extends Notifier<NavChipLayout> {
     state = state.copyWith(alignment: alignment);
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_alignmentKey, alignment.name);
+  }
+
+  Future<void> setWideAlignment(NavChipAlignment alignment) async {
+    state = state.copyWith(wideAlignment: alignment);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_wideAlignmentKey, alignment.name);
   }
 
   Future<void> setOrder(List<HomeTabId> order) async {

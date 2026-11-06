@@ -19,7 +19,13 @@ enum AppUiStyle {
   /// すりガラス越しに背景が透けるApple Liquid Glass風のデザイン。
   /// アクセントカラーはマテリアルの縁のうっすらとした光彩としてのみ表れる
   /// （2026-08-29追加）。
-  glass;
+  glass,
+
+  /// 太い黒枠・ぼかしの無いずらした硬い影・アクセントの淡い面と濃いボタンの
+  /// ネオブルータリズム風（2026-11-06追加、第1段階＝テーマと主な共通部品のみ。
+  /// 画面ごとの寄せは段階的に行う）。硬い影はこのスタイルだけの例外
+  /// （他のスタイルは影を使わない、CLAUDE.md参照）。
+  block;
 
   static AppUiStyle fromName(String? name) {
     return AppUiStyle.values.firstWhere(

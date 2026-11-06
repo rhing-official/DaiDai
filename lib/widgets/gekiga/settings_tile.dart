@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../models/app_ui_style.dart';
 import '../../providers/app_ui_style_provider.dart';
+import '../../theme/block/block_theme.dart';
 import 'gekiga_panel_box.dart';
 
 /// 設定の1行（2026-11-05）。フラット・ガラスは通常の`ListTile`、劇画は他の設定項目と同じ
@@ -48,6 +49,32 @@ class SettingsTile extends ConsumerWidget {
               onTap: enabled ? onTap : null,
             ),
           ],
+        ),
+      );
+    }
+    if (ref.watch(appUiStyleProvider) == AppUiStyle.block) {
+      final scheme = Theme.of(context).colorScheme;
+      final fg = selected ? scheme.onPrimary : scheme.onSurface;
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(2, 4, 6, 8),
+        child: blockMaterialBox(
+          context,
+          color: selected
+              ? scheme.primary
+              : (Theme.of(context).brightness == Brightness.light
+                    ? Colors.white
+                    : scheme.surface),
+          child: ListTile(
+            contentPadding: contentPadding,
+            iconColor: fg,
+            textColor: fg,
+            leading: leading,
+            title: title,
+            subtitle: subtitle,
+            trailing: trailing,
+            enabled: enabled,
+            onTap: onTap,
+          ),
         ),
       );
     }

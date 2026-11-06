@@ -5,6 +5,7 @@ import '../../l10n/strings.dart';
 import '../../models/calendar_system.dart';
 import '../../models/calendar_week_start.dart';
 import '../../providers/holiday_settings_provider.dart';
+import '../../theme/block/block_theme.dart';
 import '../../theme/gekiga/gekiga_colors.dart';
 import '../../widgets/gekiga/gekiga_panel_box.dart';
 import '../../widgets/pressable_scale.dart';
@@ -198,6 +199,53 @@ class HolidayCheckboxes extends StatelessWidget {
         ),
       );
     }
+    // 版画は、行を太枠と硬い影の箱にする（チェックの色はスタイル既定）。
+    return Builder(
+      builder: (context) {
+        if (!isBlockTheme(context)) return _plainRow(label, value, onChanged);
+        final scheme = Theme.of(context).colorScheme;
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(2, 4, 6, 8),
+          child: blockMaterialBox(
+            context,
+            color: Theme.of(context).brightness == Brightness.light
+                ? Colors.white
+                : scheme.surface,
+            child: InkWell(
+              onTap: () => onChanged(!value),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 32,
+                      height: 32,
+                      child: AppCheckbox(
+                        value: value,
+                        onChanged: (v) => onChanged(v ?? false),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        label,
+                        style: TextStyle(color: scheme.onSurface),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _plainRow(String label, bool value, ValueChanged<bool> onChanged) {
     return InkWell(
       onTap: () => onChanged(!value),
       child: Row(

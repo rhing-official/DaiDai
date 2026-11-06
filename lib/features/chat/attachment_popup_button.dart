@@ -1,3 +1,4 @@
+import '../../theme/block/block_theme.dart';
 import 'dart:typed_data';
 
 import 'package:camera/camera.dart' show availableCameras;
@@ -395,6 +396,12 @@ class _AttachmentPopupButtonState extends State<AttachmentPopupButton> {
           ? const Padding(
               padding: EdgeInsets.all(6),
               child: GekigaIconBadge(icon: Icons.add, size: 32),
+            )
+          : isBlockTheme(context)
+          // 版画: 太枠と硬い影の箱に＋（タップは外側のListenerが受ける）。
+          ? Padding(
+              padding: const EdgeInsets.all(6),
+              child: blockIconButton(context, icon: Icons.add, size: 32),
             )
           : Padding(
               // 周りの丸は付けず、大きい＋だけにする（2026-10-31）。タップ領域の

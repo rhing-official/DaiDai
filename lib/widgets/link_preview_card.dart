@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+
+import '../theme/block/block_theme.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -181,71 +183,75 @@ class LinkPreviewCard extends ConsumerWidget {
 
     return ConstrainedBox(
       constraints: const BoxConstraints(maxWidth: 360),
-      child: Material(
-        color: colorScheme.surfaceContainerHighest,
+      child: blockCardWrap(
+        context,
         borderRadius: BorderRadius.circular(8),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: _open,
-          child: IntrinsicHeight(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Container(width: 4, color: colorScheme.primary),
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.all(10),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (host != null)
-                          Text(
-                            host,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: colorScheme.onSurfaceVariant,
+        child: Material(
+          color: colorScheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(8),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: _open,
+            child: IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Container(width: 4, color: colorScheme.primary),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.all(10),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (host != null)
+                            Text(
+                              host,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: colorScheme.onSurfaceVariant,
+                              ),
                             ),
-                          ),
-                        if (data.title != null) ...[
-                          const SizedBox(height: 2),
-                          Text(
-                            data.title!,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: colorScheme.primary,
+                          if (data.title != null) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              data.title!,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: colorScheme.primary,
+                              ),
                             ),
-                          ),
-                        ],
-                        if (data.description != null) ...[
-                          const SizedBox(height: 4),
-                          Text(
-                            data.description!,
-                            maxLines: 3,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: colorScheme.onSurfaceVariant,
+                          ],
+                          if (data.description != null) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              data.description!,
+                              maxLines: 3,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: colorScheme.onSurfaceVariant,
+                              ),
                             ),
-                          ),
+                          ],
+                          if (data.image != null) ...[
+                            const SizedBox(height: 8),
+                            _thumbnail(
+                              data.image!,
+                              isVideo: isVideo,
+                              isGekiga: false,
+                            ),
+                          ],
                         ],
-                        if (data.image != null) ...[
-                          const SizedBox(height: 8),
-                          _thumbnail(
-                            data.image!,
-                            isVideo: isVideo,
-                            isGekiga: false,
-                          ),
-                        ],
-                      ],
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),

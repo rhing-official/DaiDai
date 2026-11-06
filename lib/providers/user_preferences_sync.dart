@@ -38,6 +38,7 @@ import 'ringtone_sound_provider.dart';
 import 'message_time_format_provider.dart';
 import 'send_key_mode_provider.dart';
 import 'sticker_send_mode_provider.dart';
+import 'on_accent_color_provider.dart';
 import 'text_color_provider.dart';
 import 'theme_mode_provider.dart';
 
@@ -85,6 +86,11 @@ void applyRemoteUserPreferences(WidgetRef ref, AppUserPreferences preferences) {
     ref
         .read(textColorDarkProvider.notifier)
         .syncFromRemote(Color(preferences.textColorDarkArgb!));
+  }
+  if (preferences.onAccentColorArgb != null) {
+    ref
+        .read(onAccentColorProvider.notifier)
+        .syncFromRemote(preferences.onAccentColorArgb!);
   }
   if (preferences.themeMode != null) {
     final mode = ThemeMode.values.firstWhereOrNull(

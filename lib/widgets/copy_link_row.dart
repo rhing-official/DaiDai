@@ -92,3 +92,74 @@ class _CopyLinkRowState extends State<CopyLinkRow>
     );
   }
 }
+
+/// コピーボタン単体（2026-11-06）。[CopyLinkRow]のボタンと同じ動き: 押すと弾むように動き、
+/// 少しの間チェックの印に変わる。コピーする文字は押した時に[textBuilder]で求める
+/// （入力欄の今の値）。空文字ならコピーしない。
+class CopyIconButton extends StatefulWidget {
+  const CopyIconButton({
+    required this.textBuilder,
+    this.gekiga = false,
+    super.key,
+  });
+
+  final String Function() textBuilder;
+  final bool gekiga;
+
+  @override
+  State<CopyIconButton> createState() => _CopyIconButtonState();
+}
+
+class _CopyIconButtonState extends State<CopyIconButton>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 420),
+  );
+  late final Animation<double> _scale = TweenSequence<double>([
+    TweenSequenceItem(
+      tween: Tween(
+        begin: 1.0,
+        end: 1.45,
+      ).chain(CurveTween(curve: Curves.easeOut)),
+      weight: 35,
+    ),
+    TweenSequenceItem(
+      tween: Tween(
+        begin: 1.45,
+        end: 1.0,
+      ).chain(CurveTween(curve: Curves.elasticOut)),
+      weight: 65,
+    ),
+  ]).animate(_controller);
+  bool _copied = false;
+  Timer? _resetTimer;
+
+  @override
+  void dispose() {
+    _resetTimer?.cancel();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _copy() {
+    final text = widget.textBuilder();
+    if (text.isEmpty) return;
+    Clipboard.setData(ClipboardData(text: text));
+    _controller.forward(from: 0);
+    setState(() => _copied = true);
+    _resetTimer?.cancel();
+    _resetTimer = Timer(const Duration(milliseconds: 1500), () {
+      if (mounted) setState(() => _copied = false);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final icon = _copied ? Icons.check : Icons.copy_outlined;
+    final Widget button = widget.gekiga
+        ? GekigaIconButton(icon: icon, onPressed: _copy)
+        : IconButton(icon: Icon(icon), tooltip: '', onPressed: _copy);
+    return ScaleTransition(scale: _scale, child: button);
+  }
+}

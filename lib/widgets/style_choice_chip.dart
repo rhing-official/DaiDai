@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/app_ui_style.dart';
+import '../theme/block/block_theme.dart';
 import '../theme/gekiga/gekiga_colors.dart';
 import 'glass/glass_surface.dart';
 
@@ -69,6 +70,36 @@ class StyleChoiceChip extends StatelessWidget {
               onTap: onTap,
               borderRadius: radius,
               child: _content(colorScheme.onSurfaceVariant),
+            ),
+          ),
+        );
+      case AppUiStyle.block:
+        final line = BlockTheme.lineColor(Theme.of(context).brightness);
+        final shape = RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(BlockTheme.radius),
+          side: BorderSide(color: line, width: BlockTheme.borderWidth),
+        );
+        return DecoratedBox(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(BlockTheme.radius),
+            boxShadow: [
+              BoxShadow(color: line, offset: const Offset(3, 3), blurRadius: 0),
+            ],
+          ),
+          child: Material(
+            color: selected
+                ? colorScheme.primary
+                : (Theme.of(context).brightness == Brightness.light
+                      ? Colors.white
+                      : colorScheme.surfaceContainerHighest),
+            surfaceTintColor: Colors.transparent,
+            shape: shape,
+            child: InkWell(
+              onTap: onTap,
+              customBorder: shape,
+              child: _content(
+                selected ? colorScheme.onPrimary : colorScheme.onSurface,
+              ),
             ),
           ),
         );

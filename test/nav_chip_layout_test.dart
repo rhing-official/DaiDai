@@ -46,4 +46,21 @@ void main() {
       HomeTabId.profile,
     ]);
   });
+
+  test('横表示の揃えは縦表示と別に保存され、未保存の端末は縦表示の値を引き継ぐ', () async {
+    SharedPreferences.setMockInitialValues({'navChipAlignment': 'start'});
+    final migrated = await loadInitialNavChipLayout();
+    expect(migrated.alignment, NavChipAlignment.start);
+    expect(migrated.wideAlignment, NavChipAlignment.start);
+
+    SharedPreferences.setMockInitialValues({});
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    final notifier = container.read(navChipLayoutProvider.notifier);
+    await notifier.setAlignment(NavChipAlignment.start);
+    await notifier.setWideAlignment(NavChipAlignment.end);
+    final loaded = await loadInitialNavChipLayout();
+    expect(loaded.alignment, NavChipAlignment.start);
+    expect(loaded.wideAlignment, NavChipAlignment.end);
+  });
 }

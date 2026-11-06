@@ -1,3 +1,4 @@
+import '../../theme/block/block_theme.dart';
 import 'dart:async';
 import 'dart:math' as math;
 
@@ -451,7 +452,11 @@ class _RoomTabBarState extends ConsumerState<RoomTabBar> {
           ),
           padding: const EdgeInsets.symmetric(horizontal: RoomTabBar._cellHPad),
           alignment: Alignment.center,
-          color: selected ? highlightColor : null,
+          color: selected
+              ? (isBlockTheme(context)
+                    ? Theme.of(context).colorScheme.primary
+                    : highlightColor)
+              : null,
           child: isAdd
               ? Icon(Icons.add, size: 20, color: foregroundColor)
               : _withUnreadBadge(
@@ -462,7 +467,9 @@ class _RoomTabBarState extends ConsumerState<RoomTabBar> {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      color: foregroundColor,
+                      color: selected && isBlockTheme(context)
+                          ? Theme.of(context).colorScheme.onPrimary
+                          : foregroundColor,
                       fontWeight: selected
                           ? FontWeight.bold
                           : FontWeight.normal,

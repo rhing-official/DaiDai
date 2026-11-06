@@ -17,20 +17,35 @@ class GlassTheme {
   static ThemeData light(
     Color accentColor, {
     Color? textColor,
+    Color? onAccentColor,
     String? fontFamily,
-  }) => _build(accentColor, Brightness.light, fontFamily, textColor);
+  }) => _build(
+    accentColor,
+    Brightness.light,
+    fontFamily,
+    textColor,
+    onAccentColor,
+  );
 
   static ThemeData dark(
     Color accentColor, {
     Color? textColor,
+    Color? onAccentColor,
     String? fontFamily,
-  }) => _build(accentColor, Brightness.dark, fontFamily, textColor);
+  }) => _build(
+    accentColor,
+    Brightness.dark,
+    fontFamily,
+    textColor,
+    onAccentColor,
+  );
 
   static ThemeData _build(
     Color accentColor,
     Brightness brightness,
     String? fontFamily,
     Color? textColor,
+    Color? onAccentColor,
   ) {
     final isDark = brightness == Brightness.dark;
     // ユーザーが設定タブで指定した文字色（未設定なら既存の固定色のまま、
@@ -50,7 +65,7 @@ class GlassTheme {
     // ボタン等が読めなくなる。アクセントカラー自体の明度から動的に
     // 計算するのではなく、ライトモードは黒・ダークモードは白という
     // 固定ルールに統一する（2026-08-29追加）。
-    final onAccent = isDark ? Colors.white : Colors.black;
+    final onAccent = onAccentColor ?? (isDark ? Colors.white : Colors.black);
 
     var colorScheme = ColorScheme.fromSeed(
       seedColor: accentColor,

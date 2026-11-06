@@ -42,7 +42,7 @@ Future<bool?> _open(
 }
 
 void main() {
-  for (final style in [AppUiStyle.flat, AppUiStyle.glass]) {
+  for (final style in [AppUiStyle.flat, AppUiStyle.glass, AppUiStyle.block]) {
     testWidgets('$style: ダウンロードでtrue', (tester) async {
       expect(await _open(tester, style, 'ダウンロード'), isTrue);
     });

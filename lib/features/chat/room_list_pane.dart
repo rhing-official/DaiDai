@@ -1,3 +1,4 @@
+import '../../theme/block/block_theme.dart';
 import 'package:flutter/foundation.dart' show setEquals;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -259,6 +260,36 @@ class _RoomListPaneState extends ConsumerState<RoomListPane> {
         );
       }
 
+      if (uiStyle == AppUiStyle.block) {
+        // 版画: 太枠と硬い影の箱（選択中はアクセント）。
+        final fg = isSelected ? colorScheme.onPrimary : colorScheme.onSurface;
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(2, 4, 6, 8),
+          child: blockMaterialBox(
+            context,
+            color: isSelected
+                ? colorScheme.primary
+                : (Theme.of(context).brightness == Brightness.light
+                      ? Colors.white
+                      : colorScheme.surface),
+            child: ListTile(
+              iconColor: fg,
+              textColor: fg,
+              leading: tagIcon,
+              title: Text(
+                truncateName(room.name, 6),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              trailing: room.unreadCount > 0
+                  ? UnreadBadge(count: room.unreadCount)
+                  : null,
+              onTap: () => widget.onSelectRoom(room),
+            ),
+          ),
+        );
+      }
+
       return ListTile(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         selected: isSelected,
@@ -299,6 +330,33 @@ class _RoomListPaneState extends ConsumerState<RoomListPane> {
                           ),
                         ],
                       )
+                    : uiStyle == AppUiStyle.block
+                    // 版画: 太枠と硬い影の箱に会話名を載せる（アクセントでは塗らない）。
+                    ? Padding(
+                        padding: const EdgeInsets.only(right: 6, bottom: 4),
+                        child: blockMaterialBox(
+                          context,
+                          color:
+                              Theme.of(context).brightness == Brightness.light
+                              ? Colors.white
+                              : colorScheme.surface,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 10,
+                            ),
+                            child: Text(
+                              truncateName(widget.conversationName, 8),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: colorScheme.onSurface,
+                              ),
+                            ),
+                          ),
+                        ),
+                      )
                     : Text(
                         truncateName(widget.conversationName, 8),
                         maxLines: 1,
@@ -312,6 +370,12 @@ class _RoomListPaneState extends ConsumerState<RoomListPane> {
                         icon: Icons.settings_outlined,
                         onPressed: widget.onOpenConversationSettings!,
                       )
+                    : uiStyle == AppUiStyle.block
+                    ? blockIconButton(
+                        context,
+                        icon: Icons.settings_outlined,
+                        onPressed: widget.onOpenConversationSettings,
+                      )
                     : IconButton(
                         icon: const Icon(Icons.settings_outlined),
                         onPressed: widget.onOpenConversationSettings,
@@ -319,6 +383,18 @@ class _RoomListPaneState extends ConsumerState<RoomListPane> {
               if (widget.onCreateRoom != null)
                 isGekiga
                     ? GekigaIconButton(
+                        icon: Icons.add,
+                        onPressed: () => _createRoom(
+                          context,
+                          strings,
+                          vocab,
+                          isGekiga,
+                          isGlass,
+                        ),
+                      )
+                    : uiStyle == AppUiStyle.block
+                    ? blockIconButton(
+                        context,
                         icon: Icons.add,
                         onPressed: () => _createRoom(
                           context,

@@ -264,11 +264,7 @@ class _CalendarPopupContentState extends ConsumerState<_CalendarPopupContent> {
     return SizedBox(
       width: 300,
       child: Container(
-        decoration: BoxDecoration(
-          color: popupCardBackground(brightness, uiStyle),
-          border: Border.all(color: popupCardBorder(brightness, uiStyle)),
-          borderRadius: BorderRadius.circular(16),
-        ),
+        decoration: popupCardDecoration(context, brightness, uiStyle),
         child: Padding(padding: const EdgeInsets.all(12), child: content),
       ),
     );

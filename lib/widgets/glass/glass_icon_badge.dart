@@ -44,12 +44,16 @@ class GlassIconButton extends StatelessWidget {
     required this.onPressed,
     this.size = 36,
     this.opaque = false,
+    this.accentColorOverride,
     super.key,
   });
 
   final IconData icon;
   final VoidCallback? onPressed;
   final double size;
+
+  /// 縁の光彩の色。nullならアクセントカラー。中立色を渡すとアクセントを抜ける。
+  final Color? accentColorOverride;
 
   /// メッセージが下から重なっても透けないようにしたい場所（通話ボタン等）
   /// 向け。[GlassSurface.opaque]参照。
@@ -64,6 +68,7 @@ class GlassIconButton extends StatelessWidget {
         variant: GlassVariant.card,
         borderRadius: BorderRadius.circular(size / 2),
         opaque: opaque,
+        accentColorOverride: accentColorOverride,
         child: Material(
           color: Colors.transparent,
           shape: const CircleBorder(),

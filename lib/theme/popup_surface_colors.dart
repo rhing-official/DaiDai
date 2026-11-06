@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/app_ui_style.dart';
+import 'block/block_theme.dart';
 import 'gekiga/gekiga_colors.dart';
 import 'glass/glass_colors.dart';
 
@@ -35,7 +36,29 @@ Color popupCardForeground(Brightness brightness, AppUiStyle uiStyle) {
 
 Color popupCardBorder(Brightness brightness, AppUiStyle uiStyle) {
   if (uiStyle == AppUiStyle.gekiga) return GekigaColors.onPanel;
+  if (uiStyle == AppUiStyle.block) return BlockTheme.lineColor(brightness);
   return brightness == Brightness.dark
       ? Colors.white.withValues(alpha: 0.14)
       : Colors.black.withValues(alpha: 0.14);
+}
+
+/// ポップアップ内のカードの装飾（背景・枠・角丸16）。ブロックだけ、太枠に加えて
+/// ぼかしの無い硬い影（このスタイルだけの例外）を付ける。
+BoxDecoration popupCardDecoration(
+  BuildContext context,
+  Brightness brightness,
+  AppUiStyle uiStyle,
+) {
+  final isBlock = uiStyle == AppUiStyle.block;
+  return BoxDecoration(
+    color: popupCardBackground(brightness, uiStyle),
+    border: Border.all(
+      color: popupCardBorder(brightness, uiStyle),
+      width: isBlock ? BlockTheme.borderWidth : 1,
+    ),
+    borderRadius: BorderRadius.circular(16),
+    boxShadow: isBlock
+        ? BlockTheme.shadow(Theme.of(context).colorScheme.primary, brightness)
+        : null,
+  );
 }
