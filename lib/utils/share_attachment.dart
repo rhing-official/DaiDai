@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/foundation.dart'
     show TargetPlatform, debugPrint, defaultTargetPlatform, kIsWeb;
 import 'package:http/http.dart' as http;
@@ -36,6 +38,27 @@ Future<void> shareText(String text) async {
     await SharePlus.instance.share(ShareParams(text: text));
   } catch (e, st) {
     debugPrint('Failed to share text: $e\n$st');
+  }
+}
+
+/// 手元のバイト列（ノートの`.md`・`.png`など）を共有シートへ渡す（2026-11-06）。共有シートが
+/// 使えない環境（Linux等）や失敗した時はfalseを返す（呼び出し側が保存にフォールバックする）。
+Future<bool> shareBytesFile({
+  required Uint8List bytes,
+  required String name,
+  required String mimeType,
+}) async {
+  if (!kIsWeb && defaultTargetPlatform == TargetPlatform.linux) return false;
+  try {
+    await SharePlus.instance.share(
+      ShareParams(
+        files: [XFile.fromData(bytes, mimeType: mimeType, name: name)],
+      ),
+    );
+    return true;
+  } catch (e, st) {
+    debugPrint('Failed to share bytes: $e\n$st');
+    return false;
   }
 }
 

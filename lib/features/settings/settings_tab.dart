@@ -51,12 +51,14 @@ import '../../providers/chat_layout_style_provider.dart';
 import '../../providers/home_shell_providers.dart';
 import '../../providers/icon_split_layout_provider.dart';
 import '../../providers/text_size_provider.dart';
+import '../../utils/sidebar_width.dart';
 import '../../providers/slide_pick_enabled_provider.dart';
 import '../../providers/slide_transition_style_provider.dart';
 import '../../providers/talks_list_layout_style_provider.dart';
 import '../../providers/draft_sync_enabled_provider.dart';
 import '../../models/nav_chip_layout.dart';
 import '../../providers/category_list_alignment_provider.dart';
+import '../../providers/settings_expansion_provider.dart';
 import '../../widgets/nav_chip.dart';
 import '../../widgets/home_tab_swipe.dart';
 import '../../widgets/slide_select_list.dart';
@@ -120,8 +122,8 @@ const _kSettingsSplitBreakpoint = 760.0;
 
 /// サイドバーの幅。語らい一覧（`talks_tab.dart`）・身だしなみ
 /// （`profile_tab.dart`）の各サイドバーと区切り線のx座標を揃える為、
-/// 3画面とも同じ260pxを使う（2026-08-14、240→260→250→260）。
-const _kSettingsSidebarWidth = 260.0;
+/// 3画面とも`sidebarWidthFor`（`lib/utils/sidebar_width.dart`）で決める。
+/// フォントサイズ別（小200・中230・大260px、2026-11-06）。
 
 /// コンピューターで運営の下位階層を右隣に並べて表示する際の、運営の一覧の幅
 /// （2026-10-10追加）。
@@ -491,7 +493,7 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             SizedBox(
-              width: _kSettingsSidebarWidth,
+              width: sidebarWidthFor(ref.watch(appTextSizeProvider)),
               child: _CategoryList(
                 categories: categories,
                 selectedId: selected.id,
@@ -1836,6 +1838,9 @@ class _AccountPage extends ConsumerWidget {
           onTap: () => PasskeyManagementDialog.show(context),
         ),
         _QrLoginRow(strings: strings),
+        // パスコードロック（2026-11-06、設定>使い心地から移動）。端末ローカルのセキュア
+        // ストレージ・生体認証に依存するので、管理画面には出さない（この画面は利用者用）。
+        _PasscodeLockFolder(strings: strings, showHeader: false),
         const Divider(height: 24),
         _SectionHeader(strings.settingsGoogleCalendarSyncSectionTitle),
         _GoogleCalendarSyncRow(strings: strings, currentUser: currentUser),
@@ -2207,18 +2212,9 @@ class _DeleteAccountOptionCard extends StatelessWidget {
 /// アプリケーションカテゴリの中身。旧: 色／UI／文字／言語の各サブフォルダを
 /// 1ページにまとめた。
 class _ApplicationPage extends ConsumerWidget {
-  const _ApplicationPage({
-    required this.strings,
-    this.showPasscode = true,
-    this.showNavChips = true,
-  });
+  const _ApplicationPage({required this.strings, this.showNavChips = true});
 
   final Strings strings;
-
-  /// パスコードロックの項目を出すか。端末ローカルのセキュアストレージ・
-  /// 生体認証に依存する為、管理画面（[ApplicationSettingsView]）では出さない
-  /// （2026-10-10追加）。
-  final bool showPasscode;
 
   /// 下部メニューチップの揃え・並びの設定を出すか。管理画面（[ApplicationSettingsView]）は
   /// 別のナビ（`ChipNavShell`）で、この設定の対象外のため出さない（2026-11-01）。
@@ -2234,6 +2230,9 @@ class _ApplicationPage extends ConsumerWidget {
     // 項目のまとまり毎に分け、広い画面では横に並べて、スクロール無しで全部に
     // 届くようにする（2026-11-06）。`weight`は縦の高さの目安（列への振り分け用）。
     return _MultiColumnSections(
+      // 横に並ぶ時は、列ごとに縦スクロールする（2026-11-06）。
+      scrollPerColumn: true,
+      storageId: 'application',
       sections: [
         // 劇画UI選択中は、外観（ライト/ダーク）が見た目に効かない為、項目ごと
         // 表示しない（2026-10-31、以前はグレーアウトして案内を出していた）。
@@ -2285,8 +2284,6 @@ class _ApplicationPage extends ConsumerWidget {
           ),
         (weight: 300, child: _LanguageFolder(strings: strings)),
         (weight: 180, child: TimeFormatFolder(strings: strings)),
-        if (showPasscode)
-          (weight: 100, child: _PasscodeLockFolder(strings: strings)),
       ],
     );
   }
@@ -2296,13 +2293,27 @@ class _ApplicationPage extends ConsumerWidget {
 /// 縦に並べて区切り線を挟む。広い時は、まとまりの順を保ったまま高さの目安（`weight`）で
 /// 列に振り分け、全体を1つのスクロールにまとめる（収まれば、スクロールしなくてよい）。
 class _MultiColumnSections extends StatelessWidget {
-  const _MultiColumnSections({required this.sections, this.columnSplit});
+  const _MultiColumnSections({
+    required this.sections,
+    this.columnSplit,
+    this.scrollPerColumn = false,
+    this.storageId,
+  });
 
   final List<({double weight, Widget child})> sections;
 
   /// 列数が`columnSplit.length`に一致した時だけ、高さの目安に依らず、先頭から順に
   /// 各列へ入れるまとまりの数。例: `[3, 1, 1]`は左3・中央1・右1。
   final List<int>? columnSplit;
+
+  /// 複数列の時、全体で1つではなく、列ごとに縦スクロールさせる（高さが決まっている時だけ）。
+  final bool scrollPerColumn;
+
+  /// 指定すると、スクロール位置を別のカテゴリへ移って戻っても保つ（`PageStorageKey`）。
+  final String? storageId;
+
+  PageStorageKey<String>? _keyFor(String part) =>
+      storageId == null ? null : PageStorageKey<String>('$storageId-$part');
 
   /// 1列あたりの最小幅。これ未満の幅では列を増やさない。
   static const double _minColumnWidth = 420;
@@ -2318,6 +2329,7 @@ class _MultiColumnSections extends StatelessWidget {
             .toInt();
         if (columns == 1) {
           return ListView(
+            key: _keyFor('list'),
             padding: const EdgeInsets.only(bottom: 24),
             children: [
               for (var i = 0; i < sections.length; i++) ...[
@@ -2351,24 +2363,42 @@ class _MultiColumnSections extends StatelessWidget {
           groups[index].add(section.child);
           cumulative += section.weight;
         }
+        Widget columnOf(int c) => Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (var i = 0; i < groups[c].length; i++) ...[
+              if (i > 0) const Divider(height: 24),
+              groups[c][i],
+            ],
+          ],
+        );
+        if (scrollPerColumn && constraints.hasBoundedHeight) {
+          // 列ごとに独立して縦スクロールする（他の列は動かない）。
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (var c = 0; c < groups.length; c++) ...[
+                if (c > 0) const SizedBox(width: 16),
+                Expanded(
+                  child: SingleChildScrollView(
+                    key: _keyFor('col$c'),
+                    padding: const EdgeInsets.only(bottom: 24),
+                    child: columnOf(c),
+                  ),
+                ),
+              ],
+            ],
+          );
+        }
         return SingleChildScrollView(
+          key: _keyFor('all'),
           padding: const EdgeInsets.only(bottom: 24),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               for (var c = 0; c < groups.length; c++) ...[
                 if (c > 0) const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      for (var i = 0; i < groups[c].length; i++) ...[
-                        if (i > 0) const Divider(height: 24),
-                        groups[c][i],
-                      ],
-                    ],
-                  ),
-                ),
+                Expanded(child: columnOf(c)),
               ],
             ],
           ),
@@ -2393,11 +2423,7 @@ class ApplicationSettingsView extends ConsumerWidget {
     return Padding(
       padding: const EdgeInsets.only(top: 56),
       child: _SettingsPage(
-        child: _ApplicationPage(
-          strings: strings,
-          showPasscode: false,
-          showNavChips: false,
-        ),
+        child: _ApplicationPage(strings: strings, showNavChips: false),
       ),
     );
   }
@@ -3506,7 +3532,12 @@ class FontDesignFolder extends ConsumerStatefulWidget {
 }
 
 class _FontDesignFolderState extends ConsumerState<FontDesignFolder> {
-  bool _expanded = false;
+  // 開閉は別のカテゴリへ移って戻っても保つ（`settingsExpansionProvider`）。
+  static const _stateKey = 'application.fontDesign';
+  bool get _expanded =>
+      ref.read(settingsExpansionProvider).expandedOr(_stateKey, false);
+  set _expanded(bool value) =>
+      ref.read(settingsExpansionProvider.notifier).set(_stateKey, value);
 
   @override
   Widget build(BuildContext context) {
@@ -4321,7 +4352,10 @@ class TimeFormatFolder extends ConsumerWidget {
 /// （`PasscodeRepository`参照）。読み込み中（`flutter_secure_storage`からの
 /// 非同期読み出し）はローディング表示にする。
 class _PasscodeLockFolder extends ConsumerStatefulWidget {
-  const _PasscodeLockFolder({required this.strings});
+  const _PasscodeLockFolder({required this.strings, this.showHeader = true});
+
+  /// 見出しを出すか。セキュリティの中に置く時は、切り替えの行が同じ名前なので出さない。
+  final bool showHeader;
 
   final Strings strings;
 
@@ -4403,12 +4437,13 @@ class _PasscodeLockFolderState extends ConsumerState<_PasscodeLockFolder> {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
+        if (widget.showHeader)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            child: GekigaSectionHeader(strings.settingsPasscodeLockToggleLabel),
+          ),
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-          child: GekigaSectionHeader(strings.settingsPasscodeLockToggleLabel),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
           child: Text(
             strings.settingsPasscodeLockDescription,
             style: Theme.of(context).textTheme.bodyMedium,
@@ -4456,6 +4491,7 @@ class _TalkPage extends StatelessWidget {
       // 3列の時は、左=ブロック・メッセージの表示・語らい一覧のレイアウト、
       // 中央=カレンダー、右=詳細設定（2026-11-06）。
       columnSplit: const [3, 1, 1],
+      storageId: 'talk',
       sections: [
         (
           weight: 300,
@@ -4473,6 +4509,7 @@ class _TalkPage extends StatelessWidget {
         (
           weight: 120,
           child: SettingsAccordionSection(
+            stateKey: 'talk.advanced',
             title: strings.settingsAdvancedSectionTitle,
             // 横に広い画面では最初から開いておく（2026-11-06）。
             initiallyExpanded:
@@ -4643,7 +4680,12 @@ class _BlockedUsersFolder extends ConsumerStatefulWidget {
 }
 
 class _BlockedUsersFolderState extends ConsumerState<_BlockedUsersFolder> {
-  bool _expanded = false;
+  // 開閉は別のカテゴリへ移って戻っても保つ（`settingsExpansionProvider`）。
+  static const _stateKey = 'talk.blockedUsers';
+  bool get _expanded =>
+      ref.read(settingsExpansionProvider).expandedOr(_stateKey, false);
+  set _expanded(bool value) =>
+      ref.read(settingsExpansionProvider.notifier).set(_stateKey, value);
 
   Future<void> _unblock(
     BuildContext context,

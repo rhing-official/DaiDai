@@ -31,6 +31,7 @@ import '../../models/nav_chip_layout.dart';
 import '../../providers/nav_chip_layout_provider.dart';
 import '../../providers/icon_split_layout_provider.dart';
 import '../../providers/text_size_provider.dart';
+import '../../utils/sidebar_width.dart';
 import '../../widgets/nav_chip.dart';
 import '../../widgets/pick_zone.dart';
 import '../../models/talks_list_layout_style.dart';
@@ -1650,9 +1651,10 @@ class _TalksTabState extends ConsumerState<TalksTab>
 
                   // 標準は260px。「幅を調整する」モードの間だけ区切り線で変えられる
                   // （2026-11-05）。メッセージ画面側が狭くなりすぎない範囲に収める。
+                  // 標準の幅は設定・身だしなみと同じ（フォントサイズ別、2026-11-06）。
                   final computerListWidth =
                       (ref.watch(iconSplitLayoutProvider).computerListWidth ??
-                              260.0)
+                              sidebarWidthFor(ref.watch(appTextSizeProvider)))
                           .clamp(
                             200.0,
                             math.max(

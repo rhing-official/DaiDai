@@ -524,18 +524,24 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
 
   /// ノート（マークダウン・ドロー）を、画面全体に重なるダイアログで出す（2026-11-05、
   /// アルバムと同じ`showAppDialog`。以前は右からスライドインでペインに重ねていた）。
-  Future<void> _showNoteDialog(String noteId) => showAlbumDetailPopup(
-    context,
-    wide: true,
-    builder: (dialogContext) => NotePaneView(
-      isDm: true,
-      conversationId: widget.dm.dmId,
-      roomId: _currentRoomId,
-      noteId: noteId,
-      currentUser: widget.currentUser,
-      onClose: () => Navigator.of(dialogContext).pop(),
-    ),
-  );
+  Future<void> _showNoteDialog(String noteId) {
+    // ポップアップの幅は、本文の幅（半角77字）に合わせて、ノートが開いた後に決める。
+    final popupWidth = ValueNotifier<double?>(null);
+    return showAlbumDetailPopup(
+      context,
+      wide: true,
+      widthOverride: popupWidth,
+      builder: (dialogContext) => NotePaneView(
+        isDm: true,
+        conversationId: widget.dm.dmId,
+        roomId: _currentRoomId,
+        noteId: noteId,
+        currentUser: widget.currentUser,
+        popupWidth: popupWidth,
+        onClose: () => Navigator.of(dialogContext).pop(),
+      ),
+    );
+  }
 
   /// アルバムの詳細を、画面全体に重なるダイアログで出す（2026-11-05、カレンダーの月表示と
   /// 同じ`showAppDialog`。以前はペイン内に重ねていたが、開閉の動きがうまく揃わなかった）。
@@ -2557,18 +2563,24 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
 
   /// ノート（マークダウン・ドロー）を、画面全体に重なるダイアログで出す（2026-11-05、
   /// アルバムと同じ`showAppDialog`。以前は右からスライドインでペインに重ねていた）。
-  Future<void> _showNoteDialog(String noteId) => showAlbumDetailPopup(
-    context,
-    wide: true,
-    builder: (dialogContext) => NotePaneView(
-      isDm: false,
-      conversationId: widget.group.groupId,
-      roomId: _currentRoomId,
-      noteId: noteId,
-      currentUser: widget.currentUser,
-      onClose: () => Navigator.of(dialogContext).pop(),
-    ),
-  );
+  Future<void> _showNoteDialog(String noteId) {
+    // ポップアップの幅は、本文の幅（半角77字）に合わせて、ノートが開いた後に決める。
+    final popupWidth = ValueNotifier<double?>(null);
+    return showAlbumDetailPopup(
+      context,
+      wide: true,
+      widthOverride: popupWidth,
+      builder: (dialogContext) => NotePaneView(
+        isDm: false,
+        conversationId: widget.group.groupId,
+        roomId: _currentRoomId,
+        noteId: noteId,
+        currentUser: widget.currentUser,
+        popupWidth: popupWidth,
+        onClose: () => Navigator.of(dialogContext).pop(),
+      ),
+    );
+  }
 
   /// アルバムの詳細を、画面全体に重なるダイアログで出す（2026-11-05、カレンダーの月表示と
   /// 同じ`showAppDialog`。以前はペイン内に重ねていたが、開閉の動きがうまく揃わなかった）。

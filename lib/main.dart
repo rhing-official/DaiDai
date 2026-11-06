@@ -340,7 +340,7 @@ class DaiDaiApp extends ConsumerWidget {
       // 通話ミニ表示（`PinnedCallOverlay`）を全ルートの上に重ねる（2026-10-12、
       // 以前は`HomeScreen`内にあり、寄合を開く`/chat/*`ルートの下に隠れて
       // いた）。`PipHost`はAndroidのPiP（アプリを離れた時の小窓）用。
-      // フォントサイズ（設定>アプリケーション）を、OS側のフォントサイズ設定に掛けて全画面へ
+      // フォントサイズ（設定>使い心地）を、OS側のフォントサイズ設定に掛けて全画面へ
       // 適用する（2026-11-05）。小でも常に包み、木の形を変えない（再マウント防止）。
       builder: (context, child) => MediaQuery(
         data: MediaQuery.of(context).copyWith(

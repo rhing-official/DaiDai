@@ -236,6 +236,43 @@ Future<void> forwardMessage({
   }
 }
 
+/// 手元のバイト列（ノートの`.md`・`.png`など）を、添付として[target]へ送る（2026-11-06）。
+Future<void> forwardBytes({
+  required WidgetRef ref,
+  required Uint8List bytes,
+  required String fileName,
+  required String contentType,
+  required ForwardTarget target,
+  required String senderId,
+  required String senderRhingSeed,
+}) async {
+  if (target.kind == ForwardTargetKind.dm) {
+    await ref
+        .read(directMessageRepositoryProvider)
+        .sendAttachmentMessage(
+          dmId: target.conversationId,
+          roomId: target.roomId,
+          senderId: senderId,
+          senderRhingSeed: senderRhingSeed,
+          bytes: bytes,
+          fileName: fileName,
+          contentType: contentType,
+        );
+  } else {
+    await ref
+        .read(groupRepositoryProvider)
+        .sendAttachmentMessage(
+          groupId: target.conversationId,
+          roomId: target.roomId,
+          senderId: senderId,
+          senderRhingSeed: senderRhingSeed,
+          bytes: bytes,
+          fileName: fileName,
+          contentType: contentType,
+        );
+  }
+}
+
 /// 添付1件（URL）を[target]へ転送する。拡大表示の転送アイコンからも使う。
 Future<void> forwardFile({
   required WidgetRef ref,

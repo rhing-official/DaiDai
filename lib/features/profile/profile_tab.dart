@@ -41,6 +41,9 @@ import '../../widgets/always_animated_image.dart';
 import '../../widgets/gekiga/gekiga_icon_badge.dart';
 import '../../widgets/home_tab_swipe.dart';
 import '../../widgets/slide_select_list.dart';
+import '../../theme/block/block_theme.dart';
+import '../../providers/text_size_provider.dart';
+import '../../utils/sidebar_width.dart';
 import '../../widgets/gekiga/gekiga_panel_box.dart';
 import '../../widgets/gekiga/gekiga_section_header.dart';
 import '../../widgets/glass/glass_avatar.dart';
@@ -78,7 +81,7 @@ const _kProfileSplitBreakpoint = 760.0;
 // 設定・運営タブのサイドバー（`_kSettingsSidebarWidth`/`_kSupportSidebarWidth`）
 // と幅をそろえる（以前は220でわずかにずれていた）。語らい一覧
 // （`talks_tab.dart`）とも揃えるため2026-08-14に240→260→250→260へ変更。
-const _kProfileSidebarWidth = 260.0;
+// フォントサイズ別（小200・中230・大260px、2026-11-06、`sidebarWidthFor`）。
 
 /// ニックネーム・ステメ・プロフィールカードのローカル採番id。
 /// 以前は`Random().nextInt(1 << 32)`だったが、`1 << 32`はDart VM（ウィジェット
@@ -855,7 +858,7 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             SizedBox(
-              width: _kProfileSidebarWidth,
+              width: sidebarWidthFor(ref.watch(appTextSizeProvider)),
               child: _ProfileCategoryList(
                 categories: categories,
                 selectedSection: selected.section,
@@ -1129,6 +1132,34 @@ class _ProfileCategoryTile extends ConsumerWidget {
     final foreground = selected
         ? colorScheme.onPrimary
         : colorScheme.onSurfaceVariant;
+    if (uiStyle == AppUiStyle.block) {
+      // 版画: 設定の項目（`SettingsTile`）と同じ、太枠と硬い影の箱。選択中はアクセントで塗る。
+      final fg = selected ? colorScheme.onPrimary : colorScheme.onSurface;
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(2, 4, 6, 8),
+        child: blockFitWidth(
+          blockMaterialBox(
+            context,
+            color: selected
+                ? colorScheme.primary
+                : (Theme.of(context).brightness == Brightness.light
+                      ? Colors.white
+                      : colorScheme.surface),
+            child: ListTile(
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 8,
+              ),
+              iconColor: fg,
+              textColor: fg,
+              leading: Icon(icon),
+              title: Text(title),
+              onTap: onTap,
+            ),
+          ),
+        ),
+      );
+    }
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),
       child: ListTile(
@@ -1923,7 +1954,22 @@ class _WorkshopBlankSlot extends ConsumerWidget {
           : resolveTertiaryTextColor(context, isGlass: isGlass),
     );
 
-    final content = isGlass
+    final content = uiStyle == AppUiStyle.block
+        // 版画: 空き枠も、太枠と硬い影の箱（外側の影の分だけ内側へ寄せる）。
+        ? Padding(
+            padding: const EdgeInsets.fromLTRB(2, 2, 5, 5),
+            child: blockMaterialBox(
+              context,
+              color: Theme.of(context).brightness == Brightness.light
+                  ? Colors.white
+                  : colorScheme.surface,
+              child: InkWell(
+                onTap: () => onTap(_originRectOf(context)),
+                child: Center(child: icon),
+              ),
+            ),
+          )
+        : isGlass
         ? GlassSurface(
             variant: GlassVariant.card,
             borderRadius: BorderRadius.circular(16),
@@ -2628,11 +2674,53 @@ Widget _registeredItemsSection<T>({
           textStyle: styleOf?.call(item),
         ),
       if (canAdd)
-        TextButton.icon(
-          onPressed: onAdd,
-          icon: const Icon(Icons.add),
-          label: Text(addLabel),
-        ),
+        if (ref.watch(appUiStyleProvider) == AppUiStyle.block)
+          Builder(
+            builder: (context) {
+              // 版画: 追加も、アクセントで塗った太枠の箱（主要操作）。
+              final scheme = Theme.of(context).colorScheme;
+              return Padding(
+                padding: const EdgeInsets.fromLTRB(2, 4, 6, 8),
+                child: blockFitWidth(
+                  blockMaterialBox(
+                    context,
+                    color: scheme.primary,
+                    child: InkWell(
+                      onTap: onAdd,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 12,
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.add, size: 20, color: scheme.onPrimary),
+                            const SizedBox(width: 8),
+                            Flexible(
+                              child: Text(
+                                addLabel,
+                                style: TextStyle(
+                                  color: scheme.onPrimary,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
+          )
+        else
+          TextButton.icon(
+            onPressed: onAdd,
+            icon: const Icon(Icons.add),
+            label: Text(addLabel),
+          ),
     ],
   );
 }
@@ -2846,6 +2934,50 @@ class _RegisteredItemRow extends ConsumerWidget {
         leading: const Icon(Icons.edit_outlined),
         title: Text(text, overflow: TextOverflow.ellipsis, style: textStyle),
         onTap: onEdit,
+      );
+    }
+    if (ref.watch(appUiStyleProvider) == AppUiStyle.block) {
+      // 版画: 登録した項目を、太枠と硬い影の箱にする（押すと編集）。
+      final scheme = Theme.of(context).colorScheme;
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(2, 4, 6, 8),
+        child: blockFitWidth(
+          blockMaterialBox(
+            context,
+            color: Theme.of(context).brightness == Brightness.light
+                ? Colors.white
+                : scheme.surface,
+            child: InkWell(
+              onTap: onEdit,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 12,
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.edit_outlined,
+                      size: 20,
+                      color: scheme.onSurface,
+                    ),
+                    const SizedBox(width: 10),
+                    Flexible(
+                      child: Text(
+                        text,
+                        overflow: TextOverflow.ellipsis,
+                        style: (textStyle ?? const TextStyle()).copyWith(
+                          color: textStyle?.color ?? scheme.onSurface,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
       );
     }
     return InkWell(

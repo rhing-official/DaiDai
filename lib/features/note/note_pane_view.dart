@@ -25,7 +25,10 @@ import '../../providers/home_shell_providers.dart';
 import '../../providers/repository_providers.dart';
 import '../../utils/attachment_upload.dart';
 import '../../utils/auto_dismiss_banner.dart';
+import '../../utils/forward_message.dart';
 import '../../utils/note_export.dart';
+import '../../utils/share_attachment.dart';
+import '../chat/forward_target_dialog.dart';
 import '../../utils/note_copy.dart';
 import '../../utils/note_markdown_parsers.dart';
 import '../../utils/note_paste.dart';
@@ -90,6 +93,13 @@ class _ObsidianNoteColors {
   );
 }
 
+/// 本文の1行の長さ（半角換算の文字数。全角は2字分）。この幅で折り返す（2026-11-06）。
+const _kNoteLineChars = 77;
+
+/// コンピューターの本文の左右の余白。左は、カーソル行の「+」ボタン
+/// （26px＋8pxの隙間）が入る分を空ける。
+const _kNoteDesktopSidePadding = 48.0;
+
 /// [_ObsidianNoteColors]から`EditorStyle.textStyleConfiguration`を組み立てる
 /// （2026-09-26変更、以前はダーク時のみ白へ上書きする`_kNoteDarkText
 /// StyleConfiguration`固定値だったが、ライトも含めてObsidian風パレットに
@@ -139,6 +149,7 @@ class NotePaneView extends ConsumerStatefulWidget {
     required this.noteId,
     required this.currentUser,
     required this.onClose,
+    this.popupWidth,
     super.key,
   });
 
@@ -148,6 +159,10 @@ class NotePaneView extends ConsumerStatefulWidget {
   final String noteId;
   final AppUser currentUser;
   final VoidCallback onClose;
+
+  /// 開いているポップアップの幅を、本文の幅（半角77字）に合わせて知らせる先
+  /// （`showAlbumDetailPopup`の`widthOverride`）。ドローは知らせない（既定の広さ）。
+  final ValueNotifier<double?>? popupWidth;
 
   @override
   ConsumerState<NotePaneView> createState() => _NotePaneViewState();
@@ -171,6 +186,20 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
   /// false。種別は作成時に固定され、後から切り替わることは無い。
   bool _isDraw = false;
   bool _noteLoaded = false;
+
+  /// 閲覧モード（読み取り専用）か。開いた時は編集モード（2026-11-06）。
+  bool _readOnly = false;
+
+  void _toggleReadOnly() {
+    setState(() => _readOnly = !_readOnly);
+    final editorState = _editorState;
+    if (editorState != null) {
+      editorState.editable = !_readOnly;
+      // 閲覧モードに入る時は、カーソル・選択を外す。
+      if (_readOnly) editorState.selection = null;
+    }
+  }
+
   EditorScrollController? _scrollController;
   final _titleController = TextEditingController();
   final _titleFocusNode = FocusNode();
@@ -1076,6 +1105,49 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
 
   /// ダウンロード（2026-10-04追加、以前の添付ボタンの位置）。マークダウンは
   /// `.md`、ドローは白背景の`.png`で端末へ保存する。
+  /// ノート（マークダウンは`.md`、ドローは白背景の`.png`）を、保存・共有・転送用のバイト列にする。
+  /// 書き出せない時（ドローが空など）はバナーを出してnull。
+  Future<({String fileName, Uint8List bytes, String mimeType})?>
+  _buildExport() async {
+    final strings = ref.read(appStringsProvider);
+    final baseName = sanitizeFileName(
+      _titleController.text,
+      strings.noteDownloadDefaultName,
+    );
+    if (_isDraw) {
+      final strokes = await ref
+          .read(noteRepositoryProvider)
+          .watchStrokes(
+            isDm: widget.isDm,
+            conversationId: widget.conversationId,
+            roomId: widget.roomId,
+            noteId: widget.noteId,
+          )
+          .first;
+      final png = await renderStrokesToPng(strokes);
+      if (!mounted) return null;
+      if (png == null) {
+        showAutoDismissBanner(
+          context,
+          message: strings.noteDrawNothingToExport,
+        );
+        return null;
+      }
+      return (fileName: '$baseName.png', bytes: png, mimeType: 'image/png');
+    }
+    final editorState = _editorState;
+    if (editorState == null) return null;
+    final markdown = documentToMarkdown(
+      editorState.document,
+      customParsers: noteMarkdownCustomParsers,
+    );
+    return (
+      fileName: '$baseName.md',
+      bytes: Uint8List.fromList(utf8.encode(markdown)),
+      mimeType: 'text/markdown',
+    );
+  }
+
   Future<void> _download() async {
     final strings = ref.read(appStringsProvider);
     final baseName = sanitizeFileName(
@@ -1091,47 +1163,77 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
     }
     if (!mounted) return;
     try {
-      if (_isDraw) {
-        final strokes = await ref
-            .read(noteRepositoryProvider)
-            .watchStrokes(
-              isDm: widget.isDm,
-              conversationId: widget.conversationId,
-              roomId: widget.roomId,
-              noteId: widget.noteId,
-            )
-            .first;
-        final png = await renderStrokesToPng(strokes);
-        if (!mounted) return;
-        if (png == null) {
-          showAutoDismissBanner(
-            context,
-            message: strings.noteDrawNothingToExport,
-          );
-          return;
-        }
-        await saveNoteFile(
-          fileName: '$baseName.png',
-          bytes: png,
-          mimeType: 'image/png',
-        );
-      } else {
-        final editorState = _editorState;
-        if (editorState == null) return;
-        final markdown = documentToMarkdown(
-          editorState.document,
-          customParsers: noteMarkdownCustomParsers,
-        );
-        await saveNoteFile(
-          fileName: '$baseName.md',
-          bytes: Uint8List.fromList(utf8.encode(markdown)),
-          mimeType: 'text/markdown',
-        );
-      }
+      final file = await _buildExport();
+      if (file == null) return;
+      await saveNoteFile(
+        fileName: file.fileName,
+        bytes: file.bytes,
+        mimeType: file.mimeType,
+      );
     } catch (e) {
       debugPrint('[note-download] failed: $e');
       if (mounted) {
         showAutoDismissBanner(context, message: strings.noteDownloadFailed);
+      }
+    }
+  }
+
+  /// ノートのファイル（`.md`／ドローは`.png`）をOSの共有シートへ渡す（2026-11-06）。共有シートが
+  /// 使えない環境（Linux等）では、ダウンロードと同じ保存にする。
+  Future<void> _share() async {
+    final strings = ref.read(appStringsProvider);
+    try {
+      final file = await _buildExport();
+      if (file == null) return;
+      final shared = await shareBytesFile(
+        bytes: file.bytes,
+        name: file.fileName,
+        mimeType: file.mimeType,
+      );
+      if (!shared) {
+        await saveNoteFile(
+          fileName: file.fileName,
+          bytes: file.bytes,
+          mimeType: file.mimeType,
+        );
+      }
+    } catch (e) {
+      debugPrint('[note-share] failed: $e');
+      if (mounted) {
+        showAutoDismissBanner(context, message: strings.noteDownloadFailed);
+      }
+    }
+  }
+
+  /// ノートのファイルを、選んだ一対・広場の寄合へ添付として送る（2026-11-06、`.md`で送る）。
+  Future<void> _forward() async {
+    final strings = ref.read(appStringsProvider);
+    try {
+      final file = await _buildExport();
+      if (file == null || !mounted) return;
+      final target = await showForwardTargetDialog(
+        context,
+        currentUserId: widget.currentUser.userId,
+        preview: ForwardPreview(files: [file.fileName]),
+      );
+      if (target == null || !mounted) return;
+      showAutoDismissBanner(context, message: strings.forwardSending);
+      await forwardBytes(
+        ref: ref,
+        bytes: file.bytes,
+        fileName: file.fileName,
+        contentType: 'file',
+        target: target,
+        senderId: widget.currentUser.userId,
+        senderRhingSeed: widget.currentUser.rhingSeed,
+      );
+      if (mounted) {
+        showAutoDismissBanner(context, message: strings.forwardDone);
+      }
+    } catch (e, st) {
+      debugPrint('[note-forward] failed: $e\n$st');
+      if (mounted) {
+        showAutoDismissBanner(context, message: strings.forwardFailed);
       }
     }
   }
@@ -1164,6 +1266,8 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
     final titleField = TextField(
       controller: _titleController,
       focusNode: _titleFocusNode,
+      // 閲覧モードでは題名も読み取り専用。
+      readOnly: _readOnly,
       onChanged: _handleTitleChanged,
       style: Theme.of(context).textTheme.titleMedium,
       decoration: InputDecoration(
@@ -1183,6 +1287,23 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
       icon: const Icon(Icons.add),
       tooltip: strings.noteInsertTooltip,
       onPressed: _editorState == null ? null : () => _openInsertBottomSheet(),
+    );
+    // 閲覧・編集モードの切り替え（Obsidianと同じく、押すと切り替わる先のモードの絵）。
+    // 転送ボタンの左隣。ドローは対象外（2026-11-06）。
+    final modeAction = IconButton(
+      icon: Icon(_readOnly ? Icons.edit_outlined : Icons.menu_book_outlined),
+      tooltip: '',
+      onPressed: !_noteLoaded ? null : _toggleReadOnly,
+    );
+    final forwardAction = IconButton(
+      icon: const Icon(Icons.forward_outlined),
+      tooltip: '',
+      onPressed: !_noteLoaded ? null : _forward,
+    );
+    final shareAction = IconButton(
+      icon: const Icon(Icons.share_outlined),
+      tooltip: '',
+      onPressed: !_noteLoaded ? null : _share,
     );
 
     // タイトル欄（appBar側の`titleField`）にフォーカスがある間にEscを押した
@@ -1210,7 +1331,10 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
                 automaticallyImplyLeading: false,
                 title: titleField,
                 actions: [
-                  if (isMobile && !_isDraw) insertAction,
+                  if (isMobile && !_isDraw && !_readOnly) insertAction,
+                  if (!_isDraw) modeAction,
+                  forwardAction,
+                  shareAction,
                   downloadAction,
                 ],
               )
@@ -1220,7 +1344,10 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
                 automaticallyImplyLeading: false,
                 title: titleField,
                 actions: [
-                  if (isMobile && !_isDraw) insertAction,
+                  if (isMobile && !_isDraw && !_readOnly) insertAction,
+                  if (!_isDraw) modeAction,
+                  forwardAction,
+                  shareAction,
                   downloadAction,
                 ],
               ),
@@ -1243,7 +1370,11 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
                 )
               : TutorialTarget(
                   id: TutorialTargetIds.noteEditor,
-                  child: _buildEditorBody(strings, noteColors, isMobile),
+                  child: _withStats(
+                    _buildEditorBody(strings, noteColors, isMobile),
+                    strings,
+                    noteColors,
+                  ),
                 ),
         ),
       ),
@@ -1277,6 +1408,35 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
         }),
         child: _isDraw ? HorizontalDragAbsorber(child: page) : page,
       ),
+    );
+  }
+
+  /// エディタの右下に文字数（選択中は、その左隣に選択した文字数）を重ねる（2026-11-06、
+  /// Obsidianのステータスバー風）。タップは下のエディタへ通す。
+  Widget _withStats(
+    Widget editor,
+    Strings strings,
+    _ObsidianNoteColors noteColors,
+  ) {
+    final editorState = _editorState;
+    if (editorState == null) return editor;
+    return Stack(
+      children: [
+        Positioned.fill(child: editor),
+        Positioned(
+          right: 16,
+          bottom: 6,
+          child: IgnorePointer(
+            child: _NoteStats(
+              editorState: editorState,
+              color: noteColors.mutedText,
+              background: noteColors.background,
+              selectedPrefix: strings.noteSelectedPrefix,
+              unit: strings.noteCharsUnit,
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -1339,6 +1499,38 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
         ),
       ),
     };
+    // 題名と本文の間に余白を空ける（2026-11-06、ユーザー指示）。左右の余白は既定のまま、
+    // 上だけ足す（「+」ボタン等の位置計算は`padding.left`だけを使うので影響しない）。
+    final editorStyle = isMobile
+        ? EditorStyle.mobile(
+            textStyleConfiguration: textStyleConfiguration,
+            cursorColor: noteColors.accent,
+            selectionColor: noteColors.selection,
+          )
+        : EditorStyle.desktop(
+            textStyleConfiguration: textStyleConfiguration,
+            cursorColor: noteColors.accent,
+            selectionColor: noteColors.selection,
+          );
+    // 本文は半角77字の幅で折り返す（Obsidianの「読みやすい行の長さ」のように、本文の範囲を
+    // 決める）。ポップアップの幅も、この範囲＋左右の余白に合わせる（`popupWidth`）。
+    // 半角1字の幅は数字「0」で測る（文字サイズ・フォント・拡大率に追従）。全角は2字分になる。
+    final bodyTextStyle = Theme.of(
+      context,
+    ).textTheme.bodyLarge!.merge(textStyleConfiguration.text);
+    final textColumnWidth = (TextPainter(
+      text: TextSpan(text: '0' * _kNoteLineChars, style: bodyTextStyle),
+      textDirection: TextDirection.ltr,
+      textScaler: MediaQuery.textScalerOf(context),
+    )..layout()).width;
+    final sidePadding = isMobile ? 20.0 : _kNoteDesktopSidePadding;
+    final popupWidthWanted = textColumnWidth + sidePadding * 2;
+    final popupWidth = widget.popupWidth;
+    if (popupWidth != null && popupWidth.value != popupWidthWanted) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) popupWidth.value = popupWidthWanted;
+      });
+    }
     final editor = AppFlowyEditor(
       editorState: editorState,
       editorScrollController: scrollController,
@@ -1347,17 +1539,17 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
       // で閉じる操作（`SwipeBackDetector`）が負けていた（2026-10-07修正）。
       // モバイルのみ押下即時のドラッグ選択を切り、水平スワイプを先に勝たせる。
       enablePanImmediate: !isMobile,
-      editorStyle: isMobile
-          ? EditorStyle.mobile(
-              textStyleConfiguration: textStyleConfiguration,
-              cursorColor: noteColors.accent,
-              selectionColor: noteColors.selection,
-            )
-          : EditorStyle.desktop(
-              textStyleConfiguration: textStyleConfiguration,
-              cursorColor: noteColors.accent,
-              selectionColor: noteColors.selection,
-            ),
+      editorStyle: editorStyle.copyWith(
+        padding: EdgeInsets.fromLTRB(
+          sidePadding,
+          editorStyle.padding.top + 24,
+          sidePadding,
+          editorStyle.padding.bottom,
+        ),
+        // エディタは`MediaQuery`の文字の拡大率を見ず、独自の`textScaleFactor`（既定1.0）だけを
+        // 使う。設定のフォントサイズ（アプリ全体の拡大率）が効くよう、ここで渡す（2026-11-06）。
+        textScaleFactor: MediaQuery.textScalerOf(context).scale(1),
+      ),
       characterShortcutEvents: characterShortcutEvents,
       // 標準の`exitEditingCommand`（Escapeキー）は選択解除・ソフトキーボード
       // を閉じるだけで`KeyEventResult.handled`を返すため、エディタ本体に
@@ -1507,6 +1699,8 @@ class _CursorLineAddButtonState extends State<_CursorLineAddButton> {
 
   @override
   Widget build(BuildContext context) {
+    // 閲覧モード（読み取り専用）では出さない。
+    if (!widget.editorState.editable) return const SizedBox.shrink();
     final rect = _cursorRect;
     if (rect == null) return const SizedBox.shrink();
     const buttonSize = 26.0;
@@ -1607,6 +1801,112 @@ class _TableSizePickerState extends State<_TableSizePicker> {
           style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
         ),
       ],
+    );
+  }
+}
+
+/// エディタの文字数表示（2026-11-06）。本文の全文字数（改行は数えない）と、選択中はその左隣に
+/// 選択した文字数。文書の変更・選択の変化のたびに数え直す。
+class _NoteStats extends StatefulWidget {
+  const _NoteStats({
+    required this.editorState,
+    required this.color,
+    required this.background,
+    required this.selectedPrefix,
+    required this.unit,
+  });
+
+  final EditorState editorState;
+  final Color color;
+  final Color background;
+  final String selectedPrefix;
+  final String unit;
+
+  @override
+  State<_NoteStats> createState() => _NoteStatsState();
+}
+
+class _NoteStatsState extends State<_NoteStats> {
+  int _total = 0;
+  int _selected = 0;
+  StreamSubscription<dynamic>? _subscription;
+
+  @override
+  void initState() {
+    super.initState();
+    _recount();
+    _subscription = widget.editorState.transactionStream.listen(
+      (_) => _recount(),
+    );
+    widget.editorState.selectionNotifier.addListener(_recount);
+  }
+
+  @override
+  void dispose() {
+    _subscription?.cancel();
+    widget.editorState.selectionNotifier.removeListener(_recount);
+    super.dispose();
+  }
+
+  static int _countChars(Node node) {
+    var count = node.delta?.toPlainText().runes.length ?? 0;
+    for (final child in node.children) {
+      count += _countChars(child);
+    }
+    return count;
+  }
+
+  void _recount() {
+    final editorState = widget.editorState;
+    final total = _countChars(editorState.document.root);
+    var selected = 0;
+    final selection = editorState.selection;
+    if (selection != null && !selection.isCollapsed) {
+      for (final line in editorState.getTextInSelection(selection)) {
+        selected += line.replaceAll('\n', '').runes.length;
+      }
+    }
+    if (total == _total && selected == _selected) return;
+    if (!mounted) return;
+    // 描画中の通知で呼ばれても安全なように、次のフレームで反映する。
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted)
+        setState(() {
+          _total = total;
+          _selected = selected;
+        });
+    });
+  }
+
+  static String _format(int n) => n.toString().replaceAllMapped(
+    RegExp(r'(\d)(?=(\d{3})+$)'),
+    (m) => '${m[1]},',
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    final style = TextStyle(fontSize: 12, color: widget.color);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: widget.background.withValues(alpha: 0.85),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (_selected > 0) ...[
+              Text(
+                '${widget.selectedPrefix} ${_format(_selected)} ${widget.unit}',
+                style: style,
+              ),
+              const SizedBox(width: 12),
+            ],
+            Text('${_format(_total)} ${widget.unit}', style: style),
+          ],
+        ),
+      ),
     );
   }
 }

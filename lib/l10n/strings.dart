@@ -882,6 +882,8 @@ class Strings {
     required this.noteSelectionCopy,
     required this.noteSelectionPaste,
     required this.noteInsertTooltip,
+    required this.noteSelectedPrefix,
+    required this.noteCharsUnit,
     required this.noteBlockMoveTooltip,
     required this.noteEmbedUrlPromptTitle,
     required this.noteEmbedUrlPromptHint,
@@ -2222,6 +2224,8 @@ class Strings {
   final String noteSelectionCopy;
   final String noteSelectionPaste;
   final String noteInsertTooltip;
+  final String noteSelectedPrefix;
+  final String noteCharsUnit;
   final String noteBlockMoveTooltip;
   final String noteEmbedUrlPromptTitle;
   final String noteEmbedUrlPromptHint;
@@ -2390,7 +2394,7 @@ class Strings {
     talksSearchSectionMessages: 'メッセージ',
     talksSearchScreenTitle: '検索',
     settingsFolderAccount: 'アカウント',
-    settingsFolderApplication: 'アプリケーション',
+    settingsFolderApplication: '使い心地',
     settingsFolderDesign: '色',
     settingsFolderLanguage: '言語',
     settingsFolderNotifications: '通知',
@@ -3311,6 +3315,8 @@ class Strings {
     noteSelectionCopy: 'コピー',
     noteSelectionPaste: '貼り付け',
     noteInsertTooltip: '挿入',
+    noteSelectedPrefix: '選択',
+    noteCharsUnit: '文字',
     noteBlockMoveTooltip: 'ドラッグして移動',
     noteEmbedUrlPromptTitle: 'URLを埋め込み',
     noteEmbedUrlPromptHint: 'https://...',
@@ -3479,7 +3485,7 @@ class Strings {
     talksSearchSectionMessages: 'Messages',
     talksSearchScreenTitle: 'Search',
     settingsFolderAccount: 'Account',
-    settingsFolderApplication: 'Application',
+    settingsFolderApplication: 'Look and feel',
     settingsFolderDesign: 'Colour',
     settingsFolderLanguage: 'Language',
     settingsFolderNotifications: 'Notifications',
@@ -4506,6 +4512,8 @@ class Strings {
     noteSelectionCopy: 'Copy',
     noteSelectionPaste: 'Paste',
     noteInsertTooltip: 'Insert',
+    noteSelectedPrefix: 'Selected',
+    noteCharsUnit: 'characters',
     noteBlockMoveTooltip: 'Drag to move',
     noteEmbedUrlPromptTitle: 'Embed URL',
     noteEmbedUrlPromptHint: 'https://...',

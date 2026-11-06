@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -21,6 +22,7 @@ Future<T?> showAlbumDetailPopup<T>(
   BuildContext context, {
   required WidgetBuilder builder,
   bool wide = false,
+  ValueListenable<double?>? widthOverride,
 }) {
   final container = ProviderScope.containerOf(context);
   return showAppDialog<T>(
@@ -29,6 +31,7 @@ Future<T?> showAlbumDetailPopup<T>(
       container: container,
       child: _PopupSurface(
         wide: wide,
+        widthOverride: widthOverride,
         child: Builder(builder: builder),
       ),
     ),
@@ -36,9 +39,17 @@ Future<T?> showAlbumDetailPopup<T>(
 }
 
 class _PopupSurface extends ConsumerWidget {
-  const _PopupSurface({required this.child, required this.wide});
+  const _PopupSurface({
+    required this.child,
+    required this.wide,
+    this.widthOverride,
+  });
 
   final Widget child;
+
+  /// 中身が決めるポップアップの幅（nullの間は[wide]の既定の大きさ）。マークダウンのノートが、
+  /// 本文の幅（半角77字）に合わせて開いた後に知らせる（2026-11-06）。画面の9割は超えない。
+  final ValueListenable<double?>? widthOverride;
 
   /// 広めの大きさ（ノートのように、編集や描画で広さが要る中身用）。
   final bool wide;
@@ -85,16 +96,30 @@ class _PopupSurface extends ConsumerWidget {
         child: child,
       ),
     };
-    return Center(
+    final defaultMaxWidth = wide ? 960.0 : 560.0;
+    Widget sized(double maxWidth) => Center(
       child: FractionallySizedBox(
         widthFactor: wide ? 0.9 : 0.7,
         heightFactor: wide ? 0.9 : 0.7,
         child: ConstrainedBox(
-          constraints: wide
-              ? const BoxConstraints(maxWidth: 960, maxHeight: 800)
-              : const BoxConstraints(maxWidth: 560, maxHeight: 640),
+          constraints: BoxConstraints(
+            maxWidth: maxWidth,
+            maxHeight: wide ? 800 : 640,
+          ),
           child: surface,
         ),
+      ),
+    );
+    final override = widthOverride;
+    if (override == null) return sized(defaultMaxWidth);
+    // 幅の変化はなめらかに（開いた直後に本文の幅へ縮む）。
+    return ValueListenableBuilder<double?>(
+      valueListenable: override,
+      builder: (context, value, _) => TweenAnimationBuilder<double>(
+        tween: Tween(end: value ?? defaultMaxWidth),
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOut,
+        builder: (context, width, _) => sized(width),
       ),
     );
   }

@@ -328,7 +328,7 @@ void main() {
     expect(find.text('アカウントを削除', skipOffstage: false), findsOneWidget);
 
     // 別のカテゴリ（アプリケーション）に切り替えると、アカウントの内容は消える。
-    await tester.tap(find.text('アプリケーション'));
+    await tester.tap(find.text('使い心地'));
     await tester.pumpAndSettle();
     expect(find.text('2段階認証'), findsNothing);
   });
@@ -338,7 +338,7 @@ void main() {
   ) async {
     await _pumpSettingsTab(tester);
 
-    await tester.tap(find.text('アプリケーション'));
+    await tester.tap(find.text('使い心地'));
     await tester.pumpAndSettle();
 
     expect(find.text('アクセントカラー'), findsOneWidget);
@@ -388,7 +388,7 @@ void main() {
     // カテゴリ一覧から「アプリケーション」（アカウント→アプリケーション→
     // 語らい→通知の2番目）へドリルダウンする（2026-07-30、入力カテゴリを
     // 廃止して語らいへ統合した為、以前あった「入力」の段は無くなった）。
-    await tester.tap(find.text('アプリケーション'));
+    await tester.tap(find.text('使い心地'));
     await tester.pumpAndSettle();
     // 画面遷移をUIの直下へ移した（2026-11-06）為、狭い画面の最初の表示に
     // アクセントカラーは入らない。アプリケーションページの目印には「UI」を使う。
@@ -424,7 +424,7 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.byType(InteractiveSwipeBackTransition), findsNothing);
-    expect(find.text('アプリケーション'), findsOneWidget); // 一覧のカテゴリ名として表示される
+    expect(find.text('使い心地'), findsOneWidget); // 一覧のカテゴリ名として表示される
   });
 
   testWidgets('語らいページにはメッセージの表示・送信キー設定も含まれる'
@@ -477,7 +477,7 @@ void main() {
       1000,
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.text('アプリケーション'));
+    await tester.tap(find.text('使い心地'));
     await tester.pumpAndSettle();
     expect(find.text('メッセージの表示'), findsNothing);
     expect(find.text('メッセージの送信キー'), findsNothing);
