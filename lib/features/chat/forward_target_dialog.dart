@@ -450,21 +450,24 @@ class _ForwardTargetDialogState extends ConsumerState<_ForwardTargetDialog> {
     return AlertDialog(
       // 2ペインの時は、テーマの既定の最大幅（劇画は400px）では2列が収まらないので広げる。
       constraints: wide
-          ? const BoxConstraints(minWidth: 280, maxWidth: 840)
+          ? const BoxConstraints(minWidth: 280, maxWidth: 1100)
           : null,
       title: Text(strings.forwardDialogTitle),
       content: SizedBox(
         // 狭い画面では、ポップアップの左右の余白（AlertDialogの外側40×2＋内側24×2＝128px）と
         // 余裕16pxを除いた幅に収める（以前は112pxで、16pxはみ出していた）。
         width: wide
-            ? 720
+            ? (MediaQuery.sizeOf(context).width - 144).clamp(600.0, 960.0)
             : (MediaQuery.sizeOf(context).width - 144).clamp(200.0, 360.0),
-        height: 440,
+        // コンピューター（2ペイン）は、画面の高さに合わせて大きく出す。
+        height: wide
+            ? (MediaQuery.sizeOf(context).height * 0.72).clamp(440.0, 760.0)
+            : 440,
         child: wide
             ? Row(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  SizedBox(width: 340, child: left),
+                  SizedBox(width: 420, child: left),
                   const VerticalDivider(width: 33),
                   Expanded(
                     child: _PreviewPane(
@@ -562,8 +565,8 @@ class _PreviewPane extends StatelessWidget {
                 ClipRRect(
                   borderRadius: BorderRadius.circular(8),
                   child: SizedBox(
-                    width: preview.media.length == 1 ? 200 : 88,
-                    height: preview.media.length == 1 ? 150 : 88,
+                    width: preview.media.length == 1 ? 320 : 120,
+                    height: preview.media.length == 1 ? 240 : 120,
                     child: Stack(
                       fit: StackFit.expand,
                       children: [

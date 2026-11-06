@@ -532,7 +532,7 @@ final Strings _stringsFr = Strings._(
   mediaForwardTooltip: 'Transférer',
   mediaShareTooltip: 'Partager',
   forwardDialogTitle: 'Choisir la destination',
-  forwardSearchHint: 'Rechercher par nom ou salon',
+  forwardSearchHint: 'Rechercher',
   forwardPreviewTitle: 'Contenu à transférer',
   forwardChooseHint: 'Choisissez une destination à gauche',
   forwardConfirm: 'Transférer',
