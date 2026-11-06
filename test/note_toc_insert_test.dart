@@ -47,7 +47,7 @@ void main() {
     expect(state.selection, Selection.collapsed(Position(path: [2])));
   });
 
-  test('範囲選択のときは何も変更しない', () {
+  test('範囲選択の時は何も変更しない', () {
     final state = _state([
       paragraphNode(text: '本文'),
     ], Selection.single(path: [0], startOffset: 0, endOffset: 2));
@@ -56,7 +56,7 @@ void main() {
     expect(_types(state), [ParagraphBlockKeys.type]);
   });
 
-  group('目次ブロックにカーソルが乗ったとき', () {
+  group('目次ブロックにカーソルが乗った時', () {
     List<Node> doc() => [
       paragraphNode(text: '上'),
       tableOfContentsNode(),
@@ -95,7 +95,7 @@ void main() {
       expect(state.selection, Selection.collapsed(Position(path: [2])));
     });
 
-    test('目次以外の行にカーソルがあるときは何もしない', () async {
+    test('目次以外の行にカーソルがある時は何もしない', () async {
       final state = _state(doc(), Selection.collapsed(Position(path: [0])));
       moveCaretOffTableOfContents(state, null);
       await Future<void>.delayed(Duration.zero);

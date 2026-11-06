@@ -84,7 +84,7 @@ class _TwoFactorSetupDialogState extends ConsumerState<TwoFactorSetupDialog>
 
   // Web版のfirebase_authプラグインでは、multiFactor関連の一部エラーが
   // FirebaseAuthException型に正しくマッピングされず素のExceptionとして
-  // 飛んでくることがあるため、型チェックに加えてメッセージ文字列でも
+  // 飛んでくることがある為、型チェックに加えてメッセージ文字列でも
   // requires-recent-loginを判定する（2026-08-09、実機で確認した挙動）。
   bool _isRequiresRecentLogin(Object error) {
     if (error is FirebaseAuthException &&

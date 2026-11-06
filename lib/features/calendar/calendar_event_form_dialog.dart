@@ -24,7 +24,7 @@ import '../../widgets/toggles/app_switch.dart';
 /// 同じ`showAppDialog`パターン。保存された（作成/編集された）
 /// [CalendarEvent]を返し、キャンセルされたら`null`を返す（2026-09-05変更、
 /// 日程調整の確定機能`schedule_coordination_detail_dialog.dart`が作成された
-/// イベントのidを必要とするため、以前の`Future<bool>`から変更した）。
+/// イベントのidを必要とする為、以前の`Future<bool>`から変更した）。
 Future<CalendarEvent?> showCalendarEventFormDialog(
   BuildContext context, {
   required bool isDm,
@@ -110,13 +110,13 @@ class _CalendarEventFormDialogState
 
   /// 終日トグルをONにする直前の開始・終了日時（時刻・複数日の範囲込み）の
   /// 一時退避先（2026-09-04追加）。ONにすると[_startAt]/[_endAt]は日付のみに
-  /// 削られるため、再度OFFに戻したときにここから元の値を復元する。
+  /// 削られる為、再度OFFに戻した時にここから元の値を復元する。
   DateTime? _preAllDayStartAt;
   DateTime? _preAllDayEndAt;
   bool _hasPreAllDaySnapshot = false;
 
   /// [_startAt]と[_endAt]の暦日が異なるか（複数日の予定かどうか）。
-  /// 参加確認を日ごとに取るトグルの表示要否に使う（2026-09-02追加）。
+  /// 参加確認を日毎に取るトグルの表示要否に使う（2026-09-02追加）。
   bool get _isMultiDay {
     final end = _endAt;
     if (end == null) return false;
@@ -136,7 +136,7 @@ class _CalendarEventFormDialogState
   /// 終日トグルの切り替え。ONにする際は現在の開始・終了日時を
   /// [_preAllDayStartAt]/[_preAllDayEndAt]に退避してから日付のみに削り、
   /// OFFに戻す際は退避してあればそれをそのまま復元する（2026-09-04追加、
-  /// 複数日の予定を終日にした後で元に戻せるようにするため）。
+  /// 複数日の予定を終日にした後で元に戻せるようにする為）。
   void _setAllDay(bool value) {
     setState(() {
       if (value && !_isAllDay) {
@@ -178,7 +178,7 @@ class _CalendarEventFormDialogState
 
   /// 回答期限を選ぶ（2026-09-04追加）。`_pickDateTime`は`_isAllDay`が
   /// trueだと時刻をスキップして日付のみを返すが、回答期限は予定自体が
-  /// 終日でも常に日時（締切の具体的な時刻）を指定できるべきのため、
+  /// 終日でも常に日時（締切の具体的な時刻）を指定出来るべきの為、
   /// `_pickDateTime`は使わず直接`showDatePicker`→`showTimePicker`を呼ぶ。
   Future<void> _pickDeadline() async {
     final initial = _rsvpDeadline ?? _startAt;
@@ -275,9 +275,9 @@ class _CalendarEventFormDialogState
           categoryId: _categoryId,
         );
         // 内容は変更済みだが、編集後の再取得はせずexistingEventをそのまま
-        // 返す（呼び出し元は今のところ編集パスの戻り値を「保存できたか」の
+        // 返す（呼び出し元は今のところ編集パスの戻り値を「保存出来たか」の
         // 真偽判定にしか使っておらず、eventIdが必要な確定フローは日程調整の
-        // 新規作成パスのみのため）。
+        // 新規作成パスのみの為）。
         result = existing;
       } else {
         final created = await repo.createEvent(
@@ -335,7 +335,7 @@ class _CalendarEventFormDialogState
       // 例外を握りつぶすと保存が失敗しても何も起きたように見えず、ユーザーが
       // 気づけない（2026-09-01発覚、firestore.rulesの不整合で常に失敗していた
       // 際にこの無言失敗のせいで原因特定が難航した）。ダイアログは閉じずに
-      // エラーを表示し、再試行できるようにする。
+      // エラーを表示し、再試行出来るようにする。
       if (mounted) {
         showAutoDismissBanner(context, message: '$e');
       }
@@ -351,7 +351,7 @@ class _CalendarEventFormDialogState
     final dateFormat = _isAllDay
         ? DateFormat.yMMMd(localeCode)
         : DateFormat.yMMMd(localeCode).add_Hm();
-    // 回答期限は予定自体が終日でも常に時刻まで指定するため、`dateFormat`
+    // 回答期限は予定自体が終日でも常に時刻まで指定する為、`dateFormat`
     // （終日時は日付のみ）とは別に常に日時表示するフォーマットを使う。
     final deadlineFormat = DateFormat.yMMMd(localeCode).add_Hm();
     final isGlass =
@@ -389,7 +389,7 @@ class _CalendarEventFormDialogState
               builder: (context, snapshot) {
                 final categories = snapshot.data ?? const <CalendarCategory>[];
                 // 削除済み等で一覧に無いcategoryIdを選択状態のまま渡すと
-                // DropdownButtonFormFieldがassertion errorになるため、現在の
+                // DropdownButtonFormFieldがassertion errorになる為、現在の
                 // 一覧に存在する値のみ選択状態として扱う。
                 final validCategoryId =
                     categories.any((c) => c.categoryId == _categoryId)

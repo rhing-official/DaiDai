@@ -6,7 +6,7 @@ import '../../providers/app_ui_style_provider.dart';
 import '../../theme/block/block_theme.dart';
 import '../../theme/gekiga/gekiga_colors.dart';
 
-/// トグル類（スイッチ・チェックボックス・ラジオ）の色。UIスタイルごとに決める
+/// トグル類（スイッチ・チェックボックス・ラジオ）の色。UIスタイル毎に決める
 /// （2026-11-05）。文字にアクセントカラーは使わず、アクセントは塗りにだけ使う。
 class ToggleColors {
   const ToggleColors({

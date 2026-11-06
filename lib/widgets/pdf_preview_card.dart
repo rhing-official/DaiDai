@@ -11,7 +11,7 @@ import 'glass/glass_surface.dart';
 import 'media_preview_frame.dart';
 import 'pdf_viewer_screen.dart';
 
-/// メッセージ上にプレビューを出すPDFの上限サイズ（取得が増えるため、アプリ内で
+/// メッセージ上にプレビューを出すPDFの上限サイズ（取得が増える為、アプリ内で
 /// 開ける上限[kMaxPdfPreviewBytes]より小さくする）。
 const kMaxPdfThumbnailBytes = 20 * 1024 * 1024;
 

@@ -218,7 +218,7 @@ ValueChanged<ChatScrollAnchor?> _scrollAnchorSaver(
 /// （`lib/providers/chat_room_message_cache.dart`、2026-09-10追加）がアプリ
 /// セッション寿命で保持する。寄合切り替えで`ChatScreen`のKeyが変わり
 /// `DmChatPane`ごと破棄・再生成されても、Firestore購読自体は裏で生き続け、
-/// 再訪問時に即座にデータへ再アタッチできる（以前は寄合を切り替えるたびに
+/// 再訪問時に即座にデータへ再アタッチ出来る（以前は寄合を切り替えるたびに
 /// 購読も最初からやり直しになり、メッセージが一瞬消えて読み込み直される
 /// 体感遅延の原因だった）。
 class DmChatPane extends ConsumerStatefulWidget {
@@ -242,7 +242,7 @@ class DmChatPane extends ConsumerStatefulWidget {
   /// 広い画面の埋め込みペインは語らいタブ側の履歴が記録するためfalse。
   final bool trackRoomHistory;
 
-  /// 現在表示中の寄合。呼び出し側（TalksTab分割表示、またはgo_routerの
+  /// 現在表示中の寄合。呼び出し側（TalksTab分割表示、又はgo_routerの
   /// フルスクリーン遷移）が選択状態を管理し、渡す。
   final String roomId;
   final String roomName;
@@ -261,14 +261,14 @@ class DmChatPane extends ConsumerStatefulWidget {
 }
 
 class _DmChatPaneState extends ConsumerState<DmChatPane> {
-  /// 開いている寄合の未読数が0より大きくなったら、すぐ0に戻す（2026-10-31）。
-  /// 未読数はサーバー（Cloud Functions）が、メッセージが作られた後に加算するため、
+  /// 開いている寄合の未読数が0より大きくなったら、直ぐ0に戻す（2026-10-31）。
+  /// 未読数はサーバー（Cloud Functions）が、メッセージが作られた後に加算する為、
   /// 画面がメッセージを受け取って既読にした（0へ戻した）直後に、遅れて+1されることが
   /// あり、開いたままでも数字が残っていた。未読数の変化を見て、開いている間は戻し直す。
   bool _unreadResetPending = false;
 
   /// 寄合へ切り替えたら、その寄合の未読数をすぐ0に戻す（2026-11-03）。構築のたびの
-  /// [_resetUnreadWhileViewing]が間に合わず、切り替え先のバッジが残ることがあったため、
+  /// [_resetUnreadWhileViewing]が間に合わず、切り替え先のバッジが残ることがあった為、
   /// 切り替えた時点でも直接書く。
   void _markRoomRead(String roomId) {
     ref
@@ -307,7 +307,7 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
 
   /// ハンバーガーメニューボタンの位置を、AppBarの他のポップアップボタン
   /// （ピン留め・アルバム・ノート・投票）が狭い画面でのポップアップ位置の
-  /// 基準にするための共有キー（2026-09-12追加、`button_anchored_menu.dart`
+  /// 基準にする為の共有キー（2026-09-12追加、`button_anchored_menu.dart`
   /// の`computeButtonAnchoredMenuPosition`参照）。
   final _menuAnchorKey = GlobalKey();
 
@@ -337,7 +337,7 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
   );
   late ChatRoomMessageCacheEntry _cacheEntry;
 
-  /// `dispose`で`ref`を使うのは安全でないため、先に取っておく（2026-10-17）。
+  /// `dispose`で`ref`を使うのは安全でない為、先に取っておく（2026-10-17）。
   late final _cacheManager = ref.read(chatRoomMessageCacheManagerProvider);
 
   @override
@@ -353,8 +353,8 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
     _scheduleGuaranteedMessagesEmit();
     // この一対で最後に開いていた寄合として記憶する（2026-09-26追加）。
     // 広い分割表示・アイコン＋寄合一覧レイアウトはどちらも寄合idを含む
-    // `ValueKey`でこのStateを寄合ごとに作り直すため、`initState`だけで
-    // それらの経路を網羅できる（同一State内での切り替えは`_switchRoom`側）。
+    // `ValueKey`でこのStateを寄合毎に作り直すため、`initState`だけで
+    // それらの経路を網羅出来る（同一State内での切り替えは`_switchRoom`側）。
     ref
         .read(lastOpenedRoomProvider.notifier)
         .setLastRoom(ViewedDm(widget.dm.dmId), _currentRoomId);
@@ -384,8 +384,8 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
   /// アニメーションの分だけ切り替えが遅れて見えるうえ、広い画面の
   /// `RoomListPane`（`talks_tab.dart`）と挙動が揃っていなかった。ここでは
   /// `RoomListPane`と同じくローカルstateの変更のみで切り替える一方、
-  /// `ChatScreen`自身の`key`は引き続き寄合ごとに変わるため、下書き・返信先・
-  /// スクロール位置等の「寄合ごとにまっさらな状態へ戻す」という既存の挙動は
+  /// `ChatScreen`自身の`key`は引き続き寄合毎に変わる為、下書き・返信先・
+  /// スクロール位置等の「寄合毎にまっさらな状態へ戻す」という既存の挙動は
   /// 変わらない。
   void _switchRoom(String roomId, String roomName) {
     if (roomId == _currentRoomId) return;
@@ -437,7 +437,7 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
   /// スナップショット）に含まれていれば最新状態を取り直してローカルに
   /// 反映する（2026-08-21追加、ロジック本体は`_cacheEntry.afterMutation`
   /// 参照）。当日分はFirestoreのライブ購読で自動反映されるため何もしない。
-  /// 過去分は`loadOlderMessages`が1回だけの取得のため、これをしないと
+  /// 過去分は`loadOlderMessages`が1回だけの取得の為、これをしないと
   /// 書き込み自体は成功していても画面には一切反映されず「リアクション・
   /// 編集が効かない」ように見えてしまう。
   Future<void> _afterMutation(
@@ -512,7 +512,7 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
     );
     // ノートはメッセージ画面を置き換えず、その上に右からスライドインで重ねる
     // （2026-10-07、ユーザー指示）。右スワイプで戻る時に指追従で流れた後ろへ
-    // メッセージ画面が見えるようにするため。メッセージ画面は`SlideDrilldown`の
+    // メッセージ画面が見えるようにする為。メッセージ画面は`SlideDrilldown`の
     // masterとして常に同じ位置にマウントし続ける（ノートの開閉で作り直さない）。
     // カレンダー・アルバムもノートと同じく重ねて表示する（2026-10-13、置き換えると
     // 戻るたびにメッセージ画面が作り直され、スクロール位置の復元で一覧が一度上に
@@ -584,7 +584,7 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
     // liveTailMessages（最新の件数窓）・olderMessages（それより古い蓄積分）は
     // いずれもFirestoreクエリ側で既にsentAt降順（watchMessages/
     // loadOlderMessages参照）。olderMessagesは常にlive窓より古く重複しない
-    // よう`ChatRoomMessageCacheEntry`が保つ設計のため、単純結合するだけで全体が
+    // よう`ChatRoomMessageCacheEntry`が保つ設計の為、単純結合するだけで全体が
     // 降順ソート済みになる。以前はここで毎回O(n log n)の再ソートを
     // 行っていたが、遡るたびにolderMessagesが際限なく増えるため
     // 遡るほどコストが増大し、スクロールバックのたびにカクつく原因の
@@ -597,7 +597,7 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
         .where((m) => !m.hiddenFor.contains(currentUser.userId))
         .where((m) => !isBlocked || m.senderId != otherUserId)
         .toList();
-    // messagesStreamに渡すstream自体のidentityを固定するため、値は
+    // messagesStreamに渡すstream自体のidentityを固定する為、値は
     // `_messagesController`へ流し込む（`_messagesController`のdocコメント
     // 参照）。
     _messagesController.add(filteredMessages);
@@ -610,7 +610,7 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
         .value?[dm.dmId];
     final unreadByRoom = convPrefs?.unreadByRoom ?? const <String, int>{};
     // 開いている寄合の未読に加え、一覧に出る会話全体の未読数（`unreadCount`）も、
-    // 他の寄合に未読が残っていなければ戻す。寄合ごとの数と会話全体の数がずれて
+    // 他の寄合に未読が残っていなければ戻す。寄合毎の数と会話全体の数がずれて
     // 全体の数だけ残ると、別の語らいへ移るまで消えなかった（2026-11-02）。
     final otherRoomsUnread = unreadByRoom.entries
         .where((e) => e.key != roomId)
@@ -974,7 +974,7 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
     // `ChatScreen`のkeyがroomId込みのため部屋切替のたびに`RoomTabBar`ごと
     // 作り直されており、指でなぞって寄合を選ぶドラッグ操作の途中でジェス
     // チャー自体が消滅する問題があった。ここ（`_buildChatScreen`の外側）は
-    // roomId変化ではkeyが変わらず生き続けるため、`RoomTabBar`をこの位置に
+    // roomId変化ではkeyが変わらず生き続ける為、`RoomTabBar`をこの位置に
     // 配置することでドラッグ中の部屋切替でも`_RoomTabBarState`が破棄されず、
     // 連続してなぞり続けられる（2026-09-14変更）。
     // `ChatScreen`側の`AppBar`は常にステータスバー分の余白を自前で確保する
@@ -1093,7 +1093,7 @@ class _SeveranceDeclinedBanner extends ConsumerWidget {
 
 /// 既読オン/オフの変更提案・承認待ちを常時表示するバナー（[_SeveranceBanner]
 /// と同じ構造）。提案は常に現在の[DirectMessage.readReceiptsEnabled]を
-/// 反転させることを意味するため、方向（オン/オフどちらへの提案か）は
+/// 反転させることを意味する為、方向（オン/オフどちらへの提案か）は
 /// `!dm.readReceiptsEnabled`から導出する。オフへの提案を承認する場合のみ、
 /// 確定前に既読履歴が消える旨の確認ダイアログを挟む。
 class _ReadReceiptsProposalBanner extends ConsumerWidget {
@@ -1193,7 +1193,7 @@ class _AlbumButton extends ConsumerStatefulWidget {
   /// アルバムをこの語らいの表示領域内に開く（2026-09-07変更。当初は
   /// `Navigator.push`で全画面ルートとして開いていたが、ノート・カレンダーと
   /// 同様ワイド画面でフレンド/寄合一覧のサイドバーまで覆ってしまう不具合が
-  /// あったため、`DmChatPane`/`GroupChatPane`自身の表示領域内で
+  /// あった為、`DmChatPane`/`GroupChatPane`自身の表示領域内で
   /// `_openAlbum`（ローカルなオブジェクト切り替え）を差し替える方式に変更した）。
   final ValueChanged<Album> onOpenAlbum;
 
@@ -1281,7 +1281,7 @@ class _AlbumButtonState extends ConsumerState<_AlbumButton> {
 }
 
 /// 寄合単位の共有カレンダーを開くボタン（2026-09-01追加）。[_AlbumButton]と
-/// 同じ構成。そのアカウントで初めて開いたとき（[AppUser.
+/// 同じ構成。そのアカウントで初めて開いた時（[AppUser.
 /// googleCalendarSyncEnabled]が未確認＝null）だけ、Googleカレンダー同期の
 /// 許可を確認するダイアログを挟む（ユーザー確定仕様）。
 class _CalendarButton extends ConsumerStatefulWidget {
@@ -1348,7 +1348,7 @@ class _CalendarButtonState extends ConsumerState<_CalendarButton> {
   /// `calendar.events`スコープでprimaryカレンダーに直書きしていた旧方式の
   /// 時代に連携済みだったユーザー（2026-09-23の専用カレンダー方式への
   /// 移行前）。旧スコープの同意は新スコープ`calendar.app.created`を
-  /// 自動的にはカバーしないため、このままでは`CalendarSyncBootstrap`が
+  /// 自動的にはカバーしない為、このままでは`CalendarSyncBootstrap`が
   /// 永久に同期をスキップし続ける「壊れた」状態になる（下記
   /// `_maybeShowSyncOptInDialog`参照）。
   String? get _googleCalendarId {
@@ -1365,7 +1365,7 @@ class _CalendarButtonState extends ConsumerState<_CalendarButton> {
     if (syncEnabled == true) {
       // 旧スコープ時代に連携済みだったが専用カレンダーが未作成の壊れた状態
       // （[_googleCalendarId]のドキュメントコメント参照）。既に一度同意して
-      // いるため、DaiDai独自の確認ダイアログは出さず直接再連携する
+      // いる為、DaiDai独自の確認ダイアログは出さず直接再連携する
       // （Google側の同意画面自体は新スコープ未カバーのため結果的に表示される）。
       await _connect();
       return;
@@ -1417,7 +1417,7 @@ class _CalendarButtonState extends ConsumerState<_CalendarButton> {
     try {
       final calendarId = await _linkCoordinator.connect();
       // キャンセルされた場合(calendarId == null)はnullのまま据え置き、
-      // 次回このボタンを開いたときに再度確認する。
+      // 次回このボタンを開いた時に再度確認する。
       if (calendarId != null) {
         await ref
             .read(userRepositoryProvider)
@@ -1440,7 +1440,7 @@ class _CalendarButtonState extends ConsumerState<_CalendarButton> {
     } catch (e) {
       // それ以外の失敗（ネットワークエラー・Google Calendar API呼び出しの
       // 失敗等）。`connect()`はユーザーがキャンセルした場合は例外を投げず
-      // nullを返す設計のため、ここに来るのは実際の失敗のみ。無言にすると
+      // nullを返す設計の為、ここに来るのは実際の失敗のみ。無言にすると
       // 「連携したのに何も起きない」という原因不明の不具合に見えてしまうため、
       // カレンダー機能自体はブロックしないままバナーで知らせる。
       if (mounted) {
@@ -1626,7 +1626,7 @@ class _PollButtonState extends ConsumerState<_PollButton> {
 
 /// 共有ノート機能のアイコンボタン（2026-09-06追加）。`_PollButton`と同じ
 /// 「アイコンタップ→真下にポップアップ（一覧＋「＋」で新規作成）」構成だが、
-/// 選ばれた（または新規作成された）ノートは小さなダイアログではなく、
+/// 選ばれた（又は新規作成された）ノートは小さなダイアログではなく、
 /// カレンダーと同様に語らいの表示領域全体を覆う全画面エディタ
 /// （[NotePaneView]）で開くため、[onNoteSelected]で対象のnoteIdを親
 /// （`DmChatPane`/`GroupChatPane`の`_openNoteId`）へ伝える。
@@ -1836,10 +1836,10 @@ class _MenuSwitchTile extends StatelessWidget {
 
 /// ハンバーガーメニューの外枠。`album_popup_content.dart`の
 /// `_AlbumPopupContent`と同じ、`popupCardBackground`の`Container`＋枠線で
-/// UIスタイル（フラット/ガラス/劇画）ごとの固定色を出し分ける
+/// UIスタイル（フラット/ガラス/劇画）毎の固定色を出し分ける
 /// （2026-08-31、ガラスは以前`GlassSurface(variant: floating)`を使って
 /// いたが、画面背景と同色のパネルを半透明でぼかすだけで色差が実質無く
-/// 視認性が低かったため、フラット/劇画と同じ不透明パネルに統一した）。
+/// 視認性が低かった為、フラット/劇画と同じ不透明パネルに統一した）。
 class _MenuPanel extends ConsumerWidget {
   const _MenuPanel({required this.children});
   final List<Widget> children;
@@ -1865,9 +1865,9 @@ class _MenuPanel extends ConsumerWidget {
 /// 一対の「通知オフ・ブロック」をまとめたハンバーガーメニュー（2026-07-25追加）。
 /// 見た目は広場のハンバーガーメニュー（[_GroupMenuButton]）から転用し、
 /// ボタン真下に角丸で開く。一対にはメンバー一覧・プロフィールカードのような
-/// サブ画面が無いため、[_GroupMenuButton]と違い単純な構成で足りる。
+/// サブ画面が無い為、[_GroupMenuButton]と違い単純な構成で足りる。
 /// `PopupMenuButton`標準の見た目のままではUIスタイル（フラット/劇画/ガラス）に
-/// 対応できなかったため、`showMenu`＋透明パネル＋[_MenuPanel]/[_MenuTile]方式に
+/// 対応できなかった為、`showMenu`＋透明パネル＋[_MenuPanel]/[_MenuTile]方式に
 /// 作り直した（2026-08-31、`album_popup_content.dart`と同じ構成に統一）。
 class _DmMenuButton extends ConsumerStatefulWidget {
   const _DmMenuButton({
@@ -1886,7 +1886,7 @@ class _DmMenuButton extends ConsumerStatefulWidget {
 
   /// この画面が寄合タブバーを表示しているか。寄合の削除後に先頭の寄合を
   /// 開き直す際、元の画面と同じ表示（アイコン＋寄合一覧モードから来た
-  /// 場合はタブバー無し）にするために引き継ぐ（2026-10-11追加）。
+  /// 場合はタブバー無し）にする為に引き継ぐ（2026-10-11追加）。
   final bool showRoomTabBar;
 
   /// 現在表示中の寄合（名前変更の対象）。
@@ -1925,7 +1925,7 @@ class _DmMenuButtonState extends ConsumerState<_DmMenuButton> {
 
   Future<void> _openMenu() async {
     // 寄合機能オフ（単一モード）の間は、寄合の名前変更・削除など寄合関連の
-    // 項目を出す意味が無いため、ハンバーガーメニュー自体を飛ばして一対の
+    // 項目を出す意味が無い為、ハンバーガーメニュー自体を飛ばして一対の
     // 設定ポップアップを直接開く（2026-09-25追加）。
     if (!widget.dm.roomsEnabled) {
       showDmSettingsDialog(
@@ -2048,7 +2048,7 @@ class _DmMenuButtonState extends ConsumerState<_DmMenuButton> {
         if (Navigator.of(context).canPop()) {
           // 狭い画面（フルスクリーンpush）: 語らい一覧へ戻すのではなく、
           // 一番上（最古）の寄合を開き直す。最後の1つの寄合は削除
-          // できない仕様のため、削除後リストが空になることはない
+          // 出来ない仕様の為、削除後リストが空になることは無い
           // （2026-08-13追加）。
           final remainingRooms = await ref
               .read(directMessageRepositoryProvider)
@@ -2075,7 +2075,7 @@ class _DmMenuButtonState extends ConsumerState<_DmMenuButton> {
         }
       // 広い画面（埋め込みペイン）はcanPop()==falseで元々no-op。
       // TalksTab側の既存フォールバック（rooms.first）が自動的に
-      // 一番上の寄合を選択するため、追加対応不要。
+      // 一番上の寄合を選択する為、追加対応不要。
     }
   }
 
@@ -2125,7 +2125,7 @@ class GroupChatPane extends ConsumerStatefulWidget {
   /// [DmChatPane.trackRoomHistory]と同じ（2026-10-10追加）。
   final bool trackRoomHistory;
 
-  /// 現在表示中の寄合。呼び出し側（TalksTab分割表示、またはgo_routerの
+  /// 現在表示中の寄合。呼び出し側（TalksTab分割表示、又はgo_routerの
   /// フルスクリーン遷移）が選択状態を管理し、渡す。
   final String roomId;
   final String roomName;
@@ -2141,14 +2141,14 @@ class GroupChatPane extends ConsumerStatefulWidget {
 }
 
 class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
-  /// 開いている寄合の未読数が0より大きくなったら、すぐ0に戻す（2026-10-31）。
-  /// 未読数はサーバー（Cloud Functions）が、メッセージが作られた後に加算するため、
+  /// 開いている寄合の未読数が0より大きくなったら、直ぐ0に戻す（2026-10-31）。
+  /// 未読数はサーバー（Cloud Functions）が、メッセージが作られた後に加算する為、
   /// 画面がメッセージを受け取って既読にした（0へ戻した）直後に、遅れて+1されることが
   /// あり、開いたままでも数字が残っていた。未読数の変化を見て、開いている間は戻し直す。
   bool _unreadResetPending = false;
 
   /// 寄合へ切り替えたら、その寄合の未読数をすぐ0に戻す（2026-11-03）。構築のたびの
-  /// [_resetUnreadWhileViewing]が間に合わず、切り替え先のバッジが残ることがあったため、
+  /// [_resetUnreadWhileViewing]が間に合わず、切り替え先のバッジが残ることがあった為、
   /// 切り替えた時点でも直接書く。
   void _markRoomRead(String roomId) {
     ref
@@ -2187,14 +2187,14 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
 
   /// ハンバーガーメニューボタンの位置を、AppBarの他のポップアップボタン
   /// （ピン留め・アルバム・ノート・投票）が狭い画面でのポップアップ位置の
-  /// 基準にするための共有キー（2026-09-12追加、`button_anchored_menu.dart`
+  /// 基準にする為の共有キー（2026-09-12追加、`button_anchored_menu.dart`
   /// の`computeButtonAnchoredMenuPosition`参照）。
   final _menuAnchorKey = GlobalKey();
 
   /// `ChatScreen.messagesStream`へ渡すstream本体（2026-08-20追加）。
   /// `DmChatPane`の同名フィールドと同じ理由（`_DmChatPaneState
   /// ._messagesController`のdocコメント参照）で、stream自体のidentityを
-  /// `initState`から`dispose`まで固定するために使う。
+  /// `initState`から`dispose`まで固定する為に使う。
   final _messagesController = StreamController<List<Message>>.broadcast();
 
   /// 現在表示中の寄合（2026-09-11変更、以前は`widget.roomId`固定だった）。
@@ -2205,10 +2205,10 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
   /// この寄合のメッセージ購読・読み込み済みリスト（`ChatRoomMessageCacheEntry`
   /// のdocコメント参照）。[initState]/[_switchRoom]でアタッチし、
   /// [dispose]/[_switchRoom]でデタッチする。
-  /// この寄合で自分が閲覧できるメッセージの最古時刻（新規加入者に加入前の
+  /// この寄合で自分が閲覧出来るメッセージの最古時刻（新規加入者に加入前の
   /// メッセージを見せない設定、`messageVisibleFrom`参照、2026-10-08追加）。
-  /// nullなら制限なし。寄合ごとの上書きは寄合一覧の購読（[_buildChatScreen]）が
-  /// 届いてから分かるため、最初は広場全体の設定だけで決め、届いた後に差があれば
+  /// nullなら制限なし。寄合毎の上書きは寄合一覧の購読（[_buildChatScreen]）が
+  /// 届いてから分かる為、最初は広場全体の設定だけで決め、届いた後に差があれば
   /// [_syncVisibleFrom]で購読し直す。
   late Timestamp? _visibleFrom = messageVisibleFrom(
     group: widget.group,
@@ -2224,7 +2224,7 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
   );
   late ChatRoomMessageCacheEntry _cacheEntry;
 
-  /// `dispose`で`ref`を使うのは安全でないため、先に取っておく（2026-10-17）。
+  /// `dispose`で`ref`を使うのは安全でない為、先に取っておく（2026-10-17）。
   late final _cacheManager = ref.read(chatRoomMessageCacheManagerProvider);
 
   @override
@@ -2248,9 +2248,9 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
         .setLastRoom(ViewedGroup(widget.group.groupId), _currentRoomId);
   }
 
-  /// 寄合一覧の購読から分かった寄合ごとの上書きを反映した閲覧開始時刻
+  /// 寄合一覧の購読から分かった寄合毎の上書きを反映した閲覧開始時刻
   /// （[messageVisibleFrom]）が[_visibleFrom]と異なっていたら、別のキャッシュ
-  /// エントリで購読し直す（2026-10-08追加）。`build`中に呼ばれるため、実際の
+  /// エントリで購読し直す（2026-10-08追加）。`build`中に呼ばれる為、実際の
   /// 切り替えは次フレームへ遅らせる。
   void _syncVisibleFrom(Room? currentRoom) {
     final next = messageVisibleFrom(
@@ -2317,7 +2317,7 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
     _markRoomRead(roomId);
     final oldKey = _cacheKey;
     final oldEntry = _cacheEntry;
-    // 切り替え先の寄合ごとの上書きは、その寄合の一覧が届くまで分からない
+    // 切り替え先の寄合毎の上書きは、その寄合の一覧が届くまで分からない
     // ため、いったん広場全体の設定だけで決める（[_syncVisibleFrom]が補正）。
     final nextVisibleFrom = messageVisibleFrom(
       group: widget.group,
@@ -2398,8 +2398,8 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
   }
 
   /// メッセージの送信者アイコン・呼び名をタップした時に、相手のプロフィール
-  /// カードを開く。一対と違い広場のメンバーは非友達の場合があるため、
-  /// ここから友達申請できるようにする（メンバー一覧からも同じダイアログを開く、
+  /// カードを開く。一対と違い広場のメンバーは非友達の場合がある為、
+  /// ここから友達申請出来るようにする（メンバー一覧からも同じダイアログを開く、
   /// group_member_list_screen.dart参照）。
   Future<void> _openProfileCard(BuildContext context, String userId) async {
     final user = await ref.read(userRepositoryProvider).getUser(userId);
@@ -2451,7 +2451,7 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
     if (!context.mounted) return;
     // モバイルのみ全画面の/group-callへpushする。PCでは全画面ルートを
     // 使わず、通話セッションを直接開始するだけにする（2026-08-19変更）。
-    // 発信者は既にこの広場のメッセージ画面を見ているため、以後は
+    // 発信者は既にこの広場のメッセージ画面を見ている為、以後は
     // 以後は`CallOverlay`が今の画面の上に通話画面を重ねて表示する。
     if (isMobileCallPlatform) {
       ref
@@ -2504,10 +2504,10 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
     final chatBody = Builder(
       builder: (context) {
         // カスタムロール（見た目専用の呼び名フォントカラー）は広場全体の
-        // 優先順位・寄合ごとの上書きを両方見る必要があるため、ロール
+        // 優先順位・寄合毎の上書きを両方見る必要がある為、ロール
         // 一覧・寄合一覧をここでwatchして呼び名の色を解決する
         // （`resolveSenderColor`/`_SenderName`参照）。更新頻度が低いため
-        // ネストしたStreamBuilderのコストは無視できる。
+        // ネストしたStreamBuilderのコストは無視出来る。
         return StreamBuilder<List<GroupRole>>(
           stream: groupRepository.watchRoles(group.groupId),
           builder: (context, rolesSnapshot) {
@@ -2545,7 +2545,7 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
     );
     // ノートはメッセージ画面を置き換えず、その上に右からスライドインで重ねる
     // （2026-10-07、ユーザー指示）。右スワイプで戻る時に指追従で流れた後ろへ
-    // メッセージ画面が見えるようにするため。メッセージ画面は`SlideDrilldown`の
+    // メッセージ画面が見えるようにする為。メッセージ画面は`SlideDrilldown`の
     // masterとして常に同じ位置にマウントし続ける（ノートの開閉で作り直さない）。
     // カレンダー・アルバムもノートと同じく重ねて表示する（2026-10-13、置き換えると
     // 戻るたびにメッセージ画面が作り直され、スクロール位置の復元で一覧が一度上に
@@ -2596,7 +2596,7 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
     final currentUser = widget.currentUser;
     final roomId = _currentRoomId;
     final roomName = _currentRoomName;
-    // 寄合ごとの上書きが分かった時点で、閲覧開始時刻が変わっていれば購読し直す
+    // 寄合毎の上書きが分かった時点で、閲覧開始時刻が変わっていれば購読し直す
     // （2026-10-08追加）。
     _syncVisibleFrom(currentRoom);
     final canManageRooms = hasGroupPermission(
@@ -2609,7 +2609,7 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
     // liveTailMessages（最新の件数窓）・olderMessages（それより古い蓄積分）は
     // いずれもFirestoreクエリ側で既にsentAt降順（watchMessages/
     // loadOlderMessages参照）。olderMessagesは常にlive窓より古く重複しない
-    // よう`ChatRoomMessageCacheEntry`が保つ設計のため、単純結合するだけで全体が
+    // よう`ChatRoomMessageCacheEntry`が保つ設計の為、単純結合するだけで全体が
     // 降順ソート済みになる。以前はここで毎回O(n log n)の再ソートを
     // 行っていたが、遡るたびにolderMessagesが際限なく増えるため
     // 遡るほどコストが増大し、スクロールバックのたびにカクつく原因の
@@ -2621,7 +2621,7 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
     final filteredMessages = combined
         .where((m) => !m.hiddenFor.contains(currentUser.userId))
         .toList();
-    // messagesStreamに渡すstream自体のidentityを固定するため、値は
+    // messagesStreamに渡すstream自体のidentityを固定する為、値は
     // `_messagesController`へ流し込む（`_messagesController`のdocコメント
     // 参照）。
     _messagesController.add(filteredMessages);
@@ -2632,7 +2632,7 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
         .value?[group.groupId];
     final unreadByRoom = convPrefs?.unreadByRoom ?? const <String, int>{};
     // 開いている寄合の未読に加え、一覧に出る会話全体の未読数（`unreadCount`）も、
-    // 他の寄合に未読が残っていなければ戻す。寄合ごとの数と会話全体の数がずれて
+    // 他の寄合に未読が残っていなければ戻す。寄合毎の数と会話全体の数がずれて
     // 全体の数だけ残ると、別の語らいへ移るまで消えなかった（2026-11-02）。
     final otherRoomsUnread = unreadByRoom.entries
         .where((e) => e.key != roomId)
@@ -2780,7 +2780,7 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
         stickerUrl: sticker.imageUrl,
       ),
       // 進行中の通話がある間は、音声・ビデオの2つのボタンを「参加」の1つにまとめ、
-      // 参加人数を出す（2026-10-21）。映像のオン・オフは参加者ごとに独立で、通話の
+      // 参加人数を出す（2026-10-21）。映像のオン・オフは参加者毎に独立で、通話の
       // 種別を選ぶ意味が無く、人数をどちらに出すか迷うため。通話が無い時は、
       // 従来どおり2つ（映像で始める人の手間を増やさない）。
       onCallPressed: () => _handleCallPressed(
@@ -2997,8 +2997,8 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
 /// （2026-07-24追加、広場のカスタマイズ機能）。プロフィールカード・
 /// メンバー一覧・招待リンク作成・ロール管理・広場削除・寄合モード選択は
 /// `GroupSettingsPopup`（`openGroupSettings`項目から開く）に集約済み
-/// （2026-09-13、単一モードでもこのメニューから同じ設定画面へ到達できる
-/// ようにしたため、フラット化した重複表示をやめた）。メニュー自体はボタンの
+/// （2026-09-13、単一モードでもこのメニューから同じ設定画面へ到達出来る
+/// ようにした為、フラット化した重複表示をやめた）。メニュー自体はボタンの
 /// 真下に開く（`PopupMenuPosition.under`）。
 class _GroupMenuButton extends ConsumerStatefulWidget {
   const _GroupMenuButton({
@@ -3067,10 +3067,10 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
 
   Future<void> _openMenu() async {
     // 寄合機能オフ（単一モード）の間は、寄合の名前変更・削除・退会など
-    // 寄合関連の項目を出す意味が無いため、ハンバーガーメニュー自体を
+    // 寄合関連の項目を出す意味が無い為、ハンバーガーメニュー自体を
     // 飛ばして広場の設定ポップアップを直接開く（2026-09-25追加）。
-    // 退会は多寄合モードのメニューにのみ残る項目のため、単一モードでも
-    // 退会できるよう`GroupSettingsPopup`側に退会ボタンを追加している。
+    // 退会は多寄合モードのメニューにのみ残る項目の為、単一モードでも
+    // 退会出来るよう`GroupSettingsPopup`側に退会ボタンを追加している。
     if (!widget.group.roomsEnabled) {
       showGroupSettingsDialog(
         context,
@@ -3182,7 +3182,7 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
           if (Navigator.of(context).canPop()) {
             // 狭い画面（フルスクリーンpush）: 語らい一覧へ戻すのではなく、
             // 一番上（最古）の寄合を開き直す。最後の1つの寄合は削除
-            // できない仕様のため、削除後リストが空になることはない
+            // 出来ない仕様の為、削除後リストが空になることは無い
             // （2026-08-13追加）。
             final remainingRooms = await ref
                 .read(groupRepositoryProvider)
@@ -3212,7 +3212,7 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
           }
         // 広い画面（埋め込みペイン）はcanPop()==falseで元々no-op。
         // TalksTab側の既存フォールバック（rooms.first）が自動的に
-        // 一番上の寄合を選択するため、追加対応不要。
+        // 一番上の寄合を選択する為、追加対応不要。
         case _GroupMenuAction.roomRolePriority:
           if (!canManageRoles) return;
           final regularRoles = widget.roles
@@ -3313,7 +3313,7 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
           // ロール管理・広場削除・寄合モード選択）はモード問わず
           // `GroupSettingsPopup`に集約している。広い画面ではサイドバーの
           // 歯車アイコンからも開けるが、単一モード（サイドバー自体が無い）
-          // や狭い画面（RoomTabBar使用）にはその手段が無いため、
+          // や狭い画面（RoomTabBar使用）にはその手段が無い為、
           // ハンバーガーメニューからも同じダイアログを開けるようにする
           // （2026-09-02追加、2026-09-13に常時表示化）。
           showGroupSettingsDialog(
@@ -3353,7 +3353,7 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
                 ),
                 // 寄合一覧サイドバーのごみ箱アイコンの代わり
                 // （2026-07-30変更）。最後の1つの寄合は選べても実際には
-                // 削除できず、リポジトリがStateErrorを投げてSnackBarで
+                // 削除出来ず、リポジトリがStateErrorを投げてSnackBarで
                 // 案内する（`handle`参照）。
                 _MenuTile(
                   label: strings.roomMenuDeleteLabel(vocabulary.textChannel),
@@ -3374,7 +3374,7 @@ class _GroupMenuButtonState extends ConsumerState<_GroupMenuButton> {
                 // `GroupSettingsPopup`に集約している（モードを問わず常時表示、
                 // 2026-09-13変更。以前は単一モードだけこのメニューへ直接
                 // フラット化していたが、単一モードでもこの項目から同じ設定
-                // 画面へ到達できるようになったため重複表示をやめた）。広い
+                // 画面へ到達出来るようになったため重複表示をやめた）。広い
                 // 画面ではサイドバーの歯車アイコンとも重複するが実害は無い。
                 _MenuTile(
                   label: strings.groupMenuOpenSettings,

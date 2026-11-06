@@ -29,9 +29,9 @@ const _allowlist = <String, List<String>>{
     'メッセージ（カスタム音）',
     '新着メッセージの通知',
   ],
-  // 曜日の略称は表示言語ごとの対訳表そのもの（英語は別の定数）。
+  // 曜日の略称は表示言語毎の対訳表そのもの（英語は別の定数）。
   'lib/utils/message_time.dart': ['_weekdayAbbreviationsJa'],
-  // 誕生日の表記は表示言語ごとの並び・単位の対訳表そのもの（英語・フランス語は別の
+  // 誕生日の表記は表示言語毎の並び・単位の対訳表そのもの（英語・フランス語は別の
   // 月名の表）。見る人の言語で整形するため`Strings`の固定文言では表せない。
   'lib/utils/birthday_format.dart': [
     'AppLocale.japanese =>',
@@ -96,7 +96,7 @@ void main() {
       isEmpty,
       reason:
           '日本語の文言は`Strings`（lib/l10n/strings.dart）へ移すか、'
-          '許可リストに理由付きで追加してください:\n${problems.join('\n')}',
+          '許可リストに理由付きで追加して下さい:\n${problems.join('\n')}',
     );
   });
 }

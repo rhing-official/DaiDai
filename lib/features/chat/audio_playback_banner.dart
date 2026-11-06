@@ -10,7 +10,7 @@ import '../../widgets/glass/glass_surface.dart';
 /// 音声添付を再生している間、語らい上部（予定などのバナーのさらに下）に出すバナー
 /// （2026-11-02）。再生している音声のファイル名と、一時停止／再開・停止のボタンを持つ。
 /// 再生は`audioPlaybackProvider`が持つため、元のメッセージがスクロールで画面から外れても
-/// ここから操作できる。10秒戻す・10秒送るのボタンも持つ（2026-11-05）。再生していない時は何も出さない。見た目は`GroupCallJoinBanner`・
+/// ここから操作出来る。10秒戻す・10秒送るのボタンも持つ（2026-11-05）。再生していない時は何も出さない。見た目は`GroupCallJoinBanner`・
 /// `ChatTaskBanner`と同じ（劇画は白黒、フラット・ガラスはアクセントカラー）。
 class AudioPlaybackBanner extends ConsumerWidget {
   const AudioPlaybackBanner({super.key});

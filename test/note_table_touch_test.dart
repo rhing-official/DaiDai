@@ -7,7 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 // ノートの表のタッチ操作（2026-10-17）。ベンダリング済みappflowy_editorの
 // DaiDai patch: タッチ端末では表の中に選択がある間だけ行・列ハンドルを常時表示し、
-// セルの矩形範囲を選択できる。並び替え（moveRow/moveCol）の付け替えも検証する。
+// セルの矩形範囲を選択出来る。並び替え（moveRow/moveCol）の付け替えも検証する。
 
 /// 3列×3行の表（セルのテキストは "{列}{行}"、例: c0r1 = 0列目1行目）。
 EditorState _gridState() {
@@ -64,7 +64,7 @@ void main() {
       expect(_text(table, 0, 2), 'c0r1');
     });
 
-    test('同じ位置・すぐ後ろへの移動は何も変えない', () {
+    test('同じ位置・直ぐ後ろへの移動は何も変えない', () {
       final state = _gridState();
       final table = _table(state);
       final tr = state.transaction;

@@ -8,7 +8,7 @@ import 'monochrome_box.dart';
 /// （直角の矩形、黒外枠→白内枠→[color]塗りの3層構成）で描く（2026-08-05、
 /// メッセージ画面アイコンと同じ非対称な角＋左上の突き出しを流用していたが、
 /// 些細な意匠のはずが凝った変形に見えてしまうとの指摘を受け、直角の矩形に
-/// 戻した。角の変化の代わりに、[seed]を指定すると枠の太さが箱ごとに僅かに
+/// 戻した。角の変化の代わりに、[seed]を指定すると枠の太さが箱毎に僅かに
 /// 変わる（[MonochromeBoxPainter]参照））。
 class GekigaBadgeShape extends StatelessWidget {
   const GekigaBadgeShape({

@@ -4,7 +4,7 @@ import '../models/group_join_request.dart';
 import 'repository_providers.dart';
 
 /// 自分が送った、承認待ち・却下済みの広場参加リクエスト一覧（語らいタブの
-/// 広場一覧に「申請中」「承認されませんでした」として表示するために使う）。
+/// 広場一覧に「申請中」「承認されませんでした」として表示する為に使う）。
 final myGroupJoinRequestsProvider =
     StreamProvider.family<List<GroupJoinRequest>, String>((ref, userId) {
       return ref.watch(groupRepositoryProvider).watchMyJoinRequests(userId);

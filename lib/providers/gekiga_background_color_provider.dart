@@ -29,10 +29,10 @@ class GekigaBackgroundColorNotifier extends Notifier<Color> {
   Color build() => ref.watch(initialGekigaBackgroundColorProvider);
 
   /// 劇画UIの背景色は常に不透明として扱う（2026-09-15追加）。
-  /// `tryParseHexColor`は8桁（透明度付き）のカラーコードもパースできるが、
+  /// `tryParseHexColor`は8桁（透明度付き）のカラーコードもパース出来るが、
   /// 劇画UIの吹き出し・パネル類の大半は`GekigaColors.panel`/`onPanel`と
   /// いう不透明な固定色で構成されている一方、背景色は`GekigaTheme.build`で
-  /// `surface`/`scaffoldBackgroundColor`等へそのまま適用されるため、透明度を
+  /// `surface`/`scaffoldBackgroundColor`等へそのまま適用される為、透明度を
   /// 持たせると画面によって見え方が食い違う不具合があった。読み込み・保存の
   /// 発生源（ここ）で一律アルファを固定することで、消費側は常に不透明な値
   /// として扱ってよいことを保証する。

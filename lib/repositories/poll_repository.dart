@@ -48,7 +48,7 @@ abstract class PollRepository {
 
   /// 1件のPollドキュメントを購読する（存在しなければnullを流す）。
   /// [responseCount]/[Poll.optionVoteCounts]はCloud Functionsが投票の少し後に
-  /// 非同期で更新するため、投票詳細ダイアログを開いたままにしても最新の
+  /// 非同期で更新する為、投票詳細ダイアログを開いたままにしても最新の
   /// 集計・選択肢の追加が反映されるよう、`getPoll`（単発取得）ではなく
   /// こちらを表示に使う。
   Stream<Poll?> watchPoll({
@@ -122,7 +122,7 @@ abstract class PollRepository {
   });
 
   /// 全員の回答一覧を購読する（非匿名投票の詳細表示専用。匿名投票では
-  /// firestore.rulesが自分以外を拒否するため、呼び出し側は`Poll.anonymous`で
+  /// firestore.rulesが自分以外を拒否する為、呼び出し側は`Poll.anonymous`で
   /// 使い分けること）。
   Stream<List<PollResponse>> watchResponses({
     required bool isDm,

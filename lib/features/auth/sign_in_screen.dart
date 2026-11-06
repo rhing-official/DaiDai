@@ -268,7 +268,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen>
         onPressed: () => _signIn((repo) => repo.signInWithGoogle()),
       ),
       // Appleでのログインは、Apple Developer Program（有料）側でのService ID/
-      // 秘密鍵の設定が済むまで実際には使えないため、その設定を行うまでUIから
+      // 秘密鍵の設定が済むまで実際には使えない為、その設定を行うまでUIから
       // 非表示にしている。AuthRepository.signInWithApple()自体は実装済みなので、
       // 設定が完了したらボタンを復活させるだけでよい。
       // Rhing Seed＋パスキー（WebAuthn）でのログイン・新規アカウント作成

@@ -3,7 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:daidai/features/call/acquire_with_video_fallback.dart';
 
 void main() {
-  test('映像を求めて取得できれば映像つき', () async {
+  test('映像を求めて取得出来れば映像つき', () async {
     final calls = <bool>[];
     final r = await acquireWithVideoFallback<String>(
       wantVideo: true,

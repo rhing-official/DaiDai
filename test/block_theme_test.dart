@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('blockはnameで保存・復元できる', () {
+  test('blockはnameで保存・復元出来る', () {
     expect(AppUiStyle.fromName('block'), AppUiStyle.block);
     expect(AppUiStyle.block.name, 'block');
   });

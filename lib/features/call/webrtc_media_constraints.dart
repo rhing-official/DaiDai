@@ -13,7 +13,7 @@ import 'call_log.dart';
 /// デフォルトのAEC/NS/AGCに委ねる。Web/iOS/デスクトップでは詳細な制約マップを
 /// そのまま使う。
 ///
-/// 注記: ここで指定できるのはあくまでWebRTC標準のエコー除去・ノイズ抑制・
+/// 注記: ここで指定出来るのはあくまでWebRTC標準のエコー除去・ノイズ抑制・
 /// 自動ゲイン調整であり、Krisp等が行うような機械学習ベースのノイズ除去とは
 /// 原理的に別物で、性能差は埋まらない。本格対応はフェーズ3のRNNoise統合を待つ
 /// （CLAUDE.md参照）。
@@ -26,7 +26,7 @@ dynamic buildAudioConstraints() {
     'noiseSuppression': true,
     'autoGainControl': true,
     // レガシー（Chromium/libwebrtcネイティブ層）向けの補助キー。対応していない
-    // 環境では単に無視されるため害はないが、効果があるとは保証されない。
+    // 環境では単に無視されるため害は無いが、効果があるとは保証されない。
     'googEchoCancellation': true,
     'googNoiseSuppression': true,
     'googAutoGainControl': true,
@@ -83,8 +83,8 @@ Map<String, dynamic> videoConstraintsFor({
     'facingMode': frontCamera ? 'user' : 'environment',
     if (deviceId != null && deviceId.isNotEmpty)
       'deviceId': {'ideal': deviceId},
-    // 電池消費と発熱を抑えるため、フレームレートを抑える（2026-10-31）。
-    // 数値で渡す（Androidはマップ形式のideal/maxを読まず既定値になるため）。
+    // 電池消費と発熱を抑える為、フレームレートを抑える（2026-10-31）。
+    // 数値で渡す（Androidはマップ形式のideal/maxを読先ず既定値になる為）。
     'frameRate': 24,
     'width': {'ideal': portrait ? 720 : long},
     'height': {'ideal': portrait ? long : 720},

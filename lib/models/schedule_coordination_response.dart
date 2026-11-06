@@ -2,7 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'schedule_coordination.dart';
 
-/// [ScheduleCoordination]1件・住人1人ごとの回答
+/// [ScheduleCoordination]1件・住人1人毎の回答
 /// (`.../scheduleCoordinations/{coordinationId}/responses/{uid}`、
 /// 2026-09-05追加)。[CalendarEventRsvp]と同じくドキュメントIDを本人のuidに
 /// し、firestore.rulesで「本人のuidのものにしか書き込めない」を単純な

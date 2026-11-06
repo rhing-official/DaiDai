@@ -95,14 +95,14 @@ abstract class AuthRepository {
   /// QRコードログイン（2026-08-09追加）。未ログイン端末が`qrLoginSessions`に
   /// pendingなセッションを作成し、sessionIdを返す。QRコードには
   /// `daidai:qrlogin:$sessionId`という文字列を埋め込む（実URLではなく、
-  /// DaiDaiアプリ内スキャナーが判定できればよいだけの文字列）。
+  /// DaiDaiアプリ内スキャナーが判定出来ればよいだけの文字列）。
   Future<String> createQrLoginSession();
 
   /// [sessionId]のステータス（'pending'/'approved'/'claimed'）を監視する。
   Stream<String> watchQrLoginSessionStatus(String sessionId);
 
   /// ログイン済み端末側が呼ぶ。セッションを承認し、未ログイン端末が
-  /// サインインできるようにする（Cloud Functions経由）。
+  /// サインイン出来るようにする（Cloud Functions経由）。
   Future<void> approveQrLoginSession(String sessionId);
 
   /// ログイン済み端末がQRを表示する方式（2026-10-15）。`daidai:qrissue:$sessionId`を
@@ -113,7 +113,7 @@ abstract class AuthRepository {
   /// 読み取った（未ログインの）端末が、QRのセッションにログインを要求する。
   Future<void> requestIssuedQrLogin(String sessionId);
 
-  /// QRを表示した本人が、要求に許可（[approve]=true）または拒否を返す。
+  /// QRを表示した本人が、要求に許可（[approve]=true）又は拒否を返す。
   Future<void> respondIssuedQrLogin(String sessionId, {required bool approve});
 
   /// 未ログイン端末側が、承認済み（approved）になったセッションを検知したら
@@ -123,7 +123,7 @@ abstract class AuthRepository {
   /// Rhing Seed＋パスキー（WebAuthn）による新規アカウント作成（2026-09-16追加）。
   /// デバイスの生体認証/画面ロックで新しいパスキーを作成し、対応する
   /// Firebase Authユーザーを作成してサインインする。この時点ではまだ
-  /// FirestoreのAppUserドキュメントは存在しないため、呼び出し後はGoogle/Apple
+  /// FirestoreのAppUserドキュメントは存在しない為、呼び出し後はGoogle/Apple
   /// サインイン後と同様に`AuthGate`が`TermsConsentScreen`→
   /// `RhingSeedSetupScreen`へ自然に遷移する（Rhing Seed自体はそこで決める）。
   Future<User> registerWithPasskey();
@@ -134,7 +134,7 @@ abstract class AuthRepository {
 
   /// Rhing Seedを入力せずに、デバイスのパスキー選択画面（モーダル）から
   /// 選んだパスキーでログインする（2026-10-04追加）。登録時にuidを
-  /// `userID`へ埋め込んでいるため、サーバーはSeedなしで本人を特定できる
+  /// `userID`へ埋め込んでいる為、サーバーはSeedなしで本人を特定出来る
   /// （`beginPasskeyAuthenticationDiscoverable`）。Conditional UIと違い
   /// Web以外（ネイティブ）でも使える。
   Future<User> signInWithDiscoverablePasskey();
@@ -144,8 +144,8 @@ abstract class AuthRepository {
   /// ブラウザ側のパスキー候補一覧をユーザーに提示し、選択されたパスキーで
   /// サインインする。ユーザーが候補を選ぶ前に他の操作（Google/Rhing Seed
   /// ログイン等）で認証が横取りされた場合はnullを返す。対応していない
-  /// 環境（Web以外、またはブラウザがConditional Mediation未対応）では
-  /// 呼び出し側が判断できるよう[isConditionalPasskeyAvailable]を用意する。
+  /// 環境（Web以外、又はブラウザがConditional Mediation未対応）では
+  /// 呼び出し側が判断出来るよう[isConditionalPasskeyAvailable]を用意する。
   Future<User?> trySignInWithConditionalPasskey();
 
   /// [trySignInWithConditionalPasskey]が実際に使える環境かどうか。
@@ -154,7 +154,7 @@ abstract class AuthRepository {
   /// [trySignInWithConditionalPasskey]の待機を中断する。呼び出し元の画面が
   /// ユーザーの選択を待たずに閉じられた場合に呼ぶ（明示的なRhing Seed
   /// ログイン等、他の認証操作を開始する場合は各操作側が自動的に中断するため
-  /// 呼ぶ必要はない）。
+  /// 呼ぶ必要は無い）。
   Future<void> cancelConditionalPasskeyAttempt();
 
   /// 秘密の質問（3問固定）を設定・更新する（2026-09-16追加、パスキー紛失時の
@@ -162,7 +162,7 @@ abstract class AuthRepository {
   /// ハッシュ化して保存し、平文は保持しない。
   Future<void> setSecretQuestions(List<SecretQuestionInput> questions);
 
-  /// 秘密の質問の設定状況を取得する（ハッシュ自体は取得できない）。
+  /// 秘密の質問の設定状況を取得する（ハッシュ自体は取得出来ない）。
   Future<SecretQuestionsStatus> getSecretQuestionsStatus();
 
   /// 現在ログイン中ユーザーが登録済みのパスキー一覧を取得する
@@ -187,7 +187,7 @@ abstract class AuthRepository {
   Future<PasskeyRecoveryQuestions> beginPasskeyRecovery(String rhingSeed);
 
   /// 復旧フロー第2段階。[answers]は[beginPasskeyRecovery]が返した質問と
-  /// 同じ順序の3つの回答。3問すべて正解した場合のみサインインする。
+  /// 同じ順序の3つの回答。3問全て正解した場合のみサインインする。
   Future<User> finishPasskeyRecovery(String recoveryId, List<String> answers);
 
   /// 現在ログイン中ユーザーが管理者（Firebase Custom Claims `admin: true`）
@@ -207,7 +207,7 @@ class FirebaseAuthRepository implements AuthRepository {
        _googleSignIn = googleSignIn ?? GoogleSignIn.instance,
        _firestore = firestore ?? FirebaseFirestore.instance,
        // Cloud Functions（functions/src/index.ts）はasia-northeast1に
-       // デプロイしているため、呼び出し側もリージョンを明示する。
+       // デプロイしている為、呼び出し側もリージョンを明示する。
        _functions =
            functions ??
            FirebaseFunctions.instanceFor(region: 'asia-northeast1');
@@ -255,8 +255,8 @@ class FirebaseAuthRepository implements AuthRepository {
   @override
   Future<User> signInWithApple() async {
     // Appleは"email"/"name"スコープをリクエストしないとユーザーの氏名・メールアドレスを
-    // 取得できない（Googleと違い初回サインイン時のみクライアントに返る）。
-    // ただしDaiDaiはメールアドレスを収集しない方針のため、認証用途のみに使い保存しない。
+    // 取得出来ない（Googleと違い初回サインイン時のみクライアントに返る）。
+    // 但しDaiDaiはメールアドレスを収集しない方針の為、認証用途のみに使い保存しない。
     final provider = OAuthProvider('apple.com')
       ..addScope('email')
       ..addScope('name');
@@ -424,7 +424,7 @@ class FirebaseAuthRepository implements AuthRepository {
 
   /// Cloud Functionsの`HttpsCallableResult.data`は（特にWeb版で）ネストした
   /// マップが`Map<Object?, Object?>`として返ってくることがあり、そのままでは
-  /// `Map<String, dynamic>`にキャストできない。JSONを経由して往復させることで
+  /// `Map<String, dynamic>`にキャスト出来ない。JSONを経由して往復させることで
   /// 純粋な`Map<String, dynamic>`/`List<dynamic>`構造に正規化する
   /// （2026-09-16追加、パスキーのregistration/authentication optionsのように
   /// ネストしたレスポンスを扱うため新設）。

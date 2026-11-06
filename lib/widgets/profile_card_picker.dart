@@ -9,7 +9,7 @@ import 'gekiga/gekiga_panel_box.dart';
 import 'toggles/app_radio.dart';
 import '../theme/gekiga/gekiga_colors.dart';
 
-/// 会話（一対・広場）ごとに使うプロフィールカードを選ぶ単一選択ピッカー。
+/// 会話（一対・広場）毎に使うプロフィールカードを選ぶ単一選択ピッカー。
 /// 「標準」＋[cards]の各カード名を並べる。広場参加・友達申請3系統・
 /// 全体設定（設定タブ＞語らい）の計5箇所で使い回す
 /// （`AppUser.conversationProfileCardId`、2026-07-29追加）。
@@ -88,7 +88,10 @@ class ProfileCardPicker extends ConsumerWidget {
     return RadioGroup<String?>(
       groupValue: effectiveSelectedId,
       onChanged: onSelected,
+      // 中身の高さに収める（`AlertDialog`の中で`Column`が最大の高さに広がり、
+      // 縦に長いポップアップになっていた、2026-11-06修正）。
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
           for (final option in options)
             AppRadioListTile<String?>(

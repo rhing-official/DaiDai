@@ -218,7 +218,7 @@ void main() {
 
       await tester.tap(find.text('プロフィールを確認'));
       await tester.pumpAndSettle();
-      // 理由が未選択の間は実行できない。
+      // 理由が未選択の間は実行出来ない。
       final record = find.widgetWithText(FilledButton, '記録して表示');
       expect(tester.widget<FilledButton>(record).onPressed, isNull);
 
@@ -254,7 +254,7 @@ void main() {
       expect(find.byType(ProfileCardView), findsNothing);
       // 数秒たっても消えない（バナーではなくダイアログ内に残る）。
       await tester.pump(const Duration(seconds: 10));
-      expect(find.textContaining('記録に失敗したため表示できません'), findsOneWidget);
+      expect(find.textContaining('記録に失敗したため表示出来ません'), findsOneWidget);
     });
   });
 }

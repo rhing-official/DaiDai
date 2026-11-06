@@ -6,7 +6,7 @@ import '../models/calendar_event_sync.dart';
 import '../repositories/calendar_event_repository.dart';
 import 'google_calendar_sync_service.dart';
 
-/// 出欠の回答に「参加」または「遅刻」が1日でも含まれるか（2026-10-04追加）。
+/// 出欠の回答に「参加」又は「遅刻」が1日でも含まれるか（2026-10-04追加）。
 /// Googleカレンダーへ同期する（＝参加扱い）かどうかの判定に使う。
 bool isAttendingAny(Map<String, CalendarRsvpStatus> dayStatuses) {
   return dayStatuses.values.any(
@@ -17,7 +17,7 @@ bool isAttendingAny(Map<String, CalendarRsvpStatus> dayStatuses) {
 /// 出欠の「回答を保存」を押した時に、その住人自身のGoogleカレンダーへ予定を
 /// 同期する（2026-10-04追加、ユーザー指示）。予定作成時に全員分を自動で
 /// 同期待ちにする方式は廃止し、参加した人だけが同期される。
-/// ボタン操作の中で呼ぶ前提のため、アクセストークンは呼び出し側がその場で
+/// ボタン操作の中で呼ぶ前提の為、アクセストークンは呼び出し側がその場で
 /// （ユーザー操作の有効期間内に）取得して渡す。
 class CalendarRsvpSync {
   CalendarRsvpSync({

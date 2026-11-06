@@ -92,7 +92,7 @@ Future<Size?> resolveImageSize(ImageProvider provider) {
   return completer.future;
 }
 
-/// カードの背景・円形アイコンとして画像を表示する。[focal]がnull（または既定）
+/// カードの背景・円形アイコンとして画像を表示する。[focal]がnull（又は既定）
 /// なら従来の`BoxFit.cover`＋中央と同じ。位置が指定されている場合、画像の
 /// サイズが分かるまでは`BoxFit.cover`で仮表示する。
 class FocalImage extends StatefulWidget {

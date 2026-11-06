@@ -8,7 +8,7 @@ import '../utils/birthday_format.dart';
 import 'profile_card_view.dart';
 
 /// [user]が[conversationId]（一対のdmId・広場のgroupId）で見せるプロフィールカード
-/// （会話ごとに選んだ工房カード、無ければ標準）を[ProfileCardView]で描く
+/// （会話毎に選んだ工房カード、無ければ標準）を[ProfileCardView]で描く
 /// （2026-10-13、`UserProfileCardDialog`と語らい一覧のホバーカードで共通化）。
 /// 呼び名は未設定なら`@rhingSeed`にフォールバックする。
 class UserProfileCardView extends StatelessWidget {
@@ -28,15 +28,15 @@ class UserProfileCardView extends StatelessWidget {
   final double width;
   final double height;
 
-  /// カード内にSNSのURLを出すか。ダイアログはカードの下にタップできる別要素で
-  /// 出すためfalse、操作できないホバーカードはtrue。
+  /// カード内にSNSのURLを出すか。ダイアログはカードの下にタップ出来る別要素で
+  /// 出すためfalse、操作出来ないホバーカードはtrue。
   final bool showSnsLinks;
 
   /// 渡すと、カード内のURLをタップして開ける。
   final ValueChanged<SnsLink>? onOpenSnsLink;
 
-  /// Rhing Seedの行をタップしてコピーできるようにするか（相手のカードを見るダイアログ用、
-  /// 2026-10-31）。ホバーカードのように操作できない場所ではfalse。
+  /// Rhing Seedの行をタップしてコピー出来るようにするか（相手のカードを見るダイアログ用、
+  /// 2026-10-31）。ホバーカードのように操作出来ない場所ではfalse。
   final bool copyRhingSeed;
 
   /// 誕生日は、カードを見る人の言語の並びで整形する（2026-10-23）。

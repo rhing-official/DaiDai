@@ -18,19 +18,19 @@ import 'utils/message_time.dart';
 /// まとめたトップレベルの仕組み（2026-08-31追加）。今回の実装範囲は
 /// Web + Androidのみ（`lib/repositories/push_notification_repository.dart`
 /// 参照）。Web版は`web/firebase-messaging-sw.js`側で通知を組み立てて
-/// 表示するため、このファイルの`showRemoteMessageNotification`は
+/// 表示する為、このファイルの`showRemoteMessageNotification`は
 /// Androidでのみ動作する（`kIsWeb`ガード）。
 ///
 /// Cloud Functions（`functions/src/pushNotifications.ts`）はAndroid向けに
 /// data-onlyメッセージを送る（Androidの通知アイコン/画像はローカル
-/// アセットかバイト列でしか渡せず、リモートURLを直接指定できないため）。
+/// アセットかバイト列でしか渡せず、リモートURLを直接指定出来ない為）。
 /// このファイルが`http`でアイコン・プレビュー画像を取得し、
 /// `flutter_local_notifications`でリッチ通知として組み立てる。
 final _localNotifications = FlutterLocalNotificationsPlugin();
 
-/// 通知音プリセットごとの通知チャンネル定義（既定は`SoundCategory.
+/// 通知音プリセット毎の通知チャンネル定義（既定は`SoundCategory.
 /// notification.defaultPreset`、2026-09-06 Phase B追加）。Android通知チャンネルは
-/// 作成後に音を変更できないため、プリセットごとに別チャンネルを用意し、
+/// 作成後に音を変更出来ない為、プリセット毎に別チャンネルを用意し、
 /// [_resolveAndroidChannelId]で表示時にどれを使うか切り替える（カスタム
 /// アップロード音源用のチャンネルは`android_notification_sound_sync.dart`が
 /// 選択・アップロードのタイミングで別途作成する）。
@@ -55,8 +55,8 @@ String _channelLabelFor(String presetId) => switch (presetId) {
 /// main()から一度だけ呼ぶ。Android通知チャンネルの作成・初期化に加え、
 /// 通知タップ検知（[onDidReceiveNotificationResponse]）を登録する
 /// （2026-09-02追加）。Androidはdata-onlyメッセージのみでOS自身は通知を
-/// 表示しないため、FCMの`onMessageOpenedApp`/`getInitialMessage`では
-/// タップを検知できず、自前で表示した`flutter_local_notifications`側の
+/// 表示しない為、FCMの`onMessageOpenedApp`/`getInitialMessage`では
+/// タップを検知出来ず、自前で表示した`flutter_local_notifications`側の
 /// コールバックが唯一の検知経路になる（アプリ起動中・バックグラウンドで
 /// エンジンが生きている間のタップはこちらで拾える。完全終了状態からの
 /// 起動＝cold startは[consumeLaunchNotificationPayload]で別途扱う）。

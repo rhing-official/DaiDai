@@ -15,7 +15,7 @@ enum GroupJoinRequestStatus {
   }
 }
 
-/// 招待リンクから広場に参加するための承認待ちリクエスト。
+/// 招待リンクから広場に参加する為の承認待ちリクエスト。
 /// `groups/{groupId}/joinRequests/{requesterId}`に保存され、1人につき
 /// ドキュメントは常に1つだけ存在する（却下後の再申請も同じドキュメントを更新する）。
 class GroupJoinRequest {

@@ -26,7 +26,7 @@ import '../utils/platform_info.dart';
 import '../widgets/interactive_swipe_back.dart';
 import 'back_stack.dart';
 
-/// 語らい系の画面遷移をURL付きのブラウザ履歴に載せるためのルーター。
+/// 語らい系の画面遷移をURL付きのブラウザ履歴に載せる為のルーター。
 /// これによりブラウザ/マウスの「戻る」「進む」がアプリ内の画面遷移と対応する
 /// （素朴なNavigator.pushだけだとWebでは履歴に乗らず、「戻る」でサイトごと
 /// 離脱してしまうため導入した）。
@@ -70,7 +70,7 @@ class DmChatArgs {
   /// （2026-09-14追加）。寄合一覧上の左スワイプで指の動きに追従する
   /// プレビュー（`talks_tab.dart`の`_SwipeToOpenRoomPreview`）が既に
   /// 「開き切った」見た目までドラッグで表示し終えた直後にこの遷移を行う
-  /// 場合に使う。既にプレビューで同じ絵が見えているため、ここで通常の
+  /// 場合に使う。既にプレビューで同じ絵が見えている為、ここで通常の
   /// スライドインを再生すると二重にアニメーションして見えてしまうため。
   final bool instant;
 }
@@ -126,7 +126,7 @@ class GroupCallArgs {
 
 /// [goRouterProvider]が構築した`GoRouter`インスタンスへの参照。Riverpodの
 /// `ref`を持たない場所（`push_notifications.dart`の通知タップハンドラ等）
-/// から画面遷移するために使う（2026-09-02追加）。Providerは遅延初期化だが、
+/// から画面遷移する為に使う（2026-09-02追加）。Providerは遅延初期化だが、
 /// `MaterialApp.router`が起動時に`goRouterProvider`を読むため、通知タップが
 /// 起こり得るタイミングには必ず埋まっている。
 GoRouter? globalRouter;
@@ -163,7 +163,7 @@ final goRouterProvider = Provider<GoRouter>((ref) {
   // pushで開く画面向けの共通ヘルパー（旧`interactiveChatSwipeBack`/
   // `slideInChatFromRight`/`swipeBack`を統合、2026-09-12）。右スワイプでの
   // インタラクティブな「戻る」（`InteractiveSwipeBackTransition`、指の位置に
-  // リアルタイムに追従し途中で離すとキャンセルできるジェスチャー。左スワイプ
+  // リアルタイムに追従し途中で離すとキャンセル出来るジェスチャー。左スワイプ
   // での「戻る」は誤操作につながるため2026-09-10に廃止済み）を必ず適用し、
   // 入場アニメーションのみ[transition]で選べる。通話画面（/call・
   // /group-call）は誤スワイプでの離脱・切断事故を避けるため対象外にしている。
@@ -185,7 +185,7 @@ final goRouterProvider = Provider<GoRouter>((ref) {
 
   // 発信側は、モバイルのみ全画面の/callへpushする。PCでは全画面ルートを
   // 使わず、通話セッションを直接開始するだけにする（2026-08-19変更）。
-  // 発信者は既にその会話のメッセージ画面を見ているため、以後は
+  // 発信者は既にその会話のメッセージ画面を見ている為、以後は
   // 以後は`CallOverlay`が今の画面の上に通話画面を重ねて表示する。
   Future<void> startCall(
     AppUser currentUser,
@@ -225,8 +225,8 @@ final goRouterProvider = Provider<GoRouter>((ref) {
   }
 
   final backStack = ref.read(backStackControllerProvider);
-  // `extra`はブラウザの進むで失われるため、最後に開いたチャット画面の引数を
-  // メモリに覚えておき、進むでメッセージ画面を復元できるようにする
+  // `extra`はブラウザの進むで失われる為、最後に開いたチャット画面の引数を
+  // メモリに覚えておき、進むでメッセージ画面を復元出来るようにする
   // （2026-10-07追加。リロードでは消えるので、その場合は下のredirectでホームへ）。
   DmChatArgs? lastDmArgs;
   GroupChatArgs? lastGroupArgs;
@@ -456,7 +456,7 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         // 詳細は`NotificationChatOpener`参照。
         path: '/chat/dm/:dmId',
         // NotificationChatOpenerが内部で既にInteractiveSwipeBackTransitionを
-        // 組み込み済みのため、ここではopaque:falseのPage化のみ行う。
+        // 組み込み済みの為、ここではopaque:falseのPage化のみ行う。
         pageBuilder: (context, state) => opaqueFalsePage(
           state,
           AuthGate(

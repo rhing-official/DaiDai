@@ -12,8 +12,8 @@ import '../../widgets/blurred_viewer_route.dart';
 /// タップ、Escで閉じる（戻る矢印は出さない）。
 ///
 /// `MaterialApp.builder`の位置にある通話画面（`CallOverlay`、Web・コンピューター）には
-/// `Navigator`が無いため、その場合は`Overlay`へ直接重ねる。`Navigator`がある画面
-/// （スマホアプリの全画面通話）は、ほかのビューアと同じ`blurredViewerRoute`で開く（戻る操作が
+/// `Navigator`が無い為、その場合は`Overlay`へ直接重ねる。`Navigator`がある画面
+/// （スマホアプリの全画面通話）は、他のビューアと同じ`blurredViewerRoute`で開く（戻る操作が
 /// 通話画面ではなく拡大だけを閉じるように）。
 ///
 /// Webの`RTCVideoRenderer`は描画要素を1つしか持たず、拡大中は元の画面の同じ映像が
@@ -112,7 +112,7 @@ class CallVideoViewer extends StatelessWidget {
         return KeyEventResult.ignored;
       },
       // 映像の外の余白のクリック・タップで閉じる。映像はホイール・ピンチで拡大・縮小、
-      // ドラッグで移動できる（画像の拡大表示と同じ`InteractiveViewer`、2026-11-03）。
+      // ドラッグで移動出来る（画像の拡大表示と同じ`InteractiveViewer`、2026-11-03）。
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: onClose,

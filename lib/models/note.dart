@@ -1,16 +1,16 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 /// 寄合単位の共有ノート（2026-09-06追加。`directMessages/{dmId}/rooms/{roomId}/
-/// notes/{noteId}`または`groups/{groupId}/rooms/{roomId}/notes/{noteId}`）。
+/// notes/{noteId}`又は`groups/{groupId}/rooms/{roomId}/notes/{noteId}`）。
 ///
 /// [content]はappflowy_editorの`Document.toJson()`をそのまま保存した構造化
 /// データ（フラットなMarkdown文字列ではない）。v1は投票・日程調整と同じ
 /// 「フルドキュメント上書き保存」方式（[NoteRepository.updateNote]参照）で、
 /// 複数人が同時に開いた場合は後から保存した方が反映される。ノート自体は
-/// 寄合の参加者/メンバー全員が編集できる「共有」ノートのため、更新は誰でも
+/// 寄合の参加者/メンバー全員が編集出来る「共有」ノートの為、更新は誰でも
 /// 可能（削除のみ[createdBy]本人限定、firestore.rules参照）。
 /// [Note.type]の値（2026-10-04追加）。作成時に選んだ種別で固定され、後から
-/// 切り替えることはできない。
+/// 切り替えることは出来ない。
 const noteTypeMarkdown = 'markdown';
 const noteTypeDraw = 'draw';
 

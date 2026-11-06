@@ -161,7 +161,7 @@ void main() {
         {'roomId': 'r1', 'name': 'デプロイ通知'},
       ]);
       expect(find.textContaining('SECRET'), findsWidgets);
-      expect(find.text('このURLは今しか表示されません。必ず今コピーして保管してください。'), findsOneWidget);
+      expect(find.text('このURLは今しか表示されません。必ず今コピーして保管して下さい。'), findsOneWidget);
 
       await tester.tap(find.text('完了'));
       await tester.pumpAndSettle();

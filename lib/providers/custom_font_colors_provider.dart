@@ -6,7 +6,7 @@ import 'repository_providers.dart';
 
 const _prefsKey = 'customFontColorsArgb32';
 
-/// ユーザーが自分で登録できるカードの文字色の上限数（2026-10-31追加）。
+/// ユーザーが自分で登録出来るカードの文字色の上限数（2026-10-31追加）。
 const kMaxCustomFontColors = 5;
 
 /// 端末に保存されているカードの文字色の登録色の初期値。main()で起動前に
@@ -27,7 +27,7 @@ class CustomFontColorsNotifier extends Notifier<List<Color>> {
   @override
   List<Color> build() => ref.watch(initialCustomFontColorsProvider);
 
-  /// 上限（[kMaxCustomFontColors]）に達している、または既に登録済みの
+  /// 上限（[kMaxCustomFontColors]）に達している、又は既に登録済みの
   /// 色の場合は何もせず`false`を返す。
   Future<bool> addColor(Color color) async {
     if (state.length >= kMaxCustomFontColors || state.contains(color)) {

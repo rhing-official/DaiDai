@@ -27,7 +27,7 @@ void main() {
     );
   });
 
-  test('取れなければ種類ごとの既定名', () {
+  test('取れなければ種類毎の既定名', () {
     expect(mediaDownloadFileName(item('')), 'image');
     expect(mediaDownloadFileName(item('', type: 'video')), 'video');
   });

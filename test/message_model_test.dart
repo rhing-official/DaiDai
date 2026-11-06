@@ -89,7 +89,7 @@ void main() {
       });
     });
 
-    test('新フィールドが存在しない既存ドキュメントでも欠損時デフォルトで復元できる', () {
+    test('新フィールドが存在しない既存ドキュメントでも欠損時デフォルトで復元出来る', () {
       final legacyJson = {
         'conversationId': 'dm1',
         'conversationType': 'dm',

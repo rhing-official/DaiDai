@@ -17,7 +17,7 @@ import 'tutorial_controller.dart';
 /// 実行中は、画面を暗くして今押してほしい場所だけを「穴」にし、その周りに手描きの
 /// 丸を描き進め、説明の吹き出しを出す。**穴の外のタップは吸収し、穴の中のタップだけ
 /// 下のボタンへ通す**（穴を囲む4枚の矩形でベールを作る）。押されたかどうかは
-/// `TutorialTarget`が検知する。「やめる」・Esc・戻る操作でいつでも中断できる。
+/// `TutorialTarget`が検知する。「やめる」・Esc・戻る操作でいつでも中断出来る。
 class TutorialOverlay extends ConsumerStatefulWidget {
   const TutorialOverlay({super.key});
 
@@ -29,8 +29,8 @@ class _TutorialOverlayState extends ConsumerState<TutorialOverlay>
     with TickerProviderStateMixin {
   /// 穴の周りの余白。ボタンの枠（劇画UIのタイルの外枠など、目印の大きさより外に
   /// 描かれる部分）まで暗くならないよう、ボタンより広めに開ける（2026-10-17、
-  /// 劇画UIで押すボタンが暗いままに見えるという指摘で6→12に拡大）。隣のボタンとの
-  /// 間隔（約40px）より小さいため、隣のボタンまで通ることはない。
+  /// 劇画UIで押すボタンが暗今まに見えるという指摘で6→12に拡大）。隣のボタンとの
+  /// 間隔（約40px）より小さい為、隣のボタンまで通ることは無い。
   static const _holePadding = 12.0;
 
   late final AnimationController _draw = AnimationController(
@@ -41,7 +41,7 @@ class _TutorialOverlayState extends ConsumerState<TutorialOverlay>
   final ValueNotifier<Rect?> _rect = ValueNotifier(null);
 
   /// 目印が見つからないまま3秒たったら、進まない時の案内を出す。時刻は実時間ではなく
-  /// ティッカーの経過時間で数える（フレームに連動するため、テストでも進められる）。
+  /// ティッカーの経過時間で数える（フレームに連動する為、テストでも進められる）。
   final ValueNotifier<bool> _showWaitingHint = ValueNotifier(false);
   Duration? _waitStart;
   bool _usingFallback = false;
@@ -95,7 +95,7 @@ class _TutorialOverlayState extends ConsumerState<TutorialOverlay>
     }
     var rect = registry.rectOf(step.targetId);
     // 目印がまだ無い間、代わりに明るく抜いておく場所（送信ボタンは文字を入れるまで
-    // 現れないため、その間も入力欄を使えるようにする）。丸は描かず、待機の案内も出さない。
+    // 現れない為、その間も入力欄を使えるようにする）。丸は描かず、待機の案内も出さない。
     final fallbackId = step.fallbackTargetId;
     final fallback = rect == null && fallbackId != null
         ? registry.rectOf(fallbackId)
@@ -150,7 +150,7 @@ class _TutorialOverlayState extends ConsumerState<TutorialOverlay>
     final state = ref.watch(tutorialControllerProvider);
     if (state == null) return const SizedBox.shrink();
     if (!_poll.isActive && !state.done) {
-      // 初回（listenは変化の時だけ呼ばれるため、開始直後はここで始める）。
+      // 初回（listenは変化の時だけ呼ばれる為、開始直後はここで始める）。
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted && !_poll.isActive) {
           _resetForStep();
@@ -191,7 +191,7 @@ class _TutorialOverlayState extends ConsumerState<TutorialOverlay>
                         ..._barriers(
                           screen,
                           // 押さない手順（情報の手順）は、穴の上も含めて画面全体を吸収する。
-                          // 出来事で進む手順（advanceOnEvent）は、穴の中を操作できる。
+                          // 出来事で進む手順（advanceOnEvent）は、穴の中を操作出来る。
                           (step != null &&
                                   !step.requiresTap &&
                                   step.advanceOnEvent == null)
@@ -317,7 +317,7 @@ class _TutorialOverlayState extends ConsumerState<TutorialOverlay>
 /// 画面を暗くし、[hole]だけを角丸でくり抜く（2026-10-17）。穴は`Path.combine`では
 /// なく、レイヤーに暗い塗りを敷いて穴を`BlendMode.clear`で抜く方法で作る
 /// （描画環境によらず確実に抜ける。`Path.combine`では穴が抜けず、押すボタンが
-/// 暗いままに見える不具合があった）。
+/// 暗今まに見える不具合があった）。
 class TutorialScrimPainter extends CustomPainter {
   const TutorialScrimPainter({required this.hole});
 
@@ -365,7 +365,7 @@ class _Caption extends StatelessWidget {
   final String counter;
 
   /// 自由に触る手順のカード。目印には寄せず、画面の下（[atTop]なら上）に固定し、
-  /// 下に置くときはキーボードの上に持ち上げる。
+  /// 下に置く時はキーボードの上に持ち上げる。
   final bool freeform;
   final bool atTop;
 

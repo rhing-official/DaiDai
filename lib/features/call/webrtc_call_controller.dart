@@ -21,7 +21,7 @@ import 'webrtc_media_constraints.dart';
 enum CallConnectionState { connecting, active, ended }
 
 /// 1件の音声通話のWebRTCシグナリング・PeerConnectionのライフサイクルを管理する。
-/// 通話ごとにインスタンス化し、画面を離れる際にdispose()すること。
+/// 通話毎にインスタンス化し、画面を離れる際にdispose()すること。
 class WebrtcCallController extends ChangeNotifier {
   WebrtcCallController({
     required this.call,
@@ -37,7 +37,7 @@ class WebrtcCallController extends ChangeNotifier {
   final Call call;
   final bool isCaller;
 
-  /// 応答時にカメラをオンで入るか（設定「ビデオ通話に参加するときカメラをオンにする」、
+  /// 応答時にカメラをオンで入るか（設定「ビデオ通話に参加する時カメラをオンにする」、
   /// 2026-11-01）。着信側の応答にだけ効き、発信側には影響しない。
   final bool joinWithCamera;
   final CallRepository _callRepository;
@@ -69,9 +69,9 @@ class WebrtcCallController extends ChangeNotifier {
   String? _lastAppliedAnswerSdp;
 
   // setRemoteDescriptionが完了するより先にICE candidateが届くと、
-  // addCandidateが例外を投げて無言で失われてしまう競合状態があったため、
+  // addCandidateが例外を投げて無言で失われてしまう競合状態があった為、
   // 完了するまで候補をバッファし、完了後にまとめて適用する。
-  // watchCandidatesは毎回累積リスト全体を再送してくるため、適用済みの
+  // watchCandidatesは毎回累積リスト全体を再送してくる為、適用済みの
   // 候補をキーで重複排除する。
   bool _remoteDescriptionSet = false;
   final List<Map<String, dynamic>> _pendingRemoteCandidates = [];
@@ -101,13 +101,13 @@ class WebrtcCallController extends ChangeNotifier {
   bool get muted => _muted;
 
   /// 相手がミュートしているか（2026-10-31追加）。一対にはミュート状態を運ぶ
-  /// 経路が無かったため、コントロールのデータチャネルで送り合う（Firestoreへの
+  /// 経路が無かった為、コントロールのデータチャネルで送り合う（Firestoreへの
   /// 書き込みを増やさない）。
   bool _remoteMuted = false;
   bool get remoteMuted => _remoteMuted;
 
   /// 映像をオンにできなかった（カメラが他で使用中・許可が無い等、2026-11-03）。
-  /// 数秒後、または次に切り替えた時に消える。画面が注意書きを出す。
+  /// 数秒後、又は次に切り替えた時に消える。画面が注意書きを出す。
   bool _videoFailed = false;
   bool get videoFailed => _videoFailed;
   Timer? _videoFailedTimer;
@@ -157,7 +157,7 @@ class WebrtcCallController extends ChangeNotifier {
         ),
       );
     } catch (_) {
-      // 送れなくても通話は続ける（相手の表示が古いままになるだけ）。
+      // 送れなくても通話は続ける（相手の表示が古今まになるだけ）。
     }
   }
 
@@ -181,7 +181,7 @@ class WebrtcCallController extends ChangeNotifier {
 
   /// 相手の映像トラックが実際に届いて流れているか（2026-11-03）。[remoteIsVideo]は相手が
   /// 申告した「映像オン」のフラグで、トラックが届く前や届かない場合でも真になる。その間に
-  /// 映像の枠だけを出すと、中身の無い透明な画面になり、相手が誰かも分からなくなるため、
+  /// 映像の枠だけを出すと、中身の無い透明な画面になり、相手が誰かも分からなくなる為、
   /// 画面は両方が真の時だけ映像を出し、それ以外は相手のアイコンを出す。
   bool _remoteVideoReady = false;
   bool get remoteVideoShown => _remoteIsVideo && _remoteVideoReady;
@@ -195,7 +195,7 @@ class WebrtcCallController extends ChangeNotifier {
   bool _localRendererInitialized = false;
 
   /// 通話が接続状態（active）になった時刻。発信者側のみ、通話終了時に
-  /// この時刻から通話履歴メッセージの通話時間を計算するために使う。
+  /// この時刻から通話履歴メッセージの通話時間を計算する為に使う。
   DateTime? _connectedAt;
 
   bool _switchingCallType = false;
@@ -253,7 +253,7 @@ class WebrtcCallController extends ChangeNotifier {
 
   /// 前後（イン/アウト）カメラ切替ボタンの表示可否に使う、映像入力
   /// デバイスの台数（2026-08-19追加）。`getUserMedia`成功後（＝端末の
-  /// カメラ利用許可が下りた後）にだけ正確に取得できるため、映像取得の
+  /// カメラ利用許可が下りた後）にだけ正確に取得出来る為、映像取得の
   /// 直後（[initialize]・[_enableLocalVideoTrack]）に1回だけ取得し直す
   /// （継続的な監視は行わない）。
   int? _localCameraCount;
@@ -274,7 +274,7 @@ class WebrtcCallController extends ChangeNotifier {
   /// ICE成立までの経過時間の計測（診断ログ用）。
   final Stopwatch _iceWatch = Stopwatch();
 
-  /// 応答が無いまま[kCallRingTimeout]が経ったら不在着信として終える
+  /// 応答が無今ま[kCallRingTimeout]が経ったら不在着信として終える
   /// （2026-10-23、以前は応答するまで着信音・呼出音が鳴り続けた）。発信側・着信側
   /// どちらも持ち、先に切れた側が`missed`を書く（書き込みは重複してもよい）。
   Timer? _ringTimeout;
@@ -381,7 +381,7 @@ class WebrtcCallController extends ChangeNotifier {
           remoteRenderer.srcObject = event.streams.first;
         } else {
           // ストリームに紐づかないトラック（相手が旧版など）は、既存の
-          // 受信ストリームへ足して映像・音声を表示できるようにする。
+          // 受信ストリームへ足して映像・音声を表示出来るようにする。
           final existing = remoteRenderer.srcObject;
           if (existing != null) {
             existing.addTrack(event.track);
@@ -451,20 +451,20 @@ class WebrtcCallController extends ChangeNotifier {
         _watchForCancelWhileRinging();
       }
     } catch (e) {
-      _error = '通話を開始できませんでした（マイクの利用を許可してください）: $e';
+      _error = '通話を開始出来ませんでした（マイクの利用を許可して下さい）: $e';
       _state = CallConnectionState.ended;
       notifyListeners();
     }
   }
 
   /// 自分のカメラ・マイクを取得して[_localStream]に入れる。音声制約は
-  /// プラットフォームごとの既知の問題を踏まえてwebrtc_media_constraints.dartに
+  /// プラットフォーム毎の既知の問題を踏まえてwebrtc_media_constraints.dartに
   /// 集約している（本格的なRNNoise統合はフェーズ3の別プロジェクト）。
   /// [allowVideoFallback]がtrueなら、映像（カメラ）の取得に失敗しても音声のみで
-  /// 続行する（応答はできるようにし、映像は後からオンにできる）。
+  /// 続行する（応答は出来るようにし、映像は後からオンに出来る）。
   ///
   /// [videoNow]がfalseなら映像（カメラ）は取得せず、音声だけにする（発信側が
-  /// 応答前にカメラを点けないため）。この場合[_isVideo]（映像通話のUI構成）は
+  /// 応答前にカメラを点けない為）。この場合[_isVideo]（映像通話のUI構成）は
   /// 変えない。
   Future<void> _acquireLocalStream({
     required bool allowVideoFallback,
@@ -497,8 +497,8 @@ class WebrtcCallController extends ChangeNotifier {
       );
     }
     unawaited(ensureEchoCancellation(_localStream));
-    // 設定（ビデオ通話に参加するときのカメラ）でオフにして入った時は、カメラの失敗時と
-    // 同じく、相手には自分が音声のみであることを伝える（通話中にオンにできる）。
+    // 設定（ビデオ通話に参加する時のカメラ）でオフにして入った時は、カメラの失敗時と
+    // 同じく、相手には自分が音声のみであることを伝える（通話中にオンに出来る）。
     if (call.isVideo && videoNow && !cameraOn) {
       unawaited(
         _callRepository
@@ -569,7 +569,7 @@ class WebrtcCallController extends ChangeNotifier {
 
   /// setRemoteDescription完了前に届いた候補はバッファに貯め、完了後に
   /// まとめて適用する。watchCandidatesは毎回累積リスト全体を再送してくる
-  /// ため、候補ごとのキーで重複適用を防ぐ。
+  /// ため、候補毎のキーで重複適用を防ぐ。
   void _applyOrBufferCandidate(Map<String, dynamic> data) {
     final key =
         '${data['candidate']}|${data['sdpMid']}|${data['sdpMLineIndex']}';
@@ -615,8 +615,8 @@ class WebrtcCallController extends ChangeNotifier {
   /// 初回のオファー/アンサー交換が終わった後も含めて、通話が終わるまで
   /// 継続してcallドキュメントを監視する。offer/answerフィールドは
   /// 通話開始時の1回だけでなく、通話中の音声⇔ビデオ切替（setVideoEnabled）
-  /// のたびに上書きされるため、「自分が直前に送った値」でも「既に適用済みの
-  /// 値」でもない新しい値が来たら、相手からの新規オファー/アンサーとして
+  /// のたびに上書きされる為、「自分が直前に送った値」でも「既に適用済みの
+  /// 値」でも無い新しい値が来たら、相手からの新規オファー/アンサーとして
   /// 都度適用する。発信者・着信者どちらの役割でも同じロジックで扱える。
   void _startPerpetualWatcher() {
     _callSub?.cancel();
@@ -667,7 +667,7 @@ class WebrtcCallController extends ChangeNotifier {
           '1:1 answer applying sdp=${answerSdp.length} '
           'signaling=${_peerConnection?.signalingState}',
         );
-        // 自分のofferを出していない（安定状態）時のanswerは適用できない（offerの
+        // 自分のofferを出していない（安定状態）時のanswerは適用出来ない（offerの
         // 衝突や重複）。例外にせず読み飛ばす。
         if (_peerConnection?.signalingState ==
             RTCSignalingState.RTCSignalingStateStable) {
@@ -703,7 +703,7 @@ class WebrtcCallController extends ChangeNotifier {
     });
   }
 
-  /// 相手から届いたオファー（初回接続時、または相手が音声⇔ビデオを
+  /// 相手から届いたオファー（初回接続時、又は相手が音声⇔ビデオを
   /// 切り替えた際の再ネゴシエーション）に対して、アンサーを作って返す。
   Future<void> _applyRemoteOfferAndAnswer(Map<String, dynamic> offerMap) async {
     await _peerConnection!.setRemoteDescription(
@@ -734,7 +734,7 @@ class WebrtcCallController extends ChangeNotifier {
   }
 
   /// 応答前（着信中）に発信者が通話をキャンセル・終了した場合に
-  /// 着信画面を閉じるための軽量な監視。accept()呼び出しでキャンセルする。
+  /// 着信画面を閉じる為の軽量な監視。accept()呼び出しでキャンセルする。
   void _watchForCancelWhileRinging() {
     _callSub = _callRepository.watchCall(call.callId).listen((updated) {
       if (updated == null || _isTerminal(updated.status)) {
@@ -745,7 +745,7 @@ class WebrtcCallController extends ChangeNotifier {
       // この端末の着信音を止めて着信UIを閉じる（2026-10-11追加）。この端末は
       // まだ応答していない（accept()で購読を解除する）ため、ここに届くactiveは
       // 必ず別端末の応答。通話自体は別端末で続くので、Firestoreには何も
-      // 書き込まず、この端末のセッションだけ終える。
+      // 書き込先ず、この端末のセッションだけ終える。
       if (updated.status == CallStatus.active && !_accepting) {
         _finish();
       }
@@ -770,7 +770,7 @@ class WebrtcCallController extends ChangeNotifier {
       );
       await _attachLocalStream();
     } catch (e) {
-      _error = '通話を開始できませんでした（マイクの利用を許可してください）: $e';
+      _error = '通話を開始出来ませんでした（マイクの利用を許可して下さい）: $e';
       unawaited(
         _callRepository
             .updateStatus(call.callId, CallStatus.declined)
@@ -811,11 +811,11 @@ class WebrtcCallController extends ChangeNotifier {
     // 拒否・切断・キャンセル検知等どの経路で終了しても確実に止まるよう、
     // 外側（active_call_session.dartの_teardown、Riverpodのリスナー経由）に
     // 頼り切らず自分で止める。stopRingtone()は着信音・呼出音の両方を
-    // まとめて止めるため、発信側/着信側どちらの呼び出し中の音も対応できる。
+    // まとめて止める為、発信側/着信側どちらの呼び出し中の音も対応出来る。
     soundPlayer.stopRingtone();
     notifyListeners();
     // 通話履歴メッセージは発信者側からのみ送る（両側から送ると二重投稿に
-    // なるため）。実際に接続（応答）された通話のみが対象で、不在着信・
+    // なる為）。実際に接続（応答）された通話のみが対象で、不在着信・
     // 拒否（_connectedAtが立たないまま終了）の場合は送らない。
     if (isCaller && _connectedAt != null) {
       unawaited(_logCallSummary(_connectedAt!));
@@ -835,7 +835,7 @@ class WebrtcCallController extends ChangeNotifier {
         isVideo: call.isVideo,
       );
     } catch (_) {
-      // 通信不安定等。通話自体は既に終了しているため、履歴メッセージの
+      // 通信不安定等。通話自体は既に終了している為、履歴メッセージの
       // 送信失敗は握りつぶす（再試行の仕組みは持たない）。
     }
   }
@@ -895,7 +895,7 @@ class WebrtcCallController extends ChangeNotifier {
         RTCDataChannelMessage(_muted ? _muteOnMessage : _muteOffMessage),
       );
     } catch (_) {
-      // 送れなくても通話は続ける（表示が古いままになるだけ）。
+      // 送れなくても通話は続ける（表示が古今まになるだけ）。
     }
   }
 
@@ -941,14 +941,14 @@ class WebrtcCallController extends ChangeNotifier {
 
   /// 通話中に音声通話⇔ビデオ通話を切り替える（映像トラック自体を追加/
   /// 削除して通話の種別そのものを変える）。音声のみで開始した通話には映像用の
-  /// track/transceiverが最初から存在しないため、[RTCPeerConnection.addTrack]/
+  /// track/transceiverが最初から存在しない為、[RTCPeerConnection.addTrack]/
   /// [removeTrack]による再ネゴシエーション（新しいオファー/アンサー交換）が
   /// 必須になる。
   ///
   /// 切り替えは自分側にのみ適用され、相手の映像トラックには一切触れない。
   /// 相手には新しいオファー（映像m-lineの追加/削除）が届くだけで、相手側は
   /// 自分の映像トラックを持っていなければ自動的にrecvonlyでアンサーする
-  /// （＝相手のカメラが強制でオン/オフされることはない）。
+  /// （＝相手のカメラが強制でオン/オフされることは無い）。
   Future<void> setVideoEnabled(bool enabled) async {
     if (enabled == _isVideo ||
         _switchingCallType ||
@@ -1067,7 +1067,7 @@ class WebrtcCallController extends ChangeNotifier {
   }
 
   /// iOSでは接続直後にsetSpeakerphoneOnを呼んでも、数秒後に音声ルートが
-  /// 勝手に戻ることがある既知の競合状態があるため、接続完了直後に一度適用し、
+  /// 勝手に戻ることがある既知の競合状態がある為、接続完了直後に一度適用し、
   /// 少し間を空けてもう一度適用する。
   Future<void> _applySpeakerphoneWithRetry() async {
     _watchAudioDevices();
@@ -1109,7 +1109,7 @@ class WebrtcCallController extends ChangeNotifier {
         final cameras = await Helper.cameras;
         if (cameras.length < 2) return;
         // 現在のカメラを実際の`deviceId`から特定して次へ進める（以前は先頭を
-        // 現在地と仮定していたため、初回の切替で同じカメラのままになった）。
+        // 現在地と仮定していた為、初回の切替で同じカメラのままになった）。
         final currentId = trackDeviceId(track) ?? _cameraDeviceId;
         final currentIndex = cameras.indexWhere((c) => c.deviceId == currentId);
         final next = cameras[(currentIndex + 1) % cameras.length];
@@ -1129,7 +1129,7 @@ class WebrtcCallController extends ChangeNotifier {
       // 持つが、それだけでは以下の2つが反映されず「切替後に画面が真っ黒に
       // なる」「相手にも古い映像が送られ続ける」不具合になっていた:
       // 1. RTCVideoRenderer（Web実装）は代入された時点のトラックを
-      //    スナップショットとして保持するため、再代入しないと古い
+      //    スナップショットとして保持する為、再代入しないと古い
       //    （停止済みの）トラックを表示し続ける。
       // 2. RTCPeerConnectionのRTCRtpSenderは明示的にreplaceTrackしない限り
       //    新しいトラックを送信しない。

@@ -18,7 +18,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 // Enterキーの送信/改行/通知なし送信の振り分けが実際に効くかどうかを検証する回帰テスト。
 // Focus.onKeyEventでEnterを消費する実装がFlutterの本物のキーイベント経路
-// （EditableTextの改行挿入と競合しないか）は理屈だけでは確信が持てないため、
+// （EditableTextの改行挿入と競合しないか）は理屈だけでは確信が持てない為、
 // 実際にキーイベントを流して確認する。
 class _Sent {
   const _Sent(this.content, this.silent);
@@ -69,12 +69,12 @@ Future<void> _pumpChatScreen(
 /// textInputAction.newlineの仕様上、改行キーを押しただけでも生のEnterキー
 /// イベントを送出してしまうため、Enterキー単体はハードウェアキーボード
 /// 接続の判定材料にしていない（chat_screen.dartの_onHardwareKeyEventの
-/// コメント参照）。そのため、この振り分けロジックを検証するテストでは
+/// コメント参照）。その為、この振り分けロジックを検証するテストでは
 /// 明示的にデスクトップ用TargetPlatformへ切り替えて「物理キーボード接続済み」
 /// の状態を作る（デフォルトはflutter testの仕様によりTargetPlatform.android）。
 /// debugDefaultTargetPlatformOverrideの後始末はtry/finallyで行う
 /// （addTearDown等を使うと、テストバインディングの不変条件チェックが
-/// finally/tearDownの実行より先に走ってしまい別のエラーになるため）。
+/// finally/tearDownの実行より先に走ってしまい別のエラーになる為）。
 Future<void> _withDesktopKeyboard(Future<void> Function() body) async {
   debugDefaultTargetPlatformOverride = TargetPlatform.linux;
   try {
@@ -211,7 +211,7 @@ void main() {
 
   testWidgets('送信ボタンの長押しで通知せず送信', (tester) async {
     // 送信ボタンはハードウェアキーボード未接続時のみ表示される
-    // （Windows/Linux/macOSは常時接続扱いのため、そのままではボタンが出ない）。
+    // （Windows/Linux/macOSは常時接続扱いの為、そのままではボタンが出ない）。
     // ここではAndroidを模擬してソフトウェアキーボードのみの状況を再現する。
     debugDefaultTargetPlatformOverride = TargetPlatform.android;
     try {
@@ -238,7 +238,7 @@ void main() {
   testWidgets('モバイル（Android）ではEnterキーは常に改行のみで、送信キー設定に関わらず送信しない（回帰テスト）', (
     tester,
   ) async {
-    // モバイルにはShiftキーが無くShift+Enterによる改行ができない上、
+    // モバイルにはShiftキーが無くShift+Enterによる改行が出来ない上、
     // 機種・IMEによっては改行キーを押しただけで生のEnterキーイベントが
     // 飛んでくることがあり、送信キー設定（enterToSend）をそのまま適用すると
     // 誤って送信されてしまう（実機で報告された不具合）。モバイルでは

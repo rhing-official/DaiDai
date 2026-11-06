@@ -18,12 +18,12 @@ import '../../widgets/video_thumbnail.dart';
 /// 導線（アルバム側から過去メッセージを選ぶ）。
 ///
 /// `AlbumPaneView`と同じ「ローカル状態切り替えでペイン内容を差し替える」
-/// 方式で表示するため、`Navigator.push`は行わずこのウィジェット自身が
+/// 方式で表示する為、`Navigator.push`は行わずこのウィジェット自身が
 /// 語らい画面の表示領域内に収まる（2026-09-26、当初`Navigator.push`の
 /// フルスクリーン別ルートで実装していたが、`AlbumPaneView`のドキュメント
 /// コメントが明記する「サイドバーまで覆ってしまう」不具合を再発させていた
 /// ため修正。CLAUDE.mdの「メッセージ画面の範囲内表示」の方針参照）。
-/// 閉じる操作（戻る・下スワイプ・追加確定後）はすべて[onClose]経由で
+/// 閉じる操作（戻る・下スワイプ・追加確定後）は全て[onClose]経由で
 /// 呼び出し元に委ねる。
 class AlbumMessagePickerScreen extends ConsumerStatefulWidget {
   const AlbumMessagePickerScreen({

@@ -37,7 +37,7 @@ class _HostState extends State<_Host> {
 }
 
 void main() {
-  testWidgets('位置の移り変わりを記録し、戻る・進むで復元できる', (tester) async {
+  testWidgets('位置の移り変わりを記録し、戻る・進むで復元出来る', (tester) async {
     final container = ProviderContainer();
     addTearDown(container.dispose);
     final controller = container.read(backStackControllerProvider);

@@ -44,7 +44,7 @@ class CallOverlay extends ConsumerWidget {
       return const SizedBox.shrink();
     }
     // `MaterialApp.builder`の位置にはNavigator・Overlayが無く、`Tooltip`等が
-    // 使えないため、専用の`Overlay`を持つ。
+    // 使えない為、専用の`Overlay`を持つ。
     return Positioned.fill(
       child: Overlay(
         initialEntries: [
@@ -157,7 +157,7 @@ class _CallOverlayViewState extends State<CallOverlayView> {
 
   @override
   Widget build(BuildContext context) {
-    // 映像（またはその代役のプレースホルダー）の領域は各Stageが固定グレーで塗る。
+    // 映像（又はその代役のプレースホルダー）の領域は各Stageが固定グレーで塗る。
     // その外側（ボタン列の周り）は面を塗らず、周りの余白と同じ見た目にする（2026-11-03）。
     return ListenableBuilder(
       listenable: widget.session.controllerListenable,
@@ -169,7 +169,7 @@ class _CallOverlayViewState extends State<CallOverlayView> {
         // （2026-08-30追加）。
         return Focus(
           // Escでも「メッセージに戻る」（2026-10-11追加）。通話UI表示中は入力欄が
-          // 無いため、キーを受けるだけのフォーカスを取る。
+          // 無い為、キーを受けるだけのフォーカスを取る。
           autofocus: true,
           focusNode: _focusNode,
           onKeyEvent: (node, event) {
@@ -232,7 +232,7 @@ class _OneToOneStageState extends State<_OneToOneStage> {
   bool _mainIsRemote = true;
 
   /// 拡大表示（画像・動画・PDFと同じぼかしの拡大、2026-11-03）を閉じるたびに増やし、
-  /// 映像の部品を作り直す（Webの描画要素は拡大側へ移るため、元の映像が空になる）。
+  /// 映像の部品を作り直す（Webの描画要素は拡大側へ移る為、元の映像が空になる）。
   int _viewerGeneration = 0;
 
   /// 大きい映像のクリックで、その映像を拡大表示する（入れ替えは右下の小窓）。
@@ -278,7 +278,7 @@ class _OneToOneStageState extends State<_OneToOneStage> {
     // 領域が縦長ならメインも画面いっぱいに切り抜く（[callVideoFitFor]）。
     return LayoutBuilder(
       builder: (context, constraints) => RTCVideoView(
-        // Web版の`RTCVideoView`はinitState時にしか描画要素を取らないため、
+        // Web版の`RTCVideoView`はinitState時にしか描画要素を取らない為、
         // レンダラー自体をキーにして入れ替え時に確実に作り直す。
         key: ValueKey((renderer, _viewerGeneration)),
         renderer,
@@ -411,7 +411,7 @@ class _OneToOneStageState extends State<_OneToOneStage> {
           ),
         ),
         // 映像が無い側も小窓を出し、その人のアイコンを入れる（2026-10-21変更、
-        // 以前は映像がある時だけ出していたため、オフの側が消えていた）。
+        // 以前は映像がある時だけ出していた為、オフの側が消えていた）。
         Positioned(
           right: 12,
           bottom: 12,
@@ -538,7 +538,7 @@ class _GroupStageState extends ConsumerState<_GroupStage> {
 
     // 映像のタイルを画面に出していない参加者の音声を鳴らす、見えない動画要素
     // （2026-10-21追加、映像オフの参加者の音声がWebで聞こえなかった。拡大中は
-    // 拡大している1人以外のタイルが無いため、他の映像の参加者の音声も鳴らす）。
+    // 拡大している1人以外のタイルが無い為、他の映像の参加者の音声も鳴らす）。
     final audioIds = groupAudioOnlyUserIds(
       remoteIds: [for (final p in remotes) p.userId],
       videoOnIds: {

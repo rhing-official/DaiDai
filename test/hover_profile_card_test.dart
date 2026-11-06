@@ -49,7 +49,7 @@ void main() {
     });
   });
 
-  // 検証（`debugAssertAllFoundationVarsUnset`）はテスト本体の直後に走るため、
+  // 検証（`debugAssertAllFoundationVarsUnset`）はテスト本体の直後に走る為、
   // 本体の中で必ず元に戻す。
   Future<void> withPlatform(
     TargetPlatform platform,

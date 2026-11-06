@@ -3,7 +3,7 @@ import 'package:flutter/widgets.dart';
 
 import 'note_markdown_parsers.dart';
 
-/// 選択に表ブロックが関わるとき、その選択をMarkdownにして返す。関わらなければ
+/// 選択に表ブロックが関わる時、その選択をMarkdownにして返す。関わらなければ
 /// null（通常のコピーに任せる）。標準のコピーは選択範囲の文字を改行で連結する
 /// だけで、表のセルが改行区切りの文字列になり、Obsidianなどへ貼っても表に
 /// ならない。
@@ -12,7 +12,7 @@ String? selectionToMarkdownIfTable(EditorState editorState) {
   if (selection == null || selection.isCollapsed) return null;
 
   // 選択が及ぶトップレベルのブロックの範囲（表の中の選択はその表1つ）。
-  // `getSelectedNodes`は複製したノードを返し親を辿れないため、実際の
+  // `getSelectedNodes`は複製したノードを返し親を辿れない為、実際の
   // 文書のパスの先頭（トップレベルの位置）で範囲を求める。
   final children = editorState.document.root.children.toList();
   final first = selection.start.path.first;

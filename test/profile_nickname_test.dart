@@ -15,7 +15,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-/// Firestore/Storageを使わない、身だしなみタブのUIロジックだけを検証するための
+/// Firestore/Storageを使わない、身だしなみタブのUIロジックだけを検証する為の
 /// インメモリのフェイクリポジトリ。
 class _FakeUserRepository implements UserRepository {
   AppUser? saved;

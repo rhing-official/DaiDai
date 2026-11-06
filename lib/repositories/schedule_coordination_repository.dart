@@ -72,7 +72,7 @@ abstract class ScheduleCoordinationRepository {
   /// 候補の1つを確定する（作成者のみ、一度きり、firestore.rules参照）。
   /// 呼び出し側が別途`CalendarEventRepository.createEvent`で実際の予定を
   /// 作成した後に呼ぶ想定で、このRepository自体は`CalendarEventRepository`
-  /// に依存しない（結合を避けるため）。
+  /// に依存しない（結合を避ける為）。
   Future<void> finalize({
     required bool isDm,
     required String conversationId,
@@ -324,9 +324,9 @@ class FirestoreScheduleCoordinationRepository
     required String finalizedEventId,
   }) {
     // finalizeは非正規化カウンタの更新ではなく、この日程調整の主目的である
-    // 「確定」そのものの書き込みのため、setResponseのresponseCount更新とは
-    // 異なり失敗を握りつぶさず再スローする（呼び出し元がリトライできるよう
-    // にするため、schedule_coordination_detail_dialog.dart参照）。
+    // 「確定」そのものの書き込みの為、setResponseのresponseCount更新とは
+    // 異なり失敗を握りつぶさず再スローする（呼び出し元がリトライ出来るよう
+    // にする為、schedule_coordination_detail_dialog.dart参照）。
     return _coordinationRef(
       isDm: isDm,
       conversationId: conversationId,

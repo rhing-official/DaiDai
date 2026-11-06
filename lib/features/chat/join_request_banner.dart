@@ -16,7 +16,7 @@ import 'group_member_list_screen.dart';
 import '../../widgets/app_dialog.dart';
 
 /// 広場の語らい上部に出す「参加リクエストが N 件あります」バナー（2026-10-11
-/// 追加）。承認できる人（長・`manageJoinRequests`権限者）にだけ表示し、
+/// 追加）。承認出来る人（長・`manageJoinRequests`権限者）にだけ表示し、
 /// メッセージは作らないため寄合の全メンバーには見えない。0件・権限なしなら
 /// `SizedBox.shrink()`を返すので、呼び出し側は常時組み込んでよい。タップで
 /// 申請者だけのポップアップ（`GroupJoinRequestsPopup`）を開く。見た目は[ChatTaskBanner]と同じ。

@@ -201,7 +201,7 @@ class _PollDetailDialogState extends ConsumerState<_PollDetailDialog> {
   /// 選択肢を末尾に1件追加する。呼び出し直前に最新のPollを取得し直して
   /// [PollRepository.addOption]の[currentOptionCount]を算出する（複数の
   /// 参加者がほぼ同時に選択肢を追加した場合でも、この詳細ダイアログを開いた
-  /// 時点の選択肢数のまま計算して末尾キーが衝突するのを避けるため）。
+  /// 時点の選択肢数のまま計算して末尾キーが衝突するのを避ける為）。
   Future<void> _addOption() async {
     final text = _newOptionController.text.trim();
     if (text.isEmpty) return;

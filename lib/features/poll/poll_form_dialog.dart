@@ -149,7 +149,7 @@ class _PollFormDialogState extends ConsumerState<_PollFormDialog> {
 
   void _addOption() => setState(() => _options.add(_OptionDraft()));
 
-  // 選択肢の入力中にEnterを押したときの挙動（2026-09-06追加）: 次の選択肢が
+  // 選択肢の入力中にEnterを押した時の挙動（2026-09-06追加）: 次の選択肢が
   // あればそこへフォーカスを移し、最後の選択肢であれば新規追加してそちらへ
   // フォーカスする（Googleフォーム等と同じ、入力を止めずに済む挙動）。
   void _moveToNextOptionOrAdd(int index) {

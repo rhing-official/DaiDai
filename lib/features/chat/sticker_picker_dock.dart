@@ -16,7 +16,7 @@ enum StickerDockStage { closed, half, expanded }
 
 /// モバイルのぺったん一覧（2026-10-29、Discord型）。モーダルのボトムシートでは
 /// なく、語らい画面の本体（`Column`）の末尾＝入力欄の下に置く画面内のパネル。
-/// 開いたままでもメッセージ一覧のスクロールと入力ができる。上端のハンドルを
+/// 開いたままでもメッセージ一覧のスクロールと入力が出来る。上端のハンドルを
 /// 縦にドラッグすると高さが追従し、離すと最寄りの段（閉／半分／拡大）に
 /// スナップする。[StickerPickerContent]は閉じるたびに破棄せず、閉じている間は
 /// 何も描かない。
@@ -35,7 +35,7 @@ class StickerPickerDock extends ConsumerStatefulWidget {
   final void Function(Sticker sticker) onStickerSelected;
   final String? initialPackId;
 
-  /// 語らいごとに直前のタブを記憶するキー（[StickerPickerContent]参照）。
+  /// 語らい毎に直前のタブを記憶するキー（[StickerPickerContent]参照）。
   final String? conversationKey;
 
   /// 半分の高さ（画面高の約40%、260〜420）。

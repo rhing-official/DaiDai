@@ -22,7 +22,7 @@ String? lastOpenedRoomIn(
   ViewedConversation conversation,
 ) => state[_keyFor(conversation)];
 
-/// 端末に保存されている、会話ごとに最後に開いていた寄合idの初期値。main()で
+/// 端末に保存されている、会話毎に最後に開いていた寄合idの初期値。main()で
 /// 起動前に読み込み、ProviderScopeのoverrideとして渡す（[AccentColorNotifier]
 /// と同じ方式）。
 final initialLastOpenedRoomsProvider = Provider<Map<String, String>>((ref) {
@@ -37,7 +37,7 @@ Future<Map<String, String>> loadInitialLastOpenedRooms() async {
   return decoded.map((key, value) => MapEntry(key, value as String));
 }
 
-/// 会話（一対/広場）ごとに、最後に表示していた寄合のidを記憶する
+/// 会話（一対/広場）毎に、最後に表示していた寄合のidを記憶する
 /// （2026-09-26追加）。以前は寄合一覧・アイコンタップからの遷移先が常に
 /// 先頭（最古）の寄合へ決め打ちされており、メッセージ画面で別の寄合へ切り
 /// 替えても語らい一覧に戻ると忘れられてしまっていた。書き込みは
@@ -56,7 +56,7 @@ class LastOpenedRoomNotifier extends Notifier<Map<String, String>> {
     String roomId,
   ) async {
     // `DmChatPane`/`GroupChatPane`の`initState`（ウィジェット構築中）からも
-    // 呼ばれるため、次のマイクロタスクまで待ってからstateを更新する
+    // 呼ばれる為、次のマイクロタスクまで待ってからstateを更新する
     // （2026-10-06修正。構築中のプロバイダ変更はRiverpodが例外
     // 「Tried to modify a provider while the widget tree was building」を
     // 投げ、初回表示時の「最後に開いた寄合」の記録が丸ごと失敗していた）。

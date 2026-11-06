@@ -140,7 +140,7 @@ class MessageMentions {
 }
 
 /// 二重返信の2件目の返信先を、送信処理まで運ぶための入れ物（2026-11-06）。
-/// 返信先は`Message? replyTo`として十数箇所の送信関数を通るため、引数の型を変えずに
+/// 返信先は`Message? replyTo`として十数箇所の送信関数を通る為、引数の型を変えずに
 /// 1件目の`Message`に2件目を結び付ける。`Message`自体は不変のまま、表（Expando）で持つ。
 final Expando<Message> _secondReplyTargets = Expando<Message>('secondReply');
 
@@ -201,7 +201,7 @@ class Message {
   final String conversationType; // dm | seat | room
   final String senderId;
 
-  /// 送信者のRhing Seed（グループ会話でアイコン・名前を表示するための非正規化）。
+  /// 送信者のRhing Seed（グループ会話でアイコン・名前を表示する為の非正規化）。
   final String? senderRhingSeed;
 
   /// 受信Webhook由来の投稿（bot・API段階1、2026-10-10追加）のBOT名。
@@ -247,7 +247,7 @@ class Message {
   final bool mentionEveryone;
 
   /// 本文中でメンションとして色付けする文字列（`@`込み、例: `@新`）。
-  /// 本文はプレーンなので、どの`@…`が宛先指定なのかを区別するために持つ。
+  /// 本文はプレーンなので、どの`@…`が宛先指定なのかを区別する為に持つ。
   final List<String> mentionLabels;
 
   bool get hasMentions =>
@@ -262,9 +262,9 @@ class Message {
   final String? replyToMessageId;
 
   /// 返信元メッセージの送信者（送信時点の非正規化）。返信元が読み込み済み
-  /// ウィンドウ外や送信取り消し済みでも引用プレビューを表示し続けるために持つ。
+  /// ウィンドウ外や送信取り消し済みでも引用プレビューを表示し続ける為に持つ。
   /// 表示側（`_MessageRow`）は、現在ロード済みのリストに返信元の実物が
-  /// あればそちらを優先し（最新の内容・編集済みラベルを反映できる）、
+  /// あればそちらを優先し（最新の内容・編集済みラベルを反映出来る）、
   /// 無ければこのフィールドにフォールバックする。
   final String? replyToSenderId;
   final String? replyToSenderRhingSeed;
@@ -272,7 +272,7 @@ class Message {
   /// 返信元メッセージの本文スニペット（返信作成時点の内容、非正規化）。
   /// 返信元が送信取り消しされた場合は、`unsendMessage`/`unsendRoomMessage`が
   /// この引用メッセージ側のreplyTo系フィールドをまとめてクリアする
-  /// （送信取り消しは相手側にも痕跡を残さない、という仕様のため）。
+  /// （送信取り消しは相手側にも痕跡を残さない、という仕様の為）。
   final String? replyToSnippet;
 
   /// 二重返信の2件目の返信先（2026-11-06）。1件目（`replyTo…`）と同じ形の非正規化
@@ -322,7 +322,7 @@ class Message {
 
   /// 添付（画像・動画・ファイル・複数）と一緒に送った文字（2026-11-01追加）。送信前のトレイに
   /// 添付を並べて文字を打って送ると、同じメッセージの添付の上に表示される。添付と一緒でない
-  /// メッセージでは常にnull。[content]はファイル名のまま（検索・既存表示との互換のため）。
+  /// メッセージでは常にnull。[content]はファイル名のまま（検索・既存表示との互換の為）。
   final String? caption;
 
   /// contentType='sticker'専用のメタデータ。それ以外のcontentTypeでは常にnull。

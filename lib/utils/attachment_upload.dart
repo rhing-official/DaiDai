@@ -14,13 +14,13 @@ import 'sound_upload.dart' show soundMimeTypeFor;
 
 /// 容量上限（[kMaxAttachmentSizeBytes]）超過。呼び出し元（UIの
 /// `_handleAttachmentPicked`）が`Strings.chatAttachmentTooLargeMessage`を
-/// 出し分けるための専用型（メッセージ文字列で判定させないため）。
+/// 出し分ける為の専用型（メッセージ文字列で判定させない為）。
 class AttachmentTooLargeException implements Exception {
   const AttachmentTooLargeException();
 }
 
 /// 拡張子ブロックリストによる拒否。呼び出し元が
-/// `Strings.chatAttachmentBlockedExtensionMessage`を出し分けるための専用型。
+/// `Strings.chatAttachmentBlockedExtensionMessage`を出し分ける為の専用型。
 class AttachmentExtensionBlockedException implements Exception {
   const AttachmentExtensionBlockedException();
 }
@@ -29,9 +29,9 @@ class AttachmentExtensionBlockedException implements Exception {
 /// アップロードする共通処理（`DirectMessageRepository`/`GroupRepository`の
 /// `sendAttachmentMessage`実装から共有、技術仕様書5.2参照、2026-08-10追加）。
 ///
-/// [storagePathPrefix]は呼び出し元が会話種別ごとに決める保存先
+/// [storagePathPrefix]は呼び出し元が会話種別毎に決める保存先
 /// （一対=`dmFiles/$dmId`、広場=`groupFiles/$groupId`。storage.rulesの
-/// 権限判定がこのパス上のトップレベルセグメントを参照するため、
+/// 権限判定がこのパス上のトップレベルセグメントを参照する為、
 /// 会話をまたいで衝突しない値にすること）。[attachmentId]はメッセージid
 /// （呼び出し元が事前に採番した`messageRef.id`）をそのまま使う想定。
 ///
@@ -56,7 +56,7 @@ Future<MessageFileMetadata> uploadMessageAttachment({
   }
 
   // 動画が画像として渡された場合（ピッカーが種別を誤判定した時）の保険。
-  // そのまま画像として保存すると、壊れた画像になり再生もできない。
+  // そのまま画像として保存すると、壊れた画像になり再生も出来ない。
   final kind = contentType == 'image' && looksLikeVideoBytes(bytes)
       ? 'video'
       : contentType;
@@ -222,10 +222,10 @@ String _guessMimeType(String extension, String contentType) {
   return 'application/octet-stream';
 }
 
-/// flutter_image_compressはWindows/Linuxを未対応のため、その場合や圧縮に
+/// flutter_image_compressはWindows/Linuxを未対応の為、その場合や圧縮に
 /// 失敗した場合はnullを返す（呼び出し元は元のバイトのままアップロードする、
 /// `user_repository.dart`/`group_repository.dart`の同様の処理を参照）。
-/// メッセージ添付の写真はアイコンより大きく表示されるため、蔵アイコン
+/// メッセージ添付の写真はアイコンより大きく表示される為、蔵アイコン
 /// （512px）より広めの1600pxを上限にする。
 Future<Uint8List?> _tryCompressMessageImageToWebp(Uint8List bytes) async {
   if (!kIsWeb && (Platform.isWindows || Platform.isLinux)) return null;
@@ -263,7 +263,7 @@ class AttachmentUploadInput {
 ///
 /// 1件でも失敗したら、残りの開始を止め、アップロード済みのファイルを全て
 /// 削除した上で最初のエラーをそのまま投げる（部分的に送られたメッセージを
-/// 作らないため）。成功時は入力と同じ順序のメタデータを返す。
+/// 作らない為）。成功時は入力と同じ順序のメタデータを返す。
 Future<List<MessageFileMetadata>> uploadMultiMessageAttachments({
   required FirebaseStorage storage,
   required String storagePathPrefix,

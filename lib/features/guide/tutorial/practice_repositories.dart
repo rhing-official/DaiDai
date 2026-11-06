@@ -33,7 +33,7 @@ import '../../../repositories/user_repository.dart';
 // 使い方ガイドの練習用の画面（`PracticeHome`）が使う、メモリ上だけの偽のリポジトリ
 // （2026-10-17追加）。本物のFirestoreには一切触れず、何も保存・送信しない。
 // 本物の語らいタブ（`TalksTab`）・会話画面をそのまま動かし、ユーザーの設定
-// （一覧の見た目・チャットのレイアウト等）に合った画面で解説するために使う。
+// （一覧の見た目・チャットのレイアウト等）に合った画面で解説する為に使う。
 
 /// 偽のリポジトリが実装していないメソッドが呼ばれた時の既定の振る舞い（何もしない）。
 /// `watch…`は何も流れないストリーム、それ以外は完了済みのFuture（書き込み系の
@@ -114,7 +114,7 @@ class PracticeDirectMessageRepository implements DirectMessageRepository {
   final String greeting;
 
   /// この練習用の会話のid。会話のメッセージは、アプリ全体で共有される取得用の
-  /// キャッシュ（`chatRoomMessageCacheManagerProvider`）にidをキーとして残るため、
+  /// キャッシュ（`chatRoomMessageCacheManagerProvider`）にidをキーとして残る為、
   /// 練習のたびに違うidにする（前回の練習の購読を引き継いで、送ったメッセージが
   /// 表示されなくなるのを防ぐ）。
   final String dmId =
@@ -330,7 +330,7 @@ class PracticeStickerRepository implements StickerRepository {
 
 /// 会話の周りの機能（カレンダー・ノート・アルバム・投票・通話など）の偽のリポジトリ
 /// に共通の「何もしない」振る舞い。`watch…`は何も流れない（読み込み中のまま）ストリーム、
-/// それ以外は完了しないFutureを返す。練習用の画面ではこれらの機能を使わないため、
+/// それ以外は完了しないFutureを返す。練習用の画面ではこれらの機能を使わない為、
 /// 本物のFirestoreへ触れないことだけを保証する。
 mixin InertRepository {
   @override

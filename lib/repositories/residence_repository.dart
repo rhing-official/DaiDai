@@ -3,7 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/residence.dart';
 
 /// 住人の居住地（自己申告）を扱うリポジトリ。`users/{uid}`本体は全ログイン者が
-/// 読めるため、本人のみ読み書きできる`users/{uid}/private/residence`に置く。
+/// 読める為、本人のみ読み書き出来る`users/{uid}/private/residence`に置く。
 abstract class ResidenceRepository {
   /// 未回答なら`null`。
   Future<Residence?> getResidence(String userId);

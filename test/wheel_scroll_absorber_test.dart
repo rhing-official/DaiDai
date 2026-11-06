@@ -42,7 +42,7 @@ void main() {
     expect(outer.offset, 0);
   });
 
-  testWidgets('無効のときは、端で外側の一覧へ渡る', (tester) async {
+  testWidgets('無効の時は、端で外側の一覧へ渡る', (tester) async {
     final outer = await pump(tester, false);
     await wheel(tester, 500);
     await wheel(tester, 200);

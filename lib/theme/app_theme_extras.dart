@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-/// ThemeDataだけでは表現しきれない、UIスタイルごとの意匠差分をまとめる拡張。
+/// ThemeDataだけでは表現しきれない、UIスタイル毎の意匠差分をまとめる拡張。
 /// 「浮いている」影の強さなど、ウィジェット側から`Theme.of(context)`経由で参照する。
 @immutable
 class AppThemeExtras extends ThemeExtension<AppThemeExtras> {

@@ -9,12 +9,12 @@ import '../../widgets/media_preview_frame.dart';
 /// `@`入力時に入力欄のすぐ上へ出すメンション候補の縦リスト（2026-10-11追加）。
 /// 「メンバー／その他／ロール」の区分見出しで分け、キーボード（↑↓/Enter/Tab）
 /// で選んでいる行は[selectedIndex]で強調する。[candidates]の並び順は
-/// 呼び出し側の絞り込み結果のままで、区分ごとにまとめて表示する。
+/// 呼び出し側の絞り込み結果のままで、区分毎にまとめて表示する。
 ///
-/// 入力欄・メッセージ領域と同化しないよう、UIスタイルごとの不透明な面
+/// 入力欄・メッセージ領域と同化しないよう、UIスタイル毎の不透明な面
 /// （フラット=一段明るい面＋縁線、ガラス=ぼかし＋縁線、劇画=黒の直角ボックス）
 /// で包み、周囲に余白を取って「浮いた」独立の面に見せる。マテリアルに影は
-/// 使わない方針のため、影ではなく面・縁線・角丸・余白だけで区別する
+/// 使わない方針の為、影ではなく面・縁線・角丸・余白だけで区別する
 /// （2026-10-11、ユーザー指示）。
 class MentionSuggestionList extends StatelessWidget {
   const MentionSuggestionList({
@@ -50,7 +50,7 @@ class MentionSuggestionList extends StatelessWidget {
     ];
     final children = <Widget>[];
     // 表示順（区分ごと）でも、キーボードの選択位置は[candidates]の
-    // インデックスで管理するため、元のインデックスを保ったまま並べる。
+    // インデックスで管理する為、元のインデックスを保ったまま並べる。
     for (final (title, kinds) in sections) {
       final entries = [
         for (var i = 0; i < candidates.length; i++)

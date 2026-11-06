@@ -55,6 +55,7 @@ final Strings _stringsFr = Strings._(
   settingsOpenSourceLicenses: 'Licences open source',
   settingsBlockedUsersTitle: 'Utilisateurs bloqués',
   settingsBlockedUsersEmpty: 'Aucun utilisateur bloqué',
+  settingsBlockedUsersLoadFailed: 'Échec du chargement',
   settingsBlockedUsersUnblock: 'Débloquer',
   settingsBlockedUsersShowMoreTemplate: (remaining) =>
       'Afficher plus ($remaining de plus)',
@@ -110,9 +111,10 @@ final Strings _stringsFr = Strings._(
   settingsTextSizeSmall: 'Petite',
   settingsTextSizeMedium: 'Moyenne',
   settingsTextSizeLarge: 'Grande',
+  settingsIconSplitAdjustTitle: 'Ajuster les largeurs',
   settingsIconSplitAdjustButton: 'Ajuster les largeurs',
   settingsIconSplitAdjustNote:
-      'Appuyez sur « Ajuster les largeurs », puis faites glisser les lignes de séparation pour changer la largeur (double appui pour réinitialiser, appui simple pour terminer). Enregistré sur cet appareil uniquement.',
+      'Appuyez sur le bloc ci-dessous, puis faites glisser les lignes de séparation pour changer la largeur (double appui pour réinitialiser, appui simple pour terminer). Enregistré sur cet appareil uniquement.',
   settingsSlidePickTitle: 'Appuyer et glisser pour choisir',
   settingsSlidePickSubtitle:
       'Appuyez sur une pastille du menu ou un bouton des discussions, faites glisser le doigt, puis relâchez sur votre choix. Désactivez pour toucher une fois à la fois.',
@@ -530,7 +532,10 @@ final Strings _stringsFr = Strings._(
   mediaForwardTooltip: 'Transférer',
   mediaShareTooltip: 'Partager',
   forwardDialogTitle: 'Choisir la destination',
-  forwardSearchHint: 'Rechercher par nom',
+  forwardSearchHint: 'Rechercher par nom ou salon',
+  forwardPreviewTitle: 'Contenu à transférer',
+  forwardChooseHint: 'Choisissez une destination à gauche',
+  forwardConfirm: 'Transférer',
   forwardNoResults: 'Aucune destination correspondante',
   forwardBack: 'Retour',
   forwardSending: 'Transfert en cours…',

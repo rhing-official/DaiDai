@@ -26,7 +26,7 @@ import '../../l10n/vocabulary.dart';
 /// アプリ全体で、自分がメンバーになっている広場の新規通話開始を監視し、
 /// バナー表示＋着信音（3コールのみ）で知らせる。1対1の[IncomingCallListener]と
 /// 異なり、グループ通話は「進行中の通話に途中から参加する」プル型設計で
-/// 着信の概念自体が無いため、フルスクリーンの着信画面には遷移させず、
+/// 着信の概念自体が無い為、フルスクリーンの着信画面には遷移させず、
 /// バナーをタップした時だけ確認無しでそのまま通話に参加する。
 /// HomeScreenの上位でIncomingCallListenerと並べてラップして使う。
 class GroupIncomingCallListener extends ConsumerStatefulWidget {
@@ -51,7 +51,7 @@ class _GroupIncomingCallListenerState
   bool _seeded = false;
   Timer? _errorBannerTimer;
 
-  /// バナーごとの「応答が無ければ自動で閉じる」タイマー（[kCallRingTimeout]）。
+  /// バナー毎の「応答が無ければ自動で閉じる」タイマー（[kCallRingTimeout]）。
   final Map<String, Timer> _ringTimers = {};
 
   @override
@@ -151,7 +151,7 @@ class _GroupIncomingCallListenerState
     unawaited(_soundPlayer.playRingtoneTimes(3, ringtoneSource));
   }
 
-  /// 応答が無いまま[kCallRingTimeout]が経ったバナーを閉じ、他に出ているバナーが
+  /// 応答が無今ま[kCallRingTimeout]が経ったバナーを閉じ、他に出ているバナーが
   /// 無ければ着信音も止める。
   void _expireBanner(String groupCallId) {
     _ringTimers.remove(groupCallId);
@@ -270,7 +270,7 @@ final groupCallBannersProvider =
     );
 
 /// 最前面に重ねる広場通話バナー。全ルート・ボタン・通話ミニ表示より上に出る。
-/// 上スワイプ（または×）で閉じ、閉じたら着信音も止める。
+/// 上スワイプ（又は×）で閉じ、閉じたら着信音も止める。
 class GroupCallBannerOverlay extends ConsumerWidget {
   const GroupCallBannerOverlay({super.key});
 

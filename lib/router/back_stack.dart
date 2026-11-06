@@ -6,17 +6,17 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// 戻る・進む履歴を保持するタブ単位のスコープ（2026-10-06追加）。履歴は
-/// タブごとに独立しており、あるタブの「戻る」が別のタブの状態を戻すことは
+/// タブ毎に独立しており、あるタブの「戻る」が別のタブの状態を戻すことは
 /// ない（タブの切り替え自体は履歴に記録しない）。
 enum BackScope { talks, profile, settings, admin }
 
-/// タブごとに保存する履歴件数の上限（2026-10-06、ユーザー指示）。
+/// タブ毎に保存する履歴件数の上限（2026-10-06、ユーザー指示）。
 /// 設定画面からは変更せず、ここで事前に決める。
 const kMaxBackHistory = 30;
 
 /// 「戻る」「進む」ボタン（ブラウザ・Androidの戻る・デスクトップのマウスの
 /// 戻る/進むボタン）を、アプリ内のローカルな画面状態（ペイン・選択・
-/// カテゴリ・ダイアログ）と対応させるための仕組み（2026-10-04追加、
+/// カテゴリ・ダイアログ）と対応させる為の仕組み（2026-10-04追加、
 /// 2026-10-06にタブ別の論理履歴へ再設計）。
 ///
 /// アプリの画面切り替えの大半は`setState`のローカル状態でブラウザ履歴に残らず、
@@ -24,7 +24,7 @@ const kMaxBackHistory = 30;
 /// 入口」としてのみ使い（ホーム表示中は常に1件の透明な「ベース」ルート
 /// `/_b/0`を積み、戻る操作で消えたら処理して積み直す）、実際の戻り先は
 /// このコントローラ内のタブ別スタックで管理する。履歴の長さの上限はアプリ内
-/// のスタックだけに適用する（ブラウザ履歴の件数は制御できないため）。
+/// のスタックだけに適用する（ブラウザ履歴の件数は制御出来ない為）。
 ///
 /// 戻る要求（[requestBack]）の優先順位:
 /// 1. 開いているダイアログ・ポップアップ（全タブ共通）の最新を閉じる
@@ -72,12 +72,12 @@ class BackStackController extends ChangeNotifier {
 
   /// ダイアログ・ポップアップ・メニュー・全画面ビューア等が開いているか
   /// （2026-10-10追加）。ホーム画面のチップ帯のなぞり遷移が、これらの背後で
-  /// タブを切り替えないための判定。ホームの上には常に透明ルート`/_b/*`が
-  /// 積まれていて`ModalRoute.isCurrent`では判定できないため、透明ルートを
+  /// タブを切り替えない為の判定。ホームの上には常に透明ルート`/_b/*`が
+  /// 積まれていて`ModalRoute.isCurrent`では判定出来ない為、透明ルートを
   /// 数えないこちらを使う。
   bool get hasOpenOverlay => _dialogs.isNotEmpty;
 
-  /// 指定idの透明ルートが有効か（積んでいる、または戻るで消えてブラウザの
+  /// 指定idの透明ルートが有効か（積んでいる、又は戻るで消えてブラウザの
   /// 「進む」で復元されうる）。ルーターの`redirect`が、リロード等で来た無効な
   /// `/_b/*`を弾くのに使う。
   bool isLive(int id) => _tokens.contains(id) || _forwardIds.contains(id);
@@ -87,7 +87,7 @@ class BackStackController extends ChangeNotifier {
       _stack.where((e) => e.scope == null || e.scope == scope).length;
 
   /// ホームの履歴トークンを積む（残りがあれば何もしない）。積み直しは進む先を
-  /// 捨てることになるため、トークンが尽きた時だけ行う。
+  /// 捨てることになる為、トークンが尽きた時だけ行う。
   void ensureBase() {
     if (_tokens.isNotEmpty) return;
     _forwardIds.clear();
@@ -127,7 +127,7 @@ class BackStackController extends ChangeNotifier {
     }
   }
 
-  /// ダイアログ・ポップアップ・ボトムシートの登録（履歴は積まず、戻る要求が
+  /// ダイアログ・ポップアップ・ボトムシートの登録（履歴は積先ず、戻る要求が
   /// 来た時に最優先で閉じられる）。
   int addDialog(VoidCallback close) {
     final key = _nextDialogKey++;
@@ -140,8 +140,8 @@ class BackStackController extends ChangeNotifier {
   void releaseDialog(int key) => _dialogs.remove(key);
 
   /// 登録済みのダイアログを外す。登録されていたら、自分の`closeTopOverlay`以外
-  /// （ルートごとNavigatorに消された・ユーザーが閉じた）で閉じたことになるため、
-  /// その時刻を覚える（[onRouteGone]が、同じ戻る操作で二重に戻らないために使う）。
+  /// （ルートごとNavigatorに消された・ユーザーが閉じた）で閉じたことになる為、
+  /// その時刻を覚える（[onRouteGone]が、同じ戻る操作で二重に戻らない為に使う）。
   void removeDialog(int key) {
     if (_dialogs.remove(key) == null) return;
     _externalOverlayTimer?.cancel();
@@ -170,7 +170,7 @@ class BackStackController extends ChangeNotifier {
       if (_externalOverlayTimer != null) {
         // 履歴トークンの下のページが消えた時、その上に重なっていたダイアログ・
         // ビューア（命令的ルート）もNavigatorが一緒に閉じる。それが今回の戻るで
-        // 閉じる1階層なので、さらに戻る要求を処理しない（二重に戻るのを防ぐ）。
+        // 閉じる1階層なので、更に戻る要求を処理しない（二重に戻るのを防ぐ）。
         _externalOverlayTimer?.cancel();
         _externalOverlayTimer = null;
         _log('back: overlay closed together with the route');
@@ -301,7 +301,7 @@ class BackStackController extends ChangeNotifier {
   void log(String message) => _log(message);
 
   /// 戻る要求が閉じる対象のエントリの位置。画面の見た目上、層（カレンダー・ノート・
-  /// アルバム・通話・寄合の履歴）は常にタブ内の一覧選択等の履歴より前面にあるため、
+  /// アルバム・通話・寄合の履歴）は常にタブ内の一覧選択等の履歴より前面にある為、
   /// 登録順に関わらず、有効な層のうち最後のものを優先する。層が無ければ最後の
   /// 有効なエントリ（2026-10-13、層より後に登録し直された履歴エントリに
   /// 先に反応して、層が閉じず一覧まで戻ってしまうのを防ぐ）。
@@ -391,7 +391,7 @@ class BackPage extends Page<void> {
 }
 
 /// 画面を持たない（バリアも無い）ルート。`PageRouteBuilder`等の`ModalRoute`は
-/// 透明でもバリアが背後の画面へのタップを遮るため、`OverlayRoute`で作る。
+/// 透明でもバリアが背後の画面へのタップを遮る為、`OverlayRoute`で作る。
 class _BackRoute extends OverlayRoute<void> {
   _BackRoute(Page<void> page) : super(settings: page, requestFocus: false);
 
@@ -534,7 +534,7 @@ class _BackEntryState extends ConsumerState<BackEntry> {
         if (mounted && widget.active && _id == null) {
           _id = _controller.add(
             () {
-              // 戻る要求で外されるため、IDは先に手放す。
+              // 戻る要求で外される為、IDは先に手放す。
               _id = null;
               widget.onBack();
             },
@@ -610,7 +610,7 @@ class CollapsedBackEntry extends StatelessWidget {
 /// 画面の「現在位置」（[location]）の移り変わりを自動で履歴（[NavHistory]）に
 /// 記録し、戻る・進む要求で過去の位置へ[onRestore]する（2026-10-06追加）。
 /// 位置が変わった経路（一覧タップ・タブ内の移動・検索ジャンプ等）を問わず、
-/// `build`で導出した位置の変化だけを見るため、操作の箇所を個別に触らずに済む。
+/// `build`で導出した位置の変化だけを見る為、操作の箇所を個別に触らずに済む。
 /// [location]がnullの間は記録しない（位置がまだ確定していない時用）。
 /// 復元の途中経過を新しい操作として記録してやり直し分を消さないよう、復元中は
 /// 目標位置に着くまで（最大数フレーム）記録を止める。
@@ -733,8 +733,8 @@ class _BackBaseGuardState extends ConsumerState<BackBaseGuard> {
   /// Chromeは、ユーザー操作を伴わずに積まれた履歴エントリを「戻る」で飛ばす
   /// （戻るボタン乗っ取り対策）。起動直後に31個のトークンを自動で積むと、1回の
   /// 戻るで全てがまとめて飛ばされ、トークンが一度に消えて何階層も戻ってしまう
-  /// ほか、履歴の最初のエントリより前（＝サイトの外）へ出ることがあった
-  /// （2026-10-14）。操作の中で積めば、トークンごとに普通のエントリになる。
+  /// 他、履歴の最初のエントリより前（＝サイトの外）へ出ることがあった
+  /// （2026-10-14）。操作の中で積めば、トークン毎に普通のエントリになる。
   bool _waitingForGesture = false;
 
   @override
@@ -746,7 +746,7 @@ class _BackBaseGuardState extends ConsumerState<BackBaseGuard> {
 
   void _ensure() {
     if (!mounted) return;
-    // 通知はNavigatorの更新中に届くことがあるため、フレーム後に積み直す。
+    // 通知はNavigatorの更新中に届くことがある為、フレーム後に積み直す。
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || _controller.hasBase) return;
       if (kIsWeb) {

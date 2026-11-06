@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 
 /// Web版が動いている本番ドメイン。ネイティブ版（デスクトップ・モバイル）では
-/// `Uri.base`が実際のWebホストを指さないため、外部から開けるリンクとして
+/// `Uri.base`が実際のWebホストを指さない為、外部から開けるリンクとして
 /// 常にこちらを使う。Web版はビルド元のオリジン（開発サーバーのポート含む）を
 /// そのまま使う。
 const kProductionWebOrigin = 'https://daidai.rhing.jp';

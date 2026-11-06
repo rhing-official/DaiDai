@@ -103,7 +103,7 @@ void main() {
     expect(sizes, hasLength(2));
     // 短いタイトルの箱の方が、長いタイトルの箱より明確に幅が狭い
     // （＝行全幅に引き伸ばされず、文字量に応じた可変幅になっている。
-    // 短い方の箱に合わせて長い方が縮まる/伸びるようなこともない）。
+    // 短い方の箱に合わせて長い方が縮まる/伸びるようなことも無い）。
     expect(sizes[0], lessThan(sizes[1] - 100));
     // 左端（x座標）は両方とも同じ＝左揃えになっている。
     expect(topLefts[0], equals(topLefts[1]));
@@ -146,7 +146,7 @@ void main() {
         .toList();
 
     expect(rects, hasLength(2));
-    // 接合を廃止したため、右の子の左端は左の子の右端に一致せず、一定の
+    // 接合を廃止した為、右の子の左端は左の子の右端に一致せず、一定の
     // 間隔（`_RenderGekigaJointedList._gap` = 8px）だけ空く。
     expect(rects[1].left, moreOrLessEquals(rects[0].right + 8, epsilon: 0.01));
   });

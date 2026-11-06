@@ -339,7 +339,7 @@ class CalendarCategoryListPopup extends ConsumerWidget {
 
 /// この語らいのカレンダーの設定（2026-11-05）。週の始まり・暦・祝日/祭日/宗教を、
 /// 標準（設定>語らい>カレンダー）から変えられる。「標準に合わせる」を選ぶと上書きを消す。
-/// どれも自分の画面の表示にだけ効き、ほかの人や予定の日時には影響しない。
+/// どれも自分の画面の表示にだけ効き、他の人や予定の日時には影響しない。
 class _ConversationCalendarSettings extends ConsumerWidget {
   const _ConversationCalendarSettings({
     required this.conversationId,

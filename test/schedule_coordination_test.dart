@@ -38,7 +38,7 @@ void main() {
       final json = {
         'roomId': 'room1',
         'title': '忘年会',
-        'description': '候補日から選んでください',
+        'description': '候補日から選んで下さい',
         'candidateDates': [
           Timestamp.fromDate(DateTime(2026, 12, 1)),
           Timestamp.fromDate(DateTime(2026, 12, 8)),

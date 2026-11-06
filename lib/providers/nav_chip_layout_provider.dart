@@ -8,7 +8,7 @@ const _wideAlignmentKey = 'navChipAlignmentWide';
 const _orderKey = 'navChipOrder';
 
 /// 端末に保存されている初期のメニューチップの揃え・並び（2026-11-01）。アカウントには保存せず、
-/// 端末ごとに持つ（画面の幅や持ち方が端末で違うため。同日ユーザー指示）。main()で起動前に
+/// 端末毎に持つ（画面の幅や持ち方が端末で違うため。同日ユーザー指示）。main()で起動前に
 /// 読み込んで渡す（未指定のテストでは標準）。
 final initialNavChipLayoutProvider = Provider<NavChipLayout>(
   (ref) => NavChipLayout.standard,

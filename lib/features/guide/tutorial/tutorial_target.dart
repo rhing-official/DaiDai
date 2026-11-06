@@ -31,7 +31,7 @@ class _TutorialTargetState extends ConsumerState<TutorialTarget> {
 
   /// 押した結果この目印自身が画面から消える場合（相手を選ぶと会話が開く、送信で
   /// 入力欄が空になりボタンが消える等）でも、`onPointerUp`はその後に届くことがある。
-  /// そのとき`ref`は使えないため、先に取っておく。
+  /// その時`ref`は使えない為、先に取っておく。
   late final TutorialController _controller = ref.read(
     tutorialControllerProvider.notifier,
   );

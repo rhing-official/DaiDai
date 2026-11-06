@@ -11,7 +11,7 @@ const _prefsKey = 'notificationSound';
 const _customUrlPrefsKey = 'notificationSoundCustomUrl';
 const _customFileNamePrefsKey = 'notificationSoundCustomFileName';
 
-/// 端末に保存されている初期の通知音設定（プリセットIDまたはカスタム
+/// 端末に保存されている初期の通知音設定（プリセットID又はカスタム
 /// アップロード音源のURL、未設定ならnull＝既定プリセット）。Androidのみ
 /// 対応（`SoundCategory.notification`参照、2026-09-06 Phase B追加）。main()で
 /// 起動前に読み込み、ProviderScopeのoverrideとして渡す
@@ -88,11 +88,11 @@ class NotificationCustomSoundNotifier extends Notifier<CustomSoundUpload?> {
   CustomSoundUpload? build() =>
       ref.watch(initialNotificationCustomSoundProvider);
 
-  /// カスタム音源をアップロードした際、または既に有効なカスタム音源を
+  /// カスタム音源をアップロードした際、又は既に有効なカスタム音源を
   /// この記憶がまだ無い状態で選び直した際（バックフィル、`fileName`は
   /// 不明なのでnull）に呼ぶ。プリセットに切り替えてもこの記憶はクリア
   /// されない（設定画面の「アップロード」行本体タップで再アップロード
-  /// せずに呼び戻せるようにするため）。
+  /// せずに呼び戻せるようにする為）。
   Future<void> remember(String url, [String? fileName]) async {
     state = CustomSoundUpload(url: url, fileName: fileName);
     final prefs = await SharedPreferences.getInstance();

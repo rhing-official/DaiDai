@@ -1,11 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-/// [CalendarEvent]1件・住人1人ごとのGoogleカレンダー同期状態
+/// [CalendarEvent]1件・住人1人毎のGoogleカレンダー同期状態
 /// (`.../calendarEvents/{eventId}/syncStates/{uid}`、2026-09-01追加)。
 ///
 /// ドキュメントIDを本人のuidにすることで、firestore.rulesで
 /// 「本人のuidのものにしか書き込めない」を`request.auth.uid == uid`という
-/// 単純な条件で表現できる（他人のsyncStatesへの成りすまし書き込み防止）。
+/// 単純な条件で表現出来る（他人のsyncStatesへの成りすまし書き込み防止）。
 /// 予定本体（[CalendarEvent]）に同期状態をMapで埋め込まないのも同じ理由。
 class CalendarEventSync {
   const CalendarEventSync({

@@ -9,7 +9,7 @@ import 'gekiga_label_chip.dart';
 /// フラットスタイル時は太字テキストにする（2026-08-05新規。元は
 /// `settings_tab.dart`の`_SectionHeader`が個別に持っていたロジックだが、
 /// `profile_tab.dart`の蔵・工房の見出し（アイコン・背景画像・呼び名・
-/// 一言・SNSのURL・会話ごとのプロフィールカード）にも同じ見た目を適用する
+/// 一言・SNSのURL・会話毎のプロフィールカード）にも同じ見た目を適用する
 /// ため共通化した）。paddingは呼び出し側の既存レイアウトに委ねるため
 /// 持たない（`settings_tab.dart`側は独自にPaddingで包む）。
 class GekigaSectionHeader extends ConsumerWidget {

@@ -72,7 +72,7 @@ class CallBgm extends ChangeNotifier {
   }
 
   /// [track]を流し始める（流していれば入れ替える）。ユーザー操作の中で呼ぶこと
-  /// （ブラウザが自動再生を制限するため）。
+  /// （ブラウザが自動再生を制限する為）。
   Future<void> play(BgmTrack track) async {
     final mic = micTrack();
     if (mic == null) return;
@@ -90,7 +90,7 @@ class CallBgm extends ChangeNotifier {
     try {
       await _mixer.play(bytes, track.mimeType, onEnded: _playNext);
     } catch (_) {
-      // 再生できない曲（壊れたファイル等）。止めて元に戻す。
+      // 再生出来ない曲（壊れたファイル等）。止めて元に戻す。
       await stop();
     }
   }

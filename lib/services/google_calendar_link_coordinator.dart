@@ -7,7 +7,7 @@ import 'google_calendar_sync_service.dart';
 /// 単一責務のまま、「同意→専用カレンダー作成」「専用カレンダー削除」という
 /// 2ステップの組み合わせだけをここに閉じ込める（`chat_panes.dart`の
 /// `_CalendarButton`・`settings_tab.dart`の`_GoogleCalendarSyncRow`という
-/// 2つの導線から同じ手順を重複実装しないため）。
+/// 2つの導線から同じ手順を重複実装しない為）。
 class GoogleCalendarLinkCoordinator {
   GoogleCalendarLinkCoordinator({
     GoogleCalendarAuthService? authService,
@@ -31,7 +31,7 @@ class GoogleCalendarLinkCoordinator {
   /// 専用カレンダーごと削除する（連携解除時）。ベストエフォートの後始末
   /// なので、アクセストークンが取れない・API呼び出しが失敗した場合も
   /// 例外を投げず黙って諦める（連携解除自体＝ローカルのフラグクリアは
-  /// この呼び出しの成否に関わらず成立させたいため、呼び出し側で必ず
+  /// この呼び出しの成否に関わらず成立させたい為、呼び出し側で必ず
   /// `await`はするがtry/catchは不要）。
   Future<void> disconnect(String? calendarId) async {
     if (calendarId == null) return;

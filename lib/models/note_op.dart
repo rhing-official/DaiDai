@@ -6,7 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 /// `Transaction.toJson()`相当）をまとめて配列で持つ（`note_transaction_codec.dart`
 /// でエンコード/デコードする）。[sessionId]は送信元クライアントがノートを
 /// 開いている間だけ有効なランダムIDで、受信側が「自分が送った操作」を
-/// 二重適用しないためのエコー判定に使う。
+/// 二重適用しない為のエコー判定に使う。
 class NoteOp {
   const NoteOp({
     required this.opId,

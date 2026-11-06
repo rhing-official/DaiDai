@@ -17,7 +17,7 @@ import '../auth/auth_gate.dart';
 
 /// 招待リンク（`/join/:groupId`）・QRコード読み取りの両方から開かれる、
 /// 広場への参加リクエスト確認画面。ログイン前に開かれた場合は[AuthGate]が
-/// まずログイン・Rhing Seed登録を済ませてから、この画面本体を表示する。
+/// 先ずログイン・Rhing Seed登録を済ませてから、この画面本体を表示する。
 class JoinGroupScreen extends StatelessWidget {
   const JoinGroupScreen({required this.groupId, super.key});
 
@@ -53,7 +53,7 @@ class _JoinGroupView extends ConsumerStatefulWidget {
 }
 
 class _JoinGroupViewState extends ConsumerState<_JoinGroupView> {
-  /// 標準のカードの切り替えなどを即座に反映するため、ログイン時に一度だけ
+  /// 標準のカードの切り替えなどを即座に反映する為、ログイン時に一度だけ
   /// 取得した`widget.currentUser`ではなく購読中の最新のユーザーを使う
   /// （2026-10-11）。
   AppUser get _liveUser =>
@@ -79,7 +79,7 @@ class _JoinGroupViewState extends ConsumerState<_JoinGroupView> {
     // 以前はここでの例外がどこにも捕捉されておらず、何らかの理由（一時的な
     // 通信エラー等）で失敗すると`_status`が`loading`のまま止まり、画面が
     // スピナーが回り続けるだけで「新しいタブが開いても何も起きない」ように
-    // 見える不具合になっていた。失敗時は再試行できるエラー画面を出す。
+    // 見える不具合になっていた。失敗時は再試行出来るエラー画面を出す。
     setState(() => _status = _JoinStatus.loading);
     try {
       final groupRepository = ref.read(groupRepositoryProvider);

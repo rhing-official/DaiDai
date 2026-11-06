@@ -14,7 +14,7 @@ final _tableSeparatorLine = RegExp(
 );
 
 // 目次の独自ブロック（`note_markdown_parsers.dart`が書き出す）。中身が空の
-// コードブロックはMarkdownの解析で捨てられるため、解析の前に目印の行へ
+// コードブロックはMarkdownの解析で捨てられる為、解析の前に目印の行へ
 // 置き換え、解析後に目次ブロックへ戻す。
 final _tocFence = RegExp(
   r'^```daidai-toc[^\n]*\n(?:[\s\S]*?\n)?```[ \t]*$',
@@ -52,7 +52,7 @@ Node _withColsHeight(Node table) {
 }
 
 /// 複数行で、見出し・箇条書き・表・目次の行を含むテキストか。
-/// 標準の貼り付けは複数行を全て素の段落にするため、`# 見出し`が文字のまま残る。
+/// 標準の貼り付けは複数行を全て素の段落にする為、`# 見出し`が文字のまま残る。
 /// このようなテキストはMarkdownとして解析して貼る。
 bool looksLikeMarkdownBlocks(String text) {
   if (!text.contains('\n')) return false;
@@ -72,7 +72,7 @@ final CommandShortcutEvent notePasteCommand = CommandShortcutEvent(
   macOSCommand: 'cmd+v',
   handler: (editorState) {
     if (editorState.selection == null) return KeyEventResult.ignored;
-    // [NOTE-PASTE]: 「貼り付けできない」原因調査用の一時ログ（原因特定後に削除する）。
+    // [NOTE-PASTE]: 「貼り付け出来ない」原因調査用の一時ログ（原因特定後に削除する）。
     () async {
       try {
         debugPrint(
@@ -120,7 +120,7 @@ final CommandShortcutEvent notePasteCommand = CommandShortcutEvent(
 Future<void> pasteMarkdownBlocks(EditorState editorState, String text) async {
   final nodes = markdownToNoteNodes(text);
   if (nodes.isEmpty) return;
-  // 表・目次のようなテキストを持たないブロックで終わるときは、直後に空の段落を
+  // 表・目次のようなテキストを持たないブロックで終わる時は、直後に空の段落を
   // 足してカーソルを置く（そのブロックにはカーソルが置けず、続きが書けなくなる
   // のを避ける）。
   final addsTrailing = nodes.last.delta == null;
@@ -145,7 +145,7 @@ Future<void> pasteMarkdownBlocks(EditorState editorState, String text) async {
   }
 }
 
-/// 先頭がテキストを持たないブロック（表・目次）のとき、カーソル位置へそのまま
+/// 先頭がテキストを持たないブロック（表・目次）の時、カーソル位置へそのまま
 /// 挿入する。カーソルが空の段落なら、その段落を置き換える。挿入したブロック列の
 /// 先頭の位置を返す。
 Future<Path?> _insertBlocksAtCursor(
@@ -175,7 +175,7 @@ Future<Path?> _insertBlocksAtCursor(
 
 final _wholeUrl = RegExp(r'^https?://\S+$');
 
-/// 記号を含まない普通のテキストを、1行ごとの段落として貼る。行全体がURLなら
+/// 記号を含まない普通のテキストを、1行毎の段落として貼る。行全体がURLなら
 /// リンクにする（標準の貼り付けの自動リンクのうち、行全体がURLの場合のみ）。
 Future<void> pastePlainTextBlocks(EditorState editorState, String text) async {
   final nodes = text.split('\n').map((line) {

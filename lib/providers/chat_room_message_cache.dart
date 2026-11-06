@@ -9,7 +9,7 @@ import '../models/message_cursor.dart';
 import 'repository_providers.dart';
 
 /// メッセージ画面のスクロール位置を「見ていたメッセージ」で覚えるアンカー
-/// （2026-10-04追加）。リストはreverse（index 0が最新）のため、離れている間に
+/// （2026-10-04追加）。リストはreverse（index 0が最新）の為、離れている間に
 /// 新着が来るとindexは別のメッセージを指してしまう。そこでメッセージIDと、
 /// そのアイテムの先頭端の位置（`ItemPosition.itemLeadingEdge`）で保持する。
 class ChatScrollAnchor {
@@ -19,7 +19,7 @@ class ChatScrollAnchor {
   final double leadingEdge;
 }
 
-/// 一対の寄合1つ、または広場の寄合1つを一意に指す不変のキー
+/// 一対の寄合1つ、又は広場の寄合1つを一意に指す不変のキー
 /// （2026-09-10追加）。[ChatRoomMessageCacheManager]のMapキーに使う。
 @immutable
 class ChatRoomCacheKey {
@@ -64,13 +64,13 @@ class ChatRoomCacheKey {
 /// `_DmChatPaneState`/`_GroupChatPaneState`（`chat_panes.dart`）の代わりに
 /// 保持するキャッシュエントリ（2026-09-10追加）。
 ///
-/// 以前はこれらのフィールドをState自身が持っていたため、寄合を切り替えて
+/// 以前はこれらのフィールドをState自身が持っていた為、寄合を切り替えて
 /// `ChatScreen`のKeyが変わりStateごと破棄・再生成されるたびにFirestore購読も
 /// 最初からやり直しになっていた（寄合切り替えのたびにメッセージが一瞬
 /// 消えて読み込み直される体感遅延の主因）。このエントリは
-/// [ChatRoomMessageCacheManager]がアプリセッション寿命で保持するため、
+/// [ChatRoomMessageCacheManager]がアプリセッション寿命で保持する為、
 /// Stateが破棄されても購読は裏で生き続け、同じ寄合に戻った時は
-/// 既に読み込み済みのデータへ即座にアタッチできる。
+/// 既に読み込み済みのデータへ即座にアタッチ出来る。
 class ChatRoomMessageCacheEntry extends ChangeNotifier {
   /// 最新[kMessagePageSize]件のライブ窓（Firestoreの`limit`付き購読）。
   /// 新着で窓が進むと、押し出された分は[olderMessages]の先頭へ移される
@@ -84,7 +84,7 @@ class ChatRoomMessageCacheEntry extends ChangeNotifier {
   final List<Message> olderMessages = [];
 
   /// 次に[loadOlder]で読み始める位置（現在ロード済みの最も古いメッセージ）。
-  /// まだ何も無い、または`sentAt`未確定（送信直後）ならnull。
+  /// まだ何も無い、又は`sentAt`未確定（送信直後）ならnull。
   MessageCursor? get oldestLoadedCursor {
     final oldest = olderMessages.isNotEmpty
         ? olderMessages.last
@@ -100,7 +100,7 @@ class ChatRoomMessageCacheEntry extends ChangeNotifier {
   bool hasMoreHistory = true;
 
   /// この寄合を最後に離れた時点のスクロール位置（最新側にいた場合はnull）。
-  /// `ChatScreen`はPaneの再生成・寄合切替・一覧へのpopで作り直されるため、
+  /// `ChatScreen`はPaneの再生成・寄合切替・一覧へのpopで作り直される為、
   /// Paneより長生きするこのキャッシュに保持して、戻ってきた時に最新へ
   /// ジャンプしないようにする（2026-10-04追加）。
   ChatScrollAnchor? lastScrollAnchor;
@@ -111,14 +111,14 @@ class ChatRoomMessageCacheEntry extends ChangeNotifier {
 
   /// refCountが0になった時点の[ChatRoomMessageCacheManager]内の通し番号
   /// （LRU破棄の判定に使う。ウォールクロックの解像度に依存せず厳密な
-  /// 順序を保証するため、時刻ではなく単調増加のカウンタを使う）。
+  /// 順序を保証する為、時刻ではなく単調増加のカウンタを使う）。
   /// 表示中はnull。
   int? idleSequence;
 
   StreamSubscription<List<Message>>? _tailSub;
 
   /// 購読が終了・エラーで止まった際の自動再購読の連続失敗回数
-  /// （バックオフ計算用。1件でも受信できれば0に戻す）。
+  /// （バックオフ計算用。1件でも受信出来れば0に戻す）。
   int _retryCount = 0;
   Timer? _retryTimer;
 
@@ -265,7 +265,7 @@ class ChatRoomMessageCacheEntry extends ChangeNotifier {
     }
   }
 
-  /// Firestore購読を止める（[ChatRoomMessageCacheManager]のLRU破棄、または
+  /// Firestore購読を止める（[ChatRoomMessageCacheManager]のLRU破棄、又は
   /// 会話自体の削除時にのみ呼ばれる。表示中のStateを持つ`dispose()`からは
   /// 呼ばない — それがこのキャッシュ層の存在意義そのもの）。
   void cancelSubscription() {
@@ -297,7 +297,7 @@ class ChatRoomMessageCacheManager {
   /// 覗き見る（2026-09-12追加、語らい検索のメッセージ内容検索
   /// `TalksMessageSearchSession`専用）。無ければ新規エントリを作らずnullを
   /// 返す（[attach]と異なり、検索のためだけに空のFirestore購読を新設したく
-  /// ないため）。
+  /// ない為）。
   ChatRoomMessageCacheEntry? peek(ChatRoomCacheKey key) => _entries[key];
 
   /// この寄合の表示を開始する。既存エントリがあれば（購読・読み込み済み

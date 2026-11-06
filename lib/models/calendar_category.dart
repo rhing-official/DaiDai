@@ -4,7 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 ///
 /// `CalendarEvent`/`ScheduleCoordination`の両方から共有して参照される
 /// （`CalendarEvent.categoryId`/`ScheduleCoordination.categoryId`）。
-/// `GroupRole`と違い色分けそのものが目的の機能のため、[color]は必須
+/// `GroupRole`と違い色分けそのものが目的の機能の為、[color]は必須
 /// （色を持たないカテゴリという概念を認めない）。
 class CalendarCategory {
   const CalendarCategory({

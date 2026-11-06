@@ -39,7 +39,7 @@ class _MultiDatePickerDialog extends ConsumerStatefulWidget {
 
   final Set<DateTime> initialSelectedDates;
 
-  /// 週の始まりを、この語らいのカレンダーの設定に合わせるために使う。
+  /// 週の始まりを、この語らいのカレンダーの設定に合わせる為に使う。
   final String conversationId;
 
   @override

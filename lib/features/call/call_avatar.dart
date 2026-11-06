@@ -8,7 +8,7 @@ import '../../widgets/glass/glass_avatar.dart';
 
 /// 通話UI（全画面・PC埋め込み・ピン留めミニ表示）で使う、参加者の中央
 /// アバター。[chat_screen.dart]の`_SenderAvatar`と同じく、[userId]の
-/// `AppUser.effectiveIconFor(conversationId)`（蔵/工房で設定した会話ごとの
+/// `AppUser.effectiveIconFor(conversationId)`（蔵/工房で設定した会話毎の
 /// アイコン）があればそれを表示し、無ければRhing Seedの頭文字イニシャルに
 /// フォールバックする。通話UIは従来`rhingSeed`文字列のみを持ち回っており
 /// アイコン解決を一切行っていなかった（2026-08-18修正）。
@@ -25,7 +25,7 @@ class CallParticipantAvatar extends ConsumerWidget {
   final String userId;
   final String rhingSeed;
 
-  /// 一対のdmId、または広場のgroupId。
+  /// 一対のdmId、又は広場のgroupId。
   final String? conversationId;
 
   final double radius;
@@ -72,7 +72,7 @@ class CallParticipantAvatar extends ConsumerWidget {
 
 /// 通話UIのタイル等に表示する参加者の呼び名。[chat_screen.dart]の
 /// `_SenderName`と同じく、[userId]の`AppUser.effectiveNicknameFor`
-/// （会話ごとのプロフィールカードで設定した呼び名）があればそれを、無ければ
+/// （会話毎のプロフィールカードで設定した呼び名）があればそれを、無ければ
 /// `@rhingSeed`にフォールバックする。通話UIは従来`rhingSeed`をそのまま
 /// 「@rhingSeed」の形で表示しており呼び名を反映していなかった
 /// （2026-08-31修正）。
@@ -88,7 +88,7 @@ class CallParticipantNameLabel extends ConsumerWidget {
   final String userId;
   final String rhingSeed;
 
-  /// 一対のdmId、または広場のgroupId。
+  /// 一対のdmId、又は広場のgroupId。
   final String? conversationId;
 
   final TextStyle? style;

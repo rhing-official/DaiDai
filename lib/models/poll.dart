@@ -32,11 +32,11 @@ class PollOption {
 
 /// [Poll.options]/[Poll.optionVoteCounts]のキー形式。選択肢は配列indexで
 /// 識別する（[scheduleCoordinationCandidateKey]と同じ理由。選択肢のテキストを
-/// キーにすると同じ文言の選択肢が複数あった場合に衝突するため）。
+/// キーにすると同じ文言の選択肢が複数あった場合に衝突する為）。
 String pollOptionKey(int index) => '$index';
 
 /// 寄合単位の投票（2026-09-06追加。`directMessages/{dmId}/rooms/{roomId}/
-/// polls/{pollId}`または`groups/{groupId}/rooms/{roomId}/polls/{pollId}`）。
+/// polls/{pollId}`又は`groups/{groupId}/rooms/{roomId}/polls/{pollId}`）。
 ///
 /// 作成時に「選択肢」（自由記述の選択肢、画像添付・複数選択可・選択肢の
 /// 追加を許可に対応）と「○×」（選択肢入力を省き固定で○/×の2択にする）の
@@ -49,7 +49,7 @@ String pollOptionKey(int index) => '$index';
 /// `onGroupPollResponseCreated`、Admin SDK経由）だけが書き込む非正規化フィールド
 /// で、クライアントの`update`では一切触れない。これにより匿名投票
 /// （[anonymous]）でも、`responses`サブコレクションの読み取りを本人のみに
-/// 絞りつつ、選択肢ごとの得票数だけは全員に安全に見せられる。
+/// 絞りつつ、選択肢毎の得票数だけは全員に安全に見せられる。
 class Poll {
   const Poll({
     required this.pollId,
@@ -86,7 +86,7 @@ class Poll {
   /// （集計数のみ全員に見える）。
   final bool anonymous;
 
-  /// trueの場合、参加者が末尾に選択肢を追加できる（firestore.rules参照）。
+  /// trueの場合、参加者が末尾に選択肢を追加出来る（firestore.rules参照）。
   final bool allowAddingOptions;
 
   /// 回答済み住人の人数（非正規化カウンタ、Cloud Functionsのみ更新）。
@@ -145,7 +145,7 @@ class Poll {
   }
 
   /// [optionVoteCounts]は含めない。Cloud Functions専用フィールドであり
-  /// クライアントからは常に書かないことをコード上でも明示するため。
+  /// クライアントからは常に書かないことをコード上でも明示する為。
   Map<String, dynamic> toJson() => {
     'roomId': roomId,
     'question': question,

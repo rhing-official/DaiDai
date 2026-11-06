@@ -1,12 +1,12 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 /// 寄合単位の共有予定（`directMessages/{dmId}/rooms/{roomId}/calendarEvents/{eventId}`
-/// または`groups/{groupId}/rooms/{roomId}/calendarEvents/{eventId}`、2026-09-01追加）。
+/// 又は`groups/{groupId}/rooms/{roomId}/calendarEvents/{eventId}`、2026-09-01追加）。
 ///
-/// その寄合の参加者全員が対等に作成できる共有カレンダーの予定本体。
-/// 作成後の内容編集は行わない（出欠回答済みの住人との齟齬を避けるため、
+/// その寄合の参加者全員が対等に作成出来る共有カレンダーの予定本体。
+/// 作成後の内容編集は行わない（出欠回答済みの住人との齟齬を避ける為、
 /// 2026-09-02方針）。削除のみ[createdBy]本人に限り可能（firestore.rules参照）。
-/// Googleカレンダーへの同期状態は個人ごとに異なるためこのドキュメントには
+/// Googleカレンダーへの同期状態は個人毎に異なるためこのドキュメントには
 /// 含めず、[CalendarEventSync]（`syncStates`サブコレクション）に分離している。
 /// 出欠回答は[CalendarEventRsvp]（`rsvps`サブコレクション）に分離している。
 class CalendarEvent {
@@ -49,18 +49,18 @@ class CalendarEvent {
 
   /// 出欠確認を行うか（2026-09-02追加、作成時にのみ選べる）。デフォルト
   /// `true`は、この機能追加前に作られた既存予定でも出欠確認ありの従来動作を
-  /// 維持するため。
+  /// 維持する為。
   final bool rsvpEnabled;
 
-  /// 複数日にまたがる予定で、日ごとに出欠を確認するか（2026-09-02追加）。
+  /// 複数日にまたがる予定で、日毎に出欠を確認するか（2026-09-02追加）。
   /// 単日の予定・[rsvpEnabled]がfalseの予定では意味を持たない。デフォルト
-  /// `true`は、既存の複数日予定で従来の「日ごと確認」動作を維持するため。
+  /// `true`は、既存の複数日予定で従来の「日ごと確認」動作を維持する為。
   final bool rsvpPerDay;
 
   /// 出欠回答をした住人の人数（非正規化カウンタ、2026-09-04追加）。
   /// `FirestoreCalendarEventRepository.setRsvp`が、ある住人の`rsvps/{uid}`が
   /// 新規作成された時だけ+1する（既存回答の更新では増やさない）。この値が
-  /// 0の間だけ、作成者は予定の内容を編集できる（firestore.rules参照）。
+  /// 0の間だけ、作成者は予定の内容を編集出来る（firestore.rules参照）。
   final int rsvpCount;
 
   /// 回答期限（2026-09-04追加）。nullなら期限なし。過ぎても未回答者への
@@ -72,7 +72,7 @@ class CalendarEvent {
   /// この予定を`ChatTaskBanner`（`task_banner.dart`）から個人的に非表示に
   /// した住人のuserId一覧（2026-09-10追加）。`Message.hiddenFor`と異なり
   /// 予定本体は消さず、カレンダー画面（`calendar_pane_view.dart`）等では
-  /// 引き続き表示される。バナー上でのみ本人の分を除外するために使う。
+  /// 引き続き表示される。バナー上でのみ本人の分を除外する為に使う。
   final List<String> bannerHiddenFor;
 
   /// この予定の種類（`CalendarCategory.categoryId`、2026-09-11追加）。
@@ -124,14 +124,14 @@ class CalendarEvent {
 }
 
 /// [CalendarEvent.rsvpEnabled]がtrueかつ[CalendarEvent.rsvpPerDay]がfalseの
-/// 予定（単日、または複数日でも日ごと確認をしない予定）で、
+/// 予定（単日、又は複数日でも日ごと確認をしない予定）で、
 /// [CalendarEventRsvp.dayStatuses]の唯一のキーとして使う固定値
 /// （実際の日付文字列'yyyy-MM-dd'とは衝突しない、2026-09-02追加）。
 const calendarRsvpSingleKey = 'all';
 
 /// [event]が及ぶ暦日を1日単位で列挙する（`startAt`の日付から`endAt`の日付まで、
-/// `endAt`が無ければ`startAt`の1日のみ）。出欠を日ごとに取る機能
-/// （[CalendarEventRsvp]）で、複数日にまたがる予定の対象日一覧を得るために使う
+/// `endAt`が無ければ`startAt`の1日のみ）。出欠を日毎に取る機能
+/// （[CalendarEventRsvp]）で、複数日にまたがる予定の対象日一覧を得る為に使う
 /// （2026-09-02追加）。
 List<DateTime> calendarEventDates(CalendarEvent event) {
   DateTime dateOnly(DateTime date) => DateTime(date.year, date.month, date.day);

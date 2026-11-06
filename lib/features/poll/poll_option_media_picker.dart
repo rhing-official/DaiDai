@@ -8,16 +8,16 @@ import '../../utils/drag_menu_geometry.dart';
 /// [PollOptionMediaPickerButton]のドラッグ選択メニュー1項目。
 enum _MediaChoice { image, video }
 
-/// ほとんど動かさずに指が離れた場合は「押した瞬間に開くだけの単純な
+/// 殆ど動かさずに指が離れた場合は「押した瞬間に開くだけの単純な
 /// タップ」とみなし、メニューを閉じずに開いたままにする（続けて項目を
-/// 個別にタップして選べるようにするため）。`AttachmentPopupButton`
+/// 個別にタップして選べるようにする為）。`AttachmentPopupButton`
 /// （`lib/features/chat/attachment_popup_button.dart`）と同じ値。
 const double _tapSlop = 12.0;
 
 /// 投票の選択肢に添付する画像・動画を選ぶボタン（2026-09-06追加、画像専用
 /// だった選択肢添付を動画にも対応させる際に共通化）。押すと即座に（長押し
 /// 不要）ボタンの右上に「画像」/「動画」の2択がポップアップし、指を
-/// 触れたまま滑らせて選ぶ・または個別にタップして選ぶ、メッセージ入力欄の
+/// 触れたまま滑らせて選ぶ・又は個別にタップして選ぶ、メッセージ入力欄の
 /// ＋ボタン（`AttachmentPopupButton`）・メッセージ長押しメニュー
 /// （`_MessageBubbleTapArea`、chat_screen.dart）と同じドラッグ選択UXにする
 /// （2026-09-06変更、以前は`PopupMenuButton`の通常タップ選択だった）。

@@ -101,7 +101,7 @@ class CallBannerCard extends ConsumerWidget {
         child: Material(type: MaterialType.transparency, child: content),
       );
     }
-    // `Material`は`borderRadius`と`shape`を同時に指定できない。
+    // `Material`は`borderRadius`と`shape`を同時に指定出来ない。
     if (isGekiga) {
       return Material(
         color: background,

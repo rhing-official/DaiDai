@@ -25,7 +25,7 @@ import '../../widgets/toggles/app_checkbox.dart';
 /// 表示する。メンバー本体を先に、招待中（承認待ち）は最下部にまとめて表示する。
 /// manageRoles権限を持つメンバーには、各メンバーへのカスタムロールの複数付与
 /// （2026-07-28更新: 1人1ロールから複数付与に変更）もあわせて出す。長のみ、
-/// 他メンバーへの長の譲渡ができる。
+/// 他メンバーへの長の譲渡が出来る。
 class GroupMemberListPopup extends ConsumerWidget {
   const GroupMemberListPopup({
     required this.currentUser,
@@ -162,7 +162,7 @@ class GroupMemberListPopup extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final strings = ref.watch(appStringsProvider);
     // groupはこのポップアップが開かれた時点のスナップショットで、開いたまま
-    // 長の譲渡・ロール変更等を行っても更新されない別Navigatorルートのため、
+    // 長の譲渡・ロール変更等を行っても更新されない別Navigatorルートの為、
     // ライブな値を別途購読する（group_role_list_popup.dartのliveGroupと同じ理由）。
     final liveGroup =
         ref.watch(watchedGroupProvider(group.groupId)).value ?? group;
@@ -457,7 +457,7 @@ class _MemberTile extends StatelessWidget {
   final AppUser currentUser;
   final AppUser user;
 
-  /// 会話ごとに使うプロフィールカード（2026-07-29追加）を反映するための
+  /// 会話毎に使うプロフィールカード（2026-07-29追加）を反映する為の
   /// 広場id。
   final String groupId;
 
@@ -515,7 +515,7 @@ class _MemberTile extends StatelessWidget {
             ),
       title: Text(label),
       // ロールチップをtrailingに縦積みすると、ListTileの既定の高さ
-      // （1行分・56dp程度）に収まらずBOTTOM OVERFLOWが発生していたため、
+      // （1行分・56dp程度）に収まらずBOTTOM OVERFLOWが発生していた為、
       // subtitle（2行目扱いでListTileの高さが自動的に広がる）に移動した。
       subtitle: Align(
         alignment: Alignment.centerLeft,
@@ -542,7 +542,7 @@ class _MemberTile extends StatelessWidget {
       // タップすると相手のプロフィールカードを見られ、友達でなければそこから
       // 友達申請を送れる（chat_screen.dartの送信者アイコンタップと同じ導線）。
       // 長の譲渡も、以前はこの一覧に直接アイコンボタンを置いていたが誤操作の
-      // リスクが高いため、プロフィールカード側の操作に統合した（2026-07-29）。
+      // リスクが高い為、プロフィールカード側の操作に統合した（2026-07-29）。
       onTap: () => UserProfileCardDialog.show(
         context,
         currentUser: currentUser,

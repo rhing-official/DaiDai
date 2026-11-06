@@ -54,7 +54,7 @@ void main() {
       expect(roundTripped.options.keys, poll.options.keys);
       expect(roundTripped.deadline, poll.deadline);
       // optionVoteCountsはCloud Functions専用フィールドのためtoJsonに含めない
-      // （クライアントからは常に書かないことをコード上でも明示するため）。
+      // （クライアントからは常に書かないことをコード上でも明示する為）。
       expect(roundTripped.optionVoteCounts, isEmpty);
     });
 
@@ -75,7 +75,7 @@ void main() {
       expect(poll.allowAddingOptions, isFalse);
     });
 
-    test('isClosedはdeadlineが過去のときのみtrue', () {
+    test('isClosedはdeadlineが過去の時のみtrue', () {
       final past = Poll(
         pollId: 'p1',
         roomId: 'room1',

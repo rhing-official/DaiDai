@@ -1,6 +1,6 @@
 import 'package:flutter/widgets.dart';
 
-/// 和合で作成できるプロフィールカードの上限数。
+/// 和合で作成出来るプロフィールカードの上限数。
 const kMaxProfileCards = 3;
 
 /// プロフィールカード名の文字数上限。
@@ -9,7 +9,7 @@ const kMaxWorkshopCardNameLength = 20;
 /// 画像のどこを中心に見せるか（2026-10-11追加）。[dx]/[dy]は`Alignment`と同じ
 /// -1〜1（0,0が中央＝従来の中央固定と同じ）、[scale]は1.0（ぴったり収める）
 /// 〜[kMaxImageFocalScale]の拡大率。カード単位で持つ（同じ素材を複数のカードが
-/// 使えるため、構図は素材ではなくカードの属性）。
+/// 使える為、構図は素材ではなくカードの属性）。
 class ImageFocal {
   const ImageFocal({this.dx = 0, this.dy = 0, this.scale = 1});
 
@@ -120,7 +120,7 @@ enum CardTextAlign {
 /// 和合（プロフィールカード）。蔵に登録済みの素材（アイコン・背景画像・
 /// ニックネーム・ステメ）を組み合わせて作る「見せ方のセット」。
 /// 用途は多岐（友達へのURL共有時の表示、友達バーのホバーポップアップなど）を
-/// 想定しており、1人で最大[kMaxProfileCards]枚まで作成できる。
+/// 想定しており、1人で最大[kMaxProfileCards]枚まで作成出来る。
 /// 各フィールドは蔵の素材のidを指す。未選択（null）も許容する。
 class ProfileCard {
   const ProfileCard({
@@ -178,7 +178,7 @@ class ProfileCard {
   final bool showBirthday;
 
   /// 自分のRhing Seed（`@seed`）をこのカードに載せるか（2026-10-31追加、既定は載せない）。
-  /// 見た人が同名の友達を区別したり、紹介・通報で相手を特定したりできるようにする。
+  /// 見た人が同名の友達を区別したり、紹介・通報で相手を特定したり出来るようにする。
   final bool showRhingSeed;
 
   ProfileCard copyWith({

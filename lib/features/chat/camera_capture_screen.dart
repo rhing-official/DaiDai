@@ -29,7 +29,7 @@ enum _CaptureMode { photo, video }
 /// `networkUrl`で、それ以外のプラットフォームでは`File`経由で再生する
 /// （`camera`パッケージの対応プラットフォームは`video_thumbnail.dart`の
 /// `videoPlaybackSupported`が示す`video_player`の対応プラットフォームと
-/// 一致するため、この画面に到達できる環境であれば再生も問題なく動く）。
+/// 一致する為、この画面に到達出来る環境であれば再生も問題なく動く）。
 VideoPlayerController _createLocalVideoController(String path) {
   if (kIsWeb) {
     return VideoPlayerController.networkUrl(Uri.parse(path));
@@ -40,16 +40,16 @@ VideoPlayerController _createLocalVideoController(String path) {
 /// ＋ボタンの「撮影」から開くアプリ内カメラ画面（技術仕様書5.6参照、
 /// 2026-08-10追加）。OS標準のカメラアプリは呼ばず、`camera`パッケージで
 /// プレビューを自前描画する。画面内を横スワイプすると写真⇔録画モードを
-/// 切り替えられ、シャッターボタンの色でモードを判別できる（写真＝白、
+/// 切り替えられ、シャッターボタンの色でモードを判別出来る（写真＝白、
 /// 録画＝赤）。起動時のデフォルトは写真モード。録画の開始/終了は共に
 /// シャッターボタンのタップ（1回目で開始・2回目で終了、長押し録画ではない）。
 /// 前面/背面カメラの切り替えボタン（右上）と、写真/動画モードを一目で
-/// 判別できるアイコンインジケーター（シャッター上、タップでも切替可）を
+/// 判別出来るアイコンインジケーター（シャッター上、タップでも切替可）を
 /// 持つ（2026-08-10追加、実機カメラアプリに近いUIへの改善）。
 ///
 /// 録画中はシャッター中央に停止アイコンを表示し、外周にパルスするリングと
 /// 画面上部に経過時間つきのREC表示を出すことで、録画が進行中であることを
-/// 常に視認できるようにしている。また撮影完了と同時に確認なく送信して
+/// 常に視認出来るようにしている。また撮影完了と同時に確認なく送信して
 /// いた挙動をやめ、撮った写真/動画をこの画面内でプレビューし、「送信」を
 /// 明示的に押すまでは呼び出し元（メッセージ送信パイプライン）へ渡さない
 /// （「撮り直す」で破棄してライブカメラに戻れる、2026-09-15追加）。
@@ -330,7 +330,7 @@ class _CameraCaptureScreenState extends ConsumerState<CameraCaptureScreen>
                         ),
                       ),
                     // 録画中インジケーター「● 00:12」（2026-09-15追加）。
-                    // 録画が進行中であることを常に視認できるようにする。
+                    // 録画が進行中であることを常に視認出来るようにする。
                     if (_isRecording)
                       Positioned(
                         top: 16,
@@ -371,7 +371,7 @@ class _CameraCaptureScreenState extends ConsumerState<CameraCaptureScreen>
                           ),
                         ),
                       ),
-                    // 写真/動画モードを一目で判別できるアイコン
+                    // 写真/動画モードを一目で判別出来るアイコン
                     // インジケーター（2026-08-10追加）。シャッターの色分けに
                     // 加え、タップでも直接モードを切り替えられる。
                     Positioned(
@@ -535,7 +535,7 @@ class _CameraCaptureScreenState extends ConsumerState<CameraCaptureScreen>
 
 /// シャッター上の写真/動画モードインジケーター1つ分（2026-08-10追加）。
 /// 選択中はシャッターと同じ色（写真＝白、動画＝赤）で塗り、一目でどちらの
-/// モードか判別できるようにする。タップでも直接そのモードに切り替えられる。
+/// モードか判別出来るようにする。タップでも直接そのモードに切り替えられる。
 class _ModeIconButton extends StatelessWidget {
   const _ModeIconButton({
     required this.icon,

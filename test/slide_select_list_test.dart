@@ -56,7 +56,7 @@ void main() {
     expect(ended, isEmpty);
   });
 
-  testWidgets('ほとんど動かさずに離した時は、なぞりとして扱わない', (tester) async {
+  testWidgets('殆ど動かさずに離した時は、なぞりとして扱わない', (tester) async {
     final ended = await _pump(tester);
     final gesture = await tester.startGesture(const Offset(20, 30));
     await gesture.moveBy(const Offset(2, 4));

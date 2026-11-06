@@ -41,7 +41,7 @@ class HolidaySettings {
     religions: religions ?? this.religions,
   );
 
-  /// 語らいごとの上書きとして保存する形（3項目すべてを持つ。regionsがnull＝居住国に従う
+  /// 語らい毎の上書きとして保存する形（3項目全てを持つ。regionsがnull＝居住国に従う
   /// 場合は、regionsを書かない）。
   Map<String, dynamic> toOverrideJson() => {
     if (regions != null) 'regions': regions!.toList(),

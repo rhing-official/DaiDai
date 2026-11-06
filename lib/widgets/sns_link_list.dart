@@ -15,7 +15,7 @@ Future<void> openSnsLink(String url) async {
 /// タップ可能なSNSリンク一覧（2026-09-24追加）。カード内の
 /// [ProfileCardView]が使う`SnsLinksInline`はタップ＝編集ポップアップを
 /// 開く用途（工房の編集画面向け）なのに対し、こちらはタップ＝
-/// `launchUrl`で外部ブラウザ/アプリへジャンプする用途のため、責務が
+/// `launchUrl`で外部ブラウザ/アプリへジャンプする用途の為、責務が
 /// 異なるものとして別クラスにしている（`link_preview_card.dart`の
 /// `_open()`と同じ起動パターン）。
 class SnsLinkList extends StatelessWidget {

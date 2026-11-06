@@ -2,7 +2,7 @@ import '../l10n/app_locale.dart';
 import '../models/message_time_format.dart';
 
 /// 曜日の略称（DateTime.weekdayの1=月曜〜7=日曜に対応）。日本語は1文字、
-/// 英語は3文字略称で、どちらも略称表記に統一する。言語を足したときに
+/// 英語は3文字略称で、どちらも略称表記に統一する。言語を足した時に
 /// 抜けないよう、[_weekdayAbbreviationsOf]のswitch式（網羅性エラー）で引く。
 const _weekdayAbbreviationsJa = ['月', '火', '水', '木', '金', '土', '日'];
 const _weekdayAbbreviationsFr = [
@@ -63,7 +63,7 @@ bool isSameDay(DateTime a, DateTime b) {
 }
 
 /// 語らい一覧（TalksTab）の最終メッセージ時刻。今日なら時刻のみ、それ以外は
-/// 月/日のみを表示する（幅の限られた一覧行に収めるため、曜日・年は省略する。
+/// 月/日のみを表示する（幅の限られた一覧行に収める為、曜日・年は省略する。
 /// [formatMessageDate]と異なりあえて「今日か否か」で表示形式自体を切り替える、
 /// 語らい一覧専用の書式、2026-09-02追加）。
 String formatConversationListTime(
@@ -80,7 +80,7 @@ String formatConversationListTime(
 /// プッシュ通知の本文先頭に付ける送信時刻（2026-10-11追加）。[now]（通知を
 /// 表示する時点）と比べ、同じ日なら時刻のみ、日を跨いだら`月/日 時刻`、年を
 /// 跨いだら`西暦4桁/月/日 時刻`にする（端末がオフライン等で通知の表示が
-/// 遅れた場合に、いつ送られたものか分かるようにするため）。
+/// 遅れた場合に、いつ送られたものか分かるようにする為）。
 String formatNotificationTime(
   DateTime sent,
   DateTime now,

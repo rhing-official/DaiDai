@@ -86,7 +86,7 @@ const _kProfileSidebarWidth = 260.0;
 /// JSのビット演算が32bit符号あり整数に切り詰められるため0になり、
 /// `Random().nextInt(0)`が即座にRangeErrorを投げてsetStateの手前で
 /// 処理が止まっていた（「ダイアログは閉じるが何も起こらない」の実体）。
-/// 画像素材はFirestoreの`doc().id`でidを採番しておりこの経路を通らないため、
+/// 画像素材はFirestoreの`doc().id`でidを採番しておりこの経路を通らない為、
 /// 影響は文字系の項目（ニックネーム・ステメ・工房カード）だけに出ていた。
 /// ビット演算を経由しない10進リテラルにすることでVM・Web両方で正しく動く。
 String _newLocalId() =>
@@ -120,11 +120,11 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
   bool _cardZoomOpening = false;
 
   /// 編集画面を開いている枠の番号。その間、一覧側のその枠のカードは隠す
-  /// （編集画面のカードとして飛んでいったため）。閉じ終えたらnullに戻す。
+  /// （編集画面のカードとして飛んでいった為）。閉じ終えたらnullに戻す。
   final _openingCardIndex = ValueNotifier<int?>(null);
 
   /// 起動時（ログイン時）に一度だけ取得したスナップショットのまま
-  /// `_user`を保持し続けていたため、他端末・他セッションでの変更が
+  /// `_user`を保持し続けていた為、他端末・他セッションでの変更が
   /// 画面に反映されず、しかもローカルが把握している「削除すべき古い値」が
   /// サーバーの実データと食い違うことで工房カードの重複が起きる一因にも
   /// なっていた。Firestoreの変更をリアルタイムに購読し、`_user`を
@@ -153,7 +153,7 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
 
   // 蔵の各セクション（アイコン・背景画像・ステメ・ニックネーム）は、追加操作が
   // それぞれ独立して非同期に走る（特にアップロード系はStorage往復で数秒かかる）。
-  // 以前はローカルで組み立てたAppUser全体を`.set()`で丸ごと上書きしていたため、
+  // 以前はローカルで組み立てたAppUser全体を`.set()`で丸ごと上書きしていた為、
   // 「アイコンのアップロード中にニックネームを追加する」のように複数の操作が
   // 重なると、後から完了した書き込みが先に完了した書き込みを消してしまう
   // 競合（lost update）が起きていた（activeIconIdが存在しないicon idを指す、
@@ -331,7 +331,7 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
     if (text == null || text.isEmpty || text == message.text) return;
 
     // id自体は変えず本文だけ差し替える。activeStatusMessageIdは
-    // idで参照しているため、id維持であれば選択状態は自動的に保たれる。
+    // idで参照している為、id維持であれば選択状態は自動的に保たれる。
     final updated = StatusMessage(id: message.id, text: text);
     setState(() {
       _user = _user.copyWith(
@@ -623,7 +623,7 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
   }
 
   /// [UserRepository.saveProfileCard]はFirestoreのトランザクションでidを
-  /// キーに置き換え/追加するため、新規作成・既存編集どちらも同じ呼び出しで
+  /// キーに置き換え/追加する為、新規作成・既存編集どちらも同じ呼び出しで
   /// 済む（以前は編集時だけ「削除→追加」の2手順が必要で、これが非原子的な
   /// ことに起因する重複作成バグの原因になっていた）。
   Future<void> _saveCardToServer(ProfileCard card) async {
@@ -706,16 +706,16 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
         transitionsBuilder: (_, animation, secondaryAnimation, child) => child,
         pageBuilder: (routeContext, animation, secondaryAnimation) =>
             _SwipeDownToDismiss(
-              // 位置調整中は画像のドラッグ操作と区別できないため効かせない。
+              // 位置調整中は画像のドラッグ操作と区別出来ないため効かせない。
               enabled: () => editorKey.currentState?.canSwipeDismiss ?? false,
               onDismiss: () {
                 editorKey.currentState?.confirmNameBeforeClose();
                 Navigator.of(routeContext).maybePop();
               },
               child: Center(
-                // このルートは`opaque: false`のポップアップ的な表示のため、下の
-                // ページのScaffoldが提供するMaterial祖先を引き継がない。カード名の
-                // `TextField`は開いた瞬間から常に表示されるため、Material祖先が無いと
+                // このルートは`opaque: false`のポップアップ的な表示の為、下の
+                // ページのScaffoldが提供するMaterial祖先を引き継が無い。カード名の
+                // `TextField`は開いた瞬間から常に表示される為、Material祖先が無いと
                 // "No Material widget found"で即座にクラッシュしていた。
                 // MaterialType.transparencyで見た目（半透明の背景）を変えずに
                 // Material祖先だけを補う。
@@ -810,7 +810,7 @@ class _ProfileTabState extends ConsumerState<ProfileTab> {
 
   /// 戻る・進む（`BackStackController`）の履歴に記録する現在位置
   /// （2026-10-06追加）。身だしなみタブ内のカテゴリ（セクション）移動。
-  /// `null`（一覧）も有効な位置のため、1要素のレコードで包む。
+  /// `null`（一覧）も有効な位置の為、1要素のレコードで包む。
   @override
   Widget build(BuildContext context) {
     // メッセージ画面の自分のプロフィールカードから、仕立てを開く依頼（2026-10-31）。
@@ -947,7 +947,7 @@ _ProfileCategory? _findCategory(
   return null;
 }
 
-/// カテゴリ一覧（サイドバー、または狭い画面での一覧画面）。設定タブの
+/// カテゴリ一覧（サイドバー、又は狭い画面での一覧画面）。設定タブの
 /// `_CategoryList`/`_FolderTile`と同じ見た目にしている。
 /// ガイドで案内するカテゴリの目印id。
 String? _tutorialIdOf(_ProfileCategory category) => switch (category.section) {
@@ -969,7 +969,7 @@ class _ProfileCategoryList extends ConsumerWidget {
   final _ProfileSection? selectedSection;
   final ValueChanged<_ProfileCategory> onSelect;
 
-  /// 狭い画面（モバイル）でこの一覧が画面全体を占めるときに、行を大きく
+  /// 狭い画面（モバイル）でこの一覧が画面全体を占める時に、行を大きく
   /// 見やすくするか（2026-08-27追加、劇画UIのみ対象。設定タブの
   /// `_CategoryList.large`と同じ役割）。広い画面のサイドバー表示時は
   /// `false`のまま従来通りのサイズを保つ。
@@ -1064,7 +1064,7 @@ class _ProfileCategoryTile extends ConsumerWidget {
   /// ガイドの目印のid（2026-10-17追加）。指定があれば行全体を目印として登録する。
   final String? tutorialTargetId;
 
-  /// 狭い画面でこの一覧が画面全体を占めるときに行を大きくするか
+  /// 狭い画面でこの一覧が画面全体を占める時に行を大きくするか
   /// （2026-08-27追加、劇画UIのみ対象。[_ProfileCategoryList.large]参照）。
   final bool large;
 
@@ -1314,11 +1314,11 @@ class _WorkshopView extends StatelessWidget {
           ),
           const SizedBox(height: 12),
         ],
-        // 以前は固定サイズ（160x200）のカードを画面左端に詰めて表示していたため、
+        // 以前は固定サイズ（160x200）のカードを画面左端に詰めて表示していた為、
         // 広い画面では余白ばかりが目立っていた。3枠固定という前提を活かし、
         // 画面幅いっぱいを3等分してカード自体を大きく表示する（上限は
-        // 超ワイド画面でカードが際限なく巨大化しないための保険程度に留める）。
-        // ただしモバイル幅では3等分すると最小幅（160）を下回り、Rowが画面外に
+        // 超ワイド画面でカードが際限なく巨大化しない為の保険程度に留める）。
+        // 但しモバイル幅では3等分すると最小幅（160）を下回り、Rowが画面外に
         // はみ出して右端の枠が途切れて見えていた。3等分した幅が最小幅を
         // 下回る場合は1枠ずつ縦に並べ、カード自体を画面幅いっぱいまで
         // 大きく表示する（結果的にズーム編集画面に近い大きさになる）。
@@ -1331,7 +1331,7 @@ class _WorkshopView extends StatelessWidget {
             // それを超えて残っている場合に超過分を画面から隠してしまうと、
             // ユーザーが気付いて削除する手段が無くなってしまう。表示枠数
             // 自体は実際のカード数に合わせて広げ、全てのカードを必ず
-            // 表示・削除できるようにする（新規作成用の白紙枠は
+            // 表示・削除出来るようにする（新規作成用の白紙枠は
             // [kMaxProfileCards]までしか出さない）。
             final slotCount = max(kMaxProfileCards, user.profileCards.length);
             final rawWidth =
@@ -1430,12 +1430,12 @@ final _groupListProvider = StreamProvider.family<List<Group>, String>(
   (ref, userId) => ref.watch(groupRepositoryProvider).watchGroups(userId),
 );
 
-/// 工房内、会話（一対・広場）ごとに使うプロフィールカード
+/// 工房内、会話（一対・広場）毎に使うプロフィールカード
 /// （`AppUser.conversationProfileCardId`、2026-07-29追加）の一覧・追加UI。
 /// 以前は設定＞語らいにあったが、2026-08-02に工房へ移動した。全ての語らいを
 /// 並べると標準カードのままの語らいに埋もれてしまうため、既に個別のカードを
 /// 設定した語らいだけを表示する。まだ設定していない語らいに新しく設定したい
-/// ときは＋ボタンから対象を選ぶ（[_showAddDialog]）。選んだ後は
+/// 時は＋ボタンから対象を選ぶ（[_showAddDialog]）。選んだ後は
 /// `ConversationProfileCardDialog`（ハンバーガーメニュー・広場の全体設定と
 /// 共通）を再利用してカードを選ばせる。標準に戻す（`ProfileCardPicker`で
 /// 「標準」を選ぶ）と、この一覧からは自動的に消える。
@@ -1498,7 +1498,7 @@ class _WorkshopConversationCardSection extends ConsumerWidget {
     }
 
     // 複数選択時は、既存の1件専用ConversationProfileCardDialogでは対応
-    // できないため、ProfileCardPickerだけを載せた軽量ダイアログでカードを
+    // 出来ない為、ProfileCardPickerだけを載せた軽量ダイアログでカードを
     // 1つ選ばせ、選んだ全ての会話へ一括適用する（2026-08-05追加）。
     final isGlass = ref.read(appUiStyleProvider) == AppUiStyle.glass;
     final cardId = await showAppDialog<String?>(
@@ -1602,7 +1602,7 @@ class _WorkshopConversationCardSection extends ConsumerWidget {
 }
 
 /// [_WorkshopConversationCardSection]の「＋」から開く追加先選択ポップアップ。
-/// チェックボックスで一対・広場を複数選択できる（2026-08-05変更。以前は
+/// チェックボックスで一対・広場を複数選択出来る（2026-08-05変更。以前は
 /// `SimpleDialog`のテキストのみの単一選択で、一対はRhing Seedそのまま表示
 /// だった）。一対の行は呼び名（無ければ@Rhing Seed、`talks_tab.dart`の
 /// `_buildDmDetailWithRooms`と同じフォールバック順序）、広場の行は
@@ -1807,7 +1807,7 @@ class _AddConversationCardDialogState
         padding: const EdgeInsets.symmetric(vertical: 4),
         child: Row(
           children: [
-            // タップは行全体（InkWell）で受けるため、チェックボックス自体は表示専用。
+            // タップは行全体（InkWell）で受ける為、チェックボックス自体は表示専用。
             IgnorePointer(
               child: AppCheckbox(value: selected, onChanged: (_) {}),
             ),
@@ -2029,18 +2029,18 @@ class _WorkshopCardSlot extends StatelessWidget {
       key: ValueKey('profile-card-slot-$index'),
       // Hero飛行中はこのchild（FittedBox以下）がOverlay直下へ一時的に
       // 付け替えられ、外側のScaffold等が持つMaterial祖先から切り離される。
-      // 中の`InkWell`がMaterial祖先を必要とするため、飛行中も自前で
+      // 中の`InkWell`がMaterial祖先を必要とする為、飛行中も自前で
       // Material祖先を持たせておく（[_CardZoomEditor]のHeroで同じ理由から
       // 既に対応済みだったが、こちら側は対応漏れがあり、カードをタップして
       // 開く/閉じる瞬間に「No Material widget found」が出ていた。2026-08-05
       // 修正）。
       //
       // Hero飛行はMaterialRectArcTweenで両端の矩形を対角の2頂点それぞれ独立の
-      // 円弧で補間するため、飛行の途中で矩形の幅・高さが始点・終点どちらより
+      // 円弧で補間する為、飛行の途中で矩形の幅・高さが始点・終点どちらより
       // 一瞬小さくなることがある（単純な直線補間ではない）。カード＋カード名の
       // 固定サイズレイアウトはその一瞬だけ収まりきらずオーバーフロー警告が
       // 出ていた。ClipRectは「はみ出た描画を切り取る」だけでRenderFlex自体が
-      // 出す「BOTTOM OVERFLOWED」の警告バナーは吸収できないため
+      // 出す「BOTTOM OVERFLOWED」の警告バナーは吸収出来ないため
       // （[_CardZoomEditor]側と同じ理由）、オーバーフローそのものが起きない
       // FittedBoxに変更した。
       child: Material(
@@ -2128,7 +2128,7 @@ class _WorkshopCardSlot extends StatelessWidget {
                     // 以前は黒固定にしていたが、ダークモードで見えなくなって
                     // いた（2026-07-29修正）。色指定なし（テーマの既定色任せ）
                     // に戻すとHero飛行中に既定色の解決結果がずれる問題が
-                    // あったため、Theme.of(context)で明示的にライト/ダーク
+                    // あった為、Theme.of(context)で明示的にライト/ダーク
                     // 双方に追従する色を計算する（ズームイン編集画面側の
                     // TextFieldと同じ理由・同じ対応）。
                     color: Theme.of(context).colorScheme.onSurface,
@@ -2283,8 +2283,8 @@ class _MaterialSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 上限まで登録済みなら、これ以上追加できないことが一目でわかるよう
-    // 追加ボタン自体を非表示にする（無効化して残すだけだと分かりにくいため）。
+    // 上限まで登録済みなら、これ以上追加出来ないことが一目で分かるよう
+    // 追加ボタン自体を非表示にする（無効化して残すだけだと分かりにくい為）。
     final showAddButton = count < max;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -2392,8 +2392,8 @@ class _AddThumbButton extends ConsumerWidget {
 }
 
 /// アップロード直後の画像がまだCDNに伝播していない、あるいは
-/// ブラウザがデコードできない形式（HEICなど）だった場合に、
-/// 何も表示されない「真っ白」な状態のまま気づけないことがあったため、
+/// ブラウザがデコード出来ない形式（HEICなど）だった場合に、
+/// 何も表示されない「真っ白」な状態のまま気づけないことがあった為、
 /// 読み込み中はスピナー、失敗時は壊れた画像アイコンを明示的に表示する。
 class _NetworkThumbImage extends StatelessWidget {
   const _NetworkThumbImage({required this.url});
@@ -2728,7 +2728,7 @@ class _NicknameSection extends ConsumerWidget {
 }
 
 /// 蔵に登録する他のSNSのURL。最大[kMaxSnsLinks]件まで登録でき、そのうち
-/// 工房のプロフィールカードに掲載できるのは最大[kMaxProfileCardSnsLinks]件
+/// 工房のプロフィールカードに掲載出来るのは最大[kMaxProfileCardSnsLinks]件
 /// （カード側の選択は`_CardZoomEditor._pickSnsLinks`で行う）。
 class _SnsLinkSection extends ConsumerWidget {
   const _SnsLinkSection({
@@ -2770,7 +2770,7 @@ class _SnsLinkSection extends ConsumerWidget {
 /// 蔵に登録するフォントデザイン（2026-09-26追加）。工房のカード編集画面
 /// （`_CardZoomEditor._pickMaterial('fontDesign')`）でここに登録した素材から
 /// 1つをカードに割り当てると、見る側の端末設定に関わらずそのカードの
-/// 呼び名・一言・URLのフォントを固定できる。一覧表示・登録数の仕組みは
+/// 呼び名・一言・URLのフォントを固定出来る。一覧表示・登録数の仕組みは
 /// ニックネーム等と同じ（[_registeredItemsSection]を共用）だが、自由入力
 /// ではなく設定タブと同じセレクターで選ぶため、追加・編集ダイアログは
 /// [_NicknameDialog]ではなく[_FontDesignMaterialDialog]を使う。
@@ -2860,7 +2860,7 @@ class _RegisteredItemRow extends ConsumerWidget {
 
 /// ニックネーム／ステメ編集ポップアップの結果。テキストの確定（[save]）と
 /// 削除（[delete]）の両方を、ポップアップの中の完了・削除ボタンだけで
-/// 完結させるため、単なる`String?`ではなくどちらの操作だったかを区別する。
+/// 完結させる為、単なる`String?`ではなくどちらの操作だったかを区別する。
 /// カードに誕生日を載せる設定の時だけ、見ている人の言語で整形した誕生日を返す
 /// （蔵に未登録・設定オフならnull、2026-10-23追加）。
 String? _birthdayLabelFor(
@@ -2961,7 +2961,7 @@ class _BirthdayDialogState extends ConsumerState<_BirthdayDialog> {
     required ValueChanged<T?> onChanged,
     int flex = 1,
   }) {
-    // 狭い画面（モバイル）で選択中の値（日の「23」等）が切れないよう、項目ごとに
+    // 狭い画面（モバイル）で選択中の値（日の「23」等）が切れないよう、項目毎に
     // 幅の比率を変え、内側の余白も詰める（2026-10-31）。
     return Expanded(
       flex: flex,
@@ -3160,7 +3160,7 @@ class _NicknameDialogState extends ConsumerState<_NicknameDialog> {
   }
 
   // 未入力のまま完了ボタンを押しても、以前は何も起きたように見えなかった
-  // （呼び出し元が空文字を無言でreturnしていたため）。押した結果が必ず
+  // （呼び出し元が空文字を無言でreturnしていた為）。押した結果が必ず
   // 見えるよう、ここでエラー表示してから閉じないようにする。
   void _submit() {
     if (_controller.text.trim().isEmpty) {
@@ -3560,7 +3560,7 @@ class _CardZoomEditor extends StatefulWidget {
   final ProfileCard? initialCard;
 
   /// 新規カードで名前・素材のいずれかを初めて変更した時点で1回だけ呼ばれる
-  /// （名前を確定する前でも素材を選べるため、どちらが先になるかは決まっていない）。
+  /// （名前を確定する前でも素材を選べる為、どちらが先になるかは決まっていない）。
   final Future<void> Function(ProfileCard card) onCreate;
 
   /// 既存カードのフィールドを1つ変更するたびに呼ばれる。
@@ -3583,7 +3583,7 @@ Widget _oneLine(String text) => FittedBox(
 
 class _CardZoomEditorState extends State<_CardZoomEditor> {
   // 名前を確定するまで素材（アイコン・背景・ニックネーム・ステメ）を
-  // 選べないと、初めて使う人が「まず名前を決めないと何も触れない」と
+  // 選べないと、初めて使う人が「先ず名前を決めないと何も触れない」と
   // 戸惑うため、空き枠でも最初からローカルの下書きカードを持たせ、
   // 名前確定前から全項目を編集可能にする。Firestoreへの実際の保存
   // （[widget.onCreate]の呼び出し）は、名前・素材のいずれかを初めて
@@ -3746,7 +3746,7 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
     return next;
   }
 
-  /// 下スワイプで閉じてよいか（位置調整中は画像のドラッグと区別できないため不可）。
+  /// 下スワイプで閉じてよいか（位置調整中は画像のドラッグと区別出来ないため不可）。
   bool get canSwipeDismiss => _focalEditing == null;
 
   /// 閉じる直前に、入力途中のカード名を確定する（外側タップで閉じる時の
@@ -3900,7 +3900,7 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
 
     final id = result.isEmpty ? null : result;
     final updated = switch (field) {
-      // 素材を選び直したら、旧素材の構図（位置・拡大率）は引き継がない。
+      // 素材を選び直したら、旧素材の構図（位置・拡大率）は引き継が無い。
       'icon' => card.copyWith(
         iconId: id,
         clearIconId: id == null,
@@ -3924,7 +3924,7 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
 
   /// カードに掲載するSNSのURLを選ぶ。アイコン・ニックネーム等（[_pickMaterial]、
   /// showMenuベースの単一選択）と同じくタップ位置にポップアップを出すが、
-  /// こちらは最大[kMaxProfileCardSnsLinks]件までのチェックボックス選択のため、
+  /// こちらは最大[kMaxProfileCardSnsLinks]件までのチェックボックス選択の為、
   /// 1件選ぶたびに閉じさせず、外側タップで閉じるまで複数選べるようにする。
   Future<void> _pickSnsLinks() async {
     final overlayBox =
@@ -4020,7 +4020,7 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
             onPressed: () => Navigator.of(dialogContext).pop(false),
             child: Text(strings.cancel),
           ),
-          // 後戻りできない選択の確定ボタンは、他の削除確認と同じ鮮やかな赤。
+          // 後戻り出来ない選択の確定ボタンは、他の削除確認と同じ鮮やかな赤。
           FilledButton(
             style: FilledButton.styleFrom(
               backgroundColor: Colors.red.shade700,
@@ -4066,7 +4066,7 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
       card.fontDesignId,
     )?.design?.fontFamily;
     // ニックネーム・ステメはカード内（背景画像や暗いオーバーレイの上）に
-    // 表示するため、背景の有無で見やすい色を切り替える。カード名はカードの
+    // 表示する為、背景の有無で見やすい色を切り替える。カード名はカードの
     // 外（下、暗転した背景の上）に表示するため常に白系の固定色にする。
     final cardFontColor = card.fontColor ?? Colors.white;
     final nicknameColor = cardFontColor;
@@ -4074,7 +4074,7 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
     // カード内のニックネーム（[kProfileCardNicknameFontSize]）に近い比率で、
     // カードの主見出しとして十分読める大きさにする（以前の「既定サイズの8割」
     // だと逆に小さすぎた）。カード名自体はカード内要素ではなくカードの外
-    // （下）に表示するため、[kProfileCardNicknameFontSize]と揃える対象では
+    // （下）に表示する為、[kProfileCardNicknameFontSize]と揃える対象では
     // なく、widthに応じて可変のままにする。
     final nameFontSize = (width * 0.06).clamp(16.0, 22.0);
 
@@ -4103,22 +4103,22 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
           key: const ValueKey('card-zoom-editor'),
           // Hero飛行中はこのchild（Column以下）がOverlay直下へ一時的に
           // 付け替えられ、外側の`_openCardZoom`で用意したMaterial祖先から
-          // 切り離される。中のTextFieldがMaterial祖先を必要とするため、
+          // 切り離される。中のTextFieldがMaterial祖先を必要とする為、
           // 飛行中も自前でMaterial祖先を持たせておく（"No Material widget
           // found"が一瞬だけ出ていた不具合の原因）。
           // また、Hero飛行はMaterialRectArcTweenで対角2頂点をそれぞれ独立の
-          // 円弧で補間するため、矩形の幅・高さが始点・終点どちらより一瞬
+          // 円弧で補間する為、矩形の幅・高さが始点・終点どちらより一瞬
           // 小さくなることがある（単純な直線補間ではない）。カード＋名前欄の
           // 固定サイズレイアウトはその一瞬だけ収まりきらずオーバーフロー警告が
-          // 出ていたため、ClipRectで見た目上だけ吸収する。
+          // 出ていた為、ClipRectで見た目上だけ吸収する。
           child: Material(
             type: MaterialType.transparency,
             // 以前はClipRectで視覚的にオーバーフローを吸収していたが、
             // ClipRectは「はみ出た描画を切り取る」だけで、RenderFlex自体が
-            // 出す「BOTTOM OVERFLOWED」の警告バナーは吸収できず、Hero飛行が
+            // 出す「BOTTOM OVERFLOWED」の警告バナーは吸収出来ず、Hero飛行が
             // 一瞬小さいサイズを取った際に警告が出てしまっていた
             // （カードを閉じる時にエラーが出る不具合として報告された）。
-            // FittedBoxならオーバーフローそのものが起きないため、こちらに変更。
+            // FittedBoxならオーバーフローそのものが起きない為、こちらに変更。
             child: FittedBox(
               fit: BoxFit.scaleDown,
               child: Column(
@@ -4149,7 +4149,7 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
                                   GestureDetector(
                                     // 背景レイヤーはStack(fit: expand)でカード全面を覆っており、
                                     // アイコン・ニックネーム・ステメの各タップ領域以外（＝
-                                    // カードの何も無い箇所）はすべてここに落ちてくる。
+                                    // カードの何も無い箇所）は全てここに落ちてくる。
                                     // behavior: opaqueで、子（ColoredBox等）の描画内容に
                                     // 関わらず領域全体を確実にタップ可能にする。
                                     behavior: HitTestBehavior.opaque,
@@ -4379,7 +4379,7 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
                                 _lastTapPosition = position,
                             onTap: () => _pickMaterial('fontDesign'),
                           ),
-                          // 文字色（カード内の文字すべて）。
+                          // 文字色（カード内の文字全て）。
                           _CardFontColorRow(
                             width: width,
                             label: strings.workshopFontColorLabel,
@@ -4390,9 +4390,9 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
                         ],
                         const SizedBox(height: 12),
                         // カード名はカードの直下、半透明の暗転バリアの上に表示する。
-                        // 以前は白系→黒系と切り替えたが、バリアの不透明度が低いままだと
+                        // 以前は白系→黒系と切り替えたが、バリアの不透明度が低今まだと
                         // 下に見えるページの背景色（ライト/ダークモードで大きく異なる）が
-                        // 透けるため、どちらの固定色でも片方のモードで読みづらくなって
+                        // 透ける為、どちらの固定色でも片方のモードで読みづらくなって
                         // いた（2026-07-29修正）。バリア自体を常に暗く保つ
                         // （barrierColor: Colors.black87、上記_openCardZoom参照）ことで
                         // 背景の明るさをモードに依存させず安定させ、白系の文字色に
@@ -4467,7 +4467,7 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
                               textAlign: TextAlign.center,
                               // 指定しないとWeb版でブラウザが「名前欄」と誤認識し、
                               // 独自のオートフィル黄色ハイライトを重ねてくることが
-                              // あったため、明示的に空にしてブラウザ側の自動補完
+                              // あった為、明示的に空にしてブラウザ側の自動補完
                               // 候補付けそのものを無効化する。
                               autofillHints: const [],
                               style: TextStyle(
@@ -4476,7 +4476,7 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
                                 fontSize: nameFontSize,
                               ),
                               decoration: InputDecoration(
-                                // 劇画は黒のボックスだと視認性が悪いため、ダークモードと
+                                // 劇画は黒のボックスだと視認性が悪い為、ダークモードと
                                 // 同じ灰色に統一する（2026-10-11）。
                                 filled: nameFieldGekiga ? true : null,
                                 fillColor: nameFieldGekiga
@@ -4541,7 +4541,7 @@ class _CardZoomEditorState extends State<_CardZoomEditor> {
         // 閉じるボタンは置かず、外側（黒い半透明のバリア部分）をタップして
         // 閉じる（`_openCardZoom`の`barrierDismissible: true`）。
         // 削除は下の独立した行、フォントはカード内の行に移した（2026-10-11、
-        // 角にはみ出した丸ボタンが他の要素と操作の流儀が違い悪目立ちしたため）。
+        // 角にはみ出した丸ボタンが他の要素と操作の流儀が違い悪目立ちした為）。
       ],
     );
   }
@@ -4596,7 +4596,7 @@ Future<String?> _showTextMaterialMenu(
   List<(String, String)> items,
   String? selectedId,
   Strings strings, {
-  // 項目ごとの表示フォント（フォントデザイン選択で、各項目をそのフォントで見せる）。
+  // 項目毎の表示フォント（フォントデザイン選択で、各項目をそのフォントで見せる）。
   Map<String, String?> fontFamilies = const {},
   // 「選ばない」選択肢の表示名（未指定は「なし」）。
   String? noneLabel,
@@ -5017,7 +5017,7 @@ class _CardFontColorRow extends StatelessWidget {
 /// 文字色をカラーコード（`#RRGGBB`／末尾2桁が透明度の`#RRGGBBAA`）かプリセットで
 /// 選ぶダイアログ（アクセントカラーと同じ操作）。ボタンは無く、6桁・8桁を入力し終えた
 /// 時とプリセットを選んだ時に、その場で[onApply]が呼ばれる。コード欄の右端の「＋」で、
-/// 今の色を文字色のプリセットへ登録でき、登録色は長押しで削除できる。
+/// 今の色を文字色のプリセットへ登録でき、登録色は長押しで削除出来る。
 class _FontColorDialog extends ConsumerStatefulWidget {
   const _FontColorDialog({
     required this.initial,

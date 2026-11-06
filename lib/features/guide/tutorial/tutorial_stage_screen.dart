@@ -7,7 +7,7 @@ import 'tutorial_controller.dart';
 
 /// 操作を促すガイドを実行する専用の全画面（2026-10-17追加）。ユーザーの今の画面の
 /// 上に開き、[child]に**練習用の画面**（`PracticeHome`＝本物の画面＋偽のデータ）を
-/// 置く。今の画面は下に残るため、作業の途中でも状態に左右されず、ガイドを終えると
+/// 置く。今の画面は下に残る為、作業の途中でも状態に左右されず、ガイドを終えると
 /// 元の画面にそのまま戻れる。
 ///
 /// ガイドの状態と連動して閉じる: やめる・Esc・戻る・完了カードの「閉じる」でガイドが
@@ -36,7 +36,7 @@ class TutorialStageScreen extends ConsumerStatefulWidget {
 }
 
 class _TutorialStageScreenState extends ConsumerState<TutorialStageScreen> {
-  /// `dispose`でガイドを終えるために、先に保持しておく（`dispose`の中で祖先を引くと
+  /// `dispose`でガイドを終える為に、先に保持しておく（`dispose`の中で祖先を引くと
   /// 不安定なため）。
   late final ProviderContainer _container;
   bool _closing = false;

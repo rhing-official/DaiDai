@@ -17,7 +17,7 @@ import '../../widgets/app_dialog.dart';
 /// からのみ表示される。`sign_in_screen.dart`と同じ、UIスタイル（フラット/
 /// 劇画/ガラス）を区別しないシンプルな`Scaffold`構成にしている
 /// （`account_suspended_screen.dart`と同じ判断。この画面はテーマの配色・
-/// フォントだけで十分で、構造自体を切り替える必要が無いため）。
+/// フォントだけで十分で、構造自体を切り替える必要が無い為）。
 class PasscodeLockScreen extends ConsumerStatefulWidget {
   const PasscodeLockScreen({super.key});
 
@@ -26,7 +26,7 @@ class PasscodeLockScreen extends ConsumerStatefulWidget {
 }
 
 /// 連続不正解時のロックアウトしきい値・時間（2026-09-11追加）。
-/// ネットワークを介さない端末内認証のため、Firestoreルール等ではなく
+/// ネットワークを介さない端末内認証の為、Firestoreルール等ではなく
 /// この画面自身が簡易的なブルートフォース対策として持つ。
 const _kMaxFailedAttempts = 5;
 const _kLockoutSeconds = 30;

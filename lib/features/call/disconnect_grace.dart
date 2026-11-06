@@ -1,7 +1,7 @@
 import 'dart:async';
 
 /// 接続断（ICEの`disconnected`）が[grace]続いたら[onExpired]を呼ぶ小さなタイマー
-/// （2026-10-13、一対の通話で、相手の回線断・端末停止時に通話が残り続けないため）。
+/// （2026-10-13、一対の通話で、相手の回線断・端末停止時に通話が残り続けない為）。
 /// 一時的な揺れで終了しないよう、回復（[update]に`false`）で解除する。
 const kDisconnectedGrace = Duration(seconds: 8);
 

@@ -8,7 +8,7 @@ const _listKey = 'iconSplitListFraction';
 const _computerListKey = 'computerTalksListWidth';
 
 /// 「アイコン＋寄合一覧」の、区切り線をドラッグして決めた幅（画面の幅に対する割合、
-/// 2026-11-05）。nullは未設定＝標準の幅（「一覧の大きさ」に連動）。端末ごとの保存のみ。
+/// 2026-11-05）。nullは未設定＝標準の幅（「一覧の大きさ」に連動）。端末毎の保存のみ。
 class IconSplitLayout {
   const IconSplitLayout({
     this.railFraction,
@@ -132,7 +132,7 @@ final iconSplitAdjustingProvider =
     );
 
 /// 区切り線をドラッグしている最中の、アイコン列・寄合一覧の幅（px、2026-11-05）。
-/// 語らいタブ全体を作り直さず、幅を決める小さな部品だけを更新して指に追従させるための
+/// 語らいタブ全体を作り直さず、幅を決める小さな部品だけを更新して指に追従させる為の
 /// 一時値。指を離したら[iconSplitLayoutProvider]へ確定してnullに戻す。
 class IconSplitDragNotifier extends Notifier<({double rail, double list})?> {
   @override

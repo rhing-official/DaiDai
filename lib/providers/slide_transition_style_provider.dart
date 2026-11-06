@@ -32,7 +32,7 @@ class SlideTransitionStyleNotifier extends Notifier<SlideTransitionStyle> {
 
   Future<void> setStyle(SlideTransitionStyle style) async {
     state = style;
-    // 遷移の組み立て関数は`ref`を持たないため、`motion.dart`の変数へも反映する。
+    // 遷移の組み立て関数は`ref`を持たない為、`motion.dart`の変数へも反映する。
     activeSlideTransitionStyle = style;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_prefsKey, style.name);

@@ -66,8 +66,8 @@ class _ObsidianNoteColors {
   final Color accent;
   // 選択ハイライト専用の色（2026-09-27追加）。以前はアクセントカラーに
   // 一律24%の透明度を掛けるだけだったが、暗い背景に低透明度の紫を重ねると
-  // 選択範囲がほとんど視認できないほど薄くなる問題があったため、ライト/
-  // ダークそれぞれで十分視認できる濃さを個別に指定する。
+  // 選択範囲が殆ど視認出来ないほど薄くなる問題があった為、ライト/
+  // ダークそれぞれで十分視認出来る濃さを個別に指定する。
   final Color selection;
   final Color divider;
 
@@ -168,7 +168,7 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
   bool _keyboardWasOpen = false;
 
   /// ドローノート（`Note.type == noteTypeDraw`）かどうか。読み込み完了までは
-  /// false。種別は作成時に固定され、後から切り替わることはない。
+  /// false。種別は作成時に固定され、後から切り替わることは無い。
   bool _isDraw = false;
   bool _noteLoaded = false;
   EditorScrollController? _scrollController;
@@ -221,7 +221,7 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
     _load();
   }
 
-  /// 直前のカーソルの位置。目次ブロックにカーソルが乗ったとき、移動方向
+  /// 直前のカーソルの位置。目次ブロックにカーソルが乗った時、移動方向
   /// （↑↓）を判定して隣の行へ逃がすのに使う。
   Path? _lastSelectionPath;
 
@@ -335,7 +335,7 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
   }
 
   /// 使い方ガイドの実行中だけ、書かれた内容に応じて「出来事」を知らせる（見出し・リスト・
-  /// 太字・表などができたら次の手順へ進める）。普段（ガイドなし）は何もしない。
+  /// 太字・表などが出来たら次の手順へ進める）。普段（ガイドなし）は何もしない。
   void _notifyTutorialOfDocument() {
     if (!mounted || ref.read(tutorialControllerProvider) == null) return;
     final editorState = _editorState;
@@ -470,7 +470,7 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
   /// フルドキュメントのチェックポイント保存（[NoteRepository.updateNote]）と、
   /// それより古い操作ログの間引き（[NoteRepository.pruneNoteOpsUpTo]）を行う。
   /// 間引きの安全性は「既に確定済みのopのcreatedAt（[_lastAppliedOpCreatedAt]）
-  /// より前は、このチェックポイントの内容に反映済み」という前提に依るため、
+  /// より前は、このチェックポイントの内容に反映済み」という前提に依る為、
   /// ここでのチェックポイント保存は`_dirty`の有無に関わらず常に行う（他人の
   /// 編集を受信しただけで自分は未編集の場合でも、間引き前には必ず最新の
   /// マージ済み内容を書き込む）。
@@ -533,8 +533,8 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
     _checkpointDebounce?.cancel();
     _checkpointTimer?.cancel();
     _sendDebounce?.cancel();
-    // dispose中は非同期await不可のため、確定済みの内容をfire-and-forgetで
-    // 保存する（ページを閉じる通常経路は`_close`が先にawait済みのため、
+    // dispose中は非同期await不可の為、確定済みの内容をfire-and-forgetで
+    // 保存する（ページを閉じる通常経路は`_close`が先にawait済みの為、
     // ここに到達するのは想定外の破棄経路への保険）。次にこのノートを開いた
     // クライアントが追いつき処理の一環で操作ログの間引きも行うため、ここでは
     // 間引きまでは行わない。
@@ -603,7 +603,7 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
   }
 
   /// [build]と同じ判定（2026-09-26追加）。ボトムシートを開くタイミングは
-  /// `build`の外（`IconButton.onPressed`）のため、同じ配色計算を単独で
+  /// `build`の外（`IconButton.onPressed`）の為、同じ配色計算を単独で
   /// 呼べるようgetterに切り出した。
   _ObsidianNoteColors get _noteColors {
     final uiStyle = ref.read(appUiStyleProvider);
@@ -615,7 +615,7 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
   /// モバイル用の挿入メニュー（2026-10-04追加、ユーザー指示）。PCの「+」
   /// （[_CursorLineAddButton]）／「/」メニューと同じ項目
   /// （[_buildSelectionMenuItems]）を、AppBarの「+」から開くボトムシートで
-  /// 提供する。`appflowy_editor`の「/」メニューはモバイル不可のため、各項目の
+  /// 提供する。`appflowy_editor`の「/」メニューはモバイル不可の為、各項目の
   /// `handler`は`menuService`を使わない実装であることを利用し、PC用の
   /// `SelectionMenu`オーバーレイを介さず直接呼ぶ（`SelectionMenu`は
   /// `SelectionMenuService`を満たす値として渡すだけで`show()`は呼ばない）。
@@ -628,7 +628,7 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
     final isGlass = ref.read(appUiStyleProvider) == AppUiStyle.glass;
     final strings = ref.read(appStringsProvider);
     // 「/」入力の後始末（直前の文字を消す処理）は挿入メニューを開いた
-    // 経緯に依存するため、AppBarから開くここでは無効にする。PCの「+」が
+    // 経緯に依存する為、AppBarから開くここでは無効にする。PCの「+」が
     // `SelectionMenu.show()`内で行うのと同じ設定（`deleteSlashByDefault:
     // false`相当）を、`show()`を呼ばないこの経路では自前で適用する。
     final items = _buildSelectionMenuItems(strings)
@@ -811,7 +811,7 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
         handler: (editorState, _, _) => insertQuoteAfterSelection(editorState),
       ),
       // 区切り線: ライブラリ標準の`dividerMenuItem`は表示名が英語固定
-      // （`AppFlowyEditorL10n`）のため、挿入処理は同じまま`strings`で名前を
+      // （`AppFlowyEditorL10n`）の為、挿入処理は同じまま`strings`で名前を
       // 出す専用の項目にした。
       SelectionMenuItem(
         getName: () => strings.noteMenuDivider,
@@ -1018,7 +1018,7 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
   }
 
   /// 区切り線を挿入し、直後の空の段落へカーソルを置く（`dividerMenuItem`と
-  /// 同じ処理。空の段落の上で実行したときはその段落を置き換える）。
+  /// 同じ処理。空の段落の上で実行した時はその段落を置き換える）。
   void _insertDivider(EditorState editorState) {
     final selection = editorState.selection;
     if (selection == null || !selection.isCollapsed) return;
@@ -1058,7 +1058,7 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
         await editorState.insertImageNode(metadata.url);
       } else {
         // 動画・ファイルはappflowy_editor組み込みの画像ブロックが対応
-        // しないため、ファイル名をリンク（href=Storage URL）にした段落として
+        // しない為、ファイル名をリンク（href=Storage URL）にした段落として
         // 挿入する（タップで開ける、既存のリッチテキストのリンク機能を
         // そのまま使う簡易な実装）。
         insertNodeAfterSelection(
@@ -1141,7 +1141,7 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
     // 語らいタブ以外（身だしなみ・設定）に切り替わった際、選択中のまま残った
     // `FloatingToolbar`が最前面に描画され続ける不具合の修正（2026-09-27
     // 追加、ユーザー指示）。`HomeScreen`は3タブとも`IndexedStack`で常時
-    // マウントし続けるため、`NotePaneView`自体は破棄されず選択も維持され、
+    // マウントし続ける為、`NotePaneView`自体は破棄されず選択も維持され、
     // `FloatingToolbar`自身の「選択が無くなったら隠れる」既存ロジックが
     // 発動する機会が無かった。既存の`homeSelectedTabProvider`
     // （`lib/providers/home_shell_providers.dart`、通話ピン留めミニ表示が
@@ -1177,7 +1177,7 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
       onPressed: !_noteLoaded ? null : _download,
     );
     // モバイル専用の挿入ボタン（2026-10-04追加、ユーザー指示）。PCの「+」
-    // /「/」メニューが使えないため、AppBarからボトムシートで同じ項目を開く
+    // /「/」メニューが使えない為、AppBarからボトムシートで同じ項目を開く
     // （`_openInsertBottomSheet`参照）。書式は選択時ポップアップへ移した。
     final insertAction = IconButton(
       icon: const Icon(Icons.add),
@@ -1187,7 +1187,7 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
 
     // タイトル欄（appBar側の`titleField`）にフォーカスがある間にEscを押した
     // 場合も閉じられるよう、`Scaffold.body`だけでなく`appBar`も含めて
-    // `Focus`で包む（appBarとbodyはフォーカスツリー上兄弟のため、body側だけ
+    // `Focus`で包む（appBarとbodyはフォーカスツリー上兄弟の為、body側だけ
     // 包んでもタイトル欄フォーカス中はこのハンドラの祖先チェーンに入らない、
     // 2026-09-07変更）。
     final page = Focus(
@@ -1251,7 +1251,7 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
     // 右スワイプで閉じる操作は、設定・身だしなみ・チャットと同じ指追従の
     // `InteractiveSwipeBackTransition`（2026-10-07、以前は離散的な
     // `SwipeBackDetector`でアニメーションが無かった）。モバイルのみ・ドロー
-    // 以外（ペンの横ストロークで誤って閉じるため）・カーソル（選択）が無い間
+    // 以外（ペンの横ストロークで誤って閉じる為）・カーソル（選択）が無い間
     // だけ有効（2026-10-06、ユーザー指示）。表の横操作は表側
     // （third_party table_block_component）で吸収している。エディタ（child）は
     // 再生成しない。流れた後ろには`DmChatPane`/`GroupChatPane`が
@@ -1513,7 +1513,7 @@ class _CursorLineAddButtonState extends State<_CursorLineAddButton> {
     const gapFromText = 8.0;
     // 本文が実際に始まる位置（エディタの左余白）のすぐ手前にボタンが来る
     // よう、固定の8pxではなくエディタ自身の左パディングから逆算する
-    // （2026-09-27修正、デスクトップは既定で左右100pxの余白があるため）。
+    // （2026-09-27修正、デスクトップは既定で左右100pxの余白がある為）。
     final left =
         (widget.editorState.editorStyle.padding.left - buttonSize - gapFromText)
             .clamp(0.0, double.infinity);

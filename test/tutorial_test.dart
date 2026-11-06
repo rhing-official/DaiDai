@@ -165,7 +165,7 @@ void main() {
     expect(counts.other, 1);
   });
 
-  testWidgets('「やめる」で中断でき、その後は普通に操作できる', (tester) async {
+  testWidgets('「やめる」で中断でき、その後は普通に操作出来る', (tester) async {
     final counts = _Counts();
     final container = await _pump(tester, counts);
     container.read(tutorialControllerProvider.notifier).start(_script);
@@ -177,7 +177,7 @@ void main() {
     expect(counts.other, 1);
   });
 
-  testWidgets('Escキーでも中断できる', (tester) async {
+  testWidgets('Escキーでも中断出来る', (tester) async {
     final counts = _Counts();
     final container = await _pump(tester, counts);
     container.read(tutorialControllerProvider.notifier).start(_script);
@@ -383,7 +383,7 @@ void main() {
     });
   });
 
-  testWidgets('一覧で縁結びを押すと、説明ページを挟まずその場でガイドが始まり専用ルートが開く', (tester) async {
+  testWidgets('一覧で縁結びを押すと、説明ページを挟先ずその場でガイドが始まり専用ルートが開く', (tester) async {
     final router = GoRouter(
       routes: [
         GoRoute(

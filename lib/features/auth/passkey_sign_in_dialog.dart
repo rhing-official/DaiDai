@@ -21,7 +21,7 @@ import '../../widgets/app_dialog.dart';
 ///
 /// Web版では、ダイアログを開いた時点で自動的にパスキー選択ポップアップ
 /// （ブラウザ/パスワードマネージャーのモーダル）を出す（2026-10-11追加）。
-/// Rhing Seedを入力せずそのまま候補を選べば、ログインできる。ポップアップを
+/// Rhing Seedを入力せずそのまま候補を選べば、ログイン出来る。ポップアップを
 /// 閉じた場合はダイアログに留まり、続けてConditional Mediation（Rhing Seed
 /// 入力欄に出るオートフィル候補）の待機に切り替える。Seedを入力して
 /// 「ログイン」を押す従来の流れもそのまま使える。モーダルとConditionalは
@@ -86,7 +86,7 @@ class _PasskeySignInDialogState extends ConsumerState<PasskeySignInDialog> {
       Navigator.of(context).pop(true);
     } catch (_) {
       // バックグラウンドでの試行のため失敗してもエラー表示はしない。
-      // ユーザーはRhing Seed入力欄からいつも通りログインできる。
+      // ユーザーはRhing Seed入力欄からいつも通りログイン出来る。
     }
   }
 
@@ -158,7 +158,7 @@ class _PasskeySignInDialogState extends ConsumerState<PasskeySignInDialog> {
           controller: _rhingSeedController,
           autofocus: true,
           // 'webauthn'は、対応ブラウザ（Web版）でこの欄にパスキー候補の
-          // 自動候補を表示させるための標準トークン
+          // 自動候補を表示させる為の標準トークン
           // （https://www.w3.org/TR/webauthn-3/#input-autofill）。
           autofillHints: const [AutofillHints.username, 'webauthn'],
           decoration: InputDecoration(

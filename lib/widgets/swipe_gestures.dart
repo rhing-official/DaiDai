@@ -16,7 +16,7 @@ const kSwipeGestureVelocityThreshold = 75.0;
 /// 左スワイプは何もしない（従来通りの「戻るだけ」の挙動）。
 /// 設定・身だしなみ・運営タブの狭い画面ドリルダウンでは、隣接カテゴリへの
 /// 切り替え（[onPrevious]/[onNext]）と一覧への「戻る」（[onBack]、先頭
-/// カテゴリで右スワイプしたとき）を両立させるためにこの3引数を使う。
+/// カテゴリで右スワイプした時）を両立させる為にこの3引数を使う。
 class SwipeBackDetector extends StatelessWidget {
   const SwipeBackDetector({
     required this.onBack,
@@ -29,7 +29,7 @@ class SwipeBackDetector extends StatelessWidget {
 
   /// falseなら横スワイプの検出を止める（ハンドラを外すだけで、ウィジェット木の
   /// 形は変えない。`enabled`の切り替えで子（編集中のエディタ等）の状態が
-  /// 作り直されないようにするため、2026-10-06変更）。
+  /// 作り直されないようにする為、2026-10-06変更）。
   final bool enabled;
   final VoidCallback onBack;
   final VoidCallback? onPrevious;
@@ -119,8 +119,8 @@ class SwipeDownToDismiss extends StatelessWidget {
 /// `PageView`既定の`PageScrollPhysics`は、フリングが無いゆっくりしたドラッグ
 /// では「ページ幅の50%（`page.roundToDouble()`）」を超えないと次のページに
 /// 確定しない。これがメディアビューアの「かなり大きくスワイプしないと
-/// 反応しない」というUX上の指摘（2026-09-06）の原因だったため、確定条件を
-/// ページ幅の10%まで緩和したもの（当初20%へ緩和したが、同日さらに半分へ
+/// 反応しない」というUX上の指摘（2026-09-06）の原因だった為、確定条件を
+/// ページ幅の10%まで緩和したもの（当初20%へ緩和したが、同日更に半分へ
 /// 再緩和）。フリング時（速度がしきい値を超える場合）の
 /// 「距離に関わらず1ページ分確定する」挙動は元の`PageScrollPhysics`と同じ
 /// （Flutter本体`page_view.dart`の`_getTargetPixels`と同じ構造）。
@@ -138,7 +138,7 @@ class _EasySwipePageScrollPhysics extends PageScrollPhysics {
     Tolerance tolerance,
     double velocity,
   ) {
-    // このアプリの`PageView`は全てviewportFraction既定値(1.0)のため、
+    // このアプリの`PageView`は全てviewportFraction既定値(1.0)の為、
     // ページ<->pixel変換はviewportDimensionでの単純な比例計算でよい
     // （SDK本体の`PageScrollPhysics`が内部で使う`_PagePosition`は非公開の
     // ためここでは使えない）。
@@ -237,7 +237,7 @@ class _PinchPriorityPageViewState extends State<PinchPriorityPageView> {
       controller: widget.controller,
       allowImplicitScrolling: widget.allowImplicitScrolling,
       // 拡大中も横スワイプでのページ送りは止める（拡大した内容を動かす操作と
-      // 取り違えないため、2026-11-02。矢印か、縮小してからのスワイプで送る）。
+      // 取り違えない為、2026-11-02。矢印か、縮小してからのスワイプで送る）。
       physics: isMultiTouch || _zoomed
           ? const NeverScrollableScrollPhysics()
           : const _EasySwipePageScrollPhysics(),
@@ -269,7 +269,7 @@ class _PinchPriorityPageViewState extends State<PinchPriorityPageView> {
   }
 }
 
-/// 拡大表示中のページが、拡大中かどうかを[PinchPriorityPageView]へ伝えるための
+/// 拡大表示中のページが、拡大中かどうかを[PinchPriorityPageView]へ伝える為の
 /// 窓口（2026-10-31追加）。拡大中は下スワイプで閉じる操作を止める。
 class ViewerZoomScope extends InheritedWidget {
   const ViewerZoomScope({
@@ -337,7 +337,7 @@ class _ZoomReporterState extends State<ZoomReporter> {
 
 /// マウスホイールのスクロールを、子孫のスクロール領域が端に達した後も外側
 /// （メッセージ一覧等）へ渡さないようにする（2026-10-31追加）。内側が
-/// スクロールできる間は内側が先に処理し、端で内側が受け取らなくなった時だけ
+/// スクロール出来る間は内側が先に処理し、端で内側が受け取らなくなった時だけ
 /// ここで消費する。[enabled]がfalseなら何もしない（従来どおり外側へ渡る）。
 class WheelScrollAbsorber extends StatelessWidget {
   const WheelScrollAbsorber({

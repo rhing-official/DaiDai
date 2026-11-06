@@ -49,7 +49,7 @@ class _TalksSearchScreenState extends ConsumerState<TalksSearchScreen> {
   Timer? _messageSearchDebounce;
   List<MessageSearchHit> _messageMatches = const [];
 
-  /// デバウンスコールバック（build()の外）から参照するための、直近の
+  /// デバウンスコールバック（build()の外）から参照する為の、直近の
   /// build()時点のスナップショット（`_TalksTabState`と同じ理由）。
   List<DirectMessage> _lastDirectMessages = const [];
   List<Group> _lastGroups = const [];

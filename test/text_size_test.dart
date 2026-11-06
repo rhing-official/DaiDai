@@ -16,7 +16,7 @@ void main() {
     expect(AppTextSize.fromName('large'), AppTextSize.large);
   });
 
-  test('選んだ文字サイズは端末に保存され、次回の起動で復元される', () async {
+  test('選んだフォントサイズは端末に保存され、次回の起動で復元される', () async {
     SharedPreferences.setMockInitialValues({});
     final container = ProviderContainer();
     addTearDown(container.dispose);

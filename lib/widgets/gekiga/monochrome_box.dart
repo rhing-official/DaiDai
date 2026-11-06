@@ -5,17 +5,17 @@ import 'package:flutter/material.dart';
 import '../../theme/gekiga/gekiga_shapes.dart';
 
 /// [monochromeBoxVertices]の頂点で、黒の外枠→白の内枠という2層の塗りを
-/// 描く共通ペインター。[fillColor]を指定すると、さらに内側に3層目の塗りを
+/// 描く共通ペインター。[fillColor]を指定すると、更に内側に3層目の塗りを
 /// 追加する（[GekigaBadgePainter]のような色付きバッジ用、2026-08-05新規、
 /// 旧ジグザグ版`GekigaBadgePainter`/`_GekigaIconBadgePainter`等の直線・
 /// モノクロ版としての共通化）。
 ///
-/// [seed]を指定すると、枠の太さ（黒外枠・白内枠の厚み）を箱ごとに僅かに
+/// [seed]を指定すると、枠の太さ（黒外枠・白内枠の厚み）を箱毎に僅かに
 /// 変化させる（2026-08-05追加。角の形を変える代わりに、直角の箱のまま
 /// 「些細な手作り感」を出す手段として採用。`seed`が同じなら常に同じ太さに
-/// なり、再描画のたびに変わることはない）。変化の範囲は既定の太さを上限に
+/// なり、再描画のたびに変わることは無い）。変化の範囲は既定の太さを上限に
 /// 0.7〜1.0倍のみ（薄くなる方向のみ）に留める。太くなる方向まで許すと、
-/// 箱の内側paddingを枠が食い込んでコンテンツがはみ出す恐れがあるため。
+/// 箱の内側paddingを枠が食い込んでコンテンツがはみ出す恐れがある為。
 class MonochromeBoxPainter extends CustomPainter {
   const MonochromeBoxPainter({
     required this.vertices,
@@ -62,7 +62,7 @@ class MonochromeBoxPainter extends CustomPainter {
       oldDelegate.invert != invert;
 }
 
-/// [monochromeBoxVertices]の頂点（または[inset]だけ内側に縮めた形）で
+/// [monochromeBoxVertices]の頂点（又は[inset]だけ内側に縮めた形）で
 /// コンテンツをクリップする共通クリッパー（写真・テキスト入力欄の中身など、
 /// 箱の内側にコンテンツを収める用途）。
 class MonochromeBoxClipper extends CustomClipper<Path> {

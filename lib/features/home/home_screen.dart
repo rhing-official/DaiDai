@@ -156,7 +156,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   AppUser? _cachedTabsUser;
   List<Widget>? _cachedTabs;
 
-  // なぞっている間だけ選択中チップを飛び出させるためのフラグ（2026-07-29追加）。
+  // なぞっている間だけ選択中チップを飛び出させる為のフラグ（2026-07-29追加）。
   // ドラッグ開始でtrue、指を離す/キャンセルでfalseに戻す。
   bool _isDragging = false;
 
@@ -176,7 +176,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   void _onStripPointerDown(Offset position, bool vertical) {
     if (ref.read(backStackControllerProvider).hasOpenOverlay) return;
     _stripTouch = true;
-    // 指が項目へ滑っていくとチップのタップが成立しなくなるため、押した時点で選ぶ。
+    // 指が項目へ滑っていくとチップのタップが成立しなくなる為、押した時点で選ぶ。
     final order = _displayOrderNow();
     final hit = _hitTestChips(position, vertical, order);
     final hovered = hit.hovered;
@@ -229,9 +229,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   }
 
   // チップの帯を指でなぞっている間、今指が乗っているチップの実際の描画位置を
-  // 判定するために使う（2026-07-29変更、以前はフリック時の速度だけで隣へ
+  // 判定する為に使う（2026-07-29変更、以前はフリック時の速度だけで隣へ
   // 1段階移動する実装だった。指を離すまで連続的に、語らいから設定まで
-  // 1回のドラッグで移動できるようにするため、位置ベースの追従に変更）。
+  // 1回のドラッグで移動出来るようにする為、位置ベースの追従に変更）。
   late final List<GlobalKey> _chipKeys = List.generate(3, (_) => GlobalKey());
 
   /// 各チップの画面上（global座標）での矩形。まだ描画されていないチップは
@@ -263,7 +263,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         return (hovered: i, popped: {i});
       }
     }
-    // どのチップの上でもない＝隙間。隙間を挟む前後2つのチップを両方
+    // どのチップの上でも無い＝隙間。隙間を挟む前後2つのチップを両方
     // 飛び出させる（選択自体は変えない）。
     for (var k = 0; k < order.length - 1; k++) {
       final i = order[k];
@@ -291,7 +291,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     // ルートとして積まれる。ここで弾かないと、開いたポップアップの背後で
     // タブが切り替わってしまい、以前の実装が「一貫して動作しない」原因に
     // なっていた（ポップアップの種類によってバリアの有無・挙動が異なり、
-    // スワイプが素通りするものとしないものが混在していたため）。
+    // スワイプが素通りするものとしないものが混在していた為）。
     // 以前は`ModalRoute.isCurrent`で判定していたが、2026-10-04以降は戻る用の
     // 透明ルート`/_b/*`が常にホームの上に積まれてisCurrentが常にfalseになり、
     // なぞり遷移が一切効かなくなっていた（2026-10-10修正）。透明ルートを
@@ -314,10 +314,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
   /// `_selectedIndex`（`IndexedStack`用のローカル状態）と
   /// `homeSelectedTabProvider`（外部から「今どのタブを見ているか」を
-  /// 参照するためのミラー、`PinnedCallOverlay`が使う）を常に同期させて
+  /// 参照する為のミラー、`PinnedCallOverlay`が使う）を常に同期させて
   /// 更新する（2026-08-19追加）。呼び出し側で`setState`のcallback内から
   /// 呼ぶこと（`_selectedIndex`自体の代入がsetStateのcallback内で
-  /// 行われるようにするため）。
+  /// 行われるようにする為）。
   void _setSelectedIndex(int index) {
     _selectedIndex = index;
     _slideFrom = null;
@@ -341,7 +341,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
   /// [_icons]の各グリフの見た目の密度差を補正する表示サイズ
   /// （2026-08-27追加）。face_outlined/settings_outlinedはforum_outlinedより
-  /// グリフ内側の余白が大きく同じ24でも小さく見えるため、個別に拡大する。
+  /// グリフ内側の余白が大きく同じ24でも小さく見える為、個別に拡大する。
   static const _iconSizes = [24.0, 28.0, 28.0];
 
   static const _chipSize = kNavChipSize;
@@ -354,7 +354,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     // から`homeSelectedTabProvider`が変更された場合にも、ローカルの
     // `_selectedIndex`（IndexedStackの描画に使う実体）へ反映する
     // （2026-08-19追加）。`_setSelectedIndex`は逆方向（ローカル→
-    // プロバイダ）に既に反映済みのため、値が一致していれば何もしない
+    // プロバイダ）に既に反映済みの為、値が一致していれば何もしない
     // （ここでの再代入によるループは発生しない）。
     ref.listen<int>(homeSelectedTabProvider, (previous, next) {
       if (next != _selectedIndex) {
@@ -426,10 +426,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       padding: isWide
           ? const EdgeInsets.only(left: _chipSize + _chipMargin * 2)
           : EdgeInsets.zero,
-      // 戻る・進むはタブごとの履歴で、タブをまたいで戻らない（2026-10-06変更、
+      // 戻る・進むはタブ毎の履歴で、タブをまたいで戻らない（2026-10-06変更、
       // 以前は語らい以外のタブで戻ると語らいタブへ戻る`BackEntry`だった）。
       // 現在のタブを`BackStackController.activeScope`へ伝える。
-      // 非選択のタブもマウントされたままのため、見えているタブだけを
+      // 非選択のタブもマウントされたままの為、見えているタブだけを
       // `PaneVisibility`で「表示中」と伝える（通話ミニ表示の出し分け用）。
       // 非選択のタブもマウントしたまま（`maintainState`）、スライド中だけ前後2枚を
       // チップの表示順に沿って横に並べて動かす。

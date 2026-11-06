@@ -33,9 +33,9 @@ class UserProfileCardDialog extends ConsumerStatefulWidget {
   final AppUser currentUser;
   final AppUser user;
 
-  /// このダイアログを開いた会話（一対のdmId・広場のgroupId）。会話ごとに
+  /// このダイアログを開いた会話（一対のdmId・広場のgroupId）。会話毎に
   /// 使うプロフィールカード（2026-07-29追加、`AppUser.conversationProfileCardId`）
-  /// を反映した表示にするために使う。nullなら標準のカードで表示する
+  /// を反映した表示にする為に使う。nullなら標準のカードで表示する
   /// （会話コンテキストが無い場所から開いた場合）。
   final String? conversationId;
 
@@ -79,7 +79,7 @@ class _UserProfileCardDialogState extends ConsumerState<UserProfileCardDialog> {
   bool _sending = false;
 
   /// 相手が友達だと判明しているか（読み込み前はfalse）。URLの無い友達のカードを
-  /// 「カードだけ」の枠なし表示にするために使う（2026-10-31）。
+  /// 「カードだけ」の枠なし表示にする為に使う（2026-10-31）。
   bool _isFriendKnown = false;
   bool _statusKnown = false;
 
@@ -120,7 +120,7 @@ class _UserProfileCardDialogState extends ConsumerState<UserProfileCardDialog> {
   /// （実際のfriendsサブコレクション）を根拠にする。絶縁等で友達関係が
   /// 解消された後も申請ドキュメントがaccepted状態のまま残っているケースが
   /// あり、statusだけを見ると友達解消後も「友達です」と表示され続けてしまう
-  /// バグがあったため。申請ドキュメントは、まだ友達でない場合の
+  /// バグがあった為。申請ドキュメントは、まだ友達でない場合の
   /// 申請中/未申請の判定にのみ使う。
   Future<({bool isFriend, FriendRequest? request})> _fetchStatus() async {
     final repository = ref.read(friendRepositoryProvider);
@@ -175,7 +175,7 @@ class _UserProfileCardDialogState extends ConsumerState<UserProfileCardDialog> {
     );
     if (!mounted) return;
     Navigator.of(context).pop();
-    // 左右分割表示ではTalksTabが一覧＋チャットを自前のStateで表示しているため、
+    // 左右分割表示ではTalksTabが一覧＋チャットを自前のStateで表示している為、
     // ここでルートをpushすると全画面ルートがサイドバーごと覆ってしまう
     // （2026-07-29修正）。狭い画面でも設定した語らいレイアウトどおりに開くよう、
     // どちらもTalksTabへ選択を渡す（2026-10-11変更）。
@@ -222,7 +222,7 @@ class _UserProfileCardDialogState extends ConsumerState<UserProfileCardDialog> {
           maxHeight: screenSize.height * 0.9,
         ),
         // カード下の要素が長くなる場合でも画面外に切れず、その場で
-        // スクロールできるようにする（ビューポート溢れの保険）。
+        // スクロール出来るようにする（ビューポート溢れの保険）。
         child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,

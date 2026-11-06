@@ -43,7 +43,7 @@ class Country {
       {ja, en, nameOf(locale)}.toList();
 }
 
-/// 日本語・英語以外の表示言語の国名（ISO 3166-1 alpha-2→名前）。言語を足したとき
+/// 日本語・英語以外の表示言語の国名（ISO 3166-1 alpha-2→名前）。言語を足した時
 /// 抜けないよう、switch式（網羅性エラー）で言語ごとの対応表を返す。日本語・英語は
 /// [Country]自身が持つため`null`。
 Map<String, String>? countryNamesOf(AppLocale locale) {

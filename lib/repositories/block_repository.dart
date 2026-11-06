@@ -1,7 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 /// 一対の相手をブロックする機能を扱うリポジトリ。ブロック一覧は本人のみが
-/// 読み書きできる完全に個人的な設定（[ConversationPrefsRepository]と同じ方針）。
+/// 読み書き出来る完全に個人的な設定（[ConversationPrefsRepository]と同じ方針）。
 abstract class BlockRepository {
   /// 自分がブロックした相手のuserId一覧を購読する（一対の表示・送信抑制用）。
   Stream<Set<String>> watchBlockedUserIds(String userId);

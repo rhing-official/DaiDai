@@ -46,7 +46,7 @@ class _InviteConfirmView extends ConsumerStatefulWidget {
 }
 
 class _InviteConfirmViewState extends ConsumerState<_InviteConfirmView> {
-  /// 標準のカードの切り替えなどを即座に反映するため、ログイン時に一度だけ
+  /// 標準のカードの切り替えなどを即座に反映する為、ログイン時に一度だけ
   /// 取得した`widget.currentUser`ではなく購読中の最新のユーザーを使う
   /// （2026-10-11）。
   AppUser get _liveUser =>
@@ -243,7 +243,7 @@ class _InviteConfirmViewState extends ConsumerState<_InviteConfirmView> {
                 ),
                 const SizedBox(width: 8),
                 // テーマの`ElevatedButtonThemeData.minimumSize`が横幅
-                // `double.infinity`のため、`Row`直下に裸で置くと横幅の
+                // `double.infinity`の為、`Row`直下に裸で置くと横幅の
                 // 制約が衝突してレイアウトが破綻する（背景色に紛れて
                 // ボタンが見えなくなる不具合の原因、2026-08-14修正）。
                 // `Expanded`で有限の幅に収める。

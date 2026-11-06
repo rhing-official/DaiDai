@@ -32,7 +32,7 @@ class Group {
 
   /// 長（オーナー）のuserId。常に全権限を持つ特別な存在で、カスタムロールの
   /// 付与・削除とは独立している。作成者が初期値だが、`GroupRepository.
-  /// transferOwnership`で後から他のメンバーへ譲渡できる（2026-07-28追加）。
+  /// transferOwnership`で後から他のメンバーへ譲渡出来る（2026-07-28追加）。
   final String ownerId;
   final List<String> memberIds;
 
@@ -48,13 +48,13 @@ class Group {
   final Map<String, List<String>> roleAssignments;
 
   /// カスタムロールの優先順位（呼び名の色を決める順序、先頭が最優先）。
-  /// 基準ロール（`isEveryone`）は含めない＝常に最下位。寄合ごとに
-  /// `Room.rolePriorityOverride`で上書きできる。
+  /// 基準ロール（`isEveryone`）は含めない＝常に最下位。寄合毎に
+  /// `Room.rolePriorityOverride`で上書き出来る。
   final List<String> rolePriority;
 
   /// userId -> 有効な権限文字列のリスト（[GroupPermission]、基準ロール込みで
   /// 解決済み）。firestore.rulesがロールドキュメントを跨いで動的に権限を
-  /// 判定できないため、`GroupRepository`がロール・付与の変更のたびに
+  /// 判定出来ない為、`GroupRepository`がロール・付与の変更のたびに
   /// 再計算してここに非正規化して持たせる（`Room.memberIds`と同じ設計）。
   final Map<String, List<String>> memberPermissions;
 
@@ -64,7 +64,7 @@ class Group {
   final bool readReceiptsEnabled;
 
   /// 広場を代表するプロフィールカード（最大1枚）。未作成ならnull。
-  /// メンバー全員が編集できる（`_ProfileTabState`の個人カードとは異なり
+  /// メンバー全員が編集出来る（`_ProfileTabState`の個人カードとは異なり
   /// 所有者・モデレーター限定ではない）。
   final GroupProfileCard? profileCard;
 
@@ -77,16 +77,16 @@ class Group {
   final Timestamp? lastMessageAt;
 
   /// [lastMessageAt]の送信者userId。語らい一覧の「未読優先」並べ替えで、
-  /// 自分が送信した会話を未読扱いしないために使う（2026-09-02追加）。
+  /// 自分が送信した会話を未読扱いしない為に使う（2026-09-02追加）。
   final String? lastMessageSenderId;
 
   /// [lastMessageAt]時点のメッセージの`Message.contentType`
   /// （text/image/video/file/sticker/call等）。語らい一覧のプレビュー表示で、
-  /// テキスト以外は種類に応じたラベル（「[画像]」等）に変換するために使う
+  /// テキスト以外は種類に応じたラベル（「[画像]」等）に変換する為に使う
   /// （2026-09-02追加）。
   final String? lastMessageContentType;
 
-  /// [lastMessageContentType]が`text`/`call`のときだけ入る、切り詰め済みの
+  /// [lastMessageContentType]が`text`/`call`の時だけ入る、切り詰め済みの
   /// 本文プレビュー（`messageSnippetOf`）。それ以外の種類はnull
   /// （表示ラベルはロケール依存のためUI側で解決する、2026-09-02追加）。
   final String? lastMessagePreview;
@@ -98,7 +98,7 @@ class Group {
   /// ことも、寄合が1つだけの場合に限り可能（`GroupRepository.
   /// setRoomsEnabled`が件数を検証する）。既存データ（この機能追加前に
   /// 作られた広場）は全てtrue扱いにする（fromJsonのデフォルト値、既存の
-  /// 複数寄合表示を維持するため）。独立していた`roomFeatureDisabled`
+  /// 複数寄合表示を維持する為）。独立していた`roomFeatureDisabled`
   /// フィールド——寄合の名前変更・削除メニューの表示/非表示のみを切り替える
   /// 3択目——は、この`roomsEnabled`のオン/オフだけで十分と判断し2026-09-14に
   /// 廃止した。
@@ -112,10 +112,10 @@ class Group {
   final List<String> roomOrder;
 
   /// 新しく加入したメンバーに、加入前のメッセージを見せるか（2026-10-08追加、
-  /// 既定false）。寄合ごとに[Room.historyVisibleOverride]で上書きできる
+  /// 既定false）。寄合毎に[Room.historyVisibleOverride]で上書き出来る
   /// （`effectiveHistoryVisible`参照）。対象はメッセージ（添付含む）のみで、
   /// アルバム・ノート・カレンダー・投票は共有物のため従来どおり全員に見える。
-  /// フィールド欠落（この機能追加前の広場）もfalse扱い。ただし制限がかかるのは
+  /// フィールド欠落（この機能追加前の広場）もfalse扱い。但し制限がかかるのは
   /// [memberJoinedAt]に記録された今後の新規加入者だけで、既存メンバーは変わらない。
   final bool historyVisibleToNewMembers;
 
@@ -127,7 +127,7 @@ class Group {
   final Map<String, Timestamp> memberJoinedAt;
 
   /// 参加に長（`manageJoinRequests`権限者）の承認が必要か（2026-10-11追加、
-  /// 既定true）。falseなら招待リンクから誰でもすぐ参加できる（Cloud Functionsの
+  /// 既定true）。falseなら招待リンクから誰でもすぐ参加出来る（Cloud Functionsの
   /// `joinGroup`経由）。欠落した既存文書は承認必須として読む。
   final bool requiresApproval;
 
@@ -197,7 +197,7 @@ class Group {
 
 /// [Group.roleAssignments]のfromJson用。旧形式（`Map<String, String>`＝
 /// 1人1ロールだった頃のデータ）が万一残っていても空扱いにする
-/// （本番はまだテストデータのみのため、フィールドごと作り直す方針）。
+/// （本番はまだテストデータのみの為、フィールドごと作り直す方針）。
 Map<String, List<String>> _decodeRoleAssignments(Object? json) {
   if (json is! Map) return const {};
   final result = <String, List<String>>{};
@@ -232,13 +232,13 @@ class Room {
   final String groupId;
   final String name;
 
-  /// 広場のmemberIdsを非正規化して保持（セキュリティルールでの参照を単純化するため）。
+  /// 広場のmemberIdsを非正規化して保持（セキュリティルールでの参照を単純化する為）。
   final List<String> memberIds;
   final Timestamp? lastMessageAt;
 
   /// この寄合限定でのロール優先順位の上書き。[customSettingsEnabled]が
   /// trueの間のみ有効（nullなら広場全体の`Group.rolePriority`を使う、
-  /// 2026-07-28追加、寄合ごとの個別ロール付与という以前の設計から変更）。
+  /// 2026-07-28追加、寄合毎の個別ロール付与という以前の設計から変更）。
   final List<String>? rolePriorityOverride;
 
   /// 「この寄合独自の設定」トグル（2026-07-29追加）。trueの間、
@@ -266,7 +266,7 @@ class Room {
 
   /// この寄合の削除を実行中の長・モデレーターのuserId。nullなら削除中で
   /// ない通常状態。削除操作の間だけ立てるマーカーで、これが立っている間は
-  /// メンバーなら誰でもこの寄合のメッセージを物理削除できる
+  /// メンバーなら誰でもこの寄合のメッセージを物理削除出来る
   /// （`GroupRepository.deleteRoom`、firestore.rules参照）。
   final String? roomDeletionRequestedBy;
 

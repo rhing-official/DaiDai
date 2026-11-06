@@ -48,7 +48,7 @@ int blockFinalIndex(int from, int insertIndex) {
 
 /// 目次・表のブロック全体を、縦のドラッグで文書内の別の位置へ移動する
 /// ハンドル（2026-10-04追加、ユーザー指示）。`appflowy_editor`にはブロックを
-/// 動かすドラッグ機能が無いため、表の行/列並び替えと同様にポインター座標
+/// 動かすドラッグ機能が無い為、表の行/列並び替えと同様にポインター座標
 /// から挿入位置を自前で計算し、ドラッグ中は挿入位置にガイドラインを表示、
 /// 離した時に`Transaction.moveNode`で移動する。
 ///
@@ -85,7 +85,7 @@ class BlockMoveHandle extends StatefulWidget {
   final double size;
 
   /// 移動後に、移動したブロックへカーソルを置く（目次のようにブロック自体が
-  /// 選択できる場合のみtrue。表はセル内にしかカーソルを置けないためfalse）。
+  /// 選択出来る場合のみtrue。表はセル内にしかカーソルを置けないためfalse）。
   final bool selectAfterMove;
 
   @override
@@ -176,7 +176,7 @@ class _BlockMoveHandleState extends State<BlockMoveHandle> {
       );
       if (clamped == scroll.dy) return;
       scroll.scrollTo(clamped, duration: Duration.zero);
-      // スクロールで各ブロックの位置が変わるため、次フレームで再計算する。
+      // スクロールで各ブロックの位置が変わる為、次フレームで再計算する。
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (_dragging) _updateInsertPosition();
       });
@@ -270,7 +270,7 @@ class _BlockMoveHandleState extends State<BlockMoveHandle> {
 /// ポインター押下の瞬間にジェスチャーアリーナで勝つ（マウスの場合）ドラッグ
 /// 認識器（2026-10-04追加、ユーザー指示）。エディタ全体のドラッグ選択
 /// （`SelectionGestureDetector`、PCでは`ImmediateMultiDragGestureRecognizer`）
-/// は押下の瞬間に勝利を宣言するため、通常の縦ドラッグ認識器（スロップを超えて
+/// は押下の瞬間に勝利を宣言する為、通常の縦ドラッグ認識器（スロップを超えて
 /// から勝つ）では負けて範囲選択になってしまう。タッチ・スタイラスは、
 /// スクロールを奪わないようスロップを超えるまで勝利を宣言しない。
 /// 動かさずに離した場合は[onTap]を呼ぶ。

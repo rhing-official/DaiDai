@@ -130,7 +130,7 @@ void main() {
     // 画面上の点を描き、キャンバス左上からの相対位置と実効倍率から期待値を計算する。
     Future<void> drawAndCheck(double zoom) async {
       final origin = tester.getTopLeft(canvasFinder());
-      // 領域は原点が負の側まで広がっているため、画面内（ビューポートの中央付近）の点を描く。
+      // 領域は原点が負の側まで広がっている為、画面内（ビューポートの中央付近）の点を描く。
       final start = tester.getCenter(find.byType(DrawCanvasView));
       final gesture = await tester.startGesture(start);
       await gesture.moveBy(const Offset(20, 0));

@@ -44,7 +44,7 @@ DateTime _dateOnly(DateTime date) => DateTime(date.year, date.month, date.day);
 
 /// この幅未満ではモバイル向けの詰めたレイアウト（セル高さ・最大チップ表示数
 /// 等を縮小）に切り替える。`home_screen.dart`/`talks_tab.dart`と同じく、
-/// 画面ごとに専用のブレークポイント定数を持つ方式を踏襲する（2026-09-11追加）。
+/// 画面毎に専用のブレークポイント定数を持つ方式を踏襲する（2026-09-11追加）。
 const _kCalendarMobileBreakpoint = 600.0;
 
 /// 寄合単位の共有カレンダーを月表示で開く（2026-09-01追加）。
@@ -57,7 +57,7 @@ const _kCalendarMobileBreakpoint = 600.0;
 /// その切り替えを担う）。Esc・下スワイプ・明示的な戻るボタンで
 /// 閉じられる構成は、既存の添付ファイルフルスクリーンビューア
 /// （`chat_screen.dart`の`_MediaViewerScreen`）と同じジェスチャー一式を
-/// このファイル内で複製したもの（既存の動作済み機能を触らずに済ませるため、
+/// このファイル内で複製したもの（既存の動作済み機能を触らずに済ませる為、
 /// 共通ウィジェットへの切り出しはあえて行っていない）。
 class CalendarPaneView extends ConsumerStatefulWidget {
   const CalendarPaneView({
@@ -269,7 +269,7 @@ class _CalendarPaneViewState extends ConsumerState<CalendarPaneView>
   }
 
   /// 検索ボタンから開く、予定・日程調整のタイトル検索（2026-09-11追加）。
-  /// `watchEvents`/`watchCoordinations`は寄合内の全期間を返す設計のため、
+  /// `watchEvents`/`watchCoordinations`は寄合内の全期間を返す設計の為、
   /// 月をまたいだ検索が既に読み込み済みのデータだけで完結する。
   Future<void> _openCalendarSearch(
     List<CalendarEvent> events,
@@ -474,7 +474,7 @@ class _CalendarPaneViewState extends ConsumerState<CalendarPaneView>
       Offset.zero & overlay.size,
     );
 
-    // 画面遷移の種類（吸い込みなど）に従って開閉するため、素の`showMenu`ではなく
+    // 画面遷移の種類（吸い込みなど）に従って開閉する為、素の`showMenu`ではなく
     // `showAnchoredMenu`で出す（2026-11-05）。ポップアップは外のルートに描かれるので、
     // 呼び出し元と同じプロバイダーの範囲を引き継ぐ。
     await showAnchoredMenu<void>(
@@ -545,7 +545,7 @@ class _CalendarPaneViewState extends ConsumerState<CalendarPaneView>
           return KeyEventResult.ignored;
         },
         // 1つのGestureDetectorにonHorizontalDragXxxとonVerticalDragXxxを
-        // 同時に設定するとFlutterが例外を投げるため、下スワイプ＝閉じる
+        // 同時に設定するとFlutterが例外を投げる為、下スワイプ＝閉じる
         // （SwipeDownToDismiss、縦方向）とは別のGestureDetectorを重ねて
         // 横スワイプ＝月送りを処理する。
         child: GestureDetector(
@@ -822,7 +822,7 @@ class _WeekdayHeaderRow extends ConsumerWidget {
 }
 
 // 月表示グリッドのレイアウト定数（`_MonthGrid`/`_WeekRow`/`_DayCellBackground`
-// 間で共有、2026-09-11追加）。行の高さはこれらから逆算するため、値を変える
+// 間で共有、2026-09-11追加）。行の高さはこれらから逆算する為、値を変える
 // 場合はここだけ直せばよい。
 const _kCellPadding = 4.0;
 const _kDayNumberAreaHeight = 26.0;
@@ -851,7 +851,7 @@ double _laneTop(int lane) =>
 
 /// 月グリッドの切り替えを、移動方向へのスライドで見せる（2026-10-10追加）。
 /// [direction]が1なら新しい月は右から入り前の月は左へ出る（-1なら逆）。
-/// 子には月ごとの`ValueKey`を付けること。
+/// 子には月毎の`ValueKey`を付けること。
 class _MonthSlideSwitcher extends StatelessWidget {
   const _MonthSlideSwitcher({
     required this.month,
@@ -955,7 +955,7 @@ class _MonthGrid extends ConsumerWidget {
 
     // 利用可能な高さを週数で等分し（最小は1レーン分）、その行高に収まる
     // レーン数だけ予定の帯を表示する（残りは「他N件」、2026-10-07変更。
-    // 以前は端末幅で固定の2/3レーンと固定の行高だったため、画面高を超えて
+    // 以前は端末幅で固定の2/3レーンと固定の行高だった為、画面高を超えて
     // スクロールが必要になっていた）。
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -996,7 +996,7 @@ class _MonthGrid extends ConsumerWidget {
 /// 1週間分の行。背景（グリッド線・日番号・今日の丸・他N件）を`Row`で描き、
 /// その上に`computeWeekLaneLayout`が割り当てたレーンを`Positioned`で重ねて
 /// 連続バーを描く2層構成（2026-09-11追加、Googleカレンダー月表示の
-/// 「複数日イベントが横に連なった1本の帯になる」挙動を再現するため）。
+/// 「複数日イベントが横に連なった1本の帯になる」挙動を再現する為）。
 class _WeekRow extends StatelessWidget {
   const _WeekRow({
     required this.weekDays,
@@ -1115,7 +1115,7 @@ class _WeekRow extends StatelessWidget {
   }
 }
 
-/// 週の行の背景レイヤー1マス分。日付ごとの区切り線（グリッド線）・日番号
+/// 週の行の背景レイヤー1マス分。日付毎の区切り線（グリッド線）・日番号
 /// （中央揃え）・今日の白抜き丸・「他N件」のみを描く。予定/日程調整本体は
 /// `_WeekRow`が前景レイヤーの`_SpanBar`として重ねて描く（2026-09-11、
 /// 以前はこのセル自身がチップを積んでいたが、日をまたぐ連続バーを表現する
@@ -1200,7 +1200,7 @@ class _DayCellBackground extends StatelessWidget {
       // なくセル全体をOpacityで包むことで前景バーにも一律適用させる）。
       opacity: isCurrentMonth ? 1 : 0.35,
       child: DecoratedBox(
-        // 日付ごとの区切り線（グリッド線）。全セルに同じ枠線を付けるだけで
+        // 日付毎の区切り線（グリッド線）。全セルに同じ枠線を付けるだけで
         // 隣接セル同士が線を共有し格子状になる（2026-09-11追加）。
         decoration: BoxDecoration(
           border: Border.all(color: colorScheme.outline, width: 0.5),
@@ -1238,7 +1238,7 @@ class _DayCellBackground extends StatelessWidget {
 /// 日をまたいで連続する予定/日程調整を表す帯1本分（2026-09-11追加、以前の
 /// セル内チップ`_EventChip`/`_CoordinationChip`を置き換える）。同じ週内では
 /// 列をまたいで幅を広げるが、週をまたいだ継続の視覚的な繋がりは表現せず、
-/// 週ごとのセグメントを常に独立した完全な角丸ブロックとして描画する。
+/// 週毎のセグメントを常に独立した完全な角丸ブロックとして描画する。
 /// Google Calendar本家と同じく単体タップでその予定/日程調整の詳細を直接開く。
 class _SpanBar extends StatelessWidget {
   const _SpanBar({
@@ -1309,7 +1309,7 @@ class _SpanBar extends StatelessWidget {
 }
 
 /// 背景色の明度から、読みやすい文字色（黒/白）を選ぶ。カテゴリ色は住人が
-/// 自由入力するため、テーマのライト/ダーク固定ではなく色自体の明度から
+/// 自由入力する為、テーマのライト/ダーク固定ではなく色自体の明度から
 /// 判定する必要がある（2026-09-11追加）。
 Color _onColorFor(Color background) =>
     background.computeLuminance() > 0.5 ? Colors.black : Colors.white;
@@ -1332,7 +1332,7 @@ class _CalendarSearchCoordinationSelection extends _CalendarSearchSelection {
 }
 
 /// 検索ボタンから開く、タイトルの部分一致検索ダイアログ（2026-09-11追加）。
-/// `watchEvents`/`watchCoordinations`が寄合内の全期間を返す設計のため、
+/// `watchEvents`/`watchCoordinations`が寄合内の全期間を返す設計の為、
 /// 既に読み込み済みの[events]/[coordinations]をクライアント側でフィルタする
 /// だけで、月をまたいだ検索が成立する。
 class _CalendarSearchDialog extends StatefulWidget {
@@ -1445,7 +1445,7 @@ class _CalendarSearchDialogState extends State<_CalendarSearchDialog> {
 }
 
 /// タップした日付セルの直下に浮かべるポップアップの中身。`showMenu`は
-/// `color: Colors.transparent`で呼んでいるため、この中でカード自体の
+/// `color: Colors.transparent`で呼んでいる為、この中でカード自体の
 /// 背景・枠線を持つ必要がある（`popup_surface_colors.dart`、
 /// `album_popup_content.dart`と同じパターン）。
 class _DayEventsPopupContent extends StatelessWidget {
@@ -1800,7 +1800,7 @@ Future<void> showCalendarMonthDialog(
   required String roomId,
   required AppUser currentUser,
 }) {
-  // ダイアログは呼び出し元の外のルートに描かれるため、呼び出し元と同じ
+  // ダイアログは呼び出し元の外のルートに描かれる為、呼び出し元と同じ
   // プロバイダーの範囲（使い方ガイドの練習用の画面など）を引き継ぐ。
   final container = ProviderScope.containerOf(context);
   return showAppDialog<void>(

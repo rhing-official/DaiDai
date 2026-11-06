@@ -39,7 +39,7 @@ abstract class AnnouncementRepository {
   Future<void> updateOfficialIcon(Uint8List bytes);
 }
 
-/// [Announcement]を、`ChatScreen`で表示できる[Message]へ写す。
+/// [Announcement]を、`ChatScreen`で表示出来る[Message]へ写す。
 Message announcementToMessage(
   Announcement announcement,
   OfficialProfile profile,
@@ -59,7 +59,7 @@ Message announcementToMessage(
 
 /// [announcements]（`createdAt`の古い順）を、[ChatScreen]が期待する「新しい順
 /// （先頭が最新）」の[Message]列に直す。`ChatScreen`は`reverse:true`の一覧に
-/// 新しい順で渡す前提のため、古い順のまま渡すと最新のお便りが上に表示される
+/// 新しい順で渡す前提の為、古い順のまま渡すと最新のお便りが上に表示される
 /// （2026-10-11修正）。
 List<Message> announcementMessagesNewestFirst(
   List<Announcement> announcements,
@@ -167,7 +167,7 @@ class FirestoreAnnouncementRepository implements AnnouncementRepository {
 
   @override
   Future<void> updateOfficialIcon(Uint8List bytes) async {
-    // 住人のアイコンと同じ方針（WebPへ圧縮、GIFはそのまま、圧縮できない
+    // 住人のアイコンと同じ方針（WebPへ圧縮、GIFはそのまま、圧縮出来ない
     // 環境では元のバイトのまま、`UserRepository._uploadMaterial`参照）。
     final isGif = isGifBytes(bytes);
     Uint8List? compressed;

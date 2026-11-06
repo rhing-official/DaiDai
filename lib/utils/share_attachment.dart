@@ -8,7 +8,7 @@ import '../models/message.dart';
 
 /// メッセージの添付（ファイル・画像・動画、複数添付は全件）を共有する
 /// （2026-10-31追加）。ファイルを取得してOSの共有シートへ渡す。Linuxは
-/// 共有シートがファイルに未対応のため、取得したURLをブラウザ（外部アプリ）で
+/// 共有シートがファイルに未対応の為、取得したURLをブラウザ（外部アプリ）で
 /// 開いてダウンロードにフォールバックする。取得・共有に失敗した場合も同様。
 /// 添付の無いメッセージでは何もしない。
 Future<void> shareMessageAttachments(Message message) {
@@ -23,7 +23,7 @@ Future<void> shareMessageAttachments(Message message) {
   ]);
 }
 
-/// 共有できるメッセージか（添付がある、または本文だけの通常のメッセージ）。
+/// 共有出来るメッセージか（添付がある、又は本文だけの通常のメッセージ）。
 bool shareableMessage(Message message) =>
     message.fileMetadata != null ||
     message.attachments.isNotEmpty ||

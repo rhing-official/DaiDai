@@ -9,17 +9,18 @@ import '../../models/group.dart';
 import '../../models/message.dart';
 import '../../providers/app_ui_style_provider.dart';
 import '../../providers/chat_room_message_cache.dart';
-import '../../providers/message_time_format_provider.dart';
 import '../../providers/user_providers.dart';
 import '../../repositories/direct_message_repository.dart';
 import '../../repositories/group_repository.dart';
 import '../../utils/group_permissions.dart';
 import '../../theme/gekiga/gekiga_colors.dart';
-import '../../utils/message_time.dart';
 import '../../widgets/gekiga/gekiga_panel_box.dart';
+import '../../widgets/style_choice_chip.dart';
 import '../../widgets/glass/glass_avatar.dart';
 import '../../widgets/glass/glass_surface.dart';
-import 'talks_tab.dart' show dmSearchLabel;
+import '../../widgets/focal_circle_avatar.dart';
+import 'talks_tab.dart'
+    show BlockTalkTileWrap, ConversationSubtitle, dmSearchLabel;
 
 /// メッセージ内容検索でヒットした1件（2026-09-12追加）。[isDm]がtrueなら
 /// [dm]、falseなら[group]のどちらか一方だけが設定される。
@@ -67,7 +68,7 @@ class TalksSearchSections {
 /// 一対名・広場名の一致を計算する純粋関数（`ref`に依存しない）。従来の
 /// `_buildSearchResults`/`_buildIconRail`が個別に持っていたフィルタロジックを
 /// 統合した（2026-09-12）。メッセージ内容の一致は非同期（[TalksMessageSearchSession]）
-/// のため、計算済みの[messageMatches]をそのまま受け取って詰め直すだけに留める。
+/// の為、計算済みの[messageMatches]をそのまま受け取って詰め直すだけに留める。
 TalksSearchSections computeTalksSearchSections({
   required String query,
   required List<DirectMessage> directMessages,
@@ -101,7 +102,7 @@ TalksSearchSections computeTalksSearchSections({
 }
 
 /// メッセージ内容検索でヒット扱いにする最小クエリ文字数（2026-09-12追加）。
-/// 1文字だけでは対象語らい全件に対するFirestore取得が無駄に発生するため、
+/// 1文字だけでは対象語らい全件に対するFirestore取得が無駄に発生する為、
 /// これ未満の間は取得自体を行わない。
 const kMinMessageSearchQueryLength = 2;
 
@@ -109,7 +110,7 @@ const kMinMessageSearchQueryLength = 2;
 /// （`chat_screen.dart`の`_suggestionDebounceTimer`と同じ考え方）。
 const kMessageSearchDebounce = Duration(milliseconds: 400);
 
-/// 1つの寄合あたり、メッセージ内容検索のために1回だけ取得する最大件数。
+/// 1つの寄合あたり、メッセージ内容検索の為に1回だけ取得する最大件数。
 /// 2026-09-14: 検索対象が会話1件→既定の寄合1件から会話1件→全寄合に
 /// 広がった（寄合が多い会話ほど合計の取得件数が増える）ため、200→100へ
 /// 引き下げてコストを緩和した。
@@ -121,7 +122,7 @@ const kMessageSearchMaxResults = 50;
 /// メッセージ内容検索の実行と、検索セッション内でのみ有効な取得済み
 /// メッセージのメモ化キャッシュを持つヘルパー（2026-09-12追加、ウィジェット
 /// ではない素のクラス）。サーバー側の全文検索インデックスは持たない方針
-/// （プライバシーファースト＋フェーズ2のE2E暗号化方針と矛盾するため）のため、
+/// （プライバシーファースト＋フェーズ2のE2E暗号化方針と矛盾する為）の為、
 /// Firestoreからバルク取得した結果をここでクライアント側フィルタする。
 ///
 /// 各会話（一対/広場）が持つ**全ての寄合**を検索対象にする（2026-09-14
@@ -140,7 +141,7 @@ class TalksMessageSearchSession {
   final _groupRoomIdsByGroupId = <String, List<String>>{};
 
   /// 広場の寄合（上書き設定を含む）。加入前のメッセージを見せない設定
-  /// （`messageVisibleFrom`）の閲覧開始時刻を、検索でも同じ条件で絞るために使う
+  /// （`messageVisibleFrom`）の閲覧開始時刻を、検索でも同じ条件で絞る為に使う
   /// （2026-10-08追加）。
   final _groupRoomsByGroupId = <String, Map<String, Room>>{};
 
@@ -193,7 +194,7 @@ class TalksMessageSearchSession {
       hit.message.sentAt?.toDate() ?? DateTime.fromMillisecondsSinceEpoch(0);
 
   /// この一対が持つ寄合IDの一覧をセッション内でメモ化して返す（2026-09-14
-  /// 追加）。`watchRooms`はStreamしか提供しないため、既存コード
+  /// 追加）。`watchRooms`はStreamしか提供しない為、既存コード
   /// （`talks_search_screen.dart`の`_openDm`等）と同じ`.first`で1回分だけ
   /// 取り出す。
   Future<List<String>> _roomIdsForDm(
@@ -427,10 +428,10 @@ class TalksMessageSearchSession {
 /// 語らい検索結果の3区分（一対/広場/メッセージ）を描画する共有ウィジェット
 /// （2026-09-12追加）。標準レイアウトのインライン検索結果・アイコン列の
 /// インライン検索結果・モバイル専用フルページ検索画面の3箇所から使い回す。
-/// DM/Group/メッセージそれぞれのタイルは呼び出し側が注入するため、フルサイズの
+/// DM/Group/メッセージそれぞれのタイルは呼び出し側が注入する為、フルサイズの
 /// タイルとアイコン列向けの簡易タイルを使い分けられる。
-class TalksSearchResultsView extends StatelessWidget {
-  const TalksSearchResultsView({
+class _TalksSearchResultsList extends StatelessWidget {
+  const _TalksSearchResultsList({
     required this.sections,
     required this.dmSectionLabel,
     required this.groupSectionLabel,
@@ -441,7 +442,8 @@ class TalksSearchResultsView extends StatelessWidget {
     required this.groupTileBuilder,
     required this.messageTileBuilder,
     this.padding,
-    super.key,
+    this.dmSelected,
+    this.groupSelected,
   });
 
   final TalksSearchSections sections;
@@ -455,6 +457,10 @@ class TalksSearchResultsView extends StatelessWidget {
   final Widget Function(BuildContext context, MessageSearchHit hit)
   messageTileBuilder;
   final EdgeInsetsGeometry? padding;
+
+  /// 劇画の箱の塗り（選択中=白地、他=黒地）を、行の`selected`と一致させる判定。
+  final bool Function(DirectMessage dm)? dmSelected;
+  final bool Function(Group group)? groupSelected;
 
   Widget _sectionHeader(BuildContext context, String label) => Padding(
     padding: const EdgeInsets.fromLTRB(4, 12, 4, 4),
@@ -484,7 +490,10 @@ class TalksSearchResultsView extends StatelessWidget {
               _sectionHeader(context, dmSectionLabel),
               GekigaJointedTileList(
                 seeds: [for (final dm in sections.dmMatches) dm.dmId.hashCode],
-                selectedFlags: [for (final _ in sections.dmMatches) false],
+                selectedFlags: [
+                  for (final dm in sections.dmMatches)
+                    dmSelected?.call(dm) ?? false,
+                ],
                 children: [
                   for (final dm in sections.dmMatches)
                     dmTileBuilder(context, dm),
@@ -498,7 +507,10 @@ class TalksSearchResultsView extends StatelessWidget {
                   for (final group in sections.groupMatches)
                     group.groupId.hashCode,
                 ],
-                selectedFlags: [for (final _ in sections.groupMatches) false],
+                selectedFlags: [
+                  for (final g in sections.groupMatches)
+                    groupSelected?.call(g) ?? false,
+                ],
                 children: [
                   for (final group in sections.groupMatches)
                     groupTileBuilder(context, group),
@@ -543,6 +555,141 @@ class TalksSearchResultsView extends StatelessWidget {
   }
 }
 
+/// 検索結果の種類（絞り込みチップの単位、2026-11-06）。
+enum TalksSearchKind { dm, group, message }
+
+/// [TalksSearchResultsView]の絞り込みを、[kinds]だけに絞った結果にする。空なら絞り込まない。
+TalksSearchSections filterTalksSearchSections(
+  TalksSearchSections sections,
+  Set<TalksSearchKind> kinds,
+) {
+  if (kinds.isEmpty) return sections;
+  return TalksSearchSections(
+    dmMatches: kinds.contains(TalksSearchKind.dm)
+        ? sections.dmMatches
+        : const [],
+    groupMatches: kinds.contains(TalksSearchKind.group)
+        ? sections.groupMatches
+        : const [],
+    messageMatches: kinds.contains(TalksSearchKind.message)
+        ? sections.messageMatches
+        : const [],
+  );
+}
+
+/// 語らい検索結果の3区分に、上の絞り込みチップ（メッセージ・一対・広場）を足した部品
+/// （2026-11-06）。最初はどれも選ばれておらず（=全て表示）、1つでも選ぶとその種類だけに
+/// 絞り込む（複数選択可、全て外すと元に戻る）。選択は検索結果の表示が消えると捨てる。
+/// [showFilter]がfalseなら（アイコン列の細い幅など）チップを出さず従来の表示だけにする。
+class TalksSearchResultsView extends ConsumerStatefulWidget {
+  const TalksSearchResultsView({
+    required this.sections,
+    required this.dmSectionLabel,
+    required this.groupSectionLabel,
+    required this.messageSectionLabel,
+    required this.noResultsLabel,
+    required this.isGekiga,
+    required this.dmTileBuilder,
+    required this.groupTileBuilder,
+    required this.messageTileBuilder,
+    this.padding,
+    this.showFilter = true,
+    this.dmSelected,
+    this.groupSelected,
+    super.key,
+  });
+
+  final TalksSearchSections sections;
+  final String dmSectionLabel;
+  final String groupSectionLabel;
+  final String messageSectionLabel;
+  final String noResultsLabel;
+  final bool isGekiga;
+  final Widget Function(BuildContext context, DirectMessage dm) dmTileBuilder;
+  final Widget Function(BuildContext context, Group group) groupTileBuilder;
+  final Widget Function(BuildContext context, MessageSearchHit hit)
+  messageTileBuilder;
+  final EdgeInsetsGeometry? padding;
+  final bool showFilter;
+  final bool Function(DirectMessage dm)? dmSelected;
+  final bool Function(Group group)? groupSelected;
+
+  @override
+  ConsumerState<TalksSearchResultsView> createState() =>
+      _TalksSearchResultsViewState();
+}
+
+class _TalksSearchResultsViewState
+    extends ConsumerState<TalksSearchResultsView> {
+  final _kinds = <TalksSearchKind>{};
+
+  @override
+  Widget build(BuildContext context) {
+    final list = _TalksSearchResultsList(
+      sections: widget.showFilter
+          ? filterTalksSearchSections(widget.sections, _kinds)
+          : widget.sections,
+      dmSectionLabel: widget.dmSectionLabel,
+      groupSectionLabel: widget.groupSectionLabel,
+      messageSectionLabel: widget.messageSectionLabel,
+      noResultsLabel: widget.noResultsLabel,
+      isGekiga: widget.isGekiga,
+      dmTileBuilder: widget.dmTileBuilder,
+      groupTileBuilder: widget.groupTileBuilder,
+      messageTileBuilder: widget.messageTileBuilder,
+      padding: widget.padding,
+      dmSelected: widget.dmSelected,
+      groupSelected: widget.groupSelected,
+    );
+    if (!widget.showFilter) return list;
+    final uiStyle = ref.watch(appUiStyleProvider);
+    final labels = {
+      TalksSearchKind.dm: widget.dmSectionLabel,
+      TalksSearchKind.group: widget.groupSectionLabel,
+      TalksSearchKind.message: widget.messageSectionLabel,
+    };
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+          child: uiStyle == AppUiStyle.gekiga
+              ? GekigaChoiceChipRow(
+                  labels: [
+                    for (final kind in TalksSearchKind.values) labels[kind]!,
+                  ],
+                  selected: [
+                    for (final kind in TalksSearchKind.values)
+                      _kinds.contains(kind),
+                  ],
+                  onTap: (i) => setState(() {
+                    final kind = TalksSearchKind.values[i];
+                    if (!_kinds.remove(kind)) _kinds.add(kind);
+                  }),
+                )
+              : Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final kind in TalksSearchKind.values)
+                      StyleChoiceChip(
+                        uiStyle: uiStyle,
+                        selected: _kinds.contains(kind),
+                        onTap: () => setState(() {
+                          if (!_kinds.remove(kind)) _kinds.add(kind);
+                        }),
+                        labelBuilder: (fg) =>
+                            Text(labels[kind]!, style: TextStyle(color: fg)),
+                      ),
+                  ],
+                ),
+        ),
+        Expanded(child: list),
+      ],
+    );
+  }
+}
+
 /// メッセージ内容検索のヒット1件分のタイル（2026-09-12追加）。会話名（相手の
 /// 呼び名/広場名）と本文スニペットを表示する。[compact]はアイコン列
 /// （112px幅）向けの簡易表示。
@@ -562,7 +709,6 @@ class MessageSearchHitTile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final timeFormat = ref.watch(messageTimeFormatProvider);
     final uiStyle = ref.watch(appUiStyleProvider);
     final colorScheme = Theme.of(context).colorScheme;
     final otherUser = hit.isDm
@@ -578,44 +724,57 @@ class MessageSearchHitTile extends ConsumerWidget {
     final iconUrl = hit.isDm
         ? otherUser?.effectiveIconFor(hit.dm!.dmId)?.url
         : hit.group!.profileCard?.iconUrl;
+    final iconFocal = hit.isDm
+        ? otherUser?.effectiveIconFocalFor(hit.dm!.dmId)
+        : hit.group!.profileCard?.iconFocal;
     final snippet = messageSnippetOf(hit.message.content);
     final sentAt = hit.message.sentAt?.toDate();
-    final timeLabel = sentAt == null
-        ? null
-        : formatConversationListTime(sentAt, DateTime.now(), timeFormat);
 
-    final avatarRadius = compact ? 14.0 : 20.0;
-    final avatarFallback = Icon(
+    // 語らい一覧の行（`DirectMessageTile`/`GroupTile`）と同じ部品・寸法で描き、
+    // どのUIスタイルでも一覧と揃える（2026-11-06）。
+    final avatarSize = compact ? 28.0 : 40.0;
+    final isGekiga = uiStyle == AppUiStyle.gekiga;
+    final iconColor = isGekiga
+        ? GekigaColors.onPanel
+        : colorScheme.onSurfaceVariant;
+    final fallbackIcon = Icon(
       hit.isDm ? Icons.person : Icons.groups,
-      size: compact ? 14 : 20,
-      color: colorScheme.onSurfaceVariant,
+      size: compact ? 14 : null,
     );
     final avatar = uiStyle == AppUiStyle.glass
         ? GlassAvatar(
-            size: avatarRadius * 2,
+            size: avatarSize,
             image: iconUrl != null ? NetworkImage(iconUrl) : null,
-            fallback: iconUrl != null ? null : avatarFallback,
+            focal: iconFocal,
+            fallback: iconUrl != null
+                ? null
+                : Icon(
+                    hit.isDm ? Icons.person : Icons.groups,
+                    size: compact ? 14 : 20,
+                    color: colorScheme.onSurfaceVariant,
+                  ),
           )
-        : CircleAvatar(
-            radius: avatarRadius,
-            backgroundImage: iconUrl != null ? NetworkImage(iconUrl) : null,
-            backgroundColor: Colors.transparent,
-            foregroundColor: colorScheme.onSurfaceVariant,
-            child: iconUrl == null ? avatarFallback : null,
+        : SizedBox(
+            width: avatarSize,
+            height: avatarSize,
+            child: FocalCircleAvatar(
+              blockFrame: true,
+              url: iconUrl,
+              focal: iconFocal,
+              foregroundColor: iconColor,
+              fallback: fallbackIcon,
+            ),
           );
     final titleWidget = Text(
       conversationLabel,
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
     );
-    final subtitleWidget = Text(
-      snippet,
-      maxLines: compact ? 1 : 2,
-      overflow: TextOverflow.ellipsis,
-    );
-    final trailingWidget = compact || timeLabel == null
-        ? null
-        : Text(timeLabel, style: Theme.of(context).textTheme.bodySmall);
+    // 時刻は副題の行の右端（一覧と同じ）。アイコン列（compact）は幅が無いので出さない。
+    final subtitleWidget = compact
+        ? Text(snippet, maxLines: 1, overflow: TextOverflow.ellipsis)
+        : ConversationSubtitle(preview: snippet, lastMessageAt: sentAt);
+    const Widget? trailingWidget = null;
 
     switch (uiStyle) {
       case AppUiStyle.gekiga:
@@ -646,16 +805,19 @@ class MessageSearchHitTile extends ConsumerWidget {
         );
       case AppUiStyle.flat:
       case AppUiStyle.block:
-        return ListTile(
-          dense: compact,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+        return BlockTalkTileWrap(
+          selected: false,
+          child: ListTile(
+            dense: compact,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            leading: avatar,
+            title: titleWidget,
+            subtitle: subtitleWidget,
+            trailing: trailingWidget,
+            onTap: onTap,
           ),
-          leading: avatar,
-          title: titleWidget,
-          subtitle: subtitleWidget,
-          trailing: trailingWidget,
-          onTap: onTap,
         );
     }
   }

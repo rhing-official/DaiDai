@@ -30,8 +30,8 @@ const _file = MessageFileMetadata(
 );
 
 void main() {
-  group('転送できる種類', () {
-    test('本文・添付・複数添付・ぺったんは転送できる', () {
+  group('転送出来る種類', () {
+    test('本文・添付・複数添付・ぺったんは転送出来る', () {
       expect(canForwardMessage(_msg()), isTrue);
       expect(
         canForwardMessage(_msg(contentType: 'image', file: _file)),
@@ -55,7 +55,7 @@ void main() {
       );
     });
 
-    test('空の本文・通話履歴・通知カードは転送できない', () {
+    test('空の本文・通話履歴・通知カードは転送出来ない', () {
       expect(canForwardMessage(_msg(content: '  ')), isFalse);
       expect(canForwardMessage(_msg(contentType: 'call')), isFalse);
       expect(canForwardMessage(_msg(contentType: 'poll')), isFalse);
@@ -63,13 +63,13 @@ void main() {
     });
   });
 
-  group('共有できる種類', () {
-    test('添付と、本文だけのメッセージは共有できる', () {
+  group('共有出来る種類', () {
+    test('添付と、本文だけのメッセージは共有出来る', () {
       expect(shareableMessage(_msg()), isTrue);
       expect(shareableMessage(_msg(contentType: 'image', file: _file)), isTrue);
     });
 
-    test('空の本文・通話履歴は共有できない', () {
+    test('空の本文・通話履歴は共有出来ない', () {
       expect(shareableMessage(_msg(content: '')), isFalse);
       expect(shareableMessage(_msg(contentType: 'call')), isFalse);
     });

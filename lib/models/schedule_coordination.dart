@@ -14,9 +14,9 @@ enum ScheduleCoordinationVote {
   }
 }
 
-/// 寄合単位の日程調整（複数の候補日を提案し、参加者が候補ごとに○/△/×で
+/// 寄合単位の日程調整（複数の候補日を提案し、参加者が候補毎に○/△/×で
 /// 回答する機能、2026-09-05追加。`directMessages/{dmId}/rooms/{roomId}/
-/// scheduleCoordinations/{coordinationId}`または`groups/{groupId}/rooms/
+/// scheduleCoordinations/{coordinationId}`又は`groups/{groupId}/rooms/
 /// {roomId}/scheduleCoordinations/{coordinationId}`）。
 ///
 /// [CalendarEvent]の参加確認（RSVP）機能と同じ設計を踏襲する。回答は
@@ -75,7 +75,7 @@ class ScheduleCoordination {
   final List<String> bannerHiddenFor;
 
   /// この日程調整の種類（`CalendarCategory.categoryId`、2026-09-11追加）。
-  /// 作成後の編集手段が無いため、作成時に指定した値のまま変更されない。
+  /// 作成後の編集手段が無い為、作成時に指定した値のまま変更されない。
   final String? categoryId;
 
   bool get isFinalized => finalizedEventId != null;

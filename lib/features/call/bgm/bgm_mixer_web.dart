@@ -19,7 +19,7 @@ class BgmMixer {
   JSFunction? _endedListener;
 
   /// 元のマイクトラックを入力に、混合した出力トラックを返す。ユーザー操作の中で呼ぶ
-  /// （ブラウザの自動再生の制限で、`AudioContext`の開始に操作が要るため）。
+  /// （ブラウザの自動再生の制限で、`AudioContext`の開始に操作が要る為）。
   MediaStreamTrack attach(MediaStreamTrack mic) {
     final context = _context ??= web.AudioContext();
     unawaited(context.resume().toDart);

@@ -45,7 +45,7 @@ Node _cell(Node table, int col, int row) => table.children.firstWhere(
       c.attributes[TableCellBlockKeys.rowPosition] == row,
 );
 
-/// 表全体のセルのテキストを「行ごとのリスト」で返す（行→列の順）。
+/// 表全体のセルのテキストを「行毎のリスト」で返す（行→列の順）。
 List<List<String>> _rows(Node table) {
   final rows = table.attributes[TableBlockKeys.rowsLen] as int;
   final cols = table.attributes[TableBlockKeys.colsLen] as int;

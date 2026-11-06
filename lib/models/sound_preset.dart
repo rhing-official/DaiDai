@@ -2,10 +2,10 @@
 /// （2026-09-06追加、`notification`は同日Phase Bとして追加）。
 ///
 /// 着信音・呼出音はDaiDaiが既にOSのプッシュ通知を経由せず`CallSoundPlayer`
-/// （audioplayers）でローカル再生しているため、プラットフォームのOS制約を
-/// 受けず同梱プリセット＋端末からのアップロードの両方に対応できる。
-/// 一方通知音は実際のOSプッシュ通知を経由するため、iOS/Web/Windows/Linux/
-/// macOSでは技術的制約またはプッシュ通知自体が未実装のため対象外とし、
+/// （audioplayers）でローカル再生している為、プラットフォームのOS制約を
+/// 受けず同梱プリセット＋端末からのアップロードの両方に対応出来る。
+/// 一方通知音は実際のOSプッシュ通知を経由する為、iOS/Web/Windows/Linux/
+/// macOSでは技術的制約又はプッシュ通知自体が未実装のため対象外とし、
 /// Androidのみ同梱プリセット＋アップロードに対応する（`android_notification_
 /// sound_sync.dart`・`push_notifications.dart`参照）。`notification`の
 /// プリセット`id`はそのままAndroidのraw resource名として使う規約にしている
@@ -13,7 +13,7 @@
 enum SoundCategory { ringtone, calling, notification }
 
 /// 同梱されている選択肢1件。表示名は`Strings`側（`settings_tab.dart`の
-/// `soundPresetLabel`）で日英切り替えするため、ここでは持たない
+/// `soundPresetLabel`）で日英切り替えする為、ここでは持たない
 /// （`FontDesign`の表示名がモデルではなく設定UI側の`labelFor`に
 /// あるのと同じ考え方）。
 class SoundPreset {
@@ -79,8 +79,8 @@ extension SoundCategoryPresets on SoundCategory {
     SoundCategory.notification => presets.first,
   };
 
-  /// 保存値（プリセットIDまたは`http`で始まるカスタムアップロード音源の
-  /// ダウンロードURL）を、実際に再生できるソース文字列に解決する。
+  /// 保存値（プリセットID又は`http`で始まるカスタムアップロード音源の
+  /// ダウンロードURL）を、実際に再生出来るソース文字列に解決する。
   /// プリセットIDは`AssetSource`用の相対パスへ変換し、URLはそのまま返す
   /// （呼び出し側は`http`で始まるかどうかで`AssetSource`/`UrlSource`を
   /// 使い分ける、[CallSoundPlayer]参照）。
@@ -96,8 +96,8 @@ extension SoundCategoryPresets on SoundCategory {
 }
 
 /// 通知音プリセットに対応するAndroid通知チャンネルID（`daidai_messages_<
-/// プリセットid>`）。チャンネルは作成後に音を変更できないため、音の
-/// 選択肢ごとに別チャンネルを用意する方式にしている（`push_notifications.dart`・
+/// プリセットid>`）。チャンネルは作成後に音を変更出来ない為、音の
+/// 選択肢毎に別チャンネルを用意する方式にしている（`push_notifications.dart`・
 /// `android_notification_sound_sync.dart`で共有、2026-09-06追加）。
 String androidNotificationChannelIdFor(String presetId) =>
     'daidai_messages_$presetId';

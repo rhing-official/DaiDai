@@ -5,10 +5,10 @@ import 'package:flutter/material.dart';
 /// [vertices]の多角形の各辺を内側へ[inset]だけ平行移動し、隣り合う辺の
 /// 交点を新しい頂点として返す（同心の縁取り・塗りを重ねて描くための
 /// 下ごしらえ）。重心方向へ頂点を縮める単純な方式だと、辺の向きによって
-/// 縁の太さがバラついたり凹み部分で図形が破綻したりするため、辺単位の
+/// 縁の太さがバラついたり凹み部分で図形が破綻したりする為、辺単位の
 /// 平行移動＋交点計算という、太さが均一になる正しいオフセット処理にして
 /// いる（2026-07-30、chat_screen.dartの`_insetPolygon`から移動・公開化。
-/// アプリ全体で劇画のジグザグ意匠を共有するための共通部品）。
+/// アプリ全体で劇画のジグザグ意匠を共有する為の共通部品）。
 List<Offset> insetPolygon(List<Offset> vertices, double inset) {
   final n = vertices.length;
   final centroid = vertices.reduce((a, b) => a + b) / n.toDouble();
@@ -50,7 +50,7 @@ List<Offset> insetPolygon(List<Offset> vertices, double inset) {
 /// [vertices]の多角形の各頂点を、隣接する2辺それぞれの方向に沿って
 /// [cut]だけ離れた2点に置き換え、角を斜めにカットした（面取りした）
 /// 多角形の頂点リストを返す（矩形の4頂点なら8頂点の八角形風になる）。
-/// [handDrawnPolygonPath]・[insetPolygon]は頂点数を問わない汎用実装のため、
+/// [handDrawnPolygonPath]・[insetPolygon]は頂点数を問わない汎用実装の為、
 /// この関数で頂点を増やしてから渡すだけで、ジグザグ描画・同心オフセットの
 /// どちらもそのまま角カット済みの形に対応する（2026-08-05追加）。
 List<Offset> cutCorners(List<Offset> vertices, double cut) {
@@ -102,7 +102,7 @@ List<Offset> monochromeBoxVertices(
   // （2026-08-05調整、前回はy方向を半分に抑えるだけだったが変化が乏しかった
   // ため無しまで戻した）。左上角自身の鋭さを右下寄りに戻すと同時に、
   // 左下角の内角がその分だけ自動的に大きくなる（両者は左下↔左上の辺を
-  // 共有しており、この辺の傾きが変わるため）。x方向まで縮めると逆に左下角
+  // 共有しており、この辺の傾きが変わる為）。x方向まで縮めると逆に左下角
   // の内角は小さくなってしまうため、x方向は変えずy方向だけを縮めている。
   final topLeftY = 0.0;
   return [
@@ -172,7 +172,7 @@ Path pathFromPoints(List<Offset> points) {
 /// 開いた点列（[from]自体は含まない、[to]で終わる）にする。[seed]・
 /// [from]/[to]が同じなら常に同じ点列になる。
 ///
-/// 隣り合う2つの箱の接する辺を同じ1本の線として共有するために
+/// 隣り合う2つの箱の接する辺を同じ1本の線として共有する為に
 /// 使う（[GekigaJointedTileList]・[GekigaJointedPair]参照、2026-08-04
 /// 追加。[handDrawnPolygonPath]は必ず閉多角形を返すため1辺だけを
 /// 取り出せず、そのロジックをここに抜き出した）。

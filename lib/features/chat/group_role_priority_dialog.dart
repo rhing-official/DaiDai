@@ -10,7 +10,7 @@ import '../../widgets/app_dialog.dart';
 
 /// ロールの優先順位（呼び名の色を決める順序、先頭が最優先）をドラッグ＆ドロップで
 /// 並べ替えるダイアログ。広場全体の優先順位（`GroupRepository.setRolePriority`）と、
-/// 寄合ごとの優先順位上書き（`setRoomRolePriorityOverride`）の両方から共通で使う
+/// 寄合毎の優先順位上書き（`setRoomRolePriorityOverride`）の両方から共通で使う
 /// （2026-07-28追加）。基準ロール（`isEveryone`）は常に最下位固定のため対象外。
 class GroupRolePriorityDialog extends StatefulWidget {
   const GroupRolePriorityDialog({
@@ -25,7 +25,7 @@ class GroupRolePriorityDialog extends StatefulWidget {
 
   final ValueChanged<List<String>> onSave;
 
-  /// 非nullなら「広場全体の設定に戻す」ボタンを表示する（寄合ごとの
+  /// 非nullなら「広場全体の設定に戻す」ボタンを表示する（寄合毎の
   /// 優先順位上書きを解除する用途）。
   final VoidCallback? onReset;
 

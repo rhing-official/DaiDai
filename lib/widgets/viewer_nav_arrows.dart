@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:pointer_interceptor/pointer_interceptor.dart';
 
 /// モバイルの拡大表示か。表示物を1回タップすると操作部品（矢印・右上のメニュー・映像の
-/// 中央ボタン）を隠す動きの対象（2026-11-06）。Android/iOS、またはPCでも幅が狭い
+/// 中央ボタン）を隠す動きの対象（2026-11-06）。Android/iOS、又はPCでも幅が狭い
 /// （短辺600dp未満＝アプリの「モバイル幅」）時に対象にする。
 bool isMobileViewer(BuildContext context) =>
     defaultTargetPlatform == TargetPlatform.android ||

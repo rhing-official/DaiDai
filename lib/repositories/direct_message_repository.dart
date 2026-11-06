@@ -32,7 +32,7 @@ abstract class DirectMessageRepository {
 
   /// この一対の寄合（テキストチャンネル）一覧を作成順に購読する。[userId]は
   /// 呼び出し元本人のuserId（firestore.rulesの`list`操作はクエリ自体に
-  /// ルールと同じ条件の`where`句が無いと要求全体を拒否するため、クエリ側にも
+  /// ルールと同じ条件の`where`句が無いと要求全体を拒否する為、クエリ側にも
   /// `participants`のarray-contains条件を付ける必要がある。
   /// `GroupRepository.watchRooms`参照）。
   Stream<List<DmRoom>> watchRooms({
@@ -70,7 +70,7 @@ abstract class DirectMessageRepository {
   });
 
   /// 寄合を削除する。全メッセージも物理削除する。この一対の最後の1つの
-  /// 寄合は削除できない（[StateError]を投げる）。
+  /// 寄合は削除出来ない（[StateError]を投げる）。
   Future<void> deleteRoom({
     required String dmId,
     required String roomId,
@@ -79,7 +79,7 @@ abstract class DirectMessageRepository {
 
   Stream<List<Message>> watchMessages(String dmId, String roomId);
 
-  /// [before]（[watchMessages]のライブ窓、または前回の続き）より古い
+  /// [before]（[watchMessages]のライブ窓、又は前回の続き）より古い
   /// メッセージを最大[limit]件、新しい順に1回だけ取得する（2026-10-06追加、
   /// 件数ベースのページネーション。従来の日単位から変更）。ライブ購読は
   /// せず、過去分は静的なスナップショットのまま（編集・リアクション等の
@@ -104,7 +104,7 @@ abstract class DirectMessageRepository {
   /// 語らい検索（`talks_search.dart`）のメッセージ内容検索用に、直近
   /// [limit]件のメッセージを1回だけ取得する（2026-09-12追加、購読はしない）。
   /// サーバー側の全文検索インデックスは持たない方針（プライバシーファースト
-  /// ＋フェーズ2のE2E暗号化方針と矛盾するため）のため、ここでFirestoreから
+  /// ＋フェーズ2のE2E暗号化方針と矛盾する為）の為、ここでFirestoreから
   /// バルク取得した結果をクライアント側で`content`の部分一致フィルタに
   /// かける（`TalksMessageSearchSession`参照）。
   Future<List<Message>> getRecentMessagesForSearch({
@@ -115,7 +115,7 @@ abstract class DirectMessageRepository {
 
   /// 指定した1件のメッセージの最新状態を1回だけ取得する（2026-08-21追加）。
   /// [loadOlderMessages]で読み込んだ過去分はライブ購読しない静的な
-  /// スナップショットのため、その中のメッセージへ編集・リアクション等を
+  /// スナップショットの為、その中のメッセージへ編集・リアクション等を
   /// 行った直後にローカル側の表示を更新する目的で使う。既に物理削除済み
   /// （送信取り消し等）ならnullを返す。
   Future<Message?> getMessage({
@@ -187,9 +187,9 @@ abstract class DirectMessageRepository {
   /// 通話が終了した際、通話履歴メッセージ（開始時刻・通話時間）を送る。
   /// 発信者側からのみ呼ばれる（`WebrtcCallController`参照）。実際に接続
   /// （応答）された通話のみが対象で、不在着信・拒否の場合は呼ばれない。
-  /// 通話はどの寄合を開いていても発信できるため、常にこの一対で最も
+  /// 通話はどの寄合を開いていても発信出来る為、常にこの一対で最も
   /// 古い（`createdAt`が最小の）寄合に投稿する（呼び出し側でroomIdを
-  /// 意識させないための設計）。
+  /// 意識させない為の設計）。
   Future<void> sendCallSummaryMessage({
     required String dmId,
     required String senderId,
@@ -266,7 +266,7 @@ abstract class DirectMessageRepository {
   /// 自分のこのメッセージへのリアクションを、呼び出し側が計算済みの
   /// 完全な絵文字リストで上書きする（空リストなら解除。2026-08-05変更、
   /// 以前は単一絵文字の設定/解除だったが、複数の異なる絵文字を同時に
-  /// 持てるようになったため、差分ではなく完全なリストを渡す形にした）。
+  /// 持てるようになった為、差分ではなく完全なリストを渡す形にした）。
   Future<void> setReaction({
     required String dmId,
     required String roomId,
@@ -333,7 +333,7 @@ abstract class DirectMessageRepository {
     required String otherUserId,
   });
 
-  /// 既読機能のオン/オフの変更を提案する（一対共有の1つの設定。個人ごとの
+  /// 既読機能のオン/オフの変更を提案する（一対共有の1つの設定。個人毎の
   /// 非公開設定ではない）。提案は常に現在の値を反転させることを意味する。
   /// 相手が[acceptReadReceiptsToggle]で承認するまで反映されない。
   Future<void> proposeReadReceiptsToggle({
@@ -341,7 +341,7 @@ abstract class DirectMessageRepository {
     required String userId,
   });
 
-  /// 既読オン/オフの変更提案を取り消す（自分が提案した場合）、または
+  /// 既読オン/オフの変更提案を取り消す（自分が提案した場合）、又は
   /// 辞退する（相手からの提案に同意しない場合）。どちらも同じくフラグを
   /// クリアするだけ。
   Future<void> cancelReadReceiptsToggleProposal(String dmId);
@@ -364,12 +364,12 @@ abstract class DirectMessageRepository {
   });
 
   /// アカウント削除通知メッセージの「はい」（確認ダイアログの上で呼ばれる）。
-  /// 相手のアカウントが既に削除されている場合のみ実行できる
+  /// 相手のアカウントが既に削除されている場合のみ実行出来る
   /// （[DirectMessage.accountDeletedUserId]、firestore.rulesで強制）。
   /// この一対の全寄合・全メッセージとドキュメント自体を物理削除する。
   /// [userId]は呼び出し元本人のuserId（`rooms`サブコレクションの
   /// 絞り込み無し`.get()`が`list`操作としてfirestore.rulesにpermission-denied
-  /// される問題を避けるため、`DirectMessageRepository.watchRooms`と同じ
+  /// される問題を避ける為、`DirectMessageRepository.watchRooms`と同じ
   /// 理由で必要。他の`rooms`一括操作系メソッド全般に共通する制約）。
   Future<void> deleteDmAfterAccountDeletion(
     String dmId, {
@@ -411,7 +411,7 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
       }
       // 複数寄合機能移行時（migrateDirectMessagesToRoomsOnce、実行後ソースから
       // 削除済み）は、当時メッセージが1件も無かった一対を移行対象から漏らして
-      // おり、寄合が1件も無いまま取り残されたドキュメントが存在した
+      // おり、寄合が1件も無今ま取り残されたドキュメントが存在した
       // （一対の一覧が丸ごと表示されなくなる不具合の原因、watchDirectMessages
       // 参照）。ここで気付いた時点で「メイン」寄合を作って補修する。
       final repairedRoomRef = ref.collection('rooms').doc();
@@ -479,7 +479,7 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
   Stream<List<DirectMessage>> watchDirectMessages(String userId) {
     // watchRoomsと同じ理由でorderBy('lastMessageAt')は使わない。まだ
     // メッセージを1件も送っていない作成直後の一対はlastMessageAtが
-    // 常にnullのままのため、orderByを付けるとFirestoreのクエリ結果から
+    // 常にnullのままの為、orderByを付けるとFirestoreのクエリ結果から
     // 恒久的に除外され、一対の一覧に一切表示されなくなってしまっていた。
     return _directMessages
         .where('participants', arrayContains: userId)
@@ -613,7 +613,7 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
         .where('participants', arrayContains: requestedBy)
         .get();
     if (roomsSnapshot.docs.length <= 1) {
-      throw StateError('最後の1つの寄合は削除できません');
+      throw StateError('最後の1つの寄合は削除出来ません');
     }
 
     final roomRef = _dmRoomRef(dmId, roomId);
@@ -777,7 +777,7 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
     batch.update(roomRef, {'lastMessageAt': FieldValue.serverTimestamp()});
     // 語らい一覧（TalksTab）はDM単位でlastMessageAt順に並ぶため、寄合側に
     // 加えてDM本体のlastMessageAtも更新する（どの寄合に投稿しても一覧の
-    // 並び順に反映されるようにするため）。lastMessageSenderIdは一覧の
+    // 並び順に反映されるようにする為）。lastMessageSenderIdは一覧の
     // 「未読優先」並べ替え用（2026-09-02追加）。lastMessageContentType/
     // lastMessagePreviewは一覧の最新メッセージプレビュー表示用
     // （2026-09-02追加）。
@@ -1293,12 +1293,12 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
     // 各メッセージの現在のhiddenForを確認し、自分を加えた結果が参加者
     // 全員をカバーするなら物理削除、そうでなければhiddenForに自分を追加する
     // 更新に留める（1件ずつgetするのは、Firestoreの`whereIn`が30件までの
-    // 制約を持つため、選択件数に上限を設けずに済むようにするための選択）。
+    // 制約を持つため、選択件数に上限を設けずに済むようにする為の選択）。
     final docs = await Future.wait(
       messageIds.map((id) => messagesRef.doc(id).get()),
     );
 
-    // Firestoreの1バッチは500件までのため、chunk単位でコミットする。
+    // Firestoreの1バッチは500件までの為、chunk単位でコミットする。
     final attachmentUrlsToDelete = <String>[];
     for (var i = 0; i < docs.length; i += 400) {
       final chunk = docs.sublist(
@@ -1336,7 +1336,7 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
     }
 
     // 参加者全員が削除し終え物理削除されたメッセージの添付ファイルは、
-    // Firestore上には残らないがFirebase Storage上には実体が残るため、
+    // Firestore上には残らないがFirebase Storage上には実体が残る為、
     // ストレージの肥大化防止のためあわせて削除する（削除失敗は無視）。
     await Future.wait(
       attachmentUrlsToDelete.map((url) async {
@@ -1392,11 +1392,11 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
     // （2026-09-01変更、以前はメッセージ・寄合の削除ループの後に実行して
     // いた）。firestore.rules上、friends/friendRequestsの削除条件は
     // 「一対ドキュメントにseveranceRequestedByが立っていて削除者が提案者
-    // 本人でないこと」のみでメッセージ削除の完了を前提としないため、
+    // 本人でないこと」のみでメッセージ削除の完了を前提としない為、
     // 順序を入れ替えても問題ない。以前の順序だと、時間のかかるメッセージ
     // 削除ループの途中でタブを閉じる・通信切断等により処理が中断された場合、
     // 会話は消えて絶縁が完了したように見えてもfriendsドキュメントが
-    // 削除されないまま残り、後から「すでに友達です」と表示される不具合が
+    // 削除されないまま残り、後から「既に友達です」と表示される不具合が
     // あった。友達関係の解消を最優先の原子的操作として先に完了させることで、
     // 以降の処理が中断されても実害の少ない残骸（空のメッセージ・寄合・
     // 一対ドキュメント）が残るだけで済むようにする。
@@ -1416,7 +1416,7 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
           .doc(currentUserId),
     );
     // friendRequestsのidはdirectMessagesのdmIdと同じ組み立て方（pairId）の
-    // ため、同じdmIdでそのままドキュメントを特定できる。
+    // ため、同じdmIdでそのままドキュメントを特定出来る。
     cascadeBatch.delete(_firestore.collection('friendRequests').doc(dmId));
     await cascadeBatch.commit();
 
@@ -1427,10 +1427,10 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
         .where('participants', arrayContains: currentUserId)
         .get();
 
-    // Firestoreの1バッチは500件までのため、無くなるまでページ単位で削除を
+    // Firestoreの1バッチは500件までの為、無くなるまでページ単位で削除を
     // 繰り返す（全寄合分）。DMドキュメント自体（severanceRequestedByフラグ）
     // はこの間消さずに残しておく必要がある（各messageのdeleteルールが
-    // このフラグを参照して双方合意済みかどうかを検証するため）。
+    // このフラグを参照して双方合意済みかどうかを検証する為）。
     for (final roomDoc in roomsSnapshot.docs) {
       final messagesRef = roomDoc.reference.collection('messages');
       while (true) {
@@ -1445,8 +1445,8 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
       await roomDoc.reference.delete();
     }
 
-    // 一対自体は、上記すべての削除を許可する根拠（severanceRequestedBy）を
-    // 持っているため、最後に削除する。
+    // 一対自体は、上記全ての削除を許可する根拠（severanceRequestedBy）を
+    // 持っている為、最後に削除する。
     await dmRef.delete();
   }
 
@@ -1514,7 +1514,7 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
         .get();
 
     // acceptSeveranceと同じページ単位の削除ループ（削除済みのdocは次回
-    // 取得に現れないため.limit(400)の繰り返し取得で全件処理できる）。
+    // 取得に現れないため.limit(400)の繰り返し取得で全件処理出来る）。
     // friends/friendRequestsのカスケード削除は、アカウント削除処理
     // （Cloud Functions）が既に行っているためここでは不要。
     for (final roomDoc in roomsSnapshot.docs) {
@@ -1535,7 +1535,7 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
   }
 
   /// [messagesRef]配下の全メッセージの既読履歴（readBy）を空にする。
-  /// 更新後もドキュメントは残り続けるため、`acceptSeverance`の
+  /// 更新後もドキュメントは残り続ける為、`acceptSeverance`の
   /// （削除により毎回別集合が返ってくる）`.limit(400)`繰り返し取得とは
   /// 異なり、カーソルで明示的にページを進める必要がある。
   Future<void> _clearAllReadReceipts(

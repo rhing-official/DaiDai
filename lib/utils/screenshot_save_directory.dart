@@ -4,17 +4,17 @@ import 'dart:io';
 /// 機能がPNGを保存する先のディレクトリ（無ければ作成して返す）
 /// （2026-09-15追加、[isDesktopPlatform]参照）。`path_provider`はDownloads
 /// フォルダ相当までしか標準化しておらず「スクリーンショット」専用
-/// ディレクトリという概念自体を持たないため、各OSの実際のスクリーンショット
+/// ディレクトリという概念自体を持たない為、各OSの実際のスクリーンショット
 /// ツールの既定保存先の慣習に合わせてパスを組み立てる:
 ///
 /// - Windows: `%USERPROFILE%\Pictures\Screenshots`（Win+PrtScn等の既定
 ///   保存先と同じ慣習）。
 /// - macOS: `defaults read com.apple.screencapture location`
-///   （`screencapture`コマンドの保存先設定）で確認できるユーザー設定。
+///   （`screencapture`コマンドの保存先設定）で確認出来るユーザー設定。
 ///   未設定・コマンド失敗時はmacOSの既定である`~/Desktop`。
 /// - Linux: `~/Pictures/Screenshots`（GNOME等で広く使われる慣習。
 ///   デスクトップ環境によって異なり得るが、`path_provider`/XDGにも
-///   「スクリーンショット」専用ディレクトリの概念自体が無いため、最も
+///   「スクリーンショット」専用ディレクトリの概念自体が無い為、最も
 ///   一般的な慣習を採用する）。
 Future<Directory> resolveScreenshotSaveDirectory() async {
   final Directory directory;

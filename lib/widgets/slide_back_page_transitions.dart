@@ -8,7 +8,7 @@ import 'swipe_gestures.dart';
 
 /// ローカル`Navigator`でpushされたルート向けの、右からのスライド入場と
 /// 右スワイプで戻る操作（2026-10-16追加）。設定のオープンソースライセンスの
-/// パッケージ詳細（`LicensePage`が`MaterialPageRoute`をpushするため、ルート
+/// パッケージ詳細（`LicensePage`が`MaterialPageRoute`をpushする為、ルート
 /// 自体は差し替えられず、`Theme`の`pageTransitionsTheme`経由で適用する）に使う。
 ///
 /// ドラッグ中はルート自身のアニメーションを動かす（`PredictiveBackRoute`の

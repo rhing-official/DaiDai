@@ -3,7 +3,7 @@
 /// 表すカテゴリ1件につき1つの[StickerRole]を持ち、[keywords]に紐付いた
 /// 語のいずれかがメッセージ本文に含まれると、[Sticker.roles]でこの
 /// [roleId]を持つぺったんが提案候補になる。アプリ再配布無しでキーワードを
-/// 調整できるよう、コード内定数ではなくFirestoreの`stickerRoles`
+/// 調整出来るよう、コード内定数ではなくFirestoreの`stickerRoles`
 /// コレクションで保持する（`StickerRepository.watchRoles()`参照）。
 class StickerRole {
   const StickerRole({

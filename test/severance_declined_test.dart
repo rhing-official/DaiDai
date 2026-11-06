@@ -12,7 +12,7 @@ void main() {
     expect(DirectMessage.fromJson('a_b', json()).severanceDeclinedBy, isNull);
   });
 
-  test('拒否した人のuserIdを読み書きできる', () {
+  test('拒否した人のuserIdを読み書き出来る', () {
     final dm = DirectMessage.fromJson('a_b', {
       ...json(),
       'severanceDeclinedBy': 'b',

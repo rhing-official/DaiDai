@@ -184,7 +184,7 @@ RTCVideoRenderer? pickCallRenderer(ActiveCallSession session) {
   }
 }
 
-/// 映像が無い間（音声のみの通話、またはビデオ通話でも相手・自分どちらも
+/// 映像が無い間（音声のみの通話、又はビデオ通話でも相手・自分どちらも
 /// 映像を出していない間）に中央へ表示するアバター情報（userId・rhingSeed・
 /// 会話id）。通話画面の音声通話時（`CallScreen._audioBody`/
 /// `GroupCallScreen._audioBody`）と同じ[CallParticipantAvatar]を、
@@ -295,7 +295,7 @@ class _PinnedCallBubble extends ConsumerWidget {
         // 通話画面（CallControlBar）と同じ相対順序（マイク→カメラ→
         // 切断）で1本の行にまとめ、映像領域の下端に浮かせる
         // （2026-08-20追加）。以前は切断を右上・マイクを左下に散らして
-        // いたが、通話画面と並びを揃えるために統一した。
+        // いたが、通話画面と並びを揃える為に統一した。
         Positioned(
           left: 8,
           right: 8,
@@ -441,7 +441,7 @@ class _PinnedCallBubble extends ConsumerWidget {
   void _reopen(BuildContext context, WidgetRef ref) {
     if (isMobileCallPlatform) {
       // ドック中なら全画面へ戻す（同じセッションへ再アタッチする経路は
-      // 各画面のinitStateが冪等に処理するため、Argsの中身は起動時と同じ
+      // 各画面のinitStateが冪等に処理する為、Argsの中身は起動時と同じ
       // 形で渡せば良い）。
       ref.read(activeCallSessionProvider.notifier).setMinimized(false);
       final router = ref.read(goRouterProvider);

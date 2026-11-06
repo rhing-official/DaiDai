@@ -18,7 +18,7 @@ import 'branded_block_button.dart';
 /// 抽出した「G」ロゴ単体、色・形状とも無加工）を使う。
 ///
 /// 配色ロジック本体は[BrandedBlockButton]に集約されており（2026-09-23、
-/// QRコード・パスキーログインボタンにも同じ見た目を流用するため）、この
+/// QRコード・パスキーログインボタンにも同じ見た目を流用する為）、この
 /// クラスはGoogleロゴ・文言を渡す薄いラッパー。
 class GoogleSignInButton extends ConsumerWidget {
   const GoogleSignInButton({

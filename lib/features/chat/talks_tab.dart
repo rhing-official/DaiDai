@@ -130,12 +130,12 @@ const kTalksSplitBreakpoint = 760.0;
 /// コンピューター相当、2026-09-12追加）。向きを問わず判定するため2026-09-14に
 /// 幅から短辺基準へ変更した（[_TalksTabState._showIconSplitPeek]参照）。
 /// これ未満の端末（スマホ相当）では、画面が狭くメッセージ画面を同時に収められ
-/// ないため、従来通り寄合をタップした時点でフルスクリーンチャットへ遷移する。
+/// ない為、従来通り寄合をタップした時点でフルスクリーンチャットへ遷移する。
 const kIconSplitPeekBreakpoint = 600.0;
 
 /// スマホ（短辺が[kIconSplitPeekBreakpoint]未満）のアイコン+寄合一覧で、アイコン列を
 /// 画面の下限まで伸ばすか（2026-11-02）。下部のメニューチップが、アイコン列の側とは
-/// 反対の側（または中央）に寄っている時だけ伸ばす: アイコン列が左（通常）ならチップが
+/// 反対の側（又は中央）に寄っている時だけ伸ばす: アイコン列が左（通常）ならチップが
 /// 中央・右揃えの時、アイコン列が右（反転）ならチップが中央・左揃えの時。
 bool iconRailExtendsToBottom(
   BuildContext context, {
@@ -195,7 +195,7 @@ const kIconSplitIconOnlyMaxWidth = 80.0;
 
 /// 区切り線をドラッグして隣の幅を変える（2026-11-05）。見える線は中央の1pxで、左右の
 /// つかみ代を含めて[kIconSplitHandleWidth]の幅を取る。指が触れただけで動かないよう、
-/// 設定の「幅を調整する」（[iconSplitAdjustingProvider]）がオンの間だけ操作できる
+/// 設定の「幅を調整する」（[iconSplitAdjustingProvider]）がオンの間だけ操作出来る
 /// （ドラッグ・ダブルタップで標準の幅へ・タップで調整を終える）。PCも同じ。
 class SplitDivider extends ConsumerStatefulWidget {
   const SplitDivider({
@@ -223,8 +223,8 @@ class SplitDivider extends ConsumerStatefulWidget {
 }
 
 class _SplitDividerState extends ConsumerState<SplitDivider> {
-  // 再構築を待たずに指へ追従させるため、ドラッグ開始時の幅に移動量を足し込む
-  // （イベントごとに「描画済みの幅＋その差分」で上書きすると、再構築が追いつかない
+  // 再構築を待たずに指へ追従させる為、ドラッグ開始時の幅に移動量を足し込む
+  // （イベント毎に「描画済みの幅＋その差分」で上書きすると、再構築が追いつかない
   // 間の動きが失われて指より遅れる）。
   double _start = 0;
   double _total = 0;
@@ -232,7 +232,6 @@ class _SplitDividerState extends ConsumerState<SplitDivider> {
   @override
   Widget build(BuildContext context) {
     final adjusting = ref.watch(iconSplitAdjustingProvider);
-    final color = Theme.of(context).colorScheme.onSurface;
     return MouseRegion(
       cursor: adjusting ? SystemMouseCursors.resizeColumn : MouseCursor.defer,
       child: GestureDetector(
@@ -262,13 +261,10 @@ class _SplitDividerState extends ConsumerState<SplitDivider> {
           width: kIconSplitHandleWidth,
           child: Center(
             child: adjusting
-                ? Container(
-                    width: 6,
-                    height: 56,
-                    decoration: BoxDecoration(
-                      color: color.withValues(alpha: 0.55),
-                      borderRadius: BorderRadius.circular(3),
-                    ),
+                ? _AdjustGrip(
+                    lineColor: Theme.of(context).colorScheme.primary,
+                    gripColor: Theme.of(context).colorScheme.primary,
+                    iconColor: Theme.of(context).colorScheme.onPrimary,
                   )
                 : const VerticalDivider(width: 1),
           ),
@@ -278,9 +274,42 @@ class _SplitDividerState extends ConsumerState<SplitDivider> {
   }
 }
 
+/// 「幅を調整する」中の区切り線の見た目（2026-11-06）。アクセントカラーの太い線を全高に通し、
+/// 中央に、つかめると分かる縦長のつまみ（ドラッグの印付き）を置く。
+class _AdjustGrip extends StatelessWidget {
+  const _AdjustGrip({
+    required this.lineColor,
+    required this.gripColor,
+    required this.iconColor,
+  });
+
+  final Color lineColor;
+  final Color gripColor;
+  final Color iconColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        Container(width: 3, color: lineColor.withValues(alpha: 0.8)),
+        Container(
+          width: kIconSplitHandleWidth,
+          height: 72,
+          decoration: BoxDecoration(
+            color: gripColor,
+            borderRadius: BorderRadius.circular(7),
+          ),
+          child: Icon(Icons.drag_indicator, size: 14, color: iconColor),
+        ),
+      ],
+    );
+  }
+}
+
 /// 区切り線のドラッグ中、チャット側を「ドラッグ前の幅」のままレイアウトし、境目で切り取って
 /// 見せる部品（2026-11-05）。幅が変わるたびに全メッセージの文字の折り返しを計算し直すと
-/// 指に追従できないため、ドラッグ中は中身の幅を固定する（指を離すと本来の幅で1回だけ
+/// 指に追従出来ない為、ドラッグ中は中身の幅を固定する（指を離すと本来の幅で1回だけ
 /// 計算し直す）。ドラッグしていない時は何もしない（木の形は常に同じ）。
 class _FrozenWidthPane extends ConsumerStatefulWidget {
   const _FrozenWidthPane({
@@ -348,8 +377,8 @@ class _LiveWidth extends ConsumerWidget {
   }
 }
 
-/// アイコン列・寄合一覧のアイコンを[scale]倍にする（2026-11-05）。文字は全体の文字サイズ
-/// （`main.dart`の`MediaQuery`）で既に拡大されているため、ここでは二重に拡大しない。
+/// アイコン列・寄合一覧のアイコンを[scale]倍にする（2026-11-05）。文字は全体のフォントサイズ
+/// （`main.dart`の`MediaQuery`）で既に拡大されている為、ここでは二重に拡大しない。
 /// 拡大率が1.0でも常に包み、木の形を変えない（再マウント防止）。
 Widget scaledSplitPane(double scale, Widget child) {
   return Builder(
@@ -394,7 +423,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
 
   /// [_buildIconRail]で検索欄を表示中か（2026-09-12追加）。この列は112px幅しか
   /// 無く、標準レイアウトの`_buildSearchField`のようにタブ＋検索欄を常設で
-  /// 並べる余白が無いため、検索アイコンのタップでタブ表示と切り替える。
+  /// 並べる余白が無い為、検索アイコンのタップでタブ表示と切り替える。
   bool _iconRailSearchOpen = false;
 
   /// [_buildIconSplitPane]の3ブロック同時表示（タブレット・コンピューター
@@ -403,7 +432,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
   /// 寄合一覧を完全に畳んでメッセージ画面を全画面表示。`ValueNotifier`に
   /// しているのは、ドラッグ中に毎フレーム`setState`すると（Firestore購読を
   /// 抱えた）タブ全体が再構築されてしまうのを避け、実際に畳む幅計算だけを
-  /// 行う`_CollapsibleWidthPanel`だけを再描画するため。
+  /// 行う`_CollapsibleWidthPanel`だけを再描画する為。
   final ValueNotifier<double> _iconSplitCollapse = ValueNotifier(0);
 
   /// [_iconSplitCollapse]をドラッグ終了後に0/1へ収束させるアニメーション
@@ -412,7 +441,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
       AnimationController(vsync: this);
 
   /// ドラッグ中の累積移動量（px）。[_iconSplitCollapse]は0〜1の比率で
-  /// 保持するため、ドラッグ開始時に現在の比率からpx換算で復元する。
+  /// 保持する為、ドラッグ開始時に現在の比率からpx換算で復元する。
   double _iconSplitCollapseDragCumulative = 0;
 
   /// 今回のドラッグジェスチャーで[_iconSplitCollapse]の変更を許可するか
@@ -428,7 +457,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
   /// 日付区切り行等の余白でしか反応しなかったのは、`chat_screen.dart`の
   /// `_MessageInteractionsState`が返信/編集用の横ドラッグをジェスチャー
   /// アリーナ上で先に受理してしまい、`_handleIconSplitDragStart`等の外側の
-  /// `GestureDetector`（1182行目）まで伝播しないため。`_MessageInteractions`
+  /// `GestureDetector`（1182行目）まで伝播しない為。`_MessageInteractions`
   /// は元々右方向のドラッグを`InteractiveSwipeBackScope`（`slideBackRoute`/
   /// `app_router.dart`の`slideDetailPage`が提供）へ中継する仕組みを既に
   /// 持っているので、この3ブロック表示にも同じ型のスコープを提供し、
@@ -528,7 +557,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
 
   /// 一対⇄広場の横スワイプ切り替え用（2026-08-09追加、`SwipeBackDetector`の
   /// 速度しきい値判定から`PageView`へ変更。手描きの速度判定だと片方向だけ
-  /// ジェスチャーアリーナで負けて反応しないことがあったため、この用途では
+  /// ジェスチャーアリーナで負けて反応しないことがあった為、この用途では
   /// 双方向のスワイプ切り替えが実績豊富な`PageView`に任せる）。
   late PageController _categoryPageController = PageController(
     initialPage: _category.index,
@@ -537,7 +566,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
   /// [_categoryPageController]を[category]のページに合わせる。`PageView`が
   /// 表示中（`hasClients`）ならアニメーションで追従する。検索中などで
   /// `PageView`がツリーから外れている間は、後で再マウントされた時に古い
-  /// `initialPage`で開いてトグルと一覧がズレるため、コントローラを
+  /// `initialPage`で開いてトグルと一覧がズレる為、コントローラを
   /// `initialPage`付きで作り直す（2026-10-12追加）。
   void _syncCategoryPage(_TalksCategory category) {
     if (_categoryPageController.hasClients) {
@@ -560,13 +589,13 @@ class _TalksTabState extends ConsumerState<TalksTab>
     _syncCategoryPage(category);
   }
 
-  /// 一対・広場を横断して検索するための入力欄（2026-08-30追加）。
+  /// 一対・広場を横断して検索する為の入力欄（2026-08-30追加）。
   final _searchController = TextEditingController();
 
   /// メッセージ内容検索のセッション（2026-09-12追加、検索欄を開いている間の
   /// 取得済みメッセージのメモ化キャッシュを持つ）。`_buildSearchResults`と
   /// `_buildIconRail`のインライン検索の両方で共用する（画面幅・向きで
-  /// どちらか一方しか同時に表示されないため）。
+  /// どちらか一方しか同時に表示されない為）。
   final _messageSearchSession = TalksMessageSearchSession();
 
   /// [_messageSearchSession]のデバウンス用タイマー。
@@ -614,8 +643,8 @@ class _TalksTabState extends ConsumerState<TalksTab>
 
   /// [_onSearchTextChanged]がデバウンス後の検索実行時に参照する、直近の
   /// build()時点の一対・広場・ブロック一覧のスナップショット（2026-09-12
-  /// 追加）。`build()`はStreamBuilderのネストの奥で組み立てられるため、
-  /// デバウンスタイマーのコールバック（build()の外）から直接参照できる
+  /// 追加）。`build()`はStreamBuilderのネストの奥で組み立てられる為、
+  /// デバウンスタイマーのコールバック（build()の外）から直接参照出来る
   /// 場所にキャッシュしておく。
   List<DirectMessage> _lastDirectMessages = const [];
   List<Group> _lastGroups = const [];
@@ -637,7 +666,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
   /// 「戻る」ドラッグと同じ設計で、ドラッグ中は指の位置にリアルタイムに
   /// 追従し、離した時点の速度／位置で開く・畳んだままを確定してアニメーション
   /// で収束させる。「畳む」操作自体はメッセージ画面のクリック専用
-  /// （`onExpandTap`）にしたため、[_iconSplitDragEnabled]が立っている
+  /// （`onExpandTap`）にした為、[_iconSplitDragEnabled]が立っている
   /// （＝既に畳まれている）時しか反応しない。
   /// 畳む時に隠す幅（アイコン列＋区切り線＋寄合一覧、今の幅設定に応じる）。
   double _iconSplitCollapseWidthNow() {
@@ -661,9 +690,9 @@ class _TalksTabState extends ConsumerState<TalksTab>
   void _handleIconSplitDragUpdate(DragUpdateDetails details) {
     if (!_iconSplitDragEnabled) return;
     // 左ドラッグ（dx負）で畳む＝progress増加、右ドラッグ（dx正）で開く＝
-    // progress減少という向きにするため、dxを引く。
+    // progress減少という向きにする為、dxを引く。
     // 左右反転中も向きは変えない（吹き出し上の左スワイプ＝返信・右スワイプ＝戻る、と
-    // 衝突しないため、2026-11-01）。
+    // 衝突しない為、2026-11-01）。
     _iconSplitCollapseDragCumulative -= details.delta.dx;
     _setIconSplitCollapse(
       _iconSplitCollapseDragCumulative / _iconSplitCollapseWidthNow(),
@@ -712,13 +741,13 @@ class _TalksTabState extends ConsumerState<TalksTab>
   /// 承認待ちの一対・広場を選択中の場合の会話ペイン（2026-08-05追加）。
   /// `_selectedDm`/`_selectedGroup`と異なり、選択した時点で組み立てた
   /// `ChatScreen`（`disabled: true`）そのものをそのまま保持する。承認待ちの
-  /// 間は実データが読めず、内容が更新されることも無いため、`_selectedDm`/
+  /// 間は実データが読めず、内容が更新されることも無い為、`_selectedDm`/
   /// `_selectedGroup`のような「最新スナップショットへの再解決」は不要。
   Widget? _selectedPendingScreen;
 
   /// 左右分割表示（[_isSplit]）の時、会話ペインを横いっぱいに広げて
   /// 一覧ペインを隠すか。横長のタブレット等で、固定幅の一覧に会話ペインの
-  /// 幅を圧迫されず全画面で読みたい時のための切り替え。
+  /// 幅を圧迫されず全画面で読みたい時の為の切り替え。
   bool _chatExpanded = false;
 
   /// モバイルに限らず、縦表示（幅より高さの方が大きい）の場合は常に
@@ -742,8 +771,8 @@ class _TalksTabState extends ConsumerState<TalksTab>
   /// 判定は論理サイズの短辺（`shortestSide`）で行う（2026-09-14修正）。
   /// 以前は`size.width >= kIconSplitPeekBreakpoint && size.height > size.width`
   /// （＝縦表示限定）としており、iPadを横向きにすると常にfalseになって
-  /// この3ブロック表示自体に到達できない不具合があった（横向きでは
-  /// `size.width`が最長辺になるため）。タブレット判定は向きに関わらず
+  /// この3ブロック表示自体に到達出来ない不具合があった（横向きでは
+  /// `size.width`が最長辺になる為）。タブレット判定は向きに関わらず
   /// 短辺で行うのが正しく（`classifyDevice`の`kTabletShortestSideThreshold`
   /// と同じ考え方）、この修正で横向きのタブレットも対象になる一方、
   /// 横向きの大型スマホ（短辺＝縦の高さが600未満）は引き続き対象外のまま
@@ -879,7 +908,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
     // 右側に寄合一覧を出す。タブレット・コンピューター縦表示
     // （[_showIconSplitPeek]）では単一モードの会話もアイコン列を残したまま
     // その場でチャット本体のみ表示する。一方スマホ幅×単一モードは右ペインを
-    // 経由する意味が無いため、[_isSplit]でない狭い画面の従来経路と同じく
+    // 経由する意味が無い為、[_isSplit]でない狭い画面の従来経路と同じく
     // フルスクリーン遷移する（2026-09-16修正、[_openMessageSearchHit]と同じ
     // 条件に統一。2026-09-15に一度`roomsEnabled`の判定が誤って落ち、スマホ幅
     // でも単一モードがインライン表示になってしまう回帰が入っていた）。
@@ -1191,7 +1220,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
         // 以前は縦積みのListTile2つ（無駄な余白が目立つ）だったが、
         // 中央の区切り線で左右2分割した大きめのカードに変更（2026-07-29）。
         // GlassSurfaceも同じ理由でMaterialを持たない実装にしており、
-        // 中身の実サイズにフィットするため、この注意点は引き続き問題ない。
+        // 中身の実サイズにフィットする為、この注意点は引き続き問題ない。
         final colorScheme = Theme.of(dialogContext).colorScheme;
         final menuContent = SwipeDownToDismiss(
           onDismiss: () => Navigator.of(dialogContext).pop(),
@@ -1348,10 +1377,10 @@ class _TalksTabState extends ConsumerState<TalksTab>
     // の場合のみ、[TalksListLayoutStyle.iconSplit]設定を無視して固定のRow
     // （260px一覧+会話ペイン）を使う（2026-09-24修正、当初の2026-09-11時点の
     // 仕様に復元）。[isSplit]自体は画面サイズのみの判定でタブレット横向きと
-    // 区別できないため、`classifyDevice`を追加で見てPCのみに絞る（単純に
+    // 区別出来ない為、`classifyDevice`を追加で見てPCのみに絞る（単純に
     // 2026-09-14以前の判定に戻すと、[isSplit]が真であるタブレット横向きでも
     // 常にiconSplitが無視され、`bc57c56`が本来修正したかった「iPad横向きで
-    // 3ブロック表示に到達できない」不具合が再発してしまうため）。
+    // 3ブロック表示に到達出来ない」不具合が再発してしまうため）。
     final ignoreIconSplitOnComputer =
         isSplit && classifyDevice(context) == DeviceClass.computer;
 
@@ -1383,7 +1412,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
                 builder: (context, groupSnapshot) {
                   final groups = groupSnapshot.data ?? [];
                   // `_onSearchTextChanged`のデバウンスコールバック（build()の外）
-                  // から参照するためのスナップショット（2026-09-12追加）。
+                  // から参照する為のスナップショット（2026-09-12追加）。
                   _lastDirectMessages = directMessages;
                   _lastGroups = groups;
                   _lastBlockedIds = blockedIds;
@@ -1391,7 +1420,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
                   final listPane = Column(
                     // 既定値（center）のままだと、一覧の中身（`GekigaJointedTileList`）
                     // が自身の内容に応じた幅だけを主張し、その幅ぶん中央寄せされて
-                    // しまう。一対一覧と広場一覧では中身の最大幅が異なるため、
+                    // しまう。一対一覧と広場一覧では中身の最大幅が異なる為、
                     // 中央寄せの基準がズレて左端の位置が一致しない不具合があった
                     // （2026-08-04発覚・修正。`room_list_pane.dart`は元々`start`
                     // 指定済みだったため同じ問題は起きていなかった）。
@@ -1502,20 +1531,11 @@ class _TalksTabState extends ConsumerState<TalksTab>
                                     size: 32,
                                     onPressed: _showAddMenu,
                                   ),
-                                  AppUiStyle.flat => IconButton.filled(
-                                    icon: const Icon(Icons.add, size: 20),
+                                  AppUiStyle.flat => flatCircleIconButton(
+                                    context,
+                                    icon: Icons.add,
+                                    size: 32,
                                     onPressed: _showAddMenu,
-                                    style: IconButton.styleFrom(
-                                      minimumSize: const Size(32, 32),
-                                      padding: EdgeInsets.zero,
-                                      // アクセントで塗らず、中立の面にする。
-                                      backgroundColor: Theme.of(
-                                        context,
-                                      ).colorScheme.surfaceContainerHighest,
-                                      foregroundColor: Theme.of(
-                                        context,
-                                      ).colorScheme.onSurface,
-                                    ),
                                   ),
                                 },
                               ),
@@ -1550,7 +1570,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
                                 // 横スワイプで一対⇄広場を切り替える。速度しきい値
                                 // 判定の自前ジェスチャー（`SwipeBackDetector`）だと
                                 // 片方向だけジェスチャーアリーナで負けて反応しない
-                                // ことがあったため、双方向のページ送りが実績豊富な
+                                // ことがあった為、双方向のページ送りが実績豊富な
                                 // `PageView`に置き換えた（2026-08-09変更、
                                 // 2026-08-06時点では速度しきい値の条件式自体を
                                 // 両方向常時有効にする修正をしていたが、それでも
@@ -1597,7 +1617,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
                   // （[ignoreIconSplitOnComputer]の判定理由は定義箇所参照）。
                   // `_buildIconSplitPane`自身が画面が狭い場合のフォールバック
                   // （寄合一覧のみ表示しタップでフルスクリーン遷移）も内包して
-                  // いるため、狭い画面側の向き判定は不要。
+                  // いる為、狭い画面側の向き判定は不要。
                   if (talksListLayoutStyle == TalksListLayoutStyle.iconSplit &&
                       !ignoreIconSplitOnComputer) {
                     return _buildIconSplitPane(
@@ -1616,7 +1636,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
                   }
 
                   // 会話ペインでの横スワイプで一覧の表示/非表示を切り替える
-                  // （一覧側のスワイプは既に一対⇄広場の切り替えに使っているため、
+                  // （一覧側のスワイプは既に一対⇄広場の切り替えに使っている為、
                   // ここは会話ペインのみに閉じたジェスチャーにする）。
                   // 左スワイプ＝広げる、右スワイプ＝戻す、という他画面と同じ
                   // 「進む/戻る」の向きに合わせている。
@@ -1647,7 +1667,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
                   return Row(
                     children: [
                       // 260px: 語らい一覧のブロック（アイコン＋名前＋ピン/ミュート
-                      // アイコン）が重ならない範囲でできるだけ狭め、メッセージ画面
+                      // アイコン）が重ならない範囲で出来るだけ狭め、メッセージ画面
                       // 側に幅を譲っている（2026-08-05再変更、360→300→240。2026-08-13に
                       // 一旦300へ戻したのは、240だとEnglish表示時の一対/広場切り替え
                       // タブ（"Private N"/"Plaza N"）＋追加ボタンが収まりきらなかった
@@ -1690,7 +1710,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
   /// 渡すと、選択後に相手側でプロフィールカード等を更新しても、一覧の再選択や
   /// 画面再読み込みをするまで古い内容のまま表示され続けてしまう（一覧自体は
   /// 各StreamBuilderで直接再描画されるため最新化されるが、選択状態はここでしか
-  /// 保持していないため）。選択中IDに一致する最新の要素があればそちらを使う。
+  /// 保持していない為）。選択中IDに一致する最新の要素があればそちらを使う。
   ///
   /// 別の会話に切り替えて戻ってきた時にChatScreenを作り直さない（Firestore
   /// 購読をやり直さない）ため、このセッション中に一度でも開いた会話
@@ -1721,7 +1741,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
 
     // 選択中の一対・広場が一覧から消えた（削除された）場合、削除前の
     // スナップショットへフォールバックすると既に存在しないmessages/rooms
-    // サブコレクションを購読し続けpermission-deniedになるため、訪問履歴
+    // サブコレクションを購読し続けpermission-deniedになる為、訪問履歴
     // からも取り除く（2026-08-13修正、2026-08-20にキャッシュ全体へ拡張）。
     // 併せて`ChatRoomMessageCacheManager`（寄合単位のメッセージ購読キャッシュ、
     // 2026-09-10追加）側のエントリも破棄し、削除済み会話に対する購読が
@@ -1749,7 +1769,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
     final children = <Widget>[
       const _EmptyDetailPlaceholder(),
       for (final key in visitedList)
-        // 非選択の会話もマウントされたままのため、見えている会話だけを
+        // 非選択の会話もマウントされたままの為、見えている会話だけを
         // `PaneVisibility`で「表示中」と伝える（通話ミニ表示の出し分け用）。
         PaneVisibility(
           key: ValueKey('visibility-$key'),
@@ -1790,7 +1810,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
   /// （`roomListOnly: false`で流用、2026-09-12追加）。この時、アイコン列＋
   /// 寄合一覧をまとめて左にドラッグすると、[_iconSplitCollapse]の進行度に
   /// リアルタイムに追従して畳まれていき（[_CollapsibleWidthPanel]）、
-  /// 指を離すと速度／位置に応じて全開（寄合一覧を表示）または全畳み
+  /// 指を離すと速度／位置に応じて全開（寄合一覧を表示）又は全畳み
   /// （既に同時表示中のメッセージ画面本体が全画面表示）のどちらかへ
   /// アニメーションで収束する（既存の`InteractiveSwipeBackTransition`の
   /// 「戻る」ドラッグと対称の設計）。画面遷移は発生させない
@@ -1798,7 +1818,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
   /// 全幅になるだけで、別ルートを積まない）。
   ///
   /// [_showIconSplitPeek]がfalseの端末（スマホ相当）では画面が狭く
-  /// メッセージ画面を同時に収められないため、従来通り`roomListOnly: true`の
+  /// メッセージ画面を同時に収められない為、従来通り`roomListOnly: true`の
   /// まま、寄合をタップした時点でフルスクリーンチャットへ遷移する。
   Widget _buildIconSplitPane(
     List<DirectMessage> directMessages,
@@ -1821,7 +1841,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
     _iconSplitSwipeBackController.maxDrag =
         splitWidths.rail + kIconSplitHandleWidth + splitWidths.list;
     // 語らい一覧（アイコン列）の幅をドラッグしている間は、中身を「ドラッグ前の幅」のまま
-    // 並べて境目で切り取る（幅が変わるたびに全タイルを並べ直すと、指に追従できない。
+    // 並べて境目で切り取る（幅が変わるたびに全タイルを並べ直すと、指に追従出来ない。
     // チャット側の[_FrozenWidthPane]と同じ考え方、2026-11-06）。指を離すと本来の幅で
     // 1回だけ並べ直す。
     final iconRail = _FrozenWidthPane(
@@ -1882,7 +1902,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
               currentUser: widget.currentUser,
               dm: dm,
               // 単一モード（`roomsEnabled == false`）の会話は寄合一覧列を
-              // 出す意味が無いため、スマホ幅でもタブレット縦画面と同じく
+              // 出す意味が無い為、スマホ幅でもタブレット縦画面と同じく
               // チャット本体を直接インライン表示する（2026-09-15追加）。
               roomListOnly: !showPeek && dm.roomsEnabled,
               collapseProgress: showPeek ? _iconSplitCollapse : null,
@@ -2021,7 +2041,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
   ///
   /// 検索・並べ替え（2026-09-12追加、それまではこのレイアウトには無かった）:
   /// 並べ替えは標準レイアウトと同じ[_buildSortButton]をそのままアイコンボタンで
-  /// 並べる。検索は112px幅にタブと検索欄を同時に置けないため、検索アイコンの
+  /// 並べる。検索は112px幅にタブと検索欄を同時に置けない為、検索アイコンの
   /// タップで[_iconRailSearchOpen]を切り替え、タブ表示と標準レイアウトの
   /// [_buildSearchField]を差し替える形にした（一対・広場を横断する標準の
   /// [_buildSearchResults]とは異なり、この列では現在のタブ内で
@@ -2030,17 +2050,17 @@ class _TalksTabState extends ConsumerState<TalksTab>
   /// ヘッダー（切り替えピル＋検索・並べ替え・＋ボタン＋Divider）は固定表示の
   /// まま、本体のタイル一覧だけを標準レイアウト（[_categoryPageController]
   /// 参照）と同じ`PageView`にして、このアイコン列の幅の中だけで一対⇄広場を
-  /// 横スワイプ切り替えできるようにする（2026-09-11追加。右隣の寄合一覧側は
+  /// 横スワイプ切り替え出来るようにする（2026-09-11追加。右隣の寄合一覧側は
   /// 項目4の別のスワイプ挙動を持つため、`VerticalDivider`の左側に閉じる
   /// 必要がある）。この列は112px幅しか無く、タブ（一対/広場ピル）・検索・
   /// 並べ替え・＋ボタンのいずれも横並びにすると文字やボタンが収まりきらず
-  /// オーバーフローするため、画面の向き（縦表示/横表示）に関わらず**常に
+  /// オーバーフローする為、画面の向き（縦表示/横表示）に関わらず**常に
   /// 縦積み**にする（2026-09-11追加時は縦表示時のみ縦積みだったが、
   /// 2026-09-12にタブレット横表示でも縦積みのままにする方針へ変更し、
   /// 向き判定自体を廃止した）。劇画UIではその縦積みに合わせて
   /// [GekigaJointedTileList]（既定で縦積み対応・`axis`で横積みも可）で
   /// 箱枠を描く（標準レイアウトのヘッダーが使う[GekigaJointedPair]は横並び
-  /// 2個専用のため、縦積みにも対応できるこちらを使う）。
+  /// 2個専用の為、縦積みにも対応出来るこちらを使う）。
   Widget _buildIconRail(
     List<DirectMessage> directMessages,
     List<Group> groups,
@@ -2055,7 +2075,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
     final sortOrder = ref.watch(conversationSortOrderProvider);
     final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
     // 検索結果は一対・広場・メッセージを横断する共通の[TalksSearchResultsView]
-    // （`showSearchResults`側）で表示するため、ここでは非検索時の一覧
+    // （`showSearchResults`側）で表示する為、ここでは非検索時の一覧
     // （`buildCategoryTiles`）にクエリでの絞り込みを持たせない
     // （2026-09-12変更、以前はこの列だけ現在のタブ内フィルタに留めていた）。
     final searchQuery = _iconRailSearchOpen
@@ -2195,7 +2215,26 @@ class _TalksTabState extends ConsumerState<TalksTab>
           child: GekigaIconButton(icon: icon, size: 40, onPressed: onPressed),
         );
       }
-      return IconButton(icon: Icon(icon), tooltip: '', onPressed: onPressed);
+      if (ref.watch(appUiStyleProvider) == AppUiStyle.glass) {
+        return Padding(
+          padding: const EdgeInsets.all(4),
+          child: GlassIconButton(
+            icon: icon,
+            size: 40,
+            accentColorOverride: Theme.of(context).colorScheme.onSurfaceVariant,
+            onPressed: onPressed,
+          ),
+        );
+      }
+      return Padding(
+        padding: const EdgeInsets.all(4),
+        child: flatCircleIconButton(
+          context,
+          icon: icon,
+          size: 40,
+          onPressed: onPressed,
+        ),
+      );
     }
 
     return Material(
@@ -2213,8 +2252,8 @@ class _TalksTabState extends ConsumerState<TalksTab>
           ),
           // 検索・並べ替え・＋（2026-09-12追加、以前はこのレイアウトには
           // 無かった）。112px幅では横並びだとアイコンボタン3つ分の幅が収まらず
-          // オーバーフローするため、常に縦並びにする（検索欄とタブを同時に
-          // 並べる余白も無いため、検索アイコンのタップで上のタブ表示と
+          // オーバーフローする為、常に縦並びにする（検索欄とタブを同時に
+          // 並べる余白も無い為、検索アイコンのタップで上のタブ表示と
           // 切り替える）。
           Column(
             children: [
@@ -2267,6 +2306,10 @@ class _TalksTabState extends ConsumerState<TalksTab>
                     noResultsLabel: strings.talksSearchNoResults,
                     isGekiga: isGekiga,
                     padding: EdgeInsets.zero,
+                    // 112px幅のアイコン列には絞り込みチップが収まらない。
+                    showFilter: false,
+                    dmSelected: (dm) => _selectedDm?.dmId == dm.dmId,
+                    groupSelected: (g) => _selectedGroup?.groupId == g.groupId,
                     dmTileBuilder: (context, dm) => _DirectMessageIconTile(
                       currentUser: widget.currentUser,
                       dm: dm,
@@ -2544,6 +2587,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
         key: _sortButtonKey,
         current: current,
         isGekiga: ref.watch(appUiStyleProvider) == AppUiStyle.gekiga,
+        isGlass: ref.watch(appUiStyleProvider) == AppUiStyle.glass,
         labelOf: (order) => _sortOrderLabel(strings, order),
         onSelected: (order) =>
             ref.read(conversationSortOrderProvider.notifier).setOrder(order),
@@ -2690,6 +2734,8 @@ class _TalksTabState extends ConsumerState<TalksTab>
       messageSectionLabel: strings.talksSearchSectionMessages,
       noResultsLabel: strings.talksSearchNoResults,
       isGekiga: ref.watch(appUiStyleProvider) == AppUiStyle.gekiga,
+      dmSelected: (dm) => _isSplit && _selectedDm?.dmId == dm.dmId,
+      groupSelected: (g) => _isSplit && _selectedGroup?.groupId == g.groupId,
       dmTileBuilder: (context, dm) => DirectMessageTile(
         currentUser: widget.currentUser,
         dm: dm,
@@ -2698,7 +2744,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
         unreadCount: prefsById[dm.dmId]?.unreadCount ?? 0,
         selected: _isSplit && _selectedDm?.dmId == dm.dmId,
         onTap: () {
-          // 検索結果は一対・広場を横断して表示するため、タップした種類
+          // 検索結果は一対・広場を横断して表示する為、タップした種類
           // に`_category`を合わせてから開く（合わせないと`_buildDetailPane`
           // が表示中タブ側の選択状態しか見ず、分割表示のペインが
           // 切り替わらない、2026-08-30発覚・修正）。
@@ -2773,7 +2819,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
   }
 
   /// 相手が送った直近メッセージを、自分がまだ既読にしていないか
-  /// （2026-09-02追加。未読管理の仕組み自体を持たないため、
+  /// （2026-09-02追加。未読管理の仕組み自体を持たない為、
   /// `DirectMessage.lastMessageSenderId`と`ConversationPrefs.lastReadAt`の
   /// 2フィールド比較だけで近似する。厳密な未読件数管理ではない）。
   bool _isDmUnread(DirectMessage dm, Map<String, ConversationPrefs> prefsById) {
@@ -2991,11 +3037,11 @@ class CategoryTab extends ConsumerWidget {
 /// 自分が送った友達申請・広場参加リクエストがまだ承認されていない間、
 /// タップした時に開く軽量なプレビュー画面。実際のメッセージ画面
 /// （`ChatScreen`）はfirestore.rules上、未承認の間は`rooms`/`messages`
-/// サブコレクションを読めず開けないため、タイトル（相手の呼び名/広場名）
+/// サブコレクションを読めず開けない為、タイトル（相手の呼び名/広場名）
 /// と「承認を待っています」系の文言だけを表示する専用画面で代替する
 /// （2026-08-04追加）。`Scaffold`/`AppBar`はisGekiga分岐を持たず、
 /// アンビエントの`Theme`（劇画スタイルなら`GekigaTheme`）にそのまま従う。
-/// 承認待ちの一対・広場を開いたときに、メッセージ一覧の上に常時表示する
+/// 承認待ちの一対・広場を開いた時に、メッセージ一覧の上に常時表示する
 /// バナー（[ChatScreen.banner]に渡す。`chat_panes.dart`の
 /// `_SeveranceBanner`等と同じ用途だが、操作ボタンを持たない読み取り専用、
 /// 2026-08-05新規）。
@@ -3050,8 +3096,8 @@ class _FriendRequestTile extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final strings = ref.watch(appStringsProvider);
     final otherUser = ref.watch(watchedUserProvider(_otherUserId)).value;
-    // まだ一対が成立していなくても、dmIdは決定的に計算できるため
-    // （`DirectMessage.idFor`）、相手が申請送信時に選んだ会話ごとの
+    // まだ一対が成立していなくても、dmIdは決定的に計算出来るため
+    // （`DirectMessage.idFor`）、相手が申請送信時に選んだ会話毎の
     // プロフィールカードがあればそれを反映して表示する（2026-07-29追加）。
     final dmId = DirectMessage.idFor(currentUserId, _otherUserId);
     final iconUrl = otherUser?.effectiveIconFor(dmId)?.url;
@@ -3129,9 +3175,9 @@ class _FriendRequestTile extends ConsumerWidget {
             if (isSplit) {
               // 承認前はdirectMessagesドキュメント自体が存在せず実データの
               // 寄合は持てない（firestore.rulesで承認後の作成のみ許可）ため、
-              // 承認後に必ずできる「メイン」1件だけの寄合一覧を模した
+              // 承認後に必ず出来る「メイン」1件だけの寄合一覧を模した
               // プレースホルダーを、他の（承認済みの）語らいと同じ3カラム
-              // 構成で見せる（選択・追加はできない、2026-08-12追加）。
+              // 構成で見せる（選択・追加は出来ない、2026-08-12追加）。
               onSelectPending(
                 Row(
                   children: [
@@ -3242,7 +3288,7 @@ class _FriendRequestTile extends ConsumerWidget {
 }
 
 /// 自分が送った、承認待ちの広場参加リクエストを一覧の先頭に表示するタイル。
-/// タップしても実際の広場は開けない（まだメンバーではないため）ので、
+/// タップしても実際の広場は開けない（まだメンバーではない為）ので、
 /// 承認待ちであることを伝える[_PendingApprovalScreen]を開く
 /// （2026-08-04変更、以前はAlertDialogだった）。
 class _PendingGroupJoinRequestTile extends ConsumerWidget {
@@ -3303,7 +3349,7 @@ class _PendingGroupJoinRequestTile extends ConsumerWidget {
         final titleText = preview?.name ?? '...';
         void onTap() {
           // 画面を閉じる時（承認・削除）にはこのタイルが既に破棄されていることが
-          // あるため、`Navigator`はここで先に取得しておく（破棄後の`context`では
+          // ある為、`Navigator`はここで先に取得しておく（破棄後の`context`では
           // `Navigator.of`が失敗して、削除が成功しても画面が閉じなかった）。
           final navigator = isSplit ? null : Navigator.of(context);
           final screen = ChatScreen(
@@ -3338,7 +3384,7 @@ class _PendingGroupJoinRequestTile extends ConsumerWidget {
             onSelectPending(screen);
           } else {
             // _FriendRequestTileと同じ理由（吹き出しが無く
-            // InteractiveSwipeBackScope経由の戻る中継が機能しないため、
+            // InteractiveSwipeBackScope経由の戻る中継が機能しない為、
             // slideBackRouteで画面全体をラップする、2026-08-12追加、
             // 2026-09-12にインタラクティブなスライドへ変更）。
             Navigator.of(
@@ -3572,7 +3618,7 @@ class DirectMessageTile extends ConsumerWidget {
     final isGekiga = uiStyle == AppUiStyle.gekiga;
     final isGlass = uiStyle == AppUiStyle.glass;
     final colorScheme = Theme.of(context).colorScheme;
-    // 劇画では選択中のタイルが白地黒字に反転するため、アイコン未設定時の
+    // 劇画では選択中のタイルが白地黒字に反転する為、アイコン未設定時の
     // 代替アイコンも同じく反転させる（2026-10-21、そのままだと白地に白で
     // 見えなくなる）。他のスタイルは従来どおり。
     final gekigaAwareIconColor = isGekiga
@@ -3603,15 +3649,17 @@ class DirectMessageTile extends ConsumerWidget {
           );
     // 時刻は副題の行の右端（＝行の下端）に置く。名前の行は右端までを使える
     // ため、時刻の幅で名前が途切れない（2026-11-06）。
-    final subtitleWidget = _ConversationSubtitle(
+    final subtitleWidget = ConversationSubtitle(
       preview: previewLabel,
       lastMessageAt: dm.lastMessageAt?.toDate(),
+      selected: selected,
     );
     final trailingWidget = (pinned || muted || unreadCount > 0)
         ? _ConversationTrailing(
             pinned: pinned,
             muted: muted,
             unreadCount: unreadCount,
+            selected: selected,
           )
         : null;
 
@@ -3624,7 +3672,11 @@ class DirectMessageTile extends ConsumerWidget {
         child: GekigaTileContent(
           selected: selected,
           leading: leadingWidget,
-          title: _ConversationTitle(text: label, suffix: trailingWidget),
+          title: _ConversationTitle(
+            text: label,
+            suffix: trailingWidget,
+            shrink: true,
+          ),
           subtitle: subtitleWidget,
           onTap: onTap,
         ),
@@ -3667,7 +3719,7 @@ class DirectMessageTile extends ConsumerWidget {
       userId: currentUser.userId,
       pinned: pinned,
       muted: muted,
-      child: _BlockTalkTileWrap(
+      child: BlockTalkTileWrap(
         selected: selected,
         child: ListTile(
           shape: RoundedRectangleBorder(
@@ -3754,7 +3806,7 @@ class GroupTile extends ConsumerWidget {
     final isGlass = uiStyle == AppUiStyle.glass;
     final colorScheme = Theme.of(context).colorScheme;
     final displayName = group.name;
-    // 劇画では選択中のタイルが白地黒字に反転するため、アイコン未設定時の
+    // 劇画では選択中のタイルが白地黒字に反転する為、アイコン未設定時の
     // 代替アイコンも同じく反転させる（2026-10-21、そのままだと白地に白で
     // 見えなくなる）。他のスタイルは従来どおり。
     final gekigaAwareIconColor = isGekiga
@@ -3783,11 +3835,12 @@ class GroupTile extends ConsumerWidget {
             foregroundColor: gekigaAwareIconColor,
             fallback: const Icon(Icons.groups),
           );
-    final subtitleWidget = _ConversationSubtitle(
+    final subtitleWidget = ConversationSubtitle(
       preview: previewLabel,
       lastMessageAt: group.lastMessageAt?.toDate(),
+      selected: selected,
     );
-    // 承認できる広場にだけ、承認待ちの参加リクエスト件数を出す（2026-10-11追加）。
+    // 承認出来る広場にだけ、承認待ちの参加リクエスト件数を出す（2026-10-11追加）。
     // 権限の無い人が購読するとpermission-deniedになるため権限を先に確認する。
     final canManageJoinRequests = hasGroupPermission(
       group: group,
@@ -3806,6 +3859,7 @@ class GroupTile extends ConsumerWidget {
             pinned: pinned,
             muted: muted,
             unreadCount: unreadCount,
+            selected: selected,
           )
         : null;
     final trailingWidget = joinRequestCount == 0
@@ -3830,7 +3884,11 @@ class GroupTile extends ConsumerWidget {
         child: GekigaTileContent(
           selected: selected,
           leading: leadingWidget,
-          title: _ConversationTitle(text: displayName, suffix: trailingWidget),
+          title: _ConversationTitle(
+            text: displayName,
+            suffix: trailingWidget,
+            shrink: true,
+          ),
           subtitle: subtitleWidget,
           onTap: onTap,
         ),
@@ -3876,7 +3934,7 @@ class GroupTile extends ConsumerWidget {
       userId: currentUserId,
       pinned: pinned,
       muted: muted,
-      child: _BlockTalkTileWrap(
+      child: BlockTalkTileWrap(
         selected: selected,
         child: ListTile(
           shape: RoundedRectangleBorder(
@@ -4033,7 +4091,7 @@ class _GroupIconTile extends ConsumerWidget {
 }
 
 /// [_buildIconRail]用の汎用コンパクトタイル（アイコン＋名前を小さく＋未読
-/// バッジ、2026-09-11追加）。UIスタイル（劇画/ガラス/フラット）ごとの
+/// バッジ、2026-09-11追加）。UIスタイル（劇画/ガラス/フラット）毎の
 /// 専用デザインは持たず、`Theme.of(context).colorScheme`（3スタイルとも
 /// テーマ側で調整済み）にそのまま追従する簡易実装。
 class _ConversationIconTile extends StatelessWidget {
@@ -4051,7 +4109,7 @@ class _ConversationIconTile extends StatelessWidget {
   });
 
   /// falseなら長押しのピン留め・ミュートメニューを付けない（承認待ちの広場は
-  /// まだメンバーではなく`conversationPrefs`へ書けないため、2026-10-11追加）。
+  /// まだメンバーではなく`conversationPrefs`へ書けない為、2026-10-11追加）。
   final bool gesturesEnabled;
   final String conversationId;
   final String userId;
@@ -4088,7 +4146,7 @@ class _ConversationIconTile extends StatelessWidget {
             final avatarStack = Stack(
               clipBehavior: Clip.none,
               children: [
-                // アバターは固定の大きさ（40px）で作られているため、「一覧の大きさ」の拡大率
+                // アバターは固定の大きさ（40px）で作られている為、「一覧の大きさ」の拡大率
                 // （`scaledSplitPane`が`IconTheme`の大きさに載せている）に合わせて拡大する
                 // （2026-11-05）。
                 Builder(
@@ -4144,7 +4202,7 @@ class _ConversationIconTile extends StatelessWidget {
                       ),
                       decoration: BoxDecoration(
                         // CLAUDE.mdの配色方針に合わせ、`colorScheme.error`
-                        // ではなく実際にコントラストが確保できる固定の濃い赤
+                        // ではなく実際にコントラストが確保出来る固定の濃い赤
                         // を使う。
                         color: Colors.red.shade700,
                         borderRadius: BorderRadius.circular(10),
@@ -4236,19 +4294,25 @@ class _ConversationTrailing extends ConsumerWidget {
     required this.pinned,
     required this.muted,
     required this.unreadCount,
+    this.selected = false,
   });
 
   final bool pinned;
   final bool muted;
   final int unreadCount;
 
+  /// 劇画で行が選択中（白地）かどうか。文字と同じ色（選択中=黒、他=白）にする。
+  final bool selected;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final uiStyle = ref.watch(appUiStyleProvider);
     final isGekiga = uiStyle == AppUiStyle.gekiga;
     final isGlass = uiStyle == AppUiStyle.glass;
+    // 劇画は、行の文字と同じ色（選択中は白地に黒、他は黒地に白）。副題の文字と同じ薄さ。
+    final gekigaFg = selected ? GekigaColors.panel : GekigaColors.onPanel;
     final indicatorColor = isGekiga
-        ? GekigaColors.onPanel.withValues(alpha: 0.75)
+        ? gekigaFg.withValues(alpha: 0.75)
         : resolveTertiaryTextColor(context, isGlass: isGlass);
 
     return Row(
@@ -4265,7 +4329,9 @@ class _ConversationTrailing extends ConsumerWidget {
           Icon(
             Icons.push_pin,
             size: 18,
-            color: Theme.of(context).colorScheme.onSurface,
+            color: isGekiga
+                ? gekigaFg
+                : Theme.of(context).colorScheme.onSurface,
           ),
         ],
         if (unreadCount > 0) ...[
@@ -4279,12 +4345,19 @@ class _ConversationTrailing extends ConsumerWidget {
 
 /// 語らい一覧の行の名前。右端（名前と同じ上段の行）に、ピン留め・通知オフのアイコンと
 /// 未読バッジを並べる（2026-11-06）。これらを`ListTile`の`trailing`に置くと行の右側の
-/// 幅を取り、下段の時刻が左にずれるため、時刻の位置に影響しない名前の行の中に置く。
+/// 幅を取り、下段の時刻が左にずれる為、時刻の位置に影響しない名前の行の中に置く。
 class _ConversationTitle extends StatelessWidget {
-  const _ConversationTitle({required this.text, required this.suffix});
+  const _ConversationTitle({
+    required this.text,
+    required this.suffix,
+    this.shrink = false,
+  });
 
   final String text;
   final Widget? suffix;
+
+  /// 劇画の可変幅の箱用。名前の行を行いっぱいに広げず、中身の幅で止める。
+  final bool shrink;
 
   @override
   Widget build(BuildContext context) {
@@ -4292,8 +4365,9 @@ class _ConversationTitle extends StatelessWidget {
     final suffix = this.suffix;
     if (suffix == null) return name;
     return Row(
+      mainAxisSize: shrink ? MainAxisSize.min : MainAxisSize.max,
       children: [
-        Expanded(child: name),
+        if (shrink) Flexible(child: name) else Expanded(child: name),
         const SizedBox(width: 8),
         suffix,
       ],
@@ -4303,14 +4377,18 @@ class _ConversationTitle extends StatelessWidget {
 
 /// 語らい一覧の行の副題。左に最後のメッセージの内容、右端に最後のメッセージの時刻
 /// （2026-11-06、時刻を名前の行から外し、名前が時刻の幅で途切れないようにした）。
-class _ConversationSubtitle extends ConsumerWidget {
-  const _ConversationSubtitle({
+class ConversationSubtitle extends ConsumerWidget {
+  const ConversationSubtitle({
     required this.preview,
     required this.lastMessageAt,
+    this.selected = false,
   });
 
   final String? preview;
   final DateTime? lastMessageAt;
+
+  /// 劇画で行が選択中（白地）かどうか。時刻を文字と同じ色（選択中=黒、他=白）にする。
+  final bool selected;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -4323,18 +4401,25 @@ class _ConversationSubtitle extends ConsumerWidget {
         ? null
         : formatConversationListTime(at, DateTime.now(), timeFormat);
     final timeColor = isGekiga
-        ? GekigaColors.onPanel.withValues(alpha: 0.75)
+        ? (selected ? GekigaColors.panel : GekigaColors.onPanel).withValues(
+            alpha: 0.75,
+          )
         : resolveTertiaryTextColor(context, isGlass: isGlass);
     if (timeLabel == null && preview == null) return const SizedBox.shrink();
+    // 劇画の箱は中身の幅に合わせて変わる（可変幅）。`Expanded`で行いっぱいに広げると
+    // 箱が常に最大幅になるので、劇画だけ中身の幅で止める（時刻は本文のすぐ右）。
+    final previewText = Text(
+      preview ?? '',
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+    );
     return Row(
+      mainAxisSize: isGekiga ? MainAxisSize.min : MainAxisSize.max,
       children: [
-        Expanded(
-          child: Text(
-            preview ?? '',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
+        if (isGekiga)
+          Flexible(child: previewText)
+        else
+          Expanded(child: previewText),
         if (timeLabel != null) ...[
           const SizedBox(width: 8),
           Text(timeLabel, style: TextStyle(fontSize: 12, color: timeColor)),
@@ -4621,7 +4706,7 @@ class _AddMenuOption extends StatelessWidget {
   }
 }
 
-/// 分割ビューで会話が未選択のときに右側に表示するプレースホルダー。
+/// 分割ビューで会話が未選択の時に右側に表示するプレースホルダー。
 /// 以前はアイコンを中央表示していたが、ユーザー指示により何も表示しない
 /// 方針に変更した（2026-08-12）。
 class _EmptyDetailPlaceholder extends StatelessWidget {
@@ -4642,14 +4727,14 @@ class _EmptyDetailPlaceholder extends StatelessWidget {
 ///
 /// [InteractiveSwipeBackController]をそのまま流用する（「戻る」専用の
 /// 作りではなく、0→[InteractiveSwipeBackController.maxDrag]の抽象的な
-/// 進捗を管理するだけの汎用実装のため）。「戻る」は既にpush済みの画面を
+/// 進捗を管理するだけの汎用実装の為）。「戻る」は既にpush済みの画面を
 /// ドラッグで動かすだけで済むが、こちらは遷移前にはまだ画面が存在しない
 /// ため、ドラッグ中だけ[preview]をこのウィジェット内のローカルな
 /// `Stack`のオーバーレイとして重ねる方式にする（go_routerへは実際に
 /// pushしない）。キャンセルされた場合はオーバーレイを取り除くだけで
 /// ナビゲーションスタックに一切影響しない。コミットされた場合のみ、
 /// オーバーレイが「開き切った」直後に[onOpen]を呼び、呼び出し側が
-/// 実際のpushを行う（この時点で既に同じ絵が見えているため、pushの入場
+/// 実際のpushを行う（この時点で既に同じ絵が見えている為、pushの入場
 /// アニメーションは呼び出し側で無効化しておく必要がある。
 /// `talks_tab.dart`の`openRoomFullscreen`・`DmChatArgs.instant`参照）。
 class _SwipeToOpenRoomPreview extends ConsumerStatefulWidget {
@@ -4688,7 +4773,7 @@ class _SwipeToOpenRoomPreviewState
   /// 指がタッチダウンした瞬間（実際に水平ドラッグと判定される前）に
   /// [widget.preview]を画面外へ先行マウントしておくためのフラグ
   /// （2026-09-15追加）。以前は`_controller.progress`が0の間は
-  /// [widget.preview]自体をツリーに含めない実装だったため、左スワイプが
+  /// [widget.preview]自体をツリーに含めない実装だった為、左スワイプが
   /// 実際に始まった最初のフレームで初めて`DmChatPane`/`GroupChatPane`
   /// （内部の`ChatScreen`はFirestore購読開始・7000行超の初回buildを伴う）
   /// がマウントされ、そのコストがジェスチャー開始と同フレームで発生して
@@ -4712,7 +4797,7 @@ class _SwipeToOpenRoomPreviewState
   }
 
   /// [widget.preview]を載せる、画面全体のオーバーレイ（2026-11-01）。以前はこの
-  /// ウィジェット内の`Stack`に重ねていたため、アイコン列の分だけ幅が狭く、下端も
+  /// ウィジェット内の`Stack`に重ねていた為、アイコン列の分だけ幅が狭く、下端も
   /// ナビチップの上までしか届かなかった（開き切って全画面のチャットに切り替わる
   /// 瞬間に幅・高さが変わりカクついた）。ルートのオーバーレイに画面全体で重ね、
   /// ナビチップやアイコン列の上を覆ってスライドさせる。操作は受けず（`IgnorePointer`）、
@@ -4740,7 +4825,7 @@ class _SwipeToOpenRoomPreviewState
               ),
               // ルートのオーバーレイにはルート（`ModalRoute`）由来の`PageStorage`が
               // 無く、プレビューのチャットの`ScrollablePositionedList`が
-              // 「PageStorage.of() ... no PageStorage」で落ちるため、自前で与える。
+              // 「PageStorage.of() ... no PageStorage」で落ちる為、自前で与える。
               child: PageStorage(
                 bucket: _pageStorageBucket,
                 child: widget.preview,
@@ -4768,7 +4853,7 @@ class _SwipeToOpenRoomPreviewState
     super.didUpdateWidget(oldWidget);
     final entry = _overlayEntry;
     if (entry == null) return;
-    // 親のビルド中（StreamBuilder等の再構築中）に呼ばれるため、そのまま
+    // 親のビルド中（StreamBuilder等の再構築中）に呼ばれる為、そのまま
     // markNeedsBuildするとオーバーレイが「ビルド中に再構築要求」の例外になる
     // （2026-11-04）。フレームの後で反映する。
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -4781,7 +4866,7 @@ class _SwipeToOpenRoomPreviewState
     // アニメーションで0へ復帰し切った瞬間だけ倒す。`isGestureActive`が
     // まだtrueの間（＝ドラッグ中に一時的にprogressが0を通過した場合）は
     // 倒さない。これを怠ると、指を離さないまま一度0まで戻して再度左に
-    // スワイプし直したときに、途中でpreviewが一瞬アンマウント→
+    // スワイプし直した時に、途中でpreviewが一瞬アンマウント→
     // 再マウントされてしまう（今回直したいバグの再発）。
     if (_warm.value &&
         !_controller.isGestureActive &&
@@ -4792,7 +4877,7 @@ class _SwipeToOpenRoomPreviewState
 
   void _handleCommitted() {
     widget.onOpen();
-    // 実際のpushが（同フレーム内、または次フレームまでに）画面最前面へ
+    // 実際のpushが（同フレーム内、又は次フレームまでに）画面最前面へ
     // 反映された後で進捗をリセットする。ここで即座にリセットすると、
     // pushされた本物の画面がまだ乗る前の1フレームだけ寄合一覧が
     // 露出してしまう（一瞬だけ後退して見える）ため、
@@ -4830,7 +4915,7 @@ class _SwipeToOpenRoomPreviewState
         _controller.cancelExternalDrag();
         _cumulativeDx = 0;
         // `onHorizontalDragStart`が一度も呼ばれずに裁定負け＝単純タップ
-        // （寄合一覧内の項目タップで別の寄合を選ぶ操作等）、または
+        // （寄合一覧内の項目タップで別の寄合を選ぶ操作等）、又は
         // `RoomListPane`内の並べ替えドラッグ等が裁定に勝った場合。
         _warm.value = false;
       },
@@ -4851,7 +4936,7 @@ class _SwipeToOpenRoomPreviewState
           return;
         }
         // 左方向への移動量を進捗として扱う（`InteractiveSwipeBackController`
-        // は「右方向＝正の進捗」前提のため、符号を反転して累積する）。
+        // は「右方向＝正の進捗」前提の為、符号を反転して累積する）。
         _cumulativeDx -= details.delta.dx;
         if (_cumulativeDx > 0 || _controller.isGestureActive) {
           _controller.syncFromExternalDrag(
@@ -4940,7 +5025,7 @@ class _CollapsibleDivider extends StatelessWidget {
 
   final ValueListenable<double> progress;
 
-  /// 区切り線の代わりに出す、ドラッグできる区切り線（2026-11-05）。
+  /// 区切り線の代わりに出す、ドラッグ出来る区切り線（2026-11-05）。
   final Widget? dragHandle;
 
   @override
@@ -4963,14 +5048,14 @@ class _CollapsibleDivider extends StatelessWidget {
 /// なら[chatPane]をそのまま返す。非nullの場合、進行度が1未満（＝まだ
 /// プレビュー中、寄合一覧やアイコン列も見えている状態）の間も、タップで
 /// [onExpandTap]を呼ぶ透明な`GestureDetector`（`HitTestBehavior.translucent`）
-/// を重ねるだけで、配下の[chatPane]自体は塞がない（2026-09-12、当初は
+/// を重ねるだけで、配下の[chatPane]自体は塞が無い（2026-09-12、当初は
 /// `AbsorbPointer`で操作ごと無効化していたが、プレビュー中もメッセージ
 /// 一覧のスクロールだけは行えるようにしてほしいとの要望を受けて変更した。
 /// `translucent`なのでポインタイベントは[chatPane]側にも届き、縦ドラッグは
 /// そちらのスクロール処理がそのまま受け取る。単純なタップは`onTap`にも
-/// 渡るため、クリックでの全画面化は従来通り機能する）。進行度が1に達したら
+/// 渡る為、クリックでの全画面化は従来通り機能する）。進行度が1に達したら
 /// （＝全画面化済み）オーバーレイ自体を外し、[chatPane]を素通しで通常通り
-/// 操作できるようにする。[chatPane]は`ValueListenableBuilder.child`として
+/// 操作出来るようにする。[chatPane]は`ValueListenableBuilder.child`として
 /// 毎フレーム同一インスタンスを渡すため、オーバーレイの有無が切り替わっても
 /// チャット本体（Firestore購読を抱えた`State`）は再構築されない。
 @visibleForTesting
@@ -4988,7 +5073,7 @@ Widget buildExpandableChatPane({
     builder: (context, progress, child) {
       // 畳み切った時もラッパーを外さず、`onTap`をnullにするだけにする
       // （2026-10-13修正）。以前は`progress >= 1`で`child`をそのまま返し、
-      // 1未満で`GestureDetector`に包んでいたため、全画面から右スワイプで戻し始め
+      // 1未満で`GestureDetector`に包んでいた為、全画面から右スワイプで戻し始め
       // た瞬間（progressが1を下回る）にチャット本体のElementが作り直され、ドラッグ
       // 中のメッセージ行（`_MessageInteractions`）ごと破棄されて、ドラッグが
       // 打ち切られ（中継も`cancelExternalDrag`で元へ戻る）3ブロックへ戻れなかった。
@@ -5027,9 +5112,9 @@ List<T> _orderedRooms<T>(
 /// `_selectedDmRoomId`フィールドで寄合選択を管理していたが、
 /// `_TalksTabState._buildDetailPane`が複数会話を同時に`IndexedStack`で
 /// 保持するようになった（2026-08-20、語らい切り替えラグの解消）ため、
-/// 会話ごとに独立して寄合選択を保持できるよう、この単位を専用の
+/// 会話毎に独立して寄合選択を保持出来るよう、この単位を専用の
 /// `StatefulWidget`として切り出した。`_TalksTabState`から`dm.dmId`単位の
-/// `ValueKey`で構築されるため、そのidの会話が選択され続けている限り
+/// `ValueKey`で構築される為、そのidの会話が選択され続けている限り
 /// このStateごとDmChatPane（＝Firestore購読）も保持され続ける。
 class _DmDetailWithRooms extends ConsumerStatefulWidget {
   const _DmDetailWithRooms({
@@ -5045,7 +5130,7 @@ class _DmDetailWithRooms extends ConsumerStatefulWidget {
   final AppUser currentUser;
   final DirectMessage dm;
 
-  /// trueの場合、チャット本体は埋め込まず寄合一覧のみをペイン全幅で表示し、
+  /// trueの場合、チャット本体は埋め込先ず寄合一覧のみをペイン全幅で表示し、
   /// 寄合をタップするとフルスクリーンチャットへ遷移する（縦表示のアイコン＋
   /// 寄合一覧レイアウト用、2026-09-11追加。広い画面の左右分割表示では
   /// falseのまま、寄合一覧の右隣にチャット本体を埋め込む従来通りの構成）。
@@ -5057,7 +5142,7 @@ class _DmDetailWithRooms extends ConsumerStatefulWidget {
   /// （`_TalksTabState._iconSplitCollapse`、タブレット・コンピューター縦表示の
   /// アイコン＋寄合一覧レイアウト用、2026-09-12追加）。広い左右分割表示
   /// （`_isSplit`）側からは渡さず、既定のnullのままにする（あちらは寄合一覧が
-  /// 常設サイドバーのため、畳んで全画面化するという概念自体が無い）。
+  /// 常設サイドバーの為、畳んで全画面化するという概念自体が無い）。
   final ValueListenable<double>? collapseProgress;
 
   /// 「アイコン＋寄合一覧」の左右反転中か（2026-11-01）。アイコン列と並べる時だけ渡す
@@ -5188,7 +5273,7 @@ class _DmDetailWithRoomsState extends ConsumerState<_DmDetailWithRooms> {
     // 反映されなかった。縦表示（[widget.roomListOnly]）ではこれが表示する
     // 寄合そのもの、分割表示（メッセージ画面を同時表示）ではチャット本体を
     // 作り直さずハイライトだけを追従させる（チャット本体の寄合切り替えは
-    // `DmChatPane._switchRoom`のローカル状態変更で完結しているため）。
+    // `DmChatPane._switchRoom`のローカル状態変更で完結している為）。
     final watchedLastRoomId = ref.watch(
       lastOpenedRoomProvider.select(
         (m) => lastOpenedRoomIn(m, ViewedDm(dm.dmId)),
@@ -5256,15 +5341,15 @@ class _DmDetailWithRoomsState extends ConsumerState<_DmDetailWithRooms> {
             .name;
 
         // 縦表示のアイコン＋寄合一覧レイアウト（[widget.roomListOnly]）では
-        // チャット本体を埋め込む余白が無いため、寄合をタップしたら
+        // チャット本体を埋め込む余白が無い為、寄合をタップしたら
         // ローカルの選択状態を切り替えるのではなくフルスクリーンチャットへ
         // 遷移する（既存の`/chat/dm`ルートをそのまま使う、2026-09-11追加）。
-        // このレイアウトの寄合一覧では既に寄合を選んで来ているため、遷移先
+        // このレイアウトの寄合一覧では既に寄合を選んで来ている為、遷移先
         // チャット画面の寄合タブバーは重複表示になる→非表示にする
         // （`showRoomTabBar: false`、下の左スワイプでの遷移と共通化）。
         // 寄合を開いたら、その寄合の未読数をすぐ0に戻す（2026-11-03）。メッセージ画面側の
         // 既読処理（構築のたびの`_resetUnreadWhileViewing`）が、画面の作り直し・購読の
-        // 到着順で間に合わず、2段目以降の寄合のバッジが一覧に残ることがあったため、
+        // 到着順で間に合わず、2段目以降の寄合のバッジが一覧に残ることがあった為、
         // タップした時点でも直接書く。
         void markRoomRead(String openedRoomId) {
           ref
@@ -5345,7 +5430,7 @@ class _DmDetailWithRoomsState extends ConsumerState<_DmDetailWithRooms> {
 
         if (widget.roomListOnly) {
           // 単一モードの会話はここに辿り着く前（アイコンタップ時点）で
-          // 直接フルスクリーン遷移させているため、通常は到達しない防御的な
+          // 直接フルスクリーン遷移させている為、通常は到達しない防御的な
           // フォールバック。
           if (!dm.roomsEnabled) return const _EmptyDetailPlaceholder();
           // 寄合一覧上で左スワイプすると、現在ハイライトされている
@@ -5563,7 +5648,7 @@ class _GroupDetailWithRoomsState extends ConsumerState<_GroupDetailWithRooms> {
     // 反映されなかった。縦表示（[widget.roomListOnly]）ではこれが表示する
     // 寄合そのもの、分割表示（メッセージ画面を同時表示）ではチャット本体を
     // 作り直さずハイライトだけを追従させる（チャット本体の寄合切り替えは
-    // `GroupChatPane._switchRoom`のローカル状態変更で完結しているため）。
+    // `GroupChatPane._switchRoom`のローカル状態変更で完結している為）。
     final watchedLastRoomId = ref.watch(
       lastOpenedRoomProvider.select(
         (m) => lastOpenedRoomIn(m, ViewedGroup(group.groupId)),
@@ -5622,7 +5707,7 @@ class _GroupDetailWithRoomsState extends ConsumerState<_GroupDetailWithRooms> {
         // [_DmDetailWithRooms]と同じ理由（2026-09-11追加）。
         // 寄合を開いたら、その寄合の未読数をすぐ0に戻す（2026-11-03）。メッセージ画面側の
         // 既読処理（構築のたびの`_resetUnreadWhileViewing`）が、画面の作り直し・購読の
-        // 到着順で間に合わず、2段目以降の寄合のバッジが一覧に残ることがあったため、
+        // 到着順で間に合わず、2段目以降の寄合のバッジが一覧に残ることがあった為、
         // タップした時点でも直接書く。
         void markRoomRead(String openedRoomId) {
           ref
@@ -5717,7 +5802,7 @@ class _GroupDetailWithRoomsState extends ConsumerState<_GroupDetailWithRooms> {
 
         if (widget.roomListOnly) {
           // 単一モードの会話はここに辿り着く前（アイコンタップ時点）で
-          // 直接フルスクリーン遷移させているため、通常は到達しない防御的な
+          // 直接フルスクリーン遷移させている為、通常は到達しない防御的な
           // フォールバック。
           if (!group.roomsEnabled) return const _EmptyDetailPlaceholder();
           // [_DmDetailWithRooms]と同じ理由（2026-09-11追加、2026-09-14に
@@ -5821,19 +5906,23 @@ class _GroupDetailWithRoomsState extends ConsumerState<_GroupDetailWithRooms> {
 }
 
 /// 語らい一覧の並べ替えボタン。通常のクリック（押して離す）でメニューを開いて選ぶ
-/// ほか、ボタンを押したまま項目の上までドラッグして離すと、その項目を選べる
-/// （2026-11-01）。ポインターのイベントは最初に押したボタンへ届き続けるため、
+/// 他、ボタンを押したまま項目の上までドラッグして離すと、その項目を選べる
+/// （2026-11-01）。ポインターのイベントは最初に押したボタンへ届き続ける為、
 /// ボタン側の`Listener`で押下中の位置を追い、項目の矩形と照合する。
 class _HoldSelectSortButton extends StatefulWidget {
   const _HoldSelectSortButton({
     super.key,
     required this.current,
     required this.isGekiga,
+    this.isGlass = false,
     required this.labelOf,
     required this.onSelected,
   });
 
   final ConversationSortOrder current;
+
+  /// ガラスUIでは、検索欄と同じすりガラスの丸ボタンにする。
+  final bool isGlass;
 
   /// 劇画UIでは、ボタンをモノクロの箱のバッジにし、メニューも黒地・白文字にする。
   final bool isGekiga;
@@ -5959,7 +6048,7 @@ class _HoldSelectSortButtonState extends State<_HoldSelectSortButton> {
         // 離した（通常のクリック）時はメニューを開いたままにする。
         if (order != null) Navigator.of(context).pop(order);
       },
-      // クリックしたときの半透明の円（スプラッシュ・ハイライト・ホバー）は出さない。
+      // クリックした時の半透明の円（スプラッシュ・ハイライト・ホバー）は出さない。
       child: widget.isGekiga
           ? const Padding(
               padding: EdgeInsets.all(4),
@@ -5967,12 +6056,25 @@ class _HoldSelectSortButtonState extends State<_HoldSelectSortButton> {
             )
           : isBlockTheme(context)
           ? blockIconButton(context, icon: Icons.sort, size: 40)
-          : IconButton(
-              icon: const Icon(Icons.sort),
-              onPressed: _noop,
-              style: IconButton.styleFrom(
-                splashFactory: NoSplash.splashFactory,
-                overlayColor: Colors.transparent,
+          : widget.isGlass
+          ? Padding(
+              padding: const EdgeInsets.all(4),
+              child: GlassIconButton(
+                icon: Icons.sort,
+                size: 40,
+                accentColorOverride: Theme.of(
+                  context,
+                ).colorScheme.onSurfaceVariant,
+                onPressed: _noop,
+              ),
+            )
+          : Padding(
+              padding: const EdgeInsets.all(4),
+              child: flatCircleIconButton(
+                context,
+                icon: Icons.sort,
+                size: 40,
+                onPressed: _noop,
               ),
             ),
     );
@@ -5983,8 +6085,8 @@ class _HoldSelectSortButtonState extends State<_HoldSelectSortButton> {
 
 /// 語らい一覧の行を、版画だけ太枠と硬い影の箱で囲む（他のスタイルはそのまま）。
 /// 選択中はアクセントで塗る（中の`ListTile`の選択色と同じ）。
-class _BlockTalkTileWrap extends StatelessWidget {
-  const _BlockTalkTileWrap({required this.selected, required this.child});
+class BlockTalkTileWrap extends StatelessWidget {
+  const BlockTalkTileWrap({required this.selected, required this.child});
 
   final bool selected;
   final Widget child;
@@ -5995,15 +6097,43 @@ class _BlockTalkTileWrap extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.fromLTRB(2, 3, 6, 7),
-      child: blockMaterialBox(
-        context,
-        color: selected
-            ? scheme.primary
-            : (Theme.of(context).brightness == Brightness.light
-                  ? Colors.white
-                  : scheme.surface),
-        child: child,
+      child: blockFitWidth(
+        blockMaterialBox(
+          context,
+          color: selected
+              ? scheme.primary
+              : (Theme.of(context).brightness == Brightness.light
+                    ? Colors.white
+                    : scheme.surface),
+          child: child,
+        ),
       ),
     );
   }
+}
+
+/// フラットUIの丸いアイコンボタン。検索欄と同じ不透明の面（`surfaceContainerHigh`）で塗り、
+/// 枠線・影・アクセントは使わない。ガラスの[GlassIconButton]に対応する形。
+Widget flatCircleIconButton(
+  BuildContext context, {
+  required IconData icon,
+  required double size,
+  required VoidCallback onPressed,
+}) {
+  final scheme = Theme.of(context).colorScheme;
+  return SizedBox(
+    width: size,
+    height: size,
+    child: Material(
+      color: scheme.surfaceContainerHigh,
+      shape: const CircleBorder(),
+      clipBehavior: Clip.antiAlias,
+      child: InkResponse(
+        onTap: onPressed,
+        child: Center(
+          child: Icon(icon, size: size * 0.6, color: scheme.onSurface),
+        ),
+      ),
+    ),
+  );
 }

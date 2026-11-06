@@ -22,15 +22,15 @@ import 'webrtc_media_constraints.dart';
 
 enum GroupCallConnectionState { connecting, active, ended }
 
-/// 参加者ごとの在室確認ハートビートの送信間隔。
+/// 参加者毎の在室確認ハートビートの送信間隔。
 const _presenceHeartbeatInterval = Duration(seconds: 15);
 
 /// これより長くハートビートが途絶えた参加者は離脱扱いにする。
 const _presenceStaleAfter = kGroupCallPresenceStaleAfter;
 
 /// 広場（グループ）通話のWebRTCシグナリング・複数`RTCPeerConnection`の
-/// ライフサイクルを管理する。メッシュ型P2Pのため、参加者が増減するたびに
-/// 自分以外の全参加者との接続を動的に張り直す。通話ごとに1つ生成され、
+/// ライフサイクルを管理する。メッシュ型P2Pの為、参加者が増減するたびに
+/// 自分以外の全参加者との接続を動的に張り直す。通話毎に1つ生成され、
 /// `lib/features/call/active_call_session.dart`の`activeCallSessionProvider`が
 /// 所有する（2026-08-19変更、以前は`GroupCallScreen`が`initState`/`dispose`で
 /// 生成・破棄していたが、PC埋め込み表示・ピン留めミニ表示に対応するため
@@ -65,7 +65,7 @@ class WebrtcGroupCallController extends ChangeNotifier {
   bool get switchingCallType => _switchingCallType;
 
   /// 映像をオンにできなかった（カメラが他で使用中・許可が無い等、2026-11-03）。
-  /// 数秒後、または次に切り替えた時に消える。画面が注意書きを出す。
+  /// 数秒後、又は次に切り替えた時に消える。画面が注意書きを出す。
   bool _videoFailed = false;
   bool get videoFailed => _videoFailed;
   Timer? _videoFailedTimer;
@@ -84,7 +84,7 @@ class WebrtcGroupCallController extends ChangeNotifier {
   /// ビデオ通話時の自分のカメラプレビュー用。音声のみの通話では使わない。
   final RTCVideoRenderer localRenderer = RTCVideoRenderer();
 
-  /// 相手ごとのリモート映像（音声のみの通話でも、音声再生のために
+  /// 相手毎のリモート映像（音声のみの通話でも、音声再生の為に
   /// レンダラー自体は保持する）。UI側はこのMapのキー（=相手のuserId）を
   /// 元にグリッドを組む。
   final Map<String, RTCVideoRenderer> remoteRenderers = {};
@@ -96,7 +96,7 @@ class WebrtcGroupCallController extends ChangeNotifier {
   // peerLink（相手1人ぶんのペア）のoffer/answerフィールドは初回接続時の
   // 1回きりではなく、通話中の音声⇔ビデオ切替のたびに上書きされる。
   // 「新着かどうか」は一意な採番ではなくSDP文字列そのものの差分で判定し、
-  // 自分が直前に送った値でも既に適用済みの値でもない場合だけ相手からの
+  // 自分が直前に送った値でも既に適用済みの値でも無い場合だけ相手からの
   // 新規オファー/アンサーとして扱う（1対1のWebrtcCallControllerと同じ設計）。
   final Map<String, String?> _pendingLocalOfferSdp = {};
   final Map<String, String?> _pendingLocalAnswerSdp = {};
@@ -104,15 +104,15 @@ class WebrtcGroupCallController extends ChangeNotifier {
   final Map<String, String?> _lastAppliedAnswerSdp = {};
 
   // setRemoteDescriptionが完了するより先にICE candidateが届くと、
-  // addCandidateが例外を投げて無言で失われてしまう競合状態があったため、
-  // 相手ごとに完了するまで候補をバッファし、完了後にまとめて適用する。
-  // watchPeerCandidatesは毎回累積リスト全体を再送してくるため、適用済みの
+  // addCandidateが例外を投げて無言で失われてしまう競合状態があった為、
+  // 相手毎に完了するまで候補をバッファし、完了後にまとめて適用する。
+  // watchPeerCandidatesは毎回累積リスト全体を再送してくる為、適用済みの
   // 候補をキーで重複排除する。
   final Map<String, bool> _remoteDescriptionSet = {};
   final Map<String, List<Map<String, dynamic>>> _pendingRemoteCandidates = {};
   final Map<String, Set<String>> _appliedCandidateKeys = {};
 
-  /// 相手ごとのICE接続状態に問題があるか（failed/disconnected）。
+  /// 相手毎のICE接続状態に問題があるか（failed/disconnected）。
   /// UI側はこれを見て、シグナリングは完了しているのに実際には映像/音声が
   /// 流れていない参加者のタイルに控えめな表示を重ねる。
   final Map<String, bool> peerConnectionIssues = {};
@@ -121,7 +121,7 @@ class WebrtcGroupCallController extends ChangeNotifier {
   /// `sessionId`に書き、他の値になったら別の端末に乗っ取られたとして通話から抜ける。
   final String _sessionId = _newSessionId();
 
-  /// 相手ごとの、つながっている相手の`sessionId`。変わったら（相手が別の端末で
+  /// 相手毎の、つながっている相手の`sessionId`。変わったら（相手が別の端末で
   /// 入り直したら）古い接続を切ってつなぎ直す。
   final Map<String, String?> _peerSessionIds = {};
 
@@ -269,8 +269,8 @@ class WebrtcGroupCallController extends ChangeNotifier {
   bool get muted => _muted;
 
   /// いま発声している参加者（自分を含む、2026-10-31追加）。通話タイルを緑の枠で
-  /// 囲むのに使う。flutter_webrtcに音声レベルのイベントは無いため、
-  /// [_speakingPollInterval]ごとに`getStats()`の`audioLevel`を見て判定する。
+  /// 囲むのに使う。flutter_webrtcに音声レベルのイベントは無い為、
+  /// [_speakingPollInterval]毎に`getStats()`の`audioLevel`を見て判定する。
   Set<String> _speakingUserIds = const {};
   Set<String> get speakingUserIds => _speakingUserIds;
   Timer? _speakingTimer;
@@ -326,7 +326,7 @@ class WebrtcGroupCallController extends ChangeNotifier {
 
   /// 前後（イン/アウト）カメラ切替ボタンの表示可否に使う、映像入力
   /// デバイスの台数（2026-08-19追加）。`getUserMedia`成功後（＝端末の
-  /// カメラ利用許可が下りた後）にだけ正確に取得できるため、映像取得の
+  /// カメラ利用許可が下りた後）にだけ正確に取得出来る為、映像取得の
   /// 直後（[initialize]・[_enableLocalVideoTrackForAllPeers]）に1回だけ
   /// 取得し直す（継続的な監視は行わない）。
   int? _localCameraCount;
@@ -346,7 +346,7 @@ class WebrtcGroupCallController extends ChangeNotifier {
 
   Future<void> initialize() async {
     try {
-      // 音声制約はプラットフォームごとの既知の問題を踏まえて
+      // 音声制約はプラットフォーム毎の既知の問題を踏まえて
       // webrtc_media_constraints.dartに集約している（本格的なRNNoise統合は
       // フェーズ3の別プロジェクト。詳細は会話参照）。
       // 映像を求められてもカメラが使えなければ、音声のみで参加する（2026-10-23）。
@@ -401,7 +401,7 @@ class WebrtcGroupCallController extends ChangeNotifier {
           sessionId: _sessionId,
         );
         // ハートビート失効による離脱反映は新しいFirestoreスナップショットが
-        // 来ないと再評価されないため、定期的にUIへ再描画を促す。
+        // 来ないと再評価されない為、定期的にUIへ再描画を促す。
         notifyListeners();
       });
 
@@ -412,7 +412,7 @@ class WebrtcGroupCallController extends ChangeNotifier {
           .watchParticipants(groupCallId)
           .listen(_onParticipants);
     } catch (e) {
-      _error = '通話を開始できませんでした（マイク・カメラの利用を許可してください）: $e';
+      _error = '通話を開始出来ませんでした（マイク・カメラの利用を許可して下さい）: $e';
       _state = GroupCallConnectionState.ended;
       notifyListeners();
     }
@@ -456,7 +456,7 @@ class WebrtcGroupCallController extends ChangeNotifier {
         .toSet();
 
     // 参加者リストそのものの出現/消失を検知して入退室音を鳴らす
-    // （_peerConnections.keysとの差分だと接続確立タイミングに引きずられるため、
+    // （_peerConnections.keysとの差分だと接続確立タイミングに引きずられる為、
     // 別途スナップショットを保持する）。初回スナップショットは既に居た人を
     // 「新規参加」と誤検知しないよう無音でシードする（Discordと同じ挙動）。
     if (!_hasReceivedFirstSnapshot) {
@@ -639,10 +639,10 @@ class WebrtcGroupCallController extends ChangeNotifier {
     // peerLinkのoffer/answerは初回接続時の1回だけでなく、通話中の音声⇔
     // ビデオ切替（setVideoEnabled/_reconcileGroupVideoTo参照）のたびに
     // 上書きされる。「新着かどうか」はSDP文字列の差分で判定し、自分が
-    // 直前に送った値でも既に適用済みの値でもない場合だけ相手からの新規
+    // 直前に送った値でも既に適用済みの値でも無い場合だけ相手からの新規
     // オファー/アンサーとして扱う。初回接続時のオファー役（userA/userB）は
-    // 同時オファーによる衝突を避けるための決め事に過ぎず、通話中の再
-    // ネゴシエーションはどちらの役割からでも開始できる。
+    // 同時オファーによる衝突を避ける為の決め事に過ぎず、通話中の再
+    // ネゴシエーションはどちらの役割からでも開始出来る。
     _peerLinkSubs[otherUserId] = _repository
         .watchPeerLink(groupCallId: groupCallId, pairId: pairId)
         .listen((link) async {
@@ -832,7 +832,7 @@ class WebrtcGroupCallController extends ChangeNotifier {
     callLog('group: setVideoEnabled($enabled) start');
     try {
       // カメラの取得・トラックの追加に成功してから、他の参加者へ`isVideo`を知らせる
-      // （以前は先に書いていたため、取得に失敗しても他の人には「映像オン」に見えた）。
+      // （以前は先に書いていた為、取得に失敗しても他の人には「映像オン」に見えた）。
       await _reconcileGroupVideoTo(enabled);
       await _repository.updateParticipantState(
         groupCallId: groupCallId,
@@ -949,7 +949,7 @@ class WebrtcGroupCallController extends ChangeNotifier {
   }
 
   /// iOSでは接続直後にsetSpeakerphoneOnを呼んでも、数秒後に音声ルートが
-  /// 勝手に戻ることがある既知の競合状態があるため、接続完了直後に一度適用し、
+  /// 勝手に戻ることがある既知の競合状態がある為、接続完了直後に一度適用し、
   /// 少し間を空けてもう一度適用する。
   Future<void> _applySpeakerphoneWithRetry() async {
     _watchAudioDevices();
@@ -989,7 +989,7 @@ class WebrtcGroupCallController extends ChangeNotifier {
         final cameras = await Helper.cameras;
         if (cameras.length < 2) return;
         // 現在のカメラを実際の`deviceId`から特定して次へ進める（以前は先頭を
-        // 現在地と仮定していたため、初回の切替で同じカメラのままになった）。
+        // 現在地と仮定していた為、初回の切替で同じカメラのままになった）。
         final currentId = trackDeviceId(track) ?? _cameraDeviceId;
         final currentIndex = cameras.indexWhere((c) => c.deviceId == currentId);
         final next = cameras[(currentIndex + 1) % cameras.length];
@@ -1011,7 +1011,7 @@ class WebrtcGroupCallController extends ChangeNotifier {
       // 「切替後に画面が真っ黒になる」不具合になる。加えて、各相手との
       // RTCPeerConnectionのRTCRtpSenderにも明示的にreplaceTrackしないと
       // 新しい映像が送信されない（グループ通話は相手の人数分Peer
-      // Connectionがあるため、全員分に反映する必要がある）。
+      // Connectionがある為、全員分に反映する必要がある）。
       final newTrack = _localStream?.getVideoTracks().firstOrNull;
       if (newTrack != null) {
         localRenderer.srcObject = _localStream;

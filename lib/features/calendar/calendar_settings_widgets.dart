@@ -206,36 +206,39 @@ class HolidayCheckboxes extends StatelessWidget {
         final scheme = Theme.of(context).colorScheme;
         return Padding(
           padding: const EdgeInsets.fromLTRB(2, 4, 6, 8),
-          child: blockMaterialBox(
-            context,
-            color: Theme.of(context).brightness == Brightness.light
-                ? Colors.white
-                : scheme.surface,
-            child: InkWell(
-              onTap: () => onChanged(!value),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
-                child: Row(
-                  children: [
-                    SizedBox(
-                      width: 32,
-                      height: 32,
-                      child: AppCheckbox(
-                        value: value,
-                        onChanged: (v) => onChanged(v ?? false),
+          child: blockFitWidth(
+            blockMaterialBox(
+              context,
+              color: Theme.of(context).brightness == Brightness.light
+                  ? Colors.white
+                  : scheme.surface,
+              child: InkWell(
+                onTap: () => onChanged(!value),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(
+                        width: 32,
+                        height: 32,
+                        child: AppCheckbox(
+                          value: value,
+                          onChanged: (v) => onChanged(v ?? false),
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        label,
-                        style: TextStyle(color: scheme.onSurface),
+                      const SizedBox(width: 8),
+                      Flexible(
+                        child: Text(
+                          label,
+                          style: TextStyle(color: scheme.onSurface),
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),

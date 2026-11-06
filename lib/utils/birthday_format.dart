@@ -4,7 +4,7 @@ import '../models/profile_material.dart';
 /// 誕生日の入力欄の項目。
 enum BirthdayField { year, month, day }
 
-/// 言語ごとの入力欄・表記の並び（2026-10-23追加）。日本語は年・月・日、
+/// 言語毎の入力欄・表記の並び（2026-10-23追加）。日本語は年・月・日、
 /// 英語（en-GB）・フランス語は日・月・年。
 List<BirthdayField> birthdayFieldOrder(AppLocale locale) => switch (locale) {
   AppLocale.japanese => const [

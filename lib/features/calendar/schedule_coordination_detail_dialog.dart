@@ -138,7 +138,7 @@ class _ScheduleCoordinationDetailDialogState
   /// 予定追加フォームをその日付で開き、保存されたら日程調整側に
   /// finalizedCandidateIndex/finalizedEventIdを書き込む。イベント作成後の
   /// finalize書き込みが失敗した場合は、イベント自体は既に作成済みのため
-  /// このダイアログを開いたままエラーを表示し、再試行できるようにする。
+  /// このダイアログを開いたままエラーを表示し、再試行出来るようにする。
   Future<void> _finalize(int index, DateTime candidateDate) async {
     final strings = ref.read(appStringsProvider);
     final isGlass = ref.read(appUiStyleProvider) == AppUiStyle.glass;
@@ -196,7 +196,7 @@ class _ScheduleCoordinationDetailDialogState
       if (mounted) Navigator.of(context).pop();
     } catch (e) {
       // イベント自体は既に作成済みのため再スローせず、ダイアログを開いた
-      // ままエラーを表示してfinalizeの書き込みだけ再試行できるようにする。
+      // ままエラーを表示してfinalizeの書き込みだけ再試行出来るようにする。
       if (mounted) showAutoDismissBanner(context, message: '$e');
     } finally {
       if (mounted) setState(() => _finalizing = false);

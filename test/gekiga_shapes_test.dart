@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   group('jitteredEdgePoints', () {
     test('同じseed・同じ長さなら、fromの平行移動だけ結果も平行移動する'
-        '（隣接する箱の接する辺を同じ折れ線として共有できることの根拠）', () {
+        '（隣接する箱の接する辺を同じ折れ線として共有出来ることの根拠）', () {
       const seed = 12345;
       final a = jitteredEdgePoints(
         const Offset(0, 0),

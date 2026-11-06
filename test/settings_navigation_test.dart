@@ -49,9 +49,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 // 見出し付きセクションとして1ページにまとめて表示する。2026-07-24変更で
 // サイドバーの階層を最上位カテゴリの1段だけに留めた）が、内側のListView
 // （例: 色セクションのアクセントカラーピッカー）を含めてクラッシュせずに
-// 描画・行き来できることを確認する回帰テスト。
+// 描画・行き来出来ることを確認する回帰テスト。
 //
-// 2ペイン表示は十分な横幅を必要とするため、デフォルトのテストサーフェス
+// 2ペイン表示は十分な横幅を必要とする為、デフォルトのテストサーフェス
 // （800x600）だと2ペイン表示のしきい値を満たさない。実際の想定利用シーン
 // （広いデスクトップ画面）に合わせ、十分広いサーフェスサイズを明示的に指定する。
 class _FakeResidenceRepository implements ResidenceRepository {
@@ -311,14 +311,14 @@ void main() {
     await _pumpSettingsTab(tester);
 
     // サイドバーのタイルと内容ペインの見出しの両方に「アカウント」の文字が
-    // 出るため、サイドバー側（先に見つかる方）をタップする。
+    // 出る為、サイドバー側（先に見つかる方）をタップする。
     await tester.tap(find.text('アカウント').first);
     await tester.pumpAndSettle();
 
     // 旧実装ではセキュリティ配下（パスワード等）を見るには「セキュリティ」を
     // タップしてさらに列を開く必要があったが、現在は最初から1ページに
-    // まとまっているため、クリックなしですべて同時に見える。
-    // （パスワード認証はDaiDaiに存在しない方針のため、項目自体が無い。）
+    // まとまっている為、クリックなしで全て同時に見える。
+    // （パスワード認証はDaiDaiに存在しない方針の為、項目自体が無い。）
     expect(find.text('2段階認証'), findsOneWidget);
     expect(find.text('パスキー'), findsOneWidget);
     expect(find.text('QRコードでログイン'), findsOneWidget);
@@ -344,12 +344,12 @@ void main() {
     expect(find.text('アクセントカラー'), findsOneWidget);
     expect(find.text('プリセット'), findsOneWidget);
 
-    // UIスタイルの選択肢が3つ（フラット/劇画/デッサン）に増え、さらに
+    // UIスタイルの選択肢が3つ（フラット/劇画/デッサン）に増え、更に
     // 文字色設定・フォントデザインの選択肢増加（2026-09-14）でページが
-    // さらに縦に伸びたことで、「文字」（Typographyセクション見出し）・
+    // 更に縦に伸びたことで、「文字」（Typographyセクション見出し）・
     // 「表示言語」がSliverListの遅延構築で最初はマウントされていない
     // （2026-08-25、2026-09-14追記）。2ペイン表示は左のサイドバーも同時に
-    // Scrollableのため、既定の「Scrollableを1つだけ探す」挙動と衝突しない
+    // Scrollableの為、既定の「Scrollableを1つだけ探す」挙動と衝突しない
     // よう、右ページのScrollableを明示して探す。
     //
     // 以前は「アクセントカラー」等、スクロールで画面外に出て遅延構築から
@@ -358,14 +358,14 @@ void main() {
     // 1回のスクロール中に足場自体がマウント解除されてしまい失敗するように
     // なった（2026-09-14）。Scrollableウィジェット自体は自分の子が
     // 画面外に出てもマウント解除されない（スクロールされているのは中身の
-    // 子であって、リスト自体ではないため）ため、`find.byType(Scrollable)`
+    // 子であって、リスト自体ではない為）ため、`find.byType(Scrollable)`
     // で直接特定する（サイドバー・右ページの順で2つあるうちの2つ目）方が
     // スクロール距離に依存せず安定する。
     final applicationScrollable = find.byType(Scrollable).at(1);
     // 2026-10時点のアプリケーションページは、外観・UI・アクセントカラー・
     // フォントカラー・フォントデザイン・言語・時刻の表示方法・パスコードロックの
     // 順（旧「文字」「表示言語」の見出しは、フォントカラー／フォントデザイン／
-    // 言語に分かれた）。下の方の見出しは遅延構築のため、スクロールして探す。
+    // 言語に分かれた）。下の方の見出しは遅延構築の為、スクロールして探す。
     await tester.scrollUntilVisible(
       find.text('フォントデザイン'),
       300,
@@ -387,10 +387,12 @@ void main() {
 
     // カテゴリ一覧から「アプリケーション」（アカウント→アプリケーション→
     // 語らい→通知の2番目）へドリルダウンする（2026-07-30、入力カテゴリを
-    // 廃止して語らいへ統合したため、以前あった「入力」の段は無くなった）。
+    // 廃止して語らいへ統合した為、以前あった「入力」の段は無くなった）。
     await tester.tap(find.text('アプリケーション'));
     await tester.pumpAndSettle();
-    expect(find.text('アクセントカラー'), findsOneWidget);
+    // 画面遷移をUIの直下へ移した（2026-11-06）為、狭い画面の最初の表示に
+    // アクセントカラーは入らない。アプリケーションページの目印には「UI」を使う。
+    expect(find.text('UI'), findsOneWidget);
 
     // 左スワイプで次のカテゴリ（語らい）へ。
     await tester.fling(
@@ -402,7 +404,7 @@ void main() {
     expect(find.text('アクセントカラー'), findsNothing);
     expect(find.text('ブロックしたユーザー'), findsOneWidget);
 
-    // さらに左スワイプで次のカテゴリ（通知）へ。
+    // 更に左スワイプで次のカテゴリ（通知）へ。
     await tester.fling(
       find.byType(InteractiveSwipeBackTransition),
       const Offset(-300, 0),
@@ -434,7 +436,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // `SlideDrilldown`導入（2026-09-12）によりカテゴリ一覧（master）が
-    // 詳細ページの裏で常時マウントされ続けるため、狭い画面でも
+    // 詳細ページの裏で常時マウントされ続ける為、狭い画面でも
     // Scrollableが2つ（一覧側・詳細ページ側）同時に存在する。
     // scrollUntilVisibleの既定の「Scrollableを1つだけ探す」挙動と
     // 衝突しないよう、詳細ページ側のScrollableを明示して探す。
@@ -452,7 +454,7 @@ void main() {
     // Firebaseが初期化されていないためエラー表示になるが、その下に続く
     // メッセージの表示・送信キー設定のセクション自体はそれとは独立して
     // 描画される。ページが縦に長くSliverListの遅延構築で最初は
-    // マウントされていないため、scrollUntilVisibleでスクロールしてから探す。
+    // マウントされていない為、scrollUntilVisibleでスクロールしてから探す。
     await tester.scrollUntilVisible(
       find.text('メッセージの表示'),
       300,
@@ -468,7 +470,7 @@ void main() {
 
     // 一覧へ戻り（右スワイプ）、アプリケーションページには両方とも
     // もう出てこないことを確認する（見つからない場合の判定はスクロール
-    // 位置に依存しないため、ここではscrollUntilVisible不要）。
+    // 位置に依存しない為、ここではscrollUntilVisible不要）。
     await tester.fling(
       find.byType(InteractiveSwipeBackTransition),
       const Offset(300, 0),
@@ -487,7 +489,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('使い方ガイド'));
     await tester.pumpAndSettle();
-    expect(find.text('知りたい機能を選んでください。'), findsOneWidget);
+    expect(find.text('知りたい機能を選んで下さい。'), findsOneWidget);
 
     await tester.fling(
       find.byType(InteractiveSwipeBackTransition).last,
@@ -495,7 +497,7 @@ void main() {
       1000,
     );
     await tester.pumpAndSettle();
-    expect(find.text('知りたい機能を選んでください。'), findsNothing);
+    expect(find.text('知りたい機能を選んで下さい。'), findsNothing);
     expect(find.text('使い方ガイド'), findsOneWidget);
   });
 

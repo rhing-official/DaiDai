@@ -17,7 +17,7 @@ import 'swipe_gestures.dart' show PinchPriorityPageView, ZoomReporter;
 /// ダウンロードのみ。
 const kMaxPdfPreviewBytes = 50 * 1024 * 1024;
 
-/// この添付をPDFビューアで開けるか。拡張子`pdf`またはMIMEが`application/pdf`で、
+/// この添付をPDFビューアで開けるか。拡張子`pdf`又はMIMEが`application/pdf`で、
 /// サイズが上限以下のもの。
 bool isPreviewablePdf(MessageFileMetadata metadata) =>
     (metadata.extension.toLowerCase() == 'pdf' ||
@@ -263,7 +263,7 @@ class _PdfViewerScreenState extends ConsumerState<PdfViewerScreen> {
 }
 
 /// ビューアの1ページ分。ページ全体が画面に収まる大きさで出し、ピンチでズーム・
-/// パンできる。ズームしてもぼやけないよう、画面に収めた大きさの2倍の解像度で
+/// パン出来る。ズームしてもぼやけないよう、画面に収めた大きさの2倍の解像度で
 /// 描いて縮小して見せる。
 class _PdfPage extends StatefulWidget {
   const _PdfPage({

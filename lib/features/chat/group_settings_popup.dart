@@ -33,7 +33,7 @@ import '../../widgets/toggles/app_switch.dart';
 /// [GroupSettingsPopup]をガラスUI対応のダイアログでラップして開く
 /// （2026-09-02、サイドバーの歯車アイコン（`talks_tab.dart`）に加え、狭い
 /// 画面のハンバーガーメニュー（`chat_panes.dart`の`_GroupMenuButton`）からも
-/// 同じ開き方を再利用できるよう切り出した）。
+/// 同じ開き方を再利用出来るよう切り出した）。
 Future<void> showGroupSettingsDialog(
   BuildContext context, {
   required AppUser currentUser,
@@ -49,7 +49,7 @@ Future<void> showGroupSettingsDialog(
     builder: (_) {
       final constrained = ConstrainedBox(
         constraints: BoxConstraints(
-          maxWidth: 420,
+          maxWidth: 760,
           // 高さの上限は設けない（画面に収まる限り全項目を見せる。収まらない時は
           // `Dialog`が画面の高さで頭打ちにし、一覧がスクロールする、2026-11-05）。
           maxHeight: double.infinity,
@@ -63,13 +63,17 @@ Future<void> showGroupSettingsDialog(
           ? Dialog(
               backgroundColor: Colors.transparent,
               elevation: 0,
+              constraints: const BoxConstraints(maxWidth: 760),
               child: GlassSurface(
                 variant: GlassVariant.floating,
                 borderRadius: BorderRadius.circular(24),
                 child: constrained,
               ),
             )
-          : Dialog(child: constrained);
+          : Dialog(
+              constraints: const BoxConstraints(maxWidth: 760),
+              child: constrained,
+            );
     },
   );
 }
@@ -78,15 +82,15 @@ Future<void> showGroupSettingsDialog(
 /// （`RoomListPane`）ヘッダーの歯車アイコンから開く。以前は寄合の
 /// ハンバーガーメニューに置かれていたプロフィールカード・メンバー一覧・
 /// 招待リンク作成をここへ移設し、通知オフ・既読機能のデフォルト値も
-/// ここで設定する。寄合ごとに「この寄合独自の設定」（`_GroupMenuButton`参照）
-/// をオンにすると、ここでの値より優先してその寄合だけ個別設定できる。
+/// ここで設定する。寄合毎に「この寄合独自の設定」（`_GroupMenuButton`参照）
+/// をオンにすると、ここでの値より優先してその寄合だけ個別設定出来る。
 ///
 /// 単一モード（`Group.roomsEnabled == false`）の広場はサイドバー自体が
-/// 無くこのポップアップを開けないため、例外的に全ての設定を寄合の
+/// 無くこのポップアップを開けない為、例外的に全ての設定を寄合の
 /// ハンバーガーメニューに残している（`_GroupMenuButton`のroomsEnabled分岐）。
-/// ただし狭い画面（`RoomTabBar`使用）は複数モードでもサイドバー自体を
-/// 持たないため、[showGroupSettingsDialog]を`_GroupMenuButton`からも呼べる
-/// ようにしている（2026-09-02、モバイルで複数寄合時に広場設定へ到達できない
+/// 但し狭い画面（`RoomTabBar`使用）は複数モードでもサイドバー自体を
+/// 持たない為、[showGroupSettingsDialog]を`_GroupMenuButton`からも呼べる
+/// ようにしている（2026-09-02、モバイルで複数寄合時に広場設定へ到達出来ない
 /// 不具合の修正）。
 class GroupSettingsPopup extends ConsumerWidget {
   const GroupSettingsPopup({
@@ -111,7 +115,7 @@ class GroupSettingsPopup extends ConsumerWidget {
       child: child,
     );
     // 各テーマの`dialogTheme.constraints`が`maxWidth: 400`でダイアログ全体を
-    // 頭打ちにしているため、400より広くしたい場合は`Dialog`側の
+    // 頭打ちにしている為、400より広くしたい場合は`Dialog`側の
     // `constraints`で上書きする（2026-10-10、権限管理ポップアップが
     // ロール数に応じて広がらなかった原因）。既定（400以下）は従来どおり。
     final dialogConstraints = maxWidth > 400
@@ -155,7 +159,7 @@ class GroupSettingsPopup extends ConsumerWidget {
   /// オフにする前の確認ダイアログを廃止し、トグル操作で即座に反映される
   /// ようにした）。オフへの変更は寄合が1つだけの場合しか許可されない
   /// （`GroupRepository.setRoomsEnabled`が件数を検証し[StateError]を
-  /// 投げる）が、UI側も寄合が複数ある間はトグル自体を無効化するため、
+  /// 投げる）が、UI側も寄合が複数ある間はトグル自体を無効化する為、
   /// 通常はここに到達する前に弾かれる（購読中の件数と実際の書き込み
   /// 時点の件数がずれる競合状態のみフォールバックとしてここで捕捉する）。
   Future<void> _toggleRoomsEnabled(
@@ -232,6 +236,238 @@ class GroupSettingsPopup extends ConsumerWidget {
     final muted = prefs[liveGroup.groupId]?.notificationsMuted ?? false;
     final readReceiptsEnabled = liveGroup.readReceiptsEnabled;
 
+    final menuItems = <Widget>[
+      ListTile(
+        leading: const Icon(Icons.badge_outlined),
+        title: Text(strings.groupMenuProfileCard),
+        onTap: () => _openSubDialog(
+          context,
+          GroupProfileCardPopup(group: liveGroup),
+          isGlass: isGlass,
+          bare: true,
+        ),
+      ),
+      if (currentUser.profileCards.length > 1)
+        ListTile(
+          leading: const Icon(Icons.person_outline),
+          title: Text(strings.conversationProfileCardMenuLabel),
+          onTap: () => ConversationProfileCardDialog.show(
+            context,
+            currentUserId: currentUser.userId,
+            conversationId: liveGroup.groupId,
+          ),
+        ),
+      StreamBuilder<List<GroupRole>>(
+        stream: ref.read(groupRepositoryProvider).watchRoles(liveGroup.groupId),
+        builder: (context, snapshot) {
+          final roles = snapshot.data ?? const <GroupRole>[];
+          return ListTile(
+            leading: const Icon(Icons.people_outline),
+            title: Text(strings.groupMenuMemberList),
+            onTap: () => _openSubDialog(
+              context,
+              GroupMemberListPopup(
+                currentUser: currentUser,
+                group: liveGroup,
+                roles: roles,
+              ),
+              isGlass: isGlass,
+              maxWidth: 340,
+            ),
+          );
+        },
+      ),
+      // 受信Webhook（寄合へ外部から投稿出来る、bot・API段階1）。
+      // 他の管理項目（ロール管理等）と同じく常に表示し、`manageBots`
+      // 権限が無い場合は無効化する（2026-10-10、以前は権限者のみに
+      // 表示していたが、項目が見つからないとの指摘を受け統一した）。
+      ListTile(
+        leading: const Icon(Icons.webhook_outlined),
+        title: Text(strings.webhookMenuLabel),
+        enabled: canManageBots,
+        onTap: !canManageBots
+            ? null
+            : () => _openSubDialog(
+                context,
+                WebhookManagementPopup(
+                  currentUser: currentUser,
+                  group: liveGroup,
+                ),
+                isGlass: isGlass,
+              ),
+      ),
+      ListTile(
+        leading: const Icon(Icons.link),
+        title: Text(strings.groupMenuCreateInvite),
+        enabled: canCreateInvite,
+        onTap: !canCreateInvite
+            ? null
+            : () => GroupInviteDialog.show(
+                context,
+                liveGroup.groupId,
+                liveGroup.profileCard,
+              ),
+      ),
+      ListTile(
+        leading: const Icon(Icons.shield_outlined),
+        title: Text(strings.groupMenuManageRoles),
+        enabled: canManageRoles,
+        onTap: !canManageRoles
+            ? null
+            : () => _openSubDialog(
+                context,
+                GroupRoleListPopup(currentUser: currentUser, group: liveGroup),
+                isGlass: isGlass,
+              ),
+      ),
+      ListTile(
+        leading: const Icon(Icons.rule_outlined),
+        title: Text(strings.groupMenuManagePermissions),
+        enabled: canManagePermissions,
+        onTap: !canManagePermissions
+            ? null
+            : () => _openSubDialog(
+                context,
+                GroupPermissionManagePopup(
+                  group: liveGroup,
+                  currentUserId: userId,
+                ),
+                isGlass: isGlass,
+                maxWidth: 2000,
+              ),
+      ),
+    ];
+    final settingItems = <Widget>[
+      StreamBuilder<List<Room>>(
+        stream: ref
+            .read(groupRepositoryProvider)
+            .watchRooms(groupId: liveGroup.groupId, userId: userId),
+        builder: (context, snapshot) {
+          final rooms = snapshot.data ?? const <Room>[];
+          final locked = liveGroup.roomsEnabled && rooms.length > 1;
+          final colorScheme = Theme.of(context).colorScheme;
+          return AppSwitchListTile(
+            value: liveGroup.roomsEnabled,
+            title: Text(
+              strings.groupMenuEnableMultipleRooms,
+              style: TextStyle(color: colorScheme.onSurface),
+            ),
+            subtitle: locked
+                ? Text(
+                    strings.roomModeToggleLockedHint,
+                    style: TextStyle(color: colorScheme.onSurfaceVariant),
+                  )
+                : null,
+            onChanged: !canManageRooms || locked
+                ? null
+                : (value) => _toggleRoomsEnabled(context, ref, userId, value),
+          );
+        },
+      ),
+      const Divider(),
+      AppSwitchListTile(
+        value: liveGroup.requiresApproval,
+        title: Text(strings.groupSettingsRequiresApprovalLabel),
+        subtitle: Text(strings.groupSettingsRequiresApprovalHint),
+        onChanged: !canManageJoinRequests
+            ? null
+            : (value) => ref
+                  .read(groupRepositoryProvider)
+                  .setRequiresApproval(
+                    groupId: liveGroup.groupId,
+                    requiresApproval: value,
+                  ),
+      ),
+      AppSwitchListTile(
+        value: muted,
+        title: Text(strings.groupSettingsDefaultMuteLabel),
+        subtitle: Text(strings.groupSettingsDefaultMuteHint),
+        onChanged: (value) => ref
+            .read(conversationPrefsRepositoryProvider)
+            .setNotificationsMuted(
+              userId: userId,
+              conversationId: liveGroup.groupId,
+              muted: value,
+            ),
+      ),
+      AppSwitchListTile(
+        value: readReceiptsEnabled,
+        title: Text(strings.groupSettingsDefaultReadReceiptsLabel),
+        subtitle: Text(strings.groupSettingsDefaultReadReceiptsHint),
+        onChanged: !canManageReadReceipts
+            ? null
+            : (value) async {
+                if (!value) {
+                  // 既読を隠す（オフにする）のは極みの人だけ（2026-10-17）。
+                  if (!ref.read(isKiwamiProvider(userId))) {
+                    showKiwamiOnlyDialog(
+                      context,
+                      strings,
+                      body: strings.kiwamiOnlyReadReceiptsBody,
+                    );
+                    return;
+                  }
+                  final confirmed = await confirmDisableReadReceipts(
+                    context,
+                    strings,
+                  );
+                  if (!confirmed) return;
+                }
+                ref
+                    .read(groupRepositoryProvider)
+                    .setReadReceiptsEnabled(
+                      groupId: liveGroup.groupId,
+                      enabled: value,
+                      userId: userId,
+                    );
+              },
+      ),
+      AppSwitchListTile(
+        value: liveGroup.historyVisibleToNewMembers,
+        title: Text(strings.groupSettingsHistoryVisibleLabel),
+        subtitle: Text(strings.groupSettingsHistoryVisibleHint),
+        // manageRooms権限を持つメンバーのみ（firestore.rulesで強制、
+        // 2026-10-08追加）。
+        onChanged: !canManageRooms
+            ? null
+            : (value) => ref
+                  .read(groupRepositoryProvider)
+                  .setHistoryVisibleToNewMembers(
+                    groupId: liveGroup.groupId,
+                    enabled: value,
+                  ),
+      ),
+      const Divider(),
+      // 寄合機能オフ（単一モード）の広場ではハンバーガーメニュー
+      // 自体を飛ばしてこのポップアップを直接開くようになった
+      // （2026-09-25、`chat_panes.dart`の`_GroupMenuButton`参照）。
+      // 「退会」は多寄合モードのハンバーガーメニューにのみ残る
+      // 項目の為、単一モードでも退会出来るようここに追加する。
+      ListTile(
+        title: Center(child: Text(strings.groupMenuLeave)),
+        enabled: liveGroup.ownerId != userId,
+        onTap: () => GroupLeaveDialog.show(
+          context,
+          groupId: liveGroup.groupId,
+          userId: userId,
+        ),
+      ),
+      const Divider(),
+      ListTile(
+        title: DestructiveLabel(
+          strings.groupDeleteMenuLabel,
+          centered: true,
+          enabled: liveGroup.ownerId == userId,
+        ),
+        enabled: liveGroup.ownerId == userId,
+        onTap: () => GroupDeleteDialog.show(
+          context,
+          groupId: liveGroup.groupId,
+          userId: userId,
+        ),
+      ),
+    ];
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -258,246 +494,29 @@ class GroupSettingsPopup extends ConsumerWidget {
         ),
         const Divider(height: 1),
         Flexible(
-          child: ListView(
-            shrinkWrap: true,
-            children: [
-              ListTile(
-                leading: const Icon(Icons.badge_outlined),
-                title: Text(strings.groupMenuProfileCard),
-                onTap: () => _openSubDialog(
-                  context,
-                  GroupProfileCardPopup(group: liveGroup),
-                  isGlass: isGlass,
-                  bare: true,
-                ),
-              ),
-              if (currentUser.profileCards.length > 1)
-                ListTile(
-                  leading: const Icon(Icons.person_outline),
-                  title: Text(strings.conversationProfileCardMenuLabel),
-                  onTap: () => ConversationProfileCardDialog.show(
-                    context,
-                    currentUserId: currentUser.userId,
-                    conversationId: liveGroup.groupId,
-                  ),
-                ),
-              StreamBuilder<List<GroupRole>>(
-                stream: ref
-                    .read(groupRepositoryProvider)
-                    .watchRoles(liveGroup.groupId),
-                builder: (context, snapshot) {
-                  final roles = snapshot.data ?? const <GroupRole>[];
-                  return ListTile(
-                    leading: const Icon(Icons.people_outline),
-                    title: Text(strings.groupMenuMemberList),
-                    onTap: () => _openSubDialog(
-                      context,
-                      GroupMemberListPopup(
-                        currentUser: currentUser,
-                        group: liveGroup,
-                        roles: roles,
-                      ),
-                      isGlass: isGlass,
-                      maxWidth: 340,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              // 幅が広い時は、メニュー項目と設定のスイッチ類を横に2列で並べる。
+              // 狭い時（スマホ縦など）は従来どおり1列。
+              if (constraints.maxWidth >= 600) {
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: ListView(shrinkWrap: true, children: menuItems),
                     ),
-                  );
-                },
-              ),
-              // 受信Webhook（寄合へ外部から投稿できる、bot・API段階1）。
-              // 他の管理項目（ロール管理等）と同じく常に表示し、`manageBots`
-              // 権限が無い場合は無効化する（2026-10-10、以前は権限者のみに
-              // 表示していたが、項目が見つからないとの指摘を受け統一した）。
-              ListTile(
-                leading: const Icon(Icons.webhook_outlined),
-                title: Text(strings.webhookMenuLabel),
-                enabled: canManageBots,
-                onTap: !canManageBots
-                    ? null
-                    : () => _openSubDialog(
-                        context,
-                        WebhookManagementPopup(
-                          currentUser: currentUser,
-                          group: liveGroup,
-                        ),
-                        isGlass: isGlass,
-                      ),
-              ),
-              ListTile(
-                leading: const Icon(Icons.link),
-                title: Text(strings.groupMenuCreateInvite),
-                enabled: canCreateInvite,
-                onTap: !canCreateInvite
-                    ? null
-                    : () => GroupInviteDialog.show(
-                        context,
-                        liveGroup.groupId,
-                        liveGroup.profileCard,
-                      ),
-              ),
-              ListTile(
-                leading: const Icon(Icons.shield_outlined),
-                title: Text(strings.groupMenuManageRoles),
-                enabled: canManageRoles,
-                onTap: !canManageRoles
-                    ? null
-                    : () => _openSubDialog(
-                        context,
-                        GroupRoleListPopup(
-                          currentUser: currentUser,
-                          group: liveGroup,
-                        ),
-                        isGlass: isGlass,
-                      ),
-              ),
-              ListTile(
-                leading: const Icon(Icons.rule_outlined),
-                title: Text(strings.groupMenuManagePermissions),
-                enabled: canManagePermissions,
-                onTap: !canManagePermissions
-                    ? null
-                    : () => _openSubDialog(
-                        context,
-                        GroupPermissionManagePopup(
-                          group: liveGroup,
-                          currentUserId: userId,
-                        ),
-                        isGlass: isGlass,
-                        maxWidth: 2000,
-                      ),
-              ),
-              const Divider(),
-              StreamBuilder<List<Room>>(
-                stream: ref
-                    .read(groupRepositoryProvider)
-                    .watchRooms(groupId: liveGroup.groupId, userId: userId),
-                builder: (context, snapshot) {
-                  final rooms = snapshot.data ?? const <Room>[];
-                  final locked = liveGroup.roomsEnabled && rooms.length > 1;
-                  final colorScheme = Theme.of(context).colorScheme;
-                  return AppSwitchListTile(
-                    value: liveGroup.roomsEnabled,
-                    title: Text(
-                      strings.groupMenuEnableMultipleRooms,
-                      style: TextStyle(color: colorScheme.onSurface),
+                    const VerticalDivider(width: 1),
+                    Expanded(
+                      child: ListView(shrinkWrap: true, children: settingItems),
                     ),
-                    subtitle: locked
-                        ? Text(
-                            strings.roomModeToggleLockedHint,
-                            style: TextStyle(
-                              color: colorScheme.onSurfaceVariant,
-                            ),
-                          )
-                        : null,
-                    onChanged: !canManageRooms || locked
-                        ? null
-                        : (value) =>
-                              _toggleRoomsEnabled(context, ref, userId, value),
-                  );
-                },
-              ),
-              const Divider(),
-              AppSwitchListTile(
-                value: liveGroup.requiresApproval,
-                title: Text(strings.groupSettingsRequiresApprovalLabel),
-                subtitle: Text(strings.groupSettingsRequiresApprovalHint),
-                onChanged: !canManageJoinRequests
-                    ? null
-                    : (value) => ref
-                          .read(groupRepositoryProvider)
-                          .setRequiresApproval(
-                            groupId: liveGroup.groupId,
-                            requiresApproval: value,
-                          ),
-              ),
-              AppSwitchListTile(
-                value: muted,
-                title: Text(strings.groupSettingsDefaultMuteLabel),
-                subtitle: Text(strings.groupSettingsDefaultMuteHint),
-                onChanged: (value) => ref
-                    .read(conversationPrefsRepositoryProvider)
-                    .setNotificationsMuted(
-                      userId: userId,
-                      conversationId: liveGroup.groupId,
-                      muted: value,
-                    ),
-              ),
-              AppSwitchListTile(
-                value: readReceiptsEnabled,
-                title: Text(strings.groupSettingsDefaultReadReceiptsLabel),
-                subtitle: Text(strings.groupSettingsDefaultReadReceiptsHint),
-                onChanged: !canManageReadReceipts
-                    ? null
-                    : (value) async {
-                        if (!value) {
-                          // 既読を隠す（オフにする）のは極みの人だけ（2026-10-17）。
-                          if (!ref.read(isKiwamiProvider(userId))) {
-                            showKiwamiOnlyDialog(
-                              context,
-                              strings,
-                              body: strings.kiwamiOnlyReadReceiptsBody,
-                            );
-                            return;
-                          }
-                          final confirmed = await confirmDisableReadReceipts(
-                            context,
-                            strings,
-                          );
-                          if (!confirmed) return;
-                        }
-                        ref
-                            .read(groupRepositoryProvider)
-                            .setReadReceiptsEnabled(
-                              groupId: liveGroup.groupId,
-                              enabled: value,
-                              userId: userId,
-                            );
-                      },
-              ),
-              AppSwitchListTile(
-                value: liveGroup.historyVisibleToNewMembers,
-                title: Text(strings.groupSettingsHistoryVisibleLabel),
-                subtitle: Text(strings.groupSettingsHistoryVisibleHint),
-                // manageRooms権限を持つメンバーのみ（firestore.rulesで強制、
-                // 2026-10-08追加）。
-                onChanged: !canManageRooms
-                    ? null
-                    : (value) => ref
-                          .read(groupRepositoryProvider)
-                          .setHistoryVisibleToNewMembers(
-                            groupId: liveGroup.groupId,
-                            enabled: value,
-                          ),
-              ),
-              const Divider(),
-              // 寄合機能オフ（単一モード）の広場ではハンバーガーメニュー
-              // 自体を飛ばしてこのポップアップを直接開くようになった
-              // （2026-09-25、`chat_panes.dart`の`_GroupMenuButton`参照）。
-              // 「退会」は多寄合モードのハンバーガーメニューにのみ残る
-              // 項目のため、単一モードでも退会できるようここに追加する。
-              ListTile(
-                title: Center(child: Text(strings.groupMenuLeave)),
-                enabled: liveGroup.ownerId != userId,
-                onTap: () => GroupLeaveDialog.show(
-                  context,
-                  groupId: liveGroup.groupId,
-                  userId: userId,
-                ),
-              ),
-              const Divider(),
-              ListTile(
-                title: DestructiveLabel(
-                  strings.groupDeleteMenuLabel,
-                  centered: true,
-                  enabled: liveGroup.ownerId == userId,
-                ),
-                enabled: liveGroup.ownerId == userId,
-                onTap: () => GroupDeleteDialog.show(
-                  context,
-                  groupId: liveGroup.groupId,
-                  userId: userId,
-                ),
-              ),
-            ],
+                  ],
+                );
+              }
+              return ListView(
+                shrinkWrap: true,
+                children: [...menuItems, const Divider(), ...settingItems],
+              );
+            },
           ),
         ),
       ],

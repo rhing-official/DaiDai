@@ -20,7 +20,25 @@ const _kMaxWidth = 420.0;
 /// コンピューター版（左ロール・右権限の2ペイン）の幅と、左ペインの幅・高さ。
 const _kWideMaxWidth = 720.0;
 const _kRolePaneWidth = 200.0;
-const _kWidePaneHeight = 440.0;
+const _kWidePaneMinHeight = 200.0;
+const _kWideRoleRowHeight = 56.0;
+const _kWidePermissionRowHeight = 44.0;
+// タイトル・説明文・余白など、2ペイン以外が使う縦幅の目安。
+const _kWideChromeHeight = 200.0;
+
+double _widePaneHeight(
+  BuildContext context, {
+  required int roleCount,
+  required int permissionCount,
+}) {
+  final content = [
+    roleCount * _kWideRoleRowHeight + 24,
+    permissionCount * _kWidePermissionRowHeight + 16,
+    _kWidePaneMinHeight,
+  ].reduce((a, b) => a > b ? a : b);
+  final maxHeight = MediaQuery.sizeOf(context).height - _kWideChromeHeight;
+  return content < maxHeight ? content : maxHeight;
+}
 
 /// 2ペイン表示に必要な、ダイアログ内で使える最小幅。
 const _kWideMinAvailable = 560.0;
@@ -29,13 +47,13 @@ const _kDialogInset = 80.0;
 /// 「長」を表す選択肢の固定キー（ロールidとは衝突しない）。
 const _kOwnerKey = '__owner__';
 
-/// 広場の権限をロールごとに確認・編集するダイアログ（2026-10-10追加、
+/// 広場の権限をロール毎に確認・編集するダイアログ（2026-10-10追加、
 /// 2026-10-11に「権限×ロール」の表から「ロール選択＋チェックボックス一覧」へ変更）。
-/// 表はロール数に応じて横幅が増えモバイルで収まらなかったため、上部でロールを
+/// 表はロール数に応じて横幅が増えモバイルで収まらなかった為、上部でロールを
 /// 選ぶと、そのロールの各権限が縦のチェックボックス一覧に切り替わる形にした。
 /// 全メンバーに最初から付く基準ロール（[GroupRole.isEveryone]）が何を許可して
 /// いるかも「全員」を選べば分かる。チェックの切り替えは即時に保存する
-/// （`GroupPermission.managePermissions`を持つメンバーのみ編集できる）。
+/// （`GroupPermission.managePermissions`を持つメンバーのみ編集出来る）。
 class GroupPermissionManagePopup extends ConsumerStatefulWidget {
   const GroupPermissionManagePopup({
     required this.group,
@@ -45,7 +63,7 @@ class GroupPermissionManagePopup extends ConsumerStatefulWidget {
 
   final Group group;
 
-  /// 操作しているメンバー。`managePermissions`を持つ場合だけ編集できる
+  /// 操作しているメンバー。`managePermissions`を持つ場合だけ編集出来る
   /// （持たなければ閲覧のみ、2026-10-11）。
   final String currentUserId;
 
@@ -56,7 +74,7 @@ class GroupPermissionManagePopup extends ConsumerStatefulWidget {
 
 class _GroupPermissionManagePopupState
     extends ConsumerState<GroupPermissionManagePopup> {
-  /// 選択中のロールid。null（または一覧から消えたロール）は「全員」。
+  /// 選択中のロールid。null（又は一覧から消えたロール）は「全員」。
   String? _selectedKey;
 
   Future<void> _toggle(GroupRole role, String permission, bool allowed) {
@@ -238,7 +256,13 @@ class _GroupPermissionManagePopupState
               if (isComputer) ...[
                 const Divider(height: 1),
                 SizedBox(
-                  height: _kWidePaneHeight,
+                  // 項目の個数に合わせて縦幅を広げる（ロールの列と権限の列の
+                  // 長い方に合わせ、画面に収まらない分はスクロール）。
+                  height: _widePaneHeight(
+                    context,
+                    roleCount: entries.length,
+                    permissionCount: permissionTiles.length,
+                  ),
                   child: Row(
                     children: [
                       SizedBox(
@@ -265,7 +289,7 @@ class _GroupPermissionManagePopupState
                   ),
                 ),
               ] else ...[
-                // 既定ではマウスのドラッグでスクロールできないため、PCでも
+                // 既定ではマウスのドラッグでスクロール出来ない為、PCでも
                 // スワイプ同様に掴んで動かせるようマウスを許可する。
                 ScrollConfiguration(
                   behavior: ScrollConfiguration.of(context).copyWith(

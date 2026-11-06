@@ -441,7 +441,7 @@ class FirestoreNoteRepository implements NoteRepository {
       roomId: roomId,
       noteId: noteId,
     );
-    // バッチの上限（500件）ごとに分けて削除する。
+    // バッチの上限（500件）毎に分けて削除する。
     for (var i = 0; i < strokeIds.length; i += 400) {
       final batch = _firestore.batch();
       for (final id in strokeIds.skip(i).take(400)) {

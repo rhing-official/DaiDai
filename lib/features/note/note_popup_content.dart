@@ -20,11 +20,11 @@ import '../../widgets/app_dialog.dart';
 
 /// ノートボタンの真下にノート一覧をポップアップ表示する（2026-09-06追加、
 /// `poll_popup_content.dart`の`showPollPopup`と同じ構成）。位置計算済みの
-/// [position]の元で`showMenu`を開き、選ばれた（または新規作成された）
+/// [position]の元で`showMenu`を開き、選ばれた（又は新規作成された）
 /// [Note]を返す（呼び出し元がそれを使ってペインを全画面ノートエディタへ
 /// 切り替える）。ヘッダーの「＋」は投票と異なりフォームダイアログを介さず、
 /// [NoteRepository.createNote]で即座に空のノートを作成してそのまま返す
-/// （ノートはタイトルと本文だけの単純な構造のため、作成前に入力させる
+/// （ノートはタイトルと本文だけの単純な構造の為、作成前に入力させる
 /// 項目が無い）。
 Future<Note?> showNotePopup(
   BuildContext context, {
@@ -46,7 +46,7 @@ Future<Note?> showNotePopup(
       PopupMenuItem<Note>(
         enabled: false,
         padding: EdgeInsets.zero,
-        // メニューは呼び出し元の外のルートに描かれるため、呼び出し元と同じ
+        // メニューは呼び出し元の外のルートに描かれる為、呼び出し元と同じ
         // プロバイダーの範囲（使い方ガイドの練習用の画面など）を引き継ぐ。
         child: UncontrolledProviderScope(
           container: ProviderScope.containerOf(context),
@@ -148,7 +148,7 @@ class _NotePopupContentState extends ConsumerState<_NotePopupContent> {
   /// （firestore.rules参照、`build()`側で`onDelete`自体を作成者以外には
   /// 渡さない）。確認ダイアログは`_AlbumPopupContentState._deleteAlbum`
   /// （`album_popup_content.dart`）と同じ型。ノート専用の削除確認本文は
-  /// 用意していないため、投票側と同じく`calendarDeleteConfirmMessage`を
+  /// 用意していない為、投票側と同じく`calendarDeleteConfirmMessage`を
   /// 流用する。
   Future<void> _deleteNote(Note note) async {
     final strings = ref.read(appStringsProvider);
@@ -328,7 +328,7 @@ class _NotePopupContentState extends ConsumerState<_NotePopupContent> {
 /// `_PinnedMessageCard`が持つ×ボタンと同じ座標・円形サイズのコンセプトを
 /// 踏襲。アイコンのみ×→ゴミ箱に変更）は、作成者本人が開いた場合のみ
 /// [onDelete]が渡され表示される（他人には`null`、firestore.rulesの
-/// 作成者限定削除と一致させるための表示制御）。
+/// 作成者限定削除と一致させる為の表示制御）。
 class _NotePopupCard extends StatelessWidget {
   const _NotePopupCard({
     required this.note,

@@ -128,7 +128,7 @@ void main() {
     await _start(tester);
     expect(find.byType(PracticeHome), findsOneWidget);
     expect(container.read(tutorialControllerProvider)?.index, 0);
-    expect(find.text('まず「身だしなみ」を押します'), findsOneWidget);
+    expect(find.text('先ず「身だしなみ」を押します'), findsOneWidget);
     expect(find.text('1 / 5'), findsOneWidget);
   });
 
@@ -155,7 +155,7 @@ void main() {
     // 2・3手順目は押さない手順（「次へ」で進む）。読み取りボタンを押しても何も起きない。
     await tester.tap(find.byKey(const ValueKey('tutorial-next')));
     await _settle(tester);
-    expect(find.textContaining('読み取るときは'), findsOneWidget);
+    expect(find.textContaining('読み取る時は'), findsOneWidget);
     await tester.tap(find.text('QRコードを読み取る'), warnIfMissed: false);
     await tester.pump(const Duration(milliseconds: 300));
     expect(container.read(tutorialControllerProvider)?.index, 4);

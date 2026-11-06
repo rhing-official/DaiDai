@@ -75,7 +75,7 @@ class NavChip extends ConsumerWidget {
     // 劇画スタイルは他のメニューチップ（GekigaMenuTile/GekigaPanelBox）と
     // 同じ「選択中=白地黒字、非選択中=黒地白字」の規則に統一する
     // （2026-08-04変更。以前は選択中のみアクセントカラー塗りのバッジだったが、
-    // アクセントカラーは劇画UI選択中は変更不可にしたため、この画面だけ
+    // アクセントカラーは劇画UI選択中は変更不可にした為、この画面だけ
     // 固定色になったアクセントカラーが残るのは一貫しない）。
     final chip = isGekiga
         ? Material(
@@ -220,7 +220,7 @@ class ChipNavShell extends StatefulWidget {
   final Widget child;
 
   /// trueを返す間はなぞりによるタブ切り替えを無効にする（ポップアップが
-  /// 開いている間に背後でタブが切り替わらないようにするため）。
+  /// 開いている間に背後でタブが切り替わらないようにする為）。
   final bool Function()? isSwipeBlocked;
 
   /// 各チップを包む（ガイドの目印を巻く等、2026-10-17追加）。`null`なら包まない。
@@ -358,7 +358,7 @@ class _ChipNavShellState extends State<ChipNavShell> {
             left: kNavChipMargin,
             top: 0,
             bottom: 0,
-            // 当たり判定をチップ自体でなく帯全体に広げるため、
+            // 当たり判定をチップ自体でなく帯全体に広げる為、
             // GestureDetectorをCenterの外側に置く（ホーム画面と同じ）。
             child: _wrapWithSwipe(
               vertical: true,

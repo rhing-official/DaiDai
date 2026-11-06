@@ -13,8 +13,8 @@ List<String> addRecentSticker(List<String> current, String stickerId) => [
   ...current.where((id) => id != stickerId),
 ].take(kRecentStickerLimit).toList();
 
-/// 最近使ったぺったんのid（新しい順、2026-10-29追加）。端末ごとの
-/// `SharedPreferences`保存で、Firestoreには同期しない（別端末へは引き継がない）。
+/// 最近使ったぺったんのid（新しい順、2026-10-29追加）。端末毎の
+/// `SharedPreferences`保存で、Firestoreには同期しない（別端末へは引き継が無い）。
 /// 起動時の読み込みは非同期で、読み込み前は空。
 class RecentStickersNotifier extends Notifier<List<String>> {
   @override

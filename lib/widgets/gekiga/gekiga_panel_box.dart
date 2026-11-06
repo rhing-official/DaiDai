@@ -69,7 +69,7 @@ class GekigaTileContent extends StatelessWidget {
 /// パディング・フォントサイズは、フラットスタイルの`ListTile`が実際に
 /// 使う値に揃えている（2026-08-04変更。以前はvertical:24等、独自の
 /// 大きめの値を試行錯誤していたが、フラット/劇画スタイルの切り替えで
-/// ブロックの縦幅・座標・文字サイズが変わってしまうとの指摘を受けた）。
+/// ブロックの縦幅・座標・フォントサイズが変わってしまうとの指摘を受けた）。
 /// `ListTile`は`contentPadding`をそのまま高さに反映するのではなく、
 /// 1行なら56dp・2行なら72dpという最小高さを内部で強制するため
 /// （`contentPadding: horizontal:16, vertical:8`が既定でも実際の見た目は
@@ -77,7 +77,7 @@ class GekigaTileContent extends StatelessWidget {
 /// （縦: 概ね(56-24)/2=16、横: 16）を直接使う。フォントサイズも
 /// `ListTile.title`/`ListTile.subtitle`の既定と同じ`titleMedium`/
 /// `bodyMedium`にする（`AppTheme`/`GekigaTheme`とも既定のMaterial
-/// テキストテーマをそのまま使っているため、両スタイルで同じサイズになる）。
+/// テキストテーマをそのまま使っている為、両スタイルで同じサイズになる）。
 Widget _gekigaTileContent({
   required BuildContext context,
   required Color fg,
@@ -201,8 +201,8 @@ class GekigaButton extends StatelessWidget {
 ///
 /// 各箱は直角の矩形で、`MonochromeBoxPainter`（ホーム画面ナビチップ等の
 /// 「メニューチップ」と同じ黒外枠→白内枠→塗り色の3層）で描く
-/// （2026-08-05、独自の塗り1色＋線1色描画から変更。以前は黒枠がほとんど
-/// 見えなかった不具合の原因）。角の形は変えず、代わりに箱ごとの`seed`で
+/// （2026-08-05、独自の塗り1色＋線1色描画から変更。以前は黒枠が殆ど
+/// 見えなかった不具合の原因）。角の形は変えず、代わりに箱毎の`seed`で
 /// 枠の太さを僅かに変化させることで些細な手作り感を出す
 /// （[MonochromeBoxPainter]参照）。
 class _GekigaJointedList extends MultiChildRenderObjectWidget {
@@ -255,7 +255,7 @@ class GekigaJointedTileList extends StatelessWidget {
     super.key,
   });
 
-  /// 縦積みのとき、各箱の右端を一覧の右端へ揃える（2026-11-02、項目一覧の右揃え用）。
+  /// 縦積みの時、各箱の右端を一覧の右端へ揃える（2026-11-02、項目一覧の右揃え用）。
   /// 一覧は利用可能な幅いっぱいに広がる。
   final bool alignEnd;
 
@@ -335,8 +335,8 @@ class _RenderGekigaJointedList extends RenderBox
        _selectedFlags = selectedFlags,
        _alignEnd = alignEnd;
 
-  // 上記コンストラクタは`this._axis`等の初期化フォームにできない
-  // （引数名`axis`とpublicなsetter`axis`が衝突するため）。lintの
+  // 上記コンストラクタは`this._axis`等の初期化フォームに出来ない
+  // （引数名`axis`とpublicなsetter`axis`が衝突する為）。lintの
   // `prefer_initializing_formals`は意図的に無視する。
 
   /// 箱同士の間隔（2026-08-05追加。接合を廃止した代わりに、隙間で
@@ -347,7 +347,7 @@ class _RenderGekigaJointedList extends RenderBox
 
   /// 枠の太さの基準値（2026-08-05追加）。`MonochromeBoxPainter`の
   /// `thicknessBase`に箱自身のサイズ（`box.size.shortestSide`）を渡すと、
-  /// 長い名前で箱が大きくなるほど枠まで太くなってしまい、一覧内で箱ごとに
+  /// 長い名前で箱が大きくなるほど枠まで太くなってしまい、一覧内で箱毎に
   /// 枠の太さがバラつく不具合になっていた。箱のサイズに関わらず常にこの
   /// 固定値を使うことで、枠の太さを揃える。
   static const double _fixedThicknessBase = 48;

@@ -10,7 +10,7 @@ import 'attachment_upload.dart';
 /// 転送先の種類。
 enum ForwardTargetKind { dm, group }
 
-/// 転送先（一対か広場の、ひとつの寄合、2026-11-05）。
+/// 転送先（一対か広場の、一つの寄合、2026-11-05）。
 class ForwardTarget {
   const ForwardTarget({
     required this.kind,
@@ -25,7 +25,82 @@ class ForwardTarget {
   final String roomId;
 }
 
-/// 転送できるメッセージか。本文・添付・ぺったんだけが対象で、通話履歴・予定や投票などの
+/// 転送先ポップアップに出す、転送する内容のプレビュー（2026-11-06）。
+class ForwardPreview {
+  const ForwardPreview({
+    this.text,
+    this.media = const [],
+    this.files = const [],
+    this.stickerUrl,
+  });
+
+  /// 本文（またはキャプション）。
+  final String? text;
+
+  /// 画像・動画（サムネイルで見せる）。動画は[ForwardPreviewMedia.isVideo]。
+  final List<ForwardPreviewMedia> media;
+
+  /// 画像・動画以外のファイル名。
+  final List<String> files;
+  final String? stickerUrl;
+
+  bool get isEmpty =>
+      (text == null || text!.isEmpty) &&
+      media.isEmpty &&
+      files.isEmpty &&
+      stickerUrl == null;
+}
+
+class ForwardPreviewMedia {
+  const ForwardPreviewMedia({
+    required this.url,
+    required this.name,
+    this.isVideo = false,
+  });
+
+  /// 表示に使うURL（動画はサムネイルがあればそのURL、無ければ動画のURL）。
+  final String url;
+  final String name;
+  final bool isVideo;
+}
+
+/// [message]から、転送先ポップアップのプレビューを作る。
+ForwardPreview forwardPreviewOf(Message message) {
+  final files = <String>[];
+  final media = <ForwardPreviewMedia>[];
+  void add(MessageFileMetadata meta, String contentType) {
+    if (contentType == 'image') {
+      media.add(ForwardPreviewMedia(url: meta.url, name: meta.fileName));
+    } else if (contentType == 'video') {
+      media.add(
+        ForwardPreviewMedia(
+          url: meta.thumbnailUrl ?? meta.url,
+          name: meta.fileName,
+          isVideo: true,
+        ),
+      );
+    } else {
+      files.add(meta.fileName);
+    }
+  }
+
+  switch (message.contentType) {
+    case 'text':
+      return ForwardPreview(text: message.content);
+    case 'sticker':
+      return ForwardPreview(stickerUrl: message.stickerData?.stickerUrl);
+    case 'multi':
+      for (final a in message.attachments) {
+        add(a, _contentTypeOfMime(a.mimeType));
+      }
+    default:
+      final meta = message.fileMetadata;
+      if (meta != null) add(meta, message.contentType);
+  }
+  return ForwardPreview(text: message.caption, media: media, files: files);
+}
+
+/// 転送出来るメッセージか。本文・添付・ぺったんだけが対象で、通話履歴・予定や投票などの
 /// 通知カード・アカウント削除通知・bot/お便りは対象外。
 bool canForwardMessage(Message message) {
   switch (message.contentType) {
@@ -61,7 +136,7 @@ String _contentTypeOfMime(String mimeType) {
 }
 
 /// [message]を、[target]へ新しいメッセージとして送る（送信者は[senderId]、返信・メンション・
-/// リアクションは引き継がない。「転送」の表示も付けない、2026-11-05）。添付は元のURLから
+/// リアクションは引き継が無い。「転送」の表示も付けない、2026-11-05）。添付は元のURLから
 /// 取得して保存し直す。失敗したら例外を投げる。
 Future<void> forwardMessage({
   required WidgetRef ref,

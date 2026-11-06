@@ -4,7 +4,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import '../utils/google_sign_in_bootstrap.dart';
 
 /// Web版でPhase 0（[GoogleCalendarAuthService._webClientId]へのOAuth
-/// クライアントID設定）が未完了のまま連携を試みたときに投げる（2026-09-01
+/// クライアントID設定）が未完了のまま連携を試みた時に投げる（2026-09-01
 /// 追加）。呼び出し側はこれを型で捕捉し、`google_sign_in_web`パッケージが
 /// 出す生の`Assertion failed: ... appClientId != null ...`をそのまま
 /// ユーザーに見せず、分かりやすい文言に置き換える。
@@ -14,13 +14,13 @@ class GoogleCalendarNotConfiguredException implements Exception {
 
 /// Googleカレンダー連携（2026-09-01追加）のスコープ同意・アクセストークン
 /// 取得を担う。サーバー（Cloud Functions）にはリフレッシュトークンを一切
-/// 保存しないクライアント主導の同期方式のため、ここで取得したアクセス
+/// 保存しないクライアント主導の同期方式の為、ここで取得したアクセス
 /// トークンはその場限りで使い切り、永続化しない（呼び出し側の
 /// `GoogleCalendarSyncService`参照）。
 ///
 /// `google_sign_in`パッケージの`authorizationClient`（v7.2.0で追加された
 /// スコープ管理API）をラップする。`GoogleSignIn.instance.initialize()`は
-/// アプリ全体で1回しか呼べない制約があるため、`AuthRepository`と共有の
+/// アプリ全体で1回しか呼べない制約がある為、`AuthRepository`と共有の
 /// [ensureGoogleSignInInitialized]を経由する。
 class GoogleCalendarAuthService {
   /// `calendar.app.created`（2026-09-23変更、以前は`calendar.events`）:
@@ -60,7 +60,7 @@ class GoogleCalendarAuthService {
   ///
   /// 成功時はアクセストークンを返す（呼び出し側はこれをそのまま
   /// `GoogleCalendarSyncService.createCalendar`に渡し、専用カレンダーを
-  /// 作成できる。2026-09-23変更、以前はbool固定でトークンを捨てていた）。
+  /// 作成出来る。2026-09-23変更、以前はbool固定でトークンを捨てていた）。
   /// ユーザーが同意画面でキャンセルした場合はnullを返す（呼び出し側は
   /// `googleCalendarSyncEnabled`を更新せずnullのまま据え置く）。それ以外の
   /// 失敗（ネットワークエラー・設定不備等）は例外をそのまま投げる。

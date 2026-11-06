@@ -276,7 +276,7 @@ class _ChatTaskBannerState extends ConsumerState<ChatTaskBanner> {
   }
 
   /// 投票の対象判定は「未締切であること」そのものにする（2026-09-06追加）。
-  /// 日程調整の「未確定」に相当する概念が投票には無いため。
+  /// 日程調整の「未確定」に相当する概念が投票には無い為。
   void _onPolls(List<Poll> polls) {
     final candidates = {
       for (final p in polls)
@@ -314,7 +314,7 @@ class _ChatTaskBannerState extends ConsumerState<ChatTaskBanner> {
   }
 
   /// 自分の回答（[PollRepository.watchMyResponse]）だけを購読することで、
-  /// 匿名投票でも他人の投票内容を一切読まずに未回答判定できる
+  /// 匿名投票でも他人の投票内容を一切読先ずに未回答判定出来る
   /// （firestore.rulesも匿名投票のresponsesは本人以外読めない）。
   void _onPollResponse(String pollId, PollResponse? response) {
     if (!_candidatePolls.containsKey(pollId)) return;
@@ -360,7 +360,7 @@ class _ChatTaskBannerState extends ConsumerState<ChatTaskBanner> {
   /// 長押し確認ダイアログから呼ばれる、タスクバナーからの個人的な非表示
   /// （2026-09-10追加）。対象は削除せず、自分の`bannerHiddenFor`に自分の
   /// userIdを追加するだけ（他の参加者のバナーには影響しない）。呼び出し後は
-  /// Firestoreストリームの更新で自動的にバナーから消えるため、追加の状態
+  /// Firestoreストリームの更新で自動的にバナーから消える為、追加の状態
   /// 更新は不要。
   Future<void> _hideTask(_PendingTask task) async {
     switch (task) {
@@ -471,7 +471,7 @@ class _ChatTaskBannerState extends ConsumerState<ChatTaskBanner> {
     // fromSeed`がアクセントカラーから自動生成する近似色、薄いパステル調に
     // なりがちで実際に設定した色とは異なって見えた）を使っていたが、
     // `colorScheme.primary`はapp_theme.dart/glass_theme.dartの両方で
-    // `accentColor`そのものに明示上書き済みのため、ここでは`primary`/
+    // `accentColor`そのものに明示上書き済みの為、ここでは`primary`/
     // `onPrimary`を使う。劇画は元々アクセントカラーの概念が無く固定配色。
     final background = isGekiga ? GekigaColors.panel : colorScheme.primary;
     final foreground = isGekiga ? GekigaColors.onPanel : colorScheme.onPrimary;

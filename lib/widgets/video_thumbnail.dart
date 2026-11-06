@@ -15,7 +15,7 @@ bool get videoPlaybackSupported =>
 /// サムネイルとして表示する動画内の位置（2026-10-16追加）。基本は1秒、
 /// 1.5秒に満たない短い動画は先頭付近（0.3秒か、それより短ければ半分）。
 /// 長さが不明（0）なら先頭。サーバー側のサムネイル生成（`functions/src/index.ts`
-/// の`generateVideoThumbnail`）と見え方をそろえるための共通ルール。
+/// の`generateVideoThumbnail`）と見え方をそろえる為の共通ルール。
 Duration previewPositionFor(Duration duration) {
   const preferred = Duration(seconds: 1);
   const shortLimit = Duration(milliseconds: 1500);
@@ -37,7 +37,7 @@ Duration previewPositionFor(Duration duration) {
 ///
 /// 元は`lib/features/chat/chat_screen.dart`の`_VideoThumbnail`（メッセージ
 /// 添付・返信引用プレビュー用）だったが、寄合アルバム機能（2026-08-30）の
-/// グリッド表示でも同じロジックが必要になったため、公開ウィジェットとして
+/// グリッド表示でも同じロジックが必要になった為、公開ウィジェットとして
 /// `lib/widgets/`へ切り出した。
 class VideoThumbnail extends StatefulWidget {
   const VideoThumbnail({
@@ -53,8 +53,8 @@ class VideoThumbnail extends StatefulWidget {
 
   /// サーバー側（Cloud Functions）が動画の1秒位置から生成したサムネイル画像
   /// （`MessageFileMetadata.thumbnailUrl`、2026-10-16追加）。あれば動画自体は
-  /// 読み込まず、この画像を表示する。Webの一部ブラウザ（Firefox系）では
-  /// `VideoPlayerController.initialize`が完了せず先頭フレームを取れないため、
+  /// 読み込先ず、この画像を表示する。Webの一部ブラウザ（Firefox系）では
+  /// `VideoPlayerController.initialize`が完了せず先頭フレームを取れない為、
   /// 画像を優先する。未生成（null）の間だけ動画から先頭付近のコマを取る。
   final String? thumbnailUrl;
   final bool canLoad;
@@ -99,7 +99,7 @@ class _VideoThumbnailState extends State<VideoThumbnail> {
     controller
         .initialize()
         .then((_) async {
-          // 先頭（0秒）は暗転・フェードインで黒くなりやすいため、サーバー側の
+          // 先頭（0秒）は暗転・フェードインで黒くなりやすい為、サーバー側の
           // サムネイル生成（Cloud Functions、1秒位置）と同じ位置のコマを出す
           // （2026-10-16）。短い動画は長さに収まる位置にする。
           await controller.seekTo(

@@ -6,7 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 const kMessagePageSize = 50;
 
 /// 過去ページ読み込みの起点（これより古いメッセージを取得する）。
-/// `sentAt`単独だと同時刻のメッセージが欠落しうるため、メッセージIDと
+/// `sentAt`単独だと同時刻のメッセージが欠落しうる為、メッセージIDと
 /// 組にして`(sentAt, messageId)`の降順カーソルとして使う
 /// （`DirectMessageRepository.loadOlderMessages`/
 /// `GroupRepository.loadOlderRoomMessages`）。

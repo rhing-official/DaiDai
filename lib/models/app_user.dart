@@ -79,12 +79,12 @@ class AppUser {
   final List<SnsLink> snsLinks;
 
   /// 蔵に登録している誕生日（1件だけ、2026-10-23追加）。プロフィールカードに載せるかは
-  /// カードごとに選ぶ（[ProfileCard.showBirthday]）。
+  /// カード毎に選ぶ（[ProfileCard.showBirthday]）。
   final Birthday? birthday;
 
   /// 蔵に保管しているフォントデザイン（最大[kMaxFontDesigns]件、2026-09-26追加）。
   /// 工房のプロフィールカードに割り当てると、見る側の設定に関わらずそのカードの
-  /// 呼び名・一言・URLのフォントを固定できる。
+  /// 呼び名・一言・URLのフォントを固定出来る。
   final List<FontDesignMaterial> fontDesignMaterials;
 
   /// 和合で作成したプロフィールカード（最大[kMaxProfileCards]枚）。
@@ -107,7 +107,7 @@ class AppUser {
   /// から直接組み立てる（[UserRepository.syncInvitePreview]参照）。
   final String? activeProfileCardId;
 
-  /// 会話（一対のdmId・広場のgroupId）ごとに使うプロフィールカードのid
+  /// 会話（一対のdmId・広場のgroupId）毎に使うプロフィールカードのid
   /// （2026-07-29追加）。エントリが無い会話は[activeProfileCardId]（標準）が
   /// 適用される。[profileCardFor]/[effectiveIconFor]等の会話対応版ゲッター
   /// から参照する。
@@ -124,7 +124,7 @@ class AppUser {
   final AccountStatus accountStatus;
 
   /// 契約プラン（2026-10-17追加）。付与はサーバーだけ。`toJson()`には含めない
-  /// （`updateUser`の全体上書きでこの値が消える／書き戻される事故を避けるため）。
+  /// （`updateUser`の全体上書きでこの値が消える／書き戻される事故を避ける為）。
   /// 極みかどうかの判定は[isKiwami]（`lib/utils/kiwami.dart`）を使う。
   final SubscriptionPlan subscriptionPlan;
 
@@ -132,7 +132,7 @@ class AppUser {
   /// `functions/src/index.ts`の`onSpamViolationCreated`が設定）が解除される
   /// 日時。永久停止の場合はnullのまま[accountStatus]が[AccountStatus.suspended]
   /// になる。運営の手動停止（`suspendUserAccount`）はこのフィールドを
-  /// 持たないため、値の有無でどちらの停止経路かを判別できる
+  /// 持たない為、値の有無でどちらの停止経路かを判別出来る
   /// （2026-09-07追加、CLAUDE.mdの「2つの停止経路は独立させる」方針参照）。
   final Timestamp? autoSuspendedUntil;
 
@@ -143,16 +143,16 @@ class AppUser {
   /// アカウント作成日時（2026-08-12追加、管理画面向け）。`toJson()`自体には
   /// 含めず、`UserRepository.createUser`が新規作成時のみ`FieldValue.
   /// serverTimestamp()`を個別にマージして書き込む（`updateUser`は同じ
-  /// `toJson()`を`.set()`で全体上書きしているため、`toJson()`にサーバー
+  /// `toJson()`を`.set()`で全体上書きしている為、`toJson()`にサーバー
   /// タイムスタンプを混ぜるとプロフィール更新のたびに現在時刻へリセット
-  /// されてしまう事故を避けるため）。既存ユーザーはnullのままで、
+  /// されてしまう事故を避ける為）。既存ユーザーはnullのままで、
   /// 管理画面では「不明」表示になる。
   final Timestamp? createdAt;
 
   /// 最終ログイン日時（2026-08-12追加、管理画面向け）。`UserRepository.
   /// touchLastLogin`が認証済みセッション確認のたびに更新する、独立した
   /// フィールド（理由は[createdAt]と同様、`updateUser`経由での事故を
-  /// 避けるため）。
+  /// 避ける為）。
   final Timestamp? lastLoginAt;
 
   /// 招待リンクの版識別子（`UserInvitePreview.version`）に混ぜる値（現在時刻の
@@ -165,7 +165,7 @@ class AppUser {
   /// 利用規約・プライバシーポリシー・免責事項に同意した日時（2026-09-14
   /// 追加）。新規アカウント作成フローの`TermsConsentScreen`で同意した
   /// タイミングでのみ設定される。[createdAt]/[lastLoginAt]と同じ理由
-  /// （`updateUser`が`toJson()`を`.set()`で全体上書きするため、既存値を
+  /// （`updateUser`が`toJson()`を`.set()`で全体上書きする為、既存値を
   /// そのまま書き戻す分には無害だが新規作成時だけはサーバータイムスタンプを
   /// 差し込みたい）で、`UserRepository.createUser`が個別にマージする。
   /// この機能追加より前に作られた既存アカウントはnullのまま
@@ -181,8 +181,8 @@ class AppUser {
   final bool? googleCalendarSyncEnabled;
 
   /// 連携時にDaiDaiが作成した専用のGoogleカレンダーのID（2026-09-23追加）。
-  /// 住人ごとに1つだけ作成し（会話ごとには分けない）、以後の予定同期は
-  /// すべてこのカレンダーに書き込む（`GoogleCalendarSyncService`参照）。
+  /// 住人毎に1つだけ作成し（会話毎には分けない）、以後の予定同期は
+  /// 全てこのカレンダーに書き込む（`GoogleCalendarSyncService`参照）。
   /// [googleCalendarSyncEnabled]がfalse/nullの間はnull。連携解除時は
   /// Google側のカレンダー自体を削除した上でこのフィールドもnullに戻す
   /// （ユーザー確定仕様、再連携時は新しい専用カレンダーを作り直す）。
@@ -194,17 +194,17 @@ class AppUser {
   /// 既存挙動のまま）、true=このトグルで明示的にオンにした、false=明示的に
   /// オフにした（この端末のFCMトークンを`fcmTokens`から削除済み、
   /// `PushNotificationBootstrap`は次回起動時の自動リクエストをスキップする）。
-  /// OS/ブラウザ側の通知許可自体はアプリから取り消せないため、このフラグは
+  /// OS/ブラウザ側の通知許可自体はアプリから取り消せない為、このフラグは
   /// あくまで「この端末にDaiDaiが通知を送るかどうか」を表す。
   final bool? pushNotificationsEnabled;
 
-  /// 他の住人が「＋」の友達申請でRhing Seedを入力して自分を検索できるか（2026-10-31追加）。
-  /// null=未設定（検索できる、従来どおり）、false=検索に出ない。招待リンク・QRコードからの
-  /// 申請には影響しない。`users`は全住人が読めるため、これはアプリ上の振る舞いを変えるだけで
+  /// 他の住人が「＋」の友達申請でRhing Seedを入力して自分を検索出来るか（2026-10-31追加）。
+  /// null=未設定（検索出来る、従来どおり）、false=検索に出ない。招待リンク・QRコードからの
+  /// 申請には影響しない。`users`は全住人が読める為、これはアプリ上の振る舞いを変えるだけで
   /// データの秘匿ではない。
   final bool? seedSearchable;
 
-  /// [seedSearchable]の解決済み（未設定は検索できる）。
+  /// [seedSearchable]の解決済み（未設定は検索出来る）。
   bool get isSeedSearchable => seedSearchable != false;
 
   ProfileMaterial? get activeIcon => _findMaterial(icons, activeIconId);
@@ -221,7 +221,7 @@ class AppUser {
   /// 表示に使うべきアイコン。適用中のプロフィールカード（[activeProfileCard]）
   /// があればそのカードが指すアイコンを優先し、未適用なら個別の蔵アイテムの
   /// [activeIcon]にフォールバックする。友達一覧・メンバー一覧など、相手の
-  /// アイコンを表示するすべての箇所はこのgetterを使うこと。
+  /// アイコンを表示する全ての箇所はこのgetterを使うこと。
   ProfileMaterial? get effectiveIcon {
     final card = activeProfileCard;
     return card != null ? _findMaterial(icons, card.iconId) : activeIcon;
@@ -276,7 +276,7 @@ class AppUser {
 
   /// [conversationId]（一対のdmId・広場のgroupId）に指定された会話専用の
   /// プロフィールカードがあればそれを返し、無ければ[activeProfileCard]
-  /// （標準）にフォールバックする。会話ごとのカード切り替え機能
+  /// （標準）にフォールバックする。会話毎のカード切り替え機能
   /// （2026-07-29追加）の基点となるゲッター。
   ProfileCard? profileCardFor(String? conversationId) {
     if (conversationId != null) {
@@ -462,7 +462,7 @@ class AppUser {
       userId: json['userId'] as String,
       // 2026-09-23のrhingId→rhingSeedリネーム移行期間中、Firestore側の
       // 移行処理（`migrateRhingSeedOnce`）がまだ実行されていないドキュメント
-      // には新フィールドが無い場合があるため、旧フィールドへのフォールバック
+      // には新フィールドが無い場合がある為、旧フィールドへのフォールバック
       // を持たせる（2026-09-24追加。このフォールバックが無いと`as String`が
       // 例外を投げ、AuthGateが既存ユーザーを新規ユーザーと誤判定して新規
       // 登録フローに送り込み、身だしなみ等の既存データが上書き消失する

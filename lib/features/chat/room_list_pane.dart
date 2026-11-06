@@ -23,10 +23,10 @@ typedef RoomListEntry = ({String roomId, String name, int unreadCount});
 
 /// 友達一覧・広場一覧のサイドバーの右隣に表示する、選択中の会話の寄合
 /// （テキストチャンネル）一覧サイドバー。広場・一対どちらでも使えるよう
-/// データ・操作をすべてコールバック注入で受け取る汎用設計にしている
+/// データ・操作を全てコールバック注入で受け取る汎用設計にしている
 /// （`ChatScreen`が会話種別に依存しない設計を踏襲）。
 ///
-/// 追加は確認無しで（名前を入力するダイアログのみで）即座に作成できる。
+/// 追加は確認無しで（名前を入力するダイアログのみで）即座に作成出来る。
 /// [onCreateRoom]がnullの場合、追加ボタン自体を出さない（広場で長・
 /// モデレーターでないメンバーには出さない、等の権限制御は呼び出し側が
 /// コールバックのnull/非nullで表現する）。
@@ -53,7 +53,7 @@ class RoomListPane extends ConsumerStatefulWidget {
     super.key,
   });
 
-  /// このペインが今表示している会話（広場名、または一対の相手の呼び名/
+  /// このペインが今表示している会話（広場名、又は一対の相手の呼び名/
   /// Rhing Seed）。ヘッダーに表示する（以前は用語「寄合」の固定文言だったが、
   /// どの会話の寄合一覧を見ているか分かりにくいとの指摘を受けて変更）。
   final String conversationName;
@@ -62,7 +62,7 @@ class RoomListPane extends ConsumerStatefulWidget {
   final String? selectedRoomId;
 
   /// タップされた寄合そのもの（名前込み）を渡す。呼び出し側が名前を
-  /// 再取得しなくても良いようにするため。
+  /// 再取得しなくても良いようにする為。
   final void Function(RoomListEntry room) onSelectRoom;
   final Future<void> Function(String name)? onCreateRoom;
 
@@ -84,9 +84,9 @@ class _RoomListPaneState extends ConsumerState<RoomListPane> {
   /// ドラッグ中・保存の往復中も体感が即応するよう、[widget.rooms]から
   /// 同期したローカルの並びを保持する（`GroupRolePriorityDialog`と異なり
   /// 保存ボタンは無く、並べ替えのたびに逐次[RoomListPane.onReorderRooms]で
-  /// 保存するため）。id集合が変わらない限りは外部からの再構築で並びを
+  /// 保存する為）。id集合が変わらない限りは外部からの再構築で並びを
   /// 巻き戻さない（自分の並べ替えがFirestoreを経由して戻ってきただけの
-  /// 場合と、他のメンバーが同時に並べ替えた場合を区別できないため、後者は
+  /// 場合と、他のメンバーが同時に並べ替えた場合を区別出来ない為、後者は
   /// 次にid集合が変わるタイミング＝寄合の追加・削除時まで反映が遅れる
   /// 既知の制約として許容する）。
   late List<RoomListEntry> _rooms = List.of(widget.rooms);
@@ -173,7 +173,7 @@ class _RoomListPaneState extends ConsumerState<RoomListPane> {
           result = Transform.rotate(angle: 0.02 * t, child: result);
 
           // 劇画の黒い箱（非選択）は塗りが濃く、わずかな不透明度低下では後ろが透けて
-          // 見えなかったため、劇画は大きく下げる（2026-11-05）。
+          // 見えなかった為、劇画は大きく下げる（2026-11-05）。
           return Opacity(
             opacity: 1.0 - (isGekiga ? 0.05 : 0.06) * t,
             child: result,
@@ -265,26 +265,28 @@ class _RoomListPaneState extends ConsumerState<RoomListPane> {
         final fg = isSelected ? colorScheme.onPrimary : colorScheme.onSurface;
         return Padding(
           padding: const EdgeInsets.fromLTRB(2, 4, 6, 8),
-          child: blockMaterialBox(
-            context,
-            color: isSelected
-                ? colorScheme.primary
-                : (Theme.of(context).brightness == Brightness.light
-                      ? Colors.white
-                      : colorScheme.surface),
-            child: ListTile(
-              iconColor: fg,
-              textColor: fg,
-              leading: tagIcon,
-              title: Text(
-                truncateName(room.name, 6),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+          child: blockFitWidth(
+            blockMaterialBox(
+              context,
+              color: isSelected
+                  ? colorScheme.primary
+                  : (Theme.of(context).brightness == Brightness.light
+                        ? Colors.white
+                        : colorScheme.surface),
+              child: ListTile(
+                iconColor: fg,
+                textColor: fg,
+                leading: tagIcon,
+                title: Text(
+                  truncateName(room.name, 6),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                trailing: room.unreadCount > 0
+                    ? UnreadBadge(count: room.unreadCount)
+                    : null,
+                onTap: () => widget.onSelectRoom(room),
               ),
-              trailing: room.unreadCount > 0
-                  ? UnreadBadge(count: room.unreadCount)
-                  : null,
-              onTap: () => widget.onSelectRoom(room),
             ),
           ),
         );
@@ -452,9 +454,9 @@ class _RoomListPaneState extends ConsumerState<RoomListPane> {
                   // （2026-09-12追加、以前は劇画UIだけ非対応だった。
                   // `GekigaJointedTileList`は2026-08-05の変更で複数の箱を
                   // 接合せず、間隔を空けてそれぞれ独立した箱として描くように
-                  // なっているため、1件だけ渡しても他の項目と見た目が変わらない
+                  // なっている為、1件だけ渡しても他の項目と見た目が変わらない
                   // 独立した箱になる＝`ReorderableListView`の1行として個別に
-                  // ドラッグできる）。
+                  // ドラッグ出来る）。
                   buildDefaultDragHandles: false,
                   padding: const EdgeInsets.fromLTRB(8, 12, 8, 0),
                   onReorderItem: _handleReorder,
@@ -535,7 +537,7 @@ Future<String?> promptForRoomName(
   return showAppDialog<String>(
     context: context,
     // ガラスUIは素の`AlertDialog`だと`GlassTheme.dialogTheme.background
-    // Color`がColors.transparentのため、実際の塗り・ぼかしを描く
+    // Color`がColors.transparentの為、実際の塗り・ぼかしを描く
     // `GlassSurface`でラップしていないと背景が透明のまま素通しになる
     // （2026-09-11発覚・修正、`group_delete_dialog.dart`等と同じ
     // `isGlass ? Dialog(child: GlassAlertDialog(...)) : KeyboardAlertDialog(...)`

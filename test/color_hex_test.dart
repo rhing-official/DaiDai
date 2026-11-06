@@ -15,7 +15,7 @@ void main() {
     expect(six!.toARGB32(), 0xFFF08300);
   });
 
-  test('#付き・大文字小文字混在でも解析できる', () {
+  test('#付き・大文字小文字混在でも解析出来る', () {
     expect(tryParseHexColor('#F08300'), tryParseHexColor('f08300'));
   });
 

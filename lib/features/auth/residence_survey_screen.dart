@@ -12,7 +12,7 @@ import '../../widgets/fixed_font_theme.dart';
 import '../../widgets/app_dropdown.dart';
 import '../../widgets/app_dialog.dart';
 
-/// 居住地アンケート画面（2026-10-16追加）。新規登録直後、およびまだ回答していない
+/// 居住地アンケート画面（2026-10-16追加）。新規登録直後、及びまだ回答していない
 /// 住人（既存住人・daidai横丁で先にアカウントだけ作った人の初回ログイン後）に、
 /// [AuthGate]が必ず通す。設定＞アカウントの「居住地」からの変更にも使う
 /// （[initial]を渡し、[isEditing]を`true`にする）。
@@ -151,7 +151,7 @@ class _ResidenceSurveyScreenState extends ConsumerState<ResidenceSurveyScreen> {
             children: [
               // 国と一緒に表示言語も選べる（2026-10-17追加）。選ぶとこの画面から
               // 即座にその言語へ切り替わる（以降の画面・設定にも引き継がれる）。
-              // 言語は今後増える予定のため、並べる形式ではなくプルダウンにする。
+              // 言語は今後増える予定の為、並べる形式ではなくプルダウンにする。
               AppDropdown<AppLocale>(
                 key: const ValueKey('residence-language'),
                 label: strings.residenceSurveyLanguageLabel,

@@ -36,11 +36,11 @@ enum _AttachmentMenuItem { file, image, video, capture }
 /// ポインター位置がこの距離未満しか動かないまま指が離れた場合、
 /// 「押した瞬間にポップアップを開くだけの単純なタップ」とみなし、
 /// メニューを閉じずに開いたままにする（続けて項目を個別にタップして
-/// 選べるようにするため）。これを超えて動いた場合のみ、長押しメニューと
+/// 選べるようにする為）。これを超えて動いた場合のみ、長押しメニューと
 /// 同じ「指を離さず滑らせて選ぶ」ドラッグ選択として扱う。
 const double _tapSlop = 12.0;
 
-/// メッセージ入力欄の＋ボタン。押すと即座に（長押し不要）すぐ上にポップアップが
+/// メッセージ入力欄の＋ボタン。押すと即座に（長押し不要）直ぐ上にポップアップが
 /// 開き、「ファイル・画像・動画・撮影」の4項目から選べる（技術仕様書5.6参照、
 /// 2026-08-10追加）。項目選択は、メッセージの長押しメニュー
 /// （`_MessageBubbleTapArea`、chat_screen.dart）と同じ「指を触れたまま
@@ -58,7 +58,7 @@ class AttachmentPopupButton extends StatefulWidget {
   final Strings strings;
 
   /// 劇画スタイル選択時、他のモノクロボックス意匠（寄合追加ボタン等）と
-  /// 統一感を持たせるため、アイコンを[GekigaIconBadge]に差し替える
+  /// 統一感を持たせる為、アイコンを[GekigaIconBadge]に差し替える
   /// （2026-08-10追加）。ドラッグ選択のジオメトリ計算・ポップアップメニュー
   /// 自体の見た目はスタイル分岐しない。
   final bool isGekiga;
@@ -80,7 +80,7 @@ class _AttachmentPopupButtonState extends State<AttachmentPopupButton> {
   Offset? _pointerDownPosition;
 
   /// 端末にカメラがあるか（2026-10-31追加）。無ければメニューから撮影を外す。
-  /// 確認できるまで・確認に失敗した時は、従来どおり表示する。
+  /// 確認出来るまで・確認に失敗した時は、従来どおり表示する。
   static Future<bool>? _hasCameraFuture;
   bool _hasCamera = true;
 
@@ -365,7 +365,7 @@ class _AttachmentPopupButtonState extends State<AttachmentPopupButton> {
   void _onPointerUp(PointerUpEvent event) {
     final downPosition = _pointerDownPosition;
     _pointerDownPosition = null;
-    // ほとんど動かずに指が離れた場合は「押した瞬間に開くだけの単純な
+    // 殆ど動かずに指が離れた場合は「押した瞬間に開くだけの単純な
     // タップ」とみなし、メニューを閉じずに開いたままにする。続けて項目を
     // 個別にタップして選べるようにするため（各項目のInkWellが処理する）。
     if (downPosition != null &&
@@ -391,7 +391,7 @@ class _AttachmentPopupButtonState extends State<AttachmentPopupButton> {
       onPointerMove: _onPointerMove,
       onPointerUp: _onPointerUp,
       // 送信ボタン（chat_screen.dartのIcons.send）とタップ領域の大きさを
-      // 揃えるためのpadding。
+      // 揃える為のpadding。
       child: widget.isGekiga
           ? const Padding(
               padding: EdgeInsets.all(6),

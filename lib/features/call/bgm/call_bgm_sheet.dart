@@ -24,7 +24,7 @@ class CallBgmBinding {
   final String? Function() otherPlayingTitle;
 }
 
-/// 拡張子から音声のMIMEタイプを決める（`<audio>`が形式を判別できるように）。
+/// 拡張子から音声のMIMEタイプを決める（`<audio>`が形式を判別出来るように）。
 String bgmMimeTypeFor(String fileName) {
   final dot = fileName.lastIndexOf('.');
   final ext = dot < 0 ? '' : fileName.substring(dot + 1).toLowerCase();

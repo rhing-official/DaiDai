@@ -21,10 +21,10 @@ bool get isDesktopPlatform =>
 /// コンピューター・タブレット・スマホの3値の端末分類（2026-09-13追加、
 /// 語らい検索の別ページ遷移の判定用）。ネイティブアプリ・Web版のどちらも
 /// 同じロジックで判定する（同じ端末でネイティブアプリとブラウザで結果が
-/// 食い違わないようにするため）。
+/// 食い違わないようにする為）。
 ///
 /// OS情報だけ（`defaultTargetPlatform`）ではタブレット専用の値が無く
-/// iPhone/iPadを区別できない上、iPadOS 13以降のSafariはUser-Agentを
+/// iPhone/iPadを区別出来ない上、iPadOS 13以降のSafariはUser-Agentを
 /// macOSと同一にして送るためWeb版はそもそもOS単体で判別不能、
 /// `device_info_plus`等のネイティブ限定プラグインを使えばiOSの機種
 /// 識別子で判定は可能だがWeb版・Androidには使えず同一端末でネイティブ
@@ -40,11 +40,11 @@ const kTabletShortestSideThreshold = 600.0;
 /// 短辺が[kTabletShortestSideThreshold]未満の場合に、スマホ（縦長）か
 /// 小型タブレット（正方形に近い）かをさらに分けるアスペクト比
 /// （縦横比の長い方÷短い方）の閾値。iPhoneは概ね2.0〜2.2、一般的な
-/// タブレットは1.3〜1.6程度のため、1.6を境界とする。
+/// タブレットは1.3〜1.6程度の為、1.6を境界とする。
 const kPhoneAspectRatioThreshold = 1.6;
 
-/// 実行中の端末を[DeviceClass]に分類する。まず`defaultTargetPlatform`
-/// （Web上でもUser-Agent由来でOSを判定できる）でモバイル系OS
+/// 実行中の端末を[DeviceClass]に分類する。先ず`defaultTargetPlatform`
+/// （Web上でもUser-Agent由来でOSを判定出来る）でモバイル系OS
 /// （Android/iOS）かどうかを判定し、モバイル系OS以外は常に
 /// [DeviceClass.computer]。モバイル系OSの場合は論理サイズ
 /// （`MediaQuery.sizeOf(context)`、devicePixelRatioで正規化済み）の
@@ -76,7 +76,7 @@ bool opensTalksSearchPage(DeviceClass deviceClass) =>
 /// `local_auth`パッケージが生体認証（Face ID/Touch ID/指紋、Android
 /// BiometricPrompt）を実質サポートするプラットフォームかどうか
 /// （2026-09-11追加）。Web・Windows・Linuxは対象外（`local_auth`が
-/// 未対応/実質使えないため）。パスコードロック機能自体は全プラットフォーム
+/// 未対応/実質使えない為）。パスコードロック機能自体は全プラットフォーム
 /// で使えるが、生体認証トグルの表示可否はこれで判定する。
 bool get isBiometricCapablePlatform =>
     !kIsWeb && (Platform.isAndroid || Platform.isIOS || Platform.isMacOS);
@@ -84,8 +84,8 @@ bool get isBiometricCapablePlatform =>
 /// 着信音・呼出音のカスタム音源アップロード（`file_picker`でファイル選択→
 /// Firebase Storageへアップロード）が使えるプラットフォームかどうか
 /// （2026-09-12追加）。Windowsは`firebase_options.dart`が未設定でアプリ自体
-/// まだ起動できず、LinuxはFirebase未設定に加え`firebase_storage`パッケージが
-/// そもそもLinux向け実装を持たないため、恒久的にアップロード非対応となる
+/// まだ起動出来ず、LinuxはFirebase未設定に加え`firebase_storage`パッケージが
+/// そもそもLinux向け実装を持たない為、恒久的にアップロード非対応となる
 /// 見込み。プリセットからの選択自体は全プラットフォームで使える。
 bool get isSoundUploadCapablePlatform =>
     kIsWeb || Platform.isAndroid || Platform.isIOS || Platform.isMacOS;
@@ -93,7 +93,7 @@ bool get isSoundUploadCapablePlatform =>
 /// Rhing Seed＋パスキー（WebAuthn）ログインが使えるプラットフォームかどうか
 /// （2026-09-16追加）。`passkeys`パッケージがWeb/Android/iOS/macOS/Windowsに
 /// 対応する一方、Linuxデスクトップネイティブアプリ向けの実装は無い
-/// （OS標準のプラットフォーム認証器が存在しないため）。Linux版は当面
+/// （OS標準のプラットフォーム認証器が存在しない為）。Linux版は当面
 /// Google/Appleログインのみとする方針（CLAUDE.md「ログイン手段の方針」参照）。
 bool get isPasskeyCapablePlatform =>
     kIsWeb ||

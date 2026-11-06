@@ -16,7 +16,7 @@ import '../../widgets/app_dialog.dart';
 /// アカウントから開く、2026-08-11追加。当初はページ遷移だったが、
 /// `group_role_list_popup.dart`と同じ「ヘッダー＋区切り線＋中身」の
 /// ダイアログ形式に変更）。`sticker_picker_sheet.dart`と同じ
-/// `watchOwnedPacks`ストリームを購読するため、アンインストール後に
+/// `watchOwnedPacks`ストリームを購読する為、アンインストール後に
 /// Firestore側の削除が伝播すればリストから自動的に消える（手動リフレッシュ不要）。
 class OwnedStickerPacksPopup extends ConsumerWidget {
   const OwnedStickerPacksPopup({required this.userId, super.key});

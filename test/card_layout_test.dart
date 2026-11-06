@@ -78,7 +78,7 @@ void main() {
       expect(r.center.dy, greaterThan(c.center.dy));
     });
 
-    testWidgets('プリセットごとに期待する側へ寄る', (tester) async {
+    testWidgets('プリセット毎に期待する側へ寄る', (tester) async {
       final top = await avatarRect(
         tester,
         _card(preset: CardLayoutPreset.topLeft),
@@ -111,7 +111,7 @@ void main() {
     });
 
     testWidgets('文字の揃えは配置と独立（左下のまま中央揃え）', (tester) async {
-      // アイコンが最も幅広いため、呼び名はブロック内で中央に寄る。
+      // アイコンが最も幅広い為、呼び名はブロック内で中央に寄る。
       final left = await nicknameRect(tester, _card());
       final centered = await nicknameRect(
         tester,

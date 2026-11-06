@@ -27,9 +27,9 @@ class GoogleCalendarSyncService {
   String _eventsBaseUrl(String calendarId) =>
       '$_calendarsBaseUrl/$calendarId/events';
 
-  /// 住人ごとの専用Googleカレンダーを作成し、そのidを返す（2026-09-23追加）。
+  /// 住人毎の専用Googleカレンダーを作成し、そのidを返す（2026-09-23追加）。
   /// `calendar.app.created`スコープではこのアプリが作成したカレンダーにしか
-  /// 触れられないため、同期を有効にした最初のタイミングで必ず1回呼ぶ
+  /// 触れられない為、同期を有効にした最初のタイミングで必ず1回呼ぶ
   /// （呼び出し側は返り値を`AppUser.googleCalendarId`として保存する）。
   Future<String> createCalendar({
     required String accessToken,

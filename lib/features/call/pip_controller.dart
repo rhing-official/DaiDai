@@ -30,7 +30,7 @@ bool get _pipSupported =>
 /// 通話の有無をネイティブ（`MainActivity`）へ伝え、PiPの出入りを
 /// [pipActiveProvider]へ反映する。アプリ全体の上位に1つ置く。PiP中は
 /// 通話の映像を画面いっぱいに重ねて表示する（PiPの小窓はアプリ全体の
-/// 縮小表示のため）。
+/// 縮小表示の為）。
 class PipHost extends ConsumerStatefulWidget {
   const PipHost({required this.child, super.key});
 

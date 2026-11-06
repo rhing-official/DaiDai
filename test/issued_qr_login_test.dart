@@ -48,7 +48,7 @@ class _FakeAuth implements AuthRepository {
   @override
   Future<User> claimQrLoginSession(String sessionId) async {
     calls.add('claim:$sessionId');
-    // `User`は生成できないため、記録した上で失敗させる（ダイアログはエラー文言を出す）。
+    // `User`は生成出来ない為、記録した上で失敗させる（ダイアログはエラー文言を出す）。
     throw StateError('no user in test');
   }
 
@@ -73,7 +73,7 @@ Future<void> _pump(WidgetTester tester, _FakeAuth auth, Widget dialog) async {
 
 final _ja = Strings.of(AppLocale.japanese);
 
-/// 非同期の処理（Futureの完了・Streamの通知）を進めるため、少しずつ数回pumpする。
+/// 非同期の処理（Futureの完了・Streamの通知）を進める為、少しずつ数回pumpする。
 Future<void> _settle(WidgetTester tester) async {
   for (var i = 0; i < 4; i++) {
     await tester.pump(const Duration(milliseconds: 20));

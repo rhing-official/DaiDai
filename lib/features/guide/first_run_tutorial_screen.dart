@@ -11,7 +11,7 @@ import 'tutorial/tutorial_stage_screen.dart';
 /// 練習用のホーム（本物の画面＋偽データ）を開き、身だしなみ→縁結び→メッセージの
 /// 送り方を実際に押して覚えてもらう（[firstRunTutorial]）。最後まで進んでも
 /// 「やめる」でも、`users/{uid}.preferences.guideSeen`を`true`にして次へ進む
-/// （二度と自動では出さない）。ほかの使い方は、設定＞運営＞使い方ガイドから開ける。
+/// （二度と自動では出さない）。他の使い方は、設定＞運営＞使い方ガイドから開ける。
 class FirstRunTutorialScreen extends ConsumerStatefulWidget {
   const FirstRunTutorialScreen({
     required this.userId,

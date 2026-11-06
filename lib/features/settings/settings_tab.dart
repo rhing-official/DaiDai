@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:async';
 import 'dart:io' show Platform;
 
@@ -56,6 +57,7 @@ import '../../providers/talks_list_layout_style_provider.dart';
 import '../../providers/draft_sync_enabled_provider.dart';
 import '../../models/nav_chip_layout.dart';
 import '../../providers/category_list_alignment_provider.dart';
+import '../../widgets/nav_chip.dart';
 import '../../widgets/home_tab_swipe.dart';
 import '../../widgets/slide_select_list.dart';
 import '../../providers/icon_split_mirrored_provider.dart';
@@ -117,7 +119,7 @@ import '../../widgets/toggles/app_radio.dart';
 const _kSettingsSplitBreakpoint = 760.0;
 
 /// サイドバーの幅。語らい一覧（`talks_tab.dart`）・身だしなみ
-/// （`profile_tab.dart`）の各サイドバーと区切り線のx座標を揃えるため、
+/// （`profile_tab.dart`）の各サイドバーと区切り線のx座標を揃える為、
 /// 3画面とも同じ260pxを使う（2026-08-14、240→260→250→260）。
 const _kSettingsSidebarWidth = 260.0;
 
@@ -133,7 +135,7 @@ const _kResidencePaneMinWidth = 420.0;
 
 /// 設定タブ。サイドバーの階層は最上位カテゴリ（アカウント／アプリケーション／
 /// 入力／通知）の1段だけに留め、それぞれの中身（旧: サブフォルダだった項目）は
-/// カテゴリごとに1つの縦スクロールページへ、見出し付きセクションとしてまとめる
+/// カテゴリ毎に1つの縦スクロールページへ、見出し付きセクションとしてまとめる
 /// （Discordのアカウント設定ページの構成を参考にした。2026-07-24変更）。
 class SettingsTab extends ConsumerStatefulWidget {
   const SettingsTab({required this.currentUser, super.key});
@@ -151,17 +153,17 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
 
   /// 運営カテゴリの中からさらに1段階下の「アプリについて」を表示中か
   /// （2026-09-15追加）。以前は`_AboutPage`を独立した`MaterialPageRoute`で
-  /// pushしていたため、サイドバー・区切り線ごと覆い隠し、スワイプで戻る
+  /// pushしていた為、サイドバー・区切り線ごと覆い隠し、スワイプで戻る
   /// 操作も効かなかった。カテゴリ一覧⇄カテゴリの中身と同じ
   /// `SlideDrilldown`の仕組みをもう1段だけ使い回すことで両方を解消する
   /// （`build`参照。専用の入れ子`SlideDrilldown`を使わないのは、
   /// `InteractiveSwipeBackTransition`の水平ドラッグ`GestureDetector`を
-  /// 親子で二重に重ねるとジェスチャーアリーナで競合しかねないため）。
+  /// 親子で二重に重ねるとジェスチャーアリーナで競合しかねない為）。
   bool _showAbout = false;
 
   /// 「アプリについて」の中からさらに1段階下の「オープンソースライセンス」を
   /// 表示中か（2026-09-15追加）。以前は`showLicensePage`（Flutter SDK標準）
-  /// が独立した`MaterialPageRoute`でpushしていたため、サイドバー・区切り線
+  /// が独立した`MaterialPageRoute`でpushしていた為、サイドバー・区切り線
   /// ごと覆い隠し、スワイプで戻る操作も効かなかった。`_showAbout`と同じ
   /// 仕組みをもう1段だけ使い回すことで両方を解消する（`build`参照）。
   bool _showLicenses = false;
@@ -202,13 +204,13 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
 
   /// 運営カテゴリの中からさらに1段階下の「お知らせ」を表示中か
   /// （2026-09-15追加）。以前はgo_routerの`/announcements`ルートへ
-  /// `push`していたため、サイドバー・区切り線ごと覆い隠していた
+  /// `push`していた為、サイドバー・区切り線ごと覆い隠していた
   /// （スワイプで戻る操作自体は`slideDetailPage`側で既に機能していたが、
   /// サイドバーが消える点は`_showAbout`と同じ問題を抱えていた）。
   bool _showAnnouncements = false;
 
   /// 運営カテゴリの中の「使い方ガイド」の一覧を表示中か（2026-10-17追加）。
-  /// 項目を押すとその場でガイドが始まるため、詳細ページは無い。
+  /// 項目を押すとその場でガイドが始まる為、詳細ページは無い。
   bool _showGuide = false;
 
   /// 使い方ガイドの階層（一覧・詳細）。広い画面・狭い画面とも同じレイヤーを使う。
@@ -242,19 +244,41 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
     onCompleted: () => setState(() => _showResidence = false),
   );
 
-  /// カテゴリタップの共通ハンドラ。広い画面はサイドバーが常設のため、
+  /// カテゴリタップの共通ハンドラ。広い画面はサイドバーが常設の為、
   /// 「アプリについて」表示中でも別カテゴリをクリックできてしまう——
   /// その場合は`_showAbout`等も一緒にリセットする（2026-09-15追加）。
   void _onCategorySelected(_SettingsCategory category) {
+    final isWide =
+        MediaQuery.sizeOf(context).width >= _kSettingsSplitBreakpoint;
+    final leavingId = _selectedId ?? _firstCategoryId;
     setState(() {
+      // コンピューター（広い画面）では、別カテゴリへ移っても、元のカテゴリで進んだ
+      // 階層（運営の「アプリについて」「お便り」等）を覚えておき、戻った時に
+      // その階層から再開する（2026-11-06）。
+      if (isWide && leavingId != null) {
+        _savedDepth[leavingId] = (
+          _showAbout,
+          _showLicenses,
+          _showAnnouncements,
+          _showGuide,
+          _showResidence,
+        );
+      }
+      final restored = isWide ? _savedDepth[category.id] : null;
       _selectedId = category.id;
-      _showAbout = false;
-      _showLicenses = false;
-      _showAnnouncements = false;
-      _showGuide = false;
-      _showResidence = false;
+      _showAbout = restored?.$1 ?? false;
+      _showLicenses = restored?.$2 ?? false;
+      _showAnnouncements = restored?.$3 ?? false;
+      _showGuide = restored?.$4 ?? false;
+      _showResidence = restored?.$5 ?? false;
     });
   }
+
+  /// カテゴリ毎に覚えておく、進んだ階層（広い画面のみ）。
+  final Map<String, (bool, bool, bool, bool, bool)> _savedDepth = {};
+
+  /// 先頭カテゴリのid（広い画面で`_selectedId`が未選択の時の既定）。
+  String? _firstCategoryId;
 
   /// 戻る・進む（`BackStackController`）の履歴に記録する現在位置
   /// （2026-10-06追加）。設定タブ内のカテゴリ移動と下位階層の表示状態。
@@ -299,6 +323,7 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
     );
     final isWide =
         MediaQuery.sizeOf(context).width >= _kSettingsSplitBreakpoint;
+    _firstCategoryId = categories.first.id;
 
     if (isWide) {
       final selected =
@@ -307,13 +332,13 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
       // サポート→アプリについて→オープンソースライセンス／お知らせという
       // 下位階層は、下の狭い画面向け分岐と同じ`master`/`detail`を組み立てて
       // `SlideDrilldown`で包む（2026-09-18追加）。以前はここで対象の
-      // ウィジェットへ直接差し替えるだけだったため、サイドバーは常に
+      // ウィジェットへ直接差し替えるだけだった為、サイドバーは常に
       // 見えたままだったものの、タブレット等サイドバー常設幅の端末では
-      // スワイプで戻る手段が無かった（スマホ幅だけスワイプできる食い違い
-      // があった）。サイドバー・区切り線はこの分岐の外にあるため、
+      // スワイプで戻る手段が無かった（スマホ幅だけスワイプ出来る食い違い
+      // があった）。サイドバー・区切り線はこの分岐の外にある為、
       // 下位階層表示中も常に見えたままになる点は変わらない。
       // 階層は`SlideDrilldownStack`のレイヤーとして重ねる（2026-10-16）。
-      // 以前は階層ごとに`master`/`detail`を差し替えていたため、戻ると1段上の
+      // 以前は階層毎に`master`/`detail`を差し替えていた為、戻ると1段上の
       // 画面が新しい`detail`として作り直され、右から再度スライドインしていた。
       final wideLayers = <DrilldownLayer>[
         if (_showAbout || _showLicenses)
@@ -446,7 +471,13 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
           // 標準の`LicensePage`が内蔵する840px以上での左右並列表示
           // （パッケージ一覧⇄ライセンス本文）が働く余地を残す
           // （2026-09-18追加、詳細は`_LicensePageContent`参照）。
-          maxWidth: _showLicenses ? double.infinity : 640,
+          // アプリケーション・語らいは、項目を横に並べるため頭打ちを外す（2026-11-06）。
+          maxWidth:
+              _showLicenses ||
+                  selected.id == 'application' ||
+                  selected.id == 'talk'
+              ? double.infinity
+              : 640,
           child: SlideDrilldownStack(
             base: Builder(builder: selected.pageBuilder),
             layers: wideLayers,
@@ -633,7 +664,7 @@ List<_SettingsCategory> _categories(
   ];
 }
 
-/// カテゴリ一覧（サイドバー、または狭い画面での一覧画面）。
+/// カテゴリ一覧（サイドバー、又は狭い画面での一覧画面）。
 class _CategoryList extends ConsumerWidget {
   const _CategoryList({
     super.key,
@@ -647,7 +678,7 @@ class _CategoryList extends ConsumerWidget {
   final String? selectedId;
   final ValueChanged<_SettingsCategory> onSelect;
 
-  /// 狭い画面（モバイル）でこの一覧が画面全体を占めるときに、行を大きく
+  /// 狭い画面（モバイル）でこの一覧が画面全体を占める時に、行を大きく
   /// 見やすくするか（2026-08-27追加、劇画UIのみ対象）。広い画面の
   /// サイドバー表示時は`false`のまま従来通りのサイズを保つ。
   final bool large;
@@ -740,7 +771,7 @@ class _FolderTile extends ConsumerWidget {
   final bool trailingChevron;
   final VoidCallback onTap;
 
-  /// 狭い画面でこの一覧が画面全体を占めるときに行を大きくするか
+  /// 狭い画面でこの一覧が画面全体を占める時に行を大きくするか
   /// （2026-08-27追加、劇画UIのみ対象。[_CategoryList.large]参照）。
   final bool large;
 
@@ -807,24 +838,26 @@ class _FolderTile extends ConsumerWidget {
       final fg = selected ? colorScheme.onPrimary : colorScheme.onSurface;
       return Padding(
         padding: const EdgeInsets.fromLTRB(2, 4, 6, 8),
-        child: blockMaterialBox(
-          context,
-          color: selected
-              ? colorScheme.primary
-              : (Theme.of(context).brightness == Brightness.light
-                    ? Colors.white
-                    : colorScheme.surface),
-          child: ListTile(
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 8,
+        child: blockFitWidth(
+          blockMaterialBox(
+            context,
+            color: selected
+                ? colorScheme.primary
+                : (Theme.of(context).brightness == Brightness.light
+                      ? Colors.white
+                      : colorScheme.surface),
+            child: ListTile(
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 8,
+              ),
+              iconColor: fg,
+              textColor: fg,
+              leading: Icon(icon),
+              title: Text(title),
+              trailing: trailingWidget,
+              onTap: onTap,
             ),
-            iconColor: fg,
-            textColor: fg,
-            leading: Icon(icon),
-            title: Text(title),
-            trailing: trailingWidget,
-            onTap: onTap,
           ),
         ),
       );
@@ -861,7 +894,7 @@ class _SettingsPage extends StatelessWidget {
 
   /// 内容ペインの頭打ち幅。既定は640（下記コメント参照）。オープンソース
   /// ライセンス画面はFlutter標準の`LicensePage`が内蔵する840px以上での
-  /// 左右並列表示（パッケージ一覧⇄ライセンス本文）を働かせたいため、
+  /// 左右並列表示（パッケージ一覧⇄ライセンス本文）を働かせたい為、
   /// `double.infinity`を渡して頭打ちを外す（2026-09-18追加）。
   final double maxWidth;
 
@@ -872,7 +905,7 @@ class _SettingsPage extends StatelessWidget {
     // ConstrainedBoxは、親（Expanded）から渡されるtight制約をそのまま
     // enforce()すると自分のmaxWidthが無視される（tightな下限に引き上げられる）
     // ため、先にAlignでtight制約をloose制約に変換してから渡す必要がある。
-    // サイドバーで既にカテゴリ名が選択表示されているため、ここでの
+    // サイドバーで既にカテゴリ名が選択表示されている為、ここでの
     // セクション名の見出しは重複表示になるとして削除した。
     return Align(
       alignment: Alignment.topLeft,
@@ -899,7 +932,7 @@ class _NarrowSettingsPage extends StatelessWidget {
   Widget build(BuildContext context) {
     // mainAxisSizeをmin指定にすると、内側のListView（例: _AccountPage）が
     // 無限の高さ制約を受けてクラッシュする。既定（max）のままExpandedで包む。
-    // 戻る導線がスワイプに一本化されたため、以前ここにあった
+    // 戻る導線がスワイプに一本化された為、以前ここにあった
     // 「←＋カテゴリ名」の見出し行は表示しない。
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -926,7 +959,7 @@ class _SectionHeader extends StatelessWidget {
   }
 }
 
-/// ラベル＋値（読み取り専用、または「準備中」）の1行。
+/// ラベル＋値（読み取り専用、又は「準備中」）の1行。
 class _InfoRow extends ConsumerWidget {
   const _InfoRow({required this.label, required this.value});
 
@@ -951,7 +984,7 @@ class _InfoRow extends ConsumerWidget {
   }
 }
 
-/// 値をコピーできる情報行（自分のRhing Seed、2026-10-31）。身だしなみ>縁結びの招待リンクと
+/// 値をコピー出来る情報行（自分のRhing Seed、2026-10-31）。身だしなみ>縁結びの招待リンクと
 /// 同じボックス（[CopyLinkRow]）で、ラベルの下に値とコピーボタンを出す（2026-11-03）。
 class _CopyableInfoRow extends ConsumerWidget {
   const _CopyableInfoRow({required this.label, required this.value});
@@ -981,6 +1014,24 @@ class _CopyableInfoRow extends ConsumerWidget {
               ),
             ],
           )
+        : ref.watch(appUiStyleProvider) == AppUiStyle.block
+        // 版画: 太枠と硬い影の箱（影の分の余白を含める）。
+        ? Padding(
+            padding: const EdgeInsets.only(right: 4, bottom: 4),
+            child: blockMaterialBox(
+              context,
+              color: Theme.of(context).brightness == Brightness.light
+                  ? Colors.white
+                  : colorScheme.surface,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                child: CopyLinkRow(link: value),
+              ),
+            ),
+          )
         : Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
@@ -999,7 +1050,7 @@ class _CopyableInfoRow extends ConsumerWidget {
   }
 }
 
-/// 他の住人が友達申請でRhing Seedを入力して自分を検索できるかの切り替え（2026-10-31）。
+/// 他の住人が友達申請でRhing Seedを入力して自分を検索出来るかの切り替え（2026-10-31）。
 /// 招待リンク・QRコードからの申請には影響しない。
 class _SeedSearchableRow extends ConsumerStatefulWidget {
   const _SeedSearchableRow({required this.strings, required this.currentUser});
@@ -1061,7 +1112,7 @@ class _ActionRow extends StatelessWidget {
 
 /// 2段階認証（TOTP）の状態表示・登録・解除を1行にまとめたもの
 /// （2026-08-09追加）。`_InfoRow`のように現在の状態（有効/無効）を右側に
-/// 出しつつ、`_ActionRow`のようにタップで操作できる。
+/// 出しつつ、`_ActionRow`のようにタップで操作出来る。
 class _TwoFactorRow extends ConsumerStatefulWidget {
   const _TwoFactorRow({required this.strings, required this.rhingSeed});
 
@@ -1148,7 +1199,7 @@ class _TwoFactorRowState extends ConsumerState<_TwoFactorRow> {
 
   // Web版のfirebase_authプラグインでは、multiFactor関連の一部エラーが
   // FirebaseAuthException型に正しくマッピングされず素のExceptionとして
-  // 飛んでくることがあるため、型チェックに加えてメッセージ文字列でも
+  // 飛んでくることがある為、型チェックに加えてメッセージ文字列でも
   // requires-recent-loginを判定する（2026-08-09、実機で確認した挙動）。
   bool _isRequiresRecentLogin(Object error) {
     if (error is FirebaseAuthException &&
@@ -1353,8 +1404,8 @@ Future<bool> _confirmDisableTwoFactor(
 }
 
 /// Googleカレンダー連携の状態表示・切り替え行（2026-09-01追加）。初回確認は
-/// `_CalendarButton`（`chat_panes.dart`、カレンダー機能を初めて開いたとき）が
-/// 主導線で、ここは後からいつでも許可/停止を切り替えるための副導線
+/// `_CalendarButton`（`chat_panes.dart`、カレンダー機能を初めて開いた時）が
+/// 主導線で、ここは後からいつでも許可/停止を切り替える為の副導線
 /// （ユーザー確定仕様）。
 class _GoogleCalendarSyncRow extends ConsumerWidget {
   const _GoogleCalendarSyncRow({
@@ -1409,7 +1460,7 @@ class _GoogleCalendarSyncRow extends ConsumerWidget {
     // `currentUser`はログイン時の一度きりのスナップショットで、Firestore
     // 書き込み後も自動更新されない（`chat_panes.dart`の`_CalendarButton`と
     // 同じ既知の制約）。トグルは押した直後に見た目が反映されないと壊れて
-    // 見えるため、`watchedUserProvider`で最新値を購読する。
+    // 見える為、`watchedUserProvider`で最新値を購読する。
     final liveUser = ref.watch(watchedUserProvider(currentUser.userId));
     final enabled =
         liveUser.asData?.value?.googleCalendarSyncEnabled ??
@@ -1525,7 +1576,7 @@ class _SupportPage extends ConsumerWidget {
 
   /// 「アプリについて」タップ時の処理（2026-09-15追加）。以前はここで
   /// `Navigator.push`していたが、サイドバー・区切り線を覆い隠しスワイプ
-  /// 戻るも効かない問題があったため、`_SettingsTabState`側の状態
+  /// 戻るも効かない問題があった為、`_SettingsTabState`側の状態
   /// （`_showAbout`）を切り替えるだけにし、実際の表示はそちら側の
   /// `SlideDrilldown`/`_SettingsPage`に任せる。
   final VoidCallback onOpenAbout;
@@ -1574,7 +1625,7 @@ Future<void> _openExternalUrl(String url) async {
 /// 免責事項の本文はHomePage-Rhing側（`_termsUrl`等）に既に用意されている
 /// ため複製せず、外部リンクとして扱う（2026-09-14追加）。以前は独自の
 /// `Scaffold`＋`AppBar`を持つ`_AboutPage`として`Navigator.push`していたが、
-/// サイドバー・区切り線を覆い隠しスワイプ戻るも効かなかったため、
+/// サイドバー・区切り線を覆い隠しスワイプ戻るも効かなかった為、
 /// 中身だけを持つこのウィジェットに置き換え、`_SettingsTabState`が
 /// 他カテゴリの中身と同じ`_SettingsPage`/`SlideDrilldown`のdetailスロットに
 /// 埋め込む（2026-09-15変更）。
@@ -1589,7 +1640,7 @@ class _AboutPageContent extends StatefulWidget {
   /// 「オープンソースライセンス」タップ時の処理（2026-09-15追加）。以前は
   /// ここでFlutter SDK標準の`showLicensePage`を呼び、独立した
   /// `MaterialPageRoute`でpushしていたが、サイドバー・区切り線を覆い隠し
-  /// スワイプ戻るも効かない問題があったため、`onOpenAbout`と同じく
+  /// スワイプ戻るも効かない問題があった為、`onOpenAbout`と同じく
   /// `_SettingsTabState`側の状態（`_showLicenses`）を切り替えるだけにする。
   final VoidCallback onOpenLicenses;
 
@@ -1643,7 +1694,7 @@ class _AboutPageContentState extends State<_AboutPageContent> {
 }
 
 /// オープンソースライセンス一覧（2026-09-15変更）。以前は`showLicensePage`が
-/// アプリ全体のNavigatorへフルスクリーンでpushしていたため、サイドバー・
+/// アプリ全体のNavigatorへフルスクリーンでpushしていた為、サイドバー・
 /// 区切り線ごと覆い隠し、スワイプで戻る操作も効かなかった。`LicensePage`
 /// 自体はFlutter標準のものをそのまま使いつつ、専用のローカル`Navigator`で
 /// 包むことでパッケージ詳細へのpushをこのdetailスロット内に閉じ込め、
@@ -1675,7 +1726,7 @@ class _LicensePageContentState extends State<_LicensePageContent> {
       PackageInfo.fromPlatform();
 
   // パッケージ詳細は`LicensePage`が内部に持つ`Navigator`へpushされ、外側から
-  // push/popを購読する手段が無いため、開閉を一定間隔で確認して親へ伝える。
+  // push/popを購読する手段が無い為、開閉を一定間隔で確認して親へ伝える。
   Timer? _pollTimer;
   bool _detailOpen = false;
 
@@ -1698,6 +1749,26 @@ class _LicensePageContentState extends State<_LicensePageContent> {
     super.dispose();
   }
 
+  /// ライセンス画面のテーマ。版画は、`LicensePage`のヘッダー（AppBar）の下の太線と
+  /// 詳細欄のカードの太枠・硬い影を外し、他のスタイルと同じ平らな構成にする。
+  ThemeData _licenseTheme(BuildContext context) {
+    final theme = Theme.of(
+      context,
+    ).copyWith(pageTransitionsTheme: SlideBackPageTransitionsBuilder.theme);
+    if (!isBlockTheme(context)) return theme;
+    return theme.copyWith(
+      appBarTheme: theme.appBarTheme.copyWith(
+        shape: const RoundedRectangleBorder(),
+      ),
+      cardTheme: CardThemeData(
+        elevation: 0,
+        color: theme.colorScheme.surface,
+        margin: EdgeInsets.zero,
+        shape: const RoundedRectangleBorder(),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<PackageInfo>(
@@ -1712,9 +1783,7 @@ class _LicensePageContentState extends State<_LicensePageContent> {
         // 2026-10-16）。`LicensePage`がpushするルートは差し替えられないため
         // `Theme`経由で適用する。
         return Theme(
-          data: Theme.of(context).copyWith(
-            pageTransitionsTheme: SlideBackPageTransitionsBuilder.theme,
-          ),
+          data: _licenseTheme(context),
           child: Navigator(
             key: widget.navigatorKey,
             onGenerateRoute: (settings) => MaterialPageRoute<void>(
@@ -1869,7 +1938,7 @@ final _groupListProvider = StreamProvider.family<List<Group>, String>(
 /// 長を務める広場の一覧・譲渡導線を出すダイアログ（2026-08-02追加）。
 /// 各広場の「譲渡」から`GroupMemberListPopup`（メンバー一覧タップ→
 /// プロフィールカードの「長を譲渡」ボタン、既存の譲渡導線と同じ）を開く。
-/// 一覧はライブ購読のため、譲渡が完了すると自動的にその広場が消え、
+/// 一覧はライブ購読の為、譲渡が完了すると自動的にその広場が消え、
 /// 全て消えると「続ける」が押せるようになる。
 /// 極みの購入／契約の管理の1行（2026-10-18追加）。極みでなければStripeの決済リンクを
 /// 購入者のuid付きで開き、極みなら解約・カード変更用のカスタマーポータルを開く。
@@ -2014,7 +2083,7 @@ enum _DeleteAccountChoice { grace, immediate }
 
 /// アカウント削除ボタンから開く選択ポップアップ（2026-08-11、それまでの
 /// 「通常削除」「即時削除」2つの操作行＋各々の`AlertDialog`確認という
-/// 2段階UIを、1つの選択ポップアップに統合）。「30日後に削除」「今すぐ削除」
+/// 2段階UIを、1つの選択ポップアップに統合）。「30日後に削除」「今直ぐ削除」
 /// （取り消せない旨をカード内に明記）「やめる」を縦に並べたカード形式で、
 /// タップした時点でその場の1操作として確定する（従来のような2段階目の
 /// 確認ダイアログは挟まない）。
@@ -2147,7 +2216,7 @@ class _ApplicationPage extends ConsumerWidget {
   final Strings strings;
 
   /// パスコードロックの項目を出すか。端末ローカルのセキュアストレージ・
-  /// 生体認証に依存するため、管理画面（[ApplicationSettingsView]）では出さない
+  /// 生体認証に依存する為、管理画面（[ApplicationSettingsView]）では出さない
   /// （2026-10-10追加）。
   final bool showPasscode;
 
@@ -2158,54 +2227,153 @@ class _ApplicationPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     // 「フォントカラー」（旧・文字色）は劇画スタイル選択中は対象外
-    // （固定モノクロ配色のため、`_TextColorFolder`参照）。以前は
+    // （固定モノクロ配色の為、`_TextColorFolder`参照）。以前は
     // `_DesignFolder`内に埋め込まれていたが、2026-09-15にUIスタイルと
     // フォントデザインの間へ独立させた。
     final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
-    return ListView(
-      padding: const EdgeInsets.only(bottom: 24),
-      children: [
-        // 劇画UI選択中は、外観（ライト/ダーク）が見た目に効かないため、項目ごと
+    // 項目のまとまり毎に分け、広い画面では横に並べて、スクロール無しで全部に
+    // 届くようにする（2026-11-06）。`weight`は縦の高さの目安（列への振り分け用）。
+    return _MultiColumnSections(
+      sections: [
+        // 劇画UI選択中は、外観（ライト/ダーク）が見た目に効かない為、項目ごと
         // 表示しない（2026-10-31、以前はグレーアウトして案内を出していた）。
-        if (!isGekiga) ...[
-          AppearanceFolder(strings: strings),
-          const Divider(height: 24),
-        ],
-        _SectionHeader(strings.settingsSubUI),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-          child: Text(
-            strings.settingsUIDescription,
-            style: Theme.of(context).textTheme.bodyMedium,
+        if (!isGekiga) (weight: 220, child: AppearanceFolder(strings: strings)),
+        (
+          weight: 360,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _SectionHeader(strings.settingsSubUI),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: Text(
+                  strings.settingsUIDescription,
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              ),
+              UiStyleFolder(strings: strings),
+            ],
           ),
         ),
-        UiStyleFolder(strings: strings),
-        const Divider(height: 24),
-        AccentColorFolder(strings: strings),
-        const Divider(height: 24),
-        SlideTransitionFolder(strings: strings),
-        const Divider(height: 24),
-        if (!isGekiga) ...[const _TextColorFolder(), const Divider(height: 24)],
-        TextSizeFolder(strings: strings),
-        const Divider(height: 24),
-        _SectionHeader(strings.settingsFontDesign),
-        FontDesignFolder(strings: strings),
-        const Divider(height: 24),
-        if (showNavChips) ...[
-          _SectionHeader(strings.settingsNavChipsTitle),
-          NavChipLayoutFolder(strings: strings),
-          const Divider(height: 24),
-          _SlidePickSwitch(strings: strings),
-          const Divider(height: 24),
-        ],
-        _LanguageFolder(strings: strings),
-        const Divider(height: 24),
-        TimeFormatFolder(strings: strings),
-        if (showPasscode) ...[
-          const Divider(height: 24),
-          _PasscodeLockFolder(strings: strings),
-        ],
+        // 画面遷移はUIの直下に置く（2026-11-06）。
+        (weight: 300, child: SlideTransitionFolder(strings: strings)),
+        (weight: 330, child: AccentColorFolder(strings: strings)),
+        if (!isGekiga) (weight: 280, child: const _TextColorFolder()),
+        (weight: 230, child: TextSizeFolder(strings: strings)),
+        (
+          weight: 450,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _SectionHeader(strings.settingsFontDesign),
+              FontDesignFolder(strings: strings),
+            ],
+          ),
+        ),
+        if (showNavChips)
+          (
+            weight: 400,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _SectionHeader(strings.settingsNavChipsTitle),
+                NavChipLayoutFolder(strings: strings),
+                const Divider(height: 24),
+                _SlidePickSwitch(strings: strings),
+              ],
+            ),
+          ),
+        (weight: 300, child: _LanguageFolder(strings: strings)),
+        (weight: 180, child: TimeFormatFolder(strings: strings)),
+        if (showPasscode)
+          (weight: 100, child: _PasscodeLockFolder(strings: strings)),
       ],
+    );
+  }
+}
+
+/// 設定ページの項目のまとまりを、幅に応じて横に並べる（2026-11-06）。狭い時（1列）は従来どおり
+/// 縦に並べて区切り線を挟む。広い時は、まとまりの順を保ったまま高さの目安（`weight`）で
+/// 列に振り分け、全体を1つのスクロールにまとめる（収まれば、スクロールしなくてよい）。
+class _MultiColumnSections extends StatelessWidget {
+  const _MultiColumnSections({required this.sections, this.columnSplit});
+
+  final List<({double weight, Widget child})> sections;
+
+  /// 列数が`columnSplit.length`に一致した時だけ、高さの目安に依らず、先頭から順に
+  /// 各列へ入れるまとまりの数。例: `[3, 1, 1]`は左3・中央1・右1。
+  final List<int>? columnSplit;
+
+  /// 1列あたりの最小幅。これ未満の幅では列を増やさない。
+  static const double _minColumnWidth = 420;
+  static const int _maxColumns = 3;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns = (constraints.maxWidth / _minColumnWidth)
+            .floor()
+            .clamp(1, math.min(_maxColumns, sections.length))
+            .toInt();
+        if (columns == 1) {
+          return ListView(
+            padding: const EdgeInsets.only(bottom: 24),
+            children: [
+              for (var i = 0; i < sections.length; i++) ...[
+                if (i > 0) const Divider(height: 24),
+                sections[i].child,
+              ],
+            ],
+          );
+        }
+        final total = sections.fold<double>(0, (sum, s) => sum + s.weight);
+        final groups = List.generate(columns, (_) => <Widget>[]);
+        var cumulative = 0.0;
+        final split = columnSplit;
+        if (split != null && split.length == columns) {
+          var next = 0;
+          for (var c = 0; c < columns; c++) {
+            for (var n = 0; n < split[c]; n++) {
+              groups[c].add(sections[next++].child);
+            }
+          }
+          cumulative = double.infinity;
+        }
+        for (final section in sections) {
+          if (cumulative == double.infinity) break;
+          // 区間の中央がどの列の範囲に入るかで振り分ける（順序を保つ）。
+          final mid = cumulative + section.weight / 2;
+          final index = (mid / (total / columns))
+              .floor()
+              .clamp(0, columns - 1)
+              .toInt();
+          groups[index].add(section.child);
+          cumulative += section.weight;
+        }
+        return SingleChildScrollView(
+          padding: const EdgeInsets.only(bottom: 24),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (var c = 0; c < groups.length; c++) ...[
+                if (c > 0) const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      for (var i = 0; i < groups[c].length; i++) ...[
+                        if (i > 0) const Divider(height: 24),
+                        groups[c][i],
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ],
+          ),
+        );
+      },
     );
   }
 }
@@ -2235,8 +2403,8 @@ class ApplicationSettingsView extends ConsumerWidget {
   }
 }
 
-/// 文字サイズ（小・中・大）の選択（2026-11-05）。アプリ全体の文字の大きさと、
-/// 「アイコン＋寄合一覧」の幅・アイコンに効く。端末ごとに保存。
+/// フォントサイズ（小・中・大）の選択（2026-11-05）。アプリ全体の文字の大きさと、
+/// 「アイコン＋寄合一覧」の幅・アイコンに効く。端末毎に保存。
 class TextSizeFolder extends ConsumerWidget {
   const TextSizeFolder({required this.strings});
 
@@ -2310,7 +2478,7 @@ class TextSizeFolder extends ConsumerWidget {
 
 /// 外観（ライト/ダーク/端末に合わせる）の選択（2026-09-15、`_DesignFolder`
 /// から分離。以前はアクセントカラーと同じウィジェット内にまとめていたが、
-/// 設定画面の項目順を「外観→UI→アクセントカラー→…」に揃えるため、
+/// 設定画面の項目順を「外観→UI→アクセントカラー→…」に揃える為、
 /// UIスタイル選択（`UiStyleFolder`）を挟んで別ウィジェットにした）。
 class AppearanceFolder extends ConsumerWidget {
   const AppearanceFolder({required this.strings});
@@ -2381,7 +2549,7 @@ class AppearanceFolder extends ConsumerWidget {
         ),
         // 劇画UI選択中は外観（ライト/ダーク/端末に合わせる）を変更不可にする
         // （グレーアウト＋操作無効化）。themeModeに関わらず常に同じ見た目を
-        // 返す設計のため、この設定を変えても効果が無い（2026-08-04追加）。
+        // 返す設計の為、この設定を変えても効果が無い（2026-08-04追加）。
         if (appearanceLocked)
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
@@ -2548,12 +2716,12 @@ class _AccentColorFolderState extends ConsumerState<AccentColorFolder> {
   @override
   Widget build(BuildContext context) {
     // 同じ入力欄・プリセット一覧をフラットUIの`accentColorProvider`と
-    // 劇画UIの`gekigaBackgroundColorProvider`で使い回しているため、
+    // 劇画UIの`gekigaBackgroundColorProvider`で使い回している為、
     // `UiStyleFolder`（同じ`_ApplicationPage`内の兄弟）でスタイルを
     // 切り替えた瞬間に、表示中の値を新しく有効になった側のプロバイダの
     // 現在値へリセットする。build中に`_hexController`を直接書き換えると
     // GekigaTextField/TextFieldという別ウィジェット間の切り替え時に
-    // タイミング次第で不安定になるため、`ref.listen`のコールバック内で
+    // タイミング次第で不安定になる為、`ref.listen`のコールバック内で
     // 安全にsetStateする。
     ref.listen<AppUiStyle>(appUiStyleProvider, (previous, next) {
       if (previous == next) return;
@@ -2682,7 +2850,7 @@ class _AccentColorFolderState extends ConsumerState<AccentColorFolder> {
                 // （2026-09-14変更、ユーザー要望）。塗り色は
                 // `colorScheme.surfaceContainerHighest`だとフラット/
                 // ガラスでアクセントカラーの色味有無が異なり見た目が
-                // ズレていたため、`GlassColors`の固定値を直接参照して
+                // ズレていた為、`GlassColors`の固定値を直接参照して
                 // UIスタイルに関係なく常に同じ色にする（2026-09-15修正）。
                 filled: !isBlockTheme(context),
                 fillColor:
@@ -2749,7 +2917,7 @@ class _AccentColorFolderState extends ConsumerState<AccentColorFolder> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // 色見本の丸は劇画UIでは出さず、その分入力欄を左に詰める（2026-11-01、
-                  // 劇画の背景色は画面自体がそのプレビューになるため）。
+                  // 劇画の背景色は画面自体がそのプレビューになる為）。
                   if (!isGekiga) ...[
                     Container(
                       width: 48,
@@ -2824,7 +2992,7 @@ class _AccentColorFolderState extends ConsumerState<AccentColorFolder> {
 
 /// フォントカラー（旧称: 文字色、`colorScheme.onSurface`相当）をライト/
 /// ダークそれぞれカラーコードで指定する設定（2026-09-14追加）。アクセント
-/// カラーと違い背景とのコントラストが直接可読性に関わるため、
+/// カラーと違い背景とのコントラストが直接可読性に関わる為、
 /// `accentColorProvider`のようなライト/ダーク共通の1色ではなく、
 /// `textColorLightProvider`/`textColorDarkProvider`の2つを別々に持つ
 /// （ユーザー確認済み）。設定画面上は「UIスタイル」と「フォントデザイン」の
@@ -2938,61 +3106,72 @@ class _TextColorFolderState extends ConsumerState<_TextColorFolder> {
             ),
           ),
           const SizedBox(width: 16),
-          Expanded(
-            child: BlockFieldFrame(
-              label: label,
-              child: TextField(
-                controller: controller,
-                textCapitalization: TextCapitalization.characters,
-                inputFormatters: [
-                  FilteringTextInputFormatter.allow(RegExp('[0-9a-fA-F]')),
-                  LengthLimitingTextInputFormatter(8),
-                ],
-                decoration: InputDecoration(
-                  labelText: isBlockTheme(context) ? null : label,
-                  prefixText: '#',
-                  hintText: '1C1C1C',
-                  errorText: errorText,
-                  counterText: '',
-                  // アクセントカラーの入力欄と同じ、ガラスUI風の見た目に揃える
-                  // （2026-09-14変更、`_DesignFolderState`のアクセントカラー欄参照）。
-                  // 塗り色は`GlassColors`の固定値を直接参照し、フラット/ガラスで
-                  // 常に同じ色になるようにする（2026-09-15修正、理由は
-                  // アクセントカラー欄側のコメント参照）。
-                  filled: !isBlockTheme(context),
-                  fillColor:
-                      (Theme.of(context).brightness == Brightness.dark
-                              ? GlassColors.darkSurfaceBase
-                              : GlassColors.lightSurfaceBase)
-                          .withValues(alpha: 0.65),
-                  border: isBlockTheme(context)
-                      ? InputBorder.none
-                      : OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          borderSide: BorderSide(
-                            color: color.withValues(alpha: 0.3),
-                          ),
-                        ),
-                  suffixIcon: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      CopyIconButton(
-                        textBuilder: () => _hexText(controller.text),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.refresh),
-                        tooltip: '',
-                        onPressed: onReset,
-                      ),
-                    ],
-                  ),
+          Flexible(
+            // 入力した文字の長さに合わせて欄の横幅を変える（2026-11-06）。
+            child: ListenableBuilder(
+              listenable: controller,
+              builder: (context, child) => Align(
+                alignment: Alignment.centerLeft,
+                child: SizedBox(
+                  width: _colorFieldWidth(context, controller.text, label),
+                  child: child,
                 ),
-                // 6桁・8桁を入力し終えたら、決定ボタン無しで即時反映する（2026-10-31）。
-                onChanged: (text) {
-                  final length = text.replaceFirst('#', '').length;
-                  if (length == 6 || length == 8) onApply();
-                },
-                onSubmitted: (_) => onApply(),
+              ),
+              child: BlockFieldFrame(
+                label: label,
+                child: TextField(
+                  controller: controller,
+                  textCapitalization: TextCapitalization.characters,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(RegExp('[0-9a-fA-F]')),
+                    LengthLimitingTextInputFormatter(8),
+                  ],
+                  decoration: InputDecoration(
+                    labelText: isBlockTheme(context) ? null : label,
+                    prefixText: '#',
+                    hintText: '1C1C1C',
+                    errorText: errorText,
+                    counterText: '',
+                    // アクセントカラーの入力欄と同じ、ガラスUI風の見た目に揃える
+                    // （2026-09-14変更、`_DesignFolderState`のアクセントカラー欄参照）。
+                    // 塗り色は`GlassColors`の固定値を直接参照し、フラット/ガラスで
+                    // 常に同じ色になるようにする（2026-09-15修正、理由は
+                    // アクセントカラー欄側のコメント参照）。
+                    filled: !isBlockTheme(context),
+                    fillColor:
+                        (Theme.of(context).brightness == Brightness.dark
+                                ? GlassColors.darkSurfaceBase
+                                : GlassColors.lightSurfaceBase)
+                            .withValues(alpha: 0.65),
+                    border: isBlockTheme(context)
+                        ? InputBorder.none
+                        : OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            borderSide: BorderSide(
+                              color: color.withValues(alpha: 0.3),
+                            ),
+                          ),
+                    suffixIcon: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        CopyIconButton(
+                          textBuilder: () => _hexText(controller.text),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.refresh),
+                          tooltip: '',
+                          onPressed: onReset,
+                        ),
+                      ],
+                    ),
+                  ),
+                  // 6桁・8桁を入力し終えたら、決定ボタン無しで即時反映する（2026-10-31）。
+                  onChanged: (text) {
+                    final length = text.replaceFirst('#', '').length;
+                    if (length == 6 || length == 8) onApply();
+                  },
+                  onSubmitted: (_) => onApply(),
+                ),
               ),
             ),
           ),
@@ -3011,7 +3190,7 @@ class _TextColorFolderState extends ConsumerState<_TextColorFolder> {
       mainAxisSize: MainAxisSize.min,
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
           child: GekigaSectionHeader(strings.settingsTextColorTitle),
         ),
         Padding(
@@ -3051,6 +3230,26 @@ class _TextColorFolderState extends ConsumerState<_TextColorFolder> {
       ],
     );
   }
+}
+
+/// カラーコード欄の横幅。入力の桁数（最低6桁）だけで決め、ラベルやヒントの長さ・
+/// 入力した文字の字形には左右されない。フォントカラー（ライト用・ダーク用）と
+/// アクセント上の欄が、同じ桁数なら必ずぴったり同じ幅になる。
+double _colorFieldWidth(BuildContext context, String text, String label) {
+  final style = Theme.of(context).textTheme.bodyLarge ?? const TextStyle();
+  double measure(String t) {
+    final painter = TextPainter(
+      text: TextSpan(text: t, style: style),
+      textDirection: TextDirection.ltr,
+      textScaler: MediaQuery.textScalerOf(context),
+    )..layout();
+    return painter.width;
+  }
+
+  final digits = text.replaceFirst('#', '').length;
+  final body = measure('D' * (digits < 6 ? 6 : digits));
+  // 先頭の「#」+ 右端のボタン2つ（各48）+ 左右の内側余白（各16）+ 余裕。
+  return body + measure('#') + 96 + 32 + 8;
 }
 
 /// カラーコード欄の内容を、コピーする文字（`#RRGGBB`形式、空欄なら空文字）にする。
@@ -3110,7 +3309,7 @@ class PresetColorSwatch extends StatelessWidget {
 
 /// 表示言語（日本語／English）をここで切り替える。以前はDaiDai独自用語の
 /// 言い換えスタイル（世界観重視／利便性重視）もこの直下で切り替えられたが、
-/// 「言語・用語設定によってブロックの大きさが変わるため、全てに対応するのが
+/// 「言語・用語設定によってブロックの大きさが変わる為、全てに対応するのが
 /// 困難になった」ため2026-08-13に廃止し、世界観重視の用語へ一本化した
 /// （[Vocabulary]参照）。
 class _LanguageFolder extends ConsumerWidget {
@@ -3206,14 +3405,14 @@ class UiStyleFolder extends ConsumerWidget {
         seeds: [
           AppUiStyle.flat.hashCode,
           AppUiStyle.glass.hashCode,
-          AppUiStyle.gekiga.hashCode,
           AppUiStyle.block.hashCode,
+          AppUiStyle.gekiga.hashCode,
         ],
         selectedFlags: [
           style == AppUiStyle.flat,
           style == AppUiStyle.glass,
-          style == AppUiStyle.gekiga,
           style == AppUiStyle.block,
+          style == AppUiStyle.gekiga,
         ],
         children: [
           GekigaTileContent(
@@ -3239,17 +3438,6 @@ class UiStyleFolder extends ConsumerWidget {
             onTap: () => select(AppUiStyle.glass),
           ),
           GekigaTileContent(
-            selected: style == AppUiStyle.gekiga,
-            leading: AppRadioMark(
-              selected: style == AppUiStyle.gekiga,
-              color: (style == AppUiStyle.gekiga)
-                  ? GekigaColors.panel
-                  : GekigaColors.onPanel,
-            ),
-            title: Text(strings.settingsUiStyleGekigaLabel),
-            onTap: () => select(AppUiStyle.gekiga),
-          ),
-          GekigaTileContent(
             selected: style == AppUiStyle.block,
             leading: AppRadioMark(
               selected: style == AppUiStyle.block,
@@ -3259,6 +3447,17 @@ class UiStyleFolder extends ConsumerWidget {
             ),
             title: Text(strings.settingsUiStyleBlockLabel),
             onTap: () => select(AppUiStyle.block),
+          ),
+          GekigaTileContent(
+            selected: style == AppUiStyle.gekiga,
+            leading: AppRadioMark(
+              selected: style == AppUiStyle.gekiga,
+              color: (style == AppUiStyle.gekiga)
+                  ? GekigaColors.panel
+                  : GekigaColors.onPanel,
+            ),
+            title: Text(strings.settingsUiStyleGekigaLabel),
+            onTap: () => select(AppUiStyle.gekiga),
           ),
         ],
       );
@@ -3280,12 +3479,12 @@ class UiStyleFolder extends ConsumerWidget {
             title: Text(strings.settingsUiStyleGlassLabel),
           ),
           AppRadioListTile<AppUiStyle>(
-            value: AppUiStyle.gekiga,
-            title: Text(strings.settingsUiStyleGekigaLabel),
-          ),
-          AppRadioListTile<AppUiStyle>(
             value: AppUiStyle.block,
             title: Text(strings.settingsUiStyleBlockLabel),
+          ),
+          AppRadioListTile<AppUiStyle>(
+            value: AppUiStyle.gekiga,
+            title: Text(strings.settingsUiStyleGekigaLabel),
           ),
         ],
       ),
@@ -3339,7 +3538,7 @@ class _FontDesignFolderState extends ConsumerState<FontDesignFolder> {
     }
 
     // 2026-09-26: 蔵のフォントデザイン素材選択（`_FontDesignMaterialDialog`）
-    // でも同じラベル一覧が必要になったため、`Strings.fontDesignLabel`に
+    // でも同じラベル一覧が必要になった為、`Strings.fontDesignLabel`に
     // 一本化した（以前はここに25分岐のswitchを直書きしていた）。
     String labelFor(FontDesign value) => strings.fontDesignLabel(value);
 
@@ -3506,7 +3705,7 @@ class ChatLayoutFolder extends ConsumerWidget {
   }
 }
 
-/// 画面遷移の動きの種類の選択（2026-11-04追加、端末ごとの個人設定）。
+/// 画面遷移の動きの種類の選択（2026-11-04追加、端末毎の個人設定）。
 class SlideTransitionFolder extends ConsumerWidget {
   const SlideTransitionFolder({required this.strings});
 
@@ -3581,7 +3780,7 @@ class SlideTransitionFolder extends ConsumerWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
           child: GekigaSectionHeader(strings.settingsSlideTransitionTitle),
         ),
         control,
@@ -3832,7 +4031,7 @@ class NavChipLayoutFolder extends ConsumerWidget {
           onReorder: notifier.setOrder,
           tileBuilder: (tab, handle) {
             // `ListTile`は枠の高さが足りない（劇画の箱の内側など）と中身が下へはみ出し、
-            // 文字が縦に中央からずれるため、`Row`で縦中央に揃えて自前で組む。
+            // 文字が縦に中央からずれる為、`Row`で縦中央に揃えて自前で組む。
             final contentColor = isGekiga
                 ? GekigaColors.onPanel
                 : colorScheme.onSurface;
@@ -3908,20 +4107,25 @@ class NavChipLayoutFolder extends ConsumerWidget {
             style: Theme.of(context).textTheme.bodyMedium,
           ),
         ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-          child: GekigaSectionHeader(
-            strings.settingsNavChipsAlignmentNarrowTitle,
+        // 揃えは今の表示（幅600px以上＝横表示、未満＝縦表示）のぶんだけ出す
+        // （2026-11-06。揃えは端末ごとの保存で、その端末の向きが分かれば足りる）。
+        if (MediaQuery.sizeOf(context).width >= kNavChipWideBreakpoint) ...[
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: GekigaSectionHeader(
+              strings.settingsNavChipsAlignmentWideTitle,
+            ),
           ),
-        ),
-        alignmentControl,
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-          child: GekigaSectionHeader(
-            strings.settingsNavChipsAlignmentWideTitle,
+          wideAlignmentControl,
+        ] else ...[
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: GekigaSectionHeader(
+              strings.settingsNavChipsAlignmentNarrowTitle,
+            ),
           ),
-        ),
-        wideAlignmentControl,
+          alignmentControl,
+        ],
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
           child: GekigaSectionHeader(strings.settingsNavChipsOrderTitle),
@@ -3948,7 +4152,7 @@ class NavChipLayoutFolder extends ConsumerWidget {
 }
 
 /// メニューチップの並び替えリスト。3項目の枠の中だけをドラッグでき、枠の外へは
-/// 出ない（`ReorderableListView`は軸・範囲を制限できないため自前。2026-11-01）。
+/// 出ない（`ReorderableListView`は軸・範囲を制限出来ないため自前。2026-11-01）。
 /// 項目は背景ごと（劇画の黒いラベルも含めて）一緒に動く。
 class _NavChipOrderList extends StatefulWidget {
   const _NavChipOrderList({
@@ -4166,7 +4370,7 @@ class _PasscodeLockFolderState extends ConsumerState<_PasscodeLockFolder> {
       });
       return;
     }
-    // 他人が勝手に無効化できないよう、OFFにする前に現在のパスコードで
+    // 他人が勝手に無効化出来ないよう、OFFにする前に現在のパスコードで
     // 本人確認する（`PasscodeVerifyDialog`参照）。
     final verified = await PasscodeVerifyDialog.show(context);
     if (!verified || !mounted) return;
@@ -4248,29 +4452,41 @@ class _TalkPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.only(bottom: 24),
-      children: [
-        _SectionHeader(strings.settingsBlockedUsersTitle),
-        _BlockedUsersFolder(strings: strings, currentUser: currentUser),
-        const Divider(height: 24),
-        ChatLayoutFolder(strings: strings),
-        const Divider(height: 24),
-        TalksListLayoutFolder(strings: strings),
-        const Divider(height: 24),
-        _CalendarSettingsFolder(strings: strings),
-        const Divider(height: 24),
-        SettingsAccordionSection(
-          title: strings.settingsAdvancedSectionTitle,
-          children: [
-            SendKeyFolder(strings: strings),
-            const Divider(height: 24),
-            _StickerSendModeFolder(strings: strings),
-            const Divider(height: 24),
-            _DraftSyncFolder(strings: strings),
-            const Divider(height: 24),
-            _JoinVideoCameraFolder(strings: strings),
-          ],
+    return _MultiColumnSections(
+      // 3列の時は、左=ブロック・メッセージの表示・語らい一覧のレイアウト、
+      // 中央=カレンダー、右=詳細設定（2026-11-06）。
+      columnSplit: const [3, 1, 1],
+      sections: [
+        (
+          weight: 300,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _SectionHeader(strings.settingsBlockedUsersTitle),
+              _BlockedUsersFolder(strings: strings, currentUser: currentUser),
+            ],
+          ),
+        ),
+        (weight: 260, child: ChatLayoutFolder(strings: strings)),
+        (weight: 300, child: TalksListLayoutFolder(strings: strings)),
+        (weight: 520, child: _CalendarSettingsFolder(strings: strings)),
+        (
+          weight: 120,
+          child: SettingsAccordionSection(
+            title: strings.settingsAdvancedSectionTitle,
+            // 横に広い画面では最初から開いておく（2026-11-06）。
+            initiallyExpanded:
+                MediaQuery.sizeOf(context).width >= kNavChipWideBreakpoint,
+            children: [
+              SendKeyFolder(strings: strings),
+              const Divider(height: 24),
+              _StickerSendModeFolder(strings: strings),
+              const Divider(height: 24),
+              _DraftSyncFolder(strings: strings),
+              const Divider(height: 24),
+              _JoinVideoCameraFolder(strings: strings),
+            ],
+          ),
         ),
       ],
     );
@@ -4278,7 +4494,7 @@ class _TalkPage extends StatelessWidget {
 }
 
 /// 設定>語らい>カレンダー（2026-11-05）。自分のカレンダーの標準を決める。ここで決めた
-/// 設定がすべてのカレンダーに適用され、語らいごとのカレンダーの歯車から変えられる。
+/// 設定が全てのカレンダーに適用され、語らい毎のカレンダーの歯車から変えられる。
 /// 週の始まり・暦・祝日/祭日/宗教上の祝日の選択を、端末とアカウントの両方に保存する。
 class _CalendarSettingsFolder extends ConsumerWidget {
   const _CalendarSettingsFolder({required this.strings});
@@ -4345,7 +4561,10 @@ class _CalendarSettingsFolder extends ConsumerWidget {
         ),
         label(strings.holidaySettingsTitle),
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
+          // 劇画・版画は行がブロックなので、ラジオのブロックと同じ左端に置く（余白を足さない）。
+          padding: EdgeInsets.symmetric(
+            horizontal: isGekiga || isBlockTheme(context) ? 0 : 16,
+          ),
           child: HolidayCheckboxes(
             gekigaBlocks: isGekiga,
             strings: strings,
@@ -4454,24 +4673,31 @@ class _BlockedUsersFolderState extends ConsumerState<_BlockedUsersFolder> {
       blockedUserIdsProvider(widget.currentUser.userId),
     );
 
+    Widget messageView(String text) => Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Text(
+        text,
+        style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+      ),
+    );
+    Widget emptyView() => messageView(strings.settingsBlockedUsersEmpty);
+
     return blockedIdsAsync.when(
       loading: () => const SizedBox.shrink(),
-      error: (e, _) => Padding(
-        padding: const EdgeInsets.all(16),
-        child: Text(strings.genericErrorTemplate(e)),
-      ),
+      // 開発中のホットリロード直後に出る「ProviderContainer ... already disposed」は、
+      // 古い画面が破棄済みの状態を読んだだけなので「ブロックしたユーザーはいません」と
+      // 表示する。本当に取得できなかった時（権限エラーなど）は「取得に失敗しました」
+      // （2026-11-06、ユーザー指示）。どちらも原因はログに残す。
+      error: (e, _) {
+        debugPrint('[blockedUsers] 取得に失敗: $e');
+        final disposed =
+            e is StateError && e.message.contains('already disposed');
+        return disposed
+            ? emptyView()
+            : messageView(strings.settingsBlockedUsersLoadFailed);
+      },
       data: (blockedIds) {
-        if (blockedIds.isEmpty) {
-          return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Text(
-              strings.settingsBlockedUsersEmpty,
-              style: TextStyle(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-            ),
-          );
-        }
+        if (blockedIds.isEmpty) return emptyView();
         return FutureBuilder<List<AppUser>>(
           future: ref
               .read(userRepositoryProvider)
@@ -4691,7 +4917,7 @@ class _StickerSendModeFolder extends ConsumerWidget {
   }
 }
 
-/// ビデオ通話に応答・参加したとき、カメラをオンで入るかのオン/オフ（標準オン）。
+/// ビデオ通話に応答・参加した時、カメラをオンで入るかのオン/オフ（標準オン）。
 class _JoinVideoCameraFolder extends ConsumerWidget {
   const _JoinVideoCameraFolder({required this.strings});
 
@@ -4783,7 +5009,7 @@ class _DraftSyncFolder extends ConsumerWidget {
 /// 対応: Web・Android。`PushNotificationBootstrap`がログイン直後に一度
 /// 自動でリクエストするが、ここで明示的にオフにすると次回起動時の自動
 /// リクエストもスキップされるようになる（`PushNotificationBootstrap`
-/// 参照）。OS/ブラウザ側の許可自体はアプリから取り消せないため、オフに
+/// 参照）。OS/ブラウザ側の許可自体はアプリから取り消せない為、オフに
 /// した場合は実際にはこの端末のFCMトークンをFirestoreから削除するだけ）。
 class _NotificationsPage extends ConsumerWidget {
   const _NotificationsPage({required this.strings, required this.currentUser});
@@ -4876,7 +5102,7 @@ class _NotificationsPage extends ConsumerWidget {
           customSoundUpload: ref.watch(callingCustomSoundProvider),
           userId: currentUser.userId,
         ),
-        // 通知音（メッセージ受信音）はOSのプッシュ通知を経由するため、
+        // 通知音（メッセージ受信音）はOSのプッシュ通知を経由する為、
         // 現状プッシュ通知自体が実装されているAndroidのみ対応（Phase B、
         // 2026-09-06追加）。Web/iOS/Windows/Linux/macOSには表示しない
         // （`sound_preset.dart`のSoundCategory.notificationコメント参照）。
@@ -4898,7 +5124,7 @@ class _NotificationsPage extends ConsumerWidget {
 
 /// 着信音・呼出音の選択（2026-09-06追加）。プリセットからのラジオ選択に
 /// 加え、末尾の「アップロード」から端末の音声ファイルを選んでカスタム
-/// 音源に設定できる（`UserRepository.uploadCustomSound`参照）。
+/// 音源に設定出来る（`UserRepository.uploadCustomSound`参照）。
 /// 通話中に実際に再生する`CallSoundPlayer`とは別に、試聴専用の
 /// 一時的な`AudioPlayer`をこのウィジェットが所有する。
 class _SoundSettingsFolder extends ConsumerStatefulWidget {
@@ -4936,7 +5162,7 @@ class _SoundSettingsFolderState extends ConsumerState<_SoundSettingsFolder> {
   // 表示され続けるよう、初回試聴時まで生成を遅延させる。
   AudioPlayer? _previewPlayer;
 
-  /// 現在試聴再生中の音源（アセットパスまたはURL）。再生ボタンを停止
+  /// 現在試聴再生中の音源（アセットパス又はURL）。再生ボタンを停止
   /// ボタンに切り替える判定に使う（2026-09-12追加）。
   String? _playingId;
 
@@ -4967,7 +5193,7 @@ class _SoundSettingsFolderState extends ConsumerState<_SoundSettingsFolder> {
       );
       if (mounted) setState(() => _playingId = assetOrUrl);
     } catch (_) {
-      // 試聴できない環境でも設定変更自体はブロックしない。
+      // 試聴出来ない環境でも設定変更自体はブロックしない。
       if (mounted) setState(() => _playingId = null);
     }
   }
@@ -5252,41 +5478,34 @@ class _AdjustWidthButton extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
     void startAdjusting() {
       ref.read(iconSplitAdjustingProvider.notifier).set(true);
       ref.read(homeSelectedTabProvider.notifier).set(kTalksTabIndex);
     }
 
+    // 見出し→説明→押せるブロック、の順に並べる（2026-11-06）。
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      padding: const EdgeInsets.only(top: 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            strings.settingsIconSplitAdjustNote,
-            style: Theme.of(context).textTheme.bodySmall,
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+            child: GekigaSectionHeader(strings.settingsIconSplitAdjustTitle),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Text(
+              strings.settingsIconSplitAdjustNote,
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
           ),
           const SizedBox(height: 8),
-          Align(
-            alignment: Alignment.centerRight,
-            child: isGekiga
-                ? GekigaJointedTileList(
-                    seeds: [strings.settingsIconSplitAdjustButton.hashCode],
-                    selectedFlags: const [true],
-                    children: [
-                      GekigaButton(
-                        label: strings.settingsIconSplitAdjustButton,
-                        icon: Icons.swap_horiz,
-                        onPressed: startAdjusting,
-                      ),
-                    ],
-                  )
-                : FilledButton.tonalIcon(
-                    icon: const Icon(Icons.swap_horiz),
-                    label: Text(strings.settingsIconSplitAdjustButton),
-                    onPressed: startAdjusting,
-                  ),
+          SettingsTile(
+            leading: const Icon(Icons.swap_horiz),
+            title: Text(strings.settingsIconSplitAdjustButton),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: startAdjusting,
           ),
         ],
       ),
@@ -5465,56 +5684,72 @@ class _OnAccentColorFieldState extends ConsumerState<_OnAccentColorField> {
           ),
         ),
         const SizedBox(width: 16),
-        SizedBox(
-          width: 248,
-          child: BlockFieldFrame(
-            label: widget.strings.settingsOnAccentColorLabel,
-            child: TextField(
-              controller: _controller,
-              textCapitalization: TextCapitalization.characters,
-              inputFormatters: [
-                FilteringTextInputFormatter.allow(RegExp('[0-9a-fA-F]')),
-                LengthLimitingTextInputFormatter(6),
-              ],
-              decoration: InputDecoration(
-                labelText: isBlockTheme(context)
-                    ? null
-                    : widget.strings.settingsOnAccentColorLabel,
-                prefixText: '#',
-                hintText: widget.strings.settingsOnAccentColorAuto,
-                counterText: '',
-                filled: !isBlockTheme(context),
-                fillColor:
-                    (Theme.of(context).brightness == Brightness.dark
-                            ? GlassColors.darkSurfaceBase
-                            : GlassColors.lightSurfaceBase)
-                        .withValues(alpha: 0.65),
-                border: isBlockTheme(context)
-                    ? InputBorder.none
-                    : OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        borderSide: BorderSide(
-                          color: accent.withValues(alpha: 0.3),
-                        ),
-                      ),
-                suffixIcon: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    CopyIconButton(
-                      textBuilder: () => _hexText(_controller.text),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.refresh),
-                      tooltip: '',
-                      onPressed: () {
-                        _controller.clear();
-                        ref.read(onAccentColorProvider.notifier).setColor(null);
-                      },
-                    ),
-                  ],
+        Flexible(
+          // ライト用・ダーク用の欄と同じく、文字の長さに合わせて横幅を変える。
+          child: ListenableBuilder(
+            listenable: _controller,
+            builder: (context, child) => Align(
+              alignment: Alignment.centerLeft,
+              child: SizedBox(
+                width: _colorFieldWidth(
+                  context,
+                  _controller.text,
+                  widget.strings.settingsOnAccentColorLabel,
                 ),
+                child: child,
               ),
-              onChanged: _apply,
+            ),
+            child: BlockFieldFrame(
+              label: widget.strings.settingsOnAccentColorLabel,
+              child: TextField(
+                controller: _controller,
+                textCapitalization: TextCapitalization.characters,
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp('[0-9a-fA-F]')),
+                  LengthLimitingTextInputFormatter(6),
+                ],
+                decoration: InputDecoration(
+                  labelText: isBlockTheme(context)
+                      ? null
+                      : widget.strings.settingsOnAccentColorLabel,
+                  prefixText: '#',
+                  hintText: widget.strings.settingsOnAccentColorAuto,
+                  counterText: '',
+                  filled: !isBlockTheme(context),
+                  fillColor:
+                      (Theme.of(context).brightness == Brightness.dark
+                              ? GlassColors.darkSurfaceBase
+                              : GlassColors.lightSurfaceBase)
+                          .withValues(alpha: 0.65),
+                  border: isBlockTheme(context)
+                      ? InputBorder.none
+                      : OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: BorderSide(
+                            color: accent.withValues(alpha: 0.3),
+                          ),
+                        ),
+                  suffixIcon: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      CopyIconButton(
+                        textBuilder: () => _hexText(_controller.text),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.refresh),
+                        tooltip: '',
+                        onPressed: () {
+                          _controller.clear();
+                          ref
+                              .read(onAccentColorProvider.notifier)
+                              .setColor(null);
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+                onChanged: _apply,
+              ),
             ),
           ),
         ),

@@ -89,7 +89,7 @@ class DmSettingsPopup extends ConsumerWidget {
   /// ようにした）。オフへの変更は寄合が1つだけの場合しか許可されない
   /// （`DirectMessageRepository.setRoomsEnabled`が件数を検証し
   /// [StateError]を投げる）が、UI側も寄合が複数ある間はトグル自体を
-  /// 無効化するため、通常はここに到達する前に弾かれる（購読中の件数と
+  /// 無効化する為、通常はここに到達する前に弾かれる（購読中の件数と
   /// 実際の書き込み時点の件数がずれる競合状態のみフォールバックとして
   /// ここで捕捉する）。
   Future<void> _toggleRoomsEnabled(

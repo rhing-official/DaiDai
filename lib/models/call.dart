@@ -41,7 +41,7 @@ class Call {
   final String callId;
 
   /// この通話が属する一対のid。通話終了後、通話履歴メッセージをどの語らいに
-  /// 投稿するか特定するために使う（`WebrtcCallController`参照）。
+  /// 投稿するか特定する為に使う（`WebrtcCallController`参照）。
   final String dmId;
   final String callerId;
   final String callerRhingSeed;
@@ -50,12 +50,12 @@ class Call {
   final CallStatus status;
 
   /// 通話開始時点の種別（true: 720pビデオ通話、false: 音声のみ通話）。
-  /// 開始後は[callerIsVideo]/[calleeIsVideo]がそれぞれ独立に変化しうるため、
+  /// 開始後は[callerIsVideo]/[calleeIsVideo]がそれぞれ独立に変化しうる為、
   /// これは「最初に選んだ種別」の記録としてのみ使う（通話履歴の種別表示等）。
   final bool isVideo;
 
   /// 通話中の音声⇔ビデオ切替は、切り替えた本人側にのみ適用される
-  /// （相手が強制的に切り替わることはない）。そのため発信者・着信者
+  /// （相手が強制的に切り替わることは無い）。そのため発信者・着信者
   /// それぞれの現在の種別を別フィールドで持つ。
   final bool callerIsVideo;
   final bool calleeIsVideo;

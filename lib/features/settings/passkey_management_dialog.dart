@@ -141,10 +141,10 @@ class _PasskeyManagementDialogState
     }
   }
 
-  /// 例外の種類ごとのコード名を[message]の末尾に付記する。ブラウザ層
+  /// 例外の種類毎のコード名を[message]の末尾に付記する。ブラウザ層
   /// （`PasskeyAuthenticator().register()`、Web実装は`PlatformException`を
   /// 投げる）由来かCloud Functions層（`FirebaseFunctionsException`）由来かで
-  /// 原因が大きく異なるため、固定文言だけでは調査に手がかりが無かった
+  /// 原因が大きく異なる為、固定文言だけでは調査に手がかりが無かった
   /// （2026-09-18追加。本番でRP ID設定がlocalhost固定のままパスキー追加が
   /// 常に失敗していた不具合の調査で必要性が判明した）。
   String _withErrorCode(String message, Object error) {

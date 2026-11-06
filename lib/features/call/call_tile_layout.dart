@@ -5,7 +5,7 @@ import 'package:flutter_webrtc/flutter_webrtc.dart' show RTCVideoViewObjectFit;
 
 /// 通話の参加者タイルの1行あたりの人数（上の行から）。縦長の領域では1行最大2人で、
 /// 2人=縦に2段、3人=上1・下2、4人=上下2人ずつ、奇数は先頭（上）の行を1人にする
-/// （2026-10-13、スマホで横並びだと縦に細長くなるため）。横長の領域は`null`を
+/// （2026-10-13、スマホで横並びだと縦に細長くなる為）。横長の領域は`null`を
 /// 返し、従来どおり`ceil(sqrt(n))`列のグリッドにする。
 List<int>? callTileRowSizes(int count, {required bool portrait}) {
   if (!portrait || count <= 0) return null;

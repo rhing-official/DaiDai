@@ -27,16 +27,16 @@ class DirectMessage {
   final Timestamp? lastMessageAt;
 
   /// 直近のメッセージを送信したuserId。語らい一覧の「未読優先」並べ替えで、
-  /// 自分が送信した会話を未読扱いしないために使う（2026-09-02追加）。
+  /// 自分が送信した会話を未読扱いしない為に使う（2026-09-02追加）。
   final String? lastMessageSenderId;
 
   /// [lastMessageAt]時点のメッセージの`Message.contentType`
   /// （text/image/video/file/sticker/call等）。語らい一覧のプレビュー表示で、
-  /// テキスト以外は種類に応じたラベル（「[画像]」等）に変換するために使う
+  /// テキスト以外は種類に応じたラベル（「[画像]」等）に変換する為に使う
   /// （2026-09-02追加）。
   final String? lastMessageContentType;
 
-  /// [lastMessageContentType]が`text`/`call`のときだけ入る、切り詰め済みの
+  /// [lastMessageContentType]が`text`/`call`の時だけ入る、切り詰め済みの
   /// 本文プレビュー（`messageSnippetOf`）。それ以外の種類はnull
   /// （表示ラベルはロケール依存のためUI側で解決する、2026-09-02追加）。
   final String? lastMessagePreview;
@@ -48,12 +48,12 @@ class DirectMessage {
   final String? severanceRequestedBy;
 
   /// 絶縁の提案を拒否（辞退）した人のuserId（2026-10-11追加）。提案者に
-  /// 「相手が絶縁を拒否しました」を知らせるための印で、提案者がバナーの
+  /// 「相手が絶縁を拒否しました」を知らせる為の印で、提案者がバナーの
   /// 「OK」で確認するか、再提案するとnullに戻る。提案者本人の取り消しでは
   /// 立たない。
   final String? severanceDeclinedBy;
 
-  /// 既読機能のオン/オフ（一対共有の1つの設定。個人ごとの非公開設定では
+  /// 既読機能のオン/オフ（一対共有の1つの設定。個人毎の非公開設定では
   /// ない）。変更にはどちら向きも相手の承認が必要（[readReceiptsProposalBy]
   /// 参照）。
   final bool readReceiptsEnabled;
@@ -68,20 +68,20 @@ class DirectMessage {
   /// アカウント削除により、この一対の相手が既に存在しなくなったことを示す
   /// マーカー。Cloud Functionsの定期削除処理が、削除されたユーザーの
   /// userIdをセットする。nullでなければ、もう一方の参加者が語らいを
-  /// 完全削除できる（severanceRequestedByと同じ役割。firestore.rules参照）。
+  /// 完全削除出来る（severanceRequestedByと同じ役割。firestore.rules参照）。
   final String? accountDeletedUserId;
 
   /// 複数の寄合（テキストチャンネル）を扱うか。falseの場合はサイドバーの
   /// 寄合一覧を出さず、この一対が持つ唯一の寄合だけを使う単一モード
   /// （2026-07-29追加）。一対は常にfalse（単一）で作られ、ハンバーガー
-  /// メニューの「寄合を増やす」でtrueへの切り替えができる。falseへ戻す
+  /// メニューの「寄合を増やす」でtrueへの切り替えが出来る。falseへ戻す
   /// （オフにする）ことも、寄合が1つだけの場合に限り可能（2026-09-14変更、
   /// 以前はtrueへの変更のみ許可する一方向仕様だった。あわせて独立していた
   /// `roomFeatureDisabled`フィールド——寄合の名前変更・削除メニューの
   /// 表示/非表示のみを切り替える3択目——は、この`roomsEnabled`のオン/オフ
   /// だけで十分と判断し廃止した）。fromJsonのデフォルト値はfalse
   /// （単一）: 一対はこの機能追加前から一貫して単一の会話構造しか
-  /// 持たなかったため、フィールド欠落＝旧来通りの単一で問題ない。
+  /// 持たなかった為、フィールド欠落＝旧来通りの単一で問題ない。
   final bool roomsEnabled;
 
   /// 寄合一覧（サイドバー）の表示順（寄合idの並び、先頭が最上位、

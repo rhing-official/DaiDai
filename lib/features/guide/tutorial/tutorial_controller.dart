@@ -69,7 +69,7 @@ final tutorialControllerProvider =
     );
 
 /// 画面上の「押す場所」の登録簿。同じidを広い画面・狭い画面・非表示のタブなど
-/// 複数の場所が持ちうるため、idごとに複数のキーと「今見えているか」を持つ。
+/// 複数の場所が持ちうる為、id毎に複数のキーと「今見えているか」を持つ。
 class TutorialTargetRegistry {
   final Map<String, Map<GlobalKey, bool>> _targets = {};
 

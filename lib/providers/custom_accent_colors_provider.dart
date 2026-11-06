@@ -6,7 +6,7 @@ import 'repository_providers.dart';
 
 const _prefsKey = 'customAccentColorsArgb32';
 
-/// ユーザーが自分で登録できるアクセントカラーの上限数（2026-08-29追加）。
+/// ユーザーが自分で登録出来るアクセントカラーの上限数（2026-08-29追加）。
 const kMaxCustomAccentColors = 5;
 
 /// 端末に保存されているカスタムアクセントカラーの初期値。main()で起動前に
@@ -27,7 +27,7 @@ class CustomAccentColorsNotifier extends Notifier<List<Color>> {
   @override
   List<Color> build() => ref.watch(initialCustomAccentColorsProvider);
 
-  /// 上限（[kMaxCustomAccentColors]）に達している、または既に登録済みの
+  /// 上限（[kMaxCustomAccentColors]）に達している、又は既に登録済みの
   /// 色の場合は何もせず`false`を返す。
   Future<bool> addColor(Color color) async {
     if (state.length >= kMaxCustomAccentColors || state.contains(color)) {

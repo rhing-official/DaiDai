@@ -19,7 +19,7 @@ import 'webrtc_group_call_controller.dart';
 /// 進行中の通話1件（1対1/広場のどちらか）。従来は`CallScreen`/
 /// `GroupCallScreen`が`initState`でコントローラーを生成し`dispose`で
 /// 破棄していた（＝通話の寿命が画面のマウント状態に紐づいていた）が、
-/// PC埋め込み表示・ピン留めミニ表示・モバイルのドック化に対応するため、
+/// PC埋め込み表示・ピン留めミニ表示・モバイルのドック化に対応する為、
 /// コントローラーの所有者をこの[activeCallSessionProvider]（画面をまたいで
 /// 生存する）へ移した（2026-08-19、通話UIの再設計に伴う）。
 ///
@@ -135,7 +135,7 @@ class ActiveCallSessionNotifier extends Notifier<ActiveCallSession?> {
   IceServersLoader get _loader => _cachedLoader.call;
 
   /// 通話の前にTURNの認証情報を取得しておく（2026-11-03）。以前は通話の開始時に初めて
-  /// 取得していたため、Cloud Functionsの起動待ちの分だけ接続が遅れた。1時間は使い回す。
+  /// 取得していた為、Cloud Functionsの起動待ちの分だけ接続が遅れた。1時間は使い回す。
   /// 失敗は無視する（通話の開始時に改めて試し、取得できなければSTUNだけで続ける）。
   void _prefetchIceServers() {
     try {
@@ -211,7 +211,7 @@ class ActiveCallSessionNotifier extends Notifier<ActiveCallSession?> {
     final controller = WebrtcGroupCallController(
       groupCallId: groupCallId,
       currentUser: currentUser,
-      // 設定でカメラをオフにして入る場合は、音声のみで入る（通話中にオンにできる）。
+      // 設定でカメラをオフにして入る場合は、音声のみで入る（通話中にオンに出来る）。
       isVideo: isVideo && ref.read(joinVideoCameraOnProvider),
       groupCallRepository: groupCallRepository,
       iceServersLoader: _loader,
@@ -239,7 +239,7 @@ class ActiveCallSessionNotifier extends Notifier<ActiveCallSession?> {
     switch (session) {
       case OneToOneCallSession(:final controller):
         // 停止の完了を待ってから破棄する（2026-09-12変更）。以前は
-        // stopRingtone()をawaitせずdispose()していたため、特にWebで
+        // stopRingtone()をawaitせずdispose()していた為、特にWebで
         // 停止要求が反映される前にプレイヤーごと破棄され、音が鳴り
         // 続けてしまう競合状態があった。
         await controller.soundPlayer.stopRingtone();

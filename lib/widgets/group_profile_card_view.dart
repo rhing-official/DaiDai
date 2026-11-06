@@ -7,7 +7,7 @@ import 'focal_image.dart';
 /// 広場のプロフィールカード（[GroupProfileCard]）を読み取り専用で描く。
 /// `GroupProfileCardPopup`（編集画面）と同じレイアウト（背景画像＋暗転、左下に
 /// アイコン・名前・一言）。語らい一覧のホバーカードで使う（2026-10-13）。
-/// 編集ポップアップ側とは見た目を二重管理しているため、どちらかを変えたら
+/// 編集ポップアップ側とは見た目を二重管理している為、どちらかを変えたら
 /// もう一方も合わせること。
 class GroupProfileCardView extends StatelessWidget {
   const GroupProfileCardView({required this.card, super.key});

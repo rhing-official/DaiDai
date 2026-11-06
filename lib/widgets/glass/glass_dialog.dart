@@ -85,7 +85,7 @@ class GlassAlertDialog extends StatelessWidget {
 /// 素の`Dialog`の代わりに使う、ガラスUI対応のダイアログ枠。ガラステーマは
 /// `dialogTheme`の背景を透明にしている（[GlassAlertDialog]が自前の
 /// [GlassSurface]で包む前提）ため、素の`Dialog`に直接中身を入れると背景が
-/// 透明になる。[isGlass]のときは透明な`Dialog`＋[GlassSurface]（ぼかし・縁）で
+/// 透明になる。[isGlass]の時は透明な`Dialog`＋[GlassSurface]（ぼかし・縁）で
 /// 包み、それ以外は従来の`Dialog`にする（2026-10-13）。
 Widget glassAwareDialog({required bool isGlass, required Widget child}) {
   if (!isGlass) return Dialog(child: child);

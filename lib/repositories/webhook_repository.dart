@@ -3,7 +3,7 @@ import 'package:cloud_functions/cloud_functions.dart';
 
 import '../models/webhook.dart';
 
-/// 受信Webhook（寄合へ外部から投稿できる、bot・API段階1、2026-10-10追加）。
+/// 受信Webhook（寄合へ外部から投稿出来る、bot・API段階1、2026-10-10追加）。
 /// 作成・削除はトークンのハッシュを扱うためCloud Functions
 /// （`createWebhook`/`deleteWebhook`）経由で、権限（`manageBots`）の確認も
 /// 関数側で行う。一覧の購読だけFirestoreを直接読む（firestore.rulesで
@@ -11,7 +11,7 @@ import '../models/webhook.dart';
 abstract class WebhookRepository {
   Stream<List<Webhook>> watchWebhooks(String groupId);
 
-  /// Webhookを作成し、トークン入りのURLを返す（**この1回しか取得できない**）。
+  /// Webhookを作成し、トークン入りのURLを返す（**この1回しか取得出来ない**）。
   Future<CreatedWebhook> createWebhook({
     required String groupId,
     required String roomId,

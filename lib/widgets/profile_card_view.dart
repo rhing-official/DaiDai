@@ -9,11 +9,11 @@ import '../models/profile_material.dart';
 import '../utils/sns_icon.dart';
 import 'focal_image.dart';
 
-/// カード内のアイコン・余白・文字サイズは、カード自体の横幅（モバイルは
+/// カード内のアイコン・余白・フォントサイズは、カード自体の横幅（モバイルは
 /// 狭い・PCは広い）に関わらず常にこの固定値を使う（2026-09-26変更）。
 /// 以前は`width`に対する比率＋`.clamp()`で計算しており、クランプの上限が
 /// `UserProfileCardDialog`の最大カード幅（480px）付近を想定して調整されて
-/// いたため、それより広い工房カード一覧（最大640px）ではクランプに掛かって
+/// いた為、それより広い工房カード一覧（最大640px）ではクランプに掛かって
 /// 頭打ちになる一方、クランプに掛からないモバイル幅ではほぼ素の比率のまま
 /// 表示され、同じカードなのにモバイルとPCで見た目が異なってしまっていた。
 /// PC（頭打ち時）の見た目が良いとのユーザー判断により、その頭打ち値
@@ -34,11 +34,11 @@ const double kProfileCardDesignHeight = 500.0;
 /// 身だしなみ・工房で作るプロフィールカードの見た目そのもの
 /// （背景画像＋アイコン・呼び名・ステメ・SNSリンクを左下にまとめた構成）を、
 /// 工房のカード一覧（`_WorkshopCardSlot`）とプロフィールカードダイアログ
-/// （`UserProfileCardDialog`）の両方から共通で使う。表示先ごとに手で
+/// （`UserProfileCardDialog`）の両方から共通で使う。表示先毎に手で
 /// レイアウトを合わせ直すと（実際に2度ズレが起きた）、片方だけ更新されて
 /// デザインが食い違うため、実際の描画コード自体を1箇所にまとめている。
 ///
-/// カード内のアイコン半径・余白・文字サイズは、カード幅に関わらず常に
+/// カード内のアイコン半径・余白・フォントサイズは、カード幅に関わらず常に
 /// [kProfileCardAvatarRadius]等の固定値を使う。ズーム編集画面
 /// （`profile_tab.dart`の`_CardZoomEditor`）も同じ定数を使っている。
 class ProfileCardView extends StatelessWidget {
@@ -90,7 +90,7 @@ class ProfileCardView extends StatelessWidget {
   /// Rhing Seedの表示文字列（`@seed`、2026-10-31追加）。nullなら出さない。
   final String? rhingSeedLabel;
 
-  /// 渡すと、Rhing Seedの行をタップしてこの文字列をコピーできる（相手のカードを見る
+  /// 渡すと、Rhing Seedの行をタップしてこの文字列をコピー出来る（相手のカードを見る
   /// ダイアログ用）。コピー直後は[rhingSeedCopiedLabel]に1.5秒だけ置き換わる。
   final String? rhingSeedCopyText;
   final String? rhingSeedCopiedLabel;
@@ -271,7 +271,7 @@ class ProfileCardContent extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.all(kProfileCardPadding),
       // アイコン・呼び名・一言・URLのサイズを固定値にしたことで、想定より極端に
-      // 狭いカード幅では収まりきらない可能性があるため、その場合だけ自動的に
+      // 狭いカード幅では収まりきらない可能性がある為、その場合だけ自動的に
       // 縮小してオーバーフローを防ぐ。Hero飛行中（工房のズーム）も矩形が一瞬
       // 小さくなるが、FittedBoxならオーバーフロー警告そのものが起きない。
       child: FittedBox(
@@ -413,7 +413,7 @@ class _ProfileCardRhingSeedLineState extends State<ProfileCardRhingSeedLine> {
 }
 
 /// カードに掲載するSNSのURL一覧の表示。1件ずつ縦に並べる（長いURLが混ざると
-/// 1行" / "区切りでは後半が読めなくなるため）。[onTap]を渡すと編集画面
+/// 1行" / "区切りでは後半が読めなくなる為）。[onTap]を渡すと編集画面
 /// （工房のズーム編集）向けにタップでSNSリンクの選択ポップアップを開ける。
 class SnsLinksInline extends StatelessWidget {
   const SnsLinksInline({
@@ -428,7 +428,7 @@ class SnsLinksInline extends StatelessWidget {
     super.key,
   });
 
-  /// URLの行をタップした時（nullなら行はタップできない）。
+  /// URLの行をタップした時（nullなら行はタップ出来ない）。
   final ValueChanged<SnsLink>? onOpenLink;
 
   final List<SnsLink> links;
@@ -550,7 +550,7 @@ String displaySnsLinkUrl(String url) {
   return host.replaceFirst(RegExp(r'^www\.', caseSensitive: false), '');
 }
 
-/// カード内の円形アイコン。[focal]で円の中のどこを中心に見せるかを指定できる
+/// カード内の円形アイコン。[focal]で円の中のどこを中心に見せるかを指定出来る
 /// （2026-10-11追加）。アイコンが無ければ人型のプレースホルダー。
 class ProfileCardAvatar extends StatelessWidget {
   const ProfileCardAvatar({
@@ -585,7 +585,7 @@ class ProfileCardAvatar extends StatelessWidget {
   }
 }
 
-/// URLの1行。[onTap]があれば、タップで開ける（マウスではクリックできるカーソル）。
+/// URLの1行。[onTap]があれば、タップで開ける（マウスではクリック出来るカーソル）。
 class _TappableLinkRow extends StatelessWidget {
   const _TappableLinkRow({required this.child, this.onTap});
 

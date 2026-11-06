@@ -13,7 +13,7 @@ CallBgmBinding? oneToOneBgmBinding(WebrtcCallController controller) {
   );
 }
 
-/// 広場の通話のBGM。[allowed]（`playBgm`権限）が無い、またはWeb以外はnull。
+/// 広場の通話のBGM。[allowed]（`playBgm`権限）が無い、又はWeb以外はnull。
 CallBgmBinding? groupBgmBinding(
   WebrtcGroupCallController controller, {
   required bool allowed,

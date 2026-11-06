@@ -41,7 +41,7 @@ void main() {
     expect(visiblePendingGroupRequests(const [], [_group('g1')]), isEmpty);
   });
 
-  test('却下された申請も出す（結果を伝え、本人が削除できるように）', () {
+  test('却下された申請も出す（結果を伝え、本人が削除出来るように）', () {
     const declined = GroupJoinRequest(
       requestId: 'u',
       groupId: 'g3',

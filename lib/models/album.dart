@@ -1,7 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 /// 寄合単位の共有アルバム（`directMessages/{dmId}/rooms/{roomId}/albums/{albumId}`
-/// または`groups/{groupId}/rooms/{roomId}/albums/{albumId}`、2026-08-30追加）。
+/// 又は`groups/{groupId}/rooms/{roomId}/albums/{albumId}`、2026-08-30追加）。
 ///
 /// 個人のフォトライブラリではなく、その寄合のメンバー全員が共有する
 /// アルバムで、寄合内で送信された画像・動画メッセージを整理して保存する

@@ -37,7 +37,7 @@ class StickerPickerContent extends ConsumerStatefulWidget {
 
   final Axis railAxis;
 
-  /// 語らい（寄合）ごとに、直前に開いたタブを記憶・復元するキー
+  /// 語らい（寄合）毎に、直前に開いたタブを記憶・復元するキー
   /// （`stickerTabKey`）。nullなら記憶しない（2026-10-30）。
   final String? conversationKey;
 
@@ -52,11 +52,11 @@ class StickerPickerContent extends ConsumerStatefulWidget {
   /// 拡大から半分へ縮む合図）。
   final VoidCallback? onGridOverscrollTop;
 
-  /// モバイル（レールが下）かどうか。横スワイプでタブを移動できる。
+  /// モバイル（レールが下）かどうか。横スワイプでタブを移動出来る。
   bool get _swipeTabs => railAxis == Axis.horizontal;
   final void Function(Sticker sticker) onStickerSelected;
 
-  /// 指定時は「すべて」タブではなく、このパックに絞り込んだ状態で開く
+  /// 指定時は「全て」タブではなく、このパックに絞り込んだ状態で開く
   /// （他人が送信済みのぺったんをタップして開く導線用、2026-08-14追加）。
   final String? initialPackId;
 
@@ -67,18 +67,18 @@ class StickerPickerContent extends ConsumerStatefulWidget {
 
 class _StickerPickerContentState extends ConsumerState<StickerPickerContent> {
   String _query = '';
-  // nullは「すべて」タブを表す。[_kRecentTab]は「最近使った」タブ。
+  // nullは「全て」タブを表す。[_kRecentTab]は「最近使った」タブ。
   String? _chosenPackId;
   // 利用者がタブを選んだか。選ぶまでは[_selectedPackId]が既定（指定パック、
-  // 無ければ最近があれば「最近」、無ければ「すべて」）を返す。最近の読み込みは
-  // 非同期のため、初期化時ではなく都度判定する（2026-10-29）。
+  // 無ければ最近があれば「最近」、無ければ「全て」）を返す。最近の読み込みは
+  // 非同期の為、初期化時ではなく都度判定する（2026-10-29）。
   bool _tabChosen = false;
 
-  // 所持パックのid（取得できた後）。記憶したパックが今も有効かの判定に使う。
+  // 所持パックのid（取得出来た後）。記憶したパックが今も有効かの判定に使う。
   Set<String>? _ownedPackIds;
 
   /// 開いた時の最初のタブ: 指定パック → この語らいで直前に開いたタブ（パックは
-  /// 今も所持している時だけ）→ 最近があれば最近 → すべて。
+  /// 今も所持している時だけ）→ 最近があれば最近 → 全て。
   String? get _selectedPackId {
     if (_tabChosen) return _chosenPackId;
     if (widget.initialPackId != null) return widget.initialPackId;
@@ -117,7 +117,7 @@ class _StickerPickerContentState extends ConsumerState<StickerPickerContent> {
   Offset? _collapseStart;
   bool _gridAtTop = true;
 
-  /// タブの並び（レールと同じ: 最近、すべて(null)、所持パック）。
+  /// タブの並び（レールと同じ: 最近、全て(null)、所持パック）。
   List<String?> _tabIds(List<StickerPack> packs) => [
     _kRecentTab,
     null,
@@ -192,7 +192,7 @@ class _StickerPickerContentState extends ConsumerState<StickerPickerContent> {
       widget.onStickerSelected(sticker);
       return;
     }
-    // 1回目のタップ、または別のぺったんへの差し替え。
+    // 1回目のタップ、又は別のぺったんへの差し替え。
     _pendingPreviewSticker = sticker;
     _pendingTapGlobalPos = _lastTapDownGlobalPos;
     if (_previewEntry == null) {
@@ -428,7 +428,7 @@ class _StickerPickerContentState extends ConsumerState<StickerPickerContent> {
     }
     // 拡大中の「先頭から下へ引くと半分へ縮む」は、ジェスチャーの競り合い
     // （横のPageView／縦のGridView）やオーバースクロール通知に頼らず、ポインターの
-    // 動きを直接見て判定する（実機でオーバースクロールが発火しなかったため）。
+    // 動きを直接見て判定する（実機でオーバースクロールが発火しなかった為）。
     return Listener(
       onPointerDown: (event) =>
           _collapseStart = _gridAtTop ? event.position : null,
@@ -465,7 +465,7 @@ class _StickerPickerContentState extends ConsumerState<StickerPickerContent> {
   }
 
   /// 検索欄・下のレールの領域でも、縦ドラッグをドックの高さの変更（展開・縮小・
-  /// 閉じる）として受ける。バーと同じ操作の判定範囲を広げるためで、一覧と違い
+  /// 閉じる）として受ける。バーと同じ操作の判定範囲を広げる為で、一覧と違い
   /// 段に関わらず常に有効（拡大中も、ここを下に引けば半分・閉じるへ進める）。
   /// 横の動き（レールのスクロール・検索欄の文字選択）はそのまま。ドックから
   /// 渡されない（PCポップアップ）時は何もしない。

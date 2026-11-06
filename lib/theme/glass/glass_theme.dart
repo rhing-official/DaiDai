@@ -9,7 +9,7 @@ import '../text_prominence_colors.dart';
 /// seedにしてColorSchemeを導出するが、cardTheme/appBarTheme/dialogThemeは
 /// 完全に透明にする。実際の「すりガラス」の見た目（ぼかし・半透明の塗り・
 /// 縁の光彩）はThemeDataではなく`lib/widgets/glass/`のウィジェット
-/// （[GlassSurface]等）が描画するため、ThemeData側は極力何も描かず
+/// （[GlassSurface]等）が描画する為、ThemeData側は極力何も描かず
 /// 邪魔をしないことに徹する。
 class GlassTheme {
   GlassTheme._();
@@ -72,7 +72,7 @@ class GlassTheme {
       brightness: brightness,
     ).copyWith(primary: accentColor, onPrimary: onAccent);
     // onSurface/onSurfaceVariant（文字・アイコン色）は、fromSeed任せだと
-    // アクセントカラーの色相が乗って視認性が落ちるため、ライト/ダーク各1色の
+    // アクセントカラーの色相が乗って視認性が落ちる為、ライト/ダーク各1色の
     // 固定色に上書きする（2026-08-29追記、GlassColors.lightForeground/
     // darkForeground参照）。
     // surfaceContainer系ロール（PopupMenuButtonのメニュー背景は
@@ -159,7 +159,7 @@ class GlassTheme {
         ),
       ),
       // 確認ダイアログのような短い文言のみのAlertDialogが、アクション行の
-      // 幅に引っ張られて横長・縦潰れになる問題（2026-09-01発覚）を避けるため、
+      // 幅に引っ張られて横長・縦潰れになる問題（2026-09-01発覚）を避ける為、
       // ダイアログ全体の最大幅を統一する（フラットと同じ値）。
       dialogTheme: const DialogThemeData(
         backgroundColor: Colors.transparent,
@@ -205,8 +205,8 @@ class GlassTheme {
         highlightElevation: 10,
       ),
       // ホバーで文言を出さない方針（CLAUDE.md）をFlutter標準ウィジェット
-      // （DatePicker/TimePickerの入力方法切替ボタン等）にも適用するための
-      // 回避策。Tooltipを恒久的に無効化するAPIは無いため、実用上出現しない
+      // （DatePicker/TimePickerの入力方法切替ボタン等）にも適用する為の
+      // 回避策。Tooltipを恒久的に無効化するAPIは無い為、実用上出現しない
       // 長さまでwaitDurationを伸ばす（2026-09-07追加）。
       tooltipTheme: const TooltipThemeData(waitDuration: Duration(days: 365)),
       inputDecorationTheme: InputDecorationTheme(

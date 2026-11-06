@@ -5,7 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 ///
 /// [Message.fileMetadata]（`lib/models/message.dart`の`MessageFileMetadata`）
 /// とフィールド構成は近いが、元メッセージが削除・期限切れで消えた後も
-/// 独立して存在し続ける必要があるため、あえて別クラスにしている。
+/// 独立して存在し続ける必要がある為、あえて別クラスにしている。
 /// 元ファイルは登録時にコピーして[storagePath]/[url]に独自保存する
 /// （`lib/utils/album_storage.dart`参照）。
 class AlbumItem {
@@ -30,7 +30,7 @@ class AlbumItem {
   /// image|video。
   final String contentType;
 
-  /// Firebase Storage上の実パス（`albumFiles/dm/...`または
+  /// Firebase Storage上の実パス（`albumFiles/dm/...`又は
   /// `albumFiles/group/...`）。削除時にこのパスのファイルを消す。
   final String storagePath;
 

@@ -12,7 +12,7 @@ import '../theme/gekiga/gekiga_colors.dart';
 import 'media_preview_frame.dart';
 
 /// 動画リンクと判定するホスト名（サムネイルに再生アイコンを重ねる対象）。
-/// OGPからは`og:type`等を取得していないため、簡易的にホスト名で判定する。
+/// OGPからは`og:type`等を取得していない為、簡易的にホスト名で判定する。
 const _videoHosts = ['youtube.com', 'youtu.be', 'vimeo.com'];
 
 /// DaiDai自身のホスト名（本番・Pagesの既定ドメイン・Webの現在のオリジン）。
@@ -29,7 +29,7 @@ Set<String> _ownHosts() => {
 /// （2026-10-13、全てのURLにプレビューを付ける）。
 ///
 /// Discordの埋め込みカード（サイト名→タイトル→説明文→画像、動画には
-/// 再生アイコン）を参考にした構成に統一しつつ、外枠・配色はUIスタイルごとに
+/// 再生アイコン）を参考にした構成に統一しつつ、外枠・配色はUIスタイル毎に
 /// 分けている（2026-08-10追加）。フラットUIはアクセントカラーの縦バー・
 /// 色付きタイトルでDiscordに近い配色、劇画UIはアクセントカラーを使わず
 /// （劇画UI選択中はアクセントカラー自体変更不可という既存方針との整合）、
@@ -53,7 +53,7 @@ class LinkPreviewCard extends ConsumerWidget {
   }
 
   /// サイト名の代わりに表示するホスト名（`www.`は除去）。OGPの
-  /// `og:site_name`はサーバー側で取得していないため、クライアント側で
+  /// `og:site_name`はサーバー側で取得していない為、クライアント側で
   /// URLから算出する。
   String? _hostLabel() {
     final host = Uri.tryParse(url)?.host;

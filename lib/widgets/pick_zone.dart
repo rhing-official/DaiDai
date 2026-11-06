@@ -6,13 +6,13 @@ import '../providers/home_shell_providers.dart';
 import '../providers/slide_pick_enabled_provider.dart';
 import 'pane_visibility.dart';
 
-/// メニューチップから始めたタッチを、そのまま滑らせて操作できる部品（ボタン・タブ）にする
+/// メニューチップから始めたタッチを、そのまま滑らせて操作出来る部品（ボタン・タブ）にする
 /// （2026-11-03、`ItemPickBridge`）。包んだ部品の上に指が来ると少し大きくなり
 /// （[onEnter]を呼ぶ）、そこで指を離すと[onCommit]を呼ぶ。通常のタップや長押しには
 /// 影響しない。表示中の画面（`PaneVisibility`）の部品だけが対象になる。
 ///
 /// メニューチップからだけでなく、この部品自身を押したまま別の`PickZone`へ滑らせても
-/// 同じように選べる（2026-11-03）。元の部品で離した（ふつうのタップ）時は何も足さず、
+/// 同じように選べる（2026-11-03）。元の部品で離した（普通のタップ）時は何も足さず、
 /// 別の部品の上で離した時だけ、その部品の[onCommit]を呼ぶ（元の部品へ戻ってきた時は
 /// [onEnter]を呼ぶ。一対・広場のタブで、行って戻る往復を続けて切り替えられるように）。
 class PickZone extends ConsumerStatefulWidget {
@@ -98,7 +98,7 @@ class _PickZoneState extends ConsumerState<PickZone> implements ItemPickTarget {
     _lastTarget = null;
     _lastIndex = null;
     if (target == null || index == null) return;
-    // 元の部品に戻って離した時は、ふつうのタップとして扱う（二重に実行しない）。
+    // 元の部品に戻って離した時は、普通のタップとして扱う（二重に実行しない）。
     target.pick(
       commit && target != this ? index : null,
       commit: commit && target != this,

@@ -41,7 +41,7 @@ class MuseumExhibit {
   }
 }
 
-/// 日本語・英語以外の表示言語の展示文（作品の`asset`→訳）。言語ごとに
+/// 日本語・英語以外の表示言語の展示文（作品の`asset`→訳）。言語毎に
 /// `museum_texts_xx.dart`へ置き、このswitch式（網羅性エラー）から返す。
 Map<String, MuseumText>? museumTextsOf(AppLocale locale) {
   return switch (locale) {
@@ -120,7 +120,7 @@ const _gray200 = Color(0xFFE5E7EB);
 /// go_routerの`errorBuilder`と、管理者でない人が開いた`/admin`
 /// （`AdminGate`）で共通に使う。表示のたびに6点からランダムで1点を展示する。
 /// 参照元はHomePage-Rhingの`not-found.tsx`で、アプリのテーマ（ダーク/ライト・
-/// アクセントカラー・UIスタイル）とは無関係の単独デザインのため、色は固定値
+/// アクセントカラー・UIスタイル）とは無関係の単独デザインの為、色は固定値
 /// にしている（フォントだけテーマを継承する）。
 class NotFoundScreen extends StatefulWidget {
   const NotFoundScreen({super.key});

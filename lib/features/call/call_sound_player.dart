@@ -5,7 +5,7 @@ import 'package:audioplayers/audioplayers.dart';
 import 'call_sounds.dart';
 
 /// 通話中の効果音（着信音・呼出音・入退室ブリップ）再生をまとめる。
-/// 用途ごとに専用の`AudioPlayer`を持つことで、同時に発生しても
+/// 用途毎に専用の`AudioPlayer`を持つことで、同時に発生しても
 /// （例: 入室直後に別の人が退室）互いの再生を打ち切らないようにする。
 class CallSoundPlayer {
   final _ringtonePlayer = AudioPlayer();
@@ -17,7 +17,7 @@ class CallSoundPlayer {
   /// [source]は`sound_preset.dart`の`SoundCategoryPresets.resolveSource`で
   /// 解決した値（`http`で始まればカスタムアップロード音源のURL、それ以外は
   /// `AssetSource`用の相対パス）。着信側（発信者ではない方）が呼ぶ
-  /// （2026-09-06、ユーザーごとのカスタム着信音対応で`source`引数を追加）。
+  /// （2026-09-06、ユーザー毎のカスタム着信音対応で`source`引数を追加）。
   Future<void> startRingtoneLoop(String source) async {
     try {
       await _ringtonePlayer.setReleaseMode(ReleaseMode.loop);
@@ -78,7 +78,7 @@ class CallSoundPlayer {
         AssetSource(CallSound.participantJoined.assetPath),
       );
     } catch (_) {
-      // 再生できない環境でも通話自体は継続させる。
+      // 再生出来ない環境でも通話自体は継続させる。
     }
   }
 
@@ -86,7 +86,7 @@ class CallSoundPlayer {
     try {
       await _leavePlayer.play(AssetSource(CallSound.participantLeft.assetPath));
     } catch (_) {
-      // 再生できない環境でも通話自体は継続させる。
+      // 再生出来ない環境でも通話自体は継続させる。
     }
   }
 
@@ -97,7 +97,7 @@ class CallSoundPlayer {
       await _previewPlayer.setReleaseMode(ReleaseMode.stop);
       await _previewPlayer.play(_sourceFor(source));
     } catch (_) {
-      // 試聴できない環境でも設定変更自体はブロックしない。
+      // 試聴出来ない環境でも設定変更自体はブロックしない。
     }
   }
 

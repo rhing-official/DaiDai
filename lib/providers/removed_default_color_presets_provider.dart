@@ -21,7 +21,7 @@ Future<Set<String>> loadInitialRemovedDefaultColorPresets() async {
 
 /// 開発側が用意した固定プリセット（アクセントカラー設定の
 /// `_kDefaultColorPresets`）のうち、ユーザーが長押しで削除した色の
-/// hex文字列集合。復活させる手段は意図的に設けない方針のため、削除の
+/// hex文字列集合。復活させる手段は意図的に設けない方針の為、削除の
 /// 取り消しAPIは無い（追加のみ）。
 class RemovedDefaultColorPresetsNotifier extends Notifier<Set<String>> {
   @override

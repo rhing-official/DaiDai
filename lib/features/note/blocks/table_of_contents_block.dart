@@ -7,8 +7,8 @@ import '../../../l10n/strings.dart';
 import '../../../utils/note_title.dart';
 import '../block_move_drag.dart';
 
-/// 文書内の見出し一覧をタップでジャンプできる形で表示する目次ブロック
-/// （2026-09-27追加、ユーザー指示）。見出しの追加・削除に追従するため、
+/// 文書内の見出し一覧をタップでジャンプ出来る形で表示する目次ブロック
+/// （2026-09-27追加、ユーザー指示）。見出しの追加・削除に追従する為、
 /// `editorState.transactionStream`を監視して都度作り直す（このセッションで
 /// 既に使っている`_openFormatBottomSheet`の`StreamBuilder`パターンを踏襲）。
 class TableOfContentsBlockKeys {
@@ -22,7 +22,7 @@ Node tableOfContentsNode() {
 }
 
 /// 選択位置に目次を挿入し、直後に空の段落を作ってカーソルをそこへ置く。
-/// 目次は選択・キャレットを受け付けない不可分ブロックのため、
+/// 目次は選択・キャレットを受け付けない不可分ブロックの為、
 /// `insertNodeAfterSelection`（挿入したブロック自身へカーソルを置く）だと
 /// その下に書き始められなくなる。区切り線の`dividerMenuItem`と同じ構造にした。
 bool insertTableOfContentsAfterSelection(EditorState editorState) {
@@ -40,7 +40,7 @@ bool insertTableOfContentsAfterSelection(EditorState editorState) {
     tableOfContentsNode(),
     paragraphNode(),
   ]);
-  // 空の段落の上で呼ばれたときは、その段落を目次で置き換える。
+  // 空の段落の上で呼ばれた時は、その段落を目次で置き換える。
   if (replacesEmpty) transaction.deleteNode(current);
   transaction.afterSelection = Selection.collapsed(
     Position(path: insertedPath.next),

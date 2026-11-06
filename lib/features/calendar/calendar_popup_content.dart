@@ -72,7 +72,7 @@ Future<CalendarPopupResult?> showCalendarPopup(
       PopupMenuItem<CalendarPopupResult>(
         enabled: false,
         padding: EdgeInsets.zero,
-        // メニューは呼び出し元の外のルートに描かれるため、呼び出し元と同じ
+        // メニューは呼び出し元の外のルートに描かれる為、呼び出し元と同じ
         // プロバイダーの範囲（使い方ガイドの練習用の画面など）を引き継ぐ。
         child: UncontrolledProviderScope(
           container: ProviderScope.containerOf(context),

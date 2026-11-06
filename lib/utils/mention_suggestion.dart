@@ -40,7 +40,7 @@ class MentionQuery {
 
 /// [text]の[cursor]直前にメンション入力中の`@クエリ`があればそれを返す。
 /// メンションに使えるのは半角の`@`のみ（全角`＠`は対象外）。`@`は行頭か空白の
-/// 直後でなければならない（メールアドレスのような`a@b`を誤検出しないため）。
+/// 直後でなければならない（メールアドレスのような`a@b`を誤検出しない為）。
 /// クエリに空白は含められない（空白を打った時点でメンション入力は終わり）。
 MentionQuery? detectMentionQuery(String text, int cursor) {
   if (cursor < 0 || cursor > text.length) return null;

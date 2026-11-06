@@ -83,7 +83,7 @@ abstract class CalendarEventRepository {
 
   /// 予定を削除する。参加者全員の`syncStates`を`pendingDelete`にしてから
   /// 本体を削除する2段階の処理を行う（`CalendarSyncWorker`が`pendingDelete`
-  /// を見てGoogle側のイベントも削除できるようにするため）。
+  /// を見てGoogle側のイベントも削除出来るようにする為）。
   Future<void> deleteEvent({
     required bool isDm,
     required String conversationId,
@@ -113,7 +113,7 @@ abstract class CalendarEventRepository {
   /// 監視する（`CalendarSyncWorker`専用、`collectionGroup`クエリを使う）。
   Stream<List<CalendarEventSyncTask>> watchPendingSyncTasks(String uid);
 
-  /// [expectedStatus]（`pending`または`pendingDelete`）から処理中状態
+  /// [expectedStatus]（`pending`又は`pendingDelete`）から処理中状態
   /// （`syncing`/`deleting`）への遷移を試みる（`CalendarSyncWorker`専用）。
   /// 複数端末が同時にオンラインの場合の二重登録・二重削除を防ぐ楽観ロック。
   /// 既に他端末が処理中/処理済みなら`false`を返す。
@@ -145,8 +145,8 @@ abstract class CalendarEventRepository {
     required String uid,
   });
 
-  /// `pendingDelete`の処理が完了した後の掃除、または未連携で最初から
-  /// 同期する必要がない場合に使う。
+  /// `pendingDelete`の処理が完了した後の掃除、又は未連携で最初から
+  /// 同期する必要が無い場合に使う。
   Future<void> deleteSyncState({
     required bool isDm,
     required String conversationId,
@@ -192,7 +192,7 @@ abstract class CalendarEventRepository {
 ///
 /// [event]は[CalendarSyncStatus.pendingDelete]の場合にnullになりうる。
 /// `deleteEvent`は参加者のsyncStatesを`pendingDelete`にしてから予定本体を
-/// 削除するため、ワーカーがこのタスクを見つけた時点では既に予定本体が
+/// 削除する為、ワーカーがこのタスクを見つけた時点では既に予定本体が
 /// 存在しない（Google側の削除には`syncState.googleEventId`だけあれば足りる
 /// ため、これは問題にならない）。
 class CalendarEventSyncTask {
@@ -451,7 +451,7 @@ class FirestoreCalendarEventRepository implements CalendarEventRepository {
     );
 
     // (1) 全参加者のsyncStatesをpendingDeleteにする
-    // （CalendarSyncWorkerがGoogle側のイベントを削除できるようにするため、
+    // （CalendarSyncWorkerがGoogle側のイベントを削除出来るようにする為、
     // 本体を消す前に必ずこのマーカーを立てる）。
     final markBatch = _firestore.batch();
     for (final uid in participants) {
@@ -511,7 +511,7 @@ class FirestoreCalendarEventRepository implements CalendarEventRepository {
   Stream<List<CalendarEventSyncTask>> watchPendingSyncTasks(String uid) {
     // syncStates/{uid}は本人のuidしか読めない（firestore.rules）ため、
     // ドキュメントIDでの絞り込みではなくフィールド`uid`のwhere句で絞り込む
-    // （collectionGroupクエリはドキュメントIDでの直接絞り込みができない）。
+    // （collectionGroupクエリはドキュメントIDでの直接絞り込みが出来ない）。
     return _firestore
         .collectionGroup('syncStates')
         .where('uid', isEqualTo: uid)
@@ -544,7 +544,7 @@ class FirestoreCalendarEventRepository implements CalendarEventRepository {
               eventId: eventId,
             ).get();
             final eventData = eventDoc.data();
-            // pendingDeleteは予定本体が既に削除された後の状態のため、
+            // pendingDeleteは予定本体が既に削除された後の状態の為、
             // eventDataが無いのは正常（上記ドキュメントコメント参照）。
             // pending側でeventDataが無いのは想定外（本体が無いのに
             // syncStatesだけ残っている不整合）なのでスキップする。
@@ -707,7 +707,7 @@ class FirestoreCalendarEventRepository implements CalendarEventRepository {
         // rsvpCountは非正規化された副次データであり、更新に失敗しても
         // 本来の出欠回答の保存（上記set）自体は既に完了しているため
         // 再スローしない（firestore.rulesの`calendarEvents`のallow update
-        // 未デプロイ環境でも出欠回答自体は保存できるようにするため、
+        // 未デプロイ環境でも出欠回答自体は保存出来るようにする為、
         // 2026-09-04追加）。原因調査のためログには残す。
         debugPrint(
           '[calendarEventRepository.setRsvp] rsvpCount update failed: $e',

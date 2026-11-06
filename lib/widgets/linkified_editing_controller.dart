@@ -14,7 +14,7 @@ import 'linkified_text.dart';
 ///
 /// [linkColor]は呼び出し側（`_MessageRow`）がbuild時に、自分/相手・
 /// 劇画スタイルの別に応じて直接代入する（テーマ依存の値をコンストラクタ
-/// 時点では持てないため）。
+/// 時点では持てない為）。
 class LinkifiedEditingController extends TextEditingController {
   Color linkColor = Colors.blue;
 

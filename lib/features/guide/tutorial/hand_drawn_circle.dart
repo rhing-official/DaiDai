@@ -65,7 +65,7 @@ Path partialPath(Path path, double progress) {
 typedef AxisFit = ({double scale, double offset});
 
 /// [content]が[bounds]（から[margin]を引いた内側）に収まるよう、はみ出す側だけを
-/// 縮める変換を軸ごとに返す。はみ出していない側の端は動かさない。
+/// 縮める変換を軸毎に返す。はみ出していない側の端は動かさない。
 ({AxisFit dx, AxisFit dy}) fitAxes(
   Rect content,
   Rect bounds, {

@@ -8,12 +8,12 @@ const _prefsKey = 'lastStickerTabByRoom';
 /// 記憶する語らい（寄合）の最大件数。超えたら古いものから落とす。
 const kLastStickerTabLimit = 200;
 
-/// ぺったん一覧で、タブが「最近使った」「すべて」を表す値（パックidと
+/// ぺったん一覧で、タブが「最近使った」「全て」を表す値（パックidと
 /// 衝突しない）。
 const kStickerTabRecent = '__recent__';
 const kStickerTabAll = '__all__';
 
-/// 語らいごとの記憶のキー。寄合があれば`会話/寄合`、無ければ会話。どちらも
+/// 語らい毎の記憶のキー。寄合があれば`会話/寄合`、無ければ会話。どちらも
 /// 無ければnull（記憶しない）。
 String? stickerTabKey({String? conversationId, String? roomId}) {
   if (conversationId == null) return null;
@@ -36,8 +36,8 @@ Map<String, String> rememberTab(
   return next;
 }
 
-/// 語らいごとに直前に開いていたぺったん一覧のタブ（2026-10-30追加）。
-/// 端末ごとの`SharedPreferences`保存で、Firestoreには同期しない。起動時の
+/// 語らい毎に直前に開いていたぺったん一覧のタブ（2026-10-30追加）。
+/// 端末毎の`SharedPreferences`保存で、Firestoreには同期しない。起動時の
 /// 読み込みは非同期で、読み込み前は空。
 class LastStickerTabNotifier extends Notifier<Map<String, String>> {
   @override

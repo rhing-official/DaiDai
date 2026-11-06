@@ -20,7 +20,7 @@ import '../profile/focal_edit_overlay.dart';
 import '../../widgets/app_dialog.dart';
 
 /// 広場のプロフィールカード（1枚のみ）を作成・編集するポップアップの中身。
-/// メンバー全員が編集できる（個人の工房カードと異なり、蔵の素材を参照せず
+/// メンバー全員が編集出来る（個人の工房カードと異なり、蔵の素材を参照せず
 /// 背景画像URL・アイコンURL・広場名・一言を直接持つ自己完結型のカード）。
 /// 操作感は個人の工房カードのズーム編集画面（`_CardZoomEditor`、
 /// `lib/features/profile/profile_tab.dart`）に合わせてある: カード内の
@@ -189,7 +189,7 @@ class _GroupProfileCardPopupState extends ConsumerState<GroupProfileCardPopup> {
 
   /// 名前・一言をその場で編集する小さなテキスト入力ポップアップを開く。
   /// 個人の工房カードは蔵にある既存の素材（ニックネーム等）から選ぶだけだが、
-  /// 広場のカードは自由入力のため、代わりにテキストボックスをポップアップで
+  /// 広場のカードは自由入力の為、代わりにテキストボックスをポップアップで
   /// 出す。Enterキー確定・ポップアップ外タップでの終了いずれの場合も、
   /// 閉じた時点の入力内容を読み取って変更があれば自動保存する。
   Future<void> _editField({
@@ -248,6 +248,7 @@ class _GroupProfileCardPopupState extends ConsumerState<GroupProfileCardPopup> {
                 Row(
                   children: [
                     Expanded(
+                      flex: 4,
                       child: OutlinedButton(
                         style: OutlinedButton.styleFrom(
                           foregroundColor: Colors.white,
@@ -255,15 +256,15 @@ class _GroupProfileCardPopupState extends ConsumerState<GroupProfileCardPopup> {
                           side: const BorderSide(color: Colors.white70),
                         ),
                         onPressed: () => _finishFocalEdit(apply: false),
-                        child: Text(
-                          strings.workshopFocalCancel,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(strings.workshopFocalCancel, maxLines: 1),
                         ),
                       ),
                     ),
                     const SizedBox(width: 8),
                     Expanded(
+                      flex: 3,
                       child: OutlinedButton(
                         style: OutlinedButton.styleFrom(
                           foregroundColor: Colors.white,
@@ -272,24 +273,23 @@ class _GroupProfileCardPopupState extends ConsumerState<GroupProfileCardPopup> {
                         ),
                         onPressed: () =>
                             setState(() => _focalDraft = ImageFocal.center),
-                        child: Text(
-                          strings.workshopFocalReset,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(strings.workshopFocalReset, maxLines: 1),
                         ),
                       ),
                     ),
                     const SizedBox(width: 8),
                     Expanded(
+                      flex: 2,
                       child: FilledButton(
                         style: FilledButton.styleFrom(
                           padding: const EdgeInsets.symmetric(horizontal: 4),
                         ),
                         onPressed: () => _finishFocalEdit(apply: true),
-                        child: Text(
-                          strings.workshopFocalDone,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(strings.workshopFocalDone, maxLines: 1),
                         ),
                       ),
                     ),

@@ -141,7 +141,7 @@ void main() {
         container.read(tutorialControllerProvider)?.script.id,
         'first-run',
       );
-      expect(find.text('まず「身だしなみ」を押します'), findsOneWidget);
+      expect(find.text('先ず「身だしなみ」を押します'), findsOneWidget);
     });
 
     testWidgets('「やめる」でも視聴済みを記録して完了を1回だけ通知する', (tester) async {

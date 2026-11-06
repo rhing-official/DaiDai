@@ -43,7 +43,7 @@ void main() {
       );
     });
 
-    test('別の通話に参加中、または別の通話を閉じていても、この通話は出す', () {
+    test('別の通話に参加中、又は別の通話を閉じていても、この通話は出す', () {
       expect(
         shouldShowGroupCallBanner(
           activeGroupCallId: 'c2',

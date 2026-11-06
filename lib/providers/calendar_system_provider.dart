@@ -50,7 +50,7 @@ final calendarSystemProvider =
       CalendarSystemNotifier.new,
     );
 
-/// 語らいごとの暦の上書き（自分だけに効く。未設定ならnull＝全体の暦に従う）。
+/// 語らい毎の暦の上書き（自分だけに効く。未設定ならnull＝全体の暦に従う）。
 final conversationCalendarSystemProvider =
     Provider.family<CalendarSystem?, String>((ref, conversationId) {
       final userId = ref.watch(authStateProvider).value?.uid;
@@ -59,7 +59,7 @@ final conversationCalendarSystemProvider =
       return CalendarSystem.tryFromName(prefs?[conversationId]?.calendarSystem);
     });
 
-/// その語らいで実際に使う暦。優先順位は、語らいごとの設定、全体の設定。
+/// その語らいで実際に使う暦。優先順位は、語らい毎の設定、全体の設定。
 final effectiveCalendarSystemProvider = Provider.family<CalendarSystem, String>(
   (ref, conversationId) {
     return ref.watch(conversationCalendarSystemProvider(conversationId)) ??
@@ -67,7 +67,7 @@ final effectiveCalendarSystemProvider = Provider.family<CalendarSystem, String>(
   },
 );
 
-/// 祝日を決める国（居住国）。居住地が未選択・取得できない時は日本。
+/// 祝日を決める国（居住国）。居住地が未選択・取得出来ない時は日本。
 final holidayCountryProvider = FutureProvider<String>((ref) async {
   final userId = ref.watch(authStateProvider).value?.uid;
   if (userId == null) return 'JP';
@@ -82,7 +82,7 @@ final holidayCountryProvider = FutureProvider<String>((ref) async {
   }
 });
 
-/// 語らいごとの週の始まりの上書き（未設定ならnull＝標準に従う）。
+/// 語らい毎の週の始まりの上書き（未設定ならnull＝標準に従う）。
 final conversationWeekStartProvider =
     Provider.family<CalendarWeekStart?, String>((ref, conversationId) {
       final userId = ref.watch(authStateProvider).value?.uid;
@@ -94,7 +94,7 @@ final conversationWeekStartProvider =
       return name == null ? null : CalendarWeekStart.fromName(name);
     });
 
-/// その語らいで実際に使う週の始まり。優先順位は、語らいごとの設定、標準。
+/// その語らいで実際に使う週の始まり。優先順位は、語らい毎の設定、標準。
 final effectiveWeekStartProvider = Provider.family<CalendarWeekStart, String>((
   ref,
   conversationId,
@@ -103,8 +103,8 @@ final effectiveWeekStartProvider = Provider.family<CalendarWeekStart, String>((
       ref.watch(calendarWeekStartProvider);
 });
 
-/// 語らいごとの祝日・祭日・宗教の上書き（未設定ならnull＝標準に従う）。
-/// 上書きするときは3項目すべてを持つ（[HolidaySettings.toOverrideJson]）。
+/// 語らい毎の祝日・祭日・宗教の上書き（未設定ならnull＝標準に従う）。
+/// 上書きする時は3項目全てを持つ（[HolidaySettings.toOverrideJson]）。
 final conversationHolidayOverrideProvider =
     Provider.family<HolidaySettings?, String>((ref, conversationId) {
       final userId = ref.watch(authStateProvider).value?.uid;

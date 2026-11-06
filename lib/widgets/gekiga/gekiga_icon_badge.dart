@@ -20,7 +20,7 @@ class GekigaIconBadge extends StatelessWidget {
   final double size;
 
   /// 枠線の太さのランダム変動（[GekigaBadgeShape]/`MonochromeBoxPainter`
-  /// 参照）に使うseed。省略時は`icon.hashCode`（アイコンごとに手作り感を
+  /// 参照）に使うseed。省略時は`icon.hashCode`（アイコン毎に手作り感を
   /// 出す既定挙動）。ツールバーのように複数アイコンを横に並べて統一感を
   /// 出したい場合は、呼び出し側で共通の固定値（[gekigaToolbarIconSeed]等）
   /// を渡す（2026-09-06追加）。
@@ -42,7 +42,7 @@ class GekigaIconBadge extends StatelessWidget {
 
 /// メッセージ画面ツールバー（通話・ビデオ通話・ピン留め・アルバム・
 /// カレンダー・投票・ハンバーガーメニュー）の[GekigaIconBadge]に共通して
-/// 渡すseed。アイコンごとの手作り感より、横並びの統一感を優先する場面向け
+/// 渡すseed。アイコン毎の手作り感より、横並びの統一感を優先する場面向け
 /// （2026-09-06追加、ピン留め・投票だけ枠の太さが違って見えるという指摘の
 /// 対応）。
 const gekigaToolbarIconSeed = 0;

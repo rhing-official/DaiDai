@@ -15,7 +15,7 @@ const kHoverProfileCardDelay = Duration(milliseconds: 500);
 /// ホバーカードの大きさ（身だしなみカードと同じ4:5）。
 const kHoverProfileCardSize = Size(260, 325);
 
-/// カードを描く基準サイズ。`ProfileCardView`のアバター・余白・文字は固定pxのため、
+/// カードを描く基準サイズ。`ProfileCardView`のアバター・余白・文字は固定pxの為、
 /// 工房で作った見た目と同じ比率になるよう、この大きさで描いてから縮小表示する。
 const _kHoverProfileCardDesignSize = Size(260, 325);
 

@@ -27,7 +27,7 @@ Widget mediaPreviewFrame({
 }
 
 /// [mediaPreviewFrame]の内容部分の角丸半径。既にこの枠に包まれた画像/動画を
-/// さらに別の自前枠（URLプレビューカード等）の中に置く場合、`mediaPreviewFrame`
+/// 更に別の自前枠（URLプレビューカード等）の中に置く場合、`mediaPreviewFrame`
 /// 自体は使わずこの定数だけ流用して二重枠を避けることがある
 /// （`link_preview_card.dart`の`_thumbnail`参照）。
 const mediaPreviewContentRadius = 8.0;

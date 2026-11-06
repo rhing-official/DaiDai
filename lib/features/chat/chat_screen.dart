@@ -21,6 +21,7 @@ import '../call/camera_availability.dart';
 import '../../l10n/app_locale.dart';
 import '../../l10n/strings.dart';
 import '../../theme/block/block_theme.dart';
+import '../../theme/motion.dart';
 import '../../l10n/vocabulary.dart';
 import '../../models/app_ui_style.dart';
 import '../../models/chat_layout_style.dart';
@@ -192,9 +193,9 @@ class ChatScreen extends ConsumerStatefulWidget {
   /// （2026-08-29追加）。
   final bool forceShowSenderInfo;
 
-  /// この会話（一対のdmId・広場のgroupId）。会話ごとに使うプロフィールカード
+  /// この会話（一対のdmId・広場のgroupId）。会話毎に使うプロフィールカード
   /// （2026-07-29追加、`AppUser.conversationProfileCardId`）を反映して
-  /// 送信者名・アイコンを表示するために使う。nullなら標準のカードで表示する。
+  /// 送信者名・アイコンを表示する為に使う。nullなら標準のカードで表示する。
   final String? conversationId;
 
   final Stream<List<Message>> messagesStream;
@@ -268,7 +269,7 @@ class ChatScreen extends ConsumerStatefulWidget {
   final bool readReceiptsEnabled;
 
   /// 表示中の未読メッセージ（自分が送信者ではないもの）を既読にする処理。
-  /// [readReceiptsEnabled]がtrueのときのみ呼ばれる。
+  /// [readReceiptsEnabled]がtrueの時のみ呼ばれる。
   final Future<void> Function(List<String> messageIds)? onMarkRead;
 
   /// この語らい（寄合）を開いて、他の人のメッセージを見た時に呼ばれる（開いた時と、開いている
@@ -283,7 +284,7 @@ class ChatScreen extends ConsumerStatefulWidget {
   /// ビデオ通話の発信ボタン。一対（1対1）のみで渡す（グループ通話は未対応）。
   final VoidCallback? onVideoCallPressed;
 
-  /// 通話ボタンに出す、進行中の通話の参加人数（広場、2026-10-21）。nullまたは0なら
+  /// 通話ボタンに出す、進行中の通話の参加人数（広場、2026-10-21）。null又は0なら
   /// 出さない。進行中の通話は種別（音声・ビデオ）に関わらず1つなので、ボタンを
   /// 「参加」の1つにまとめてここに人数を出す（`onVideoCallPressed`はnullにする）。
   final int? callParticipantCount;
@@ -306,7 +307,7 @@ class ChatScreen extends ConsumerStatefulWidget {
   /// 送信者の呼び名のフォントカラーを決める（広場のカスタムロール機能、
   /// 2026-07-28追加）。nullを返す・このフィールド自体がnullの場合は既定色
   /// （[ColorScheme.onSurfaceVariant]）のまま。一対では常にnull（ロールが
-  /// 存在しないため）。
+  /// 存在しない為）。
   final Color? Function(String userId)? senderNameColorResolver;
 
   /// 選択したメッセージを自分のアカウントから見えなくする（範囲選択削除）。
@@ -325,7 +326,7 @@ class ChatScreen extends ConsumerStatefulWidget {
   /// の範囲に無かった場合に、その周辺のメッセージをまとめて取得する
   /// （`DirectMessageRepository.getMessagesAround`/
   /// `GroupRepository.getRoomMessagesAround`参照）。nullなら未対応として
-  /// 何もしない（ジャンプできない）。
+  /// 何もしない（ジャンプ出来ない）。
   final Future<List<Message>> Function(String messageId)? onFetchMessagesAround;
 
   /// ピン留めされたメッセージidの一覧（`DmRoom.pinnedMessageIds`/
@@ -347,7 +348,7 @@ class ChatScreen extends ConsumerStatefulWidget {
   final void Function(String messageId)? onUnpinMessage;
 
   /// メッセージ一覧を一番上（一番古いメッセージ側）までスクロールした時に、
-  /// さらに古い暦日1日分を読み込む（2026-08-20追加、1日単位ページネーション）。
+  /// 更に古い暦日1日分を読み込む（2026-08-20追加、1日単位ページネーション）。
   /// nullならこの機能自体を使わない（呼び出し元が[messagesStream]を1日単位
   /// ページネーションに対応させていない場合）。
   final Future<void> Function()? onLoadOlderMessages;
@@ -361,8 +362,8 @@ class ChatScreen extends ConsumerStatefulWidget {
   final bool hasMoreHistory;
 
   /// trueの場合、入力欄をグレーアウトして操作不能にする（承認待ちの
-  /// 一対・広場を開いたときなど、実際には送信・既読取得ができない状態を
-  /// 見せるため、2026-08-05追加）。
+  /// 一対・広場を開いた時など、実際には送信・既読取得が出来ない状態を
+  /// 見せる為、2026-08-05追加）。
   final bool disabled;
 
   /// 寄合単位の下書き同期（`draftSyncEnabledProvider`、2026-08-13追加）の
@@ -375,7 +376,7 @@ class ChatScreen extends ConsumerStatefulWidget {
   /// 共有ノート作成通知メッセージ（`contentType: 'noteCreated'`）をタップ
   /// した際に呼ばれる（2026-09-06追加）。ノートの全画面エディタは
   /// `CalendarPaneView`同様呼び出し元（`DmChatPane`/`GroupChatPane`）の
-  /// 表示領域内に表示するため、他のcontentType（poll等）と異なり
+  /// 表示領域内に表示する為、他のcontentType（poll等）と異なり
   /// `_ChatScreenState`側で自己完結したダイアログを開かず、noteIdを
   /// そのまま呼び出し元へ伝える。
   final ValueChanged<String>? onOpenNote;
@@ -403,7 +404,7 @@ class ChatScreen extends ConsumerStatefulWidget {
 /// メッセージ一覧（`ScrollablePositionedList`）の1行分が何であるかを表す
 /// 軽量なデータ（2026-09-07追加、`task_banner.dart`の`sealed class
 /// _PendingTask`と同じ考え方）。以前はこのループの中で`_MessageRow`/
-/// `_DateSeparator`のWidgetそのものを毎回全件分構築していたため、
+/// `_DateSeparator`のWidgetそのものを毎回全件分構築していた為、
 /// `_olderMessages`（1日単位ページネーションで無制限に蓄積される過去分）
 /// が増えるほどWidget構築コストが線形に増大し、スクロールバックのたびに
 /// カクつく原因になっていた。Widget構築を伴わないこの軽量なデータの
@@ -421,7 +422,7 @@ class _ChatLoadingHeaderEntry extends _ChatListEntry {
   const _ChatLoadingHeaderEntry();
 }
 
-/// 同じく画面上端に出す「これ以上履歴はありません」表示。
+/// 同じく画面上端に出す「これ以上履歴は有りません」表示。
 class _ChatNoMoreHistoryEntry extends _ChatListEntry {
   const _ChatNoMoreHistoryEntry();
 }
@@ -460,14 +461,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   Timer? _draftSaveTimer;
   bool _suppressDraftSync = false;
 
-  /// 他端末の下書き変化を継続的に購読するための手動購読（2026-08-20追加）。
+  /// 他端末の下書き変化を継続的に購読する為の手動購読（2026-08-20追加）。
   /// 以前は`initState`で一度だけ読み込むだけで、開いたまま他端末の下書きが
-  /// 変わっても・後から開き直しても反映されない不具合があったため、
+  /// 変わっても・後から開き直しても反映されない不具合があった為、
   /// `ref.listenManual`による永続購読に置き換えた（[_applyRemoteDraft]参照）。
   ProviderSubscription<AsyncValue<Map<String, ConversationPrefs>>>? _draftSub;
 
   /// 語らい検索（`talks_search.dart`）のメッセージ内容検索結果をタップした
-  /// 時、該当メッセージまでジャンプ＆ハイライトするための購読（2026-09-12
+  /// 時、該当メッセージまでジャンプ＆ハイライトする為の購読（2026-09-12
   /// 追加）。狭い画面のルートpushで新規構築される場合・分割表示で既に
   /// 構築済みの場合のどちらも、`fireImmediately: true`により初回build時点で
   /// 既に立っている保留ジャンプ要求を取りこぼさない
@@ -502,7 +503,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   final _recentSendHistory = RecentSendHistory();
 
   // widget.roomIdがnullな呼び出し元（お知らせ画面等、既存テストの多くも
-  // 含む）でdraftSyncEnabledProviderの評価自体をスキップするため、
+  // 含む）でdraftSyncEnabledProviderの評価自体をスキップする為、
   // 軽量なnullチェックを先に置く（先にref.read(draftSyncEnabledProvider)を
   // 評価すると、ProviderScopeがinitialDraftSyncEnabledProviderをoverride
   // していない場面で無関係にUnimplementedErrorが飛んでしまう）。
@@ -598,7 +599,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   /// [_lastKnownItemPosition]を最新の表示位置で更新するだけのリスナー
-  /// （2026-09-15追加）。`itemPositions`が値を持つたびに呼ばれるため、
+  /// （2026-09-15追加）。`itemPositions`が値を持つたびに呼ばれる為、
   /// これが呼ばれた後は[_currentItemPosition]が空リスト問題に当たらない。
   void _cacheLatestItemPosition() {
     final positions = _itemPositionsListener.itemPositions.value;
@@ -630,11 +631,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// メッセージ側の端に近づいたら、[ChatScreen.onLoadOlderMessages]でさらに
   /// 古いメッセージ1ページを読み込む（2026-08-20追加、2026-10-06に日単位から
   /// 件数ベースへ変更）。
-  /// `reverse:true`のため、indexが大きいほど古いメッセージ側（画面上端）
+  /// `reverse:true`の為、indexが大きいほど古いメッセージ側（画面上端）
   /// にいる。
   /// 上端（最も古いロード済み行）までこの行数以内に近づいたら次のページを
   /// 先読みする（2026-10-06、従来の5行から変更。件数ベースのページネーション
-  /// で、上端に着いてから読み始めると継ぎ目が体感されるため。日付区切り等を
+  /// で、上端に着いてから読み始めると継ぎ目が体感される為。日付区切り等を
   /// 含む行数基準）。
   static const _loadOlderPrefetchRows = 20;
 
@@ -654,7 +655,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// （2026-09-15追加）。現在の表示位置（`reverse:true`のため画面下端＝
   /// 最新側に最も近いアイテム＝最小index）を保存し、[_maybeLoadOlderMessages]
   /// を一時的に無効化する。ポップアップが短時間しか開かない上、開いている
-  /// 間はメッセージ一覧を操作できないため、この間だけリスナーを止めても
+  /// 間はメッセージ一覧を操作出来ない為、この間だけリスナーを止めても
   /// 履歴読み込みの取りこぼしにはならない（閉じれば直ちに復帰する）。
   /// ポップアップを開いたまま一覧をスクロールした場合は、閉じた時に開いた時点の位置へ
   /// 戻さない（[_endPopupGuard]）。
@@ -707,7 +708,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final token = ++_scrollIntentToken;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       // 意図的なジャンプ（[_jumpToMessage]）等で取り消された場合も、保留中の
-      // 位置は必ず手放す（古い位置を次のメニューが引き継がないように）。
+      // 位置は必ず手放す（古い位置を次のメニューが引き継が無いように）。
       if (identical(_popupGuardPendingRestore, saved)) {
         _popupGuardPendingRestore = null;
       }
@@ -921,15 +922,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// メッセージ一覧（`ScrollablePositionedList`）のスクロール制御・位置監視用
   /// （2026-08-21、`ListView`+`GlobalKey`+`Scrollable.ensureVisible`方式から
   /// 移行。返信先ジャンプ機能は`_itemScrollController.jumpTo(index:)`で
-  /// 未ビルドの行にも確定的にジャンプできる）。
+  /// 未ビルドの行にも確定的にジャンプ出来る）。
   final _itemScrollController = ItemScrollController();
   final _itemPositionsListener = ItemPositionsListener.create();
 
   /// ポップアップ（[ChatScrollGuardScope]/[showAnchoredMenu]参照）表示中に
-  /// メッセージ一覧のスクロール位置を保護するための状態（2026-09-15追加）。
+  /// メッセージ一覧のスクロール位置を保護する為の状態（2026-09-15追加）。
   /// [_popupGuardDepth]はポップアップが入れ子で開かれた場合の保険で、最も
   /// 外側の開始・終了時だけ実際の保存・復元を行う。[_scrollIntentToken]は
-  /// [_jumpToMessage]による意図的なジャンプと競合しないための世代カウンタ
+  /// [_jumpToMessage]による意図的なジャンプと競合しない為の世代カウンタ
   /// （[_endPopupGuard]参照）。
   int _popupGuardDepth = 0;
   ItemPosition? _popupGuardSavedPosition;
@@ -940,13 +941,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   ItemPosition? _popupGuardPendingRestore;
   int _scrollIntentToken = 0;
 
-  /// 直近に確認できた表示位置のキャッシュ（2026-09-15追加）。
+  /// 直近に確認出来た表示位置のキャッシュ（2026-09-15追加）。
   /// `ItemPositionsListener.itemPositions`は`ScrollablePositionedList`が
   /// まだ1フレームもレイアウトされていない間（マウント直後・寄合切り替え
   /// 直後等）は空のまま（`scrollable_positioned_list`パッケージの実装上、
   /// `SchedulerBinding.addPostFrameCallback`で1フレーム遅れて値が入る）。
   /// この間に[_beginPopupGuard]やdispose時の位置保存が呼ばれると
-  /// `itemPositions.value`が空で保存できず、ポップアップ表示時のスクロール
+  /// `itemPositions.value`が空で保存出来ず、ポップアップ表示時のスクロール
   /// 保護が効かない不具合があった（ユーザー報告「最初はずれるが数回で
   /// 直る」）。[_currentItemPosition]がこのキャッシュへ随時フォールバック
   /// することで解消する。
@@ -982,13 +983,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   /// 入力欄の高さが安定したか。安定するまでは一覧を透明にし、高さの変化も
   /// アニメーションさせない（開いた直後にメッセージが動いて「上から降りてくる」
-  /// ように見えるため）。
+  /// ように見える為）。
   bool _composerAreaMeasured = false;
 
   /// 開いてから少し経ち、入力欄の高さ変化を滑らかに動かしてよい状態か（2026-11-01）。
   /// 開いた直後に入力欄へカーソルが自動で合うようになり、フォーカス中の180msの
   /// アニメーション条件に開いた直後の高さの揺れが入って、メッセージが上から降りて
-  /// 見えたため、[_composerAreaMeasured]になってからも少しの間はアニメーションしない。
+  /// 見えた為、[_composerAreaMeasured]になってからも少しの間はアニメーションしない。
   bool _composerAnimationReady = false;
   Timer? _composerAnimationTimer;
 
@@ -1007,7 +1008,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   /// モバイルのぺったんドック（入力欄の下、[StickerPickerDock]）の段階と、
   /// 開く時に絞り込むパック（メッセージ上のぺったんタップ時）。
-  /// ぺったん一覧で直前のタブを語らいごとに記憶するキー（寄合単位）。
+  /// ぺったん一覧で直前のタブを語らい毎に記憶するキー（寄合単位）。
   String? get _stickerTabKey => stickerTabKey(
     conversationId: widget.conversationId,
     roomId: widget.roomId,
@@ -1040,7 +1041,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// [_composerAreaKey]が指す入力欄オーバーレイの実際の描画高さを計測し、
   /// [_composerAreaHeight]（メッセージ一覧の下部余白に使う）へ反映する。
   /// テキスト入力欄が複数行になる、返信/編集バーの表示が切り替わるなど
-  /// 高さが変わるたびに呼び直す必要があるため、build()から毎フレーム後に
+  /// 高さが変わるたびに呼び直す必要がある為、build()から毎フレーム後に
   /// スケジュールする。
   void _measureComposerArea() {
     if (!mounted) return;
@@ -1067,7 +1068,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     if ((height - _composerAreaHeight).abs() > 0.5) {
       setState(() => _composerAreaHeight = height);
     } else {
-      // 高さが安定した（変化なしで計測できた）時点から通常のアニメーションに
+      // 高さが安定した（変化なしで計測出来た）時点から通常のアニメーションに
       // 戻す。最初の数フレームは入力欄の高さが過渡的に大きく計測される
       // （実測で初回192→次フレーム72）ため、その縮みをアニメーションすると
       // メッセージ全体が上から降りてくる。
@@ -1085,7 +1086,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// `filled: false`）には自前の塗りが無く視認性を損なうことが判明した
   /// ため、フラットのみ元の不透明な背景に戻す（2026-08-30、ユーザー
   /// 指摘により修正）。
-  /// [_composerAreaKey]は[_measureComposerArea]の計測対象のため、
+  /// [_composerAreaKey]は[_measureComposerArea]の計測対象の為、
   /// どの分岐でも同じキーを付ける（現在は一番外側の[GestureDetector]に付与、
   /// 子のサイズをそのまま反映するプロキシのため計測結果は変わらない）。
   Widget _buildComposerArea({
@@ -1117,15 +1118,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       );
     }
     // 語らい画面全体は`InteractiveSwipeBackTransition`で右スワイプの
-    // 「戻る」ジェスチャーに包まれているため、何も指定しないと入力欄上の
+    // 「戻る」ジェスチャーに包まれている為、何も指定しないと入力欄上の
     // 横方向のドラッグ（テキスト選択操作等）もそのまま画面遷移として
     // 拾われてしまっていた。ここに横ドラッグを検知するだけの
     // （何もしない）GestureDetectorを挟むと、ジェスチャーアリーナ上は
-    // 子側にあるこちらが祖先より先に登録され優先されるため、入力欄起点の
+    // 子側にあるこちらが祖先より先に登録され優先される為、入力欄起点の
     // ドラッグは画面遷移側へ伝播しなくなる（`_MessageInteractions`が
     // 同じ仕組みを使って右方向だけ`InteractiveSwipeBackScope`へ中継して
     // いるのに対し、こちらは中継せずただ吸収するだけでよい、2026-09-26追加）。
-    // 劇画スタイルは背景が透明なContainerのため、`opaque`にしないと
+    // 劇画スタイルは背景が透明なContainerの為、`opaque`にしないと
     // 余白部分のヒットテストが素通りしてしまう点にも注意。
     return GestureDetector(
       key: _composerAreaKey,
@@ -1166,8 +1167,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     );
   }
 
-  /// 既に既読リクエストを送った（または送信中の）メッセージIDの集合。
-  /// Firestoreからの再送信のたびに同じメッセージへ既読を送り直さないための重複防止。
+  /// 既に既読リクエストを送った（又は送信中の）メッセージIDの集合。
+  /// Firestoreからの再送信のたびに同じメッセージへ既読を送り直さない為の重複防止。
   final _markedReadIds = <String>{};
 
   /// [ChatScreen.onViewed]用。最初の表示で一度呼び、以降は新しく届いた他の人の
@@ -1197,13 +1198,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   /// 文言コピー用に、現在「本文が選択可能」になっているメッセージ1件の
   /// ID（2026-08-09追加）。削除・スクリーンショットは複数メッセージの
-  /// 選択だが、コピーは長押しした1件の本文中の一部を選ぶ機能のため、
+  /// 選択だが、コピーは長押しした1件の本文中の一部を選ぶ機能の為、
   /// `Set`ではなく単一のnullableフィールドで持つ。
   String? _textCopyMessageId;
 
   /// [_textCopyMessageId]がセットされている間の本文表示・選択を担う
   /// `TextField`（読み取り専用）用コントローラ。`TextEditingController`は
-  /// 普通のオブジェクトなので`text`/`selection`を直接いつでも設定できる
+  /// 普通のオブジェクトなので`text`/`selection`を直接いつでも設定出来る
   /// （2026-08-24変更。以前は`SelectionArea`＋`GlobalKey`だったが、選択
   /// ハイライトが実際の画面に描画されない不具合があり、`TextField`と同じ
   /// `RenderEditable`系の選択機構に乗り換えた）。1件しか同時に成立しない
@@ -1223,7 +1224,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// `ScrollablePositionedList`上のインデックス（2026-08-21、`GlobalKey`＋
   /// `Scrollable.ensureVisible`方式から移行）。build()内でsetStateを介さず
   /// 直接更新する（[_cachedMessages]と同じパターン、このフィールド自体は
-  /// 再描画のトリガーにする必要が無いため）。
+  /// 再描画のトリガーにする必要が無い為）。
   Map<String, int> _messageIndexById = {};
 
   /// 「最新へジャンプ」ボタンの表示可否（[_cacheLatestItemPosition]が更新）。
@@ -1231,7 +1232,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   /// [_messageIndexById]の逆引き（indexが指す行のメッセージID、日付区切り等
   /// メッセージでない行はnull）。dispose時に表示位置をメッセージIDの
-  /// アンカーへ変換するために使う（2026-10-04追加）。
+  /// アンカーへ変換する為に使う（2026-10-04追加）。
   List<String?> _messageIdByIndex = const [];
 
   /// [_messageIndexById]構築時点でのメッセージ一覧の総行数
@@ -1250,18 +1251,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// （combined/messagesById）ではなく、常に最新化されるこのキャッシュから
   /// Messageを引く（2026-08-09追加）。`_extraMessages`と同じく、build()内で
   /// setStateを介さず直接更新する（このフィールド自体は再描画のトリガーに
-  /// する必要が無いため）。
+  /// する必要が無い為）。
   List<Message> _cachedMessages = [];
 
-  /// ジャンプ直後に対象メッセージを一瞬ハイライトするための状態。
+  /// ジャンプ直後に対象メッセージを一瞬ハイライトする為の状態。
   String? _highlightedMessageId;
 
   /// 返信元メッセージへジャンプする（2026-08-21、`ScrollablePositionedList`
   /// への移行に伴い書き換え）。`ItemScrollController.jumpTo(index:)`は
-  /// 対象行が事前にビルドされていなくても確定的にジャンプできるため、旧実装
+  /// 対象行が事前にビルドされていなくても確定的にジャンプ出来る為、旧実装
   /// にあったGlobalKeyのビルド待ちリトライ・`Scrollable.ensureVisible`の
   /// 再試行は不要になった。
-  /// 引用のタップで返信先へ飛んだ後、元のメッセージ（引用していた側）へ戻るためのid
+  /// 引用のタップで返信先へ飛んだ後、元のメッセージ（引用していた側）へ戻る為のid
   /// （2026-11-06）。nullなら「元のメッセージに戻る」ブロックを出さない。
   String? _returnToMessageId;
 
@@ -1291,7 +1292,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       if (!mounted) return false;
       if (fetched == null || fetched.isEmpty) {
         // フェッチしても存在しない＝対象メッセージが本当に無い
-        // （全員から削除され物理削除済み等）と確定できるケース。
+        // （全員から削除され物理削除済み等）と確定出来るケース。
         _showJumpNotFoundBanner();
         return false;
       }
@@ -1322,7 +1323,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   /// [_jumpToMessage]で返信元メッセージが見つからなかった場合の通知。参加者
   /// 全員がその後削除し物理削除済みのメッセージへの返信等で恒久的に起こり
-  /// うるため、無反応のままにせず理由を伝える（2026-08-14追加）。
+  /// うる為、無反応のままにせず理由を伝える（2026-08-14追加）。
   void _showJumpNotFoundBanner() {
     showAutoDismissBanner(
       context,
@@ -1442,7 +1443,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         ..clear()
         ..add(messageId);
       // 削除用の選択とスクリーンショット用の範囲選択・コピー用の文言選択は
-      // 別モードのため、どれか1つに入ったら他は必ず抜ける（同時には成立
+      // 別モードの為、どれか1つに入ったら他は必ず抜ける（同時には成立
       // しない）。
       _screenshotSelecting = false;
       _screenshotSelectedIds.clear();
@@ -1491,8 +1492,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// 自動的に行う（[_copyPartialSelectionAndExit]参照、2026-08-09変更）。
   ///
   /// `TextEditingController`は普通のオブジェクトなので、`SelectionArea`
-  /// 時代のようにGlobalKey・複数フレーム待機を挟まずその場で
-  /// `text`/`selection`を設定できる（2026-08-24変更）。
+  /// 時代のようにGlobalKey・複数フレーム待機を挟先ずその場で
+  /// `text`/`selection`を設定出来る（2026-08-24変更）。
   void _enterTextCopyMode(String messageId, String content) {
     _partialCopyController.text = content;
     _partialCopyController.selection = TextSelection(
@@ -1515,7 +1516,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// 部分コピーモード中に、選択済みの文字列をクリップボードへコピーして
   /// モードを終了する（Ctrl+C・選択ツールバーの「コピー」ボタン双方から
   /// 呼ばれる共通処理、2026-08-09追加）。選択範囲は`_partialCopyController`
-  /// （`TextEditingController`）自身が保持しているため、専用のキャッシュ
+  /// （`TextEditingController`）自身が保持している為、専用のキャッシュ
   /// フィールドは不要（2026-08-24、`onSelectionChanged`が`TextField`には
   /// 公開されていないため`.selection`を直接参照する方式に変更）。
   void _copyPartialSelectionAndExit() {
@@ -1532,7 +1533,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     _exitTextCopyMode();
   }
 
-  /// 長押しメニューの「コピー」。選択操作を挟まず、メッセージ本文全体を
+  /// 長押しメニューの「コピー」。選択操作を挟先ず、メッセージ本文全体を
   /// 即座にクリップボードへコピーする（2026-08-09、部分コピーとは別の
   /// 即時実行アクション）。完了通知は表示しない（2026-08-12、成功通知の
   /// 全面廃止方針）。
@@ -1558,7 +1559,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// した際、その予定の出欠確認ポップアップを開く（2026-09-04追加）。
   /// `widget.conversationId`/`widget.roomId`が非nullの場合のみ呼び出し元
   /// （`_MessageRow.onOpenCalendarEvent`）から渡される。`_MessageRow`は
-  /// `currentUserId`しか持たないため、`showCalendarEventDetailDialog`が
+  /// `currentUserId`しか持たない為、`showCalendarEventDetailDialog`が
   /// 必要とするフルの`AppUser`をここで単発取得する。
   Future<void> _openCalendarEvent(Message message) async {
     final eventId = message.calendarEventId;
@@ -1735,7 +1736,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           ),
           FilledButton(
             // colorScheme.errorはダークテーマ下では明るいサーモンピンクに
-            // 近い色になり白文字が読みにくいため、固定の濃い赤に変更する
+            // 近い色になり白文字が読みにくい為、固定の濃い赤に変更する
             // （2026-08-21、`group_delete_dialog.dart`と同じ対応）。
             style: FilledButton.styleFrom(
               backgroundColor: Colors.red.shade700,
@@ -1824,7 +1825,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   /// [ids]に対応するメッセージだけをオフスクリーンに組み立てて画像化し、
   /// 共有シート（[SharePlus]）へ渡す（2026-08-09追加）。選択は連続していなく
-  /// てもよいため、表示中のビューポートをそのまま撮影するのではなく、
+  /// てもよい為、表示中のビューポートをそのまま撮影するのではなく、
   /// 選択分だけを別のウィジェットツリーとして`Overlay`上に組み立てて
   /// キャプチャする（`Offstage`は`offstage:true`の間`paint`自体を行わない
   /// ため、`RepaintBoundary.toImage()`用のレイヤーが作られず使えない）。
@@ -1833,9 +1834,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// すると、件数が増えるほど動作が重くなり、合成画像の物理ピクセル数が
   /// GPU/Skiaの最大テクスチャサイズを超えた時点で`toImage()`自体が失敗する
   /// 不具合があった（2026-09-15修正）。[_kScreenshotChunkMessageCount]件
-  /// ごとに複数の`RepaintBoundary`へ分割してそれぞれ個別にキャプチャし、
+  /// 毎に複数の`RepaintBoundary`へ分割してそれぞれ個別にキャプチャし、
   /// 複数枚のPNGとして共有する（1枚に合成し直すと結局同じ上限に当たり
-  /// 得るため、分割したまま複数ファイルで共有する）。選択件数がこの定数
+  /// 得る為、分割したまま複数ファイルで共有する）。選択件数がこの定数
   /// 以下なら従来通り1枚になり、挙動は変わらない。
   Future<void> _captureAndShareScreenshot(
     List<String> ids, {
@@ -1902,9 +1903,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     );
     if (!mounted) return;
 
-    // 選択範囲を[_kScreenshotChunkMessageCount]件ごとのチャンクに分割する。
+    // 選択範囲を[_kScreenshotChunkMessageCount]件毎のチャンクに分割する。
     // 日付区切りはチャンクの先頭でその日の分を出し直す（各画像が単独で
-    // 見ても日付が分かるようにするため）。
+    // 見ても日付が分かるようにする為）。
     final chunks = <List<Widget>>[];
     var currentRows = <Widget>[];
     var currentCount = 0;
@@ -1958,11 +1959,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final overlay = Overlay.of(context);
     final entry = OverlayEntry(
       // Web(CanvasKit)では極端に画面外（大きな負の座標）へ置いた
-      // RepaintBoundaryがtoImage()で正しく描画されない不具合があるため、
+      // RepaintBoundaryがtoImage()で正しく描画されない不具合がある為、
       // 実座標としては画面左上（0,0）に置いた上でClipRectで見た目上0x0に
       // 畳んで隠す（ClipRectによる祖先側のクリップはRepaintBoundary自身の
-      // 独立したレイヤーには影響しないため、toImage()側は全体を正しく
-      // キャプチャできる、2026-08-09変更）。
+      // 独立したレイヤーには影響しない為、toImage()側は全体を正しく
+      // キャプチャ出来る、2026-08-09変更）。
       builder: (context) => Positioned(
         left: 0,
         top: 0,
@@ -2028,7 +2029,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       }
     } catch (e, st) {
       // web-serverターゲットではflutter runのターミナルへdebugPrintが
-      // 転送されないため、ブラウザのDevToolsコンソールでも確認できるよう
+      // 転送されない為、ブラウザのDevToolsコンソールでも確認出来るよう
       // 残しておく（2026-08-09追加）。
       debugPrint('スクリーンショットのキャプチャに失敗: $e\n$st');
       if (mounted) {
@@ -2105,7 +2106,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     // `gal`パッケージ経由でMediaStore/PHPhotoLibraryへ追加する。iOSには
     // サードパーティアプリが書き込める「スクリーンショット」専用アルバムが
     // 存在しない（OS自身が撮った本物のスクリーンショットのみ自動分類される
-    // 仕組みのため）ので、通常の写真ライブラリへそのまま保存する。Androidは
+    // 仕組みの為）ので、通常の写真ライブラリへそのまま保存する。Androidは
     // OS標準のスクリーンショットの慣習（`Pictures/Screenshots`）に合わせて
     // アルバムを指定する。
     if (isMobileCallPlatform) {
@@ -2203,7 +2204,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   /// 新しく届いたメッセージのうち、まだ自分が読んでいないものを既読にする。
   /// 書き込みが失敗した場合（通信不安定・画面を閉じるタイミング等）は
-  /// [_markedReadIds]から外し、次回のスナップショット受信時に再試行できる
+  /// [_markedReadIds]から外し、次回のスナップショット受信時に再試行出来る
   /// ようにする（投げっぱなしで失敗を握りつぶすと、二度と既読が付かなくなる）。
   void _notifyViewed(List<Message> messages) {
     final onViewed = widget.onViewed;
@@ -2378,7 +2379,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final mentions = _buildMentions(content);
     _selectedMentions.clear();
     _textController.clear();
-    // 送信済みなのでこの寄合の下書きは残さない（デバウンス待ちを挟まず
+    // 送信済みなのでこの寄合の下書きは残さない（デバウンス待ちを挟先ず
     // 即座に消す、2026-08-13追加）。
     _clearDraftNow();
     // 送信ボタン（`InkWell`）のタップでフォーカスを奪われても、モバイルで
@@ -2419,7 +2420,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// ＋ボタンで選んだ添付を送信する（技術仕様書5.5・5.6参照、2026-08-10追加）。
   /// 失敗時はエラー内容に応じたバナーを画面上部に3秒程度表示する
   /// （2026-08-10変更、以前はSnackBarで自動的に消えるまでの時間が
-  /// 分かりにくく、連続失敗時に表示され続けているように見えていたため。
+  /// 分かりにくく、連続失敗時に表示され続けているように見えていた為。
   /// `MaterialBanner`はSnackBarと違いキューイングされず常に最新の1件だけが
   /// 表示される）。自動リトライ・レジュームは行わず、再送はバナーの
   /// 「再送」アクションから同じ添付を渡してもう一度呼び直す形にする。
@@ -2553,7 +2554,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           )
         : null;
     if (!isWide) {
-      // モバイルは画面内のドック（開いたままでもスクロール・入力できる）。
+      // モバイルは画面内のドック（開いたままでもスクロール・入力出来る）。
       // ぺったんボタンはトグル。
       _composerFocusNode.unfocus();
       _setStickerDockStage(
@@ -2571,11 +2572,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// [_openStickerPicker]の項のコメント参照。劇画スタイルの入力欄
   /// （`_GekigaComposerField`）は白い吹き出しに黒文字・黒カーソルという
   /// 配色（`_GekigaComposerFieldPainter`の`fillColor: Colors.white`参照）
-  /// のため、アイコンも同じ黒で明示しないとダークテーマのIconThemeから
+  /// の為、アイコンも同じ黒で明示しないとダークテーマのIconThemeから
   /// 白が継承され、白背景に白アイコンで見えなくなる（2026-08-11修正）。
   /// 通常スタイルは他画面のsuffixIcon（例:
   /// `settings_tab.dart`のアクセントカラー入力欄）と同じくTheme既定に
-  /// 委ねて問題ないため、明示しない。
+  /// 委ねて問題ない為、明示しない。
   Widget? _stickerComposerButton({required bool isGekiga}) {
     if (widget.onSendSticker == null || widget.disabled) return null;
     return IconButton(
@@ -2592,13 +2593,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   /// 送信・相手に通知しない送信・改行のどれを行うかを自前で判定する。
   /// TextFieldの既定のEnter処理（ハードウェアキーボードからの生キーイベントに
   /// 対しては、プラットフォームのIME経由の改行挿入が常に走るとは限らない）に
-  /// 依存すると環境によって改行が入らないことがあったため、改行も自前で挿入する。
+  /// 依存すると環境によって改行が入らないことがあった為、改行も自前で挿入する。
   ///
   /// Android/iOS（モバイル）はソフトウェアキーボードにShiftキーが無く
-  /// Shift+Enterによる改行ができない上、機種・IMEによっては改行キーを
+  /// Shift+Enterによる改行が出来ない上、機種・IMEによっては改行キーを
   /// 押しただけで生のEnterキーイベントが飛んでくることがあり、送信キー設定に
   /// 応じた判定をそのまま適用すると誤って送信されてしまう（実機で報告された
-  /// 不具合）。そのため、モバイルでは[SendKeyMode]の設定に関わらずEnterは
+  /// 不具合）。その為、モバイルでは[SendKeyMode]の設定に関わらずEnterは
   /// 常に改行のみとし、送信は送信ボタンのタップに固定する。
   ///
   /// キー割り当て（Windows/Linux/macOS等、物理キーボード前提の環境のみ）:
@@ -2661,13 +2662,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   /// このチャット画面で表示する通知バナー（添付・ぺったん送信失敗、
   /// スクリーンショットのキャプチャ・共有失敗等）を3秒後に自動的に
-  /// 閉じるためのタイマー（2026-08-10導入、2026-08-12に用途を拡張し
+  /// 閉じる為のタイマー（2026-08-10導入、2026-08-12に用途を拡張し
   /// 共通の[showAutoDismissBanner]ヘルパーを使う形にリファクタ）。
   Timer? _bannerTimer;
 
   /// 画像・動画添付の送信中の進捗（0.0〜1.0）。非送信中は`null`
   /// （2026-09-04追加、送信中に何も変化が無く「固まっている」ように見える
-  /// 体感の悪さを改善するため）。
+  /// 体感の悪さを改善する為）。
   double? _uploadProgress;
 
   /// 送信前のトレイに載せている画像・動画（2026-10-31）。送信ボタンでまとめて送る。
@@ -2710,7 +2711,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     if (!PaneVisibility.of(context) || !TickerMode.of(context)) return;
     final route = ModalRoute.of(context);
     // ダイアログ・拡大ビューア等が開いている間は奪わない。`route.isCurrent`では判定
-    // できない（ホームの上には常に透明ルート`/_b/*`が積まれていて常にfalseになり、
+    // 出来ない（ホームの上には常に透明ルート`/_b/*`が積まれていて常にfalseになり、
     // 入力欄へ一度もカーソルが合わなかった、2026-11-01修正）ため、透明ルートを
     // 数えない`hasOpenOverlay`を使う。
     if (ref.read(backStackControllerProvider).hasOpenOverlay) return;
@@ -2773,7 +2774,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   /// トレイに画像・動画を足した後・外した後・拡大を閉じた後に、入力欄へフォーカスを戻す
   /// （2026-11-01）。＋メニューやOSのファイル選択を経由するとフォーカスが外れ、Enterで
-  /// 送れなくなるため。モバイルはソフトウェアキーボードが勝手に開くので行わない
+  /// 送れなくなる為。モバイルはソフトウェアキーボードが勝手に開くので行わない
   /// （モバイルはEnterが改行で、送信ボタンで送る）。
   void _refocusComposerForTray() {
     final platform = defaultTargetPlatform;
@@ -2860,7 +2861,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final uiStyle = ref.watch(appUiStyleProvider);
     final isGekiga = uiStyle == AppUiStyle.gekiga;
     final isGlass = uiStyle == AppUiStyle.glass;
-    // 端末にカメラが1台も無いと判定できた場合、ビデオ通話の発信自体を
+    // 端末にカメラが1台も無いと判定出来た場合、ビデオ通話の発信自体を
     // 出さない（2026-08-19追加、通話UIの簡略化に伴う。判定は起動後1回のみ
     // 実行してキャッシュされる。cameraAvailabilityProviderのdocコメント
     // 参照）。
@@ -2870,7 +2871,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final floatingShadow =
         Theme.of(context).extension<AppThemeExtras>()?.floatingShadow ??
         AppThemeExtras.none;
-    // 入力欄オーバーレイの高さは行数や返信/編集バーの有無で変わるため、
+    // 入力欄オーバーレイの高さは行数や返信/編集バーの有無で変わる為、
     // 毎フレーム後に実測してメッセージ一覧の下部余白へ反映する
     // （_measureComposerAreaのコメント参照）。
     WidgetsBinding.instance.addPostFrameCallback((_) => _measureComposerArea());
@@ -2935,8 +2936,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 // =384dpに満たない）は、列全体を縮小して全ボタンを収める
                 // （2026-10-07、以前はRowがあふれて右端のハンバーガーメニューが
                 // 見えなかった）。`Flexible`で有限幅を与えないと`FittedBox`が
-                // 縮小できない（AppBarのactionsはRowの非flex子として幅無制限で
-                // 渡されるため）。
+                // 縮小出来ない（AppBarのactionsはRowの非flex子として幅無制限で
+                // 渡される為）。
                 Flexible(
                   child: FittedBox(
                     fit: BoxFit.scaleDown,
@@ -3045,7 +3046,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     }
 
     // 狭い画面の寄合タブ帯（`RoomTabBar`）は、`ChatScreen`のkeyがroomId込み
-    // で部屋切替のたびに作り直されるのを避けるため、`ChatScreen`の外
+    // で部屋切替のたびに作り直されるのを避ける為、`ChatScreen`の外
     // （呼び出し元の`chat_panes.dart`）で組み立てるようになった（2026-09-14
     // 変更、以前は`ChatScreen.roomTabBar`パラメータでここに渡しAppBarの
     // 一部として組み込んでいた。詳細は`chat_panes.dart`参照）。そのため
@@ -3099,7 +3100,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     // snapshot.hasDataも確認する（2026-08-20追加）。
                     // streamが（何らかの理由で）再購読された場合でも、
                     // 既にデータを表示済みならメッセージ一覧のListView
-                    // （＝スクロール位置）を再構築でリセットしないための
+                    // （＝スクロール位置）を再構築でリセットしない為の
                     // 防御的な措置。根本的な対策は呼び出し元
                     // （`DmChatPane`/`GroupChatPane`）がmessagesStream
                     // 自体のidentityを固定していること。
@@ -3139,14 +3140,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     // 直近50件（messages、購読中）に、返信先ジャンプで一時的に
                     // 取得したメッセージ（_extraMessages、購読していない）を
                     // マージして表示する。同じidがあればmessages側を優先する
-                    // （購読中で最新のため）。既にmessagesに含まれるようになった
+                    // （購読中で最新の為）。既にmessagesに含まれるようになった
                     // 分はもう保持しておく必要が無いので削除する。
                     _extraMessages.removeWhere(
                       (id, _) => messages.any((m) => m.messageId == id),
                     );
                     // messagesは呼び出し元（DmChatPane/GroupChatPane）で
                     // 既にsentAt降順ソート済み。_extraMessages（返信先ジャンプ
-                    // で一時取得した分）が空のとき（大半のケース）は、
+                    // で一時取得した分）が空の時（大半のケース）は、
                     // 追加のO(n log n)ソートを省略する（2026-09-07、遡るたびの
                     // カクつき対策）。
                     final combined = _extraMessages.isEmpty
@@ -3164,7 +3165,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     // 返信元メッセージの引用プレビュー・返信先ジャンプに使う。
                     // 現在ロード済み（直近50件＋ジャンプで追加取得した分）の
                     // 範囲に返信元があれば、こちらを優先して表示する（編集済み
-                    // なら最新の内容を反映できる）。範囲外ならMessage側の
+                    // なら最新の内容を反映出来る）。範囲外ならMessage側の
                     // 非正規化フィールド（replyToSnippet等）にフォールバックする
                     // （_MessageRow参照）。
                     final messagesById = {
@@ -3174,7 +3175,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     // 画像/動画の拡大表示（`_MediaViewerScreen`）での
                     // 前後スワイプ・矢印キーナビゲーション用（2026-08-14
                     // 追加）。`combined`は新しい順なので反転して古い順にする
-                    // （右スワイプ＝前＝古い方向、という仕様に合わせるため）。
+                    // （右スワイプ＝前＝古い方向、という仕様に合わせる為）。
                     final mediaMessages = combined
                         .where(
                           (m) =>
@@ -3227,10 +3228,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     // 返信先ジャンプ機能（_jumpToMessage）用に、messageIdから
                     // ScrollablePositionedList上のインデックスを引けるように
                     // しておく（2026-08-21、ItemScrollController.jumpTo(index:)
-                    // は対象が未ビルドでも確定的にジャンプできるため、旧実装の
+                    // は対象が未ビルドでも確定的にジャンプ出来る為、旧実装の
                     // ような「ロード済みは最新50件程度」という前提は不要）。
-                    // Widgetではなく軽量なエントリのリストから計算するため、
-                    // 件数が多くてもコストは無視できる（2026-09-07）。
+                    // Widgetではなく軽量なエントリのリストから計算する為、
+                    // 件数が多くてもコストは無視出来る（2026-09-07）。
                     _entryCount = reversedEntries.length;
                     _messageIndexById = {
                       for (var i = 0; i < reversedEntries.length; i++)
@@ -3280,7 +3281,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     // その場で構築する、2026-09-07）。`_MessageRow`の
                     // 引数はこれまで`entries`構築ループ内で直接渡していた
                     // ものと同一で、いずれもこのStreamBuilder.builderの
-                    // クロージャスコープ内にあるためそのまま参照できる。
+                    // クロージャスコープ内にあるためそのまま参照出来る。
                     Widget buildEntry(_ChatListEntry entry) => switch (entry) {
                       _ChatLoadingHeaderEntry() => const SizedBox.shrink(),
                       _ChatNoMoreHistoryEntry() => Padding(
@@ -3424,7 +3425,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       curve: Curves.easeOut,
                       builder: (context, bottomInset, _) => Opacity(
                         // 入力欄の高さが安定するまでは一覧を見せない（過渡的な
-                        // 高さで一瞬配置され、安定時に一気にずれて見えるため）。
+                        // 高さで一瞬配置され、安定時に一気にずれて見える為）。
                         opacity: _composerAreaMeasured ? 1 : 0,
                         child: ScrollablePositionedList.builder(
                           itemScrollController: _itemScrollController,
@@ -3511,7 +3512,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                   // 参加しない`Listener`ベースの独自実装と
                                   // 競合しない側）がこのタップも検出してしまい、
                                   // ソフトウェアキーボードが開いてポップアップの
-                                  // 表示位置がズレる不具合があったため、TextFieldの
+                                  // 表示位置がズレる不具合があった為、TextFieldの
                                   // 外（Rowの兄弟要素）に出している。
                                   if (widget.onSendAttachment != null &&
                                       !widget.disabled)
@@ -3581,7 +3582,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                                         // 固定（fillColor:
                                                         // Colors.white、
                                                         // _GekigaComposerField
-                                                        // Painter参照）のため、
+                                                        // Painter参照）の為、
                                                         // 選択色も黒系にローカル
                                                         // 上書きしないと白地に
                                                         // 白ハイライトで見えなく
@@ -3646,7 +3647,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                                                       .none,
                                                               // 内容量に応じて
                                                               // 箱の高さがぴったり
-                                                              // 詰まるため、上下に
+                                                              // 詰まる為、上下に
                                                               // 8pxの余白を確保
                                                               // して文字が上端に
                                                               // 張り付いて見え
@@ -3732,7 +3733,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                                               ),
                                                         // ガラスUIでは、既に入力欄
                                                         // コンテナ自体がすりガラス
-                                                        // （GlassSurface）のため、
+                                                        // （GlassSurface）の為、
                                                         // ここでさらに別スタイルの
                                                         // 縁取りされた箱を重ねない
                                                         // （二重の箱に見えて
@@ -3807,8 +3808,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                   ),
                                   // 物理キーボード接続の判定に関わらず、何か入力されている間は
                                   // 常に送信ボタンを表示する（判定を誤っても送信手段が
-                                  // 無くならないようにするため）。disabled時は入力自体が
-                                  // できないため、送信ボタンも常に出さない。
+                                  // 無くならないようにする為）。disabled時は入力自体が
+                                  // 出来ない為、送信ボタンも常に出さない。
                                   if (!widget.disabled)
                                     ValueListenableBuilder<TextEditingValue>(
                                       valueListenable: _textController,
@@ -3819,7 +3820,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                         }
                                         // コンピューター（必ずキーボードがあり、Enter等の送信キーで送れる）
                                         // では送信ボタンを隠す（2026-11-01）。モバイル・タブレットは、
-                                        // 物理キーボードの接続を確実に判定できず（誤判定で送れなくなった
+                                        // 物理キーボードの接続を確実に判定出来ず（誤判定で送れなくなった
                                         // 経緯がある）、モバイルはEnterが改行のため常に表示する。
                                         // 使い方ガイドの実行中は、手順が送信ボタンを指すため出す。
                                         if (classifyDevice(context) ==
@@ -3874,9 +3875,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       ),
                     ),
                   ),
-                // 候補のぺったん（2026-10-29）。入力欄エリアの外（真上）に重ねるため、
+                // 候補のぺったん（2026-10-29）。入力欄エリアの外（真上）に重ねる為、
                 // 入力欄の高さ（_composerAreaHeight）に含まれず、「最新へジャンプ」
-                // ボタンが候補の出ている間だけ上にずれることもない。
+                // ボタンが候補の出ている間だけ上にずれることも無い。
                 if (!_selecting &&
                     !_screenshotSelecting &&
                     widget.onSend != null &&
@@ -3944,9 +3945,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     );
 
     // 長押しメニューから開いた各種モード（削除選択・スクリーンショット選択・
-    // 編集/返信中断・部分コピー）を、×ボタンに加えEscキーでも終了できる
+    // 編集/返信中断・部分コピー）を、×ボタンに加えEscキーでも終了出来る
     // ようにする（2026-08-21追加）。`CallbackShortcuts`は自身の部分木内の
-    // どこかにフォーカスがあれば発火するため、`Focus(autofocus: true)`で
+    // どこかにフォーカスがあれば発火する為、`Focus(autofocus: true)`で
     // 起点を確保する（`_confirmScreenshotSelected`のEnterキー対応と同じ
     // パターン）。
     return ChatScrollGuardScope(
@@ -3959,7 +3960,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           const SingleActivator(LogicalKeyboardKey.escape): _handleEscapeKey,
           // 削除用に選択している間は、DeleteキーとBackspaceキーでも削除の確認へ進む
           // （2026-11-05）。入力欄にフォーカスがある時は文字の削除が先に処理される
-          // （`EditableText`が先にキーを受けるため、ここまで届かない）。
+          // （`EditableText`が先にキーを受ける為、ここまで届かない）。
           if (_selecting && _selectedMessageIds.isNotEmpty) ...{
             const SingleActivator(LogicalKeyboardKey.delete):
                 _confirmDeleteSelected,
@@ -4221,11 +4222,11 @@ const _bubbleFillLight = Color(0xFFE5E5EA);
 
 /// 実際に塗る背景色（[background]）の明るさから、読める文字色を判定する
 /// （2026-09-26追加）。固定の`onPrimary`/`onSurface`だけに頼ると、ユーザーが
-/// 選んだアクセントカラーの明暗次第ではコントラスト不足になり得るため、
+/// 選んだアクセントカラーの明暗次第ではコントラスト不足になり得る為、
 /// 実際に合成される色の輝度から都度判定する。
 ///
 /// アクセントカラーは半透明を許容する仕様（`lib/utils/color_hex.dart`の
-/// `RRGGBBAA`形式、既定値`kDefaultAccentColor`自体がアルファ`0xCC`）のため、
+/// `RRGGBBAA`形式、既定値`kDefaultAccentColor`自体がアルファ`0xCC`）の為、
 /// [background]をそのまま`estimateBrightnessForColor`（透明度を無視しRGBの
 /// 生値だけで判定する）に渡すと、実際にチャット背景[surfaceBase]へ合成された
 /// 後の見た目の明るさとズレる（2026-09-26発覚: 濃いアクセントカラーの吹き
@@ -4249,7 +4250,7 @@ String _replySnippetLabel(Message target, Vocabulary? vocabulary) {
 /// ぺったん・画像・動画とも実際のサムネイルを表示する（動画は`_VideoThumbnail`
 /// の正方形モードを流用、2026-08-14。画面内に同時に見える「動画への返信」は
 /// 多くても数件程度で、`_VideoThumbnail`自体がController初期化・破棄を
-/// 完結させる作りのため、本文側の動画表示と比べて追加コストは無い）。
+/// 完結させる作りの為、本文側の動画表示と比べて追加コストは無い）。
 /// それ以外のcontentTypeではnullを返す。
 Widget? _replyPreviewThumbnail(Message target) {
   const size = 32.0;
@@ -4315,7 +4316,7 @@ Widget? _replyPreviewThumbnail(Message target) {
 /// ピン留めポップアップ（[_ChatScreenState._openPinnedMessagesPopup]）の中身。
 /// `showMenu`の1つの`PopupMenuItem`にまるごと収めるStatefulWidgetにして、
 /// ×タップでの解除時（[_PinnedMessagesPopupContentState._handleUnpin]）に
-/// ポップアップを閉じずローカルの一覧だけを更新できるようにする（2026-08-30
+/// ポップアップを閉じずローカルの一覧だけを更新出来るようにする（2026-08-30
 /// 追加）。カード本体タップ時は`Navigator.pop(id)`で値を返し、呼び出し元
 /// （`_openPinnedMessagesPopup`）が従来通り[_ChatScreenState._jumpToMessage]
 /// でジャンプする。
@@ -4644,9 +4645,9 @@ class _MessageRow extends ConsumerWidget {
   final bool isDm;
   final bool forceShowSenderInfo;
 
-  /// このメッセージが属する会話（一対のdmId・広場のgroupId）。会話ごとに
+  /// このメッセージが属する会話（一対のdmId・広場のgroupId）。会話毎に
   /// 使うプロフィールカード（2026-07-29追加）を反映して送信者名・アイコンを
-  /// 表示するために[_SenderName]/[_SenderAvatar]へ伝播する。
+  /// 表示する為に[_SenderName]/[_SenderAvatar]へ伝播する。
   final String? conversationId;
 
   /// このメッセージが属する寄合（[ChatScreen.roomId]）。ノート作成通知
@@ -4663,7 +4664,7 @@ class _MessageRow extends ConsumerWidget {
   /// で、通常の画面表示（オンスクリーンの一覧）では常にfalseのまま渡される。
   final bool blurSenderInfo;
 
-  /// 削除用の複数選択モード、またはスクリーンショット用の範囲選択モード
+  /// 削除用の複数選択モード、又はスクリーンショット用の範囲選択モード
   /// （[onEnterScreenshotSelection]参照）中かどうか（[ChatScreen.onHideMessages]
   /// が渡されている場合のみ長押しで入れる）。
   final bool selecting;
@@ -4681,7 +4682,7 @@ class _MessageRow extends ConsumerWidget {
 
   /// 部分コピー用の文言選択モードに入る（長押しメニューの「部分コピー」
   /// から呼ばれる）。本文（[Message.content]）を合わせて渡し、呼び出し先で
-  /// [partialCopyController]へ即座に設定できるようにする（2026-08-24、
+  /// [partialCopyController]へ即座に設定出来るようにする（2026-08-24、
   /// メッセージIDのみだったシグネチャを拡張）。
   final void Function(String messageId, String content)? onEnterTextCopy;
 
@@ -4695,7 +4696,7 @@ class _MessageRow extends ConsumerWidget {
   /// （Ctrl+C・選択ツールバーの「コピー」双方から呼ぶ、2026-08-09追加）。
   final VoidCallback? onCopyPartialSelection;
 
-  /// 長押しメニューの「コピー」。選択操作を挟まず、メッセージ本文全体を
+  /// 長押しメニューの「コピー」。選択操作を挟先ず、メッセージ本文全体を
   /// 即座にクリップボードへコピーする（2026-08-09追加）。
   final void Function(Message message)? onCopyMessage;
 
@@ -4724,7 +4725,7 @@ class _MessageRow extends ConsumerWidget {
   final void Function(String messageId)? onToggleSelected;
 
   /// 現在ロード済みの（最新50件の）メッセージ一覧。返信先の引用プレビューを
-  /// 最新の内容で表示するためのルックアップに使う（見つからない場合は
+  /// 最新の内容で表示する為のルックアップに使う（見つからない場合は
   /// [Message.replyToSnippet]等の非正規化フィールドにフォールバックする）。
   final Map<String, Message> messagesById;
 
@@ -4737,7 +4738,7 @@ class _MessageRow extends ConsumerWidget {
   final void Function(Message message)? onReply;
 
   /// nullなら編集メニュー自体を出さない（自分の投稿でも[ChatScreen.onEditMessage]
-  /// が渡されていない、または対象がテキストメッセージでない場合）。
+  /// が渡されていない、又は対象がテキストメッセージでない場合）。
   final void Function(Message message)? onEdit;
 
   /// nullなら送信取り消しメニュー自体を出さない。
@@ -4769,7 +4770,7 @@ class _MessageRow extends ConsumerWidget {
   /// 送信用の専用ぺったんアイコン（`_ChatScreenState._stickerButtonKey`）の
   /// `GlobalKey`。所持ぺったんタップ時に開くポップアップの座標を、送信
   /// アイコンクリック時（[ChatScreen]の`_openStickerPicker`）と完全に
-  /// 一致させるため、`_handleStickerTap`のアンカー計算にそのまま使う
+  /// 一致させる為、`_handleStickerTap`のアンカー計算にそのまま使う
   /// （2026-08-14追加）。送信アイコン自体が無い画面ではnull（その場合は
   /// ボトムシートにフォールバックする）。
   final GlobalKey? stickerButtonKey;
@@ -4820,7 +4821,9 @@ class _MessageRow extends ConsumerWidget {
       barrierDismissible: true,
       barrierLabel: '',
       barrierColor: Colors.transparent,
-      transitionDuration: const Duration(milliseconds: 150),
+      transitionDuration: popSlideDuration,
+      transitionBuilder: (context, animation, secondaryAnimation, child) =>
+          buildDialogTransition(animation, child),
       pageBuilder: (context, animation, secondaryAnimation) {
         final screenSize = MediaQuery.sizeOf(context);
         final left = badgeRect.left.clamp(8.0, screenSize.width - width - 8.0);
@@ -4896,7 +4899,7 @@ class _MessageRow extends ConsumerWidget {
   /// [_showReadReceiptPopup]と同じ位置決め・見た目のパターンを踏襲する
   /// （2026-08-05追加）。自分の行（`entry.key == currentUserId`）にのみ
   /// ゴミ箱ボタンを出し、押すと自分のリアクションを取り消してポップアップ
-  /// を閉じる（一覧は静的表示のため、既読ポップアップと同様に取り消し後は
+  /// を閉じる（一覧は静的表示の為、既読ポップアップと同様に取り消し後は
   /// 再度タップして開き直す想定）。
   void _showReactionListPopup(
     BuildContext context,
@@ -4907,7 +4910,7 @@ class _MessageRow extends ConsumerWidget {
     final chipRect = chipBox.localToGlobal(Offset.zero) & chipBox.size;
     const width = 240.0;
     const minPopupSpace = 160.0;
-    // 1ユーザーが複数の異なる絵文字を持てるため、(userId, 絵文字)の
+    // 1ユーザーが複数の異なる絵文字を持てる為、(userId, 絵文字)の
     // ペア単位にフラット化して1行ずつ表示する（2026-08-05変更）。
     final entries = <MapEntry<String, String>>[
       for (final e in message.reactions.entries)
@@ -5032,7 +5035,7 @@ class _MessageRow extends ConsumerWidget {
     // （読み取り・記録自体はやめない。既読の記録をやめると、自分の
     // メッセージを相手が読んだかの追跡もできなくなってしまうため）。
     // 自分のメッセージには引き続き既読マークを表示し、相手が読んだかを
-    // 追跡できるようにする。広場（グループ）はこれまで通り両方に表示する。
+    // 追跡出来るようにする。広場（グループ）はこれまで通り両方に表示する。
     final showReadMark =
         readReceiptsEnabled && readers.isNotEmpty && !(isDm && !isMe);
     // 一対の自分のメッセージは、相手（1人しかいない）が読んだかどうかの
@@ -5040,7 +5043,7 @@ class _MessageRow extends ConsumerWidget {
     // ため、✓のみを表示しタップしても何も起きないようにする。
     final isSimpleDmReadMark = isDm && isMe;
     // sideBySideで自分のメッセージの時だけ右寄せ。それ以外
-    // （sideBySideで相手、またはallLeftで自分・相手いずれも）は左寄せ。
+    // （sideBySideで相手、又はallLeftで自分・相手いずれも）は左寄せ。
     final alignRight = layoutStyle == ChatLayoutStyle.sideBySide && isMe;
 
     final isGekiga = uiStyle == AppUiStyle.gekiga;
@@ -5062,7 +5065,7 @@ class _MessageRow extends ConsumerWidget {
     // 予定調整・投票・ノート通知カード・画像/動画プレビュー・ファイル添付等、
     // 吹き出し本体以外のカードの枠線も、各カードのbuildメソッド側で同じ
     // アクセントカラーを使うよう揃えている（ガラスUIの`GlassSurface`縁の
-    // 光彩と統一するため）。
+    // 光彩と統一する為）。
     final bubbleAccentBorderColor = colorScheme.primary;
     final onBubbleColor = switch (uiStyle) {
       AppUiStyle.gekiga => isMe ? Colors.black : Colors.white,
@@ -5121,10 +5124,10 @@ class _MessageRow extends ConsumerWidget {
     };
 
     // 返信元の引用プレビュー。ロード済み（最新50件）の範囲に返信元の実物が
-    // あればそちらを優先して表示し（編集済みなら最新内容を反映できる）、
+    // あればそちらを優先して表示し（編集済みなら最新内容を反映出来る）、
     // 無ければ送信時点の非正規化フィールドにフォールバックする
     // （送信取り消しされた場合はunsendMessage/unsendRoomMessageがこれらの
-    // フィールドをまとめてクリアするため、その場合は引用プレビュー自体が
+    // フィールドをまとめてクリアする為、その場合は引用プレビュー自体が
     // 表示されなくなる）。
     Widget? buildReplyQuote({
       required String? targetId,
@@ -5324,7 +5327,7 @@ class _MessageRow extends ConsumerWidget {
             preview: (message.caption?.isNotEmpty ?? false)
                 ? _captionPreview(message, isGekiga: isGekiga, isMe: isMe)
                 : null,
-            // 画像・動画・メディアだけの複数は吹き出しの枠が無いため、文字だけを
+            // 画像・動画・メディアだけの複数は吹き出しの枠が無い為、文字だけを
             // 吹き出しで包む。ファイルを含むものは全体が吹き出しの中なので文字だけ
             // （2026-11-01）。
             captionBuilder: (caption) {
@@ -5399,7 +5402,7 @@ class _MessageRow extends ConsumerWidget {
                         // 選択色を直接指定する）。バブル所有者・テーマに
                         // 関わらず常に同じ青にする（`colorScheme.primary`
                         // 由来にすると劇画テーマでは白にremapされてしまい
-                        // 「青いハイライト」にならないため、2026-08-24
+                        // 「青いハイライト」にならない為、2026-08-24
                         // 固定色に変更）。
                         //
                         // `TextField`は`Text`と異なり、緩い制約下では既定で
@@ -5413,9 +5416,9 @@ class _MessageRow extends ConsumerWidget {
                           // `CopySelectionTextIntent`用の`CallbackAction`
                           // （上の`Actions`）は仕組みとしてはFlutterが正式に
                           // サポートする上書き手段だが、Web環境では実際には
-                          // Ctrl+Cを検知できず`onCopyPartialSelection`が
+                          // Ctrl+Cを検知出来ず`onCopyPartialSelection`が
                           // 呼ばれない不具合が確認された（2026-08-24）。
-                          // そのため、生のキー入力を直接監視する`Focus`を
+                          // その為、生のキー入力を直接監視する`Focus`を
                           // 追加し、そちらを実質的なコピー検知の主体とする
                           // （既存の`CallbackAction`はデスクトップ/モバイル
                           // 環境向けの保険としてそのまま残す）。
@@ -5453,11 +5456,11 @@ class _MessageRow extends ConsumerWidget {
                                   fontWeight: isGekiga ? FontWeight.w600 : null,
                                 ),
                                 // `InputDecoration.collapsed`は`filled`が
-                                // 既定で`false`のため、劇画テーマの
+                                // 既定で`false`の為、劇画テーマの
                                 // `inputDecorationTheme`（黒塗り、
                                 // `gekiga_theme.dart`参照）を継承しない。
                                 // 通常デコレーションが持つ最小タップ高さ・
-                                // 内部パディングも持たないため、`Text`
+                                // 内部パディングも持たない為、`Text`
                                 // 表示時に近いサイズになる。
                                 decoration: const InputDecoration.collapsed(
                                   hintText: null,
@@ -5603,7 +5606,7 @@ class _MessageRow extends ConsumerWidget {
     // オーバーフロー分はStack自身のサイズに含まれず、(1)ListView側の
     // 行の高さに反映されない（次のメッセージと重なる）、(2)吹き出しの
     // サイズを超えた領域はヒットテストが届かずタップが効かない、という
-    // 2つの不具合があったため、Rowで実際に横並びにするレイアウトへ
+    // 2つの不具合があった為、Rowで実際に横並びにするレイアウトへ
     // 変更した（bubbleをFlexibleにしてバッジ分の幅を確保する）。
     // テキストメッセージの自分の投稿のみ編集可能（画像等contentType='text'
     // 以外は将来実装時もまず本文編集の対象外という方針、Planでの検討通り）。
@@ -5670,7 +5673,7 @@ class _MessageRow extends ConsumerWidget {
     // 長押し/右クリックでリアクション・返信・編集等のメニューを開く判定は
     // 吹き出し本体だけに絞る（2026-07-29変更）。以前は行全体（余白込み）が
     // 対象だったが、余白部分の長押しは自動スクロール（[_MessageInteractions]
-    // 参照）に割り当てたため、両者が同じ操作を奪い合わないよう分離した。
+    // 参照）に割り当てた為、両者が同じ操作を奪い合わないよう分離した。
     // 長押し/右クリックのメニュー付きで包む。吹き出しと、その下のURLプレビューで同じ
     // メニュー（返信・リアクション・コピー等）を出す（2026-11-05、プレビューの長押し対応）。
     Widget withMessageMenu(Widget child) => _MessageBubbleTapArea(
@@ -5704,7 +5707,7 @@ class _MessageRow extends ConsumerWidget {
                   message.attachments.any((a) => a.isMedia)))
           ? () => onAddToAlbum!(message)
           : null,
-      // 添付が無い本文だけのメッセージも共有できる（2026-11-05、本文を共有シートへ）。
+      // 添付が無い本文だけのメッセージも共有出来る（2026-11-05、本文を共有シートへ）。
       onShare: shareableMessage(message)
           ? () => shareMessageAttachments(message)
           : null,
@@ -5733,7 +5736,7 @@ class _MessageRow extends ConsumerWidget {
             ],
             Flexible(
               // 部分コピーモード中は、`bubbleContent`内部（本文部分のみ）で
-              // ドラッグでの範囲選択・Ctrl+Cコピーを直接処理するため、
+              // ドラッグでの範囲選択・Ctrl+Cコピーを直接処理する為、
               // タップ/長押しを奪う_MessageBubbleTapAreaは介さない
               // （ジェスチャー競合回避、2026-08-09追加）。明示的な×ボタンは
               // 廃止し、コピー操作（Ctrl+C・選択ツールバーの「コピー」）や
@@ -5763,7 +5766,7 @@ class _MessageRow extends ConsumerWidget {
 
     // allLeftでは自分・相手とも常にアイコン・呼び名を表示する。sideBySideでは
     // 自分のメッセージには表示せず、相手のメッセージも一対では表示しない
-    // （広場では引き続き表示する）。ただし便り等、送信元を明示すべき一対
+    // （広場では引き続き表示する）。但し便り等、送信元を明示すべき一対
     // （[forceShowSenderInfo]）では、sideBySideでも常に表示する
     // （2026-08-29追加）。
     final showAvatarAndName = forceShowSenderInfo
@@ -5843,7 +5846,7 @@ class _MessageRow extends ConsumerWidget {
       if (blurSenderInfo) {
         // プライバシー配慮のスクリーンショット用（[blurSenderInfo]参照）。
         // アイコン・呼び名の見た目そのものをぼかすことで、写真でも初見の
-        // 相手でも判読できないようにする。
+        // 相手でも判読出来ないようにする。
         final blur = ui.ImageFilter.blur(sigmaX: 6, sigmaY: 6);
         senderAvatar = ImageFiltered(imageFilter: blur, child: senderAvatar);
         senderName = ImageFiltered(imageFilter: blur, child: senderName);
@@ -5924,7 +5927,7 @@ class _MessageRow extends ConsumerWidget {
       // 選択中はチェックボックスと薄い塗りで示す（開始自体は下記の
       // コンテキストメニューの「選択」項目から行う）。
       body = GestureDetector(
-        // contentはAlignで寄せられているため、指定なし（既定の
+        // contentはAlignで寄せられている為、指定なし（既定の
         // deferToChild）だと吹き出し左右の余白（何も描画されていない
         // 領域）でタップが反応しなかった。opaqueにして行全体で反応する
         // ようにする（2026-08-09修正）。
@@ -5997,11 +6000,11 @@ class _MessageRow extends ConsumerWidget {
   /// 追加、同日カード化）。予定タイトルは[message.content]をそのまま使う。
   /// LINEのスケジュール共有カードのような、上部に色ブロック＋アイコン・
   /// 下部にタイトルと全幅ボタンを持つ縦長の自前カードとして表示する
-  /// （吹き出しの地色（[onBubbleColor]）には依存しない独立配色のため、
+  /// （吹き出しの地色（[onBubbleColor]）には依存しない独立配色の為、
   /// `skipBubbleFrame`の対象に加えている）。カード全体をタップ可能にしつつ、
   /// 内側のボタンも同じ処理を呼ぶ（ボタン領域はボタン自身のジェスチャーが
   /// 優先されるだけで競合しない。外側の`_MessageBubbleTapArea`の長押し
-  /// メニューとも別ジェスチャーのため共存できる、`_stickerContent`と同じ
+  /// メニューとも別ジェスチャーのため共存出来る、`_stickerContent`と同じ
   /// 考え方）。劇画スタイルのみ、他のカード群とは別配色にする。画像/動画
   /// 添付・マークダウン/URLプレビューカードと同じ`GekigaStraightMonochromeBox`
   /// （白枠→黒枠→地色→中身、`isMe`で白黒反転）を使い、通常の吹き出しの
@@ -6505,11 +6508,11 @@ class _MessageRow extends ConsumerWidget {
   /// contentType='noteCreated'（ノート作成通知、2026-09-06追加）の表示。
   /// タイトルはノートドキュメントをライブ購読して表示する（2026-09-07
   /// 追加）。作成直後は常にタイトルが空（`note_popup_content.dart`の
-  /// 「＋」ボタンはタイトルを渡さず即座に作成するため）で、それをそのまま
+  /// 「＋」ボタンはタイトルを渡さず即座に作成する為）で、それをそのまま
   /// `Message.content`に固定値として書き込んでいた旧実装では、後から
   /// タイトルを編集してもチャット上の表示が永久に「無題のノート」の
   /// ままになってしまっていた。ノートの現在の状態から都度タイトルを
-  /// 計算するだけで「作成完了」という特別な瞬間を仮定しないため、将来の
+  /// 計算するだけで「作成完了」という特別な瞬間を仮定しない為、将来の
   /// 共同編集（複数人が随時編集し続ける状態）とも矛盾しない。
   Widget _noteCreatedNoticeContent(
     BuildContext context,
@@ -6712,7 +6715,7 @@ class _MessageRow extends ConsumerWidget {
   /// ブラウザの別タブで開く（daidai横丁自体はアプリ内に持たない方針の
   /// ため、Apple/Google手数料回避と軽量化を兼ねる、2026-08-14追加）。
   /// 自分が送信したぺったんも同じ経路で開ける（所持パックからしか送信
-  /// できない仕様上、常に「所持している」分岐に入る）。
+  /// 出来ない仕様上、常に「所持している」分岐に入る）。
   Widget _stickerContent(
     BuildContext context,
     WidgetRef ref,
@@ -6762,7 +6765,7 @@ class _MessageRow extends ConsumerWidget {
       if (onSendStickerCallback == null) return;
       // 送信用の専用ぺったんアイコン（`_openStickerPicker`）と同じ幅分岐・
       // 同じアンカー座標を使う（`stickerButtonKey`＝`_stickerButtonKey`を
-      // そのまま参照するため、表示位置が送信アイコンクリック時と完全に
+      // そのまま参照する為、表示位置が送信アイコンクリック時と完全に
       // 一致する。デスクトップ幅はそのアイコン付近のポップアップ、
       // モバイル幅はボトムシート、2026-08-14）。
       final isWide = MediaQuery.sizeOf(context).width >= kTalksSplitBreakpoint;
@@ -6803,7 +6806,7 @@ class _MessageRow extends ConsumerWidget {
   /// （`GekigaStraightMonochromeBox`）を持つため素通しする。padding無しで
   /// `frame`（`mediaPreviewFrame()`の戻り値）を直接包むことで、以前
   /// 吹き出し本体側のpadding込みの枠を流用していた際に生じていた「画像の
-  /// 縁と枠線の間に隙間ができる」不具合を解消する（2026-09-04追加）。
+  /// 縁と枠線の間に隙間が出来る」不具合を解消する（2026-09-04追加）。
   Widget _borderedMediaFrame(
     BuildContext context,
     bool isGekiga,
@@ -6925,12 +6928,14 @@ class _MessageRow extends ConsumerWidget {
           ],
         ),
       );
-      // フラット・ガラスは全体の枠を付けず、1枚ずつの角丸だけにする。劇画は
-      // 白黒の枠が意匠の一部のため、従来どおり全体を囲む。
+      // 全体を単一の画像・動画と同じ枠で囲む（劇画は白黒の枠、ガラスはすりガラス、
+      // 版画は太枠と硬い影、フラットは細い線）。
       children.add(
-        isGekiga
-            ? mediaPreviewFrame(isGekiga: true, isMe: isMe, child: grid)
-            : grid,
+        _borderedMediaFrame(
+          context,
+          isGekiga,
+          mediaPreviewFrame(isGekiga: isGekiga, isMe: isMe, child: grid),
+        ),
       );
     }
     for (final index in files) {
@@ -7244,7 +7249,7 @@ class _MessageRow extends ConsumerWidget {
     onSetReaction?.call(message.messageId, next.toList());
   }
 
-  /// リアクション（絵文字ごとの重複無しチップ）の一覧＋末尾の＋ボタン。
+  /// リアクション（絵文字毎の重複無しチップ）の一覧＋末尾の＋ボタン。
   /// 吹き出しの真下の`Positioned`内で`Wrap`に並べて表示する
   /// （2026-08-05変更）。[alignRight]が真の時（自分のメッセージが右寄せの
   /// 時）は`Directionality`で列全体を反転し、＋ボタンが左端に来るように
@@ -7260,7 +7265,7 @@ class _MessageRow extends ConsumerWidget {
     // 劇画スタイルでは、ジグザグ枠にはせず色だけモノクロにする
     // （2026-08-04追加）。以前は選択中（自分のリアクション）だけ白地黒
     // 文字に反転していたが、タップ操作が即トグルではなくリアクション
-    // 一覧ポップアップを開く形に変わったため、選択強調の必要性が薄れた。
+    // 一覧ポップアップを開く形に変わった為、選択強調の必要性が薄れた。
     // ユーザー指示により常に黒地白文字に統一する（2026-08-05変更）。
     final isGekiga = uiStyle == AppUiStyle.gekiga;
 
@@ -7345,6 +7350,7 @@ class _MessageRow extends ConsumerWidget {
     final target = await showForwardTargetDialog(
       context,
       currentUserId: currentUserId,
+      preview: forwardPreviewOf(message),
     );
     if (target == null || !context.mounted) return;
     showAutoDismissBanner(context, message: strings.forwardSending);
@@ -7386,7 +7392,7 @@ class _MessageRow extends ConsumerWidget {
           ),
           FilledButton(
             // colorScheme.errorはダークテーマ下では明るいサーモンピンクに
-            // 近い色になり白文字が読みにくいため、固定の濃い赤に変更する
+            // 近い色になり白文字が読みにくい為、固定の濃い赤に変更する
             // （2026-08-21、`_confirmDeleteSelected`と同じ対応）。
             style: FilledButton.styleFrom(
               backgroundColor: Colors.red.shade700,
@@ -7541,7 +7547,7 @@ class _JumpHighlightShakeState extends State<_JumpHighlightShake>
 /// 吹き出し本体だけに絞った当たり判定。長押し/右クリックでリアクション・
 /// 返信・編集等のコンテキストメニューを開く（2026-07-29変更: 以前は行全体
 /// （余白込み）が対象だったが、余白部分の長押しを自動スクロール
-/// （[_MessageInteractions]参照）に割り当てたため、両者が同じ操作を
+/// （[_MessageInteractions]参照）に割り当てた為、両者が同じ操作を
 /// 奪い合わないよう吹き出し本体だけに絞った）。
 ///
 /// 右クリック（[onSecondaryTapDown]）は従来通り`showMenu`でクリック選択の
@@ -7585,7 +7591,7 @@ class _MessageBubbleTapArea extends StatefulWidget {
   final VoidCallback? onTogglePin;
 
   /// メッセージ本文全体を即座にクリップボードへコピーする（削除権限の
-  /// 有無と無関係のため、[canSelect]と関係なく常に出す、2026-08-09追加、
+  /// 有無と無関係の為、[canSelect]と関係なく常に出す、2026-08-09追加、
   /// 選択操作を挟まない即時実行）。
   final VoidCallback? onCopySelect;
 
@@ -7803,7 +7809,7 @@ class _MessageBubbleTapAreaState extends State<_MessageBubbleTapArea> {
     final menuHeight = kDragMenuItemHeight * items.length;
 
     // 長押し座標そのものにメニューの左上を合わせると指がメニューに重なって
-    // 選びにくいため、＋ボタンの添付ポップアップ（AttachmentPopupButton.
+    // 選びにくい為、＋ボタンの添付ポップアップ（AttachmentPopupButton.
     // _onPointerDown）と同じく、押した座標より少し上に離して表示する
     // （2026-08-11変更）。
     const screenPad = 8.0;
@@ -7950,7 +7956,7 @@ class _MessageInteractions extends StatefulWidget {
 class _MessageInteractionsState extends State<_MessageInteractions> {
   /// クランプ前の生の累積ドラッグ量。負値（左方向）は返信/編集用の
   /// [_dragExtent]、正値（右方向）は[InteractiveSwipeBackScope]への中継に
-  /// それぞれ使う。往復ドラッグでも同じ生データから矛盾なく導出できるよう、
+  /// それぞれ使う。往復ドラッグでも同じ生データから矛盾なく導出出来るよう、
   /// あえて2つの値に分けずこれ1つで管理する（2026-09-07変更）。
   double _rawDx = 0;
 
@@ -7985,7 +7991,7 @@ class _MessageInteractionsState extends State<_MessageInteractions> {
     if (swipeBack != null && (_rawDx > 0 || swipeBack.isGestureActive)) {
       // 吹き出しの上は返信/編集用の左スワイプをこのGestureDetector自身が
       // 無条件に受理してしまい、外側の背景ジェスチャー（吹き出しの無い
-      // 余白では機能する）にジェスチャーアリーナ上伝播しないため、右方向の
+      // 余白では機能する）にジェスチャーアリーナ上伝播しない為、右方向の
       // ドラッグをここから直接[InteractiveSwipeBackScope]へ中継する
       // （2026-08-06追加、2026-09-07にリアルタイム追従へ変更、2026-09-14に
       // 自分のメッセージ（右寄せ表示）だけ除外していた仕様を撤廃）。
@@ -8083,12 +8089,12 @@ class _SenderName extends ConsumerWidget {
   final String? rhingSeed;
 
   /// 受信Webhook由来の投稿のBOT名（`Message.botName`、2026-10-10追加）。
-  /// 非null、または[userId]が`webhook:`で始まる場合は、`users`を引かず
+  /// 非null、又は[userId]が`webhook:`で始まる場合は、`users`を引かず
   /// 名前と「BOT」バッジで表示する。
   final String? botName;
 
-  /// この送信者が使っている会話ごとのプロフィールカード（2026-07-29追加）を
-  /// 反映するための会話id（一対のdmId・広場のgroupId）。nullなら標準の
+  /// この送信者が使っている会話毎のプロフィールカード（2026-07-29追加）を
+  /// 反映する為の会話id（一対のdmId・広場のgroupId）。nullなら標準の
   /// カードで表示する。
   final String? conversationId;
 
@@ -8099,7 +8105,7 @@ class _SenderName extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     if (botName != null || userId.startsWith(kWebhookSenderPrefix)) {
-      // お便り（`system:`）は住人でもBOTでもない運営の発信元のため、
+      // お便り（`system:`）は住人でもBOTでも無い運営の発信元の為、
       // 名前だけを出し「BOT」バッジは付けない（2026-10-10）。
       final isSystem = userId.startsWith(kSystemSenderPrefix);
       final style = TextStyle(
@@ -8207,7 +8213,7 @@ class _SenderAvatar extends ConsumerWidget {
   final AppUiStyle uiStyle;
 
   /// アイコンの直径（2026-08-30、ピン留めポップアップのカード用に既定48pxより
-  /// 小さいサイズを指定できるよう追加）。
+  /// 小さいサイズを指定出来るよう追加）。
   final double size;
 
   @override
@@ -8342,7 +8348,7 @@ class _SenderAvatar extends ConsumerWidget {
 /// 参照、2026-08-10改修）。以前はブロック全体のタップで即座に
 /// `launchUrl`（ダウンロード相当）していたが、ポインターを乗せた時
 /// （モバイルは常時）だけ右上にダウンロードボタンを出す方式に変更した。
-/// Markdown（.md/.markdown）ファイルはさらに、本文をプレビュー表示できる
+/// Markdown（.md/.markdown）ファイルはさらに、本文をプレビュー表示出来る
 /// カードにする（初期状態は高さを制限した省略表示、シェブロンで全文表示に
 /// 展開、右下に常時ダウンロードボタンを表示）。
 class _FileAttachmentBlock extends ConsumerStatefulWidget {
@@ -8374,9 +8380,9 @@ class _FileAttachmentBlock extends ConsumerStatefulWidget {
   /// この添付がプレビュー可能なMarkdownファイルかどうか。`_MessageRow`が
   /// `_GekigaBubble`の枠を纏わせるかどうかの判定（`_FileAttachmentBlock`
   /// が自前の枠＝`GekigaStraightMonochromeBox`を持つため、外側の枠は
-  /// 二重表示になる）にも使うため、`State`内の判定ロジックと共有できるようstaticに
+  /// 二重表示になる）にも使うため、`State`内の判定ロジックと共有出来るようstaticに
   /// 切り出す（2026-08-10追加）。動画は`_attachmentContent`で別分岐に
-  /// なり`_FileAttachmentBlock`自体に到達しなくなったため、`isVideo`引数は
+  /// なり`_FileAttachmentBlock`自体に到達しなくなった為、`isVideo`引数は
   /// 2026-08-11に削除した。
   static bool isPreviewableMarkdown(MessageFileMetadata metadata) =>
       (metadata.extension == 'md' || metadata.extension == 'markdown') &&
@@ -8410,7 +8416,7 @@ class _FileAttachmentBlockState extends ConsumerState<_FileAttachmentBlock>
   /// `wantKeepAlive`）で画面外でもStateごと保持されるようにするのが
   /// 主対応だが、同じファイルを参照する別インスタンスが現れた場合の保険
   /// として、取得結果自体もURLキーでキャッシュする（2026-08-12追加）。
-  /// Markdownファイルの内容は不変前提のため、明示的な失効処理は設けない。
+  /// Markdownファイルの内容は不変前提の為、明示的な失効処理は設けない。
   static final Map<String, Future<String?>> _markdownCache = {};
 
   bool get _isMarkdown =>
@@ -8480,7 +8486,7 @@ class _FileAttachmentBlockState extends ConsumerState<_FileAttachmentBlock>
       if (response.statusCode != 200) return null;
       // `response.body`はContent-Typeのcharset宣言に依存し、未指定時は
       // latin1にフォールバックする。Firebase StorageのダウンロードURLは
-      // .mdファイルにcharset=utf-8を明示しないため、日本語が文字化けする
+      // .mdファイルにcharset=utf-8を明示しない為、日本語が文字化けする
       // （2026-08-10発覚）。常にUTF-8として復号する。
       return utf8.decode(response.bodyBytes);
     } catch (_) {
@@ -8512,11 +8518,11 @@ class _FileAttachmentBlockState extends ConsumerState<_FileAttachmentBlock>
   /// 拡大表示（140px⇔360px）の高さ変化量。
   static const _expandDelta = 220.0;
 
-  /// メッセージ一覧が`reverse: true`のため、アイテムの高さが変わると既定
+  /// メッセージ一覧が`reverse: true`の為、アイテムの高さが変わると既定
   /// では画面下端が起点になり上方向へ伸びる（Sliverの座標系上、各アイテムの
   /// 「配列上の開始位置＝画面下端」が固定され、高さが変わる分は「配列上の
   /// 終了位置＝画面上端」側だけが動くため）。上端を起点に下方向へ伸びるように
-  /// 見せるため、高さが変わった直後に周囲のスクロール位置を変化量の分だけ
+  /// 見せる為、高さが変わった直後に周囲のスクロール位置を変化量の分だけ
   /// 補正する（2026-08-12追加）。`Scrollable.maybeOf`でメッセージ一覧の
   /// 祖先Scrollableを、ウィジェット階層越しに配線せず取得する
   /// （2026-08-21、`ScrollablePositionedList`移行後も内部で通常の
@@ -8525,7 +8531,7 @@ class _FileAttachmentBlockState extends ConsumerState<_FileAttachmentBlock>
   void _toggleExpanded() {
     final delta = _expanded ? -_expandDelta : _expandDelta;
     // 高さの変更と位置補正を同じフレームのレイアウトに入れる（2026-10-16）。
-    // 以前は補正を次フレームのpostFrameCallbackで行っていたため、補正前の
+    // 以前は補正を次フレームのpostFrameCallbackで行っていた為、補正前の
     // 位置で1フレーム描かれてから跳び、一覧全体がチラついて見えた。
     final position = Scrollable.maybeOf(context)?.position;
     setState(() => _expanded = !_expanded);
@@ -8534,10 +8540,10 @@ class _FileAttachmentBlockState extends ConsumerState<_FileAttachmentBlock>
 
   /// ホバー/常時表示のダウンロードボタン。半透明の黒地＋白アイコンという
   /// 固定配色にすることで、乗っている吹き出し・カードの色（明るい/暗い
-  /// どちらでも、フラット/劇画どちらでも）に関わらず視認できるようにする。
+  /// どちらでも、フラット/劇画どちらでも）に関わらず視認出来るようにする。
   /// [filled]をfalseにすると、この黒丸の背景無しでアイコンだけを描く
   /// （Markdownカードのfooterはカード自体が既に配色済みで、周りに紛れる
-  /// 心配が無いため、コピーアイコンと揃えて丸背景無しにする、2026-08-12
+  /// 心配が無い為、コピーアイコンと揃えて丸背景無しにする、2026-08-12
   /// 追加）。
   Widget _downloadButton({
     required bool small,
@@ -8867,11 +8873,11 @@ class _FileAttachmentBlockState extends ConsumerState<_FileAttachmentBlock>
     // `ThemeData.dark()`を単体で生成すると`textTheme.bodyMedium?.fontSize`が
     // 未解決（null）のままになり`MarkdownStyleSheet.fromTheme`のassertに
     // 失敗する（2026-08-10発覚）。`MaterialApp`を経由しないと`Typography`が
-    // 完全には適用されないため。実際に画面へ描画されているアプリ本体の
+    // 完全には適用されない為。実際に画面へ描画されているアプリ本体の
     // `Theme.of(context)`は必ずフォントサイズ込みで解決済みなので、これを
     // ベースにして劇画UI用の文字色だけ上書きする。
     // インラインコードの背景は塗らない（2026-10-16）。背景の高さが全角と
-    // 半角で変わり、混在すると不格好に見えたため。等幅・文字色は維持する。
+    // 半角で変わり、混在すると不格好に見えた為。等幅・文字色は維持する。
     final themeStyleSheet = MarkdownStyleSheet.fromTheme(Theme.of(context));
     final baseStyleSheet = themeStyleSheet.copyWith(
       code: themeStyleSheet.code?.copyWith(backgroundColor: Colors.transparent),
@@ -8931,7 +8937,7 @@ class _FileAttachmentBlockState extends ConsumerState<_FileAttachmentBlock>
     );
 
     // Markdown本文を文字数で機械的に切ると表・リスト等の構文が壊れる恐れが
-    // あるため、常にフルレンダリングした上で表示領域の高さだけを制限する。
+    // ある為、常にフルレンダリングした上で表示領域の高さだけを制限する。
     // 表（`Table`+`FlexColumnWidth`）はスクロール前提の縮小表示に対応して
     // おらず、単純な`ConstrainedBox(maxHeight)`で高さを強制すると制約違反で
     // 描画が壊れる（2026-08-10発覚・修正）ため、`SizedBox`で確定高さの窓を
@@ -8940,7 +8946,7 @@ class _FileAttachmentBlockState extends ConsumerState<_FileAttachmentBlock>
     //
     // 全表示は一度ポップアップ（`showAppDialog`）で試したが、メッセージ画面の
     // ままで拡大表示してほしいとの指摘を受け撤回した（2026-08-12）。以前の
-    // 「その場で無制限に縦へ伸びる」実装ではスクロールできず読みにくかった
+    // 「その場で無制限に縦へ伸びる」実装ではスクロール出来ず読みにくかった
     // ため、代わりに固定高さ（360px）へ拡大した上でスクロール可能にする
     // （折り畳み時は140pxでスクロール無効のまま）。
     final body = GestureDetector(
@@ -9156,14 +9162,14 @@ class _GekigaBubblePainter extends CustomPainter {
 
 /// 劇画スタイルの入力欄の外枠。自分のメッセージ吹き出し（[_GekigaBubble]、
 /// `isMe: true`）と同じ「歪な平行四辺形＋モノクロボックス」の意匠を使う
-/// （2026-08-10追加）。メッセージと違い個別のidを持たないため、`seed`は
+/// （2026-08-10追加）。メッセージと違い個別のidを持たない為、`seed`は
 /// 固定値にし、入力中に形状がガタつかないようにする。
 class _GekigaComposerField extends StatelessWidget {
   const _GekigaComposerField({required this.child});
 
   final Widget child;
 
-  /// 固定シード。メッセージ吹き出しのようなid由来の値を持たないため、
+  /// 固定シード。メッセージ吹き出しのようなid由来の値を持たない為、
   /// 常に同じ歪みで安定させる。
   static const _seed = 0xDA1DA1;
 
@@ -9188,7 +9194,7 @@ class _GekigaComposerFieldPainter extends CustomPainter {
     // 入力欄は横幅に対して縦が極端に短い箱になりやすく、既定の「横幅の
     // 10%」の傾きをそのまま使うと文字にかかってしまう。縦幅基準の控えめな
     // 傾きにする（2026-08-10、`_GekigaComposerField`のpaddingと合わせて
-    // 文字がはみ出さない程度に調整）。ただしこの値をそのまま使うと複数行
+    // 文字がはみ出さない程度に調整）。但しこの値をそのまま使うと複数行
     // 入力で箱が縦に伸びるほど傾きが際限なく大きくなり、外側のPadding
     // （水平20px）を超えて文字・ぺったんアイコンが平行四辺形の外に
     // はみ出してしまうため、16.0（水平Paddingを下回る安全な値）で
@@ -9216,11 +9222,11 @@ class _GekigaComposerFieldPainter extends CustomPainter {
       false;
 }
 
-/// 「最新メッセージへジャンプ」の下矢印ボタン（2026-10-04追加）。UIスタイルごとに
+/// 「最新メッセージへジャンプ」の下矢印ボタン（2026-10-04追加）。UIスタイル毎に
 /// 見た目を変える（影は使わない）。フラット: アクセントカラー塗り＋反対色の
 /// アイコン、ガラス: 不透明のガラス丸ボタン、劇画: モノクロのパネルボタン。
 /// 「元のメッセージに戻る」ブロック（引用から返信先へ飛んだ後、画面の下に出す）。
-/// 押すと元のメッセージへ戻り、×で閉じる。UIスタイルごとに既存のボタンの配色へ揃える。
+/// 押すと元のメッセージへ戻り、×で閉じる。UIスタイル毎に既存のボタンの配色へ揃える。
 class _ReturnToMessageBlock extends StatelessWidget {
   const _ReturnToMessageBlock({
     required this.uiStyle,
@@ -9409,6 +9415,17 @@ class _FloatingPopupSurface extends ConsumerWidget {
         variant: GlassVariant.floating,
         borderRadius: BorderRadius.circular(16),
         child: Material(type: MaterialType.transparency, child: child),
+      ),
+      // 版画: 太枠と硬い影の箱（影の分の余白を含める）。
+      AppUiStyle.block => Padding(
+        padding: const EdgeInsets.only(right: 4, bottom: 4),
+        child: blockMaterialBox(
+          context,
+          color: Theme.of(context).brightness == Brightness.light
+              ? Colors.white
+              : colorScheme.surface,
+          child: Material(type: MaterialType.transparency, child: child),
+        ),
       ),
       _ => Material(
         color: colorScheme.surfaceContainerHigh,

@@ -1,9 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-/// 受信Webhook（寄合へ外部から投稿できる、bot・API段階1、2026-10-10追加）の
+/// 受信Webhook（寄合へ外部から投稿出来る、bot・API段階1、2026-10-10追加）の
 /// 1件分（`groups/{groupId}/webhooks/{webhookId}`）。トークンのハッシュは
 /// クライアントには持たせない（一覧に必要な項目だけ読む）。URLは作成時に
-/// 1回しか返らないため、ここには含まれない。
+/// 1回しか返らない為、ここには含まれない。
 class Webhook {
   const Webhook({
     required this.webhookId,

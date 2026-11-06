@@ -5,7 +5,7 @@ import '../models/talks_list_layout_style.dart';
 
 const _prefsKey = 'talksListLayoutStyle';
 
-/// 端末に保存されている初期の語らい一覧レイアウト。アカウントには保存せず端末ごとに持つ
+/// 端末に保存されている初期の語らい一覧レイアウト。アカウントには保存せず端末毎に持つ
 /// （2026-11-01、ユーザー指示。端末の画面の大きさで向く並びが違うため）。main()で起動前に読み込み、
 /// ProviderScopeのoverrideとして渡す。
 final initialTalksListLayoutStyleProvider = Provider<TalksListLayoutStyle>((

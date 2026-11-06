@@ -12,7 +12,7 @@ void main() {
     expect(note.type, noteTypeMarkdown);
   });
 
-  test('ドローノートのtypeを読み書きできる', () {
+  test('ドローノートのtypeを読み書き出来る', () {
     final note = Note.fromJson('n1', {
       'roomId': 'r',
       'createdBy': 'u',

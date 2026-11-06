@@ -1,7 +1,7 @@
 /// 端末をまたいで同期する表示設定（設定タブのうち、SharedPreferencesだけで
 /// 完結していた項目をFirestoreにも保存したもの）。
 ///
-/// 各フィールドがnullなのは「まだどの端末でもこの設定を変更したことがない」
+/// 各フィールドがnullなのは「まだどの端末でもこの設定を変更したことが無い」
 /// ことを表す。ログイン時、nullのフィールドは同期対象から外れ、端末側の
 /// 現在値（SharedPreferences由来）がそのまま使われる（[UserRepository]の
 /// 利用側・`applyRemoteUserPreferences`参照）。値はSharedPreferencesに
@@ -86,7 +86,7 @@ class AppUserPreferences {
   /// フォントデザイン（`FontDesign`のname、2026-09-06追加）。
   final String? fontDesign;
 
-  /// 着信音（`SoundPreset.id`、または`http`で始まるカスタムアップロード音源の
+  /// 着信音（`SoundPreset.id`、又は`http`で始まるカスタムアップロード音源の
   /// ダウンロードURL、2026-09-06追加）。
   final String? ringtoneSound;
 
@@ -100,7 +100,7 @@ class AppUserPreferences {
 
   /// ユーザーが指定した文字色（フラット/ガラスの`colorScheme.onSurface`
   /// 相当、2026-09-14追加）。アクセントカラーと異なり背景とのコントラストが
-  /// 直接可読性に関わるため、ライト/ダークで別々に保存する。
+  /// 直接可読性に関わる為、ライト/ダークで別々に保存する。
   final int? textColorLightArgb;
   final int? textColorDarkArgb;
 
@@ -120,7 +120,7 @@ class AppUserPreferences {
   final List<String>? holidayReligions;
 
   /// 初回の使い方ガイドの視聴状況（2026-10-17追加）。表示設定ではなく通過儀礼の
-  /// 記録で、アカウントごとに持つ（別の端末でも再表示しない）。**null＝既存住人
+  /// 記録で、アカウント毎に持つ（別の端末でも再表示しない）。**null＝既存住人
   /// （この機能の追加前に登録済みで、初回ガイドは出さない）／false＝新規登録で
   /// 未視聴／true＝視聴済みまたはスキップ済み**。新規作成時に`false`で保存する。
   final bool? guideSeen;

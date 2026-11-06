@@ -15,12 +15,12 @@ bool isKiwami(AppUser? user) =>
     !kKiwamiBillingEnabled || user?.subscriptionPlan == SubscriptionPlan.kiwami;
 
 /// 購入経路（2026-10-20）。ストア版のモバイル（iOS App Store・Google Play）では、アプリ内の
-/// リンクから決済するとストアの手数料がかかるため、その分を上乗せした金額の決済リンクを
+/// リンクから決済するとストアの手数料がかかる為、その分を上乗せした金額の決済リンクを
 /// 使う。Web・デスクトップ・APKの直接配布は手数料がかからず、元の金額（[standard]）。
 enum PurchaseChannel { standard, appStore, googlePlay }
 
 /// ビルド時に、ストア版だけが付ける定義（`--dart-define=DAIDAI_DISTRIBUTION=app_store`
-/// または`google_play`）。付けなければ[PurchaseChannel.standard]。
+/// 又は`google_play`）。付けなければ[PurchaseChannel.standard]。
 const kDistribution = String.fromEnvironment('DAIDAI_DISTRIBUTION');
 
 /// 購入経路を決める（判定だけの純粋な関数）。`app_store`はiOS、`google_play`はAndroidで

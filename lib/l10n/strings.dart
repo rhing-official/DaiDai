@@ -56,6 +56,7 @@ class Strings {
     required this.settingsOpenSourceLicenses,
     required this.settingsBlockedUsersTitle,
     required this.settingsBlockedUsersEmpty,
+    required this.settingsBlockedUsersLoadFailed,
     required this.settingsBlockedUsersUnblock,
     required this.settingsBlockedUsersShowMoreTemplate,
     required this.settingsAccentColor,
@@ -106,6 +107,7 @@ class Strings {
     required this.settingsTextSizeMedium,
     required this.settingsTextSizeLarge,
     required this.settingsIconSplitAdjustNote,
+    required this.settingsIconSplitAdjustTitle,
     required this.settingsIconSplitAdjustButton,
     required this.settingsSlidePickTitle,
     required this.settingsSlidePickSubtitle,
@@ -443,6 +445,9 @@ class Strings {
     required this.mediaShareTooltip,
     required this.forwardDialogTitle,
     required this.forwardSearchHint,
+    required this.forwardPreviewTitle,
+    required this.forwardChooseHint,
+    required this.forwardConfirm,
     required this.forwardNoResults,
     required this.forwardBack,
     required this.forwardSending,
@@ -1075,6 +1080,7 @@ class Strings {
   final String settingsOpenSourceLicenses;
   final String settingsBlockedUsersTitle;
   final String settingsBlockedUsersEmpty;
+  final String settingsBlockedUsersLoadFailed;
   final String settingsBlockedUsersUnblock;
 
   /// ブロックしたユーザー一覧が[kBlockedUsersPreviewCount]件を超える場合に
@@ -1140,6 +1146,7 @@ class Strings {
   final String settingsTextSizeMedium;
   final String settingsTextSizeLarge;
   final String settingsIconSplitAdjustNote;
+  final String settingsIconSplitAdjustTitle;
   final String settingsIconSplitAdjustButton;
   final String settingsSlidePickTitle;
   final String settingsSlidePickSubtitle;
@@ -1546,6 +1553,9 @@ class Strings {
   final String mediaShareTooltip;
   final String forwardDialogTitle;
   final String forwardSearchHint;
+  final String forwardPreviewTitle;
+  final String forwardChooseHint;
+  final String forwardConfirm;
   final String forwardNoResults;
   final String forwardBack;
   final String forwardSending;
@@ -1587,7 +1597,7 @@ class Strings {
   final String done;
   final String delete;
 
-  /// 「もっと見る」で展開した一覧を再び閉じるための汎用文言（フォント
+  /// 「もっと見る」で展開した一覧を再び閉じる為の汎用文言（フォント
   /// デザイン・ブロックしたユーザー一覧で共用、2026-09-16追加）。
   final String showLess;
 
@@ -1711,7 +1721,7 @@ class Strings {
   /// 寄合ハンバーガーメニューの「この寄合の色優先順位を設定」項目。
   final String groupRoomRolePriorityMenuItem;
 
-  /// 寄合ごとの優先順位上書きを解除し、広場全体の設定に戻すボタン。
+  /// 寄合毎の優先順位上書きを解除し、広場全体の設定に戻すボタン。
   final String groupRoomRolePriorityResetButton;
 
   /// 広場のハンバーガーメニュー、単一モードから複数モードへの切り替え項目
@@ -1723,7 +1733,7 @@ class Strings {
   final String dmMenuEnableMultipleRooms;
 
   /// 広場全体設定ポップアップの、通知オフのデフォルト値トグル
-  /// （2026-07-29追加、寄合ごとに「この寄合独自の設定」で上書き可能）。
+  /// （2026-07-29追加、寄合毎に「この寄合独自の設定」で上書き可能）。
   final String groupSettingsDefaultMuteLabel;
   final String groupSettingsDefaultMuteHint;
 
@@ -1763,7 +1773,7 @@ class Strings {
 
   /// 寄合ハンバーガーメニュー最下部の「この寄合独自の設定」トグル。ONの間、
   /// 通知・既読・ロールの優先順位を広場全体の設定より優先してこの寄合だけ
-  /// 個別に設定できる（`Room.customSettingsEnabled`、2026-07-29追加）。
+  /// 個別に設定出来る（`Room.customSettingsEnabled`、2026-07-29追加）。
   final String groupRoomCustomSettingsLabel;
   final String groupRoomCustomSettingsHint;
 
@@ -1776,11 +1786,11 @@ class Strings {
   final String dmSettingsTooltip;
 
   /// 寄合機能トグルがオンのまま無効化されている（オフに戻せない）ことを
-  /// 説明する文言。寄合が2件以上ある間はオフにできない（一対・広場共通、
+  /// 説明する文言。寄合が2件以上ある間はオフに出来ない（一対・広場共通、
   /// 2026-09-14追加、以前の「単一には戻せません」等の個別文言から統合）。
   final String roomModeToggleLockedHint;
 
-  /// 会話（一対・広場）ごとに使うプロフィールカードを選ぶピッカーのラベル
+  /// 会話（一対・広場）毎に使うプロフィールカードを選ぶピッカーのラベル
   /// （`AppUser.conversationProfileCardId`、2026-07-29追加）。広場参加・
   /// 友達申請3系統・全体設定の計5箇所で共通して使う。
   final String profileCardPickerLabel;
@@ -1798,12 +1808,12 @@ class Strings {
   final String Function(String cardName)
   profileCardPickerStandardOptionWithName;
 
-  /// 身だしなみ＞工房内、会話ごとのプロフィールカード割り当て一覧セクションの
+  /// 身だしなみ＞工房内、会話毎のプロフィールカード割り当て一覧セクションの
   /// タイトル（2026-07-29追加、2026-08-02に設定＞語らいから工房へ移動）。
   final String settingsProfileCardAssignmentTitle;
 
   /// 上記セクションのタイトル直下に添える一言説明。「相手のカードを選ぶ」
-  /// 機能だと誤解されやすいため、自分が使うカードを選ぶ機能であることを
+  /// 機能だと誤解されやすい為、自分が使うカードを選ぶ機能であることを
   /// 明示する（2026-07-30追加）。工房移動後は「標準カード以外を使う語らいだけ
   /// 表示する」絞り込みの説明も兼ねる（2026-08-02更新）。
   final String settingsProfileCardAssignmentHint;
@@ -1817,7 +1827,7 @@ class Strings {
   /// タイトルの両方に使う（2026-07-30追加、`ConversationProfileCardDialog`）。
   final String conversationProfileCardMenuLabel;
 
-  /// 工房の会話ごとのプロフィールカードセクションにある＋ボタンで開く、
+  /// 工房の会話毎のプロフィールカードセクションにある＋ボタンで開く、
   /// 対象の語らいを選ぶダイアログのタイトル。
   final String workshopConversationCardAddDialogTitle;
 
@@ -1843,7 +1853,7 @@ class Strings {
   final String groupMemberListTitle;
   final String groupMemberListPendingSection;
 
-  /// 承認できる人に出す、参加リクエスト件数のバナー文言（2026-10-11追加）。
+  /// 承認出来る人に出す、参加リクエスト件数のバナー文言（2026-10-11追加）。
   final String Function(int count) joinRequestBannerLabel;
   final String groupMemberListMembersSection;
 
@@ -1881,7 +1891,7 @@ class Strings {
   groupJoinNoApprovalDescriptionTemplate;
   final String groupJoinRequestButton;
 
-  /// 承認不要の広場で、すぐ参加するボタン（2026-10-11追加）。
+  /// 承認不要の広場で、直ぐ参加するボタン（2026-10-11追加）。
   final String groupJoinNowButton;
 
   /// 広場の設定: 参加に長の承認が必要か（2026-10-11追加）。
@@ -1907,7 +1917,7 @@ class Strings {
   final String settingsDeleteAccountCancelButton;
 
   /// 長を務める広場が残っている間、アカウント削除（通常・即時どちらも）を
-  /// 先に進ませないためのガードダイアログの文言（2026-08-02追加）。
+  /// 先に進ませない為のガードダイアログの文言（2026-08-02追加）。
   final String accountDeleteOwnerGuardTitle;
 
   /// 対象の広場が1件以上ある場合に表示する説明文。
@@ -1927,7 +1937,7 @@ class Strings {
   final String accountRestoreSignOutButton;
 
   /// アカウント停止中（[AccountStatus.suspended]）に表示する画面の文言
-  /// （2026-08-12追加）。管理者による停止のため、[AccountRestoreScreen]と
+  /// （2026-08-12追加）。管理者による停止の為、[AccountRestoreScreen]と
   /// 違い自己解除の手段は用意しない。
   final String accountSuspendedTitle;
   final String accountSuspendedMessage;
@@ -1935,7 +1945,7 @@ class Strings {
 
   /// 既存ユーザーの住人データ取得・パースに失敗した際に表示する画面の
   /// 文言（2026-09-24追加、`AuthGate`参照）。取得失敗を新規ユーザーと
-  /// 誤判定して新規登録フローに送り込むとデータ上書き事故になるため、
+  /// 誤判定して新規登録フローに送り込むとデータ上書き事故になる為、
   /// エラー時はこの画面で再試行を促す。
   final String authLoadErrorTitle;
   final String authLoadErrorMessage;
@@ -1982,8 +1992,8 @@ class Strings {
   final String Function(String term) roomFeatureEnableLabel;
 
   /// 一対のハンバーガーメニューの「削除」項目。相手がアカウントを削除した
-  /// 通知に「いいえ」と答えた後（または未応答のまま）でも、いつでもここから
-  /// 削除できる。用語（「一対」等）を差し込む。
+  /// 通知に「いいえ」と答えた後（又は未応答のまま）でも、いつでもここから
+  /// 削除出来る。用語（「一対」等）を差し込む。
   final String Function(String term) dmMenuDeleteConversation;
 
   // 寄合単位の共有アルバム機能（2026-08-30追加）。
@@ -2342,7 +2352,7 @@ class Strings {
   final String groupCallBackToGridTooltip;
   final String groupProfileCardChangeImage;
 
-  /// 誕生日（蔵で登録、仕立てでカードごとに表示を選ぶ、2026-10-23追加）。
+  /// 誕生日（蔵で登録、仕立てでカード毎に表示を選ぶ、2026-10-23追加）。
   final String profileBirthdaySectionTitle;
   final String profileAddBirthday;
   final String birthdayYearLabel;
@@ -2392,7 +2402,7 @@ class Strings {
     settingsFolderTalk: '語らい',
     settingsNavChipsTitle: 'メニューチップ',
     settingsNavChipsDescription:
-        'メニューの並びと位置（揃え）を変えられます。縦表示は下部で左・中央・右、横表示は左端で上・中央・下に揃います。',
+        'メニューの並びと位置（揃え）を変えられます。\n縦表示は下部で左・中央・右、横表示は左端で上・中央・下に揃います。',
     settingsNavChipsAlignmentTitle: '揃え',
     settingsNavChipsAlignmentNarrowTitle: '縦表示の揃え',
     settingsNavChipsAlignmentWideTitle: '横表示の揃え',
@@ -2402,12 +2412,12 @@ class Strings {
     settingsNavChipsAlignTop: '上揃え',
     settingsCategoryListAlignTitle: '設定・身だしなみの項目の位置',
     settingsCategoryListAlignNote:
-        'スマホでのみ適用されます。この設定は端末ごとに保存され、アカウントや他の端末には引き継がれません。',
+        'スマホでのみ適用されます。\nこの設定は端末毎に保存され、アカウントや他の端末には引き継がれません。',
     settingsNavChipsAlignBottom: '下揃え',
     settingsNavChipsOrderTitle: '並び',
-    settingsCallJoinCameraTitle: 'ビデオ通話に参加するときカメラをオンにする',
+    settingsCallJoinCameraTitle: 'ビデオ通話に参加する時カメラをオンにする',
     settingsCallJoinCameraSubtitle:
-        'オフにすると、ビデオ通話に応答・参加したときはカメラを切った状態（音声のみ）で入ります。通話中にいつでもオンにできます。自分から発信する1対1のビデオ通話には影響しません。',
+        'オフにすると、ビデオ通話に応答・参加した時はカメラを切った状態（音声のみ）で入ります。\n通話中にいつでもオンに出来ます。\n自分から発信する1対1のビデオ通話には影響しません。',
     settingsFolderSupport: '運営',
     settingsAnnouncements: 'お便り',
     settingsAboutApp: 'アプリについて',
@@ -2418,11 +2428,12 @@ class Strings {
     settingsOpenSourceLicenses: 'オープンソースライセンス',
     settingsBlockedUsersTitle: 'ブロックしたユーザー',
     settingsBlockedUsersEmpty: 'ブロックしたユーザーはいません',
+    settingsBlockedUsersLoadFailed: '取得に失敗しました',
     settingsBlockedUsersUnblock: 'ブロック解除',
     settingsBlockedUsersShowMoreTemplate: (remaining) => 'もっと見る（あと$remaining件）',
     settingsAccentColor: 'アクセントカラー',
     settingsAccentColorGekigaHint: '劇画UIでは背景色として使われます',
-    settingsAppearanceGekigaLockedHint: '劇画UIを選択中は変更できません',
+    settingsAppearanceGekigaLockedHint: '劇画UIを選択中は変更出来ません',
     settingsAppearance: '外観',
     settingsAppearanceLight: 'ライト',
     settingsAppearanceDark: 'ダーク',
@@ -2431,7 +2442,7 @@ class Strings {
     settingsColorPresets: 'プリセット',
     settingsTextColorTitle: 'フォントカラー',
     settingsTextColorDescription:
-        'ライト・ダークそれぞれの文字色をカラーコードで指定できます。背景に近い色を選ぶと読みにくくなるため注意してください。',
+        'ライト・ダークそれぞれの文字色をカラーコードで指定出来ます。\n背景に近い色を選ぶと読みにくくなるため注意して下さい。',
     settingsTextColorLightLabel: 'ライト用',
     settingsOnAccentColorLabel: 'アクセント上',
     settingsOnAccentColorAuto: '自動',
@@ -2454,11 +2465,11 @@ class Strings {
     settingsChatLayoutTitle: 'メッセージの表示',
     settingsChatLayoutSideBySide: '自分は右・相手は左',
     settingsChatLayoutSideBySideDescription:
-        '自分のアイコンは表示しません。一対では相手のアイコン・呼び名も表示しません（広場では表示します）。'
+        '自分のアイコンは表示しません。\n一対では相手のアイコン・呼び名も表示しません。\n'
         'この設定は自分の画面にのみ反映され、相手の語らいの表示には影響しません。',
     settingsChatLayoutAllLeft: 'どちらも左寄せ',
     settingsChatLayoutAllLeftDescription:
-        '自分・相手ともにアイコンと呼び名を表示します。'
+        '自分・相手ともにアイコンと呼び名を表示します。\n'
         'この設定は自分の画面にのみ反映され、相手の語らいの表示には影響しません。',
     settingsSlideTransitionTitle: '画面遷移',
     settingsSlideTransitionSlideBlur: 'スライド＋滲み',
@@ -2467,21 +2478,22 @@ class Strings {
     settingsSlideTransitionPop: 'ポップ',
     settingsTalksListLayoutTitle: '語らい一覧のレイアウト',
     settingsTalksListLayoutNote:
-        '縦画面で適用されます。横画面（幅の広い画面）のコンピューターでは、この設定にかかわらず左右分割で表示されます。',
-    settingsTextSizeTitle: '文字サイズ',
+        '縦画面で適用されます。\n横画面のコンピューターでは、この設定にかかわらず左右分割で表示されます。',
+    settingsTextSizeTitle: 'フォントサイズ',
     settingsTextSizeSubtitle:
-        'アプリ全体の文字の大きさを変えます。「アイコン＋寄合一覧」の幅とアイコンも一緒に大きくなります。この端末だけに保存されます。',
+        'アプリ全体の文字の大きさを変えます。\n「アイコン＋寄合一覧」の幅とアイコンも一緒に大きくなります。\nこの端末だけに保存されます。',
     settingsTextSizeSmall: '小',
     settingsTextSizeMedium: '中',
     settingsTextSizeLarge: '大',
+    settingsIconSplitAdjustTitle: '幅を調整',
     settingsIconSplitAdjustButton: '幅を調整する',
     settingsIconSplitAdjustNote:
-        '語らい一覧の幅は、「幅を調整する」を押すと区切り線をドラッグして変えられます（ダブルタップで元の幅、タップで終了）。この端末だけに保存されます。',
+        '語らい一覧の幅は、下のブロックを押すと区切り線をドラッグして変えられます（ダブルタップで元の幅、タップで終了）。\nこの端末だけに保存されます。',
     settingsSlidePickTitle: '押したまま滑らせて選ぶ',
     settingsSlidePickSubtitle:
-        'メニューチップや語らいのボタンを押したまま指を滑らせ、離した所を選びます。オフにすると、1回ずつタップして操作します。',
+        'メニューチップや語らいのボタンを押したまま指を滑らせ、離した所を選びます。\nオフにすると、1回ずつタップして操作します。',
     settingsTalksListMirrorTitle: '左右を反転する',
-    settingsTalksListMirrorSubtitle: '「アイコン＋寄合一覧」のとき、アイコン列を右端に、メッセージ画面を左にします。',
+    settingsTalksListMirrorSubtitle: '「アイコン＋寄合一覧」の時、アイコン列を右端に、メッセージ画面を左にします。',
     settingsTalksListLayoutStandard: 'アイコンのみ',
     settingsTalksListLayoutStandardDescription: '一対・広場をアイコンで縦一列に表示します。',
     settingsTalksListLayoutIconSplit: 'アイコン＋寄合一覧',
@@ -2521,7 +2533,7 @@ class Strings {
     kiwamiPurchase: '極みを購入する',
     kiwamiSectionTitle: '極み',
     kiwamiManage: '契約の管理（解約・カードの変更）',
-    kiwamiManageFailed: '契約が見つかりませんでした。購入していない場合や、運営が付与した場合は、ここからは管理できません。',
+    kiwamiManageFailed: '契約が見つかりませんでした。購入していない場合や、運営が付与した場合は、ここからは管理出来ません。',
     kiwamiManageUnavailable: '契約の管理を開けませんでした。しばらくしてからもう一度お試しください。',
     fontDesignShowMoreTemplate: (remaining) => 'もっと見る（あと$remaining件）',
     fontDesignSameAsSystemLabel: 'システムと同じ',
@@ -2541,9 +2553,9 @@ class Strings {
     soundPresetPopLabel: 'ポップ',
     soundPresetHappyLabel: 'ハッピー',
     soundUploadOptionLabel: 'アップロード',
-    soundUploadTooLargeError: 'ファイルサイズが大きすぎます（3MB以下にしてください）',
+    soundUploadTooLargeError: 'ファイルサイズが大きすぎます（3MB以下にして下さい）',
     soundUploadUnsupportedFormatError:
-        '対応していない形式です（mp3・wav・m4a・ogg・aacのいずれかを選んでください）',
+        '対応していない形式です（mp3・wav・m4a・ogg・aacのいずれかを選んで下さい）',
     settingsAccountInfoSection: 'アカウント情報',
     settingsRhingSeedLabel: 'Rhing Seed',
     settingsSecurity: 'セキュリティ',
@@ -2552,7 +2564,7 @@ class Strings {
     twoFactorDisabledStatus: '無効',
     twoFactorSetupDialogTitle: '2段階認証を設定',
     twoFactorSetupDescription:
-        '認証アプリ（Google Authenticator等）でQRコードを読み取るか、シークレットキーを手入力してから、表示された6桁のコードを入力してください。',
+        '認証アプリ（Google Authenticator等）でQRコードを読み取るか、シークレットキーを手入力してから、表示された6桁のコードを入力して下さい。',
     twoFactorSecretKeyLabel: 'シークレットキー',
     twoFactorCodeLabel: 'コード',
     twoFactorEnrollButton: '有効にする',
@@ -2560,32 +2572,32 @@ class Strings {
     twoFactorDisableConfirmTitle: '2段階認証を無効にしますか？',
     twoFactorDisableConfirmMessage: '次回以降のログインでコードの入力を求められなくなります。',
     twoFactorDisableConfirmButton: '無効にする',
-    twoFactorRequiresRecentLoginError: '確認のため、もう一度ログインしてからお試しください。',
+    twoFactorRequiresRecentLoginError: '確認の為、もう一度ログインしてからお試しください。',
     twoFactorReauthenticateButton: '再ログインする',
     twoFactorChallengeTitle: '認証アプリのコードを入力',
-    twoFactorChallengeDescription: 'アプリに表示されているコードを入力してください。',
+    twoFactorChallengeDescription: 'アプリに表示されているコードを入力して下さい。',
     twoFactorChallengeConfirmButton: '確認',
     qrLoginDialogTitle: 'QRコードでログイン',
     qrLoginDialogDescription:
-        'ログイン済みの端末でDaiDaiを開き、設定＞アカウント＞セキュリティ＞QRコードによるログインからこのQRコードを読み取ってください。',
+        'ログイン済みの端末でDaiDaiを開き、設定＞アカウント＞セキュリティ＞QRコードによるログインからこのQRコードを読み取って下さい。',
     qrLoginExpiredMessage: 'QRコードの有効期限が切れました',
     qrLoginRefreshButton: '更新する',
     qrLoginSignInError: 'ログインに失敗しました',
     passkeyCreateAccountButton: 'Rhing Seedでアカウントを作成',
     passkeySignInButton: 'パスキーでログイン',
     passkeySignInDialogDescription:
-        '登録済みのRhing Seedを入力してください。空欄のまま「ログイン」を押すと、保存済みのパスキーから選べます。',
+        '登録済みのRhing Seedを入力して下さい。空欄のまま「ログイン」を押すと、保存済みのパスキーから選べます。',
     passkeySignInDialogRhingSeedLabel: 'Rhing Seed（空欄でもOK）',
     passkeySignInDialogSubmitButton: 'ログイン',
-    passkeySignInDialogError: 'ログインに失敗しました。Rhing Seedまたはパスキーをご確認ください。',
+    passkeySignInDialogError: 'ログインに失敗しました。Rhing Seed又はパスキーをご確認ください。',
     passkeySignInDialogErrorNotFound: 'そのRhing Seedのアカウントが見つかりません。',
     passkeySignInDialogErrorNoPasskey:
-        'このアカウントにはパスキーが登録されていません。Googleでログイン後、設定＞セキュリティからパスキーを追加できます。',
+        'このアカウントにはパスキーが登録されていません。Googleでログイン後、設定＞セキュリティからパスキーを追加出来ます。',
     passkeyRecoveryLinkLabel: 'パスキーが使えない場合',
     passkeyRecoveryDialogTitle: 'アカウントの復旧',
-    passkeyRecoveryDialogRhingSeedDescription: '登録済みのRhing Seedを入力してください。',
+    passkeyRecoveryDialogRhingSeedDescription: '登録済みのRhing Seedを入力して下さい。',
     passkeyRecoveryDialogNextButton: '次へ',
-    passkeyRecoveryDialogAnswerDescription: '以下の質問に回答してください。',
+    passkeyRecoveryDialogAnswerDescription: '以下の質問に回答して下さい。',
     passkeyRecoveryDialogSubmitButton: '復旧する',
     passkeyRecoveryErrorNotFound: 'そのRhing Seedのアカウントが見つかりません。',
     passkeyRecoveryErrorNoQuestionsConfigured: 'このアカウントには復旧手段が設定されていません。',
@@ -2593,10 +2605,10 @@ class Strings {
     passkeyRecoveryErrorWrongAnswers: '入力内容が正しくありません。',
     passkeyRecoveryErrorGeneric: '復旧に失敗しました。',
     passkeyRecoveryAddNewPasskeyTitle: '新しいパスキーを登録しますか？',
-    passkeyRecoveryAddNewPasskeyDescription: '紛失した端末の代わりに、この端末で新しいパスキーを登録できます。',
-    passkeyRecoveryAddNewPasskeyConfirmButton: '今すぐ登録',
+    passkeyRecoveryAddNewPasskeyDescription: '紛失した端末の代わりに、この端末で新しいパスキーを登録出来ます。',
+    passkeyRecoveryAddNewPasskeyConfirmButton: '今直ぐ登録',
     qrLoginScanConfirmTitle: 'この端末でのログインを許可しますか？',
-    qrLoginScanConfirmMessage: '心当たりが無い場合は許可しないでください。',
+    qrLoginScanConfirmMessage: '心当たりが無い場合は許可しないで下さい。',
     qrLoginScanConfirmButton: '許可する',
     qrLoginInvalidQrError: '無効なQRコードです',
     qrLoginApproveError: '承認に失敗しました。QRコードの有効期限が切れている可能性があります。',
@@ -2606,24 +2618,24 @@ class Strings {
     qrLoginScanButton: 'QRコードを読み取る',
     qrIssueDialogTitle: 'QRコードでログイン',
     qrIssueDialogDescription:
-        'ログインしたい端末でDaiDaiのログイン画面を開き、「QRコードを読み取ってログイン」からこのQRコードを読み取ってもらってください。',
-    qrIssueExpiresHint: 'このQRコードは2分間有効で、1回だけ使えます。他の人には見せないでください。',
+        'ログインしたい端末でDaiDaiのログイン画面を開き、「QRコードを読み取ってログイン」からこのQRコードを読み取ってもらって下さい。',
+    qrIssueExpiresHint: 'このQRコードは2分間有効で、1回だけ使えます。他の人には見せないで下さい。',
     qrIssueRequestTitle: 'ログインを許可しますか？',
-    qrIssueRequestMessage: '別の端末がこのアカウントでログインしようとしています。心当たりがなければ拒否してください。',
+    qrIssueRequestMessage: '別の端末がこのアカウントでログインしようとしています。心当たりがなければ拒否して下さい。',
     qrIssueAllow: '許可する',
     qrIssueDeny: '拒否する',
     qrIssueApproved: 'ログインを許可しました',
-    qrIssueError: 'QRコードを作成できませんでした',
+    qrIssueError: 'QRコードを作成出来ませんでした',
     qrScanLoginButton: 'QRコードを読み取ってログイン',
     qrScanLoginInstructionMessage:
-        'ログイン済みの端末でDaiDaiを開き、設定＞アカウント＞セキュリティ＞「QRコードでログイン」を開いてQRコードを表示してから、この端末で読み取ってください。',
+        'ログイン済みの端末でDaiDaiを開き、設定＞アカウント＞セキュリティ＞「QRコードでログイン」を開いてQRコードを表示してから、この端末で読み取って下さい。',
     qrScanLoginWaitingTitle: 'ログインの許可を待っています',
-    qrScanLoginWaitingMessage: 'ログイン済みの端末で「許可する」を押してください。',
+    qrScanLoginWaitingMessage: 'ログイン済みの端末で「許可する」を押して下さい。',
     qrScanLoginDenied: 'ログインが許可されませんでした',
-    qrScanLoginRequestError: 'このQRコードではログインできません（期限切れ・使用済みの可能性があります）',
+    qrScanLoginRequestError: 'このQRコードではログイン出来ません（期限切れ・使用済みの可能性があります）',
     settingsPasskey: 'パスキー',
     passkeyManagementListTitle: '登録済みのパスキー',
-    passkeyManagementEmptyMessage: '登録済みのパスキーはありません。',
+    passkeyManagementEmptyMessage: '登録済みのパスキーは有りません。',
     passkeyManagementAddButton: '＋ 新しいパスキーを追加',
     passkeyManagementDeleteConfirmTitle: 'このパスキーを削除しますか？',
     passkeyManagementDeleteConfirmMessage: '削除すると、この端末ではパスキーでログインできなくなります。',
@@ -2637,7 +2649,7 @@ class Strings {
     passkeyManagementNameDialogHint: '例: MacBookのパスキー（空欄でも可）',
     passkeyManagementRenameTooltip: '名前を変更',
     secretQuestionsSectionTitle: '秘密の質問',
-    secretQuestionsSectionDescription: 'パスキーが使えなくなった場合、この質問でアカウントを復旧できます。',
+    secretQuestionsSectionDescription: 'パスキーが使えなくなった場合、この質問でアカウントを復旧出来ます。',
     secretQuestionsStatusConfigured: '設定済み',
     secretQuestionsStatusNotConfigured: '未設定',
     secretQuestionsEditButton: '設定・変更する',
@@ -2660,18 +2672,18 @@ class Strings {
     settingsStickerSendModeDiscord: '1回タップで送信',
     settingsStickerSendModeDiscordSubtitle: 'タップすると即座に送信します',
     settingsDraftSyncTitle: '入力中のメッセージを他の端末と同期',
-    settingsDraftSyncSubtitle: '入力欄に途中まで書いた内容を、別の端末で同じ語らいを開いたときに復元します',
+    settingsDraftSyncSubtitle: '入力欄に途中まで書いた内容を、別の端末で同じ語らいを開いた時に復元します',
     back: '戻る',
     friendSearchTitle: '友達を追加',
-    friendSearchHint: '相手のRhing Seedを入力して友達申請を送ります。承認されると会話できるようになります。',
+    friendSearchHint: '相手のRhing Seedを入力して友達申請を送ります。承認されると会話出来るようになります。',
     friendSearchLabel: '相手のRhing Seed',
     friendSearchButton: '申請を送る',
     friendSearchSearchButton: '検索',
     friendSearchNotFound: 'そのRhing Seedの住人は見つかりませんでした',
-    friendSearchSelf: '自分自身には申請できません',
+    friendSearchSelf: '自分自身には申請出来ません',
     friendRequestSent: '友達申請を送りました',
-    friendRequestAlreadySent: 'すでに申請中です',
-    friendRequestAlreadyFriends: 'すでに友達です',
+    friendRequestAlreadySent: '既に申請中です',
+    friendRequestAlreadyFriends: '既に友達です',
     friendRequestAccept: '承認',
     friendRequestDecline: '拒否',
     userProfileCardSendRequest: '友達申請を送る',
@@ -2685,7 +2697,7 @@ class Strings {
     friendRequestIncomingSubtitle: '相手から申請が届いています',
     friendRequestOutgoingSubtitle: '相手の承認を待っています',
     friendRequestMessageLabel: 'メッセージ（任意、100文字まで）',
-    friendRequestRateLimited: '短時間に多くの友達申請を送っているため、しばらく時間をおいてから再度お試しください',
+    friendRequestRateLimited: '短時間に多くの友達申請を送っている為、しばらく時間をおいてから再度お試しください',
     chatSpamWarningTitle: 'スパムの可能性があります',
     chatSpamWarningMessage: '入力した内容がスパムと疑われる特徴を含んでいます。このまま送信しますか？',
     chatSpamWarningSendAnyway: '送信する',
@@ -2701,7 +2713,7 @@ class Strings {
     conversationSortRecent: '最近会話した順',
     conversationSortKana: '五十音順',
     conversationSortUnreadFirst: '未読優先',
-    conversationBlockedCannotSend: 'ブロック中のため送信できません',
+    conversationBlockedCannotSend: 'ブロック中のため送信出来ません',
     talksListPreviewImage: '[画像]',
     talksListPreviewMulti: '[複数の添付]',
     talksListPreviewVideo: '[動画]',
@@ -2731,7 +2743,7 @@ class Strings {
     severanceAcceptDialogMessage:
         '同意すると、これまでの会話履歴が完全に削除され、友達関係も解消されます。この操作は取り消せません。',
     severanceAcceptButton: '同意して削除する',
-    severanceBannerWaitingForOther: '絶縁を提案しました。相手の承認を待ってください。',
+    severanceBannerWaitingForOther: '絶縁を提案しました。相手の承認を待って下さい。',
     severanceBannerCancelButton: '取り消す',
     severanceBannerProposedByOther: '相手が絶縁を提案しています',
     severanceBannerDeclineButton: '今は同意しない',
@@ -2755,14 +2767,14 @@ class Strings {
     chatPinAction: 'ピン留め',
     chatUnpinAction: 'ピン留め解除',
     chatPinnedMessagesTooltip: 'ピン留めされたメッセージ',
-    chatPinnedMessagesEmpty: 'ピン留めされたメッセージはありません',
+    chatPinnedMessagesEmpty: 'ピン留めされたメッセージは有りません',
     chatScreenshotAction: 'スクリーンショット',
     chatScreenshotSelectionModeTitle: (count) => '$count件を撮影',
     chatScreenshotDialogTitle: 'スクリーンショットを撮影',
     chatScreenshotBlurCheckboxLabel: '呼び名にぼかしを入れる',
     chatScreenshotConfirmButton: '撮影する',
     chatScreenshotErrorMessage: 'スクリーンショットの作成に失敗しました',
-    chatScreenshotSplitMessage: (count) => '選択範囲が長いため、画像を$count枚に分割しました',
+    chatScreenshotSplitMessage: (count) => '選択範囲が長い為、画像を$count枚に分割しました',
     chatScreenshotSavedMessage: (count, path) =>
         '$count枚のスクリーンショットを保存しました: $path',
     chatScreenshotSavedToGalleryMessage: (count) =>
@@ -2807,7 +2819,7 @@ class Strings {
     chatAttachVideo: '動画',
     chatAttachCapture: '撮影',
     chatAttachPoll: '投票',
-    chatNoStickersMessage: 'まだぺったんがありません',
+    chatNoStickersMessage: 'まだぺったんが有りません',
     stickerPackNotFoundMessage: 'このぺったんは見つかりませんでした',
     stickerSearchHint: 'ぺったんを検索',
     stickerRecentTab: '最近使ったぺったん',
@@ -2818,11 +2830,11 @@ class Strings {
     uninstallStickerConfirmTitle: 'アンインストールしますか？',
     uninstallStickerConfirmMessage: 'アンインストールすると、このぺったんは送信できなくなります。',
     uninstallStickerConfirmButton: 'アンインストールする',
-    chatAttachmentTooLargeMessage: '2GBを超えるファイルは送信できません',
+    chatAttachmentTooLargeMessage: '2GBを超えるファイルは送信出来ません',
     chatAttachmentTooManyMessage: (max) => '一度に送れるのは$max件までです。先頭の$max件を送ります',
-    chatPendingTrayLimitMessage: (max) => '一度に添付できるのは$max件までです',
+    chatPendingTrayLimitMessage: (max) => '一度に添付出来るのは$max件までです',
     chatPendingTrayRemoveTooltip: '外す',
-    chatAttachmentBlockedExtensionMessage: 'この拡張子のファイルは送信できません',
+    chatAttachmentBlockedExtensionMessage: 'この拡張子のファイルは送信出来ません',
     chatAttachmentSendFailedMessage: '送信に失敗しました',
     chatResendAction: '再送',
     chatAttachmentUploadingLabel: (percent) => 'アップロード中… $percent%',
@@ -2833,16 +2845,19 @@ class Strings {
     mediaForwardTooltip: '転送',
     mediaShareTooltip: '共有',
     forwardDialogTitle: '転送先を選ぶ',
-    forwardSearchHint: '名前で検索',
-    forwardNoResults: '該当する転送先がありません',
+    forwardSearchHint: '名前・寄合で検索',
+    forwardPreviewTitle: '転送する内容',
+    forwardChooseHint: '左から転送先を選んでください',
+    forwardConfirm: '転送',
+    forwardNoResults: '該当する転送先が有りません',
     forwardBack: '戻る',
     forwardSending: '転送しています…',
     forwardDone: '転送しました',
-    forwardFailed: '転送できませんでした',
+    forwardFailed: '転送出来ませんでした',
     setupBack: '戻る',
     setupNext: '次へ',
     setupDone: '完了',
-    setupSkip: 'あとで',
+    setupSkip: '後で',
     setupProgress: (c, t) => '$c / $t',
     setupPresetTitle: 'おすすめから選ぶ',
     setupPresetDescription: '気に入ったものを選ぶと、まとめて設定されます。次の画面から、細かく変えられます。',
@@ -2853,7 +2868,7 @@ class Strings {
     setupPresetPlayfulName: '遊び心',
     setupPresetPlayfulDescription: '手描き風の劇画。白黒で、インパクトのある見た目。',
     setupAppearanceTitle: '見た目の雰囲気',
-    setupAppearanceDescription: '選ぶとすぐ、後ろの画面が変わります。あとで設定から、いつでも変えられます。',
+    setupAppearanceDescription: '選ぶとすぐ、後ろの画面が変わります。後で設定から、いつでも変えられます。',
     setupAccentTitle: '色',
     setupAccentDescription: 'ボタンや強調に使う色を選びます。劇画では背景の色になります。',
     setupFontTitle: '文字のかたち',
@@ -2863,7 +2878,7 @@ class Strings {
     setupTalksListTitle: '語らい一覧の見え方',
     setupTalksListDescription: '語らいの一覧の並べ方を選びます。',
     setupSendKeyTitle: '送信のしかた',
-    setupSendKeyDescription: 'Enterキーを押したときの動きを選びます。',
+    setupSendKeyDescription: 'Enterキーを押した時の動きを選びます。',
     pdfPageCount: (count) => '$countページ',
     pdfDownloadAction: 'ダウンロードして開く',
     cancel: 'キャンセル',
@@ -2903,7 +2918,7 @@ class Strings {
     workshopChoiceSelected: '選択中',
     workshopChoiceSelect: '選ぶ',
     workshopEmptyMaterialHint: '蔵に素材が登録されていません',
-    fieldRequiredError: '入力してください',
+    fieldRequiredError: '入力して下さい',
     enmusubiInviteLinkTitle: '招待リンク',
     enmusubiInviteLinkDescription: 'このリンクを知っている住人が開くと、あなたに友達申請を送れます。',
     enmusubiCopyLink: 'コピー',
@@ -2923,18 +2938,18 @@ class Strings {
     groupMenuManageRoles: 'ロール管理',
     groupMenuManagePermissions: '権限管理',
     groupPermissionMatrixHint:
-        '上のロールを選ぶと、そのロールの権限を切り替えられます。「全員」は、全メンバーに最初から付いている権限です。ほかのロールはそこへ追加で付与されます。長は常にすべての権限を持ちます。権限を変更できるのは「権限の管理」を持つメンバーだけです。',
+        '上のロールを選ぶと、そのロールの権限を切り替えられます。「全員」は、全メンバーに最初から付いている権限です。他のロールはそこへ追加で付与されます。長は常に全ての権限を持ちます。権限を変更出来るのは「権限の管理」を持つメンバーだけです。',
     groupPermissionMatrixHintWide:
-        '左のロールを選ぶと、そのロールの権限を切り替えられます。「全員」は、全メンバーに最初から付いている権限です。ほかのロールはそこへ追加で付与されます。長は常にすべての権限を持ちます。権限を変更できるのは「権限の管理」を持つメンバーだけです。',
+        '左のロールを選ぶと、そのロールの権限を切り替えられます。「全員」は、全メンバーに最初から付いている権限です。他のロールはそこへ追加で付与されます。長は常に全ての権限を持ちます。権限を変更出来るのは「権限の管理」を持つメンバーだけです。',
     groupPermissionColumnOwner: '長',
     groupPermissionColumnEveryone: '全員',
     groupMenuOpenSettings: '広場の設定',
     groupMenuLeave: '退会',
-    groupRoleListEmpty: 'まだロールがありません',
+    groupRoleListEmpty: 'まだロールが有りません',
     groupRoleCreateDialogTitle: 'ロールを追加',
     groupRoleEditDialogTitle: 'ロールを編集',
     groupRoleDialogNameLabel: 'ロール名',
-    groupRoleColorInvalid: '「#RRGGBB」の形式で入力してください',
+    groupRoleColorInvalid: '「#RRGGBB」の形式で入力して下さい',
     groupRoleColorNone: '色を設定しない',
     groupRolePermissionsLabel: '権限',
     groupPermissionLabel: (permission) => switch (permission) {
@@ -2948,16 +2963,16 @@ class Strings {
       'playBgm' => '通話にBGMを流す',
       _ => permission,
     },
-    groupRoleEveryoneNote: 'このロールは全員に自動で適用されます。削除・名前の変更はできません',
-    callVideoFailed: '映像をオンにできませんでした。カメラが他のアプリで使われていないか、許可されているか確認してください',
+    groupRoleEveryoneNote: 'このロールは全員に自動で適用されます。削除・名前の変更は出来ません',
+    callVideoFailed: '映像をオンに出来ませんでした。カメラが他のアプリで使われていないか、許可されているか確認して下さい',
     callBgmTitle: 'BGM',
     callBgmAdd: '曲を追加',
-    callBgmEmpty: '曲がありません。「曲を追加」でこの端末に登録できます（サーバーには送られません）',
+    callBgmEmpty: '曲が有りません。「曲を追加」でこの端末に登録出来ます（サーバーには送られません）',
     callBgmOtherPlaying: (title) => '$titleを再生中です。あなたが再生すると入れ替わります',
     callBgmVolume: '音量',
     callBgmStop: '止める',
     callBgmRemove: '削除',
-    callBgmAddFailed: '曲を追加できませんでした',
+    callBgmAddFailed: '曲を追加出来ませんでした',
     groupRoleDeleteConfirmTitle: 'このロールを削除しますか？',
     groupRoleDeleteConfirmButton: '削除する',
     groupRoleNoneLabel: 'ロール未設定',
@@ -2971,25 +2986,25 @@ class Strings {
     groupMenuEnableMultipleRooms: '寄合機能をオン',
     dmMenuEnableMultipleRooms: '寄合機能をオン',
     groupSettingsDefaultMuteLabel: '通知オフ',
-    groupSettingsDefaultMuteHint: '寄合ごとに「この寄合独自の設定」をオンにすると個別に上書きできます',
+    groupSettingsDefaultMuteHint: '寄合毎に「この寄合独自の設定」をオンにすると個別に上書き出来ます',
     groupSettingsDefaultReadReceiptsLabel: '既読機能',
-    groupSettingsDefaultReadReceiptsHint: '寄合ごとに「この寄合独自の設定」をオンにすると個別に上書きできます',
+    groupSettingsDefaultReadReceiptsHint: '寄合毎に「この寄合独自の設定」をオンにすると個別に上書き出来ます',
     groupSettingsHistoryVisibleLabel: '加入前のメッセージを新規メンバーに見せる',
     groupSettingsHistoryVisibleHint:
-        'オフの間、新しく加入した人は加入後のメッセージだけが見えます（添付ファイルを含む。アルバム・ノート・カレンダー・投票は対象外）。寄合ごとに「この寄合独自の設定」をオンにすると個別に上書きできます',
+        'オフの間、新しく加入した人は加入後のメッセージだけが見えます（添付ファイルを含む。アルバム・ノート・カレンダー・投票は対象外）。寄合毎に「この寄合独自の設定」をオンにすると個別に上書き出来ます',
     groupRoomHistoryVisibleShow: '加入前のメッセージを新規メンバーに見せる',
     groupRoomHistoryVisibleHide: '加入前のメッセージを新規メンバーに見せない',
     webhookMenuLabel: 'Webhook',
     webhookTitle: 'Webhook',
     webhookDescription:
-        'URLにPOSTすると、選んだ寄合にBOTとして投稿されます。URLを知っている人は誰でも投稿できるため、他の人に共有しないでください。',
+        'URLにPOSTすると、選んだ寄合にBOTとして投稿されます。URLを知っている人は誰でも投稿出来る為、他の人に共有しないで下さい。',
     webhookEmpty: 'Webhookはまだありません',
     webhookCreateButton: 'Webhookを作成',
     webhookNameLabel: '名前（BOT名として表示されます）',
     webhookRoomLabel: '投稿先の寄合',
     webhookCreateConfirm: '作成',
     webhookCreatedTitle: 'Webhookを作成しました',
-    webhookUrlOnceWarning: 'このURLは今しか表示されません。必ず今コピーして保管してください。',
+    webhookUrlOnceWarning: 'このURLは今しか表示されません。必ず今コピーして保管して下さい。',
     webhookCopyUrl: 'URLをコピー',
     webhookCopied: 'コピーしました',
     webhookCurlLabel: '使い方の例（curl）',
@@ -2998,23 +3013,23 @@ class Strings {
     webhookDeleteConfirm: '削除する',
     webhookLastUsed: (when) => '最終使用: $when',
     webhookNeverUsed: '未使用',
-    webhookCreateFailed: 'Webhookを作成できませんでした',
+    webhookCreateFailed: 'Webhookを作成出来ませんでした',
     groupRoomCustomSettingsLabel: 'この寄合独自の設定',
     groupRoomCustomSettingsHint:
-        'オンにすると、通知・既読・ロールの優先順位・加入前メッセージの公開を広場全体の設定より優先してこの寄合だけ個別に設定できます',
+        'オンにすると、通知・既読・ロールの優先順位・加入前メッセージの公開を広場全体の設定より優先してこの寄合だけ個別に設定出来ます',
     dmMenuOpenSettings: '一対の設定',
     dmSettingsTooltip: '一対の設定',
-    roomModeToggleLockedHint: '寄合が複数あるため、1つにまとめてからオフにできます',
+    roomModeToggleLockedHint: '寄合が複数ある為、1つにまとめてからオフに出来ます',
     profileCardPickerLabel: '使うプロフィールカード',
     profileCardPickerStandardOption: '標準',
     profileCardPickerStandardOptionWithName: (name) => '$name（標準）',
-    settingsProfileCardAssignmentTitle: '会話ごとのプロフィールカード',
+    settingsProfileCardAssignmentTitle: '会話毎のプロフィールカード',
     settingsProfileCardAssignmentHint:
-        '標準カード以外を使っている語らいだけがここに表示されます。＋から新しく設定できます。',
-    settingsProfileCardAssignmentEmpty: '標準以外のカードを使っている語らいはありません',
+        '標準カード以外を使っている語らいだけがここに表示されます。\n＋から新しく設定出来ます。',
+    settingsProfileCardAssignmentEmpty: '標準以外のカードを使っている語らいは有りません',
     conversationProfileCardMenuLabel: '自分のプロフィールカード',
     workshopConversationCardAddDialogTitle: 'カードを個別に設定する語らいを選ぶ',
-    workshopConversationCardAddEmpty: '設定できる語らいがありません',
+    workshopConversationCardAddEmpty: '設定出来る語らいが有りません',
     workshopConversationCardSearchHint: '名前で検索',
     groupSettingsTooltip: '広場の設定',
     groupTransferOwnershipMenuItem: '長を譲渡する',
@@ -3028,45 +3043,45 @@ class Strings {
     joinRequestBannerLabel: (count) => '参加リクエストが$count件あります',
     groupMemberListMembersSection: 'メンバー',
     groupInviteDialogTitle: '招待リンク',
-    groupInviteDialogDescription: 'このリンクを知っている人が開くと、長の承認を経てこの広場に参加できます。',
+    groupInviteDialogDescription: 'このリンクを知っている人が開くと、長の承認を経てこの広場に参加出来ます。',
     groupLeaveConfirmTitle: '広場から退会しますか？',
     groupLeaveConfirmMessage: '退会すると、この広場のメッセージは見られなくなります。',
     groupLeaveButton: '退会する',
-    groupLeaveOwnerError: '長（オーナー）は退会できません',
+    groupLeaveOwnerError: '長（オーナー）は退会出来ません',
     groupDeleteMenuLabel: '広場を削除',
     groupDeleteConfirmTitle: '広場を削除しますか？',
     groupDeleteConfirmMessage:
         '削除すると全ての寄合・メッセージ・ロールが完全に失われ、元に戻せません。'
-        '参加している全員がこの広場にアクセスできなくなります。長のみ実行できます。',
+        '参加している全員がこの広場にアクセスできなくなります。長のみ実行出来ます。',
     groupDeleteButton: '削除する',
     groupJoinScreenTitle: '広場への参加',
     groupJoinInvalid: 'この招待リンクは無効です',
     groupJoinAlreadyMember: '既にこの広場のメンバーです',
     groupJoinPending: '参加リクエストを送信済みです。長の承認をお待ちください',
-    groupJoinDeclined: '参加リクエストは承認されませんでした。この語らいは削除できます',
+    groupJoinDeclined: '参加リクエストは承認されませんでした。この語らいは削除出来ます',
     groupJoinDeclinedSubtitle: '承認されませんでした',
     groupJoinDismissButton: '削除する',
     groupJoinDescriptionTemplate: (groupName) =>
-        '「$groupName」への参加をリクエストしますか？長が承認すると参加できます。',
+        '「$groupName」への参加をリクエストしますか？長が承認すると参加出来ます。',
     groupJoinNoApprovalDescriptionTemplate: (groupName) =>
-        '「$groupName」に参加しますか？承認は不要で、すぐに参加できます。',
+        '「$groupName」に参加しますか？承認は不要で、直ぐに参加出来ます。',
     groupJoinRequestButton: '参加をリクエストする',
     groupJoinNowButton: '参加する',
     groupSettingsRequiresApprovalLabel: '参加に承認が必要',
-    groupSettingsRequiresApprovalHint: 'オフにすると、招待リンクを知っている人は誰でもすぐ参加できます',
+    groupSettingsRequiresApprovalHint: 'オフにすると、招待リンクを知っている人は誰でもすぐ参加出来ます',
     groupJoinRequestSent: '参加リクエストを送信しました。長の承認をお待ちください',
     groupJoinOpenGroup: '広場を開く',
     groupJoinRetry: '再読み込み',
     settingsDeleteAccountConfirmTitle: 'アカウントを削除しますか？',
     settingsDeleteAccountGraceOption: '30日後に削除',
     settingsDeleteAccountGraceOptionSubtitle: '30日以内に再ログインすれば取り消せます',
-    settingsDeleteAccountImmediate: '今すぐ削除',
+    settingsDeleteAccountImmediate: '今直ぐ削除',
     settingsDeleteAccountImmediateOptionSubtitle: 'この操作は取り消せません',
     settingsDeleteAccountCancelButton: 'やめる',
-    accountDeleteOwnerGuardTitle: '広場の長を譲渡してください',
+    accountDeleteOwnerGuardTitle: '広場の長を譲渡して下さい',
     accountDeleteOwnerGuardMessage:
         '以下の広場で長を務めています。アカウントを削除する前に、'
-        'それぞれ別のメンバーへ長を譲渡してください。',
+        'それぞれ別のメンバーへ長を譲渡して下さい。',
     accountDeleteOwnerGuardCleared: '全ての広場で長を譲渡しました。削除を続けられます。',
     accountDeleteOwnerGuardContinue: '続ける',
     accountRestoreTitle: 'アカウントを復元しますか？',
@@ -3087,27 +3102,27 @@ class Strings {
     chatAccountDeletedNoButton: 'いいえ',
     chatAccountDeletedConfirmTitle: '本当によろしいですか？',
     chatAccountDeletedConfirmButton: '削除する',
-    chatNoMoreHistory: 'これ以上の履歴はありません',
+    chatNoMoreHistory: 'これ以上の履歴は有りません',
     roomListAddDialogTitle: (term) => '$termを追加',
     roomListAddButton: '追加',
     roomListDeleteConfirmTitle: (term) => 'この$termを削除しますか？',
     roomListDeleteConfirmButton: '削除',
     roomRenameLabel: (term) => '$termの名前を変更',
     roomMenuDeleteLabel: (term) => '$termを削除',
-    roomDeleteLastRoomError: '最後の1つの寄合は削除できません',
+    roomDeleteLastRoomError: '最後の1つの寄合は削除出来ません',
     roomFeatureDisableLabel: (term) => '$term機能を無くす',
     roomFeatureEnableLabel: (term) => '$term機能を元に戻す',
     dmMenuDeleteConversation: (term) => '$termの削除',
     chatAddToAlbumAction: 'アルバムに登録',
     albumButtonTooltip: 'アルバム',
     albumListTitle: 'アルバム',
-    albumListEmptyMessage: 'まだアルバムがありません',
+    albumListEmptyMessage: 'まだアルバムが有りません',
     albumCreateButtonLabel: '新しいアルバム',
     albumCreateDialogTitle: 'アルバムを作成',
     albumNameFieldHint: 'アルバム名',
     albumDeleteAction: 'アルバムを削除',
     albumDeleteConfirmTitle: 'アルバムを削除しますか？',
-    albumDeleteConfirmMessage: 'このアルバム内の画像・動画もすべて削除されます。この操作は取り消せません。',
+    albumDeleteConfirmMessage: 'このアルバム内の画像・動画も全て削除されます。この操作は取り消せません。',
     albumItemCountLabel: (count) => '$count件',
     albumRemoveItemAction: 'アルバムから削除',
     albumRemoveItemConfirmTitle: 'アルバムから削除しますか？',
@@ -3119,10 +3134,10 @@ class Strings {
     albumAddSourceDeviceLabel: '端末から',
     albumAddSourceMessageLabel: 'メッセージから',
     albumMessagePickerTitle: 'メッセージから選ぶ',
-    albumMessagePickerEmptyMessage: 'まだ画像・動画のメッセージがありません',
+    albumMessagePickerEmptyMessage: 'まだ画像・動画のメッセージが有りません',
     commonCreate: '作成',
     calendarFullScreenTitle: 'カレンダー',
-    calendarPopupEmptyMessage: '今後の予定はありません',
+    calendarPopupEmptyMessage: '今後の予定は有りません',
     calendarOpenMonthTooltip: '月表示を開く',
     calendarTodayButton: '今日',
     calendarCreateDialogTitle: '予定を作成',
@@ -3150,18 +3165,18 @@ class Strings {
     noticeTargetDeletedLabel: '削除済み',
     calendarTaskBannerLabel: (title) => '予定「$title」の参加確認が未回答です',
     calendarRsvpEnabledLabel: '参加確認をする',
-    calendarRsvpPerDayLabel: '1日ごとに参加確認する',
+    calendarRsvpPerDayLabel: '1日毎に参加確認する',
     calendarRsvpDeadlineLabel: '回答期限',
     calendarRsvpDeadlineNoneLabel: '期限なし',
     calendarRsvpDeadlinePassedLabel: '（期限切れ）',
-    calendarRsvpDeadlinePassedNotice: '回答期限を過ぎたため、回答できません。',
+    calendarRsvpDeadlinePassedNotice: '回答期限を過ぎた為、回答出来ません。',
     calendarSyncStatusPendingLabel: '同期待ち',
     calendarSyncStatusSyncedLabel: 'Googleカレンダーに反映済み',
     calendarSyncStatusFailedLabel: '同期に失敗しました',
     calendarSyncStatusSkippedLabel: '未連携',
     calendarSyncOptInDialogTitle: 'Googleカレンダーと同期しますか？',
     calendarSyncOptInDialogMessage:
-        'この語らいで追加した予定（タイトル・日時・場所・説明）が、あなたのGoogleカレンダーに追加されるようになります。設定からいつでも変更できます。',
+        'この語らいで追加した予定（タイトル・日時・場所・説明）が、あなたのGoogleカレンダーに追加されるようになります。設定からいつでも変更出来ます。',
     calendarSyncOptInAcceptButton: '同期する',
     calendarSyncOptInDeclineButton: '今は同期しない',
     settingsGoogleCalendarSyncSectionTitle: '連携',
@@ -3169,7 +3184,7 @@ class Strings {
     settingsGoogleCalendarSyncDisconnectAction: '連携を解除',
     settingsGoogleCalendarSyncDisconnectConfirmTitle: '連携を解除しますか？',
     settingsGoogleCalendarSyncDisconnectConfirmMessage:
-        '以後、DaiDaiで追加した予定はGoogleカレンダーに反映されなくなります。Google側の許可自体を取り消したい場合は、Googleアカウントの設定から行ってください。',
+        '以後、DaiDaiで追加した予定はGoogleカレンダーに反映されなくなります。Google側の許可自体を取り消したい場合は、Googleアカウントの設定から行って下さい。',
     calendarSyncSetupIncompleteError:
         'Googleカレンダー連携の準備がまだ完了していません。しばらくお待ちください。',
     calendarSearchTooltip: '検索',
@@ -3179,14 +3194,14 @@ class Strings {
     calendarCategorySettingsTooltip: '種類の設定',
     calendarCategoryListTitle: '予定・日程調整の種類',
     calendarWeekStartLabel: '週の始まり',
-    calendarEndBeforeStartError: '終了日時は開始日時より後にしてください',
+    calendarEndBeforeStartError: '終了日時は開始日時より後にして下さい',
     calendarWeekStartSunday: '日曜日',
     calendarWeekStartMonday: '月曜日',
     calendarSystemLabel: '暦',
     calendarSystemFollowGlobal: '標準',
     calendarSystemGregorian: '西暦',
     calendarSystemJapanese: '和暦',
-    calendarSystemNote: '暦は自分の画面の表示だけに使います。ほかの人の画面や予定の日時は変わりません。',
+    calendarSystemNote: '暦は自分の画面の表示だけに使います。\n他の人の画面や予定の日時は変わりません。',
     holidayKindPublic: '祝日',
     holidayKindObservance: '祭日',
     holidayKindReligious: '宗教上の祝日',
@@ -3197,18 +3212,18 @@ class Strings {
     holidayReligionBuddhist: '仏教の祝日',
     calendarSettingsFolderTitle: 'カレンダー',
     calendarSettingsDefaultNote:
-        'ここで決めた設定が、すべてのカレンダーの標準になります。語らいごとに変えることもできます。',
+        'ここで決めた設定が、全てのカレンダーの標準になります。\n語らい毎に変えることも出来ます。',
     calendarSettingsThisChatTitle: 'この語らいでの設定',
-    calendarCategoryListEmpty: 'まだ種類がありません',
+    calendarCategoryListEmpty: 'まだ種類が有りません',
     calendarCategoryCreateDialogTitle: '種類を追加',
     calendarCategoryEditDialogTitle: '種類を編集',
     calendarCategoryDialogNameLabel: '種類名',
-    calendarCategoryColorInvalid: '「#RRGGBB」の形式で入力してください',
+    calendarCategoryColorInvalid: '「#RRGGBB」の形式で入力して下さい',
     calendarCategoryDeleteConfirmTitle: 'この種類を削除しますか？',
     calendarCategoryDeleteConfirmButton: '削除する',
     calendarCategoryNoneLabel: '種類なし',
     calendarCategoryPickerLabel: '種類',
-    calendarAddChoiceDialogTitle: '予定の追加方法を選んでください',
+    calendarAddChoiceDialogTitle: '予定の追加方法を選んで下さい',
     calendarAddChoiceEventOption: '予定を追加',
     calendarAddChoiceEventSubtitle: '日時が確定した予定を追加する',
     calendarAddChoiceCoordinationOption: '日程を調整',
@@ -3232,7 +3247,7 @@ class Strings {
     scheduleCoordinationDeleteAction: '日程調整を削除',
     scheduleCoordinationDeleteConfirmTitle: '日程調整を削除しますか？',
     pollCreateDialogTitle: '投票を作成',
-    pollQuestionFieldHint: '質問内容を入力してください',
+    pollQuestionFieldHint: '質問内容を入力して下さい',
     pollOptionFieldHint: '選択肢を入力',
     pollModeOptionsLabel: '選択肢',
     pollModeMaruBatsuLabel: '二択',
@@ -3241,7 +3256,7 @@ class Strings {
     pollAllowMultipleChoicesCheckboxLabel: '複数選択可',
     pollAnonymousCheckboxLabel: '匿名投票',
     pollAllowAddingOptionsCheckboxLabel: '選択肢の追加を許可',
-    pollMinimumOptionsError: '選択肢は2件以上入力してください',
+    pollMinimumOptionsError: '選択肢は2件以上入力して下さい',
     pollCreatedMessageLabel: '投票が開始されました',
     pollCreatedMessageConfirmAction: '投票する',
     pollTaskBannerLabel: (title) => '投票「$title」に未回答です',
@@ -3250,17 +3265,17 @@ class Strings {
     taskBannerHideAction: '非表示にする',
     pollVoteButton: '投票する',
     pollChangeVoteButton: '投票を変更',
-    pollAnonymousNotice: '匿名投票のため、投票者は表示されません。',
+    pollAnonymousNotice: '匿名投票の為、投票者は表示されません。',
     pollDeleteAction: '投票を削除',
     pollDeleteConfirmTitle: '投票を削除しますか？',
     pollListTitle: '投票',
-    pollListEmptyMessage: 'まだ投票がありません',
+    pollListEmptyMessage: 'まだ投票が有りません',
     pollResponseCountLabel: (count) => '$count件の回答',
     pollClosedBadgeLabel: '終了',
     noteCreatedMessageLabel: 'ノートが作成されました',
     noteCreatedMessageOpenAction: '開く',
     noteListTitle: 'ノート',
-    noteListEmptyMessage: 'まだノートがありません',
+    noteListEmptyMessage: 'まだノートが有りません',
     noteUntitledLabel: '無題のノート',
     noteTitleFieldHint: 'タイトル',
     noteTypeMarkdownLabel: 'マークダウン',
@@ -3271,9 +3286,9 @@ class Strings {
     noteDrawUndo: '元に戻す',
     noteDrawRedo: 'やり直し',
     noteDrawClearAll: '全て消去',
-    noteDrawClearConfirm: '描いた線をすべて消しますか？',
+    noteDrawClearConfirm: '描いた線を全て消しますか？',
     noteDrawClearConfirmButton: '消去する',
-    noteDrawNothingToExport: '描画がありません',
+    noteDrawNothingToExport: '描画が有りません',
     noteDrawColorHint: '#RRGGBB',
     noteDownloadFailed: 'ダウンロードに失敗しました',
     noteDownloadDefaultName: 'ノート',
@@ -3300,18 +3315,18 @@ class Strings {
     noteEmbedUrlPromptTitle: 'URLを埋め込み',
     noteEmbedUrlPromptHint: 'https://...',
     noteEmbedUrlPromptConfirm: '埋め込む',
-    noteTableOfContentsEmpty: '見出しがありません',
+    noteTableOfContentsEmpty: '見出しが有りません',
     settingsPasscodeLockToggleLabel: 'パスコードロック',
     settingsPasscodeLockDescription:
-        '有効にすると、アプリを起動するたびにパスコード（または生体認証）の入力が必要になります。',
+        '有効にすると、アプリを起動するたびにパスコード（又は生体認証）の入力が必要になります。',
     settingsPasscodeBiometricToggleLabel: '生体認証で解除',
     settingsPasscodeChangeButton: 'パスコードを変更',
     passcodeSetupTitle: 'パスコードを設定',
-    passcodeSetupEnterPrompt: '6桁のパスコードを入力してください',
-    passcodeSetupConfirmPrompt: 'もう一度入力して確認してください',
+    passcodeSetupEnterPrompt: '6桁のパスコードを入力して下さい',
+    passcodeSetupConfirmPrompt: 'もう一度入力して確認して下さい',
     passcodeSetupMismatchError: 'パスコードが一致しません',
     passcodeSetupConfirmButton: '設定',
-    passcodeCurrentPrompt: '現在のパスコードを入力してください',
+    passcodeCurrentPrompt: '現在のパスコードを入力して下さい',
     passcodeIncorrectError: 'パスコードが違います',
     passcodeLockScreenTitle: 'パスコードを入力',
     passcodeLockScreenBiometricButton: '生体認証でやり直す',
@@ -3323,16 +3338,16 @@ class Strings {
     passcodeForgotDialogConfirmButton: 'サインアウトしてリセット',
     createGroupTitle: '広場を作る',
     createGroupNameLabel: '広場の名前',
-    createGroupNameRequiredError: '広場の名前を入力してください',
+    createGroupNameRequiredError: '広場の名前を入力して下さい',
     createGroupMinMembersError: (remaining) =>
-        '広場は3人以上（自分含む）で作成できます。あと$remaining人選んでください',
+        '広場は3人以上（自分含む）で作成出来ます。あと$remaining人選んで下さい',
     createGroupMultiRoomTitle: '寄合を複数作成する',
     createGroupMultiRoomSubtitle:
         'オフの場合、寄合は1つだけになりサイドバーは出ません。設定は全てハンバーガーメニューから行えます（後から複数に切り替え可能）',
     createGroupNextButton: '次へ',
     createGroupMemberStepTitle: 'メンバーを友達から選ぶ（自分＋2人以上が必要）',
     createGroupSearchLabel: '名前で検索',
-    createGroupNoFriends: '友達がいません。先に縁結びで友達を追加してください',
+    createGroupNoFriends: '友達がいません。先に縁結びで友達を追加して下さい',
     createGroupNoMatch: '該当する友達が見つかりません',
     createGroupFriendsLoadError: (error) => '友達一覧の取得に失敗しました: $error',
     createGroupSelectedCount: (count) => '$count人選択中（自分を含めて計${count + 1}人）',
@@ -3350,31 +3365,31 @@ class Strings {
     signInWithGoogleButton: 'Googleでログイン',
     authGateErrorTemplate: (error) => 'エラー: $error',
     rhingSeedSetupAppBarTitle: 'Rhing Seedを設定',
-    rhingSeedSetupIntro: 'あなただけのRhing Seedを決めてください。',
-    rhingSeedSetupRules: '英数字・.・-・_のみ使用できます（大文字小文字は区別されません）。',
-    rhingSeedSetupInvalidError: '英数字・.・-・_のみ、1〜20文字で入力してください',
+    rhingSeedSetupIntro: 'あなただけのRhing Seedを決めて下さい。',
+    rhingSeedSetupRules: '英数字・.・-・_のみ使用出来ます（大文字小文字は区別されません）。',
+    rhingSeedSetupInvalidError: '英数字・.・-・_のみ、1〜20文字で入力して下さい',
     rhingSeedSetupTakenError: 'このRhing Seedはすでに使われています',
     rhingSeedSetupAlreadyRegisteredError:
-        'このアカウントには既に住人情報が登録されています。一度サインアウトしてから、もう一度ログインし直してください。',
+        'このアカウントには既に住人情報が登録されています。一度サインアウトしてから、もう一度ログインし直して下さい。',
     rhingSeedSetupFailedTemplate: (error) => '登録に失敗しました: $error',
     rhingSeedSetupSubmitButton: '決定',
     residenceSurveyAppBarTitle: 'お住まいの地域',
-    residenceSurveyIntro: 'お住まいの国を教えてください。遠くの人との連絡や、地域ごとの利用状況の把握、今後の安否確認に使います。',
+    residenceSurveyIntro: 'お住まいの国を教えて下さい。遠くの人との連絡や、地域毎の利用状況の把握、今後の安否確認に使います。',
     residenceSurveyPrivacyNote:
-        '現在地は取得しません。入力した内容は自分だけが見られ、相手には国名も表示されません。設定からいつでも変更できます。',
+        '現在地は取得しません。入力した内容は自分だけが見られ、相手には国名も表示されません。設定からいつでも変更出来ます。',
     residenceSurveyCountryLabel: '国（必須）',
     residenceSurveyLanguageLabel: '表示言語',
     residenceSurveyCountryPlaceholder: '国を選ぶ',
     residenceSurveySearchHint: '国名で検索',
-    residenceSurveyNoResults: '該当する国がありません',
+    residenceSurveyNoResults: '該当する国が有りません',
     residenceSurveyPrefectureLabel: '都道府県（任意）',
     residenceSurveyTimeZoneLabel: 'タイムゾーン（任意）',
     residenceSurveyNotSelected: '選択しない',
     residenceSurveySubmitButton: '決定',
-    residenceSurveyCountryRequiredError: '国を選んでください',
+    residenceSurveyCountryRequiredError: '国を選んで下さい',
     residenceSurveySaveFailedTemplate: (error) => '保存に失敗しました: $error',
     settingsUsageGuide: '使い方ガイド',
-    guideListIntro: '知りたい機能を選んでください。',
+    guideListIntro: '知りたい機能を選んで下さい。',
     guideListDebugNotice:
         'まだデバッグが終わっていないので、ガイドは当てになりません。不具合や分からない点は、「お問い合わせ」からご連絡ください。',
     settingsContact: 'お問い合わせ',
@@ -3386,7 +3401,7 @@ class Strings {
     tutorialStepCounterTemplate: (step, total) => '$step / $total',
     settingsResidence: '居住地',
     termsConsentAppBarTitle: '利用規約・プライバシーポリシーへの同意',
-    termsConsentIntro: 'ご利用にあたり、以下の内容をご確認のうえ同意してください。',
+    termsConsentIntro: 'ご利用にあたり、以下の内容をご確認のうえ同意して下さい。',
     termsConsentTermsLink: '利用規約',
     termsConsentPrivacyLink: 'プライバシーポリシー',
     termsConsentDisclaimerLink: '免責事項',
@@ -3396,7 +3411,7 @@ class Strings {
     accountSuspendedRemainingHoursTemplate: (hours) => '約$hours時間',
     chatJumpNotFoundMessage: '元のメッセージが見つかりません',
     chatReturnToOriginalMessage: '元のメッセージに戻る',
-    chatNoMessagesYet: 'まだメッセージはありません',
+    chatNoMessagesYet: 'まだメッセージは有りません',
     callSummaryStartedAtTemplate: (time, duration) => '$timeから$duration',
     callDurationHoursMinutesTemplate: (hours, minutes) => '$hours時間$minutes分',
     callDurationHoursTemplate: (hours) => '$hours時間',
@@ -3405,11 +3420,11 @@ class Strings {
     callDurationMinutesTemplate: (minutes) => '$minutes分',
     callDurationSecondsTemplate: (seconds) => '$seconds秒',
     roomDefaultName: 'メイン',
-    talksEmptyDmTemplate: (dmTerm) => 'まだ$dmTermがありません。上の＋から相手を追加してください。',
-    talksEmptyGroupTemplate: (plazaTerm) => 'まだ$plazaTermがありません。上の＋から作成してください。',
-    settingsHexColorFormatError: '「#RRGGBB」の形式で入力してください',
+    talksEmptyDmTemplate: (dmTerm) => 'まだ$dmTermが有りません。上の＋から相手を追加して下さい。',
+    talksEmptyGroupTemplate: (plazaTerm) => 'まだ$plazaTermが有りません。上の＋から作成して下さい。',
+    settingsHexColorFormatError: '「#RRGGBB」の形式で入力して下さい',
     cameraNotFoundError: 'カメラが見つかりませんでした',
-    cameraStartFailedTemplate: (error) => 'カメラを起動できませんでした: $error',
+    cameraStartFailedTemplate: (error) => 'カメラを起動出来ませんでした: $error',
     cameraSwitchFailedTemplate: (error) => 'カメラを切り替えられませんでした: $error',
     cameraRetakeButton: '撮り直す',
     cameraSendButton: '送信',
@@ -3443,8 +3458,8 @@ class Strings {
     workshopRhingSeedFieldShortLabel: 'Seed',
     settingsSeedSearchableTitle: 'Rhing Seedで検索に表示する',
     settingsSeedSearchableDescription:
-        'オフにすると、他の住人がRhing Seedを入力しても見つかりません。招待リンクとQRコードからは、これまでどおり友達申請できます。',
-    workshopBirthdayNotRegisteredHint: '蔵で誕生日を登録してください',
+        'オフにすると、他の住人がRhing Seedを入力しても見つかりません。\n招待リンクとQRコードからは、これまでどおり友達申請出来ます。',
+    workshopBirthdayNotRegisteredHint: '蔵で誕生日を登録して下さい',
     workshopFontLabel: 'フォントデザイン',
     workshopFontShortLabel: 'デザイン',
     workshopFontColorLabel: 'フォントカラー',
@@ -3503,6 +3518,7 @@ class Strings {
     settingsOpenSourceLicenses: 'Open Source Licences',
     settingsBlockedUsersTitle: 'Blocked users',
     settingsBlockedUsersEmpty: 'No blocked users',
+    settingsBlockedUsersLoadFailed: 'Could not load',
     settingsBlockedUsersUnblock: 'Unblock',
     settingsBlockedUsersShowMoreTemplate: (remaining) =>
         'Show more ($remaining more)',
@@ -3565,9 +3581,10 @@ class Strings {
     settingsTextSizeSmall: 'Small',
     settingsTextSizeMedium: 'Medium',
     settingsTextSizeLarge: 'Large',
+    settingsIconSplitAdjustTitle: 'Adjust widths',
     settingsIconSplitAdjustButton: 'Adjust widths',
     settingsIconSplitAdjustNote:
-        'Press “Adjust widths”, then drag the divider lines in the talks list to change its width (double-tap to reset, tap to finish). Saved on this device only.',
+        'Press the block below, then drag the divider lines in the talks list to change its width (double-tap to reset, tap to finish). Saved on this device only.',
     settingsSlidePickTitle: 'Press and slide to choose',
     settingsSlidePickSubtitle:
         'Press a menu chip or a talks button and slide your finger, then lift it over your choice. Turn this off to tap once at a time.',
@@ -3979,7 +3996,10 @@ class Strings {
     mediaForwardTooltip: 'Forward',
     mediaShareTooltip: 'Share',
     forwardDialogTitle: 'Choose where to forward',
-    forwardSearchHint: 'Search by name',
+    forwardSearchHint: 'Search by name or room',
+    forwardPreviewTitle: 'Forwarding',
+    forwardChooseHint: 'Choose a destination on the left',
+    forwardConfirm: 'Forward',
     forwardNoResults: 'No matching destinations',
     forwardBack: 'Back',
     forwardSending: 'Forwarding…',
@@ -4669,7 +4689,7 @@ class Strings {
     AppLocale.french => _stringsFr,
   };
 
-  /// [FontDesign]値ごとの表示ラベル。設定タブのフォントデザイン選択
+  /// [FontDesign]値毎の表示ラベル。設定タブのフォントデザイン選択
   /// （`_FontDesignFolder`）と、蔵のフォントデザイン素材選択
   /// （`_FontDesignMaterialDialog`）の両方から共通で使う（2026-09-26、
   /// 元は設定タブ内のプライベートな`labelFor`関数として重複していたものを

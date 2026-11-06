@@ -4,8 +4,8 @@ import 'package:flutter_webrtc/flutter_webrtc.dart';
 /// 端末にカメラが搭載されているかの大まかな判定
 /// （[lib/providers/camera_availability_provider.dart]参照）。
 enum CameraAvailability {
-  /// カメラが1台も無いと判定できた（主にネイティブプラットフォームでのみ
-  /// 信頼できる。[probeCameraAvailability]のdocコメント参照）。
+  /// カメラが1台も無いと判定出来た（主にネイティブプラットフォームでのみ
+  /// 信頼出来る。[probeCameraAvailability]のdocコメント参照）。
   unavailable,
 
   /// カメラが1台以上ある。
@@ -22,7 +22,7 @@ enum CameraAvailability {
 /// 過少報告することがある（パッケージ本体のdocコメントにも明記あり）ため、
 /// Web版で0台と判定された場合は「不明」として扱い、ビデオ通話の選択肢を
 /// 誤って消さないようにする（カメラを実際に持っているのに隠してしまう方が、
-/// 持っていないのに出したままにするより悪い体験になるため）。
+/// 持っていないのに出したままにするより悪い体験になる為）。
 Future<CameraAvailability> probeCameraAvailability() async {
   try {
     final cameras = await Helper.cameras;

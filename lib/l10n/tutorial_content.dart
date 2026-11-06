@@ -1,7 +1,7 @@
 import 'guide_content.dart';
 
 /// 操作を促すインタラクティブなガイド（2026-10-17追加）の台本。日本語を含む文言は
-/// `lib/features/`に直書きできないため、この`lib/l10n/`に置く。日本語・英語のみで、
+/// `lib/features/`に直書き出来ない為、この`lib/l10n/`に置く。日本語・英語のみで、
 /// それ以外の表示言語は英語にフォールバックする（フランス語等は後から追加）。
 
 /// 画面上の「押す場所」の目印のid（`TutorialTarget`に渡す）。
@@ -81,11 +81,11 @@ class TutorialStep {
   final bool requiresTap;
   final String? advanceWhenVisible;
 
-  /// 手描きの丸を描くか。入力欄のように横に長い目印は、丸が被って見づらいため、
+  /// 手描きの丸を描くか。入力欄のように横に長い目印は、丸が被って見づらい為、
   /// 明るく抜くだけにして丸は描かない。
   final bool showCircle;
 
-  /// [targetId]の目印がまだ現れていない間に、代わりに明るく抜いて操作できるようにする
+  /// [targetId]の目印がまだ現れていない間に、代わりに明るく抜いて操作出来るようにする
   /// 目印（丸は描かない）。
   final String? fallbackTargetId;
 
@@ -99,7 +99,7 @@ class TutorialStep {
   /// [targetId]は使わない。
   final bool freeform;
 
-  /// [freeform]のカードを画面の上に出す（既定は下。下に開くメニューを隠さないため）。
+  /// [freeform]のカードを画面の上に出す（既定は下。下に開くメニューを隠さない為）。
   final bool captionAtTop;
 }
 
@@ -112,7 +112,7 @@ class TutorialScript {
     required this.stageRoute,
   });
 
-  /// `GuideTopic.id`と同じ値にすると、そのトピックの詳細から開始できる。
+  /// `GuideTopic.id`と同じ値にすると、そのトピックの詳細から開始出来る。
   final String id;
   final List<TutorialStep> steps;
   final GuideText doneMessage;
@@ -128,7 +128,7 @@ const practiceStageRoute = '/guide/practice';
 /// 身だしなみ（蔵・仕立て）。「身だしなみ」を押して、蔵と仕立てを丸で示して説明する。
 const _profileChipStep = TutorialStep(
   targetId: TutorialTargetIds.navProfile,
-  caption: GuideText('まず「身だしなみ」を押します', 'First, tap "Profile"'),
+  caption: GuideText('先ず「身だしなみ」を押します', 'First, tap "Profile"'),
 );
 
 const _profileSteps = <TutorialStep>[
@@ -171,7 +171,7 @@ const _friendsSteps = <TutorialStep>[
     targetId: TutorialTargetIds.enmusubiQr,
     requiresTap: false,
     caption: GuideText(
-      'これがあなたのQRコードです。相手に見せて、読み取ってもらうこともできます',
+      'これがあなたのQRコードです。相手に見せて、読み取ってもらうことも出来ます',
       'This is your QR code. You can also show it to someone and let them scan it',
     ),
   ),
@@ -179,7 +179,7 @@ const _friendsSteps = <TutorialStep>[
     targetId: TutorialTargetIds.enmusubiScan,
     requiresTap: false,
     caption: GuideText(
-      '相手のQRコードを読み取るときは、このボタンを押します',
+      '相手のQRコードを読み取る時は、このボタンを押します',
       'To scan someone else\'s QR code, tap this button',
     ),
   ),
@@ -193,7 +193,7 @@ const _messageSteps = <TutorialStep>[
     advanceWhenVisible: TutorialTargetIds.chatSend,
     showCircle: false,
     caption: GuideText(
-      'ここにメッセージを入力します。何か書いてみてください',
+      'ここにメッセージを入力します。何か書いてみて下さい',
       'Type your message here. Try writing something',
     ),
   ),
@@ -256,13 +256,13 @@ const directPlazaTutorial = TutorialScript(
       targetId: TutorialTargetIds.talkAdd,
       requiresTap: false,
       caption: GuideText(
-        'ここから、友達の追加や、新しい広場の作成ができます',
+        'ここから、友達の追加や、新しい広場の作成が出来ます',
         'From here you can add a friend or create a new Plaza',
       ),
     ),
   ],
   doneMessage: GuideText(
-    '一対は2人の会話、広場は大勢の集まりです。広場の中は、話題ごとに「寄合」で分けられます。',
+    '一対は2人の会話、広場は大勢の集まりです。広場の中は、話題毎に「寄合」で分けられます。',
     'A Direct is a two-person chat and a Plaza is a gathering. Inside a Plaza you can split topics into channels.',
   ),
 );
@@ -277,13 +277,13 @@ const callsTutorial = TutorialScript(
       targetId: TutorialTargetIds.chatCallButton,
       requiresTap: false,
       caption: GuideText(
-        'ここを押すと音声通話が始まります。隣のカメラのボタンでビデオ通話もできます（練習中は始まりません）',
+        'ここを押すと音声通話が始まります。隣のカメラのボタンでビデオ通話も出来ます（練習中は始まりません）',
         'Tap here to start a voice call. The camera button next to it starts a video call (nothing starts during practice)',
       ),
     ),
   ],
   doneMessage: GuideText(
-    '通話中は、画面を小さくして、他の画面を見ながら続けることもできます。',
+    '通話中は、画面を小さくして、他の画面を見ながら続けることも出来ます。',
     'During a call you can shrink the screen and keep going while you look at other things.',
   ),
 );
@@ -334,7 +334,7 @@ const notesTutorial = TutorialScript(
       requiresTap: false,
       showCircle: false,
       caption: GuideText(
-        'ノートは、会話のみんなで一緒に書ける共有のメモです。書いた内容は、すぐ全員に反映されます。空の練習用ノートで、実際に書いてみましょう',
+        'ノートは、会話のみんなで一緒に書ける共有のメモです。書いた内容は、直ぐ全員に反映されます。空の練習用ノートで、実際に書いてみましょう',
         'A note is a shared memo that everyone in the conversation can write together, and changes show up for everyone right away. Let\'s try writing in this empty practice note',
       ),
     ),
@@ -361,7 +361,7 @@ const notesTutorial = TutorialScript(
       freeform: true,
       advanceOnEvent: 'note-numbered',
       caption: GuideText(
-        '箇条書きを終えるには、空の項目でEnterを押します。そのあと「1. 」と打つと、番号つきのリストになります',
+        '箇条書きを終えるには、空の項目でEnterを押します。その後「1. 」と打つと、番号つきのリストになります',
         'To end a bulleted list, press Enter on an empty item. Then type "1. " to start a numbered list',
       ),
     ),
@@ -395,7 +395,7 @@ const notesTutorial = TutorialScript(
     ),
   ],
   doneMessage: GuideText(
-    'これで、ノートの基本は以上です。書いた内容は、Markdownファイルとして書き出すこともできます。',
+    'これで、ノートの基本は以上です。書いた内容は、Markdownファイルとして書き出すことも出来ます。',
     'That covers the basics of notes. You can also export what you write as a Markdown file.',
   ),
 );
@@ -415,7 +415,7 @@ const calendarTutorial = TutorialScript(
     ),
   ],
   doneMessage: GuideText(
-    '予定を追加して共有できます。日程調整では、候補日を出してみんなの都合を集められます。',
+    '予定を追加して共有出来ます。日程調整では、候補日を出してみんなの都合を集められます。',
     'You can add and share events. With scheduling, propose dates and gather everyone\'s availability.',
   ),
 );
@@ -454,30 +454,30 @@ const profileTutorial = TutorialScript(
 );
 
 /// 初回の使い方ガイド（新規登録直後）。身だしなみ→縁結び→メッセージを一続きで。
-/// 縁結びは身だしなみの中にあるため、身だしなみを先に案内する。
+/// 縁結びは身だしなみの中にある為、身だしなみを先に案内する。
 const firstRunTutorial = TutorialScript(
   id: 'first-run',
   stageRoute: practiceStageRoute,
   steps: [..._profileSteps, ..._friendsSteps, ..._messageSteps],
   doneMessage: GuideText(
-    '基本はこれでおしまいです。ほかの使い方は、「設定」の「運営」にある「使い方ガイド」から、いつでも見られます。',
+    '基本はこれでおしまいです。他の使い方は、「設定」の「運営」にある「使い方ガイド」から、いつでも見られます。',
     'That covers the basics. You can find other guides anytime in Settings > Support > User guide.',
   ),
 );
 
 /// 練習用の語らいに出る、練習相手の最初の挨拶。
 const practiceGreeting = GuideText(
-  'はじめまして！ メッセージを送ってみてください',
+  'はじめまして！ メッセージを送ってみて下さい',
   'Nice to meet you! Try sending me a message',
 );
 
 /// 練習用のノートの題名（中身は空で、ガイドの中で書く）。
 const practiceNoteTitle = GuideText('旅行の持ち物', 'Packing list');
 
-/// 台本がまだ無い機能ガイドを押したときの案内。
+/// 台本がまだ無い機能ガイドを押した時の案内。
 const guideComingSoon = GuideText('このガイドは準備中です', 'This guide is coming soon');
 
-/// 設定の使い方ガイド一覧から開始できる台本（[GuideTopic.id]と同じidのもの）。
+/// 設定の使い方ガイド一覧から開始出来る台本（[GuideTopic.id]と同じidのもの）。
 /// 初回用の[firstRunTutorial]は一覧には出ない。
 const tutorialScripts = <TutorialScript>[
   friendsTutorial,

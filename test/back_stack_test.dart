@@ -136,7 +136,7 @@ void main() {
       expect(c.requestForward(), isFalse);
     });
 
-    test('やり直し分はタブごとで、clearRedoで破棄できる', () {
+    test('やり直し分はタブごとで、clearRedoで破棄出来る', () {
       final c = BackStackController();
       var forwarded = 0;
       c.add(() {}, scope: BackScope.talks, onForward: () => forwarded++);

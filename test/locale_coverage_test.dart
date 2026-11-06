@@ -9,7 +9,7 @@ import 'package:daidai/models/font_design.dart';
 import 'package:daidai/utils/message_time.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-// 表示言語を足したときに、対訳データの抜けを自動で検出するテスト（2026-10-17）。
+// 表示言語を足した時に、対訳データの抜けを自動で検出するテスト（2026-10-17）。
 // `AppLocale.values`を全て回すため、新しい言語を追加すると、その言語の
 // 画面の文言・用語・国名・ガイド・404の展示文・曜日・フォントがそろっていないと落ちる。
 // 日本語・英語以外の言語は、日英が基準の元データに対する「訳」として網羅を確認する。
@@ -100,7 +100,7 @@ void main() {
         }
       });
 
-      test('曜日つきの日付が整形できる', () {
+      test('曜日つきの日付が整形出来る', () {
         final text = formatMessageDate(DateTime(2026, 10, 12), locale);
         expect(text, startsWith('2026/10/12 ('));
       });

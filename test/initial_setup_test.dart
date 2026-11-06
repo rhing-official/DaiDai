@@ -145,10 +145,10 @@ void main() {
     expect(completed, 1);
   });
 
-  testWidgets('あとで、で終わる', (tester) async {
+  testWidgets('後で、で終わる', (tester) async {
     var completed = 0;
     await _pumpSetup(tester, onCompleted: () => completed++);
-    await tester.tap(find.text('あとで'));
+    await tester.tap(find.text('後で'));
     await tester.pumpAndSettle();
     expect(completed, 1);
   });
@@ -168,7 +168,7 @@ void main() {
     expect(container.read(appUiStyleProvider), AppUiStyle.gekiga);
   });
 
-  testWidgets('ステップごとに、背景のプレビューの焦点が変わる', (tester) async {
+  testWidgets('ステップ毎に、背景のプレビューの焦点が変わる', (tester) async {
     await _pumpSetup(tester, onCompleted: () {});
     expect(find.text('preview:talksList'), findsOneWidget);
     await tester.tap(find.text('次へ'));

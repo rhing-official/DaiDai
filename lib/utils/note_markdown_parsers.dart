@@ -2,10 +2,10 @@ import 'package:appflowy_editor/appflowy_editor.dart';
 
 import '../features/note/blocks/table_of_contents_block.dart';
 
-/// 目次ブロックを`.md`へ書き出すとき、他のアプリで開いても素のコードブロック
+/// 目次ブロックを`.md`へ書き出す時、他のアプリで開いても素のコードブロック
 /// として読めるよう、言語名付きのコードフェンスに寄せる。Obsidianの
 /// プラグイン`daidai-toc`は、このフェンスを見出しから生成した目次として
-/// 描画する。見出し自体は通常の`#`として別に書き出されるため、フェンスの
+/// 描画する。見出し自体は通常の`#`として別に書き出される為、フェンスの
 /// 中身は空でよい。
 const String tableOfContentsMarkdownFence = 'daidai-toc';
 
@@ -23,7 +23,7 @@ class TableOfContentsNodeParser extends NodeParser {
 
 /// 見出し・箇条書きは、入力時の`### `や`- `を削除せずDeltaに残す設計
 /// （`markdownPrefixLength`属性、カーソル行のみ表示）。標準のパーサは本文に
-/// 記号が無い前提でもう一度記号を付けるため、そのままでは`### ### c`のように
+/// 記号が無い前提でもう一度記号を付ける為、そのままでは`### ### c`のように
 /// 二重になる。属性がある場合は先頭の記号を除いてから書き出す。
 Delta _withoutMarkdownPrefix(Node node, String key) {
   final delta = node.delta ?? (Delta()..insert(''));

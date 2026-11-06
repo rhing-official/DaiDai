@@ -3,11 +3,11 @@
 /// Firestore上の[CalendarEvent]（`lib/models/calendar_event.dart`）は
 /// `Timestamp`（内部的にはUTC瞬間）で日時を持つが、Google Calendar API
 /// （`events.insert`/`events.update`）はRFC3339のローカル日時＋UTCオフセット
-/// （時刻指定の予定）または`YYYY-MM-DD`（終日予定）という別の表現を要求する。
+/// （時刻指定の予定）又は`YYYY-MM-DD`（終日予定）という別の表現を要求する。
 /// IANAタイムゾーン名（`Asia/Tokyo`等）は取得に専用パッケージが必要になり
 /// 依存が増えるため使わず、RFC3339の明示的なUTCオフセット表記だけで表現する
 /// （終日ではない予定については、`timeZone`フィールドを省略してもオフセット
-/// 付きの`dateTime`だけでGoogle Calendar APIは正しく解釈できる）。
+/// 付きの`dateTime`だけでGoogle Calendar APIは正しく解釈出来る）。
 library;
 
 /// [local]（端末のローカル時刻として扱う[DateTime]）をRFC3339のUTCオフセット

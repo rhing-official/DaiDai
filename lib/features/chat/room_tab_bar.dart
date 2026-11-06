@@ -27,8 +27,8 @@ import 'room_list_pane.dart' show RoomListEntry, promptForRoomName;
 /// は`ChatScreen`とは別に、寄合切替でも作り直されない位置にこのウィジェットを
 /// 配置する（2026-09-14変更、詳細は`chat_panes.dart`参照）。以前は
 /// `ChatScreen.roomTabBar`パラメータ経由で`ChatScreen`のScaffold.appBarの
-/// 一部として組み込んでいたが、`ChatScreen`自体が寄合ごとに固有の`key`
-/// （roomId込み）を持ち部屋切替のたびに丸ごと作り直されるため、指でなぞって
+/// 一部として組み込んでいたが、`ChatScreen`自体が寄合毎に固有の`key`
+/// （roomId込み）を持ち部屋切替のたびに丸ごと作り直される為、指でなぞって
 /// 寄合を選ぶドラッグ操作の途中でこのウィジェットの状態（ドラッグ検出）
 /// 自体が消滅する問題があった。ステータスバー分の余白は呼び出し元では
 /// なくこのウィジェット自身が確保する（`build()`末尾の`SafeArea`参照）。
@@ -37,7 +37,7 @@ import 'room_list_pane.dart' show RoomListEntry, promptForRoomName;
 /// 折り返す（ブラウザのタブのように、ユーザー選択の「多段タブ」方式）。
 /// 折り返し後の行数は最大[_maxVisibleRows]行までバーの高さを伸ばし、それを
 /// 超える分は固定高さの中に収める（寄合数が際限なく増えてもヘッダーが
-/// 無限に伸びないようにするため）。バー自体は直接のスクロール操作には
+/// 無限に伸びないようにする為）。バー自体は直接のスクロール操作には
 /// 反応せず（2026-09-11変更）、寄合の選択操作（[_RoomTabBarState
 /// ._handleSlideHover]、指を置いた寄合をなぞって選ぶ、横方向に加え縦方向にも
 /// 対応。座標が別の寄合に移った瞬間に切り替わる、2026-09-14変更）中に指が
@@ -80,7 +80,7 @@ class RoomTabBar extends ConsumerStatefulWidget {
   /// 経由で受け取る。劇画は
   /// タブ間隔が[GekigaJointedTileList.gap]（8px）とフラット/ガラスの
   /// [_dividerWidth]（1px）で異なり、`_chunkIntoRows`の折り返し判定を
-  /// スタイルごとの実際の間隔に合わせる必要があるため。
+  /// スタイル毎の実際の間隔に合わせる必要がある為。
   final bool isGekiga;
 
   static const double _height = 44;
@@ -116,7 +116,7 @@ class RoomTabBar extends ConsumerStatefulWidget {
   /// [itemGap]はタブ間に実際に空く間隔（劇画は[GekigaJointedTileList.gap]
   /// ＝8px、フラット/ガラスは[_dividerWidth]＝1px）。以前はここが常に
   /// `_dividerWidth`決め打ちで、劇画の実際の間隔（8px）より狭く見積もって
-  /// いたため、タブ数が多いと1行に収まりきらない数を「収まる」と誤判定して
+  /// いた為、タブ数が多いと1行に収まりきらない数を「収まる」と誤判定して
   /// いた（2026-09-08修正）。
   static List<List<RoomListEntry?>> _chunkIntoRows({
     required List<RoomListEntry> rooms,
@@ -154,11 +154,11 @@ class _RoomTabBarState extends ConsumerState<RoomTabBar> {
 
   /// 表示領域（`totalHeight`分の`SizedBox`）自体の実座標を引くための
   /// `GlobalKey`（2026-09-11追加）。縁でのオートスクロール（[_updateEdgeAutoScroll]
-  /// 参照）が、指が上端/下端のどちら寄りかを判定するために使う。
+  /// 参照）が、指が上端/下端のどちら寄りかを判定する為に使う。
   final _viewportKey = GlobalKey();
 
-  /// セルごとのRenderBoxを引くための`GlobalKey`（roomId単位でキャッシュ）。
-  /// 指でなぞっている間、どのセルの上に指があるかを実座標で判定するために
+  /// セル毎のRenderBoxを引くための`GlobalKey`（roomId単位でキャッシュ）。
+  /// 指でなぞっている間、どのセルの上に指があるかを実座標で判定する為に
   /// 使う（`home_screen.dart`の`_NavChip`ドラッグ選択と同じ手法）。
   final Map<String, GlobalKey> _cellKeys = {};
 
@@ -234,7 +234,7 @@ class _RoomTabBarState extends ConsumerState<RoomTabBar> {
         child: Container(
           // `maxWidth`は行全体の幅ではなく、`_chunkIntoRows`がこのセル分
           // として見積もった幅そのものにする（2026-09-08修正）。以前は
-          // バー全体の`widget.maxWidth`を上限にしていたため、見積り用の
+          // バー全体の`widget.maxWidth`を上限にしていた為、見積り用の
           // 固定スタイル（`_measureStyle`）と実際のアンビエントな文字
           // スタイルがずれた場合に実際の描画幅が見積りを超えても何も
           // 防げず、行の合計幅が`maxWidth`を超えて隣接する「＋」ボタンに
@@ -267,8 +267,8 @@ class _RoomTabBarState extends ConsumerState<RoomTabBar> {
   /// 2026-09-11に縦方向を追加）。指が乗っている寄合が変わった瞬間に
   /// `widget.onSelectRoom`（実際の切り替え）を呼ぶ（2026-09-14変更、以前は
   /// 指を離した時点で一度だけ行っていた。詳細は[_updateHoverHighlight]
-  /// 参照）。各セルの実座標（`GlobalKey`経由）による2D判定のため、複数行に
-  /// 折り返っても行をまたいだ判定ができる（縦方向にドラッグして行を移動する
+  /// 参照）。各セルの実座標（`GlobalKey`経由）による2D判定の為、複数行に
+  /// 折り返っても行をまたいだ判定が出来る（縦方向にドラッグして行を移動する
   /// 場合も同じ判定で追従する）。
   void _handleSlideHover(Offset globalPosition) {
     _lastDragGlobalPosition = globalPosition;
@@ -282,15 +282,15 @@ class _RoomTabBarState extends ConsumerState<RoomTabBar> {
   /// （`widget.onSelectRoom`）は指を離した瞬間に1回だけ行っていた
   /// （[_commitDragSelection]、2026-08-10導入）。これは当時、寄合の
   /// 切り替えが`pushReplacement`で`RoomTabBar`自身を含む画面全体を
-  /// 作り直す実装だったため、ドラッグ中に切り替えると、ここまでドラッグを
+  /// 作り直す実装だった為、ドラッグ中に切り替えると、ここまでドラッグを
   /// 検出していたジェスチャー自体が消滅し、以降指を動かしても次の寄合へ
-  /// 切り替わらなくなる不具合があったための回避策だった。
+  /// 切り替わらなくなる不具合があった為の回避策だった。
   ///
   /// 2026-09-14、`RoomTabBar`自体を`ChatScreen`の外（`chat_panes.dart`の
   /// `_DmChatPaneState`/`_GroupChatPaneState`側、寄合切替でkeyが変わらず
   /// 生き続ける位置）へ配置するよう構造を変更したことで、寄合を切り替えても
   /// `RoomTabBar`・このドラッグ検出自体は破棄されなくなった。これにより
-  /// 上記の回避策が不要になったため、ユーザー要望（指を離すのを待たず、
+  /// 上記の回避策が不要になった為、ユーザー要望（指を離すのを待たず、
   /// 座標が別の寄合に移った瞬間に切り替える）通り、ハイライト変更と同時に
   /// 実際の切り替えも即座に行うよう変更した。1回のドラッグで複数の寄合を
   /// 連続してなぞった場合、その都度この場で切り替えが起きる。
@@ -309,11 +309,11 @@ class _RoomTabBarState extends ConsumerState<RoomTabBar> {
   }
 
   /// 指が表示領域の上端/下端の縁（[_autoScrollEdgeThreshold]px以内）に
-  /// 達していて、かつその方向にまだスクロールできる内容があれば、
+  /// 達していて、かつその方向にまだスクロール出来る内容があれば、
   /// [_verticalScrollController]を少しずつ動かし続ける（2026-09-11追加）。
   /// バー自体は[NeverScrollableScrollPhysics]で直接のスクロール操作には
   /// 反応しないが、2行を超える寄合・「＋」ボタンには、この「縁に指を置いた
-  /// ままにすると自動でスクロールする」操作だけで到達できるようにする
+  /// ままにすると自動でスクロールする」操作だけで到達出来るようにする
   /// （2行目の寄合の上から指を下へ動かし続けると隠れた3行目以降へ追従する）。
   void _updateEdgeAutoScroll(Offset globalPosition) {
     final viewport = _viewportRect;
@@ -364,7 +364,7 @@ class _RoomTabBarState extends ConsumerState<RoomTabBar> {
     _autoScrollDirection = null;
   }
 
-  /// 指を離した（またはドラッグがキャンセルされた）時に呼ぶ。実際の切り替え
+  /// 指を離した（又はドラッグがキャンセルされた）時に呼ぶ。実際の切り替え
   /// は[_updateHoverHighlight]でドラッグ中に既に行われているため
   /// （2026-09-14変更）、ここではドラッグ関連の一時状態の後始末のみ行う。
   void _commitDragSelection() {
@@ -590,7 +590,7 @@ class _RoomTabBarState extends ConsumerState<RoomTabBar> {
         // 直接のスクロール操作には反応しない（2026-09-11変更）。2行を超える
         // 寄合・「＋」ボタンには、[_updateEdgeAutoScroll]による「縁に指を
         // 置いたままにすると自動でスクロールする」操作だけで到達させる方針
-        // にしたため、独立したスクロールジェスチャーは不要になった
+        // にした為、独立したスクロールジェスチャーは不要になった
         // （`_verticalScrollController`自体は残し、そちらからの
         // `jumpTo`/`animateTo`でのみ動かす）。
         physics: const NeverScrollableScrollPhysics(),
@@ -614,8 +614,8 @@ class _RoomTabBarState extends ConsumerState<RoomTabBar> {
 
     // 横方向のドラッグ（既存）・縦方向のドラッグ（2026-09-11追加）の両方で
     // 寄合の選択が追従する。縦方向は複数行に折り返った時に行をまたいで
-    // 選択するための操作で、指が表示領域の縁に達すると[_updateEdgeAutoScroll]
-    // が自動でスクロールし、2行を超える寄合・「＋」ボタンにも到達できる。
+    // 選択する為の操作で、指が表示領域の縁に達すると[_updateEdgeAutoScroll]
+    // が自動でスクロールし、2行を超える寄合・「＋」ボタンにも到達出来る。
     content = GestureDetector(
       behavior: HitTestBehavior.translucent,
       onHorizontalDragStart: (details) =>
@@ -638,7 +638,7 @@ class _RoomTabBarState extends ConsumerState<RoomTabBar> {
     // 上乗せする仕組み）が担っていたが、`RoomTabBar`が`ChatScreen`の外
     // （呼び出し元の`chat_panes.dart`）へ退避したのに伴い（2026-09-14変更、
     // 詳細は`chat_panes.dart`参照）、ここで自前に確保する。塗り（背景色・
-    // ぼかし）が不透明・不透明に近い方針（直後のコメント参照）のため、
+    // ぼかし）が不透明・不透明に近い方針（直後のコメント参照）の為、
     // `SafeArea`は塗りの外ではなく内側に置き、余白部分にも同じ背景が
     // 続くようにする（`SafeArea`を外側に置くと、余白部分だけ背景の塗りが
     // 無く後ろが透けて見えてしまう）。
@@ -656,7 +656,7 @@ class _RoomTabBarState extends ConsumerState<RoomTabBar> {
             // 2026-08-30、チャット画面のScaffold.extendBodyBehindAppBarが全
             // スタイル共通でtrueになったのに合わせ、明示的に不透明背景を指定
             // する（以前はextendBodyBehindAppBar=falseだったため指定が無くても
-            // 不透明に見えていた。ここは寄合切り替えタブのため、今回の「上部の
+            // 不透明に見えていた。ここは寄合切り替えタブの為、今回の「上部の
             // アイコン行の背景を消す」変更の対象外として現状の見た目を保つ）。
             decoration: BoxDecoration(
               color: Theme.of(context).scaffoldBackgroundColor,

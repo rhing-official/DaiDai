@@ -16,9 +16,9 @@ class _SentEntry {
   final DateTime sentAt;
 }
 
-/// 語らいごとの直近送信履歴を保持し、同一内容の連続送信を検知する
+/// 語らい毎の直近送信履歴を保持し、同一内容の連続送信を検知する
 /// （`ChatScreen`のStateに1つ持たせる想定、`sticker_suggestion_strip.dart`の
-/// 会話ごとのデバウンス管理と同じ考え方、2026-09-07追加）。
+/// 会話毎のデバウンス管理と同じ考え方、2026-09-07追加）。
 class RecentSendHistory {
   final Map<String, List<_SentEntry>> _byConversation = {};
 

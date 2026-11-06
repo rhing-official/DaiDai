@@ -39,12 +39,12 @@ class InteractiveSwipeBackController {
   /// 戻るを確定する時（指を離した時）に先に呼ばれ、内側の階層を1つ閉じたら`true`を
   /// 返す（2026-10-15）。`true`なら外側の戻る（[onCommit]）はせず、画面は元の位置へ
   /// 戻る。ローカルNavigatorを持つ画面（ライセンス一覧の中の項目など）で、1階層だけ
-  /// 戻るために使う。
+  /// 戻る為に使う。
   final bool Function()? consumeBack;
 
   /// ドラッグ中、`Navigator.didStartUserGesture`／`didStopUserGesture`で
   /// Navigatorへ通知するか（2026-10-07追加）。Flutterの`ModalRoute`は通知中
-  /// 全ルートを`IgnorePointer`にするため、終了が呼ばれないとアプリ全体が
+  /// 全ルートを`IgnorePointer`にする為、終了が呼ばれないとアプリ全体が
   /// タッチ不能のまま固まる（タブレット横表示の3分割で右スワイプすると固まる
   /// 不具合の原因）。ルートをpopするジェスチャーではない用途（3分割の開閉、
   /// 寄合一覧の左スワイプで開く）ではfalseにして、バランスが崩れても被害が
@@ -173,7 +173,7 @@ class InteractiveSwipeBackController {
 }
 
 /// [InteractiveSwipeBackController]を子孫（メッセージ吹き出しの
-/// ドラッグハンドラ）へ配布するための非購読ルックアップ用スコープ。
+/// ドラッグハンドラ）へ配布する為の非購読ルックアップ用スコープ。
 /// コントローラのインスタンスはルートの生存期間中不変なので、
 /// 値の変化を購読する必要は無い。
 class InteractiveSwipeBackScope extends InheritedWidget {
@@ -269,10 +269,10 @@ class _InteractiveSwipeBackTransitionState
   /// 縦方向実装（上スクロールで「戻る」）と同じ、離散的なスクロール
   /// イベントを150msデバウンスしてから直接[onBack]を呼ぶだけの単純な
   /// 実装で、ドラッグ版のような追従アニメーションは行わない（トラック
-  /// パッドのスクロールには連続した「指の位置」に相当する情報が無いため）。
+  /// パッドのスクロールには連続した「指の位置」に相当する情報が無い為）。
   ///
   /// メッセージ一覧（[widget.child]内の`ChatScreen`のListView）は縦
-  /// スクロールが主用途のため、縦方向が主のスクロール中に横方向の微小な
+  /// スクロールが主用途の為、縦方向が主のスクロール中に横方向の微小な
   /// ノイズで誤って「戻る」が発火しないよう、横方向が縦方向より明確に
   /// 大きいことを条件にする（`embedded_call_pane.dart`等の縦方向のみの
   /// 既存実装には無いガード。それらは元々縦スクロールしかしない画面

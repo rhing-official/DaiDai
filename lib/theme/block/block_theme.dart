@@ -1,3 +1,4 @@
+import 'package:flutter/rendering.dart';
 import 'package:flutter/material.dart';
 
 import '../app_theme.dart';
@@ -11,7 +12,7 @@ import '../app_theme_extras.dart';
 ///   黒（ダークは白）で、アクセントカラーにはしない。
 /// - Materialの影（`elevation`）は使わず、硬い影は[BlockTheme.shadow]を`BoxShadow`で描く
 ///   （このスタイルだけの例外、CLAUDE.mdの「影を使わない」方針の例外）。
-/// 「いまのテーマがブロックか」を見分けるための目印（[BlockTheme]だけが持つ）。
+/// 「今のテーマがブロックか」を見分ける為の目印（[BlockTheme]だけが持つ）。
 @immutable
 class BlockThemeMarker extends ThemeExtension<BlockThemeMarker> {
   const BlockThemeMarker();
@@ -222,7 +223,7 @@ class BlockTheme {
 
   static ThemeData _build(ThemeData base, Color accent, Brightness brightness) {
     final isDark = brightness == Brightness.dark;
-    // 透明度付きのアクセント（#RRGGBBAA）だと背景が透けて灰色っぽく見えるため、
+    // 透明度付きのアクセント（#RRGGBBAA）だと背景が透けて灰色っぽく見える為、
     // このスタイルでは常に不透明にする。
     accent = accent.withAlpha(0xFF);
     // ライト・ダークとも、設定のアクセントカラーをそのままprimary（チップ・ボタン・
@@ -481,14 +482,14 @@ class BlockIconBadge extends StatelessWidget {
 /// 入力欄を、版画だけ太枠と硬い影の箱で囲む（他のスタイルでは[child]をそのまま返す）。
 /// 中の`TextField`は枠・塗り無し（[isBlockTheme]で`InputBorder.none`等にする）。
 ///
-/// 枠が入力欄の外側にあるため、`TextField`の浮くラベル（`labelText`）は枠線に被って
+/// 枠が入力欄の外側にある為、`TextField`の浮くラベル（`labelText`）は枠線に被って
 /// しまう。そこで版画では`labelText`を使わず、[label]を箱の上に別の文字として置く。
 class BlockFieldFrame extends StatelessWidget {
   const BlockFieldFrame({required this.child, this.label, super.key});
 
   final Widget child;
 
-  /// 箱の上に出すラベル（版画のときだけ。他のスタイルでは`TextField`側のラベルを使う）。
+  /// 箱の上に出すラベル（版画の時だけ。他のスタイルでは`TextField`側のラベルを使う）。
   final String? label;
 
   @override
@@ -526,4 +527,57 @@ class BlockFieldFrame extends StatelessWidget {
       ],
     );
   }
+}
+
+/// 版画の箱を、中の文字の幅に合わせて左寄せにする（劇画の箱と同じ内容幅）。
+/// 親の最大幅が上限で、長い題名はそこで折り返す。[alignEnd]なら右寄せ。
+/// `ListTile`の固有幅は余白（文字とアイコンの間隔）を数えず短めに出る為、
+/// その分の余裕[_fitSlack]を足して、文字が不要に折り返さないようにする。
+Widget blockFitWidth(Widget box, {bool alignEnd = false}) {
+  return Align(
+    alignment: alignEnd ? Alignment.centerRight : Alignment.centerLeft,
+    child: _BlockFitWidth(child: box),
+  );
+}
+
+const double _fitSlack = 32;
+
+class _BlockFitWidth extends SingleChildRenderObjectWidget {
+  const _BlockFitWidth({super.child});
+
+  @override
+  RenderObject createRenderObject(BuildContext context) =>
+      _RenderBlockFitWidth();
+}
+
+class _RenderBlockFitWidth extends RenderShiftedBox {
+  _RenderBlockFitWidth() : super(null);
+
+  @override
+  void performLayout() {
+    final child = this.child;
+    if (child == null) {
+      size = constraints.smallest;
+      return;
+    }
+    final wanted = child.getMaxIntrinsicWidth(double.infinity) + _fitSlack;
+    final width = wanted.clamp(constraints.minWidth, constraints.maxWidth);
+    child.layout(
+      BoxConstraints(
+        minWidth: width,
+        maxWidth: width,
+        maxHeight: constraints.maxHeight,
+      ),
+      parentUsesSize: true,
+    );
+    size = constraints.constrain(child.size);
+  }
+
+  @override
+  double computeMinIntrinsicWidth(double height) =>
+      (child?.getMaxIntrinsicWidth(height) ?? 0) + _fitSlack;
+
+  @override
+  double computeMaxIntrinsicWidth(double height) =>
+      (child?.getMaxIntrinsicWidth(height) ?? 0) + _fitSlack;
 }

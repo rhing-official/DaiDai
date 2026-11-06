@@ -117,7 +117,7 @@ class Vocabulary {
 
   /// フランス語（2026-10-17追加）。一対＝Duo（二人組）、広場＝Place（広場・公共の場）、
   /// 寄合＝Salon（Discordのフランス語版でもチャンネルをこう呼ぶ）、蔵＝Bibliothèque de profils、
-  /// 仕立て＝Éditeur de profil。AIによる初稿のため、公開前にネイティブの確認を推奨。
+  /// 仕立て＝Éditeur de profil。AIによる初稿の為、公開前にネイティブの確認を推奨。
   static const french = Vocabulary._(
     dm: 'Duo',
     plaza: 'Place',

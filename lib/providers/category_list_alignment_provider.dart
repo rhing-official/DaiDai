@@ -7,7 +7,7 @@ const _prefsKey = 'categoryListAlignment';
 
 /// スマホの項目一覧（設定・身だしなみのカテゴリ一覧）を左寄せ・中央（標準）・右寄せにする
 /// 設定（2026-11-02）。メニューチップの揃えと同じ`NavChipAlignment`を使い、アカウントには
-/// 保存せず端末ごとに持つ。端末の保存値は`main()`で起動前に読み込んで渡す。
+/// 保存せず端末毎に持つ。端末の保存値は`main()`で起動前に読み込んで渡す。
 final initialCategoryListAlignmentProvider = Provider<NavChipAlignment>(
   (ref) => NavChipAlignment.center,
 );

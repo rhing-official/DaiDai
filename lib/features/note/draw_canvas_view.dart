@@ -18,7 +18,7 @@ import '../../widgets/app_dialog.dart';
 enum _DrawTool { pen, eraser, pan }
 
 /// ズーム倍率の範囲（2026-10-10追加。縮小側は2026-11-05に実質無制限へ変更）。
-/// 倍率が0や負になると描画が壊れるため、下限は極小の正の値にとどめる。
+/// 倍率が0や負になると描画が壊れる為、下限は極小の正の値にとどめる。
 const kDrawMinZoom = 0.001;
 const kDrawMaxZoom = 5.0;
 
@@ -45,7 +45,7 @@ double zoomedScrollOffset({
 /// 削除、取り消しは自分が最後に描いた線の削除、やり直しは直前に取り消した線の
 /// 再追加。論理幅は[NoteStroke.canvasWidth]固定で画面幅に合わせて拡縮し、
 /// 高さは描画範囲に応じて縦に伸びる（縦スクロール、「移動」ツールで操作）。
-/// キャンバスの背景は常に白（PNG書き出しと同じ見た目にするため）。
+/// キャンバスの背景は常に白（PNG書き出しと同じ見た目にする為）。
 class DrawCanvasView extends ConsumerStatefulWidget {
   const DrawCanvasView({
     required this.isDm,
@@ -169,7 +169,7 @@ class _DrawCanvasViewState extends ConsumerState<DrawCanvasView> {
       if (!_erasedIds.contains(s.strokeId)) s,
   ];
 
-  /// スクロールできる全領域（論理座標）。基準の領域と全ての線の外接矩形を含み、外側に
+  /// スクロール出来る全領域（論理座標）。基準の領域と全ての線の外接矩形を含み、外側に
   /// [_pad]の余白を足したもの。左・上へ描き進むと左上（原点）が負の側へ広がる。
   Rect _contentBounds() {
     var rect = _baseRect;
@@ -330,8 +330,8 @@ class _DrawCanvasViewState extends ConsumerState<DrawCanvasView> {
         _applyZoom(_zoom * math.exp(-signal.scrollDelta.dy / 500), focal);
         return;
       }
-      // Shift＋ホイール: ペン/消しゴム中でもスクロールできる。ブラウザはShift＋ホイールを
-      // 横方向（dx）として渡すことがあるため、縦・横どちらの値でも縦スクロールに使う。
+      // Shift＋ホイール: ペン/消しゴム中でもスクロール出来る。ブラウザはShift＋ホイールを
+      // 横方向（dx）として渡すことがある為、縦・横どちらの値でも縦スクロールに使う。
       final dy = signal.scrollDelta.dy != 0
           ? signal.scrollDelta.dy
           : signal.scrollDelta.dx;
@@ -618,7 +618,7 @@ class _DrawCanvasViewState extends ConsumerState<DrawCanvasView> {
                   : () => _clearAll(strings),
             ),
             const SizedBox(width: 6),
-            // ズーム（2026-10-10追加）。ピンチ・Ctrl＋ホイールでも操作できる。
+            // ズーム（2026-10-10追加）。ピンチ・Ctrl＋ホイールでも操作出来る。
             IconButton(
               icon: Icon(Icons.zoom_out, color: fg),
               tooltip: '',
@@ -655,7 +655,7 @@ class _DrawCanvasViewState extends ConsumerState<DrawCanvasView> {
               _viewportSize = constraints.biggest;
               // 画面幅フィットの倍率に、ズーム倍率を掛けたものが実効倍率
               // （2026-10-10）。ポインタの座標変換・描画・キャンバスの大きさは
-              // すべてこの実効倍率基準。
+              // 全てこの実効倍率基準。
               final fitScale = constraints.maxWidth / NoteStroke.canvasWidth;
               final scale = fitScale * _zoom;
               final bounds = _contentBounds();

@@ -13,7 +13,7 @@ import 'call_controls.dart';
 /// 両方で共有する（2026-08-19新設。それまでは両画面がほぼ同じボタン列を
 /// 個別に実装しており、見た目の再設計のたびに二重にメンテナンスする必要が
 /// あった）。1対1・広場のコントローラー（`WebrtcCallController`/
-/// `WebrtcGroupCallController`）に共通の基底クラスは無いため、コントローラー
+/// `WebrtcGroupCallController`）に共通の基底クラスは無い為、コントローラー
 /// を直接受け取らず、必要な値・コールバックだけをまとめて渡す。
 class CallControlBar extends ConsumerWidget {
   const CallControlBar({
@@ -86,7 +86,7 @@ class CallControlBar extends ConsumerWidget {
     // 消す（同じ大きさの空きスロットとして扱う）ことで、各ボタンの位置を
     // 常に固定する。加えて、Row自体を幅固定のコンテナで包む（PC埋め込み
     // ペイン・全画面モバイルなど置かれる場所によってコンテナの幅が違っても
-    // 常に同じ大きさで描画されるようにするため、2026-08-19追加）。
+    // 常に同じ大きさで描画されるようにする為、2026-08-19追加）。
     final maxWidth = CallBgm.isSupported ? 420.0 : 360.0;
     final bar = Center(
       child: ConstrainedBox(

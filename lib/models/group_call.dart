@@ -1,12 +1,12 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 /// 広場（グループ）通話の参加上限。メッシュ型P2Pは人数が増えるほど
-/// 各端末の通信量・CPU負荷が急増するため、実用上の目安である4〜5人に
+/// 各端末の通信量・CPU負荷が急増する為、実用上の目安である4〜5人に
 /// 絞っている（2026-07-24、ユーザー確認の上で決定。SFU導入は将来検討）。
 const kMaxGroupCallParticipants = 5;
 
 /// グループ通話の状態。1対1の`CallStatus`と異なり、着信（ringing）の概念を
-/// 持たない。「進行中の通話に途中から参加する」プル型モデルのため。
+/// 持たない。「進行中の通話に途中から参加する」プル型モデルの為。
 enum GroupCallStatus {
   active,
   ended;
@@ -99,18 +99,18 @@ class CallParticipant {
   final String? bgmTitle;
 
   /// この参加（端末1台ぶん）を区別するランダムな文字列（2026-10-21追加）。
-  /// 参加者ドキュメントのIDはuserIdで端末の区別が無いため、同じ人が別の端末から
+  /// 参加者ドキュメントのIDはuserIdで端末の区別が無い為、同じ人が別の端末から
   /// 入ると上書きされるだけになる。この値が自分のものでなくなった端末は、別の
   /// 端末に乗っ取られたと判断して通話から抜ける（[isSessionTakenOver]）。
   /// 古いクライアントが書いたドキュメントはnull。
   final String? sessionId;
 
   /// この参加者が現在ビデオ通話として参加しているか（音声⇔ビデオ切替は
-  /// 参加者ごとに独立しており、他の参加者に強制されない）。
+  /// 参加者毎に独立しており、他の参加者に強制されない）。
   final bool isVideo;
   final Timestamp? joinedAt;
 
-  /// 在室確認用のハートビート。Firestoreには切断検知の仕組みがないため、
+  /// 在室確認用のハートビート。Firestoreには切断検知の仕組みが無い為、
   /// 在室中はクライアントが定期的にこの値を更新し、他の参加者は一定時間
   /// 更新が無い相手を離脱扱いにする。
   final Timestamp? lastSeenAt;
@@ -154,8 +154,8 @@ bool isSessionTakenOver({
 
 /// 参加者2人ぶんのペア単位のシグナリング（`groupCalls/{id}/peerLinks/{pairId}`）。
 /// メッシュ型はN人ぶんのペアそれぞれで個別にoffer/answer/ICE candidateの
-/// やり取りが必要になるため、1対1の`Call.offer`/`Call.answer`のような
-/// 単一フィールドではなく、ペアごとに独立したドキュメントを持つ。
+/// やり取りが必要になる為、1対1の`Call.offer`/`Call.answer`のような
+/// 単一フィールドではなく、ペア毎に独立したドキュメントを持つ。
 class CallPeerLink {
   const CallPeerLink({
     required this.pairId,
@@ -224,7 +224,7 @@ int liveParticipantCount(List<CallParticipant> participants, DateTime now) {
 /// しない猶予（2026-10-22）。
 const kGroupCallAbandonedGrace = Duration(seconds: 60);
 
-/// 誰も生きて残っていない（全員がハートビート切れ、または参加者0）通話か。
+/// 誰も生きて残っていない（全員がハートビート切れ、又は参加者0）通話か。
 /// タブを閉じる・圏外などで退出処理が走らなかった通話が、`active`のまま残って
 /// バナーが消えない不具合の判定に使う。作成から[kGroupCallAbandonedGrace]以内
 /// （`createdAt`が未確定の書き込み直後を含む）は、まだ放棄とみなさない。

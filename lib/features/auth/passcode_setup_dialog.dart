@@ -35,7 +35,7 @@ class _PasscodeSetupDialogState extends ConsumerState<PasscodeSetupDialog> {
   String? _firstEntry;
   String? _errorText;
   // 常時`obscureText: true`で入力した数字が全く見えず、かつ確定用の
-  // ボタンも無かったため、入力が反映されているのか分からないまま
+  // ボタンも無かった為、入力が反映されているのか分からないまま
   // ダイアログを閉じてしまい「設定しても何も起こらない」という報告に
   // つながっていた（2026-09-14修正）。目アイコンで表示/非表示を
   // 切り替えられるようにする。

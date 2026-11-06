@@ -2,7 +2,7 @@
 /// 同梱のSVG（`assets/sns_icons/`、Simple Icons・CC0）だけを使い、外部へは
 /// 通信しない。一覧に無いサイトは`null`（アイコンなし）。
 ///
-/// ドメインは**末尾一致**（`host == d`または`host.endsWith('.d')`）で照合する
+/// ドメインは**末尾一致**（`host == d`又は`host.endsWith('.d')`）で照合する
 /// ため、`notex.com`のような別ドメインには一致しない。`www.`・`m.`・`mobile.`は
 /// 照合前に取り除く。OGP画像（`functions/src/snsIcons.ts`）も同じ規則・対応表。
 const Map<String, String> kSnsIconDomains = {

@@ -4,12 +4,12 @@ import 'app_locale.dart';
 import 'guide_content_fr.dart';
 
 /// 使い方ガイド（初回の簡単な説明と、設定＞運営＞使い方ガイドの機能別解説）の
-/// 文面（2026-10-17追加）。文面が長く数も多いため、`Strings`には載せずこの
+/// 文面（2026-10-17追加）。文面が長く数も多い為、`Strings`には載せずこの
 /// ファイルに日英セットで持つ（`lib/l10n/`は日本語直書き禁止テストの対象外）。
 /// 画面の部品名・ボタンの文言は`Strings`側にある。
 ///
 /// 文面は実装済みの挙動に合わせて書いているが、ユーザーによるレビュー前の
-/// 初稿。直すときはこのファイルだけを編集すればよい。
+/// 初稿。直す時はこのファイルだけを編集すればよい。
 class GuideText {
   const GuideText(this.ja, this.en);
 
@@ -20,7 +20,7 @@ class GuideText {
 }
 
 /// 日本語・英語以外の表示言語の訳。日本語・英語は[GuideText]自身が持つ。
-/// 言語ごとに`guide_content_xx.dart`へ置き、[guideTranslationOf]のswitch式
+/// 言語毎に`guide_content_xx.dart`へ置き、[guideTranslationOf]のswitch式
 /// （網羅性エラー）から返す。訳が無い項目は英語にフォールバックする。
 class GuideTranslation {
   const GuideTranslation({required this.topics});
@@ -111,7 +111,7 @@ const guideTopics = <GuideTopic>[
         'Open "Add friends" in the Profile tab to see your invite link and QR code. Send it to someone, or let them scan it.',
       ),
       GuideText(
-        '相手の招待リンクを開く、またはQRコードを読み取ると、友達申請を送れます。相手が承認すると、一対の語らいが始まります。',
+        '相手の招待リンクを開く、又はQRコードを読み取ると、友達申請を送れます。相手が承認すると、一対の語らいが始まります。',
         'Open someone else\'s invite link or scan their QR code to send a friend request. Once they accept, your Direct conversation begins.',
       ),
       GuideText(
@@ -148,16 +148,16 @@ const guideTopics = <GuideTopic>[
     icon: Icons.forum_outlined,
     title: GuideText('寄合（会話を分ける）', 'Text channels'),
     summary: GuideText(
-      '一つの会話の中で話題ごとに場所を分けます',
+      '一つの会話の中で話題毎に場所を分けます',
       'Split one conversation into separate topics',
     ),
     steps: [
       GuideText(
-        '一対でも広場でも、「寄合」を追加して話題ごとに会話を分けられます。最初は寄合が1つだけのシンプルな状態です。',
+        '一対でも広場でも、「寄合」を追加して話題毎に会話を分けられます。最初は寄合が1つだけのシンプルな状態です。',
         'In both Directs and Plazas you can add text channels to separate topics. At first there is just one.',
       ),
       GuideText(
-        '複数の寄合を使うには、会話の設定にある「寄合機能」をオンにします。オンにすると、寄合の一覧から追加・切り替えができます。',
+        '複数の寄合を使うには、会話の設定にある「寄合機能」をオンにします。オンにすると、寄合の一覧から追加・切り替えが出来ます。',
         'To use several channels, turn on the channel feature in the conversation settings. You can then add and switch channels.',
       ),
     ],
@@ -180,11 +180,11 @@ const guideTopics = <GuideTopic>[
         'While you type, suggested stickers may appear above the input field.',
       ),
       GuideText(
-        '「@」を打つと、相手や「@everyone」を指定して通知できます。',
+        '「@」を打つと、相手や「@everyone」を指定して通知出来ます。',
         'Type "@" to mention someone, or "@everyone" to notify the whole group.',
       ),
       GuideText(
-        'メッセージを返信・ピン留めしたり、まとめて選んで削除したりできます。削除は自分の画面から消えるだけで、相手には残ります。全員が削除すると、サーバーからも消えます。',
+        'メッセージを返信・ピン留めしたり、まとめて選んで削除したり出来ます。削除は自分の画面から消えるだけで、相手には残ります。全員が削除すると、サーバーからも消えます。',
         'You can reply to or pin messages, or select several to delete. Deleting only hides them for you; they are removed from the server once everyone has deleted them.',
       ),
     ],
@@ -200,7 +200,7 @@ const guideTopics = <GuideTopic>[
         'Open "Notes" from the conversation menu to write text, headings, lists and tables.',
       ),
       GuideText(
-        '「+」から表などのブロックを足せます。スマホでは、表のセルをタップすると行と列のハンドルが出て、長押しで並べ替えや範囲の選択ができます。',
+        '「+」から表などのブロックを足せます。スマホでは、表のセルをタップすると行と列のハンドルが出て、長押しで並べ替えや範囲の選択が出来ます。',
         'Use "+" to add blocks such as tables. On phones, tap a table cell to show row and column handles; long-press to reorder or select a range.',
       ),
     ],
@@ -212,7 +212,7 @@ const guideTopics = <GuideTopic>[
     summary: GuideText('予定の共有と日程調整', 'Shared events and scheduling'),
     steps: [
       GuideText(
-        '会話のメニューから「カレンダー」を開くと、予定を追加して共有できます。',
+        '会話のメニューから「カレンダー」を開くと、予定を追加して共有出来ます。',
         'Open "Calendar" from the conversation menu to add and share events.',
       ),
       GuideText(
@@ -220,7 +220,7 @@ const guideTopics = <GuideTopic>[
         'Scheduling lets you propose dates and gather everyone\'s availability.',
       ),
       GuideText(
-        '設定の「アカウント」で、Googleカレンダーとの同期をオンにできます。',
+        '設定の「アカウント」で、Googleカレンダーとの同期をオンに出来ます。',
         'In Settings > Account you can turn on sync with Google Calendar.',
       ),
     ],
@@ -230,7 +230,7 @@ const guideTopics = <GuideTopic>[
     icon: Icons.photo_library_outlined,
     title: GuideText('アルバム', 'Album'),
     summary: GuideText(
-      '写真や動画を会話ごとに残します',
+      '写真や動画を会話毎に残します',
       'Keep photos and videos per conversation',
     ),
     steps: [
@@ -255,7 +255,7 @@ const guideTopics = <GuideTopic>[
         'Start a voice or video call from any Direct or Plaza.',
       ),
       GuideText(
-        '通話中は、画面を小さくして他の画面を見ながら続けることもできます。',
+        '通話中は、画面を小さくして他の画面を見ながら続けることも出来ます。',
         'During a call you can shrink the screen and keep going while you look at other things.',
       ),
     ],
@@ -274,7 +274,7 @@ const guideTopics = <GuideTopic>[
         'The Profile library stores your icons, backgrounds, nicknames and status messages.',
       ),
       GuideText(
-        '「仕立て」では、蔵の素材を組み合わせてプロフィールカードを作ります。カードは最大3枚まで作れ、友達や会話ごとに使い分けられます。',
+        '「仕立て」では、蔵の素材を組み合わせてプロフィールカードを作ります。カードは最大3枚まで作れ、友達や会話毎に使い分けられます。',
         'In the Profile editor you combine materials into profile cards. You can make up to three and use different ones per conversation.',
       ),
     ],
@@ -293,15 +293,15 @@ const guideTopics = <GuideTopic>[
         'Blocking someone in a Direct hides their messages and requests. They are not told that you blocked them.',
       ),
       GuideText(
-        '「絶縁」は、お互いの同意があるときに、一対の会話履歴を完全に消す機能です。',
+        '「絶縁」は、お互いの同意がある時に、一対の会話履歴を完全に消す機能です。',
         '"Sever" permanently deletes a Direct\'s history, but only when both people agree.',
       ),
       GuideText(
-        '設定の「アカウント」で、2段階認証（認証アプリ）やパスキーを設定すると、ログインをより安全にできます。',
+        '設定の「アカウント」で、2段階認証（認証アプリ）やパスキーを設定すると、ログインをより安全に出来ます。',
         'In Settings > Account you can set up two-step verification (authenticator app) and passkeys for safer sign-in.',
       ),
       GuideText(
-        'アカウントを削除すると、30日間は復元できます。すぐに完全に消すこともできます。長を務める広場がある場合は、先に長を譲る必要があります。',
+        'アカウントを削除すると、30日間は復元出来ます。直ぐに完全に消すことも出来ます。長を務める広場がある場合は、先に長を譲る必要があります。',
         'A deleted account can be restored for 30 days, or you can delete it immediately and permanently. If you own a Plaza, transfer ownership first.',
       ),
     ],

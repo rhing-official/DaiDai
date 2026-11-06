@@ -2,7 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:daidai/models/message.dart';
 
-/// `sentAt`はサーバー時刻のプレースホルダ（`FieldValue`）で復元できないため除く。
+/// `sentAt`はサーバー時刻のプレースホルダ（`FieldValue`）で復元出来ないため除く。
 Map<String, dynamic> _stored(Message m) => {...m.toJson()}..remove('sentAt');
 
 void main() {

@@ -23,7 +23,7 @@ abstract class CallRepository {
   Future<void> updateStatus(String callId, CallStatus status);
 
   /// 通話中に音声⇔ビデオを切り替えた際、種別をFirestore側にも反映する
-  /// （画面を離れて戻ってきた場合等に現在の種別を復元できるようにするため）。
+  /// （画面を離れて戻ってきた場合等に現在の種別を復元出来るようにする為）。
   /// 切り替えるのは自分側の種別のみで、相手側には影響しない
   /// （[isCaller]に応じて`callerIsVideo`/`calleeIsVideo`のどちらかだけ更新する）。
   Future<void> updateIsVideo(

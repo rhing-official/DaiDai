@@ -15,7 +15,7 @@ enum FriendRequestStatus {
   }
 }
 
-/// 友達申請。2人のuserIdから決定的なidを作るため、1組の相手につき
+/// 友達申請。2人のuserIdから決定的なidを作る為、1組の相手につき
 /// ドキュメントは常に1つだけ存在する（拒否後の再申請も同じドキュメントを更新する）。
 class FriendRequest {
   const FriendRequest({
@@ -38,7 +38,7 @@ class FriendRequest {
   final FriendRequestStatus status;
 
   /// 申請に添えた任意メッセージ（100文字まで、技術仕様書8.3レイヤー2、
-  /// 2026-09-07追加）。未入力ならnull。送信後の編集はできない。
+  /// 2026-09-07追加）。未入力ならnull。送信後の編集は出来ない。
   final String? message;
   final Timestamp? createdAt;
   final Timestamp? respondedAt;
@@ -78,7 +78,7 @@ class FriendRequest {
   /// 2人のuserIdから決定的なrequestIdを作る（順序に依存しない）。
   /// directMessagesのdmIdと同じ組み立て方にしており、
   /// Firestoreルール側で「一対を作るには対応する友達申請がaccepted済みであること」を
-  /// 同じidで突き合わせて検証できるようにしている。
+  /// 同じidで突き合わせて検証出来るようにしている。
   static String idFor(String userIdA, String userIdB) {
     final sorted = [userIdA, userIdB]..sort();
     return '${sorted[0]}_${sorted[1]}';

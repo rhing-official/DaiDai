@@ -15,7 +15,7 @@ void main() {
     mimeType: mimeType,
   );
 
-  test('PDFは拡張子またはMIMEで判定し、大きすぎるものは除く', () {
+  test('PDFは拡張子又はMIMEで判定し、大きすぎるものは除く', () {
     expect(isPreviewablePdf(meta()), isTrue);
     expect(
       isPreviewablePdf(

@@ -39,7 +39,7 @@ class AddChatDialogContent extends ConsumerStatefulWidget {
   final VoidCallback onClose;
 
   /// 一対を開いて画面遷移する直前に呼ぶ。このポップアップ・その下に重なって
-  /// いる「＋」メニューポップアップの両方を閉じる必要があるため、[onClose]
+  /// いる「＋」メニューポップアップの両方を閉じる必要がある為、[onClose]
   /// とは別のコールバックとして分離している。
   final VoidCallback onCompleted;
 
@@ -49,7 +49,7 @@ class AddChatDialogContent extends ConsumerStatefulWidget {
 }
 
 class _AddChatDialogContentState extends ConsumerState<AddChatDialogContent> {
-  /// 標準のカードの切り替えなどを即座に反映するため、ログイン時に一度だけ
+  /// 標準のカードの切り替えなどを即座に反映する為、ログイン時に一度だけ
   /// 取得した`widget.currentUser`ではなく購読中の最新のユーザーを使う
   /// （2026-10-11）。
   AppUser get _liveUser =>
@@ -70,7 +70,7 @@ class _AddChatDialogContentState extends ConsumerState<AddChatDialogContent> {
   final _messageController = TextEditingController();
 
   /// [viaInvite]は招待リンク・QRコードから来た検索。Rhing Seedの入力検索に出ない設定
-  /// （[AppUser.seedSearchable]がfalse）の相手も、こちらからは申請できる。
+  /// （[AppUser.seedSearchable]がfalse）の相手も、こちらからは申請出来る。
   Future<void> _search({bool viaInvite = false}) async {
     final strings = ref.read(appStringsProvider);
     final rhingSeed = _controller.text.trim().toLowerCase().replaceFirst(
@@ -418,7 +418,7 @@ class _AddChatDialogContentState extends ConsumerState<AddChatDialogContent> {
           ),
           const SizedBox(width: 8),
           // テーマの`ElevatedButtonThemeData.minimumSize`が横幅
-          // `double.infinity`のため、`Row`直下に裸で置くと横幅の制約が
+          // `double.infinity`の為、`Row`直下に裸で置くと横幅の制約が
           // 衝突してレイアウトが破綻する（ボタンが見えなくなる不具合の
           // 原因、2026-08-14修正）。`Expanded`で有限の幅に収める。
           Expanded(

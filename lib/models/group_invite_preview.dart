@@ -2,7 +2,7 @@ import 'profile_card.dart' show ImageFocal;
 
 /// `groupInvites/{groupId}`に保存する、広場の公開プレビュー情報。
 /// 招待リンクを開いた（まだメンバーではない）相手や、外部SNSのリンク展開
-/// （OGP）に見せるための最小限の情報のみを持つ（メンバー一覧・メッセージ等は
+/// （OGP）に見せる為の最小限の情報のみを持つ（メンバー一覧・メッセージ等は
 /// 一切含まない）。広場のプロフィールカードが変わるたびに同期して書き込む。
 class GroupInvitePreview {
   const GroupInvitePreview({
@@ -19,7 +19,7 @@ class GroupInvitePreview {
   final String description;
   final String? iconUrl;
 
-  /// OGP画像をプロフィールカードそのままの見た目で生成するために使う
+  /// OGP画像をプロフィールカードそのままの見た目で生成する為に使う
   /// （`api/og-image.js`が参照する）。
   final String? backgroundImageUrl;
 

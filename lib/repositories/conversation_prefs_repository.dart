@@ -30,7 +30,7 @@ abstract class ConversationPrefsRepository {
     String? roomId,
   });
 
-  /// 広場の寄合ごとの通知オフを設定する（`Room.customSettingsEnabled`が
+  /// 広場の寄合毎の通知オフを設定する（`Room.customSettingsEnabled`が
   /// trueの間のみ有効、2026-07-29追加）。
   Future<void> setRoomNotificationsMuted({
     required String userId,
@@ -127,12 +127,12 @@ class FirestoreConversationPrefsRepository
     // unreadCountもここで0にリセットする（2026-09-02追加）。加算側は
     // Cloud Functions（functions/src/index.tsの`incrementUnreadCounts`）が
     // 相手からのメッセージ受信時に行うが、自分の既読はここで直接0に戻して
-    // よい（本人による自分自身のconversationPrefsへの書き込みのため
+    // 良い（本人による自分自身のconversationPrefsへの書き込みのため
     // firestore.rules上も許可される）。
     await _prefsOf(userId).doc(conversationId).set({
       'lastReadAt': FieldValue.serverTimestamp(),
       'unreadCount': 0,
-      // set()はドット区切りキーをネストとして解釈しないため、
+      // set()はドット区切りキーをネストとして解釈しない為、
       // `setRoomNotificationsMuted`と同じネストMapリテラルで書く。
       if (roomId != null) 'unreadByRoom': {roomId: 0},
     }, SetOptions(merge: true));
@@ -178,8 +178,8 @@ class FirestoreConversationPrefsRepository
     required String conversationId,
     required Map<String, dynamic>? override,
   }) async {
-    // 上書きするときは regions・observances・religions の3つを必ず全て書く
-    // （mergeは入れ子のMapも統合するため、一部だけ書くと古いキーが残る）。
+    // 上書きする時は regions・observances・religions の3つを必ず全て書く
+    // （mergeは入れ子のMapも統合する為、一部だけ書くと古いキーが残る）。
     await _prefsOf(userId).doc(conversationId).set({
       'holidayOverride': override ?? FieldValue.delete(),
     }, SetOptions(merge: true));

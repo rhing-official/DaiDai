@@ -13,7 +13,7 @@ import '../../widgets/app_dialog.dart';
 
 /// パスキー紛失時の復旧フロー（2026-09-16追加）。サインイン画面の
 /// 「パスキーが使えない場合」リンクから開く。Rhing Seedを入力→秘密の質問
-/// （3問すべて正解が必要）に回答する2ステップ構成で、成功するとその場で
+/// （3問全て正解が必要）に回答する2ステップ構成で、成功するとその場で
 /// サインインする（以降は`AuthGate`が認証状態の変化を検知して自動的に
 /// 画面遷移する）。
 ///
@@ -98,7 +98,7 @@ class _PasskeyRecoveryDialogState extends ConsumerState<PasskeyRecoveryDialog> {
       // この時点で既にsignInWithCustomTokenでサインイン済み。ここで
       // 「新しいパスキーを登録しますか？」を出してから閉じることで、
       // AuthGateがHomeScreenへ切り替わった後で導線を見失わないようにする
-      // （このダイアログのshowDialogはルートNavigatorに積まれるため、
+      // （このダイアログのshowDialogはルートNavigatorに積まれる為、
       // AuthGate側のサブツリー切り替えとは独立して残り続ける）。
       if (!mounted) return;
       await _offerAddNewPasskey(strings);
@@ -143,8 +143,8 @@ class _PasskeyRecoveryDialogState extends ConsumerState<PasskeyRecoveryDialog> {
     try {
       await ref.read(authRepositoryProvider).addPasskeyCredential();
     } catch (_) {
-      // 復旧自体は完了しているため、ここでの追加登録の失敗は致命的ではない
-      // （設定画面から改めて追加できる）。エラー表示はしない。
+      // 復旧自体は完了している為、ここでの追加登録の失敗は致命的ではない
+      // （設定画面から改めて追加出来る）。エラー表示はしない。
     }
   }
 

@@ -15,7 +15,7 @@ import '../../widgets/app_dialog.dart';
 /// ログイン済み端末がQRコードを表示し、ログインしたい端末が読み取ってログインする
 /// 方式（2026-10-15）の表示側。開くと`createIssuedQrLoginSession`でセッションを作って
 /// `daidai:qrissue:{sessionId}`のQRを出し、読み取られたら（status=requested）「ログインを
-/// 許可しますか？」を出す。許可すると読み取った端末がログインできる。QRは2分で失効。
+/// 許可しますか？」を出す。許可すると読み取った端末がログイン出来る。QRは2分で失効。
 class IssueQrLoginDialog extends ConsumerStatefulWidget {
   const IssueQrLoginDialog({super.key});
 
@@ -116,7 +116,7 @@ class _IssueQrLoginDialogState extends ConsumerState<IssueQrLoginDialog> {
     final title = Text(
       requested ? strings.qrIssueRequestTitle : strings.settingsQrLogin,
     );
-    // 低い画面でも収まるよう、中身はスクロールできるようにする。
+    // 低い画面でも収まるよう、中身はスクロール出来るようにする。
     // 許可の確認中・許可済みでなければ、QRコードの作成中から「QRコードを読み取る」を出す
     // （QRコードが出てから後出しにならないよう、本文とは別に常に置く）。
     final showScan = !requested && _status != 'approved';

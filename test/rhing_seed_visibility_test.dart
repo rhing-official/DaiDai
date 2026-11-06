@@ -9,7 +9,7 @@ import 'package:daidai/widgets/user_profile_card_view.dart';
 void main() {
   const card = ProfileCard(id: 'c', name: 'n');
 
-  test('カードのRhing Seed表示は既定オフで、保存・復元できる', () {
+  test('カードのRhing Seed表示は既定オフで、保存・復元出来る', () {
     expect(card.showRhingSeed, isFalse);
     expect(card.toJson().containsKey('showRhingSeed'), isFalse);
     final on = card.copyWith(showRhingSeed: true);
@@ -79,7 +79,7 @@ void main() {
     expect(find.text('@seed'), findsOneWidget);
   });
 
-  testWidgets('設定オフ、または呼び名が無い時は重ねて出さない', (tester) async {
+  testWidgets('設定オフ、又は呼び名が無い時は重ねて出さない', (tester) async {
     const off = AppUser(
       userId: 'u',
       rhingSeed: 'seed',

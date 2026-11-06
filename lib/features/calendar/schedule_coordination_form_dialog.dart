@@ -116,7 +116,7 @@ class _ScheduleCoordinationFormDialogState
   }
 
   /// 回答期限を選ぶ（`calendar_event_form_dialog.dart`の`_pickDeadline`と
-  /// 同じ実装。ただしここには予定の`_startAt`に相当するものが無いため、
+  /// 同じ実装。但しここには予定の`_startAt`に相当するものが無い為、
   /// 候補日の最も早い日付を起点にする）。
   Future<void> _pickDeadline() async {
     final initial =

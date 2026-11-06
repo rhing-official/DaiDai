@@ -7,7 +7,7 @@ import '../../theme/gekiga/gekiga_colors.dart';
 /// 日本語の文言が入ることを前提に、専用フォント（Anton、英数字専用）は
 /// 使わず太字＋字間調整だけで表現する（Antonは日本語グリフを持たず、
 /// 当てても結局システムフォントへフォールバックするだけで見た目が
-/// 揃わないため）。
+/// 揃わない為）。
 class GekigaLabelChip extends StatelessWidget {
   const GekigaLabelChip(this.label, {super.key});
 

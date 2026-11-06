@@ -5,7 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// チャットの音声添付（プレビュー再生）の再生状態（2026-11-02）。
 ///
-/// 以前は各メッセージのプレビュー行が自分の`AudioPlayer`を持っていたため、メッセージが
+/// 以前は各メッセージのプレビュー行が自分の`AudioPlayer`を持っていた為、メッセージが
 /// スクロールで画面から外れて破棄される（約9件離れる）と再生も止まっていた。再生は
 /// アプリ全体で1つのプレイヤーが持ち、止めるまで続ける。プレビュー行とバナーは、この
 /// 状態を見て表示・操作するだけ。
@@ -18,7 +18,7 @@ class AudioPlaybackState {
     this.duration,
   });
 
-  /// 再生中（または一時停止中）のメッセージid。何も再生していなければnull。
+  /// 再生中（又は一時停止中）のメッセージid。何も再生していなければnull。
   final String? messageId;
 
   /// バナーに出すファイル名。
@@ -69,7 +69,7 @@ class AudioPlaybackNotifier extends Notifier<AudioPlaybackState> {
         player.onPlayerStateChanged.listen((s) {
           if (!state.active) return;
           if (s == PlayerState.completed || s == PlayerState.stopped) {
-            // 最後まで再生した、または止めた。バナーを消す。
+            // 最後まで再生した、又は止めた。バナーを消す。
             state = AudioPlaybackState.idle;
           } else {
             state = state.copyWith(playing: s == PlayerState.playing);
@@ -112,7 +112,7 @@ class AudioPlaybackNotifier extends Notifier<AudioPlaybackState> {
       state = AudioPlaybackState(messageId: messageId, title: title);
       await player.play(UrlSource(url));
     } catch (_) {
-      // 再生できない環境でもファイル自体のダウンロードは引き続き行える。
+      // 再生出来ない環境でもファイル自体のダウンロードは引き続き行える。
       state = AudioPlaybackState.idle;
     }
   }

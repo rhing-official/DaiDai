@@ -1,7 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 /// 一対・広場に対する個人的な表示設定（`users/{userId}/conversationPrefs/{conversationId}`）。
-/// conversationIdはdmIdまたはgroupId。相手には一切公開されない。
+/// conversationIdはdmId又はgroupId。相手には一切公開されない。
 class ConversationPrefs {
   const ConversationPrefs({
     this.pinned = false,
@@ -21,7 +21,7 @@ class ConversationPrefs {
 
   /// 自分がこの語らいを最後に開いて既読を付けた時刻。語らい一覧の
   /// 「未読優先」並べ替えで、`DirectMessage`/`Group`の`lastMessageAt`と
-  /// 比較して未読かどうかを判定するために使う（2026-09-02追加）。
+  /// 比較して未読かどうかを判定する為に使う（2026-09-02追加）。
   final Timestamp? lastReadAt;
 
   /// 未読メッセージ件数（語らい一覧のバッジ表示用、2026-09-02追加）。
@@ -31,18 +31,18 @@ class ConversationPrefs {
   /// （[ConversationPrefsRepository.setLastRead]）で0にリセットされる。
   final int unreadCount;
 
-  /// 寄合ごとの未読メッセージ件数（roomId→件数、寄合一覧のバッジ表示用、
+  /// 寄合毎の未読メッセージ件数（roomId→件数、寄合一覧のバッジ表示用、
   /// 2026-10-04追加）。[unreadCount]と同じく`incrementUnreadCounts`が加算し、
   /// その寄合を開いて既読を付けたタイミング（[ConversationPrefsRepository
   /// .setLastRead]の`roomId`指定）で該当キーだけ0に戻る。
   final Map<String, int> unreadByRoom;
 
-  /// 広場の寄合ごとの通知オフの上書き（roomId→muted）。対象の寄合が
+  /// 広場の寄合毎の通知オフの上書き（roomId→muted）。対象の寄合が
   /// `Room.customSettingsEnabled`の間のみ参照され、[notificationsMuted]
   /// （広場全体の既定値）より優先される（2026-07-29追加）。
   final Map<String, bool> roomNotificationOverrides;
 
-  /// 寄合ごとのメッセージ入力欄の下書き（roomId→本文）。複数端末同期設定
+  /// 寄合毎のメッセージ入力欄の下書き（roomId→本文）。複数端末同期設定
   /// （`draftSyncEnabledProvider`）がオンの間、`ChatScreen`が画面を開いた
   /// 時に読み込み・デバウンス保存する（2026-08-13追加）。
   final Map<String, String> draftByRoom;

@@ -25,8 +25,8 @@ import 'package:flutter_test/flutter_test.dart';
 /// arrayUnion/arrayRemoveの実際のFirestore側の一致判定（値そのものの深い比較。
 /// Listは順序も含めて内容で比較する）を模す。Dartの既定の`==`（≒
 /// `mapEquals`）はListを参照同一性で比較してしまい、同じ内容でも別インスタンス
-/// なら不一致になる（本物のFirestoreにはこの問題はない）ため、テスト用の
-/// フェイクをより忠実にするために使う。
+/// なら不一致になる（本物のFirestoreにはこの問題は無い）ため、テスト用の
+/// フェイクをより忠実にする為に使う。
 bool _deepEquals(Object? a, Object? b) {
   if (a is Map && b is Map) {
     if (a.length != b.length) return false;
@@ -50,7 +50,7 @@ class _FakeUserRepository implements UserRepository {
 
   // 特定のフィールドへの書き込みだけを意図的に遅延させ、複数の追加操作が
   // 重なった状況（例: 遅いアイコンアップロード中に速いニックネーム追加が
-  // 先に完了する）を再現するためのフック。
+  // 先に完了する）を再現する為のフック。
   String? delayedField;
   Completer<void>? _delayGate;
 
@@ -339,7 +339,7 @@ void main() {
     await tester.tap(find.text('仕立て'));
     await tester.pumpAndSettle();
 
-    // 3枠すべてが「+」の白紙カードとして表示される。
+    // 3枠全てが「+」の白紙カードとして表示される。
     expect(find.byIcon(Icons.add), findsNWidgets(3));
 
     await tester.tap(find.byIcon(Icons.add).first);
@@ -363,7 +363,7 @@ void main() {
     await tester.tap(find.text('仕立て'));
     await tester.pumpAndSettle();
 
-    // カードは画面の下の方にあるため、文字ではなくカード本体（Hero）の中心を
+    // カードは画面の下の方にある為、文字ではなくカード本体（Hero）の中心を
     // タップする（他のテストと同じ方法）。
     await tester.tapAt(tester.getCenter(find.byType(ProfileCardView).first));
     await tester.pumpAndSettle();
@@ -384,12 +384,12 @@ void main() {
     await tester.tap(find.byIcon(Icons.add).first);
     await tester.pumpAndSettle();
 
-    // 以前のダイアログ版は「入力してください」を出していたが、編集画面では
+    // 以前のダイアログ版は「入力して下さい」を出していたが、編集画面では
     // 名前が空のままの確定は何もせず、カードも作られない（`_confirmName`）。
     await tester.testTextInput.receiveAction(TextInputAction.done);
     await tester.pumpAndSettle();
 
-    expect(find.text('入力してください'), findsNothing);
+    expect(find.text('入力して下さい'), findsNothing);
     expect(repo.saved, isNull);
   });
 
@@ -405,11 +405,11 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('呼び名を追加'), findsWidgets); // ダイアログはまだ開いたまま
-    expect(find.text('入力してください'), findsOneWidget);
+    expect(find.text('入力して下さい'), findsOneWidget);
     expect(repo.saved, isNull);
   });
 
-  testWidgets('ニックネームは指定字数（20字）を超えて入力できない', (tester) async {
+  testWidgets('ニックネームは指定字数（20字）を超えて入力出来ない', (tester) async {
     const user = AppUser(userId: 'u1', rhingSeed: 'taro');
     final repo = _FakeUserRepository();
     await _pumpProfileTab(tester, user, repo);
@@ -422,7 +422,7 @@ void main() {
     expect(field.controller!.text.length, kMaxNicknameLength);
   });
 
-  testWidgets('ステメは指定字数（40字）を超えて入力できない', (tester) async {
+  testWidgets('ステメは指定字数（40字）を超えて入力出来ない', (tester) async {
     const user = AppUser(userId: 'u1', rhingSeed: 'taro');
     final repo = _FakeUserRepository();
     await _pumpProfileTab(tester, user, repo);
@@ -500,12 +500,12 @@ void main() {
     await tester.tap(find.text('仕立て'));
     await tester.pumpAndSettle();
 
-    // 名前ラベル（カード下のText）はタップ不可のため、カード本体（Hero）をタップする。
+    // 名前ラベル（カード下のText）はタップ不可の為、カード本体（Hero）をタップする。
     await tester.tapAt(tester.getCenter(find.byType(ProfileCardView).first));
     await tester.pumpAndSettle();
     // テスト環境ではbackgroundImageのURLへの実際のHTTP取得は失敗する
     // （テストバインディングが常にstatusCode 400を返す仕様）。この
-    // NetworkImageLoadException自体は本テストの検証対象ではないため、
+    // NetworkImageLoadException自体は本テストの検証対象ではない為、
     // 後続の失敗として扱われないよう明示的に読み捨てる。
     tester.takeException();
 
@@ -792,7 +792,7 @@ void main() {
 
   testWidgets('空き枠を連続タップしてもカード編集画面は1つしか開かず、重複作成されない（回帰テスト）', (tester) async {
     // 実際のバグ再現: Hero遷移のフェード（300ms）中はInkWellへの反応が一瞬
-    // 遅れて見えるため、素早く連打すると_openCardZoomが多重に呼ばれ、同じ枠に
+    // 遅れて見える為、素早く連打すると_openCardZoomが多重に呼ばれ、同じ枠に
     // 対して別々のidを持つ内容の同じカードが2件作られてしまっていた。
     // ガードにより2回目以降の呼び出しは無視されることを確認する。
     const user = AppUser(userId: 'u1', rhingSeed: 'taro');
@@ -802,7 +802,7 @@ void main() {
     await tester.tap(find.text('仕立て'));
     await tester.pumpAndSettle();
 
-    // pumpAndSettleを挟まず素早く2回タップする（連打相当）。
+    // pumpAndSettleを挟先ず素早く2回タップする（連打相当）。
     await tester.tap(find.byIcon(Icons.add).first);
     await tester.tap(find.byIcon(Icons.add).first);
     await tester.pumpAndSettle();

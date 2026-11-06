@@ -10,7 +10,7 @@ typedef NoticeTargetScope = (NoticeTargetKind, bool, String, String);
 
 /// その寄合に今ある対象のid一覧。通知カードは自分のidがここに無ければ「削除済み」と
 /// 表示し、タップしても何も起きなくする。読み込み中・取得失敗では何も出さない（削除済みと
-/// 誤って表示しないため、呼び出し側はデータが無い間は存在するものとして扱う）。
+/// 誤って表示しない為、呼び出し側はデータが無い間は存在するものとして扱う）。
 final noticeTargetIdsProvider = StreamProvider.autoDispose
     .family<Set<String>, NoticeTargetScope>((ref, scope) {
       final (kind, isDm, conversationId, roomId) = scope;

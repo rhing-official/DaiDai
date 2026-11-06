@@ -8,7 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// 明るいサーモンピンクになりさらに読みにくくなる（CLAUDE.md記載）ため、
 /// 削除確認ダイアログの確定ボタンと同じ固定の濃い赤（`Colors.red.shade700`）
 /// を背景に敷き、白文字を乗せる。劇画UIは一時期黒に切り替えていた（2026-09-16追加、
-/// 劇画は背景色自体をユーザーが自由な色に変更できる仕様のため、赤系の
+/// 劇画は背景色自体をユーザーが自由な色に変更出来る仕様の為、赤系の
 /// 背景色を選ぶと赤ピルが背景に埋もれて視認できなくなる不具合の修正。
 /// 2026-10-11に全スタイル共通の赤へ戻した。白縁は付けない）。
 class DestructiveLabel extends ConsumerWidget {
@@ -33,7 +33,7 @@ class DestructiveLabel extends ConsumerWidget {
   final bool alignTextWithSiblings;
 
   /// falseなら赤ピルを半透明にして、無効（グレーアウト）に見せる。`ListTile`の
-  /// `enabled: false`は文字色しか薄めず、固定の赤塗りには効かないため。
+  /// `enabled: false`は文字色しか薄めず、固定の赤塗りには効かない為。
   final bool enabled;
 
   static const _horizontalPadding = 10.0;

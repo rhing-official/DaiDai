@@ -59,7 +59,7 @@ void main() {
   });
 
   for (final count in [2, 3, 4, 5, 6, 7, 8, 9, 10]) {
-    testWidgets('画像$count枚のグリッドを描画できる', (tester) async {
+    testWidgets('画像$count枚のグリッドを描画出来る', (tester) async {
       tester.view.physicalSize = const Size(500, 900);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
@@ -99,7 +99,7 @@ void main() {
     });
   }
 
-  testWidgets('動画を含む複数添付（サムネイルなし）も例外なく描画できる', (tester) async {
+  testWidgets('動画を含む複数添付（サムネイルなし）も例外なく描画出来る', (tester) async {
     tester.view.physicalSize = const Size(500, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);

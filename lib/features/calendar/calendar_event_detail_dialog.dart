@@ -85,7 +85,7 @@ class _CalendarEventDetailDialogState
   bool _initializedFromExisting = false;
   bool _saving = false;
 
-  /// 複数日にまたがる予定で、日ごとに出欠を確認するか
+  /// 複数日にまたがる予定で、日毎に出欠を確認するか
   /// （[CalendarEvent.rsvpEnabled]がfalseなら出欠確認自体を行わない、
   /// 2026-09-02追加）。
   bool get _perDayEnabled =>
@@ -159,7 +159,7 @@ class _CalendarEventDetailDialogState
       final uid = widget.currentUser.userId;
       // 連携済みの住人は、ボタン操作の最初（ユーザー操作の有効期間内）に
       // Googleのアクセストークンを取得しておく（Webではユーザー操作なしに
-      // 取れないため。2026-10-04追加）。
+      // 取れない為。2026-10-04追加）。
       final user =
           ref.read(watchedUserProvider(uid)).asData?.value ??
           widget.currentUser;
@@ -219,7 +219,7 @@ class _CalendarEventDetailDialogState
 
   /// 予定を編集する（回答者0人の間だけ作成者に限り呼べる、2026-09-04追加、
   /// `showCalendarEventFormDialog`参照）。編集ダイアログはこの詳細ダイアログ
-  /// の上に重ねて開き、保存されたら（表示中の[widget.event]が古くなるため）
+  /// の上に重ねて開き、保存されたら（表示中の[widget.event]が古くなる為）
   /// この詳細ダイアログごと閉じる。キャンセル時はこの詳細ダイアログを
   /// 開いたままにする。
   Future<void> _openEditForm() async {
@@ -557,7 +557,7 @@ class _CalendarEventDetailDialogState
         ? GlassAlertDialog(title: title, content: content, actions: actions)
         : KeyboardAlertDialog(title: title, content: content, actions: actions);
     // アプリ全体のdialogTheme.constraints（確認ダイアログの横長対策、
-    // maxWidth: 400）だと1日あたり4つの出欠チップが1行に収まらないため、
+    // maxWidth: 400）だと1日あたり4つの出欠チップが1行に収まらない為、
     // このダイアログだけ広げる。ガラススタイル用のbackgroundColor/elevation/
     // surfaceTintColor（透明化設定）を失わないよう、DialogThemeDataを
     // 作り直さず現在のdialogThemeをcopyWithしてconstraintsだけ差し替える
@@ -597,7 +597,7 @@ class _MyDayStatusRow extends StatelessWidget {
   final String Function(CalendarRsvpStatus) statusLabel;
   final IconData Function(CalendarRsvpStatus) statusIcon;
 
-  /// 回答期限を過ぎた予定では回答・回答変更ができないため、チップを操作
+  /// 回答期限を過ぎた予定では回答・回答変更が出来ない為、チップを操作
   /// 不能にする（2026-09-04追加、実効的な強制はfirestore.rules側）。
   final bool disabled;
 

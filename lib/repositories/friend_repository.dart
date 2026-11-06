@@ -8,12 +8,12 @@ import '../models/friend.dart';
 import '../models/friend_request.dart';
 
 /// 友達申請と友達関係を扱うリポジトリ。
-/// 友達になるまでの流れ: IDで検索 → 申請を送る → 相手が承認する → 一対で会話できるようになる。
+/// 友達になるまでの流れ: IDで検索 → 申請を送る → 相手が承認する → 一対で会話出来るようになる。
 abstract class FriendRepository {
   /// [from]から[to]へ友達申請を送る。[message]は任意の同梱メッセージ
   /// （100文字まで、技術仕様書8.3レイヤー2）。
   /// 既に相手からの申請が届いている場合は、それを承認する（相互申請での即成立）。
-  /// 既に友達、または自分からの申請が返答待ちの場合は何もしない。
+  /// 既に友達、又は自分からの申請が返答待ちの場合は何もしない。
   ///
   /// レート制限（技術仕様書8.3レイヤー1）を超えた場合・[message]が長すぎる
   /// 場合・同一内容を短時間に大量送信しようとした場合は
@@ -40,7 +40,7 @@ abstract class FriendRepository {
 
   /// 2人の間の友達申請ドキュメントを1回だけ取得する（無ければnull）。
   /// 相手のプロフィールカードを開いた際に、既に友達か・申請中か・
-  /// 相手から申請が届いているかを判定するために使う。
+  /// 相手から申請が届いているかを判定する為に使う。
   Future<FriendRequest?> getRequest(String userIdA, String userIdB);
 }
 
@@ -70,7 +70,7 @@ class FirestoreFriendRepository implements FriendRepository {
   }) async {
     // 技術仕様書8.3レイヤー1（送信頻度のレート制限）・レイヤー2（同梱
     // メッセージの文字数・同一内容の大量送信検知）をクライアント側の
-    // 直接書き込みでは強制できないため、Cloud Functionsのcallableに
+    // 直接書き込みでは強制出来ない為、Cloud Functionsのcallableに
     // 寄せている（`suspendUserAccount`等と同じAdmin SDK経由のパターン、
     // 2026-09-07）。分岐ロジック（新規送信／相互申請の即時承認／
     // 拒否後の再送信）自体はこのファイルの旧`sendRequest`実装と
@@ -127,7 +127,7 @@ class FirestoreFriendRepository implements FriendRepository {
     }
 
     // friendRequestsの承認を先に確定させてから友達関係・一対を作る。
-    // （Firestoreルールがdirectメッセージ/friends作成時にこのステータスを参照するため、
+    // （Firestoreルールがdirectメッセージ/friends作成時にこのステータスを参照する為、
     //   同じバッチ内で先に依存させるより、確定後の別コミットにする方が確実）
     await ref.update({
       'status': FriendRequestStatus.accepted.name,

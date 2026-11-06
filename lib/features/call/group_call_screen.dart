@@ -21,8 +21,8 @@ import 'camera_availability.dart';
 import 'webrtc_group_call_controller.dart';
 import '../../l10n/strings.dart';
 
-/// 広場（グループ）通話のモバイル向け全画面表示。メッシュ型P2Pのため、
-/// 参加者ごとに独立した`RTCVideoRenderer`をグリッド表示する。1対1の
+/// 広場（グループ）通話のモバイル向け全画面表示。メッシュ型P2Pの為、
+/// 参加者毎に独立した`RTCVideoRenderer`をグリッド表示する。1対1の
 /// [CallScreen]とは異なり、着信（ringing）の概念を持たず「進行中の通話に
 /// 途中参加する」形になる。UIも1対1とは意図的に差別化しており、常に
 /// グリッド表示から始まり、任意の枠をタップするとその参加者を全画面表示、
@@ -31,7 +31,7 @@ import '../../l10n/strings.dart';
 /// 通話コントローラー自体はこの画面ではなく`activeCallSessionProvider`
 /// （`active_call_session.dart`）が所有する（2026-08-19変更）。PCでは
 /// この画面自体を使わず、メッセージ画面内の埋め込み表示・右上ピン留め
-/// ミニ表示を直接使う（広場通話には着信の概念が無いため、1対1と異なり
+/// ミニ表示を直接使う（広場通話には着信の概念が無い為、1対1と異なり
 /// PCでもこの全画面ビューを経由する場面自体が無い）。
 class GroupCallScreen extends ConsumerStatefulWidget {
   const GroupCallScreen({
@@ -95,14 +95,14 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
     _controller.removeListener(_onControllerChanged);
     // コントローラー自体は破棄・退出処理をしない。破棄は通話終了
     // （state==ended）を検知したactiveCallSessionProvider側でのみ行う
-    // （2026-08-19変更、画面を閉じても通話は続くようにするための核と
+    // （2026-08-19変更、画面を閉じても通話は続くようにする為の核と
     // なる変更）。
     super.dispose();
   }
 
   /// モバイルで下スワイプした時、通話を切らずに右上ピン留めミニ表示へ
   /// ドックする（2026-08-19追加）。フォーカス中タイルの下スワイプ
-  /// （グリッドへ戻る操作）とは別物のため、グリッド/音声表示の時だけ
+  /// （グリッドへ戻る操作）とは別物の為、グリッド/音声表示の時だけ
   /// 呼ばれる（build参照）。
   void _dockCall() {
     ref.read(activeCallSessionProvider.notifier).setMinimized(true);
@@ -110,7 +110,7 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
   }
 
   /// [CallScreen._popIntentionally]と同じ理由（PopScopeの`canPop`は
-  /// 再構築を経て初めて反映されるため）。
+  /// 再構築を経て初めて反映される為）。
   void _popIntentionally() {
     setState(() => _intentionalPop = true);
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -121,7 +121,7 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
   }
 
   /// 自分か、現在つながっている参加者の誰か1人でもビデオ通話中なら
-  /// ビデオ通話レイアウトを使う（音声⇔ビデオ切替は参加者ごとに独立している
+  /// ビデオ通話レイアウトを使う（音声⇔ビデオ切替は参加者毎に独立している
   /// ため、全員が同じ種別とは限らない）。
   bool get _anyVideo =>
       _controller.isVideo ||
@@ -211,8 +211,8 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
     return SafeArea(
       child: Column(
         children: [
-          // 音声のみの通話でもリモートの音声を再生するためにレンダラーを紐づける
-          // （0×0だとモバイルのブラウザが再生しないことがあるため、1×1・ほぼ
+          // 音声のみの通話でもリモートの音声を再生する為にレンダラーを紐づける
+          // （0×0だとモバイルのブラウザが再生しないことがある為、1×1・ほぼ
           // 透明の[CallAudioSinks]にした、2026-10-21）。
           CallAudioSinks(
             renderers: _controller.remoteRenderers.values.toList(),
@@ -267,7 +267,7 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
     final tileCount = 1 + remoteParticipants.length;
 
     if (tileCount == 1) {
-      // まだ他の参加者がいない間も、自分の映像がどう見えているか確認できる
+      // まだ他の参加者がいない間も、自分の映像がどう見えているか確認出来る
       // ようにフルスクリーンで自分のプレビューを表示する。
       return _dockable(
         SafeArea(
@@ -353,7 +353,7 @@ class _GroupCallScreenState extends ConsumerState<GroupCallScreen> {
 
     if (focused != null) {
       // フォーカス中は既存の下スワイプ（グリッドへ戻る）を優先し、ドック用の
-      // ジェスチャーは重ねない（同じ縦ドラッグの二重登録を避けるため）。
+      // ジェスチャーは重ねない（同じ縦ドラッグの二重登録を避ける為）。
       return SafeArea(
         child: Stack(
           children: [

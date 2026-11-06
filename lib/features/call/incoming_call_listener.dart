@@ -36,7 +36,7 @@ class _IncomingCallListenerState extends ConsumerState<IncomingCallListener> {
     ref.listen(_incomingCallProvider(widget.currentUserId), (previous, next) {
       final call = next.asData?.value;
       if (call == null) return;
-      // ブロック中の相手からの着信は無視する（2026-10-11）。拒否は書き込まず、
+      // ブロック中の相手からの着信は無視する（2026-10-11）。拒否は書き込先ず、
       // 発信側にはブロックが分からないまま呼び出し中として終わる。
       final blocked =
           ref.read(blockedUserIdsProvider(widget.currentUserId)).value ??

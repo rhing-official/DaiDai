@@ -16,7 +16,7 @@ import '../../widgets/profile_card_picker.dart';
 import '../../widgets/toggles/app_switch.dart';
 import '../../widgets/toggles/app_checkbox.dart';
 
-/// 友達一覧をプルダウン選択できるよう、Rhing Seedではなく呼び名（未設定ならRhing Seed）で表示する。
+/// 友達一覧をプルダウン選択出来るよう、Rhing Seedではなく呼び名（未設定ならRhing Seed）で表示する。
 String _displayName(AppUser user) {
   final nickname = user.activeNickname?.text;
   return (nickname != null && nickname.isNotEmpty)
@@ -24,7 +24,7 @@ String _displayName(AppUser user) {
       : '@${user.rhingSeed}';
 }
 
-/// 友達一覧（フルプロフィール、呼び名表示のため）を監視する。
+/// 友達一覧（フルプロフィール、呼び名表示の為）を監視する。
 final _candidateFriendsProvider = StreamProvider.family<List<AppUser>, String>((
   ref,
   userId,
@@ -61,7 +61,7 @@ class CreateGroupDialogContent extends ConsumerStatefulWidget {
   final VoidCallback onClose;
 
   /// 広場を開いて画面遷移する直前に呼ぶ。このポップアップ・その下に重なって
-  /// いる「＋」メニューポップアップの両方を閉じる必要があるため、[onClose]
+  /// いる「＋」メニューポップアップの両方を閉じる必要がある為、[onClose]
   /// とは別のコールバックとして分離している。
   final VoidCallback onCompleted;
 

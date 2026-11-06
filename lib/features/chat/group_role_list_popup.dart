@@ -318,7 +318,7 @@ class GroupRoleListPopup extends ConsumerWidget {
     }
 
     // 権限の有無に関わらず、選んだメンバーには付与する（色だけの見た目専用
-    // ロールを全員に付与するといった使い方も成立させるため）。
+    // ロールを全員に付与するといった使い方も成立させる為）。
     final addedIds = selectedMemberIds.difference(initiallyAssignedIds);
     final removedIds = initiallyAssignedIds.difference(selectedMemberIds);
     for (final userId in addedIds) {

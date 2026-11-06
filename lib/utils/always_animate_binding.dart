@@ -7,7 +7,7 @@ import 'package:flutter/widgets.dart';
 /// 画面遷移・`Switch`・暗黙的アニメーション等の`AnimationController`は、
 /// `MediaQuery`ではなく`SemanticsBinding.disableAnimations`を直接参照し、真だと
 /// 所要時間を5%にして一瞬で終わらせる。`MediaQuery`の上書き
-/// （`AlwaysAnimations`）ではこれを止められないため、ここで常に偽にする。
+/// （`AlwaysAnimations`）ではこれを止められない為、ここで常に偽にする。
 /// OSの設定自体は変えない（アプリ内の読み取り値だけを上書きする）。
 class AlwaysAnimateBinding extends WidgetsFlutterBinding {
   AlwaysAnimateBinding();

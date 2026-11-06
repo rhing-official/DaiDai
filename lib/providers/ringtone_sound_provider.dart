@@ -8,7 +8,7 @@ const _prefsKey = 'ringtoneSound';
 const _customUrlPrefsKey = 'ringtoneSoundCustomUrl';
 const _customFileNamePrefsKey = 'ringtoneSoundCustomFileName';
 
-/// 端末に保存されている初期の着信音設定（プリセットIDまたはカスタム
+/// 端末に保存されている初期の着信音設定（プリセットID又はカスタム
 /// アップロード音源のURL、未設定ならnull＝既定プリセット）。main()で
 /// 起動前に読み込み、ProviderScopeのoverrideとして渡す
 /// （`font_design_provider.dart`と同じパターン、2026-09-06追加）。
@@ -71,11 +71,11 @@ class RingtoneCustomSoundNotifier extends Notifier<CustomSoundUpload?> {
   @override
   CustomSoundUpload? build() => ref.watch(initialRingtoneCustomSoundProvider);
 
-  /// カスタム音源をアップロードした際、または既に有効なカスタム音源を
+  /// カスタム音源をアップロードした際、又は既に有効なカスタム音源を
   /// この記憶がまだ無い状態で選び直した際（バックフィル、`fileName`は
   /// 不明なのでnull）に呼ぶ。プリセットに切り替えてもこの記憶はクリア
   /// されない（設定画面の「アップロード」行本体タップで再アップロード
-  /// せずに呼び戻せるようにするため）。
+  /// せずに呼び戻せるようにする為）。
   Future<void> remember(String url, [String? fileName]) async {
     state = CustomSoundUpload(url: url, fileName: fileName);
     final prefs = await SharedPreferences.getInstance();

@@ -51,7 +51,7 @@ class GlassAvatar extends StatelessWidget {
                   child: Image(
                     image: image!,
                     // 明示サイズを指定しないと、`GlassSurface`内の`Stack`が
-                    // 緩い（loose）制約しか渡さないため、正方形でない画像は
+                    // 緩い（loose）制約しか渡さない為、正方形でない画像は
                     // 本来のアスペクト比を保った（size×sizeより小さい）ボックス
                     // として描画され、円の一部が透明のまま残ってしまっていた
                     // （フラット版`_SenderAvatar`はContainerの明示サイズで

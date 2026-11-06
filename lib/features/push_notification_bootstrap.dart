@@ -50,7 +50,7 @@ class _PushNotificationBootstrapState
   Widget build(BuildContext context) {
     // トークン更新の追従（購読を開始するだけで良く、値自体は使わない）。
     ref.listen(_fcmTokenRefreshProvider(widget.currentUserId), (_, _) {});
-    // フォアグラウンド受信時はOSが自動表示しないため、Android向けに
+    // フォアグラウンド受信時はOSが自動表示しない為、Android向けに
     // 自前でローカル通知を出す（Webはshow側でno-op、push_notifications.dart参照）。
     ref.listen(_fcmForegroundMessageProvider, (previous, next) {
       final message = next.asData?.value;

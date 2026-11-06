@@ -15,13 +15,13 @@ enum CalendarRsvpStatus {
   }
 }
 
-/// [CalendarEvent]1件・住人1人ごとの出欠回答
+/// [CalendarEvent]1件・住人1人毎の出欠回答
 /// (`.../calendarEvents/{eventId}/rsvps/{uid}`、2026-09-02追加)。
 ///
 /// `CalendarEventSync`と同じくドキュメントIDを本人のuidにし、firestore.rules
 /// で「本人のuidのものにしか書き込めない」を単純な条件で表現する。
-/// 複数日にまたがる予定は[dayStatuses]で日ごとに出欠を持つ（途中参加を
-/// 考慮するため）。備考は日ごとではなく回答全体で1つ（2026-09-02決定）。
+/// 複数日にまたがる予定は[dayStatuses]で日毎に出欠を持つ（途中参加を
+/// 考慮する為）。備考は日ごとではなく回答全体で1つ（2026-09-02決定）。
 class CalendarEventRsvp {
   const CalendarEventRsvp({
     required this.userId,

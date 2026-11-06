@@ -3,7 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 const _prefsKey = 'appTextSize';
 
-/// アプリ全体の文字サイズ（2026-11-05、設定>アプリケーション）。視力が低い人や高齢の
+/// アプリ全体のフォントサイズ（2026-11-05、設定>アプリケーション）。視力が低い人や高齢の
 /// 利用者が大きくして使えるようにする。小が従来の大きさ。「アイコン＋寄合一覧」の
 /// アイコン列・寄合一覧の幅とアイコンも同じ倍率に連動する。
 enum AppTextSize {
@@ -31,7 +31,7 @@ Future<AppTextSize> loadInitialAppTextSize() async {
   return AppTextSize.fromName(prefs.getString(_prefsKey));
 }
 
-/// 文字サイズ。画面の大きさが端末ごとに違うため、端末ごとの保存のみ
+/// フォントサイズ。画面の大きさが端末毎に違うため、端末毎の保存のみ
 /// （Firestoreには同期しない）。
 class AppTextSizeNotifier extends Notifier<AppTextSize> {
   @override

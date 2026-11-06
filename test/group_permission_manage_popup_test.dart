@@ -109,8 +109,8 @@ void main() {
   }
 
   // 2026-10-11に「権限×ロールの表」から「ロールを選ぶチップ＋選んだロールの
-  // 権限チェックボックス一覧」へ画面を変えたため、それに合わせたテスト。
-  // テスト環境の端末はAndroid扱いのため、チップ＋縦リスト表示（最大幅420）になる。
+  // 権限チェックボックス一覧」へ画面を変えた為、それに合わせたテスト。
+  // テスト環境の端末はAndroid扱いの為、チップ＋縦リスト表示（最大幅420）になる。
   List<AppCheckbox> boxes(WidgetTester tester) =>
       tester.widgetList<AppCheckbox>(find.byType(AppCheckbox)).toList();
 
@@ -146,7 +146,7 @@ void main() {
 
     await tester.tap(find.text('長'));
     await tester.pumpAndSettle();
-    // 長は常に全権限で、変更できない。
+    // 長は常に全権限で、変更出来ない。
     final owner = boxes(tester);
     expect(owner.every((c) => c.value == true), isTrue);
     expect(owner.every((c) => c.onChanged == null), isTrue);
@@ -167,7 +167,7 @@ void main() {
     });
   });
 
-  testWidgets('ロールが増えても幅は一定で、チップの列だけ横にスクロールできる', (tester) async {
+  testWidgets('ロールが増えても幅は一定で、チップの列だけ横にスクロール出来る', (tester) async {
     await pump(tester, extraRoles: 8, screenWidth: 500);
     expect(tester.getSize(find.byType(GroupPermissionManagePopup)).width, 420);
 
@@ -206,7 +206,7 @@ void main() {
     expect(groups.updates, isEmpty);
   });
 
-  testWidgets('権限の管理を持つメンバーは、長でなくても編集できる', (tester) async {
+  testWidgets('権限の管理を持つメンバーは、長でなくても編集出来る', (tester) async {
     const member = Group(
       groupId: 'g1',
       name: 'g',

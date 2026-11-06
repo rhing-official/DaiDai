@@ -18,7 +18,7 @@ const _fileProviderChannel = MethodChannel(
 );
 
 /// 通知音としてアップロードされたカスタム音源（Firebase StorageのURL）を、
-/// Android通知チャンネルから参照できる状態に整える（2026-09-06追加）。
+/// Android通知チャンネルから参照出来る状態に整える（2026-09-06追加）。
 ///
 /// 手順: (1)ダウンロード (2)アプリのキャッシュディレクトリ配下
 /// `notification_sounds/custom.<ext>`へ保存（再アップロード時は上書き）
@@ -26,7 +26,7 @@ const _fileProviderChannel = MethodChannel(
 /// [androidCustomNotificationChannelId]チャンネルを作り直す。
 ///
 /// [url]と同じ値で既に準備済みなら何もしない。`notificationSoundProvider`の
-/// `setSound`/`syncFromRemote`、およびアプリ起動時（他端末で既にアップロード
+/// `setSound`/`syncFromRemote`、及びアプリ起動時（他端末で既にアップロード
 /// 済みの設定が同期されてきた場合に備える）の両方から呼ぶ想定。
 Future<void> ensureCustomNotificationChannelReady(String url) async {
   if (kIsWeb || !Platform.isAndroid) return;

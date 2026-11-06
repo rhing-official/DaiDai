@@ -11,7 +11,7 @@ import '../widgets/liquify_effect.dart';
 /// 身だしなみのドリルダウン（`settings_tab.dart`/`profile_tab.dart`の
 /// `AnimatedSwitcher`）でも同じモーション言語になるよう共通化した
 /// （2026-08-10追加）。
-/// 今の画面遷移の種類（2026-11-04）。遷移の組み立て関数は`ref`/`context`を持たないため、
+/// 今の画面遷移の種類（2026-11-04）。遷移の組み立て関数は`ref`/`context`を持たない為、
 /// `slideTransitionStyleProvider`が設定の変更・同期・起動時の読み込みのたびに更新する。
 /// 遷移の組み立ては毎フレーム呼ばれるので、その時点の値が使われる。
 SlideTransitionStyle activeSlideTransitionStyle =
@@ -121,7 +121,7 @@ const slideBlurMaxSigma = 10.0;
 
 /// 遷移中の滲むエフェクト。[amount]は0（くっきり）〜1（最大のぼかし）。
 /// 0の間は`enabled: false`にするだけで、木の形（ウィジェットの種類）を変えない。
-/// 有無で形が変わると子の画面が再マウントされるため、常にこのウィジェットを挟む。
+/// 有無で形が変わると子の画面が再マウントされる為、常にこのウィジェットを挟む。
 Widget buildTransitionBlur(double amount, Widget child) {
   // ぼかしを使わない種類では常に無効（ウィジェット自体は挟み続ける）。
   final sigma = activeSlideTransitionStyle.usesBlur
@@ -141,7 +141,7 @@ Widget buildTransitionBlur(double amount, Widget child) {
 /// 指のドラッグに追従して画面が現れる／消える動きを、今の画面遷移の種類で描く
 /// （2026-11-04）。[away]は0（全表示）〜1（消え切る）、[maxDrag]は画面幅（px）。
 /// 寄合一覧を左スワイプしてメッセージ画面を開く時のプレビューなど、`Route`を
-/// 使わない場所で、スライド＋滲み・スライド・吸い込みを揃えるために使う。
+/// 使わない場所で、スライド＋滲み・スライド・吸い込みを揃える為に使う。
 /// 木の形は種類によらず固定（`Transform`・`Opacity`・`ImageFiltered`・
 /// `LiquifyEffect`を常に挟む）。
 Widget buildAwayTransition({
@@ -213,7 +213,7 @@ Widget buildDialogTransition(Animation<double> animation, Widget child) {
         child: Opacity(
           // 現れ始めは薄くする（どの種類でも、唐突に出ないように）。吸い込みは、縮みながら
           // 右下へ消えていく様子が見えるよう、最後の少しだけ薄くする（以前は線形に
-          // 薄くしたため、縮み切る前に見えなくなっていた、2026-11-05）。
+          // 薄くした為、縮み切る前に見えなくなっていた、2026-11-05）。
           opacity: isSuck
               ? (curved.value / suckFadeEnd).clamp(0.0, 1.0)
               : curved.value.clamp(0.0, 1.0),

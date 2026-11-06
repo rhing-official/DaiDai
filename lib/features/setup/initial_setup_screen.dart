@@ -34,7 +34,7 @@ List<SetupStep> setupStepsFor(DeviceClass deviceClass) => [
 
 /// 初回の初期設定（2026-10-31追加）。居住地アンケートの後、使い方ガイドの前に出す。
 /// 背景に練習用のホーム（[PracticeHome]、操作不可）を見せ、パネルで選んだ設定が
-/// そのまま背景に反映される。選ぶたびに端末とFirestoreへ保存されるため、途中で
+/// そのまま背景に反映される。選ぶたびに端末とFirestoreへ保存される為、途中で
 /// やめても、そこまでの設定は残る。
 class InitialSetupScreen extends ConsumerStatefulWidget {
   const InitialSetupScreen({
@@ -43,7 +43,7 @@ class InitialSetupScreen extends ConsumerStatefulWidget {
     super.key,
   });
 
-  /// 最後まで進んだ時、または「あとで」を押した時に、1回だけ呼ぶ。
+  /// 最後まで進んだ時、又は「後で」を押した時に、1回だけ呼ぶ。
   final VoidCallback onCompleted;
 
   /// テスト用。背景のプレビューの作り方（既定は[PracticeHome]）。

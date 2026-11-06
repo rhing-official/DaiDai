@@ -16,7 +16,7 @@ Message _m(String id, {String? reply2}) => Message(
 );
 
 void main() {
-  test('二重返信の2件目は保存・復元でき、無いときはキー自体を書かない', () {
+  test('二重返信の2件目は保存・復元でき、無い時はキー自体を書かない', () {
     final json = _m('x', reply2: 'b').toJson();
     expect(json['replyTo2MessageId'], 'b');
     expect(json['replyTo2SenderId'], 'ub');

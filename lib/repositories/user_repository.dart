@@ -48,7 +48,7 @@ abstract class UserRepository {
   /// AppUser全体を`.set()`で丸ごと上書き）だと、蔵への追加操作を短時間に
   /// 複数実行した場合（例: アイコンのアップロード中にニックネームを追加するなど）、
   /// 後から完了した書き込みが先に完了した書き込みを消してしまう競合が起きうる。
-  /// Firestoreの`arrayUnion`によるフィールド単位の更新はサーバー側でマージされるため、
+  /// Firestoreの`arrayUnion`によるフィールド単位の更新はサーバー側でマージされる為、
   /// この種の競合が起きない。
   Future<void> addToProfileList(
     String userId,
@@ -77,7 +77,7 @@ abstract class UserRepository {
   /// 未変更の設定項目には影響しない。
   Future<void> updateUserPreference(String userId, String field, Object? value);
 
-  /// 会話（一対のdmId・広場のgroupId）ごとに使うプロフィールカードを設定する
+  /// 会話（一対のdmId・広場のgroupId）毎に使うプロフィールカードを設定する
   /// （2026-07-29追加）。[profileCardId]がnullなら上書きを解除し、標準
   /// （[AppUser.activeProfileCardId]）に戻す。
   Future<void> setConversationProfileCard({
@@ -90,7 +90,7 @@ abstract class UserRepository {
   /// idが一致するカードがあれば置き換え、無ければ追加する。
   ///
   /// [addToProfileList]/[removeFromProfileList]は値そのものの完全一致で
-  /// arrayUnion/arrayRemoveするため、カードの編集は「古い値を削除」→
+  /// arrayUnion/arrayRemoveする為、カードの編集は「古い値を削除」→
   /// 「新しい値を追加」という2手順が必要だった。この2手順は原子的でない上、
   /// ローカルが把握している「削除すべき古い値」がサーバー上の実データと
   /// 少しでも食い違っていると`arrayRemove`が何もせず素通りしてしまい、
@@ -118,8 +118,8 @@ abstract class UserRepository {
   Future<ProfileMaterial> uploadBackgroundImage(String userId, Uint8List bytes);
 
   /// 着信音・呼出音のカスタム音源をアップロードし、ダウンロードURLを返す
-  /// （2026-09-06追加）。アップロードのたびに一意なパスへ保存するため、
-  /// 以前アップロードした音源ファイルを上書き・削除することはない
+  /// （2026-09-06追加）。アップロードのたびに一意なパスへ保存する為、
+  /// 以前アップロードした音源ファイルを上書き・削除することは無い
   /// （2026-09-12更新: 他の音に変更しても元のファイルが消えないように、
   /// カテゴリ固定パスへの上書き方式から変更した）。Firestoreへの反映
   /// （`AppUserPreferences.ringtoneSound`/`callingSound`）は呼び出し側が
@@ -138,22 +138,22 @@ abstract class UserRepository {
   /// （`userInvites/{rhingSeed}`）を、現在のアクティブなアイコン・呼び名から
   /// 同期する。蔵の更新時（[addToProfileList]等）に自動で呼ばれるほか、
   /// この機能追加より前から使っているユーザーはその同期がまだ一度も
-  /// 走っていないため、縁結びページを開いた際にも呼び直してバックフィルする。
+  /// 走っていない為、縁結びページを開いた際にも呼び直してバックフィルする。
   Future<void> syncInvitePreview(String userId);
 
   /// 招待リンクの版識別子を書き換える（`AppUser.inviteLinkSalt`を現在時刻にする）。
   /// 画像の中心・拡大率の編集で「完了」を押した時に呼ぶ（2026-10-13）。
   Future<void> refreshInviteLink(String userId);
 
-  /// アカウント削除を申請する。30日間は[restoreAccount]で復元できる。
-  /// 何も操作が無いまま31日経過すると、Cloud Functionsの定期処理が
+  /// アカウント削除を申請する。30日間は[restoreAccount]で復元出来る。
+  /// 何も操作が無今ま31日経過すると、Cloud Functionsの定期処理が
   /// サーバーから全情報を完全削除する。
   Future<void> requestAccountDeletion(String userId);
 
   /// 削除申請中のアカウントを復元する（31日以内のみ有効）。
   Future<void> restoreAccount(String userId);
 
-  /// アカウントを30日間の復元猶予期間を経ず、今すぐ完全に削除する
+  /// アカウントを30日間の復元猶予期間を経ず、今直ぐ完全に削除する
   /// （復元不可）。[requestAccountDeletion]と違い、DM/広場への通知・
   /// メンバー除去・friends/friendRequests削除・Firebase Authアカウント削除
   /// までを1回のCloud Functions呼び出し（`deleteAccountImmediately`）で
@@ -168,7 +168,7 @@ abstract class UserRepository {
 
   /// 管理画面向けの住人一覧をリアルタイムに購読する（暫定的に直近500件
   /// まで、2026-08-12追加）。`createdAt`未設定の既存ユーザーも含めて全件
-  /// 取得できるよう、Firestore側では並び替えず（`orderBy`はそのフィールドを
+  /// 取得出来るよう、Firestore側では並び替えず（`orderBy`はそのフィールドを
   /// 持たないドキュメントを結果から除外してしまうため）、呼び出し側で
   /// 並び替える。
   Stream<List<AppUser>> watchAllUsersForAdmin();
@@ -178,7 +178,7 @@ abstract class UserRepository {
   Future<void> setAccountSuspended(String userId, bool suspended);
 
   /// 指定ユーザーに極み（有料プラン）を付与/解除する（管理者のみ、Cloud Functions
-  /// `setKiwamiPlan`経由、2026-10-17追加）。購入の導線ができるまでの手動の付与用。
+  /// `setKiwamiPlan`経由、2026-10-17追加）。購入の導線が出来るまでの手動の付与用。
   Future<void> setKiwamiPlan(String userId, bool kiwami);
 
   /// 極みの契約管理（解約・カード変更）用のStripeカスタマーポータルのURLを返す
@@ -243,7 +243,7 @@ class FirestoreUserRepository implements UserRepository {
   }) : _firestore = firestore ?? FirebaseFirestore.instance,
        _storage = storage ?? FirebaseStorage.instance,
        // Cloud Functions（functions/src/index.ts）はasia-northeast1に
-       // デプロイしているため、呼び出し側もリージョンを明示する。
+       // デプロイしている為、呼び出し側もリージョンを明示する。
        _functions =
            functions ??
            FirebaseFunctions.instanceFor(region: 'asia-northeast1');
@@ -265,7 +265,7 @@ class FirestoreUserRepository implements UserRepository {
   @override
   Future<List<AppUser>> getUsersByIds(List<String> userIds) async {
     if (userIds.isEmpty) return [];
-    // FirestoreのwhereInは1クエリにつき最大30件のため、超える場合は分割する。
+    // FirestoreのwhereInは1クエリにつき最大30件の為、超える場合は分割する。
     final results = <AppUser>[];
     for (var i = 0; i < userIds.length; i += 30) {
       final chunk = userIds.skip(i).take(30).toList();
@@ -289,7 +289,7 @@ class FirestoreUserRepository implements UserRepository {
   Future<void> createUser(AppUser user) async {
     // createdAtはtoJson()には含めず、新規作成のこのメソッドでのみサーバー
     // タイムスタンプをマージする（[AppUser.createdAt]のドキュメントコメント
-    // 参照。updateUserが同じtoJson()を.set()で全体上書きしているため）。
+    // 参照。updateUserが同じtoJson()を.set()で全体上書きしている為）。
     //
     // 既存ドキュメントの有無をトランザクションで確認してから作成する
     // （2026-09-24追加）。既存ユーザーが何らかの原因（2026-09-23の
@@ -464,7 +464,7 @@ class FirestoreUserRepository implements UserRepository {
   /// 招待プレビュー（[UserInvitePreview]）の内容に影響しうる蔵の配列フィールド。
   /// [addToProfileList]/[removeFromProfileList]がこれらを変更した際は
   /// [syncInvitePreview]で同期し直す（アクティブな工房カードの背景・ステメ・
-  /// SNS URLもプレビューに載せるようになったため、アイコン・ニックネームだけで
+  /// SNS URLもプレビューに載せるようになった為、アイコン・ニックネームだけで
   /// なくprofileCards自体の変更も対象に含める）。
   static const _invitePreviewFields = {
     'icons',
@@ -552,9 +552,9 @@ class FirestoreUserRepository implements UserRepository {
     // そのまま返すことがある。蔵のサムネイルは72〜128px程度でしか表示しない上、
     // 巨大なJPEGのままだと読み込みが極端に遅く「真っ白」に見える一因になっていた
     // ため、WebPへの圧縮・リサイズを行う（CLAUDE.md記載の画像圧縮方針）。
-    // flutter_image_compressはWindows/Linuxを未対応のため、その場合や
+    // flutter_image_compressはWindows/Linuxを未対応の為、その場合や
     // 何らかの理由で圧縮に失敗した場合は元のバイトのままアップロードする
-    // （圧縮失敗でアップロード自体をブロックしないためのフォールバック）。
+    // （圧縮失敗でアップロード自体をブロックしない為のフォールバック）。
     // GIFはWebPに圧縮するとアニメーションが失われ1コマの静止画になって
     // しまうため、圧縮自体をスキップして元のバイトのままアップロードする。
     final isGif = isGifBytes(bytes);

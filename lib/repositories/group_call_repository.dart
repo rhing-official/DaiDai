@@ -4,13 +4,13 @@ import '../models/app_user.dart';
 import '../models/group.dart';
 import '../models/group_call.dart';
 
-/// 広場（グループ）通話のシグナリングを扱うリポジトリ。メッシュ型P2Pのため、
+/// 広場（グループ）通話のシグナリングを扱うリポジトリ。メッシュ型P2Pの為、
 /// 参加者Nに対してN(N-1)/2組のペアそれぞれで独立にoffer/answer/ICE candidateを
 /// やり取りする（[CallPeerLink]参照）。1対1の[CallRepository]とは別に持ち、
 /// 既存のDM通話には一切影響しない。
 abstract class GroupCallRepository {
-  /// 広場に新しい通話を開始する。発起人自身の参加者登録は行わないため、
-  /// 呼び出し側は続けて[joinGroupCall]（または[WebrtcGroupCallController]の
+  /// 広場に新しい通話を開始する。発起人自身の参加者登録は行わない為、
+  /// 呼び出し側は続けて[joinGroupCall]（又は[WebrtcGroupCallController]の
   /// `initialize()`）を呼ぶこと。
   Future<GroupCall> createGroupCall({
     required Group group,
@@ -20,7 +20,7 @@ abstract class GroupCallRepository {
 
   /// 広場に進行中の通話が既にあればそれを返し、無ければ新規作成する。
   ///
-  /// 「まず`watchActiveGroupCall`等で確認してから無ければ[createGroupCall]する」
+  /// 「先ず`watchActiveGroupCall`等で確認してから無ければ[createGroupCall]する」
   /// というcheck-then-act方式は、複数のメンバーがほぼ同時に通話開始ボタンを
   /// 押すと、それぞれが「進行中の通話は無い」と判定して別々に
   /// [createGroupCall]してしまい、参加者がバラバラの通話に分かれてしまう
@@ -38,14 +38,14 @@ abstract class GroupCallRepository {
   /// その広場で現在進行中の通話（あれば1件）を監視する。
   Stream<GroupCall?> watchActiveGroupCall(String groupId);
 
-  /// 自分がメンバーになっている広場すべてを横断して、現在進行中の通話一覧を
+  /// 自分がメンバーになっている広場全てを横断して、現在進行中の通話一覧を
   /// 監視する（着信バナー表示用）。
   Stream<List<GroupCall>> watchActiveGroupCallsForMember(String userId);
 
   Future<GroupCall?> getGroupCall(String groupCallId);
 
   /// 進行中の通話に参加する（参加者ドキュメントを作成する）。[isVideo]は
-  /// 参加する時点で自分がビデオ通話として参加するかどうか（参加者ごとに
+  /// 参加する時点で自分がビデオ通話として参加するかどうか（参加者毎に
   /// 独立しており、以後[updateParticipantState]で自分だけ切り替えられる）。
   /// [sessionId]はこの参加（端末）を区別する値（`CallParticipant.sessionId`）。
   Future<void> joinGroupCall({
@@ -56,7 +56,7 @@ abstract class GroupCallRepository {
   });
 
   /// 通話から退出する。退出後に参加者が0人になった場合は通話自体も終了扱いにする。
-  /// [sessionId]を渡した時は、参加者ドキュメントの`sessionId`が一致する（または
+  /// [sessionId]を渡した時は、参加者ドキュメントの`sessionId`が一致する（又は
   /// 無い）時だけ削除する（別の端末が同じ通話に入り直した後に、元の端末の退出が
   /// 新しい端末の参加を消さないようにする、2026-10-21）。
   Future<void> leaveGroupCall({
@@ -71,7 +71,7 @@ abstract class GroupCallRepository {
 
   Stream<List<CallParticipant>> watchParticipants(String groupCallId);
 
-  /// 在室確認のハートビート。Firestoreに切断検知の仕組みがないため、
+  /// 在室確認のハートビート。Firestoreに切断検知の仕組みが無い為、
   /// 在室中はクライアントが定期的に呼び続け、他の参加者はこれが一定時間
   /// 途絶えた相手を離脱扱いにする。
   ///
@@ -146,11 +146,11 @@ class FirestoreGroupCallRepository implements GroupCallRepository {
   CollectionReference<Map<String, dynamic>> get _groupCalls =>
       _firestore.collection('groupCalls');
 
-  /// 広場ごとに1件だけ存在する、「現在アクティブな通話id」への軽量な
+  /// 広場毎に1件だけ存在する、「現在アクティブな通話id」への軽量な
   /// ポインタ。ドキュメントidをgroupIdそのものにすることで、
   /// トランザクション内でクエリを使わずに単一ドキュメント参照として
-  /// 読み書きできるようにしている（Firestoreのトランザクションは
-  /// 特定のドキュメント参照の読み取りしか許可されず、クエリは使えないため）。
+  /// 読み書き出来るようにしている（Firestoreのトランザクションは
+  /// 特定のドキュメント参照の読み取りしか許可されず、クエリは使えない為）。
   DocumentReference<Map<String, dynamic>> _activeCallPointer(String groupId) =>
       _firestore.collection('groupActiveCallPointers').doc(groupId);
 
@@ -324,7 +324,7 @@ class FirestoreGroupCallRepository implements GroupCallRepository {
     });
     // 通話終了時、ポインタ（groupActiveCallPointers）がまだこの通話を
     // 指していれば解除する。次に誰かが通話を開始した時、既に終了した
-    // この通話を「進行中」として誤って掴んでしまわないようにするため。
+    // この通話を「進行中」として誤って掴んでしまわないようにする為。
     // ポインタが既に別の新しい通話idを指している場合は触らない
     // （トランザクション内で現在指している値を確認してから解除する）。
     if (call != null) {

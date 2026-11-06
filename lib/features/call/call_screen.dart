@@ -26,12 +26,12 @@ import '../../l10n/strings.dart';
 /// `call.isVideo`だが、通話中に[WebrtcCallController.setVideoEnabled]で
 /// 音声⇔ビデオを切り替えられる（`_controller.isVideo`が自分の現在の種別、
 /// `_controller.remoteIsVideo`が相手の現在の種別。切替は互いに独立しており、
-/// 相手を強制的に切り替えることはない）。TURN未導入のためSTUNのみで接続する。
+/// 相手を強制的に切り替えることは無い）。TURN未導入のためSTUNのみで接続する。
 ///
 /// 通話コントローラー自体はこの画面ではなく`activeCallSessionProvider`
 /// （`active_call_session.dart`）が所有する（2026-08-19変更）。この画面は
 /// PC埋め込み表示・ピン留めミニ表示が使えないモバイル専用の「全画面ビュー」
-/// でしかなく、`initState`で新規生成または既存セッションへの再アタッチを
+/// でしかなく、`initState`で新規生成又は既存セッションへの再アタッチを
 /// 行うだけで、`dispose`時にコントローラーを破棄しない（画面を閉じても
 /// 通話は続く）。PCでは着信中（応答前）のみこの画面を使い、応答が済み
 /// 次第自動的に閉じてメッセージ画面内の埋め込み表示に引き継ぐ
@@ -65,7 +65,7 @@ class _CallScreenState extends ConsumerState<CallScreen> {
 
   /// このウィジェット自身の意図したpop（下スワイプでのドック・通話終了後の
   /// 自動クローズ・PCでの応答後の自動クローズ）かどうか。[PopScope]は
-  /// `canPop`をpop試行の直前に見るため、これらの意図したpopの前には必ず
+  /// `canPop`をpop試行の直前に見る為、これらの意図したpopの前には必ず
   /// `setState`で先にtrueへ更新してから`Navigator.pop`を呼ぶ。falseのまま
   /// のpop試行（システムの戻る操作等）は従来通り切断（hangUp）扱いにする。
   bool _intentionalPop = false;
@@ -116,7 +116,7 @@ class _CallScreenState extends ConsumerState<CallScreen> {
     _controller.removeListener(_onControllerChanged);
     // コントローラー自体は破棄しない。破棄は通話終了（state==ended）を
     // 検知したactiveCallSessionProvider側でのみ行う（2026-08-19変更、
-    // 画面を閉じても通話は続くようにするための核となる変更）。
+    // 画面を閉じても通話は続くようにする為の核となる変更）。
     super.dispose();
   }
 
@@ -129,7 +129,7 @@ class _CallScreenState extends ConsumerState<CallScreen> {
 
   /// `_intentionalPop`をtrueにした上でこの画面をpopする。[PopScope]の
   /// `canPop`はウィジェットの再構築を経て初めて内部の`canPopNotifier`へ
-  /// 反映されるため、`setState`の直後に同期的に`Navigator.pop`を呼ぶと
+  /// 反映される為、`setState`の直後に同期的に`Navigator.pop`を呼ぶと
   /// 古い`canPop:false`のままpopがブロックされてしまう。次のフレームの
   /// 再構築が終わってから（`addPostFrameCallback`）popすることで、この
   /// 競合を避ける（2026-08-19追加）。
@@ -246,8 +246,8 @@ class _CallScreenState extends ConsumerState<CallScreen> {
     return SafeArea(
       child: Column(
         children: [
-          // 音声のみの通話でもリモートの音声を再生するためにレンダラーを紐づける
-          // （0×0だとモバイルのブラウザが再生しないことがあるため、1×1の
+          // 音声のみの通話でもリモートの音声を再生する為にレンダラーを紐づける
+          // （0×0だとモバイルのブラウザが再生しないことがある為、1×1の
           // `CallAudioSinks`にした。2026-10-31変更）。
           CallAudioSinks(renderers: [_controller.remoteRenderer]),
           const Spacer(),
@@ -294,8 +294,8 @@ class _CallScreenState extends ConsumerState<CallScreen> {
 
   /// ビデオ通話のレイアウト。相手の映像を画面全面に敷き、上部に名前・状態、
   /// 右上に自分のカメラプレビューを重ねる。相手の映像がまだ届いていない
-  /// （発信中・接続中）の間は背景が黒いだけになるため、中央にアバターを重ねて
-  /// 音声通話と同じように相手が誰かを常に視認できるようにする。
+  /// （発信中・接続中）の間は背景が黒いだけになる為、中央にアバターを重ねて
+  /// 音声通話と同じように相手が誰かを常に視認出来るようにする。
   Widget _videoBody(ColorScheme colorScheme, Color placeholderColor) {
     final isConnected = _controller.state == CallConnectionState.active;
     final mainRenderer = _mainViewIsRemote
@@ -305,8 +305,8 @@ class _CallScreenState extends ConsumerState<CallScreen> {
         ? _controller.localRenderer
         : _controller.remoteRenderer;
 
-    // 音声⇔ビデオの切替は自分・相手それぞれ独立しているため、映像が無い側
-    // （自分が音声のみ、または相手が音声のみ）はプレースホルダーで表示する。
+    // 音声⇔ビデオの切替は自分・相手それぞれ独立している為、映像が無い側
+    // （自分が音声のみ、又は相手が音声のみ）はプレースホルダーで表示する。
     final mainShowsPlaceholder = _mainViewIsRemote
         ? !_remoteIsVideo
         : !_myIsVideo;
@@ -319,7 +319,7 @@ class _CallScreenState extends ConsumerState<CallScreen> {
     return Stack(
       children: [
         // 相手の映像を出していない間も、相手の音声を鳴らす（2026-10-31追加）。
-        // 出し入れで後ろの子の位置がずれ、自分の映像が作り直されて空になるため、
+        // 出し入れで後ろの子の位置がずれ、自分の映像が作り直されて空になる為、
         // 常に同じ位置に置く（空なら何も描かない）。
         Positioned(
           key: const ValueKey('audio-sink'),

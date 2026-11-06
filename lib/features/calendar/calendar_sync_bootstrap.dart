@@ -14,7 +14,7 @@ import '../../services/google_calendar_sync_service.dart';
 /// HomeScreenの上位をラップして使う、2026-09-01追加）。
 ///
 /// サーバー（Cloud Functions）はGoogleのリフレッシュトークンを一切保存
-/// しないクライアント主導の同期方式のため、この端末アプリが起動している
+/// しないクライアント主導の同期方式の為、この端末アプリが起動している
 /// 間だけ、自分の`pending`/`pendingDelete`な同期状態（[CalendarEventRepository.
 /// watchPendingSyncTasks]）を監視してGoogle Calendar APIを呼ぶ。
 class CalendarSyncBootstrap extends ConsumerStatefulWidget {
@@ -81,7 +81,7 @@ class _CalendarSyncBootstrapState extends ConsumerState<CalendarSyncBootstrap> {
         .read(watchedUserProvider(widget.currentUserId))
         .asData
         ?.value;
-    // ユーザー情報が未取得の間は判断できないため何もしない（pendingのまま
+    // ユーザー情報が未取得の間は判断出来ないため何もしない（pendingのまま
     // 残り、取得後の再購読で処理される）。
     if (liveUser == null) return;
 
@@ -92,7 +92,7 @@ class _CalendarSyncBootstrapState extends ConsumerState<CalendarSyncBootstrap> {
     if (liveUser.googleCalendarSyncEnabled == true &&
         (accessToken == null || calendarId == null)) {
       // 連携済みだがアクセストークンが取れない（Webではリロード後・失効後は
-      // ユーザー操作なしに取得できない）。skippedにして捨てず、pendingのまま
+      // ユーザー操作なしに取得出来ない）。skippedにして捨てず、pendingのまま
       // 残す。カレンダー画面の「再接続して同期」でトークンを取り直すと処理
       // される（2026-10-04変更、以前はここでskippedにして二度と同期されなかった）。
       debugPrint(
@@ -145,7 +145,7 @@ class _CalendarSyncBootstrapState extends ConsumerState<CalendarSyncBootstrap> {
           );
           googleEventId = existingGoogleEventId;
         } on GoogleCalendarEventNotFoundException {
-          // ユーザーがGoogle Calendar側で直接削除した場合、または連携解除→
+          // ユーザーがGoogle Calendar側で直接削除した場合、又は連携解除→
           // 再連携で専用カレンダーが作り直された場合等。作り直す。
           googleEventId = await _syncService.createGoogleEvent(
             accessToken: accessToken,
@@ -222,7 +222,7 @@ class _CalendarSyncBootstrapState extends ConsumerState<CalendarSyncBootstrap> {
     final accessToken = await _authService.getAccessTokenSilently();
     if (accessToken == null) {
       // 未連携（連携を後から解除した等）。Google側に既に存在するかは
-      // 確認しようがないため、このsyncStatesだけ掃除して諦める。
+      // 確認しようが無い為、このsyncStatesだけ掃除して諦める。
       await repo.deleteSyncState(
         isDm: task.isDm,
         conversationId: task.conversationId,

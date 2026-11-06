@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-/// [Poll]1件・住人1人ごとの回答（`.../polls/{pollId}/responses/{uid}`、
+/// [Poll]1件・住人1人毎の回答（`.../polls/{pollId}/responses/{uid}`、
 /// 2026-09-06追加）。[ScheduleCoordinationResponse]と同じくドキュメントIDを
 /// 本人のuidにする。投票は一度きりで、作成後の変更・削除はfirestore.rulesで
 /// 禁止している（`allow update: if false; allow delete: if false;`）ため、

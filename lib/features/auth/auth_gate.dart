@@ -83,7 +83,7 @@ class _AuthenticatedUserGateState
 
   // 端末をまたいで同期する表示設定（アクセントカラー・外観・表示言語等）を、
   // ログイン直後に一度だけFirestoreの値で上書きする（[applyRemoteUserPreferences]）。
-  // アカウント復元後にユーザーを再取得する際も同じ処理でよいため、
+  // アカウント復元後にユーザーを再取得する際も同じ処理でよい為、
   // [AccountRestoreScreen.onRestored]からも呼び直す。
   Future<({AppUser? user, Residence? residence, bool isAdmin})>
   _fetchUser() async {

@@ -6,9 +6,9 @@ import '../../widgets/blurred_viewer_route.dart';
 import '../../widgets/media_viewer_screen.dart';
 import 'attachment_popup_button.dart';
 
-/// 送信前の添付のトレイ（2026-10-31追加）。画像・動画・撮影で選んだものは、すぐ送らず
+/// 送信前の添付のトレイ（2026-10-31追加）。画像・動画・撮影で選んだものは、直ぐ送らず
 /// 入力欄の上の吹き出しにサムネイルで並べ、×で外す・タップで拡大（画像のみ）
-/// ができる。送るのは入力欄の送信ボタン・送信キー（Enter等）で、トレイが先、入力欄の文字が
+/// が出来る。送るのは入力欄の送信ボタン・送信キー（Enter等）で、トレイが先、入力欄の文字が
 /// 後の別メッセージになる。
 class PendingAttachmentTray extends StatelessWidget {
   const PendingAttachmentTray({
@@ -26,7 +26,7 @@ class PendingAttachmentTray extends StatelessWidget {
   final Strings strings;
   final ValueChanged<int> onRemove;
 
-  /// 送信中などで操作できない間はfalse。
+  /// 送信中などで操作出来ない間はfalse。
   final bool enabled;
 
   /// 劇画スタイルは、呼び出し側が手描き風の白い箱（入力欄と同じ）で包むため、ここでは

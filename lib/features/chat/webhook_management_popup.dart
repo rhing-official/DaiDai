@@ -15,11 +15,11 @@ import '../../widgets/glass/glass_dialog.dart';
 import '../../widgets/dialog_keyboard_shortcuts.dart';
 import '../../widgets/app_dialog.dart';
 
-/// 受信Webhook（寄合へ外部から投稿できる、bot・API段階1、2026-10-10追加）の
+/// 受信Webhook（寄合へ外部から投稿出来る、bot・API段階1、2026-10-10追加）の
 /// 管理画面（広場の設定からのポップアップの中身）。`manageBots`権限を持つ
 /// メンバーだけが開ける（呼び出し側で項目自体を出し分ける）。一覧・作成・削除。
 /// 作成直後に**URLを1回だけ**表示してコピーさせる（URLにトークンを含むため、
-/// サーバーにはハッシュしか残らず再表示できない）。
+/// サーバーにはハッシュしか残らず再表示出来ない）。
 class WebhookManagementPopup extends ConsumerWidget {
   const WebhookManagementPopup({
     required this.currentUser,
@@ -287,7 +287,7 @@ class WebhookManagementPopup extends ConsumerWidget {
 
 /// 作成ダイアログ（名前と投稿先の寄合）。入力欄のコントローラはこの`State`が
 /// 持ち、ダイアログが完全に閉じた後に破棄する（閉じるアニメーション中に
-/// 破棄済みのコントローラを使わないため）。
+/// 破棄済みのコントローラを使わない為）。
 class _CreateWebhookDialog extends StatefulWidget {
   const _CreateWebhookDialog({
     required this.strings,

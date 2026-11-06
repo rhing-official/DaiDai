@@ -79,7 +79,7 @@ void main() {
         ),
       ),
     );
-    // 元の部品の上で離す（ふつうのタップ）: 何も呼ばない。
+    // 元の部品の上で離す（普通のタップ）: 何も呼ばない。
     var g = await tester.startGesture(const Offset(20, 20));
     await g.moveBy(const Offset(5, 0));
     await g.up();

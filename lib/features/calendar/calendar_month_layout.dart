@@ -7,7 +7,7 @@ DateTime _dateOnly(DateTime date) => DateTime(date.year, date.month, date.day);
 
 /// 月表示グリッドに描く「連続した1本の帯」1件分（2026-09-11追加）。
 /// `CalendarEvent`は1件がそのまま1つの`CalendarMonthItem`になり、
-/// `ScheduleCoordination`は連続した候補日のかたまりごとに分割される
+/// `ScheduleCoordination`は連続した候補日のかたまり毎に分割される
 /// （例: 候補日が9/11,9/12,9/13,9/20なら[9/11-9/13]と[9/20-9/20]の2件）。
 class CalendarMonthItem {
   const CalendarMonthItem({
@@ -33,7 +33,7 @@ class CalendarMonthItem {
 
   final String title;
 
-  /// カテゴリの色（0xRRGGBB）。カテゴリ未設定、または既に削除された
+  /// カテゴリの色（0xRRGGBB）。カテゴリ未設定、又は既に削除された
   /// categoryIdを参照している場合はnull（呼び出し側でアクセントカラー等へ
   /// フォールバックする）。
   final int? categoryColor;
@@ -81,7 +81,7 @@ List<CalendarMonthItem> buildMonthItems(
     final dates =
         coordination.candidateDates.map((ts) => _dateOnly(ts.toDate())).toList()
           ..sort();
-    // 暦日が連続する区間ごとに分割する。
+    // 暦日が連続する区間毎に分割する。
     var runStart = dates.isEmpty ? null : dates.first;
     var runEnd = runStart;
     for (var i = 1; i <= dates.length; i++) {
@@ -134,8 +134,8 @@ class WeekLaneSegment {
 
 /// 1週間分の`CalendarMonthItem`を、レーン（表示行）へ貪欲法（区間グラフの
 /// 彩色と同じロジック）で割り当てる。`maxLanes`を超える分は非表示にし、
-/// 代わりに日ごとの非表示件数を返す（Googleカレンダーの「他N件」と同じ、
-/// 日ごとに個別集計）。
+/// 代わりに日毎の非表示件数を返す（Googleカレンダーの「他N件」と同じ、
+/// 日毎に個別集計）。
 class WeekLaneLayout {
   const WeekLaneLayout({
     required this.segments,

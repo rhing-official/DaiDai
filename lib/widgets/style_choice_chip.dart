@@ -3,10 +3,11 @@ import 'package:flutter/material.dart';
 import '../models/app_ui_style.dart';
 import '../theme/block/block_theme.dart';
 import '../theme/gekiga/gekiga_colors.dart';
+import 'gekiga/gekiga_panel_box.dart';
 import 'glass/glass_surface.dart';
 
 /// 選択式のチップ（権限管理のロール選択、管理画面の状態絞り込み等で共通）。
-/// 素の`ChoiceChip`はM3既定の青緑系の選択色が出てしまうため、UIスタイルごとに既存の選択表現へ揃える
+/// 素の`ChoiceChip`はM3既定の青緑系の選択色が出てしまうため、UIスタイル毎に既存の選択表現へ揃える
 /// （フラット=アクセントカラー塗り、ガラス=`NavChip`と同じ半透明の塗り、
 /// 劇画=選択は白地黒字・未選択は黒地白字。いずれもチェックマークは出さない）。
 class StyleChoiceChip extends StatelessWidget {
@@ -125,5 +126,67 @@ class StyleChoiceChip extends StatelessWidget {
           ),
         );
     }
+  }
+}
+
+/// 劇画の絞り込みチップの並び。語らいの「一対/広場」タブ（`CategoryTab`）と同じく、
+/// 箱同士を接合した横並びのモノクロボックスで描く（選択=白地黒字・未選択=黒地白字）。
+/// 他のスタイルは[StyleChoiceChip]を使う。
+class GekigaChoiceChipRow extends StatelessWidget {
+  const GekigaChoiceChipRow({
+    super.key,
+    required this.labels,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final List<String> labels;
+  final List<bool> selected;
+
+  /// 押されたチップの番号。
+  final ValueChanged<int> onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    // 幅に収まらなければ折り返す（他のスタイルの`Wrap`と同じ）。箱は1つずつ独立させ、
+    // 間隔は接合リストと同じ[GekigaJointedTileList.gap]。
+    return Wrap(
+      spacing: GekigaJointedTileList.gap,
+      runSpacing: GekigaJointedTileList.gap,
+      children: [
+        for (var i = 0; i < labels.length; i++)
+          GekigaJointedTileList(
+            axis: Axis.horizontal,
+            seeds: [labels[i].hashCode],
+            selectedFlags: [selected[i]],
+            children: [
+              Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () => onTap(i),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 6,
+                    ),
+                    child: Text(
+                      labels[i],
+                      style: TextStyle(
+                        color: selected[i]
+                            ? GekigaColors.panel
+                            : GekigaColors.onPanel,
+                        fontSize: 16,
+                        fontWeight: selected[i]
+                            ? FontWeight.bold
+                            : FontWeight.normal,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+      ],
+    );
   }
 }

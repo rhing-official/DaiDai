@@ -24,9 +24,9 @@ class GroupPermission {
   /// この権限にする、2026-10-10追加）。
   static const manageBots = 'manageBots';
 
-  /// ロールの権限セットの編集（2026-10-11追加）。これが無いと権限を変更できない
+  /// ロールの権限セットの編集（2026-10-11追加）。これが無いと権限を変更出来ない
   /// （`manageRoles`だけでは、ロールの名前・色・付与・削除・優先順位まで）。
-  /// 権限を自由に付けられる＝実質的に全権限を渡せるため、基準ロールには含めず、
+  /// 権限を自由に付けられる＝実質的に全権限を渡せる為、基準ロールには含めず、
   /// 長が信頼するロールにだけ付与する想定。
   static const managePermissions = 'managePermissions';
 
@@ -51,9 +51,9 @@ class GroupPermission {
 /// 持つ特別な存在としてロールとは別枠で扱う（`memberRoles`の「モデレーター」は
 /// 廃止し、この仕組みに統合した、2026-07-28）。
 ///
-/// 広場には必ず1件、削除・メンバーからの除外ができない基準ロール
+/// 広場には必ず1件、削除・メンバーからの除外が出来ない基準ロール
 /// （[isEveryone]、Discordの`@everyone`相当）が存在し、全メンバーに暗黙に
-/// 適用される。それ以外のロールは[Group.roleAssignments]で複数付与できる。
+/// 適用される。それ以外のロールは[Group.roleAssignments]で複数付与出来る。
 class GroupRole {
   const GroupRole({
     required this.roleId,
@@ -70,7 +70,7 @@ class GroupRole {
   final String name;
 
   /// 0xRRGGBB形式（アルファ無し）。nullなら呼び名の色を上書きしない
-  /// （色を持たないロール、または[isEveryone]の既定値）。
+  /// （色を持たないロール、又は[isEveryone]の既定値）。
   final int? color;
 
   final Set<String> permissions;

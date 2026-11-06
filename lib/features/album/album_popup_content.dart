@@ -39,7 +39,7 @@ Future<Album?> showAlbumPopup(
       PopupMenuItem<Album>(
         enabled: false,
         padding: EdgeInsets.zero,
-        // メニューは呼び出し元の外のルートに描かれるため、呼び出し元と同じ
+        // メニューは呼び出し元の外のルートに描かれる為、呼び出し元と同じ
         // プロバイダーの範囲（使い方ガイドの練習用の画面など）を引き継ぐ。
         child: UncontrolledProviderScope(
           container: ProviderScope.containerOf(context),
@@ -257,7 +257,7 @@ class _AlbumPopupContentState extends ConsumerState<_AlbumPopupContent> {
 /// ポップアップ内のアルバム1件分のカード。`_PinnedMessageCard`
 /// （`chat_screen.dart`）と同じ見た目の構成（カード本体タップで選択・
 /// 右上にゴミ箱ボタン）。改名機能は2026-09-07に廃止した（このメニュー
-/// 以外に改名する手段が無かったため、ゴミ箱ボタン直接配置への統一と
+/// 以外に改名する手段が無かった為、ゴミ箱ボタン直接配置への統一と
 /// あわせてユーザー指示により削除）。アルバムの削除は寄合の全メンバーが
 /// 対等（firestore.rules参照、ノート・投票と異なり作成者限定ではない）
 /// ため、[onDelete]は常に渡される。

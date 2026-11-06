@@ -71,7 +71,7 @@ Future<void> main() async {
   AlwaysAnimateBinding.ensureInitialized();
   // 劇画UIスタイルの見出しフォント（Anton）はGoogle CDNから実行時取得せず、
   // アプリに同梱したファイルのみを使う（プライバシーファースト方針に
-  // 合わせ、外部通信を発生させないため）。
+  // 合わせ、外部通信を発生させない為）。
   GoogleFonts.config.allowRuntimeFetching = false;
   // 既定のハッシュURL戦略（例: /#/join/xxx）のままだと、招待リンク
   // （例: https://.../join/xxx/yyy、ハッシュ無し）を新しいタブで直接開いた際に
@@ -233,7 +233,7 @@ Future<void> main() async {
   );
   // 完全終了状態（cold start）から通知タップで起動された場合のディープ
   // リンク（2026-09-02追加）。`globalRouter`は`MaterialApp.router`が
-  // `goRouterProvider`を読む最初のフレームで埋まるため、その後まで待つ。
+  // `goRouterProvider`を読む最初のフレームで埋まる為、その後まで待つ。
   final launchPayload = await consumeLaunchNotificationPayload();
   if (launchPayload != null) {
     WidgetsBinding.instance.addPostFrameCallback(
@@ -266,10 +266,10 @@ class DaiDaiApp extends ConsumerWidget {
         .watch(fontDesignProvider)
         .resolvedFor(appLocale, kiwami: isKiwamiUser)
         .fontFamily;
-    // 劇画スタイルはライト/ダークどちらのthemeModeでも同じ見た目にするため、
+    // 劇画スタイルはライト/ダークどちらのthemeModeでも同じ見た目にする為、
     // theme/darkThemeの両方に同一のThemeDataを渡す（chat_screen.dartの
     // 既存方針をアプリ全体に拡張したもの）。switch式にしているのは、新しい
-    // スタイルを追加した際に対応漏れをコンパイラが検知できるようにするため。
+    // スタイルを追加した際に対応漏れをコンパイラが検知出来るようにする為。
     // 劇画は独自の固定モノクロ配色のため文字色設定の対象外（既存方針）。
     final theme = switch (uiStyle) {
       AppUiStyle.flat => AppTheme.light(
@@ -340,7 +340,7 @@ class DaiDaiApp extends ConsumerWidget {
       // 通話ミニ表示（`PinnedCallOverlay`）を全ルートの上に重ねる（2026-10-12、
       // 以前は`HomeScreen`内にあり、寄合を開く`/chat/*`ルートの下に隠れて
       // いた）。`PipHost`はAndroidのPiP（アプリを離れた時の小窓）用。
-      // 文字サイズ（設定>アプリケーション）を、OS側の文字サイズ設定に掛けて全画面へ
+      // フォントサイズ（設定>アプリケーション）を、OS側のフォントサイズ設定に掛けて全画面へ
       // 適用する（2026-11-05）。小でも常に包み、木の形を変えない（再マウント防止）。
       builder: (context, child) => MediaQuery(
         data: MediaQuery.of(context).copyWith(

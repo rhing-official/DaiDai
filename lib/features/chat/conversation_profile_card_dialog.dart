@@ -11,7 +11,7 @@ import '../../widgets/profile_card_picker.dart';
 import '../../widgets/dialog_keyboard_shortcuts.dart';
 import '../../widgets/app_dialog.dart';
 
-/// 一対・広場ごとに自分が使うプロフィールカードを選ぶダイアログ
+/// 一対・広場毎に自分が使うプロフィールカードを選ぶダイアログ
 /// （`AppUser.conversationProfileCardId`、2026-07-30追加）。設定タブ＞語らい
 /// の一覧（`_ProfileCardAssignmentFolder`）と同じ`ProfileCardPicker`を使い、
 /// 各会話の全体設定（`GroupSettingsPopup`・単一モードの`_GroupMenuButton`・

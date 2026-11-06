@@ -6,7 +6,7 @@ import '../../models/app_user.dart';
 import '../../providers/repository_providers.dart';
 
 /// アカウント削除申請中（[AccountStatus.pendingDeletion]）のユーザーに
-/// 表示する復元プロンプト。30日間はここから復元できる。何もしなければ
+/// 表示する復元プロンプト。30日間はここから復元出来る。何もしなければ
 /// 31日目にCloud Functionsの定期処理がサーバーから全情報を完全削除する
 /// （`UserRepository.requestAccountDeletion`/`restoreAccount`参照）。
 class AccountRestoreScreen extends ConsumerStatefulWidget {

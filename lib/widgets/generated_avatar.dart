@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 /// 住人のIDから決まる固定色と、Rhing Seedの頭文字だけで描く丸いアバター
 /// （2026-10-10、管理画面の住人一覧用）。住人が設定したアイコンやカードの
-/// 内容は一切使わない（運営が通常業務で個人の表現を眺めないため）。
+/// 内容は一切使わない（運営が通常業務で個人の表現を眺めない為）。
 /// 同じIDには常に同じ色が付くので、一覧の中で見分けやすくなる。
 class GeneratedAvatar extends StatelessWidget {
   const GeneratedAvatar({
@@ -30,7 +30,7 @@ class GeneratedAvatar extends StatelessWidget {
     Color(0xFFD81B60),
   ];
 
-  /// [seed]から決まる色。`String.hashCode`は実装によって値が変わりうるため、
+  /// [seed]から決まる色。`String.hashCode`は実装によって値が変わりうる為、
   /// 安定したFNV-1aハッシュで選ぶ（同じIDは端末・実行をまたいで同じ色）。
   static Color colorFor(String seed) {
     var hash = 0x811c9dc5;

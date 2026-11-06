@@ -18,14 +18,14 @@ const _webPushVapidKey =
 /// Program未加入、Windows/Linuxは`firebase_messaging`が非対応のため対象外、
 /// 2026-08-31）。実際の永続化は[UserRepository.addToProfileList]/
 /// [removeFromProfileList]に委譲する（`AppUser.fcmTokens`はその他の蔵の
-/// リストと同じ配列フィールドのため、専用の書き込みメソッドを新設せず
+/// リストと同じ配列フィールドの為、専用の書き込みメソッドを新設せず
 /// 既存の汎用メソッドを再利用する）。
 abstract class PushNotificationRepository {
   /// 通知権限をリクエストし、許可されればFCMトークンを取得して
   /// [userId]の`fcmTokens`に登録する。対応外プラットフォーム（iOS/macOS/
   /// Windows/Linux）では何もしない。戻り値は実際に許可されFCMトークンの
   /// 登録まで完了したか（2026-09-01、設定タブのトグルUIが結果を表示に
-  /// 反映できるよう`Future<void>`から変更）。
+  /// 反映出来るよう`Future<void>`から変更）。
   Future<bool> requestPermissionAndRegister(String userId);
 
   /// トークンが更新された際、新トークンを[userId]に再登録する。

@@ -19,9 +19,9 @@ class DmRoom {
 
   /// 親のDirectMessage.participantsを非正規化して保持する
   /// （広場のRoom.memberIdsと同じ理由: セキュリティルールでの参照を
-  /// 単純化するため。特にDM作成と同じバッチ内でこの寄合を作成する際、
+  /// 単純化する為。特にDM作成と同じバッチ内でこの寄合を作成する際、
   /// ルール側が親ドキュメントをget()すると未コミット状態を見てしまい
-  /// permission-deniedになるため、自己完結した条件にする必要がある）。
+  /// permission-deniedになる為、自己完結した条件にする必要がある）。
   final List<String> participants;
 
   final Timestamp? lastMessageAt;
@@ -31,7 +31,7 @@ class DmRoom {
 
   /// この寄合の削除を実行中の参加者のuserId。nullなら削除中でない通常
   /// 状態。削除操作の間だけ立てるマーカーで、これが立っている間は
-  /// 参加者なら誰でもこの寄合のメッセージを物理削除できる
+  /// 参加者なら誰でもこの寄合のメッセージを物理削除出来る
   /// （`DirectMessageRepository.deleteRoom`、firestore.rules参照）。
   final String? deletionRequestedBy;
 

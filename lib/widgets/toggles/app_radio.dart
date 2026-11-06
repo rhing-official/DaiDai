@@ -181,7 +181,7 @@ class AppRadioListTile<T> extends ConsumerWidget {
   final EdgeInsetsGeometry? contentPadding;
   final bool? dense;
 
-  /// 互換のために残している引数。ラジオは全てのUIスタイルで左端に置く（2026-11-05）。
+  /// 互換の為に残している引数。ラジオは全てのUIスタイルで左端に置く（2026-11-05）。
   final ListTileControlAffinity controlAffinity;
   final bool enabled;
 

@@ -11,7 +11,7 @@ import '../../widgets/dialog_keyboard_shortcuts.dart';
 import '../../widgets/app_dialog.dart';
 
 /// 秘密の質問（3問固定）の設定・変更ダイアログ（2026-09-16追加、パスキー
-/// 紛失時の復旧用）。既存の質問文はサーバーに問い合わせても取得できない
+/// 紛失時の復旧用）。既存の質問文はサーバーに問い合わせても取得出来ない
 /// （`AuthRepository.getSecretQuestionsStatus`は設定済みかどうかのみを返す）
 /// ため、既に設定済みの場合も常に空欄から入力し直す。保存すると3問まるごと
 /// 置き換わる。

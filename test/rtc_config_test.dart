@@ -14,7 +14,7 @@ void main() {
     ]);
   });
 
-  test('TURNを取得できたらiceServersに足す', () async {
+  test('TURNを取得出来たらiceServersに足す', () async {
     final config = await loadRtcConfiguration(
       () async => [
         {

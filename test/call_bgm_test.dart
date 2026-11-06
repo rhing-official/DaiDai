@@ -6,7 +6,7 @@ import 'package:daidai/models/group_role.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('CallParticipant: bgmTitleを読み書きできる（無ければnull）', () {
+  test('CallParticipant: bgmTitleを読み書き出来る（無ければnull）', () {
     final withBgm = CallParticipant.fromJson('u1', {
       'rhingSeed': 'a',
       'bgmTitle': '曲A',

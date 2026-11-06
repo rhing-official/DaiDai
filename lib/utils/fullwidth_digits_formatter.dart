@@ -31,7 +31,7 @@ class FullwidthDigitsInputFormatter extends TextInputFormatter {
         ? newValue
         : newValue.copyWith(text: converted);
     // 数字以外の除去・選択範囲の補正はFlutter標準の実装に委譲する（自前実装
-    // しない）。全角数字はASCII外のため、半角変換を済ませた後に渡す順序が
+    // しない）。全角数字はASCII外の為、半角変換を済ませた後に渡す順序が
     // 重要（先に`digitsOnly`にかけると全角数字が誤って除去されてしまう）。
     return FilteringTextInputFormatter.digitsOnly.formatEditUpdate(
       oldValue,

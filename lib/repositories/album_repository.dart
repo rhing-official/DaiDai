@@ -51,7 +51,7 @@ abstract class AlbumRepository {
   /// アルバムへの「メッセージから追加」用）。`hiddenFor`によるクライアント側
   /// フィルタは呼び出し側（`AlbumMessagePickerScreen`）の責務とする（他の
   /// メッセージ一覧箇所と同じ慣習、`AlbumRepository`はDM/広場固有の概念に
-  /// 依存しない薄い設計方針のため）。
+  /// 依存しない薄い設計方針の為）。
   Stream<List<Message>> watchMediaMessages({
     required bool isDm,
     required String conversationId,
@@ -59,7 +59,7 @@ abstract class AlbumRepository {
   });
 
   /// 画像・動画メッセージをアルバムに登録する。元ファイルをコピーして
-  /// 独立保存するため、[message]の`fileMetadata`がnullの場合や
+  /// 独立保存する為、[message]の`fileMetadata`がnullの場合や
   /// `contentType`が`image`/`video`以外の場合は[ArgumentError]を投げる。
   Future<AlbumItem> addItemFromMessage({
     required bool isDm,

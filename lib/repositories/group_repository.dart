@@ -33,7 +33,7 @@ abstract class GroupRepository {
   Stream<List<Group>> watchGroups(String userId);
 
   /// 広場を1件取得する。メンバーでない場合はFirestoreルールにより
-  /// permission-deniedとなるため、その場合はnullを返す
+  /// permission-deniedとなる為、その場合はnullを返す
   /// （招待リンクを開いた相手が「既にメンバーかどうか」を判定するのに使う）。
   Future<Group?> getGroup(String groupId);
 
@@ -44,14 +44,14 @@ abstract class GroupRepository {
   /// [visibleFrom]が非nullなら`sentAt >= visibleFrom`のメッセージだけを
   /// 購読する（新規加入者に加入前のメッセージを見せない設定、2026-10-08追加。
   /// `messageVisibleFrom`参照。firestore.rulesの`list`はクエリ自体にこの絞り込み
-  /// が無いと拒否するため、取得系は全て同じ[visibleFrom]を渡す）。
+  /// が無いと拒否する為、取得系は全て同じ[visibleFrom]を渡す）。
   Stream<List<Message>> watchRoomMessages(
     String groupId,
     String roomId, {
     Timestamp? visibleFrom,
   });
 
-  /// [before]（[watchRoomMessages]のライブ窓、または前回の続き）より古い
+  /// [before]（[watchRoomMessages]のライブ窓、又は前回の続き）より古い
   /// メッセージを最大[limit]件、新しい順に1回だけ取得する（2026-10-06追加、
   /// 件数ベースのページネーション。従来の日単位から変更）。ライブ購読は
   /// せず、過去分は静的なスナップショットのまま。
@@ -66,7 +66,7 @@ abstract class GroupRepository {
   /// この広場の寄合（テキストチャンネル）一覧を作成順に購読する。[userId]は
   /// 呼び出し元本人のuserId（firestore.rulesの`list`操作は、クエリ自体に
   /// ルールと同じ条件の`where`句が無いと「結果に含まれ得る全ドキュメントが
-  /// ルールを満たすと証明できない」として要求全体を拒否するため、
+  /// ルールを満たすと証明出来ない」として要求全体を拒否する為、
   /// クエリ側にも`memberIds`のarray-contains条件を付ける必要がある）。
   Stream<List<Room>> watchRooms({
     required String groupId,
@@ -84,7 +84,7 @@ abstract class GroupRepository {
     required String name,
   });
 
-  /// 単一モードの広場を複数モードに切り替える、または複数モードの広場を
+  /// 単一モードの広場を複数モードに切り替える、又は複数モードの広場を
   /// 単一モードに戻す（どちらもmanageRooms権限を持つメンバーのみ、
   /// firestore.rulesで強制）。単一に戻す場合（[enabled] == false）は
   /// 寄合が1つだけの場合に限り許可し、それ以外では[StateError]を投げる
@@ -97,7 +97,7 @@ abstract class GroupRepository {
   });
 
   /// 寄合を削除する。全メッセージも物理削除する（長・モデレーターのみ、
-  /// firestore.rulesで強制）。その広場の最後の1つの寄合は削除できない
+  /// firestore.rulesで強制）。その広場の最後の1つの寄合は削除出来ない
   /// （[StateError]を投げる）。
   Future<void> deleteRoom({
     required String groupId,
@@ -121,7 +121,7 @@ abstract class GroupRepository {
   });
 
   /// ロールの名前・色・権限を編集する（`GroupPermission.manageRoles`が必要）。
-  /// 基準ロール（[GroupRole.isEveryone]）も名前以外は編集できる（呼び出し側で
+  /// 基準ロール（[GroupRole.isEveryone]）も名前以外は編集出来る（呼び出し側で
   /// 名前欄自体を無効化する）。
   Future<void> updateRole({
     required String groupId,
@@ -132,8 +132,8 @@ abstract class GroupRepository {
   });
 
   /// ロールを削除する（`GroupPermission.manageRoles`が必要）。基準ロールは
-  /// 削除できない（呼び出し側で削除ボタン自体を無効化する）。このロールを
-  /// 付与されていた全メンバーから外し、広場全体・寄合ごとの優先順位からも除去する。
+  /// 削除出来ない（呼び出し側で削除ボタン自体を無効化する）。このロールを
+  /// 付与されていた全メンバーから外し、広場全体・寄合毎の優先順位からも除去する。
   /// [requestedBy]は削除実行者本人のuserId（`rooms`サブコレクションの絞り込み
   /// 無し`.get()`が`list`操作としてfirestore.rulesにpermission-deniedされる
   /// 問題を避けるため必要）。
@@ -184,7 +184,7 @@ abstract class GroupRepository {
   /// が必要）。trueの間、この寄合の`rolePriorityOverride`・
   /// `readReceiptsEnabledOverride`・自分の通知オフ上書きが広場全体の設定より
   /// 優先される（2026-07-29追加）。falseに戻しても、保存済みの上書き値は
-  /// 消さずそのまま残す（再度trueにした時に復元されるようにするため）。
+  /// 消さずそのまま残す（再度trueにした時に復元されるようにする為）。
   Future<void> setRoomCustomSettingsEnabled({
     required String groupId,
     required String roomId,
@@ -214,7 +214,7 @@ abstract class GroupRepository {
   /// 削除系操作（[deleteRoom]等）と同じく猶予期間は設けず、呼び出し側の
   /// 確認ダイアログを経て即時実行する（2026-08-02追加）。参加リクエスト
   /// （`joinRequests`サブコレクション）はfirestore.rulesが物理削除自体を
-  /// 常に禁止しているため削除できず残るが、親の広場ドキュメントが消えた
+  /// 常に禁止しているため削除出来ず残るが、親の広場ドキュメントが消えた
   /// 時点でread権限の判定（`hasGroupPermission`のget()）が失敗しどのみち
   /// 誰からも参照できなくなる。
   Future<void> deleteGroup({
@@ -246,7 +246,7 @@ abstract class GroupRepository {
 
   /// 指定した1件のメッセージの最新状態を1回だけ取得する（2026-08-21追加、
   /// `DirectMessageRepository.getMessage`と同じ設計）。[loadOlderRoomMessages]
-  /// で読み込んだ過去日はライブ購読しない静的なスナップショットのため、
+  /// で読み込んだ過去日はライブ購読しない静的なスナップショットの為、
   /// その中のメッセージへ編集・リアクション等を行った直後にローカル側の
   /// 表示を更新する目的で使う。既に物理削除済み（送信取り消し等）なら
   /// nullを返す。
@@ -383,7 +383,7 @@ abstract class GroupRepository {
   /// 自分のこのメッセージへのリアクションを、呼び出し側が計算済みの
   /// 完全な絵文字リストで上書きする（空リストなら解除。2026-08-05変更、
   /// 以前は単一絵文字の設定/解除だったが、複数の異なる絵文字を同時に
-  /// 持てるようになったため、差分ではなく完全なリストを渡す形にした）。
+  /// 持てるようになった為、差分ではなく完全なリストを渡す形にした）。
   Future<void> setRoomMessageReaction({
     required String groupId,
     required String roomId,
@@ -432,7 +432,7 @@ abstract class GroupRepository {
   /// 既読記録が新たに始まる（過去分の復元はしない）。
   /// [userId]は呼び出し元本人のuserId（`rooms`サブコレクションの絞り込み無し
   /// `.get()`が`list`操作としてfirestore.rulesにpermission-deniedされる問題を
-  /// 避けるため、`GroupRepository.watchRooms`と同じ理由で必要）。
+  /// 避ける為、`GroupRepository.watchRooms`と同じ理由で必要）。
   Future<void> setReadReceiptsEnabled({
     required String groupId,
     required bool enabled,
@@ -446,7 +446,7 @@ abstract class GroupRepository {
     required bool enabled,
   });
 
-  /// [setHistoryVisibleToNewMembers]の寄合ごとの上書き。nullで広場の既定に戻す。
+  /// [setHistoryVisibleToNewMembers]の寄合毎の上書き。nullで広場の既定に戻す。
   /// 「この寄合独自の設定」（`Room.customSettingsEnabled`）がオンの間だけ有効。
   Future<void> setRoomHistoryVisibleOverride({
     required String groupId,
@@ -454,7 +454,7 @@ abstract class GroupRepository {
     required bool? enabled,
   });
 
-  /// 広場のプロフィールカードを作成・更新する。メンバー全員が実行できる。
+  /// 広場のプロフィールカードを作成・更新する。メンバー全員が実行出来る。
   Future<void> updateProfileCard({
     required String groupId,
     required GroupProfileCard card,
@@ -495,7 +495,7 @@ abstract class GroupRepository {
 
   /// 承認不要の広場に、承認を待たずに参加する（2026-10-11追加）。追加は
   /// Cloud Functionsの`joinGroup`が行う（非メンバーが自分でメンバーに
-  /// なれる書き込みをルールで許さないため）。承認必須の広場では
+  /// なれる書き込みをルールで許さない為）。承認必須の広場では
   /// `failed-precondition`で失敗する。
   Future<void> joinGroupWithoutApproval(String groupId);
 
@@ -510,12 +510,12 @@ abstract class GroupRepository {
 
   /// 自分が送った、承認待ち・却下済みの参加リクエスト一覧（広場をまたいだ
   /// collection group検索）。語らいタブの広場一覧に「申請中」「承認されませんでした」
-  /// として表示するために使う（却下された側にも結果を伝え、自分で削除できるよう
+  /// として表示する為に使う（却下された側にも結果を伝え、自分で削除出来るよう
   /// 却下済みも含める、2026-10-13）。
   Stream<List<GroupJoinRequest>> watchMyJoinRequests(String userId);
 
   /// 却下された自分の参加リクエストを削除する（語らい一覧から消す）。
-  /// 却下済み（declined）のものだけ、申請者本人が削除できる（firestore.rules）。
+  /// 却下済み（declined）のものだけ、申請者本人が削除出来る（firestore.rules）。
   Future<void> dismissJoinRequest(GroupJoinRequest request);
 
   /// 参加リクエストに応答する。承認の場合はメンバーとして追加する。
@@ -528,7 +528,7 @@ abstract class GroupRepository {
     required String respondedBy,
   });
 
-  /// 広場から退会する。オーナーは退会できない。
+  /// 広場から退会する。オーナーは退会出来ない。
   Future<void> leaveGroup({required String groupId, required String userId});
 }
 
@@ -595,7 +595,7 @@ class FirestoreGroupRepository implements GroupRepository {
     // 直前まで`roomRef`もgroupRefと同じbatchに含めていたが、
     // `groups/{groupId}/rooms/{roomId}`のcreateルールは
     // `hasGroupPermission(groupId, 'manageRooms')`（＝groups/{groupId}を
-    // `get()`して判定）を要求するため、下記のgroupInvites・rolesと全く同じ
+    // `get()`して判定）を要求する為、下記のgroupInvites・rolesと全く同じ
     // 「同一バッチ内だとget()が未コミットのgroupsを見られずpermission-denied
     // になる」問題が起きていた（2026-08-13発覚・修正。groupInvites/roles側は
     // 既に別書き込みに分離済みだったが、roomRefだけ対応漏れだった）。
@@ -603,13 +603,13 @@ class FirestoreGroupRepository implements GroupRepository {
     await roomRef.set(room.toJson());
 
     // groupInvites・roles/{everyoneRole}のセキュリティルールはgroups/{groupId}を
-    // `get()`で参照してmemberIds/ownerId等を判定するため、groupsのコミット完了後に
+    // `get()`で参照してmemberIds/ownerId等を判定する為、groupsのコミット完了後に
     // 別書き込みとして実行する必要がある（同一バッチ内だとget()が未コミットの
     // groupsを見られずpermission-deniedになる）。
     await _groupInvites.doc(groupRef.id).set(invitePreview.toJson());
 
     // 全メンバーに自動適用される基準ロール（Discordの@everyone相当）。
-    // 招待リンク作成はこれまで誰でも可能だったため、その挙動を再現する
+    // 招待リンク作成はこれまで誰でも可能だった為、その挙動を再現する
     // デフォルト権限にする。色は付けない（他のロールの色を邪魔しないよう、
     // 常に最下位優先度扱いにする、`resolveSenderColor`参照）。
     final everyoneRoleRef = _rolesOf(groupRef.id).doc();
@@ -635,7 +635,7 @@ class FirestoreGroupRepository implements GroupRepository {
   Stream<List<Group>> watchGroups(String userId) {
     // direct_message_repository.dartのwatchDirectMessagesと同じ理由で
     // orderBy('lastMessageAt')は使わない。まだメッセージが1件も送られて
-    // いない作成直後の広場はlastMessageAtが常にnullのままのため、orderByを
+    // いない作成直後の広場はlastMessageAtが常にnullのままの為、orderByを
     // 付けるとFirestoreのクエリ結果から恒久的に除外されてしまう
     // （2026-09-02、語らい一覧の並べ替え機能追加に伴いlastMessageAt順ソートを
     // 追加した際に同じ罠を踏まないよう最初からクライアント側ソートにする）。
@@ -688,7 +688,7 @@ class FirestoreGroupRepository implements GroupRepository {
   }) {
     // Firestoreの`orderBy`はソート対象フィールドを持たないドキュメントを
     // 結果から除外してしまう。この機能を追加する前に作られた「メイン」室
-    // には`createdAt`が無いため、`orderBy('createdAt')`を使うと表示されなく
+    // には`createdAt`が無い為、`orderBy('createdAt')`を使うと表示されなく
     // なる不具合があった。クライアント側ソート（`createdAt`が無い場合は
     // 最古扱い）に変更して回避する。
     //
@@ -696,7 +696,7 @@ class FirestoreGroupRepository implements GroupRepository {
     // （この寄合一覧のメンバーは常に広場のメンバーと同一のため実質絞り込み
     // 効果は無い）、firestore.rulesを満たすために必須。`list`操作では
     // クエリ自体にルールと同じ条件のwhere句が無いと、Firestoreは「返り得る
-    // 全ドキュメントがルールを満たすと証明できない」として要求全体を
+    // 全ドキュメントがルールを満たすと証明出来ない」として要求全体を
     // permission-deniedで拒否する（各ドキュメントを個別に評価してから
     // 結果をフィルタする、という動作はしない）。これが原因で、この機能を
     // 実装した当初からサイドバーの寄合一覧が一切表示されない不具合があった。
@@ -789,7 +789,7 @@ class FirestoreGroupRepository implements GroupRepository {
         .where('memberIds', arrayContains: requestedBy)
         .get();
     if (roomsSnapshot.docs.length <= 1) {
-      throw StateError('最後の1つの寄合は削除できません');
+      throw StateError('最後の1つの寄合は削除出来ません');
     }
 
     final roomRef = _roomRef(groupId, roomId);
@@ -1503,7 +1503,7 @@ class FirestoreGroupRepository implements GroupRepository {
     }
 
     // メンバー全員が削除し終え物理削除されたメッセージの添付ファイルは、
-    // Firestore上には残らないがFirebase Storage上には実体が残るため、
+    // Firestore上には残らないがFirebase Storage上には実体が残る為、
     // ストレージの肥大化防止のためあわせて削除する（削除失敗は無視）。
     await Future.wait(
       attachmentUrlsToDelete.map((url) async {
@@ -1538,7 +1538,7 @@ class FirestoreGroupRepository implements GroupRepository {
   }
 
   /// [messagesRef]配下の全メッセージの既読履歴（readBy）を空にする。
-  /// 更新後もドキュメントは残り続けるため、`acceptSeverance`の
+  /// 更新後もドキュメントは残り続ける為、`acceptSeverance`の
   /// （削除により毎回別集合が返ってくる）`.limit(400)`繰り返し取得とは
   /// 異なり、カーソルで明示的にページを進める必要がある。
   Future<void> _clearAllReadReceipts(
@@ -1590,7 +1590,7 @@ class FirestoreGroupRepository implements GroupRepository {
       _groupInvites.doc(groupId),
       preview.toJson()
         ..remove('requiresApproval')
-        // mergeでは省いたキーが前の値のまま残るため、未設定はnullで明示する。
+        // mergeでは省いたキーが前の値のまま残る為、未設定はnullで明示する。
         ..['iconFocal'] = card.iconFocal?.toJson()
         ..['backgroundFocal'] = card.backgroundFocal?.toJson(),
       SetOptions(merge: true),
@@ -1605,7 +1605,7 @@ class FirestoreGroupRepository implements GroupRepository {
     required Uint8List bytes,
   }) async {
     final id = _groups.doc().id;
-    // GIFはWebPに圧縮するとアニメーションが失われるため、圧縮をスキップして
+    // GIFはWebPに圧縮するとアニメーションが失われる為、圧縮をスキップして
     // 元のバイトのままアップロードする（user_repository.dartの同様の処理を参照）。
     final isGif = isGifBytes(bytes);
     final compressed = isGif ? null : await _tryCompressToWebp(bytes);
@@ -1775,7 +1775,7 @@ class FirestoreGroupRepository implements GroupRepository {
   Future<void> dismissJoinRequest(GroupJoinRequest request) async {
     final ref = _joinRequestsOf(request.groupId).doc(request.requestId);
     // 既に削除済み（二重操作・別端末での削除）なら目的は達成済み。存在しない
-    // ドキュメントのdeleteはルールの評価エラー（permission-denied）になるため、
+    // ドキュメントのdeleteはルールの評価エラー（permission-denied）になる為、
     // 先に存在を確認する。本当に権限が無い場合のエラーは握りつぶさず、画面に出す
     // （以前は`permission-denied`を一律で握っていて、削除に失敗したのに何も
     // 表示されず一覧にも残り続けた、2026-10-13）。
@@ -1871,7 +1871,7 @@ class FirestoreGroupRepository implements GroupRepository {
     final groupDoc = await groupRef.get();
     final group = Group.fromJson(groupRef.id, groupDoc.data()!);
     if (group.ownerId == userId) {
-      throw StateError('オーナーは退会できません');
+      throw StateError('オーナーは退会出来ません');
     }
 
     final updatedRoles = {...group.memberRoles}..remove(userId);
@@ -1959,7 +1959,7 @@ class FirestoreGroupRepository implements GroupRepository {
       'color': color,
       'permissions': permissions.toList(),
     });
-    // 権限が変わった可能性があるため、このロールを持つメンバー（基準ロール
+    // 権限が変わった可能性がある為、このロールを持つメンバー（基準ロール
     // なら全メンバー）の実効権限を再計算する。
     await _recomputeMemberPermissions(groupId);
   }
@@ -1989,7 +1989,7 @@ class FirestoreGroupRepository implements GroupRepository {
     }
     await groupRef.update(groupUpdate);
 
-    // 寄合ごとの優先順位上書きからも除去する。where句はfirestore.rulesの
+    // 寄合毎の優先順位上書きからも除去する。where句はfirestore.rulesの
     // `list`要求を満たすために必須（`deleteRoom`と同じ、2026-07-29追加）。
     final roomsSnapshot = await groupRef
         .collection('rooms')
@@ -2117,12 +2117,12 @@ class FirestoreGroupRepository implements GroupRepository {
     if (data == null) return;
     final group = Group.fromJson(groupRef.id, data);
     if (group.ownerId != requestedBy) {
-      throw StateError('広場の削除は長のみ実行できます');
+      throw StateError('広場の削除は長のみ実行出来ます');
     }
 
     // watchRooms/deleteRoomと同じ理由でwhere句が必須（list操作の
     // firestore.rules要求を満たすため）。長は必ず全ての寄合のmemberIdsに
-    // 含まれる（createRoomが作成時点のgroup.memberIds全員を登録するため）。
+    // 含まれる（createRoomが作成時点のgroup.memberIds全員を登録する為）。
     final roomsSnapshot = await groupRef
         .collection('rooms')
         .where('memberIds', arrayContains: requestedBy)
@@ -2158,9 +2158,9 @@ class FirestoreGroupRepository implements GroupRepository {
 
   /// [Group.memberPermissions]（userId -> 有効な権限文字列のリスト）を、
   /// 現在のロール定義・付与状況から再計算して書き込む。firestore.rulesが
-  /// ロールドキュメントを跨いで動的に権限を判定できないための非正規化
+  /// ロールドキュメントを跨いで動的に権限を判定出来ない為の非正規化
   /// （`Room.memberIds`が`Group.memberIds`を非正規化して持つのと同じ設計）。
-  /// 対象人数が小規模な想定のため、常に全メンバー分をまとめて再計算する。
+  /// 対象人数が小規模な想定の為、常に全メンバー分をまとめて再計算する。
   Future<void> _recomputeMemberPermissions(String groupId) async {
     final groupRef = _groups.doc(groupId);
     final groupDoc = await groupRef.get();

@@ -115,7 +115,7 @@ void main() {
   });
 
   for (final style in AppUiStyle.values) {
-    testWidgets('${style.name}でも表示できる', (tester) async {
+    testWidgets('${style.name}でも表示出来る', (tester) async {
       await pump(tester, userId: 'owner', requestCount: 1, style: style);
       expect(find.text('参加リクエストが1件あります'), findsOneWidget);
     });

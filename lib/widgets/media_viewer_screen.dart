@@ -47,7 +47,7 @@ class MediaViewerItem {
   final String? fileName;
 
   /// 送信前の画像のバイト列（送信前のトレイの拡大表示用、2026-10-31）。あれば[url]ではなく
-  /// これを表示する。サーバーにまだ無いため、ダウンロード・共有は何もしない。
+  /// これを表示する。サーバーにまだ無い為、ダウンロード・共有は何もしない。
   final Uint8List? bytes;
 
   /// 動画のサムネイル画像（あれば）。「吸い込み」の開閉中、実物の動画の代わりに
@@ -101,10 +101,10 @@ Future<void> openMediaViewer(
 /// ため、`Message`ではなく軽量な[MediaViewerItem]のリストを受け取る形に
 /// した）。[items]を`PageView`でめくる。右スワイプ（＝`PageView`の前ページ
 /// 方向）で前、左スワイプで後に切り替わる。コンピューターでは矢印キーでも
-/// 同様に操作できる。動画は、最初に開いた対象（[initialIndex]）のときだけ
+/// 同様に操作出来る。動画は、最初に開いた対象（[initialIndex]）の時だけ
 /// 自動再生し、スワイプ/矢印キーで切り替えた先の動画は自動再生せず、中央の
 /// 再生ボタンをタップして再生を始める（[_VideoViewerPage]参照）。ページを
-/// 離れた動画は自動的に一時停止するため、一度再生した動画のページへ
+/// 離れた動画は自動的に一時停止する為、一度再生した動画のページへ
 /// スワイプ/矢印キーで戻ってきても自動再生されたままにはならず、常に
 /// 一時停止から始まる。
 class MediaViewerScreen extends ConsumerStatefulWidget {
@@ -138,7 +138,7 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen> {
   void _toggleChrome() => setState(() => _chromeHidden = !_chromeHidden);
 
   // 動画ページの`GlobalKey`（アイテムid基準）。スペースキーで現在表示中の
-  // 動画の再生/一時停止をトグルするために、`_VideoViewerPageState`へ
+  // 動画の再生/一時停止をトグルする為に、`_VideoViewerPageState`へ
   // 直接アクセスする（2026-08-14追加）。`PageView.builder`のindexではなく
   // アイテムidをキーにするのは、ウィジェット自身の`key:`としても兼用し、
   // スワイプ中の内部再構築でも同じ`_VideoViewerPageState`（＝
@@ -209,7 +209,21 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen> {
     final strings = ref.read(appStringsProvider);
     final uid = ref.read(authStateProvider).value?.uid;
     if (uid == null) return;
-    final target = await showForwardTargetDialog(context, currentUserId: uid);
+    final target = await showForwardTargetDialog(
+      context,
+      currentUserId: uid,
+      preview: ForwardPreview(
+        media: [
+          ForwardPreviewMedia(
+            url: item.contentType == 'video'
+                ? (item.thumbnailUrl ?? item.url)
+                : item.url,
+            name: mediaDownloadFileName(item),
+            isVideo: item.contentType == 'video',
+          ),
+        ],
+      ),
+    );
     if (target == null || !mounted) return;
     showAutoDismissBanner(context, message: strings.forwardSending);
     try {
@@ -346,7 +360,7 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen> {
                 itemCount: widget.items.length,
                 onPageChanged: (index) {
                   // 離れる動画は一時停止する（2026-09-06追加）。GlobalKeyで
-                  // Stateを保持し続けているため、これをしないと「一度再生した
+                  // Stateを保持し続けている為、これをしないと「一度再生した
                   // 動画」だけ戻ってきた時に再生中のまま＝自動再生されたように
                   // 見えてしまう（上記`_videoPageKeys`のdoc参照）。
                   final previousItem = widget.items[_currentIndex];
@@ -412,7 +426,7 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen> {
 /// `InteractiveViewer`には画面いっぱいの制約（[SizedBox.expand]）をそのまま
 /// 渡す。以前は画像本来のアスペクト比で計算した`AspectRatio`矩形の中に
 /// `InteractiveViewer`ごと閉じ込めており、「矩形の外側（レターボックス部分）
-/// をタップしたときだけ閉じる」というヒットテストには都合が良かったが、
+/// をタップした時だけ閉じる」というヒットテストには都合が良かったが、
 /// 副作用として`InteractiveViewer`自体のレイアウト制約もその矩形に縮まり、
 /// 他のSNS（Instagram/Twitter等）のように画面いっぱいまでズームすることが
 /// できなかった（2026-09-16修正）。
@@ -440,7 +454,7 @@ class _ImageViewerPageState extends State<_ImageViewerPage> {
   final _transformationController = TransformationController();
 
   /// 画像の縦横比（読み込み後）。画像の実際の表示範囲だけをタップで閉じない
-  /// 領域にするために使う（余白のタップだけで閉じる、2026-10-31）。
+  /// 領域にする為に使う（余白のタップだけで閉じる、2026-10-31）。
   double? _aspectRatio;
   ImageStream? _stream;
   ImageStreamListener? _listener;
@@ -519,7 +533,7 @@ class _ImageViewerPageState extends State<_ImageViewerPage> {
 /// `Scaffold`/`AppBar`は[MediaViewerScreen]側が共通で持つため、ここでは
 /// 動画本体・再生コントロールのみを持つ（2026-08-11追加、2026-08-14に
 /// [MediaViewerScreen]への統合に伴い`_VideoViewerScreen`から改名）。
-/// `video_player`はiOS/Android/Web/macOSのみ対応のため、Linux/Windowsでは
+/// `video_player`はiOS/Android/Web/macOSのみ対応の為、Linux/Windowsでは
 /// この画面を開かず外部アプリで開く（呼び出し元の[openMediaViewer]側で
 /// 分岐済み）。[autoPlay]がtrueの時だけ初期化後に自動再生する（プレビューから
 /// 直接開いた対象のみtrue。スワイプ/矢印キーで切り替えた先はfalseになり、
@@ -614,7 +628,7 @@ class _VideoViewerPageState extends State<_VideoViewerPage> {
 
   /// 開閉のアニメーション中は動画を隠す（2026-11-05）。Webの`<video>`は
   /// プラットフォームビューで、縮小・ぼかし・フェード・液状化が掛からず、
-  /// 「吸い込み」の間だけ動画が元の大きさのまま残って見えるため。画面遷移が
+  /// 「吸い込み」の間だけ動画が元の大きさのまま残って見える為。画面遷移が
   /// 「吸い込み」の時だけ隠す（木の形は変えず`Visibility`で切り替える）。
   Animation<double>? _routeAnimation;
   bool _routeSettled = true;
@@ -669,7 +683,7 @@ class _VideoViewerPageState extends State<_VideoViewerPage> {
   /// 中央コントロールを表示状態にし、再生中なら数秒後に自動的に
   /// 非表示へ戻すタイマーを（張り直して）セットする（2026-08-18追加）。
   /// 一時停止中はタイマーをセットしない（`build`側の`!isPlaying`判定で
-  /// 常時表示になるため）。ポインター移動・タップでの再生/一時停止・
+  /// 常時表示になる為）。ポインター移動・タップでの再生/一時停止・
   /// 10秒送り/戻し操作のたびに呼び出す。
   void _resetControlsVisibility() {
     _hideTimer?.cancel();
@@ -859,7 +873,7 @@ class _VideoViewerPageState extends State<_VideoViewerPage> {
       builder: (context, snapshot) {
         if (snapshot.connectionState != ConnectionState.done) {
           // 「吸い込み」で開く間は動画の読み込みがまだ終わっていないことが多い。
-          // 何も出さないと、読み込み後に動画が突然その場に現れるため、代役の静止画
+          // 何も出さないと、読み込み後に動画が突然その場に現れる為、代役の静止画
           // （サムネイル、無ければ黒い面）を出して一緒に広がらせる（2026-11-05）。
           if (activeSlideTransitionStyle != SlideTransitionStyle.suck) {
             return const SizedBox.shrink();
@@ -897,7 +911,7 @@ class _VideoViewerPageState extends State<_VideoViewerPage> {
         // レート）動画で画面の高さを大きく超えるオーバーフローが
         // 発生した（2026-08-11発覚）。`Expanded`で明示的に高さを
         // 画面残り分に制限し、`AspectRatio`が幅・高さ両方の制約内で
-        // 収まるサイズを計算できるようにする。
+        // 収まるサイズを計算出来るようにする。
         //
         // タップ判定を「動画の実際の矩形（`AspectRatio`の内側）」と
         // 「その外側＝レターボックスの余白」で分ける（2026-09-14変更、
@@ -920,13 +934,13 @@ class _VideoViewerPageState extends State<_VideoViewerPage> {
         // タップのつもりが「タップ2回」（一時停止→再生）としてしか
         // 認識されない不具合があったが、`onTap`が単なる表示更新になった
         // ことで解消する。デスクトップ/Webでは従来通りタップでのトグルを
-        // 維持する（ユーザー要望の対象外のため）。
+        // 維持する（ユーザー要望の対象外の為）。
         return Column(
           children: [
             Expanded(
               // レターボックス部分（動画の外側）をタップすると閉じる
               // （2026-09-14追加）。`MouseRegion`はレターボックス上での
-              // ポインター移動でも操作パネルを表示させたいため、この
+              // ポインター移動でも操作パネルを表示させたい為、この
               // 「閉じる」ジェスチャーの内側に置く。
               child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
@@ -994,7 +1008,7 @@ class _VideoViewerPageState extends State<_VideoViewerPage> {
                                     ),
                                   ),
                                   // Web（video_player_web）は<video>要素を直接
-                                  // DOMへ描画するプラットフォームビューのため、
+                                  // DOMへ描画するプラットフォームビューの為、
                                   // 動画のピクセル上のクリックがFlutterの
                                   // ジェスチャー検出まで届かないことがある
                                   // （2026-08-19判明。レターボックス部分は
@@ -1006,14 +1020,14 @@ class _VideoViewerPageState extends State<_VideoViewerPage> {
                                   // こちらで捕捉し直す。外側のGestureDetector
                                   // （レターボックス部分用）は引き続き維持する。
                                   // ネイティブモバイル（`_isMobilePlatform`）は
-                                  // テクスチャ描画でこの問題が起きないため、
+                                  // テクスチャ描画でこの問題が起きない為、
                                   // このオーバーレイの`onTap`/`onDoubleTapDown`
                                   // 自体を持たせない（2026-09-07変更）。外側と
                                   // 内側の両方が同じ座標で`TapGestureRecognizer`/
                                   // `DoubleTapGestureRecognizer`を二重に
                                   // ジェスチャーアリーナへ登録してしまい、
                                   // ダブルタップが安定して認識されなかった
-                                  // 不具合の根本原因だったため。
+                                  // 不具合の根本原因だった為。
                                   Positioned.fill(
                                     child: LayoutBuilder(
                                       builder: (context, videoConstraints) {
@@ -1039,7 +1053,7 @@ class _VideoViewerPageState extends State<_VideoViewerPage> {
                                   // 数秒間だけ、中央に再生/一時停止＋10秒送り/戻し
                                   // ボタンを表示する（2026-08-14追加・2026-08-18に
                                   // 10秒送り/戻し追加＋ポインター連動化）。個々の
-                                  // ボタンは実際にタップを受け取るため、外側の
+                                  // ボタンは実際にタップを受け取る為、外側の
                                   // `onTap: _togglePlayback`（動画本体タップでの
                                   // トグル）とは独立して共存する。
                                   if (!widget.chromeHidden &&
@@ -1119,7 +1133,7 @@ class _VideoViewerPageState extends State<_VideoViewerPage> {
 /// 動画中央に表示する再生/一時停止＋10秒送り/戻しの3ボタン
 /// （[_VideoViewerPage]参照、2026-08-14追加・2026-08-18に10秒送り/戻し
 /// ボタンを追加）。各ボタンは[_CircleIconButton]で実際にタップを
-/// 受け取るため、外側の`GestureDetector`（動画本体タップ、デスクトップ/Webは
+/// 受け取る為、外側の`GestureDetector`（動画本体タップ、デスクトップ/Webは
 /// `_togglePlayback`・モバイルは`_resetControlsVisibility`、2026-09-07
 /// 変更）とは独立して動作する。モバイルでは再生/一時停止はこの中央ボタン
 /// からのみ行える。

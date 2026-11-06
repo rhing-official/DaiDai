@@ -7,11 +7,11 @@ import 'package:flutter_test/flutter_test.dart';
 /// [encodeTransaction]/[decodeTransaction]の往復テスト。
 ///
 /// 必ず`jsonEncode`→`jsonDecode`を経由してからデコードする（Firestoreの
-/// `List<dynamic>`/`Map<String, dynamic>`化を模擬するため）。appflowy_editor
+/// `List<dynamic>`/`Map<String, dynamic>`化を模擬する為）。appflowy_editor
 /// パッケージの`InsertOperation.fromJson`等は`json['path'] as Path`
 /// （`Path`は`List<int>`のtypedef）という直接キャストをしており、
 /// `List<dynamic>`に対して行うと実行時型エラーになる。同種の値をそのまま
-/// メモリ上で渡すだけのテストではこの問題を検出できないため、この往復を
+/// メモリ上で渡すだけのテストではこの問題を検出出来ない為、この往復を
 /// 必ず経由する。
 void main() {
   final document = Document.blank();

@@ -10,7 +10,7 @@ final isKiwamiProvider = Provider.family<bool, String>(
 );
 
 /// 会話の参加者（[idsKey]はuserIdをカンマで連ねた文字列、Familyのキーとして
-/// 値比較できるよう呼び出し側でソートして渡す）に、1人でも極みがいるか。
+/// 値比較出来るよう呼び出し側でソートして渡す）に、1人でも極みがいるか。
 /// 既読機能の無効化は、極みの人がいる間だけ効く（2026-10-17）。
 final conversationHasKiwamiProvider = Provider.family<bool, String>((
   ref,

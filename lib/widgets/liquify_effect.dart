@@ -8,7 +8,7 @@ import 'package:flutter_shaders/flutter_shaders.dart';
 /// 子の描画結果を`shaders/liquify.frag`で歪める。
 ///
 /// **ウィジェット木の形は常に同じ**（[enabled]がfalseの間は[AnimatedSampler]が
-/// 子をそのまま描く）。有無で木の形が変わると、子の画面全体が再マウントされるため。
+/// 子をそのまま描く）。有無で木の形が変わると、子の画面全体が再マウントされる為。
 /// シェーダーの読み込み前・失敗時も、子をそのまま描く（遷移は壊さない）。
 class LiquifyEffect extends StatefulWidget {
   const LiquifyEffect({
@@ -83,8 +83,8 @@ class _LiquifyEffectState extends State<LiquifyEffect> {
 
 /// 子を、**画面の隅**（[corner]、画面全体に対する位置）を基点に拡大縮小する（2026-11-05）。
 /// ダイアログ・ポップアップが「アルバムの右下」ではなく「画面の右下」から現れ／へ吸い込まれる
-/// ようにするため。`Transform`の`alignment`は子の枠に対する位置のため、画面の隅（枠の外）を
-/// 基点にできない。描画時に子の画面上の位置から基点を求める。回転はしない前提。
+/// ようにする為。`Transform`の`alignment`は子の枠に対する位置の為、画面の隅（枠の外）を
+/// 基点に出来ない。描画時に子の画面上の位置から基点を求める。回転はしない前提。
 class ScreenCornerScale extends SingleChildRenderObjectWidget {
   const ScreenCornerScale({
     required this.scale,
@@ -97,7 +97,7 @@ class ScreenCornerScale extends SingleChildRenderObjectWidget {
   final Alignment corner;
 
   /// 画面（ウィンドウ）全体の大きさ。`MediaQuery`はペインなどが上書きして小さくしている
-  /// ことがあり、基点が本物の画面の隅からずれるため、`View`から直接求める。
+  /// ことがあり、基点が本物の画面の隅からずれる為、`View`から直接求める。
   static Size _viewSize(BuildContext context) {
     final view = View.of(context);
     return view.physicalSize / view.devicePixelRatio;

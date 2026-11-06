@@ -38,7 +38,7 @@ class ProfileCardComposer extends ConsumerWidget {
   /// 入力欄の枠の中、入力の下に箇条書きで出す注記（「任意」「100文字以内」等、2026-10-31）。
   final List<String> notes;
 
-  /// nullなら送信不可（ロック中、または送信処理中）。
+  /// nullなら送信不可（ロック中、又は送信処理中）。
   final VoidCallback? onSend;
   final int maxLength;
 
@@ -177,7 +177,7 @@ class _SendButton extends StatelessWidget {
 
 /// 劇画UIでは`GekigaStraightMonochromeBox`（直線・モノクロの二重枠、
 /// `link_preview_card.dart`と同じ流用パターン）で包み、白地に黒文字固定
-/// にする（劇画UI全体の「モノクロボックス」意匠を崩さないため）。
+/// にする（劇画UI全体の「モノクロボックス」意匠を崩さない為）。
 class _GekigaComposer extends StatelessWidget {
   const _GekigaComposer({
     required this.controller,

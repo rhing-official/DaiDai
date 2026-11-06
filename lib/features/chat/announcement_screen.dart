@@ -23,7 +23,7 @@ Future<void> _openContactForm() async {
 /// データ源を`announcements`へ変更）。設定＞運営から開く。通常の一対と同じ
 /// [ChatScreen]の見た目を使うが、[ChatScreen.onSend]をnullにして入力欄自体を
 /// 出さない。お便りは住人ではなく`announcements`・`system/official`という
-/// 「そこにある物」のため、各住人との一対は使わない。
+/// 「そこにある物」の為、各住人との一対は使わない。
 class AnnouncementScreen extends ConsumerStatefulWidget {
   const AnnouncementScreen({required this.currentUser, super.key});
 

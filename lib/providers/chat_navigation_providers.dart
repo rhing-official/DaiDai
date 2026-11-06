@@ -5,7 +5,7 @@ import '../features/chat/talks_search.dart' show MessageSearchHit;
 import '../models/group.dart';
 
 /// プロフィールカードダイアログ等、`TalksTab`の外側（別のWidgetツリー）から
-/// 「この一対を開いてほしい」と伝えるための一時的な橋渡し。`TalksTab`が
+/// 「この一対を開いてほしい」と伝える為の一時的な橋渡し。`TalksTab`が
 /// この値の変化を`ref.listen`で受け取り、自身の`_openDirectMessage`（一覧の
 /// 一対をクリックした時と全く同じ処理）に渡してから、この値をnullに戻す。
 ///
@@ -79,12 +79,12 @@ class ViewedGroup extends ViewedConversation {
 /// パターン）。狭い画面のルートpushで新規に構築される`ChatScreen`・分割表示
 /// （`TalksTab._isSplit`）で既に構築済みの`ChatScreen`のどちらも、初回build時に
 /// [ChatScreen.conversationId]/`isDm`に加え`roomId`（2026-09-14追加、
-/// メッセージ内容検索が会話の全寄合を対象にするようになったため）が
+/// メッセージ内容検索が会話の全寄合を対象にするようになった為）が
 /// 一致するかを確認してから1回だけジャンプを実行し、この状態をクリアする。
 /// 会話は一致するが`roomId`が一致しない場合（分割表示で別の寄合を表示中）は
 /// 状態をクリアせず残す。`_DmDetailWithRoomsState`/`_GroupDetailWithRoomsState`
 /// （`talks_tab.dart`）が別途この状態を監視して選択中の寄合を切り替え、
-/// 寄合ごとに再マウントされる新しい`ChatScreen`が改めてこの状態を拾う。
+/// 寄合毎に再マウントされる新しい`ChatScreen`が改めてこの状態を拾う。
 class PendingMessageJumpNotifier
     extends Notifier<(ViewedConversation, String, String)?> {
   @override
@@ -103,9 +103,9 @@ final pendingMessageJumpProvider =
     >(PendingMessageJumpNotifier.new);
 
 /// 戻る・進む（`BackStackController`）で履歴上の寄合へ戻る際に、その会話の
-/// チャット本体（`TalksTab`の分割表示で寄合ごとに保持している選択状態）へ
+/// チャット本体（`TalksTab`の分割表示で寄合毎に保持している選択状態）へ
 /// 「この寄合を表示して」と伝える橋渡し（2026-10-06追加）。`nonce`は同じ寄合を
-/// 続けて要求しても変化として通知させるための連番。
+/// 続けて要求しても変化として通知させる為の連番。
 class RoomSelectionRequestNotifier
     extends Notifier<(ViewedConversation, String, int)?> {
   @override

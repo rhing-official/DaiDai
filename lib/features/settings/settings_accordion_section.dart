@@ -7,11 +7,15 @@ class SettingsAccordionSection extends StatefulWidget {
   const SettingsAccordionSection({
     required this.title,
     required this.children,
+    this.initiallyExpanded = false,
     super.key,
   });
 
   final String title;
   final List<Widget> children;
+
+  /// 最初から開いた状態にするか（作り直されるまでの初期値のみ）。
+  final bool initiallyExpanded;
 
   @override
   State<SettingsAccordionSection> createState() =>
@@ -19,7 +23,7 @@ class SettingsAccordionSection extends StatefulWidget {
 }
 
 class _SettingsAccordionSectionState extends State<SettingsAccordionSection> {
-  bool _expanded = false;
+  late bool _expanded = widget.initiallyExpanded;
 
   @override
   Widget build(BuildContext context) {

@@ -10,7 +10,7 @@ const _darkPrefsKey = 'textColorDarkArgb32';
 
 /// ユーザーが未設定の場合に使う既定の文字色（`accentColorProvider`と同じ
 /// パターン、2026-09-14追加）。`TextProminence`の既存の固定値と同じにして
-/// あるため、未設定の間は見た目が変わらない。
+/// ある為、未設定の間は見た目が変わらない。
 const kDefaultTextColorLight = TextProminence.lightPrimary;
 const kDefaultTextColorDark = TextProminence.darkPrimary;
 
@@ -35,9 +35,9 @@ Future<Color> loadInitialTextColorDark() async {
 }
 
 /// ライト/ダークそれぞれの文字色（`colorScheme.onSurface`相当）を
-/// ユーザーがカラーコードで指定できるようにする（2026-09-14追加）。
+/// ユーザーがカラーコードで指定出来るようにする（2026-09-14追加）。
 /// アクセントカラーと異なり背景とのコントラストが直接文字の可読性に
-/// 関わるため、ライト・ダークで別々の色を保存する
+/// 関わる為、ライト・ダークで別々の色を保存する
 /// （`accentColorProvider`が1色をライト/ダーク共通で使うのとは異なる方針、
 /// ユーザー確認済み）。
 class _TextColorNotifier extends Notifier<Color> {

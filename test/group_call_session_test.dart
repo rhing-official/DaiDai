@@ -5,7 +5,7 @@ import 'package:daidai/models/group_call.dart';
 
 void main() {
   group('isSessionTakenOver', () {
-    test('自分のsessionIdと同じ、または無ければ乗っ取りではない', () {
+    test('自分のsessionIdと同じ、又は無ければ乗っ取りではない', () {
       expect(
         isSessionTakenOver(mySessionId: 'a', participantSessionId: 'a'),
         isFalse,
@@ -71,7 +71,7 @@ void main() {
     CallParticipant seen(int sec) =>
         CallParticipant(userId: 'u', rhingSeed: 's', lastSeenAt: ago(sec));
 
-    test('作成から60秒以内、または作成時刻が未確定なら放棄とみなさない', () {
+    test('作成から60秒以内、又は作成時刻が未確定なら放棄とみなさない', () {
       expect(
         isGroupCallAbandoned(participants: [], createdAt: ago(30), now: now),
         isFalse,
@@ -82,7 +82,7 @@ void main() {
       );
     });
 
-    test('猶予後に参加者が0人、または全員ハートビート切れなら放棄', () {
+    test('猶予後に参加者が0人、又は全員ハートビート切れなら放棄', () {
       expect(
         isGroupCallAbandoned(participants: [], createdAt: ago(120), now: now),
         isTrue,

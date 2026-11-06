@@ -25,10 +25,10 @@ import 'tutorial_target.dart';
 /// 練習用のホーム（2026-10-17追加）。本物のナビチップ・語らいタブ・身だしなみタブを、
 /// 偽のユーザー・偽の練習相手・書き込まないリポジトリを入れた入れ子の
 /// [ProviderScope]の中で動かす。そのため一覧の見た目・チャットのレイアウト等、
-/// ユーザーの設定に合った実際の画面のまま解説できる。
+/// ユーザーの設定に合った実際の画面のまま解説出来る。
 /// 画面にはユーザーに不要な説明（「練習モード」等）は出さない。
 /// 本物のホームの状態・データには一切触れず、ガイドの案内の層が丸で示した場所
-/// 以外は押せないため、ユーザーは道順を実際に押して覚えられる。
+/// 以外は押せない為、ユーザーは道順を実際に押して覚えられる。
 /// 戻る・進む履歴も専用のものに差し替え、本物の履歴を汚さない。
 class PracticeHome extends ConsumerStatefulWidget {
   const PracticeHome({this.focus, this.topPadding = 48, super.key});
@@ -172,7 +172,7 @@ class _PracticeHomeBodyState extends ConsumerState<_PracticeHomeBody> {
   ({DirectMessage dm, String roomId, String roomName})? _openChat;
 
   /// 「語らいを押す」手順から始まるガイドは、最初に別のタブ（身だしなみ）を開いて
-  /// おく（最初から語らいが開いていると、押す意味が無いため）。
+  /// おく（最初から語らいが開いていると、押す意味が無い為）。
   @override
   void initState() {
     super.initState();

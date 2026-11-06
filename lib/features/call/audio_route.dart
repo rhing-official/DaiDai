@@ -9,7 +9,7 @@ bool get isSpeakerToggleCapablePlatform =>
         defaultTargetPlatform == TargetPlatform.iOS);
 
 /// 出力先の名前から、Bluetooth・有線ヘッドセットなど外部のオーディオか判定する。
-/// 端末ごとに名前の付き方が違うため、内蔵（スピーカー・受話口）以外を除外する
+/// 端末毎に名前の付き方が違うため、内蔵（スピーカー・受話口）以外を除外する
 /// のではなく、外部機器に付きがちな語を含むかで見る。
 bool isExternalAudioOutputLabel(String label) {
   final l = label.toLowerCase();
@@ -27,7 +27,7 @@ bool isExternalAudioOutputLabel(String label) {
   return keywords.any(l.contains);
 }
 
-/// 外部のオーディオに接続中か。取得できない・判定できない時はfalse（ボタンを
+/// 外部のオーディオに接続中か。取得出来ない・判定出来ない時はfalse（ボタンを
 /// 出したままにして、切り替えられなくなるのを避ける）。
 Future<bool> hasExternalAudioOutput() async {
   if (!isSpeakerToggleCapablePlatform) return false;

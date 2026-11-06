@@ -36,7 +36,7 @@ class CallRoundButton extends StatelessWidget {
       // ガラスUIは背景を塗らず、`GlassIconButton`と同じ`GlassSurface`の
       // 円形パネル＋アイコン色そのもの（マイク等はグレー、通話終了は赤）で
       // 表現する（2026-08-30追加）。`GlassIconButton`はonPressedが非null
-      // 必須で無効状態（暗く表示）を表現できないため流用せず、劇画分岐と
+      // 必須で無効状態（暗く表示）を表現出来ないため流用せず、劇画分岐と
       // 同じ考え方で直接組み立てる。
       return Opacity(
         opacity: enabled ? 1 : 0.4,
@@ -72,7 +72,7 @@ class CallRoundButton extends StatelessWidget {
       // 劇画スタイルは丸ではなく、他の劇画バッジと同じ手描き風の
       // モノクロボックス（GekigaBadgeShape）で表現する。`GekigaIconButton`
       // （既存の単体アイコンボタン）はonPressedが非null必須で無効状態を
-      // 表現できないため流用せず、直接組み立てる。
+      // 表現出来ないため流用せず、直接組み立てる。
       return Opacity(
         opacity: enabled ? 1 : 0.4,
         child: SizedBox(

@@ -70,7 +70,7 @@ void main() {
       expect((land['height'] as Map)['ideal'], 720);
     });
 
-    test('比率を要求しなければaspectRatioは付かず、背面カメラも指定できる', () {
+    test('比率を要求しなければaspectRatioは付かず、背面カメラも指定出来る', () {
       final c = videoConstraintsFor(portrait: false, frontCamera: false);
       expect(c.containsKey('aspectRatio'), isFalse);
       expect(c['facingMode'], 'environment');

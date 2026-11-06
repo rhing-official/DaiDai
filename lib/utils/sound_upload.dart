@@ -17,7 +17,7 @@ const Set<String> kPlayableAudioExtensions = {
 };
 
 /// [kMaxSoundUploadSizeBytes]超過。呼び出し元のUIがエラーメッセージを
-/// 出し分けるための専用型（`attachment_upload.dart`の
+/// 出し分ける為の専用型（`attachment_upload.dart`の
 /// `AttachmentTooLargeException`と同じ考え方）。
 class SoundUploadTooLargeException implements Exception {
   const SoundUploadTooLargeException();

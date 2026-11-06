@@ -9,7 +9,7 @@ import '../../l10n/tutorial_content.dart';
 import '../../providers/app_locale_provider.dart';
 import 'tutorial/tutorial_controller.dart';
 
-/// 設定＞運営＞使い方ガイドの一覧（2026-10-17追加）。機能ごとの項目を並べる。項目を押すと、説明のページは挟まず
+/// 設定＞運営＞使い方ガイドの一覧（2026-10-17追加）。機能毎の項目を並べる。項目を押すと、説明のページは挟先ず
 /// その場でガイド（実際に操作して覚える）が始まる。台本がまだ無い項目は
 /// 「準備中」と伝えるだけ（ハリボテ、台本ができ次第順次追加する）。
 class GuideTopicListPage extends ConsumerWidget {

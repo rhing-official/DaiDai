@@ -41,7 +41,7 @@ class Sticker {
 
 /// daidai横丁で販売されるぺったんパッケージ（技術仕様書7.5参照、
 /// 2026-08-11追加）。複数枚の[Sticker]をまとめた販売単位で、購入すると
-/// 中の[Sticker]全てをDaiDaiアプリで送信できるようになる。
+/// 中の[Sticker]全てをDaiDaiアプリで送信出来るようになる。
 class StickerPack {
   const StickerPack({
     required this.packId,

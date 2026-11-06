@@ -7,7 +7,7 @@ import '../../theme/block/block_theme.dart';
 import 'gekiga_panel_box.dart';
 
 /// 設定の1行（2026-11-05）。フラット・ガラスは通常の`ListTile`、劇画は他の設定項目と同じ
-/// 黒いブロック（ギザギザの枠付き）で描く。項目ごとに劇画の分岐を書かなくても、
+/// 黒いブロック（ギザギザの枠付き）で描く。項目毎に劇画の分岐を書かなくても、
 /// 設定画面の見た目が揃う。[selected]がtrueなら白地黒文字（選択中の項目）。
 class SettingsTile extends ConsumerWidget {
   const SettingsTile({
@@ -57,23 +57,25 @@ class SettingsTile extends ConsumerWidget {
       final fg = selected ? scheme.onPrimary : scheme.onSurface;
       return Padding(
         padding: const EdgeInsets.fromLTRB(2, 4, 6, 8),
-        child: blockMaterialBox(
-          context,
-          color: selected
-              ? scheme.primary
-              : (Theme.of(context).brightness == Brightness.light
-                    ? Colors.white
-                    : scheme.surface),
-          child: ListTile(
-            contentPadding: contentPadding,
-            iconColor: fg,
-            textColor: fg,
-            leading: leading,
-            title: title,
-            subtitle: subtitle,
-            trailing: trailing,
-            enabled: enabled,
-            onTap: onTap,
+        child: blockFitWidth(
+          blockMaterialBox(
+            context,
+            color: selected
+                ? scheme.primary
+                : (Theme.of(context).brightness == Brightness.light
+                      ? Colors.white
+                      : scheme.surface),
+            child: ListTile(
+              contentPadding: contentPadding,
+              iconColor: fg,
+              textColor: fg,
+              leading: leading,
+              title: title,
+              subtitle: subtitle,
+              trailing: trailing,
+              enabled: enabled,
+              onTap: onTap,
+            ),
           ),
         ),
       );

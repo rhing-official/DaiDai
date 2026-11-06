@@ -1,6 +1,6 @@
 import 'font_design.dart';
 
-/// 身だしなみ（プロフィール）の蔵に保管できる素材の上限数。
+/// 身だしなみ（プロフィール）の蔵に保管出来る素材の上限数。
 const kMaxIcons = 5;
 const kMaxBackgroundImages = 3;
 const kMaxStatusMessages = 10;
@@ -8,7 +8,7 @@ const kMaxNicknames = 10;
 const kMaxSnsLinks = 5;
 const kMaxFontDesigns = 5;
 
-/// 工房のプロフィールカード1枚に掲載できるSNSのURLの上限数。
+/// 工房のプロフィールカード1枚に掲載出来るSNSのURLの上限数。
 const kMaxProfileCardSnsLinks = 2;
 
 /// 蔵の素材の文字数上限。
@@ -60,7 +60,7 @@ class StatusMessage {
 }
 
 /// 蔵に保管するニックネーム。Rhing Seedとは別に、友達に対して表示される呼び名。
-/// 最大[kMaxNicknames]件まで登録できる。友達に表示される1件は選択式ではなく
+/// 最大[kMaxNicknames]件まで登録出来る。友達に表示される1件は選択式ではなく
 /// 登録順で自動的に決まる。
 class Nickname {
   const Nickname({required this.id, required this.text});
@@ -82,7 +82,7 @@ class Nickname {
 /// され、見る側の端末のフォントデザイン設定（設定＞アプリケーション）に
 /// 関わらず変わらなくなる。[design]が`null`の場合は「システムと同じ」
 /// （＝今まで通り見る側の設定を継承し、上書きしない）を表す。
-/// 最大[kMaxFontDesigns]件まで登録できる。
+/// 最大[kMaxFontDesigns]件まで登録出来る。
 class FontDesignMaterial {
   const FontDesignMaterial({required this.id, this.design});
 
@@ -106,7 +106,7 @@ class FontDesignMaterial {
 }
 
 /// 蔵に保管する他のSNSのURL。最大[kMaxSnsLinks]件まで登録でき、そのうち
-/// 工房のプロフィールカード1枚に掲載できるのは最大[kMaxProfileCardSnsLinks]件。
+/// 工房のプロフィールカード1枚に掲載出来るのは最大[kMaxProfileCardSnsLinks]件。
 class SnsLink {
   const SnsLink({required this.id, required this.url});
 
@@ -126,8 +126,8 @@ class SnsLink {
 const kMinBirthdayYear = 1900;
 
 /// 蔵に登録する誕生日（2026-10-23追加、1件だけ）。グレゴリオ暦。[year]は任意
-/// （月日だけの登録もできる）。工房のプロフィールカードに載せるかは
-/// カードごとに選ぶ（`ProfileCard.showBirthday`）。
+/// （月日だけの登録も出来る）。工房のプロフィールカードに載せるかは
+/// カード毎に選ぶ（`ProfileCard.showBirthday`）。
 class Birthday {
   const Birthday({this.year, required this.month, required this.day});
 
@@ -136,7 +136,7 @@ class Birthday {
   final int day;
 
   /// [year]年[month]月の日数。[year]が無い時は閏年として数える（2月29日の
-  /// 誕生日を月日だけで登録できるように）。
+  /// 誕生日を月日だけで登録出来るように）。
   static int daysInMonth(int month, int? year) {
     const days = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
     if (month < 1 || month > 12) return 0;

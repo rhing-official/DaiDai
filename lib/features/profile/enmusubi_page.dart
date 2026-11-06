@@ -27,7 +27,7 @@ String _inviteLinkFor(AppUser user) => buildWebLink(
 
 /// QRコードや招待リンクとして共有された文字列から、招待元のRhing Seedを
 /// 取り出す。`https://.../invite/<rhingSeed>`の形式であれば platform/host を
-/// 問わず解決できる。
+/// 問わず解決出来る。
 String? parseInviteRhingSeed(String data) {
   final uri = Uri.tryParse(data.trim());
   if (uri == null) return null;
@@ -57,7 +57,7 @@ class _EnmusubiPageState extends ConsumerState<EnmusubiPage> {
     super.initState();
     // この画面を開くたびに公開プレビュー（userInvites）を最新化する。
     // 蔵の更新時にも自動同期されるが、この機能追加より前から使っている
-    // ユーザーはまだ一度も同期が走っていないため、ここでバックフィルする。
+    // ユーザーはまだ一度も同期が走っていない為、ここでバックフィルする。
     ref.read(userRepositoryProvider).syncInvitePreview(currentUser.userId);
   }
 
@@ -134,7 +134,7 @@ class _EnmusubiPageState extends ConsumerState<EnmusubiPage> {
             const SizedBox(height: 4),
             Text(strings.enmusubiQrDescription),
             const SizedBox(height: 16),
-            // 招待リンクボックスと左端を揃えるため、中央寄せの`Center`ではなく
+            // 招待リンクボックスと左端を揃える為、中央寄せの`Center`ではなく
             // `Align(centerLeft)`で左揃えにする（2026-09-14変更。招待リンク
             // ボックスは横幅いっぱいに広がるため左端が`ListView`のpadding分に
             // 揃うが、`Center`だと中身のサイズだけで中央寄せされ左端がずれて

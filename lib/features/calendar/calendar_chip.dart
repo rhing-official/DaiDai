@@ -13,7 +13,7 @@ import '../../widgets/glass/glass_avatar.dart';
 /// アイコンは`onPrimary`/`onSurfaceVariant`という固定のコントラスト色に
 /// する（CLAUDE.md「テキストにアクセントカラーを使わない」規約）。
 /// `Theme.of(context).colorScheme`はアクセントカラー・劇画・ガラスいずれの
-/// UIスタイルでも既に正しく導出されているため、スタイル別の分岐は不要。
+/// UIスタイルでも既に正しく導出されている為、スタイル別の分岐は不要。
 Widget calendarChoiceChip(
   BuildContext context, {
   required String label,

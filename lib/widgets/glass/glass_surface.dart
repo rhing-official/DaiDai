@@ -28,10 +28,10 @@ enum GlassVariant {
 /// 変えたい用途向け、2026-09-26追加）。
 ///
 /// [GlassVariant.chrome]/[.floating]は`BackdropFilter`で実際に背景をぼかす。
-/// [GlassVariant.card]は`BackdropFilter`を使わない。1回ごとにフルの
-/// save-layer+ぼかし処理が走るため、チャット吹き出しや設定項目のように
+/// [GlassVariant.card]は`BackdropFilter`を使わない。1回毎にフルの
+/// save-layer+ぼかし処理が走る為、チャット吹き出しや設定項目のように
 /// 画面に多数並ぶ面で毎回ぼかすと重くなる上、背景がほぼ単色の場面では
-/// ぼかしても見た目に意味が無いため。
+/// ぼかしても見た目に意味が無い為。
 class GlassSurface extends ConsumerWidget {
   const GlassSurface({
     required this.child,
@@ -57,14 +57,14 @@ class GlassSurface extends ConsumerWidget {
   /// 塗り（[fillColor]のベース色）を呼び出し側で明示的に指定したい場合
   /// （例: チャット吹き出しで自分/相手を塗り分ける、2026-09-26追加）に
   /// 上書きする。未指定なら`colorScheme.surface`を使う（既存の見た目のまま）。
-  /// バリアント別の`tintAlpha`（半透明度）はこの値にもそのまま適用されるため、
+  /// バリアント別の`tintAlpha`（半透明度）はこの値にもそのまま適用される為、
   /// ここに不透明な色を渡してもガラスの透け感自体は保たれる。
   final Color? fillColorOverride;
 
   /// 縁の光彩ストローク（[_GlassEdgePainter]）を出すか。角丸の浮遊カード・
   /// タイル・ダイアログでは意匠の一部だが、`borderRadius: BorderRadius.zero`
   /// で使う全面パネル（入力欄コンテナ・タブバー等）では角の丸みで途切れず、
-  /// 直線がそのまま「不要な線」に見えてしまうため個別に無効化できるように
+  /// 直線がそのまま「不要な線」に見えてしまうため個別に無効化出来るように
   /// している（2026-08-29追加）。
   final bool enableEdgeStroke;
 
@@ -117,7 +117,7 @@ class GlassSurface extends ConsumerWidget {
           ),
           Padding(padding: padding ?? EdgeInsets.zero, child: child),
           // 縁の光彩ストロークは中身より手前（最前面）に描く。以前は中身の
-          // 下にあったため、`padding`が無い（=中身が縁いっぱいまで届く）
+          // 下にあった為、`padding`が無い（=中身が縁いっぱいまで届く）
           // 画像・動画プレビュー等で不透明なコンテンツにストロークが完全に
           // 覆い隠され、枠線が無いように見える不具合があった
           // （2026-09-04発覚・修正）。

@@ -5,7 +5,7 @@ import '../utils/birthday_format.dart';
 import 'app_user.dart';
 
 /// `userInvites/{rhingSeed}`に保存する、個人の縁結び招待リンクの公開プレビュー。
-/// 外部SNSのリンク展開（OGP）に見せるための最小限の情報のみを持つ
+/// 外部SNSのリンク展開（OGP）に見せる為の最小限の情報のみを持つ
 /// （友達一覧・語らいの内容などは一切含まない）。蔵のアイコン・呼び名・
 /// アクティブな工房カードが変わるたびに同期して書き込む。
 class UserInvitePreview {
@@ -29,7 +29,7 @@ class UserInvitePreview {
   final String? iconUrl;
   final String? statusMessage;
 
-  /// OGP画像を工房のプロフィールカードそのままの見た目で生成するために使う
+  /// OGP画像を工房のプロフィールカードそのままの見た目で生成する為に使う
   /// （`api/og-image.js`が参照する）。アクティブな工房カードの`backgroundImageId`・
   /// `snsLinkIds`から解決した値。カード未選択時はnull/空のまま。
   final String? backgroundImageUrl;
@@ -49,7 +49,7 @@ class UserInvitePreview {
 
   /// カードが誕生日を載せる設定（[ProfileCard.showBirthday]）の時の、日本語の年月日表記
   /// （例: `2007年6月16日`、2026-11-01）。公開プレビューに出す方針に変更した（ユーザー判断）。
-  /// 画像を作る側で整形するため、見る人の言語には追従せず日本語の並びで固定。
+  /// 画像を作る側で整形する為、見る人の言語には追従せず日本語の並びで固定。
   final String? birthdayLabel;
 
   /// 招待リンクの版識別子にだけ混ぜる値（Firestoreには保存しない）。
@@ -81,7 +81,7 @@ class UserInvitePreview {
   /// 内容から決まる短い版識別子（FNV-1aの32bitを16進で）。招待リンクの末尾
   /// （`/invite/{seed}/{version}`）とOGP画像のURLに付け、カードを変えるとURLが
   /// 変わるようにする。DiscordやLINEなど外部アプリはリンク・画像のURL単位で
-  /// プレビューを長時間キャッシュするため、URLが固定だと古いカードが出続ける
+  /// プレビューを長時間キャッシュする為、URLが固定だと古いカードが出続ける
   /// （2026-10-13）。端末によらず同じ値になるよう、文字列のUTF-8バイトから自前で算出する。
   String get version {
     var hash = 0x811c9dc5;

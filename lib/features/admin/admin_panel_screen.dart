@@ -76,7 +76,7 @@ class _AdminPanelScreenState extends ConsumerState<AdminPanelScreen> {
 /// お便りセクション本体。配信済みのお便りを、住人が見るのと同じ[ChatScreen]
 /// （発信元の名前・アイコン付き）で一覧し、入力欄から送ると
 /// `broadcastAnnouncement`で全住人へ配信する（2026-08-12追加、2026-10-10に
-/// 一対ではなく`announcements`をデータ源に変更。お便りは住人ではないため、
+/// 一対ではなく`announcements`をデータ源に変更。お便りは住人ではない為、
 /// 管理者自身との一対は無い）。
 class _AnnouncementSection extends ConsumerStatefulWidget {
   const _AnnouncementSection({required this.currentUser});
@@ -117,7 +117,7 @@ class _AnnouncementSectionState extends ConsumerState<_AnnouncementSection> {
 
 /// お便り（運営の発信元）の身だしなみ（名前・アイコン）セクション
 /// （2026-08-12追加、2026-10-10に`system/official`の編集へ変更）。お便りは
-/// 住人（`users`）ではないため、蔵・工房は使わず、名前とアイコン1枚だけを
+/// 住人（`users`）ではない為、蔵・工房は使わず、名前とアイコン1枚だけを
 /// 管理者が直接編集する。書き込みはfirestore.rules・storage.rulesの
 /// 管理者限定の許可（`system/official`・`officialAssets/**`）による。
 class _OfficialProfileSection extends ConsumerStatefulWidget {

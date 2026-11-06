@@ -1,7 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 /// 友達関係（`users/{userId}/friends/{friendUserId}`）。
-/// 友達申請が承認されたときに、双方のuserIdの下にそれぞれ1件ずつ作られる。
+/// 友達申請が承認された時に、双方のuserIdの下にそれぞれ1件ずつ作られる。
 class Friend {
   const Friend({
     required this.friendUserId,

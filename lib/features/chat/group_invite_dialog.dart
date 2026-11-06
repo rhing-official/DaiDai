@@ -16,7 +16,7 @@ import '../../widgets/dialog_keyboard_shortcuts.dart';
 import '../../widgets/app_dialog.dart';
 
 /// 広場への招待リンク・QRコードを表示するダイアログ。縁結び（個人の招待リンク）
-/// と同じ考え方で、リンクをコピーできるほか、外部SNSにリンクを貼ってもカードが
+/// と同じ考え方で、リンクをコピー出来るほか、外部SNSにリンクを貼ってもカードが
 /// 見えるようにするOGP対応は`groupInvites/{groupId}`（公開読み取り可能な
 /// プレビュー用ドキュメント）を通じて別途行う。
 class GroupInviteDialog extends ConsumerWidget {
@@ -29,7 +29,7 @@ class GroupInviteDialog extends ConsumerWidget {
   final String groupId;
 
   /// リンクURLに付与するキャッシュ回避用の値。招待URL自体は`groupId`のみで
-  /// 決まる固定文字列のため、外部サービス（Discord等）がカード編集より前に
+  /// 決まる固定文字列の為、外部サービス（Discord等）がカード編集より前に
   /// 取得したプレビューをそのURL単位でキャッシュし続け、何時間経っても古い
   /// カードのまま表示される問題があった。クエリパラメータ（`?v=...`）で
   /// 試したところ、Discordはクエリ部分を無視してキャッシュキーを正規化する
@@ -44,7 +44,7 @@ class GroupInviteDialog extends ConsumerWidget {
   /// 編集していなくても毎回「新しいURL」扱いになり、OGP画像生成
   /// （Cloud Functionsの`ogImage`、フォント取得等で数秒かかる）が
   /// キャッシュを一切使えず開くたびに毎回フルで走ってしまい、体感速度の
-  /// 悪化に繋がっていた。カード内容が変わらない限り同じ値になるため、
+  /// 悪化に繋がっていた。カード内容が変わらない限り同じ値になる為、
   /// 未編集のまま何度貼っても同じURL＝キャッシュが効き、編集した時だけ
   /// 新しい値になって正しく再取得される。
   final String cacheBust;

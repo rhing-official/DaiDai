@@ -37,7 +37,7 @@ const kAdminBulkSuspendMax = 100;
 
 /// 状態の絞り込み。
 enum AdminUserFilter {
-  all('すべて'),
+  all('全て'),
   active('通常'),
   suspended('停止中'),
   pendingDeletion('削除申請中');
@@ -135,7 +135,7 @@ final _destructiveStyle = FilledButton.styleFrom(
 /// 住人一覧（管理画面、2026-10-10刷新）。住人が設定したカードやアイコンは
 /// 一覧に出さず、IDから決まる色の[GeneratedAvatar]と`@rhingSeed`で識別する
 /// （プライバシー保護）。見つけるには検索・状態の絞り込み・並べ替えを使う。
-/// チェックで複数選択して一括停止/解除ができる。
+/// チェックで複数選択して一括停止/解除が出来る。
 class AdminUserListSection extends ConsumerStatefulWidget {
   const AdminUserListSection({required this.currentUserId, super.key});
 
@@ -468,10 +468,10 @@ class _SelectionBar extends StatelessWidget {
           Expanded(
             child: Text(
               overLimit
-                  ? '$selectedCount件選択中（一度に操作できるのは$kAdminBulkSuspendMax件までです）'
+                  ? '$selectedCount件選択中（一度に操作出来るのは$kAdminBulkSuspendMax件までです）'
                   : hasSelection
                   ? '$selectedCount件選択中'
-                  : '表示中をすべて選択',
+                  : '表示中を全て選択',
             ),
           ),
           if (hasSelection)
@@ -622,7 +622,7 @@ enum _ProfileViewReason {
 }
 
 /// 住人の詳細。既定は管理に必要なメタ情報のみで、プロフィール（既定の
-/// カード）は「プロフィールを確認」で理由を選び、サーバーに記録できた時だけ
+/// カード）は「プロフィールを確認」で理由を選び、サーバーに記録出来た時だけ
 /// 表示する（ダイアログを閉じれば元に戻る）。
 class _UserDetailDialog extends ConsumerStatefulWidget {
   const _UserDetailDialog({required this.userId, required this.initial});
@@ -663,7 +663,7 @@ class _UserDetailDialogState extends ConsumerState<_UserDetailDialog> {
   }
 
   String _kiwamiStatusLabel() {
-    if (_kiwamiStatusFailed) return '取得できませんでした';
+    if (_kiwamiStatusFailed) return '取得出来ませんでした';
     final status = _kiwamiStatus;
     if (status == null) return '確認中';
     final end = status.periodEnd;
@@ -802,7 +802,7 @@ class _UserDetailDialogState extends ConsumerState<_UserDetailDialog> {
           );
       if (mounted) setState(() => _revealed = true);
     } catch (e) {
-      if (mounted) setState(() => _error = '記録に失敗したため表示できません: $e');
+      if (mounted) setState(() => _error = '記録に失敗したため表示出来ません: $e');
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -955,7 +955,7 @@ class _ReasonDialogState extends ConsumerState<_ReasonDialog> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
-                '住人が設定した個人のカードを表示します。必要な場合だけ確認してください。'
+                '住人が設定した個人のカードを表示します。必要な場合だけ確認して下さい。'
                 'この操作は、理由とともに記録されます。',
               ),
               const SizedBox(height: 8),

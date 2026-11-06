@@ -14,13 +14,13 @@ import '../../utils/open_conversation.dart';
 ///
 /// `app_router.dart`の既存の`/chat/dm`・`/chat/group`ルートは、TalksTab側で
 /// 既に取得済みの`AppUser`・`DirectMessage`/`Group`オブジェクト一式を
-/// `state.extra`で受け取る設計のため、通知タップ（cold start含む）のように
+/// `state.extra`で受け取る設計の為、通知タップ（cold start含む）のように
 /// ID単体しか持たない場面では使えない。ここでは対象の一対/広場を取得し、
 /// 寄合が有効か確認してから、語らいタブへ「この会話を開いて」と伝える
 /// （[openDmInTalks]/[openGroupInTalks]）。以前はここで`DmChatPane`/
 /// `GroupChatPane`を直接フルスクリーン表示していたが、設定した語らい
-/// レイアウト（アイコン＋寄合一覧・左右分割）が無視されるため、語らいタブ
-/// 経由に変更した（2026-10-11）。取得できない会話（削除済み・自分が参加者で
+/// レイアウト（アイコン＋寄合一覧・左右分割）が無視される為、語らいタブ
+/// 経由に変更した（2026-10-11）。取得出来ない会話（削除済み・自分が参加者で
 /// ない）はホームへ戻す。
 class NotificationChatOpener extends ConsumerStatefulWidget {
   const NotificationChatOpener({

@@ -8,7 +8,7 @@ import 'package:flutter/material.dart';
 ///
 /// `appflowy_editor`の標準の`deleteSelection`は、表のセルとその中身を
 /// 決して消さない設計（コメントにも「table nodes should be deleted using the
-/// table menu」とある）のため、全セルを選択しても中のテキストだけが消えて
+/// table menu」とある）の為、全セルを選択しても中のテキストだけが消えて
 /// 表の枠が残っていた。ライブラリ本体は触らず、標準のBackspace/Deleteの
 /// **前**に置くコマンドとして、「全セルを覆う範囲選択」の場合だけ表を
 /// ノードごと削除する。該当しなければ`ignored`を返し、従来どおり標準の処理へ
@@ -51,7 +51,7 @@ KeyEventResult deleteFullySelectedTables(EditorState editorState) {
   return KeyEventResult.handled;
 }
 
-/// 選択が覆っている、表の連続した行（または列）。
+/// 選択が覆っている、表の連続した行（又は列）。
 class SelectedTableLines {
   const SelectedTableLines({
     required this.table,
@@ -144,7 +144,7 @@ Future<void> _deleteLines(
 ) async {
   final table = lines.table;
   // 大きいインデックスから消す（先に小さい方を消すと残りのインデックスが
-  // ずれるため）。`TableActions.delete`はメニューの「削除」と同じ処理。
+  // ずれる為）。`TableActions.delete`はメニューの「削除」と同じ処理。
   for (var i = lines.to; i >= lines.from; i--) {
     TableActions.delete(table, i, editorState, lines.direction);
     await Future<void>.delayed(Duration.zero);
@@ -171,8 +171,8 @@ Future<void> _deleteLines(
 ///
 /// セル単位の判定: 選択の始点が最初のテキスト（先頭セルの先頭段落）以前、
 /// 終点が最後のテキスト（末尾セルの末尾段落）以後。UI上の複数セル選択は
-/// セル単位の枠線オーバーレイで見せているため、先頭/末尾の段落内の
-/// オフセットは問わない。ただし表全体が1つの段落しか持たない（1×1の表）
+/// セル単位の枠線オーバーレイで見せている為、先頭/末尾の段落内の
+/// オフセットは問わない。但し表全体が1つの段落しか持たない（1×1の表）
 /// 場合は、段落内の一部を選んだだけで表が消えないよう、先頭〜末尾まで
 /// 完全に覆われている時だけ対象にする。
 List<Node> fullyCoveredTables(EditorState editorState, Selection selection) {
@@ -247,7 +247,7 @@ Future<void> _deleteTables(
   final endTable = tables.where((t) => _isInside(t, end)).firstOrNull;
 
   // 表を消した後も残る、範囲の外側の端点（ノード参照で保持する。パスは
-  // 削除後にずれるため、適用後に`node.path`で引き直す）。始点が表の内側なら
+  // 削除後にずれる為、適用後に`node.path`で引き直す）。始点が表の内側なら
   // その表の次のテキスト、終点が表の内側ならその表の前のテキストへ寄せる。
   Node? remainingStartNode;
   var remainingStartOffset = 0;

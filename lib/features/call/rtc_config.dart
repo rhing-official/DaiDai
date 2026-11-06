@@ -19,7 +19,7 @@ Map<String, dynamic> buildRtcConfiguration({
   List<Map<String, dynamic>> extraIceServers = const [],
 }) => {
   'iceServers': [
-    // 中継（TURN）を取得できた時は、Cloudflareのstunがあるので外す。STUN/TURNの
+    // 中継（TURN）を取得出来た時は、Cloudflareのstunがあるので外す。STUN/TURNの
     // URLが5つ以上あるとFirefoxが探索が遅くなると警告するため（2026-11-03）。
     if (extraIceServers.isEmpty) {'urls': 'stun:stun.l.google.com:19302'},
     if (_turnUrl.isNotEmpty)
@@ -33,7 +33,7 @@ Map<String, dynamic> buildRtcConfiguration({
 };
 
 /// TURNの認証情報を取得して一定時間使い回す[IceServersLoader]（2026-10-31追加）。
-/// 通話の開始ごとに取得すると、Cloud Functionsのコールドスタートで待ち時間を超え、
+/// 通話の開始毎に取得すると、Cloud Functionsのコールドスタートで待ち時間を超え、
 /// STUNだけで始まって別回線同士がつながらないことがあった。認証情報は4時間有効
 /// （`getTurnCredentials`）なので、[ttl]の間は取得済みの結果を返す。取得中に
 /// 別の呼び出しが来たら同じ取得を待つ。失敗した結果は覚えない。
@@ -71,7 +71,7 @@ class CachedIceServersLoader {
   void prefetch() => call().ignore();
 }
 
-/// [loader]でTURNの認証情報を取得して設定を組み立てる。[loader]がnull、または
+/// [loader]でTURNの認証情報を取得して設定を組み立てる。[loader]がnull、又は
 /// 取得に失敗・時間切れ（[timeout]）の場合は、STUNだけの設定を返す
 /// （通話の開始を、中継サーバーの取得で長く待たせない）。
 Future<Map<String, dynamic>> loadRtcConfiguration(

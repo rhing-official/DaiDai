@@ -18,14 +18,14 @@ import 'text_prominence_colors.dart';
 /// ユーザーが設定タブの「フォントデザイン」（`FontDesign`）で日本語フォント
 /// （はんなり明朝・神楽坂）を選んだ場合のみ[fontFamily]経由で適用する
 /// （2026-09-06追加。どちらも実際の日本語グリフを収録した正規のフォント
-/// ファイルのため、上記の等幅フォント特有の字幅ズレは起きない想定）。
+/// ファイルの為、上記の等幅フォント特有の字幅ズレは起きない想定）。
 class AppTheme {
   AppTheme._();
 
   /// ダークモードの背景・カード色（ユーザー指定のダークグレー）。
   /// `ColorScheme.fromSeed`がダーク用に生成するsurfaceは、アクセントカラーの
   /// 色相を帯びた紺・緑がかったグレーになりやすく、素直な「ダークグレー」に
-  /// ならないため、背景・カード面はアクセントカラーに関わらずこの2色に固定する。
+  /// ならない為、背景・カード面はアクセントカラーに関わらずこの2色に固定する。
   static const darkBackground = Color(0xFF121212);
   static const darkSurface = Color(0xFF1E1E1E);
 
@@ -97,7 +97,7 @@ class AppTheme {
     // 暖色系アクセントカラーではハンバーガーメニュー・ダイアログだけが
     // 茶色っぽく浮いて見えていた（surface/surfaceContainerHighestは
     // 既に固定していたのに、この2ロールだけ上書きし忘れていた）。
-    // ライトモードはこれまで通りアクセントカラーの色相を残す方針のため、
+    // ライトモードはこれまで通りアクセントカラーの色相を残す方針の為、
     // 既存のsurface/surfaceContainerHighestと同じ値に揃えるだけにする。
     // onSurface/onSurfaceVariant（テキスト・アイコンの重要度Tier1/Tier2、
     // `text_prominence_colors.dart`参照）も、surfaceContainer系ロールと
@@ -209,7 +209,7 @@ class AppTheme {
       ),
       // TextButtonの文字色はMaterial3既定だとcolorScheme.primary（アクセント
       // カラー）になる。確認ダイアログの「キャンセル」等の文字がアクセント
-      // カラーになり視認性を欠く問題（2026-09-01発覚）を避けるため、
+      // カラーになり視認性を欠く問題（2026-09-01発覚）を避ける為、
       // 中立色（onSurface）に固定する。アクセントカラーはボタンの地色等の
       // 塗りにのみ使い、フォントには使わない方針（CLAUDE.md参照）。
       textButtonTheme: TextButtonThemeData(
@@ -223,7 +223,7 @@ class AppTheme {
         style: OutlinedButton.styleFrom(foregroundColor: colorScheme.onSurface),
       ),
       // 確認ダイアログのような短い文言のみのAlertDialogが、アクション行の
-      // 幅に引っ張られて横長・縦潰れになる問題（2026-09-01発覚）を避けるため、
+      // 幅に引っ張られて横長・縦潰れになる問題（2026-09-01発覚）を避ける為、
       // ダイアログ全体の最大幅を統一する。
       // shapeの角丸24は、ガラスの`GlassAlertDialog`（`glass_dialog.dart`）が
       // 明示指定している値に揃えたもの（Material3既定の28dpのままだと
@@ -265,8 +265,8 @@ class AppTheme {
             fontFamily: fontFamily,
           ),
       // ホバーで文言を出さない方針（CLAUDE.md）をFlutter標準ウィジェット
-      // （DatePicker/TimePickerの入力方法切替ボタン等）にも適用するための
-      // 回避策。Tooltipを恒久的に無効化するAPIは無いため、実用上出現しない
+      // （DatePicker/TimePickerの入力方法切替ボタン等）にも適用する為の
+      // 回避策。Tooltipを恒久的に無効化するAPIは無い為、実用上出現しない
       // 長さまでwaitDurationを伸ばす（2026-09-07追加）。
       tooltipTheme: const TooltipThemeData(waitDuration: Duration(days: 365)),
       extensions: [

@@ -34,7 +34,7 @@ abstract class StickerRepository {
 
   /// メッセージ内容に応じたぺったん提案（`lib/utils/sticker_suggestion.dart`
   /// 参照、2026-09-05追加）で使う役割定義の一覧。`stickerRoles`コレクション
-  /// はFirestoreコンソールまたは一度きりのシードスクリプトから投入する
+  /// はFirestoreコンソール又は一度きりのシードスクリプトから投入する
   /// 想定で、クライアントからの書き込みは行わない。
   Stream<List<StickerRole>> watchRoles();
 }
@@ -45,7 +45,7 @@ class FirestoreStickerRepository implements StickerRepository {
     FirebaseFunctions? functions,
   }) : _firestore = firestore ?? FirebaseFirestore.instance,
        // Cloud Functions（functions/src/index.ts）はasia-northeast1に
-       // デプロイしているため、呼び出し側もリージョンを明示する。
+       // デプロイしている為、呼び出し側もリージョンを明示する。
        _functions =
            functions ??
            FirebaseFunctions.instanceFor(region: 'asia-northeast1');

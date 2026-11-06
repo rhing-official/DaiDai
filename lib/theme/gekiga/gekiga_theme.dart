@@ -13,7 +13,7 @@ import 'gekiga_colors.dart';
 /// 2026-08-05よりユーザーが設定タブから編集可能になり
 /// （[gekigaBackgroundColorProvider]参照）、既定値は
 /// [kDefaultGekigaBackgroundColor]（[GekigaColors.background]と同じ赤）。
-/// themeMode（ライト/ダーク）に関わらず常に同じ見た目にするため、
+/// themeMode（ライト/ダーク）に関わらず常に同じ見た目にする為、
 /// light/darkの2関数を分けず単一のThemeDataを返す（2026-07-30新規）。
 class GekigaTheme {
   GekigaTheme._();
@@ -101,7 +101,7 @@ class GekigaTheme {
         foregroundColor: GekigaColors.onPanel,
         elevation: 0,
         // ColorScheme.fromSeedが生成するsurfaceTintだけはcopyWithで
-        // 上書きしていないため、Material3の既定挙動（スクロール時に
+        // 上書きしていない為、Material3の既定挙動（スクロール時に
         // surfaceTintを背景に薄く重ねる）でメッセージ一覧をスクロール
         // すると上部バーだけ他の背景と違う色に見えていた
         // （2026-08-11修正）。
@@ -128,7 +128,7 @@ class GekigaTheme {
         ),
       ),
       // Material3既定のFilledButton/OutlinedButtonは角丸＋ColorScheme由来の
-      // 色が残るため、elevatedButtonThemeと同じ黒地白文字・角丸なしに揃える
+      // 色が残る為、elevatedButtonThemeと同じ黒地白文字・角丸なしに揃える
       // （2026-08-04追加。ダイアログの保存/削除ボタン等がここに未対応だと
       // モノクロ化が徹底されない）。
       filledButtonTheme: FilledButtonThemeData(
@@ -137,7 +137,7 @@ class GekigaTheme {
           foregroundColor: GekigaColors.onPanel,
           elevation: 0,
           // outlinedButtonThemeと同じ白縁を付ける。ダイアログの背景も
-          // GekigaColors.panel（黒）のため、縁が無いとボタンの境界が
+          // GekigaColors.panel（黒）の為、縁が無いとボタンの境界が
           // 見えなくなる問題があった（2026-09-01発覚）。
           side: const BorderSide(color: GekigaColors.onPanel, width: 2),
           shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
@@ -164,7 +164,7 @@ class GekigaTheme {
         style: TextButton.styleFrom(foregroundColor: colorScheme.onSurface),
       ),
       // 確認ダイアログのような短い文言のみのAlertDialogが、アクション行の
-      // 幅に引っ張られて横長・縦潰れになる問題（2026-09-01発覚）を避けるため、
+      // 幅に引っ張られて横長・縦潰れになる問題（2026-09-01発覚）を避ける為、
       // ダイアログ全体の最大幅を統一する（フラット・ガラスと同じ値）。
       dialogTheme: const DialogThemeData(
         constraints: BoxConstraints(maxWidth: 400),
@@ -190,14 +190,14 @@ class GekigaTheme {
       ),
       dividerColor: GekigaColors.onPanel.withValues(alpha: 0.24),
       // ホバーで文言を出さない方針（CLAUDE.md）をFlutter標準ウィジェット
-      // （DatePicker/TimePickerの入力方法切替ボタン等）にも適用するための
-      // 回避策。Tooltipを恒久的に無効化するAPIは無いため、実用上出現しない
+      // （DatePicker/TimePickerの入力方法切替ボタン等）にも適用する為の
+      // 回避策。Tooltipを恒久的に無効化するAPIは無い為、実用上出現しない
       // 長さまでwaitDurationを伸ばす（2026-09-07追加）。
       tooltipTheme: const TooltipThemeData(waitDuration: Duration(days: 365)),
       // 劇画はテキスト・アイコンの重要度階調（`text_prominence_colors.dart`）
-      // の対象外（背景色と衝突して視認性が落ちた過去の経緯があるため、
+      // の対象外（背景色と衝突して視認性が落ちた過去の経緯がある為、
       // 白1色のまま）。`AppThemeExtras.textTertiary`は他スタイルと型を
-      // 共有するために必須だが、劇画の呼び出し元は自前のisGekiga分岐で
+      // 共有する為に必須だが、劇画の呼び出し元は自前のisGekiga分岐で
       // GekigaColors.onPanelを直接使うためこの値は実質参照されない。
       extensions: const [
         AppThemeExtras(

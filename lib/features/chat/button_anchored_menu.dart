@@ -8,8 +8,8 @@ import 'talks_tab.dart' show kTalksSplitBreakpoint;
 /// ピン留め・アルバム・ノート・投票・ハンバーガーメニュー各ボタンで
 /// 重複していたロジックを共通化、2026-09-12追加）。
 ///
-/// 横幅が狭い、または縦長の画面（`kTalksSplitBreakpoint`未満、または
-/// width <= height）では、各ボタンごとに位置がばらつき窮屈な座標に
+/// 横幅が狭い、又は縦長の画面（`kTalksSplitBreakpoint`未満、又は
+/// width <= height）では、各ボタン毎に位置がばらつき窮屈な座標に
 /// なりやすいため（実機確認で発覚）、[narrowAnchorKey]（通常はハンバーガー
 /// メニューボタンのキー）が渡されていればそちらの矩形を基準に統一する。
 /// PC・タブレットの横表示では従来通り[buttonKey]自身の直下に開く。
@@ -40,10 +40,10 @@ RelativeRect? computeButtonAnchoredMenuPosition(
 }
 
 /// [ChatScreen]がメッセージ一覧のスクロール位置保護（[showAnchoredMenu]参照）
-/// を子孫に公開するためのスコープ（2026-09-15追加）。`showMenu`でポップアップ
+/// を子孫に公開する為のスコープ（2026-09-15追加）。`showMenu`でポップアップ
 /// を開くと、Navigatorへのルートpushに伴うフォーカス変化等が原因と見られる
 /// 形で背後のメッセージ一覧（`ScrollablePositionedList`）の表示位置が勝手に
-/// ずれる不具合があったため、ポップアップの開閉とメッセージ一覧の表示状態を
+/// ずれる不具合があった為、ポップアップの開閉とメッセージ一覧の表示状態を
 /// 切り離す目的で導入した。`lib/widgets/interactive_swipe_back.dart`の
 /// `InteractiveSwipeBackScope`と同じ形のスコープ。
 class ChatScrollGuardScope extends InheritedWidget {
@@ -64,7 +64,7 @@ class ChatScrollGuardScope extends InheritedWidget {
   final void Function(double delta) scrollBy;
 
   /// ヘッダーのボタン同士で、ドロップダウンを開いたまま別のボタンへ直接切り
-  /// 替えるための登録先（2026-10-10追加、[HeaderMenuSwitcher]参照）。
+  /// 替える為の登録先（2026-10-10追加、[HeaderMenuSwitcher]参照）。
   final HeaderMenuSwitcher menuSwitcher;
 
   static ChatScrollGuardScope? maybeOf(BuildContext context) =>
@@ -76,7 +76,7 @@ class ChatScrollGuardScope extends InheritedWidget {
 
 /// ヘッダーのボタン（通話・ピン留め・アルバム・ノート・投票・カレンダー・
 /// ハンバーガーメニュー等）を登録しておき、ドロップダウン表示中にその
-/// ボタンが押されたとき、メニューを閉じてそのボタンの操作を実行できるように
+/// ボタンが押された時、メニューを閉じてそのボタンの操作を実行出来るように
 /// する（2026-10-10追加）。`showMenu`のモーダルバリアは背後のボタンへの
 /// タップを吸収してしまうため、バリアを押した位置をここで照合して代わりに
 /// 実行する（[showAnchoredMenu]の`anchorKey`参照）。
@@ -89,7 +89,7 @@ class HeaderMenuSwitcher {
 
   /// グローバル座標[position]にあるボタンの操作を返す（[except]は除く）。
   /// 矩形は左上・右下の2点を変換して作る（ヘッダー列が`FittedBox`で縮小
-  /// されていても実際の見た目の領域で判定するため）。
+  /// されていても実際の見た目の領域で判定する為）。
   VoidCallback? triggerAt(Offset position, {GlobalKey? except}) {
     for (final entry in _triggers.entries) {
       if (entry.key == except) continue;
@@ -157,8 +157,8 @@ Future<T?> showAnchoredMenu<T>({
   Offset? lastDown;
   void trackPointer(PointerEvent event) {
     if (event is PointerDownEvent) lastDown = event.position;
-    // メニューを開いたまま、背後のメッセージ一覧をスクロールできるようにする
-    // （2026-11-02）。モーダルバリアは一覧へのスクロールを吸収するため、ポインタを
+    // メニューを開いたまま、背後のメッセージ一覧をスクロール出来るようにする
+    // （2026-11-02）。モーダルバリアは一覧へのスクロールを吸収する為、ポインタを
     // 直接拾って一覧へ流す。マウスはホイール、タッチ・ペンはドラッグ。タップはバリアが
     // 閉じる操作のまま（動かさなければ何も流れない）。
     if (event is PointerScrollEvent) {

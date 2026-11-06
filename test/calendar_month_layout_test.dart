@@ -112,7 +112,7 @@ void main() {
       expect(segment1.lane, segment2.lane);
     });
 
-    test('レーン数がmaxLanesを超えた場合、日ごとの非表示件数が正しく集計される', () {
+    test('レーン数がmaxLanesを超えた場合、日毎の非表示件数が正しく集計される', () {
       final sunday = DateTime(2026, 8, 30);
       final week = _week(sunday);
       final items = buildMonthItems(

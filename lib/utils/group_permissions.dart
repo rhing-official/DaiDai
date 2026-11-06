@@ -10,7 +10,7 @@ import '../models/group_role.dart';
 /// （ロールの権限・付与から`GroupRepository`が非正規化して計算した実効権限）を見る。
 ///
 /// UI側の権限ゲートは全てこの関数を通す（firestore.rulesも同じ
-/// `memberPermissions`を根拠にしており、判定結果を一致させるため）。
+/// `memberPermissions`を根拠にしており、判定結果を一致させる為）。
 bool hasGroupPermission({
   required Group group,
   required String userId,
@@ -43,10 +43,10 @@ bool effectiveHistoryVisible({required Group group, Room? room}) {
   return group.historyVisibleToNewMembers;
 }
 
-/// [userId]がこの寄合で閲覧できるメッセージの最古時刻（`sentAt >= この値`）。
-/// nullなら制限なし（加入時刻の記録が無い既存メンバー・長、または履歴を見せる
+/// [userId]がこの寄合で閲覧出来るメッセージの最古時刻（`sentAt >= この値`）。
+/// nullなら制限なし（加入時刻の記録が無い既存メンバー・長、又は履歴を見せる
 /// 設定）。メッセージ取得クエリへそのまま`where`として渡す（firestore.rulesの
-/// `list`は、クエリ自体が条件を満たす絞り込みを持たないと拒否されるため）。
+/// `list`は、クエリ自体が条件を満たす絞り込みを持たないと拒否される為）。
 Timestamp? messageVisibleFrom({
   required Group group,
   required Room? room,

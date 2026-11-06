@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-/// ダイアログをキーボードだけで操作できるようにする（2026-10-11追加）。
+/// ダイアログをキーボードだけで操作出来るようにする（2026-10-11追加）。
 ///
 /// - Enter / テンキーのEnter: 同意。[actions]のうち最後のFilledButton／
 ///   ElevatedButton（無ければ最後のボタン）の`onPressed`を実行する。
