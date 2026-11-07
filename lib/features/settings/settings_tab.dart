@@ -990,10 +990,17 @@ class _InfoRow extends ConsumerWidget {
 /// 値をコピー出来る情報行（自分のRhing Seed、2026-10-31）。身だしなみ>縁結びの招待リンクと
 /// 同じボックス（[CopyLinkRow]）で、ラベルの下に値とコピーボタンを出す（2026-11-03）。
 class _CopyableInfoRow extends ConsumerWidget {
-  const _CopyableInfoRow({required this.label, required this.value});
+  const _CopyableInfoRow({
+    required this.label,
+    required this.value,
+    this.trailing,
+  });
 
   final String label;
   final String value;
+
+  /// コピーボタンの右に置くボタン（Rhing Seedの「変更」、箱の中に入れる）。
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -1011,6 +1018,8 @@ class _CopyableInfoRow extends ConsumerWidget {
                 ),
                 child: CopyLinkRow(
                   link: value,
+                  trailing: trailing,
+                  copyOnlyByButton: true,
                   gekiga: true,
                   textStyle: const TextStyle(color: GekigaColors.panel),
                 ),
@@ -1033,7 +1042,11 @@ class _CopyableInfoRow extends ConsumerWidget {
                   horizontal: 12,
                   vertical: 8,
                 ),
-                child: CopyLinkRow(link: value),
+                child: CopyLinkRow(
+                  link: value,
+                  trailing: trailing,
+                  copyOnlyByButton: true,
+                ),
               ),
             ),
           )
@@ -1043,7 +1056,11 @@ class _CopyableInfoRow extends ConsumerWidget {
               border: Border.all(color: colorScheme.outlineVariant),
               borderRadius: BorderRadius.circular(8),
             ),
-            child: CopyLinkRow(link: value),
+            child: CopyLinkRow(
+              link: value,
+              trailing: trailing,
+              copyOnlyByButton: true,
+            ),
           );
     // 劇画・版画は箱を左右いっぱいに広げ、「検索に表示する」の箱と幅を揃える。
     final blockStyle =
@@ -1980,28 +1997,33 @@ class _AccountPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final liveSeed =
+        ref.watch(watchedUserProvider(currentUser.userId)).value?.rhingSeed ??
+        currentUser.rhingSeed;
     return ListView(
       padding: const EdgeInsets.only(bottom: 24),
       children: [
         _SectionHeader(strings.settingsAccountInfoSection),
         _CopyableInfoRow(
           label: strings.settingsRhingSeedLabel,
-          value: '@${currentUser.rhingSeed}',
-        ),
-        _ActionRow(
-          label: strings.settingsRhingSeedChange,
-          onTap: () async {
-            final changed = await RhingSeedChangeDialog.show(
-              context,
-              userId: currentUser.userId,
-              currentSeed: currentUser.rhingSeed,
-            );
-            if (changed == true && context.mounted) {
-              ScaffoldMessenger.of(
+          // 変更後すぐ表示が替わるよう、保存済みの住人を購読して使う。
+          value: '@$liveSeed',
+          trailing: IconButton(
+            icon: const Icon(Icons.edit_outlined),
+            tooltip: strings.settingsRhingSeedChange,
+            onPressed: () async {
+              final changed = await RhingSeedChangeDialog.show(
                 context,
-              ).showSnackBar(SnackBar(content: Text(strings.rhingSeedChangeDone)));
-            }
-          },
+                userId: currentUser.userId,
+                currentSeed: liveSeed,
+              );
+              if (changed == true && context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text(strings.rhingSeedChangeDone)),
+                );
+              }
+            },
+          ),
         ),
         _SeedSearchableRow(strings: strings, currentUser: currentUser),
         // 居住地（伝書鳩・安否確認用の自己申告、2026-10-16追加）。

@@ -14,6 +14,8 @@ class CopyLinkRow extends StatefulWidget {
     this.gekiga = false,
     this.textStyle,
     this.wrapButton,
+    this.trailing,
+    this.copyOnlyByButton = false,
     super.key,
   });
 
@@ -23,6 +25,13 @@ class CopyLinkRow extends StatefulWidget {
 
   /// コピーボタンを包む（使い方ガイドの強調対象など）。
   final Widget Function(Widget button)? wrapButton;
+
+  /// コピーボタンの右に並べる追加のボタン（設定のRhing Seed欄の「変更」、2026-11-07）。
+  final Widget? trailing;
+
+  /// trueなら、文字のタップ・選択では何もせず、コピーボタンだけでコピーする
+  /// （設定のRhing Seed欄、2026-11-07）。
+  final bool copyOnlyByButton;
 
   @override
   State<CopyLinkRow> createState() => _CopyLinkRowState();
@@ -80,14 +89,22 @@ class _CopyLinkRowState extends State<CopyLinkRow>
     return Row(
       children: [
         Expanded(
-          child: SelectableText(
-            widget.link,
-            maxLines: 1,
-            style: widget.textStyle,
-            onTap: _copy,
-          ),
+          child: widget.copyOnlyByButton
+              ? Text(
+                  widget.link,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: widget.textStyle,
+                )
+              : SelectableText(
+                  widget.link,
+                  maxLines: 1,
+                  style: widget.textStyle,
+                  onTap: _copy,
+                ),
         ),
         widget.wrapButton?.call(animated) ?? animated,
+        ?widget.trailing,
       ],
     );
   }
