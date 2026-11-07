@@ -124,6 +124,14 @@ class GroupCallArgs {
   final bool isVideo;
 }
 
+/// いま一番上に、全画面のメッセージ画面（`/chat/*`、スマホで`push`されたもの）が開いているか
+/// （2026-11-06）。`currentConfiguration.uri`は`push`した（命令的な）ルートを反映しない
+/// （go_routerの仕様）ため、一番上のマッチの`matchedLocation`を見る。
+bool isFullscreenChatOpen(GoRouter router) {
+  final top = router.routerDelegate.currentConfiguration.lastOrNull;
+  return top?.matchedLocation.startsWith('/chat/') ?? false;
+}
+
 /// [goRouterProvider]が構築した`GoRouter`インスタンスへの参照。Riverpodの
 /// `ref`を持たない場所（`push_notifications.dart`の通知タップハンドラ等）
 /// から画面遷移する為に使う（2026-09-02追加）。Providerは遅延初期化だが、

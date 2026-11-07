@@ -2,7 +2,6 @@ import 'subscription_plan.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'app_user_preferences.dart';
-import 'fcm_token_entry.dart';
 import 'font_design.dart';
 import 'profile_card.dart';
 import 'profile_material.dart';
@@ -35,7 +34,6 @@ class AppUser {
     this.birthday,
     this.fontDesignMaterials = const [],
     this.profileCards = const [],
-    this.fcmTokens = const [],
     this.activeIconId,
     this.activeBackgroundImageId,
     this.activeStatusMessageId,
@@ -90,10 +88,6 @@ class AppUser {
   /// 和合で作成したプロフィールカード（最大[kMaxProfileCards]枚）。
   /// 蔵の素材を組み合わせて作る「見せ方のセット」。
   final List<ProfileCard> profileCards;
-
-  /// プッシュ通知（FCM）の送信先端末一覧（最大[kMaxFcmTokens]件、
-  /// `PushNotificationRepository`が登録・削除する）。
-  final List<FcmTokenEntry> fcmTokens;
 
   /// 現在表示に使っている素材のid。未選択ならnull。
   final String? activeIconId;
@@ -192,7 +186,7 @@ class AppUser {
   /// [googleCalendarSyncEnabled]と同じ3値パターン: null=まだ触れていない
   /// （`PushNotificationBootstrap`が起動時に自動でOS権限をリクエストする
   /// 既存挙動のまま）、true=このトグルで明示的にオンにした、false=明示的に
-  /// オフにした（この端末のFCMトークンを`fcmTokens`から削除済み、
+  /// オフにした（この端末のFCMトークンを`private/fcm`から削除済み、
   /// `PushNotificationBootstrap`は次回起動時の自動リクエストをスキップする）。
   /// OS/ブラウザ側の通知許可自体はアプリから取り消せない為、このフラグは
   /// あくまで「この端末にDaiDaiが通知を送るかどうか」を表す。
@@ -480,7 +474,6 @@ class AppUser {
         json['fontDesignMaterials'],
       ),
       profileCards: _profileCardListFromJson(json['profileCards']),
-      fcmTokens: _fcmTokenListFromJson(json['fcmTokens']),
       activeIconId: json['activeIconId'] as String?,
       activeBackgroundImageId: json['activeBackgroundImageId'] as String?,
       activeStatusMessageId: json['activeStatusMessageId'] as String?,
@@ -527,7 +520,6 @@ class AppUser {
           .map((f) => f.toJson())
           .toList(),
       'profileCards': profileCards.map((c) => c.toJson()).toList(),
-      'fcmTokens': fcmTokens.map((t) => t.toJson()).toList(),
       'activeIconId': activeIconId,
       'activeBackgroundImageId': activeBackgroundImageId,
       'activeStatusMessageId': activeStatusMessageId,
@@ -591,13 +583,6 @@ class AppUser {
     if (value is! List) return const [];
     return value
         .map((e) => ProfileCard.fromJson(e as Map<String, dynamic>))
-        .toList();
-  }
-
-  static List<FcmTokenEntry> _fcmTokenListFromJson(dynamic value) {
-    if (value is! List) return const [];
-    return value
-        .map((e) => FcmTokenEntry.fromJson(e as Map<String, dynamic>))
         .toList();
   }
 }

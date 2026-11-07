@@ -1,20 +1,33 @@
+import 'package:flutter/foundation.dart' show kDebugMode;
+import 'package:flutter/gestures.dart'
+    show PointerDeviceKind, kPrimaryMouseButton;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/strings.dart';
 import '../../models/app_user.dart';
+import '../../models/direct_message.dart';
+import '../../models/dm_room.dart';
 import '../../models/friend_request.dart';
 import '../../models/app_ui_style.dart';
 import '../../providers/app_ui_style_provider.dart';
 import '../../providers/contact_alias_providers.dart';
+import '../../providers/chat_navigation_providers.dart'
+    show pendingDmSelectionProvider, ViewedDm;
 import '../../providers/home_shell_providers.dart';
 import '../../providers/talks_resume_provider.dart';
+import '../../router/app_router.dart' show isFullscreenChatOpen;
 import '../../router/back_stack.dart' show backStackControllerProvider;
 import '../../router/app_router.dart' show goRouterProvider;
+import '../../providers/last_opened_room_provider.dart';
+import '../../theme/block/block_theme.dart';
+import '../../theme/gekiga/gekiga_colors.dart';
 import '../../utils/contact_alias.dart';
+import '../../widgets/media_preview_frame.dart'
+    show GekigaStraightMonochromeBox;
+import '../../widgets/glass/glass_surface.dart';
 import 'contact_alias_dialog.dart';
 import '../../providers/repository_providers.dart';
-import '../../utils/open_conversation.dart';
 import '../../utils/friend_request_error.dart';
 import '../../widgets/profile_card_composer.dart';
 import '../../widgets/user_profile_card_view.dart';
@@ -133,6 +146,7 @@ class _UserProfileCardDialogState extends ConsumerState<UserProfileCardDialog> {
   @override
   void dispose() {
     _messageController.dispose();
+    _hoveredRoom.dispose();
     super.dispose();
   }
 
@@ -204,19 +218,230 @@ class _UserProfileCardDialogState extends ConsumerState<UserProfileCardDialog> {
     }
   }
 
-  Future<void> _jumpToDm() async {
-    final dmRepository = ref.read(directMessageRepositoryProvider);
-    final dm = await dmRepository.getOrCreateDirectMessage(
-      widget.currentUser,
-      widget.user,
+  final GlobalKey _dmJumpKey = GlobalKey();
+  final Map<String, GlobalKey> _roomItemKeys = {};
+  final ValueNotifier<String?> _hoveredRoom = ValueNotifier(null);
+  bool _roomMenuOpen = false;
+  bool _jumping = false;
+  bool _prefetchStarted = false;
+  DirectMessage? _cachedDm;
+  List<DmRoom>? _cachedRooms;
+
+  /// ボタンを押した瞬間にプルダウンを開けるよう、友達の一対と寄合を先に読んでおく
+  /// （読み取りだけ。一対がまだ無ければ何もしない）。
+  Future<void> _prefetchDm() async {
+    if (_prefetchStarted) return;
+    _prefetchStarted = true;
+    try {
+      final repo = ref.read(directMessageRepositoryProvider);
+      final dm = await repo.getDirectMessage(
+        DirectMessage.idFor(widget.currentUser.userId, widget.user.userId),
+      );
+      if (dm == null || !dm.roomsEnabled) return;
+      final rooms = await repo
+          .watchRooms(dmId: dm.dmId, userId: widget.currentUser.userId)
+          .first;
+      _cachedDm = dm;
+      _cachedRooms = rooms;
+    } catch (_) {
+      // 先読みは任意。失敗したら押した時に読む。
+    }
+  }
+
+  String? _roomAt(Offset global) {
+    for (final e in _roomItemKeys.entries) {
+      final box = e.value.currentContext?.findRenderObject();
+      if (box is! RenderBox || !box.attached) continue;
+      if ((box.localToGlobal(Offset.zero) & box.size).contains(global)) {
+        return e.key;
+      }
+    }
+    return null;
+  }
+
+  /// 寄合機能がオンの一対では、飛行機ボタンの下にプルダウンを出し、ジャンプ先の寄合を選ばせる
+  /// （2026-11-07）。UIスタイルの面（劇画=黒の箱、ガラス=すりガラス、版画=太枠、フラット=枠付き）で描く。
+  Future<String?> _pickDmRoom(List<DmRoom> rooms) async {
+    if (!mounted || rooms.length < 2) {
+      return rooms.isEmpty ? null : rooms.first.roomId;
+    }
+    final box = _dmJumpKey.currentContext?.findRenderObject() as RenderBox?;
+    final overlay =
+        Overlay.of(context).context.findRenderObject()! as RenderBox;
+    if (box == null) return null;
+    final position = RelativeRect.fromRect(
+      Rect.fromPoints(
+        box.localToGlobal(Offset(0, box.size.height), ancestor: overlay),
+        box.localToGlobal(box.size.bottomRight(Offset.zero), ancestor: overlay),
+      ),
+      Offset.zero & overlay.size,
     );
+    final ui = ref.read(appUiStyleProvider);
+    final theme = Theme.of(context);
+    _roomItemKeys
+      ..clear()
+      ..addEntries(rooms.map((r) => MapEntry(r.roomId, GlobalKey())));
+    _roomMenuOpen = true;
+    _hoveredRoom.value = null;
+    final isGekiga = ui == AppUiStyle.gekiga;
+    final fg = isGekiga ? GekigaColors.onPanel : theme.colorScheme.onSurface;
+    final picked = await showMenu<String>(
+      context: context,
+      position: position,
+      color: Colors.transparent,
+      elevation: 0,
+      shadowColor: Colors.transparent,
+      // テーマ（版画の太枠など）が外側にも枠を描いて二重になるのを避ける。
+      shape: const RoundedRectangleBorder(),
+      items: [
+        PopupMenuItem<String>(
+          enabled: false,
+          padding: EdgeInsets.zero,
+          child: Builder(
+            builder: (menuContext) {
+              final list = ConstrainedBox(
+                constraints: const BoxConstraints(minWidth: 160, maxWidth: 280),
+                child: IntrinsicWidth(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      for (final room in rooms)
+                        GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: () =>
+                              Navigator.of(menuContext).pop(room.roomId),
+                          child: ValueListenableBuilder<String?>(
+                            valueListenable: _hoveredRoom,
+                            builder: (context, hovered, child) => ColoredBox(
+                              key: _roomItemKeys[room.roomId],
+                              color: hovered == room.roomId
+                                  ? fg.withValues(alpha: 0.12)
+                                  : Colors.transparent,
+                              child: child,
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 12,
+                              ),
+                              child: Text(
+                                '# ${room.name}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(color: fg),
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              );
+              final radius = BorderRadius.circular(12);
+              switch (ui) {
+                case AppUiStyle.gekiga:
+                  return GekigaStraightMonochromeBox(isMe: false, child: list);
+                case AppUiStyle.glass:
+                  return GlassSurface(
+                    variant: GlassVariant.floating,
+                    borderRadius: radius,
+                    child: ClipRRect(borderRadius: radius, child: list),
+                  );
+                case AppUiStyle.block:
+                  return blockMaterialBox(
+                    menuContext,
+                    color: theme.colorScheme.surface,
+                    child: list,
+                  );
+                case AppUiStyle.flat:
+                  return Material(
+                    color: theme.colorScheme.surface,
+                    clipBehavior: Clip.antiAlias,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: radius,
+                      side: BorderSide(color: theme.colorScheme.outlineVariant),
+                    ),
+                    child: list,
+                  );
+              }
+            },
+          ),
+        ),
+      ],
+    );
+    _roomMenuOpen = false;
+    _hoveredRoom.value = null;
+    return picked;
+  }
+
+  Future<void> _jumpToDm() async {
+    if (_jumping) return;
+    _jumping = true;
+    try {
+      await _jumpToDmImpl();
+    } finally {
+      _jumping = false;
+    }
+  }
+
+  Future<void> _jumpToDmImpl() async {
+    final dmRepository = ref.read(directMessageRepositoryProvider);
+    // 先読み済みなら、待たずにその場でプルダウンを開く（押したまま選べるように）。
+    final DirectMessage dm =
+        _cachedDm ??
+        await dmRepository.getOrCreateDirectMessage(
+          widget.currentUser,
+          widget.user,
+        );
     if (!mounted) return;
-    Navigator.of(context).pop();
-    // 左右分割表示ではTalksTabが一覧＋チャットを自前のStateで表示している為、
-    // ここでルートをpushすると全画面ルートがサイドバーごと覆ってしまう
-    // （2026-07-29修正）。狭い画面でも設定した語らいレイアウトどおりに開くよう、
-    // どちらもTalksTabへ選択を渡す（2026-10-11変更）。
-    await openDmInTalks(ref, dm);
+    String? roomId;
+    if (dm.roomsEnabled) {
+      final rooms =
+          _cachedRooms ??
+          await dmRepository
+              .watchRooms(dmId: dm.dmId, userId: widget.currentUser.userId)
+              .first;
+      if (!mounted) return;
+      roomId = await _pickDmRoom(rooms);
+      if (!mounted || roomId == null) return;
+      await ref
+          .read(lastOpenedRoomProvider.notifier)
+          .setLastRoom(ViewedDm(dm.dmId), roomId);
+      if (!mounted) return;
+    }
+    final router = ref.read(goRouterProvider);
+    final backStack = ref.read(backStackControllerProvider);
+    final pending = ref.read(pendingDmSelectionProvider.notifier);
+    final tab = ref.read(homeSelectedTabProvider.notifier);
+    // 以前は`openDmInTalks`の`go('/')`でホームへ戻していたが、`go('/')`は戻る操作用の
+    // 透明ルートを消して履歴を巻き戻し、語らいの選択（会話・寄合）を外してしまう
+    // （2026-11-07修正）。ここでは`go('/')`を使わない。スマホで全画面のメッセージ画面が
+    // 開いている時だけ、そのルートを閉じる。
+    final isFullscreenChat = isFullscreenChatOpen(router);
+    if (isFullscreenChat) {
+      if (!backStack.closeTopOverlay()) Navigator.of(context).pop();
+      backStack.allowNextChatExit();
+      if (router.canPop()) {
+        router.pop();
+      } else {
+        backStack.cancelAllowChatExit();
+      }
+    } else {
+      Navigator.of(context).pop();
+    }
+    // 左右分割表示では語らいタブの中で会話を選び直すだけ。全画面のルートを閉じた直後は、
+    // 描画が落ち着いてから開く（閉じる動きと開く動きが重ならないように）。
+    void open() {
+      tab.set(kTalksTabIndex);
+      pending.set(dm);
+    }
+
+    if (isFullscreenChat) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => open());
+    } else {
+      open();
+    }
   }
 
   /// 自分のカードの右上のボタン。身だしなみタブの仕立てへ移動する（2026-10-31）。
@@ -238,10 +463,23 @@ class _UserProfileCardDialogState extends ConsumerState<UserProfileCardDialog> {
     // `go('/')`は使わない: 戻る操作用の透明ルートが消えて、履歴が巻き戻り、語らいの
     // 選択（会話・寄合）が戻ってしまう（2026-11-06）。コンピューター・タブレットは、
     // メッセージ画面が語らいのタブの中にある為、ルートは閉じず、タブを切り替えるだけ。
-    final isFullscreenChat = router.routerDelegate.currentConfiguration.uri.path
-        .startsWith('/chat/');
+    // `currentConfiguration.uri`は`push`したルートを反映しない（go_routerの仕様）為、
+    // 一番上のマッチを見る`isFullscreenChatOpen`で判定する。
+    final isFullscreenChat = isFullscreenChatOpen(router);
+    // 開いていた会話は、画面の向き・レイアウトによらず保存する（語らいへ戻った時に、状態が
+    // 残っていなければ開き直す。横画面は寄合のメッセージ画面まで、縦画面は寄合一覧まで）。
+    if (openChat != null) {
+      resume.save(openChat);
+      if (kDebugMode) {
+        debugPrint(
+          '[RESUME] saved ${openChat.conversationId} room=${openChat.roomId} '
+          'fullscreen=$isFullscreenChat',
+        );
+      }
+    } else if (kDebugMode) {
+      debugPrint('[RESUME] not saved: no open chat recorded');
+    }
     if (isFullscreenChat) {
-      if (openChat != null) resume.save(openChat);
       // ダイアログは、閉じる登録を即座に外せる経路で閉じる（`Navigator.pop`だと登録が
       // 残り、`/chat/*`の終了を「ダイアログを閉じた」扱いで中止してしまう）。
       if (!backStack.closeTopOverlay()) Navigator.of(context).pop();
@@ -375,16 +613,41 @@ class _UserProfileCardDialogState extends ConsumerState<UserProfileCardDialog> {
                                   if (snapshot.data?.isFriend != true) {
                                     return const SizedBox.shrink();
                                   }
+                                  _prefetchDm();
                                   return Material(
                                     color: Colors.black.withValues(alpha: 0.35),
                                     shape: const CircleBorder(),
-                                    child: IconButton(
-                                      icon: const Icon(
-                                        Icons.send_outlined,
-                                        color: Colors.white,
+                                    child: Listener(
+                                      onPointerDown: (e) {
+                                        if (e.kind == PointerDeviceKind.mouse &&
+                                            e.buttons != kPrimaryMouseButton) {
+                                          return;
+                                        }
+                                        _jumpToDm();
+                                      },
+                                      onPointerMove: (e) {
+                                        if (_roomMenuOpen) {
+                                          _hoveredRoom.value = _roomAt(
+                                            e.position,
+                                          );
+                                        }
+                                      },
+                                      onPointerUp: (e) {
+                                        if (!_roomMenuOpen) return;
+                                        final room = _roomAt(e.position);
+                                        if (room != null) {
+                                          Navigator.of(context).pop(room);
+                                        }
+                                      },
+                                      child: IconButton(
+                                        key: _dmJumpKey,
+                                        icon: const Icon(
+                                          Icons.send_outlined,
+                                          color: Colors.white,
+                                        ),
+                                        iconSize: 30,
+                                        onPressed: () {},
                                       ),
-                                      iconSize: 30,
-                                      onPressed: _jumpToDm,
                                     ),
                                   );
                                 },

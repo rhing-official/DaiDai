@@ -2754,7 +2754,7 @@ export const broadcastAnnouncement = onCall(
     const androidTokens: string[] = [];
     const webTokens: string[] = [];
     for (const userDoc of usersSnapshot.docs) {
-      const tokens: FcmTokenEntry[] = userDoc.data().fcmTokens ?? [];
+      const tokens = await loadFcmTokens(userDoc.id, userDoc.data().fcmTokens);
       for (const entry of tokens) {
         if (entry.platform === "android") androidTokens.push(entry.token);
         else if (entry.platform === "web") webTokens.push(entry.token);
@@ -2806,6 +2806,30 @@ export const broadcastAnnouncement = onCall(
 // ユーザーとの相談で確定）。
 
 type FcmTokenEntry = { token: string; platform: string };
+
+/**
+ * 住人[userId]のFCMトークン一覧を返す（2026-11-07）。保存先は`users/{uid}/private/fcm`
+ * （本人のみ読める）。`users`本体は全ログイン者が読めるため、他人の端末トークンを
+ * 読まれないよう移した。移行期間のため、旧保存先（`users/{uid}.fcmTokens`、[legacy]）も
+ * 併せて読んでトークンの重複を除く。移行スクリプト（`functions/scripts/
+ * migrate-fcm-tokens.cjs`）を実行して旧フィールドが無くなれば[legacy]は常に空になる。
+ */
+async function loadFcmTokens(
+  userId: string,
+  legacy?: unknown
+): Promise<FcmTokenEntry[]> {
+  const snap = await db.doc(`users/${userId}/private/fcm`).get();
+  const merged = new Map<string, FcmTokenEntry>();
+  for (const list of [legacy, snap.data()?.tokens]) {
+    if (!Array.isArray(list)) continue;
+    for (const e of list) {
+      if (e && typeof e.token === "string" && typeof e.platform === "string") {
+        merged.set(e.token, { token: e.token, platform: e.platform });
+      }
+    }
+  }
+  return [...merged.values()];
+}
 
 /** [lib/models/app_user.dart]の`effectiveIconFor`/`effectiveNicknameFor`と
  * 同じ解決ロジック（工房カードの会話ごとの上書き→標準の工房カード→
@@ -3046,7 +3070,7 @@ async function sendMessageNotification(params: {
       continue;
     }
     const recipientDoc = await db.doc(`users/${recipientId}`).get();
-    const tokens: FcmTokenEntry[] = recipientDoc.data()?.fcmTokens ?? [];
+    const tokens = await loadFcmTokens(recipientId, recipientDoc.data()?.fcmTokens);
     for (const entry of tokens) {
       if (entry.platform === "android") androidTokens.push(entry.token);
       else if (entry.platform === "web") webTokens.push(entry.token);
@@ -3189,7 +3213,7 @@ async function sendPushToUsers(params: {
   const webTokens: string[] = [];
   for (const recipientId of recipientIds) {
     const recipientDoc = await db.doc(`users/${recipientId}`).get();
-    const tokens: FcmTokenEntry[] = recipientDoc.data()?.fcmTokens ?? [];
+    const tokens = await loadFcmTokens(recipientId, recipientDoc.data()?.fcmTokens);
     for (const entry of tokens) {
       if (entry.platform === "android") androidTokens.push(entry.token);
       else if (entry.platform === "web") webTokens.push(entry.token);
@@ -3322,7 +3346,7 @@ export const onJoinRequestWritten = onDocumentWritten(
     const webTokens: string[] = [];
     for (const recipientId of recipientIds) {
       const recipientDoc = await db.doc(`users/${recipientId}`).get();
-      const tokens: FcmTokenEntry[] = recipientDoc.data()?.fcmTokens ?? [];
+      const tokens = await loadFcmTokens(recipientId, recipientDoc.data()?.fcmTokens);
       for (const entry of tokens) {
         if (entry.platform === "android") androidTokens.push(entry.token);
         else if (entry.platform === "web") webTokens.push(entry.token);
@@ -3765,7 +3789,7 @@ export const onGroupCallCreated = onDocumentCreated(
     for (const recipientId of recipientIds) {
       if (await isConversationMuted(recipientId, groupId, "")) continue;
       const recipientDoc = await db.doc(`users/${recipientId}`).get();
-      const tokens: FcmTokenEntry[] = recipientDoc.data()?.fcmTokens ?? [];
+      const tokens = await loadFcmTokens(recipientId, recipientDoc.data()?.fcmTokens);
       for (const entry of tokens) {
         if (entry.platform === "android") androidTokens.push(entry.token);
         else if (entry.platform === "web") webTokens.push(entry.token);

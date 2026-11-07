@@ -1,7 +1,6 @@
 import '../../utils/contact_alias.dart';
 import '../../providers/contact_alias_providers.dart';
 import '../../providers/talks_resume_provider.dart';
-import '../../utils/open_conversation.dart';
 import 'dart:math' as math;
 import '../../l10n/tutorial_content.dart';
 import '../guide/tutorial/practice_repositories.dart' show practiceDmIdPrefix;
@@ -11,7 +10,7 @@ import 'dart:collection';
 
 import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart'
-    show ValueListenable, visibleForTesting;
+    show ValueListenable, kDebugMode, visibleForTesting;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import '../../theme/block/block_theme.dart';
@@ -71,6 +70,8 @@ import '../../widgets/glass/glass_avatar.dart';
 import '../../widgets/focal_circle_avatar.dart';
 import '../../widgets/glass/glass_icon_badge.dart';
 import '../../widgets/glass/glass_surface.dart';
+import '../../widgets/media_preview_frame.dart'
+    show GekigaStraightMonochromeBox;
 import '../../widgets/dialog_keyboard_shortcuts.dart';
 import '../../widgets/glass/glass_dialog.dart';
 import '../../widgets/hover_profile_card.dart';
@@ -520,6 +521,81 @@ class _TalksTabState extends ConsumerState<TalksTab>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _consumePendingSelections();
     });
+  }
+
+  /// 身だしなみの仕立てへ移る前に開いていた会話を、語らいへ戻った時に開き直す（2026-11-06）。
+  /// 開く深さは画面で決まる:
+  /// - 横画面（[_isSplit]）: 会話・寄合を選び、右のメッセージ画面まで開く。
+  /// - 縦画面で「アイコン＋寄合一覧」: 会話を選んで寄合一覧まで開く（メッセージ画面は開かない）。
+  /// - 縦画面でそれ以外（寄合一覧の無い標準の一覧）: 全画面のメッセージ画面へ直接pushする。
+  ///   寄合一覧の取得を待たない（取得が空だと黙ってやめる経路を通さない）。入場の動きは
+  ///   `enterFromRight`で、設定の「画面遷移」に従う。
+  /// 既に同じ会話が選ばれている時（状態が残っている時）は何もしない。
+  Future<void> _reopenSavedChat(OpenChat saved) async {
+    final dm = saved.dm;
+    final group = saved.group;
+    final ViewedConversation conversation = dm != null
+        ? ViewedDm(dm.dmId)
+        : ViewedGroup(group!.groupId);
+    final roomsEnabled = dm?.roomsEnabled ?? group!.roomsEnabled;
+    final alreadySelected = dm != null
+        ? _selectedDm?.dmId == dm.dmId
+        : _selectedGroup?.groupId == group!.groupId;
+    // 寄合を覚え直す（メッセージ画面・寄合一覧は、最後に開いた寄合を読む）。
+    await ref
+        .read(lastOpenedRoomProvider.notifier)
+        .setLastRoom(conversation, saved.roomId);
+    if (!mounted) return;
+    final inline =
+        _isSplit ||
+        (ref.read(talksListLayoutStyleProvider) ==
+                TalksListLayoutStyle.iconSplit &&
+            (roomsEnabled || _showIconSplitPeek));
+    if (kDebugMode) {
+      debugPrint(
+        '[RESUME] restore ${saved.conversationId} room=${saved.roomId} '
+        'inline=$inline alreadySelected=$alreadySelected split=$_isSplit',
+      );
+    }
+    if (inline) {
+      if (alreadySelected) return;
+      if (dm != null) {
+        _selectCategory(_TalksCategory.dm);
+        await _openDirectMessage(dm);
+      } else {
+        _selectCategory(_TalksCategory.group);
+        await _openGroup(group!);
+      }
+      return;
+    }
+    final router = ref.read(goRouterProvider);
+    if (dm != null) {
+      _selectCategory(_TalksCategory.dm);
+      router.push(
+        '/chat/dm',
+        extra: DmChatArgs(
+          currentUser: widget.currentUser,
+          dm: dm,
+          roomId: saved.roomId,
+          roomName: saved.roomName,
+          showRoomTabBar: saved.showRoomTabBar,
+          enterFromRight: true,
+        ),
+      );
+    } else {
+      _selectCategory(_TalksCategory.group);
+      router.push(
+        '/chat/group',
+        extra: GroupChatArgs(
+          currentUser: widget.currentUser,
+          group: group!,
+          roomId: saved.roomId,
+          roomName: saved.roomName,
+          showRoomTabBar: saved.showRoomTabBar,
+          enterFromRight: true,
+        ),
+      );
+    }
   }
 
   /// [pendingGroupSelectionProvider]/[pendingDmSelectionProvider]に既に
@@ -1321,14 +1397,12 @@ class _TalksTabState extends ConsumerState<TalksTab>
     ref.listen<int>(homeSelectedTabProvider, (previous, next) {
       if (next != kTalksTabIndex || previous == kTalksTabIndex) return;
       final saved = ref.read(talksResumeProvider.notifier).consume();
-      if (saved == null) return;
-      final dm = saved.dm;
-      final group = saved.group;
-      if (dm != null) {
-        openDmInTalks(ref, dm, goHome: false);
-      } else if (group != null) {
-        openGroupInTalks(ref, group, goHome: false);
+      if (kDebugMode) {
+        debugPrint(
+          '[RESUME] consume: ${saved == null ? 'nothing saved' : saved.conversationId}',
+        );
       }
+      if (saved != null) _reopenSavedChat(saved);
     });
     ref.listen<DirectMessage?>(pendingDmSelectionProvider, (previous, next) {
       if (next == null) return;
@@ -4590,7 +4664,7 @@ class _ConversationGesturesState extends ConsumerState<_ConversationGestures> {
       )..layout();
       if (painter.width > maxLabelWidth) maxLabelWidth = painter.width;
     }
-    final menuWidth = (maxLabelWidth + hPad * 2).clamp(140.0, 280.0);
+    final menuWidth = (maxLabelWidth + hPad * 2 + 28).clamp(168.0, 300.0);
     final menuHeight = kDragMenuItemHeight * items.length;
 
     const screenPad = 8.0;
@@ -4598,10 +4672,21 @@ class _ConversationGesturesState extends ConsumerState<_ConversationGestures> {
       screenPad,
       screenSize.width - menuWidth - screenPad,
     );
-    final top = (details.globalPosition.dy - menuHeight - 8).clamp(
-      screenPad,
-      screenSize.height - menuHeight - screenPad,
-    );
+    // プルダウン: 長押しした語らいの行の真下に開く（下に収まらなければ行の真上）。
+    final rowBox = context.findRenderObject()! as RenderBox;
+    final rowTop = rowBox.localToGlobal(Offset.zero, ancestor: overlayBox).dy;
+    final rowBottom = rowTop + rowBox.size.height;
+    final below = rowBottom + 4;
+    final top =
+        (below + menuHeight + screenPad <= screenSize.height
+                ? below
+                : rowTop - menuHeight - 4)
+            .clamp(screenPad, screenSize.height - menuHeight - screenPad);
+    final ui = ref.read(appUiStyleProvider);
+    final isGekiga = ui == AppUiStyle.gekiga;
+    final fg = isGekiga ? GekigaColors.onPanel : colorScheme.onSurface;
+    final radius = BorderRadius.circular(12);
+    final menuTheme = Theme.of(context);
 
     final geometry = DragMenuGeometry(
       left: left,
@@ -4622,40 +4707,88 @@ class _ConversationGesturesState extends ConsumerState<_ConversationGestures> {
             top: geometry.top,
             width: geometry.width,
             height: geometry.height,
-            child: Material(
-              color: colorScheme.surfaceContainer,
-              elevation: 3,
-              shadowColor: colorScheme.shadow,
-              shape: const RoundedRectangleBorder(
-                borderRadius: BorderRadius.all(Radius.circular(4)),
-              ),
-              child: ValueListenableBuilder<int>(
-                valueListenable: _highlightIndex,
-                builder: (_, highlighted, _) => Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    for (var i = 0; i < items.length; i++)
-                      Container(
-                        height: kDragMenuItemHeight,
-                        alignment: AlignmentDirectional.centerStart,
-                        padding: const EdgeInsets.symmetric(horizontal: hPad),
-                        color: i == highlighted
-                            ? colorScheme.primary.withValues(alpha: 0.12)
-                            : Colors.transparent,
-                        child: Text(
-                          items[i].label,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: textStyle.copyWith(
-                            color: i == highlighted
-                                ? colorScheme.primary
-                                : null,
+            child: Builder(
+              builder: (menuContext) {
+                final list = ValueListenableBuilder<int>(
+                  valueListenable: _highlightIndex,
+                  builder: (_, highlighted, _) => Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      for (var i = 0; i < items.length; i++)
+                        Container(
+                          height: kDragMenuItemHeight,
+                          alignment: AlignmentDirectional.centerStart,
+                          padding: const EdgeInsets.symmetric(horizontal: hPad),
+                          color: i == highlighted
+                              ? fg.withValues(alpha: 0.12)
+                              : Colors.transparent,
+                          child: Row(
+                            children: [
+                              Icon(
+                                switch (items[i].action) {
+                                  'pin' =>
+                                    widget.pinned
+                                        ? Icons.push_pin
+                                        : Icons.push_pin_outlined,
+                                  _ =>
+                                    widget.muted
+                                        ? Icons.notifications_active_outlined
+                                        : Icons.notifications_off_outlined,
+                                },
+                                size: 18,
+                                color: fg,
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  items[i].label,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: textStyle.copyWith(color: fg),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
+                    ],
+                  ),
+                );
+                switch (ui) {
+                  case AppUiStyle.gekiga:
+                    // 黒地・白の太枠の直角の箱（中身の判定領域を変えないよう、枠は内側に重ねる）。
+                    return Container(
+                      color: Colors.black,
+                      foregroundDecoration: BoxDecoration(
+                        border: Border.all(color: Colors.white, width: 3),
                       ),
-                  ],
-                ),
-              ),
+                      child: list,
+                    );
+                  case AppUiStyle.glass:
+                    return GlassSurface(
+                      variant: GlassVariant.floating,
+                      borderRadius: radius,
+                      child: ClipRRect(borderRadius: radius, child: list),
+                    );
+                  case AppUiStyle.block:
+                    return blockMaterialBox(
+                      menuContext,
+                      color: menuTheme.colorScheme.surface,
+                      child: list,
+                    );
+                  case AppUiStyle.flat:
+                    return Material(
+                      color: menuTheme.colorScheme.surface,
+                      clipBehavior: Clip.antiAlias,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: radius,
+                        side: BorderSide(
+                          color: menuTheme.colorScheme.outlineVariant,
+                        ),
+                      ),
+                      child: list,
+                    );
+                }
+              },
             ),
           ),
         ],
@@ -6017,53 +6150,87 @@ class _HoldSelectSortButtonState extends State<_HoldSelectSortButton> {
     );
     _menuOpen = true;
     _hovered.value = null;
+    Widget rowOf(BuildContext context, ConversationSortOrder order) =>
+        ValueListenableBuilder<ConversationSortOrder?>(
+          valueListenable: _hovered,
+          builder: (context, hovered, _) => Container(
+            key: _itemKeys[order],
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            alignment: Alignment.centerLeft,
+            constraints: const BoxConstraints(minHeight: 48),
+            color: hovered == order
+                ? (widget.isGekiga
+                          ? GekigaColors.onPanel
+                          : Theme.of(context).colorScheme.onSurface)
+                      .withValues(alpha: 0.12)
+                : null,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.check,
+                  size: 18,
+                  color: order == widget.current
+                      ? (widget.isGekiga ? GekigaColors.onPanel : null)
+                      : Colors.transparent,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  widget.labelOf(order),
+                  style: widget.isGekiga
+                      ? const TextStyle(color: GekigaColors.onPanel)
+                      : null,
+                ),
+              ],
+            ),
+          ),
+        );
     final selected = await showMenu<ConversationSortOrder>(
       context: context,
       position: position,
-      color: widget.isGekiga ? GekigaColors.panel : null,
-      shape: widget.isGekiga ? const RoundedRectangleBorder() : null,
-      items: [
-        for (final order in ConversationSortOrder.values)
-          PopupMenuItem(
-            value: order,
-            padding: EdgeInsets.zero,
-            child: ValueListenableBuilder<ConversationSortOrder?>(
-              valueListenable: _hovered,
-              builder: (context, hovered, _) => Container(
-                key: _itemKeys[order],
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                alignment: Alignment.centerLeft,
-                constraints: const BoxConstraints(minHeight: 48),
-                color: hovered == order
-                    ? (widget.isGekiga
-                              ? GekigaColors.onPanel
-                              : Theme.of(context).colorScheme.onSurface)
-                          .withValues(alpha: 0.12)
-                    : null,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.check,
-                      size: 18,
-                      color: order == widget.current
-                          ? (widget.isGekiga ? GekigaColors.onPanel : null)
-                          : Colors.transparent,
+      // 劇画UIは他の劇画のメニュー・吹き出しと同じ、白枠→黒枠→黒地の直角の箱で包む。
+      color: widget.isGekiga ? Colors.transparent : null,
+      elevation: widget.isGekiga ? 0 : null,
+      shadowColor: widget.isGekiga ? Colors.transparent : null,
+      items: widget.isGekiga
+          ? [
+              PopupMenuItem<ConversationSortOrder>(
+                enabled: false,
+                padding: EdgeInsets.zero,
+                child: Builder(
+                  builder: (menuContext) => GekigaStraightMonochromeBox(
+                    isMe: false,
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(minWidth: 160),
+                      child: IntrinsicWidth(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            for (final order in ConversationSortOrder.values)
+                              GestureDetector(
+                                behavior: HitTestBehavior.opaque,
+                                onTap: () =>
+                                    Navigator.of(menuContext).pop(order),
+                                child: rowOf(menuContext, order),
+                              ),
+                          ],
+                        ),
+                      ),
                     ),
-                    const SizedBox(width: 8),
-                    Text(
-                      widget.labelOf(order),
-                      style: widget.isGekiga
-                          ? const TextStyle(color: GekigaColors.onPanel)
-                          : null,
-                    ),
-                  ],
+                  ),
                 ),
               ),
-            ),
-          ),
-      ],
+            ]
+          : [
+              for (final order in ConversationSortOrder.values)
+                PopupMenuItem(
+                  value: order,
+                  padding: EdgeInsets.zero,
+                  child: rowOf(context, order),
+                ),
+            ],
     );
     _menuOpen = false;
     _hovered.value = null;

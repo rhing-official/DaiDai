@@ -94,6 +94,9 @@ service cloud.firestore {
       allow update: if request.auth != null
         && request.auth.uid == userId
         && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['subscriptionPlan'])
+        // Rhing Seed・userIdは作成後に変更できない（予約語の検査を更新で迂回して公式を
+        // 装ったり、他人のSeedへ書き換えたりするのを防ぐ、2026-11-07）。
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['rhingSeed', 'userId'])
         // 停止（accountStatus: suspended）は管理者（Cloud Functions）だけが付け外しできる。
         // 本人が自分の停止を解除したり、自分を停止にしたりはできない。通常⇄削除申請中の
         // 切り替え（アカウント削除・復元）は従来どおり本人ができる（2026-10-19）。
@@ -170,6 +173,14 @@ service cloud.firestore {
           && docId == 'residence'
           && request.resource.data.countryCode is string
           && request.resource.data.countryCode.size() == 2;
+        // private/fcm: プッシュ通知（FCM）の送信先端末トークン（最大10件、2026-11-07、
+        // 旧`users/{uid}.fcmTokens`から移動。他の住人から端末トークンを読めないように
+        // 本人のみ読み書き可能なここへ置く）。
+        allow write: if request.auth != null && request.auth.uid == userId
+          && docId == 'fcm'
+          && request.resource.data.keys().hasOnly(['tokens'])
+          && request.resource.data.tokens is list
+          && request.resource.data.tokens.size() <= 10;
       }
 
       // users/{userId}/ownedStickerPacks/{packId}: 所有しているペタピタ
@@ -325,8 +336,14 @@ service cloud.firestore {
     // 公開読み取り可能。書き込みは本人のみ（`userId`フィールドで判定）。
     match /userInvites/{rhingSeed} {
       allow read: if true;
-      allow write: if request.auth != null
-        && request.auth.uid == request.resource.data.userId;
+      // 他人のRhing Seedのドキュメントを自分のuserIdで上書きして招待リンクを
+      // 乗っ取れないよう、①新規作成か既存の持ち主本人であること、②ドキュメントID
+      // （Rhing Seed）が自分のusersドキュメントのrhingSeedと一致することを要求する
+      // （2026-11-07、セキュリティ点検で追加）。
+      allow create, update: if request.auth != null
+        && request.auth.uid == request.resource.data.userId
+        && (resource == null || resource.data.userId == request.auth.uid)
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.rhingSeed == rhingSeed;
     }
 
     // friendRequests/{requestId}: 友達申請。申請者・宛先本人のみ読み書き可能。
@@ -338,17 +355,18 @@ service cloud.firestore {
         && (resource == null
             || request.auth.uid == resource.data.fromUserId
             || request.auth.uid == resource.data.toUserId);
-      // 新規送信、または拒否後の再送信（宛先を問わず送信者本人のみ作成可能）。
-      allow create: if request.auth != null
-        && request.auth.uid == request.resource.data.fromUserId
-        && request.resource.data.toUserId != request.auth.uid
-        && request.resource.data.status == 'pending'
-        && requestId == pairId(request.resource.data.fromUserId, request.resource.data.toUserId);
-      // 承認・拒否（宛先本人）、および相互申請時の即時承認。
+      // 新規送信・拒否後の再送信・相互申請時の即時承認は、全て
+      // Cloud Functions `sendFriendRequest`（Admin SDK）だけが行う。クライアントからの
+      // 直接作成を許すと、レート制限・ブロック中の黙殺・スパム検査を迂回できるため
+      // 禁止する（2026-11-07、セキュリティ点検で追加）。
+      allow create: if false;
+      // 承認・拒否は宛先本人だけ。送信者が自分の申請を`accepted`にして、承認制の
+      // スパム対策（友達・一対の作成条件）を迂回できないようにする（2026-11-07）。
       allow update: if request.auth != null
-        && (request.auth.uid == resource.data.fromUserId || request.auth.uid == resource.data.toUserId)
+        && request.auth.uid == resource.data.toUserId
         && request.resource.data.fromUserId == resource.data.fromUserId
-        && request.resource.data.toUserId == resource.data.toUserId;
+        && request.resource.data.toUserId == resource.data.toUserId
+        && request.resource.data.status in ['accepted', 'declined'];
       // 絶縁の実行時のみ削除を許可する（friendRequestsのidはdirectMessagesの
       // dmIdと同じpairId()で組み立てられているため、requestIdをそのまま
       // directMessagesのdocIdとして参照できる）。削除後は同じ相手に再度

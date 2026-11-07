@@ -1,7 +1,7 @@
 /// 1端末につき登録出来るプッシュ通知トークンの上限数。
 const kMaxFcmTokens = 10;
 
-/// プッシュ通知（FCM）送信先の1端末分。`AppUser.fcmTokens`に保管する。
+/// プッシュ通知（FCM）送信先の1端末分。`users/{uid}/private/fcm`に保管する。
 /// `platform`でCloud Functions側の送信方法（Androidはdata-only、Webは
 /// `webpush`ペイロード）を出し分ける。
 class FcmTokenEntry {

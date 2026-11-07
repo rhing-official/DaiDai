@@ -1,10 +1,10 @@
 import 'dart:io' show Platform;
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 
 import '../models/fcm_token_entry.dart';
-import 'user_repository.dart';
 
 /// Web Push証明書（VAPIDキー）。Firebase Console（`rhing.official@gmail.com`）
 /// →プロジェクト設定→Cloud Messaging→「ウェブ構成」→「ウェブプッシュ証明書」で
@@ -16,13 +16,12 @@ const _webPushVapidKey =
 /// プッシュ通知（FCM）のトークン登録を扱うリポジトリ。今回の実装範囲は
 /// Web（デスクトップブラウザ）+ Androidのみ（iOS/macOSはApple Developer
 /// Program未加入、Windows/Linuxは`firebase_messaging`が非対応のため対象外、
-/// 2026-08-31）。実際の永続化は[UserRepository.addToProfileList]/
-/// [removeFromProfileList]に委譲する（`AppUser.fcmTokens`はその他の蔵の
-/// リストと同じ配列フィールドの為、専用の書き込みメソッドを新設せず
-/// 既存の汎用メソッドを再利用する）。
+/// 2026-08-31）。トークンの保存先は`users/{uid}/private/fcm`（本人のみ読み書き、
+/// 2026-11-07。以前は`users/{uid}.fcmTokens`で、全ログイン者が他人の端末トークンを
+/// 読めたため移した）。
 abstract class PushNotificationRepository {
   /// 通知権限をリクエストし、許可されればFCMトークンを取得して
-  /// [userId]の`fcmTokens`に登録する。対応外プラットフォーム（iOS/macOS/
+  /// [userId]の`private/fcm`に登録する。対応外プラットフォーム（iOS/macOS/
   /// Windows/Linux）では何もしない。戻り値は実際に許可されFCMトークンの
   /// 登録まで完了したか（2026-09-01、設定タブのトグルUIが結果を表示に
   /// 反映出来るよう`Future<void>`から変更）。
@@ -38,12 +37,24 @@ abstract class PushNotificationRepository {
 class FirebaseMessagingPushNotificationRepository
     implements PushNotificationRepository {
   FirebaseMessagingPushNotificationRepository({
-    required this.userRepository,
+    FirebaseFirestore? firestore,
     FirebaseMessaging? messaging,
-  }) : _messaging = messaging ?? FirebaseMessaging.instance;
+  }) : _firestore = firestore ?? FirebaseFirestore.instance,
+       _messaging = messaging ?? FirebaseMessaging.instance;
 
-  final UserRepository userRepository;
+  final FirebaseFirestore _firestore;
   final FirebaseMessaging _messaging;
+
+  DocumentReference<Map<String, dynamic>> _tokenDoc(String userId) => _firestore
+      .collection('users')
+      .doc(userId)
+      .collection('private')
+      .doc('fcm');
+
+  Future<void> _addToken(String userId, FcmTokenEntry entry) =>
+      _tokenDoc(userId).set({
+        'tokens': FieldValue.arrayUnion([entry.toJson()]),
+      }, SetOptions(merge: true));
 
   static bool get _supportedPlatform => kIsWeb || Platform.isAndroid;
   static String get _platformName => kIsWeb ? 'web' : 'android';
@@ -62,10 +73,9 @@ class FirebaseMessagingPushNotificationRepository
     );
     if (token == null) return false;
 
-    await userRepository.addToProfileList(
+    await _addToken(
       userId,
-      'fcmTokens',
-      FcmTokenEntry(token: token, platform: _platformName).toJson(),
+      FcmTokenEntry(token: token, platform: _platformName),
     );
     return true;
   }
@@ -73,10 +83,9 @@ class FirebaseMessagingPushNotificationRepository
   @override
   Stream<String> onTokenRefresh(String userId) {
     return _messaging.onTokenRefresh.asyncMap((token) async {
-      await userRepository.addToProfileList(
+      await _addToken(
         userId,
-        'fcmTokens',
-        FcmTokenEntry(token: token, platform: _platformName).toJson(),
+        FcmTokenEntry(token: token, platform: _platformName),
       );
       return token;
     });
@@ -89,10 +98,10 @@ class FirebaseMessagingPushNotificationRepository
       vapidKey: kIsWeb ? _webPushVapidKey : null,
     );
     if (token == null) return;
-    await userRepository.removeFromProfileList(
-      userId,
-      'fcmTokens',
-      FcmTokenEntry(token: token, platform: _platformName).toJson(),
-    );
+    await _tokenDoc(userId).set({
+      'tokens': FieldValue.arrayRemove([
+        FcmTokenEntry(token: token, platform: _platformName).toJson(),
+      ]),
+    }, SetOptions(merge: true));
   }
 }

@@ -128,9 +128,16 @@ service firebase.storage {
     // 添付された画像（2026-09-11追加）。未ログインの一般訪問者が送信するお問い合わせの
     // 裏付け画像のため認証無しでアップロード可能とする。スパム・不正利用対策として
     // 画像のみ・5MB以下に制限。閲覧は問い合わせ確認担当が見られるよう誰でも可能。
+    //
+    // 2026-11-07（セキュリティ点検）: 一覧（list）は管理者のみ（誰でも一覧できると、
+    // 他人のお問い合わせ画像＝個人情報を含みうる画像を総なめにできるため）。個別の
+    // 取得（get）は、HomePage側が`getDownloadURL`で確認用URLを取るため従来どおり
+    // 残す。ファイル名はHomePage側で推測困難な名前にすること。既存ファイルの上書き
+    // （resource != null）と削除は不可（作成のみ）。
     match /contactAttachments/{fileName} {
-      allow read: if true;
-      allow write: if request.resource.size < 5 * 1024 * 1024
+      allow get: if true;
+      allow list: if request.auth != null && request.auth.token.admin == true;
+      allow create: if request.resource.size < 5 * 1024 * 1024
         && request.resource.contentType.matches('image/.*');
     }
   }

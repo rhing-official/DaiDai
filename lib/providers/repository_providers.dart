@@ -147,9 +147,7 @@ final noteRepositoryProvider = Provider<NoteRepository>((ref) {
 
 final pushNotificationRepositoryProvider = Provider<PushNotificationRepository>(
   (ref) {
-    return FirebaseMessagingPushNotificationRepository(
-      userRepository: ref.watch(userRepositoryProvider),
-    );
+    return FirebaseMessagingPushNotificationRepository();
   },
 );
 

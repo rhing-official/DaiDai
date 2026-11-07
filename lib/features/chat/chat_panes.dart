@@ -348,7 +348,7 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
   void initState() {
     super.initState();
     // 構築中のプロバイダ変更を避ける為、次のマイクロタスクで記録する。
-    Future.microtask(() => _openChat.open(OpenChat.dm(widget.dm)));
+    Future.microtask(() => _openChat.open(_openChatSnapshot(), owner: this));
     _cacheEntry = _cacheManager.attach(_cacheKey);
     _cacheEntry.addListener(_onCacheEntryChanged);
     _cacheEntry.ensureSubscribed(
@@ -365,6 +365,14 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
         .read(lastOpenedRoomProvider.notifier)
         .setLastRoom(ViewedDm(widget.dm.dmId), _currentRoomId);
   }
+
+  /// 開き直し用の記録（[openChatProvider]）の中身。今の寄合を含める。
+  OpenChat _openChatSnapshot() => OpenChat.dm(
+    widget.dm,
+    roomId: _currentRoomId,
+    roomName: _currentRoomName,
+    showRoomTabBar: widget.showRoomTabBar,
+  );
 
   void _onCacheEntryChanged() {
     if (mounted) setState(() {});
@@ -421,6 +429,9 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
     oldEntry.removeListener(_onCacheEntryChanged);
     ref.read(chatRoomMessageCacheManagerProvider).detach(oldKey, oldEntry);
     _scheduleGuaranteedMessagesEmit();
+    Future.microtask(() {
+      if (mounted) _openChat.open(_openChatSnapshot(), owner: this);
+    });
     ref
         .read(lastOpenedRoomProvider.notifier)
         .setLastRoom(ViewedDm(widget.dm.dmId), roomId);
@@ -460,8 +471,7 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
 
   @override
   void dispose() {
-    final dmId = widget.dm.dmId;
-    Future.microtask(() => _openChat.close(dmId));
+    Future.microtask(() => _openChat.close(this));
     _cacheEntry.removeListener(_onCacheEntryChanged);
     _cacheManager.detach(_cacheKey, _cacheEntry);
     _messagesController.close();
@@ -2248,7 +2258,7 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
   void initState() {
     super.initState();
     // 構築中のプロバイダ変更を避ける為、次のマイクロタスクで記録する。
-    Future.microtask(() => _openChat.open(OpenChat.group(widget.group)));
+    Future.microtask(() => _openChat.open(_openChatSnapshot(), owner: this));
     _cacheEntry = _cacheManager.attach(_cacheKey);
     _cacheEntry.addListener(_onCacheEntryChanged);
     _cacheEntry.ensureSubscribed(
@@ -2314,6 +2324,14 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
     });
   }
 
+  /// 開き直し用の記録（[openChatProvider]）の中身。今の寄合を含める。
+  OpenChat _openChatSnapshot() => OpenChat.group(
+    widget.group,
+    roomId: _currentRoomId,
+    roomName: _currentRoomName,
+    showRoomTabBar: widget.showRoomTabBar,
+  );
+
   void _onCacheEntryChanged() {
     if (mounted) setState(() {});
   }
@@ -2369,6 +2387,9 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
       _cacheKey = newKey;
       _cacheEntry = newEntry;
     });
+    Future.microtask(() {
+      if (mounted) _openChat.open(_openChatSnapshot(), owner: this);
+    });
     oldEntry.removeListener(_onCacheEntryChanged);
     ref.read(chatRoomMessageCacheManagerProvider).detach(oldKey, oldEntry);
     _scheduleGuaranteedMessagesEmit();
@@ -2410,8 +2431,7 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
 
   @override
   void dispose() {
-    final groupId = widget.group.groupId;
-    Future.microtask(() => _openChat.close(groupId));
+    Future.microtask(() => _openChat.close(this));
     _cacheEntry.removeListener(_onCacheEntryChanged);
     _cacheManager.detach(_cacheKey, _cacheEntry);
     _messagesController.close();

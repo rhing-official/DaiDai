@@ -405,7 +405,14 @@ class FirestoreDirectMessageRepository implements DirectMessageRepository {
 
     if (doc.exists) {
       final data = doc.data()!;
-      final existingRooms = await ref.collection('rooms').limit(1).get();
+      // 絞り込み無しの一覧取得は、firestore.rulesの`rooms`の読み取り条件（参加者であること）を
+      // クエリ自体が満たすと証明できず`permission-denied`になる。自分が参加する寄合に絞る
+      // （`watchRooms`と同じ、2026-11-07修正。プロフィールカードの飛行機ボタンが失敗していた）。
+      final existingRooms = await ref
+          .collection('rooms')
+          .where('participants', arrayContains: a.userId)
+          .limit(1)
+          .get();
       if (existingRooms.docs.isNotEmpty) {
         return DirectMessage.fromJson(dmId, data);
       }
