@@ -346,6 +346,15 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.rhingSeed == rhingSeed;
     }
 
+    // rhingSeedAliases/{旧rhingSeed}: Rhing Seed変更後60日間だけ残す、旧Seedの
+    // 予約と旧招待リンクの転送先（`uid`・`expiresAt`のみ、2026-11-07）。書き込みは
+    // Cloud Functions `changeRhingSeed`（Admin SDK）だけ。招待リンクの解決に
+    // 旧Seedを指定して1件取得する場合だけ読めるようにし、一覧は許可しない。
+    match /rhingSeedAliases/{oldSeed} {
+      allow get: if request.auth != null;
+      allow list, write: if false;
+    }
+
     // friendRequests/{requestId}: 友達申請。申請者・宛先本人のみ読み書き可能。
     // idはpairId()で決定的に組み立てられ、1組の相手につき常に1ドキュメントのみ存在する。
     match /friendRequests/{requestId} {

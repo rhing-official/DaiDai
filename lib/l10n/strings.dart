@@ -48,6 +48,7 @@ class Strings {
     required this.settingsCallJoinCameraSubtitle,
     required this.settingsFolderSupport,
     required this.settingsAnnouncements,
+    required this.settingsCommunity,
     required this.settingsAboutApp,
     required this.settingsAppVersion,
     required this.settingsTermsOfService,
@@ -175,6 +176,14 @@ class Strings {
     required this.soundUploadUnsupportedFormatError,
     required this.settingsAccountInfoSection,
     required this.settingsRhingSeedLabel,
+    required this.settingsRhingSeedChange,
+    required this.rhingSeedChangeNotice,
+    required this.rhingSeedChangeNewLabel,
+    required this.rhingSeedChangeSubmit,
+    required this.rhingSeedChangeSameError,
+    required this.rhingSeedChangeTooSoonTemplate,
+    required this.rhingSeedChangeFailedTemplate,
+    required this.rhingSeedChangeDone,
     required this.settingsSecurity,
     required this.settingsTwoFactor,
     required this.twoFactorEnabledStatus,
@@ -1081,6 +1090,9 @@ class Strings {
   final String settingsCallJoinCameraSubtitle;
   final String settingsFolderSupport;
   final String settingsAnnouncements;
+
+  /// 設定>運営の「Rhingコミュニティに参加」（2026-11-07）。
+  final String settingsCommunity;
   final String settingsAboutApp;
   final String settingsAppVersion;
   final String settingsTermsOfService;
@@ -1228,6 +1240,14 @@ class Strings {
   final String soundUploadUnsupportedFormatError;
   final String settingsAccountInfoSection;
   final String settingsRhingSeedLabel;
+  final String settingsRhingSeedChange;
+  final String rhingSeedChangeNotice;
+  final String rhingSeedChangeNewLabel;
+  final String rhingSeedChangeSubmit;
+  final String rhingSeedChangeSameError;
+  final String Function(String date) rhingSeedChangeTooSoonTemplate;
+  final String Function(Object error) rhingSeedChangeFailedTemplate;
+  final String rhingSeedChangeDone;
   final String settingsSecurity;
   final String settingsTwoFactor;
   final String twoFactorEnabledStatus;
@@ -2440,6 +2460,7 @@ class Strings {
         'オフにすると、ビデオ通話に応答・参加した時はカメラを切った状態（音声のみ）で入ります。\n通話中にいつでもオンに出来ます。\n自分から発信する1対1のビデオ通話には影響しません。',
     settingsFolderSupport: '運営',
     settingsAnnouncements: 'お便り',
+    settingsCommunity: 'Rhingコミュニティに参加',
     settingsAboutApp: 'アプリについて',
     settingsAppVersion: 'バージョン',
     settingsTermsOfService: '利用規約',
@@ -2578,6 +2599,15 @@ class Strings {
         '対応していない形式です（mp3・wav・m4a・ogg・aacのいずれかを選んで下さい）',
     settingsAccountInfoSection: 'アカウント情報',
     settingsRhingSeedLabel: 'Rhing Seed',
+    settingsRhingSeedChange: 'Rhing Seedを変更',
+    rhingSeedChangeNotice:
+        'Rhing Seedは100日に1回だけ変更できます。変更前のRhing Seedは60日間、他の人が使えません。その間、変更前のRhing Seedで配った招待リンク・QRコードは新しいRhing Seedへ転送されます（ログインには新しいRhing Seedを使います）。',
+    rhingSeedChangeNewLabel: '新しいRhing Seed',
+    rhingSeedChangeSubmit: '変更する',
+    rhingSeedChangeSameError: '現在のRhing Seedと同じです',
+    rhingSeedChangeTooSoonTemplate: (date) => '$date以降に変更できます',
+    rhingSeedChangeFailedTemplate: (error) => '変更に失敗しました: $error',
+    rhingSeedChangeDone: 'Rhing Seedを変更しました',
     settingsSecurity: 'セキュリティ',
     settingsTwoFactor: '2段階認証',
     twoFactorEnabledStatus: '有効',
@@ -3539,6 +3569,7 @@ class Strings {
         'When off, you join video calls you answer or join with your camera off (audio only). You can turn it on at any time during the call. This doesn\'t affect one-to-one video calls you start yourself.',
     settingsFolderSupport: 'Support',
     settingsAnnouncements: 'Letters',
+    settingsCommunity: 'Join the Rhing community',
     settingsAboutApp: 'About this app',
     settingsAppVersion: 'Version',
     settingsTermsOfService: 'Terms of Service',
@@ -3690,6 +3721,15 @@ class Strings {
         'Unsupported format (choose mp3, wav, m4a, ogg, or aac)',
     settingsAccountInfoSection: 'Account information',
     settingsRhingSeedLabel: 'Rhing Seed',
+    settingsRhingSeedChange: 'Change Rhing Seed',
+    rhingSeedChangeNotice:
+        'You can change your Rhing Seed once every 100 days. Your previous Rhing Seed is reserved for 60 days, so nobody else can take it. During that time, invitation links and QR codes made with the previous Rhing Seed are forwarded to the new one (use the new Rhing Seed to sign in).',
+    rhingSeedChangeNewLabel: 'New Rhing Seed',
+    rhingSeedChangeSubmit: 'Change',
+    rhingSeedChangeSameError: 'This is already your Rhing Seed',
+    rhingSeedChangeTooSoonTemplate: (date) => 'You can change it again from $date',
+    rhingSeedChangeFailedTemplate: (error) => 'Could not change it: $error',
+    rhingSeedChangeDone: 'Your Rhing Seed has been changed',
     settingsSecurity: 'Security',
     settingsTwoFactor: 'Two-factor authentication',
     twoFactorEnabledStatus: 'Enabled',

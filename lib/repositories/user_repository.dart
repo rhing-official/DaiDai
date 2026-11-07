@@ -15,6 +15,7 @@ import '../models/sound_preset.dart';
 import '../models/user_invite_preview.dart';
 import '../utils/image_format.dart';
 import '../utils/reserved_rhing_seeds.dart';
+import '../utils/rhing_seed_format.dart';
 import '../utils/sound_upload.dart';
 
 /// 一括停止/解除（[UserRepository.setAccountsSuspended]）の結果。
@@ -41,6 +42,15 @@ abstract class UserRepository {
   Future<void> createUser(AppUser user);
   Future<AppUser?> findByRhingSeed(String rhingSeed);
   Future<bool> isRhingSeedAvailable(String rhingSeed);
+
+  /// Rhing Seedを[newSeed]へ変更する（Cloud Functions `changeRhingSeed`、2026-11-07）。
+  /// 100日に1回まで。形式違反・使用中・予約中・間隔未満は[FirebaseFunctionsException]。
+  Future<void> changeRhingSeed(String newSeed);
+
+  /// 次にRhing Seedを変更できる日時。まだ一度も変更していない（今すぐ変更できる）
+  /// 場合はnull。
+  Future<DateTime?> getRhingSeedNextChangeAt(String userId);
+
   Future<void> updateUser(AppUser user);
 
   /// 蔵の配列フィールド（icons/backgroundImages/statusMessages/nicknames/
@@ -488,12 +498,50 @@ class FirestoreUserRepository implements UserRepository {
 
   @override
   Future<AppUser?> findByRhingSeed(String rhingSeed) async {
+    final seed = rhingSeed.toLowerCase();
     final snapshot = await _users
-        .where('rhingSeed', isEqualTo: rhingSeed.toLowerCase())
+        .where('rhingSeed', isEqualTo: seed)
         .limit(1)
         .get();
-    if (snapshot.docs.isEmpty) return null;
-    return AppUser.fromJson(snapshot.docs.first.data());
+    if (snapshot.docs.isNotEmpty) {
+      return AppUser.fromJson(snapshot.docs.first.data());
+    }
+    // 変更前のSeed（60日間は新Seedへ転送）。期限切れは見つからない扱い。
+    try {
+      final alias = await _firestore
+          .collection('rhingSeedAliases')
+          .doc(seed)
+          .get();
+      final data = alias.data();
+      if (data == null) return null;
+      final expiresAt = (data['expiresAt'] as Timestamp?)?.toDate();
+      if (expiresAt == null || !expiresAt.isAfter(DateTime.now())) return null;
+      return getUser(data['uid'] as String);
+    } on FirebaseException {
+      return null;
+    }
+  }
+
+  @override
+  Future<void> changeRhingSeed(String newSeed) async {
+    await _functions.httpsCallable('changeRhingSeed').call({
+      'newSeed': newSeed,
+    });
+  }
+
+  @override
+  Future<DateTime?> getRhingSeedNextChangeAt(String userId) async {
+    final doc = await _users
+        .doc(userId)
+        .collection('private')
+        .doc('seedChange')
+        .get();
+    final changedAt = (doc.data()?['changedAt'] as Timestamp?)?.toDate();
+    if (changedAt == null) return null;
+    final next = changedAt.add(
+      const Duration(days: kRhingSeedChangeIntervalDays),
+    );
+    return next.isAfter(DateTime.now()) ? next : null;
   }
 
   @override
@@ -503,7 +551,14 @@ class FirestoreUserRepository implements UserRepository {
         .where('rhingSeed', isEqualTo: rhingSeed.toLowerCase())
         .limit(1)
         .get();
-    return snapshot.docs.isEmpty;
+    if (snapshot.docs.isNotEmpty) return false;
+    // 変更前のSeedは60日間予約されていて取得できない（変更時はサーバー側でも検査する）。
+    final alias = await _firestore
+        .collection('rhingSeedAliases')
+        .doc(rhingSeed.toLowerCase())
+        .get();
+    final expiresAt = (alias.data()?['expiresAt'] as Timestamp?)?.toDate();
+    return expiresAt == null || !expiresAt.isAfter(DateTime.now());
   }
 
   @override

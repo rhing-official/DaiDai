@@ -107,9 +107,12 @@ import '../../widgets/slide_drilldown.dart';
 import '../auth/passcode_setup_dialog.dart';
 import '../auth/two_factor_setup_dialog.dart';
 import '../chat/announcement_screen.dart';
+import '../../router/app_router.dart' show goRouterProvider;
+import '../../utils/community_group.dart';
 import '../chat/group_member_list_screen.dart';
 import 'owned_sticker_packs_popup.dart';
 import 'passkey_management_dialog.dart';
+import 'rhing_seed_change_dialog.dart';
 import 'settings_accordion_section.dart';
 import '../../widgets/dialog_keyboard_shortcuts.dart';
 import '../../widgets/app_dialog.dart';
@@ -1613,6 +1616,12 @@ class _SupportPage extends ConsumerWidget {
           label: strings.settingsAnnouncements,
           onTap: onOpenAnnouncements,
         ),
+        if (kCommunityGroupId.isNotEmpty)
+          _ActionRow(
+            label: strings.settingsCommunity,
+            onTap: () =>
+                ref.read(goRouterProvider).push('/join/$kCommunityGroupId'),
+          ),
         _ActionRow(label: strings.settingsUsageGuide, onTap: onOpenGuide),
         _ActionRow(
           label: strings.settingsContact,
@@ -1978,6 +1987,21 @@ class _AccountPage extends ConsumerWidget {
         _CopyableInfoRow(
           label: strings.settingsRhingSeedLabel,
           value: '@${currentUser.rhingSeed}',
+        ),
+        _ActionRow(
+          label: strings.settingsRhingSeedChange,
+          onTap: () async {
+            final changed = await RhingSeedChangeDialog.show(
+              context,
+              userId: currentUser.userId,
+              currentSeed: currentUser.rhingSeed,
+            );
+            if (changed == true && context.mounted) {
+              ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(SnackBar(content: Text(strings.rhingSeedChangeDone)));
+            }
+          },
         ),
         _SeedSearchableRow(strings: strings, currentUser: currentUser),
         // 居住地（伝書鳩・安否確認用の自己申告、2026-10-16追加）。
@@ -2574,7 +2598,9 @@ class ApplicationSettingsView extends ConsumerWidget {
     final strings = ref.watch(appStringsProvider);
     return Padding(
       padding: const EdgeInsets.only(top: 56),
+      // 幅の頭打ちを外し、広い窓では項目を複数列に並べる（2026-11-07）。
       child: _SettingsPage(
+        maxWidth: double.infinity,
         child: _ApplicationPage(strings: strings, showNavChips: false),
       ),
     );

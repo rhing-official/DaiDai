@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/app_user.dart';
 import '../../models/app_user_preferences.dart';
 import '../../providers/repository_providers.dart';
+import '../../utils/rhing_seed_format.dart';
 import '../../widgets/fixed_font_theme.dart';
 import '../guide/first_run_tutorial_screen.dart';
 import '../home/home_screen.dart';
@@ -24,14 +25,13 @@ class RhingSeedSetupScreen extends ConsumerStatefulWidget {
 
 class _RhingSeedSetupScreenState extends ConsumerState<RhingSeedSetupScreen> {
   final _controller = TextEditingController();
-  static final _validPattern = RegExp(r'^[a-zA-Z0-9._-]{1,20}$');
 
   bool _isSubmitting = false;
   String? _errorMessage;
 
   Future<void> _submit() async {
     final rhingSeed = _controller.text.trim();
-    if (!_validPattern.hasMatch(rhingSeed)) {
+    if (!rhingSeedPattern.hasMatch(rhingSeed)) {
       setState(() {
         _errorMessage = ref.read(appStringsProvider).rhingSeedSetupInvalidError;
       });

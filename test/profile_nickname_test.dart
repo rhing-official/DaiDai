@@ -76,6 +76,12 @@ class _FakeUserRepository implements UserRepository {
   Future<void> setSeedSearchable(String userId, bool searchable) async {}
 
   @override
+  Future<void> changeRhingSeed(String newSeed) async {}
+
+  @override
+  Future<DateTime?> getRhingSeedNextChangeAt(String userId) async => null;
+
+  @override
   Future<void> setBirthday(
     String userId,
     Map<String, dynamic>? birthday,

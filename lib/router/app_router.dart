@@ -450,7 +450,8 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         // 通常のDaiDaiサインインを要求した上で、AdminGateが管理者クレームを
         // 確認する（未サインインでは管理者判定に届かせない）。
         path: '/admin',
-        pageBuilder: (context, state) => slideDetailPage(
+        // 右スワイプで戻る動き（slideDetailPage）は付けない（2026-11-07）。
+        pageBuilder: (context, state) => opaqueFalsePage(
           state,
           AuthGate(
             builder: (context, currentUser) =>

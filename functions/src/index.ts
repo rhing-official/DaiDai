@@ -35,6 +35,7 @@ import ffmpeg from "fluent-ffmpeg";
 import ffmpegPath from "ffmpeg-static";
 import Stripe from "stripe";
 import { parseKiwamiReference } from "./kiwamiReference";
+import { aliasExpiresAtMs, evaluateSeedChange } from "./rhingSeedChange";
 
 import {
   WEBHOOK_BODY_MAX_BYTES,
@@ -243,12 +244,126 @@ export const deleteAccountImmediately = onCall(
   },
 );
 
+/**
+ * Rhing Seedを変更する（設定＞アカウント、2026-11-07）。`users`のルールは
+ * `rhingSeed`の更新を禁止している（予約語の迂回・他人のSeedへの書き換え防止）
+ * ため、Admin SDKのこの関数だけが変更できる。判定は[evaluateSeedChange]。
+ *
+ * - 変更は100日に1回。最終変更日時は`users/{uid}/private/seedChange`の1件だけ
+ *   （過去のSeedの履歴は持たない）。
+ * - 変更前のSeedは`rhingSeedAliases/{旧seed}`（uid・期限のみ）として60日間予約し、
+ *   旧招待リンクを新Seedへ転送する。期限が切れたら[purgeExpiredSeedAliases]が消す。
+ */
+export const changeRhingSeed = onCall(
+  { region: "asia-northeast1" },
+  async (request) => {
+    const uid = request.auth?.uid;
+    if (!uid) {
+      throw new HttpsError("unauthenticated", "ログインが必要です");
+    }
+    const requested = request.data?.newSeed;
+    if (typeof requested !== "string") {
+      throw new HttpsError("invalid-argument", "newSeedが必要です");
+    }
+    const userRef = db.collection("users").doc(uid);
+    const changeRef = userRef.collection("private").doc("seedChange");
+
+    const newSeed = await db.runTransaction(async (tx) => {
+      const userDoc = await tx.get(userRef);
+      if (!userDoc.exists) {
+        throw new HttpsError("not-found", "ユーザーが見つかりません");
+      }
+      const currentSeed = String(userDoc.data()?.rhingSeed ?? "");
+      const normalized = requested.trim().toLowerCase();
+      const [changeDoc, takenSnap, aliasDoc] = await Promise.all([
+        tx.get(changeRef),
+        tx.get(
+          db
+            .collection("users")
+            .where("rhingSeed", "==", normalized)
+            .limit(2),
+        ),
+        tx.get(db.collection("rhingSeedAliases").doc(normalized)),
+      ]);
+      const changedAt = changeDoc.data()?.changedAt as Timestamp | undefined;
+      const aliasData = aliasDoc.data();
+      const nowMs = Date.now();
+      const result = evaluateSeedChange({
+        newSeed: requested,
+        currentSeed,
+        lastChangedAtMs: changedAt ? changedAt.toMillis() : null,
+        nowMs,
+        takenByOther: takenSnap.docs.some((d) => d.id !== uid),
+        alias: aliasData
+          ? {
+              uid: String(aliasData.uid),
+              expiresAtMs: (aliasData.expiresAt as Timestamp).toMillis(),
+            }
+          : null,
+        uid,
+      });
+      if (!result.ok) {
+        throw new HttpsError(result.error.code, result.error.message);
+      }
+
+      const oldInviteRef = db.collection("userInvites").doc(currentSeed);
+      const oldInvite = await tx.get(oldInviteRef);
+
+      tx.update(userRef, { rhingSeed: result.newSeed });
+      tx.set(changeRef, { changedAt: Timestamp.fromMillis(nowMs) });
+      if (currentSeed) {
+        tx.set(db.collection("rhingSeedAliases").doc(currentSeed), {
+          uid,
+          expiresAt: Timestamp.fromMillis(aliasExpiresAtMs(nowMs)),
+        });
+        tx.delete(oldInviteRef);
+      }
+      if (result.restoringOwnAlias) {
+        tx.delete(db.collection("rhingSeedAliases").doc(result.newSeed));
+      }
+      if (oldInvite.exists) {
+        tx.set(db.collection("userInvites").doc(result.newSeed), oldInvite.data()!);
+      }
+      return result.newSeed;
+    });
+
+    logger.info(`Rhing Seed変更: ${uid}`);
+    return { rhingSeed: newSeed };
+  },
+);
+
+/** 期限（60日）が切れた旧Seedの予約を毎日削除する。旧→新の対応を長く残さない
+ * ための掃除（Firestore TTLポリシーを設定した場合は不要になる）。 */
+export const purgeExpiredSeedAliases = onSchedule(
+  { schedule: "30 0 * * *", timeZone: "Asia/Tokyo", region: "asia-northeast1" },
+  async () => {
+    const snapshot = await db
+      .collection("rhingSeedAliases")
+      .where("expiresAt", "<=", Timestamp.now())
+      .get();
+    const writer = new ChunkedWriter();
+    for (const doc of snapshot.docs) {
+      await writer.delete(doc.ref);
+    }
+    await writer.commit();
+  },
+);
+
 async function deleteAccount(
   userId: string,
   userData: FirebaseFirestore.DocumentData,
 ): Promise<void> {
   const rhingSeed: string | undefined = userData.rhingSeed;
   const writer = new ChunkedWriter();
+
+  // 変更前のSeedの予約（対応表）も残さない。
+  const aliasSnap = await db
+    .collection("rhingSeedAliases")
+    .where("uid", "==", userId)
+    .get();
+  for (const doc of aliasSnap.docs) {
+    await writer.delete(doc.ref);
+  }
 
   await notifyDirectMessages(userId, rhingSeed, writer);
   await notifyAndLeaveGroups(userId, rhingSeed, writer);

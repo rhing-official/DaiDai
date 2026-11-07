@@ -1,4 +1,7 @@
 import 'dart:async';
+import 'dart:typed_data';
+
+import 'package:http/http.dart' as http;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,11 +12,13 @@ import '../../models/message.dart';
 import '../../models/official_profile.dart';
 import '../../providers/repository_providers.dart';
 import '../../utils/auto_dismiss_banner.dart';
+import '../../utils/image_format.dart';
 import '../../router/back_stack.dart';
 import '../../widgets/nav_chip.dart';
 import '../chat/chat_screen.dart';
 import '../settings/settings_tab.dart';
 import 'admin_user_list.dart';
+import 'icon_crop_dialog.dart';
 
 /// 運営向け管理画面本体（2026-08-12新設）。住人一覧・お便り・お便りの
 /// 身だしなみ・設定の4タブを、利用者画面のホームと同じ丸いナビチップで
@@ -155,12 +160,31 @@ class _OfficialProfileSectionState
     );
   }
 
-  Future<void> _pickAndUploadIcon() async {
-    final picked = await ImagePicker().pickImage(source: ImageSource.gallery);
-    if (picked == null) return;
+  /// 登録済みのアイコンがあれば、ファイル選択ではなく今の画像の範囲選択を開く
+  /// （ダイアログ内の「画像を変更」で別の画像を選べる）。取得に失敗したら
+  /// 従来どおりファイルを選ぶ。
+  Future<void> _pickAndUploadIcon(String? currentUrl) async {
+    Uint8List? bytes;
+    if (currentUrl != null) {
+      try {
+        final res = await http.get(Uri.parse(currentUrl));
+        if (res.statusCode == 200) bytes = res.bodyBytes;
+      } catch (_) {}
+    }
+    if (bytes == null) {
+      final picked = await ImagePicker().pickImage(source: ImageSource.gallery);
+      if (picked == null) return;
+      bytes = await picked.readAsBytes();
+    }
+    // GIFはトリミングするとアニメーションが失われる為、そのまま上げる。
+    if (!isGifBytes(bytes)) {
+      if (!mounted) return;
+      final cropped = await showIconCropDialog(context, bytes);
+      if (cropped == null) return;
+      bytes = cropped;
+    }
     setState(() => _uploadingIcon = true);
     try {
-      final bytes = await picked.readAsBytes();
       await ref.read(announcementRepositoryProvider).updateOfficialIcon(bytes);
     } catch (e) {
       _showBanner('アイコンの更新に失敗しました: $e');
@@ -205,7 +229,7 @@ class _OfficialProfileSectionState
                 _OfficialIconButton(
                   iconUrl: profile.iconUrl,
                   uploading: _uploadingIcon,
-                  onTap: _pickAndUploadIcon,
+                  onTap: () => _pickAndUploadIcon(profile.iconUrl),
                 ),
                 const SizedBox(height: 24),
                 TextField(
