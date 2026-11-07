@@ -693,9 +693,10 @@ class _CategoryList extends ConsumerWidget {
     // サイドバーはなぞった先をその場で選び、狭い画面（[large]）はなぞっている間だけ
     // 強調して、指を離した項目を開く。
     final narrow = large;
-    final alignment = narrow && isGekiga
-        ? ref.watch(categoryListAlignmentProvider)
-        : null;
+    // 縦表示で項目一覧を下（メニューチップのすぐ上）へ寄せる設定（全スタイル）。
+    final bottom =
+        narrow &&
+        ref.watch(categoryListVerticalProvider) == CategoryListVertical.bottom;
     return SlideSelectList(
       itemCount: categories.length,
       onSlide: narrow ? null : (i) => onSelect(categories[i]),
@@ -705,11 +706,13 @@ class _CategoryList extends ConsumerWidget {
             narrow ? i == slidingIndex : categories[i].id == selectedId;
         if (isGekiga) {
           return alignCategoryList(
-            alignment,
+            bottom: bottom,
             SingleChildScrollView(
+              // 下寄せの時は逆向きのスクロールにして、内容が短くても下に寄せる
+              // （並びは変わらない。長ければこれまでどおりスクロールする）。
+              reverse: bottom,
               padding: const EdgeInsets.symmetric(horizontal: 8),
               child: GekigaJointedTileList(
-                alignEnd: alignment == NavChipAlignment.end,
                 seeds: [
                   for (final category in categories) category.title.hashCode,
                 ],
@@ -735,9 +738,10 @@ class _CategoryList extends ConsumerWidget {
           );
         }
         return alignCategoryList(
-          alignment,
+          bottom: bottom,
           ListView(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
+            shrinkWrap: bottom,
+            padding: EdgeInsets.fromLTRB(8, 0, 8, bottom ? 8 : 0),
             children: [
               for (var i = 0; i < categories.length; i++)
                 KeyedSubtree(
@@ -4159,10 +4163,6 @@ class NavChipLayoutFolder extends ConsumerWidget {
     final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
     final colorScheme = Theme.of(context).colorScheme;
 
-    final listAlignment = ref.watch(categoryListAlignmentProvider);
-    void selectListAlignment(NavChipAlignment value) =>
-        ref.read(categoryListAlignmentProvider.notifier).setAlignment(value);
-
     // 縦表示（下端の横並び: 左・中央・右）と横表示（左端の縦並び: 上・中央・下）は、
     // 別々に保存する（2026-11-06、以前は共通で「上揃え＝左揃え」だった）。
     Widget alignmentControlFor({
@@ -4216,38 +4216,46 @@ class NavChipLayoutFolder extends ConsumerWidget {
       forWide: true,
     );
 
-    final listAlignmentControl = isGekiga
+    // 項目一覧の縦の位置（上・下、縦表示のみ、全スタイル）。
+    final listVertical = ref.watch(categoryListVerticalProvider);
+    void selectListVertical(CategoryListVertical value) =>
+        ref.read(categoryListVerticalProvider.notifier).setVertical(value);
+    String verticalLabel(CategoryListVertical v) => switch (v) {
+      CategoryListVertical.top => strings.settingsCategoryListVerticalTop,
+      CategoryListVertical.bottom => strings.settingsCategoryListVerticalBottom,
+    };
+    final listVerticalControl = isGekiga
         ? GekigaJointedTileList(
-            seeds: [for (final a in NavChipAlignment.values) a.hashCode],
+            seeds: [for (final v in CategoryListVertical.values) v.hashCode],
             selectedFlags: [
-              for (final a in NavChipAlignment.values) listAlignment == a,
+              for (final v in CategoryListVertical.values) listVertical == v,
             ],
             children: [
-              for (final a in NavChipAlignment.values)
+              for (final v in CategoryListVertical.values)
                 GekigaTileContent(
-                  selected: listAlignment == a,
+                  selected: listVertical == v,
                   leading: AppRadioMark(
-                    selected: listAlignment == a,
-                    color: (listAlignment == a)
+                    selected: listVertical == v,
+                    color: (listVertical == v)
                         ? GekigaColors.panel
                         : GekigaColors.onPanel,
                   ),
-                  title: Text(_alignLabel(a, wide: false)),
-                  onTap: () => selectListAlignment(a),
+                  title: Text(verticalLabel(v)),
+                  onTap: () => selectListVertical(v),
                 ),
             ],
           )
-        : RadioGroup<NavChipAlignment>(
-            groupValue: listAlignment,
+        : RadioGroup<CategoryListVertical>(
+            groupValue: listVertical,
             onChanged: (value) {
-              if (value != null) selectListAlignment(value);
+              if (value != null) selectListVertical(value);
             },
             child: Column(
               children: [
-                for (final a in NavChipAlignment.values)
-                  AppRadioListTile<NavChipAlignment>(
-                    value: a,
-                    title: Text(_alignLabel(a, wide: false)),
+                for (final v in CategoryListVertical.values)
+                  AppRadioListTile<CategoryListVertical>(
+                    value: v,
+                    title: Text(verticalLabel(v)),
                   ),
               ],
             ),
@@ -4362,20 +4370,15 @@ class NavChipLayoutFolder extends ConsumerWidget {
           child: GekigaSectionHeader(strings.settingsNavChipsOrderTitle),
         ),
         orderControl,
-        // 項目一覧の揃えは劇画UIでのみ表示・適用する（2026-11-02）。
-        if (isGekiga) ...[
+        // 項目一覧の縦の位置は、縦表示（幅600px未満）でだけ出す（2026-11-07）。
+        if (MediaQuery.sizeOf(context).width < kNavChipWideBreakpoint) ...[
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-            child: GekigaSectionHeader(strings.settingsCategoryListAlignTitle),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-            child: Text(
-              strings.settingsCategoryListAlignNote,
-              style: Theme.of(context).textTheme.bodyMedium,
+            child: GekigaSectionHeader(
+              strings.settingsCategoryListVerticalTitle,
             ),
           ),
-          listAlignmentControl,
+          listVerticalControl,
         ],
       ],
     );

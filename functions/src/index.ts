@@ -4065,10 +4065,15 @@ export const generateVideoThumbnail = onObjectFinalized(
     const filePath = event.data.name;
     const contentType = event.data.contentType;
     if (!filePath || !contentType?.startsWith("video/")) return;
+    if (filePath.includes("_thumb.")) return; // 生成物自身の再帰防止
+    // アルバムの動画（アップロード・メッセージからのコピー）は別の記録先なので別処理。
+    if (filePath.startsWith("albumFiles/")) {
+      await generateAlbumVideoThumbnail(event.data.bucket, filePath);
+      return;
+    }
     if (!filePath.startsWith("dmFiles/") && !filePath.startsWith("groupFiles/")) {
       return;
     }
-    if (filePath.includes("_thumb.")) return; // 生成物自身の再帰防止
 
     const segments = filePath.split("/");
     if (segments.length !== 3 && segments.length !== 4) return;
@@ -4186,6 +4191,91 @@ export const generateVideoThumbnail = onObjectFinalized(
     logger.info(`動画サムネイル記録: ${messageRef.path} [${attachmentIndex}]`);
   },
 );
+
+/**
+ * アルバムの動画（`albumFiles/{dm|group}/{会話id}/{寄合id}/{albumId}/{itemId}.ext`）の
+ * サムネイル（動画の1秒付近の1コマ）を生成し、アイテムの`thumbnailUrl`へ記録する
+ * （2026-11-07）。メッセージの動画（[generateVideoThumbnail]の本体）と同じ方式で、
+ * ブラウザで動画の先頭コマを取れない（黒く見える）場合の表示用。アイテムはファイルの
+ * アップロード後に作られるので、見つかるまで最大約20秒待つ。アルバムの表紙が
+ * この動画なら、表紙の画像もサムネイルにする。
+ */
+async function generateAlbumVideoThumbnail(
+  bucketName: string,
+  filePath: string,
+): Promise<void> {
+  const segments = filePath.split("/");
+  if (segments.length !== 6) return;
+  const [, scope, conversationId, roomId, albumId, fileName] = segments;
+  if (scope !== "dm" && scope !== "group") return;
+  const itemId = fileName.replace(/\.[^.]+$/, "");
+  const bucket = getStorage().bucket(bucketName);
+  const tmpKey = `album-${itemId}`;
+  const tmpVideoPath = path.join(os.tmpdir(), `${tmpKey}-src${path.extname(fileName)}`);
+  const tmpThumbFileName = `${tmpKey}-thumb.jpg`;
+  const tmpThumbPath = path.join(os.tmpdir(), tmpThumbFileName);
+
+  await bucket.file(filePath).download({ destination: tmpVideoPath });
+  const takeScreenshot = (timestamp: string) =>
+    new Promise<void>((resolve, reject) => {
+      ffmpeg(tmpVideoPath)
+        .on("end", () => resolve())
+        .on("error", (err: Error) => reject(err))
+        .screenshots({
+          count: 1,
+          timestamps: [timestamp],
+          filename: tmpThumbFileName,
+          folder: os.tmpdir(),
+        });
+    });
+  try {
+    try {
+      await takeScreenshot("1");
+    } catch (err) {
+      logger.warn(`アルバム動画サムネイル: 1秒位置で失敗、先頭付近で再試行 (${filePath})`, err);
+    }
+    if (!fs.existsSync(tmpThumbPath)) {
+      await takeScreenshot("0.1");
+    }
+    if (!fs.existsSync(tmpThumbPath)) return;
+
+    const thumbStoragePath = `${segments.slice(0, 5).join("/")}/${itemId}_thumb.jpg`;
+    const downloadToken = randomUUID();
+    await bucket.upload(tmpThumbPath, {
+      destination: thumbStoragePath,
+      metadata: {
+        contentType: "image/jpeg",
+        metadata: { firebaseStorageDownloadTokens: downloadToken },
+      },
+    });
+    const thumbnailUrl =
+      `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/` +
+      `${encodeURIComponent(thumbStoragePath)}?alt=media&token=${downloadToken}`;
+
+    const top = scope === "dm" ? "directMessages" : "groups";
+    const albumRef = db.doc(`${top}/${conversationId}/rooms/${roomId}/albums/${albumId}`);
+    const itemRef = albumRef.collection("items").doc(itemId);
+    let item = await itemRef.get();
+    for (let i = 0; i < 10 && !item.exists; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      item = await itemRef.get();
+    }
+    if (!item.exists) {
+      logger.warn(`アルバム動画サムネイル: アイテムが見つかりません (${filePath})`);
+      return;
+    }
+    await itemRef.update({ thumbnailUrl });
+    const album = await albumRef.get();
+    if (album.get("coverItemId") === itemId) {
+      await albumRef.update({ coverThumbnailUrl: thumbnailUrl });
+    }
+    logger.info(`アルバム動画サムネイル記録: ${itemRef.path}`);
+  } finally {
+    for (const tmp of [tmpVideoPath, tmpThumbPath]) {
+      if (fs.existsSync(tmp)) fs.unlinkSync(tmp);
+    }
+  }
+}
 
 // ============================================================
 // スパム対策（技術仕様書8章「スパム対策・仲間システム」、2026-09-07実装）。

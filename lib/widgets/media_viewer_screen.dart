@@ -268,6 +268,8 @@ class _MediaViewerScreenState extends ConsumerState<MediaViewerScreen> {
         onClose: () => Navigator.of(context).pop(),
         appBar: AppBar(
           backgroundColor: Colors.transparent,
+          // 版画テーマのAppBar下の線を出さない（ビューアは背景が透ける）。
+          shape: const Border(),
           foregroundColor: Colors.white,
           elevation: 0,
           // 戻る矢印は出さない（Esc・下スワイプ・外側タップ・戻る操作で閉じる、
@@ -988,6 +990,23 @@ class _VideoViewerPageState extends State<_VideoViewerPage> {
                                   _hideVideo
                                       ? const SizedBox.shrink()
                                       : VideoPlayer(_controller),
+                                  // 映像が無い（映像の形式をこの環境で復号できず、音声だけ再生される）
+                                  // 時は、その旨を出す（2026-11-07）。
+                                  if (!_hideVideo &&
+                                      _controller.value.isInitialized &&
+                                      _controller.value.size.isEmpty)
+                                    Padding(
+                                      padding: const EdgeInsets.all(16),
+                                      child: Text(
+                                        Strings.ofContext(
+                                          context,
+                                        ).mediaVideoUnplayableNotice,
+                                        textAlign: TextAlign.center,
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                    ),
                                   // 動画を隠している間の代役（縮む・液状化する静止画。
                                   // サムネイルが無ければ黒い面）。
                                   Positioned.fill(

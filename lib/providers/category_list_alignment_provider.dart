@@ -1,34 +1,41 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../models/nav_chip_layout.dart';
+const _verticalPrefsKey = 'categoryListVertical';
 
-const _prefsKey = 'categoryListAlignment';
+/// スマホ（縦表示）の項目一覧の縦の位置（2026-11-07）。上（標準）か、下（メニューチップの
+/// すぐ上）。全てのUIスタイルで効く。端末毎に保存する。
+/// （劇画UIだけにあった左右の揃えは同日廃止。）
+enum CategoryListVertical {
+  top,
+  bottom;
 
-/// スマホの項目一覧（設定・身だしなみのカテゴリ一覧）を左寄せ・中央（標準）・右寄せにする
-/// 設定（2026-11-02）。メニューチップの揃えと同じ`NavChipAlignment`を使い、アカウントには
-/// 保存せず端末毎に持つ。端末の保存値は`main()`で起動前に読み込んで渡す。
-final initialCategoryListAlignmentProvider = Provider<NavChipAlignment>(
-  (ref) => NavChipAlignment.center,
-);
-
-Future<NavChipAlignment> loadInitialCategoryListAlignment() async {
-  final prefs = await SharedPreferences.getInstance();
-  return NavChipAlignment.fromName(prefs.getString(_prefsKey));
+  static CategoryListVertical fromName(String? name) =>
+      name == 'bottom' ? CategoryListVertical.bottom : CategoryListVertical.top;
 }
 
-class CategoryListAlignmentNotifier extends Notifier<NavChipAlignment> {
-  @override
-  NavChipAlignment build() => ref.watch(initialCategoryListAlignmentProvider);
+final initialCategoryListVerticalProvider = Provider<CategoryListVertical>(
+  (ref) => CategoryListVertical.top,
+);
 
-  Future<void> setAlignment(NavChipAlignment alignment) async {
-    state = alignment;
+Future<CategoryListVertical> loadInitialCategoryListVertical() async {
+  final prefs = await SharedPreferences.getInstance();
+  return CategoryListVertical.fromName(prefs.getString(_verticalPrefsKey));
+}
+
+class CategoryListVerticalNotifier extends Notifier<CategoryListVertical> {
+  @override
+  CategoryListVertical build() =>
+      ref.watch(initialCategoryListVerticalProvider);
+
+  Future<void> setVertical(CategoryListVertical value) async {
+    state = value;
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_prefsKey, alignment.name);
+    await prefs.setString(_verticalPrefsKey, value.name);
   }
 }
 
-final categoryListAlignmentProvider =
-    NotifierProvider<CategoryListAlignmentNotifier, NavChipAlignment>(
-      CategoryListAlignmentNotifier.new,
+final categoryListVerticalProvider =
+    NotifierProvider<CategoryListVerticalNotifier, CategoryListVertical>(
+      CategoryListVerticalNotifier.new,
     );

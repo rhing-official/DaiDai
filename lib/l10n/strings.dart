@@ -40,8 +40,9 @@ class Strings {
     required this.settingsNavChipsAlignCenter,
     required this.settingsNavChipsAlignEnd,
     required this.settingsNavChipsAlignTop,
-    required this.settingsCategoryListAlignTitle,
-    required this.settingsCategoryListAlignNote,
+    required this.settingsCategoryListVerticalTitle,
+    required this.settingsCategoryListVerticalTop,
+    required this.settingsCategoryListVerticalBottom,
     required this.settingsNavChipsAlignBottom,
     required this.settingsNavChipsOrderTitle,
     required this.settingsCallJoinCameraTitle,
@@ -859,6 +860,9 @@ class Strings {
     required this.pollListEmptyMessage,
     required this.pollResponseCountLabel,
     required this.pollClosedBadgeLabel,
+    required this.pollSingleChoiceHint,
+    required this.pollMultipleChoiceHint,
+    required this.pollRemainingTimeLabel,
     required this.noteCreatedMessageLabel,
     required this.noteCreatedMessageOpenAction,
     required this.noteListTitle,
@@ -1019,6 +1023,7 @@ class Strings {
     required this.workshopStandardCardHint,
     required this.mediaSkipForwardLabel,
     required this.mediaSkipBackwardLabel,
+    required this.mediaVideoUnplayableNotice,
     required this.groupCallInProgressBannerLabel,
     required this.groupCallBackToGridTooltip,
     required this.groupProfileCardChangeImage,
@@ -1082,8 +1087,9 @@ class Strings {
   final String settingsNavChipsAlignCenter;
   final String settingsNavChipsAlignEnd;
   final String settingsNavChipsAlignTop;
-  final String settingsCategoryListAlignTitle;
-  final String settingsCategoryListAlignNote;
+  final String settingsCategoryListVerticalTitle;
+  final String settingsCategoryListVerticalTop;
+  final String settingsCategoryListVerticalBottom;
   final String settingsNavChipsAlignBottom;
   final String settingsNavChipsOrderTitle;
   final String settingsCallJoinCameraTitle;
@@ -2221,6 +2227,9 @@ class Strings {
   final String pollListEmptyMessage;
   final String Function(int count) pollResponseCountLabel;
   final String pollClosedBadgeLabel;
+  final String pollSingleChoiceHint;
+  final String pollMultipleChoiceHint;
+  final String Function(Duration remaining) pollRemainingTimeLabel;
   final String noteCreatedMessageLabel;
   final String noteCreatedMessageOpenAction;
   final String noteListTitle;
@@ -2384,6 +2393,7 @@ class Strings {
   final String workshopStandardCardHint;
   final String mediaSkipForwardLabel;
   final String mediaSkipBackwardLabel;
+  final String mediaVideoUnplayableNotice;
 
   /// 通話中の広場の語らいを開いた時に出す、参加を促すバナー（2026-10-21）。
   final String Function(bool isVideo) groupCallInProgressBannerLabel;
@@ -2450,9 +2460,9 @@ class Strings {
     settingsNavChipsAlignCenter: '中央揃え',
     settingsNavChipsAlignEnd: '右揃え',
     settingsNavChipsAlignTop: '上揃え',
-    settingsCategoryListAlignTitle: '設定・身だしなみの項目の位置',
-    settingsCategoryListAlignNote:
-        'スマホでのみ適用されます。\nこの設定は端末毎に保存され、アカウントや他の端末には引き継がれません。',
+    settingsCategoryListVerticalTitle: '設定・身だしなみの項目の位置',
+    settingsCategoryListVerticalTop: '上',
+    settingsCategoryListVerticalBottom: '下',
     settingsNavChipsAlignBottom: '下揃え',
     settingsNavChipsOrderTitle: '並び',
     settingsCallJoinCameraTitle: 'ビデオ通話に参加する時カメラをオンにする',
@@ -3329,6 +3339,13 @@ class Strings {
     pollListEmptyMessage: 'まだ投票が有りません',
     pollResponseCountLabel: (count) => '$count件の回答',
     pollClosedBadgeLabel: '終了',
+    pollSingleChoiceHint: '1つ選んで下さい',
+    pollMultipleChoiceHint: '複数選べます',
+    pollRemainingTimeLabel: (d) => d.inDays >= 1
+        ? 'あと${d.inDays}日'
+        : d.inHours >= 1
+        ? 'あと${d.inHours}時間'
+        : 'あと${d.inMinutes < 1 ? 1 : d.inMinutes}分',
     noteCreatedMessageLabel: 'ノートが作成されました',
     noteCreatedMessageOpenAction: '開く',
     noteListTitle: 'ノート',
@@ -3501,6 +3518,8 @@ class Strings {
         '右上の丸いボタンで選んだカードが標準になります。友達申請や広場参加など、指定していない場面では標準のカードが使われます',
     mediaSkipForwardLabel: '+10秒',
     mediaSkipBackwardLabel: '−10秒',
+    mediaVideoUnplayableNotice:
+        'この動画は映像を再生できません。容量が大きい動画（約400MB以上）は、映像が再生されないことがあります。ダウンロードして別のアプリで開いてください。',
     groupCallInProgressBannerLabel: (isVideo) =>
         isVideo ? 'ビデオ通話中です。タップして参加' : '通話中です。タップして参加',
     groupCallBackToGridTooltip: 'グリッドに戻る',
@@ -3558,10 +3577,10 @@ class Strings {
     settingsNavChipsAlignCenter: 'Centre',
     settingsNavChipsAlignEnd: 'Right',
     settingsNavChipsAlignTop: 'Top',
-    settingsCategoryListAlignNote:
-        'Applies only on phones (narrow screens). Saved on this device only; it is not carried over to your account or other devices.',
-    settingsCategoryListAlignTitle:
-        'Position of the Settings and Profile lists (phone)',
+    settingsCategoryListVerticalTitle:
+        'Position of the Settings and Profile lists',
+    settingsCategoryListVerticalTop: 'Top',
+    settingsCategoryListVerticalBottom: 'Bottom',
     settingsNavChipsAlignBottom: 'Bottom',
     settingsNavChipsOrderTitle: 'Order (drag to rearrange)',
     settingsCallJoinCameraTitle: 'Turn the camera on when joining a video call',
@@ -3727,7 +3746,8 @@ class Strings {
     rhingSeedChangeNewLabel: 'New Rhing Seed',
     rhingSeedChangeSubmit: 'Change',
     rhingSeedChangeSameError: 'This is already your Rhing Seed',
-    rhingSeedChangeTooSoonTemplate: (date) => 'You can change it again from $date',
+    rhingSeedChangeTooSoonTemplate: (date) =>
+        'You can change it again from $date',
     rhingSeedChangeFailedTemplate: (error) => 'Could not change it: $error',
     rhingSeedChangeDone: 'Your Rhing Seed has been changed',
     settingsSecurity: 'Security',
@@ -4544,6 +4564,13 @@ class Strings {
     pollListEmptyMessage: 'No polls yet',
     pollResponseCountLabel: (count) => '$count responses',
     pollClosedBadgeLabel: 'Closed',
+    pollSingleChoiceHint: 'Choose one',
+    pollMultipleChoiceHint: 'You can choose more than one',
+    pollRemainingTimeLabel: (d) => d.inDays >= 1
+        ? '${d.inDays}d left'
+        : d.inHours >= 1
+        ? '${d.inHours}h left'
+        : '${d.inMinutes < 1 ? 1 : d.inMinutes}min left',
     noteCreatedMessageLabel: 'New note created',
     noteCreatedMessageOpenAction: 'Open',
     noteListTitle: 'Notes',
@@ -4730,6 +4757,8 @@ class Strings {
         'The card selected with the round button at the top right becomes your standard card. It is used wherever no card is specified, such as friend requests and joining plazas.',
     mediaSkipForwardLabel: '+10s',
     mediaSkipBackwardLabel: '−10s',
+    mediaVideoUnplayableNotice:
+        'The picture of this video cannot be played. Large videos (around 400MB or more) may not play. Download it and open it in another app.',
     groupCallInProgressBannerLabel: (isVideo) => isVideo
         ? 'A video call is in progress. Tap to join'
         : 'A call is in progress. Tap to join',

@@ -113,7 +113,7 @@ Future<void> main() async {
   final initialSlidePickEnabled = await loadInitialSlidePickEnabled();
   final initialAppTextSize = await loadInitialAppTextSize();
   final initialIconSplitLayout = await loadInitialIconSplitLayout();
-  final initialCategoryListAlignment = await loadInitialCategoryListAlignment();
+  final initialCategoryListVertical = await loadInitialCategoryListVertical();
   final initialNavChipLayout = await loadInitialNavChipLayout();
   final initialMessageTimeFormat = await loadInitialMessageTimeFormat();
   final initialCalendarWeekStart = await loadInitialCalendarWeekStart();
@@ -181,8 +181,8 @@ Future<void> main() async {
         initialIconSplitMirroredProvider.overrideWithValue(
           initialIconSplitMirrored,
         ),
-        initialCategoryListAlignmentProvider.overrideWithValue(
-          initialCategoryListAlignment,
+        initialCategoryListVerticalProvider.overrideWithValue(
+          initialCategoryListVertical,
         ),
         initialNavChipLayoutProvider.overrideWithValue(initialNavChipLayout),
         initialMessageTimeFormatProvider.overrideWithValue(

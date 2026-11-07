@@ -14,7 +14,6 @@ import '../../widgets/kiwami_only_dialog.dart';
 import '../../router/back_stack.dart';
 import '../../l10n/strings.dart';
 import '../../l10n/vocabulary.dart';
-import '../../models/nav_chip_layout.dart';
 import '../../models/app_ui_style.dart';
 import '../../models/app_user.dart';
 import '../../models/direct_message.dart';
@@ -985,9 +984,10 @@ class _ProfileCategoryList extends ConsumerWidget {
     final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
     // 設定タブの`_CategoryList`と同じく、縦になぞって選べる（2026-11-02）。
     final narrow = large;
-    final alignment = narrow && isGekiga
-        ? ref.watch(categoryListAlignmentProvider)
-        : null;
+    // 縦表示で項目一覧を下（メニューチップのすぐ上）へ寄せる設定（全スタイル）。
+    final bottom =
+        narrow &&
+        ref.watch(categoryListVerticalProvider) == CategoryListVertical.bottom;
     return SlideSelectList(
       itemCount: categories.length,
       onSlide: narrow ? null : (i) => onSelect(categories[i]),
@@ -998,11 +998,13 @@ class _ProfileCategoryList extends ConsumerWidget {
             : categories[i].section == selectedSection;
         if (isGekiga) {
           return alignCategoryList(
-            alignment,
+            bottom: bottom,
             SingleChildScrollView(
+              // 下寄せの時は逆向きのスクロールにして、内容が短くても下に寄せる
+              // （並びは変わらない。長ければこれまでどおりスクロールする）。
+              reverse: bottom,
               padding: const EdgeInsets.symmetric(horizontal: 8),
               child: GekigaJointedTileList(
-                alignEnd: alignment == NavChipAlignment.end,
                 seeds: [
                   for (final category in categories) category.title.hashCode,
                 ],
@@ -1028,9 +1030,10 @@ class _ProfileCategoryList extends ConsumerWidget {
           );
         }
         return alignCategoryList(
-          alignment,
+          bottom: bottom,
           ListView(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
+            shrinkWrap: bottom,
+            padding: EdgeInsets.fromLTRB(8, 0, 8, bottom ? 8 : 0),
             children: [
               for (var i = 0; i < categories.length; i++)
                 KeyedSubtree(

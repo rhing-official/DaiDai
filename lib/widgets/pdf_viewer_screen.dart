@@ -128,6 +128,8 @@ class _PdfViewerScreenState extends ConsumerState<PdfViewerScreen> {
           onClose: () => Navigator.of(context).maybePop(),
           appBar: AppBar(
             backgroundColor: Colors.transparent,
+            // 版画テーマのAppBar下の線を出さない（ビューアは背景が透ける）。
+            shape: const Border(),
             foregroundColor: Colors.white,
             automaticallyImplyLeading: false,
             title: Text(widget.fileName),
@@ -143,6 +145,8 @@ class _PdfViewerScreenState extends ConsumerState<PdfViewerScreen> {
           onClose: () => Navigator.of(context).maybePop(),
           appBar: AppBar(
             backgroundColor: Colors.transparent,
+            // 版画テーマのAppBar下の線を出さない（ビューアは背景が透ける）。
+            shape: const Border(),
             foregroundColor: Colors.white,
             automaticallyImplyLeading: false,
             title: Text(widget.fileName),
@@ -160,6 +164,8 @@ class _PdfViewerScreenState extends ConsumerState<PdfViewerScreen> {
               onClose: () => Navigator.of(context).maybePop(),
               appBar: AppBar(
                 backgroundColor: Colors.transparent,
+                // 版画テーマのAppBar下の線を出さない（ビューアは背景が透ける）。
+                shape: const Border(),
                 foregroundColor: Colors.white,
                 automaticallyImplyLeading: false,
                 title: Text(widget.fileName),
@@ -193,6 +199,8 @@ class _PdfViewerScreenState extends ConsumerState<PdfViewerScreen> {
                 onClose: () => Navigator.of(context).maybePop(),
                 appBar: AppBar(
                   backgroundColor: Colors.transparent,
+                  // 版画テーマのAppBar下の線を出さない（ビューアは背景が透ける）。
+                  shape: const Border(),
                   foregroundColor: Colors.white,
                   elevation: 0,
                   // 戻る矢印は出さない（Esc・下スワイプ・戻る操作で閉じる）。

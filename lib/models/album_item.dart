@@ -23,6 +23,7 @@ class AlbumItem {
     this.sourceMessageId,
     this.sourceSenderId,
     this.sourceSentAt,
+    this.thumbnailUrl,
   });
 
   final String itemId;
@@ -53,6 +54,12 @@ class AlbumItem {
   final String? sourceSenderId;
   final Timestamp? sourceSentAt;
 
+  /// 動画のサムネイル画像（1秒付近の1コマ）。サーバー（Cloud Functions
+  /// `generateVideoThumbnail`）が登録後に書き込む（2026-11-07）。まだ無い間や、
+  /// それ以前に登録した動画はnull（その場合は動画から先頭付近のコマを取る）。
+  /// クライアントからは書かない為`toJson()`には含めない。
+  final String? thumbnailUrl;
+
   factory AlbumItem.fromJson(String itemId, Map<String, dynamic> json) {
     return AlbumItem(
       itemId: itemId,
@@ -68,6 +75,7 @@ class AlbumItem {
       sourceMessageId: json['sourceMessageId'] as String?,
       sourceSenderId: json['sourceSenderId'] as String?,
       sourceSentAt: json['sourceSentAt'] as Timestamp?,
+      thumbnailUrl: json['thumbnailUrl'] as String?,
     );
   }
 

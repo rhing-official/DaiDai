@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../../widgets/pane_key_focus.dart';
@@ -11,11 +13,13 @@ import '../../models/album_item.dart';
 import '../../models/app_ui_style.dart';
 import '../../providers/app_ui_style_provider.dart';
 import '../../providers/repository_providers.dart';
-import '../../theme/popup_surface_colors.dart';
 import '../../utils/attachment_upload.dart';
+import '../../utils/auto_dismiss_banner.dart';
 import '../../widgets/glass/glass_app_bar.dart';
 import '../../widgets/glass/glass_dialog.dart';
 import '../../widgets/swipe_gestures.dart';
+import '../../widgets/press_drag_menu.dart';
+import '../../widgets/upload_progress_bar.dart';
 import '../../widgets/video_thumbnail.dart';
 import '../../widgets/media_viewer_screen.dart';
 import 'album_message_picker_screen.dart';
@@ -67,7 +71,24 @@ class _AlbumPaneViewState extends ConsumerState<AlbumPaneView> {
         albumId: widget.album.albumId,
       );
 
+  // dispose中は`ref`が使えない（Riverpod 3は例外を投げる）ので、名前の確定に使う
+  // リポジトリは先に保持しておく。
+  late final _albumRepository = ref.read(albumRepositoryProvider);
+
   bool _uploading = false;
+
+  /// アルバム名の入力欄。閉じた時（[_close]・[dispose]）に確定する（2026-11-07）。
+  /// 空欄で閉じた時は変更せず、元の名前のままにする。
+  late final _nameController = TextEditingController(text: widget.album.name);
+
+  /// 保存済みの（一覧に出ている）名前。
+  late String _savedName = widget.album.name;
+
+  /// アルバム自体を削除した後は、名前を保存し直さない。
+  bool _deleted = false;
+
+  /// アップロード進捗（0.0〜1.0）。アップロード中だけ非null（2026-11-07）。
+  double? _uploadProgress;
 
   /// メッセージから追加する選択画面をこのペイン内に表示中か（2026-09-26
   /// 追加）。以前は`Navigator.push`のフルスクリーン別ルートで
@@ -77,6 +98,52 @@ class _AlbumPaneViewState extends ConsumerState<AlbumPaneView> {
   /// 揃える必要があった（CLAUDE.mdの「メッセージ画面の範囲内表示」の方針
   /// 参照）。
   bool _showingMessagePicker = false;
+
+  /// 開いているアルバム自体を削除する（確認あり、中の画像・動画も全て消える。
+  /// アルバム一覧の削除アイコン（`album_popup_content.dart`）と同じ文言・処理）。
+  /// 削除できたらペインを閉じて一覧へ戻る（2026-11-07）。
+  Future<void> _deleteAlbum() async {
+    final strings = ref.read(appStringsProvider);
+    final isGlass = ref.read(appUiStyleProvider) == AppUiStyle.glass;
+    final confirmed = await showAppDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        final title = Text(strings.albumDeleteConfirmTitle);
+        final content = Text(strings.albumDeleteConfirmMessage);
+        final actions = [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(strings.cancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            style: FilledButton.styleFrom(
+              backgroundColor: Colors.red.shade700,
+              foregroundColor: Colors.white,
+            ),
+            child: Text(strings.delete),
+          ),
+        ];
+        return isGlass
+            ? GlassAlertDialog(title: title, content: content, actions: actions)
+            : KeyboardAlertDialog(
+                title: title,
+                content: content,
+                actions: actions,
+              );
+      },
+    );
+    if (confirmed != true || !mounted) return;
+    await ref
+        .read(albumRepositoryProvider)
+        .deleteAlbum(
+          isDm: widget.isDm,
+          conversationId: widget.conversationId,
+          roomId: widget.roomId,
+          albumId: widget.album.albumId,
+        );
+    if (mounted) widget.onClose();
+  }
 
   Future<void> _removeItem(AlbumItem item) async {
     final strings = ref.read(appStringsProvider);
@@ -121,33 +188,8 @@ class _AlbumPaneViewState extends ConsumerState<AlbumPaneView> {
         );
   }
 
-  /// 添付選択肢のポップアップを開く（`note_pane_view.dart`の
-  /// `_pickAndInsertAttachment`と同じ、ボタン直下にアンカーする
-  /// `showMenu`+`RelativeRect`パターン。アルバムは画像・動画のみ対応する
-  /// ため選択肢はファイルを含まない2択）。
-  final _addButtonKey = GlobalKey();
-
-  /// [_addButtonKey]の直下にポップアップをアンカーする為の位置を計算する。
-  /// 「端末から」／「メッセージから」の1段目と、「端末から」を選んだ後の
-  /// 画像/動画の2段目、どちらも同じ位置に表示するため共通化した
-  /// （2026-09-26追加）。
-  RelativeRect? _addMenuPosition() {
-    final buttonContext = _addButtonKey.currentContext;
-    if (buttonContext == null) return null;
-    final box = buttonContext.findRenderObject()! as RenderBox;
-    final bottomLeft = box.localToGlobal(Offset(0, box.size.height));
-    final bottomRight = box.localToGlobal(
-      Offset(box.size.width, box.size.height),
-    );
-    final overlay =
-        Overlay.of(context).context.findRenderObject()! as RenderBox;
-    return RelativeRect.fromRect(
-      Rect.fromPoints(bottomLeft, bottomRight),
-      Offset.zero & overlay.size,
-    );
-  }
-
-  /// 「＋」ボタンから、先ず追加元（端末／メッセージ）を選ぶ。「メッセージ
+  /// 「＋」ボタン（押したまま項目へなぞって離しても選べる[PressDragMenuButton]）から、
+  /// 先ず追加元（端末／メッセージ）を選ぶ。「メッセージ
   /// から」はこのペイン内で[_showingMessagePicker]に切り替える（2026-09-26、
   /// 以前は`Navigator.push`のフルスクリーン別ルートだったが、
   /// `AlbumPaneView`自体の「サイドバーを覆わないローカル状態切り替え」
@@ -156,65 +198,152 @@ class _AlbumPaneViewState extends ConsumerState<AlbumPaneView> {
   /// 2択ポップアップを挟んでいたが、OS標準ピッカー自体が両方を一覧出来る
   /// ためユーザー指示で撤廃した。選ばれたファイルの種別は拡張子/mimeTypeで
   /// 事後判定する、`isVideoFileName`参照）。
-  Future<void> _pickAndUpload() async {
-    final strings = ref.read(appStringsProvider);
-    final position = _addMenuPosition();
-    if (position == null) return;
-    final source = await showMenu<String>(
-      context: context,
-      position: position,
-      color: Colors.transparent,
-      shadowColor: Colors.transparent,
-      elevation: 0,
-      items: [
-        PopupMenuItem<String>(
-          enabled: false,
-          padding: EdgeInsets.zero,
-          child: _AlbumAddSourcePopupContent(strings: strings),
-        ),
-      ],
-    );
-    if (source == null || !mounted) return;
+  Future<void> _onAddSource(String source) async {
+    if (!mounted) return;
     if (source == 'message') {
       setState(() => _showingMessagePicker = true);
       return;
     }
 
-    final picked = await ImagePicker().pickMedia();
-    if (picked == null) return;
-    final contentType = isVideoFileName(picked.name, mimeType: picked.mimeType)
-        ? 'video'
-        : 'image';
-    await _upload(
-      bytes: await picked.readAsBytes(),
-      fileName: picked.name,
-      contentType: contentType,
-    );
+    // 一度に選べる数に上限は設けない（2026-11-07、以前は1つだけ）。
+    final picked = await ImagePicker().pickMultipleMedia();
+    if (picked.isEmpty) return;
+    await _uploadAll(picked);
   }
 
-  Future<void> _upload({
-    required Uint8List bytes,
-    required String fileName,
-    required String contentType,
-  }) async {
+  /// 選んだ画像・動画を、[_uploadConcurrency]件ずつ同時にアップロードして登録する。
+  /// 進捗は全体の平均で出す。1件失敗しても残りは続け、最後に失敗を知らせる
+  /// （登録できたものはそのまま残る）。
+  static const _uploadConcurrency = 3;
+
+  Future<void> _uploadAll(List<XFile> files) async {
     if (_uploading) return;
-    setState(() => _uploading = true);
-    try {
-      await ref
-          .read(albumRepositoryProvider)
-          .addItemFromUpload(
+    setState(() {
+      _uploading = true;
+      _uploadProgress = 0;
+    });
+    final repository = ref.read(albumRepositoryProvider);
+    final progress = List<double>.filled(files.length, 0);
+    void report() {
+      if (!mounted) return;
+      setState(
+        () => _uploadProgress =
+            progress.fold<double>(0, (a, b) => a + b) / files.length,
+      );
+    }
+
+    Object? firstError;
+    var failed = 0;
+    var next = 0;
+    Future<void> worker() async {
+      while (true) {
+        final index = next++;
+        if (index >= files.length) return;
+        final file = files[index];
+        try {
+          final contentType =
+              isVideoFileName(file.name, mimeType: file.mimeType)
+              ? 'video'
+              : 'image';
+          // 大きい動画を全て同時にメモリへ載せない為、送る直前に読み込む。
+          await repository.addItemFromUpload(
             isDm: widget.isDm,
             conversationId: widget.conversationId,
             roomId: widget.roomId,
             albumId: widget.album.albumId,
-            bytes: bytes,
-            fileName: fileName,
+            bytes: await file.readAsBytes(),
+            fileName: file.name,
             contentType: contentType,
             addedBy: widget.currentUserId,
+            onProgress: (p) {
+              progress[index] = p;
+              report();
+            },
           );
-    } finally {
-      if (mounted) setState(() => _uploading = false);
+        } catch (e) {
+          failed++;
+          firstError ??= e;
+        }
+        progress[index] = 1;
+        report();
+      }
     }
+
+    try {
+      await Future.wait([
+        for (var w = 0; w < math.min(_uploadConcurrency, files.length); w++)
+          worker(),
+      ]);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _uploading = false;
+          _uploadProgress = null;
+        });
+        if (failed > 0) {
+          showAutoDismissBanner(
+            context,
+            message: files.length == 1
+                ? '$firstError'
+                : '$failed/${files.length}: $firstError',
+          );
+        }
+      }
+    }
+  }
+
+  /// 入力された名前を保存する。空欄（空白のみ）や変更なしなら何もしない
+  /// （元の名前のまま）。
+  Future<void> _commitName() async {
+    final name = _nameController.text.trim();
+    if (_deleted || name.isEmpty || name == _savedName) return;
+    _savedName = name;
+    await ref
+        .read(albumRepositoryProvider)
+        .renameAlbum(
+          isDm: widget.isDm,
+          conversationId: widget.conversationId,
+          roomId: widget.roomId,
+          albumId: widget.album.albumId,
+          name: name,
+        );
+  }
+
+  /// 名前を確定してから閉じる。
+  Future<void> _close() async {
+    FocusManager.instance.primaryFocus?.unfocus();
+    try {
+      await _commitName();
+    } catch (_) {
+      // 名前の保存に失敗しても閉じる（元の名前のまま）。
+    }
+    if (mounted) widget.onClose();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    // dispose中に使えるよう、最初に取り出しておく。
+    _albumRepository;
+  }
+
+  @override
+  void dispose() {
+    // 暗幕のタップなど[_close]を通らずに閉じられた場合も、名前を確定する。
+    final name = _nameController.text.trim();
+    if (!_deleted && name.isNotEmpty && name != _savedName) {
+      _albumRepository
+          .renameAlbum(
+            isDm: widget.isDm,
+            conversationId: widget.conversationId,
+            roomId: widget.roomId,
+            albumId: widget.album.albumId,
+            name: name,
+          )
+          .catchError((_) {});
+    }
+    _nameController.dispose();
+    super.dispose();
   }
 
   @override
@@ -234,17 +363,52 @@ class _AlbumPaneViewState extends ConsumerState<AlbumPaneView> {
     final uiStyle = ref.watch(appUiStyleProvider);
     final isGlass = uiStyle == AppUiStyle.glass;
 
-    final title = Text(
-      widget.album.name,
+    // アルバム名（そのまま書き換えられる。空欄で閉じると元の名前に戻る）。
+    final title = TextField(
+      controller: _nameController,
+      maxLength: 50,
       style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+      decoration: const InputDecoration(
+        border: InputBorder.none,
+        enabledBorder: InputBorder.none,
+        focusedBorder: InputBorder.none,
+        disabledBorder: InputBorder.none,
+        filled: false,
+        counterText: '',
+        isCollapsed: true,
+        contentPadding: EdgeInsets.symmetric(vertical: 12),
+      ),
+      onSubmitted: (_) => _commitName(),
     );
-    final addAction = IconButton(
-      key: _addButtonKey,
-      icon: _uploading
-          ? const SizedBox.shrink()
-          : const Icon(Icons.add_photo_alternate_outlined),
+    final addAction = PressDragMenuButton<String>(
+      enabled: !_uploading,
+      onSelected: _onAddSource,
+      items: [
+        PressDragMenuItem(
+          value: 'device',
+          icon: Icons.smartphone_outlined,
+          label: strings.albumAddSourceDeviceLabel,
+        ),
+        PressDragMenuItem(
+          value: 'message',
+          icon: Icons.forum_outlined,
+          label: strings.albumAddSourceMessageLabel,
+        ),
+      ],
+      child: IconButton(
+        icon: _uploading
+            ? const SizedBox.shrink()
+            : const Icon(Icons.add_photo_alternate_outlined),
+        tooltip: '',
+        // 押下はPressDragMenuButton（Listener）が受ける。
+        onPressed: _uploading ? null : () {},
+      ),
+    );
+
+    final deleteAction = IconButton(
+      icon: const Icon(Icons.delete_outline),
       tooltip: '',
-      onPressed: _uploading ? null : _pickAndUpload,
+      onPressed: _uploading ? null : _deleteAlbum,
     );
 
     return Scaffold(
@@ -252,136 +416,93 @@ class _AlbumPaneViewState extends ConsumerState<AlbumPaneView> {
           ? GlassAppBar(
               automaticallyImplyLeading: false,
               title: title,
-              actions: [addAction],
+              actions: [addAction, deleteAction],
             )
           : AppBar(
               automaticallyImplyLeading: false,
               title: title,
-              actions: [addAction],
+              actions: [addAction, deleteAction],
             ),
       body: PaneKeyFocus(
         onKeyEvent: (node, event) {
           if (event is! KeyDownEvent) return KeyEventResult.ignored;
           if (event.logicalKey == LogicalKeyboardKey.escape) {
-            widget.onClose();
+            _close();
             return KeyEventResult.handled;
           }
           return KeyEventResult.ignored;
         },
         child: SwipeDownToDismiss(
-          onDismiss: widget.onClose,
-          child: StreamBuilder<List<AlbumItem>>(
-            stream: _itemsStream,
-            builder: (context, snapshot) {
-              final items = snapshot.data ?? const <AlbumItem>[];
-              if (items.isEmpty) {
-                return Center(child: Text(strings.albumListEmptyMessage));
-              }
-              return GridView.builder(
-                padding: const EdgeInsets.all(4),
-                // ポップアップ内に収まるよう、1枚を小さめ（最大約110px）にして並べる。
-                gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                  maxCrossAxisExtent: 110,
-                  mainAxisSpacing: 4,
-                  crossAxisSpacing: 4,
-                ),
-                itemCount: items.length,
-                itemBuilder: (context, index) {
-                  final item = items[index];
-                  return GestureDetector(
-                    // メッセージ画面と同じビューア（矢印・ダウンロード・共有・動画
-                    // コントロール等）で開く（2026-11-02）。
-                    onTap: () => openMediaViewer(
-                      context,
-                      items: [
-                        for (final i in items)
-                          MediaViewerItem(
-                            id: i.itemId,
-                            url: i.url,
-                            contentType: i.contentType,
-                          ),
-                      ],
-                      initialIndex: index,
-                    ),
-                    onLongPress: () => _removeItem(item),
-                    child: item.contentType == 'video'
-                        ? VideoThumbnail(
-                            url: item.url,
-                            canLoad: videoPlaybackSupported,
-                            size: 110,
-                          )
-                        : Image.network(
-                            item.url,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, _, _) =>
-                                const ColoredBox(color: Colors.black12),
-                          ),
-                  );
-                },
-              );
-            },
+          onDismiss: _close,
+          child: Column(
+            children: [
+              if (_uploadProgress case final progress?)
+                UploadProgressBar(progress: progress),
+              Expanded(child: _itemsGrid(strings)),
+            ],
           ),
         ),
       ),
     );
   }
-}
 
-/// 「＋」ボタンをタップした最初の1段目、追加元（端末／メッセージ）の2択
-/// ポップアップ（2026-09-26追加）。「端末」を選ぶと従来通り
-/// [_AlbumAddPopupContent]（画像/動画の2択）へ進む。
-class _AlbumAddSourcePopupContent extends ConsumerWidget {
-  const _AlbumAddSourcePopupContent({required this.strings});
-
-  final Strings strings;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final brightness = Theme.of(context).brightness;
-    final uiStyle = ref.watch(appUiStyleProvider);
-    final onInverse = popupCardForeground(brightness, uiStyle);
-
-    Widget optionRow(IconData icon, String label, String value) {
-      return Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(8),
-          onTap: () => Navigator.of(context).pop(value),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
-            child: Row(
-              children: [
-                Icon(icon, color: onInverse),
-                const SizedBox(width: 12),
-                Text(label, style: TextStyle(color: onInverse)),
-              ],
-            ),
+  Widget _itemsGrid(Strings strings) {
+    return StreamBuilder<List<AlbumItem>>(
+      stream: _itemsStream,
+      builder: (context, snapshot) {
+        final items = snapshot.data ?? const <AlbumItem>[];
+        if (items.isEmpty) {
+          return Center(child: Text(strings.albumListEmptyMessage));
+        }
+        return GridView.builder(
+          padding: const EdgeInsets.all(4),
+          // 1枚の大きさは最大約180px（2026-11-07、以前の110pxは小さすぎた）。
+          gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+            maxCrossAxisExtent: 180,
+            mainAxisSpacing: 4,
+            crossAxisSpacing: 4,
           ),
-        ),
-      );
-    }
-
-    return SizedBox(
-      width: 220,
-      child: Container(
-        decoration: popupCardDecoration(context, brightness, uiStyle),
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            optionRow(
-              Icons.smartphone_outlined,
-              strings.albumAddSourceDeviceLabel,
-              'device',
-            ),
-            optionRow(
-              Icons.forum_outlined,
-              strings.albumAddSourceMessageLabel,
-              'message',
-            ),
-          ],
-        ),
-      ),
+          itemCount: items.length,
+          itemBuilder: (context, index) {
+            final item = items[index];
+            return GestureDetector(
+              // メッセージ画面と同じビューア（矢印・ダウンロード・共有・動画
+              // コントロール等）で開く（2026-11-02）。
+              onTap: () => openMediaViewer(
+                context,
+                items: [
+                  for (final i in items)
+                    MediaViewerItem(
+                      id: i.itemId,
+                      url: i.url,
+                      contentType: i.contentType,
+                      thumbnailUrl: i.thumbnailUrl,
+                    ),
+                ],
+                initialIndex: index,
+              ),
+              onLongPress: () => _removeItem(item),
+              child: item.contentType == 'video'
+                  // タイルの大きさに合わせる（正方形）。サーバーが作ったサムネイルが
+                  // あればそれを出す（無い間・古い動画は動画から先頭付近のコマ）。
+                  ? LayoutBuilder(
+                      builder: (context, constraints) => VideoThumbnail(
+                        url: item.url,
+                        thumbnailUrl: item.thumbnailUrl,
+                        canLoad: videoPlaybackSupported,
+                        size: constraints.maxWidth,
+                      ),
+                    )
+                  : Image.network(
+                      item.url,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) =>
+                          const ColoredBox(color: Colors.black12),
+                    ),
+            );
+          },
+        );
+      },
     );
   }
 }

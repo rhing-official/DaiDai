@@ -36,10 +36,9 @@ final Strings _stringsFr = Strings._(
   settingsNavChipsAlignCenter: "Au centre",
   settingsNavChipsAlignEnd: "À droite",
   settingsNavChipsAlignTop: "En haut",
-  settingsCategoryListAlignNote:
-      'S’applique uniquement sur téléphone (écran étroit). Enregistré sur cet appareil uniquement ; il n’est pas repris sur votre compte ni sur d’autres appareils.',
-  settingsCategoryListAlignTitle:
-      "Position des listes Réglages et Profil (téléphone)",
+  settingsCategoryListVerticalTitle: 'Position des listes Réglages et Profil',
+  settingsCategoryListVerticalTop: 'Haut',
+  settingsCategoryListVerticalBottom: 'Bas',
   settingsNavChipsAlignBottom: "En bas",
   settingsNavChipsOrderTitle: "Ordre (glisser pour réorganiser)",
   settingsCallJoinCameraTitle: "Activer la caméra en rejoignant un appel vidéo",
@@ -1028,6 +1027,13 @@ final Strings _stringsFr = Strings._(
   pollListEmptyMessage: 'Aucun sondage pour le moment',
   pollResponseCountLabel: (count) => '$count réponses',
   pollClosedBadgeLabel: 'Clos',
+  pollSingleChoiceHint: 'Choisissez une option',
+  pollMultipleChoiceHint: 'Vous pouvez en choisir plusieurs',
+  pollRemainingTimeLabel: (d) => d.inDays >= 1
+      ? '${d.inDays} j restants'
+      : d.inHours >= 1
+      ? '${d.inHours} h restantes'
+      : '${d.inMinutes < 1 ? 1 : d.inMinutes} min restantes',
   noteCreatedMessageLabel: 'Nouvelle note créée',
   noteCreatedMessageOpenAction: 'Ouvrir',
   noteListTitle: 'Notes',
@@ -1217,6 +1223,8 @@ final Strings _stringsFr = Strings._(
       'La carte sélectionnée avec le bouton rond en haut à droite devient votre carte standard. Elle est utilisée partout où aucune carte n’est précisée, par exemple pour les demandes d’ami et l’adhésion aux places.',
   mediaSkipForwardLabel: '+10 s',
   mediaSkipBackwardLabel: '−10 s',
+  mediaVideoUnplayableNotice:
+      'L’image de cette vidéo ne peut pas être lue. Les vidéos volumineuses (environ 400 Mo ou plus) peuvent ne pas se lire. Téléchargez-la et ouvrez-la dans une autre application.',
   groupCallInProgressBannerLabel: (isVideo) => isVideo
       ? 'Un appel vidéo est en cours. Touchez pour rejoindre'
       : 'Un appel est en cours. Touchez pour rejoindre',

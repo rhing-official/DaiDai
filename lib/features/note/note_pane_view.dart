@@ -209,6 +209,35 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
   bool _isDraw = false;
   bool _noteLoaded = false;
 
+  /// 開いているノートの作成者（削除ボタンを出すかの判定用、2026-11-07）。
+  String? _createdBy;
+
+  // dispose中は`ref`が使えない（Riverpod 3は例外を投げる）ので、閉じる時の保存に使う
+  // リポジトリは先に保持しておく。
+  late final _noteRepository = ref.read(noteRepositoryProvider);
+
+  /// 保存済みの（一覧に出ている）題名。題名は閉じた時（[_close]・[dispose]）に確定し、
+  /// それまでの途中保存は[_savedTitle]のまま書く。空欄で閉じた時も元の題名に戻す
+  /// （2026-11-07）。
+  String _savedTitle = '';
+
+  /// 題名を編集したが、まだ確定（保存）していないか。
+  bool _titleEdited = false;
+
+  /// 保存する題名。[closing]（閉じる時）は入力欄の値で、空欄（空白のみ）なら元の題名。
+  /// 途中の保存は題名を変えない。
+  String _titleFor({required bool closing}) {
+    if (!closing) return _savedTitle;
+    final text = _titleController.text;
+    return text.trim().isEmpty ? _savedTitle : text;
+  }
+
+  /// 閉じる時の保存が済んだ題名を、保存済みとして記録する。
+  void _markTitleCommitted(String title) {
+    _savedTitle = title;
+    _titleEdited = false;
+  }
+
   /// 閲覧モード（読み取り専用）か。開いた時は編集モード（2026-11-06）。
   bool _readOnly = false;
 
@@ -278,6 +307,7 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
   @override
   void initState() {
     super.initState();
+    _noteRepository;
     WidgetsBinding.instance.addObserver(this);
     // 重ねて開いた直後に、ページがEscを受け取れるようフォーカスを取る
     // （`autofocus`は他にフォーカスがあると効かない）。
@@ -353,6 +383,8 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
     );
     if (!mounted) return;
     _titleController.text = note?.title ?? '';
+    _createdBy = note?.createdBy;
+    _savedTitle = note?.title ?? '';
     _lastAppliedOpCreatedAt = note?.updatedAt;
     if (note?.type == noteTypeDraw) {
       // ドローノートはappflowyエディタ・操作ログを使わない（線は
@@ -544,13 +576,15 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
   /// ここでのチェックポイント保存は`_dirty`の有無に関わらず常に行う（他人の
   /// 編集を受信しただけで自分は未編集の場合でも、間引き前には必ず最新の
   /// マージ済み内容を書き込む）。
-  Future<void> _checkpointAndPrune() async {
+  Future<void> _checkpointAndPrune({bool closing = false}) async {
     _checkpointDebounce?.cancel();
     final editorState = _editorState;
+    final title = _titleFor(closing: closing);
     if (_isDraw) {
       // ドローノートはタイトルだけを保存する（本文`content`は空のまま）。
-      if (!_dirty) return;
+      if (!_dirty && !(closing && _titleEdited)) return;
       _dirty = false;
+      if (closing) _markTitleCommitted(title);
       await ref
           .read(noteRepositoryProvider)
           .updateNote(
@@ -558,7 +592,7 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
             conversationId: widget.conversationId,
             roomId: widget.roomId,
             noteId: widget.noteId,
-            title: _titleController.text,
+            title: title,
             content: const {},
             editedBy: widget.currentUser.userId,
           );
@@ -566,6 +600,7 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
     }
     if (editorState == null) return;
     _dirty = false;
+    if (closing) _markTitleCommitted(title);
     final noteRepository = ref.read(noteRepositoryProvider);
     final watermark = _lastAppliedOpCreatedAt;
     await noteRepository.updateNote(
@@ -573,7 +608,7 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
       conversationId: widget.conversationId,
       roomId: widget.roomId,
       noteId: widget.noteId,
-      title: _titleController.text,
+      title: title,
       content: editorState.document.toJson(),
       editedBy: widget.currentUser.userId,
     );
@@ -589,12 +624,71 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
     }
   }
 
-  void _handleTitleChanged(String _) => _scheduleCheckpoint();
+  void _handleTitleChanged(String _) {
+    _titleEdited = true;
+    _scheduleCheckpoint();
+  }
+
+  /// 開いているノート（マークダウン・ドロー）自体を削除する（作成者のみ、確認あり）。
+  /// ノート一覧の削除アイコン（`note_popup_content.dart`）と同じ文言・処理で、削除できたら
+  /// このペインを閉じる（2026-11-07）。削除するノートへ保存し直さないよう、未送信の
+  /// 編集・保存の予約は捨てる。
+  Future<void> _deleteNote() async {
+    final strings = ref.read(appStringsProvider);
+    final isGlass = ref.read(appUiStyleProvider) == AppUiStyle.glass;
+    final confirmed = await showAppDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        final title = Text(strings.noteDeleteConfirmTitle);
+        final content = Text(strings.calendarDeleteConfirmMessage);
+        final actions = [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(strings.cancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            style: FilledButton.styleFrom(
+              backgroundColor: Colors.red.shade700,
+              foregroundColor: Colors.white,
+            ),
+            child: Text(strings.delete),
+          ),
+        ];
+        return isGlass
+            ? GlassAlertDialog(title: title, content: content, actions: actions)
+            : KeyboardAlertDialog(
+                title: title,
+                content: content,
+                actions: actions,
+              );
+      },
+    );
+    if (confirmed != true || !mounted) return;
+    _checkpointDebounce?.cancel();
+    _checkpointTimer?.cancel();
+    _sendDebounce?.cancel();
+    _dirty = false;
+    _titleEdited = false;
+    try {
+      await ref
+          .read(noteRepositoryProvider)
+          .deleteNote(
+            isDm: widget.isDm,
+            conversationId: widget.conversationId,
+            roomId: widget.roomId,
+            noteId: widget.noteId,
+          );
+      if (mounted) widget.onClose();
+    } catch (e) {
+      if (mounted) showAutoDismissBanner(context, message: '$e');
+    }
+  }
 
   Future<void> _close() async {
     _sendDebounce?.cancel();
     await _flushOutgoing();
-    await _checkpointAndPrune();
+    await _checkpointAndPrune(closing: true);
     if (mounted) widget.onClose();
   }
 
@@ -609,43 +703,37 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
     // クライアントが追いつき処理の一環で操作ログの間引きも行うため、ここでは
     // 間引きまでは行わない。
     final editorState = _editorState;
-    if (_dirty && _isDraw) {
-      ref
-          .read(noteRepositoryProvider)
-          .updateNote(
-            isDm: widget.isDm,
-            conversationId: widget.conversationId,
-            roomId: widget.roomId,
-            noteId: widget.noteId,
-            title: _titleController.text,
-            content: const {},
-            editedBy: widget.currentUser.userId,
-          );
-    } else if (_dirty && editorState != null) {
-      ref
-          .read(noteRepositoryProvider)
-          .updateNote(
-            isDm: widget.isDm,
-            conversationId: widget.conversationId,
-            roomId: widget.roomId,
-            noteId: widget.noteId,
-            title: _titleController.text,
-            content: editorState.document.toJson(),
-            editedBy: widget.currentUser.userId,
-          );
+    if ((_dirty || _titleEdited) && _isDraw) {
+      _noteRepository.updateNote(
+        isDm: widget.isDm,
+        conversationId: widget.conversationId,
+        roomId: widget.roomId,
+        noteId: widget.noteId,
+        title: _titleFor(closing: true),
+        content: const {},
+        editedBy: widget.currentUser.userId,
+      );
+    } else if ((_dirty || _titleEdited) && editorState != null) {
+      _noteRepository.updateNote(
+        isDm: widget.isDm,
+        conversationId: widget.conversationId,
+        roomId: widget.roomId,
+        noteId: widget.noteId,
+        title: _titleFor(closing: true),
+        content: editorState.document.toJson(),
+        editedBy: widget.currentUser.userId,
+      );
     }
     if (_pendingOutgoingTransactions.isNotEmpty) {
-      ref
-          .read(noteRepositoryProvider)
-          .appendNoteOp(
-            isDm: widget.isDm,
-            conversationId: widget.conversationId,
-            roomId: widget.roomId,
-            noteId: widget.noteId,
-            transactions: _pendingOutgoingTransactions,
-            sessionId: _sessionId,
-            authorId: widget.currentUser.userId,
-          );
+      _noteRepository.appendNoteOp(
+        isDm: widget.isDm,
+        conversationId: widget.conversationId,
+        roomId: widget.roomId,
+        noteId: widget.noteId,
+        transactions: _pendingOutgoingTransactions,
+        sessionId: _sessionId,
+        authorId: widget.currentUser.userId,
+      );
     }
     _pageFocusNode.dispose();
     WidgetsBinding.instance.removeObserver(this);
@@ -1365,6 +1453,13 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
       tooltip: '',
       onPressed: !_noteLoaded ? null : _share,
     );
+    // 削除は作成者だけ（firestore.rulesの作成者限定削除と同じ）。
+    final canDelete = _noteLoaded && _createdBy == widget.currentUser.userId;
+    final deleteAction = IconButton(
+      icon: const Icon(Icons.delete_outline),
+      tooltip: '',
+      onPressed: _deleteNote,
+    );
 
     // タイトル欄（appBar側の`titleField`）にフォーカスがある間にEscを押した
     // 場合も閉じられるよう、`Scaffold.body`だけでなく`appBar`も含めて
@@ -1402,6 +1497,7 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
                   forwardAction,
                   shareAction,
                   downloadAction,
+                  if (canDelete) deleteAction,
                 ],
               )
             : AppBar(
@@ -1415,6 +1511,7 @@ class _NotePaneViewState extends ConsumerState<NotePaneView>
                   forwardAction,
                   shareAction,
                   downloadAction,
+                  if (canDelete) deleteAction,
                 ],
               ),
         // 下スワイプで閉じる（既存）。右スワイプは画面全体（AppBar込み）を

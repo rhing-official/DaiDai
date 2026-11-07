@@ -26,6 +26,7 @@ import '../../theme/block/block_theme.dart';
 import '../../theme/motion.dart';
 import '../../l10n/vocabulary.dart';
 import '../../models/app_ui_style.dart';
+import '../poll/poll_message_card.dart';
 import '../../models/chat_layout_style.dart';
 import '../../models/conversation_prefs.dart';
 import '../../models/message.dart';
@@ -110,7 +111,6 @@ import '../../utils/mention_suggestion.dart';
 import 'mention_suggestion_list.dart';
 import '../../l10n/tutorial_content.dart';
 import '../../providers/avatar_palette_provider.dart';
-import '../guide/tutorial/tutorial_controller.dart';
 import '../guide/tutorial/tutorial_target.dart';
 import '../../widgets/app_dialog.dart';
 import '../../widgets/toggles/app_checkbox.dart';
@@ -3391,6 +3391,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                   widget.roomId != null
                               ? _openPoll
                               : null,
+                          pollConversationId: widget.conversationId,
+                          pollRoomId: widget.roomId,
                           onOpenNote:
                               widget.conversationId != null &&
                                   widget.roomId != null
@@ -3836,19 +3838,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                             _pendingAttachments.isEmpty) {
                                           return const SizedBox.shrink();
                                         }
-                                        // コンピューター（必ずキーボードがあり、Enter等の送信キーで送れる）
-                                        // では送信ボタンを隠す（2026-11-01）。モバイル・タブレットは、
-                                        // 物理キーボードの接続を確実に判定出来ず（誤判定で送れなくなった
-                                        // 経緯がある）、モバイルはEnterが改行のため常に表示する。
-                                        // 使い方ガイドの実行中は、手順が送信ボタンを指すため出す。
-                                        if (classifyDevice(context) ==
-                                                DeviceClass.computer &&
-                                            ref.watch(
-                                                  tutorialControllerProvider,
-                                                ) ==
-                                                null) {
-                                          return const SizedBox.shrink();
-                                        }
+                                        // コンピューターでも送信ボタンを表示する（2026-11-07）。
+                                        // 長押しで通知せず送信できる操作をモバイルと揃える為。
                                         return TutorialTarget(
                                           id: TutorialTargetIds.chatSend,
                                           child: Material(
@@ -4644,6 +4635,8 @@ class _MessageRow extends ConsumerWidget {
     this.onOpenCalendarEvent,
     this.onOpenScheduleCoordination,
     this.onOpenPoll,
+    this.pollConversationId,
+    this.pollRoomId,
     this.onOpenNote,
     super.key,
   });
@@ -4736,6 +4729,11 @@ class _MessageRow extends ConsumerWidget {
   /// 投票開始通知メッセージ（`contentType: 'pollCreated'`）をタップした際に
   /// 呼ぶ（2026-09-06追加）。`onOpenCalendarEvent`と同じ条件でのみ渡される。
   final void Function(Message message)? onOpenPoll;
+
+  /// 投票の埋め込みカード（`PollMessageCard`）が投票を購読・投票するための会話id・
+  /// 寄合id（2026-11-07）。どちらかがnullなら従来の通知カードだけを出す。
+  final String? pollConversationId;
+  final String? pollRoomId;
 
   /// ノート作成通知メッセージ（`contentType: 'noteCreated'`）をタップした際に
   /// 呼ぶ（2026-09-06追加）。`onOpenCalendarEvent`と同じ条件でのみ渡される。
@@ -6490,37 +6488,66 @@ class _MessageRow extends ConsumerWidget {
             ],
           );
 
-    if (isGekiga) {
-      return GestureDetector(
-        onTap: onTap,
-        child: SizedBox(
-          width: 224,
+    // 通知カードと同じ枠（幅[width]）で[inner]を包む。埋め込みカードも同じ枠を使う。
+    Widget framed(Widget inner, {required double width}) {
+      if (isGekiga) {
+        return SizedBox(
+          width: width,
           child: GekigaStraightMonochromeBox(
             isMe: isMe,
             padding: const EdgeInsets.all(12),
-            child: content,
+            child: inner,
           ),
-        ),
-      );
+        );
+      }
+      final cardRadius = BorderRadius.circular(16);
+      return uiStyle == AppUiStyle.glass
+          ? GlassSurface(
+              borderRadius: cardRadius,
+              child: SizedBox(width: width, child: inner),
+            )
+          : Container(
+              width: width,
+              decoration: framedCardDecoration(
+                context,
+                color: colorScheme.surface,
+                borderRadius: cardRadius,
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: inner,
+            );
     }
 
-    final cardRadius = BorderRadius.circular(16);
-    final card = uiStyle == AppUiStyle.glass
-        ? GlassSurface(
-            borderRadius: cardRadius,
-            child: SizedBox(width: 224, child: content),
-          )
-        : Container(
-            width: 224,
-            decoration: framedCardDecoration(
-              context,
-              color: colorScheme.surface,
-              borderRadius: cardRadius,
-            ),
-            clipBehavior: Clip.antiAlias,
-            child: content,
-          );
-    return GestureDetector(onTap: onTap, child: card);
+    final notice = GestureDetector(
+      onTap: onTap,
+      child: framed(content, width: 224),
+    );
+    final conversationId = pollConversationId;
+    final roomId = pollRoomId;
+    final pollId = message.pollId;
+    if (deleted || conversationId == null || roomId == null || pollId == null) {
+      return notice;
+    }
+    // 選択肢が少なく画像も無い投票は、メッセージ内でそのまま投票できる
+    // 埋め込みカードにする（それ以外は従来の通知カードに折りたたむ、2026-11-07）。
+    return PollMessageCard(
+      isDm: isDm,
+      conversationId: conversationId,
+      roomId: roomId,
+      pollId: pollId,
+      currentUserId: currentUserId,
+      foreground: isGekiga ? gekigaFg : colorScheme.onSurface,
+      fallback: notice,
+      // 通知カードの本文は自前で余白を持つが、埋め込みは持たないため、劇画以外は
+      // 枠の内側に余白を足す（劇画の箱は元から12の余白がある）。
+      frame: (inner) => framed(
+        isGekiga
+            ? inner
+            : Padding(padding: const EdgeInsets.all(14), child: inner),
+        width: 360,
+      ),
+      onOpen: () => onOpenPoll?.call(message),
+    );
   }
 
   /// contentType='noteCreated'（ノート作成通知、2026-09-06追加）の表示。

@@ -47,11 +47,28 @@ Future<String> copyMessageAttachmentToAlbum({
 /// 既にファイルが存在しない場合（二重削除等）は無視する。
 Future<void> deleteAlbumFile(
   FirebaseStorage storage,
-  String storagePath,
-) async {
+  String storagePath, {
+  bool hasThumbnail = false,
+}) async {
+  await _deleteIfExists(storage, storagePath, rethrowOthers: true);
+  if (hasThumbnail) {
+    // 動画のサムネイル（`<itemId>_thumb.jpg`、サーバーが生成）も消す。
+    final dot = storagePath.lastIndexOf('.');
+    final base = dot > storagePath.lastIndexOf('/')
+        ? storagePath.substring(0, dot)
+        : storagePath;
+    await _deleteIfExists(storage, '${base}_thumb.jpg', rethrowOthers: false);
+  }
+}
+
+Future<void> _deleteIfExists(
+  FirebaseStorage storage,
+  String storagePath, {
+  required bool rethrowOthers,
+}) async {
   try {
     await storage.ref(storagePath).delete();
   } on FirebaseException catch (e) {
-    if (e.code != 'object-not-found') rethrow;
+    if (e.code != 'object-not-found' && rethrowOthers) rethrow;
   }
 }

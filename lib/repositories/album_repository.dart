@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/foundation.dart' show ValueChanged;
 
 import '../models/album.dart';
 import '../models/album_item.dart';
@@ -29,6 +30,16 @@ abstract class AlbumRepository {
     required String roomId,
     required String name,
     required String createdBy,
+  });
+
+  /// アルバムの名前を変更する（2026-11-07）。寄合の参加者なら誰でも変更できる
+  /// （firestore.rulesの`albums`の`update`）。
+  Future<void> renameAlbum({
+    required bool isDm,
+    required String conversationId,
+    required String roomId,
+    required String albumId,
+    required String name,
   });
 
   /// アルバム自体と、中の全アイテム（Firestoreドキュメント＋Storageファイル）
@@ -73,7 +84,8 @@ abstract class AlbumRepository {
   /// 端末のギャラリーから選んだ画像・動画をアルバムへ直接アップロードして
   /// 登録する（2026-09-07追加、`AlbumPaneView`の「＋」ボタン用。既存メッセージ
   /// の添付をコピーする[addItemFromMessage]とは異なり、元メッセージを持たない
-  /// 新規ファイルが対象）。[contentType]は`image`|`video`のみ対応。
+  /// 新規ファイルが対象）。[contentType]は`image`|`video`のみ対応。[onProgress]は
+  /// アップロード進捗（0.0〜1.0）の通知（2026-11-07）。
   Future<AlbumItem> addItemFromUpload({
     required bool isDm,
     required String conversationId,
@@ -83,6 +95,7 @@ abstract class AlbumRepository {
     required String fileName,
     required String contentType,
     required String addedBy,
+    ValueChanged<double>? onProgress,
   });
 
   /// アルバムからアイテムを削除する（Firestoreドキュメント＋Storageファイル
@@ -208,6 +221,22 @@ class FirestoreAlbumRepository implements AlbumRepository {
   }
 
   @override
+  Future<void> renameAlbum({
+    required bool isDm,
+    required String conversationId,
+    required String roomId,
+    required String albumId,
+    required String name,
+  }) {
+    return _albumRef(
+      isDm: isDm,
+      conversationId: conversationId,
+      roomId: roomId,
+      albumId: albumId,
+    ).update({'name': name});
+  }
+
+  @override
   Future<void> deleteAlbum({
     required bool isDm,
     required String conversationId,
@@ -223,7 +252,11 @@ class FirestoreAlbumRepository implements AlbumRepository {
     final itemsSnapshot = await itemsRef.get();
     for (final doc in itemsSnapshot.docs) {
       final item = AlbumItem.fromJson(doc.id, doc.data());
-      await deleteAlbumFile(_storage, item.storagePath);
+      await deleteAlbumFile(
+        _storage,
+        item.storagePath,
+        hasThumbnail: item.contentType == 'video',
+      );
     }
     final batch = _firestore.batch();
     for (final doc in itemsSnapshot.docs) {
@@ -406,6 +439,7 @@ class FirestoreAlbumRepository implements AlbumRepository {
     required String fileName,
     required String contentType,
     required String addedBy,
+    ValueChanged<double>? onProgress,
   }) async {
     final itemRef = _itemsCollection(
       isDm: isDm,
@@ -423,6 +457,7 @@ class FirestoreAlbumRepository implements AlbumRepository {
       bytes: bytes,
       fileName: fileName,
       contentType: contentType,
+      onProgress: onProgress,
     );
 
     final item = AlbumItem(
@@ -493,7 +528,11 @@ class FirestoreAlbumRepository implements AlbumRepository {
     final doc = await itemRef.get();
     if (!doc.exists) return;
     final item = AlbumItem.fromJson(doc.id, doc.data()!);
-    await deleteAlbumFile(_storage, item.storagePath);
+    await deleteAlbumFile(
+      _storage,
+      item.storagePath,
+      hasThumbnail: item.contentType == 'video',
+    );
     await itemRef.delete();
     // カバーの再計算は行わない（次にアイテムを追加した時点で最新の
     // ものに上書きされる、一覧表示用の非正規化キャッシュのため厳密さは

@@ -2,7 +2,6 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../models/nav_chip_layout.dart';
 import '../providers/home_shell_providers.dart';
 import '../providers/slide_pick_enabled_provider.dart';
 import 'pane_visibility.dart';
@@ -124,23 +123,18 @@ class _SlideSelectListState extends ConsumerState<SlideSelectList>
     return _keys[index];
   }
 
-  /// 指の縦位置にある項目。項目と項目の隙間は、近い方に含める。
+  /// 指の縦位置にある項目。指が項目の上に実際に乗っている時だけ返し、項目の外
+  /// （一覧の下の余白・メニューチップとの間など）ではnull（2026-11-07、以前は一番近い
+  /// 項目を返していて、チップから少し上へずらしただけで一番下の項目が選ばれていた）。
   int? _indexAt(Offset globalPosition) {
-    int? best;
-    var bestDistance = double.infinity;
+    final dy = globalPosition.dy;
     for (var i = 0; i < widget.itemCount && i < _keys.length; i++) {
       final box = _keys[i].currentContext?.findRenderObject();
       if (box is! RenderBox || !box.attached || !box.hasSize) continue;
       final top = box.localToGlobal(Offset.zero).dy;
-      final bottom = top + box.size.height;
-      final dy = globalPosition.dy;
-      final distance = dy < top ? top - dy : (dy > bottom ? dy - bottom : 0.0);
-      if (distance < bestDistance) {
-        bestDistance = distance;
-        best = i;
-      }
+      if (dy >= top && dy <= top + box.size.height) return i;
     }
-    return best;
+    return null;
   }
 
   void _reset() {
@@ -199,9 +193,10 @@ class _SlideSelectListState extends ConsumerState<SlideSelectList>
     // 別のタブへ切り替わって見えなくなった一覧では、選択を動かさない。
     if (!_visible) return;
     final index = _indexAt(event.position);
-    if (index == null || index == _index) return;
+    if (index == _index) return;
     setState(() => _index = index);
-    widget.onSlide?.call(index);
+    // 項目から外れた時は強調だけ消す（離しても何も開かない）。
+    if (index != null) widget.onSlide?.call(index);
   }
 
   // なぞり中の指が一覧の外の登録先（チップ列）へ出ている時の渡し先。
@@ -251,20 +246,10 @@ class _SlideSelectListState extends ConsumerState<SlideSelectList>
   }
 }
 
-/// スマホの項目一覧（設定・身だしなみ）を左・中央・右に寄せる（2026-11-02、劇画UIのみ）。
-/// [alignment]がnullなら従来どおり全幅。指定時は幅を絞った一覧を、上端はそのままに
-/// 左端・中央・右端（一覧の右端が画面の右端）へ置く。
-Widget alignCategoryList(NavChipAlignment? alignment, Widget child) {
-  if (alignment == null) return child;
-  return Align(
-    alignment: switch (alignment) {
-      NavChipAlignment.start => Alignment.topLeft,
-      NavChipAlignment.center => Alignment.topCenter,
-      NavChipAlignment.end => Alignment.topRight,
-    },
-    child: ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 300),
-      child: child,
-    ),
-  );
+/// スマホの項目一覧（設定・身だしなみ）を、上（標準）か下（メニューチップのすぐ上）へ
+/// 置く（2026-11-07）。[bottom]が偽なら従来どおりそのまま返す。下寄せは左揃え（中央にしない）。
+/// （2026-11-07、劇画UIだけにあった左・中央・右の揃えは廃止した。）
+Widget alignCategoryList(Widget child, {bool bottom = false}) {
+  if (!bottom) return child;
+  return Align(alignment: Alignment.bottomLeft, child: child);
 }

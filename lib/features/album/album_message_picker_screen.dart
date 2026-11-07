@@ -151,9 +151,11 @@ class _AlbumMessagePickerScreenState
                 ? Center(child: Text(strings.albumMessagePickerEmptyMessage))
                 : GridView.builder(
                     padding: const EdgeInsets.all(4),
+                    // 1枚の大きさは最大約130px（2026-11-07、列数固定だと広い画面で
+                    // 大きくなりすぎた）。
                     gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 3,
+                        const SliverGridDelegateWithMaxCrossAxisExtent(
+                          maxCrossAxisExtent: 130,
                           mainAxisSpacing: 4,
                           crossAxisSpacing: 4,
                         ),
@@ -181,10 +183,14 @@ class _AlbumMessagePickerScreenState
                           fit: StackFit.expand,
                           children: [
                             isVideo
-                                ? VideoThumbnail(
-                                    url: url,
-                                    canLoad: videoPlaybackSupported,
-                                    size: 120,
+                                ? LayoutBuilder(
+                                    builder: (context, constraints) =>
+                                        VideoThumbnail(
+                                          url: url,
+                                          thumbnailUrl: tile.thumbnailUrl,
+                                          canLoad: videoPlaybackSupported,
+                                          size: constraints.maxWidth,
+                                        ),
                                   )
                                 : Image.network(
                                     url,
