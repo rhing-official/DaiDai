@@ -60,6 +60,39 @@ class _PdfPreviewCardState extends ConsumerState<PdfPreviewCard> {
     Uri.parse(widget.url),
   );
 
+  // 画面遷移のアニメーションが終わるまで、文書の読み込み（pdfiumの初期化と1ページ目の
+  // 描画）を始めない。縦表示でメッセージ画面を開く遷移中にこれが走ると、一瞬カクついた
+  // （2026-11-07）。画面遷移の外（広い画面の分割表示等）では最初から読み込む。
+  bool _ready = false;
+  Animation<double>? _routeAnimation;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_ready) return;
+    final animation = ModalRoute.of(context)?.animation;
+    if (animation == null || animation.isCompleted) {
+      _ready = true;
+      return;
+    }
+    if (identical(_routeAnimation, animation)) return;
+    _routeAnimation?.removeStatusListener(_onRouteStatus);
+    _routeAnimation = animation..addStatusListener(_onRouteStatus);
+  }
+
+  void _onRouteStatus(AnimationStatus status) {
+    if (status != AnimationStatus.completed || !mounted) return;
+    _routeAnimation?.removeStatusListener(_onRouteStatus);
+    _routeAnimation = null;
+    setState(() => _ready = true);
+  }
+
+  @override
+  void dispose() {
+    _routeAnimation?.removeStatusListener(_onRouteStatus);
+    super.dispose();
+  }
+
   String get url => widget.url;
   String get fileName => widget.fileName;
   bool get isMe => widget.isMe;
@@ -76,18 +109,20 @@ class _PdfPreviewCardState extends ConsumerState<PdfPreviewCard> {
                   ? constraints.maxWidth
                   : kPdfPreviewWidth)
             : kPdfPreviewWidth;
+        Widget loading() => _frame(
+          context,
+          uiStyle,
+          isGekiga,
+          SizedBox(
+            width: width,
+            height: width * 1.1,
+            child: const Center(child: CircularProgressIndicator()),
+          ),
+        );
+        if (!_ready) return loading();
         return PdfDocumentViewBuilder(
           documentRef: _documentRef,
-          loadingBuilder: (context) => _frame(
-            context,
-            uiStyle,
-            isGekiga,
-            SizedBox(
-              width: width,
-              height: width * 1.1,
-              child: const Center(child: CircularProgressIndicator()),
-            ),
-          ),
+          loadingBuilder: (context) => loading(),
           errorBuilder: (context, error, stackTrace) => const SizedBox.shrink(),
           builder: (context, document) {
             if (document == null || document.pages.isEmpty) {

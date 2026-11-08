@@ -457,8 +457,9 @@ class _AlbumPaneViewState extends ConsumerState<AlbumPaneView> {
         return GridView.builder(
           padding: const EdgeInsets.all(4),
           // 1枚の大きさは最大約180px（2026-11-07、以前の110pxは小さすぎた）。
+          // メッセージから追加する一覧と共通（[kAlbumTileMaxExtent]）。
           gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-            maxCrossAxisExtent: 180,
+            maxCrossAxisExtent: kAlbumTileMaxExtent,
             mainAxisSpacing: 4,
             crossAxisSpacing: 4,
           ),

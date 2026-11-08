@@ -25,6 +25,10 @@ import '../../widgets/video_thumbnail.dart';
 /// ため修正。CLAUDE.mdの「メッセージ画面の範囲内表示」の方針参照）。
 /// 閉じる操作（戻る・下スワイプ・追加確定後）は全て[onClose]経由で
 /// 呼び出し元に委ねる。
+/// アルバムのプレビュー（追加済みの項目）とメッセージから追加する一覧で共通の、
+/// 1枚の最大の大きさ（2026-11-07、以前は前者180px・後者130pxだった）。
+const kAlbumTileMaxExtent = 180.0;
+
 class AlbumMessagePickerScreen extends ConsumerStatefulWidget {
   const AlbumMessagePickerScreen({
     required this.isDm,
@@ -151,11 +155,11 @@ class _AlbumMessagePickerScreenState
                 ? Center(child: Text(strings.albumMessagePickerEmptyMessage))
                 : GridView.builder(
                     padding: const EdgeInsets.all(4),
-                    // 1枚の大きさは最大約130px（2026-11-07、列数固定だと広い画面で
-                    // 大きくなりすぎた）。
+                    // 1枚の大きさはアルバムのプレビューと同じ（2026-11-07、
+                    // [kAlbumTileMaxExtent]）。
                     gridDelegate:
                         const SliverGridDelegateWithMaxCrossAxisExtent(
-                          maxCrossAxisExtent: 130,
+                          maxCrossAxisExtent: kAlbumTileMaxExtent,
                           mainAxisSpacing: 4,
                           crossAxisSpacing: 4,
                         ),
