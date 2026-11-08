@@ -97,6 +97,7 @@ Future<void> main() async {
   FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
   await initializeLocalNotifications();
   final initialAccentColor = await loadInitialAccentColor();
+  final initialAccentColorsByStyle = await loadInitialAccentColorsByStyle();
   final initialTextColorLight = await loadInitialTextColorLight();
   final initialTextColorDark = await loadInitialTextColorDark();
   final initialCustomAccentColors = await loadInitialCustomAccentColors();
@@ -146,6 +147,9 @@ Future<void> main() async {
     ProviderScope(
       overrides: [
         initialAccentColorProvider.overrideWithValue(initialAccentColor),
+        initialAccentColorsByStyleProvider.overrideWithValue(
+          initialAccentColorsByStyle,
+        ),
         initialTextColorLightProvider.overrideWithValue(initialTextColorLight),
         initialTextColorDarkProvider.overrideWithValue(initialTextColorDark),
         initialCustomAccentColorsProvider.overrideWithValue(

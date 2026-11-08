@@ -95,6 +95,30 @@ class _PendingPollTask extends _PendingTask {
   final Poll poll;
 }
 
+/// バナーの直近の状態の写し（メモリのみ、2026-11-08）。語らいを開き直すたび、
+/// 3種類の購読の初回の値が届いてから初めてバナーが現れ、メッセージ一覧の上端を
+/// 覆っていた（開いた直後に内容が動いて見える原因の1つ）。前回の状態を最初の
+/// フレームから使い、購読の値が届いたら通常どおり差し替える。
+class _BannerSnapshot {
+  _BannerSnapshot({
+    required this.candidateEvents,
+    required this.pendingByEventId,
+    required this.candidateCoordinations,
+    required this.pendingByCoordinationId,
+    required this.candidatePolls,
+    required this.pendingByPollId,
+  });
+
+  final Map<String, CalendarEvent> candidateEvents;
+  final Map<String, bool> pendingByEventId;
+  final Map<String, ScheduleCoordination> candidateCoordinations;
+  final Map<String, bool> pendingByCoordinationId;
+  final Map<String, Poll> candidatePolls;
+  final Map<String, bool> pendingByPollId;
+}
+
+final _bannerSnapshots = <String, _BannerSnapshot>{};
+
 class _ChatTaskBannerState extends ConsumerState<ChatTaskBanner> {
   StreamSubscription<List<CalendarEvent>>? _eventsSub;
   final Map<String, StreamSubscription<List<CalendarEventRsvp>>> _rsvpSubs = {};
@@ -114,9 +138,21 @@ class _ChatTaskBannerState extends ConsumerState<ChatTaskBanner> {
 
   bool _expanded = false;
 
+  String get _snapshotKey =>
+      '${widget.isDm}/${widget.conversationId}/${widget.roomId}/${widget.currentUserId}';
+
   @override
   void initState() {
     super.initState();
+    final snapshot = _bannerSnapshots[_snapshotKey];
+    if (snapshot != null) {
+      _candidateEvents.addAll(snapshot.candidateEvents);
+      _pendingByEventId.addAll(snapshot.pendingByEventId);
+      _candidateCoordinations.addAll(snapshot.candidateCoordinations);
+      _pendingByCoordinationId.addAll(snapshot.pendingByCoordinationId);
+      _candidatePolls.addAll(snapshot.candidatePolls);
+      _pendingByPollId.addAll(snapshot.pendingByPollId);
+    }
     _eventsSub = ref
         .read(calendarEventRepositoryProvider)
         .watchEvents(
@@ -423,6 +459,14 @@ class _ChatTaskBannerState extends ConsumerState<ChatTaskBanner> {
 
   @override
   Widget build(BuildContext context) {
+    _bannerSnapshots[_snapshotKey] = _BannerSnapshot(
+      candidateEvents: Map.of(_candidateEvents),
+      pendingByEventId: Map.of(_pendingByEventId),
+      candidateCoordinations: Map.of(_candidateCoordinations),
+      pendingByCoordinationId: Map.of(_pendingByCoordinationId),
+      candidatePolls: Map.of(_candidatePolls),
+      pendingByPollId: Map.of(_pendingByPollId),
+    );
     final pendingEvents = _pendingByEventId.entries
         .where((e) => e.value)
         .map((e) => _candidateEvents[e.key])

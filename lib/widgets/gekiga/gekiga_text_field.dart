@@ -24,6 +24,7 @@ class GekigaTextField extends StatelessWidget {
     this.inputFormatters,
     this.textCapitalization = TextCapitalization.none,
     this.autofocus = false,
+    this.focusNode,
     this.onSubmitted,
     this.onChanged,
     super.key,
@@ -39,6 +40,7 @@ class GekigaTextField extends StatelessWidget {
   final List<TextInputFormatter>? inputFormatters;
   final TextCapitalization textCapitalization;
   final bool autofocus;
+  final FocusNode? focusNode;
   final ValueChanged<String>? onSubmitted;
   final ValueChanged<String>? onChanged;
 
@@ -49,6 +51,7 @@ class GekigaTextField extends StatelessWidget {
       painter: const _GekigaTextFieldPainter(),
       child: TextField(
         controller: controller,
+        focusNode: focusNode,
         autofocus: autofocus,
         textCapitalization: textCapitalization,
         inputFormatters: inputFormatters,

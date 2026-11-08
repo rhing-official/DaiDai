@@ -11,6 +11,13 @@ import '../../utils/auto_dismiss_banner.dart';
 import '../../utils/poll_embed.dart';
 import '../../widgets/toggles/app_checkbox.dart';
 
+/// 直近に受け取った投票・自分の回答の写し（メモリのみ、2026-11-08）。語らいを
+/// 開き直した時、購読の初回の値が届くまで通知カード（背が高い）を出してから埋め込み
+/// カードへ差し替わると、内容全体が上下にずれて見えた。前回の値を最初のフレームから
+/// 使えば、2回目以降は差し替わらない。更新は購読が届き次第すぐ反映する。
+final _pollCache = <String, Poll>{};
+final _responseCache = <String, PollResponse?>{};
+
 /// 投票開始通知メッセージ（`contentType: 'pollCreated'`）の中に、選択肢を
 /// そのまま出してその場で投票できる埋め込みカード（2026-11-07、
 /// `文書/投票埋め込み.md`）。
@@ -60,6 +67,9 @@ class _PollMessageCardState extends ConsumerState<PollMessageCard> {
   bool _initializedFromExisting = false;
   bool _saving = false;
 
+  String get _cacheKey =>
+      '${widget.isDm}/${widget.conversationId}/${widget.roomId}/${widget.pollId}/${widget.currentUserId}';
+
   late final Stream<Poll?> _pollStream = ref
       .read(pollRepositoryProvider)
       .watchPoll(
@@ -67,7 +77,15 @@ class _PollMessageCardState extends ConsumerState<PollMessageCard> {
         conversationId: widget.conversationId,
         roomId: widget.roomId,
         pollId: widget.pollId,
-      );
+      )
+      .map((poll) {
+        if (poll == null) {
+          _pollCache.remove(_cacheKey);
+        } else {
+          _pollCache[_cacheKey] = poll;
+        }
+        return poll;
+      });
 
   late final Stream<PollResponse?> _myResponseStream = ref
       .read(pollRepositoryProvider)
@@ -77,7 +95,11 @@ class _PollMessageCardState extends ConsumerState<PollMessageCard> {
         roomId: widget.roomId,
         pollId: widget.pollId,
         userId: widget.currentUserId,
-      );
+      )
+      .map((response) {
+        _responseCache[_cacheKey] = response;
+        return response;
+      });
 
   void _initFromExisting(PollResponse? response) {
     if (_initializedFromExisting || response == null) return;
@@ -126,6 +148,7 @@ class _PollMessageCardState extends ConsumerState<PollMessageCard> {
 
     return StreamBuilder<Poll?>(
       stream: _pollStream,
+      initialData: _pollCache[_cacheKey],
       builder: (context, pollSnapshot) {
         final poll = pollSnapshot.data;
         if (poll == null || shouldCollapsePoll(poll)) return widget.fallback;
@@ -166,6 +189,7 @@ class _PollMessageCardState extends ConsumerState<PollMessageCard> {
               const SizedBox(height: 10),
               StreamBuilder<PollResponse?>(
                 stream: _myResponseStream,
+                initialData: _responseCache[_cacheKey],
                 builder: (context, responseSnapshot) {
                   final myResponse = responseSnapshot.data;
                   _initFromExisting(myResponse);

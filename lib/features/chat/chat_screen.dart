@@ -403,6 +403,11 @@ class ChatScreen extends ConsumerStatefulWidget {
   ConsumerState<ChatScreen> createState() => _ChatScreenState();
 }
 
+/// ノート作成通知カードの表示用に、直近に受け取ったノートの写し（メモリのみ、
+/// 2026-11-08）。語らいを開き直した直後に名前が「無題のノート」から本来の名前へ
+/// 替わって見えるのを避ける。購読の値が届き次第、通常どおり更新する。
+final _noteNoticeCache = <String, Note>{};
+
 /// メッセージ一覧（`ScrollablePositionedList`）の1行分が何であるかを表す
 /// 軽量なデータ（2026-09-07追加、`task_banner.dart`の`sealed class
 /// _PendingTask`と同じ考え方）。以前はこのループの中で`_MessageRow`/
@@ -3093,6 +3098,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       extendBodyBehindAppBar: true,
       appBar: appBar,
       body: Column(
+        // 幅を常に画面いっぱいにする（2026-11-08）。指定しないと、Columnは一番幅の広い
+        // 子の幅になり、メッセージ一覧がまだ無い最初の数フレーム（読み込み表示だけ）は
+        // 下のStackの幅が0になっていた。すると、Stackに重ねた入力欄が幅0で配置され、
+        // 入力欄の文字が1文字ずつ折り返して最大6行ぶんの高さ（実測192〜254px）になり、
+        // それを「安定した高さ」と誤判定して一覧の下余白に使い、直後に72pxへ縮んで
+        // 内容全体が約180px動いて見えていた（画面を開いた直後のカクつきの根本原因）。
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // extendBodyBehindAppBarによりbodyはAppBarの裏（y=0）から始まる
           // ため、バナーをそのまま置くとAppBarの矩形と重なり、AppBar側の
@@ -6569,6 +6581,7 @@ class _MessageRow extends ConsumerWidget {
     final noteId = message.noteId;
     final noteConversationId = conversationId;
     final noteRoomId = roomId;
+    final cacheKey = '$noteConversationId/$noteRoomId/$noteId';
     final noteStream =
         noteId != null && noteConversationId != null && noteRoomId != null
         ? ref
@@ -6579,17 +6592,33 @@ class _MessageRow extends ConsumerWidget {
                 roomId: noteRoomId,
                 noteId: noteId,
               )
+              .map((note) {
+                if (note != null) _noteNoticeCache[cacheKey] = note;
+                return note;
+              })
         : null;
 
     return StreamBuilder<Note?>(
       stream: noteStream,
+      // 開き直した時、購読の最初の値が届くまで「無題のノート」を出してから本来の名前に
+      // 替わって見えた為、前回の値を最初のフレームから使う（2026-11-08）。
+      initialData: _noteNoticeCache[cacheKey],
       builder: (context, snapshot) {
         final note = snapshot.data;
+        // ノートがまだ届いていない間（その端末で初めて見る時）は、本当に無題かどうか
+        // 分からないので「無題のノート」とは出さず、1行ぶんの空白にしておく（高さは
+        // 保つ）。届いてから本来の名前（無題なら「無題のノート」）を出す。
+        final loading =
+            note == null &&
+            message.content.isEmpty &&
+            snapshot.connectionState == ConnectionState.waiting;
         final title = note != null
             ? resolveNoteDisplayTitle(note, fallback: strings.noteUntitledLabel)
-            : (message.content.isEmpty
-                  ? strings.noteUntitledLabel
-                  : message.content);
+            : (loading
+                  ? '\u200B'
+                  : (message.content.isEmpty
+                        ? strings.noteUntitledLabel
+                        : message.content));
         return _noteCreatedNoticeCard(
           context,
           strings,

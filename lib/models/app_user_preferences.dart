@@ -9,6 +9,7 @@
 class AppUserPreferences {
   const AppUserPreferences({
     this.accentColorArgb,
+    this.accentColorsArgb,
     this.gekigaBackgroundColorArgb,
     this.themeMode,
     this.localeCode,
@@ -44,6 +45,10 @@ class AppUserPreferences {
   static const empty = AppUserPreferences();
 
   final int? accentColorArgb;
+
+  /// UIスタイル別のアクセントカラー（2026-11-08追加、キーは`AppUiStyle.name`）。
+  /// 無いスタイルは旧来の共通の[accentColorArgb]に従う。
+  final Map<String, int>? accentColorsArgb;
   final int? gekigaBackgroundColorArgb;
   final String? themeMode;
   final String? localeCode;
@@ -129,6 +134,8 @@ class AppUserPreferences {
     if (json == null) return empty;
     return AppUserPreferences(
       accentColorArgb: json['accentColorArgb'] as int?,
+      accentColorsArgb: (json['accentColorsArgb'] as Map<String, dynamic>?)
+          ?.map((key, value) => MapEntry(key, (value as num).toInt())),
       gekigaBackgroundColorArgb: json['gekigaBackgroundColorArgb'] as int?,
       themeMode: json['themeMode'] as String?,
       localeCode: json['localeCode'] as String?,
@@ -172,6 +179,7 @@ class AppUserPreferences {
   Map<String, dynamic> toJson() {
     return {
       if (accentColorArgb != null) 'accentColorArgb': accentColorArgb,
+      if (accentColorsArgb != null) 'accentColorsArgb': accentColorsArgb,
       if (gekigaBackgroundColorArgb != null)
         'gekigaBackgroundColorArgb': gekigaBackgroundColorArgb,
       if (themeMode != null) 'themeMode': themeMode,

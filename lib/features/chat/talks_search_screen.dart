@@ -18,6 +18,8 @@ import '../../providers/conversation_prefs_providers.dart';
 import '../../providers/repository_providers.dart';
 import '../../providers/user_providers.dart';
 import '../../utils/open_conversation.dart';
+import '../../theme/gekiga/gekiga_colors.dart';
+import '../../widgets/gekiga/gekiga_text_field.dart';
 import 'talks_search.dart';
 import 'talks_tab.dart' show DirectMessageTile, GroupTile, dmSearchLabel;
 
@@ -122,7 +124,8 @@ class _TalksSearchScreenState extends ConsumerState<TalksSearchScreen> {
   Widget build(BuildContext context) {
     final strings = ref.watch(appStringsProvider);
     final vocab = ref.watch(vocabularyProvider);
-    final isGekiga = ref.watch(appUiStyleProvider) == AppUiStyle.gekiga;
+    final uiStyle = ref.watch(appUiStyleProvider);
+    final isGekiga = uiStyle == AppUiStyle.gekiga;
 
     final directMessagesStream = ref
         .watch(directMessageRepositoryProvider)
@@ -139,16 +142,51 @@ class _TalksSearchScreenState extends ConsumerState<TalksSearchScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: TextField(
-          controller: _searchController,
-          focusNode: _focusNode,
-          autofocus: true,
-          decoration: InputDecoration(
-            hintText: strings.talksSearchHint,
-            border: InputBorder.none,
-          ),
-          onChanged: (_) => _onSearchTextChanged(),
-        ),
+        // 劇画は語らい一覧の検索欄と同じジグザグ枠の入力欄にする（2026-11-08）。
+        // 枠が収まるようバーを少し高くする。
+        toolbarHeight: isGekiga ? 80 : null,
+        // 版画はテーマのAppBarが下に細い線（枠線）を引くが、この検索画面では消す
+        // （2026-11-08）。
+        shape: uiStyle == AppUiStyle.block ? const Border() : null,
+        title: isGekiga
+            ? Padding(
+                // 上に余白を空ける（2026-11-08）。
+                padding: const EdgeInsets.only(top: 16, bottom: 8),
+                child: GekigaTextField(
+                  controller: _searchController,
+                  focusNode: _focusNode,
+                  autofocus: true,
+                  hintText: strings.talksSearchHint,
+                  prefixIcon: const Icon(
+                    Icons.search,
+                    color: GekigaColors.onPanel,
+                  ),
+                  suffixIcon: _searchController.text.isEmpty
+                      ? null
+                      : IconButton(
+                          icon: const Icon(
+                            Icons.clear,
+                            color: GekigaColors.onPanel,
+                          ),
+                          onPressed: () {
+                            _searchController.clear();
+                            _onSearchTextChanged();
+                            _focusNode.requestFocus();
+                          },
+                        ),
+                  onChanged: (_) => _onSearchTextChanged(),
+                ),
+              )
+            : TextField(
+                controller: _searchController,
+                focusNode: _focusNode,
+                autofocus: true,
+                decoration: InputDecoration(
+                  hintText: strings.talksSearchHint,
+                  border: InputBorder.none,
+                ),
+                onChanged: (_) => _onSearchTextChanged(),
+              ),
       ),
       body: StreamBuilder<List<DirectMessage>>(
         stream: directMessagesStream,
@@ -163,33 +201,43 @@ class _TalksSearchScreenState extends ConsumerState<TalksSearchScreen> {
               _lastBlockedIds = blockedIds;
 
               final query = _searchController.text;
-              if (query.trim().isEmpty) {
-                return const SizedBox.shrink();
-              }
-
-              final sections = computeTalksSearchSections(
-                query: query,
-                directMessages: directMessages,
-                groups: groups,
-                blockedIds: blockedIds,
-                currentUserId: widget.currentUser.userId,
-                dmLabelResolver: (dm) {
-                  final otherUser = ref
-                      .watch(
-                        watchedUserProvider(
-                          dm.otherUserId(widget.currentUser.userId),
-                        ),
-                      )
-                      .value;
-                  return dmSearchLabel(
-                    otherUser,
-                    dm,
-                    widget.currentUser.userId,
-                    aliases: ref.watch(myContactAliasesProvider).value,
-                  );
-                },
-                messageMatches: _messageMatches,
-              );
+              // 何も入力していない間は、絞り込まずに語らい（一対・広場）を全て並べる
+              // （2026-11-08、以前は空白だった）。メッセージ内容は検索語が入ってから。
+              final sections = query.trim().isEmpty
+                  ? TalksSearchSections(
+                      dmMatches: [
+                        for (final dm in directMessages)
+                          if (!blockedIds.contains(
+                            dm.otherUserId(widget.currentUser.userId),
+                          ))
+                            dm,
+                      ],
+                      groupMatches: groups,
+                      messageMatches: const [],
+                    )
+                  : computeTalksSearchSections(
+                      query: query,
+                      directMessages: directMessages,
+                      groups: groups,
+                      blockedIds: blockedIds,
+                      currentUserId: widget.currentUser.userId,
+                      dmLabelResolver: (dm) {
+                        final otherUser = ref
+                            .watch(
+                              watchedUserProvider(
+                                dm.otherUserId(widget.currentUser.userId),
+                              ),
+                            )
+                            .value;
+                        return dmSearchLabel(
+                          otherUser,
+                          dm,
+                          widget.currentUser.userId,
+                          aliases: ref.watch(myContactAliasesProvider).value,
+                        );
+                      },
+                      messageMatches: _messageMatches,
+                    );
 
               return TalksSearchResultsView(
                 sections: sections,

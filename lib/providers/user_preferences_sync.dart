@@ -48,10 +48,14 @@ import 'theme_mode_provider.dart';
 /// （SharedPreferences由来）をそのまま維持し、Firestoreへの書き戻しは行わない
 /// （ユーザーが明示的に変更した時点で初めて同期対象になる）。
 void applyRemoteUserPreferences(WidgetRef ref, AppUserPreferences preferences) {
-  if (preferences.accentColorArgb != null) {
+  if (preferences.accentColorArgb != null ||
+      preferences.accentColorsArgb != null) {
     ref
         .read(accentColorProvider.notifier)
-        .syncFromRemote(Color(preferences.accentColorArgb!));
+        .syncFromRemote(
+          byStyle: preferences.accentColorsArgb,
+          legacy: preferences.accentColorArgb,
+        );
   }
   if (preferences.customAccentColorsArgb != null) {
     ref
