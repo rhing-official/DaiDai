@@ -114,6 +114,7 @@ import '../../providers/avatar_palette_provider.dart';
 import '../guide/tutorial/tutorial_target.dart';
 import '../../widgets/app_dialog.dart';
 import '../../widgets/toggles/app_checkbox.dart';
+import '../../widgets/delayed_spinner.dart';
 
 /// 劇画UIの吹き出し・入力欄の枠取りの太さ（[MonochromeBoxPainter]の
 /// thicknessBase）。以前は`size.shortestSide`（箱の短辺）に比例させて
@@ -3138,7 +3139,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                         !snapshot.hasData) {
                       return Padding(
                         padding: EdgeInsets.only(bottom: _composerAreaHeight),
-                        child: const SizedBox.shrink(),
+                        child: const DelayedSpinner(),
                       );
                     }
                     if (snapshot.hasError) {

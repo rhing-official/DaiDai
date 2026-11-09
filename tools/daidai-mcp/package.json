@@ -1,15 +1,36 @@
 {
   "name": "daidai-mcp",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "DaiDai bot API を Claude Code などの MCP クライアントから使うための MCP サーバー",
   "type": "module",
-  "bin": { "daidai-mcp": "./index.mjs" },
-  "scripts": { "test": "node --test" },
-  "engines": { "node": ">=20" },
+  "bin": {
+    "daidai-mcp": "index.mjs"
+  },
+  "scripts": {
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=20"
+  },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.2",
     "zod": "^3.25.0"
   },
-  "license": "UNLICENSED",
-  "private": true
+  "license": "MIT",
+  "files": [
+    "index.mjs",
+    "api.mjs",
+    "README.md"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rhing-official/DaiDai.git",
+    "directory": "tools/daidai-mcp"
+  },
+  "homepage": "https://github.com/rhing-official/DaiDai/tree/main/tools/daidai-mcp",
+  "keywords": [
+    "mcp",
+    "daidai",
+    "claude-code"
+  ]
 }

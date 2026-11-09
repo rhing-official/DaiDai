@@ -12,6 +12,7 @@ class GlassAlertDialog extends StatelessWidget {
     this.content,
     this.actions,
     this.scrollable = false,
+    this.constraints,
     super.key,
   });
 
@@ -19,6 +20,9 @@ class GlassAlertDialog extends StatelessWidget {
   final Widget? content;
   final List<Widget>? actions;
   final bool scrollable;
+
+  /// 幅の上限などの制約（省略時はテーマの`dialogTheme`の値）。
+  final BoxConstraints? constraints;
 
   @override
   Widget build(BuildContext context) {
@@ -54,6 +58,7 @@ class GlassAlertDialog extends StatelessWidget {
       child: Dialog(
         backgroundColor: Colors.transparent,
         elevation: 0,
+        constraints: constraints,
         child: GlassSurface(
           variant: GlassVariant.floating,
           borderRadius: BorderRadius.circular(24),

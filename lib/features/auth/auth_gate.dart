@@ -15,6 +15,7 @@ import 'residence_survey_screen.dart';
 import 'rhing_seed_setup_screen.dart';
 import 'sign_in_screen.dart';
 import 'terms_consent_screen.dart';
+import '../../widgets/delayed_spinner.dart';
 
 /// 認証状態・Rhing Seed登録状態に応じて表示を切り替える汎用ゲート。
 /// ログイン済み・Rhing Seed登録済みになった時点で[builder]を呼ぶ。
@@ -30,7 +31,7 @@ class AuthGate extends ConsumerWidget {
     final authState = ref.watch(authStateProvider);
 
     return authState.when(
-      loading: () => const Scaffold(body: SizedBox.shrink()),
+      loading: () => const Scaffold(body: DelayedSpinner()),
       error: (error, _) => Scaffold(
         body: Center(
           child: Text(
@@ -111,7 +112,7 @@ class _AuthenticatedUserGateState
       future: _future,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(body: SizedBox.shrink());
+          return const Scaffold(body: DelayedSpinner());
         }
         // 住人データの取得・パースに失敗した場合（例: 2026-09-23の
         // rhingId→rhingSeedリネーム移行漏れで`AppUser.fromJson`が例外を

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../l10n/strings.dart';
 import '../../models/app_ui_style.dart';
@@ -39,56 +40,25 @@ class AiIntegrationDialog extends ConsumerWidget {
   }
 
   Future<void> _showToken(BuildContext context, Strings strings, String token) {
-    final curl =
-        "curl -H 'Authorization: Bot $token' "
-        "'https://asia-northeast1-daidai-rhing.cloudfunctions.net/botApi/v1/conversations'";
     return showAppDialog<void>(
       context: context,
-      builder: (dialogContext) => _Dialog(
-        isGlass: isGlass,
-        title: Text(strings.botCreatedTitle),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                strings.botTokenOnceWarning,
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 12),
-              SelectableText(token, style: const TextStyle(fontSize: 12)),
-              const SizedBox(height: 8),
-              OutlinedButton.icon(
-                icon: const Icon(Icons.copy, size: 18),
-                label: Text(strings.botCopyToken),
-                onPressed: () async {
-                  await Clipboard.setData(ClipboardData(text: token));
-                  if (dialogContext.mounted) {
-                    showAutoDismissBanner(
-                      dialogContext,
-                      message: strings.botCopied,
-                    );
-                  }
-                },
-              ),
-              const SizedBox(height: 16),
-              Text(
-                strings.botApiLabel,
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 4),
-              SelectableText(curl, style: const TextStyle(fontSize: 11)),
-            ],
+      builder: (dialogContext) {
+        // 横画面（広い画面）では、テーマの幅の上限（400）を外して画面いっぱいに使い、
+        // AIエージェント用とAPI用の2列に分ける。
+        final screenWidth = MediaQuery.sizeOf(dialogContext).width;
+        final wide = screenWidth >= 760;
+        final contentWidth = (screenWidth - 128).clamp(0.0, 1100.0);
+        return _Dialog(
+          isGlass: isGlass,
+          title: Text(strings.botCreatedTitle),
+          constraints: wide ? const BoxConstraints(maxWidth: 1200) : null,
+          content: SizedBox(
+            width: wide ? contentWidth : 360,
+            child: _TokenBody(strings: strings, token: token, wide: wide),
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(),
-            child: Text(strings.done),
-          ),
-        ],
-      ),
+          actions: const [],
+        );
+      },
     );
   }
 
@@ -224,12 +194,7 @@ class AiIntegrationDialog extends ConsumerWidget {
           },
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: Text(strings.done),
-        ),
-      ],
+      actions: const [],
     );
   }
 }
@@ -241,6 +206,7 @@ class _Dialog extends StatelessWidget {
     required this.title,
     required this.content,
     required this.actions,
+    this.constraints,
   });
 
   final bool isGlass;
@@ -248,11 +214,24 @@ class _Dialog extends StatelessWidget {
   final Widget content;
   final List<Widget> actions;
 
+  /// 幅の上限（テーマの既定は400）。広げたい時だけ渡す。
+  final BoxConstraints? constraints;
+
   @override
   Widget build(BuildContext context) {
     return isGlass
-        ? GlassAlertDialog(title: title, content: content, actions: actions)
-        : KeyboardAlertDialog(title: title, content: content, actions: actions);
+        ? GlassAlertDialog(
+            title: title,
+            content: content,
+            actions: actions,
+            constraints: constraints,
+          )
+        : KeyboardAlertDialog(
+            title: title,
+            content: content,
+            actions: actions,
+            constraints: constraints,
+          );
   }
 }
 
@@ -303,4 +282,221 @@ class _NameDialogState extends State<_NameDialog> {
       ],
     );
   }
+}
+
+/// 読み取り専用の欄に値を入れ、右端のアイコンでコピーできる部品。
+class _CopyField extends StatefulWidget {
+  const _CopyField({
+    required this.value,
+    required this.tooltip,
+    required this.copiedMessage,
+    this.fontSize = 12,
+  });
+
+  final String value;
+  final String tooltip;
+  final String copiedMessage;
+  final double fontSize;
+
+  @override
+  State<_CopyField> createState() => _CopyFieldState();
+}
+
+class _CopyFieldState extends State<_CopyField> {
+  late final TextEditingController _controller = TextEditingController(
+    text: widget.value,
+  );
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: _controller,
+      readOnly: true,
+      minLines: 1,
+      maxLines: 4,
+      style: TextStyle(fontSize: widget.fontSize),
+      onTap: () => _controller.selection = TextSelection(
+        baseOffset: 0,
+        extentOffset: _controller.text.length,
+      ),
+      decoration: InputDecoration(
+        isDense: true,
+        border: const OutlineInputBorder(),
+        suffixIcon: IconButton(
+          icon: const Icon(Icons.copy, size: 18),
+          tooltip: widget.tooltip,
+          onPressed: () async {
+            await Clipboard.setData(ClipboardData(text: widget.value));
+            if (context.mounted) {
+              showAutoDismissBanner(context, message: widget.copiedMessage);
+            }
+          },
+        ),
+      ),
+    );
+  }
+}
+
+/// トークン表示ポップアップの中身（トークン欄・使い方の手順）。
+class _TokenBody extends StatelessWidget {
+  const _TokenBody({
+    required this.strings,
+    required this.token,
+    required this.wide,
+  });
+
+  final Strings strings;
+  final String token;
+
+  /// 広い画面では、AIエージェントで使う手順（1〜3）を左、直接APIを呼ぶ場合を右の2列に分ける。
+  final bool wide;
+
+  static const _guideUrl =
+      'https://github.com/rhing-official/DaiDai/tree/main/tools/daidai-mcp';
+
+  @override
+  Widget build(BuildContext context) {
+    final command =
+        'claude mcp add daidai -e DAIDAI_BOT_TOKEN=$token -- npx -y daidai-mcp';
+    final curl =
+        "curl -H 'Authorization: Bot $token' "
+        "'https://asia-northeast1-daidai-rhing.cloudfunctions.net/botApi/v1/conversations'";
+    const bold = TextStyle(fontWeight: FontWeight.bold);
+    const small = TextStyle(fontSize: 13);
+    final step1 = <Widget>[
+      Text(strings.botUsageStep1, style: small),
+      const SizedBox(height: 6),
+      _CopyField(
+        value: token,
+        tooltip: strings.botCopyToken,
+        copiedMessage: strings.botCopied,
+      ),
+    ];
+    final step2 = <Widget>[
+      Text(strings.botUsageStep2, style: small),
+      const SizedBox(height: 6),
+      _CopyField(
+        value: command,
+        tooltip: strings.botCopyToken,
+        copiedMessage: strings.botCopied,
+        fontSize: 11,
+      ),
+    ];
+    final step3 = <Widget>[
+      Text(strings.botUsageStep3, style: small),
+      const SizedBox(height: 8),
+      Align(
+        alignment: Alignment.centerRight,
+        child: OutlinedButton.icon(
+          icon: const Icon(Icons.open_in_new, size: 18),
+          label: Text(strings.botUsageMore),
+          onPressed: () => launchUrl(
+            Uri.parse(_guideUrl),
+            mode: LaunchMode.externalApplication,
+          ),
+        ),
+      ),
+    ];
+    final advanced = ExpansionTile(
+      tilePadding: EdgeInsets.zero,
+      title: Text(strings.botUsageAdvanced, style: bold),
+      children: [
+        _CopyField(
+          value: curl,
+          tooltip: strings.botCopyToken,
+          copiedMessage: strings.botCopied,
+          fontSize: 11,
+        ),
+      ],
+    );
+    const gap = SizedBox(height: 14);
+    final Widget body;
+    if (wide) {
+      body = IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              flex: 3,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _Heading(strings.botUsageTitle),
+                  const SizedBox(height: 8),
+                  ...step1,
+                  gap,
+                  ...step2,
+                  gap,
+                  ...step3,
+                ],
+              ),
+            ),
+            const SizedBox(width: 14),
+            const VerticalDivider(width: 1),
+            const SizedBox(width: 14),
+            Expanded(
+              flex: 2,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _Heading(strings.botUsageAdvanced),
+                  const SizedBox(height: 8),
+                  _CopyField(
+                    value: curl,
+                    tooltip: strings.botCopyToken,
+                    copiedMessage: strings.botCopied,
+                    fontSize: 11,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    } else {
+      body = Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _Heading(strings.botUsageTitle),
+          const SizedBox(height: 8),
+          ...step1,
+          gap,
+          ...step2,
+          gap,
+          ...step3,
+          const SizedBox(height: 16),
+          advanced,
+        ],
+      );
+    }
+    return SingleChildScrollView(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [body],
+      ),
+    );
+  }
+}
+
+/// 折り返さない見出し。
+class _Heading extends StatelessWidget {
+  const _Heading(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Text(
+    text,
+    maxLines: 1,
+    softWrap: false,
+    overflow: TextOverflow.ellipsis,
+    style: const TextStyle(fontWeight: FontWeight.bold),
+  );
 }

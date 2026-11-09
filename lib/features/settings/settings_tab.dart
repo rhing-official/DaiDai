@@ -121,6 +121,7 @@ import '../../widgets/dialog_keyboard_shortcuts.dart';
 import '../../widgets/app_dialog.dart';
 import '../../widgets/toggles/app_switch.dart';
 import '../../widgets/toggles/app_radio.dart';
+import '../../widgets/delayed_spinner.dart';
 
 /// 画面幅がこれ以上あれば、左にカテゴリ一覧（サイドバー）、右にそのカテゴリの
 /// 内容を1ページにまとめて表示するDiscord設定風の2ペイン表示にする。
@@ -1911,7 +1912,7 @@ class _LicenseListViewState extends State<_LicenseListView> {
         builder: (context, snapshot) {
           final data = snapshot.data;
           if (data == null) {
-            return const Center(child: CircularProgressIndicator());
+            return const DelayedSpinner();
           }
           final names = data.keys.toList()
             ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));

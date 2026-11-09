@@ -95,6 +95,7 @@ import 'group_settings_popup.dart';
 import 'room_list_pane.dart';
 import 'talks_search.dart';
 import '../../widgets/app_dialog.dart';
+import '../../widgets/delayed_spinner.dart';
 
 enum _TalksCategory { dm, group }
 
@@ -2529,7 +2530,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
     if (snapshot.connectionState == ConnectionState.waiting &&
         incomingRequests.isEmpty &&
         outgoingRequests.isEmpty) {
-      return const SizedBox.shrink();
+      return const DelayedSpinner();
     }
     // ブロックした相手は一対の一覧から非表示にする（会話・ブロック状態自体は
     // 保持したまま、一覧に出さないだけ。ブロック解除は設定＞語らいから行う）。
@@ -2652,7 +2653,7 @@ class _TalksTabState extends ConsumerState<TalksTab>
     );
     if (snapshot.connectionState == ConnectionState.waiting &&
         pendingRequests.isEmpty) {
-      return const SizedBox.shrink();
+      return const DelayedSpinner();
     }
     if (groups.isEmpty && pendingRequests.isEmpty) {
       final plazaTerm = ref.read(vocabularyProvider).plaza;

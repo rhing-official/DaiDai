@@ -11,6 +11,7 @@ import '../models/message.dart';
 import 'blurred_viewer_route.dart';
 import 'confirm_download_dialog.dart';
 import 'viewer_nav_arrows.dart';
+import 'delayed_spinner.dart';
 import 'swipe_gestures.dart' show PinchPriorityPageView, ZoomReporter;
 
 /// アプリ内で開くPDFの上限サイズ。超える大きさは取得が重いので従来どおり
@@ -135,7 +136,7 @@ class _PdfViewerScreenState extends ConsumerState<PdfViewerScreen> {
             title: Text(widget.fileName),
           ),
         ),
-        body: const Center(child: CircularProgressIndicator()),
+        body: const DelayedSpinner(),
       ),
       errorBuilder: (context, error, stackTrace) => Scaffold(
         backgroundColor: Colors.transparent,

@@ -5,6 +5,7 @@ import '../../models/app_user.dart';
 import '../../providers/repository_providers.dart';
 import '../not_found/not_found_screen.dart';
 import 'admin_panel_screen.dart';
+import '../../widgets/delayed_spinner.dart';
 
 /// `/admin`（隠しルート）の入り口。管理者クレーム（[isAdminProvider]）を
 /// 確認し、管理者なら[AdminPanelScreen]を、管理者でなければ未定義URLと同じ
@@ -27,7 +28,7 @@ class AdminGate extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final isAdminAsync = ref.watch(isAdminProvider);
     return isAdminAsync.when(
-      loading: () => const Scaffold(body: SizedBox.shrink()),
+      loading: () => const Scaffold(body: DelayedSpinner()),
       // 判定に失敗した場合も、理由を表示せず存在しないページ扱いにする。
       error: (_, _) => const NotFoundScreen(),
       data: (isAdmin) => isAdmin

@@ -21,6 +21,7 @@ import '../../widgets/gekiga/gekiga_panel_box.dart';
 import '../../widgets/gekiga/gekiga_text_field.dart';
 import '../../widgets/glass/glass_avatar.dart';
 import '../../widgets/style_choice_chip.dart';
+import '../../widgets/delayed_spinner.dart';
 import 'talks_tab.dart' show BlockTalkTileWrap, dmSearchLabel;
 
 /// この幅以上の画面では、右に転送内容のプレビューを置く2ペインにする。
@@ -270,7 +271,7 @@ class _ForwardTargetDialogState extends ConsumerState<_ForwardTargetDialog> {
       future: Future.wait<Object>([_dms, _groups]),
       builder: (context, snapshot) {
         if (!snapshot.hasData) {
-          return const Center(child: CircularProgressIndicator());
+          return const DelayedSpinner();
         }
         final dms = snapshot.data![0] as List<DirectMessage>;
         final groups = snapshot.data![1] as List<Group>;

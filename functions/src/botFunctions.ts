@@ -83,7 +83,7 @@ async function audit(
 }
 
 /** AIエージェント連携のトークンを作る。トークンは**この応答でしか返さない**。 */
-export const createBot = onCall({ region: REGION }, async (request) => {
+export const createBot = onCall({ region: REGION, invoker: "public" }, async (request) => {
   const uid = requireUid(request);
   const name = normalizeBotName(request.data?.name);
   if (name === null) {
@@ -117,7 +117,7 @@ export const createBot = onCall({ region: REGION }, async (request) => {
 });
 
 /** トークンを作り直す（古いトークンは即座に無効）。 */
-export const rotateBotToken = onCall({ region: REGION }, async (request) => {
+export const rotateBotToken = onCall({ region: REGION, invoker: "public" }, async (request) => {
   const uid = requireUid(request);
   const botId = str(request.data?.botId, "botId");
   const { ref } = await ownedBot(uid, botId);
@@ -128,7 +128,7 @@ export const rotateBotToken = onCall({ region: REGION }, async (request) => {
 });
 
 /** AIエージェント連携を削除する（トークンは即座に無効）。 */
-export const deleteBot = onCall({ region: REGION }, async (request) => {
+export const deleteBot = onCall({ region: REGION, invoker: "public" }, async (request) => {
   const uid = requireUid(request);
   const botId = str(request.data?.botId, "botId");
   const { ref } = await ownedBot(uid, botId);
@@ -191,17 +191,51 @@ async function ownerConversations(
   return result;
 }
 
-/** 会話の表示名（広場は広場名、一対は相手のRhing Seed）。 */
-function conversationName(
+/**
+ * 相手（[otherId]）がこの一対（[conversationId]）に対して表示している呼び名。
+ * `lib/models/app_user.dart`の`AppUser.effectiveNicknameFor`と同じロジック
+ * （この会話専用のプロフィールカード→標準の適用中カード→個別の
+ * activeNicknameId、の順）をサーバー側で再現する。見つからなければnull。
+ */
+async function effectiveNicknameFor(
+  otherId: string,
+  conversationId: string,
+): Promise<string | null> {
+  const user = (await db().doc(`users/${otherId}`).get()).data();
+  if (!user) return null;
+  const profileCards =
+    (user.profileCards as { id: string; nicknameId?: string }[] | undefined) ??
+    [];
+  const nicknames =
+    (user.nicknames as { id: string; text: string }[] | undefined) ?? [];
+  const overrideId = (
+    user.conversationProfileCardId as Record<string, string> | undefined
+  )?.[conversationId];
+  const card =
+    (overrideId ? profileCards.find((c) => c.id === overrideId) : undefined) ??
+    profileCards.find((c) => c.id === (user.activeProfileCardId as string | undefined));
+  const nicknameId = card
+    ? card.nicknameId
+    : (user.activeNicknameId as string | undefined);
+  if (!nicknameId) return null;
+  return nicknames.find((n) => n.id === nicknameId)?.text ?? null;
+}
+
+/** 会話の表示名（広場は広場名、一対は相手の呼び名。無ければRhing Seed）。 */
+async function conversationName(
   scope: BotScope,
   data: FirebaseFirestore.DocumentData,
   ownerId: string,
-): string | null {
+  conversationId: string,
+): Promise<string | null> {
   if (scope === "group") return (data.name as string | undefined) ?? null;
   const other = membersOf("dm", data).find((id) => id !== ownerId);
-  const seed = other
-    ? (data.participantRhingSeeds as Record<string, string> | undefined)?.[other]
-    : undefined;
+  if (!other) return null;
+  const nickname = await effectiveNicknameFor(other, conversationId);
+  if (nickname) return nickname;
+  const seed = (data.participantRhingSeeds as Record<string, string> | undefined)?.[
+    other
+  ];
   return seed ? `@${seed}` : null;
 }
 
@@ -413,18 +447,19 @@ export const botApi = onRequest(
         params.waitSeconds * 1000,
       );
       let nextSince = params.sinceMs;
-      const conversations = updated.map(({ target, data }) => {
+      const conversations: Json[] = [];
+      for (const { target, data } of updated) {
         const at = (data.lastMessageAt as Timestamp).toMillis();
         nextSince = Math.max(nextSince, at);
-        return {
+        conversations.push({
           type: target.scope,
           [target.scope === "group" ? "groupId" : "dmId"]: target.id,
-          name: conversationName(target.scope, data, ownerId),
+          name: await conversationName(target.scope, data, ownerId, target.id),
           lastMessageAt: new Date(at).toISOString(),
           lastMessageSenderId: data.lastMessageSenderId ?? null,
           lastMessagePreview: data.lastMessagePreview ?? null,
-        };
-      });
+        });
+      }
       res.json({ conversations, nextSince: String(nextSince) });
       return;
     }
@@ -436,7 +471,7 @@ export const botApi = onRequest(
         conversations.push({
           type: target.scope,
           [target.scope === "group" ? "groupId" : "dmId"]: target.id,
-          name: conversationName(target.scope, data, ownerId),
+          name: await conversationName(target.scope, data, ownerId, target.id),
           lastMessageAt:
             (data.lastMessageAt as Timestamp | undefined)
               ?.toDate()

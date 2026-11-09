@@ -631,6 +631,12 @@ class Strings {
     required this.botDeleteTitle,
     required this.botDeleteBody,
     required this.botFailed,
+    required this.botUsageTitle,
+    required this.botUsageStep1,
+    required this.botUsageStep2,
+    required this.botUsageStep3,
+    required this.botUsageAdvanced,
+    required this.botUsageMore,
     required this.botApiLabel,
     required this.chatBotAddedNotice,
     required this.chatBotRemovedNotice,
@@ -1855,6 +1861,12 @@ class Strings {
   final String botDeleteTitle;
   final String botDeleteBody;
   final String botFailed;
+  final String botUsageTitle;
+  final String botUsageStep1;
+  final String botUsageStep2;
+  final String botUsageStep3;
+  final String botUsageAdvanced;
+  final String botUsageMore;
   final String botApiLabel;
   final String Function(String) chatBotAddedNotice;
   final String Function(String) chatBotRemovedNotice;
@@ -3148,6 +3160,12 @@ class Strings {
     botDeleteTitle: 'このBOTを削除しますか？',
     botDeleteBody: 'BOTは追加されている全ての広場から外れ、トークンは使えなくなります。',
     botFailed: '操作できませんでした',
+    botUsageTitle: 'AIエージェントで使う手順',
+    botUsageStep1: '① トークンをコピーして保存する。\nこの画面を閉じるともう見られません。',
+    botUsageStep2: '② ターミナルを開いて、次のコマンドを実行する。トークンは入力済みです。Node.js が必要です。',
+    botUsageStep3: '③ AIエージェントに「DaiDai の新着を見て、返信が要るものに返信して」と頼む。',
+    botUsageAdvanced: '直接 API を呼ぶ場合',
+    botUsageMore: '詳細',
     botApiLabel: '使い方（curl）',
     chatBotAddedNotice: (name) => 'BOT「$name」が追加されました。これ以降のメッセージを読めます',
     chatBotRemovedNotice: (name) => 'BOT「$name」が外されました',
@@ -4374,6 +4392,15 @@ class Strings {
     botDeleteBody:
         'The bot will be removed from every plaza it was added to, and its token will stop working.',
     botFailed: 'That did not work',
+    botUsageTitle: 'How to use it with your AI agent',
+    botUsageStep1:
+        '1. Copy the token and save it.\nYou cannot see it again once this screen is closed.',
+    botUsageStep2:
+        '2. Open a terminal and run this command. Your token is already filled in. Node.js is required.',
+    botUsageStep3:
+        '3. Ask your AI agent: “Check my new DaiDai messages and reply to the ones that need it.”',
+    botUsageAdvanced: 'Calling the API directly',
+    botUsageMore: 'Details',
     botApiLabel: 'Usage (curl)',
     chatBotAddedNotice: (name) =>
         'Bot “$name” was added. It can read messages from now on',

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/passcode_lock_provider.dart';
 import '../../providers/repository_providers.dart';
 import 'passcode_lock_screen.dart';
+import '../../widgets/delayed_spinner.dart';
 
 /// サインイン済み・アカウント状態も正常だが、端末側のパスコードロックが
 /// 有効な場合に[child]の代わりに[PasscodeLockScreen]を表示するゲート
@@ -37,7 +38,7 @@ class _PasscodeLockGateState extends ConsumerState<PasscodeLockGate> {
       future: _isPasscodeSetFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(body: SizedBox.shrink());
+          return const Scaffold(body: DelayedSpinner());
         }
         if (snapshot.data == true) return const PasscodeLockScreen();
         return widget.child;

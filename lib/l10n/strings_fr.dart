@@ -765,6 +765,15 @@ final Strings _stringsFr = Strings._(
   botDeleteBody:
       'Le bot sera retiré de toutes les places où il a été ajouté et son jeton cessera de fonctionner.',
   botFailed: 'L’opération a échoué',
+  botUsageTitle: 'Utilisation avec votre agent IA',
+  botUsageStep1:
+      '1. Copiez le jeton et conservez-le.\nIl ne s’affichera plus une fois cette fenêtre fermée.',
+  botUsageStep2:
+      '2. Ouvrez un terminal et exécutez cette commande. Votre jeton est déjà renseigné. Node.js est requis.',
+  botUsageStep3:
+      '3. Demandez à votre agent IA : « Regarde mes nouveaux messages DaiDai et réponds à ceux qui le demandent. »',
+  botUsageAdvanced: 'Appeler l’API directement',
+  botUsageMore: 'Détails',
   botApiLabel: 'Utilisation (curl)',
   chatBotAddedNotice: (name) =>
       'Le bot « $name » a été ajouté. Il peut lire les messages à partir de maintenant',
