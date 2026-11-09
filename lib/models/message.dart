@@ -176,6 +176,7 @@ class Message {
     required this.senderId,
     this.senderRhingSeed,
     this.botName,
+    this.assistantOwnerId,
     this.botIconUrl,
     required this.content,
     required this.contentType,
@@ -224,6 +225,11 @@ class Message {
   /// `users`ドキュメントを持たず、UIは名前と「BOT」バッジで表示する。
   /// Cloud Functions（Admin SDK）だけが書き込める（firestore.rules参照）。
   final String? botName;
+
+  /// AIエージェント連携（bot API、2026-11-09）の投稿の持ち主（所有者のuserId）。非nullなら
+  /// [botName]はAI連携の名前だけで、表示は「名前（その語らいでの持ち主の呼び名）」に
+  /// する（`_SenderName`）。Cloud Functionsだけが書き込む。クライアントは書かない。
+  final String? assistantOwnerId;
 
   /// お便り（運営の発信元、`senderId`は`system:official`）の表示用アイコンURL
   /// （2026-10-10追加）。Firestoreには保存せず、`announcements`を[Message]へ
@@ -379,6 +385,7 @@ class Message {
           json['senderRhingSeed'] as String? ??
           json['senderRhingId'] as String?,
       botName: json['botName'] as String?,
+      assistantOwnerId: json['assistantOwnerId'] as String?,
       content: json['content'] as String,
       contentType: json['contentType'] as String,
       sentAt: json['sentAt'] as Timestamp?,

@@ -18,10 +18,6 @@ import '../../utils/auto_dismiss_banner.dart';
 import '../../widgets/destructive_label.dart';
 import '../../widgets/glass/glass_surface.dart';
 import 'chat_panes.dart' show confirmDisableReadReceipts;
-import '../../models/app_ui_style.dart';
-import '../../providers/app_ui_style_provider.dart';
-import '../../widgets/glass/glass_dialog.dart';
-import 'bot_management_popup.dart';
 import 'conversation_profile_card_dialog.dart';
 import 'severance_dialog.dart';
 import 'user_profile_card_dialog.dart';
@@ -318,28 +314,6 @@ class DmSettingsPopup extends ConsumerWidget {
                         userId: userId,
                       );
                 },
-              ),
-              // bot API（AIが一対のメッセージを読み、返信できる、段階2c）。追加は
-              // 相手の同意が前提（承認待ち→相手が同意で有効）。
-              ListTile(
-                leading: const Icon(Icons.smart_toy_outlined),
-                title: Text(strings.botMenuLabel),
-                onTap: () => showAppDialog<void>(
-                  context: context,
-                  builder: (_) => glassAwareDialog(
-                    isGlass: ref.read(appUiStyleProvider) == AppUiStyle.glass,
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(
-                        maxWidth: 340,
-                        maxHeight: 640,
-                      ),
-                      child: BotManagementPopup(
-                        currentUser: currentUser,
-                        dm: liveDm,
-                      ),
-                    ),
-                  ),
-                ),
               ),
               ListTile(
                 title: Text(strings.conversationProposeSeverance),

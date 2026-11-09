@@ -3,40 +3,18 @@ import 'package:cloud_functions/cloud_functions.dart';
 
 import '../models/bot.dart';
 
-/// bot API（AIが寄合のメッセージを読み、返信できる、2026-11-09、段階2a）。
-/// 作成・追加・承認はトークンのハッシュや権限確認を伴うためCloud Functions
-/// 経由。一覧の購読だけFirestoreを直接読む（firestore.rulesで、自分のbotは
-/// 所有者のみ、広場のbotは広場のメンバーのみ）。
+/// AIエージェント連携（bot API、2026-11-09）。トークンの作成・再発行・削除は
+/// ハッシュを扱うためCloud Functions経由。一覧の購読だけFirestoreを直接読む
+/// （firestore.rulesで所有者のみ）。
 abstract class BotRepository {
   Stream<List<Bot>> watchMyBots(String userId);
 
-  Stream<List<GroupBot>> watchConversationBots(BotConversation conversation);
-
-  /// botを作る。トークンは**この1回しか取得出来ない**。
+  /// AIエージェント連携のトークンを作る。トークンは**この1回しか取得出来ない**。
   Future<BotToken> createBot(String name);
 
   Future<String> rotateToken(String botId);
 
   Future<void> deleteBot(String botId);
-
-  /// 自分のbotを広場・一対へ追加する。承認なしで有効になった場合は
-  /// [GroupBotStatus.active]、承認（一対は相手の同意）待ちなら
-  /// [GroupBotStatus.pending]。
-  Future<GroupBotStatus> requestAddition({
-    required BotConversation conversation,
-    required String botId,
-  });
-
-  Future<void> respond({
-    required BotConversation conversation,
-    required String botId,
-    required bool approve,
-  });
-
-  Future<void> remove({
-    required BotConversation conversation,
-    required String botId,
-  });
 }
 
 class FirestoreBotRepository implements BotRepository {
@@ -70,21 +48,6 @@ class FirestoreBotRepository implements BotRepository {
         });
   }
 
-  @override
-  Stream<List<GroupBot>> watchConversationBots(BotConversation conversation) {
-    return _firestore
-        .collection(conversation.isDm ? 'directMessages' : 'groups')
-        .doc(conversation.id)
-        .collection('bots')
-        .snapshots()
-        .map(
-          (snapshot) => [
-            for (final doc in snapshot.docs)
-              GroupBot.fromJson(doc.id, doc.data()),
-          ],
-        );
-  }
-
   Future<Map<String, dynamic>> _call(
     String name,
     Map<String, Object?> data,
@@ -111,43 +74,5 @@ class FirestoreBotRepository implements BotRepository {
   @override
   Future<void> deleteBot(String botId) async {
     await _call('deleteBot', {'botId': botId});
-  }
-
-  @override
-  Future<GroupBotStatus> requestAddition({
-    required BotConversation conversation,
-    required String botId,
-  }) async {
-    final data = await _call('requestBotAddition', {
-      ...conversation.toArgs(),
-      'botId': botId,
-    });
-    return data['status'] == 'active'
-        ? GroupBotStatus.active
-        : GroupBotStatus.pending;
-  }
-
-  @override
-  Future<void> respond({
-    required BotConversation conversation,
-    required String botId,
-    required bool approve,
-  }) async {
-    await _call('respondBotAddition', {
-      ...conversation.toArgs(),
-      'botId': botId,
-      'approve': approve,
-    });
-  }
-
-  @override
-  Future<void> remove({
-    required BotConversation conversation,
-    required String botId,
-  }) async {
-    await _call('removeBotFromGroup', {
-      ...conversation.toArgs(),
-      'botId': botId,
-    });
   }
 }

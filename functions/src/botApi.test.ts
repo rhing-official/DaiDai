@@ -7,14 +7,13 @@ import {
   BOT_READ_MAX_LIMIT,
   BOT_WAIT_MAX_SECONDS,
   botSenderId,
-  canAddBotsDirectly,
-  canApproveBots,
-  canConsentDmBot,
+  assistantHistoryFloor,
+  isReadableByAssistant,
+  parseUpdatesParams,
   decodeCursor,
   encodeCursor,
   generateBotToken,
   hashBotToken,
-  isReadableByBot,
   normalizeBotName,
   parseBotAuthorization,
   parseBotPostPayload,
@@ -115,13 +114,6 @@ test("取得のクエリを検証し、上限に収める", () => {
   assert.equal(parseReadParams({ after: "!!" }), null);
 });
 
-test("他のbotの投稿・スパムは読ませない", () => {
-  assert.ok(isReadableByBot({ senderId: "user1" }));
-  assert.ok(isReadableByBot({ senderId: "webhook:w1" }));
-  assert.ok(!isReadableByBot({ senderId: botSenderId("b1") }));
-  assert.ok(!isReadableByBot({ senderId: "user1", isSpam: true }));
-});
-
 test("投稿のボディを検証する", () => {
   assert.deepEqual(parseBotPostPayload({ content: "hi" }), {
     ok: true,
@@ -146,28 +138,43 @@ test("プレビューは改行を畳み80字で切る", () => {
   assert.equal(previewOf("x".repeat(100)).length, 81);
 });
 
-test("追加・承認の権限", () => {
-  const group = {
-    ownerId: "owner",
-    memberPermissions: {
-      a: ["manageBots"],
-      b: ["addBots"],
-      c: ["createInvite"],
-    },
-  };
-  assert.ok(canAddBotsDirectly(group, "owner"));
-  assert.ok(canAddBotsDirectly(group, "a"));
-  assert.ok(canAddBotsDirectly(group, "b"));
-  assert.ok(!canAddBotsDirectly(group, "c"));
-  assert.ok(canApproveBots(group, "a"));
-  assert.ok(!canApproveBots(group, "b"));
-  assert.ok(!canApproveBots(undefined, "a"));
+test("更新の取得のクエリ", () => {
+  assert.deepEqual(parseUpdatesParams({}), { sinceMs: 0, waitSeconds: 0 });
+  assert.deepEqual(parseUpdatesParams({ since: "1760000000000", wait: "99" }), {
+    sinceMs: 1760000000000,
+    waitSeconds: BOT_WAIT_MAX_SECONDS,
+  });
+  assert.equal(parseUpdatesParams({ since: "x" }), null);
+  assert.equal(parseUpdatesParams({ wait: "x" }), null);
+  assert.deepEqual(parseBotRoute("GET", "/v1/updates"), { kind: "updates" });
 });
 
-test("一対のbotは、所有者以外の参加者だけが同意できる", () => {
-  const dm = { participants: ["a", "b"] };
-  assert.ok(canConsentDmBot(dm, "b", "a"));
-  assert.ok(!canConsentDmBot(dm, "a", "a"));
-  assert.ok(!canConsentDmBot(dm, "c", "a"));
-  assert.ok(!canConsentDmBot(undefined, "b", "a"));
+test("アシスタントの履歴の下限は、本人が画面で見られる範囲と同じ", () => {
+  const joined = { seconds: 100, nanoseconds: 0 };
+  const group = { memberJoinedAt: { u: joined }, historyVisibleToNewMembers: false };
+  assert.equal(assistantHistoryFloor(group, {}, "u"), joined);
+  assert.equal(assistantHistoryFloor(group, {}, "other"), null);
+  assert.equal(
+    assistantHistoryFloor({ ...group, historyVisibleToNewMembers: true }, {}, "u"),
+    null,
+  );
+  // 寄合の上書きが優先される。
+  assert.equal(
+    assistantHistoryFloor(
+      { ...group, historyVisibleToNewMembers: true },
+      { customSettingsEnabled: true, historyVisibleOverride: false },
+      "u",
+    ),
+    joined,
+  );
+});
+
+test("AIには、所有者が非表示にしたメッセージ・スパム・他のAIの投稿を見せない", () => {
+  assert.ok(isReadableByAssistant({ hiddenFor: [] }, "u", "bot:me"));
+  assert.ok(!isReadableByAssistant({ hiddenFor: ["u"] }, "u", "bot:me"));
+  assert.ok(!isReadableByAssistant({ isSpam: true }, "u", "bot:me"));
+  // 他のAIエージェント連携の投稿は見せない（ループ防止）。自分の投稿は見せる。
+  assert.ok(!isReadableByAssistant({ senderId: "bot:other" }, "u", "bot:me"));
+  assert.ok(isReadableByAssistant({ senderId: "bot:me" }, "u", "bot:me"));
+  assert.ok(isReadableByAssistant({ senderId: "webhook:w" }, "u", "bot:me"));
 });

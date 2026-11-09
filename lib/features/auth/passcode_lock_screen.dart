@@ -127,24 +127,58 @@ class _PasscodeLockScreenState extends ConsumerState<PasscodeLockScreen> {
       context: context,
       builder: (context) {
         final title = Text(strings.passcodeForgotDialogTitle);
-        final content = Text(strings.passcodeForgotDialogMessage);
-        final actions = [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: Text(strings.cancel),
+        // 文章・ボタンが折り返されないよう、ポップアップの幅を明示的に広げる
+        // （最大760px。画面が狭ければ画面の幅いっぱいまで、2026-11-09、ユーザー指示）。
+        final screenWidth = MediaQuery.sizeOf(context).width;
+        final content = SizedBox(
+          width: (screenWidth - (isGlass ? 128 : 80)).clamp(0.0, 760.0),
+          child: Text(strings.passcodeForgotDialogMessage),
+        );
+        final cancel = TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: Text(strings.cancel, textAlign: TextAlign.center),
+        );
+        final confirm = FilledButton(
+          onPressed: () => Navigator.of(context).pop(true),
+          child: Text(
+            strings.passcodeForgotDialogConfirmButton,
+            textAlign: TextAlign.center,
           ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: Text(strings.passcodeForgotDialogConfirmButton),
-          ),
+        );
+        // 「サインアウトしてリセット」は長く、狭い画面では標準のボタン列が縦積みに
+        // なる（キャンセルが上に回る）。キャンセルを常に左に置くため、1行に並べ、
+        // 収まらない時は各ボタンの文字を折り返す（2026-11-09、ユーザー指示）。
+        final row = [
+          Flexible(child: cancel),
+          const SizedBox(width: 8),
+          Flexible(child: confirm),
         ];
-        return isGlass
-            ? GlassAlertDialog(title: title, content: content, actions: actions)
-            : KeyboardAlertDialog(
-                title: title,
-                content: content,
-                actions: actions,
-              );
+        if (isGlass) {
+          // `GlassAlertDialog`は既に横1行で並べる（各要素の間隔は自前で入れる）。
+          return GlassAlertDialog(
+            title: title,
+            content: content,
+            actions: [
+              Flexible(child: cancel),
+              Flexible(child: confirm),
+            ],
+          );
+        }
+        return DialogKeyboardShortcuts(
+          actions: [cancel, confirm],
+          child: AlertDialog(
+            insetPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 24,
+            ),
+            actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            title: title,
+            content: content,
+            actions: [
+              Row(mainAxisAlignment: MainAxisAlignment.end, children: row),
+            ],
+          ),
+        );
       },
     );
     if (confirmed != true || !mounted) return;

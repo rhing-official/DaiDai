@@ -620,18 +620,6 @@ class Strings {
     required this.webhookLastUsed,
     required this.webhookNeverUsed,
     required this.webhookCreateFailed,
-    required this.botMenuLabel,
-    required this.botTitle,
-    required this.botDescription,
-    required this.botEmpty,
-    required this.botAddMine,
-    required this.botPendingBadge,
-    required this.botApprove,
-    required this.botReject,
-    required this.botRemove,
-    required this.botNoneToAdd,
-    required this.botManageMine,
-    required this.botMineTitle,
     required this.botCreate,
     required this.botNameLabel,
     required this.botCreatedTitle,
@@ -639,22 +627,16 @@ class Strings {
     required this.botCopyToken,
     required this.botCopied,
     required this.botRotate,
-    required this.botRotateDone,
     required this.botDelete,
     required this.botDeleteTitle,
     required this.botDeleteBody,
-    required this.botAdded,
-    required this.botRequested,
     required this.botFailed,
     required this.botApiLabel,
-    required this.botReadScope,
     required this.chatBotAddedNotice,
     required this.chatBotRemovedNotice,
-    required this.botReadingBanner,
-    required this.botDescriptionDm,
-    required this.botPendingDm,
-    required this.botRequestedDm,
-    required this.botReadingBannerDm,
+    required this.assistantTitle,
+    required this.assistantDescription,
+    required this.assistantCreate,
     required this.groupRoomCustomSettingsLabel,
     required this.groupRoomCustomSettingsHint,
     required this.dmMenuOpenSettings,
@@ -1862,18 +1844,6 @@ class Strings {
   final String webhookCreateFailed;
 
   /// bot API（段階2a、2026-11-09）の管理画面の文言。
-  final String botMenuLabel;
-  final String botTitle;
-  final String botDescription;
-  final String botEmpty;
-  final String botAddMine;
-  final String botPendingBadge;
-  final String botApprove;
-  final String botReject;
-  final String botRemove;
-  final String botNoneToAdd;
-  final String botManageMine;
-  final String botMineTitle;
   final String botCreate;
   final String botNameLabel;
   final String botCreatedTitle;
@@ -1881,22 +1851,16 @@ class Strings {
   final String botCopyToken;
   final String botCopied;
   final String botRotate;
-  final String botRotateDone;
   final String botDelete;
   final String botDeleteTitle;
   final String botDeleteBody;
-  final String botAdded;
-  final String botRequested;
   final String botFailed;
   final String botApiLabel;
-  final String botReadScope;
   final String Function(String) chatBotAddedNotice;
   final String Function(String) chatBotRemovedNotice;
-  final String Function(String) botReadingBanner;
-  final String botDescriptionDm;
-  final String botPendingDm;
-  final String botRequestedDm;
-  final String Function(String) botReadingBannerDm;
+  final String assistantTitle;
+  final String assistantDescription;
+  final String assistantCreate;
 
   /// 寄合ハンバーガーメニュー最下部の「この寄合独自の設定」トグル。ONの間、
   /// 通知・既読・ロールの優先順位を広場全体の設定より優先してこの寄合だけ
@@ -3118,7 +3082,6 @@ class Strings {
       'manageJoinRequests' => '参加リクエストの承認・却下',
       'createInvite' => '招待リンクの作成',
       'manageBots' => 'botとWebhookの管理',
-      'addBots' => '自分のbotを承認なしで追加',
       'managePermissions' => '権限の管理',
       'playBgm' => '通話にBGMを流す',
       _ => permission,
@@ -3174,19 +3137,6 @@ class Strings {
     webhookLastUsed: (when) => '最終使用: $when',
     webhookNeverUsed: '未使用',
     webhookCreateFailed: 'Webhookを作成出来ませんでした',
-    botMenuLabel: 'BOT',
-    botTitle: 'BOT',
-    botDescription:
-        '追加されたBOTは、追加した後のこの広場のメッセージを読んで返信できます（追加前の履歴は読めません）。BOTは所有者が自分のAI・サーバーで動かします。',
-    botEmpty: 'まだBOTは追加されていません',
-    botAddMine: '自分のBOTを追加',
-    botPendingBadge: '承認待ち',
-    botApprove: '承認',
-    botReject: '却下',
-    botRemove: '外す',
-    botNoneToAdd: '追加できる自分のBOTがありません。先に「自分のBOTを管理」から作成してください',
-    botManageMine: '自分のBOTを管理',
-    botMineTitle: '自分のBOT',
     botCreate: 'BOTを作成',
     botNameLabel: 'BOTの名前（表示名）',
     botCreatedTitle: 'トークン',
@@ -3194,23 +3144,17 @@ class Strings {
     botCopyToken: 'トークンをコピー',
     botCopied: 'コピーしました',
     botRotate: 'トークンを再発行',
-    botRotateDone: 'トークンを再発行しました（古いトークンは無効です）',
     botDelete: '削除',
     botDeleteTitle: 'このBOTを削除しますか？',
     botDeleteBody: 'BOTは追加されている全ての広場から外れ、トークンは使えなくなります。',
-    botAdded: 'BOTを追加しました',
-    botRequested: '承認待ちにしました。この広場の管理者の承認で有効になります',
     botFailed: '操作できませんでした',
     botApiLabel: '使い方（curl）',
-    botReadScope: '読めるのは、全員が入っている寄合のみです',
     chatBotAddedNotice: (name) => 'BOT「$name」が追加されました。これ以降のメッセージを読めます',
     chatBotRemovedNotice: (name) => 'BOT「$name」が外されました',
-    botDescriptionDm:
-        '追加されたBOTは、相手の同意を得た後のこの一対のメッセージを読んで返信できます（追加前の履歴は読めません）。BOTは所有者が自分のAI・サーバーで動かします。',
-    botPendingDm: '相手の同意待ち',
-    botRequestedDm: '相手の同意待ちにしました。相手が同意すると有効になります',
-    botReadingBannerDm: (names) => 'BOT（$names）がこの一対のメッセージを読めます',
-    botReadingBanner: (names) => 'BOT（$names）がこの広場のメッセージを読めます',
+    assistantTitle: 'AIエージェント連携',
+    assistantDescription:
+        '自分のAIエージェント（Claude Codeなど）が、自分の参加している全ての広場・一対のメッセージを読み、返信できるようにします。会話ごとの追加や、相手の同意は要りません。\n・読めるのは、自分が画面で見られる範囲です（過去の履歴を含みます。自分が非表示にしたメッセージと、ブロックした相手との一対は除きます）。\n・返信は「名前（その語らいでの自分の呼び名）」のBOT表示で投稿され、人間の発言と区別できます。自分には通知されません。\n・トークンは5個まで作れます。作成・再発行の直後に1度だけ表示されます。\n・会話の相手の発言が、選んだAIの提供元へ送られます。ご注意ください。',
+    assistantCreate: 'AIエージェント連携を作成',
     groupRoomCustomSettingsLabel: 'この寄合独自の設定',
     groupRoomCustomSettingsHint:
         'オンにすると、通知・既読・ロールの優先順位・加入前メッセージの公開を広場全体の設定より優先してこの寄合だけ個別に設定出来ます',
@@ -3542,7 +3486,7 @@ class Strings {
     passcodeForgotDialogTitle: 'パスコードを忘れた場合',
     passcodeForgotDialogMessage:
         'サインアウトすると、この端末のパスコードは解除されます。再度ログインすると、また設定し直せます。',
-    passcodeForgotDialogConfirmButton: 'サインアウトしてリセット',
+    passcodeForgotDialogConfirmButton: 'サインアウト\nしてリセット',
     createGroupTitle: '広場を作る',
     createGroupNameLabel: '広場の名前',
     createGroupNameRequiredError: '広場の名前を入力して下さい',
@@ -4354,7 +4298,6 @@ class Strings {
       'manageJoinRequests' => 'Approve/decline join requests',
       'createInvite' => 'Create invite links',
       'manageBots' => 'Manage bots and webhooks',
-      'addBots' => 'Add own bots without approval',
       'managePermissions' => 'Manage permissions (edit role permissions)',
       'playBgm' => 'Play background music in calls',
       _ => permission,
@@ -4418,20 +4361,6 @@ class Strings {
     webhookLastUsed: (when) => 'Last used: $when',
     webhookNeverUsed: 'Never used',
     webhookCreateFailed: 'Could not create the webhook',
-    botMenuLabel: 'Bots',
-    botTitle: 'Bots',
-    botDescription:
-        'Added bots can read and reply to messages sent in this plaza after they were added (earlier history stays hidden). Each bot runs on its owner’s own AI and server.',
-    botEmpty: 'No bots have been added yet',
-    botAddMine: 'Add one of my bots',
-    botPendingBadge: 'Awaiting approval',
-    botApprove: 'Approve',
-    botReject: 'Decline',
-    botRemove: 'Remove',
-    botNoneToAdd:
-        'You have no bots to add. Create one first with “Manage my bots”.',
-    botManageMine: 'Manage my bots',
-    botMineTitle: 'My bots',
     botCreate: 'Create a bot',
     botNameLabel: 'Bot name (display name)',
     botCreatedTitle: 'Token',
@@ -4440,29 +4369,19 @@ class Strings {
     botCopyToken: 'Copy token',
     botCopied: 'Copied',
     botRotate: 'Reissue token',
-    botRotateDone: 'Token reissued (the old one no longer works)',
     botDelete: 'Delete',
     botDeleteTitle: 'Delete this bot?',
     botDeleteBody:
         'The bot will be removed from every plaza it was added to, and its token will stop working.',
-    botAdded: 'Bot added',
-    botRequested:
-        'Sent for approval. It takes effect once an admin of this plaza approves it.',
     botFailed: 'That did not work',
     botApiLabel: 'Usage (curl)',
-    botReadScope: 'Bots can only read rooms that every member belongs to',
     chatBotAddedNotice: (name) =>
         'Bot “$name” was added. It can read messages from now on',
     chatBotRemovedNotice: (name) => 'Bot “$name” was removed',
-    botDescriptionDm:
-        'Added bots can read and reply to messages in this duo after the other person consents (earlier history stays hidden). Each bot runs on its owner’s own AI and server.',
-    botPendingDm: 'Awaiting the other person’s consent',
-    botRequestedDm:
-        'Sent for consent. It takes effect once the other person agrees.',
-    botReadingBannerDm: (names) =>
-        'Bots ($names) can read messages in this duo',
-    botReadingBanner: (names) =>
-        'Bots ($names) can read messages in this plaza',
+    assistantTitle: 'AI agent integration',
+    assistantDescription:
+        'Lets your own AI agent (such as Claude Code) read and reply to messages in every plaza and duo you belong to. No per-conversation setup or consent from others is needed.\n• It can read what you can see on screen, including earlier history (except messages you hid and duos with people you blocked).\n• Replies are posted with a bot label, “Name (your name in that conversation)”, so they are distinct from human messages. You are not notified of them.\n• You can create up to 5 tokens. A token is shown only once, right after it is created or reissued.\n• Other people’s messages are sent to the AI provider you choose. Please keep that in mind.',
+    assistantCreate: 'Create an AI agent connection',
     groupRoomCustomSettingsLabel: "This room's own settings",
     groupRoomCustomSettingsHint:
         'When on, this room\'s notification, read receipts, role priority and earlier-message visibility settings take priority over the plaza defaults',

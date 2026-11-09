@@ -4507,6 +4507,7 @@ class _PinnedMessageCard extends StatelessWidget {
                         userId: message.senderId,
                         rhingSeed: message.senderRhingSeed,
                         botName: message.botName,
+                        assistantOwnerId: message.assistantOwnerId,
                         conversationId: conversationId,
                         color: foreground,
                       ),
@@ -5879,6 +5880,7 @@ class _MessageRow extends ConsumerWidget {
         userId: message.senderId,
         rhingSeed: message.senderRhingSeed,
         botName: message.botName,
+        assistantOwnerId: message.assistantOwnerId,
         conversationId: conversationId,
         color: senderNameColorResolver?.call(message.senderId),
       );
@@ -8166,12 +8168,17 @@ class _SenderName extends ConsumerWidget {
     required this.userId,
     required this.rhingSeed,
     this.botName,
+    this.assistantOwnerId,
     this.conversationId,
     this.color,
   });
 
   final String userId;
   final String? rhingSeed;
+
+  /// AIエージェント連携の投稿の持ち主（`Message.assistantOwnerId`、2026-11-09）。非nullなら
+  /// 「名前（その語らいでの持ち主の呼び名）」と表示する。
+  final String? assistantOwnerId;
 
   /// 受信Webhook由来の投稿のBOT名（`Message.botName`、2026-10-10追加）。
   /// 非null、又は[userId]が`webhook:`で始まる場合は、`users`を引かず
@@ -8186,6 +8193,21 @@ class _SenderName extends ConsumerWidget {
   /// 広場のカスタムロールで指定された色（`ChatScreen.senderNameColorResolver`
   /// 参照）。nullなら既定色のまま。
   final Color? color;
+
+  /// BOTの表示名。AI連携の投稿は「名前（持ち主の呼び名）」。呼び名は人間の送信者と
+  /// 同じ規則（自分が付けた呼び名 > その語らいでの呼び名 > `@Rhing Seed`）で解決する。
+  String _botLabel(WidgetRef ref) {
+    final name = botName ?? 'BOT';
+    final ownerId = assistantOwnerId;
+    if (ownerId == null) return name;
+    final owner = ref.watch(watchedUserProvider(ownerId)).value;
+    return assistantSenderLabel(
+      botName: name,
+      alias: aliasOf(ref.watch(myContactAliasesProvider).value, ownerId),
+      nickname: owner?.effectiveNicknameFor(conversationId)?.text,
+      rhingSeed: owner?.rhingSeed ?? '?',
+    );
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -8205,7 +8227,7 @@ class _SenderName extends ConsumerWidget {
         children: [
           Flexible(
             child: Text(
-              botName ?? 'BOT',
+              _botLabel(ref),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: style,

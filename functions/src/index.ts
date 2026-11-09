@@ -64,9 +64,6 @@ export {
   botApi,
   createBot,
   deleteBot,
-  removeBotFromGroup,
-  requestBotAddition,
-  respondBotAddition,
   rotateBotToken,
 } from "./botFunctions";
 import {
@@ -3187,14 +3184,28 @@ async function sendMessageNotification(params: {
       iconUrl = groupIcon;
     }
   }
+  // AIエージェント連携（bot API）の投稿は、所有者本人には通知しない（2026-11-09）。
+  if (typeof message.assistantOwnerId === "string") {
+    recipientIds = recipientIds.filter((id) => id !== message.assistantOwnerId);
+  }
   const isMention = mentionRecipients !== null;
   if (mentionRecipients !== null) recipientIds = mentionRecipients;
   if (recipientIds.length === 0) return;
 
   const preview = buildMessagePreview(message);
+  // AI連携（bot API）の投稿は「名前（持ち主のその語らいでの呼び名）」にする
+  // （呼び名が無ければ`@Rhing Seed`、2026-11-09）。
+  let botLabel = botName;
+  if (botName !== null && typeof message.assistantOwnerId === "string") {
+    const owner = (await db.doc(`users/${message.assistantOwnerId}`).get()).data();
+    if (owner) {
+      const identity = resolveSenderIdentity(owner, conversationId).name;
+      botLabel = `${botName}（${identity === owner.rhingSeed ? `@${identity}` : identity}）`;
+    }
+  }
   const body =
     botName !== null
-      ? `${botName}: ${preview.body}`
+      ? `${botLabel}: ${preview.body}`
       : withSenderName(preview.body, senderNamePrefix);
   // 送信時刻（epoch ms）。Androidは端末側で表示時点の日時と比べて整形する
   // （日付・年の出し分け）。Webは自動表示のためここで日本時間の時刻を付ける。
@@ -3616,6 +3627,10 @@ async function incrementUnreadCounts(params: {
     const groupDoc = await db.doc(`groups/${conversationId}`).get();
     const memberIds: string[] = groupDoc.data()?.memberIds ?? [];
     recipientIds = memberIds.filter((id) => id !== senderId);
+  }
+  // AIエージェント連携（bot API）の投稿は、所有者本人の未読にしない（2026-11-09）。
+  if (typeof message.assistantOwnerId === "string") {
+    recipientIds = recipientIds.filter((id) => id !== message.assistantOwnerId);
   }
   if (recipientIds.length === 0) return;
 

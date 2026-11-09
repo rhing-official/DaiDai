@@ -67,7 +67,6 @@ import 'room_tab_bar.dart';
 import 'severance_dialog.dart';
 import '../../providers/group_call_providers.dart';
 import 'group_call_join_banner.dart';
-import 'bot_reading_banner.dart';
 import 'join_request_banner.dart';
 import 'proposal_banner.dart';
 import 'audio_playback_banner.dart';
@@ -982,7 +981,6 @@ class _DmChatPaneState extends ConsumerState<DmChatPane> {
               currentUserId: currentUser.userId,
               dm: dm,
             ),
-          BotReadingBanner(dm: dm, currentUser: currentUser),
           ChatTaskBanner(
             isDm: true,
             conversationId: dm.dmId,
@@ -2758,7 +2756,6 @@ class _GroupChatPaneState extends ConsumerState<GroupChatPane> {
             onJoin: (isVideo) => _handleCallPressed(context, isVideo: isVideo),
           ),
           JoinRequestBanner(group: group, currentUser: currentUser),
-          BotReadingBanner(group: group, currentUser: currentUser),
           ChatTaskBanner(
             isDm: false,
             conversationId: group.groupId,

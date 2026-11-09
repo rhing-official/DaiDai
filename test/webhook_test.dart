@@ -7,6 +7,7 @@ import 'package:daidai/models/group.dart';
 import 'package:daidai/models/group_role.dart';
 import 'package:daidai/models/message.dart';
 import 'package:daidai/models/webhook.dart';
+import 'package:daidai/utils/contact_alias.dart';
 import 'package:daidai/providers/app_locale_provider.dart';
 import 'package:daidai/providers/app_ui_style_provider.dart';
 import 'package:daidai/providers/repository_providers.dart';
@@ -90,6 +91,54 @@ void main() {
         contentType: 'text',
       );
       expect(human.toJson().containsKey('botName'), isFalse);
+    });
+  });
+
+  group('AIエージェント連携の投稿者表示', () {
+    test('fromJson: assistantOwnerIdを読み込む', () {
+      final m = Message.fromJson('m1', {
+        'conversationId': 'r1',
+        'conversationType': 'room',
+        'senderId': 'bot:b1',
+        'botName': 'Claude',
+        'assistantOwnerId': 'u9',
+        'content': 'hi',
+        'contentType': 'text',
+      });
+      expect(m.assistantOwnerId, 'u9');
+    });
+
+    test('持ち主のその語らいでの呼び名があれば「名前（呼び名）」', () {
+      expect(
+        assistantSenderLabel(
+          botName: 'Claude',
+          alias: null,
+          nickname: 'あらた',
+          rhingSeed: 'arata',
+        ),
+        'Claude（あらた）',
+      );
+    });
+
+    test('呼び名が無ければ@Rhing Seed、自分が付けた呼び名があればそれを優先', () {
+      expect(
+        assistantSenderLabel(
+          botName: 'Claude',
+          alias: null,
+          nickname: null,
+          rhingSeed: 'arata',
+        ),
+        'Claude（@arata）',
+      );
+      expect(
+        assistantSenderLabel(
+          botName: 'Claude',
+          alias: '友人A',
+          nickname: 'あらた',
+          rhingSeed: 'arata',
+        ),
+        'Claude（友人A）',
+      );
     });
   });
 

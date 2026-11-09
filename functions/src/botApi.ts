@@ -10,9 +10,6 @@ import { createHash, randomBytes, timingSafeEqual } from "crypto";
 /** 住人1人が作れるbotの最大数。 */
 export const BOT_MAX_PER_OWNER = 5;
 
-/** 1つの広場に追加できるbotの最大数（承認待ちを含む）。 */
-export const BOT_MAX_PER_GROUP = 10;
-
 /** botの名前（BOT名として表示される）の最大文字数。 */
 export const BOT_NAME_MAX_LENGTH = 40;
 
@@ -86,6 +83,7 @@ export type BotScope = "group" | "dm";
 export type BotRoute =
   | { kind: "me" }
   | { kind: "conversations" }
+  | { kind: "updates" }
   | { kind: "readMessages"; scope: BotScope; conversationId: string; roomId: string }
   | { kind: "postMessage"; scope: BotScope; conversationId: string; roomId: string }
   | {
@@ -104,6 +102,7 @@ const ID = /^[A-Za-z0-9_-]{1,128}$/;
  *
  * - `GET /v1/me`
  * - `GET /v1/conversations`
+ * - `GET /v1/updates?since=&wait=`（AIエージェント連携のみ、更新のあった会話）
  * - `GET|POST /v1/groups/{groupId}/rooms/{roomId}/messages`（広場）
  * - `GET|POST /v1/dms/{dmId}/rooms/{roomId}/messages`（一対）
  * - `DELETE …/messages/{messageId}`（そのbot自身の投稿のみ）
@@ -118,6 +117,9 @@ export function parseBotRoute(method: string, path: string): BotRoute | null {
   }
   if (rest.length === 1 && rest[0] === "conversations" && method === "GET") {
     return { kind: "conversations" };
+  }
+  if (rest.length === 1 && rest[0] === "updates" && method === "GET") {
+    return { kind: "updates" };
   }
   const scope: BotScope | null =
     rest[0] === "groups" ? "group" : rest[0] === "dms" ? "dm" : null;
@@ -218,19 +220,6 @@ function parseIntParam(value: unknown, fallback: number): number | null {
   return Number(value);
 }
 
-/**
- * botに見せてよいメッセージか。他のbot・Webhookの投稿は含めない
- * （bot同士のループ防止）、スパム判定されたものも含めない。
- */
-export function isReadableByBot(message: {
-  senderId?: unknown;
-  isSpam?: unknown;
-}): boolean {
-  if (message.isSpam === true) return false;
-  const senderId = typeof message.senderId === "string" ? message.senderId : "";
-  return !senderId.startsWith(BOT_SENDER_PREFIX);
-}
-
 export type PostPayload =
   | {
       ok: true;
@@ -290,50 +279,68 @@ export function snippetOf(content: string): string {
   return previewOf(content).slice(0, 60);
 }
 
-export type BotGroupStatus = "pending" | "active";
-
 /**
- * 広場[group]でbotを承認なしで追加できるか。長・`manageBots`・
- * `addBots`（段階2bで権限管理に追加、`memberPermissions`に入る）の
- * いずれかを持つ人。
+ * AIエージェント連携のトークン（AIエージェント連携）は、所有者が参加している全ての広場・一対を
+ * 扱う（会話ごとの追加・相手の同意は不要、2026-11-09に会話ごとのBOTから一本化）。
+ * 保存時の`kind`の値。
  */
-export function canAddBotsDirectly(
-  group: FirebaseFirestore.DocumentData | undefined,
-  uid: string,
-): boolean {
-  if (!group) return false;
-  if (group.ownerId === uid) return true;
-  const permissions = group.memberPermissions?.[uid];
-  return (
-    Array.isArray(permissions) &&
-    (permissions.includes("manageBots") || permissions.includes("addBots"))
-  );
+export const ASSISTANT_KIND = "assistant";
+
+export interface UpdatesParams {
+  sinceMs: number;
+  waitSeconds: number;
 }
 
-/** botの広場への追加を承認・却下・削除できるか（長・`manageBots`）。 */
-export function canApproveBots(
-  group: FirebaseFirestore.DocumentData | undefined,
-  uid: string,
-): boolean {
-  if (!group) return false;
-  if (group.ownerId === uid) return true;
-  const permissions = group.memberPermissions?.[uid];
-  return Array.isArray(permissions) && permissions.includes("manageBots");
+/** 更新の取得のクエリ（`since`＝前回の`nextSince`のミリ秒、`wait`）。不正ならnull。 */
+export function parseUpdatesParams(query: {
+  [key: string]: unknown;
+}): UpdatesParams | null {
+  const since = query.since;
+  let sinceMs = 0;
+  if (since !== undefined && since !== "") {
+    if (typeof since !== "string" || !/^\d{1,16}$/.test(since)) return null;
+    sinceMs = Number(since);
+  }
+  const parsed = parseReadParams({ wait: query.wait });
+  if (!parsed) return null;
+  return { sinceMs, waitSeconds: parsed.waitSeconds };
 }
 
 /**
- * 一対でbotの追加を承認（同意）・却下できるか。**botの所有者以外の参加者**だけ
- * （自分で追加したbotを自分で承認できない。相手の同意が前提）。
+ * AIエージェント連携が寄合のメッセージを読める下限時刻（Firestoreのタイムスタンプ）。
+ * 所有者本人が画面で見られる範囲と同じにする（`firestore.rules`の
+ * `canReadRoomMessage`と同じ判定）: 広場の「新規メンバーに過去を見せない」設定が
+ * 有効なら加入時刻以降、無効（または既存メンバー）なら制限なし（null）。
  */
-export function canConsentDmBot(
-  dm: FirebaseFirestore.DocumentData | undefined,
-  uid: string,
-  botOwnerId: string,
+export function assistantHistoryFloor(
+  group: FirebaseFirestore.DocumentData,
+  room: FirebaseFirestore.DocumentData,
+  ownerId: string,
+): unknown {
+  const joinedAt = group.memberJoinedAt?.[ownerId] ?? null;
+  const hasOverride =
+    room.customSettingsEnabled === true &&
+    room.historyVisibleOverride !== undefined &&
+    room.historyVisibleOverride !== null;
+  const visible = hasOverride
+    ? room.historyVisibleOverride === true
+    : group.historyVisibleToNewMembers === true;
+  return joinedAt !== null && !visible ? joinedAt : null;
+}
+
+/**
+ * AIに見せてよいメッセージか。所有者が非表示にしたもの・スパムは除く。他のAIエージェント連携
+ * （bot）の投稿は、AI同士が返信し合うループを防ぐため、自分の投稿以外は見せない。
+ */
+export function isReadableByAssistant(
+  message: { isSpam?: unknown; hiddenFor?: unknown; senderId?: unknown },
+  ownerId: string,
+  ownSenderId: string,
 ): boolean {
-  const participants = dm?.participants;
-  return (
-    Array.isArray(participants) &&
-    participants.includes(uid) &&
-    uid !== botOwnerId
-  );
+  if (message.isSpam === true) return false;
+  if (Array.isArray(message.hiddenFor) && message.hiddenFor.includes(ownerId)) {
+    return false;
+  }
+  const senderId = typeof message.senderId === "string" ? message.senderId : "";
+  return !senderId.startsWith(BOT_SENDER_PREFIX) || senderId === ownSenderId;
 }

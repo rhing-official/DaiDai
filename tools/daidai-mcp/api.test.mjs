@@ -51,3 +51,10 @@ test("エラー応答はDaiDaiApiErrorになる", async () => {
     (e) => e instanceof DaiDaiApiError && e.status === 403 && /forbidden/.test(e.message),
   );
 });
+
+test("更新の取得: sinceとwaitが付く", async () => {
+  const { impl, calls } = fakeFetch([{ status: 200, body: { conversations: [] } }]);
+  const c = new DaiDaiClient({ token: "t.s", baseUrl: "https://x.test/v1", fetchImpl: impl });
+  await c.updates({ since: "123", wait: 10 });
+  assert.equal(calls[0].url, "https://x.test/v1/updates?since=123&wait=10");
+});

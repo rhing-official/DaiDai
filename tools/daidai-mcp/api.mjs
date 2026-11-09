@@ -58,6 +58,11 @@ export class DaiDaiClient {
     return this.#request("GET", "conversations");
   }
 
+  /** AIエージェント連携のみ。`since`（前回の`nextSince`）以降に更新のあった会話。`wait`秒まで待つ。 */
+  updates({ since, wait } = {}) {
+    return this.#request("GET", "updates", { query: { since, wait } });
+  }
+
   /** `after`（前回の`nextCursor`）以降の新着を返す。`wait`秒まで新着を待つ。 */
   readMessages({ scope, conversationId, roomId, after, limit, wait }) {
     return this.#request("GET", conversationPath(scope, conversationId, roomId), {

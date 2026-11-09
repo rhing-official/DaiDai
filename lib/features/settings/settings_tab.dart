@@ -113,6 +113,7 @@ import '../../router/app_router.dart' show goRouterProvider;
 import '../../utils/community_group.dart';
 import '../chat/group_member_list_screen.dart';
 import 'owned_sticker_packs_popup.dart';
+import 'ai_integration_dialog.dart';
 import 'passkey_management_dialog.dart';
 import 'rhing_seed_change_dialog.dart';
 import 'settings_accordion_section.dart';
@@ -2054,6 +2055,12 @@ class _AccountPage extends ConsumerWidget {
           onTap: () => PasskeyManagementDialog.show(context),
         ),
         _QrLoginRow(strings: strings),
+        // AIエージェント連携（bot API、2026-11-09）。自分のAIに全ての会話を
+        // 読ませ、返信させるためのトークンを作る。
+        _ActionRow(
+          label: strings.assistantTitle,
+          onTap: () => AiIntegrationDialog.show(context, ref, currentUser),
+        ),
         // パスコードロック（2026-11-06、設定>使い心地から移動）。端末ローカルのセキュア
         // ストレージ・生体認証に依存するので、管理画面には出さない（この画面は利用者用）。
         _PasscodeLockFolder(strings: strings, showHeader: false),
@@ -4663,13 +4670,6 @@ class _PasscodeLockFolderState extends ConsumerState<_PasscodeLockFolder> {
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
             child: GekigaSectionHeader(strings.settingsPasscodeLockToggleLabel),
           ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-          child: Text(
-            strings.settingsPasscodeLockDescription,
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
-        ),
         if (_loading)
           const SizedBox.shrink()
         else ...[
@@ -4690,6 +4690,15 @@ class _PasscodeLockFolderState extends ConsumerState<_PasscodeLockFolder> {
                 onChanged: _onBiometricToggle,
               ),
           ],
+          // 説明文は、切り替え・パスコードを変更・生体認証の各ブロックよりも下に置く
+          // （2026-11-09、ユーザー指示）。
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+            child: Text(
+              strings.settingsPasscodeLockDescription,
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+          ),
         ],
       ],
     );

@@ -152,8 +152,9 @@ class _RoomListPaneState extends ConsumerState<RoomListPane> {
     int index,
     Animation<double> animation,
     ColorScheme colorScheme,
-    bool isGekiga,
-  ) {
+    bool isGekiga, {
+    bool showOutline = true,
+  }) {
     // `proxyDecorator`が返すウィジェットはOverlayに差し込まれて描画される
     // ため、フラットUIの`ListTile`（Scaffold周囲のMaterialに暗黙で頼っている）
     // がMaterial祖先を見失い「No Material widget found」でクラッシュする
@@ -168,7 +169,9 @@ class _RoomListPaneState extends ConsumerState<RoomListPane> {
           final t = animation.value;
           Widget result = Transform.scale(scale: 1.0 + 0.04 * t, child: child);
 
-          if (!isGekiga) {
+          // 版画UIは、項目の箱が行の幅より狭く、行全体を囲む縁取りが箱の右に飛び出して
+          // 邪魔になるため縁取りを付けない（[showOutline]、2026-11-09、ユーザー指示）。
+          if (!isGekiga && showOutline) {
             result = DecoratedBox(
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(12),
@@ -425,6 +428,7 @@ class _RoomListPaneState extends ConsumerState<RoomListPane> {
                         animation,
                         colorScheme,
                         isGekiga,
+                        showOutline: uiStyle != AppUiStyle.block,
                       ),
                   children: [
                     for (final (index, room) in _rooms.indexed)
