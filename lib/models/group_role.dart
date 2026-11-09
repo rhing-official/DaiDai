@@ -24,6 +24,11 @@ class GroupPermission {
   /// この権限にする、2026-10-10追加）。
   static const manageBots = 'manageBots';
 
+  /// 自分のbotを承認なしで広場に追加する（bot API、2026-11-09追加）。無いメンバーの
+  /// 追加は`manageBots`を持つ人の承認待ちになる。基準ロール（全員）に付ければ、
+  /// 誰でも自由に追加出来る。既定は誰にも付けない（長が決める）。
+  static const addBots = 'addBots';
+
   /// ロールの権限セットの編集（2026-10-11追加）。これが無いと権限を変更出来ない
   /// （`manageRoles`だけでは、ロールの名前・色・付与・削除・優先順位まで）。
   /// 権限を自由に付けられる＝実質的に全権限を渡せる為、基準ロールには含めず、
@@ -41,6 +46,7 @@ class GroupPermission {
     manageJoinRequests,
     createInvite,
     manageBots,
+    addBots,
     managePermissions,
     playBgm,
   };

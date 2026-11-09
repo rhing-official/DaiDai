@@ -27,6 +27,7 @@ import '../repositories/schedule_coordination_repository.dart';
 import '../repositories/spam_config_repository.dart';
 import '../repositories/sticker_repository.dart';
 import '../repositories/user_repository.dart';
+import '../repositories/bot_repository.dart';
 import '../repositories/webhook_repository.dart';
 
 final authRepositoryProvider = Provider<AuthRepository>((ref) {
@@ -163,6 +164,11 @@ final turnCredentialsRepositoryProvider = Provider<TurnCredentialsRepository>((
 
 final announcementRepositoryProvider = Provider<AnnouncementRepository>((ref) {
   return FirestoreAnnouncementRepository();
+});
+
+/// bot API（段階2a、2026-11-09追加）。
+final botRepositoryProvider = Provider<BotRepository>((ref) {
+  return FirestoreBotRepository();
 });
 
 /// 受信Webhook（bot・API段階1、2026-10-10追加）。

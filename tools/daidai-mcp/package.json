@@ -1,0 +1,15 @@
+{
+  "name": "daidai-mcp",
+  "version": "0.1.0",
+  "description": "DaiDai bot API を Claude Code などの MCP クライアントから使うための MCP サーバー",
+  "type": "module",
+  "bin": { "daidai-mcp": "./index.mjs" },
+  "scripts": { "test": "node --test" },
+  "engines": { "node": ">=20" },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "zod": "^3.25.0"
+  },
+  "license": "UNLICENSED",
+  "private": true
+}

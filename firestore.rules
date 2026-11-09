@@ -410,6 +410,15 @@ service cloud.firestore {
 
     // directMessages/{dmId}: 参加者本人のみ読み書き可能。
     match /directMessages/{dmId} {
+      // bots/{botId}: 一対に追加された（または追加を要求した）bot（bot API、
+      // 2026-11-09、段階2c）。参加者なら誰でも確認できる（見える化）。書き込みは
+      // 常にCloud Functions（Admin SDK）経由。
+      match /bots/{botId} {
+        allow read: if request.auth != null
+          && request.auth.uid in get(/databases/$(database)/documents/directMessages/$(dmId)).data.participants;
+        allow write: if false;
+      }
+
       // getOrCreateDirectMessage()は作成前に存在確認のgetを行うため、
       // 未作成（resource == null）の場合は読み取りを許可する（中身は空なので問題ない）。
       allow read: if request.auth != null
@@ -1115,6 +1124,15 @@ service cloud.firestore {
         allow write: if false;
       }
 
+      // bots/{botId}: 広場に追加された（または追加を要求した）bot（bot API、
+      // 2026-11-09、段階2a）。広場のメンバーなら誰でも「どのbotが読めるか」を
+      // 確認できる（見える化）。書き込みは常にCloud Functions（Admin SDK）経由。
+      match /bots/{botId} {
+        allow read: if request.auth != null
+          && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.memberIds;
+        allow write: if false;
+      }
+
       // joinRequests/{requesterId}: 招待リンクからの参加リクエスト。
       // ドキュメントidは申請者本人のuserId（1人につき常に1件）。
       match /joinRequests/{requesterId} {
@@ -1607,6 +1625,14 @@ service cloud.firestore {
     // あるため公開読み取り可能。メンバー一覧・メッセージ等の非公開情報は含まない。
     // 書き込みは対応する広場のメンバーのみ（プロフィールカード編集・広場作成時に
     // groups/{groupId}と同時に更新する）。
+    // bots/{botId}: 住人が持つbot（bot API、2026-11-09、段階2a）。所有者だけが
+    // 自分のbotを読める。作成・変更・削除はCloud Functions（Admin SDK）経由のみ。
+    match /bots/{botId} {
+      allow read: if request.auth != null
+        && request.auth.uid == resource.data.ownerUserId;
+      allow write: if false;
+    }
+
     match /groupInvites/{groupId} {
       allow read: if true;
       allow write: if request.auth != null

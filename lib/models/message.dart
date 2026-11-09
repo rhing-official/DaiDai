@@ -232,6 +232,7 @@ class Message {
   final String? botIconUrl;
   final String content;
   // text | image | file | sticker | video | call | accountDeleted
+  // | botAdded | botRemoved（botの追加・削除のお知らせ、本文はBOT名、2026-11-09）
   // | calendarEventCreated | scheduleCoordinationCreated | pollCreated
   // | noteCreated
   final String contentType;

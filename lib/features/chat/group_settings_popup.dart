@@ -26,6 +26,7 @@ import 'group_member_list_screen.dart';
 import 'group_profile_card_screen.dart';
 import 'group_permission_manage_popup.dart';
 import 'group_role_list_popup.dart';
+import 'bot_management_popup.dart';
 import 'webhook_management_popup.dart';
 import '../../widgets/app_dialog.dart';
 import '../../widgets/toggles/app_switch.dart';
@@ -295,6 +296,17 @@ class GroupSettingsPopup extends ConsumerWidget {
                 ),
                 isGlass: isGlass,
               ),
+      ),
+      // bot API（AIが寄合のメッセージを読み、返信できる、段階2a）。メンバーなら
+      // 誰でも開ける（読めるBOTの確認・自分のBOTの追加。承認は`manageBots`）。
+      ListTile(
+        leading: const Icon(Icons.smart_toy_outlined),
+        title: Text(strings.botMenuLabel),
+        onTap: () => _openSubDialog(
+          context,
+          BotManagementPopup(currentUser: currentUser, group: liveGroup),
+          isGlass: isGlass,
+        ),
       ),
       ListTile(
         leading: const Icon(Icons.link),

@@ -684,6 +684,7 @@ final Strings _stringsFr = Strings._(
     'manageJoinRequests' => 'Approuver/refuser les demandes d’adhésion',
     'createInvite' => 'Créer des liens d’invitation',
     'manageBots' => 'Gérer les bots et les webhooks',
+    'addBots' => 'Ajouter ses propres bots sans approbation',
     'managePermissions' =>
       'Gérer les autorisations (modifier les autorisations des rôles)',
     'playBgm' => 'Diffuser de la musique de fond dans les appels',
@@ -752,6 +753,52 @@ final Strings _stringsFr = Strings._(
   webhookLastUsed: (when) => 'Dernière utilisation : $when',
   webhookNeverUsed: 'Jamais utilisé',
   webhookCreateFailed: 'Impossible de créer le webhook',
+  botMenuLabel: 'Bots',
+  botTitle: 'Bots',
+  botDescription:
+      'Les bots ajoutés peuvent lire et répondre aux messages envoyés dans cette place après leur ajout (l’historique antérieur reste masqué). Chaque bot fonctionne sur l’IA et le serveur de son propriétaire.',
+  botEmpty: 'Aucun bot ajouté pour le moment',
+  botAddMine: 'Ajouter un de mes bots',
+  botPendingBadge: 'En attente d’approbation',
+  botApprove: 'Approuver',
+  botReject: 'Refuser',
+  botRemove: 'Retirer',
+  botNoneToAdd:
+      'Vous n’avez aucun bot à ajouter. Créez-en un d’abord avec « Gérer mes bots ».',
+  botManageMine: 'Gérer mes bots',
+  botMineTitle: 'Mes bots',
+  botCreate: 'Créer un bot',
+  botNameLabel: 'Nom du bot (nom affiché)',
+  botCreatedTitle: 'Jeton',
+  botTokenOnceWarning:
+      'Ce jeton n’est affiché qu’une seule fois. Copiez-le et conservez-le dès maintenant.',
+  botCopyToken: 'Copier le jeton',
+  botCopied: 'Copié',
+  botRotate: 'Régénérer le jeton',
+  botRotateDone: 'Jeton régénéré (l’ancien ne fonctionne plus)',
+  botDelete: 'Supprimer',
+  botDeleteTitle: 'Supprimer ce bot ?',
+  botDeleteBody:
+      'Le bot sera retiré de toutes les places où il a été ajouté et son jeton cessera de fonctionner.',
+  botAdded: 'Bot ajouté',
+  botRequested:
+      'Envoyé pour approbation. Il sera actif une fois approuvé par un administrateur de cette place.',
+  botFailed: 'L’opération a échoué',
+  botApiLabel: 'Utilisation (curl)',
+  botReadScope:
+      'Les bots ne lisent que les salons auxquels tous les membres appartiennent',
+  chatBotAddedNotice: (name) =>
+      'Le bot « $name » a été ajouté. Il peut lire les messages à partir de maintenant',
+  chatBotRemovedNotice: (name) => 'Le bot « $name » a été retiré',
+  botDescriptionDm:
+      'Les bots ajoutés peuvent lire et répondre aux messages de ce duo après le consentement de l’autre personne (l’historique antérieur reste masqué). Chaque bot fonctionne sur l’IA et le serveur de son propriétaire.',
+  botPendingDm: 'En attente du consentement de l’autre personne',
+  botRequestedDm:
+      'Envoyé pour consentement. Il sera actif dès que l’autre personne accepte.',
+  botReadingBannerDm: (names) =>
+      'Des bots ($names) peuvent lire les messages de ce duo',
+  botReadingBanner: (names) =>
+      'Des bots ($names) peuvent lire les messages de cette place',
   groupRoomCustomSettingsLabel: 'Réglages propres à ce salon',
   groupRoomCustomSettingsHint:
       'Lorsque cette option est activée, les réglages de notifications, d’accusés de lecture, de priorité des rôles et de visibilité des anciens messages de ce salon l’emportent sur les valeurs par défaut de la place',

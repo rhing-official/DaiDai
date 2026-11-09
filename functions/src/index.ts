@@ -33,7 +33,7 @@ import { onSchedule } from "firebase-functions/v2/scheduler";
 import { onObjectFinalized } from "firebase-functions/v2/storage";
 import { spawn } from "node:child_process";
 import ffmpeg from "fluent-ffmpeg";
-import ffmpegPath from "ffmpeg-static";
+import { path as ffmpegPath } from "@ffmpeg-installer/ffmpeg";
 import Stripe from "stripe";
 import { parseKiwamiReference } from "./kiwamiReference";
 import { aliasExpiresAtMs, evaluateSeedChange } from "./rhingSeedChange";
@@ -60,6 +60,15 @@ import {
   verifyWebhookToken,
   webhookSenderId,
 } from "./webhook";
+export {
+  botApi,
+  createBot,
+  deleteBot,
+  removeBotFromGroup,
+  requestBotAddition,
+  respondBotAddition,
+  rotateBotToken,
+} from "./botFunctions";
 import {
   type SkippedTarget,
   classifyTarget,
@@ -3092,7 +3101,12 @@ async function sendMessageNotification(params: {
 }): Promise<void> {
   const { isDm, conversationId, roomId, message } = params;
   if (message.silent === true) return;
-  if (message.contentType === "call" || message.contentType === "accountDeleted") {
+  if (
+    message.contentType === "call" ||
+    message.contentType === "accountDeleted" ||
+    message.contentType === "botAdded" ||
+    message.contentType === "botRemoved"
+  ) {
     return;
   }
 
@@ -3132,9 +3146,15 @@ async function sendMessageNotification(params: {
         memberIds: participants,
       });
     }
-    const identity = resolveSenderIdentity(sender, conversationId);
-    title = identity.name;
-    iconUrl = identity.iconUrl;
+    if (botName !== null) {
+      // BOT由来（bot API、2026-11-09）は送信者の`users`が無い為、BOT名を題にする。
+      title = botName;
+      iconUrl = null;
+    } else {
+      const identity = resolveSenderIdentity(sender, conversationId);
+      title = identity.name;
+      iconUrl = identity.iconUrl;
+    }
   } else {
     const groupDoc = await db.doc(`groups/${conversationId}`).get();
     const memberIds: string[] = groupDoc.data()?.memberIds ?? [];
@@ -3576,6 +3596,10 @@ async function incrementUnreadCounts(params: {
   message: FirebaseFirestore.DocumentData;
 }): Promise<void> {
   const { isDm, conversationId, roomId, message } = params;
+  // bot追加・削除のお知らせ（システムメッセージ）は未読にしない（2026-11-09）。
+  if (message.contentType === "botAdded" || message.contentType === "botRemoved") {
+    return;
+  }
   const senderId: string = message.senderId;
 
   let recipientIds: string[];

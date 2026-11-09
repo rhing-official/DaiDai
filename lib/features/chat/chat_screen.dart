@@ -5257,6 +5257,9 @@ class _MessageRow extends ConsumerWidget {
           );
 
     final isCallSummary = message.contentType == 'call';
+    final isBotNotice =
+        message.contentType == 'botAdded' ||
+        message.contentType == 'botRemoved';
     final isAccountDeletedNotice = message.contentType == 'accountDeleted';
     final isCalendarEventNotice = message.contentType == 'calendarEventCreated';
     final isScheduleCoordinationNotice =
@@ -5300,6 +5303,13 @@ class _MessageRow extends ConsumerWidget {
         ?replyPreview,
         if (isCallSummary)
           _callSummaryContent(onBubbleColor, strings)
+        else if (isBotNotice)
+          Text(
+            message.contentType == 'botAdded'
+                ? strings.chatBotAddedNotice(message.content)
+                : strings.chatBotRemovedNotice(message.content),
+            style: TextStyle(color: onBubbleColor),
+          )
         else if (isAccountDeletedNotice)
           _accountDeletedContent(context, ref, strings, onBubbleColor, isGekiga)
         else if (isCalendarEventNotice)
@@ -8179,7 +8189,9 @@ class _SenderName extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    if (botName != null || userId.startsWith(kWebhookSenderPrefix)) {
+    if (botName != null ||
+        userId.startsWith(kWebhookSenderPrefix) ||
+        userId.startsWith(kBotSenderPrefix)) {
       // お便り（`system:`）は住人でもBOTでも無い運営の発信元の為、
       // 名前だけを出し「BOT」バッジは付けない（2026-10-10）。
       final isSystem = userId.startsWith(kSystemSenderPrefix);
@@ -8233,6 +8245,10 @@ class _SenderName extends ConsumerWidget {
 /// 受信Webhook由来の投稿の`senderId`の接頭辞（`webhook:{webhookId}`、
 /// `functions/src/webhook.ts`の`webhookSenderId`と同じ、2026-10-10追加）。
 const kWebhookSenderPrefix = 'webhook:';
+
+/// bot API由来の投稿の`senderId`の接頭辞（`bot:{botId}`、
+/// `functions/src/botApi.ts`の`botSenderId`と同じ、2026-11-09追加）。
+const kBotSenderPrefix = 'bot:';
 
 /// お便り（運営の発信元）の`senderId`の接頭辞（`system:official`、
 /// `OfficialProfile.senderId`、2026-10-10追加）。住人（`users`）ではないため
@@ -8298,6 +8314,7 @@ class _SenderAvatar extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final user =
         (userId.startsWith(kWebhookSenderPrefix) ||
+            userId.startsWith(kBotSenderPrefix) ||
             userId.startsWith(kSystemSenderPrefix))
         ? null
         : ref.watch(watchedUserProvider(userId)).value;
